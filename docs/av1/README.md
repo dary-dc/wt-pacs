@@ -94,7 +94,7 @@ frame decodes in 0.64–0.83× of row 28's time** (0.63–0.76× at 4×, dav1d-W
 through WebCodecs where it is ≤ 10 bits (k = 3 brings CT and the cone-beam set there) a frame decodes
 in **0.34–0.56× of row 28's time, 2.1–3.4× HTJ2K's**. Inter coding finds nothing predictable in the
 noise (the low stream inter is 0–3.6 % larger), and libaom's remaining tools nothing (palette, already
-on, is worth 4.5–9.2 %; the rest ±1 %). What that does to total time is arithmetic until row TOTAL2.
+on, is worth 4.5–9.2 %; the rest ±1 %). What that does to total time is arithmetic until row TOTAL2. *Measured since (row TOTAL3, §Total time): the deflated low bits and k = 3 cut a grey fill by 3 % at 4× on 50 Mbit and by 0–1 % elsewhere; the deflate alone at k = 2 costs 0.4 %.*
 
 *What G = 1 costs an ask (SPEED's decode times × SIZE's bytes; arithmetic, not measured).* An ask is
 one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of decoding** in Chromium
@@ -214,7 +214,11 @@ the largest frames and a first frame about as late as HTJ2K's, both small beside
 not.
 
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
-unsigned. Signed data is offset by 2^(B−1), which is reversible; data over 12 bits (stored 16-bit)
+unsigned. Signed data is offset by 2^(B−1), which is reversible (*corrected 2026-10-05: what was built and
+measured is an offset of −min of the series, 0 when it has no negative sample — `lab/av1/size.py` `Set.offset`,
+[`item-format.md`](item-format.md) §Representation; 2^(B−1) is the shift HTJ2K's and JPEG XL's inputs get, `size.py`
+`pnm()`. It needs fewer bits: the CT, stored 16-bit signed at −2048..3746, takes 13 bits offset by 2048, 16 by
+2^15*); data over 12 bits (stored 16-bit)
 needs a split into planes or streams. Row DEPTH measures the options against HTJ2K on the same frames.
 On row DATA's sets, measured: the CT spans −2048..3746 (−1097..3746 without its pad), so it does
 **not** fit 12 bits after an offset; the cone-beam volume needs 13 bits; MR, fluoroscopy and
@@ -285,6 +289,42 @@ frame, median of 10 interleaved rounds at 1× · 4×, 9 920/9 920 frames exact:
 
 WebCodecs was faster than d12 in 60/60 paired rounds. It is still 2.6–2.8× OpenJPH, against 5.5–7.1×
 for d12. The decoder accounts for the gain: dav1d-WASM on w10 takes 0.94–1.04 of its d12 time.
+
+Total time used row TOTAL's harness: links, CPU, rig and Williams order unchanged, 12 rounds, n = 10–12
+a cell, 28 of 1 080 visits `VOID` and dropped. **44 640/44 640 frames were exact.** Each HTJ2K cell gives
+the median seconds to every frame on the page. Each layout cell gives the median of round-paired
+ratios to HTJ2K, at 1× · 4×:
+
+| series | arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| --- | --- | --- | --- | --- | --- | --- |
+| CT, 13 bits | HTJ2K, s | 26.7 · 26.7 | 6.81 · 6.82 | 2.87 · 2.88 | 5.41 · 5.37 | 11.3 · 11.1 |
+| | d12, dav1d | 0.92 · 0.92 | 0.92 · 0.93 | 0.93 · 1.52 | 0.94 · 1.02 | 0.90 · 0.93 |
+| | w10, WebCodecs | 0.93 · 0.93 | 0.93 · **0.94** | 0.94 · **0.94** | 0.95 · **0.96** | 0.87 · 0.95 |
+| projections, system 1, 14 bits | HTJ2K, s | 60.0 · 60.3 | 15.2 · 15.5 | 6.27 · 6.54 | 14.0 · 14.4 | 28.5 · 28.7 |
+| | d12, dav1d | **0.96 · 0.99** | **0.99** · 1.10 | 1.04 · 1.63 | **0.95** · 1.07 | **0.98** · 1.02 |
+| | w10, WebCodecs | 1.00 · 1.01 | 1.01 · 1.04 | 1.03 · 1.11 | 1.01 · 1.04 | 1.01 · 0.98 |
+| projections, system 2, 14 bits | HTJ2K, s | 47.9 · 48.0 | 12.1 · 12.3 | 5.03 · 5.18 | 9.21 · 9.36 | 21.8 · 22.2 |
+| | d12, dav1d | **0.93 · 0.94** | **0.95** · 1.01 | **0.97** · 1.46 | **0.94** · 1.03 | **0.95 · 0.95** |
+| | w10, WebCodecs | 1.05 · 1.05 | 1.05 · 1.07 | 1.06 · 1.11 | 1.10 · 1.13 | 0.99 · 1.09 |
+
+* **At 13 bits w10 is the layout.** It is within 1 % of d12 wherever the wire is the clock and wins
+  every cell, 0.87–0.96. At 4× it holds 0.94–0.96 on 50 Mbit and LTE, where d12 takes 1.52 and 1.02.
+  Its first frame comes 4–30 ms before HTJ2K's on every cell.
+* **At 14 bits d12 is the layout, and only where the wire is the clock.** At 1× it wins on every link
+  but system 1 at 50 Mbit (0.93–0.99). At 4× it wins at 5 Mbit (0.94–0.99) and on system 2's Wi-Fi,
+  and loses 1–63 % elsewhere: HTJ2K wins those cells, but for system 1's Wi-Fi at 4×, where w10 is
+  0.98. w10 carries four low bits. It is 0.98–1.11 on system 1 and 0.99–1.13 on system 2, which is
+  its bytes (0.999 and 1.046). WebCodecs' faster decode does not pay back four low bits at 14 bits.
+* **The first frame is HTJ2K's at 14 bits** on every cell but one: d12 is 89–572 ms behind it at 1×
+  and 0.89–2.4 s at 4×, and w10 25–239 ms and 211–471 ms (16 ms ahead on system 1's LTE at 1×).
+* **Saturation.** As row TOTAL found: at 4× on 50 Mbit (and on 20 Mbit for the 5-megapixel
+  projections), dav1d-WASM's decode on the browser's three cores is the fill's clock. Nothing is
+  claimed about a phone.
+
+**Verdict, REP14:** at 13 bits store top10+low (w10, WebCodecs), which is 0.931 of HTJ2K's bytes and
+wins or ties every cell. At 14 bits store the two low bits apart (d12, dav1d-WASM), which is 0.92–0.95
+of HTJ2K's bytes and 0.93–0.99 of its fill time where the wire is the clock, and HTJ2K wherever a slow
+CPU meets a link of 20 Mbit or more. w10 is the 14-bit choice on one cell only.
 
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
@@ -398,6 +438,24 @@ dav1d-WASM preview, unit sent to picture in the contract: **0.65× on the ultras
 against 36.5 ms), but 1.1–1.3× — slower — on the 2–4 ms grey bases at 1×. The base is 7–36 % of
 WebCodecs' own exact frame (headless Chromium 141, this container, 15 interleaved rounds,
 19 440/19 440 pictures matched). Not built into `decode-av1-webcodecs.js`.
+*Bases first, measured (row SVC; [`lab/av1/bases`](../../lab/av1/bases/README.md)).* Row SVCORDER's
+layer-major layout built in the lab — entry i the base, entry F + i the whole unit, a lab decoder
+worker through the downloader's `decoderWorker` seam, the downloader, server and store unchanged —
+with row SVCSHAPE's shape (a quarter-size base at q 40, one keyframe) on the fluoroscopy and the
+ultrasound, row TOTAL's rig at 5/20/50 Mbit/s, 1× and 4×, 13 interleaved rounds, n = 4–13 a cell,
+27 456/27 456 frames exact, 6 864/6 864 bases equal to native dav1d's at operating point 1, none
+late. **Every frame is on screen 0.13–0.15 s (fluoroscopy) and 0.33 s (ultrasound) after the fill's
+issue at 1×, 0.33–0.36 s and 1.0–1.1 s at 4×, at every rate** — against 1.7–15.2 s and 3.2–29.4 s
+for HTJ2K's exact series, a 5–101× lead on the fluoroscopy and 2.9–90× on the ultrasound, least at
+4× on 50 Mbit/s; the first picture is 68–170 ms against HTJ2K's 280–1 117. **The bases cost 0.06 %
+(fluoroscopy) and 0.35 % (ultrasound) of HTJ2K's bytes again, and the exact fill 0–8 % over the
+same encoder's single-layer stream** (most at 50 Mbit/s and at 4×, where decode is the clock). What
+the shape costs is not the layers but its one keyframe and lossless SVC's size: the series is one
+group, decoded in order on one decoder, and the payload is 1.07 and 1.59 of HTJ2K's bytes, so the
+exact series lands at 1.07–1.09× (fluoroscopy) and 1.59–1.60× (ultrasound) HTJ2K's time at 5 Mbit/s and 4.5× (fluoroscopy) and 7.4×
+(ultrasound) at 4× on 50 Mbit/s — where intra AV1 is 1.8× and 2.3×. Container numbers, not a phone's;
+not adopted (owner, 2026-10-04). A shape with a keyframe every 8 frames would decode across
+decoders; not run.
 
 *LCEVC as the preview's enhancement (row LCEVC; [`lab/av1/lcevc`](../../lab/av1/lcevc/README.md),
 answered from the decoder's source, no trial).* MPEG-5 Part 2 has no lossless mode, but at step
@@ -527,6 +585,65 @@ cell measured but two, both at 4× on 50 Mbit, where the better of them loses by
 WebCodecs on the 12-bit series (top10+low2 at 0.943, against row TOTAL's top10+low3 at 0.999), so
 the bytes and the faster decoder no longer trade. dav1d-WASM keeps the same bytes and keeps losing
 40–60 % to HTJ2K where a slow CPU meets a fast link.
+
+### The plain control and row ENCX's changes, by total time (row TOTAL3, [`lab/av1/total`](../../lab/av1/total/README.md))
+
+The same harness and links as row TOTAL2, four arms a series: HTJ2K; [`item-format.md`](item-format.md)'s
+**plain** representation (the samples direct, RGB as G, B, R; WebCodecs where ≤ 10 bits, else
+dav1d-WASM); its **optimized** one as adopted (row TOTAL2's top+low2 and RCT through WebCodecs); and
+the optimized one with row ENCX's changes, **x36** — the low bits packed and raw-deflated, inflated by
+`DecompressionStream`, and k = 3 on the two series whose noise σ ≥ 17 (fluoroscopy, 12-bit
+tomosynthesis; k = 2 on the 10-bit volume), the top through WebCodecs. x36 is decoded by a lab worker
+merging through the product's `av1-frame.js`, not by the product. The ultrasound has no x36: row ENCX's
+changes are the grey split's. Plain is libaom cpu0, not the format's fastest preset within 2 % of it.
+13 rounds Williams-ordered, 1 026 of 1 170 visits kept (144 `VOID`, more in the later rounds and spread
+evenly over the arms), n = 5–13 a cell, **38 532/38 532 frames exact**. Every fill ÷ HTJ2K's, the
+median of round-paired ratios, 1× · 4×; in brackets bytes over HTJ2K's on the whole series:
+
+| series | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| --- | --- | --- | --- | --- |
+| fluoroscopy, 12-bit | HTJ2K, s | 15.2 · 15.2 | 3.93 · 3.96 | 1.73 · 1.75 |
+| | plain, dav1d (1.024) | 1.03 · 1.04 | 1.04 · 1.09 | 1.06 · 1.61 |
+| | optimized (0.943) | 0.95 · 0.95 | 0.95 · 0.97 | 0.97 · 1.02 |
+| | x36, k = 3 (0.938) | **0.94 · 0.94** | **0.95 · 0.96** | **0.96 · 1.00** |
+| tomosynthesis, 12-bit | HTJ2K, s | 23.7 · 23.7 | 6.05 · 6.09 | 2.58 · 2.62 |
+| | plain, dav1d (1.043) | 1.05 · 1.05 | 1.05 · 1.08 | 1.06 · 1.65 |
+| | optimized (0.942) | 0.94 · 0.95 | 0.95 · 0.96 | 0.96 · 1.01 |
+| | x36, k = 3 (0.940) | **0.94 · 0.94** | **0.95 · 0.95** | **0.96 · 0.98** |
+| tomosynthesis, 10-bit | HTJ2K, s | 22.3 · 22.4 | 5.71 · 5.77 | 2.44 · 2.50 |
+| | plain, WebCodecs (0.977) | 0.98 · 0.99 | 0.99 · 1.01 | 1.00 · 1.19 |
+| | optimized (0.944) | **0.95 · 0.95** | **0.95 · 0.96** | **0.96** · 1.00 |
+| | x36, k = 2 (0.948) | 0.95 · 0.95 | 0.96 · 0.97 | 0.96 · **0.99** |
+| ultrasound, RGB 8 | HTJ2K, s | 29.4 · 29.5 | 7.49 · 7.52 | 3.15 · 3.17 |
+| | plain, WebCodecs (1.117) | 1.12 · 1.12 | 1.12 · 1.13 | 1.12 · 1.27 |
+| | optimized (0.958) | **0.96 · 0.96** | **0.96 · 0.97** | **0.97** · 1.03 |
+
+* **x36 over the optimized representation, round-paired:** on the two k = 3 series 0.990–0.997 where
+  the wire is the clock (its bytes, 0.5 % and 0.2 % fewer; faster in 95 of 97 pairs) and **0.969–0.972 at
+  4× on 50 Mbit**, where the decode is (faster in 20 of 23). On the 10-bit volume, the deflate alone:
+  1.003–1.006, slower in 46 of 49 pairs, from 0.4 % more bytes, and 0.971 at 4× on 50 Mbit.
+* **So row ENCX's changes buy 3 % where a slow CPU meets a fast link and ±0.5 % elsewhere**: at 4× on
+  50 Mbit they take the grey series from 1.00–1.02 of HTJ2K to 0.98–1.00 (the fluoroscopy a tie, slower in
+  6 of 12), the one cell row TOTAL2 left HTJ2K's; on every other cell x36 is 0.94–0.97 of HTJ2K, as the
+  optimized representation is.
+* **The plain control loses on every cell but the 10-bit volume's.** At 12 bits it goes through
+  dav1d-WASM: 1.03–1.09, and 1.61–1.65 at 4× on 50 Mbit. On the ultrasound, through WebCodecs,
+  1.12–1.13, its bytes, and 1.27 at 4× on 50 Mbit. The 10-bit volume is the one series where plain AV1's
+  bytes are under HTJ2K's: 0.98–0.99 at 5 Mbit, a tie at 50 Mbit, 1.19 at 4× on 50 Mbit. Over the control
+  the optimized representation is 0.61–0.84 of its fill at 4× on 50 Mbit and 0.86–0.96 elsewhere.
+* **First frame.** x36 is 6–38 ms ahead of the optimized representation on the k = 3 series and 0–15 ms
+  behind on the 10-bit volume. Plain is 90–170 ms behind HTJ2K at 1× and 340–420 ms at 4× through
+  dav1d-WASM, 28–152 ms through WebCodecs.
+* **Saturation** as in row TOTAL2: at 4× on 50 Mbit three slowed cores are the clock. Nothing is claimed
+  about a phone, or about the LTE and Wi-Fi profiles, which this row did not run.
+
+**Verdict.** Against HTJ2K, lossless AV1 as it codes out of the box fills 3–13 % slower wherever the wire
+is the clock and 27–65 % slower where a slow CPU meets a fast link; only the 10-bit volume, whose plain
+bytes are under HTJ2K's, ties or wins on the wire (and loses 19 % there). The
+adopted representation turns that into 3–6 % faster on every cell but 4× on 50 Mbit (1.00–1.03). **Row
+ENCX's changes add 3 % at 4× on 50 Mbit and almost nothing elsewhere**: on grey they close that last cell
+to 0.98–1.00, and k = 3 is worth its 0.2–0.5 % of bytes; the deflate alone, at k = 2, costs 0.4 % of
+bytes where the wire is the clock.
 
 ## Threads (owner, 2026-10-03)
 

@@ -8,9 +8,11 @@ beat intra, gop (the whole series one group, no alt-ref); on the fluoroscopy, pr
 lossy preview, 10-bit 4:0:0, G = 8, CRF 20, cpu6. Row TOTAL2 adds row LLSIZE's best codings: l2,
 the two low bits apart on grey; rct, the reversible colour transform on RGB, intra and G = 8. Every
 exact arm is decoded natively and matched with the series' checksum; a preview's truth is its native
-decode's hash.
+decode's hash. Row TOTAL3 adds x36, row ENCX's changes to l2: the low k bits packed and raw-deflated,
+k = 3 where the noise's σ ≥ 17; and names the two representations of docs/av1/item-format.md, plain
+and opt, each with the decoder the format picks.
 
-usage: [ARMS=av1,split,gop,pre,l2,rct] make_frames.py BUILD OUT SETDIR ...  (OUT/SET/arms.json says
+usage: [ARMS=av1,split,gop,pre,l2,rct,x36,plain] make_frames.py BUILD OUT SETDIR ...  (OUT/SET/arms.json says
 what was made; ARMS limits it, htj2k always) — lab/av1/total/README.md
 """
 import json
@@ -26,14 +28,18 @@ sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE.parent / "speed"))
 sys.path.insert(0, str(HERE.parent / "preview"))
 sys.path.insert(0, str(HERE.parent / "llsize"))
+sys.path.append(str(HERE.parent / "encx"))
 import depth  # noqa: E402
 import llsize  # noqa: E402
 import encode as preview  # noqa: E402
 from make_frames import htj2k  # noqa: E402
+from encx import deflate, inflate, pack, unpack  # noqa: E402
 from size import AOM, Set, av1_cell, decode_y4m, exact, ivf_units, timed, write_y4m  # noqa: E402
 
 GOP = {"dbt10_ea1141"}
 PREVIEW = {"rf_fluoro": (8, 20)}
+# Row ENCX's k: 3 where the noise's σ ≥ 17 (lab/av1/encx/README.md §The split per series), else 2.
+K36 = {"rf_fluoro": 3, "dbt12_ea1141": 3, "dbt10_ea1141": 2}
 SRGB = ["--color-primaries=bt709", "--transfer-characteristics=srgb", "--matrix-coefficients=identity"]
 
 
@@ -101,6 +107,26 @@ def represented(build, s, work, rep, flags, group):
     return [len(top).to_bytes(4, "little") + top + low for top, low in zip(*streams)]
 
 
+def deflated(build, s, work, rep, k):
+    """rep's top coded as row LLSIZE codes it, the low k bits packed and raw-deflated: `[u32le len(top)][top][low]`."""
+    (used, _, top), (_, _, low) = rep.planes
+    bits = llsize.container(used)
+    y4m, ivf = work / "x.y4m", work / "x.ivf"
+    llsize.write_y4m(y4m, s.n, bits, 1, s.h, s.w, top)
+    timed([build / f"aom-{AOM}/bin/aomenc", "-q", "--ivf", "-o", ivf, "--lossless=1", "--cpu-used=0", "--threads=1",
+           f"--limit={s.n}", f"--bit-depth={bits}", f"--input-bit-depth={bits}", f"--profile={2 if bits == 12 else 0}",
+           "--kf-max-dist=0", "--tune-content=screen", "--sb-size=64", "--monochrome", y4m])
+    frames = []
+    for i, unit in enumerate(ivf_units(ivf)):
+        packed = deflate(pack(low(i), k))
+        (work / "x.obu").write_bytes(unit)
+        t = llsize.decoded(build, work / "x.obu", work / "x.out.y4m")[0][:s.h, :s.w].astype(np.int32)
+        if not exact(s, i, (t << k) | unpack(inflate(packed), k, t.shape)):
+            sys.exit(f"{s.name} {i}: top{k} + deflated low{k} not exact")
+        frames.append(len(unit).to_bytes(4, "little") + unit + packed)
+    return frames
+
+
 def gop(build, s, work):
     y4m = work / "in.y4m"
     write_y4m(s, y4m)
@@ -156,6 +182,17 @@ def main():
             group, crf = PREVIEW[s.name]
             files["pre"], truth = lossy(build, s, work, group, crf)
             arms["pre"] = dict(group=group, truth=truth)
+        if "x36" in want and s.name in K36:
+            k = K36[s.name]
+            rep = reps[f"low{k}"]
+            files["x36"] = deflated(build, s, work, rep, k)
+            arms["x36"] = dict(split=k, depth=llsize.container(rep.planes[0][0]), worker="/lab/av1/total/deflate-worker.js")
+        if "plain" in want and "av1" in files:
+            arms["plain"] = dict(ext="av1", **({"depth": s.av1_bits} if s.av1_bits <= 10 else {}))
+        if "plain" in want and "l2wc" in arms:
+            arms["opt"] = arms["l2wc"]
+        if "plain" in want and "rctwc" in arms:
+            arms["opt"] = arms["rctwc"]
         for ext, units in files.items():
             for i, unit in enumerate(units):
                 (dst / f"{i:03d}.{ext}").write_bytes(unit)

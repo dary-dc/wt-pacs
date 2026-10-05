@@ -1,7 +1,6 @@
 /**
- * One fill through the downloader against the real server, configured by the runner: when each
- * frame's last byte reached the downloader and its pixels the page, every frame hashed. run.mjs
- * drives it. lab/av1/total/README.md
+ * One fill through the downloader, every frame timed and hashed; a layer-major series (lab/av1/bases)
+ * fills F bases as previews, then F exact frames. run.mjs drives it. lab/av1/total/README.md
  *
  *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256
  */
@@ -9,10 +8,16 @@ import { DownloaderClient } from "/client/downloader/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const FILL = Number(q.get("fill"));
+const OPTS = JSON.parse(q.get("opts"));
+/** Entries a frame has: a layer-major series' exact frame N is entry F + N. */
+const LAYERS = OPTS.decoder?.layers ?? 1;
+const F = FILL / LAYERS;
 const at = () => performance.timeOrigin + performance.now();
 const frames = [];
 const failures = [];
+const previews = [];
 const pixels = new Map();
+const previewPixels = new Map();
 let issuedAt = 0;
 
 async function sha256(sab) {
@@ -28,15 +33,24 @@ async function finish(client) {
   client.close();
   const sha = {};
   for (const [i, px] of pixels) sha[i] = await sha256(px);
-  globalThis.__result = { issuedAt, frames, failures, sha };
+  const previewSha = {};
+  for (const [i, px] of previewPixels) previewSha[i] = await sha256(px);
+  globalThis.__result = { issuedAt, frames, failures, sha, previews, previewSha };
 }
 
-const settled = (client) => frames.length + failures.length === FILL && finish(client);
+const settled = (client) => frames.length + previews.length + failures.length === FILL && finish(client);
 const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
-  ...JSON.parse(q.get("opts")),
+  ...OPTS,
   onFrame: (f) => {
-    frames.push({ i: f.frameIndex, page: at(), lastByte: f.info.stamps.lastByte });
-    pixels.set(f.frameIndex, f.bytes);
+    const i = f.frameIndex - (LAYERS - 1) * F;
+    frames.push({ i, page: at(), lastByte: f.info.stamps.lastByte });
+    pixels.set(i, f.bytes);
+    settled(client);
+  },
+  // A base decoded after its exact frame must not replace it: it is counted, never shown.
+  onPreview: (f) => {
+    previews.push({ i: f.frameIndex, page: at(), late: pixels.has(f.frameIndex) });
+    previewPixels.set(f.frameIndex, f.bytes);
     settled(client);
   },
   onError: (e) => {

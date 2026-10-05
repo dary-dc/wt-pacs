@@ -948,6 +948,8 @@ rows of at most 4 blocks, so with 4 threads and no overhead a frame falls to ~0.
 (whether a block's decode touches shared state is unchecked), a `-pthread` build and a thread pool
 inside each decoder worker. **During a fill it is more decoders in disguise**: the pool is busy 95 % of a colour fill.
 Its one use is an ask on an idle pool, and the range pass is worth as much there with no thread.
+*Built in the lab since (row FASTHTJ2K):* two threads take 9–31 % off a frame, four 40 % on the
+largest frames only — §Faster HTJ2K in the browser.
 
 **(c) What in the worker scales with the throttle.** Nothing faster than the decode: bytes in,
 header and pixels out stay under 1 ms at every throttle. **But the range pass is the largest
@@ -956,6 +958,100 @@ min and max as integers rather than doubles from ±Infinity
 ([`range.mjs`](../../lab/decode-tail/range.mjs), a browser worker, 7 rounds): colour 3.36 → 2.58 ms
 (6/7), 16-bit 1.52 → 1.26 (5/7), signed 12-bit 2.45 → 2.20 (5/7) — not changed. Not walking the
 pixels at all was built: §The range in the pack.
+
+## Faster HTJ2K in the browser
+
+Queue row FASTHTJ2K: where a frame's decode goes on real series, what GPU decoders move, and the
+CPU levers left. [`lab/av1/fasthtj2k`](../../lab/av1/fasthtj2k/README.md) runs it.
+
+**Where the time goes.** OpenJPH 0.31.0 with names kept, headless Chromium 141, the first 8 frames
+of seven series, 5 rounds at 1× and at 4× (one core), V8's sampling profiler, 560/560 frames exact.
+Self time by stage, % of a frame's decode plus its copy out of the heap, medians:
+
+| series | decode ms 1× / 4× | copy out ms 1× | HT block decode | code-block to line | inverse wavelet | colour | wrapper pack | copy out (JS) | rest |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| fluoroscopy 768², 12-bit | 4.9 / 21.7 | 0.7 | 66 | 6 | 6 | — | 5 | 12 | 5 |
+| MR 512² | 2.6 / 11.7 | 0.3 | 70 | 6 | 6 | — | 4 | 10 | 4 |
+| ultrasound 760×421 RGB | 6.4 / 27.9 | 0.5 | 58 | 7 | 9 | 2 | 10 | 7 | 7 |
+| CT 512², signed | 2.6 / 10.0 | 0.3 | 70 | 6 | 5 | — | 4 | 10 | 4 |
+| cone-beam 512², 13-bit | 2.7 / 10.5 | 0.3 | 69 | 6 | 5 | — | 5 | 10 | 5 |
+| tomosynthesis 614×1359 | 5.5 / 25.1 | 0.9 | 61 | 7 | 7 | — | 6 | 14 | 5 |
+| projections 1914×2572, 14-bit | 46.3 / 204 | 5.6 | 68 | 6 | 6 | — | 5 | 11 | 4 |
+
+The shares hold at 4× within 1–3 points. **The HT block decoder is 55–70 % of a frame; the inverse
+wavelet 5–10 %, the colour transform 2 % on RGB.** The block decoder is already OpenJPH's WASM SIMD
+one (`ojph_decode_codeblock_wasm`), and only cleanup passes reach it: the encoder writes no SigProp
+or MagRef pass, so a refinement-pass lever has nothing to act on. This agrees with §The decode tail
+on a slow CPU (b) on synthetic sets (70–76 % blocks, 7–9 % wavelet).
+
+**What GPU decoders move — sources.** Read through search excerpts where the hosts were refused, and
+marked so. nvJPEG2000 decodes HTJ2K only as one cleanup pass per block, "no refinement" (its release
+notes; *excerpt only*). Kakadu's ICIP 2019 paper decodes HTJ2K on a GPU with the CPU parsing the
+codestream into code-block lists and the GPU doing block decoding and wavelet synthesis, reporting
+"block coding speedup of ~10× (lossy) to ~40× (lossless)" and 4K 4:4:4 12-bit lossless at 402 frames/s
+on a GTX 1080 — measured with the irreversible 9/7 wavelet, not this profile's 5/3 (*excerpt only*;
+no per-stage breakdown found). GPU work on classic JPEG 2000 puts ~90 % in block coding and calls the
+inverse DWT's share small (*excerpts only*). **No WebGPU or WebGL JPEG 2000 or HTJ2K decoder was
+found**, open or published. WebGPU itself is in Chrome on Android 12+ since 121 (ARM, Qualcomm and
+Intel GPUs; Imagination since 139, Samsung Xclipse not yet) and on by default in Safari from iOS 26;
+Firefox on Android has it off (gpuweb's implementation-status page and MDN's compatibility data,
+read 2026-10-05). WGSL has the exact integer arithmetic a 5/3 inverse needs (`>>` on `i32` is
+arithmetic, overflow wraps), with no optional feature.
+
+**A WebGPU wavelet: not built — the evidence says it cannot pay.** Removing the wavelet and colour
+transform outright saves at most 6–12 % of a frame. Handing them to a GPU means every subband out as
+32-bit integers and every sample back: on the projections 19.7 MB up and 9.8 MB down a frame, three
+times what the JS copy out already moves in 5.6 ms, to save 2.8 ms (6 % of 46.3). It would also end
+OpenJPH's line-by-line pull, which keeps a few lines resident, for a whole frame of subbands per
+decoder. Moving the block decoder too is a port of the HT cleanup decoder to WGSL with no browser
+precedent: unbounded, and still paying the read-back. The container has no GPU: Chromium offers no
+adapter, and with flags only SwiftShader, which runs on the CPU, so a shader here could be checked
+for exactness and never timed.
+
+**CPU levers, ranked.** Build flags, a newer emscripten, LTO, `wasm-opt`, relaxed SIMD, Wasm
+exceptions, the wrapper's two passes, decoder reuse and the range pass were tried before
+(§Faster, §The wrapper's two passes, §The decode tail, §The range in the pack) and are not repeated.
+
+1. **Code-blocks decoded in parallel inside a frame — built in the lab and measured.** A row of
+   code-blocks decoded by the caller and 1 or 3 helper threads (`cb-threads.patch` at
+   `subband::pull_line`), each arm in a worker, one frame at a time, 6 rounds Williams-ordered,
+   2 688/2 688 frames exact, two mutations caught 56/56. × the plain build, paired by round:
+
+   | series | 2 threads 1× | 4 threads 1× | 2 threads 4× | 4 threads 4× |
+   | --- | ---: | ---: | ---: | ---: |
+   | fluoroscopy | 0.82 (6/6) | 0.83 (5/6) | 0.85 (6/6) | 0.92 (6/6) |
+   | MR | 0.71 (5/6) | 0.89 (6/6) | 0.91 (4/6) | 0.81 (4/6) |
+   | ultrasound RGB | 0.89 (5/6) | 0.99 (3/6) | 0.84 (4/6) | 0.99 (3/6) |
+   | CT | 0.71 (6/6) | 0.84 (6/6) | 0.77 (5/6) | 0.93 (4/6) |
+   | cone-beam | 0.77 (6/6) | 0.82 (4/6) | 0.77 (6/6) | 0.81 (4/6) |
+   | tomosynthesis | 0.84 (6/6) | 0.87 (5/6) | 0.81 (6/6) | 0.87 (4/6) |
+   | **projections** | **0.70 (6/6)** | **0.59 (6/6)** | **0.69 (6/6)** | **0.61 (6/6)** |
+
+   Two threads take 9–31 % off a frame; four help only on the 4.9 M-sample projections (46 → 26 ms
+   at 1×, 195 → 122 ms at 4×) and lose to two everywhere else — a row of a small subband has few
+   blocks, and the row is the unit of hand-off. The ideal, with 65–76 % of a frame parallel, is
+   0.62–0.68 at 2 threads and 0.43–0.51 at 4. `-pthread` alone costs nothing that separates (0.78–1.08,
+   the sign changing by series). **It is an ask's lever, not a fill's:** during a fill three decoders
+   already hold the cores (§The decode tail), so helpers only share them. It needs a cross-origin
+   isolated page, which the product's consumer already requires, and 1–3 more threads per decoder
+   worker (memory not measured).
+2. **The copy out of the heap — bounded, 7–15 %** of a frame at every throttle (0.3 ms on 512², 5.6
+   on the projections at 1×). The decoded samples would have to be written where the page reads them;
+   with `-pthread` the heap is already a `SharedArrayBuffer`, but a frame retained past the next
+   decode still needs its own buffer. Not built.
+3. **The wrapper's pack — bounded, 4–10 %**, the most on RGB, whose three-component interleave
+   `-msimd128` does not take (§The wrapper's two passes). A shuffle-based interleave could take part
+   of the 10 %. Not built.
+4. **OpenJPH 0.32.0 — nothing to time.** Against 0.31.0 its WASM block decoder differs by one mask
+   in the UVLC suffix split (`0xF` → `0xFF`, a bug fix); the wavelet and colour code are unchanged
+   for WASM. Every frame here was already exact on 0.31.0.
+
+**What a phone would need.** For an ask: the thread pool, at two helpers, is the one lever measured
+here, worth 9–31 % of a frame and 30–40 % on the largest; nothing else bounded exceeds 15 %. For a
+fill: more decoders or a faster core — no lever here adds capacity. WebGPU on a phone (Chrome
+Android 121+, iOS 26) leaves the 55–70 % in the block decoder on the CPU unless the HT decoder is
+ported, and the bytes to and from the GPU cost more than the wavelet it would take. None of this is
+measured on a phone; the 4× cell is the container's emulation (§A slow CPU, emulated).
 
 ## A prefix draws a smaller image
 
@@ -1228,5 +1324,7 @@ HTJ2K, paired by round:
 * A heap floor chosen for first-frame latency; the package's own build re-timed since D10.
 * BYOB's ~12 ms first frame, and what an errored stream owes the frame in flight (§The BYOB read
   path).
-* Looked at and dropped, not measured: GPU decode (nothing runs in a browser), fewer decompositions
+* Looked at and dropped, not measured: GPU decode (*corrected:* WebGPU now runs in Chrome on Android
+  and Safari on iOS 26; dropped instead on the profile's 6–12 % ceiling against its copies, §Faster
+  HTJ2K in the browser), fewer decompositions
   (estimated ≤ 0.5 %), a BYOB read into the WASM heap (its memory is not detachable).

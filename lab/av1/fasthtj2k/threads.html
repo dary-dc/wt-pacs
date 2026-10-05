@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>FASTHTJ2K threads</title>
+<script>
+  globalThis.arm = (o) => new Promise((ok) => {
+    const w = new Worker("worker.js");
+    w.onmessage = ({ data }) => { w.terminate(); ok(data); };
+    w.onerror = (e) => { w.terminate(); ok({ error: e.message }); };
+    w.postMessage(o);
+  });
+  globalThis.ready = crossOriginIsolated;
+</script>
