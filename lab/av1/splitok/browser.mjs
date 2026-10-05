@@ -111,7 +111,7 @@ for (const engine of ENGINE_NAMES) {
   const exact = cells.reduce((a, c) => a + c.exact, 0);
   const tally = {};
   for (const c of cells) tally[c.decoders] = (tally[c.decoders] ?? 0) + c.n;
-  console.log(`${engine} (${run.caps?.ua ?? "no page"}; isolated ${run.caps?.isolated}): ${cells.filter((c) => c.exact === c.n).length}/${manifest.length} cells exact,`
+  console.log(`${engine} (${run.caps?.ua ?? "no page"}; isolated ${run.caps?.isolated}, VideoDecoder ${run.caps?.videoDecoder}): ${cells.filter((c) => c.exact === c.n).length}/${manifest.length} cells exact,`
     + ` ${exact}/${frames} frames; decoders ${JSON.stringify(tally)}; chosen as expected ${frames - cells.reduce((a, c) => a + c.wrongDecoder, 0)}/${frames}`
     + `${end.error ? `; ${end.error}` : ""}`);
   for (const c of cells.filter((x) => x.exact !== x.n || x.wrongDecoder)) {
