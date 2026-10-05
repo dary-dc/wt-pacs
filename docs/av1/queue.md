@@ -98,6 +98,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 45 | **DATA3** — the taxonomy's missing content and depths: breast ultrasound cine, ABUS, angiography, FFDM and synthesized 2D, real 9-, 15- and 16-bit and more signed series; exact and bytes per layout, or the hosts to allow | after 43 — data pushed `1e10f8f` (`5d548a7`): nine CC BY sets from IDC v24, 565/565 frames identical to `PixelData`, 4/4 pin mutations caught — FFDM and synthesized 2D from two vendors each (10 and 12 bits), real 9-bit MR, 15-bit PET, 16-bit film scan (~12 bits stretched ×21), two signed CTs with negatives (13 bits); breast ultrasound cine, ABUS and angiography still behind refused hosts (`## Blocked`); row 43's checks and the bytes per layout wait on row 43 — [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 | 46 | **BREAST** — the breast family's missing content (breast ultrasound cine and stills, ABUS, more DBT, FFDM and synthesized 2D), measured as the targets: exact per decoder path, bytes per layout against HTJ2K, intra against inter at G = 8 and 16 in real slice and frame order | claimed 2026-10-05 (night) |
 | 47 | **MIXDEC** — each stream of a split item through its own decoder: a top over 10 bits through dav1d-WASM, the 8-bit low through WebCodecs, against both through dav1d and against w10 | after 43 |
+| 48 | **SPLITLIT** — is splitting samples into top and low streams a recognised, recommended way to code high-bit-depth images losslessly with codecs limited to ≤ 12 bits, and what are the alternatives? | ready |
 
 ## Briefs
 
@@ -821,6 +822,38 @@ Say where the host saturates and claim nothing past it; the decode-bound cells m
 (row 23), so the ranking is the claim. Verdict: the low stream's share, then mixed against today and w10 per series
 and k; whether the flag should become the client's choice is the owner's. Into `lab/av1/item/README.md`,
 [`decode/README.md`](../decode/README.md) §AV1 and [`README.md`](README.md) §A3.
+
+## The prior-art row (48)
+
+Every AV1 layout over 8 bits rests on the bit split (§The bit-split rows), and the lab arrived at it by measurement
+alone. Row 48 asks whether the literature knows it, recommends it, or offers something better.
+
+### 48 SPLITLIT
+
+Web research only, no measurement; the cloud environment's network access is full. Primary sources — standards,
+peer-reviewed papers, codec specifications, DICOM WG-04 material, implementers' documentation — each cited with its
+date; a claim no source confirms is marked unconfirmed.
+
+1. **Prior art.** Splitting samples into most- and least-significant parts (MSB/LSB, bit-plane or "bit-depth
+   splitting") for lossless or near-lossless coding, in medical imaging, depth/range video, HDR and scientific
+   imaging. Is it a recommended practice anywhere? What do the sources report on its byte cost and benefit?
+2. **Alternatives.** For each, how it codes 13–16-bit samples losslessly, and its browser decode path today:
+   * native high-bit-depth codecs: HTJ2K and JPEG 2000, JPEG XL, JPEG-LS, HEVC RExt's 16-bit intra profiles, VVC at
+     16 bits, the AV2/AVM bit-depth plan (row 32: AVM v1.0.0 has no profile over 10 bits);
+   * scalable bit-depth coding: SHVC's bit-depth scalability, and any AV1 or AV2 equivalent;
+   * residual or layered lossless schemes (row 17's lossy preview plus residual is the lab's one).
+3. **Our design against the literature.** What the lab built: k = 2 for every grey source over 8 bits (the optimized
+   representation, [`item-format.md`](item-format.md)); the low bits as their own 8-bit AV1 stream; the offset
+   (−min of the series) for signed data; JPEG 2000's reversible colour transform for RGB. The data are rows 13 (the
+   top 10 + low through WebCodecs), 28 (the two low bits apart, 0.902–0.987 of HTJ2K), 33 (the 13- and 14-bit layouts
+   by total time) and 36 (three low bits beat two where noise σ ≥ 17; HTJ2K gains 0.9–1.6 % from the same split, only
+   with its low bits deflated). Does the literature suggest a better choice of k, a better coding of the low bits, or
+   a reason to prefer a native-depth codec above 12 bits?
+4. **Patents and standards status** of the split approach, if any.
+
+**Deliverable:** [`split-prior-art.md`](split-prior-art.md) — public, no private names, every claim cited with its
+source and date, unconfirmed claims marked; a one-line verdict in the row. Any follow-up measurement the reading
+suggests is proposed here, at the end of this brief, not queued as a row. Docs only, on `claude/av1`.
 
 ## Blocked
 
