@@ -4,7 +4,7 @@
  * process each round, throttles in a Williams order (lab/order.mjs), sets and codings rotating inside.
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/llsize/time.mjs --codings set:rep.variant,... [--rounds 10]
- *     [--throttles 1,4] [--mutate sample] [--out rows.json]
+ *     [--throttles 1,4] [--mutate sample] [--out rows.json] [--work DIR]
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -17,7 +17,7 @@ import { throttleTree } from "../../scripts/cpu_throttle.mjs";
 const require = createRequire(import.meta.url);
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROOT = new URL("../../..", import.meta.url).pathname;
-const WORK = `${ROOT}lab/.av1-work/llsize`;
+const WORK = arg("--work", `${ROOT}lab/.av1-work/llsize`);
 const CODINGS = arg("--codings", "").split(",").filter(Boolean);
 
 /** Decoded planes, in the order coded, back to the samples as stored (interleaved, offset removed). */
@@ -94,7 +94,7 @@ const OUT = arg("--out", null);
 const rows = [];
 for (let r = 0; r < ROUNDS; r++) {
   for (const throttle of order(THROTTLES, r)) {
-    const proc = spawn(process.execPath, [new URL(import.meta.url).pathname, "--codings", CODINGS.join(","),
+    const proc = spawn(process.execPath, [new URL(import.meta.url).pathname, "--codings", CODINGS.join(","), "--work", WORK,
       "--child", JSON.stringify({ r, mutate: MUTATE })], { stdio: ["ignore", "pipe", "inherit"] });
     const stop = throttleTree(proc.pid, throttle);
     let out = "";
