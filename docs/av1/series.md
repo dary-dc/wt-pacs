@@ -117,13 +117,26 @@ No vendor CS read here offers HTJ2K, and none offers Enhanced US Volume for brea
    - The projections' 14th bit comes from one value. Every sample is ≤ 3648 or ≤ 1794 except 16383 = 2^14 − 1.
    - That is consistent with a saturated direct-exposure background in MONOCHROME1 raw data. This is an inference, not stated by any CS.
    - IHE's DBT profile does not require projections to be stored, and screening does not read them [I1]. So the over-12 case may be rare in the target workload. How often archives keep them is UNCONFIRMED.
-2. **YBR_FULL_422 means the modality already coded the image lossily (JPEG baseline).**
-   - The standard notes the chroma may in fact be 4:2:0 under that label (C.7.6.3.1.2, note 3).
-   - Decoded pixels depend on the JPEG decoder (IDCT, chroma upsampling). So "bit-exact" needs a stated reference. There are three options:
-     - a. the JPEG bytes themselves. DICOM has a transfer syntax for this, JPEG XL JPEG Recompression `1.2.840.10008.1.2.4.111`;
-     - b. the decoded Y, Cb, Cr planes at their native subsampling. AV1 needs Main profile for 4:2:0 and **Professional** for 4:2:2;
-     - c. RGB from one fixed decoder.
-   - HTJ2K's table lists no YBR_FULL_422 (PS3.5 Table 8.2.14-1: MONOCHROME1/2, PALETTE COLOR, YBR_RCT, YBR_ICT, RGB, YBR_FULL). So an HTJ2K copy must also upsample first. Both codecs face the same choice.
+2. **Ultrasound that arrives as JPEG has no single exact source; the reference is an open decision.**
+   - **What arrives.** Ultrasound scanners offer baseline JPEG, Photometric Interpretation YBR_FULL_422, as a storage format before the image reaches the archive.
+     - The Siemens S2000 lists JPEG Lossy Baseline and stores YBR_FULL_422 when it uses it [S5 Table 7].
+     - The Philips EPIQ / Affiniti stores lossy images as YBR_FULL_422. For multi-frame (cine), its only compressed options are JPEG Baseline and RLE; JPEG Lossless is not offered [S6].
+     - How often archives receive JPEG rather than uncompressed or RLE pixels is UNCONFIRMED.
+   - **What DICOM fixes.**
+     - JPEG Baseline (`1.2.840.10008.1.2.4.50`) with three samples allows YBR_FULL_422 or RGB, 8 bits [D3 §8.2.1, Table 8.2.1-1].
+     - The JPEG stream's own characteristics control decompression. The colour space, which the JPEG interchange format does not carry, comes from Photometric Interpretation, and the JFIF APP0 marker is recommended absent [D3 §8.2.1].
+     - PS3.3 defines YBR_FULL by the forward equations only: RGB to YCbCr, four-decimal coefficients, no rounding rule and no inverse. YBR_FULL_422 is YBR_FULL with Cb and Cr at half the horizontal rate [D1 C.7.6.3.1.2].
+     - Its notes add that the JPEG stream may in fact be 4:2:0 under that label, and that JPEG chroma is sited as in JFIF, midway between luma samples, not cosited as in native data [D1 C.7.6.3.1.2].
+     - A JPEG image decompressed and stored natively as RGB has its Photometric Interpretation changed to RGB [D3 §8.2.1]. DICOM records that a conversion happened, not which one.
+   - **What the JPEG standards leave open.**
+     - **The inverse DCT.** T.81 gives the IDCT as an ideal equation whose terms "cannot be represented with perfect accuracy by any real implementation", and places the accuracy requirement in Part 2 [J1 §A.3.3, note]. A decoder must reconstruct "with appropriate accuracy", as determined by Part 2's compliance tests [J1 §7]. Part 2 is T.83 [J2]. The tolerance T.83 sets was not read, since the text is sold rather than published: UNCONFIRMED.
+     - **Chroma upsampling.** T.81 leaves component sample registration and the colour space to the application [J1 §1, note; §4.1]. Its only upsampling filter belongs to hierarchical mode [J1 §J.1.1.2], not to baseline's subsampled chroma. JFIF fixes where subsampled chroma sits, not how it is interpolated [J3 §9].
+     - **Colour conversion.** JFIF gives YCbCr to RGB as real-valued equations with rounding and clamping, and coefficients "to four decimal position accuracy" as an approximation [J3 §7]. It does not fix one integer implementation.
+   - **So "the source pixels" are not uniquely defined.** Two conforming decoders may differ in the IDCT's rounding, the chroma upsampling (replication or one of several interpolations) and the integer colour conversion. Bit-exact needs a stated reference. How far browser decoders differ on real ultrasound was not measured: UNCONFIRMED.
+   - **The options**, for the owner to decide:
+     - a. **Serve the stored JPEG bytes as they are.** Bit-exact to the archive. No AV1 or HTJ2K for these series. The browser's JPEG decoder produces the pixels, so what is displayed varies by browser; without the JFIF marker, each engine also chooses the colour space by its own default (which default each applies is UNCONFIRMED). DICOM's JPEG XL JPEG Recompression transfer syntax (`1.2.840.10008.1.2.4.111`) carries the same bytes recompressed and reversibly [D3 §A.4.12], and changes none of this.
+     - b. **Fix one reference decoder, by name and version, and code its RGB output losslessly.** Exact against that reference. The lab's AV1 item format already codes 8-bit RGB exactly through the RCT ([item-format.md](item-format.md)), and HTJ2K takes RGB as it is [D3 Table 8.2.14-1]. Costs one JPEG decode at ingest, a decoder pinned for as long as the copies are kept, and three full-resolution channels where the JPEG had half-resolution chroma.
+     - c. **Code the decoded Y, Cb, Cr planes at their stored resolution.** Removes the upsampling and colour-conversion dependence; the IDCT's remains. Neither codec carries YBR_FULL_422 as it is: HTJ2K's table lists MONOCHROME1, MONOCHROME2, PALETTE COLOR, YBR_RCT, YBR_ICT, RGB and YBR_FULL, not YBR_FULL_422 [D3 Table 8.2.14-1], and AV1 codes 4:2:2 only in the Professional profile [A1 §A.2]. A stream that is 4:2:0 under the label fits AV1's Main profile. Upsampling the planes at ingest, to fit either codec, brings the decoder dependence back.
 3. **Frame geometry against AV1 levels** [A1 Annex A]:
    - Level 5.x caps a picture at 8 912 896 samples, 8192 wide, 4352 high.
    - 3328 × 2560 (8.5 M) and the 1890 × 2457 slice fit level 5.
@@ -154,7 +167,7 @@ No vendor CS read here offers HTJ2K, and none offers Enhanced US Volume for brea
 
 - [D1] DICOM PS3.3 2026d. Sections A.27, A.55, A.74, A.6, A.7, A.59, A.14, A.16, C.7.6.3, C.7.6.5, C.8.2.1, C.8.3.1, C.8.5.6, C.8.7.1, C.8.11.3, C.8.19.2, C.8.21.1, C.8.24.3, C.8.31.1. https://dicom.nema.org/medical/dicom/current/output/chtml/part03/PS3.3.html
 - [D2] DICOM PS3.4 2026d, Table B.5-1 (SOP class UIDs). https://dicom.nema.org/medical/dicom/current/output/chtml/part04/sect_B.5.html
-- [D3] DICOM PS3.5 2026d, §8.2.14–8.2.16 and A.4.12–A.4.13. https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_8.2.14.html
+- [D3] DICOM PS3.5 2026d, §8.2.1 (Table 8.2.1-1), §8.2.14–8.2.16 and A.4.12–A.4.13. https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_8.2.html and https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_8.2.14.html
 - [D4] DICOM supplements in progress. https://www.dicomstandard.org/news-dir/progress
 - [D5] WG-04 page (strategy update 2024-12-05). https://dicomstandard.org/activity/wgs/wg-04
 - [D6] WG-04 minutes, 2024-10-02. https://dicom.nema.org/dicom/minutes/wg-04/2024/WG-04-2024-10-02-tcon-Mins.pdf
@@ -165,6 +178,9 @@ No vendor CS read here offers HTJ2K, and none offers Enhanced US Volume for brea
 - [S4] GE HealthCare DICOM conformance catalogue: Invenia ABUS 2.0 DOC2125962 Rev 1; LOGIQ E10–E20 R5.x DOC2968238 Rev 6; Vivid E95 v202 DOC1966328 Rev 3. Pristina was found by search only, "ZEPHYR_4.2.50". **The PDFs were not readable (HTTP 502).** https://www.gehealthcare.com/en/products/interoperability/dicom-conformance-statements
 - [S5] Siemens, "ACUSON S2000 Ultrasound System DICOM Conformance Statement", Version VA16, 2009-04-03. Tables 7, 8, 12; §11.18. https://marketing.webassets.siemens-healthineers.com/1800000000074060/f0bd0cb625bc/s2000_va16_dcs-00074060_1800000000074060.pdf
 - [S6] Philips, "DICOM Conformance Statement EPIQ and Affiniti Family of Products, Release 9.0.x", 000789000000140 Rev B, 2024-06-28. Tables 4.7, 9.12–9.16. https://www.documents.philips.com/assets/DICOM%20Conformance%20Statement/20250227/0f8dddbc730e4f0188deb29100e392b8.pdf
+- [J1] ITU-T T.81 (09/1992), "Digital compression and coding of continuous-tone still images – Requirements and guidelines" (ISO/IEC 10918-1), with Corrigendum 1 (01/2004). §1 note, §4.1, §7, §A.3.3, §J.1.1.2. https://www.itu.int/rec/T-REC-T.81. ITU sells the text; the section numbers were read from the 1992 text as hosted by W3C, https://www.w3.org/Graphics/JPEG/itu-t81.pdf.
+- [J2] ITU-T T.83 (11/1994), "Digital compression and coding of continuous-tone still images: Compliance testing" (T.81's Part 2, ISO/IEC 10918-2). https://www.itu.int/rec/T-REC-T.83. Sold, not read; its tolerances are UNCONFIRMED, and the ISO/IEC number is from T.81's references to "Part 2", not from the ITU page.
+- [J3] ITU-T T.871 (05/2011), "Digital compression and coding of continuous-tone still images: JPEG File Interchange Format (JFIF)" (ISO/IEC 10918-5:2012), with Erratum 1 (03/2013, not read). §7, §9. https://www.itu.int/rec/T-REC-T.871
 - [I1] IHE Radiology TF Supplement, Digital Breast Tomosynthesis (DBT), Rev 1.3, Trial Implementation, 2016-09-09. Open issues 2, 3, 7, 34; §4.8.4.1.2.7. https://www.ihe.net/uploadedFiles/Documents/Radiology/IHE_RAD_Suppl_DBT_Rev1.3_TI_2016-09-09.pdf
 - [A1] AOM, "AV1 Bitstream & Decoding Process Specification", last modified 2023-05-25. Profiles; Annex A levels. https://aomediacodec.github.io/av1-spec/
 - [W1] W3C, WebCodecs, Working Draft 21 September 2026, `VideoPixelFormat`. https://www.w3.org/TR/webcodecs/. AV1 registration: Group Note Draft, 8 June 2026. https://www.w3.org/TR/webcodecs-av1-codec-registration/
