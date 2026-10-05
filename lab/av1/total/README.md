@@ -74,6 +74,7 @@ against HTJ2K and row ENCX's encoding changes against the adopted one, made with
 | `opt` | `l2` on grey, `rct` on RGB | `l2wc`, `rctwc` | all |
 | `x36` | `l2`'s top at v ≫ k, the low k bits packed MSB first and raw-deflated (zlib level 9); k = 3 on the fluoroscopy and the 12-bit volume (σ ≥ 17), 2 on the 10-bit one | `decoderWorker: deflate-worker.js` → the top through WebCodecs, the low through `DecompressionStream`, merged by the product's `av1-frame.js` | grey |
 
+Rounds 0–9, 18 minutes each; after round 4, 14 916/14 916 frames exact over 454 visits, 12 `VOID`.
 The ultrasound has no `x36`: row ENCX's changes are the grey split's. `x36`'s frames are matched
 with the series' checksum after a native decode and Python's inflate before they are written.
 
