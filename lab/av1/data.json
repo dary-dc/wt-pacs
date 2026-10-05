@@ -1,0 +1,1296 @@
+{
+ "source": "NCI Imaging Data Commons, public bucket idc-open-data (anonymous HTTPS); series chosen with idc-index 0.12.5, IDC data release v24",
+ "sets": [
+  {
+   "name": "ct_lidc",
+   "what": "CT chest, 100 axial slices",
+   "collection": "lidc_idri",
+   "series": "1.3.6.1.4.1.14519.5.2.1.6279.6001.309707676674808510671394142910",
+   "licence": "CC BY 3.0",
+   "doi": "10.7937/k9/tcia.2015.lo9ql9sx",
+   "frames_sha256": "3f825cca9a37667bc67e783bdfe7a5524600a2240e60f744f90f104d3061e23c",
+   "files": [
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/318476c0-f9a8-4e1c-931f-c744ab96c946.dcm",
+     "sha256": "9d613f57fb37cd7aec6d315a6f243f1a5c446ae78d262720fb053fb0899f0098",
+     "bytes": 526104
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/e5a71d8d-7860-4e86-a560-4ca7e4f8ed8b.dcm",
+     "sha256": "73daec6a55d34d8bbe4ce14810024709cbdb5fa6b04415e510da28611a853752",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/be97b99d-39da-403d-b385-47c4c673e7c5.dcm",
+     "sha256": "ad574c0ff701fd805ba43b4f8be2e0f7a11b3417f79f35365318b9dd2a16a0b3",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/fcad12be-e1d1-4d73-9649-733998345f6b.dcm",
+     "sha256": "1395e80cdd9c9ceabb0fe65491a92dc5f244ba385e8b4151b8e7f349d4343e1d",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/ed0bfd03-4782-4f03-bb6e-bfb73ecfd4f4.dcm",
+     "sha256": "5f9e177d093d98f4e6a706967dc6336166ce566b72e5df4b92f25ec5de2edade",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/e9bc143a-25ca-420a-8e32-fbac08d391ca.dcm",
+     "sha256": "4ae48994c0bde0933501d38a3ee335a4444812512fcd2ed9ae9ecf906814311f",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/234143f4-aa32-40ac-a266-2e0520eeeadc.dcm",
+     "sha256": "6f37cd04b5b33a464db982e0fe006c641cc730234051ee85c84115cdcb0535c2",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/64876ac7-1833-47ea-bf09-bb84957b9a3f.dcm",
+     "sha256": "22ca3e8c2343367980f19f6eb8c61e407536badf2507bd8ddfb8e5f79e66e7a0",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/318ecc13-025a-4520-97e1-7a75b7491904.dcm",
+     "sha256": "e93a93c6431b4378121114546063f51da4d5bc1df1a2c075cb009965201b962c",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/2f0c4075-477b-4f7c-97fa-5c5d8140c588.dcm",
+     "sha256": "85b59c7ae816f1714350cef34d44071554554aa9b9c8cfe73f2eecf0b0326865",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/9bd78b38-d091-416e-92d6-56c8bddec9dd.dcm",
+     "sha256": "82a409d62fc2468b27c8e7a5e36123077e9a3a721c335a049c37913e027ed643",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/0a0460c2-3825-4bca-987d-4065a294ed90.dcm",
+     "sha256": "336727a0e58bbf454cc0b70b83f733d691dfe4582341bca647262b9fa2a89611",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/54272a28-c767-466f-8ab8-3680845cd232.dcm",
+     "sha256": "71c7d34b4d3a29fe5db1360adec17ce93e721435cdfd0bffc868188837c74e15",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/beb3d87c-7f51-4d89-bff8-9051425e0ebf.dcm",
+     "sha256": "0575c62930ea8e8b88176cdf60fb1b5e5fd50c9f270ddbe100e2a93ab2ee8814",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/aa9f6787-8e52-4a07-a814-57409b46f252.dcm",
+     "sha256": "a07869f40508661216dde752d9d3035a79ad1e047b4c96331aab50f0a0cf5429",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/16d7c029-e6a1-4f80-a5cd-e22a102ea921.dcm",
+     "sha256": "b68e005cc79af32968441bce1d03a00d3d9686014b3f547a63812d9ac2ae3441",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/6af796ba-e614-4fef-b5b0-0f6b71fd4024.dcm",
+     "sha256": "09e0af888a97f38d1aff9e34837a956e83b422cd25bf6308bdee9efd59c53c1b",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/5261593e-f422-411a-97e4-02ab099856b3.dcm",
+     "sha256": "09a8047a8245ee94b702c6ca84752d14cba2b3f6125a21cb6841d84d958fd3eb",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/30ec31cf-ad1c-4503-a30a-a6d79f53d49c.dcm",
+     "sha256": "7d835b07e34e2580b3e348b6d775ffc158375635ebe3d07ffce89af1ac28fd65",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/06e1ec56-ce71-46de-b0ed-145dbd1234ab.dcm",
+     "sha256": "9dc51689c83d8121223afe4d4223465dae02168172d4f339bbf509f595df810b",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/ad46be1a-5774-434e-bb7c-afc79e20bd05.dcm",
+     "sha256": "ac595875277fc8b84e8b0bc658616d0d1451dfe92377be48121a91b9efcd1c2a",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/b3997918-39ef-445f-93a0-6d09b7a1c049.dcm",
+     "sha256": "2a7cdf6a0e13fee8e21a34e7e7e7a7d79e3b704383cafdf2c26029a3202b86ec",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/552432b9-d0df-4a7c-8276-c9de833ee9f2.dcm",
+     "sha256": "e01a21a83a4d7b86b6e516c2724364f61e4059fcefa6e47cbe151f3541d15559",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/2d8ff3e0-256d-499b-a95f-742274ea96fe.dcm",
+     "sha256": "84a096478e3a3a37c7f8821498342f42d6f70c3dc0672aa5da34507f8c1f1c22",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/44447be1-c73e-44f6-95ff-ed9522d5a75c.dcm",
+     "sha256": "195c0ed63e726ac601eb1f675b83c4c13edb6244854d221cad07dc86af6b8bca",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/f4fe4d4b-1dfe-4ca8-8c86-dd613d5bb72f.dcm",
+     "sha256": "22bcceac5876d1fe903b426d765fd931c4782bec6d332557a88a5502c23e5dde",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/70997f13-df14-4bf8-a588-da52f54cba41.dcm",
+     "sha256": "ad4f49f9a48f055796025b9139d87aff400fc90e899f8b1abddbca9ddb7460d2",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/2cf1fb67-935e-4cc2-9e49-9fa255cbe565.dcm",
+     "sha256": "771839f14352d97e8e491265b4946f3e8b046c2cabb5d059137838c516938b13",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/ce396ebd-52b1-4272-88d0-f66e6786c44c.dcm",
+     "sha256": "8cb9d675834c2262b9e54e7b404559e0bab4568bf78783cb0a015753b91a4573",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/25d9bc83-27fa-4318-83dc-5286c19031f2.dcm",
+     "sha256": "391986b82e8b8d9c727fbf9989d41a0a76ffeda98ae8907351dbd30379350a8f",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/e2f73451-3ea2-45af-8b97-60aa79a0bc87.dcm",
+     "sha256": "980339eb4fc809a71efd7f67bd6dc0c9c2642c90fa9ea3b9a86814f2786649f6",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/3dfb9aca-92f6-4d2a-a167-8a047687a54d.dcm",
+     "sha256": "498399d48cca1e0946a1a8ba5701dd1c6a1a833dd8aa057b7025ddf7ddf8024b",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/18db3413-2968-4e6d-a93d-f314f47924a3.dcm",
+     "sha256": "be04bd09645e6f8ad2218d62b1abf5a10ae398f45a2b18b12b50b59b4d5f3b41",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/bf26754f-1815-4731-9812-997e51bca9a9.dcm",
+     "sha256": "0e9b6de7058695ec8a766d43d2fdb4247292b6709ee944f7a4747ef09e3b508b",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/0fb99f3b-f6e4-40af-84eb-f90fd8d41ae0.dcm",
+     "sha256": "9c6209b4d93f56d4651faaf1e24b31be549e6a2cc288074c52c07372722474fd",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/8f699e0d-3ae7-4855-894c-1940c24df9f0.dcm",
+     "sha256": "e2efe37f7d8ec34dde308f976304b60d8234ff77d4b0cc8ca7ce7e1137f4a8f9",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/e1c53b2f-ce64-4358-9819-fd6d9a09fa95.dcm",
+     "sha256": "f320f645f01536488fb1b03855d857472580d53c8b7ccb3be8bcb2b6a389f7cd",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/53d6cc6c-d153-445c-847e-90241c329d25.dcm",
+     "sha256": "8652197a8b8a5be66ed9be379a3eb8071c43fb7f71b9bda3762ec68d29986956",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/7f7ee1a6-95dd-4448-b23f-33d927119509.dcm",
+     "sha256": "d70b285199d3c09e4fd6a75f12b31a61ee89985d1f3b4bea18cca4d55d13ae94",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/febf5ebb-d28f-473b-a9dd-6bc1d5272888.dcm",
+     "sha256": "16b5de2dae274031a9a7798a36bba7f140f78fdf61d33c9d5c7db31a25194bb1",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/ff70a459-9fc7-4c6c-a1fa-1a13b3446691.dcm",
+     "sha256": "28055f3db0d99e292bfed6eccdca0003a005a85a7956257bcda1462f691b364c",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/dc6c7e74-ae80-4f0a-b5ad-c36ca1023c73.dcm",
+     "sha256": "114273c4142164d7c3471bf64106696d59531f0cee7c04e897a7c1b25769da4e",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/7e3f88cc-5aa1-4fbc-9d2f-b2e3f0036973.dcm",
+     "sha256": "5923bd6370b3f20f0998cfad5b210bd02d9563400f848ce2ff3c59a9a447bfb1",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/2f985b98-e661-4d15-8754-3594362b323d.dcm",
+     "sha256": "699ae189e057c086d0d8cfab53b4589ed23db323a3cd308ed361edcce326cf67",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/d5a9bd0d-6ee4-4d92-a9f5-0ccb8891fef1.dcm",
+     "sha256": "04634683647852415e29f3a221f53a0dbd1cec8c616ad90aa2461593407effad",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/7dc462fd-464e-41db-ba45-b03471ded2af.dcm",
+     "sha256": "abbcd502d0f02315a091317b79a77ad1b9bef58ada475420de9c75c2ab55fbea",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/b687bf7b-f6b6-4dff-939a-6dc7b6d2163f.dcm",
+     "sha256": "bfbde3c1a13a5ff6dcc1e82b11b7d71ab3991a49b5ec91d617296f69ba9f191a",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/661356c7-dcaf-4e75-9556-ca9b4fbc891d.dcm",
+     "sha256": "a6e5d4270c7a6e421ad15129a8b74505be1c577c46c2dba840bfdd96cd4483ed",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/4d0a19ec-c19c-4de8-a950-1194d3acf86c.dcm",
+     "sha256": "051792ac65bd088868ee57787bc070cafe0c0f9d259a2cd224ca0af2e4091862",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/f4708426-b57b-49ba-a2b8-f630e1a33ff2.dcm",
+     "sha256": "71598e05748926916752516e146d882524a9abf71d08986d2ec275ae071fdba8",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/6e77e4c5-720f-46e7-8cf6-219174c6ee7f.dcm",
+     "sha256": "a0175d3d1e1bed02ef612822625b1c734adaada73e1d3570223b094047676635",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/ff708065-8faf-4ed9-bc8b-ebaf28d382fd.dcm",
+     "sha256": "229dc8b9f87c18e63846a63672811c9f6fbaa528cf7237534c390e069135b7f5",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/feec00b8-698c-410d-a01f-672e72ed6afb.dcm",
+     "sha256": "39e5477010b41e75d2cd75c7082b4141dbf165935b3e77bbc8408785f2d24860",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/f074e643-b644-4681-9cd3-ca2bc9a9bbf1.dcm",
+     "sha256": "3c235ae64610855a28bd6e55f08532fb82fbb5d33b939c12c6972deeae80094e",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/0110d2fc-32ab-4709-90b2-d6e0c8b1c297.dcm",
+     "sha256": "18094ec7c6415528d1f1082430b74a4a677d8bcdc9b92fb429a06639c57f7498",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/c7d4f7f7-c721-4f3b-b3a0-be882aa141b9.dcm",
+     "sha256": "713cdcb57c7914421552d4670e317477b078412005927c262aa9f711867de789",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/74919063-3048-4b15-bb4f-3799c52493fe.dcm",
+     "sha256": "984b6568117ded2df42b8462c5af7e595b72a0a6a4979a11a1343f8b8cb4e943",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/5187f4e0-b262-42d5-b319-1be9188730cf.dcm",
+     "sha256": "0f03dc681d7fbe8d8c6957d9669d5c2406fc414720b813a8bb99b4f58dd1d9d8",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/b8441da4-ea6b-4cbc-84d6-e1c1d11ddcf5.dcm",
+     "sha256": "660ff92c1a56a301195fb6ddc9ed588c8852424f5004c99bf6c42c6da1789a0a",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/d9211961-1646-4887-a4ba-0f9e763cf231.dcm",
+     "sha256": "f677048f17f2adf683a791a4626cf8d89a3eb5746d468453de29b48b00d22a85",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/b42c6ce9-cc73-4074-b61d-415972281c7a.dcm",
+     "sha256": "fb82ad774e4e62f71ae81fc58c4235b85e00612444b2c7b0652b3d0ed67ed598",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/570e9534-256d-434f-be30-4dc445672dd4.dcm",
+     "sha256": "4545648160f449dd6fd2c9cc18550120c7387dc5799a1a9185c83c0f7b4fe47c",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/146fda93-56ec-4200-b066-c939b42dd43c.dcm",
+     "sha256": "04537864bf7c067832ee4f0f5fea4f1fd90a275d87977e2c0bb7ba3adf99ca2f",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/4715e5ab-373f-4b81-8917-fa1b4c4d1812.dcm",
+     "sha256": "ab60a109aa23e245c0ac7f88a3b4a4eab2ace62fa29ce2ece0787d1e8cf81bf5",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/cd02d80f-43ba-4ebd-a93a-1f80e802930e.dcm",
+     "sha256": "cb2e979a028ca24f9af244e238172563c3cd4a4f903c18e272c4b40785ed0c24",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/8634d629-7a17-4e6e-a903-e40d8e8dbb10.dcm",
+     "sha256": "5aca612eda4db821bf10da2f3092d1fb27bf9ffa39e48d093f4256f0b8149e22",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/41d4f2ba-746f-41b3-9381-e9d16eaf077c.dcm",
+     "sha256": "13466b65f7dc859c969abe58f98ff93ea54bbc0903497a8df5cb8288e64de26e",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/56f4d4a9-fbf1-4610-a320-121d06c747ee.dcm",
+     "sha256": "3f8bdbab029f1c9003eb08dc382dc14bfae9caa1e1dc0821b199b1fbc7aee7ac",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/bbb89c62-77b4-46ca-913f-a51bec60286a.dcm",
+     "sha256": "0c2225a52d316212134d5945d51457e2569d13a9cb55b70c5c0e6e5a94e650a4",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/aeb1f3cd-063f-4e49-8fa3-864093947342.dcm",
+     "sha256": "2a7c75b8b93ce1a0e440e7e44ef4a4db75cc79b67b28e15a420141a742e07cb1",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/aaf21094-2a17-413a-9b2a-45a2edaed947.dcm",
+     "sha256": "3be634d8a930206647a5df12da7b834238f62095f8c1cc0bbe76c5b781f581fc",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/513b413a-4f88-4eab-ba42-7aad7cb1cb06.dcm",
+     "sha256": "b93feb3a81e6dfc9f8fdc40c872ad517d041b4b7249825c1fdc9d29f5d12b412",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/c80af45a-38c5-459d-aa70-fedbf4f5c50f.dcm",
+     "sha256": "172486ed85876afe2c1db94d8f1a1a1b8c0cc64f6f6d009c52f8b18f72b4b483",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/9da17649-a663-4dac-9a00-b05a8dd3a918.dcm",
+     "sha256": "3ec8d672c068e9406d4280e30e154a449c25c61ffabbd39620c299d17e8d327e",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/6aed5cd7-95c8-4e75-8a5e-55741aec4680.dcm",
+     "sha256": "65ae1f181377a95c00a418d5fc3d895f36fad76bb2170dafb3a36c67152756b9",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/ba09534b-1629-4f96-ad20-40926f941a91.dcm",
+     "sha256": "32dde66d7b6249ea7c1edb589a4dcdec8477d441146e8478c0624b3f6eb01bc5",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/54c861ea-2f0a-4afb-9736-2a1c54c0b69d.dcm",
+     "sha256": "b1318ec10fdbb263f74da702ff07a91eb55b05eaf0c6ea44c68cded5dfccdd2a",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/e5e40f73-09eb-4cb0-b58f-01c75c784693.dcm",
+     "sha256": "2c5eb09586613668e1a6d7533313ca716af05b00f4dfaec6b1f56df430577740",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/ec0edd72-2889-4748-bab8-7f0baf8ee9e1.dcm",
+     "sha256": "9f8956001e30cbc0602b75ac76b334abe07341b14337026418947c05e4e471ea",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/205e6dc1-4270-4a9f-bbf9-619ce3678928.dcm",
+     "sha256": "186a1b72053a54ce7704f456951ba553ba624aa58504c11c9cc8e76c01a97a4a",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/6582f64f-54e4-4e26-a829-534bf28873ed.dcm",
+     "sha256": "42a6a374e2448032f3a52308ad57342a9755cbc41dc18b7434f9d2f0d22eea3d",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/45d9ab9b-3e03-499e-a8d7-556bf0c3a165.dcm",
+     "sha256": "2cf3a0f348f07b35d1351a9188b1bac78d26eeea647aaeb812591bc5a7813cd2",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/aebd72c9-fb2e-4ad2-8d29-00c9d26b9d7b.dcm",
+     "sha256": "ecc194dba73f544cf28dc5469d0d117553247997e5c569050611f406f0f609b9",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/7849633a-9751-4001-9dad-b4272a739cdc.dcm",
+     "sha256": "48fc9b6e589aa305b4d070fabb6343633bded61f9ce6e33b7fedb86a5024ecb0",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/51077582-826c-4528-919e-73d4e303c567.dcm",
+     "sha256": "7c61b10532c0e87a495185510bcc6a1dc01dd79a9e7aedd5df25f6d84a9b9cee",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/5b476ede-c940-409b-8b9d-65e65ca4e09f.dcm",
+     "sha256": "f5ba1e1cd230d447d06fbd8924900dae8a862f81e6dce213a5a87817f315ba0b",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/2de8591c-ef0d-4f86-bdc8-995aa51b7bdf.dcm",
+     "sha256": "7888b0193d6f076d3a994871d6c0b1449d4ad21454204a1a9ada4e296bfffbf4",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/6d9e6cfb-5d5a-46c7-a9f0-5a49e51ec924.dcm",
+     "sha256": "27d3402d87fc4f02d1d78e99ad8de1d3c028d3b3bfad1f5f2c64248c3042a40f",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/85a9451e-bcd5-41be-aec5-046639b2efb9.dcm",
+     "sha256": "68f40f89958d8142975b3ffbf8c04b6a9e2d42fe15b481492d867332e5a1afd4",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/45eb850e-6cd5-48bb-82c7-310ab40ac94b.dcm",
+     "sha256": "295dc0867e7bb14b7847fde7d69fc830d557b22b7c75746e1a0ba15188f9de7e",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/e885296b-bce2-425a-bf55-c9ddea3518e2.dcm",
+     "sha256": "cb65f969be53cf67c35374b23bf7feec24504b591f2f8175ade95e6ca3c7dd08",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/b819ac26-16e5-42ad-84b3-5faae6df015c.dcm",
+     "sha256": "3589861a576854e6cb4813272fcc18e2df4ea06f9565e6bd9451422bc78c85d2",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/0eac5420-70a6-4ccb-a01e-f4831b55e7fb.dcm",
+     "sha256": "898ff8fd019a635b65e88189b38a1c8ab4859d7b0ec6352f2a1ac68befe3a461",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/ef1c2310-2bf2-424e-bc10-57415423ccf3.dcm",
+     "sha256": "5c220aea7739632ca3f52e20cabc58f043334d2daa6fff0bf491b692344429d5",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/c95a5255-ce77-49ed-bcbf-716a3a82da30.dcm",
+     "sha256": "8ae7b02d55de6ba1cca71d23d661989b5f8d52f9980c22fb5c9d070d0d02dc07",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/31269baf-5ac6-4fc8-bea8-c8ccaff56094.dcm",
+     "sha256": "49af7f1fa3ff2c7f341956fc809cca5d294075f9d2893b607f44a4c2352832e9",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/4f8053a6-bb06-42b1-b25b-52a9e92ad5ae.dcm",
+     "sha256": "e02eeb551bece9dce30214068d6e2654ea02bba714b8e7a9f8015a2ce62be576",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/9fb9b14d-f497-4f25-a1bf-ada9ea94a415.dcm",
+     "sha256": "6b728305a14259bbf92136827003ec2736a00f40254f56f7cf5bb022fbe2aa5f",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/282c2704-a223-4521-a6b9-ee0440ec9733.dcm",
+     "sha256": "5b2fa77715ec519b02dfe6e85b0cff346b1ed043ce8b5ec7d4aa6bf01661786a",
+     "bytes": 526102
+    },
+    {
+     "key": "4f706e63-5f3c-4d18-b757-1199ab922304/ea3900ff-c2db-476f-b053-ee2222c53775.dcm",
+     "sha256": "778d414eba7eb839984b11c787ff66ca1b9ae082942c48d876a2f243640811b7",
+     "bytes": 526102
+    }
+   ]
+  },
+  {
+   "name": "mr_ispy1",
+   "what": "MR breast, T2 FSE fat-sat, 58 sagittal slices",
+   "collection": "ispy1",
+   "series": "1.3.6.1.4.1.14519.5.2.1.7695.1700.501901925741942691616579643894",
+   "licence": "CC BY 3.0",
+   "doi": "10.7937/k9/tcia.2016.hdhpgjlk",
+   "frames_sha256": "f7c835bdc0456396212a55d34954d11e642b669f731394dcf0be3f8ccb8a853e",
+   "files": [
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/e5969560-ee70-4f68-be66-49cedd677501.dcm",
+     "sha256": "13ee284910c1120ef66793ce7f751a1de85f22e579401607fe82cee191744c9a",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/87ee0b4a-80b2-420c-b890-9ef77fbec8bf.dcm",
+     "sha256": "1561d35ab8844c56da64f76c43ab6add83966bd16e8f14cba043cca86bb61475",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/999bbb77-6adc-4ecb-a7f2-57a96d260692.dcm",
+     "sha256": "e98eb8f01476115d939ccc30838dc545f24e6b5ca088c01d49f4ac7cfccccd8d",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/53d78861-bd03-4d14-b9dd-097f8d77adcf.dcm",
+     "sha256": "0bf7b5310e5954d1116e73aab004b3c12d64796dfae864a285bda3df4d118062",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/96ec14c7-2329-4998-9fa6-7302e773b96f.dcm",
+     "sha256": "895582eb5fa1be27e3d83a2f1a680d997e5f958286fb0166088465fae57cf597",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/657c9a1c-46b4-41ba-a839-036bf3d992b7.dcm",
+     "sha256": "a5607cc61bd1a5af6890dd7e6b80532a89356c362baee32ddc14014322c57bb1",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/3183708a-0756-4e6e-a19a-7fbd40b5bb81.dcm",
+     "sha256": "21ebaa9170d617a989de173f16404ceafa7c4f1ffe3fd9cdb0f3ced1b96cb0e2",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/bf95b867-e84a-4ed9-8e1e-3113615af86a.dcm",
+     "sha256": "6792fe44cc94499ada71bd6c3c7480d5f1310d56add1cff110b3461d6a4d2cec",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/9d93d9fd-f1ee-4882-8c8f-59829ea25b5e.dcm",
+     "sha256": "48997f1cd29ec0e6aef8f0a94c9da88bd91273e8b5f743c66b4ec1408eed8b64",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/1b503ca9-58bd-4789-a675-612d49406910.dcm",
+     "sha256": "60ad75fe57d5f62a5f9c1bc293dc160305b3e28ecd381f375cde3c013fad01b3",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/75c5e9e9-5e91-496d-a287-24b8ab378e6d.dcm",
+     "sha256": "24fbbbc9df477f4d2f90c1beee7732075a1b86580a75176d61d9e04a663e147a",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/ef76fb1e-8aad-44b9-988e-a41ce476fa45.dcm",
+     "sha256": "6f3c97e3373247b2bbf3522ec3c1d588d65495c8b3ac28611beaff1f0b01402f",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/2019937b-6d87-4b81-be02-f97027c8675a.dcm",
+     "sha256": "5a851364d11c684f478aceef20951efdca8dd45cde23398854d49051fac39c34",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/c72ca11a-737c-4cfe-b99a-2225cb26478e.dcm",
+     "sha256": "82fc05ccb847815edd79c4fe8bae4e1a3211bcfdbde4fd75feb495cf83827e79",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/866c7c67-04d7-4236-9d57-e61b9bfb51a5.dcm",
+     "sha256": "09a282f3a7a28c70fb60335ef8d67c26b6c5811551cf49ad67f3f5f8002f9de3",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/a4f48bae-e0dc-4027-b98e-de05cf901171.dcm",
+     "sha256": "8cffb8b9919f3b28ac7a86bbc8b7118bcf3c33205d4fcc1b426e7040bb12014a",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/b873de02-d626-4778-9dd0-38d6dde3b4e1.dcm",
+     "sha256": "43c1e6b140de21190f89fb2e2f4dc9c692c0c498162c929d82bb408bb9236ff5",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/3832c007-d6b6-4b26-94f8-5fcab3518a9c.dcm",
+     "sha256": "53bdbf4865dfdf9205bb7bfccfe7a5d4a0dab9b5e9e2c87ec471a4346f8ac81d",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/2e7486e1-0c5c-4fbf-a2e1-750f089c2c8e.dcm",
+     "sha256": "103a1f8fba5db10f246f745097c318ec8cd50d667e6f000ab8ca9eea5dcdb239",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/124be68d-1e06-457e-b87a-ef59020431b2.dcm",
+     "sha256": "7e1dd497e1fdc57e42f6dfc3be53c5e25552b89409e886862ff157936490685f",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/c29a09f8-b52c-4ad3-a309-5ac718d9ba88.dcm",
+     "sha256": "5574b5ea721b40d868eba370ed1126bdc23be67919b55275fab9ac190f5391fc",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/4dded3f0-d067-4118-9045-bff891199bc3.dcm",
+     "sha256": "240ed98e4fa6b3dfc9e1e224f3858e578e8af772577eae6d1c9dc4b5203002c8",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/6b1d1734-6ca0-4917-b6e4-d44cef784bd9.dcm",
+     "sha256": "4bec9893193df6f5e2f265c318b74ca74c5066ea06ab1c7a0f3a8742dea97163",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/2eebb3a5-9029-43f9-8ef1-eb45f4592820.dcm",
+     "sha256": "4924ece6dcb82829a6bf5c02eda902df30bd7673442773a09648b517437315cf",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/60639f57-2ddf-41b3-934d-a8c4061a4774.dcm",
+     "sha256": "8a02a99651c3f7dcb77f7f78b919a65f740c12426a270609fa4ee904d7b764b6",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/a785ed54-07fa-4720-997b-5884358fa5c3.dcm",
+     "sha256": "e0d2e166be126f82f8b7bf39aeb1e7808f553b01f0908ad1b64215a0ae14a503",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/8f4af07c-7a0e-435c-8933-1b3f4aa29d3c.dcm",
+     "sha256": "48df0a6259df6c50740e40cf2b73ad88c880b3e1ee3a8e2bcf4a781e5c66606a",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/704aa824-dba7-472a-aa5b-fdabf6f776e7.dcm",
+     "sha256": "b3ece1f01ab10e3010228114a2b25c21b0f8ee2989396d4b2716a6c117fc56c2",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/775d8126-802b-461c-929c-1757d59c03eb.dcm",
+     "sha256": "90e18c4b35058721203d7a9490397ff505aa8c40b65e4c62f71d6f65af39bf5a",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/d1a43f4e-6dd7-40c2-ac68-06f08dd7bbfa.dcm",
+     "sha256": "97f30bc16251f6c1cbfb995d5f854e9ba14ff0d8957447608bba6c0f2d0bce1e",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/4e58d87b-f93c-4835-98d7-aeb1acd1a476.dcm",
+     "sha256": "8ffe61791d84f380419e23caabee5e61f68248c6fe876ce8b0d58af49c69b7cf",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/800c0629-13ff-4365-b160-09b2ee8a2d4c.dcm",
+     "sha256": "35c33c0cb9ca348005cbbefad07f7f2f76613fc4ff4e96c510ecf4b71ea386f2",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/73edb76b-8ba6-4186-8aab-fe8f4c4cebae.dcm",
+     "sha256": "21a09c6ca94cfbe5efb2022194a20d3206e970231d8a02b40323f5c087646182",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/3aa8a270-c543-4073-92c5-134382594be8.dcm",
+     "sha256": "d197a9215a978d11028011bdff745989eabb336ca6aacfb23bb60b4622a3fac4",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/ec0f1b26-6f6e-415f-b012-69e10adb202d.dcm",
+     "sha256": "4ecf38592984e20bac0a48eeb5cab6953ea95113eb74f72faee14e160144e84b",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/a24461db-57b6-4f5e-b581-6c1e1ae2d287.dcm",
+     "sha256": "95602aadb068e31f05456345b98896f56a6f38942e9d4e2a8f782e2aacf9e420",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/80ec64a8-5e32-4965-9290-acbba192407e.dcm",
+     "sha256": "f19623313b614e8939c1350e44d44e3843fc74806347b9570a85ed6e80701093",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/7cfa6a1b-0945-4657-a0a5-d163247cc656.dcm",
+     "sha256": "f3ff1ce08c3f8226d6bfc55653b65d66a44d0a050d8a3834d54bc52a2c34bb3f",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/f9ce1fb1-bfa8-4792-9838-e01a8d62f55b.dcm",
+     "sha256": "c28639092745145f6255474ecd25175f20482df8cce92e61500fc9d58abbf817",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/2f62a7cc-96a5-4905-a7f8-eec6245437d2.dcm",
+     "sha256": "646681f6a4b7694e040f2a2f222f67b9a0f83cf48b5679fdfb85729e3eff0ea4",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/6f16a7dc-a28e-4780-b758-c4017d7c135b.dcm",
+     "sha256": "aa7c24d35e33aaaf87cbe46e1bb4b3b99b420ba15c8b26dd3a85712a4965dc15",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/fcc161b4-a0ca-4065-a5e0-0372a556ba5f.dcm",
+     "sha256": "3bcb147f6fb457e392f6a18cfba89bfedf8157090982d6980d39c5b2a613fe0a",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/3b0dc976-d409-4b6a-9381-e63644de4806.dcm",
+     "sha256": "0333f427db484fa6ebe964abda1b3ba460d03a0ffadfb235666960947116cd53",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/b03c8f1d-7a8e-4051-8f9b-2cfb0c960243.dcm",
+     "sha256": "6f905663647ce310ff5aecdb5d828f407e807ae5b2d20456ff634b7151264d03",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/9c97def2-fc87-4e9c-bd01-de5d6bacf2e5.dcm",
+     "sha256": "3f3941e53092cc3d84a9bc0f0e5d3d5c82bc56654fb18d014eebeaf52424d2b1",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/7653f20b-b7ae-4588-b8c8-f5f495e9cafc.dcm",
+     "sha256": "e7eb4cc330186cfda2bc4189c9702a00bc7e2682a46add4f113c5747cf7b10e4",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/ac66711c-4646-4f42-a369-d9f427d85948.dcm",
+     "sha256": "4f11fd05ff103f062ff6e3e948c559bdba7148d55b53d0b4fc4da4c45f4ac9ae",
+     "bytes": 528686
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/ffc08ca7-218b-4cee-a17b-8a3d510aa31b.dcm",
+     "sha256": "5cd26b9a3cdc1aba2b6b5a2829892a17d7b1a515d2bd63c380cf105439000e69",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/c54f4409-9918-4b50-b0ba-9733595a4621.dcm",
+     "sha256": "e9393e24b6d99b80cd073c2f8b1bab5c5926e6239b9a24a86bd5cc85a323a115",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/e244b4c0-2437-402b-9f5e-d6f550996a50.dcm",
+     "sha256": "e63e77a9263f22fcdf021deb9deb199f1c2818adb3f3e991aca80ed2bca86de9",
+     "bytes": 528686
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/da79a52c-351b-494a-830d-9ecfb68c9143.dcm",
+     "sha256": "5784025952f054d9aa2caae8c91554443f626ccd565429d62ac6a3ee9752013c",
+     "bytes": 528686
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/4f587e45-a39b-4587-8221-015602ad0d6c.dcm",
+     "sha256": "8b4ad32f4c320ed49902375b4b0602072df2f3c4f6e870a77e6a5721efed5022",
+     "bytes": 528686
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/707efb24-2adf-486e-a2eb-215eb500a56e.dcm",
+     "sha256": "f686da95d16907896aa2a991fac3dc14335af6df3ef1074d741543a69c06a535",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/0ce9e5e0-95d3-46b8-987d-5d185122d24e.dcm",
+     "sha256": "ad9f0b8dc0c4471989f9404d85671cc36a7060f11ca0d45af056a33724ade2ac",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/d9526cc0-2acc-4d6b-b24d-09aec542ebcd.dcm",
+     "sha256": "9d7d92e97b720bc4374d79244f3c5d5f78900e654a211c58be2e8bd1163d78ff",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/b78be28c-ad9b-41fb-a7a9-06d1d7c789b7.dcm",
+     "sha256": "7ba2c934ffa8d6c975f6c0684ddd96edcabe5be9a99c8c57c03fc1a76b68d519",
+     "bytes": 528688
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/a4915ff1-178c-4d57-90a7-dc4bfb6f35e3.dcm",
+     "sha256": "ec9a1f29bd0da8cbf3afae4e223289c2b78ed539f2e88b6648de13754fe8e1a2",
+     "bytes": 528690
+    },
+    {
+     "key": "3405a7c1-1498-403b-944b-045baf5f34e5/edc13fd9-bda1-4ff9-9577-a64456bf2639.dcm",
+     "sha256": "fd07bfbb675e1552e5c9f2c5b3c806c591fd0f4d77f4a7e75d7f0a962ad575be",
+     "bytes": 528686
+    }
+   ]
+  },
+  {
+   "name": "us_liver",
+   "what": "ultrasound cine, B-mode/CEUS liver, 70 frames",
+   "collection": "b_mode_and_ceus_liver",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1188.2803.344619030618266582811969207222",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/tcia.2021.v4z7-tc39",
+   "frames_sha256": "1afe52210421674dff3df08743a2e27510f2e4e813125fc244a5e255a81d13be",
+   "files": [
+    {
+     "key": "5b69a9d3-8c6e-46a2-9ffc-0bc79c1b20a5/1b36bd00-8405-4462-a26c-9eef849e9ec6.dcm",
+     "sha256": "93e5831622a413bb5f1322bd7043d63b26f2ae7f56290e7a82a17bc70b4628b3",
+     "bytes": 67194678
+    }
+   ]
+  },
+  {
+   "name": "rf_fluoro",
+   "what": "fluoroscopy run, barium, 18 frames at 2 fps",
+   "collection": "varepop_apollo",
+   "series": "1.3.6.1.4.1.14519.5.2.1.114038165058490064705735122306615351137",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/ghkn-md15",
+   "frames_sha256": "f6401329d2d05235dc25c29c8a86f38623e7930c405c9f5f86fc32abb9b12b13",
+   "files": [
+    {
+     "key": "56416988-e40a-4515-a878-79c92e40c378/ea8b02af-0dd7-489f-8c15-83dff3cc6c75.dcm",
+     "sha256": "1e10afd5cb018b31c8c95378dab8fd4a82315f91803e82116762568a414a2e95",
+     "bytes": 21237588
+    }
+   ]
+  },
+  {
+   "name": "xa_dynact16",
+   "what": "cone-beam CT (3D rotational angiography reconstruction), 64 contiguous of 386 slices",
+   "collection": "cmb_aml",
+   "series": "1.3.6.1.4.1.14519.5.2.1.325586868912722966659148270956285342001",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/pcte-6m66",
+   "frames_sha256": "21bb94a5602f67379e16c98843081211ead1a0a03beda93c508333b1751a0d72",
+   "files": [
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/3abba5b2-cdd9-4b73-ae5f-53a26ef03382.dcm",
+     "sha256": "481ade3630741d1f79eddeccc2370f5c7a318e9c4cd6bba6e7e8af866ddcc0f0",
+     "bytes": 526974
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/beb42d3b-0f23-4d3b-83c7-ea4663ad3f40.dcm",
+     "sha256": "c59cf645bd1eca634ff23b366ab18455444f16fcb9bb9df51aa983c5a06f13db",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/cc7d25f3-b20e-4e1c-b40d-9ee4b51a7c82.dcm",
+     "sha256": "36036b94c7e71282a2a3f86adbb0149db747472925b43c816e35c76add31bfd6",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/457a5b65-2080-4e2b-9c36-be2143c07307.dcm",
+     "sha256": "4df5a58576df89d5cd4b03f8ae16670612d621f829ebbf98927a852d56684433",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/eb5ea4ad-a017-4c8f-a411-bad40dda3d66.dcm",
+     "sha256": "7ca5c074bcf265c0864c99cb567aaffc77b4d60e821fa999c29b559ba79f69ed",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/e0a3e9ef-8a6b-40ae-ba5e-71011d188fea.dcm",
+     "sha256": "8874bbf5b10c123f9802734d496c4befeb168db3bee6dc2bf0f7662a11107424",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/894ede92-25c1-44f7-8b27-9a0b47f1756b.dcm",
+     "sha256": "47712e7f4442b470fda166cfdae046e932adec7aed7852556c7005de01ac038e",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/6e6c1b01-4a0e-40ad-a08f-36f3e62b6f85.dcm",
+     "sha256": "703233760aeb738e99ef9b756faaeb6ab52f94b7ddf659fa31f4f2f9a131dc1f",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/764f7fb0-8f36-465c-9d1c-6c4f7de33654.dcm",
+     "sha256": "c11834c532120edaa13ebcf129b8411bb9048b8f1648c0c4adf0464286856fb4",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/101282c4-0f56-4eda-901f-6ac625379b19.dcm",
+     "sha256": "3d5c1851099a3f66aeee109ff3f1ecaf1ac262a48abad4438f72c81de113919a",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/91718fbf-0bdf-4962-96e7-8cbf6d385582.dcm",
+     "sha256": "06a7472e490e1f34731ec7fc99789370240f6e2203f5fdf5aff0828d6f722bca",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/b45729f7-6821-4884-8412-2502869f4ea7.dcm",
+     "sha256": "68d61f3bc4743923decb5831419f0cddd41711959d0d729101c1ade7932cebde",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/ce07916c-8342-47db-aa08-7d75f8b175e4.dcm",
+     "sha256": "f1d6f1b5bde00cd83df16d3c815d5ad6705a914388cbf1f9d4683f577ba541cf",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/5640c227-e084-412d-abb4-f85efb2890ba.dcm",
+     "sha256": "c721e86014a96eae9a03d09d252adf1554abe3f68eb8eb376e38739efd39b879",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/ec1f8756-5597-42b1-8683-1fc8a900b4ab.dcm",
+     "sha256": "54cb4797992a62463bf50ca1968ca9a49e2d318f14dbadacb332c8ca211cbee6",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/91767560-ec4d-408b-988b-1537e5443b38.dcm",
+     "sha256": "b3274e820b9747f75d76479bb8c2247f69f56137c86745be82832b064436090f",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/5e54b1a4-c1e7-4584-8935-a8aff26d7001.dcm",
+     "sha256": "4e8fdda6a1cf148c1229ccf3ef12035157dd194d2bcb8564747fdfc9c00e00bb",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/2f99c468-8689-48a5-9efe-032ed9e4f009.dcm",
+     "sha256": "92dd37f80d8412881a90f170fa69766e36c4d9d45687e25f44f3b799e71d5c5a",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/420cb24a-7d19-4ff5-8c3b-39f25c663bf2.dcm",
+     "sha256": "fc0e4a156e7c7dc6f8820a4009283bbcc8d97ac4a311bd59340d161e85dab9f9",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/51afadfb-8bd5-4b5d-ba2d-bb04dc89448c.dcm",
+     "sha256": "8af09a9398eb2b5c84b1528b6268d7abec1f0ad0a29e1ea9f0ce28f64544ff22",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/8152e379-baac-4bb3-8f8a-153309576cce.dcm",
+     "sha256": "6b9c25bb5732e2d066d659cbb50e22c7de92bdd37c508883eceb84a036bf6d2d",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/51d422a9-f2ef-4ad1-9c6d-37ac5a5eaa7d.dcm",
+     "sha256": "050bc5ab8e31699b9e4ed8dcf6e626c26374cbbdbfff7e1cb1b0fa997b5d2364",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/095dc157-dbe8-42c6-b5c9-4621afaefdd1.dcm",
+     "sha256": "6544bdb0f8f2caae0fc629e5e002fa1023946eb4219774f92df2560f0228bfa6",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/6ecc147a-6cb0-4ded-a8c8-851e66ea0694.dcm",
+     "sha256": "a56ab73c8757deaa758130e11a146faa92f71f48895521f8e1f893cda09009d3",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/ee515bee-c876-4a12-979e-f2d6b2d8aeca.dcm",
+     "sha256": "9af76355a3e7f3dd0b2e592ae90b2cb94c8de116fcebcd48098b86ccbfe01df5",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/455a5ec9-0775-49c1-b1da-bc00e07f0b54.dcm",
+     "sha256": "a2262a803bf883081244af51088a6e09933ae5ecf3f71723a38e9e14147cd44e",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/3eb65fa4-03e9-47c3-bf69-f4d35a9687bd.dcm",
+     "sha256": "8b708b05a3c0e1b6bfd3bb43e54cd5f2bf13e45ea0fbc1f2f72ab677e65d637f",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/7b873578-08b5-40f8-b33a-cb3c60c39014.dcm",
+     "sha256": "8450afe87e087e554a5d8c758f9b5724135050b0d67b844f172417c1ff4b2fbd",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/642cadab-6b43-495c-ba9c-fa7700035fd3.dcm",
+     "sha256": "61d54914b304ae876d60b6352c32a83604d6a6a61dad75c6a269b82ce2fbc596",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/d1354ea8-f409-4b1f-a288-0aa034932049.dcm",
+     "sha256": "2620dba4e9cb0cb0abbeb14c04ad4067a1ed5638f21e9614daffb19cb60ec47f",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/242f0826-ecc9-474e-8401-9053ee94ec32.dcm",
+     "sha256": "b56dab8f0694cb38c2edf8ddd3f5c0de2de44c157bde1b38b9ebb4383fdebe50",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/4f2abfe6-e44a-4f09-a02c-381f67838b41.dcm",
+     "sha256": "a59aa61905ab98d04dc586c5efd9fb6f03ac8ce358d5c4548dd5df949fdb3c88",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/5fad6f52-c547-4a53-8033-7c77f9a5dcf8.dcm",
+     "sha256": "2fb7f148387682ed8d9faeed82a311531ce649e8b95fee242cd4083363692724",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/6eb087c3-2b62-4aa9-8d43-8ff73f0386e9.dcm",
+     "sha256": "ebe1dc009ba94160718a9c61fd8e96c57dbeac3d017669125abbc9bdec45a81c",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/16db2024-d995-4947-9016-79b6995e0f6d.dcm",
+     "sha256": "300706ce4114b7aa8b2042dbd942e60279b649cf27b1badb17ed96be688cf7e3",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/404e3920-0f5b-4b72-b711-567ada62ca1e.dcm",
+     "sha256": "0b87267a47c7d38f8462efbdcd8a20f7cf40d2fc83f641121d6efb924c2b5fbd",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/db8a8564-f171-4b4b-90f8-54e5d8c553b2.dcm",
+     "sha256": "a22c3fd99a5c3a0d08307a17e8270dadbb077ffdaca4c4141890bb256af83e4e",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/17dc96c7-562c-448f-90aa-b21b45cae8db.dcm",
+     "sha256": "1a1309864ab7a7dfd8d1009c3e9d435a1268151d14015f1eca9fba182d7eb9d4",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/4900f11a-ca51-4600-881d-833b2260f6a0.dcm",
+     "sha256": "b8f07246af7b5d69539aad74a2e6117605c4bae60e49b262eed84d5262330a69",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/842ad032-a9ab-4387-afd9-a83a77cbab8a.dcm",
+     "sha256": "31ed2ba7a11f8f9b2f9c43f7acb6b1f9a0409a506a08aa12a633fa31fbd77b31",
+     "bytes": 526974
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/b2ff911b-737a-4cb6-84b5-afa61fa4cffb.dcm",
+     "sha256": "96a819ee95b6702dc5ba90edd2f07ed4dc9b1b9c7a4f4f5ba05aed946c00e66c",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/ac5117c7-ef23-4c74-a87c-56a33dc20738.dcm",
+     "sha256": "ac0df324215b35f87a5e53df26547082bd51d674d9cfcdd5b493ee4aa70bdae6",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/e0b01805-b3ee-493f-a5de-fee94285c192.dcm",
+     "sha256": "6c766f0fa013f85d9d809b3e2553f5a99e0432ff81d027557a661d9290561c64",
+     "bytes": 526970
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/b8b0bac0-f3b1-471e-810f-a72b6ab74f36.dcm",
+     "sha256": "0467c0555c25717a8803e6cd8824aaf869e706f090f971ac0ae145bf12cc9c95",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/31bac28e-2fb6-4c4b-9797-078dbf711919.dcm",
+     "sha256": "156d57c1ae2a1f3500fbb4487e7f8423d612cf8476273261091c450238f89a6c",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/53a62601-a05e-4e08-816f-e54307dde050.dcm",
+     "sha256": "caee286ab985768d263280ece92d9b4dff3fba6df8d9f85206cf34d1cf62a9b8",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/6f951e00-4e82-4871-b99b-37eb93d832fe.dcm",
+     "sha256": "910824308083296bf9e1342716913765e5f38674f8ef4b56b14981eae64291f6",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/8c35c3b2-ae50-4759-be2a-8427067b83f5.dcm",
+     "sha256": "8dd6b1d14f7a7dae1eafa4cc45b9c1131540c57b5edde6db9dee810fcb47d54e",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/af439750-8e6f-432a-b485-cbc710859fe4.dcm",
+     "sha256": "695fd87a22e8de5d2b66fc5f4bdc7c803482c4bbac87492fbfb81eff2e59030a",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/8e69768c-471a-4d32-a5a1-fd687ed4a56e.dcm",
+     "sha256": "2b0135b5413e54c0fe7001cc69695592504f762d5ea7318ecfd7e1dc833a5be8",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/41413465-56d2-4149-8a60-36139202e668.dcm",
+     "sha256": "a352c00653610198a829b3634b06a896d4b6bd5c6b39fcb8249db1304ad0c64b",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/daa124a6-d467-438e-8f08-1c04b4d283b3.dcm",
+     "sha256": "5a5ffa08aa4f65d7f8788ac9e15486bf9d0d427fa7a659fa4a1941421baf3da0",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/a34126c4-699a-4516-b2eb-49149f5d7ec2.dcm",
+     "sha256": "99b6fc0b67edec2def18b9a73a6b3031b70c74e49ad445016f4328fc4fb8a51c",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/a685d53f-f8ba-4b72-9ab7-d2f3058a9e6f.dcm",
+     "sha256": "6ba027347ec53b4e849e0bf2788d216a9b9963ed849c7e68ee902913006f15a5",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/28a3120a-b93e-4f06-878d-5be3afad2771.dcm",
+     "sha256": "4110b57257017e47149b12769254f2a6160c1e0889b6f6c639882fd65eddd795",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/e6df2c61-9336-4855-a367-b5aacdbe59a7.dcm",
+     "sha256": "38d793ed30c1310339c7fec1c5cb9fca63d3999ef81ec185333bd3828f380b6d",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/8057200d-d8c0-4011-9bf2-f7b41a89aa2e.dcm",
+     "sha256": "faf3fdff19f65f7675d566ee8a6966d589b691316fa5e0ab389623e103743e55",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/6dc24f8d-d6bb-45cb-ba42-41a4de696e4d.dcm",
+     "sha256": "efdfd37ea681e076ab67b5956ce51df6a73d33b2393cb8a5429b91becd041883",
+     "bytes": 526972
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/d8d0becd-b975-40e1-84ce-95b5633a384a.dcm",
+     "sha256": "e1668087af5816c045df16408058cd0e8eb41e9a519556ac82aad38b9eaf1f81",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/cc277d55-8f7f-45fa-9c72-1e452479656a.dcm",
+     "sha256": "17e07ea815e8482ebce4c922743b5d8ee80b0a66649b0d0fa2e0cd758e3b1626",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/22d4cc34-9051-4bcf-b74a-3af0914fe59a.dcm",
+     "sha256": "83bbf02fa86034224f60e09f3e65a14c3904f95d1b9e0971224c664ff76e884a",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/a2ba023f-652b-4a7a-8b36-6e77af444add.dcm",
+     "sha256": "5f1bd37d48fd97de6a6d874a6d163b38b61a34169f64f447d68fa8d4c779cc6d",
+     "bytes": 526970
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/a2c5d1e0-29a3-4026-94e9-22cba7cb5c27.dcm",
+     "sha256": "d992b8dc078566a4ab8086c3f63e17bb0c91ea04b210b49607cde88db902b1e0",
+     "bytes": 526976
+    },
+    {
+     "key": "cb555121-aed1-4a14-8767-afefc2b370a3/2f30f54c-3991-4617-86c6-04ac2d7c1aef.dcm",
+     "sha256": "2e0332d7ca188324fbbf5a9eb8a62ae58d943e6d78d97f6e67ad13456a9c185d",
+     "bytes": 526976
+    }
+   ]
+  },
+  {
+   "name": "dbt12_ea1141",
+   "what": "breast tomosynthesis, reconstructed volume, 29 slices at 1 mm",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.149435419612446515586877894872",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "44c003deaad4b590661b03a9d55c248f290e7becf35e20e10107a1cd99e48e47",
+   "files": [
+    {
+     "key": "885d0ec3-d843-473a-b5b0-b1aa98c63b93/5ef1235c-5c90-42c6-87c4-2b590abe7cb9.dcm",
+     "sha256": "d7d44537ad439602c49d7dbaba6f1a714d5ab5a12e3081cd669092b0091ae56f",
+     "bytes": 48415590
+    }
+   ]
+  },
+  {
+   "name": "dbt10_ea1141",
+   "what": "breast tomosynthesis, reconstructed volume, 24 slices at 1 mm, cropped to the breast",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.222233970049288086311975470846",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "crop": [
+    359,
+    1212,
+    1727,
+    678
+   ],
+   "frames_sha256": "8bde8b84dad0234dfd9c2bb2c5cc2ed1a6f295ee3fe03834821baedc777b92d6",
+   "files": [
+    {
+     "key": "7e5b3f01-42e4-4aa3-a39c-9da8311cc821/3f756368-6a60-4772-92c2-dd174c643d08.dcm",
+     "sha256": "ae6cafb2aaa76962b9e1501e5d3ad804761b9d898b5db776079e1456d4774980",
+     "bytes": 222913990
+    }
+   ]
+  },
+  {
+   "name": "dbtproj_ge",
+   "what": "breast tomosynthesis projections, R CC, 9 views in acquisition order, cropped to the breast",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.241153237908295365473272556342",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "c838e036214e0eb3677cd497e643462d21ea301ee4f2a62037b790337f8d0e93",
+   "files": [
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/e356716f-5666-4db6-9a3f-1c19e33eacd2.dcm",
+     "sha256": "1b2470e5699e972334cd42899fe12d886081440315f8125b50327963b9ecab6c",
+     "bytes": 13650068
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/e61d24bf-d9e3-4aef-92bf-c702feeacb61.dcm",
+     "sha256": "13f965bd31db6bb5bef7917ad3e3d2abb08ad7ee0dd69037697f4cc13898f9b2",
+     "bytes": 13650068
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/9b59fbc3-7ed9-4ff0-9adc-4c8bef1f3073.dcm",
+     "sha256": "3183a8f19ff4c9cd988a0ee7847dce8098fb69e7e17659cc82b1536c4d0c0f1a",
+     "bytes": 13650070
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/0f4ccbcb-5f03-4b85-86f8-6889a42ac38f.dcm",
+     "sha256": "5e6c16dde55c9cd5b8170f17d65c8bf90c6a8856f8d5583affd06e1c24f6f47b",
+     "bytes": 13650070
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/c595df2c-65f7-4006-9f12-61d56582dfd0.dcm",
+     "sha256": "0c2ca4ddb25e797e6a3c0351facc176c7a2850212e7b70c4b75e37a54715fdc6",
+     "bytes": 13650068
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/bec41504-feda-46b0-b9b3-bdc5457deb7d.dcm",
+     "sha256": "f7f95aaf1b372bb1cab14fb1169e292257a55be5dcd9dc3c4cad0be41878cff3",
+     "bytes": 13650070
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/f93a3560-eb85-4d55-8cfa-58da7ee9f097.dcm",
+     "sha256": "04ad19ca4b7f04ae1b111b0e930a9dd7061ace1e34de27d13af571566efe652f",
+     "bytes": 13650070
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/1ac5f56e-76fe-44d7-80e2-9c8a8e9908a4.dcm",
+     "sha256": "905f0179a6c76215641845ac7f789800f219361991ce37af541e7c0e4f8fb5ed",
+     "bytes": 13650076
+    },
+    {
+     "key": "040f0bb1-e271-46a0-b907-e9b1654cb8ca/5a142946-da9e-4f3b-aa1a-2cd9cc279e5d.dcm",
+     "sha256": "a5393c6a95f35dbd79bfbaa807baed71c87ddf68d3937c35398ea77ba2286a16",
+     "bytes": 13650076
+    }
+   ],
+   "crop": [
+    278,
+    480,
+    2572,
+    1914
+   ]
+  },
+  {
+   "name": "dbtproj_holo",
+   "what": "breast tomosynthesis projections, R CC, 15 views as stored",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.199124033119197150122057139774",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "e9056e3eb3ee45fbdbb7bcd3681b1d2b1bbd4b95590dcc4f354dc73774024408",
+   "files": [
+    {
+     "key": "66c85b23-1435-40c2-97c7-a994ab9884d0/fc6eba5c-7da9-4701-92da-e55e77705e3e.dcm",
+     "sha256": "53191cd641724471dd12e4abba1cff4fe9882cc58ca0b7e048fb9de5d4f32960",
+     "bytes": 78655368
+    }
+   ]
+  }
+ ]
+}

@@ -1003,6 +1003,203 @@ but a free list on the default path was never designed. `byob-min` errored inste
 truncation (117/120 conformance). The TypeScript client's `readMin` is a separate path, still open
 ([`../CLIENTS.md`](../CLIENTS.md) §Reading a frame whole).
 
+## AV1
+
+### WebCodecs, what it decodes exactly
+
+Headless Chromium 141.0.7390.37 (the lab's), Linux container, no GPU, 2026-10-03
+(`lab/av1/wcap/`). 24 lossless libaom streams, 256×192, 8 frames each: 4:0:0, 4:2:0, 4:2:2 and
+4:4:4 (identity matrix, GBR) × 8/10/12 bit × intra-only and inter (one keyframe, seven inter
+frames). Each frame's planes are hashed against the encoder input's SHA-256; native dav1d 1.4.1
+reproduces all 24, so a miss would be the browser's. That holds per stream, not per encoder: on
+other content libaom 3.8.2's inter 10- and 12-bit frames were not exact (row WASM).
+
+| | 8 bit | 10 bit | 12 bit |
+| --- | --- | --- | --- |
+| 4:0:0 (Main / Professional) | exact, `I420` | exact, `I420P10` | **refused** |
+| 4:2:0 (Main) | exact, `I420` | exact, `I420P10` | **refused** |
+| 4:2:2 (Professional) | exact, `I422` | exact, `I422P10` | **refused** |
+| 4:4:4 GBR (High) | exact, `I444` | exact, `I444P10` | **refused** |
+
+Exact means 8/8 frames, every plane, intra and inter alike, with `no-preference` and
+`prefer-software`. Mutated, every cell fails: a flipped sample in the copy, a wrong ground-truth
+hash, a corrupted payload byte (to native dav1d).
+
+* **12 bit is refused before the decoder sees it**: `decode()` throws `DataError: A key frame is
+  required` on the stream's first chunk, which is a keyframe with its sequence header. 8- and 10-bit
+  4:2:2 are Professional profile too and decode, so it is the depth, not the profile — the check
+  that classifies a chunk as key does not take a 12-bit sequence header. Why, inside Chromium, is
+  not read from its source.
+* **`isConfigSupported` does not tell**: it answers `true` for every 12-bit string, and for strings
+  the AV1 spec forbids (profile 0 with 4:4:4 or 12 bit, profile 1 with 4:2:0); only profile 1 with
+  4:0:0 is `false`. So a client learns what this decoder takes by decoding a known frame, not by
+  asking — the warm-up frame (§Warming the decoders) can be that frame.
+* **`prefer-hardware` is unsupported** for every config here (no GPU); nothing about a hardware
+  decoder's read-back follows.
+* **A 4:0:0 stream comes back as three planes**: `I420`, the chroma filled with the mid value (128,
+  512), `colorSpace` reported BT.709 limited range. Only plane 0 is the image; `copyTo` costs the
+  chroma's half again.
+* **GBR comes back as `I444`, planes in G, B, R order**, `colorSpace.matrix` `null` (not `"rgb"`),
+  sRGB transfer, full range. The samples are untouched; the conversion to RGBA is the client's.
+* **The decoder holds two frames until `flush()`**: 8 temporal units unflushed give 6 frames, 3
+  give 1, 2 give 0 or 1, 1 gives **0**. One chunk, no flush, is an empty decode. Temporal
+  delimiters make no difference (stripped: same 24 results). A decoder serving one frame at a time
+  has to flush each, and a flush wants a keyframe next — fine at a group of 1.
+
+What this cannot say: anything about a phone, Safari, a GPU decoder, or a Chromium other than 141.
+
+### dav1d-WASM, the decoder the client runs
+
+dav1d 1.5.4 under emscripten 3.1.74, `-msimd128`, one thread, 623 KB `.wasm` (238 KB gzipped), is
+exact against two native dav1d builds on every frame tried — 8/10/12-bit, 4:0:0 and 4:4:4, intra and
+inter ([`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md)). It is what `decode-av1.js` runs
+for an AV1 series, flushed before each frame (G = 1: [`docs/av1/adr-unit.md`](../av1/adr-unit.md)
+§2), and the dispatch arm decodes all six shapes through the downloader to their source's checksum.
+Unlike WebCodecs it takes 12 bits and returns one frame per unit with no `flush()` to wait on. It
+is 5–10× slower than OpenJPH on the same frames (§Decode time against HTJ2K).
+
+### WebCodecs, the decoder the client runs where it is exact
+
+Row WCDEC (2026-10-03). `decode-av1-webcodecs.js` sits beside `decode-av1.js` behind the same
+contract, and `decoder.js` takes it only for a series that says `depth` ≤ 10 (every stream it codes,
+[`docs/av1/adr-unit.md`](../av1/adr-unit.md) §2) in a browser with `VideoDecoder`; any other AV1
+series, one that does not say its depth included, gets dav1d-WASM. Each unit is one key chunk,
+flushed (G = 1), the decoder configured as `av01.0.04M.10` whatever the stream — Chromium decodes
+from the in-band sequence header, and four strings tried gave the same frames for every shape; a
+split frame's two units go to two `VideoDecoder`s at once and are merged as
+dav1d's are, by the shared `av1-frame.js`. What it refuses where dav1d refuses, from the frame
+alone: anything but `I420`/`I420P10` with every chroma sample mid-grey (4:0:0) or
+`I444`/`I444P10` with no matrix reported (GBR). That last is weaker than dav1d's check —
+`colorSpace` does not distinguish the identity matrix from an unspecified one — so a 4:4:4 stream
+with matrix 2 would pass here and fail there. *And the other way (row TOTAL):* an identity stream
+that is not also tagged sRGB (primaries BT.709, transfer sRGB) is reported as matrix `bt709`, limited
+range, and refused here on every frame although dav1d takes it — libaom's `--matrix-coefficients=identity`
+alone, as every lab encode before TOTAL. So an RGB series meant for WebCodecs is coded with all three
+tags; ffmpeg's `-colorspace rgb` writes them.
+
+The dispatch arm (headless Chromium 141) checks, every frame against its source's checksum and its
+range against its own samples: 8/10-bit grey and RGB through WebCodecs, every unit counted reaching
+it; the same frames with `VideoDecoder` removed, and 12-bit grey and RGB with it present, through
+dav1d-WASM with none reaching it; 13-bit split, 13-bit signed and 16-bit signed split frames
+through both; a frame of a group, an empty unit, a non-AV1 file, YUV 4:2:0 and 4:4:4 colour, a cut
+keyframe and a decoder closed under a frame refused by both, the next frame exact; and one decoder
+taking its frames one at a time. 17 mutations of the new code each failed a check. One did not and
+is equivalent here: reading `codedWidth` for `visibleRect` — Chromium 141 reports them equal, odd
+sizes included. G > 1 (one flush a group) waits on row GOP's group path. *Built since (row WCLAT),
+below: a group goes through WebCodecs with no flush inside it.*
+
+### WebCodecs without a flush
+
+Row WCLAT ([`lab/av1/wclat`](../../lab/av1/wclat/README.md)), 2026-10-04, headless Chromium 141.
+With `optimizeForLatency: true` **each unit gives its frame before the next is sent, exact**. That
+held on every depth and layout WebCodecs takes (8 and 10 bits; 4:0:0, 4:2:0, 4:2:2, 4:4:4), intra
+and G = 8, and on 1, 2 and 4 tile columns: 784 of 784 frames against the encoder's input. With
+neither the option nor a flush, no unit gave its frame. That is WCAP's held frames. A flush per unit
+cannot carry a group: after a flush the next unit must be a keyframe.
+
+Skipping the flush makes a frame 7–20 % faster at 1× and 3–28 % at 4×, intra, 10 interleaved rounds
+(every frame exact). A keyframe still needs one, though, or a unit labelled key that is not a
+keyframe decodes against the frame before it. That is how `inter.av1` passed as pixels in the first
+build. Flushing before every keyframe costs what flushing after did, and 5–15 % more at 4× on tiled
+frames. So **the decoder flushes at a group's end**, which at G = 1 is every frame, as before. It
+flushes before a keyframe only when a cut group is still held, and never inside a group. Tiles help
+here too: Chromium gives dav1d 2–4 threads by coded height, and 4 tile columns take a frame from 33
+to 15 ms at 1× and from 118–135 to 66–70 ms at 4×, for −0.6 to +0.4 % bytes.
+
+`decoder.js` now hands a ≤ 10-bit series in groups to WebCodecs. A unit that gives neither a frame
+nor an error would stall its decoder. Chromium does this on a one-byte or delimiter-only delta, so
+after 2 s the unit is flushed and fails by name, and the rest of its group fails with it. The
+dispatch arm checks four things, each through WebCodecs and through dav1d-WASM:
+
+* a G = 8 colour series, every frame exact and all 20 units reaching WebCodecs (none with
+  `VideoDecoder` removed);
+* a delimiter-only unit at frame 3, which fails frames 3–7 while 8–19 stay exact;
+* frame 9's bytes sent as a keyframe to a decoder holding frames 0–4, refused;
+* G = 1 unchanged: the refusals above still hold.
+
+Taking groups away from WebCodecs, dropping the stall guard, and dropping the flush before a held
+keyframe each failed a check. Dropping the flush at a group's end failed none, and is not meant to:
+the flush before the next keyframe then covers it, at the cost measured above.
+
+### AV1 in WebKit and Firefox
+
+Row XBROWSER ([`lab/av1/xbrowser`](../../lab/av1/xbrowser/README.md)), 2026-10-05: the client's path
+as it is — `decoder.js` takes `decode-av1-webcodecs.js` for a series that says `depth` ≤ 10 where
+`VideoDecoder` exists, dav1d-WASM otherwise — on the first 4 frames of all nine series and an 8-bit
+grey set, in every layout row LLSIZE codes, against OpenJPH in the same engine. Chromium 141,
+Firefox 157.0 and WebKitGTK 2.52.6 (stock builds; Playwright's were refused), headless in a
+container, 6 interleaved rounds at 1× and 4×. Desktop engines, not phones: iOS WebKit decodes
+through the platform's media stack, not GStreamer.
+
+* **dav1d-WASM and OpenJPH are exact in every engine**: 408/408 and 240/240 frames a cell, every
+  layout, signed CT included; dav1d-WASM 4.1–9.6× OpenJPH at 1× and 3.9–10.0× at 4× (every AV1 arm
+  slower in 732/732 paired rounds), each engine within 0.85–1.22× of Chromium's time on the same arm (median
+  1.01–1.06). The `simd` build loads everywhere — all three validate WASM SIMD. Without SIMD it
+  would not compile, and neither would OpenJPH: both `.wasm` files fail `wasm-validate
+  --disable-simd`, so an engine without it loses HTJ2K with AV1.
+* **WebCodecs as the client chooses it is exact in Chromium only.** Chromium: 240/240 frames,
+  2.6–5.0× OpenJPH (dav1d-WASM 5.0–9.9× on the same sets). Firefox: `VideoDecoder` exists and
+  `isConfigSupported` says true for Main 8 and 10, but every monochrome stream is refused
+  (`EncodingError: The given encoding is not supported`) and 4:4:4 comes back as 8-bit `BGRX` —
+  exact for 8-bit GBR, read as RGB, and 8 bits of a 10-bit RCT stream — which `read()` refuses.
+  Ordinary 4:2:0 also comes back as `BGRX`. WebKitGTK: every AV1 unit fails (`Decode error`),
+  ordinary 4:2:0 controls included. GStreamer's libaom `av1dec` refuses WebKit's `alignment=frame`
+  caps. **So in both every series that says `depth` ≤ 10 fails every frame, 0/240 a cell**: the
+  8-bit grey, the 10-bit tomosynthesis, the ultrasound and every split whose top is ≤ 10 bits.
+  There is no fallback: a WebCodecs refusal is the frame's failure, not a turn to dav1d. Series
+  coded over 10 bits are unaffected.
+* **WebKitGTK leaves `SharedArrayBuffer` off** under cross-origin isolation (Safari turns it on),
+  so as shipped every frame of every codec fails — `Can't find variable: SharedArrayBuffer`, HTJ2K
+  included, 0/148. With `JSC_useSharedArrayBuffer=1` it decodes as above.
+
+What would make the choice right, proposed and not built: `typeof VideoDecoder` and
+`isConfigSupported` decide nothing (Firefox and WebKitGTK both say true and decode none of these
+shapes). The worker would decode a tiny lossless keyframe of the series' layout and depth at init,
+check its samples, and fall back to dav1d-WASM on any difference, refusal or format it cannot read.
+
+### Decode time against HTJ2K
+
+Row SPEED ([`lab/av1/speed`](../../lab/av1/speed/README.md)), 2026-10-03. The first 18 frames of three
+real series (row DATA), each as the served HTJ2K and as lossless AV1 intra (libaom 3.15.1 `cpu-used`
+0, G = 1 as row SIZE recommends). Every arm is the product's decoder worker — `decoder.js` with the
+OpenJPH package, `decoder.js` → `decode-av1.js` with dav1d-WASM `simd` — or WebCodecs behind the
+same protocol and output, timed by the worker's own decode stamps (bytes in, the contract's pixels
+and range out), one frame at a time after a warm-up frame. 16 rounds, each (environment × throttle)
+cell a fresh process in a Williams order, sets and arms rotated inside it. **7 488 of 7 488 timed
+frames exact** against the series' checksums; flipping one bit of every decoded frame, or one digit
+of every checksum, turns all 13 cells to 0/18.
+
+ms a frame, median over rounds of each round's median [range of the round medians]; × is AV1 over
+HTJ2K, paired by round:
+
+| set | env | throttle | HTJ2K, OpenJPH | AV1, dav1d-WASM | × | AV1, WebCodecs | × |
+| --- | --- | --: | --: | --: | --: | --: | --: |
+| fluoroscopy 768², 12-bit | Node | 1× | 7.99 [6.99–10.9] | 71.5 [69.3–74.4] | **8.9** | — | |
+| | | 4× | 30.6 [23.7–36.2] | 300.6 [288.5–312.3] | **9.7** | — | |
+| | Chromium | 1× | 9.78 [8.44–13.4] | 70.1 [65.3–74.3] | **7.1** | refuses 12 bits | |
+| | | 4× | 34.8 [31.6–40.1] | 290.6 [275.7–312.9] | **8.1** | | |
+| MR 512², 11 bits (AV1 at 12) | Node | 1× | 4.30 [3.76–7.17] | 26.9 [25.3–28.5] | 6.3 | — | |
+| | | 4× | 16.1 [13.2–16.4] | 106.6 [92.6–112.8] | 6.9 | — | |
+| | Chromium | 1× | 4.88 [4.66–5.88] | 26.2 [23.8–27.6] | 5.4 | refuses 12 bits | |
+| | | 4× | 16.8 [13.8–28.1] | 103.8 [97.0–111.9] | 6.1 | | |
+| ultrasound 760×421, RGB 8 | Node | 1× | 7.26 [6.50–8.42] | 48.5 [44.6–51.3] | 6.5 | — | |
+| | | 4× | 26.4 [18.9–32.2] | 203.8 [189.9–225.6] | 7.6 | — | |
+| | Chromium | 1× | 7.86 [7.58–8.47] | 48.4 [45.4–52.3] | 6.1 | 33.6 [31.2–37.0] | **4.2** |
+| | | 4× | 28.5 [25.5–32.9] | 196.9 [185.3–226.0] | 6.9 | 115.4 [108.4–128.2] | **4.1** |
+
+* **AV1 is slower in every round of every cell**: the smallest of 224 paired ratios is 3.6×. The
+  earlier desktop figure of ~10× (docs/av1/README.md §Prior evidence) is the right size: 5–10× here
+  for dav1d-WASM, worst on the 12-bit fluoroscopy, and the throttle widens it slightly.
+* **The cost is dav1d's, not the copy-out**: `_av1_decode` alone is 67.5, 23.8 and 42.6 ms of the
+  ~71, ~26 and ~46 ms a frame in Node (one pass of 18 frames, not interleaved), so `decode-av1.js`'s
+  interleave and range pass are 6–12 %.
+* **WebCodecs is the faster AV1 path where it is exact** — 1.4–1.9× faster than dav1d-WASM (median 1.55, 32/32 rounds), still
+  4.1–4.2× OpenJPH — and that is only 8- and 10-bit (§WebCodecs): of these series, the ultrasound.
+* Where the host saturates: one decoder at a time on four cores, so nothing here contends; three
+  decoders in parallel were not run, and the fill figures in `docs/av1/README.md` §A1 multiply a
+  single decoder's time out by arithmetic. *Since measured (row FILL):* three decoders through the downloader,
+  `docs/av1/README.md` §A1 — the arithmetic's verdict holds, its sizes were optimistic.
+
 ## What these numbers are not
 
 * **Every millisecond is container-measured** and reported, not decided on. Heap, byte-exactness and

@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 SVCQ</title>
+<script src="/lab/.av1-build/out/simd-op.js"></script>
+<script type="module">
+  import { prepare, round } from "./bench.mjs";
+  const get = async (p) => new Uint8Array(await (await fetch(`/${p}`)).arrayBuffer());
+  globalThis.run = async ({ sets, r, mutate }) =>
+    round({ dav1d: globalThis.Dav1dModule }, await prepare(get, sets, true), r, mutate);
+  globalThis.ready = true;
+</script>

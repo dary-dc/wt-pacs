@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 REP14</title>
+<script type="module">
+  import { ARMS, round } from "../speed/drive.js";
+  const env = { worker: () => new Worker("/client/downloader/decoder.js", { type: "module" }), channel: () => new MessageChannel() };
+  // An AV1 arm is the product's own decoder, told what connect would tell it: decoder.js picks WebCodecs at depth ≤ 10.
+  const av1 = (name) => (base, set) => {
+    const { ext, ...a } = set.arms[name];
+    return { kind: "product", ext: ext ?? name, decoder: { codec: "av1", glue: `${base}/lab/.av1-build/out/simd.js`,
+      wasm: `${base}/lab/.av1-build/out/simd.wasm`, dir: `${base}/lab/.av1-build/out`, ...a } };
+  };
+  const arms = { htj2k: ARMS.htj2k, d12: av1("d12"), w10: av1("w10"), w10d: av1("w10d") };
+  globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, arms);
+  globalThis.ready = crossOriginIsolated;
+</script>

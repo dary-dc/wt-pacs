@@ -10,6 +10,38 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 | `decoder.js` | one decoder instance, reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
 | `decoder.test.mjs`, `downloader.test.mjs` | node: the range pass; how many decoders a start makes |
+| `decode-av1.js` | an AV1 series' decoding behind `decoder.js`'s contract, loaded only for one |
+| `decode-av1-webcodecs.js` | the same through WebCodecs, for a series whose streams are ≤ 10 bits |
+| `av1-frame.js` | either AV1 decoder's pictures as the contract: planes interleaved, a split merged |
+
+**An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
+path untouched, `"av1"` loads `decode-av1.js` and the dav1d build of
+[`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md) (`glue`, `wasm`, `dir` as for OpenJPH,
+`THIRD_PARTY.txt` served beside them), and anything else makes `connect` reject with
+`unknown codec "…"` before a worker starts. Every AV1 frame is one temporal unit that must decode
+alone — 8/10/12-bit grey (4:0:0) or RGB (4:4:4, identity matrix) — and comes out in the same
+`{pixels, width, bits, signed, range}` as an HTJ2K frame, colour interleaved R, G, B. A frame of a
+group, which needs the frames before it, is refused rather than decoded against the previous frame
+([`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §2, G = 1). `decoder.depth` ≤ 10 in a
+browser with `VideoDecoder` loads `decode-av1-webcodecs.js` instead; `decoder.split` and
+`decoder.offset` undo a split and a signed series' offset in either (adr-unit.md §2, the
+transforms). The dispatch arm checks every shape against its source's checksum (`client/conformance/av1/`).
+
+**An AV1 series in groups.** `opts.groupLength: G` (absent = 1) with `opts.frameCount` says a
+keyframe sits at every multiple of G and the frames between decode only after it. A group is the
+item: an ask for any frame asks its whole group from the keyframe, a fill asks whole groups, and a
+group's frames go to one decoder in index order. A frame that fails fails the rest of its group,
+each by name. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §3, *Built*; the dispatch arm
+checks a G = 8 set and a one-group set (`client/conformance/av1/{g8x20,whole12}`) frame by frame.
+A ≤ 10-bit series in groups decodes through WebCodecs, not flushed inside a group
+([`docs/decode/README.md`](../../docs/decode/README.md) §WebCodecs without a flush).
+
+**A scalable AV1 series.** A unit with a lossy base layer under a lossless top decodes through
+dav1d-WASM twice from the same bytes: the base reaches `opts.onPreview` as a frame whose `info` says
+`preview: true` at the base's own size, then the exact frame reaches the ask or `onFrame`, which
+never receive a preview. A unit without its top fails by name after its preview. WebCodecs returns
+the exact frame and no preview. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §6; the
+dispatch arm checks `client/conformance/av1/scalable/`.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
