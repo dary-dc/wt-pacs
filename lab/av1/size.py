@@ -35,7 +35,7 @@ class Set:
         m = json.loads((path / "metadata.json").read_text()) if not self.pnms else self.pnm_meta()
         self.n, self.w, self.h, self.ch = m["frameCount"], m["width"], m["height"], m["channels"]
         self.stored, self.signed, self.lo, self.hi = m["bitsStored"], m["signed"], m["min"], m["max"]
-        self.dtype = "u1" if self.stored <= 8 else ("<i2" if self.signed else "<u2")
+        self.dtype = ("i1" if self.signed else "u1") if self.stored <= 8 else ("<i2" if self.signed else "<u2")
         self.offset = -self.lo if self.lo < 0 else 0
         need = int(self.hi + self.offset).bit_length()
         self.av1_bits = next((b for b in (8, 10, 12) if need <= b), None)  # None: DEPTH's split
