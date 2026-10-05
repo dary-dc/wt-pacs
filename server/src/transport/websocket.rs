@@ -22,7 +22,7 @@ use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::{self, Message};
 use tokio_tungstenite::WebSocketStream;
 use tracing::{info, warn};
 
@@ -141,12 +141,17 @@ pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions
     };
     // Served right behind the 101, a round trip before the client's first message could land.
     match sessions.serve(product, opening, read).await {
-        Err(err) if closed.load(Ordering::Relaxed) => {
+        Err(err) if closed.load(Ordering::Relaxed) && on_the_socket(&err) => {
             info!(err = %format_args!("{err:#}"), "WebSocket session closed by peer");
             Ok(())
         }
         result => result,
     }
+}
+
+/// A client's Close can only explain a failure on the socket, never a read from disk.
+fn on_the_socket(err: &anyhow::Error) -> bool {
+    err.chain().any(|e| e.downcast_ref::<tungstenite::Error>().is_some())
 }
 
 /// `None` once the client has closed the socket.
@@ -160,5 +165,20 @@ async fn next_fod(stream: &mut SplitStream<Socket>) -> Result<Option<FodMsg>> {
             Some(Ok(_)) => bail!("a binary message from the client: FoD travels as text"),
             Some(Err(err)) => return Err(err).context("read the WebSocket"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A Close the client sent, or its echo of the server's, excuses a failed write to the socket
+    /// but not a failed read from disk, which stays the session's error.
+    #[test]
+    fn only_a_failure_on_the_socket_is_the_clients_close() {
+        let write = anyhow::Error::new(tungstenite::Error::ConnectionClosed).context("write frame");
+        let read = anyhow::anyhow!("io_uring read hit EOF").context("read frame 1");
+        assert!(on_the_socket(&write), "a write to a closed socket was not the client's close");
+        assert!(!on_the_socket(&read), "a failed read from disk was taken for the client's close");
     }
 }

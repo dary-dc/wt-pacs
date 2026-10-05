@@ -26,9 +26,14 @@ on the control stream between messages, or a WebSocket Close. Each is a normal e
 timeout or a protocol abort is a WARN. On QUIC the peer's close is read from quinn's close reason, the
 peer's application close or wtransport's local close answering its `CLOSE_WEBTRANSPORT_SESSION`, so
 an HTTP/3 violation by the peer, which wtransport also answers with a local close, reads as one too.
-*Corrected 2026-10-03:* every ordinary session used to end as a WARN, and skipped the per-frame
-grace below. *Corrected 2026-10-04:* a client walking away mid-fill still did, in 8 of 30 sessions —
-those where its stream's stop reached the server before its close, so the write failed as stopped.
+A stream stop is a goodbye whatever its code: the WASM client also stops the stream when it cannot
+decode an envelope, so a server framing bug shows on the client, as frames failed with "the media
+stream ended", and not in the server's log; the client drops the decode error's own text. Over a
+WebSocket the Close excuses only a failure on the socket: a read from disk that fails is a WARN even
+when the client's Close, or its echo of the server's, arrives first. *Corrected 2026-10-03:* every
+ordinary session used to end as a WARN, and skipped the per-frame grace below. *Corrected
+2026-10-04:* a client walking away mid-fill still did, in 8 of 30 sessions — those where its
+stream's stop reached the server before its close, so the write failed as stopped.
 
 | Message | Direction | What the server does |
 | --- | --- | --- |
