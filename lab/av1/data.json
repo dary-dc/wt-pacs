@@ -1,5 +1,5 @@
 {
- "source": "NCI Imaging Data Commons, public bucket idc-open-data (anonymous HTTPS); series chosen with idc-index 0.12.5, IDC data release v24",
+ "source": "NCI Imaging Data Commons, public bucket idc-open-data (anonymous HTTPS); series chosen with idc-index 0.12.5, IDC data release v24; the breast ultrasound sets from Zenodo records (CC BY 4.0), decoded with FFmpeg 6.1.1",
  "sets": [
   {
    "name": "ct_lidc",
@@ -4228,6 +4228,452 @@
      "bytes": 208954
     }
    ]
+  },
+  {
+   "name": "dbt12_c",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, a third reconstruction system",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.331325318803291398271708420138",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "938d2096effa02b77ae2cd011df8f64c517308349cfe4903ee99a5d2a141c140",
+   "files": [
+    {
+     "key": "b8f5afc7-8b0d-4c0b-87bb-28cdc24a1e5e/16c56cad-b4ae-4faa-b02d-e56b7faac60a.dcm",
+     "sha256": "d1e5b0d6c04c2d2bbf5d28668150facc032899b7848f362644b81aee0fa5424f",
+     "bytes": 268961836
+    }
+   ]
+  },
+  {
+   "name": "dbt10_d",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, R MLO, cropped to the breast",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.197523448940305893929741503110",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "20264943ee40801faa201c85b428300eaba4d43a6bafa0eb75246e82ee0cb8aa",
+   "crop": [
+    0,
+    1133,
+    2336,
+    757
+   ],
+   "files": [
+    {
+     "key": "f74e48a3-8481-4506-9710-f3c34851438c/3a5e3e84-e511-492f-be8b-3b802195820f.dcm",
+     "sha256": "ee113c3c8d200ef58f36b86fa9a9c8f7f2a9705cb7a1cc24a43b59117e3278fb",
+     "bytes": 445820442
+    }
+   ]
+  },
+  {
+   "name": "dbtproj_c",
+   "what": "breast tomosynthesis projections, L CC, one view per tube angle, cropped to the breast",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.877726738817814424916528013200",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "e86df72b11b597bc8cbafe687bdb1eb508bd965a351f655e485c46daf27c689d",
+   "crop": [
+    384,
+    0,
+    2294,
+    1914
+   ],
+   "files": [
+    {
+     "key": "3f83b5a5-7309-45a6-96ef-7d82913432c4/2acca712-8480-4b35-a2b3-423e79554a5d.dcm",
+     "sha256": "fcc8741ea8ce333e47499acc7cd1eb8ad9dc074ab51565bb1f67aaf8babbd243",
+     "bytes": 14665086
+    },
+    {
+     "key": "3f83b5a5-7309-45a6-96ef-7d82913432c4/bcb6c098-a3be-476e-8b1a-8c9724be062d.dcm",
+     "sha256": "151fdd6437530a001e98cc74adffc8b29dac40bf0f7a04ace9f89d787eff3659",
+     "bytes": 14665082
+    },
+    {
+     "key": "3f83b5a5-7309-45a6-96ef-7d82913432c4/f1aa574b-2489-4fa5-b270-d8a8fe63c31f.dcm",
+     "sha256": "d6ec68632cdae6a6ad616a518d288ea58d5b7570287651da800e38f6214a9c2a",
+     "bytes": 14665086
+    },
+    {
+     "key": "3f83b5a5-7309-45a6-96ef-7d82913432c4/2a4e9280-6823-4106-bd41-55fb96905a77.dcm",
+     "sha256": "85b355004ab9464ad113e58412d7e83d10741440bafb5c398147a76d66a065c7",
+     "bytes": 14665084
+    },
+    {
+     "key": "3f83b5a5-7309-45a6-96ef-7d82913432c4/050ba1a1-e4e2-4d7e-98dd-9c96cd4b09ab.dcm",
+     "sha256": "55484241919eb2b46cf80004a77a29bfa57ec565af65fc85f00cd43465e84708",
+     "bytes": 14665104
+    },
+    {
+     "key": "3f83b5a5-7309-45a6-96ef-7d82913432c4/2b264b4d-8939-4c23-b75e-add88377a423.dcm",
+     "sha256": "197fa6ad61b8eb1bb170d42decafc5dedb138ccfc354ffd32b366da2fdd23a39",
+     "bytes": 14665080
+    },
+    {
+     "key": "3f83b5a5-7309-45a6-96ef-7d82913432c4/e5ef97e4-d006-4a4b-a726-187721d933cd.dcm",
+     "sha256": "9f62911aba3512ebe1296de0477f5d8a45f8b12f5bef38554374f68d4031153a",
+     "bytes": 14665082
+    },
+    {
+     "key": "3f83b5a5-7309-45a6-96ef-7d82913432c4/27bf4e32-5ea1-4009-a666-e630ce44af79.dcm",
+     "sha256": "297b01ed8c19c1ff3483b2fc0b7d6f207d3ed3b6566cf2e6cec948bc89d979e5",
+     "bytes": 14665082
+    },
+    {
+     "key": "3f83b5a5-7309-45a6-96ef-7d82913432c4/4e230186-04a9-4811-9bae-27ec5f2603af.dcm",
+     "sha256": "b0fa3160c6ee248918c52d21a38378939e619f5dc7f319429e2060fb8709b329",
+     "bytes": 14665086
+    }
+   ]
+  },
+  {
+   "name": "ffdm_c",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO (a third detector)",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.335171222557244004935036836000",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "383793ac1a01771af11d508b8e7f4feb53ca8060908c6f727025578bb8adab33",
+   "files": [
+    {
+     "key": "7c3171c4-24ab-4084-a7e0-3408eeed4af8/0e081441-aae3-4b09-9e38-1db90bdc3b68.dcm",
+     "sha256": "13ae263bc3a30c17a4c7988ae9cb6364143271bce49c79fd91803556bbce31ae",
+     "bytes": 8805650
+    },
+    {
+     "key": "7c3171c4-24ab-4084-a7e0-3408eeed4af8/01e9c78d-c089-43c4-a50e-abe17de14545.dcm",
+     "sha256": "f17f0861501c81a9a3a111a87987d394e50d3f345999a0f3cb1c34ed0eda3fd2",
+     "bytes": 8805290
+    },
+    {
+     "key": "7c3171c4-24ab-4084-a7e0-3408eeed4af8/7caab5f6-001f-43cd-9b66-c7db31301296.dcm",
+     "sha256": "3adcf9e7513e4d67e9ae540106927a34eb2f9d0bd5d0a1fbac28f7f16753bdf0",
+     "bytes": 8806076
+    },
+    {
+     "key": "7c3171c4-24ab-4084-a7e0-3408eeed4af8/80210f7a-aa11-4446-99f9-b5cc527421d0.dcm",
+     "sha256": "32600895dcdb926bb04b769d1c9cc0582df2938aa865bc837aa24200ba62a1e8",
+     "bytes": 8805016
+    }
+   ]
+  },
+  {
+   "name": "ffdm_d",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO (an earlier detector)",
+   "collection": "breast_diagnosis",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.4792.2001.326862698868700146219088322924",
+    "1.3.6.1.4.1.14519.5.2.1.4792.2001.323835191362867057104216682000",
+    "1.3.6.1.4.1.14519.5.2.1.4792.2001.649950477012021564780825459292",
+    "1.3.6.1.4.1.14519.5.2.1.4792.2001.299324598221034771323901632218"
+   ],
+   "licence": "CC BY 3.0",
+   "doi": "10.7937/k9/tcia.2015.sdnrqxxr",
+   "frames_sha256": "f81eb4ad8ff88512b8a21f705b7eb0abb6ccc680006565ea33d2ed6d5de9e13d",
+   "files": [
+    {
+     "key": "df8fada7-6a1e-45e5-81fc-acd602fa73a2/586c1ee7-0013-42ac-9da2-7335d6e2a927.dcm",
+     "sha256": "e687a9df69ffffeb1f6d82b85ae246dde7925cbc42808d08926c7782f051b607",
+     "bytes": 27265996
+    },
+    {
+     "key": "77258c8e-91fe-43e4-b0ee-c1c5647e00ca/d9c51040-0a96-4e25-956c-98f894eb428e.dcm",
+     "sha256": "1c6fdad00e9e454db8ff58d45cc9738d7a77f7d9709dcb914fb7433d28c30cfa",
+     "bytes": 27265996
+    },
+    {
+     "key": "01ba81da-2149-423c-ac41-7574cbcd86a6/b7b8331c-72aa-4d8e-add2-950cc36f196e.dcm",
+     "sha256": "b539d4bfc083242447f84c864324781e85a3e9a8823f444e5cff4d8faadcdc81",
+     "bytes": 27266012
+    },
+    {
+     "key": "870a03b0-da64-4597-81d6-5c73c82e540c/2b336bc8-d75f-426a-86d7-44526c3db550.dcm",
+     "sha256": "cbeb8c3ea775c93cb1863f645713eeba915fc02902262bee61d84db10154460a",
+     "bytes": 27266012
+    }
+   ]
+  },
+  {
+   "name": "syn2d_c",
+   "what": "synthesized 2D mammogram from tomosynthesis, L CC, R MLO, L MLO (an earlier algorithm)",
+   "collection": "cmb_brca",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.97763871926997221036836907851387981229",
+    "1.3.6.1.4.1.14519.5.2.1.128776425093663790577008150653050175437",
+    "1.3.6.1.4.1.14519.5.2.1.131124697671325632926232203920426442906"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/dx22-8j71",
+   "frames_sha256": "672ff72d18d2e6b87491f41a1de777101e8eec56b663ed4b0ca66cf13d820809",
+   "files": [
+    {
+     "key": "4366f541-9cec-4e45-ae3f-723fcf58fa60/7cabb190-dc88-41a1-b7dd-4688cb99a6fb.dcm",
+     "sha256": "f8a7268179798b5e4d8a30cd59db739bb85467db1a5cc4ad909522795aaf50b2",
+     "bytes": 9811934
+    },
+    {
+     "key": "09d65824-ec75-425e-9061-dc07d59cd223/3dbbee24-6186-4adc-a3a2-0e31627793eb.dcm",
+     "sha256": "5181be9c8728e73bcbcba22afadd689e2dcecb46bec917b02ba0733da129a9f6",
+     "bytes": 9811946
+    },
+    {
+     "key": "a810ad83-1d57-48a5-a14a-25beb4270760/3057ae26-efde-4d2b-a25a-4770b6e38c63.dcm",
+     "sha256": "cc91ddc2dd6d48258848dd6b2ea9d9dd32adc47e339c5c5d12d6b4aaf58e6037",
+     "bytes": 9811950
+    }
+   ]
+  },
+  {
+   "name": "syn2d_d",
+   "what": "synthesized 2D mammogram from tomosynthesis, four views (a later software version)",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.217896847581316739496872962194",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.266204798215144476198907730231",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.580559868348652821209146520005",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.769895702602479355417556034257"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "frames_sha256": "8410013714741caf015e93149d64636508c111bc438399173bac282ce0d05c76",
+   "files": [
+    {
+     "key": "ea2eda9f-494d-4732-88aa-403db1bff5fb/28f6f84a-645b-463f-9f62-72c6b1d630a2.dcm",
+     "sha256": "8e83de018f82764039c60e97539f80683288030af4d8f1fc156dc0a7ee080eb5",
+     "bytes": 13657976
+    },
+    {
+     "key": "69e68158-f657-4602-a3ea-43f8d06ce989/5fd9b5b7-25e5-4401-a9fd-0570d7e00e9d.dcm",
+     "sha256": "3e8742498177b4cc59b61f3b3b97caabd9e7ed09e109e2a337392e5fb6f0d38c",
+     "bytes": 13658030
+    },
+    {
+     "key": "be28454c-95dd-439a-ae13-9e0325c8b60f/89d9bf81-4493-48c2-b44b-97cc43caa993.dcm",
+     "sha256": "e668bd74a80ed88c15942683737920017a3e5f67ca2c9eaa6d4c77e3d260df18",
+     "bytes": 13658044
+    },
+    {
+     "key": "da880545-fb7f-4f01-ab14-c8a8790e4d52/f436bbb8-a8e6-49da-9f16-4e7017c41300.dcm",
+     "sha256": "0b66152510fffa0fa13c8733f3f5ec378d7725c7a98a201fb4393ade4df32062",
+     "bytes": 13657950
+    }
+   ]
+  },
+  {
+   "name": "usb_cine",
+   "what": "breast ultrasound cine, B-mode, 25 frames/s, the first 64 frames, luma",
+   "collection": "BUVFM demo dataset",
+   "series": "videos_full/class_2/5ef7aad7b6994046ae8da4ce6c27dd2e.avi",
+   "licence": "CC BY 4.0",
+   "doi": "10.5281/zenodo.20901197",
+   "frames_sha256": "fdfae48e3db35b26a3c8154d2086aa93d1aab14c3c72e61cec5620c27c7291b5",
+   "archive": {
+    "url": "https://zenodo.org/records/20901197/files/BUVFM_DEMO_DATA.zip",
+    "sha256": "803edc08912146227c1ce765961609b29d37d56533fcf12102b5b0d5045d3638",
+    "bytes": 1485075259
+   },
+   "members": [
+    {
+     "name": "dataset/videos_full/class_2/5ef7aad7b6994046ae8da4ce6c27dd2e.avi",
+     "sha256": "756501bef6e079c3be975cd434d5aa28218104f8445ee55fa4bee51cd6a66a18"
+    }
+   ],
+   "decode": "luma",
+   "frames": [
+    0,
+    64
+   ]
+  },
+  {
+   "name": "usb_cine_rgb",
+   "what": "breast ultrasound cine, tinted B-mode with colour annotations, 30 frames/s, the first 64 frames, RGB",
+   "collection": "BUVFM demo dataset",
+   "series": "videos_full/class_2/3ab6aee59bff4d7d9b644c83353dd400.avi",
+   "licence": "CC BY 4.0",
+   "doi": "10.5281/zenodo.20901197",
+   "frames_sha256": "a12c1cfebec06d772fa67881e3278078f3fe39ac030919cbac33d5b7a409d80b",
+   "archive": {
+    "url": "https://zenodo.org/records/20901197/files/BUVFM_DEMO_DATA.zip",
+    "sha256": "803edc08912146227c1ce765961609b29d37d56533fcf12102b5b0d5045d3638",
+    "bytes": 1485075259
+   },
+   "members": [
+    {
+     "name": "dataset/videos_full/class_2/3ab6aee59bff4d7d9b644c83353dd400.avi",
+     "sha256": "b65b9cc2a701fd54fd35cb3ca1de139905f2082f10e019ec3d9e60593b9acd72"
+    }
+   ],
+   "decode": "rgb",
+   "frames": [
+    0,
+    64
+   ]
+  },
+  {
+   "name": "usb_still",
+   "what": "breast ultrasound stills, B-mode, one scanner, every 276×305 image of the set",
+   "collection": "BUS-BRA",
+   "series": [
+    "bus_1003-l.png",
+    "bus_1003-r.png",
+    "bus_1009-l.png",
+    "bus_1009-r.png",
+    "bus_1014-l.png",
+    "bus_1014-r.png",
+    "bus_1020-l.png",
+    "bus_1020-r.png",
+    "bus_1023-l.png",
+    "bus_1023-r.png",
+    "bus_1025-l.png",
+    "bus_1025-r.png",
+    "bus_1027-l.png",
+    "bus_1027-r.png",
+    "bus_1030-l.png",
+    "bus_1030-r.png",
+    "bus_1031-l.png",
+    "bus_1031-r.png",
+    "bus_1036-l.png",
+    "bus_1036-r.png",
+    "bus_1039-l.png",
+    "bus_1039-r.png",
+    "bus_1045-l.png",
+    "bus_1045-r.png",
+    "bus_1054-l.png",
+    "bus_1054-r.png",
+    "bus_1058-l.png",
+    "bus_1058-r.png",
+    "bus_1062-l.png"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.5281/zenodo.8231412",
+   "frames_sha256": "ca90bec44391fd4bfd65889052284ab94bfc2f01a4d5729da4211d99d4adbe21",
+   "archive": {
+    "url": "https://zenodo.org/records/8231412/files/BUSBRA.zip",
+    "sha256": "ba3e6ed19cc37c682d8d39e25435bbf8a555a12cb7e641b5f2117685c95580ff",
+    "bytes": 133917740
+   },
+   "members": [
+    {
+     "name": "BUSBRA/Images/bus_1003-l.png",
+     "sha256": "806ec597e57f51a745f1b7f3d3be6f929421d5d974196eac58e8271bcc580fc3"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1003-r.png",
+     "sha256": "7931e8853f488c3927d7b88f57e322499b3150446d24f224ddb0e7bff2df4304"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1009-l.png",
+     "sha256": "9e5c7845e3b7b5f3f9303af2670df863412f56fc2e4ac7e5df78577618e59984"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1009-r.png",
+     "sha256": "3fc659c352aa3f896fc8201f9161ca3522a88ed81efbbf370a2a2121a9b12909"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1014-l.png",
+     "sha256": "a4cd33892fb2b2cc625b33740fa5b027636762a231ed9a1dde098ef63006fc50"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1014-r.png",
+     "sha256": "07b98a917e68e179c310886cb0fbbc9c90702ff91420d095625bacb4f641a07a"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1020-l.png",
+     "sha256": "0583888fb92d171bb2e803b341c37dc658138d0dbc10d48e762208b8a29ecb9f"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1020-r.png",
+     "sha256": "bc834246d19442d67de7fd94820502333c382a562c8017b84b5f9d1694beea5d"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1023-l.png",
+     "sha256": "da77ce2a772b9738512e8457af2ce060dcd639e0109f34f1a8917f56e6e34ab1"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1023-r.png",
+     "sha256": "5a4b4d722de451190311b7d8ef3e4695f382cd3fc6d0a7cc4d8f2204b557beca"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1025-l.png",
+     "sha256": "ae2a508db9a05b8fb875cc3e4a88004dbd58a5e8789d0ef543a76debdec13a55"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1025-r.png",
+     "sha256": "b6ee499463c37cc2550b7146d3a03c9fdb86910514f7a92b341a12c4cc353a8c"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1027-l.png",
+     "sha256": "1f93548bf24ec1c3101b905d82213bdb3e7b6c490a07995b259f82c0319d5cc5"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1027-r.png",
+     "sha256": "c6096b74a85a2f24440bdbbff0317041d7551027d5d33c586aa7d4de08e8acef"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1030-l.png",
+     "sha256": "db04b37a3e72a90fda4ea1c336a74eef4b728d797fe9094b20006caea1c577e5"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1030-r.png",
+     "sha256": "cffe10f960fd2672b01b2b595efce487792bb228d9b5c71a36601e0865492c14"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1031-l.png",
+     "sha256": "f6348ba5fe77d954c4318c6a66f9ddd051df331bbe98c433aca9b062f3c0cd79"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1031-r.png",
+     "sha256": "1e07555c94ee6977b61cc060a09bc6da4942a3b197160ab3aa187ae8dff19097"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1036-l.png",
+     "sha256": "bf1da954c4554f8c68a6831d0c49ed390f4d08acfdbed14f685b917c891f51de"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1036-r.png",
+     "sha256": "96a99216a799dd573dbc37ecc3d3dd0e525c5953671a3fd3921998bb5a1aaaf9"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1039-l.png",
+     "sha256": "feb8ca91da1c03191b08f266ec7502a99ee98d4ddd83096ecea6d5f9ce94af07"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1039-r.png",
+     "sha256": "9b3a1a7eb534f65ee6d99f71ecf4991f4159f89b18f955b3e2dff67fe8361fba"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1045-l.png",
+     "sha256": "95daee51562feadc310a498310b63b8063d72ed3655dc93d354eeb94c55f8834"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1045-r.png",
+     "sha256": "5afeec3b302b95878600985097fdd1d8aefdc98b691dc308e696ff8088837f3c"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1054-l.png",
+     "sha256": "8f3ef5bb6549ed51045960bee9f5a0942da5f7080fd3c35bde7ac89aa81e09ff"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1054-r.png",
+     "sha256": "77e9d2619870188ccb1a63f129e831c63cefdeb1ff6551600c2eb93ddda505ef"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1058-l.png",
+     "sha256": "210875f270afe7f3a67903120f6fcac00b54a41e68b36c6fa91fea415415bbcc"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1058-r.png",
+     "sha256": "30ffe48fdd76b78714865fb8fef8dcb4e85b79353b5f88e3b1997db73810e15a"
+    },
+    {
+     "name": "BUSBRA/Images/bus_1062-l.png",
+     "sha256": "63abe6cf8e01e44f142d597f48e38557470bbb5d4d31e654695d54f20f41b091"
+    }
+   ],
+   "decode": "png"
   }
  ]
 }
