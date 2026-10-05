@@ -24,6 +24,9 @@ and its branch belong to other work.
 sleeps, so the two never share a usage window). A session started by the night routine treats `night` exactly as
 `ready`; any other session leaves them.
 
+**`after env` rows** wait for the owner to switch the cloud environment's network access to full; the owner sets them to
+`ready`, and no session claims one before.
+
 **Rules every row keeps.**
 
 * **Bit-exact, always.** Ground truth is the encoder's input samples (a checksum written when the
@@ -93,6 +96,8 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 43 | **SPLITOK** — the bit split exact at every depth 8–16 and every layout k a rule could pick, unsigned and signed, through every decoder and engine, before any per-depth rule is adopted: correctness only, nothing timed | claimed 2026-10-05 (night) |
 | 44 | **SPLITTIME** — the per-depth layout rule by bytes, decode and total time: HTJ2K against d12, k = 2, k = 3 and w10 at 13–16 bits, the 9–12-bit series as controls | after 43 |
 | 45 | **DATA3** — the taxonomy's missing content and depths: breast ultrasound cine, ABUS, angiography, FFDM and synthesized 2D, real 9-, 15- and 16-bit and more signed series; exact and bytes per layout, or the hosts to allow | after 43 — data pushed `1e10f8f` (`5d548a7`): nine CC BY sets from IDC v24, 565/565 frames identical to `PixelData`, 4/4 pin mutations caught — FFDM and synthesized 2D from two vendors each (10 and 12 bits), real 9-bit MR, 15-bit PET, 16-bit film scan (~12 bits stretched ×21), two signed CTs with negatives (13 bits); breast ultrasound cine, ABUS and angiography still behind refused hosts (`## Blocked`); row 43's checks and the bytes per layout wait on row 43 — [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
+| 46 | **BREAST** — the breast family's missing content (breast ultrasound cine and stills, ABUS, more DBT, FFDM and synthesized 2D), measured as the targets: exact per decoder path, bytes per layout against HTJ2K, intra against inter at G = 8 and 16 in real slice and frame order | after env |
+| 47 | **MIXDEC** — each stream of a split item through its own decoder: a top over 10 bits through dav1d-WASM, the 8-bit low through WebCodecs, against both through dav1d and against w10 | after 43 |
 
 ## Briefs
 
@@ -727,7 +732,100 @@ Verdict: per series, licence, bits and sign after the offset, exact N/N and byte
 item still missing, the host that blocks it. Into `FIXTURES.md` §AV1 data, `licensing.md`,
 [`lab/av1`](../../lab/av1/README.md) §SIZE and §DEPTH, [`README.md`](README.md) §A3 and §A4.
 
+## The breast and mixed-decoder rows (46–47)
+
+The owner, 2026-10-05: AV1's priority is the **breast imaging family** — mammography (FFDM and synthesized 2D);
+breast tomosynthesis (DBT), read as a series of slices scrolled like cine, so an AV1 target and not only a volume;
+breast ultrasound, cine included; and automated breast ultrasound (ABUS) volumes. Other cine (echo, angiography,
+fluoroscopy) is secondary. Row 46 brings the family's missing content and measures it as the targets; row 47 asks
+whether a split item's two streams should each take their own decoder.
+
+### 46 BREAST
+
+**Network first.** Held `after env` until the owner switches the cloud environment's network access to full. Try
+every host `## Blocked` names for rows 21, 35 and 45, recording each attempt as row 45 did (host, dataset, the answer,
+UTC time). If they are still refused, add one line under `## Blocked`, set the row back to `after env` and stop.
+
+**Fetch,** where reachable, openly licensed only: CC BY or CC0, each licence read from its source, not assumed, into
+[`licensing.md`](licensing.md) and [`FIXTURES.md`](../FIXTURES.md) §AV1 data. A set under any other licence (the
+breast-lesion ultrasound video set of row 45's `## Blocked` line is non-commercial) is a line under `## Blocked`, not
+fetched. Pin and checksum every fetch in `lab/av1/fetch_data.sh` and `data.json`, frames identical to the source's
+pixels, the new pins mutated; commit no data. Wanted:
+
+* breast ultrasound cine, grey and RGB, and stills;
+* ABUS volumes;
+* DBT from at least two vendors beyond the lab's two volumes: the reconstructed slice series, and the projections
+  where a set publishes them;
+* FFDM and synthesized 2D beyond row 45's (two vendors each, 10 and 12 bits).
+
+**Record, per target series** — the lab's DBT volumes and projections and row 45's mammograms included: bits after the
+offset (measured, never read from `BitsStored`), signedness, frame count and frame size, in one table in `FIXTURES.md`
+§AV1 data, so the owner sees whether anything in the breast family exceeds 12 bits.
+
+**Measure, per series, every coding exact.** The fetch lands here on `claude/av1`, as row 45's did; the measuring
+needs the item code, so it runs on `claude/av1-unified` after merging `origin/claude/av1` into it (§The bit-split
+rows).
+
+* **Exactness through every decoder path:** row 43's checks if 43 is `done`; until then what the lab already runs —
+  native dav1d (`ingest.py`'s check), dav1d-WASM in Node, and WebCodecs in headless Chromium where every stream is
+  ≤ 10 bits (`lab/av1/item/check.mjs`) — and the verdict says which.
+* **Bytes over HTJ2K per layout:** plain, the k = 2 split, and w10 (k = b − 10) where b is over 12; the RCT on RGB;
+  cpu0 and the shipped preset.
+* **Intra (G = 1) against inter (G = 8 and G = 16),** exact, on the DBT slice series and the ultrasound cine in their
+  real order — slices by position along the stack, frames by acquisition time, never re-sorted. libaom 3.15.1 with
+  `--auto-alt-ref=0` (alt-ref inter is not exact, [`README.md`](README.md) §Measured here), every frame checked;
+  bytes over intra and over HTJ2K, and decode a frame through dav1d-WASM (groups decode there only, row 16) against
+  intra's, 1× and 4×, interleaved.
+
+This content is where inter coding could pay. It has been tried on the 2 frames/s fluoroscopy, the two DBT volumes
+(best group +1.2 % / −0.6 % against intra), the DBT projections (−0.3 to +0.8 %) and the RGB ultrasound, where it paid
+once colour-transformed (0.850 of HTJ2K against intra's 0.962; [`README.md`](README.md) §A1). Say per series, plainly,
+where inter pays and where it does not, with its numbers; a group costs random access (§A1), so a gain inside the
+run's spread is not one.
+
+Verdict: per series, its licence, bits, sign, frames and size; exact N/N per decoder path; bytes over HTJ2K per
+layout; inter over intra at G = 8 and 16 and its decode cost; the deepest series in the family; per item still
+missing, the host that blocks it. Into `FIXTURES.md` §AV1 data, `licensing.md`, [`lab/av1`](../../lab/av1/README.md)
+§SIZE and §DEPTH, [`README.md`](README.md) §A1 and §A3.
+
+### 47 MIXDEC
+
+**The question (the owner).** The client picks one decoder per item: `client/downloader/av1.js` takes WebCodecs only
+when every stream is ≤ 10 bits and its layout's probe passes, otherwise dav1d-WASM decodes both streams. For a split
+item whose top is over 10 bits, why not decode the top through dav1d-WASM and the 8-bit low stream through WebCodecs?
+The streams and bytes do not change; only decode can.
+
+**Measure the bound first.** Before building, time the low stream's share of a frame's decode when dav1d-WASM decodes
+both (headless Chromium, 1× and 4×, interleaved, on the 13- and 14-bit series at every k whose top is over 10 bits),
+and push it into the row's cell. The share bounds the lever: if it is small, say so there and lead the verdict with it.
+
+**Build** on `claude/av1-unified` (§The bit-split rows), in the lab's client decoder, behind a flag that defaults
+off: with it on, a split item whose top is over 10 bits sends the top to dav1d-WASM and the low to WebCodecs, both
+decodes started before either is awaited, and the low falls back to dav1d-WASM wherever its 8-bit layout's probe
+fails (Firefox and WebKitGTK, row 37). Today's path is unchanged with the flag off.
+
+**Prove exactness:** every frame of the measured 13- and 14-bit series (the CT, the cone-beam, row 45's two signed
+CTs, both projection systems) at every k whose top is over 10 bits; row 43's synthetic set once 43 is done; the merged
+frame byte-identical to the single-decoder path's on every frame. **Mutations, each must fail:** the low taken from
+the previous item; top and low swapped; the low's picture from WebCodecs with its plane offset by a row; the flag off
+still taking the mixed path; a failed low decode with no fallback.
+
+**Then measure,** interleaved, at 1× and 4×, every frame exact:
+
+* decode time a frame through `decoder.js` in headless Chromium (row 33's `lab/av1/rep14`, ported to items as row 44
+  does), mixed against both streams through dav1d-WASM (today) and against w10 (k = b − 10, both through WebCodecs);
+* total time on row 23's harness (`lab/av1/total`) on the cells where the decoder is the clock — 4× on 20 and
+  50 Mbit (row 33) — the same three arms, Williams order, n ≥ 10.
+
+Say where the host saturates and claim nothing past it; the decode-bound cells moved 15–25 % between containers
+(row 23), so the ranking is the claim. Verdict: the low stream's share, then mixed against today and w10 per series
+and k; whether the flag should become the client's choice is the owner's. Into `lab/av1/item/README.md`,
+[`decode/README.md`](../decode/README.md) §AV1 and [`README.md`](README.md) §A3.
+
 ## Blocked
+
+* **2026-10-05: row 46 BREAST waits on the cloud environment's network access** (`after env`). The owner is
+  switching it to full; once it is, the owner sets row 46 to `ready`.
 
 * **2026-10-05 14:30 UTC: row 45 DATA3 — three taxonomy items still unreachable** (every host below refused the
   tunnel, CONNECT 403; [`FIXTURES.md`](../FIXTURES.md) §AV1 data has the full attempt list). The owner decides
