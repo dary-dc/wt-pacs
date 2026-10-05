@@ -108,3 +108,4 @@ if (process.argv.includes("--top")) for (const s of manifest) {
   const tot = Object.values(r.fns).reduce((a, b) => a + b, 0);
   console.log(s.name, Object.entries(r.fns).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([f, us]) => `${(100 * us / tot).toFixed(1)}% ${f.slice(0, 60)}`).join("\n  "));
 }
+process.exit(0);

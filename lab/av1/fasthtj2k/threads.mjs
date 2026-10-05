@@ -80,3 +80,4 @@ for (const { throttle } of cells) for (const s of manifest) {
       ` exact ${all.reduce((n, r) => n + (r.exact ?? 0), 0)}/${all.reduce((n, r) => n + r.frames, 0)}`);
   }
 }
+process.exit(0);
