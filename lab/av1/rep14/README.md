@@ -70,6 +70,8 @@ a fresh browser in a Williams order (`lab/order.mjs`); sets and arms rotate insi
 **Total time**: row TOTAL's harness ([`../total`](../total/README.md)) unchanged but for taking an
 arm's stored form (`ext`) and `offset` from `arms.json`; its links, CPU, rig and order.
 
+*Running, 2026-10-05 02:30 UTC:* 6 of 10 rounds of total time, 22 320/22 320 frames exact, 15 of 540 visits `VOID`.
+
 **Checked.** In `make_frames.py`, the native merge's top shifted one bit too far exits on the first
 frame. In `decode.mjs`, on the CT: `--mutate sample` and `--mutate truth` turned every arm 0/100;
 the offset left out of `connect`, and `split` one short, each turned all three AV1 arms 0/100 with
