@@ -63,6 +63,20 @@ of `run.mjs --links r5000,r20000,r50000 --frames lab/.av1-work/total2`, rounds 1
 `VOID` left under n = 10; the reading is in the same README, §Total time. `--mutate sample` and
 `--mutate truth` each turned every new arm to 0 exact.
 
+**Row TOTAL3** sets the two representations of [`item-format.md`](../../../docs/av1/item-format.md)
+against HTJ2K and row ENCX's encoding changes against the adopted one, made with
+`ARMS=av1,l2,rct,x36,plain make_frames.py …` into `lab/.av1-work/total3` and run as
+`--arms htj2k,plain,opt,x36 --links r5000,r20000,r50000`:
+
+| arm | stored | `connect` | series |
+| --- | --- | --- | --- |
+| `plain` | `av1`'s frames: the samples direct, RGB as G, B, R | `depth` when ≤ 10 → WebCodecs, else dav1d-WASM | all |
+| `opt` | `l2` on grey, `rct` on RGB | `l2wc`, `rctwc` | all |
+| `x36` | `l2`'s top at v ≫ k, the low k bits packed MSB first and raw-deflated (zlib level 9); k = 3 on the fluoroscopy and the 12-bit volume (σ ≥ 17), 2 on the 10-bit one | `decoderWorker: deflate-worker.js` → the top through WebCodecs, the low through `DecompressionStream`, merged by the product's `av1-frame.js` | grey |
+
+The ultrasound has no `x36`: row ENCX's changes are the grey split's. `x36`'s frames are matched
+with the series' checksum after a native decode and Python's inflate before they are written.
+
 **Links.** `r5000`, `r20000`, `r50000`: a fixed rate, 40 ms round trip, a 200-packet queue, as row
 FILL. `lte-good` and `wifi-home`: row PROF's profiles (`lab/scripts/profile_cells.sh`) — mahimahi's
 `TMobile-LTE-short` trace (16.7 Mbit mean, 50 ms, Gilbert–Elliott 0.01 % in bursts of 3.5, a 500 ms
