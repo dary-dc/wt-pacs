@@ -55,8 +55,9 @@ it as a separate program, links nothing against it and ships nothing built from 
 
 ## Data
 
-The public series of row DATA ([`../FIXTURES.md`](../FIXTURES.md) §AV1 data) are CC BY 3.0 or
-4.0, per series as the NCI Imaging Data Commons index records it: reuse, derivatives and
+The public series of rows DATA and DATA3 ([`../FIXTURES.md`](../FIXTURES.md) §AV1 data) are CC BY 3.0
+or 4.0, per series as the NCI Imaging Data Commons index records it (row DATA3: CBIS-DDSM CC BY 3.0;
+EA1141, CPTAC-LUAD, NLST, CMB-CRC and ISPY2 CC BY 4.0): reuse, derivatives and
 redistribution allowed with attribution. Fetched, never committed; anything derived from them that
 is published carries the collection DOIs listed there.
 
