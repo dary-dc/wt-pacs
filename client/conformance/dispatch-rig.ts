@@ -791,6 +791,10 @@ const GOLDEN_SHAPE: Record<string, string> = {
   g8: "1x8-bit", g10: "1x10-bit", g12: "1x12-bit", s11: "1x11-bit signed", s13: "1x13-bit signed", g14: "1x14-bit", c8: "3x8-bit",
 };
 const golden = (rep: string, name: string) => `${ITEMS}/${rep}/${name}`;
+/** Row 43's items: b = 8…16 bits, every split k from the smallest whose top fits 12 bits to a top of 8, unsigned and signed. */
+const MATRIX = Array.from({ length: 9 }, (_, i) => i + 8).flatMap((b) =>
+  Array.from({ length: Math.max(b - 8, 4) - Math.max(0, b - 12) + 1 }, (_, j) => Math.max(0, b - 12) + j)
+    .flatMap((k) => (["u", "s"] as const).map((sign) => [b, k, sign] as const)));
 
 /** The item's stream units' lengths: what a WebCodecs spy saw of it, if it saw it. */
 function unitLengths(item: Uint8Array) {
@@ -870,6 +874,10 @@ async function anAv1ItemDecodesToItsSource(DownloaderClient: DownloaderCtor, che
       const r = await av1Through(DownloaderClient, bases.map((b) => `${b}.av1`), mode);
       await exactAv1(check, `av1 ${mode === "spy" ? "webcodecs" : "dav1d"}`, r.got, bases, (i) => `64x48 ${GOLDEN_SHAPE[GOLDEN[i]]}`);
     }
+    const bases = MATRIX.map(([b, k, sign]) => `${ITEMS}/matrix/b${b}k${k}${sign}`);
+    const r = await av1Through(DownloaderClient, bases.map((b) => `${b}.av1`), mode);
+    await exactAv1(check, `av1 matrix ${mode === "spy" ? "webcodecs" : "dav1d"}`, r.got, bases,
+      (i) => `32x24 1x${MATRIX[i][0]}-bit${MATRIX[i][2] === "s" ? " signed" : ""}`);
   }
   const notices = await fetch(`${AV1_DIR}/THIRD_PARTY.txt`).then((r) => (r.ok ? r.text() : ""), () => "");
   check(notices.includes("VideoLAN and dav1d authors") && notices.includes("Alliance for Open Media Patent License 1.0"),
@@ -917,6 +925,7 @@ async function aMalformedAv1ItemIsRefusedByName(DownloaderClient: DownloaderCtor
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 item refusals — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
   const g12 = await fetched(`${golden("optimized", "g12")}.av1`);
   const g10 = await fetched(`${golden("plain", "g10")}.av1`);
+  const g8 = await fetched(`${golden("plain", "g8")}.av1`);
   const c8 = await fetched(`${golden("plain", "c8")}.av1`);
   const set = (b: Uint8Array, at: number, value: number) => {
     const out = Uint8Array.from(b);
@@ -931,14 +940,15 @@ async function aMalformedAv1ItemIsRefusedByName(DownloaderClient: DownloaderCtor
   const cases: [Uint8Array, RegExp][] = [
     [set(g12, 0, 2), /version 2, not 1/],
     [set(g12, 4, 4), /unknown flag bits 0x4/],
-    [set(g12, 3, 3), /split 3, not 0, 1 or 2/],
+    [set(g12, 3, 9), /split 9, over 8/],
+    [set(g12, 1, 17), /bits 17, over 16/],
     [set(g12, 4, 2), /rct with split 2/],
     [u32(g12, 8, 5), /offset 5 without signed/],
     [set(g12, 1, 13), /bits 13 over depth 10 \+ split 2/],
-    [set(set(g12, 1, 8), 3, 0), /bits 8 under depth 10 \+ split 0/],
+    [set(set(g12, 1, 8), 3, 0), /depth 10 for a top of 8 bits, not 8/],
     [u32(g12, 12, 2), /2 frames, 1 expected/],
     [u32(g12, 16, 1e6), /frame 0 overruns the item/],
-    [set(g10, 2, 12), /top stream 10-bit, header says 12/],
+    [set(set(g8, 1, 10), 2, 10), /top stream 8-bit, header says 10/],
     [set(g10, 4, 2), /top stream of 1 planes under rct, not three/],
     [set(c8, 4, 1), /three planes without rct/],
   ];

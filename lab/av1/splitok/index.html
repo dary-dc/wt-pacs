@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 SPLITOK</title>
+<script type="module">
+  const post = (path, body) => fetch(path, { method: "POST", body: JSON.stringify(body) });
+  const w = new Worker("worker.js", { type: "module" });
+  w.onerror = (e) => post("/sk/done", { error: `worker: ${e.message}` });
+  post("/sk/hello", { ua: navigator.userAgent, isolated: crossOriginIsolated, videoDecoder: typeof VideoDecoder === "function" });
+</script>

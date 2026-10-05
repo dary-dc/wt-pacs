@@ -163,6 +163,19 @@ else {
       check(shape === expect, `golden: ${rep} ${name} says what it is (${shape}, want ${expect})`);
     }
   }
+  const matrix = readdirSync(`${ITEMS}/matrix`).filter((f) => f.endsWith(".av1"));
+  let exact = 0;
+  for (const file of matrix) {
+    const [, bits, split, sign] = file.match(/^b(\d+)k(\d)([us])\.av1$/);
+    const item = new Uint8Array(readFileSync(`${ITEMS}/matrix/${file}`));
+    const f = await av1.decodeFrame(item).catch((e) => ({ error: e.message }));
+    const said = `${item[1]}/${item[3]}/${item[4] & 1 ? "s" : "u"}`;
+    const ok = f.sab && sha(f.sab) === readFileSync(`${ITEMS}/matrix/${file.replace(".av1", ".sha256")}`, "utf8").trim()
+      && said === `${bits}/${split}/${sign}` && f.info.bitsPerSample === Number(bits) && f.info.isSigned === (sign === "s");
+    exact += ok;
+    check(ok, `golden: matrix ${file} decodes to its source as ${bits} bits, split ${split} (${f.error ?? said})`);
+  }
+  check(matrix.length === 90 && exact === 90, `golden: the matrix's 90 items, ${exact} exact`);
   const decode = (b) => av1.decodeFrame(b);
   const streamCases = [
     [edit(edit(golden("plain", "g8"), 1, 10), 2, 10), /top stream 8-bit, header says 10/, "a top stream of another depth"],
