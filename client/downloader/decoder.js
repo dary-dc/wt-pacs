@@ -70,12 +70,10 @@ async function initHtj2k(m) {
   dec = new M.HTJ2KDecoder();
 }
 
-const webcodecs = (m) => m.decoder.depth <= 10 && typeof VideoDecoder === "function";
-
 async function init(m) {
-  // Only an AV1 series loads AV1 code, and WebCodecs only where exact. docs/av1/adr-unit.md §2
+  // Only an AV1 series loads AV1 code; which decoder takes an item is chosen per item. docs/av1/item-format.md
   if (m.decoder?.codec === "av1") {
-    const av1 = await import(webcodecs(m) ? "./decode-av1-webcodecs.js" : "./decode-av1.js");
+    const av1 = await import("./av1.js");
     await av1.init({ ...m.decoder, groupLength: m.groupLength });
     decodeOne = av1.decodeFrame;
   } else await initHtj2k(m);
