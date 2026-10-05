@@ -96,7 +96,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 43 | **SPLITOK** — the bit split exact at every depth 8–16 and every layout k a rule could pick, unsigned and signed, through every decoder and engine, before any per-depth rule is adopted: correctness only, nothing timed | claimed 2026-10-05 (night) |
 | 44 | **SPLITTIME** — the per-depth layout rule by bytes, decode and total time: HTJ2K against d12, k = 2, k = 3 and w10 at 13–16 bits, the 9–12-bit series as controls | after 43 |
 | 45 | **DATA3** — the taxonomy's missing content and depths: breast ultrasound cine, ABUS, angiography, FFDM and synthesized 2D, real 9-, 15- and 16-bit and more signed series; exact and bytes per layout, or the hosts to allow | after 43 — data pushed `1e10f8f` (`5d548a7`): nine CC BY sets from IDC v24, 565/565 frames identical to `PixelData`, 4/4 pin mutations caught — FFDM and synthesized 2D from two vendors each (10 and 12 bits), real 9-bit MR, 15-bit PET, 16-bit film scan (~12 bits stretched ×21), two signed CTs with negatives (13 bits); breast ultrasound cine, ABUS and angiography still behind refused hosts (`## Blocked`); row 43's checks and the bytes per layout wait on row 43 — [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
-| 46 | **BREAST** — the breast family's missing content (breast ultrasound cine and stills, ABUS, more DBT, FFDM and synthesized 2D), measured as the targets: exact per decoder path, bytes per layout against HTJ2K, intra against inter at G = 8 and 16 in real slice and frame order | after env |
+| 46 | **BREAST** — the breast family's missing content (breast ultrasound cine and stills, ABUS, more DBT, FFDM and synthesized 2D), measured as the targets: exact per decoder path, bytes per layout against HTJ2K, intra against inter at G = 8 and 16 in real slice and frame order | ready |
 | 47 | **MIXDEC** — each stream of a split item through its own decoder: a top over 10 bits through dav1d-WASM, the 8-bit low through WebCodecs, against both through dav1d and against w10 | after 43 |
 
 ## Briefs
@@ -824,8 +824,7 @@ and k; whether the flag should become the client's choice is the owner's. Into `
 
 ## Blocked
 
-* **2026-10-05: row 46 BREAST waits on the cloud environment's network access** (`after env`). The owner is
-  switching it to full; once it is, the owner sets row 46 to `ready`.
+* **2026-10-05: row 46 BREAST waited on the cloud environment's network access** — switched to full by the owner the same day; row 46 set to `ready`.
 
 * **2026-10-05 14:30 UTC: row 45 DATA3 — three taxonomy items still unreachable** (every host below refused the
   tunnel, CONNECT 403; [`FIXTURES.md`](../FIXTURES.md) §AV1 data has the full attempt list). The owner decides
