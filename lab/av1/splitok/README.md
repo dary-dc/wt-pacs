@@ -67,9 +67,12 @@ bits, dav1d-WASM otherwise and in the two others.
   in both.
 * **The real series.** All nine of `docs/FIXTURES.md` §AV1 data, every frame, at every k of its
   depth's matrix (the colour ultrasound in its plain and RCT shapes), cpu0 and its shipped preset:
-  82/82 cells, 3 310 frames, exact natively and through the reader in Node — CT (13 bits, k 1–5) 1 000,
-  cone-beam (13, k 1–5) 640, MR (11, k 0–4) 580, fluoroscopy (12, k 0–4) 180, tomosynthesis 12-bit
-  (12, k 0–4) 290 and 10-bit (10, k 0–4) 240, projections (14, k 2–6) 90 and 150, ultrasound 140.
+  82/82 cells, 3 310 frames, exact natively, through the reader in Node and in all three engines (every
+  k, not only 2, 3 and b − 10) — CT (13 bits, k 1–5) 1 000, cone-beam (13, k 1–5) 640, MR (11, k 0–4)
+  580, fluoroscopy (12, k 0–4) 180, tomosynthesis 12-bit (12, k 0–4) 290 and 10-bit (10, k 0–4) 240,
+  projections (14, k 2–6) 90 and 150, ultrasound 140. Chromium took 2 254 through WebCodecs and 1 056
+  through dav1d-WASM, Firefox and WebKitGTK all 3 310 through dav1d-WASM (Firefox's colour too: it
+  returns 4:4:4 as 8-bit `BGRX`, row 37), each as expected.
 * **The mutations, 20/20 caught.** In the writer, each refused by ingest's native check: the top
   shifted one bit more and one less, the low mask one bit narrow, the offset dropped and doubled,
   `split` one short and one long in the header; the low mask one bit *wide* still merges exactly
