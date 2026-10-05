@@ -87,5 +87,6 @@ says `"codec": "av1"`, and the reader is `client/downloader/av1.js` with `av1-it
 per-layout probes are 16×16 units (grey 8/10, 4:4:4 8/10) in `av1-probe.js`, checked by an FNV-1a of their planes. On
 the first 8 frames of the fluoroscopy, CT, MR and ultrasound series, both representations, all 96 items were written and
 decoded by the reader to their sources; optimized over plain matches row 28 to the third digit
-([`lab/av1/item`](../../lab/av1/item/README.md) §Checked).
-
+([`lab/av1/item`](../../lab/av1/item/README.md) §Checked). The lab harnesses of rows 9–38 that hand the client bare temporal units, or import the decoder modules
+(`lab/av1/{speed,fill,total,decspeed,wcbase,xbrowser,footprint,rep14}`), are not ported: on this branch they would
+need their frames written as items; their readings stand as measured on `claude/av1`.
