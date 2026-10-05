@@ -10,7 +10,7 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decodeStart?: number; decodeEnd?: number; decoder?: number } } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
@@ -1018,7 +1018,7 @@ async function anUnknownCodecIsRefusedBeforeTheDial(DownloaderClient: Downloader
     decoders: 1, perDecoder: 2, delayMs: 0, realDecoder: { ...AV1, codec: "jxl" }, onFrame: () => {},
   });
   const refused = await connect.then(
-    (c) => void c.close() ?? "connected",
+    (c) => (c.close(), "connected"),
     (e) => String((e as Error)?.message ?? e),
   );
   check(refused === 'unknown codec "jxl"', `codec: an unknown one is refused by name (${refused})`);
@@ -1241,7 +1241,7 @@ async function aDecoderRefusesAFrameWhosePredecessorItDidNotDecode(
   worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: AV1 }, [ch.port1]);
   await until(() => replies.length > 0, 5000);
   const outcome: string[] = [];
-  for (const [index, gen, empty] of [[0, 0], [2, 0], [1, 0], [2, 0, true], [3, 0], [8, 0], [9, 1], [9, 0]]) {
+  for (const [index, gen, empty] of [[0, 0], [2, 0], [1, 0], [2, 0, true], [3, 0], [8, 0], [9, 1], [9, 0]] as [number, number, boolean?][]) {
     const n = replies.length;
     const bytes = empty ? new Uint8Array(0) : await unit(G8, index);
     worker.postMessage({ kind: "decode", index, gen, key: index % 8 === 0, bytes, stamps: {} });
@@ -1373,7 +1373,7 @@ async function aScalableFrameThroughWebCodecsIsExactWithoutAPreview(
 /** A group is asked whole, so a series coded in groups without its frame count is refused at `connect`. */
 async function aGroupWithoutItsSeriesLengthIsRefused(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void) {
   const { connect } = begin(DownloaderClient, { decoders: 1, perDecoder: 2, delayMs: 0, realDecoder: AV1, groupLength: 8, onFrame: () => {} });
-  const refused = await connect.then((c) => void c.close() ?? "connected", (e) => String((e as Error)?.message ?? e));
+  const refused = await connect.then((c) => (c.close(), "connected"), (e) => String((e as Error)?.message ?? e));
   check(/frameCount/.test(refused), `group: G = 8 and no frameCount is refused (${refused})`);
 }
 
