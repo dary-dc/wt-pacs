@@ -824,6 +824,17 @@ and k; whether the flag should become the client's choice is the owner's. Into `
 
 ## Blocked
 
+* **2026-10-05 16:30 UTC: row 46 BREAST — what full network access still does not open.** Every host rows 21, 35
+  and 45 found refused answers now, but `pan.baidu.com` (connection reset); the attempts are in
+  [`FIXTURES.md`](../FIXTURES.md) §AV1 data. Not fetched, the owner decides:
+  * *Automated breast ultrasound* — TDSC-ABUS 2023: its challenge page calls the data "publicly available" through
+    `pan.baidu.com` and states no licence; its Zenodo record (the challenge's proposal) is CC BY-NC-ND 4.0. No
+    other ABUS set was found on Zenodo, figshare, Mendeley Data or Hugging Face.
+  * *Breast ultrasound video, the MICCAI 2022 set* — non-commercial (row 45's line). Row 46 took a CC BY 4.0 set
+    instead (`usb_cine`, `usb_cine_rgb`), whose clips are lossy MPEG-4 at 512².
+  * *DBT from a third vendor* — every CC BY tomosynthesis series in IDC v24 and in TCIA's own index is the lab's two
+    vendors'; Breast-Cancer-Screening-DBT is CC BY-NC 4.0 and one of the same two.
+
 * **2026-10-05: row 46 BREAST waited on the cloud environment's network access** — switched to full by the owner the same day; row 46 set to `ready`.
 
 * **2026-10-05 14:30 UTC: row 45 DATA3 — three taxonomy items still unreachable** (every host below refused the
