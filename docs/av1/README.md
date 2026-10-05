@@ -84,6 +84,15 @@ transform 0.89–0.95× row SIZE's coding, the split +1–5 % on large frames an
 10-bit tomosynthesis — still 5–10× HTJ2K (row SPEED). **Inter pays on the colour-transformed
 ultrasound**: one keyframe in 8 frames, 0.850 of HTJ2K (GBR inter 1.355), decoding 0.81–0.83× GBR
 intra; on grey it does not (0.942–1.006 against intra's 0.902–0.987).
+*The breast family (row BREAST, [`lab/av1/breast`](../../lab/av1/breast/README.md)): inter does not pay on
+DBT, and the one cine where it pays is a lossy recording.* Four DBT slice series from three reconstruction systems, 24–32
+slices in position order, k = 2 split, every frame exact: G = 8 and 16 are 0.963–1.054 of intra's bytes at cpu0 and
+0.998–1.050 at `good` 6 — the one gain over 2 % (a 10-bit volume at cpu0, 0.963) is a loss at `good` 6 — against
+intra's 0.942–0.945 of HTJ2K. A breast ultrasound cine in RGB gains under 2 %. A grey one (CC BY 4.0, MPEG-4 at 512²)
+halves: G = 16 is 0.53 of intra, 0.47 of HTJ2K, decoding in 0.56 of intra's time in dav1d-WASM — but only 30–47 %
+of its samples change between frames, which is the source's lossy inter coding repeating blocks; a scanner's own
+cine is not open here (`queue.md` §Blocked), so whether inter pays on one is not measured. No ABUS volume is open.
+
 *What is left to cut (row ENCX, [`lab/av1/encx`](../../lab/av1/encx/README.md)).* On row 28's
 frames, every coding exact (358/358 codings, 7 100/7 100 frames in Chromium): **HTJ2K gains only
 0.9–1.6 % from the same split, and only with its low bits deflated** (0.984–0.991, at 1.02–1.69× its
@@ -336,6 +345,12 @@ fastest preset, and all 3 310 frames of the nine real series at each of
 their k, cpu0 and the shipped preset, exact natively, in Node and in Chromium, Firefox and WebKitGTK, each decoder the
 one its engine should choose — WebCodecs in Chromium wherever every stream is ≤ 10 bits, dav1d-WASM elsewhere; and 20
 mutations caught. Nothing in the split stops a per-depth rule: row 44 may pick any k of this range on bytes and time.
+
+*The breast family's depths (row BREAST, [`FIXTURES.md`](../FIXTURES.md) §AV1 data): nothing presented or
+reconstructed there exceeds 12 bits* — four FFDM and four synthesized-2D series of 10–12 bits, four DBT slice series of
+10–12; only the raw projections (14 bits, three systems) and a digitized film (16, a ~12-bit scan stretched) exceed
+it. On a third system's projections plain, k = 2 and w10 are within 1 % (0.962–0.971 of HTJ2K,
+[`lab/av1/breast`](../../lab/av1/breast/README.md)).
 
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
