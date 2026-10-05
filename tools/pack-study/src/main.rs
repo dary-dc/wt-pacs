@@ -1,4 +1,5 @@
-//! Pack loose HTJ2K frames + metadata JSON into a single `.sbnd` bundle.
+//! Pack loose frames (`NNN.htj2k`, or `NNN.av1` when the metadata says `"codec": "av1"`) + metadata JSON
+//! into a single `.sbnd` bundle.
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -27,8 +28,13 @@ fn main() -> Result<()> {
         .and_then(|v| v.as_u64())
         .context("frameCount missing in metadata")? as usize;
 
+    let ext = match meta.get("codec").and_then(|v| v.as_str()) {
+        None | Some("htj2k") => "htj2k",
+        Some("av1") => "av1",
+        Some(other) => anyhow::bail!("unknown codec {other:?} in metadata"),
+    };
     let frame_paths: Vec<PathBuf> = (0..frame_count)
-        .map(|i| args.frames.join(format!("{i:03}.htj2k")))
+        .map(|i| args.frames.join(format!("{i:03}.{ext}")))
         .collect();
     let mut lengths: Vec<u32> = Vec::with_capacity(frame_count);
     for path in &frame_paths {

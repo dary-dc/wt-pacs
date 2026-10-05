@@ -1,38 +1,38 @@
 /**
- * An AV1 frame's decoded pictures as decoder.js's contract, whichever decoder made them. A picture is
- * `{ width, height, bits, planes: [{ heap, offset, stride }] }` in samples: one plane for grey, G, B, R
- * for colour. A series' `split`, `rct` and `offset` are undone here. docs/av1/adr-unit.md §2
+ * An AV1 item's decoded pictures as decoder.js's contract, whichever decoder made them. A picture is
+ * `{ width, height, bits, planes: [{ heap, offset, stride }] }` in samples: one plane for grey, the
+ * coded planes for colour. The item's split, colour transform and offset are undone here.
+ * docs/av1/item-format.md
  */
 
-/** A split frame is `[u32le top length][top unit][low unit]`. */
-export function units(bytes) {
-  const n = bytes.length >= 4 ? new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true) : -1;
-  if (n < 1 || 4 + n >= bytes.length) throw new Error(`undecodable: not a split frame (${bytes.length} bytes)`);
-  return [bytes.subarray(4, 4 + n), bytes.subarray(4 + n)];
-}
+const refuse = (why) => {
+  throw new Error(`undecodable: av1 item: ${why}`);
+};
 
-export function begin(pic, d) {
+/** The top picture checked against the item's header and placed. */
+export function begin(pic, item) {
   const components = pic.planes.length;
-  const split = d.split ?? 0;
-  // RCT codes 8-bit RGB in 9 bits, so in a 10-bit container.
-  if (d.rct && (components !== 3 || pic.bits !== 10)) throw new Error(`undecodable: ${components}x${pic.bits}-bit in an RCT series`);
-  const bits = d.rct ? 8 : pic.bits + split;
-  const signed = d.offset !== undefined;
-  if (bits > 16) throw new Error(`undecodable: ${bits} bits`);
+  if (pic.bits !== item.depth) refuse(`top stream ${pic.bits}-bit, header says ${item.depth}`);
+  if (item.rct && components !== 3) refuse(`top stream of ${components} planes under rct, not three`);
+  const plainRgb = item.bits === 8 && item.depth === 8 && !item.split && !item.signed;
+  if (!item.rct && components === 3 && !plainRgb) refuse("three planes without rct");
+  const { bits, signed } = item;
   const wide = bits > 8;
   const sab = new SharedArrayBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
   const out = wide ? (signed ? new Int16Array(sab) : new Uint16Array(sab)) : signed ? new Int8Array(sab) : new Uint8Array(sab);
-  const f = { pic, out, sab, components, bits, signed, mask: 2 ** bits - 1, offset: d.offset ?? 0, range: { min: Infinity, max: -Infinity } };
-  if (d.rct) unrct(f, pic);
-  else place(f, pic, split, !split);
+  const mask = 2 ** (item.depth + item.split) - 1;
+  const f = { pic, out, sab, components, bits, signed, mask, offset: item.offset, range: { min: Infinity, max: -Infinity } };
+  if (item.rct) unrct(f, pic);
+  else place(f, pic, item.split, !item.split);
   return f;
 }
 
 /** The contract's return, the low picture OR-ed in first when the frame is split. */
 export function end(f, low) {
   if (low) {
+    if (low.bits !== 8) refuse(`low stream ${low.bits}-bit, not 8`);
     if (low.planes.length !== 1 || low.width !== f.pic.width || low.height !== f.pic.height) {
-      throw new Error(`undecodable: a low picture of ${low.width}x${low.height}x${low.planes.length} under ${f.pic.width}x${f.pic.height}`);
+      refuse(`a low picture of ${low.width}x${low.height}x${low.planes.length} under ${f.pic.width}x${f.pic.height}`);
     }
     place(f, low, 0, true);
   }
