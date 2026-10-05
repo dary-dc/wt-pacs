@@ -21,7 +21,7 @@ NODE_PATH=$(npm root -g) node lab/av1/rep14/decode.mjs --rounds 12 --out decode.
 for r in $(seq 0 9); do
   NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs --frames lab/.av1-work/rep14 --arms htj2k,d12,w10 \
     --rounds 1 --first-round $r --out total.jsonl
-done
+done                                                   # then rounds 10 and 11, which bring VOID-short cells to n >= 10
 NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs --frames lab/.av1-work/rep14 --arms htj2k,d12,w10 --summary --out total.jsonl
 ```
 
@@ -69,8 +69,6 @@ a fresh browser in a Williams order (`lab/order.mjs`); sets and arms rotate insi
 
 **Total time**: row TOTAL's harness ([`../total`](../total/README.md)) unchanged but for taking an
 arm's stored form (`ext`) and `offset` from `arms.json`; its links, CPU, rig and order.
-
-*Running, 2026-10-05 02:30 UTC:* 6 of 10 rounds of total time, 22 320/22 320 frames exact, 15 of 540 visits `VOID`.
 
 **Checked.** In `make_frames.py`, the native merge's top shifted one bit too far exits on the first
 frame. In `decode.mjs`, on the CT: `--mutate sample` and `--mutate truth` turned every arm 0/100;
