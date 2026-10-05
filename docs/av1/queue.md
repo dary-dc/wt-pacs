@@ -89,7 +89,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 39 | **UNIFY** — one AV1 branch on the cleaned `main`: this branch's AV1 work merged onto it, and the item format of [`item-format.md`](item-format.md) (plain and optimized) built end to end | claimed 2026-10-05 03:15 UTC |
 | 40 | **SVC** — scalable payloads end to end in the lab: bases first, then the exact frames (row 26's proposal), measured as time to first picture and to exact | claimed 2026-10-05 03:17 UTC |
 | 41 | **FASTHTJ2K** — faster HTJ2K decode in the browser: where OpenJPH-WASM's time goes, what GPU decoders move to the GPU, whether WebGPU can, and the CPU levers not yet tried | claimed 2026-10-05 03:18 UTC |
-| 42 | **TOTAL3** — total time with row 36's encoding findings (low bits deflated, k per series, the top through WebCodecs) against HTJ2K and the plain AV1 control | night |
+| 42 | **TOTAL3** — total time with row 36's encoding findings (low bits deflated, k per series, the top through WebCodecs) against HTJ2K and the plain AV1 control | claimed 2026-10-05 03:20 UTC |
 
 ## Briefs
 
