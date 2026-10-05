@@ -211,7 +211,11 @@ the largest frames and a first frame about as late as HTJ2K's, both small beside
 not.
 
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
-unsigned. Signed data is offset by 2^(B−1), which is reversible; data over 12 bits (stored 16-bit)
+unsigned. Signed data is offset by 2^(B−1), which is reversible (*corrected 2026-10-05: what was built and
+measured is an offset of −min of the series, 0 when it has no negative sample — `lab/av1/size.py` `Set.offset`,
+[`item-format.md`](item-format.md) §Representation; 2^(B−1) is the shift HTJ2K's and JPEG XL's inputs get, `size.py`
+`pnm()`. It needs fewer bits: the CT, stored 16-bit signed at −2048..3746, takes 13 bits offset by 2048, 16 by
+2^15*); data over 12 bits (stored 16-bit)
 needs a split into planes or streams. Row DEPTH measures the options against HTJ2K on the same frames.
 On row DATA's sets, measured: the CT spans −2048..3746 (−1097..3746 without its pad), so it does
 **not** fit 12 bits after an offset; the cone-beam volume needs 13 bits; MR, fluoroscopy and
