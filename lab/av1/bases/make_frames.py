@@ -34,8 +34,8 @@ total = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(total)
 
 SPEED = 7
-SHAPES = {"single": ["-lm", "0", "-sl", "1", "--layer-q=0"],
-          "svc": ["-lm", "5", "-sl", "2", "-r", "1/4,1/1", "--layer-q=40,0"]}
+# (layering mode, spatial layers, the encoder's other flags)
+SHAPES = {"single": (0, 1, ["--layer-q=0"]), "svc": (5, 2, ["-r", "1/4,1/1", "--layer-q=40,0"])}
 
 
 def padded(s, i):
@@ -58,8 +58,9 @@ def write_y4m(s, path):
 
 
 def encode(build, s, y4m, ivf, shape):
-    subprocess.run([build / "aom-3.15.1-svc-b/svc_encoder_rtc", "-o", ivf, *SHAPES[shape],
-                    "-tl", "1", "-b", str(svc.KBPS * 2), "-bl", f"{svc.KBPS},{svc.KBPS}", "--min-q=0", "--max-q=0",
+    mode, sl, flags = SHAPES[shape]
+    subprocess.run([build / "aom-3.15.1-svc-b/svc_encoder_rtc", "-o", ivf, "-lm", str(mode), "-sl", str(sl), *flags,
+                    "-tl", "1", "-b", str(svc.KBPS * sl), "-bl", ",".join([str(svc.KBPS)] * sl), "--min-q=0", "--max-q=0",
                     "-k", "100000", "-sp", str(SPEED), "-d", str(s.av1_bits), f"--profile={2 if s.av1_bits == 12 else s.ch // 3}",
                     *(["--monochrome"] if s.ch == 1 else ["--rgb"]), y4m], check=True, capture_output=True)
 
@@ -81,7 +82,7 @@ def scalable(build, s, work, shape, truth):
     y4m, ivf = work / "in.y4m", work / f"{shape}.ivf"
     write_y4m(s, y4m)
     encode(build, s, y4m, ivf, shape)
-    layers = int(SHAPES[shape][SHAPES[shape].index("-sl") + 1])
+    layers = SHAPES[shape][1]
     whole = ivf_units(Path(f"{ivf}_{layers - 1}.av1").read_bytes())
     (work / "whole.obu").write_bytes(b"".join(whole))
     got = [hashlib.sha256(contract(p, s.ch)).hexdigest() for p in dav1d(build, work / "whole.obu", work / "d.y4m", 0)]
