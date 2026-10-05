@@ -92,7 +92,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 42 | **TOTAL3** — total time with row 36's encoding findings (low bits deflated, k per series, the top through WebCodecs) against HTJ2K and the plain AV1 control | done `f2b9c15` (`d6a3f78`, `1ab5ee5`) — **row ENCX's changes buy 3 % where a slow CPU meets a fast link and ±0.6 % elsewhere**: fluoroscopy, both tomosynthesis volumes and the ultrasound, 5/20/50 Mbit at 1× and 4×, 13 rounds, 1 026 of 1 170 visits kept, n = 5–13, 38 532/38 532 frames exact; x36 (low bits raw-deflated, k = 3 where σ ≥ 17, top through WebCodecs, a lab worker) over the adopted representation 0.969–0.972 at 4× on 50 Mbit, 0.990–0.997 elsewhere on the k = 3 series (bytes −0.2 to −0.5 %), 1.003–1.006 on the 10-bit volume (deflate alone, +0.4 % bytes); over HTJ2K x36 0.94–0.97, and 0.98–1.00 at 4× on 50 Mbit where the adopted one is 1.00–1.02; the plain control 1.03–1.13 of HTJ2K where the wire is the clock and 1.27–1.65 at 4× on 50 Mbit (the 10-bit volume 0.98–1.01, 1.19) — [`README.md`](README.md) §Total time |
 | 43 | **SPLITOK** — the bit split exact at every depth 8–16 and every layout k a rule could pick, unsigned and signed, through every decoder and engine, before any per-depth rule is adopted: correctness only, nothing timed | claimed 2026-10-05 (night) |
 | 44 | **SPLITTIME** — the per-depth layout rule by bytes, decode and total time: HTJ2K against d12, k = 2, k = 3 and w10 at 13–16 bits, the 9–12-bit series as controls | after 43 |
-| 45 | **DATA3** — the taxonomy's missing content and depths: breast ultrasound cine, ABUS, angiography, FFDM and synthesized 2D, real 9-, 15- and 16-bit and more signed series; exact and bytes per layout, or the hosts to allow | claimed 2026-10-05 (night) |
+| 45 | **DATA3** — the taxonomy's missing content and depths: breast ultrasound cine, ABUS, angiography, FFDM and synthesized 2D, real 9-, 15- and 16-bit and more signed series; exact and bytes per layout, or the hosts to allow | after 43 — data pushed `1e10f8f` (`5d548a7`): nine CC BY sets from IDC v24, 565/565 frames identical to `PixelData`, 4/4 pin mutations caught — FFDM and synthesized 2D from two vendors each (10 and 12 bits), real 9-bit MR, 15-bit PET, 16-bit film scan (~12 bits stretched ×21), two signed CTs with negatives (13 bits); breast ultrasound cine, ABUS and angiography still behind refused hosts (`## Blocked`); row 43's checks and the bytes per layout wait on row 43 — [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 
 ## Briefs
 
@@ -728,6 +728,17 @@ item still missing, the host that blocks it. Into `FIXTURES.md` §AV1 data, `lic
 [`lab/av1`](../../lab/av1/README.md) §SIZE and §DEPTH, [`README.md`](README.md) §A3 and §A4.
 
 ## Blocked
+
+* **2026-10-05 14:30 UTC: row 45 DATA3 — three taxonomy items still unreachable** (every host below refused the
+  tunnel, CONNECT 403; [`FIXTURES.md`](../FIXTURES.md) §AV1 data has the full attempt list). The owner decides
+  whether to allow a host or fetch locally:
+  * *Breast ultrasound cine* — the breast-lesion ultrasound video set of the MICCAI 2022 paper (arXiv 2207.00141):
+    non-commercial research and education only, per its README (read through `raw.githubusercontent.com`), so
+    fetch-at-run-time only; hosts `drive.google.com` and `pan.baidu.com`.
+  * *Automated breast ultrasound* — the TDSC-ABUS 2023 challenge volumes; licence not read (host refused); hosts
+    `tdsc-abus2023.grand-challenge.org`, `grand-challenge.org`, `zenodo.org`.
+  * *Contrast angiography runs* — CADICA (`data.mendeley.com`) and ARCADE (`zenodo.org`); licences not read
+    (hosts refused). IDC v24's 35 XA series are all single frames.
 
 * **2026-10-04 20:43 UTC: row 35 DATA2 stopped at its first step** — `zenodo.org` and `www.cancerimagingarchive.net` are still refused (CONNECT 403, organization policy), so breast ultrasound cine and angiography stay unmeasured; allowing a host is the owner's.
 
