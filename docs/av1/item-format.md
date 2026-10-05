@@ -31,7 +31,8 @@ frame  := one temporal unit                       when split = 0
   `n` ≠ the count expected, lengths that overrun the item, `split` ∉ {0, 1, 2}, `rct` with `split` > 0, a top
   stream not of three planes under `rct`, or of three planes without it unless bits 8, depth 8, split 0, unsigned;
   without `rct`, `bits` > `depth + split`, or `bits` ≤ 8 with `depth + split` > 8; a non-zero `offset` without
-  `signed`.
+  `signed`. *Built, and also refused:* an item under 16 bytes, a pad byte not 0, a `depth` other than 8, 10
+  or 12, and bytes past the last frame.
 * HTJ2K items stay bare codestreams (the bundle's codec field says which).
 
 ## Representation at ingest (lab row 28 LLSIZE, `lab/av1/llsize/` in the public lab)
@@ -60,7 +61,8 @@ as our improvement. The lab's `direct`, `low1` and `gbr` codings. `--av1-represe
 Encoder: the settings below less `--tune-content=screen --sb-size=64`; the same presets per content.
 
 **Encoder:** libaom 3.15.1 `aomenc --ivf --lossless=1 --bit-depth=B --input-bit-depth=B --kf-max-dist=0
---tune-content=screen --sb-size=64 --threads=1`, `--monochrome` for grey (Y4M `420`/`420p10`/`420p12` with
+--tune-content=screen --sb-size=64 --threads=1`, `--monochrome` for grey, `--color-primaries=bt709 --transfer-characteristics=srgb --matrix-coefficients=identity` for
+RGB (AV1's RGB signal: with the identity matrix alone WebCodecs reports a BT.709 matrix and no colour item passes its probe) (Y4M `420`/`420p10`/`420p12` with
 neutral chroma, as the lab does); preset: the fastest within 2 % of cpu0's bytes per content (row 14); RGB ultrasound at cpu0; IVF split into one temporal unit per frame (strip each IVF frame's 12-byte header). Frames parallel across
 processes.
 
@@ -76,3 +78,14 @@ the frame.
 * **dav1d-WASM** (dav1d 1.5.4, emscripten 3.1.74, SIMD build) otherwise — 12-bit top streams, no `VideoDecoder`,
   or a failed probe.
 * Both lazy-imported on the first AV1 item of a worker, memoised; an HTJ2K page fetches no AV1 code.
+
+## Built (row 39, branch `claude/av1-unified`)
+
+The writer is [`lab/av1/item/ingest.py`](../../lab/av1/item/README.md), `pack-study` bundles its items when the metadata
+says `"codec": "av1"`, and the reader is `client/downloader/av1.js` with `av1-item.js` (the header and its refusals) and
+`av1-frame.js` (the merge) — [`client/downloader/README.md`](../../client/downloader/README.md) §An AV1 series. The
+per-layout probes are 16×16 units (grey 8/10, 4:4:4 8/10) in `av1-probe.js`, checked by an FNV-1a of their planes. On
+the first 8 frames of the fluoroscopy, CT, MR and ultrasound series, both representations, all 96 items were written and
+decoded by the reader to their sources; optimized over plain matches row 28 to the third digit
+([`lab/av1/item`](../../lab/av1/item/README.md) §Checked).
+

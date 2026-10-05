@@ -82,7 +82,9 @@ against another decoder:
 
 ### The transforms and the decoder choice, as built (row WCDEC)
 
-Three more fields of `decoder`, from the series' metadata beside `codec`:
+Three more fields of `decoder`, from the series' metadata beside `codec`. *Superseded by row 39 (UNIFY):
+they live in each item's header ([`item-format.md`](item-format.md)), `split` is 0–2 low bits, and the decoder is
+chosen per item; the fields below are the series-wide form this section first built.*
 
 ```json
 { "codec": "av1", "depth": 10, "split": 3, "offset": 4096 }
