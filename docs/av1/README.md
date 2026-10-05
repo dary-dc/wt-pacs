@@ -92,7 +92,7 @@ frame decodes in 0.64–0.83× of row 28's time** (0.63–0.76× at 4×, dav1d-W
 through WebCodecs where it is ≤ 10 bits (k = 3 brings CT and the cone-beam set there) a frame decodes
 in **0.34–0.56× of row 28's time, 2.1–3.4× HTJ2K's**. Inter coding finds nothing predictable in the
 noise (the low stream inter is 0–3.6 % larger), and libaom's remaining tools nothing (palette, already
-on, is worth 4.5–9.2 %; the rest ±1 %). What that does to total time is arithmetic until row TOTAL2.
+on, is worth 4.5–9.2 %; the rest ±1 %). What that does to total time is arithmetic until row TOTAL2. *Measured since (row TOTAL3, §Total time): the deflated low bits and k = 3 cut a grey fill by 3 % at 4× on 50 Mbit and by 0–1 % elsewhere; the deflate alone at k = 2 costs 0.4 %.*
 
 *What G = 1 costs an ask (SPEED's decode times × SIZE's bytes; arithmetic, not measured).* An ask is
 one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of decoding** in Chromium
@@ -578,6 +578,65 @@ cell measured but two, both at 4× on 50 Mbit, where the better of them loses by
 WebCodecs on the 12-bit series (top10+low2 at 0.943, against row TOTAL's top10+low3 at 0.999), so
 the bytes and the faster decoder no longer trade. dav1d-WASM keeps the same bytes and keeps losing
 40–60 % to HTJ2K where a slow CPU meets a fast link.
+
+### The plain control and row ENCX's changes, by total time (row TOTAL3, [`lab/av1/total`](../../lab/av1/total/README.md))
+
+The same harness and links as row TOTAL2, four arms a series: HTJ2K; [`item-format.md`](item-format.md)'s
+**plain** representation (the samples direct, RGB as G, B, R; WebCodecs where ≤ 10 bits, else
+dav1d-WASM); its **optimized** one as adopted (row TOTAL2's top+low2 and RCT through WebCodecs); and
+the optimized one with row ENCX's changes, **x36** — the low bits packed and raw-deflated, inflated by
+`DecompressionStream`, and k = 3 on the two series whose noise σ ≥ 17 (fluoroscopy, 12-bit
+tomosynthesis; k = 2 on the 10-bit volume), the top through WebCodecs. x36 is decoded by a lab worker
+merging through the product's `av1-frame.js`, not by the product. The ultrasound has no x36: row ENCX's
+changes are the grey split's. Plain is libaom cpu0, not the format's fastest preset within 2 % of it.
+13 rounds Williams-ordered, 1 026 of 1 170 visits kept (144 `VOID`, more in the later rounds and spread
+evenly over the arms), n = 5–13 a cell, **38 532/38 532 frames exact**. Every fill ÷ HTJ2K's, the
+median of round-paired ratios, 1× · 4×; in brackets bytes over HTJ2K's on the whole series:
+
+| series | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| --- | --- | --- | --- | --- |
+| fluoroscopy, 12-bit | HTJ2K, s | 15.2 · 15.2 | 3.93 · 3.96 | 1.73 · 1.75 |
+| | plain, dav1d (1.024) | 1.03 · 1.04 | 1.04 · 1.09 | 1.06 · 1.61 |
+| | optimized (0.943) | 0.95 · 0.95 | 0.95 · 0.97 | 0.97 · 1.02 |
+| | x36, k = 3 (0.938) | **0.94 · 0.94** | **0.95 · 0.96** | **0.96 · 1.00** |
+| tomosynthesis, 12-bit | HTJ2K, s | 23.7 · 23.7 | 6.05 · 6.09 | 2.58 · 2.62 |
+| | plain, dav1d (1.043) | 1.05 · 1.05 | 1.05 · 1.08 | 1.06 · 1.65 |
+| | optimized (0.942) | 0.94 · 0.95 | 0.95 · 0.96 | 0.96 · 1.01 |
+| | x36, k = 3 (0.940) | **0.94 · 0.94** | **0.95 · 0.95** | **0.96 · 0.98** |
+| tomosynthesis, 10-bit | HTJ2K, s | 22.3 · 22.4 | 5.71 · 5.77 | 2.44 · 2.50 |
+| | plain, WebCodecs (0.977) | 0.98 · 0.99 | 0.99 · 1.01 | 1.00 · 1.19 |
+| | optimized (0.944) | **0.95 · 0.95** | **0.95 · 0.96** | **0.96** · 1.00 |
+| | x36, k = 2 (0.948) | 0.95 · 0.95 | 0.96 · 0.97 | 0.96 · **0.99** |
+| ultrasound, RGB 8 | HTJ2K, s | 29.4 · 29.5 | 7.49 · 7.52 | 3.15 · 3.17 |
+| | plain, WebCodecs (1.117) | 1.12 · 1.12 | 1.12 · 1.13 | 1.12 · 1.27 |
+| | optimized (0.958) | **0.96 · 0.96** | **0.96 · 0.97** | **0.97** · 1.03 |
+
+* **x36 over the optimized representation, round-paired:** on the two k = 3 series 0.990–0.997 where
+  the wire is the clock (its bytes, 0.5 % and 0.2 % fewer; faster in 95 of 97 pairs) and **0.969–0.972 at
+  4× on 50 Mbit**, where the decode is (faster in 20 of 23). On the 10-bit volume, the deflate alone:
+  1.003–1.006, slower in 46 of 49 pairs, from 0.4 % more bytes, and 0.971 at 4× on 50 Mbit.
+* **So row ENCX's changes buy 3 % where a slow CPU meets a fast link and ±0.5 % elsewhere**: at 4× on
+  50 Mbit they take the grey series from 1.00–1.02 of HTJ2K to 0.98–1.00 (the fluoroscopy a tie, slower in
+  6 of 12), the one cell row TOTAL2 left HTJ2K's; on every other cell x36 is 0.94–0.97 of HTJ2K, as the
+  optimized representation is.
+* **The plain control loses on every cell but the 10-bit volume's.** At 12 bits it goes through
+  dav1d-WASM: 1.03–1.09, and 1.61–1.65 at 4× on 50 Mbit. On the ultrasound, through WebCodecs,
+  1.12–1.13, its bytes, and 1.27 at 4× on 50 Mbit. The 10-bit volume is the one series where plain AV1's
+  bytes are under HTJ2K's: 0.98–0.99 at 5 Mbit, a tie at 50 Mbit, 1.19 at 4× on 50 Mbit. Over the control
+  the optimized representation is 0.61–0.84 of its fill at 4× on 50 Mbit and 0.86–0.96 elsewhere.
+* **First frame.** x36 is 6–38 ms ahead of the optimized representation on the k = 3 series and 0–15 ms
+  behind on the 10-bit volume. Plain is 90–170 ms behind HTJ2K at 1× and 340–420 ms at 4× through
+  dav1d-WASM, 28–152 ms through WebCodecs.
+* **Saturation** as in row TOTAL2: at 4× on 50 Mbit three slowed cores are the clock. Nothing is claimed
+  about a phone, or about the LTE and Wi-Fi profiles, which this row did not run.
+
+**Verdict.** Against HTJ2K, lossless AV1 as it codes out of the box fills 3–13 % slower wherever the wire
+is the clock and 27–65 % slower where a slow CPU meets a fast link; only the 10-bit volume, whose plain
+bytes are under HTJ2K's, ties or wins on the wire (and loses 19 % there). The
+adopted representation turns that into 3–6 % faster on every cell but 4× on 50 Mbit (1.00–1.03). **Row
+ENCX's changes add 3 % at 4× on 50 Mbit and almost nothing elsewhere**: on grey they close that last cell
+to 0.98–1.00, and k = 3 is worth its 0.2–0.5 % of bytes; the deflate alone, at k = 2, costs 0.4 % of
+bytes where the wire is the clock.
 
 ## Threads (owner, 2026-10-03)
 
