@@ -305,7 +305,7 @@ pub(crate) trait FramePipeline: Send {
     async fn finish(&mut self);
 }
 ```
-* The readers own an `Arc<FrameStore>`. **Done after R3, `15efab9`:** not for a measurement but for an
+* The readers own an `Arc<FrameStore>`. **Done after R3, `4eaa170`:** not for a measurement but for an
   invariant the types did not hold — the ring registers the store's file and the slots key on its
   offsets, so `read` no longer takes a store.
 * `RecordedPipeline` stamps three times: `begin_frame` at `read` entry, the read boundary at
@@ -443,19 +443,19 @@ New branch off `main` after PR #33 merges (per the handoff). One worktree, its o
 
 | Commit | What | Needs | Measure |
 | --- | --- | --- | --- |
-| C1 | #2 leftover: a close during session setup is a goodbye too | — | none — **done `ffb05b1`**; `session_request.accept()` itself stays unclassified, since no connection exists yet to ask for a close reason |
-| C2 | Doc corrections with no code: `frame-framing-and-loop-shape.md:324` (capacity is 8 + 8), `WIRE.md:152-153` (an opening ask is never refused) | — | none — **done `8db4e64`** |
-| C3 | #9: one frame limit, refused at bundle load naming the frame | decision D6 | none — **done `8dc4b05`**: the crate's check is `envelope_len(prefix)`, a function on the 4-byte prefix every reader already holds, not a `Head` type |
-| C4 | #10: `TransportTuning` derives `clap::Args` | — | none — **done `d649fe8`** |
+| C1 | #2 leftover: a close during session setup is a goodbye too | — | none — **done `b5aab47`**; `session_request.accept()` itself stays unclassified, since no connection exists yet to ask for a close reason |
+| C2 | Doc corrections with no code: `frame-framing-and-loop-shape.md:324` (capacity is 8 + 8), `WIRE.md:152-153` (an opening ask is never refused) | — | none — **done `ab58271`** |
+| C3 | #9: one frame limit, refused at bundle load naming the frame | decision D6 | none — **done `7935a98`**: the crate's check is `envelope_len(prefix)`, a function on the 4-byte prefix every reader already holds, not a `Head` type |
+| C4 | #10: `TransportTuning` derives `clap::Args` | — | none — **done `f7773ab`** |
 
 **Refactors.**
 
 | Commit | What | Needs | Measure |
 | --- | --- | --- | --- |
 | R0a / R0b | Strip per-frame mode (W4) / strip the stall (W16), each tagged `archive/…` first, **only if decided** | D1, D2 | none (removals; the per-frame half of conformance goes with W4) |
-| R1 | #1: planner owns range and refusal text; `Next`; fill plumbing gone; #8's `Mode` / `forward` / `Ask` doc | — | **`server_ab.sh <R1^>`, interleaved; expect tie on every cell; p50 verdict only** — **built `7f7730e`.** Run in a 4-core cloud container, not the workstation, so not evidence (the script says so): 12 rounds, every cell a tie on p50, `named` 4 at cold depth 4 on both arms, cold miss ≥ 0.99. The script exits 1 because its `WANT` table still expects `cold_d4` to win, as written for the change it was built for. **The workstation run is owed** |
-| R2 | #3: `Link`, one writer per session; `Control` and the WebSocket mutex gone | R1; shape from D1, D2 | none (QUIC bytes identical) — **done `d3565c7`**, keep-both shape; `frame_out.rs` became `link.rs`, and the late-control refusal test moved there against `ControlStream` |
-| R3 | #6 + #7 rename: `read` / `write` steps; row v3 (`read_us`, `write_us`, `t_serve_us`; `overhead_us` gone); ADR amended in place | R1, R2; D3 | none required — **done `58b26e6`**; measured in a container, both arms recording: a tie on CPU per frame (telemetry ADR §What it costs). The readers owning an `Arc<FrameStore>` followed as `15efab9` (§6) |
+| R1 | #1: planner owns range and refusal text; `Next`; fill plumbing gone; #8's `Mode` / `forward` / `Ask` doc | — | **`server_ab.sh <R1^>`, interleaved; expect tie on every cell; p50 verdict only** — **built `77e76dd`.** Run in a 4-core cloud container, not the workstation, so not evidence (the script says so): 12 rounds, every cell a tie on p50, `named` 4 at cold depth 4 on both arms, cold miss ≥ 0.99. The script exits 1 because its `WANT` table still expects `cold_d4` to win, as written for the change it was built for. **The workstation run is owed** |
+| R2 | #3: `Link`, one writer per session; `Control` and the WebSocket mutex gone | R1; shape from D1, D2 | none (QUIC bytes identical) — **done `fe47632`**, keep-both shape; `frame_out.rs` became `link.rs`, and the late-control refusal test moved there against `ControlStream` |
+| R3 | #6 + #7 rename: `read` / `write` steps; row v3 (`read_us`, `write_us`, `t_serve_us`; `overhead_us` gone); ADR amended in place | R1, R2; D3 | none required — **done `dfa74d9`**; measured in a container, both arms recording: a tie on CPU per frame (telemetry ADR §What it costs). The readers owning an `Arc<FrameStore>` followed as `4eaa170` (§6) |
 | R4 | #5: `session/` module, `endpoint.rs`, `testkit.rs`, tests beside their code; #8's renames | R1–R3 | none |
 
 **Dependencies, checked.** The review's "5 after 1–3" still holds, plus after #6. "6 after 1"
@@ -468,7 +468,7 @@ deciding, build R2 for the keep-both shape; a later strip then shrinks it.
 
 ## R4 written out for the owner's review (row 120)
 
-**Not built; waiting on the owner (D7).** Every file:line here is at `002511e` (R3 done). R4 moves
+**Not built; waiting on the owner (D7).** Every file:line here is at `88163ec` (R3 done). R4 moves
 and renames only: no behaviour, no measurement. Questions the owner may want to answer are marked
 **Q**.
 
@@ -522,7 +522,7 @@ From `transport/server.rs`'s `mod tests` (from `:427`):
 | `an_opening_ask_is_taken_only_whole_and_in_range` | `:795` | `session/mod.rs` (it tests `parse_open_ask`) |
 | `wire_test`, `stream_frames_range_arrives_in_order`, `empty_stream_frames_is_the_whole_study`, `end_stream_stops_a_fill_on_the_wire`, `request_frame_during_fill_switches_to_on_demand`, `pipelined_single_asks_arrive_whole_and_in_ask_order` | `:1620`, `:1650`, `:1679`, `:1709`, `:1745`, `:937` | `session/mod.rs`: the session's FoD behaviour, end to end |
 | `an_opening_ask_is_served_behind_the_accept`, `an_opening_fill_is_recorded_like_any_other_session` | `:962`, `:1178` | `session/mod.rs` |
-| `one_session`, `open_control`, and the six close/error tests (`a_client_that_closes_after_its_frames_…`, `a_malformed_ask_…`, `a_session_that_times_out_…`, `a_client_that_finishes_its_control_stream_…`, `a_client_that_closes_right_after_the_accept_…`, and `a_client_that_stops_its_media_stream_…`, added after the pin in `2d3d2dd`) | `:559`, `:607`, `:627`–`:682` | `transport/endpoint.rs`: they test `handle_incoming`'s classification |
+| `one_session`, `open_control`, and the six close/error tests (`a_client_that_closes_after_its_frames_…`, `a_malformed_ask_…`, `a_session_that_times_out_…`, `a_client_that_finishes_its_control_stream_…`, `a_client_that_closes_right_after_the_accept_…`, and `a_client_that_stops_its_media_stream_…`, added after the pin in `bd1e640`) | `:559`, `:607`, `:627`–`:682` | `transport/endpoint.rs`: they test `handle_incoming`'s classification |
 | `a_held_dial_neither_connects_nor_fails`, `settings_ride_the_handshake_flight`, `…_from_a_quic_connecting`, `assert_settings_before_the_handshake`, `a_lost_first_flight_is_repeated_whole` | `:1254`, `:1371`, `:1397`, `:1433`, `:1486` | `transport/endpoint.rs` |
 | `a_stalled_session_sends_its_budget_and_then_nothing` | `:1301` | `transport/link.rs` (the stall lives in `Link::Quic`) |
 | `ws_session`, `a_websocket_close_ends_its_session_cleanly`, `a_websocket_session_ends_with_a_close_frame`, `an_opening_ask_rides_the_websocket_upgrade`, `a_silent_websocket_peer_is_dropped_at_the_handshake_deadline`, `a_websocket_carries_the_same_envelopes_and_refusals` | `:739`, `:691`, `:719`, `:1049`, `:1130`, `:1780` | `transport/websocket.rs` |
@@ -560,7 +560,7 @@ frame; `pattern` is over 64 KiB a frame, so its tests read more. Keep a small va
 
 ### Renames, with each call site
 
-| Now | After | Sites at `002511e` |
+| Now | After | Sites at `88163ec` |
 | --- | --- | --- |
 | `ProductPipeline` | `SessionPipeline` | `pipeline.rs:39` (def) and `:50`, `:71`, `:108` (impls), tests `:348`, `:349`; `server.rs:7`, `:157`, `:158`, `:165`; docs: `adr/telemetry-server-pipeline.md` ×2 |
 | `drive` | `run_session` | `server.rs:382` (def); product `:179`, `:180`, `:183`; tests `:490`, `:512`, `:528`, `:551`, `pipeline.rs:317` |
