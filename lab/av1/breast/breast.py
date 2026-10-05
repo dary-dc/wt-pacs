@@ -169,6 +169,7 @@ def main():
     ap.add_argument("sets", nargs="+", type=Path)
     ap.add_argument("--frames", type=int, default=8)
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--layouts", help="only these, e.g. opt,htj2k: a cell re-run alone (cpu0 on a 13.6 M-sample frame takes 4.2 GB)")
     a = ap.parse_args()
     build = a.build.resolve()
     jobs = []
@@ -176,7 +177,8 @@ def main():
         s = size.Set(path)
         n = min(a.frames, s.n)
         if a.what == "bytes":
-            jobs += [(build, str(path), a.work / "items", n, layout) for layout in ["htj2k", *layouts(s)]]
+            jobs += [(build, str(path), a.work / "items", n, layout) for layout in ["htj2k", *layouts(s)]
+                     if not a.layouts or layout in a.layouts.split(",")]
         else:
             jobs += [(build, str(path), a.work / "ivf", n, layout, "-") for layout in ["htj2k"]]
             jobs += [(build, str(path), a.work / "ivf", n, p, g) for p in INTER_PRESETS for g in GROUPS]
