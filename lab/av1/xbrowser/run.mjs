@@ -3,7 +3,7 @@
  * same engine. Each (engine × throttle) cell is a fresh browser opening page.js, the cells in a Williams
  * order every round; sets and arms rotate inside it. lab/av1/xbrowser/README.md
  *
- *   node lab/av1/xbrowser/run.mjs [--caps] [--rounds 8] [--throttles 1,4] [--engines chromium,firefox,webkit,webkit+sab]
+ *   node lab/av1/xbrowser/run.mjs [--caps | --probe] [--rounds 8] [--throttles 1,4] [--engines chromium,firefox,webkit,webkit+sab]
  *     [--frames lab/.av1-work/xbrowser] [--mutate sample|truth] [--out rows.json]
  */
 import { spawn } from "node:child_process";
@@ -16,8 +16,9 @@ import { throttleTree } from "../../scripts/cpu_throttle.mjs";
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const CAPS = process.argv.includes("--caps");
-const ROUNDS = CAPS ? 1 : Number(arg("--rounds", 8));
-const THROTTLES = CAPS ? [1] : arg("--throttles", "1,4").split(",").map(Number);
+const PROBE = process.argv.includes("--probe");
+const ROUNDS = CAPS || PROBE ? 1 : Number(arg("--rounds", 8));
+const THROTTLES = CAPS || PROBE ? [1] : arg("--throttles", "1,4").split(",").map(Number);
 const ENGINE_NAMES = arg("--engines", "chromium,firefox,webkit,webkit+sab").split(",");
 const FRAMES = arg("--frames", "lab/.av1-work/xbrowser");
 const MUTATE = arg("--mutate", "").split(",").filter(Boolean);
@@ -59,7 +60,7 @@ const server = createServer((req, res) => {
         // The slow CPU starts after the page has loaded, as in every other row's throttled cell.
         cell.stop = throttleTree(cell.pid, cell.throttle);
         res.writeHead(200, { ...headers, "Content-Type": "application/json" });
-        res.end(JSON.stringify(CAPS ? {} : { frames: FRAMES, round: cell.round, mutate: MUTATE }));
+        res.end(JSON.stringify(CAPS ? {} : { frames: FRAMES, round: cell.round, mutate: MUTATE, probe: PROBE }));
       } else {
         res.writeHead(200, headers).end();
         cell.done(m);
@@ -109,10 +110,12 @@ async function inEngine(engine, throttle, round) {
 const cells = ENGINE_NAMES.flatMap((e) => THROTTLES.map((t) => ({ engine: e, throttle: t })));
 const rows = [];
 const caps = {};
+const probes = {};
 for (let round = 0; round < ROUNDS; round++) {
   for (const { engine, throttle } of order(cells, round)) {
     const r = await inEngine(engine, throttle, round);
     caps[engine] ??= r.caps;
+    if (r.probe) probes[engine] = r.probe;
     if (r.error) console.error(`round ${round} ${engine} ${throttle}x: ${r.error}`);
     for (const row of r.rows ?? []) rows.push({ round, engine, throttle, ...row });
     for (const row of (r.rows ?? []).filter((x) => x.error || x.exact !== x.frames)) {
@@ -124,8 +127,16 @@ for (let round = 0; round < ROUNDS; round++) {
 xvfb?.kill();
 server.close();
 console.log(JSON.stringify(caps, null, 1));
-if (OUT) writeFileSync(OUT, JSON.stringify({ caps, rows }));
+if (OUT) writeFileSync(OUT, JSON.stringify({ caps, probes, rows }));
 if (CAPS) process.exit(0);
+if (PROBE) {
+  for (const [engine, ps] of Object.entries(probes)) {
+    for (const p of ps) {
+      console.log(`${engine} ${p.set} ${p.arm} ${p.unit}: ${p.error ?? `${p.format} ${p.coded} matrix ${p.matrix}${p.exactAsRgb === undefined ? "" : ` exact as RGB ${p.exactAsRgb}`}`}`);
+    }
+  }
+  process.exit(0);
+}
 
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const f = (v) => v.toFixed(v < 10 ? 2 : 1);
