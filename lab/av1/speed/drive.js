@@ -53,9 +53,9 @@ export const ARMS = {
 };
 
 /** rows: { set, arm, ms[], exact, frames }. A frame that fails to decode is a row with an error. */
-export async function round(env, { base, frames: dir, arms, round: r, mutate = [] }, kinds = ARMS) {
+export async function round(env, { base, frames: dir, arms, round: r, mutate = [], sets }, kinds = ARMS) {
   for (const k of mutate) MUTATE[k] = true;
-  const manifest = await (await fetch(`${base}/${dir}/manifest.json`)).json();
+  const manifest = (await (await fetch(`${base}/${dir}/manifest.json`)).json()).filter((s) => !sets || sets.includes(s.name));
   const rows = [];
   for (const set of order(manifest, r)) {
     const truth = set.frames.map((f) => (MUTATE.truth ? f.truth.replace(/^./, (c) => (c === "0" ? "1" : "0")) : f.truth));
