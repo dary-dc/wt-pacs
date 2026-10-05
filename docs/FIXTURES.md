@@ -75,12 +75,12 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §A4). Nine public series, fetched at run time from the NCI Imaging
+([`av1/README.md`](av1/README.md) §A4). Eighteen public series, fetched at run time from the NCI Imaging
 Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
 never committed:
 
 ```bash
-lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~664 MB fetched
+lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~1.06 GB fetched
 ```
 
 `lab/av1/data.json` pins every file's S3 key and SHA-256 and each set's frame digest;
@@ -90,7 +90,7 @@ signed as sign-extended int16. The set digest is the SHA-256 of the frames' hex 
 concatenated in order. Stacks are ordered by position along the slice normal (uniform spacing,
 checked). A set may name a `crop` [y, x, h, w], kept from every frame. Every frame was checked once
 against the file's `PixelData` bytes read directly, not through the DICOM library's pixel decoder:
-all 387 identical, and no sample carries bits above
+all 387 identical (row DATA3's nine sets: 565/565), and no sample carries bits above
 `BitsStored`. Dependencies: pydicom 3.0.1 and numpy 2.4.6, installed with `--require-hashes` from
 `lab/av1/requirements.txt`.
 
@@ -105,6 +105,15 @@ all 387 identical, and no sample carries bits above
 | `dbt10_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm, cropped to the breast | 24 × 678×1727 of 1890×2457 | 10 of 16 bits, unsigned | 0..1012 | EA1141, CC BY 4.0 |
 | `dbtproj_ge` | breast tomosynthesis **projections**, R CC, one view per tube angle, acquisition order, cropped to the breast | 9 × 1914×2572 of 2394×2850 | 14 of 16 bits, unsigned | 0..3648 and 16383 | EA1141, CC BY 4.0 |
 | `dbtproj_holo` | breast tomosynthesis **projections**, R CC, one multi-frame file, frames as stored | 15 × 1280×2048 | 14 of 16 bits, unsigned | 103..1794 and 16383 | EA1141, CC BY 4.0 |
+| `ffdm_holo` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO | 4 × 2560×3328 | 12 of 16 bits, unsigned | 0..4093 | EA1141, CC BY 4.0 |
+| `ffdm_ge` | full-field digital mammogram, for presentation, R CC, L CC (second vendor) | 2 × 1914×2294 | 12 of 16 bits, unsigned | 407..4095 | EA1141, CC BY 4.0 |
+| `syn2d_holo` | synthesized 2D mammogram from tomosynthesis, R CC, L CC | 2 × 2560×3328 | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 |
+| `syn2d_ge` | synthesized 2D mammogram from tomosynthesis, R CC, R MLO, L CC, L MLO (second vendor) | 4 × 2394×2850 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 |
+| `pt15_cptac` | PET, whole body, axial, 3.27 mm | 335 × 256² | 16-bit signed | 0..32767 | CPTAC-LUAD, CC BY 4.0 |
+| `mg16_cbis` | digitized screen-film mammogram, L MLO | 1 × 4366×6871 | 16-bit unsigned | 0..65535 | CBIS-DDSM, CC BY 3.0 |
+| `ct_toshiba` | CT chest, axial, 1.8 mm, the longer of the series' two contiguous runs | 76 × 512² | 16-bit signed | −2048..2353 | NLST, CC BY 4.0 |
+| `ct_canon` | CT, axial, 5 mm | 107 × 512² | 16-bit signed | −2048..3373 | CMB-CRC, CC BY 4.0 |
+| `mr9_ispy2` | MR breast, axial TIRM, 5 mm | 34 × 320² | 12 of 16 bits, unsigned | 0..356 | ISPY2, CC BY 4.0 |
 
 * **Ranges are measured, not the header's.** 21.5 % of `ct_lidc`'s samples are −2048, the pad
   outside the reconstruction circle; the rest span −1097..3746, so the set needs 13 bits after
@@ -126,6 +135,26 @@ all 387 identical, and no sample carries bits above
   value. `dbtproj_ge`'s crop is the bounding box of its samples that are not 16383 over all views
   (outside it every sample is 16383, checked); the second vendor's views have no such margin. Its
   series has 9 views; the same study's L CC series, missing one, was not used.
+* **Row DATA3's depths, after the offset (the series' minimum) and measured over every frame:**
+  9 bits `mr9_ispy2`; 10 `syn2d_holo`; 12 `ffdm_holo`, `ffdm_ge`, `syn2d_ge`; 13 `ct_toshiba`, `ct_canon`;
+  15 `pt15_cptac`; 16 `mg16_cbis`. `BitsStored` says 12 or 16 for all of them. The PET is scaled per slice
+  to 32767 (signed by its header, no negative sample, 38 % zeros). `mg16_cbis` spans 0..65535 but holds 2 969
+  distinct values, ~21 apart: a ~12-bit scan stretched to 16 bits, 48 % zeros and 2.1 % saturated; it is
+  4366×6871, larger than any other frame here. The two CTs are signed with negatives, from two vendors other
+  than `ct_lidc`'s; both pad with −2048 (21.5 % of samples) and need 13 bits with or without it. Probed and not
+  taken: CMMD's mammograms (8-bit), three NM series (5, 7 and 10 bits), a GE CT and a Philips CT
+  (12 bits, no negative sample), a Fujifilm CT (an MPR clipped at −2000..4000), the raw (`FOR PROCESSING`)
+  Hologic mammogram (13 bits, MONOCHROME1).
+* **Still not open here (row DATA3, IDC v24, the newest release on PyPI, `idc-index-data` 24.2.2):** no
+  breast ultrasound cine or still beyond CMB-BRCA's 14, no automated breast ultrasound, and no multi-frame XA
+  (all 35 XA series single frames, re-read). Every other host tried refused the tunnel (CONNECT 403,
+  2026-10-05 13:30–14:26 UTC): `zenodo.org`, `www.cancerimagingarchive.net`,
+  `services.cancerimagingarchive.net`, `figshare.com`, `data.mendeley.com`, `huggingface.co`,
+  `physionet.org`, `www.kaggle.com`, `osf.io`, `dataverse.harvard.edu`, `datadryad.org`, `grand-challenge.org`,
+  `tdsc-abus2023.grand-challenge.org`, `www.synapse.org`, `drive.google.com`, `pan.baidu.com`, `www.dropbox.com`,
+  `openneuro.org`, `data.kitware.com`, `www.ebi.ac.uk`. `github.com` and `api.github.com` answer 403;
+  `raw.githubusercontent.com` answers. pydicom's test data (MIT) holds DICOM test files, none of the missing
+  content.
 * `us_liver` is stored uncompressed, but scan-converted; whether it was lossy-coded before it was
   archived is not known (not checked). It is what an archive serves, not a probe's raw output.
 * TCIA's own API, Zenodo and PhysioNet are refused by this container's network policy; IDC mirrors
@@ -137,7 +166,12 @@ LIDC-IDRI [10.7937/K9/TCIA.2015.LO9QL9SX](https://doi.org/10.7937/K9/TCIA.2015.L
 [10.7937/TCIA.2021.v4z7-tc39](https://doi.org/10.7937/TCIA.2021.v4z7-tc39), VAREPOP-APOLLO
 [10.7937/GHKN-MD15](https://doi.org/10.7937/GHKN-MD15), CMB-AML
 [10.7937/PCTE-6M66](https://doi.org/10.7937/PCTE-6M66), EA1141
-[10.7937/2BAS-HR33](https://doi.org/10.7937/2BAS-HR33) — reached through the NCI Imaging Data
+[10.7937/2BAS-HR33](https://doi.org/10.7937/2BAS-HR33), CPTAC-LUAD
+[10.7937/K9/TCIA.2018.PAT12TBS](https://doi.org/10.7937/K9/TCIA.2018.PAT12TBS), CBIS-DDSM
+[10.7937/K9/TCIA.2016.7O02S9CY](https://doi.org/10.7937/K9/TCIA.2016.7O02S9CY), NLST
+[10.7937/TCIA.HMQ8-J677](https://doi.org/10.7937/TCIA.HMQ8-J677), CMB-CRC
+[10.7937/DJG7-GZ87](https://doi.org/10.7937/DJG7-GZ87), ISPY2
+[10.7937/TCIA.D8Z0-9T85](https://doi.org/10.7937/TCIA.D8Z0-9T85) — reached through the NCI Imaging Data
 Commons. The licence is IDC's per-series `license_short_name`, read for each series chosen; the
 full citation each collection asks for is on its DOI page, which this container could not reach.
 Series UIDs are in `data.json`. Frames derived from these sets (their AV1 or HTJ2K codings) carry
