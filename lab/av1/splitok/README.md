@@ -45,7 +45,42 @@ bits, dav1d-WASM otherwise and in the two others.
 
 ## Checked (2026-10-05)
 
-*Filled in as the matrix runs.*
+* **The split and merge, every value.** Every v of 0…2^b − 1 for b = 8…16, unsigned and signed, at
+  every k of 0…8: the writer's plan and merge (`merge_test.py`) 142/142 cells exact, the 20 whose top
+  would be over 12 bits refused by name; the reader's `av1-frame.js` (`av1.test.mjs`) 162/162, its
+  reported range included. **The reader's old mask fails once the format is widened:** 2^(depth +
+  split) − 1 lets a signed container's sign extension through, so 8-bit signed at k = 1…7 and 16-bit
+  signed at k = 5 and 7 (cells the old limits refused) came back with a wrong range (9 of 162); the
+  mask is now the output container's, 0xFF or 0xFFFF.
+* **The synthetic matrix, ≤ 256×256.** 18 depths × signs × 7 sets × 5 k × cpu0 and `--allintra` 7:
+  1 260 cells, 8 280 frames, every one exact natively (ingest's check), through the reader in Node,
+  and in Chromium, Firefox and WebKitGTK, each stream's picture as planned and each range the
+  source's. 920 frames a depth b = 8…16. Chromium took 6 256 through WebCodecs — every item whose
+  streams are all ≤ 10 bits, the 1-wide and 1-high frames included — and 2 024 through dav1d-WASM;
+  Firefox and WebKitGTK took all 8 280 through dav1d-WASM, as their failed probes send them (row 37:
+  Firefox refuses monochrome, WebKitGTK's WebCodecs decodes no AV1); 8 280/8 280 chose as expected in
+  each engine. No size or
+  depth was refused.
+* **The golden matrix.** 90 items (32×24, b = 8…16, every k, both signs) in
+  `client/conformance/av1/items/matrix/`, exact in Node and through the downloader in Chromium, by
+  WebCodecs and by dav1d-WASM; every refusal of `item-format.md`, old and new, matched by its message
+  in both.
+* **The real series.** All nine of `docs/FIXTURES.md` §AV1 data, every frame, at every k of its
+  depth's matrix (the colour ultrasound in its plain and RCT shapes), cpu0 and its shipped preset:
+  82/82 cells, 3 310 frames, exact natively and through the reader in Node — CT (13 bits, k 1–5) 1 000,
+  cone-beam (13, k 1–5) 640, MR (11, k 0–4) 580, fluoroscopy (12, k 0–4) 180, tomosynthesis 12-bit
+  (12, k 0–4) 290 and 10-bit (10, k 0–4) 240, projections (14, k 2–6) 90 and 150, ultrasound 140.
+* **The mutations, 20/20 caught.** In the writer, each refused by ingest's native check: the top
+  shifted one bit more and one less, the low mask one bit narrow, the offset dropped and doubled,
+  `split` one short and one long in the header; the low mask one bit *wide* still merges exactly
+  (the extra bit is the top's own) and is caught only by the reader's plan of each stream (52 of 60
+  cells). In the reader, each failing `check.mjs`: the top shifted one more and one less, the offset
+  dropped and doubled, top and low swapped, the signed container's mask removed (18 of 60 cells, by
+  their range); the inverse RCT's ⌊/4⌋ rounded up fails the golden colour items. Items edited — `split`
+  one short and one long, top and low swapped, truncated by a byte — fail or are refused by name. RGB
+  coded without its BT.709/sRGB tags: Chromium's 4:4:4 probes fail, the colour goldens never reach
+  WebCodecs (the rig's two checks), and an untagged item goes to dav1d-WASM, exact — never a wrong
+  colour pass.
 
 **Pins.** libaom 3.15.1, dav1d 1.5.4 (native and emscripten 3.1.74 `simd.wasm`) as `tools.sh` and
 `dav1d-wasm/build.sh` pin them; numpy 2.4.6; Node 22.22.0; the engines of `lab/av1/xbrowser`
