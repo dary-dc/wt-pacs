@@ -4,7 +4,7 @@
 · **Answers:** [`README.md`](README.md) §A1, the shape half; SIZE and SPEED own the numbers.
 
 Read against [`WIRE.md`](../WIRE.md), [`ARCHITECTURE.md`](../ARCHITECTURE.md),
-[`adr-stream-shape.md`](../adr-stream-shape.md) and [`FIXTURES.md`](../FIXTURES.md) §SBND as they
+[`adr-stream-shape.md`](../adr/stream-shape.md) and [`FIXTURES.md`](../FIXTURES.md) §SBND as they
 stand at this commit. Nothing below is measured; where a choice needs a number, it says which row
 brings it.
 
@@ -216,10 +216,10 @@ Each holds today and is named so that nothing relying on it is changed by accide
 7. **A prefix draws a smaller image** ([`decode/README.md`](../decode/README.md) §A prefix draws a
    smaller image) is a property of the HTJ2K progression. AV1 has no resolution prefix, at any G,
    so a series coded as AV1 is outside the resolution-fitting path of
-   [`adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md).
+   [`adr-resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md).
 
 Not broken: a frame is still identified by its index and never by its stream; the envelope, the
-stream shape ([`adr-stream-shape.md`](../adr-stream-shape.md)), the planner and the store are
+stream shape ([`adr-stream-shape.md`](../adr/stream-shape.md)), the planner and the store are
 unchanged; the server stays codec-blind.
 
 ## 4 · What has to be measured before a G is chosen
