@@ -183,6 +183,15 @@ ultrasound, at cpu6 0.3–1.4 s; HTJ2K under 1 s a set; JPEG XL 9–33 s a set.
 signed shift not undone, a truth checksum corrupted — each reported inexact. A failed decode or a
 short one counts as inexact rather than stopping the run (the first two mutations found that).
 
+**The breast family (queue row BREAST, [`breast`](breast/README.md)).** Ten more series — a third DBT
+reconstruction system and a second 10-bit volume, a third system's projections, two FFDM and two synthesized-2D
+series, breast ultrasound cine (grey, RGB) and stills — as items, every item exact natively, in Node and in
+Chromium. **The optimized item is 0.873–0.962 of HTJ2K's bytes on 8 of 10** at cpu0 (0.888–0.979 at the shipped
+preset); a stretched-range mammogram is 1.006 (plain AV1 1.238) and the 276×305 stills 1.002. **Inter does not pay on
+DBT** — four slice series, 0.963–1.054 of intra at cpu0 and 0.998–1.050 at `good` 6 — **nor on the RGB cine (0.98–1.00);
+on the grey cine it halves the bytes** (G = 16 0.53 of intra, 0.47 of HTJ2K) and the decode, but that clip is a lossy
+MPEG-4 recording whose unchanged blocks repeat exactly, so the gain is the source's, not a scanner's.
+
 ## DEPTH — samples AV1 cannot code in one stream
 
 Queue row 7. AV1 codes at most 12 bits, unsigned. A series is offset by its minimum when that is
@@ -284,6 +293,10 @@ CT went through it here (+2048), exact.
 
 **Mutated**: the high plane shifted by 7, the low plane dropped, CT's offset not undone — each
 reported inexact.
+
+**A third system's projections (row BREAST)**, 14 bits after the offset with no saturated outlier inside the crop
+(122..16370): plain (two low bits off a 12-bit top), k = 2 and w10 are within 1 % of each other, 0.962–0.971 of HTJ2K
+at cpu0.
 
 ## ENC — what lossless encoding costs
 

@@ -62,7 +62,44 @@ cpu0, and in brackets the shipped preset and its ratio. b is the series' bits af
   others it was killed for memory and was re-run alone.
 
 **Exact through every decoder path the lab runs** (row 43 is not done, so not its matrix): every item through native
-dav1d (`ingest.py`'s check: 65 cells, each written, and one OOM kill re-run); through the client's reader in Node, dav1d-WASM, 63/63 cells and 401/401
-frames; in headless Chromium 141, 63/63 cells and 401/401 frames, WebCodecs taking the 285 whose streams are all
-≤ 10 bits and dav1d-WASM the other 116, each as the client should choose (`splitok/check.mjs`, `splitok/browser.mjs`).
-`ffdm_d`'s re-run cells are checked below.
+dav1d (`ingest.py`'s check: 64 cells written, one of them re-run alone after an OOM kill); through the client's reader
+in Node, dav1d-WASM, 64/64 cells and 405/405 frames; in headless Chromium 141, 64/64 cells and 405/405 frames,
+WebCodecs taking the 289 whose streams are all ≤ 10 bits and dav1d-WASM the other 116, each as the client should
+choose (`splitok/check.mjs`, `splitok/browser.mjs`).
+
+**Intra against inter**, the optimized representation (k = 2 split on DBT, RCT on the RGB cine), in real order,
+every frame of every cell exact (42/42 cells, each group decoded alone). Bytes over intra at the same preset, and in
+brackets the inter coding over HTJ2K's on the same frames; intra over HTJ2K in the first column:
+
+| series | frames | intra / HTJ2K, cpu0 | G = 8, cpu0 | G = 16, cpu0 | G = 8, good 6 | G = 16, good 6 |
+| --- | --: | --: | --: | --: | --: | --: |
+| `usb_cine`, grey cine | 64 | 0.888 | **0.560** (0.497) | **0.533** (0.474) | 0.548 (0.495) | 0.521 (0.470) |
+| `usb_cine_rgb`, RGB cine | 64 | 0.909 | 0.998 (0.908) | 0.996 (0.906) | 0.982 (0.900) | 0.985 (0.903) |
+| `dbt12_c`, DBT 12-bit | 32 | 0.944 | 0.999 (0.943) | 0.998 (0.942) | 1.036 | 1.050 |
+| `dbt10_d`, DBT 10-bit | 32 | 0.945 | 0.967 (0.914) | 0.963 (0.911) | 1.021 | 1.032 |
+| `dbt12_ea1141`, DBT 12-bit | 29 | 0.942 | 1.036 | 1.054 | 1.018 | 1.020 |
+| `dbt10_ea1141`, DBT 10-bit | 24 | 0.944 | 1.026 | 1.026 | 1.003 | 0.998 |
+
+Decode a frame through dav1d-WASM (`simd`, Node, one decoder a stream, groups in order), median of 10 interleaved
+rounds [min–max], ms, cpu0's codings; every frame exact (7 350/7 350 at each throttle):
+
+| series | 1× intra | 1× G = 8 | 1× G = 16 | 4× intra | 4× G = 8 | 4× G = 16 |
+| --- | --: | --: | --: | --: | --: | --: |
+| `usb_cine` | 14.0 [13.0–15.2] | 7.9 [7.4–8.8] | 7.5 [7.1–8.4] | 60.4 [56.5–66.3] | 34.1 [32.6–36.4] | 33.5 [30.1–36.1] |
+| `usb_cine_rgb` | 38.8 [37.3–41.3] | 33.5 [32.5–34.6] | 33.7 [32.0–35.1] | 167 [162–175] | 146 [139–153] | 143 [138–151] |
+| `dbt12_c` | 189 [184–195] | 190 [185–193] | 192 [188–196] | 801 [777–893] | 820 [798–911] | 824 [816–868] |
+| `dbt10_d` | 179 [172–182] | 186 [181–193] | 189 [181–196] | 757 [736–836] | 798 [784–869] | 808 [797–835] |
+| `dbt12_ea1141` | 89.8 [87.3–92.4] | 84.5 [81.3–87.4] | 82.6 [78.7–89.2] | 384 [369–404] | 360 [340–401] | 352 [345–375] |
+| `dbt10_ea1141` | 115 [107–118] | 106 [102–112] | 107 [99–108] | 478 [471–522] | 449 [435–504] | 457 [436–486] |
+
+* **Inter pays on the grey breast cine, by half**: G = 8 is 0.56 of intra's bytes and G = 16 0.53 — 0.50 and 0.47 of
+  HTJ2K's — and decodes in 0.56 of intra's time. **That clip is a lossy MPEG-4 recording**: between frames only
+  30–47 % of samples change, by 0.5 on average, because its own inter coding carried unchanged blocks over exactly.
+  A scanner's cine would bring new speckle every frame; how much of the half survives that is not measured.
+* **Not on the RGB cine** (0.98–1.00 of intra, a gain inside 2 %), whose tint and annotations change 60 % of samples
+  a frame, nor on any DBT slice series: 0.963–1.054 at cpu0 and 0.998–1.050 at `good` 6. The one gain over 2 %,
+  `dbt10_d` at cpu0 (0.963–0.967), turns into a loss at `good` 6 (1.021–1.032). Intra's 0.942–0.945 of HTJ2K is
+  already where the DBT bytes are.
+* A group costs random access (docs/av1/README.md §A1); on DBT it buys nothing to pay that with, and decodes within
+  −9 to +7 % of intra.
+* The host: a container's 4 cores, one decode process at a time, the cgroup throttle at 4×; not a phone.
