@@ -4,6 +4,7 @@ The phase's goal: a study can be served as lossless AV1 as well as lossless HTJ2
 per series, and **every frame on screen is bit-exact with the source**, whichever codec carried it.
 This file owns the phase: what is decided, what is open and the measurement that decides each. The
 work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`](licensing.md).
+What each target series is, per the DICOM standard and vendors' conformance statements: [`series.md`](series.md).
 
 ## What already does not care about the codec
 
