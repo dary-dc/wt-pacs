@@ -98,7 +98,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 45 | **DATA3** — the taxonomy's missing content and depths: breast ultrasound cine, ABUS, angiography, FFDM and synthesized 2D, real 9-, 15- and 16-bit and more signed series; exact and bytes per layout, or the hosts to allow | after 43 — data pushed `1e10f8f` (`5d548a7`): nine CC BY sets from IDC v24, 565/565 frames identical to `PixelData`, 4/4 pin mutations caught — FFDM and synthesized 2D from two vendors each (10 and 12 bits), real 9-bit MR, 15-bit PET, 16-bit film scan (~12 bits stretched ×21), two signed CTs with negatives (13 bits); breast ultrasound cine, ABUS and angiography still behind refused hosts (`## Blocked`); row 43's checks and the bytes per layout wait on row 43 — [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 | 46 | **BREAST** — the breast family's missing content (breast ultrasound cine and stills, ABUS, more DBT, FFDM and synthesized 2D), measured as the targets: exact per decoder path, bytes per layout against HTJ2K, intra against inter at G = 8 and 16 in real slice and frame order | claimed 2026-10-05 (night) |
 | 47 | **MIXDEC** — each stream of a split item through its own decoder: a top over 10 bits through dav1d-WASM, the 8-bit low through WebCodecs, against both through dav1d and against w10 | after 43 |
-| 48 | **SPLITLIT** — is splitting samples into top and low streams a recognised, recommended way to code high-bit-depth images losslessly with codecs limited to ≤ 12 bits, and what are the alternatives? | claimed 2026-10-05 (night) |
+| 48 | **SPLITLIT** — is splitting samples into top and low streams a recognised, recommended way to code high-bit-depth images losslessly with codecs limited to ≤ 12 bits, and what are the alternatives? | done `0655a4a` — **known, not recommended: the split is published (2011–2024: aerospace video, infrared, depth, CT) and patented (2006 priority on), and no standard or DICOM text recommends it**; the low part is noise in every source (CT's low byte 5.0–6.8 of 8 bits); the noise-floor rules (log2 σ + 1.79, Rice k ≈ log2 σ − 0.3) put k at 4–6 on the four σ ≥ 17 series, where row 36's oracle searched only k ≤ 3 and hit 3 on all four; histogram packing is the offset's published alternative (−42 % CT, −51 % MR bits a pixel on sparse histograms, JPEG-LS); over 12 bits no browser path is exact but WASM (HTJ2K, JPEG-LS, JPEG XL) — [`split-prior-art.md`](split-prior-art.md) |
 
 ## Briefs
 
@@ -854,6 +854,11 @@ date; a claim no source confirms is marked unconfirmed.
 **Deliverable:** [`split-prior-art.md`](split-prior-art.md) — public, no private names, every claim cited with its
 source and date, unconfirmed claims marked; a one-line verdict in the row. Any follow-up measurement the reading
 suggests is proposed here, at the end of this brief, not queued as a row. Docs only, on `claude/av1`.
+
+*Proposed by the reading (2026-10-05, not queued):* (1) row 36's oracle again with k ∈ {1…6} (b − k ≥ 6) on the
+fluoroscopy, 12-bit tomosynthesis, cone-beam and a projection system — the literature's rule predicts 4, 4, 6 and
+4–5, where row 36 stopped at 3; it fits row 44's arms. (2) Histogram packing against −min, in AV1 and HTJ2K, on the
+CT and any sparse series of rows 45–46, the fraction of levels used measured first ([`split-prior-art.md`](split-prior-art.md) §3).
 
 ## Blocked
 
