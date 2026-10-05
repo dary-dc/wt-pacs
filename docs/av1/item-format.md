@@ -17,9 +17,11 @@ frame  := one temporal unit                       when split = 0
         | u32le top length · top unit · low unit  when split > 0
 ```
 
-* `bits` — the source sample depth the decoder reports (e.g. 12 for a 12-bit MR, 13 for CT after offset, 8 for RGB).
+* `bits` — the source sample depth the decoder reports (e.g. 12 for a 12-bit MR, 13 for CT after offset, 8 for RGB),
+  at most 16.
 * `depth` — bits of the deepest coded stream (8, 10 or 12). Picks the decoder before anything is decoded.
-* `split` — low bits coded apart: 0, 1 or 2 (1 only in the plain representation, below).
+* `split` — low bits coded apart, k = 0 to 8 (the low stream is 8-bit). Ingest emits 0, 1 or 2 by default (1 only in
+  the plain representation, below); `--split K` writes any k of row 43's matrix, below.
 * `flags` — bit 0 `signed` (source samples signed; `offset` was added at ingest); bit 1 `rct` (RGB coded through
   JPEG 2000's reversible colour transform). Other bits must be 0; a reader refuses unknown bits. RGB without `rct`
   is planes G, B, R, 8-bit 4:4:4 (the plain representation).
@@ -28,10 +30,11 @@ frame  := one temporal unit                       when split = 0
 * Grey 8-bit and plain RGB share a header (bits 8, depth 8, split 0, flags 0); the decoded stream's plane count
   tells them apart (a client may read the unit's AV1 `seq_profile` first: profile 1 is always 4:4:4).
 * A reader refuses: version ≠ 1, unknown flag bits, a decoded stream whose depth ≠ `depth` (top) or ≠ 8 (low),
-  `n` ≠ the count expected, lengths that overrun the item, `split` ∉ {0, 1, 2}, `rct` with `split` > 0, a top
-  stream not of three planes under `rct`, or of three planes without it unless bits 8, depth 8, split 0, unsigned;
-  without `rct`, `bits` > `depth + split`, or `bits` ≤ 8 with `depth + split` > 8; a non-zero `offset` without
-  `signed`. *Built, and also refused:* an item under 16 bytes, a pad byte not 0, a `depth` other than 8, 10
+  `n` ≠ the count expected, lengths that overrun the item, `split` over 8 (*was* ∉ {0, 1, 2} *until row 43*),
+  `bits` over 16, `rct` with `split` > 0, a top stream not of three planes under `rct`, or of three planes without it
+  unless bits 8, depth 8, split 0, unsigned; without `rct`, `bits` > `depth + split`, or a `depth` other than the
+  smallest of 8, 10, 12 holding the top's `bits − split` (*was* `bits` ≤ 8 with `depth + split` > 8 *until row 43*,
+  which refused every split 8-bit source); a non-zero `offset` without `signed`. *Built, and also refused:* an item under 16 bytes, a pad byte not 0, a `depth` other than 8, 10
   or 12, and bytes past the last frame.
 * HTJ2K items stay bare codestreams (the bundle's codec field says which).
 

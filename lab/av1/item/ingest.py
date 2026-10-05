@@ -5,8 +5,8 @@ every item decodes back through native dav1d to the samples its frame's checksum
 Reads a set as lab/av1/fetch_data.py writes it (NNN.raw, NNN.sha256, metadata.json); writes
 OUT/NNN.av1, OUT/NNN.sha256 and OUT/metadata.json with "codec": "av1", which pack-study bundles.
 
-usage: ingest.py BUILD SET_DIR OUT [--representation plain|optimized] [--preset cpu0|good:N|allintra:N]
-                 [--frames N] [--jobs N]   — lab/av1/item/README.md
+usage: ingest.py BUILD SET_DIR OUT [--representation plain|optimized] [--split K]
+                 [--preset cpu0|good:N|allintra:N] [--frames N] [--jobs N]   — lab/av1/item/README.md
 """
 import argparse
 import hashlib
@@ -26,18 +26,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import size  # noqa: E402
 
 FLAG_SIGNED, FLAG_RCT = 1, 2
+MAX_BITS, MAX_SPLIT = 16, 8
 
 
 def container(bits):
-    return next(b for b in (8, 10, 12) if bits <= b)
+    for b in (8, 10, 12):
+        if bits <= b:
+            return b
+    raise Refused(f"a top stream of {bits} bits, over 12")
 
 
 class Refused(Exception):
     pass
 
 
-def plan(s, representation):
-    """The header and the streams: [(depth, channels, frame → int array h×w×c in coded planes)]."""
+def plan(s, representation, split=None):
+    """The header and the streams: [(depth, channels, frame → int array h×w×c in coded planes)].
+    `split` forces grey's k, the low bits coded apart; None takes the representation's."""
     v = lambda i: s.frame(i).astype(np.int32) + s.offset  # noqa: E731
     bits = max(1, int(s.hi + s.offset).bit_length())
     if s.ch == 3:
@@ -50,12 +55,14 @@ def plan(s, representation):
             r, g, b = (v(i)[..., c] for c in range(3))
             return np.stack([(r + 2 * g + b) >> 2, b - g + 256, r - g + 256], -1)
         return dict(bits=8, depth=10, split=0, flags=FLAG_RCT), [(10, 3, rct)]
-    if bits > 14:
-        raise Refused(f"grey of {bits} bits after the offset, over 14")
-    if representation == "plain":
-        split = max(0, bits - 12)
-    else:
-        split = 2 if bits > 8 else 0
+    if bits > MAX_BITS:
+        raise Refused(f"grey of {bits} bits after the offset, over {MAX_BITS}")
+    if split is None and bits > 14:
+        raise Refused(f"grey of {bits} bits after the offset: no default layout over 14 bits, only --split")
+    if split is None:
+        split = max(0, bits - 12) if representation == "plain" else (2 if bits > 8 else 0)
+    if not 0 <= split <= MAX_SPLIT:
+        raise Refused(f"split {split}, not 0 to {MAX_SPLIT}: the low stream is 8-bit")
     depth = container(bits - split)
     streams = [(depth, 1, lambda i: v(i) >> split)]
     if split:
@@ -131,9 +138,9 @@ def merge(header, pictures):
 
 def chunk(job):
     """Frames [a, b) of every stream, coded and each frame checked alone; the items, or why not."""
-    build, set_dir, representation, preset, a, b = job
+    build, set_dir, representation, split, preset, a, b = job
     s = size.Set(Path(set_dir))
-    header, streams = plan(s, representation)
+    header, streams = plan(s, representation, split)
     header["offset"] = s.offset
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
@@ -166,6 +173,7 @@ def main():
     ap.add_argument("set_dir", type=Path)
     ap.add_argument("out", type=Path)
     ap.add_argument("--representation", choices=["plain", "optimized"], default="optimized")
+    ap.add_argument("--split", type=int)
     ap.add_argument("--preset", default="cpu0")
     ap.add_argument("--frames", type=int)
     ap.add_argument("--jobs", type=int, default=4)
@@ -173,8 +181,10 @@ def main():
     s = size.Set(a.set_dir)
     n = min(a.frames or s.n, s.n)
     per = -(-n // a.jobs)
-    jobs = [(a.build.resolve(), str(a.set_dir), a.representation, a.preset, i, min(i + per, n)) for i in range(0, n, per)]
+    jobs = [(a.build.resolve(), str(a.set_dir), a.representation, a.split, a.preset, i, min(i + per, n))
+            for i in range(0, n, per)]
     try:
+        plan(s, a.representation, a.split)
         with ProcessPoolExecutor(a.jobs) as pool:
             items = [x for part in pool.map(chunk, jobs) for x in part]
     except Refused as e:
@@ -185,6 +195,8 @@ def main():
         shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
     meta = json.loads((a.set_dir / "metadata.json").read_text())
     meta.update(frameCount=n, codec="av1", representation=a.representation)
+    if a.split is not None:
+        meta["split"] = a.split
     (a.out / "metadata.json").write_text(json.dumps(meta, indent=1) + "\n")
     total = sum(len(d) for _, d in items)
     digest = hashlib.sha256(b"".join(d for _, d in items)).hexdigest()[:12]

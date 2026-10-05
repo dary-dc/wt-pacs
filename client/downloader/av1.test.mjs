@@ -50,11 +50,12 @@ const { parseItem } = await import("./av1-item.js");
     [edit(g12, 4, 4), /unknown flag bits 0x4/, "an unknown flag bit"],
     [edit(g12, 6, 1), /pad bytes not zero/, "a pad byte set"],
     [edit(g12, 2, 9), /depth 9, not 8, 10 or 12/, "a depth no stream has"],
-    [edit(g12, 3, 3), /split 3, not 0, 1 or 2/, "split ∉ {0, 1, 2}"],
+    [edit(g12, 3, 9), /split 9, over 8/, "split over 8, the low stream's depth"],
+    [edit(g12, 1, 17), /bits 17, over 16/, "bits over 16"],
     [edit(g12, 4, 2), /rct with split 2/, "rct with split > 0"],
     [u32(g12, 8, 5), /offset 5 without signed/, "an offset without signed"],
     [edit(g12, 1, 13), /bits 13 over depth 10 \+ split 2/, "bits > depth + split"],
-    [edit(edit(g12, 1, 8), 3, 0), /bits 8 under depth 10 \+ split 0/, "bits ≤ 8 with depth + split > 8"],
+    [edit(edit(g12, 1, 8), 3, 0), /depth 10 for a top of 8 bits, not 8/, "a depth not the smallest holding the top"],
     [u32(g12, 12, 2), /2 frames, 1 expected/, "n ≠ the count expected"],
     [u32(g12, 16, 1e6), /frame 0 overruns the item/, "a length past the item"],
     [u32(g12, 12, 1e6), /frame lengths overrun the item/, "a frame count whose lengths overrun", 1e6],
@@ -66,6 +67,34 @@ const { parseItem } = await import("./av1-item.js");
   }
   check((await refusal(parse, c8)) === "decoded", "header: the optimized colour item parses");
   check((await refusal((b) => parse(b, 1), golden("plain", "g14"))) === "decoded", "header: the plain 14-bit item parses");
+}
+
+/** Every sample of 8–16 bits, unsigned and signed, split at every k of 0–8 and merged by av1-frame.js, is itself. */
+{
+  const { begin, end } = await import("./av1-frame.js");
+  let wrong = 0;
+  for (let bits = 8; bits <= 16; bits++) {
+    for (const signed of [false, true]) {
+      const offset = signed ? 2 ** (bits - 1) : 0;
+      const n = 2 ** bits;
+      for (let split = 0; split <= 8; split++) {
+        const top = new Uint16Array(n);
+        const low = new Uint16Array(n);
+        for (let u = 0; u < n; u++) [top[u], low[u]] = [u >> split, u & (2 ** split - 1)];
+        // As the writer codes it: the smallest of 8, 10, 12 holding the top, and wider only in this test.
+        const depth = [8, 10, 12].find((d) => bits - split <= d) ?? bits - split;
+        const pic = (heap, b) => ({ width: n, height: 1, bits: b, planes: [{ heap, offset: 0, stride: n }] });
+        const item = { bits, depth, split, signed, rct: false, offset };
+        const got = end(begin(pic(top, depth), item), split ? pic(low, 8) : null);
+        const out = bits > 8 ? (signed ? new Int16Array(got.sab) : new Uint16Array(got.sab)) : signed ? new Int8Array(got.sab) : new Uint8Array(got.sab);
+        let bad = got.range.min !== -offset || got.range.max !== n - 1 - offset;
+        for (let u = 0; u < n && !bad; u++) bad = out[u] !== u - offset;
+        if (bad) wrong++;
+        check(!bad, `merge: ${bits}-bit ${signed ? "signed" : "unsigned"} at split ${split} is every sample back`);
+      }
+    }
+  }
+  check(wrong === 0, `merge: ${wrong} of 162 (bits, sign, split) cells wrong`);
 }
 
 /** The decoder chosen per item: WebCodecs only where every stream is ≤ 10 bits and its probe passed. */
@@ -136,7 +165,7 @@ else {
   }
   const decode = (b) => av1.decodeFrame(b);
   const streamCases = [
-    [edit(golden("plain", "g10"), 2, 12), /top stream 10-bit, header says 12/, "a top stream of another depth"],
+    [edit(edit(golden("plain", "g8"), 1, 10), 2, 10), /top stream 8-bit, header says 10/, "a top stream of another depth"],
     [edit(edit(golden("plain", "g12"), 3, 1), 2, 12), /not a split frame|low stream/, "split said, not coded"],
     [edit(golden("plain", "g10"), 4, 2), /top stream of 1 planes under rct, not three/, "rct on a grey stream"],
     [edit(golden("plain", "c8"), 4, 1), /three planes without rct/, "three planes, signed, without rct"],

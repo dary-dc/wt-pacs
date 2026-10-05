@@ -18,7 +18,8 @@ $P lab/av1/item/make_golden.py lab/.av1-build                  # the client's go
 representation. It writes nothing at all unless every item decodes back: each stream unit alone
 through native dav1d, at the depth it was coded at, merged as the client merges, against the
 checksum written when the source was fetched. Refused before coding: RGB over 8 bits, grey over 14
-bits after the offset. `--preset` is `cpu0`, `good:N` or `allintra:N` (row 14 names the fastest
+bits after the offset unless `--split K` names the low bits coded apart (k ≤ 8, up to 16 bits, a top of
+at most 12 — row 43's matrix; the defaults are unchanged). `--preset` is `cpu0`, `good:N` or `allintra:N` (row 14 names the fastest
 within 2 % of cpu0's bytes per content); frames are coded in `--jobs` processes, each a run of
 keyframes. RGB streams carry BT.709 primaries, the sRGB transfer and the identity matrix — AV1's RGB
 signal; with the identity matrix alone Chromium's WebCodecs reports a BT.709 matrix, the 4:4:4
