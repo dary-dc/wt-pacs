@@ -1163,6 +1163,42 @@ Taking groups away from WebCodecs, dropping the stall guard, and dropping the fl
 keyframe each failed a check. Dropping the flush at a group's end failed none, and is not meant to:
 the flush before the next keyframe then covers it, at the cost measured above.
 
+### AV1 in WebKit and Firefox
+
+Row XBROWSER ([`lab/av1/xbrowser`](../../lab/av1/xbrowser/README.md)), 2026-10-05: the client's path
+as it is — `decoder.js` takes `decode-av1-webcodecs.js` for a series that says `depth` ≤ 10 where
+`VideoDecoder` exists, dav1d-WASM otherwise — on the first 4 frames of all nine series and an 8-bit
+grey set, in every layout row LLSIZE codes, against OpenJPH in the same engine. Chromium 141,
+Firefox 157.0 and WebKitGTK 2.52.6 (stock builds; Playwright's were refused), headless in a
+container, 6 interleaved rounds at 1× and 4×. Desktop engines, not phones: iOS WebKit decodes
+through the platform's media stack, not GStreamer.
+
+* **dav1d-WASM and OpenJPH are exact in every engine**: 408/408 and 240/240 frames a cell, every
+  layout, signed CT included; dav1d-WASM 4.1–9.6× OpenJPH at 1× and 3.9–10.0× at 4× (every AV1 arm
+  slower in 732/732 paired rounds), each engine within 0.85–1.22× of Chromium's time on the same arm (median
+  1.01–1.06). The `simd` build loads everywhere — all three validate WASM SIMD. Without SIMD it
+  would not compile, and neither would OpenJPH: both `.wasm` files fail `wasm-validate
+  --disable-simd`, so an engine without it loses HTJ2K with AV1.
+* **WebCodecs as the client chooses it is exact in Chromium only.** Chromium: 240/240 frames,
+  2.6–5.0× OpenJPH (dav1d-WASM 5.0–9.9× on the same sets). Firefox: `VideoDecoder` exists and
+  `isConfigSupported` says true for Main 8 and 10, but every monochrome stream is refused
+  (`EncodingError: The given encoding is not supported`) and 4:4:4 comes back as 8-bit `BGRX` —
+  exact for 8-bit GBR, read as RGB, and 8 bits of a 10-bit RCT stream — which `read()` refuses.
+  Ordinary 4:2:0 also comes back as `BGRX`. WebKitGTK: every AV1 unit fails (`Decode error`),
+  ordinary 4:2:0 controls included. GStreamer's libaom `av1dec` refuses WebKit's `alignment=frame`
+  caps. **So in both every series that says `depth` ≤ 10 fails every frame, 0/240 a cell**: the
+  8-bit grey, the 10-bit tomosynthesis, the ultrasound and every split whose top is ≤ 10 bits.
+  There is no fallback: a WebCodecs refusal is the frame's failure, not a turn to dav1d. Series
+  coded over 10 bits are unaffected.
+* **WebKitGTK leaves `SharedArrayBuffer` off** under cross-origin isolation (Safari turns it on),
+  so as shipped every frame of every codec fails — `Can't find variable: SharedArrayBuffer`, HTJ2K
+  included, 0/148. With `JSC_useSharedArrayBuffer=1` it decodes as above.
+
+What would make the choice right, proposed and not built: `typeof VideoDecoder` and
+`isConfigSupported` decide nothing (Firefox and WebKitGTK both say true and decode none of these
+shapes). The worker would decode a tiny lossless keyframe of the series' layout and depth at init,
+check its samples, and fall back to dav1d-WASM on any difference, refusal or format it cannot read.
+
 ### Decode time against HTJ2K
 
 Row SPEED ([`lab/av1/speed`](../../lab/av1/speed/README.md)), 2026-10-03. The first 18 frames of three
