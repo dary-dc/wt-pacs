@@ -431,6 +431,24 @@ dav1d-WASM preview, unit sent to picture in the contract: **0.65× on the ultras
 against 36.5 ms), but 1.1–1.3× — slower — on the 2–4 ms grey bases at 1×. The base is 7–36 % of
 WebCodecs' own exact frame (headless Chromium 141, this container, 15 interleaved rounds,
 19 440/19 440 pictures matched). Not built into `decode-av1-webcodecs.js`.
+*Bases first, measured (row SVC; [`lab/av1/bases`](../../lab/av1/bases/README.md)).* Row SVCORDER's
+layer-major layout built in the lab — entry i the base, entry F + i the whole unit, a lab decoder
+worker through the downloader's `decoderWorker` seam, the downloader, server and store unchanged —
+with row SVCSHAPE's shape (a quarter-size base at q 40, one keyframe) on the fluoroscopy and the
+ultrasound, row TOTAL's rig at 5/20/50 Mbit/s, 1× and 4×, 13 interleaved rounds, n = 4–13 a cell,
+27 456/27 456 frames exact, 6 864/6 864 bases equal to native dav1d's at operating point 1, none
+late. **Every frame is on screen 0.13–0.15 s (fluoroscopy) and 0.33 s (ultrasound) after the fill's
+issue at 1×, 0.33–0.36 s and 1.0–1.1 s at 4×, at every rate** — against 1.7–15.2 s and 3.2–29.4 s
+for HTJ2K's exact series, a 5–101× lead on the fluoroscopy and 2.9–90× on the ultrasound, least at
+4× on 50 Mbit/s; the first picture is 68–170 ms against HTJ2K's 280–1 117. **The bases cost 0.06 %
+(fluoroscopy) and 0.35 % (ultrasound) of HTJ2K's bytes again, and the exact fill 0–8 % over the
+same encoder's single-layer stream** (most at 50 Mbit/s and at 4×, where decode is the clock). What
+the shape costs is not the layers but its one keyframe and lossless SVC's size: the series is one
+group, decoded in order on one decoder, and the payload is 1.07 and 1.59 of HTJ2K's bytes, so the
+exact series lands at 1.07–1.09× (fluoroscopy) and 1.59–1.60× (ultrasound) HTJ2K's time at 5 Mbit/s and 4.5× (fluoroscopy) and 7.4×
+(ultrasound) at 4× on 50 Mbit/s — where intra AV1 is 1.8× and 2.3×. Container numbers, not a phone's;
+not adopted (owner, 2026-10-04). A shape with a keyframe every 8 frames would decode across
+decoders; not run.
 
 *LCEVC as the preview's enhancement (row LCEVC; [`lab/av1/lcevc`](../../lab/av1/lcevc/README.md),
 answered from the decoder's source, no trial).* MPEG-5 Part 2 has no lossless mode, but at step
