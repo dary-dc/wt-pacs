@@ -20,7 +20,7 @@ export function begin(pic, item) {
   const wide = bits > 8;
   const sab = new SharedArrayBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
   const out = wide ? (signed ? new Int16Array(sab) : new Uint16Array(sab)) : signed ? new Int8Array(sab) : new Uint8Array(sab);
-  const mask = 2 ** (item.depth + item.split) - 1;
+  const mask = wide ? 0xffff : 0xff;
   const f = { pic, out, sab, components, bits, signed, mask, offset: item.offset, range: { min: Infinity, max: -Infinity } };
   if (item.rct) unrct(f, pic);
   else place(f, pic, item.split, !item.split);

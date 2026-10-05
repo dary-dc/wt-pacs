@@ -5,10 +5,15 @@
 const HEADER = 16;
 const FLAG_SIGNED = 1;
 const FLAG_RCT = 2;
+/** The low stream is 8-bit; samples are at most 16 bits. */
+const MAX_SPLIT = 8;
+const MAX_BITS = 16;
 
 const refuse = (why) => {
   throw new Error(`undecodable: av1 item: ${why}`);
 };
+
+const container = (bits) => (bits <= 8 ? 8 : bits <= 10 ? 10 : 12);
 
 /** `{ bits, depth, split, signed, rct, offset, frames }`, each frame its bytes; `n` is the count expected. */
 export function parseItem(bytes, n = 1) {
@@ -23,11 +28,12 @@ export function parseItem(bytes, n = 1) {
   const offset = view.getUint32(8, true);
   const count = view.getUint32(12, true);
   if (![8, 10, 12].includes(depth)) refuse(`depth ${depth}, not 8, 10 or 12`);
-  if (split > 2) refuse(`split ${split}, not 0, 1 or 2`);
+  if (split > MAX_SPLIT) refuse(`split ${split}, over ${MAX_SPLIT}`);
+  if (bits > MAX_BITS) refuse(`bits ${bits}, over ${MAX_BITS}`);
   if (rct && split) refuse(`rct with split ${split}`);
   if (offset && !signed) refuse(`offset ${offset} without signed`);
   if (!rct && bits > depth + split) refuse(`bits ${bits} over depth ${depth} + split ${split}`);
-  if (!rct && bits <= 8 && depth + split > 8) refuse(`bits ${bits} under depth ${depth} + split ${split}`);
+  if (!rct && depth !== container(bits - split)) refuse(`depth ${depth} for a top of ${bits - split} bits, not ${container(bits - split)}`);
   if (count !== n) refuse(`${count} frames, ${n} expected`);
   let at = HEADER + 4 * count;
   if (at > bytes.length) refuse("frame lengths overrun the item");
