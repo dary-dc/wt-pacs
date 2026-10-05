@@ -7,7 +7,6 @@ use std::time::Duration;
 use wtransport::stream::RecvStream;
 use wtransport::Connection;
 
-
 pub struct Frames {
     pub connection: Connection,
     pub current: Option<RecvStream>,

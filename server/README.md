@@ -56,7 +56,7 @@ steps:  Planner::next(poll the channel) ─▶ Step
 
 The `Planner` does no I/O, so its tests are plain `Vec`s. It holds up to `ASKS_AHEAD` asks beyond the
 frame being served, refuses anything out of range (the only source of refusal text), and decides what
-follows the served frame: `Next::Fill { after }` while a fill runs, `Next::Tiles(names)` otherwise. An
+follows the served frame: `Next::Fill { after, first }` while a fill runs, `Next::Tiles(names)` otherwise. An
 ask that arrives during a fill ends it and is served next ([`docs/WIRE.md`](../docs/WIRE.md) §An ask
 during a fill).
 
@@ -88,7 +88,7 @@ registered that store's file and its slots key on that store's offsets.
 * The client sends `EndSession`, or closes the control stream: the loop ends when it next waits.
 * A write fails because the client went — it closed the session or stopped the stream: logged at
   info, `session closed by peer`. Any other failure: a WARN, `session ended`. Both print the whole
-  error chain ([`docs/WIRE.md`](../docs/WIRE.md) §FoD messages).
+  error chain; what counts as the client going is [`docs/WIRE.md`](../docs/WIRE.md) §FoD messages.
 * However it ended, `finish` runs: per-frame streams get two seconds to be acknowledged, a WebSocket
   gets its close frame. Then two log lines: `session path` (MTU, RTT, loss — QUIC only) and
   `session reads` (hits, misses, which reader, whether the ring was built), the latter when

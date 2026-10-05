@@ -13,8 +13,6 @@ use tokio::sync::mpsc;
 use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{ClientConfig, Connection, Endpoint};
 
-/// Matches the server's envelope guard.
-
 #[derive(Parser)]
 #[command(name = "rebind-probe")]
 struct Args {

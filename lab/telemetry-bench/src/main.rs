@@ -100,7 +100,7 @@ enum Shape {
     Streaming,
 }
 
-/// Same width and field mix as `FrameRecord` in `server/src/record/tap.rs`.
+/// The width and field mix of the v2 `FrameRecord` this bench measured; v3 is `server/src/record/tap.rs`.
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 struct Row {

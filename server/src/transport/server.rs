@@ -318,10 +318,7 @@ async fn handle_incoming(
     }
 }
 
-/// The session failed because the peer went: it stopped a stream the server was writing, or the
-/// connection went and the peer closed it — its own close, or wtransport's local close answering
-/// the peer's CLOSE_WEBTRANSPORT_SESSION. A malformed message, a timeout or a protocol abort is not
-/// a goodbye.
+/// The peer went: it stopped a stream the server was writing, or closed. `docs/WIRE.md` §FoD messages.
 fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> bool {
     use wtransport::error::{ConnectionError, StreamOpeningError, StreamReadError, StreamWriteError};
     use wtransport::quinn;

@@ -17,7 +17,6 @@ use wtransport::tls::client::{build_default_tls_config, NoServerVerification};
 use wtransport::tls::rustls::{ClientConfig as TlsClientConfig, RootCertStore};
 use wtransport::{ClientConfig, Endpoint};
 
-
 #[derive(Parser)]
 struct Args {
     #[arg(long, default_value = "https://127.0.0.1:5555/")]
