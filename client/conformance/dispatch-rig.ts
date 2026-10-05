@@ -767,128 +767,81 @@ async function aFrameCarriesItsDecodersRangeOrItsOwn(DownloaderClient: Downloade
 const AV1_DIR = "/lab/.av1-build/out";
 const AV1 = { codec: "av1", glue: `${AV1_DIR}/simd.js`, wasm: `${AV1_DIR}/simd.wasm`, dir: AV1_DIR };
 const AV1_SET = "/client/conformance/av1";
+const ITEMS = `${AV1_SET}/items`;
 const served = (url: string) => fetch(url, { method: "HEAD" }).then((r) => r.ok, () => false);
 const fetched = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
 const sha256 = async (b: Uint8Array) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(b)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+const webcodecsArms = () => (typeof VideoDecoder === "function" ? (["spy", "none"] as const) : (["none"] as const));
 
-/**
- * An AV1 series decodes to its source: at every depth and layout the AV1 path takes, a frame's
- * pixels hash to the checksum the generator wrote for the encoder's input — and the notices the build owes are served beside it. docs/av1/adr-unit.md §2
- */
-async function anAv1FrameDecodesToItsSource(
-  DownloaderClient: DownloaderCtor,
-  check: (c: boolean, w: string) => void,
-  log: (line: string) => void,
-) {
-  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const shapes = [["g8", 1, 8], ["g10", 1, 10], ["g12", 1, 12], ["c8", 3, 8], ["c10", 3, 10], ["c12", 3, 12]] as const;
-  const got: Frame[] = [];
-  const { c, fake } = await open(DownloaderClient, {
-    decoders: 2, perDecoder: 2, delayMs: 0, realDecoder: AV1, onFrame: (f) => got.push(f),
-  });
-  c.fill(shapes.map((_, i) => i));
-  for (const [i, [name]] of shapes.entries()) await fake.pushFrame(i, await fetched(`${AV1_SET}/${name}.av1`));
-  await until(() => got.length >= shapes.length, 5000);
-  for (const [i, [name, components, bits]] of shapes.entries()) {
-    const f = got.find((g) => g.frameIndex === i);
-    const want = (await (await fetch(`${AV1_SET}/${name}.sha256`)).text()).trim();
-    const have = f ? await sha256(f.bytes) : "no frame";
-    check(have === want, `av1: ${name} decodes to its source's samples (${have.slice(0, 12)}, source ${want.slice(0, 12)})`);
-    const shape = `${f?.info.width}x${f?.info.height} ${f?.info.components}x${f?.info.bits}-bit${f?.info.signed ? " signed" : ""}`;
-    check(shape === `90x70 ${components}x${bits}-bit`, `av1: ${name} says what it is (${shape})`);
-  }
-  c.close();
-  const notices = await fetch(`${AV1_DIR}/THIRD_PARTY.txt`).then((r) => (r.ok ? r.text() : ""), () => "");
-  check(notices.includes("VideoLAN and dav1d authors") && notices.includes("Alliance for Open Media Patent License 1.0"),
-    "av1: the decoder's notices and the AOM patent licence are served beside it");
+/** A bare unit as an item of one frame, with the header the writer gives a stream of `depth` bits: the older fixtures. */
+function asItem(frame: Uint8Array, depth: number) {
+  const out = new Uint8Array(20 + frame.length);
+  const v = new DataView(out.buffer);
+  out.set([1, depth, depth]);
+  v.setUint32(12, 1, true);
+  v.setUint32(16, frame.length, true);
+  out.set(frame, 20);
+  return out;
 }
 
-/**
- * At G = 1 a frame decodes alone or not at all: a frame of a group, an empty unit and a file that is
- * not AV1 each reach the consumer as a failure, never as pixels decoded against the frame before,
- * and the decoder that refused them still decodes the next frame exactly. docs/av1/adr-unit.md §2
- */
-async function anAv1FrameThatCannotDecodeAloneIsAFailure(
-  DownloaderClient: DownloaderCtor,
-  check: (c: boolean, w: string) => void,
-  log: (line: string) => void,
-) {
-  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 refusals — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const frames: Frame[] = [];
-  const failures: Fail[] = [];
-  const { c, fake } = await open(DownloaderClient, {
-    decoders: 1, perDecoder: 1, delayMs: 0, realDecoder: AV1,
-    onFrame: (f) => frames.push(f), onError: (f) => failures.push(f),
-  });
-  c.fill([0, 1, 2, 3, 4]);
-  await fake.pushFrame(0, await fetched(`${AV1_SET}/c8.av1`));
-  await fake.pushFrame(1, await fetched(`${AV1_SET}/inter.av1`));
-  await fake.pushFrame(2, new Uint8Array(0));
-  await fake.pushFrame(3, await fetched("/client/downloader/README.md"));
-  await fake.pushFrame(4, await fetched(`${AV1_SET}/g12.av1`));
-  await until(() => frames.length + failures.length >= 5, 5000);
-  const refused = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join() || "none";
-  check(refused === "1,2,3", `av1: a frame of a group, an empty unit and a non-AV1 file are refused (${refused})`);
-  check(frames.map((f) => f.frameIndex).join() === "0,4", `av1: none of them arrives as a frame (${frames.map((f) => f.frameIndex).join() || "none"})`);
-  const after = frames.find((f) => f.frameIndex === 4);
-  const want = (await (await fetch(`${AV1_SET}/g12.sha256`)).text()).trim();
-  check(after !== undefined && (await sha256(after.bytes)) === want, "av1: the next frame after them is still exact");
-  c.close();
+/** The writer's golden items: each a depth or a layout docs/av1/item-format.md treats apart, plain and optimized. */
+const GOLDEN = ["g8", "g10", "g12", "s11", "s13", "g14", "c8"] as const;
+const GOLDEN_SHAPE: Record<string, string> = {
+  g8: "1x8-bit", g10: "1x10-bit", g12: "1x12-bit", s11: "1x11-bit signed", s13: "1x13-bit signed", g14: "1x14-bit", c8: "3x8-bit",
+};
+const golden = (rep: string, name: string) => `${ITEMS}/${rep}/${name}`;
+
+/** The item's stream units' lengths: what a WebCodecs spy saw of it, if it saw it. */
+function unitLengths(item: Uint8Array) {
+  const v = new DataView(item.buffer, item.byteOffset);
+  const len = v.getUint32(16, true);
+  if (!item[3]) return [len];
+  const top = v.getUint32(20, true);
+  return [top, len - 4 - top];
 }
 
-/** Frames of the set through the real decoder behind `worker`, and how many units reached a VideoDecoder. */
+/** Items through the real decoder behind the spy worker, and the length of every unit a VideoDecoder was handed. */
 async function av1Through(
   DownloaderClient: DownloaderCtor,
-  names: readonly (string | Uint8Array)[],
-  decoder: Partial<NonNullable<OpenOpts["realDecoder"]>>,
-  mode: "spy" | "none",
+  items: readonly (string | Uint8Array)[],
+  mode: "spy" | "none" | "fail" | "stale",
   group: Partial<OpenOpts> = {},
 ) {
   const ch = `wtpacs-webcodecs-${++world}`;
-  let units = 0;
+  const units: number[] = [];
   const spy = new BroadcastChannel(ch);
-  spy.onmessage = () => void (units += 1);
+  spy.onmessage = (e) => void units.push(e.data);
   const got: Frame[] = [];
   const failures: Fail[] = [];
   const { c, fake } = await open(DownloaderClient, {
-    decoders: 1, perDecoder: 2, delayMs: 0, realDecoder: { ...AV1, ...decoder },
+    decoders: 1, perDecoder: 2, delayMs: 0, realDecoder: AV1,
     decoderWorker: `/client/conformance/webcodecs-spy.js?mode=${mode}&ch=${ch}`,
     onFrame: (f) => got.push(f), onError: (f) => failures.push(f), ...group,
   });
-  c.fill(names.map((_, i) => i));
-  const frames = await Promise.all(names.map((n) => (typeof n !== "string" ? n : fetched(n.startsWith("/") ? n : `${AV1_SET}/${n}.av1`))));
+  c.fill(items.map((_, i) => i));
+  const frames = await Promise.all(items.map((n) => (typeof n === "string" ? fetched(n) : n)));
   // All at once, so a decoder holds `perDecoder` of them together.
   await Promise.all(frames.map((b, i) => fake.pushFrame(i, b)));
-  await until(() => got.length + failures.length >= names.length, 5000);
+  await until(() => got.length + failures.length >= items.length, 8000);
   c.close();
   await settle(50);
   spy.close();
-  return { got, failures, units };
+  return { got, failures, units, frames };
 }
 
-/** Each frame of `names` hashes to its source's checksum, and says the shape `want` names. */
-async function exactAv1(check: (c: boolean, w: string) => void, what: string, got: Frame[], names: readonly string[], want: (n: string) => string) {
-  for (const [i, name] of names.entries()) {
+/** Each frame hashes to its source's checksum at `base`.sha256 and says the shape `want` names. */
+async function exactAv1(check: Check, what: string, got: Frame[], bases: readonly string[], want: (i: number) => string) {
+  for (const [i, base] of bases.entries()) {
     const f = got.find((g) => g.frameIndex === i);
-    const sum = (await (await fetch(`${AV1_SET}/${name}.sha256`)).text()).trim();
+    const sum = (await (await fetch(`${base}.sha256`)).text()).trim();
     const have = f ? await sha256(f.bytes) : "no frame";
     const shape = `${f?.info.width}x${f?.info.height} ${f?.info.components}x${f?.info.bits}-bit${f?.info.signed ? " signed" : ""}`;
-    check(have === sum && shape === want(name), `${what}: ${name} decodes to its source's samples as ${shape} (${have.slice(0, 12)}, source ${sum.slice(0, 12)})`);
+    const name = base.split("/").slice(-2).join(" ");
+    check(have === sum && shape === want(i), `${what}: ${name} decodes to its source's samples as ${shape} (${have.slice(0, 12)}, source ${sum.slice(0, 12)})`);
     const range = f ? rangeOf(f) : "no frame";
     check(range === `${f?.info.min}..${f?.info.max}`, `${what}: ${name} carries its samples' range (${f?.info.min}..${f?.info.max}, samples ${range})`);
   }
-}
-
-/** s13's top unit over a colour low unit. */
-async function withColourLow() {
-  const s13 = await fetched(`${AV1_SET}/s13.av1`);
-  const top = 4 + new DataView(s13.buffer).getUint32(0, true);
-  const c8 = await fetched(`${AV1_SET}/c8.av1`);
-  const out = new Uint8Array(top + c8.length);
-  out.set(s13.subarray(0, top));
-  out.set(c8, top);
-  return out;
 }
 
 /** The range the contract owes: an 8-bit colour frame's is its type's, any other its samples'. */
@@ -903,109 +856,154 @@ function rangeOf(f: Frame) {
   return `${min}..${max}`;
 }
 
-const SHAPE: Record<string, string> = { g8: "1x8", g10: "1x10", g12: "1x12", c8: "3x8", c10: "3x10", c12: "3x12" };
+/**
+ * Every golden item from the writer, plain and optimized, decodes through the downloader to the
+ * samples its source's checksum was written from, through WebCodecs where it takes them and through
+ * dav1d-WASM in a browser without it — and the notices the build owes are served beside it.
+ * docs/av1/item-format.md
+ */
+async function anAv1ItemDecodesToItsSource(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  for (const mode of webcodecsArms()) {
+    for (const rep of ["plain", "optimized"]) {
+      const bases = GOLDEN.map((n) => golden(rep, n));
+      const r = await av1Through(DownloaderClient, bases.map((b) => `${b}.av1`), mode);
+      await exactAv1(check, `av1 ${mode === "spy" ? "webcodecs" : "dav1d"}`, r.got, bases, (i) => `64x48 ${GOLDEN_SHAPE[GOLDEN[i]]}`);
+    }
+  }
+  const notices = await fetch(`${AV1_DIR}/THIRD_PARTY.txt`).then((r) => (r.ok ? r.text() : ""), () => "");
+  check(notices.includes("VideoLAN and dav1d authors") && notices.includes("Alliance for Open Media Patent License 1.0"),
+    "av1: the decoder's notices and the AOM patent licence are served beside it");
+}
 
 /**
- * A series whose streams are all ≤ 10 bits decodes through WebCodecs, exactly, in every shape that
- * takes it; one deeper, or a browser without `VideoDecoder`, decodes through dav1d-WASM, exactly,
- * and never hands WebCodecs a unit. docs/decode/README.md §AV1
+ * The decoder is chosen per item: an item whose streams are all ≤ 10 bits reaches WebCodecs, every
+ * stream of it; one with a 12-bit stream never does; an item WebCodecs fails on is decoded by
+ * dav1d-WASM, exactly; and a frame WebCodecs returns late, from an earlier unit, is never taken for
+ * the unit in hand. docs/av1/item-format.md §Decoder choice, per item
  */
-async function anAv1SeriesTakesWebCodecsOnlyWhereItIsExact(
-  DownloaderClient: DownloaderCtor,
-  check: (c: boolean, w: string) => void,
-  log: (line: string) => void,
-) {
+async function anAv1ItemTakesWebCodecsOnlyWhereItIsExact(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
   if (typeof VideoDecoder !== "function") return void log("  SKIPPED: WebCodecs — this browser has no VideoDecoder");
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: WebCodecs — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const shallow = ["g8", "g10", "c8", "c10"] as const;
-  const shape = (n: string) => `90x70 ${SHAPE[n]}-bit`;
-  const wc = await av1Through(DownloaderClient, shallow, { depth: 10 }, "spy");
-  await exactAv1(check, "webcodecs", wc.got, shallow, shape);
-  check(wc.units === shallow.length, `webcodecs: a ≤ 10-bit series is decoded by WebCodecs (${wc.units} of ${shallow.length} units)`);
+  const shallow = [...["g8", "g10", "c8"].map((n) => golden("plain", n)), ...["g8", "g10", "g12", "s11", "c8"].map((n) => golden("optimized", n))];
+  const deep = [...["g12", "s11", "s13", "g14"].map((n) => golden("plain", n)), ...["s13", "g14"].map((n) => golden("optimized", n))];
+  const shape = (bases: string[]) => (i: number) => `64x48 ${GOLDEN_SHAPE[bases[i].split("/").pop()!]}`;
+  const wc = await av1Through(DownloaderClient, shallow.map((b) => `${b}.av1`), "spy");
+  await exactAv1(check, "webcodecs", wc.got, shallow, shape(shallow));
+  const missed = wc.frames.flatMap((f, i) => (unitLengths(f).every((n) => wc.units.includes(n)) ? [] : [i]));
+  check(missed.length === 0, `webcodecs: every stream of every ≤ 10-bit item reached it (missed: ${missed.join() || "none"})`);
   const spans = wc.got.map((f) => f.info.stamps as { decodeStart: number; decodeEnd: number }).sort((a, b) => a.decodeStart - b.decodeStart);
   const overlaps = spans.filter((s, i) => i > 0 && s.decodeStart < spans[i - 1].decodeEnd).length;
-  check(spans.length === shallow.length && overlaps === 0, `webcodecs: its decoder takes the frames it holds one at a time (${overlaps} overlapping)`);
+  check(spans.length === shallow.length && overlaps === 0, `webcodecs: its decoder takes the items it holds one at a time (${overlaps} overlapping)`);
 
-  const none = await av1Through(DownloaderClient, shallow, { depth: 10 }, "none");
-  await exactAv1(check, "webcodecs, absent", none.got, shallow, shape);
-  const deep = ["g12", "c12"] as const;
-  const d12 = await av1Through(DownloaderClient, deep, { depth: 12 }, "spy");
-  await exactAv1(check, "webcodecs, 12-bit", d12.got, deep, shape);
-  check(d12.units === 0, `webcodecs: a 12-bit series never reaches it (${d12.units} units)`);
-  const unsaid = await av1Through(DownloaderClient, ["g8"], {}, "spy");
-  check(unsaid.units === 0 && unsaid.got.length === 1, `webcodecs: nor does a series that does not say its depth (${unsaid.units} units)`);
+  const d12 = await av1Through(DownloaderClient, deep.map((b) => `${b}.av1`), "spy");
+  await exactAv1(check, "webcodecs, 12-bit", d12.got, deep, shape(deep));
+  check(d12.units.length === 0, `webcodecs: an item with a 12-bit stream never reaches it (${d12.units.length} units)`);
+
+  const failing = await av1Through(DownloaderClient, shallow.map((b) => `${b}.av1`), "fail");
+  await exactAv1(check, "webcodecs failing", failing.got, shallow, shape(shallow));
+  check(failing.units.length > 0, `webcodecs failing: it was handed the items, and dav1d decoded them (${failing.units.length} units)`);
+
+  const stale = await av1Through(DownloaderClient, shallow.map((b) => `${b}.av1`), "stale");
+  await exactAv1(check, "webcodecs, a late frame first", stale.got, shallow, shape(shallow));
 }
 
 /**
- * A 13-bit series split top10+low decodes to its source through either decoder — the two units
- * merged, the offset undone and the samples signed where the series is. docs/av1/adr-unit.md §2
+ * A malformed item reaches the consumer as a failure that names what is wrong with it, through
+ * either decoder, and never as pixels: each case docs/av1/item-format.md lists. The decoder that
+ * refused them decodes the next item exactly.
  */
-async function anAv1SplitFrameDecodesToItsSource(
-  DownloaderClient: DownloaderCtor,
-  check: (c: boolean, w: string) => void,
-  log: (line: string) => void,
-) {
-  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 split — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const arms = typeof VideoDecoder === "function" ? (["spy", "none"] as const) : (["none"] as const);
-  for (const mode of arms) {
-    const what = `split, ${mode === "spy" ? "webcodecs" : "dav1d"}`;
-    const plain = await av1Through(DownloaderClient, ["s13"], { depth: 10, split: 3 }, mode);
-    await exactAv1(check, what, plain.got, ["s13"], () => "90x70 1x13-bit");
-    const signed = await av1Through(DownloaderClient, ["n13"], { depth: 10, split: 3, offset: 4096 }, mode);
-    await exactAv1(check, what, signed.got, ["n13"], () => "90x70 1x13-bit signed");
-    const f = signed.got[0];
-    check(f?.info.min !== undefined && f.info.min < 0, `${what}: the signed series' range is its own (${f?.info.min}..${f?.info.max})`);
-    const wide = await av1Through(DownloaderClient, ["n16"], { depth: 10, split: 6, offset: 32768 }, mode);
-    await exactAv1(check, what, wide.got, ["n16"], () => "90x70 1x16-bit signed");
-    const odd = await av1Through(DownloaderClient, ["g10", await withColourLow()], { depth: 10, split: 3 }, mode);
-    check(odd.failures.length === 2 && odd.got.length === 0,
-      `${what}: an unsplit frame, and one whose low unit is colour, are refused in a split series (${odd.failures.map((f) => f.reason).join("; ") || "decoded"})`);
+async function aMalformedAv1ItemIsRefusedByName(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 item refusals — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const g12 = await fetched(`${golden("optimized", "g12")}.av1`);
+  const g10 = await fetched(`${golden("plain", "g10")}.av1`);
+  const c8 = await fetched(`${golden("plain", "c8")}.av1`);
+  const set = (b: Uint8Array, at: number, value: number) => {
+    const out = Uint8Array.from(b);
+    out[at] = value;
+    return out;
+  };
+  const u32 = (b: Uint8Array, at: number, value: number) => {
+    const out = Uint8Array.from(b);
+    new DataView(out.buffer).setUint32(at, value, true);
+    return out;
+  };
+  const cases: [Uint8Array, RegExp][] = [
+    [set(g12, 0, 2), /version 2, not 1/],
+    [set(g12, 4, 4), /unknown flag bits 0x4/],
+    [set(g12, 3, 3), /split 3, not 0, 1 or 2/],
+    [set(g12, 4, 2), /rct with split 2/],
+    [u32(g12, 8, 5), /offset 5 without signed/],
+    [set(g12, 1, 13), /bits 13 over depth 10 \+ split 2/],
+    [set(set(g12, 1, 8), 3, 0), /bits 8 under depth 10 \+ split 0/],
+    [u32(g12, 12, 2), /2 frames, 1 expected/],
+    [u32(g12, 16, 1e6), /frame 0 overruns the item/],
+    [set(g10, 2, 12), /top stream 10-bit, header says 12/],
+    [set(g10, 4, 2), /top stream of 1 planes under rct, not three/],
+    [set(c8, 4, 1), /three planes without rct/],
+  ];
+  const good = `${golden("optimized", "g12")}`;
+  for (const mode of webcodecsArms()) {
+    const what = mode === "spy" ? "webcodecs" : "dav1d";
+    const r = await av1Through(DownloaderClient, [...cases.map(([b]) => b), `${good}.av1`], mode);
+    for (const [i, [, want]] of cases.entries()) {
+      const why = r.failures.find((f) => f.frameIndex === i)?.reason ?? "no failure";
+      check(want.test(why) && !r.got.some((f) => f.frameIndex === i), `${what}: refused by name, never pixels (${why})`);
+    }
+    const after = r.got.find((f) => f.frameIndex === cases.length);
+    const sum = (await (await fetch(`${good}.sha256`)).text()).trim();
+    check(after !== undefined && (await sha256(after.bytes)) === sum, `${what}: the next item after them is still exact`);
   }
 }
 
 /**
- * An 8-bit RGB frame coded as its reversible colour transform decodes to its source through either
- * decoder, and a series that says RCT refuses a frame coded otherwise. lab/av1/llsize
+ * At G = 1 an item decodes alone or not at all: a frame of a group, an empty item and a file that is
+ * not AV1 each reach the consumer as a failure, never as pixels decoded against the frame before.
+ * docs/av1/adr-unit.md §2
  */
-async function anAv1RctFrameDecodesToItsSource(
-  DownloaderClient: DownloaderCtor,
-  check: (c: boolean, w: string) => void,
-  log: (line: string) => void,
-) {
-  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 RCT — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const arms = typeof VideoDecoder === "function" ? (["spy", "none"] as const) : (["none"] as const);
-  for (const mode of arms) {
-    const what = `rct, ${mode === "spy" ? "webcodecs" : "dav1d"}`;
-    const r = await av1Through(DownloaderClient, ["r8"], { depth: 10, rct: true }, mode);
-    await exactAv1(check, what, r.got, ["r8"], () => "90x70 3x8-bit");
-    check(mode === "none" || r.units === 1, `${what}: the frame reached the decoder named (${r.units} WebCodecs units)`);
-    const odd = await av1Through(DownloaderClient, ["c8", "g10"], { depth: 10, rct: true }, mode);
-    check(odd.failures.length === 2 && odd.got.length === 0,
-      `${what}: an 8-bit colour frame and a grey one are refused in an RCT series (${odd.failures.map((f) => f.reason).join("; ") || "decoded"})`);
-  }
+async function anAv1FrameThatCannotDecodeAloneIsAFailure(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 refusals — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
+  const frames: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decoders: 1, perDecoder: 1, delayMs: 0, realDecoder: AV1,
+    onFrame: (f) => frames.push(f), onError: (f) => failures.push(f),
+  });
+  c.fill([0, 1, 2, 3, 4]);
+  await fake.pushFrame(0, asItem(await fetched(`${AV1_SET}/c8.av1`), 8));
+  await fake.pushFrame(1, asItem(await fetched(`${AV1_SET}/inter.av1`), 8));
+  await fake.pushFrame(2, new Uint8Array(0));
+  await fake.pushFrame(3, await fetched("/client/downloader/README.md"));
+  await fake.pushFrame(4, await fetched(`${golden("plain", "g12")}.av1`));
+  await until(() => frames.length + failures.length >= 5, 5000);
+  const refused = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join() || "none";
+  check(refused === "1,2,3", `av1: a frame of a group, an empty item and a non-AV1 file are refused (${refused})`);
+  check(frames.map((f) => f.frameIndex).join() === "0,4", `av1: none of them arrives as a frame (${frames.map((f) => f.frameIndex).join() || "none"})`);
+  const after = frames.find((f) => f.frameIndex === 4);
+  const want = (await (await fetch(`${golden("plain", "g12")}.sha256`)).text()).trim();
+  check(after !== undefined && (await sha256(after.bytes)) === want, "av1: the next frame after them is still exact");
+  c.close();
 }
 
 /**
- * Through WebCodecs as through dav1d: a frame of a group, an empty unit, a file that is not AV1,
- * colour coded as YUV 4:2:0 or 4:4:4, a keyframe cut short and a unit that closes WebCodecs' decoder
- * are each a failure, never samples, and the decoder that refused them decodes the next frame exactly.
+ * Through WebCodecs as through dav1d: a frame of a group, an empty frame, colour coded as YUV 4:2:0
+ * or 4:4:4, a keyframe cut short and a unit that closes WebCodecs' decoder are each a failure, never
+ * samples, and the decoder that refused them decodes the next item exactly.
  */
-async function anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure(
-  DownloaderClient: DownloaderCtor,
-  check: (c: boolean, w: string) => void,
-  log: (line: string) => void,
-) {
+async function anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 refusals by decoder — no ${AV1_DIR}`);
   const c8 = await fetched(`${AV1_SET}/c8.av1`);
-  const names = ["c8", "inter", new Uint8Array(0), "/client/downloader/README.md", "yuv420", "yuv444", c8.subarray(0, c8.length >> 1), new Uint8Array(1), "c10"];
-  const want = (await (await fetch(`${AV1_SET}/c10.sha256`)).text()).trim();
-  for (const mode of typeof VideoDecoder === "function" ? (["spy", "none"] as const) : (["none"] as const)) {
+  const bare = [c8, await fetched(`${AV1_SET}/inter.av1`), new Uint8Array(0), await fetched(`${AV1_SET}/yuv420.av1`),
+    await fetched(`${AV1_SET}/yuv444.av1`), c8.subarray(0, c8.length >> 1), new Uint8Array(1)];
+  const items: (string | Uint8Array)[] = [...bare.map((b) => asItem(b, 8)), `${golden("plain", "g10")}.av1`];
+  const want = (await (await fetch(`${golden("plain", "g10")}.sha256`)).text()).trim();
+  for (const mode of webcodecsArms()) {
     const what = mode === "spy" ? "webcodecs" : "dav1d";
-    const r = await av1Through(DownloaderClient, names, { depth: 10 }, mode);
+    const r = await av1Through(DownloaderClient, items, mode);
     const refused = r.failures.map((f) => f.frameIndex).sort((a, b) => a - b).join() || "none";
-    check(refused === "1,2,3,4,5,6,7", `${what}: a frame of a group, an empty unit, a non-AV1 file, YUV colour, a cut keyframe and a decoder closed under it are refused (${refused})`);
-    const after = r.got.find((f) => f.frameIndex === 8);
-    check(after !== undefined && (await sha256(after.bytes)) === want, `${what}: the next frame after them is still exact`);
+    check(refused === "1,2,3,4,5,6", `${what}: a frame of a group, an empty frame, YUV colour, a cut keyframe and a decoder closed under it are refused (${refused})`);
+    const after = r.got.find((f) => f.frameIndex === 7);
+    check(after !== undefined && (await sha256(after.bytes)) === want, `${what}: the next item after them is still exact`);
   }
 }
 
@@ -1028,7 +1026,9 @@ async function anUnknownCodecIsRefusedBeforeTheDial(DownloaderClient: Downloader
 }
 
 const G8 = `${AV1_SET}/g8x20`;
-const unit = (set: string, i: number) => fetched(`${set}/${String(i).padStart(3, "0")}.av1`);
+/** The older fixtures' depth per set: each unit goes to the downloader as an item of one frame. */
+const DEPTH: Record<string, number> = { g8x20: 8, whole12: 12, l2g1: 10, l2g8x20: 12 };
+const unit = async (set: string, i: number) => asItem(await fetched(`${set}/${String(i).padStart(3, "0")}.av1`), DEPTH[set.split("/").pop()!]);
 const source = async (set: string, i: number) => (await (await fetch(`${set}/${String(i).padStart(3, "0")}.sha256`)).text()).trim();
 /** A promise that may never settle, settled anyway: a hung ask fails its check by name. */
 const within = <T,>(p: Promise<T>, ms = 5000) => Promise.race([p, new Promise<undefined>((r) => setTimeout(r, ms))]);
@@ -1054,10 +1054,10 @@ async function aGroupDecodesOnOneDecoderInOrder(
   log: (line: string) => void,
 ) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 groups — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  for (const [set, g, n, depth] of [[G8, 8, 20, 8], [`${AV1_SET}/whole12`, 12, 12, 12]] as const) {
+  for (const [set, g, n] of [[G8, 8, 20], [`${AV1_SET}/whole12`, 12, 12]] as const) {
     const got: Frame[] = [];
     const { c, fake } = await open(DownloaderClient, {
-      decoders: 3, perDecoder: 2, delayMs: 0, realDecoder: { ...AV1, depth }, groupLength: g, frameCount: n,
+      decoders: 3, perDecoder: 2, delayMs: 0, realDecoder: AV1, groupLength: g, frameCount: n,
       onFrame: (f) => got.push(f),
     });
     c.fill(range(0, n - 1));
@@ -1082,26 +1082,28 @@ async function aGroupDecodesThroughEitherDecoder(
   log: (line: string) => void,
 ) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 groups by decoder — no ${AV1_DIR}`);
-  const names = range(0, 19).map((i) => `${G8}/${String(i).padStart(3, "0")}.av1`);
+  const bare = range(0, 19).map((i) => `${G8}/${String(i).padStart(3, "0")}.av1`);
+  const names = await Promise.all(range(0, 19).map((i) => unit(G8, i)));
   const group = { groupLength: 8, frameCount: 20 };
-  for (const mode of typeof VideoDecoder === "function" ? (["spy", "none"] as const) : (["none"] as const)) {
+  for (const mode of webcodecsArms()) {
     const what = mode === "spy" ? "webcodecs" : "dav1d";
-    const r = await av1Through(DownloaderClient, names, { depth: 8 }, mode, group);
+    const r = await av1Through(DownloaderClient, names, mode, group);
     check((await inexact(G8, r.got, range(0, 19))) === "none" && r.failures.length === 0,
       `${what}: G = 8, every frame its source's (inexact: ${await inexact(G8, r.got, range(0, 19))})`);
-    check(r.units === (mode === "spy" ? 20 : 0), `${what}: a group's units reach WebCodecs only where it is there (${r.units})`);
+    const reached = r.frames.filter((f) => r.units.includes(unitLengths(f)[0])).length;
+    check(reached === (mode === "spy" ? 20 : 0), `${what}: a group's units reach WebCodecs only where it is there (${reached})`);
     // A temporal delimiter alone: a unit with no frame in it.
-    const stalled = await av1Through(DownloaderClient, names.map((n, i) => (i === 3 ? new Uint8Array([0x12, 0]) : n)), { depth: 8 }, mode, group);
+    const stalled = await av1Through(DownloaderClient, names.map((n, i) => (i === 3 ? asItem(new Uint8Array([0x12, 0]), 8) : n)), mode, group);
     const refused = stalled.failures.map((f) => f.frameIndex).sort((a, b) => a - b).join() || "none";
     check(refused === "3,4,5,6,7", `${what}: a unit mid-group with no frame fails, and its group's rest (${refused})`);
     check((await inexact(G8, stalled.got, range(8, 19))) === "none", `${what}: the next group is still exact (inexact: ${await inexact(G8, stalled.got, range(8, 19))})`);
     // Group 0 left at frame 4 still holds its references: frame 9's bytes sent as a keyframe must not decode against them.
     const module = `/client/downloader/${mode === "spy" ? "decode-av1-webcodecs.js" : "decode-av1.js"}`;
     const av1 = await import(module);
-    await av1.init({ ...AV1, depth: 8, groupLength: 8 });
-    for (const i of range(0, 4)) await av1.decodeFrame(await fetched(names[i]), { key: i === 0, gen: 0, index: i });
-    const nine = await fetched(names[9]);
-    const late = await Promise.resolve().then(() => av1.decodeFrame(nine, { key: true, gen: 0, index: 8 })).then(() => "decoded", (e) => String(e?.message ?? e));
+    await av1.init({ ...AV1, groupLength: 8 });
+    for (const i of range(0, 4)) await av1.picture(await fetched(bare[i]), { key: i === 0, gen: 0, index: i });
+    const nine = await fetched(bare[9]);
+    const late = await Promise.resolve().then(() => av1.picture(nine, { key: true, gen: 0, index: 8 })).then(() => "decoded", (e) => String(e?.message ?? e));
     check(late.startsWith("undecodable"), `${what}: a keyframe that is not one, after a group cut short, is refused (${late})`);
   }
 }
@@ -1238,7 +1240,7 @@ async function aDecoderRefusesAFrameWhosePredecessorItDidNotDecode(
   const replies: { kind: string; index?: number; reason?: string }[] = [];
   worker.onmessage = (e) => replies.push(e.data);
   ch.port2.onmessage = () => {};
-  worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: AV1 }, [ch.port1]);
+  worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: AV1, groupLength: 8 }, [ch.port1]);
   await until(() => replies.length > 0, 5000);
   const outcome: string[] = [];
   for (const [index, gen, empty] of [[0, 0], [2, 0], [1, 0], [2, 0, true], [3, 0], [8, 0], [9, 1], [9, 0]] as [number, number, boolean?][]) {
@@ -1259,12 +1261,12 @@ const SCALABLE = `${AV1_SET}/scalable`;
 async function scalableThrough(
   DownloaderClient: DownloaderCtor,
   units: Uint8Array[],
-  opts: { depth: number; groupLength?: number; mode: "spy" | "none"; ask: boolean },
+  opts: { groupLength?: number; mode: "spy" | "none"; ask: boolean },
 ) {
   const ch = `wtpacs-scalable-${++world}`;
-  let toWebCodecs = 0;
+  const lengths: number[] = [];
   const spy = new BroadcastChannel(ch);
-  spy.onmessage = () => void (toWebCodecs += 1);
+  spy.onmessage = (e) => void lengths.push(e.data);
   const seen: string[] = [];
   const previews: Frame[] = [];
   const frames: Frame[] = [];
@@ -1272,7 +1274,7 @@ async function scalableThrough(
   const shown = (f: Frame) => void screen.set(f.frameIndex, f);
   const n = units.length;
   const { c, fake } = await open(DownloaderClient, {
-    decoders: 2, perDecoder: 2, delayMs: 0, realDecoder: { ...AV1, depth: opts.depth },
+    decoders: 2, perDecoder: 2, delayMs: 0, realDecoder: AV1,
     decoderWorker: `/client/conformance/webcodecs-spy.js?mode=${opts.mode}&ch=${ch}`,
     groupLength: opts.groupLength, frameCount: opts.groupLength ? n : undefined,
     onPreview: (f) => { seen.push(`p${f.frameIndex}`); previews.push(f); shown(f); },
@@ -1291,6 +1293,7 @@ async function scalableThrough(
   c.close();
   await settle(50);
   spy.close();
+  const toWebCodecs = units.filter((u) => lengths.includes(unitLengths(u)[0])).length;
   return { seen, previews, frames, screen, reasons, toWebCodecs };
 }
 
@@ -1308,10 +1311,10 @@ async function aScalableFrameShowsItsBaseThenItsExactFrame(
   log: (line: string) => void,
 ) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 scalable — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const arms = [["l2g1", 4, 10, undefined, true], ["l2g8x20", 20, 12, 8, false]] as const;
-  for (const [set, n, depth, groupLength, ask] of arms) {
+  const arms = [["l2g1", 4, undefined, true], ["l2g8x20", 20, 8, false]] as const;
+  for (const [set, n, groupLength, ask] of arms) {
     const what = `scalable ${set}, ${ask ? "asked" : "filled"}`;
-    const r = await scalableThrough(DownloaderClient, await scalableUnits(set, n), { depth, groupLength, mode: "none", ask });
+    const r = await scalableThrough(DownloaderClient, await scalableUnits(set, n), { groupLength, mode: "none", ask });
     const all = range(0, n - 1);
     check((await inexact(`${SCALABLE}/${set}`, r.frames, all)) === "none",
       `${what}: every exact frame its source's (inexact: ${await inexact(`${SCALABLE}/${set}`, r.frames, all)})`);
@@ -1329,7 +1332,7 @@ async function aScalableFrameShowsItsBaseThenItsExactFrame(
     const stale = all.filter((i) => r.screen.get(i)?.info.preview);
     check(stale.length === 0 && r.screen.size === n, `${what}: no preview is left on screen after its frame (${stale.join() || "none"})`);
   }
-  const single = await scalableThrough(DownloaderClient, await Promise.all(range(0, 19).map((i) => unit(G8, i))), { depth: 8, groupLength: 8, mode: "none", ask: false });
+  const single = await scalableThrough(DownloaderClient, await Promise.all(range(0, 19).map((i) => unit(G8, i))), { groupLength: 8, mode: "none", ask: false });
   check(single.previews.length === 0 && (await inexact(G8, single.frames, range(0, 19))) === "none",
     `scalable: a single-layer series sends no preview and stays exact (${single.previews.length} previews)`);
 }
@@ -1345,8 +1348,8 @@ async function aScalableFrameWithoutItsTopFailsByName(
 ) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 scalable, no top — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
   const units = await scalableUnits("l2g1", 3);
-  units[1] = await fetched(`${SCALABLE}/notop.av1`);
-  const r = await scalableThrough(DownloaderClient, units, { depth: 10, mode: "none", ask: true });
+  units[1] = asItem(await fetched(`${SCALABLE}/notop.av1`), 10);
+  const r = await scalableThrough(DownloaderClient, units, { mode: "none", ask: true });
   check(r.seen.filter((e) => e.endsWith("1")).join() === "p1,x1", `scalable, no top: frame 1 shows its preview, then fails (${r.seen.join()})`);
   check(/spatial layer 0 of 1 is the unit's last/.test(r.reasons.get(1) ?? ""), `scalable, no top: by name (${r.reasons.get(1) ?? "no failure"})`);
   check(r.screen.get(1)?.info.preview === true, "scalable, no top: what stays on screen is still marked a preview");
@@ -1365,7 +1368,7 @@ async function aScalableFrameThroughWebCodecsIsExactWithoutAPreview(
 ) {
   if (typeof VideoDecoder !== "function") return void log("  SKIPPED: WebCodecs scalable — this browser has no VideoDecoder");
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: WebCodecs scalable — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const r = await scalableThrough(DownloaderClient, await scalableUnits("l2g1", 4), { depth: 10, mode: "spy", ask: true });
+  const r = await scalableThrough(DownloaderClient, await scalableUnits("l2g1", 4), { mode: "spy", ask: true });
   check(r.toWebCodecs === 4 && r.previews.length === 0 && (await inexact(`${SCALABLE}/l2g1`, r.frames, range(0, 3))) === "none",
     `webcodecs scalable: 4 units decoded by WebCodecs, every frame exact, no preview (${r.toWebCodecs} units, ${r.previews.length} previews)`);
 }
@@ -1794,11 +1797,10 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log): Promise<v
     anUndecodableFrameIsAFailureNotAFrame,
     aFrameCarriesItsWireBytes,
     aFrameCarriesItsDecodersRangeOrItsOwn,
-    anAv1FrameDecodesToItsSource,
+    anAv1ItemDecodesToItsSource,
+    anAv1ItemTakesWebCodecsOnlyWhereItIsExact,
+    aMalformedAv1ItemIsRefusedByName,
     anAv1FrameThatCannotDecodeAloneIsAFailure,
-    anAv1SeriesTakesWebCodecsOnlyWhereItIsExact,
-    anAv1SplitFrameDecodesToItsSource,
-    anAv1RctFrameDecodesToItsSource,
     anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure,
     anUnknownCodecIsRefusedBeforeTheDial,
     aGroupDecodesOnOneDecoderInOrder,

@@ -72,7 +72,9 @@ def encoder_args(preset, representation, depth, ch):
             "--threads=1", f"--profile={profile}", *speed]
     if representation == "optimized":
         args += ["--tune-content=screen", "--sb-size=64"]
-    return args + (["--monochrome"] if ch == 1 else ["--matrix-coefficients=identity"])
+    # Identity under BT.709 primaries and the sRGB transfer is AV1's RGB signal: WebCodecs reports no matrix.
+    rgb = ["--color-primaries=bt709", "--transfer-characteristics=srgb", "--matrix-coefficients=identity"]
+    return args + (["--monochrome"] if ch == 1 else rgb)
 
 
 def write_y4m(path, frames, depth, ch):
