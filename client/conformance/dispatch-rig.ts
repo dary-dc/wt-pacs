@@ -1725,6 +1725,60 @@ async function aCancelDuringARedialDropsWhatWasAsked(DownloaderClient: Downloade
   c.close();
 }
 
+/**
+ * A resumption dials with the fill still owed in its URL, so a cancel that lands during that dial
+ * cannot take it back: the new session's stream is ended once it opens, and none of it reaches the consumer.
+ */
+async function aCancelDuringAResumeEndsTheFillItsDialCarried(DownloaderClient: DownloaderCtor, check: Check) {
+  const { c, fake, got } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 }, openAsk: "default" });
+  await fake.openAfterMs(300);
+  await fake.serverClose(0, "the server went away");
+  const redialled = await until(async () => (await fake.dials()) >= 2);
+  const url = await fake.dialUrl();
+  check(redialled && url.endsWith("?ask=fill:2-5"), `cancel during a resume: the re-dial carries what was owed (${url})`);
+  await cancelled(c);
+  await settle(400);
+  for (const i of [2, 3]) await fake.pushFrame(i, enc.encode(`late-${i}`));
+  await settle(100);
+  const wire = wireOf((await fake.controlMessages()) as Wire[]);
+  check(wire.includes("end_stream"), `cancel during a resume: the stream the dial opened is ended (${wire.join(", ") || "nothing"})`);
+  check(got.length === 2, `cancel during a resume: and none of it reaches the consumer (${got.map((f) => f.frameIndex).join()})`);
+  c.close();
+}
+
+/**
+ * `close` during a re-dial ends the client: a dial already under way is closed when it opens, and
+ * nothing is asked on it. Driven on the downloader's worker, since the page ends it on `closed`.
+ */
+async function aCloseDuringARedialAdoptsNoSession(_DownloaderClient: DownloaderCtor, check: Check) {
+  const ch = `wtpacs-dispatch-${++world}`;
+  const fake = workerFake(ch);
+  const w = new Worker("/client/downloader/downloader.js", { type: "module" });
+  const closed = new Promise<void>((r) => (w.onmessage = (e) => e.data.kind === "closed" && r()));
+  w.postMessage({
+    kind: "start",
+    config: {
+      decode: false, decoders: 0, openAsk: false, survival: { ...QUICK, stallMs: 30_000 },
+      transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
+    },
+  });
+  w.postMessage({ kind: "dial", url: "https://conformance.invalid/", certHash: CERT });
+  w.postMessage({ kind: "fill", indices: [0, 1, 2, 3] });
+  await onTheWire(fake, "stream_frames 0-3");
+  await fake.pushFrame(0, enc.encode("fill-0"));
+  await fake.openAfterMs(300);
+  await fake.serverClose(0, "the server went away");
+  const redialled = await until(async () => (await fake.dials()) >= 2);
+  w.postMessage({ kind: "close" });
+  await closed;
+  await settle(500);
+  const wire = wireOf((await fake.controlMessages()) as Wire[]);
+  check(redialled && wire.length === 0, `close during a re-dial: nothing is asked on the session it opened (${wire.join(", ") || "nothing"})`);
+  check(await fake.didClose(), "close during a re-dial: and that session is closed");
+  check((await fake.dials()) === 2, `close during a re-dial: and none is dialled after it (${await fake.dials()} dials)`);
+  w.terminate();
+}
+
 /** An ask after `close()` rejects at once, without waiting on a downloader that may never answer. */
 async function anAskAfterCloseRejectsAtOnce(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await open(DownloaderClient, {
@@ -1840,6 +1894,8 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log): Promise<v
     aCancelOnADeadSessionResolves,
     aCancelOnAnEndedClientResolves,
     aCancelDuringARedialDropsWhatWasAsked,
+    aCancelDuringAResumeEndsTheFillItsDialCarried,
+    aCloseDuringARedialAdoptsNoSession,
     anAskAfterCloseRejectsAtOnce,
     aDecoderThatFailsItsInitLeavesThePool,
     framesWithNoDecoderLeftAreNamed,
