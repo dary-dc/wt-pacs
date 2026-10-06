@@ -67,7 +67,9 @@ const OPENJPH = { glue: "/lab/decode-bench/vendor/openjph/openjphjs.js", wasm: "
 function arm(set, name) {
   const a = set.arms[name];
   const ext = a.ext ?? (name === "wc" ? "av1" : name);
-  if (name === "htj2k") return { ext, entries: set.frames, opts: { decoder: OPENJPH } };
+  if (name === "htj2k" || a.codec === "htj2k") {
+    return { ext: "htj2k", entries: set.frames, opts: { decoder: OPENJPH, ...(a.worker && { decoderWorker: a.worker }) } };
+  }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
     ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
   const entries = set.frames * (a.layers ?? 1);
