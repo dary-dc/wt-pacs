@@ -20,13 +20,15 @@ const hex = (b) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(
 
 /** The decoder config `connect` would hand the workers for this arm. */
 function arm(entry) {
-  if (OPENJPH[ARM]) {
-    const [dir, name] = OPENJPH[ARM];
-    return { ext: "htj2k", decoder: { glue: `${dir}/${name}.js`, wasm: `${dir}/${name}.wasm`, dir } };
+  // An arm may name another decoder worker, as row DECODE's *-before arms do.
+  const { ext, group, truth, worker, probeWorker, codec, ...connect } = entry.arms?.[ARM] ?? {};
+  if (OPENJPH[ARM] || codec === "htj2k") {
+    const [dir, name] = OPENJPH[ARM] ?? OPENJPH.htj2k;
+    return { ext: "htj2k", worker: probeWorker, decoder: { glue: `${dir}/${name}.js`, wasm: `${dir}/${name}.wasm`, dir } };
   }
-  const { ext, group, truth, ...connect } = entry.arms[ARM];
   if (MUTATE === "split" && connect.split) connect.split--;
-  return { ext: ext ?? ARM, groupLength: group, decoder: { codec: "av1", glue: `${DAV1D}/simd.js`, wasm: `${DAV1D}/simd.wasm`, dir: DAV1D, ...connect } };
+  return { ext: ext ?? ARM, worker: probeWorker, groupLength: group,
+    decoder: { codec: "av1", glue: `${DAV1D}/simd.js`, wasm: `${DAV1D}/simd.wasm`, dir: DAV1D, ...connect } };
 }
 
 /** A frame's pixels, not the worker's `done` on its other port, free its slot: the two are not ordered. */
@@ -48,7 +50,7 @@ async function checkpoint(name, ds) {
 }
 
 function spawn(cfg, onFrame) {
-  const w = new Worker("/lab/av1/footprint/worker.js", { type: "module" });
+  const w = new Worker(cfg.worker ?? "/lab/av1/footprint/worker.js", { type: "module" });
   const { port1, port2 } = new MessageChannel();
   const d = { w, outstanding: 0, waits: [] };
   port2.onmessage = (e) => e.data.kind === "frame" && onFrame(d, e.data);
