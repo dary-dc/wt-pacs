@@ -102,7 +102,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 49 | **DECODE** — the HTJ2K and AV1 decoder workers rethought: zero-copy hand-off, fewer allocations, one decode interface for both codecs | claimed 2026-10-06 (night) |
 | 50 | **CLIENT** — the downloader, worker and consumer state machines: the two re-dial defects fixed, the untested decisions tested, the states simplified | claimed 2026-10-06 (night) |
 | 51 | **SERVER** — the send path rethought: the per-send copy, mmap against pread, what each layer does that it need not | claimed 2026-10-06 (night) |
-| 52 | **INGEST** — the HTJ2K and AV1 ingest tools as one pipeline: fewer passes, the round-trip check's cost, parallel encode, bytes identical | ready |
+| 52 | **INGEST** — the HTJ2K and AV1 ingest tools as one pipeline: fewer passes, the round-trip check's cost, parallel encode, bytes identical | claimed 2026-10-06 (night) |
 | 53 | **SEAM** — the seams between transport, downloader, decoders and page: duplicated logic, dead paths, codec dispatch | after 50 |
 | 54 | **GATE** — the gate's run time, redundant tests and the gaps mutation finds | after 49, 50, 52, 53 |
 | 55 | **NAMING** — every name audited against the round's principles; the clear renames applied with every reference | after 54 |
