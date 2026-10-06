@@ -44,3 +44,31 @@ REP14's harness (`lab/av1/speed/drive.js`) over today's, the mixed and the w10 a
 product's decoder worker, one frame in flight, the worker's `decodeStart`–`decodeEnd`. Both hash every
 frame against its source's checksum; every throttle cell is a fresh headless Chromium in a Williams order
 each round, sets and arms rotating inside it; 4× is `lab/scripts/cpu_throttle.mjs` on the browser's tree.
+
+## The bound (2026-10-06)
+
+Both streams through dav1d-WASM as the client decodes them today, headless Chromium 141, 10 rounds at 1× and
+4×, every frame of the six series at each k whose top is over 10 bits: **14 840/14 840 frames exact**. Median
+ms a frame (the median over rounds of each round's median), and the low stream's share of the frame — the
+median per round of low / (top + low + merge), its range over rounds in brackets:
+
+| series | k | top 1× · 4× | low 1× · 4× | low's share 1× | 4× |
+| --- | --- | --- | --- | --- | --- |
+| CT, 13 bits | 1 | 21.2 · 91.3 | 8.6 · 36.3 | 0.279 [0.28–0.28] | 0.279 [0.26–0.29] |
+| | 2 | 17.8 · 76.2 | 11.2 · 49.3 | 0.372 [0.37–0.37] | 0.375 [0.37–0.39] |
+| cone-beam, 13 bits | 1 | 36.3 · 157 | 8.5 · 38.9 | 0.187 [0.19–0.19] | 0.187 [0.18–0.19] |
+| | 2 | 29.0 · 125 | 11.2 · 48.4 | 0.272 [0.27–0.28] | 0.271 [0.26–0.29] |
+| signed CT (`ct_nlst`), 13 bits | 1 | 40.4 · 173 | 8.5 · 36.5 | 0.171 [0.17–0.17] | 0.169 [0.16–0.17] |
+| | 2 | 34.9 · 151 | 11.2 · 49.9 | 0.241 [0.24–0.25] | 0.242 [0.24–0.26] |
+| signed CT (`ct_crc`), 13 bits | 1 | 20.9 · 89.3 | 8.6 · 38.9 | 0.282 [0.28–0.28] | 0.285 [0.28–0.30] |
+| | 2 | 17.6 · 76.1 | 11.3 · 48.4 | 0.379 [0.38–0.38] | 0.377 [0.37–0.39] |
+| projections, system 1, 14 bits | 2 | 445 · 1 944 | 243 · 1 049 | 0.339 [0.33–0.35] | 0.338 [0.33–0.35] |
+| | 3 | 373 · 1 571 | 339 · 1 434 | 0.464 [0.45–0.47] | 0.461 [0.45–0.47] |
+| projections, system 2, 14 bits | 2 | 189 · 834 | 136 · 591 | 0.405 [0.40–0.41] | 0.401 [0.39–0.41] |
+| | 3 | 155 · 680 | 193 · 835 | 0.538 [0.53–0.54] | 0.539 [0.53–0.54] |
+
+**The low stream is 17–38 % of a 13-bit frame's decode and 34–54 % of a 14-bit one's, at 1× and 4× alike.**
+It is the noise: its time per sample grows with k (0.033 → 0.043 µs a sample at 1× on 512², k = 1 → 2), and
+the top's falls. The merge is 1–3 % of the frame. Decoded beside the top instead of after it, the low could
+take up to that share off a frame — if WebCodecs decodes it in no more than the top's time, and if the
+cores are free to run both. Containers, not phones.

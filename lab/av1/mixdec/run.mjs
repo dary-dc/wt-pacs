@@ -5,7 +5,7 @@
  * (kK), the mixed one (kKm) and w10, against OpenJPH. lab/av1/mixdec/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/mixdec/run.mjs bound|decode [--rounds 12] [--throttles 1,4]
- *     [--frames lab/.av1-work/mixdec] [--sets a,b] [--mutate sample|truth] [--out rows.json]
+ *     [--frames lab/.av1-work/mixdec] [--sets a,b] [--mutate sample|truth] [--out rows.json] [--summary]
  */
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -29,8 +29,8 @@ const ARMS = ["htj2k", ...[1, 2, 3, 4].flatMap((k) => [`k${k}`, `k${k}m`])];
 const PORT = 30000 + ((Math.random() * 10000) | 0);
 const BASE = `http://127.0.0.1:${PORT}`;
 
-const http = spawn("python3", ["server/dev-server.py", "--port", String(PORT)], { cwd: ROOT, stdio: "ignore" });
-process.on("exit", () => http.kill());
+const http = process.argv.includes("--summary") ? null : spawn("python3", ["server/dev-server.py", "--port", String(PORT)], { cwd: ROOT, stdio: "ignore" });
+process.on("exit", () => http?.kill());
 await new Promise((r) => setTimeout(r, 1000));
 
 async function inChromium(throttle, round) {
@@ -49,8 +49,9 @@ async function inChromium(throttle, round) {
   return rows;
 }
 
-const rows = [];
-for (let round = 0; round < ROUNDS; round++) {
+const SUMMARY = process.argv.includes("--summary");
+const rows = SUMMARY ? JSON.parse(readFileSync(OUT, "utf8")) : [];
+for (let round = 0; round < ROUNDS && !SUMMARY; round++) {
   for (const throttle of order(THROTTLES, round)) {
     const got = await inChromium(throttle, round);
     for (const r of got) rows.push({ round, throttle, ...r });
