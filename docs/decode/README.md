@@ -372,6 +372,61 @@ reading is *no tax detectable*, not *sharing is faster*. Heap identical.
 cancelled exactly. It did not reproduce here; that is one arm of a two-arm claim, so a failure to
 reproduce rather than a refutation, and it should not be quoted in either direction.
 
+## The decoder worker's hand-off
+
+Row 49 (DECODE) asked whether the HTJ2K and AV1 workers could hand a frame to the consumer with no
+copy, allocate nothing a frame in the steady state, and share one interface.
+
+**Built.** `decoder.js` loads one codec module by the series' codec — `htj2k.js` or `av1.js`, both
+`init(config)` then `decodeFrame(bytes, unit, preview)` → `{ info, sab, byteCount, range }` — and posts
+what it returns; nothing in it is per codec. `htj2k.js` is the HTJ2K path as it was, with the range pass
+in two loops (§The range pass). The WebCodecs module copies each `VideoFrame` into a buffer each stream
+keeps and grows, where it allocated one a frame (25 MB a 2560×3328 10-bit frame, chroma included,
+zero-filled).
+
+**Measured** ([`lab/av1/decode`](../../lab/av1/decode/README.md)): the worker before and after, each
+arm its own worker, headless Chromium 141 in the container, the first 4 frames of eight series, 8
+rounds interleaved, 1 024/1 024 frames exact a throttle. ms a frame, median over rounds [range],
+after ÷ before as the median of paired rounds and the rounds after was faster:
+
+| series | | HTJ2K 1× | after ÷ before | 4× | after ÷ before | AV1 1× | after ÷ before | 4× | after ÷ before |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `ffdm_a` | 2560×3328, 12-bit | 91.5 → 75.7 | **0.82** (8/8) | 389 → 313 | **0.81** (8/8) | 340 → 307 | 0.91 (7/8) | 1 367 → 1 292 | 0.94 (7/8) |
+| `syn2d_a` | 2560×3328, 10-bit | 97.6 → 84.2 | **0.84** (8/8) | 425 → 338 | **0.79** (8/8) | 246 → 239 | 0.96 (7/8) | 1 026 → 965 | 0.93 (8/8) |
+| `dbtproj_ge` | 1914×2572, 14-bit | 82.8 → 72.7 | **0.88** (8/8) | 362 → 311 | **0.84** (8/8) | 531 → 547 | 1.01 (4/8) | 2 310 → 2 319 | 1.00 (4/8) |
+| `dbt12_ea1141` | 614×1359, 12-bit | 12.3 → 10.5 | 0.84 (7/8) | 48.1 → 40.3 | 0.82 (6/8) | 45.1 → 40.4 | 0.91 (8/8) | 174 → 170 | 0.96 (6/8) |
+| `dbt10_ea1141` | 678×1727, 10-bit | 16.7 → 14.1 | 0.86 (7/8) | 71.3 → 58.7 | **0.83** (8/8) | 49.4 → 44.6 | 0.91 (7/8) | 186 → 171 | 0.95 (6/8) |
+| `usb_cine` | 512², 8-bit | 3.83 → 3.66 | 0.95 (6/8) | 14.4 → 11.7 | 0.72 (7/8) | 12.4 → 12.9 | 1.01 (4/8) | 36.5 → 34.2 | 0.92 (5/8) |
+| `usb_cine_rgb` | 512², RGB 8 | 7.56 → 7.65 | 1.05 (3/8) | 28.4 → 30.1 | 1.01 (4/8) | 27.1 → 27.4 | 0.99 (5/8) | 102 → 96.2 | 0.95 (7/8) |
+| `rf_fluoro` (control) | 768², 12-bit | 9.54 → 8.11 | 0.87 (7/8) | 35.6 → 27.8 | 0.78 (7/8) | 41.0 → 38.9 | 0.96 (6/8) | 150 → 143 | 0.98 (5/8) |
+
+* **HTJ2K: 12–21 % off a grey frame, at both throttles**, 7/8 or 8/8 on every grey series of 10 to 14 bits
+  (the 8-bit cine's 512² frames are within their noise at 1×). The 8-bit RGB cine takes no range pass
+  (§An 8-bit colour frame takes no range) and ties: the control that says the gain is the pass.
+* **AV1: 4–9 % where WebCodecs decodes**, on the large frames, mostly 7/8 or 8/8; the 14-bit projections,
+  whose 12-bit top goes to dav1d-WASM and never reaches the change, tie (4/8 at both throttles) — the
+  other control. The small cines move within their noise.
+* Where the host saturates: one worker decodes at a time on four cores, so nothing here contends; the
+  absolute ms are this container's, not a phone's.
+
+**Not changed, and why.**
+* **A hand-off with no copy.** The consumer keeps each frame as long as the viewer does, so the frame
+  needs storage of its own. Writing it straight into the consumer's `SharedArrayBuffer` would put that
+  storage in the decoder's linear memory — a shared-memory build, and a release message from the page
+  back to the decoder that owns the bytes: a change to the decoder–consumer contract, and a heap that
+  grows with what the viewer retains and never shrinks (§Retention, measured). What a frame costs
+  between the decoders and the page today is one write into its `SharedArrayBuffer`: HTJ2K's `set()`
+  memcpy (row 41 puts copy out at 7–15 % of a frame), and for AV1 the merge in `av1-frame.js`, which
+  is the pass that undoes the split and the offset and takes the range anyway. Proposed only if a phone
+  shows the copy to be the clock.
+* **The frame's own `SharedArrayBuffer`, one a frame.** It is the frame, held by the consumer — not
+  garbage. dav1d-WASM's input buffer and OpenJPH's encoded buffer were already reused, grown only.
+* **The range in the pack** (§The range in the pack) takes the pass out of JS entirely and stays the
+  larger lever for HTJ2K; it needs the build of our own delivered (§What adopting it costs), which this
+  row did not decide.
+* **The WebCodecs chroma check** (`neutral`, a grey frame's chroma read back as mid-grey) walks half a
+  frame's samples; not timed, kept as the guard it is.
+
 ## Threads
 
 One multithreaded instance at N threads against N single-threaded ones **cannot be asked of OpenJPH
@@ -756,7 +811,7 @@ which the gate requires (`run_browser.sh` exits 2 without `vendor/openjph`).
 ## The range pass
 
 The decoder worker writes pixels into a `SharedArrayBuffer` and then walks them again to sign-extend
-and take the sample range (`decoder.js`, `finish`). Folding the range into the copy was priced,
+and take the sample range (`htj2k.js`, `finish`, in `decoder.js` until row 49). Folding the range into the copy was priced,
 interleaved, 400 repeats: `set()` plus a range pass 1 104 µs against one loop doing both 1 175 µs on
 512×512×3 8-bit (**1.06× slower** folded), 497 against 583 µs on 512×512 16-bit (**1.17×**).
 **Folding loses**: a native `set()` memcpy plus a read-only loop beats one hand-written copy loop.
@@ -765,6 +820,12 @@ Do not fold it on the assumption that one pass beats two. *Corrected:* the pass 
 throttle (§The decode tail on a slow CPU). The lever that remains is not walking the pixels at all —
 §The range in the pack. (In C++ the answer was the other one: the wrapper's zero-fill wrote bytes
 nobody reads, and removing it won — §The wrapper's two passes.)
+
+**The pass itself, in two loops** (row 49): one loop that tested `shift` on every sample cost an
+unsigned frame 24 ms on 2560×3328 in Node where a loop without the test takes 14 (−15 to −44 % over
+unsigned and signed 8, 12 and 16-bit, each its own process) — V8 does not hoist the invariant branch.
+`finish` now has a loop per case; in the decoder worker it took HTJ2K's decode 12–21 % down on every grey
+series (§The decoder worker's hand-off).
 
 **One copy did go** (S14): `new Uint8Array(m.bytes)` re-wrapped a view that already was one, copying
 the codestream for nothing — 5.9 µs at 48 KB to 16.2 at 418 KB, plus a buffer per frame. Removed.

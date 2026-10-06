@@ -182,6 +182,9 @@ blocked. So it pays only where the worker was alive when the long task began.
 
 ## The decoders
 
+* **One module per codec behind one interface.** `decoder.js` loads `htj2k.js` or `av1.js` by the
+  series' codec and posts what its `decodeFrame` returns; the worker has no codec in it
+  ([`decode/README.md`](decode/README.md) §The decoder worker's hand-off).
 * **One decoder object per worker, reused** — safe because `lab/decode-bench/parity.mjs` is
   byte-identical on every fixture. A reused decoder hands back the *previous* frame's pixels when a
   parse fails, so `decodeFrame` refuses a frame whose output is shorter than its header declares
