@@ -36,12 +36,18 @@ def bits(s):
 
 
 def layouts(s):
-    """name → ingest.py's arguments: plain, optimized (the k = 2 split over 8 bits), w10 where b > 12; RGB plain and RCT."""
+    """name → ingest.py's arguments: plain, optimized (the k = 2 split over 8 bits) and, over 8 bits, row 44's arms
+    d12 (k = b − 12), k3 and w10 (k = b − 10) where each is a k of its own; RGB plain and RCT."""
     if s.ch == 3:
         return {"plain": ["--representation", "plain"], "rct": ["--representation", "optimized"]}
     out = {"plain": ["--representation", "plain"], "opt": ["--representation", "optimized"]}
-    if bits(s) > 12:
-        out["w10"] = ["--representation", "optimized", "--split", str(bits(s) - 10)]
+    b = bits(s)
+    if b > 8:
+        taken = {2}
+        for name, k in (("d12", max(0, b - 12)), ("k3", 3), ("w10", max(0, b - 10))):
+            if k not in taken:
+                taken.add(k)
+                out[name] = ["--representation", "optimized", "--split", str(k)]
     return out
 
 
