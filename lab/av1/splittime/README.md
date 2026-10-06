@@ -46,3 +46,31 @@ would write: both came from `ingest.py` at the same preset, and row 43 checked e
 **The port to items.** The decode harness (`decode.mjs`, `index.html`) is row REP14's with its frames
 as items and its arms read from `manifest.json`; row TOTAL's `run.mjs` takes `arms.json` unchanged,
 an AV1 arm being only its stored form (`ext`) under `codec: "av1"`.
+
+## Bytes (2026-10-06)
+
+Every frame of each series, the item's bytes (header and lengths included) over HTJ2K's at cpu0, and at
+the shipped preset: the fastest of `--allintra` 9…6 and good 6…3 within 2 % of cpu0 on the first two
+frames, then confirmed on the whole series (`sweep.py`; on the CT and the MR's k = 2 the two-frame pick,
+`--allintra` 6, was 2.1–2.7 % over on the whole series and good 6 replaced it, as row 33 found for the
+CT). **Bold** is each series' smallest arm at the shipped preset.
+
+| b | series | d12 | k = 2 | k = 3 | w10 | shipped presets |
+| --- | --- | --- | --- | --- | --- | --- |
+| 16 | mammogram, 1 × 4366×6871 | k4 1.077 · 1.093 | — | — | k6 1.001 · **1.012** | a7, a6 |
+| 15 | PET, 335 × 256² | k3 1.092 · 1.099 | — | = d12 | k5 1.040 · **1.040** | good 6, cpu0 |
+| 14 | projections, system 1 | k2 0.953 · 0.953 | = d12 | 0.944 · **0.952** | k4 0.999 · 1.007 | a7, a7, a9 |
+| 14 | projections, system 2 | k2 0.923 · **0.925** | = d12 | 0.937 · 0.948 | k4 1.046 · 1.059 | a7, a7, a9 |
+| 13 | CT | k1 0.926 · 0.938 | 0.917 · **0.927** | 0.932 · 0.940 | = k3 | good 6 |
+| 13 | cone-beam | k1 1.052 · 1.069 | 0.986 · 0.999 | 0.948 · **0.964** | = k3 | a6, good 6, a6 |
+| 12 | fluoroscopy | k0 1.019 · 1.037 | 0.943 · 0.950 | 0.941 · **0.947** | = k2 | a6, a7, a7 |
+| 12 | tomosynthesis 12-bit | k0 1.039 · 1.055 | 0.942 · 0.955 | 0.936 · **0.947** | = k2 | good 6, a7, a7 |
+| 11 | MR | k0 1.032 · 1.048 | 0.989 · **0.997** | 1.003 · 1.020 | k1 0.997 · 1.009 | good 6 (k ≤ 2), a6 |
+| 10 | tomosynthesis 10-bit | k0 0.971 · 0.986 | 0.944 · **0.960** | 0.962 · 0.974 | = d12 | good 6, a7, a6 |
+| 9 | MR, 9 bits | k0 0.916 · **0.927** | 1.028 · 1.036 | 1.007 · 1.019 | = d12 | good 6, good 6, a6 |
+
+Each cell is cpu0 · shipped. The mammogram has one frame, so its shipped figure is the sweep's. **At 15
+and 16 bits every arm is over HTJ2K** (1.012–1.099 shipped), on the first real series of those depths
+here, and w10 (more low bits) is the smaller. Under 12 bits the low two bits pay
+off where the samples are noisy (the 10-bit tomosynthesis, the MR) and not on the 9-bit MR, whose top
+at k = 0 is all its samples.
