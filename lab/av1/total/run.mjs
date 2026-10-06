@@ -69,7 +69,7 @@ function arm(set, name) {
   const ext = a.ext ?? (name === "wc" ? "av1" : name);
   if (name === "htj2k") return { ext, entries: set.frames, opts: { decoder: OPENJPH } };
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
-    ...(a.rct && { rct: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
+    ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
   const entries = set.frames * (a.layers ?? 1);
   // A layer-major series decodes in lab/av1/bases' worker: the product's has no base entry.
   const worker = a.layers ? { decoderWorker: "/lab/av1/bases/decoder.js" } : a.worker && { decoderWorker: a.worker };
