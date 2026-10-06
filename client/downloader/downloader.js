@@ -34,6 +34,8 @@ let quietMs = 0;
 /** Envelope bytes the live session has delivered, and the dial of its replacement once one is under way. */
 let sessionBytes = 0;
 let recycling = null;
+/** Set by `close`: a dial that opens after it is closed, not adopted. */
+let closed = false;
 
 const decoders = [];
 /** index → { state, gen, priority, stamps, bytes }. State: wire | queued | decoding. */
@@ -309,7 +311,7 @@ async function resume() {
   session = null;
   dialling = null;
   while (redials < deadlines.tries) {
-    if (wanted.size === 0 && owedAsks().length === 0) return;
+    if (closed || (wanted.size === 0 && owedAsks().length === 0)) return;
     redials += 1;
     try {
       await connect();
@@ -374,7 +376,12 @@ async function openSession(opening) {
   if (cfg.survival) options.dialMs = deadlines.dialMs;
   if (cfg.readMin) options.readMin = cfg.readMin;
   if (opening) options.fill = opening;
-  return TransportSession.connect(dial.url, dial.certHash, options);
+  const next = await TransportSession.connect(dial.url, dial.certHash, options);
+  if (closed) {
+    next.close();
+    throw new Error("closed by the consumer");
+  }
+  return next;
 }
 
 function adopt(next) {
@@ -386,11 +393,14 @@ function adopt(next) {
 /** One dial at a time: a fill riding with the dial and a command behind it share the handshake. */
 async function connect() {
   dialling ??= (async () => {
+    const gen = generation;
     // The range is known here, so it rides the session URL and is served behind the accept
     // rather than a round trip later. docs/ARCHITECTURE.md
     const run = cfg.openAsk !== false ? nextRun() : null;
     const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
     adopt(await openSession(opening));
+    // A cancel during the dial cannot take back the run its URL carries.
+    if (opening && gen !== generation) session.endStream().catch(() => {});
     return opening;
   })();
   let opening = null;
@@ -466,6 +476,7 @@ onmessage = async (e) => {
       return void postMessage({ kind: "cancelled", gen: generation });
     }
     if (m.kind === "close") {
+      closed = true;
       clearTimeout(stall);
       session?.close();
       // The decoders end with this worker; ending them here first can strand it. docs/ARCHITECTURE.md §Closing a client
