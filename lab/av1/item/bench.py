@@ -67,10 +67,11 @@ def same(build, old, out, preset, sets):
                 subprocess.run(["rm", "-rf", dst])
                 r = subprocess.run(command(build, old, src, dst, codec, impl, preset, 4, rep), capture_output=True, text=True)
                 got[impl] = digests(dst, codec) if r.returncode == 0 else r.stderr.strip()[-200:]
-            ok = isinstance(got["new"], dict) and got["old"] == got["new"] and len(got["new"]) == s.n
+            wrote = isinstance(got["new"], dict)
+            ok = got["old"] == got["new"] and (not wrote or len(got["new"]) == s.n)
             bad += not ok
-            n = len(got["new"]) if isinstance(got["new"], dict) else got["new"]
-            print(f"{src.name}\t{codec}\t{rep}\t{preset}\t{n} files\t{'identical' if ok else 'DIFFERENT'}", flush=True)
+            said = f"{len(got['new'])} files" if wrote else f"both refuse: {got['new']}"
+            print(f"{src.name}\t{codec}\t{rep}\t{preset}\t{said}\t{'identical' if ok else 'DIFFERENT'}", flush=True)
     print(f"{bad} cells differ")
     return bad
 
