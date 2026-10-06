@@ -107,7 +107,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 54 | **GATE** — the gate's run time, redundant tests and the gaps mutation finds | after 49, 50, 52, 53 |
 | 55 | **NAMING** — every name audited against the round's principles; the clear renames applied with every reference | after 54 |
 | 56 | **LAYOUT** — folders by responsibility, each doc where the repository's rules place it | after 55 |
-| 57 | **VERSIONS** — newer libaom, SVT-AV1, dav1d, OpenJPH 0.32.0, Emscripten SIMD and threads, Chromium's WebCodecs: what each gains or breaks, the promising ones measured | ready |
+| 57 | **VERSIONS** — newer libaom, SVT-AV1, dav1d, OpenJPH 0.32.0, Emscripten SIMD and threads, Chromium's WebCodecs: what each gains or breaks, the promising ones measured | claimed 2026-10-06 (night) |
 | 58 | **LITERATURE** — lossless medical image coding 2023–2026, and what of it runs in a browser today: research, rows proposed | ready |
 | 59 | **RESLEVEL** — HTJ2K decoded at the resolution level a phone screen needs, exact, then full resolution on zoom | ready |
 | 60 | **LOSSLINK** — fill and on-demand time over links with 1–5 % packet loss and jitter, HTJ2K against AV1 | ready |
