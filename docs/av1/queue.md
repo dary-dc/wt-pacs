@@ -99,6 +99,24 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 46 | **BREAST** — the breast family's missing content (breast ultrasound cine and stills, ABUS, more DBT, FFDM and synthesized 2D), measured as the targets: exact per decoder path, bytes per layout against HTJ2K, intra against inter at G = 8 and 16 in real slice and frame order | done `3d5efa8` on `claude/av1-unified` (`df98f9b`, `d5cc1ae`; data `7d1552f` here) — **ten breast series added, all CC BY; inter does not pay on DBT and pays on the grey cine only because that clip is a lossy recording**: three more DBT systems' volumes/projections, two FFDM, two synthesized 2D (IDC), breast US cine grey and RGB and stills (Zenodo), 297/297 frames identical to an independent read; nothing presented or reconstructed exceeds 12 bits (projections 14, a film 16); every item exact natively, in Node (64/64 cells, 405/405 frames) and Chromium (WebCodecs 289, dav1d-WASM 116, each as expected); optimized item 0.873–0.962 of HTJ2K on 8 of 10 at cpu0 (stretched-range FFDM 1.006, stills 1.002); inter G = 8/16 on four DBT slice series 0.963–1.054 of intra at cpu0, 0.998–1.050 at good 6, RGB cine 0.98–1.00, grey cine 0.53–0.56 (0.47 of HTJ2K, decode 0.56×); 42/42 inter cells and 4/4 mutations; ABUS has no open licence, no third DBT vendor is open (§Blocked); gate not run (no `wasm-pack` here; no client or server code changed) — `lab/av1/breast/README.md`, README §A1 §A3, `FIXTURES.md` §AV1 data |
 | 47 | **MIXDEC** — each stream of a split item through its own decoder: a top over 10 bits through dav1d-WASM, the 8-bit low through WebCodecs, against both through dav1d and against w10 | claimed 2026-10-06 (night) |
 | 48 | **SPLITLIT** — is splitting samples into top and low streams a recognised, recommended way to code high-bit-depth images losslessly with codecs limited to ≤ 12 bits, and what are the alternatives? | done `0655a4a` — **known, not recommended: the split is published (2011–2024: aerospace video, infrared, depth, CT) and patented (2006 priority on), and no standard or DICOM text recommends it**; the low part is noise in every source (CT's low byte 5.0–6.8 of 8 bits); the noise-floor rules (log2 σ + 1.79, Rice k ≈ log2 σ − 0.3) put k at 4–6 on the four σ ≥ 17 series, where row 36's oracle searched only k ≤ 3 and hit 3 on all four; histogram packing is the offset's published alternative (−42 % CT, −51 % MR bits a pixel on sparse histograms, JPEG-LS); over 12 bits no browser path is exact but WASM (HTJ2K, JPEG-LS, JPEG XL) — [`split-prior-art.md`](split-prior-art.md) |
+| 49 | **DECODE** — the HTJ2K and AV1 decoder workers rethought: zero-copy hand-off, fewer allocations, one decode interface for both codecs | ready |
+| 50 | **CLIENT** — the downloader, worker and consumer state machines: the two re-dial defects fixed, the untested decisions tested, the states simplified | ready |
+| 51 | **SERVER** — the send path rethought: the per-send copy, mmap against pread, what each layer does that it need not | ready |
+| 52 | **INGEST** — the HTJ2K and AV1 ingest tools as one pipeline: fewer passes, the round-trip check's cost, parallel encode, bytes identical | ready |
+| 53 | **SEAM** — the seams between transport, downloader, decoders and page: duplicated logic, dead paths, codec dispatch | after 50 |
+| 54 | **GATE** — the gate's run time, redundant tests and the gaps mutation finds | after 49, 50, 52, 53 |
+| 55 | **NAMING** — every name audited against the round's principles; the clear renames applied with every reference | after 54 |
+| 56 | **LAYOUT** — folders by responsibility, each doc where the repository's rules place it | after 55 |
+| 57 | **VERSIONS** — newer libaom, SVT-AV1, dav1d, OpenJPH 0.32.0, Emscripten SIMD and threads, Chromium's WebCodecs: what each gains or breaks, the promising ones measured | ready |
+| 58 | **LITERATURE** — lossless medical image coding 2023–2026, and what of it runs in a browser today: research, rows proposed | ready |
+| 59 | **RESLEVEL** — HTJ2K decoded at the resolution level a phone screen needs, exact, then full resolution on zoom | ready |
+| 60 | **LOSSLINK** — fill and on-demand time over links with 1–5 % packet loss and jitter, HTJ2K against AV1 | ready |
+| 61 | **TRANSFER** — how other systems deliver medical images, and what they do better than us: research, rows proposed | ready |
+| 62 | **GPU** — GPU HTJ2K decoders' methods and whether WebGPU can take more than the wavelet: research and a feasibility bound | ready |
+| 63 | **JXL** — JPEG XL at fast efforts in WASM, and native browser decoding: which engines, exact at which depths, through which API, how fast | ready |
+| 64 | **REMAP** — rare values above 12 bits mapped out with a small exception map, and a palette for high bits: exact, bytes, decode | ready |
+| 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | ready |
+| 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | ready |
 
 ## Briefs
 
@@ -859,6 +877,272 @@ suggests is proposed here, at the end of this brief, not queued as a row. Docs o
 fluoroscopy, 12-bit tomosynthesis, cone-beam and a projection system — the literature's rule predicts 4, 4, 6 and
 4–5, where row 36 stopped at 3; it fits row 44's arms. (2) Histogram packing against −min, in AV1 and HTJ2K, on the
 CT and any sparse series of rows 45–46, the fraction of levels used measured first ([`split-prior-art.md`](split-prior-art.md) §3).
+
+## The improvement and investigation round (rows 49–66), 2026-10-05
+
+The owner, 2026-10-05, set three goals. **Rethink for net improvement** in every part of the system — decoding, the
+client, the server and transport, ingest, the seams between them, the tests — towards good, simple, efficient code; a
+simplification that costs nothing measurable counts as an improvement. **Organization and naming:** a name states its
+role in the domain's words; no word from the project's history (arm, version, early, mvp); no collision with a
+standard's term (ARM the CPU; DICOM's encapsulated-pixel-data *Item*, tag (FFFE,E000)); folders by responsibility; one
+concept, one name, defined once. **Investigate:** assume nothing we have is best — newer versions, complementary
+approaches, papers, other options, similar optimizations elsewhere. AV1's priority content is the breast family
+(FFDM and synthesized 2D, DBT slices and projections, breast ultrasound and its cine, ABUS); the target client is a
+phone on lossy wireless.
+
+**The adoption rule, every row.** Adopt only a net improvement: measured before and after, interleaved; the gate green;
+HTJ2K unchanged unless the row is about HTJ2K; every frame exact; every new test mutated to fail. Anything else is
+reported with its numbers and left unadopted; a change to the wire, the store's format or the item format is
+structural — proposed in its owning doc, not built into the product.
+
+**Branch.** The code lives on `claude/av1-unified`: a row that changes code or measures through the client first merges
+`origin/claude/av1` into it, as rows 39 and 43 do, and pushes that branch; only the row's state is set here. A
+research-only row writes its doc on `claude/av1`. A rethinking row (A) may change nothing: it then says why.
+
+### 49 DECODE
+
+**Question.** Can the HTJ2K and AV1 decoder workers (`client/downloader/decoder.js`, `decode-av1.js`,
+`decode-av1-webcodecs.js`, `av1.js`, `av1-frame.js`) hand a frame over with no copy, allocate less, and share one decode
+interface? **Why it matters:** decode is a phone's clock for both codecs; row 41 found copy-out at 7–15 % of an HTJ2K
+frame and the wrapper's packing at 4–10 %. **Do:** read both paths end to end; target a zero-copy hand-off (the
+decoder writing straight into the `SharedArrayBuffer` the consumer reads), no per-frame allocation in the steady state,
+and one interface both codecs implement; implement what is clearly better and list what was not changed and why.
+**Decides:** decode time a frame through `decoder.js` in headless Chromium, and the fill's total time on row 23's
+harness, both at 1× and 4×, on the breast series (`ffdm_*`, `syn2d_*`, `dbt*`, `dbtproj_*`, `usb_cine*`) and one
+non-breast control; resident memory a worker (row 38's method) as a check. **Adopt:** the round's rule — HTJ2K's path may
+change here, since the row is about it. **Branch:** `claude/av1-unified`. **Deliverable:** the change, before/after per
+series and CPU, in [`decode/README.md`](../decode/README.md); a one-line verdict here.
+
+### 50 CLIENT
+
+**Question.** Are the downloader, worker and consumer state machines (`client/downloader/downloader.js`, `consumer.js`)
+correct, tested and as simple as they can be? **Why it matters:** a phone on lossy wireless re-dials often, and two
+known defects sit on that path. **Do:**
+* Fix the two defects, each reproduced by a test that fails before the fix and passes after: (1) a `cancel` during a
+  re-dial revives the cancelled ask or fill — no generation check after `await live()`; the ask and fill handlers
+  compare `generation` there today, so find the path that still revives it (`resume()` re-asking `owedAsks()` and
+  `issueFill()` after its `await connect()` are the suspects), and if none does, pin the guard with a test and say so;
+  (2) `close()` during a re-dial adopts the new session — `resume()` never reads a closed flag.
+* Test the 17 untested worker and consumer decisions: list them first in the row's cell (each a branch no test in
+  `downloader.test.mjs`, `decoder.test.mjs` or the conformance clauses reaches, shown by a mutant that survives).
+* Simplify the states: whether `epoch` and `generation`, `resuming` and `dialling`, and the record states can be fewer
+  without losing a behaviour the clauses state.
+
+**Decides:** each new test fails on its mutant; the conformance clauses and dispatch checks still pass; the fill's total
+time on row 23's harness (a subset: 20 and 50 Mbit, 1× and 4×) unchanged within its spread. **Adopt:** the round's rule.
+**Branch:** `claude/av1-unified`. **Deliverable:** the fixes and tests, the decision list with each test's mutant, in
+[`ARCHITECTURE.md`](../ARCHITECTURE.md) §The downloader and `client/downloader/README.md`.
+
+### 51 SERVER
+
+**Question.** What does the send path (`server/src/media/`: `frame_store.rs`, `read_path.rs`, `uring_reader.rs`,
+`frame_pool.rs`; `server/src/transport/`: `frame_out.rs`, `pipeline.rs`) do that it need not? **Why it matters:** fewer
+copies and syscalls are server CPU a frame, which bounds how many phones one host fills. **Do:** read
+the disk-access ADR (`docs/adr/disk-access.md`) and `docs/transport/` first and do not repeat
+what they measured; then the per-send copy (can a frame go from the store to the stream without one), mmap against
+pread against the io_uring reader already there, and each layer's work; implement what is clearly better. Force a
+store miss through the store's test levers, never by evicting the page cache. **Decides:** server CPU a frame
+(`perf stat` or rusage over a fill, cycles and instructions a frame) and fill time on row 23's harness at 50 Mbit,
+interleaved; say where the host saturates. **Adopt:** the round's rule. **Branch:** `claude/av1-unified`.
+**Deliverable:** the change and its numbers in the disk-access ADR and `docs/transport/transport-conclusions.md`.
+
+### 52 INGEST
+
+**Question.** Can the HTJ2K ingest (whatever drives `ojph_compress` into `ingest/study-bundle` and `tools/pack-study`)
+and the AV1 ingest (`lab/av1/item/ingest.py`) be one pipeline that reads, offsets and checks each frame once?
+**Why it matters:** ingest cost is paid per study before any phone sees it, and two pipelines are two things to keep
+true. **Do:** map each pipeline's passes over the pixels; merge them into one with a codec stage; measure the exact
+round-trip check's share and make it cheaper without weakening it (in-process decode, not a subprocess); encode frames
+in parallel across processes — never with libaom `--threads` > 1, which changes lossless bytes (row 66). **Decides:**
+every output byte identical to today's (SHA-256 a file, HTJ2K and AV1, plain and optimized, on the breast series and
+all nine of row 2's sets); wall time and CPU time a study, interleaved, at 1, 2 and 4 workers. **Adopt:** the round's
+rule; bytes not identical is a refusal, not a trade-off. **Branch:** `claude/av1-unified`. **Deliverable:** the pipeline,
+its numbers in `lab/av1/item/README.md` and the ingest's README.
+
+### 53 SEAM
+
+**Question.** Where do the transport, downloader, decoders and page duplicate each other, keep a path nothing reaches, or
+decide the codec in more than one place? **Why it matters:** each seam is code a reader has to hold in mind; one
+decision in one place is simpler and cannot disagree with itself. **Do:** after row 50 (same files), trace a frame
+from `client/transport-ts` through `downloader.js`, `decoder.js` / `av1.js` and `consumer.js` to the page; list each
+duplicated check, each dead path (one no product configuration reaches) and each codec decision; remove the dead and
+merge the duplicated. A built capability not yet adopted (groups, the preview port) is not dead: list it with its cost
+and leave it. **Decides:** lines and modules removed, every clause and dispatch check still passing, and the fill's total
+time unchanged within its spread (row 23's harness, 20 and 50 Mbit, 1× and 4×). **Adopt:** the round's rule.
+**Branch:** `claude/av1-unified`. **Deliverable:** the change, and what stays and why, in
+[`ARCHITECTURE.md`](../ARCHITECTURE.md) and `client/downloader/README.md`.
+
+### 54 GATE
+
+**Question.** How long does `scripts/gate.sh` take, which of its tests claim the same thing twice, and which product
+decisions does no test catch? **Why it matters:** a slow gate is skipped and a gap is a bug waiting; this row checks
+what rows 49–53 left. **Do:** time each step (n = 3, `--quick` and full); find test pairs whose mutants are killed by
+both; mutate the product at each decision point of the client, decoders, server send path and ingest, and give each
+surviving mutant a test; cut a redundant test only when another kills every mutant it kills. **Decides:** gate time
+before and after, the mutant kill count before and after. **Adopt:** the round's rule — no claim lost, each removal
+shown covered. **Branch:** `claude/av1-unified`. **Deliverable:** the faster gate, the mutation table in the README that
+owns the gate's prerequisites.
+
+### 55 NAMING
+
+**Question.** Does every name in wt-pacs — files, folders, identifiers, page and harness names, doc titles — meet the
+round's principles? **Why it matters:** a reader learns the domain from its names; a name from the project's history or
+a standard's other meaning teaches the wrong thing. **Do:** after row 54, so renames do not collide with the A rows.
+Audit both trees (`claude/av1-unified` first); a table of each name, the principle it breaks and the proposed name —
+candidates include the item format's *item* (DICOM's Item, (FFFE,E000)), *arm* in the lab, *version* and row-named
+folders. Apply the clear renames with every reference, doc and link updated (`scripts/check_links.py` green); a name
+on the wire, in the store's format or in the item format is structural: propose it. Record the principles and a
+glossary (one concept, one name, defined once) in the doc that owns the repository's conventions. `CLAUDE.md` is the
+owner's: propose its wording at the end of this brief, do not edit it. **Decides:** the gate green and no reference
+left to an old name (a grep of each). **Adopt:** the round's rule. **Branch:** `claude/av1-unified`; the queue's own
+docs here. **Deliverable:** the renames, the table of the rest, the glossary.
+
+### 56 LAYOUT
+
+**Question.** Are folders grouped by responsibility, and is each doc where the repository's rules place it?
+**Why it matters:** a reader finds a thing by what it does, not by when it was made; the lab's `lab/av1/` holds one
+folder a row. **Do:** after row 55; propose the tree first (what moves, why), then apply it with `git mv`, every
+reference and link updated; docs follow `CLAUDE.md` §Docs — extend the file that owns the subject, no file a finding.
+**Decides:** the gate green, `check_links.py` green, nothing lost (a file count and content hash before and after).
+**Adopt:** the round's rule. **Branch:** `claude/av1-unified`; the queue's own docs here. **Deliverable:** the layout,
+and a short map in the doc that indexes the tree.
+
+### 57 VERSIONS
+
+**Question.** What do newer libaom (after 3.15.1), SVT-AV1 (its lossless status; row 28 measured v4.2.0, never
+smaller), dav1d (after 1.5.4), OpenJPH 0.32.0 (row 41: one mask in the WASM decoder), Emscripten (after 3.1.74: SIMD,
+relaxed SIMD, threads) and Chromium's WebCodecs since 141 (12-bit AV1, monochrome output, `optimizeForLatency`) gain
+or break for us? **Why it matters:** a newer tool may give bytes or decode time for free, or silently break exactness.
+**Do:** read each release's notes and changelog (cite them, with dates); list per tool what bears on lossless, high
+bit depth, monochrome, decode speed or WASM; measure the promising ones on the breast series against the pinned
+version. **Decides:** bytes (cpu0 and the shipped preset), decode time a frame in headless Chromium at 1× and 4×,
+interleaved, and exactness on every frame. **Adopt:** the round's rule; a version change is a new pin in
+[`licensing.md`](licensing.md) and the lab's build. **Branch:** `claude/av1-unified`. **Deliverable:** per tool, gain or
+break with its source and number, in [`README.md`](README.md) §Measured here and `lab/av1/README.md`.
+
+### 58 LITERATURE
+
+**Question.** What has lossless medical image coding published in 2023–2026 — newer methods, HTJ2K improvements, learned
+lossless codecs — and which could run in a browser today? **Why it matters:** the lab compared the codecs it knew; a
+better one may exist. **Do:** web research only, primary sources (papers, standards, implementers' docs), every claim
+cited with its source and date, unconfirmed claims marked; per method its reported gain over JPEG 2000 / HTJ2K / JPEG-LS
+on which data, its decode cost and whether a WASM or WebGPU decoder exists. Coordinate with row 48: link
+[`split-prior-art.md`](split-prior-art.md), repeat nothing in it. **Decides:** a ranked list by expected gain against
+browser feasibility. **Adopt:** nothing here; a measurement it suggests is proposed at the end of this brief, not
+queued. **Branch:** `claude/av1`, docs only. **Deliverable:** a new `lossless-literature.md` in `docs/av1/`; a one-line verdict here.
+
+### 59 RESLEVEL
+
+**Question.** If HTJ2K decodes only the resolution level a phone screen needs (about 1 000 px against mammograms of
+3 328–4 096 px), exact at that size, with full resolution on zoom, how much sooner is the first exact picture on screen,
+and in how many fewer bytes? **Why it matters:** a phone shows a mammogram at a quarter of its size or less, so most of
+the decode, and maybe most of the bytes, buy nothing until zoom. **Do:** read `docs/adr/resolution-fitting-for-large-frames.md`
+first. Two parts: (1) decode only — OpenJPH's reduced-resolution decode on today's codestreams; (2) bytes — a
+resolution-first progression whose prefix holds the low levels; asking for a prefix touches the wire, so build it in
+the lab only and propose it. "Exact" at a reduced level: identical to an independent decoder's reduced output of the
+same codestream (OpenJPEG `-r`); the full frame exact against the source checksum. Row 45's `ffdm_*` and `syn2d_*`, and
+the DBT slices. **Decides:** bytes and time to the first exact on-screen picture against today's full-resolution path,
+on row 23's links (5/20/50 Mbit, `lte-good`, `wifi-home`) at 1× and 4×, interleaved, n ≥ 10; zoom-to-full time.
+**Adopt:** the round's rule; HTJ2K's path may change here. **Branch:** `claude/av1-unified`. **Deliverable:** numbers and
+a proposal in [`decode/README.md`](../decode/README.md) and the resolution-fitting ADR.
+
+### 60 LOSSLINK
+
+**Question.** How do fill and on-demand time behave over links with 1–5 % packet loss and jitter, HTJ2K against AV1?
+**Why it matters:** the target is a phone on lossy wireless, and every measurement so far used clean shaped links.
+This is performance under loss, not resilience features. **Do:** add loss (1, 2, 5 %) and jitter (two levels, stated in
+ms) at the relay — `link_impair.py`, or netem where the container allows `tc`; say which — on 5/20/50 Mbit and
+`lte-good`; HTJ2K against the adopted optimized AV1 item. Fill and on-demand apart (asks are parked during a fill):
+quote the fill's time and an ask's latency, not throughput beside them. **Decides:** fill time and ask latency (p50,
+p95) per loss and jitter cell at 1× and 4×, Williams order, n ≥ 10, `VOID` dropped; say where the host saturates.
+**Adopt:** the round's rule; a transport change it suggests is proposed. **Branch:** `claude/av1-unified`.
+**Deliverable:** a §Under loss in [`README.md`](README.md) §Total time and `lab/av1/total/README.md`.
+
+### 61 TRANSFER
+
+**Question.** How do other systems deliver medical images — DICOMweb (WADO-RS, rendered and frame retrieval),
+progressive HTJ2K delivery in open-source viewers and cloud imaging services, QUIC datagrams with forward error
+correction, HTTP/3 range requests — and what do they do better than us? **Why it matters:** our transport was built by
+measurement against one baseline; others may have solved a problem we have not met yet, on a phone above all.
+**Do:** web research only, primary sources, every claim cited with its source and date, unconfirmed claims marked;
+per system what it sends, in what order, at what resolution, and how it survives loss. **Decides:** a list of what each
+does better, each with the measurement that would test it here. **Adopt:** nothing here; rows proposed at the end of
+this brief, not queued. **Branch:** `claude/av1`, docs only. **Deliverable:** a new `delivery-prior-art.md` in `docs/transport/`;
+a one-line verdict here.
+
+### 62 GPU
+
+**Question.** Can GPU HTJ2K decoders' methods (nvJPEG2000; papers on parallel HT block decoding) move to WebGPU beyond
+the wavelet step row 41 bounded out? **Why it matters:** the HT block decoder is 55–70 % of an HTJ2K frame (row 41),
+the one stage a GPU could take that the copies do not eat. **Do:** research from primary sources, cited with dates;
+which stages each moves and how (code-block parallelism, the MEL/VLC/MagSgn decoding); then a feasibility bound — the
+share of a frame a WebGPU stage could remove, minus the bytes to and from the GPU, per row 41's profile, on the breast
+series. Measure only if the bound shows a gain over 15 %; the container has no GPU (SwiftShader only), so say what that
+leaves unmeasured. **Decides:** the bound per series and stage. **Adopt:** the round's rule if built; a bound alone
+adopts nothing. **Branch:** `claude/av1` for the doc, `claude/av1-unified` for any build. **Deliverable:**
+[`decode/README.md`](../decode/README.md) §Faster HTJ2K in the browser, extended.
+
+### 63 JXL
+
+**Question.** Does JPEG XL earn a place: lossless at faster efforts (and `--faster_decoding`) in WASM, and decoded
+natively by the browser? **Why it matters:** JPEG XL was 0.83–0.95 of HTJ2K's bytes (rows 6, 10, 21, 22) but its
+WASM decode 4.0–6.2× OpenJPH's (row 22); a fast setting or a native decoder could change that. **Do:**
+* bytes and WASM decode time at efforts 1–7 and `--faster_decoding` 0–4, libjxl pinned (row 6 found cjxl 0.7.0
+  inexact on 12-bit PGM: check the pinned one at every depth);
+* which engines (Chromium, Firefox, WebKit at their current versions) decode JPEG XL natively, read from each
+  engine's source or release notes and tested;
+* whether native decoding returns exact samples at 8, 10, 12 and 16 bits or only display pixels, through `<img>` and a
+  canvas, `ImageDecoder` in WebCodecs, and `createImageBitmap`.
+
+**Decides:** bytes over HTJ2K; decode time a frame native, WASM and OpenJPH at 1× and 4×, interleaved, every frame
+checked against the source. **Adopt:** the round's rule. **Branch:** `claude/av1-unified`. **Deliverable:** per engine
+and API, exact or not at each depth, and the speeds, in [`decode/README.md`](../decode/README.md) and
+[`README.md`](README.md) §Measured here.
+
+### 64 REMAP
+
+**Question.** When the values that push a series over 12 bits are rare (the DBT projections' saturated 16383, while
+every other sample fits 12 or 11 bits; a CT's pad value), does mapping them out with a small exception map, so the
+series codes at ≤ 12 bits, beat the split? And, generalized, a palette for the high bits? **Why it matters:** the
+projections are breast content over 12 bits, and the split pays a second stream for them. **Do:** measure first the
+share of samples and levels each series' high bits use (`dbtproj_*`, the CTs, `ffdm_b`'s stretched range); code the
+remapped plane (an outlier replaced by a predictor's value, its position and value in a deflated map) and a
+high-bit palette; link row 48's proposal (2), histogram packing, and do not duplicate it. **Decides:** every frame
+exact; bytes (map included) over HTJ2K and over the k = 2 split; decode time a frame with the map applied, at 1× and 4×,
+interleaved. **Adopt:** the round's rule; the item format's change is proposed in [`item-format.md`](item-format.md),
+built in the lab only. **Branch:** `claude/av1-unified`. **Deliverable:** numbers in `lab/av1/README.md` §DEPTH and
+[`README.md`](README.md) §A3.
+
+### 65 ORDER
+
+**Question.** Does the order frames are sent in shorten the time to the first useful image without costing the fill:
+DBT centre-out (the slice a reader starts on) against top to bottom, and mammography in view priority? **Why it
+matters:** on a slow link the first image a reader needs is worth more than the last. **Do:** read
+`docs/adr/reject-server-ordering.md` first — the order is the client's fill request, not the server's; define "useful"
+per content (DBT: the centre slice and its neighbours; mammography: the views a hanging protocol shows first, cited);
+measure each order on the DBT slices and row 45's mammograms, HTJ2K and AV1. **Decides:** time to the first useful
+image exact on screen and to the full fill, on row 23's links at 1× and 4×, Williams order, n ≥ 10. **Adopt:** the
+round's rule. **Branch:** `claude/av1-unified`. **Deliverable:** numbers in [`ARCHITECTURE.md`](../ARCHITECTURE.md) §The
+first fill and [`README.md`](README.md) §Total time.
+
+### 66 POCGAP
+
+**Question.** Why did an earlier private proof of concept report lossless AV1 about 31 % below HTJ2K on 10-bit data,
+when the lab finds a few percent? **Why it matters:** a number we cannot reproduce must not steer the codec choice. A
+local reproduction found it came from medians over unpaired fixtures — four 10-bit fixtures coded only in HTJ2K;
+paired fixture by fixture AV1 ÷ HTJ2K is 0.961. Real 10-bit DBT measured plain AV1 at 0.950 / 0.958 / 0.969 and the
+lab's optimized representation at 0.921–0.942. **Do:**
+* fetch two more public 10-bit DBT series: UPMC Case22 from D. Clunie's public DBT archive, and TCIA BCS-DBT
+  DBT-P01237. Read each licence first (BCS-DBT may be CC BY-NC); fetch only CC BY or CC0, pinned and checksummed in
+  `lab/av1/fetch_data.sh` and `data.json`; list any other under `## Blocked`;
+* run them through `lab/av1/llsize/llsize.py` with its HTJ2K profile, every coding exact;
+* record: medians only over paired fixtures; libaom's lossless bytes depend on `--threads` (0.05–0.15 % a frame), so
+  the lab's `--threads=1` pin is required, stated where the encoders are; cropping the background moved AV1 ÷ HTJ2K by
+  0.8 point; libaom 3.8.2 against 3.15.1 at cpu6 differs by ≤ 0.4 point; u8-scaled copies favour AV1 by 3–6 points.
+
+**Decides:** AV1 ÷ HTJ2K per fixture, paired, plain and optimized. **Adopt:** nothing to adopt; the prior evidence is
+corrected in place. **Branch:** `claude/av1` (`llsize` and the fetch are here). **Deliverable:** [`README.md`](README.md)
+§Prior evidence, not reproduced here, corrected; `lab/av1/llsize/README.md` and [`FIXTURES.md`](../FIXTURES.md) §AV1 data.
 
 ## Blocked
 
