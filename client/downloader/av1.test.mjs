@@ -146,6 +146,78 @@ const { parseItem } = await import("./av1-item.js");
   await take("no VideoDecoder, no WebCodecs", "plain", "g10", 10, 1, "dav1d");
 }
 
+/** With `mixed`, a top over 10 bits goes to dav1d and its low to WebCodecs, each item's own low merged, dav1d the fallback. */
+{
+  const calls = [];
+  const one = (bits, v) => ({ width: 1, height: 1, bits, planes: [{ heap: Uint16Array.of(v), offset: 0, stride: 1 }] });
+  // WebCodecs' lows alternate 1, 2: an item merged with the last one's low is off by one.
+  let lows = 0;
+  let probeOk = true;
+  let wcFails = false;
+  let topFails = false;
+  const stubs = {
+    "./decode-av1-webcodecs.js": {
+      init: async () => {},
+      probe: async (layout) => (calls.push(`probe ${layout}`), probeOk),
+      picture: async (bytes, unit, which = "top") => {
+        calls.push(`webcodecs ${which}`);
+        await new Promise((r) => setTimeout(r, 5));
+        if (wcFails) throw new Error("undecodable: closed");
+        if ((which === "top") !== isTop(bytes)) throw new Error(`undecodable: a ${which} stream given the other unit`);
+        return which === "top" ? one(10, 7) : one(8, (lows++ % 2) + 1);
+      },
+    },
+    "./decode-av1.js": {
+      init: async () => {},
+      picture: (bytes) => {
+        calls.push("dav1d");
+        if (topFails) throw new Error("undecodable: dav1d -1");
+        // A top is 12 bits of 7 (golden plain g14 is 14 bits, split 2), a low 8 bits of 3.
+        return isTop(bytes) ? one(12, 7) : one(8, 3);
+      },
+    },
+  };
+  const { units } = await import("./av1-item.js");
+  const tops = ["plain/g14", "plain/g12", "optimized/g12"].map((n) => {
+    const item = parseItem(golden(...n.split("/")));
+    return units(item.frames[0], item.split)[0].length;
+  });
+  const isTop = (bytes) => tops.includes(bytes.length);
+  const make = async (mixed, tag) => {
+    const av1 = await import(`./av1.js?mixed-${tag}`);
+    await av1.init({ mixed }, async (path) => stubs[path]);
+    return av1;
+  };
+  const g14 = golden("plain", "g14");
+  const take = async (av1, what, bytes, want, sample) => {
+    calls.length = 0;
+    const f = await av1.decodeFrame(bytes).catch((e) => ({ error: e.message }));
+    const got = f.sab ? new Uint16Array(f.sab)[0] : f.error;
+    check(calls.join() === want && got === sample, `mixed: ${what} (${calls.join()}; ${got}, want ${sample})`);
+  };
+  globalThis.VideoDecoder = class {};
+  const on = await make(true, "on");
+  await take(on, "a 12-bit top to dav1d, its low to WebCodecs, started first", g14, "probe g8,webcodecs low,dav1d", (7 << 2) | 1);
+  await take(on, "the next item merges its own low, not the last one's", g14, "probe g8,webcodecs low,dav1d", (7 << 2) | 2);
+  wcFails = true;
+  await take(on, "a failed WebCodecs low is decoded by dav1d", g14, "probe g8,webcodecs low,dav1d,dav1d", (7 << 2) | 3);
+  wcFails = false;
+  topFails = true;
+  await take(on, "a failed top fails the item once its low has settled", g14, "probe g8,webcodecs low,dav1d", "undecodable: dav1d -1");
+  check(lows === 3, `mixed: the failed top's low settled before the item failed (${lows} lows)`);
+  topFails = false;
+  await take(on, "and the item after it merges its own low", g14, "probe g8,webcodecs low,dav1d", (7 << 2) | 2);
+  probeOk = false;
+  await take(on, "a failed g8 probe leaves both streams to dav1d", g14, "probe g8,dav1d,dav1d", (7 << 2) | 3);
+  probeOk = true;
+  await take(on, "a 12-bit item with no low stream is dav1d's alone", golden("plain", "g12"), "dav1d", 7);
+  await take(on, "a split item whose top is ≤ 10 bits keeps today's choice", golden("optimized", "g12"),
+    "probe g10,probe g8,webcodecs top,webcodecs low", (7 << 2) | 1);
+  await take(await make(undefined, "off"), "without the flag both streams go to dav1d", g14, "dav1d,dav1d", (7 << 2) | 3);
+  delete globalThis.VideoDecoder;
+  await take(on, "no VideoDecoder, both streams to dav1d", g14, "dav1d,dav1d", (7 << 2) | 3);
+}
+
 /** Golden items from the writer decode to their sources' samples; decoded-stream refusals by name. */
 if (!existsSync(`${OUT}/simd.js`)) console.log(`SKIPPED: golden items — no ${OUT} (lab/av1/dav1d-wasm/build.sh)`);
 else {
