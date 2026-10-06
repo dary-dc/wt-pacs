@@ -7,6 +7,7 @@ work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`
 carries, in its plain and optimized representations — is [`item-format.md`](item-format.md), adopted
 2026-10-04 and built end to end on `claude/av1-unified` (row 39).
 What each target series is, per the DICOM standard and vendors' conformance statements: [`series.md`](series.md).
+The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
 
 ## What already does not care about the codec
 
