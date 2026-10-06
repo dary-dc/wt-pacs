@@ -6,6 +6,7 @@ This file owns the phase: what is decided, what is open and the measurement that
 work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`](licensing.md).
 What each target series is, per the DICOM standard and vendors' conformance statements: [`series.md`](series.md).
 The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
+Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
 
 ## What already does not care about the codec
 
