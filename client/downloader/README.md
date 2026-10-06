@@ -7,10 +7,11 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 | file | |
 | - | - |
 | `downloader.js` | the worker: dial, per-frame records, the fill pushed one run at a time and re-issued after an ask, two-priority queue, dispatch, cancel |
-| `decoder.js` | one decoder instance, reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
+| `decoder.js` | one decoder instance: loads the series' codec module and posts each frame it returns to the consumer |
+| `htj2k.js` | an HTJ2K codestream behind the codec modules' interface, one OpenJPH decoder object reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
-| `decoder.test.mjs`, `downloader.test.mjs`, `av1.test.mjs` | node: the range pass; how many decoders a start makes; the AV1 item reader |
-| `av1.js` | an AV1 item behind `decoder.js`'s contract, its decoder chosen per item; loaded only for an AV1 series |
+| `htj2k.test.mjs`, `downloader.test.mjs`, `av1.test.mjs` | node: the range pass; how many decoders a start makes; the AV1 item reader |
+| `av1.js` | an AV1 item behind the codec modules' interface, its decoder chosen per item; loaded only for an AV1 series |
 | `av1-item.js` | the item's header read, and every malformed case refused by name |
 | `decode-av1.js`, `decode-av1-webcodecs.js` | one stream unit through dav1d-WASM or through WebCodecs, as a picture |
 | `av1-frame.js` | a picture checked against the header and merged to the contract: planes interleaved, split, colour transform and offset undone |
@@ -74,7 +75,7 @@ removed on 2026-10-03 — it moved only per-frame waits, not the page's clock; t
 measured as the slope in the decoder count with the instrument calibrated against 32 MB of ballast
 per worker — and 6.1 MB through this whole path, session included, with the page keeping every
 frame ([`docs/decode/README.md`](../../docs/decode/README.md) §What a decoder worker costs,
-resident). The one decoder object `decoder.js` reuses accounts for 0.81 MB of that and does not
+resident). The one decoder object `htj2k.js` reuses accounts for 0.81 MB of that and does not
 grow with the series; each worker compiling its own module accounts for 0.3 MB. So neither is a
 lever worth pulling, and a page where three of these cost tens of MB each is not paying for them.
 
