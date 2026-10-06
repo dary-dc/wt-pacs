@@ -43,13 +43,13 @@ export async function verify(av1, bytes, raw, meta, truth, sha256) {
     header = parseItem(bytes);
     planned = header.rct || meta.channels !== 1 ? null : plan(raw, meta, header.split);
     const f = await av1.decodeFrame(bytes);
-    const used = calls.filter((c) => !c.error);
-    const decoder = used.at(-1)?.decoder ?? "none";
-    const streams = used.filter((c) => c.decoder === decoder);
+    // Each stream's picture is the last one returned for it; a mixed item's two came from two decoders.
+    const [top, low] = ["top", "low"].map((s) => calls.filter((c) => !c.error && c.stream === s).at(-1));
+    const decoder = !top ? "none" : low && low.decoder !== top.decoder ? `${top.decoder}+${low.decoder}` : top.decoder;
     const range = planned && `${f.range.min}..${f.range.max}` === `${planned.min}..${planned.max}`;
     return {
       decoder, exact: (await sha256(new Uint8Array(f.sab))) === truth && range !== false,
-      streamsSame: planned ? streams.length === (header.split ? 2 : 1) && streams.every((c) => c.same) : null,
+      streamsSame: planned ? !!top && !!low === !!header.split && [top, low].every((c) => !c || c.same) : null,
       fellBack: calls.some((c) => c.error), header: { bits: header.bits, depth: header.depth, split: header.split },
     };
   } catch (e) {
