@@ -13,7 +13,7 @@ HERE="$ROOT/lab/av1/dav1d-wasm"
 BUILD="${BUILD:-$ROOT/lab/.av1-build}"
 DAV1D_TAG=1.5.4
 DAV1D_COMMIT=54706fc6bc0cdecab7e9593974a4039cc038fca7
-EMSDK_TAG=3.1.74
+EMSCRIPTEN_VERSION="${EMSCRIPTEN_VERSION:-3.1.74}"
 MESON_VERSION=1.5.2
 ARMS="${ARMS:-plain simd simd-mt}"
 
@@ -25,9 +25,9 @@ fetch() {
 fetch https://github.com/videolan/dav1d.git "$DAV1D_TAG" "$BUILD/dav1d-src"
 [[ "$(git -C "$BUILD/dav1d-src" rev-parse HEAD)" == "$DAV1D_COMMIT" ]] \
   || { echo "dav1d $DAV1D_TAG is not $DAV1D_COMMIT" >&2; exit 2; }
-fetch https://github.com/emscripten-core/emsdk.git "$EMSDK_TAG" "$BUILD/emsdk"
+fetch https://github.com/emscripten-core/emsdk.git "$EMSCRIPTEN_VERSION" "$BUILD/emsdk"
 [[ -x "$BUILD/emsdk/upstream/emscripten/emcc" ]] \
-  || (cd "$BUILD/emsdk" && ./emsdk install "$EMSDK_TAG" >/dev/null && ./emsdk activate "$EMSDK_TAG" >/dev/null)
+  || (cd "$BUILD/emsdk" && ./emsdk install "$EMSCRIPTEN_VERSION" >/dev/null && ./emsdk activate "$EMSCRIPTEN_VERSION" >/dev/null)
 [[ -x "$BUILD/venv/bin/meson" ]] || { python3 -m venv "$BUILD/venv"; "$BUILD/venv/bin/pip" install -q "meson==$MESON_VERSION"; }
 MESON="$BUILD/venv/bin/meson"
 
@@ -75,7 +75,7 @@ build_arm() {
 # The notices a shipped build owes, from the pinned sources themselves. docs/av1/licensing.md
 mkdir -p "$BUILD/out"
 {
-  printf 'Third-party notices for the dav1d WebAssembly decoder (dav1d %s, emscripten %s)\n' "$DAV1D_TAG" "$EMSDK_TAG"
+  printf 'Third-party notices for the dav1d WebAssembly decoder (dav1d %s, emscripten %s)\n' "$DAV1D_TAG" "$EMSCRIPTEN_VERSION"
   for f in "dav1d-src/COPYING" "dav1d-src/doc/PATENTS" "emsdk/upstream/emscripten/LICENSE" \
     "emsdk/upstream/emscripten/system/lib/libc/musl/COPYRIGHT"; do
     printf '\n==== %s ====\n\n' "$f"
