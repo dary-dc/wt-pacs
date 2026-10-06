@@ -7,7 +7,8 @@
 #
 # One row per run, `server_ab`'s columns plus the server's context switches per ask, the
 # datagrams the client's socket dropped (`Udp: RcvbufErrors`), and the server's own `session path`
-# counters — packets it declared lost, datagrams per `sendmsg` — so a tail can be read against loss.
+# counters — packets it declared lost, datagrams per `sendmsg` — so a tail can be read against loss —
+# and its resident set once every session of the run has ended (what a peak leaves held).
 # SERVER_CPUS / CLIENT_CPUS pin the two sides (taskset lists) so a saturated cell is the server's.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -54,10 +55,10 @@ run() {
     --label "r$r" --arm "${arms[$i]}" --temp warm --no-header)
   c1=$(ctx "${pids[$i]}"); d1=$(drops)
   for _ in $(seq 1 40); do (( $(paths "${logs[$i]}") - p0 >= sessions )) && break; sleep 0.05; done
-  printf '%s\t%s\t%s\t%s\n' "$row" "$(python3 -c "print(f'{($c1-$c0)/($asks*$sessions):.1f}')")" "$((d1-d0))" \
-    "$(path_counters "${logs[$i]}" "$p0")"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$row" "$(python3 -c "print(f'{($c1-$c0)/($asks*$sessions):.1f}')")" "$((d1-d0))" \
+    "$(path_counters "${logs[$i]}" "$p0")" "$(awk '/^VmRSS/ {print $2}' "/proc/${pids[$i]}/status")"
 }
-printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\tctx_per_ask\trcvbuf_drops\tserver_lost\tdatagrams_per_sendmsg\n'
+printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\tctx_per_ask\trcvbuf_drops\tserver_lost\tdatagrams_per_sendmsg\trss_after_kib\n'
 for i in "${!arms[@]}"; do run "$i" 0 >/dev/null; done
 for r in $(seq 1 "$reps"); do
   if (( r % 2 )); then order=$(seq 0 $((${#arms[@]}-1))); else order=$(seq $((${#arms[@]}-1)) -1 0); fi

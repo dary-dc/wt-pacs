@@ -9,7 +9,7 @@ import sys
 rows = [l.rstrip("\n").split("\t") for l in open(sys.argv[1]) if l.strip() and not l.startswith("label")]
 arms = sys.argv[2:]
 by = {a: {r[0]: r for r in rows if r[1] == a} for a in arms}
-cols = {"p50_us": (6, 1e-3), "p99_us": (8, 1e-3), "asks_per_s": (10, 1), "cpu_us_per_ask": (11, 1e-3), "ctx_per_ask": (15, 1), "rcvbuf_drops": (16, 1), "server_lost": (17, 1), "per_sendmsg": (18, 1)}
+cols = {"p50_us": (6, 1e-3), "p99_us": (8, 1e-3), "asks_per_s": (10, 1), "cpu_us_per_ask": (11, 1e-3), "ctx_per_ask": (15, 1), "rcvbuf_drops": (16, 1), "server_lost": (17, 1), "per_sendmsg": (18, 1), "rss_after_mib": (19, 1 / 1024)}
 print(f"{'metric':16}" + "".join(f"{a:>16}" for a in arms) + "".join(f"{'Δ ' + b + ' vs ' + arms[0]:>24}" for b in arms[1:]))
 for name, (ci, k) in cols.items():
     line = f"{name:16}" + "".join(f"{statistics.median([float(r[ci]) * k for r in by[a].values() if len(r) > ci] or [0]):16.1f}" for a in arms)
