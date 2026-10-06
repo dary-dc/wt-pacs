@@ -192,6 +192,11 @@ DBT** — four slice series, 0.963–1.054 of intra at cpu0 and 0.998–1.050 at
 on the grey cine it halves the bytes** (G = 16 0.53 of intra, 0.47 of HTJ2K) and the decode, but that clip is a lossy
 MPEG-4 recording whose unchanged blocks repeat exactly, so the gain is the source's, not a scanner's.
 
+**Row DATA3's series ([`breast`](breast/README.md) §Row DATA3's series).** Nine more, 9–16 bits, every frame
+exact at every k of its depth natively, in Node and in three engines. Smallest arm over HTJ2K at cpu0: MR 9-bit
+0.910 (k = 0), synthesized 2D 0.938 and 0.951, FFDM 0.986 and 0.989, the two signed CTs 0.899 and 0.939, PET 15-bit
+0.996 (w10), film 16-bit 1.001 (w10); one vendor's FFDM is a stretched range where plain AV1 is 1.29.
+
 ## DEPTH — samples AV1 cannot code in one stream
 
 Queue row 7. AV1 codes at most 12 bits, unsigned. A series is offset by its minimum when that is

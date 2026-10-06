@@ -352,6 +352,12 @@ reconstructed there exceeds 12 bits* — four FFDM and four synthesized-2D serie
 it. On a third system's projections plain, k = 2 and w10 are within 1 % (0.962–0.971 of HTJ2K,
 [`lab/av1/breast`](../../lab/av1/breast/README.md)).
 
+*Real 9-, 15- and 16-bit series and two more signed CTs (row DATA3, [`lab/av1/breast`](../../lab/av1/breast/README.md)
+§Row DATA3's series): exact at every k of row 43's matrix, natively, in Node and in Chromium, Firefox and WebKitGTK.*
+The best arm per series at cpu0 is k = 0 at 9 bits (0.910 of HTJ2K), k = 1, 2 or 3 at 10–13 bits (0.899–0.989), and w10
+at 15 and 16 bits, where AV1 only ties (0.996, 1.001); the adopted k = 2 is best on two of nine. Plain and optimized
+items refuse 15–16 bits by name, and k = 3 a 16-bit series. Row 44 ranks the arms by time.
+
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never

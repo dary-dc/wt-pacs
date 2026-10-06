@@ -20,7 +20,8 @@ NODE_PATH=$(npm root -g) node lab/av1/llsize/time.mjs --work $W/ivf --codings SE
 
 **`breast.py bytes`** writes each series' first N frames as items through `lab/av1/item/ingest.py` (nothing is
 written unless native dav1d decodes every item back to its source) in each layout — plain; optimized, the k = 2
-split over 8 bits; w10, k = b − 10, where b > 12; RGB plain and RCT — at cpu0 and at the shipped preset, the first
+split over 8 bits; over 8 bits row 44's arms d12 (k = b − 12), k3 and w10 (k = b − 10), each where it is a k of its
+own (row BREAST's run had w10 only, over 12 bits); RGB plain and RCT — at cpu0 and at the shipped preset, the first
 of `allintra` 7, `allintra` 6, `good` 6, `allintra` 5 (row 14's speed order) within 2 % of cpu0's bytes; RGB
 ultrasound ships at cpu0. HTJ2K is OpenJPH 0.31.0 in the served profile on the same frames, decoded back and checked.
 
@@ -103,3 +104,38 @@ rounds [min–max], ms, cpu0's codings; every frame exact (7 350/7 350 at each t
 * A group costs random access (docs/av1/README.md §A1); on DBT it buys nothing to pay that with, and decodes within
   −9 to +7 % of intra.
 * The host: a container's 4 cores, one decode process at a time, the cgroup throttle at 4×; not a phone.
+
+## Row DATA3's series (2026-10-06)
+
+The nine series of queue row 45 ([`docs/FIXTURES.md`](../../../docs/FIXTURES.md) §AV1 data), through the same
+harness and row 43's (`lab/av1/splitok`).
+
+**Exact, every frame at every k of its depth's matrix** (k = max(0, b − 12) … max(b − 8, 4)), at `allintra` 7 — the
+fastest shipped preset; cpu0 is in the bytes below, on the first 8 frames: natively 45/45 cells and 2 825 frames
+(`splitok/run.py`), through the reader in Node 45/45 and 2 825/2 825. **In Chromium 141, Firefox 157.0 and WebKitGTK
+2.52.6** (row 37's builds; micromamba 2.9.0's archive matches row 37's SHA-256 in its first eight hex digits, not in
+the last seven it printed, `…13040dd` here) at k = 0, 2, 3, 5 and the film's 6, which hold every series' k = 2, 3 and
+b − 10 the matrix allows: 24/24 cells and 1 358/1 358 frames in each engine, WebCodecs taking 830 in Chromium and
+dav1d-WASM the rest and everything in the other two, each as the engine should choose.
+
+**Bytes over HTJ2K's**, the first 8 frames (all when fewer), cpu0, and in brackets the shipped preset and its ratio;
+an arm equal to another is run once, a refusal is the format's, by name:
+
+| series | b | plain | optimized, k = 2 | d12 | k = 3 | w10 |
+| --- | --: | --- | --- | --- | --- | --- |
+| `mr9_ispy2`, MR | 9 | 0.913 (allintra 7, 0.931) | 1.024 (allintra 6, 1.042) | **0.910** (good 6, 0.921), k = 0 | 1.002 (allintra 6, 1.014) | = d12 |
+| `syn2d_a`, synthesized 2D | 10 | 1.051 (allintra 7, 1.064) | 0.942 (allintra 7, 0.947) | 1.030 (allintra 7, 1.049), k = 0 | **0.938** (allintra 7, 0.950) | = d12 |
+| `ffdm_a`, FFDM | 12 | 1.287 (allintra 7, 1.304) | 1.022 (allintra 7, 1.036) | 1.164 (allintra 7, 1.176), k = 0 | **0.989** (allintra 7, 1.003) | = optimized |
+| `ffdm_b`, FFDM | 12 | 1.015 (allintra 6, 1.030) | **0.986** (allintra 7, 0.998) | 1.014 (allintra 6, 1.031), k = 0 | 1.031 (allintra 6, 1.044) | = optimized |
+| `syn2d_b`, synthesized 2D | 12 | 1.015 (allintra 7, 1.030) | **0.951** (allintra 7, 0.959) | 1.014 (allintra 7, 1.030), k = 0 | 0.968 (allintra 7, 0.982) | = optimized |
+| `ct_nlst`, CT, signed | 13 | 1.114 (good 6, 1.135) | 0.995 (allintra 7, 1.012) | 1.038 (allintra 6, 1.057), k = 1 | **0.939** (allintra 6, 0.947) | = k3 |
+| `ct_crc`, CT, signed | 13 | 0.902 (good 6, 0.914) | 0.900 (good 6, 0.909) | **0.899** (good 6, 0.911), k = 1 | 0.916 (allintra 6, 0.931) | = k3 |
+| `pt15_cptac`, PET | 15 | refused: over 14 bits needs `--split` | refused: the same | 0.997 (good 6, 1.007), k = 3 | = d12 | **0.996** (cpu0: no faster preset within 2 %), k = 5 |
+| `mg16_cbis`, film | 16 | refused: the same | refused: a 14-bit top | 1.076 (allintra 7, 1.093), k = 4 | refused: a 13-bit top | **1.001** (allintra 6, 1.012), k = 6 |
+
+* **No one k wins every depth.** Of the five 9–12-bit series the adopted k = 2 is the smallest on two, k = 3 on two
+  and k = 0 on the 9-bit MR; at 13 bits k = 3 on one CT and k = 1 on the other; at 15–16 bits w10 — row 44's to rank
+  by time.
+* **Both 4-view FFDM sets of one vendor are stretched ranges**: `ffdm_a` holds 2 506 values 1–3 apart over 76 %
+  zeros, like row 46's `ffdm_d`, and plain AV1 is 1.29 there; split three bits it is 0.989.
+* At 15 and 16 bits AV1 at best ties HTJ2K (0.996, 1.001); the 13-bit CTs are 0.899–0.939.
