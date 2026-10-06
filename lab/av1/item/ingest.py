@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""A series as AV1 items (docs/av1/item-format.md), plain or optimized, and nothing at all unless
-every item decodes back through native dav1d to the samples its frame's checksum was written from.
+"""A series as AV1 items (docs/av1/item-format.md), plain or optimized, or as the served HTJ2K, and
+nothing at all unless every frame decodes back, in-process, to the samples its checksum was written from.
 
 Reads a set as lab/av1/fetch_data.py writes it (NNN.raw, NNN.sha256, metadata.json); writes
-OUT/NNN.av1, OUT/NNN.sha256 and OUT/metadata.json with "codec": "av1", which pack-study bundles.
+OUT/NNN.av1 or OUT/NNN.htj2k, OUT/NNN.sha256 and OUT/metadata.json ("codec": "av1" for AV1), which
+pack-study bundles.
 
-usage: ingest.py BUILD SET_DIR OUT [--representation plain|optimized] [--split K]
+usage: ingest.py BUILD SET_DIR OUT [--codec av1|htj2k] [--representation plain|optimized] [--split K]
                  [--preset cpu0|good:N|allintra:N] [--frames N] [--jobs N]   — lab/av1/item/README.md
 """
 import argparse
+import ctypes
+import functools
 import hashlib
 import json
-import re
 import shutil
 import struct
 import subprocess
@@ -27,6 +29,7 @@ import size  # noqa: E402
 
 FLAG_SIGNED, FLAG_RCT = 1, 2
 MAX_BITS, MAX_SPLIT = 16, 8
+HTJ2K_ARGS = ["-num_decomps", "5", "-block_size", "{64,64}", "-prog_order", "RPCL", "-reversible", "true"]
 
 
 def container(bits):
@@ -43,7 +46,7 @@ class Refused(Exception):
 def plan(s, representation, split=None):
     """The header and the streams: [(depth, channels, frame → int array h×w×c in coded planes)].
     `split` forces grey's k, the low bits coded apart; None takes the representation's."""
-    v = lambda i: s.frame(i).astype(np.int32) + s.offset  # noqa: E731
+    v = functools.lru_cache(1)(lambda i: s.frame(i).astype(np.int32) + s.offset)
     bits = max(1, int(s.hi + s.offset).bit_length())
     if s.ch == 3:
         if bits > 8:
@@ -98,24 +101,31 @@ def write_y4m(path, frames, depth, ch):
             fh.write(b"FRAME\n" + b"".join(np.ascontiguousarray(q).tobytes() for q in planes))
 
 
-def decode(build, unit, work):
-    """One unit alone through native dav1d: its coded planes (h×w×c) and the depth it decoded at."""
-    src, out = work / "u.obu", work / "u.y4m"
-    src.write_bytes(unit)
-    subprocess.run([build / "dav1d/bin/dav1d", "-q", "-i", src, "-o", out, "--demuxer", "section5"],
-                   check=True, capture_output=True, env={"LD_LIBRARY_PATH": str(build / "dav1d/lib")})
-    raw = out.read_bytes()
-    head, rest = raw.split(b"\n", 1)
-    tags = {t[:1]: t[1:].decode() for t in head.split()[1:]}
-    c, w, h = tags[b"C"], int(tags[b"W"]), int(tags[b"H"])
-    m = re.fullmatch(r"(mono|444)p?(10|12)?", c)
-    if not m:
-        raise Refused(f"decoded as {c}, neither grey nor 4:4:4")
-    depth, planes = int(m[2] or 8), 1 if m[1] == "mono" else 3
-    dt = "u1" if depth == 8 else "<u2"
-    body = rest[rest.index(b"\n") + 1:]
-    px = np.frombuffer(body, dt, h * w * planes).reshape(planes, h, w)
-    return np.moveaxis(px, 0, -1).astype(np.int32), depth
+class Shape(ctypes.Structure):
+    _fields_ = [(f, ctypes.c_int32) for f in ("w", "h", "planes", "bits", "signed")]
+
+
+@functools.cache
+def native(build):
+    lib = ctypes.CDLL(str(build / "item/libdecode.so"))
+    for f in (lib.av1_decode, lib.htj2k_decode):
+        f.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(Shape)]
+    return lib
+
+
+def decoded(build, codec, data, cap):
+    """One AV1 unit or HTJ2K codestream decoded alone, in-process: its samples h×w×c and their shape."""
+    out, shape = np.empty(cap, np.int32), Shape()
+    r = getattr(native(build), f"{codec}_decode")(data, len(data), out.ctypes.data, cap, ctypes.byref(shape))
+    if r:
+        raise Refused(f"{codec} decode failed ({r})")
+    return out[:shape.h * shape.w * shape.planes].reshape(shape.h, shape.w, shape.planes), shape
+
+
+def decode(build, unit, work=None):
+    """One unit alone through dav1d: its coded planes (h×w×c) and the depth it decoded at."""
+    px, shape = decoded(build, "av1", unit, 1 << 20)
+    return px, shape.bits
 
 
 def item(header, frames):
@@ -136,35 +146,67 @@ def merge(header, pictures):
     return (top << header["split"]) | pictures[1] if header["split"] else top
 
 
-def chunk(job):
-    """Frames [a, b) of every stream, coded and each frame checked alone; the items, or why not."""
-    build, set_dir, representation, split, preset, a, b = job
-    s = size.Set(Path(set_dir))
+def av1(build, s, work, a, b, representation, split, preset):
+    """Frames [a, b) as items, each stream a run of keyframes and every frame checked alone."""
     header, streams = plan(s, representation, split)
     header["offset"] = s.offset
+    frames = [[plane(i) for _, _, plane in streams] for i in range(a, b)]
+    coded = []
+    for j, (depth, ch, _) in enumerate(streams):
+        y4m, ivf = work / f"{j}.y4m", work / f"{j}.ivf"
+        write_y4m(y4m, [f[j] for f in frames], depth, ch)
+        subprocess.run([build / f"aom-{size.AOM}/bin/aomenc", "-q", "-o", ivf, f"--limit={b - a}",
+                        *encoder_args(preset, representation, depth, ch), y4m], check=True, capture_output=True)
+        coded.append(size.ivf_units(ivf))
+    del frames
+    out = []
+    for k, i in enumerate(range(a, b)):
+        units = [c[k] for c in coded]
+        pictures = []
+        for j, unit in enumerate(units):
+            px, shape = decoded(build, "av1", unit, s.h * s.w * s.ch)
+            if shape.bits != streams[j][0]:
+                raise Refused(f"frame {i}: stream {j} decoded at {shape.bits} bits, coded at {streams[j][0]}")
+            pictures.append(px)
+        if not size.exact(s, i, merge(header, pictures)[:s.h, :s.w]):
+            raise Refused(f"frame {i} does not decode back to its source")
+        frame = struct.pack("<I", len(units[0])) + units[0] + units[1] if len(units) == 2 else units[0]
+        out.append((i, item(header, [frame])))
+    return out
+
+
+def htj2k(build, s, work, a, b, *_):
+    """Frames [a, b) as the served codestream: a signed series coded shifted by 2^(B-1), then its SIZ
+    marked signed (lab/scripts/sign_htj2k.py says why), and the codestream as written checked."""
+    shift = 1 << (s.stored - 1) if s.signed else 0
+    src, cs = work / ("in.pgm" if s.ch == 1 else "in.ppm"), work / "out.j2c"
+    out = []
+    for i in range(a, b):
+        maxval = (1 << s.stored) - 1
+        with open(src, "wb") as fh:
+            fh.write(b"%s\n%d %d\n%d\n" % (b"P5" if s.ch == 1 else b"P6", s.w, s.h, maxval))
+            fh.write((s.frame(i).astype(np.int32) + shift).astype(">u2" if maxval > 255 else "u1").tobytes())
+        subprocess.run([size.OJPH / "bin/ojph_compress", "-i", src, "-o", cs, *HTJ2K_ARGS], check=True,
+                       capture_output=True, env={"LD_LIBRARY_PATH": str(size.OJPH / "lib")})
+        data = bytearray(cs.read_bytes())
+        if s.signed:
+            for c in range(struct.unpack(">H", data[40:42])[0]):
+                data[42 + 3 * c] |= 0x80
+        px, shape = decoded(build, "htj2k", bytes(data), s.h * s.w * s.ch)
+        if (shape.bits, shape.signed) != (s.stored, s.signed) or not size.exact(s, i, px + s.offset):
+            raise Refused(f"frame {i} does not decode back to its source")
+        out.append((i, bytes(data)))
+    return out
+
+
+CODECS = {"av1": av1, "htj2k": htj2k}
+
+
+def chunk(job):
+    """Frames [a, b) through the codec; the coded frames, or why not."""
+    build, set_dir, codec, *rest = job
     with tempfile.TemporaryDirectory() as tmp:
-        work = Path(tmp)
-        coded = []
-        for j, (depth, ch, plane) in enumerate(streams):
-            y4m, ivf = work / f"{j}.y4m", work / f"{j}.ivf"
-            write_y4m(y4m, [plane(i) for i in range(a, b)], depth, ch)
-            subprocess.run([build / f"aom-{size.AOM}/bin/aomenc", "-q", "-o", ivf, f"--limit={b - a}",
-                            *encoder_args(preset, representation, depth, ch), y4m], check=True, capture_output=True)
-            coded.append(size.ivf_units(ivf))
-        out = []
-        for k, i in enumerate(range(a, b)):
-            units = [c[k] for c in coded]
-            pictures = []
-            for j, unit in enumerate(units):
-                px, depth = decode(build, unit, work)
-                if depth != streams[j][0]:
-                    raise Refused(f"frame {i}: stream {j} decoded at {depth} bits, coded at {streams[j][0]}")
-                pictures.append(px)
-            if not size.exact(s, i, merge(header, pictures)[:s.h, :s.w]):
-                raise Refused(f"frame {i} does not decode back to its source")
-            frame = struct.pack("<I", len(units[0])) + units[0] + units[1] if len(units) == 2 else units[0]
-            out.append((i, item(header, [frame])))
-        return out
+        return CODECS[codec](build, size.Set(Path(set_dir)), Path(tmp), *rest)
 
 
 def main():
@@ -172,6 +214,7 @@ def main():
     ap.add_argument("build", type=Path)
     ap.add_argument("set_dir", type=Path)
     ap.add_argument("out", type=Path)
+    ap.add_argument("--codec", choices=list(CODECS), default="av1")
     ap.add_argument("--representation", choices=["plain", "optimized"], default="optimized")
     ap.add_argument("--split", type=int)
     ap.add_argument("--preset", default="cpu0")
@@ -181,26 +224,30 @@ def main():
     s = size.Set(a.set_dir)
     n = min(a.frames or s.n, s.n)
     per = -(-n // a.jobs)
-    jobs = [(a.build.resolve(), str(a.set_dir), a.representation, a.split, a.preset, i, min(i + per, n))
+    jobs = [(a.build.resolve(), str(a.set_dir), a.codec, i, min(i + per, n), a.representation, a.split, a.preset)
             for i in range(0, n, per)]
     try:
-        plan(s, a.representation, a.split)
+        if a.codec == "av1":
+            plan(s, a.representation, a.split)
         with ProcessPoolExecutor(a.jobs) as pool:
             items = [x for part in pool.map(chunk, jobs) for x in part]
     except Refused as e:
         sys.exit(f"{a.set_dir.name}: nothing written — {e}")
     a.out.mkdir(parents=True, exist_ok=True)
     for i, data in items:
-        (a.out / f"{i:03d}.av1").write_bytes(data)
+        (a.out / f"{i:03d}.{a.codec}").write_bytes(data)
         shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
     meta = json.loads((a.set_dir / "metadata.json").read_text())
-    meta.update(frameCount=n, codec="av1", representation=a.representation)
-    if a.split is not None:
+    meta.update(frameCount=n)
+    if a.codec == "av1":
+        meta.update(codec="av1", representation=a.representation)
+    if a.codec == "av1" and a.split is not None:
         meta["split"] = a.split
     (a.out / "metadata.json").write_text(json.dumps(meta, indent=1) + "\n")
     total = sum(len(d) for _, d in items)
     digest = hashlib.sha256(b"".join(d for _, d in items)).hexdigest()[:12]
-    print(f"{a.set_dir.name}: {n} items, {total} B, {a.representation}, every one exact ({digest})")
+    kind = a.representation if a.codec == "av1" else "htj2k"
+    print(f"{a.set_dir.name}: {n} items, {total} B, {kind}, every one exact ({digest})")
 
 
 if __name__ == "__main__":
