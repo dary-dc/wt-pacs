@@ -3,17 +3,23 @@ let dec = null;
 
 /** Sign-extend narrow samples (JS shifts are 32-bit) and take the range in one pass — docs/decode/README.md §The range pass. */
 export function finish(view, bits, signed) {
+  const shift = signed && bits < 8 * view.BYTES_PER_ELEMENT ? 32 - bits : 0;
   let min = Infinity;
   let max = -Infinity;
-  const shift = signed && bits < 8 * view.BYTES_PER_ELEMENT ? 32 - bits : 0;
-  for (let i = 0; i < view.length; i++) {
-    let v = view[i];
-    if (shift) {
-      v = (v << shift) >> shift;
+  // Two loops, not one testing `shift` per sample: docs/decode/README.md §The range pass.
+  if (shift) {
+    for (let i = 0; i < view.length; i++) {
+      const v = (view[i] << shift) >> shift;
       view[i] = v;
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
-    if (v < min) min = v;
-    if (v > max) max = v;
+  } else {
+    for (let i = 0; i < view.length; i++) {
+      const v = view[i];
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
   }
   return { min, max };
 }
