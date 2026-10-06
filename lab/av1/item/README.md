@@ -6,6 +6,8 @@ Queue row 39 (UNIFY) of [`docs/av1/queue.md`](../../../docs/av1/queue.md): the f
 
 ```bash
 lab/av1/tools.sh && ARMS=simd lab/av1/dav1d-wasm/build.sh     # aomenc 3.15.1, native dav1d, dav1d-WASM
+FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160 # OpenJPH 0.31.0, built once
+lab/av1/item/build.sh                                          # the check's in-process decoders (decode.cpp)
 P=lab/av1/.venv/bin/python                                     # numpy, from lab/av1/requirements.txt
 $P lab/av1/item/ingest.py lab/.av1-build lab/av1/data/rf_fluoro OUT --representation optimized --preset good:6
 target/release/pack-study --metadata OUT/metadata.json --frames OUT --output rf_fluoro.sbnd
@@ -13,11 +15,14 @@ node lab/av1/item/check.mjs OUT                                # every item thro
 $P lab/av1/item/make_golden.py lab/.av1-build                  # the client's golden items and probes
 ```
 
-**`ingest.py`** reads a set as `lab/av1/fetch_data.py` writes it and writes `NNN.av1` items,
-`NNN.sha256` (the source's checksums, copied) and `metadata.json` with `"codec": "av1"` and the
-representation. It writes nothing at all unless every item decodes back: each stream unit alone
-through native dav1d, at the depth it was coded at, merged as the client merges, against the
-checksum written when the source was fetched. Refused before coding: RGB over 8 bits, grey over 14
+**`ingest.py`** reads a set as `lab/av1/fetch_data.py` writes it and writes `NNN.av1` items, or with
+`--codec htj2k` the served `NNN.htj2k` codestreams (OpenJPH, reversible, 5 decompositions, 64² blocks,
+RPCL; a signed series coded shifted and its SIZ marked signed), `NNN.sha256` (the source's checksums,
+copied) and `metadata.json` (`"codec": "av1"` and the representation for AV1). It writes nothing at all
+unless every frame decodes back in-process (`decode.cpp`: dav1d and OpenJPH, no subprocess, no file):
+each AV1 stream unit alone, at the depth it was coded at, merged as the client merges, and each HTJ2K
+codestream as written, at its depth and signedness, against the checksum written when the source was
+fetched. Each frame is read and offset once. Refused before coding: RGB over 8 bits, grey over 14
 bits after the offset unless `--split K` names the low bits coded apart (k ≤ 8, up to 16 bits, a top of
 at most 12 — row 43's matrix; the defaults are unchanged). `--preset` is `cpu0`, `good:N` or `allintra:N` (row 14 names the fastest
 within 2 % of cpu0's bytes per content); frames are coded in `--jobs` processes, each a run of
