@@ -1,0 +1,60 @@
+/** An HTJ2K codestream through OpenJPH-WASM, one decoder object reused (parity.mjs): docs/decode/README.md §A build of our own */
+let dec = null;
+
+/** Sign-extend narrow samples (JS shifts are 32-bit) and take the range in one pass — docs/decode/README.md §The range pass. */
+export function finish(view, bits, signed) {
+  let min = Infinity;
+  let max = -Infinity;
+  const shift = signed && bits < 8 * view.BYTES_PER_ELEMENT ? 32 - bits : 0;
+  for (let i = 0; i < view.length; i++) {
+    let v = view[i];
+    if (shift) {
+      v = (v << shift) >> shift;
+      view[i] = v;
+    }
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return { min, max };
+}
+
+/** Nothing reads an 8-bit colour frame's range — its window comes from the tags — so no pass takes it. */
+export const unranged = (info) => info.componentCount === 3 && info.bitsPerSample === 8 && !info.isSigned;
+
+export async function init(d) {
+  // A module worker has no importScripts; the classic glue's factory is a `var`, local in a Function body, so returned.
+  const src = await (await fetch(d.glue)).text();
+  const factory = new Function(
+    `${src}\nreturn typeof Module !== "undefined" ? Module : OpenJPHModule;`,
+  ).call(globalThis);
+  const wasmBinary = await (await fetch(d.wasm)).arrayBuffer();
+  const M = await factory({ locateFile: (f) => d.dir + "/" + f, wasmBinary });
+  dec = new M.HTJ2KDecoder();
+}
+
+export function decodeFrame(bytes) {
+  // Already a Uint8Array over the transferred buffer; wrapping it again is a copy. docs/decode/README.md §The range pass
+  dec.getEncodedBuffer(bytes.length).set(bytes);
+  dec.readHeader();
+  const info = dec.getFrameInfo();
+  dec.decode();
+  const out = dec.getDecodedBuffer();
+  const wide = info.bitsPerSample > 8;
+  // The reused decoder leaves the previous frame's pixels here when a parse fails, so the header
+  // is what says the frame is gone, not the length. docs/decode/README.md §A frame that did not decode
+  const declared = info.width * info.height * info.componentCount * (wide ? 2 : 1);
+  if (declared === 0 || out.length < declared) {
+    throw new Error(`undecodable: ${out.length} bytes for a header declaring ${declared}`);
+  }
+
+  const sab = new SharedArrayBuffer(out.length);
+  new Uint8Array(sab).set(out);
+  const view = wide
+    ? (info.isSigned ? new Int16Array(sab) : new Uint16Array(sab))
+    : (info.isSigned ? new Int8Array(sab) : new Uint8Array(sab));
+  // A build that takes the range as it packs has sign-extended already. docs/decode/README.md §The range in the pack
+  const range = unranged(info)
+    ? { min: 0, max: 255 }
+    : dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
+  return { info, sab, byteCount: out.length, range };
+}

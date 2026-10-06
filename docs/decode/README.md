@@ -91,7 +91,7 @@ output. The source build was wrong (§A build of our own).
 *Corrected 2026-10-03:* the pass shifted by `16 − bits`, and JS shifts are 32-bit, so it left a raw
 12-bit pattern as it was — a no-op, not an extension; it held only because the package extends
 first. It shifts by `32 − bits` now, skipped when the sample fills its container, and
-`client/downloader/decoder.test.mjs` holds it to raw patterns. On `ct512` it changes 0 of 87 frames
+`client/downloader/htj2k.test.mjs` holds it to raw patterns. On `ct512` it changes 0 of 87 frames
 before and after the fix.
 
 *Corrected:* an earlier record said the package saturates negatives to 32767 and the source build
