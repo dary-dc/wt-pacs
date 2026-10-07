@@ -81,3 +81,9 @@ export function layouts(item, top) {
   const own = item.depth === 8 && seqProfile(top) === 1 ? "c8" : `g${item.depth}`;
   return item.split ? [own, "g8"] : [own];
 }
+
+/** A keyframe decodes alone; any other unit only right after its predecessor `last`, `{ gen, index }`, of the same request. */
+export function continues(last, unit) {
+  if (unit.key || (last && unit.gen === last.gen && unit.index === last.index + 1)) return;
+  throw new Error(`undecodable: frame ${unit.index - 1} was not decoded before it here`);
+}

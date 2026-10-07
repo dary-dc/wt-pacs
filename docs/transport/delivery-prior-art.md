@@ -81,7 +81,7 @@ of JPIP or JPEG 2000 streaming of medical images in a browser was found (**uncon
   parallel streams help as random loss rises (0–5 %), sequential wins under bursty loss, higher bandwidth or lower
   round trip (Sander et al., TMA 2022, <https://www.comsys.rwth-aachen.de/fileadmin/papers/2022/2022-sander-h3-prio-hol.pdf>);
   across 14 707 sites, under loss no general trend (Trevisan et al., MedComNet 2021, DOI 10.1109/MedComNet52149.2021.9501274).
-  This agrees with the shared stream's campaigns ([`../adr-stream-shape.md`](../adr-stream-shape.md)).
+  This agrees with the shared stream's campaigns ([`../adr/stream-shape.md`](../adr/stream-shape.md)).
 * **Cancellation** (RFC 9114, RFC 9000 §3.5, 2021–2022): an abort resets both directions; bytes in flight are spent
   and still count against connection flow control. How a browser maps `AbortController` to frames is **unconfirmed**.
 
@@ -106,19 +106,19 @@ of JPIP or JPEG 2000 streaming of medical images in a browser was found (**uncon
   subgroup**, priorities by subscriber, then publisher, then group order; a delivery timeout makes the publisher reset
   a stale stream. Like the product: independent units, a priority order, cancel by reset. Unlike it: built for media
   that goes stale and may be dropped; a lossless frame cannot be. Its per-subgroup stream is the shape the product
-  measured as `per-frame` and rejected for the shared stream ([`../adr-stream-shape.md`](../adr-stream-shape.md)).
+  measured as `per-frame` and rejected for the shared stream ([`../adr/stream-shape.md`](../adr/stream-shape.md)).
   A one-stream-per-frame media draft (draft-kpugin-rush-03, 2025-04) has expired.
 * **`RESET_STREAM_AT`** (draft-ietf-quic-reliable-stream-reset-11, 2026-09-06) is **approved, in the RFC Editor
   queue**; WebTransport over HTTP/3 (-16, 2026-07-06) requires it, and the W3C API's `committedOffset` maps to it.
   It is what abandoning a frame's tail after its prefix needs
-  ([`../adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md) §6), still not
+  ([`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §6), still not
   in quinn or wtransport.
 
 ## What they do better, and the measurement that would test it
 
 | what others do | what the product does | the measurement here |
 | --- | --- | --- |
-| **A frame's prefix first, the rest after**, no byte twice (the viewer's two stages over RPCL + Range; DICOM's RPCL syntax exists for it) | whole frames; the decoder can draw a prefix (L19) and the wire piece is unbuilt | the cell already fixed in [`../adr-resolution-fitting-for-large-frames.md`](../adr-resolution-fitting-for-large-frames.md) §6 (25 % prefix, 20 Mbit / 50 ms, adopt at ≥ 2× to first viewable), with the rest on the same stream |
+| **A frame's prefix first, the rest after**, no byte twice (the viewer's two stages over RPCL + Range; DICOM's RPCL syntax exists for it) | whole frames; the decoder can draw a prefix (L19) and the wire piece is unbuilt | the cell already fixed in [`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §6 (25 % prefix, 20 Mbit / 50 ms, adopt at ≥ 2× to first viewable), with the rest on the same stream |
 | **Coarse-to-fine order across a series**, prefixes in strides then the whole frames | the fill is sequential; O1 measured every 8th frame 5.5× sooner and the fill unchanged, not adopted ([`transport-conclusions.md`](transport-conclusions.md) §The fill's order) | O1's order combined with prefixes, time to a scrubbable series, on phone profiles |
 | **A frame is a cacheable HTTP resource** — a CDN or the browser's cache can serve a repeat | every byte comes from the server over a session | not a lab cell; a deployment property. What a repeat view costs the server is the measurable half |
 | **Survives where UDP does not**, over any HTTP | WebSocket fallback built, off ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The TCP fallback) | field failure rate (open item 10 there) |

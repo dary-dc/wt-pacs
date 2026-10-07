@@ -3,6 +3,7 @@
  * decodes alone, any other unit only after its predecessor, here. Only ≤ 10 bits, where it is exact.
  * docs/decode/README.md §AV1
  */
+import { continues } from "./av1-item.js";
 import { PROBES } from "./av1-probe.js";
 
 let groupLength = 1;
@@ -70,8 +71,7 @@ function decoder(length) {
   open();
   return {
     async picture(bytes, unit) {
-      const follows = last !== null && unit.gen === last.gen && unit.index === last.index + 1;
-      if (!unit.key && !follows) throw new Error(`undecodable: frame ${unit.index - 1} was not decoded before it here`);
+      continues(last, unit);
       last = null;
       let stall = 0;
       try {
