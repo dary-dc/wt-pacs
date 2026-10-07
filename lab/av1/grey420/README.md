@@ -18,7 +18,7 @@ for s in usb_still usb_cine; do
   $P lab/av1/item/ingest.py lab/.av1-build lab/av1/data/$s $W/ingest/$s.htj2k --codec htj2k
 done
 $P lab/av1/grey420/make_frames.py $W/ingest $W/frames usb_cine usb_still
-export FIREFOX_PATH=...                    # Firefox 157.0.1, as lab/av1/jxl/README.md installs it
+export FIREFOX_PATH=.../FirefoxApp/firefox   # Firefox 157.0.1 as lab/av1/jxl/README.md installs it; the binary, not conda's launcher
 node lab/av1/xbrowser/run.mjs --rounds 10 --throttles 1,4 --engines chromium,firefox --frames $W/frames --out decode.json
 for r in $(seq 0 9); do
   NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs --frames $W/frames --engines chromium,firefox \
@@ -59,21 +59,25 @@ median of round-paired ratios [range], rounds slower:
 
 | engine | | series | HTJ2K | 4:0:0 (product) | 4:2:0 (product) | 4:2:0 / 4:0:0 |
 | --- | --- | --- | --: | --: | --: | --: |
-| Chromium | 1× | `usb_cine` | 3.94 | 12.9 WebCodecs | 14.3 WebCodecs | 1.09 [0.92–1.29] 8/10 |
-| | | `usb_still` | 1.38 | 8.59 WebCodecs | 8.63 WebCodecs | 1.07 [0.85–1.29] 7/10 |
-| | 4× | `usb_cine` | 12.8 | 36.1 WebCodecs | 41.5 WebCodecs | 1.13 [0.86–1.31] 9/10 |
-| | | `usb_still` | 1.55 | 22.9 WebCodecs | 23.1 WebCodecs | 1.02 [0.84–1.18] 7/10 |
-| Firefox | 1× | `usb_cine` | 3.23 | 14.6 dav1d-WASM | 15.8 WebCodecs | 1.04 [0.91–1.77] 7/10 |
-| | | `usb_still` | 1.84 | 9.31 dav1d-WASM | 9.95 WebCodecs | 1.02 [0.87–1.34] 6/10 |
-| | 4× | `usb_cine` | 12.3 | 60.0 dav1d-WASM | 42.7 WebCodecs | **0.70** [0.56–1.19] 2/10 |
-| | | `usb_still` | 2.20 | 34.4 dav1d-WASM | 23.7 WebCodecs | **0.71** [0.58–0.81] 0/10 |
+| Chromium | 1× | `usb_cine` | 3.43 | 11.4 WebCodecs | 12.1 WebCodecs | 1.07 [0.93–1.15] 9/10 |
+| | | `usb_still` | 1.32 | 7.38 WebCodecs | 7.86 WebCodecs | 1.06 [0.96–1.15] 7/10 |
+| | 4× | `usb_cine` | 10.6 | 32.2 WebCodecs | 35.5 WebCodecs | 1.11 [1.04–1.17] 10/10 |
+| | | `usb_still` | 1.53 | 20.4 WebCodecs | 21.8 WebCodecs | 1.07 [0.97–1.14] 7/10 |
+| Firefox | 1× | `usb_cine` | 2.94 | 13.7 dav1d-WASM | 14.2 WebCodecs | 1.04 [0.95–1.21] 7/10 |
+| | | `usb_still` | 1.54 | 7.98 dav1d-WASM | 8.33 WebCodecs | 1.03 [0.73–1.21] 6/10 |
+| | 4× | `usb_cine` | 10.9 | 55.9 dav1d-WASM | 36.2 WebCodecs | **0.66** [0.60–0.76] 0/10 |
+| | | `usb_still` | 3.57 | 30.7 dav1d-WASM | 19.8 WebCodecs | **0.63** [0.61–0.78] 0/10 |
 
-* **In Chromium 4:2:0 is a cost**: WebCodecs decodes and copies the constant chroma, 2–13 % a frame. Through
-  dav1d-WASM alone (`420.d` against `mono.d`) it is 5–13 %, the chroma's decode plus the reader's check that every
+* **In Chromium 4:2:0 is a cost**: WebCodecs decodes and copies the constant chroma, 6–11 % a frame. Through
+  dav1d-WASM alone (`420.d` against `mono.d`) it is 9–15 %, the chroma's decode plus the reader's check that every
   chroma sample is mid-grey.
-* **In Firefox it buys WebCodecs, which pays only on a slow CPU**: 0.70–0.71 of dav1d-WASM's time at 4×, and
-  1.02–1.04× at 1×, where the RDD process's texture upload and `BGRX` copy outweigh the faster decode.
+* **In Firefox it buys WebCodecs, which pays only on a slow CPU**: 0.63–0.66 of dav1d-WASM's time at 4×, and
+  1.03–1.04× at 1×, where the RDD process's texture upload and `BGRX` copy outweigh the faster decode.
 * AV1 stays 3–15× HTJ2K's decode in both engines either way.
+
+A first run of the same 10 rounds gave the same verdicts at times about 10 % longer; it was replaced because conda's
+`firefox` launcher is a script that a kill leaves running, so a Firefox could outlive its cell. This run launched
+`FirefoxApp/firefox` itself.
 
 One decoder at a time on four cores: nowhere near the host's saturation. Containers, not phones.
 
