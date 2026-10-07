@@ -1273,6 +1273,14 @@ only where an engine becomes exact with no regression in Chromium.
 
 ## Blocked
 
+* **2026-10-07 18:40 UTC: row 74 XENGINE — Safari waits on a device run, the owner's phone decision.** From WebKit's
+  source (`webkitgtk-2.52.6`), WebCodecs AV1 on Cocoa is the preview preference `WebCodecsAV1Enabled`, off by default,
+  and decodes through libwebrtc's software dav1d, 8-bit 4:2:0 only, to `NV12`; no hardware decoder is on that path. A
+  device run must say, per iOS and macOS Safari version: whether `VideoDecoder.isConfigSupported` is true for
+  `av01.0.04M.08.0.110.02.02.02.1` with the preference as shipped, and if so whether `lab/av1/xengine`'s `g8-420-full`,
+  `g8-mono`, `rgb8-gbr` and `g10-420` units come back, in which format, and exact against the manifest's checksums
+  (`run.mjs`'s page opened in Safari, results read from the page). Until then the client's per-layout probe decides there, as everywhere.
+
 * **2026-10-07 17:35 UTC: row 70 HTJ2KENC claimed twice.** The night routine's claim `26cb6d9` (17:07) and another
   session's work `e125d38` on `claude/av1-unified` (17:18) both read the same `claimed 2026-10-07 (night)` as their own;
   the night routine stood down unpushed and took the next row, so row 70 is the session that pushed `e125d38`. Two
