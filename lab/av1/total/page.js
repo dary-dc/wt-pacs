@@ -1,13 +1,15 @@
 /**
  * One fill through the downloader, every frame timed and hashed; a layer-major series (lab/av1/bases)
- * fills F bases as previews, then F exact frames. run.mjs drives it. lab/av1/total/README.md
+ * fills F bases as previews, then F exact frames; then frames N … N+K−1 asked one at a time, each timed
+ * from its ask. run.mjs drives it. lab/av1/total/README.md
  *
- *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256[&asks=i,j,…]
+ *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256[&asks=i,j,…][&after=K]
  */
 import { DownloaderClient } from "/client/downloader/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const FILL = Number(q.get("fill"));
+const AFTER = Number(q.get("after") ?? 0);
 const OPTS = JSON.parse(q.get("opts"));
 /** Entries a frame has: a layer-major series' exact frame N is entry F + N. */
 const LAYERS = OPTS.decoder?.layers ?? 1;
@@ -16,6 +18,7 @@ const at = () => performance.timeOrigin + performance.now();
 const frames = [];
 const failures = [];
 const previews = [];
+const after = [];
 const pixels = new Map();
 const previewPixels = new Map();
 let issuedAt = 0;
@@ -30,12 +33,21 @@ async function sha256(sab) {
 }
 
 async function finish(client) {
+  for (let i = FILL; i < FILL + AFTER; i++) {
+    const t0 = at();
+    try {
+      pixels.set(i, (await client.requestExactFrame(i)).bytes);
+      after.push({ i, ms: at() - t0 });
+    } catch (e) {
+      failures.push({ i, reason: String(e?.message ?? e) });
+    }
+  }
   client.close();
   const sha = {};
   for (const [i, px] of pixels) sha[i] = await sha256(px);
   const previewSha = {};
   for (const [i, px] of previewPixels) previewSha[i] = await sha256(px);
-  globalThis.__result = { issuedAt, frames, failures, sha, previews, previewSha };
+  globalThis.__result = { issuedAt, frames, failures, sha, previews, previewSha, after };
 }
 
 const exact = (f) => {
