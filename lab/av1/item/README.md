@@ -52,3 +52,33 @@ planes, checked against native dav1d before it is written.
   k a per-depth rule could pick, synthetic and all nine real series, every frame exact natively, in
   Node and in three engines; 90 golden items in `client/conformance/av1/items/matrix/` — the counts,
   the mutations and the reader's corrected mask are [`lab/av1/splitok`](../splitok/README.md) §Checked.
+
+## One pipeline (2026-10-06, queue row 52)
+
+`ingest.py --codec htj2k` replaced the HTJ2K ingest every lab row called (`lab/av1/speed/make_frames.py`'s
+`htj2k()`: a frame at a time, `ojph_expand` and `sign_htj2k.py` as subprocesses through files), and both codecs'
+check moved in-process (`decode.cpp`). `bench.py` sets it against a checkout of the revision before (`c566011^`).
+
+* **Every output byte as before.** `bench.py same` at `good:6`, `--jobs 4`: all 23 sets fetched for rows 2, 45 and
+  46 (the nine of row 2, the breast family's fourteen), HTJ2K, AV1 plain and AV1 optimized — **69/69 cells
+  identical** by each file's SHA-256, 4 296 files a side; `ffdm_d`'s two AV1 cells at `--jobs 1`, since four
+  aomenc at once on its 13.6 M-sample frames (3.5 GB each) exceed the container's memory, old and new alike.
+* **The check, in-process: 0.63–0.84 of the subprocess's time a frame on AV1, 0.37–0.46 on HTJ2K**, every cell's
+  range disjoint (n = 3, arms interleaved, `bench.py check`, a stream's first unit): fluoroscopy 40.1 → 29.9 ms
+  (AV1) and 9.8 → 4.2 (HTJ2K), ultrasound 38.4 → 24.2 and 9.4 → 3.5, the 10-bit volume 46.8 → 33.4 and
+  13.2 → 4.9, the GE projections 326.5 → 273.0 and 55.5 → 25.4.
+* **A study, wall and CPU** (`bench.py time`, `good:6`, n = 3 interleaved, two arms n = 2 after a container
+  restart; four cores, nothing else running). HTJ2K at one worker: CPU 1.0 → 0.7 s on the fluoroscopy and
+  1.4 → 1.1 s on the 10-bit volume (−21 to −27 %, every round), wall 0.7 → 0.6 and 1.2 → 1.0 s; the old ingest
+  had no workers, the new one fills four, 0.3 and 0.4 s. AV1: a tie, since the encode is ~99 % of it
+  (3.3 s a frame against the check's 30–40 ms) — CPU −2.0 %, −3.6 % and +1.7 % at one worker on the fluoroscopy,
+  the ultrasound and the 10-bit volume, ranges overlapping; four workers 3.5–3.9× one, old and new alike.
+* **Mutations, each refused by the check and only in its codec:** one sample +1 in the AV1 decode (both sets
+  AV1 refused, HTJ2K written), one sample +1 in the HTJ2K decode (the reverse), the signed SIZ left unmarked
+  (the CT refused, the fluoroscopy written).
+
+**The bytes depend on `--jobs`, in both revisions.** On the 10-bit volume, AV1 at 2 and 4 workers differs from
+1 worker in the frames after a chunk's start (12–23 at 2; 6–10 and 12–17 at 4) — libaom carries state across
+keyframes within one run; the fluoroscopy and the ultrasound do not show it. Every frame is exact either way.
+Bytes independent of the worker count would need a run per frame, which changes today's bytes: the owner's
+([`queue.md`](../../../docs/av1/queue.md) §Blocked).
