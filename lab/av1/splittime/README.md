@@ -153,3 +153,40 @@ to 0 exact.
   dav1d-WASM is 13 s behind HTJ2K's at 4×.
 * **Saturation.** As rows TOTAL and REP14 found: at 4× on 50 Mbit, and on 20 Mbit for the projections and
   the mammogram, dav1d-WASM's decode is the fill's clock. Nothing is claimed about a phone.
+
+## Total time, 9–12 bits: the controls (2026-10-07)
+
+The same harness and frozen checkout on the fixed links only (`--links r5000,r20000,r50000`, as rows TOTAL2
+and TOTAL3), rounds 0–9: 42 600/42 600 frames exact over 1 260 visits, 31 `VOID` dropped, n = 8–10 a cell.
+
+| series | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| --- | --- | --- | --- | --- |
+| mr_ispy1 | HTJ2K, s | 17.7 · 17.7 | 4.55 · 4.56 | 1.97 · 1.98 |
+| mr_ispy1 | k0 | 1.03 · 1.04 | 1.04 · 1.05 | 1.04 · 1.50 |
+| mr_ispy1 | k1 | 1.00 · 1.00 | 1.00 · 1.01 | 1.00 · 1.02 |
+| mr_ispy1 | k2 | 0.99 · 0.99 | 0.99 · 0.99 | 0.99 · 1.01 |
+| mr_ispy1 | k3 | 1.00 · 1.00 | 1.00 · 1.01 | 1.01 · 1.02 |
+| rf_fluoro | HTJ2K, s | 15.2 · 15.2 | 3.92 · 3.95 | 1.72 · 1.74 |
+| rf_fluoro | k0 | 1.02 · 1.04 | 1.03 · 1.09 | 1.05 · 1.54 |
+| rf_fluoro | k2 | 0.95 · 0.95 | 0.95 · 0.98 | 0.97 · 1.02 |
+| rf_fluoro | k3 | 0.94 · 0.95 | 0.95 · 0.97 | 0.96 · 1.01 |
+| dbt12_ea1141 | HTJ2K, s | 23.7 · 23.7 | 6.05 · 6.08 | 2.57 · 2.6 |
+| dbt12_ea1141 | k0 | 1.04 · 1.05 | 1.05 · 1.08 | 1.06 · 1.52 |
+| dbt12_ea1141 | k2 | 0.94 · 0.95 | 0.95 · 0.96 | 0.96 · 0.99 |
+| dbt12_ea1141 | k3 | 0.94 · 0.94 | 0.94 · 0.95 | 0.95 · 0.97 |
+| dbt10_ea1141 | HTJ2K, s | 22.3 · 22.3 | 5.71 · 5.75 | 2.44 · 2.49 |
+| dbt10_ea1141 | k0 | 0.97 · 0.98 | 0.98 · 1.01 | 1.00 · 1.15 |
+| dbt10_ea1141 | k2 | 0.95 · 0.95 | 0.95 · 0.96 | 0.96 · 0.99 |
+| dbt10_ea1141 | k3 | 0.96 · 0.97 | 0.97 · 0.98 | 0.98 · 1.02 |
+| mr9_ispy2 | HTJ2K, s | 2.31 · 2.31 | 0.7 · 0.703 | 0.463 · 0.482 |
+| mr9_ispy2 | k0 | 0.93 · 0.95 | 0.94 · 0.95 | 0.98 · 1.01 |
+| mr9_ispy2 | k2 | 1.03 · 1.03 | 1.03 · 1.05 | 1.05 · 1.07 |
+| mr9_ispy2 | k3 | 1.01 · 1.02 | 1.02 · 1.03 | 1.04 · 1.03 |
+
+* **12 bits: k = 3 by a hair, k = 2 within 0.02 of it.** Both are 0.94–0.97 at 1× and 0.94–1.02 at 4×; d12 (k = 0, the samples whole at 12 bits through dav1d-WASM) is 1.02–1.09, and 1.52–1.54 at 4×
+  on 50 Mbit.
+* **11 bits (MR): a tie.** k = 1, 2 and 3 are 0.99–1.02 of HTJ2K; k = 2 is the only arm at or under 1.00 on
+  every cell but one (1.01).
+* **10 bits: k = 2**, 0.95–0.99; the whole samples (k = 0, WebCodecs) 0.97–1.15.
+* **9 bits: k = 0**, the samples whole at 10 bits through WebCodecs, 0.93–1.01; k = 2 and 3 are 1.01–1.07, their
+  bytes (§Bytes).
