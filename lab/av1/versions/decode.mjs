@@ -17,7 +17,7 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ROUNDS = Number(arg("--rounds", 10));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
 const BROWSERS = arg("--browsers", "141,154").split(",");
-const ARMS = arg("--arms", "htj2k,ojph-0.31.0-3.1.74,ojph-0.32.0-3.1.74,ojph-0.31.0-6.0.11,ojph-0.32.0-6.0.11,item,dav1d-3.1.74,dav1d-6.0.11").split(",");
+const ARMS = arg("--arms", "htj2k,ojph-0.31.0-3.1.74,ojph-0.32.0-3.1.74,ojph-0.31.0-6.0.11,ojph-0.32.0-6.0.11,item,dav1d-3.1.74,dav1d-6.0.11,dav1d-6.0.11-dav1d-head").split(",");
 const FRAMES = arg("--frames", "lab/.av1-work/versions");
 const MUTATE = arg("--mutate", "").split(",").filter(Boolean);
 const OUT = arg("--out", null);
@@ -68,7 +68,8 @@ const f = (v) => v.toFixed(v < 10 ? 2 : 1);
 const span = (a) => `[${Math.min(...a).toFixed(3)}–${Math.max(...a).toFixed(3)}]`;
 // Each arm against its pinned counterpart in the same browser, and Chromium 154 against 141 on the same arm.
 const REF = { "ojph-0.32.0-3.1.74": "ojph-0.31.0-3.1.74", "ojph-0.31.0-6.0.11": "ojph-0.31.0-3.1.74",
-  "ojph-0.32.0-6.0.11": "ojph-0.31.0-3.1.74", "ojph-0.31.0-3.1.74": "htj2k", "dav1d-6.0.11": "dav1d-3.1.74" };
+  "ojph-0.32.0-6.0.11": "ojph-0.31.0-3.1.74", "ojph-0.31.0-3.1.74": "htj2k", "dav1d-6.0.11": "dav1d-3.1.74",
+  "dav1d-6.0.11-dav1d-head": "dav1d-6.0.11" };
 console.log("ms a frame: median over rounds of each round's median [range]; exact; ×ref, the median of paired round ratios" +
   " [range], rounds faster; ×141, the same arm in Chromium 141");
 const per = (sel) => new Map(rows.filter(sel).filter((r) => r.ms.length).map((r) => [r.round, med(r.ms)]));

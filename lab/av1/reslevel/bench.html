@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>RESLEVEL decode</title>
+<script type="module">
+  globalThis.run = (opts) => new Promise((resolve) => {
+    const w = new Worker("./bench-worker.js", { type: "module" });
+    w.onmessage = (e) => { w.terminate(); resolve(e.data); };
+    w.postMessage(opts);
+  });
+  globalThis.ready = crossOriginIsolated;
+</script>
