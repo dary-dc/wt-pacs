@@ -2,6 +2,7 @@
  * One AV1 stream's unit through dav1d-WASM, as a picture av1-frame.js merges: a keyframe decodes alone,
  * any other unit only after its predecessor, here. Build: lab/av1/dav1d-wasm; seam: docs/av1/adr-unit.md §2–3.
  */
+import { neutral } from "./av1-frame.js";
 import { continues } from "./av1-item.js";
 import { instantiate } from "./wasm-glue.js";
 
@@ -43,15 +44,16 @@ export function picture(bytes, unit = { key: true }, preview) {
 
 function held() {
   const layout = M._av1_layout();
-  // Grey is 4:0:0; colour is lossless only as 4:4:4 with the identity matrix (0).
-  if (layout !== 0 && !(layout === 3 && M._av1_matrix() === 0)) {
-    throw new Error(`undecodable: layout ${layout}, matrix ${M._av1_matrix()} is neither grey nor 4:4:4 identity`);
-  }
   const bits = M._av1_bits();
   const shift = bits > 8 ? 1 : 0;
   const heap = shift ? M.HEAPU16 : M.HEAPU8;
-  const planes = (layout === 0 ? [0] : [0, 1, 2]).map((p) => ({
-    heap, offset: M._av1_plane(p) >> shift, stride: Number(M._av1_stride(p)) >> shift,
-  }));
-  return { width: M._av1_width(), height: M._av1_height(), bits, planes };
+  const all = [0, 1, 2].map((p) => ({ heap, offset: M._av1_plane(p) >> shift, stride: Number(M._av1_stride(p)) >> shift }));
+  const [width, height] = [M._av1_width(), M._av1_height()];
+  // Grey is 4:0:0, or 4:2:0 with every chroma sample mid-grey; colour is lossless only as 4:4:4 identity (matrix 0).
+  const grey = layout === 0 || (layout === 1 && neutral(all.slice(1), (width + 1) >> 1, (height + 1) >> 1, 1 << (bits - 1)));
+  if (!grey && !(layout === 3 && M._av1_matrix() === 0)) {
+    throw new Error(`undecodable: layout ${layout}, matrix ${M._av1_matrix()} is neither grey nor 4:4:4 identity`);
+  }
+  return { width, height, bits, planes: grey ? all.slice(0, 1) : all };
 }
+

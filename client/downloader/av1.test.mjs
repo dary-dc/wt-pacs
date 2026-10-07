@@ -181,6 +181,7 @@ const { parseItem } = await import("./av1-item.js");
   await take("a split item's two streams are both probed", "optimized", "g12", 10, 1, "probe g10,probe g8,webcodecs,webcodecs");
   await take("an rct item probes 4:4:4 10-bit", "optimized", "c8", 10, 3, "probe c10,webcodecs");
   await take("a plain colour item is told from grey by its profile", "plain", "c8", 8, 3, "probe c8,webcodecs");
+  await take("8-bit grey coded 4:2:0 probes its own layout", "grey420", "g8", 8, 1, "probe g8f,webcodecs");
   delete globalThis.VideoDecoder;
   await take("no VideoDecoder, no WebCodecs", "plain", "g10", 10, 1, "dav1d");
 }
@@ -286,7 +287,7 @@ if (!existsSync(`${OUT}/simd.js`)) console.log(`SKIPPED: golden items — no ${O
 else {
   const av1 = await import("./av1.js?golden");
   await av1.init({ glue: `${OUT}/simd.js`, wasm: `${OUT}/simd.wasm`, dir: OUT });
-  for (const rep of ["plain", "optimized"]) {
+  for (const rep of ["plain", "optimized", "grey420"]) {
     for (const file of readdirSync(`${ITEMS}/${rep}`).filter((f) => f.endsWith(".av1"))) {
       const name = file.slice(0, -4);
       const want = readFileSync(`${ITEMS}/${rep}/${name}.sha256`, "utf8").trim();
@@ -339,13 +340,16 @@ else {
     "stream: the decoder that refused them still decodes the next item exactly");
 }
 
-/** An 8-bit RGB frame, as Firefox returns an identity stream, is read back as the G, B, R planes it was coded in; grey is not taken as RGB. */
+/**
+ * An 8-bit RGB frame, as Firefox returns an identity stream, is read back as the G, B, R planes it was coded in; a
+ * full-range 4:2:0 grey stream returned as RGB is read back as its grey only where R = G = B; limited-range grey never.
+ */
 {
   const { PROBES } = await import("./av1-probe.js");
   const unit = (layout) => Uint8Array.from(atob(PROBES[layout].unit), (c) => c.charCodeAt(0));
   const [w, h, pad] = [3, 2, 2];
   const plane = (k) => Uint8Array.from({ length: w * h }, (_, i) => (i * 37 + k * 91) & 255);
-  const [g, b, r] = [plane(0), plane(1), plane(2)];
+  let [g, b, r] = [plane(0), plane(1), plane(2)];
   let format = "BGRX";
   globalThis.EncodedVideoChunk = class { constructor(c) { Object.assign(this, c); } };
   globalThis.VideoDecoder = class {
@@ -373,7 +377,13 @@ else {
       `rgb: ${f} read back as the G, B, R planes`);
   }
   const got = await wc.picture(unit("g8"), { key: true, gen: 1, index: 0 }).then(() => "decoded", (e) => e.message);
-  check(/matrix/.test(got), `rgb: a grey stream returned as RGB is refused (${got})`);
+  check(/limited range/.test(got), `rgb: a limited-range grey stream returned as RGB is refused (${got})`);
+  [b, r] = [g, g];
+  const grey = await wc.picture(unit("g8f"), { key: true, gen: 2, index: 0 });
+  check(grey.planes.length === 1 && g.every((v, i) => grey.planes[0].heap[i] === v), "rgb: full-range 4:2:0 grey with R = G = B read back as its grey");
+  r = plane(2);
+  const tinted = await wc.picture(unit("g8f"), { key: true, gen: 3, index: 0 }).then(() => "decoded", (e) => e.message);
+  check(/chroma/.test(tinted), `rgb: and refused where R, G and B differ (${tinted})`);
   delete globalThis.VideoDecoder;
   delete globalThis.EncodedVideoChunk;
 }

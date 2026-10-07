@@ -897,7 +897,7 @@ async function anAv1ItemDecodesToItsSource(DownloaderClient: DownloaderCtor, che
 async function anAv1ItemTakesWebCodecsOnlyWhereItIsExact(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
   if (typeof VideoDecoder !== "function") return void log("  SKIPPED: WebCodecs — this browser has no VideoDecoder");
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: WebCodecs — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const shallow = [...["g8", "g9", "g10", "c8"].map((n) => golden("plain", n)), ...["g8", "g9", "g10", "g12", "s11", "s13", "c8"].map((n) => golden("optimized", n))];
+  const shallow = [...["g8", "g9", "g10", "c8"].map((n) => golden("plain", n)), ...["g8", "g9", "g10", "g12", "s11", "s13", "c8"].map((n) => golden("optimized", n)), golden("grey420", "g8")];
   const deep = [...["g12", "s11", "s13", "g14"].map((n) => golden("plain", n)), ...["g14"].map((n) => golden("optimized", n))];
   const shape = (bases: string[]) => (i: number) => `64x48 ${GOLDEN_SHAPE[bases[i].split("/").pop()!]}`;
   const wc = await av1Through(DownloaderClient, shallow.map((b) => `${b}.av1`), "spy");
