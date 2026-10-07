@@ -25,10 +25,10 @@ let issuedAt = 0;
 const quiet = [];
 new BroadcastChannel("quiet").onmessage = (e) => quiet.push(e.data);
 
-/** An engine driven without a remote protocol (Firefox) is handed the result by POST. */
+/** The harness takes the result by POST: Firefox runs without a remote protocol. */
 function report(result) {
   globalThis.__result = result;
-  if (q.get("post")) fetch(q.get("post"), { method: "POST", body: JSON.stringify(result) });
+  if (q.get("post")) fetch(`${q.get("post")}result`, { method: "POST", body: JSON.stringify(result) });
 }
 
 async function sha256(sab) {
@@ -64,6 +64,8 @@ const exact = (f) => {
   pixels.set(f.frameIndex, f.bytes);
 };
 const settled = (client) => frames.length + previews.length + failures.length === FILL && finish(client);
+// The harness slows the CPU here: after the browser's start, before anything timed.
+if (q.get("post")) await fetch(`${q.get("post")}hello`, { method: "POST" });
 const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   ...OPTS,
   onFrame: (f) => {
