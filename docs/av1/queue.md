@@ -121,20 +121,25 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | done `1fdaaf5` on `claude/av1-unified` (`06f6083`, `79c800b`, `51286bd`) — **the useful frames asked before the fill reach the screen in 0.30–0.52 of the sequential fill's time on tomosynthesis (centre slice ±2) and 0.47–0.77 on a four-view mammogram's MLO pair, for two round trips on the whole fill (+72–113 ms, +0.4–4 %), HTJ2K and AV1 alike; nothing adopted, no product change needed**: both DBT volumes and two FFDM, HTJ2K and the optimized item, 5/20/50 Mbit at 1× and 4×, 13 Williams rounds, 1 191 of 1 248 visits kept, n = 10–13 (one cell 9), 19 032/19 032 frames exact; IHE's display test hangs all four views at once, so no order shortens a full hanging — [`README.md`](README.md) §The order frames are asked in, [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The first fill |
 | 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | done `22f5f03` (`069044e`) — **not reproduced: paired, plain AV1 is 0.973–0.976 of HTJ2K on 10-bit DBT, optimized 0.940–0.943, not 31 % below**: the first 4 frames of `dbt10_ea1141` and `dbt10_d`, 20/20 codings exact (80/80 frames); one setting at a time, an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background by 0.5–0.8, libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned); the two series the brief named are not CC BY or CC0 (UPMC states no licence, BCS-DBT is CC BY-NC 4.0: Blocked); 4 mutations caught 4/4 — [`README.md`](README.md) §Prior evidence, [`lab/av1/pocgap`](../../lab/av1/pocgap/README.md), [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 | 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | done `8c2b24d` on `claude/av1-unified` (`e945e57`) — **the string is each stream's own, the frames and the decoder unchanged**: each keyframe's sequence header gives `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, reconfigured only when it changes; 91 distinct headers (419 units: every fixture, the probes, 59 items of all 28 taxonomy series, 8 full headers with timing, decoder model, frame ids, High tier, nine operating points) derive the string ffmpeg 6.1.1 reads; libaom writes levels 2.0–6.0 by picture size, never 31, and 31 changes no engine's answer; `isConfigSupported` true for every string in Chromium 141, every full string in Firefox 157.0, Main only in WebKitGTK 2.52.6; 115/115 frames exact in all three, Chromium's decoder per item the same as before (61 WebCodecs, 54 dav1d-WASM), none falling back; Chromium echoes the string's colour on the frame, so the 4:4:4 identity check now reads the header's matrix as dav1d's does — an untagged identity stream now decodes exact through WebCodecs; 13/13 derivation and 3/3 decoder mutations caught; gate green — `lab/av1/codecstr`, `item-format.md` §Decoder choice, `decode/README.md` §AV1 |
-| 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67 |
-| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row |
+| 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67, 82 |
+| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row, 83–86 included |
 | 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | done `14103cc` on `claude/av1-unified` (`e125d38`, `5b4e9aa`, `ecc9d68`) — **the served profile kept: no setting wins**: 35 settings on nine series, the best per series 0.990–1.000 of the served bytes (−0.9 % only on 256² PET); decode within the round spread everywhere (every paired range spans 1; 0.95–1.10 where decode is the clock); 6 decompositions, the fewest bytes overall, ties on total time ×0.99–1.02 on 5/20/50 Mbit at 1× and 4×; `imagecodecs`' defaults differ only in SIZ depth (container bits, 1.000–1.002 of the bytes); 315 × 35 codings and 12 400 + 339 visits' frames exact — [`docs/decode/README.md`](../decode/README.md) §Encoder settings | |
 | 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | claimed 2026-10-07 (night) |
 | 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | done `953dbfd` on `claude/av1-unified` — **adopted: ingest's optimized split is k = 0 up to 9 bits, 3 at 13, 2 at 10–12 and 14; 15–16 bits refused by name, served as HTJ2K**: the format did not change (row 43 already carries every k), only `ingest.py`'s `optimized_split`; its per-depth test held against three mutants (each caught), the writer's 142/142 split-and-merge cells still exact; a 9-bit golden item (`g9`, plain and optimized) and `optimized/s13` remade at k = 3 (10-bit top, WebCodecs), every other golden and matrix item and the probes byte-identical; the real 9- and 13-bit series (MR 9-bit, CT, cone-beam) ingested by the rule, 198/198 frames exact natively, in Node (dav1d-WASM) and in Chromium 141 (WebCodecs 198/198, as chosen); Firefox and WebKitGTK not installed here — row 43 ran these layouts there; gate green on every step but the link check, which fails only on row 69's brief (`docs/av1/MERGE.md` not yet written) — `item-format.md` §Representation at ingest and §The split per depth, README §A3 |
 | 73 | **EXACTPROD** — exactness in production: how a client proves every shown frame bit-exact, acts on a mismatch and reports it; a measured design proposal | done `5421dda` on `claude/av1-unified` (`8ebe03a`) — **check every frame with XXH3-64 before paint: 1–10 % of a decode, SHA-256 up to 1.44×**: headless Chromium 141, a decoder worker (OpenJPH package, samples in shared memory), 10 rounds Williams-ordered at 1× and 4×, 2 220/2 220 hashes and 5 760/5 760 pool checks exact against independent hashers over the encoder's input, `--mutate` failed every cell; at 1× SHA-256 ≈ 250 MB/s through WebCrypto and WASM alike (WebCrypto refuses shared memory and pays a copy; the host has SHA instructions), BLAKE3 ≈ 570, XXH3 ≈ 4 000; a decode-bound fill checked before paint ×1.00–1.15 with XXH3, ×1.15–1.51 BLAKE3, ×1.24–2.23 SHA-256; the brief's "today" corrected — this repository stores and checks no hash in production, so no SHA-256 fallback defect exists; proposed, not built, in [`docs/adr/exactness-in-production.md`](../adr/exactness-in-production.md) on that branch |
 | 74 | **XENGINE** — why WebCodecs AV1 is not exact outside Chromium, and what would make it exact | done `cf4db15` on `claude/av1-unified` (`f446c90`, `2d63d82`) — **Firefox 157 can be exact only at 8 bits, WebKitGTK 2.52.6 not without engine changes; the client now reads 8-bit GBR returned as RGB**: from the engines' sources and 13 layouts × 6 engine variants, every plane against the encoder's input: Firefox refuses monochrome (its FFmpeg path knows no grey format) and returns everything else as 8-bit `BGRX` through a compositor texture, so 10-bit is cut to 8 bits, but 8-bit GBR and 8-bit grey coded 4:2:0 at full range come back exact (all 256 values; limited range is off by ≤ 20); WebKitGTK takes only `av01.0`, hands the decoder frame alignment that libaom's `av1dec` refuses, maps no grey or 10-bit format, and with `dav1ddec` installed copies an even-width `I420` at the wrong stride (exact at 768 wide, wrong at 760); Safari's WebCodecs AV1 is a preview preference, off, software dav1d at 8-bit 4:2:0 only (device run under `## Blocked`); built: GBR from `BGRX`/`RGBX`, exact 40/40 per cell, 0.77× dav1d-WASM's decode at 1× and 0.62× at 4× in Firefox (10 rounds), Chromium unchanged, 3 mutations caught, gate green; proposed: 8-bit grey as full-range 4:2:0 (+0.07 % bytes) — [`docs/decode/README.md`](../decode/README.md) §Why, and what would make it exact |
 | 75 | **LOSSCC** — the congestion controller under loss: today's against BBR and a Cubic that restarts after silence, on row 60's lossy cells | claimed 2026-10-07 (night, c0a3d8) |
-| 76 | **ASKDEADLINE** — the client's own per-ask deadline under loss: does it fail asks the transport is still delivering; bytes as the only judge | claimed 2026-10-07 (night, 133a19) |
+| 76 | **ASKDEADLINE** — the client's own per-ask deadline under loss: does it fail asks the transport is still delivering; bytes as the only judge | done `935ce64` on `claude/av1-unified` (`37d7cb1`, `1cb3430`) — **no client timer failed an ask under loss, before or after; one could, and now resumes instead**: the timers that can end a frame are the downloader's 3 s stall (doubling), `dialMs` and each transport's 15 s per-ask waiter (no byte for 15 s, restarted by every byte); the waiter failed an open session's ask outright once three silences had doubled the stall past 15 s — now `FrameTimeoutError` in both WebTransport clients, taken as silence and resumed until `tries` runs out (a node test that failed first, a conformance clause, 3 mutations caught); row 60's harness, 10-bit volume as HTJ2K, 4 filled + 8 asked, 20 Mbit and `lte-good` × clean/2 %/5 %, 1×, before/after/`stallMs` 15 s, 10 rounds interleaved, 155 of 180 visits kept, 2 160/2 160 frames exact, 0 asks failed in every arm; clean and iid loss: no silence over 1 s, fill ×0.98–1.03; `lte-good` bursts: sessions live through silences of up to 9.3–12.4 s, 3 s re-dials 2–12 a cell, ask p95 12.8–13.8 s at 5 % either way; a 15 s stall not adopted (p95 19.5 s, max 54 s; Chromium drops sessions at 6.6 s itself) — [`client/downloader/README.md`](../../client/downloader/README.md) §A session that dies is resumed, on that branch |
 | 77 | **TOTAL4** — total time with every change adopted this round, per taxonomy series, HTJ2K against AV1, in Chromium and Firefox; the per-series codec rule | claimed 2026-10-07 (night, 0e0b90) |
 | 78 | **HTJ2KMT** — one HTJ2K frame decoded on several threads in the browser (code blocks in parallel): exact, and what it buys a phone-like CPU | claimed 2026-10-07 (night, f56ab3) |
-| 79 | **COLDRTT** — round trips before the first exact frame on high-RTT links, cold and warm, HTJ2K and AV1 pages; preload or bundle what is serial | claimed 2026-10-07 (night, ec2bc0) |
+| 79 | **COLDRTT** — round trips before the first exact frame on high-RTT links, cold and warm, HTJ2K and AV1 pages; preload or bundle what is serial | done `873f537` on `claude/av1-unified` (`7d30674`, `21c5cd9`) — **the AV1 decoder's load was 2.0 serial round trips through WebCodecs and 3.9 through dav1d after the first item; fetched at the decoder's start −1.0 and −3.0, adopted; with the page's preloads AV1 reaches HTJ2K's 8.0**: cold, slope over 100/200/300 ms, HTJ2K 7.99, WebCodecs 10.02 → 8.98 (page preloads 7.98), dav1d 11.93 → 8.96 (7.96), every paired round won (29–38 a cell), 2 856 against 3 777 ms at 300 ms; warm 5.9–6.0 in every arm; session unmoved, +27 to +41 ms with the preloads; under 20 ms a ≤ 10-bit series pays +26 ms at 10 ms and +67 on loopback for the fallback's WASM, dav1d wins from 10 ms (−25, 3/4); 24 rounds Williams-ordered, 15–22 visits a cell, every frame exact against its source's checksum, the check and the two new tests mutated — [`lab/page-open/README.md`](../../lab/page-open/README.md) §Cold round trips by codec, `client/downloader/README.md` |
 | 80 | **GREY420** — 8-bit grey coded as full-range 4:2:0 so Firefox's WebCodecs returns it exact (row 74's proposal): bytes, decode, total time per engine | claimed 2026-10-07 (night, 44c963) |
-| 81 | **SERVERLOAD** — the server under many concurrent fills: where it saturates, and what each client's fill time does before and after | claimed 2026-10-07 (night, d3dcbf) |
+| 81 | **SERVERLOAD** — the server under many concurrent fills: where it saturates, and what each client's fill time does before and after | done `5db386d` on `claude/av1-unified` (`7423b1a`, `73d478d`, `f45e0aa`) — **one server core delivers about 400 MB/s of fills; a fill holds its single-session time until the sessions' rates sum past that**: server on one core of a 4-vCPU container, N native sessions (`fill_load`) on the other three, each asking the whole 10-bit DBT volume (13.6 MB HTJ2K, 13.0 MB optimized AV1) at once, unpaced or read-paced at 20 and 50 Mbit; 10 Williams rounds of 54 cells plus 10 of 10 around the knee, 640 runs, 1 012 320/1 012 320 frames byte-identical to ingest's checked items (a flipped reference byte failed every run); at 50 Mbit ×1.00 at 64 sessions (0.98–0.99 cores), ×1.25 at 80, ×2.12–2.19 at 128; at 20 Mbit ×1.00 to 128 (0.84–0.89 cores, 0.7 % of a core a fill), ×1.03 at 160; unpaced the server is the clock from 2 sessions; 2.0–3.1 ms CPU a MB, the same for both codecs; 3.7–4.8 MB resident a filling session (1.1 GB at 256); the server's core saturates, the host 58–60 % busy; from 192 sessions the rig's client sockets drop enough datagrams to back the server off, so nothing is claimed past 160 or beyond one core; gate green — [`docs/transport/transport-conclusions.md`](../transport/transport-conclusions.md) §4 *Many fills at once*, [`lab/server-load`](../../lab/server-load/README.md) on that branch |
+| 82 | **CLIENTLAYOUT** — the client's folders by worker: `client/decode/` (the decode worker, its codec modules and their WASM builds) and `client/transport/` (the page side, the download worker, its transports) | after 56 |
+| 83 | **TEAMAUDIT** — the repository against the team-readiness principles below: every gap, partitioned for rows 84–86 | held until 2026-10-08 03:00 UTC, after 68 |
+| 84 | **NAMES** — names, the one glossary, environment variables and folder leftovers, per the principles | held until 2026-10-08 03:00 UTC, after 83 |
+| 85 | **ONBOARD** — clone to green from the README alone, the docs essential and current, diagrams, each subject stated once | held until 2026-10-08 03:00 UTC, after 84 |
+| 86 | **CHECKS** — the gate runs every suite and says what it skipped, a stale-build guard, formatting, hygiene, dead code | held until 2026-10-08 03:00 UTC, after 84 |
 
 ## Briefs
 
@@ -1344,7 +1349,72 @@ studies, clients on separate cores or hosts so the client side does not saturate
 fill time departs from the single-client figure. Say where the host saturates and claim nothing past it. **Branch:**
 `claude/av1-unified`. **Deliverable:** the table and the saturation point in the server's docs.
 
+### 82 CLIENTLAYOUT
+
+**Question.** `client/downloader/` holds three things — the page side (`consumer.js`), the download worker
+(`downloader.js`) and the decode worker with its codec modules (`decoder.js`, `wasm-glue.js`, `htj2k.js`, the AV1
+modules) — and the decoders' WASM builds sit beside the transport's. **Do:** after row 56, move them by worker:
+`client/decode/` (the decode worker, `wasm-glue.js`, `htj2k.js`, the AV1 modules named by role — `av1.js`,
+`av1-payload.js` (the term row 68 fixes), `av1-dav1d.js`, `av1-webcodecs.js` — and the decoders' WASM builds under
+`client/decode/wasm/`) and `client/transport/` (`consumer.js`, `downloader.js`, the transports, with the WASM transport's
+crate under `client/transport/wasm/`), tests beside their code as today; every import, path, build script, page, doc
+and the gate updated; behaviour unchanged. **Decides:** the gate green, `check_links.py` green, `git grep` finds no old
+path outside history notes, a content hash of every moved file equal before and after. **Branch:**
+`claude/av1-unified`. **Deliverable:** the move and the client's README.
+
+## The team-readiness rows (83–86), 2026-10-07
+
+The owner's reading of another project's clean-up: its organization, terminology and semantics improved the code for
+everyone, not only for that project's team. These rows bring the same principles here. They are general; nothing below
+names that project.
+
+**The principles.**
+* *Names.* A name states its role in the domain's words. No word from the project's history (a queue row, a campaign
+  label, a numbered lever, a phase like "early" or "mvp", "arm" for an A/B arm). None that a standard the code touches
+  uses for something else (DICOM's *Item* and *Conformance Statement*, the AV1 specification's terms, ARM the CPU). One
+  concept, one name, defined once in **one** project glossary that the README links; vendor or upstream terms in their
+  own glossary. Environment variables and scripts carry this project's name, not another's.
+* *Layout.* Folders by responsibility — in a client, by worker (what runs in the page, in the download worker, in the
+  decode worker); each concern's WASM build beside its code, not beside another concern's.
+* *Onboarding.* A new developer goes from clone to a running page and a green gate by following the README alone:
+  every prerequisite listed and pinned (a toolchain file; tool versions), commands in order with one terminal each for
+  long-running servers, every check named with its cost, no personal default paths.
+* *Docs.* Lean, formal, diagram-first where a mechanism is hard to follow; no work tracking or history narrative (git and
+  this queue hold those); a retracted claim corrected in place; each subject stated once, pointers elsewhere; no
+  reference a reader of this repository cannot follow (local paths, private material).
+* *Checks.* One entry point runs every suite and prints the claims it skipped (so a fresh clone does not look fully
+  green); a formatting check; a guard that refuses to serve a build output older than its sources, naming the command
+  that rebuilds it; no tracked file carries a personal path; executable bits match how files are run.
+* *Code.* The comment rules of `CLAUDE.md`, plans and "for now" removed from comments, no debug logging, no dead code.
+
+### 83 TEAMAUDIT
+
+**Do:** after row 68, read the whole repository against the principles, verifying each finding at its line. Read-only.
+**Deliverable:** under this row in this queue (not in `docs/`), the findings partitioned by the row that will fix them —
+84 (names, glossary, environment variables, folder leftovers), 85 (README onboarding, docs, diagrams, duplicates), 86
+(the gate, the stale-build guard, formatting, hygiene, dead code, comments) — each with file:line, and a list of what
+needs the owner (decisions only the owner can take), added under `## Blocked`.
+
+### 84 NAMES
+
+**Do:** row 83's 84-list: renames with every reference, the one glossary (merging any project terms kept in a codec or
+other doc), environment variables, folder leftovers. Behaviour unchanged. **Decides:** the gate green, `check_links.py`
+green, `git grep` finds no old name outside history notes. **Branch:** `claude/av1-unified`.
+
+### 85 ONBOARD
+
+**Do:** row 83's 85-list. Prove onboarding by doing it: a fresh clone in a clean container, the README followed
+literally, to a running page and a green gate; every step that failed is fixed in the README, not worked around.
+**Decides:** that run's log; `check_links.py` green. **Branch:** `claude/av1-unified`.
+
+### 86 CHECKS
+
+**Do:** row 83's 86-list. Mutate every new check and watch it fail (a stale build refused, a skipped claim reported, a
+personal path caught). **Decides:** the gate green, each mutation caught. **Branch:** `claude/av1-unified`.
+
 ## Blocked
+
+* **2026-10-07 20:15 UTC: row 79 COLDRTT — the warm-up costs a ≤ 10-bit series on links under 20 ms.** Fetching dav1d's WASM at the decoder's start (adopted, `21c5cd9`) is −1.0 round trips through WebCodecs and −3.0 through dav1d from 20 ms up, but a WebCodecs series whose probe passes never uses that 238 KB fallback, and it arrives beside the first frame: +26 ms at 10 ms (1/6 rounds), +67 on loopback (0/10), a tie at 20 ms. The brief asked nothing slower on a low-RTT link. The owner decides: keep it, skip dav1d's WASM for a series the page says is ≤ 10 bits (a depth hint in the decoder config, not built), or revert. [`lab/page-open/README.md`](../../lab/page-open/README.md) §Cold round trips by codec.
 
 * **2026-10-07 18:40 UTC: row 74 XENGINE — Safari waits on a device run, the owner's phone decision.** From WebKit's
   source (`webkitgtk-2.52.6`), WebCodecs AV1 on Cocoa is the preview preference `WebCodecsAV1Enabled`, off by default,
