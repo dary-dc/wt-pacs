@@ -82,6 +82,24 @@ bit too far stops `make_frames.py` at frame 0.
 The ultrasound has no `x36`: row ENCX's changes are the grey split's. `x36`'s frames are matched
 with the series' checksum after a native decode and Python's inflate before they are written.
 
+**Row ORDER** sets the order frames are asked in against the sequential fill, on the breast series
+of rows 10 and 45: both tomosynthesis volumes and two four-view screening mammograms (`ffdm_c`, 4 ×
+1914×2294, and `ffdm_a`, 4 × 2560×3328, 12-bit, stored R CC, L CC, R MLO, L MLO). Two arms a series,
+HTJ2K and the adopted optimized item (`k2`: k = 2, WebCodecs), made with row SPLITTIME's
+`make_frames.py --k 2` into `lab/.av1-work/order`, and two orders each, run as
+`--arms htj2k,k2 --orders seq,prio --links r5000,r20000,r50000`:
+
+| order | the page | useful |
+| --- | --- | --- |
+| `seq` | `fill(0 … N−1)`, as today | — |
+| `prio` | `requestExactFrame` for each useful frame, most needed first, then the same fill | tomosynthesis: the centre slice ⌊N/2⌋ and two either side; mammograms: the MLO pair (2, 3) |
+
+*Centre* is the first useful frame on the page, *useful* the last of them, both from the fill's issue.
+The downloader takes asks before the fill and serves a fill as contiguous runs, lowest first
+([`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) §The downloader), so `prio` is the order a
+client can already ask for, with no product change. `--mutate sample` and `--mutate truth` each turned
+both orders of both arms to 0 exact.
+
 **Links.** `r5000`, `r20000`, `r50000`: a fixed rate, 40 ms round trip, a 200-packet queue, as row
 FILL. `lte-good` and `wifi-home`: row PROF's profiles (`lab/scripts/profile_cells.sh`) — mahimahi's
 `TMobile-LTE-short` trace (16.7 Mbit mean, 50 ms, Gilbert–Elliott 0.01 % in bursts of 3.5, a 500 ms
