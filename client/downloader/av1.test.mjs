@@ -142,7 +142,8 @@ const { parseItem } = await import("./av1-item.js");
   const pic = (bits, n) => ({ width: 1, height: 1, bits, planes: Array.from({ length: n }, () => ({ heap: Uint16Array.of(7), offset: 0, stride: 1 })) });
   let probeOk = true;
   let wcFails = false;
-  let importFails = 1;
+  // The first failure is init's own load, which no item waits on.
+  let importFails = 2;
   const stubs = {
     "./decode-av1-webcodecs.js": {
       init: async () => {},
@@ -182,6 +183,30 @@ const { parseItem } = await import("./av1-item.js");
   await take("a plain colour item is told from grey by its profile", "plain", "c8", 8, 3, "probe c8,webcodecs");
   delete globalThis.VideoDecoder;
   await take("no VideoDecoder, no WebCodecs", "plain", "g10", 10, 1, "dav1d");
+}
+
+/** Init starts loading every decoder the item could need, so none waits for the first item to land; a failure there costs no item. */
+{
+  const asked = [];
+  let fail = true;
+  const load = async (path) => {
+    asked.push(path);
+    if (fail) throw new Error("import failed");
+    return { init: async () => {}, probe: async () => true, picture: async () => ({ width: 1, height: 1, bits: 8, planes: [{ heap: Uint8Array.of(7), offset: 0, stride: 1 }] }) };
+  };
+  globalThis.VideoDecoder = class {};
+  const av1 = await import("./av1.js?warm");
+  await av1.init({}, load);
+  check(asked.join() === "./decode-av1.js,./decode-av1-webcodecs.js", `warm: init loads both decoders before any item (${asked.join()})`);
+  await new Promise((r) => setTimeout(r));
+  fail = false;
+  const got = await refusal(av1.decodeFrame, golden("plain", "g8"));
+  check(got === "decoded" && asked.length === 3, `warm: a load that failed at init is tried again by the item (${got}, ${asked.length} loads)`);
+  delete globalThis.VideoDecoder;
+  const none = await import("./av1.js?warm-none");
+  asked.length = 0;
+  await none.init({}, load);
+  check(asked.join() === "./decode-av1.js", `warm: without VideoDecoder only dav1d is loaded (${asked.join()})`);
 }
 
 /** With `mixed`, a top over 10 bits goes to dav1d and its low to WebCodecs, each item's own low merged, dav1d the fallback. */

@@ -14,9 +14,12 @@ const loaded = {};
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
+  // Loaded while the session dials, not after the first item lands: client/downloader/README.md §An AV1 series.
+  module("./decode-av1.js").catch(() => {});
+  if (typeof VideoDecoder === "function") module("./decode-av1-webcodecs.js").catch(() => {});
 }
 
-/** Imported and initialised on first use; a failed import is not remembered, so the next item tries again. */
+/** Imported and initialised at init; a failed import is not remembered, so the next item tries again. */
 function module(path) {
   return (loaded[path] ??= importer(path).then(async (m) => {
     await m.init(cfg);
