@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Bytes of each arm over HTJ2K's, every frame of each series: the reference split(s), and each map that
-fits 12 bits coded at k = 0 and k = 2, the map's own bytes included. ingest.py writes nothing that does
+fits 12 bits coded at k = 0 and k = 2 and as HTJ2K, the map's own bytes included. ingest.py writes nothing that does
 not decode back to its input, and remap.py nothing that does not come back to the source.
 
 usage: bytes.py BUILD WORK SET_DIR... [--out bytes.json] [--frames N] [--preset P]   — README.md here
@@ -15,13 +15,20 @@ HERE = Path(__file__).resolve().parent
 INGEST = HERE.parent / "item/ingest.py"
 # Row SPLITTIME's shipped preset for k = 2 (k = 6 on the 16-bit mammogram): every AV1 arm of a series at it.
 PRESETS = {"dbtproj": "allintra:7", "ct": "good:6", "xa": "good:6", "mg16": "allintra:6"}
-REFERENCE = {16: [4, 6]}
+# k = 2, and w10 (every stream ≤ 10 bits, WebCodecs) where it differs: row SPLITTIME's arms.
+REFERENCE = {13: [2, 3], 14: [2, 4], 16: [4, 6]}
 
 
 def ingest(build, src, out, *args):
+    if (out / "metadata.json").exists():
+        return coded(out)
     r = subprocess.run([sys.executable, INGEST, build, src, out, *args], capture_output=True, text=True)
     if r.returncode:
         raise SystemExit(f"{src}: {r.stderr.strip() or r.stdout.strip()}")
+    return coded(out)
+
+
+def coded(out):
     return sum(p.stat().st_size for p in out.glob("[0-9][0-9][0-9].*") if p.suffix in (".av1", ".htj2k"))
 
 
@@ -56,8 +63,9 @@ def main():
             side_bytes = side["side_bytes"] if mode == "palette" else \
                 sum((remapped / f"{i:03d}.map").stat().st_size for i in range(n))
             for k in (0, 2):
-                coded = ingest(a.build, remapped, w / f"{mode}k{k}", "--split", str(k), "--preset", preset, *frames)
-                row[f"{mode}k{k}"] = coded + side_bytes
+                row[f"{mode}k{k}"] = side_bytes + ingest(a.build, remapped, w / f"{mode}k{k}", "--split", str(k),
+                                                         "--preset", preset, *frames)
+            row[f"{mode}_htj2k"] = side_bytes + ingest(a.build, remapped, w / f"{mode}_htj2k", "--codec", "htj2k", *frames)
             row[f"{mode}_side"] = side_bytes
         print(json.dumps(row), flush=True)
         rows.append(row)
