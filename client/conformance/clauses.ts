@@ -449,6 +449,12 @@ async function aSlowFrameHoldsNoOther(rig: Rig, check: Check) {
  * docs/ARCHITECTURE.md §Detection by the bytes
  */
 async function aFrameIsLateOnlyWhenTheSessionGoesQuiet(rig: Rig, check: Check) {
+  // A session beside it that never sends: its ask is late at FRAME_TIMEOUT_MS, named so the downloader resumes it.
+  const silent = await rig.open();
+  const late = silent.requestExactFrame(0).then(
+    () => "delivered",
+    (e) => `${e?.name}: ${e?.message ?? e}`,
+  );
   const s = await rig.open();
   const asked = s.requestExactFrame(0).then(
     (f) => text(f),
@@ -459,7 +465,11 @@ async function aFrameIsLateOnlyWhenTheSessionGoesQuiet(rig: Rig, check: Check) {
   await rig.fake().trickleFrame(0, enc.encode("slow".repeat(40)), 17, 1000);
   const got = await asked;
   check(got === "slow".repeat(40), `${rig.name}: a frame whose bytes take 16 s lands (${got.slice(0, 60)})`);
+  const named = rig.closure === "fail" ? /^FrameTimeoutError: timeout waiting for frame 0/ : /timeout waiting for frame 0/;
+  const silence = (await within(late, 2000)) ?? "still waiting";
+  check(named.test(silence), `${rig.name}: a frame on a silent session is late at FRAME_TIMEOUT_MS, by name (${silence})`);
   s.close();
+  silent.close();
 }
 
 export async function runClauses(rig: Rig, check: Check): Promise<void> {

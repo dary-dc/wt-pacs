@@ -30,10 +30,15 @@ impl TransportSessionHandle {
 
     #[wasm_bindgen(js_name = requestExactFrame)]
     pub async fn request_exact_frame(&self, frame_index: u32) -> Result<JsValue, JsValue> {
-        self.inner
-            .request_frame(frame_index)
-            .await
-            .map_err(|e| JsValue::from_str(&e))
+        self.inner.request_frame(frame_index).await.map_err(|e| {
+            // As transport-ts names it: the downloader takes this one as silence and resumes.
+            if !e.starts_with("timeout waiting for frame") {
+                return JsValue::from_str(&e);
+            }
+            let late = js_sys::Error::new(&e);
+            late.set_name("FrameTimeoutError");
+            late.into()
+        })
     }
 
     #[wasm_bindgen(js_name = fillFrames)]
