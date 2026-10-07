@@ -10,6 +10,22 @@ python3 lab/av1/roundtrip.py lab/.av1-build lab/.av1-work lab/.av1-work/cells.ts
 
 Both write only under `lab/.av1-build/` and `lab/.av1-work/` (gitignored).
 
+## The folders, by what they measure
+
+One folder a queue row grew here; read by what each measures, they fall in five groups. Row LAYOUT
+(2026-10-07) proposes moving them so, renamed by subject (`README.md` §Names); the moves wait for the
+rows still writing in these folders (`docs/av1/queue.md` row 56).
+
+| group | today | proposed |
+| --- | --- | --- |
+| **tools** — build and pin the encoders and decoders | `tools.sh`, `dav1d-wasm/`, `versions/` | `tools/`, `tools/dav1d-wasm/`, `tools/newer/` |
+| **exact** — the round trip, the coded frame's format, every engine | `roundtrip.py`, `item/`, `splitok/`, `wcap/`, `xbrowser/` | `exact/`, `exact/coded-frame/`, `exact/split/`, `exact/webcodecs/`, `exact/engines/` |
+| **bytes** — what each coding costs on the wire, and to encode | `size.py`, `depth.py`, `enc.py`, `av2.py`, `llsize/`, `encx/`, `remap/`, `pocgap/`, `embed/`, `jxl/`, `lcevc/`, `breast/` | `bytes/`, `bytes/{represented, low-stream, remap, prior-gap, embedded, jpeg-xl, lcevc, breast}/` |
+| **decode** — time and memory a frame, per decoder | `speed/`, `decspeed/`, `split10/`, `rep14/`, `fasthtj2k/`, `decode/`, `mixdec/`, `footprint/`, `gpu/`, `reslevel/`, `wclat/` | `decode/{per-frame, settings, split-webcodecs, high-depth, htj2k-threads, worker, mixed, memory, webgpu, resolution-level, latency}/` |
+| **delivery** — a series through the downloader, wire and decode | `fill/`, `total/`, `splittime/`, `preview/`, `resid/`, `bases/`, `svc/`, `svcq/`, `svcshape/`, `svcdec/`, `wcbase/` | `delivery/{fill, total-time, split-rule, preview, residual, bases-first}/`, `delivery/scalable/{encoder, two-layer, shape, client, webcodecs-base}/` |
+
+`fetch_data.*`, `data.json` and `requirements.txt` stay here: every group reads the series.
+
 ## Tools, pinned
 
 | tool | version | fetched as | pin |

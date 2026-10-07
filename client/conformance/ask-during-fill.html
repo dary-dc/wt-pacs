@@ -14,13 +14,13 @@
   <p>
     On the wire an ask ends a running fill and is served next (<code>docs/WIRE.md</code>).
     The raw client sees exactly that, and the rest arrives only once asked again; the downloader asks
-    again by itself. <code>?arm=ts|ws|downloader|downloader-ws</code> · <code>wt=</code>/<code>hash=</code> override
+    again by itself. <code>?client=ts|ws|downloader|downloader-ws</code> · <code>wt=</code>/<code>hash=</code> override
     <code>/wt/dev-transport.json</code>. <code>client/conformance/run_wire.sh</code> drives this from the gate.
   </p>
   <div id="log"></div>
   <script type="module">
     const q = new URLSearchParams(location.search);
-    const arm = q.get("arm") || "ts";
+    const client = q.get("client") || "ts";
     const FILL = Number(q.get("fill") || 120);
     const ASK = Number(q.get("askFrame") || 190);
     const AT = Number(q.get("at") || 20);
@@ -53,8 +53,8 @@
 
     try {
       const cfg = q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : await (await fetch("/wt/dev-transport.json")).json();
-      if (arm === "ts" || arm === "ws") {
-        const { TransportSession } = await import(`/client/transport-ts/dist/${arm === "ws" ? "ws-session" : "session"}.js`);
+      if (client === "ts" || client === "ws") {
+        const { TransportSession } = await import(`/client/transport-ts/dist/${client === "ws" ? "ws-session" : "session"}.js`);
         const s = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
         const got = [];
         let askP = null;
@@ -63,16 +63,16 @@
           got.push(f.frameIndex);
           if (got.length === AT && !askP) { askAt = performance.now(); askP = s.requestExactFrame(ASK); }
         });
-        await until(() => askP, `${arm}: ${AT} frames of the fill arrive`);
+        await until(() => askP, `${client}: ${AT} frames of the fill arrive`);
         const asked = await served(askP);
-        check(asked?.frameIndex === ASK, `${arm}: the ask is served during the fill (${asked ? (performance.now() - askAt).toFixed(0) + " ms" : "not within 3 s"})`);
+        check(asked?.frameIndex === ASK, `${client}: the ask is served during the fill (${asked ? (performance.now() - askAt).toFixed(0) + " ms" : "not within 3 s"})`);
         await quiet(() => got.length, 500);
         const delivered = got.length;
-        check(delivered >= AT && delivered < FILL, `${arm}: the server ended the fill — ${delivered} of ${FILL} arrived, then nothing`);
+        check(delivered >= AT && delivered < FILL, `${client}: the server ended the fill — ${delivered} of ${FILL} arrived, then nothing`);
         const rest = [];
         if (delivered < FILL) s.fillFrames(delivered, FILL - 1, (f) => rest.push(f.frameIndex));
         await quiet(() => rest.length, 500);
-        check(delivered < FILL && rest.length === FILL - delivered, `${arm}: asked again, the remaining ${FILL - delivered} arrive (${rest.length} did)`);
+        check(delivered < FILL && rest.length === FILL - delivered, `${client}: asked again, the remaining ${FILL - delivered} arrive (${rest.length} did)`);
         s.close();
       } else {
         const { DownloaderClient } = await import("/client/downloader/consumer.js");
@@ -81,19 +81,19 @@
         const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
           decode: false,
           decoders: 0,
-          transport: arm === "downloader-ws" ? "/client/transport-ts/dist/ws-session.js" : undefined,
+          transport: client === "downloader-ws" ? "/client/transport-ts/dist/ws-session.js" : undefined,
           onFrame: (f) => { got.push(f.frameIndex); if (got.length === AT && !askP) askP = c.requestExactFrame(ASK); },
         });
         c.fill(Array.from({ length: FILL }, (_, i) => i));
-        await until(() => askP, `${arm}: ${AT} frames of the fill arrive`);
+        await until(() => askP, `${client}: ${AT} frames of the fill arrive`);
         const asked = await served(askP);
-        check(asked?.frameIndex === ASK, `${arm}: the ask is served during the fill`);
+        check(asked?.frameIndex === ASK, `${client}: the ask is served during the fill`);
         await quiet(() => got.length, 500);
-        check(got.length === FILL, `${arm}: the fill completes without being asked again (${got.length} of ${FILL})`);
-        check(new Set(got).size === got.length, `${arm}: no frame arrives twice`);
+        check(got.length === FILL, `${client}: the fill completes without being asked again (${got.length} of ${FILL})`);
+        check(new Set(got).size === got.length, `${client}: no frame arrives twice`);
         c.close();
       }
-      log(`\nask-during-fill (${arm}): ${ran - failed}/${ran} checks passed`);
+      log(`\nask-during-fill (${client}): ${ran - failed}/${ran} checks passed`);
     } catch (e) {
       failed += 1;
       log("FAILED: " + (e?.stack || e?.message || e));

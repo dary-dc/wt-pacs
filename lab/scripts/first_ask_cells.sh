@@ -204,11 +204,11 @@ repro() {
       for state in fresh filled lossy rebound; do
         cell "$state" "$state" "$T/s$kb.sbnd" "$rtt" "$WARM"
       done
-      # Lever 1: the warm-up rides in the session URL, swept by how many frames it carries.
+      # Pushed at session open: the warm-up rides in the session URL, swept by how many frames it carries.
       for w in 1 2 4 8; do
         cell "open-push $((w * kb)) KB" open-push "$T/s$kb.sbnd" "$rtt" "$w" --open-ask
       done
-      # Lever 2: 32 packets before the first ACK, against quinn's 12 000 bytes.
+      # A 32-packet initial window: 32 packets before the first ACK, against quinn's 12 000 bytes.
       cell "fresh, iw 32 pkt" fresh "$T/s$kb.sbnd" "$rtt" "$WARM" --initial-window-bytes 38400
       cell "filled, iw 32 pkt" filled "$T/s$kb.sbnd" "$rtt" "$WARM" --initial-window-bytes 38400
     done

@@ -82,11 +82,11 @@ function nodeRig(impl: Implementation, fake: Fake): Rig {
   };
 }
 
-const ARMS = ["transport-ts", "transport-wasm", "transport-ws", "transport-race"];
+const CLIENTS = ["transport-ts", "transport-wasm", "transport-ws", "transport-race"];
 const only = process.argv[2];
 if (!only) {
-  const runs = await Promise.all(ARMS.map((arm) => new Promise<{ out: string; code: number }>((resolve) => {
-    const child = spawn(process.execPath, [process.argv[1], arm]);
+  const runs = await Promise.all(CLIENTS.map((name) => new Promise<{ out: string; code: number }>((resolve) => {
+    const child = spawn(process.execPath, [process.argv[1], name]);
     let out = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));
@@ -107,11 +107,11 @@ if (!only) {
     total.inapplicable.push(...r.inapplicable);
     total.strays += r.strays;
   }
-  report(total.ran, total.failed, total.inapplicable, total.strays, ARMS.length - 1);
+  report(total.ran, total.failed, total.inapplicable, total.strays, CLIENTS.length - 1);
   process.exit(total.failed ? 1 : 0);
 }
-if (!ARMS.includes(only)) {
-  console.error(`unknown implementation ${only}: one of ${ARMS.join(", ")}`);
+if (!CLIENTS.includes(only)) {
+  console.error(`unknown implementation ${only}: one of ${CLIENTS.join(", ")}`);
   process.exit(2);
 }
 
@@ -127,7 +127,7 @@ function report(ran: number, failed: number, inapplicable: string[], strays: num
   );
 }
 
-// Both WebTransport arms or none: the WASM clock is the bug this suite exists for. docs/CLIENTS.md §The seam.
+// Both WebTransport clients or none: the WASM clock is the bug this suite exists for. docs/CLIENTS.md §The seam.
 if (!wasmBuilt()) {
   console.error(
     "transport-wasm is not built — no client/transport-wasm/pkg/.\n" +

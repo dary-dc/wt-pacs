@@ -1,5 +1,5 @@
 /**
- * The downloader arm's rig: adapts DownloaderClient to the conformant surface and drives the
+ * The downloader's rig: adapts DownloaderClient to the conformant surface and drives the
  * fake transport inside its worker over the BroadcastChannel fake-session.ts listens on.
  * The page passes DownloaderClient in, so its worker URLs resolve from its own module.
  */

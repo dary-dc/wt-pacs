@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The scalable AV1 units the dispatch arm decodes: two spatial layers, a half-size lossy base (q 40)
+# The scalable AV1 units the dispatch rig decodes: two spatial layers, a half-size lossy base (q 40)
 # under a lossless top, one temporal unit per file, as the store holds it.
 #
 #   client/conformance/av1/scalable/{l2g1,l2g8x20}/NNN.av1   every unit of a G = 1 and a G = 8 stream

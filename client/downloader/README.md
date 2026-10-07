@@ -35,7 +35,7 @@ before decoding by the header and the unit's `seq_profile` — returned its samp
 dav1d-WASM otherwise, and for an item WebCodecs fails on. Each module is imported on first use; an
 import that fails is tried again on the next item. A WebCodecs frame is taken only for the unit it
 was sent with, so one flushed late from an earlier unit is never taken for the unit in hand. The
-dispatch arm checks the writer's golden items (`client/conformance/av1/items/`, plain and optimized,
+dispatch rig checks the writer's golden items (`client/conformance/av1/items/`, plain and optimized,
 seven shapes each) through both decoders, every refusal by its message, the choice, the fallback and
 a late frame; `av1.test.mjs` the same reader in node.
 
@@ -43,7 +43,7 @@ a late frame; `av1.test.mjs` the same reader in node.
 keyframe sits at every multiple of G and the frames between decode only after it. A group is the
 item: an ask for any frame asks its whole group from the keyframe, a fill asks whole groups, and a
 group's frames go to one decoder in index order. A frame that fails fails the rest of its group,
-each by name. Each unit reaches the decoder as an item of one frame. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §3, *Built*; the dispatch arm
+each by name. Each unit reaches the decoder as an item of one frame. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §3, *Built*; the dispatch rig
 checks a G = 8 set and a one-group set (`client/conformance/av1/{g8x20,whole12}`) frame by frame.
 A ≤ 10-bit series in groups decodes through WebCodecs, not flushed inside a group
 ([`docs/decode/README.md`](../../docs/decode/README.md) §WebCodecs without a flush).
@@ -53,7 +53,7 @@ dav1d-WASM twice from the same bytes: the base reaches `opts.onPreview` as a fra
 `preview: true` at the base's own size, then the exact frame reaches the ask or `onFrame`, which
 never receive a preview. A unit without its top fails by name after its preview. WebCodecs returns
 the exact frame and no preview. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §6; the
-dispatch arm checks `client/conformance/av1/scalable/`.
+dispatch rig checks `client/conformance/av1/scalable/`.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
@@ -200,7 +200,7 @@ would measure the wrong thing. `dev-server.py` and `deploy/nginx` both send the 
 **The transport is a seam.** `config.transport` is a module URL exporting `TransportSession`,
 defaulting to `client/transport-ts/dist/session.js`. A third implementation plugs in there without
 the downloader knowing ([`CLIENTS.md`](../../docs/CLIENTS.md) §The seam) — and it is
-how the conformance suite drives this arm: `client/conformance/run_browser.sh downloader`, run by the gate.
+how the conformance suite drives the downloader: `client/conformance/run_browser.sh downloader`, run by the gate.
 `config.decoderWorker` is the same seam for the decoder: `client/conformance/run_browser.sh dispatch`
 points it at a stalling stand-in to force the contention its ordering and dispatch-bound tests need.
 `opts.worker` is the downloader's own script: `lab/page-open/boot.mjs` boots it from a bundle or a

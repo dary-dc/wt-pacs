@@ -2,7 +2,7 @@
  * A cold WebTransport dial in Chrome with a blink at a chosen offset into it, for two or more
  * server binaries, interleaved inside every round in a Williams order (lab/order.mjs). Each offset
  * says which flight the blink eats; `swallow` eats exactly the server's first flight, wherever it
- * falls. docs/ARCHITECTURE.md §Lever 2.
+ * falls. docs/ARCHITECTURE.md §Early SETTINGS.
  *
  *   SERVERS=a=BIN,b=BIN [OFFSETS=none,0,20,…] [LOSS=1] [RTT=80] [BLINK_MS=150] [PORT_BASE=N] [ROWS=FILE] \
  *     NODE_PATH=$(npm root -g) node lab/page-open/dial-blink.mjs [rounds]

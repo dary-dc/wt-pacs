@@ -38,7 +38,7 @@ export async function tally(log: (line: string) => void, name: string, summary: 
     failed += 1;
     log(`  FAIL: ${name} threw: ${(e as Error)?.message ?? e}`);
   }
-  log(`\n${summary}: ${ran - failed}/${ran} checks passed on the downloader arm`);
+  log(`\n${summary}: ${ran - failed}/${ran} checks passed through the downloader`);
   (globalThis as Record<string, unknown>).__wtpacsFailed = failed;
   (globalThis as Record<string, unknown>).__wtpacsDone = true;
 }

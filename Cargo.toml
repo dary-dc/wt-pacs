@@ -27,8 +27,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 lto = "fat"
 codegen-units = 1
 
-# The server's SETTINGS in its handshake flight: docs/ARCHITECTURE.md §Lever 2.
+# The server's SETTINGS in its handshake flight: docs/ARCHITECTURE.md §Early SETTINGS.
 [patch.crates-io]
 wtransport = { path = "patched/wtransport" }
-# A server's handshake probe repeats its whole flight: docs/ARCHITECTURE.md §What lever 2 costs.
+# A server's handshake probe repeats its whole flight: docs/ARCHITECTURE.md §What early SETTINGS cost.
 quinn-proto = { path = "patched/quinn-proto" }

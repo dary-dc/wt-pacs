@@ -1,5 +1,5 @@
 /**
- * The clauses themselves, written against a Rig so the same checks drive every arm:
+ * The clauses themselves, written against a Rig so the same checks drive every client:
  * both clients in Node (run.ts) and the downloader in a browser (downloader-rig.ts).
  * docs/CLIENTS.md says why; the rows are docs/ARCHITECTURE.md §Capabilities.
  */

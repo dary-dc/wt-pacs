@@ -267,7 +267,7 @@ relay's floor and the crypto fall out as the intercept, on the native client:
 
 * **A cold open reaches its first byte in 4.01 round trips + 17.7 ms**, the session ready at **3.00**
   ([`ARCHITECTURE.md`](ARCHITECTURE.md) states the count, with its attribution corrected there).
-  *Since lever 2 (2026-09-23) it is one fewer:* 2.99 round trips + 17.8 ms to first byte and
+  *Since early SETTINGS (2026-09-23) it is one fewer:* 2.99 round trips + 17.8 ms to first byte and
   1.99 + 12.0 ms to the session on 2026-09-24; the check that still wanted 4 failed until it wanted 3.
 * **One 250 KB ask on a fresh session is 5.59 round trips + 12.5 ms** — S7's ~5 flights out of a
   12 KB initial window, on a link with no rate limit, so it is slow start and not the link.

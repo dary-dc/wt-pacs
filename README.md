@@ -17,6 +17,31 @@ npm i -g playwright && npx playwright install chromium
 bash lab/decode-bench/fetch_decoder.sh   # the decoder vendor
 ```
 
+### What the gate costs and what it catches
+
+Without `lab/.av1-build/out` (`ARMS=simd lab/av1/dav1d-wasm/build.sh`) the dispatch rig skips every
+AV1 clause, saying `SKIPPED` — 128 checks run instead of 719 — so build it once where AV1 matters.
+
+**Time** (row GATE, 2026-10-07; 4 cores, warm builds, n = 3 a cell, the two trees' runs interleaved):
+**161.4 [159.8–161.7] → 105.9 [104.9–106.1] s** `--quick`, **160.7 [160.5–161.1] → 107.0
+[106.0–107.0] s** full. The two steps that waited on timers now wait side by side: transport
+conformance runs each implementation in its own process (54.4 → 18.2 s; one clause trickles a frame
+for 16 s on each), and the two browser rigs run in parallel pages (57.0 → 38.3 s). Next largest:
+the real-server wire step 13 s, the two server test runs 11 s each, nothing else over 6 s.
+
+**What it catches** — mutants made by hand at each decision, the step that owns the code run on
+each (the node tests and both rigs for the client, `cargo test` for the rest):
+
+| code | mutants | killed before | after | left alive, and why |
+| --- | --- | --- | --- | --- |
+| `downloader.js`, `consumer.js` | 76 | 44 | 65 of 72 | 4 were dead code, removed; 7: two only matter when a frozen page's timers fire late, a listener removal and two `??=` change nothing observable, the wire buffer's release only moves memory, a recycle racing a resumption the fake cannot order (`client/downloader/README.md` §Every decision is held by a test) |
+| the decoder modules (`decoder.js`, `htj2k.js`, `av1*.js`, `decode-av1*.js`) | 45 | 45 | 45 | — |
+| the send path (`planner.rs`, `frame_out.rs`, `pipeline.rs`) | 25 | 16 | 20 of 24 | 1 was dead code, removed; 4: `fills` and the end-of-session read report are log lines, and the lab-only byte-budget stall's FIN and its `>`/`>=` send the same bytes |
+| the study bundle's reader and writer | 10 | 3 | 10 | — |
+
+No test was cut: the pairs whose mutants another test also kills are checks inside one clause, which
+cost no time of their own, or rest on too few mutants to show one covers the other.
+
 ## Quick start (harness)
 
 ```bash
@@ -112,6 +137,51 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 Older campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`; every
 retired doc is in the history before the commit that folded it.
 
+
+## Names
+
+A name states its role in the domain's words: no word from the project's history (a queue row, a
+campaign label, *lever 2*), none a standard the code touches uses for something else (DICOM's
+*Item*, (FFFE,E000); ARM the CPU), and one concept, one name, defined here once (row NAMING,
+2026-10-07).
+
+| name | is |
+| --- | --- |
+| frame | one image of a series, addressed by its display index |
+| ask | a request for one frame, `request_frame`, served next |
+| fill | frames the server pushes in index order, `stream_frames`; on the wire one contiguous **run** at a time |
+| the opening ask | an ask or a fill carried in the session URL, served behind the accept |
+| early SETTINGS | the server's SETTINGS in its handshake flight, at 0.5 RTT (a crate patch) |
+| envelope | `[4B display_index][codestream]`, one frame, sent behind its 4-byte length on a media stream |
+| bundle | the store's file (`.sbnd`): header, index, metadata, frames |
+| record | the downloader's state of one frame: `wire`, `queued`, `decoding` |
+| generation | a request's identity, moved by `cancel`; **epoch**, a session's, moved by a resume |
+| resume, recycle | a dead session replaced, owing what the records owe; a live one replaced before a byte budget |
+| decoder | a worker that decodes; **codec module**, the code it loads per codec (`htj2k.js`, `av1.js`) |
+| group | G frames from a keyframe, decoded in order on one decoder; **unit**, one AV1 temporal unit |
+| split | a sample as a top stream (v ≫ k) and a low one (v & (2^k − 1)) |
+| client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one); **rig**, the harness that drives one through the conformance clauses |
+| arm | in the lab only: one condition of a timed comparison |
+
+**Renamed:** ARCHITECTURE's *Lever 1, 2, 3* and transport-conclusions' *Lever 1, 2* — five things
+under three numbers — are the opening ask, early SETTINGS, hints in the session URL, the bytes
+pushed at session open and a 32-packet initial window; *S4* is the container campaign; the
+conformance suite's *arms* are clients and rigs; `consumer.js`'s `#arm` is `#waitFor`.
+
+**Proposed, not applied:**
+
+| name | where | breaks | proposed | why not now |
+| --- | --- | --- | --- | --- |
+| *item* | `docs/av1/item-format.md`, `av1-item.js`, `lab/av1/item/` | DICOM's Item, the encapsulated pixel data's own unit | **coded frame** (`coded-frame.md`, `parseCodedFrame`) | the item format is structural: the owner's |
+| `arm` in telemetry rows | `client/record`, `client/harness/shell.js` | names a client, and ARM the CPU | `client` | a row schema the lab's analyses read |
+| *arm* in the lab (≈1 900 lines) | `lab/`, `CLAUDE.md` §Measurement | ARM the CPU | **variant** | the owner's word in `CLAUDE.md` |
+| folders named for queue rows | `lab/av1/{splitok, splittime, encx, llsize, rep14, split10, svcq, svcshape, svcdec, wcap, wcbase, wclat, decspeed, fasthtj2k, pocgap, versions, total, …}` | history | by subject: `split-exactness`, `low-stream-coding`, `lossless-size`, `high-depth-layout`, `newer-tools`, `fill-time`, … | row LAYOUT moves folders by responsibility, and five rows still work in them |
+| campaign labels (*S1–S4*, *R1*, *PO1*, *WP1*) | `docs/`, `lab/` | history | what each measured | doc by doc, with the docs that own them |
+
+**For `CLAUDE.md`, proposed:** *"**Names.** A name states its role in the domain's words. No word from
+the project's history — a queue row, a campaign label, a numbered lever — and none that a standard
+the code touches uses for something else (DICOM's Item; ARM). One concept, one name, defined once in
+`README.md` §Names."*
 
 ## Provenance
 

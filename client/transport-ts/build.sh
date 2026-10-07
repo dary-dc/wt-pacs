@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build product + telemetry bundles (gitignored — do not commit).
-# Shared recorder lives in client/record/; this script builds the TS arm entries
+# Shared recorder lives in client/record/; this script builds the TS client's entries
 # and the shared install/test artifacts.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
