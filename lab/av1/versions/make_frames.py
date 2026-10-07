@@ -49,8 +49,9 @@ def series(build, out, spec, frames):
     same = sum(same_codestream(build, s, i, dst / f"{i:03d}.htj2k") for i in range(n)) if not s.signed else None
     items = out / ".items" / s.name
     if not (items / "metadata.json").exists():
+        split = ["--split", str(s.stored - 12)] if s.stored > 12 else []
         subprocess.run([sys.executable, HERE.parent / "item/ingest.py", build, src, items, "--preset", preset,
-                        "--frames", str(n), "--jobs", "1"], check=True, capture_output=True)
+                        "--frames", str(n), "--jobs", "1", *split], check=True, capture_output=True)
     for i in range(n):
         shutil.copyfile(items / f"{i:03d}.av1", dst / f"{i:03d}.av1")
     size = lambda ext: sum((dst / f"{i:03d}.{ext}").stat().st_size for i in range(n))  # noqa: E731
