@@ -134,14 +134,15 @@ function pack(set, ext, entries, codec = ext === "htj2k" ? "htj2k" : "av1") {
 const CHROME = process.env.CHROME_PATH || chromium.executablePath();
 writeFileSync(`${T}/chrome.sh`, `#!/bin/sh\nexec taskset -c ${BROWSER_CORES} "${CHROME}" "$@"\n`, { mode: 0o755 });
 
-/** Firefox is the stock build, no remote protocol: launched on the page, which POSTs its result here. */
-let posted = null;
+/** The page POSTs here: `hello` once loaded, before it connects; `result` once the fill is checked. */
+let page = {};
 const collector = createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
+    if (req.url === "/hello") page.hello?.();
+    if (req.url === "/result") page.result?.(JSON.parse(body));
     res.writeHead(200, { "Access-Control-Allow-Origin": "*" }).end();
-    if (body) posted?.(JSON.parse(body));
   });
 });
 await new Promise((r) => collector.listen(0, "127.0.0.1", r));
@@ -149,20 +150,28 @@ const FIREFOX_PREFS = [["browser.shell.checkDefaultBrowser", false], ["browser.a
   ["datareporting.policy.dataSubmissionEnabled", false], ["browser.startup.homepage_override.mstone", "ignore"],
   ["app.update.disabledForTesting", true], ["toolkit.telemetry.reportingpolicy.firstRun", false]];
 
-/** The page's result in Chromium through Playwright, in Firefox by POST; the throttle on the browser's whole tree. */
+/** Chromium through Playwright, Firefox as the stock build; the slow CPU on the browser's whole tree from the page's hello. */
 async function inBrowser(engine, url, throttle, errors) {
+  url += `&post=${encodeURIComponent(`http://127.0.0.1:${collector.address().port}/`)}`;
+  let stop = () => {};
+  let pid = null;
+  const result = new Promise((resolve, reject) => {
+    page = { hello: () => (stop = throttleTree(pid, throttle)), result: resolve };
+    setTimeout(() => reject(new Error("no result in 600 s")), 600000);
+  });
+  result.catch(() => {}); // awaited below unless the page never loaded
   if (engine === "chromium") {
     const browser = await chromium.launchServer({ executablePath: `${T}/chrome.sh` });
     const client = await chromium.connect(browser.wsEndpoint());
-    const page = await client.newPage();
-    page.on("pageerror", (e) => errors.push(e.message));
-    const stop = throttleTree(browser.process().pid, throttle);
+    const tab = await client.newPage();
+    tab.on("pageerror", (e) => errors.push(e.message));
+    pid = browser.process().pid;
     try {
-      await page.goto(url);
-      await page.waitForFunction(() => globalThis.__result, null, { timeout: 600000, polling: 200 });
-      return await page.evaluate(() => globalThis.__result);
+      await tab.goto(url);
+      return await result;
     } finally {
       stop();
+      page = {};
       await client.close();
       await browser.close();
     }
@@ -170,21 +179,16 @@ async function inBrowser(engine, url, throttle, errors) {
   if (engine !== "firefox") throw new Error(`unknown engine ${engine}`);
   const dir = mkdtempSync(path.join(T, "ff-"));
   writeFileSync(path.join(dir, "user.js"), FIREFOX_PREFS.map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`).join("\n"));
-  const proc = spawn("taskset", ["-c", BROWSER_CORES, process.env.FIREFOX_PATH, "--headless", "--no-remote", "--profile", dir,
-    `${url}&post=${encodeURIComponent(`http://127.0.0.1:${collector.address().port}/`)}`],
-  { env: { ...process.env, MOZ_CRASHREPORTER_DISABLE: "1" }, stdio: ["ignore", "ignore", "pipe"], detached: true });
+  const proc = spawn("taskset", ["-c", BROWSER_CORES, process.env.FIREFOX_PATH, "--headless", "--no-remote", "--profile", dir, url],
+    { env: { ...process.env, MOZ_CRASHREPORTER_DISABLE: "1" }, stdio: ["ignore", "ignore", "pipe"], detached: true });
+  pid = proc.pid;
   let stderr = "";
   proc.stderr.on("data", (c) => (stderr = (stderr + c).slice(-2000)));
-  const stop = throttleTree(proc.pid, throttle);
   try {
-    return await new Promise((resolve, reject) => {
-      posted = resolve;
-      setTimeout(() => reject(new Error("no result in 600 s")), 600000);
-      proc.once("exit", (c) => reject(new Error(`firefox exited ${c}: ${stderr}`)));
-    });
+    return await Promise.race([result, new Promise((_, reject) => proc.once("exit", (c) => reject(new Error(`firefox exited ${c}: ${stderr}`))))]);
   } finally {
-    posted = null;
     stop();
+    page = {};
     const gone = new Promise((r) => proc.once("exit", r));
     // A process group of its own: a launcher script, Firefox and its content processes go together.
     process.kill(-proc.pid, "SIGKILL");
