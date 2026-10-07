@@ -2,13 +2,15 @@
  * TOTAL: a whole series filled through the downloader, wire plus decode, every arm of a series on
  * the same link and CPU: HTJ2K, AV1 intra through dav1d-WASM and WebCodecs, the splits, one group,
  * a lossy preview, row LLSIZE's codings (TOTAL2), a layer-major scalable series (BASES), row ENCX's (TOTAL3),
- * the order the frames are asked in (ORDER). Fixed rates and phone-like profiles behind the relay, headless Chromium at 1× and
- * 4×. Every visit is its own server, relay and browser; (set × link × throttle) cells in a Williams
- * order each round, the arms inside each cell the same way. lab/av1/total/README.md
+ * the order the frames are asked in (ORDER), loss and jitter and asks after a partial fill (LOSSLINK). Fixed rates and
+ * phone-like profiles behind the relay, headless Chromium at 1× and 4×. Every visit is its own server, relay and browser;
+ * (set × link × impairment × throttle) cells in a Williams order each round, the arms inside each cell the same way.
+ * lab/av1/total/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs [--rounds 10] [--first-round 0]
- *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--throttles 1,4] [--sets a,b] [--arms a,b]
- *     [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth] [--out rows.jsonl] [--summary [--ref htj2k]]
+ *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--sets a,b] [--arms a,b]
+ *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth] [--out rows.jsonl]
+ *     [--summary [--ref htj2k]]
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
@@ -24,7 +26,11 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ROUNDS = Number(arg("--rounds", 10));
 const FIRST = Number(arg("--first-round", 0));
 const LINKS = arg("--links", "r5000,r20000,r50000,lte-good,wifi-home").split(",");
+const IMPAIRS = arg("--impairs", "clean").split(",");
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
+/** Frames 0 … FILL−1 filled, then FILL … FILL+AFTER−1 asked one at a time; FILL absent is the whole series. */
+const FILL = arg("--fill", null);
+const AFTER = Number(arg("--asks-after", 0));
 const FRAMES = arg("--frames", "lab/.av1-work/total");
 const MUTATE = arg("--mutate", "");
 const OUT = arg("--out", null);
@@ -42,11 +48,18 @@ const TRACES = process.env.TRACES ?? path.join(homedir(), ".cache/wtpacs-traces"
 const LTE = { file: "TMobile-LTE-short.down", sha256: "4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43" };
 /** Gilbert–Elliott in percent, bursts of 3.5 packets on average, as profile_cells.sh. */
 const ge = (mean) => { const r = 100 / 3.5, m = mean / 100; return ["--loss-model", "ge", "--ge-p", (m * r / (1 - m)).toFixed(5), "--ge-r", r.toFixed(4)]; };
-/** One way ms and the relay's link: PROF's profiles without their neighbour or outage. */
-function link(name) {
-  if (name.startsWith("r")) return [20, ["--rate-kbit", name.slice(1), "--queue-pkts", "200"]];
-  if (name === "lte-good") return [25, ["--trace", path.join(TRACES, LTE.file), ...ge(0.01), "--queue-ms", "500"]];
-  if (name === "wifi-home") return [15, ["--trace", `${T}/wifi-home.trace`, ...ge(0.5), "--queue-ms", "300"]];
+/**
+ * One way ms and the relay's link: PROF's profiles without their neighbour or outage. An impairment
+ * `l<percent>` is loss each way, iid on a fixed rate and in the profile's bursts on a profile;
+ * `j<ms>` is ± that jitter each way, in sequence as one radio leg delivers (docs/rig-limits.md §3).
+ */
+function link(name, impairment = "clean") {
+  const loss = impairment[0] === "l" ? Number(impairment.slice(1)) : 0;
+  const jitter = impairment[0] === "j" ? ["--jitter-ms", impairment.slice(1), "--jitter-mode", "ordered"] : [];
+  if (impairment !== "clean" && !loss && !jitter.length) throw new Error(`unknown impairment ${impairment}`);
+  if (name.startsWith("r")) return [20, ["--rate-kbit", name.slice(1), "--queue-pkts", "200", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
+  if (name === "lte-good") return [25, ["--trace", path.join(TRACES, LTE.file), ...ge(loss || 0.01), "--queue-ms", "500", ...jitter]];
+  if (name === "wifi-home") return [15, ["--trace", `${T}/wifi-home.trace`, ...ge(loss || 0.5), "--queue-ms", "300", ...jitter]];
   throw new Error(`unknown link ${name}`);
 }
 
@@ -75,7 +88,7 @@ function arm(set, name) {
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
       opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // A `downloader` arm runs that revision of the downloader (row CLIENT).
-        ...(a.downloader && { worker: a.downloader, decoderWorker: "/client/downloader/decoder.js" }) } };
+        ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }) } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
     ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
@@ -128,9 +141,11 @@ const started = (child, re) => new Promise((resolve, reject) => {
   child.once("exit", (c) => reject(new Error(`exited ${c}: ${out}`)));
 });
 
-async function visit(set, variant, linkName, throttle, round) {
+async function visit(set, variant, linkName, impairment, throttle, round) {
   const [armName, orderName = "seq"] = variant.split("@");
   const a = arm(set, armName);
+  const fill = Number(FILL ?? a.entries);
+  if (fill + AFTER > a.entries || (AFTER && (a.opts.groupLength || a.opts.decoder.layers))) throw new Error(`${set.name} ${armName}: ${fill} + ${AFTER} asks`);
   const need = useful(set);
   const flip = (t) => (MUTATE === "truth" ? t.replace(/^./, (c) => (c === "0" ? "1" : "0")) : t);
   const truth = (a.truth ?? set.truth).map(flip);
@@ -139,7 +154,7 @@ async function visit(set, variant, linkName, throttle, round) {
   const relayPort = port();
   const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/exact-server"), "--port", String(srv), "--bind", "127.0.0.1",
     "--study", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" });
-  const [oneWay, linkArgs] = link(linkName);
+  const [oneWay, linkArgs] = link(linkName, impairment);
   const relay = spawn("chrt", ["-f", "50", "taskset", "-c", RIG_CORE, "python3", "lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`,
     "--seed", String(round), "--delay-ms", String(oneWay), ...linkArgs, "--self-timing"], { cwd: ROOT });
   let relayLog = "";
@@ -154,7 +169,7 @@ async function visit(set, variant, linkName, throttle, round) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const stop = throttleTree(browser.process().pid, throttle);
-  const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill: a.entries, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
+  const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}) });
   let r = null;
   try {
@@ -175,7 +190,8 @@ async function visit(set, variant, linkName, throttle, round) {
   server.kill();
 
   const late = relayLog.match(/self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)/g)?.pop();
-  const row = { round, set: set.name, arm: variant, link: linkName, throttle, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
+  const s2c = relayLog.match(/server->client sent (\d+) lost (\d+)/)?.slice(1).map(Number);
+  const row = { round, set: set.name, arm: variant, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
@@ -197,7 +213,8 @@ async function visit(set, variant, linkName, throttle, round) {
     frames: r.frames.length,
     failures: r.failures.length,
     failure: r.failures[0]?.reason,
-    exact: r.frames.filter((f) => r.sha[f.i] === truth[f.i]).length,
+    exact: [...r.frames, ...r.after].filter((f) => r.sha[f.i] === truth[f.i]).length,
+    afterMs: r.after.map((f) => Math.round(f.ms)),
     firstMs: Math.round(t("page", Math.min)),
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
@@ -216,19 +233,19 @@ function useful(set) {
 /** `seq` fills every frame; `prio` asks the useful ones first, then fills. */
 const variants = (set) => set.armNames.flatMap((a) => ORDERS.map((o) => (o === "seq" ? a : `${a}@${o}`)));
 
-const cells = sets.flatMap((s) => LINKS.flatMap((l) => THROTTLES.map((throttle) => ({ set: s.name, link: l, throttle }))));
+const cells = sets.flatMap((s) => LINKS.flatMap((l) => IMPAIRS.flatMap((impairment) => THROTTLES.map((throttle) => ({ set: s.name, link: l, impairment, throttle })))));
 const rows = [];
 for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summary"); round++) {
-  for (const [k, { set: name, link: l, throttle }] of order(cells, round).entries()) {
+  for (const [k, { set: name, link: l, impairment, throttle }] of order(cells, round).entries()) {
     const set = sets.find((s) => s.name === name);
     let prev = null;
     for (const a of order(variants(set), round + k)) {
-      const row = { ...(await visit(set, a, l, throttle, round)), prev };
+      const row = { ...(await visit(set, a, l, impairment, throttle, round)), prev };
       prev = a;
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
-      console.error(`round ${round} ${name} ${l} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
-        ` exact ${row.exact}/${set.frames}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
+      console.error(`round ${round} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
+        ` exact ${row.exact}/${row.owed}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }
 }
@@ -236,22 +253,26 @@ for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summ
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const span = (a) => `${med(a).toFixed(0)} [${Math.min(...a)}–${Math.max(...a)}]`;
 if (OUT) rows.splice(0, rows.length, ...readFileSync(OUT, "utf8").trim().split("\n").map((l) => JSON.parse(l)));
+for (const r of rows) r.impairment ??= "clean";
 const kept = rows.filter((r) => !r.void && r.frames);
+const quantile = (a, q) => [...a].sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(q * a.length))];
 console.log("ms from the fill's issue: first frame on the page, every frame on the page — median [min–max], n kept; " +
   `÷ ${REF} on every frame, median of rounds paired; frames exact over every visit`);
-for (const { set: name, link: l, throttle } of cells) {
+for (const { set: name, link: l, impairment, throttle } of cells) {
   const set = sets.find((s) => s.name === name);
-  const of = (a, from = kept) => from.filter((r) => r.set === name && r.link === l && r.throttle === throttle && r.arm === a);
+  const of = (a, from = kept) => from.filter((r) => r.set === name && r.link === l && r.impairment === impairment && r.throttle === throttle && r.arm === a);
   const ref = new Map(of(REF).map((r) => [r.round, r.decodedMs]));
   const parts = variants(set).map((a) => {
     const rs = of(a);
     const all = of(a, rows);
-    const exact = `${all.reduce((n, r) => n + r.exact, 0)}/${all.length * set.frames}`;
+    const exact = `${all.reduce((n, r) => n + r.exact, 0)}/${all.reduce((n, r) => n + (r.owed ?? set.frames), 0)}`;
     if (!rs.length) return `${a} none kept, exact ${exact}`;
     let s = `${a} first ${span(rs.map((r) => r.firstMs))}`;
     if (ORDERS.length > 1) s += ` centre ${span(rs.map((r) => r.centreMs))} useful ${span(rs.map((r) => r.usefulMs))}`;
     if (rs[0].previews !== undefined) s += ` shown ${span(rs.map((r) => r.shownMs))} previews ${all.reduce((n, r) => n + (r.previewExact ?? 0), 0)}/${all.length * set.frames} as native`;
     s += ` all ${span(rs.map((r) => r.decodedMs))} n=${rs.length} exact ${exact}`;
+    const after = rs.flatMap((r) => r.afterMs ?? []);
+    if (after.length) s += ` ask p50 ${quantile(after, 0.5)} p95 ${quantile(after, 0.95)} (${after.length})`;
     const d = rs.filter((r) => a !== REF && ref.has(r.round)).map((r) => r.decodedMs / ref.get(r.round));
     if (d.length) s += ` ×${med(d).toFixed(2)} (slower ${d.filter((x) => x > 1).length}/${d.length})`;
     const seq = new Map(of(a.split("@")[0]).map((r) => [r.round, r]));
@@ -260,7 +281,7 @@ for (const { set: name, link: l, throttle } of cells) {
       ` all ×${med(p.map((r) => r.decodedMs / seq.get(r.round).decodedMs)).toFixed(3)} of seq (n=${p.length})`;
     return s;
   });
-  console.log(`${name} ${l} ${throttle}x: ${parts.join(" · ")}`);
+  console.log(`${name} ${l}${impairment === "clean" ? "" : ` ${impairment}`} ${throttle}x: ${parts.join(" · ")}`);
 }
 console.log(`VOID, dropped: ${rows.filter((r) => r.void).length} of ${rows.length}`);
 process.exit(0);

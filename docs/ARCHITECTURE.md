@@ -158,6 +158,30 @@ range on the wire twice). **The dial and the decoders start together**: start-to
 52 ms** on the TS client and **70 → 57 ms** on the WASM one, loopback, 4 interleaved rounds — the floor;
 on a real link the saving is a whole handshake.
 
+**Two defects on the re-dial path, fixed 2026-10-06 (row CLIENT).** A resumption dials with the
+owed run in its URL, so a `cancel` that lands while that dial is open could not take the run back:
+the new session now ends that stream once it opens. And `close()` during a re-dial let `resume()`
+adopt the new session and ask the owed work on it: a dial that opens after `close` is closed, and
+`resume()` stops. The ask and fill handlers' generation check after `await live()` was already
+right. Each is reproduced by a dispatch clause that failed before the fix.
+
+**The states are as few as the behaviour allows.** `generation` (the request) and `epoch` (the
+session) move on different events — a cancel keeps the session, a resume keeps the request (§Re-dial
+and re-issue) — so one counter would either drop a resumed request's frames or let a dead session's
+callbacks through. `resuming` is the whole resumption, re-dials and waits between them; `dialling`
+is one handshake, shared by whoever needs a session: a command that awaited only `dialling` dials
+beside a resumption sleeping between tries (a clause holds it). The record keeps three states, each
+read: `wire` is what a resume owes, `queued` what dispatch may take, `decoding` neither. What the
+sweep found dead — the record's generation, two guards in `promote()` — is removed; every decision
+left is held by a test (`client/downloader/README.md` §Every decision is held by a test).
+*The fill's time is unchanged* — the HTJ2K frames through this downloader against the one before
+`f136363` (the arm `lab/av1/total/downloader_arm.sh` adds), the rest of the client the same, the real
+server behind the relay, headless Chromium, 10 rounds interleaved, 10 of 160 visits `VOID` dropped,
+n = 7–10 a cell: every frame on the page after / before **0.99–1.00** on the fluoroscopy (18 × 768²)
+and the 10-bit tomosynthesis (24 × 678×1727) at 20 and 50 Mbit, 1× and 4× (fluoroscopy at 50 Mbit
+and 1×, 1 722 [1 715–1 730] against 1 724 [1 715–1 733] ms), slower in 29 of 71 paired rounds;
+3 360/3 360 frames exact. The code moved is off the fill's steady path, so no gain was expected.
+
 ### The first fill
 
 **It rides with `start`**: `connect(url, hash, { fill })` puts the indices in the `start` message, so
@@ -205,6 +229,37 @@ phone's (arithmetic), so one decoder keeps up on every fixture; not built, and a
 must keep both dispatch clauses (asks first, at most `perDecoder` a decoder) while it resizes. The
 default is measured at two and four cores only.
 A multithreaded decoder is a separate question ([`decode/README.md`](decode/README.md) §Threads).
+
+### The seams, traced (row SEAM, 2026-10-07)
+
+A frame's path, `client/transport-ts` → `downloader.js` → `decoder.js` → `htj2k.js` or `av1.js` →
+`consumer.js`, was read end to end for checks made twice, paths nothing reaches and codec decisions.
+**Merged:** the Emscripten glue's loading, written out in `htj2k.js` and `decode-av1.js`, is
+`wasm-glue.js`; the refusal of a unit that does not follow its predecessor, written out in both AV1
+decoder modules, is `continues()` in `av1-item.js`, each decoder keeping its own last unit. Not
+fewer lines (+26, −16, the new module's header included); what is gained is one place for each. **No dead path was
+found** — every branch is reached by a product option or a clause (row CLIENT's sweep). **The codec
+is decided once:** `consumer.js` refuses an unknown one before a worker starts and `decoder.js`
+routes on it; which AV1 decoder takes an item is `av1.js`'s alone. **Kept, and why:**
+
+* *The owed frames are held twice*, by the transport's fill (to name what a dead session owed) and by
+  the downloader's records (which outlive the session). One owner means a transport API change —
+  structural, not built.
+* *`groupLength` rides the decoder's `init` beside `decoder`*, not inside it: four lab workers speak
+  that message, and folding it would change their protocol for one line.
+* *A truncated envelope (transport) and an undecodable frame (decoder)* are different failures, not
+  one check twice.
+* *Built and not adopted:* groups (`wholeGroups`, `orphaned`, `decoderFor`'s group rule, ~25 lines of
+  `downloader.js`, each decoder's continuity), the preview port (`onPreview`, ~10 lines), `mixed` in
+  `av1.js` (lab/av1/mixdec, 4 lines), `recycleAtBytes` (WebKit's 16 MB stall), `openAsk: false`, and
+  `decode: false` (lab and tests). Each is reached by a clause; none costs a frame that does not use it.
+
+*The fill's time is unchanged*: the HTJ2K frames through `client/downloader/` as it was before the
+row (`downloader_arm.sh 541ceaf`, decoders included) against the tree, row CLIENT's harness and cells,
+10 rounds interleaved, 12 of 160 visits `VOID` dropped, n = 8–10: after / before **1.00** in all 8
+cells (fluoroscopy at 50 Mbit and 1×, 1 723 [1 720–1 736] against 1 725 [1 719–1 729] ms), slower in
+29 of 68 paired rounds, 3 360/3 360 frames exact. The AV1 continuity check was not timed: it is one
+comparison a unit, moved, not added.
 
 ## The consumer
 
