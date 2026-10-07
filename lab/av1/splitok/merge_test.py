@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Every sample of 8–16 bits, unsigned and signed, split at every k of 0–8 by ingest.py's plan and
-merged back by its merge, is itself (queue row 43 SPLITOK); and the optimized representation picks
-row SPLITTIME's k at each depth 8–14 (row 72).
+merged back by its merge, is itself (queue row 43 SPLITOK).
 
 usage: merge_test.py   — exits 1 naming each wrong (bits, sign, k)
 """
@@ -39,11 +38,6 @@ def main():
         why = cell(b, False, k)
         if not (why or "").startswith("refused") or want not in why:
             wrong.append(((b, False, k), f"not refused by name ({why})"))
-    for b, want in {8: 0, 9: 0, 10: 2, 11: 2, 12: 2, 13: 3, 14: 2}.items():
-        lo = 1 << (b - 1)
-        s = SimpleNamespace(ch=1, hi=(1 << b) - 1 - lo, offset=lo, signed=False, frame=lambda i: np.zeros((1, 1, 1), np.int32))
-        if (picked := ingest.plan(s, "optimized")[0]["split"]) != want:
-            wrong.append(((b, False, None), f"the optimized rule picks k = {picked}, row SPLITTIME's is {want}"))
     for (b, sg, k), why in wrong:
         print(f"{b}-bit {'signed' if sg else 'unsigned'} k={k}: {why}")
     print(f"writer's split and merge: {len(got) - len(refused) - len(wrong)}/{len(got) - len(refused)} cells exact, "

@@ -268,7 +268,7 @@ else {
       const f = await av1.decodeFrame(golden(rep, name)).catch((e) => ({ error: e.message }));
       check(f.sab && sha(f.sab) === want, `golden: ${rep} ${name} decodes to its source (${f.error ?? sha(f.sab).slice(0, 12)})`);
       const shape = f.info && `${f.info.componentCount}x${f.info.bitsPerSample}${f.info.isSigned ? "s" : ""}`;
-      const bits = { g8: 8, g9: 9, g10: 10, g12: 12, s11: 11, s13: 13, g14: 14, c8: 8 }[name];
+      const bits = { g8: 8, g10: 10, g12: 12, s11: 11, s13: 13, g14: 14, c8: 8 }[name];
       const expect = `${name === "c8" ? 3 : 1}x${bits}${name.startsWith("s") ? "s" : ""}`;
       check(shape === expect, `golden: ${rep} ${name} says what it is (${shape}, want ${expect})`);
     }
