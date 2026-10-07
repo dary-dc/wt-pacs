@@ -96,7 +96,7 @@ the frame.
 The writer is [`lab/av1/item/ingest.py`](../../lab/av1/item/README.md), `pack-study` bundles its items when the metadata
 says `"codec": "av1"`, and the reader is `client/downloader/av1.js` with `av1-item.js` (the header and its refusals) and
 `av1-frame.js` (the merge) — [`client/downloader/README.md`](../../client/downloader/README.md) §An AV1 series. The
-per-layout probes are 16×16 units (grey 8/10, 4:4:4 8/10) in `av1-probe.js`, checked by an FNV-1a of their planes. On
+per-layout probes are 16×16 units (grey 8/10, 4:4:4 8/10, and 8-bit grey as 4:2:0 since row GREY420) in `av1-probe.js`, checked by an FNV-1a of their planes. On
 the first 8 frames of the fluoroscopy, CT, MR and ultrasound series, both representations, all 96 items were written and
 decoded by the reader to their sources; optimized over plain matches row 28 to the third digit
 ([`lab/av1/item`](../../lab/av1/item/README.md) §Checked). The lab harnesses of rows 9–38 that hand the client bare temporal units, or import the decoder modules
@@ -150,3 +150,22 @@ series (README §Total time, *The split per depth*); the grey rows of §Represen
 
 The format did not change: `split` and `depth` already carried every k (row 43), and the reader decodes each
 layout exactly (§Built; golden `optimized/g9` and `optimized/s13`).
+
+## 8-bit grey as 4:2:0 (row 80 GREY420, not adopted)
+
+Measured in [`lab/av1/grey420`](../../lab/av1/grey420/README.md) on the two 8-bit grey series. Coded as full-range
+4:2:0 with every chroma sample mid-grey (`ingest.py --grey8 420`), 8-bit grey is exact through Firefox's
+WebCodecs, which refuses 4:0:0 (row XENGINE). The header does not change: the stream's own sequence header says
+4:2:0, and every reader path takes it as grey only when it is, so a series coded either way decodes everywhere.
+
+| | Chromium | Firefox |
+| --- | --- | --- |
+| bytes | +0.20–0.23 % (≈ 100–140 B a frame) | the same |
+| a frame's decode | WebCodecs either way: 1.02–1.13× | dav1d-WASM → WebCodecs: 0.70–0.71× at 4×, 1.02–1.04× at 1× |
+| a whole fill | +0.2–0.5 % where the wire is the clock; +3.4 % on the cine at 4× on LTE and 50 Mbit | 0.74–0.87 at 4× on LTE and 50 Mbit; ±3 % elsewhere |
+
+**Not adopted**: Chromium's total time is not unchanged — it is slower by the bytes on every cell and by 3.4 % where
+its decode is the clock — and the round's rule takes 4:2:0 only if it is. The ingest keeps 4:0:0; the readers keep
+taking 4:2:0 grey (`g8f` probe), so serving it is an ingest flag, should Firefox on slow devices outweigh that cost
+(queue §Blocked).
+
