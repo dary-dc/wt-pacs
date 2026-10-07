@@ -294,6 +294,7 @@ path does not become the whole plan.
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on the sandbox | **Built**; unmeasured on a throttled link (§9) |
 | `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob; the layout study measured **17.6×** on the same reads, against 2–4× for the read path (`git show read-path-evidence-2026-09-09:docs/disk-layout/`) | Not tuned; layout undecided |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | Lab only — needs a real ask trace |
+| `MALLOC_MMAP_THRESHOLD_=1048576` in the unit | memory at rest after large-frame fills **−46 to −57 %**, CPU a tie to +5 % (§11, *Frames past 250 kB*) | Measured 2026-10-06, not taken: the owner's, if large frames ship |
 | AEAD provider (`aws-lc-rs` for `ring`) | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | **Measured 2026-09-10, not taken**; the feature was removed 2026-10-03 (`c9fce63`) |
 | Release profile: `lto = "fat"`, `codegen-units = 1` | −4 to −8 % CPU per frame, every cell | **Landed 2026-09-10**; 4× longer release rebuild |
 
@@ -321,7 +322,8 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 
 Numbers are kept because older records cite them; 4 is closed (§8), the missing ones closed or
 built. **Not established anywhere**, named so they are not quoted as measured:
-frames past 250 kB (native DBT is ~3 MB); storage faster than ~1.25 GB/s, where io_uring's 5
+frames past 250 kB on a device or a real link (corrected 2026-10-06: CPU per byte and memory at
+rest measured on loopback up to 16 MB, §11, *Frames past 250 kB*); storage faster than ~1.25 GB/s, where io_uring's 5
 threads against the pool's hundreds might start converting (the workstation's 1.5–1.6 GB/s
 semi-sequential ceiling was device-bound and may be the NVMe's own cache); `hybrid_lazyring`
 on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
@@ -668,6 +670,35 @@ volume: random 256 KiB at depth 1 p50 1.3 ms in burst, 4.9 ms after; 51–53 MB/
 * **The host saturates on CPU; claim nothing past a median.** A burstable 2-vCPU instance losing
   ~2.6 s to steal over a 2.1 s fill; every p99, warm included, is 60–100 ms. P0 cannot be asked
   here.
+
+### Frames past 250 kB, and memory at rest (2026-10-06, AV1 queue row 51)
+
+Synthetic SBND of 80 × 250 kB, 40 × 4 MB and 20 × 16 MB (a mammogram's order); `lab/scripts/runtime_ab.sh`,
+server on cores 0–1 and `server_ab` on 2–3 of the agent container, loopback, warm, a whole fill per session, six
+repeats reversed every repeat, `rss_after_kib` read once a run's sessions have all ended. Release build of
+`claude/av1-unified` at `bbde485`. No hardware counters in this VM (`perf_event_open` refuses cycles and
+instructions), so CPU is rusage. The 16-session cells saturate the two server cores; nothing is claimed past them.
+
+* **CPU per byte does not grow with the frame.** One session: 2.3 µs/kB at 250 kB, 2.6 at 4 MB and 16 MB; sixteen:
+  1.5–1.7 µs/kB at all three. The send path has no per-frame cost a large frame exposes.
+* **What a peak leaves resident does.** After a fill by sixteen sessions the server holds **~800 MB at 16 MB, ~230 MB
+  at 4 MB, ~40 MB at 250 kB** with no session open. The pool's count cap (64) allows 1 GB of 16 MB buffers, but
+  capping it by bytes is not the fix: a 16 MiB cap cut rest RSS 797 → 523 MB (−32 %, 6/6) and cost **+8.4 % CPU per
+  frame (0/6 lower)**, −7.1 % asks/s (6/6) — every large frame then faults in a fresh buffer; at 64 MiB rest RSS was
+  a tie (+1.8 %) and CPU +3.5 % (3/6). Neither is adopted.
+* **Most of it is the allocator's.** With the pool holding at most one buffer, 523 MB stayed: glibc's dynamic mmap
+  threshold rises to the frame's size, so freed frames return to an arena rather than to the kernel.
+  `MALLOC_MMAP_THRESHOLD_=1048576` (no code change) cut rest RSS **−57 % at 16 MB × 16 (812 → 347 MB), −46 % at
+  4 MB × 16, −49 % at 16 MB × 1, 6/6 each**, at a CPU tie (+0.0 to +2.4 %, 2–3/6) except +5.0 % (2/6) and −5.2 %
+  asks/s (4/6) at 16 MB × 16; at 250 kB it is +2.8 MB (0/6 lower). A deployment setting, not taken: whether large
+  frames ship, and whether memory at rest or CPU at peak binds the target host, are the owner's.
+
+What the brief's other levers would buy was already measured and is not repeated: the per-send copy is gone since
+2026-09-23 (§5, the pooled hand-off; the one copy left, page cache → buffer, is what makes the bytes
+process-private, §1 *Guarantee*); mmap and `sendfile` stay rejected (§5). The per-frame allocations left — the
+envelope's 8-byte head, the planner's and the pipeline's upcoming lists — are three small allocations against
+0.4–43 ms of CPU a frame, below any noise floor here. Fill time on row 23's 50 Mbit link was not run, since nothing
+changed the send path (`RELAY=` in `runtime_ab.sh` runs it).
 
 ### Hosts and closed risks
 

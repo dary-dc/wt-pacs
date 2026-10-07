@@ -1,6 +1,5 @@
-// node client/downloader/decoder.test.mjs — decoder.js's range pass, without a decoder.
-globalThis.onmessage ??= null;
-const { finish } = await import("./decoder.js");
+// node client/downloader/htj2k.test.mjs — htj2k.js's range pass, without a decoder.
+const { finish } = await import("./htj2k.js");
 
 let failed = 0;
 const check = (ok, what) => {

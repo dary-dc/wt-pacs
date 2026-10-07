@@ -852,8 +852,9 @@ latency win for a browser on this rig**, and should not be read as one.
 
 **Costs.** A 64 KB batch holds the connection lock ~30 µs longer than a 14 KB one, which widens a
 fill's inter-arrival p99. quinn holds the reader's buffer until acknowledged: memory per session is
-unchanged in total, since quinn held a copy before, and the pool keeps at most 64 buffers per
-thread.
+unchanged in total, since quinn held a copy before, and the pool keeps at most 64 buffers in all
+(*corrected 2026-10-06*: not per thread; what large frames leave resident is in
+[`disk-access.md`](../adr/disk-access.md) §11, *Frames past 250 kB*).
 
 **What would overturn it:** a CPU-bound cell on the production target where the combined binary does
 not beat the plain one on CPU per ask; a quinn upgrade that moves the batching itself. Re-run with

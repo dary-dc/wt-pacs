@@ -41,7 +41,7 @@ step "client: build bundles + unit tests"
 bash client/transport-ts/build.sh >/dev/null
 node client/record/test/run.mjs | tail -1
 node client/transport-ts/test/run.mjs | tail -1
-node client/downloader/decoder.test.mjs
+node client/downloader/htj2k.test.mjs
 node client/downloader/downloader.test.mjs
 node client/downloader/consumer.test.mjs
 node client/downloader/av1.test.mjs

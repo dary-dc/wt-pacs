@@ -11,8 +11,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 HERE="$ROOT/lab/av1/dav1d-wasm"
 BUILD="${BUILD:-$ROOT/lab/.av1-build}"
-DAV1D_TAG=1.5.4
-DAV1D_COMMIT=54706fc6bc0cdecab7e9593974a4039cc038fca7
+DAV1D_TAG="${DAV1D_TAG:-1.5.4}"
+DAV1D_COMMIT="${DAV1D_COMMIT:-54706fc6bc0cdecab7e9593974a4039cc038fca7}"
 EMSCRIPTEN_VERSION="${EMSCRIPTEN_VERSION:-3.1.74}"
 MESON_VERSION=1.5.2
 ARMS="${ARMS:-plain simd simd-mt}"

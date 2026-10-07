@@ -2,7 +2,7 @@
  * One fill through the downloader, every frame timed and hashed; a layer-major series (lab/av1/bases)
  * fills F bases as previews, then F exact frames. run.mjs drives it. lab/av1/total/README.md
  *
- *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256
+ *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256[&asks=i,j,…]
  */
 import { DownloaderClient } from "/client/downloader/consumer.js";
 
@@ -38,6 +38,10 @@ async function finish(client) {
   globalThis.__result = { issuedAt, frames, failures, sha, previews, previewSha };
 }
 
+const exact = (f) => {
+  frames.push({ i: f.frameIndex, page: at(), lastByte: f.info.stamps.lastByte });
+  pixels.set(f.frameIndex, f.bytes);
+};
 const settled = (client) => frames.length + previews.length + failures.length === FILL && finish(client);
 const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   ...OPTS,
@@ -62,4 +66,8 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   throw e;
 });
 issuedAt = at();
+// Asked frames come back through their promise, never onFrame.
+for (const i of q.get("asks")?.split(",").map(Number) ?? []) {
+  client.requestExactFrame(i).then(exact, (e) => failures.push({ i, reason: String(e?.message ?? e) })).then(() => settled(client));
+}
 client.fill([...Array(FILL).keys()]);
