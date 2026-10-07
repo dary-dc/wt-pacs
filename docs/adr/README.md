@@ -16,3 +16,4 @@ One record per decision, corrected in place when a claim in it is wrong ([`disk-
 | [`transport-quic-stream-receive-window-defaults.md`](transport-quic-stream-receive-window-defaults.md) | quinn's default stream receive windows, not equalised across arms | accepted |
 | [`telemetry-server-pipeline.md`](telemetry-server-pipeline.md) | server telemetry: the lab wraps the product's pipeline steps, in a feature-gated build | accepted |
 | [`telemetry-instrument-clients-from-outside.md`](telemetry-instrument-clients-from-outside.md) | the browser clients are instrumented by patching `WebTransport` from outside, not by an inline recorder | accepted |
+| [`exactness-in-production.md`](exactness-in-production.md) | every shown frame checked in the decoder worker against an XXH3-64 digest written at ingest, before paint; a mismatch decoded again, else blocked, and reported | proposed 2026-10-07; not built |
