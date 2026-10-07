@@ -1273,6 +1273,11 @@ only where an engine becomes exact with no regression in Chromium.
 
 ## Blocked
 
+* **2026-10-07 17:35 UTC: row 70 HTJ2KENC claimed twice.** The night routine's claim `26cb6d9` (17:07) and another
+  session's work `e125d38` on `claude/av1-unified` (17:18) both read the same `claimed 2026-10-07 (night)` as their own;
+  the night routine stood down unpushed and took the next row, so row 70 is the session that pushed `e125d38`. Two
+  sessions writing the same claim text cannot tell their claims apart: a claim could name its session.
+
 * **2026-10-07 03:30 UTC: row 56 LAYOUT's moves wait for rows 44, 59, 60 and 65**, which are still writing in the `lab/av1/` folders it would move: moving them under those sessions would land their next commits in folders that no longer exist. Done and pushed (`f0cb5b8` on `claude/av1-unified`): the five-group tree, every folder's proposed path, in `lab/av1/README.md` §The folders, by what they measure; `lab/README.md` indexes `av1/`; `svcdec/` has a README; `docs/` already sits by subject, nothing to move there. The next session applies the moves with `git mv` once the four are done.
 
 * **2026-10-07 01:00 UTC: row 52 INGEST — lossless AV1 bytes depend on `--jobs`.** Ingest codes each worker's frames
