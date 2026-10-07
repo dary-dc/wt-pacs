@@ -122,7 +122,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | done `22f5f03` (`069044e`) — **not reproduced: paired, plain AV1 is 0.973–0.976 of HTJ2K on 10-bit DBT, optimized 0.940–0.943, not 31 % below**: the first 4 frames of `dbt10_ea1141` and `dbt10_d`, 20/20 codings exact (80/80 frames); one setting at a time, an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background by 0.5–0.8, libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned); the two series the brief named are not CC BY or CC0 (UPMC states no licence, BCS-DBT is CC BY-NC 4.0: Blocked); 4 mutations caught 4/4 — [`README.md`](README.md) §Prior evidence, [`lab/av1/pocgap`](../../lab/av1/pocgap/README.md), [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 | 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | done `8c2b24d` on `claude/av1-unified` (`e945e57`) — **the string is each stream's own, the frames and the decoder unchanged**: each keyframe's sequence header gives `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, reconfigured only when it changes; 91 distinct headers (419 units: every fixture, the probes, 59 items of all 28 taxonomy series, 8 full headers with timing, decoder model, frame ids, High tier, nine operating points) derive the string ffmpeg 6.1.1 reads; libaom writes levels 2.0–6.0 by picture size, never 31, and 31 changes no engine's answer; `isConfigSupported` true for every string in Chromium 141, every full string in Firefox 157.0, Main only in WebKitGTK 2.52.6; 115/115 frames exact in all three, Chromium's decoder per item the same as before (61 WebCodecs, 54 dav1d-WASM), none falling back; Chromium echoes the string's colour on the frame, so the 4:4:4 identity check now reads the header's matrix as dav1d's does — an untagged identity stream now decodes exact through WebCodecs; 13/13 derivation and 3/3 decoder mutations caught; gate green — `lab/av1/codecstr`, `item-format.md` §Decoder choice, `decode/README.md` §AV1 |
 | 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67, 82 |
-| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row, 83–93 included |
+| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row, 83–97 included |
 | 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | done `14103cc` on `claude/av1-unified` (`e125d38`, `5b4e9aa`, `ecc9d68`) — **the served profile kept: no setting wins**: 35 settings on nine series, the best per series 0.990–1.000 of the served bytes (−0.9 % only on 256² PET); decode within the round spread everywhere (every paired range spans 1; 0.95–1.10 where decode is the clock); 6 decompositions, the fewest bytes overall, ties on total time ×0.99–1.02 on 5/20/50 Mbit at 1× and 4×; `imagecodecs`' defaults differ only in SIZ depth (container bits, 1.000–1.002 of the bytes); 315 × 35 codings and 12 400 + 339 visits' frames exact — [`docs/decode/README.md`](../decode/README.md) §Encoder settings | |
 | 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | claimed 2026-10-07 (night) |
 | 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | done `953dbfd` on `claude/av1-unified` — **adopted: ingest's optimized split is k = 0 up to 9 bits, 3 at 13, 2 at 10–12 and 14; 15–16 bits refused by name, served as HTJ2K**: the format did not change (row 43 already carries every k), only `ingest.py`'s `optimized_split`; its per-depth test held against three mutants (each caught), the writer's 142/142 split-and-merge cells still exact; a 9-bit golden item (`g9`, plain and optimized) and `optimized/s13` remade at k = 3 (10-bit top, WebCodecs), every other golden and matrix item and the probes byte-identical; the real 9- and 13-bit series (MR 9-bit, CT, cone-beam) ingested by the rule, 198/198 frames exact natively, in Node (dav1d-WASM) and in Chromium 141 (WebCodecs 198/198, as chosen); Firefox and WebKitGTK not installed here — row 43 ran these layouts there; gate green on every step but the link check, which fails only on row 69's brief (`docs/av1/MERGE.md` not yet written) — `item-format.md` §Representation at ingest and §The split per depth, README §A3 |
@@ -147,6 +147,10 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 91 | **DECODERBUILD** — the client's decoder builds made by the product, reproducible from pinned sources: OpenJPH at a 4 MB heap with the range in the pack, dav1d-WASM, the third-party notices | held until 2026-10-08 03:00 UTC, after 82 |
 | 92 | **DEPLOY** — the two images and compose made fit to run unattended: ten fixes, TLS for the page off loopback, the viewer, decoder builds and notices in the web image, verified by the page check against the deployment | held until 2026-10-08 03:00 UTC, after 85, 90, 91 |
 | 93 | **CODECDOCS** — the codec docs as the one source of truth: a comparison of every codec measured, one doc per codec under the same headings, the target series' bit depths with their sources | held until 2026-10-08 03:00 UTC, after 68, 84 |
+| 94 | **DATAGUARD** — every set's pixel provenance recorded and enforced: a provenance column, the fetch refusing lossy or video sources unless marked, the ultrasound claims corrected in place | held until 2026-10-08 03:00 UTC |
+| 95 | **DBTSCALE** — DBT slices at scale on sound data: whole uncropped volumes, every system of the large CC BY collection, bytes, inter and total time | held until 2026-10-08 03:00 UTC, after 94 |
+| 96 | **FFDMSCALE** — full-field and synthesized 2D mammography at scale on sound data, FOR PRESENTATION and the 14-bit FOR PROCESSING raw images | held until 2026-10-08 03:00 UTC, after 94 |
+| 97 | **RGBNATIVE** — the colour transform (RCT) against GBR on natively stored, uncompressed colour ultrasound stills | held until 2026-10-08 03:00 UTC, after 94 |
 
 ## Briefs
 
@@ -1314,6 +1318,8 @@ numbers in the client's README.
 
 ### 77 TOTAL4
 
+**Correction, 2026-10-07 (data audit):** the lab's ultrasound sets are lossy-sourced (`us_liver`: Lossy Image Compression `01`, ratio 12.4, DERIVED; `usb_cine*`: MPEG-4 Part 2 clips). Their cells are **provisional** and enter no per-series rule; say so in the verdict.
+
 **Question.** With every change adopted this round in place (row 72's per-depth split, row 67's codec string, row 49's
 decoder interface, row 74's GBR read in Firefox), which codec reaches the full exact fill first, per taxonomy series?
 **Decides:** total time per series on row 23's links at 1× and 4×, HTJ2K against the optimized AV1 payload, in
@@ -1340,6 +1346,8 @@ interleaved, n ≥ 10; nothing slower on a low-RTT link. **Adopt:** the round's 
 **Deliverable:** the change and its numbers in the client's README.
 
 ### 80 GREY420
+
+**Correction, 2026-10-07 (data audit):** this row's 8-bit grey series (`usb_cine`, `usb_still`) are lossy-sourced or of unknown history: adopt only on exactness and Chromium no-regression, never on a byte gain.
 
 **Question.** Row 74 found Firefox's WebCodecs returns 8-bit grey exact only when it is coded as full-range 4:2:0
 (+0.07 % bytes). What does serving 8-bit grey that way buy in each engine? **Decides:** bytes, decode time and total
@@ -1844,6 +1852,57 @@ in one place, every number with its source.
 **Branch:** `claude/av1-unified`.
 
 **Deliverable:** the docs.
+
+## The data rows (94–97), 2026-10-07
+
+A data audit (2026-10-07) read the DICOM header of every set the lab measured. The X-ray, CT, MR, PET and fluoroscopy
+sets are sound (lossy flag `00` or full-fidelity derivation, or originals stored uncompressed). **Every ultrasound
+source is lossy or of unknown history**: `us_liver` carries Lossy Image Compression `01`, ratio 12.4, DERIVED\SECONDARY;
+`usb_cine` and `usb_cine_rgb` are MPEG-4 Part 2 clips; `usb_still` are PNG exports of unknown history. `mg16_cbis` is a
+digitized film stretched to 16 bits. Lossy-sourced pixels bias toward AV1 (less noise, block structure AV1's intra tools
+exploit, exact repeats for inter prediction, and faster decode because time follows bytes). Exactness verdicts stand:
+any input proves a decoder exact. Bytes, time and inter verdicts on those sets do not count as evidence.
+
+### 94 DATAGUARD
+
+**Do:** in `FIXTURES.md`, a provenance column per set: original transfer syntax, Lossy Image Compression (0028,2110)
+with ratio and method, Image Type (ORIGINAL/DERIVED; FOR PRESENTATION/PROCESSING for mammography), cropping or
+conversion by the lab, and a class — sound, lossless-but-unrepresentative, lossy-sourced, unknown. `fetch_data.py`
+records those attributes and refuses a lossy or video source unless the set is marked lossy-sourced; a lossy-sourced
+set enters no bytes, time or inter verdict (a protocol rule in this queue). Correct in place, never drop: the
+ultrasound claims in `docs/av1/README.md` (§A1, §Total time: "inter pays on the colour-transformed ultrasound", "the
+ultrasound turns over"), every verdict cell that rests on `us_liver`, `usb_cine*` or `usb_still` (rows 6, 9, 11, 12,
+17, 22, 23, 25, 28, 32, 34, 39, 40, 42, 46 and any later), marked provisional with the reason. Add under `## Blocked`:
+no public sound source exists for breast ultrasound stills or cine, ABUS or multi-frame angiography (every one found is
+an image or video export, or carries no licence); the owner decides between a partner's native DICOM under a data use
+agreement and phantom scans on real scanners. Non-commercial (CC BY-NC) data is not usable for this work: its licence
+restricts purpose, not where the copy lives. **Decides:** the guard refuses a known lossy set (mutate: it must) and
+accepts every sound one; `check_links.py` and the gate green.
+
+### 95 DBTSCALE
+
+**Question.** Do the DBT verdicts (bytes, inter against intra, total time, the per-depth split) hold on sound data at
+scale? **Do:** from the large CC BY 4.0 breast collection the lab already uses (its full DBT volumes, every system it
+holds), at least 5 whole, uncropped exams per system; bytes per layout against HTJ2K, inter at G = 2, 8, 16 in real
+slice order, decode and total time on row 23's links at 1× and 4×; every frame exact. **Decides:** the same cells as
+rows 10, 44, 46 and 77 on this data, with the spread across exams and systems; each earlier DBT verdict confirmed or
+corrected in place. **Branch:** `claude/av1-unified`.
+
+### 96 FFDMSCALE
+
+**Question.** The same for full-field mammography and synthesized 2D, FOR PRESENTATION as a viewer receives them, and
+the 14-bit FOR PROCESSING raw images the lab never measured. **Do:** at least 5 exams per system from the same
+collection and the second CC BY collection with synthesized 2D; bytes per layout against HTJ2K, decode and total time
+on row 23's links at 1× and 4×; every frame exact. **Decides:** the per-depth split and the per-series codec rule for
+these images on sound data. **Branch:** `claude/av1-unified`.
+
+### 97 RGBNATIVE
+
+**Question.** The adopted colour transform for RGB (RCT) was sized on lossy-sourced ultrasound. Does it still beat
+GBR on natively stored, uncompressed colour ultrasound (lossy flag `00`) — the only open sound source is a small set of
+colour stills in a CC BY collection? **Decides:** bytes and decode time per layout against HTJ2K, every frame exact; the
+RGB rule confirmed or corrected in place, with the caveat that a handful of stills is not a cine. **Branch:**
+`claude/av1-unified`.
 
 ## Blocked
 
