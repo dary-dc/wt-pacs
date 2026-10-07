@@ -54,6 +54,14 @@ async function planes(frame, copy, l, mutate) {
   return { why: `format ${format}` };
 }
 
+/** How plane 0 differs from the encoder's input: count, first place, largest step. */
+async function where(plane, dir, l, i) {
+  const y = new Uint8Array(await (await fetch(`/${dir}/${l.name}/${String(i).padStart(3, "0")}.y`)).arrayBuffer());
+  let n = 0, first = -1, max = 0;
+  for (let k = 0; k < y.length; k++) if (y[k] !== plane[k]) { n++; if (first < 0) first = k; max = Math.max(max, Math.abs(y[k] - plane[k])); }
+  return n ? `; plane 0: ${n} bytes differ, first at byte ${first} (row ${Math.floor(first / l.width)}), max ${max}` : "; plane 0 equal";
+}
+
 async function probe({ frames: dir, mutate }) {
   const manifest = await (await fetch(`/${dir}/manifest.json`)).json();
   const rows_ = [];
@@ -85,7 +93,7 @@ async function probe({ frames: dir, mutate }) {
             const truth = l.frames[i].planes;
             const want = got.planes.length > truth.length ? got.planes.map(() => truth[0]) : truth;
             if (sums.every((s, k) => s === want[k])) c.exact++;
-            else c.why = `planes ${sums.map((s, k) => (s === want[k] ? "ok" : "differ")).join(",")}`;
+            else c.why = `planes ${sums.map((s, k) => (s === want[k] ? "ok" : "differ")).join(",")}` + await where(got.planes[0], dir, l, i);
           } catch (e) {
             c.why = `${e.name}: ${e.message}`;
           }
