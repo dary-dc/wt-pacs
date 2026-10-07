@@ -78,6 +78,12 @@ the frame.
 * **WebCodecs** (`hardwareAcceleration: 'prefer-software'`, `optimizeForLatency: true`, `copyTo`) when every
   stream of the item is ≤ 10 bits, `VideoDecoder` exists, and a per-worker, per-layout probe (one tiny bundled unit,
   checksum checked) passes.
+* **The codec string is the stream's own** (row 67 CODECSTR): each keyframe's sequence header gives the AV1 codecs
+  parameter string (AV1-ISOBMFF §5) with every optional field — `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, the level and tier
+  of operating point 0 as coded, 31 included — and the decoder is reconfigured only when the string changes. Chromium
+  reports the string's colour on the frame, not the stream's, so whether a 4:4:4 stream is identity (matrix 0) is
+  read from the sequence header, as for dav1d-WASM. Which engines accept which strings:
+  [`lab/av1/codecstr`](../../lab/av1/codecstr/README.md).
 * **dav1d-WASM** (dav1d 1.5.4, emscripten 3.1.74, SIMD build) otherwise — 12-bit top streams, no `VideoDecoder`,
   or a failed probe.
 * Both lazy-imported on the first AV1 item of a worker, memoised; an HTJ2K page fetches no AV1 code.
