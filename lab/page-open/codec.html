@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <!-- ?codec=htj2k|av1 names the series' codec, ?tree=PATH serves client/downloader from PATH (the
+       rig's copy of an earlier commit), ?pre=1 preloads the AV1 decoder's files, ?sha= is the source's
+       checksum the first frame must hash to. lab/page-open/README.md §Cold round trips by codec -->
+  <script>
+    const q = new URLSearchParams(location.search);
+    const tree = (globalThis.__tree = (q.get("tree") ?? "") + "/client/downloader");
+    const link = (rel, href, as) => document.head.append(Object.assign(document.createElement("link"), { rel, href, as }));
+    link("preload", "/wt/dev-transport.json", "fetch");
+    link("modulepreload", `${tree}/consumer.js`);
+    for (const f of ["downloader.js", "decoder.js"]) link("preload", `${tree}/${f}`, "script");
+    link("preload", "/client/transport-ts/dist/session.js", "script");
+    if (q.get("codec") === "av1") {
+      if (q.get("pre") === "1") {
+        for (const f of ["av1.js", "av1-item.js", "av1-frame.js", "decode-av1.js", "wasm-glue.js", "decode-av1-webcodecs.js", "av1-probe.js"]) {
+          link("preload", `${tree}/${f}`, "script");
+        }
+        link("preload", "/lab/.av1-build/out/simd.js", "fetch");
+        link("preload", "/lab/.av1-build/out/simd.wasm", "fetch");
+      }
+    } else {
+      link("preload", "/lab/decode-bench/vendor/openjph/openjphjs.js", "script");
+      link("preload", "/lab/decode-bench/vendor/openjph/openjphjs.wasm", "fetch");
+    }
+  </script>
+  <title>page open — by codec</title>
+</head>
+<body>
+  <div id="log"></div>
+  <script type="module">
+    const q = new URLSearchParams(location.search);
+    const open = (globalThis.__wtpacsOpen = {});
+    const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
+    const log = (s) => (document.getElementById("log").textContent += s + "\n");
+    mark("script");
+
+    try {
+      const { DownloaderClient } = await import(`${globalThis.__tree}/consumer.js`);
+      const cfg = await (await fetch("/wt/dev-transport.json")).json();
+      mark("config");
+      const decoder = q.get("codec") === "av1"
+        ? { codec: "av1", glue: "/lab/.av1-build/out/simd.js", wasm: "/lab/.av1-build/out/simd.wasm", dir: "/lab/.av1-build/out" }
+        : { glue: "/lab/decode-bench/vendor/openjph/openjphjs.js", wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm", dir: "/lab/decode-bench/vendor/openjph" };
+      const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, { decoders: 3, decoder });
+      mark("session");
+      const f = await c.requestExactFrame(0);
+      const digest = await crypto.subtle.digest("SHA-256", f.bytes.slice());
+      const sha = [...new Uint8Array(digest)].map((x) => x.toString(16).padStart(2, "0")).join("");
+      if (sha !== q.get("sha")) throw new Error(`frame 0 hashes to ${sha}, not the source's ${q.get("sha")}`);
+      mark("frame");
+      log(`${f.info.width}x${f.info.height} exact in ${open.frame} ms`);
+      c.close();
+    } catch (e) {
+      globalThis.__wtpacsError = String(e?.stack || e);
+      log("FAILED: " + globalThis.__wtpacsError);
+    }
+    globalThis.__wtpacsDone = true;
+  </script>
+</body>
+</html>
