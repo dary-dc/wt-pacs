@@ -7,7 +7,7 @@ however many names it has and only where its top fits a 12-bit stream. Items are
 lab/av1/item/ingest.py --split K, which writes nothing unless native dav1d decodes every one back to its
 source; `--reuse DIR` takes ingest's output from row 43's run (DIR/SET/kK.PRESET) where it exists.
 
-usage: make_frames.py BUILD OUT SETDIR ... [--preset cpu0|good:N|allintra:N] [--reuse DIR] [--jobs 4]
+usage: make_frames.py BUILD OUT SETDIR ... [--preset cpu0|good:N|allintra:N] [--reuse DIR] [--jobs 4] [--k 2]
        — lab/av1/splittime/README.md
 """
 import argparse
@@ -67,6 +67,7 @@ def main():
     ap.add_argument("--preset", default="cpu0")
     ap.add_argument("--reuse", type=Path)
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--k", type=int, help="this split alone, not every arm")
     a = ap.parse_args()
     build, out = a.build.resolve(), a.out.resolve()
     with ThreadPoolExecutor(a.jobs) as pool, ProcessPoolExecutor(a.jobs) as procs:
@@ -76,7 +77,7 @@ def main():
             dst = out / s.name
             dst.mkdir(parents=True, exist_ok=True)
             work.append((src, s, dst, procs.submit(htj2k_frames, src, dst),
-                         {k: pool.submit(items, build, src, out, k, a.preset, a.reuse) for k in arms(bits(s))}))
+                         {k: pool.submit(items, build, src, out, k, a.preset, a.reuse) for k in arms(bits(s)) if a.k in (None, k)}))
         manifest = []
         for src, s, dst, h, ks in work:
             h.result()
