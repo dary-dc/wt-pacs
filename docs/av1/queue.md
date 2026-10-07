@@ -24,6 +24,9 @@ and its branch belong to other work.
 sleeps, so the two never share a usage window). A session started by the night routine treats `night` exactly as
 `ready`; any other session leaves them.
 
+**`held until <UTC time>` rows** wait for the owner's next usage window: a session treats one as `ready` once
+`date -u` is at or past that time, and leaves it before. An `after …` clause on the same row still applies.
+
 **`after env` rows** wait for the owner to switch the cloud environment's network access to full; the owner sets them to
 `ready`, and no session claims one before.
 
@@ -120,6 +123,9 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | claimed 2026-10-07 (night) |
 | 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67 |
 | 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row |
+| 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | held until 2026-10-07 18:00 UTC |
+| 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | held until 2026-10-07 18:00 UTC |
+| 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | held until 2026-10-07 18:00 UTC, after 44 |
 
 ## Briefs
 
@@ -1191,6 +1197,37 @@ commit). **Branch:** `claude/av1-unified`. **Deliverable:** the docs.
 scratch), and write `docs/av1/MERGE.md`: what the branch adds, what it changes in the HTJ2K path (nothing, or each
 change with its measurement), the commands that verify it, and what stays open with its decision. The owner merges;
 never push to `main`. **Branch:** `claude/av1-unified`. **Deliverable:** the merge, the green gate, `MERGE.md`.
+
+### 70 HTJ2KENC
+
+**Question.** Which HTJ2K encoder settings minimise lossless bytes and browser decode time together: code-block size
+(32², 64², 32×128, 128×32), number of wavelet decompositions (3–6), progression order (RPCL, LRCP), precincts, and
+whether the library defaults another project uses (`imagecodecs`' HTJ2K encoder defaults) differ from the lab's
+`ojph_compress` settings in either? **Why it matters:** every HTJ2K fill pays these bytes and this decode; no row has
+swept them. **Decides:** bytes per series and OpenJPH-WASM decode time per frame in headless Chromium (interleaved,
+n ≥ 10) on the taxonomy series, every frame exact against the source checksum; the fill's total time on row 23's links
+for the best candidates. **Adopt:** the round's rule — a setting changes the shipped codestreams only if it wins on
+total time with no loss elsewhere. **Branch:** `claude/av1-unified`. **Deliverable:** the table and the decision in
+`decode/README.md` and the ingest's README.
+
+### 71 INGEST1
+
+**Question.** Row 52 found that lossless AV1 bytes depend on `--jobs`: each worker codes its frames in one aomenc run of
+keyframes and libaom carries state across them. Does coding one aomenc run per frame make the bytes independent of the
+worker count, and at what cost in ingest time and bytes? **Decides:** byte-identical items at 1, 2 and 4 workers on every
+series; ingest time and total bytes against today's chunked runs (interleaved, n ≥ 5); every frame exact. **Adopt:**
+the round's rule; determinism is required, so the per-frame run is adopted unless it costs more than 5 % in bytes or
+doubles ingest time, in which case report and stop. **Branch:** `claude/av1-unified`. **Deliverable:** the change and
+its numbers in `lab/av1/item/README.md` §One pipeline; close row 52's `## Blocked` entry.
+
+### 72 SPLITRULE
+
+**Question.** Row 44 decided the per-depth layout (which k, or w10, at each depth 9–16). What does adopting it take
+end to end: the payload header and reader must accept every k the rule picks (today's reader refuses a split above 2,
+and the ingest refuses more than 14 bits), the ingest picks k from the series' depth, and the docs state the rule.
+**Decides:** every frame exact at every depth 8–16 through every decoder path row 43 covered; golden vectors for each
+new layout; the gate green; HTJ2K unchanged. **Adopt:** the rule as row 44 states it. **Branch:**
+`claude/av1-unified`. **Deliverable:** the code, the vectors, and the rule in `docs/av1/item-format.md`.
 
 ## Blocked
 
