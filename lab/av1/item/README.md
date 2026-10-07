@@ -81,8 +81,22 @@ check moved in-process (`decode.cpp`). `bench.py` sets it against a checkout of 
   AV1 refused, HTJ2K written), one sample +1 in the HTJ2K decode (the reverse), the signed SIZ left unmarked
   (the CT refused, the fluoroscopy written).
 
-**The bytes depend on `--jobs`, in both revisions.** On the 10-bit volume, AV1 at 2 and 4 workers differs from
-1 worker in the frames after a chunk's start (12–23 at 2; 6–10 and 12–17 at 4) — libaom carries state across
-keyframes within one run; the fluoroscopy and the ultrasound do not show it. Every frame is exact either way.
-Bytes independent of the worker count would need a run per frame, which changes today's bytes: the owner's
-([`queue.md`](../../../docs/av1/queue.md) §Blocked).
+**The bytes depended on `--jobs`** *(row 52; corrected by row 71: no longer, below)*. On the 10-bit volume, AV1 at
+2 and 4 workers differed from 1 worker in the frames after a chunk's start (12–23 at 2; 6–10 and 12–17 at 4) —
+libaom carries state across keyframes within one run; every frame was exact either way.
+
+**One encoder run per frame (row 71, 2026-10-07): the bytes no longer depend on `--jobs`, for +12 % encode CPU.**
+`bench.py workers`, OLD this revision with only `av1()`'s encoder loop chunked again (`good:6`, the first 16 frames of each of the 23 sets of rows 2, 45 and 46, 252 items): **every
+set byte-identical at 1, 2 and 4 workers**, `ffdm_d` at 1 and 2 (four aomenc on its frames exceed the container's
+memory, as before). Bytes **0.99987–1.00015 of the chunked ingest's** at one worker, 0.999998 in total: a one-frame
+run writes aomenc's reduced still-picture sequence header, the one every golden item already carried, and the
+two-pass statistics of one frame instead of the chunk's. Forcing video mode (`--force-video-mode=1`) instead kept
+the chunked bytes on most series but rewrote 106 golden items, so it was not taken; one golden item that row 80
+wrote while it was on the branch (`grey420/g8`) is regenerated, exact through the gate. Mutation: the chunked
+ingest as the new arm fails the check on both tomosynthesis volumes. **Time** (`bench.py time`, whole series,
+n = 5, arms interleaved, four cores, nothing else running), new against chunked, wall at 1 worker: fluoroscopy
+61.0 [59.5–61.4] against 54.1 [53.2–55.7] s, the 10-bit volume 103.4 [101.7–108.8] against 92.2 [91.2–92.7],
+the ultrasound 165.7 [160.9–169.4] against 147.8 [145.2–151.9] — +12–13 % CPU, every range disjoint; at 4
+workers +6–13 % wall (17.7 against 15.7, 25.9 against 24.4, 43.0 against 39.8 s). Whole series, bytes
+0.99997–0.99998 of chunked; the chunked ingest gave three different totals for the 10-bit volume at 1, 2 and 4
+workers, the new one the same in every round. Adopted under the row's rule (≤ 5 % bytes, under twice the time).
