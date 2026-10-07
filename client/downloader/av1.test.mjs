@@ -97,6 +97,44 @@ const { parseItem } = await import("./av1-item.js");
   check(wrong === 0, `merge: ${wrong} of 162 (bits, sign, split) cells wrong`);
 }
 
+/**
+ * The codecs string is the one ffmpeg 6.1.1's trace_headers and ffprobe read from the same sequence header
+ * (lab/av1/codecstr): reduced still-picture headers as ingest writes them, and full ones with timing info, a
+ * decoder model, frame ids, High tier and nine operating points, the first point's level taken.
+ */
+{
+  const { codecString, sequence } = await import("./av1-item.js");
+  const hex = (h) => Uint8Array.from(h.match(/../g), (x) => parseInt(x, 16));
+  const cases = [
+    ["0a05180cfffb44", "av01.0.00M.08.1.110.02.02.02.0", "8-bit grey, reduced"],
+    ["0a05180cfffbc4", "av01.0.00M.10.1.110.02.02.02.0", "10-bit grey, reduced"],
+    ["0a08380cfffb40434008", "av01.1.00M.08.0.000.01.13.00.1", "8-bit 4:4:4 sRGB identity, reduced"],
+    ["0a08380cfffbc0434008", "av01.1.00M.10.0.000.01.13.00.1", "10-bit 4:4:4 sRGB identity, reduced"],
+    ["0a0a00000002aff79b5f3c40", "av01.0.00M.10.1.110.02.02.02.0", "10-bit grey, a group's full header"],
+    ["0a1d040000000400000065780000000a5300004dafc8afc85d57fbcdaf9e20", "av01.0.19M.10.1.110.02.02.02.0", "timing info and a decoder model, level 6.3"],
+    ["0a1d040000000400000065780000000a5300004fafc8afc85d57fbcdaf9e20", "av01.0.19H.10.1.110.02.02.02.0", "the same at High tier"],
+    ["0a1a008707038181c04060e030301808041c0206010102aff78a3401", "av01.0.00M.08.0.110.02.02.02.0", "4:2:0, nine operating points"],
+    ["0a1a0087072b8181c04060e030301808041c0206010102aff78a3401", "av01.0.05M.08.0.110.02.02.02.0", "the same, the first point's level edited to 3.1"],
+    ["0a0a0000004557fbcdaf9e20", "av01.0.08H.10.1.110.02.02.02.0", "High tier at level 4.0, the lowest that codes a tier"],
+    ["0a0b00000002aff7f036be7880", "av01.0.00M.10.1.110.02.02.02.0", "frame ids present (error resilient)"],
+  ];
+  for (const [h, want, what] of cases) {
+    const got = codecString(sequence(hex(h)));
+    check(got === want, `codec string: ${what} is ${want} (${got})`);
+  }
+  const golden12 = golden("plain", "g12").subarray(20);
+  check(codecString(sequence(golden12)) === "av01.2.00M.12.1.110.02.02.02.0", "codec string: 12-bit grey is Professional profile");
+  const cut = (() => {
+    try {
+      return sequence(hex("12000a0a0000"));
+    } catch (e) {
+      return e.message;
+    }
+  })();
+  check(/sequence header cut/.test(cut), `codec string: a cut sequence header is refused by name (${cut})`);
+  check(sequence(hex("12003200")) === null, "codec string: a unit with no sequence header has none");
+}
+
 /** The decoder chosen per item: WebCodecs only where every stream is ≤ 10 bits and its probe passed. */
 {
   const calls = [];

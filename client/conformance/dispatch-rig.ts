@@ -817,8 +817,9 @@ async function av1Through(
 ) {
   const ch = `wtpacs-webcodecs-${++world}`;
   const units: number[] = [];
+  const codecs: string[] = [];
   const spy = new BroadcastChannel(ch);
-  spy.onmessage = (e) => void units.push(e.data);
+  spy.onmessage = (e) => void (typeof e.data === "string" ? codecs : units).push(e.data);
   const got: Frame[] = [];
   const failures: Fail[] = [];
   const { c, fake } = await open(DownloaderClient, {
@@ -834,7 +835,7 @@ async function av1Through(
   c.close();
   await settle(50);
   spy.close();
-  return { got, failures, units, frames };
+  return { got, failures, units, codecs, frames };
 }
 
 /** Each frame hashes to its source's checksum at `base`.sha256 and says the shape `want` names. */
@@ -906,6 +907,18 @@ async function anAv1ItemTakesWebCodecsOnlyWhereItIsExact(DownloaderClient: Downl
   const spans = wc.got.map((f) => f.info.stamps as { decodeStart: number; decodeEnd: number }).sort((a, b) => a.decodeStart - b.decodeStart);
   const overlaps = spans.filter((s, i) => i > 0 && s.decodeStart < spans[i - 1].decodeEnd).length;
   check(spans.length === shallow.length && overlaps === 0, `webcodecs: its decoder takes the items it holds one at a time (${overlaps} overlapping)`);
+  const [item, probe] = ["/client/downloader/av1-item.js", "/client/downloader/av1-probe.js"];
+  const { codecString, sequence, units: streams } = await import(item);
+  const { PROBES } = await import(probe);
+  const own = (u: Uint8Array) => codecString(sequence(u));
+  const derived = new Set<string>(wc.frames.flatMap((f) => {
+    const v = new DataView(f.buffer, f.byteOffset);
+    return streams(f.subarray(20, 20 + v.getUint32(16, true)), f[3]).filter(Boolean).map(own);
+  }));
+  const probes = Object.values(PROBES as Record<string, { unit: string }>).map((p) => own(Uint8Array.from(atob(p.unit), (c) => c.charCodeAt(0))));
+  const foreign = wc.codecs.filter((c) => !derived.has(c) && !probes.includes(c));
+  check(foreign.length === 0 && [...derived].every((c) => wc.codecs.includes(c)),
+    `webcodecs: configured with each stream's own codec string, ${[...derived].join(", ")} (others: ${foreign.join() || "none"})`);
 
   const d12 = await av1Through(DownloaderClient, deep.map((b) => `${b}.av1`), "spy");
   await exactAv1(check, "webcodecs, 12-bit", d12.got, deep, shape(deep));
@@ -1279,7 +1292,7 @@ async function scalableThrough(
   const ch = `wtpacs-scalable-${++world}`;
   const lengths: number[] = [];
   const spy = new BroadcastChannel(ch);
-  spy.onmessage = (e) => void lengths.push(e.data);
+  spy.onmessage = (e) => void (typeof e.data === "number" && lengths.push(e.data));
   const seen: string[] = [];
   const previews: Frame[] = [];
   const frames: Frame[] = [];

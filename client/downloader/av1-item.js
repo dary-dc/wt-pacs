@@ -56,29 +56,118 @@ export function units(frame, split) {
   return [frame.subarray(4, 4 + n), frame.subarray(4 + n)];
 }
 
-/** The AV1 `seq_profile` of a unit's sequence header, or -1: profile 1 is 4:4:4, the only colour here. */
-export function seqProfile(unit) {
+/** The payload of a unit's sequence header OBU, or null. */
+function sequenceHeader(unit) {
   for (let at = 0; at < unit.length; ) {
     const header = unit[at];
     const type = (header >> 3) & 15;
     let p = at + 1 + ((header >> 2) & 1);
-    if (!(header & 2)) return -1;
+    if (!(header & 2)) return null;
     let size = 0;
     for (let shift = 0; p < unit.length; shift += 7) {
       const b = unit[p++];
       size += (b & 127) * 2 ** shift;
       if (!(b & 128)) break;
     }
-    if (type === 1) return p < unit.length ? unit[p] >> 5 : -1;
+    if (type === 1) return unit.subarray(p, p + size);
     at = p + size;
   }
-  return -1;
+  return null;
+}
+
+/**
+ * The fields of a unit's sequence header the codecs parameter string carries, or null: AV1 §5.5,
+ * read up to `color_config`'s end.
+ */
+export function sequence(unit) {
+  const obu = sequenceHeader(unit);
+  if (!obu) return null;
+  let bit = 0;
+  const f = (n) => {
+    let v = 0;
+    for (let i = 0; i < n; i++, bit++) {
+      if (bit >> 3 >= obu.length) throw new Error("undecodable: av1 sequence header cut");
+      v = v * 2 + ((obu[bit >> 3] >> (7 - (bit & 7))) & 1);
+    }
+    return v;
+  };
+  const uvlc = () => {
+    let zeros = 0;
+    while (!f(1)) zeros++;
+    return zeros < 32 ? f(zeros) : 0;
+  };
+  const profile = f(3);
+  f(1);
+  const reduced = f(1);
+  let level = 0;
+  let tier = 0;
+  if (reduced) level = f(5);
+  else {
+    const timing = f(1);
+    if (timing && (f(64), f(1))) uvlc();
+    const decoderModel = timing && f(1);
+    let delayBits = 0;
+    if (decoderModel) {
+      delayBits = f(5) + 1;
+      f(32 + 5 + 5);
+    }
+    const displayDelay = f(1);
+    const points = f(5) + 1;
+    for (let i = 0; i < points; i++) {
+      f(12);
+      const l = f(5);
+      const t = l > 7 ? f(1) : 0;
+      if (i === 0) [level, tier] = [l, t];
+      if (decoderModel && f(1)) f(2 * delayBits + 1);
+      if (displayDelay && f(1)) f(4);
+    }
+  }
+  const wBits = f(4) + 1;
+  const hBits = f(4) + 1;
+  f(wBits + hBits);
+  if (!reduced && f(1)) f(4 + 3);
+  f(3);
+  let orderHint = 0;
+  if (!reduced) {
+    f(4);
+    orderHint = f(1);
+    if (orderHint) f(2);
+    const screen = f(1) ? 2 : f(1);
+    if (screen && !f(1)) f(1);
+    if (orderHint) f(3);
+  }
+  f(3);
+  const high = f(1);
+  const bits = profile === 2 && high ? (f(1) ? 12 : 10) : high ? 10 : 8;
+  const mono = profile === 1 ? 0 : f(1);
+  const [cp, tc, mc] = f(1) ? [f(8), f(8), f(8)] : [2, 2, 2];
+  let range;
+  let ss = [1, 1];
+  let csp = 0;
+  if (mono) range = f(1);
+  else if (cp === 1 && tc === 13 && mc === 0) [range, ss] = [1, [0, 0]];
+  else {
+    range = f(1);
+    if (profile === 1) ss = [0, 0];
+    else if (profile === 2) ss = bits === 12 ? (f(1) ? [1, f(1)] : [0, 0]) : [1, 0];
+    if (ss[0] && ss[1]) csp = f(2);
+  }
+  return { profile, level, tier, bits, mono, ss, csp, cp, tc, mc, range };
+}
+
+const two = (n) => String(n).padStart(2, "0");
+
+/** The AV1 codecs parameter string, every optional field written: AV1-ISOBMFF §5 (Codecs Parameter String). */
+export function codecString(s) {
+  const tier = s.tier ? "H" : "M";
+  const chroma = `${s.ss[0]}${s.ss[1]}${s.ss[0] && s.ss[1] ? s.csp : 0}`;
+  return `av01.${s.profile}.${two(s.level)}${tier}.${two(s.bits)}.${s.mono}.${chroma}.${two(s.cp)}.${two(s.tc)}.${two(s.mc)}.${s.range}`;
 }
 
 /** The stream layouts an item's frame decodes as, before decoding: what a WebCodecs probe must pass. */
 export function layouts(item, top) {
   if (item.rct) return ["c10"];
-  const own = item.depth === 8 && seqProfile(top) === 1 ? "c8" : `g${item.depth}`;
+  const own = item.depth === 8 && sequence(top)?.profile === 1 ? "c8" : `g${item.depth}`;
   return item.split ? [own, "g8"] : [own];
 }
 

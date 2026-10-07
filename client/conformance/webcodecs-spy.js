@@ -1,6 +1,6 @@
 /**
  * decoder.js as it is, with WebCodecs watched, broken or taken away. Every mode but `none` posts each
- * unit's length handed to a VideoDecoder on the BroadcastChannel `?ch=`. `?mode=spy` closes the
+ * unit's length handed to a VideoDecoder, and each codec string it is configured with, on the BroadcastChannel `?ch=`. `?mode=spy` closes the
  * decoder on a one-byte unit, as a decode error would; `fail` on any unit over 1 500 bytes, which no
  * probe is; `stale` hands over the previous unit's frame before each frame; `none` is a browser without one.
  */
@@ -21,6 +21,11 @@ else {
         output(f);
       };
       super({ output: mode === "stale" ? late : output, error });
+    }
+
+    configure(config) {
+      ch.postMessage(config.codec);
+      return super.configure(config);
     }
 
     decode(chunk) {
