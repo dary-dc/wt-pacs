@@ -24,9 +24,17 @@ STATIC=""
 trap 'kill "$STATIC" 2>/dev/null || true; rm -rf "$T"' EXIT
 start_static "$T/static.log"
 
-failed=0
+# Each rig in its own page, side by side: both wait on timers far more than on the CPU.
+pids=()
 for rig in "${RIGS[@]}"; do
-  echo "-- $rig"
-  node client/conformance/drive_page.cjs "http://127.0.0.1:$PORT/client/conformance/page.html?rig=$rig" | tail -2 || failed=1
+  node client/conformance/drive_page.cjs "http://127.0.0.1:$PORT/client/conformance/page.html?rig=$rig" >"$T/$rig.log" 2>"$T/$rig.err" &
+  pids+=($!)
+done
+failed=0
+for i in "${!RIGS[@]}"; do
+  wait "${pids[$i]}" || failed=1
+  echo "-- ${RIGS[$i]}"
+  cat "$T/${RIGS[$i]}.err"
+  tail -2 "$T/${RIGS[$i]}.log"
 done
 exit "$failed"
