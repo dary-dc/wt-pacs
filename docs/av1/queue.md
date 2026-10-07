@@ -127,7 +127,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | claimed 2026-10-07 (night) |
 | 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | after 44 |
 | 73 | **EXACTPROD** — exactness in production: how a client proves every shown frame bit-exact, acts on a mismatch and reports it; a measured design proposal | claimed 2026-10-07 (night) |
-| 74 | **XENGINE** — why WebCodecs AV1 is not exact outside Chromium, and what would make it exact | ready |
+| 74 | **XENGINE** — why WebCodecs AV1 is not exact outside Chromium, and what would make it exact | claimed 2026-10-07 (night routine, XENGINE) |
 
 ## Briefs
 
