@@ -75,7 +75,7 @@ function arm(set, name) {
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
       opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // A `downloader` arm runs that revision of the downloader (row CLIENT).
-        ...(a.downloader && { worker: a.downloader, decoderWorker: "/client/downloader/decoder.js" }) } };
+        ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }) } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
     ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
