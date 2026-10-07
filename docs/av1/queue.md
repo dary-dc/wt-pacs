@@ -136,8 +136,8 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 80 | **GREY420** — 8-bit grey coded as full-range 4:2:0 so Firefox's WebCodecs returns it exact (row 74's proposal): bytes, decode, total time per engine | claimed 2026-10-07 (night, 44c963) |
 | 81 | **SERVERLOAD** — the server under many concurrent fills: where it saturates, and what each client's fill time does before and after | done `5db386d` on `claude/av1-unified` (`7423b1a`, `73d478d`, `f45e0aa`) — **one server core delivers about 400 MB/s of fills; a fill holds its single-session time until the sessions' rates sum past that**: server on one core of a 4-vCPU container, N native sessions (`fill_load`) on the other three, each asking the whole 10-bit DBT volume (13.6 MB HTJ2K, 13.0 MB optimized AV1) at once, unpaced or read-paced at 20 and 50 Mbit; 10 Williams rounds of 54 cells plus 10 of 10 around the knee, 640 runs, 1 012 320/1 012 320 frames byte-identical to ingest's checked items (a flipped reference byte failed every run); at 50 Mbit ×1.00 at 64 sessions (0.98–0.99 cores), ×1.25 at 80, ×2.12–2.19 at 128; at 20 Mbit ×1.00 to 128 (0.84–0.89 cores, 0.7 % of a core a fill), ×1.03 at 160; unpaced the server is the clock from 2 sessions; 2.0–3.1 ms CPU a MB, the same for both codecs; 3.7–4.8 MB resident a filling session (1.1 GB at 256); the server's core saturates, the host 58–60 % busy; from 192 sessions the rig's client sockets drop enough datagrams to back the server off, so nothing is claimed past 160 or beyond one core; gate green — [`docs/transport/transport-conclusions.md`](../transport/transport-conclusions.md) §4 *Many fills at once*, [`lab/server-load`](../../lab/server-load/README.md) on that branch |
 | 82 | **CLIENTLAYOUT** — the client's folders by worker: `client/decode/` (the decode worker, its codec modules and their WASM builds) and `client/transport/` (the page side, the download worker, its transports) | after 56 |
-| 83 | **TEAMAUDIT** — the repository against the team-readiness principles below: every gap, partitioned for rows 84–86 | held until 2026-10-08 03:00 UTC, after 68 |
-| 84 | **NAMES** — names, the one glossary, environment variables and folder leftovers, per the principles | held until 2026-10-08 03:00 UTC, after 83 |
+| 83 | **TEAMAUDIT** — the repository against the team-readiness principles below: every gap, partitioned for rows 84–86 | held until 2026-10-08 03:00 UTC |
+| 84 | **NAMES** — names, the one glossary, environment variables and folder leftovers, per the principles | held until 2026-10-08 03:00 UTC, after 83, 68 |
 | 85 | **ONBOARD** — clone to green from the README alone, the docs essential and current, diagrams, each subject stated once | held until 2026-10-08 03:00 UTC, after 84 |
 | 86 | **CHECKS** — the gate runs every suite and says what it skipped, a stale-build guard, formatting, hygiene, dead code | held until 2026-10-08 03:00 UTC, after 84 |
 
@@ -1389,7 +1389,7 @@ names that project.
 
 ### 83 TEAMAUDIT
 
-**Do:** after row 68, read the whole repository against the principles, verifying each finding at its line. Read-only.
+**Do:** read the whole repository against the principles, verifying each finding at its line. Read-only. Rows 56, 82 and 68 may still be moving folders and docs: note each finding's path as of your read; rows 84–86 re-locate them.
 **Deliverable:** under this row in this queue (not in `docs/`), the findings partitioned by the row that will fix them —
 84 (names, glossary, environment variables, folder leftovers), 85 (README onboarding, docs, diagrams, duplicates), 86
 (the gate, the stale-build guard, formatting, hygiene, dead code, comments) — each with file:line, and a list of what
