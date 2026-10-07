@@ -1906,7 +1906,7 @@ RGB rule confirmed or corrected in place, with the caveat that a handful of stil
 
 ## Blocked
 
-* **2026-10-07 23:05 UTC: row 80 GREY420 — whether to serve 8-bit grey as 4:2:0 is the owner's.** Measured, not
+* **2026-10-07 22:45 UTC: row 80 GREY420 — whether to serve 8-bit grey as 4:2:0 is the owner's.** Measured, not
   adopted by the round's rule: it costs every Chromium fill its +0.2 % bytes and 3.4 % where Chromium's decode is the
   clock (the cine at 4× on LTE and 50 Mbit), and buys Firefox 13–26 % in the same cells
   ([`item-format.md`](item-format.md) §8-bit grey as 4:2:0). The readers already take either form, so serving it is
