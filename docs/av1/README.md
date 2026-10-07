@@ -394,8 +394,8 @@ k = 3 or 2** within 0.02 of each other (0.94–1.02); **13 bits k = 3 = w10** on
 within 20 ms of HTJ2K's), where k = 2 takes 1.66–1.68 at 4× on 50 Mbit; **14 bits k = 2 or 3** where the wire is
 the clock (0.92–0.99) and HTJ2K where a slow CPU meets 20 Mbit or more (k = 2 1.02–1.69, w10 1.01–1.13); **15 and 16
 bits HTJ2K on every cell** (w10 1.02–1.16, d12 1.08–3.11). The adopted k = 2 is the rule at 10–12 and 14 bits, and
-loses only at 9 bits (to the whole samples) and at 13 (to k = 3) — proposed in [`item-format.md`](item-format.md)
-§Proposed: the split per depth. Containers, not phones.
+loses only at 9 bits (to the whole samples) and at 13 (to k = 3) — adopted by row 72 as ingest's rule,
+[`item-format.md`](item-format.md) §The split per depth. Containers, not phones.
 
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any

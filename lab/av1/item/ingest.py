@@ -43,6 +43,11 @@ class Refused(Exception):
     pass
 
 
+def optimized_split(bits):
+    """k by depth after the offset, row SPLITTIME's rule: docs/av1/item-format.md §Representation at ingest."""
+    return 0 if bits <= 9 else 3 if bits == 13 else 2
+
+
 def plan(s, representation, split=None):
     """The header and the streams: [(depth, channels, frame → int array h×w×c in coded planes)].
     `split` forces grey's k, the low bits coded apart; None takes the representation's."""
@@ -61,9 +66,9 @@ def plan(s, representation, split=None):
     if bits > MAX_BITS:
         raise Refused(f"grey of {bits} bits after the offset, over {MAX_BITS}")
     if split is None and bits > 14:
-        raise Refused(f"grey of {bits} bits after the offset: no default layout over 14 bits, only --split")
+        raise Refused(f"grey of {bits} bits after the offset: no default layout over 14 bits, serve HTJ2K or --split")
     if split is None:
-        split = max(0, bits - 12) if representation == "plain" else (2 if bits > 8 else 0)
+        split = max(0, bits - 12) if representation == "plain" else optimized_split(bits)
     if not 0 <= split <= MAX_SPLIT:
         raise Refused(f"split {split}, not 0 to {MAX_SPLIT}: the low stream is 8-bit")
     depth = container(bits - split)
