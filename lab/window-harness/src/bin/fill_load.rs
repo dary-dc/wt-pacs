@@ -65,6 +65,15 @@ fn host_ticks() -> Result<(u64, u64)> {
     Ok((total - v[3] - v[4], total))
 }
 
+/// Datagrams the host's UDP sockets dropped for a full receive buffer.
+fn rcvbuf_errors() -> Result<u64> {
+    let snmp = std::fs::read_to_string("/proc/net/snmp")?;
+    let mut udp = snmp.lines().filter(|l| l.starts_with("Udp:"));
+    let (head, vals) = (udp.next().context("Udp")?, udp.next().context("Udp")?);
+    let at = head.split_whitespace().position(|h| h == "RcvbufErrors").context("RcvbufErrors")?;
+    Ok(vals.split_whitespace().nth(at).context("RcvbufErrors")?.parse()?)
+}
+
 fn rss_kb(pid: u32) -> u64 {
     std::fs::read_to_string(format!("/proc/{pid}/status")).ok()
         .and_then(|s| s.lines().find(|l| l.starts_with("VmRSS:"))
@@ -148,7 +157,7 @@ async fn main() -> Result<()> {
 
     let pid = args.server_pid.to_string();
     let (server0, client0, host0, t0) = (cpu_s(&pid)?, cpu_s("self")?, host_ticks()?, Instant::now());
-    let rss0 = rss_kb(args.server_pid);
+    let (rss0, drops0) = (rss_kb(args.server_pid), rcvbuf_errors()?);
     let done = Arc::new(AtomicBool::new(false));
     let sampler = {
         let done = done.clone();
@@ -170,6 +179,7 @@ async fn main() -> Result<()> {
     done.store(true, Ordering::Relaxed);
     let rss_peak = sampler.await?;
     let (host1, server1, client1) = (host_ticks()?, cpu_s(&pid)?, cpu_s("self")?);
+    let drops = rcvbuf_errors()? - drops0;
 
     let frames: usize = fills.iter().map(|f| f.frames).sum();
     let exact: usize = fills.iter().map(|f| f.exact).sum();
@@ -180,7 +190,7 @@ async fn main() -> Result<()> {
     println!(
         "{{\"sessions\":{},\"read_bps\":{},\"fill_ms\":[{}],\"bytes\":{},\"frames\":{},\"exact\":{},\
          \"wall_s\":{:.3},\"server_cpu_s\":{:.2},\"client_cpu_s\":{:.2},\"host_busy\":{:.3},\
-         \"server_rss_kb_before\":{},\"server_rss_kb_peak\":{}}}",
+         \"server_rss_kb_before\":{},\"server_rss_kb_peak\":{},\"rcvbuf_drops\":{}}}",
         args.sessions,
         args.read_bps,
         ms.join(","),
@@ -193,6 +203,7 @@ async fn main() -> Result<()> {
         (host1.0 - host0.0) as f64 / (host1.1 - host0.1).max(1) as f64,
         rss0,
         rss_peak,
+        drops,
     );
     Ok(())
 }

@@ -21,7 +21,7 @@ python3 lab/server-load/run.py --study htj2k=$W/htj2k,htj2k --study av1=$W/av1,a
 **The study.** The 10-bit breast tomosynthesis volume (`dbt10_ea1141`, 24 × 678×1727), the largest frames
 the lab has fetched: 13.6 MB as the served HTJ2K, 13.0 MB as the optimized AV1 item (libaom 3.15.1 `good:6`).
 
-**The cell.** Each run starts one server per codec pinned to core 0, and `fill_load` pinned to cores 1–3:
+**The cell.** Each cell starts a fresh server pinned to core 0 and warms it with one unrecorded fill, and `fill_load` pinned to cores 1–3:
 N sessions, each on its own socket, connect, wait at a barrier, then each asks the whole study
 (`StreamFrames {}`) at once; a session's fill is its ask to its last frame. Every frame's body is matched
 byte for byte with the item ingest wrote, which ingest wrote only after decoding it back to the checksum
@@ -29,7 +29,10 @@ taken when the series was fetched. A session reads either as fast as it can (`--
 phone's rate, 2.5 MB/s (20 Mbit) or 6.25 MB/s (50 Mbit), by pacing its reads, so QUIC's flow control,
 not a shaped link, holds the server back: no loss, no queue, loopback round trip. Server CPU is the
 server's threads' `schedstat` over the fills, memory its resident set sampled every 20 ms, and host
-busy the share of all four cores `/proc/stat` saw busy. Cells (codec × rate × N) run in a Williams
+busy the share of all four cores `/proc/stat` saw busy, and drops the datagrams the host's UDP sockets
+refused for a full receive buffer (`/proc/net/snmp`). The client's sockets are the rig's, not a phone's:
+`net.core.rmem_default` is raised to 4 MB (`echo 4194304 > /proc/sys/net/core/rmem_default`), without
+which 64 unpaced sessions already drop datagrams at the client and back the server off. Cells (codec × rate × N) run in a Williams
 order per round (`lab/scripts/order.py`).
 
 **Why not `server_ab`.** `lab/disk-access-bench`'s `server_ab` fills too, but reports asks per second
