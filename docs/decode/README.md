@@ -1460,6 +1460,7 @@ through the platform's media stack, not GStreamer.
   `isConfigSupported` says true for Main 8 and 10, but every monochrome stream is refused
   (`EncodingError: The given encoding is not supported`) and 4:4:4 comes back as 8-bit `BGRX` —
   exact for 8-bit GBR, read as RGB, and 8 bits of a 10-bit RCT stream — which `read()` refuses.
+  *Since row XENGINE:* `read()` takes 8-bit GBR as RGB, below.
   Ordinary 4:2:0 also comes back as `BGRX`. WebKitGTK: every AV1 unit fails (`Decode error`),
   ordinary 4:2:0 controls included. GStreamer's libaom `av1dec` refuses WebKit's `alignment=frame`
   caps. **So in both every series that says `depth` ≤ 10 fails every frame, 0/240 a cell**: the
@@ -1476,6 +1477,86 @@ What would make the choice right, proposed and not built: `typeof VideoDecoder` 
 `isConfigSupported` decide nothing (Firefox and WebKitGTK both say true and decode none of these
 shapes). The worker would decode a tiny lossless keyframe of the series' layout and depth at init,
 check its samples, and fall back to dav1d-WASM on any difference, refusal or format it cannot read.
+
+### Why, and what would make it exact
+
+Row XENGINE ([`lab/av1/xengine`](../../lab/av1/xengine/README.md)), 2026-10-07. The causes are read from the
+sources of the engines measured (Firefox at `FIREFOX_157_0_RELEASE`, WebKit at `webkitgtk-2.52.6`). Each
+cause was then tested on the same engines with every layout a client could hand `VideoDecoder`, two real
+frames each, every plane against the encoder's input. Codec strings made no difference: row CODECSTR's derived
+string and `av01.0.04M.10` gave the same frames in every cell.
+
+| layout | Chromium 141 | Firefox 157 | WebKitGTK 2.52.6 | WebKitGTK + `dav1ddec` |
+| --- | --- | --- | --- | --- |
+| 8-bit grey, 4:0:0 (the product's) | exact, `I420` | refused | decode error | no format |
+| 8-bit grey, 4:2:0 mid-grey chroma | exact, `I420` | `BGRX`, off by ≤ 20 | decode error | `I420`, wrong copy at 760 wide, exact at 768 |
+| the same, **tagged full range** | exact, `I420` | **exact, `BGRX`** | decode error | as above |
+| 10-bit grey, 4:0:0 or 4:2:0 | exact, `I420P10` | refused, or `BGRX` (8 of 10 bits) | decode error | decode error, or no format |
+| 8-bit GBR (the product's colour) | exact, `I444` | **exact, `BGRX`** | refused (`av01.1`) | refused (`av01.1`) |
+| 10-bit 4:4:4 (the reversible transform) | exact, `I444P10` | `BGRX`, 8 of 10 bits | refused (`av01.1`) | refused (`av01.1`) |
+
+Firefox's two exact rows hold for all 256 values in every plane (two synthetic ramps).
+
+**Firefox 157.** WebCodecs decodes in the RDD process, and there the bundled FFmpeg comes before dav1d's own
+module (`PDMFactory::CreateRddPDMs`). FFmpeg's libdav1d wrapper returns monochrome as `GRAY8`/`GRAY10`
+(`libdav1d.c`). Gecko's plane geometry (`SetChromaPlaneGeometryFromAVFormat`) knows no grey format and treats
+it as 4:2:0 with no chroma, so the copy fails and the decoder closes with `EncodingError`. Everything that does
+decode reaches the page as 8-bit `BGRX`, whatever its depth or layout. `DecoderAgent` gives the decoder the
+image bridge as its compositor, so the RDD uploads each picture to a texture
+(`RemoteVideoDecoderParent::ProcessDecodedData`), and the frame's format is the texture's, RGB
+(`GuessPixelFormat`). An identity 4:4:4 stream passes through that conversion untouched. Grey with mid-grey
+chroma comes back as R = G = B = Y only at full range; at limited range the expansion moves it by up to 20.
+`copyTo({ format })` converts to RGB alone. Even a planar image would lose its depth: Gecko's image formats
+have no 10-bit YUV (`ImageUtils`). Two preferences were tried. `media.rdd-process.enabled` false removes
+WebCodecs AV1 (every configuration unsupported), and `media.rdd-ffvpx.enabled` false changes nothing. **So in
+Firefox 157 no 10-bit layout can be exact, and 8-bit can, as GBR or as full-range 4:2:0 grey.**
+
+**WebKitGTK 2.52.6.** Three faults stack.
+
+1. WebCodecs takes only `av01.0` strings (`isSupportedDecoderCodec`), so every 4:4:4 stream, being High
+   profile, is refused at `configure`. Row CODECSTR's derived strings make that refusal visible up front, where
+   the old fixed string let it fail later as a decode error.
+2. The decoder is handed `video/x-av1, alignment=frame` with no parser in front (parsers are inserted for
+   H.264 and H.265 only), and Ubuntu's one AV1 decoder, libaom's `av1dec`, takes `alignment=tu` alone. Every
+   unit fails.
+3. With gst-plugin-dav1d's `dav1ddec`, which takes `frame`, ranked first, the frames decode, but only `I420`,
+   `I422`, `I444`, `NV12`, `A420` and 8-bit RGB have a WebCodecs format (`convertVideoFramePixelFormat`). Grey,
+   10-bit and GBR frames come back with none, and `copyTo` refuses them. `copyTo` itself handles only `NV12`,
+   `I420` and RGBA ("FIXME: Handle I422, I444…"). It also reads an even-width `I420` frame's luma at the frame's
+   width rather than at GStreamer's stride (`bytesPerRowY`), so the 760-wide frame (stride 768) comes back
+   wrong from row 66 on, while 416 of its 421 rows match the input read at 768, and the 768-wide frame is exact.
+
+So on WebKitGTK at most an 8-bit 4:2:0 frame whose width equals the decoder's stride can be exact, and only
+with a decoder that is not installed by default. Nothing to adopt.
+
+**Safari, from the same source; not run here.** On Cocoa, WebCodecs AV1 sits behind the preference
+`WebCodecsAV1Enabled`. Its status is preview and it is off by default everywhere but the GStreamer ports
+(`UnifiedWebPreferences.yaml`). Where it is on, it decodes in software through libwebrtc's dav1d
+(`LibWebRTCVPXVideoDecoder`, type AV1), which refuses anything but 8-bit 4:2:0
+(`layout != I420 || bpc != 8`) and returns `NV12`. No hardware decoder is on that path. Exactness on a phone
+therefore waits on a device run ([`docs/av1/queue.md`](../av1/queue.md) §Blocked), and at best covers the same
+8-bit 4:2:0 grey.
+
+**Built: the client reads 8-bit GBR as RGB.** `decode-av1-webcodecs.js` takes a `BGRX` or `RGBX` frame of a
+4:4:4 identity stream and splits it into the G, B and R planes it was coded in. Grey returned as RGB is still
+refused. The per-layout probe now passes `c8` in Firefox, so an 8-bit colour series decodes there through
+WebCodecs. Through the product's worker (`lab/av1/xbrowser`, the ultrasound's first 4 frames, 10 interleaved rounds)
+every frame stays exact against the source's checksum, 40/40 per cell. A frame takes 0.77× dav1d-WASM's time
+on the same frames at 1× (range 0.67–1.12, faster in 9 of 10 rounds) and 0.62× at 4× (0.56–0.71, 10 of 10):
+58 against 79 ms, and 190 against 300 ms. One decode at a time on 4 cores, nowhere near the host's saturation;
+a container's times, not a phone's. Chromium is unchanged: it returns `I444`, and its frames and choice stay as before. Three
+mutations failed the new checks: G and B swapped, the RGB path removed, and grey taken as RGB.
+
+**Proposed, not built: 8-bit grey coded as full-range 4:2:0.** The ingest would code 8-bit grey with mid-grey
+chroma and the full-range flag instead of 4:0:0. The cost is +0.07 % bytes on the ultrasound's grey (+0.06 %
+at 10 bits). The client would take `BGRX` with R = G = B as grey. Chromium still returns `I420` with neutral
+chroma, which `read()` already takes. In Firefox this would make every 8-bit grey series exact through
+WebCodecs, and with it every split's 8-bit low stream (§A split item through two decoders). It changes what the
+store holds for those series, so it is the owner's call
+([`docs/av1/item-format.md`](../av1/item-format.md)). Neither Firefox's tops over 8 bits nor anything in
+WebKitGTK can follow without the engines changing: grey and high-depth formats in Gecko's FFmpeg path and
+`VideoFrame`, and in WebKit a parser before the decoder, the grey and high-depth formats, an `I444` copy and
+the stride fix.
 
 ### Decode time against HTJ2K
 

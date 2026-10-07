@@ -314,5 +314,44 @@ else {
     "stream: the decoder that refused them still decodes the next item exactly");
 }
 
+/** An 8-bit RGB frame, as Firefox returns an identity stream, is read back as the G, B, R planes it was coded in; grey is not taken as RGB. */
+{
+  const { PROBES } = await import("./av1-probe.js");
+  const unit = (layout) => Uint8Array.from(atob(PROBES[layout].unit), (c) => c.charCodeAt(0));
+  const [w, h, pad] = [3, 2, 2];
+  const plane = (k) => Uint8Array.from({ length: w * h }, (_, i) => (i * 37 + k * 91) & 255);
+  const [g, b, r] = [plane(0), plane(1), plane(2)];
+  let format = "BGRX";
+  globalThis.EncodedVideoChunk = class { constructor(c) { Object.assign(this, c); } };
+  globalThis.VideoDecoder = class {
+    constructor({ output }) { this.output = output; this.state = "unconfigured"; }
+    configure() { this.state = "configured"; }
+    async flush() {}
+    close() { this.state = "closed"; }
+    decode(chunk) {
+      const order = format === "BGRX" ? [b, g, r] : [r, g, b];
+      const stride = 4 * w + pad;
+      this.output({ format, timestamp: chunk.timestamp, visibleRect: { width: w, height: h }, close() {},
+        allocationSize: () => stride * h,
+        copyTo: async (px) => {
+          for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 3; c++) px[y * stride + 4 * x + c] = order[c][y * w + x];
+          return [{ offset: 0, stride }];
+        } });
+    }
+  };
+  const wc = await import("./decode-av1-webcodecs.js?rgb");
+  for (const f of ["BGRX", "RGBX"]) {
+    format = f;
+    const pic = await wc.picture(unit("c8"), { key: true, gen: 0, index: 0 });
+    const same = (p, want) => want.every((v, i) => p.heap[p.offset + Math.floor(i / w) * p.stride + (i % w)] === v);
+    check(pic.bits === 8 && pic.planes.length === 3 && same(pic.planes[0], g) && same(pic.planes[1], b) && same(pic.planes[2], r),
+      `rgb: ${f} read back as the G, B, R planes`);
+  }
+  const got = await wc.picture(unit("g8"), { key: true, gen: 1, index: 0 }).then(() => "decoded", (e) => e.message);
+  check(/matrix/.test(got), `rgb: a grey stream returned as RGB is refused (${got})`);
+  delete globalThis.VideoDecoder;
+  delete globalThis.EncodedVideoChunk;
+}
+
 console.log(failed ? `${failed} of ${failed + passed} failed` : `av1 item reader: ${passed} ok`);
 process.exit(failed ? 1 : 0);
