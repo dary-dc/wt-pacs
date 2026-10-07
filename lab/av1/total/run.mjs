@@ -72,7 +72,7 @@ function arm(set, name) {
   if (name === "htj2k" || a.codec === "htj2k") {
     // A layered HTJ2K series (lab/av1/reslevel): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? "htj2k", codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
+    return { ext, codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
       opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }) } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
