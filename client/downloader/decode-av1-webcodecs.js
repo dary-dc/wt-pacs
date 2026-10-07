@@ -55,8 +55,6 @@ function decoder(length) {
   let failed = null;
   let held = false;
   let stamp = 0;
-  // Where each frame is copied out: grown, never shrunk, so a picture is valid until this stream's next.
-  const copy = { buf: new ArrayBuffer(0) };
   const open = () => {
     // A frame of an earlier unit, flushed late, is not this unit's: only the stamp it was sent with is taken.
     const output = (f) => {
@@ -87,7 +85,7 @@ function decoder(length) {
         if (!got && vd.state === "configured") await vd.flush();
         if (vd.state === "closed") throw failed ?? new Error("decoder closed");
         if (!got) throw new Error("no frame");
-        const p = await read(got, copy);
+        const p = await read(got);
         if (length > 1 && (unit.index + 1) % length) {
           last = { gen: unit.gen, index: unit.index };
         } else {
@@ -112,15 +110,14 @@ function decoder(length) {
 const FORMATS = { I420: [8, 1], I420P10: [10, 1], I444: [8, 3], I444P10: [10, 3] };
 
 /** The frame's planes as a picture, if it is grey 4:0:0 or 4:4:4 identity. */
-async function read(frame, copy) {
+async function read(frame) {
   const [bits, components] = FORMATS[frame.format] ?? [];
   if (!bits) throw new Error(`format ${frame.format}`);
   // 4:4:4 identity has no YUV matrix to report; a 4:4:4 stream that names one is YUV.
   if (components === 3 && frame.colorSpace.matrix) throw new Error(`4:4:4 with matrix ${frame.colorSpace.matrix}`);
-  const size = frame.allocationSize();
-  if (copy.buf.byteLength < size) copy.buf = new ArrayBuffer(size);
-  const layout = await frame.copyTo(copy.buf);
-  const heap = bits > 8 ? new Uint16Array(copy.buf, 0, size >> 1) : new Uint8Array(copy.buf, 0, size);
+  const buf = new ArrayBuffer(frame.allocationSize());
+  const layout = await frame.copyTo(buf);
+  const heap = bits > 8 ? new Uint16Array(buf) : new Uint8Array(buf);
   const shift = bits > 8 ? 1 : 0;
   // copyTo's layout is in bytes.
   const planes = layout.map(({ offset, stride }) => ({ heap, offset: offset >> shift, stride: stride >> shift }));
