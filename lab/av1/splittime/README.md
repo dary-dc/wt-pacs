@@ -102,3 +102,38 @@ streams are all ≤ 10 bits, so WebCodecs decodes it; the rest are dav1d-WASM.
 (REP14 13.8 · 41.0), system 1's w10 246 · 999 (246 · 1 023) and its d12 635 · 2 709 (622 · 2 665). The
 PET's HTJ2K frame, 256², is ~1 ms at 1× and at 4× alike: the throttle does not reach a decode that
 short, so its 4× ratios overstate. `--mutate sample` and `--mutate truth` each turned every arm to 0 exact.
+
+## Total time (13–16 bits, rounds 0–4 of 10; interim)
+
+Row TOTAL's `run.mjs` on these items (`--frames lab/.av1-work/splittime`), links, CPU and Williams order
+unchanged, rounds 0–4 of the ten under way, `VOID` dropped. Each HTJ2K cell is the median seconds to every
+frame on the page; each arm the median of round-paired ratios to it; 1× · 4×. The port reproduces row
+REP14's CT w10 cell at 50 Mbit 4× (0.94, HTJ2K 2.88 s both). `--mutate sample` and `--mutate truth` each
+turned every arm to 0 exact.
+
+| series | arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| --- | --- | --- | --- | --- | --- | --- |
+| ct_lidc | HTJ2K, s | 26.7 · 26.7 | 6.81 · 6.82 | 2.87 · 2.88 | 5.4 · 5.34 | 10.7 · 11.3 |
+| ct_lidc | k1 | 0.93 · 0.93 | 0.93 · 0.94 | 0.94 · 1.57 | 0.95 · 1.03 | 0.89 · 0.88 |
+| ct_lidc | k2 | 0.92 · 0.92 | 0.92 · 0.93 | 0.93 · 1.60 | 0.94 · 1.04 | 0.89 · 0.89 |
+| ct_lidc | k3 | 0.93 · 0.93 | 0.93 · 0.94 | 0.94 · 0.94 | 0.95 · 0.96 | 0.95 · 0.93 |
+| xa_dynact16 | HTJ2K, s | 24.2 · 24.2 | 6.18 · 6.18 | 2.62 · 2.63 | 5.04 · 4.98 | 10.1 · 9.92 |
+| xa_dynact16 | k1 | 1.05 · 1.06 | 1.06 · 1.08 | 1.06 · 1.66 | 1.04 · 1.08 | 1.15 · 1.08 |
+| xa_dynact16 | k2 | 0.99 · 0.99 | 0.99 · 1.01 | 1.00 · 1.62 | 1.00 · 1.04 | 1.01 · 1.02 |
+| xa_dynact16 | k3 | 0.95 · 0.95 | 0.95 · 0.96 | 0.96 · 0.97 | 0.96 · 0.99 | 0.93 · 0.90 |
+| dbtproj_ge | HTJ2K, s | 60 · 60.2 | 15.2 · 15.4 | 6.26 · 6.53 | 14 · 14.4 | 27.9 · 28.8 |
+| dbtproj_ge | k2 | 0.96 · 0.99 | 0.99 · 1.11 | 1.05 · 1.66 | 0.95 · 1.08 | 0.98 · 1.03 |
+| dbtproj_ge | k3 | 0.95 · 0.98 | 0.98 · 1.10 | 1.03 · 1.64 | 0.94 · 1.07 | 0.98 · 1.06 |
+| dbtproj_ge | k4 | 1.00 · 1.01 | 1.01 · 1.04 | 1.03 · 1.09 | 1.01 · 1.04 | 1.03 · 1.06 |
+| dbtproj_holo | HTJ2K, s | 47.9 · 48.1 | 12.1 · 12.3 | 5.02 · 5.17 | 9.19 · 9.35 | 21.4 · 21.5 |
+| dbtproj_holo | k2 | 0.93 · 0.95 | 0.95 · 1.02 | 0.98 · 1.48 | 0.95 · 1.04 | 0.92 · 0.98 |
+| dbtproj_holo | k3 | 0.94 · 0.96 | 0.96 · 1.04 | 0.99 · 1.54 | 0.96 · 1.05 | 0.94 · 0.94 |
+| dbtproj_holo | k4 | 1.05 · 1.05 | 1.05 · 1.07 | 1.06 · 1.11 | 1.10 · 1.13 | 1.05 · 1.09 |
+| pt15_cptac | HTJ2K, s | 17 · 17 | 4.38 · 4.38 | 1.9 · 1.9 | 3.76 · 3.74 | 5.98 · 6.59 |
+| pt15_cptac | k3 | 1.09 · 1.09 | 1.09 · 1.09 | 1.09 · 1.87 | 1.08 · 1.21 | 1.13 · 1.09 |
+| pt15_cptac | k5 | 1.04 · 1.04 | 1.04 · 1.04 | 1.04 · 1.16 | 1.04 · 1.04 | 1.04 · 1.00 |
+| mg16_cbis | HTJ2K, s | 34.8 · 36.4 | 9.2 · 10.9 | 4.13 · 5.78 | 7.18 · 8.81 | 16.5 · 17.2 |
+| mg16_cbis | k4 | 1.15 · 1.40 | 1.37 · 2.17 | 1.70 · 3.11 | 1.45 · 2.39 | 1.25 · 1.79 |
+| mg16_cbis | k6 | 1.02 · 1.03 | 1.06 · 1.09 | 1.13 · 1.16 | 1.08 · 1.11 | 1.10 · 1.04 |
+
+88 000/88 000 frames exact over 1 100 visits, 10 `VOID`, n = 4–5 a cell so far; the verdict waits for the ten rounds.
