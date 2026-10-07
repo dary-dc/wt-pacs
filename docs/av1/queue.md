@@ -117,6 +117,9 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 64 | **REMAP** — rare values above 12 bits mapped out with a small exception map, and a palette for high bits: exact, bytes, decode | done `865b3f1` on `claude/av1-unified` (`56a9c0a`, `62061cf`, `1a6808e`) — **the map buys the decoder, not bytes**: two of three projection systems are 12-bit data plus one saturated level (16383, 11 % and 0.6 % of samples), the CTs and cone-beam 12-bit data plus 0.0003–0.02 % rare levels, the third projection system, the PET and the film dense or sparse above 12 bits; clamped into a 12-bit window with a deflated per-frame map (1–10 KB a series), one 12-bit stream is 2.6–13 % larger than the k = 2 split on all six series it fits, but split at k = 2 after the map it is the split's bytes (−0.1…+0.05 %) with every stream ≤ 10 bits, so WebCodecs decodes it in **0.46–0.71 of the split's dav1d-WASM time** (60/60 paired rounds; Chromium 141 in the container, 10 rounds Williams-ordered at 1× and 4×, 1 920/1 920 frames a throttle exact against the source) and 1.05–1.34× w10's for 5–12 % fewer bytes on the projections, 1.5 % on two CTs, 4.4–4.8 % more on a CT and the cone-beam; a high-bit palette ties the map; at L = 0 (histogram packing) it halves the 16-bit film for HTJ2K as for AV1 (0.576, 0.571); every AV1 arm still 2.6–7.3× HTJ2K's decode; 5 + 3 mutations caught; proposed, not built — [`item-format.md`](item-format.md) §Proposed: a remapped plane, [`README.md`](README.md) §A3, `lab/av1/remap/README.md` on `claude/av1-unified` |
 | 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | done `1fdaaf5` on `claude/av1-unified` (`06f6083`, `79c800b`, `51286bd`) — **the useful frames asked before the fill reach the screen in 0.30–0.52 of the sequential fill's time on tomosynthesis (centre slice ±2) and 0.47–0.77 on a four-view mammogram's MLO pair, for two round trips on the whole fill (+72–113 ms, +0.4–4 %), HTJ2K and AV1 alike; nothing adopted, no product change needed**: both DBT volumes and two FFDM, HTJ2K and the optimized item, 5/20/50 Mbit at 1× and 4×, 13 Williams rounds, 1 191 of 1 248 visits kept, n = 10–13 (one cell 9), 19 032/19 032 frames exact; IHE's display test hangs all four views at once, so no order shortens a full hanging — [`README.md`](README.md) §The order frames are asked in, [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The first fill |
 | 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | done `22f5f03` (`069044e`) — **not reproduced: paired, plain AV1 is 0.973–0.976 of HTJ2K on 10-bit DBT, optimized 0.940–0.943, not 31 % below**: the first 4 frames of `dbt10_ea1141` and `dbt10_d`, 20/20 codings exact (80/80 frames); one setting at a time, an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background by 0.5–0.8, libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned); the two series the brief named are not CC BY or CC0 (UPMC states no licence, BCS-DBT is CC BY-NC 4.0: Blocked); 4 mutations caught 4/4 — [`README.md`](README.md) §Prior evidence, [`lab/av1/pocgap`](../../lab/av1/pocgap/README.md), [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
+| 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | ready |
+| 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67 |
+| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row |
 
 ## Briefs
 
@@ -1145,6 +1148,49 @@ lab's optimized representation at 0.921–0.942. **Do:**
 **Decides:** AV1 ÷ HTJ2K per fixture, paired, plain and optimized. **Adopt:** nothing to adopt; the prior evidence is
 corrected in place. **Branch:** `claude/av1` (`llsize` and the fetch are here). **Deliverable:** [`README.md`](README.md)
 §Prior evidence, not reproduced here, corrected; `lab/av1/llsize/README.md` and [`FIXTURES.md`](../FIXTURES.md) §AV1 data.
+
+## The closing rows (67–69), 2026-10-07
+
+### 67 CODECSTR
+
+**Question.** `client/downloader/decode-av1-webcodecs.js` configures every stream as `av01.0.04M.10` (Main profile,
+level 3.0, 10 bits). Our streams include 8-bit grey, 4:4:4 colour (High profile) and frames far above level 3.0's
+picture size (a 3 328 × 4 096 mammogram is about 13.6 M samples, level 6.0's range). A browser uses the string to
+decide support and to pick a decoder; desktop Chromium's software path tolerates the mismatch, a hardware decoder or
+another engine may refuse it or route it wrongly, and the exactness probe would then fall back to dav1d-WASM silently.
+**Do:** derive the string from the stream's sequence header OBU (`seq_profile`, `seq_level_idx[0]`, `seq_tier[0]`,
+`high_bitdepth`/`twelve_bit`, `mono_chrome`, and the optional fields where they matter), per the AV1 codecs parameter
+string (AV1 ISOBMFF binding §Codecs Parameter String). Where the encoder writes level 31 (no level constraint), report
+what each engine's `isConfigSupported` answers and choose the value with a reason. Apply it wherever the client and the
+lab's WebCodecs paths configure a decoder (`lab/av1/*` probes that sweep strings on purpose stay as they are).
+**Decides:** for every AV1 fixture and taxonomy series, the derived string equals one read independently from the
+bitstream (e.g. `dav1d --verbose` or a reference parser), `isConfigSupported` is true in each engine row 37 used where
+the stream is exact there, every frame stays exact, and the decoder chosen per series is unchanged or explained. Mutate
+the derivation (wrong profile, level, depth) and watch the test fail. **Adopt:** the round's rule. **Branch:**
+`claude/av1-unified`. **Deliverable:** the change, its test, and the rule in `docs/av1/item-format.md` or the decoder doc
+that owns the WebCodecs path.
+
+### 68 AV1DOCS
+
+**Question.** Are this repository's AV1 docs complete and essential enough to be the one source another project cites?
+**Do:** after rows 44, 56 and 67, read every AV1 doc (`docs/av1/`, `lab/av1/**/README.md`, the decode and item-format
+docs) and the round's verdicts. One place per subject, extended rather than added to; `lab/av1/README.md` (about 800
+lines) cut to what a reader needs, the rest pointed to; diagrams where a mechanism is easier drawn. Terms: the AV1
+specification's own words (OBU, temporal unit, sequence header, frame); a DICOM frame is never called an AV1 frame;
+row 55's open *item* question is settled as **AV1 payload** — one DICOM frame's AV1 data, the payload header plus its
+temporal units — defined once in `README.md` §Names and carried through every doc and identifier it names (file
+renames included, every reference updated). A retracted claim is corrected in place, never dropped. **Decides:**
+`check_links.py` green, the gate green, nothing lost (each removed passage's fact found elsewhere, listed in the
+commit). **Branch:** `claude/av1-unified`. **Deliverable:** the docs.
+
+### 69 MERGEPREP
+
+**Question.** Is the AV1 work ready for the owner to merge into `main`? **Do:** when every other row is done, merge
+`origin/claude/av1` (the queue and its docs) into `claude/av1-unified`, resolve, run `scripts/gate.sh` in full, check
+`git diff origin/main...claude/av1-unified --stat` for anything that should not ship (fetched data, built binaries,
+scratch), and write `docs/av1/MERGE.md`: what the branch adds, what it changes in the HTJ2K path (nothing, or each
+change with its measurement), the commands that verify it, and what stays open with its decision. The owner merges;
+never push to `main`. **Branch:** `claude/av1-unified`. **Deliverable:** the merge, the green gate, `MERGE.md`.
 
 ## Blocked
 
