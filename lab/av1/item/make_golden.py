@@ -3,6 +3,7 @@
 
   client/conformance/av1/items/{plain,optimized}/NAME.av1   one item each, through ingest.py
   client/conformance/av1/items/{plain,optimized}/NAME.sha256 the source samples' checksum
+  client/conformance/av1/items/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range (row GREY420)
   client/conformance/av1/items/matrix/b{B}k{K}{u,s}.av1       row 43: every (bits, split, sign) a rule could pick
   client/downloader/av1-probe.js                              a 16×16 unit per layout WebCodecs may take
 
@@ -81,6 +82,12 @@ def items(build, work):
             dst.mkdir(parents=True, exist_ok=True)
             (dst / f"{name}.av1").write_bytes((out / "000.av1").read_bytes())
             (dst / f"{name}.sha256").write_text((out / "000.sha256").read_text())
+    out, dst = work / "g8.grey420", ITEMS / "grey420"
+    subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, work / "g8", out, "--grey8", "420", "--jobs", "1"],
+                   check=True)
+    dst.mkdir(exist_ok=True)
+    (dst / "g8.av1").write_bytes((out / "000.av1").read_bytes())
+    (dst / "g8.sha256").write_text((out / "000.sha256").read_text())
 
 
 def matrix(build, work):
@@ -112,20 +119,22 @@ def fnv(planes):
 
 
 def probes(build, work):
-    """layout: (depth, channels); colour as 4:4:4 identity, the first plane coded as luma."""
+    """name: (depth, ingest's stream layout); colour as 4:4:4 identity, the first plane coded as luma."""
     out = {}
-    for seed, (layout, (depth, ch)) in enumerate({"g8": (8, 1), "g10": (10, 1), "c8": (8, 3), "c10": (10, 3)}.items()):
+    names = {"g8": (8, "400"), "g10": (10, "400"), "c8": (8, "444"), "c10": (10, "444"), "g8f": (8, "420")}
+    for seed, (name, (depth, layout)) in enumerate(names.items()):
+        ch = 3 if layout == "444" else 1
         px = content(ch, 0, (1 << depth) - 1, 100 + seed, 16, 16)
-        y4m, ivf = work / f"{layout}.y4m", work / f"{layout}.ivf"
-        ingest.write_y4m(y4m, [px], depth, ch)
+        y4m, ivf = work / f"{name}.y4m", work / f"{name}.ivf"
+        ingest.write_y4m(y4m, [px], depth, layout)
         subprocess.run([build / f"aom-{ingest.size.AOM}/bin/aomenc", "-q", "-o", ivf, "--limit=1",
-                        *ingest.encoder_args("cpu0", "plain", depth, ch), y4m], check=True, capture_output=True)
+                        *ingest.encoder_args("cpu0", "plain", depth, layout), y4m], check=True, capture_output=True)
         unit = ingest.size.ivf_units(ivf)[0]
         got, bits = ingest.decode(build, unit, work)
         want = fnv([px[..., c] for c in range(ch)])
         if bits != depth or fnv([got[..., c] for c in range(ch)]) != want:
-            sys.exit(f"probe {layout}: dav1d does not return its samples")
-        out[layout] = dict(width=16, height=16, fnv=want, unit=base64.b64encode(unit).decode())
+            sys.exit(f"probe {name}: dav1d does not return its samples")
+        out[name] = dict(width=16, height=16, fnv=want, unit=base64.b64encode(unit).decode())
     lines = [f'  {k}: {{ width: 16, height: 16, fnv: 0x{v["fnv"]:08x}, unit: "{v["unit"]}" }},' for k, v in out.items()]
     PROBE.write_text(
         "/** A 16×16 unit per layout WebCodecs may take, and the FNV-1a of its coded planes. Made by lab/av1/item/make_golden.py. */\n"

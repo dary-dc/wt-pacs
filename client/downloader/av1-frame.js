@@ -9,6 +9,16 @@ const refuse = (why) => {
   throw new Error(`undecodable: av1 item: ${why}`);
 };
 
+/** Whether every sample of `planes` is `mid`: a grey stream's chroma when it is coded 4:2:0. */
+export function neutral(planes, width, height, mid) {
+  for (const { heap, offset, stride } of planes) {
+    for (let y = 0; y < height; y++) {
+      for (let s = offset + y * stride, x = 0; x < width; x++, s++) if (heap[s] !== mid) return false;
+    }
+  }
+  return true;
+}
+
 /** The top picture checked against the item's header and placed. */
 export function begin(pic, item) {
   const components = pic.planes.length;

@@ -18,10 +18,21 @@ struct Shape {
 
 int too_small(const Shape& s, size_t cap) { return (size_t)s.w * s.h * s.planes > cap ? -2 : 0; }
 
+bool neutral(const Dav1dPicture& pic) {
+  const int mid = 1 << (pic.p.bpc - 1);
+  for (int c = 1; c < 3; ++c) {
+    const auto* row = static_cast<const uint8_t*>(pic.data[c]);
+    for (int y = 0; y < (pic.p.h + 1) / 2; ++y, row += pic.stride[1])
+      for (int x = 0; x < (pic.p.w + 1) / 2; ++x)
+        if ((pic.p.bpc == 8 ? row[x] : reinterpret_cast<const uint16_t*>(row)[x]) != mid) return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 // 0, -1 if dav1d gave no picture, -2 if `out` holds fewer than its samples, -3 for a layout that
-// is neither 4:0:0 nor 4:4:4.
+// is neither 4:0:0, 4:4:4, nor 4:2:0 with every chroma sample mid-grey (grey, one plane out).
 extern "C" int av1_decode(const uint8_t* unit, size_t len, int32_t* out, size_t cap, Shape* shape) {
   Dav1dSettings settings;
   dav1d_default_settings(&settings);
@@ -41,9 +52,11 @@ extern "C" int av1_decode(const uint8_t* unit, size_t len, int32_t* out, size_t 
   if (r == DAV1D_ERR(EAGAIN)) r = dav1d_get_picture(ctx, &pic);
   if (data.sz > 0) dav1d_data_unref(&data);
   if (r == 0) {
-    const int planes = pic.p.layout == DAV1D_PIXEL_LAYOUT_I400 ? 1 : 3;
+    const bool grey = pic.p.layout == DAV1D_PIXEL_LAYOUT_I400 ||
+                      (pic.p.layout == DAV1D_PIXEL_LAYOUT_I420 && neutral(pic));
+    const int planes = grey ? 1 : 3;
     *shape = {pic.p.w, pic.p.h, planes, pic.p.bpc, 0};
-    if (pic.p.layout != DAV1D_PIXEL_LAYOUT_I400 && pic.p.layout != DAV1D_PIXEL_LAYOUT_I444) r = -3;
+    if (!grey && pic.p.layout != DAV1D_PIXEL_LAYOUT_I444) r = -3;
     else r = too_small(*shape, cap);
     for (int c = 0; r == 0 && c < planes; ++c) {
       const auto* row = static_cast<const uint8_t*>(pic.data[c]);
