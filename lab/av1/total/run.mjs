@@ -85,7 +85,7 @@ function arm(set, name) {
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/reslevel): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion,
       opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Row ASKDEADLINE: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
@@ -98,7 +98,7 @@ function arm(set, name) {
   // A layer-major series decodes in lab/av1/bases' worker: the product's has no base entry.
   const worker = a.layers ? { decoderWorker: "/lab/av1/bases/decoder.js" } : a.worker && { decoderWorker: a.worker };
   return { ext, entries, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }) },
-    truth: a.truth, previewTruth: a.previewTruth };
+    truth: a.truth, previewTruth: a.previewTruth, congestion: a.congestion };
 }
 
 const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.join(ROOT, FRAMES, d, "arms.json")))
@@ -155,7 +155,14 @@ async function visit(set, variant, linkName, impairment, throttle, round) {
   const srv = port();
   const relayPort = port();
   const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/exact-server"), "--port", String(srv), "--bind", "127.0.0.1",
-    "--study", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" });
+    "--study", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
+    ...(a.congestion ? ["--congestion", a.congestion] : [])], { stdio: ["ignore", "pipe", "ignore"] });
+  let serverOut = "";
+  server.stdout.on("data", (d) => (serverOut += d));
+  await started(server, /transport=.*\n/);
+  // The controller the server says it runs, not the one asked for: Cubic is the one it leaves unprinted.
+  const ran = /congestion=([\w-]+)/.exec(serverOut)?.[1] ?? "cubic";
+  if (ran !== (a.congestion ?? "cubic-restart")) throw new Error(`${armName}: the server runs ${ran}, not ${a.congestion}`);
   const [oneWay, linkArgs] = link(linkName, impairment);
   const relay = spawn("chrt", ["-f", "50", "taskset", "-c", RIG_CORE, "python3", "lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`,
     "--seed", String(round), "--delay-ms", String(oneWay), ...linkArgs, "--self-timing"], { cwd: ROOT });
@@ -193,7 +200,7 @@ async function visit(set, variant, linkName, impairment, throttle, round) {
 
   const late = relayLog.match(/self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)/g)?.pop();
   const s2c = relayLog.match(/server->client sent (\d+) lost (\d+)/)?.slice(1).map(Number);
-  const row = { round, set: set.name, arm: variant, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
+  const row = { round, set: set.name, arm: variant, congestion: ran, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
