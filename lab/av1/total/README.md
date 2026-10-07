@@ -106,3 +106,9 @@ of every checksum) each turned every arm of all four series to 0 exact.
 `@cornerstonejs/codec-openjph` 2.4.11; dav1d 1.5.4 under emscripten 3.1.74 (`simd.wasm`,
 623 146 B since SVCDEC; the 14 rounds of `bc35549` ran on the 623 042 B build before it); libaom 3.15.1 and OpenJPH 0.31.0 as `tools.sh` and `gen_htj2k_fixtures.sh` pin them;
 `TMobile-LTE-short.down` sha256 `4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43`. Nothing built, fetched or generated is committed.
+
+**Row CLIENT** times a change to the downloader itself: `ARMS=none make_frames.py` (HTJ2K only) for
+`rf_fluoro` and `dbt10_ea1141`, then `downloader_arm.sh f136363^ before` adds an arm running the
+downloader as it was before the row, beside `htj2k` (the tree's), and
+`run.mjs --links r20000,r50000 --arms htj2k,before --rounds 10`. The reading is in
+[`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) §The downloader.
