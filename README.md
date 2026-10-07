@@ -152,7 +152,7 @@ campaign label, *lever 2*), none a standard the code touches uses for something 
 | fill | frames the server pushes in index order, `stream_frames`; on the wire one contiguous **run** at a time |
 | the opening ask | an ask or a fill carried in the session URL, served behind the accept |
 | early SETTINGS | the server's SETTINGS in its handshake flight, at 0.5 RTT (a crate patch) |
-| envelope | `[4B index][4B length][codestream]`, one frame on a media stream |
+| envelope | `[4B display_index][codestream]`, one frame, sent behind its 4-byte length on a media stream |
 | bundle | the store's file (`.sbnd`): header, index, metadata, frames |
 | record | the downloader's state of one frame: `wire`, `queued`, `decoding` |
 | generation | a request's identity, moved by `cancel`; **epoch**, a session's, moved by a resume |
