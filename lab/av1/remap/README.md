@@ -88,7 +88,32 @@ frame it took 108 s against 4.4 s for 0.09 % fewer bytes. **w10** is k = b − 1
 
 ## Decode (2026-10-07)
 
-*Pending — the timed run is in progress.*
+Decode time a frame through the product's worker (`client/downloader/decoder.js`), the item picking its decoder —
+dav1d-WASM where a stream is 12-bit (k = 2 on the source, a map at k = 0), WebCodecs where every stream is ≤ 10 bits
+(w10, a map at k = 2) — and a remapped arm's map applied after the worker on the page (inflate and scatter, or the
+palette's table), its time added. Headless Chromium 141 in the container (4 cores), 10 rounds, each throttle a fresh
+browser in a Williams order, arms and sets rotating inside; the first 8, 6 and 18 frames; every frame of every
+round exact against the source, 1 920/1 920 a throttle. Median of round medians, ms; in brackets the median
+paired round ratio against k = 2 and against w10, with rounds faster.
+
+| series | throttle | HTJ2K | k = 2 | w10 | map k = 0 | map k = 2 | palette k = 2 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| projections `ge` 1914×2572 | 1× | 110 | 736 | 310 | 805 (1.10 · 2.65) | 403 (**0.55**, 10/10 · 1.30, 0/10) | 396 (0.54 · 1.30) |
+| | 4× | 493 | 3 124 | 1 203 | 3 493 (1.11 · 2.91) | 1 599 (**0.51** · 1.34) | 1 571 (0.51 · 1.31) |
+| projections `holo` 1280×2048 | 1× | 60 | 349 | 180 | 320 (0.92 · 1.76) | 189 (**0.55** · 1.05, 2/10) | 186 (0.55 · 1.02, 3/10) |
+| | 4× | 260 | 1 497 | 687 | 1 345 (0.90 · 1.98) | 729 (**0.50** · 1.08) | 702 (0.48 · 1.03) |
+| CT `lidc` 512² | 1× | 5.9 | 31.0 | 19.0 | 33.3 (1.08 · 1.73) | 22.8 (**0.71** · 1.17) | 20.1 (0.65 · 1.06) |
+| | 4× | 21.7 | 125 | 53.0 | 121 (0.93 · 2.18) | 58.0 (**0.46** · 1.09) | 54.2 (0.43 · 1.00, 5/10) |
+
+* **A map at k = 2 decodes in 0.46–0.71 of the k = 2 split's time, faster in 60/60 paired rounds, at the split's
+  bytes** — the gain is WebCodecs taking a 10-bit top that dav1d-WASM took at 12 bits.
+* **It is 1.05–1.34× w10's time** (1.00–1.31 for the palette: the map's pass on the page, unfused, against none), for 1.5–12 % fewer bytes than
+  w10 on four of the six series it fits (projections 0.954 against 1.004 and 0.925 against 1.050; CTs `lidc` and
+  `crc` 0.926 against 0.940 and 0.904 against 0.918), and 4.4–4.8 % more on two (CT `nlst`, cone-beam).
+* **A map at k = 0** (one 12-bit stream, dav1d-WASM) decodes at 0.90–1.11 of k = 2, so it gains neither bytes nor time.
+* The palette's table is cheaper to apply than the map's inflate and scatter: 0.88–0.99 of the map's time.
+* Every AV1 arm is 2.6–7.3× HTJ2K. Container numbers; at 4× the 4.9-megapixel projections take dav1d-WASM 3.1 s a
+  frame. Nothing is claimed about a phone.
 
 ## Checked
 

@@ -102,3 +102,25 @@ refusals matched by message. The reader's signed mask is now the output containe
 2^(depth + split) − 1 reports a wrong range for signed 8-bit with a split and for signed 16-bit at k = 5 and 7.
 **New limits:** `bits` ≤ 16, `split` ≤ 8, a top of at most 12 bits; an item's `depth` is the smallest of 8, 10, 12
 holding its top.
+
+## Proposed: a remapped plane (row 64 REMAP, not built)
+
+Measured in [`lab/av1/remap`](../../lab/av1/remap/README.md); built in the lab only, since it changes the item.
+Where a series is 12-bit data plus rare levels above it (two of three projection systems: one saturated level,
+0.6–11 % of samples; the CTs and the cone-beam: 0.0003–0.02 %), ingest would clamp the outliers to the 12-bit window
+and store them in a per-frame map, then split the 12-bit plane at k = 2 as today:
+
+```
+header.flags  bit 2 `remap`: a map follows the frame's units
+frame         := … as today … · u32le map length · map
+map           := deflate( u32le runs · varint (gap, length)[runs] · u16le value[outliers] )   raster order
+header.offset is the window's low end; a sample = plane + offset, then each outlier its value, then − the source offset
+```
+
+What it buys: the k = 2 split's bytes (within −0.1…+0.05 %; maps 1–10 KB a series) with every stream ≤ 10 bits, so
+WebCodecs decodes it in 0.46–0.71 of the split's dav1d-WASM time — or w10's decoder at 1.5–12 % fewer bytes on four of
+six series. What it costs: a flag, a map field and a pass over the frame in the reader (1.05–1.34× w10's time in the
+lab, applied on the page, not fused into the merge). Coded as one 12-bit stream (k = 0) it loses to the split on
+every series, by 2.6–13 % in bytes. The per-series palette of high parts (L = 0: histogram packing) is the same
+shape with a table in the bundle's metadata instead of a map; on the one sparse 16-bit series it is worth as much to
+HTJ2K as to AV1 (0.576 and 0.571 of HTJ2K on the source). The owner decides whether either is worth a format change.

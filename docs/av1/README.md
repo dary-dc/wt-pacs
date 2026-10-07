@@ -360,6 +360,18 @@ The best arm per series at cpu0 is k = 0 at 9 bits (0.910 of HTJ2K), k = 1, 2 or
 at 15 and 16 bits, where AV1 only ties (0.996, 1.001); the adopted k = 2 is best on two of nine. Plain and optimized
 items refuse 15–16 bits by name, and k = 3 a 16-bit series. Row 44 ranks the arms by time.
 
+*Rare levels mapped out (row REMAP, [`lab/av1/remap`](../../lab/av1/remap/README.md)): the map buys the decoder, not
+bytes.* Two of three projection systems are 12-bit data plus one saturated level (16383: 11 % and 0.6 % of samples),
+the CTs and the cone-beam 12-bit data plus 0.0003–0.02 % of rarer bright samples. Clamped into a 12-bit window with
+the outliers in a deflated per-frame map (1–10 KB a series), coded as one 12-bit stream the series is 2.6–13 % larger
+than the k = 2 split on all six; split at k = 2 after the map it is the split's size (−0.1…+0.05 %) with every
+stream ≤ 10 bits, so WebCodecs decodes it in 0.46–0.71 of the split's dav1d-WASM time (60/60 paired rounds, Chromium
+141 in the container, 1× and 4×, 1 920/1 920 frames a throttle exact against the source); against w10 it is 1.05–1.34×
+the time for 5 % and 12 % fewer bytes on the projections and 1.5 % on two CTs, 4.4–4.8 % more on the third CT and
+the cone-beam. A palette of high parts gives the same at k = 2; at L = 0 (histogram packing) it halves the 16-bit film,
+for HTJ2K as much as for AV1 (0.576 and 0.571 of HTJ2K on the source). Proposed in [`item-format.md`](item-format.md)
+§Proposed: a remapped plane; not built into the product.
+
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never

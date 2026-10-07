@@ -305,6 +305,9 @@ reported inexact.
 (122..16370): plain (two low bits off a 12-bit top), k = 2 and w10 are within 1 % of each other, 0.962–0.971 of HTJ2K
 at cpu0.
 
+**Rare levels mapped out instead of split (row REMAP)**: the level census and the remapped plane's bytes and decode
+against the split are in [`remap`](remap/README.md).
+
 ## ENC — what lossless encoding costs
 
 Queue row 14. libaom 3.15.1, `--lossless=1 --threads=1`, every `cpu-used` each usage accepts:
