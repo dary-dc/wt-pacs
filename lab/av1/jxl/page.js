@@ -121,7 +121,9 @@ async function nativeArm(a) {
   const hashes = [];
   for (const d of frames) {
     // Only an 8-bit frame can come back exact through an 8-bit canvas: its first `channels` of RGBA.
-    hashes.push(await hex(Uint8Array.from({ length: d.length / 4 * a.channels }, (_, i) => d[(i / a.channels | 0) * 4 + i % a.channels])));
+    const out = new Uint8Array(d.length / 4 * a.channels);
+    for (let p = 0, o = 0; p < d.length; p += 4) for (let c = 0; c < a.channels; c++) out[o++] = d[p + c];
+    hashes.push(await hex(out));
   }
   return { ms, hashes };
 }
