@@ -1354,9 +1354,9 @@ fill time departs from the single-client figure. Say where the host saturates an
 **Question.** `client/downloader/` holds three things — the page side (`consumer.js`), the download worker
 (`downloader.js`) and the decode worker with its codec modules (`decoder.js`, `wasm-glue.js`, `htj2k.js`, the AV1
 modules) — and the decoders' WASM builds sit beside the transport's. **Do:** after row 56, move them by worker:
-`client/decode/` (the decode worker, `wasm-glue.js`, `htj2k.js`, the AV1 modules named by role — `av1.js`,
+client/decode/ (the decode worker, `wasm-glue.js`, `htj2k.js`, the AV1 modules named by role — `av1.js`,
 `av1-payload.js` (the term row 68 fixes), `av1-dav1d.js`, `av1-webcodecs.js` — and the decoders' WASM builds under
-`client/decode/wasm/`) and `client/transport/` (`consumer.js`, `downloader.js`, the transports, with the WASM transport's
+client/decode/wasm/, both written by this row) and client/transport/ (`consumer.js`, `downloader.js`, the transports, with the WASM transport's
 crate under `client/transport/wasm/`), tests beside their code as today; every import, path, build script, page, doc
 and the gate updated; behaviour unchanged. **Decides:** the gate green, `check_links.py` green, `git grep` finds no old
 path outside history notes, a content hash of every moved file equal before and after. **Branch:**
