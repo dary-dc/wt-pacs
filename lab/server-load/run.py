@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """N concurrent fills of one study against the real server, HTJ2K and AV1, interleaved — queue row 81
-(SERVERLOAD); README.md here says how to run it, docs/transport/transport-conclusions.md §9 what it found.
+(SERVERLOAD); README.md here says how to run it, docs/transport/transport-conclusions.md §4 LOAD what it found.
 
     run.py --study htj2k=DIR,htj2k --study av1=DIR,av1 --rounds 10 --out rows.jsonl
     run.py --summary --out rows.jsonl
