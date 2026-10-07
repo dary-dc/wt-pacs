@@ -1196,7 +1196,7 @@ commit). **Branch:** `claude/av1-unified`. **Deliverable:** the docs.
 **Question.** Is the AV1 work ready for the owner to merge into `main`? **Do:** when every other row is done, merge
 `origin/claude/av1` (the queue and its docs) into `claude/av1-unified`, resolve, run `scripts/gate.sh` in full, check
 `git diff origin/main...claude/av1-unified --stat` for anything that should not ship (fetched data, built binaries,
-scratch), and write `docs/av1/MERGE.md`: what the branch adds, what it changes in the HTJ2K path (nothing, or each
+scratch), and write docs/av1/MERGE.md (written by this row): what the branch adds, what it changes in the HTJ2K path (nothing, or each
 change with its measurement), the commands that verify it, and what stays open with its decision. The owner merges;
 never push to `main`. **Branch:** `claude/av1-unified`. **Deliverable:** the merge, the green gate, `MERGE.md`.
 
