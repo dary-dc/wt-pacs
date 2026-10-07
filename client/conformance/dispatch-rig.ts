@@ -819,7 +819,7 @@ async function av1Through(
   const units: number[] = [];
   const codecs: string[] = [];
   const spy = new BroadcastChannel(ch);
-  spy.onmessage = (e) => void (typeof e.data === "string" ? codecs : units).push(e.data);
+  spy.onmessage = (e) => void (typeof e.data === "string" ? codecs.push(e.data) : units.push(e.data));
   const got: Frame[] = [];
   const failures: Fail[] = [];
   const { c, fake } = await open(DownloaderClient, {

@@ -3,7 +3,7 @@
  * the codecs string av1-item.js derives, against one built from ffmpeg's own reading of the same OBU
  * (trace_headers for the coded fields, ffprobe for the inferred ones). Queue row 67; README.md
  *
- * A `.obu` file (a low-overhead OBU stream, as aomenc --obu writes it) counts as one unit.
+ * A `.obu` file (a low-overhead OBU stream, as aomenc --obu writes it), and an `.av1` file that is not an item, counts as one unit.
  *
  *   node lab/av1/codecstr/check.mjs DIR... [--mutate profile|level|tier|bits|mono] [--out strings.json]
  */
@@ -86,7 +86,13 @@ for (const dir of dirs) {
   for (const f of walk(dir).filter((x) => x.endsWith(".obu")).sort()) see(new Uint8Array(readFileSync(f)), relative(ROOT, f));
   for (const f of walk(dir).filter((x) => x.endsWith(".av1")).sort()) {
     const bytes = new Uint8Array(readFileSync(f));
-    const item = parseItem(bytes, new DataView(bytes.buffer, bytes.byteOffset).getUint32(12, true));
+    let item;
+    try {
+      item = parseItem(bytes, bytes.length >= 16 ? new DataView(bytes.buffer, bytes.byteOffset).getUint32(12, true) : 0);
+    } catch {
+      see(bytes, `${relative(ROOT, f)} (a bare unit)`);
+      continue;
+    }
     for (const frame of item.frames) {
       const [top, low] = units(frame, item.split);
       see(top, `${relative(ROOT, f)} top`);

@@ -1368,7 +1368,9 @@ contract, and `decoder.js` takes it only for a series that says `depth` ≤ 10 (
 [`docs/av1/adr-unit.md`](../av1/adr-unit.md) §2) in a browser with `VideoDecoder`; any other AV1
 series, one that does not say its depth included, gets dav1d-WASM. Each unit is one key chunk,
 flushed (G = 1), the decoder configured as `av01.0.04M.10` whatever the stream — Chromium decodes
-from the in-band sequence header, and four strings tried gave the same frames for every shape; a
+from the in-band sequence header, and four strings tried gave the same frames for every shape. *Corrected
+(row CODECSTR, 2026-10-07):* each stream is now configured with the string of its own sequence header;
+the same frames, the same decoder on every series ([`lab/av1/codecstr`](../../lab/av1/codecstr/README.md)); a
 split frame's two units go to two `VideoDecoder`s at once and are merged as
 dav1d's are, by the shared `av1-frame.js`. What it refuses where dav1d refuses, from the frame
 alone: anything but `I420`/`I420P10` with every chroma sample mid-grey (4:0:0) or
@@ -1378,7 +1380,10 @@ with matrix 2 would pass here and fail there. *And the other way (row TOTAL):* a
 that is not also tagged sRGB (primaries BT.709, transfer sRGB) is reported as matrix `bt709`, limited
 range, and refused here on every frame although dav1d takes it — libaom's `--matrix-coefficients=identity`
 alone, as every lab encode before TOTAL. So an RGB series meant for WebCodecs is coded with all three
-tags; ffmpeg's `-colorspace rgb` writes them.
+tags; ffmpeg's `-colorspace rgb` writes them. *Corrected (row CODECSTR):* `colorSpace` echoes the codec
+string's colour fields, not the stream's, so with the full string configured the check reads
+`matrix_coefficients` from the sequence header, as dav1d's does: both weaknesses are gone, and an
+identity stream without the sRGB tags decodes here exactly.
 
 The dispatch arm (headless Chromium 141) checks, every frame against its source's checksum and its
 range against its own samples: 8/10-bit grey and RGB through WebCodecs, every unit counted reaching
