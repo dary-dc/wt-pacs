@@ -372,6 +372,12 @@ open angiography run, so none is here.
 RGB planes misordered — each reported inexact; a `yes` loop beside the run showed as 1.02 cores in
 the contention probe.
 
+## VERSIONS — the newer tools against the pinned
+
+Row 57: libaom's and dav1d's heads, OpenJPH 0.32.0, emscripten 6.0.11 and Chromium 154 against the pins.
+Nothing gains enough to adopt; libaom's head writes the same bytes. Commands, sources and cells:
+[`versions/README.md`](versions/README.md).
+
 ## AV2 — AVM v1.0.0 lossless against libaom and HTJ2K
 
 Queue row 32. AVM is AV2's reference software ([`docs/av1/licensing.md`](../../docs/av1/licensing.md));

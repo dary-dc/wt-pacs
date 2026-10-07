@@ -1288,8 +1288,10 @@ hash, a corrupted payload byte (to native dav1d).
 * **12 bit is refused before the decoder sees it**: `decode()` throws `DataError: A key frame is
   required` on the stream's first chunk, which is a keyframe with its sequence header. 8- and 10-bit
   4:2:2 are Professional profile too and decode, so it is the depth, not the profile — the check
-  that classifies a chunk as key does not take a 12-bit sequence header. Why, inside Chromium, is
-  not read from its source.
+  that classifies a chunk as key does not take a 12-bit sequence header. *Read since (row VERSIONS):*
+  `decode()` parses a key chunk with libgav1's OBU parser, built with `LIBGAV1_MAX_BITDEPTH=10` in
+  Chromium 141, 154 and 155, so the parse fails and the chunk is called not key
+  ([`lab/av1/versions`](../../lab/av1/versions/README.md)).
 * **`isConfigSupported` does not tell**: it answers `true` for every 12-bit string, and for strings
   the AV1 spec forbids (profile 0 with 4:4:4 or 12 bit, profile 1 with 4:2:0); only profile 1 with
   4:0:0 is `false`. So a client learns what this decoder takes by decoding a known frame, not by

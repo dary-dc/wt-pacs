@@ -76,3 +76,35 @@ out as I420 with generated chroma; `max_frame_delay = 1` under `optimizeForLaten
 items the same bytes**, every item decoded back to its checksum by ingest's in-process dav1d. The RD changes
 since the tag do not reach a lossless encode at these presets. The lever was checked: the same ingest with
 `AOM_VERSION=3.8.2` writes different bytes (`usb_cine`, allintra 7, 2 frames: 135 590 B against 135 659 B).
+
+## Decode time a frame (`decode.mjs`)
+
+The product's decoder worker in headless Chromium 141 (Playwright's) and 154, 1× and 4× CPU throttle, 6 rounds,
+each (throttle × browser) cell a fresh browser in a Williams order per round, arms and sets rotating inside it;
+11 series × 4 frames (2 on `ffdm_b`, `syn2d_a`). **8 640/8 640 frames exact.** One decode at a time on a 4-core
+container, so the host is not saturated; container times, not a phone's. A ratio is the median of paired round
+ratios (each round's median frame), per series; "pooled" is the median over all 66 (series, round) pairs, with
+how many of them the new arm was faster.
+
+| arm against its reference | Chromium | 1× pooled [per-series medians], faster | 4× pooled [per-series medians], faster |
+| --- | --- | --- | --- |
+| OpenJPH 0.31.0, emscripten 6.0.11 / 3.1.74 | 141 | 0.948 [0.894–1.081], 47/66 | 0.942 [0.531–1.018], 42/66 |
+| | 154 | 0.960 [0.897–1.092], 45/66 | 0.952 [0.890–1.052], 46/66 |
+| OpenJPH 0.32.0 / 0.31.0, both emscripten 3.1.74 | 141 | 0.968 [0.858–1.113], 41/66 | 0.932 [0.777–1.060], 46/66 |
+| | 154 | 0.984 [0.911–1.050], 43/66 | 0.974 [0.854–1.175], 35/66 |
+| dav1d 1.5.4, emscripten 6.0.11 / 3.1.74 | 141 | 0.981 [0.888–1.028], 45/66 | 0.978 [0.948–1.013], 40/66 |
+| | 154 | 1.011 [0.981–1.036], 29/66 | 1.000 [0.899–1.045], 33/66 |
+| dav1d head / 1.5.4, both emscripten 6.0.11 | 141 | 1.001 [0.928–1.042], 33/66 | 0.996 [0.985–1.080], 34/66 |
+| | 154 | 1.011 [0.962–1.135], 24/66 | 0.994 [0.954–1.158], 35/66 |
+| the shipped OpenJPH package, Chromium 154 / 141 | — | 0.918 [0.821–1.133], 49/66 | 0.975 [0.908–1.306], 37/66 |
+| the item as the client picks its decoder, 154 / 141 | — | 1.061 [0.895–1.242], 25/66 | 1.066 [0.945–1.373], 21/66 |
+| dav1d-WASM (WebCodecs absent), 154 / 141 | — | 1.003 [0.903–1.115], 33/66 | 1.005 [0.936–1.022], 31/66 |
+
+**Reading.** dav1d's head and a newer emscripten tie on dav1d-WASM. OpenJPH under emscripten 6.0.11 is
+4–6 % faster pooled, in all four cells, but single series swing 10 % either way, and OpenJPH 0.32.0 against
+0.31.0 — one mask in the block decoder, plus NLT and TLM changes in the tile and parameter code that a
+plain codestream passes through — moves as much (2–7 %). So 6 rounds do not separate a 5 % gain from this
+harness's spread; it is the one lever here worth a longer run. Chromium 154 against 141: dav1d-WASM is the
+same; the item as the client decodes it is 6 % slower pooled, most on the 10-bit and 12-bit mammograms
+(`syn2d_a` 1.24–1.37, `syn2d_b` 1.20, `ffdm_b` 1.14–1.17), although the 12-bit ones take dav1d-WASM, which
+ties when run alone; the cause is not read, and a browser's version is not ours to pin.
