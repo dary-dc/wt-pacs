@@ -789,9 +789,9 @@ function asItem(frame: Uint8Array, depth: number) {
 }
 
 /** The writer's golden items: each a depth or a layout docs/av1/item-format.md treats apart, plain and optimized. */
-const GOLDEN = ["g8", "g9", "g10", "g12", "s11", "s13", "g14", "c8"] as const;
+const GOLDEN = ["g8", "g10", "g12", "s11", "s13", "g14", "c8"] as const;
 const GOLDEN_SHAPE: Record<string, string> = {
-  g8: "1x8-bit", g9: "1x9-bit", g10: "1x10-bit", g12: "1x12-bit", s11: "1x11-bit signed", s13: "1x13-bit signed", g14: "1x14-bit", c8: "3x8-bit",
+  g8: "1x8-bit", g10: "1x10-bit", g12: "1x12-bit", s11: "1x11-bit signed", s13: "1x13-bit signed", g14: "1x14-bit", c8: "3x8-bit",
 };
 const golden = (rep: string, name: string) => `${ITEMS}/${rep}/${name}`;
 /** Row 43's items: b = 8…16 bits, every split k from the smallest whose top fits 12 bits to a top of 8, unsigned and signed. */
@@ -897,8 +897,8 @@ async function anAv1ItemDecodesToItsSource(DownloaderClient: DownloaderCtor, che
 async function anAv1ItemTakesWebCodecsOnlyWhereItIsExact(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
   if (typeof VideoDecoder !== "function") return void log("  SKIPPED: WebCodecs — this browser has no VideoDecoder");
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: WebCodecs — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const shallow = [...["g8", "g9", "g10", "c8"].map((n) => golden("plain", n)), ...["g8", "g9", "g10", "g12", "s11", "s13", "c8"].map((n) => golden("optimized", n))];
-  const deep = [...["g12", "s11", "s13", "g14"].map((n) => golden("plain", n)), ...["g14"].map((n) => golden("optimized", n))];
+  const shallow = [...["g8", "g10", "c8"].map((n) => golden("plain", n)), ...["g8", "g10", "g12", "s11", "c8"].map((n) => golden("optimized", n))];
+  const deep = [...["g12", "s11", "s13", "g14"].map((n) => golden("plain", n)), ...["s13", "g14"].map((n) => golden("optimized", n))];
   const shape = (bases: string[]) => (i: number) => `64x48 ${GOLDEN_SHAPE[bases[i].split("/").pop()!]}`;
   const wc = await av1Through(DownloaderClient, shallow.map((b) => `${b}.av1`), "spy");
   await exactAv1(check, "webcodecs", wc.got, shallow, shape(shallow));

@@ -43,11 +43,6 @@ class Refused(Exception):
     pass
 
 
-def optimized_split(bits):
-    """k by depth after the offset, row SPLITTIME's rule: docs/av1/item-format.md §Representation at ingest."""
-    return 0 if bits <= 9 else 3 if bits == 13 else 2
-
-
 def plan(s, representation, split=None):
     """The header and the streams: [(depth, channels, frame → int array h×w×c in coded planes)].
     `split` forces grey's k, the low bits coded apart; None takes the representation's."""
@@ -66,9 +61,9 @@ def plan(s, representation, split=None):
     if bits > MAX_BITS:
         raise Refused(f"grey of {bits} bits after the offset, over {MAX_BITS}")
     if split is None and bits > 14:
-        raise Refused(f"grey of {bits} bits after the offset: no default layout over 14 bits, serve HTJ2K or --split")
+        raise Refused(f"grey of {bits} bits after the offset: no default layout over 14 bits, only --split")
     if split is None:
-        split = max(0, bits - 12) if representation == "plain" else optimized_split(bits)
+        split = max(0, bits - 12) if representation == "plain" else (2 if bits > 8 else 0)
     if not 0 <= split <= MAX_SPLIT:
         raise Refused(f"split {split}, not 0 to {MAX_SPLIT}: the low stream is 8-bit")
     depth = container(bits - split)
@@ -151,24 +146,22 @@ def merge(header, pictures):
     return (top << header["split"]) | pictures[1] if header["split"] else top
 
 
-def encode(build, work, px, depth, ch, preset, representation):
-    """One frame's stream as one unit, in an encoder run of its own: libaom carries state across keyframes,
-    so a run of several would make a frame's bytes depend on --jobs (lab/av1/item/README.md §One pipeline)."""
-    y4m, ivf = work / "in.y4m", work / "out.ivf"
-    write_y4m(y4m, [px], depth, ch)
-    subprocess.run([build / f"aom-{size.AOM}/bin/aomenc", "-q", "-o", ivf, "--limit=1",
-                    *encoder_args(preset, representation, depth, ch), y4m], check=True, capture_output=True)
-    (unit,) = size.ivf_units(ivf)
-    return unit
-
-
 def av1(build, s, work, a, b, representation, split, preset):
-    """Frames [a, b) as items, every frame checked alone."""
+    """Frames [a, b) as items, each stream a run of keyframes and every frame checked alone."""
     header, streams = plan(s, representation, split)
     header["offset"] = s.offset
+    frames = [[plane(i) for _, _, plane in streams] for i in range(a, b)]
+    coded = []
+    for j, (depth, ch, _) in enumerate(streams):
+        y4m, ivf = work / f"{j}.y4m", work / f"{j}.ivf"
+        write_y4m(y4m, [f[j] for f in frames], depth, ch)
+        subprocess.run([build / f"aom-{size.AOM}/bin/aomenc", "-q", "-o", ivf, f"--limit={b - a}",
+                        *encoder_args(preset, representation, depth, ch), y4m], check=True, capture_output=True)
+        coded.append(size.ivf_units(ivf))
+    del frames
     out = []
-    for i in range(a, b):
-        units = [encode(build, work, plane(i), depth, ch, preset, representation) for depth, ch, plane in streams]
+    for k, i in enumerate(range(a, b)):
+        units = [c[k] for c in coded]
         pictures = []
         for j, unit in enumerate(units):
             px, shape = decoded(build, "av1", unit, s.h * s.w * s.ch)

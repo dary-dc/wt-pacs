@@ -43,10 +43,7 @@ frame  := one temporal unit                       when split = 0
 | source | coded as | header |
 | --- | --- | --- |
 | grey ≤ 8 bits | one 8-bit 4:0:0 stream | split 0, depth 8 |
-| grey 9 bits (after any offset) | the samples, one 10-bit 4:0:0 stream | split 0, depth 10 |
-| grey 10–12 and 14 bits | top = v ≫ 2, 4:0:0 at the smallest of 8/10/12 that holds bits − 2; low = v & 3, 8-bit 4:0:0 | split 2, depth = top's coded depth |
-| grey 13 bits | top = v ≫ 3 at 10 bits; low = v & 7, 8-bit 4:0:0 | split 3, depth 10 |
-| grey 15–16 bits | refused: served as HTJ2K (row SPLITTIME: every AV1 layout 1.02–3.11 of its fill) | — |
+| grey 9–14 bits (after any offset) | top = v ≫ 2, 4:0:0 at the smallest of 8/10/12 that holds bits − 2; low = v & 3, 8-bit 4:0:0 | split 2, depth = top's coded depth |
 | RGB 8-bit | RCT: Y = ⌊(R + 2G + B)/4⌋, Cb = B − G + 256, Cr = R − G + 256; one 10-bit 4:4:4 stream, identity matrix, plane order exactly as the lab's `llsize.py` writes it | flags.rct, split 0, depth 10, bits 8 |
 | signed | offset = −min of the series first, then the grey rules | flags.signed |
 | RGB > 8 bits | refused (no modality needs it; aomenc 3.15.1 cannot) | — |
@@ -133,20 +130,3 @@ lab, applied on the page, not fused into the merge). Coded as one 12-bit stream 
 every series, by 2.6–13 % in bytes. The per-series palette of high parts (L = 0: histogram packing) is the same
 shape with a table in the bundle's metadata instead of a map; on the one sparse 16-bit series it is worth as much to
 HTJ2K as to AV1 (0.576 and 0.571 of HTJ2K on the source). The owner decides whether either is worth a format change.
-
-## The split per depth (row 44 SPLITTIME, adopted by row 72)
-
-Measured in [`lab/av1/splittime`](../../lab/av1/splittime/README.md) by total time against HTJ2K on eleven real
-series (README §Total time, *The split per depth*); the grey rows of §Representation at ingest are its rule,
-`ingest.py`'s `optimized_split`. What it changed against the k = 2 it replaced:
-
-| b | k | top | decoder | against k = 2 |
-| --- | --- | --- | --- | --- |
-| ≤ 9 | 0 | the samples, 8 or 10 bits | WebCodecs | 0.93–1.01 of HTJ2K for k = 2's 1.03–1.07 |
-| 10–12 | 2 | as before | WebCodecs | unchanged (k = 3 at 12 bits within 0.02) |
-| 13 | 3 | 10 bits (w10) | WebCodecs | 0.91–0.98 on every cell; k = 2 is 1.66–1.68 at 4× on 50 Mbit |
-| 14 | 2 | 12 bits | dav1d-WASM | unchanged; HTJ2K where a slow CPU meets ≥ 20 Mbit |
-| 15–16 | — | serve HTJ2K | OpenJPH | every AV1 arm 1.02–3.11; refused by name, as before |
-
-The format did not change: `split` and `depth` already carried every k (row 43), and the reader decodes each
-layout exactly (§Built; golden `optimized/g9` and `optimized/s13`).
