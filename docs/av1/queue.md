@@ -116,7 +116,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 63 | **JXL** — JPEG XL at fast efforts in WASM, and native browser decoding: which engines, exact at which depths, through which API, how fast | claimed 2026-10-07 00:07 UTC (night) |
 | 64 | **REMAP** — rare values above 12 bits mapped out with a small exception map, and a palette for high bits: exact, bytes, decode | claimed 2026-10-07 00:14 UTC (night) |
 | 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | claimed 2026-10-07 00:08 UTC (night) |
-| 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | claimed 2026-10-07 00:15 UTC (night) |
+| 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | done `22f5f03` (`069044e`) — **not reproduced: paired, plain AV1 is 0.973–0.976 of HTJ2K on 10-bit DBT, optimized 0.940–0.943, not 31 % below**: the first 4 frames of `dbt10_ea1141` and `dbt10_d`, 20/20 codings exact (80/80 frames); one setting at a time, an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background by 0.5–0.8, libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned); the two series the brief named are not CC BY or CC0 (UPMC states no licence, BCS-DBT is CC BY-NC 4.0: Blocked); 4 mutations caught 4/4 — [`README.md`](README.md) §Prior evidence, [`lab/av1/pocgap`](../../lab/av1/pocgap/README.md), [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 
 ## Briefs
 
