@@ -3,7 +3,7 @@
 use anyhow::Result;
 use std::collections::VecDeque;
 
-/// Asks the server holds beyond the frame being served. A tile reader takes what fits (`slots − 1`).
+/// Asks the server holds, the frame being served among them. A tile reader takes what fits (`slots − 1`).
 pub const ASKS_AHEAD: usize = 8;
 
 /// What the loop consumes. `EndSession` and `Failed` end it; every other ask carries frames.
@@ -79,9 +79,6 @@ impl Planner {
                     self.fill = after.map(|frame| Fill { frame, to, first: false });
                     let next = Next::Fill { after, first };
                     return Ok(Step::Serve { frame, next });
-                }
-                if matches!(self.in_hand.front(), Some(Ask::EndStream)) {
-                    self.in_hand.pop_front();
                 }
             }
             match self.in_hand.pop_front() {
@@ -293,7 +290,7 @@ mod tests {
         assert_eq!(fill_range(None, None, 0), Err("study is empty".into()));
     }
 
-    /// A flood of asks does not grow `in_hand` past `ASKS_AHEAD`; the rest stay in `poll`.
+    /// A flood of asks holds at most `ASKS_AHEAD`, the frame being served among them; the rest stay in `poll`.
     #[test]
     fn the_loop_holds_no_more_than_asks_ahead() {
         let mut plan = Planner::new(1000);
@@ -308,11 +305,25 @@ mod tests {
         for _ in 0..100 {
             let _ = plan.next(&mut poll).unwrap();
             assert!(
-                plan.in_hand_len() <= ASKS_AHEAD,
+                plan.in_hand_len() < ASKS_AHEAD,
                 "in_hand grew to {} past ASKS_AHEAD {ASKS_AHEAD}",
                 plan.in_hand_len()
             );
         }
+    }
+
+    /// An end_stream between two asks ends neither, so the frame behind it is still read ahead.
+    #[test]
+    fn upcoming_reads_past_an_end_stream() {
+        let mut plan = Planner::new(10);
+        plan.push(Ask::Frame(2));
+        plan.push(Ask::EndStream);
+        plan.push(Ask::Frame(4));
+        assert_eq!(
+            plan.next(|| None).unwrap(),
+            Step::Serve { frame: 2, next: tiles(&[4]) },
+            "an end_stream ends no ask, so 4 is still read ahead"
+        );
     }
 
     /// A queued `Fill` is next; a frame behind it is not named as upcoming.

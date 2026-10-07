@@ -107,13 +107,28 @@ mod tests {
         Ok(())
     }
 
-    /// A study with a frame no client would read is refused before anything is written.
+    /// A series with a frame no client would read is refused before anything is written.
     #[test]
     fn the_writer_refuses_an_oversized_frame_naming_it() {
         let path = std::env::temp_dir().join(format!("sbnd-writer-big-{}.sbnd", std::process::id()));
         let too_big = frame_envelope::MAX_CODESTREAM_LEN as u32 + 1;
         let err = BundleWriter::create(&path, b"{}", &[3, too_big]).err().expect("accepted");
         assert!(format!("{err:#}").contains("frame 1 "), "the refusal does not name the frame: {err:#}");
-        assert!(!path.exists(), "the refused study was written anyway");
+        assert!(!path.exists(), "the refused series was written anyway");
+    }
+
+    /// A frame of another length than its index entry, and a bundle finished short of its
+    /// count, are refused: the index was written first and cannot be corrected.
+    #[test]
+    fn the_writer_refuses_what_its_index_did_not_declare() -> Result<()> {
+        let path = std::env::temp_dir().join(format!("sbnd-refuse-{}.sbnd", std::process::id()));
+        let mut writer = BundleWriter::create(&path, b"{}", &[3, 4])?;
+        let longer = writer.write_frame(b"aaaa");
+        writer.write_frame(b"aaa")?;
+        let short = writer.finish();
+        let _ = std::fs::remove_file(&path);
+        assert!(longer.is_err(), "a 4-byte frame where 3 were declared was written");
+        assert!(short.unwrap_err().to_string().contains("1 of 2"));
+        Ok(())
     }
 }

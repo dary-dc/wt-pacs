@@ -72,10 +72,8 @@ impl Link {
                 let whole = (FRAME_HEAD_LEN + body.len()) as u64;
                 match stall_left {
                     Some(left) if whole > *left => {
-                        let budget = *left as usize;
-                        let body = body.slice(..budget.saturating_sub(head.len()).min(body.len()));
-                        let head = head.slice(..budget.min(head.len()));
-                        media.send(connection, head, body, false).await?;
+                        let (head, body, whole) = within(head, body, *left as usize);
+                        media.send(connection, head, body, whole).await?;
                         connection.closed().await;
                         Err(anyhow!("the session stalled after its byte budget"))
                     }
@@ -131,8 +129,7 @@ impl Media {
                     .context("open uni")?
                     .await
                     .context("open uni ready")?;
-                let _ = uni.set_priority(ask_priority(*seq));
-                *seq = seq.saturating_add(1);
+                let _ = uni.set_priority(take_priority(seq));
                 write_frame(&mut uni, head, body).await?;
                 // A dropped stream is finished, so a cut one is held open instead.
                 acks.spawn(async move {
@@ -162,10 +159,24 @@ impl ControlStream {
     }
 }
 
+/// The envelope's first `budget` bytes as head and body, and whether that is all of it.
+fn within(head: Bytes, body: Bytes, budget: usize) -> (Bytes, Bytes, bool) {
+    let whole = budget >= head.len() + body.len();
+    let body = body.slice(..budget.saturating_sub(head.len()).min(body.len()));
+    (head.slice(..budget.min(head.len())), body, whole)
+}
+
 /// Earlier asks outrank later ones, so quinn sends a lost frame's retransmit before newer
 /// frames' data instead of behind every stream already queued. `docs/adr/stream-shape.md`.
 fn ask_priority(seq: u32) -> i32 {
     i32::try_from(seq).map_or(i32::MIN, |s| -s)
+}
+
+/// The next stream's priority, one rank below the last.
+fn take_priority(seq: &mut u32) -> i32 {
+    let p = ask_priority(*seq);
+    *seq = seq.saturating_add(1);
+    p
 }
 
 async fn write_frame(uni: &mut SendStream, head: Bytes, body: Bytes) -> Result<()> {
@@ -207,5 +218,28 @@ mod tests {
             assert!(p < last, "ask {seq} ranks at {p}, not below {last}");
             last = p;
         }
+    }
+
+    /// Each per-frame stream takes a rank below the one before it, not the same one.
+    #[test]
+    fn each_stream_takes_the_next_rank_down() {
+        let mut seq = 0;
+        let ranks: Vec<i32> = (0..3).map(|_| take_priority(&mut seq)).collect();
+        assert_eq!(ranks, [0, -1, -2]);
+    }
+
+    /// A budget cuts the envelope where it ends, head first, and only a budget that covers the
+    /// head and the body leaves the frame whole.
+    #[test]
+    fn a_budget_cuts_the_envelope_head_first() {
+        let (head, body) = (Bytes::from_static(b"HEADHEAD"), Bytes::from_static(b"body"));
+        let cut = |budget| {
+            let (h, b, whole) = within(head.clone(), body.clone(), budget);
+            (h.len(), b.len(), whole)
+        };
+        assert_eq!(cut(usize::MAX), (8, 4, true));
+        assert_eq!(cut(12), (8, 4, true));
+        assert_eq!(cut(11), (8, 3, false));
+        assert_eq!(cut(5), (5, 0, false));
     }
 }
