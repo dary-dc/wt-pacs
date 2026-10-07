@@ -69,11 +69,13 @@ const OPENJPH = { glue: "/lab/decode-bench/vendor/openjph/openjphjs.js", wasm: "
 function arm(set, name) {
   const a = set.arms[name];
   const ext = a.ext ?? (name === "wc" ? "av1" : name);
-  if (name === "htj2k" || a.codec === "htj2k") {
+  if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/reslevel): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext, codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
-      opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }) } };
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
+      opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }),
+        // A `downloader` arm runs that revision of the downloader (row CLIENT).
+        ...(a.downloader && { worker: a.downloader, decoderWorker: "/client/downloader/decoder.js" }) } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
     ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
