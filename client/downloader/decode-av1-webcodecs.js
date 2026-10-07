@@ -3,7 +3,7 @@
  * decodes alone, any other unit only after its predecessor, here. Only ≤ 10 bits, where it is exact.
  * docs/decode/README.md §AV1
  */
-import { continues } from "./av1-item.js";
+import { codecString, continues, sequence } from "./av1-item.js";
 import { PROBES } from "./av1-probe.js";
 
 let groupLength = 1;
@@ -56,6 +56,8 @@ function decoder(length) {
   let failed = null;
   let held = false;
   let stamp = 0;
+  let codec = null;
+  let seq = null;
   const open = () => {
     // A frame of an earlier unit, flushed late, is not this unit's: only the stamp it was sent with is taken.
     const output = (f) => {
@@ -64,9 +66,18 @@ function decoder(length) {
       wake?.();
     };
     vd = new VideoDecoder({ output, error: (e) => ((failed = e), wake?.()) });
-    vd.configure({ codec: "av01.0.04M.10", hardwareAcceleration: "prefer-software", optimizeForLatency: true });
+    codec = null;
     last = null;
     held = false;
+  };
+  /** From the keyframe's own sequence header; a configure resets the decoder, so only when the string changes. */
+  const configure = (bytes) => {
+    seq = sequence(bytes);
+    if (!seq) throw new Error("keyframe without a sequence header");
+    const c = codecString(seq);
+    if (c === codec) return;
+    vd.configure({ codec: c, hardwareAcceleration: "prefer-software", optimizeForLatency: true });
+    codec = c;
   };
   open();
   return {
@@ -76,6 +87,7 @@ function decoder(length) {
       let stall = 0;
       try {
         if (unit.key && held) await vd.flush();
+        if (unit.key) configure(bytes);
         held = true;
         stamp += 1;
         const out = new Promise((r) => (wake = r));
@@ -85,7 +97,7 @@ function decoder(length) {
         if (!got && vd.state === "configured") await vd.flush();
         if (vd.state === "closed") throw failed ?? new Error("decoder closed");
         if (!got) throw new Error("no frame");
-        const p = await read(got);
+        const p = await read(got, seq);
         if (length > 1 && (unit.index + 1) % length) {
           last = { gen: unit.gen, index: unit.index };
         } else {
@@ -109,12 +121,12 @@ function decoder(length) {
 
 const FORMATS = { I420: [8, 1], I420P10: [10, 1], I444: [8, 3], I444P10: [10, 3] };
 
-/** The frame's planes as a picture, if it is grey 4:0:0 or 4:4:4 identity. */
-async function read(frame) {
+/** The frame's planes as a picture, if it is grey 4:0:0 or 4:4:4 identity; `seq` its sequence header's fields. */
+async function read(frame, seq) {
   const [bits, components] = FORMATS[frame.format] ?? [];
   if (!bits) throw new Error(`format ${frame.format}`);
-  // 4:4:4 identity has no YUV matrix to report; a 4:4:4 stream that names one is YUV.
-  if (components === 3 && frame.colorSpace.matrix) throw new Error(`4:4:4 with matrix ${frame.colorSpace.matrix}`);
+  // From the header, as dav1d's path: the frame's colorSpace echoes the codec string, not the stream.
+  if (components === 3 && seq.mc !== 0) throw new Error(`4:4:4 with matrix ${seq.mc}`);
   const buf = new ArrayBuffer(frame.allocationSize());
   const layout = await frame.copyTo(buf);
   const heap = bits > 8 ? new Uint16Array(buf) : new Uint8Array(buf);

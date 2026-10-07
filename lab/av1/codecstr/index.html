@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 CODECSTR</title>
+<script type="module">
+  const post = (body) => fetch("/cs/done", { method: "POST", body: JSON.stringify(body) });
+  try {
+    const strings = await (await fetch("/cs/strings")).json();
+    const answers = {};
+    for (const codec of strings) {
+      try {
+        const r = await VideoDecoder.isConfigSupported({ codec, hardwareAcceleration: "prefer-software", optimizeForLatency: true });
+        answers[codec] = r.supported;
+      } catch (e) {
+        answers[codec] = String(e?.name ?? e);
+      }
+    }
+    await post({ ua: navigator.userAgent, answers });
+  } catch (e) {
+    await post({ ua: navigator.userAgent, error: String(e?.stack ?? e) });
+  }
+</script>
