@@ -16,6 +16,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 | `decode-av1.js`, `decode-av1-webcodecs.js` | one stream unit through dav1d-WASM or through WebCodecs, as a picture |
 | `av1-frame.js` | a picture checked against the header and merged to the contract: planes interleaved, split, colour transform and offset undone |
 | `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `lab/av1/item/make_golden.py`) |
+| `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike |
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
 path untouched, `"av1"` loads `av1.js` and, on the first item, the decoder it needs — dav1d-WASM
