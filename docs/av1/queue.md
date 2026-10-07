@@ -123,9 +123,11 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | done `8c2b24d` on `claude/av1-unified` (`e945e57`) — **the string is each stream's own, the frames and the decoder unchanged**: each keyframe's sequence header gives `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, reconfigured only when it changes; 91 distinct headers (419 units: every fixture, the probes, 59 items of all 28 taxonomy series, 8 full headers with timing, decoder model, frame ids, High tier, nine operating points) derive the string ffmpeg 6.1.1 reads; libaom writes levels 2.0–6.0 by picture size, never 31, and 31 changes no engine's answer; `isConfigSupported` true for every string in Chromium 141, every full string in Firefox 157.0, Main only in WebKitGTK 2.52.6; 115/115 frames exact in all three, Chromium's decoder per item the same as before (61 WebCodecs, 54 dav1d-WASM), none falling back; Chromium echoes the string's colour on the frame, so the 4:4:4 identity check now reads the header's matrix as dav1d's does — an untagged identity stream now decodes exact through WebCodecs; 13/13 derivation and 3/3 decoder mutations caught; gate green — `lab/av1/codecstr`, `item-format.md` §Decoder choice, `decode/README.md` §AV1 |
 | 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67 |
 | 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row |
-| 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | held until 2026-10-07 18:00 UTC |
-| 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | held until 2026-10-07 18:00 UTC |
-| 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | held until 2026-10-07 18:00 UTC, after 44 |
+| 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | ready |
+| 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | ready |
+| 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | after 44 |
+| 73 | **EXACTPROD** — exactness in production: how a client proves every shown frame bit-exact, acts on a mismatch and reports it; a measured design proposal | ready |
+| 74 | **XENGINE** — why WebCodecs AV1 is not exact outside Chromium, and what would make it exact | ready |
 
 ## Briefs
 
@@ -1228,6 +1230,46 @@ and the ingest refuses more than 14 bits), the ingest picks k from the series' d
 **Decides:** every frame exact at every depth 8–16 through every decoder path row 43 covered; golden vectors for each
 new layout; the gate green; HTJ2K unchanged. **Adopt:** the rule as row 44 states it. **Branch:**
 `claude/av1-unified`. **Deliverable:** the code, the vectors, and the rule in `docs/av1/item-format.md`.
+
+### 73 EXACTPROD
+
+**Question.** How should a production client prove that every frame it shows is bit-exact, act on a mismatch, and report
+it so the server can persist it? **Today:** the ingest hashes each source frame's samples with blake3 into the study
+metadata; the client compares only under a switch, and on a mismatch it warns and still paints the frame.
+**Options to weigh, each with what it costs and what it protects:**
+* *Where to compare:* in the client, where only it can act at once, or on the server, which can only record after the fact.
+* *On a mismatch:* decode again with the other decoder, ask for the frame again, mark it, or block its display.
+* *Reporting:* failures sent at once with context (study, series, frame, codec, decoder path, codec string, engine,
+  device, expected and actual hash); counts of checked frames per decoder path, so failure rates can be computed;
+  transport over the open session, or `sendBeacon` on `visibilitychange` — never only at study close, which phones do not
+  reliably fire; no pixel data, which is patient data.
+* *Persistence on the server.*
+* *Sampling:* check everything the first time a browser, device and decoder-path combination is seen, then sample at a rate.
+* *Timing:* check before paint or after paint.
+* *The hash:* blake3 through WASM against SHA-256 through WebCrypto (native, and maybe faster on phones with SHA
+  instructions); fix the defect where a SHA-256 fallback at ingest fails every client check.
+**Measure, interleaved:** hashing cost per frame size (512² up to 4 096 × 3 328, 8 and 16 bits) at 1× and 4× CPU,
+against decode time; each option's effect on the fill and on the time to the first exact picture.
+**Branch:** `claude/av1-unified`. **Deliverable:** a proposal with numbers and a recommendation in `docs/`. Nothing is
+adopted; the owner decides.
+
+### 74 XENGINE
+
+**Question.** Why is WebCodecs AV1 not exact outside Chromium, and what would make it exact? **Facts:** Firefox desktop
+(≥ 130) and Safari (≥ 17.5, hardware AV1 only, `av01.0…` strings) both expose AV1 in WebCodecs. Row 37 measured that
+Firefox refuses monochrome and returns 4:4:4 as 8-bit, that WebKitGTK decodes no AV1 through WebCodecs, and Safari was
+never run.
+**Part 1, theory from primary sources.** Firefox, from its source (WebCodecs → bundled dav1d or platform decoders):
+which output pixel formats it produces and why; whether high bit depth or 4:4:4 is converted or truncated, and where;
+whether monochrome is refused, and by which check; whether the configure options, the codec string (row 67's derived
+one), `VideoFrame.copyTo` with a `format` option, or a preference change the outcome. WebKit: the same questions for the
+hardware path (VideoToolbox) and for WebKitGTK through GStreamer. Result: which of our layouts (8- and 10-bit grey,
+10-bit 4:4:4 after the colour transform) each engine could return exactly.
+**Part 2, measurement.** In Firefox and WebKitGTK on Linux, test each hypothesis from part 1 with the lab's exactness
+harness: every layout and each option, every frame checked against the source hash; mutate the checks. Safari cannot run
+here: state what a device run must test, and add it under `## Blocked` for the owner's phone decision.
+**Branch:** `claude/av1-unified`. **Deliverable:** findings with sources and numbers in the decode doc. Change the client
+only where an engine becomes exact with no regression in Chromium.
 
 ## Blocked
 
