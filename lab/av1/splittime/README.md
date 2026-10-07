@@ -106,9 +106,9 @@ short, so its 4× ratios overstate. `--mutate sample` and `--mutate truth` each 
 ## Total time, 13–16 bits (2026-10-07)
 
 Row TOTAL's `run.mjs` on these items (`--frames lab/.av1-work/splittime`), links, CPU and Williams order
-unchanged, rounds 0–9; rounds 6–9 ran from a checkout frozen at the run's first revision (`90eb331`), since
-the branch moved under it. 176 000/176 000 frames exact over 2 200 visits, 35 `VOID` dropped, n = 7–10 a
-cell (29 of 220 cells under 10). Each HTJ2K cell is the median seconds to every frame on the page; each arm
+unchanged, rounds 0–9, then 10–11 on every link but 50 Mbit to top up the cells `VOID` had left short; rounds 6–11 ran from a checkout frozen at the run's first revision (`90eb331`), since
+the branch moved under it. 204 160/204 160 frames exact over 2 552 visits, 41 `VOID`
+dropped, n = 10–12 a cell but one (9). Each HTJ2K cell is the median seconds to every frame on the page; each arm
 the median of round-paired ratios to it; 1× · 4×. The port reproduces row REP14's cells within their
 spread: the CT's w10 at 50 Mbit is 0.94 · 0.95 (REP14 0.94 · 0.94, HTJ2K 2.87 · 2.88 s both), d12 on
 system 2 at 5 Mbit 0.93 · 0.95 (0.93 · 0.94). `--mutate sample` and `--mutate truth` each turned every arm
@@ -117,27 +117,27 @@ to 0 exact.
 | series | arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
 | --- | --- | --- | --- | --- | --- | --- |
 | ct_lidc | HTJ2K, s | 26.7 · 26.7 | 6.81 · 6.82 | 2.87 · 2.88 | 5.4 · 5.34 | 11.8 · 11.2 |
-| ct_lidc | k1 | 0.93 · 0.93 | 0.93 · 0.94 | 0.94 · 1.63 | 0.95 · 1.05 | 0.88 · 0.88 |
-| ct_lidc | k2 | 0.92 · 0.92 | 0.92 · 0.93 | 0.93 · 1.68 | 0.94 · 1.05 | 0.88 · 0.90 |
-| ct_lidc | k3 | 0.93 · 0.93 | 0.93 · 0.94 | 0.94 · 0.95 | 0.95 · 0.96 | 0.96 · 0.93 |
+| ct_lidc | k1 | 0.93 · 0.93 | 0.93 · 0.94 | 0.94 · 1.63 | 0.95 · 1.04 | 0.89 · 0.90 |
+| ct_lidc | k2 | 0.92 · 0.92 | 0.92 · 0.93 | 0.93 · 1.68 | 0.94 · 1.04 | 0.89 · 0.90 |
+| ct_lidc | k3 | 0.93 · 0.93 | 0.93 · 0.94 | 0.94 · 0.95 | 0.95 · 0.96 | 0.97 · 0.93 |
 | xa_dynact16 | HTJ2K, s | 24.2 · 24.2 | 6.18 · 6.19 | 2.62 · 2.63 | 5.04 · 4.99 | 9.97 · 9.85 |
-| xa_dynact16 | k1 | 1.05 · 1.06 | 1.06 · 1.08 | 1.06 · 1.68 | 1.05 · 1.09 | 1.07 · 1.07 |
-| xa_dynact16 | k2 | 0.99 · 0.99 | 0.99 · 1.01 | 1.00 · 1.66 | 1.00 · 1.05 | 0.98 · 1.02 |
+| xa_dynact16 | k1 | 1.05 · 1.06 | 1.06 · 1.08 | 1.06 · 1.68 | 1.05 · 1.09 | 1.07 · 1.05 |
+| xa_dynact16 | k2 | 0.99 · 0.99 | 0.99 · 1.01 | 1.00 · 1.66 | 1.00 · 1.04 | 0.98 · 1.02 |
 | xa_dynact16 | k3 | 0.95 · 0.95 | 0.95 · 0.96 | 0.96 · 0.97 | 0.96 · 0.98 | 0.96 · 0.91 |
-| dbtproj_ge | HTJ2K, s | 60 · 60.2 | 15.2 · 15.4 | 6.27 · 6.53 | 14.1 · 14.4 | 27.4 · 28.8 |
-| dbtproj_ge | k2 | 0.96 · 0.99 | 0.99 · 1.12 | 1.05 · 1.69 | 0.95 · 1.09 | 0.96 · 1.02 |
-| dbtproj_ge | k3 | 0.95 · 0.99 | 0.98 · 1.10 | 1.04 · 1.66 | 0.94 · 1.08 | 0.99 · 1.04 |
+| dbtproj_ge | HTJ2K, s | 60 · 60.2 | 15.2 · 15.4 | 6.27 · 6.53 | 14.1 · 14.4 | 28 · 28.8 |
+| dbtproj_ge | k2 | 0.96 · 0.99 | 0.99 · 1.11 | 1.05 · 1.69 | 0.95 · 1.09 | 0.96 · 1.03 |
+| dbtproj_ge | k3 | 0.95 · 0.98 | 0.98 · 1.10 | 1.04 · 1.66 | 0.94 · 1.08 | 0.97 · 1.06 |
 | dbtproj_ge | k4 | 1.00 · 1.01 | 1.01 · 1.04 | 1.03 · 1.09 | 1.01 · 1.04 | 1.01 · 1.04 |
 | dbtproj_holo | HTJ2K, s | 47.9 · 48.1 | 12.1 · 12.3 | 5.03 · 5.17 | 9.2 · 9.35 | 21.5 · 21.8 |
 | dbtproj_holo | k2 | 0.93 · 0.95 | 0.95 · 1.02 | 0.98 · 1.53 | 0.95 · 1.04 | 0.92 · 0.98 |
-| dbtproj_holo | k3 | 0.94 · 0.96 | 0.96 · 1.04 | 0.99 · 1.57 | 0.96 · 1.07 | 0.94 · 0.96 |
-| dbtproj_holo | k4 | 1.05 · 1.05 | 1.05 · 1.07 | 1.06 · 1.12 | 1.10 · 1.13 | 1.05 · 1.05 |
+| dbtproj_holo | k3 | 0.94 · 0.96 | 0.96 · 1.04 | 0.99 · 1.57 | 0.96 · 1.06 | 0.93 · 0.96 |
+| dbtproj_holo | k4 | 1.05 · 1.05 | 1.05 · 1.07 | 1.06 · 1.12 | 1.10 · 1.13 | 1.04 · 1.06 |
 | pt15_cptac | HTJ2K, s | 17 · 17 | 4.38 · 4.38 | 1.9 · 1.9 | 3.76 · 3.74 | 6.42 · 6.62 |
 | pt15_cptac | k3 | 1.09 · 1.09 | 1.09 · 1.09 | 1.09 · 1.91 | 1.08 · 1.22 | 1.09 · 1.10 |
-| pt15_cptac | k5 | 1.04 · 1.04 | 1.04 · 1.04 | 1.04 · 1.16 | 1.04 · 1.04 | 1.04 · 1.03 |
-| mg16_cbis | HTJ2K, s | 34.8 · 36.5 | 9.23 · 10.9 | 4.14 · 5.86 | 7.19 · 8.88 | 16.6 · 17.5 |
-| mg16_cbis | k4 | 1.16 · 1.41 | 1.37 · 2.18 | 1.73 · 3.11 | 1.46 · 2.43 | 1.23 · 1.81 |
-| mg16_cbis | k6 | 1.02 · 1.03 | 1.06 · 1.08 | 1.13 · 1.16 | 1.08 · 1.11 | 1.04 · 1.06 |
+| pt15_cptac | k5 | 1.04 · 1.04 | 1.04 · 1.04 | 1.04 · 1.16 | 1.04 · 1.04 | 1.06 · 1.03 |
+| mg16_cbis | HTJ2K, s | 34.8 · 36.5 | 9.23 · 10.9 | 4.14 · 5.86 | 7.19 · 8.88 | 16.4 · 17 |
+| mg16_cbis | k4 | 1.16 · 1.40 | 1.37 · 2.18 | 1.73 · 3.11 | 1.45 · 2.41 | 1.24 · 1.81 |
+| mg16_cbis | k6 | 1.02 · 1.03 | 1.06 · 1.09 | 1.13 · 1.16 | 1.08 · 1.11 | 1.04 · 1.06 |
 
 * **13 bits: k = 3 (= w10, WebCodecs) on every cell**, 0.91–0.98 of HTJ2K, and its first frame within
   ±20 ms of HTJ2K's (median 0–17 ms). k = 1 and k = 2 tie it where the wire is the clock on the CT and lose
