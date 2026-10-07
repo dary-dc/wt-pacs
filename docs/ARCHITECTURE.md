@@ -158,6 +158,30 @@ range on the wire twice). **The dial and the decoders start together**: start-to
 52 ms** on the TS client and **70 → 57 ms** on the WASM one, loopback, 4 interleaved rounds — the floor;
 on a real link the saving is a whole handshake.
 
+**Two defects on the re-dial path, fixed 2026-10-06 (row CLIENT).** A resumption dials with the
+owed run in its URL, so a `cancel` that lands while that dial is open could not take the run back:
+the new session now ends that stream once it opens. And `close()` during a re-dial let `resume()`
+adopt the new session and ask the owed work on it: a dial that opens after `close` is closed, and
+`resume()` stops. The ask and fill handlers' generation check after `await live()` was already
+right. Each is reproduced by a dispatch clause that failed before the fix.
+
+**The states are as few as the behaviour allows.** `generation` (the request) and `epoch` (the
+session) move on different events — a cancel keeps the session, a resume keeps the request (§Re-dial
+and re-issue) — so one counter would either drop a resumed request's frames or let a dead session's
+callbacks through. `resuming` is the whole resumption, re-dials and waits between them; `dialling`
+is one handshake, shared by whoever needs a session: a command that awaited only `dialling` dials
+beside a resumption sleeping between tries (a clause holds it). The record keeps three states, each
+read: `wire` is what a resume owes, `queued` what dispatch may take, `decoding` neither. What the
+sweep found dead — the record's generation, two guards in `promote()` — is removed; every decision
+left is held by a test (`client/downloader/README.md` §Every decision is held by a test).
+*The fill's time is unchanged* — the HTJ2K frames through this downloader against the one before
+`f136363` (the arm `lab/av1/total/downloader_arm.sh` adds), the rest of the client the same, the real
+server behind the relay, headless Chromium, 10 rounds interleaved, 10 of 160 visits `VOID` dropped,
+n = 7–10 a cell: every frame on the page after / before **0.99–1.00** on the fluoroscopy (18 × 768²)
+and the 10-bit tomosynthesis (24 × 678×1727) at 20 and 50 Mbit, 1× and 4× (fluoroscopy at 50 Mbit
+and 1×, 1 722 [1 715–1 730] against 1 724 [1 715–1 733] ms), slower in 29 of 71 paired rounds;
+3 360/3 360 frames exact. The code moved is off the fill's steady path, so no gain was expected.
+
 ### The first fill
 
 **It rides with `start`**: `connect(url, hash, { fill })` puts the indices in the `start` message, so
