@@ -189,3 +189,18 @@ HTJ2K's by the rule and have no AV1 arm. Firefox is launched as a process (as ro
 POSTs its result to the harness; Chromium's result comes the same way. Firefox runs no 5 Mbit cell but the
 probe: its WebTransport dial through the relay at 5 Mbit does not settle (below).
 
+**Row ASKDEADLINE** times the downloader's own deadlines under loss. Row LOSSLINK's HTJ2K frames
+(`ARMS=none make_frames.py`), `downloader_arm.sh cf4db15 before` for the downloader before the row, and
+in `arms.json` a third arm `stall15` (`"codec": "htj2k", "survival": {"stallMs": 15000}`); every arm with
+`"transport": "/lab/av1/total/quiet-transport.js"`, the product's transport that tells the page each
+silence over 1 s it lived through and how long it had been quiet when closed. Then
+
+```bash
+run.mjs --frames lab/.av1-work/losslink --links r20000,lte-good --impairs clean,l2,l5 --throttles 1 \
+  --fill 4 --asks-after 8 --rounds 10
+```
+
+whose summary adds per arm the asks failed, the resumes and the silences survived. Chromium 141's
+`WebTransport.getStats()` gave a probe no `packetsReceived` in two visits, so a silence is the application's, not the
+socket's. The reading is in [`client/downloader/README.md`](../../../client/downloader/README.md)
+§A session that dies is resumed.

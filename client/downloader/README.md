@@ -145,6 +145,26 @@ frame last arrived, so sessions that are accepted and never deliver end in the o
 `dialMs` is closed and counts as a failed try, the first dial included. Until 2026-09-24 a quiet fill started a probe ask
 instead, which livelocked on a slow link. An ask keeps no timer in the consumer: the downloader
 settles it, and the transports time a frame from the last byte, not from the ask.
+
+**No client timer fails an ask whose bytes are still coming** (row ASKDEADLINE, 2026-10-07). The timers
+that can end a frame are the stall above, `dialMs`, and each transport's 15 s per-ask waiter — no byte
+on the session for 15 s, restarted by every byte (the consumer's close deadline and WebCodecs' 2 s flush
+act on bytes already in hand). The waiter was the one that could fail an open session's ask outright:
+once three silences had doubled `stallMs` past 15 s, it fired first and the ask failed with re-dials
+left. **It is now silence like the stall's**: both WebTransport clients reject it as `FrameTimeoutError`
+and the downloader resumes the ask on a new session, failing it only when `tries` runs out
+(`downloader.test.mjs`; the conformance clause names it; each mutation caught). Measured on row
+LOSSLINK's harness ([`lab/av1/total`](../../lab/av1/total/README.md) §Row ASKDEADLINE): the 10-bit
+volume as HTJ2K, 4 frames filled then 8 asked one at a time, 20 Mbit and `lte-good` clean, 2 % and 5 %
+loss, 1×, this downloader against the one before it and against `stallMs` 15 s, 10 rounds interleaved,
+155 of 180 visits kept, **2 160/2 160 frames exact and 0 asks failed in every arm, before as after**. On
+the clean links and iid loss nothing fires — no silence over 1 s, no resume, fill ×0.98–1.03 and ask
+medians within 70 ms. On `lte-good`'s bursts the silences are real and the session lives through them:
+up to 9.3 s with today's stall, 12.4 s with 15 s; 3 s re-dials 2–12 times a cell, and the ask tail (p95
+12.8–13.8 s at 5 %) is the same either way. **A 15 s stall is not adopted**: it re-dials less but its
+tail is longer (p95 19.5 s, max 54 s; Chromium itself drops two of those sessions at 6.6 s of silence),
+within a spread where one burst is ten seconds. The fix changes nothing measured here; it removes the
+one path by which a timer failed an ask the transport might still deliver.
 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) has the states, the
 reasons and what a cut costs today against built.
 
