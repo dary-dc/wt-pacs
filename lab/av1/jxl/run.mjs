@@ -4,9 +4,9 @@
  * native, libjxl-WASM per coding, OpenJPH on the served HTJ2K — in a Williams order every round, arms rotating
  * inside. Engines are launched as row XBROWSER launched them. lab/av1/jxl/README.md
  *
- *   node lab/av1/jxl/run.mjs --probe [--engines ...] [--codings jxl-e7-f0,...]
+ *   node lab/av1/jxl/run.mjs --probe [--engines ...] [--codings jxl-e7-f0,...] [--mutate source]
  *   node lab/av1/jxl/run.mjs [--rounds 10] [--throttles 1,4] [--engines chromium154+jxl] [--codings ...]
- *     [--frames 8] [--work lab/.av1-work/jxl] [--mutate hash] [--out rows.json]
+ *     [--sets a,b] [--frames 8] [--work lab/.av1-work/jxl] [--mutate hash] [--out rows.json]
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -25,7 +25,7 @@ const CODINGS = arg("--codings", "jxl-e7-f0").split(",");
 const FRAMES = Number(arg("--frames", 8));
 const WORK = arg("--work", "lab/.av1-work/jxl");
 const DATA = arg("--data", "lab/av1/data");
-const MUTATE = arg("--mutate", "") === "hash";
+const MUTATE = arg("--mutate", "");
 const OUT = arg("--out", null);
 const CELL_MS = 30 * 60 * 1000;
 const ROOT = new URL("../../..", import.meta.url).pathname;
@@ -52,14 +52,16 @@ const ENGINES = {
   webkit: (url) => [process.env.MINIBROWSER_PATH ?? "/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/MiniBrowser", [url]],
 };
 
-const { sets } = JSON.parse(readFileSync(`${ROOT}/${WORK}/manifest.json`, "utf8"));
+const SETS = arg("--sets", "");
+const sets = JSON.parse(readFileSync(`${ROOT}/${WORK}/manifest.json`, "utf8")).sets
+  .filter((s) => !SETS || SETS.split(",").includes(s.name));
 const unit = (s, c, i) => `/${WORK}/${s.name}/${c}/${String(i).padStart(3, "0")}.${c.split("-")[0]}`;
 const probeSets = sets.map((s) => ({ name: s.name, data: DATA, stored: s.stored, shift: s.shift, channels: s.channels,
   width: s.width, height: s.height, truth: s.truth, probe: CODINGS.map((c) => unit(s, c, 0)) }));
 const arms = sets.flatMap((s) => {
   const n = Math.min(FRAMES, s.frames);
   const urls = (c) => Array.from({ length: n }, (_, i) => unit(s, c, i));
-  const want = MUTATE ? s.truth.slice(0, n).map((h) => h.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : s.truth.slice(0, n);
+  const want = MUTATE === "hash" ? s.truth.slice(0, n).map((h) => h.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : s.truth.slice(0, n);
   const fmt = { bits: s.stored, signed: s.signed, shift: s.shift, width: s.width, height: s.height, channels: s.channels };
   return [
     { set: s.name, arm: "htj2k", o: { arm: "htj2k", urls: urls("htj2k"), ...fmt }, want },
@@ -81,10 +83,13 @@ const server = createServer((req, res) => {
     req.on("end", () => {
       const m = JSON.parse(body || "{}");
       res.writeHead(200, { ...headers, "Content-Type": "application/json" });
-      if (req.url === "/jx/hello") {
+      if (req.url === "/jx/log") {
+        console.error(`  ${m.line}`);
+        res.end("{}");
+      } else if (req.url === "/jx/hello") {
         cell.ua = m.ua;
         cell.stop = throttleTree(cell.pid, cell.throttle);
-        res.end(JSON.stringify(PROBE ? { mode: "probe", sets: probeSets } : { mode: "time", round: cell.round, arms }));
+        res.end(JSON.stringify(PROBE ? { mode: "probe", sets: probeSets, mutate: MUTATE === "source" } : { mode: "time", round: cell.round, arms }));
       } else {
         res.end("{}");
         cell.done(m);
@@ -124,7 +129,7 @@ async function inEngine(engine, throttle, round) {
   const ua = cell.ua;
   proc.kill("SIGKILL");
   await new Promise((res) => setTimeout(res, 500));
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
   return { ua, ...r };
 }
 
