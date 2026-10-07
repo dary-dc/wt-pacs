@@ -104,7 +104,7 @@ export class DownloaderClient {
       frameIndex: m.index,
       generation: m.gen,
       bytes,
-      timing: { askMs: m.stamps?.ask ?? 0, lastChunkMs: m.stamps?.lastByte || m.stamps?.decodeEnd || 0 },
+      timing: { askMs: m.stamps?.ask ?? 0, lastChunkMs: m.stamps?.lastByte ?? 0 },
       info: m,
     };
     if (m.preview) return void this.#onPreview(frame);
