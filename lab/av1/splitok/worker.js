@@ -9,7 +9,8 @@ const sha256 = async (b) => [...new Uint8Array(await crypto.subtle.digest("SHA-2
 
 try {
   const OUT = "/lab/.av1-build/out";
-  const av1 = await reader({ glue: `${OUT}/simd.js`, wasm: `${OUT}/simd.wasm`, dir: OUT });
+  const { mixed } = await (await fetch("/sk/config")).json();
+  const av1 = await reader({ glue: `${OUT}/simd.js`, wasm: `${OUT}/simd.wasm`, dir: OUT, mixed });
   const cells = await (await fetch("/sk/manifest")).json();
   for (const c of cells) {
     const meta = await (await fetch(`${c.set}/metadata.json`)).json();

@@ -52,7 +52,8 @@ export const ARMS = {
   webcodecs: (base, set) => set.webcodecs && ({ kind: "webcodecs", ext: "av1", decoder: { codec: set.webcodecs } }),
 };
 
-/** rows: { set, arm, ms[], exact, frames }. A frame that fails to decode is a row with an error. */
+/** rows: { set, arm, ms[], exact, frames }; an arm's `restore` turns its decoder's picture into the frame.
+ * A frame that fails to decode is a row with an error. */
 export async function round(env, { base, frames: dir, arms, round: r, mutate = [], sets }, kinds = ARMS) {
   for (const k of mutate) MUTATE[k] = true;
   const manifest = (await (await fetch(`${base}/${dir}/manifest.json`)).json()).filter((s) => !sets || sets.includes(s.name));
@@ -70,7 +71,8 @@ export async function round(env, { base, frames: dir, arms, round: r, mutate = [
         const dec = await start(env, arm.kind, arm.decoder);
         await dec.decode(bytes[0], -1);  // the warm-up frame the product decodes at init
         for (let i = 0; i < bytes.length; i++) {
-          const { ms, pixels } = await dec.decode(bytes[i], i);
+          let { ms, pixels } = await dec.decode(bytes[i], i);
+          if (arm.restore) ({ ms, pixels } = await arm.restore(pixels, i, ms));
           row.ms.push(ms);
           if ((await sha256(pixels)) === truth[i]) row.exact++;
         }

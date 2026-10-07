@@ -4,7 +4,9 @@
  * decoder gave each item's pictures is read from verify.js's tag and held against what the engine should
  * choose: WebCodecs in Chromium where every stream is ≤ 10 bits, dav1d-WASM otherwise and in the other two.
  *
- *   node lab/av1/splitok/browser.mjs SETS ITEMS [--engines chromium,firefox,webkit+sab] [--only k2,k3] [--out rows.json]
+ * With --mixed (row 47, MIXDEC), a top over 10 bits goes to dav1d-WASM and its low to WebCodecs where the engine's probe passes.
+ *
+ *   node lab/av1/splitok/browser.mjs SETS ITEMS [--engines chromium,firefox,webkit+sab] [--only k2,k3] [--mixed] [--out rows.json]
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -17,6 +19,7 @@ const [SETS, ITEMS] = process.argv.slice(2, 4).map((p) => resolve(p));
 const ENGINE_NAMES = arg("--engines", "chromium,firefox,webkit+sab").split(",");
 const ONLY = arg("--only", "").split(",").filter(Boolean);
 const OUT = arg("--out", null);
+const MIXED = process.argv.includes("--mixed");
 const ENGINE_MS = 6 * 60 * 60 * 1000;
 const ROOT = new URL("../../..", import.meta.url).pathname;
 const DISPLAY = ":78";
@@ -36,7 +39,8 @@ const ENGINES = {
   // WebKitGTK leaves SharedArrayBuffer off under cross-origin isolation, where Safari turns it on.
   "webkit+sab": (url) => [MINIBROWSER, [url], { JSC_useSharedArrayBuffer: "1" }],
 };
-const expected = (engine, header) => (engine === "chromium" && header && header.depth <= 10 ? "webcodecs" : "dav1d");
+const expected = (engine, header) => (engine !== "chromium" || !header ? "dav1d" : header.depth <= 10 ? "webcodecs"
+  : MIXED && header.split ? "dav1d+webcodecs" : "dav1d");
 
 const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
 const url = (p) => "/" + relative(ROOT, p);
@@ -63,6 +67,7 @@ const server = createServer((req, res) => {
     });
     return;
   }
+  if (req.url === "/sk/config") return void res.writeHead(200, { ...headers, "Content-Type": "application/json" }).end(JSON.stringify({ mixed: MIXED }));
   if (req.url === "/sk/manifest") return void res.writeHead(200, { ...headers, "Content-Type": "application/json" }).end(JSON.stringify(manifest));
   const path = join(ROOT, decodeURIComponent(new URL(req.url, "http://x").pathname));
   try {

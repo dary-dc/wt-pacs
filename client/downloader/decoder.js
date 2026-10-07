@@ -2,81 +2,17 @@
  * One decoder instance. Pixels are written once, into a SharedArrayBuffer, and go straight to the
  * consumer over the port the downloader handed out. docs/ARCHITECTURE.md §The decoders
  */
-let M = null;
-let dec = null;
+let codec = null;
 let toConsumer = null;
-let decodeOne = decodeFrame;
 let queue = Promise.resolve();
 
 const abs = () => performance.timeOrigin + performance.now();
 
-/** Sign-extend narrow samples (JS shifts are 32-bit) and take the range in one pass — docs/decode/README.md §The range pass. */
-export function finish(view, bits, signed) {
-  let min = Infinity;
-  let max = -Infinity;
-  const shift = signed && bits < 8 * view.BYTES_PER_ELEMENT ? 32 - bits : 0;
-  for (let i = 0; i < view.length; i++) {
-    let v = view[i];
-    if (shift) {
-      v = (v << shift) >> shift;
-      view[i] = v;
-    }
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-  return { min, max };
-}
-
-/** Nothing reads an 8-bit colour frame's range — its window comes from the tags — so no pass takes it. */
-export const unranged = (info) => info.componentCount === 3 && info.bitsPerSample === 8 && !info.isSigned;
-
-function decodeFrame(bytes) {
-  // Already a Uint8Array over the transferred buffer; wrapping it again is a copy. docs/decode/README.md §The range pass
-  dec.getEncodedBuffer(bytes.length).set(bytes);
-  dec.readHeader();
-  const info = dec.getFrameInfo();
-  dec.decode();
-  const out = dec.getDecodedBuffer();
-  const wide = info.bitsPerSample > 8;
-  // The reused decoder leaves the previous frame's pixels here when a parse fails, so the header
-  // is what says the frame is gone, not the length. docs/decode/README.md §A frame that did not decode
-  const declared = info.width * info.height * info.componentCount * (wide ? 2 : 1);
-  if (declared === 0 || out.length < declared) {
-    throw new Error(`undecodable: ${out.length} bytes for a header declaring ${declared}`);
-  }
-
-  const sab = new SharedArrayBuffer(out.length);
-  new Uint8Array(sab).set(out);
-  const view = wide
-    ? (info.isSigned ? new Int16Array(sab) : new Uint16Array(sab))
-    : (info.isSigned ? new Int8Array(sab) : new Uint8Array(sab));
-  // A build that takes the range as it packs has sign-extended already. docs/decode/README.md §The range in the pack
-  const range = unranged(info)
-    ? { min: 0, max: 255 }
-    : dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
-  return { info, sab, byteCount: out.length, range };
-}
-
-async function initHtj2k(m) {
-  // A module worker has no importScripts and the glue is a classic script. Its factory is a
-  // top-level `var`, which inside a Function body is local, so hand it back explicitly.
-  const src = await (await fetch(m.decoder.glue)).text();
-  const factory = new Function(
-    `${src}\nreturn typeof Module !== "undefined" ? Module : OpenJPHModule;`,
-  ).call(self);
-  const wasmBinary = await (await fetch(m.decoder.wasm)).arrayBuffer();
-  M = await factory({ locateFile: (f) => m.decoder.dir + "/" + f, wasmBinary });
-  // One decoder object reused: parity.mjs is byte-identical on every fixture, so reuse is safe.
-  dec = new M.HTJ2KDecoder();
-}
-
+/** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview)` → `{ info, sab, byteCount, range }`. */
 async function init(m) {
   // Only an AV1 series loads AV1 code; which decoder takes an item is chosen per item. docs/av1/item-format.md
-  if (m.decoder?.codec === "av1") {
-    const av1 = await import("./av1.js");
-    await av1.init({ ...m.decoder, groupLength: m.groupLength });
-    decodeOne = av1.decodeFrame;
-  } else await initHtj2k(m);
+  codec = await import(m.decoder?.codec === "av1" ? "./av1.js" : "./htj2k.js");
+  await codec.init({ ...m.decoder, groupLength: m.groupLength });
 }
 
 onmessage = async (e) => {
@@ -99,7 +35,7 @@ async function decode(m) {
   const stamps = { ...m.stamps, decodeStart: abs() };
   const preview = (r) => toConsumer.postMessage({ ...picture(m, r, { ...stamps, decodeEnd: abs() }), preview: true });
   try {
-    const r = await decodeOne(m.bytes, m, preview);
+    const r = await codec.decodeFrame(m.bytes, m, preview);
     stamps.decodeEnd = abs();
     toConsumer.postMessage(picture(m, r, stamps));
     // The wire buffer goes back to the transport's ring, where the next frame is read into it.
