@@ -73,7 +73,7 @@ for (const name of NAMES) {
   const dir = mkdtempSync(join(tmpdir(), "xe-"));
   const [bin, args, extra] = VARIANTS[name](URL_, dir);
   const proc = spawn(bin, args, { env: { ...process.env, DISPLAY, WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS: "1", MOZ_CRASHREPORTER_DISABLE: "1", ...extra },
-    stdio: ["ignore", "ignore", "pipe"] });
+    stdio: ["ignore", "ignore", "pipe"], detached: true });
   let stderr = "";
   proc.stderr.on("data", (c) => (stderr = (stderr + c).slice(-3000)));
   const r = await new Promise((resolve) => {
@@ -81,9 +81,9 @@ for (const name of NAMES) {
     setTimeout(() => resolve({ error: `no result in 5 min; stderr: ${stderr}` }), 5 * 60 * 1000);
     proc.on("exit", (code) => setTimeout(() => resolve({ error: `exited ${code}; stderr: ${stderr}` }), 2000));
   });
-  proc.kill("SIGKILL");
+  try { process.kill(-proc.pid, "SIGKILL"); } catch { proc.kill("SIGKILL"); }
   await new Promise((res) => setTimeout(res, 500));
-  rmSync(dir, { recursive: true, force: true });
+  try { rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 }); } catch {}
   results[name] = { ua: cell.caps?.ua, ...r };
   console.log(`\n${name}: ${cell.caps?.ua ?? ""}${r.error ? `\n  ERROR ${r.error}` : ""}`);
   for (const row of r.rows ?? []) {
