@@ -1474,6 +1474,30 @@ HTJ2K, paired by round:
   single decoder's time out by arithmetic. *Since measured (row FILL):* three decoders through the downloader,
   `docs/av1/README.md` §A1 — the arithmetic's verdict holds, its sizes were optimistic.
 
+## JPEG XL
+
+Row JXL ([`lab/av1/jxl`](../../lab/av1/jxl/README.md)), 2026-10-07: lossless JPEG XL (libjxl 0.12.0) at effort 1–7 and
+`--faster_decoding` 0–4 against the served HTJ2K, on the first 8 frames of seven sets from 8 to 16 bits; libjxl in WASM
+(row EMBED's single-threaded SIMD build) and each engine's own decoder, 8 interleaved rounds at 1× and 4× in Chromium
+154 and Firefox 157. Container-measured.
+
+* **Exact everywhere it decodes samples.** Every one of 35 codings × 37 frames through `djxl`; 7 040/7 040 timed WASM
+  and OpenJPH frames. Row SIZE's inexact 12-bit cjxl (0.7.0) does not recur in 0.12.0 at any depth up to 16.
+* **The browsers return 8 bits.** Native JPEG XL decoding exists in Chromium 154 (jxl-rs, behind `JXLImageFormat`, off
+  by default; none in Chromium 141) and Firefox 157.0.1 (behind `image.jxl.enabled`, off), not in WebKitGTK 2.52.6.
+  Where it decodes, `<img>`, `createImageBitmap`, `ImageDecoder` (always `BGRX`) and a float16 canvas read all give
+  8-bit samples: exact on 8-bit grey and RGB, display pixels above (Firefox rounds; Chromium's `ImageDecoder` is
+  within one 8-bit step, its `<img>` within three). Safari has decoded JPEG XL since 17.0 — not tested here.
+* **Bytes and decode trade one for the other, and no setting wins both.** Effort 1 is 0.94–1.03 of HTJ2K's bytes at
+  1.03–1.91× OpenJPH's WASM decode; e7 with `--faster_decoding=3` 0.91–0.98 at 1.56–2.45×; the default e7 0.81–0.96
+  at 5.35–10.0×. The 30 MP 16-bit film scan is 0.53 at e5–7.
+* **Native beats libjxl-WASM only at the default effort** (2.2–6.1× OpenJPH, 192 of 192 rounds under WASM), and only on
+  8-bit RGB at fast efforts does it beat OpenJPH (the ultrasound, 0.61–1.19×), where the canvas loses nothing.
+
+So JPEG XL earns no place in the decode path: where it saves 5 % of the bytes or more it decodes 1.5–10× slower, the
+browsers cannot hand over samples above 8 bits, and the one case where native beats OpenJPH sits behind a flag in both
+engines that have it.
+
 ## What these numbers are not
 
 * **Every millisecond is container-measured** and reported, not decided on. Heap, byte-exactness and

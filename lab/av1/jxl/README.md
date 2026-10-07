@@ -17,9 +17,11 @@ lab/av1/.venv/bin/python lab/av1/jxl/encode.py lab/.av1-build lab/.av1-work/jxl 
 export FIREFOX_PATH=...                         # the engines: below
 node lab/av1/jxl/run.mjs --probe --codings jxl-e7-f0,jxl-e1-f0       # every native path, every engine
 node lab/av1/jxl/run.mjs --rounds 1 --throttles 1 --codings $(every e and f)   # the sweep, ~15 min
-node lab/av1/jxl/run.mjs --rounds 6 --engines chromium154+jxl,firefox+jxl \
-  --codings jxl-e1-f0,jxl-e2-f0,jxl-e7-f3,jxl-e7-f0 --out rows.json
-node lab/av1/jxl/run.mjs --rounds 1 --throttles 1 --mutate hash      # must fail every arm
+node lab/av1/jxl/run.mjs --rounds 8 --engines chromium154+jxl,firefox+jxl \
+  --sets usb_cine,us_liver,dbt10_ea1141,dbt12_ea1141,ffdm_a,dbtproj_holo \
+  --codings jxl-e1-f0,jxl-e2-f0,jxl-e7-f3,jxl-e7-f0 --out rows.json      # ~90 min
+node lab/av1/jxl/run.mjs --probe --engines chromium154+jxl,firefox+jxl --mutate source   # every exact path fails
+node lab/av1/jxl/run.mjs --rounds 1 --throttles 1 --mutate hash      # every arm fails
 ```
 
 **Engines.** Each is launched as a process that opens the page, as row XBROWSER launched them
@@ -138,7 +140,49 @@ of the 8-bit output, (2^B − 1)/255 source units each:
 
 ## Decode time
 
-RESULTS_TIME
+Each cell is the median over 8 interleaved rounds of the round's time over OpenJPH's in the same cell, WASM ·
+native; OpenJPH's own ms a frame beside it. The six sets that are not the 30 MP scan, their first 8 frames (`ffdm_a`
+4). WASM and OpenJPH: 7 040/7 040 frames exact. Native: 2 048/2 048 on the 8-bit sets, 0/3 584 above 8 bits (the
+canvas holds 8 bits; §The engines).
+
+| set | engine | × | OpenJPH ms | e1-f0 WASM · native | e2-f0 WASM · native | e7-f3 WASM · native | e7-f0 WASM · native |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `usb_cine` | Chromium 154 | 1× | 5.5 | 1.58 · 2.54 | 2.05 · 2.35 | 1.83 · 2.26 | 5.35 · 4.42 |
+|  |  | 4× | 19.4 | 1.80 · 2.41 | 2.05 · 2.30 | 1.97 · 2.27 | 6.28 · 4.27 |
+|  | Firefox 157 | 1× | 4.8 | 1.91 · 2.00 | 2.27 · 1.65 | 2.45 · 2.03 | 6.44 · 3.24 |
+|  |  | 4× | 21.1 | 1.88 · 1.39 | 2.28 · 1.36 | 2.05 · 1.48 | 6.44 · 2.29 |
+| `us_liver` | Chromium 154 | 1× | 12.3 | 1.33 · 0.90 | 2.00 · 1.19 | 1.76 · 1.15 | 7.50 · 3.15 |
+|  |  | 4× | 58.2 | 1.17 · 0.61 | 1.74 · 0.80 | 1.60 · 0.81 | 7.17 · 2.64 |
+|  | Firefox 157 | 1× | 13.4 | 1.23 · 1.10 | 1.80 · 1.17 | 1.64 · 1.16 | 7.07 · 2.82 |
+|  |  | 4× | 65.3 | 1.22 · 0.73 | 1.76 · 0.81 | 1.60 · 0.94 | 6.42 · 2.20 |
+| `dbt10_ea1141` | Chromium 154 | 1× | 16.7 | 1.33 · 2.77 | 2.09 · 2.95 | 1.98 · 3.22 | 8.48 · 4.98 |
+|  |  | 4× | 69.1 | 1.51 · 2.64 | 2.30 · 2.77 | 2.09 · 2.94 | 8.95 · 4.72 |
+|  | Firefox 157 | 1× | 15.8 | 1.39 · 3.10 | 2.12 · 3.72 | 2.20 · 3.70 | 8.74 · 5.23 |
+|  |  | 4× | 75.8 | 1.36 · 2.80 | 2.12 · 2.99 | 2.06 · 3.21 | 8.18 · 4.32 |
+| `dbt12_ea1141` | Chromium 154 | 1× | 12.7 | 1.40 · 2.65 | 2.12 · 2.88 | 2.12 · 3.18 | 8.30 · 4.80 |
+|  |  | 4× | 52.3 | 1.51 · 2.49 | 2.26 · 2.67 | 2.14 · 2.92 | 9.03 · 4.69 |
+|  | Firefox 157 | 1× | 12.4 | 1.51 · 2.96 | 2.25 · 3.17 | 2.19 · 3.19 | 8.67 · 5.08 |
+|  |  | 4× | 58.4 | 1.34 · 2.48 | 2.07 · 2.70 | 1.98 · 2.81 | 8.15 · 4.19 |
+| `ffdm_a` | Chromium 154 | 1× | 77.8 | 1.32 · 3.53 | 2.62 · 3.93 | 2.47 · 4.21 | 9.87 · 6.06 |
+|  |  | 4× | 344.9 | 1.42 · 3.41 | 2.65 · 3.73 | 2.42 · 4.16 | 9.64 · 6.08 |
+|  | Firefox 157 | 1× | 75.5 | 1.45 · 4.07 | 2.55 · 4.50 | 2.43 · 4.51 | 9.97 · 5.88 |
+|  |  | 4× | 344.0 | 1.42 · 3.69 | 2.51 · 3.97 | 2.47 · 4.04 | 10.01 · 5.70 |
+| `dbtproj_holo` | Chromium 154 | 1× | 49.5 | 1.10 · 2.14 | 1.58 · 2.69 | 1.68 · 2.56 | 6.85 · 3.90 |
+|  |  | 4× | 233.9 | 1.06 · 1.72 | 1.51 · 2.20 | 1.58 · 2.08 | 6.39 · 3.43 |
+|  | Firefox 157 | 1× | 45.3 | 1.07 · 2.59 | 1.70 · 3.11 | 1.73 · 2.84 | 7.51 · 4.51 |
+|  |  | 4× | 214.6 | 1.03 · 2.20 | 1.62 · 2.58 | 1.56 · 2.50 | 6.85 · 3.64 |
+
+* **No JPEG XL arm decodes like HTJ2K in WASM.** Effort 1 is 1.03–1.91× OpenJPH (slower in 181 of 192 paired rounds),
+  e2 1.51–2.28×, e7 with `--faster_decoding=3` 1.56–2.45× (190 of 192), the default 5.35–10.0× (192 of 192). Firefox's WASM
+  and OpenJPH run in 0.87–1.21× Chromium's time on the same arm.
+* **Native is faster than libjxl-WASM at the default effort and slower at the fast ones**: e7 f0 native 2.2–6.1×
+  OpenJPH, under its WASM in 192 of 192 rounds; e1 native 1.7–4.1× on grey above 8 bits, where it is also not exact.
+* **One cell where JPEG XL beats OpenJPH: 8-bit RGB, native, fast efforts** — the ultrasound at e1–e7 f3 decodes in
+  0.61–1.19× OpenJPH's time, lowest at 4× (0.61 Chromium, 0.73 Firefox). It is exact because it is 8-bit, where the
+  canvas loses nothing. Native time includes `drawImage` and `getImageData`.
+* Where the host saturates: one decoder at a time on four cores; native decodes may use the engine's own threads
+  (jxl-rs 0.6 is multithreaded in Chromium), so a native cell may use more than one core where WASM uses one.
 
 **Checked.** Mutated, every check failed: `encode.py`'s exactness check one off on every sample, 36/36 codings of
-`usb_cine` and `dbt12_ea1141`; RESULTS_MUTATE
+`usb_cine` and `dbt12_ea1141`; the source one off in the probe, every exact path (12/12) failed; one digit of every checksum in the timing,
+10/10 arms 0/8 (`usb_cine`, `dbt12_ea1141`, OpenJPH, e1 and e7, WASM and native).
