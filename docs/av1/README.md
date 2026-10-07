@@ -703,6 +703,49 @@ ENCX's changes add 3 % at 4× on 50 Mbit and almost nothing elsewhere**: on grey
 to 0.98–1.00, and k = 3 is worth its 0.2–0.5 % of bytes; the deflate alone, at k = 2, costs 0.4 % of
 bytes where the wire is the clock.
 
+### The order frames are asked in (row ORDER, [`lab/av1/total`](../../lab/av1/total/README.md))
+
+Does asking the frames a reader needs first shorten the time to them without costing the fill? The order is
+the client's, never the server's ([`../adr/reject-server-ordering.md`](../adr/reject-server-ordering.md)):
+`prio` asks the useful frames with `requestExactFrame`, most needed first, then posts the same whole-series
+fill as `seq`. **Useful**, per content: on tomosynthesis the centre slice and two either side (the slice a
+reader starts on is this row's premise, not a measured reading pattern); on a four-view screening
+mammogram the MLO pair — IHE's mammography display test hangs all four current views at once, MLOs on the
+left (IHE MESA, Image Display Mammo, test 4000), so the first full hanging needs all four and no order
+shortens it; the MLO pair is the left half of that hanging. Both tomosynthesis volumes and two mammograms
+(`ffdm_c`, `ffdm_a`, stored R CC, L CC, R MLO, L MLO), HTJ2K and the adopted optimized item (k = 2,
+WebCodecs), row TOTAL's links at 1× and 4×; 13 rounds Williams-ordered, 1 191 of 1 248 visits kept, n =
+10–13 a cell but one at 9, **19 032/19 032 frames exact**. Time to the last useful frame on the page, s,
+seq → prio (the median of round-paired ratios), 1× · 4×; the HTJ2K arm — AV1's ratio is within 0.05 of it
+but at 4× on 50 Mbit, below:
+
+| series | 5 Mbit | 20 Mbit | 50 Mbit |
+| --- | --- | --- | --- |
+| tomosynthesis 12-bit, 29 slices | 14.1 → 4.2 (×0.30) · ×0.30 | 3.65 → 1.19 (×0.33) · ×0.33 | 1.61 → 0.63 (×0.39) · ×0.41 |
+| tomosynthesis 10-bit, 24 slices | 14.0 → 4.8 (×0.34) · ×0.34 | 3.64 → 1.32 (×0.36) · ×0.37 | 1.61 → 0.69 (×0.43) · ×0.44 |
+| mammogram, 4 × 1914×2294 | 12.5 → 5.8 (×0.47) · ×0.47 | 3.27 → 1.62 (×0.50) · ×0.51 | 1.48 → 0.84 (×0.57) · ×0.61 |
+| mammogram, 4 × 2560×3328 | 18.8 → 11.0 (×0.58) · ×0.59 | 4.89 → 2.93 (×0.60) · ×0.62 | 2.15 → 1.38 (×0.64) · ×0.68 |
+
+* **The useful frames arrive in 0.30–0.68 of the time**, in every pair of every cell. The centre slice
+  alone: 12.9 s → 0.95 s on the 12-bit volume at 5 Mbit. The gain is the share of the series in front of
+  them: on the wire, the middle five of 24–29 slices or the last two of four views come at about their
+  share of the bytes. It shrinks as the link speeds up, where the round trip and the decode are a larger
+  part of the time; AV1's ratio is the larger at 4× on 50 Mbit (0.51–0.77), where its decode is the clock.
+* **The full fill costs a constant two round trips.** On tomosynthesis +72–113 ms in every pair (+0.4 % at
+  5 Mbit, +1.5 % at 20, +4 % at 50, both codecs): the fill waits until the last ask is in, then runs as two
+  contiguous runs, below and above the asked slices, with a round trip between. On the mammograms one run:
+  HTJ2K +13–72 ms (+0.2–4.5 %). AV1's larger mammogram filled *faster* with `prio` at 4× (0.935–0.985 of
+  seq, faster in 32 of 36 pairs) and at 1× 0.990–0.999; the smaller one within ±1 %. Why is not
+  established here.
+* **Saturation** as in row TOTAL3: at 4× on 50 Mbit three slowed cores are the clock. Nothing is claimed
+  about a phone, the LTE and Wi-Fi profiles, or a reader's real first slice.
+
+**Verdict.** Asking the useful frames first brings them on screen in 0.30–0.43 of the sequential fill's time
+on tomosynthesis (0.51–0.52 for AV1 at 4× on 50 Mbit) and 0.47–0.77 on a mammogram's MLO pair, for two round trips on the whole fill, on HTJ2K and
+AV1 alike. It needs no change to the product, the wire or the server: it is the client's ask order, which the
+downloader already serves first. Nothing adopted; the two round trips are the only cost a viewer pays, and
+the next step is the viewer's, which frames it asks for.
+
 ## Threads (owner, 2026-10-03)
 
 **Focus: AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to

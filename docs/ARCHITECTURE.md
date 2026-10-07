@@ -204,6 +204,14 @@ before the handshake. **A main thread blocked in `connect()`'s own task takes th
 (905 → 906 ms, 5/12): in Chrome 148 a dedicated worker does not start while the main thread is
 blocked. So it pays only where the worker was alive when the long task began.
 
+**What a reader needs first is asked, not filled.** The fill is a set, served as contiguous runs from
+its lowest index, so its order cannot carry priority; asks can, and are served first. Asking the middle
+five slices of a tomosynthesis volume and then posting the whole fill brought them on screen in **0.30–0.52**
+of the sequential fill's time on 5–50 Mbit at 1× and 4×, and a four-view mammogram's MLO pair in
+**0.47–0.77**; the whole fill paid **two round trips** (+72–113 ms over 40 ms, +0.4–4 %), HTJ2K and AV1
+alike, 19 032/19 032 frames exact
+([`av1/README.md`](av1/README.md) §The order frames are asked in).
+
 ## The decoders
 
 * **One module per codec behind one interface.** `decoder.js` loads `htj2k.js` or `av1.js` by the
