@@ -1360,7 +1360,7 @@ path outside history notes, a content hash of every moved file equal before and 
 
 ## Blocked
 
-* **2026-10-07 21:00 UTC: row 79 COLDRTT — the warm-up costs a ≤ 10-bit series on links under 20 ms.** Fetching dav1d's WASM at the decoder's start (adopted, `21c5cd9`) is −1.0 round trips through WebCodecs and −3.0 through dav1d from 20 ms up, but a WebCodecs series whose probe passes never uses that 238 KB fallback, and it arrives beside the first frame: +26 ms at 10 ms (1/6 rounds), +67 on loopback (0/10), a tie at 20 ms. The brief asked nothing slower on a low-RTT link. The owner decides: keep it, skip dav1d's WASM for a series the page says is ≤ 10 bits (a depth hint in the decoder config, not built), or revert. [`lab/page-open/README.md`](../../lab/page-open/README.md) §Cold round trips by codec.
+* **2026-10-07 20:15 UTC: row 79 COLDRTT — the warm-up costs a ≤ 10-bit series on links under 20 ms.** Fetching dav1d's WASM at the decoder's start (adopted, `21c5cd9`) is −1.0 round trips through WebCodecs and −3.0 through dav1d from 20 ms up, but a WebCodecs series whose probe passes never uses that 238 KB fallback, and it arrives beside the first frame: +26 ms at 10 ms (1/6 rounds), +67 on loopback (0/10), a tie at 20 ms. The brief asked nothing slower on a low-RTT link. The owner decides: keep it, skip dav1d's WASM for a series the page says is ≤ 10 bits (a depth hint in the decoder config, not built), or revert. [`lab/page-open/README.md`](../../lab/page-open/README.md) §Cold round trips by codec.
 
 * **2026-10-07 18:40 UTC: row 74 XENGINE — Safari waits on a device run, the owner's phone decision.** From WebKit's
   source (`webkitgtk-2.52.6`), WebCodecs AV1 on Cocoa is the preview preference `WebCodecsAV1Enabled`, off by default,
