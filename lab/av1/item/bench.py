@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""ingest.py against the ingest it replaced (row 52): the same bytes, its wall and CPU time a study, and the
+"""ingest.py against the ingest it replaced (rows 52, 71): the same bytes, its wall and CPU time a study, and the
 check's share. OLD is a checkout of the replaced revision (lab/av1/item/README.md §One pipeline).
 
-usage: bench.py same  BUILD OLD OUT PRESET SET_DIR ...         every output file's SHA-256, old against new
-       bench.py time  BUILD OLD OUT ROUNDS SPEC ...             SPEC = SET_DIR:codec:preset, arms interleaved
-       bench.py check BUILD OLD OUT ROUNDS SET_DIR ...          a frame's check, subprocess against in-process
+usage: bench.py same    BUILD OLD OUT PRESET SET_DIR ...       every output file's SHA-256, old against new
+       bench.py workers BUILD OLD OUT PRESET FRAMES SET_DIR ... new's bytes at 1, 2, 4 workers; old's at 1 against them
+       bench.py time    BUILD OLD OUT ROUNDS SPEC ...           SPEC = SET_DIR:codec:preset, arms interleaved
+       bench.py check   BUILD OLD OUT ROUNDS SET_DIR ...        a frame's check, subprocess against in-process
 """
 import hashlib
 import json
@@ -33,12 +34,14 @@ for p in out.glob("back.*"): p.unlink()
 """
 
 
-def command(build, old, src, out, codec, impl, preset, jobs, rep="optimized"):
+def command(build, old, src, out, codec, impl, preset, jobs, rep="optimized", frames=None):
     if impl == "old" and codec == "htj2k":
         return [PY, "-c", OLD_HTJ2K, str(old / "lab/av1/speed"), str(src), str(out)]
     script = (old if impl == "old" else HERE.parents[2]) / "lab/av1/item/ingest.py"
     codec_args = [] if impl == "old" else ["--codec", codec]
-    return [PY, script, build, src, out, *codec_args, "--representation", rep, "--preset", preset, "--jobs", str(jobs)]
+    limit = ["--frames", str(frames)] if frames else []
+    return [PY, script, build, src, out, *codec_args, "--representation", rep, "--preset", preset, "--jobs", str(jobs),
+            *limit]
 
 
 def digests(out, codec):
@@ -76,25 +79,48 @@ def same(build, old, out, preset, sets):
     return bad
 
 
+def workers(build, old, out, preset, frames, sets):
+    """Per set, new's items at every worker count identical, and their bytes against old's at one worker."""
+    bad = 0
+    for src in sets:
+        got = {}
+        for impl, w in [("new", w) for w in WORKERS] + [("old", 1)]:
+            dst = out / f"{src.name}.{impl}{w}"
+            subprocess.run(["rm", "-rf", dst])
+            subprocess.run(command(build, old, src, dst, "av1", impl, preset, w, frames=frames), check=True,
+                           capture_output=True)
+            got[impl, w] = digests(dst, "av1"), sum(p.stat().st_size for p in dst.glob("*.av1"))
+        new = [got["new", w][0] for w in WORKERS]
+        ok = new[0] == new[1] == new[2]
+        bad += not ok
+        moved = sum(a != b for a, b in zip(new[0].values(), got["old", 1][0].values()))
+        row = dict(set=src.name, preset=preset, items=len(new[0]), same_at_1_2_4=ok, new_bytes=got["new", 1][1],
+                   old_bytes=got["old", 1][1], ratio=round(got["new", 1][1] / got["old", 1][1], 5), items_moved=moved)
+        print(json.dumps(row), flush=True)
+    print(f"{bad} sets differ across worker counts")
+    return bad
+
+
 def timing(build, old, out, rounds, specs):
     rows = []
     for spec in specs:
         src, codec, preset = spec.split(":", 2)
         src = Path(src)
         arms = [("new", w) for w in WORKERS] + ([("old", 1)] if codec == "htj2k" else [("old", w) for w in WORKERS])
-        want = None
+        want = {}
         for rnd in range(rounds):
             for impl, w in order(arms, rnd):
                 dst = out / f"{src.name}.{codec}.{impl}{w}"
                 subprocess.run(["rm", "-rf", dst])
                 wall, cpu = run(command(build, old, src, dst, codec, impl, preset, w))
                 got = digests(dst, codec)
-                want = want or got
+                want.setdefault(impl, got)
                 rows.append(dict(set=src.name, codec=codec, preset=preset, impl=impl, workers=w, round=rnd,
-                                 wall=round(wall, 3), cpu=round(cpu, 3), same=got == want))
+                                 wall=round(wall, 3), cpu=round(cpu, 3), same=got == want[impl],
+                                 bytes=sum(p.stat().st_size for p in dst.glob(f"*.{codec}"))))
                 print(json.dumps(rows[-1]), flush=True)
     (out / "time.json").write_text(json.dumps(rows, indent=1))
-    return sum(not r["same"] for r in rows)
+    return sum(not r["same"] for r in rows if r["impl"] == "new")
 
 
 def check(build, old, out, rounds, sets):
@@ -158,6 +184,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     if mode == "same":
         sys.exit(same(build, old, out, rest[0], [Path(p) for p in rest[1:]]) != 0)
+    if mode == "workers":
+        sys.exit(workers(build, old, out, rest[0], int(rest[1]), [Path(p) for p in rest[2:]]))
     if mode == "time":
         sys.exit(timing(build, old, out, int(rest[0]), rest[1:]) != 0)
     sys.exit(check(build, old, out, int(rest[0]), [Path(p) for p in rest[1:]]))
