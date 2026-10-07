@@ -70,7 +70,10 @@ function arm(set, name) {
   const a = set.arms[name];
   const ext = a.ext ?? (name === "wc" ? "av1" : name);
   if (name === "htj2k" || a.codec === "htj2k") {
-    return { ext: "htj2k", entries: set.frames, opts: { decoder: OPENJPH, ...(a.worker && { decoderWorker: a.worker }) } };
+    // A layered HTJ2K series (lab/av1/reslevel): F prefixes, then F rests.
+    const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
+    return { ext: a.ext ?? "htj2k", codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
+      opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }) } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
     ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
@@ -95,11 +98,10 @@ const der = execFileSync("openssl", ["x509", "-in", `${T}/cert.pem`, "-outform",
 const HASH = execFileSync("openssl", ["dgst", "-sha256", "-r"], { input: der }).toString().split(" ")[0];
 
 /** One study per (set × stored form): the store holds a frame's bytes whatever made them. */
-function pack(set, ext, entries) {
+function pack(set, ext, entries, codec = ext === "htj2k" ? "htj2k" : "av1") {
   const dir = `${T}/${set.name}-${ext}`;
   if (existsSync(`${dir}.sbnd`)) return `${dir}.sbnd`;
   mkdirSync(dir);
-  const codec = ext === "htj2k" ? "htj2k" : "av1";
   for (let i = 0; i < entries; i++) {
     const n = String(i).padStart(3, "0");
     symlinkSync(path.join(ROOT, FRAMES, set.name, `${n}.${ext}`), `${dir}/${n}.${codec}`);
@@ -134,7 +136,7 @@ async function visit(set, variant, linkName, throttle, round) {
   const srv = port();
   const relayPort = port();
   const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/exact-server"), "--port", String(srv), "--bind", "127.0.0.1",
-    "--study", pack(set, a.ext, a.entries), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" });
+    "--study", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" });
   const [oneWay, linkArgs] = link(linkName);
   const relay = spawn("chrt", ["-f", "50", "taskset", "-c", RIG_CORE, "python3", "lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`,
     "--seed", String(round), "--delay-ms", String(oneWay), ...linkArgs, "--self-timing"], { cwd: ROOT });
@@ -185,6 +187,7 @@ async function visit(set, variant, linkName, throttle, round) {
     late: r.previews.filter((p) => p.late).length,
     previewExact: r.previews.filter((p) => r.previewSha[p.i] === previewTruth?.[p.i]).length,
     firstMs: Math.round(Math.min(...shown.values()) - r.issuedAt),
+    firstExactMs: Math.round(t("page", Math.min)),
     shownMs: Math.round(Math.max(...shown.values()) - r.issuedAt),
   } : {};
   return {
