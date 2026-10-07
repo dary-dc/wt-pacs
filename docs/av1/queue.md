@@ -132,7 +132,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 76 | **ASKDEADLINE** — the client's own per-ask deadline under loss: does it fail asks the transport is still delivering; bytes as the only judge | claimed 2026-10-07 (night, 133a19) |
 | 77 | **TOTAL4** — total time with every change adopted this round, per taxonomy series, HTJ2K against AV1, in Chromium and Firefox; the per-series codec rule | claimed 2026-10-07 (night, 0e0b90) |
 | 78 | **HTJ2KMT** — one HTJ2K frame decoded on several threads in the browser (code blocks in parallel): exact, and what it buys a phone-like CPU | claimed 2026-10-07 (night, f56ab3) |
-| 79 | **COLDRTT** — round trips before the first exact frame on high-RTT links, cold and warm, HTJ2K and AV1 pages; preload or bundle what is serial | ready |
+| 79 | **COLDRTT** — round trips before the first exact frame on high-RTT links, cold and warm, HTJ2K and AV1 pages; preload or bundle what is serial | claimed 2026-10-07 (night, ec2bc0) |
 | 80 | **GREY420** — 8-bit grey coded as full-range 4:2:0 so Firefox's WebCodecs returns it exact (row 74's proposal): bytes, decode, total time per engine | ready |
 | 81 | **SERVERLOAD** — the server under many concurrent fills: where it saturates, and what each client's fill time does before and after | ready |
 
