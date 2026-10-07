@@ -43,6 +43,8 @@ dav1d -q -i TU.obu -o DEC.y4m --demuxer section5      # one temporal unit alone
 * RGB enters as Y4M `444` planes in the order G, B, R, which identity `matrix_coefficients` (0)
   means; 4:2:0 would drop colour and is not lossless.
 * **`--auto-alt-ref=0` is required for inter at 10 and 12 bits** (below).
+* **`--threads=1` is part of the pin:** libaom's lossless bytes change with the thread count (0.02–0.06 % a
+  frame at 4 on 10-bit DBT, still exact) — [`pocgap`](pocgap/README.md).
 * SVT-AV1 codes 4:2:0 only, 8 and 10 bits: grey goes in as 4:2:0 with neutral chroma and comes back
   with two chroma planes; RGB and 12-bit are not possible.
 

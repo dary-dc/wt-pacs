@@ -814,6 +814,16 @@ repository** and are recorded only so the queue tests them rather than rediscove
   the fill directly, whatever it saves on the wire.
   *Reproduced here in size (SPEED)*: dav1d-WASM 5.4–9.7× OpenJPH a frame in the product's
   worker, WebCodecs 4.1–4.2× (§A2).
+* **Lossless AV1 about 31 % below HTJ2K on 10-bit data.** *Corrected 2026-10-07 (POCGAP):* a median over
+  unpaired fixtures — the owner's local reproduction found four 10-bit fixtures coded only in HTJ2K, and paired
+  fixture by fixture AV1 ÷ HTJ2K was 0.961 there (not measured here). *Measured here*, the first 4 frames of the
+  two CC BY 10-bit DBT series paired, every frame exact: plain AV1 **0.976 and 0.973**, optimized
+  (`low2.screen-sb64`) **0.940 and 0.943** — a 2–6 % gain, not 31 %. Each setting the gap could hide in, moved
+  alone: an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background (uncropped) by 0.5–0.8,
+  libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` against 1 by 0.02–0.06 % a frame (so
+  `--threads=1` is pinned). A ratio is compared only fixture for fixture, a median only over paired fixtures.
+  The two further series the row named are not CC BY or CC0 (queue §Blocked) —
+  [`lab/av1/pocgap`](../../lab/av1/pocgap/README.md).
 * Signed CT there spanned −1024..2461, which fits 12 bits after a +1024 offset; it was not tried.
 
 ## Measured here

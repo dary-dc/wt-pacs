@@ -104,6 +104,10 @@ tomosynthesis, a group), bytes over HTJ2K's against the best intra coding:
 | `dbt12_ea1141` | 0.941 | 1.064 | 0.981 | 0.989 | — |
 | `dbt10_ea1141` | 0.942 | 0.974 | 0.946 | 0.947 | — |
 
+Row POCGAP re-codes the first 4 frames of both 10-bit DBT series, paired, against the settings a gap could
+hide in (`--threads`, the crop, libaom 3.8.2, an 8-bit copy): plain 0.973–0.976, optimized 0.940–0.943 —
+[`../pocgap`](../pocgap/README.md).
+
 ## Decode and encode time of the winners
 
 Baseline: row SIZE's coding (direct or gbr; low2 over 12 bits). Every frame exact, 46 cells, 15

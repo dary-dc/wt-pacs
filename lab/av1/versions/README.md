@@ -69,3 +69,10 @@ buffer it allocates. **12-bit AV1 is still refused, and why is now read:** `Vide
 chunk with libgav1's OBU parser, built with `LIBGAV1_MAX_BITDEPTH=10` in 141, 154 and 155, so a 12-bit sequence
 header fails the parse and the chunk is called not key — the `DataError` row WCDEC saw. Monochrome still comes
 out as I420 with generated chroma; `max_frame_delay = 1` under `optimizeForLatency` is unchanged.
+
+## libaom's head — bytes (`aom_bytes.py`)
+
+**Byte-identical to 3.15.1 in every cell: 22 cells (11 series × cpu0 and the shipped or stand-in preset), 80/80
+items the same bytes**, every item decoded back to its checksum by ingest's in-process dav1d. The RD changes
+since the tag do not reach a lossless encode at these presets. The lever was checked: the same ingest with
+`AOM_VERSION=3.8.2` writes different bytes (`usb_cine`, allintra 7, 2 frames: 135 590 B against 135 659 B).

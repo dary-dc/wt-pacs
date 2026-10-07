@@ -10,12 +10,13 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 | `decoder.js` | one decoder instance: loads the series' codec module and posts each frame it returns to the consumer |
 | `htj2k.js` | an HTJ2K codestream behind the codec modules' interface, one OpenJPH decoder object reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
-| `htj2k.test.mjs`, `downloader.test.mjs`, `av1.test.mjs` | node: the range pass; how many decoders a start makes; the AV1 item reader |
+| `htj2k.test.mjs`, `downloader.test.mjs`, `consumer.test.mjs`, `av1.test.mjs` | node: the range pass; how many decoders a start makes; what `connect` refuses before a worker starts; the AV1 item reader |
 | `av1.js` | an AV1 item behind the codec modules' interface, its decoder chosen per item; loaded only for an AV1 series |
 | `av1-item.js` | the item's header read, and every malformed case refused by name |
 | `decode-av1.js`, `decode-av1-webcodecs.js` | one stream unit through dav1d-WASM or through WebCodecs, as a picture |
 | `av1-frame.js` | a picture checked against the header and merged to the contract: planes interleaved, split, colour transform and offset undone |
 | `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `lab/av1/item/make_golden.py`) |
+| `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike |
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
 path untouched, `"av1"` loads `av1.js` and, on the first item, the decoder it needs — dav1d-WASM
@@ -144,6 +145,43 @@ Past three quarters of N delivered on one session, the next is dialled in the ba
 ready the old one is closed and the records' remainder is issued on the new one, exactly as a resume
 issues it, and the page is told as `stats().recycledAt`. It is for WebKit's session that stalls after
 16 MB; what it costs, and against what, is `docs/ARCHITECTURE.md` §Recycling before the stall.
+
+**Every decision is held by a test** (row CLIENT, 2026-10-07). A sweep of 76 mutants over
+`downloader.js` and `consumer.js` — each branch, guard and threshold broken in turn, the node tests
+and both browser rigs run against it — left 32 alive. Each of the 21 that were decisions no test
+reached now has one that fails on its mutant (`dispatch-rig.ts` unless named):
+
+| decision | test | its mutant |
+| --- | --- | --- |
+| a frame to the least busy decoder | `aFrameGoesToTheLeastBusyDecoder` | the first decoder with room |
+| a fill skips frames already recorded | `aFillOfFramesInHandAsksOnlyTheRest` | re-records them |
+| a lost decoder fails the start only when none is left | `aDecoderLostBeforeTheDialDoesNotFailTheStart` | `lose()` reports every loss |
+| recycling at three quarters of the budget | `aSessionNearItsBudgetIsReplaced` (its budget moved to 400 B) | at the whole budget |
+| a failed ask on a closed session resumes it | `anAskAloneOnAClosedSessionIsReasked` | the ask fails |
+| silence condemns a session owing only an ask | `aSilentSessionOwingAnAskIsRedialled` | only a fill counts |
+| a recycled session is asked the owed asks | `aRecycledSessionTakesTheOwedAsk` | only the fill is re-issued |
+| a resume with nothing owed dials nothing | `aCancelBetweenRedialsEndsThem` | dials on |
+| spent re-dials fail the owed asks too | `whenTheRedialsRunOutAnOwedAskIsNamed` | only the fill is named |
+| spent re-dials are given back | `theRedialsAreGivenBackOnceSpent` | the next death fails at once |
+| an option passed as `undefined` keeps its default | `anUndefinedOptionKeepsItsDefault` | survival switched off |
+| only a dial that never settles is retried at start | `aRefusedFirstDialFailsAtOnce` | a refusal is retried |
+| a command waits for a resumption under way | `aCommandDuringAResumeDialsNoSessionOfItsOwn` | dials beside it |
+| a cancel forgets which decoder holds a group | `aCancelReleasesTheGroupADecoderHeld` | a stale decoder takes frame 2 |
+| a command's failure is named only in its request | `aDialFailingAfterACancelNamesNothing` | named after a cancel |
+| a decoder's failure is named only in its request | `aDecodeFailingAfterACancelNamesNothing` | named after a cancel |
+| a second ask for one frame is refused | `aSecondAskForTheSameFrameIsRefused` | it replaces the first's waiter |
+| `stats().resumedAt`, `stats().recycledAt` | `aDeadSessionIsResumedNotReported`, `aSessionNearItsBudgetIsReplaced` | never recorded |
+| `groupLength` a whole number ≥ 1; cross-origin isolation unless `decode: false` | `consumer.test.mjs` | not checked |
+
+Four were dead code and are gone: `promote()`'s guard on a frame already asked and its `pump()` (a
+frame waits in a queue only while no decoder can take it, and moving it frees none), the record's
+generation (a cancel clears every record, so none outlives its request) and the consumer's
+`decodeEnd` fallback for `lastChunkMs` (`lastByte` is set on every frame). Seven are left alive, each
+for a reason: the `check` message and the visibility filter only matter when a frozen page's timers
+fire late, which headless Chromium does not do; `close()` removing the page listeners and the two
+`??=` on the closed reason change nothing observable; the wire buffer's release only moves memory
+(the stand-in decoder returns no buffer, and the ring allocates when empty); and recycling's guard
+against a resumption that finished first is a race the fake cannot order.
 
 Its self-check (`client/harness/index.html`) checks each decoded frame of the `decode_c512` study
 against the fixture's `.sha256`; `client/harness/cell.html` runs a lab cell over any study:
