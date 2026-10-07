@@ -117,7 +117,8 @@ async function inEngine(engine, throttle, round) {
   const dir = mkdtempSync(join(tmpdir(), "jx-"));
   const [bin, args] = ENGINES[engine](URL_, dir);
   const env = { ...process.env, DISPLAY, WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS: "1", MOZ_CRASHREPORTER_DISABLE: "1" };
-  const proc = spawn(bin, args, { env, stdio: ["ignore", "ignore", "pipe"] });
+  // Its own process group, so the whole tree goes with it: Firefox's content processes outlive the parent.
+  const proc = spawn(bin, args, { env, stdio: ["ignore", "ignore", "pipe"], detached: true });
   let stderr = "";
   proc.stderr.on("data", (c) => (stderr = (stderr + c).slice(-4000)));
   const r = await new Promise((resolve) => {
@@ -127,7 +128,7 @@ async function inEngine(engine, throttle, round) {
   });
   cell.stop();
   const ua = cell.ua;
-  proc.kill("SIGKILL");
+  try { process.kill(-proc.pid, "SIGKILL"); } catch { /* already gone */ }
   await new Promise((res) => setTimeout(res, 500));
   rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
   return { ua, ...r };
