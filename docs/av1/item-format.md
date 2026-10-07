@@ -130,3 +130,20 @@ lab, applied on the page, not fused into the merge). Coded as one 12-bit stream 
 every series, by 2.6–13 % in bytes. The per-series palette of high parts (L = 0: histogram packing) is the same
 shape with a table in the bundle's metadata instead of a map; on the one sparse 16-bit series it is worth as much to
 HTJ2K as to AV1 (0.576 and 0.571 of HTJ2K on the source). The owner decides whether either is worth a format change.
+
+## Proposed: the split per depth (row 44 SPLITTIME, not adopted)
+
+Measured in [`lab/av1/splittime`](../../lab/av1/splittime/README.md); the adopted rule above is the owner's to
+change. By total time against HTJ2K on eleven real series (README §Total time, *The split per depth*), the
+optimized representation's grey row would read, by b bits after the offset:
+
+| b | k | top | decoder | against the adopted k = 2 |
+| --- | --- | --- | --- | --- |
+| ≤ 9 | 0 | the samples, 8 or 10 bits | WebCodecs | 0.93–1.01 of HTJ2K for k = 2's 1.03–1.07 |
+| 10–12 | 2 | as today | WebCodecs | unchanged (k = 3 at 12 bits within 0.02) |
+| 13 | 3 | 10 bits (w10) | WebCodecs | 0.91–0.98 on every cell; k = 2 is 1.66–1.68 at 4× on 50 Mbit |
+| 14 | 2 | 12 bits | dav1d-WASM | unchanged; HTJ2K where a slow CPU meets ≥ 20 Mbit |
+| 15–16 | — | serve HTJ2K | OpenJPH | every AV1 arm 1.02–3.11; today refused by name |
+
+Nothing in the format changes: `split` and `depth` already carry any k (row 43). What changes is ingest's choice of
+k, and that a 15- or 16-bit series is served as HTJ2K rather than refused.
