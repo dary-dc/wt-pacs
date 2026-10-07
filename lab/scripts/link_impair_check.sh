@@ -724,8 +724,8 @@ read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" session)
 say "session ready: round trips + fixed ms" "$rt + $fixed"
 read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" first_byte)
 say "first byte: fixed cost (ms)" "$fixed"
-# R1 counted 4; lever 2's SETTINGS in the first flight took one. docs/ARCHITECTURE.md §Lever 2
-want "first byte: round trips (lever 2 counts 3)" "$rt" 2.6 3.4
+# R1 counted 4; the early SETTINGS took one. docs/ARCHITECTURE.md §Early SETTINGS
+want "first byte: round trips (early SETTINGS count 3)" "$rt" 2.6 3.4
 read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" ask_to_last_byte)
 say "250 KB ask: fixed cost (ms)" "$fixed"
 want "250 KB ask: flights (S7 predicts ~5)" "$rt" 4.5 6.0

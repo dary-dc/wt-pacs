@@ -1331,7 +1331,7 @@ mod tests {
     /// sends after its first flight — so the server's handshake can never complete — still
     /// receives the HTTP/3 control stream, opening with SETTINGS. Without
     /// `patches/wtransport-0.7.2-settings-early.patch` it never does.
-    /// `docs/ARCHITECTURE.md` §Lever 2.
+    /// `docs/ARCHITECTURE.md` §Early SETTINGS.
     #[test]
     fn settings_ride_the_handshake_flight() {
         let dir = std::env::temp_dir().join(format!("wtpacs-settings-{}", std::process::id()));
@@ -1357,7 +1357,7 @@ mod tests {
     /// The same holds for a server that accepts its own QUIC connections and hands each to the
     /// library through `IncomingSessionFuture::with_quic_connecting`: its SETTINGS leave with its
     /// handshake flight too. Without the patch's `with_quic_connecting` change they never do.
-    /// `docs/ARCHITECTURE.md` §Lever 2.
+    /// `docs/ARCHITECTURE.md` §Early SETTINGS.
     #[test]
     fn settings_ride_the_handshake_flight_from_a_quic_connecting() {
         let dir = std::env::temp_dir().join(format!("wtpacs-connecting-{}", std::process::id()));
@@ -1446,7 +1446,7 @@ mod tests {
     /// flight rides the ServerHello's probe and its 0.5-RTT SETTINGS reach the client one round
     /// trip after the client's handshake completes — when an unpatched server's would. Without
     /// `patches/quinn-proto-0.11.18-probe-every-space.patch` they wait for the ACK of
-    /// HANDSHAKE_DONE to be declared lost: two round trips. `docs/ARCHITECTURE.md` §What lever 2 costs.
+    /// HANDSHAKE_DONE to be declared lost: two round trips. `docs/ARCHITECTURE.md` §What early SETTINGS cost.
     #[test]
     fn a_lost_first_flight_is_repeated_whole() {
         const ONE_WAY: Duration = Duration::from_millis(50);

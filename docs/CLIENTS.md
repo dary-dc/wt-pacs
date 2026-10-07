@@ -104,11 +104,11 @@ client/conformance/run.mjs` runs the suite on another build of the WASM client.
 | File | What |
 | --- | --- |
 | `fake-transport.ts`, `fake-websocket.ts` | the global stand-ins, and the frame pushers |
-| `clauses.ts` | the clauses, written against a rig any arm can supply |
+| `clauses.ts` | the clauses, written against a rig any client can supply |
 | `adapters.ts` | one surface; the only place that knows how the implementations differ |
 | `ring.ts`, `race.ts` | the wire buffer ring against every session; the race's outcomes |
 | `run.ts` → `run.mjs` | Node entry: every implementation, then the race |
-| `fake-session.ts`, `worker-fake.ts`, `downloader-rig.ts` | the downloader arm: the fake installed inside the downloader's worker |
+| `fake-session.ts`, `worker-fake.ts`, `downloader-rig.ts` | the downloader rig: the fake installed inside the downloader's worker |
 | `dispatch-rig.ts` | the downloader's own behaviours against a stalling decoder ([`ARCHITECTURE.md`](ARCHITECTURE.md)) |
 | `ask-during-fill.html`, `run_wire.sh` | against the real server |
 
@@ -144,10 +144,10 @@ per outcome — QUIC first, TCP first, QUIC refused (and both refused) — and t
 counted: the per-frame halves of `bothStreamModes` and `pushedFill`, and `aSlowFrameHoldsNoOther`.
 A truncated frame does apply — on TCP it is the connection ending inside one.
 
-**The downloader arm.** The downloader dials inside its own worker, out of the test's reach, so
+**The downloader rig.** The downloader dials inside its own worker, out of the test's reach, so
 `fake-session.ts` is the module `config.transport` names during a run: it installs the fake inside
 that worker and answers the page over a `BroadcastChannel` named in its URL. `run_browser.sh`
-drives the same clauses in headless Chromium. Two read what the arm does from the rig: an ask after
+drives the same clauses in headless Chromium. Two read what the client does from the rig: an ask after
 a closure **re-dials and is served** rather than failing, and the dead-session clause runs with
 resumption off, since its claim is the transport's. One thing the page cannot see is whether the
 worker moved or copied a buffer — a frame posted without a transfer list arrives as a clone that
@@ -168,8 +168,8 @@ are in flight that its end is observable. Nothing in the tree is touched.
   rejected promptly with **the server's own reason** — TS and WASM over WebTransport, TS over the
   WebSocket. Mutant: the TS control pump dropping one `frame_error` reports 63 of 64, 1 timed out.
   *Corrected 2026-09-25:* the page counted any `unavailable` rejection, and a session that died
-  makes every waiter `unavailable`, so the WebSocket arm passed 64 of 64 with its refusals sent as
-  the wrong message type. It now requires the reason's words; every arm still passes 64 of 64.
+  makes every waiter `unavailable`, so the WebSocket client passed 64 of 64 with its refusals sent as
+  the wrong message type. It now requires the reason's words; every client still passes 64 of 64.
 * `client/conformance/ask-during-fill.html`: WIRE.md §An ask during a fill, seen from the client,
   raw and through the downloader, over both transports. Raw: the ask is served mid-fill, the fill
   ends — 28 of 120 arrive, then nothing — and the rest arrive only once asked again. Downloader: the
@@ -179,7 +179,7 @@ are in flight that its end is observable. Nothing in the tree is touched.
 
 **In the gate** (`scripts/gate.sh`): `run.mjs`, the worker-safe static check
 (`client/scripts/check_worker_safe.sh`: no built artifact may contain a `window.` reference), the
-downloader and dispatch arms, and `run_wire.sh`. **The WASM arm is required**: `run.mjs` exits 2
+downloader and dispatch rigs, and `run_wire.sh`. **The WASM client is required**: `run.mjs` exits 2
 without `client/transport-wasm/pkg/` (decided 2026-09-18, over the proposal's "skip the arm
 loudly"). The headless steps are required too: the gate exits 2 with the install command when
 playwright, Chromium or the decoder vendor is missing (decided 2026-10-03; it was "skip loudly"
@@ -270,7 +270,7 @@ records the run.
 short length and passes; only its pixels would say, and the per-frame hash is what says that. A
 stream cut inside the 4 bytes of the index cannot name a frame and is not reported.
 
-Conformance: `aTruncatedFrameIsAFailure` — every implementation and the downloader arm — and
+Conformance: `aTruncatedFrameIsAFailure` — every implementation and the downloader rig — and
 `aTruncatedFrameIsAFailureNotAFrame` in `dispatch-rig.ts`, which adds the generation the consumer
 sees.
 

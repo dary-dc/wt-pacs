@@ -1,11 +1,11 @@
 /**
  * One arm, one scenario, one fresh session, against the real server. Two arms (H, the harness's
- * own path, was removed 2026-10-03 after its last run, docs/ARCHITECTURE.md §S4):
+ * own path, was removed 2026-10-03 after its last run, docs/ARCHITECTURE.md §The container campaign):
  *   Dw  the downloader with decode off — the same bytes, delivered from its worker
  *   Dd  the downloader decoding, `decoders` of them (3) — pixels in a SharedArrayBuffer (the product path)
  * Five scenarios: a fill of `fill` frames; one cold ask; a fill with an ask for a frame outside it
  * once 10, 50 or 90 % has landed. Numbers go to window.__wtpacsResult; run.mjs adds what only
- * CDP can see. docs/ARCHITECTURE.md §S4.
+ * CDP can see. docs/ARCHITECTURE.md §The container campaign.
  */
 import { DownloaderClient } from "/client/downloader/consumer.js";
 

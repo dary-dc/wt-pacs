@@ -133,7 +133,7 @@ export class DownloaderClient {
     this.#waiters.clear();
   }
 
-  #arm(index) {
+  #waitFor(index) {
     if (this.#closedReason) {
       return Promise.reject(new Error(`frame ${index} unavailable: ${this.#closedReason}`));
     }
@@ -143,7 +143,7 @@ export class DownloaderClient {
   }
 
   requestExactFrame(index) {
-    const p = this.#arm(index);
+    const p = this.#waitFor(index);
     this.#worker.postMessage({ kind: "ask", index });
     return p;
   }

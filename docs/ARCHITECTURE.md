@@ -7,7 +7,7 @@ page. Below it the transport is a seam — TypeScript, WASM or WebSocket — who
 measured and chosen, and what is open.
 
 **Status.** Built in `client/downloader/`; the lab's only client since 2026-10-03, when the harness's
-own page path was removed after S4's last run on it (§S4). `client/harness/index.html` is its self-check,
+own page path was removed after S4's last run on it (§The container campaign). `client/harness/index.html` is its self-check,
 `client/harness/cell.html` runs lab cells over it. Figures are a container's unless they say otherwise; none is a phone
 ([`rig-limits.md`](rig-limits.md) §7).
 
@@ -272,7 +272,7 @@ carries its `generation`; `cancel()` resolves once the downloader has ended the 
 that request's work. A refused **fill** frame has no waiter, so it reaches the consumer through
 `onError({ frameIndex, reason, generation })`; a refused *asked* frame rejects its own promise. The
 consumer keeps no timer: the downloader settles every ask. `url` and `certHash` may be promises;
-the opening fill rides the session URL unless `openAsk` is `false` (§Lever 1). The page forwards the triggers a
+the opening fill rides the session URL unless `openAsk` is `false` (§The opening ask). The page forwards the triggers a
 worker cannot see — `visibilitychange`, `pageshow`, `freeze`, `resume` — as one message.
 
 ### Closing a client
@@ -315,7 +315,7 @@ behind a `tail`.
 
 ## Results
 
-### S4
+### The container campaign
 
 The container campaign ([`../lab/downloader-campaign/`](../lab/downloader-campaign/README.md)). 4
 cores, loopback, 87 real HTJ2K frames of 512×512×3 (~430 KB each). Three arms, one fresh session
@@ -542,9 +542,9 @@ to one ask moves the median only when it crosses a 16.7 ms line.
 The ask costs nothing of its own — a client-initiated stream opens locally, so it rides out with the
 stream. Measured natively through `lab/scripts/link_impair.py` at 40, 80 and 160 ms, the phase fitted
 against the round trip so the relay's floor and the crypto fall into the intercept
-([`rig-limits.md`](rig-limits.md) §3): before lever 2, session ready **3.00** round trips (+13.7 ms)
+([`rig-limits.md`](rig-limits.md) §3): before early SETTINGS, session ready **3.00** round trips (+13.7 ms)
 and first byte **4.01** (+17.7 ms); with it, **2.10 and 3.14**. In a browser the dial was 3.0 round
-trips and is 2.1–2.5 with lever 2; everything a page spends before it is
+trips and is 2.1–2.5 with early SETTINGS; everything a page spends before it is
 [`../lab/page-open/README.md`](../lab/page-open/README.md). A prerendered page hides the page's half
 of a cold open, not the dial: the session and the worker complete only at activation
 ([`rig-limits.md`](rig-limits.md) §8; Chromium only).
@@ -556,9 +556,9 @@ through the relay. "po §" is a section of [`../lab/page-open/README.md`](../lab
 | lever | round trips | state | where |
 | --- | --- | --- | --- |
 | `preload` the config, `modulepreload` the shell and client, `preload` the worker graph | −3.1 / −5.1 / −6.2 to the session (TypeScript / WASM / downloader) | in `client/harness/cell.html` and the lab's `downloader.html`; not in `client/harness/index.html` (TypeScript and WASM figures: the harness pages, removed 2026-10-03) | po §The cuts, one at a time |
-| the server's SETTINGS at 0.5 RTT (lever 2) | −1.0 off the dial, every cell | **on**, a build-time patch | §Lever 2 |
+| the server's SETTINGS at 0.5 RTT (early SETTINGS) | −1.0 off the dial, every cell | **on**, a build-time patch | §Early SETTINGS |
 | a handshake probe in every space | −1 when the server's first flight is lost | **on**, a build-time patch | §The losing phase, removed |
-| the opening ask in the session URL (lever 1) | −1.06 to the first frame at 1×, −1.52 at 4× | **on** since 2026-10-02 | po §The push in a browser, at 4× |
+| the opening ask in the session URL (the opening ask) | −1.06 to the first frame at 1×, −1.52 at 4× | **on** since 2026-10-02 | po §The push in a browser, at 4× |
 | the transport URL in the page, no config fetch | a further −1.24 at 1×, −0.73 at 4× | opt-in | po §The dial before the config |
 | the page carrying the worker graph and the consumer (`page`) | a further −1.02 to the session, −1.14 to the first frame, on HTTP/2 | opt-in; a bundle or a blob alone moves nothing on HTTP/2 | po §The worker graph's boot |
 | HTTP/2 from the static host | the config's round trip: 2.15 → 0.9 cold | opt-in; the template serves HTTP/1.1 | po §The first frame on a real host |
@@ -608,7 +608,7 @@ hint naming the transport's origin, port included, removes that lookup** — the
 literal's, 7/7 against today's. Neither is adopted; the hint is one line in the page, the record is
 a static host and a DNS change.
 
-### Lever 1
+### The opening ask
 
 **The ask in the session URL**, `?ask=frame:42` or `?ask=fill:0-486`. `SessionRequest::path()` is
 readable before `accept()`, so the server opens the media stream behind its own accept while the client
@@ -632,7 +632,7 @@ host but this box's relay has served it. The WASM client has no opening ask; its
 asks the opening fill on the control stream. Two clauses hold it (honoured and optional; a
 malformed ask leaves the session serving). A re-dial puts the fill's remainder in the new URL too.
 
-### Lever 2
+### Early SETTINGS
 
 **The server's SETTINGS at 0.5 RTT.** Chromium holds its CONNECT until the server's SETTINGS arrive,
 and `wtransport` 0.7.2 opened the server's control stream only after the handshake completed.
@@ -670,7 +670,7 @@ shows the SETTINGS in the first flight and the CONNECT leaving before `HANDSHAKE
 page host the lever takes its round trip off the page's first frame in every cell
 ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The first frame on a real host).
 
-#### What lever 2 costs
+#### What early SETTINGS cost
 
 **No bytes**: the SETTINGS take the padding of the server's 1 200 B Initial datagram, so the
 amplification budget is untouched. **Under 1 % loss, no regression**: native session 2.04–2.13 round
@@ -692,16 +692,16 @@ that. [`../patches/quinn-proto-0.11.18-probe-every-space.patch`](../patches/quin
 rides it and a 1-RTT PING's ACK declares the SETTINGS lost a round trip sooner (RFC 9002 §6.2.4 bars
 none of it). On by default. Session ready with the first flight swallowed, medians, seven rounds:
 
-| client | round trip | unpatched | lever 2 | **lever 2 + this** |
+| client | round trip | unpatched | early SETTINGS | **early SETTINGS + this** |
 | --- | --- | ---: | ---: | ---: |
 | native | 80 ms | 1 328.5 | 1 411.7, 0/7 | **1 247.3**, 7/7 |
 | Chrome | 80 ms | 1 332 | 1 414, 0/7 | **1 249**, 7/7 |
 
-Clean dials tie with lever 2 alone, every other blink offset is within 2 ms, and at 1 % loss the worst
+Clean dials tie with early SETTINGS alone, every other blink offset is within 2 ms, and at 1 % loss the worst
 dial goes 1 416 → 1 250. `a_lost_first_flight_is_repeated_whole` holds it. *Corrected in place:* as
 first written that test raced its client's own Initial repeat under load (1 run in 4); the client now
 waits 3 s. **Untraced**: a client whose repeat reaches the server just before its probe may not get
-the round trip back. Tried and not built: probing only the 1-RTT space (no more than lever 2 alone);
+the round trip back. Tried and not built: probing only the 1-RTT space (no more than early SETTINGS alone);
 re-queueing the SETTINGS as data (the session stalled, cause not found). `--initial-rtt-ms 100` is a
 larger, different lever here (−700 ms on every server) whose default waits on the target's round trip.
 
@@ -719,7 +719,7 @@ server's HTTP/3 surface ends a non-CONNECT request with no response (`wtransport
 webtransport-go from v0.13.0 refuses the server for want of reset-stream-at. Upstream issue and pull
 request are drafted, not posted ([`transport/upstream-wtransport-settings.md`](transport/upstream-wtransport-settings.md)).
 
-### Lever 3
+### Hints in the session URL
 
 Optional hints in the same URL — `&rtt=62&down=18000&cores=4&mem=4` — each one the server may
 ignore. **Not built**; proposed only so the format has room. Nothing should be decided by them until
@@ -1001,8 +1001,8 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
 * **WSA, the opening ask on the upgrade** (2026-10-02): with `--open-ask` the server reads `?ask=` from
   the upgrade's URL and serves it right behind the 101; `ws-session.ts` puts an opening fill there.
   **−1.03 to −1.09 round trips to the first frame**, every paired round: −43.6 ms at 40 (7/7), −83.8
-  at 80 (10/10), −164.3 at 160 (7/7), the fill's end the same. Lever 1 taken from the upgrade, for
-  every WebSocket client. On by default, like lever 1; the race puts it on the WebSocket's URL alone
+  at 80 (10/10), −164.3 at 160 (7/7), the fill's end the same. The opening ask taken from the upgrade, for
+  every WebSocket client. On by default, like the opening ask; the race puts it on the WebSocket's URL alone
   ([`../lab/tcp-fallback/`](../lab/tcp-fallback/README.md) §The opening ask in the upgrade's URL).
 
 **Before it is enabled anywhere**: a device check of the iOS stall and of recycling. **What the shaped
@@ -1031,7 +1031,7 @@ drops UDP, the race's time to ready against the four seconds.
 * **Survival on a device**: the Wi-Fi → cellular freeze and what the page sees; the triggers where a
   radio change and `freeze` are real; the screen-lock pair; whether 5 s suits a dial on a phone.
   Detection of a dead *idle* session with a server idle timeout below 30 s is not measured.
-* **Lever 1 beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
+* **The opening ask beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
   check before enabling, the recycling cost, the shaped A/B).
 
 ## Looked at and dropped

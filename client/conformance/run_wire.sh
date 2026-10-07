@@ -42,11 +42,11 @@ start_static "$T/static.log"
 WT="wt=https://127.0.0.1:$WT_PORT/&hash=$CERT_HASH"
 drive() { node client/conformance/drive_page.cjs "http://127.0.0.1:$PORT/$1" | grep . | tail -1; }
 failed=0
-drive "client/conformance/refusals.html?arm=ts&n=64&$WT" || failed=1
-drive "client/conformance/refusals.html?arm=wasm&n=64&$WT" || failed=1
-drive "client/conformance/refusals.html?arm=ws&n=64&$WT" || failed=1
-drive "client/conformance/ask-during-fill.html?arm=ts&$WT" || failed=1
-drive "client/conformance/ask-during-fill.html?arm=downloader&$WT" || failed=1
-drive "client/conformance/ask-during-fill.html?arm=ws&$WT" || failed=1
-drive "client/conformance/ask-during-fill.html?arm=downloader-ws&$WT" || failed=1
+drive "client/conformance/refusals.html?client=ts&n=64&$WT" || failed=1
+drive "client/conformance/refusals.html?client=wasm&n=64&$WT" || failed=1
+drive "client/conformance/refusals.html?client=ws&n=64&$WT" || failed=1
+drive "client/conformance/ask-during-fill.html?client=ts&$WT" || failed=1
+drive "client/conformance/ask-during-fill.html?client=downloader&$WT" || failed=1
+drive "client/conformance/ask-during-fill.html?client=ws&$WT" || failed=1
+drive "client/conformance/ask-during-fill.html?client=downloader-ws&$WT" || failed=1
 exit $failed

@@ -1,7 +1,7 @@
 # Other clients
 
-Lever 2 (the server's SETTINGS in its first flight) against every HTTP/3 or WebTransport client
-this box could run, with lever 2 on and off. Each run goes direct, and again through
+Early SETTINGS (the server's SETTINGS in its first flight) against every HTTP/3 or WebTransport client
+this box could run, with early SETTINGS on and off. Each run goes direct, and again through
 `lab/scripts/half_rtt_deaf.py`, which turns any client into one that ignores 0.5-RTT data. Results:
 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Other clients.
 
@@ -23,4 +23,4 @@ VENV=/tmp/aq GO_CLIENT=/tmp/goclient H3_GET=/tmp/h3t/release/h3-get \
 
 The lever-off binary is this tree with `[patch.crates-io]` removed from the root `Cargo.toml`.
 webtransport-go is pinned to v0.9.0: from v0.13.0 (draft 15) on, it refuses a server without
-QUIC's reset-stream-at extension, with lever 2 on or off.
+QUIC's reset-stream-at extension, with early SETTINGS on or off.

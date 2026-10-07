@@ -5,12 +5,12 @@ per decision, not per commit; the code carries a one-line pointer here and this 
 reason.
 
 **The tree as it builds.** `--stream-mode` defaults to `shared`, the controller to Cubic with
-slow start restarted after a silence (`cubic-restart`, §3), the opening ask to on (§3 Lever 1), and
+slow start restarted after a silence (`cubic-restart`, §3), the opening ask to on (§3 *The bytes the viewer needs anyway, pushed at session open*), and
 every flow-control window to quinn's default. A frame goes to quinn as the reader's own buffer
 (`media/frame_pool.rs`), the only send path. The release profile is `lto = "fat"`, one codegen unit.
 Two crate patches are on by default through `[patch.crates-io]` — wtransport's SETTINGS in the
 handshake flight and quinn-proto's probe of every space — and why they exist is
-[`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Lever 2. Two levers are **build-time opt-ins**: the
+[`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Early SETTINGS. Two levers are **build-time opt-ins**: the
 MTU-derived GSO cap (`patches/quinn-0.11.11-mtu-gso.patch`, §4) and a profile-guided build
 (`scripts/pgo_build.sh`, §4). Every other lever below is a flag at quinn's default.
 
@@ -445,16 +445,16 @@ window. *Corrected in place:* LD (2026-09-20) read a port-only rebind as fresh (
 250 KB) and this row was changed to match; it ran before the relay could change the address, and what
 produced that reading is not known. Not tested: whether a real mobile NAT keeps the address.
 
-#### Lever 1 — the bytes the viewer needs anyway, pushed at session open
+#### The bytes the viewer needs anyway, pushed at session open
 
 `--open-ask`: the session URL carries `?ask=fill:0-k`, so the study's first frames are moving when
 the control stream opens. The TypeScript client sends it (`openAsk`), on by default since 2026-10-02; the design and its
-browser measurement are [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Lever 1. Pushing 1, 2, 4 and 8
+browser measurement are [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The opening ask. Pushing 1, 2, 4 and 8
 frames before one more is asked takes that ask at 250 KB / 80 ms from 454.7 ms to 204.0, 157.2,
 127.6 and **103.9 — the filled arm's 104.3**; at 50 KB, 248.2 to 165.9, 124.8, 108.5 and 98.1. **It
 reaches the warmed session's speed**, most of the way at 1 MB.
 
-#### Lever 2 — a 32-packet initial window
+#### A 32-packet initial window
 
 `--initial-window-bytes 38400` against quinn's 12 000. On the unshaped link it is free: fresh
 50 KB 85.8 / 165.5 ms (**−33 %**), 250 KB 167.7 / 319.5 (**−28 to −30 %**), zero loss and zero

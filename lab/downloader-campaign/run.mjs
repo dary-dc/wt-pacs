@@ -2,7 +2,7 @@
  * Drive page.js headless, interleaving the arms: every round runs each scenario on each arm
  * with the arm order rotated, so a drift in the host lands on all arms alike. Adds what only
  * CDP sees — the page's main-thread task time and the renderer's GC count over the scenario —
- * then prints median [min … max] per arm. docs/ARCHITECTURE.md §S4.
+ * then prints median [min … max] per arm. docs/ARCHITECTURE.md §The container campaign.
  *
  *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/run.mjs [--rounds 8] [--base http://127.0.0.1:8765]
  */
