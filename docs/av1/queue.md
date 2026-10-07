@@ -109,14 +109,14 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 56 | **LAYOUT** — folders by responsibility, each doc where the repository's rules place it | after 55 |
 | 57 | **VERSIONS** — newer libaom, SVT-AV1, dav1d, OpenJPH 0.32.0, Emscripten SIMD and threads, Chromium's WebCodecs: what each gains or breaks, the promising ones measured | claimed 2026-10-07 00:07 UTC (night), continuing `a6f960c` |
 | 58 | **LITERATURE** — lossless medical image coding 2023–2026, and what of it runs in a browser today: research, rows proposed | done `5385a07` — **JPEG XL lossless is still the codec to beat; nothing published since 2023 that beats it runs exact in a browser but one unreviewed codec**: standard codecs on 16-bit CT/MR put JPEG XL at 0.85–0.95 of JPEG-LS and 0.82–0.91 of JPEG 2000 (BD-LVIC, TIP 2024), 0.78–0.95 of HTJ2K on four 16-bit CT and mammography frames (an industry white paper, 2024); learned and context-tree coders gain 3–20 % under JPEG XL on CT/MR volumes, but only integer or table-driven ones can be exact in a browser (WGSL float is not bit-reproducible): TCT (TIP 2026, 0.88–0.97 of JPEG XL, 0.05 s a slice on CPU, no code) and Tomoz (Apache-2.0, WASM, self-reported 0.73–0.85 of HTJ2K, unreviewed); no paper measures modern lossless codecs on breast imaging — rows 45–46 hold more; three measurements proposed (JPEG-LS in WASM, Tomoz, TCT when released); [`lossless-literature.md`](lossless-literature.md) |
-| 59 | **RESLEVEL** — HTJ2K decoded at the resolution level a phone screen needs, exact, then full resolution on zoom | ready |
-| 60 | **LOSSLINK** — fill and on-demand time over links with 1–5 % packet loss and jitter, HTJ2K against AV1 | ready |
-| 61 | **TRANSFER** — how other systems deliver medical images, and what they do better than us: research, rows proposed | ready |
-| 62 | **GPU** — GPU HTJ2K decoders' methods and whether WebGPU can take more than the wavelet: research and a feasibility bound | ready |
-| 63 | **JXL** — JPEG XL at fast efforts in WASM, and native browser decoding: which engines, exact at which depths, through which API, how fast | ready |
-| 64 | **REMAP** — rare values above 12 bits mapped out with a small exception map, and a palette for high bits: exact, bytes, decode | ready |
-| 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | ready |
-| 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | ready |
+| 59 | **RESLEVEL** — HTJ2K decoded at the resolution level a phone screen needs, exact, then full resolution on zoom | claimed 2026-10-07 00:09 UTC (night) |
+| 60 | **LOSSLINK** — fill and on-demand time over links with 1–5 % packet loss and jitter, HTJ2K against AV1 | claimed 2026-10-07 00:07 UTC (night) |
+| 61 | **TRANSFER** — how other systems deliver medical images, and what they do better than us: research, rows proposed | done `e11aea2` — **others deliver a frame's prefix first and the rest after; nothing they do survives loss better**: DICOMweb has no partial-frame retrieval but generic, optional HTTP Range (CP-2204); DICOM's HTJ2K RPCL syntax (Sup 235, TLM required) exists for prefix delivery, and an open-source viewer fetches a 128 KiB Range prefix of every frame, then `bytes=<held>-`, in strides of 4 (the committee's slides: 45 against 66 ms to first render over 4G, not reviewed); three cloud services document no partial retrieval; HTTP/3's streams buy little over one ordered stream under random loss (3 papers, 2021–22), as the shared stream found; QUIC FEC pays only on a transfer's tail (FlEC: 247 against 272 ms median, 50 kB with a loss) and no draft survives; `RESET_STREAM_AT` is in the RFC Editor queue (2026-09-06); four rows proposed, a plain HTTP/3 `fetch()` baseline first — [`delivery-prior-art.md`](../transport/delivery-prior-art.md) |
+| 62 | **GPU** — GPU HTJ2K decoders' methods and whether WebGPU can take more than the wavelet: research and a feasibility bound | done `2ee009d` (`e658e8d`) — **a ported HT block decoder bounds at 42–67 % of a breast frame from 931×2124 up at 1×, loses on 512²; unmeasurable here**: the ICIP 2019 GPU decoder read in full (MEL+VLC one thread a code-block, MagSgn a warp a block, wavelet 40–50 % of GPU time; lossless 4K 62–402 frames/s), nvJPEG2000 refinement since v0.10.0, no WebGPU/WebGL decoder anywhere; WebGPU's way back measured in Chromium 141 on SwiftShader at 2.0–2.1× the heap's copy out on every frame over 4 MB, +3 ms on small ones (8 rounds interleaved, 1×/4×, 1 344/1 344 exact, mutation caught 12/12 cells); bound = 81–86 % movable − GPU time scaled from the paper's lossless kernels (throughput or a KCUPS1 latency floor) − that transfer: tomosynthesis 23 % / −44 %, MR 512² −14 %; no GPU in the container, so the WGSL port and a phone are what would settle it; row FASTHTJ2K's two misreadings corrected in place; gate's wasm steps not run (no wasm-pack), no client code changed — [`decode/README.md`](../decode/README.md) §A WebGPU block decoder, bounded, [`lab/av1/gpu`](../../lab/av1/gpu/README.md) |
+| 63 | **JXL** — JPEG XL at fast efforts in WASM, and native browser decoding: which engines, exact at which depths, through which API, how fast | claimed 2026-10-07 00:07 UTC (night) |
+| 64 | **REMAP** — rare values above 12 bits mapped out with a small exception map, and a palette for high bits: exact, bytes, decode | claimed 2026-10-07 00:14 UTC (night) |
+| 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | claimed 2026-10-07 00:08 UTC (night) |
+| 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | claimed 2026-10-07 00:15 UTC (night) |
 
 ## Briefs
 
@@ -1145,6 +1145,13 @@ corrected in place. **Branch:** `claude/av1` (`llsize` and the fetch are here). 
 §Prior evidence, not reproduced here, corrected; `lab/av1/llsize/README.md` and [`FIXTURES.md`](../FIXTURES.md) §AV1 data.
 
 ## Blocked
+
+* **2026-10-07 00:30 UTC: row 66 POCGAP — neither 10-bit DBT series it names is CC BY or CC0, so neither is fetched.**
+  The UPMC breast tomography collection on D. Clunie's public archive (`dclunie.com/pixelmedimagearchive`, read
+  2026-10-07; Case22 is 137 MB, MD5-listed) states no licence at all; TCIA's Breast-Cancer-Screening-DBT
+  (DOI 10.7937/E4WT-CD02, DBT-P01237's collection) is CC BY-NC 4.0 on every file group. The owner decides whether
+  either is acceptable (fetch-at-run-time only, never committed); the row measures the brief's other claims on the
+  lab's two CC BY 4.0 10-bit DBT series meanwhile.
 
 * **2026-10-06 22:20 UTC: rows 47 MIXDEC, 51 SERVER and 57 VERSIONS stale** — claimed 00:49–01:10 UTC, no commit
   from their lanes in the six hours since but 57's `a6f960c` (01:27); set back to `night`. 57 continues from `a6f960c`.
