@@ -1253,6 +1253,47 @@ first image is displayed, and that decision is the workstation's. Four frames pe
 a byte-exact, mutation-checked claim, not to call the percentages a distribution; the source build's
 floor is frame 0 only.
 
+*Corrected (row RESLEVEL, 2026-10-07):* "byte-identical" above is to the same package's decode of the whole
+codestream at that level, not to an independent decoder — and the package's level output is not exact on its own
+(§A frame at the level the screen needs). The byte shares stand; they do not depend on the clamp.
+
+## A frame at the level the screen needs
+
+Queue row 59 (RESLEVEL), [`lab/av1/reslevel`](../../lab/av1/reslevel/README.md): the breast series in the served
+profile, each decoded at the most reduced level whose long side still holds 1 000 pixels (level 1; level 2 on the
+3328×4096 mammograms), exact at that size, the whole frame after.
+
+**The package's level output is not exact as it comes.** At a reduced level the reversible 5/3 low band leaves the
+samples' range — up to 1 439 on a 10-bit frame, −303 below — on 9 of 10 series. OpenJPEG 2.5.4's `-r` clamps it to
+[0, 2^B − 1], as does an independent 5/3 analysis of the source samples (`ll.py`); the package's
+`decodeSubResolution` clamps at 0 and at the 16-bit container only, so 15 of 35 frames came back with samples above
+2^B − 1 (22–1 585 a series). **A clamp to 2^B − 1 after the call makes it exact**: 35/35 frames identical to both
+witnesses, from the whole codestream and from its prefix. A level picture is grey here; the clamp for a signed or
+colour series is not measured.
+
+**Bytes.** The smallest exact prefix is 25.8–29.0 % of a frame at level 1 on all nine level-1 series and 7.0–7.5 % at
+level 2 (`ffdm_d`, 0.35 of 4.81 MB) — the curve of §A prefix draws a smaller image, at ~2:1 content. Today's
+codestreams (RPCL, one layer, one tile) already hold it as a prefix: no re-encode.
+
+**Decode** (headless Chromium 141, n = 10, interleaved): a level-1 picture from its prefix costs ×0.27–0.31 of the
+whole frame's decode through the product's module at 1× and 4×, level 2 ×0.08 (1×: `ffdm_d` 102 → 8.2 ms, `ffdm_a` 59 → 17 ms;
+4×: 445 → 37, 250 → 73 ms); 2 100/2 100 pictures exact.
+
+**On row 23's links** (5/20/50 Mbit, `lte-good`, `wifi-home`, 1× and 4×; 13 rounds, paired n = 5–13 a cell, under 10
+in 9 of 50, 5 200/5 200 frames and 2 600/2 600 level pictures exact): four views or slices a fill, every level picture
+first, every whole frame after, through the product's downloader and a lab decoder worker. Against today's fill:
+
+| | 3328×4096 FFDM, level 2 | 2560×3328 FFDM, 2394×2850 synthesized 2D, level 1 | DBT slices, level 1 |
+| --- | --- | --- | --- |
+| first exact picture on screen | ×0.09–0.27 | ×0.26–0.49 | ×0.23–0.69 |
+| every frame on screen | ×0.06–0.15 | ×0.23–0.50 | ×0.30–0.47 |
+| every frame exact at full size | ×0.99–1.02 | ×0.99–1.01 | ×1.00–1.04 |
+
+Sooner in every paired round of every cell on the first two lines; the whole is a tie, since a prefix and its rest
+are the same bytes. At 5 Mbit a 3328×4096 study is on screen in 2.6 s, not 31.6, and the first view in 0.63 s, not
+7.3. The wire is the clock throughout: 4× moves no ratio by more than 0.10. Container-measured on a loopback relay,
+not a phone; the proposal is in [`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §7.
+
 ## The BYOB read path
 
 Retired; code in history at `6e9c126`. The WASM client's BYOB reader (`byob`, `byob-min`) read each

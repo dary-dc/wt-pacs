@@ -120,6 +120,8 @@ source build returns a full-size image with detail missing, and only past a floo
 colour frame ([`decode/README.md`](../decode/README.md) §A prefix draws a smaller image). Handing a
 decoder a frame's first bytes is not built into the clients: it waits on how a smaller first image
 is displayed.
+*Corrected (row RESLEVEL, 2026-10-07):* the package's level output is exact only once clamped to the declared depth;
+"byte-identical" was to its own whole-codestream decode (§7).
 
 **The rule, fixed before the cell runs:** at 20 Mbit / 50 ms on the rig
 ([`rig-limits.md`](../rig-limits.md) §9), 250 KB frames, time from ask to a viewable image with a 25 %
@@ -137,8 +139,34 @@ quinn nor wtransport carries yet, and whose support in Chromium is unchecked.
 
 ---
 
+## 7 · The level a phone screen needs, measured (row RESLEVEL, 2026-10-07)
+
+**Proposed, not built.** Measured in the lab on the breast series ([`decode/README.md`](../decode/README.md) §A frame at
+the level the screen needs, [`lab/av1/reslevel`](../../lab/av1/reslevel/README.md)): a fill that sends every frame's
+prefix first and every rest after puts the first exact picture on screen at ×0.09–0.69 of today's time and every frame
+of a four-view study at ×0.06–0.50, on every link of row 23 at 1× and 4×, and finishes every whole frame at a tie
+(×0.98–1.04). §6's rule — 2× to first viewable — holds at 5 and 20 Mbit on every series (×0.09–0.45), and at 50 Mbit
+on the mammograms only (DBT slices ×0.65–0.69).
+
+**What it would take, each piece structural:**
+
+1. **The store**: today's codestreams unchanged (RPCL, one layer, one tile already put the level first); each frame
+   indexed at its level's byte offset — the smallest exact prefix, 26–29 % of a frame at level 1, 7 % at level 2. Ingest
+   finds it with the decoder (as the lab does) or from packet lengths (PLT); the level is the store's or the ask's.
+2. **The wire**: §6's prefix ask — the prefix first, the rest on zoom or behind every prefix. The lab carried it with
+   no wire change, the prefix and the rest as two store entries a frame (2F entries, prefixes first), which is the
+   same bytes in the same order; the downloader's own window then decides when the rests go.
+3. **The decoder**: `decodeSubResolution(level)` on the prefix, then **a clamp to 2^B − 1** — without it 15 of 35 frames
+   are not exact — and the prefix kept until its rest arrives, joined, decoded whole. Grey unsigned measured; signed
+   and colour not.
+4. **The render path** accepting a picture a quarter or a sixteenth the size, scaled up until the whole arrives — §4's
+   blocker, unchanged.
+
+The owner decides 1, 2 and 4; until the render path takes a smaller picture, none of it reaches a screen.
+
 ## References
 
 - [`client-window-depth.md`](client-window-depth.md) — `D`, `Tf`, and `U`
 - [`stride-is-bandwidth-conservation.md`](stride-is-bandwidth-conservation.md) — the other motion lever
 - [`decode/README.md`](../decode/README.md) §A prefix draws a smaller image — the measured prefix curve
+- [`decode/README.md`](../decode/README.md) §A frame at the level the screen needs — §7's numbers

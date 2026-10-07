@@ -91,3 +91,43 @@ turns every cell to 0.
 
 The level from the whole codestream is within a few per cent of the level from the prefix (×0.28–0.31 of whole at
 level 1, ×0.094 at level 2): the decoder stops at the level either way.
+
+**On the links** (13 rounds, 1 300 visits, 122 `VOID` dropped; paired n = 5–13 a cell, under 10 in 9 of 50 cells,
+6 of them `lte-good`, whose trace voids most). 5 200/5 200 frames and 2 600/2 600 level pictures exact. ms from the
+fill's issue, medians; the ratio is `res` ÷ `htj2k`, the median of paired rounds, and `res` was sooner in every
+paired round of every cell on the first two columns.
+
+| series | link | first picture, htj2k → res | every frame on screen, htj2k (exact) → res (level) | every frame exact | zoom, one frame |
+| --- | --- | --- | --- | --- | --: |
+| `ffdm_d` | 5 Mbit | 7 271 → 634, ×0.09 | 31 552 → 2 621, ×0.08 | ×1.00 | 6 351 |
+| `ffdm_d` | 20 Mbit | 2 121 → 319, ×0.15 | 8 118 → 892, ×0.11 | ×1.00 | 1 591 |
+| `ffdm_d` | 50 Mbit | 1 117 → 304, ×0.27 | 3 493 → 526, ×0.15 | ×1.00 | 720 |
+| `ffdm_d` | `lte-good` | 2 427 → 367, ×0.15 | 6 315 → 693, ×0.11 | ×1.00 | 1 730 |
+| `ffdm_d` | `wifi-home` | 2 645 → 306, ×0.11 | 13 593 → 908, ×0.07 | ×1.02 | 2 318 |
+| `ffdm_a` | 5 Mbit | 4 103 → 1 660, ×0.40 | 18 842 → 4 984, ×0.26 | ×1.00 | 2 926 |
+| `ffdm_a` | 20 Mbit | 1 362 → 469, ×0.34 | 4 904 → 1 399, ×0.28 | ×1.00 | 775 |
+| `ffdm_a` | 50 Mbit | 785 → 385, ×0.49 | 2 169 → 746, ×0.34 | ×1.00 | 339 |
+| `ffdm_a` | `lte-good` | 1 296 → 510, ×0.39 | 4 174 → 2 080, ×0.50 | ×1.00 | 310 |
+| `ffdm_a` | `wifi-home` | 1 545 → 664, ×0.44 | 7 140 → 1 755, ×0.25 | ×1.00 | 1 013 |
+| `syn2d_b` | 5 Mbit | 5 592 → 1 870, ×0.33 | 22 057 → 5 961, ×0.27 | ×1.00 | 4 005 |
+| `syn2d_b` | 20 Mbit | 1 633 → 712, ×0.44 | 5 710 → 1 639, ×0.29 | ×1.00 | 1 059 |
+| `syn2d_b` | 50 Mbit | 934 → 424, ×0.46 | 2 482 → 877, ×0.35 | ×1.00 | 407 |
+| `syn2d_b` | `lte-good` | 2 351 → 608, ×0.26 | 4 745 → 2 256, ×0.48 | ×1.00 | 590 |
+| `syn2d_b` | `wifi-home` | 2 167 → 645, ×0.30 | 8 850 → 2 159, ×0.23 | ×0.99 | 1 394 |
+| `dbt12_c` | 5 Mbit | 2 476 → 579, ×0.23 | 6 766 → 2 443, ×0.36 | ×1.00 | 996 |
+| `dbt12_c` | 20 Mbit | 730 → 307, ×0.42 | 1 836 → 703, ×0.38 | ×1.00 | 305 |
+| `dbt12_c` | 50 Mbit | 430 → 292, ×0.68 | 897 → 399, ×0.44 | ×1.02 | 268 |
+| `dbt12_c` | `lte-good` | 652 → 353, ×0.54 | 1 747 → 624, ×0.36 | ×1.00 | 388 |
+| `dbt12_c` | `wifi-home` | 716 → 287, ×0.39 | 2 336 → 717, ×0.30 | ×1.00 | 481 |
+| `dbt10_d` | 5 Mbit | 1 857 → 535, ×0.29 | 5 815 → 2 427, ×0.42 | ×1.00 | 533 |
+| `dbt10_d` | 20 Mbit | 702 → 296, ×0.42 | 1 595 → 676, ×0.42 | ×1.00 | 269 |
+| `dbt10_d` | 50 Mbit | 406 → 278, ×0.69 | 830 → 383, ×0.46 | ×1.04 | 181 |
+| `dbt10_d` | `lte-good` | 593 → 346, ×0.58 | 1 576 → 586, ×0.37 | ×1.00 | 281 |
+| `dbt10_d` | `wifi-home` | 715 → 275, ×0.37 | 2 022 → 752, ×0.37 | ×1.00 | 309 |
+
+That is 1×; 4× moves no ratio by more than 0.10, and in no one direction (first ×0.09–0.67, every frame on screen
+×0.06–0.47, every frame exact ×0.99–1.03): the wire is the clock on every link here, decode is not. Every frame exact is a tie
+(×0.98–1.04 over all 50 cells): cut in two, a frame costs no bytes and no time. **Zoom** is `res`'s first exact
+frame less its last level picture — the rest of one frame and its whole decode, asked as the last level picture
+lands — so it is a fill's measure, not a zoom gesture's, and is not compared with anything. Desktop Chromium in a
+container on a loopback relay, not a phone.
