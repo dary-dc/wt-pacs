@@ -3,18 +3,19 @@
  * the same link and CPU: HTJ2K, AV1 intra through dav1d-WASM and WebCodecs, the splits, one group,
  * a lossy preview, row LLSIZE's codings (TOTAL2), a layer-major scalable series (BASES), row ENCX's (TOTAL3),
  * the order the frames are asked in (ORDER), loss and jitter and asks after a partial fill (LOSSLINK). Fixed rates and
- * phone-like profiles behind the relay, headless Chromium at 1× and 4×. Every visit is its own server, relay and browser;
+ * phone-like profiles behind the relay, headless Chromium (and Firefox, TOTAL4) at 1× and 4×. Every visit is its own server, relay and browser;
  * (set × link × impairment × throttle) cells in a Williams order each round, the arms inside each cell the same way.
  * lab/av1/total/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs [--rounds 10] [--first-round 0]
- *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--sets a,b] [--arms a,b]
+ *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--arms a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth] [--out rows.jsonl]
  *     [--summary [--ref htj2k]]
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -28,6 +29,7 @@ const FIRST = Number(arg("--first-round", 0));
 const LINKS = arg("--links", "r5000,r20000,r50000,lte-good,wifi-home").split(",");
 const IMPAIRS = arg("--impairs", "clean").split(",");
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
+const ENGINES = arg("--engines", "chromium").split(",");
 /** Frames 0 … FILL−1 filled, then FILL … FILL+AFTER−1 asked one at a time; FILL absent is the whole series. */
 const FILL = arg("--fill", null);
 const AFTER = Number(arg("--asks-after", 0));
@@ -132,6 +134,65 @@ function pack(set, ext, entries, codec = ext === "htj2k" ? "htj2k" : "av1") {
 const CHROME = process.env.CHROME_PATH || chromium.executablePath();
 writeFileSync(`${T}/chrome.sh`, `#!/bin/sh\nexec taskset -c ${BROWSER_CORES} "${CHROME}" "$@"\n`, { mode: 0o755 });
 
+/** Firefox is the stock build, no remote protocol: launched on the page, which POSTs its result here. */
+let posted = null;
+const collector = createServer((req, res) => {
+  let body = "";
+  req.on("data", (c) => (body += c));
+  req.on("end", () => {
+    res.writeHead(200, { "Access-Control-Allow-Origin": "*" }).end();
+    if (body) posted?.(JSON.parse(body));
+  });
+});
+await new Promise((r) => collector.listen(0, "127.0.0.1", r));
+const FIREFOX_PREFS = [["browser.shell.checkDefaultBrowser", false], ["browser.aboutwelcome.enabled", false],
+  ["datareporting.policy.dataSubmissionEnabled", false], ["browser.startup.homepage_override.mstone", "ignore"],
+  ["app.update.disabledForTesting", true], ["toolkit.telemetry.reportingpolicy.firstRun", false]];
+
+/** The page's result in Chromium through Playwright, in Firefox by POST; the throttle on the browser's whole tree. */
+async function inBrowser(engine, url, throttle, errors) {
+  if (engine === "chromium") {
+    const browser = await chromium.launchServer({ executablePath: `${T}/chrome.sh` });
+    const client = await chromium.connect(browser.wsEndpoint());
+    const page = await client.newPage();
+    page.on("pageerror", (e) => errors.push(e.message));
+    const stop = throttleTree(browser.process().pid, throttle);
+    try {
+      await page.goto(url);
+      await page.waitForFunction(() => globalThis.__result, null, { timeout: 600000, polling: 200 });
+      return await page.evaluate(() => globalThis.__result);
+    } finally {
+      stop();
+      await client.close();
+      await browser.close();
+    }
+  }
+  if (engine !== "firefox") throw new Error(`unknown engine ${engine}`);
+  const dir = mkdtempSync(path.join(T, "ff-"));
+  writeFileSync(path.join(dir, "user.js"), FIREFOX_PREFS.map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`).join("\n"));
+  const proc = spawn("taskset", ["-c", BROWSER_CORES, process.env.FIREFOX_PATH, "--headless", "--no-remote", "--profile", dir,
+    `${url}&post=${encodeURIComponent(`http://127.0.0.1:${collector.address().port}/`)}`],
+  { env: { ...process.env, MOZ_CRASHREPORTER_DISABLE: "1" }, stdio: ["ignore", "ignore", "pipe"], detached: true });
+  let stderr = "";
+  proc.stderr.on("data", (c) => (stderr = (stderr + c).slice(-2000)));
+  const stop = throttleTree(proc.pid, throttle);
+  try {
+    return await new Promise((resolve, reject) => {
+      posted = resolve;
+      setTimeout(() => reject(new Error("no result in 600 s")), 600000);
+      proc.once("exit", (c) => reject(new Error(`firefox exited ${c}: ${stderr}`)));
+    });
+  } finally {
+    posted = null;
+    stop();
+    const gone = new Promise((r) => proc.once("exit", r));
+    // A process group of its own: a launcher script, Firefox and its content processes go together.
+    process.kill(-proc.pid, "SIGKILL");
+    await gone;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
 const HTTP = port();
 const http = spawn("python3", ["server/dev-server.py", "--port", String(HTTP)], { cwd: ROOT, stdio: "ignore" });
 process.on("exit", () => http.kill());
@@ -143,7 +204,7 @@ const started = (child, re) => new Promise((resolve, reject) => {
   child.once("exit", (c) => reject(new Error(`exited ${c}: ${out}`)));
 });
 
-async function visit(set, variant, linkName, impairment, throttle, round) {
+async function visit(engine, set, variant, linkName, impairment, throttle, round) {
   const [armName, orderName = "seq"] = variant.split("@");
   const a = arm(set, armName);
   const fill = Number(FILL ?? a.entries);
@@ -172,27 +233,17 @@ async function visit(set, variant, linkName, impairment, throttle, round) {
   await new Promise((r) => setTimeout(r, 500));
   if (!/READY/.test(relayLog)) await started(relay, /READY/);
 
-  const browser = await chromium.launchServer({ executablePath: `${T}/chrome.sh` });
-  const client = await chromium.connect(browser.wsEndpoint());
-  const page = await client.newPage();
   const errors = [];
-  page.on("pageerror", (e) => errors.push(e.message));
-  const stop = throttleTree(browser.process().pid, throttle);
   const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}) });
   let r = null;
   try {
-    await page.goto(`http://127.0.0.1:${HTTP}/lab/av1/total/index.html?${q}`);
-    await page.waitForFunction(() => globalThis.__result, null, { timeout: 600000, polling: 200 });
-    r = await page.evaluate(() => globalThis.__result);
+    r = await inBrowser(engine, `http://127.0.0.1:${HTTP}/lab/av1/total/index.html?${q}`, throttle, errors);
     if (r.error) throw new Error(r.error);
   } catch (e) {
     errors.push(String(e.message).split("\n")[0]);
     r = null;
   }
-  stop();
-  await client.close();
-  await browser.close();
   const exited = new Promise((res) => relay.once("exit", res));
   relay.kill("SIGTERM");
   await exited;
@@ -200,7 +251,7 @@ async function visit(set, variant, linkName, impairment, throttle, round) {
 
   const late = relayLog.match(/self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)/g)?.pop();
   const s2c = relayLog.match(/server->client sent (\d+) lost (\d+)/)?.slice(1).map(Number);
-  const row = { round, set: set.name, arm: variant, congestion: ran, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
+  const row = { round, engine, set: set.name, arm: variant, congestion: ran, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
@@ -245,18 +296,19 @@ function useful(set) {
 /** `seq` fills every frame; `prio` asks the useful ones first, then fills. */
 const variants = (set) => set.armNames.flatMap((a) => ORDERS.map((o) => (o === "seq" ? a : `${a}@${o}`)));
 
-const cells = sets.flatMap((s) => LINKS.flatMap((l) => IMPAIRS.flatMap((impairment) => THROTTLES.map((throttle) => ({ set: s.name, link: l, impairment, throttle })))));
+const cells = ENGINES.flatMap((engine) => sets.flatMap((s) => LINKS.flatMap((l) => IMPAIRS.flatMap((impairment) =>
+  THROTTLES.map((throttle) => ({ engine, set: s.name, link: l, impairment, throttle }))))));
 const rows = [];
 for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summary"); round++) {
-  for (const [k, { set: name, link: l, impairment, throttle }] of order(cells, round).entries()) {
+  for (const [k, { engine, set: name, link: l, impairment, throttle }] of order(cells, round).entries()) {
     const set = sets.find((s) => s.name === name);
     let prev = null;
     for (const a of order(variants(set), round + k)) {
-      const row = { ...(await visit(set, a, l, impairment, throttle, round)), prev };
+      const row = { ...(await visit(engine, set, a, l, impairment, throttle, round)), prev };
       prev = a;
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
-      console.error(`round ${round} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
+      console.error(`round ${round} ${engine} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
         ` exact ${row.exact}/${row.owed}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }
@@ -265,14 +317,17 @@ for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summ
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const span = (a) => `${med(a).toFixed(0)} [${Math.min(...a)}–${Math.max(...a)}]`;
 if (OUT) rows.splice(0, rows.length, ...readFileSync(OUT, "utf8").trim().split("\n").map((l) => JSON.parse(l)));
-for (const r of rows) r.impairment ??= "clean";
+for (const r of rows) {
+  r.impairment ??= "clean";
+  r.engine ??= "chromium";
+}
 const kept = rows.filter((r) => !r.void && r.frames);
 const quantile = (a, q) => [...a].sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(q * a.length))];
 console.log("ms from the fill's issue: first frame on the page, every frame on the page — median [min–max], n kept; " +
   `÷ ${REF} on every frame, median of rounds paired; frames exact over every visit`);
-for (const { set: name, link: l, impairment, throttle } of cells) {
+for (const { engine, set: name, link: l, impairment, throttle } of cells) {
   const set = sets.find((s) => s.name === name);
-  const of = (a, from = kept) => from.filter((r) => r.set === name && r.link === l && r.impairment === impairment && r.throttle === throttle && r.arm === a);
+  const of = (a, from = kept) => from.filter((r) => r.engine === engine && r.set === name && r.link === l && r.impairment === impairment && r.throttle === throttle && r.arm === a);
   const ref = new Map(of(REF).map((r) => [r.round, r.decodedMs]));
   const parts = variants(set).map((a) => {
     const rs = of(a);
@@ -298,7 +353,7 @@ for (const { set: name, link: l, impairment, throttle } of cells) {
       ` all ×${med(p.map((r) => r.decodedMs / seq.get(r.round).decodedMs)).toFixed(3)} of seq (n=${p.length})`;
     return s;
   });
-  console.log(`${name} ${l}${impairment === "clean" ? "" : ` ${impairment}`} ${throttle}x: ${parts.join(" · ")}`);
+  console.log(`${ENGINES.length > 1 ? `${engine} ` : ""}${name} ${l}${impairment === "clean" ? "" : ` ${impairment}`} ${throttle}x: ${parts.join(" · ")}`);
 }
 console.log(`VOID, dropped: ${rows.filter((r) => r.void).length} of ${rows.length}`);
 process.exit(0);
