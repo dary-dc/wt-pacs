@@ -78,6 +78,8 @@ writeFileSync(`${T}/wifi-home.trace`, execFileSync("python3", [path.join(ROOT, "
 
 const DAV1D = { codec: "av1", glue: "/lab/.av1-build/out/simd.js", wasm: "/lab/.av1-build/out/simd.wasm", dir: "/lab/.av1-build/out" };
 const OPENJPH = { glue: "/lab/decode-bench/vendor/openjph/openjphjs.js", wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm", dir: "/lab/decode-bench/vendor/openjph" };
+/** One of lab/decode-bench/wasm/build.sh's arms by name (lab/av1/htj2kmt). */
+const built = (n) => ({ glue: `/lab/.openjph-build/wasm/${n}.js`, wasm: `/lab/.openjph-build/wasm/${n}.wasm`, dir: "/lab/.openjph-build/wasm" });
 /** What the store holds for an arm, and what connect is told: the product's own decoder choice. */
 function arm(set, name) {
   const a = set.arms[name];
@@ -86,7 +88,7 @@ function arm(set, name) {
     // A layered HTJ2K series (lab/av1/reslevel): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
-      opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }),
+      opts: { decoder: { ...(a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // A `downloader` arm runs that revision of the downloader (row CLIENT).
         ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }) } };
   }
