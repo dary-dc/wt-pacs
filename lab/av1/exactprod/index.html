@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>EXACTPROD</title>
+<script>
+  const spawn = () => new Worker("worker.js");
+  const ask = (w, m, transfer) => new Promise((ok) => {
+    w.onmessage = ({ data }) => ok(data);
+    w.onerror = (e) => ok({ error: e.message });
+    w.postMessage(m, transfer);
+  });
+
+  /** One set through one worker: each arm's digests checked and timed. */
+  globalThis.bench = async (o) => { const w = spawn(); const r = await ask(w, { kind: "bench", ...o }); w.terminate(); return r; };
+
+  /** A decode-bound fill: `frames` through `decoders` workers, each frame decoded then hashed by `arm`; the
+   *  first frame handed on and the last, from the first frame given out. */
+  globalThis.pool = async ({ glue, hashWasm, urls, frames, arm, decoders, copies, mutate }) => {
+    const coded = await Promise.all(urls.map(async (u) => new Uint8Array(await (await fetch(u)).arrayBuffer())));
+    const ws = Array.from({ length: decoders }, spawn);
+    await Promise.all(ws.map((w) => ask(w, { kind: "warm", glue, hashWasm })));
+    const jobs = Array.from({ length: coded.length * copies }, (_, k) => k % coded.length);
+    let next = 0, ok = 0, failed = 0, first = Infinity, last = 0;
+    const t0 = performance.timeOrigin + performance.now();
+    await Promise.all(ws.map(async (w) => {
+      while (next < jobs.length) {
+        const i = jobs[next++];
+        const r = await ask(w, { kind: "one", glue, hashWasm, bytes: coded[i].slice(), arm, frame: frames[i], mutate });
+        if (r.error) throw new Error(r.error);
+        if (r.ok === true) ok++; else if (r.ok === false) failed++;
+        first = Math.min(first, r.handed - t0);
+        last = Math.max(last, r.handed - t0);
+      }
+    }));
+    ws.forEach((w) => w.terminate());
+    return { first, last, frames: jobs.length, ok, failed };
+  };
+  /** Whether WebCrypto takes a view of shared memory, as the decoders hand samples on, without a copy. */
+  globalThis.sharedDigest = () => crypto.subtle.digest("SHA-256", new Uint8Array(new SharedArrayBuffer(16)))
+    .then(() => "accepted", (e) => `refused: ${e.message}`);
+  globalThis.ready = crossOriginIsolated;
+</script>
