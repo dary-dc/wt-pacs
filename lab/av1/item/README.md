@@ -17,7 +17,7 @@ $P lab/av1/item/make_golden.py lab/.av1-build                  # the client's go
 
 **`ingest.py`** reads a set as `lab/av1/fetch_data.py` writes it and writes `NNN.av1` items, or with
 `--codec htj2k` the served `NNN.htj2k` codestreams (OpenJPH, reversible, 5 decompositions, 64² blocks,
-RPCL; a signed series coded shifted and its SIZ marked signed), `NNN.sha256` (the source's checksums,
+RPCL — kept by row 70, [`docs/decode/README.md`](../../../docs/decode/README.md) §Encoder settings; a signed series coded shifted and its SIZ marked signed), `NNN.sha256` (the source's checksums,
 copied) and `metadata.json` (`"codec": "av1"` and the representation for AV1). It writes nothing at all
 unless every frame decodes back in-process (`decode.cpp`: dav1d and OpenJPH, no subprocess, no file):
 each AV1 stream unit alone, at the depth it was coded at, merged as the client merges, and each HTJ2K
