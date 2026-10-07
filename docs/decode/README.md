@@ -975,11 +975,13 @@ on a slow CPU (b) on synthetic sets (70–76 % blocks, 7–9 % wavelet).
 
 **What GPU decoders move — sources.** Read through search excerpts where the hosts were refused, and
 marked so. nvJPEG2000 decodes HTJ2K only as one cleanup pass per block, "no refinement" (its release
-notes; *excerpt only*). Kakadu's ICIP 2019 paper decodes HTJ2K on a GPU with the CPU parsing the
+notes; *excerpt only*; *corrected by row GPU:* refinement passes since v0.10.0, the release notes read
+in full 2026-10-07). Kakadu's ICIP 2019 paper decodes HTJ2K on a GPU with the CPU parsing the
 codestream into code-block lists and the GPU doing block decoding and wavelet synthesis, reporting
 "block coding speedup of ~10× (lossy) to ~40× (lossless)" and 4K 4:4:4 12-bit lossless at 402 frames/s
 on a GTX 1080 — measured with the irreversible 9/7 wavelet, not this profile's 5/3 (*excerpt only*;
-no per-stage breakdown found). GPU work on classic JPEG 2000 puts ~90 % in block coding and calls the
+no per-stage breakdown found; *corrected by row GPU:* read in full, the paper has one, below, and its
+10×–42× is the HT block coder's speed over the classic one on a 4-core CPU, not a GPU's gain). GPU work on classic JPEG 2000 puts ~90 % in block coding and calls the
 inverse DWT's share small (*excerpts only*). **No WebGPU or WebGL JPEG 2000 or HTJ2K decoder was
 found**, open or published. WebGPU itself is in Chrome on Android 12+ since 121 (ARM, Qualcomm and
 Intel GPUs; Imagination since 139, Samsung Xclipse not yet) and on by default in Safari from iOS 26;
@@ -1035,11 +1037,85 @@ exceptions, the wrapper's two passes, decoder reuse and the range pass were trie
    in the UVLC suffix split (`0xF` → `0xFF`, a bug fix); the wavelet and colour code are unchanged
    for WASM. Every frame here was already exact on 0.31.0.
 
+**A WebGPU block decoder, bounded (row GPU).** [`lab/av1/gpu`](../../lab/av1/gpu/README.md) runs the
+measured part.
+
+*How the GPU decoder does it* — Naman and Taubman, "Decoding high-throughput JPEG2000 (HTJ2K) on a GPU",
+ICIP 2019, read in full 2026-10-07. The CPU parses precinct headers into lists of code-block byte-stream
+offsets and uploads them with the codestream. The HT cleanup pass is then two kernels, made possible by its
+layout — MagSgn grows forward, MEL forward, VLC backward: **KCUPS1** decodes MEL and VLC with *one thread per
+code-block*, serially, writing each quad's significance, EMB patterns and offset as one 32-bit word; **KCUPS2**
+decodes MagSgn from those words with *one warp per 64² block*, a thread to two columns, since MagSgn has no
+dependence across a row. SPP and MRP, when present, ride in the same two kernels; a lossless codestream has
+neither (nor do ours, row FASTHTJ2K). The wavelet (9/7, 32-bit float) and colour transform are one fused
+kernel writing 16-bit interleaved samples; all-zero blocks are skipped in it. Lossless 4K 4:4:4 12-bit, ms a
+frame on a 384-core 2017 card / a 2 560-core 2016 card: KCUPS1 4.43 / 0.52, KCUPS2 4.88 / 0.73, wavelet and
+colour 6.15 / 1.19 — 62 / 402 frames/s. The authors note 64² blocks *under-use* the larger card in KCUPS1: its
+6 300 blocks are 6 300 threads. On the GPU the wavelet is 40–50 % of the time, not the CPU's 5–10 %: it is
+bandwidth, not arithmetic. nvJPEG2000 (release notes read 2026-10-07; they carry no dates): HT decode from
+v0.7.0 with one cleanup pass only, refinement passes from v0.10.0, "10–50 %" faster then; v0.11.0's HT
+encoder needs the 5/3 wavelet. No other GPU HTJ2K decoder was found published since 2019 (searched
+2026-10-07), nor any WebGPU or WebGL one.
+
+*What a port to WebGPU needs.* Nothing the method uses is missing: workgroup memory for the VLC table, and
+the `subgroups` feature for a warp's column split (Chromium 141 offers it, even on SwiftShader). Not native:
+64-bit integers (a bit reader is two `u32`s) and byte addressing (storage buffers are `u32`; bytes are
+shifts). A port is two cleanup kernels and a 5/3 integer synthesis; nothing of OpenJPH's WASM carries over.
+
+*Code-blocks a frame, the parallelism KCUPS1 gets* (5 levels, 64²; the 4K count reproduces the paper's
+6 300): MR 512² 70, ultrasound RGB 309, tomosynthesis 614×1359 247, `dbt12_c` 931×2124 563, projections
+1914×2572 1 307, `syn2d_d` 2394×2850 1 804, `ffdm_d` 3328×4096 3 352, 4K 4:4:4 6 321.
+
+*Transfer, measured.* Headless Chromium 141 on SwiftShader, the codestream up and the frame back into a
+buffer the page keeps, against today's copy out of the wasm heap; 8 rounds × 7 passes interleaved, per-round
+medians [range], 1 344/1 344 frames exact both arms, a one-bit mutation caught in every cell:
+
+| frame | MB back | heap 1× | WebGPU 1× | heap 4× | WebGPU 4× |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 512² 8-bit | 0.3 | 0.20 [0.10–0.20] | 2.95 [2.80–3.10] | 0.20 [0.10–0.20] | 7.0 [4.3–11.1] |
+| 614×1359 | 1.7 | 0.80 [0.70–1.20] | 4.00 [3.90–4.30] | 1.15 [1.00–4.00] | 11.9 [9.0–21.8] |
+| 931×2124 | 4.0 | 2.00 [1.90–2.60] | 5.75 [5.50–6.60] | 11.4 [8.3–14.4] | 20.9 [16.5–24.1] |
+| 1914×2572 | 9.8 | 5.40 [5.10–5.60] | 11.3 [10.0–13.1] | 24.3 [21.0–29.3] | 53.4 [46.3–63.0] |
+| 2394×2850 | 13.6 | 7.65 [7.20–9.40] | 16.1 [14.6–17.7] | 33.8 [32.4–43.0] | 71.3 [66.7–73.4] |
+| 3328×4096 | 27.3 | 15.4 [15.2–18.6] | 31.1 [29.6–32.9] | 67.7 [62.6–72.4] | 144 [137–149] |
+
+WebGPU's way back costs **2× the heap's copy on every frame over 4 MB** (8/8 rounds each) and about 3 ms
+more at 1× on small frames, 7–12 ms at 4×: a fixed `mapAsync` round trip to the GPU process. SwiftShader's
+own copies run on the CPU, so a phone driver's are not in this; no shader is timed.
+
+*The bound.* What leaves the CPU is the block decoder, code-block to line, the wavelet, colour and pack —
+81–86 % of a frame (row FASTHTJ2K's profile; `*` the projections' per-sample time and shares scaled to a
+frame not profiled). Saved = that − the GPU's time − the extra transfer above. The GPU's time two ways from
+the 384-core card's lossless kernels: *throughput*, per sample (0.62 ns); *floor*, KCUPS1 as one block's
+serial latency (4.43 ms whatever the frame, as if that card's 6 300 resident threads waited on one) plus the
+rest per sample. % of a frame saved, ideal (GPU free) / throughput / floor:
+
+| series | frame ms 1× / 4× | 1× | 4× |
+| --- | ---: | ---: | ---: |
+| tomosynthesis 614×1359 | 6.4 / 29 | 31 / 23 / −44 | 44 / 42 / 28 |
+| `dbt12_c` 931×2124 `*` | 21 / 92 | 67 / 61 / 42 | 75 / 73 / 69 |
+| projections 1914×2572 | 52 / 229 | 74 / 68 / 61 | 72 / 71 / 69 |
+| `syn2d_d` 2394×2850 `*` | 72 / 318 | 73 / 67 / 63 | 73 / 72 / 71 |
+| `ffdm_d` 3328×4096 `*` | 144 / 635 | 74 / 68 / 67 | 73 / 72 / 71 |
+| MR 512², control | 2.9 / 13 | −9 / −14 / −166 | 34 / 32 / −1 |
+
+**The bound clears 15 % on every breast frame from 931×2124 up — 42–67 % at 1× even at the floor — and loses
+on 512² at 1× whatever the GPU's speed**: the round trip alone is a frame's decode there. Unlike code-block
+threads it is a fill's lever as well as an ask's: it takes the work off the cores the decoders share. **Not
+measured, and not measurable here:** the container has no GPU, and SwiftShader runs WGSL on the CPU, so a
+port could be checked for exactness and never timed. The bound's GPU is a 2017 desktop card running CUDA; a
+phone's GPU through WebGPU, and the dispatch cost of two kernels a frame, are unknown, and 4× is the
+container's emulation of a phone's CPU with the GPU left at full speed. What would settle it: the two
+cleanup kernels and a 5/3 synthesis in WGSL, exact against OpenJPH on SwiftShader here, then timed on a
+phone with WebGPU (Chrome Android 121+, iOS 26) — the owner's, as row 29's phones are.
+
 **What a phone would need.** For an ask: the thread pool, at two helpers, is the one lever measured
-here, worth 9–31 % of a frame and 30–40 % on the largest; nothing else bounded exceeds 15 %. For a
-fill: more decoders or a faster core — no lever here adds capacity. WebGPU on a phone (Chrome
+here, worth 9–31 % of a frame and 30–40 % on the largest; nothing else bounded exceeds 15 % (*corrected
+by row GPU:* a ported block decoder bounds higher, unmeasured). For a fill: more decoders or a faster core —
+no lever here adds capacity (*row GPU:* a ported block decoder would). WebGPU on a phone (Chrome
 Android 121+, iOS 26) leaves the 55–70 % in the block decoder on the CPU unless the HT decoder is
-ported, and the bytes to and from the GPU cost more than the wavelet it would take. None of this is
+ported, and the bytes to and from the GPU cost more than the wavelet it would take; ported, it bounds at
+42–67 % of a breast frame from 931×2124 up (§A WebGPU block decoder, bounded). None of this is
 measured on a phone; the 4× cell is the container's emulation (§A slow CPU, emulated).
 
 ## A prefix draws a smaller image
