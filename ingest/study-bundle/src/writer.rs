@@ -103,4 +103,19 @@ mod tests {
         assert_eq!(written, bundle(&frames, meta));
         Ok(())
     }
+
+    /// A frame of another length than its index entry, and a bundle finished short of its
+    /// count, are refused: the index was written first and cannot be corrected.
+    #[test]
+    fn the_writer_refuses_what_its_index_did_not_declare() -> Result<()> {
+        let path = std::env::temp_dir().join(format!("sbnd-refuse-{}.sbnd", std::process::id()));
+        let mut writer = BundleWriter::create(&path, b"{}", &[3, 4])?;
+        let longer = writer.write_frame(b"aaaa");
+        writer.write_frame(b"aaa")?;
+        let short = writer.finish();
+        let _ = std::fs::remove_file(&path);
+        assert!(longer.is_err(), "a 4-byte frame where 3 were declared was written");
+        assert!(short.unwrap_err().to_string().contains("1 of 2"));
+        Ok(())
+    }
 }

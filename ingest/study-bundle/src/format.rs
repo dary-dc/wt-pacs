@@ -166,6 +166,10 @@ mod tests {
         );
 
         let mut bytes = bundle(&[b"aaa", b"bbbb"], b"{}");
+        set_entry(&mut bytes, 1, len as u64 - 3, 4);
+        assert!(parse_layout(&bytes).is_err(), "frame 1 runs 1 byte past EOF");
+
+        let mut bytes = bundle(&[b"aaa", b"bbbb"], b"{}");
         set_entry(&mut bytes, 0, u64::MAX - 1, 4);
         assert!(parse_layout(&bytes).is_err(), "offset + length overflows");
     }
@@ -179,5 +183,27 @@ mod tests {
             parse_layout(&bytes).is_err(),
             "frame 0 points at the header"
         );
+    }
+
+    /// A file too short for a header, a wrong magic and an unknown version are each refused by name.
+    #[test]
+    fn a_file_that_is_not_a_bundle_is_refused_by_name() {
+        let good = bundle(&[b"aaa"], b"{}");
+        let refusal = |b: &[u8]| parse_layout(b).unwrap_err().to_string();
+        assert!(refusal(&good[..10]).contains("too small"));
+        let mut b = good.clone();
+        b[0] = b'X';
+        assert!(refusal(&b).contains("magic"));
+        let mut b = good.clone();
+        b[4..8].copy_from_slice(&2u32.to_le_bytes());
+        assert!(refusal(&b).contains("version 2"));
+    }
+
+    /// Metadata declared past the bytes in hand is refused, not sliced out of bounds.
+    #[test]
+    fn metadata_past_the_prefix_is_refused() {
+        let mut b = bundle(&[], b"{}");
+        b[8..12].copy_from_slice(&100u32.to_le_bytes());
+        assert!(parse_layout(&b).unwrap_err().to_string().contains("past file end"));
     }
 }

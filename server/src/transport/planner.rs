@@ -3,7 +3,7 @@
 use anyhow::Result;
 use std::collections::VecDeque;
 
-/// Asks the server holds beyond the frame being served. A tile reader takes what fits (`slots − 1`).
+/// Asks the server holds, the frame being served among them. A tile reader takes what fits (`slots − 1`).
 pub const ASKS_AHEAD: usize = 8;
 /// A fill reads one frame ahead: two buffers, pool only. `docs/adr/disk-access.md`.
 pub const FILL_AHEAD: usize = 1;
@@ -106,9 +106,6 @@ impl Planner {
                 }
                 self.fill = None;
                 self.count_this_fill = false;
-                if matches!(self.in_hand.front(), Some(Ask::EndStream)) {
-                    self.in_hand.pop_front();
-                }
             }
             match self.in_hand.pop_front() {
                 None => return Ok(Step::Wait),
@@ -342,7 +339,7 @@ mod tests {
         );
     }
 
-    /// A flood of asks does not grow `in_hand` past `ASKS_AHEAD`; the rest stay in `poll`.
+    /// A flood of asks holds at most `ASKS_AHEAD`, the frame being served among them; the rest stay in `poll`.
     #[test]
     fn the_loop_holds_no_more_than_asks_ahead() {
         let mut plan = Planner::new(1000);
@@ -357,11 +354,31 @@ mod tests {
         for _ in 0..100 {
             let _ = plan.next(&mut poll).unwrap();
             assert!(
-                plan.in_hand_len() <= ASKS_AHEAD,
+                plan.in_hand_len() < ASKS_AHEAD,
                 "in_hand grew to {} past ASKS_AHEAD {ASKS_AHEAD}",
                 plan.in_hand_len()
             );
         }
+    }
+
+    /// An end_stream between two asks ends neither, so the frame behind it is still read ahead.
+    #[test]
+    fn upcoming_reads_past_an_end_stream() {
+        let mut plan = Planner::new(10);
+        plan.push(Ask::Frame(2));
+        plan.push(Ask::EndStream);
+        plan.push(Ask::Frame(4));
+        let Step::Serve {
+            frame, upcoming, ..
+        } = plan.next(|| None).unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(
+            (frame, upcoming),
+            (2, vec![4]),
+            "an end_stream ends no ask, so 4 is still read ahead"
+        );
     }
 
     /// A queued `Fill` is next; a frame behind it is not named as upcoming.
