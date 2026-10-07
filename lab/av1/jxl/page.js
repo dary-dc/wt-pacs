@@ -1,0 +1,150 @@
+/**
+ * One engine's share of JXL, run by the page so any browser that opens a URL can take it. `probe`: each set's
+ * first frame through every native path (`<img>`, `createImageBitmap`, `ImageDecoder`, a float16 canvas read),
+ * compared sample by sample with the fetched series. `time`: each arm's frames in order — native, or a WASM
+ * decoder in row EMBED's worker — hashed against the series' checksums. run.mjs serves and drives it.
+ */
+import { order } from "/lab/order.mjs";
+
+const post = (path, body) => fetch(path, { method: "POST", body: JSON.stringify(body) });
+const bytes = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+
+async function hex(u8) {
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", u8));
+  return Array.from(d, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** The fetched frame as coded values, after its bytes matched the checksum written when it was fetched. */
+async function source(s) {
+  const raw = await bytes(`/${s.data}/${s.name}/000.raw`);
+  if ((await hex(raw)) !== s.truth[0]) throw new Error(`${s.name}: source does not match its checksum`);
+  const v = s.stored > 8 ? new Uint16Array(raw.buffer) : raw;
+  return Uint32Array.from(v, (x) => x + s.shift);
+}
+
+/**
+ * Samples out of a native path against the source: exact, or the largest error in source units once the
+ * output's own range is scaled to the source's (8 bits back to B: × (2^B − 1) / 255).
+ */
+function compare(s, src, out, outMax, stride, at = 0) {
+  const max = 2 ** s.stored - 1;
+  let exact = true;
+  let err = 0;
+  for (let i = 0; i < src.length; i++) {
+    const o = out[(i / s.channels | 0) * stride + at + (i % s.channels)];
+    if (o !== src[i]) exact = false;
+    err = Math.max(err, Math.abs(o * max / outMax - src[i]));
+  }
+  return { exact: exact && outMax === max, maxErr: Math.round(err * 10) / 10 };
+}
+
+const canvasOf = (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h });
+
+function readCanvas(img, s) {
+  const ctx = canvasOf(s.width, s.height).getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0);
+  return ctx;
+}
+
+async function viaImg(url) {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  return img;
+}
+
+async function probeOne(s, url) {
+  const src = await source(s);
+  const r = { set: s.name, coding: url.split("/").at(-2) };
+  const attempt = async (name, fn) => {
+    try { r[name] = await fn(); } catch (e) { r[name] = { error: `${e.name}: ${e.message}` }; }
+  };
+  await attempt("img", async () => {
+    const img = await viaImg(url);
+    const d = readCanvas(img, s).getImageData(0, 0, s.width, s.height).data;
+    return { size: `${img.naturalWidth}x${img.naturalHeight}`, ...compare(s, src, d, 255, 4) };
+  });
+  await attempt("bitmap", async () => {
+    const bmp = await createImageBitmap(new Blob([await bytes(url)], { type: "image/jxl" }));
+    const d = readCanvas(bmp, s).getImageData(0, 0, s.width, s.height).data;
+    return compare(s, src, d, 255, 4);
+  });
+  await attempt("float16", async () => {
+    const img = await viaImg(url);
+    const d = readCanvas(img, s).getImageData(0, 0, s.width, s.height, { pixelFormat: "rgba-float16" }).data;
+    if (!(d.constructor.name === "Float16Array")) return { error: `returned ${d.constructor.name}` };
+    const max = 2 ** s.stored - 1;
+    return compare(s, src, Float32Array.from(d, (f) => Math.round(f * max)), max, 4);
+  });
+  await attempt("imageDecoder", async () => {
+    if (typeof ImageDecoder !== "function") return { error: "no ImageDecoder" };
+    const supported = await ImageDecoder.isTypeSupported("image/jxl");
+    if (!supported) return { supported };
+    const dec = new ImageDecoder({ data: await bytes(url), type: "image/jxl" });
+    const { image } = await dec.decode({ frameIndex: 0 });
+    const out = { supported, format: image.format, colorSpace: image.colorSpace?.toJSON() };
+    const wide = /P1[026]/.test(image.format ?? "");
+    const buf = new Uint8Array(image.allocationSize());
+    await image.copyTo(buf);
+    if (/^(RGB|BGR)/.test(image.format)) {
+      if (image.format.startsWith("BGR")) for (let i = 0; i < buf.length; i += 4) [buf[i], buf[i + 2]] = [buf[i + 2], buf[i]];
+      Object.assign(out, compare(s, src, buf, 255, 4));
+    } else if (/^I4/.test(image.format) && s.channels === 1) {
+      const y = wide ? new Uint16Array(buf.buffer, 0, s.width * s.height) : buf.subarray(0, s.width * s.height);
+      Object.assign(out, compare(s, src, y, wide ? 2 ** Number(image.format.match(/P(1\d)/)[1]) - 1 : 255, 1));
+    }
+    image.close();
+    dec.close();
+    return out;
+  });
+  return r;
+}
+
+/** Native: each frame to an `ImageBitmap`, drawn and read back — the samples a viewer could window. */
+async function nativeArm(a) {
+  const units = await Promise.all(a.urls.map(bytes));
+  const ctx = canvasOf(a.width, a.height).getContext("2d", { willReadFrequently: true });
+  const decode = async (u) => {
+    const bmp = await createImageBitmap(new Blob([u], { type: "image/jxl" }));
+    ctx.drawImage(bmp, 0, 0);
+    bmp.close();
+    return ctx.getImageData(0, 0, a.width, a.height).data;
+  };
+  await decode(units[0]);  // warm-up: the first frame, untimed
+  const t0 = performance.now();
+  const frames = [];
+  for (const u of units) frames.push(await decode(u));
+  const ms = performance.now() - t0;
+  const hashes = [];
+  for (const d of frames) {
+    // Only an 8-bit frame can come back exact through an 8-bit canvas: its first `channels` of RGBA.
+    hashes.push(await hex(Uint8Array.from({ length: d.length / 4 * a.channels }, (_, i) => d[(i / a.channels | 0) * 4 + i % a.channels])));
+  }
+  return { ms, hashes };
+}
+
+const wasmArm = (o) => new Promise((resolve) => {
+  const w = new Worker("/lab/av1/embed/worker.js", { type: "module" });
+  w.onmessage = (e) => { w.terminate(); resolve(e.data); };
+  w.onerror = (e) => { w.terminate(); resolve({ error: e.message }); };
+  w.postMessage({ base: location.origin, ...o });
+});
+
+const cfg = await (await post("/jx/hello", { ua: navigator.userAgent })).json();
+try {
+  if (cfg.mode === "probe") {
+    const probes = [];
+    for (const s of cfg.sets) for (const url of s.probe) probes.push(await probeOne(s, url));
+    await post("/jx/done", { probes });
+  } else {
+    const rows = [];
+    for (const a of order(cfg.arms, cfg.round)) {
+      const got = a.o.arm === "native" ? await nativeArm(a.o).catch((e) => ({ error: String(e) })) : await wasmArm(a.o);
+      const exact = got.hashes ? got.hashes.filter((h, i) => h === a.want[i]).length : 0;
+      rows.push({ set: a.set, arm: a.arm, frames: a.want.length, exact, ms: got.ms, error: got.error });
+    }
+    await post("/jx/done", { rows });
+  }
+} catch (e) {
+  await post("/jx/done", { error: `${e.name}: ${e.message}` });
+}
