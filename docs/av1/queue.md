@@ -24,6 +24,9 @@ and its branch belong to other work.
 sleeps, so the two never share a usage window). A session started by the night routine treats `night` exactly as
 `ready`; any other session leaves them.
 
+**`held until <UTC time>` rows** wait for the owner's next usage window: a session treats one as `ready` once
+`date -u` is at or past that time, and leaves it before. An `after …` clause on the same row still applies.
+
 **`after env` rows** wait for the owner to switch the cloud environment's network access to full; the owner sets them to
 `ready`, and no session claims one before.
 
@@ -106,17 +109,25 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 53 | **SEAM** — the seams between transport, downloader, decoders and page: duplicated logic, dead paths, codec dispatch | done `56e5144` on `claude/av1-unified` (`8f82c1f`) — **two duplicates merged, no dead path found, the fill's time unchanged**: traced transport → `downloader.js` → `decoder.js` → `htj2k.js`/`av1.js` → `consumer.js`; the Emscripten glue loading (written out in `htj2k.js` and `decode-av1.js`) is `wasm-glue.js`, the unit-continuity refusal (written out in both AV1 decoder modules) is `continues()` in `av1-item.js` — one place each, not fewer lines (+26, −16); its mutant fails 3 dispatch checks; the codec is decided once (`consumer.js` refuses, `decoder.js` routes, `av1.js` picks the AV1 decoder); kept with reasons: owed frames held by both transport and records (one owner is a transport API change, structural), `groupLength` beside `decoder` in `init` (four lab workers speak it), groups, the preview port, `mixed`, `recycleAtBytes`, `openAsk: false`, `decode: false` (built, each reached by a clause); dispatch 719/719, conformance 56/56; fill after/before 1.00 in all 8 cells (fluoroscopy and 10-bit DBT, 20/50 Mbit, 1×/4×, 10 rounds interleaved, 3 360/3 360 exact) — [`ARCHITECTURE.md`](../ARCHITECTURE.md) §The seams, traced |
 | 54 | **GATE** — the gate's run time, redundant tests and the gaps mutation finds | done `f9022a0` on `claude/av1-unified` (`8ad0684`, `2533134`, `91ef6ea`) — **the gate 161 → 106 s, and 140 of 151 viable mutants killed against 108 before**: n = 3 interleaved a cell, `--quick` 161.4 [159.8–161.7] → 105.9 [104.9–106.1] s, full 160.7 → 107.0; two timer-bound steps now wait side by side — transport conformance one process an implementation (54.4 → 18.2 s, one clause trickles 16 s on each), the two browser rigs in parallel pages (57.0 → 38.3 s), every check as before, each runner mutated (a failing implementation, a child with no result, a failing rig) and caught; 156 hand-made mutants at each decision: client 44 → 65 of 72 (row 50), decoder modules 45/45, send path 16 → 20 of 24, study bundle 3 → 10/10 — 13 new tests (planner's asks held and look-ahead past an end_stream, per-frame stream rank, a byte budget's cut, the bundle's short file, magic, version, metadata bound, one-byte overrun, a mis-sized frame, a short finish), 5 dead branches removed, 11 left alive with reasons (log lines, timers only a frozen page shows, lab-only stall bytes); no test cut (overlaps are checks within one clause, or too few mutants); the dispatch rig skips its 591 AV1 checks without dav1d-WASM built, now said; the branch's 4 broken ADR links fixed (`91ef6ea`) — [`README.md`](../../README.md) §What the gate costs and what it catches |
 | 55 | **NAMING** — every name audited against the round's principles; the clear renames applied with every reference | done `cb7e312` on `claude/av1-unified` (`e7effcd`, `dba25fb`) — **five things under three *lever* numbers renamed, the conformance suite's *arms* are clients and rigs, five renames proposed**: ARCHITECTURE's *Lever 1–3* and transport-conclusions' *Lever 1–2* are now the opening ask, early SETTINGS, hints in the session URL, the bytes pushed at session open and a 32-packet initial window, *S4* the container campaign — 21 files, every reference, 0 left by grep; `run.ts` `CLIENTS`, the wire pages' `?client=`, `consumer.js` `#arm` → `#waitFor`; gate green, links 0 unresolved; proposed, not applied: *item* → **coded frame** (DICOM's Item; the item format is structural), telemetry rows' `arm` → `client` (a row schema), the lab's *arm* → **variant** (≈1 900 lines; `CLAUDE.md`'s word), queue-row folder names (row 56 moves folders), campaign labels; principles and a 15-term glossary — [`README.md`](../../README.md) §Names; `CLAUDE.md` wording at the end of the brief |
-| 56 | **LAYOUT** — folders by responsibility, each doc where the repository's rules place it | claimed 2026-10-07 03:27 UTC (night) |
+| 56 | **LAYOUT** — folders by responsibility, each doc where the repository's rules place it | after 44, 59, 60, 65 — the tree proposed and indexed (`f0cb5b8` on `claude/av1-unified`), the moves not applied |
 | 57 | **VERSIONS** — newer libaom, SVT-AV1, dav1d, OpenJPH 0.32.0, Emscripten SIMD and threads, Chromium's WebCodecs: what each gains or breaks, the promising ones measured | done `56398cf` on `claude/av1-unified` (`2d6af24`, `6e354b0`, `293b4f0`, `b72ff30`, `5276b91`, `9073bdc`; `a6f960c` before) — **nothing adopted, no pin changed: no libaom, SVT-AV1 or dav1d release followed the pins, libaom's head writes the same bytes, and no decode lever clears the harness's spread**: libaom head `4cea455c` byte-identical to 3.15.1 on 11 series × cpu0 and shipped (80/80 items, all exact; 3.8.2 differs, the lever checked); dav1d head `7f12cf23` and emscripten 6.0.11 tie on dav1d-WASM (pooled 0.98–1.01); OpenJPH under emscripten 6.0.11 0.94–0.96 of 3.1.74 pooled, inside a 2–7 % spread at 6 rounds — the one lever worth a longer run; OpenJPH 0.32.0's WASM mask fix (24-bit code-blocks) unreachable at ≤ 16 bits, deep-bit-plane frames 12/12 exact, mutation 12/12 caught; 0.32.0's codestreams identical to 0.31.0's but the COM version (38/38); Chromium 154 ties on dav1d-WASM, item path 1.06 pooled, and still refuses 12-bit WebCodecs — libgav1's key-frame parse is built for 10 bits (141, 154, 155); headless Chromium 141 and 154, 1× and 4×, 6 interleaved rounds, 8 640/8 640 frames exact; gate green — `lab/av1/versions/README.md`, README §Measured here, `decode/README.md` §WebCodecs |
 | 58 | **LITERATURE** — lossless medical image coding 2023–2026, and what of it runs in a browser today: research, rows proposed | done `5385a07` — **JPEG XL lossless is still the codec to beat; nothing published since 2023 that beats it runs exact in a browser but one unreviewed codec**: standard codecs on 16-bit CT/MR put JPEG XL at 0.85–0.95 of JPEG-LS and 0.82–0.91 of JPEG 2000 (BD-LVIC, TIP 2024), 0.78–0.95 of HTJ2K on four 16-bit CT and mammography frames (an industry white paper, 2024); learned and context-tree coders gain 3–20 % under JPEG XL on CT/MR volumes, but only integer or table-driven ones can be exact in a browser (WGSL float is not bit-reproducible): TCT (TIP 2026, 0.88–0.97 of JPEG XL, 0.05 s a slice on CPU, no code) and Tomoz (Apache-2.0, WASM, self-reported 0.73–0.85 of HTJ2K, unreviewed); no paper measures modern lossless codecs on breast imaging — rows 45–46 hold more; three measurements proposed (JPEG-LS in WASM, Tomoz, TCT when released); [`lossless-literature.md`](lossless-literature.md) |
-| 59 | **RESLEVEL** — HTJ2K decoded at the resolution level a phone screen needs, exact, then full resolution on zoom | claimed 2026-10-07 00:09 UTC (night) |
-| 60 | **LOSSLINK** — fill and on-demand time over links with 1–5 % packet loss and jitter, HTJ2K against AV1 | claimed 2026-10-07 00:07 UTC (night) |
+| 59 | **RESLEVEL** — HTJ2K decoded at the resolution level a phone screen needs, exact, then full resolution on zoom | done `dece2e4` on `claude/av1-unified` (`a7b017a`, `b305d44`, `91300de`) — **a level picture first: the first view on screen at ×0.09–0.69 of today's fill, a four-view study at ×0.06–0.50, every whole frame at a tie (×0.98–1.04); exact only once clamped**: the breast series at the level whose long side holds 1 000 px (level 1, level 2 on 3328×4096), today's RPCL codestreams cut at the smallest exact prefix — 25.8–29.0 % of a frame at level 1, 7.0–7.5 % at level 2; the package's `decodeSubResolution` leaves the 5/3 low band unclamped above 2^B − 1 (15 of 35 frames, up to 1 439 on 10 bits), clamped it matches OpenJPEG 2.5.4 `-r` and a 5/3 analysis of the source on 35/35; decode at the level ×0.27–0.31 of the whole (×0.08 at level 2), Chromium 141, n = 10, 2 100/2 100 exact; on row 23's five links at 1× and 4×, 13 rounds, paired n = 5–13 (under 10 in 9 of 50 cells), 5 200/5 200 frames and 2 600/2 600 level pictures exact, sooner in every paired round — 3328×4096 at 5 Mbit on screen in 2.6 s, not 31.6; §6's 2× rule holds at 5 and 20 Mbit on every series, at 50 Mbit on the mammograms only; prefix ask, level offsets in the store, the clamp and a smaller picture in the render path proposed, not built; 4 mutations caught — [`decode/README.md`](../decode/README.md) §A frame at the level the screen needs, [`adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §7, `lab/av1/reslevel` |
+| 60 | **LOSSLINK** — fill and on-demand time over links with 1–5 % packet loss and jitter, HTJ2K against AV1 | done `1e81fe4` on `claude/av1-unified` (`20aa92d`) — **under loss the controller is the clock and AV1 is its bytes**: the 10-bit volume, 4 frames filled then 4 asked one at a time, 5/20/50 Mbit and `lte-good` × none, 1/2/5 % loss, ±5/±20 ms ordered jitter (userspace relay; no `tc` here) × 1×/4×; 1 % turns a 0.62 s fill at 50 Mbit into 4.0 s and an ask's 153 ms into 1.5 s, 5 % into 12.4 s and 3.3 s (20–22×), whatever the rate (5 % at 5/20/50 Mbit: 14.1/12.8/12.4 s), the same for both codecs; the optimized item is 0.89–0.99 of HTJ2K's fill on 20 of 24 loss cells and its 4× penalty on fast clean links (1.07–1.26) is gone under loss (0.93–0.97); bursty 5 % puts an ask's p95 at 8–15 s on both; ±20 ms jitter adds 0.05–0.22 s a fill; Williams order, n = 8–15 a cell, 143 of 1 344 visits `VOID`, 10 752/10 752 frames exact, both mutations caught; `--congestion bbr` on the loss cells proposed, not built — [`README.md`](README.md) §Under loss and jitter, `lab/av1/total/README.md` |
 | 61 | **TRANSFER** — how other systems deliver medical images, and what they do better than us: research, rows proposed | done `e11aea2` — **others deliver a frame's prefix first and the rest after; nothing they do survives loss better**: DICOMweb has no partial-frame retrieval but generic, optional HTTP Range (CP-2204); DICOM's HTJ2K RPCL syntax (Sup 235, TLM required) exists for prefix delivery, and an open-source viewer fetches a 128 KiB Range prefix of every frame, then `bytes=<held>-`, in strides of 4 (the committee's slides: 45 against 66 ms to first render over 4G, not reviewed); three cloud services document no partial retrieval; HTTP/3's streams buy little over one ordered stream under random loss (3 papers, 2021–22), as the shared stream found; QUIC FEC pays only on a transfer's tail (FlEC: 247 against 272 ms median, 50 kB with a loss) and no draft survives; `RESET_STREAM_AT` is in the RFC Editor queue (2026-09-06); four rows proposed, a plain HTTP/3 `fetch()` baseline first — [`delivery-prior-art.md`](../transport/delivery-prior-art.md) |
 | 62 | **GPU** — GPU HTJ2K decoders' methods and whether WebGPU can take more than the wavelet: research and a feasibility bound | done `2ee009d` (`e658e8d`) — **a ported HT block decoder bounds at 42–67 % of a breast frame from 931×2124 up at 1×, loses on 512²; unmeasurable here**: the ICIP 2019 GPU decoder read in full (MEL+VLC one thread a code-block, MagSgn a warp a block, wavelet 40–50 % of GPU time; lossless 4K 62–402 frames/s), nvJPEG2000 refinement since v0.10.0, no WebGPU/WebGL decoder anywhere; WebGPU's way back measured in Chromium 141 on SwiftShader at 2.0–2.1× the heap's copy out on every frame over 4 MB, +3 ms on small ones (8 rounds interleaved, 1×/4×, 1 344/1 344 exact, mutation caught 12/12 cells); bound = 81–86 % movable − GPU time scaled from the paper's lossless kernels (throughput or a KCUPS1 latency floor) − that transfer: tomosynthesis 23 % / −44 %, MR 512² −14 %; no GPU in the container, so the WGSL port and a phone are what would settle it; row FASTHTJ2K's two misreadings corrected in place; gate's wasm steps not run (no wasm-pack), no client code changed — [`decode/README.md`](../decode/README.md) §A WebGPU block decoder, bounded, [`lab/av1/gpu`](../../lab/av1/gpu/README.md) |
-| 63 | **JXL** — JPEG XL at fast efforts in WASM, and native browser decoding: which engines, exact at which depths, through which API, how fast | claimed 2026-10-07 00:07 UTC (night) |
+| 63 | **JXL** — JPEG XL at fast efforts in WASM, and native browser decoding: which engines, exact at which depths, through which API, how fast | done `f4ccb34` on `claude/av1-unified` (`6c153b2`, `4532ec2`, `fc36d50`, `2511075`) — **no setting is both smaller and as fast as HTJ2K, and the browsers return 8 bits**: libjxl 0.12.0 exact at every effort 1–7 × `--faster_decoding` 0–4, 8–16 bits (35 × 37 frames); e1 0.94–1.03 of HTJ2K's bytes at 1.03–1.91× OpenJPH's WASM decode, e7 f3 0.91–0.98 at 1.56–2.45×, the default 0.81–0.96 at 5.35–10.0× (0.53 on the 16-bit scan), 8 interleaved rounds, Chromium 154 and Firefox 157, 1× and 4×, 7 040/7 040 frames exact; native JPEG XL in Chromium 154 (jxl-rs, `JXLImageFormat`, off; none in 141) and Firefox 157.0.1 (`image.jxl.enabled`, off), none in WebKitGTK 2.52.6 — every path (`<img>`, `createImageBitmap`, `ImageDecoder` `BGRX`, float16 canvas) 8-bit: exact on 8-bit grey and RGB, display pixels above; native under libjxl-WASM only at the default effort (2.2–6.1×); mutations caught 3/3 — [`decode/README.md`](../decode/README.md) §JPEG XL, [`README.md`](README.md) §Measured here |
 | 64 | **REMAP** — rare values above 12 bits mapped out with a small exception map, and a palette for high bits: exact, bytes, decode | done `865b3f1` on `claude/av1-unified` (`56a9c0a`, `62061cf`, `1a6808e`) — **the map buys the decoder, not bytes**: two of three projection systems are 12-bit data plus one saturated level (16383, 11 % and 0.6 % of samples), the CTs and cone-beam 12-bit data plus 0.0003–0.02 % rare levels, the third projection system, the PET and the film dense or sparse above 12 bits; clamped into a 12-bit window with a deflated per-frame map (1–10 KB a series), one 12-bit stream is 2.6–13 % larger than the k = 2 split on all six series it fits, but split at k = 2 after the map it is the split's bytes (−0.1…+0.05 %) with every stream ≤ 10 bits, so WebCodecs decodes it in **0.46–0.71 of the split's dav1d-WASM time** (60/60 paired rounds; Chromium 141 in the container, 10 rounds Williams-ordered at 1× and 4×, 1 920/1 920 frames a throttle exact against the source) and 1.05–1.34× w10's for 5–12 % fewer bytes on the projections, 1.5 % on two CTs, 4.4–4.8 % more on a CT and the cone-beam; a high-bit palette ties the map; at L = 0 (histogram packing) it halves the 16-bit film for HTJ2K as for AV1 (0.576, 0.571); every AV1 arm still 2.6–7.3× HTJ2K's decode; 5 + 3 mutations caught; proposed, not built — [`item-format.md`](item-format.md) §Proposed: a remapped plane, [`README.md`](README.md) §A3, `lab/av1/remap/README.md` on `claude/av1-unified` |
-| 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | claimed 2026-10-07 00:08 UTC (night) |
+| 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | done `1fdaaf5` on `claude/av1-unified` (`06f6083`, `79c800b`, `51286bd`) — **the useful frames asked before the fill reach the screen in 0.30–0.52 of the sequential fill's time on tomosynthesis (centre slice ±2) and 0.47–0.77 on a four-view mammogram's MLO pair, for two round trips on the whole fill (+72–113 ms, +0.4–4 %), HTJ2K and AV1 alike; nothing adopted, no product change needed**: both DBT volumes and two FFDM, HTJ2K and the optimized item, 5/20/50 Mbit at 1× and 4×, 13 Williams rounds, 1 191 of 1 248 visits kept, n = 10–13 (one cell 9), 19 032/19 032 frames exact; IHE's display test hangs all four views at once, so no order shortens a full hanging — [`README.md`](README.md) §The order frames are asked in, [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The first fill |
 | 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | done `22f5f03` (`069044e`) — **not reproduced: paired, plain AV1 is 0.973–0.976 of HTJ2K on 10-bit DBT, optimized 0.940–0.943, not 31 % below**: the first 4 frames of `dbt10_ea1141` and `dbt10_d`, 20/20 codings exact (80/80 frames); one setting at a time, an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background by 0.5–0.8, libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned); the two series the brief named are not CC BY or CC0 (UPMC states no licence, BCS-DBT is CC BY-NC 4.0: Blocked); 4 mutations caught 4/4 — [`README.md`](README.md) §Prior evidence, [`lab/av1/pocgap`](../../lab/av1/pocgap/README.md), [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
+| 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | done `8c2b24d` on `claude/av1-unified` (`e945e57`) — **the string is each stream's own, the frames and the decoder unchanged**: each keyframe's sequence header gives `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, reconfigured only when it changes; 91 distinct headers (419 units: every fixture, the probes, 59 items of all 28 taxonomy series, 8 full headers with timing, decoder model, frame ids, High tier, nine operating points) derive the string ffmpeg 6.1.1 reads; libaom writes levels 2.0–6.0 by picture size, never 31, and 31 changes no engine's answer; `isConfigSupported` true for every string in Chromium 141, every full string in Firefox 157.0, Main only in WebKitGTK 2.52.6; 115/115 frames exact in all three, Chromium's decoder per item the same as before (61 WebCodecs, 54 dav1d-WASM), none falling back; Chromium echoes the string's colour on the frame, so the 4:4:4 identity check now reads the header's matrix as dav1d's does — an untagged identity stream now decodes exact through WebCodecs; 13/13 derivation and 3/3 decoder mutations caught; gate green — `lab/av1/codecstr`, `item-format.md` §Decoder choice, `decode/README.md` §AV1 |
+| 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67 |
+| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row |
+| 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | claimed 2026-10-07 (night) |
+| 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | claimed 2026-10-07 (night) |
+| 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | after 44 |
+| 73 | **EXACTPROD** — exactness in production: how a client proves every shown frame bit-exact, acts on a mismatch and reports it; a measured design proposal | claimed 2026-10-07 (night) |
+| 74 | **XENGINE** — why WebCodecs AV1 is not exact outside Chromium, and what would make it exact | ready |
 
 ## Briefs
 
@@ -1146,7 +1157,123 @@ lab's optimized representation at 0.921–0.942. **Do:**
 corrected in place. **Branch:** `claude/av1` (`llsize` and the fetch are here). **Deliverable:** [`README.md`](README.md)
 §Prior evidence, not reproduced here, corrected; `lab/av1/llsize/README.md` and [`FIXTURES.md`](../FIXTURES.md) §AV1 data.
 
+## The closing rows (67–69), 2026-10-07
+
+### 67 CODECSTR
+
+**Question.** `client/downloader/decode-av1-webcodecs.js` configures every stream as `av01.0.04M.10` (Main profile,
+level 3.0, 10 bits). Our streams include 8-bit grey, 4:4:4 colour (High profile) and frames far above level 3.0's
+picture size (a 3 328 × 4 096 mammogram is about 13.6 M samples, level 6.0's range). A browser uses the string to
+decide support and to pick a decoder; desktop Chromium's software path tolerates the mismatch, a hardware decoder or
+another engine may refuse it or route it wrongly, and the exactness probe would then fall back to dav1d-WASM silently.
+**Do:** derive the string from the stream's sequence header OBU (`seq_profile`, `seq_level_idx[0]`, `seq_tier[0]`,
+`high_bitdepth`/`twelve_bit`, `mono_chrome`, and the optional fields where they matter), per the AV1 codecs parameter
+string (AV1 ISOBMFF binding §Codecs Parameter String). Where the encoder writes level 31 (no level constraint), report
+what each engine's `isConfigSupported` answers and choose the value with a reason. Apply it wherever the client and the
+lab's WebCodecs paths configure a decoder (`lab/av1/*` probes that sweep strings on purpose stay as they are).
+**Decides:** for every AV1 fixture and taxonomy series, the derived string equals one read independently from the
+bitstream (e.g. `dav1d --verbose` or a reference parser), `isConfigSupported` is true in each engine row 37 used where
+the stream is exact there, every frame stays exact, and the decoder chosen per series is unchanged or explained. Mutate
+the derivation (wrong profile, level, depth) and watch the test fail. **Adopt:** the round's rule. **Branch:**
+`claude/av1-unified`. **Deliverable:** the change, its test, and the rule in `docs/av1/item-format.md` or the decoder doc
+that owns the WebCodecs path.
+
+### 68 AV1DOCS
+
+**Question.** Are this repository's AV1 docs complete and essential enough to be the one source another project cites?
+**Do:** after rows 44, 56 and 67, read every AV1 doc (`docs/av1/`, `lab/av1/**/README.md`, the decode and item-format
+docs) and the round's verdicts. One place per subject, extended rather than added to; `lab/av1/README.md` (about 800
+lines) cut to what a reader needs, the rest pointed to; diagrams where a mechanism is easier drawn. Terms: the AV1
+specification's own words (OBU, temporal unit, sequence header, frame); a DICOM frame is never called an AV1 frame;
+row 55's open *item* question is settled as **AV1 payload** — one DICOM frame's AV1 data, the payload header plus its
+temporal units — defined once in `README.md` §Names and carried through every doc and identifier it names (file
+renames included, every reference updated). A retracted claim is corrected in place, never dropped. **Decides:**
+`check_links.py` green, the gate green, nothing lost (each removed passage's fact found elsewhere, listed in the
+commit). **Branch:** `claude/av1-unified`. **Deliverable:** the docs.
+
+### 69 MERGEPREP
+
+**Question.** Is the AV1 work ready for the owner to merge into `main`? **Do:** when every other row is done, merge
+`origin/claude/av1` (the queue and its docs) into `claude/av1-unified`, resolve, run `scripts/gate.sh` in full, check
+`git diff origin/main...claude/av1-unified --stat` for anything that should not ship (fetched data, built binaries,
+scratch), and write `docs/av1/MERGE.md`: what the branch adds, what it changes in the HTJ2K path (nothing, or each
+change with its measurement), the commands that verify it, and what stays open with its decision. The owner merges;
+never push to `main`. **Branch:** `claude/av1-unified`. **Deliverable:** the merge, the green gate, `MERGE.md`.
+
+### 70 HTJ2KENC
+
+**Question.** Which HTJ2K encoder settings minimise lossless bytes and browser decode time together: code-block size
+(32², 64², 32×128, 128×32), number of wavelet decompositions (3–6), progression order (RPCL, LRCP), precincts, and
+whether the library defaults another project uses (`imagecodecs`' HTJ2K encoder defaults) differ from the lab's
+`ojph_compress` settings in either? **Why it matters:** every HTJ2K fill pays these bytes and this decode; no row has
+swept them. **Decides:** bytes per series and OpenJPH-WASM decode time per frame in headless Chromium (interleaved,
+n ≥ 10) on the taxonomy series, every frame exact against the source checksum; the fill's total time on row 23's links
+for the best candidates. **Adopt:** the round's rule — a setting changes the shipped codestreams only if it wins on
+total time with no loss elsewhere. **Branch:** `claude/av1-unified`. **Deliverable:** the table and the decision in
+`decode/README.md` and the ingest's README.
+
+### 71 INGEST1
+
+**Question.** Row 52 found that lossless AV1 bytes depend on `--jobs`: each worker codes its frames in one aomenc run of
+keyframes and libaom carries state across them. Does coding one aomenc run per frame make the bytes independent of the
+worker count, and at what cost in ingest time and bytes? **Decides:** byte-identical items at 1, 2 and 4 workers on every
+series; ingest time and total bytes against today's chunked runs (interleaved, n ≥ 5); every frame exact. **Adopt:**
+the round's rule; determinism is required, so the per-frame run is adopted unless it costs more than 5 % in bytes or
+doubles ingest time, in which case report and stop. **Branch:** `claude/av1-unified`. **Deliverable:** the change and
+its numbers in `lab/av1/item/README.md` §One pipeline; close row 52's `## Blocked` entry.
+
+### 72 SPLITRULE
+
+**Question.** Row 44 decided the per-depth layout (which k, or w10, at each depth 9–16). What does adopting it take
+end to end: the payload header and reader must accept every k the rule picks (today's reader refuses a split above 2,
+and the ingest refuses more than 14 bits), the ingest picks k from the series' depth, and the docs state the rule.
+**Decides:** every frame exact at every depth 8–16 through every decoder path row 43 covered; golden vectors for each
+new layout; the gate green; HTJ2K unchanged. **Adopt:** the rule as row 44 states it. **Branch:**
+`claude/av1-unified`. **Deliverable:** the code, the vectors, and the rule in `docs/av1/item-format.md`.
+
+### 73 EXACTPROD
+
+**Question.** How should a production client prove that every frame it shows is bit-exact, act on a mismatch, and report
+it so the server can persist it? **Today:** the ingest hashes each source frame's samples with blake3 into the study
+metadata; the client compares only under a switch, and on a mismatch it warns and still paints the frame.
+**Options to weigh, each with what it costs and what it protects:**
+* *Where to compare:* in the client, where only it can act at once, or on the server, which can only record after the fact.
+* *On a mismatch:* decode again with the other decoder, ask for the frame again, mark it, or block its display.
+* *Reporting:* failures sent at once with context (study, series, frame, codec, decoder path, codec string, engine,
+  device, expected and actual hash); counts of checked frames per decoder path, so failure rates can be computed;
+  transport over the open session, or `sendBeacon` on `visibilitychange` — never only at study close, which phones do not
+  reliably fire; no pixel data, which is patient data.
+* *Persistence on the server.*
+* *Sampling:* check everything the first time a browser, device and decoder-path combination is seen, then sample at a rate.
+* *Timing:* check before paint or after paint.
+* *The hash:* blake3 through WASM against SHA-256 through WebCrypto (native, and maybe faster on phones with SHA
+  instructions); fix the defect where a SHA-256 fallback at ingest fails every client check.
+**Measure, interleaved:** hashing cost per frame size (512² up to 4 096 × 3 328, 8 and 16 bits) at 1× and 4× CPU,
+against decode time; each option's effect on the fill and on the time to the first exact picture.
+**Branch:** `claude/av1-unified`. **Deliverable:** a proposal with numbers and a recommendation in `docs/`. Nothing is
+adopted; the owner decides.
+
+### 74 XENGINE
+
+**Question.** Why is WebCodecs AV1 not exact outside Chromium, and what would make it exact? **Facts:** Firefox desktop
+(≥ 130) and Safari (≥ 17.5, hardware AV1 only, `av01.0…` strings) both expose AV1 in WebCodecs. Row 37 measured that
+Firefox refuses monochrome and returns 4:4:4 as 8-bit, that WebKitGTK decodes no AV1 through WebCodecs, and Safari was
+never run.
+**Part 1, theory from primary sources.** Firefox, from its source (WebCodecs → bundled dav1d or platform decoders):
+which output pixel formats it produces and why; whether high bit depth or 4:4:4 is converted or truncated, and where;
+whether monochrome is refused, and by which check; whether the configure options, the codec string (row 67's derived
+one), `VideoFrame.copyTo` with a `format` option, or a preference change the outcome. WebKit: the same questions for the
+hardware path (VideoToolbox) and for WebKitGTK through GStreamer. Result: which of our layouts (8- and 10-bit grey,
+10-bit 4:4:4 after the colour transform) each engine could return exactly.
+**Part 2, measurement.** In Firefox and WebKitGTK on Linux, test each hypothesis from part 1 with the lab's exactness
+harness: every layout and each option, every frame checked against the source hash; mutate the checks. Safari cannot run
+here: state what a device run must test, and add it under `## Blocked` for the owner's phone decision.
+**Branch:** `claude/av1-unified`. **Deliverable:** findings with sources and numbers in the decode doc. Change the client
+only where an engine becomes exact with no regression in Chromium.
+
 ## Blocked
+
+* **2026-10-07 03:30 UTC: row 56 LAYOUT's moves wait for rows 44, 59, 60 and 65**, which are still writing in the `lab/av1/` folders it would move: moving them under those sessions would land their next commits in folders that no longer exist. Done and pushed (`f0cb5b8` on `claude/av1-unified`): the five-group tree, every folder's proposed path, in `lab/av1/README.md` §The folders, by what they measure; `lab/README.md` indexes `av1/`; `svcdec/` has a README; `docs/` already sits by subject, nothing to move there. The next session applies the moves with `git mv` once the four are done.
 
 * **2026-10-07 01:00 UTC: row 52 INGEST — lossless AV1 bytes depend on `--jobs`.** Ingest codes each worker's frames
   in one aomenc run of keyframes, and libaom carries state across keyframes: on the 10-bit tomosynthesis volume the
