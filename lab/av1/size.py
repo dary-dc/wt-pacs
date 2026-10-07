@@ -9,6 +9,7 @@ usage: size.py BUILD WORK OUT.tsv SETDIR ...   — lab/av1/README.md §SIZE.
 """
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import time
@@ -20,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from order import order  # noqa: E402
 
 GROUPS = (2, 4, 8, 16, 32)
-AOM = "3.15.1"
+AOM = os.environ.get("AOM_VERSION", "3.15.1")
 AOM_PRESETS = (0, 6)
 SVT_PRESETS = (0, 8)
 OJPH = Path(__file__).resolve().parents[1] / ".openjph-build/install"
