@@ -3,7 +3,7 @@
  * fills F bases as previews, then F exact frames; then frames N … N+K−1 asked one at a time, each timed
  * from its ask. run.mjs drives it. lab/av1/total/README.md
  *
- *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256[&asks=i,j,…][&after=K]
+ *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256[&asks=i,j,…][&after=K][&post=URL]
  */
 import { DownloaderClient } from "/client/downloader/consumer.js";
 
@@ -22,6 +22,14 @@ const after = [];
 const pixels = new Map();
 const previewPixels = new Map();
 let issuedAt = 0;
+const quiet = [];
+new BroadcastChannel("quiet").onmessage = (e) => quiet.push(e.data);
+
+/** The harness takes the result by POST: Firefox runs without a remote protocol. */
+function report(result) {
+  globalThis.__result = result;
+  if (q.get("post")) fetch(`${q.get("post")}result`, { method: "POST", body: JSON.stringify(result) });
+}
 
 async function sha256(sab) {
   // SubtleCrypto refuses a view on shared memory.
@@ -42,12 +50,13 @@ async function finish(client) {
       failures.push({ i, reason: String(e?.message ?? e) });
     }
   }
+  const { resumedAt } = client.stats();
   client.close();
   const sha = {};
   for (const [i, px] of pixels) sha[i] = await sha256(px);
   const previewSha = {};
   for (const [i, px] of previewPixels) previewSha[i] = await sha256(px);
-  globalThis.__result = { issuedAt, frames, failures, sha, previews, previewSha, after };
+  report({ issuedAt, frames, failures, sha, previews, previewSha, after, resumes: resumedAt.length, quiet: [...quiet] });
 }
 
 const exact = (f) => {
@@ -55,6 +64,8 @@ const exact = (f) => {
   pixels.set(f.frameIndex, f.bytes);
 };
 const settled = (client) => frames.length + previews.length + failures.length === FILL && finish(client);
+// The harness slows the CPU here: after the browser's start, before anything timed.
+if (q.get("post")) await fetch(`${q.get("post")}hello`, { method: "POST" });
 const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   ...OPTS,
   onFrame: (f) => {
@@ -74,7 +85,7 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
     settled(client);
   },
 }).catch((e) => {
-  globalThis.__result = { error: String(e?.message ?? e) };
+  report({ error: String(e?.message ?? e) });
   throw e;
 });
 issuedAt = at();

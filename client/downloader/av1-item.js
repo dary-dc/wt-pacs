@@ -167,7 +167,9 @@ export function codecString(s) {
 /** The stream layouts an item's frame decodes as, before decoding: what a WebCodecs probe must pass. */
 export function layouts(item, top) {
   if (item.rct) return ["c10"];
-  const own = item.depth === 8 && sequence(top)?.profile === 1 ? "c8" : `g${item.depth}`;
+  const seq = item.depth === 8 && sequence(top);
+  // 8-bit grey coded 4:2:0 at full range is what Firefox returns exactly (lab/av1/xengine).
+  const own = !seq ? `g${item.depth}` : seq.profile === 1 ? "c8" : seq.mono ? "g8" : "g8f";
   return item.split ? [own, "g8"] : [own];
 }
 

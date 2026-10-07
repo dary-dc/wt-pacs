@@ -198,7 +198,7 @@ async function ask(index, promise) {
     const frame = await promise;
     if (gen === generation && ep === epoch) arrived(index, frame);
   } catch (e) {
-    if (gen === generation && ep === epoch && !lost()) {
+    if (gen === generation && ep === epoch && !lost(e?.name === "FrameTimeoutError")) {
       fail(index, String(e?.message ?? e));
       pump();
     }
@@ -272,8 +272,8 @@ function watch() {
   lost(true);
 }
 
-/** True once the session is being resumed. Silence is the only proof a caller may bring of its own;
- *  every other one must see the session already closed. */
+/** True once the session is being resumed. Silence — the stall's, or a transport's frame timeout — is the
+ *  only proof a caller may bring of its own; every other one must see the session already closed. */
 function lost(proved) {
   if (!cfg.survival || !dial || !session) return false;
   if (!proved && !session.stats().closed) return false;

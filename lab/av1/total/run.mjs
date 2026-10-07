@@ -3,18 +3,19 @@
  * the same link and CPU: HTJ2K, AV1 intra through dav1d-WASM and WebCodecs, the splits, one group,
  * a lossy preview, row LLSIZE's codings (TOTAL2), a layer-major scalable series (BASES), row ENCX's (TOTAL3),
  * the order the frames are asked in (ORDER), loss and jitter and asks after a partial fill (LOSSLINK). Fixed rates and
- * phone-like profiles behind the relay, headless Chromium at 1× and 4×. Every visit is its own server, relay and browser;
+ * phone-like profiles behind the relay, headless Chromium (and Firefox, TOTAL4) at 1× and 4×. Every visit is its own server, relay and browser;
  * (set × link × impairment × throttle) cells in a Williams order each round, the arms inside each cell the same way.
  * lab/av1/total/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/total/run.mjs [--rounds 10] [--first-round 0]
- *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--sets a,b] [--arms a,b]
+ *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--arms a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth] [--out rows.jsonl]
  *     [--summary [--ref htj2k]]
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -28,6 +29,7 @@ const FIRST = Number(arg("--first-round", 0));
 const LINKS = arg("--links", "r5000,r20000,r50000,lte-good,wifi-home").split(",");
 const IMPAIRS = arg("--impairs", "clean").split(",");
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
+const ENGINES = arg("--engines", "chromium").split(",");
 /** Frames 0 … FILL−1 filled, then FILL … FILL+AFTER−1 asked one at a time; FILL absent is the whole series. */
 const FILL = arg("--fill", null);
 const AFTER = Number(arg("--asks-after", 0));
@@ -87,8 +89,10 @@ function arm(set, name) {
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/reslevel): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion,
       opts: { decoder: { ...(a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
+        // Row ASKDEADLINE: the downloader's survival deadlines, and a transport that reports its silences.
+        ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
         // A `downloader` arm runs that revision of the downloader (row CLIENT).
         ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }) } };
   }
@@ -98,7 +102,7 @@ function arm(set, name) {
   // A layer-major series decodes in lab/av1/bases' worker: the product's has no base entry.
   const worker = a.layers ? { decoderWorker: "/lab/av1/bases/decoder.js" } : a.worker && { decoderWorker: a.worker };
   return { ext, entries, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }) },
-    truth: a.truth, previewTruth: a.previewTruth };
+    truth: a.truth, previewTruth: a.previewTruth, congestion: a.congestion };
 }
 
 const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.join(ROOT, FRAMES, d, "arms.json")))
@@ -132,6 +136,69 @@ function pack(set, ext, entries, codec = ext === "htj2k" ? "htj2k" : "av1") {
 const CHROME = process.env.CHROME_PATH || chromium.executablePath();
 writeFileSync(`${T}/chrome.sh`, `#!/bin/sh\nexec taskset -c ${BROWSER_CORES} "${CHROME}" "$@"\n`, { mode: 0o755 });
 
+/** The page POSTs here: `hello` once loaded, before it connects; `result` once the fill is checked. */
+let page = {};
+const collector = createServer((req, res) => {
+  let body = "";
+  req.on("data", (c) => (body += c));
+  req.on("end", () => {
+    if (req.url === "/hello") page.hello?.();
+    if (req.url === "/result") page.result?.(JSON.parse(body));
+    res.writeHead(200, { "Access-Control-Allow-Origin": "*" }).end();
+  });
+});
+await new Promise((r) => collector.listen(0, "127.0.0.1", r));
+const FIREFOX_PREFS = [["browser.shell.checkDefaultBrowser", false], ["browser.aboutwelcome.enabled", false],
+  ["datareporting.policy.dataSubmissionEnabled", false], ["browser.startup.homepage_override.mstone", "ignore"],
+  ["app.update.disabledForTesting", true], ["toolkit.telemetry.reportingpolicy.firstRun", false]];
+
+/** Chromium through Playwright, Firefox as the stock build; the slow CPU on the browser's whole tree from the page's hello. */
+async function inBrowser(engine, url, throttle, errors) {
+  url += `&post=${encodeURIComponent(`http://127.0.0.1:${collector.address().port}/`)}`;
+  let stop = () => {};
+  let pid = null;
+  const result = new Promise((resolve, reject) => {
+    page = { hello: () => (stop = throttleTree(pid, throttle)), result: resolve };
+    setTimeout(() => reject(new Error("no result in 600 s")), 600000);
+  });
+  result.catch(() => {}); // awaited below unless the page never loaded
+  if (engine === "chromium") {
+    const browser = await chromium.launchServer({ executablePath: `${T}/chrome.sh` });
+    const client = await chromium.connect(browser.wsEndpoint());
+    const tab = await client.newPage();
+    tab.on("pageerror", (e) => errors.push(e.message));
+    pid = browser.process().pid;
+    try {
+      await tab.goto(url);
+      return await result;
+    } finally {
+      stop();
+      page = {};
+      await client.close();
+      await browser.close();
+    }
+  }
+  if (engine !== "firefox") throw new Error(`unknown engine ${engine}`);
+  const dir = mkdtempSync(path.join(T, "ff-"));
+  writeFileSync(path.join(dir, "user.js"), FIREFOX_PREFS.map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`).join("\n"));
+  const proc = spawn("taskset", ["-c", BROWSER_CORES, process.env.FIREFOX_PATH, "--headless", "--no-remote", "--profile", dir, url],
+    { env: { ...process.env, MOZ_CRASHREPORTER_DISABLE: "1" }, stdio: ["ignore", "ignore", "pipe"], detached: true });
+  pid = proc.pid;
+  let stderr = "";
+  proc.stderr.on("data", (c) => (stderr = (stderr + c).slice(-2000)));
+  try {
+    return await Promise.race([result, new Promise((_, reject) => proc.once("exit", (c) => reject(new Error(`firefox exited ${c}: ${stderr}`))))]);
+  } finally {
+    stop();
+    page = {};
+    const gone = new Promise((r) => proc.once("exit", r));
+    // A process group of its own: a launcher script, Firefox and its content processes go together.
+    process.kill(-proc.pid, "SIGKILL");
+    await gone;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
 const HTTP = port();
 const http = spawn("python3", ["server/dev-server.py", "--port", String(HTTP)], { cwd: ROOT, stdio: "ignore" });
 process.on("exit", () => http.kill());
@@ -143,7 +210,7 @@ const started = (child, re) => new Promise((resolve, reject) => {
   child.once("exit", (c) => reject(new Error(`exited ${c}: ${out}`)));
 });
 
-async function visit(set, variant, linkName, impairment, throttle, round) {
+async function visit(engine, set, variant, linkName, impairment, throttle, round) {
   const [armName, orderName = "seq"] = variant.split("@");
   const a = arm(set, armName);
   const fill = Number(FILL ?? a.entries);
@@ -155,7 +222,14 @@ async function visit(set, variant, linkName, impairment, throttle, round) {
   const srv = port();
   const relayPort = port();
   const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/exact-server"), "--port", String(srv), "--bind", "127.0.0.1",
-    "--study", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" });
+    "--study", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
+    ...(a.congestion ? ["--congestion", a.congestion] : [])], { stdio: ["ignore", "pipe", "ignore"] });
+  let serverOut = "";
+  server.stdout.on("data", (d) => (serverOut += d));
+  await started(server, /transport=.*\n/);
+  // The controller the server says it runs, not the one asked for: Cubic is the one it leaves unprinted.
+  const ran = /congestion=([\w-]+)/.exec(serverOut)?.[1] ?? "cubic";
+  if (ran !== (a.congestion ?? "cubic-restart")) throw new Error(`${armName}: the server runs ${ran}, not ${a.congestion}`);
   const [oneWay, linkArgs] = link(linkName, impairment);
   const relay = spawn("chrt", ["-f", "50", "taskset", "-c", RIG_CORE, "python3", "lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`,
     "--seed", String(round), "--delay-ms", String(oneWay), ...linkArgs, "--self-timing"], { cwd: ROOT });
@@ -165,27 +239,17 @@ async function visit(set, variant, linkName, impairment, throttle, round) {
   await new Promise((r) => setTimeout(r, 500));
   if (!/READY/.test(relayLog)) await started(relay, /READY/);
 
-  const browser = await chromium.launchServer({ executablePath: `${T}/chrome.sh` });
-  const client = await chromium.connect(browser.wsEndpoint());
-  const page = await client.newPage();
   const errors = [];
-  page.on("pageerror", (e) => errors.push(e.message));
-  const stop = throttleTree(browser.process().pid, throttle);
   const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}) });
   let r = null;
   try {
-    await page.goto(`http://127.0.0.1:${HTTP}/lab/av1/total/index.html?${q}`);
-    await page.waitForFunction(() => globalThis.__result, null, { timeout: 600000, polling: 200 });
-    r = await page.evaluate(() => globalThis.__result);
+    r = await inBrowser(engine, `http://127.0.0.1:${HTTP}/lab/av1/total/index.html?${q}`, throttle, errors);
     if (r.error) throw new Error(r.error);
   } catch (e) {
     errors.push(String(e.message).split("\n")[0]);
     r = null;
   }
-  stop();
-  await client.close();
-  await browser.close();
   const exited = new Promise((res) => relay.once("exit", res));
   relay.kill("SIGTERM");
   await exited;
@@ -193,7 +257,7 @@ async function visit(set, variant, linkName, impairment, throttle, round) {
 
   const late = relayLog.match(/self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)/g)?.pop();
   const s2c = relayLog.match(/server->client sent (\d+) lost (\d+)/)?.slice(1).map(Number);
-  const row = { round, set: set.name, arm: variant, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
+  const row = { round, engine, set: set.name, arm: variant, congestion: ran, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
@@ -217,6 +281,9 @@ async function visit(set, variant, linkName, impairment, throttle, round) {
     failure: r.failures[0]?.reason,
     exact: [...r.frames, ...r.after].filter((f) => r.sha[f.i] === truth[f.i]).length,
     afterMs: r.after.map((f) => Math.round(f.ms)),
+    resumes: r.resumes,
+    survived: r.quiet?.filter((q) => q.survived).map((q) => Math.round(q.survived)),
+    closedAfter: r.quiet?.filter((q) => q.closedAfter).map((q) => Math.round(q.closedAfter)),
     firstMs: Math.round(t("page", Math.min)),
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
@@ -235,18 +302,19 @@ function useful(set) {
 /** `seq` fills every frame; `prio` asks the useful ones first, then fills. */
 const variants = (set) => set.armNames.flatMap((a) => ORDERS.map((o) => (o === "seq" ? a : `${a}@${o}`)));
 
-const cells = sets.flatMap((s) => LINKS.flatMap((l) => IMPAIRS.flatMap((impairment) => THROTTLES.map((throttle) => ({ set: s.name, link: l, impairment, throttle })))));
+const cells = ENGINES.flatMap((engine) => sets.flatMap((s) => LINKS.flatMap((l) => IMPAIRS.flatMap((impairment) =>
+  THROTTLES.map((throttle) => ({ engine, set: s.name, link: l, impairment, throttle }))))));
 const rows = [];
 for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summary"); round++) {
-  for (const [k, { set: name, link: l, impairment, throttle }] of order(cells, round).entries()) {
+  for (const [k, { engine, set: name, link: l, impairment, throttle }] of order(cells, round).entries()) {
     const set = sets.find((s) => s.name === name);
     let prev = null;
     for (const a of order(variants(set), round + k)) {
-      const row = { ...(await visit(set, a, l, impairment, throttle, round)), prev };
+      const row = { ...(await visit(engine, set, a, l, impairment, throttle, round)), prev };
       prev = a;
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
-      console.error(`round ${round} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
+      console.error(`round ${round} ${engine} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
         ` exact ${row.exact}/${row.owed}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }
@@ -255,14 +323,17 @@ for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summ
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const span = (a) => `${med(a).toFixed(0)} [${Math.min(...a)}–${Math.max(...a)}]`;
 if (OUT) rows.splice(0, rows.length, ...readFileSync(OUT, "utf8").trim().split("\n").map((l) => JSON.parse(l)));
-for (const r of rows) r.impairment ??= "clean";
+for (const r of rows) {
+  r.impairment ??= "clean";
+  r.engine ??= "chromium";
+}
 const kept = rows.filter((r) => !r.void && r.frames);
 const quantile = (a, q) => [...a].sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(q * a.length))];
 console.log("ms from the fill's issue: first frame on the page, every frame on the page — median [min–max], n kept; " +
   `÷ ${REF} on every frame, median of rounds paired; frames exact over every visit`);
-for (const { set: name, link: l, impairment, throttle } of cells) {
+for (const { engine, set: name, link: l, impairment, throttle } of cells) {
   const set = sets.find((s) => s.name === name);
-  const of = (a, from = kept) => from.filter((r) => r.set === name && r.link === l && r.impairment === impairment && r.throttle === throttle && r.arm === a);
+  const of = (a, from = kept) => from.filter((r) => r.engine === engine && r.set === name && r.link === l && r.impairment === impairment && r.throttle === throttle && r.arm === a);
   const ref = new Map(of(REF).map((r) => [r.round, r.decodedMs]));
   const parts = variants(set).map((a) => {
     const rs = of(a);
@@ -274,7 +345,12 @@ for (const { set: name, link: l, impairment, throttle } of cells) {
     if (rs[0].previews !== undefined) s += ` shown ${span(rs.map((r) => r.shownMs))} previews ${all.reduce((n, r) => n + (r.previewExact ?? 0), 0)}/${all.length * set.frames} as native`;
     s += ` all ${span(rs.map((r) => r.decodedMs))} n=${rs.length} exact ${exact}`;
     const after = rs.flatMap((r) => r.afterMs ?? []);
-    if (after.length) s += ` ask p50 ${quantile(after, 0.5)} p95 ${quantile(after, 0.95)} (${after.length})`;
+    if (after.length) s += ` ask p50 ${quantile(after, 0.5)} p95 ${quantile(after, 0.95)} max ${Math.max(...after)} (${after.length})`;
+    if (rs[0].resumes !== undefined) {
+      const survived = rs.flatMap((r) => r.survived ?? []);
+      s += ` failed ${all.reduce((n, r) => n + (r.failures ?? 0), 0)}, resumed ${rs.reduce((n, r) => n + r.resumes, 0)} in ${rs.filter((r) => r.resumes).length}` +
+        `, silences survived ≥ 1 s ${survived.length} (≥ 3 s ${survived.filter((g) => g >= 3000).length}, max ${survived.length ? Math.max(...survived) : 0} ms)`;
+    }
     const d = rs.filter((r) => a !== REF && ref.has(r.round)).map((r) => r.decodedMs / ref.get(r.round));
     if (d.length) s += ` ×${med(d).toFixed(2)} (slower ${d.filter((x) => x > 1).length}/${d.length})`;
     const seq = new Map(of(a.split("@")[0]).map((r) => [r.round, r]));
@@ -283,7 +359,7 @@ for (const { set: name, link: l, impairment, throttle } of cells) {
       ` all ×${med(p.map((r) => r.decodedMs / seq.get(r.round).decodedMs)).toFixed(3)} of seq (n=${p.length})`;
     return s;
   });
-  console.log(`${name} ${l}${impairment === "clean" ? "" : ` ${impairment}`} ${throttle}x: ${parts.join(" · ")}`);
+  console.log(`${ENGINES.length > 1 ? `${engine} ` : ""}${name} ${l}${impairment === "clean" ? "" : ` ${impairment}`} ${throttle}x: ${parts.join(" · ")}`);
 }
 console.log(`VOID, dropped: ${rows.filter((r) => r.void).length} of ${rows.length}`);
 process.exit(0);

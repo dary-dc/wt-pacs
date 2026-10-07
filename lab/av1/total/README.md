@@ -111,7 +111,8 @@ competing flow and outage, which this harness does not run. The trace is fetched
 the page connects the downloader as the product does — three decoders, two frames outstanding each,
 no warm-up — and fills the whole series once connected. *First* is frame 0's pixels on the page,
 *all* the last frame's, both from the fill's issue; every frame's pixels are hashed against its
-truth once the fill is done. 4× is `lab/scripts/cpu_throttle.mjs` on the browser's process tree.
+truth once the fill is done. 4× is `lab/scripts/cpu_throttle.mjs` on the browser's process tree, from the
+page's `hello` on (since row TOTAL4; before it, from the browser's launch): after the browser's start, before the dial.
 (set × link × throttle) cells run in a Williams order each round (`lab/order.mjs`), the arms inside
 each cell the same way offset by the cell's position; a visit whose relay prints `VOID` is dropped.
 
@@ -123,6 +124,9 @@ of every checksum) each turned every arm of all four series to 0 exact.
 **Pins.** Node 22.22.0; playwright's Chromium 141.0.7390.37 (`CHROME_PATH` overrides);
 `@cornerstonejs/codec-openjph` 2.4.11; dav1d 1.5.4 under emscripten 3.1.74 (`simd.wasm`,
 623 146 B since SVCDEC; the 14 rounds of `bc35549` ran on the 623 042 B build before it); libaom 3.15.1 and OpenJPH 0.31.0 as `tools.sh` and `gen_htj2k_fixtures.sh` pin them;
+Firefox 157.0.1 (BuildID 20261005135250, conda-forge `firefox-157.0.1-hee9eb32_0.conda`, SHA-256
+`f1b53de244dc14b0a0d2d848aa41d7cf0edb95992cd477dccac40ff4d7127f35`, by micromamba 2.9.0, `micromamba-2.9.0-0.tar.bz2`
+SHA-256 `8761c382127e6363bd9e0a2451aa3ef90d071a79133f736e2f759a3bf13040dd`);
 `TMobile-LTE-short.down` sha256 `4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43`. Nothing built, fetched or generated is committed.
 
 **Row CLIENT** times a change to the downloader itself: `ARMS=none make_frames.py` (HTJ2K only) for
@@ -150,3 +154,53 @@ page asks frames 4–7 one at a time (`--asks-after`), each timed from `requestE
 every frame of both hashed against its truth. `--mutate sample` and `--mutate truth` each turned both
 arms to 0 of 12 exact (`--fill 8 --asks-after 4`, `l1` on 50 Mbit). The server's controller is its default, `cubic-restart`. The reading is in
 [`docs/av1/README.md`](../../../docs/av1/README.md) §Under loss and jitter.
+
+**Row TOTAL4** sets the item as ingest now writes it against the served HTJ2K, in Chromium and in Firefox,
+with every change of its round in the product: row 72's split by depth, row 67's codec string, row 49's
+decoder interface and row 74's 8-bit GBR read. Each set's first N frames through `ingest.py` both ways
+(cpu0, the optimized representation; every item and codestream decoded in-process and matched before it
+is written), one series per class the split rule tells apart:
+
+```bash
+D=lab/av1/data
+lab/av1/total/item_frames.sh lab/.av1-build lab/.av1-work/total4 $D/mr9_ispy2:34 $D/rf_fluoro:18 \
+  $D/dbt10_ea1141:16 $D/ffdm_c:4 $D/dbtproj_holo:5 $D/us_liver:40 $D/ct_lidc:60       # ~25 min
+export FIREFOX_PATH=...                    # Firefox 157.0.1, below
+R="taskset -c 0-2 node lab/av1/total/run.mjs --frames lab/.av1-work/total4 --rounds 1 --out rows.jsonl"
+for r in $(seq 0 11); do                   # ~33 min a round; the two engines' order alternates
+  $R --engines chromium --first-round $r
+  $R --engines firefox --links r20000,r50000,lte-good,wifi-home --first-round $r
+  $R --engines firefox --links r5000 --sets mr9_ispy2 --first-round $r
+done
+```
+
+| set | frames | content, bits after the offset | k | the top stream |
+| --- | --- | --- | --- | --- |
+| `mr9_ispy2` | 34 × 320², all | MR, 9 | 0 | 10-bit grey |
+| `dbt10_ea1141` | 16 of 24, 678×1727 | tomosynthesis, 10 | 2 | 8-bit grey |
+| `rf_fluoro` | 18 × 768², all | fluoroscopy, 12 | 2 | 10-bit grey |
+| `ffdm_c` | 4 × 1914×2294, all | mammogram, 12 | 2 | 10-bit grey |
+| `ct_lidc` | 60 of 100, 512² | CT, 13 signed | 3 | 10-bit grey |
+| `dbtproj_holo` | 5 of 15, 1280×2048 | tomosynthesis projections, 14 | 2 | 12-bit grey: dav1d-WASM only |
+| `us_liver` | 40 of 70, 760×421 | ultrasound, RGB 8 | — | the colour transform, 10-bit 4:4:4 |
+
+A longer series is cut at 9.1–10.3 MB of HTJ2K, so a round fits in half an hour; 15–16 bits are
+HTJ2K's by the rule and have no AV1 arm. Firefox is launched as a process (as row XBROWSER's) and the page
+POSTs its result to the harness; Chromium's result comes the same way. Firefox runs no 5 Mbit cell but the
+probe: its WebTransport dial through the relay at 5 Mbit does not settle (below).
+
+**Row ASKDEADLINE** times the downloader's own deadlines under loss. Row LOSSLINK's HTJ2K frames
+(`ARMS=none make_frames.py`), `downloader_arm.sh cf4db15 before` for the downloader before the row, and
+in `arms.json` a third arm `stall15` (`"codec": "htj2k", "survival": {"stallMs": 15000}`); every arm with
+`"transport": "/lab/av1/total/quiet-transport.js"`, the product's transport that tells the page each
+silence over 1 s it lived through and how long it had been quiet when closed. Then
+
+```bash
+run.mjs --frames lab/.av1-work/losslink --links r20000,lte-good --impairs clean,l2,l5 --throttles 1 \
+  --fill 4 --asks-after 8 --rounds 10
+```
+
+whose summary adds per arm the asks failed, the resumes and the silences survived. Chromium 141's
+`WebTransport.getStats()` gave a probe no `packetsReceived` in two visits, so a silence is the application's, not the
+socket's. The reading is in [`client/downloader/README.md`](../../../client/downloader/README.md)
+§A session that dies is resumed.

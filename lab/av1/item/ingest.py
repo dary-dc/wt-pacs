@@ -7,7 +7,7 @@ OUT/NNN.av1 or OUT/NNN.htj2k, OUT/NNN.sha256 and OUT/metadata.json ("codec": "av
 pack-study bundles.
 
 usage: ingest.py BUILD SET_DIR OUT [--codec av1|htj2k] [--representation plain|optimized] [--split K]
-                 [--preset cpu0|good:N|allintra:N] [--frames N] [--jobs N]   — lab/av1/item/README.md
+                 [--grey8 400|420] [--preset cpu0|good:N|allintra:N] [--frames N] [--jobs N]   — lab/av1/item/README.md
 """
 import argparse
 import ctypes
@@ -48,21 +48,22 @@ def optimized_split(bits):
     return 0 if bits <= 9 else 3 if bits == 13 else 2
 
 
-def plan(s, representation, split=None):
-    """The header and the streams: [(depth, channels, frame → int array h×w×c in coded planes)].
-    `split` forces grey's k, the low bits coded apart; None takes the representation's."""
+def plan(s, representation, split=None, grey8="400"):
+    """The header and the streams: [(depth, layout, frame → int array h×w×c in coded planes)], layout "444",
+    "400" or "420" (grey with mid-grey chroma, full range: row GREY420). `split` forces grey's k; None takes
+    the representation's."""
     v = functools.lru_cache(1)(lambda i: s.frame(i).astype(np.int32) + s.offset)
     bits = max(1, int(s.hi + s.offset).bit_length())
     if s.ch == 3:
         if bits > 8:
             raise Refused(f"RGB of {bits} bits: no modality needs it and aomenc 3.15.1 cannot")
         if representation == "plain":
-            return dict(bits=8, depth=8, split=0, flags=0), [(8, 3, lambda i: v(i)[..., [1, 2, 0]])]
+            return dict(bits=8, depth=8, split=0, flags=0), [(8, "444", lambda i: v(i)[..., [1, 2, 0]])]
 
         def rct(i):
             r, g, b = (v(i)[..., c] for c in range(3))
             return np.stack([(r + 2 * g + b) >> 2, b - g + 256, r - g + 256], -1)
-        return dict(bits=8, depth=10, split=0, flags=FLAG_RCT), [(10, 3, rct)]
+        return dict(bits=8, depth=10, split=0, flags=FLAG_RCT), [(10, "444", rct)]
     if bits > MAX_BITS:
         raise Refused(f"grey of {bits} bits after the offset, over {MAX_BITS}")
     if split is None and bits > 14:
@@ -72,37 +73,39 @@ def plan(s, representation, split=None):
     if not 0 <= split <= MAX_SPLIT:
         raise Refused(f"split {split}, not 0 to {MAX_SPLIT}: the low stream is 8-bit")
     depth = container(bits - split)
-    streams = [(depth, 1, lambda i: v(i) >> split)]
+    streams = [(depth, grey8 if bits <= 8 else "400", lambda i: v(i) >> split)]
     if split:
-        streams.append((8, 1, lambda i: v(i) & ((1 << split) - 1)))
+        streams.append((8, "400", lambda i: v(i) & ((1 << split) - 1)))
     flags = FLAG_SIGNED if s.signed else 0
     return dict(bits=bits, depth=depth, split=split, flags=flags), streams
 
 
-def encoder_args(preset, representation, depth, ch):
+def encoder_args(preset, representation, depth, layout):
     kind, _, n = preset.partition(":")
     speed = ["--cpu-used=0"] if kind == "cpu0" else (["--allintra"] if kind == "allintra" else []) + [f"--cpu-used={n}"]
-    profile = 2 if depth == 12 else (1 if ch == 3 else 0)
+    profile = 2 if depth == 12 else (1 if layout == "444" else 0)
     args = ["--ivf", "--lossless=1", f"--bit-depth={depth}", f"--input-bit-depth={depth}", "--kf-max-dist=0",
             "--threads=1", f"--profile={profile}", *speed]
     if representation == "optimized":
         args += ["--tune-content=screen", "--sb-size=64"]
     # Identity under BT.709 primaries and the sRGB transfer is AV1's RGB signal: WebCodecs reports no matrix.
     rgb = ["--color-primaries=bt709", "--transfer-characteristics=srgb", "--matrix-coefficients=identity"]
-    return args + (["--monochrome"] if ch == 1 else rgb)
+    return args + {"400": ["--monochrome"], "420": [], "444": rgb}[layout]
 
 
-def write_y4m(path, frames, depth, ch):
-    """Grey as 4:2:0 with neutral chroma the encoder drops; three channels as 4:4:4, the first as luma."""
+def write_y4m(path, frames, depth, layout):
+    """Grey as 4:2:0 with neutral chroma, which --monochrome drops; three channels as 4:4:4, the first as luma."""
     h, w = frames[0].shape[:2]
-    tag = ("444" if ch == 3 else "420") + ("" if depth == 8 else f"p{depth}")
+    tag = ("444" if layout == "444" else "420") + ("" if depth == 8 else f"p{depth}")
+    # Firefox expands limited-range grey on its way to RGB; at full range Y comes back as R = G = B. lab/av1/xengine
+    full = " XCOLORRANGE=FULL" if layout == "420" else ""
     dt = "u1" if depth == 8 else "<u2"
     neutral = np.full(((h + 1) // 2, (w + 1) // 2), 1 << (depth - 1), dt)
     with open(path, "wb") as fh:
-        fh.write(f"YUV4MPEG2 W{w} H{h} F25:1 Ip A1:1 C{tag}\n".encode())
+        fh.write(f"YUV4MPEG2 W{w} H{h} F25:1 Ip A1:1 C{tag}{full}\n".encode())
         for px in frames:
             px = px.astype(dt)
-            planes = [px[..., c] for c in range(3)] if ch == 3 else [px[..., 0], neutral, neutral]
+            planes = [px[..., c] for c in range(3)] if layout == "444" else [px[..., 0], neutral, neutral]
             fh.write(b"FRAME\n" + b"".join(np.ascontiguousarray(q).tobytes() for q in planes))
 
 
@@ -151,25 +154,24 @@ def merge(header, pictures):
     return (top << header["split"]) | pictures[1] if header["split"] else top
 
 
-def encode(build, work, px, depth, ch, preset, representation):
+def encode(build, work, px, depth, layout, preset, representation):
     """One frame's stream as one unit, in an encoder run of its own: libaom carries state across keyframes,
     so a run of several would make a frame's bytes depend on --jobs (lab/av1/item/README.md §One pipeline)."""
     y4m, ivf = work / "in.y4m", work / "out.ivf"
-    write_y4m(y4m, [px], depth, ch)
-    # Video mode: a one-frame run would write a reduced still-picture sequence header, a shape no client path checks.
-    subprocess.run([build / f"aom-{size.AOM}/bin/aomenc", "-q", "-o", ivf, "--limit=1", "--force-video-mode=1",
-                    *encoder_args(preset, representation, depth, ch), y4m], check=True, capture_output=True)
+    write_y4m(y4m, [px], depth, layout)
+    subprocess.run([build / f"aom-{size.AOM}/bin/aomenc", "-q", "-o", ivf, "--limit=1",
+                    *encoder_args(preset, representation, depth, layout), y4m], check=True, capture_output=True)
     (unit,) = size.ivf_units(ivf)
     return unit
 
 
-def av1(build, s, work, a, b, representation, split, preset):
+def av1(build, s, work, a, b, representation, split, preset, grey8):
     """Frames [a, b) as items, every frame checked alone."""
-    header, streams = plan(s, representation, split)
+    header, streams = plan(s, representation, split, grey8)
     header["offset"] = s.offset
     out = []
     for i in range(a, b):
-        units = [encode(build, work, plane(i), depth, ch, preset, representation) for depth, ch, plane in streams]
+        units = [encode(build, work, plane(i), depth, layout, preset, representation) for depth, layout, plane in streams]
         pictures = []
         for j, unit in enumerate(units):
             px, shape = decoded(build, "av1", unit, s.h * s.w * s.ch)
@@ -225,6 +227,7 @@ def main():
     ap.add_argument("--codec", choices=list(CODECS), default="av1")
     ap.add_argument("--representation", choices=["plain", "optimized"], default="optimized")
     ap.add_argument("--split", type=int)
+    ap.add_argument("--grey8", choices=["400", "420"], default="400")
     ap.add_argument("--preset", default="cpu0")
     ap.add_argument("--frames", type=int)
     ap.add_argument("--jobs", type=int, default=4)
@@ -232,11 +235,11 @@ def main():
     s = size.Set(a.set_dir)
     n = min(a.frames or s.n, s.n)
     per = -(-n // a.jobs)
-    jobs = [(a.build.resolve(), str(a.set_dir), a.codec, i, min(i + per, n), a.representation, a.split, a.preset)
+    jobs = [(a.build.resolve(), str(a.set_dir), a.codec, i, min(i + per, n), a.representation, a.split, a.preset, a.grey8)
             for i in range(0, n, per)]
     try:
         if a.codec == "av1":
-            plan(s, a.representation, a.split)
+            plan(s, a.representation, a.split, a.grey8)
         with ProcessPoolExecutor(a.jobs) as pool:
             items = [x for part in pool.map(chunk, jobs) for x in part]
     except Refused as e:

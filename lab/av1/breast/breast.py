@@ -134,10 +134,10 @@ def inter_job(job):
         for a in range(0, n, g):
             b = min(a + g, n)
             pictures = []
-            for j, (depth, ch, plane) in enumerate(streams):
+            for j, (depth, layout, plane) in enumerate(streams):
                 y4m, ivf = work / f"{j}.y4m", work / f"{j}.ivf"
-                ingest.write_y4m(y4m, [plane(i) for i in range(a, b)], depth, ch)
-                args = [x for x in ingest.encoder_args(preset, "optimized", depth, ch) if x != "--kf-max-dist=0"]
+                ingest.write_y4m(y4m, [plane(i) for i in range(a, b)], depth, layout)
+                args = [x for x in ingest.encoder_args(preset, "optimized", depth, layout) if x != "--kf-max-dist=0"]
                 if g > 1:
                     args += [f"--kf-min-dist={g}", f"--kf-max-dist={g}", "--auto-alt-ref=0"]
                 else:

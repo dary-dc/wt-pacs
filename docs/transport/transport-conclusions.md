@@ -17,7 +17,7 @@ MTU-derived GSO cap (`patches/quinn-0.11.11-mtu-gso.patch`, §4) and a profile-g
 **The target**, set with the owner 2026-09-14: a browser on a mobile, lossy wireless link, thousands
 of sessions per server. In numbers: at 20 Mbit a 250 KB frame is 100 ms on the wire, so bytes and
 round trips outweigh anything the server does per frame; 20 Mbit is ~2.5 MB/s, about 0.4 % of a
-core, so no session is heavy and at thousands of sessions the cost is CPU per byte; and the round
+core (0.7 % measured on a container's core, §4 LOAD), so no session is heavy and at thousands of sessions the cost is CPU per byte; and the round
 trip is 30–80 ms, so a 28 ms tail that dominates loopback is half a round trip there.
 
 **How to read the numbers.** Arms are interleaved inside every round unless a row says otherwise;
@@ -867,6 +867,50 @@ quinn to a newer crates.io release.
 cell, binary −26 %, release rebuild 10 → 39 s. A later campaign on this tree read +7 % p50 (6/6) at
 32 KB, depth 1, one session, against −3 to −6 % CPU at saturation; if large frames ship at depth 1,
 that is the cell to weigh.
+
+### Many fills at once: fills per core, 2026-10-07 (LOAD)
+
+**How many concurrent fills one server core carries before it, not the links, is the clock**
+(`lab/server-load`, queue row 81). The server on one core of a 4-vCPU container, N native sessions
+(`fill_load`) on the other three, each on its own socket, all asking the whole 10-bit tomosynthesis
+volume at once — 24 × 678×1727, 13.6 MB as HTJ2K, 13.0 MB as the optimized AV1 item. Each session
+reads as fast as it can, or at 20 or 50 Mbit by pacing its reads, so flow control holds the server
+back on loopback: no loss, no queue. A fresh server per cell, warmed by one fill; 10 rounds of 54 cells
+in Williams order and 10 more of 10 cells around the knee: 640 runs, **1 012 320/1 012 320 frames
+byte-identical** to the items ingest decoded back to the source's checksum (a flipped reference byte
+failed every run). Container-measured.
+
+Per-session fill time over the single-session figure (HTJ2K / AV1), the server's cores and its
+resident set over the warmed server:
+
+| sessions | 20 Mbit: fill | cores | 50 Mbit: fill | cores | RSS over warm |
+| --: | --: | --: | --: | --: | --: |
+| 1 | 5.46 / 5.19 s | 0.01 | 2.18 / 2.08 s | 0.02 | 1 MB |
+| 32 | ×1.00 | 0.19 | ×1.00 | 0.45 | 131–141 MB |
+| 64 | ×1.00 | 0.39–0.41 | **×1.00** (worst session ×1.01–1.02) | 0.98–0.99 | 239–305 MB |
+| 80 | | | **×1.25** | 0.99 | 365–379 MB |
+| 96 | | | ×1.55–1.57 | 0.99 | 440–459 MB |
+| 128 | ×1.00 | 0.84–0.89 | ×2.12–2.19 | 0.99 | 575–614 MB |
+| 160 | **×1.03** | 0.95–0.96 | | | 715–754 MB |
+| 192 | ×1.30 † | 0.70 | | | 838–876 MB |
+| 256 | ×1.72–1.75 † | 0.65–0.71 | ×4.30–4.39 † | 0.68–0.70 | 1.06–1.11 GB |
+
+* **One core delivers about 400 MB/s of fills, and a fill departs from its single-session time where
+  the sessions' rates sum past it**: between 64 and 80 sessions at 50 Mbit (400 → 500 MB/s asked), at
+  about 160 at 20 Mbit. Past the knee every fill stretches alike, to N × study ÷ ~380–400 MB/s;
+  unpaced, the server is the clock from two sessions on (one: 0.98 cores, 33 / 31 ms).
+* **2.0–3.1 ms of server CPU a MB**, the same for both codecs — the server sends bytes, and AV1's 5 %
+  fewer is its whole difference. A 20 Mbit fill costs **0.7 % of a core** (0.84–0.89 cores over 128).
+* **3.7–4.8 MB resident a concurrently filling session** — what quinn holds in flight under its 10 MB
+  send window; 256 at once is 1.1 GB.
+* **Where the host saturates**: the server's core, in every cell past the knee; the host is 58–60 %
+  busy there, the clients 1.3 of their 3 cores. † The rig's own client sockets drop datagrams even with
+  4 MB receive buffers — a few hundred a run from 64 sessions, 26–38 k at 128, 125–132 k at 256: at 192 and 256 the server falls to 0.65–0.71 cores, so those cells are the rig's
+  clock as much as the server's, and nothing is claimed past 160. Nothing is claimed for more than one
+  core: the multi-thread runtime across cores is §6's scale cell, still unmeasured.
+
+On the target this is ~160 phones filling at once per core at 20 Mbit; viewers that are not filling
+cost a session, not a core (§9 item 9).
 
 ---
 

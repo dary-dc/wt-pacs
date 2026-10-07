@@ -3,6 +3,7 @@
  * decodes alone, any other unit only after its predecessor, here. Only ≤ 10 bits, where it is exact.
  * docs/decode/README.md §AV1
  */
+import { neutral } from "./av1-frame.js";
 import { codecString, continues, sequence } from "./av1-item.js";
 import { PROBES } from "./av1-probe.js";
 
@@ -123,10 +124,11 @@ const FORMATS = { I420: [8, 1], I420P10: [10, 1], I444: [8, 3], I444P10: [10, 3]
 // The byte of G, B and R in a pixel: Firefox returns an identity stream as RGB, its samples untouched. lab/av1/xengine
 const RGB = { RGBX: [1, 2, 0], BGRX: [1, 0, 2] };
 
-/** The frame's planes as a picture, if it is grey 4:0:0 or 4:4:4 identity; `seq` its sequence header's fields. */
+/** The frame's planes as a picture, if it is grey (4:0:0, or 4:2:0 with mid-grey chroma) or 4:4:4 identity; `seq` its sequence header's fields. */
 async function read(frame, seq) {
   const [bits, components] = FORMATS[frame.format] ?? [];
   if (!bits) throw new Error(`format ${frame.format}`);
+  if (RGB[frame.format] && seq.ss[0]) return grey(frame, seq);
   // From the header, as dav1d's path: the frame's colorSpace echoes the codec string, not the stream.
   if (components === 3 && seq.mc !== 0) throw new Error(`4:4:4 with matrix ${seq.mc}`);
   if (RGB[frame.format]) return planar(frame, RGB[frame.format]);
@@ -159,11 +161,18 @@ async function planar(frame, at) {
   return { width, height, bits: 8, planes };
 }
 
-function neutral(planes, width, height, grey) {
-  for (const { heap, offset, stride } of planes) {
-    for (let y = 0; y < height; y++) {
-      for (let s = offset + y * stride, x = 0; x < width; x++, s++) if (heap[s] !== grey) return false;
+/** A grey stream returned as RGB, as Firefox returns 4:2:0: exact only at full range, where R = G = B = Y. */
+async function grey(frame, seq) {
+  if (!seq.range) throw new Error("grey at limited range returned as RGB");
+  const { width, height } = frame.visibleRect;
+  const px = new Uint8Array(frame.allocationSize());
+  const [{ offset, stride }] = await frame.copyTo(px);
+  const heap = new Uint8Array(width * height);
+  for (let y = 0, o = 0; y < height; y++) {
+    for (let s = offset + y * stride, x = 0; x < width; x++, s += 4) {
+      if (px[s] !== px[s + 1] || px[s] !== px[s + 2]) throw new Error("4:2:0 with chroma");
+      heap[o++] = px[s];
     }
   }
-  return true;
+  return { width, height, bits: 8, planes: [{ heap, offset: 0, stride: width }] };
 }

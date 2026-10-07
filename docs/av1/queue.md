@@ -12,7 +12,7 @@ and its branch belong to other work.
 
 1. `git fetch origin && git checkout claude/av1 && git rebase origin/claude/av1`.
 2. Read `CLAUDE.md`, then [`README.md`](README.md) (this phase), then the table below.
-3. Take the **topmost `ready` row**. Set it to `claimed` with the date, commit that alone, push. The
+3. Take the **topmost `ready` row**. Set it to `claimed` with the date and a 6-hex id you draw once per session (`openssl rand -hex 3`), e.g. `claimed 2026-10-07 (night, a3f91c)`, commit that alone, push; a row whose claim does not carry your id is not yours. The
    push is the lock: if it is rejected, rebase and take the next `ready` row.
 4. Do the lane. Push your work (rebase first).
 5. Set the row to `done` with the commit hash after the rebase that pushed it, a one-line verdict
@@ -123,11 +123,18 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | done `8c2b24d` on `claude/av1-unified` (`e945e57`) — **the string is each stream's own, the frames and the decoder unchanged**: each keyframe's sequence header gives `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, reconfigured only when it changes; 91 distinct headers (419 units: every fixture, the probes, 59 items of all 28 taxonomy series, 8 full headers with timing, decoder model, frame ids, High tier, nine operating points) derive the string ffmpeg 6.1.1 reads; libaom writes levels 2.0–6.0 by picture size, never 31, and 31 changes no engine's answer; `isConfigSupported` true for every string in Chromium 141, every full string in Firefox 157.0, Main only in WebKitGTK 2.52.6; 115/115 frames exact in all three, Chromium's decoder per item the same as before (61 WebCodecs, 54 dav1d-WASM), none falling back; Chromium echoes the string's colour on the frame, so the 4:4:4 identity check now reads the header's matrix as dav1d's does — an untagged identity stream now decodes exact through WebCodecs; 13/13 derivation and 3/3 decoder mutations caught; gate green — `lab/av1/codecstr`, `item-format.md` §Decoder choice, `decode/README.md` §AV1 |
 | 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67 |
 | 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row |
-| 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | claimed 2026-10-07 (night) |
+| 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | done `14103cc` on `claude/av1-unified` (`e125d38`, `5b4e9aa`, `ecc9d68`) — **the served profile kept: no setting wins**: 35 settings on nine series, the best per series 0.990–1.000 of the served bytes (−0.9 % only on 256² PET); decode within the round spread everywhere (every paired range spans 1; 0.95–1.10 where decode is the clock); 6 decompositions, the fewest bytes overall, ties on total time ×0.99–1.02 on 5/20/50 Mbit at 1× and 4×; `imagecodecs`' defaults differ only in SIZ depth (container bits, 1.000–1.002 of the bytes); 315 × 35 codings and 12 400 + 339 visits' frames exact — [`docs/decode/README.md`](../decode/README.md) §Encoder settings | |
 | 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | claimed 2026-10-07 (night) |
-| 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | claimed 2026-10-07 (night) |
-| 73 | **EXACTPROD** — exactness in production: how a client proves every shown frame bit-exact, acts on a mismatch and reports it; a measured design proposal | claimed 2026-10-07 (night) |
-| 74 | **XENGINE** — why WebCodecs AV1 is not exact outside Chromium, and what would make it exact | claimed 2026-10-07 (night routine, XENGINE) |
+| 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | done `953dbfd` on `claude/av1-unified` — **adopted: ingest's optimized split is k = 0 up to 9 bits, 3 at 13, 2 at 10–12 and 14; 15–16 bits refused by name, served as HTJ2K**: the format did not change (row 43 already carries every k), only `ingest.py`'s `optimized_split`; its per-depth test held against three mutants (each caught), the writer's 142/142 split-and-merge cells still exact; a 9-bit golden item (`g9`, plain and optimized) and `optimized/s13` remade at k = 3 (10-bit top, WebCodecs), every other golden and matrix item and the probes byte-identical; the real 9- and 13-bit series (MR 9-bit, CT, cone-beam) ingested by the rule, 198/198 frames exact natively, in Node (dav1d-WASM) and in Chromium 141 (WebCodecs 198/198, as chosen); Firefox and WebKitGTK not installed here — row 43 ran these layouts there; gate green on every step but the link check, which fails only on row 69's brief (`docs/av1/MERGE.md` not yet written) — `item-format.md` §Representation at ingest and §The split per depth, README §A3 |
+| 73 | **EXACTPROD** — exactness in production: how a client proves every shown frame bit-exact, acts on a mismatch and reports it; a measured design proposal | done `5421dda` on `claude/av1-unified` (`8ebe03a`) — **check every frame with XXH3-64 before paint: 1–10 % of a decode, SHA-256 up to 1.44×**: headless Chromium 141, a decoder worker (OpenJPH package, samples in shared memory), 10 rounds Williams-ordered at 1× and 4×, 2 220/2 220 hashes and 5 760/5 760 pool checks exact against independent hashers over the encoder's input, `--mutate` failed every cell; at 1× SHA-256 ≈ 250 MB/s through WebCrypto and WASM alike (WebCrypto refuses shared memory and pays a copy; the host has SHA instructions), BLAKE3 ≈ 570, XXH3 ≈ 4 000; a decode-bound fill checked before paint ×1.00–1.15 with XXH3, ×1.15–1.51 BLAKE3, ×1.24–2.23 SHA-256; the brief's "today" corrected — this repository stores and checks no hash in production, so no SHA-256 fallback defect exists; proposed, not built, in [`docs/adr/exactness-in-production.md`](../adr/exactness-in-production.md) on that branch |
+| 74 | **XENGINE** — why WebCodecs AV1 is not exact outside Chromium, and what would make it exact | done `cf4db15` on `claude/av1-unified` (`f446c90`, `2d63d82`) — **Firefox 157 can be exact only at 8 bits, WebKitGTK 2.52.6 not without engine changes; the client now reads 8-bit GBR returned as RGB**: from the engines' sources and 13 layouts × 6 engine variants, every plane against the encoder's input: Firefox refuses monochrome (its FFmpeg path knows no grey format) and returns everything else as 8-bit `BGRX` through a compositor texture, so 10-bit is cut to 8 bits, but 8-bit GBR and 8-bit grey coded 4:2:0 at full range come back exact (all 256 values; limited range is off by ≤ 20); WebKitGTK takes only `av01.0`, hands the decoder frame alignment that libaom's `av1dec` refuses, maps no grey or 10-bit format, and with `dav1ddec` installed copies an even-width `I420` at the wrong stride (exact at 768 wide, wrong at 760); Safari's WebCodecs AV1 is a preview preference, off, software dav1d at 8-bit 4:2:0 only (device run under `## Blocked`); built: GBR from `BGRX`/`RGBX`, exact 40/40 per cell, 0.77× dav1d-WASM's decode at 1× and 0.62× at 4× in Firefox (10 rounds), Chromium unchanged, 3 mutations caught, gate green; proposed: 8-bit grey as full-range 4:2:0 (+0.07 % bytes) — [`docs/decode/README.md`](../decode/README.md) §Why, and what would make it exact |
+| 75 | **LOSSCC** — the congestion controller under loss: today's against BBR and a Cubic that restarts after silence, on row 60's lossy cells | claimed 2026-10-07 (night, c0a3d8) |
+| 76 | **ASKDEADLINE** — the client's own per-ask deadline under loss: does it fail asks the transport is still delivering; bytes as the only judge | claimed 2026-10-07 (night, 133a19) |
+| 77 | **TOTAL4** — total time with every change adopted this round, per taxonomy series, HTJ2K against AV1, in Chromium and Firefox; the per-series codec rule | claimed 2026-10-07 (night, 0e0b90) |
+| 78 | **HTJ2KMT** — one HTJ2K frame decoded on several threads in the browser (code blocks in parallel): exact, and what it buys a phone-like CPU | claimed 2026-10-07 (night, f56ab3) |
+| 79 | **COLDRTT** — round trips before the first exact frame on high-RTT links, cold and warm, HTJ2K and AV1 pages; preload or bundle what is serial | claimed 2026-10-07 (night, ec2bc0) |
+| 80 | **GREY420** — 8-bit grey coded as full-range 4:2:0 so Firefox's WebCodecs returns it exact (row 74's proposal): bytes, decode, total time per engine | claimed 2026-10-07 (night, 44c963) |
+| 81 | **SERVERLOAD** — the server under many concurrent fills: where it saturates, and what each client's fill time does before and after | claimed 2026-10-07 (night, d3dcbf) |
 
 ## Briefs
 
@@ -1198,7 +1205,7 @@ commit). **Branch:** `claude/av1-unified`. **Deliverable:** the docs.
 `git diff origin/main...claude/av1-unified --stat` for anything that should not ship (fetched data, built binaries,
 scratch), and write docs/av1/MERGE.md (written by this row): what the branch adds, what it changes in the HTJ2K path (nothing, or each
 change with its measurement), the commands that verify it, and what stays open with its decision. The owner merges;
-never push to `main`. **Branch:** `claude/av1-unified`. **Deliverable:** the merge, the green gate, `MERGE.md`.
+never push to `main`. **Branch:** `claude/av1-unified`. **Deliverable:** the merge, the green gate, the merge note.
 
 ### 70 HTJ2KENC
 
@@ -1271,7 +1278,81 @@ here: state what a device run must test, and add it under `## Blocked` for the o
 **Branch:** `claude/av1-unified`. **Deliverable:** findings with sources and numbers in the decode doc. Change the client
 only where an engine becomes exact with no regression in Chromium.
 
+## The follow-up rows (75–81), 2026-10-07 evening
+
+### 75 LOSSCC
+
+**Question.** Row 60 found that under loss the congestion controller is the clock (1 % loss turns a 0.62 s fill into
+4.0 s and a 153 ms ask into 1.5 s; 5 % gives 12.4 s). Which controller serves a phone on a lossy link best: today's,
+BBR, or a Cubic that restarts its window after a silence? **Decides:** fill and single-ask time on row 60's cells
+(5/20/50 Mbit, `lte-good`; 0, 1, 2, 5 % loss; ±5/±20 ms jitter; 1× and 4×), HTJ2K and the optimized AV1 payload,
+interleaved, n ≥ 10, every frame exact; and the clean cells, where no controller may regress. **Adopt:** the round's
+rule. **Branch:** `claude/av1-unified`. **Deliverable:** the table and the decision in `docs/transport/` where the
+controller is documented.
+
+### 76 ASKDEADLINE
+
+**Question.** Does the client keep a per-ask deadline of its own (e.g. a fixed timer in the consumer) that fails an ask
+the transport is still delivering or re-asking? Under row 60's bursty 5 % loss an ask's p95 reaches 8–15 s. **Do:**
+find every client-side timer that can fail a frame; for each, show under row 60's cells whether it fires while bytes
+are still arriving; make received bytes the only judge (drop the timer, or restart it on progress), with a test that
+fails first and a mutation. **Decides:** asks failed and ask time under loss before and after, interleaved; no change on
+clean links. **Adopt:** the round's rule. **Branch:** `claude/av1-unified`. **Deliverable:** the change and its
+numbers in the client's README.
+
+### 77 TOTAL4
+
+**Question.** With every change adopted this round in place (row 72's per-depth split, row 67's codec string, row 49's
+decoder interface, row 74's GBR read in Firefox), which codec reaches the full exact fill first, per taxonomy series?
+**Decides:** total time per series on row 23's links at 1× and 4×, HTJ2K against the optimized AV1 payload, in
+Chromium and in Firefox, round-paired, n ≥ 10, every frame exact. **Deliverable:** the table, and a per-series rule the
+ingest can apply (which codec a series is served in), stated in `docs/av1/README.md`; adopt the rule in the ingest only
+where it wins in both engines.
+
+### 78 HTJ2KMT
+
+**Question.** Row 41 found the HT block decoder is the clock and that only threads inside a frame move it. Can OpenJPH's
+WASM build decode one frame's code blocks on several threads (shared memory, a small fixed pool), exact? **Decides:**
+decode time per frame for 512² to 4 096 × 3 328 at 1× and 4×, the fill's total time on row 23's links, memory per
+worker, against today's single-threaded decode, interleaved, n ≥ 10, every frame exact against the source checksum;
+mutate the exactness check. **Adopt:** the round's rule. **Branch:** `claude/av1-unified`. **Deliverable:** the build,
+its numbers and the decision in `decode/README.md`.
+
+### 79 COLDRTT
+
+**Question.** How many serial round trips stand between opening the page and the first exact frame on high-RTT links
+(100, 200, 300 ms), cold cache and warm, for an HTJ2K study and an AV1 one (whose decoder module loads on the first AV1
+payload)? Which of them can go in parallel (`modulepreload`, one bundle per worker, preloading the AV1 module when the
+metadata names AV1)? **Decides:** time to the first exact frame and the serial round-trip count, before and after,
+interleaved, n ≥ 10; nothing slower on a low-RTT link. **Adopt:** the round's rule. **Branch:** `claude/av1-unified`.
+**Deliverable:** the change and its numbers in the client's README.
+
+### 80 GREY420
+
+**Question.** Row 74 found Firefox's WebCodecs returns 8-bit grey exact only when it is coded as full-range 4:2:0
+(+0.07 % bytes). What does serving 8-bit grey that way buy in each engine? **Decides:** bytes, decode time and total
+time per 8-bit grey series in Firefox (WebCodecs now possible) and Chromium (must not regress), on row 23's links at
+1× and 4×, interleaved, n ≥ 10, every frame exact in both. **Adopt:** the round's rule — only if Chromium's total time is
+unchanged within the spread. **Branch:** `claude/av1-unified`. **Deliverable:** the numbers and the decision in
+`item-format.md`.
+
+### 81 SERVERLOAD
+
+**Question.** How many concurrent fills does the server carry before it, not the links, becomes the clock? **Decides:**
+each client's fill time and the server's CPU and memory for 1, 2, 4, 8, 16 and 32 concurrent sessions (HTJ2K and AV1
+studies, clients on separate cores or hosts so the client side does not saturate first), interleaved; the point where
+fill time departs from the single-client figure. Say where the host saturates and claim nothing past it. **Branch:**
+`claude/av1-unified`. **Deliverable:** the table and the saturation point in the server's docs.
+
 ## Blocked
+
+* **2026-10-07 18:40 UTC: row 74 XENGINE — Safari waits on a device run, the owner's phone decision.** From WebKit's
+  source (`webkitgtk-2.52.6`), WebCodecs AV1 on Cocoa is the preview preference `WebCodecsAV1Enabled`, off by default,
+  and decodes through libwebrtc's software dav1d, 8-bit 4:2:0 only, to `NV12`; no hardware decoder is on that path. A
+  device run must say, per iOS and macOS Safari version: whether `VideoDecoder.isConfigSupported` is true for
+  `av01.0.04M.08.0.110.02.02.02.1` with the preference as shipped, and if so whether `lab/av1/xengine`'s `g8-420-full`,
+  `g8-mono`, `rgb8-gbr` and `g10-420` units come back, in which format, and exact against the manifest's checksums
+  (`run.mjs`'s page opened in Safari, results read from the page). Until then the client's per-layout probe decides there, as everywhere.
 
 * **2026-10-07 17:35 UTC: row 70 HTJ2KENC claimed twice.** The night routine's claim `26cb6d9` (17:07) and another
   session's work `e125d38` on `claude/av1-unified` (17:18) both read the same `claimed 2026-10-07 (night)` as their own;

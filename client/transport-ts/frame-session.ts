@@ -132,7 +132,8 @@ export abstract class FrameSession {
         const quiet = performance.now() - Math.max(armedAt, this.lastByteAt);
         if (quiet < FRAME_TIMEOUT_MS) return void (w.timer = setTimeout(expire, FRAME_TIMEOUT_MS - quiet));
         this.waiters.delete(frameIndex);
-        reject(new Error(`timeout waiting for frame ${frameIndex}: no byte for ${FRAME_TIMEOUT_MS} ms`));
+        const late = new Error(`timeout waiting for frame ${frameIndex}: no byte for ${FRAME_TIMEOUT_MS} ms`);
+        reject(Object.assign(late, { name: "FrameTimeoutError" }));
       };
       const w = { resolve, reject, timer: setTimeout(expire, FRAME_TIMEOUT_MS) };
       this.waiters.set(frameIndex, w);
