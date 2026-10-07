@@ -372,6 +372,18 @@ the cone-beam. A palette of high parts gives the same at k = 2; at L = 0 (histog
 for HTJ2K as much as for AV1 (0.576 and 0.571 of HTJ2K on the source). Proposed in [`item-format.md`](item-format.md)
 §Proposed: a remapped plane; not built into the product.
 
+*A split item's two streams through two decoders (row MIXDEC, [`lab/av1/mixdec`](../../lab/av1/mixdec/README.md)).*
+Where the top is over 10 bits, dav1d-WASM decodes both streams today, and **the 8-bit low stream is 17–38 % of a
+13-bit frame's decode and 34–54 % of a 14-bit one's**. Built behind decoder config `mixed` (off by default): the
+low to WebCodecs, started before the top's dav1d-WASM decode, dav1d-WASM taking it wherever the `g8` probe fails
+(Firefox and WebKitGTK). Exact on every frame of the six 13- and 14-bit series at every k and on row 43's synthetic
+set, in all three engines, each stream from the decoder expected; 11 mutations caught. In Chromium a frame decodes
+in **0.46–0.87 of today's time** (faster in 120/120 paired rounds) but **1.04–2.16× w10's**, whose streams are
+both WebCodecs'; a fill at 4× on 50 Mbit takes **0.77–0.90 of today's** (131/131), 0.91–1.14 of w10's — tying or
+ahead where w10's four low bits cost bytes (the 14-bit projections, 0.91–1.02) — and 0.93–1.18 of HTJ2K's, winning on
+two CTs where today loses 18–23 %. Containers, not phones; whether the flag becomes the client's choice is the
+owner's.
+
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never

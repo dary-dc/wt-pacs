@@ -1381,6 +1381,16 @@ Taking groups away from WebCodecs, dropping the stall guard, and dropping the fl
 keyframe each failed a check. Dropping the flush at a group's end failed none, and is not meant to:
 the flush before the next keyframe then covers it, at the cost measured above.
 
+### A split item through two decoders
+
+Behind decoder config `mixed` (row MIXDEC, [`lab/av1/mixdec`](../../lab/av1/mixdec/README.md)), a split item
+whose top is over 10 bits sends its 8-bit low unit to WebCodecs' `low` decoder before dav1d-WASM decodes the
+top in the worker; the low falls back to dav1d-WASM wherever WebCodecs fails it or its `g8` probe fails, and
+a failed top waits for its low to settle so no low is left in flight for the next item. Headless Chromium 141,
+10 rounds interleaved: the low is 17–54 % of the frame under dav1d-WASM, and mixed takes all of it off — 0.46–0.87
+of today's decode at 1× and 4× alike — while staying 1.04–2.16× w10's. Exact in Chromium, Firefox 157 and
+WebKitGTK 2.52 (the last two through dav1d-WASM, as their probes send them). Off by default.
+
 ### AV1 in WebKit and Firefox
 
 Row XBROWSER ([`lab/av1/xbrowser`](../../lab/av1/xbrowser/README.md)), 2026-10-05: the client's path

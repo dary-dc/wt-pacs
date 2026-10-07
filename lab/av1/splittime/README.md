@@ -74,3 +74,31 @@ and 16 bits every arm is over HTJ2K** (1.012–1.099 shipped), on the first real
 here, and w10 (more low bits) is the smaller. Under 12 bits the low two bits pay
 off where the samples are noisy (the 10-bit tomosynthesis, the MR) and not on the 9-bit MR, whose top
 at k = 0 is all its samples.
+
+## Decode (2026-10-07)
+
+A frame through the product's `decoder.js` as of `2d77d7d` (before row DECODE's changes) in headless Chromium 141, every frame of each series' cpu0
+items, 12 rounds interleaved (`decode.mjs`), 59 280/59 280 frames exact. HTJ2K is ms a frame, median of
+round medians at 1× · 4×; each arm the median of round-paired ratios to it. `wc` marks an arm whose
+streams are all ≤ 10 bits, so WebCodecs decodes it; the rest are dav1d-WASM.
+
+| b | series | HTJ2K, ms | d12 | k = 2 | k = 3 | w10 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 16 | mammogram | 438 · 1 842 | k4 7.25 · 7.36 | — | — | k6 wc **2.12 · 1.59** |
+| 15 | PET | 1.06 · 1.11 | k3 6.32 · 21.3 | — | = d12 | k5 wc **4.12 · 9.16** |
+| 14 | projections, system 1 | 90 · 379 | k2 6.97 · 7.23 | = d12 | 6.86 · 7.27 | k4 wc **2.76 · 2.63** |
+| 14 | projections, system 2 | 50 · 204 | k2 6.03 · 6.18 | = d12 | 6.37 · 6.51 | k4 wc **2.86 · 2.74** |
+| 13 | CT | 4.54 · 16.8 | k1 6.09 · 6.67 | 6.12 · 6.82 | wc **2.96 · 2.44** | = k3 |
+| 13 | cone-beam | 4.76 · 14.2 | k1 8.24 · 11.6 | 7.70 · 10.6 | wc **3.85 · 4.18** | = k3 |
+| 12 | fluoroscopy | 9.78 · 36.9 | k0 7.55 · 8.59 | wc 4.15 · 4.12 | wc **3.51 · 3.47** | = k2 |
+| 12 | tomosynthesis 12-bit | 12.3 · 48.8 | k0 6.14 · 6.56 | wc 3.56 · 3.27 | wc **3.07 · 2.83** | = k2 |
+| 11 | MR | 4.92 · 16.6 | k0 5.61 · 6.75 | wc 3.11 · 2.98 | wc **3.03 · 2.87** | k1 3.87 · 3.80 |
+| 10 | tomosynthesis 10-bit | 17.1 · 72.4 | k0 wc 4.10 · 3.80 | wc **2.61 · 2.27** | wc 2.78 · 2.53 | = d12 |
+| 9 | MR, 9 bits | 1.45 · 1.90 | k0 wc 4.64 · 7.57 | wc **4.02 · 7.18** | wc 4.17 · 7.36 | = d12 |
+
+**No arm decodes as fast as HTJ2K on any series** (0/12 rounds faster, every cell): the fastest arm is
+1.59–4.12× HTJ2K's time a frame, and it is always the one WebCodecs takes, never dav1d-WASM's 12-bit top
+(5.6–11.6×). The port reproduces row REP14's cells within their spread: the CT's w10 13.4 · 40.7 ms
+(REP14 13.8 · 41.0), system 1's w10 246 · 999 (246 · 1 023) and its d12 635 · 2 709 (622 · 2 665). The
+PET's HTJ2K frame, 256², is ~1 ms at 1× and at 4× alike: the throttle does not reach a decode that
+short, so its 4× ratios overstate. `--mutate sample` and `--mutate truth` each turned every arm to 0 exact.
