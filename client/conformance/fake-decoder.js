@@ -2,9 +2,9 @@
  * A decoder stand-in for the dispatch rig: it decodes nothing, it stalls. Each decode takes `delayMs`,
  * or, under `hold: "decode"`, waits for the page's release, so the downloader's queue backs up on
  * purpose; `hold: "ready"` keeps `ready` back the same way, so a fill can be on the wire while no
- * decoder exists. It tags every frame with the order it started (`decodeSeq`) and the most it ever
- * held at once (`maxInFlight`), which is what the ordering and the two-outstanding-per-decoder
- * bound are read from. docs/ARCHITECTURE.md §The downloader; client/conformance/dispatch-rig.ts drives it.
+ * decoder exists; a frame whose bytes begin `fail` fails once its wait is over. It tags every frame
+ * with the order it started (`decodeSeq`) and the most it ever held at once (`maxInFlight`), which
+ * is what the ordering and the two-outstanding-per-decoder bound are read from. docs/ARCHITECTURE.md §The downloader; client/conformance/dispatch-rig.ts drives it.
  */
 let toConsumer = null;
 let delayMs = 120;
@@ -58,6 +58,10 @@ onmessage = async (e) => {
   const stamps = { ...m.stamps, decodeStart: abs() };
   const bytes = new Uint8Array(m.bytes);
   await (hold === "decode" ? held() : sleep(delayMs));
+  if (new TextDecoder().decode(bytes).startsWith("fail")) {
+    inFlight -= 1;
+    return void postMessage({ kind: "failed", index: m.index, gen: m.gen, reason: "the stand-in failed it on purpose" });
+  }
   const sab = new SharedArrayBuffer(bytes.length);
   new Uint8Array(sab).set(bytes);
   stamps.decodeEnd = abs();
