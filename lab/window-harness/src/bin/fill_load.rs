@@ -153,7 +153,9 @@ async fn main() -> Result<()> {
             tokio::spawn(async move { fill(&args, &items, &start).await })
         })
         .collect();
-    start.wait().await;
+    // A session that fails to connect never reaches the barrier.
+    tokio::time::timeout(Duration::from_secs(60), start.wait()).await
+        .context("a session did not connect within 60 s")?;
 
     let pid = args.server_pid.to_string();
     let (server0, client0, host0, t0) = (cpu_s(&pid)?, cpu_s("self")?, host_ticks()?, Instant::now());
