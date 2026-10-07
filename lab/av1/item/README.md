@@ -25,8 +25,8 @@ codestream as written, at its depth and signedness, against the checksum written
 fetched. Each frame is read and offset once. Refused before coding: RGB over 8 bits, grey over 14
 bits after the offset unless `--split K` names the low bits coded apart (k ≤ 8, up to 16 bits, a top of
 at most 12 — row 43's matrix; the defaults are unchanged). `--preset` is `cpu0`, `good:N` or `allintra:N` (row 14 names the fastest
-within 2 % of cpu0's bytes per content); frames are coded in `--jobs` processes, each a run of
-keyframes. RGB streams carry BT.709 primaries, the sRGB transfer and the identity matrix — AV1's RGB
+within 2 % of cpu0's bytes per content); frames are coded in `--jobs` processes, each frame's
+stream in an encoder run of its own, so the bytes do not depend on the worker count (§One pipeline). RGB streams carry BT.709 primaries, the sRGB transfer and the identity matrix — AV1's RGB
 signal; with the identity matrix alone Chromium's WebCodecs reports a BT.709 matrix, the 4:4:4
 probes fail and every colour item goes to dav1d-WASM.
 
