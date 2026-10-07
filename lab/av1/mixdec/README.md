@@ -83,6 +83,12 @@ cores are free to run both. Containers, not phones.
   WebKitGTK 2.52.6 (`webkit+sab`, as row 37 ran them). Chromium decoded the 742 items whose top is over
   10 bits mixed — the top through dav1d-WASM, the low through WebCodecs — and the 371 w10 items through
   WebCodecs alone; Firefox and WebKitGTK decoded all 1 113 through dav1d-WASM, their `g8` probe failing.
+* **Row 43's synthetic set, in the same three engines** (`lab/av1/splitok`'s 1 260 cells — every b = 8…16,
+  unsigned and signed, every k of its matrix, seven geometries from 1 pixel wide to 256², cpu0 and `--allintra`
+  7): 8 280/8 280 frames exact in each engine, every stream as planned and every decoder as expected. Chromium
+  took the 1 656 split items whose top is over 10 bits mixed, the 368 unsplit tops over 10 bits through
+  dav1d-WASM, and the 6 256 whose streams are all ≤ 10 bits through WebCodecs; Firefox and WebKitGTK took all
+  through dav1d-WASM.
 * **Mutations, each caught.** In Node with stub decoders (`av1.test.mjs`, 6): the flag off still mixing; no
   fallback for a failed low; the low decoder handed the top; the top decoder handed the low; the low taken
   from the previous item; a failed top not waiting for its low. In the browsers on the k = 2 cells (6 cells,
