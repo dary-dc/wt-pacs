@@ -186,9 +186,12 @@ const { parseItem } = await import("./av1-item.js");
   await take("no VideoDecoder, no WebCodecs", "plain", "g10", 10, 1, "dav1d");
 }
 
-/** Init starts loading every decoder the item could need, so none waits for the first item to land; a failure there costs no item. */
+/** Init starts fetching every decoder the item could need, so none waits for the first item to land; a failure there costs no item. */
 {
   const asked = [];
+  const fetched = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => (fetched.push(url), new Response(new Uint8Array(1)));
   let fail = true;
   const load = async (path) => {
     asked.push(path);
@@ -197,8 +200,10 @@ const { parseItem } = await import("./av1-item.js");
   };
   globalThis.VideoDecoder = class {};
   const av1 = await import("./av1.js?warm");
-  await av1.init({}, load);
-  check(asked.join() === "./decode-av1.js,./decode-av1-webcodecs.js", `warm: init loads both decoders before any item (${asked.join()})`);
+  await av1.init({ glue: "/g.js", wasm: "/g.wasm" }, load);
+  check(asked.join() === "./decode-av1.js,./decode-av1-webcodecs.js", `warm: init imports both decoders before any item (${asked.join()})`);
+  check(fetched.join() === "/g.js,/g.wasm", `warm: init fetches dav1d's glue and WASM before any item (${fetched.join()})`);
+  globalThis.fetch = realFetch;
   await new Promise((r) => setTimeout(r));
   fail = false;
   const got = await refusal(av1.decodeFrame, golden("plain", "g8"));
@@ -207,7 +212,7 @@ const { parseItem } = await import("./av1-item.js");
   const none = await import("./av1.js?warm-none");
   asked.length = 0;
   await none.init({}, load);
-  check(asked.join() === "./decode-av1.js", `warm: without VideoDecoder only dav1d is loaded (${asked.join()})`);
+  check(asked.join() === "./decode-av1.js", `warm: without VideoDecoder only dav1d is imported (${asked.join()})`);
 }
 
 /** With `mixed`, a top over 10 bits goes to dav1d and its low to WebCodecs, each item's own low merged, dav1d the fallback. */
