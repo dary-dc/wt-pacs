@@ -17,8 +17,9 @@ const dialledAt: number[] = [];
     dialledAt.push(performance.now());
   }
 };
-// Before the first dial, which is what loads this module: `?hang=` dials never settle.
+// Before the first dial, which is what loads this module: `?hang=` dials never settle, `?refuse=` are refused.
 FakeTransport.hangNext = Number(new URL(import.meta.url).searchParams.get("hang") ?? 0);
+FakeTransport.failNext = Number(new URL(import.meta.url).searchParams.get("refuse") ?? 0);
 
 type Command = { id: number; cmd: string; args: unknown[] };
 
@@ -28,6 +29,7 @@ function run(cmd: string, args: unknown[]): unknown {
   if (cmd === "dialledAt") return dialledAt;
   if (cmd === "replacedClosed") return FakeTransport.all.slice(0, -1).every((t) => t.didClose);
   if (cmd === "failDials") return void (FakeTransport.failNext = args[0] as number);
+  if (cmd === "hangDials") return void (FakeTransport.hangNext = args[0] as number);
   if (cmd === "openAfterMs") return void (FakeTransport.openAfterMs = args[0] as number);
   if (!t) throw new Error(`${cmd}: nothing has dialled yet`);
   if (cmd === "pushFrame") return void t.pushFrame(args[0] as number, args[1] as Uint8Array);

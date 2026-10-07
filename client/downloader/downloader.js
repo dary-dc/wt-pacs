@@ -38,7 +38,7 @@ let recycling = null;
 let closed = false;
 
 const decoders = [];
-/** index → { state, gen, priority, stamps, bytes }. State: wire | queued | decoding. */
+/** index → { state, priority, stamps, bytes }. State: wire | queued | decoding. */
 const records = new Map();
 const queue = { ask: [], fill: [] };
 /** Fill frames the consumer wants and the wire has not delivered; never one an ask carries, which the ask settles. */
@@ -54,15 +54,12 @@ function fail(index, reason) {
 
 /** Asks come before fill frames; a frame already in hand moves up rather than being re-asked. */
 function promote(index) {
-  const rec = records.get(index);
-  if (!rec || rec.priority === "ask") return;
-  rec.priority = "ask";
+  // No pump: a frame waits in a queue only while no decoder can take it, and moving it frees none.
   const at = queue.fill.indexOf(index);
-  if (at >= 0) {
-    queue.fill.splice(at, 1);
-    queue.ask.push(index);
-    pump();
-  }
+  if (at < 0) return;
+  queue.fill.splice(at, 1);
+  queue.ask.push(index);
+  records.get(index).priority = "ask";
 }
 
 /** Frames per group, a keyframe at every multiple of it. docs/av1/adr-unit.md §3 */
@@ -105,7 +102,7 @@ function pump() {
     for (let at = 0; at < q.length && decoders.some((d) => d.outstanding < cfg.perDecoder); ) {
       const index = q[at];
       const rec = records.get(index);
-      if (!rec || rec.gen !== generation || rec.state !== "queued" || !rec.bytes) {
+      if (!rec || rec.state !== "queued") {
         q.splice(at, 1);
         continue;
       }
@@ -140,7 +137,7 @@ function dispatch(d, index, rec) {
 
 function failQueued() {
   for (const index of queue.ask.splice(0).concat(queue.fill.splice(0))) {
-    if (records.get(index)?.gen === generation) fail(index, `no decoder: ${decoderLoss}`);
+    if (records.has(index)) fail(index, `no decoder: ${decoderLoss}`);
   }
 }
 
@@ -165,7 +162,7 @@ function want(indices, askMs) {
 
 function record(index, priority, askMs) {
   const stamps = { ask: askMs, lastByte: 0, dispatched: 0, decodeStart: 0, decodeEnd: 0 };
-  records.set(index, { state: "wire", gen: generation, priority, stamps });
+  records.set(index, { state: "wire", priority, stamps });
 }
 
 /** A frame's bytes are here: straight to the consumer, or into the queue for a decoder. */
@@ -181,7 +178,7 @@ function arrived(index, frame) {
   rec.stamps.mediaReads = session?.stats().mediaReads;
   if (!cfg.decode) {
     records.delete(index);
-    postMessage({ kind: "frame", index, gen: rec.gen, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
+    postMessage({ kind: "frame", index, gen: generation, pixels: frame.bytes, wireBytes: frame.bytes.length, stamps: rec.stamps, decoded: false }, [frame.bytes.buffer]);
     return;
   }
   rec.bytes = frame.bytes;
