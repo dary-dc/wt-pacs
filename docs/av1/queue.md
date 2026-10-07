@@ -1146,6 +1146,13 @@ corrected in place. **Branch:** `claude/av1` (`llsize` and the fetch are here). 
 
 ## Blocked
 
+* **2026-10-07 00:30 UTC: row 66 POCGAP — neither 10-bit DBT series it names is CC BY or CC0, so neither is fetched.**
+  The UPMC breast tomography collection on D. Clunie's public archive (`dclunie.com/pixelmedimagearchive`, read
+  2026-10-07; Case22 is 137 MB, MD5-listed) states no licence at all; TCIA's Breast-Cancer-Screening-DBT
+  (DOI 10.7937/E4WT-CD02, DBT-P01237's collection) is CC BY-NC 4.0 on every file group. The owner decides whether
+  either is acceptable (fetch-at-run-time only, never committed); the row measures the brief's other claims on the
+  lab's two CC BY 4.0 10-bit DBT series meanwhile.
+
 * **2026-10-06 22:20 UTC: rows 47 MIXDEC, 51 SERVER and 57 VERSIONS stale** — claimed 00:49–01:10 UTC, no commit
   from their lanes in the six hours since but 57's `a6f960c` (01:27); set back to `night`. 57 continues from `a6f960c`.
 
