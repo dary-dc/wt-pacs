@@ -85,7 +85,7 @@ function arm(set, name) {
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/reslevel): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? "htj2k", codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
       opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // A `downloader` arm runs that revision of the downloader (row CLIENT).
         ...(a.downloader && { worker: a.downloader, decoderWorker: "/client/downloader/decoder.js" }) } };

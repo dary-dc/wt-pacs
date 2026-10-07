@@ -24,14 +24,25 @@ PROFILE = ["-num_decomps", "5", "-block_size", "{64,64}", "-prog_order", "RPCL",
 
 
 def same_codestream(build, s, i, served):
-    """OpenJPH 0.32.0's codestream of frame i, against 0.31.0's as served (unsigned series only)."""
+    """OpenJPH 0.32.0's codestream of frame i, against 0.31.0's as served (unsigned series only), comments aside."""
     new = build / "ojph-0.32.0/install"
     with tempfile.TemporaryDirectory() as tmp:
         src, out = Path(tmp) / ("in.pgm" if s.ch == 1 else "in.ppm"), Path(tmp) / "out.j2c"
         pnm(s, i, src)
         subprocess.run([new / "bin/ojph_compress", "-i", src, "-o", out, *PROFILE], check=True, capture_output=True,
                        env={"LD_LIBRARY_PATH": str(new / "lib")})
-        return out.read_bytes() == served.read_bytes()
+        return without_comment(out.read_bytes()) == without_comment(served.read_bytes())
+
+
+def without_comment(j2c):
+    """The codestream with its main header's COM segments cut: OpenJPH writes its version there."""
+    out, i = bytearray(j2c[:2]), 2
+    while j2c[i:i + 2] != b"\xff\x90":
+        n = 2 + int.from_bytes(j2c[i + 2:i + 4], "big")
+        if j2c[i:i + 2] != b"\xff\x64":
+            out += j2c[i:i + n]
+        i += n
+    return bytes(out + j2c[i:])
 
 
 def series(build, out, spec, frames):
