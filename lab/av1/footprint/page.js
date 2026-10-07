@@ -21,9 +21,10 @@ const hex = (b) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(
 /** The decoder config `connect` would hand the workers for this arm. */
 function arm(entry) {
   // An arm may name another decoder worker, as row DECODE's *-before arms do.
-  const { ext, group, truth, worker, probeWorker, codec, ...connect } = entry.arms?.[ARM] ?? {};
+  const { ext, group, truth, worker, probeWorker, codec, openjph, ...connect } = entry.arms?.[ARM] ?? {};
   if (OPENJPH[ARM] || codec === "htj2k") {
-    const [dir, name] = OPENJPH[ARM] ?? OPENJPH.htj2k;
+    // An arm may name one of lab/decode-bench/wasm/build.sh's builds (lab/av1/htj2kmt).
+    const [dir, name] = OPENJPH[ARM] ?? (openjph ? ["/lab/.openjph-build/wasm", openjph] : OPENJPH.htj2k);
     return { ext: "htj2k", worker: probeWorker, decoder: { glue: `${dir}/${name}.js`, wasm: `${dir}/${name}.wasm`, dir } };
   }
   if (MUTATE === "split" && connect.split) connect.split--;

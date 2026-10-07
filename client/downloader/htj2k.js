@@ -30,7 +30,8 @@ export function finish(view, bits, signed) {
 export const unranged = (info) => info.componentCount === 3 && info.bitsPerSample === 8 && !info.isSigned;
 
 export async function init(d) {
-  const M = await instantiate(d, `typeof Module !== "undefined" ? Module : OpenJPHModule`);
+  // A threaded build starts its helpers from the glue, not from this worker. docs/decode/README.md §Threads
+  const M = await instantiate(d, `typeof Module !== "undefined" ? Module : OpenJPHModule`, { mainScriptUrlOrBlob: d.glue });
   dec = new M.HTJ2KDecoder();
 }
 
