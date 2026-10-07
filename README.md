@@ -17,6 +17,31 @@ npm i -g playwright && npx playwright install chromium
 bash lab/decode-bench/fetch_decoder.sh   # the decoder vendor
 ```
 
+### What the gate costs and what it catches
+
+Without `lab/.av1-build/out` (`ARMS=simd lab/av1/dav1d-wasm/build.sh`) the dispatch rig skips every
+AV1 clause, saying `SKIPPED` — 128 checks run instead of 719 — so build it once where AV1 matters.
+
+**Time** (row GATE, 2026-10-07; 4 cores, warm builds, n = 3 a cell, the two trees' runs interleaved):
+**161.4 [159.8–161.7] → 105.9 [104.9–106.1] s** `--quick`, **160.7 [160.5–161.1] → 107.0
+[106.0–107.0] s** full. The two steps that waited on timers now wait side by side: transport
+conformance runs each implementation in its own process (54.4 → 18.2 s; one clause trickles a frame
+for 16 s on each), and the two browser rigs run in parallel pages (57.0 → 38.3 s). Next largest:
+the real-server wire step 13 s, the two server test runs 11 s each, nothing else over 6 s.
+
+**What it catches** — mutants made by hand at each decision, the step that owns the code run on
+each (the node tests and both rigs for the client, `cargo test` for the rest):
+
+| code | mutants | killed before | after | left alive, and why |
+| --- | --- | --- | --- | --- |
+| `downloader.js`, `consumer.js` | 76 | 44 | 65 of 72 | 4 were dead code, removed; 7: two only matter when a frozen page's timers fire late, a listener removal and two `??=` change nothing observable, the wire buffer's release only moves memory, a recycle racing a resumption the fake cannot order (`client/downloader/README.md` §Every decision is held by a test) |
+| the decoder modules (`decoder.js`, `htj2k.js`, `av1*.js`, `decode-av1*.js`) | 45 | 45 | 45 | — |
+| the send path (`planner.rs`, `frame_out.rs`, `pipeline.rs`) | 25 | 16 | 20 of 24 | 1 was dead code, removed; 4: `fills` and the end-of-session read report are log lines, and the lab-only byte-budget stall's FIN and its `>`/`>=` send the same bytes |
+| the study bundle's reader and writer | 10 | 3 | 10 | — |
+
+No test was cut: the pairs whose mutants another test also kills are checks inside one clause, which
+cost no time of their own, or rest on too few mutants to show one covers the other.
+
 ## Quick start (harness)
 
 ```bash
