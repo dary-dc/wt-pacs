@@ -115,7 +115,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 62 | **GPU** — GPU HTJ2K decoders' methods and whether WebGPU can take more than the wavelet: research and a feasibility bound | claimed 2026-10-07 00:07 UTC (night) |
 | 63 | **JXL** — JPEG XL at fast efforts in WASM, and native browser decoding: which engines, exact at which depths, through which API, how fast | claimed 2026-10-07 00:07 UTC (night) |
 | 64 | **REMAP** — rare values above 12 bits mapped out with a small exception map, and a palette for high bits: exact, bytes, decode | claimed 2026-10-07 00:14 UTC (night) |
-| 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | ready |
+| 65 | **ORDER** — the order frames are sent in: DBT centre-out, mammography view priority; time to the first useful image and to the full fill | claimed 2026-10-07 00:08 UTC (night) |
 | 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | ready |
 
 ## Briefs
