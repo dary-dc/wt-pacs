@@ -77,7 +77,7 @@ at k = 0 is all its samples.
 
 ## Decode (2026-10-07)
 
-A frame through the product's `decoder.js` in headless Chromium 141, every frame of each series' cpu0
+A frame through the product's `decoder.js` as of `2d77d7d` (before row DECODE's changes) in headless Chromium 141, every frame of each series' cpu0
 items, 12 rounds interleaved (`decode.mjs`), 59 280/59 280 frames exact. HTJ2K is ms a frame, median of
 round medians at 1× · 4×; each arm the median of round-paired ratios to it. `wc` marks an arm whose
 streams are all ≤ 10 bits, so WebCodecs decodes it; the rest are dav1d-WASM.
