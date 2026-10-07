@@ -6,7 +6,8 @@
  *   BEFORE=<rev> NODE_PATH=$(npm root -g) node lab/page-open/coldrtt.mjs FRAMES_DIR [rounds]
  *
  * FRAMES_DIR is coldrtt_frames.py's output. BEFORE is the commit whose client/downloader the
- * `-before` arms load; INIT=<rev>, if given, adds `-init` arms loading that commit's. RTTS= (default 0,100,200,300), ONLY=arm,…, RELAY_ARGS=, THROTTLE=N, ROWS=FILE.
+ * `-before` arms load; INIT=<rev>, if given, adds `-init` arms loading that commit's. RTTS= (default 0,100,200,300), ONLY=arm,…, RELAY_ARGS=, THROTTLE=N, ROWS=FILE;
+ * FIRST_ROUND=N and PRIOR=FILE (an earlier ROWS) top up the cells VOID visits left short.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -153,12 +154,13 @@ async function relayUp(rtt, s, tag) {
   };
 }
 
-const rows = [];
+const rows = process.env.PRIOR ? JSON.parse(fs.readFileSync(process.env.PRIOR, "utf8")) : [];
+const FIRST = Number(process.env.FIRST_ROUND || 0);
 let voided = 0;
 let failed = 0;
 const CELLS = Object.keys(ARMS);
 for (const rtt of RTTS) {
-  for (let round = 0; round < ROUNDS; round++) {
+  for (let round = FIRST; round < FIRST + ROUNDS; round++) {
     let prev = null;
     for (const arm of order(CELLS, round)) {
       const s = SERVERS[ARMS[arm][0]];

@@ -19,7 +19,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 | `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike |
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
-path untouched, `"av1"` loads `av1.js` and, on the first item, the decoder it needs — dav1d-WASM
+path untouched, `"av1"` loads `av1.js` and, at the decoder's start, both decoders it may need — dav1d-WASM
 from [`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md) (`glue`, `wasm`, `dir` as for
 OpenJPH, `THIRD_PARTY.txt` served beside them) or WebCodecs; anything else makes `connect` reject
 with `unknown codec "…"` before a worker starts. Every entry is an item of
@@ -32,8 +32,16 @@ what is wrong, before or after decoding, and never as pixels.
 **Which decoder, per item.** WebCodecs when every stream of the item is ≤ 10 bits, `VideoDecoder`
 exists, and the probe for each stream's layout — grey 8 or 10-bit, 4:4:4 8 or 10-bit, told apart
 before decoding by the header and the unit's `seq_profile` — returned its samples, once per worker;
-dav1d-WASM otherwise, and for an item WebCodecs fails on. Each module is imported on first use; an
-import that fails is tried again on the next item. A WebCodecs frame is taken only for the unit it
+dav1d-WASM otherwise, and for an item WebCodecs fails on. Both modules are imported, and dav1d's
+glue and WASM fetched, when the decoder starts, beside the dial; each is initialised on first use,
+and an import that fails is tried again on the next item. Before, the first item waited for all of
+it: **−1.0 serial round trips to the first exact frame through WebCodecs and −3.0 through dav1d on
+100–300 ms links, cold, every paired round** (10.02 → 8.98 and 11.93 → 8.96; HTJ2K 7.99); warm,
+nothing moves. On a link under 20 ms a ≤ 10-bit series pays for the fallback's 238 KB arriving
+beside its first frame (+26 ms at 10 ms, +67 on loopback), dav1d wins from 10 ms. A page that knows
+the series is AV1 can `preload` the seven AV1 modules, the glue and the WASM, as `lab/page-open/codec.html`
+does: AV1 then reaches HTJ2K's 8.0. [`lab/page-open/README.md`](../../lab/page-open/README.md)
+§Cold round trips by codec. A WebCodecs frame is taken only for the unit it
 was sent with, so one flushed late from an earlier unit is never taken for the unit in hand. The
 dispatch rig checks the writer's golden items (`client/conformance/av1/items/`, plain and optimized,
 seven shapes each) through both decoders, every refusal by its message, the choice, the fallback and
