@@ -1,4 +1,6 @@
 /** An HTJ2K codestream through OpenJPH-WASM, one decoder object reused (parity.mjs): docs/decode/README.md §A build of our own */
+import { instantiate } from "./wasm-glue.js";
+
 let dec = null;
 
 /** Sign-extend narrow samples (JS shifts are 32-bit) and take the range in one pass — docs/decode/README.md §The range pass. */
@@ -28,13 +30,7 @@ export function finish(view, bits, signed) {
 export const unranged = (info) => info.componentCount === 3 && info.bitsPerSample === 8 && !info.isSigned;
 
 export async function init(d) {
-  // A module worker has no importScripts; the classic glue's factory is a `var`, local in a Function body, so returned.
-  const src = await (await fetch(d.glue)).text();
-  const factory = new Function(
-    `${src}\nreturn typeof Module !== "undefined" ? Module : OpenJPHModule;`,
-  ).call(globalThis);
-  const wasmBinary = await (await fetch(d.wasm)).arrayBuffer();
-  const M = await factory({ locateFile: (f) => d.dir + "/" + f, wasmBinary });
+  const M = await instantiate(d, `typeof Module !== "undefined" ? Module : OpenJPHModule`);
   dec = new M.HTJ2KDecoder();
 }
 

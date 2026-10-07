@@ -2,6 +2,9 @@
  * One AV1 stream's unit through dav1d-WASM, as a picture av1-frame.js merges: a keyframe decodes alone,
  * any other unit only after its predecessor, here. Build: lab/av1/dav1d-wasm; seam: docs/av1/adr-unit.md §2–3.
  */
+import { continues } from "./av1-item.js";
+import { instantiate } from "./wasm-glue.js";
+
 let M = null;
 let ptr = 0;
 let cap = 0;
@@ -9,19 +12,14 @@ let cap = 0;
 let last = null;
 
 export async function init(d) {
-  // The glue is a classic script, as OpenJPH's is: decoder.js says why it is evaluated this way.
-  const src = await (await fetch(d.glue)).text();
-  const factory = new Function(`${src}\nreturn Dav1dModule;`).call(globalThis);
-  const wasmBinary = await (await fetch(d.wasm)).arrayBuffer();
-  M = await factory({ locateFile: (f) => d.dir + "/" + f, mainScriptUrlOrBlob: d.glue, wasmBinary });
+  M = await instantiate(d, "Dav1dModule", { mainScriptUrlOrBlob: d.glue });
   const opened = M._av1_open(d.threads ?? 1);
   if (opened < 0) throw new Error(`dav1d_open: ${opened}`);
 }
 
 /** A view of the unit's top layer, valid until the next decode; layers under it go to `preview` (adr-unit.md §6). */
 export function picture(bytes, unit = { key: true }, preview) {
-  const follows = last !== null && unit.gen === last.gen && unit.index === last.index + 1;
-  if (!unit.key && !follows) throw new Error(`undecodable: frame ${unit.index - 1} was not decoded before it here`);
+  continues(last, unit);
   last = null;
   if (bytes.length > cap) {
     if (ptr) M._free(ptr);
