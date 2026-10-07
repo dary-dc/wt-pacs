@@ -161,7 +161,7 @@ WebCodecs, which refuses 4:0:0 (row XENGINE). The header does not change: the st
 | | Chromium | Firefox |
 | --- | --- | --- |
 | bytes | +0.20–0.23 % (≈ 100–140 B a frame) | the same |
-| a frame's decode | WebCodecs either way: 1.02–1.13× | dav1d-WASM → WebCodecs: 0.70–0.71× at 4×, 1.02–1.04× at 1× |
+| a frame's decode | WebCodecs either way: 1.06–1.11× | dav1d-WASM → WebCodecs: 0.63–0.66× at 4×, 1.03–1.04× at 1× |
 | a whole fill | +0.2–0.5 % where the wire is the clock; +3.4 % on the cine at 4× on LTE and 50 Mbit | 0.74–0.87 at 4× on LTE and 50 Mbit; ±3 % elsewhere |
 
 **Not adopted**: Chromium's total time is not unchanged — it is slower by the bytes on every cell and by 3.4 % where
