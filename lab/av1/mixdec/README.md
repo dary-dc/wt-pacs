@@ -125,3 +125,42 @@ the 13-bit series, 113–207 and 442–790 on the projections.
 * **HTJ2K at 4× is not quoted** on the 512² series: its 24 frames of ~3 ms finish within the time
   `cpu_throttle.mjs` takes to find a new worker thread (it scans every 10 ms), so in 6 of 40 round-cells it ran
   unthrottled (3.0–3.3 ms). At 1×, and at 4× on the projections, mixed is 3.3–9.1× HTJ2K's decode.
+
+## Total time (2026-10-07)
+
+Row TOTAL's harness (`lab/av1/total/run.mjs`, the real server behind the relay, links and rig unchanged) on the
+cells where the decoder is the clock: 4×, 50 Mbit, 12 rounds, Williams order, `VOID` visits dropped (19 of 432),
+n = 10–12 an arm; `mixed_arms.py` adds the kKm arms, `total_summary.mjs` pairs them by round. **Every frame of
+every visit exact** (35 616/35 616, 20 Mbit's included). Seconds to every frame on the page, and the mixed arm's
+round-paired ratios:
+
+| series | HTJ2K s | k | today s | mixed s | ×today | ×w10 | ×HTJ2K |
+| --- | --: | --- | --: | --: | --- | --- | --- |
+| CT | 2.87 | 1 | 3.52 | 2.81 | 0.82 | 1.01 | **0.97** |
+| | | 2 | 3.52 | 2.72 | 0.77 | **0.99** | **0.95** |
+| cone-beam | 2.62 | 1 | 3.32 | 2.95 | 0.90 | 1.14 | 1.13 |
+| | | 2 | 3.06 | 2.69 | 0.88 | 1.04 | 1.03 |
+| signed CT (`ct_nlst`) | 3.41 | 1 | 4.29 | 3.78 | 0.89 | 1.12 | 1.11 |
+| | | 2 | 3.96 | 3.58 | 0.90 | 1.07 | 1.05 |
+| signed CT (`ct_crc`) | 3.06 | 1 | 3.62 | 2.93 | 0.81 | 1.00 | **0.96** |
+| | | 2 | 3.68 | 2.84 | 0.77 | **0.97** | **0.93** |
+| projections, system 1 | 6.45 | 2 | 9.34 | 7.62 | 0.81 | 1.02 | 1.18 |
+| | | 3 | 9.34 | 7.40 | 0.80 | **0.98** | 1.15 |
+| projections, system 2 | 5.12 | 2 | 6.38 | 5.30 | 0.83 | **0.91** | 1.03 |
+| | | 3 | 6.56 | 5.23 | 0.80 | **0.91** | 1.02 |
+
+* **Mixed fills in 0.77–0.90 of today's time, faster in 131 of 131 paired rounds** — the decode's saving, less
+  what the wire already hid.
+* **Against w10 it ties or wins on half the cells.** On the projections w10 carries four low bits (1.007 and
+  1.059 of HTJ2K's bytes, against 0.925–0.953 for k = 2 and 3), so system 2's mixed fill beats it (0.91, 23 of
+  24 rounds) and system 1's ties (0.98–1.02). At 13 bits, where w10's bytes are close (k = 3), mixed at k = 2
+  ties or wins on the two CTs (0.97–0.99) and loses 4–7 % on the cone-beam and `ct_nlst`; at k = 1, 0–14 %.
+* **Against HTJ2K it wins on the two CTs (0.93–0.97, where today loses 1.18–1.23)** and loses 2–18 % elsewhere,
+  where today loses 16–45 %.
+* **20 Mbit is not claimed.** 88 of its 144 visits (four rounds) came back `VOID` — the relay's p99 a hair over
+  1 ms on this host — and the kept ones (n = 0–4 an arm) put mixed at 0.95–1.00 of today: the wire is that
+  cell's clock, as row REP14 found.
+* **Saturation.** As rows TOTAL and REP14: at 4× on 50 Mbit the browser's three slowed cores are the clock.
+  Mixed moves the low's decode off the worker's thread onto WebCodecs' — the same cores — so what it buys
+  here is parallelism a phone's cores may not have. Containers, not phones; decode-bound cells moved
+  15–25 % between containers (row TOTAL), so the ranking is the claim.
