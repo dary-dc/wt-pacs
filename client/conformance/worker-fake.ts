@@ -19,6 +19,8 @@ export type WorkerFake = {
   /** Whether every transport before the latest was closed by the client. */
   replacedClosed(): Promise<boolean>;
   failDials(n: number): Promise<void>;
+  /** The next `n` dials never settle. */
+  hangDials(n: number): Promise<void>;
   /** The dials from now on are ready only after `ms`. */
   openAfterMs(ms: number): Promise<void>;
   /** Every control write on the latest transport rejects from now on. */
@@ -67,6 +69,7 @@ export function workerFake(name: string): WorkerFake {
     dialledAt: () => call("dialledAt") as Promise<number[]>,
     replacedClosed: () => call("replacedClosed") as Promise<boolean>,
     failDials: (n) => call("failDials", n) as Promise<void>,
+    hangDials: (n) => call("hangDials", n) as Promise<void>,
     openAfterMs: (ms) => call("openAfterMs", ms) as Promise<void>,
     failWrites: () => call("failWrites") as Promise<void>,
     block: (ms) => call("block", ms) as Promise<void>,
