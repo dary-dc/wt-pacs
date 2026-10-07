@@ -103,7 +103,7 @@ async function inEngine(engine, throttle, round) {
   const caps = cell.caps;
   proc.kill("SIGKILL");
   await new Promise((res) => setTimeout(res, 500));
-  rmSync(dir, { recursive: true, force: true });
+  try { rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 }); } catch {}
   return { caps, ...r };
 }
 
