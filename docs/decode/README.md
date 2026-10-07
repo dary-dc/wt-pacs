@@ -1275,6 +1275,46 @@ change than `htj2k.js` handing it its glue's URL for its helper (without it the 
 decoder worker's own script and the series never fills). The product's harnesses still load the package
 until a consumer delivers the build. **It is an ask's lever:** a fill on these links gains ≤ 3 %.
 
+## Encoder settings
+
+Queue row HTJ2KENC: does another OpenJPH 0.31.0 setting cut lossless bytes or browser decode against the
+served profile (64² blocks, 5 decompositions, RPCL, no precincts)? [`lab/av1/htj2kenc`](../../lab/av1/htj2kenc/README.md)
+runs it on the first 8 frames of nine series (3 of the two over 4 M samples): 35 settings, every frame
+exact natively and in Chromium.
+
+**Bytes**, over the served profile's (range over the nine series):
+
+| decompositions | 32² | 64² | 32×128 | 128×32 |
+| --- | --- | --- | --- | --- |
+| 3 | 0.999–1.072 | 0.991–1.063 | 0.990–1.062 | 0.992–1.067 |
+| 4 | 1.005–1.022 | 0.997–1.012 | 0.996–1.011 | 0.998–1.017 |
+| 5 | 1.008–1.010 | 1 | 0.999–1.003 | 0.998–1.004 |
+| 6 | 1.006–1.010 | 0.997–1.002 | 0.996–1.003 | 0.998–1.003 |
+
+**No setting is 0.5 % under the served profile on any series but the 256² PET, where 3 decompositions
+save 0.9 %** (0.27 MB); the best per series is 0.990–1.000. LRCP's bytes equal RPCL's on every cell (one
+layer, one tile: only the packet order differs); precincts of 128² cost 0.05–0.07 %, of 256² 0–0.02 %.
+**`imagecodecs`' defaults are the served profile's but for SIZ**: its `htj2k_encode` declares the array's
+container depth, so a 12- or 14-bit series is coded as 16-bit, for 1.0000–1.0017 of the bytes and no
+decode change; the colour transform on RGB is the same.
+
+**Decode** a frame, the product's worker and package, 10 rounds interleaved, 1× and 4×: block size,
+decompositions 3–6, LRCP, precincts and the `imagecodecs` arm are each within the round-to-round spread of
+the served profile: the median paired ratio is 0.80–1.37 and every one of the 162 ranges spans 1; on the
+mammogram and the projections, where decode is the clock (88 ms a frame at 1×, 355 ms at 4×), it is
+0.95–1.06 at 1× and 0.98–1.10 at 4×. 12 400/12 400 frames exact.
+
+**Total time**, the setting with the fewest bytes overall (6 decompositions, 0.997–1.000 of the whole
+series' bytes) against the served one on row TOTAL's fixed links: **×0.99–1.02, a tie in every cell**
+(fluoroscopy, the 12-bit volume and the mammogram, 5/20/50 Mbit, 1× and 4×, n = 8–10, 21 of 360 visits
+`VOID`), every frame exact.
+
+**Kept: the served profile.** No setting wins on total time, and two of the levers cost elsewhere: LRCP
+puts every resolution's packets after the first layer's, which a one-layer stream makes the same as
+RPCL in bytes but which §A prefix draws a smaller image's resolution prefix would lose with more layers,
+and fewer decompositions shorten the ladder §A frame at the level the screen needs reads. A container's
+decode, not a phone's.
+
 ## A prefix draws a smaller image
 
 The fixtures are RPCL, one layer, one tile, five decompositions, so a frame arrives resolution by

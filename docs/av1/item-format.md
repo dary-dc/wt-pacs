@@ -89,7 +89,7 @@ the frame.
   [`lab/av1/codecstr`](../../lab/av1/codecstr/README.md).
 * **dav1d-WASM** (dav1d 1.5.4, emscripten 3.1.74, SIMD build) otherwise — 12-bit top streams, no `VideoDecoder`,
   or a failed probe.
-* Both lazy-imported on the first AV1 item of a worker, memoised; an HTJ2K page fetches no AV1 code.
+* Both imported, and dav1d's glue and WASM fetched, when an AV1 series' decoder starts; each initialised on first use, memoised; an HTJ2K page fetches no AV1 code ([`lab/page-open/README.md`](../../lab/page-open/README.md) §Cold round trips by codec).
 
 ## Built (row 39, branch `claude/av1-unified`)
 
