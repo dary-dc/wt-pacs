@@ -746,6 +746,72 @@ AV1 alike. It needs no change to the product, the wire or the server: it is the 
 downloader already serves first. Nothing adopted; the two round trips are the only cost a viewer pays, and
 the next step is the viewer's, which frames it asks for.
 
+### Under loss and jitter (row LOSSLINK, [`lab/av1/total`](../../lab/av1/total/README.md))
+
+Row TOTAL's harness with the relay adding, on top of each link, **1, 2 or 5 % loss** each way (iid on
+the fixed rates; on `lte-good` its bursts of 3.5 packets at that mean) or **±5 or ±20 ms of jitter** each
+way, in sequence as one radio leg delivers — `link_impair.py` in userspace, as every row before; the
+container has no `tc` (iproute2 is not installed). The 10-bit tomosynthesis volume, HTJ2K against the adopted
+optimized item (top + two low bits, through WebCodecs; 0.944 of HTJ2K's bytes). **Fill and ask apart**, in
+one visit: frames 0–3 filled (2.3 MB), then frames 4–7 asked one at a time once the fill is on the page,
+each timed from the ask to its pixels (a frame ≈ 570 kB). The server's controller is its default,
+`cubic-restart`. 15 rounds Williams-ordered (13 on the loss cells), 1 201 of 1 344 visits kept (143
+`VOID`, 67 of them on `lte-good`), n = 8–15 a cell and arm, **10 752/10 752 frames exact**. HTJ2K's
+fill in s, AV1 ÷ HTJ2K (median of round-paired ratios), and an ask's p50 / p95 in ms, all 1× · 4×:
+
+| link | impairment | HTJ2K fill, s | AV1 ÷ HTJ2K | ask, HTJ2K | ask, AV1 |
+| --- | --- | --- | --- | --- | --- |
+| 5 Mbit | none | 3.78 · 3.84 | 0.95 · 0.97 | 988/1001 · 1035/1076 | 966/979 · 1098/1161 |
+| | 1 % | 5.82 · 5.60 | 1.07 · 0.94 | 1785/2214 · 1784/2407 | 1636/2183 · 1728/2206 |
+| | 2 % | 8.18 · 8.69 | 0.98 · 0.96 | 2426/3035 · 2453/3284 | 2262/2892 · 2396/2991 |
+| | 5 % | 14.1 · 14.3 | 0.92 · 0.89 | 3719/4233 · 3764/4421 | 3474/4211 · 3584/4148 |
+| | ±20 ms | 3.83 · 3.89 | 0.95 · 0.97 | 1002/1019 · 1051/1092 | 981/1002 · 1106/1140 |
+| 20 Mbit | none | 1.12 · 1.14 | 0.95 · 1.07 | 292/304 · 345/383 | 310/327 · 439/491 |
+| | 1 % | 5.16 · 4.35 | 1.03 · 0.94 | 1584/2086 · 1581/2023 | 1481/1988 · 1545/2064 |
+| | 2 % | 7.51 · 7.83 | 0.97 · 0.95 | 2214/2717 · 2237/2733 | 2098/2671 · 2068/2722 |
+| | 5 % | 12.8 · 12.8 | 0.94 · 0.96 | 3309/4065 · 3381/4380 | 3217/3787 · 3284/3920 |
+| | ±20 ms | 1.18 · 1.24 | 0.99 · 1.09 | 316/383 · 365/409 | 328/354 · 462/508 |
+| 50 Mbit | none | 0.62 · 0.68 | 1.02 · 1.21 | 153/166 · 204/245 | 177/196 · 314/361 |
+| | 1 % | 4.04 · 4.08 | 0.94 · 0.93 | 1527/1986 · 1508/1892 | 1366/1839 · 1412/1893 |
+| | 2 % | 7.70 · 7.91 | 0.99 · 0.97 | 2146/2704 · 2230/2762 | 2084/2677 · 2091/2512 |
+| | 5 % | 12.4 · 12.6 | 0.96 · 0.97 | 3311/3867 · 3318/4003 | 3108/3781 · 3124/3757 |
+| | ±20 ms | 0.78 · 0.84 | 1.03 · 1.21 | 172/197 · 224/272 | 200/221 · 321/360 |
+| `lte-good` | none | 1.14 · 1.20 | 0.98 · 1.09 | 274/416 · 312/435 | 289/430 · 400/557 |
+| | 1 %, bursts | 1.42 · 1.71 | 0.98 · 0.99 | 1016/1572 · 991/1531 | 882/1621 · 1076/1512 |
+| | 2 %, bursts | 4.49 · 6.14 | 0.97 · 0.91 | 1473/3454 · 1412/2878 | 1437/8522 · 1565/2520 |
+| | 5 %, bursts | 10.9 · 11.7 | 0.73 · 1.07 | 3146/14093 · 3252/9320 | 2875/8293 · 3187/15458 |
+| | ±20 ms | 1.24 · 1.42 | 0.99 · 1.07 | 310/443 · 315/461 | 332/429 · 412/547 |
+
+±5 ms is ±20 ms's row less: within 20 ms of no jitter on every fixed-rate fill (0.1 s on `lte-good` at 4×) and 7 ms on every ask's median.
+
+* **Under loss the transport is the clock, not the codec.** 1 % turns a 0.62 s fill at 50 Mbit into
+  4.0 s and an ask's 153 ms into 1.5 s; 5 % into 12.4 s and 3.3 s, 20–22× — and the link's rate stops
+  mattering: at 5 % the fill takes 14.1, 12.8 and 12.4 s at 5, 20 and 50 Mbit. That is Cubic halving on
+  loss that is not congestion, the slope [`transport-conclusions.md`](../transport/transport-conclusions.md)
+  §1 (CC1) and §5 (ASKL) measured, here through the whole product with both codecs.
+* **AV1 is its bytes under loss, and its decode cost is hidden.** On the loss cells the optimized item is
+  0.89–0.99 of HTJ2K's fill on 20 of 24 cells and ahead on an ask's median at 1× by 36–271 ms on all 12
+  (at 4× by 36–194 ms on the fixed rates, behind by 85–153 ms on bursty 1–2 %); the 4× decode penalty it pays
+  where a slow CPU meets a fast clean link (1.07–1.26 at 20 and 50 Mbit, none and jitter) is gone under
+  any loss (0.93–0.97). Two cells read over 1: 1 % at 1× on 5 and 20 Mbit, 1.07 and 1.03, slower in 7 of
+  13 and 8 of 12 pairs — a tie in a spread where one loss event is a second; its 4× pairs read 0.94.
+* **Bursty loss is a tail, not a median.** On `lte-good` the medians follow the fixed links' (fewer,
+  longer loss events: 1 % costs a fill 0.3 s, not 2–4 s) but an ask's p95 reaches 8–15 s at 5 % on both
+  codecs, and 8.5 s once at 2 %: a burst that takes a flight's tail waits out a probe timeout. Its 0.73 at 5 % (slower in 4 of
+  11) is that tail, not the codec; at 4× it reads 1.07.
+* **Jitter in sequence costs little**: ±20 ms adds 0.05–0.22 s to a fill and 3–36 ms to an ask's median; the
+  codecs compare as with no jitter.
+* **Saturation** as in row TOTAL: at 4× on 50 Mbit three slowed cores are the clock on the clean and
+  jitter cells; under loss the wire is. Nothing is claimed about a phone or a radio's own loss process.
+
+**Verdict.** On a lossy link HTJ2K against AV1 is decided by bytes: the adopted item is 0.89–0.99 of
+HTJ2K's fill on 20 of 24 loss cells (the other four within one loss event's spread, above) and its 4× decode penalty
+disappears, so loss only widens AV1's lead. What 1–5 % loss costs — 1.5–20× on a fill and 1.8–22× on an
+ask, the more the faster the link — is the controller's, the same for both codecs. *Proposed, not
+built:* the loss cells again with `--congestion bbr`, which the server already takes (CC1: 12–19× faster
+under 1–3 % random loss in a browser) and which stays opt-in for its queue cost (transport-conclusions
+§1); the harness would need only a server argument per arm.
+
 ## Threads (owner, 2026-10-03)
 
 **Focus: AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
