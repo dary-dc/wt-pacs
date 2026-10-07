@@ -212,8 +212,8 @@ each behind its own relay, and prints median [min–max] and the rounds each bea
 [`../scripts/netlog_dial.py`](../scripts/netlog_dial.py). [`dial-blink.mjs`](dial-blink.mjs) is a
 bare `new WebTransport` dial with a relay blackout at a chosen offset into it, or, at the offset
 `swallow`, with exactly the server's first flight dropped (row 61). Both were built for
-lever 2, the server's SETTINGS at 0.5 RTT, and its numbers are
-[`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Lever 2 — the dial
+early SETTINGS, the server's SETTINGS at 0.5 RTT, and its numbers are
+[`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Early SETTINGS — the dial
 this file counts as 3.0 round trips is 2.1 with it.
 
 ```bash
@@ -280,10 +280,10 @@ decision rested on it:* the first two batches served copies written seconds befo
 decoder worker's fetch revalidated in the compressed arms only (brotli +44 / +35 ms, zstd +42 / +14 at
 4×); an earlier version read that as nginx's behaviour. Each copy now carries its source's time.
 
-## The first frame on a real host, with lever 2
+## The first frame on a real host, with early SETTINGS
 
 **PO1, 2026-09-24, `e7211d6`.** The downloader arm from nginx over TLS: `HOST=h1` and `HOST=h2`
-invocations alternated round by round, and inside each, lever 2 on and off (`SERVERS=on=…,off=…`, the
+invocations alternated round by round, and inside each, early SETTINGS on and off (`SERVERS=on=…,off=…`, the
 second this tree without `[patch.crates-io]`). 7 rounds at `RTTS=40,80`, cold and warm. Each stage is
 timed from the previous one; round trips are the slope from 40 to 80 ms, cold, HTTP/2:
 
@@ -296,7 +296,7 @@ timed from the previous one; round trips are the slope from 40 to 80 ms, cold, H
 | frame | 6.5 | 6.2 |
 | **first frame on screen** | **12.65** (720 ms at 40, 1 226 at 80) | **14.35** (738, 1 312) |
 
-**Verdict: lever 2 takes a round trip off the dial in all eight cells** (−77 to −86 ms at 80, 7/7) and
+**Verdict: early SETTINGS takes a round trip off the dial in all eight cells** (−77 to −86 ms at 80, 7/7) and
 the first frame keeps it (−63 to −83 ms, 6/7 or 7/7). **HTTP/2 takes the config's round trip**: on
 HTTP/1.1 the config is 2.15 cold against 0.9, the first frame 1 325 ms at 80 against 1 226; warm they
 tie (alternated, not interleaved). *Corrected 2026-09-27 (H2):* the config's second request, read

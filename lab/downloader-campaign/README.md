@@ -17,7 +17,7 @@ NODE_PATH=$(npm root -g) node lab/downloader-campaign/run.mjs --rounds 8 --out c
 Two arms, one fresh session each: **Dw**, the downloader with decode off — the bytes, delivered from
 its worker; **Dd**, the downloader decoding with three decoders — pixels in a `SharedArrayBuffer`, the
 product path. **H**, the harness's own path (the TS session on the page, a waiter per fill frame), was
-the third arm until its removal on 2026-10-03; its last run is §S4's re-run on `641df69`, and the code
+the third arm until its removal on 2026-10-03; its last run is §The container campaign's re-run on `641df69`, and the code
 is in history there. Five scenarios: a fill of 80
 frames, one cold ask, and a fill with an ask for a frame outside it once 10, 50 or 90 % has landed.
 

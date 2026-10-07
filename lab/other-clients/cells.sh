@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# WP1: lever 2 against every other client this box can run, each through the relay at RTT ms,
+# WP1: early SETTINGS against every other client this box can run, each through the relay at RTT ms,
 # directly and through half_rtt_deaf.py (a client that ignores 0.5-RTT data), against two server
 # builds, everything rotated inside each round. lab/other-clients/README.md
 #
