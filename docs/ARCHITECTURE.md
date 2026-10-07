@@ -230,6 +230,37 @@ must keep both dispatch clauses (asks first, at most `perDecoder` a decoder) whi
 default is measured at two and four cores only.
 A multithreaded decoder is a separate question ([`decode/README.md`](decode/README.md) §Threads).
 
+### The seams, traced (row SEAM, 2026-10-07)
+
+A frame's path, `client/transport-ts` → `downloader.js` → `decoder.js` → `htj2k.js` or `av1.js` →
+`consumer.js`, was read end to end for checks made twice, paths nothing reaches and codec decisions.
+**Merged:** the Emscripten glue's loading, written out in `htj2k.js` and `decode-av1.js`, is
+`wasm-glue.js`; the refusal of a unit that does not follow its predecessor, written out in both AV1
+decoder modules, is `continues()` in `av1-item.js`, each decoder keeping its own last unit. Not
+fewer lines (+26, −16, the new module's header included); what is gained is one place for each. **No dead path was
+found** — every branch is reached by a product option or a clause (row CLIENT's sweep). **The codec
+is decided once:** `consumer.js` refuses an unknown one before a worker starts and `decoder.js`
+routes on it; which AV1 decoder takes an item is `av1.js`'s alone. **Kept, and why:**
+
+* *The owed frames are held twice*, by the transport's fill (to name what a dead session owed) and by
+  the downloader's records (which outlive the session). One owner means a transport API change —
+  structural, not built.
+* *`groupLength` rides the decoder's `init` beside `decoder`*, not inside it: four lab workers speak
+  that message, and folding it would change their protocol for one line.
+* *A truncated envelope (transport) and an undecodable frame (decoder)* are different failures, not
+  one check twice.
+* *Built and not adopted:* groups (`wholeGroups`, `orphaned`, `decoderFor`'s group rule, ~25 lines of
+  `downloader.js`, each decoder's continuity), the preview port (`onPreview`, ~10 lines), `mixed` in
+  `av1.js` (lab/av1/mixdec, 4 lines), `recycleAtBytes` (WebKit's 16 MB stall), `openAsk: false`, and
+  `decode: false` (lab and tests). Each is reached by a clause; none costs a frame that does not use it.
+
+*The fill's time is unchanged*: the HTJ2K frames through `client/downloader/` as it was before the
+row (`downloader_arm.sh 541ceaf`, decoders included) against the tree, row CLIENT's harness and cells,
+10 rounds interleaved, 12 of 160 visits `VOID` dropped, n = 8–10: after / before **1.00** in all 8
+cells (fluoroscopy at 50 Mbit and 1×, 1 723 [1 720–1 736] against 1 725 [1 719–1 729] ms), slower in
+29 of 68 paired rounds, 3 360/3 360 frames exact. The AV1 continuity check was not timed: it is one
+comparison a unit, moved, not added.
+
 ## The consumer
 
 Frames that were asked for are taken at once, fill frames at background priority, so a paint never

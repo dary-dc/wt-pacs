@@ -109,6 +109,6 @@ of every checksum) each turned every arm of all four series to 0 exact.
 
 **Row CLIENT** times a change to the downloader itself: `ARMS=none make_frames.py` (HTJ2K only) for
 `rf_fluoro` and `dbt10_ea1141`, then `downloader_arm.sh f136363^ before` adds an arm running the
-downloader as it was before the row, beside `htj2k` (the tree's), and
+downloader as it was before the row, beside `htj2k` (the tree's), and (row SEAM, `downloader_arm.sh 541ceaf seambefore`) its decoder modules with it, and
 `run.mjs --links r20000,r50000 --arms htj2k,before --rounds 10`. The reading is in
 [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) §The downloader.
