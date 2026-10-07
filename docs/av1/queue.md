@@ -1393,7 +1393,7 @@ names that project.
 **Deliverable:** under this row in this queue (not in `docs/`), the findings partitioned by the row that will fix them —
 84 (names, glossary, environment variables, folder leftovers), 85 (README onboarding, docs, diagrams, duplicates), 86
 (the gate, the stale-build guard, formatting, hygiene, dead code, comments) — each with file:line, and a list of what
-needs the owner (decisions only he can take), added under `## Blocked`.
+needs the owner (decisions only the owner can take), added under `## Blocked`.
 
 ### 84 NAMES
 
