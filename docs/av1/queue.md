@@ -1148,7 +1148,7 @@ corrected in place. **Branch:** `claude/av1` (`llsize` and the fetch are here). 
 
 ## Blocked
 
-* **2026-10-07 03:40 UTC: row 56 LAYOUT's moves wait for rows 44, 59, 60 and 65**, which are still writing in the `lab/av1/` folders it would move: moving them under those sessions would land their next commits in folders that no longer exist. Done and pushed (`f0cb5b8` on `claude/av1-unified`): the five-group tree, every folder's proposed path, in `lab/av1/README.md` §The folders, by what they measure; `lab/README.md` indexes `av1/`; `svcdec/` has a README; `docs/` already sits by subject, nothing to move there. The next session applies the moves with `git mv` once the four are done.
+* **2026-10-07 03:30 UTC: row 56 LAYOUT's moves wait for rows 44, 59, 60 and 65**, which are still writing in the `lab/av1/` folders it would move: moving them under those sessions would land their next commits in folders that no longer exist. Done and pushed (`f0cb5b8` on `claude/av1-unified`): the five-group tree, every folder's proposed path, in `lab/av1/README.md` §The folders, by what they measure; `lab/README.md` indexes `av1/`; `svcdec/` has a README; `docs/` already sits by subject, nothing to move there. The next session applies the moves with `git mv` once the four are done.
 
 * **2026-10-07 01:00 UTC: row 52 INGEST — lossless AV1 bytes depend on `--jobs`.** Ingest codes each worker's frames
   in one aomenc run of keyframes, and libaom carries state across keyframes: on the 10-bit tomosynthesis volume the
