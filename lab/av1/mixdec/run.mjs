@@ -5,7 +5,7 @@
  * (kK), the mixed one (kKm) and w10, against OpenJPH. lab/av1/mixdec/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/mixdec/run.mjs bound|decode [--rounds 12] [--throttles 1,4]
- *     [--frames lab/.av1-work/mixdec] [--sets a,b] [--mutate sample|truth] [--out rows.json] [--summary]
+ *     [--frames lab/.av1-work/mixdec] [--sets a,b] [--mutate sample|truth] [--out rows.json] [--first-round 0] [--summary]
  */
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -50,8 +50,10 @@ async function inChromium(throttle, round) {
 }
 
 const SUMMARY = process.argv.includes("--summary");
-const rows = SUMMARY ? JSON.parse(readFileSync(OUT, "utf8")) : [];
-for (let round = 0; round < ROUNDS && !SUMMARY; round++) {
+const FIRST = Number(arg("--first-round", 0));
+// A later first round adds to the rows OUT holds: a run cut short resumes there.
+const rows = SUMMARY || (FIRST && OUT) ? JSON.parse(readFileSync(OUT, "utf8")).filter((r) => SUMMARY || r.round < FIRST) : [];
+for (let round = FIRST; round < FIRST + ROUNDS && !SUMMARY; round++) {
   for (const throttle of order(THROTTLES, round)) {
     const got = await inChromium(throttle, round);
     for (const r of got) rows.push({ round, throttle, ...r });

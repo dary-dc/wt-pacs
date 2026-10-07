@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The newer tools beside the pinned ones: dav1d-WASM and OpenJPH-WASM under emscripten 3.1.74 and 6.0.11,
-# OpenJPH 0.32.0 native and in WASM beside 0.31.0, and Chromium 154's headless shell. lab/av1/versions/README.md
+# dav1d's and libaom's development heads (no release after 1.5.4 or 3.15.1), OpenJPH 0.32.0 native and in WASM
+# beside 0.31.0, and Chromium 154's headless shell. lab/av1/versions/README.md
 #
 #   lab/av1/versions/build.sh        # everything under lab/.av1-build, nothing committed
 set -euo pipefail
@@ -8,6 +9,8 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD="${BUILD:-$ROOT/lab/.av1-build}"
 declare -A EMSDK_COMMIT=([3.1.74]=3d6d8ee910466516a53e665b86458faa81dae9ba [6.0.11]=dd8e25632640cfc1fb570c7fa4cc374e8a5e5a72)
 declare -A OJPH_COMMIT=([0.31.0]=c68064d0e4cad8e96bab9a068f6cc4e7799744fc [0.32.0]=23c422895ce6c3a156935222e4715ee0b7be952c)
+DAV1D_HEAD=7f12cf23560430c02a83e67bb68eec74d93ce5fd
+AOM_HEAD=4cea455cabe16fabad4a8020b4dee269d157f0ef
 CHROME=154.0.8037.92
 CHROME_SHA256=636aa5c79f2693632e9921b8bbb050038ba11672e02346c06c20f991aed096f9
 
@@ -15,6 +18,13 @@ pinned() {
   local url=$1 tag=$2 commit=$3 dir=$4
   [[ -d "$dir" ]] || git -c advice.detachedHead=false clone -q --depth 1 --branch "$tag" "$url" "$dir"
   [[ "$(git -C "$dir" rev-parse HEAD)" == "$commit" ]] || { echo "$url $tag is not $commit" >&2; exit 2; }
+}
+
+at() {
+  local url=$1 commit=$2 dir=$3
+  [[ -d "$dir" ]] || { git init -q "$dir" && git -C "$dir" fetch -q --depth 1 "$url" "$commit" \
+    && git -C "$dir" -c advice.detachedHead=false checkout -q FETCH_HEAD; }
+  [[ "$(git -C "$dir" rev-parse HEAD)" == "$commit" ]] || { echo "$dir is not $commit" >&2; exit 2; }
 }
 
 # One build root per emscripten; dav1d-wasm/build.sh finds its emsdk already there.
@@ -25,6 +35,21 @@ for em in "${!EMSDK_COMMIT[@]}"; do
     || (cd "$b/emsdk" && ./emsdk install "$em" >/dev/null && ./emsdk activate "$em" >/dev/null)
   [[ -f "$b/out/simd.wasm" ]] || BUILD="$b" EMSCRIPTEN_VERSION="$em" ARMS=simd "$ROOT/lab/av1/dav1d-wasm/build.sh"
 done
+
+b="$BUILD/em-6.0.11-dav1d-head"
+at https://github.com/videolan/dav1d.git "$DAV1D_HEAD" "$b/dav1d-src"
+[[ -e "$b/emsdk" ]] || ln -s "$BUILD/em-6.0.11/emsdk" "$b/emsdk"
+[[ -f "$b/out/simd.wasm" ]] || BUILD="$b" EMSCRIPTEN_VERSION=6.0.11 DAV1D_TAG=head DAV1D_COMMIT="$DAV1D_HEAD" ARMS=simd \
+  "$ROOT/lab/av1/dav1d-wasm/build.sh"
+
+if [[ ! -x "$BUILD/aom-head/bin/aomenc" ]]; then
+  at https://aomedia.googlesource.com/aom "$AOM_HEAD" "$BUILD/aom-head-src"
+  cmake -S "$BUILD/aom-head-src" -B "$BUILD/aom-head-b" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="$BUILD/aom-head" -DENABLE_TESTS=0 -DENABLE_DOCS=0 -DENABLE_TOOLS=0 >/dev/null
+  cmake --build "$BUILD/aom-head-b" -j"$(nproc)" >/dev/null
+  cmake --install "$BUILD/aom-head-b" >/dev/null
+fi
+"$BUILD/aom-head/bin/aomenc" --help 2>&1 | grep "AV1 Encoder"
 
 for v in "${!OJPH_COMMIT[@]}"; do
   src="$BUILD/ojph-$v"
