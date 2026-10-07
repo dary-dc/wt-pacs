@@ -22,6 +22,8 @@ const after = [];
 const pixels = new Map();
 const previewPixels = new Map();
 let issuedAt = 0;
+const quiet = [];
+new BroadcastChannel("quiet").onmessage = (e) => quiet.push(e.data);
 
 async function sha256(sab) {
   // SubtleCrypto refuses a view on shared memory.
@@ -42,12 +44,13 @@ async function finish(client) {
       failures.push({ i, reason: String(e?.message ?? e) });
     }
   }
+  const { resumedAt } = client.stats();
   client.close();
   const sha = {};
   for (const [i, px] of pixels) sha[i] = await sha256(px);
   const previewSha = {};
   for (const [i, px] of previewPixels) previewSha[i] = await sha256(px);
-  globalThis.__result = { issuedAt, frames, failures, sha, previews, previewSha, after };
+  globalThis.__result = { issuedAt, frames, failures, sha, previews, previewSha, after, resumes: resumedAt.length, quiet: [...quiet] };
 }
 
 const exact = (f) => {
