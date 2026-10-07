@@ -87,6 +87,8 @@ function arm(set, name) {
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth,
       opts: { decoder: { ...OPENJPH, ...layered }, ...(a.worker && { decoderWorker: a.worker }),
+        // Row ASKDEADLINE: the downloader's survival deadlines, and a transport that reports its silences.
+        ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
         // A `downloader` arm runs that revision of the downloader (row CLIENT).
         ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }) } };
   }
@@ -215,6 +217,9 @@ async function visit(set, variant, linkName, impairment, throttle, round) {
     failure: r.failures[0]?.reason,
     exact: [...r.frames, ...r.after].filter((f) => r.sha[f.i] === truth[f.i]).length,
     afterMs: r.after.map((f) => Math.round(f.ms)),
+    resumes: r.resumes,
+    survived: r.quiet?.filter((q) => q.survived).map((q) => Math.round(q.survived)),
+    closedAfter: r.quiet?.filter((q) => q.closedAfter).map((q) => Math.round(q.closedAfter)),
     firstMs: Math.round(t("page", Math.min)),
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
@@ -272,7 +277,12 @@ for (const { set: name, link: l, impairment, throttle } of cells) {
     if (rs[0].previews !== undefined) s += ` shown ${span(rs.map((r) => r.shownMs))} previews ${all.reduce((n, r) => n + (r.previewExact ?? 0), 0)}/${all.length * set.frames} as native`;
     s += ` all ${span(rs.map((r) => r.decodedMs))} n=${rs.length} exact ${exact}`;
     const after = rs.flatMap((r) => r.afterMs ?? []);
-    if (after.length) s += ` ask p50 ${quantile(after, 0.5)} p95 ${quantile(after, 0.95)} (${after.length})`;
+    if (after.length) s += ` ask p50 ${quantile(after, 0.5)} p95 ${quantile(after, 0.95)} max ${Math.max(...after)} (${after.length})`;
+    if (rs[0].resumes !== undefined) {
+      const survived = rs.flatMap((r) => r.survived ?? []);
+      s += ` failed ${all.reduce((n, r) => n + (r.failures ?? 0), 0)}, resumed ${rs.reduce((n, r) => n + r.resumes, 0)} in ${rs.filter((r) => r.resumes).length}` +
+        `, silences survived ≥ 1 s ${survived.length} (≥ 3 s ${survived.filter((g) => g >= 3000).length}, max ${survived.length ? Math.max(...survived) : 0} ms)`;
+    }
     const d = rs.filter((r) => a !== REF && ref.has(r.round)).map((r) => r.decodedMs / ref.get(r.round));
     if (d.length) s += ` ×${med(d).toFixed(2)} (slower ${d.filter((x) => x > 1).length}/${d.length})`;
     const seq = new Map(of(a.split("@")[0]).map((r) => [r.round, r]));
