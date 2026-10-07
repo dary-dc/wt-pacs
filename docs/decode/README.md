@@ -270,6 +270,11 @@ exports `OpenJPHModule` where the package exports `Module`, which `decoder.js` h
 predates §The range in the pack**; that win reaches a page only once this is rebuilt from the
 current wrapper, and the hashes above are of the build before it.
 
+**Threaded, adopted by row HTJ2KMT** (§Code-blocks on threads, measured): the same wrapper over OpenJPH with
+`lab/av1/fasthtj2k/cb-threads.patch` applied and one helper thread, built as the row's README does with
+`ARMS=deliver EXTRA_FLAGS="-pthread -DOJPH_CB_THREADS=1 -sPTHREAD_POOL_SIZE=1"`. It needs the page
+cross-origin isolated, which the consumer already requires. Not delivered yet: no hashes until it is.
+
 ## A second decoder
 
 "OpenJPH is fast enough" rested on nothing until it was benched against **OpenHTJ2K**, the other
@@ -460,7 +465,8 @@ One multithreaded instance at N threads against N single-threaded ones **cannot 
 0.31.0** without writing the threading: `src/core/` contains no thread, mutex or atomic, so one
 frame's decode is serial by construction; the only threading is a frame-level pool in the
 `ojph_stream_expand` app, which upstream's CMake excludes under emscripten. Where parallelism inside
-one frame could go, and what it would buy, is §The decode tail on a slow CPU (b).
+one frame could go, and what it would buy, is §The decode tail on a slow CPU (b). *Since built:* a
+patched pool of code-block helpers, §Code-blocks on threads, measured.
 
 ## Dispatch
 
@@ -1216,6 +1222,58 @@ Android 121+, iOS 26) leaves the 55–70 % in the block decoder on the CPU unles
 ported, and the bytes to and from the GPU cost more than the wavelet it would take; ported, it bounds at
 42–67 % of a breast frame from 931×2124 up (§A WebGPU block decoder, bounded). None of this is
 measured on a phone; the 4× cell is the container's emulation (§A slow CPU, emulated).
+
+## Code-blocks on threads, measured
+
+Queue row HTJ2KMT: row FASTHTJ2K's lab pool (`lab/av1/fasthtj2k/cb-threads.patch`, a row of code-blocks
+decoded by the caller and 1 or 3 helpers) measured on frames from 512² to 3328×4096, through the product's
+decoder worker in a fill, and in memory. [`lab/av1/htj2kmt`](../../lab/av1/htj2kmt/README.md) runs it.
+
+**A frame** — an ask on an idle decoder. Headless Chromium 141 on 4 cores, each build in a worker, the
+first 4 frames of eight series, 10 rounds × 3 passes, Williams-ordered; 2 560/2 560 frames exact. ms a
+frame, median of round medians; × the single-threaded build paired by round (rounds faster):
+
+| series | 1 thread 1× | 2 threads 1× | 4 threads 1× | 1 thread 4× | 2 threads 4× | 4 threads 4× |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| MR 512² | 3.9 | ×0.88 (6/10) | ×0.88 (7/10) | 16.4 | ×0.91 (7/10) | ×0.92 (6/10) |
+| fluoroscopy 768² | 8.0 | ×0.94 (5/10) | ×0.96 (6/10) | 30.6 | ×0.81 (9/10) | ×0.88 (8/10) |
+| ultrasound 760×421 RGB | 9.1 | ×0.95 (6/10) | ×1.09 (3/10) | 45.3 | ×0.93 (9/10) | ×0.99 (6/10) |
+| tomosynthesis 614×1359 | 8.6 | ×0.93 (6/10) | ×1.03 (5/10) | 36.2 | ×0.98 (7/10) | ×1.02 (4/10) |
+| tomosynthesis 931×2124 | 15.7 | ×0.89 (7/10) | ×1.16 (4/10) | 68.4 | ×0.95 (8/10) | ×0.97 (6/10) |
+| projections 1914×2572 | 63.2 | **×0.70 (10/10)** | **×0.62 (9/10)** | 308 | **×0.70 (10/10)** | **×0.62 (10/10)** |
+| synthesized 2D 2394×2850 | 61.3 | **×0.74 (9/10)** | **×0.74 (9/10)** | 267 | **×0.79 (10/10)** | **×0.73 (10/10)** |
+| full-field 3328×4096 | 74.1 | ×0.94 (6/10) | ×0.84 (6/10) | 337 | **×0.83 (10/10)** | **×0.87 (10/10)** |
+
+`-pthread` alone: ×0.88–1.15, the sign changing by series, as row FASTHTJ2K found. **Two threads take
+17–30 % off every frame from 1914×2572 up at 4×, in every round**; under that the gain is 2–19 % and not in
+every round. Four threads beat two only on the projections and lose to them under 1914×2572.
+
+**A fill** — row TOTAL's harness, whole series through the product's downloader and three decoder
+workers on 3 cores (helpers share cores with other decoders), 50 Mbit and `lte-good`, 10 rounds,
+9 600/9 600 frames exact; 329 of 640 visits VOID on the relay's timing, so these are all visits, each
+cell n = 10 (the VOID-dropped medians agree). Every frame on the page, × the single-threaded build:
+
+| series | 2 threads 50M 1× | 2 threads 50M 4× | 2 threads LTE 4× | 4 threads 50M 4× | package 50M 4× |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| fluoroscopy 18 × 768² | ×1.000 | ×0.997 | ×1.000 | ×1.007 | ×1.005 |
+| tomosynthesis 29 × 614×1359 | ×0.998 | ×1.001 | ×1.001 | ×1.004 | ×1.013 |
+| projections 9 × 1914×2572 | ×0.997 | ×0.987 (9/10) | ×0.994 (9/10) | ×0.990 | ×1.015 |
+| full-field 4 × 3328×4096 | ×0.998 | **×0.975 (10/10)** | ×0.987 (9/10) | ×0.983 | ×1.084 |
+
+**On these links the wire is a fill's clock** (1.7–14.7 s) and threads move it by under 3 %, the most on
+the largest frames at 4×, slower nowhere. The package the product loads today is 0.5–8 % slower than the
+same OpenJPH built here (§The range in the pack), the most on the largest frames at 4×.
+
+**Memory** — row FOOTPRINT's method, 1 and 3 workers, `ffdm_d` and `dbtproj_ge`, 250/250 frames exact;
+n = 1–2 rounds (the run stopped at its time limit). RSS slope a worker: single-threaded 40.6 and 25.9 MB,
+**2 threads +2.2 and +2.5 MB**, 4 threads +6.3 and +6.9 MB. The page's JS+WASM measure is 9 MB higher a
+worker with threads on the mammograms (57.9 against 48.6 at one worker), equal on the projections.
+
+**Adopted: two threads, one helper, as the delivered build** (§The build, as delivered); four are not —
+more memory, and slower than two under 1914×2572. A decoder worker loads a threaded build with no other
+change than `htj2k.js` handing it its glue's URL for its helper (without it the helper starts from the
+decoder worker's own script and the series never fills). The product's harnesses still load the package
+until a consumer delivers the build. **It is an ask's lever:** a fill on these links gains ≤ 3 %.
 
 ## A prefix draws a smaller image
 
