@@ -867,6 +867,16 @@ The stock example encodes 8- and 10-bit 4:2:0 only; 12-bit, 4:4:4 and 4:0:0 need
 command line (the library unchanged), kept in the lab. A downscaled layer has no truth outside the
 encoder and is not compared. Lossless here costs 1.07–1.58 of HTJ2K's bytes at L1T1.
 
+**Newer tools (row VERSIONS; [`lab/av1/versions`](../../lab/av1/versions/README.md)), read 2026-10-07.** No
+libaom, SVT-AV1 or dav1d release followed our pins (3.15.1, v4.2.0, 1.5.4). **libaom's head (`4cea455c`) writes
+the same bytes as 3.15.1** on all 22 breast and control cells, cpu0 and the shipped preset (80/80 items
+identical, every one exact). dav1d's head and emscripten 6.0.11 tie on dav1d-WASM decode (pooled 0.98–1.01,
+Chromium 141 and 154, 1× and 4×). OpenJPH under emscripten 6.0.11 is 0.94–0.96 of 3.1.74's time pooled, inside
+this harness's spread at 6 rounds; not adopted. OpenJPH 0.32.0 fixes a WASM decoder mask that breaks 24-bit
+reversible code-blocks; ≤ 16-bit data cannot reach it (deep-bit-plane frames exact on both, 12/12). Chromium 154
+still refuses 12-bit AV1 in WebCodecs, now read from its source: its key-frame check parses with a libgav1 built
+for 10 bits. 8 640/8 640 frames exact. Nothing adopted, no pin changed.
+
 ## Decided
 
 * **Bit-exact or nothing**: a codec, depth or decoder path that does not round-trip exactly is not
