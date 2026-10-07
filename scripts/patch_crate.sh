@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A crates.io crate with its patch from patches/ applied, into DIR. Run by patched/CRATE/build.rs;
-# why each patch exists: docs/ARCHITECTURE.md §Lever 2 and §What lever 2 costs, and for quinn
+# why each patch exists: docs/ARCHITECTURE.md §Early SETTINGS and §What early SETTINGS cost, and for quinn
 # docs/transport/transport-conclusions.md §4.
 #
 #   scripts/patch_crate.sh CRATE DIR [--copy-src SRC]   SRC receives the patched modules

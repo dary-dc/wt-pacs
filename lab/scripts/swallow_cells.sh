@@ -2,7 +2,7 @@
 # FF1: a cold native dial when the relay swallows exactly the server's first flight, against a
 # clean dial, for two or more server binaries, in a Williams order inside every round
 # (lab/scripts/order.py).
-# Results: docs/ARCHITECTURE.md §What lever 2 costs.
+# Results: docs/ARCHITECTURE.md §What early SETTINGS cost.
 #
 #   SERVERS=a=BIN,b=BIN [RTTS="40 80"] [SWALLOW_MS=50] [TRACE=DIR] lab/scripts/swallow_cells.sh [rounds]
 #

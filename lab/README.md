@@ -15,6 +15,7 @@ cites; the doc holds the number, the directory holds how to get it. Arms are int
 | `disk-access-bench/` | the server's read path — `docs/adr/disk-access.md` |
 | `telemetry-bench/`, `telemetry-cost/` | what telemetry costs — `docs/adr/telemetry-*.md` |
 | `clock-resolution/`, `idle-sessions/` | the browser's clock floor and what an idle session survives — `docs/rig-limits.md` §6, `docs/adr/transport-idle-sessions.md` |
+| `av1/` | the AV1 phase: tools, exactness, bytes, decode and delivery — `av1/README.md` §The folders, by what they measure, `docs/av1/README.md` |
 | `fixtures/`, `traces/` | studies and link traces the cells use |
 
 Older campaign drivers are on tag `archive/transport-lab-2026-09`.

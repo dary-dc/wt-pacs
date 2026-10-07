@@ -877,6 +877,13 @@ reversible code-blocks; ≤ 16-bit data cannot reach it (deep-bit-plane frames e
 still refuses 12-bit AV1 in WebCodecs, now read from its source: its key-frame check parses with a libgav1 built
 for 10 bits. 8 640/8 640 frames exact. Nothing adopted, no pin changed.
 
+**JPEG XL (row JXL, [`lab/av1/jxl`](../../lab/av1/jxl/README.md); [`decode/README.md`](../decode/README.md) §JPEG
+XL).** libjxl 0.12.0 is exact at every effort 1–7 and `--faster_decoding` 0–4 from 8 to 16 bits. No setting is both
+smaller and as fast as HTJ2K: e1 is 0.94–1.03 of the bytes at 1.03–1.91× OpenJPH's decode in WASM, e7 f3 0.91–0.98 at
+1.56–2.45×, the default 0.81–0.96 at 5.35–10.0× (0.53 on a 16-bit film scan). Native decoding (Chromium 154 behind a
+flag, Firefox 157 behind a pref, none in WebKitGTK) returns 8-bit samples only, exact on 8-bit grey and RGB. Not
+adopted.
+
 ## Decided
 
 * **Bit-exact or nothing**: a codec, depth or decoder path that does not round-trip exactly is not

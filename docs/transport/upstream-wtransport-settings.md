@@ -2,7 +2,7 @@
 
 **A draft, not posted.** The owner posts it, or does not. Below are an issue and a pull-request
 description for [BiagioFesta/wtransport](https://github.com/BiagioFesta/wtransport), written from
-[`ARCHITECTURE.md`](../ARCHITECTURE.md) §Lever 2, whose numbers they quote.
+[`ARCHITECTURE.md`](../ARCHITECTURE.md) §Early SETTINGS, whose numbers they quote.
 Before posting: check for an open issue or PR again (none on 2026-09-23, §Upstream there), and
 rebase the patch onto the release current then. [#324](https://github.com/BiagioFesta/wtransport/pull/324)
 touches `open_and_send_settings`, which this patch starts earlier.

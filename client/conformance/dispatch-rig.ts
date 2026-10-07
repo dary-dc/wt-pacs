@@ -1324,8 +1324,8 @@ async function aScalableFrameShowsItsBaseThenItsExactFrame(
   log: (line: string) => void,
 ) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 scalable — no ${AV1_DIR} (lab/av1/dav1d-wasm/build.sh)`);
-  const arms = [["l2g1", 4, undefined, true], ["l2g8x20", 20, 8, false]] as const;
-  for (const [set, n, groupLength, ask] of arms) {
+  const sets = [["l2g1", 4, undefined, true], ["l2g8x20", 20, 8, false]] as const;
+  for (const [set, n, groupLength, ask] of sets) {
     const what = `scalable ${set}, ${ask ? "asked" : "filled"}`;
     const r = await scalableThrough(DownloaderClient, await scalableUnits(set, n), { groupLength, mode: "none", ask });
     const all = range(0, n - 1);
