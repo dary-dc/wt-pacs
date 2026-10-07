@@ -1645,7 +1645,7 @@ on the same frames at 1× (range 0.67–1.12, faster in 9 of 10 rounds) and 0.62
 a container's times, not a phone's. Chromium is unchanged: it returns `I444`, and its frames and choice stay as before. Three
 mutations failed the new checks: G and B swapped, the RGB path removed, and grey taken as RGB.
 
-**Proposed, not built: 8-bit grey coded as full-range 4:2:0.** The ingest would code 8-bit grey with mid-grey
+**Proposed: 8-bit grey coded as full-range 4:2:0.** *Built and measured since (row GREY420), not adopted:* every reader path takes it as grey, Firefox's frames reach the page through WebCodecs exactly, and its slow-CPU fills gain 13–26 % on fast links while Chromium's lose 0.2–3.4 % ([`docs/av1/item-format.md`](../av1/item-format.md) §8-bit grey as 4:2:0). The ingest would code 8-bit grey with mid-grey
 chroma and the full-range flag instead of 4:0:0. The cost is +0.07 % bytes on the ultrasound's grey (+0.06 %
 at 10 bits). The client would take `BGRX` with R = G = B as grey. Chromium still returns `I420` with neutral
 chroma, which `read()` already takes. In Firefox this would make every 8-bit grey series exact through

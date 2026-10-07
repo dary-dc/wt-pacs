@@ -3,7 +3,7 @@
 8-bit grey coded as full-range 4:2:0 with mid-grey chroma instead of 4:0:0, so Firefox's WebCodecs returns it
 exactly (row XENGINE: Firefox refuses monochrome, and expands limited-range grey on its way to RGB). Queue row 80
 (GREY420) of [`docs/av1/queue.md`](../../../docs/av1/queue.md); the decision is in
-[`docs/av1/item-format.md`](../../../docs/av1/item-format.md).
+[`docs/av1/item-format.md`](../../../docs/av1/item-format.md) §8-bit grey as 4:2:0.
 
 ```bash
 lab/av1/tools.sh && ARMS=simd lab/av1/dav1d-wasm/build.sh && lab/av1/item/build.sh
@@ -77,9 +77,51 @@ median of round-paired ratios [range], rounds slower:
 
 One decoder at a time on four cores: nowhere near the host's saturation. Containers, not phones.
 
-## Total time
+## Total time (2026-10-07)
 
-*Running.*
+`lab/av1/total`'s harness: each series filled whole through the downloader against the real server behind the
+relay, the browser on three cores and the relay on the fourth, Chromium on row TOTAL's five links and Firefox on
+the three it can dial (below). 17 rounds, each engine's cells in a Williams order, the engines taking turns to go
+first; 265 of 1 632 visits `VOID` (the relay's own timing) and dropped, **n = 7–17 a cell and arm. Every frame
+that reached the page was exact, 75 760 of 75 888**; the other 128 are two Firefox visits that got no frame at all
+(one dial timeout at 50 Mbit, one fill that never ended). Seconds to every frame on the page, HTJ2K's median; then
+medians of round-paired ratios, 1× · 4×:
+
+| engine | series | link | HTJ2K, s | 4:0:0 ÷ HTJ2K | 4:2:0 ÷ 4:0:0 |
+| --- | --- | --- | --- | --- | --- |
+| Chromium | `usb_cine` | 5 Mbit | 8.22 · 8.22 | 0.891 · 0.893 | 1.002 · 1.003 |
+| | | 20 Mbit | 2.18 · 2.19 | 0.900 · 0.910 | 1.003 · 1.002 |
+| | | 50 Mbit | 1.02 · 1.04 | 0.928 · 1.058 | 1.013 · **1.034** (14/15 slower) |
+| | | LTE | 2.14 · 2.13 | 0.907 · 0.977 | 1.003 · **1.034** (10/11) |
+| | | Wi-Fi | 2.81 · 2.84 | 0.895 · 0.901 | 1.001 · 0.999 |
+| | `usb_still` | 5 Mbit | 2.24 · 2.25 | 1.009 · 1.016 | 1.003 · 1.004 |
+| | | 20 Mbit | 0.68 · 0.68 | 1.010 · 1.045 | 1.004 · 1.004 |
+| | | 50 Mbit | 0.47 · 0.46 | 1.011 · 1.064 | 1.005 · 1.016 |
+| | | LTE | 0.67 · 0.76 | 0.998 · 1.039 | 1.002 · 0.988 |
+| | | Wi-Fi | 0.81 · 0.81 | 1.012 · 1.040 | 1.004 · 1.014 |
+| Firefox | `usb_cine` | 50 Mbit | 1.02 · 1.02 | 0.957 · 1.837 | 1.022 · **0.755** (0/13 slower) |
+| | | LTE | 1.96 · 1.80 | 0.926 · 1.024 | 0.985 · **0.867** (0/9) |
+| | | Wi-Fi | 2.81 · 2.81 | 0.903 · 0.936 | 0.991 · 0.990 |
+| | `usb_still` | 50 Mbit | 0.47 · 0.47 | 1.075 · 1.407 | 1.028 · 1.018 |
+| | | LTE | 0.77 · 0.63 | 1.025 · 1.429 | 0.997 · **0.741** (0/5) |
+| | | Wi-Fi | 0.82 · 0.84 | 1.009 · 1.120 | 1.009 · 0.954 |
+
+* **Chromium pays for 4:2:0 on every cell where it differs.** Where the wire is the clock it is the bytes,
+  +0.2–0.5 %, slower in most rounds (16/16 on the cine at 5 Mbit). At 4× on the two fast links the cine's fill
+  is 3.4 % longer, slower in 24 of 26 rounds: WebCodecs decoding the chroma is the clock there.
+* **Firefox gains only where a slow CPU meets a fast link**: at 4× the cine fills in 0.755 of its 4:0:0 time on
+  50 Mbit and 0.867 on LTE, the stills in 0.741 on LTE (n = 5 pairs) — dav1d-WASM was the clock and WebCodecs
+  takes it off. At 1×, and on Wi-Fi, ±3 %. The first frame is 13 ms later at 1× and 72 ms sooner at 4× (medians).
+* 8-bit grey AV1 against HTJ2K, either form: the cine fills in 0.89–0.93 of HTJ2K's time wherever the wire is
+  the clock, the stills within 1–2 %; at 4× on fast links HTJ2K wins (Chromium 1.04–1.11; Firefox 4:0:0 up to 1.84, 4:2:0 up to 1.44).
+* **Saturation**: at 4× on 50 Mbit and LTE the browser's three slowed cores are the clock for every AV1 arm; nothing
+  past that is claimed. Containers, not phones.
+
+**Firefox and the fixed-rate links.** On the relay's fixed 5 Mbit link every Firefox dial failed, and on 10, 20 and
+30 Mbit some did: Firefox completes its side of the handshake and sends the session's `CONNECT`, but the server
+never finishes the QUIC handshake (no connection driver starts in its debug log), and the downloader's 5 s dial
+deadline closes it, five tries running. Chromium dials every link. Not this row's to fix; Firefox's fills here are
+on 50 Mbit, LTE and Wi-Fi only.
 
 **Checked.** The reader's new paths each failed a test when broken: dav1d-WASM refusing 4:2:0, a wrong mid
 value, three planes returned for grey (`av1.test.mjs`); no range check, no R = G = B check, no grey from RGB, and
