@@ -42,7 +42,10 @@ def fill_load(port, items, ext, n, rate, pid, mutate=False):
     cmd = ["taskset", "-c", CLIENT_CPUS, f"{BIN}/fill_load", "--url", f"https://127.0.0.1:{port}/",
            "--items", items, "--ext", ext, "--sessions", str(n), "--read-bps", str(rate),
            "--server-pid", str(pid)] + (["--mutate"] if mutate else [])
-    return subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, 1, "", "no result in 600 s")
 
 
 def run(args):
