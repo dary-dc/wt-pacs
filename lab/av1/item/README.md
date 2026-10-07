@@ -61,7 +61,7 @@ check moved in-process (`decode.cpp`). `bench.py` sets it against a checkout of 
 
 * **Every output byte as before.** `bench.py same` at `good:6`, `--jobs 4`: all 23 sets fetched for rows 2, 45 and
   46 (the nine of row 2, the breast family's fourteen), HTJ2K, AV1 plain and AV1 optimized — **69/69 cells
-  identical** by each file's SHA-256, 4 296 files a side; `ffdm_d`'s two AV1 cells at `--jobs 1`, since four
+  identical** by each file's SHA-256, 2 088 files a side; `ffdm_d`'s two AV1 cells at `--jobs 1`, since four
   aomenc at once on its 13.6 M-sample frames (3.5 GB each) exceed the container's memory, old and new alike.
 * **The check, in-process: 0.63–0.84 of the subprocess's time a frame on AV1, 0.37–0.46 on HTJ2K**, every cell's
   range disjoint (n = 3, arms interleaved, `bench.py check`, a stream's first unit): fluoroscopy 40.1 → 29.9 ms
