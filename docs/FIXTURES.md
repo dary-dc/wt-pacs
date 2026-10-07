@@ -168,6 +168,11 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
   `openneuro.org`, `data.kitware.com`, `www.ebi.ac.uk`. `github.com` and `api.github.com` answer 403;
   `raw.githubusercontent.com` answers. pydicom's test data (MIT) holds DICOM test files, none of the missing
   content.
+* **Row POCGAP's two 10-bit DBT series, not fetched (2026-10-07):** the UPMC breast tomography collection on
+  D. Clunie's public archive (`dclunie.com/pixelmedimagearchive`, its Case22 137 MB, MD5-listed, served from
+  `dl.dropbox.com`) states no licence; TCIA's Breast-Cancer-Screening-DBT (DOI 10.7937/E4WT-CD02, holding
+  DBT-P01237) is CC BY-NC 4.0 on every file group. Both pages answered; neither licence is CC BY or CC0, so
+  the row measured `dbt10_ea1141` and `dbt10_d` alone and the choice is the owner's (queue §Blocked).
 * **The breast family, per target series** (row BREAST): bits after the offset (the series' minimum, measured over
   every frame, never `BitsStored`). **Nothing presented or reconstructed exceeds 12 bits; only the raw projections
   (14) and the digitized film (16, a ~12-bit scan stretched) do.**
