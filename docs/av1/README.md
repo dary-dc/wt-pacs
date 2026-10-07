@@ -384,6 +384,19 @@ ahead where w10's four low bits cost bytes (the 14-bit projections, 0.91–1.02)
 two CTs where today loses 18–23 %. Containers, not phones; whether the flag becomes the client's choice is the
 owner's.
 
+*The split per depth, by bytes, decode and total time (row SPLITTIME, [`lab/av1/splittime`](../../lab/av1/splittime/README.md)).*
+Eleven real series of 9–16 bits, every arm k a rule could pick (d12 = max(0, b − 12), 2, 3, w10 = max(0, b − 10)),
+every frame exact: 59 280/59 280 decoded through `decoder.js` and 246 760/246 760 filled on row TOTAL's harness.
+**WebCodecs' arm decodes fastest on every series** (1.59–4.12× HTJ2K's time a frame, dav1d-WASM's 12-bit top
+5.6–11.6×), and by total time the layout per depth is: **9 bits k = 0** (the samples whole, 0.93–1.01 of HTJ2K's
+fill; k = 2 and 3 1.01–1.07); **10 bits k = 2** (0.95–0.99); **11 bits a tie** of k = 1–3 (0.99–1.02); **12 bits
+k = 3 or 2** within 0.02 of each other (0.94–1.02); **13 bits k = 3 = w10** on every cell (0.91–0.98, first frame
+within 20 ms of HTJ2K's), where k = 2 takes 1.66–1.68 at 4× on 50 Mbit; **14 bits k = 2 or 3** where the wire is
+the clock (0.92–0.99) and HTJ2K where a slow CPU meets 20 Mbit or more (k = 2 1.02–1.69, w10 1.01–1.13); **15 and 16
+bits HTJ2K on every cell** (w10 1.02–1.16, d12 1.08–3.11). The adopted k = 2 is the rule at 10–12 and 14 bits, and
+loses only at 9 bits (to the whole samples) and at 13 (to k = 3) — adopted by row 72 as ingest's rule,
+[`item-format.md`](item-format.md) §The split per depth. Containers, not phones.
+
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never
@@ -811,6 +824,33 @@ ask, the more the faster the link — is the controller's, the same for both cod
 built:* the loss cells again with `--congestion bbr`, which the server already takes (CC1: 12–19× faster
 under 1–3 % random loss in a browser) and which stays opt-in for its queue cost (transport-conclusions
 §1); the harness would need only a server argument per arm.
+
+### The split per depth (row SPLITTIME, [`lab/av1/splittime`](../../lab/av1/splittime/README.md))
+
+Row TOTAL's harness on cpu0 items of eleven real series at every arm k, HTJ2K in each cell; 13–16 bits on all
+five links (12 rounds, n = 10–12 a cell but one, 204 160/204 160 frames exact), 9–12 bits on the fixed links (10
+rounds, n = 8–10, 42 600/42 600). Round-paired ratios to HTJ2K's time to every frame, 1× · 4×; the best arm per
+series on every cell:
+
+| b | series | best arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 16 | mammogram | w10 (k6) | 1.02 · 1.03 | 1.06 · 1.09 | 1.13 · 1.16 | 1.08 · 1.11 | 1.04 · 1.06 |
+| 15 | PET | w10 (k5) | 1.04 · 1.04 | 1.04 · 1.04 | 1.04 · 1.16 | 1.04 · 1.04 | 1.06 · 1.03 |
+| 14 | projections, system 1 | k3 | 0.95 · 0.98 | 0.98 · 1.10 | 1.04 · 1.66 | 0.94 · 1.08 | 0.97 · 1.06 |
+| 14 | projections, system 2 | k2 | 0.93 · 0.95 | 0.95 · 1.02 | 0.98 · 1.53 | 0.95 · 1.04 | 0.92 · 0.98 |
+| 13 | CT | k3 = w10 | 0.93 · 0.93 | 0.93 · 0.94 | 0.94 · 0.95 | 0.95 · 0.96 | 0.97 · 0.93 |
+| 13 | cone-beam | k3 = w10 | 0.95 · 0.95 | 0.95 · 0.96 | 0.96 · 0.97 | 0.96 · 0.98 | 0.96 · 0.91 |
+| 12 | fluoroscopy | k3 | 0.94 · 0.95 | 0.95 · 0.97 | 0.96 · 1.01 | | |
+| 12 | tomosynthesis 12-bit | k3 | 0.94 · 0.94 | 0.94 · 0.95 | 0.95 · 0.97 | | |
+| 11 | MR | k2 | 0.99 · 0.99 | 0.99 · 0.99 | 0.99 · 1.01 | | |
+| 10 | tomosynthesis 10-bit | k2 | 0.95 · 0.95 | 0.95 · 0.96 | 0.96 · 0.99 | | |
+| 9 | MR, 9 bits | k0 | 0.93 · 0.95 | 0.94 · 0.95 | 0.98 · 1.01 | | |
+
+**Verdict, SPLITTIME:** k = 0 at 9 bits, k = 2 at 10–12 and 14, k = 3 at 13, and HTJ2K at 15 and 16 bits and
+wherever a slow CPU meets 20 Mbit or more at 14. At 12 bits k = 3 is ahead by ≤ 0.02, inside one rounding of
+k = 2's, so the adopted k = 2 stays there. The 14-bit cells HTJ2K wins are the ones where dav1d-WASM's decode of the
+12-bit top is the fill's clock (row MIXDEC's mixed decode, not measured here, takes the low stream off it). Every
+table, the decode and the bytes per preset: [`lab/av1/splittime`](../../lab/av1/splittime/README.md).
 
 ## Threads (owner, 2026-10-03)
 
