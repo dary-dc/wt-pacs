@@ -380,9 +380,9 @@ copy, allocate nothing a frame in the steady state, and share one interface.
 **Built.** `decoder.js` loads one codec module by the series' codec — `htj2k.js` or `av1.js`, both
 `init(config)` then `decodeFrame(bytes, unit, preview)` → `{ info, sab, byteCount, range }` — and posts
 what it returns; nothing in it is per codec. `htj2k.js` is the HTJ2K path as it was, with the range pass
-in two loops (§The range pass). The WebCodecs module copies each `VideoFrame` into a buffer each stream
-keeps and grows, where it allocated one a frame (25 MB a 2560×3328 10-bit frame, chroma included,
-zero-filled).
+in two loops (§The range pass). *Measured and not adopted:* the WebCodecs module copying each
+`VideoFrame` into a buffer each stream keeps and grows, where it allocates one a frame (25 MB a 2560×3328
+10-bit frame, chroma included) — faster, and dearer in resident memory (below).
 
 **Measured** ([`lab/av1/decode`](../../lab/av1/decode/README.md)): the worker before and after, each
 arm its own worker, headless Chromium 141 in the container, the first 4 frames of eight series, 8
@@ -403,11 +403,38 @@ after ÷ before as the median of paired rounds and the rounds after was faster:
 * **HTJ2K: 12–21 % off a grey frame, at both throttles**, 7/8 or 8/8 on every grey series of 10 to 14 bits
   (the 8-bit cine's 512² frames are within their noise at 1×). The 8-bit RGB cine takes no range pass
   (§An 8-bit colour frame takes no range) and ties: the control that says the gain is the pass.
-* **AV1: 4–9 % where WebCodecs decodes**, on the large frames, mostly 7/8 or 8/8; the 14-bit projections,
-  whose 12-bit top goes to dav1d-WASM and never reaches the change, tie (4/8 at both throttles) — the
-  other control. The small cines move within their noise.
+* **AV1, the reused buffer: 4–9 % where WebCodecs decodes**, on the large frames, mostly 7/8 or 8/8; the
+  14-bit projections, whose 12-bit top goes to dav1d-WASM and never reaches the change, tie (4/8 at both
+  throttles) — the other control. The small cines move within their noise.
 * Where the host saturates: one worker decodes at a time on four cores, so nothing here contends; the
   absolute ms are this container's, not a phone's.
+
+**The fill** (row 23's harness, `lab/av1/total/run.mjs`): every frame of the eight series' first 64 (2–64
+a series) through the downloader against the real server behind the relay, 20 and 50 Mbit/s, 1× and 4×,
+6 rounds of 128 visits, Williams-ordered, 98 `VOID` dropped (n = 2–6 a cell), 20 544/20 544 frames exact.
+**The wire is the clock and the gain all but vanishes into it**: after ÷ before on every frame on the page,
+pooled over the cells, HTJ2K 0.999 at 1× (faster 50/72) and 0.995 at 4× (57/75); AV1 with the reused
+buffer 0.998 (52/72) and 0.997 (44/73). It shows where frames are large and the CPU slow: HTJ2K on the
+mammogram and the synthesized 2D at 4× 0.969–0.985, 3/3 to 6/6 (`syn2d_a` at 20 Mbit/s 2 743 → 2 655 ms);
+nowhere slower beyond its spread.
+
+**Resident memory** (row 38's harness, `lab/av1/footprint`, 3 rounds; MB a worker, the renderer's RSS slope
+from 1 to 4 workers, after the series and at its peak; 2 184/2 184 frames exact):
+
+| series | arm | settled before → after | peak before → after |
+| --- | --- | ---: | ---: |
+| `ffdm_a` 2560×3328 | HTJ2K | 25.1 → 24.9 | 25.1 → 25.0 |
+| | AV1, reused buffer | **7.3 → 44.4** | 28.3 → 43.4 |
+| `dbt10_ea1141` 678×1727 | HTJ2K | 10.9 → 8.1 | 8.9 → 8.8 |
+| | AV1, reused buffer | 9.2 → 10.6 | 24.4 → 10.8 |
+
+* **HTJ2K's change costs no memory.**
+* **The reused buffer holds the largest frame's copy — top and low stream, 37 MB a worker on a
+  mammogram — for as long as the worker lives**, where before the copy was garbage once merged; the
+  absolute peak at four workers is a tie (497 against 492 MB) and lower at one and two. A phone keeps
+  three decoders (`docs/ARCHITECTURE.md` §The decoders), so on a mammogram series the reuse would hold
+  ~110 MB to save 4–9 % of a decode that the wire hides. Not adopted; worth it only if the buffer is
+  released when the worker goes idle, which is more code than the gain pays for at these numbers.
 
 **Not changed, and why.**
 * **A hand-off with no copy.** The consumer keeps each frame as long as the viewer does, so the frame
