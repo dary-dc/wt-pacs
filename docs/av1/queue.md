@@ -122,7 +122,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | done `22f5f03` (`069044e`) — **not reproduced: paired, plain AV1 is 0.973–0.976 of HTJ2K on 10-bit DBT, optimized 0.940–0.943, not 31 % below**: the first 4 frames of `dbt10_ea1141` and `dbt10_d`, 20/20 codings exact (80/80 frames); one setting at a time, an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background by 0.5–0.8, libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned); the two series the brief named are not CC BY or CC0 (UPMC states no licence, BCS-DBT is CC BY-NC 4.0: Blocked); 4 mutations caught 4/4 — [`README.md`](README.md) §Prior evidence, [`lab/av1/pocgap`](../../lab/av1/pocgap/README.md), [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 | 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | done `8c2b24d` on `claude/av1-unified` (`e945e57`) — **the string is each stream's own, the frames and the decoder unchanged**: each keyframe's sequence header gives `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, reconfigured only when it changes; 91 distinct headers (419 units: every fixture, the probes, 59 items of all 28 taxonomy series, 8 full headers with timing, decoder model, frame ids, High tier, nine operating points) derive the string ffmpeg 6.1.1 reads; libaom writes levels 2.0–6.0 by picture size, never 31, and 31 changes no engine's answer; `isConfigSupported` true for every string in Chromium 141, every full string in Firefox 157.0, Main only in WebKitGTK 2.52.6; 115/115 frames exact in all three, Chromium's decoder per item the same as before (61 WebCodecs, 54 dav1d-WASM), none falling back; Chromium echoes the string's colour on the frame, so the 4:4:4 identity check now reads the header's matrix as dav1d's does — an untagged identity stream now decodes exact through WebCodecs; 13/13 derivation and 3/3 decoder mutations caught; gate green — `lab/av1/codecstr`, `item-format.md` §Decoder choice, `decode/README.md` §AV1 |
 | 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67, 82 |
-| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row |
+| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row, 83–86 included |
 | 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | done `14103cc` on `claude/av1-unified` (`e125d38`, `5b4e9aa`, `ecc9d68`) — **the served profile kept: no setting wins**: 35 settings on nine series, the best per series 0.990–1.000 of the served bytes (−0.9 % only on 256² PET); decode within the round spread everywhere (every paired range spans 1; 0.95–1.10 where decode is the clock); 6 decompositions, the fewest bytes overall, ties on total time ×0.99–1.02 on 5/20/50 Mbit at 1× and 4×; `imagecodecs`' defaults differ only in SIZ depth (container bits, 1.000–1.002 of the bytes); 315 × 35 codings and 12 400 + 339 visits' frames exact — [`docs/decode/README.md`](../decode/README.md) §Encoder settings | |
 | 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | claimed 2026-10-07 (night) |
 | 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | done `953dbfd` on `claude/av1-unified` — **adopted: ingest's optimized split is k = 0 up to 9 bits, 3 at 13, 2 at 10–12 and 14; 15–16 bits refused by name, served as HTJ2K**: the format did not change (row 43 already carries every k), only `ingest.py`'s `optimized_split`; its per-depth test held against three mutants (each caught), the writer's 142/142 split-and-merge cells still exact; a 9-bit golden item (`g9`, plain and optimized) and `optimized/s13` remade at k = 3 (10-bit top, WebCodecs), every other golden and matrix item and the probes byte-identical; the real 9- and 13-bit series (MR 9-bit, CT, cone-beam) ingested by the rule, 198/198 frames exact natively, in Node (dav1d-WASM) and in Chromium 141 (WebCodecs 198/198, as chosen); Firefox and WebKitGTK not installed here — row 43 ran these layouts there; gate green on every step but the link check, which fails only on row 69's brief (`docs/av1/MERGE.md` not yet written) — `item-format.md` §Representation at ingest and §The split per depth, README §A3 |
@@ -136,6 +136,10 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 80 | **GREY420** — 8-bit grey coded as full-range 4:2:0 so Firefox's WebCodecs returns it exact (row 74's proposal): bytes, decode, total time per engine | claimed 2026-10-07 (night, 44c963) |
 | 81 | **SERVERLOAD** — the server under many concurrent fills: where it saturates, and what each client's fill time does before and after | done `5db386d` on `claude/av1-unified` (`7423b1a`, `73d478d`, `f45e0aa`) — **one server core delivers about 400 MB/s of fills; a fill holds its single-session time until the sessions' rates sum past that**: server on one core of a 4-vCPU container, N native sessions (`fill_load`) on the other three, each asking the whole 10-bit DBT volume (13.6 MB HTJ2K, 13.0 MB optimized AV1) at once, unpaced or read-paced at 20 and 50 Mbit; 10 Williams rounds of 54 cells plus 10 of 10 around the knee, 640 runs, 1 012 320/1 012 320 frames byte-identical to ingest's checked items (a flipped reference byte failed every run); at 50 Mbit ×1.00 at 64 sessions (0.98–0.99 cores), ×1.25 at 80, ×2.12–2.19 at 128; at 20 Mbit ×1.00 to 128 (0.84–0.89 cores, 0.7 % of a core a fill), ×1.03 at 160; unpaced the server is the clock from 2 sessions; 2.0–3.1 ms CPU a MB, the same for both codecs; 3.7–4.8 MB resident a filling session (1.1 GB at 256); the server's core saturates, the host 58–60 % busy; from 192 sessions the rig's client sockets drop enough datagrams to back the server off, so nothing is claimed past 160 or beyond one core; gate green — [`docs/transport/transport-conclusions.md`](../transport/transport-conclusions.md) §4 *Many fills at once*, [`lab/server-load`](../../lab/server-load/README.md) on that branch |
 | 82 | **CLIENTLAYOUT** — the client's folders by worker: `client/decode/` (the decode worker, its codec modules and their WASM builds) and `client/transport/` (the page side, the download worker, its transports) | after 56 |
+| 83 | **TEAMAUDIT** — the repository against the team-readiness principles below: every gap, partitioned for rows 84–86 | held until 2026-10-08 03:00 UTC, after 68 |
+| 84 | **NAMES** — names, the one glossary, environment variables and folder leftovers, per the principles | held until 2026-10-08 03:00 UTC, after 83 |
+| 85 | **ONBOARD** — clone to green from the README alone, the docs essential and current, diagrams, each subject stated once | held until 2026-10-08 03:00 UTC, after 84 |
+| 86 | **CHECKS** — the gate runs every suite and says what it skipped, a stale-build guard, formatting, hygiene, dead code | held until 2026-10-08 03:00 UTC, after 84 |
 
 ## Briefs
 
@@ -1357,6 +1361,56 @@ crate under `client/transport/wasm/`), tests beside their code as today; every i
 and the gate updated; behaviour unchanged. **Decides:** the gate green, `check_links.py` green, `git grep` finds no old
 path outside history notes, a content hash of every moved file equal before and after. **Branch:**
 `claude/av1-unified`. **Deliverable:** the move and the client's README.
+
+## The team-readiness rows (83–86), 2026-10-07
+
+The owner's reading of another project's clean-up: its organization, terminology and semantics improved the code for
+everyone, not only for that project's team. These rows bring the same principles here. They are general; nothing below
+names that project.
+
+**The principles.**
+* *Names.* A name states its role in the domain's words. No word from the project's history (a queue row, a campaign
+  label, a numbered lever, a phase like "early" or "mvp", "arm" for an A/B arm). None that a standard the code touches
+  uses for something else (DICOM's *Item* and *Conformance Statement*, the AV1 specification's terms, ARM the CPU). One
+  concept, one name, defined once in **one** project glossary that the README links; vendor or upstream terms in their
+  own glossary. Environment variables and scripts carry this project's name, not another's.
+* *Layout.* Folders by responsibility — in a client, by worker (what runs in the page, in the download worker, in the
+  decode worker); each concern's WASM build beside its code, not beside another concern's.
+* *Onboarding.* A new developer goes from clone to a running page and a green gate by following the README alone:
+  every prerequisite listed and pinned (a toolchain file; tool versions), commands in order with one terminal each for
+  long-running servers, every check named with its cost, no personal default paths.
+* *Docs.* Lean, formal, diagram-first where a mechanism is hard to follow; no work tracking or history narrative (git and
+  this queue hold those); a retracted claim corrected in place; each subject stated once, pointers elsewhere; no
+  reference a reader of this repository cannot follow (local paths, private material).
+* *Checks.* One entry point runs every suite and prints the claims it skipped (so a fresh clone does not look fully
+  green); a formatting check; a guard that refuses to serve a build output older than its sources, naming the command
+  that rebuilds it; no tracked file carries a personal path; executable bits match how files are run.
+* *Code.* The comment rules of `CLAUDE.md`, plans and "for now" removed from comments, no debug logging, no dead code.
+
+### 83 TEAMAUDIT
+
+**Do:** after row 68, read the whole repository against the principles, verifying each finding at its line. Read-only.
+**Deliverable:** under this row in this queue (not in `docs/`), the findings partitioned by the row that will fix them —
+84 (names, glossary, environment variables, folder leftovers), 85 (README onboarding, docs, diagrams, duplicates), 86
+(the gate, the stale-build guard, formatting, hygiene, dead code, comments) — each with file:line, and a list of what
+needs the owner (decisions only he can take), added under `## Blocked`.
+
+### 84 NAMES
+
+**Do:** row 83's 84-list: renames with every reference, the one glossary (merging any project terms kept in a codec or
+other doc), environment variables, folder leftovers. Behaviour unchanged. **Decides:** the gate green, `check_links.py`
+green, `git grep` finds no old name outside history notes. **Branch:** `claude/av1-unified`.
+
+### 85 ONBOARD
+
+**Do:** row 83's 85-list. Prove onboarding by doing it: a fresh clone in a clean container, the README followed
+literally, to a running page and a green gate; every step that failed is fixed in the README, not worked around.
+**Decides:** that run's log; `check_links.py` green. **Branch:** `claude/av1-unified`.
+
+### 86 CHECKS
+
+**Do:** row 83's 86-list. Mutate every new check and watch it fail (a stale build refused, a skipped claim reported, a
+personal path caught). **Decides:** the gate green, each mutation caught. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
