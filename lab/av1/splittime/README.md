@@ -148,7 +148,7 @@ to 0 exact.
   on system 2's Wi-Fi, and lose 2–69 % elsewhere. The two are within 0.03 of each other on every cell,
   k = 2 ahead on system 2, k = 3 on system 1. w10 (k = 4) is 1.00–1.13: its decode is the fastest
   (§Decode), its four low bits cost more than that buys.
-* **15 and 16 bits: HTJ2K on every cell.** w10 is the better AV1 arm on both, 1.03–1.16; the 12-bit top
+* **15 and 16 bits: HTJ2K on every cell.** w10 is the better AV1 arm on both, 1.02–1.16; the 12-bit top
   (d12) 1.08–1.91 on the PET and 1.16–3.11 on the mammogram, whose one 30-megapixel frame through
   dav1d-WASM is 13 s behind HTJ2K's at 4×.
 * **Saturation.** As rows TOTAL and REP14 found: at 4× on 50 Mbit, and on 20 Mbit for the projections and
