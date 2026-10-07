@@ -52,6 +52,9 @@ planes, checked against native dav1d before it is written.
   k a per-depth rule could pick, synthetic and all nine real series, every frame exact natively, in
   Node and in three engines; 90 golden items in `client/conformance/av1/items/matrix/` — the counts,
   the mutations and the reader's corrected mask are [`lab/av1/splitok`](../splitok/README.md) §Checked.
+* **A split item through two decoders (row 47).** With decoder config `mixed`, a top over 10 bits through
+  dav1d-WASM and the low through WebCodecs: the same items exact in three engines, faster than one decoder,
+  slower than w10 — [`lab/av1/mixdec`](../mixdec/README.md).
 
 ## One pipeline (2026-10-06, queue row 52)
 

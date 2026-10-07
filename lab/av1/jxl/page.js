@@ -15,23 +15,23 @@ async function hex(u8) {
 }
 
 /** The fetched frame as coded values, after its bytes matched the checksum written when it was fetched. */
-async function source(s) {
+async function source(s, mutate) {
   const raw = await bytes(`/${s.data}/${s.name}/000.raw`);
   if ((await hex(raw)) !== s.truth[0]) throw new Error(`${s.name}: source does not match its checksum`);
   const v = s.stored > 8 ? new Uint16Array(raw.buffer) : raw;
-  return Uint32Array.from(v, (x) => x + s.shift);
+  return Uint32Array.from(v, (x) => x + s.shift + (mutate ? 1 : 0));
 }
 
 /**
  * Samples out of a native path against the source: exact, or the largest error in source units once the
  * output's own range is scaled to the source's (8 bits back to B: × (2^B − 1) / 255).
  */
-function compare(s, src, out, outMax, stride, at = 0) {
+function compare(s, src, out, outMax, stride, unit = (o) => o) {
   const max = 2 ** s.stored - 1;
   let exact = true;
   let err = 0;
   for (let i = 0; i < src.length; i++) {
-    const o = out[(i / s.channels | 0) * stride + at + (i % s.channels)];
+    const o = unit(out[(i / s.channels | 0) * stride + (i % s.channels)]);
     if (o !== src[i]) exact = false;
     err = Math.max(err, Math.abs(o * max / outMax - src[i]));
   }
@@ -53,11 +53,14 @@ async function viaImg(url) {
   return img;
 }
 
-async function probeOne(s, url) {
-  const src = await source(s);
+async function probeOne(s, url, mutate) {
+  const src = await source(s, mutate);
   const r = { set: s.name, coding: url.split("/").at(-2) };
+  // A path that never settles (seen on the 30 MP frame) is reported, not waited on.
   const attempt = async (name, fn) => {
-    try { r[name] = await fn(); } catch (e) { r[name] = { error: `${e.name}: ${e.message}` }; }
+    const late = new Promise((_, reject) => setTimeout(() => reject(new Error("no answer in 60 s")), 60000));
+    try { r[name] = await Promise.race([fn(), late]); } catch (e) { r[name] = { error: `${e.name}: ${e.message}` }; }
+    post("/jx/log", { line: `${s.name} ${r.coding} ${name}: ${JSON.stringify(r[name])}` });
   };
   await attempt("img", async () => {
     const img = await viaImg(url);
@@ -74,7 +77,7 @@ async function probeOne(s, url) {
     const d = readCanvas(img, s).getImageData(0, 0, s.width, s.height, { pixelFormat: "rgba-float16" }).data;
     if (!(d.constructor.name === "Float16Array")) return { error: `returned ${d.constructor.name}` };
     const max = 2 ** s.stored - 1;
-    return compare(s, src, Float32Array.from(d, (f) => Math.round(f * max)), max, 4);
+    return compare(s, src, d, max, 4, (f) => Math.round(f * max));
   });
   await attempt("imageDecoder", async () => {
     if (typeof ImageDecoder !== "function") return { error: "no ImageDecoder" };
@@ -118,7 +121,9 @@ async function nativeArm(a) {
   const hashes = [];
   for (const d of frames) {
     // Only an 8-bit frame can come back exact through an 8-bit canvas: its first `channels` of RGBA.
-    hashes.push(await hex(Uint8Array.from({ length: d.length / 4 * a.channels }, (_, i) => d[(i / a.channels | 0) * 4 + i % a.channels])));
+    const out = new Uint8Array(d.length / 4 * a.channels);
+    for (let p = 0, o = 0; p < d.length; p += 4) for (let c = 0; c < a.channels; c++) out[o++] = d[p + c];
+    hashes.push(await hex(out));
   }
   return { ms, hashes };
 }
@@ -134,7 +139,7 @@ const cfg = await (await post("/jx/hello", { ua: navigator.userAgent })).json();
 try {
   if (cfg.mode === "probe") {
     const probes = [];
-    for (const s of cfg.sets) for (const url of s.probe) probes.push(await probeOne(s, url));
+    for (const s of cfg.sets) for (const url of s.probe) probes.push(await probeOne(s, url, cfg.mutate));
     await post("/jx/done", { probes });
   } else {
     const rows = [];
