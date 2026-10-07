@@ -130,3 +130,23 @@ of every checksum) each turned every arm of all four series to 0 exact.
 downloader as it was before the row, beside `htj2k` (the tree's), and (row SEAM, `downloader_arm.sh 541ceaf seambefore`) its decoder modules with it, and
 `run.mjs --links r20000,r50000 --arms htj2k,before --rounds 10`. The reading is in
 [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) §The downloader.
+
+**Row LOSSLINK** puts loss or jitter on top of each link and times an ask apart from the fill. The
+10-bit volume as HTJ2K (`ARMS=l2 make_frames.py`, its `htj2k`) and as the adopted optimized item
+(`lab/av1/item/ingest.py --representation optimized --preset cpu0`, each `NNN.av1` linked in as
+`NNN.opt.av1` and `arms.json` set to `{"htj2k": {}, "opt": {"ext": "opt.av1"}}`), then rounds 0–12 of
+
+```bash
+run.mjs --frames lab/.av1-work/losslink --links r5000,r20000,r50000,lte-good \
+  --impairs clean,l1,l2,l5,j5,j20 --fill 4 --asks-after 4
+```
+
+and rounds 13–14 on `--impairs clean,j5,j20`, the cells `VOID` left shortest. `l<p>` is p % loss each
+way — iid on a fixed rate; on `lte-good` its Gilbert–Elliott bursts of 3.5 packets at a mean of p %, in
+place of its 0.01 % — and `j<ms>` is ± that jitter each way, `--jitter-mode ordered` (one radio leg:
+nothing overtaken); the relay's tally of server → client packets lost is kept a visit (`s2c`) and read
+1.00–1.10 %, 2.04–2.13 %, 5.03–5.21 % a cell. A visit fills frames 0–3 (`--fill`), then once they are on the
+page asks frames 4–7 one at a time (`--asks-after`), each timed from `requestExactFrame` to its pixels;
+every frame of both hashed against its truth. `--mutate sample` and `--mutate truth` each turned both
+arms to 0 of 12 exact (`--fill 8 --asks-after 4`, `l1` on 50 Mbit). The server's controller is its default, `cubic-restart`. The reading is in
+[`docs/av1/README.md`](../../../docs/av1/README.md) §Under loss and jitter.
