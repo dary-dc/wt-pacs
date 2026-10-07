@@ -6,7 +6,7 @@
  *   BEFORE=<rev> NODE_PATH=$(npm root -g) node lab/page-open/coldrtt.mjs FRAMES_DIR [rounds]
  *
  * FRAMES_DIR is coldrtt_frames.py's output. BEFORE is the commit whose client/downloader the
- * `-before` arms load. RTTS= (default 0,100,200,300), ONLY=arm,…, RELAY_ARGS=, THROTTLE=N, ROWS=FILE.
+ * `-before` arms load; INIT=<rev>, if given, adds `-init` arms loading that commit's. RTTS= (default 0,100,200,300), ONLY=arm,…, RELAY_ARGS=, THROTTLE=N, ROWS=FILE.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -28,14 +28,17 @@ if (!BEFORE || !fs.existsSync(path.join(FRAMES_DIR, "g12.sha256"))) {
   throw new Error("usage: BEFORE=<rev> node lab/page-open/coldrtt.mjs FRAMES_DIR [rounds] (coldrtt_frames.py writes FRAMES_DIR)");
 }
 const TREE = "/lab/page-open/.coldrtt";
+const TREES = { before: BEFORE, ...(process.env.INIT ? { init: process.env.INIT } : {}) };
 
 // arm: [study, page query]; `-before` loads BEFORE's client/downloader, `-pre` adds the page's AV1 preloads.
 const ARMS = {
   htj2k: ["g12-htj2k", { codec: "htj2k" }],
-  "wc-before": ["g10-av1", { codec: "av1", tree: TREE }],
+  "wc-before": ["g10-av1", { codec: "av1", tree: `${TREE}/before` }],
+  ...(TREES.init ? { "wc-init": ["g10-av1", { codec: "av1", tree: `${TREE}/init` }] } : {}),
   "wc-after": ["g10-av1", { codec: "av1" }],
   "wc-pre": ["g10-av1", { codec: "av1", pre: 1 }],
-  "dav1d-before": ["g12-av1", { codec: "av1", tree: TREE }],
+  "dav1d-before": ["g12-av1", { codec: "av1", tree: `${TREE}/before` }],
+  ...(TREES.init ? { "dav1d-init": ["g12-av1", { codec: "av1", tree: `${TREE}/init` }] } : {}),
   "dav1d-after": ["g12-av1", { codec: "av1" }],
   "dav1d-pre": ["g12-av1", { codec: "av1", pre: 1 }],
 };
@@ -64,12 +67,15 @@ process.on("exit", () => {
 
 // An hour old or more, as deployed files are: one written seconds ago is revalidated (rig-limits.md §6).
 const age = (f) => fs.utimesSync(f, new Date(Date.now() - 7200e3), new Date(Date.now() - 7200e3));
-const before = path.join(ROOT, TREE.slice(1), "client/downloader");
-fs.mkdirSync(before, { recursive: true });
-for (const f of execFileSync("git", ["ls-tree", "--name-only", `${BEFORE}:client/downloader`], { cwd: ROOT }).toString().split("\n")) {
-  if (f.endsWith(".js")) fs.writeFileSync(path.join(before, f), execFileSync("git", ["show", `${BEFORE}:client/downloader/${f}`], { cwd: ROOT }));
-}
-for (const dir of [before, "client/downloader", "client/transport-ts/dist", "lab/.av1-build/out", "lab/decode-bench/vendor/openjph"]) {
+const trees = Object.entries(TREES).map(([name, rev]) => {
+  const dir = path.join(ROOT, TREE.slice(1), name, "client/downloader");
+  fs.mkdirSync(dir, { recursive: true });
+  for (const f of execFileSync("git", ["ls-tree", "--name-only", `${rev}:client/downloader`], { cwd: ROOT }).toString().split("\n")) {
+    if (f.endsWith(".js")) fs.writeFileSync(path.join(dir, f), execFileSync("git", ["show", `${rev}:client/downloader/${f}`], { cwd: ROOT }));
+  }
+  return dir;
+});
+for (const dir of [...trees, "client/downloader", "client/transport-ts/dist", "lab/.av1-build/out", "lab/decode-bench/vendor/openjph"]) {
   for (const f of fs.readdirSync(path.resolve(ROOT, dir))) age(path.resolve(ROOT, dir, f));
 }
 age(path.join(ROOT, "lab/page-open/codec.html"));
@@ -198,7 +204,7 @@ function slope(arm, profile, key) {
   return pts.reduce((a, [x, y]) => a + (x - mx) * (y - my), 0) / pts.reduce((a, [x]) => a + (x - mx) ** 2, 0);
 }
 // Each AV1 arm against its path's `-before`, HTJ2K against nothing.
-const ref = (arm) => (arm.endsWith("-before") || arm === "htj2k" ? null : arm.replace(/-(after|pre)$/, "-before"));
+const ref = (arm) => (arm.endsWith("-before") || arm === "htj2k" ? null : arm.replace(/-(after|pre|init)$/, "-before"));
 console.log(`\ncpu ${THROTTLE}x, ${voided} visits VOID and dropped, ${failed} failed`);
 console.log("round trips (slope over the RTTs) and ms at each: median [min-max], rounds won against the arm's -before");
 for (const profile of PROFILES) {
