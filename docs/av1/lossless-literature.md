@@ -51,8 +51,8 @@ Table III; read):
   Inferred against HTJ2K, it is about 0.78–0.87. The lab measured 0.83–0.95 of HTJ2K (rows 6, 22).
 * **Coding slices as video helps on the 5 mm CT (Chaos: HEVC 0.88 of its intra) and little elsewhere.** On
   breast tomosynthesis, JPEG 2000 Part 2 across slices gained 3 % over single frames (Clunie, RSNA 2012,
-  25 DBT objects, slides read). That predates the window, and it agrees with the lab's finding that inter does not
-  pay on DBT (rows 10, 21, 46).
+  25 DBT objects, slides read). That predates the window, and it agrees with what the lab measured on four DBT volumes
+  (rows 10, 46: libaom only, alt-ref off, G = 8 and 16 alone in row 46); row 21's projections are outside the target series.
 * Decode a 512² slice, i9-10900K: JPEG-LS 0.067 s, JPEG XL 0.120 s, HEVC 0.024 s (Table V). A second paper on the
   same machine gives JPEG-LS 0.02 s and JPEG XL 0.05 s (TCT, §3, Table VI). The two disagree by 2–3×, so neither is
   a speed claim to carry here.

@@ -167,7 +167,8 @@ Bytes over HTJ2K's (lower is better); HTJ2K's own bytes over raw in brackets:
 | `dbtproj_ge`, 9 × 1914×2572, 14-bit tomosynthesis projections | 36.73 MB (0.415) | 0.937 | — | DEPTH | | | | | | |
 | `dbtproj_holo`, 15 × 1280×2048, 14-bit tomosynthesis projections | 29.34 MB (0.373) | 0.929 | — | DEPTH | | | | | | |
 
-**On every real series AV1 is larger than HTJ2K, and inter coding collects nothing** — *corrected
+**On every real series AV1 is larger than HTJ2K, and inter coding collects nothing** — *these three series are
+outside the AV1 target series (`docs/av1/README.md` §A1, Scope); corrected
 by CONTENT (below): the 10-bit tomosynthesis is the one series where AV1 coded whole is smaller.* At the
 slowest preset intra is the smallest AV1 coding of each set but fluoroscopy, where G = 2 is 0.04 %
 smaller; a group costs up to 37 % more than intra on the ultrasound. Two checks against the
@@ -205,8 +206,8 @@ short one counts as inexact rather than stopping the run (the first two mutation
 reconstruction system and a second 10-bit volume, a third system's projections, two FFDM and two synthesized-2D
 series, breast ultrasound cine (grey, RGB) and stills — as items, every item exact natively, in Node and in
 Chromium. **The optimized item is 0.873–0.962 of HTJ2K's bytes on 8 of 10** at cpu0 (0.888–0.979 at the shipped
-preset); a stretched-range mammogram is 1.006 (plain AV1 1.238) and the 276×305 stills 1.002. **Inter does not pay on
-DBT** — four slice series, 0.963–1.054 of intra at cpu0 and 0.998–1.050 at `good` 6 — **nor on the RGB cine (0.98–1.00);
+preset); a stretched-range mammogram is 1.006 (plain AV1 1.238) and the 276×305 stills 1.002. **Inter did not pay on
+these four DBT series at G = 8 and 16** (libaom, alt-ref off) — four slice series, 0.963–1.054 of intra at cpu0 and 0.998–1.050 at `good` 6 — **nor on the RGB cine (0.98–1.00);
 on the grey cine it halves the bytes** (G = 16 0.53 of intra, 0.47 of HTJ2K) and the decode, but that clip is a lossy
 MPEG-4 recording whose unchanged blocks repeat exactly, so the gain is the source's, not a scanner's.
 
@@ -287,7 +288,7 @@ top11+low on the projections, bytes over HTJ2K, cpu0 (cpu6):
 | `dbtproj_ge` (whole = 9) | 0.998 (0.995) | 0.997 (0.994) | 0.996 (0.994) | **0.995 (0.993)** | 0.995 (0.993) |
 | `dbtproj_holo` (whole = 15) | **1.002 (1.002)** | 1.004 (1.006) | 1.005 (1.008) | 1.005 (1.009) | 1.005 (1.010) |
 
-**Inter does not pay on projections**: at most 0.29 % under intra (first vendor, G = 8, cpu0), and
+**Inter does not pay on projections** (outside the AV1 target series, `docs/av1/README.md` §A1, Scope): at most 0.29 % under intra (first vendor, G = 8, cpu0), and
 0.2–1.0 % over it on the second. Groups were run on top11+low, chosen before the 14-bit result made
 top12+low the better split; groups on top12+low were not run. Every cell exact (32/32 on the two
 sets, each group decoded alone); 0 rounds, so bytes only. Mutated: the group window shifted by one

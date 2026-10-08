@@ -150,8 +150,8 @@ The set's frames as one group (one keyframe, the rest predicted), bytes over HTJ
 | `us_liver` (RCT top2 + low2) | 1.022 | 0.961 | 0.973 | 0.911 | **0.880** |
 
 **None of the noise is predictable across frames**: the low stream inter is 0–3.6 % larger than intra
-on every grey series. The top inter gains 0.7 % on the cone-beam set alone. On the ultrasound inter pays,
-as row 28 found, on the RCT whole; split, it pays less. The ultrasound's RCT inter here is 0.880, row
+on every grey series. The top inter gains 0.7 % on the cone-beam set alone. On the ultrasound (lossy-sourced, outside the
+target series) inter pays, as row 28 found, on the RCT whole; split, it pays less. The ultrasound's RCT inter here is 0.880, row
 28's 0.850: this run carries `--tune-content=screen --sb-size=64`, row 28's inter did not (row 28's
 `inter-screen`, 0.854, puts the cost on the superblock size, not measured alone).
 
