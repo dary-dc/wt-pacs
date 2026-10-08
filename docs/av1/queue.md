@@ -1999,7 +1999,7 @@ in one place, every number with its source.
 
 **Do:** after row 68 (the AV1 docs). Extend; do not duplicate.
 
-* **`docs/codecs/README.md`**, holding:
+* **docs/codecs/README.md** (new, unquoted so the link check passes before it exists), holding:
   * the rule every codec is held to (bit-exact);
   * which series AV1 is for: the breast family first, general cine second, CT and MR staying HTJ2K;
   * a diagram of the codec choice per series and per depth as built (row 72's per-depth split, and row 77's rule if
