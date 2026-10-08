@@ -54,8 +54,8 @@ boundary is the API, and `stats()` is async because it cannot be truthful and sy
 * **Dial early, stay alive, notice death**: the session opens when the user picks a series and is used
   when the viewer mounts, minutes later; only the server can keep a browser's session open
   ([`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md)).
-* **A cache seam and a paint sink** — the viewer paints from a cache filled ahead of it, through a
-  renderer the client does not know. **Neither is built** (§Open).
+* **A cache seam and a paint sink** — the viewer paints from a cache filled ahead of it. The paint sink
+  is built ([`../client/paint/`](../client/paint/README.md), §Paint); **the cache seam is not** (§Open).
 
 ## Messages
 
@@ -504,8 +504,10 @@ the decode stamp: contention on this four-core host, which the colour fill satur
 
 ## Paint
 
-Not built into the product: the client hands decoded frames to a renderer it does not know. Measured
-([`../lab/paint-floor/`](../lab/paint-floor/README.md)) so the paint path is chosen on a number. **2d**:
+**Built** as the product's paint sink: [`../client/paint/`](../client/paint/README.md), the gl route below in a
+worker. It takes the DICOM grayscale pipeline (rescale, VOI LUT function, MONOCHROME1) and fit, zoom, pan,
+quarter turns and flips, and is proved at 1:1 against a CPU reference. The route was chosen on a number,
+measured ([`../lab/paint-floor/`](../lab/paint-floor/README.md)). **2d**:
 every sample through a lookup table into a new RGBA `ImageData` at source size, onto an
 `OffscreenCanvas`, scaled, handed to the main thread as a bitmap. **gl**: the samples uploaded to an
 integer texture, window and level as uniforms, one draw at display size. The downloader's pixels are a
@@ -1034,7 +1036,7 @@ drops UDP, the race's time to ready against the four seconds.
   ~0.2–0.3 ms a frame, not run.
 * **The cache seam** (an interface, in-memory and OPFS behind it; whether it holds compressed or
   decoded frames is to be evaluated — and "all frames decoded" cannot mean all resident on a phone) and
-  **the paint sink** — neither built. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
+  the paint sink — the sink is built (§Paint), the cache seam is not. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
   §On WebKit).
 * **Survival on a device**: the Wi-Fi → cellular freeze and what the page sees; the triggers where a
   radio change and `freeze` are real; the screen-lock pair; whether 5 s suits a dial on a phone.

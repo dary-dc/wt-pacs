@@ -46,6 +46,7 @@ node client/downloader/downloader.test.mjs
 node client/downloader/consumer.test.mjs
 node client/downloader/av1.test.mjs
 python3 server/dev-server.test.py 2>&1 | tail -1
+node client/paint/voi.test.mjs
 
 step "client: worker-safe (no artifact reaches for window)"
 bash client/scripts/check_worker_safe.sh
@@ -56,6 +57,12 @@ node client/conformance/run.mjs | tail -2
 if [[ $browser -eq 1 ]]; then
   step "client: the downloader in headless Chromium — the clauses through it, and its dispatch order and per-decoder bound"
   bash client/conformance/run_browser.sh
+  step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
+  if PYTHON="${PYTHON:-python3}" && "$PYTHON" -c "import numpy" 2>/dev/null; then
+    PYTHON="$PYTHON" node client/paint/check.mjs --zoom1 | tail -1
+  else
+    echo "SKIPPED: the painter check makes its frames with numpy (PYTHON=... with numpy, or pip install numpy)"
+  fi
 fi
 
 step "client: type-check (product, shared record, conformance and transport-ts tests)"
