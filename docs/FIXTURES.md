@@ -75,12 +75,12 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §A4). Forty-three public series, fetched at run time — forty from the
+([`av1/README.md`](av1/README.md) §A4). Eighty-two public series, fetched at run time — seventy-nine from the
 NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
 three of breast ultrasound from two Zenodo records — never committed:
 
 ```bash
-lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~9.9 GB fetched
+lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~12.1 GB fetched
 ```
 
 `lab/av1/data.json` pins every file's S3 key and SHA-256 and each set's frame digest;
@@ -142,6 +142,14 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
 | `dbts_c3` | DBT slices, 1 mm, whole and uncropped, system C | 70 × 1147×2585 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
 | `dbts_c4` | DBT slices, 1 mm, whole and uncropped, system C | 66 × 662×2227 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
 | `dbts_c5` | DBT slices, 1 mm, whole and uncropped, system C | 73 × 955×2100 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `ffdms_a1`…`ffdms_a5` | FFDM, for presentation, R CC, L CC, R MLO, L MLO, system A, five exams | 4 × 1914×2294 each | 12 of 16 bits, unsigned | 0..3334 … 0..4095 | EA1141, CC BY 4.0 | sound |
+| `ffdms_b1`…`ffdms_b5` | FFDM, for presentation, the four views, system B, five exams | 4 × 3328×4096 (b1, b4, b5), 4 × 2560×3328 (b2, b3) | 12 of 16 bits, unsigned | 0..4093 … 0..4095 | EA1141, CC BY 4.0 | sound |
+| `ffdms_c1`…`ffdms_c5` | FFDM, for presentation, the four views, system C, five exams | 4 × 1914×2294 (c1, c5), 4 × 2394×3062 (c2–c4) | 12 of 16 bits, unsigned | 0..3252 … 4..3451 | EA1141, CC BY 4.0 | sound |
+| `mgraw_a1`…`mgraw_a5` | FFDM, for processing (raw), the four views, system A, five exams | 4 × 1914×2294 each | 14 of 16 bits, unsigned | 161..8557 … 0..16383 | EA1141, CC BY 4.0 | sound |
+| `mgraw_b1`…`mgraw_b5` | FFDM, for processing (raw), the four views, system B, five exams | 4 × 3328×4096 (b1, b3, b4), 4 × 2560×3328 (b2, b5) | 14 of 16 bits, unsigned | 0..16383 … 320..16383 | EA1141, CC BY 4.0 | sound |
+| `mgraw_c1`…`mgraw_c5` | FFDM, for processing (raw), the four views, system C, five exams | 4 × 1914×2294 (c1, c2, c4), 4 × 2394×3062 (c3, c5) | 14 of 16 bits, unsigned | 400..12692 … 0..16383 | EA1141, CC BY 4.0 | sound |
+| `syn2ds_a1`…`syn2ds_a5` | synthesized 2D, the four images of one exam (no view in the header), the vendor of systems A and C, five exams, three software versions | 4 × 2394×2850 (a1, a2, a5), 4 × 2394×3062 (a3, a4) | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `syn2ds_b1`…`syn2ds_b4` | synthesized 2D, the four views, system B: the later algorithm (b1–b3), the earlier (b4) | 4 × 2560×3328 (b1, b2), 4 × 3328×4096 (b3), 4 × 1996×2457 (b4) | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 | sound |
 
 ### Provenance
 
@@ -189,6 +197,10 @@ to fail; on the real files, `us_liver` and `usb_still` marked `sound` are refuse
 | `syn2d_c` | explicit LE | 00 | `DERIVED\SECONDARY\OTHER` | FOR PRESENTATION | — | sound |
 | `syn2d_d` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
 | `dbts_a1`…`dbts_a5`, `dbts_b1`…`dbts_b5`, `dbts_c1`…`dbts_c5` | explicit LE | 00 | system A `ORIGINAL\PRIMARY\TOMOSYNTHESIS\NONE`; B `DERIVED\PRIMARY\VOLUME\NONE` or `…\TOMOSYNTHESIS\NONE`; C `ORIGINAL\PRIMARY\VOLUME\NONE` | — | — | sound |
+| `ffdms_*` | implicit or explicit LE | 00 | system A, B `DERIVED\PRIMARY`; C `ORIGINAL\PRIMARY\` | FOR PRESENTATION | — | sound |
+| `mgraw_*` | explicit LE | 00 | `ORIGINAL\PRIMARY` (MONOCHROME1) | FOR PROCESSING | — | sound |
+| `syn2ds_a*`, `syn2ds_b1`…`b3` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
+| `syn2ds_b4` | implicit LE | 00 | `DERIVED\PRIMARY` | FOR PRESENTATION | — | sound |
 | `usb_cine`, `usb_cine_rgb` | an AVI clip, MPEG-4 Part 2 | the coding is lossy | — | — | decoded by FFmpeg; luma kept, or converted to RGB | lossy-sourced |
 | `usb_still` | a PNG, cropped around the lesion by the dataset | not recorded | — | — | decoded by FFmpeg | unknown |
 
@@ -277,6 +289,14 @@ synthesized 2D), not a re-coding; none is flagged.
   and `dbt10_d` — each series' 1 mm slice instance whole and uncropped, frames as stored (not its 10 mm slab). Chosen
   per system as the first five by SeriesInstanceUID (`idc-index` 0.12.5, `idc-index-data` 24.2.2, IDC v24); about
   6.1 GB. System B stores two detector sizes (one 2560×3328 volume, four 1890–1996×2457).
+* **Row FFDMSCALE's mammograms** (`ffdms_*`, `mgraw_*`, `syn2ds_*`): per kind and system, the first five complete
+  four-view exams (R CC, L CC, R MLO, L MLO, one frame size) by StudyInstanceUID, from patients the lab had not used
+  for that kind, every header read first (`idc-index` 0.12.5, `idc-index-data` 24.2.2, IDC v24); 156 images, about
+  2.2 GB. Systems as row DBTSCALE's: A and C one vendor's two detectors, B the other vendor's. The raw images are the
+  FOR PROCESSING companions of the same exams on system A, of three of the five on B and C. The first vendor's synthesized images name no
+  view or laterality, so an exam is a study holding four of one size. EA1141 holds four complete exams of the second
+  vendor's synthesized 2D — three of its later algorithm, and the earlier algorithm's only one (`syn2ds_b4`, another
+  study of `syn2ds_b1`'s patient) — and CMB-BRCA one, three views (`syn2d_c`): five only with `syn2d_c`.
 * **Hosts, 2026-10-05 15:49 UTC (row BREAST), after the environment's network access was set to full:** every host
   row DATA3 found refused answered (200, 202, 301, 302, 400 or 404), but `pan.baidu.com` (connection reset).
 * `us_liver` is stored uncompressed, but scan-converted; whether it was lossy-coded before it was
