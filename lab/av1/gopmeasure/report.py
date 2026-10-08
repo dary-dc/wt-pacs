@@ -20,6 +20,42 @@ def spearman(x, y):
     return float(np.corrcoef(rx, ry)[0, 1])
 
 
+def ask(ms, g):
+    """An ask at frame k of a group decodes the group's frames 0 … k: the mean over k and the run's groups (time.mjs)."""
+    costs = []
+    for a in range(0, len(ms), g):
+        costs += list(np.cumsum(ms[a:a + g]))
+    return float(np.mean(costs))
+
+
+def timing(work, cells, htj2k):
+    """Rule §5.1's third test at 4×: the mean ask against one HTJ2K frame plus the wire time its saved bytes buy."""
+    path = work / "time.json"
+    if not path.exists():
+        return
+    runs = json.loads(path.read_text())
+    print("\n## mean ask, ms: median over rounds [range], n; and the rule's bound at 20 Mbit/s")
+    for throttle in sorted({r["throttle"] for r in runs}):
+        for s in sorted({r["set"] for r in runs}):
+            per = {}
+            for r in runs:
+                if r["throttle"] == throttle and r["set"] == s and len(r["ms"]) == r["frames"] == r["exact"]:
+                    per.setdefault(r["arm"], []).append(ask(r["ms"], r["g"]))
+            ref = float(np.median(per["htj2k"]))
+            parts = []
+            for arm, v in sorted(per.items(), key=lambda kv: (kv[0].split("-")[0], int(kv[0].split("g")[-1]) if "-g" in kv[0] else 0)):
+                part = f"{arm} {np.median(v):.1f} [{min(v):.1f}–{max(v):.1f}] n={len(v)}"
+                g = int(arm.split("-g")[1]) if "-g" in arm else 0
+                if g:
+                    base = cells[(s, "aom", "good:6", "optimized", False, 1)]
+                    top = cells[(s, "aom", "good:6", "optimized", False, g)]["streams"][0]
+                    saved = (htj2k[s]["bytes"] - top - sum(base["streams"][1:])) / base["frames"]
+                    bound = ref + saved * 8 / 20e6 * 1e3
+                    part += f" (bound {bound:.1f}: {'within' if np.median(v) <= bound else 'over'})"
+                parts.append(part)
+            print(f"{throttle}x {s}: " + " · ".join(parts))
+
+
 def main():
     work = Path(sys.argv[1])
     rho = {r["set"]: r for r in rows(work / "rho.jsonl")}
@@ -78,9 +114,9 @@ def main():
             ratio = f", G1/HTJ2K {base['bytes'] / h['bytes']:.3f}" if h else ""
             print(f"{s}: G1 {base['bytes']} B (top {base['streams'][0]}, low {sum(base['streams'][1:])}){ratio}; " + "; ".join(parts))
 
-    print("\n## the rule and the predictions, libaom optimized")
+    print("\n## the rule and the predictions, libaom optimized, alt-ref off; best G is over G ≤ 16 with G = 1 (gain 0) in")
     for preset in ("good:6", "cpu0"):
-        best = {}
+        best, best_inter = {}, {}
         for s in sorted({k[0] for k in gains if k[1:5] == ("aom", preset, "optimized", False)}):
             gs = {g: gains[(s, "aom", preset, "optimized", False, g)] for g in range(2, 17)
                   if gains.get((s, "aom", preset, "optimized", False, g))}
@@ -88,23 +124,34 @@ def main():
                 continue
             g, x = max(gs.items(), key=lambda kv: kv[1]["sum"])
             gp, xp = max(gs.items(), key=lambda kv: kv[1]["product"])
+            best[s], best_inter[s] = max(0.0, x["sum"]), x["sum"]
+            line = [f"{preset} {s}: gain {best[s]:+.2%} (best G > 1: G {g} {x['sum']:+.2%}; top alone {max(v['top'] for v in gs.values()):+.2%};"
+                    f" top at G with low intra: G {gp} {xp['product']:+.2%})"]
             h = htj2k.get(s)
-            line = [f"{preset} {s}: best G {g} gain {x['sum']:+.2%}", f"product shape best G {gp} {xp['product']:+.2%}"]
             if h:
-                line.append(f"best G / HTJ2K {cells[(s, 'aom', preset, 'optimized', False, g)]['bytes'] / h['bytes']:.3f}")
+                g1 = cells[(s, "aom", preset, "optimized", False, 1)]["bytes"]
+                line.append(f"G1 / HTJ2K {g1 / h['bytes']:.3f}, best G > 1 / HTJ2K {cells[(s, 'aom', preset, 'optimized', False, g)]['bytes'] / h['bytes']:.3f}")
             later = [gs[k]["sum"] for k in gs if k >= 8]
             if 4 in gs and later:
-                line.append(f"G2 {gs[2]['sum']:+.2%}, G4 {gs[4]['sum']:+.2%}, best G≥8 − G4 {100 * (max(later) - gs[4]['sum']):+.2f} points")
+                line.append(f"G2 {gs[2]['sum']:+.2%}, G4 {gs[4]['sum']:+.2%}, best G ≥ 8 − G4 {100 * (max(later) - gs[4]['sum']):+.2f} points")
             lows = [gs[k]["low"] for k in gs if gs[k]["low"] is not None]
             if lows:
                 line.append(f"low stream's best inter vs intra {max(lows):+.2%}")
-            best[s] = x["sum"]
             print("; ".join(line))
-        if preset == "good:6" and len(best) >= 4:
-            sets = [s for s in best if s in rho]
-            print(f"Spearman(gain, ρ) over {len(sets)} series: "
-                  f"{spearman([best[s] for s in sets], [rho[s]['top']['best']['median'] for s in sets]):+.3f}")
-
+        sets = [s for s in best if s in rho]
+        if len(sets) >= 4:
+            r = [rho[s]["top"]["best"]["median"] for s in sets]
+            print(f"{preset}: Spearman(gain, ρ) over {len(sets)} series {spearman([best[s] for s in sets], r):+.3f};"
+                  f" with the best G > 1's gain {spearman([best_inter[s] for s in sets], r):+.3f}")
+    timing(work, cells, htj2k)
+    arcs = {s: float(a["scanArc"]) for s, a in arc.items() if float(a.get("scanArc", 0)) > 0 and s in rho}
+    if len(arcs) >= 4:
+        print(f"Spearman(scan arc, ρ) over the {len(arcs)} series that record an arc:"
+              f" {spearman(list(arcs.values()), [rho[s]['top']['best']['median'] for s in arcs]):+.3f}")
+    for (s, enc, preset, rep, altref, g), x in sorted(gains.items()):
+        if altref and x is not None:
+            off = gains.get((s, enc, preset, rep, False, g))
+            print(f"alt-ref on − off, {s} {preset} G{g}: {100 * (x['sum'] - off['sum']):+.2f} points")
 
 if __name__ == "__main__":
     main()

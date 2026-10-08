@@ -178,6 +178,15 @@ fill at 4× (3.21, 3.60, 7.62 s against 1.75, 1.99, 3.18), against today's 1.82�
 At 1× it ends 20–40 ms sooner. What it buys is an ask's single frame at 0.37–0.44 of
 the time; a fill's total stays where the decoder's CPU work puts it. Containers, not phones.
 
+**Frame groups, to a rule fixed before the data (row GOPMEASURE, 2026-10-08,
+[`lab/av1/gopmeasure`](../../lab/av1/gopmeasure/README.md)).** On the middle 16 slices of 15 sound DBT volumes, five
+from each of systems A, B and C, libaom `good` 6 with alt-ref off makes every G ≤ 16 larger than intra on 14 series;
+the one gain is +1.51 % (cpu0 on three series: at most +0.13 %), against the 20 % the rule asks. **DBT stays at
+G = 1, conclusively by the rule.** Alt-ref on and SVT-AV1 inter are not lossless on a 10-bit top; on system B's 8-bit
+streams they gain at most +3.19 % and +2.43 %. Every G > 1 also misses the rule's decode bound at 4×, and the client's dav1d-WASM path cannot
+decode a split series in groups at all (its low unit flushes the top's references). Breast
+ultrasound cine, ABUS and angiography runs have no sound data here and get no decision.
+
 **A2 — which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.
 Neither is assumed faster or exact:
