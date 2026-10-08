@@ -13,7 +13,7 @@
  *     [--summary [--ref htj2k]]
  */
 import { spawn, execFileSync } from "node:child_process";
-import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -196,6 +196,7 @@ async function inBrowser(engine, url, throttle, errors) {
     process.kill(-proc.pid, "SIGKILL");
     await gone;
     await new Promise((r) => setTimeout(r, 300));
+    rmSync(dir, { recursive: true, force: true }); // a profile is ~40 MB: a run's visits would fill the disk
   }
 }
 
