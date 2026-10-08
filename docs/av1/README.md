@@ -902,6 +902,66 @@ byte than a volume's many slices: a reading, not measured). **Verdict:** HTJ2K f
 on system B's FFDM), and at 14 bits k = 2 at 1× and w10 at 4× on 20 Mbit/s and more. Container numbers, not a
 phone's; the per-series rule is row TOTAL4's.
 
+### Every change of the round, in Chromium and Firefox (row TOTAL4, [`lab/av1/total`](../../lab/av1/total/README.md))
+
+The optimized item as ingest now writes it (row SPLITRULE's k by depth, cpu0, every item decoded and
+matched before it is written) against the served HTJ2K, one series per class the split rule tells apart,
+on row TOTAL's five links at 1× and 4×, in Chromium 141 and Firefox 157.0.1, with row CODECSTR's codec
+string, row DECODE's decoder interface and row XENGINE's 8-bit GBR read in the product. 16 rounds (the last
+two on the cells short of n = 10): 3 746 visits, **90 949/90 949 delivered frames exact**, 1 930 kept.
+Cells are AV1's total time over HTJ2K's, median of round-paired visits, 1× · 4×; **bold** is AV1 slower,
+*italic* is n < 10 (n = 1–9; the rest 10–13), — none paired. In brackets bytes over HTJ2K's.
+
+| series | engine | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| --- | --- | --- | --- | --- | --- | --- |
+| MR, 9-bit (0.916) | HTJ2K, s, Chromium 1× | 2.31 | 0.70 | 0.47 | 0.68 | 0.83 |
+| | Chromium | *0.94* · *0.95* | *0.95* · 0.96 | 0.98 · *1.00* | *0.97* · *0.97* | *0.97* · *0.99* |
+| | Firefox | — · — | *0.94* · — | *0.92* · ***1.33*** | *0.94* · *0.96* | *0.93* · *0.94* |
+| tomosynthesis, 10-bit (0.946) | HTJ2K, s, Chromium 1× | 14.94 | 3.87 | 1.70 | 3.39 | 5.85 |
+| | Chromium | *0.95* · *0.95* | *0.96* · *0.98* | 0.97 · **1.01** | *0.97* · *0.99* | *0.94* · *0.95* |
+| | Firefox | — · — | — · ***1.03*** | ***1.01*** · **1.76** | *0.98* · ***1.09*** | *0.96* · *0.93* |
+| fluoroscopy, 12-bit (0.943) | HTJ2K, s, Chromium 1× | 15.18 | 3.93 | 1.72 | 3.42 | 5.58 |
+| | Chromium | *0.95* · *0.95* | *0.95* · *0.98* | 0.97 · ***1.02*** | *0.96* · *0.98* | *0.89* · *0.97* |
+| | Firefox | — · — | *0.96* · — | *0.99* · **1.52** | *0.96* · ***1.07*** | *0.96* · ***1.05*** |
+| mammogram, 12-bit (0.962) | HTJ2K, s, Chromium 1× | 12.45 | 3.27 | 1.49 | 2.96 | 4.31 |
+| | Chromium | *0.97* · — | ***1.00*** · ***1.10*** | ***1.05*** · **1.36** | ***1.02*** · ***1.16*** | *0.99* · ***1.08*** |
+| | Firefox | — · — | — · ***1.39*** | **1.18** · **2.53** | ***1.07*** · ***1.58*** | *0.83* · ***1.64*** |
+| CT, 13-bit signed (0.928) | HTJ2K, s, Chromium 1× | 16.20 | 4.17 | 1.82 | 3.61 | 6.18 |
+| | Chromium | *0.93* · *0.93* | *0.93* · *0.94* | 0.94 · 0.96 | *0.94* · *0.95* | *0.94* · *0.92* |
+| | Firefox | — · — | *0.94* · *0.95* | 0.95 · **1.63** | *0.95* · ***1.02*** | *0.94* · *0.95* |
+| projections, 14-bit (0.923) | HTJ2K, s, Chromium 1× | 16.01 | 4.16 | 1.84 | 3.60 | 6.01 |
+| | Chromium | — · *0.98* | *0.99* · ***1.15*** | **1.06** · **1.68** | ***1.00*** · ***1.21*** | *0.98* · ***1.00*** |
+| | Firefox | — · — | *0.99* · ***1.17*** | **1.07** · **1.76** | *1.00* · ***1.21*** | *0.95* · ***1.11*** |
+| ultrasound, RGB 8 (provisional) (0.958) | HTJ2K, s, Chromium 1× | 16.89 | 4.35 | 1.90 | 3.73 | 6.87 |
+| | Chromium | *0.96* · *0.96* | *0.96* · *0.98* | 0.98 · **1.01** | *0.97* · *0.99* | *0.97* · *0.97* |
+| | Firefox | — · — | *0.96* · *0.99* | 0.98 · **1.51** | *0.96* · ***1.04*** | *0.95* · ***1.02*** |
+
+* **No series wins in both engines on every cell.** Firefox at 4× on 50 Mbit loses on every series,
+  1.33–2.53, n = 8–13 and every pair slower; Chromium there loses 1–2 % on the tomosynthesis, fluoroscopy
+  and ultrasound and 36–68 % on the mammogram and projections, wins on CT (0.96) and ties on MR (1.00).
+* **The mammogram and the projections are HTJ2K's even at 1× on 50 Mbit** in both engines (1.05–1.18,
+  n = 9–11, every pair slower in Chromium): the largest frames (4.4 and 2.6 M samples), the 14-bit top
+  through dav1d-WASM.
+* **Wherever the wire is the clock** (5 and 20 Mbit, LTE and Wi-Fi at 1×) AV1 is 0.89–0.98 on the other five
+  series in both engines, about its bytes, and 0.83–1.07 on those two; these cells are n = 1–9, short of
+  the brief's 10.
+* **The first frame is HTJ2K's**: by 0–222 ms at 1× and 0–1 048 at 4× in Chromium, by 33–406 and
+  92–1 446 ms in Firefox (median by series), the projections and the mammogram the largest.
+* **Firefox's dial through the relay fails at 5 and 20 Mbit**: 49 of 60 and 125 of 394 visits never
+  connected (row GREY420's finding, §Blocked of the queue), so its 5 and 20 Mbit cells are thin.
+* **Saturation.** At 4× on 50 Mbit and LTE the decode on the browser's three cores is the fill's clock; a
+  container is not a phone, and nothing past that is claimed. 46 % of visits were dropped as `VOID`,
+  rising after the first rounds on a quiet rig: this container's timing, the same for both arms.
+* The ultrasound is lossy-sourced (`us_liver`, DERIVED, ratio 12.4): its cells are provisional and enter
+  no rule.
+
+**The rule (row TOTAL4).** A series is served as AV1 only where it fills first in both engines on every
+link and CPU; **no series qualifies, so ingest keeps HTJ2K for every series** and nothing in it changes.
+Read per clock instead: AV1 is the faster fill on every series but the mammogram and the projections wherever
+the wire is slower than the decoder, and HTJ2K wherever a slow CPU meets a fast link, Firefox's far more so
+than Chromium's. A rule by link or by client would need the server to know them; that is a product call
+(the queue's §Blocked).
+
 ## Threads (owner, 2026-10-03)
 
 **Focus: AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
