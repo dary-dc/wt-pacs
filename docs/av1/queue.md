@@ -1421,6 +1421,170 @@ names that project.
 (the gate, the stale-build guard, formatting, hygiene, dead code, comments) — each with file:line, and a list of what
 needs the owner (decisions only the owner can take), added under `## Blocked`.
 
+**Findings (2026-10-08, read at `claude/av1-unified` `1f49ac3`; paths as of that read).** Grouped by pattern; a count
+with examples where one pattern repeats.
+
+*Row 84 — names, glossary, environment variables, folder leftovers*
+* One glossary: README §Names (`README.md:141`) mixes definitions with a rename log ("Renamed", "Proposed, not applied",
+  "row NAMING") — keep definitions only. Missing there: FoD (never expanded: `common/fod/src/lib.rs:1`, `README.md:110`),
+  Media-complete (`server/Cargo.toml:5`, `client/transport-ts/session.ts:2`), SBND, series/study, cell, rig, tile, Tap,
+  stream mode, preview, golden item, ring, top/low stream, RCT. No vendor/upstream glossary.
+* One concept, several names: the stored series — study / bundle / SBND / the store (`docs/FIXTURES.md:8`,
+  `README.md:156`, `--study` `server/src/main.rs:13`, `tools/pack-study`, `ingest/study-bundle`); the on-demand ask —
+  "tile" (`server/src/media/read_path.rs:28,274` `TILE_SLOTS`/`TileReader`, `docs/adr/disk-access.md:13,25`, clashes
+  with codec tiles); the fill reader — `SeqReader` (`read_path.rs:115`); `enum Ask` also carries Fill/EndStream/EndSession
+  (`server/src/transport/planner.rs:13`); `open_ask`/`--open-ask` against "the opening ask" (`server/src/main.rs:52`);
+  `ENVELOPE_LEN` = the display index's 4 bytes against `envelope_len` = the whole envelope
+  (`common/frame-envelope/src/lib.rs:5,10`); "exact" for the server, a wire tier and a percentile method
+  (`server/src/record/report.rs:6`, `frame-envelope/src/lib.rs:1`); the client's stall timeout — `stallMs` / `quietMs` /
+  "silence" (`client/downloader/downloader.js:16,33,263`); the last byte — `lastByte` / `lastChunkMs` / `lastByteAt`
+  (`client/downloader/consumer.js:107`); the recorder — `Tap` / `record/` / telemetry (`client/record/tap.ts:20`); the TCP
+  client — transport-ws / `ws` / `OverTcp` / TCP fallback (`client/conformance/run.ts:85`, `race-session.ts:8`); the
+  downloader worker — "receive worker" (`docs/ARCHITECTURE.md:18`); "harness" for the rig and for `client/harness/`
+  (`README.md:163`, `client/harness/shell.js:2`); "client" for the whole stack and for a transport
+  (`docs/ARCHITECTURE.md:1`); `epoch` defined twice (`docs/ARCHITECTURE.md:829`, `README.md:158`); "unit" for a group
+  (`docs/av1/adr-unit.md:1`) and an AV1 temporal unit; `session-telemetry.ts` emitted as `session.telemetry.js`
+  (`client/transport-ts/build.sh:15`); `.j2c` and `.htj2k` (`README.md:93`); `wtpacs` and `wt-pacs`
+  (`deploy/check_equivalence.sh:57`, `deploy/Containerfile:24`); `wt_port` also binds the TCP port
+  (`server/src/transport/server.rs:53`).
+* History words in names: "arm" in the A/B sense — `webcodecsArms` (`client/conformance/dispatch-rig.ts:778`), `armFill`
+  (`client/transport-ts/frame-session.ts:249`), `read_path.rs:921`, `scripts/gate.sh:66,79`, `deploy/README.md:21,82`,
+  `README.md:9`, and the variables `ARMS` (19 reads, `README.md:22`), `ARM_LIST`, `ARM_URL`, `ARM_PID`, `ARM_BIN`,
+  `ARM_LOG`, `ARMS_DIR` (`lab/scripts/server_ab.sh`); "phase" (`README.md:135`, `docs/av1/README.md:3`,
+  `lab/README.md:20`, `lab/av1/fetch_data.sh:2`); "campaign" (`lab/downloader-campaign/`,
+  `lab/disk-access-bench/src/bin/read_campaign.rs`, `tools/check-fastpath/src/main.rs:43`,
+  `server/src/transport/tuning.rs:166`, `read_path.rs:837`); "exact-tier", "Media-complete … ask-only"
+  (`server/Cargo.toml:2,5`, crate `exact-server`); "early" (`patches/wtransport-0.7.2-settings-early.patch`,
+  `scripts/patch_crate.sh:14`); `READ_WINDOW` "the retired 64 KiB read chunk" (`server/src/media/frame_store.rs:15`);
+  `.gitignore:34,38,62` ("Tf-axis", "Rung-layout", "The earlier client"); "S4" (`docs/ARCHITECTURE.md:10`), "pre-S2"
+  (`docs/adr/telemetry-server-pipeline.md:270,281,300`).
+* Campaign and queue labels: 12 lab file names (`lab/scripts/e0_netem_validation.sh`, `e1_saturation_*.sh`,
+  `e2_miss_cost_*.sh`, `l3_lossy_link.sh`, `l3_summary.py`, `l7_*`, `n1_netem_calibration.sh`, `s5_split.py`,
+  `lab/traces/x3_short_scroll.json`); `lab/scripts/cloud_common.sh:16` (`.local/r2/`); `lab/av1/` folders named for rows
+  (`splitok`, `encx`, `llsize`, `rep14`, `wcap`, …) with product comments pointing into them
+  (`client/downloader/av1.js:13`, `decode-av1-webcodecs.js:51,124`, `av1-item.js:171`, `av1-frame.js:80`); test and code
+  comments `client/conformance/dispatch-rig.ts:557,579,797,1388`, `client/harness/shell.js:43`,
+  `client/downloader/README.md:149,157,160,177`; product docs — `docs/av1/README.md` (96 "row X", headings :541–:871),
+  `docs/decode/README.md` (53), `docs/transport/transport-conclusions.md` (FQC, CC1, BB2, BBF, PROF, BB3, LD, IDL,
+  W4b, LOAD, GS1, ASKL in headings :123–:1039), `docs/rig-limits.md:43,240,256,258,261,398,517`,
+  `docs/av1/item-format.md:41,94,115,137,154`, `docs/av1/adr-unit.md:3,83,101`, `docs/av1/licensing.md:73`,
+  `docs/adr/exactness-in-production.md:3`, `docs/ARCHITECTURE.md:161,241`, `docs/FIXTURES.md:93,161,176,205`; 85 in lab
+  code comments (e.g. `lab/av1/codecstr/check.mjs:4`, `lab/av1/splitok/merge_test.py:3`), 52 campaign labels in 31 lab
+  files (e.g. `lab/disk-access-bench/src/bin/read_campaign.rs:34`, `lab/page-open/downloader.html:35`). Fix: name what
+  was measured. The working branch named as where something lives: `docs/av1/README.md:8`, `docs/av1/item-format.md:94`,
+  `docs/adr/disk-access.md:679` — a commit.
+* Standards' terms: "item" (DICOM Item; 96 uses in 14 docs, `av1-item.js`, `parseItem`, `client/conformance/av1/items/`);
+  "conformance" (`client/conformance/`, `scripts/gate.sh:53,61`, `docs/CLIENTS.md:90`) beside DICOM's Conformance
+  Statement; "study" for one series (DICOM Study); telemetry row kinds `interaction`/`preload` for ask/fill
+  (`client/record/parse.ts:61,65`).
+* Environment variables and paths: `CHROME_PATH` (`client/conformance/browser_env.sh:13`, `drive_page.cjs:9`); personal
+  defaults `EMSDK=${EMSDK:-$HOME/emsdk}` (`lab/decode-bench/wasm/build.sh:12`, `lab/decode-bench/README.md:29,32`,
+  `lab/decode-bench/retained/README.md:16`), `$HOME/.ssh/id_ed25519_rig_agent` (`lab/scripts/cloud_common.sh:12`),
+  `~/.ssh/id_ed25519_rig` (`lab/scripts/l3_lossy_link.sh:6`), `/home/ubuntu/wt-pacs` (`cloud_common.sh:14,52,64`,
+  `l3_lossy_link.sh:15`), `/tmp/goclient` (`lab/other-clients/README.md:18`), `~/.cache/wtpacs-traces`
+  (`lab/av1/total/run.mjs:44`, its README:108).
+* Folder leftovers: `lab/fixtures/decode_warmup_{c,c92,g,g277,g512}/` referenced nowhere; `lab/fixtures/queue_large/README.md:1`
+  titled `lab_queue_large`; `lab/scripts/cert_chain_cells.sh` referenced nowhere; `lab/av1/mixdec/bound.html` named in no
+  README; `.gitignore:47-49` (`frames_500x64k`, `frames_500x250k`, a README that does not exist); the unapplied
+  `patches/quinn-proto-0.11.18-ack-when-congestion-blocked.patch` beside the applied ones (its draft:
+  `docs/transport/upstream-quinn-ack.md:81`); the study-bundle format the server reads lives in `ingest/`
+  (`ingest/study-bundle/src/format.rs:1`, read by `server/src/media/frame_store.rs:8`) — `common/`.
+
+*Row 85 — README onboarding, docs, diagrams, duplicates*
+* Prerequisites (`README.md:5-18`): no `rust-toolchain.toml` (`patched/wtransport/Cargo.toml:6` needs 1.88), no Node
+  pin (`.nvmrc`/`engines`; the image uses 22, `deploy/Containerfile:31`), Python unpinned; Linux not stated though io_uring
+  is a default feature (`server/Cargo.toml:16`); `wasm-pack` and `playwright` installed unpinned (`README.md:15-16`);
+  unlisted: openssl (`server/scripts/gen_dev_cert.sh:10`, `client/conformance/run_wire.sh:20`), curl, patch, tar,
+  sha256sum (`scripts/patch_crate.sh:42,49`), binutils `nm`/`strings` (`server/scripts/check_telemetry_absent.sh:22`,
+  `client/scripts/check_worker_safe.sh:13`), cmake and a C++ compiler (only in a comment, `README.md:91`), llvm-tools
+  (`scripts/pgo_build.sh:130`), podman or docker, Chrome and its minimum version (`README.md:70`), network for
+  `npm install` on first build (`client/transport-ts/build.sh:9`); the AV1 build's git, ninja, Emscripten download
+  (`lab/av1/dav1d-wasm/build.sh:22-38`) and who needs it (`README.md:22-23`). Image bases float
+  (`deploy/Containerfile:7,31,38`).
+* Order and steps: the gate is never a numbered step and exits 2 before the WASM `pkg/` exists, built only at
+  `README.md:49` (`scripts/gate.sh:22`); step 3 rewrites the tracked `fixtures/us_cine_smoke/us_cine_smoke.sbnd`
+  (`README.md:55-59`); the dev certificate's 10 days and fixed port unsaid (`gen_dev_cert.sh:13,32`); the c512 block sits
+  outside its list item (`README.md:90-101`); `scripts/cellcheck.sh` and `deploy/check_equivalence.sh` have no cost or
+  place (`README.md:103-108`); `CLAUDE.md:63-64` omits `--no-browser`; `lab/README.md:1-21` has no prerequisites
+  (`requirements.txt`, emsdk, sudo for netem).
+* Costs and history in the README: per-check costs missing; the gate's before → after timings ("row GATE",
+  `README.md:25-30`) and the mutant table (`README.md:35-43`, also `client/downloader/README.md:177-212`) are history.
+  `README.md:110-115` restates WIRE and ARCHITECTURE. `README.md:134-137` maps docs to work queues and "older campaign
+  evidence"; `README.md:186-193` Provenance (owner, below).
+* Product docs that depend on the queues: `README.md:134`, `docs/ARCHITECTURE.md:580`, `docs/CLIENTS.md:316`,
+  `docs/adr/client-window-depth.md:307` (cloud queue §Open owner decisions); `docs/adr/exactness-in-production.md:4`,
+  `docs/av1/README.md:6,77,96,858,933`, `docs/av1/series.md:3,22,187`, `docs/decode/README.md:1635`,
+  `docs/FIXTURES.md:175` (this queue) — each owning doc's §Open.
+* History narrative: `docs/transport/transport-conclusions.md` (63 dates, dated headings :100–:1039),
+  `docs/adr/disk-access.md:116-127` and dated headings :461–:674, `docs/av1/README.md:27-541`,
+  `docs/decode/README.md:1083,1088`, `docs/rig-limits.md:14,556-569,613-627`, `docs/ARCHITECTURE.md:692`,
+  `docs/FIXTURES.md:205`, `deploy/README.md:76,79-87,99-102,113-122`, `client/downloader/README.md:37-44,74-99,128,145,149-167`
+  (measurements belong in docs/), lab comments with dates (`lab/downloader-campaign/page.js:3`, `throttle.mjs:78`,
+  `lab/disk-access-bench/src/main.rs:51,1489,1619`, `src/bin/server_ab.rs:54`, `lab/scripts/controller_cells.sh:3,5`,
+  `radio_link_cells.sh:4`, `lab/decode-bench/parity.mjs:81`, `lab/scripts/l3_lossy_link.sh:20`).
+* Duplicates: the race (`docs/CLIENTS.md:78-89`, `docs/ARCHITECTURE.md:982-986`); BBR 12–19×
+  (`transport-conclusions.md:176`, `docs/rig-limits.md:205`, `docs/av1/README.md:824`); the gate's steps (`CLAUDE.md:60-63`,
+  `README.md:7-30`, `docs/CLIENTS.md:180`); `read_ahead_kb` (`docs/adr/disk-access.md:246,295`, `docs/rig-limits.md:346`);
+  the quick start (`client/downloader/README.md:216-222`); FoD's decoder (`client/record/parse.ts:8` against
+  `client/transport-ts/wire.ts:3`); the two image ignore files kept equal by hand (`deploy/README.md:89-91`).
+* Stale or uncorrected: `docs/adr/reject-server-cancel.md:87,103` (a banner only, :6);
+  `docs/adr/frame-framing-and-loop-shape.md:3` "open" though built (:150, :240, :260); `docs/rig-limits.md:13` "eight
+  limits", §8 lifted (:508); `docs/av1/adr-unit.md` not in `docs/adr/README.md`; `lab/README.md:9-20` omits
+  `server-load/`; `lab/av1/README.md` §The folders omits `htj2kenc/`, `htj2kmt/`, `xengine/`; 8 lab folders without a
+  README (`clock-resolution`, `decode-tail`, `early-messages`, `idle-sessions`, `worker-leak`, `window-harness`,
+  `disk-access-bench`, `telemetry-bench`); `lab/scripts/gen_live_cell_fixture.sh:40-41` writes a dangling "§0b" and one
+  rate for every size into 10 fixture READMEs; `docs/FIXTURES.md` omits `client/conformance/av1/**` and its generators;
+  `docs/CLIENTS.md:8-12` omits `downloader/`, `harness/`, `record/`, `scripts/`; `client/downloader/downloader.js:424`
+  "the proposal" names no doc; `deploy/nginx/wt-pacs.conf.template:2` garbled.
+* Diagrams: an ask during a fill (`docs/WIRE.md:105`), session survival (`docs/ARCHITECTURE.md:752-890`), session open's
+  round trips (`docs/ARCHITECTURE.md:547`), the read path (`docs/adr/disk-access.md:333-365`), the item's byte layout and
+  the split (`docs/av1/item-format.md:10`, `README.md:162`), the client's folders by worker.
+* Lab duplication: `inChromium` copied in 23 files (e.g. `lab/av1/decode/run.mjs`, `lab/av1/speed/speed.mjs`),
+  `write_y4m` in 10 bodies and `ivf_units`/`read_pnm`/`read_y4m` in 4–5, `arg`/`med`/`sha256` in 46/51/12 files,
+  `make_frames.py` 16 copies.
+
+*Row 86 — the gate, the stale-build guard, formatting, hygiene, dead code, comments*
+* The gate's report: "GATE OK" (`scripts/gate.sh:97`) with no recap of what it skipped — the AV1 dispatch clauses
+  (`client/conformance/dispatch-rig.ts:874,899`, 128 of 719 checks), the golden items (`av1.test.mjs:291`), the io_uring
+  tests that `eprintln!("skipped…")` and pass (`server/src/media/read_path.rs:930,981,1019,1046`,
+  `uring_reader.rs:196,231,265,292,335`), `client/scripts/check_telemetry_absent.sh:25,31,38` skipping silently,
+  `cellcheck.sh` and `deploy/check_equivalence.sh` never run; `| tail -N` hides failures (`gate.sh:42-48,54,84`); no
+  per-step time; `nm` not checked up front.
+* Not run or not compiled: `pack-study`, `check-fastpath` (`gate.sh:70-80`); `lab/other-clients/h3`, the Go modules
+  `lab/other-clients/go`, `lab/page-open/h3-host`; `lab/av1/splitok/merge_test.py` (pure numpy, tests ingest's split);
+  `lab/av1/item/check.mjs`, `lab/av1/codecstr/check.mjs` (SKIPPED without the AV1 build); the record tests are never
+  type-checked (`client/record/tsconfig.json:13`).
+* Formatting: no `cargo fmt --check`, clippy, JS/TS formatter, shellcheck or config; 29 product lines over 120 characters
+  (e.g. `client/downloader/av1-frame.js:32`, `av1-item.js:36`).
+* Stale-build guard: only `transport-wasm` (`gate.sh:22-23`); none for `lab/.av1-build/out/simd.wasm`,
+  `client/conformance/run_browser.sh:16`, `client/scripts/check_worker_safe.sh:16`,
+  `client/scripts/check_telemetry_absent.sh:13-14`, `server/dev-server.py:12`, `scripts/cellcheck.sh:174`, the image
+  (`deploy/Containerfile:41`).
+* Hygiene: `server/dev-server.py` and `lab/scripts/l3_summary.py:6`, `l7_summary.py:4` have shebangs at 100644; 86 lab
+  `.py` with a shebang at 100644 run through `python3`; `lab/scripts/cloud_common.sh` 100755 but only sourced;
+  `.gitignore:12-13` and `:51,71` duplicates; `.cargo/config.toml:1-6` the same rustflags twice;
+  `patched/quinn/Cargo.toml:5-14` generated boilerplate; `deploy/check_equivalence.sh:10` `set -u` alone;
+  `scripts/check_links.py:11` omits `common/`, `ingest/`, `tools/`, `patches/`, `patched/`, `fixtures/`;
+  `docs/CLIENTS.md:85` a link as plain text; `client/conformance/run_wire.sh:3` unwrapped.
+* Comment budget's reach: `scripts/comment_budget.sh:24` counts `*.test.mjs` (tests are exempt) and never `.sh`, `.py`,
+  `.c`, `.go`, the Containerfile, Cargo.toml, the nginx template or inline `<script>`; three shell scripts would be over
+  0.18 (`lab/scripts/gen_htj2k_fixtures.sh`, `lab/av1/svcdec/make_frames.sh`, `lab/scripts/runtime_ab.sh`).
+* Comments: numbers in product comments (`read_path.rs:116-117`, `server/src/transport/server.rs:205`, `server/src/record/tap.rs:89`,
+  `deploy/nginx/wt-pacs.conf.template:34`); narrative module docs (`server/src/record/report.rs:1-12`, `sink.rs:1-8`,
+  `tap.rs:1-5`, `read_path.rs:1-6`, `server/src/main.rs:105-106`, `client/scripts/check_worker_safe.sh:2-3`,
+  `client/record/report.ts:66`, `client/record/install.ts:1` "option G", `client/downloader/htj2k.js:1` a bare filename);
+  quinn's defaults stated twice (`server/src/main.rs:25-29`, `tuning.rs:31-42`); test text telling history
+  (`server/src/transport/restart.rs:258`, `read_path.rs:879`, `stream_mode.rs:49`).
+* Dead code and logging: `touch_frame_pages_if_cold` behind `#[allow(dead_code)]`, no caller
+  (`lab/disk-access-bench/src/rejected_access.rs:74-80`); `install.ts:23,26`'s `transport-wasm` branches, nothing installs
+  the recorder there (`client/harness/shell.js:34`); `ack_us` and `server_work_us` in the absence check match nothing that
+  exists (`server/scripts/check_telemetry_absent.sh:22,24`); exports used only in their own file
+  (`client/record/proxy.ts:31,80,84,106,110,152`, `client/record/report.ts:70,91`, `parse.ts:17`); a line logged
+  twice (`client/harness/shell.js:184,203`); undocumented `DEBUG` logging (`lab/session-survival/run.mjs:55-60`). No
+  TODO, FIXME or "for now" anywhere; no debug logging in product code.
+
+*The owner's* — under `## Blocked`, 2026-10-08 03:55 UTC.
+
 ### 84 NAMES
 
 **Do:** row 83's 84-list: renames with every reference, the one glossary (merging any project terms kept in a codec or
@@ -1962,6 +2126,32 @@ question is now conclusive for each target type, and why or why not; corrected i
 §A1 states it.
 
 ## Blocked
+
+* **2026-10-08 03:55 UTC: row 83 TEAMAUDIT — the decisions rows 84–86 cannot take alone.** Each is structural or
+  renames a public surface:
+  * *Renames across the code and its readers:* "item" → "coded frame" (README §Names' proposal); "arm" → "variant" in
+    the lab, its variables and `CLAUDE.md` §Measurement; the telemetry schema's `arm` → `client` and its row kinds
+    `interaction`/`preload` → ask/fill (`client/record/types.ts:151`, `parse.ts:61,65`; always-null fields
+    `report.ts:145-146,200` kept or dropped); the crate `exact-server` and "exact-tier"; "study" for one series
+    (`--study`, `pack-study`, `study-bundle`); "conformance" for the transport contract suite; "early" in
+    `patches/wtransport-0.7.2-settings-early.patch`; "Media-complete" kept and defined, or renamed; the queue-named
+    `lab/av1/` folders (row 56). Whether the proposed Names rule goes into `CLAUDE.md`, and whether the glossary stays in
+    README §Names or gets its own file.
+  * *Where product code lives:* the shipped AV1 decoder's build (`lab/av1/dav1d-wasm/`), the AV1 ingest
+    (`lab/av1/item/ingest.py`) and the HTJ2K decoder's fetch (`lab/decode-bench/fetch_decoder.sh`, served from
+    `lab/decode-bench/vendor`) are product dependencies under `lab/`, against `lab/README.md:3`; lab crates in the
+    product workspace and image (`Cargo.toml:10-12`, `deploy/Containerfile:16`); lab-only flags in the product binary
+    (`server/src/main.rs:43-57`); `readMin` (`client/downloader/downloader.js:374`), set only by the lab; the rejected
+    read shapes kept compiled (`lab/disk-access-bench/src/rejected_access.rs`); the opt-in GSO patch (`gate.sh:37`);
+    splitting `client/conformance/dispatch-rig.ts` (2 192 lines).
+  * *What a public repository carries:* README §Provenance (`README.md:186-193`); `docs/rig-limits.md` §9 (:531-611,
+    a cloud host's ports, a long-lived server, SSH key roles); third-party names cited as sources in
+    `docs/av1/series.md:175-180` and as the HTJ2K decoder package's npm scope (README.md:17, 16 lab files); 59
+    `archive/*` tags on the remote, some named for third parties; the unfiled upstream drafts
+    (`docs/transport/upstream-*.md`).
+  * *Which rule governs:* the dated evolution log `CLAUDE.md:46` holds up as the model (`docs/adr/disk-access.md` §3)
+    against "no history narrative"; the two ADRs still "proposed" (`docs/adr/exactness-in-production.md:3`,
+    `docs/adr/transport-idle-sessions.md:3`).
 
 * **2026-10-08 03:10 UTC: rows 75 LOSSCC and 77 TOTAL4 stale** — claimed 18:43 UTC on 10-07 (`c0a3d8`, `0e0b90`),
   last lane commits `c20e7b0` (75, 19:05) and `434104a` (77, 20:41) on `claude/av1-unified`, none in the six hours
