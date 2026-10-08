@@ -147,7 +147,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 84 | **NAMES** — names, the one glossary, environment variables and folder leftovers, per the principles | after 68 |
 | 85 | **ONBOARD** — clone to green from the README alone, the docs essential and current, diagrams, each subject stated once | after 84 |
 | 86 | **CHECKS** — the gate runs every suite and says what it skipped, a stale-build guard, formatting, hygiene, dead code | after 84 |
-| 87 | **PAINTER** — a GPU painter in a worker for the client's decoded frames: the DICOM grayscale pipeline (rescale, VOI LUT function, MONOCHROME1), bilinear placement, fit, zoom, pan, quarter turns, flips, invert; proved against an independent CPU reference | ready |
+| 87 | **PAINTER** — a GPU painter in a worker for the client's decoded frames: the DICOM grayscale pipeline (rescale, VOI LUT function, MONOCHROME1), bilinear placement, fit, zoom, pan, quarter turns, flips, invert; proved against an independent CPU reference | claimed 2026-10-08 (night, ae32e0) |
 | 88 | **EXACT** — row 73's proposal built: a per-frame XXH3-64 written at ingest and checked in the decoder worker before a frame is handed on; a mismatch decoded again and never shown as exact | after 82 |
 | 89 | **INGEST** — one product command from a DICOM file or folder to a served bundle: the display attributes in the metadata, the per-frame digest, the codec chosen per series, exact at ingest | after 56, 77, 88 |
 | 90 | **VIEWER** — the product's page on its own downloader: metadata → fill → exactness → paint; step, cine, window/level, a status line; a page check that fails anything short of a complete, exact, drawn page | after 84, 87, 88, 89 |
