@@ -2096,6 +2096,24 @@ under this row, every other closed row whose verdict rests on content outside th
 series, few frames, one encoder, one preset), with what a verification would need — for the owner; redo none of them.
 **Decides:** `check_links.py` and the gate green. **Branch:** `claude/av1-unified`.
 
+**Closed rows to verify, for the owner (2026-10-08; none redone).** Each verdict rests on content outside the AV1
+target series ([`series.md`](series.md)) or on thin sampling; what a verification would need follows the dash.
+* *Frame groups.* **6 SIZE** — fluoroscopy, MR and an RGB ultrasound (lossy-sourced), none a target; its "inter
+  collects nothing" decides nothing for AV1 — rows 99–101 on DBT. **10 CONTENT** — two DBT volumes, libaom only, alt-ref
+  off, cpu0/cpu6, coded whole — the denser sweep of row 99's protocol, a second encoder, the k = 2 split. **21 TAXO** —
+  projections (FOR PROCESSING, not loaded for reading), groups on top11+low only, top12+low not run — none unless
+  projections become a target. **46 BREAST** — four DBT volumes at G = 8 and 16 only, libaom only; the grey cine's
+  halving is a lossy MPEG-4 clip's — a scanner's native cine (Blocked, row 94). **28 LLSIZE**'s and **36 ENCX**'s "inter
+  pays on the ultrasound" — `us_liver`, lossy-sourced (row 94).
+* *Decode and total time on off-target series.* **9 SPEED**, **11 FILL**, **12 PREVIEW** (the fluoroscopy's preview),
+  **15 SVC**, **18 SVCQ** — fluoroscopy, MR, ultrasound and synthetic sets only — DBT slices and mammograms, the frames
+  the targets are. **23 TOTAL**, **34 TOTAL2**, **42 TOTAL3** — four series, two of them off-target (fluoroscopy,
+  `us_liver`) — their DBT cells alone carry; row 77 TOTAL4 re-runs the taxonomy.
+* *Thin sampling.* **28 LLSIZE** — the first 2–8 frames a series, one encoder — whole series where a verdict turns on
+  < 2 %. **32 AV2** — one middle frame a series. **66 POCGAP** — the first 4 frames of two 10-bit volumes. **14 ENC** —
+  8 frames a set, 3 rounds. **60 LOSSLINK** and **75 LOSSCC** — one series (the 10-bit volume), 8 frames a visit —
+  enough for a transport's verdict, not a codec's.
+
 ### 99 GOPTHEORY
 
 **Do:** before any new data, a hypothesis document from primary sources (codec specifications, encoder documentation
