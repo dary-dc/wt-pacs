@@ -10,6 +10,9 @@ DICOM: its members, pinned inside a pinned zip, are decoded with FFmpeg — "lum
 plane, "rgb" converts it bit-exactly to RGB, "png" reads a grey still — and "frames" [first, count]
 keeps that run of each member's frames.
 
+Every source is checked against the set's "provenance" class before its frames are read
+(provenance.py): a lossy or video source is refused unless the set is marked lossy-sourced.
+
 Frames land in OUT/<set>/NNN.raw: the stored samples, little-endian, colour interleaved as stored,
 signed sign-extended to int16 — the layout and checksum convention of the HTJ2K sets.
 NNN.sha256 is the hex digest of NNN.raw; the set digest is the digest of those hex strings
@@ -27,6 +30,8 @@ import zipfile
 
 import numpy as np
 import pydicom
+
+from provenance import Refused, archive_attributes, check, dicom_attributes
 
 BUCKET = "https://idc-open-data.s3.amazonaws.com/"
 
@@ -108,13 +113,17 @@ class Archived:
         self.PhotometricInterpretation = "RGB" if f.ndim == 3 else "MONOCHROME2"
 
 
-def each_frame(spec: dict, out: str):
+def each_frame(spec: dict, out: str, sources: list):
     if "archive" in spec:
+        sources.append(archive_attributes(spec["decode"]))
+        check(spec["name"], spec["provenance"], sources[-1])
         for f in archive_frames(spec, out):
             yield f, Archived(f)
         return
     for entry in spec["files"]:
         ds = pydicom.dcmread(fetch(entry, out))
+        sources.append(dicom_attributes(ds))
+        check(spec["name"], spec["provenance"], sources[-1])
         for f in frames(ds):
             yield f, ds
 
@@ -122,9 +131,9 @@ def each_frame(spec: dict, out: str):
 def extract(spec: dict, out: str) -> None:
     dest = os.path.join(out, spec["name"])
     os.makedirs(dest, exist_ok=True)
-    digests, lo, hi, first = [], None, None, None
+    digests, lo, hi, first, sources = [], None, None, None, []
     y, x, h, w = spec.get("crop", (0, 0, None, None))
-    for f, ds in each_frame(spec, out):
+    for f, ds in each_frame(spec, out, sources):
         first = ds if first is None else first
         signed = ds.PixelRepresentation == 1
         dtype = "<u1" if ds.BitsAllocated == 8 else ("<i2" if signed else "<u2")
@@ -153,6 +162,8 @@ def extract(spec: dict, out: str) -> None:
         "max": int(hi),
         "photometric": first.PhotometricInterpretation,
         "framesSha256": got,
+        "provenance": spec["provenance"],
+        "sources": [dict(t) for t in sorted({tuple(a.items()) for a in sources}, key=str)],
         **{k: spec[k] for k in ("collection", "series", "licence", "doi")},
     }
     with open(os.path.join(dest, "metadata.json"), "w") as fh:
@@ -167,7 +178,10 @@ def main() -> None:
         sets = json.load(fh)["sets"]
     for spec in sets:
         if not names or spec["name"] in names:
-            extract(spec, out)
+            try:
+                extract(spec, out)
+            except Refused as e:
+                sys.exit(str(e))
 
 
 if __name__ == "__main__":

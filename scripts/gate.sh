@@ -73,6 +73,9 @@ step "client: type-check (product, shared record, conformance and transport-ts t
 step "lab: the arm order and its predecessor split"
 node lab/order.test.mjs
 
+step "lab: the AV1 fetch refuses a lossy source its set does not mark"
+python3 lab/av1/provenance_test.py
+
 step "server: tests, default features"
 cargo test -p exact-server --quiet
 step "server: tests, telemetry feature"

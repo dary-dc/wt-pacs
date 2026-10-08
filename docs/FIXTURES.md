@@ -97,36 +97,90 @@ that decoder makes of a lossy clip, checked against a second run with FFmpeg's d
 stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 and numpy 2.4.6, installed with `--require-hashes` from
 `lab/av1/requirements.txt`.
 
-| set | content | frames | stored | range | collection, licence |
-| --- | --- | --- | --- | --- | --- |
-| `ct_lidc` | CT chest, axial, 3 mm | 100 × 512² | 16-bit signed | −2048..3746 | LIDC-IDRI, CC BY 3.0 |
-| `mr_ispy1` | MR breast, T2 FSE fat-sat, sagittal, 3.5 mm | 58 × 512² | 16-bit signed | 0..1765 | ISPY1, CC BY 3.0 |
-| `us_liver` | ultrasound cine, liver B-mode/CEUS | 70 × 760×421 | 3 × 8-bit RGB | 0..255 | B-mode-and-CEUS-Liver, CC BY 4.0 |
-| `rf_fluoro` | fluoroscopy, barium, 2 frames/s | 18 × 768² | 12 of 16 bits, unsigned | 26..3984 | VAREPOP-APOLLO, CC BY 4.0 |
-| `xa_dynact16` | cone-beam CT from a rotational angiography run, 64 contiguous of 386 slices, 0.49 mm | 64 × 512² | 16-bit unsigned | 0..7364 | CMB-AML, CC BY 4.0 |
-| `dbt12_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm | 29 × 614×1359 | 12 of 16 bits, unsigned | 0..2690 | EA1141, CC BY 4.0 |
-| `dbt10_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm, cropped to the breast | 24 × 678×1727 of 1890×2457 | 10 of 16 bits, unsigned | 0..1012 | EA1141, CC BY 4.0 |
-| `dbtproj_ge` | breast tomosynthesis **projections**, R CC, one view per tube angle, acquisition order, cropped to the breast | 9 × 1914×2572 of 2394×2850 | 14 of 16 bits, unsigned | 0..3648 and 16383 | EA1141, CC BY 4.0 |
-| `dbtproj_holo` | breast tomosynthesis **projections**, R CC, one multi-frame file, frames as stored | 15 × 1280×2048 | 14 of 16 bits, unsigned | 103..1794 and 16383 | EA1141, CC BY 4.0 |
-| `ffdm_a` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO | 4 × 2560×3328 | 12 of 16 bits, unsigned | 0..4093 | EA1141, CC BY 4.0 |
-| `ffdm_b` | full-field digital mammogram, for presentation, R CC, L CC (second vendor) | 2 × 1914×2294 | 12 of 16 bits, unsigned | 407..4095 | EA1141, CC BY 4.0 |
-| `syn2d_a` | synthesized 2D mammogram from tomosynthesis, R CC, L CC | 2 × 2560×3328 | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 |
-| `syn2d_b` | synthesized 2D mammogram from tomosynthesis, R CC, R MLO, L CC, L MLO (second vendor) | 4 × 2394×2850 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 |
-| `pt15_cptac` | PET, whole body, axial, 3.27 mm | 335 × 256² | 16-bit signed | 0..32767 | CPTAC-LUAD, CC BY 4.0 |
-| `mg16_cbis` | digitized screen-film mammogram, L MLO | 1 × 4366×6871 | 16-bit unsigned | 0..65535 | CBIS-DDSM, CC BY 3.0 |
-| `ct_nlst` | CT chest, axial, 1.8 mm, the longer of the series' two contiguous runs | 76 × 512² | 16-bit signed | −2048..2353 | NLST, CC BY 4.0 |
-| `ct_crc` | CT, axial, 5 mm | 107 × 512² | 16-bit signed | −2048..3373 | CMB-CRC, CC BY 4.0 |
-| `mr9_ispy2` | MR breast, axial TIRM, 5 mm | 34 × 320² | 12 of 16 bits, unsigned | 0..356 | ISPY2, CC BY 4.0 |
-| `dbt12_c` | breast tomosynthesis, reconstructed volume, 1 mm, a third reconstruction system | 68 × 931×2124 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 |
-| `dbt10_d` | breast tomosynthesis, reconstructed volume, 1 mm, R MLO, cropped to the breast | 48 × 757×2336 of 1890×2457 | 10 of 16 bits, unsigned | 0..895 | EA1141, CC BY 4.0 |
-| `dbtproj_c` | breast tomosynthesis **projections**, L CC, one view per tube angle, cropped to the breast | 9 × 1914×2294 of 2394×3062 | 14 of 16 bits, unsigned, MONOCHROME1 | 122..16370 | EA1141, CC BY 4.0 |
-| `ffdm_c` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO (a third detector) | 4 × 1914×2294 | 12 of 16 bits, unsigned | 0..3756 | EA1141, CC BY 4.0 |
-| `ffdm_d` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO (an earlier detector) | 4 × 3328×4096 | 12 of 16 bits, unsigned | 0..4095 | Breast-Diagnosis, CC BY 3.0 |
-| `syn2d_c` | synthesized 2D mammogram, L CC, R MLO, L MLO (an earlier algorithm) | 3 × 1996×2457 | 10 of 16 bits, unsigned | 0..1023 | CMB-BRCA, CC BY 4.0 |
-| `syn2d_d` | synthesized 2D mammogram, four views (a later software version) | 4 × 2394×2850 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 |
-| `usb_cine` | breast ultrasound cine, B-mode, 25 frames/s, the first 64 of 515 frames, luma | 64 × 512² | 8-bit | 4..242 | BUVFM demo dataset, CC BY 4.0 |
-| `usb_cine_rgb` | breast ultrasound cine, tinted B-mode with colour annotations, 30 frames/s, the first 64 of 413 | 64 × 512² | 3 × 8-bit RGB | 0..255 | BUVFM demo dataset, CC BY 4.0 |
-| `usb_still` | breast ultrasound stills, B-mode, one scanner, every 276×305 image of the set | 29 × 276×305 | 8-bit | 4..235 | BUS-BRA, CC BY 4.0 |
+| set | content | frames | stored | range | collection, licence | provenance |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ct_lidc` | CT chest, axial, 3 mm | 100 × 512² | 16-bit signed | −2048..3746 | LIDC-IDRI, CC BY 3.0 | sound |
+| `mr_ispy1` | MR breast, T2 FSE fat-sat, sagittal, 3.5 mm | 58 × 512² | 16-bit signed | 0..1765 | ISPY1, CC BY 3.0 | sound |
+| `us_liver` | ultrasound cine, liver B-mode/CEUS | 70 × 760×421 | 3 × 8-bit RGB | 0..255 | B-mode-and-CEUS-Liver, CC BY 4.0 | lossy-sourced |
+| `rf_fluoro` | fluoroscopy, barium, 2 frames/s | 18 × 768² | 12 of 16 bits, unsigned | 26..3984 | VAREPOP-APOLLO, CC BY 4.0 | sound |
+| `xa_dynact16` | cone-beam CT from a rotational angiography run, 64 contiguous of 386 slices, 0.49 mm | 64 × 512² | 16-bit unsigned | 0..7364 | CMB-AML, CC BY 4.0 | sound |
+| `dbt12_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm | 29 × 614×1359 | 12 of 16 bits, unsigned | 0..2690 | EA1141, CC BY 4.0 | sound |
+| `dbt10_ea1141` | breast tomosynthesis, reconstructed volume, 1 mm, cropped to the breast | 24 × 678×1727 of 1890×2457 | 10 of 16 bits, unsigned | 0..1012 | EA1141, CC BY 4.0 | sound |
+| `dbtproj_ge` | breast tomosynthesis **projections**, R CC, one view per tube angle, acquisition order, cropped to the breast | 9 × 1914×2572 of 2394×2850 | 14 of 16 bits, unsigned | 0..3648 and 16383 | EA1141, CC BY 4.0 | sound |
+| `dbtproj_holo` | breast tomosynthesis **projections**, R CC, one multi-frame file, frames as stored | 15 × 1280×2048 | 14 of 16 bits, unsigned | 103..1794 and 16383 | EA1141, CC BY 4.0 | sound |
+| `ffdm_a` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO | 4 × 2560×3328 | 12 of 16 bits, unsigned | 0..4093 | EA1141, CC BY 4.0 | sound |
+| `ffdm_b` | full-field digital mammogram, for presentation, R CC, L CC (second vendor) | 2 × 1914×2294 | 12 of 16 bits, unsigned | 407..4095 | EA1141, CC BY 4.0 | sound |
+| `syn2d_a` | synthesized 2D mammogram from tomosynthesis, R CC, L CC | 2 × 2560×3328 | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 | sound |
+| `syn2d_b` | synthesized 2D mammogram from tomosynthesis, R CC, R MLO, L CC, L MLO (second vendor) | 4 × 2394×2850 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `pt15_cptac` | PET, whole body, axial, 3.27 mm | 335 × 256² | 16-bit signed | 0..32767 | CPTAC-LUAD, CC BY 4.0 | sound |
+| `mg16_cbis` | digitized screen-film mammogram, L MLO | 1 × 4366×6871 | 16-bit unsigned | 0..65535 | CBIS-DDSM, CC BY 3.0 | lossless-but-unrepresentative |
+| `ct_nlst` | CT chest, axial, 1.8 mm, the longer of the series' two contiguous runs | 76 × 512² | 16-bit signed | −2048..2353 | NLST, CC BY 4.0 | sound |
+| `ct_crc` | CT, axial, 5 mm | 107 × 512² | 16-bit signed | −2048..3373 | CMB-CRC, CC BY 4.0 | sound |
+| `mr9_ispy2` | MR breast, axial TIRM, 5 mm | 34 × 320² | 12 of 16 bits, unsigned | 0..356 | ISPY2, CC BY 4.0 | sound |
+| `dbt12_c` | breast tomosynthesis, reconstructed volume, 1 mm, a third reconstruction system | 68 × 931×2124 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `dbt10_d` | breast tomosynthesis, reconstructed volume, 1 mm, R MLO, cropped to the breast | 48 × 757×2336 of 1890×2457 | 10 of 16 bits, unsigned | 0..895 | EA1141, CC BY 4.0 | sound |
+| `dbtproj_c` | breast tomosynthesis **projections**, L CC, one view per tube angle, cropped to the breast | 9 × 1914×2294 of 2394×3062 | 14 of 16 bits, unsigned, MONOCHROME1 | 122..16370 | EA1141, CC BY 4.0 | sound |
+| `ffdm_c` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO (a third detector) | 4 × 1914×2294 | 12 of 16 bits, unsigned | 0..3756 | EA1141, CC BY 4.0 | sound |
+| `ffdm_d` | full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO (an earlier detector) | 4 × 3328×4096 | 12 of 16 bits, unsigned | 0..4095 | Breast-Diagnosis, CC BY 3.0 | sound |
+| `syn2d_c` | synthesized 2D mammogram, L CC, R MLO, L MLO (an earlier algorithm) | 3 × 1996×2457 | 10 of 16 bits, unsigned | 0..1023 | CMB-BRCA, CC BY 4.0 | sound |
+| `syn2d_d` | synthesized 2D mammogram, four views (a later software version) | 4 × 2394×2850 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `usb_cine` | breast ultrasound cine, B-mode, 25 frames/s, the first 64 of 515 frames, luma | 64 × 512² | 8-bit | 4..242 | BUVFM demo dataset, CC BY 4.0 | lossy-sourced |
+| `usb_cine_rgb` | breast ultrasound cine, tinted B-mode with colour annotations, 30 frames/s, the first 64 of 413 | 64 × 512² | 3 × 8-bit RGB | 0..255 | BUVFM demo dataset, CC BY 4.0 | lossy-sourced |
+| `usb_still` | breast ultrasound stills, B-mode, one scanner, every 276×305 image of the set | 29 × 276×305 | 8-bit | 4..235 | BUS-BRA, CC BY 4.0 | unknown |
+
+### Provenance
+
+What each set's source says about its pixels (row DATAGUARD, 2026-10-08), read from every file's header
+(every file, all agreeing within a set) and recorded by `fetch_data.py` in each set's `metadata.json`
+(`provenance`, `sources`). The class is `data.json`'s `provenance`:
+
+* **sound** — the archive's DICOM, uncompressed or losslessly coded, never flagged lossy;
+* **lossless-but-unrepresentative** — lossless here, but not what a modality of the taxonomy produces;
+* **lossy-sourced** — lossy-coded at some point before the archive, by its header or because it is a video clip;
+* **unknown** — an image export whose history nothing records.
+
+**A lossy-sourced or unknown set enters no bytes, time or inter verdict** ([`av1/queue.md`](av1/queue.md)
+§Protocol): its numbers stand as measured, marked provisional. `fetch_data.py` refuses, before reading
+a frame, a source its set's class does not admit — Lossy Image Compression (0028,2110) `01`, a transfer
+syntax that may be lossy, or a video clip unless the set is `lossy-sourced`; an image export unless it is
+`lossy-sourced` or `unknown` (`lab/av1/provenance.py`; `provenance_test.py` in the gate, every case mutated
+to fail; on the real files, `us_liver` and `usb_still` marked `sound` are refused).
+
+| set | transfer syntax | Lossy Image Compression | Image Type | Presentation Intent | the lab's change | class |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ct_lidc` | implicit LE | absent | `ORIGINAL\PRIMARY\AXIAL` | — | — | sound |
+| `mr_ispy1` | implicit LE | absent | `ORIGINAL\PRIMARY\OTHER` | — | — | sound |
+| `us_liver` | implicit LE | 01, ratio 12.4, method absent | `DERIVED\SECONDARY\\0000` | — | — | lossy-sourced |
+| `rf_fluoro` | explicit LE | 00 | `ORIGINAL\PRIMARY\SINGLE PLANE` | — | — | sound |
+| `xa_dynact16` | explicit LE | 00 | `DERIVED\SECONDARY\AXIAL\3DANGIO\NAT_FILL` | — | 64 contiguous of 386 slices | sound |
+| `dbt12_ea1141` | explicit LE | 00 | `ORIGINAL\PRIMARY\TOMOSYNTHESIS\NONE` | — | — | sound |
+| `dbt10_ea1141` | explicit LE | 00 | `DERIVED\PRIMARY\VOLUME\NONE` | — | cropped to the breast | sound |
+| `dbtproj_ge` | explicit LE | 00 | `ORIGINAL\PRIMARY\TOMO_PROJ\PROJECTION` | FOR PROCESSING | cropped to the breast | sound |
+| `dbtproj_holo` | implicit LE | 00 | `ORIGINAL\PRIMARY\TOMO_PROJ\NONE` | FOR PROCESSING | — | sound |
+| `ffdm_a` | implicit LE | 00 | `DERIVED\PRIMARY` | FOR PRESENTATION | — | sound |
+| `ffdm_b` | implicit LE | 00 | `DERIVED\PRIMARY` | FOR PRESENTATION | — | sound |
+| `syn2d_a` | implicit LE | 00 | `DERIVED\PRIMARY\TOMO_PROJ\GENERATED_2D` | FOR PRESENTATION | — | sound |
+| `syn2d_b` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
+| `pt15_cptac` | implicit LE | 00 | `ORIGINAL\PRIMARY` | — | — | sound |
+| `mg16_cbis` | implicit LE | absent | absent | — | — | lossless-but-unrepresentative |
+| `ct_nlst` | implicit LE | absent | `ORIGINAL\PRIMARY\AXIAL` | — | the longer contiguous run | sound |
+| `ct_crc` | explicit LE | absent | `ORIGINAL\PRIMARY\AXIAL` | — | — | sound |
+| `mr9_ispy2` | explicit LE | absent | `ORIGINAL\PRIMARY\M\DIS2D` | — | — | sound |
+| `dbt12_c` | explicit LE | 00 | `ORIGINAL\PRIMARY\VOLUME\NONE` | — | — | sound |
+| `dbt10_d` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\NONE` | — | cropped to the breast | sound |
+| `dbtproj_c` | explicit LE | 00 | `ORIGINAL\PRIMARY\\PROJECTION` | FOR PROCESSING | cropped to the breast | sound |
+| `ffdm_c` | implicit LE | 00 | `ORIGINAL\PRIMARY\` | FOR PRESENTATION | — | sound |
+| `ffdm_d` | explicit LE | 00 | `DERIVED\SECONDARY` | FOR PRESENTATION | — | sound |
+| `syn2d_c` | explicit LE | 00 | `DERIVED\SECONDARY\OTHER` | FOR PRESENTATION | — | sound |
+| `syn2d_d` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
+| `usb_cine`, `usb_cine_rgb` | an AVI clip, MPEG-4 Part 2 | the coding is lossy | — | — | decoded by FFmpeg; luma kept, or converted to RGB | lossy-sourced |
+| `usb_still` | a PNG, cropped around the lesion by the dataset | not recorded | — | — | decoded by FFmpeg | unknown |
+
+`us_liver` is the one DICOM set flagged lossy: an RGB scan-converted capture, `DERIVED\SECONDARY`, coded
+lossily at 12.4:1 before it was archived uncompressed (method not recorded). `mg16_cbis` is a screen-film
+mammogram digitized and stretched to 16 bits — lossless, but no modality of the taxonomy makes it. `DERIVED`
+on the other sets is the system's own reconstruction or processing (volumes, presentation images,
+synthesized 2D), not a re-coding; none is flagged.
 
 * **Ranges are measured, not the header's.** 21.5 % of `ct_lidc`'s samples are −2048, the pad
   outside the reconstruction circle; the rest span −1097..3746, so the set needs 13 bits after
@@ -205,7 +259,8 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
 * **Hosts, 2026-10-05 15:49 UTC (row BREAST), after the environment's network access was set to full:** every host
   row DATA3 found refused answered (200, 202, 301, 302, 400 or 404), but `pan.baidu.com` (connection reset).
 * `us_liver` is stored uncompressed, but scan-converted; whether it was lossy-coded before it was
-  archived is not known (not checked). It is what an archive serves, not a probe's raw output.
+  archived is not known (not checked) — *corrected by DATAGUARD: its header says it was, Lossy Image
+  Compression `01` at 12.4:1 (§Provenance)*. It is what an archive serves, not a probe's raw output.
 * TCIA's own API, Zenodo and PhysioNet are refused by this container's network policy; IDC mirrors
   the TCIA collections, so the data is the same, through a host it reaches.
 
