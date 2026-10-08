@@ -43,7 +43,7 @@ at `6e9c126`.
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). Through the product's client, 1–5 % loss: BBR 0.04–0.74 of the fill, Cubic with or without the restart the same; not adopted, 1.01–1.04 on clean 5 Mbit (LOSSCC). A bounded BBR was built and retired (BB2, BBF); the next candidate is v3's loss bound, unbuilt (BB3) |
+| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). Through the whole product on lossy links, BBR fills in 0.04–0.76 of `cubic-restart`'s time on both codecs but costs +2–13 % on some clean and jitter cells, so it is not adopted (LOSSCC, the owner's call). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). Through the product's client, 1–5 % loss: BBR 0.04–0.74 of the fill, Cubic with or without the restart the same; not adopted, 1.01–1.04 on clean 5 Mbit (LOSSCC). A bounded BBR was built and retired (BB2, BBF); the next candidate is v3's loss bound, unbuilt (BB3) |
 | **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed and retired (§2, [`../adr/stream-shape.md`](../adr/stream-shape.md)) |
 | **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever and the default (§3) |
 | **Send path** | **The reader's buffer handed to quinn** as `Bytes`, one copy of four gone: −3 to −8 % CPU per ask in every cell, nothing against (§4). It also bounds what a stalled client costs (§3) |
@@ -218,6 +218,67 @@ that back with the queue and a neighbour's share. What would change the default 
 noise *and* bounds its queue (BB3). Every fill is link-bound (BBR's 3.8 s is 18 Mbit of goodput), so
 latency and completion are quoted, not throughput. The relay's loss is exogenous by construction, and
 a phone's receive path is not modelled.
+
+### Through the whole product, on a lossy link, 2026-10-08 (LOSSCC)
+
+Row LOSSLINK's cells through the downloader and both codecs, with the controller as the arm: today's
+`cubic-restart` against `bbr`. Headless Chromium 141, the 10-bit tomosynthesis volume, HTJ2K and the
+optimized AV1 item (0.943 of its bytes). Frames 0–3 are filled, then 4–7 asked one at a time. Links are
+5/20/50 Mbit at 40 ms and `lte-good`, each with no loss, 1, 2 or 5 % (iid; Gilbert–Elliott bursts on
+`lte-good`), or ±20 ms of ordered jitter, at 1× and 4×. Williams-ordered, with every visit refusing a
+server whose banner names another controller. 28 rounds, the last 16 topping up the cells VOID left short:
+3 416 visits, 1 281 `VOID`. **27 328/27 328 frames exact.** n = 10–19 a cell and arm, except BBR's AV1
+arm on `lte-good` at 4× with no loss (8) and HTJ2K's with jitter (9).
+
+The VOIDs rose from 11 % of a round to 40–80 % on `lte-good` as the host's steal time rose (≈6 000 ticks
+a round). That is the relay's self-timing refusing what it cannot time, so the kept visits are clean but
+fewer.
+
+HTJ2K's fill under `cubic-restart` in s; BBR's fill over `cubic-restart`'s for the same codec (the median
+of round-paired ratios; in brackets, rounds where BBR was slower, shown only when there were any); an
+ask's p50/p95 in ms over both codecs. Each cell is 1× · 4×:
+
+| link | impairment | HTJ2K fill, `cubic-restart`, s | BBR ÷ `cubic-restart`, HTJ2K | BBR ÷ `cubic-restart`, AV1 | ask p50/p95, `cubic-restart` | ask p50/p95, BBR |
+| --- | --- | --- | --- | --- | --- | --- |
+| 5 Mbit | none | 3.78 · 3.83 | 1.03 (4/6) · 1.03 (8/8) | 1.03 (11/11) · 1.02 (9/10) | 971/990 · 1074/1111 | 975/989 · 1069/1115 |
+|  | 1 % | 5.37 · 4.82 | 0.71 (1/9) · 0.74 (1/13) | 0.76 (1/10) · 0.69 | 1602/2219 · 1715/2370 | 984/1021 · 1068/1139 |
+|  | 2 % | 8.52 · 8.95 | 0.46 · 0.46 | 0.45 · 0.49 | 2319/3015 · 2319/3012 | 987/1151 · 1085/1187 |
+|  | 5 % | 13.7 · 14.0 | 0.30 · 0.29 | 0.28 · 0.30 | 3600/4429 · 3635/4476 | 1006/1424 · 1094/1423 |
+|  | ±20 ms | 3.84 · 3.88 | 0.98 (2/8) · 1.01 (5/8) | 0.99 (3/10) · 1.01 (6/9) | 988/1020 · 1076/1127 | 1003/1081 · 1079/1144 |
+| 20 Mbit | none | 1.08 · 1.16 | 0.91 · 0.90 | 0.91 · 0.90 | 305/324 · 353/457 | 308/378 · 423/521 |
+|  | 1 % | 4.31 · 4.05 | 0.24 · 0.26 | 0.25 · 0.31 | 1486/1934 · 1487/1993 | 317/369 · 401/491 |
+|  | 2 % | 7.60 · 7.20 | 0.14 · 0.15 | 0.14 · 0.17 | 2035/2690 · 2060/2744 | 327/487 · 442/536 |
+|  | 5 % | 12.2 · 12.5 | 0.09 · 0.09 | 0.09 · 0.11 | 3229/3873 · 3257/4039 | 361/651 · 461/799 |
+|  | ±20 ms | 1.19 · 1.23 | 1.03 (6/9) · 1.07 (5/7) | 1.02 (5/8) · 1.01 (4/7) | 320/365 · 418/480 | 326/511 · 432/552 |
+| 50 Mbit | none | 0.63 · 0.67 | 0.85 · 0.90 | 0.90 (1/15) · 0.94 (2/9) | 172/193 · 224/332 | 184/273 · 298/425 |
+|  | 1 % | 4.14 · 3.70 | 0.13 · 0.16 | 0.14 · 0.17 | 1433/1877 · 1373/2029 | 209/285 · 327/409 |
+|  | 2 % | 7.82 · 7.29 | 0.07 · 0.08 | 0.07 · 0.11 | 1965/2596 · 2063/2613 | 216/286 · 328/436 |
+|  | 5 % | 12.5 · 12.1 | 0.04 · 0.05 | 0.05 · 0.07 | 3159/3797 · 3320/3946 | 247/393 · 347/463 |
+|  | ±20 ms | 0.78 · 0.82 | 1.13 (6/7) · 1.13 (7/9) | 1.00 (3/5) · 1.12 (8/9) | 186/215 · 277/356 | 197/289 · 266/423 |
+| `lte-good` | none | 1.14 · 1.19 | 0.99 (1/5) · 0.89 (1/9) | 0.88 (1/7) · 0.92 (1/3) | 270/437 · 387/483 | 299/434 · 394/508 |
+|  | 1 % | 1.31 · 1.43 | 0.88 (2/8) · 0.62 | 0.72 (1/9) · 0.60 | 697/1360 · 727/1689 | 303/443 · 404/571 |
+|  | 2 % | 4.01 · 3.04 | 0.32 · 0.32 | 0.21 · 0.56 (1/7) | 1290/2118 · 1312/2351 | 314/442 · 404/569 |
+|  | 5 % | 11.1 · 9.37 | 0.11 · 0.16 | 0.12 · 0.12 | 2676/10699 · 2759/10193 | 343/1946 · 412/675 |
+|  | ±20 ms | 1.24 · 1.28 | 0.97 (2/7) · 1.02 (3/5) | 1.06 (7/8) · 0.97 (2/7) | 342/437 · 408/558 | 314/440 · 395/566 |
+
+* **Under loss BBR is the larger lever by far, on both codecs.** It takes 0.04–0.76 of the fill's time on
+  every loss cell, and no 1 % or 2 % cell on a fixed rate came out slower in more than 1 of 9–13 pairs.
+  At 5 % the fill no longer depends on loss: 0.55–1.1 s at 20 and 50 Mbit against 12.1–12.5 s, and the link's
+  rate is the clock again. An ask's median falls from 1.4–3.6 s to 0.21–1.1 s. On `lte-good` at 5 %, the
+  p95 falls from 10.2–10.7 s to 0.7–1.9 s: the probe-timeout tail row LOSSLINK found is gone.
+* **Where nothing is lost it can cost.**
+  * At 5 Mbit with no loss: +2–3 %, slower in 8/8 and 11/11 pairs.
+  * At 50 Mbit with ±20 ms jitter: +12–13 %, in 6/7, 7/9 and 8/9 pairs; AV1 at 1× ties.
+  * At 20 Mbit with jitter: +1–7 %, mixed pairs.
+  * An ask on a clean fixed rate at 4×: p50 +70 ms at 20 Mbit (353 → 423) and +74 ms at 50 Mbit
+    (224 → 298).
+  * Clean 20 and 50 Mbit fills, and `lte-good` without loss, are 0.85–0.99 for BBR.
+* **`cubic-restart` reproduces row LOSSLINK** within one loss event's spread: 1 % at 5 Mbit 5.37 s against
+  5.82, 5 % at 50 Mbit 12.5 s against 12.4.
+* **Not adopted, by the round's rule**: a controller may not regress a clean cell, and BBR does (above).
+  The neighbour cost and standing queue measured in CC1, FQC and PROF stand unmeasured here. **Whether
+  loss's 4–25× outweighs that is the owner's call** (queue.md §Blocked, 2026-10-08). BB3's loss bound is
+  the candidate that would aim at both.
 
 ### A bounded BBR, retired (BB2, 2026-09-25; BBF, 2026-10-01, `3a221e5`)
 

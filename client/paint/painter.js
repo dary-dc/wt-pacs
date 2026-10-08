@@ -1,7 +1,4 @@
-/**
- * The painter's page half: hands the canvas to the paint worker and answers each paint with one
- * promise. client/paint/README.md §The contract
- */
+/** The painter's page half: the canvas to the paint worker, one promise a paint. client/paint/README.md */
 export class Painter {
   #worker;
   #canvas;
@@ -39,11 +36,7 @@ export class Painter {
     this.#worker.postMessage({ kind: "start", canvas: offscreen }, [offscreen]);
   }
 
-  /**
-   * Paints `frame` ({ pixels: SharedArrayBuffer, width, height, bits, components, signed }) with
-   * `display` ({ photometric, rescale, voi, invert, view }) at the canvas's CSS size × devicePixelRatio.
-   * `read` returns the painted RGBA, rows top-down, for checks.
-   */
+  /** At the canvas's CSS size × devicePixelRatio; `read` returns the RGBA, rows top-down. README §The contract */
   paint(frame, display, { read = false } = {}) {
     if (this.#lost) return Promise.reject(new Error(this.#lost));
     const dpr = self.devicePixelRatio || 1;

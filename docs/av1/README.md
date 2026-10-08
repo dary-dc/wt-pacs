@@ -824,7 +824,7 @@ fill in s, AV1 ÷ HTJ2K (median of round-paired ratios), and an ask's p50 / p95 
   4.0 s and an ask's 153 ms into 1.5 s; 5 % into 12.4 s and 3.3 s, 20–22× — and the link's rate stops
   mattering: at 5 % the fill takes 14.1, 12.8 and 12.4 s at 5, 20 and 50 Mbit. That is Cubic halving on
   loss that is not congestion, the slope [`transport-conclusions.md`](../transport/transport-conclusions.md)
-  §1 (CC1) and §5 (ASKL) measured, here through the whole product with both codecs.
+  §1 (CC1) and §5 (ASKL) measured, here through the whole product with both codecs. *Measured since (row LOSSCC, [`transport-conclusions.md`](../transport/transport-conclusions.md) §1): BBR takes 0.04–0.76 of these fills, but costs +2–13 % on some clean and jitter cells; not adopted, the owner's call.*
 * **AV1 is its bytes under loss, and its decode cost is hidden.** On the loss cells the optimized item is
   0.89–0.99 of HTJ2K's fill on 20 of 24 cells and ahead on an ask's median at 1× by 36–271 ms on all 12
   (at 4× by 36–194 ms on the fixed rates, behind by 85–153 ms on bursty 1–2 %); the 4× decode penalty it pays
