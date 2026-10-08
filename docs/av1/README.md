@@ -98,7 +98,9 @@ At G = 1, libaom 3.15.1 at its slowest preset, the first 2–8 frames of all nin
 exact: **0.902–0.987 of HTJ2K's bytes** once the samples are represented for AV1 — the two low bits
 apart at every depth over 8 (fluoroscopy 1.027 → 0.942, 12-bit tomosynthesis 1.040 → 0.941, MR
 1.013 → 0.977, 10-bit tomosynthesis 0.977 → 0.942) and JPEG 2000's reversible colour transform on
-RGB (ultrasound 1.117 → 0.962), plus `--tune-content=screen --sb-size=64` for 0–1 %. libaom's other
+RGB (ultrasound 1.117 → 0.962; *confirmed on sound data by row RGBNATIVE: on 48 natively stored colour
+ultrasound stills RCT is 0.54–0.66 of GBR's bytes and 0.65–0.94 of HTJ2K's, decoding in 0.65–0.90 of GBR's time,
+2.1–2.9× HTJ2K's at 1×*, [`lab/av1/rgbnative`](../../lab/av1/rgbnative/README.md)), plus `--tune-content=screen --sb-size=64` for 0–1 %. libaom's other
 controls, SVT-AV1 and YCoCg-R do not beat that. Decode (dav1d-WASM, n = 15 interleaved): the colour
 transform 0.89–0.95× row SIZE's coding, the split +1–5 % on large frames and +16–23 % on 512² MR and
 10-bit tomosynthesis — still 5–10× HTJ2K (row SPEED). **Inter pays on the colour-transformed

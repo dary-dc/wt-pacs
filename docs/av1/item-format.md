@@ -47,7 +47,7 @@ frame  := one temporal unit                       when split = 0
 | grey 10–12 and 14 bits | top = v ≫ 2, 4:0:0 at the smallest of 8/10/12 that holds bits − 2; low = v & 3, 8-bit 4:0:0 | split 2, depth = top's coded depth |
 | grey 13 bits | top = v ≫ 3 at 10 bits; low = v & 7, 8-bit 4:0:0 | split 3, depth 10 |
 | grey 15–16 bits | refused: served as HTJ2K (row SPLITTIME: every AV1 layout 1.02–3.11 of its fill) | — |
-| RGB 8-bit | RCT: Y = ⌊(R + 2G + B)/4⌋, Cb = B − G + 256, Cr = R − G + 256; one 10-bit 4:4:4 stream, identity matrix, plane order exactly as the lab's `llsize.py` writes it | flags.rct, split 0, depth 10, bits 8 |
+| RGB 8-bit | RCT: Y = ⌊(R + 2G + B)/4⌋, Cb = B − G + 256, Cr = R − G + 256; one 10-bit 4:4:4 stream, identity matrix, plane order exactly as the lab's `llsize.py` writes it (confirmed on sound colour stills, row RGBNATIVE: 0.54–0.66 of GBR's bytes) | flags.rct, split 0, depth 10, bits 8 |
 | signed | offset = −min of the series first, then the grey rules | flags.signed |
 | RGB > 8 bits | refused (no modality needs it; aomenc 3.15.1 cannot) | — |
 
