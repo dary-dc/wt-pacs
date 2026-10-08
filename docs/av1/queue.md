@@ -174,6 +174,15 @@ what SVT-AV1 offers — if it has no lossless mode, say so and drop it) and test
 (encode → `dav1d` → compare against the input's checksum) on synthetic frames from
 `lab/scripts/gen_frame_pnm.py`:
 
+* **2026-10-08 05:30 UTC: row 75 LOSSCC is measured twice over, or about to be.** The claim set stale at 03:10
+  (`c0a3d8`) was mid-run (13 rounds × 288 visits, ~10 h, no commit until the end); it finished and pushed its reading
+  as `3792b24` on `claude/av1-unified` — all three controllers (`cubic-restart`, BBR, plain Cubic) × both codecs on
+  row 60's cells with ±5 ms too, 2 879 of 3 312 visits kept, n = 5–13 an arm and cell, 26 496/26 496 frames exact:
+  BBR fills in 0.04–0.74 of Cubic's time under 1–5 % loss and is 1.01–1.04 of it on clean 5 Mbit, so not adopted by
+  the round's rule; the restart ties plain Cubic. [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md)
+  §1 (LOSSCC, first run). Row 75 is claimed again (`ae32e0`), so this session leaves it as it stands; the claim's
+  holder, or the owner, decides whether `3792b24` closes it or replicates it.
+
 * grey 8 and 10 bit as 4:0:0 (`--monochrome`, Main profile) and 12 bit as 4:0:0 (Professional);
   RGB 8-bit as 4:4:4 with identity matrix (`matrix_coefficients` 0, GBR; High profile) — 4:2:0
   would drop colour and is not lossless;
