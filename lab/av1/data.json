@@ -4702,6 +4702,246 @@
     }
    ],
    "decode": "png"
+  },
+  {
+   "name": "dbts_a1",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, L CC, whole and uncropped, system A",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.102761820597327486581146725426",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "393cc3ad01a0d9dc772ee9dca466ed8e1acdc76bf03ff7c22c60b0b359caff1d",
+   "files": [
+    {
+     "key": "ad8a77e0-0f4e-4ef6-aedf-d25d1941266b/57d2e9d3-555f-4a83-9d09-774ef6f477c8.dcm",
+     "sha256": "bc931341de16771e737484a6b0bf8a4b17c0fc4e6b68a8b671485255e2096785"
+    }
+   ]
+  },
+  {
+   "name": "dbts_a2",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, R CC, whole and uncropped, system A",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.103427886252270316691087746482",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "5305d10f7ba327f96260b19ad4a20fab1cd48d26d6b4761d3e0eceb8ed948325",
+   "files": [
+    {
+     "key": "98212906-0a2e-42c0-aea9-dca383627513/6578fb0b-b051-4124-aa3f-1636e68dd34c.dcm",
+     "sha256": "258e4a1e27b6c73816b30465fd7ebeb1196a1e04f550936a4277d89fdb30c80e"
+    }
+   ]
+  },
+  {
+   "name": "dbts_a3",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, R MLO, whole and uncropped, system A",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.103585066568375399352569194201",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "64bef928f86e04d5c8aae57626990f3622d07495ea3b0a539f15da9008c48bbc",
+   "files": [
+    {
+     "key": "607f5819-13c6-486d-9620-4873e0a5f830/0977d658-8712-4ef3-958a-0889377c75a8.dcm",
+     "sha256": "0f16625f6073b93bdaa4fd571e77f58abb1c9144e8eec5da64cf567c05bdd0a4"
+    }
+   ]
+  },
+  {
+   "name": "dbts_a4",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, L MLO, whole and uncropped, system A",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.103684212290486592353298903201",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "3c3967c06d66552af171bfca8f86c669bdaaaa6ad6d06b45f8a2b56937160af1",
+   "files": [
+    {
+     "key": "c63aeda7-1263-4e30-bc48-85dc199f25aa/0f28e267-5f22-4211-9bf8-ed43f39e7152.dcm",
+     "sha256": "50107731a4a532ceb948ea3a489dbe5fe76d8363558e84c39084d66849919090"
+    }
+   ]
+  },
+  {
+   "name": "dbts_a5",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, R MLO, whole and uncropped, system A",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.106210062666207837635846443511",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "6165369584d696ac00d6c430f7bf4f92bf441390bcddb1132e71fc7624bba6b5",
+   "files": [
+    {
+     "key": "9fabfe82-519f-4b87-bb60-1d8ccfea9424/c3d93c70-7bca-4802-9987-b3f90e2a8246.dcm",
+     "sha256": "cab5e1d923aeea5c21e4f2f3563ef0a20005a1fa402d52bdfa69dc9065bdefc3"
+    }
+   ]
+  },
+  {
+   "name": "dbts_b1",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, R CC, whole and uncropped, system B",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.100003949478520232207069385391",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "82032c18a7d358553df7b688cc2804f1b65748d147948c53d3d999a3df7a1651",
+   "files": [
+    {
+     "key": "75b73287-13fa-4cfb-862a-81e327d7fc86/2cd73f3b-43a6-4610-98d3-396015120f0e.dcm",
+     "sha256": "1c722d7c18a831917cf34f4e2cd4edc1e587b81615e59b1f508bbf62e0af8e24"
+    }
+   ]
+  },
+  {
+   "name": "dbts_b2",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, L MLO, whole and uncropped, system B",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.100071852701303702502615614085",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "6c7e41e56d889e13ca185d8eb2ee772984c9e7e8e254e95909171871e6669864",
+   "files": [
+    {
+     "key": "c0858dc5-fb60-4887-9b77-95433e626638/885f5681-ef2b-4975-9f2c-5a16a424d46e.dcm",
+     "sha256": "7b7aeab5b7e057639d36d518337c5c85754aedb8cd0bb8555db4fc13d7ebf48b"
+    }
+   ]
+  },
+  {
+   "name": "dbts_b3",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, R CC, whole and uncropped, system B",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.100075383939728724861042287801",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "b7856572627c4d042f14549094fa31fd4055f6d36fcf3b7f20eeb162d7cabed8",
+   "files": [
+    {
+     "key": "7f984fc9-792c-4d09-8ce7-f5e3224b7db2/20f0bea6-24b1-428b-8762-ff6a763789f7.dcm",
+     "sha256": "0526f2e4d3e171ee88ead495112bb1be32d6bdfd77147f7dbf25afff60ac95e3"
+    }
+   ]
+  },
+  {
+   "name": "dbts_b4",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, L CC, whole and uncropped, system B",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.100249753129348822821463734081",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "c9957e8f7b8b7795b3b556578519fcfd7a7aa2bbc7691a289875adb28c80aa3c",
+   "files": [
+    {
+     "key": "0da13565-ea17-4d43-9b67-f9d85257321d/8b6b64f9-1501-430a-9682-e6d71f49c82c.dcm",
+     "sha256": "a105b62822b1d76544b41ee31ef6f390ff2b189eba191ce51427a67e79a3219b"
+    }
+   ]
+  },
+  {
+   "name": "dbts_b5",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, L MLO, whole and uncropped, system B",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.100373636606064371020890218068",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "339f0ae80fd7e721b6f8bf58b5c2c9750a51cb0de551d3644f5e1642660a578d",
+   "files": [
+    {
+     "key": "5df53106-f8c1-4bd0-93cb-fa9de9d0292d/61131d0d-e06f-49ae-870d-4d0d5a171dc9.dcm",
+     "sha256": "cf0c1bdce8d7ad073083790cdc1cde487200d888b08ba573c8fb62b85fa0c547"
+    }
+   ]
+  },
+  {
+   "name": "dbts_c1",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, whole and uncropped, system C",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.100394727687809121437897796534",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "08b267caec173abdd5b6704770479f01d0729678018d63dc76033ac8a6ea6370",
+   "files": [
+    {
+     "key": "addff076-8805-4ea5-a4fd-5a5ab0b8338c/694c3c79-438b-4858-944e-48bb4a74a029.dcm",
+     "sha256": "e850928a5569eaaab354abda2038795a8fa154ff3402825023edcf02b14f606b"
+    }
+   ]
+  },
+  {
+   "name": "dbts_c2",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, whole and uncropped, system C",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.100694403409384427010240560552",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "9a30fa682a7dd8cc433c94c8bee5e0a990f53db55bc4a1dda5f351ad06925127",
+   "files": [
+    {
+     "key": "a9478f12-c5f4-48dc-85bb-029f0003282a/d7b09794-b751-4f72-95bf-95b723f754f9.dcm",
+     "sha256": "4b2197595a53f383e92ea8a1088527e8cf01534f9fb852e8eda74e772656b8af"
+    }
+   ]
+  },
+  {
+   "name": "dbts_c3",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, whole and uncropped, system C",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.101052145154097831093301013490",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "5ea614e7c8b3c65a9e09e3baabae0e099a7cd7fcb4203b3782792513dbe5eae5",
+   "files": [
+    {
+     "key": "612d91fa-0905-4463-a19f-8818b76c0cd0/6edc0183-1a9a-4978-96d6-599336ca7219.dcm",
+     "sha256": "b1fd625509ad14ea0e5a2e632081cda6cd2b90c783ba5e881534fb6f7821fc44"
+    }
+   ]
+  },
+  {
+   "name": "dbts_c4",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, whole and uncropped, system C",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.102553326872016325365781533825",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "20ba38b776d66fe781e75d6c2780eb26575cc4ed5ea259dc9e210e6584392ab6",
+   "files": [
+    {
+     "key": "9772923d-6e05-488f-95a5-b13c73cd60c6/7a5f20ec-24d4-4ef6-ba2d-46a1649f4adf.dcm",
+     "sha256": "fe242e9e69fe1ef690290a20acf1539ca5ed35f2614de494c715168cffc8a074"
+    }
+   ]
+  },
+  {
+   "name": "dbts_c5",
+   "what": "breast tomosynthesis, reconstructed volume, 1 mm, whole and uncropped, system C",
+   "collection": "ea1141",
+   "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.102861770244600525771744077586",
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "2e84564210a1fb734b7c2de372d0e47773357a7ef88e9b19a81d7da84c9b4479",
+   "files": [
+    {
+     "key": "9baeb723-ceb8-4822-ab15-c2412b7ffdf1/f1c72b6f-2839-4b19-954d-6bf720aa458e.dcm",
+     "sha256": "cb801c9790ed863618c3bc20707edcab48c9b9701169b9db527d83dadaf8ea6c"
+    }
+   ]
   }
  ]
 }
