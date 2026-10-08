@@ -24,6 +24,13 @@ and its branch belong to other work.
 sleeps, so the two never share a usage window). A session started by the night routine treats `night` exactly as
 `ready`; any other session leaves them.
 
+**Theory first, then measurement in a separate context (owner, 2026-10-07).** A row that measures to decide writes,
+before any new data, a hypothesis document from primary sources: the mechanism, explicit predictions per content and
+parameter, the measurement protocol, and a pre-stated decision rule (what result adopts or rejects what). The
+measurement runs in a separate session that is given only the protocol and the decision rule, not the reasoning; it
+reports the numbers, then whether each prediction held. A short review closes the row: theory against data,
+conclusive or not, and why. Rows already queued keep their briefs.
+
 **`held until <UTC time>` rows** wait for the owner's next usage window: a session treats one as `ready` once
 `date -u` is at or past that time, and leaves it before. An `after …` clause on the same row still applies.
 
@@ -122,7 +129,7 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | done `22f5f03` (`069044e`) — **not reproduced: paired, plain AV1 is 0.973–0.976 of HTJ2K on 10-bit DBT, optimized 0.940–0.943, not 31 % below**: the first 4 frames of `dbt10_ea1141` and `dbt10_d`, 20/20 codings exact (80/80 frames); one setting at a time, an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background by 0.5–0.8, libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned); the two series the brief named are not CC BY or CC0 (UPMC states no licence, BCS-DBT is CC BY-NC 4.0: Blocked); 4 mutations caught 4/4 — [`README.md`](README.md) §Prior evidence, [`lab/av1/pocgap`](../../lab/av1/pocgap/README.md), [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 | 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | done `8c2b24d` on `claude/av1-unified` (`e945e57`) — **the string is each stream's own, the frames and the decoder unchanged**: each keyframe's sequence header gives `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, reconfigured only when it changes; 91 distinct headers (419 units: every fixture, the probes, 59 items of all 28 taxonomy series, 8 full headers with timing, decoder model, frame ids, High tier, nine operating points) derive the string ffmpeg 6.1.1 reads; libaom writes levels 2.0–6.0 by picture size, never 31, and 31 changes no engine's answer; `isConfigSupported` true for every string in Chromium 141, every full string in Firefox 157.0, Main only in WebKitGTK 2.52.6; 115/115 frames exact in all three, Chromium's decoder per item the same as before (61 WebCodecs, 54 dav1d-WASM), none falling back; Chromium echoes the string's colour on the frame, so the 4:4:4 identity check now reads the header's matrix as dav1d's does — an untagged identity stream now decodes exact through WebCodecs; 13/13 derivation and 3/3 decoder mutations caught; gate green — `lab/av1/codecstr`, `item-format.md` §Decoder choice, `decode/README.md` §AV1 |
 | 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67, 82 |
-| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row, 83–97 included |
+| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row, 83–101 included |
 | 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | done `14103cc` on `claude/av1-unified` (`e125d38`, `5b4e9aa`, `ecc9d68`) — **the served profile kept: no setting wins**: 35 settings on nine series, the best per series 0.990–1.000 of the served bytes (−0.9 % only on 256² PET); decode within the round spread everywhere (every paired range spans 1; 0.95–1.10 where decode is the clock); 6 decompositions, the fewest bytes overall, ties on total time ×0.99–1.02 on 5/20/50 Mbit at 1× and 4×; `imagecodecs`' defaults differ only in SIZ depth (container bits, 1.000–1.002 of the bytes); 315 × 35 codings and 12 400 + 339 visits' frames exact — [`docs/decode/README.md`](../decode/README.md) §Encoder settings | |
 | 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | done `3402411` on `claude/av1-unified` (`d4f7b30`, `ef72890`, `7d022d1`, `d2c4408`) — **adopted: one aomenc run per frame makes every item byte-identical at 1, 2 and 4 workers, for +12–13 % encode CPU and no byte cost**: libaom 3.15.1 `good:6`, the first 16 frames of all 23 sets of rows 2, 45 and 46 (252 items), every set identical across worker counts (`ffdm_d` at 1 and 2: four exceed memory, as before), bytes 0.99987–1.00015 of the chunked ingest's, 0.999998 in total — a one-frame run writes the reduced still-picture header every golden item already carried (forcing video mode would rewrite 106 golden items, not taken; row 80's `grey420/g8`, written while it was on the branch, regenerated, exact through the gate); whole series, n = 5 interleaved, wall at 1 worker 54.1 → 61.0 s fluoroscopy, 92.2 → 103.4 s 10-bit volume, 147.8 → 165.7 s ultrasound, every range disjoint, +6–13 % at 4 workers; the chunked ingest gave three totals for the 10-bit volume at 1/2/4 workers, the new one the same every round; mutation (the chunked loop as the new arm) caught on both tomosynthesis volumes, the regenerated golden broken caught by the gate; gate green — [`lab/av1/item/README.md`](../../lab/av1/item/README.md) §One pipeline |
 | 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | done `953dbfd` on `claude/av1-unified` — **adopted: ingest's optimized split is k = 0 up to 9 bits, 3 at 13, 2 at 10–12 and 14; 15–16 bits refused by name, served as HTJ2K**: the format did not change (row 43 already carries every k), only `ingest.py`'s `optimized_split`; its per-depth test held against three mutants (each caught), the writer's 142/142 split-and-merge cells still exact; a 9-bit golden item (`g9`, plain and optimized) and `optimized/s13` remade at k = 3 (10-bit top, WebCodecs), every other golden and matrix item and the probes byte-identical; the real 9- and 13-bit series (MR 9-bit, CT, cone-beam) ingested by the rule, 198/198 frames exact natively, in Node (dav1d-WASM) and in Chromium 141 (WebCodecs 198/198, as chosen); Firefox and WebKitGTK not installed here — row 43 ran these layouts there; gate green on every step but the link check, which fails only on row 69's brief (`docs/av1/MERGE.md` not yet written) — `item-format.md` §Representation at ingest and §The split per depth, README §A3 |
@@ -151,6 +158,10 @@ sleeps, so the two never share a usage window). A session started by the night r
 | 95 | **DBTSCALE** — DBT slices at scale on sound data: whole uncropped volumes, every system of the large CC BY collection, bytes, inter and total time | held until 2026-10-08 03:00 UTC, after 94 |
 | 96 | **FFDMSCALE** — full-field and synthesized 2D mammography at scale on sound data, FOR PRESENTATION and the 14-bit FOR PROCESSING raw images | held until 2026-10-08 03:00 UTC, after 94 |
 | 97 | **RGBNATIVE** — the colour transform (RCT) against GBR on natively stored, uncompressed colour ultrasound stills | held until 2026-10-08 03:00 UTC, after 94 |
+| 98 | **GOPSCOPE** — the frame-group evidence re-scoped to the AV1 taxonomy and its wording corrected in place; closed rows resting on off-taxonomy content or thin sampling listed for the owner | held until 2026-10-08 03:00 UTC |
+| 99 | **GOPTHEORY** — frame groups, phase 1: why inter should or should not help lossless coding of each target type, from primary sources; predictions, protocol and decision rule pre-registered | held until 2026-10-08 03:00 UTC |
+| 100 | **GOPMEASURE** — frame groups, phase 2: row 99's protocol run on the target content available, by a session given only the protocol and the decision rule | held until 2026-10-08 03:00 UTC, after 94, 99 |
+| 101 | **GOPREVIEW** — frame groups, the review: row 99's predictions against row 100's numbers, conclusive or not, and why | held until 2026-10-08 03:00 UTC, after 100 |
 
 ## Briefs
 
@@ -1883,8 +1894,7 @@ accepts every sound one; `check_links.py` and the gate green.
 
 **Question.** Do the DBT verdicts (bytes, inter against intra, total time, the per-depth split) hold on sound data at
 scale? **Do:** from the large CC BY 4.0 breast collection the lab already uses (its full DBT volumes, every system it
-holds), at least 5 whole, uncropped exams per system; bytes per layout against HTJ2K, inter at G = 2, 8, 16 in real
-slice order, decode and total time on row 23's links at 1× and 4×; every frame exact. **Decides:** the same cells as
+holds), at least 5 whole, uncropped exams per system; bytes per layout against HTJ2K (intra; frame groups are rows 99–101's), decode and total time on row 23's links at 1× and 4×; every frame exact. **Decides:** the same cells as
 rows 10, 44, 46 and 77 on this data, with the spread across exams and systems; each earlier DBT verdict confirmed or
 corrected in place. **Branch:** `claude/av1-unified`.
 
@@ -1903,6 +1913,53 @@ GBR on natively stored, uncompressed colour ultrasound (lossy flag `00`) — the
 colour stills in a CC BY collection? **Decides:** bytes and decode time per layout against HTJ2K, every frame exact; the
 RGB rule confirmed or corrected in place, with the caveat that a handful of stills is not a cine. **Branch:**
 `claude/av1-unified`.
+
+## The frame-group rows (98–101), 2026-10-07
+
+The owner, 2026-10-07: the conclusion "inter does not pay" is not conclusive. The AV1 taxonomy is the breast family
+first (FFDM, synthesized 2D, DBT slices, breast ultrasound cine, ABUS); other cine is secondary. FFDM and synthesized 2D
+are single images, so frame groups do not apply to them.
+
+### 98 GOPSCOPE
+
+**Do:** re-scope the frame-group evidence, corrected in place, never deleted. Rows 6 (fluoroscopy, MR, ultrasound
+RGB), 21 (DBT projections, FOR PROCESSING) and anything measured on CT or MR concern content AV1 no longer targets: mark
+them so in `docs/av1/README.md` §A1 and wherever "inter does not pay" is stated. What remains in scope: DBT slices (rows
+10 and 46, six series), breast ultrasound cine (lossy recordings only — row 94's provenance applies), ABUS and
+angiography (no data). Replace any "conclusive" wording with what was actually measured: on these series, libaom only,
+alt-ref off (required for exactness), a keyframe at every G, two presets; row 46 sampled only G = 8 and 16. Then list,
+under this row, every other closed row whose verdict rests on content outside the taxonomy or on thin sampling (few
+series, few frames, one encoder, one preset), with what a verification would need — for the owner; redo none of them.
+**Decides:** `check_links.py` and the gate green. **Branch:** `claude/av1-unified`.
+
+### 99 GOPTHEORY
+
+**Do:** before any new data, a hypothesis document from primary sources (codec specifications, encoder documentation
+and source, peer-reviewed literature on lossless and near-lossless inter coding of medical image sequences): why inter
+prediction should or should not reduce lossless bytes for each target type — noise and its frame-to-frame correlation,
+DBT slice-to-slice change (reconstruction filter, slice spacing), ultrasound speckle and its decorrelation with motion —
+and which AV1 inter tools stay usable when coding is lossless and the output must be exact (alt-ref and filtered
+references; libaom and SVT-AV1, from their source). It ends with explicit predictions per content and group size; the
+measurement protocol (a denser G sweep, e.g. 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, whole; alt-ref on and off where exact;
+libaom and SVT-AV1; presets; the series and frame counts; every frame exact against the source checksum; interleaved
+timing); and a decision rule stated before the data: what byte gain, at what decode and random-access cost, justifies
+giving up per-frame random access. Write the protocol and the decision rule as their own file, separate from the
+reasoning, so row 100 can be given them alone. **Deliverable:** the hypothesis document and the protocol file in
+`docs/av1/`; no measurement.
+
+### 100 GOPMEASURE
+
+**Do:** read only row 99's protocol file and decision rule — not its reasoning — and run it on the target content
+available on sound data (row 94's provenance): DBT slices, whole and uncropped, every system the CC BY collection holds;
+breast ultrasound cine and ABUS only from a sound, licensed source — otherwise list the data needed under `## Blocked`.
+Report the numbers per cell, then whether each prediction held, against the pre-stated rule. **Branch:**
+`claude/av1-unified`.
+
+### 101 GOPREVIEW
+
+**Do:** a short review: row 99's theory against row 100's data, prediction by prediction; whether the frame-group
+question is now conclusive for each target type, and why or why not; corrected in place where `docs/av1/README.md`
+§A1 states it.
 
 ## Blocked
 
