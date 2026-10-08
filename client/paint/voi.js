@@ -1,7 +1,4 @@
-/**
- * The DICOM grayscale pipeline as a table indexed by stored code: rescale, VOI LUT function,
- * presentation. client/paint/README.md §The pipeline (PS3.3 2026d C.11.1, C.11.2.1.2, C.7.6.3.1.2).
- */
+/** The DICOM grayscale pipeline as a table by stored code (PS3.3 2026d C.11); client/paint/README.md §The contract. */
 
 export const FUNCTIONS = ["LINEAR", "LINEAR_EXACT", "SIGMOID"];
 
@@ -45,10 +42,7 @@ export function tableShape({ bits, signed }) {
   return { entries, offset: signed ? entries / 2 : 0 };
 }
 
-/**
- * The table a frame is painted through: entry `s + offset` is stored code `s`'s byte. Grey
- * applies rescale and VOI; RGB is shown as stored, so its table is the identity (inverted if asked).
- */
+/** Entry `s + offset` is stored code `s`'s byte; RGB's table is the identity, inverted if asked. */
 export function windowTable(frame, display) {
   const { photometric = "MONOCHROME2", invert = false } = display;
   if (!PHOTOMETRIC.includes(photometric)) throw new Error(`photometric interpretation ${photometric} is not painted`);
