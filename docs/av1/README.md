@@ -85,7 +85,9 @@ not pay on two volumes, libaom, alt-ref off, two presets.* Two reconstructed vol
 group is 1.2 % larger than intra on the 12-bit volume and 0.6 % smaller on the 10-bit one (1.8 % at
 cpu6), against the fifth `adr-unit.md` §4 asks. Coded whole, AV1 is 1.043 of HTJ2K on the 12-bit
 volume and **0.977 on the 10-bit one — the first series where AV1 coded whole is smaller**; split
-top11+low, 0.943 and 0.946. Still no contrast angiography run: none is open.
+top11+low, 0.943 and 0.946. *Confirmed at scale (row DBTSCALE, fifteen whole volumes, three systems, `allintra` 7):
+coded whole (k = 0) 1.054–1.083 on every 12-bit volume and 0.776–0.975 on every 10-bit one; split k = 2,
+0.939–0.956, and 0.760 and 0.797 on two 10-bit volumes (§The split per depth).* Still no contrast angiography run: none is open.
 *Tomosynthesis projections since (row TAXO, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter
 does not pay there either* (outside the target series, Scope above). The raw views of two vendors' systems, 9 and 15 a series, 14 bits
 stored: on top11+low the best group is 0.3 % under intra on one and 0.2–0.8 % over it on the other.
@@ -107,7 +109,8 @@ intra; on grey it does not (0.942–1.006 against intra's 0.902–0.987).
 four DBT volumes at G = 8 and 16, and the one cine where it pays is a lossy recording.* Four DBT slice series from three reconstruction systems, 24–32
 slices in position order, k = 2 split, every frame exact: G = 8 and 16 are 0.963–1.054 of intra's bytes at cpu0 and
 0.998–1.050 at `good` 6 — the one gain over 2 % (a 10-bit volume at cpu0, 0.963) is a loss at `good` 6 — against
-intra's 0.942–0.945 of HTJ2K. A breast ultrasound cine in RGB gains under 2 %. A grey one (CC BY 4.0, MPEG-4 at 512²)
+intra's 0.942–0.945 of HTJ2K (*intra confirmed at scale, row DBTSCALE: k = 2 0.939–0.956 of HTJ2K on 13 of 15 whole
+volumes, 0.760–0.797 on two*). A breast ultrasound cine in RGB gains under 2 %. A grey one (CC BY 4.0, MPEG-4 at 512²)
 halves: G = 16 is 0.53 of intra, 0.47 of HTJ2K, decoding in 0.56 of intra's time in dav1d-WASM — but only 30–47 %
 of its samples change between frames, which is the source's lossy inter coding repeating blocks; a scanner's own
 cine is not open here (`queue.md` §Blocked), so whether inter pays on one is not measured. No ABUS volume is open.
@@ -859,9 +862,9 @@ series on every cell:
 | 13 | CT | k3 = w10 | 0.93 · 0.93 | 0.93 · 0.94 | 0.94 · 0.95 | 0.95 · 0.96 | 0.97 · 0.93 |
 | 13 | cone-beam | k3 = w10 | 0.95 · 0.95 | 0.95 · 0.96 | 0.96 · 0.97 | 0.96 · 0.98 | 0.96 · 0.91 |
 | 12 | fluoroscopy | k3 | 0.94 · 0.95 | 0.95 · 0.97 | 0.96 · 1.01 | | |
-| 12 | tomosynthesis 12-bit | k3 | 0.94 · 0.94 | 0.94 · 0.95 | 0.95 · 0.97 | | |
+| 12 | tomosynthesis 12-bit | k3 | 0.94 · 0.94 | 0.94 · 0.95 | 0.95 · 0.97 (*1.25–1.33 at scale*) | | |
 | 11 | MR | k2 | 0.99 · 0.99 | 0.99 · 0.99 | 0.99 · 1.01 | | |
-| 10 | tomosynthesis 10-bit | k2 | 0.95 · 0.95 | 0.95 · 0.96 | 0.96 · 0.99 | | |
+| 10 | tomosynthesis 10-bit | k2 | 0.95 · 0.95 | 0.95 · 0.96 | 0.96 · 0.99 (*1.32 at scale*) | | |
 | 9 | MR, 9 bits | k0 | 0.93 · 0.95 | 0.94 · 0.95 | 0.98 · 1.01 | | |
 
 **Verdict, SPLITTIME:** k = 0 at 9 bits, k = 2 at 10–12 and 14, k = 3 at 13, and HTJ2K at 15 and 16 bits and
@@ -869,6 +872,19 @@ wherever a slow CPU meets 20 Mbit or more at 14. At 12 bits k = 3 is ahead by �
 k = 2's, so the adopted k = 2 stays there. The 14-bit cells HTJ2K wins are the ones where dav1d-WASM's decode of the
 12-bit top is the fill's clock (row MIXDEC's mixed decode, not measured here, takes the low stream off it). Every
 table, the decode and the bytes per preset: [`lab/av1/splittime`](../../lab/av1/splittime/README.md).
+
+**At scale (row DBTSCALE, [`lab/av1/dbtscale`](../../lab/av1/dbtscale/README.md)).** Fifteen whole, uncropped DBT
+volumes, five exams from each of the three reconstruction systems, every source sound, 994 slices, every frame exact
+in every arm. *Bytes, every slice, `allintra` 7:* **k = 2 is the smallest arm on all fifteen** — 0.948–0.956 of
+HTJ2K at 12 bits (k = 3 0.950–0.958, k = 0 1.054–1.083) and 0.939–0.956 at 10 bits on three volumes, 0.760 and 0.797
+on two others of the 10-bit system, where AV1 gains a fifth over HTJ2K at every k (why is not measured). At cpu0 (each volume's two middle slices) k = 3 is ahead at 12 bits by 0.3–0.8 %, as row SPLITTIME found;
+at the shipped preset it is not. *Decode, every 8th slice:* no arm is as fast as HTJ2K on any volume in any of 8
+rounds — the fastest 2.9–3.7× HTJ2K's time a frame at 12 bits (k = 3), 2.0–2.6× at 10 bits. *Total time, one exam a
+system, every 8th slice, 6 rounds:* k = 2 wins 3–4 % wherever the wire is the clock (5 and 20 Mbit/s at 1×), ties at
+50 Mbit/s at 1×, and **loses 25–39 % at 4× on 50 Mbit/s** (k = 3 at 12 bits 1.25–1.33, k = 2 at 10 bits 1.32) — not
+row SPLITTIME's 0.97 and 0.99 there, whose two volumes were small and cropped. **Verdict:** the per-depth rule holds
+on bytes at scale (k = 2 at 10–12 bits); the time verdict narrows to "AV1 wins where the wire is slower than its
+decode", as row TOTAL2 found, and HTJ2K's at 4× on 50 Mbit/s. Container numbers, not a phone's.
 
 ## Threads (owner, 2026-10-03)
 
