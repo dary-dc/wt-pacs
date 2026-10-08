@@ -53,8 +53,18 @@ wire, the store and the server unchanged. *Built since (row GOP), the simplest f
 item, an ask for N asks k … k+G−1, a group decodes in order on one decoder, every frame exact on a
 G = 8 and a one-group set; no wire, store or server change was needed (`adr-unit.md` §3, *Built*).
 
+*Scope (row GOPSCOPE, 2026-10-08), for everything below on groups.* **Outside the target series**
+([`series.md`](series.md)): the fluoroscopy, MR and RGB ultrasound of row SIZE, the tomosynthesis projections of row
+TAXO (FOR PROCESSING views), and any CT or MR; their group results stand as measured and decide nothing for AV1.
+**Inside**: the DBT slice series — four volumes from three reconstruction systems (rows CONTENT and BREAST, two of
+them in both) — and the breast ultrasound cine, whose one open source is a lossy recording (row DATAGUARD); no ABUS
+or angiography is open. What was measured on DBT, and no more: libaom 3.15.1 alone, alt-ref off (exactness requires
+it), a keyframe at exactly every G, two presets; G = 1, 2, 4, 8, 16 and whole on two volumes coded whole (CONTENT),
+G = 8 and 16 only on the k = 2 split (BREAST). "Inter does not pay" below means *on those volumes, at those
+settings*; whether it pays on DBT is asked again, theory first (rows GOPTHEORY, GOPMEASURE, GOPREVIEW).
+
 *Measured (SIZE, libaom 3.15.1, every coding exact; [`lab/av1`](../../lab/av1/README.md) §SIZE):*
-**inter coding does not pay on any real series here** (*corrected by LLSIZE: on the ultrasound it
+**inter coding does not pay on any real series here** (*outside the target series, Scope above; corrected by LLSIZE: on the ultrasound it
 does once the colour is transformed, below*), and coded whole, AV1 does not beat HTJ2K —
 *corrected by DEPTH (§A3): coded as two streams, the two low bits apart, it does on every series
 over 10 bits, 0.918–0.997; and by LLSIZE: on every series, below*. Bytes over
@@ -64,14 +74,14 @@ MR (11-bit, 3.5 mm) 1.034 → 1.062, ultrasound cine (RGB 8) 1.117 → 1.534; at
 (fluoroscopy's best group, G = 2, is 0.04 % under intra). Lossless JPEG XL, for reference, is
 0.83–0.93 of HTJ2K. CT and the cone-beam set need 13 bits — row DEPTH. Bytes therefore give G > 1
 no reason; the content measured is three series, none of them a contrast angiography run.
-*Tomosynthesis since (row CONTENT, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter still does
-not pay.* Two reconstructed volumes, 1 mm slices — the content where neighbours share most: the best
+*Tomosynthesis since (row CONTENT, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter still did
+not pay on two volumes, libaom, alt-ref off, two presets.* Two reconstructed volumes, 1 mm slices — the content where neighbours share most: the best
 group is 1.2 % larger than intra on the 12-bit volume and 0.6 % smaller on the 10-bit one (1.8 % at
 cpu6), against the fifth `adr-unit.md` §4 asks. Coded whole, AV1 is 1.043 of HTJ2K on the 12-bit
 volume and **0.977 on the 10-bit one — the first series where AV1 coded whole is smaller**; split
 top11+low, 0.943 and 0.946. Still no contrast angiography run: none is open.
 *Tomosynthesis projections since (row TAXO, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter
-does not pay there either.* The raw views of two vendors' systems, 9 and 15 a series, 14 bits
+does not pay there either* (outside the target series, Scope above). The raw views of two vendors' systems, 9 and 15 a series, 14 bits
 stored: on top11+low the best group is 0.3 % under intra on one and 0.2–0.8 % over it on the other.
 Split top12+low they are 0.952 and 0.923 of HTJ2K (§A3). No breast ultrasound cine, automated breast
 ultrasound or angiography run is reachable ([`queue.md`](queue.md) §Blocked).
@@ -84,10 +94,10 @@ RGB (ultrasound 1.117 → 0.962), plus `--tune-content=screen --sb-size=64` for 
 controls, SVT-AV1 and YCoCg-R do not beat that. Decode (dav1d-WASM, n = 15 interleaved): the colour
 transform 0.89–0.95× row SIZE's coding, the split +1–5 % on large frames and +16–23 % on 512² MR and
 10-bit tomosynthesis — still 5–10× HTJ2K (row SPEED). **Inter pays on the colour-transformed
-ultrasound**: one keyframe in 8 frames, 0.850 of HTJ2K (GBR inter 1.355), decoding 0.81–0.83× GBR
+ultrasound** (outside the target series and lossy-sourced, Scope above): one keyframe in 8 frames, 0.850 of HTJ2K (GBR inter 1.355), decoding 0.81–0.83× GBR
 intra; on grey it does not (0.942–1.006 against intra's 0.902–0.987).
-*The breast family (row BREAST, [`lab/av1/breast`](../../lab/av1/breast/README.md)): inter does not pay on
-DBT, and the one cine where it pays is a lossy recording.* Four DBT slice series from three reconstruction systems, 24–32
+*The breast family (row BREAST, [`lab/av1/breast`](../../lab/av1/breast/README.md)): inter did not pay on
+four DBT volumes at G = 8 and 16, and the one cine where it pays is a lossy recording.* Four DBT slice series from three reconstruction systems, 24–32
 slices in position order, k = 2 split, every frame exact: G = 8 and 16 are 0.963–1.054 of intra's bytes at cpu0 and
 0.998–1.050 at `good` 6 — the one gain over 2 % (a 10-bit volume at cpu0, 0.963) is a loss at `good` 6 — against
 intra's 0.942–0.945 of HTJ2K. A breast ultrasound cine in RGB gains under 2 %. A grey one (CC BY 4.0, MPEG-4 at 512²)

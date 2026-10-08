@@ -98,7 +98,7 @@ rounds [min–max], ms, cpu0's codings; every frame exact (7 350/7 350 at each t
   30–47 % of samples change, by 0.5 on average, because its own inter coding carried unchanged blocks over exactly.
   A scanner's cine would bring new speckle every frame; how much of the half survives that is not measured.
 * **Not on the RGB cine** (0.98–1.00 of intra, a gain inside 2 %), whose tint and annotations change 60 % of samples
-  a frame, nor on any DBT slice series: 0.963–1.054 at cpu0 and 0.998–1.050 at `good` 6. The one gain over 2 %,
+  a frame, nor on any of the four DBT slice series at G = 8 and 16 (libaom, alt-ref off): 0.963–1.054 at cpu0 and 0.998–1.050 at `good` 6. The one gain over 2 %,
   `dbt10_d` at cpu0 (0.963–0.967), turns into a loss at `good` 6 (1.021–1.032). Intra's 0.942–0.945 of HTJ2K is
   already where the DBT bytes are.
 * A group costs random access (docs/av1/README.md §A1); on DBT it buys nothing to pay that with, and decodes within

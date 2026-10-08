@@ -174,7 +174,8 @@ decode and a merge, +1–5 % at 1× where the frame is large (fluoroscopy, 12-bi
 baseline's split, ±5 %. The winners encode in 0.8–3.2× the baseline's time (contended, above). So AV1's
 decode stays where row SPEED found it, 5–10× HTJ2K's.
 
-**Inter coding pays on the ultrasound once the colour is transformed**: one keyframe in 8 frames,
+**Inter coding pays on the ultrasound once the colour is transformed** (a lossy-sourced series outside the AV1
+target series, `docs/av1/README.md` §A1, Scope): one keyframe in 8 frames,
 RCT, 0.850 of HTJ2K — against 1.355 for GBR inter, the coding rows SIZE and CONTENT measured — and it
 decodes faster still (0.81× of GBR intra at 1×, 0.83× at 4×); on grey, inter is level with intra or
 worse (0.942–1.006 against 0.902–0.987). A group of 8 is the unit row GOP built.
