@@ -10,6 +10,12 @@ What each target series is, per the DICOM standard and vendors' conformance stat
 The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
 Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
 
+**Every ultrasound number in this file is provisional (row DATAGUARD, 2026-10-08).** `us_liver`'s header says it
+was coded lossily at 12.4:1 before it was archived, the breast cine are MPEG-4 Part 2 clips, and the stills a PNG
+export whose history nothing records ([`FIXTURES.md`](../FIXTURES.md) §Provenance). Their numbers stand as
+measured; they enter no bytes, time or inter verdict, and a verdict below that names the ultrasound holds for the
+other series only.
+
 ## What already does not care about the codec
 
 | layer | what it carries | codec-specific today |
@@ -94,7 +100,8 @@ RGB (ultrasound 1.117 → 0.962), plus `--tune-content=screen --sb-size=64` for 
 controls, SVT-AV1 and YCoCg-R do not beat that. Decode (dav1d-WASM, n = 15 interleaved): the colour
 transform 0.89–0.95× row SIZE's coding, the split +1–5 % on large frames and +16–23 % on 512² MR and
 10-bit tomosynthesis — still 5–10× HTJ2K (row SPEED). **Inter pays on the colour-transformed
-ultrasound** (outside the target series and lossy-sourced, Scope above): one keyframe in 8 frames, 0.850 of HTJ2K (GBR inter 1.355), decoding 0.81–0.83× GBR
+ultrasound** (outside the target series and lossy-sourced, Scope above; *provisional, DATAGUARD: a source coded
+lossily at 12.4:1, whose repeated blocks an inter coder finds*): one keyframe in 8 frames, 0.850 of HTJ2K (GBR inter 1.355), decoding 0.81–0.83× GBR
 intra; on grey it does not (0.942–1.006 against intra's 0.902–0.987).
 *The breast family (row BREAST, [`lab/av1/breast`](../../lab/av1/breast/README.md)): inter did not pay on
 four DBT volumes at G = 8 and 16, and the one cine where it pays is a lossy recording.* Four DBT slice series from three reconstruction systems, 24–32
@@ -603,7 +610,7 @@ every link (0.95–0.98)**, except a tie on the fluoroscopy at 50 Mbit. At 4× i
 (0.96–0.97) and is within 3 % on 20 Mbit and Wi-Fi. HTJ2K wins at 4× on LTE and 50 Mbit. top10+low through WebCodecs never loses by more than 3 % short of 4× on 50 Mbit,
 where it loses 10–13 %. On the 10-bit tomosynthesis, AV1 intra through WebCodecs ties or wins
 everywhere but 4× on 50 Mbit (1.36). One group gains 1 % at 5 Mbit and loses up to 4.1× at 4×. **The RGB
-ultrasound is HTJ2K's on every cell.** So the measure that decided before now splits by the
+ultrasound is HTJ2K's on every cell** (*provisional, DATAGUARD: a lossy-sourced set*). So the measure that decided before now splits by the
 clock: AV1's lossless forms win by their bytes wherever the wire is slower than the decoder. They
 lose wherever a slow CPU meets a fast link, and WebCodecs halves that loss.
 
@@ -651,7 +658,7 @@ table above, in brackets bytes over HTJ2K's on the whole series:
   slower in 2–3 of 10). Elsewhere it is 3–6 % under HTJ2K, which is its bytes.
 * **Through dav1d-WASM the same frames lose wherever the CPU is the clock:** 1.43–1.62 at 4× on
   50 Mbit, 0.98–1.01 at 4× on 20 Mbit. It wins at 1× on every link and at 4× on 5 Mbit.
-* **The ultrasound turns over.** Row TOTAL found it HTJ2K's on every cell (1.11–1.14 at 1×). With
+* **The ultrasound turns over** (*provisional, DATAGUARD: a lossy-sourced set, on both sides of the turn*). Row TOTAL found it HTJ2K's on every cell (1.11–1.14 at 1×). With
   the transform it is AV1's on every cell but 4× on 50 Mbit. Groups of 8 over all 70 frames are
   0.948 of HTJ2K's bytes, not row LLSIZE's 0.850 on its first 8, so they gain 1 % over intra and
   cost more than that at 4×.
@@ -665,7 +672,8 @@ every ultrasound cell, **row LLSIZE's codings through WebCodecs fill first on ev
 cell measured but two, both at 4× on 50 Mbit, where the better of them loses by 2–6 %**. The split now opens
 WebCodecs on the 12-bit series (top10+low2 at 0.943, against row TOTAL's top10+low3 at 0.999), so
 the bytes and the faster decoder no longer trade. dav1d-WASM keeps the same bytes and keeps losing
-40–60 % to HTJ2K where a slow CPU meets a fast link.
+40–60 % to HTJ2K where a slow CPU meets a fast link. *Provisional on the ultrasound (DATAGUARD): on the three
+sound series the verdict stands, with one loss at 4× on 50 Mbit (the fluoroscopy, 1.02).*
 
 ### The plain control and row ENCX's changes, by total time (row TOTAL3, [`lab/av1/total`](../../lab/av1/total/README.md))
 

@@ -24,7 +24,7 @@ rows still writing in these folders (`docs/av1/queue.md` row 56).
 | **decode** — time and memory a frame, per decoder | `speed/`, `decspeed/`, `split10/`, `rep14/`, `fasthtj2k/`, `decode/`, `mixdec/`, `footprint/`, `gpu/`, `reslevel/`, `wclat/` | `decode/{per-frame, settings, split-webcodecs, high-depth, htj2k-threads, worker, mixed, memory, webgpu, resolution-level, latency}/` |
 | **delivery** — a series through the downloader, wire and decode | `fill/`, `total/`, `splittime/`, `grey420/`, `preview/`, `resid/`, `bases/`, `svc/`, `svcq/`, `svcshape/`, `svcdec/`, `wcbase/` | `delivery/{fill, total-time, split-rule, grey-420, preview, residual, bases-first}/`, `delivery/scalable/{encoder, two-layer, shape, client, webcodecs-base}/` |
 
-`fetch_data.*`, `data.json` and `requirements.txt` stay here: every group reads the series.
+`fetch_data.*`, `provenance.py`, `data.json` and `requirements.txt` stay here: every group reads the series.
 
 ## Tools, pinned
 

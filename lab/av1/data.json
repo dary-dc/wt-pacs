@@ -8,6 +8,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.6279.6001.309707676674808510671394142910",
    "licence": "CC BY 3.0",
    "doi": "10.7937/k9/tcia.2015.lo9ql9sx",
+   "provenance": "sound",
    "frames_sha256": "3f825cca9a37667bc67e783bdfe7a5524600a2240e60f744f90f104d3061e23c",
    "files": [
     {
@@ -519,6 +520,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.7695.1700.501901925741942691616579643894",
    "licence": "CC BY 3.0",
    "doi": "10.7937/k9/tcia.2016.hdhpgjlk",
+   "provenance": "sound",
    "frames_sha256": "f7c835bdc0456396212a55d34954d11e642b669f731394dcf0be3f8ccb8a853e",
    "files": [
     {
@@ -820,6 +822,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1188.2803.344619030618266582811969207222",
    "licence": "CC BY 4.0",
    "doi": "10.7937/tcia.2021.v4z7-tc39",
+   "provenance": "lossy-sourced",
    "frames_sha256": "1afe52210421674dff3df08743a2e27510f2e4e813125fc244a5e255a81d13be",
    "files": [
     {
@@ -836,6 +839,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.114038165058490064705735122306615351137",
    "licence": "CC BY 4.0",
    "doi": "10.7937/ghkn-md15",
+   "provenance": "sound",
    "frames_sha256": "f6401329d2d05235dc25c29c8a86f38623e7930c405c9f5f86fc32abb9b12b13",
    "files": [
     {
@@ -852,6 +856,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.325586868912722966659148270956285342001",
    "licence": "CC BY 4.0",
    "doi": "10.7937/pcte-6m66",
+   "provenance": "sound",
    "frames_sha256": "21bb94a5602f67379e16c98843081211ead1a0a03beda93c508333b1751a0d72",
    "files": [
     {
@@ -1183,6 +1188,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.149435419612446515586877894872",
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "44c003deaad4b590661b03a9d55c248f290e7becf35e20e10107a1cd99e48e47",
    "files": [
     {
@@ -1199,6 +1205,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.222233970049288086311975470846",
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "crop": [
     359,
     1212,
@@ -1221,6 +1228,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.241153237908295365473272556342",
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "c838e036214e0eb3677cd497e643462d21ea301ee4f2a62037b790337f8d0e93",
    "files": [
     {
@@ -1283,6 +1291,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.199124033119197150122057139774",
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "e9056e3eb3ee45fbdbb7bcd3681b1d2b1bbd4b95590dcc4f354dc73774024408",
    "files": [
     {
@@ -1304,6 +1313,7 @@
    ],
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "de2d31c499f1dda3bf8e26103ce06eb2f3605ac327e48168890f9e0d742dd9d2",
    "files": [
     {
@@ -1335,6 +1345,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.745374035282848259977274923443",
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "afba9dc5f38a031771d5b28cf17d5149ed614808fa8916e9d7b90d5cad130c66",
    "files": [
     {
@@ -1359,6 +1370,7 @@
    ],
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "b0eed577e6b2cad7f94429fd60012eed41cd8e4cfd2d85bf94de3cccb84b59cc",
    "files": [
     {
@@ -1385,6 +1397,7 @@
    ],
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "a08db5fde4bb60b210f1be5ce7a0009436b4dfeb5df73506f00e3ede64f2b0a0",
    "files": [
     {
@@ -1416,6 +1429,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.3320.3273.111825362278642384679196453593",
    "licence": "CC BY 4.0",
    "doi": "10.7937/k9/tcia.2018.pat12tbs",
+   "provenance": "sound",
    "frames_sha256": "2ca3c7cb6e1b56f01307dc46ded0a73de073ddff9122072fb94f3f1056d3702e",
    "files": [
     {
@@ -3102,6 +3116,7 @@
    "series": "1.3.6.1.4.1.9590.100.1.2.55968524711909111320750324813970130575",
    "licence": "CC BY 3.0",
    "doi": "10.7937/k9/tcia.2016.7o02s9cy",
+   "provenance": "lossless-but-unrepresentative",
    "frames_sha256": "d5abdbd2fb282d1be8c971ea6684fd77066ec41408d38d45107323ddd5b1af49",
    "files": [
     {
@@ -3118,6 +3133,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.7009.9004.651392488030688711698672511224",
    "licence": "CC BY 4.0",
    "doi": "10.7937/tcia.hmq8-j677",
+   "provenance": "sound",
    "frames_sha256": "3c0911b79228680182b54b42188eff2f1a73014c98b9e526b92844bd0babac57",
    "files": [
     {
@@ -3509,6 +3525,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1.21971593935894310248515123503596720025",
    "licence": "CC BY 4.0",
    "doi": "10.7937/djg7-gz87",
+   "provenance": "sound",
    "frames_sha256": "7cec0d27051d162e470bfe4868c4ff1f1239c5b9f76608d2cfae2f2da232898e",
    "files": [
     {
@@ -4055,6 +4072,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.138858435258505461259360488541915758412",
    "licence": "CC BY 4.0",
    "doi": "10.7937/tcia.d8z0-9t85",
+   "provenance": "sound",
    "frames_sha256": "6ca93fd860dd1d2db110e0f65ad66a5d4c9d08a4d8dc18ce83c317870b37386f",
    "files": [
     {
@@ -4236,6 +4254,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.331325318803291398271708420138",
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "938d2096effa02b77ae2cd011df8f64c517308349cfe4903ee99a5d2a141c140",
    "files": [
     {
@@ -4252,6 +4271,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.197523448940305893929741503110",
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "20264943ee40801faa201c85b428300eaba4d43a6bafa0eb75246e82ee0cb8aa",
    "crop": [
     0,
@@ -4274,6 +4294,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.877726738817814424916528013200",
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "e86df72b11b597bc8cbafe687bdb1eb508bd965a351f655e485c46daf27c689d",
    "crop": [
     384,
@@ -4336,6 +4357,7 @@
    "series": "1.3.6.1.4.1.14519.5.2.1.1620.1225.335171222557244004935036836000",
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "383793ac1a01771af11d508b8e7f4feb53ca8060908c6f727025578bb8adab33",
    "files": [
     {
@@ -4372,6 +4394,7 @@
    ],
    "licence": "CC BY 3.0",
    "doi": "10.7937/k9/tcia.2015.sdnrqxxr",
+   "provenance": "sound",
    "frames_sha256": "f81eb4ad8ff88512b8a21f705b7eb0abb6ccc680006565ea33d2ed6d5de9e13d",
    "files": [
     {
@@ -4407,6 +4430,7 @@
    ],
    "licence": "CC BY 4.0",
    "doi": "10.7937/dx22-8j71",
+   "provenance": "sound",
    "frames_sha256": "672ff72d18d2e6b87491f41a1de777101e8eec56b663ed4b0ca66cf13d820809",
    "files": [
     {
@@ -4438,6 +4462,7 @@
    ],
    "licence": "CC BY 4.0",
    "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
    "frames_sha256": "8410013714741caf015e93149d64636508c111bc438399173bac282ce0d05c76",
    "files": [
     {
@@ -4469,6 +4494,7 @@
    "series": "videos_full/class_2/5ef7aad7b6994046ae8da4ce6c27dd2e.avi",
    "licence": "CC BY 4.0",
    "doi": "10.5281/zenodo.20901197",
+   "provenance": "lossy-sourced",
    "frames_sha256": "fdfae48e3db35b26a3c8154d2086aa93d1aab14c3c72e61cec5620c27c7291b5",
    "archive": {
     "url": "https://zenodo.org/records/20901197/files/BUVFM_DEMO_DATA.zip",
@@ -4494,6 +4520,7 @@
    "series": "videos_full/class_2/3ab6aee59bff4d7d9b644c83353dd400.avi",
    "licence": "CC BY 4.0",
    "doi": "10.5281/zenodo.20901197",
+   "provenance": "lossy-sourced",
    "frames_sha256": "a12c1cfebec06d772fa67881e3278078f3fe39ac030919cbac33d5b7a409d80b",
    "archive": {
     "url": "https://zenodo.org/records/20901197/files/BUVFM_DEMO_DATA.zip",
@@ -4549,6 +4576,7 @@
    ],
    "licence": "CC BY 4.0",
    "doi": "10.5281/zenodo.8231412",
+   "provenance": "unknown",
    "frames_sha256": "ca90bec44391fd4bfd65889052284ab94bfc2f01a4d5729da4211d99d4adbe21",
    "archive": {
     "url": "https://zenodo.org/records/8231412/files/BUSBRA.zip",
