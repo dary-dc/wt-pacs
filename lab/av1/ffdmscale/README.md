@@ -76,3 +76,30 @@ the exam, then each arm's bytes over HTJ2K's; **bold** is each exam's smallest a
 * **Raw, 14 bits: k = 2 or k = 3, 0.935–0.975 of HTJ2K on all fifteen**, within 0.02 of each other but on `mgraw_a1`
   (k = 3 1.017); w10 (k = 4) 0.998–1.087.
 * **Synthesized 2D: k = 2 on every exam**, 0.956–0.971 at 12 bits, 0.940–0.951 at 10.
+
+**Not run:** cpu0. Row BREAST's cpu0 encode of one 13.6 M-sample frame took 4.2 GB and 512 s; three arms of 156 images
+would hold this 4-core host some 17 hours, and the shipped preset is what ingest writes.
+
+## Decode (2026-10-08)
+
+Row SPLITTIME's `decode.mjs` unchanged on one exam per kind and system, the median by HTJ2K bytes (`ffdms_a3`,
+`ffdms_b2`, `ffdms_c1`, `mgraw_a1`, `mgraw_b1`, `mgraw_c4`, `syn2ds_a3`, `syn2ds_b3`), all four images, every arm,
+hard-linked into `$W/ffdmscale-dec` with a `manifest.json` of their checksums; headless Chromium 141, 6 rounds, 1× and
+4× interleaved, the host otherwise idle: **1 536/1 536 frames exact**. HTJ2K is ms a frame, median of round medians,
+1× · 4×; each arm the median of round-paired ratios to it. An arm whose streams are all ≤ 10 bits is WebCodecs'
+(`wc`), the rest dav1d-WASM's.
+
+| set | b | HTJ2K, ms | k = 0 | k = 2 | k = 3 | k = 4 |
+| --- | --: | --- | --- | --- | --- | --- |
+| `ffdms_a3` | 12 | 47.5 · 207 | 5.96 · 5.82 | wc 3.79 · 3.35 | wc **3.28 · 3.11** | |
+| `ffdms_b2` | 12 | 95.5 · 381 | 6.69 · 6.88 | wc 4.32 · 4.22 | wc **3.60 · 3.46** | |
+| `ffdms_c1` | 12 | 70.7 · 278 | 6.09 · 6.83 | wc **3.43 · 3.59** | wc 3.68 · 3.74 | |
+| `mgraw_a1` | 14 | 79.4 · 348 | | 7.28 · 6.88 | 7.55 · 7.43 | wc **3.85 · 3.56** |
+| `mgraw_b1` | 14 | 248 · 1 083 | | 8.04 · 7.90 | 8.20 · 8.19 | wc **2.02 · 1.88** |
+| `mgraw_c4` | 14 | 80.8 · 346 | | 7.84 · 7.79 | 8.31 · 8.13 | wc **3.48 · 3.18** |
+| `syn2ds_a3` | 12 | 94.8 · 401 | 5.49 · 5.40 | wc 3.38 · 3.10 | wc **3.31 · 3.11** | |
+| `syn2ds_b3` | 10 | 122 · 521 | wc 2.30 · 2.20 | wc 1.80 · 1.68 | wc **1.74 · 1.66** | |
+
+**No AV1 arm decodes as fast as HTJ2K on any exam in any round** (0/6 faster, every cell). At 12 bits the fastest is
+3.1–3.7× HTJ2K's time a frame, at 10 bits 1.7×; at 14 bits w10 (k = 4, WebCodecs) is 1.9–3.9× and the 12-bit top
+through dav1d-WASM (k = 2, 3) 6.9–8.3× — 2.0 and 8.6 s a 13.6 M-sample raw frame at 4×.
