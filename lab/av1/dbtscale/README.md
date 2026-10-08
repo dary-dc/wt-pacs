@@ -98,3 +98,33 @@ arm the median of round-paired ratios to it. Every AV1 arm here is WebCodecs' (e
 k = 3 at 12 bits, 2.87–3.68× HTJ2K's time a frame, and at 10 bits k = 2 or k = 3, 1.99–2.64× (k = 2 alone
 2.00–2.78×); row SPLITTIME's two DBT volumes were 3.07 · 2.83 (12-bit, k = 3) and 2.61 · 2.27 (10-bit, k = 2),
 inside these ranges.
+
+## Total time (2026-10-08)
+
+Row TOTAL's `run.mjs` unchanged on one exam per system, the median-sized (`dbts_a5`, `dbts_b2`, `dbts_c5`), every
+8th slice (9, 9 and 10 frames: 9.3, 18.2 and 11.2 MB of HTJ2K; `$W/dbtscale-total`), HTJ2K against k = 2 and k = 3,
+the fixed links (5, 20, 50 Mbit/s, 40 ms), 1× and 4×, 6 rounds interleaved: **3 024/3 024 frames exact over 324
+visits**. A whole volume at 5 Mbit/s is 4–8 minutes a visit; every slice in every cell would have taken some 100
+hours here, so the fill is a sample of the volume, not the volume.
+
+119 of the 324 visits are `VOID` (the relay's p99 over 1 ms; 1.0–2.0 ms here), mostly the long fills at 5 and
+20 Mbit/s, leaving n = 0–6 a cell. Where a cell kept any, its ratio with the void visits counted is the kept one's
+within 0.01, and within 0.04 at 4× on 50 Mbit/s, so the table counts every visit (n = 6) and says so. HTJ2K is seconds to every frame on the page,
+median, 1× · 4×; each arm the median of round-paired ratios to it.
+
+| set | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| --- | --- | --- | --- | --- |
+| `dbts_a5`, 12-bit | HTJ2K, s | 15.3 · 15.4 | 3.97 · 4.07 | 1.77 · 1.84 |
+| | k = 2 | 0.96 · 0.97 | 0.97 · 1.02 | 0.99 · 1.39 |
+| | k = 3 | 0.96 · 0.97 | 0.98 · 1.02 | 0.99 · 1.33 |
+| `dbts_b2`, 10-bit | HTJ2K, s | 29.8 · 30.1 | 7.63 · 7.89 | 3.24 · 3.51 |
+| | k = 2 | 0.96 · 0.97 | 0.97 · 1.02 | 1.00 · 1.32 |
+| | k = 3 | 1.01 · 1.02 | 1.02 · 1.06 | 1.04 · 1.39 |
+| `dbts_c5`, 12-bit | HTJ2K, s | 18.4 · 18.5 | 4.74 · 4.83 | 2.06 · 2.17 |
+| | k = 2 | 0.96 · 0.97 | 0.97 · 1.01 | 0.99 · 1.30 |
+| | k = 3 | 0.96 · 0.97 | 0.97 · 1.00 | 0.99 · 1.25 |
+
+**Where the wire is the clock k = 2 wins by its bytes, 3–4 %; at 4× on 50 Mbit/s every arm loses 25–39 %**, and
+at 4× on 20 Mbit/s they tie or lose 1–6 %. k = 3 on the 10-bit volume loses everywhere (its bytes are 1.004). The 4× cells on 50 Mbit/s are the host's saturation: the decode on three cores is
+the fill's clock, and nothing past it is claimed. `--mutate sample` and `--mutate truth` on the decode harness's
+sample each turned every arm to 0 exact.

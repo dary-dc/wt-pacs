@@ -75,12 +75,12 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §A4). Twenty-eight public series, fetched at run time — twenty-five from the
+([`av1/README.md`](av1/README.md) §A4). Forty-three public series, fetched at run time — forty from the
 NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
 three of breast ultrasound from two Zenodo records — never committed:
 
 ```bash
-lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~3.8 GB fetched
+lab/av1/fetch_data.sh [set …]   # OUT=lab/av1/data by default; ~9.9 GB fetched
 ```
 
 `lab/av1/data.json` pins every file's S3 key and SHA-256 and each set's frame digest;
@@ -127,6 +127,21 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
 | `usb_cine` | breast ultrasound cine, B-mode, 25 frames/s, the first 64 of 515 frames, luma | 64 × 512² | 8-bit | 4..242 | BUVFM demo dataset, CC BY 4.0 | lossy-sourced |
 | `usb_cine_rgb` | breast ultrasound cine, tinted B-mode with colour annotations, 30 frames/s, the first 64 of 413 | 64 × 512² | 3 × 8-bit RGB | 0..255 | BUVFM demo dataset, CC BY 4.0 | lossy-sourced |
 | `usb_still` | breast ultrasound stills, B-mode, one scanner, every 276×305 image of the set | 29 × 276×305 | 8-bit | 4..235 | BUS-BRA, CC BY 4.0 | unknown |
+| `dbts_a1` | DBT slices, 1 mm, L CC, whole and uncropped, system A | 56 × 1142×1785 | 12 of 16 bits, unsigned | 0..3213 | EA1141, CC BY 4.0 | sound |
+| `dbts_a2` | DBT slices, 1 mm, R CC, whole and uncropped, system A | 87 × 1014×2046 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `dbts_a3` | DBT slices, 1 mm, R MLO, whole and uncropped, system A | 43 × 712×2041 | 12 of 16 bits, unsigned | 0..3593 | EA1141, CC BY 4.0 | sound |
+| `dbts_a4` | DBT slices, 1 mm, L MLO, whole and uncropped, system A | 69 × 1131×2223 | 12 of 16 bits, unsigned | 0..3421 | EA1141, CC BY 4.0 | sound |
+| `dbts_a5` | DBT slices, 1 mm, R MLO, whole and uncropped, system A | 71 × 845×2241 | 12 of 16 bits, unsigned | 0..3954 | EA1141, CC BY 4.0 | sound |
+| `dbts_b1` | DBT slices, 1 mm, R CC, whole and uncropped, system B | 50 × 2560×3328 | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 | sound |
+| `dbts_b2` | DBT slices, 1 mm, L MLO, whole and uncropped, system B | 71 × 1890×2457 | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 | sound |
+| `dbts_b3` | DBT slices, 1 mm, R CC, whole and uncropped, system B | 63 × 1996×2457 | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 | sound |
+| `dbts_b4` | DBT slices, 1 mm, L CC, whole and uncropped, system B | 84 × 1996×2457 | 10 of 16 bits, unsigned | 0..820 | EA1141, CC BY 4.0 | sound |
+| `dbts_b5` | DBT slices, 1 mm, L MLO, whole and uncropped, system B | 66 × 1890×2457 | 10 of 16 bits, unsigned | 0..925 | EA1141, CC BY 4.0 | sound |
+| `dbts_c1` | DBT slices, 1 mm, whole and uncropped, system C | 69 × 976×2513 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `dbts_c2` | DBT slices, 1 mm, whole and uncropped, system C | 56 × 757×2227 | 12 of 16 bits, unsigned | 0..3568 | EA1141, CC BY 4.0 | sound |
+| `dbts_c3` | DBT slices, 1 mm, whole and uncropped, system C | 70 × 1147×2585 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `dbts_c4` | DBT slices, 1 mm, whole and uncropped, system C | 66 × 662×2227 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
+| `dbts_c5` | DBT slices, 1 mm, whole and uncropped, system C | 73 × 955×2100 | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
 
 ### Provenance
 
@@ -173,6 +188,7 @@ to fail; on the real files, `us_liver` and `usb_still` marked `sound` are refuse
 | `ffdm_d` | explicit LE | 00 | `DERIVED\SECONDARY` | FOR PRESENTATION | — | sound |
 | `syn2d_c` | explicit LE | 00 | `DERIVED\SECONDARY\OTHER` | FOR PRESENTATION | — | sound |
 | `syn2d_d` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
+| `dbts_a1`…`dbts_a5`, `dbts_b1`…`dbts_b5`, `dbts_c1`…`dbts_c5` | explicit LE | 00 | system A `ORIGINAL\PRIMARY\TOMOSYNTHESIS\NONE`; B `DERIVED\PRIMARY\VOLUME\NONE` or `…\TOMOSYNTHESIS\NONE`; C `ORIGINAL\PRIMARY\VOLUME\NONE` | — | — | sound |
 | `usb_cine`, `usb_cine_rgb` | an AVI clip, MPEG-4 Part 2 | the coding is lossy | — | — | decoded by FFmpeg; luma kept, or converted to RGB | lossy-sourced |
 | `usb_still` | a PNG, cropped around the lesion by the dataset | not recorded | — | — | decoded by FFmpeg | unknown |
 
@@ -256,6 +272,11 @@ synthesized 2D), not a re-coding; none is flagged.
   picture; `usb_cine_rgb`'s chroma departs from neutral on 59 % of samples. Both are 512² MPEG-4 Part 2 clips, so
   their frames carry that coding's loss and resizing: what an archive of such clips holds, not a scanner's output.
   `usb_still`'s images are crops around the lesion, PNG.
+* **Row DBTSCALE's volumes** (`dbts_*`): five exams, five patients the lab had not used, from each of the three
+  reconstruction systems EA1141 holds — A and C the systems of `dbt12_ea1141` and `dbt12_c`, B that of `dbt10_ea1141`
+  and `dbt10_d` — each series' 1 mm slice instance whole and uncropped, frames as stored (not its 10 mm slab). Chosen
+  per system as the first five by SeriesInstanceUID (`idc-index` 0.12.5, `idc-index-data` 24.2.2, IDC v24); about
+  6.1 GB. System B stores two detector sizes (one 2560×3328 volume, four 1890–1996×2457).
 * **Hosts, 2026-10-05 15:49 UTC (row BREAST), after the environment's network access was set to full:** every host
   row DATA3 found refused answered (200, 202, 301, 302, 400 or 404), but `pan.baidu.com` (connection reset).
 * `us_liver` is stored uncompressed, but scan-converted; whether it was lossy-coded before it was
