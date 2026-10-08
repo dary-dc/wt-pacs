@@ -67,3 +67,34 @@ cell but three, all k = 3 (`dbts_b4` +0.021, `dbts_c3` +0.015, `dbts_c4` +0.019)
 | `dbts_c3` | 1.048 · 1.081 | 0.942 · 0.953 | 0.935 · 0.973 |
 | `dbts_c4` | 1.050 · 1.086 | 0.941 · 0.953 | 0.933 · 0.972 |
 | `dbts_c5` | 1.038 · 1.069 | 0.941 · 0.953 | 0.937 · 0.955 |
+
+## Decode (2026-10-08)
+
+Row SPLITTIME's `decode.mjs` unchanged, every 8th slice of each volume (130 frames, hard-linked into
+`$W/dbtscale-dec` with a `manifest.json` of their checksums), headless Chromium 141, 8 rounds, 1× and 4× interleaved,
+the host otherwise idle: **8 320/8 320 frames exact**. HTJ2K is ms a frame, median of round medians, 1× · 4×; each
+arm the median of round-paired ratios to it. Every AV1 arm here is WebCodecs' (every stream ≤ 10 bits) but k = 0 at
+12 bits, which is dav1d-WASM's.
+
+| set | HTJ2K, ms | k = 0 | k = 2 | k = 3 |
+| --- | --- | --- | --- | --- |
+| `dbts_a1` | 33.0 · 126 | 6.10 · 7.16 | 3.43 · 3.84 | 3.30 · 3.29 |
+| `dbts_a2` | 30.3 · 135 | 6.30 · 6.39 | 3.86 · 3.51 | 3.25 · 3.01 |
+| `dbts_a3` | 26.0 · 90.7 | 6.08 · 7.47 | 3.60 · 4.05 | 3.22 · 3.56 |
+| `dbts_a4` | 40.7 · 164 | 7.50 · 7.87 | 4.01 · 4.16 | 3.35 · 3.45 |
+| `dbts_a5` | 28.0 · 113 | 6.38 · 6.87 | 3.80 · 3.78 | 3.26 · 3.25 |
+| `dbts_b1` | 97.9 · 429 | 3.45 · 3.33 | 2.50 · 2.37 | 2.58 · 2.34 |
+| `dbts_b2` | 70.1 · 308 | 3.72 · 3.87 | 2.64 · 2.46 | 2.98 · 2.77 |
+| `dbts_b3` | 67.8 · 283 | 3.99 · 3.91 | 2.78 · 2.51 | 2.64 · 2.57 |
+| `dbts_b4` | 61.9 · 279 | 3.16 · 3.00 | 2.25 · 2.00 | 2.30 · 1.99 |
+| `dbts_b5` | 65.0 · 252 | 2.98 · 3.08 | 2.11 · 2.09 | 2.26 · 2.28 |
+| `dbts_c1` | 33.1 · 140 | 5.35 · 5.52 | 3.28 · 3.32 | 2.94 · 2.87 |
+| `dbts_c2` | 25.3 · 106 | 7.26 · 7.55 | 4.10 · 3.99 | 3.68 · 3.36 |
+| `dbts_c3` | 39.0 · 161 | 5.89 · 6.54 | 3.62 · 3.69 | 3.25 · 3.24 |
+| `dbts_c4` | 21.3 · 78.8 | 5.33 · 6.17 | 3.47 · 3.61 | 2.95 · 3.18 |
+| `dbts_c5` | 29.8 · 133 | 6.59 · 6.61 | 3.86 · 3.40 | 3.53 · 3.05 |
+
+**No AV1 arm decodes as fast as HTJ2K on any volume in any round** (0/8 faster, every cell). The fastest arm is
+k = 3 at 12 bits, 2.87–3.68× HTJ2K's time a frame, and at 10 bits k = 2 or k = 3, 1.99–2.64× (k = 2 alone
+2.00–2.78×); row SPLITTIME's two DBT volumes were 3.07 · 2.83 (12-bit, k = 3) and 2.61 · 2.27 (10-bit, k = 2),
+inside these ranges.
