@@ -67,7 +67,12 @@ them in both) — and the breast ultrasound cine, whose one open source is a los
 or angiography is open. What was measured on DBT, and no more: libaom 3.15.1 alone, alt-ref off (exactness requires
 it), a keyframe at exactly every G, two presets; G = 1, 2, 4, 8, 16 and whole on two volumes coded whole (CONTENT),
 G = 8 and 16 only on the k = 2 split (BREAST). "Inter does not pay" below means *on those volumes, at those
-settings*; whether it pays on DBT is asked again, theory first (rows GOPTHEORY, GOPMEASURE, GOPREVIEW).
+settings*; whether it pays on DBT is asked again, theory first (rows GOPTHEORY, GOPMEASURE, GOPREVIEW). *Answered
+(row GOPREVIEW): on DBT it does not, conclusively by the rule fixed before the data — 15 sound volumes from three
+systems, every series under the 20 % line (best +1.51 %), because adjacent slices share little noise (median ρ
+0.11–0.22, against the ½ inter needs); the encoder variants that gain at all (alt-ref on, SVT-AV1, up to +3.2 %) are
+lossless only on one system's 8-bit tops. Cine, ABUS and angiography stay open for want of sound data (§Frame groups
+below; the review is `gop-theory.md` §4a on `claude/av1`).*
 
 *Measured (SIZE, libaom 3.15.1, every coding exact; [`lab/av1`](../../lab/av1/README.md) §SIZE):*
 **inter coding does not pay on any real series here** (*outside the target series, Scope above; corrected by LLSIZE: on the ultrasound it
