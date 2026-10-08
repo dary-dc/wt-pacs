@@ -163,6 +163,7 @@ is written), one series per class the split rule tells apart:
 
 ```bash
 D=lab/av1/data
+lab/av1/item/build.sh                      # ingest's in-process decoders, after tools.sh and gen_htj2k_fixtures.sh
 lab/av1/total/item_frames.sh lab/.av1-build lab/.av1-work/total4 $D/mr9_ispy2:34 $D/rf_fluoro:18 \
   $D/dbt10_ea1141:16 $D/ffdm_c:4 $D/dbtproj_holo:5 $D/us_liver:40 $D/ct_lidc:60       # ~25 min
 export FIREFOX_PATH=...                    # Firefox 157.0.1, below
@@ -188,6 +189,16 @@ A longer series is cut at 9.1–10.3 MB of HTJ2K, so a round fits in half an hou
 HTJ2K's by the rule and have no AV1 arm. Firefox is launched as a process (as row XBROWSER's) and the page
 POSTs its result to the harness; Chromium's result comes the same way. Firefox runs no 5 Mbit cell but the
 probe: its WebTransport dial through the relay at 5 Mbit does not settle (below).
+
+The run (2026-10-08): rounds 0–13 (round 4 cut short at 154 of 256 visits by a full disk; each Firefox
+visit's profile is now removed after it), then rounds 14–15 on the cells short of n = 10, through
+`--sets`/`--links`/`--throttles` per engine. 3 746 visits, **90 949/90 949 delivered frames exact**; 1 706
+`VOID` (46 %: the relay's p99 over 1 ms, from 17 % in round 0 to 33–61 % after, on a quiet rig — this
+container's timing, not the arms') and 182 Firefox visits that never dialled: 49 of 60 at 5 Mbit, 125 of
+394 at 20 Mbit, 8 of 394 at 50 Mbit, none on the profiles. 1 930 visits kept, round-paired n = 0–13 a cell;
+the cells short of 10 are named in [`docs/av1/README.md`](../../../docs/av1/README.md) §Every change of
+the round. `--mutate sample` and `--mutate truth` each turned both arms of every set to 0 of 708 delivered
+frames exact, in both engines (50 Mbit, 1×).
 
 **Row LOSSCC** sets the server's controller under row LOSSLINK's cells: today's `cubic-restart` against
 `bbr`, each with both codecs. The 10-bit volume's first 8 frames, through the product's ingest both ways
