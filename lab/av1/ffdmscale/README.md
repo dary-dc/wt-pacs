@@ -23,8 +23,8 @@ k = 0 is both.
 ## Bytes (2026-10-08)
 
 Every image, `allintra` 7, each item decoded back natively and matched with the fetch's checksum before it is written
-(`ingest.py`), HTJ2K in the served profile decoded back and checked: 477/477 items and 159/159 HTJ2K frames exact. HTJ2K's bits a sample on
-the exam, then each arm's bytes over HTJ2K's; **bold** is each exam's smallest arm.
+(`ingest.py`), HTJ2K in the served profile decoded back and checked: 477/477 items and 159/159 HTJ2K frames exact.
+HTJ2K's bits a sample on the exam, then each arm's bytes over HTJ2K's; **bold** is each exam's smallest arm.
 
 | set | b | images | HTJ2K, bit/sample | k = 0 | k = 2 | k = 3 | k = 4 |
 | --- | --: | --- | --: | --: | --: | --: | --: |
@@ -103,3 +103,60 @@ hard-linked into `$W/ffdmscale-dec` with a `manifest.json` of their checksums; h
 **No AV1 arm decodes as fast as HTJ2K on any exam in any round** (0/6 faster, every cell). At 12 bits the fastest is
 3.1–3.7× HTJ2K's time a frame, at 10 bits 1.7×; at 14 bits w10 (k = 4, WebCodecs) is 1.9–3.9× and the 12-bit top
 through dav1d-WASM (k = 2, 3) 6.9–8.3× — 2.0 and 8.6 s a 13.6 M-sample raw frame at 4×.
+
+## Total time (2026-10-08)
+
+Row TOTAL's `run.mjs` unchanged on the same eight exams, all four images (6.6–47.5 MB of HTJ2K an exam;
+`$W/ffdmscale-total`), HTJ2K against the two AV1 arms that bytes and decode leave in question — k = 2 and k = 3 at
+12 bits, k = 2 and w10 (k = 4) at 14, k = 0 and k = 2 at 10 — the fixed links (5, 20, 50 Mbit/s, 40 ms), 1× and
+4×, 4 rounds interleaved: **2 304/2 304 frames exact over 576 visits**. 80 visits are `VOID` (the relay's p99 over
+1 ms); counted or dropped, every ratio moves by 0.02 or less, so the table counts every visit (n = 4) and says so.
+HTJ2K is seconds to every image on the page, median, 1× · 4×; each arm the median of round-paired ratios to it.
+
+| set | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| --- | --- | --- | --- | --- |
+| `ffdms_a3`, 12-bit | HTJ2K, s | 10.9 · 11.1 | 2.89 · 3.07 | 1.33 · 1.53 |
+| | k = 2 | 1.00 · 1.03 | 1.03 · 1.16 | 1.08 · 1.68 |
+| | k = 3 | 1.02 · 1.05 | 1.06 · 1.15 | 1.10 · 1.61 |
+| `ffdms_b2`, 12-bit | HTJ2K, s | 20.0 · 20.3 | 5.19 · 5.50 | 2.30 · 2.63 |
+| | k = 2 | 1.06 · 1.11 | 1.10 · 1.30 | 1.19 · 1.70 |
+| | k = 3 | 1.01 · 1.05 | 1.04 · 1.19 | 1.11 · 1.45 |
+| `ffdms_c1`, 12-bit | HTJ2K, s | 17.9 · 18.1 | 4.66 · 4.86 | 2.05 · 2.25 |
+| | k = 2 | 1.00 · 1.04 | 1.04 · 1.15 | 1.08 · 1.45 |
+| | k = 3 | 1.05 · 1.08 | 1.09 · 1.20 | 1.13 · 1.56 |
+| `syn2ds_a3`, 12-bit | HTJ2K, s | 20.6 · 21.0 | 5.36 · 5.69 | 2.35 · 2.63 |
+| | k = 2 | 0.98 · 1.01 | 1.01 · 1.14 | 1.06 · 1.47 |
+| | k = 3 | 1.01 · 1.04 | 1.04 · 1.15 | 1.09 · 1.58 |
+| `syn2ds_b3`, 10-bit | HTJ2K, s | 12.1 · 12.5 | 3.25 · 3.65 | 1.52 · 1.93 |
+| | k = 0 | 1.06 · 1.10 | 1.09 · 1.28 | 1.22 · 1.83 |
+| | k = 2 | 0.95 · 0.98 | 0.99 · 1.07 | 1.04 · 1.28 |
+| `mgraw_a1`, 14-bit | HTJ2K, s | 20.0 · 20.3 | 5.19 · 5.45 | 2.27 · 2.52 |
+| | k = 2 | 0.99 · 1.06 | 1.06 · 1.36 | 1.23 · 2.28 |
+| | k = 4 | 1.08 · 1.11 | 1.12 · 1.23 | 1.18 · 1.47 |
+| `mgraw_b1`, 14-bit | HTJ2K, s | 77.8 · 78.7 | 19.8 · 20.6 | 8.26 · 9.09 |
+| | k = 2 | 0.98 · 1.04 | 1.04 · 1.32 | 1.14 · 2.14 |
+| | k = 4 | 1.03 · 1.03 | 1.04 · 1.08 | 1.06 · 1.13 |
+| `mgraw_c4`, 14-bit | HTJ2K, s | 26.1 · 26.4 | 6.74 · 6.99 | 2.90 · 3.21 |
+| | k = 2 | 0.98 · 1.06 | 1.04 · 1.31 | 1.17 · 2.17 |
+| | k = 4 | 1.02 · 1.05 | 1.04 · 1.12 | 1.08 · 1.28 |
+
+**HTJ2K fills these exams as fast or faster on every cell but 5 Mbit/s at 1×**, where AV1's best arm is 0.95–1.00
+(the 10-bit synthesized exam 0.95, the 12-bit one 0.98, raw 0.98–0.99, for presentation 1.00–1.01). At 20 Mbit/s
+the best arm is 0.99–1.06 at 1× and 1.07–1.23 at 4×; at 50 Mbit/s 1.04–1.18 and 1.13–1.61. A mammogram is a few
+large frames, so the decode after the last byte is likely a larger share of the fill than on a DBT volume's many
+small slices (not measured apart): the 12-bit top through dav1d-WASM takes a raw exam to 2.1–2.3× HTJ2K's time at 4× on 50 Mbit/s, w10 to
+1.13–1.47. The 4× cells on 50 Mbit/s are the host's saturation (the decode on three cores is the fill's clock);
+nothing past it is claimed. `--mutate sample` and `--mutate truth` on the decode harness, on one exam of each depth,
+each turned every arm to 0 exact.
+
+## Verdict
+
+* **The codec for these images is HTJ2K.** For presentation AV1 is 0.945–1.017 of HTJ2K's bytes on two systems and
+  0.990–1.003 on the third; no fill ends sooner but at 5 Mbit/s at 1×, by 0–5 %; the decode is 3.1–3.7× HTJ2K's a
+  frame.
+* **The split per depth, where AV1 is used: k = 2 at 10 and 12 bits**, the smallest arm on every synthesized exam and
+  on nine of ten FFDM exams of systems A and C; system B's FFDM wants k = 3 (0.990–1.003), which still does not beat
+  HTJ2K. **At 14 bits k = 2 by bytes** (0.935–0.975; k = 3 within 0.02 on 14 of 15) **and at 1×; w10 at 4× on
+  20 Mbit/s and more** (1.08–1.47 of HTJ2K against k = 2's 1.31–2.28); raw images are not what a viewer receives,
+  so this decides nothing a viewer shows.
+* Containers, not phones; one exam a kind and system timed, all 39 sized.
