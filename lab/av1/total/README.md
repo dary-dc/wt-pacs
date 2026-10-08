@@ -189,6 +189,23 @@ HTJ2K's by the rule and have no AV1 arm. Firefox is launched as a process (as ro
 POSTs its result to the harness; Chromium's result comes the same way. Firefox runs no 5 Mbit cell but the
 probe: its WebTransport dial through the relay at 5 Mbit does not settle (below).
 
+**Row LOSSCC** sets the server's controller under row LOSSLINK's cells: today's `cubic-restart` against
+`bbr`, each with both codecs. The 10-bit volume's first 8 frames, through the product's ingest both ways
+(`item_frames.sh lab/.av1-build lab/.av1-work/losscc $D/dbt10_ea1141:8`; 0.943 of HTJ2K's bytes), with
+`arms.json` given two more arms, `htj2kbbr` (`"codec": "htj2k", "congestion": "bbr"`) and `optbbr`
+(`"ext": "opt.av1", "congestion": "bbr"`). A visit refuses to run when the server's banner names
+another controller than the arm's. Then rounds 0–11 of
+
+```bash
+taskset -c 0-2 run.mjs --frames lab/.av1-work/losscc --links r5000,r20000,r50000,lte-good \
+  --impairs clean,l1,l2,l5,j20 --fill 4 --asks-after 4 --rounds 1 --first-round $r
+```
+
+±5 ms is not run: row LOSSLINK found it ±20 ms's row, less. `--mutate sample` and `--mutate truth` each
+turned both BBR arms to 0 of 8 exact (`l1` on 50 Mbit), and an arm started under `cubic` while it named
+`bbr` stopped the run. Plain Cubic is not an arm: `cubic-restart` has been the default since 2026-10-02,
+and row CC1 measured the two side by side ([`docs/transport/transport-conclusions.md`](../../../docs/transport/transport-conclusions.md) §1).
+
 **Row ASKDEADLINE** times the downloader's own deadlines under loss. Row LOSSLINK's HTJ2K frames
 (`ARMS=none make_frames.py`), `downloader_arm.sh cf4db15 before` for the downloader before the row, and
 in `arms.json` a third arm `stall15` (`"codec": "htj2k", "survival": {"stallMs": 15000}`); every arm with
