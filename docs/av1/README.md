@@ -373,7 +373,7 @@ mutations caught. Nothing in the split stops a per-depth rule: row 44 may pick a
 *The breast family's depths (row BREAST, [`FIXTURES.md`](../FIXTURES.md) §AV1 data): nothing presented or
 reconstructed there exceeds 12 bits* — four FFDM and four synthesized-2D series of 10–12 bits, four DBT slice series of
 10–12; only the raw projections (14 bits, three systems) and a digitized film (16, a ~12-bit scan stretched) exceed
-it. On a third system's projections plain, k = 2 and w10 are within 1 % (0.962–0.971 of HTJ2K,
+it. *Also at scale (row FFDMSCALE):* 30 FFDM exams of three systems, 12 bits for presentation and 14 raw. On a third system's projections plain, k = 2 and w10 are within 1 % (0.962–0.971 of HTJ2K,
 [`lab/av1/breast`](../../lab/av1/breast/README.md)).
 
 *Real 9-, 15- and 16-bit series and two more signed CTs (row DATA3, [`lab/av1/breast`](../../lab/av1/breast/README.md)
@@ -887,6 +887,20 @@ system, every 8th slice, 6 rounds:* k = 2 wins 3–4 % wherever the wire is the 
 row SPLITTIME's 0.97 and 0.99 there, whose two volumes were small and cropped. **Verdict:** the per-depth rule holds
 on bytes at scale (k = 2 at 10–12 bits); the time verdict narrows to "AV1 wins where the wire is slower than its
 decode", as row TOTAL2 found, and HTJ2K's at 4× on 50 Mbit/s. Container numbers, not a phone's.
+
+**Mammograms at scale (row FFDMSCALE, [`lab/av1/ffdmscale`](../../lab/av1/ffdmscale/README.md)).** Five four-view
+exams per system of FFDM for presentation and of its 14-bit raw (FOR PROCESSING) companion on all three systems, and
+of synthesized 2D (four of the second vendor's, all it holds, with `syn2d_c` the fifth), every source sound, 159
+images, every one exact in every arm. *Bytes, `allintra` 7:* for presentation AV1's best arm is 0.945–0.992 of HTJ2K
+on system C, 0.956–1.017 on A (k = 2 smallest on nine of these ten exams) and only **0.990–1.003 on B** (k = 3; k = 2
+1.030–1.043), as row BREAST's two exams of B had it; synthesized 2D k = 2 0.940–0.971; raw k = 2 or 3 0.935–0.975.
+*Decode, one median exam a kind and system, 6 rounds:* no arm as fast as HTJ2K in any round — 3.1–3.7× at 12 bits,
+1.7× at 10, and at 14 bits w10 1.9–3.9× against the 12-bit top's 6.9–8.3× through dav1d-WASM. *Total time, the same
+exams, 4 rounds:* **HTJ2K is as fast or faster on every cell but 5 Mbit/s at 1×**, where AV1's best is 0.95–1.01;
+elsewhere its best is 0.99–1.23 at 20 Mbit/s and 1.04–1.61 at 50 (a few large frames leave more decode after the last
+byte than a volume's many slices: a reading, not measured). **Verdict:** HTJ2K for mammograms; where AV1 is used, k = 2 at 10 and 12 bits (k = 3
+on system B's FFDM), and at 14 bits k = 2 at 1× and w10 at 4× on 20 Mbit/s and more. Container numbers, not a
+phone's; the per-series rule is row TOTAL4's.
 
 ## Threads (owner, 2026-10-03)
 
