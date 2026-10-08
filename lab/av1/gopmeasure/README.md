@@ -11,7 +11,7 @@ lab/av1/fetch_data.sh dbts_a1 … dbts_c5                     # 15 sound DBT vol
 P=/path/to/venv/bin/python D=lab/av1/data W=lab/.av1-work/gop B=lab/.av1-build
 $P lab/av1/gopmeasure/rho_test.py && $P lab/av1/gopmeasure/rho.py $W/rho.jsonl $D/dbts_*          # ~1 h, 4 cores
 $P lab/av1/gopmeasure/arc.py $D $W/arc.jsonl dbts_a1 … dbts_c5          # fetches each source again, reads its header
-$P lab/av1/gopmeasure/mutate.py $B $D/dbts_a3
+$P lab/av1/gopmeasure/mutate.py $B $D/dbts_a3 && $P lab/av1/gopmeasure/mutate.py $B $D/dbts_b4   # 10- and 8-bit tops
 $P lab/av1/gopmeasure/gop.py $B $W $W/bytes.jsonl $D/dbts_* --encoder aom --presets good:6 --keep dbts_a1,dbts_b1,dbts_c1
 $P lab/av1/gopmeasure/gop.py $B $W $W/bytes.jsonl $D/dbts_* --encoder htj2k
 $P lab/av1/gopmeasure/gop.py $B $W $W/bytes.jsonl $D/dbts_{a1,b1,c1} --encoder aom --presets cpu0 --groups 1,2,4,8,16
@@ -20,6 +20,7 @@ $P lab/av1/gopmeasure/gop.py $B $W $W/bytes.jsonl $D/dbts_* --encoder aom --grou
 $P lab/av1/gopmeasure/gop.py $B $W $W/bytes.jsonl $D/dbts_{a1,b1,c1} --encoder aom --representation plain
 $P lab/av1/gopmeasure/items.py $B $W $W/frames $D/dbts_{a1,b1,c1}
 NODE_PATH=$(npm root -g) node lab/av1/gopmeasure/time.mjs --frames $W/frames --rounds 10 --out $W/time.json
+$P lab/av1/gopmeasure/report.py $W
 ```
 
 **`rho.py`** takes each frame's LOCO-I median-predictor residual on the optimized representation's top and low

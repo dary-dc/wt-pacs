@@ -14,6 +14,8 @@ import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+import numpy as np
+
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE.parent / "item"))
@@ -70,7 +72,7 @@ def exact_frames(s, header, first, pictures):
     count = len(pictures[0])
     if any(len(p) != count for p in pictures):
         return 0
-    return sum(size.exact(s, first + k, ingest.merge(header, [p[k][..., :1] for p in pictures])[:s.h, :s.w])
+    return sum(size.exact(s, first + k, ingest.merge(header, [p[k][..., :1].astype(np.int32) for p in pictures])[:s.h, :s.w])
                for k in range(count))
 
 
