@@ -221,3 +221,13 @@ whose summary adds per arm the asks failed, the resumes and the silences survive
 `WebTransport.getStats()` gave a probe no `packetsReceived` in two visits, so a silence is the application's, not the
 socket's. The reading is in [`client/downloader/README.md`](../../../client/downloader/README.md)
 §A session that dies is resumed.
+
+**Row LOSSCC, the first claim's run** (`c0a3d8`, set stale mid-run) sets the server's three controllers against each other on row LOSSLINK's cells: the same
+frames, made the same way into `lab/.av1-work/losscc`, with `arms.json` naming six arms — `htj2k` and
+`opt` under the default `cubic-restart`, and each again as `-bbr` and `-cubic` (`"congestion": "bbr"`).
+An arm's `congestion` is passed to `exact-server --congestion`, and a visit stops unless the server's
+`transport=` line names that controller (Cubic, the one it leaves unprinted, when none is printed).
+Rounds 0–9 of the LOSSLINK command above with `--frames lab/.av1-work/losscc`, then rounds 10–12 on
+`--impairs clean,j5,j20`. Passing no `--congestion` stopped the run at the first `-bbr` visit;
+`--mutate sample` and `--mutate truth` each turned all six arms to 0 of 8 exact. The reading is in
+[`docs/transport/transport-conclusions.md`](../../../docs/transport/transport-conclusions.md) §1 (LOSSCC, first run).
