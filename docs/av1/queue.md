@@ -154,7 +154,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 91 | **DECODERBUILD** — the client's decoder builds made by the product, reproducible from pinned sources: OpenJPH at a 4 MB heap with the range in the pack, dav1d-WASM, the third-party notices | after 82 |
 | 92 | **DEPLOY** — the two images and compose made fit to run unattended: ten fixes, TLS for the page off loopback, the viewer, decoder builds and notices in the web image, verified by the page check against the deployment | after 85, 90, 91 |
 | 93 | **CODECDOCS** — the codec docs as the one source of truth: a comparison of every codec measured, one doc per codec under the same headings, the target series' bit depths with their sources | after 68, 84 |
-| 94 | **DATAGUARD** — every set's pixel provenance recorded and enforced: a provenance column, the fetch refusing lossy or video sources unless marked, the ultrasound claims corrected in place | ready |
+| 94 | **DATAGUARD** — every set's pixel provenance recorded and enforced: a provenance column, the fetch refusing lossy or video sources unless marked, the ultrasound claims corrected in place | claimed 2026-10-08 (night, 919c95) |
 | 95 | **DBTSCALE** — DBT slices at scale on sound data: whole uncropped volumes, every system of the large CC BY collection, bytes, inter and total time | after 94 |
 | 96 | **FFDMSCALE** — full-field and synthesized 2D mammography at scale on sound data, FOR PRESENTATION and the 14-bit FOR PROCESSING raw images | after 94 |
 | 97 | **RGBNATIVE** — the colour transform (RCT) against GBR on natively stored, uncompressed colour ultrasound stills | after 94 |
