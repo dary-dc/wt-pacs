@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>paint check</title>
+<style>body { margin: 0; background: #000; } canvas { display: block; }</style>
+<body>
+<script type="module">
+// Driven by client/paint/check.mjs: paints each cell it is given and compares it with the CPU reference.
+import { Painter } from "./painter.js";
+import { paintReference } from "./reference.js";
+
+const frames = new Map();
+async function frame(set, spec) {
+  if (frames.has(set)) return frames.get(set);
+  const bytes = new Uint8Array(await (await fetch(`frames/${set}.raw`)).arrayBuffer());
+  const pixels = new SharedArrayBuffer(bytes.length);
+  new Uint8Array(pixels).set(bytes);
+  const View = spec.components === 3 || spec.bits <= 8 ? Uint8Array : spec.signed ? Int16Array : Uint16Array;
+  const f = { pixels, width: spec.width, height: spec.height, bits: spec.bits, components: spec.components, signed: spec.signed };
+  frames.set(set, { f, samples: new View(pixels) });
+  return frames.get(set);
+}
+
+let painter = null;
+let canvas = null;
+function fresh(css) {
+  painter?.close();
+  canvas?.remove();
+  canvas = document.createElement("canvas");
+  canvas.style.width = `${css.w}px`;
+  canvas.style.height = `${css.h}px`;
+  document.body.append(canvas);
+  painter = new Painter(canvas);
+  return painter.renderer;
+}
+
+/** Each cell painted and read back, against the reference: the largest |Δ| and how many samples differ. */
+globalThis.check = async (cells, css) => {
+  const renderer = await fresh(css);
+  const out = [];
+  for (const cell of cells) {
+    const { f, samples } = await frame(cell.set, cell.spec);
+    try {
+      const { pixels } = await painter.paint(f, cell.display, { read: true });
+      const dpr = devicePixelRatio;
+      const ref = paintReference({ ...f, samples }, cell.display, Math.round(css.w * dpr), Math.round(css.h * dpr), dpr);
+      let worst = 0;
+      let differ = 0;
+      for (let i = 0; i < ref.length; i++) {
+        const d = Math.abs(ref[i] - pixels[i]);
+        if (d) differ++;
+        if (d > worst) worst = d;
+      }
+      out.push({ name: cell.name, exact: cell.exact, worst, differ, samples: ref.length });
+    } catch (e) {
+      out.push({ name: cell.name, exact: cell.exact, error: e.message });
+    }
+  }
+  return { renderer, out };
+};
+
+/** One paint timed: the page's synchronous cost of the call, the worker's own, and the round trip. */
+const timed = new Map();
+globalThis.time = async (set, spec, display, css, newFrame) => {
+  const key = `${css.w}x${css.h}`;
+  if (!timed.has(key)) {
+    const c = document.createElement("canvas");
+    c.style.width = `${css.w}px`;
+    c.style.height = `${css.h}px`;
+    document.body.append(c);
+    const p = new Painter(c);
+    await p.renderer;
+    timed.set(key, { p, current: null });
+  }
+  const t = timed.get(key);
+  const { f } = await frame(set, spec);
+  if (newFrame || !t.current) t.current = { ...f, pixels: f.pixels.slice(0) };
+  const t0 = performance.now();
+  const p = t.p.paint(t.current, display);
+  const page = performance.now() - t0;
+  const { ms, uploaded } = await p;
+  return { page, worker: ms, roundTrip: performance.now() - t0, uploaded };
+};
+globalThis.ready = true;
+</script>
+</body>
