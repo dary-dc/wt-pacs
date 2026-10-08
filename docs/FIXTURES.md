@@ -75,7 +75,7 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §A4). Eighty-two public series, fetched at run time — seventy-nine from the
+([`av1/README.md`](av1/README.md) §A4). Eighty-eight public series, fetched at run time — eighty-five from the
 NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
 three of breast ultrasound from two Zenodo records — never committed:
 
@@ -150,6 +150,12 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
 | `mgraw_c1`…`mgraw_c5` | FFDM, for processing (raw), the four views, system C, five exams | 4 × 1914×2294 (c1, c2, c4), 4 × 2394×3062 (c3, c5) | 14 of 16 bits, unsigned | 400..12692 … 0..16383 | EA1141, CC BY 4.0 | sound |
 | `syn2ds_a1`…`syn2ds_a5` | synthesized 2D, the four images of one exam (no view in the header), the vendor of systems A and C, five exams, three software versions | 4 × 2394×2850 (a1, a2, a5), 4 × 2394×3062 (a3, a4) | 12 of 16 bits, unsigned | 0..4095 | EA1141, CC BY 4.0 | sound |
 | `syn2ds_b1`…`syn2ds_b4` | synthesized 2D, the four views, system B: the later algorithm (b1–b3), the earlier (b4) | 4 × 2560×3328 (b1, b2), 4 × 3328×4096 (b3), 4 × 1996×2457 (b4) | 10 of 16 bits, unsigned | 0..1023 | EA1141, CC BY 4.0 | sound |
+| `usrgb_apollo` | ultrasound stills, colour, natively stored uncompressed | 8 × 960×720 | 3 × 8-bit RGB | 0..255 | VAREPOP-APOLLO, CC BY 4.0 | sound |
+| `usrgb_crc` | ultrasound stills, colour, natively stored uncompressed | 8 × 1024×768 | 3 × 8-bit RGB | 0..255 | CMB-CRC, CC BY 4.0 | sound |
+| `usrgb_aml` | ultrasound stills, colour, natively stored uncompressed | 8 × 1164×873 | 3 × 8-bit RGB | 0..255 | CPTAC-AML, CC BY 4.0 | sound |
+| `usrgb_mel` | ultrasound stills, colour, natively stored uncompressed | 8 × 1400×1050 | 3 × 8-bit RGB | 0..255 | CMB-MEL, CC BY 4.0 | sound |
+| `usrgb_lca` | ultrasound stills, colour, natively stored uncompressed | 8 × 1400×1050 | 3 × 8-bit RGB | 0..255 | CMB-LCA, CC BY 4.0 | sound |
+| `usrgb_stad` | ultrasound stills, colour, natively stored uncompressed | 8 × 1552×970 | 3 × 8-bit RGB | 0..255 | CPTAC-STAD, CC BY 4.0 | sound |
 
 ### Provenance
 
@@ -201,6 +207,7 @@ to fail; on the real files, `us_liver` and `usb_still` marked `sound` are refuse
 | `mgraw_*` | explicit LE | 00 | `ORIGINAL\PRIMARY` (MONOCHROME1) | FOR PROCESSING | — | sound |
 | `syn2ds_a*`, `syn2ds_b1`…`b3` | explicit LE | 00 | `DERIVED\PRIMARY\TOMOSYNTHESIS\GENERATED_2D` | — | — | sound |
 | `syn2ds_b4` | implicit LE | 00 | `DERIVED\PRIMARY` | FOR PRESENTATION | — | sound |
+| `usrgb_*` (six sets, 48 stills) | explicit LE | 00 | `DERIVED\PRIMARY\…` or `ORIGINAL\PRIMARY\…`, fourth value `0011` (2-D with colour flow) on 42, `0001` on 6 | — | — | sound |
 | `usb_cine`, `usb_cine_rgb` | an AVI clip, MPEG-4 Part 2 | the coding is lossy | — | — | decoded by FFmpeg; luma kept, or converted to RGB | lossy-sourced |
 | `usb_still` | a PNG, cropped around the lesion by the dataset | not recorded | — | — | decoded by FFmpeg | unknown |
 
@@ -297,6 +304,10 @@ synthesized 2D), not a re-coding; none is flagged.
   view or laterality, so an exam is a study holding four of one size. EA1141 holds four complete exams of the second
   vendor's synthesized 2D — three of its later algorithm, and the earlier algorithm's only one (`syn2ds_b4`, another
   study of `syn2ds_b1`'s patient) — and CMB-BRCA one, three views (`syn2d_c`): five only with `syn2d_c`.
+* **Row RGBNATIVE's colour stills** (`usrgb_*`): colour ultrasound stored natively, uncompressed and unflagged —
+  of the first 25 US series of each CC BY collection in IDC v24, the RGB single frames, grouped by collection and
+  size; each set eight stills of one group, colour flow first. Mostly grey B-mode with a colour-flow box: colour
+  pixels a median 0.1–5.9 % a set, 51 % on `usrgb_crc`. Stills, not a cine.
 * **Hosts, 2026-10-05 15:49 UTC (row BREAST), after the environment's network access was set to full:** every host
   row DATA3 found refused answered (200, 202, 301, 302, 400 or 404), but `pan.baidu.com` (connection reset).
 * `us_liver` is stored uncompressed, but scan-converted; whether it was lossy-coded before it was
@@ -318,7 +329,10 @@ LIDC-IDRI [10.7937/K9/TCIA.2015.LO9QL9SX](https://doi.org/10.7937/K9/TCIA.2015.L
 [10.7937/DJG7-GZ87](https://doi.org/10.7937/DJG7-GZ87), ISPY2
 [10.7937/TCIA.D8Z0-9T85](https://doi.org/10.7937/TCIA.D8Z0-9T85), Breast-Diagnosis
 [10.7937/K9/TCIA.2015.SDNRQXXR](https://doi.org/10.7937/K9/TCIA.2015.SDNRQXXR), CMB-BRCA
-[10.7937/DX22-8J71](https://doi.org/10.7937/DX22-8J71) — reached through the NCI Imaging Data
+[10.7937/DX22-8J71](https://doi.org/10.7937/DX22-8J71), CPTAC-AML
+[10.7937/TCIA.2019.B6FOE619](https://doi.org/10.7937/TCIA.2019.B6FOE619), CMB-MEL
+[10.7937/GWSP-WH72](https://doi.org/10.7937/GWSP-WH72), CMB-LCA [10.7937/3CX3-S132](https://doi.org/10.7937/3CX3-S132),
+CPTAC-STAD [10.7937/JW9A-8K71](https://doi.org/10.7937/JW9A-8K71) — reached through the NCI Imaging Data
 Commons. The ultrasound: the BUVFM demo dataset, [10.5281/zenodo.20901197](https://doi.org/10.5281/zenodo.20901197),
 and BUS-BRA, [10.5281/zenodo.8231412](https://doi.org/10.5281/zenodo.8231412), whose licence asks that its article
 be cited: W. Gómez-Flores, M. J. Gregorio-Calas and W. C. de Albuquerque Pereira, "BUS-BRA: A Breast Ultrasound
