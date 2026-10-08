@@ -43,7 +43,7 @@ at `6e9c126`.
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). A bounded BBR was built and retired (BB2, BBF); the next candidate is v3's loss bound, unbuilt (BB3) |
+| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). Through the product's client, 1–5 % loss: BBR 0.04–0.74 of the fill, Cubic with or without the restart the same; not adopted, 1.01–1.04 on clean 5 Mbit (LOSSCC). A bounded BBR was built and retired (BB2, BBF); the next candidate is v3's loss bound, unbuilt (BB3) |
 | **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed and retired (§2, [`../adr/stream-shape.md`](../adr/stream-shape.md)) |
 | **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever and the default (§3) |
 | **Send path** | **The reader's buffer handed to quinn** as `Bytes`, one copy of four gone: −3 to −8 % CPU per ask in every cell, nothing against (§4). It also bounds what a stalled client costs (§3) |
@@ -275,6 +275,59 @@ Mbit/s, queue 360 → 4.7 ms) while BBR ignores its drops (6.6 % of its packets)
 managed queue widens BBR's lead and makes its queue the neighbour's problem. LTE-loaded is bufferbloat
 for every arm (0.6–0.7 s of queue). One trace each, from its start: a profile's verdict, not a
 carrier's. No default changed (§9 item 2).
+
+### Under row LOSSLINK's loss, the product's client, 2026-10-08 (LOSSCC, first run)
+
+`c20e7b0`. Queue row 75 of [`../av1/queue.md`](../av1/queue.md): the three controllers the server ships
+(`--congestion`), on row LOSSLINK's cells ([`../../lab/av1/total/README.md`](../../lab/av1/total/README.md)
+§Row LOSSCC) — the 10-bit tomosynthesis volume as HTJ2K and as the optimized AV1 item, frames 0–3 filled
+then 4–7 asked one at a time, through the downloader in headless Chromium 141; 5/20/50 Mbit and
+`lte-good` × clean, ±5/±20 ms ordered jitter, 1/2/5 % loss × 1× and 4×. Six arms (codec × controller)
+interleaved in every cell, cells in a Williams order, 10 rounds and 3 more on the clean and jitter cells;
+2 879 of 3 312 visits kept (433 `VOID`), **n = 5–13 kept an arm and cell** (103 of 288 under 10),
+26 496/26 496 frames exact, no ask failed. The server's own startup line is checked against the arm's
+controller every visit. Fill time is frame 0's issue to frame 3 on the page; ratios are median of
+rounds paired:
+
+| link | impairment | Cubic-restart fill s, HTJ2K · AV1 (1× / 4×) | BBR ÷ Cubic-restart, HTJ2K · AV1 (1× / 4×) | Cubic ÷ Cubic-restart | ask p50 ms, Cubic-restart → BBR (HTJ2K 1× · 4×) |
+| --- | --- | --- | --- | --- | --- |
+| r5000 | clean | 3.78 · 3.59 / 3.83 · 3.72 | 1.03 · 1.04 / 1.03 · 1.01 | 1.00–1.00 | 987 → 986 · 1036 → 1036 |
+|  | j5 | 3.79 · 3.60 / 3.83 · 3.73 | 0.99 · 1.00 / 0.99 · 0.99 | 1.00–1.00 | 989 → 991 · 1035 → 1061 |
+|  | j20 | 3.83 · 3.65 / 3.88 · 3.78 | 1.00 · 1.00 / 0.99 · 1.01 | 1.00–1.00 | 1003 → 1006 · 1051 → 1052 |
+|  | l1 | 6.17 · 5.22 / 5.23 · 5.71 | 0.63 · 0.71 / 0.68 · 0.67 | 0.94–1.02 | 1823 → 996 · 1796 → 1039 |
+|  | l2 | 9.11 · 8.02 / 8.66 · 8.31 | 0.43 · 0.48 / 0.46 · 0.45 | 0.97–1.01 | 2412 → 993 · 2525 → 1052 |
+|  | l5 | 14.03 · 13.19 / 14.06 · 12.98 | 0.27 · 0.28 / 0.29 · 0.30 | 0.99–1.02 | 3745 → 1025 · 3675 → 1055 |
+| r20000 | clean | 1.08 · 1.06 / 1.17 · 1.24 | 0.92 · 0.95 / 0.91 · 0.92 | 1.00–1.01 | 292 → 292 · 340 → 343 |
+|  | j5 | 1.09 · 1.08 / 1.15 · 1.26 | 0.93 · 0.94 / 0.94 · 0.93 | 0.99–1.01 | 296 → 300 · 344 → 348 |
+|  | j20 | 1.19 · 1.18 / 1.24 · 1.33 | 0.96 · 0.96 / 0.98 · 1.02 | 1.00–1.01 | 312 → 318 · 355 → 418 |
+|  | l1 | 4.32 · 4.28 / 4.97 · 5.00 | 0.21 · 0.23 / 0.24 · 0.22 | 0.92–1.04 | 1622 → 299 · 1673 → 363 |
+|  | l2 | 8.09 · 7.50 / 7.61 · 7.96 | 0.13 · 0.13 / 0.15 · 0.17 | 1.00–1.04 | 2186 → 325 · 2200 → 376 |
+|  | l5 | 12.92 · 11.84 / 12.67 · 12.35 | 0.08 · 0.09 / 0.09 · 0.10 | 0.99–1.05 | 3418 → 349 · 3448 → 409 |
+| r50000 | clean | 0.61 · 0.64 / 0.68 · 0.80 | 0.86 · 0.82 / 0.86 · 0.92 | 0.95–1.00 | 151 → 156 · 199 → 245 |
+|  | j5 | 0.61 · 0.63 / 0.67 · 0.81 | 1.04 · 0.95 / 1.00 · 0.97 | 1.00–1.03 | 157 → 161 · 205 → 280 |
+|  | j20 | 0.78 · 0.79 / 0.83 · 1.04 | 1.03 · 0.98 / 1.11 · 0.98 | 0.99–1.01 | 171 → 192 · 222 → 229 |
+|  | l1 | 4.18 · 3.98 / 4.53 · 4.22 | 0.12 · 0.15 / 0.13 · 0.21 | 1.00–1.05 | 1534 → 206 · 1631 → 245 |
+|  | l2 | 6.45 · 7.32 / 7.77 · 7.67 | 0.08 · 0.08 / 0.08 · 0.11 | 0.96–1.00 | 2090 → 190 · 2153 → 260 |
+|  | l5 | 12.43 · 11.90 / 12.73 · 11.78 | 0.04 · 0.05 / 0.05 · 0.07 | 0.97–1.00 | 3313 → 224 · 3236 → 279 |
+| lte-good | clean | 1.14 · 1.13 / 1.21 · 1.26 | 0.90 · 0.88 / 0.90 · 0.94 | 0.97–1.01 | 269 → 279 · 315 → 351 |
+|  | j5 | 1.16 · 1.14 / 1.20 · 1.26 | 0.92 · 0.90 / 0.88 · 0.98 | 0.98–1.00 | 260 → 293 · 314 → 319 |
+|  | j20 | 1.24 · 1.21 / 1.39 · 1.35 | 0.97 · 1.05 / 0.97 · 1.05 | 0.95–1.00 | 314 → 306 · 326 → 328 |
+|  | l1 | 1.81 · 1.34 / 1.30 · 1.57 | 0.54 · 0.74 / 0.61 · 0.49 | 0.99–1.11 | 971 → 299 · 806 → 333 |
+|  | l2 | 4.39 · 4.50 / 4.01 · 4.35 | 0.24 · 0.23 / 0.26 · 0.58 | 0.97–1.18 | 1597 → 302 · 1552 → 342 |
+|  | l5 | 11.63 · 8.69 / 8.73 · 9.27 | 0.10 · 0.12 / 0.11 · 0.14 | 1.08–1.27 | 3293 → 334 · 2795 → 370 |
+
+**Under loss BBR is the only controller that is not the clock**: it fills in 0.04–0.30 of Cubic's time
+on the fixed links at 1–5 % (0.49–0.74 on `lte-good`'s bursts at 1 %), wins every paired round but
+a handful, and holds an ask near its clean time (3 313 → 224 ms at 5 % on 50 Mbit) where Cubic's grows
+with the loss rate — row LOSSLINK's 20–22× is Cubic's, not the link's. **It is not adopted, because it
+regresses where loss is absent:** 1.01–1.04 of Cubic's fill on clean 5 Mbit (faster in 0 of 15 paired rounds at 1×, 3 of 14 at 4×),
+1.03–1.11 with ±20 ms jitter on 50 Mbit HTJ2K, and an ask on clean 50 Mbit at 4× 199 → 245 ms; the
+round's rule wants no clean cell worse. On clean 20/50 Mbit and `lte-good` it is 0.82–0.95. Its queue
+and neighbour cost (CC1, FQC) were not re-measured here. **Cubic restarting after a silence ties plain
+Cubic on every cell** (pooled 0.997–1.016): random loss is not a silence, so the restart neither helps
+nor hurts here, and stays the default for the blink it was built for (§3 W5b). The two codecs move
+together under every controller. The client in the tree carries row ASKDEADLINE's resume on a frame
+timeout (`37d7cb1`); one container, the relay on its own core.
 
 ### quinn's BBR read against the published BBRv1, 2026-09-15
 
@@ -1165,7 +1218,7 @@ Ranked for the target. *By report* marks a claim from specifications and public 
 2. **The loss mix** (§1): client telemetry, the round-trip trend in the second before each loss; until
    then, one calibration of `link_impair.py` against `netem`. On phone-like profiles BBR ties or beats
    Cubic (PROF); behind fq_codel it costs a neighbour nothing but keeps 27–196 ms of its own queue
-   (FQC); an ask's loss slope is the controller's on either transport (§5 ASKL). The candidate is v3's
+   (FQC); an ask's loss slope is the controller's on either transport (§5 ASKL). In the product's client under 1–5 % loss it fills in 0.04–0.74 of Cubic's time and is 1.01–1.04 of it on a clean 5 Mbit link (LOSSCC). The candidate is v3's
    loss bound over quinn's BBR, ~150 lines, unbuilt, decided on PROF's LTE-good + CoDel cell (BB3).
 3. **The first ask's defaults**: the push at session open is on by default since 2026-10-02; the
    initial window stays the owner's call (§3). A port-only rebind keeps quinn's window,
