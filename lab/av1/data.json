@@ -6169,6 +6169,286 @@
      "sha256": "0dadb73ab23428462e870906b86906a8eddc520553ae54d1dd643268a6bf3e43"
     }
    ]
+  },
+  {
+   "name": "usrgb_apollo",
+   "what": "ultrasound stills, colour, 960×720, natively stored uncompressed, 8 images",
+   "collection": "varepop_apollo",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1795927564309144360845610819140277746"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/ghkn-md15",
+   "provenance": "sound",
+   "frames_sha256": "3a06e13076121253a5d2ae583fe878894731f47a983a3d368fea00d208935929",
+   "files": [
+    {
+     "key": "9c877d49-999d-4c93-9d63-4d5a4a0ddaf5/1d98bf33-0003-42a8-a4e1-08b28c7d0381.dcm",
+     "sha256": "1347f73d32063141bbf66ed0e3346a82584a87827ff3af3ab054cf36d82e9d9e"
+    },
+    {
+     "key": "9c877d49-999d-4c93-9d63-4d5a4a0ddaf5/23157944-52e0-4fb4-b7cd-3354d86413cc.dcm",
+     "sha256": "284e9788410d6c32cd94bb1fc85ed982a7ce681c0773e530e65166954f3255ab"
+    },
+    {
+     "key": "9c877d49-999d-4c93-9d63-4d5a4a0ddaf5/3c66bc26-9679-4453-bf21-0275cdaf10e7.dcm",
+     "sha256": "f2474535a513faacaa96a9ea7bf3381d84aaea95e833c97389574ca8998e2a9a"
+    },
+    {
+     "key": "9c877d49-999d-4c93-9d63-4d5a4a0ddaf5/3e7eb1a5-ba16-4f07-8a51-463860450f13.dcm",
+     "sha256": "d63b3759db2c3ca048d98d3458b1382f6e7e0c81a2dedb66ae4e3e6c0008e3cc"
+    },
+    {
+     "key": "9c877d49-999d-4c93-9d63-4d5a4a0ddaf5/5873792f-7be2-41f8-a862-9b897dc72ff7.dcm",
+     "sha256": "0a1d1babea81e726564ffbe295a4e5354fdadc2a684619189d42a8f49b2b7ed2"
+    },
+    {
+     "key": "9c877d49-999d-4c93-9d63-4d5a4a0ddaf5/929e69ce-8287-45af-8be7-0e67eedd0df1.dcm",
+     "sha256": "54f4ce93199497b22ee9405876b77a02f2a084b1086408b302b00286c3ea9a5c"
+    },
+    {
+     "key": "9c877d49-999d-4c93-9d63-4d5a4a0ddaf5/bc0201f3-9b2b-4d61-b3c6-809f08987f82.dcm",
+     "sha256": "4a1376954964276d4b7fe143f0ed4ec29f23a1979ac59bf6b06c42f364b95ee4"
+    },
+    {
+     "key": "9c877d49-999d-4c93-9d63-4d5a4a0ddaf5/ca68ff82-6c67-4976-a6de-c3e08c1f8147.dcm",
+     "sha256": "4403d96ffc3d0318a040079eb48a613b61cb85c6ba3e86c9ac15601ef5899ebe"
+    }
+   ]
+  },
+  {
+   "name": "usrgb_crc",
+   "what": "ultrasound stills, colour, 1024×768, natively stored uncompressed, 8 images",
+   "collection": "cmb_crc",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1.21513685050252941071160408492567154466",
+    "1.3.6.1.4.1.14519.5.2.1.1.22157061838391240551272903381228130965"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/djg7-gz87",
+   "provenance": "sound",
+   "frames_sha256": "eb92e5f770d3790f59f09295a5d12789894b62fb4693cf69a68bf5fee4e2eed8",
+   "files": [
+    {
+     "key": "3a7651bf-ec3f-4f7c-a242-a19e580d5941/89f0f18b-a7f6-4f6c-8fab-7dccccddea4f.dcm",
+     "sha256": "44a96b281026a18031bebd0630d656f4cbd73b11a02032a62565943638a66fb5"
+    },
+    {
+     "key": "8a34caf7-f18d-49cd-a060-d6b4eab1b718/08618980-03b3-48b9-89e7-9c29a2d37748.dcm",
+     "sha256": "7dbad87480271f348ecca2ec15a1b6fb9b0359bb079373e6e814789e437f387e"
+    },
+    {
+     "key": "8a34caf7-f18d-49cd-a060-d6b4eab1b718/1cfd3189-9cb4-46c8-9a4f-4e9b077a2b59.dcm",
+     "sha256": "7a2782ab00a3c6f54f1143b876e590f4e077350ac9c002fed765df86c4d37c9f"
+    },
+    {
+     "key": "8a34caf7-f18d-49cd-a060-d6b4eab1b718/5c5e5f97-0549-489a-beee-bd23e2e48eed.dcm",
+     "sha256": "e5ef4215c7cfebbb8b8ac70df956f06fe5c9d7e86abd0fbd16826bc568d0562b"
+    },
+    {
+     "key": "8a34caf7-f18d-49cd-a060-d6b4eab1b718/9794c8f0-d666-49df-a277-e2b9454b0730.dcm",
+     "sha256": "4183c7b4bb2bbca503d5364e82601ad3dce67c6601b46589178f4c56d6c5e9bc"
+    },
+    {
+     "key": "8a34caf7-f18d-49cd-a060-d6b4eab1b718/a31b014d-dbaf-4999-a644-9e4eb2b60680.dcm",
+     "sha256": "98eabb80ef4767c4358e9830f9b2ee2ae6bef948fa2ec48251617fcff09513f5"
+    },
+    {
+     "key": "8a34caf7-f18d-49cd-a060-d6b4eab1b718/e2e147a1-ee17-4872-96be-8d10a66cbba6.dcm",
+     "sha256": "21079b151414f13818c04416a51637213c3ec4338e7223a8845e4bd5cff9cfed"
+    },
+    {
+     "key": "8a34caf7-f18d-49cd-a060-d6b4eab1b718/f67e1efa-656b-4def-94ab-fc863bb529b6.dcm",
+     "sha256": "be0a8f2afc0393c9f5f5fd0769a7cc42225c2a607ac4ba83577a4b3897bbb7b9"
+    }
+   ]
+  },
+  {
+   "name": "usrgb_aml",
+   "what": "ultrasound stills, colour, 1164×873, natively stored uncompressed, 8 images",
+   "collection": "cptac_aml",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1427.3349.295481707630631373561827436054"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/tcia.2019.b6foe619",
+   "provenance": "sound",
+   "frames_sha256": "0d97debbeebe3e1812959625031190f399b27b26efe73e66121e0743f14adb3b",
+   "files": [
+    {
+     "key": "5f3c8151-12b2-4bda-95b8-6af863dbc190/033078e1-290c-48f7-b970-cc3d8665bce4.dcm",
+     "sha256": "4bfad08c3dcf4849ff6ebee9733cb992ecf7c3db20e9ee6fd5025e36c64dca48"
+    },
+    {
+     "key": "5f3c8151-12b2-4bda-95b8-6af863dbc190/166ac053-8241-4906-a295-be5e4f525795.dcm",
+     "sha256": "5d2d8650f2c8c77c8ca229fda0a24ac63615a670b9a6087c87ffbaca389ba765"
+    },
+    {
+     "key": "5f3c8151-12b2-4bda-95b8-6af863dbc190/2daa98c6-74d5-4244-8c25-ee7e8d242bad.dcm",
+     "sha256": "452b14b9c215e7164a2e51ddb2c849493ee8c8c22ade33d96213232ede971550"
+    },
+    {
+     "key": "5f3c8151-12b2-4bda-95b8-6af863dbc190/41ead564-0aaa-453c-a7aa-7fabaeb60836.dcm",
+     "sha256": "716d9e9c3ac40b17049e781a2d5c0c6c8fee2bcadb0de2bd16568a26dff9f062"
+    },
+    {
+     "key": "5f3c8151-12b2-4bda-95b8-6af863dbc190/4b72ede5-a889-4f1e-9321-14d499ed132e.dcm",
+     "sha256": "9871a98fad88cb89f4f893ee53d3b2e53092b1c98e491c108991a7b5bedd1d1a"
+    },
+    {
+     "key": "5f3c8151-12b2-4bda-95b8-6af863dbc190/5efd8fd1-fa30-4a71-9d79-4007ddb876ee.dcm",
+     "sha256": "0cdae347eadcee2c420ae473b056d45912933a3afe1e3e858f36590db74127a8"
+    },
+    {
+     "key": "5f3c8151-12b2-4bda-95b8-6af863dbc190/625c443b-37fc-428a-8b81-03c0c6a0891f.dcm",
+     "sha256": "eae689992195a79d5049c59cd098abc51d9e85f41dde42d9bd2cdc5c77e27eff"
+    },
+    {
+     "key": "5f3c8151-12b2-4bda-95b8-6af863dbc190/71b360f4-7a01-407c-9253-ced2f93f3b30.dcm",
+     "sha256": "f5919deb09a66cf57e0f70d6f7749a41a6095433bd33e67db8d89c30396cf7b8"
+    }
+   ]
+  },
+  {
+   "name": "usrgb_mel",
+   "what": "ultrasound stills, colour, 1400×1050, natively stored uncompressed, 8 images",
+   "collection": "cmb_mel",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.32053765825192668172194889675403295056",
+    "1.3.6.1.4.1.14519.5.2.1.37357637317422814613104319191722270824"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/gwsp-wh72",
+   "provenance": "sound",
+   "frames_sha256": "ded4c22eec39d09eb9db698f3b78bca3afd7f2d0006c47954bc616300bd0cbad",
+   "files": [
+    {
+     "key": "1f6cc96d-caa6-462d-82b9-4677704c05ed/2207646a-a00b-4cac-b792-a3d8893d2f4a.dcm",
+     "sha256": "aa073237dc5d1afa9599f6f4751f2969db4300864bc7812d6d20a0a10d594b78"
+    },
+    {
+     "key": "1f6cc96d-caa6-462d-82b9-4677704c05ed/78390ed4-39c3-4d71-86b5-8b6b1b6c1312.dcm",
+     "sha256": "a1db6471b4660df2c71ae375ee3a831e8f44350ea502d6fe95a114f09457cfa9"
+    },
+    {
+     "key": "1f6cc96d-caa6-462d-82b9-4677704c05ed/82fb68d1-5f6d-4ec0-8305-69d4cecacc18.dcm",
+     "sha256": "1d83cf4b17cefade55415be2d9ec480cf2b8a87f6729aa861111bc46dbccc1ba"
+    },
+    {
+     "key": "1f6cc96d-caa6-462d-82b9-4677704c05ed/b43e1df5-1742-421b-8cfe-dc3849317913.dcm",
+     "sha256": "d7b8de48ad67dc70479612ff86267015b656ee0dc1470fd38bd154076f73aef6"
+    },
+    {
+     "key": "bd01d9f2-a87a-4254-9529-a0cd40089e97/035b673d-fc55-4664-88e8-756fb3912168.dcm",
+     "sha256": "0c3a7968471f68a1feb8fd6446f968b9e5b98bff18cb811494273409156eddc2"
+    },
+    {
+     "key": "bd01d9f2-a87a-4254-9529-a0cd40089e97/065e368b-7db0-4265-b40d-0f413f20d5b0.dcm",
+     "sha256": "a9eae28561e59253e17924b7a6d49c8bb140169a48ab3cdd0401a124f58137b3"
+    },
+    {
+     "key": "bd01d9f2-a87a-4254-9529-a0cd40089e97/0e41c3d5-2229-489d-acb7-35af1681331f.dcm",
+     "sha256": "d63eaba3537f4cfcd3d022bc870f2b39abb8e630c27c1d70d277d0bd7c400f24"
+    },
+    {
+     "key": "bd01d9f2-a87a-4254-9529-a0cd40089e97/3f77cacf-60ba-4d34-b4fe-4b2ff652c25a.dcm",
+     "sha256": "614359f536c8ac432a5516ac638f0cb8b366d74a2f15587087fe951bec724320"
+    }
+   ]
+  },
+  {
+   "name": "usrgb_lca",
+   "what": "ultrasound stills, colour, 1400×1050, natively stored uncompressed, 8 images",
+   "collection": "cmb_lca",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.10399530765565655960882814217689077176",
+    "1.3.6.1.4.1.14519.5.2.1.292774604057685133084417539087704694953",
+    "1.3.6.1.4.1.14519.5.2.1.97693333426716134071861175894298106482"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/3cx3-s132",
+   "provenance": "sound",
+   "frames_sha256": "08a619c687ee447c1b43991eccab7fad189b1a22738823528ee8bc2addf058a7",
+   "files": [
+    {
+     "key": "699ae9b4-c1d1-441b-8ea2-94014d51dbf4/0d599c21-1776-4478-a4a2-008460238dca.dcm",
+     "sha256": "e6f4f5ed73ec8ca105f2a9be749738349321bb59289c787b9b4b5e414e0cf113"
+    },
+    {
+     "key": "699ae9b4-c1d1-441b-8ea2-94014d51dbf4/13e14073-9282-4e45-8f29-b07b93b9de8d.dcm",
+     "sha256": "1587cab07088c99ab3566c7a15ca8ddd57e5cef4f96bfb1b8438200984f47442"
+    },
+    {
+     "key": "699ae9b4-c1d1-441b-8ea2-94014d51dbf4/34ae51ef-6aec-48a3-9adc-34082c2006c5.dcm",
+     "sha256": "49f7db6cecacf68ca527a52a78228f18f45fd5b3f1a534e79b39798ccdeea703"
+    },
+    {
+     "key": "699ae9b4-c1d1-441b-8ea2-94014d51dbf4/daee80fc-45a4-4bb0-830b-83d5e028b3c5.dcm",
+     "sha256": "b0d664417f58a7e48fbb5262271f1c83148a5d19c3847a653bd0b107c475cf24"
+    },
+    {
+     "key": "699ae9b4-c1d1-441b-8ea2-94014d51dbf4/e2ea4da7-87cf-48c8-a777-5efbc2ae1172.dcm",
+     "sha256": "419d7bdf9cb569aa8606bbdda06816a81b9b0b4bedc9b9f8d490af590b65d463"
+    },
+    {
+     "key": "6e9e854e-b2c2-448e-8204-e67102f01b48/83c1c37a-2243-4139-9876-82453033360c.dcm",
+     "sha256": "d62f89eabf7ef8ae70d5ef35cd91b2911066aec515dde69572fdf391026ead91"
+    },
+    {
+     "key": "6e9e854e-b2c2-448e-8204-e67102f01b48/c7e8c6fe-0f34-4d39-9618-71e09f2d7bd2.dcm",
+     "sha256": "0235f9eed451c604c15519f9cc5e8a3a199ab6bda5495901d722eef65646d693"
+    },
+    {
+     "key": "b4bae15b-7258-43d4-89fd-2b6ff7fb4cb8/c79e6d64-c2be-403f-9fcc-04071dca74bf.dcm",
+     "sha256": "24a628233fef09b3162cfe92567aa89c4ee0626370d8443709e1f65061b3e0df"
+    }
+   ]
+  },
+  {
+   "name": "usrgb_stad",
+   "what": "ultrasound stills, colour, 1552×970, natively stored uncompressed, 8 images",
+   "collection": "cptac_stad",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1078.3754.149824746945575798036553158689"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/jw9a-8k71",
+   "provenance": "sound",
+   "frames_sha256": "32ff2c27306bc34e2bb690bc801b9ea99a772147f7ff951801e00158440b12c7",
+   "files": [
+    {
+     "key": "252d0c16-1649-456c-93a8-8a1a0f4544fc/0206cd62-afbb-4554-8788-7587c13a6dec.dcm",
+     "sha256": "ad9d30b0c744cada99ead3706b2f7ea0f9c539e86fc137c903a3c7f153ca5d06"
+    },
+    {
+     "key": "252d0c16-1649-456c-93a8-8a1a0f4544fc/056e6762-42d4-4599-a82f-cae4c1b87bcc.dcm",
+     "sha256": "ab86a6cf0c59cf25c23b932963dbc91f8bc587ca1cbb7b6bb963371b3d5d16bd"
+    },
+    {
+     "key": "252d0c16-1649-456c-93a8-8a1a0f4544fc/07bcc3b6-7418-4791-a484-1e825298331d.dcm",
+     "sha256": "86fd8af7924071e8b904cd31901c27d1337a30681b55816dfc465b384033cecf"
+    },
+    {
+     "key": "252d0c16-1649-456c-93a8-8a1a0f4544fc/0b255265-edf9-430f-a7f6-d3c7c3a5f7fe.dcm",
+     "sha256": "c4419ddb4b5f2aceeaec9960d06df01222a3f363d9e17037f387358dbe2ea2e1"
+    },
+    {
+     "key": "252d0c16-1649-456c-93a8-8a1a0f4544fc/283944f1-aa7a-435d-b0e7-1ca83ec396df.dcm",
+     "sha256": "23bd740f711d7a84437cb322c2676e4db86f65c945f35bd6b2c9d5cb13d0eed4"
+    },
+    {
+     "key": "252d0c16-1649-456c-93a8-8a1a0f4544fc/4622423d-0984-405b-971c-f1e2290b3af5.dcm",
+     "sha256": "907e0cf8ce72a271a8fdb71388dbb378b63ab825b4ac8eed69297bbbbdbc4a67"
+    },
+    {
+     "key": "252d0c16-1649-456c-93a8-8a1a0f4544fc/64e25274-5ed4-4507-b5eb-e2f364956619.dcm",
+     "sha256": "48f2cc9fda4663dbb9f779575882339ba610e41377e370e9c1196649b68170d3"
+    },
+    {
+     "key": "252d0c16-1649-456c-93a8-8a1a0f4544fc/6b7aef3b-3bea-4527-b5ef-adb716640540.dcm",
+     "sha256": "9a58c5654a7b106ebaa27e273e8fa5afaaf759f9f6c565161a769a6726555bb9"
+    }
+   ]
   }
  ]
 }
