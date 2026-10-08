@@ -4942,6 +4942,1233 @@
      "sha256": "cb801c9790ed863618c3bc20707edcab48c9b9701169b9db527d83dadaf8ea6c"
     }
    ]
+  },
+  {
+   "name": "ffdms_a1",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.292954989654796769284000088286"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "c2415c1c2a0bdd72825e989481ae23eaf393a740d72ee70e8bef9f6b20692d0d",
+   "files": [
+    {
+     "key": "11ddb851-7bcb-4d16-89cd-74c8bada37a5/f71e66c7-c379-4f29-b63f-e5eb05f9e6a2.dcm",
+     "sha256": "a3aff2d75fd38fcae78fafdcacdc4e9571bb2d795b4c5483b780fb29c118fa3c"
+    },
+    {
+     "key": "11ddb851-7bcb-4d16-89cd-74c8bada37a5/3141275d-3518-4c7f-a7a5-6ba766fcdc74.dcm",
+     "sha256": "63d52030b59dd0a343bec04ae918caf34c0a0ca5d7dd4918cd5d5bb017ff7ea4"
+    },
+    {
+     "key": "11ddb851-7bcb-4d16-89cd-74c8bada37a5/d9012b41-5741-4fae-83a9-8dd872ea6787.dcm",
+     "sha256": "02e7c84ed1be683babfcbc46ab952659222231509892f396df947bba37f37b77"
+    },
+    {
+     "key": "11ddb851-7bcb-4d16-89cd-74c8bada37a5/61049870-edc6-4035-9c3d-5f30c860506a.dcm",
+     "sha256": "37f70cbfeffde5d27587a7916c3346977cad38571e56933655b9f799166aed88"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_a2",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.690357679667259570630856425171"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "f19ac5ed0a1784961e0628b7e7d6dec209bb6e0b3bbed2c413921784373057ff",
+   "files": [
+    {
+     "key": "d0401de3-c90f-49ab-a4dd-4df230be7566/bf92a366-4fa3-4455-bf00-d9e0c03bfbe6.dcm",
+     "sha256": "f16d89a420e020d731ba23780b1dea48863885c54ca8265de85a6cad9c294a92"
+    },
+    {
+     "key": "d0401de3-c90f-49ab-a4dd-4df230be7566/44c739a1-12b6-4ef8-9672-efda3f8b787a.dcm",
+     "sha256": "6a2ee11290b97a449e0467412c5b0ec28a9282c3868b6b77e62b34a96f51e252"
+    },
+    {
+     "key": "d0401de3-c90f-49ab-a4dd-4df230be7566/5e66a14e-222b-4c21-9c81-173a893ae194.dcm",
+     "sha256": "5efdf5f3eae546f091aa870c113a9a784029f2ca713c7043a986b10fb9de5564"
+    },
+    {
+     "key": "d0401de3-c90f-49ab-a4dd-4df230be7566/cc3044c8-2cdf-4223-be38-fb6a135c25d6.dcm",
+     "sha256": "1d818ee150ae9ca5abae3b5a18fad20d53d55afdff5f4163af9fe23585826cc3"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_a3",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.254950202236421412349810988824"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "74dae217d6b147e91ef08243d66aa7aba5cdacaad451cbe1b03dda91ac1d5489",
+   "files": [
+    {
+     "key": "34c5b448-4bc5-46a4-bd0f-e7e57d18c28a/d8ac95eb-6549-42f7-bdb0-29ab2b8b2d86.dcm",
+     "sha256": "14df6b1860b36d6966ab6647bcd7b4f70c1a007d50113dec2c14d9feee2331d2"
+    },
+    {
+     "key": "34c5b448-4bc5-46a4-bd0f-e7e57d18c28a/7d24a1a0-47f3-4683-ba3f-8b24d516eaa3.dcm",
+     "sha256": "c68693725b7fb90237ba2ad29c386333b5284519f531ebe0aa41df0489def7ac"
+    },
+    {
+     "key": "34c5b448-4bc5-46a4-bd0f-e7e57d18c28a/c492c2af-3658-4386-83e7-39979e3f54ca.dcm",
+     "sha256": "4d21811bdba4bbc783b042b68805b5f051ed2b719a62327d803647048b55d2ee"
+    },
+    {
+     "key": "34c5b448-4bc5-46a4-bd0f-e7e57d18c28a/9a5ca3ad-0cf4-4279-87f2-b47c61a469ac.dcm",
+     "sha256": "78725bac3273df41ee72806fd7e17ef1643f1c1e53dad3960239ed3015e22c40"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_a4",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.230586390892831805887607682994"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "96faabd1301c2d9ef8d079020b46e023d9371406b197437fb2c7691ca24003c3",
+   "files": [
+    {
+     "key": "b960618f-c7a6-4a95-9adb-33c871cfa098/49bb5583-19c3-418a-8120-bfa92d6b989c.dcm",
+     "sha256": "fb75e1f1624a92b9e0aa5b786948d2adc0e12e160c8d87af119d2f75d3e6b386"
+    },
+    {
+     "key": "b960618f-c7a6-4a95-9adb-33c871cfa098/92e90875-13a3-4ff7-b6bf-a29282e3534e.dcm",
+     "sha256": "414d4ef470bf1583271467431d217373f344d73acd92d7ee671f360cd5cbced5"
+    },
+    {
+     "key": "b960618f-c7a6-4a95-9adb-33c871cfa098/0fba2ea9-fac9-42ac-84ab-4bd6281a3999.dcm",
+     "sha256": "52ad39c140cc5a322d73f6162c4d00f568454ed1b210e126091cf83e3ec37be3"
+    },
+    {
+     "key": "b960618f-c7a6-4a95-9adb-33c871cfa098/bada0d2b-a29b-4da7-b360-56b2f6b0e186.dcm",
+     "sha256": "cd91d06c1318f4df4d43c8a6b7401202e19bae4300435dfe5e8d065ebf527045"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_a5",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.481398777341015592089555121511"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "b02740bbd46c9667d3619154f3185485b2c8894a636c1e2c970b6d53bdb09175",
+   "files": [
+    {
+     "key": "6cc64f74-631b-498d-847c-bae52d1024c4/a0243cc3-c21b-432e-973a-3ec5c2b32c0a.dcm",
+     "sha256": "9adac64c0f93a36ae433d2aa150745c4a38adfb265265e64304f6d3a11232ba2"
+    },
+    {
+     "key": "6cc64f74-631b-498d-847c-bae52d1024c4/a419e649-3acb-4f9d-a5cd-1397bcfd6f43.dcm",
+     "sha256": "c03c6098ac81326304ea3b20b14354aad0a22f172d9dd3cecae09af6fa219da4"
+    },
+    {
+     "key": "6cc64f74-631b-498d-847c-bae52d1024c4/9f994d37-c218-4886-aa8e-764d4c9fbf80.dcm",
+     "sha256": "2054c3b0d5bb4f22ced0beb8e7c4bb85c4ad62657c5bc2bb366e119ac51c36a0"
+    },
+    {
+     "key": "6cc64f74-631b-498d-847c-bae52d1024c4/8e4a219f-1c73-4da7-a960-f6e5509feed9.dcm",
+     "sha256": "2c1c88edb56803f1407d35f6de66c267aebad65519c493fd52bd855cf636ed0f"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_b1",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.251871844185888999456627645350",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.753583447924332075550120830415",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.724323689018646653937325598707",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.267402084540487710960224827083"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "59bb33eb99838bcf6d854e344a07af66696b7cc02c11ddd08c994550ce5d8a8c",
+   "files": [
+    {
+     "key": "2ee05202-359e-4615-8a98-b9e07f844f5f/4784daff-92e4-49a5-b9a1-1597683fa5d6.dcm",
+     "sha256": "248b61450dcdae402176e5358a1971e42e1a6a8bda46345ce2b9be0a18bff9e1"
+    },
+    {
+     "key": "cdd0993c-2797-4810-b124-fbda07171e6b/a70193a2-171f-44cb-a51f-7a1e64d97308.dcm",
+     "sha256": "aa4dcdf906f50e860ec9b3c0981e908904681ecd9cff10690c48102f2a72aaf2"
+    },
+    {
+     "key": "3a7391a8-b993-4dcd-a379-85a6240580f5/b4cc8ce3-236e-422f-ad77-a9fd7e1e40b2.dcm",
+     "sha256": "a90ac7dcb8846647267ef00962b55cfaedc13ba64ca366754c3ca472eff3e43a"
+    },
+    {
+     "key": "4205dffb-9e6a-4c52-9a6b-06d60ea04d93/44fe2097-68b8-48f5-b001-7a6947048bdd.dcm",
+     "sha256": "b407f683dfc2f93121982a7cef51966ab3628f8bd73decccae7beeca93145ae3"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_b2",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.107638464457931416718510670155",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.246426230228565630169177468836",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.154430226173407823405063737751",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.109905495206408748676520386357"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "7ab308e83835cadbf14dd4f29f9860b8c5f10896d5f1845515cca56fecb04ada",
+   "files": [
+    {
+     "key": "3a813096-4ea6-40ec-9640-cc4194fef871/3e81b1ef-2c0f-4979-86c1-701b29fb67bd.dcm",
+     "sha256": "2ee452638881dbb6a0d634102c5214c3ae7853681048625747176746ba977935"
+    },
+    {
+     "key": "6730019a-53d4-483c-b243-46b502530b00/5d0417e9-56af-4d16-9ea2-064ddc471258.dcm",
+     "sha256": "8ea1846d386a641ab3de938a3b2fea7199f6f859ccfc96688c638fb5bc3e01fd"
+    },
+    {
+     "key": "f12b1fd5-cd51-40c9-8ed1-8e020e274048/ab48e919-ff32-446a-ad36-f0485db147b5.dcm",
+     "sha256": "d0a59103f20e00de303690f6e3fcbbea0eac6ee3f7beecf99744a2e01e706359"
+    },
+    {
+     "key": "186cac24-f80a-420e-ae52-27bdbec6bc44/3d5d5c44-1b85-4db2-a093-530a66eb37a1.dcm",
+     "sha256": "203e3e077acdf60251ac7f5d632df82a9d67130bc955cd158231612c7b8499d5"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_b3",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.223658935208031037047499656820",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.176816875142841844308014615588",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.143858296185702939698266491026",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.365341863573057631096308161917"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "7c87ecc858055f375734e7f845e152262ffbb948620ad8b361b052b6d6efee5c",
+   "files": [
+    {
+     "key": "5b2cdae8-e5c6-4d3c-96dc-35b7f28d6049/41d56eee-88fa-43aa-a624-db3ea1ef6a35.dcm",
+     "sha256": "a0795c155fa50c6a14877edfa6a969a008e45837cc1cb7bb9d6d3a45e0e80569"
+    },
+    {
+     "key": "abcbb8ab-c39a-4063-9041-883efed411eb/0d98d0ec-e5ac-428b-bda1-c29dd937ced1.dcm",
+     "sha256": "6b8d6012a45238244b8c2a675ee241352efe1cec6b4072dc193291f02f9d0023"
+    },
+    {
+     "key": "08a49575-d9d7-43ff-aa05-afb016cd51a4/b0191a47-defe-4234-95fa-e55fe03bee57.dcm",
+     "sha256": "aa12b655af622ae5ef66ce9c0277ea6d543c7cee32c083fc2df1ce1e17c9a95d"
+    },
+    {
+     "key": "6257da68-ef2b-428a-abaa-82139c5e5b8a/ca98dd52-daf5-46cd-aa62-98f19fd26065.dcm",
+     "sha256": "608fc6ff8aa24abb4e401bc94ef0f613bcad53884eb16648303b6bef9e1df0d7"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_b4",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.923133250767828815251998933069",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.103865976007072438484574300920",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.172859611040660858543377742910",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.295575166843128823011722005086"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "e64ce969c50df0f5ff6bc69234a27ab0b083dd2acec426ebb03e7fdaf976e7d2",
+   "files": [
+    {
+     "key": "e4afe6c8-2e7d-4488-949f-21c25aa293ad/d1b65e72-3e3c-432e-9421-c6b31e80480c.dcm",
+     "sha256": "0e01338b1ff62611fb19b0fd7139ae53d5cb5763da44c8ddce6da8a54d864560"
+    },
+    {
+     "key": "710486c9-4ba0-43af-9c2b-89f511745dc5/6755053f-baa4-4429-a1d6-1f4ed43c1aa5.dcm",
+     "sha256": "f28ae9b8e35f04558f0d2c2f516187fe707009ab0dd060d620205a67575b58c9"
+    },
+    {
+     "key": "0daccdb2-0358-44d5-acc5-01d80ac54958/99f883fa-2f8f-46e1-8067-91c3e7b61ef2.dcm",
+     "sha256": "2ff52e68625190e85a3c67e7801306e1b04da0cef88f03ea5fd5157bd34535e6"
+    },
+    {
+     "key": "224a7846-f1bf-421f-96f5-fc40fd3abb40/b6823522-f7d2-491b-b098-2945f5c8597b.dcm",
+     "sha256": "7bcc8e45c3098cc8fdebe7501cbbaf5abf5ca4a1c0a40d2bf0b7e718042b9a48"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_b5",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.282253384837983711497549159984",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.282179282737539687453974483668",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.155628548109727116274533476356",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.314587755960492391565614344573"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "8986b2859adda77b5bebe58c20de4e1365f43e1dcf926b7b83b9a0cd0bc254f5",
+   "files": [
+    {
+     "key": "97bb3f79-d0e9-4e5f-8f33-93cac9f7213f/499532fc-a5f1-440b-9ad8-081255202a9f.dcm",
+     "sha256": "ce71822243c28f93cb9f5b9a1e9c436b1628330741a5d0303117751717bf8a76"
+    },
+    {
+     "key": "1637a3a5-cc9f-4073-80ec-946913d729f5/8b4a621e-16f8-403a-95d6-cafe31bd80cb.dcm",
+     "sha256": "89185e54799c3ab99ac5f6dba0f667260f63211f9a69a03aaae6d6b0b3aa5f05"
+    },
+    {
+     "key": "dd564e8d-63d4-473d-8aee-2852b4cff33f/a59d5a10-e185-4f96-b1ea-2115531a7271.dcm",
+     "sha256": "326995c2575c29229a9fee4968f6223d9afb79d931d949d3cb03432b3a5dfb61"
+    },
+    {
+     "key": "1d78df0e-930c-4a9a-b510-93211ba08a85/2c93256f-4dba-4c33-b9bc-304cde548a18.dcm",
+     "sha256": "02885ab7651f6b597babbfc95de412f6308a0096501b67e3900b18119dfe46ef"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_c1",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.489394546760756806112102984856"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "46402cdd229a45111cc3e311a63a617a4ecc8839f8e5217e0813b945cd5227ea",
+   "files": [
+    {
+     "key": "0a820069-408e-4388-9e5c-3d74b2e97d69/abcd9775-e0fa-4576-b744-0139be16562f.dcm",
+     "sha256": "324d89d57c691d89402469dbd86536b26b35a2623191a7764a14b6cb892b7029"
+    },
+    {
+     "key": "0a820069-408e-4388-9e5c-3d74b2e97d69/177d0108-cd2b-4dca-b9c2-0a3e9fd60b7c.dcm",
+     "sha256": "403e955e186164b4e845b59176548e1772bb3a63575529612c96bccaf9eed24a"
+    },
+    {
+     "key": "0a820069-408e-4388-9e5c-3d74b2e97d69/3cdcb98f-1f26-4487-b8cf-105f80ad6301.dcm",
+     "sha256": "a83c9b26869000c835a0b6aae7444d9ad7fb036c0fc7ef160ba2e1e1bc1563ee"
+    },
+    {
+     "key": "0a820069-408e-4388-9e5c-3d74b2e97d69/5385c70e-809f-4544-b3fc-cd641e280626.dcm",
+     "sha256": "8c817d5d996a97da379d323a3ffb7fe3c690898021239dcde1877d3d1fc8d321"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_c2",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.173357126952748755072087724001"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "4ff25db5ffb4cc9c12e68b6f43ff8d9459a8372b91d327248f52c67e5b56b745",
+   "files": [
+    {
+     "key": "3d841875-0697-4428-bee6-d8b406df5563/d90238b4-0e6f-440b-852b-8c77fb9dbb2f.dcm",
+     "sha256": "bdd33ef7bb4cc64654328f56aef98381cc2bf3959f129b5aa1395133dd8723f6"
+    },
+    {
+     "key": "3d841875-0697-4428-bee6-d8b406df5563/eb097c51-76c6-429b-9a40-461fedbb08f0.dcm",
+     "sha256": "df433d66ade2690af0090de462e92109a347916509b36613147d2173bf950f2d"
+    },
+    {
+     "key": "3d841875-0697-4428-bee6-d8b406df5563/a779cf3e-04b3-44b3-9f49-f37da8c5a34d.dcm",
+     "sha256": "1f122dd5ba2e602d31a1f01b25ca36684bcdde627e4a58cdb8d391275b96bd26"
+    },
+    {
+     "key": "3d841875-0697-4428-bee6-d8b406df5563/ef8cbf4b-a257-493f-b52e-7ef54e3a60e2.dcm",
+     "sha256": "35d5ae0f382914cb461f46027cfe0bae978926f5fc15f0dce690d53fd0c3ea78"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_c3",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.325544577226774225702734236534"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "b0090301966df1457e11660c31984a45b788923dbc676e67c6f2fde1b89a6d55",
+   "files": [
+    {
+     "key": "265fb6a7-a58b-4e2a-84e4-907f05eb1b94/202b2364-aa12-4bf9-8393-d0fa7a73d792.dcm",
+     "sha256": "a929dbfd43aadaffc00f3e6a6e7d3ba2aa5796c5fe27d0b0a25a22a10e720461"
+    },
+    {
+     "key": "265fb6a7-a58b-4e2a-84e4-907f05eb1b94/d0ea217b-98cf-4f11-b97b-c1feb4d6af20.dcm",
+     "sha256": "2c80b4b1687fc6b48fcf1ebb6d7bb956be125996ec07e60c9bebbe2e7e9f3e28"
+    },
+    {
+     "key": "265fb6a7-a58b-4e2a-84e4-907f05eb1b94/ca901dc8-26dc-43a6-a8cb-796ca2ee944b.dcm",
+     "sha256": "0adf3140a0697f287a631ce9912c426d2682d01b7898b6cb50eb26ffad3a6c8f"
+    },
+    {
+     "key": "265fb6a7-a58b-4e2a-84e4-907f05eb1b94/74b970b6-ca59-45d9-bc3c-1be028f435fe.dcm",
+     "sha256": "aa68c07d88e2a25a83b156fb266f13ad95ce1ca55beb7c3792e7d29bd93def3b"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_c4",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.263424853218441183345513391007"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "945614232d77e8905e0360a9ec16c654c6c9d63be6d7e59ab65cfc2d64eb33b6",
+   "files": [
+    {
+     "key": "44367fb2-d192-4db6-be93-4240663b9373/dcb3811a-dccc-4a0b-a4bd-c9cf52570141.dcm",
+     "sha256": "f41346a5c7fb5c474303858db2e4ad0f4ae0c5a711619713a498fd1d9be7ffb7"
+    },
+    {
+     "key": "44367fb2-d192-4db6-be93-4240663b9373/79837e7a-57c6-4ed7-9bb9-22b17bee28a5.dcm",
+     "sha256": "6306818d2f175dbe9bd940ee82ff5c90042a02139a356a96e89de0d29351bf88"
+    },
+    {
+     "key": "44367fb2-d192-4db6-be93-4240663b9373/59a56d53-6bae-4a13-aaed-fd9f37f0db11.dcm",
+     "sha256": "73502d1f8271291e9cc321686991453a68faf4f01b289c8de67aa576ae34af5b"
+    },
+    {
+     "key": "44367fb2-d192-4db6-be93-4240663b9373/30630af6-cb3e-41a3-91f8-a124422fc66f.dcm",
+     "sha256": "09985307b0eaf2d628442ecaa8fbb3a2abb7ef9551662b063b4325423e68dd13"
+    }
+   ]
+  },
+  {
+   "name": "ffdms_c5",
+   "what": "full-field digital mammogram, for presentation, R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.321705338343857587870972422463"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "97b02209cbbfa9e872bdbc61fe68f749dbf7271046f28ed481295993d8e08166",
+   "files": [
+    {
+     "key": "5b679148-8126-475b-a7b4-a3a54d816c24/f998cc58-a22f-42b1-94af-3e08e835fbf8.dcm",
+     "sha256": "b807dc93894e7629dd519b4513402eb7c811ad1948e6f370336ea086b72751bc"
+    },
+    {
+     "key": "5b679148-8126-475b-a7b4-a3a54d816c24/a44e03a6-a9ec-48a2-8633-ea206e321893.dcm",
+     "sha256": "2bd841bf04a3f1969985f6a5e88dc2546ee683084b2a6d3b1ffc51a2bc6980fd"
+    },
+    {
+     "key": "5b679148-8126-475b-a7b4-a3a54d816c24/426de25d-0726-4752-b3d1-dc0a50721150.dcm",
+     "sha256": "d30750a9b7f60a79cfbd79476655c492fdcb8795ba5cf6ddb241ca4ce385fcc6"
+    },
+    {
+     "key": "5b679148-8126-475b-a7b4-a3a54d816c24/86dbae37-0c4a-43c0-83b3-7b439b146740.dcm",
+     "sha256": "c7c5f2365f02e8948419694aa5157af0172b3cabfa012ae2aa9231d5e29430a5"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_a1",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.124269507357441858374740014884"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "b1404b90bdd0138641d3846fdc140368bd17436fd19550e257935383724dd277",
+   "files": [
+    {
+     "key": "d8c2ab95-9111-46ea-bbf3-30eff9cf05e2/e9a8ec71-09df-417c-b043-5ac04c4e354f.dcm",
+     "sha256": "eea300a810a6771d7fb7e57431648fe84b0a04e1c9397f44de10cb8e11d336b5"
+    },
+    {
+     "key": "d8c2ab95-9111-46ea-bbf3-30eff9cf05e2/ee041fa1-cc77-4e56-95ea-1123681aaa37.dcm",
+     "sha256": "33bcdfdd6e4c9100596406b5191a80d54682d19440984476ef472d03735c03e4"
+    },
+    {
+     "key": "d8c2ab95-9111-46ea-bbf3-30eff9cf05e2/121721ba-120f-407f-8f52-db603ec30ed4.dcm",
+     "sha256": "f2264ed31dc193341c42fd778bfbddbac2a9195759f8637385bede24e22901c3"
+    },
+    {
+     "key": "d8c2ab95-9111-46ea-bbf3-30eff9cf05e2/e58e4900-01d0-4161-b443-59093ebfce5d.dcm",
+     "sha256": "27cca33d9059c66e6410b11a315115ecf8d939f5692d850508fcb62d2fee0122"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_a2",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.245857177031593716383133525228"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "0cd5d33a09a8af3cee4bdd966171f646c79612e44e98acbc85da528c1c25be51",
+   "files": [
+    {
+     "key": "d8bf069e-a4b2-446c-98ca-c798d6e6da37/fad50c60-989e-4160-8ed5-7661df4d4254.dcm",
+     "sha256": "ec1b5e7162ed9a205df76092e2698f23c035753cb67aca06b49626603a8ef85a"
+    },
+    {
+     "key": "d8bf069e-a4b2-446c-98ca-c798d6e6da37/5bd9ed20-8cf7-402e-9f4a-4cc5e659e929.dcm",
+     "sha256": "8c7c929994184a15fcdda8b27d3c7b0ae45c8c6a80962fc15b461cfb8ed73c3a"
+    },
+    {
+     "key": "d8bf069e-a4b2-446c-98ca-c798d6e6da37/957022f8-a622-4570-9997-b18d11d5ff34.dcm",
+     "sha256": "00d15fb637ac25cca92871b1d94dbc45ac941e37eab48627fddfa3e21e659883"
+    },
+    {
+     "key": "d8bf069e-a4b2-446c-98ca-c798d6e6da37/ab6a914f-236f-499c-a6d2-f2fd93d6c94d.dcm",
+     "sha256": "a6a32ba9518cdc4c67828298df6abf8f453e228df1ec93273a4d24c0156aad53"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_a3",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.827205034141825266381689884602"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "920cd3225595414e9688bb3048078b95389b99063bd3798035caed1d117c30b8",
+   "files": [
+    {
+     "key": "70c4e12a-b166-42bb-9600-73df68fa08ae/222848d0-3b15-43a2-8b46-f9ed3dae1cf4.dcm",
+     "sha256": "ae99db498364f56a7f371135fd065b0a402c0d3fa1951686d0afe4d588027166"
+    },
+    {
+     "key": "70c4e12a-b166-42bb-9600-73df68fa08ae/7dd74f37-dd66-43ea-89a9-92e47387d740.dcm",
+     "sha256": "349d5f4affdea320f99088e7a19568bf187075c7c0f8d85679f6e0e8c217df87"
+    },
+    {
+     "key": "70c4e12a-b166-42bb-9600-73df68fa08ae/24a5ea9b-98b5-4942-92b3-ecc108587ac1.dcm",
+     "sha256": "de29e45e0240488980521447d39d843381eb7c8e2482ad2a92d9907b339d179a"
+    },
+    {
+     "key": "70c4e12a-b166-42bb-9600-73df68fa08ae/b97930f1-7e7c-46f2-9156-79c9dbf9a790.dcm",
+     "sha256": "d976b3a493018f4292665cae3a76d0779c6886948ce9341bdf6c52cab17716b5"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_a4",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.597701685692788368314512042336"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "408102b10980d27425f12ba28027831d0490a57e2dfd2ecf4c4d7bbb682ef378",
+   "files": [
+    {
+     "key": "b61ea31f-fc0c-4b28-8505-07c23875d9d7/5ee6634a-7630-4ad3-a89e-e2bf928c6907.dcm",
+     "sha256": "655576ae0fc1fc3a26357720c9d885a220ce88bd627e4b99d21e1517a3a65238"
+    },
+    {
+     "key": "b61ea31f-fc0c-4b28-8505-07c23875d9d7/9ca4c3d8-30d8-426d-8941-1a908f6b5d8e.dcm",
+     "sha256": "767867a1b197f8c03355c08bed4597c15353be6bed7c4b15fe323c72d0de09dd"
+    },
+    {
+     "key": "b61ea31f-fc0c-4b28-8505-07c23875d9d7/915d2d22-5073-405b-b531-8bee6fe05ae0.dcm",
+     "sha256": "30256c5ff8a644d30ddf602bb1f3b9c20f25c34f565f8f01b200b28a384627ea"
+    },
+    {
+     "key": "b61ea31f-fc0c-4b28-8505-07c23875d9d7/e5635383-f6f2-49d6-888e-fff829ab20ae.dcm",
+     "sha256": "b47afb47eb4b20b1aec0821d8516b6f5b82f62d61951944b72d11b1a805254ec"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_a5",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system A",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.228763471447701463381200855985"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "7a0451171088ddb9a283822286ed9d6bbe052cdf2795d9edde2467df9ebae4d4",
+   "files": [
+    {
+     "key": "ba73c702-84cc-4069-a193-51a25fd37b28/aeef9c96-4d39-4e35-9c99-11ea213bd744.dcm",
+     "sha256": "b6903f3febe07d6b8c4611708f44586ac0df933ae272b123fde57d1445624e92"
+    },
+    {
+     "key": "ba73c702-84cc-4069-a193-51a25fd37b28/32140664-61ca-4bb7-b5ff-950797cc0c9a.dcm",
+     "sha256": "ea65f05d38043191e9cd439c7047e028c28d30f4513aa6ee61a20711a3351c0b"
+    },
+    {
+     "key": "ba73c702-84cc-4069-a193-51a25fd37b28/8197774d-5d8e-47dc-b805-853e6162da4e.dcm",
+     "sha256": "10554546562d09f2c97a8ed6ba80304c11d2545f4857b548a8666924e557c8ea"
+    },
+    {
+     "key": "ba73c702-84cc-4069-a193-51a25fd37b28/85b0dc21-9f9c-4bcf-9434-ae4d63aee387.dcm",
+     "sha256": "4c3a9a789e73a3a6750e1b2718713f1727a60fcd6980648b99d15d402598d79e"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_b1",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.143376532864687002604802865618",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.155698793836552957316179235631",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.273993531890454735190166393009",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.260358600461363742614553535673"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "6c3ec780cb3b05ce9587fea6e09be233a63ddc27eb1a8ec8bd744e1769a13245",
+   "files": [
+    {
+     "key": "a9463ab7-18be-4eb8-aa54-5970949cd4d8/e3b46ac0-b48d-444e-9be4-df9b8027a088.dcm",
+     "sha256": "d3f2de354a009819c364e684f9a5210599c7e137ac0832145fda3123148c11bb"
+    },
+    {
+     "key": "0ba3cc77-c095-4063-9686-3553a3c8e398/eed6d70d-5130-4e50-a2f9-e302195ab8ed.dcm",
+     "sha256": "1788f7715a0174c999c56b6f91e34bf538d962e8b1a191466a4d12da69da7e85"
+    },
+    {
+     "key": "72a07d45-5b9a-4a45-bc13-10baae2bc404/1a3952b4-51ff-431a-85cc-0f8fb5796d51.dcm",
+     "sha256": "06ffc7ef1d3dad867e2ae8762a49686f1c455fa3cff7e474ffad1f6bf6d4c6fa"
+    },
+    {
+     "key": "911aab91-07f8-46e6-a78a-6e6a62c8b194/59ac4bd8-d969-4dd9-aba3-ae1f75f34068.dcm",
+     "sha256": "dc9a72f4cbfc669cb2324a60c15df89c588162a5ff59c9cc54735b76ef00fc84"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_b2",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.620365776226116607438736961345",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.339152189343343275898183840263",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.208433883875802958062319603490",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.273206369810720125400076988903"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "7b8ce1d73edb2987a44299f2ab8ccb8d5859acd845319293fb5b68e72cf6ce2f",
+   "files": [
+    {
+     "key": "385c5d59-f12c-471a-874e-455386a870b9/91f23640-5b54-4ae5-8eb3-76ea34724c37.dcm",
+     "sha256": "21ed991c016372dbcdbc926ac5fb89c3274c6c16390e4bafc087e5064902506b"
+    },
+    {
+     "key": "6e8fced8-1129-40c1-b938-22e8da2e9223/0927dc12-ea29-4277-ae61-f5cef5f41555.dcm",
+     "sha256": "e68eceea1004b96984834879bdc9e739387b742c9e5ee76947376233bfe20198"
+    },
+    {
+     "key": "4701ce9a-36d2-455e-872c-89d7f9e22439/5ae02799-3068-4c0a-a4be-b25acda04f86.dcm",
+     "sha256": "35ff309549d2e54f139e90356151ba68681bc64bfe9ed25a277e544593cf8157"
+    },
+    {
+     "key": "36dd9e72-751b-4546-bfda-6bc7c40121d1/860c5b86-c63b-474d-9980-84ccf025ba25.dcm",
+     "sha256": "f22c4dee6f910d6451c17bf7e611494cf8a8a6fb9e94be3667bda0e420b90e6f"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_b3",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.994392504330015733059004311098",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.136960959425222859794768209358",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.192211168631978749611067307350",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.779987407556439688890733679070"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "eb43862e90bca56fa4d21395dc3555ac204e28004b9d22d9b0541dcd2033e8f5",
+   "files": [
+    {
+     "key": "3ef504b6-47b9-4df5-a349-294e87cff29b/bbd43a82-a9db-48c3-9b12-e4a6f260acf6.dcm",
+     "sha256": "de75098952240c5614a781c6e5ad42d9cacaa9f7934ef5c4081b21365c60238c"
+    },
+    {
+     "key": "260655fe-2080-48f8-8fbc-39dcb4e448ff/54555ddb-a1a6-4ee9-ba4a-35d4823203e0.dcm",
+     "sha256": "88741371c6437fb2fa76f34bda94fa06a137862158acdb600d7a8f2d931f1c8b"
+    },
+    {
+     "key": "dc7e3f2c-d1c2-431d-8b6e-ff56bd2db645/bd751592-c0c1-411b-806f-6d4806271992.dcm",
+     "sha256": "988173a3de09b37fa64f56c35eee4c868809e399a9c2f7cd90e1d4a6933f3a36"
+    },
+    {
+     "key": "cb8961b1-d594-46dd-b408-897e6c0e347b/dd4f1d45-11e8-4886-bf24-01d6b0a6e8b5.dcm",
+     "sha256": "781cabaf3f939b07a2928ae3db8c2862e5b7f9fb6369a723cee547a2f57aa23f"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_b4",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.284645259295025351612853143220",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.662813609517697339565174991582",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.131304229290873494438362609849",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.324698208148378099866128421643"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "8ba50e7b0b10b3ca78ae14eff31d5aa00059692ce7d38a4e583bd93f80578832",
+   "files": [
+    {
+     "key": "a56d340d-5e69-4298-9c4d-de0febb168e6/7260a669-6a7a-413e-a31e-04ca12263d22.dcm",
+     "sha256": "5e22519ce1f59e162bec70c272d48fb79d4957c7933b0fdbae5f977d42915da1"
+    },
+    {
+     "key": "fac2c4ea-4e19-4fa6-9702-c07bce1b5e7b/369f6052-2879-4e61-afae-eb4d5481ff86.dcm",
+     "sha256": "36b4cd49421157728350af72262bec323b4b5d5837a7ae6ec10e1fb5b0de5aa9"
+    },
+    {
+     "key": "12f1997c-3eca-4ac0-a4fd-e255cfd65a1a/522e41ae-d776-4ae0-bbf5-7592f6bc15d0.dcm",
+     "sha256": "d28f82970b9259999f6dcc9ad5c939acfa6dc9a1b97ce593d8a0bf1a759f9b2f"
+    },
+    {
+     "key": "bf018c92-7102-493c-b2fe-bcfe3645e90c/0e7b2844-726d-41ca-956c-40f1a8e72048.dcm",
+     "sha256": "734e208a049933f11d2b24929c42ca3de55017ecebe8992e074d57e7b5b62481"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_b5",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system B",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.101608495374999410072810338148",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.263287541949676360324108385360",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.279491939322954543351490420843",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.290475142170373348252127853343"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "555d7853bac0537eb6620acb981242d41e236a94153e774fbf486cadf0a30034",
+   "files": [
+    {
+     "key": "4fbb4299-d1c0-456a-8b45-70cb9d58d8a1/4508c93e-16a9-4d6a-a107-709af3852233.dcm",
+     "sha256": "262d23505f5a1f45203cab3ebe6583f625bacb0bb2f836b7dadcdc193785f762"
+    },
+    {
+     "key": "ddfd989d-9d44-4918-9881-0a215f352705/77fab8b4-d81e-4542-ab86-c7a25ef5f36d.dcm",
+     "sha256": "cc1c2eb2eb22ec5ac1d87f56a5b8f7a5d31806a813dd39c5caaac839d16e69f2"
+    },
+    {
+     "key": "c81fbe46-0b02-4892-b56d-8318309f00d1/98b1280c-8c6c-4470-ae45-a203db95f3a4.dcm",
+     "sha256": "a702b6addbed0cc4e65ea070781878aa4f93c7d8dbd8c34ba06d808c21b4e1ae"
+    },
+    {
+     "key": "2ddace66-dcc8-430b-be09-9644ccca4133/1aad8828-f519-42e8-a0dd-be52f74ac4b7.dcm",
+     "sha256": "d053e3843eeaa84ae0f66b4cd8cbbe8be404e3bcf12de77a604df3b3668f9904"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_c1",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.163350576010955561288753766052"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "af0eb45ce8d964bde8e51b9b380b864217d4781dd25a7979631b74e5b9af59f1",
+   "files": [
+    {
+     "key": "c215400d-a699-4a4e-a460-9270703ae69a/233a31f5-e3ca-4258-b072-a332e0bc2394.dcm",
+     "sha256": "b28e4ec49bbd13e207d4dc45e92c1e1b238481d412c8080d14ccb897fd2c9647"
+    },
+    {
+     "key": "c215400d-a699-4a4e-a460-9270703ae69a/4cd42c09-76af-45b2-adaf-cefd53294b23.dcm",
+     "sha256": "8541c2fbc99b0abac6e494e5fc7332818077efbfbd3f446bff4d00a8b152d0ff"
+    },
+    {
+     "key": "c215400d-a699-4a4e-a460-9270703ae69a/20b0ff04-2830-4362-890d-da92bf1b52cf.dcm",
+     "sha256": "4138099fd3e48d1b01bcd6eaae1aeae4d811ca29cc7205a50715c9e490d6b2ae"
+    },
+    {
+     "key": "c215400d-a699-4a4e-a460-9270703ae69a/b58561b3-4eac-4732-9bef-6dc784d7044d.dcm",
+     "sha256": "091c653fc93b47f27dfcc225322566b1fcf43c4c3787e18ee3ad710321271099"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_c2",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.787902165798800612391515871807"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "2bdd9cf0436686f100ee2e428655e02569fe348a598dab1cb55ce910182d9523",
+   "files": [
+    {
+     "key": "06ead564-abad-4d95-8051-31f2ccdf0998/f1614349-b169-43cc-a2ba-a732977582a7.dcm",
+     "sha256": "af805ff436fe27fbed1e8cf5dcaaaaa0933b48ece0edc14caa9f2758b03f6e98"
+    },
+    {
+     "key": "06ead564-abad-4d95-8051-31f2ccdf0998/07063a8a-9007-4662-99b6-be1e8e23f887.dcm",
+     "sha256": "f4c9f0a0f6434aac5036717db36f671bac95f9d250ca4f3612c6dfae95c6e88b"
+    },
+    {
+     "key": "06ead564-abad-4d95-8051-31f2ccdf0998/f9096968-f744-4165-a967-3f574050c3b9.dcm",
+     "sha256": "27cf9968dba13487aa56f3bdb3a23c70d8cc8add3bcc1efd258e1600e5e0dab9"
+    },
+    {
+     "key": "06ead564-abad-4d95-8051-31f2ccdf0998/12d86d3a-6b2e-4797-840b-9959827b2278.dcm",
+     "sha256": "7d3b0f5c733cc3db861901e4201526e49f7922707520fd7c7d56b0aa0ee464f9"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_c3",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.289599270368040467155982407019"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "f15bf5a89253bd5aa43a6a0d49dab37825ae5557720a024598c18c2a27c46f09",
+   "files": [
+    {
+     "key": "8773d995-0e8e-4e8c-8283-7951166103b4/d0f15d8d-9a59-4904-9110-c196bb249616.dcm",
+     "sha256": "b49fd535a29af3566a0b10db506e23946e401f865e701e2ed6b3d84957152a1e"
+    },
+    {
+     "key": "8773d995-0e8e-4e8c-8283-7951166103b4/62eba817-bb22-4109-98f6-89c99f96ae4e.dcm",
+     "sha256": "dc11a1102139064a1f77d859de9f5b4a8df8fc8394c25916c8cb3930d7eb8261"
+    },
+    {
+     "key": "8773d995-0e8e-4e8c-8283-7951166103b4/dbf3c5ba-055c-48d6-9371-9d67d94e5c0c.dcm",
+     "sha256": "913c70bf65568059cb194b678a6602e9774215128f5bb5f6f8fb77b9a6d9561a"
+    },
+    {
+     "key": "8773d995-0e8e-4e8c-8283-7951166103b4/382a44f0-d24e-440e-a35c-8e3b08f8918a.dcm",
+     "sha256": "ba9240272adb721c256668dc47c22c71625ec8677dfed579058c09fba46dd8e5"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_c4",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.951548506865736767456272893182"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "10a1a366acd81061324e1ccb3998d667115f6d06c346013900e0a96e6e4927f6",
+   "files": [
+    {
+     "key": "6074ac6a-f263-4f07-a22a-2edcffa0120a/91749059-4f57-4720-aae5-aab0dcf9daa4.dcm",
+     "sha256": "dbbfb7558631f58243436f4d41b1db92cfd111ebbd2915202ae572dd6e28ef8a"
+    },
+    {
+     "key": "6074ac6a-f263-4f07-a22a-2edcffa0120a/76a45463-13ea-4a1e-a1b6-cb5d2e172667.dcm",
+     "sha256": "cbdedc87c0c0d606c1f754caf89e9fcb4e59b7607a390c18c50fbad4cb26ea74"
+    },
+    {
+     "key": "6074ac6a-f263-4f07-a22a-2edcffa0120a/55a4cb32-289e-4b23-b5b5-9f74ed7e74cf.dcm",
+     "sha256": "4e875b9b5685cf4a9c3d5ed6e5e95ae50da2ac13bd562e0baf024c348664cd94"
+    },
+    {
+     "key": "6074ac6a-f263-4f07-a22a-2edcffa0120a/e6e6af0d-99fa-471e-a523-2c503183c655.dcm",
+     "sha256": "28d442f0c4eba089a588c9b4f8ca8ad1c68beb405923acbf71ab5587cfef866e"
+    }
+   ]
+  },
+  {
+   "name": "mgraw_c5",
+   "what": "full-field digital mammogram, for processing (raw), R CC, L CC, R MLO, L MLO, system C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.117634302294568346921398342655"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "8a4d384fdd3498efa8ff478d8cd17ce9ba053f16409510f438aad26e1e774da1",
+   "files": [
+    {
+     "key": "6b17784d-787e-4d92-b9ba-22765ff6888a/34d6aab9-51aa-453b-a399-0ce0d09e0dac.dcm",
+     "sha256": "a239ad7e2ac421825190a643a2402f3e1b659de34e860700676b66e7221c0da7"
+    },
+    {
+     "key": "6b17784d-787e-4d92-b9ba-22765ff6888a/e06561e5-1f7a-49d9-88a4-00db7af5a8bd.dcm",
+     "sha256": "affdf53292a95f8580e4aeaf254302834dfbf817d615115c22f9a98ced218cbf"
+    },
+    {
+     "key": "6b17784d-787e-4d92-b9ba-22765ff6888a/29a4da39-849b-44f0-b072-16d80934e13b.dcm",
+     "sha256": "4ada872673e2bf8d7af1f920329befee6427af729261a27f39c5d44821f31fde"
+    },
+    {
+     "key": "6b17784d-787e-4d92-b9ba-22765ff6888a/660ebe35-607b-4166-8440-d03fa53aa076.dcm",
+     "sha256": "cf1f27afbe373d8358ab61b53e72e6065a00f36fe575e7f41a11a912ba3d48e5"
+    }
+   ]
+  },
+  {
+   "name": "syn2ds_a1",
+   "what": "synthesized 2D mammogram, the four views of one exam (views not in the header), the vendor of systems A and C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.147510204626556863221442877680",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.153604013636057698357628961863",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.162380523399063100547711354075",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.847410842552586449692129132155"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "6db6bbe82aeb3cf33375c98a1ed6647152aee54ae40dba015ce9526e41122b81",
+   "files": [
+    {
+     "key": "02559d33-86d2-43f1-b19d-11663c3c4cfd/0817b648-aa8f-4559-81b0-686af931567e.dcm",
+     "sha256": "6ed5749653c71ccadee1fb714e4dca00578a0c1e54bb2fffbb59a0213e2d521f"
+    },
+    {
+     "key": "4665d716-70dc-4dad-ad61-4201dd70b8b2/8d7d9407-a43d-4f6e-a9f1-901cb7f031af.dcm",
+     "sha256": "146e1a7d7c70528400e2b307bb66850384805307dc06d9285a1b8198042c5ef6"
+    },
+    {
+     "key": "8a26d6e7-8d18-4184-93ce-b754509e73f9/cef76e53-c937-41d0-af56-15170d4d880a.dcm",
+     "sha256": "bf2914b36e984150df8d69afb4b722461def50623e9ad3b42118bab0d102ea92"
+    },
+    {
+     "key": "fc8a5f9b-0d8f-4fa6-9489-c23b46e819f6/ec2d873a-befb-4067-b6a9-b4bd655de891.dcm",
+     "sha256": "f4ef3d5099958d9ea2f3d7f9d08e0c18ca99b4fe2bd92577e483d71267a875a0"
+    }
+   ]
+  },
+  {
+   "name": "syn2ds_a2",
+   "what": "synthesized 2D mammogram, the four views of one exam (views not in the header), the vendor of systems A and C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.172120022511079079774517761273",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.292552355734741113848404250203",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.277720759142530158801592462675",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.142122742645863460077297152058"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "cd733ed35dfc74004c7949381e94f9dae1f0149dad1304598a302b5f4fe2aafe",
+   "files": [
+    {
+     "key": "49b4efd3-7c2d-40ad-9340-956a95f0e298/3ef25d06-96c5-4e0e-b8a3-ac6657b82bb6.dcm",
+     "sha256": "c083986bc7a8e59ba98dd0fa419588e56df7a7b26360ae752c8f1ae0ce4fca10"
+    },
+    {
+     "key": "7897aae1-4b4d-4a57-9ebd-bf22211b9c9e/7bb8a1a7-90c2-4f65-b5ed-e0052c3c0756.dcm",
+     "sha256": "82a99bedb2fe1295c1848db1e545b92e788275c1270422f3563350ec27dc05d7"
+    },
+    {
+     "key": "824a7e4f-1ece-4471-a77b-25b871db182c/9a6c7172-182f-4bff-b94a-7eb18b1d9488.dcm",
+     "sha256": "076d8cc419fbbd177241240e163095e01fb4afe022eaa0db211fbce501612b52"
+    },
+    {
+     "key": "b2df5322-2814-4c8d-871e-1400e2832779/3ed27449-5279-476f-a8f8-d164ea75e226.dcm",
+     "sha256": "dc058db28d5f62f64e1bb7d5a18af313b2c0ec777dbe17f30fb975e5b1c32b3c"
+    }
+   ]
+  },
+  {
+   "name": "syn2ds_a3",
+   "what": "synthesized 2D mammogram, the four views of one exam (views not in the header), the vendor of systems A and C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.240554507494931519341247444918",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.928160063409927072112624867429",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.295930096502076582947924061905",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.134125898303273077428496753730"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "6336ddd9a5618b8d1a896ab0991f58f0d01587e6d512356877208e6c189ca662",
+   "files": [
+    {
+     "key": "3e49b476-ca8f-4596-bc94-9a0104dab594/70edbcfc-c957-4d27-9ecb-7f25af9061e5.dcm",
+     "sha256": "3b79414b382b01ac0bc70b3f70b8c64f1e32f8d3b2a981981c5bd14663ec0c29"
+    },
+    {
+     "key": "6b75190a-424e-4531-bf3c-82f1ea1a5229/d1722eaa-7e86-44a5-b82a-5f4380152828.dcm",
+     "sha256": "5205688cfa2e517f494e2193b6be3c4478023cf8f367a42f32283f74f00b6d0d"
+    },
+    {
+     "key": "aec41dba-a00e-44d8-b849-3be92e6034c8/696ab6b0-d6bb-42de-99fb-602cbdd2cba8.dcm",
+     "sha256": "6178eafe675586c9a30f2a95c33b51187eaddd75387437e9b36cc174573d8b08"
+    },
+    {
+     "key": "d3261d28-4cd4-4c88-97da-a3eb5e730fe6/b90e6114-3a43-4131-bd96-dba0cb346416.dcm",
+     "sha256": "944565936aa2b59a6b701b11a2efa0220d44fe19be1c60185fa9489b2c44c14a"
+    }
+   ]
+  },
+  {
+   "name": "syn2ds_a4",
+   "what": "synthesized 2D mammogram, the four views of one exam (views not in the header), the vendor of systems A and C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.240897898391102479339584911087",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.566729883070070105386501596817",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.716229832266441534663621115603",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.215838445616213233178140655619"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "767a43ee2993ccf595df5a3c41bd7b9674cc37307e339a8e416a458601b07baf",
+   "files": [
+    {
+     "key": "3abcba8a-7f20-4325-b90d-82cc4ee6f496/77f7875b-bb7b-4dfb-8e8b-f793b6a64243.dcm",
+     "sha256": "4de072695e8c50298b3c713ba00436e559b9e087d211d40ef4faefe21e263180"
+    },
+    {
+     "key": "60e65ffe-6f06-49c5-b2eb-8dd523d58b40/4078eba2-e3bc-4526-b928-1916108b2be0.dcm",
+     "sha256": "60661fc1c21f21adef7364309e2769e047280761a150ee91a757814e8ff14e33"
+    },
+    {
+     "key": "985994ef-9c70-4c28-8aa8-11470a84b9a0/3acae870-f69e-4bd3-ac58-ea0d92387647.dcm",
+     "sha256": "46c3195a1278165c12554777903b61f157daf9d24f31c3bc1da789fbcbb650aa"
+    },
+    {
+     "key": "c580ff32-b267-4dee-95e7-e7253fe74165/da19c322-5e32-4627-9d7f-075e5910cd69.dcm",
+     "sha256": "7fb396d74c2b5c2a646dc7ae41a431672c55b0dc85d6e7e0911081e2f1ca5746"
+    }
+   ]
+  },
+  {
+   "name": "syn2ds_a5",
+   "what": "synthesized 2D mammogram, the four views of one exam (views not in the header), the vendor of systems A and C",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.148336606303571778066920312635",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.190523221175150296511818721021",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.520398111182846216834702394546",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.293871200298406165026480497830"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "33a1754f1e5abc6ac799a40a6f2d430081fbc01c526ca364a7d3a8c28cd70bf4",
+   "files": [
+    {
+     "key": "6baadeb3-d484-4ae6-a1e1-849bb9dbc957/3937226e-3f20-45c7-b617-863df720c6aa.dcm",
+     "sha256": "d9ffd657de220b242bff688980e9b105eea50e088b40348a23905655aee0d1d7"
+    },
+    {
+     "key": "83f01740-2de8-4477-8772-a53f1ecb37f9/9dcc664a-75c6-41ef-869f-34473cf2a04d.dcm",
+     "sha256": "cefcefa01719ee555feee7f0923e3acf711a6390ac2125358481c334807912bf"
+    },
+    {
+     "key": "96ab26ad-69f0-45d3-a02d-9054fa815118/8f8d4393-5b0b-4859-b685-9b227f957d7d.dcm",
+     "sha256": "834518a31aaa9d981a1f774758d23c1f02b8615cf7e01f999078f14e8e1a4136"
+    },
+    {
+     "key": "9dd5368a-5dfb-4e12-a8bd-e58f0b7faed6/bc2a376f-1c8b-409e-8829-6db7581fe832.dcm",
+     "sha256": "b8d120094ce21b82d7f1b36b18f59c6b72e32aa5b6d16442a394c6192501107a"
+    }
+   ]
+  },
+  {
+   "name": "syn2ds_b1",
+   "what": "synthesized 2D mammogram, R CC, L CC, R MLO, L MLO, system B, the later algorithm",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.134781302892407635997921601823",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.263954648558515868158655196955",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.308532701493144519856237354163",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.273947975281292694057413216842"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "10212292d4887a1137cd17bbf2db6a145228351e31116591c4e544ec760306c5",
+   "files": [
+    {
+     "key": "5339c5a8-f961-4f66-ad06-471d700edd3e/9d6f943b-ba7e-4505-a9c1-b010bb8adfa4.dcm",
+     "sha256": "c50615c56c38fb40072286c3988b8ee67ebe345ab340ba6ccdd7fc37d443fa39"
+    },
+    {
+     "key": "e2b599a5-e30d-4dc4-a768-ade852e6cb38/73e2c582-6164-48ae-ae14-5f7e5bc79271.dcm",
+     "sha256": "e52e5439a923dcfbef9b9abc0c9c3d64509ddf1e096b262e7d6e6b7ec3f5e843"
+    },
+    {
+     "key": "abcb25c0-ace3-4aaf-a00f-abd87877624b/8e512b66-4393-4aa6-823a-2c91708c6f16.dcm",
+     "sha256": "dd90a91950b45fde7949af96e6ce0bb092df3d1161b3aa11629ec0fc84147a0f"
+    },
+    {
+     "key": "269f4399-fa65-44af-9c89-5bb16ab1a5d4/8940d325-2b66-4cfb-9b63-a971202289be.dcm",
+     "sha256": "c3231eb7190759af899b4b4a644e8d58224a590b9dbf64a762213684c203430f"
+    }
+   ]
+  },
+  {
+   "name": "syn2ds_b2",
+   "what": "synthesized 2D mammogram, R CC, L CC, R MLO, L MLO, system B, the later algorithm",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.223218693548766617405399316352",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.214245068805045016468664550282",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.275770221698638180184267767642",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.158238775191673621743202920047"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "e6e29df0baca22fcac80c0a1d4124cd821b1ecfecbac55de0c90e8d2aa8136f4",
+   "files": [
+    {
+     "key": "6c94157a-dc3a-466d-9a7e-00ba50ca2d1e/f2c64340-0f20-4d95-9dc1-906da0d80ed4.dcm",
+     "sha256": "986e1035085c1981d5541d7d3aa1d9533678d34a1bb6d2b2822a58c53f51a910"
+    },
+    {
+     "key": "af371ff6-7be3-41f6-a527-bb6a2e3979d3/ddc2dd2a-a25c-4cc9-bb81-42d4e0318e8c.dcm",
+     "sha256": "2d5e35d0a0f2ee23212b0e90dccd9b8c3d780b68233dcb51fa7d998dc7f7c7e4"
+    },
+    {
+     "key": "49874715-7489-4c5f-87b1-b8b81b48d287/940f1ef4-6186-4e95-a299-7af7558c1a8b.dcm",
+     "sha256": "776ea821b5ee750b02d3103c81714b2e2152647536f9d66f1ddc939bc44a38fc"
+    },
+    {
+     "key": "847f7a74-78c1-432a-8cff-e84c0060eb2e/639d73f0-27df-4227-9e69-5fdf041df3e0.dcm",
+     "sha256": "ff752c5cd0e0de91ab42b2fa34a5f81a0c85aff161e6b744c7b06ced9d971e98"
+    }
+   ]
+  },
+  {
+   "name": "syn2ds_b3",
+   "what": "synthesized 2D mammogram, R CC, L CC, R MLO, L MLO, system B, the later algorithm",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.172427902096892482727381525682",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.323040388707791080138773224040",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.224803457789390450111156022036",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.820064862559773583856093639554"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "9040b6568b402fc70d85b6fd6cd28973cedb542ff68bb74f9351dabcae0f7cc3",
+   "files": [
+    {
+     "key": "b06f442e-8bf9-4224-90fc-cefd93b7304a/9c690595-a07d-4f9f-980e-623ab106b07f.dcm",
+     "sha256": "9099519ebf57d64c71f244def9e8e44a89baab5386a39a9deaafce4689759daa"
+    },
+    {
+     "key": "1f2aed65-4382-4c47-9837-c07f0072604a/af20e40b-33aa-4a62-a513-adb314d00020.dcm",
+     "sha256": "e5214d042194899233875f1d01364a2ddaa56a8c994ab2e326ed116df17e0c90"
+    },
+    {
+     "key": "d0665c22-d1a2-4497-bf1d-7a615f73d6ea/2f6e9c81-455d-44a4-a902-aca888bff43c.dcm",
+     "sha256": "43911efb0aa695a1ffbdfa0a6a21e89eeed3ef150a7ebe935f0b70e7fd60df76"
+    },
+    {
+     "key": "ef8f1588-7cda-4d52-b160-13b7a2c4e1d2/e2cf1610-df7c-4b52-a748-1164f04b5f3e.dcm",
+     "sha256": "43330375a4f6d0969e776fd22265eb8f2879cf9e90059d774f69c559a41e04d8"
+    }
+   ]
+  },
+  {
+   "name": "syn2ds_b4",
+   "what": "synthesized 2D mammogram, R CC, L CC, R MLO, L MLO, system B, the earlier algorithm",
+   "collection": "ea1141",
+   "series": [
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.250983348527888874524671654034",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.198804711612939204067979531666",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.168260891750437057909335251802",
+    "1.3.6.1.4.1.14519.5.2.1.1620.1225.833282945938297197011941778457"
+   ],
+   "licence": "CC BY 4.0",
+   "doi": "10.7937/2bas-hr33",
+   "provenance": "sound",
+   "frames_sha256": "e16659a716ccfec956e17177bcdc37ce09fa72f00ba8031e70d9b94365329e7e",
+   "files": [
+    {
+     "key": "9c038bdf-fe25-4604-a725-8e81aec030de/cff6451e-4ca0-4181-aced-42d10392472c.dcm",
+     "sha256": "c53f0ff3a524030ce07c8f150e457320d90868079d6ea0efff279e87d76196be"
+    },
+    {
+     "key": "f82b463c-126c-4229-89ac-f918844de15c/6b6875e4-e0a4-4c67-9a52-3d9bf0c07a84.dcm",
+     "sha256": "46f8cbedf89a9df316a3e1184bd031595d3374327b9dfcd3806b08958523b629"
+    },
+    {
+     "key": "1e3cc7f6-b203-4c66-8520-4c7ec989da04/9cd01460-a765-4eb2-ae7b-c36cc5320c87.dcm",
+     "sha256": "151c01b65db51e69bfd0eab29d7817034e6ff66c1b67952740e5bf38cfad7a55"
+    },
+    {
+     "key": "90c6098b-e2e1-4ad5-8df4-3d0ecd407df4/16888a5a-a7c6-4230-97d8-b677af983a01.dcm",
+     "sha256": "0dadb73ab23428462e870906b86906a8eddc520553ae54d1dd643268a6bf3e43"
+    }
+   ]
   }
  ]
 }
