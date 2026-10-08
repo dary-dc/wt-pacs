@@ -120,6 +120,39 @@ Each is stated for the protocol's measurements. *G* is the group length (keyfram
 
 P8–P10 wait on sound data ([`queue.md`](queue.md) §Blocked). P1–P7 can be tested on the CC BY DBT volumes.
 
+## 4a · Review against the data (row GOPREVIEW, 2026-10-08)
+
+Row GOPMEASURE ran the protocol on 15 sound, whole DBT volumes, five from each of three systems
+(`lab/av1/gopmeasure/README.md` on `claude/av1-unified`, `4306310`). ρ was measured on every adjacent slice pair; the
+codings ran on each volume's middle 16 slices (G ≤ 16, the rule's range); cpu0, SVT-AV1 and the plain representation
+ran on one volume a system.
+
+| # | outcome | the numbers |
+| --- | --- | --- |
+| P1 | **not refuted, missed its band on two systems** | median ρ A 0.112, B 0.215, C 0.117: inside 0.2–0.5 on B only, above the 0.1 refutation line on all |
+| P2 | **held** | best gain +1.51 % (`good` 6), +0.13 % (cpu0); every G > 1 larger than intra on 14 of 15 |
+| P3 | **did not hold, near untestable** | Spearman(gain, ρ) +0.46, best-G gain +0.11 at 15 series: no relation; but 14 gains are ≤ 0, so there is no spread to rank. Scan arc recorded on system B alone (14.4–15.2°) |
+| P4 | **not refuted, its 80 % clause failed** | G ≥ 8 adds ≤ 0.39 points over G = 4 (0.45 at cpu0); on the two series with any gain, G ≤ 4 holds 75 % and 54 % of it, gains of 0.1–1.5 % |
+| P5 | **held** | low stream ρ 0.058–0.061 against 0.059 for independent noise; inter never under intra by > 0.5 % (best +0.13 %) |
+| P6 | **refuted on system B; untestable on A and C** | alt-ref on beats off by 1.2–6.8 points on 9 of 10 exact cells (best +3.19 % over intra); on A's and C's 10-bit tops it is not lossless |
+| P7 | **refuted on `b1`, the one series SVT-AV1 is exact on** | SVT preset 0 +2.43 % against libaom cpu0 −0.03 %; preset 8 +0.87 % against `good` 6 −0.16 % |
+| P8–P10 | **not testable** | no sound native breast ultrasound cine, ABUS or angiography run (`queue.md` §Blocked) |
+
+**The mechanism held where it decides.** Every series' ρ is far under ½, the line §2 draws, and no coding gains on
+the noise: the low stream behaves as independent noise (P5), and libaom's alt-ref-off groups lose or tie (P2).
+**What it underweighted is the structure term.** A temporally filtered hidden frame (P6) and SVT-AV1's predictors
+(P7) find up to 3.2 % on system B's 8-bit streams. §2 bounds a denoised reference at intra's noise, not intra's
+structure, so this does not contradict the mechanism, but the predictions stated as "no better" and "same sign"
+claimed more than the mechanism gives. ρ itself is lower than §3's geometry argument expected on two systems
+(0.11–0.12): the reconstruction shares less noise between 1 mm slices than assumed.
+
+**Conclusive for DBT, by the pre-stated rule (§5.2 of the protocol).** Three systems, five series each, all under the
+20 % line with libaom, and SVT-AV1 where exact (+2.43 %) does not cross it; every G > 1 also misses the decode bound
+at 4× by 4.6–24.6×. Two limits, both inside the rule: the codings saw 16 slices of each volume, and the encoder
+variants that gain (alt-ref on, SVT-AV1) are lossless only on system B's 8-bit tops. **Not conclusive for breast
+ultrasound cine, ABUS or angiography**: there is no sound data, so they stay G = 1 by default (rule 3) and the theory's
+largest claim, P8, is untested.
+
 ## 5 · Sources
 
 * [S1] AV1 Bitstream & Decoding Process Specification, `github.com/AOMediaCodec/av1-spec` @ `5e04f3f`.
