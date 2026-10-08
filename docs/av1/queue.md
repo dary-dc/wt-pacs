@@ -158,7 +158,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 95 | **DBTSCALE** — DBT slices at scale on sound data: whole uncropped volumes, every system of the large CC BY collection, bytes, inter and total time | after 94 |
 | 96 | **FFDMSCALE** — full-field and synthesized 2D mammography at scale on sound data, FOR PRESENTATION and the 14-bit FOR PROCESSING raw images | after 94 |
 | 97 | **RGBNATIVE** — the colour transform (RCT) against GBR on natively stored, uncompressed colour ultrasound stills | after 94 |
-| 98 | **GOPSCOPE** — the frame-group evidence re-scoped to the AV1 taxonomy and its wording corrected in place; closed rows resting on off-taxonomy content or thin sampling listed for the owner | ready |
+| 98 | **GOPSCOPE** — the frame-group evidence re-scoped to the AV1 taxonomy and its wording corrected in place; closed rows resting on off-taxonomy content or thin sampling listed for the owner | claimed 2026-10-08 (night, ae32e0) |
 | 99 | **GOPTHEORY** — frame groups, phase 1: why inter should or should not help lossless coding of each target type, from primary sources; predictions, protocol and decision rule pre-registered | ready |
 | 100 | **GOPMEASURE** — frame groups, phase 2: row 99's protocol run on the target content available, by a session given only the protocol and the decision rule | after 94, 99 |
 | 101 | **GOPREVIEW** — frame groups, the review: row 99's predictions against row 100's numbers, conclusive or not, and why | after 100 |
