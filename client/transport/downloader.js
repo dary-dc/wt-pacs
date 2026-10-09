@@ -22,6 +22,7 @@ let asksInFlight = 0;
 // The dial and the decoders start together; dispatch waits on this, the dial does not.
 let decodersUp = false;
 let decoderLoss = "none is configured";
+let spawned = 0;
 /** The session's identity: `+1` when one is declared dead, so its callbacks become no-ops. */
 let epoch = 0;
 let resuming = null;
@@ -38,6 +39,9 @@ let recycling = null;
 let closed = false;
 
 const decoders = [];
+/** Lab flag `followQueue`: decoders retired idle, kept to be taken back, and the one coming up. */
+const parked = [];
+let growing = null;
 /** index → { state, priority, stamps, bytes }. State: wire | queued | decoding. */
 const records = new Map();
 const queue = { ask: [], fill: [] };
@@ -120,12 +124,41 @@ function pump() {
       dispatch(d, index, rec);
     }
   }
+  grow();
+}
+
+/** `followQueue`: frames still queued after a dispatch add a decoder, up to `cfg.decoders`. docs/ARCHITECTURE.md §How many */
+function grow() {
+  if (!cfg.followQueue || growing || queue.ask.length + queue.fill.length === 0 || decoders.length >= cfg.decoders) return;
+  const back = parked.pop();
+  if (back) {
+    decoders.push(back);
+    return pump();
+  }
+  const d = spawn();
+  growing = d;
+  d.up.then(() => {
+    // A decoder that failed to come up blocks further growth: the next would fail the same way.
+    if (d.lost) return;
+    growing = null;
+    decoders.push(d);
+    pump();
+    retire(d);
+  });
+}
+
+/** `followQueue`: a decoder left idle with nothing queued leaves the pool, alive, for `grow` to take back. */
+function retire(d) {
+  if (!cfg.followQueue || d.outstanding > 0 || decoders.length < 2 || holdsAGroup(d) || !decoders.includes(d)) return;
+  decoders.splice(decoders.indexOf(d), 1);
+  d.next = null;
+  parked.push(d);
 }
 
 function dispatch(d, index, rec) {
   rec.state = "decoding";
   rec.stamps.dispatched = abs();
-  rec.stamps.decoder = decoders.indexOf(d);
+  rec.stamps.decoder = d.id;
   d.outstanding += 1;
   d.next = index + 1;
   d.worker.postMessage(
@@ -144,8 +177,10 @@ function failQueued() {
 /** A decoder that never came up leaves the pool; with none left, the start has failed. */
 function lose(d, reason) {
   // Not terminated: it ends with this worker, as every decoder does. docs/ARCHITECTURE.md §Closing a client
-  decoders.splice(decoders.indexOf(d), 1);
+  d.lost = true;
   d.ready();
+  if (!decoders.includes(d)) return;
+  decoders.splice(decoders.indexOf(d), 1);
   if (decoders.length > 0) return;
   decoderLoss = reason;
   postMessage({ kind: "failed", index: -1, reason });
@@ -328,34 +363,39 @@ function onDone(d, m) {
   d.outstanding -= 1;
   if (m.gen === generation) records.delete(m.index);
   pump();
+  retire(d);
+}
+
+/** A decoder worker, up once `d.up` settles; `start` puts it in the pool at once, `grow` once it is up. */
+function spawn() {
+  // The decoder is a seam like the transport: a test points it at a controllable stand-in.
+  const worker = new Worker(cfg.decoderWorker ?? new URL("../decode/decoder.js", import.meta.url), { type: "module" });
+  const d = { worker, outstanding: 0, next: null, id: spawned++ };
+  d.up = new Promise((r) => { d.ready = r; });
+  const ch = new MessageChannel();
+  worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength, digests: cfg.digests }, [ch.port1]);
+  worker.onmessage = (e) => {
+    if (e.data.buffer) session?.releaseWireBuffer(e.data.buffer);
+    if (e.data.kind === "done") onDone(d, e.data);
+    else if (e.data.kind === "ready") d.ready();
+    else if (e.data.kind === "init-failed") lose(d, e.data.reason);
+    else if (e.data.kind === "failed") {
+      d.outstanding -= 1;
+      if (e.data.gen === generation) fail(e.data.index, e.data.reason);
+      pump();
+      retire(d);
+    }
+  };
+  postMessage({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
+  return d;
 }
 
 async function start(m) {
   // A config field the consumer left out must not clobber the default with `undefined`.
   for (const [k, v] of Object.entries(m.config ?? {})) if (v !== undefined) cfg[k] = v;
-  const ready = [];
-  // The decoder is a seam like the transport: a test points it at a controllable stand-in.
-  const decoderUrl = cfg.decoderWorker ?? new URL("../decode/decoder.js", import.meta.url);
-  for (let i = 0; i < (cfg.decode ? cfg.decoders : 0); i++) {
-    const worker = new Worker(decoderUrl, { type: "module" });
-    const d = { worker, outstanding: 0, next: null };
-    ready.push(new Promise((r) => { d.ready = r; }));
-    const ch = new MessageChannel();
-    worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength, digests: cfg.digests }, [ch.port1]);
-    worker.onmessage = (e) => {
-      if (e.data.buffer) session?.releaseWireBuffer(e.data.buffer);
-      if (e.data.kind === "done") onDone(d, e.data);
-      else if (e.data.kind === "ready") d.ready();
-      else if (e.data.kind === "init-failed") lose(d, e.data.reason);
-      else if (e.data.kind === "failed") {
-        d.outstanding -= 1;
-        if (e.data.gen === generation) fail(e.data.index, e.data.reason);
-        pump();
-      }
-    };
-    postMessage({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
-    decoders.push(d);
-  }
+  const count = !cfg.decode ? 0 : cfg.followQueue ? Math.min(1, cfg.decoders) : cfg.decoders;
+  for (let i = 0; i < count; i++) decoders.push(spawn());
+  const ready = decoders.map((d) => d.up);
   if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
   quietMs = deadlines.stallMs;
   // The decoders come up without the session URL, which arrives in `dial`; `decodersUp` gates

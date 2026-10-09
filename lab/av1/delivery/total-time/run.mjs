@@ -79,6 +79,7 @@ writeFileSync(`${T}/wifi-home.trace`, execFileSync("python3", [path.join(ROOT, "
   "15000:12000", "40000:12000", "10000:12000", "30000:12000", "15000:12000"]));
 
 const DAV1D = { codec: "av1", glue: "/lab/.av1-build/out/simd.js", wasm: "/lab/.av1-build/out/simd.wasm", dir: "/lab/.av1-build/out" };
+const DELIVERED = { glue: "/client/decode/wasm/built/openjph/openjph.js", wasm: "/client/decode/wasm/built/openjph/openjph.wasm", dir: "/client/decode/wasm/built/openjph" };
 const OPENJPH = { glue: "/client/decode/wasm/vendor/openjph/openjphjs.js", wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm", dir: "/client/decode/wasm/vendor/openjph" };
 /** One of lab/decode-bench/wasm/build.sh's variants by name (lab/av1/decode/htj2k-threads). */
 const built = (n) => ({ glue: `/lab/.openjph-build/wasm/${n}.js`, wasm: `/lab/.openjph-build/wasm/${n}.wasm`, dir: "/lab/.openjph-build/wasm" });
@@ -90,7 +91,9 @@ function variantOf(set, name) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, viewer: a.viewer,
-      opts: { decoder: { ...(a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
+      opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
+        // Row DECODEPACE: the downloader's lab flag.
+        ...(a.followQueue && { followQueue: true }),
         // Row ASKDEADLINE: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
         // A `downloader` variant runs that revision of the downloader (row CLIENT).
@@ -145,6 +148,7 @@ const collector = createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     if (req.url === "/hello") page.hello?.();
+    if (req.url === "/filled") page.filled?.();
     if (req.url === "/result") page.result?.(JSON.parse(body));
     res.writeHead(200, { "Access-Control-Allow-Origin": "*" }).end();
   });
@@ -155,12 +159,13 @@ const FIREFOX_PREFS = [["browser.shell.checkDefaultBrowser", false], ["browser.a
   ["app.update.disabledForTesting", true], ["toolkit.telemetry.reportingpolicy.firstRun", false]];
 
 /** Chromium through Playwright, Firefox as the stock build; the slow CPU on the browser's whole tree from the page's hello. */
-async function inBrowser(engine, url, throttle, errors) {
+async function inBrowser(engine, url, throttle, errors, threads = {}) {
   url += `&post=${encodeURIComponent(`http://127.0.0.1:${collector.address().port}/`)}`;
   let stop = () => {};
   let pid = null;
   const result = new Promise((resolve, reject) => {
-    page = { hello: () => (stop = throttleTree(pid, throttle)), result: resolve };
+    page = { hello: () => { stop = throttleTree(pid, throttle); threads.before = workerThreads(pid); },
+      filled: () => (threads.after = workerThreads(pid)), result: resolve };
     setTimeout(() => reject(new Error("no result in 600 s")), 600000);
   });
   result.catch(() => {}); // awaited below unless the page never loaded
@@ -200,6 +205,31 @@ async function inBrowser(engine, url, throttle, errors) {
     await new Promise((r) => setTimeout(r, 300));
     rmSync(dir, { recursive: true, force: true }); // a profile is ~40 MB: a run's visits would fill the disk
   }
+}
+
+const TICK_MS = 1000 / Number(execFileSync("getconf", ["CLK_TCK"]));
+/** Row DECODEPACE: each dedicated worker thread under `root`, by tid — CPU ms (utime + stime) and voluntary switches. */
+function workerThreads(root) {
+  const parent = new Map();
+  for (const p of readdirSync("/proc").filter((d) => /^\d+$/.test(d))) {
+    try { parent.set(Number(p), Number(readFileSync(`/proc/${p}/stat`, "utf8").split(") ")[1].split(" ")[1])); } catch { /* gone */ }
+  }
+  const under = (p) => { for (let q = p; q > 1; q = parent.get(q)) if (q === root) return true; return false; };
+  const out = new Map();
+  for (const p of [...parent.keys()].filter(under)) {
+    let tasks = [];
+    try { tasks = readdirSync(`/proc/${p}/task`); } catch { /* gone */ }
+    for (const t of tasks) {
+      try {
+        const task = `/proc/${p}/task/${t}`;
+        if (!readFileSync(`${task}/comm`, "utf8").startsWith("DedicatedWorker")) continue;
+        const f = readFileSync(`${task}/stat`, "utf8").split(") ")[1].split(" ");
+        const wakes = Number(/^voluntary_ctxt_switches:\s+(\d+)/m.exec(readFileSync(`${task}/status`, "utf8"))[1]);
+        out.set(Number(t), { cpuMs: (Number(f[11]) + Number(f[12])) * TICK_MS, wakes });
+      } catch { /* gone */ }
+    }
+  }
+  return out;
 }
 
 const HTTP = port();
@@ -248,8 +278,9 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     // Row VIEWER: the product's page on the variant's metadata, and both pages timed from navigation.
     ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(arg("--origin") && { origin: arg("--origin") }) });
   let r = null;
+  const threads = {};
   try {
-    r = await inBrowser(engine, `http://127.0.0.1:${HTTP}/${a.viewer ? "client/viewer/index.html" : "lab/av1/delivery/total-time/index.html"}?${q}`, throttle, errors);
+    r = await inBrowser(engine, `http://127.0.0.1:${HTTP}/${a.viewer ? "client/viewer/index.html" : "lab/av1/delivery/total-time/index.html"}?${q}`, throttle, errors, threads);
     if (r.error) throw new Error(r.error);
   } catch (e) {
     errors.push(String(e.message).split("\n")[0]);
@@ -295,9 +326,30 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
     centreMs: Math.round(shown.get(need[0]) - r.issuedAt),
+    ...pool(r.frames, threads),
     usefulMs: Math.round(Math.max(...need.map((i) => shown.get(i) ?? Infinity)) - r.issuedAt),
     ...previews,
   };
+}
+
+/**
+ * Row DECODEPACE: the decoders' work over the fill. Worker threads by tid, the downloader's first and left out,
+ * each counted from the page's hello; and from the frames' stamps, decoders used and busy at once.
+ */
+function pool(frames, { before, after }) {
+  const spans = frames.filter((f) => f.end > f.start).flatMap((f) => [[f.start, 1], [f.end, -1]]).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  let busy = 0, peak = 0, area = 0;
+  for (let k = 0; k < spans.length; k++) {
+    busy += spans[k][1];
+    peak = Math.max(peak, busy);
+    if (k + 1 < spans.length) area += busy * (spans[k + 1][0] - spans[k][0]);
+  }
+  const out = { decodersUsed: new Set(frames.map((f) => f.decoder)).size, peakBusy: peak, meanBusy: spans.length ? +(area / (spans.at(-1)[0] - spans[0][0])).toFixed(3) : 0 };
+  if (!after) return out;
+  const decoders = [...after].sort((x, y) => x[0] - y[0]).slice(1)
+    .map(([tid, t]) => ({ cpuMs: t.cpuMs - (before?.get(tid)?.cpuMs ?? 0), wakes: t.wakes - (before?.get(tid)?.wakes ?? 0) }));
+  return { ...out, threads: decoders.length, cpuMs: decoders.reduce((n, t) => n + t.cpuMs, 0), wakes: decoders.reduce((n, t) => n + t.wakes, 0),
+    downloaderCpuMs: after.size ? after.get(Math.min(...after.keys())).cpuMs : null };
 }
 
 /** The frames a reader needs first, most needed first. lab/av1/delivery/total-time/README.md §Row ORDER */
