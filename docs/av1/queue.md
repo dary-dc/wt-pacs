@@ -169,7 +169,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 103 | **BB3** — v3's loss bound over BBR built opt-in, and its pre-registered protocol written apart | done `3d59546` on `claude/av1-unified` (`3619991` the codec docs' follow-up) — **built opt-in, unmeasured, its protocol fixed before data**: `--congestion bbr-bound` (`server/src/transport/loss_bound.rs`, a cap over quinn's BBR through the public trait: a round losing > 2 % sets `inflight_hi` := max(in-flight, 0.7 × BDP), the window ≤ 0.85 × `inflight_hi`, regrown 1, 2, 4… packets a clean round), the default still `cubic-restart`; 5 unit tests (4 rules, 1 wiring), 9 mutations each caught; gate green (full, absence checks included); `docs/transport/bb3-protocol.md` (4 cells, 3 arms, the brief's rule); predictions per cost in §1 under BB3 — passes PROF's CoDel cell, ASKL's 4 % and W4b's overrun (≲ 2 600 lost, derived), but not the default: on `l2`/`l5` its cap sits near 0.6 BDP, up to ~1.7 × `bbr`'s fill where the wire is the clock — [`transport-conclusions.md`](../transport/transport-conclusions.md) §1 BB3 |
 | 104 | **BB3MEASURE** — row 103's protocol run by a session given only the protocol and the decision rule | claimed 2026-10-09 (night, a6f539) |
 | 105 | **CROSSOVER** — where AV1 fills first: a model from the measured bytes and decode times predicting the link speed at which each codec wins, per target series and engine; protocol pre-registered | done `49b2643` on `claude/av1-unified` — **a pipeline model predicts the fill within 0.05 on 44 of rows 95–96's 48 cells (one parameter fitted); AV1 fills first below 45–56 Mbit/s on DBT at 1× and 11–14 at 4× in Chromium, 4–7 and ≤ 2 on FFDM, 15–36 and 4–10 on synthesized 2D, about half that in Firefox; a per-link rule gains < 5 % on phone links except on the two volumes AV1 codes a fifth smaller (13–22 %, a per-series choice)**; misses all at 4× on 50 Mbit (saturation); protocol pre-registered — `docs/av1/README.md` §Where AV1 fills first, a model; `docs/av1/crossover-protocol.md` |
-| 106 | **CROSSMEASURE** — row 105's protocol run by a session given only the protocol and the decision rule | claimed 2026-10-09 (night, 9214fd) |
+| 106 | **CROSSMEASURE** — row 105's protocol run by a session given only the protocol and the decision rule | night |
 | 107 | **EVENREVIEW** — rows 103–106 reviewed: predictions against numbers, conclusive or not, and why | after 104, 106 |
 
 ## Briefs
@@ -2334,6 +2334,17 @@ the owner must still choose, in plain words. **Deliverable:** a review section i
 §Blocked for each choice left to the owner. **Branch:** `claude/av1-unified`.
 
 ## Blocked
+
+* **2026-10-09 11:05 UTC: row 106 CROSSMEASURE — its `VOID` < 20 % cannot be met in the container that took it;
+  set back to `night` for one that can, or the owner relaxes the rule.** In that container, row 88's 800 visits
+  through `total-time/run.mjs` the same day were `VOID` on 76–94 % of every link at or under 20 Mbit (r5000 147/160,
+  r20000 129/160, lte-good 136/160, wifi-home 133/160; the relay's p99 a median 1.5–2.1 ms late) and on 15 % at
+  r50000. Steal time read 0 % (`/proc/stat`, 3 × 10 s), and the relay ran `SCHED_FIFO` 50 alone on core 3 as
+  `run.mjs` asks, so the protocol's wait-on-steal cannot help: the lateness is the relay's epoll loop on that host
+  (`docs/rig-limits.md` already says that loop fails a 0.5 ms bar). n ≥ 10 kept a cell would take some 50–80 rounds
+  on those links, far past the row's 5 hours. Nothing was fetched or measured for the row. The owner's options: run
+  it where the guard passes (another session's container voided 30 % on r20000–wifi-home the same morning), or
+  count round-paired `VOID` visits, both arms on the same link in the same round, as row 88's five-link table did.
 
 * **2026-10-09 09:55 UTC: row 91 DECODERBUILD — whether to ship row HTJ2KMT's code-block pool for large series is the
   owner's.** Row 78 adopted it as the delivered build; through the downloader on 512² frames it tied fills and lost a
