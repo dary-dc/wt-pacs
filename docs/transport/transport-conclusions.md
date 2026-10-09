@@ -43,7 +43,7 @@ at `6e9c126`.
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). Through the whole product on lossy links, BBR fills in 0.04–0.76 of `cubic-restart`'s time on both codecs but costs +2–13 % on some clean and jitter cells, so it is not adopted (LOSSCC, the owner's call). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). Through the product's client, 1–5 % loss: BBR 0.04–0.74 of the fill, Cubic with or without the restart the same; not adopted, 1.01–1.04 on clean 5 Mbit (LOSSCC). A bounded BBR was built and retired (BB2, BBF); v3's loss bound is built opt-in as `bbr-bound`, unmeasured, its protocol fixed (BB3) |
+| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). Through the whole product on lossy links, BBR fills in 0.04–0.76 of `cubic-restart`'s time on both codecs but costs +2–13 % on some clean and jitter cells, so it is not adopted (LOSSCC, the owner's call). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). Through the product's client, 1–5 % loss: BBR 0.04–0.74 of the fill, Cubic with or without the restart the same; not adopted, 1.01–1.04 on clean 5 Mbit (LOSSCC). A bounded BBR was built and retired (BB2, BBF); v3's loss bound is built opt-in as `bbr-bound` and fails its pre-registered rule: 2.3–3.2 % of its packets meet CoDel against a 2 % bar, +375 ms on an ask at 4 % loss against +73 (BB3, BB3MEASURE); it stays opt-in |
 | **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed and retired (§2, [`../adr/stream-shape.md`](../adr/stream-shape.md)) |
 | **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever and the default (§3) |
 | **Send path** | **The reader's buffer handed to quinn** as `Bytes`, one copy of four gone: −3 to −8 % CPU per ask in every cell, nothing against (§4). It also bounds what a stalled client costs (§3) |
@@ -470,6 +470,69 @@ the last `on_end_acks` value. The run that decides it is fixed, before any data,
 So the bound is predicted to pass the protocol's first three cells and not to become the default.
 
 ---
+
+### The bound, measured (BB3MEASURE, 2026-10-09)
+
+[`bb3-protocol.md`](bb3-protocol.md) run as written on one release build of `claude/av1-unified`; every visit's raw
+output is in [`lab/bb3`](../../lab/bb3/README.md). `VOID` is the relay's own timing rule; medians [range over rounds],
+ratios the median of round-paired ones. Host: 4 cores; load 0.2–4.2 and steal 0.7–1.3 % median (max 5.8 %) across
+the cells. *Not as written:* cells 1–3 ran beside a build pinned to the fourth core at the lowest priority (load up
+to 4.2), and cell 4 ran 6 of its 10 rounds, the row's five-hour budget.
+
+**Cell 1, PROF's LTE-good with CoDel** (7 rounds; **16 of 21 visits `VOID`**, every `bbr` and `bbr-bound` visit, so
+none of theirs is kept; counted):
+
+| arm | met CoDel | standing queue | fill | first ask |
+| --- | ---: | ---: | ---: | ---: |
+| `bbr` | 6.54 % [6.14–7.18] | 206 ms [173–213] | 15.29 Mbit/s [15.02–15.56] | 213 ms [181–250] |
+| `bbr-bound` | **2.82 %** [2.27–3.23] | 49.9 ms [38.3–60.8] | 14.27 Mbit/s [14.13–14.47], ×0.933 of `bbr`'s [0.908–0.964] | 217 ms [194–232] |
+| `cubic-restart` (5 kept) | 0.33 % [0.12–0.38] | 4.6 ms [4.4–5.2] | 7.92 Mbit/s [6.55–8.81] | 316 ms [311–321] |
+
+**Cell 2, ASKL's 1 % and 4 %** (9 rounds; asks 2–30; runs kept/`VOID`): at 1 % `bbr` p50 331 ms, p99 1 045 (8/1),
+`bbr-bound` 330 and 1 006 (7/2), `cubic-restart` 697 and 1 664 (9/0); **at 4 %** `bbr` 327 and 5 200 (6/3),
+**`bbr-bound` 713 and 6 099 (8/1), +375 ms over `bbr` paired, lower in 0 of 5 rounds**, `cubic-restart` 1 505 and
+9 046 (8/1). No ask failed but one of `bbr-bound`'s at 4 %.
+
+**Cell 3, W4b's flat link, 500 ms queue** (7 rounds; 4 `VOID`): fill 23.50 s `bbr`, 23.53 `bbr-bound`, 23.65
+`cubic-restart`; standing queue p50 497, 340 and 423 ms; packets lost, kept, **927 for `bbr-bound`** (all seven
+0–4 782, median 1 297), 17 401 for `bbr` (0–40 676), 1 681 for `cubic-restart`.
+
+**Cell 4, row 75's cells through the product** (rounds 0–5; 1 440 visits, **603 `VOID`**, 11 520/11 520 delivered frames exact,
+6 696 of them in kept visits): `bbr-bound`'s time to every frame on the page over `bbr`'s on the lossy cells and over
+`cubic-restart`'s on the clean and jitter cells, `VOID` dropped (n kept pairs in brackets; **bold** over the rule's bar):
+
+| codec | CPU | cell | r5000 | r20000 | r50000 | lte-good |
+| --- | --- | --- | --- | --- | --- | --- |
+| htj2k | 1× | clean ÷ cubic-restart | **1.031** [1.03–1.03] (3) | 0.895 [0.88–0.91] (4) | 0.876 [0.75–0.95] (4) | — |
+| htj2k | 1× | j20 ÷ cubic-restart | 0.982 [0.98–0.98] (1) | **1.038** [1.01–1.07] (2) | 0.936 [0.94–0.94] (1) | 0.973 [0.97–0.97] (1) |
+| htj2k | 1× | l1 ÷ bbr | 1.096 [0.99–1.11] (4) | 1.052 [0.99–2.15] (5) | 1.089 [1.05–1.46] (3) | **1.157** [1.11–1.20] (2) |
+| htj2k | 1× | l2 ÷ bbr | **1.210** [1.21–1.21] (1) | **1.969** [1.97–1.97] (1) | **1.492** [1.18–1.80] (2) | **1.223** [0.95–3.34] (5) |
+| htj2k | 1× | l5 ÷ bbr | **1.781** [1.53–2.03] (2) | **4.196** [3.99–4.40] (2) | **2.691** [2.27–3.11] (2) | — |
+| htj2k | 4× | clean ÷ cubic-restart | **1.027** [1.02–1.05] (4) | — | 0.925 [0.81–0.98] (6) | 0.885 [0.88–0.88] (1) |
+| htj2k | 4× | j20 ÷ cubic-restart | **1.040** [1.04–1.04] (1) | **1.123** [1.12–1.12] (1) | **1.032** [0.91–1.32] (3) | — |
+| htj2k | 4× | l1 ÷ bbr | 1.074 [0.98–1.22] (4) | **1.316** [1.18–1.58] (3) | 0.973 [0.76–2.21] (4) | **1.355** [1.36–1.36] (1) |
+| htj2k | 4× | l2 ÷ bbr | 1.056 [0.99–1.12] (2) | **2.704** [2.61–2.80] (2) | **2.404** [1.25–2.52] (3) | — |
+| htj2k | 4× | l5 ÷ bbr | **2.024** [1.63–2.42] (2) | **4.049** [3.35–4.75] (2) | **8.341** [4.54–10.86] (3) | **2.969** [2.21–9.68] (3) |
+| AV1 | 1× | clean ÷ cubic-restart | **1.024** [1.02–1.02] (1) | 0.956 [0.96–0.96] (1) | 0.857 [0.85–0.97] (3) | 0.876 [0.88–0.88] (1) |
+| AV1 | 1× | j20 ÷ cubic-restart | 1.002 [1.00–1.00] (1) | 0.944 [0.85–0.97] (3) | 0.959 [0.96–0.96] (1) | **1.365** [0.97–1.76] (2) |
+| AV1 | 1× | l1 ÷ bbr | 1.083 [1.07–1.10] (3) | **1.121** [0.98–1.13] (3) | 1.007 [0.85–1.77] (5) | **1.432** [1.43–1.43] (1) |
+| AV1 | 1× | l2 ÷ bbr | **1.129** [1.07–1.25] (3) | **1.823** [1.36–2.29] (2) | **1.417** [1.22–2.34] (5) | **1.193** [1.02–1.37] (2) |
+| AV1 | 1× | l5 ÷ bbr | **2.182** [2.18–2.18] (1) | — | **4.576** [1.20–11.84] (4) | **6.210** [3.35–9.07] (2) |
+| AV1 | 4× | clean ÷ cubic-restart | 0.985 [0.97–1.00] (2) | 0.875 [0.84–0.90] (3) | 0.951 [0.76–1.15] (4) | 0.924 [0.92–0.92] (1) |
+| AV1 | 4× | j20 ÷ cubic-restart | 0.980 [0.97–0.99] (2) | **1.036** [0.97–1.10] (2) | **1.129** [0.96–1.30] (2) | 0.870 [0.87–0.87] (1) |
+| AV1 | 4× | l1 ÷ bbr | **1.189** [1.17–1.21] (2) | 1.082 [0.96–2.16] (3) | **1.256** [0.85–3.22] (5) | — |
+| AV1 | 4× | l2 ÷ bbr | **1.187** [0.98–1.38] (3) | **1.854** [1.68–2.02] (2) | **1.314** [1.15–1.48] (2) | 0.982 [0.98–0.98] (1) |
+| AV1 | 4× | l5 ÷ bbr | **1.823** [1.67–1.98] (2) | **4.086** [2.63–5.55] (2) | **4.812** [4.81–4.81] (1) | **2.742** [2.28–3.20] (2) |
+
+44 of the 73 cells with a kept pair are over the bar with `VOID` dropped, 45 with it counted (`lab/bb3/rule4.py`): 34
+of 44 lossy cells, up to ×8.3 at 4× on 50 Mbit/s with 5 % loss, and 10 of 29 clean or jitter cells. Most cells hold
+1–5 kept pairs, short of the protocol's 10 rounds.
+
+**By the rule: the bound does not pass** — cell 1's CoDel share is 2.27–3.23 % in every visit against the 2 % bar
+(its queue, 49.9 ms, and its fill, ×0.933, are inside theirs), and cell 2's 4 % ask p50 is +375 ms against +73; cell 3
+passes. **`cubic-restart` stays the default and `bbr-bound` opt-in**; cell 4 could not have changed that, and it also
+misses both of its own bars on most cells. Every `bbr` and `bbr-bound` visit of cell 1 was `VOID`, so its verdict
+rests on visits the relay's timing flags; nothing in cells 2–4 depends on that.
 
 ## 2 · One shared stream
 
