@@ -46,6 +46,13 @@ conclusive or not, and why. Rows already queued keep their briefs.
 * **Interleave arms** in any timing (`lab/order.mjs`, `lab/scripts/order.py`); give n and the
   spread; say where the host saturates and claim nothing past it. Containers are not phones: a
   decode time is a container's unless measured elsewhere, and says so.
+* **A host that cannot meet its `VOID` bar decides alone (the owner, 2026-10-09).** A timed row whose host voids more
+  than its bar allows reports both readings: *strict* (pairs with neither visit `VOID`) and *round-paired* (both
+  variants on the same link in the same round, `VOID` included, as row 88's five-link table did). If they agree, that
+  is the row's verdict, stated with both. If they disagree, the row is "not conclusive on this host" and goes back to
+  `ready` or `night`, as it was, for a host that passes; it does not wait on the owner.
+* **A timed row longer than an hour writes a provisional reading** — one line in its cell after each pushed round —
+  so the owner sees results early.
 * **Sound data only decides** (row DATAGUARD, 2026-10-08). A set classed `lossy-sourced` or `unknown` in
   `lab/av1/data.json` ([`../FIXTURES.md`](../FIXTURES.md) §Provenance, on `claude/av1-unified`) enters no bytes,
   time or inter verdict: its numbers are reported as measured and marked provisional. Exactness on it still counts.
@@ -2336,7 +2343,9 @@ the owner must still choose, in plain words. **Deliverable:** a review section i
 
 ## Blocked
 
-* **2026-10-09 11:05 UTC: row 106 CROSSMEASURE — its `VOID` < 20 % cannot be met in the container that took it;
+* *Resolved, 2026-10-09 (the owner): §Protocol's rule for a host that cannot meet its `VOID` bar — strict and
+  round-paired readings both, a verdict where they agree, "not conclusive on this host" where they do not.*
+  **2026-10-09 11:05 UTC: row 106 CROSSMEASURE — its `VOID` < 20 % cannot be met in the container that took it;
   set back to `night` for one that can, or the owner relaxes the rule.** In that container, row 88's 800 visits
   through `total-time/run.mjs` the same day were `VOID` on 76–94 % of every link at or under 20 Mbit (r5000 147/160,
   r20000 129/160, lte-good 136/160, wifi-home 133/160; the relay's p99 a median 1.5–2.1 ms late) and on 15 % at
