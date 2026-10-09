@@ -179,6 +179,13 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 105 | **CROSSOVER** — where AV1 fills first: a model from the measured bytes and decode times predicting the link speed at which each codec wins, per target series and engine; protocol pre-registered | done `49b2643` on `claude/av1-unified` — **a pipeline model predicts the fill within 0.05 on 44 of rows 95–96's 48 cells (one parameter fitted); AV1 fills first below 45–56 Mbit/s on DBT at 1× and 11–14 at 4× in Chromium, 4–7 and ≤ 2 on FFDM, 15–36 and 4–10 on synthesized 2D, about half that in Firefox; a per-link rule gains < 5 % on phone links except on the two volumes AV1 codes a fifth smaller (13–22 %, a per-series choice)**; misses all at 4× on 50 Mbit (saturation); protocol pre-registered — `docs/av1/README.md` §Where AV1 fills first, a model; `docs/av1/crossover-protocol.md` |
 | 106 | **CROSSMEASURE** — row 105's protocol run by a session given only the protocol and the decision rule | claimed 2026-10-09 (night, c01545) |
 | 107 | **EVENREVIEW** — rows 103–106 reviewed: predictions against numbers, conclusive or not, and why | after 104, 106 |
+| 108 | **HELPERSTART** — the HTJ2K pool's helper started after the decoder answers ready: the cold ask against the single-threaded build, exact | ready |
+| 109 | **REGIONDECODE** — region decode, the container half: a 1:1 viewport decoded alone, one asked frame in stripes across the idle decoders; exact and container speed | ready |
+| 110 | **COARSEPOOL** — the pool's hand-off unit a subband or a resolution instead of a row of code-blocks | after owner |
+| 111 | **WEBGPUHT** — a WebGPU HT block decoder, built and proved exact on a software WebGPU; no timing | after owner |
+| 112 | **DECODEPACE** — decode paced to the wire during a fill: fill time unchanged, CPU busy time and wake-ups | after owner |
+| 113 | **LEVERREVIEW** — rows 108–112 reviewed: each lever's predictions against its numbers, conclusive or not, and the phone or GPU measurement each still needs | after 108, 109, 110, 111, 112 |
+| 114 | **FMT** — rustfmt and clippy defaults adopted, checked by the gate | after the owner merges main |
 
 ## Briefs
 
@@ -2340,6 +2347,67 @@ round's data as it lands. **Deliverable:** the numbers beside row 77's in `docs/
 untested; conclusive or not, and why; what each now decides (the controller's default, a per-link codec rule) and what
 the owner must still choose, in plain words. **Deliverable:** a review section in each owning doc; one line under
 §Blocked for each choice left to the owner. **Branch:** `claude/av1-unified`.
+
+## The decode-lever and formatting rows (108–114), 2026-10-09
+
+The owner, 2026-10-09: five decode levers, measured as data only — nothing changes a product default. Each row runs
+its section of [`../decode/levers-protocol.md`](../decode/levers-protocol.md) as written, given that file and its
+rules only. Rows 110–112 wait for the owner's next usage window; the owner or the orchestrator sets them `ready`.
+Row 113 is taken by a session that measured none of 108–112.
+
+### 108 HELPERSTART
+
+**Do:** `levers-protocol.md` §L1 as written: the arms, cells, predictions and rule there. Report the numbers, n,
+spread and `VOID` share first, then each prediction held or not, then the rule's verdict. **Deliverable:** the
+numbers in `docs/decode/README.md` beside §Code-blocks on threads, measured; the verdict in the queue.
+**Branch:** `claude/av1-unified`.
+
+### 109 REGIONDECODE
+
+**Do:** `levers-protocol.md` §L2 as written — the container half only: exactness of every region and stripe, and
+their speed in this container. OpenHTJ2K is pinned and its licence listed in [`licensing.md`](licensing.md) before
+it is built. What a zoomed view shows first, and the ingest, encoding and layout choices region decode implies, are
+the owner's and are not decided here: the row puts the data on the table. **Deliverable:** the numbers in
+`docs/decode/README.md` beside §A frame at the level the screen needs; the verdict in the queue. **Branch:**
+`claude/av1-unified`.
+
+### 110 COARSEPOOL
+
+**Do:** `levers-protocol.md` §L4 as written, on row HTJ2KMT's frame bench, the heap's high-water beside each time.
+**Deliverable:** the numbers in `docs/decode/README.md` beside §Code-blocks on threads, measured; the verdict in the
+queue. **Branch:** `claude/av1-unified`.
+
+### 111 WEBGPUHT
+
+**Do:** `levers-protocol.md` §L3 as written: the kernels built in `lab/` beside `lab/av1/decode/webgpu`, exact on
+SwiftShader, one-frame and batched dispatches; no timing claim — the container has no GPU. The phone stage's rule is
+stated in §L3 and waits for the owner's phones. **Deliverable:** the kernels, their exactness table in
+`docs/decode/README.md` beside §A WebGPU block decoder, bounded; the verdict in the queue. **Branch:**
+`claude/av1-unified`.
+
+### 112 DECODEPACE
+
+**Do:** `levers-protocol.md` §L5 as written: *follow the queue* behind a lab flag on the downloader, off by default,
+both dispatch clauses kept; fill time, CPU busy time and wake-ups per fill. Energy is not measured here and the row
+says so. **Deliverable:** the numbers in `docs/ARCHITECTURE.md` §How many; the verdict in the queue. **Branch:**
+`claude/av1-unified`.
+
+### 113 LEVERREVIEW
+
+**Do:** per lever, the hypothesis and predictions of `levers-protocol.md` against rows 108–112's numbers: each
+prediction held, refuted or untested; conclusive or not, and why; and the phone or GPU measurement each lever still
+needs to decide, in plain words. **Deliverable:** a review section in `levers-protocol.md`; one line under §Blocked
+for each choice left to the owner. **Branch:** `claude/av1`.
+
+### 114 FMT
+
+**Do:** on the tree that results once the owner merges `main`, adopt rustfmt's defaults — no `rustfmt.toml`, the
+smallest diff (about 1 324 lines in 31 files on 2026-10-09) — and clippy's default lints: fix each of the 6 default
+warnings, or `#[allow]` it with a one-line reason. One `cargo fmt --all` commit alone, its hash listed in a new
+`.git-blame-ignore-revs`; then `cargo fmt --all -- --check` and
+`cargo clippy --workspace --all-targets -- -D warnings` added to `scripts/gate.sh`, the vendored `patched/` excluded.
+Pedantic lints are not adopted. **Deliverable:** the format commit, the lint fixes, the gate's two steps, gate green.
+**Branch:** *open — the owner sets it at merge time.*
 
 ## Blocked
 
