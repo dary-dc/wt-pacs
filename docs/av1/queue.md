@@ -54,8 +54,9 @@ conclusive or not, and why. Rows already queued keep their briefs.
 * **Code beside today's path, not instead of it.** HTJ2K keeps working unchanged; the gate
   (`scripts/gate.sh`) stays green. A change to the transport's unit, the wire or the store's format
   is structural: propose it in the owning doc, do not build it.
-* **This repository is public.** Never name another viewer, its SDK, a vendor, or any private
-  project. Licences go in [`licensing.md`](licensing.md); anything new that is shipped or fetched
+* **This repository is public.** Never name the private comparison stack the term scanner guards: write "the
+  reference implementation". Open-source projects, vendors and standards are named and cited as sources like any
+  other (the owner, 2026-10-09). Licences go in [`licensing.md`](licensing.md); anything new that is shipped or fetched
   is added there with its licence before it is used.
 * Commit messages hold the change only — no attribution, co-author or session trailers.
 * Blocked on a decision only the owner can make: add it under `## Blocked`, push, take the next row.
@@ -2352,7 +2353,9 @@ the owner must still choose, in plain words. **Deliverable:** a review section i
   ships the single-threaded build. Row 78's gains (×0.70–0.83) were warm asks on frames from 1914×2572 up. Shipping
   the pool for those series means a second OpenJPH build, chosen per series, and a cold-ask measurement on them
   (`lab/decode-bench/builds.mjs` with `SERIES`), which this row did not take.
-* **2026-10-09 09:46 UTC: row 102 PUBLICAUDIT — what the public repository should stop carrying is the owner's.** No secret was found; one item asks for action outside the repository (the rig's public address, still in `claude/av1`'s tree, every tag and history: give the rig a new address or close its ports to all but the workstation), and nine are reword-or-keep calls — row 102's brief, *The audit*.
+* *Resolved, 2026-10-09 (the owner), the rule question: the naming rule concerns the private comparison stack only,
+  so items 3 and 4 (the npm package's scope, vendor citations) are kept.*
+  **2026-10-09 09:46 UTC: row 102 PUBLICAUDIT — what the public repository should stop carrying is the owner's.** No secret was found; one item asks for action outside the repository (the rig's public address, still in `claude/av1`'s tree, every tag and history: give the rig a new address or close its ports to all but the workstation), and nine are reword-or-keep calls — row 102's brief, *The audit*.
 * *Resolved, 2026-10-08 23:45 UTC (the owner): product dependencies leave `lab/` first, every proposed rename is
   adopted (rows 56 and 84's briefs); what a public repository carries and which rule governs go to row 102 for analysis.*
   **2026-10-08 16:15 UTC: row 56 LAYOUT — the moves wait on two of row 83's decisions.** Every prerequisite row is done
