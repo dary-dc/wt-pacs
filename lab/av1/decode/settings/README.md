@@ -3,7 +3,7 @@
 What cuts lossless AV1's decode with every frame still exact: encoder settings, dav1d-WASM threads
 against decoders, and where the time goes. Queue row 27 (DECSPEED) of
 [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the reading is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A1, *Cutting the decode*.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Decode time and memory, *Cutting the decode*.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS="simd simd-mt simd-prof" client/decode/wasm/dav1d/build.sh

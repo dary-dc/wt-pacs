@@ -4,7 +4,7 @@ Queue row 47 (MIXDEC) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): t
 through one decoder — WebCodecs when every stream is ≤ 10 bits and its probes pass, dav1d-WASM otherwise.
 For a split payload whose top is over 10 bits, the 8-bit low stream could go to WebCodecs while dav1d-WASM
 decodes the top. The bytes do not change; only decode can. The verdict is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A3 and
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits and
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §AV1.
 
 ```bash
@@ -99,7 +99,7 @@ cores are free to run both. Containers, not phones.
 ## Decode (2026-10-07)
 
 Through the product's decoder worker, headless Chromium 141, 10 rounds at 1× and 4×, the first 24 frames of
-each 13-bit series and every frame of the projections; **12 000/12 000 AV1 frames exact** (and every HTJ2K one).
+each 13-bit series and every frame of the projections; **12 000/12 000 frames exact through AV1** (and every HTJ2K one).
 Median ms a frame, and the median of round-paired ratios [range]; mixed was faster than today in all 120
 paired rounds:
 

@@ -2,7 +2,7 @@
 
 Queue row 57 (VERSIONS) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): what each tool's releases after
 our pin gain or break for lossless, high bit depth, monochrome, decode speed or WASM. The verdict per tool is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §Measured here; this file holds the commands, the sources
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Encoding; this file holds the commands, the sources
 read and the cells.
 
 ```bash

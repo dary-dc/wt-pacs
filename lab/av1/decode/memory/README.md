@@ -2,7 +2,7 @@
 
 The AV1 path's memory per decoder worker and its first-use cost, against HTJ2K's, in headless Chromium.
 Queue row 38 (FOOTPRINT) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the reading is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A2.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Decode time and memory.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM

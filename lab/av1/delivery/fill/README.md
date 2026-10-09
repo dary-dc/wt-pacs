@@ -3,7 +3,7 @@
 A whole series filled through the downloader with its decoders on, against the real server behind
 the relay: HTJ2K against AV1 on the same frames. Queue row 11 (FILL) of
 [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the reading is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A1.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Total time.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM

@@ -1,7 +1,7 @@
 # ADR: the codec seam, and the group as the client's unit
 
 **Status:** §1–2 built for G = 1 (row DEC; the transforms and WebCodecs by row WCDEC), §3 built in its simplest form (row GOP); departures marked *Built:*; §5 proposed (row SVCORDER) · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
-· **Answers:** [`README.md`](README.md) §A1, the shape half; SIZE and SPEED own the numbers.
+· **Answers:** [`README.md`](README.md) §Frame groups, the shape half; SIZE and SPEED own the numbers.
 
 Read against [`WIRE.md`](../WIRE.md), [`ARCHITECTURE.md`](../ARCHITECTURE.md),
 [`adr-stream-shape.md`](../adr/stream-shape.md) and [`FIXTURES.md`](../FIXTURES.md) §SBND as they
@@ -25,7 +25,7 @@ brings it.
   `frameCount`. The only server-side change is in ingest: `pack-study` reads `DIR/NNN.htj2k`
   today and would read `NNN.<codec>`, the extension taken from the metadata.
 * **A transform that makes a series codable is the codec's, and named beside it.** AV1 codes at most
-  12 bits and only unsigned ([`README.md`](README.md) §A3), so a signed series needs its offset and
+  12 bits and only unsigned ([`README.md`](README.md) §Samples over 12 bits), so a signed series needs its offset and
   a series over 12 bits its split carried in metadata for the decoder to undo. Row DEPTH chooses
   which transforms survive and names their fields; this ADR only fixes the rule below for them.
 * **A value the client does not know is a refusal, before the dial.** `connect` rejects with
@@ -382,7 +382,7 @@ built.
 **Not covered.** WebCodecs (a ≤ 10-bit series at G = 1) returns the top exactly and no preview: it
 outputs the highest layer it is fed (row SVCQ). *Row WCBASE:* fed the unit's prefix before the
 first OBU with `spatial_id` 1, it returns the base, identical to native dav1d's at operating point 1
-([`README.md`](README.md) §A5); not built. A split series
+([`README.md`](README.md) §Preview); not built. A split series
 takes no preview. Three or more spatial layers send every layer below the top as a preview; only two
 were made.
 

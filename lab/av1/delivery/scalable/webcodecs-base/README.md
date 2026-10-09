@@ -5,7 +5,7 @@ operating point, so the base of a two-layer payload is asked for by feeding it t
 OBUs of spatial layers above 0 dropped. Is that base the one native dav1d returns at the base's
 operating point, does the whole unit still give the exact frame, and how fast is the base against
 dav1d-WASM's (row SVCDEC's preview)? The verdict is in
-[`docs/av1/README.md`](../../../../../docs/av1/README.md) §A5.
+[`docs/av1/README.md`](../../../../../docs/av1/README.md) §Preview.
 
 ```bash
 lab/av1/delivery/scalable/encoder/build.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # patched encoder, native dav1d, dav1d-WASM

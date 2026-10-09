@@ -2,7 +2,7 @@
 
 Queue row 64 (REMAP) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): when the values that push a series over
 12 bits are rare, does coding the series at 12 bits with a small map of them beat the split? The verdict is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A3, the proposal in
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits, the proposal in
 [`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md) §Proposed: a remapped plane.
 
 ```bash

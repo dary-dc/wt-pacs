@@ -4,7 +4,7 @@ Queue row 95 (DBTSCALE) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md):
 volumes, five exams (five patients) from each of the three reconstruction systems the EA1141 collection holds
 (`dbts_a1`…`dbts_c5`, [`docs/FIXTURES.md`](../../../../docs/FIXTURES.md) §AV1 data, every one `sound`), through row
 SPLITTIME's harness ([`../../delivery/split-rule`](../../delivery/split-rule/README.md)) unchanged. The reading is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A3.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh

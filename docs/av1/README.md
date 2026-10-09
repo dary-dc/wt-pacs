@@ -16,6 +16,43 @@ export whose history nothing records ([`FIXTURES.md`](../FIXTURES.md) §Provenan
 measured; they enter no bytes, time or inter verdict, and a verdict below that names the ultrasound holds for the
 other series only.
 
+## Where the phase stands
+
+* **Exact wherever it is used.** Every coding, decoder and engine path here is checked against the encoder's input:
+  libaom 3.15.1 with alt-ref off, dav1d-WASM, and WebCodecs at 8 and 10 bits (it refuses 12) — §Exactness and the
+  decoders.
+* **Bytes: under HTJ2K once the samples are represented for AV1** — the two low bits apart over 8 bits, JPEG 2000's
+  reversible colour transform on RGB: 0.902–0.987 of HTJ2K's bytes on every series at G = 1 (row LLSIZE), k = 2
+  0.939–0.956 on DBT at scale and 0.760–0.797 on two 10-bit volumes (row DBTSCALE). Coded whole, as it codes out of
+  the box, it is larger on most series — §Bytes.
+* **Decode: slower on every frame.** WebCodecs takes 1.59–4.12× HTJ2K's time a frame where every stream is ≤ 10 bits,
+  dav1d-WASM 5.4–11.6× (rows SPEED, SPLITTIME) — §Decode time and memory.
+* **Total time: decided by the clock.** AV1 fills first wherever the wire is slower than its decoder (0.89–0.98 of
+  HTJ2K on five of seven series in Chromium and Firefox) and HTJ2K wherever a slow CPU meets a fast link (Firefox
+  1.33–2.53 at 4× on 50 Mbit). By row TOTAL4's rule — AV1 only where it fills first in both engines on every cell —
+  no series qualifies, and ingest keeps HTJ2K — §Total time.
+* **Frame groups: G = 1.** Inter coding does not pay on DBT, conclusively by a rule fixed before the data (15
+  volumes, best +1.51 %); cine, ABUS and angiography have no sound data — §Frame groups.
+* **Preview: measured, not adopted.** Whether a lossy picture may come first is the owner's ruling — §Preview.
+* **Open for the owner** ([`queue.md`](queue.md) §Blocked): serving AV1 by link or by client (row TOTAL4), 8-bit grey
+  as 4:2:0 (GREY420), dav1d's warm-up on links under 20 ms (COLDRTT), Safari on a device (XENGINE), the mixed decode
+  as the client's choice (MIXDEC), and sound sources for breast ultrasound and angiography (DATAGUARD).
+
+**Focus (owner, 2026-10-03): AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
+use, and where the learning is. Active threads are queue rows 24–29 ([`queue.md`](queue.md)).
+
+## Decided
+
+* **Bit-exact or nothing**: a codec, depth or decoder path that does not round-trip exactly is not
+  used for that series. Ground truth is the encoder's input, never a decoder under test (as for
+  HTJ2K, [`decode/README.md`](../decode/README.md) §Ground truth).
+* **The codec belongs to the series**, carried in its metadata; the envelope stays opaque.
+* **AV1 frames are this project's own format**: DICOM defines no AV1 transfer syntax, and the store
+  is not DICOM ([`licensing.md`](licensing.md) §DICOM).
+* **Everything here is MIT-compatible open source** ([`licensing.md`](licensing.md)); no code from
+  any other viewer or private project enters this repository.
+
+
 ## What already does not care about the codec
 
 | layer | what it carries | codec-specific today |
@@ -30,9 +67,79 @@ ingest step and a second decoder behind the same output contract. Nothing above 
 and that contract is what a viewer integrating the downloader consumes, so it changes nothing there
 either.
 
-## Open, each with what decides it
+## Bytes
 
-**A1 — one frame, or a group of frames, as the unit.** Inter prediction (a frame coded from its
+*Measured (SIZE, libaom 3.15.1, every coding exact; [`lab/av1`](../../lab/av1/README.md) §SIZE):*
+**inter coding does not pay on any real series here** (*outside the target series, §Frame groups, Scope; corrected by LLSIZE: on the ultrasound it
+does once the colour is transformed, below*), and coded whole, AV1 does not beat HTJ2K —
+*corrected by DEPTH (§Samples over 12 bits): coded as two streams, the two low bits apart, it does on every series
+over 10 bits, 0.918–0.997; and by LLSIZE: on every series, below*. Bytes over
+HTJ2K's at the slowest preset, intra → whole series: fluoroscopy (12-bit, 2 frames/s) 1.024 → 1.027,
+MR (11-bit, 3.5 mm) 1.034 → 1.062, ultrasound cine (RGB 8) 1.117 → 1.534; at a practical preset
+1.04–1.75. The smallest G that collects most of the gain is **G = 1**: there is no gain to collect
+(fluoroscopy's best group, G = 2, is 0.04 % under intra). Lossless JPEG XL, for reference, is
+0.83–0.93 of HTJ2K. CT and the cone-beam set need 13 bits — row DEPTH. Bytes therefore give G > 1
+no reason; the content measured is three series, none of them a contrast angiography run.
+*Tomosynthesis since (row CONTENT, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter still did
+not pay on two volumes, libaom, alt-ref off, two presets.* Two reconstructed volumes, 1 mm slices — the content where neighbours share most: the best
+group is 1.2 % larger than intra on the 12-bit volume and 0.6 % smaller on the 10-bit one (1.8 % at
+cpu6), against the fifth `adr-unit.md` §4 asks. Coded whole, AV1 is 1.043 of HTJ2K on the 12-bit
+volume and **0.977 on the 10-bit one — the first series where AV1 coded whole is smaller**; split
+top11+low, 0.943 and 0.946. *Confirmed at scale (row DBTSCALE, fifteen whole volumes, three systems, `allintra` 7):
+coded whole (k = 0) 1.054–1.083 on every 12-bit volume and 0.776–0.975 on every 10-bit one; split k = 2,
+0.939–0.956, and 0.760 and 0.797 on two 10-bit volumes (§The split per depth).* Still no contrast angiography run: none is open.
+*Tomosynthesis projections since (row TAXO, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter
+does not pay there either* (outside the target series, §Frame groups, Scope). The raw views of two vendors' systems, 9 and 15 a series, 14 bits
+stored: on top11+low the best group is 0.3 % under intra on one and 0.2–0.8 % over it on the other.
+Split top12+low they are 0.952 and 0.923 of HTJ2K (§Samples over 12 bits). No breast ultrasound cine, automated breast
+ultrasound or angiography run is reachable ([`queue.md`](queue.md) §Blocked).
+*AV1 alone under HTJ2K on every series (row LLSIZE, [`lab/av1/bytes/represented`](../../lab/av1/bytes/represented/README.md)).*
+At G = 1, libaom 3.15.1 at its slowest preset, the first 2–8 frames of all nine series, every coding
+exact: **0.902–0.987 of HTJ2K's bytes** once the samples are represented for AV1 — the two low bits
+apart at every depth over 8 (fluoroscopy 1.027 → 0.942, 12-bit tomosynthesis 1.040 → 0.941, MR
+1.013 → 0.977, 10-bit tomosynthesis 0.977 → 0.942) and JPEG 2000's reversible colour transform on
+RGB (ultrasound 1.117 → 0.962; *confirmed on sound data by row RGBNATIVE: on 48 natively stored colour
+ultrasound stills RCT is 0.54–0.66 of GBR's bytes and 0.65–0.94 of HTJ2K's, decoding in 0.65–0.90 of GBR's time,
+2.1–2.9× HTJ2K's at 1×*, [`lab/av1/bytes/colour-transform`](../../lab/av1/bytes/colour-transform/README.md)), plus `--tune-content=screen --sb-size=64` for 0–1 %. libaom's other
+controls, SVT-AV1 and YCoCg-R do not beat that. Decode (dav1d-WASM, n = 15 interleaved): the colour
+transform 0.89–0.95× row SIZE's coding, the split +1–5 % on large frames and +16–23 % on 512² MR and
+10-bit tomosynthesis — still 5–10× HTJ2K (row SPEED). **Inter pays on the colour-transformed
+ultrasound** (outside the target series and lossy-sourced, §Frame groups, Scope; *provisional, DATAGUARD: a source coded
+lossily at 12.4:1, whose repeated blocks an inter coder finds*): one keyframe in 8 frames, 0.850 of HTJ2K (GBR inter 1.355), decoding 0.81–0.83× GBR
+intra; on grey it does not (0.942–1.006 against intra's 0.902–0.987).
+*The breast family (row BREAST, [`lab/av1/bytes/breast`](../../lab/av1/bytes/breast/README.md)): inter did not pay on
+four DBT volumes at G = 8 and 16, and the one cine where it pays is a lossy recording.* Four DBT slice series from three reconstruction systems, 24–32
+slices in position order, k = 2 split, every frame exact: G = 8 and 16 are 0.963–1.054 of intra's bytes at cpu0 and
+0.998–1.050 at `good` 6 — the one gain over 2 % (a 10-bit volume at cpu0, 0.963) is a loss at `good` 6 — against
+intra's 0.942–0.945 of HTJ2K (*intra confirmed at scale, row DBTSCALE: k = 2 0.939–0.956 of HTJ2K on 13 of 15 whole
+volumes, 0.760–0.797 on two*). A breast ultrasound cine in RGB gains under 2 %. A grey one (CC BY 4.0, MPEG-4 at 512²)
+halves: G = 16 is 0.53 of intra, 0.47 of HTJ2K, decoding in 0.56 of intra's time in dav1d-WASM — but only 30–47 %
+of its samples change between frames, which is the source's lossy inter coding repeating blocks; a scanner's own
+cine is not open here (`queue.md` §Blocked), so whether inter pays on one is not measured. No ABUS volume is open.
+
+*What is left to cut (row ENCX, [`lab/av1/bytes/low-stream`](../../lab/av1/bytes/low-stream/README.md)).* On row 28's
+frames, every coding exact (358/358 codings, 7 100/7 100 frames in Chromium): **HTJ2K gains only
+0.9–1.6 % from the same split, and only with its low bits deflated** (0.984–0.991, at 1.02–1.69× its
+decode), so row 28's gain is AV1's — on the same split AV1 is 0.916–0.997 of HTJ2K. The low bits are
+near noise: **deflated (`DecompressionStream`) they cost what AV1 codes them in, ±0.5 points, and the
+frame decodes in 0.64–0.83× of row 28's time** (0.63–0.76× at 4×, dav1d-WASM, n = 10 interleaved).
+**Three low bits apart beat two on the four series whose noise σ is ≥ 17**, 0.5–3.9 % (cone-beam
+0.987 → 0.948), decoding in 0.59–0.78× — row 28 measured three only at libaom's defaults. With the top
+through WebCodecs where it is ≤ 10 bits (k = 3 brings CT and the cone-beam set there) a frame decodes
+in **0.34–0.56× of row 28's time, 2.1–3.4× HTJ2K's**. Inter coding finds nothing predictable in the
+noise (the low stream inter is 0–3.6 % larger), and libaom's remaining tools nothing (palette, already
+on, is worth 4.5–9.2 %; the rest ±1 %). What that does to total time is arithmetic until row TOTAL2. *Measured since (row TOTAL3, §Total time): the deflated low bits and k = 3 cut a grey fill by 3 % at 4× on 50 Mbit and by 0–1 % elsewhere; the deflate alone at k = 2 costs 0.4 %.*
+
+**JPEG XL (row JXL, [`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md); [`decode/README.md`](../decode/README.md) §JPEG
+XL).** libjxl 0.12.0 is exact at every effort 1–7 and `--faster_decoding` 0–4 from 8 to 16 bits. No setting is both
+smaller and as fast as HTJ2K: e1 is 0.94–1.03 of the bytes at 1.03–1.91× OpenJPH's decode in WASM, e7 f3 0.91–0.98 at
+1.56–2.45×, the default 0.81–0.96 at 5.35–10.0× (0.53 on a 16-bit film scan). Native decoding (Chromium 154 behind a
+flag, Firefox 157 behind a pref, none in WebKitGTK) returns 8-bit samples only, exact on 8-bit grey and RGB. Not
+adopted.
+
+## Frame groups
+
+**One frame, or a group of frames, as the unit.** Inter prediction (a frame coded from its
 neighbours) is where AV1 is expected to beat HTJ2K on size; intra-only AV1 against lossless HTJ2K is
 not expected to win by much. *Expected, not measured* — queue row SIZE measures it.
 
@@ -59,129 +166,20 @@ wire, the store and the server unchanged. *Built since (row GOP), the simplest f
 payload, an ask for N asks k … k+G−1, a group decodes in order on one decoder, every frame exact on a
 G = 8 and a one-group set; no wire, store or server change was needed (`adr-unit.md` §3, *Built*).
 
-*Scope (row GOPSCOPE, 2026-10-08), for everything below on groups.* **Outside the target series**
+*Scope (row GOPSCOPE, 2026-10-08), for every result on groups in this file.* **Outside the target series**
 ([`series.md`](series.md)): the fluoroscopy, MR and RGB ultrasound of row SIZE, the tomosynthesis projections of row
 TAXO (FOR PROCESSING views), and any CT or MR; their group results stand as measured and decide nothing for AV1.
 **Inside**: the DBT slice series — four volumes from three reconstruction systems (rows CONTENT and BREAST, two of
 them in both) — and the breast ultrasound cine, whose one open source is a lossy recording (row DATAGUARD); no ABUS
 or angiography is open. What was measured on DBT, and no more: libaom 3.15.1 alone, alt-ref off (exactness requires
 it), a keyframe at exactly every G, two presets; G = 1, 2, 4, 8, 16 and whole on two volumes coded whole (CONTENT),
-G = 8 and 16 only on the k = 2 split (BREAST). "Inter does not pay" below means *on those volumes, at those
+G = 8 and 16 only on the k = 2 split (BREAST). "Inter does not pay" in this file means *on those volumes, at those
 settings*; whether it pays on DBT is asked again, theory first (rows GOPTHEORY, GOPMEASURE, GOPREVIEW). *Answered
 (row GOPREVIEW): on DBT it does not, conclusively by the rule fixed before the data — 15 sound volumes from three
 systems, every series under the 20 % line (best +1.51 %), because adjacent slices share little noise (median ρ
 0.11–0.22, against the ½ inter needs); the encoder variants that gain at all (alt-ref on, SVT-AV1, up to +3.2 %) are
-lossless only on one system's 8-bit tops. Cine, ABUS and angiography stay open for want of sound data (§Frame groups
+lossless only on one system's 8-bit tops. Cine, ABUS and angiography stay open for want of sound data (row GOPMEASURE
 below; the review is `gop-theory.md` §4a on `claude/av1`).*
-
-*Measured (SIZE, libaom 3.15.1, every coding exact; [`lab/av1`](../../lab/av1/README.md) §SIZE):*
-**inter coding does not pay on any real series here** (*outside the target series, Scope above; corrected by LLSIZE: on the ultrasound it
-does once the colour is transformed, below*), and coded whole, AV1 does not beat HTJ2K —
-*corrected by DEPTH (§A3): coded as two streams, the two low bits apart, it does on every series
-over 10 bits, 0.918–0.997; and by LLSIZE: on every series, below*. Bytes over
-HTJ2K's at the slowest preset, intra → whole series: fluoroscopy (12-bit, 2 frames/s) 1.024 → 1.027,
-MR (11-bit, 3.5 mm) 1.034 → 1.062, ultrasound cine (RGB 8) 1.117 → 1.534; at a practical preset
-1.04–1.75. The smallest G that collects most of the gain is **G = 1**: there is no gain to collect
-(fluoroscopy's best group, G = 2, is 0.04 % under intra). Lossless JPEG XL, for reference, is
-0.83–0.93 of HTJ2K. CT and the cone-beam set need 13 bits — row DEPTH. Bytes therefore give G > 1
-no reason; the content measured is three series, none of them a contrast angiography run.
-*Tomosynthesis since (row CONTENT, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter still did
-not pay on two volumes, libaom, alt-ref off, two presets.* Two reconstructed volumes, 1 mm slices — the content where neighbours share most: the best
-group is 1.2 % larger than intra on the 12-bit volume and 0.6 % smaller on the 10-bit one (1.8 % at
-cpu6), against the fifth `adr-unit.md` §4 asks. Coded whole, AV1 is 1.043 of HTJ2K on the 12-bit
-volume and **0.977 on the 10-bit one — the first series where AV1 coded whole is smaller**; split
-top11+low, 0.943 and 0.946. *Confirmed at scale (row DBTSCALE, fifteen whole volumes, three systems, `allintra` 7):
-coded whole (k = 0) 1.054–1.083 on every 12-bit volume and 0.776–0.975 on every 10-bit one; split k = 2,
-0.939–0.956, and 0.760 and 0.797 on two 10-bit volumes (§The split per depth).* Still no contrast angiography run: none is open.
-*Tomosynthesis projections since (row TAXO, [`lab/av1`](../../lab/av1/README.md) §SIZE): inter
-does not pay there either* (outside the target series, Scope above). The raw views of two vendors' systems, 9 and 15 a series, 14 bits
-stored: on top11+low the best group is 0.3 % under intra on one and 0.2–0.8 % over it on the other.
-Split top12+low they are 0.952 and 0.923 of HTJ2K (§A3). No breast ultrasound cine, automated breast
-ultrasound or angiography run is reachable ([`queue.md`](queue.md) §Blocked).
-*AV1 alone under HTJ2K on every series (row LLSIZE, [`lab/av1/bytes/represented`](../../lab/av1/bytes/represented/README.md)).*
-At G = 1, libaom 3.15.1 at its slowest preset, the first 2–8 frames of all nine series, every coding
-exact: **0.902–0.987 of HTJ2K's bytes** once the samples are represented for AV1 — the two low bits
-apart at every depth over 8 (fluoroscopy 1.027 → 0.942, 12-bit tomosynthesis 1.040 → 0.941, MR
-1.013 → 0.977, 10-bit tomosynthesis 0.977 → 0.942) and JPEG 2000's reversible colour transform on
-RGB (ultrasound 1.117 → 0.962; *confirmed on sound data by row RGBNATIVE: on 48 natively stored colour
-ultrasound stills RCT is 0.54–0.66 of GBR's bytes and 0.65–0.94 of HTJ2K's, decoding in 0.65–0.90 of GBR's time,
-2.1–2.9× HTJ2K's at 1×*, [`lab/av1/bytes/colour-transform`](../../lab/av1/bytes/colour-transform/README.md)), plus `--tune-content=screen --sb-size=64` for 0–1 %. libaom's other
-controls, SVT-AV1 and YCoCg-R do not beat that. Decode (dav1d-WASM, n = 15 interleaved): the colour
-transform 0.89–0.95× row SIZE's coding, the split +1–5 % on large frames and +16–23 % on 512² MR and
-10-bit tomosynthesis — still 5–10× HTJ2K (row SPEED). **Inter pays on the colour-transformed
-ultrasound** (outside the target series and lossy-sourced, Scope above; *provisional, DATAGUARD: a source coded
-lossily at 12.4:1, whose repeated blocks an inter coder finds*): one keyframe in 8 frames, 0.850 of HTJ2K (GBR inter 1.355), decoding 0.81–0.83× GBR
-intra; on grey it does not (0.942–1.006 against intra's 0.902–0.987).
-*The breast family (row BREAST, [`lab/av1/bytes/breast`](../../lab/av1/bytes/breast/README.md)): inter did not pay on
-four DBT volumes at G = 8 and 16, and the one cine where it pays is a lossy recording.* Four DBT slice series from three reconstruction systems, 24–32
-slices in position order, k = 2 split, every frame exact: G = 8 and 16 are 0.963–1.054 of intra's bytes at cpu0 and
-0.998–1.050 at `good` 6 — the one gain over 2 % (a 10-bit volume at cpu0, 0.963) is a loss at `good` 6 — against
-intra's 0.942–0.945 of HTJ2K (*intra confirmed at scale, row DBTSCALE: k = 2 0.939–0.956 of HTJ2K on 13 of 15 whole
-volumes, 0.760–0.797 on two*). A breast ultrasound cine in RGB gains under 2 %. A grey one (CC BY 4.0, MPEG-4 at 512²)
-halves: G = 16 is 0.53 of intra, 0.47 of HTJ2K, decoding in 0.56 of intra's time in dav1d-WASM — but only 30–47 %
-of its samples change between frames, which is the source's lossy inter coding repeating blocks; a scanner's own
-cine is not open here (`queue.md` §Blocked), so whether inter pays on one is not measured. No ABUS volume is open.
-
-*What is left to cut (row ENCX, [`lab/av1/bytes/low-stream`](../../lab/av1/bytes/low-stream/README.md)).* On row 28's
-frames, every coding exact (358/358 codings, 7 100/7 100 frames in Chromium): **HTJ2K gains only
-0.9–1.6 % from the same split, and only with its low bits deflated** (0.984–0.991, at 1.02–1.69× its
-decode), so row 28's gain is AV1's — on the same split AV1 is 0.916–0.997 of HTJ2K. The low bits are
-near noise: **deflated (`DecompressionStream`) they cost what AV1 codes them in, ±0.5 points, and the
-frame decodes in 0.64–0.83× of row 28's time** (0.63–0.76× at 4×, dav1d-WASM, n = 10 interleaved).
-**Three low bits apart beat two on the four series whose noise σ is ≥ 17**, 0.5–3.9 % (cone-beam
-0.987 → 0.948), decoding in 0.59–0.78× — row 28 measured three only at libaom's defaults. With the top
-through WebCodecs where it is ≤ 10 bits (k = 3 brings CT and the cone-beam set there) a frame decodes
-in **0.34–0.56× of row 28's time, 2.1–3.4× HTJ2K's**. Inter coding finds nothing predictable in the
-noise (the low stream inter is 0–3.6 % larger), and libaom's remaining tools nothing (palette, already
-on, is worth 4.5–9.2 %; the rest ±1 %). What that does to total time is arithmetic until row TOTAL2. *Measured since (row TOTAL3, §Total time): the deflated low bits and k = 3 cut a grey fill by 3 % at 4× on 50 Mbit and by 0–1 % elsewhere; the deflate alone at k = 2 costs 0.4 %.*
-
-*What G = 1 costs an ask (SPEED's decode times × SIZE's bytes; arithmetic, not measured).* An ask is
-one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of decoding** in Chromium
-at 1×–4× (fluoroscopy 9.8 → 70 ms at 1×, 35 → 291 ms at 4×).
-
-*What it costs a fill, measured (row FILL, [`lab/av1/delivery/fill`](../../lab/av1/delivery/fill/README.md)).* Each
-series whole through the downloader with today's three decoders, the real server behind the relay
-(40 ms round trip), headless Chromium 141 at 1× and 4×; 40 rounds at 20 Mbit/s and 16 at 50,
-Williams-ordered, `VOID` visits dropped (230 of 784), n = 12–30 a cell; **40 544 of 40 544 frames
-exact**. Seconds from the fill's issue to the last frame's pixels on the page, medians (every cell's
-range within 7 %), and in brackets the ms of decoding left after the last byte arrived:
-
-| series | link | HTJ2K 1× | AV1 1× | HTJ2K 4× | AV1 4× |
-| --- | --- | --: | --: | --: | --: |
-| fluoroscopy, 18 × 768², 12-bit | 20 Mbit | 3.93 (10) | 4.07 (66) | 3.95 (34) | 4.28 (274) |
-| | 50 Mbit | 1.72 (10) | 1.82 (72) | 1.75 (38) | **2.36 (604)** |
-| MR, 58 × 512², 11 bits | 20 Mbit | 4.56 (5) | 4.72 (25) | 4.57 (16) | 4.79 (94) |
-| | 50 Mbit | 1.97 (6) | 2.06 (24) | 1.99 (20) | **2.53 (503)** |
-| ultrasound, 70 × 760×421, RGB 8 | 20 Mbit | 7.49 (9) | 8.38 (45) | 7.51 (32) | 8.52 (182) |
-| | 50 Mbit | 3.15 (10) | 3.53 (44) | 3.17 (34) | **5.34 (1 854)** |
-
-AV1 is slower in all 174 round-paired fills. **At 1× both codecs fill at the wire's pace**: AV1's
-decoding ends 24–72 ms after its last byte, and what it costs is its extra bytes, +86 to +895 ms
-(+4–12 %). **At 4× on the 50 Mbit link AV1 is the fill's clock on every series and HTJ2K on none**:
-0.5–1.9 s of decoding after the last byte against HTJ2K's 20–38 ms, the fill +27 % (MR), +35 %
-(fluoroscopy) and +68 % (ultrasound) over HTJ2K's; at 20 Mbit its decoders fall 94–274 ms behind.
-That is the verdict the arithmetic gave, but its sizes were optimistic: it set the decoders' total
-time against the wire's (0.2–1.4 s apart) as if every decode overlapped a frame still arriving.
-WebCodecs on the ultrasound, its one exact series, keeps up — 3.60 s (116) at 4× and 50 Mbit, 8.45
-(115) at 20; 3.52 (38) and 8.37 (36) at 1× — so there its fill is AV1's bytes alone. A container's
-4 cores, the browser on 3 of them and the relay alone on the fourth; not a phone.
-
-*Cutting the decode (row DECSPEED, [`lab/av1/decode/settings`](../../lab/av1/decode/settings/README.md)): tiles
-and threads cut a frame's latency, not a fill's.* A lossless frame's decode is 66–84 % entropy
-decoding (a profile of dav1d-WASM), serial within a tile. No encoder setting cuts it by more than
-10 %: presets, 64² superblocks, and every optional intra tool off, at +6–72 % bytes. dav1d's threads
-do nothing without tiles. With 4 tile columns (+0.1–0.4 % bytes) and 3 threads, one frame decodes in
-0.37–0.44 of its time: 29 against 76 ms on the fluoroscopy at 1×, 116 against 314 at 4×. That is
-still 2.6–2.9× HTJ2K's. Through the fill at 50 Mbit, 12 rounds, 487 of 504 visits kept and all 24 528
-frames exact, the gain goes away at 4×. Here 4× is three slowed cores for the whole browser, as a
-phone has, which is stricter than row FILL's quarter-core per thread. Seven arms ran: today's
-3 decoders; 6 decoders; and the tiled frames on 1 decoder × 3 threads, 2 × 2, 3 × 2 and 3 × 3. They
-end within −3 to +4 % of each other on the fluoroscopy and ultrasound, and the oversubscribed arms
-are worst on the MR (+11–15 %). The cores are the clock, and threads only move the same work between
-them. **The best combination is 1 decoder × 3 threads on 4-tile frames**: 1.83×, 1.81× and 2.39× HTJ2K's
-fill at 4× (3.21, 3.60, 7.62 s against 1.75, 1.99, 3.18), against today's 1.82×, 1.86× and 2.32×.
-At 1× it ends 20–40 ms sooner. What it buys is an ask's single frame at 0.37–0.44 of
-the time; a fill's total stays where the decoder's CPU work puts it. Containers, not phones.
 
 **Frame groups, to a rule fixed before the data (row GOPMEASURE, 2026-10-08,
 [`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md)).** On the middle 16 slices of 15 sound DBT volumes, five
@@ -192,7 +190,19 @@ streams they gain at most +3.19 % and +2.43 %. Every G > 1 also misses the rule'
 decode a split series in groups at all (its low unit flushes the top's references). Breast
 ultrasound cine, ABUS and angiography runs have no sound data here and get no decision.
 
-**A2 — which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
+## Exactness and the decoders
+
+**Encoders (row TOOL, synthetic frames; [`lab/av1/README.md`](../../lab/av1/README.md)).** The
+libaom fault of §Prior evidence reproduces, and **3.15.1 has it too**: with default settings, inter-coded grey
+at 10 and 12 bits came back wrong on 1–8 of 16 frames (|Δ| ≤ 2 at 10 bits, ≤ 11 at 12), never on a
+keyframe, identically from dav1d and aomdec. It goes with the alt-ref frames: with
+`--auto-alt-ref=0` every cell — grey 8/10/12 as 4:0:0 and RGB 8 as 4:4:4, intra and inter, both
+versions, two presets — is exact. libaom 3.15.1 is pinned. SVT-AV1 v4.2.0 codes 4:2:0 at 8 and 10
+bits only, and its 10-bit inter stays inexact under every setting tried; rav1e 0.7.1 has no lossless
+mode. 12-bit 4:4:4 behaves alike on 3.8.2; 3.15.1's `aomenc` cannot encode it at all. Every SIZE
+encode of row DATA's series re-checks exactness on real content.
+
+**Which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.
 Neither is assumed faster or exact:
 
@@ -211,6 +221,17 @@ Neither is assumed faster or exact:
 * one decoder for everything is the simplest shape; a second path earns its place by a measured
   win, interleaved, on the frames it would serve.
 
+```
+payload ── parsePayload (av1-payload.js): header, units, every malformed case refused by name
+   │
+   ├─ every stream ≤ 10 bits and its layout's probe passed ── WebCodecs (av1-webcodecs.js) ──┐
+   └─ otherwise, or WebCodecs failed on it ─────────────────── dav1d-WASM (av1-dav1d.js) ───┤
+                                                                                          │
+   av1-frame.js: the top and the low merged, the colour transform and the offset undone ◄─┘
+   │
+   └─ decoder.js's contract: {pixels, width, bits, signed, range}, exact or a failure by name
+```
+
 **dav1d in WASM is exact** (row WASM, [`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md)):
 dav1d 1.5.4 under emscripten 3.1.74, scalar, `-msimd128` and `-msimd128 -pthread` (four threads),
 matches the native dav1d CLI and a second native build with assembly on every frame of 12 lossless
@@ -224,25 +245,44 @@ with `VideoDecoder`, dav1d-WASM for every other, the top10+low split and a signe
 undone by both; exact through the downloader in headless Chromium 141, not timed there
 ([`decode/README.md`](../decode/README.md) §WebCodecs, the decoder the client runs).
 
+## Decode time and memory
+
 **Decode time, measured (SPEED, [`decode/README.md`](../decode/README.md) §Decode time against
 HTJ2K):** the product's worker, the same 18 frames of three real series, 16 interleaved rounds, Node
 and Chromium 141, 1× and 4×, every frame exact. dav1d-WASM takes **5.4–9.7× OpenJPH's time** a frame
 — 70 against 9.8 ms on 12-bit fluoroscopy in Chromium, 26 against 4.9 on MR, 48 against 7.9 on RGB
 ultrasound — slower in all 224 paired rounds, and dav1d itself is ~90 % of it. WebCodecs, on the one
 series it decodes exactly (8-bit), is 1.55× faster than dav1d-WASM and still 4.1–4.2× OpenJPH. So
-neither AV1 path wins on decode, and with §A1's bytes AV1 at G = 1 wins on nothing on this content:
+neither AV1 path wins on decode, and with its bytes (§Bytes) AV1 at G = 1 wins on nothing on this content:
 by [`adr-unit.md`](adr-unit.md) §4's rule it does not earn its place. Whether the phase continues is
 the owner's call; DEPTH (CT, cone-beam) is the content not yet measured. Container figures, not a
-phone's. *DEPTH since (§A3):* split into two streams, AV1 is 0.3–8 % under HTJ2K's bytes on the four
+phone's. *DEPTH since (§Samples over 12 bits):* split into two streams, AV1 is 0.3–8 % under HTJ2K's bytes on the four
 series over 10 bits (CT 0.918) — the one place it wins, set against a decode SPEED measures at
 5–10× (a split's two streams decode natively in the time of one; not timed in WASM). *SPLIT10 since
-(§A3):* timed in Chromium, top11+low through dav1d-WASM is 5.7–8.2× OpenJPH and top10+low through
+(§Samples over 12 bits):* timed in Chromium, top11+low through dav1d-WASM is 5.7–8.2× OpenJPH and top10+low through
 WebCodecs 2.6–3.9×. *XBROWSER since:* in Firefox 157 and WebKitGTK 2.52 the
 client's choice of WebCodecs fails every frame of every series that says `depth` ≤ 10 (Firefox
 refuses monochrome AV1 and returns 4:4:4 as 8-bit `BGRX`; WebKitGTK's GStreamer decodes no AV1
 here), with no fallback to dav1d-WASM (*since row 39 there is one, and a per-layout probe; not re-run
 in those engines*); dav1d-WASM and OpenJPH are exact in all three engines, at
 4–10× apart as in Chromium ([`decode/README.md`](../decode/README.md) §AV1 in WebKit and Firefox).
+
+*Cutting the decode (row DECSPEED, [`lab/av1/decode/settings`](../../lab/av1/decode/settings/README.md)): tiles
+and threads cut a frame's latency, not a fill's.* A lossless frame's decode is 66–84 % entropy
+decoding (a profile of dav1d-WASM), serial within a tile. No encoder setting cuts it by more than
+10 %: presets, 64² superblocks, and every optional intra tool off, at +6–72 % bytes. dav1d's threads
+do nothing without tiles. With 4 tile columns (+0.1–0.4 % bytes) and 3 threads, one frame decodes in
+0.37–0.44 of its time: 29 against 76 ms on the fluoroscopy at 1×, 116 against 314 at 4×. That is
+still 2.6–2.9× HTJ2K's. Through the fill at 50 Mbit, 12 rounds, 487 of 504 visits kept and all 24 528
+frames exact, the gain goes away at 4×. Here 4× is three slowed cores for the whole browser, as a
+phone has, which is stricter than row FILL's quarter-core per thread. Seven arms ran: today's
+3 decoders; 6 decoders; and the tiled frames on 1 decoder × 3 threads, 2 × 2, 3 × 2 and 3 × 3. They
+end within −3 to +4 % of each other on the fluoroscopy and ultrasound, and the oversubscribed arms
+are worst on the MR (+11–15 %). The cores are the clock, and threads only move the same work between
+them. **The best combination is 1 decoder × 3 threads on 4-tile frames**: 1.83×, 1.81× and 2.39× HTJ2K's
+fill at 4× (3.21, 3.60, 7.62 s against 1.75, 1.99, 3.18), against today's 1.82×, 1.86× and 2.32×.
+At 1× it ends 20–40 ms sooner. What it buys is an ask's single frame at 0.37–0.44 of
+the time; a fill's total stays where the decoder's CPU work puts it. Containers, not phones.
 
 **Memory and first use (FOOTPRINT, [`lab/av1/decode/memory`](../../lab/av1/decode/memory/README.md)):** the
 product's worker in headless Chromium 141, the largest frames here (14-bit projections, 4.92 M samples,
@@ -261,7 +301,9 @@ the largest frames and a first frame about as late as HTJ2K's, both small beside
 (645 against 67 ms a projection at 1×). Desktop figures; a phone's memory is these bytes, its time is
 not.
 
-**A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
+## Samples over 12 bits, and signed samples
+
+**What AV1 cannot code in one stream.** AV1 codes at most 12 bits a sample and only
 unsigned. Signed data is offset by 2^(B−1), which is reversible (*corrected 2026-10-05: what was built and
 measured is an offset of −min of the series, 0 when it has no negative sample — `lab/av1/size.py` `Set.offset`,
 [`payload-format.md`](payload-format.md) §Representation; 2^(B−1) is the shift HTJ2K's and JPEG XL's inputs get, `size.py`
@@ -433,7 +475,9 @@ bits HTJ2K on every cell** (w10 1.02–1.16, d12 1.08–3.11). The adopted k = 2
 loses only at 9 bits (to the whole samples) and at 13 (to k = 3) — adopted by row 72 as ingest's rule,
 [`payload-format.md`](payload-format.md) §The split per depth. Containers, not phones.
 
-**A4 — content.** The synthetic sets add independent noise to every frame
+## Content
+
+**What the verdicts rest on.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
 modality. Row DATA brings public, freely licensed series fetched at run time (checksummed, never
 committed); a size verdict names its content. They are a CT stack, an MR stack, an RGB ultrasound
@@ -441,7 +485,9 @@ cine, a 12-bit fluoroscopy run, a 16-bit cone-beam volume and, from row CONTENT,
 tomosynthesis volumes (12- and 10-bit), all CC BY ([`FIXTURES.md`](../FIXTURES.md) §AV1 data); no
 open angiography run was found, re-checked by CONTENT.
 
-**A5 — Preview.** The rule is that every frame ends bit-exact; a lossy picture shown first and
+## Preview
+
+**A lossy picture first.** The rule is that every frame ends bit-exact; a lossy picture shown first and
 replaced by the exact frame keeps it. Whether a lossy first picture is acceptable in the product is
 the owner's ruling, not a measurement's. *Measured (PREVIEW; [`lab/av1/delivery/preview`](../../lab/av1/delivery/preview/README.md)),
 fluoroscopy and the ultrasound cine; no angiography run was available:*
@@ -574,7 +620,75 @@ unreachable, and the decoder stops at 14, so the 13-bit CT and cone-beam cannot 
 is possible: **no open LCEVC encoder exists**, the web decoder draws 8-bit RGBA through WebGL with no
 samples back, and the decoder's BSD-3-Clause-Clear licence grants no patents ([`licensing.md`](licensing.md)).
 
-## Total time (row TOTAL, [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md))
+*Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where the phase stands): the
+preview plus an HTJ2K residual, the separate preview then exact HTJ2K, the embedded intra codecs and LCEVC — each
+measured above.
+
+## Encoding
+
+**Encode cost (row ENC; [`lab/av1/bytes`](../../lab/av1/bytes/README.md) §ENC).** libaom 3.15.1
+lossless on one uncontended container core: the slowest preset takes 3.0–11.1 s a frame; the fastest
+intra preset within 2 % of its bytes 0.35–1.6 s (0.6–2.9 frames/s) on six sets and the slowest itself
+on the RGB ultrasound (7.2 s). 30 frames/s of 512² lossless is reached only at `--allintra` 9, on MR
+and CT, costing 5–19 % in bytes and landing above HTJ2K's; `ojph_compress` encodes 58–136 frames/s
+into fewer bytes. Real-time inter (`--rt`, no alt-ref) is exact at 10–13 bits, and on the 10-bit
+tomosynthesis it is the smallest AV1 coding, 0.94 of HTJ2K at 5.5–9.6 frames/s.
+
+**The real-time scalable encoder (row SVC; [`lab/av1/delivery/scalable/encoder`](../../lab/av1/delivery/scalable/encoder/README.md)).**
+libaom 3.15.1's `svc_encoder_rtc` at quantizer 0 (`--min-q=0 --max-q=0`, no hook needed) is
+**exact in every cell it can encode**: grey 4:0:0 and RGB 4:4:4 at 8, 10 and 12 bits, L1T1 to L3T3
+(scaled and full-size spatial layers), speeds 7 and 10, on synthetic frames and on the fluoroscopy,
+MR and ultrasound series — 418 layers, 10 436 frames, each operating point decoded alone by dav1d.
+The stock example encodes 8- and 10-bit 4:2:0 only; 12-bit, 4:4:4 and 4:0:0 need a patch to its
+command line (the library unchanged), kept in the lab. A downscaled layer has no truth outside the
+encoder and is not compared. Lossless here costs 1.07–1.58 of HTJ2K's bytes at L1T1.
+
+**Newer tools (row VERSIONS; [`lab/av1/tools/newer`](../../lab/av1/tools/newer/README.md)), read 2026-10-07.** No
+libaom, SVT-AV1 or dav1d release followed our pins (3.15.1, v4.2.0, 1.5.4). **libaom's head (`4cea455c`) writes
+the same bytes as 3.15.1** on all 22 breast and control cells, cpu0 and the shipped preset (80/80 payloads
+identical, every one exact). dav1d's head and emscripten 6.0.11 tie on dav1d-WASM decode (pooled 0.98–1.01,
+Chromium 141 and 154, 1× and 4×). OpenJPH under emscripten 6.0.11 is 0.94–0.96 of 3.1.74's time pooled, inside
+this harness's spread at 6 rounds; not adopted. OpenJPH 0.32.0 fixes a WASM decoder mask that breaks 24-bit
+reversible code-blocks; ≤ 16-bit data cannot reach it (deep-bit-plane frames exact on both, 12/12). Chromium 154
+still refuses 12-bit AV1 in WebCodecs, now read from its source: its key-frame check parses with a libgav1 built
+for 10 bits. 8 640/8 640 frames exact. Nothing adopted, no pin changed.
+
+## Total time
+
+### What decoding costs a fill (row FILL, [`lab/av1/delivery/fill`](../../lab/av1/delivery/fill/README.md))
+
+*What G = 1 costs an ask (SPEED's decode times × SIZE's bytes; arithmetic, not measured).* An ask is
+one frame either way: AV1 adds 2–12 % of a frame's bytes and **20–260 ms of decoding** in Chromium
+at 1×–4× (fluoroscopy 9.8 → 70 ms at 1×, 35 → 291 ms at 4×).
+
+*What it costs a fill, measured (row FILL, [`lab/av1/delivery/fill`](../../lab/av1/delivery/fill/README.md)).* Each
+series whole through the downloader with today's three decoders, the real server behind the relay
+(40 ms round trip), headless Chromium 141 at 1× and 4×; 40 rounds at 20 Mbit/s and 16 at 50,
+Williams-ordered, `VOID` visits dropped (230 of 784), n = 12–30 a cell; **40 544 of 40 544 frames
+exact**. Seconds from the fill's issue to the last frame's pixels on the page, medians (every cell's
+range within 7 %), and in brackets the ms of decoding left after the last byte arrived:
+
+| series | link | HTJ2K 1× | AV1 1× | HTJ2K 4× | AV1 4× |
+| --- | --- | --: | --: | --: | --: |
+| fluoroscopy, 18 × 768², 12-bit | 20 Mbit | 3.93 (10) | 4.07 (66) | 3.95 (34) | 4.28 (274) |
+| | 50 Mbit | 1.72 (10) | 1.82 (72) | 1.75 (38) | **2.36 (604)** |
+| MR, 58 × 512², 11 bits | 20 Mbit | 4.56 (5) | 4.72 (25) | 4.57 (16) | 4.79 (94) |
+| | 50 Mbit | 1.97 (6) | 2.06 (24) | 1.99 (20) | **2.53 (503)** |
+| ultrasound, 70 × 760×421, RGB 8 | 20 Mbit | 7.49 (9) | 8.38 (45) | 7.51 (32) | 8.52 (182) |
+| | 50 Mbit | 3.15 (10) | 3.53 (44) | 3.17 (34) | **5.34 (1 854)** |
+
+AV1 is slower in all 174 round-paired fills. **At 1× both codecs fill at the wire's pace**: AV1's
+decoding ends 24–72 ms after its last byte, and what it costs is its extra bytes, +86 to +895 ms
+(+4–12 %). **At 4× on the 50 Mbit link AV1 is the fill's clock on every series and HTJ2K on none**:
+0.5–1.9 s of decoding after the last byte against HTJ2K's 20–38 ms, the fill +27 % (MR), +35 %
+(fluoroscopy) and +68 % (ultrasound) over HTJ2K's; at 20 Mbit its decoders fall 94–274 ms behind.
+That is the verdict the arithmetic gave, but its sizes were optimistic: it set the decoders' total
+time against the wire's (0.2–1.4 s apart) as if every decode overlapped a frame still arriving.
+WebCodecs on the ultrasound, its one exact series, keeps up — 3.60 s (116) at 4× and 50 Mbit, 8.45
+(115) at 20; 3.52 (38) and 8.37 (36) at 1× — so there its fill is AV1's bytes alone. A container's
+4 cores, the browser on 3 of them and the relay alone on the fourth; not a phone.
+
+### Every exact form, five links (row TOTAL, [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md))
 
 The measure that decided against AV1 before, now with every form this queue made exact. Each arm
 fills a whole series through the downloader against the real server behind the relay. The browser
@@ -976,23 +1090,7 @@ the wire is slower than the decoder, and HTJ2K wherever a slow CPU meets a fast 
 than Chromium's. A rule by link or by client would need the server to know them; that is a product call
 (the queue's §Blocked).
 
-## Threads (owner, 2026-10-03)
-
-**Focus: AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
-use, and where the learning is. Active threads are queue rows 24–29 ([`queue.md`](queue.md)).
-
-**Parked, kept for the decision later** — every result stays in its row and in §A1–A5:
-
-* **A lossy AV1 preview plus an HTJ2K residual** (row 17): the exact frame at 0.947–1.002 of HTJ2K
-  alone, the preview costing nothing in bytes; decode 1.3–1.9× HTJ2K through WebCodecs.
-* **A separate lossy AV1 preview, then exact HTJ2K** (row 12): playable 14–124× sooner on 5 Mbit/s
-  (arithmetic over measured bytes and decode), +0.8–7 % bytes.
-* **Embedded intra codecs** (row 22): JPEG 2000 quality layers (preview inside the exact payload,
-  0.93–0.96 of HTJ2K's bytes, exact decode 6–12× slower); progressive lossless JPEG XL.
-* **LCEVC** (row 19): closed until an open encoder exists and the decoder returns samples; cannot end
-  exact at 14 bits.
-
-## Options to try (row SWEEP, 2026-10-03)
+## Options read from the sources (row SWEEP, 2026-10-03)
 
 Read from primary sources, nothing run: the AV1 spec (`AOMediaCodec/av1-spec` `5e04f3f`), dav1d
 1.5.4's source, libaom 3.15.1's, Chromium (`d84e3b8`), WebKit (`10740b3`), Android's framework
@@ -1019,7 +1117,7 @@ layers on the wire — are not repeated.
   (`src/lib.c`, `output_picture_ready`). So a client that drops the top's OBUs should get the base
   out of a native decoder 2–3× faster than dav1d-WASM (SPLIT10). Decides: the base out, identical to
   native dav1d's at the base operating point, then the whole unit exact. Container: yes.
-  *Measured (row WCBASE, §A5): exact, and 0.36–0.76× dav1d-WASM's base at 4×; slower on small grey
+  *Measured (row WCBASE, §Preview): exact, and 0.36–0.76× dav1d-WASM's base at 4×; slower on small grey
   bases at 1×.*
 * **AV2.** AVM v1.0.0 was tagged 2026-05-27 (BSD-3-Clause-Clear) and the specification announced
   2026-06-09. Its encoder has `--lossless`, `--monochrome`, 10/12-bit coding, 1–16 operating-point
@@ -1027,7 +1125,7 @@ layers on the wire — are not repeated.
   here* (the specification's and AOMedia's hosts are refused by this container). No browser decoder
   exists. Decides: lossless bytes against libaom 3.15.1 and HTJ2K on the same series, exact, and the
   reference decoder's time. Container: yes, natively.
-  *Measured since (row AV2, [`lab/av1`](../../lab/av1/README.md) §AV2), one middle frame a series:*
+  *Measured since (row AV2, [`lab/av1/bytes`](../../lab/av1/bytes/README.md) §AV2), one middle frame a series:*
   AV2 has no profile over 10 bits, so it codes 11–14-bit samples split. On grey up to 13 bits but
   CT it is the smallest coding here, 0.937–0.964 of HTJ2K and 0.4–4.7 % under libaom on the same
   planes; libaom's 12-bit split stays 3–8 % smaller on CT and the 14-bit projections. The RGB
@@ -1048,7 +1146,7 @@ layers on the wire — are not repeated.
 * **Reference scaling** (a reference between ½ and 16× the frame's size) is what the scalable
   encoder's spatial layers already use (rows 15, 18, 25).
 * **dav1d's `decode_frame_type`** (keyframes or intra frames only) and intra-only frames help a
-  scrub only at G > 1, which no series' bytes justify (§A1); an intra-only frame is not a random
+  scrub only at G > 1, which no series' bytes justify (§Frame groups); an intra-only frame is not a random
   access point (only a key frame resets the references).
 * **WebCodecs' AV1 encoder** takes a per-frame quantizer 0–255 in the browser: not this path.
 * **The order of layers on the wire** needs no AV1 parsing beyond the OBU header's `spatial_id`;
@@ -1061,7 +1159,7 @@ at level 4.1, whose 2 359 296-sample picture limit is under both tomosynthesis p
 2.6 M samples need level 5.0). WebKit's in-process WebCodecs AV1 decoder is dav1d behind a wrapper
 that refuses anything but 8-bit 4:2:0 — so 4:0:0 and 10 bits fail there — unless the GPU process
 substitutes a hardware one, which was not traced. Whether a hardware decoder's read-back is exact is
-per platform (§A2). The client asks for `prefer-software`, so Chromium on a phone should run dav1d, as
+per platform (§Exactness and the decoders). The client asks for `prefer-software`, so Chromium on a phone should run dav1d, as
 here; not checked on one.
 
 ## Prior evidence, not reproduced here
@@ -1074,7 +1172,7 @@ repository** and are recorded only so the queue tests them rather than rediscove
   stack of 24, HTJ2K 4.78 MB against AV1 intra 4.79 and inter 4.95; the median over 73 series,
   HTJ2K 0.138, AV1 intra 0.124, AV1 inter 0.106 (lossless JPEG XL 0.090, for reference).
   *Not reproduced here (SIZE)*: on the three real series AV1 lossless coded whole, intra or inter,
-  is 2–53 % larger than HTJ2K at libaom's slowest preset (§A1) — split (§A3), 1–8 % smaller on the
+  is 2–53 % larger than HTJ2K at libaom's slowest preset (§Bytes) — split (§Samples over 12 bits), 1–8 % smaller on the
   series over 10 bits; the settings and series behind those medians are not known here.
 * **libaom's lossless mode was not always lossless.** With libaom 3.8.2, inter-coded 10- and 12-bit
   grey came back wrong on P-frames (up to 38 of 6.3 M samples, |Δ| ≤ 11), the same from two
@@ -1082,7 +1180,7 @@ repository** and are recorded only so the queue tests them rather than rediscove
   passed its own lossless cases, but the failing grey clips were never re-run on it.
   *Reproduced here* with the same 3.8.2 through ffmpeg: inter (G = 8) 10- and 12-bit grey and 12-bit
   4:4:4 inexact (up to 15 904 of 1 M samples, |Δ| ≤ 11), three decoders agreeing — [`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md). 3.15.1
-  has it too, and `--auto-alt-ref=0` cures both (§Measured here).
+  has it too, and `--auto-alt-ref=0` cures both (§Exactness and the decoders).
 * **WebCodecs on Chromium returned no frames from lossless streams** (Main 4:2:0 and High 4:4:4,
   8-bit), with `isConfigSupported` answering true; whether that was the probe's packaging was not
   settled. *Not reproduced here (WCAP):* both cells decode exactly in Chromium 141. Lossless is not
@@ -1093,12 +1191,12 @@ repository** and are recorded only so the queue tests them rather than rediscove
 * **dav1d in WASM decoded an 8-bit 4:4:4 clip exactly** in a browser over WebTransport (dav1d 1.5.0,
   no SIMD, one thread). Nothing above 8 bits or 4:0:0 was decoded in WASM, and no WASM decode time
   was taken.
-  *Superseded here*: 8/10/12-bit, 4:0:0 and 4:4:4, SIMD and threads, exact (§A2).
+  *Superseded here*: 8/10/12-bit, 4:0:0 and 4:4:4, SIMD and threads, exact (§Exactness and the decoders).
 * **Decode cost is the risk to watch**: on a desktop, through a subprocess (pessimistic), AV1 took
   12–14 ms a frame against HTJ2K's 1.2. The fill here is decoder-bound, so a slower decoder costs
   the fill directly, whatever it saves on the wire.
   *Reproduced here in size (SPEED)*: dav1d-WASM 5.4–9.7× OpenJPH a frame in the product's
-  worker, WebCodecs 4.1–4.2× (§A2).
+  worker, WebCodecs 4.1–4.2× (§Decode time and memory).
 * **Lossless AV1 about 31 % below HTJ2K on 10-bit data.** *Corrected 2026-10-07 (POCGAP):* a median over
   unpaired fixtures — the owner's local reproduction found four 10-bit fixtures coded only in HTJ2K, and paired
   fixture by fixture AV1 ÷ HTJ2K was 0.961 there (not measured here). *Measured here*, the first 4 frames of the
@@ -1110,60 +1208,3 @@ repository** and are recorded only so the queue tests them rather than rediscove
   The two further series the row named are not CC BY or CC0 (queue §Blocked) —
   [`lab/av1/bytes/prior-gap`](../../lab/av1/bytes/prior-gap/README.md).
 * Signed CT there spanned −1024..2461, which fits 12 bits after a +1024 offset; it was not tried.
-
-## Measured here
-
-**Encoders (row TOOL, synthetic frames; [`lab/av1/README.md`](../../lab/av1/README.md)).** The
-libaom fault above reproduces, and **3.15.1 has it too**: with default settings, inter-coded grey
-at 10 and 12 bits came back wrong on 1–8 of 16 frames (|Δ| ≤ 2 at 10 bits, ≤ 11 at 12), never on a
-keyframe, identically from dav1d and aomdec. It goes with the alt-ref frames: with
-`--auto-alt-ref=0` every cell — grey 8/10/12 as 4:0:0 and RGB 8 as 4:4:4, intra and inter, both
-versions, two presets — is exact. libaom 3.15.1 is pinned. SVT-AV1 v4.2.0 codes 4:2:0 at 8 and 10
-bits only, and its 10-bit inter stays inexact under every setting tried; rav1e 0.7.1 has no lossless
-mode. 12-bit 4:4:4 behaves alike on 3.8.2; 3.15.1's `aomenc` cannot encode it at all. Every SIZE
-encode of row DATA's series re-checks exactness on real content.
-
-**Encode cost (row ENC; [`lab/av1/README.md`](../../lab/av1/README.md) §ENC).** libaom 3.15.1
-lossless on one uncontended container core: the slowest preset takes 3.0–11.1 s a frame; the fastest
-intra preset within 2 % of its bytes 0.35–1.6 s (0.6–2.9 frames/s) on six sets and the slowest itself
-on the RGB ultrasound (7.2 s). 30 frames/s of 512² lossless is reached only at `--allintra` 9, on MR
-and CT, costing 5–19 % in bytes and landing above HTJ2K's; `ojph_compress` encodes 58–136 frames/s
-into fewer bytes. Real-time inter (`--rt`, no alt-ref) is exact at 10–13 bits, and on the 10-bit
-tomosynthesis it is the smallest AV1 coding, 0.94 of HTJ2K at 5.5–9.6 frames/s.
-
-**The real-time scalable encoder (row SVC; [`lab/av1/delivery/scalable/encoder`](../../lab/av1/delivery/scalable/encoder/README.md)).**
-libaom 3.15.1's `svc_encoder_rtc` at quantizer 0 (`--min-q=0 --max-q=0`, no hook needed) is
-**exact in every cell it can encode**: grey 4:0:0 and RGB 4:4:4 at 8, 10 and 12 bits, L1T1 to L3T3
-(scaled and full-size spatial layers), speeds 7 and 10, on synthetic frames and on the fluoroscopy,
-MR and ultrasound series — 418 layers, 10 436 frames, each operating point decoded alone by dav1d.
-The stock example encodes 8- and 10-bit 4:2:0 only; 12-bit, 4:4:4 and 4:0:0 need a patch to its
-command line (the library unchanged), kept in the lab. A downscaled layer has no truth outside the
-encoder and is not compared. Lossless here costs 1.07–1.58 of HTJ2K's bytes at L1T1.
-
-**Newer tools (row VERSIONS; [`lab/av1/tools/newer`](../../lab/av1/tools/newer/README.md)), read 2026-10-07.** No
-libaom, SVT-AV1 or dav1d release followed our pins (3.15.1, v4.2.0, 1.5.4). **libaom's head (`4cea455c`) writes
-the same bytes as 3.15.1** on all 22 breast and control cells, cpu0 and the shipped preset (80/80 payloads
-identical, every one exact). dav1d's head and emscripten 6.0.11 tie on dav1d-WASM decode (pooled 0.98–1.01,
-Chromium 141 and 154, 1× and 4×). OpenJPH under emscripten 6.0.11 is 0.94–0.96 of 3.1.74's time pooled, inside
-this harness's spread at 6 rounds; not adopted. OpenJPH 0.32.0 fixes a WASM decoder mask that breaks 24-bit
-reversible code-blocks; ≤ 16-bit data cannot reach it (deep-bit-plane frames exact on both, 12/12). Chromium 154
-still refuses 12-bit AV1 in WebCodecs, now read from its source: its key-frame check parses with a libgav1 built
-for 10 bits. 8 640/8 640 frames exact. Nothing adopted, no pin changed.
-
-**JPEG XL (row JXL, [`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md); [`decode/README.md`](../decode/README.md) §JPEG
-XL).** libjxl 0.12.0 is exact at every effort 1–7 and `--faster_decoding` 0–4 from 8 to 16 bits. No setting is both
-smaller and as fast as HTJ2K: e1 is 0.94–1.03 of the bytes at 1.03–1.91× OpenJPH's decode in WASM, e7 f3 0.91–0.98 at
-1.56–2.45×, the default 0.81–0.96 at 5.35–10.0× (0.53 on a 16-bit film scan). Native decoding (Chromium 154 behind a
-flag, Firefox 157 behind a pref, none in WebKitGTK) returns 8-bit samples only, exact on 8-bit grey and RGB. Not
-adopted.
-
-## Decided
-
-* **Bit-exact or nothing**: a codec, depth or decoder path that does not round-trip exactly is not
-  used for that series. Ground truth is the encoder's input, never a decoder under test (as for
-  HTJ2K, [`decode/README.md`](../decode/README.md) §Ground truth).
-* **The codec belongs to the series**, carried in its metadata; the envelope stays opaque.
-* **AV1 frames are this project's own format**: DICOM defines no AV1 transfer syntax, and the store
-  is not DICOM ([`licensing.md`](licensing.md) §DICOM).
-* **Everything here is MIT-compatible open source** ([`licensing.md`](licensing.md)); no code from
-  any other viewer or private project enters this repository.

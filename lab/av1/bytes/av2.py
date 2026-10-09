@@ -6,7 +6,7 @@ low bits in an 8-bit one. Each coding is decoded by its codec's own decoder, mer
 with the checksum written when the frame was made; an inexact cell is reported, its bytes unused.
 
 usage: [AV2_FRAMES=1] [AV2_GROUPS=set:G,...] [AV2_PRESETS=0,6] [AV2_JOBS=4]
-       av2.py BUILD WORK OUT.tsv ROUNDS SETDIR ...   — lab/av1/README.md §AV2
+       av2.py BUILD WORK OUT.tsv ROUNDS SETDIR ...   — lab/av1/bytes/README.md §AV2
 """
 import json
 import os

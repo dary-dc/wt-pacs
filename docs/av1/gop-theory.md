@@ -18,7 +18,7 @@ marked *unverified*.
   lossless ([S2] `encode_strategy.c:746-757`). The filtered alt-ref is coded and never shown; the real frame follows
   as an overlay (`encode_strategy.c:78-99`). Lossless costs one hidden frame per group, and no rule of the
   encoder makes the hidden frame pay for itself. The lab found inter inexact at 10 and 12 bits with alt-ref on and
-  exact with it off ([`README.md`](README.md) §Measured here), so every exact inter coding here so far had alt-ref off.
+  exact with it off ([`README.md`](README.md) §Exactness and the decoders), so every exact inter coding here so far had alt-ref off.
 * **SVT-AV1 v4.2.0 switches temporal filtering off under lossless** ([S3] `enc_handle.c:3256`). It has no intra-only
   restriction, and 8 and 10 bits are intended ([S3] CHANGELOG v3.1.1). The lab found it exact only on grey 8 and on
   intra grey 10 (row TOOL), so where it is inexact the measurement reports it and does not use it.
@@ -69,7 +69,7 @@ Two consequences are checkable without an encoder:
 * **Prior evidence.** 3-D JPEG 2000 across all slices gained 3 % over single frames on 25 DBT objects from one system,
   most of it already with a 10-slice slab [S10], from slides that were not peer-reviewed. In the lab, rows CONTENT
   and BREAST measured groups on four volumes at −3.7 to +5.4 % of intra, with libaom only and alt-ref off
-  ([`README.md`](README.md) §A1, Scope).
+  ([`README.md`](README.md) §Frame groups, Scope).
 * **The general literature** finds lossless inter-slice gains large on CT, dynamic 4-D data and fMRI ([S11], [S12],
   [S13]), small on MRI [S14], and up to 15 % over single-frame coders with dedicated 3-D predictors [S15]. Each
   depends on how much of the next slice the previous one predicts.
@@ -85,7 +85,7 @@ Two consequences are checkable without an encoder:
 * **Limits.** Electronic noise is independent from frame to frame. Real tissue rarely gives fully developed speckle
   [S16]. No peer-reviewed lossless figure was found for ultrasound cine (*unverified*).
 * **The lab's only clip says nothing.** It was MPEG-4 and repeated blocks exactly, so its −47 % is the clip's
-  ([`README.md`](README.md) §A1, Scope).
+  ([`README.md`](README.md) §Frame groups, Scope).
 
 ### Automated breast ultrasound (ABUS)
 

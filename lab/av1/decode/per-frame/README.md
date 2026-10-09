@@ -3,7 +3,7 @@
 Decode time a frame for the same frames as HTJ2K and as AV1 intra, through the product's decoder
 worker. Queue row 9 (SPEED) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the numbers are in
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §AV1, the verdict in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A1–A2.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Decode time and memory.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM

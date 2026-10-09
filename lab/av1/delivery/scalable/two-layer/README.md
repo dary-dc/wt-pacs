@@ -4,7 +4,7 @@ Queue row 18 (SVCQ) of [`docs/av1/queue.md`](../../../../../docs/av1/queue.md). 
 base layer is a lossy picture (half size, or full size at a coarser quantizer) and whose top layer
 is lossless and predicted from it: bytes, the base's quality, the top's exactness, and decode time
 of the base alone and of both. The verdict is in [`docs/av1/README.md`](../../../../../docs/av1/README.md)
-§A5.
+§Preview.
 
 ```bash
 lab/av1/delivery/scalable/encoder/build.sh && lab/av1/delivery/scalable/two-layer/build_wasm.sh        # encoder (patched), dav1d-WASM simd-op

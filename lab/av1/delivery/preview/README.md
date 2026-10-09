@@ -3,7 +3,7 @@
 A lossy AV1 first picture of a cine, then the exact HTJ2K frames: its bytes, its quality against the
 source, its decode time, and what that makes of the time to a playable cine on a slow link. Queue
 row 12 (PREVIEW) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the verdict is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A5.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Preview.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
@@ -63,7 +63,7 @@ HTJ2K's level-1 prefix (half size): fluoroscopy 0.260 · 27.6 (27.5) · 2800, ul
 On fluoroscopy, AV1 at CRF 20 is **1.2 % of the exact bytes at 44 dB**; HTJ2K's half-size prefix is
 26 % at 28 dB. On the ultrasound the gap is smaller — CRF 32 is 7 % at 34 dB against the prefix's 32 %
 at 27 dB. G = 8 takes 59–90 % of G = 1's bytes and 1–16 % more than the whole series in one group; it
-keeps a group per decoder (below). The cells in bold are the ones §A5 quotes. Which
+keeps a group per decoder (below). The cells in bold are the ones `docs/av1/README.md` §Preview quotes. Which
 quality is acceptable to show first is not this row's to say: max \|Δ\| at 44 dB on fluoroscopy is
 433 of 4095.
 
@@ -89,7 +89,7 @@ this container (4 cores). WebCodecs runs its own decoder threads, each capped at
 | | dav1d-WASM, every cell | 7.6–13.7 | 33.1–61.2 |
 | | WebCodecs, every cell | 1.32–5.12 | 3.7–16.1 |
 
-**A lossy AV1 frame decodes slower in dav1d-WASM than the exact HTJ2K frame does in OpenJPH**
+**A lossy AV1 payload decodes slower in dav1d-WASM than the exact HTJ2K frame does in OpenJPH**
 (1.1–3.3×), and 3–11× slower than HTJ2K's level-1 prefix. WebCodecs is 2.4–13× faster than
 dav1d-WASM on the same streams and faster than OpenJPH's exact decode on every cell; against the
 level-1 prefix it ranges from 0.4× to 2.2× its time.

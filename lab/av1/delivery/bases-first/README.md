@@ -4,7 +4,7 @@ Scalable AV1 delivered bases first, end to end in the lab: row SVCORDER's layer-
 ([`docs/av1/adr-unit.md`](../../../../docs/av1/adr-unit.md) §5, option B) through the unchanged downloader,
 server and store, timed on row TOTAL's links and CPU. Queue row 40 (SVC) of
 [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the reading is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A5, *Bases first, measured*.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Preview, *Bases first, measured*.
 
 ```bash
 lab/av1/delivery/scalable/encoder/build.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # patched svc_encoder_rtc, dav1d-WASM simd

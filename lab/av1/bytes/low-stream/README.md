@@ -4,7 +4,7 @@ Queue row 36 (ENCX) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md). Row
 under HTJ2K's bytes by representing the samples for it: the low bits apart on grey, JPEG 2000's
 reversible colour transform on RGB. This asks whether that gain is AV1's or the representation's, and
 what is left to cut in bytes and in decode: the low stream's coder, the split's k, temporal noise and
-libaom's remaining tools. The verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §A1.
+libaom's remaining tools. The verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §Bytes.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh

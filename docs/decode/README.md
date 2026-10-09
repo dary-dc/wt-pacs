@@ -1687,7 +1687,7 @@ HTJ2K, paired by round:
 | | | 4× | 28.5 [25.5–32.9] | 196.9 [185.3–226.0] | 6.9 | 115.4 [108.4–128.2] | **4.1** |
 
 * **AV1 is slower in every round of every cell**: the smallest of 224 paired ratios is 3.6×. The
-  earlier desktop figure of ~10× (docs/av1/README.md §Prior evidence) is the right size: 5–10× here
+  earlier desktop figure of ~10× (docs/av1/README.md §Prior evidence, not reproduced here) is the right size: 5–10× here
   for dav1d-WASM, worst on the 12-bit fluoroscopy, and the throttle widens it slightly.
 * **The cost is dav1d's, not the copy-out**: `_av1_decode` alone is 67.5, 23.8 and 42.6 ms of the
   ~71, ~26 and ~46 ms a frame in Node (one pass of 18 frames, not interleaved), so `av1-dav1d.js`'s
@@ -1695,9 +1695,9 @@ HTJ2K, paired by round:
 * **WebCodecs is the faster AV1 path where it is exact** — 1.4–1.9× faster than dav1d-WASM (median 1.55, 32/32 rounds), still
   4.1–4.2× OpenJPH — and that is only 8- and 10-bit (§WebCodecs): of these series, the ultrasound.
 * Where the host saturates: one decoder at a time on four cores, so nothing here contends; three
-  decoders in parallel were not run, and the fill figures in `docs/av1/README.md` §A1 multiply a
+  decoders in parallel were not run, and the fill figures in `docs/av1/README.md` §Total time multiply a
   single decoder's time out by arithmetic. *Since measured (row FILL):* three decoders through the downloader,
-  `docs/av1/README.md` §A1 — the arithmetic's verdict holds, its sizes were optimistic.
+  `docs/av1/README.md` §Total time — the arithmetic's verdict holds, its sizes were optimistic.
 
 ## JPEG XL
 

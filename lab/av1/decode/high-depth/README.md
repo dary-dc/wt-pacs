@@ -3,7 +3,7 @@
 The layout of 13- and 14-bit samples as two AV1 streams: the two low bits apart, whose top is a
 12-bit stream only dav1d decodes, against a top of 10 bits and the rest low, every stream one that
 WebCodecs takes. Queue row 33 (REP14) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the
-verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §A3.
+verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM

@@ -4,7 +4,7 @@ Intra codecs whose one codestream is a preview first and lossless at its end: JP
 with quality layers and progressive lossless JPEG XL, against the served single-layer HTJ2K. Queue
 row 22 (EMBED) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md), for contrast with the AV1
 preview of row 12 ([`../../delivery/preview`](../../delivery/preview/README.md)); the verdict is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A5.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Preview.
 
 ```bash
 lab/av1/bytes/embedded/build.sh                          # OpenJPEG and libjxl, native and WASM (~10 min)
@@ -144,4 +144,4 @@ one sample, every frame in `encode.py` and `layers.mjs`.
   decoder that resumed from the layer it holds would save that, but neither is driven that way here.
 
 Nothing here ran through the server or the downloader; serving a prefix as a preview needs the
-store and the wire to hand out part of a frame, which is structural (`docs/av1/README.md` §A5).
+store and the wire to hand out part of a frame, which is structural (`docs/av1/README.md` §Preview).
