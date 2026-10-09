@@ -1146,6 +1146,40 @@ until a consumer delivers the build. **It is an ask's lever:** a fill on these l
 cold ask at 4× (×1.078 against the package, where the single-threaded build is ×0.732), so the product's build is
 single-threaded (§The build, as delivered). Whether to ship the pool for series from 1914×2572 up is the owner's.
 
+**The helper started after ready** (queue row HELPERSTART, `levers-protocol.md` §L1 on `claude/av1`, run as written;
+[`lab/decode-bench/helper-start`](../../lab/decode-bench/helper-start/README.md)). Three arms: the delivered build
+(*ref*), row HTJ2KMT's pool (*pool*), and the pool linked with `-sPTHREAD_POOL_DELAY_LOAD=1` (*late*: the same
+`.wasm`, a glue that answers ready without waiting for its helper Worker, which still starts beside it). `g512` and
+the 14-bit projections (9 × 1914×2572), 10 rounds, Williams-ordered; loopback is the downloader on 4 cores, the
+relay row TOTAL's harness on 3 with the relay on the fourth. **Every frame exact**: 17 400/17 400 on loopback and
+the relay's fills, 30/30 cold asks on `lte-good`. Round 5's `g512` loopback block failed and was run again alone. Median [range] ms; × ref paired by round (rounds faster):
+
+| cell | ref | pool | late |
+| --- | ---: | ---: | ---: |
+| ready, three decoders, `g512` 1× | 55.0 [47–221] | ×1.308 (1/10) | ×1.061 (3/10) |
+| ready, 4× | 153.4 [136–167] | **×1.355 (0/10)** | ×1.138 (3/10) |
+| cold ask `g512` loopback 1× | 22.0 [16–25] | ×1.182 (2/10) | ×1.058 (4/10) |
+| cold ask `g512` loopback 4× | 63.5 [46–81] | ×1.158 (4/10) | ×1.187 (1/10) |
+| cold ask `g512` `lte-good` 4×, strict · round-paired | 416 [402–428] | ×0.993 · ×0.995 | ×1.039 · ×1.021 |
+| warm ask `g512` 1× | 8.9 [7.9–12.3] | ×0.916 (8/10) | ×1.029 (4/10) |
+| warm ask `g512` 4× | 15.2 [9.3–34.5] | ×0.816 (7/10) | ×1.135 (4/10) |
+| cold ask projections 1× | 121.5 [117–141] | ×0.935 (7/10) | ×1.017 (5/10) |
+| cold ask projections 4× | 465.8 [435–513] | ×0.887 (9/10) | ×0.880 (8/10) |
+| warm ask projections 1× | 106.3 [86–130] | **×0.757 (8/10)** | ×0.808 (7/10) |
+| warm ask projections 4× | 418.8 [348–558] | **×0.721 (8/10)** | ×0.836 (8/10) |
+| fills, 8 cells (50 Mbit, `lte-good`; 1×, 4×) | 6.0–14.4 s | ×0.987–1.001 | ×0.987–1.004 |
+
+`VOID` on the relay: 8 of 30 cold asks, 5–7 of 30 fill visits on `lte-good`, 0–1 on 50 Mbit; strict and round-paired
+readings agree on every verdict below. Against the predictions: P1 not held — the pool's cold ask at 4× is ×1.16,
+under the ×1.35–1.60 the earlier campaign read, and *late* ×1.19, not ×0.97–1.03; the pool's start does sit on the
+ready path (+58 ms at 4×, 10 of 10 rounds), and *late* takes only part of it off (×1.14). P2 held for the pool
+(×0.99), not for *late* (×1.02–1.04). P3 held for the pool (×0.72–0.76), not for *late* (×0.81–0.84). P4 held for the
+pool at 1× (×0.92), under its range at 4× (×0.82); *late* is slower than ref (×1.03–1.14). P5 held: no fill moves by
+more than 1.3 %. **The rule: L1 does not hold** — *late*'s cold ask is ≤ ×1.03 in 4 and 2 of 10 rounds at 1× and 4×
+(8 needed), its warm ask on the projections ≤ ×0.85 in 6 and 7 (8 needed); its fills pass. The pool's loss is not
+refuted as the helper's start (it stays ≤ ×1.03 on `lte-good`). Why the deferred helper also gives back warm gain is
+not measured. Containers, not phones; nothing ships, and the pool decision stays the owner's.
+
 ### A coarser hand-off unit, measured
 
 Queue row COARSEPOOL, the decode levers protocol (`claude/av1`) §L4 as written: the pool handed a whole subband or

@@ -20,6 +20,6 @@ block() {
   esac
 }
 for ((r = FIRST; r < FIRST + ROUNDS; r++)); do
-  for k in 0 1 2 3; do block $(((k + r) % 4)) 2>&1 | grep -E '^round|Error|error' || true; done
+  for k in 0 1 2 3; do block $(((k + r) % 4)) 2>&1 | tee -a "$OUT/full.log" | grep -E '^round|Error|error' || true; done
   echo "round $r done $(date -u +%FT%TZ)"
 done
