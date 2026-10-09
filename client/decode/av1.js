@@ -53,7 +53,7 @@ export async function decodeFrame(bytes, unit = { key: true }, preview) {
   }
   const dav1d = await module("./av1-dav1d.js");
   // A scalable unit's base is lossy and of its own size: shown as it is, never merged with a low unit.
-  const base = preview && ((pic) => preview(end(begin(pic, { ...item, split: 0 }))));
+  const base = preview && ((pic) => preview(end(begin(pic, { ...payload, split: 0 }))));
   const lowWc = low && cfg.mixed && payload.depth > 10 && (await webcodecs(["g8"]));
   const pending = lowWc && lowWc.picture(low, { key: true }, "low").catch(() => null);
   let f;

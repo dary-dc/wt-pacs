@@ -15,7 +15,7 @@ try {
   for (const c of cells) {
     const meta = await (await fetch(`${c.set}/metadata.json`)).json();
     const rows = [];
-    for (const i of c.items) {
+    for (const i of c.payloads) {
       const truth = (await (await fetch(`${c.set}/${i}.sha256`)).text()).trim();
       rows.push(await verify(av1, await bytes(`${c.dir}/${i}.av1`), await bytes(`${c.set}/${i}.raw`), meta, truth, sha256));
     }

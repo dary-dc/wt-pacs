@@ -17,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("splittime_frames", HERE.parents[1] / "delivery/split-rule/make_frames.py")
 splittime = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(splittime)
-Set, bits, htj2k_frames, payloads = splittime.Set, splittime.bits, splittime.htj2k_frames, splittime.items
+Set, bits, htj2k_frames, payloads = splittime.Set, splittime.bits, splittime.htj2k_frames, splittime.payloads
 
 PRESETS = {
     "ct_lidc": {1: "good:6", 2: "good:6", 3: "good:6"},

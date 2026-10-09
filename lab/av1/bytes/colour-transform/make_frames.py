@@ -34,7 +34,7 @@ def htj2k_frames(src, dst):
 
 
 def payloads(build, src, out, arm, preset):
-    dst = out / ".items" / src.name / f"{arm}.{preset.replace(':', '')}"
+    dst = out / ".payloads" / src.name / f"{arm}.{preset.replace(':', '')}"
     if not (dst / "metadata.json").exists():
         subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, dst, "--representation", ARMS[arm],
                         "--preset", preset, "--jobs", "1"], check=True, capture_output=True)
