@@ -30,7 +30,7 @@ def series(build, out, spec, frames):
         for i in range(n):
             if not (dst / f"{i:03d}.htj2k").exists():
                 htj2k(s, i, Path(tmp), dst / f"{i:03d}.htj2k")
-    payloads = out / ".items" / s.name
+    payloads = out / ".payloads" / s.name
     if not (payloads / "metadata.json").exists():
         subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, payloads, "--representation", "optimized",
                         "--preset", preset or "cpu0", "--frames", str(n), "--jobs", "4"], check=True, capture_output=True)

@@ -60,12 +60,12 @@ def main():
         presets = {SHIPPED[name] if p == "shipped" else p for p in a.presets.split(",")}
         for k in ("plain", "optimized") if meta["channels"] == 3 else ks(b, a.ks):
             for preset in sorted(presets):
-                out = a.items / name / f"{k if meta['channels'] == 3 else f'k{k}'}.{preset.replace(':', '')}"
+                out = a.payloads / name / f"{k if meta['channels'] == 3 else f'k{k}'}.{preset.replace(':', '')}"
                 jobs.append((a.build.resolve(), src, out, k, preset, name))
     with ThreadPoolExecutor(a.jobs) as pool:
         rows = list(pool.map(cell, jobs))
-    a.items.mkdir(parents=True, exist_ok=True)
-    (a.items / "native.json").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    a.payloads.mkdir(parents=True, exist_ok=True)
+    (a.payloads / "native.json").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     exact = [r for r in rows if r["exact"]]
     print(f"native dav1d: {len(exact)}/{len(rows)} cells exact, {sum(r['frames'] for r in exact)} frames")
     for r in rows:

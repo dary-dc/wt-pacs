@@ -44,7 +44,7 @@ def payloads(build, src, out, k, preset, reuse):
     have = reuse and reuse / src.name / tag
     if have and (have / "metadata.json").exists():
         return have
-    dst = out / ".items" / src.name / tag
+    dst = out / ".payloads" / src.name / tag
     if not (dst / "metadata.json").exists():
         subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, dst, "--split", str(k),
                         "--preset", preset, "--jobs", "1"], check=True, capture_output=True)

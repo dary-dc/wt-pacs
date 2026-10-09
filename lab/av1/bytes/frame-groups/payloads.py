@@ -47,7 +47,7 @@ def main():
             top = streams(g)[0]
             for k, unit in enumerate(top):
                 frame = struct.pack("<I", len(unit)) + unit + low[k] if low else unit
-                (dst / f"{k:03d}.g{g}").write_bytes(ingest.item(header, [frame]))
+                (dst / f"{k:03d}.g{g}").write_bytes(ingest.payload(header, [frame]))
         with tempfile.TemporaryDirectory() as tmp:
             for i, data in ingest.htj2k(a.build.resolve(), s, Path(tmp), a0, a1):
                 (dst / f"{i - a0:03d}.htj2k").write_bytes(data)

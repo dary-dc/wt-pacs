@@ -58,7 +58,7 @@ def series(build, out, spec, frames):
             if not (dst / f"{i:03d}.htj2k").exists():
                 htj2k(s, i, Path(tmp), dst / f"{i:03d}.htj2k")
     same = sum(same_codestream(build, s, i, dst / f"{i:03d}.htj2k") for i in range(n)) if not s.signed else None
-    payloads = out / ".items" / s.name
+    payloads = out / ".payloads" / s.name
     if not (payloads / "metadata.json").exists():
         split = ["--split", str(s.stored - 12)] if s.stored > 12 else []
         subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, payloads, "--preset", preset,
