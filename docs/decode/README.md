@@ -1120,6 +1120,37 @@ until a consumer delivers the build. **It is an ask's lever:** a fill on these l
 cold ask at 4× (×1.078 against the package, where the single-threaded build is ×0.732), so the product's build is
 single-threaded (§The build, as delivered). Whether to ship the pool for series from 1914×2572 up is the owner's.
 
+### A coarser hand-off unit, measured
+
+Queue row COARSEPOOL, the decode levers protocol (`claude/av1`) §L4 as written: the pool handed a whole subband or
+every subband of one resolution instead of a row of code-blocks, each at 2 threads
+(`lab/av1/decode/htj2k-profile/cb-unit.patch`, [`lab/av1/decode/htj2k-threads`](../../lab/av1/decode/htj2k-threads/README.md)
+§A coarser hand-off unit). The frame bench above, the first 4 frames of `g512` and the five breast sets, 10 rounds ×
+3 passes at 1× and 4×, Williams-ordered, every build at the product's 4 MB initial heap; 1 920/1 920 frames exact, no
+run failed, `VOID` does not apply (no relay). × the single-threaded build paired by round (rounds faster); heap is the
+worker's WASM memory after its set:
+
+| series | 1 thread 1× | row 1× | subband 1× | resolution 1× | 1 thread 4× | row 4× | subband 4× | resolution 4× | heap: 1 thread / row / subband / resolution |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| g512 512² | 3.48 | ×0.80 (9/10) | ×0.70 (10/10) | ×0.68 (10/10) | 16.9 | ×0.86 (8/10) | ×0.71 (8/10) | ×0.70 (10/10) | 4.0 / 4.8 / 7.0 / 7.0 MB |
+| tomosynthesis 614×1359 | 6.84 | ×0.85 (8/10) | ×0.79 (8/10) | ×0.78 (8/10) | 35.0 | ×0.84 (8/10) | ×0.68 (10/10) | ×0.71 (10/10) | 6.4 / 6.4 / 11.1 / 11.9 |
+| tomosynthesis 931×2124 | 13.7 | ×0.87 (10/10) | ×0.84 (8/10) | ×0.76 (10/10) | 65.5 | ×0.93 (9/10) | ×0.77 (10/10) | ×0.82 (9/10) | 10.2 / 11.9 / 20.8 / 20.8 |
+| projections 1914×2572 | 56.4 | ×0.68 (10/10) | ×0.69 (10/10) | ×0.70 (10/10) | 279 | ×0.71 (10/10) | ×0.68 (10/10) | ×0.66 (10/10) | 28.3 / 29.6 / 51.2 / 49.4 |
+| synthesized 2D 2394×2850 | 49.9 | ×0.77 (9/10) | ×0.81 (10/10) | ×0.79 (9/10) | 252 | ×0.75 (10/10) | ×0.73 (10/10) | ×0.70 (10/10) | 28.3 / 32.6 / 67.8 / 61.3 |
+| full-field 3328×4096 | 64.9 | ×0.84 (10/10) | ×0.81 (10/10) | ×0.79 (9/10) | 317 | ×0.78 (10/10) | ×0.73 (10/10) | ×0.77 (10/10) | 47.8 / 57.0 / 118.3 / 111.0 |
+
+**The rule's verdict: the row unit stays.** Both coarser units meet ×0.80 on 512² (subband 7/10 rounds at both
+throttles; resolution 7/10 at 1×, 10/10 at 4×) but neither is 0.03 under the row's ratio on every large series in
+8 of 10 rounds: at 1× on the projections the subband was in 3/10 and the resolution in 2/10 (they tie the row there);
+at 4×, 3–7/10. **Predictions:** L4-P1 the row ×0.80 and ×0.86, under the predicted 0.88–0.95; the coarser units
+×0.68–0.71, held. L4-P2 the row ×0.68–0.84 against 0.70–0.79, held on four of six cells; the coarser units reach
+"toward ×0.65" only on the projections at 4× (×0.66). L4-P3 not held: at 1914×2572 the coarser units hold
+**~20–22 MB** more than the row, not ~15, and the subband costs as much as the resolution, because OpenJPH pulls
+every band of every resolution line by line from the start, so a unit decoded at once is the whole frame's
+coefficients held at 4 bytes a sample (+54–61 MB on the full-field mammogram). The gain on small frames (×0.70 against
+the row's ×0.80–0.86) is real in this container; whether it is worth 2–3 MB on 512² is the owner's, and the
+little-core case is a phone's (§L4).
+
 ## Encoder settings
 
 Queue row HTJ2KENC: does another OpenJPH 0.31.0 setting cut lossless bytes or browser decode against the
