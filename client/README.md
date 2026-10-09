@@ -28,8 +28,9 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `htj2k.test.mjs`, `av1.test.mjs` | node: the range pass; the AV1 payload reader |
 | `wasm/` | `dav1d/` builds dav1d-WASM, `fetch_openjph.sh` fetches OpenJPH's and `fetch_xxh3.sh` hash-wasm's XXH3 into `vendor/` |
 
-The rest: [`contract/`](contract/) the transport's clauses and the rigs, [`paint/`](paint/README.md) the
-painter, [`record/`](record/) telemetry, [`harness/`](harness/) the lab's pages.
+The rest: [`viewer/`](viewer/) the product's page (§The viewer), [`contract/`](contract/) the transport's clauses
+and the rigs, [`paint/`](paint/README.md) the painter, [`record/`](record/) telemetry, [`harness/`](harness/) the
+lab's pages.
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
 path untouched, `"av1"` loads `av1.js` and, at the decoder's start, both decoders it may need — dav1d-WASM
@@ -262,3 +263,40 @@ blob (its relative URLs then resolve nothing, so the page names `transport` and 
 **Mutate it after any change to `decoder.js`.** Perturb one decoded sample and every `sha` line must
 read `MISMATCH`; drop every fifth frame and the fill must report fewer than it asked for. Both were
 run; a decode path whose ground-truth check does not fire is worth nothing.
+
+## The viewer
+
+`viewer/index.html` and `viewer/viewer.js`, served at `/` by `server/dev-server.py` and by the web image. How to run
+it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM series.
+
+* **Opening.** The page head fetches `/series/metadata` and preloads the codec's modules and WASM, and the hasher
+  when the series has digests. The module dials at once, with the whole series as the opening fill, while the
+  painter starts in parallel.
+* **Frames.** Frames are kept in memory by index; the cache seam stays open ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
+  §Open). A step to a frame not yet here asks it ahead of the fill. With `?fill=0` there is no fill, and each step
+  asks its frame, the newest ask alone kept.
+* **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
+* **The status line.** It shows the frame, frames received, exact, not exact and unchecked, the decoder per path, the
+  codec, the renderer (marked software when it is), the fill's time, and the last error by name.
+* **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=` and `?post=` let a lab harness drive the same page.
+
+**Its check**, `viewer/check.mjs`, takes a bundle (or `--url`, a host already running). It serves the bundle, opens
+the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
+page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
+after the cancel. It fails:
+
+* a fill that did not complete, or a frame lost or refused;
+* any frame not exact;
+* a decoder other than `--decoder`;
+* an HTJ2K page whose requests include AV1 code, from the static host's log;
+* an AV1 page whose frames were not decoded as AV1;
+* the first, middle and last frame's readback at zoom 1 differing from the painter's CPU reference by any byte;
+* with `--pair`, the same series in the other codec painting a different readback;
+* with `--cine`, a cine that did not move.
+
+Headless Firefox has no WebGL: on a host without a display, run the check under `xvfb-run` with a software GL
+(Mesa's llvmpipe), and it runs Firefox windowed. The run here used conda-forge's `firefox-157.0.1-hee9eb32_0` and
+`mesalib-26.2.3-he59ec28_0` (SHA-256 `e94b9a63c490809eb615d0c18d1ae4e7d60a6f7756c7ec7b2a6b6a2032a26b53`), with
+`LD_LIBRARY_PATH`, `__EGL_VENDOR_LIBRARY_DIRS` and `LIBGL_DRIVERS_PATH` pointing into that environment. The gate runs `viewer/run_check.sh`: a three-frame HTJ2K series of
+the contract's frame, in Chromium. It names as skipped the cross-codec arm and Firefox, which need row INGEST's
+bundles and a GL display. What it measured: `docs/ARCHITECTURE.md` §The viewer.

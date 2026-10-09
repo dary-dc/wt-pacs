@@ -56,6 +56,8 @@ scripts/gate.sh
 
 Then open in Chrome:
 
+- The viewer, the product's page: `http://127.0.0.1:8765/`. The smoke series' frames are placeholders and do not
+  decode, so give it a series of your own (§The viewer on a DICOM series).
 - A cell over the downloader: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the URL the static host
   prints; its last line is `run_end` with `delivered` equal to `asked`. `&transport=wasm` runs the WASM client.
   `&transport=ws` runs the WebSocket fallback, which needs the server started with `--websocket` and a Chrome
@@ -88,6 +90,29 @@ clients must each deliver what they asked, the refuse cell none of it, and the s
 own server, bundle and certificate, so it needs neither terminal nor step 2; the gate does not run it.
 `deploy/check_equivalence.sh` checks that the web image answers every path the harness uses exactly as
 `server/dev-server.py` does; it needs podman or docker, or nginx with `--local` ([`deploy/README.md`](deploy/README.md)).
+
+## The viewer on a DICOM series
+
+One series, ingested once, then one terminal per server:
+
+```bash
+cargo build --release -p series-server -p pack-series && bash ingest/coded-frames/build.sh   # once
+lab/av1/.venv/bin/python ingest/from-dicom/from_dicom.py lab/.av1-build path/to/series target/my.sbnd
+#   (a folder of one series' single-frame objects, or one multi-frame object; docs/FIXTURES.md §From DICOM)
+
+# Terminal 1 — the WebTransport server, on the dev certificate
+target/release/series-server --port 4433 --series target/my.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+
+# Terminal 2 — the static host: the viewer at /, the series' metadata at /series/metadata;
+#   it makes the dev certificate when it is missing or ends within a day
+python3 server/dev-server.py --port 8765 --metadata target/my.metadata.json
+```
+
+Open `http://127.0.0.1:8765/`. The wheel and the arrow keys step; space or the button runs the cine; a drag moves
+window and level, a shift or right drag pans, ctrl-wheel and `+`/`-` zoom; `r` turns, `h` and `v` flip, `i`
+inverts, `0` resets; `?fill=0` asks each frame as it is stepped to instead of filling the series. Its check is
+`client/viewer/check.mjs` ([`client/README.md`](client/README.md) §The viewer).
 
 Both clients and the TCP fallback are [`docs/CLIENTS.md`](docs/CLIENTS.md); the bytes they speak, [`docs/WIRE.md`](docs/WIRE.md).
 

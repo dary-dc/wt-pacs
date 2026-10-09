@@ -250,3 +250,12 @@ then `run.mjs --frames lab/.av1-work/exact --links r20000,r50000,wifi-home --var
 A row's `checked` counts `frame.info.exact` by value: `check` owes every frame `true`, `htj2k` every frame
 `"unchecked"`. `--mutate digest` flips each digest's first hex digit and turned every `check` frame `false`. The
 reading is in [`docs/adr/exactness-in-production.md`](../../../../docs/adr/exactness-in-production.md) §Built.
+
+**Row VIEWER** times the product's page against this one, which has no paint, on row INGEST's CT series
+(`ct_nlst`: its HTJ2K and AV1 bundles' frames, from `lab/av1/exact/from-dicom/check.py`'s `fill/`). The variants
+`viewer` and `av1viewer` (`"viewer": "<metadata file>"` in `variants.json`) load `client/viewer/index.html` on the
+same decoders (`?opts=`), and `--origin navigation` times both pages from navigation:
+`run.mjs --frames lab/.av1-work/from-dicom --sets ct_nlst --variants htj2k,viewer,av1,av1viewer --rounds 12
+--origin navigation`. A row's first frame is the viewer's first exact frame on screen. The reading is in
+[`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The viewer.
+

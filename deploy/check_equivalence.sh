@@ -37,7 +37,7 @@ if [ "${1:-}" = "--local" ]; then LOCAL=1; shift; fi
 SERIES="${1:-us_cine_smoke}"
 PY_PORT=18765
 NG_PORT=18766
-PATHS=(/harness/ /harness/index.html /harness/shell.js /wt/dev-transport.json /series/metadata
+PATHS=(/ /client/viewer/viewer.js /harness/ /harness/index.html /harness/shell.js /wt/dev-transport.json /series/metadata
        /client/transport/downloader.js /client/harness/index.html /nope-404)
 
 python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --series "$SERIES" >/dev/null 2>&1 &

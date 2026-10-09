@@ -88,7 +88,7 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   report({ error: String(e?.message ?? e) });
   throw e;
 });
-issuedAt = at();
+issuedAt = q.get("origin") === "navigation" ? performance.timeOrigin : at();
 // Asked frames come back through their promise, never onFrame.
 for (const i of q.get("asks")?.split(",").map(Number) ?? []) {
   client.requestExactFrame(i).then(exact, (e) => failures.push({ i, reason: String(e?.message ?? e) })).then(() => settled(client));

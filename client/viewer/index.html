@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>wt-pacs viewer</title>
+<link rel="preload" href="/wt/dev-transport.json" as="fetch" crossorigin>
+<link rel="modulepreload" href="/client/viewer/viewer.js">
+<link rel="modulepreload" href="/client/transport/consumer.js">
+<link rel="modulepreload" href="/client/paint/painter.js">
+<link rel="preload" href="/client/transport/downloader.js" as="script" crossorigin>
+<link rel="preload" href="/client/transport/ts/dist/session.js" as="script" crossorigin>
+<link rel="preload" href="/client/decode/decoder.js" as="script" crossorigin>
+<link rel="preload" href="/client/paint/paint-worker.js" as="script" crossorigin>
+<script>
+  // The metadata names the codec: only that codec's modules and WASM are fetched ahead (lab/page-open/codec.html).
+  {
+    const q = new URLSearchParams(location.search);
+    const link = (rel, href, as) => {
+      const l = Object.assign(document.createElement("link"), { rel, href, crossOrigin: "anonymous" });
+      if (as) l.as = as;
+      document.head.append(l);
+    };
+    globalThis.viewerMetadata = fetch(q.get("metadata") ?? "/series/metadata").then((r) => r.json());
+    globalThis.viewerMetadata.then((m) => {
+      const dec = "/client/decode";
+      const av1 = m.codec === "av1";
+      const name = av1 ? "dav1d" : "openjph";
+      const modules = av1 ? ["av1.js", "av1-payload.js", "av1-frame.js", "av1-dav1d.js", "av1-webcodecs.js", "av1-probe.js"] : ["htj2k.js"];
+      for (const f of [...modules, "wasm-glue.js"]) link("preload", `${dec}/${f}`, "script");
+      link("preload", `${dec}/wasm/built/${name}/${name}.js`, "fetch");
+      link("preload", `${dec}/wasm/built/${name}/${name}.wasm`, "fetch");
+      if (m.digests) link("preload", `${dec}/wasm/vendor/hash-wasm/xxhash3.umd.min.js`, "fetch");
+    }, () => {});
+  }
+</script>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 13px/1.4 system-ui, sans-serif; overflow: hidden; }
+  #view { position: absolute; inset: 0 0 2.2em 0; display: block; width: 100%; height: calc(100% - 2.2em); touch-action: none; }
+  #bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2.2em; display: flex; gap: 0.8em; align-items: center;
+    padding: 0 0.6em; background: #111; white-space: nowrap; overflow: hidden; }
+  #bar button { font: inherit; }
+  #status { overflow: hidden; text-overflow: ellipsis; }
+  #mark { position: absolute; top: 0.6em; left: 0.6em; padding: 0.2em 0.5em; border-radius: 3px; display: none; }
+  #mark.inexact { display: block; background: #b00; color: #fff; }
+  #mark.unchecked { display: block; background: #555; color: #fff; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="mark"></div>
+<div id="bar"><button id="cine" type="button">▶ cine</button><span id="status">loading…</span></div>
+<script type="module" src="/client/viewer/viewer.js"></script>
+</body>
+</html>
