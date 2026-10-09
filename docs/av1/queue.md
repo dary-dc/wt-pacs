@@ -119,7 +119,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 53 | **SEAM** — the seams between transport, downloader, decoders and page: duplicated logic, dead paths, codec dispatch | done `56e5144` on `claude/av1-unified` (`8f82c1f`) — **two duplicates merged, no dead path found, the fill's time unchanged**: traced transport → `downloader.js` → `decoder.js` → `htj2k.js`/`av1.js` → `consumer.js`; the Emscripten glue loading (written out in `htj2k.js` and `decode-av1.js`) is `wasm-glue.js`, the unit-continuity refusal (written out in both AV1 decoder modules) is `continues()` in `av1-item.js` — one place each, not fewer lines (+26, −16); its mutant fails 3 dispatch checks; the codec is decided once (`consumer.js` refuses, `decoder.js` routes, `av1.js` picks the AV1 decoder); kept with reasons: owed frames held by both transport and records (one owner is a transport API change, structural), `groupLength` beside `decoder` in `init` (four lab workers speak it), groups, the preview port, `mixed`, `recycleAtBytes`, `openAsk: false`, `decode: false` (built, each reached by a clause); dispatch 719/719, conformance 56/56; fill after/before 1.00 in all 8 cells (fluoroscopy and 10-bit DBT, 20/50 Mbit, 1×/4×, 10 rounds interleaved, 3 360/3 360 exact) — [`ARCHITECTURE.md`](../ARCHITECTURE.md) §The seams, traced |
 | 54 | **GATE** — the gate's run time, redundant tests and the gaps mutation finds | done `f9022a0` on `claude/av1-unified` (`8ad0684`, `2533134`, `91ef6ea`) — **the gate 161 → 106 s, and 140 of 151 viable mutants killed against 108 before**: n = 3 interleaved a cell, `--quick` 161.4 [159.8–161.7] → 105.9 [104.9–106.1] s, full 160.7 → 107.0; two timer-bound steps now wait side by side — transport conformance one process an implementation (54.4 → 18.2 s, one clause trickles 16 s on each), the two browser rigs in parallel pages (57.0 → 38.3 s), every check as before, each runner mutated (a failing implementation, a child with no result, a failing rig) and caught; 156 hand-made mutants at each decision: client 44 → 65 of 72 (row 50), decoder modules 45/45, send path 16 → 20 of 24, study bundle 3 → 10/10 — 13 new tests (planner's asks held and look-ahead past an end_stream, per-frame stream rank, a byte budget's cut, the bundle's short file, magic, version, metadata bound, one-byte overrun, a mis-sized frame, a short finish), 5 dead branches removed, 11 left alive with reasons (log lines, timers only a frozen page shows, lab-only stall bytes); no test cut (overlaps are checks within one clause, or too few mutants); the dispatch rig skips its 591 AV1 checks without dav1d-WASM built, now said; the branch's 4 broken ADR links fixed (`91ef6ea`) — [`README.md`](../../README.md) §What the gate costs and what it catches |
 | 55 | **NAMING** — every name audited against the round's principles; the clear renames applied with every reference | done `cb7e312` on `claude/av1-unified` (`e7effcd`, `dba25fb`) — **five things under three *lever* numbers renamed, the conformance suite's *arms* are clients and rigs, five renames proposed**: ARCHITECTURE's *Lever 1–3* and transport-conclusions' *Lever 1–2* are now the opening ask, early SETTINGS, hints in the session URL, the bytes pushed at session open and a 32-packet initial window, *S4* the container campaign — 21 files, every reference, 0 left by grep; `run.ts` `CLIENTS`, the wire pages' `?client=`, `consumer.js` `#arm` → `#waitFor`; gate green, links 0 unresolved; proposed, not applied: *item* → **coded frame** (DICOM's Item; the item format is structural), telemetry rows' `arm` → `client` (a row schema), the lab's *arm* → **variant** (≈1 900 lines; `CLAUDE.md`'s word), queue-row folder names (row 56 moves folders), campaign labels; principles and a 15-term glossary — [`README.md`](../../README.md) §Names; `CLAUDE.md` wording at the end of the brief |
-| 56 | **LAYOUT** — folders by responsibility, each doc where the repository's rules place it | after owner (§Blocked, 2026-10-08 16:15 UTC) — row 100 done (`4306310`); the tree places every folder (`a6eb1c3` on `claude/av1-unified`, after `f0cb5b8`), the moves not applied |
+| 56 | **LAYOUT** — folders by responsibility, each doc where the repository's rules place it | night — the owner decided 2026-10-08 (brief, §Blocked): product dependencies leave `lab/` first; the tree (`a6eb1c3` on `claude/av1-unified`) for the rest |
 | 57 | **VERSIONS** — newer libaom, SVT-AV1, dav1d, OpenJPH 0.32.0, Emscripten SIMD and threads, Chromium's WebCodecs: what each gains or breaks, the promising ones measured | done `56398cf` on `claude/av1-unified` (`2d6af24`, `6e354b0`, `293b4f0`, `b72ff30`, `5276b91`, `9073bdc`; `a6f960c` before) — **nothing adopted, no pin changed: no libaom, SVT-AV1 or dav1d release followed the pins, libaom's head writes the same bytes, and no decode lever clears the harness's spread**: libaom head `4cea455c` byte-identical to 3.15.1 on 11 series × cpu0 and shipped (80/80 items, all exact; 3.8.2 differs, the lever checked); dav1d head `7f12cf23` and emscripten 6.0.11 tie on dav1d-WASM (pooled 0.98–1.01); OpenJPH under emscripten 6.0.11 0.94–0.96 of 3.1.74 pooled, inside a 2–7 % spread at 6 rounds — the one lever worth a longer run; OpenJPH 0.32.0's WASM mask fix (24-bit code-blocks) unreachable at ≤ 16 bits, deep-bit-plane frames 12/12 exact, mutation 12/12 caught; 0.32.0's codestreams identical to 0.31.0's but the COM version (38/38); Chromium 154 ties on dav1d-WASM, item path 1.06 pooled, and still refuses 12-bit WebCodecs — libgav1's key-frame parse is built for 10 bits (141, 154, 155); headless Chromium 141 and 154, 1× and 4×, 6 interleaved rounds, 8 640/8 640 frames exact; gate green — `lab/av1/versions/README.md`, README §Measured here, `decode/README.md` §WebCodecs |
 | 58 | **LITERATURE** — lossless medical image coding 2023–2026, and what of it runs in a browser today: research, rows proposed | done `5385a07` — **JPEG XL lossless is still the codec to beat; nothing published since 2023 that beats it runs exact in a browser but one unreviewed codec**: standard codecs on 16-bit CT/MR put JPEG XL at 0.85–0.95 of JPEG-LS and 0.82–0.91 of JPEG 2000 (BD-LVIC, TIP 2024), 0.78–0.95 of HTJ2K on four 16-bit CT and mammography frames (an industry white paper, 2024); learned and context-tree coders gain 3–20 % under JPEG XL on CT/MR volumes, but only integer or table-driven ones can be exact in a browser (WGSL float is not bit-reproducible): TCT (TIP 2026, 0.88–0.97 of JPEG XL, 0.05 s a slice on CPU, no code) and Tomoz (Apache-2.0, WASM, self-reported 0.73–0.85 of HTJ2K, unreviewed); no paper measures modern lossless codecs on breast imaging — rows 45–46 hold more; three measurements proposed (JPEG-LS in WASM, Tomoz, TCT when released); [`lossless-literature.md`](lossless-literature.md) |
 | 59 | **RESLEVEL** — HTJ2K decoded at the resolution level a phone screen needs, exact, then full resolution on zoom | done `dece2e4` on `claude/av1-unified` (`a7b017a`, `b305d44`, `91300de`) — **a level picture first: the first view on screen at ×0.09–0.69 of today's fill, a four-view study at ×0.06–0.50, every whole frame at a tie (×0.98–1.04); exact only once clamped**: the breast series at the level whose long side holds 1 000 px (level 1, level 2 on 3328×4096), today's RPCL codestreams cut at the smallest exact prefix — 25.8–29.0 % of a frame at level 1, 7.0–7.5 % at level 2; the package's `decodeSubResolution` leaves the 5/3 low band unclamped above 2^B − 1 (15 of 35 frames, up to 1 439 on 10 bits), clamped it matches OpenJPEG 2.5.4 `-r` and a 5/3 analysis of the source on 35/35; decode at the level ×0.27–0.31 of the whole (×0.08 at level 2), Chromium 141, n = 10, 2 100/2 100 exact; on row 23's five links at 1× and 4×, 13 rounds, paired n = 5–13 (under 10 in 9 of 50 cells), 5 200/5 200 frames and 2 600/2 600 level pictures exact, sooner in every paired round — 3328×4096 at 5 Mbit on screen in 2.6 s, not 31.6; §6's 2× rule holds at 5 and 20 Mbit on every series, at 50 Mbit on the mammograms only; prefix ask, level offsets in the store, the clamp and a smaller picture in the render path proposed, not built; 4 mutations caught — [`decode/README.md`](../decode/README.md) §A frame at the level the screen needs, [`adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §7, `lab/av1/reslevel` |
@@ -132,7 +132,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | done `22f5f03` (`069044e`) — **not reproduced: paired, plain AV1 is 0.973–0.976 of HTJ2K on 10-bit DBT, optimized 0.940–0.943, not 31 % below**: the first 4 frames of `dbt10_ea1141` and `dbt10_d`, 20/20 codings exact (80/80 frames); one setting at a time, an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background by 0.5–0.8, libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned); the two series the brief named are not CC BY or CC0 (UPMC states no licence, BCS-DBT is CC BY-NC 4.0: Blocked); 4 mutations caught 4/4 — [`README.md`](README.md) §Prior evidence, [`lab/av1/pocgap`](../../lab/av1/pocgap/README.md), [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 | 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | done `8c2b24d` on `claude/av1-unified` (`e945e57`) — **the string is each stream's own, the frames and the decoder unchanged**: each keyframe's sequence header gives `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, reconfigured only when it changes; 91 distinct headers (419 units: every fixture, the probes, 59 items of all 28 taxonomy series, 8 full headers with timing, decoder model, frame ids, High tier, nine operating points) derive the string ffmpeg 6.1.1 reads; libaom writes levels 2.0–6.0 by picture size, never 31, and 31 changes no engine's answer; `isConfigSupported` true for every string in Chromium 141, every full string in Firefox 157.0, Main only in WebKitGTK 2.52.6; 115/115 frames exact in all three, Chromium's decoder per item the same as before (61 WebCodecs, 54 dav1d-WASM), none falling back; Chromium echoes the string's colour on the frame, so the 4:4:4 identity check now reads the header's matrix as dav1d's does — an untagged identity stream now decodes exact through WebCodecs; 13/13 derivation and 3/3 decoder mutations caught; gate green — `lab/av1/codecstr`, `item-format.md` §Decoder choice, `decode/README.md` §AV1 |
 | 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | after 44, 56, 67, 82 |
-| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row, 83–101 included |
+| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | after every other row, 83–107 included |
 | 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | done `14103cc` on `claude/av1-unified` (`e125d38`, `5b4e9aa`, `ecc9d68`) — **the served profile kept: no setting wins**: 35 settings on nine series, the best per series 0.990–1.000 of the served bytes (−0.9 % only on 256² PET); decode within the round spread everywhere (every paired range spans 1; 0.95–1.10 where decode is the clock); 6 decompositions, the fewest bytes overall, ties on total time ×0.99–1.02 on 5/20/50 Mbit at 1× and 4×; `imagecodecs`' defaults differ only in SIZ depth (container bits, 1.000–1.002 of the bytes); 315 × 35 codings and 12 400 + 339 visits' frames exact — [`docs/decode/README.md`](../decode/README.md) §Encoder settings | |
 | 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | done `3402411` on `claude/av1-unified` (`d4f7b30`, `ef72890`, `7d022d1`, `d2c4408`) — **adopted: one aomenc run per frame makes every item byte-identical at 1, 2 and 4 workers, for +12–13 % encode CPU and no byte cost**: libaom 3.15.1 `good:6`, the first 16 frames of all 23 sets of rows 2, 45 and 46 (252 items), every set identical across worker counts (`ffdm_d` at 1 and 2: four exceed memory, as before), bytes 0.99987–1.00015 of the chunked ingest's, 0.999998 in total — a one-frame run writes the reduced still-picture header every golden item already carried (forcing video mode would rewrite 106 golden items, not taken; row 80's `grey420/g8`, written while it was on the branch, regenerated, exact through the gate); whole series, n = 5 interleaved, wall at 1 worker 54.1 → 61.0 s fluoroscopy, 92.2 → 103.4 s 10-bit volume, 147.8 → 165.7 s ultrasound, every range disjoint, +6–13 % at 4 workers; the chunked ingest gave three totals for the 10-bit volume at 1/2/4 workers, the new one the same every round; mutation (the chunked loop as the new arm) caught on both tomosynthesis volumes, the regenerated golden broken caught by the gate; gate green — [`lab/av1/item/README.md`](../../lab/av1/item/README.md) §One pipeline *Provisional (row DATAGUARD): its ultrasound numbers rest on lossy-sourced sets (`us_liver` flagged lossy at 12.4:1, the breast cine MPEG-4 clips) and enter no verdict.* |
 | 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | done `953dbfd` on `claude/av1-unified` — **adopted: ingest's optimized split is k = 0 up to 9 bits, 3 at 13, 2 at 10–12 and 14; 15–16 bits refused by name, served as HTJ2K**: the format did not change (row 43 already carries every k), only `ingest.py`'s `optimized_split`; its per-depth test held against three mutants (each caught), the writer's 142/142 split-and-merge cells still exact; a 9-bit golden item (`g9`, plain and optimized) and `optimized/s13` remade at k = 3 (10-bit top, WebCodecs), every other golden and matrix item and the probes byte-identical; the real 9- and 13-bit series (MR 9-bit, CT, cone-beam) ingested by the rule, 198/198 frames exact natively, in Node (dav1d-WASM) and in Chromium 141 (WebCodecs 198/198, as chosen); Firefox and WebKitGTK not installed here — row 43 ran these layouts there; gate green on every step but the link check, which fails only on row 69's brief (`docs/av1/MERGE.md` not yet written) — `item-format.md` §Representation at ingest and §The split per depth, README §A3 |
@@ -165,6 +165,12 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 99 | **GOPTHEORY** — frame groups, phase 1: why inter should or should not help lossless coding of each target type, from primary sources; predictions, protocol and decision rule pre-registered | done `821a368` — **inter can beat intra on noise only where the next frame's noise correlates above ½; on DBT that is predicted not to happen (ρ 0.2–0.5, gain < 5 %), on native ultrasound cine it is (≥ 20 %)**: AV1 lossless keeps every inter tool and changes only the residual (spec §5.9.2, §7.13.3); libaom 3.15.1 still filters its hidden alt-ref in lossless, SVT-AV1 4.2.0 does not; ten predictions P1–P10, ρ measurable before any encode; adopt G > 1 for a type only at ≥ 20 % under intra and ≤ 0.80 of HTJ2K on every sound series, with the mid-group ask inside one HTJ2K decode plus the wire time saved — `gop-theory.md`, the protocol alone in `gop-protocol.md` |
 | 100 | **GOPMEASURE** — frame groups, phase 2: row 99's protocol run on the target content available, by a session given only the protocol and the decision rule | done `4306310` on `claude/av1-unified` (`c7def5f`, `0145beb`) — **DBT: G = 1, conclusive by the pre-stated rule**: run in a separate session given only `gop-protocol.md`; ρ on every adjacent slice pair of the 15 sound DBT volumes (top stream, best offset: system medians A 0.112, B 0.215, C 0.117; low stream at the noise floor 0.058–0.061); codings on each volume's middle 16 slices (cpu0 needs ~1 h a 16-slice group here; whole volumes and G ∈ {24, 32, whole} not run, not claimed): libaom `good` 6 alt-ref off, every G > 1 larger than intra on 14/15 (best +1.51 %, `b3` G16), cpu0 best +0.13 %; alt-ref on and SVT-AV1 inter not lossless on the 10-bit tops of systems A and C (aomdec and dav1d agree: the streams are wrong), exact on B, where alt-ref adds 1.2–6.8 points (best +3.19 %) and SVT preset 0 +2.43 %; libaom alt-ref off 159/159 cells exact; decode at 4× every G > 1 4.6–24.6× over the rule's bound (WebCodecs, n = 10, 5 760/5 760 exact). Predictions: P2 and P5 held, P1 not refuted, P3 did not hold, P4 not refuted (its 80 % clause failed), P6 and P7 refuted on system B, P8–P10 not testable (no sound data, §Blocked). Found: dav1d-WASM fails every split group at G > 1 (the low unit decoded on the top's instance with `key: true` flushes its references) — reported, not fixed. Finding: `lab/av1/gopmeasure/README.md`, `README.md` §A1. |
 | 101 | **GOPREVIEW** — frame groups, the review: row 99's predictions against row 100's numbers, conclusive or not, and why | done `56e8721` (`490d471` on `claude/av1-unified`) — **conclusive for DBT: G = 1; open for cine, ABUS and angiography for want of sound data**: the mechanism held where it decides (median ρ 0.11–0.22 on every system, far under the ½ inter needs; P2 held, best gain +1.51 %; P5 held, the low stream is independent noise), P1 missed its 0.2–0.5 band on two systems (0.11–0.12) without being refuted, P3 near untestable (14 of 15 gains ≤ 0), P4's 80 % clause failed on gains of 0.1–1.5 %, P6 and P7 refuted on system B (alt-ref on and SVT-AV1 find up to 3.2 % of structure, lossless only on its 8-bit tops), P8–P10 untested; the rule's clause 2 met by three systems of five series. Finding: `gop-theory.md` §4a, `README.md` §A1. |
+| 102 | **PUBLICAUDIT** — what a public repository should not carry, analysed for the owner: each item's risk, what depends on it, keep, reword or cut; nothing cut | night |
+| 103 | **BB3** — v3's loss bound over BBR built opt-in, and its pre-registered protocol written apart | night |
+| 104 | **BB3MEASURE** — row 103's protocol run by a session given only the protocol and the decision rule | after 103 |
+| 105 | **CROSSOVER** — where AV1 fills first: a model from the measured bytes and decode times predicting the link speed at which each codec wins, per target series and engine; protocol pre-registered | night |
+| 106 | **CROSSMEASURE** — row 105's protocol run by a session given only the protocol and the decision rule | after 105 |
+| 107 | **EVENREVIEW** — rows 103–106 reviewed: predictions against numbers, conclusive or not, and why | after 104, 106 |
 
 ## Briefs
 
@@ -1066,6 +1072,14 @@ reference and link updated; docs follow `CLAUDE.md` §Docs — extend the file t
 **Adopt:** the round's rule. **Branch:** `claude/av1-unified`; the queue's own docs here. **Deliverable:** the layout,
 and a short map in the doc that indexes the tree.
 
+**The owner's decision, 2026-10-08.** Product dependencies leave `lab/` first, to product folders, each moved once:
+the shipped AV1 decoder's build (`lab/av1/dav1d-wasm/`) goes where row 82 puts the decoders' WASM builds
+(`client/decode/wasm/`, created here if row 82 has not), the AV1 ingest (`lab/av1/item/ingest.py` and what only it
+uses) to a product tool folder beside the HTJ2K ingest's (row 89 builds the one command on it), and the HTJ2K decoder's
+fetch (`lab/decode-bench/fetch_decoder.sh`, its `vendor/` output) beside the decoder it serves. Then apply the proposed
+tree (`lab/av1/README.md` §The folders) to everything left in `lab/av1/`, with the subject names it proposes. Every
+build script, page, test, doc and the gate follows; behaviour unchanged.
+
 ### 57 VERSIONS
 
 **Question.** What do newer libaom (after 3.15.1), SVT-AV1 (its lossless status; row 28 measured v4.2.0, never
@@ -1602,6 +1616,15 @@ with examples where one pattern repeats.
 **Do:** row 83's 84-list: renames with every reference, the one glossary (merging any project terms kept in a codec or
 other doc), environment variables, folder leftovers. Behaviour unchanged. **Decides:** the gate green, `check_links.py`
 green, `git grep` finds no old name outside history notes. **Branch:** `claude/av1-unified`.
+
+**The owner's decision, 2026-10-08: every rename row 83 proposed (§Blocked, *Renames*) is adopted**, with every
+reference: one frame's coded data, any codec, is a *coded frame*, and AV1's is the *AV1 payload* (row 68); "arm" →
+"variant" (the lab, its variables, `CLAUDE.md` §Measurement); the telemetry schema's `arm` → `client`, its row kinds to
+ask/fill, the always-null fields dropped; `exact-server` and "exact-tier" by role; "study" → "series" where it means one
+series (`--study`, `pack-study`, `study-bundle`); "conformance" → the transport contract suite; "early" out of the patch
+name; "Media-complete" defined once or renamed. The glossary gets its own file, `docs/glossary.md`, linked from the
+README; the Names rule (row 83's principles, *Names*) goes into `CLAUDE.md`. What a public repository carries and
+which rule governs are not this row's: row 102 analyses them for the owner.
 
 ### 85 ONBOARD
 
@@ -2155,9 +2178,89 @@ Report the numbers per cell, then whether each prediction held, against the pre-
 question is now conclusive for each target type, and why or why not; corrected in place where `docs/av1/README.md`
 §A1 states it.
 
+## The evening rows (102–107), 2026-10-08
+
+The owner, 2026-10-08: everything runs tonight, scheduled so that no session waits. Rows 104 and 106 must be taken by a
+session that did not do their theory row (103, 105): a session that did leaves them and takes the next row. That keeps
+the measuring context apart, as §Protocol asks.
+
+### 102 PUBLICAUDIT
+
+**Question.** What in this public repository should it not carry, and what would cutting each cost? **Do:** read-only.
+Take row 83's two lists under §Blocked — *What a public repository carries* and *Which rule governs* — and sweep the
+whole tree, the remote's tags and branch names for more of the same kind: host names, addresses, ports, key or account
+roles, personal paths, third-party product or company names, notes addressed to other projects, archive tags. Never
+quote a secret; if one is found, say where, that it is one, and that it should be rotated. Per item, for an owner who is
+not a security specialist, in plain words: what it is; who reads it or what depends on it (`git grep`); the risk of
+keeping it (security, licence, naming the private stack, reputation), with how likely and how bad; the cost of removing
+it (lost knowledge, broken links, references to rewrite); a recommendation — keep, reword, cut from the tree (history
+keeps it), or cut from history too (a rewrite of a pushed branch, only if a risk demands it) — and what each choice
+changes. Group by recommendation, the riskiest first. **Deliverable:** under this brief, nothing else edited; one line
+under §Blocked pointing here for the owner's decision. **Branch:** this one.
+
+### 103 BB3
+
+**Question.** Does v3's loss bound keep BBR's win under random loss while removing its measured costs?
+**Why it matters:** row 75 found BBR fills 0.04–0.76 of today's time under 1–5 % loss but did not adopt it for its
+clean-link costs; `docs/transport/transport-conclusions.md` §1 names the bound as the next candidate (BB3), with what it
+should remove and what not, the smallest build and the cell that decides it. **Do:** (1) build the bound as §1
+*The smallest build* states it, opt-in beside `bbr` and `cubic-restart` (a controller name the server's flag takes),
+the default unchanged; unit tests of its rules (a round over 2 % sets the cap, the 0.7 × BDP floor, the 1, 2, 4…
+regrowth), each mutated and seen to fail; the gate green. (2) Before any timed run, write
+`docs/transport/bb3-protocol.md` alone, with no reasoning in it: the cells, the arms (`bbr`, the bound, `cubic-restart`),
+rounds and order (`lab/scripts/order.py`, `--self-timing`), what is recorded, and this decision rule stated before data:
+*the bound passes* when on PROF's LTE-good + CoDel profile under 2 % of its packets meet CoDel, it stands under 50 ms
+of queue and keeps ≥ 0.9 × `bbr`'s throughput; on ASKL's 4 % cell its ask is ≤ +73 ms over `bbr`; on W4b's `flat`
+500 ms it loses < 3 300 packets; *it becomes the default* only if it also fills, through the product as row 75 ran it,
+in ≤ 1.10 × `bbr`'s time on row 75's lossy cells and ≤ 1.01 × `cubic-restart`'s on its clean and jitter cells. Add §1's
+predictions per cost to §1 under BB3 if they are not stated there. **Deliverable:** the controller, its tests, the
+protocol file. **Branch:** `claude/av1-unified`.
+
+### 104 BB3MEASURE
+
+**Do:** given only `docs/transport/bb3-protocol.md` and its decision rule (not §1's reasoning), run it. Report the
+numbers, n and spread, `VOID` visits counted, where the host saturates; then apply the rule — adopt the default only if
+it says so, in its own commit. Budget about 5 hours of runs; push each round's data as it lands. **Deliverable:**
+the numbers in §1 under BB3, the verdict in the queue. **Branch:** `claude/av1-unified`.
+
+### 105 CROSSOVER
+
+**Question.** At which link speed does each codec fill a target series first, per engine and CPU speed — and can the
+server know enough to choose? **Why it matters:** row 77 found AV1 0.89–0.98 of HTJ2K's time where the wire is the
+clock and up to 2.53× where a slow CPU meets a fast link, so no single codec wins; its wire-bound cells rest on n = 1–9
+(46 % `VOID`). Rows 95 and 96 measured bytes and decode at scale on sound DBT and mammography. **Do:** theory first, no
+new timed data: from the measured bytes and decode times (rows 77, 95, 96 and their lab READMEs) and the downloader's
+pipeline (decode overlaps the wire), a model of fill time per codec, link speed and CPU speed; predict, per sound target
+series (DBT 10 and 12 bits, mammography for presentation, synthesized 2D) and engine (Chromium, Firefox), the link speed
+where AV1 and HTJ2K tie at 1× and 4×, with the band the measured spread allows; check the model against row 77's and
+95's existing cells and say where it fails. Then write `docs/av1/crossover-protocol.md` alone: the cells on both sides
+of each predicted crossover, n ≥ 10 kept visits a cell, interleaved, how `VOID` is kept under 20 % (fewer concurrent
+arms, steal time read before each round), and the rule stated before data: *the model holds* where every measured
+cell falls on its predicted side or within its band; *a per-link rule is worth building* only if a series gains
+≥ 5 % of fill time on a link a phone commonly has (≤ 20 Mbit/s or LTE) while the rule's input (the client's measured
+throughput and decode rate at the first frames) is known before the first frame is asked. Name the rule's input and
+cost (a second encoding stored per series). **Deliverable:** the model in `docs/av1/README.md` beside row 77's
+section, the protocol file. **Branch:** `claude/av1-unified`.
+
+### 106 CROSSMEASURE
+
+**Do:** given only `docs/av1/crossover-protocol.md` and its decision rule, run it; sound data only. Report numbers, n,
+spread, `VOID` share, every frame exact; then whether each predicted side held. Budget about 5 hours of runs; push each
+round's data as it lands. **Deliverable:** the numbers beside row 77's in `docs/av1/README.md`. **Branch:**
+`claude/av1-unified`.
+
+### 107 EVENREVIEW
+
+**Do:** row 103's predictions against row 104's numbers, row 105's against row 106's: per prediction held, refuted or
+untested; conclusive or not, and why; what each now decides (the controller's default, a per-link codec rule) and what
+the owner must still choose, in plain words. **Deliverable:** a review section in each owning doc; one line under
+§Blocked for each choice left to the owner. **Branch:** `claude/av1-unified`.
+
 ## Blocked
 
-* **2026-10-08 16:15 UTC: row 56 LAYOUT — the moves wait on two of row 83's decisions.** Every prerequisite row is done
+* *Resolved, 2026-10-08 23:45 UTC (the owner): product dependencies leave `lab/` first, every proposed rename is
+  adopted (rows 56 and 84's briefs); what a public repository carries and which rule governs go to row 102 for analysis.*
+  **2026-10-08 16:15 UTC: row 56 LAYOUT — the moves wait on two of row 83's decisions.** Every prerequisite row is done
   and the tree is proposed (`lab/av1/README.md` §The folders, `a6eb1c3` on `claude/av1-unified`), but applying it
   renames the queue-named `lab/av1/` folders, which row 83 lists as the owner's (below, *Renames*), and would move
   `dav1d-wasm/` and `item/` — the shipped AV1 decoder's build and the AV1 ingest — inside `lab/` while whether product
