@@ -25,8 +25,8 @@ def found(ds, path=""):
     """Every wanted attribute anywhere in the header, with where it sits."""
     for el in ds:
         if el.VR == "SQ":
-            for i, item in enumerate(el.value):
-                yield from found(item, f"{path}{el.keyword or el.tag}[{i}].")
+            for i, payload in enumerate(el.value):
+                yield from found(payload, f"{path}{el.keyword or el.tag}[{i}].")
         elif el.tag in WANTED or el.tag == ACQUISITION:
             yield f"{path}{WANTED.get(el.tag, el.keyword)}", str(el.value)
 

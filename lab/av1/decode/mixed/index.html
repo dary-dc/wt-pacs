@@ -4,7 +4,7 @@
 <script type="module">
   import { ARMS, round } from "../per-frame/drive.js";
   const env = { worker: () => new Worker("/client/decode/decoder.js", { type: "module" }), channel: () => new MessageChannel() };
-  // kK is the item split at k as the client decodes it today, kKm the same item mixed; a mixed arm only where the top is over 10 bits.
+  // kK is the payload split at k as the client decodes it today, kKm the same payload mixed; a mixed arm only where the top is over 10 bits.
   const av1 = (name) => (base, set) => {
     const [, k, mixed] = name.match(/^k(\d)(m?)$/);
     const arm = set.arms[`k${k}`];

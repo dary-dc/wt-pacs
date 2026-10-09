@@ -10,7 +10,7 @@ const abs = () => performance.timeOrigin + performance.now();
 
 /** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview)` → `{ info, sab, byteCount, range }`. */
 async function init(m) {
-  // Only an AV1 series loads AV1 code; which decoder takes an item is chosen per item. docs/av1/item-format.md
+  // Only an AV1 series loads AV1 code; which decoder takes a payload is chosen per payload. docs/av1/payload-format.md
   codec = await import(m.decoder?.codec === "av1" ? "./av1.js" : "./htj2k.js");
   await codec.init({ ...m.decoder, groupLength: m.groupLength });
 }

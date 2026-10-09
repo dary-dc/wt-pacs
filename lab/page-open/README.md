@@ -396,12 +396,12 @@ order would matter.
 ## Cold round trips by codec
 
 **COLDRTT, 2026-10-07, `21c5cd9`.** Navigation to the first *exact* frame on 100–300 ms links, an
-HTJ2K study against an AV1 one, whose decoder module loaded only once the first item had landed.
+HTJ2K study against an AV1 one, whose decoder module loaded only once the first payload had landed.
 [`codec.html`](codec.html) opens the downloader with `?codec=`, an earlier `client/downloader` by
 `?tree=` and the AV1 decoder's files preloaded by `?pre=1`; [`coldrtt.mjs`](coldrtt.mjs) runs the
 arms interleaved against the deploy template's nginx (TLS, HTTP/2, gzip) behind a 100 Mbit relay.
 Every arm is one 64×48 source — the writer's golden g10 and g12, regenerated and checked against
-their `.sha256` by [`coldrtt_frames.py`](coldrtt_frames.py), coded as plain AV1 items and as HTJ2K
+their `.sha256` by [`coldrtt_frames.py`](coldrtt_frames.py), coded as plain AV1 payloads and as HTJ2K
 in the served profile — so the frame is one flight, and frame 0 must hash to the source's checksum
 or the visit fails (watched to fail on a wrong checksum, every arm).
 
@@ -414,7 +414,7 @@ BEFORE=cf4db15 INIT=7d30674 RTTS=0,40,100 NODE_PATH=$(npm root -g) node lab/page
 ```
 
 **The serial chain before.** HTJ2K's decoder glue and WASM are preloaded by the page and loaded by
-each decoder at start, beside the dial. An AV1 decoder imported its module on the first item:
+each decoder at start, beside the dial. An AV1 decoder imported its module on the first payload:
 WebCodecs is `av1-webcodecs.js` and its `av1-probe.js`, two hops; dav1d is `av1-dav1d.js`,
 `wasm-glue.js`, the glue, then 238 KB of gzipped WASM — four hops and the WASM's slow start, all
 after the frame's bytes were in hand. `-after` is today's client: the decoder imports both modules
@@ -436,7 +436,7 @@ rounds an arm beat its path's `-before` in, of the rounds both kept. 24 rounds W
 | dav1d `-pre` | **7.96** | 2 571 [2 549–2 590] | 38/38 | 5.94 | 6.96 |
 
 **Verdict: the AV1 decoder's load was 2.0 serial round trips through WebCodecs and 3.9 through
-dav1d-WASM, all after the first item; fetched at the decoder's start it is −1.0 and −3.0 (every
+dav1d-WASM, all after the first payload; fetched at the decoder's start it is −1.0 and −3.0 (every
 paired round at 100–300 ms), and with the page's preloads AV1 reaches HTJ2K's 8.0.** Warm, nothing
 moves (5.9–6.0 round trips in every arm): the HTTP cache already held what the cold page waited
 for. The preloads cost the session +27 to +41 ms, a constant (its slope unchanged), and won 0 of 74
@@ -452,7 +452,7 @@ against `-before`, cold, median ms to the frame —
 | dav1d | +15, 2/9 | −25, 3/4 | −67, 8/8 | −129, 8/8 |
 
 Warm, +33 to +36 ms at 0 ms and a tie from 20 ms. The cost is the dav1d WASM's 238 KB arriving
-while the first frame does; a WebCodecs item that probes exact never uses it (it is the fallback).
+while the first frame does; a WebCodecs payload that probes exact never uses it (it is the fallback).
 Config and session are unmoved at every delay. A variant that initialised dav1d at start
 (`-init`, `7d30674`) saved less — 10.56 round trips over 0–100 ms on the dav1d path against
 `-after`'s 8.28, 1.29 against 1.55 through WebCodecs — and cost the same at 0 ms; it was replaced.

@@ -1,5 +1,5 @@
 /**
- * The AV1 item: a 16-byte header, n frame lengths, n frames. Every case docs/av1/item-format.md
+ * The AV1 payload: a 16-byte header, n frame lengths, n frames. Every case docs/av1/payload-format.md
  * names is refused here, by name, before anything is decoded.
  */
 const HEADER = 16;
@@ -10,13 +10,13 @@ const MAX_SPLIT = 8;
 const MAX_BITS = 16;
 
 const refuse = (why) => {
-  throw new Error(`undecodable: av1 item: ${why}`);
+  throw new Error(`undecodable: av1 payload: ${why}`);
 };
 
 const container = (bits) => (bits <= 8 ? 8 : bits <= 10 ? 10 : 12);
 
 /** `{ bits, depth, split, signed, rct, offset, frames }`, each frame its bytes; `n` is the count expected. */
-export function parseItem(bytes, n = 1) {
+export function parsePayload(bytes, n = 1) {
   if (bytes.length < HEADER) refuse(`${bytes.length} bytes, under the ${HEADER}-byte header`);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const [version, bits, depth, split, flags] = bytes;
@@ -36,11 +36,11 @@ export function parseItem(bytes, n = 1) {
   if (!rct && depth !== container(bits - split)) refuse(`depth ${depth} for a top of ${bits - split} bits, not ${container(bits - split)}`);
   if (count !== n) refuse(`${count} frames, ${n} expected`);
   let at = HEADER + 4 * count;
-  if (at > bytes.length) refuse("frame lengths overrun the item");
+  if (at > bytes.length) refuse("frame lengths overrun the payload");
   const frames = [];
   for (let j = 0; j < count; j++) {
     const len = view.getUint32(HEADER + 4 * j, true);
-    if (at + len > bytes.length) refuse(`frame ${j} overruns the item`);
+    if (at + len > bytes.length) refuse(`frame ${j} overruns the payload`);
     frames.push(bytes.subarray(at, at + len));
     at += len;
   }
@@ -164,13 +164,13 @@ export function codecString(s) {
   return `av01.${s.profile}.${two(s.level)}${tier}.${two(s.bits)}.${s.mono}.${chroma}.${two(s.cp)}.${two(s.tc)}.${two(s.mc)}.${s.range}`;
 }
 
-/** The stream layouts an item's frame decodes as, before decoding: what a WebCodecs probe must pass. */
-export function layouts(item, top) {
-  if (item.rct) return ["c10"];
-  const seq = item.depth === 8 && sequence(top);
+/** The stream layouts a payload's frame decodes as, before decoding: what a WebCodecs probe must pass. */
+export function layouts(payload, top) {
+  if (payload.rct) return ["c10"];
+  const seq = payload.depth === 8 && sequence(top);
   // 8-bit grey coded 4:2:0 at full range is what Firefox returns exactly (lab/av1/exact/engine-readback).
-  const own = !seq ? `g${item.depth}` : seq.profile === 1 ? "c8" : seq.mono ? "g8" : "g8f";
-  return item.split ? [own, "g8"] : [own];
+  const own = !seq ? `g${payload.depth}` : seq.profile === 1 ? "c8" : seq.mono ? "g8" : "g8f";
+  return payload.split ? [own, "g8"] : [own];
 }
 
 /** A keyframe decodes alone; any other unit only right after its predecessor `last`, `{ gen, index }`, of the same request. */

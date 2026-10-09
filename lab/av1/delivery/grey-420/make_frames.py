@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Row GREY420's frames: each 8-bit grey series as ingest.py writes it three ways — HTJ2K, AV1 4:0:0 (today's)
 and AV1 4:2:0 at full range (--grey8 420) — laid out for lab/av1/exact/engines/run.mjs (manifest.json) and
-lab/av1/delivery/total-time/run.mjs (SET/arms.json). Every item was checked exact by ingest.py; the truth is the source's checksum.
+lab/av1/delivery/total-time/run.mjs (SET/arms.json). Every payload was checked exact by ingest.py; the truth is the source's checksum.
 
 usage: make_frames.py INGEST OUT SET [SET …] [--frames N]   — lab/av1/delivery/grey-420/README.md
   INGEST holds SET.htj2k/, SET.mono/ and SET.420/, each ingest.py's output for that set.

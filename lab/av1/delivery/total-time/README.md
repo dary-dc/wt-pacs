@@ -63,7 +63,7 @@ of `run.mjs --links r5000,r20000,r50000 --frames lab/.av1-work/total2`, rounds 1
 `VOID` left under n = 10; the reading is in the same README, §Total time. `--mutate sample` and
 `--mutate truth` each turned every new arm to 0 exact.
 
-**Row TOTAL3** sets the two representations of [`item-format.md`](../../../../docs/av1/item-format.md)
+**Row TOTAL3** sets the two representations of [`payload-format.md`](../../../../docs/av1/payload-format.md)
 against HTJ2K and row ENCX's encoding changes against the adopted one, made with
 `ARMS=av1,l2,rct,x36,plain make_frames.py …` into `lab/.av1-work/total3` and run as
 `--arms htj2k,plain,opt,x36 --links r5000,r20000,r50000`:
@@ -85,7 +85,7 @@ with the series' checksum after a native decode and Python's inflate before they
 **Row ORDER** sets the order frames are asked in against the sequential fill, on the breast series
 of rows 10 and 45: both tomosynthesis volumes and two four-view screening mammograms (`ffdm_c`, 4 ×
 1914×2294, and `ffdm_a`, 4 × 2560×3328, 12-bit, stored R CC, L CC, R MLO, L MLO). Two arms a series,
-HTJ2K and the adopted optimized item (`k2`: k = 2, WebCodecs), made with row SPLITTIME's
+HTJ2K and the adopted optimized payload (`k2`: k = 2, WebCodecs), made with row SPLITTIME's
 `make_frames.py --k 2` into `lab/.av1-work/order`, and two orders each, run as
 `--arms htj2k,k2 --orders seq,prio --links r5000,r20000,r50000`:
 
@@ -136,7 +136,7 @@ downloader as it was before the row, beside `htj2k` (the tree's), and (row SEAM,
 [`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The downloader.
 
 **Row LOSSLINK** puts loss or jitter on top of each link and times an ask apart from the fill. The
-10-bit volume as HTJ2K (`ARMS=l2 make_frames.py`, its `htj2k`) and as the adopted optimized item
+10-bit volume as HTJ2K (`ARMS=l2 make_frames.py`, its `htj2k`) and as the adopted optimized payload
 (`ingest/coded-frames/ingest.py --representation optimized --preset cpu0`, each `NNN.av1` linked in as
 `NNN.opt.av1` and `arms.json` set to `{"htj2k": {}, "opt": {"ext": "opt.av1"}}`), then rounds 0–12 of
 
@@ -155,16 +155,16 @@ every frame of both hashed against its truth. `--mutate sample` and `--mutate tr
 arms to 0 of 12 exact (`--fill 8 --asks-after 4`, `l1` on 50 Mbit). The server's controller is its default, `cubic-restart`. The reading is in
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Under loss and jitter.
 
-**Row TOTAL4** sets the item as ingest now writes it against the served HTJ2K, in Chromium and in Firefox,
+**Row TOTAL4** sets the payload as ingest now writes it against the served HTJ2K, in Chromium and in Firefox,
 with every change of its round in the product: row 72's split by depth, row 67's codec string, row 49's
 decoder interface and row 74's 8-bit GBR read. Each set's first N frames through `ingest.py` both ways
-(cpu0, the optimized representation; every item and codestream decoded in-process and matched before it
+(cpu0, the optimized representation; every payload and codestream decoded in-process and matched before it
 is written), one series per class the split rule tells apart:
 
 ```bash
 D=lab/av1/data
 ingest/coded-frames/build.sh                      # ingest's in-process decoders, after tools.sh and gen_htj2k_fixtures.sh
-lab/av1/delivery/total-time/item_frames.sh lab/.av1-build lab/.av1-work/total4 $D/mr9_ispy2:34 $D/rf_fluoro:18 \
+lab/av1/delivery/total-time/payload_frames.sh lab/.av1-build lab/.av1-work/total4 $D/mr9_ispy2:34 $D/rf_fluoro:18 \
   $D/dbt10_ea1141:16 $D/ffdm_c:4 $D/dbtproj_holo:5 $D/us_liver:40 $D/ct_lidc:60       # ~25 min
 export FIREFOX_PATH=...                    # Firefox 157.0.1, below
 R="taskset -c 0-2 node lab/av1/delivery/total-time/run.mjs --frames lab/.av1-work/total4 --rounds 1 --out rows.jsonl"
@@ -202,7 +202,7 @@ frames exact, in both engines (50 Mbit, 1×).
 
 **Row LOSSCC** sets the server's controller under row LOSSLINK's cells: today's `cubic-restart` against
 `bbr`, each with both codecs. The 10-bit volume's first 8 frames, through the product's ingest both ways
-(`item_frames.sh lab/.av1-build lab/.av1-work/losscc $D/dbt10_ea1141:8`; 0.943 of HTJ2K's bytes), with
+(`payload_frames.sh lab/.av1-build lab/.av1-work/losscc $D/dbt10_ea1141:8`; 0.943 of HTJ2K's bytes), with
 `arms.json` given two more arms, `htj2kbbr` (`"codec": "htj2k", "congestion": "bbr"`) and `optbbr`
 (`"ext": "opt.av1", "congestion": "bbr"`). A visit refuses to run when the server's banner names
 another controller than the arm's. Then rounds 0–11 of

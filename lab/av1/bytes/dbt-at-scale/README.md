@@ -21,7 +21,7 @@ SeriesInstanceUID, the first five from patients the lab had not used, each serie
 
 ## Bytes (2026-10-08)
 
-Every slice, `allintra` 7 (the shipped preset row SPLITTIME found for DBT's k = 2 and k = 3), each item decoded back
+Every slice, `allintra` 7 (the shipped preset row SPLITTIME found for DBT's k = 2 and k = 3), each payload decoded back
 natively and matched with the fetch's checksum before it is written (`ingest.py`), HTJ2K in the served profile
 decoded back and checked: 994/994 frames exact in every arm. HTJ2K's bits a sample, then each arm's bytes over
 HTJ2K's on the whole volume. k is the low bits split off; at 10 bits k = 0 is d12 and w10 alike, at 12 bits k = 0
@@ -46,7 +46,7 @@ is d12 and k = 2 is w10.
 | `dbts_c5` | 12 | 73 × 955×2100 | 4.49 | 1.068 | 0.952 | 0.954 |
 
 **cpu0 against the shipped preset**, on each volume's two middle slices (`make_frames.py … --preset cpu0` on sets of
-those two, every item exact), cpu0 · `allintra` 7, bytes over HTJ2K's on the same slices. cpu0 on every slice would
+those two, every payload exact), cpu0 · `allintra` 7, bytes over HTJ2K's on the same slices. cpu0 on every slice would
 take ~30 core-hours here; `allintra` 7 on the middle slices is within 0.01 of its whole-volume figure above on every
 cell but three, all k = 3 (`dbts_b4` +0.021, `dbts_c3` +0.015, `dbts_c4` +0.019).
 

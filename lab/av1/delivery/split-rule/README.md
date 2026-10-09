@@ -4,7 +4,7 @@ Queue row 44 (SPLITTIME) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md)
 every depth and k (row 43, [`../../exact/split`](../../exact/split/README.md)), which k each depth should store, by
 bytes, decode and total time against HTJ2K. The verdict is in
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §A3 and §Total time, and as a proposal in
-[`docs/av1/item-format.md`](../../../../docs/av1/item-format.md).
+[`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md).
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
@@ -15,7 +15,7 @@ lab/av1/fetch_data.sh ct_lidc xa_dynact16 dbtproj_ge dbtproj_holo pt15_cptac mg1
   mr_ispy1 rf_fluoro dbt12_ea1141 dbt10_ea1141 mr9_ispy2
 P=lab/av1/.venv/bin/python D=lab/av1/data W=lab/.av1-work/splittime
 S="$D/ct_lidc $D/xa_dynact16 $D/dbtproj_ge $D/dbtproj_holo $D/pt15_cptac $D/mg16_cbis $D/mr_ispy1 $D/rf_fluoro $D/dbt12_ea1141 $D/dbt10_ea1141 $D/mr9_ispy2"
-$P lab/av1/delivery/split-rule/make_frames.py lab/.av1-build $W $S --reuse lab/.av1-work/splitok/real   # cpu0 items
+$P lab/av1/delivery/split-rule/make_frames.py lab/.av1-build $W $S --reuse lab/.av1-work/splitok/real   # cpu0 payloads
 $P lab/av1/delivery/split-rule/sweep.py lab/.av1-build $W $S --out sweep.json        # the shipped preset per k
 NODE_PATH=$(npm root -g) node lab/av1/delivery/split-rule/decode.mjs --rounds 12 --out decode.json
 for r in $(seq 0 9); do
@@ -27,10 +27,10 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W --
 **Arms**, per series of b bits after its offset, named by k so none is ambiguous, each run once
 however many names it has, and only where its top fits a 12-bit stream: **HTJ2K** (the served
 profile); **d12**, k = max(0, b − 12); **k = 2**, the adopted optimized rule; **k = 3**; **w10**,
-k = max(0, b − 10), every stream ≤ 10 bits. Each AV1 arm is the series' items
-([`item-format.md`](../../../../docs/av1/item-format.md)) written by `ingest.py --split K`, libaom 3.15.1
-lossless with `--tune-content=screen --sb-size=64`, and the item picks its decoder: WebCodecs where
-every stream is ≤ 10 bits, dav1d-WASM otherwise. A row-43 item (`--reuse`) is the same file ingest
+k = max(0, b − 10), every stream ≤ 10 bits. Each AV1 arm is the series' payloads
+([`payload-format.md`](../../../../docs/av1/payload-format.md)) written by `ingest.py --split K`, libaom 3.15.1
+lossless with `--tune-content=screen --sb-size=64`, and the payload picks its decoder: WebCodecs where
+every stream is ≤ 10 bits, dav1d-WASM otherwise. A row-43 payload (`--reuse`) is the same file ingest
 would write: both came from `ingest.py` at the same preset, and row 43 checked every one exact.
 
 | b | series | arms (k) |
@@ -43,13 +43,13 @@ would write: both came from `ingest.py` at the same preset, and row 43 checked e
 | 11 | `mr_ispy1` | d12 0, w10 1, k2 2, k3 3 |
 | 10, 9 | `dbt10_ea1141`, `mr9_ispy2` | d12 = w10 0, k2 2, k3 3 |
 
-**The port to items.** The decode harness (`decode.mjs`, `index.html`) is row REP14's with its frames
-as items and its arms read from `manifest.json`; row TOTAL's `run.mjs` takes `arms.json` unchanged,
+**The port to payloads.** The decode harness (`decode.mjs`, `index.html`) is row REP14's with its frames
+as payloads and its arms read from `manifest.json`; row TOTAL's `run.mjs` takes `arms.json` unchanged,
 an AV1 arm being only its stored form (`ext`) under `codec: "av1"`.
 
 ## Bytes (2026-10-06)
 
-Every frame of each series, the item's bytes (header and lengths included) over HTJ2K's at cpu0, and at
+Every frame of each series, the payload's bytes (header and lengths included) over HTJ2K's at cpu0, and at
 the shipped preset: the fastest of `--allintra` 9…6 and good 6…3 within 2 % of cpu0 on the first two
 frames, then confirmed on the whole series (`sweep.py`; on the CT and the MR's k = 2 the two-frame pick,
 `--allintra` 6, was 2.1–2.7 % over on the whole series and good 6 replaced it, as row 33 found for the
@@ -78,7 +78,7 @@ at k = 0 is all its samples.
 ## Decode (2026-10-07)
 
 A frame through the product's `decoder.js` as of `2d77d7d` (before row DECODE's changes) in headless Chromium 141, every frame of each series' cpu0
-items, 12 rounds interleaved (`decode.mjs`), 59 280/59 280 frames exact. HTJ2K is ms a frame, median of
+payloads, 12 rounds interleaved (`decode.mjs`), 59 280/59 280 frames exact. HTJ2K is ms a frame, median of
 round medians at 1× · 4×; each arm the median of round-paired ratios to it. `wc` marks an arm whose
 streams are all ≤ 10 bits, so WebCodecs decodes it; the rest are dav1d-WASM.
 
@@ -105,7 +105,7 @@ short, so its 4× ratios overstate. `--mutate sample` and `--mutate truth` each 
 
 ## Total time, 13–16 bits (2026-10-07)
 
-Row TOTAL's `run.mjs` on these items (`--frames lab/.av1-work/splittime`), links, CPU and Williams order
+Row TOTAL's `run.mjs` on these payloads (`--frames lab/.av1-work/splittime`), links, CPU and Williams order
 unchanged, rounds 0–9, then 10–11 on every link but 50 Mbit to top up the cells `VOID` had left short; rounds 6–11 ran from a checkout frozen at the run's first revision (`90eb331`), since
 the branch moved under it. 204 160/204 160 frames exact over 2 552 visits, 41 `VOID`
 dropped, n = 10–12 a cell but one (9). Each HTJ2K cell is the median seconds to every frame on the page; each arm

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""SPLITTIME's frames: each series as HTJ2K and as AV1 items at every arm's split k, one file per frame and
+"""SPLITTIME's frames: each series as HTJ2K and as AV1 payloads at every arm's split k, one file per frame and
 arm, with arms.json (row TOTAL's harness) and manifest.json (the decode harness) beside them.
 
 Arms are named by k: d12 is k = max(0, b − 12), w10 k = max(0, b − 10), and k = 2 and k = 3, each run once
-however many names it has and only where its top fits a 12-bit stream. Items are written by
+however many names it has and only where its top fits a 12-bit stream. Payloads are written by
 ingest/coded-frames/ingest.py --split K, which writes nothing unless native dav1d decodes every one back to its
 source; `--reuse DIR` takes ingest's output from row 43's run (DIR/SET/kK.PRESET) where it exists.
 
@@ -39,7 +39,7 @@ def arms(b):
     return dict(sorted(named.items()))
 
 
-def items(build, src, out, k, preset, reuse):
+def payloads(build, src, out, k, preset, reuse):
     tag = f"k{k}.{preset.replace(':', '')}"
     have = reuse and reuse / src.name / tag
     if have and (have / "metadata.json").exists():
@@ -77,7 +77,7 @@ def main():
             dst = out / s.name
             dst.mkdir(parents=True, exist_ok=True)
             work.append((src, s, dst, procs.submit(htj2k_frames, src, dst),
-                         {k: pool.submit(items, build, src, out, k, a.preset, a.reuse) for k in arms(bits(s)) if a.k in (None, k)}))
+                         {k: pool.submit(payloads, build, src, out, k, a.preset, a.reuse) for k in arms(bits(s)) if a.k in (None, k)}))
         manifest = []
         for src, s, dst, h, ks in work:
             h.result()

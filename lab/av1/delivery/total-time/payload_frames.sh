@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Row TOTAL4's frames: each set's first N frames as the product's ingest writes them, the served HTJ2K and
-# the optimized AV1 item, into OUT/SET with the arms.json run.mjs reads. lab/av1/delivery/total-time/README.md §Row TOTAL4
+# the optimized AV1 payload, into OUT/SET with the arms.json run.mjs reads. lab/av1/delivery/total-time/README.md §Row TOTAL4
 #
-#   lab/av1/delivery/total-time/item_frames.sh BUILD OUT SETDIR:N ...
+#   lab/av1/delivery/total-time/payload_frames.sh BUILD OUT SETDIR:N ...
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 PY="$ROOT/lab/av1/.venv/bin/python"

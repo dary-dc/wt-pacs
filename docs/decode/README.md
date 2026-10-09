@@ -1527,12 +1527,12 @@ Taking groups away from WebCodecs, dropping the stall guard, and dropping the fl
 keyframe each failed a check. Dropping the flush at a group's end failed none, and is not meant to:
 the flush before the next keyframe then covers it, at the cost measured above.
 
-### A split item through two decoders
+### A split payload through two decoders
 
-Behind decoder config `mixed` (row MIXDEC, [`lab/av1/decode/mixed`](../../lab/av1/decode/mixed/README.md)), a split item
+Behind decoder config `mixed` (row MIXDEC, [`lab/av1/decode/mixed`](../../lab/av1/decode/mixed/README.md)), a split payload
 whose top is over 10 bits sends its 8-bit low unit to WebCodecs' `low` decoder before dav1d-WASM decodes the
 top in the worker; the low falls back to dav1d-WASM wherever WebCodecs fails it or its `g8` probe fails, and
-a failed top waits for its low to settle so no low is left in flight for the next item. Headless Chromium 141,
+a failed top waits for its low to settle so no low is left in flight for the next payload. Headless Chromium 141,
 10 rounds interleaved: the low is 17–54 % of the frame under dav1d-WASM, and mixed takes all of it off — 0.46–0.87
 of today's decode at 1× and 4× alike — while staying 1.04–2.16× w10's. Exact in Chromium, Firefox 157 and
 WebKitGTK 2.52 (the last two through dav1d-WASM, as their probes send them). Off by default.
@@ -1564,8 +1564,8 @@ through the platform's media stack, not GStreamer.
   caps. **So in both every series that says `depth` ≤ 10 fails every frame, 0/240 a cell**: the
   8-bit grey, the 10-bit tomosynthesis, the ultrasound and every split whose top is ≤ 10 bits.
   There is no fallback: a WebCodecs refusal is the frame's failure, not a turn to dav1d. Series
-  coded over 10 bits are unaffected. *Since row 39 (UNIFY, the item format):* the choice is per item behind a per-layout probe, and
-  an item WebCodecs fails on is decoded by dav1d-WASM — built and checked in Chromium, not re-run in
+  coded over 10 bits are unaffected. *Since row 39 (UNIFY, the payload format):* the choice is per payload behind a per-layout probe, and
+  a payload WebCodecs fails on is decoded by dav1d-WASM — built and checked in Chromium, not re-run in
   Firefox or WebKitGTK.
 * **WebKitGTK leaves `SharedArrayBuffer` off** under cross-origin isolation (Safari turns it on),
   so as shipped every frame of every codec fails — `Can't find variable: SharedArrayBuffer`, HTJ2K
@@ -1645,13 +1645,13 @@ on the same frames at 1× (range 0.67–1.12, faster in 9 of 10 rounds) and 0.62
 a container's times, not a phone's. Chromium is unchanged: it returns `I444`, and its frames and choice stay as before. Three
 mutations failed the new checks: G and B swapped, the RGB path removed, and grey taken as RGB.
 
-**Proposed: 8-bit grey coded as full-range 4:2:0.** *Built and measured since (row GREY420), not adopted:* every reader path takes it as grey, Firefox's frames reach the page through WebCodecs exactly, and its slow-CPU fills gain 13–26 % on fast links while Chromium's lose 0.2–3.4 % ([`docs/av1/item-format.md`](../av1/item-format.md) §8-bit grey as 4:2:0). The ingest would code 8-bit grey with mid-grey
+**Proposed: 8-bit grey coded as full-range 4:2:0.** *Built and measured since (row GREY420), not adopted:* every reader path takes it as grey, Firefox's frames reach the page through WebCodecs exactly, and its slow-CPU fills gain 13–26 % on fast links while Chromium's lose 0.2–3.4 % ([`docs/av1/payload-format.md`](../av1/payload-format.md) §8-bit grey as 4:2:0). The ingest would code 8-bit grey with mid-grey
 chroma and the full-range flag instead of 4:0:0. The cost is +0.07 % bytes on the ultrasound's grey (+0.06 %
 at 10 bits). The client would take `BGRX` with R = G = B as grey. Chromium still returns `I420` with neutral
 chroma, which `read()` already takes. In Firefox this would make every 8-bit grey series exact through
-WebCodecs, and with it every split's 8-bit low stream (§A split item through two decoders). It changes what the
+WebCodecs, and with it every split's 8-bit low stream (§A split payload through two decoders). It changes what the
 store holds for those series, so it is the owner's call
-([`docs/av1/item-format.md`](../av1/item-format.md)). Neither Firefox's tops over 8 bits nor anything in
+([`docs/av1/payload-format.md`](../av1/payload-format.md)). Neither Firefox's tops over 8 bits nor anything in
 WebKitGTK can follow without the engines changing: grey and high-depth formats in Gecko's FFmpeg path and
 `VideoFrame`, and in WebKit a parser before the decoder, the grey and high-depth formats, an `I444` copy and
 the stride fix.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The first frames of every series under DATA as items, in each layout the client could be served: plain and
+# The first frames of every series under DATA as payloads, in each layout the client could be served: plain and
 # optimized, and over 12 bits a 10-bit top (k = b − 10) beside the default — what check.mjs and the
 # browsers read. Queue row 67; README.md
 #

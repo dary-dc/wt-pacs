@@ -1,16 +1,16 @@
-# The AV1 item: format and representations
+# The AV1 payload: format and representations
 
 The unit one stored entry, one ask and one media message carry when the codec is AV1. Settled from rows 6, 7, 14 and
 28 and adopted by the owner on 2026-10-04 as the shape both the lab and the product use. Two representations: **plain**
 (lossless AV1 as it codes out of the box — the control set against HTJ2K) and **optimized** (rows 7 and 28: the two
 low bits apart, JPEG 2000's reversible colour transform), so the representation work is measured against the control.
 
-Today G = 1: one frame per item (n = 1). The format still carries n so G > 1 needs no format change.
+Today G = 1: one frame per payload (n = 1). The format still carries n so G > 1 needs no format change.
 
-## Item
+## Payload
 
 ```
-item   := header(16) · len[n] · frame[n]
+payload   := header(16) · len[n] · frame[n]
 header := version u8 = 1 · bits u8 · depth u8 · split u8 · flags u8 · pad u8[3] = 0 · offset u32le · n u32le
 len    := u32le                                   byte length of frame j
 frame  := one temporal unit                       when split = 0
@@ -30,13 +30,13 @@ frame  := one temporal unit                       when split = 0
 * Grey 8-bit and plain RGB share a header (bits 8, depth 8, split 0, flags 0); the decoded stream's plane count
   tells them apart (a client may read the unit's AV1 `seq_profile` first: profile 1 is always 4:4:4).
 * A reader refuses: version ≠ 1, unknown flag bits, a decoded stream whose depth ≠ `depth` (top) or ≠ 8 (low),
-  `n` ≠ the count expected, lengths that overrun the item, `split` over 8 (*was* ∉ {0, 1, 2} *until row 43*),
+  `n` ≠ the count expected, lengths that overrun the payload, `split` over 8 (*was* ∉ {0, 1, 2} *until row 43*),
   `bits` over 16, `rct` with `split` > 0, a top stream not of three planes under `rct`, or of three planes without it
   unless bits 8, depth 8, split 0, unsigned; without `rct`, `bits` > `depth + split`, or a `depth` other than the
   smallest of 8, 10, 12 holding the top's `bits − split` (*was* `bits` ≤ 8 with `depth + split` > 8 *until row 43*,
-  which refused every split 8-bit source); a non-zero `offset` without `signed`. *Built, and also refused:* an item under 16 bytes, a pad byte not 0, a `depth` other than 8, 10
+  which refused every split 8-bit source); a non-zero `offset` without `signed`. *Built, and also refused:* a payload under 16 bytes, a pad byte not 0, a `depth` other than 8, 10
   or 12, and bytes past the last frame.
-* HTJ2K items stay bare codestreams (the bundle's codec field says which).
+* HTJ2K coded frames stay bare codestreams (the bundle's codec field says which).
 
 ## Representation at ingest (lab row 28 LLSIZE, `lab/av1/bytes/represented/` in the public lab)
 
@@ -68,18 +68,18 @@ Encoder: the settings below less `--tune-content=screen --sb-size=64`; the same 
 
 **Encoder:** libaom 3.15.1 `aomenc --ivf --lossless=1 --bit-depth=B --input-bit-depth=B --kf-max-dist=0
 --tune-content=screen --sb-size=64 --threads=1`, `--monochrome` for grey, `--color-primaries=bt709 --transfer-characteristics=srgb --matrix-coefficients=identity` for
-RGB (AV1's RGB signal: with the identity matrix alone WebCodecs reports a BT.709 matrix and no colour item passes its probe) (Y4M `420`/`420p10`/`420p12` with
+RGB (AV1's RGB signal: with the identity matrix alone WebCodecs reports a BT.709 matrix and no colour payload passes its probe) (Y4M `420`/`420p10`/`420p12` with
 neutral chroma, as the lab does); preset: the fastest within 2 % of cpu0's bytes per content (row 14); RGB ultrasound at cpu0; IVF split into one temporal unit per frame (strip each IVF frame's 12-byte header). Frames parallel across
 processes.
 
-**Exact at ingest, or nothing written:** native dav1d decodes every item and the reconstructed samples must equal
+**Exact at ingest, or nothing written:** native dav1d decodes every payload and the reconstructed samples must equal
 the source plane (the same plane the tag's `exactness` hash covers) before the bundle is written; a mismatch names
 the frame.
 
-## Decoder choice, per item
+## Decoder choice, per payload
 
 * **WebCodecs** (`hardwareAcceleration: 'prefer-software'`, `optimizeForLatency: true`, `copyTo`) when every
-  stream of the item is ≤ 10 bits, `VideoDecoder` exists, and a per-worker, per-layout probe (one tiny bundled unit,
+  stream of the payload is ≤ 10 bits, `VideoDecoder` exists, and a per-worker, per-layout probe (one tiny bundled unit,
   checksum checked) passes.
 * **The codec string is the stream's own** (row 67 CODECSTR): each keyframe's sequence header gives the AV1 codecs
   parameter string (AV1-ISOBMFF §5) with every optional field — `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, the level and tier
@@ -93,15 +93,15 @@ the frame.
 
 ## Built (row 39, branch `claude/av1-unified`)
 
-The writer is [`ingest/coded-frames/ingest.py`](../../ingest/coded-frames/README.md), `pack-study` bundles its items when the metadata
+The writer is [`ingest/coded-frames/ingest.py`](../../ingest/coded-frames/README.md), `pack-study` bundles its payloads when the metadata
 says `"codec": "av1"`, and the reader is `client/decode/av1.js` with `av1-payload.js` (the header and its refusals) and
 `av1-frame.js` (the merge) — [`client/README.md`](../../client/README.md) §An AV1 series. The
 per-layout probes are 16×16 units (grey 8/10, 4:4:4 8/10, and 8-bit grey as 4:2:0 since row GREY420) in `av1-probe.js`, checked by an FNV-1a of their planes. On
-the first 8 frames of the fluoroscopy, CT, MR and ultrasound series, both representations, all 96 items were written and
+the first 8 frames of the fluoroscopy, CT, MR and ultrasound series, both representations, all 96 payloads were written and
 decoded by the reader to their sources; optimized over plain matches row 28 to the third digit
 ([`lab/av1/exact/coded-frame`](../../lab/av1/exact/coded-frame/README.md) §Checked). The lab harnesses of rows 9–38 that hand the client bare temporal units, or import the decoder modules
 (`lab/av1/{speed,fill,total,decspeed,wcbase,xbrowser,footprint,rep14}`), are not ported: on this branch they would
-need their frames written as items; their readings stand as measured on `claude/av1`.
+need their frames written as payloads; their readings stand as measured on `claude/av1`.
 
 **Widened (row 43 SPLITOK, [`lab/av1/exact/split`](../../lab/av1/exact/split/README.md)).** The writer (`ingest.py --split K`)
 and the reader take grey of 8–16 bits after the offset, unsigned and signed, at any k ≤ 8 whose top fits a 12-bit
@@ -109,12 +109,12 @@ stream; the defaults above are unchanged until row 44. Checked exact at every b 
 max(b − 8, 4), natively, in Node and in Chromium, Firefox and WebKitGTK, synthetic to 4096×5120 and real, and the old and new
 refusals matched by message. The reader's signed mask is now the output container's (0xFF, 0xFFFF): the old
 2^(depth + split) − 1 reports a wrong range for signed 8-bit with a split and for signed 16-bit at k = 5 and 7.
-**New limits:** `bits` ≤ 16, `split` ≤ 8, a top of at most 12 bits; an item's `depth` is the smallest of 8, 10, 12
+**New limits:** `bits` ≤ 16, `split` ≤ 8, a top of at most 12 bits; a payload's `depth` is the smallest of 8, 10, 12
 holding its top.
 
 ## Proposed: a remapped plane (row 64 REMAP, not built)
 
-Measured in [`lab/av1/bytes/remap`](../../lab/av1/bytes/remap/README.md); built in the lab only, since it changes the item.
+Measured in [`lab/av1/bytes/remap`](../../lab/av1/bytes/remap/README.md); built in the lab only, since it changes the payload.
 Where a series is 12-bit data plus rare levels above it (two of three projection systems: one saturated level,
 0.6–11 % of samples; the CTs and the cone-beam: 0.0003–0.02 %), ingest would clamp the outliers to the 12-bit window
 and store them in a per-frame map, then split the 12-bit plane at k = 2 as today:

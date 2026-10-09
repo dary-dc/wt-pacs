@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """VERSIONS' frames: each series' first N frames as the served HTJ2K (OpenJPH 0.31.0) and as the optimized AV1
-item at the series' shipped preset, with manifest.json for decode.mjs. Every HTJ2K frame is encoded by OpenJPH
-0.32.0 too and must come out byte-identical; every item is checked by ingest.py through native dav1d.
+payload at the series' shipped preset, with manifest.json for decode.mjs. Every HTJ2K frame is encoded by OpenJPH
+0.32.0 too and must come out byte-identical; every payload is checked by ingest.py through native dav1d.
 
 usage: make_frames.py BUILD OUT SETDIR@PRESET ... [--frames 4] [--jobs 4]   — lab/av1/tools/newer/README.md
 """
@@ -58,15 +58,15 @@ def series(build, out, spec, frames):
             if not (dst / f"{i:03d}.htj2k").exists():
                 htj2k(s, i, Path(tmp), dst / f"{i:03d}.htj2k")
     same = sum(same_codestream(build, s, i, dst / f"{i:03d}.htj2k") for i in range(n)) if not s.signed else None
-    items = out / ".items" / s.name
-    if not (items / "metadata.json").exists():
+    payloads = out / ".items" / s.name
+    if not (payloads / "metadata.json").exists():
         split = ["--split", str(s.stored - 12)] if s.stored > 12 else []
-        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, items, "--preset", preset,
+        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, payloads, "--preset", preset,
                         "--frames", str(n), "--jobs", "1", *split], check=True, capture_output=True)
     for i in range(n):
-        shutil.copyfile(items / f"{i:03d}.av1", dst / f"{i:03d}.av1")
+        shutil.copyfile(payloads / f"{i:03d}.av1", dst / f"{i:03d}.av1")
     size = lambda ext: sum((dst / f"{i:03d}.{ext}").stat().st_size for i in range(n))  # noqa: E731
-    print(f"{s.name}: {n} frames, {preset}, item over HTJ2K {size('av1') / size('htj2k'):.3f}, "
+    print(f"{s.name}: {n} frames, {preset}, payload over HTJ2K {size('av1') / size('htj2k'):.3f}, "
           f"OpenJPH 0.32.0 codestreams identical {same}/{n}", flush=True)
     return dict(name=s.name, preset=preset, ojph032_identical=same, bytes=dict(htj2k=size("htj2k"), av1=size("av1")),
                 frames=[dict(truth=t) for t in s.truth[:n]])

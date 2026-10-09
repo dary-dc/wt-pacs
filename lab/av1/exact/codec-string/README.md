@@ -4,7 +4,7 @@ Queue row 67 (CODECSTR) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md):
 configured every stream as `av01.0.04M.10` (Main, level 3.0, 10 bits), whatever it was. It now configures each
 stream with the AV1 codecs parameter string (AV1-ISOBMFF §5) of the keyframe's own sequence header, every
 optional field written, and reconfigures only when that string changes. The rule is in
-[`docs/av1/item-format.md`](../../../../docs/av1/item-format.md) §Decoder choice, per item.
+[`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md) §Decoder choice, per payload.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
@@ -15,21 +15,21 @@ lab/av1/exact/codec-string/series.sh lab/.av1-build lab/av1/data $W/real # 2 fra
 node lab/av1/exact/codec-string/check.mjs client/conformance/av1 $W/real --out $W/strings.json
 node lab/av1/exact/codec-string/mutate.mjs client/conformance/av1 $W/real
 FIREFOX_PATH=... node lab/av1/exact/codec-string/run.mjs $W/strings.json  # isConfigSupported, three engines
-FIREFOX_PATH=... node lab/av1/exact/split/browser.mjs lab/av1/data $W/real   # every item exact, its decoder
+FIREFOX_PATH=... node lab/av1/exact/split/browser.mjs lab/av1/data $W/real   # every payload exact, its decoder
 ```
 
-**`check.mjs`** reads every distinct sequence header of the items (and bare units) under its directories
+**`check.mjs`** reads every distinct sequence header of the payloads (and bare units) under its directories
 and of `av1-probe.js`, derives the string with `av1-payload.js`, and builds a second one from ffmpeg's reading
 of the same bytes: the coded fields as `trace_headers` prints their bits, the inferred ones (bit depth,
 monochrome, subsampling, range) from `ffprobe`'s pixel format and range. **`run.mjs`** asks each engine's
 `isConfigSupported` for every derived string, the same with level 31, its four-field short form, and the old
 fixed string. **`series.sh`** ingests the first 2 frames of each series plain and optimized (allintra:7),
-and over 12 bits a 10-bit top beside the default, every item checked by ingest against its source.
+and over 12 bits a 10-bit top beside the default, every payload checked by ingest against its source.
 
 ## Checked (2026-10-07)
 
 * **The derivation is ffmpeg's reading.** 91 distinct sequence headers, 419 units — the conformance fixtures
-  (items, bare units, groups, scalable), the four probes, 59 items of all 28 taxonomy series, and 8 headers
+  (payloads, bare units, groups, scalable), the four probes, 59 payloads of all 28 taxonomy series, and 8 headers
   aomenc and `svc_encoder_rtc` wrote to reach what ingest never writes (timing info and a decoder model,
   frame ids, High tier at levels 4.0 and 6.3, nine operating points, one with its first point's level edited
   to 3.1): every one equal. Ingest writes reduced still-picture headers whose level libaom sets from the
@@ -40,10 +40,10 @@ and over 12 bits a 10-bit top beside the default, every item checked by ingest a
   Professional one. Level 31 in place of the derived level changes no answer in any engine, so the level is
   written as the stream codes it, 31 included. Only Chromium decodes these streams exactly through WebCodecs
   (row 37); there every string is supported.
-* **Every frame exact, the same decoder.** All 59 taxonomy items (115 frames) through `splitok/browser.mjs`:
+* **Every frame exact, the same decoder.** All 59 taxonomy payloads (115 frames) through `splitok/browser.mjs`:
   59/59 cells exact in Chromium (61 frames WebCodecs, 54 dav1d-WASM, each as expected), Firefox and
   WebKitGTK (115 dav1d-WASM, their probes failing as row 39 found), none falling back. The client before
-  this row, on the same items in Chromium: the same decoder on every cell. The gate's dispatch rig 720/720.
+  this row, on the same payloads in Chromium: the same decoder on every cell. The gate's dispatch rig 720/720.
 * **One change of choice, explained.** Chromium reports the codec string's colour on the frame, not the
   stream's: with the full string a YUV 4:4:4 stream (matrix 1) is reported with no matrix, which the old
   check read as identity. The 4:4:4 check now reads `matrix_coefficients` from the sequence header, as

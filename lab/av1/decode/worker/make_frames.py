@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DECODE's frames: each series' first N frames as the served HTJ2K and as the optimized AV1 item at PRESET, with
+"""DECODE's frames: each series' first N frames as the served HTJ2K and as the optimized AV1 payload at PRESET, with
 manifest.json for run.mjs. Every frame is checked natively against its source's checksum before it is kept.
 
 usage: make_frames.py BUILD OUT SETDIR@PRESET ... [--frames 4] [--jobs 4]   — lab/av1/decode/worker/README.md
@@ -30,12 +30,12 @@ def series(build, out, spec, frames):
         for i in range(n):
             if not (dst / f"{i:03d}.htj2k").exists():
                 htj2k(s, i, Path(tmp), dst / f"{i:03d}.htj2k")
-    items = out / ".items" / s.name
-    if not (items / "metadata.json").exists():
-        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, items, "--representation", "optimized",
+    payloads = out / ".items" / s.name
+    if not (payloads / "metadata.json").exists():
+        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, payloads, "--representation", "optimized",
                         "--preset", preset or "cpu0", "--frames", str(n), "--jobs", "4"], check=True, capture_output=True)
     for i in range(n):
-        shutil.copyfile(items / f"{i:03d}.av1", dst / f"{i:03d}.av1")
+        shutil.copyfile(payloads / f"{i:03d}.av1", dst / f"{i:03d}.av1")
     # One arms.json for lab/av1/delivery/total-time's fill and lab/av1/decode/memory's memory: each codec before and after row 49.
     before = dict(worker="/lab/.av1-work/decode/before/decoder.js", probeWorker="/lab/av1/decode/worker/before-probed.js")
     arms = {"htj2k": {}, "htj2k-before": dict(codec="htj2k", ext="htj2k", **before), "av1": {}, "av1-before": dict(ext="av1", **before)}

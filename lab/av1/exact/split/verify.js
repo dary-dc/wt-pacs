@@ -1,10 +1,10 @@
 /**
- * One item through the client's reader (client/decode/av1.js), in Node or a browser worker: which
+ * One payload through the client's reader (client/decode/av1.js), in Node or a browser worker: which
  * decoder gave its pictures, each stream's picture against the stream the writer planned from the
  * source (top = v ≫ k, low = v & (2^k − 1), v after the series' offset), and the merged frame's SHA-256
  * against the source's, and the range the contract reports against the source's. Queue row 43; README.md
  */
-import { parseItem } from "../../../../client/decode/av1-payload.js";
+import { parsePayload } from "../../../../client/decode/av1-payload.js";
 
 const AV1 = new URL("../../../../client/decode/av1.js", import.meta.url);
 let calls = [];
@@ -40,10 +40,10 @@ export async function verify(av1, bytes, raw, meta, truth, sha256) {
   calls = [];
   let header = null;
   try {
-    header = parseItem(bytes);
+    header = parsePayload(bytes);
     planned = header.rct || meta.channels !== 1 ? null : plan(raw, meta, header.split);
     const f = await av1.decodeFrame(bytes);
-    // Each stream's picture is the last one returned for it; a mixed item's two came from two decoders.
+    // Each stream's picture is the last one returned for it; a mixed payload's two came from two decoders.
     const [top, low] = ["top", "low"].map((s) => calls.filter((c) => !c.error && c.stream === s).at(-1));
     const decoder = !top ? "none" : low && low.decoder !== top.decoder ? `${top.decoder}+${low.decoder}` : top.decoder;
     const range = planned && `${f.range.min}..${f.range.max}` === `${planned.min}..${planned.max}`;

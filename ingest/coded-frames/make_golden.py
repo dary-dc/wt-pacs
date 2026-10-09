@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""The client's AV1 test items and WebCodecs probes, made by the writer from synthetic sources.
+"""The client's AV1 test payloads and WebCodecs probes, made by the writer from synthetic sources.
 
-  client/conformance/av1/items/{plain,optimized}/NAME.av1   one item each, through ingest.py
-  client/conformance/av1/items/{plain,optimized}/NAME.sha256 the source samples' checksum
-  client/conformance/av1/items/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range (row GREY420)
-  client/conformance/av1/items/matrix/b{B}k{K}{u,s}.av1       row 43: every (bits, split, sign) a rule could pick
+  client/conformance/av1/payloads/{plain,optimized}/NAME.av1   one payload each, through ingest.py
+  client/conformance/av1/payloads/{plain,optimized}/NAME.sha256 the source samples' checksum
+  client/conformance/av1/payloads/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range (row GREY420)
+  client/conformance/av1/payloads/matrix/b{B}k{K}{u,s}.av1       row 43: every (bits, split, sign) a rule could pick
   client/decode/av1-probe.js                              a 16×16 unit per layout WebCodecs may take
 
 Every source is written with the checksum of its samples before anything codes it; ingest.py
-writes an item only if it decodes back to that. A probe's FNV-1a is of its coded planes as made
+writes a payload only if it decodes back to that. A probe's FNV-1a is of its coded planes as made
 here, checked against native dav1d before it is written.
 
 usage: make_golden.py BUILD [--matrix]   — ingest/coded-frames/README.md; --matrix writes only row 43's
@@ -27,11 +27,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ingest  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-ITEMS = ROOT / "client/conformance/av1/items"
+PAYLOADS = ROOT / "client/conformance/av1/payloads"
 PROBE = ROOT / "client/decode/av1-probe.js"
 W, H = 64, 48
 
-# name: channels, min, max, signed — each a depth or a layout the item format treats apart
+# name: channels, min, max, signed — each a depth or a layout the payload format treats apart
 SETS = {
     "g8": (1, 0, 255, False),
     "g10": (1, 0, 1023, False),
@@ -70,7 +70,7 @@ def write_set(d, ch, lo, hi, signed, seed, w=W, h=H):
     (d / "metadata.json").write_text(json.dumps(meta) + "\n")
 
 
-def items(build, work):
+def payloads(build, work):
     for seed, (name, (ch, lo, hi, signed)) in enumerate(SETS.items()):
         src = work / name
         write_set(src, ch, lo, hi, signed, seed)
@@ -78,11 +78,11 @@ def items(build, work):
             out = work / f"{name}.{rep}"
             subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, src, out,
                             "--representation", rep, "--jobs", "1"], check=True)
-            dst = ITEMS / rep
+            dst = PAYLOADS / rep
             dst.mkdir(parents=True, exist_ok=True)
             (dst / f"{name}.av1").write_bytes((out / "000.av1").read_bytes())
             (dst / f"{name}.sha256").write_text((out / "000.sha256").read_text())
-    out, dst = work / "g8.grey420", ITEMS / "grey420"
+    out, dst = work / "g8.grey420", PAYLOADS / "grey420"
     subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, work / "g8", out, "--grey8", "420", "--jobs", "1"],
                    check=True)
     dst.mkdir(exist_ok=True)
@@ -94,7 +94,7 @@ def matrix(build, work):
     """32×24 grey of b = 8…16 bits after the offset, unsigned and signed, at every split k of lab/av1/splitok."""
     sys.path.insert(0, str(ROOT / "lab/av1/exact/split"))
     from make_sets import splits
-    dst = ITEMS / "matrix"
+    dst = PAYLOADS / "matrix"
     dst.mkdir(parents=True, exist_ok=True)
     for b in range(8, 17):
         for signed in (False, True):
@@ -145,7 +145,7 @@ def main():
     build = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory() as tmp:
         if "--matrix" not in sys.argv:
-            items(build, Path(tmp))
+            payloads(build, Path(tmp))
             probes(build, Path(tmp))
         matrix(build, Path(tmp))
 

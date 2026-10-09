@@ -1,16 +1,16 @@
 /**
- * Every distinct sequence header of every AV1 item under the given directories, and of the client's probes:
+ * Every distinct sequence header of every AV1 payload under the given directories, and of the client's probes:
  * the codecs string av1-payload.js derives, against one built from ffmpeg's own reading of the same OBU
  * (trace_headers for the coded fields, ffprobe for the inferred ones). Queue row 67; README.md
  *
- * A `.obu` file (a low-overhead OBU stream, as aomenc --obu writes it), and an `.av1` file that is not an item, counts as one unit.
+ * A `.obu` file (a low-overhead OBU stream, as aomenc --obu writes it), and an `.av1` file that is not a payload, counts as one unit.
  *
  *   node lab/av1/exact/codec-string/check.mjs DIR... [--mutate profile|level|tier|bits|mono] [--out strings.json]
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { codecString, parseItem, sequence, units } from "../../../../client/decode/av1-payload.js";
+import { codecString, parsePayload, sequence, units } from "../../../../client/decode/av1-payload.js";
 import { PROBES } from "../../../../client/decode/av1-probe.js";
 
 const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : null; };
@@ -86,15 +86,15 @@ for (const dir of dirs) {
   for (const f of walk(dir).filter((x) => x.endsWith(".obu")).sort()) see(new Uint8Array(readFileSync(f)), relative(ROOT, f));
   for (const f of walk(dir).filter((x) => x.endsWith(".av1")).sort()) {
     const bytes = new Uint8Array(readFileSync(f));
-    let item;
+    let payload;
     try {
-      item = parseItem(bytes, bytes.length >= 16 ? new DataView(bytes.buffer, bytes.byteOffset).getUint32(12, true) : 0);
+      payload = parsePayload(bytes, bytes.length >= 16 ? new DataView(bytes.buffer, bytes.byteOffset).getUint32(12, true) : 0);
     } catch {
       see(bytes, `${relative(ROOT, f)} (a bare unit)`);
       continue;
     }
-    for (const frame of item.frames) {
-      const [top, low] = units(frame, item.split);
+    for (const frame of payload.frames) {
+      const [top, low] = units(frame, payload.split);
       see(top, `${relative(ROOT, f)} top`);
       see(low, `${relative(ROOT, f)} low`);
     }

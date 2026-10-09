@@ -1,4 +1,4 @@
-/** Every item of the manifest browser.mjs serves, through verify.js in this engine; rows posted in batches. */
+/** Every payload of the manifest browser.mjs serves, through verify.js in this engine; rows posted in batches. */
 import { reader, verify } from "./verify.js";
 
 const post = (path, body) => fetch(path, { method: "POST", body: JSON.stringify(body) });

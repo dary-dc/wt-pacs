@@ -1,5 +1,5 @@
 /**
- * MIXDEC: decode time a frame of a split item in headless Chromium, every throttle cell a fresh browser in a
+ * MIXDEC: decode time a frame of a split payload in headless Chromium, every throttle cell a fresh browser in a
  * Williams order every round, sets and arms rotating inside it. `bound`: both streams through dav1d-WASM,
  * each timed apart — the low stream's share. `decode`: through the product's decoder worker, today's path
  * (kK), the mixed one (kKm) and w10, against OpenJPH. lab/av1/decode/mixed/README.md

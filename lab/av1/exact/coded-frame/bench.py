@@ -80,7 +80,7 @@ def same(build, old, out, preset, sets):
 
 
 def workers(build, old, out, preset, frames, sets):
-    """Per set, new's items at every worker count identical, and their bytes against old's at one worker."""
+    """Per set, new's payloads at every worker count identical, and their bytes against old's at one worker."""
     bad = 0
     for src in sets:
         got = {}
@@ -94,7 +94,7 @@ def workers(build, old, out, preset, frames, sets):
         ok = new[0] == new[1] == new[2]
         bad += not ok
         moved = sum(a != b for a, b in zip(new[0].values(), got["old", 1][0].values()))
-        row = dict(set=src.name, preset=preset, items=len(new[0]), same_at_1_2_4=ok, new_bytes=got["new", 1][1],
+        row = dict(set=src.name, preset=preset, payloads=len(new[0]), same_at_1_2_4=ok, new_bytes=got["new", 1][1],
                    old_bytes=got["old", 1][1], ratio=round(got["new", 1][1] / got["old", 1][1], 5), items_moved=moved)
         print(json.dumps(row), flush=True)
     print(f"{bad} sets differ across worker counts")
@@ -167,12 +167,12 @@ def check(build, old, out, rounds, sets):
     return 0
 
 
-def unit(item):
-    """An item's first stream unit (docs/av1/item-format.md): enough for the check's timing."""
-    n = int.from_bytes(item[12:16], "little")
-    length = int.from_bytes(item[16:20], "little")
-    body = item[16 + 4 * n:16 + 4 * n + length]
-    if item[3]:
+def unit(payload):
+    """A payload's first stream unit (docs/av1/payload-format.md): enough for the check's timing."""
+    n = int.from_bytes(payload[12:16], "little")
+    length = int.from_bytes(payload[16:20], "little")
+    body = payload[16 + 4 * n:16 + 4 * n + length]
+    if payload[3]:
         top = int.from_bytes(body[:4], "little")
         return body[4:4 + top]
     return body

@@ -1,12 +1,12 @@
 /**
- * Row 43's items in Chromium, Firefox and WebKitGTK, as row 37 ran them (stock builds; lab/av1/exact/engines): each
- * engine opens index.html once and its worker takes every item of the manifest through verify.js. Which
- * decoder gave each item's pictures is read from verify.js's tag and held against what the engine should
+ * Row 43's payloads in Chromium, Firefox and WebKitGTK, as row 37 ran them (stock builds; lab/av1/exact/engines): each
+ * engine opens index.html once and its worker takes every payload of the manifest through verify.js. Which
+ * decoder gave each payload's pictures is read from verify.js's tag and held against what the engine should
  * choose: WebCodecs in Chromium where every stream is ≤ 10 bits, dav1d-WASM otherwise and in the other two.
  *
  * With --mixed (row 47, MIXDEC), a top over 10 bits goes to dav1d-WASM and its low to WebCodecs where the engine's probe passes.
  *
- *   node lab/av1/exact/split/browser.mjs SETS ITEMS [--engines chromium,firefox,webkit+sab] [--only k2,k3] [--mixed] [--out rows.json]
+ *   node lab/av1/exact/split/browser.mjs SETS PAYLOADS [--engines chromium,firefox,webkit+sab] [--only k2,k3] [--mixed] [--out rows.json]
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { dirname, extname, join, relative, resolve } from "node:path";
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
-const [SETS, ITEMS] = process.argv.slice(2, 4).map((p) => resolve(p));
+const [SETS, PAYLOADS] = process.argv.slice(2, 4).map((p) => resolve(p));
 const ENGINE_NAMES = arg("--engines", "chromium,firefox,webkit+sab").split(",");
 const ONLY = arg("--only", "").split(",").filter(Boolean);
 const OUT = arg("--out", null);
@@ -44,11 +44,11 @@ const expected = (engine, header) => (engine !== "chromium" || !header ? "dav1d"
 
 const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
 const url = (p) => "/" + relative(ROOT, p);
-const manifest = walk(ITEMS).filter((f) => f.endsWith("metadata.json")).sort()
+const manifest = walk(PAYLOADS).filter((f) => f.endsWith("metadata.json")).sort()
   .map((m) => dirname(m))
   .filter((dir) => !ONLY.length || ONLY.some((o) => dir.split("/").pop().startsWith(`${o}.`)))
-  .map((dir) => ({ cell: relative(ITEMS, dir), dir: url(dir), set: url(join(SETS, relative(ITEMS, dirname(dir)))),
-    items: readdirSync(dir).filter((f) => f.endsWith(".av1")).sort().map((f) => f.slice(0, 3)) }));
+  .map((dir) => ({ cell: relative(PAYLOADS, dir), dir: url(dir), set: url(join(SETS, relative(PAYLOADS, dirname(dir)))),
+    payloads: readdirSync(dir).filter((f) => f.endsWith(".av1")).sort().map((f) => f.slice(0, 3)) }));
 
 const TYPES = { ".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm", ".html": "text/html", ".json": "application/json" };
 let run = null;

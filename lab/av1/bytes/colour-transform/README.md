@@ -1,7 +1,7 @@
 # rgbnative — the colour transform on natively stored colour ultrasound
 
 Queue row 97 (RGBNATIVE) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): the RGB rule of
-[`docs/av1/item-format.md`](../../../../docs/av1/item-format.md) (JPEG 2000's reversible colour transform, RCT) was sized
+[`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md) (JPEG 2000's reversible colour transform, RCT) was sized
 on `us_liver`, which its header says was coded lossily (row DATAGUARD). Here it is measured against GBR and HTJ2K on
 colour ultrasound stored natively and uncompressed: six sets of eight stills, one collection and one image size each
 (`usrgb_*`, [`docs/FIXTURES.md`](../../../../docs/FIXTURES.md) §AV1 data, every one `sound`).
@@ -15,8 +15,8 @@ $P lab/av1/bytes/colour-transform/make_frames.py lab/.av1-build $W lab/av1/data/
 NODE_PATH=$(npm root -g) node lab/av1/delivery/split-rule/decode.mjs --frames $W --rounds 8 --out decode.json
 ```
 
-**`make_frames.py`** writes each set as HTJ2K (the served profile, decoded back and checked) and as items through
-`ingest.py` in GBR (`plain`) and RCT (`optimized`), each item decoded back natively before it is written, at cpu0
+**`make_frames.py`** writes each set as HTJ2K (the served profile, decoded back and checked) and as payloads through
+`ingest.py` in GBR (`plain`) and RCT (`optimized`), each payload decoded back natively before it is written, at cpu0
 (RGB ships at cpu0); `decode.mjs` is row SPLITTIME's harness, which takes any arm the manifest names.
 
 **The stills.** Single frames, Lossy Image Compression `00`, explicit VR little endian, Image Type `…\0011` (2-D with
@@ -29,7 +29,7 @@ by object key. A handful of stills is not a cine.
 
 Bytes over HTJ2K's on the same eight stills, and RCT over GBR; decode is ms a frame in the product's decoder worker,
 headless Chromium 141, 8 rounds, 1× and 4× interleaved, HTJ2K the median of round medians and each arm the median of
-round-paired ratios to it, 1× · 4×. Every item exact natively; **2 304/2 304 frames exact** in the browser (RGB 4:4:4
+round-paired ratios to it, 1× · 4×. Every payload exact natively; **2 304/2 304 frames exact** in the browser (RGB 4:4:4
 is dav1d-WASM's: WebCodecs takes no High profile). `--mutate sample` and `--mutate truth` each turned every arm to 0
 exact.
 

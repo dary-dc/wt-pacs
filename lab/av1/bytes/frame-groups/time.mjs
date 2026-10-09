@@ -1,5 +1,5 @@
 /**
- * GOPMEASURE's decode cost of an ask: each run's frames as product items at every G, through WebCodecs and
+ * GOPMEASURE's decode cost of an ask: each run's frames as product payloads at every G, through WebCodecs and
  * through dav1d-WASM, against HTJ2K, in headless Chromium's product decoder worker. Every throttle cell is a
  * fresh browser, in a Williams order every round; sets and arms rotate inside it. README.md here
  *

@@ -223,7 +223,7 @@ a phone's receive path is not modelled.
 
 Row LOSSLINK's cells through the downloader and both codecs, with the controller as the arm: today's
 `cubic-restart` against `bbr`. Headless Chromium 141, the 10-bit tomosynthesis volume, HTJ2K and the
-optimized AV1 item (0.943 of its bytes). Frames 0–3 are filled, then 4–7 asked one at a time. Links are
+optimized AV1 payload (0.943 of its bytes). Frames 0–3 are filled, then 4–7 asked one at a time. Links are
 5/20/50 Mbit at 40 ms and `lte-good`, each with no loss, 1, 2 or 5 % (iid; Gilbert–Elliott bursts on
 `lte-good`), or ±20 ms of ordered jitter, at 1× and 4×. Williams-ordered, with every visit refusing a
 server whose banner names another controller. 28 rounds, the last 16 topping up the cells VOID left short:
@@ -341,7 +341,7 @@ carrier's. No default changed (§9 item 2).
 
 `c20e7b0`. Queue row 75 of [`../av1/queue.md`](../av1/queue.md): the three controllers the server ships
 (`--congestion`), on row LOSSLINK's cells ([`../../lab/av1/delivery/total-time/README.md`](../../lab/av1/delivery/total-time/README.md)
-§Row LOSSCC) — the 10-bit tomosynthesis volume as HTJ2K and as the optimized AV1 item, frames 0–3 filled
+§Row LOSSCC) — the 10-bit tomosynthesis volume as HTJ2K and as the optimized AV1 payload, frames 0–3 filled
 then 4–7 asked one at a time, through the downloader in headless Chromium 141; 5/20/50 Mbit and
 `lte-good` × clean, ±5/±20 ms ordered jitter, 1/2/5 % loss × 1× and 4×. Six arms (codec × controller)
 interleaved in every cell, cells in a Williams order, 10 rounds and 3 more on the clean and jitter cells;
@@ -987,11 +987,11 @@ that is the cell to weigh.
 **How many concurrent fills one server core carries before it, not the links, is the clock**
 (`lab/server-load`, queue row 81). The server on one core of a 4-vCPU container, N native sessions
 (`fill_load`) on the other three, each on its own socket, all asking the whole 10-bit tomosynthesis
-volume at once — 24 × 678×1727, 13.6 MB as HTJ2K, 13.0 MB as the optimized AV1 item. Each session
+volume at once — 24 × 678×1727, 13.6 MB as HTJ2K, 13.0 MB as the optimized AV1 payload. Each session
 reads as fast as it can, or at 20 or 50 Mbit by pacing its reads, so flow control holds the server
 back on loopback: no loss, no queue. A fresh server per cell, warmed by one fill; 10 rounds of 54 cells
 in Williams order and 10 more of 10 cells around the knee: 640 runs, **1 012 320/1 012 320 frames
-byte-identical** to the items ingest decoded back to the source's checksum (a flipped reference byte
+byte-identical** to the payloads ingest decoded back to the source's checksum (a flipped reference byte
 failed every run). Container-measured.
 
 Per-session fill time over the single-session figure (HTJ2K / AV1), the server's cores and its

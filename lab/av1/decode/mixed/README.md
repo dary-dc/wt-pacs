@@ -1,8 +1,8 @@
-# mixdec — a split item's two streams through two decoders
+# mixdec — a split payload's two streams through two decoders
 
-Queue row 47 (MIXDEC) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): the client decodes an item
+Queue row 47 (MIXDEC) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): the client decodes a payload
 through one decoder — WebCodecs when every stream is ≤ 10 bits and its probes pass, dav1d-WASM otherwise.
-For a split item whose top is over 10 bits, the 8-bit low stream could go to WebCodecs while dav1d-WASM
+For a split payload whose top is over 10 bits, the 8-bit low stream could go to WebCodecs while dav1d-WASM
 decodes the top. The bytes do not change; only decode can. The verdict is in
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §A3 and
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §AV1.
@@ -21,23 +21,23 @@ $P lab/av1/decode/mixed/mixed_arms.py $W                             # kKm besid
 NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W --links r20000,r50000 --throttles 4 \
   --rounds 10 --out total.jsonl
 # exactness, row 43's synthetic set and the real series, every engine (row 43's harness, --mixed):
-FIREFOX_PATH=... node lab/av1/exact/split/browser.mjs lab/.av1-work/splitok/sets lab/.av1-work/splitok/items --mixed
+FIREFOX_PATH=... node lab/av1/exact/split/browser.mjs lab/.av1-work/splitok/sets lab/.av1-work/splitok/payloads --mixed
 ```
 
 **The flag.** `mixed: true` in the series' decoder config (`client/decode/av1.js`; absent, today's
-path): a split item whose top is over 10 bits starts its low unit on WebCodecs' `low` decoder — after the
+path): a split payload whose top is over 10 bits starts its low unit on WebCodecs' `low` decoder — after the
 `g8` probe passed — then decodes the top through dav1d-WASM in the worker, and merges the two. A low that
 WebCodecs fails or whose probe failed is decoded by dav1d-WASM after the top. A top that fails waits for
-its low to settle, so no low is left in flight for the next item.
+its low to settle, so no low is left in flight for the next payload.
 
 **Series and arms.** The 13- and 14-bit series of rows 2, 21 and 45: the CT (`ct_lidc`), the cone-beam
 (`xa_dynact16`), the two signed CTs (`ct_nlst`, `ct_crc`) and both projection systems (`dbtproj_ge`,
-`dbtproj_holo`), every frame. Items are `ingest/coded-frames/ingest.py --split K` at each (series, k)'s shipped
-preset, as rows 44 and 45 found it (`make_frames.py`'s table). `kK` is the item split at k as the client
+`dbtproj_holo`), every frame. Payloads are `ingest/coded-frames/ingest.py --split K` at each (series, k)'s shipped
+preset, as rows 44 and 45 found it (`make_frames.py`'s table). `kK` is the payload split at k as the client
 decodes it today; `kKm` the same file with the flag, only where its top is over 10 bits (13 bits: k = 1,
 2; 14 bits: k = 2, 3); w10 is k = b − 10, every stream through WebCodecs.
 
-**`run.mjs bound`** decodes each split item whose top is over 10 bits through dav1d-WASM in a lab worker
+**`run.mjs bound`** decodes each split payload whose top is over 10 bits through dav1d-WASM in a lab worker
 (`bound-worker.js`), as `av1.js` does today, timing the top's decode (with its placement), the low's and
 the merge apart: the low's share of the frame is the most the flag can save. **`run.mjs decode`** is row
 REP14's harness (`lab/av1/decode/per-frame/drive.js`) over today's, the mixed and the w10 arm and OpenJPH: the
@@ -80,19 +80,19 @@ cores are free to run both. Containers, not phones.
 * **Every frame of the six series at every k of their depth, in three engines** (row 43's harness,
   `lab/av1/exact/split/browser.mjs --mixed`, its decoder tag read per stream): 18 cells, 1 113/1 113 frames exact
   and every stream's picture the one planned from the source, in each of Chromium 141, Firefox 157.0.1 and
-  WebKitGTK 2.52.6 (`webkit+sab`, as row 37 ran them). Chromium decoded the 742 items whose top is over
-  10 bits mixed — the top through dav1d-WASM, the low through WebCodecs — and the 371 w10 items through
+  WebKitGTK 2.52.6 (`webkit+sab`, as row 37 ran them). Chromium decoded the 742 payloads whose top is over
+  10 bits mixed — the top through dav1d-WASM, the low through WebCodecs — and the 371 w10 payloads through
   WebCodecs alone; Firefox and WebKitGTK decoded all 1 113 through dav1d-WASM, their `g8` probe failing.
 * **Row 43's synthetic set, in the same three engines** (`lab/av1/exact/split`'s 1 260 cells — every b = 8…16,
   unsigned and signed, every k of its matrix, seven geometries from 1 pixel wide to 256², cpu0 and `--allintra`
   7): 8 280/8 280 frames exact in each engine, every stream as planned and every decoder as expected. Chromium
-  took the 1 656 split items whose top is over 10 bits mixed, the 368 unsplit tops over 10 bits through
+  took the 1 656 split payloads whose top is over 10 bits mixed, the 368 unsplit tops over 10 bits through
   dav1d-WASM, and the 6 256 whose streams are all ≤ 10 bits through WebCodecs; Firefox and WebKitGTK took all
   through dav1d-WASM.
 * **Mutations, each caught.** In Node with stub decoders (`av1.test.mjs`, 6): the flag off still mixing; no
   fallback for a failed low; the low decoder handed the top; the top decoder handed the low; the low taken
-  from the previous item; a failed top not waiting for its low. In the browsers on the k = 2 cells (6 cells,
-  371 frames each): the low from the previous item (1/371 exact), top and low swapped (0/371), WebCodecs'
+  from the previous payload; a failed top not waiting for its low. In the browsers on the k = 2 cells (6 cells,
+  371 frames each): the low from the previous payload (1/371 exact), top and low swapped (0/371), WebCodecs'
   low picture read a row down (0/371), the flag off still mixing (371/371 exact but 0/371 decoded as
   expected — the tag catches it), and in Firefox the failed low with no fallback (0/371).
 

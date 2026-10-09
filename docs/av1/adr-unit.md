@@ -83,8 +83,8 @@ against another decoder:
 ### The transforms and the decoder choice, as built (row WCDEC)
 
 Three more fields of `decoder`, from the series' metadata beside `codec`. *Superseded by row 39 (UNIFY):
-they live in each item's header ([`item-format.md`](item-format.md)), `split` is 0–2 low bits, and the decoder is
-chosen per item; the fields below are the series-wide form this section first built.*
+they live in each payload's header ([`payload-format.md`](payload-format.md)), `split` is 0–2 low bits, and the decoder is
+chosen per payload; the fields below are the series-wide form this section first built.*
 
 ```json
 { "codec": "av1", "depth": 10, "split": 3, "offset": 4096 }
@@ -112,7 +112,7 @@ built — a field the client does not read is ignored.
 Only if SIZE shows inter coding pays on real content, and SPEED shows the ask it costs is
 acceptable. Until then G = 1 and §1–2 are the whole change (row DEC).
 
-*Built (row GOP), on the owner's brief of 2026-10-03 — a group is the item, asked and sent whole,
+*Built (row GOP), on the owner's brief of 2026-10-03 — a group is the payload, asked and sent whole,
 no seek inside one.* Beside G = 1, which dispatches as before (every frame a keyframe, no decoder
 ever holding a group); measured on synthetic frames only, nothing timed. Where it departs from the
 proposal below:

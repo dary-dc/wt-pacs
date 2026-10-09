@@ -1,7 +1,7 @@
 /**
- * SPLITTIME: decode time a frame through the product's decoder worker, each series' AV1 items at every
- * arm's split k (the item picks WebCodecs or dav1d-WASM) against OpenJPH on the same frames. rep14's
- * harness, its frames now items. Every throttle cell is a fresh browser, in a Williams order every
+ * SPLITTIME: decode time a frame through the product's decoder worker, each series' AV1 payloads at every
+ * arm's split k (the payload picks WebCodecs or dav1d-WASM) against OpenJPH on the same frames. rep14's
+ * harness, its frames now payloads. Every throttle cell is a fresh browser, in a Williams order every
  * round; arms and sets rotate inside it. lab/av1/delivery/split-rule/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/split-rule/decode.mjs [--rounds 12] [--throttles 1,4]

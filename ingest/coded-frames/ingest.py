@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A series as AV1 items (docs/av1/item-format.md), plain or optimized, or as the served HTJ2K, and
+"""A series as AV1 payloads (docs/av1/payload-format.md), plain or optimized, or as the served HTJ2K, and
 nothing at all unless every frame decodes back, in-process, to the samples its checksum was written from.
 
 Reads a set as lab/av1/fetch_data.py writes it (NNN.raw, NNN.sha256, metadata.json); writes
@@ -44,7 +44,7 @@ class Refused(Exception):
 
 
 def optimized_split(bits):
-    """k by depth after the offset, row SPLITTIME's rule: docs/av1/item-format.md §Representation at ingest."""
+    """k by depth after the offset, row SPLITTIME's rule: docs/av1/payload-format.md §Representation at ingest."""
     return 0 if bits <= 9 else 3 if bits == 13 else 2
 
 
@@ -115,7 +115,7 @@ class Shape(ctypes.Structure):
 
 @functools.cache
 def native(build):
-    lib = ctypes.CDLL(str(build / "item/libdecode.so"))
+    lib = ctypes.CDLL(str(build / "payload/libdecode.so"))
     for f in (lib.av1_decode, lib.htj2k_decode):
         f.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(Shape)]
     return lib
@@ -136,7 +136,7 @@ def decode(build, unit, work=None):
     return px, shape.bits
 
 
-def item(header, frames):
+def payload(header, frames):
     """header(16) · len[n] · frame[n]."""
     head = struct.pack("<BBBBB3xII", 1, header["bits"], header["depth"], header["split"], header["flags"],
                        header["offset"], len(frames))
@@ -166,7 +166,7 @@ def encode(build, work, px, depth, layout, preset, representation):
 
 
 def av1(build, s, work, a, b, representation, split, preset, grey8):
-    """Frames [a, b) as items, every frame checked alone."""
+    """Frames [a, b) as payloads, every frame checked alone."""
     header, streams = plan(s, representation, split, grey8)
     header["offset"] = s.offset
     out = []
@@ -181,7 +181,7 @@ def av1(build, s, work, a, b, representation, split, preset, grey8):
         if not size.exact(s, i, merge(header, pictures)[:s.h, :s.w]):
             raise Refused(f"frame {i} does not decode back to its source")
         frame = struct.pack("<I", len(units[0])) + units[0] + units[1] if len(units) == 2 else units[0]
-        out.append((i, item(header, [frame])))
+        out.append((i, payload(header, [frame])))
     return out
 
 
@@ -241,11 +241,11 @@ def main():
         if a.codec == "av1":
             plan(s, a.representation, a.split, a.grey8)
         with ProcessPoolExecutor(a.jobs) as pool:
-            items = [x for part in pool.map(chunk, jobs) for x in part]
+            payloads = [x for part in pool.map(chunk, jobs) for x in part]
     except Refused as e:
         sys.exit(f"{a.set_dir.name}: nothing written — {e}")
     a.out.mkdir(parents=True, exist_ok=True)
-    for i, data in items:
+    for i, data in payloads:
         (a.out / f"{i:03d}.{a.codec}").write_bytes(data)
         shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
     meta = json.loads((a.set_dir / "metadata.json").read_text())
@@ -255,10 +255,10 @@ def main():
     if a.codec == "av1" and a.split is not None:
         meta["split"] = a.split
     (a.out / "metadata.json").write_text(json.dumps(meta, indent=1) + "\n")
-    total = sum(len(d) for _, d in items)
-    digest = hashlib.sha256(b"".join(d for _, d in items)).hexdigest()[:12]
+    total = sum(len(d) for _, d in payloads)
+    digest = hashlib.sha256(b"".join(d for _, d in payloads)).hexdigest()[:12]
     kind = a.representation if a.codec == "av1" else "htj2k"
-    print(f"{a.set_dir.name}: {n} items, {total} B, {kind}, every one exact ({digest})")
+    print(f"{a.set_dir.name}: {n} payloads, {total} B, {kind}, every one exact ({digest})")
 
 
 if __name__ == "__main__":

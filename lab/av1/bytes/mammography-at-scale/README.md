@@ -22,8 +22,8 @@ k = 0 is both.
 
 ## Bytes (2026-10-08)
 
-Every image, `allintra` 7, each item decoded back natively and matched with the fetch's checksum before it is written
-(`ingest.py`), HTJ2K in the served profile decoded back and checked: 477/477 items and 159/159 HTJ2K frames exact.
+Every image, `allintra` 7, each payload decoded back natively and matched with the fetch's checksum before it is written
+(`ingest.py`), HTJ2K in the served profile decoded back and checked: 477/477 payloads and 159/159 HTJ2K frames exact.
 HTJ2K's bits a sample on the exam, then each arm's bytes over HTJ2K's; **bold** is each exam's smallest arm.
 
 | set | b | images | HTJ2K, bit/sample | k = 0 | k = 2 | k = 3 | k = 4 |

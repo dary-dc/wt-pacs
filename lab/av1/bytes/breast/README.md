@@ -2,7 +2,7 @@
 
 Queue row 46 (BREAST) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): the breast-family series of
 [`docs/FIXTURES.md`](../../../../docs/FIXTURES.md) §AV1 data — DBT slices and projections, FFDM, synthesized 2D,
-breast ultrasound cine and stills — as AV1 items against HTJ2K, and intra against inter where frames follow one
+breast ultrasound cine and stills — as AV1 payloads against HTJ2K, and intra against inter where frames follow one
 another (DBT slices by position, cine by time, never re-sorted).
 
 ```bash
@@ -13,13 +13,13 @@ $P lab/av1/bytes/breast/breast.py lab/.av1-build $W $W/bytes.jsonl bytes $D/ffdm
 $P lab/av1/bytes/breast/breast.py lab/.av1-build $W $W/inter.jsonl inter $D/usb_cine $D/usb_cine_rgb --frames 64
 $P lab/av1/bytes/breast/breast.py lab/.av1-build $W $W/inter.jsonl inter $D/dbt12_c … --frames 32
 $P lab/av1/bytes/breast/mutate.py lab/.av1-build $W/mut $D/usb_cine_rgb $D/dbt10_ea1141            # 4 mutations
-node lab/av1/exact/split/check.mjs $D $W/items                                                    # the reader in Node
-node lab/av1/exact/split/browser.mjs $D $W/items --engines chromium                               # WebCodecs ≤ 10 bits
+node lab/av1/exact/split/check.mjs $D $W/payloads                                                    # the reader in Node
+node lab/av1/exact/split/browser.mjs $D $W/payloads --engines chromium                               # WebCodecs ≤ 10 bits
 NODE_PATH=$(npm root -g) node lab/av1/bytes/represented/time.mjs --work $W/ivf --codings SET:REP.gG-PRESET,… --rounds 10
 ```
 
-**`breast.py bytes`** writes each series' first N frames as items through `ingest/coded-frames/ingest.py` (nothing is
-written unless native dav1d decodes every item back to its source) in each layout — plain; optimized, the k = 2
+**`breast.py bytes`** writes each series' first N frames as payloads through `ingest/coded-frames/ingest.py` (nothing is
+written unless native dav1d decodes every payload back to its source) in each layout — plain; optimized, the k = 2
 split over 8 bits; over 8 bits row 44's arms d12 (k = b − 12), k3 and w10 (k = b − 10), each where it is a k of its
 own (row BREAST's run had w10 only, over 12 bits); RGB plain and RCT — at cpu0 and at the shipped preset, the first
 of `allintra` 7, `allintra` 6, `good` 6, `allintra` 5 (row 14's speed order) within 2 % of cpu0's bytes; RGB
@@ -35,7 +35,7 @@ order, the inverse RCT's ⌊/4⌋ as ⌊/2⌋, one sample off by one — and eac
 
 ## Measured (2026-10-05)
 
-**Bytes over HTJ2K's on the same frames** (the first 8, or all when fewer), every item exact through native dav1d:
+**Bytes over HTJ2K's on the same frames** (the first 8, or all when fewer), every payload exact through native dav1d:
 cpu0, and in brackets the shipped preset and its ratio. b is the series' bits after its offset.
 
 | series | b | frames | plain | optimized (k = 2 over 8 bits) | w10 / RCT |
@@ -51,7 +51,7 @@ cpu0, and in brackets the shipped preset and its ratio. b is the series' bits af
 | `usb_cine_rgb`, ultrasound cine | 3 × 8 | 8 × 512² | 1.066 (cpu0) | | **RCT 0.908** (cpu0) |
 | `usb_still`, ultrasound stills | 8 | 8 × 276×305 | 1.012 (allintra 5, 1.018) | 1.002 (good 6, 1.016) | |
 
-* **The optimized item is under HTJ2K on 8 of the 10 series** at cpu0, 0.873–0.962, and on the same 8 at its shipped
+* **The optimized payload is under HTJ2K on 8 of the 10 series** at cpu0, 0.873–0.962, and on the same 8 at its shipped
   preset, 0.888–0.979. The two where it is not: `ffdm_d` (1.006; 1.025 shipped) and the stills (1.002; 1.016).
 * **`ffdm_d` is the one series plain AV1 loses badly on, 1.24.** 72 % of its samples are 0 (the background) and the
   rest hold 2 149 distinct values, 2–3 apart — a stretched range. The k = 2 split takes it to 1.006.
@@ -62,7 +62,7 @@ cpu0, and in brackets the shipped preset and its ratio. b is the series' bits af
   optimized); the grey cine and the stills need `good` 6. `ffdm_d`'s cpu0 encode of one 13.6 M-sample frame takes 4.2 GB and 512 s; run beside three
   others it was killed for memory and was re-run alone.
 
-**Exact through every decoder path the lab runs** (row 43 is not done, so not its matrix): every item through native
+**Exact through every decoder path the lab runs** (row 43 is not done, so not its matrix): every payload through native
 dav1d (`ingest.py`'s check: 64 cells written, one of them re-run alone after an OOM kill); through the client's reader
 in Node, dav1d-WASM, 64/64 cells and 405/405 frames; in headless Chromium 141, 64/64 cells and 405/405 frames,
 WebCodecs taking the 289 whose streams are all ≤ 10 bits and dav1d-WASM the other 116, each as the client should

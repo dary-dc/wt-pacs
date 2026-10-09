@@ -50,10 +50,10 @@ it. Sources read: Firefox at `FIREFOX_157_0_RELEASE` (`fdd757a2`), WebKit at `we
 Nothing built, fetched or generated is committed.
 
 **Timing the client's change** (`av1-webcodecs.js` reading 8-bit GBR as RGB): the ultrasound's first 4
-GBR units from [`xbrowser`](../engines/README.md)'s `make_frames.py`, each wrapped as an item (header version 1,
+GBR units from [`xbrowser`](../engines/README.md)'s `make_frames.py`, each wrapped as a payload (header version 1,
 8 bits, no split), in a frames directory whose manifest has three arms — `htj2k`, `gbr` (the product's choice)
 and `gbr.d` (`webcodecs: false`: `xbrowser/worker.js` removes `VideoDecoder` before `decoder.js` takes its
-`init`, so the same item goes to dav1d-WASM):
+`init`, so the same payload goes to dav1d-WASM):
 
 ```bash
 FIREFOX_PATH=... node lab/av1/exact/engines/run.mjs --rounds 10 --throttles 1,4 --engines chromium,firefox --frames DIR --out rows.json

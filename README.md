@@ -158,6 +158,7 @@ campaign label, *lever 2*), none a standard the code touches uses for something 
 | generation | a request's identity, moved by `cancel`; **epoch**, a session's, moved by a resume |
 | resume, recycle | a dead session replaced, owing what the records owe; a live one replaced before a byte budget |
 | decoder | a worker that decodes; **codec module**, the code it loads per codec (`htj2k.js`, `av1.js`) |
+| AV1 payload | one DICOM frame's AV1 data as stored and sent: a 16-byte header and its temporal units, the top and the low stream's when split ([`docs/av1/payload-format.md`](docs/av1/payload-format.md)); never an "AV1 frame", which is the AV1 specification's own term |
 | group | G frames from a keyframe, decoded in order on one decoder; **unit**, one AV1 temporal unit |
 | split | a sample as a top stream (v ≫ k) and a low one (v & (2^k − 1)) |
 | client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one); **rig**, the harness that drives one through the conformance clauses |
@@ -167,13 +168,13 @@ campaign label, *lever 2*), none a standard the code touches uses for something 
 under three numbers — are the opening ask, early SETTINGS, hints in the session URL, the bytes
 pushed at session open and a 32-packet initial window; *S4* is the container campaign; the
 conformance suite's *arms* are clients and rigs; `consumer.js`'s `#arm` is `#waitFor`. The `lab/av1/` folders named for
-queue rows are named by subject in five groups (`lab/av1/README.md` §The folders, by what they measure).
+queue rows are named by subject in five groups (`lab/av1/README.md` §The folders, by what they measure). The AV1
+*item* is the AV1 payload (row AV1DOCS): `payload-format.md`, `av1-payload.js`, `parsePayload`.
 
 **Proposed, not applied:**
 
 | name | where | breaks | proposed | why not now |
 | --- | --- | --- | --- | --- |
-| *item* | `docs/av1/item-format.md`, `av1-payload.js`, `ingest/coded-frames/` | DICOM's Item, the encapsulated pixel data's own unit | **coded frame** (`coded-frame.md`, `parseCodedFrame`) | the item format is structural: the owner's |
 | `arm` in telemetry rows | `client/record`, `client/harness/shell.js` | names a client, and ARM the CPU | `client` | a row schema the lab's analyses read |
 | *arm* in the lab (≈1 900 lines) | `lab/`, `CLAUDE.md` §Measurement | ARM the CPU | **variant** | the owner's word in `CLAUDE.md` |
 | campaign labels (*S1–S4*, *R1*, *PO1*, *WP1*) | `docs/`, `lab/` | history | what each measured | doc by doc, with the docs that own them |

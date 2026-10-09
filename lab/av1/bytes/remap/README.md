@@ -3,7 +3,7 @@
 Queue row 64 (REMAP) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): when the values that push a series over
 12 bits are rare, does coding the series at 12 bits with a small map of them beat the split? The verdict is in
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §A3, the proposal in
-[`docs/av1/item-format.md`](../../../../docs/av1/item-format.md) §Proposed: a remapped plane.
+[`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md) §Proposed: a remapped plane.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # libaom 3.15.1, dav1d, dav1d-WASM
@@ -31,7 +31,7 @@ NODE_PATH=$(npm root -g) node lab/av1/bytes/remap/decode.mjs --rounds 10 --out d
   proposal (2) ([`split-prior-art.md`](../../../../docs/av1/split-prior-art.md)).
 
 `remap.py` writes nothing unless every frame comes back from its plane and map to the source's checksum; ingest then
-codes the plane and writes nothing unless every item decodes back to the plane. The two checks together make every
+codes the plane and writes nothing unless every payload decodes back to the plane. The two checks together make every
 frame exact against the source; the decode harness checks it again end to end in Chromium.
 
 ## The levels (2026-10-07)
@@ -88,7 +88,7 @@ frame it took 108 s against 4.4 s for 0.09 % fewer bytes. **w10** is k = b − 1
 
 ## Decode (2026-10-07)
 
-Decode time a frame through the product's worker (`client/decode/decoder.js`), the item picking its decoder —
+Decode time a frame through the product's worker (`client/decode/decoder.js`), the payload picking its decoder —
 dav1d-WASM where a stream is 12-bit (k = 2 on the source, a map at k = 0), WebCodecs where every stream is ≤ 10 bits
 (w10, a map at k = 2) — and a remapped arm's map applied after the worker on the page (inflate and scatter, or the
 palette's table), its time added. Headless Chromium 141 in the container (4 cores), 10 rounds, each throttle a fresh
