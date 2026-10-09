@@ -32,7 +32,7 @@ const TRANSPORTS = {
 function transportModule() {
   if (!telemetry) return transportName in TRANSPORTS ? TRANSPORTS[transportName] : transportName;
   if (transportName !== "ts") throw new Error(`telemetry=1 records the TS transport only, not transport=${transportName}`);
-  return `/client/transport/ts/dist/session.telemetry.js?stream_mode=${streamMode}`;
+  return `/client/transport/ts/dist/session-telemetry.js?stream_mode=${streamMode}`;
 }
 
 const logEl = document.getElementById("log");

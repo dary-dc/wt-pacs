@@ -110,7 +110,7 @@ def main() -> int:
 
     # transport-ts dist/ is gitignored — build product (and telemetry) bundles when needed.
     ts_js = ROOT / "client/transport/ts/dist/session.js"
-    ts_tel = ROOT / "client/transport/ts/dist/session.telemetry.js"
+    ts_tel = ROOT / "client/transport/ts/dist/session-telemetry.js"
     want_ts = args.harness in ("ts", "both")
     need_ts = want_ts and (
         not ts_js.is_file() or (args.telemetry and not ts_tel.is_file())

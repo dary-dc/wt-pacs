@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(test)]
 use std::sync::Mutex;
 
-/// The retired 64 KiB read chunk: tests size frames across several. `docs/adr/disk-access.md`.
+/// 64 KiB, a size tests make frames span several of. `docs/adr/disk-access.md`.
 #[cfg(test)]
 pub(crate) const READ_WINDOW: usize = 64 * 1024;
 

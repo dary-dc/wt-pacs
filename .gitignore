@@ -31,11 +31,11 @@ client/contract/dist/
 # Telemetry cost bench bundle (build via client/transport/ts/build.sh)
 lab/telemetry-cost/cost.mjs
 
-# Generated Tf-axis fixtures (regenerate with lab/scripts/gen_tf_fixtures.sh)
+# Generated fixtures by frame size (regenerate with lab/scripts/gen_tf_fixtures.sh)
 lab/fixtures/frames_32k/*.sbnd
 lab/fixtures/frames_250k/*.sbnd
 lab/fixtures/frames_250k_live/*.sbnd
-# Rung-layout fixtures (regenerate with NAME=... BYTES=... FRAMES=... gen_live_cell_fixture.sh)
+# Fixtures laid out by size (regenerate with NAME=... BYTES=... FRAMES=... gen_live_cell_fixture.sh)
 lab/fixtures/frames_16k_rung/*.sbnd
 lab/fixtures/frames_16k_big/*.sbnd
 lab/fixtures/frames_250k_deep/*.sbnd
@@ -58,7 +58,7 @@ lab/page-open/metadata.json
 lab/page-open/meta-first.html
 # The pages and the bundle lab/page-open/boot.mjs writes and removes
 lab/page-open/boot/
-# The earlier client lab/page-open/coldrtt.mjs writes and removes
+# The client trees lab/page-open/coldrtt.mjs writes and removes
 lab/page-open/.coldrtt/
 
 # Python bytecode from lab analysis scripts

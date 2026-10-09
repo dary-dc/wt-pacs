@@ -1,8 +1,8 @@
 # AV1 — a second lossless codec beside HTJ2K
 
-The phase's goal: a study can be served as lossless AV1 as well as lossless HTJ2K, the codec chosen
+The goal: a study can be served as lossless AV1 as well as lossless HTJ2K, the codec chosen
 per series, and **every frame on screen is bit-exact with the source**, whichever codec carried it.
-This file owns the phase: what is decided, what is open and the measurement that decides each. The
+This file owns AV1's work: what is decided, what is open and the measurement that decides each. The
 work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`](licensing.md). The AV1 payload — what one stored entry
 carries, in its plain and optimized representations — is [`payload-format.md`](payload-format.md), adopted
 2026-10-04 and built end to end on `claude/av1-unified` (row 39).
@@ -16,7 +16,7 @@ export whose history nothing records ([`FIXTURES.md`](../FIXTURES.md) §Provenan
 measured; they enter no bytes, time or inter verdict, and a verdict below that names the ultrasound holds for the
 other series only.
 
-## Where the phase stands
+## Where AV1 stands
 
 * **Exact wherever it is used.** Every coding, decoder and engine path here is checked against the encoder's input:
   libaom 3.15.1 with alt-ref off, dav1d-WASM, and WebCodecs at 8 and 10 bits (it refuses 12) — §Exactness and the
@@ -254,7 +254,7 @@ and Chromium 141, 1× and 4×, every frame exact. dav1d-WASM takes **5.4–9.7×
 ultrasound — slower in all 224 paired rounds, and dav1d itself is ~90 % of it. WebCodecs, on the one
 series it decodes exactly (8-bit), is 1.55× faster than dav1d-WASM and still 4.1–4.2× OpenJPH. So
 neither AV1 path wins on decode, and with its bytes (§Bytes) AV1 at G = 1 wins on nothing on this content:
-by [`adr-unit.md`](adr-unit.md) §4's rule it does not earn its place. Whether the phase continues is
+by [`adr-unit.md`](adr-unit.md) §4's rule it does not earn its place. Whether AV1 work continues is
 the owner's call; DEPTH (CT, cone-beam) is the content not yet measured. Container figures, not a
 phone's. *DEPTH since (§Samples over 12 bits):* split into two streams, AV1 is 0.3–8 % under HTJ2K's bytes on the four
 series over 10 bits (CT 0.918) — the one place it wins, set against a decode SPEED measures at
@@ -620,7 +620,7 @@ unreachable, and the decoder stops at 14, so the 13-bit CT and cone-beam cannot 
 is possible: **no open LCEVC encoder exists**, the web decoder draws 8-bit RGBA through WebGL with no
 samples back, and the decoder's BSD-3-Clause-Clear licence grants no patents ([`licensing.md`](licensing.md)).
 
-*Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where the phase stands): the
+*Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where AV1 stands): the
 preview plus an HTJ2K residual, the separate preview then exact HTJ2K, the embedded intra codecs and LCEVC — each
 measured above.
 
