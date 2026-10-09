@@ -8,7 +8,6 @@
 #   VARIANTS=lto EXTRA_FLAGS="-flto" lab/decode-bench/wasm/build.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-HERE="$ROOT/lab/decode-bench/wasm"
 EMSDK="${EMSDK:-$ROOT/lab/.av1-build/emsdk}"
 [[ -f "$EMSDK/emsdk_env.sh" ]] || { echo "no emsdk at $EMSDK: client/decode/wasm/dav1d/build.sh fetches the pinned one, or set EMSDK" >&2; exit 2; }
 SRC="${SRC:-$ROOT/lab/.openjph-build/src}"
@@ -31,7 +30,7 @@ build_variant() {
   cmake --build "$b/lib" -j"$(nproc)" --target openjph >/dev/null
 
   # $extra comes last so a variant can override a default here, -fexceptions included.
-  em++ -O3 -std=c++17 --bind "$HERE/htj2k_decoder.cpp" \
+  em++ -O3 -std=c++17 --bind "$ROOT/client/decode/wasm/openjph/htj2k_decoder.cpp" \
     -I"$SRC/src/core/common" -I"$SRC/src/core" \
     "$(find "$b/lib" -name 'libopenjph*.a' | head -1)" \
     -msimd128 -fexceptions $extra \

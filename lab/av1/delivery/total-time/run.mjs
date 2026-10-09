@@ -79,7 +79,6 @@ writeFileSync(`${T}/wifi-home.trace`, execFileSync("python3", [path.join(ROOT, "
   "15000:12000", "40000:12000", "10000:12000", "30000:12000", "15000:12000"]));
 
 const DAV1D = { codec: "av1", glue: "/lab/.av1-build/out/simd.js", wasm: "/lab/.av1-build/out/simd.wasm", dir: "/lab/.av1-build/out" };
-const HASHER = "/client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js";
 const OPENJPH = { glue: "/client/decode/wasm/vendor/openjph/openjphjs.js", wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm", dir: "/client/decode/wasm/vendor/openjph" };
 /** One of lab/decode-bench/wasm/build.sh's variants by name (lab/av1/decode/htj2k-threads). */
 const built = (n) => ({ glue: `/lab/.openjph-build/wasm/${n}.js`, wasm: `/lab/.openjph-build/wasm/${n}.wasm`, dir: "/lab/.openjph-build/wasm" });
@@ -91,20 +90,20 @@ function variantOf(set, name) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion,
-      opts: { decoder: { ...(a.openjph ? built(a.openjph) : OPENJPH), ...layered, ...(a.check && { hasher: HASHER }) }, ...(a.worker && { decoderWorker: a.worker }),
-        // Row EXACT: the frame digests, as a page passes them on from the series' metadata.
-        ...(a.check && { digests: MUTATE === "digest" ? { ...set.digests, frames: set.digests.frames.map((d) => d.replace(/^./, (c) => (c === "0" ? "1" : "0"))) } : set.digests }),
+      opts: { decoder: { ...(a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Row ASKDEADLINE: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
         // A `downloader` variant runs that revision of the downloader (row CLIENT).
-        ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }) } };
+        ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }),
+        // Row EXACT: the series' digests, so each decoder worker checks every frame.
+        ...(a.digests && { digests: MUTATE === "digest" ? a.digests.map((d) => d.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : a.digests }) } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
     ...(a.rct && { rct: true }), ...(a.mixed && { mixed: true }), ...(a.layers && { layers: a.layers, frames: set.frames }) };
   const entries = set.frames * (a.layers ?? 1);
   // A layer-major series decodes in lab/av1/delivery/bases-first' worker: the product's has no base entry.
   const worker = a.layers ? { decoderWorker: "/lab/av1/delivery/bases-first/decoder.js" } : a.worker && { decoderWorker: a.worker };
-  return { ext, entries, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }) },
+  return { ext, entries, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }), ...(a.digests && { digests: a.digests }) },
     truth: a.truth, previewTruth: a.previewTruth, congestion: a.congestion };
 }
 
@@ -284,7 +283,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     failures: r.failures.length,
     failure: r.failures[0]?.reason,
     exact: [...r.frames, ...r.after].filter((f) => r.sha[f.i] === truth[f.i]).length,
-    checked: r.frames.reduce((n, f) => ({ ...n, [f.exact]: (n[f.exact] ?? 0) + 1 }), {}),
+    checked: r.frames.filter((f) => f.exact === true).length,
+    paths: r.checked,
     afterMs: r.after.map((f) => Math.round(f.ms)),
     resumes: r.resumes,
     survived: r.quiet?.filter((q) => q.survived).map((q) => Math.round(q.survived)),
@@ -320,7 +320,7 @@ for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summ
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
       console.error(`round ${round} ${engine} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
-        ` exact ${row.exact}/${row.owed}${row.checked ? ` checked ${JSON.stringify(row.checked)}` : ""}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
+        ` exact ${row.exact}/${row.owed}${row.paths && Object.keys(row.paths).length ? ` checked ${row.checked} ${JSON.stringify(row.paths)}` : ""}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }
 }
@@ -349,6 +349,7 @@ for (const { engine, set: name, link: l, impairment, throttle } of cells) {
     if (ORDERS.length > 1) s += ` centre ${span(rs.map((r) => r.centreMs))} useful ${span(rs.map((r) => r.usefulMs))}`;
     if (rs[0].previews !== undefined) s += ` shown ${span(rs.map((r) => r.shownMs))} previews ${all.reduce((n, r) => n + (r.previewExact ?? 0), 0)}/${all.length * set.frames} as native`;
     s += ` all ${span(rs.map((r) => r.decodedMs))} n=${rs.length} exact ${exact}`;
+    if (all.some((r) => r.checked)) s += ` checked ${all.reduce((n, r) => n + (r.checked ?? 0), 0)}`;
     const after = rs.flatMap((r) => r.afterMs ?? []);
     if (after.length) s += ` ask p50 ${quantile(after, 0.5)} p95 ${quantile(after, 0.95)} max ${Math.max(...after)} (${after.length})`;
     if (rs[0].resumes !== undefined) {

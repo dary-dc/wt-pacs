@@ -35,8 +35,8 @@ import llsize  # noqa: E402
 import encode as preview  # noqa: E402
 from make_frames import htj2k  # noqa: E402
 from encx import deflate, inflate, pack, unpack  # noqa: E402
-sys.path.insert(0, str(HERE.parents[3] / "ingest"))
-from frame_digests import series_digests  # noqa: E402
+sys.path.insert(0, str(HERE.parents[3] / "ingest/coded-frames"))
+from ingest import frame_digest  # noqa: E402
 from size import AOM, Set, av1_cell, decode_y4m, exact, ivf_units, timed, write_y4m  # noqa: E402
 
 GOP = {"dbt10_ea1141"}
@@ -158,7 +158,7 @@ def main():
         work.mkdir(exist_ok=True)
         files, variants = {}, {"htj2k": {}}
         if "check" in want:
-            variants["check"] = dict(ext="htj2k", codec="htj2k", check=True)
+            variants["check"] = dict(ext="htj2k", codec="htj2k", digests=[frame_digest(s.frame(i), s.stored > 8) for i in range(s.n)])
         if "av1" in want:
             files["av1"] = intra(build, s, work)
             variants["av1"] = {}
@@ -204,8 +204,7 @@ def main():
         for i in range(s.n):
             htj2k(s, i, work, dst / f"{i:03d}.htj2k")
         sizes = {ext: sum((dst / f"{i:03d}.{ext}").stat().st_size for i in range(s.n)) for ext in ["htj2k", *files]}
-        entry = dict(name=s.name, frames=s.n, bits=s.av1_bits, truth=s.truth, variants=variants, bytes=sizes,
-                     **({"digests": series_digests(s, s.n, s.stored > 8)} if "check" in want else {}))
+        entry = dict(name=s.name, frames=s.n, bits=s.av1_bits, truth=s.truth, variants=variants, bytes=sizes)
         (dst / "variants.json").write_text(json.dumps(entry, indent=1))
         print(s.name, s.n, "frames,", ", ".join(f"{k} {v} B" for k, v in sizes.items()), flush=True)
 

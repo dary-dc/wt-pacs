@@ -50,13 +50,13 @@ async function finish(client) {
       failures.push({ i, reason: String(e?.message ?? e) });
     }
   }
-  const { resumedAt } = client.stats();
+  const { resumedAt, exact: checked } = client.stats();
   client.close();
   const sha = {};
   for (const [i, px] of pixels) sha[i] = await sha256(px);
   const previewSha = {};
   for (const [i, px] of previewPixels) previewSha[i] = await sha256(px);
-  report({ issuedAt, frames, failures, sha, previews, previewSha, after, resumes: resumedAt.length, quiet: [...quiet] });
+  report({ issuedAt, frames, failures, sha, previews, previewSha, after, resumes: resumedAt.length, quiet: [...quiet], checked });
 }
 
 const exact = (f) => {
@@ -70,7 +70,7 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   ...OPTS,
   onFrame: (f) => {
     const i = f.frameIndex - (LAYERS - 1) * F;
-    frames.push({ i, page: at(), lastByte: f.info.stamps.lastByte, exact: f.info.exact });
+    frames.push({ i, page: at(), lastByte: f.info.stamps.lastByte, exact: f.info.exact, path: f.info.path });
     pixels.set(i, f.bytes);
     settled(client);
   },

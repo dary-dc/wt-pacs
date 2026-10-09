@@ -13,13 +13,13 @@ rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0 --locked
 npm i -g playwright@1.56.1 && npx playwright install chromium
 bash client/decode/wasm/fetch_openjph.sh            # the HTJ2K decoder the page runs
-bash client/decode/wasm/fetch_xxh3.sh              # the XXH3 the decoder worker checks frames with
+bash client/decode/wasm/fetch_xxh3.sh               # the hash that checks each decoded frame
 ```
 
 Two more open what the gate otherwise skips, by name, in its log:
 
 ```bash
-VARIANTS=simd client/decode/wasm/dav1d/build.sh     # the AV1 decoder: git, ninja, a C compiler; fetches emscripten (~5 min)
+client/decode/wasm/build/build.sh                  # the decoder builds the page loads: docker; fetches emscripten (~5 min)
 python3 -m venv lab/av1/.venv && lab/av1/.venv/bin/pip install --require-hashes -r lab/av1/requirements.txt
                                                     # numpy for the painter check: PYTHON=lab/av1/.venv/bin/python
 ```

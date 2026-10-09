@@ -14,7 +14,7 @@ export EMSDK=$PWD/lab/.av1-build/emsdk E="-sENVIRONMENT=web,worker,node"
 VARIANTS=web EXTRA_FLAGS="$E" lab/decode-bench/wasm/build.sh
 VARIANTS=webpt EXTRA_FLAGS="$E -pthread" lab/decode-bench/wasm/build.sh
 cp -r lab/.openjph-build/src lab/.openjph-build/src-mt
-git -C lab/.openjph-build/src-mt apply "$PWD/lab/av1/decode/htj2k-profile/cb-threads.patch"
+git -C lab/.openjph-build/src-mt apply "$PWD/client/decode/wasm/openjph/cb-threads.patch"
 for t in 1 3; do SRC=$PWD/lab/.openjph-build/src-mt VARIANTS=cb$((t + 1)) \
   EXTRA_FLAGS="$E -pthread -DOJPH_CB_THREADS=$t -sPTHREAD_POOL_SIZE=$t" lab/decode-bench/wasm/build.sh; done
 D=lab/av1/data
