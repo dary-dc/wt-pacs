@@ -1,7 +1,8 @@
 # ADR: proving every shown frame exact in production
 
-**Status:** Proposed · 2026-10-07 · nothing built in the product; the owner decides. Queue row 73
-(EXACTPROD) of [`../av1/queue.md`](../av1/queue.md); the bench is
+**Status:** Built, §2 steps 1–3, on by default wherever the series' metadata carries digests · 2026-10-09,
+queue row 88 (EXACT), §Built. Reporting (§5) stays proposed. Proposed 2026-10-07 by queue row 73
+(EXACTPROD) of [`../av1/queue.md`](../av1/queue.md); its bench is
 [`lab/av1/exact/in-production`](../../lab/av1/exact/in-production/README.md).
 
 ## 1 · Today
@@ -116,3 +117,83 @@ metadata field, a WASM hasher in the decoder worker (hash-wasm's XXH3 or a build
 our own), the second-decode path, the endpoint. HTJ2K's codestreams and the wire are unchanged.
 Open: phones' hash speed; the owner's choice of block against mark; whether the endpoint lives in
 the server or the deployment beside it.
+
+## Built · 2026-10-09 (queue row 88, EXACT)
+
+**What.** §2's steps 1–3, as the client README's *A frame is checked against its digest* describes them:
+
+* `ingest/frame_digests.py` writes `frameDigests` into `metadata.json`
+  ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests). It hashes samples whose `NNN.sha256` it has first matched.
+* The decoder worker loads hash-wasm 4.12.0's XXH3 build (`client/decode/wasm/fetch_xxh3.sh`) when `connect` is given
+  `digests` and `decoder.hasher`, and checks every frame before it is posted.
+* A mismatch is decoded once more: an AV1 payload by the other AV1 decoder, an HTJ2K codestream by a fresh decoder
+  object, since the reused one is the suspect.
+* The frame carries `exact` (`true`, `false` or `"unchecked"`), `path` and, when false, `exactReason`.
+  `stats().exact` counts them per path.
+
+§2.3's "the viewport shows the frame as failed" is left to the page: the frame is delivered, marked `false`.
+
+**What it does not cover.** A second decode of an AV1 frame inside a group (G > 1) on the other decoder has no
+reference frames, so it fails and the frame stays `false`: the check still holds, but there is no recovery. A
+payload with a 12-bit stream has no other AV1 decoder in any engine, and neither has any payload in an engine whose
+WebCodecs refuses it (Firefox here), so the second decode fails by name. HTJ2K always has its fresh object.
+
+**Held by.** `anHtj2kFrameIsCheckedAgainstItsDigest` and `anAv1FrameIsCheckedAgainstItsDigest` in
+`client/contract/dispatch-rig.ts`, against `NAME.xxh3` digests written by Python's `xxhash`, an implementation
+independent of the browser's. They check:
+
+* every golden AV1 shape and all 90 matrix payloads (8–16 bits, every split, both signs), and the two HTJ2K contract
+  frames, `true`;
+* no digest, or a frame missing from the digests, `"unchecked"`;
+* one sample changed in the reused HTJ2K object's output (`flip-glue.js`), or in WebCodecs' (`webcodecs-spy.js?mode=flip`),
+  `true` after the second decode;
+* digests that match nothing, `false`, with both decodes named.
+
+Mutants, each caught:
+
+* `verify` always true;
+* a frame with no digest `true`;
+* no second decode;
+* the HTJ2K second decode on the reused object;
+* the AV1 one through WebCodecs again;
+* the ingest digest big-endian: 80 of 90 matrix frames `false`, every two-byte one;
+* the ingest digest zero-extended from 13 bits instead of sign-extended: 40 of 90 `false`, every signed two-byte one.
+
+Chromium 141: 764 of 764 rig checks. Firefox 157.0.1 (`client/contract/run_firefox.sh`): 13 of 13, with OpenJPH and
+dav1d-WASM frames `true`; its WebCodecs took none of these payloads, so that path is unverified there.
+
+**Cost through the product, measured.** The fill through the downloader, check off (`htj2k`) against on
+(`check`): the four series of §3 as the served HTJ2K, behind the relay on row 23's r20000, r50000 and wifi-home
+links, at 1× and 4×. Headless Chromium 141 on cores 0–2, 3 decoders, 14 rounds interleaved by `lab/order.mjs`
+(the last 4 on r20000 and wifi-home only). The harness is
+[`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md) §Row EXACT.
+
+All 13 528 delivered frames matched their sha256, and every `check` frame was `true` (6 764/6 764). 184 of 608
+visits were `VOID` and are dropped. The table gives the fill on, ÷ off, as the median of paired rounds with its
+range:
+
+| series | r20000 1× | r50000 1× | wifi-home 1× | r20000 4× | r50000 4× | wifi-home 4× |
+| --- | --- | --- | --- | --- | --- | --- |
+| MR 512², 58 frames | ×1.001 [1.000–1.001] | ×1.002 [0.999–1.006] | ×1.003 [0.998–1.008] | ×0.998 [0.995–1.000] | ×1.002 [0.992–1.025] | ×1.002 [0.944–1.368] |
+| fluoroscopy 768², 18 | ×1.001 [0.998–1.002] | ×1.000 [0.978–1.006] | ×0.999 [0.932–1.039] | ×1.001 [0.999–1.012] | ×0.998 [0.988–1.019] | ×0.945 [0.514–1.086] |
+| projections 1914×2572, 9 | ×0.999 (1 pair) | ×0.998 [0.988–1.007] | ×0.991 [0.938–1.109] | ×0.996 [0.993–1.009] | ×1.002 [0.980–1.017] | ×0.968 [0.802–1.017] |
+| mammogram 2560×3328, 4 | ×1.001 [0.996–1.005] | ×1.011 [0.992–1.051] | ×1.005 [0.982–1.388] | ×1.006 [0.985–1.025] | ×1.013 [0.942–1.077] | ×1.006 [0.944–1.227] |
+
+The pairs per cell are 1–10: kept visits run 5–12 a variant, and n ≥ 10 kept is not met on every cell. The first
+picture moves ×0.945–1.097 (medians), its pairs' ranges covering 1 on every cell but the MR on r50000 at 1× (×1.055 [1.008–1.086]: one hash on the first frame).
+
+**The check costs the fill nothing measurable at 1× or 4×.** Every median is within ×0.94–1.02, and every cell's
+range covers 1. The largest is the mammogram on r50000: ×1.011 at 1× (slower in 8 of 10 pairs, about 24 ms of
+2.2 s) and ×1.013 at 4×, against §3's decode-bound ×1.09.
+
+Here the wire is the clock: on these links the decoders' idle time absorbs the hash, as §3 predicted. A link
+faster than 50 Mbit/s, or a phone, would move toward §3's decode-bound ×1.00–1.15. That is not measured. The host
+has 4 cores, browser on 3, so nothing past 3 decoders is claimed.
+
+The dropped links, r5000 and lte-good, are wire-bound at 5–20 s a frame on the projections. They could only
+hide a check further, so they were not run.
+
+**Adopted** by the row's rule: the 1× fill stays within its spread, and 4× moves ≤ 15 %. The check is on wherever
+`connect` is given the digests. Open: phones; Firefox's and WebKit's WebCodecs paths; reporting (§5); and whether a
+page shows a `false` frame (§2.3, the owner's).
+

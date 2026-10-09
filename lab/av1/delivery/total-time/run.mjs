@@ -9,7 +9,7 @@
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
- *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth] [--out rows.jsonl]
+ *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth|digest] [--out rows.jsonl]
  *     [--summary [--ref htj2k]]
  */
 import { spawn, execFileSync } from "node:child_process";
@@ -79,6 +79,7 @@ writeFileSync(`${T}/wifi-home.trace`, execFileSync("python3", [path.join(ROOT, "
   "15000:12000", "40000:12000", "10000:12000", "30000:12000", "15000:12000"]));
 
 const DAV1D = { codec: "av1", glue: "/lab/.av1-build/out/simd.js", wasm: "/lab/.av1-build/out/simd.wasm", dir: "/lab/.av1-build/out" };
+const HASHER = "/client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js";
 const OPENJPH = { glue: "/client/decode/wasm/vendor/openjph/openjphjs.js", wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm", dir: "/client/decode/wasm/vendor/openjph" };
 /** One of lab/decode-bench/wasm/build.sh's variants by name (lab/av1/decode/htj2k-threads). */
 const built = (n) => ({ glue: `/lab/.openjph-build/wasm/${n}.js`, wasm: `/lab/.openjph-build/wasm/${n}.wasm`, dir: "/lab/.openjph-build/wasm" });
@@ -90,7 +91,9 @@ function variantOf(set, name) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion,
-      opts: { decoder: { ...(a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
+      opts: { decoder: { ...(a.openjph ? built(a.openjph) : OPENJPH), ...layered, ...(a.check && { hasher: HASHER }) }, ...(a.worker && { decoderWorker: a.worker }),
+        // Row EXACT: the frame digests, as a page passes them on from the series' metadata.
+        ...(a.check && { digests: MUTATE === "digest" ? { ...set.digests, frames: set.digests.frames.map((d) => d.replace(/^./, (c) => (c === "0" ? "1" : "0"))) } : set.digests }),
         // Row ASKDEADLINE: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
         // A `downloader` variant runs that revision of the downloader (row CLIENT).
@@ -281,6 +284,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     failures: r.failures.length,
     failure: r.failures[0]?.reason,
     exact: [...r.frames, ...r.after].filter((f) => r.sha[f.i] === truth[f.i]).length,
+    checked: r.frames.reduce((n, f) => ({ ...n, [f.exact]: (n[f.exact] ?? 0) + 1 }), {}),
     afterMs: r.after.map((f) => Math.round(f.ms)),
     resumes: r.resumes,
     survived: r.quiet?.filter((q) => q.survived).map((q) => Math.round(q.survived)),
@@ -316,7 +320,7 @@ for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summ
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
       console.error(`round ${round} ${engine} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
-        ` exact ${row.exact}/${row.owed}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
+        ` exact ${row.exact}/${row.owed}${row.checked ? ` checked ${JSON.stringify(row.checked)}` : ""}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }
 }
