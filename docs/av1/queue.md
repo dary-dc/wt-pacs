@@ -1512,7 +1512,7 @@ with examples where one pattern repeats.
 * Folder leftovers: `lab/fixtures/decode_warmup_{c,c92,g,g277,g512}/` referenced nowhere; `lab/fixtures/queue_large/README.md:1`
   titled `lab_queue_large`; `lab/scripts/cert_chain_cells.sh` referenced nowhere; `lab/av1/decode/mixed/bound.html` named in no
   README; `.gitignore:47-49` (`frames_500x64k`, `frames_500x250k`, a README that does not exist); the unapplied
-  `patches/quinn-proto-0.11.18-ack-when-congestion-blocked.patch` beside the applied ones (its draft:
+  `docs/transport/upstream-quinn-ack.patch` beside the applied ones (its draft:
   `docs/transport/upstream-quinn-ack.md:81`); the study-bundle format the server reads lives in `ingest/`
   (`common/series-bundle/src/format.rs:1`, read by `server/src/media/frame_store.rs:8`) — `common/`.
 
