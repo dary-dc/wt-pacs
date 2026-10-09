@@ -36,7 +36,7 @@ const ASSETS = [
   "client/transport-ts/dist/session.js",
   "client/transport-wasm/session-adapter.js", "client/transport-wasm/pkg/transport_wasm.js",
   "client/transport-wasm/pkg/transport_wasm_bg.wasm",
-  "lab/decode-bench/vendor/openjph/openjphjs.js", "lab/decode-bench/vendor/openjph/openjphjs.wasm",
+  "client/decode/wasm/vendor/openjph/openjphjs.js", "client/decode/wasm/vendor/openjph/openjphjs.wasm",
   "lab/page-open/metadata.json",
 ];
 onExit(() => fs.rmSync(path.join(ROOT, "lab/page-open/metadata.json"), { force: true }));
@@ -141,7 +141,7 @@ function milestones(events) {
 
 const SHORT = {
   bundle: "client/downloader/consumer.js", transportWasm: "client/transport-wasm/pkg/transport_wasm_bg.wasm",
-  decoderWasm: "lab/decode-bench/vendor/openjph/openjphjs.wasm", meta: "lab/page-open/metadata.json",
+  decoderWasm: "client/decode/wasm/vendor/openjph/openjphjs.wasm", meta: "lab/page-open/metadata.json",
 };
 
 /** CPU ms each of the browser's processes has spent, exited threads included; the kernel samples it per 10 ms tick. */

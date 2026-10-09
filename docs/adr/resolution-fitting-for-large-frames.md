@@ -142,7 +142,7 @@ quinn nor wtransport carries yet, and whose support in Chromium is unchecked.
 ## 7 · The level a phone screen needs, measured (row RESLEVEL, 2026-10-07)
 
 **Proposed, not built.** Measured in the lab on the breast series ([`decode/README.md`](../decode/README.md) §A frame at
-the level the screen needs, [`lab/av1/reslevel`](../../lab/av1/reslevel/README.md)): a fill that sends every frame's
+the level the screen needs, [`lab/av1/decode/resolution-level`](../../lab/av1/decode/resolution-level/README.md)): a fill that sends every frame's
 prefix first and every rest after puts the first exact picture on screen at ×0.09–0.69 of today's time and every frame
 of a four-view study at ×0.06–0.50, on every link of row 23 at 1× and 4×, and finishes every whole frame at a tie
 (×0.98–1.04). §6's rule — 2× to first viewable — holds at 5 and 20 Mbit on every series (×0.09–0.45), and at 50 Mbit

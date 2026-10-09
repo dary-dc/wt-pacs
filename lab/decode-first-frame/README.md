@@ -16,7 +16,7 @@ glue is evaluated as text — the code cache has nothing to attach to.
 NODE_PATH=$(npm root -g) node lab/decode-first-frame/run.mjs [rounds]
 ```
 
-Needs `lab/decode-bench/fetch_decoder.sh` to have run, and the fixtures in `lab/fixtures/`.
+Needs `client/decode/wasm/fetch_openjph.sh` to have run, and the fixtures in `lab/fixtures/`.
 
 ## D8 — the same decoder instantiated by streaming
 

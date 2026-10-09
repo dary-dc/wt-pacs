@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 SPLITTIME</title>
+<script type="module">
+  import { ARMS, round } from "../../decode/per-frame/drive.js";
+  const env = { worker: () => new Worker("/client/downloader/decoder.js", { type: "module" }), channel: () => new MessageChannel() };
+  // An AV1 arm is a series' items, each through the decoder the item picks: WebCodecs where every stream is ≤ 10 bits.
+  const av1 = (name) => (base, set) => set.arms[name] && { kind: "product", ext: set.arms[name].ext, decoder: { codec: "av1",
+    glue: `${base}/lab/.av1-build/out/simd.js`, wasm: `${base}/lab/.av1-build/out/simd.wasm`, dir: `${base}/lab/.av1-build/out` } };
+  const kinds = new Proxy({}, { get: (_, name) => (name === "htj2k" ? ARMS.htj2k : av1(name)) });
+  globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, kinds);
+  globalThis.ready = crossOriginIsolated;
+</script>

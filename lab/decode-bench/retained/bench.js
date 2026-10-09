@@ -2,9 +2,9 @@
 const SERIES = ["decode_c512", "decode_g512", "decode_g2048"];
 const BUILDS = {
   package: {
-    glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
-    wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
-    dir: "/lab/decode-bench/vendor/openjph",
+    glue: "/client/decode/wasm/vendor/openjph/openjphjs.js",
+    wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm",
+    dir: "/client/decode/wasm/vendor/openjph",
   },
   source4: {
     glue: "/lab/.openjph-build/wasm/plain.js",

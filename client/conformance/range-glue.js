@@ -2,7 +2,7 @@
 // with a range no frame has. A frame carrying it proves decoder.js took the decoder's range rather
 // than running its own pass. docs/decode/README.md §The range in the pack
 var OpenJPHModule = async (opts) => {
-  const dir = "/lab/decode-bench/vendor/openjph";
+  const dir = "/client/decode/wasm/vendor/openjph";
   const src = await (await fetch(`${dir}/openjphjs.js`)).text();
   const factory = new Function(`${src}\nreturn typeof Module !== "undefined" ? Module : OpenJPHModule;`).call(self);
   const M = await factory(opts);

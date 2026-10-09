@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "lab/av1/item"))
+sys.path.insert(0, str(ROOT / "ingest/coded-frames"))
 from make_golden import ITEMS, SETS, content  # noqa: E402
 
 FRAMES = 12

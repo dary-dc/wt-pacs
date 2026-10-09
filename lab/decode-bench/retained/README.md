@@ -9,7 +9,7 @@ Headless Chromium, because `performance.measureUserAgentSpecificMemory()` is the
 that counts a WASM heap, a plain `ArrayBuffer` and a `SharedArrayBuffer` on the same scale.
 
 ```bash
-lab/decode-bench/fetch_decoder.sh                          # the package build
+client/decode/wasm/fetch_openjph.sh                          # the package build
 FRAMES=87  lab/scripts/gen_htj2k_fixtures.sh c512          # the three series the lane asks for
 FRAMES=237 lab/scripts/gen_htj2k_fixtures.sh g512
 FRAMES=64  lab/scripts/gen_htj2k_fixtures.sh g2048

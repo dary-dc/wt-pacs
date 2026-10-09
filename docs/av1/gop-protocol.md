@@ -30,10 +30,10 @@ give ρ ≈ 0 and ρ = 1.
 
 ## 3 · Codings
 
-* **Representation.** The product's: `lab/av1/item/ingest.py --representation optimized`, i.e. row SPLITRULE's k by
+* **Representation.** The product's: `ingest/coded-frames/ingest.py --representation optimized`, i.e. row SPLITRULE's k by
   depth. Report the top and low streams apart, and their sum. Also code the plain representation (the samples
   direct) on one volume per system.
-* **libaom 3.15.1**, as `lab/av1/tools.sh` pins it:
+* **libaom 3.15.1**, as `lab/av1/tools/tools.sh` pins it:
   * Lossless, one thread.
   * Keyframes at exactly every G (`--kf-min-dist=G --kf-max-dist=G`).
   * G ∈ {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, whole series}.
@@ -51,7 +51,7 @@ give ρ ≈ 0 and ρ = 1.
 * **Bytes.** Bytes over intra (G = 1) at the same encoder and preset; bytes over HTJ2K.
 * **Decode cost of an ask.**
   * Time to decode a frame at G ∈ {1, 4, 8, 16} through dav1d-WASM and through WebCodecs where the top is ≤ 10 bits.
-  * Headless Chromium 141 (`lab/av1/total`'s pin), product decoder worker, at 1× and 4×.
+  * Headless Chromium 141 (`lab/av1/delivery/total-time`'s pin), product decoder worker, at 1× and 4×.
   * n ≥ 10 rounds, interleaved with `lab/order.mjs`; report the median and range.
   * A mid-group ask's cost is the serial decode of frames k … N, a mean of (G + 1)/2 frames; report it beside one
     HTJ2K frame's decode.

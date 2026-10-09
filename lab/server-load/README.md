@@ -5,13 +5,13 @@ How many concurrent fills one server core carries before it, not the links, is t
 [`docs/transport/transport-conclusions.md`](../../docs/transport/transport-conclusions.md) §4, *Many fills at once*.
 
 ```bash
-lab/av1/tools.sh && lab/av1/item/build.sh                       # aomenc 3.15.1, dav1d 1.5.4, the check's decoders
+lab/av1/tools/tools.sh && ingest/coded-frames/build.sh                       # aomenc 3.15.1, dav1d 1.5.4, the check's decoders
 PATH=$PWD/lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160   # OpenJPH
 lab/av1/fetch_data.sh dbt10_ea1141
 cargo build --release -p exact-server -p pack-study -p window-harness
 W=lab/.av1-work/load P=lab/av1/.venv/bin/python
-$P lab/av1/item/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/htj2k --codec htj2k
-$P lab/av1/item/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/av1 --representation optimized --preset good:6
+$P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/htj2k --codec htj2k
+$P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/av1 --representation optimized --preset good:6
 for c in htj2k av1; do target/release/pack-study --metadata $W/$c/metadata.json --frames $W/$c --output $W/$c/$c.sbnd; done
 echo 4194304 > /proc/sys/net/core/rmem_default                 # the client's sockets, below
 python3 lab/server-load/run.py --study htj2k=$W/htj2k,htj2k --study av1=$W/av1,av1 --rounds 10 --out rows.jsonl

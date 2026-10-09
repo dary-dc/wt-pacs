@@ -107,7 +107,7 @@ floor in closed form.
 * With mean |e| ≈ 0.8 σ for a Laplacian or Gaussian residual, that is k ≈ log2 σ − 0.3.
 
 Row 36's σ is the residual of LOCO-I's own predictor. Its oracle found ⌊log2 σ⌋ − 1, fitted on nine series. But it
-searched only k ∈ {1, 2, 3} (`lab/av1/encx/encx.py` `low_split`). It picked k = 3, the largest it tried, on
+searched only k ∈ {1, 2, 3} (`lab/av1/bytes/low-stream/encx.py` `low_split`). It picked k = 3, the largest it tried, on
 **all four** series with σ ≥ 17, where log2 σ is 4.2–6.1 (fluoroscopy 17.8–32.6, cone-beam 66.7–68.2). So the
 fitted rule is censored at 3 exactly where it matters. The literature's rules say k = 4–6 there. Under that
 noise the low bits cost their full width either way, and the top's noise falls as k grows. Rows 43–44 test

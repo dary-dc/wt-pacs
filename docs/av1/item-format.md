@@ -38,7 +38,7 @@ frame  := one temporal unit                       when split = 0
   or 12, and bytes past the last frame.
 * HTJ2K items stay bare codestreams (the bundle's codec field says which).
 
-## Representation at ingest (lab row 28 LLSIZE, `lab/av1/llsize/` in the public lab)
+## Representation at ingest (lab row 28 LLSIZE, `lab/av1/bytes/represented/` in the public lab)
 
 | source | coded as | header |
 | --- | --- | --- |
@@ -86,24 +86,24 @@ the frame.
   of operating point 0 as coded, 31 included — and the decoder is reconfigured only when the string changes. Chromium
   reports the string's colour on the frame, not the stream's, so whether a 4:4:4 stream is identity (matrix 0) is
   read from the sequence header, as for dav1d-WASM. Which engines accept which strings:
-  [`lab/av1/codecstr`](../../lab/av1/codecstr/README.md).
+  [`lab/av1/exact/codec-string`](../../lab/av1/exact/codec-string/README.md).
 * **dav1d-WASM** (dav1d 1.5.4, emscripten 3.1.74, SIMD build) otherwise — 12-bit top streams, no `VideoDecoder`,
   or a failed probe.
 * Both imported, and dav1d's glue and WASM fetched, when an AV1 series' decoder starts; each initialised on first use, memoised; an HTJ2K page fetches no AV1 code ([`lab/page-open/README.md`](../../lab/page-open/README.md) §Cold round trips by codec).
 
 ## Built (row 39, branch `claude/av1-unified`)
 
-The writer is [`lab/av1/item/ingest.py`](../../lab/av1/item/README.md), `pack-study` bundles its items when the metadata
+The writer is [`ingest/coded-frames/ingest.py`](../../ingest/coded-frames/README.md), `pack-study` bundles its items when the metadata
 says `"codec": "av1"`, and the reader is `client/downloader/av1.js` with `av1-item.js` (the header and its refusals) and
 `av1-frame.js` (the merge) — [`client/downloader/README.md`](../../client/downloader/README.md) §An AV1 series. The
 per-layout probes are 16×16 units (grey 8/10, 4:4:4 8/10, and 8-bit grey as 4:2:0 since row GREY420) in `av1-probe.js`, checked by an FNV-1a of their planes. On
 the first 8 frames of the fluoroscopy, CT, MR and ultrasound series, both representations, all 96 items were written and
 decoded by the reader to their sources; optimized over plain matches row 28 to the third digit
-([`lab/av1/item`](../../lab/av1/item/README.md) §Checked). The lab harnesses of rows 9–38 that hand the client bare temporal units, or import the decoder modules
+([`lab/av1/exact/coded-frame`](../../lab/av1/exact/coded-frame/README.md) §Checked). The lab harnesses of rows 9–38 that hand the client bare temporal units, or import the decoder modules
 (`lab/av1/{speed,fill,total,decspeed,wcbase,xbrowser,footprint,rep14}`), are not ported: on this branch they would
 need their frames written as items; their readings stand as measured on `claude/av1`.
 
-**Widened (row 43 SPLITOK, [`lab/av1/splitok`](../../lab/av1/splitok/README.md)).** The writer (`ingest.py --split K`)
+**Widened (row 43 SPLITOK, [`lab/av1/exact/split`](../../lab/av1/exact/split/README.md)).** The writer (`ingest.py --split K`)
 and the reader take grey of 8–16 bits after the offset, unsigned and signed, at any k ≤ 8 whose top fits a 12-bit
 stream; the defaults above are unchanged until row 44. Checked exact at every b = 8…16 and every k = max(0, b − 12) …
 max(b − 8, 4), natively, in Node and in Chromium, Firefox and WebKitGTK, synthetic to 4096×5120 and real, and the old and new
@@ -114,7 +114,7 @@ holding its top.
 
 ## Proposed: a remapped plane (row 64 REMAP, not built)
 
-Measured in [`lab/av1/remap`](../../lab/av1/remap/README.md); built in the lab only, since it changes the item.
+Measured in [`lab/av1/bytes/remap`](../../lab/av1/bytes/remap/README.md); built in the lab only, since it changes the item.
 Where a series is 12-bit data plus rare levels above it (two of three projection systems: one saturated level,
 0.6–11 % of samples; the CTs and the cone-beam: 0.0003–0.02 %), ingest would clamp the outliers to the 12-bit window
 and store them in a per-frame map, then split the 12-bit plane at k = 2 as today:
@@ -136,7 +136,7 @@ HTJ2K as to AV1 (0.576 and 0.571 of HTJ2K on the source). The owner decides whet
 
 ## The split per depth (row 44 SPLITTIME, adopted by row 72)
 
-Measured in [`lab/av1/splittime`](../../lab/av1/splittime/README.md) by total time against HTJ2K on eleven real
+Measured in [`lab/av1/delivery/split-rule`](../../lab/av1/delivery/split-rule/README.md) by total time against HTJ2K on eleven real
 series (README §Total time, *The split per depth*); the grey rows of §Representation at ingest are its rule,
 `ingest.py`'s `optimized_split`. What it changed against the k = 2 it replaced:
 
@@ -153,7 +153,7 @@ layout exactly (§Built; golden `optimized/g9` and `optimized/s13`).
 
 ## 8-bit grey as 4:2:0 (row 80 GREY420, not adopted)
 
-Measured in [`lab/av1/grey420`](../../lab/av1/grey420/README.md) on the two 8-bit grey series. Coded as full-range
+Measured in [`lab/av1/delivery/grey-420`](../../lab/av1/delivery/grey-420/README.md) on the two 8-bit grey series. Coded as full-range
 4:2:0 with every chroma sample mid-grey (`ingest.py --grey8 420`), 8-bit grey is exact through Firefox's
 WebCodecs, which refuses 4:0:0 (row XENGINE). The header does not change: the stream's own sequence header says
 4:2:0, and every reader path takes it as grey only when it is, so a series coded either way decodes everywhere.

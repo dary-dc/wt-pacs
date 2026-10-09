@@ -1,6 +1,6 @@
 /**
  * One AV1 stream's unit through dav1d-WASM, as a picture av1-frame.js merges: a keyframe decodes alone,
- * any other unit only after its predecessor, here. Build: lab/av1/dav1d-wasm; seam: docs/av1/adr-unit.md §2–3.
+ * any other unit only after its predecessor, here. Build: client/decode/wasm/dav1d; seam: docs/av1/adr-unit.md §2–3.
  */
 import { neutral } from "./av1-frame.js";
 import { continues } from "./av1-item.js";

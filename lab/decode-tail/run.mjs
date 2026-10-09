@@ -25,7 +25,7 @@ const ROUNDS = Number(arg("--rounds", 7));
 const SETS = arg("--sets", "c512,g512").split(",");
 /** `name=[direct:]decoderDir[/glue.js][@decoderWorker]`: another decoder build, another worker around
  *  it, or `direct:` for the page that drives the decoders itself (direct.html). */
-const ARMS = arg("--arms", "package=/lab/decode-bench/vendor/openjph").split(",").map((a) => a.split("="));
+const ARMS = arg("--arms", "package=/client/decode/wasm/vendor/openjph").split(",").map((a) => a.split("="));
 const DECODERS = Number(arg("--decoders", 3));
 const THROTTLES = arg("--throttles", "1").split(",").map(Number);
 const ASKS = arg("--asks", "");

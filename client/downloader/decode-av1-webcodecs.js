@@ -48,7 +48,7 @@ const STALL_MS = 2000;
 
 const stream = (which) => (streams[which] ??= decoder(which === "top" ? groupLength : 1));
 
-/** Flushed at a group's end and before a keyframe while it holds one, never inside it. lab/av1/wclat */
+/** Flushed at a group's end and before a keyframe while it holds one, never inside it. lab/av1/decode/latency */
 function decoder(length) {
   let vd = null;
   let got = null;
@@ -121,7 +121,7 @@ function decoder(length) {
 }
 
 const FORMATS = { I420: [8, 1], I420P10: [10, 1], I444: [8, 3], I444P10: [10, 3], RGBX: [8, 3], BGRX: [8, 3] };
-// The byte of G, B and R in a pixel: Firefox returns an identity stream as RGB, its samples untouched. lab/av1/xengine
+// The byte of G, B and R in a pixel: Firefox returns an identity stream as RGB, its samples untouched. lab/av1/exact/engine-readback
 const RGB = { RGBX: [1, 2, 0], BGRX: [1, 0, 2] };
 
 /** The frame's planes as a picture, if it is grey (4:0:0, or 4:2:0 with mid-grey chroma) or 4:4:4 identity; `seq` its sequence header's fields. */

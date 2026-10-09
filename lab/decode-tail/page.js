@@ -8,7 +8,7 @@ import { DownloaderClient } from "/client/downloader/consumer.js";
 const q = new URLSearchParams(location.search);
 const FILL = Number(q.get("fill"));
 const DECODERS = Number(q.get("decoders") || 3);
-const dir = q.get("decoderDir") || "/lab/decode-bench/vendor/openjph";
+const dir = q.get("decoderDir") || "/client/decode/wasm/vendor/openjph";
 const decoder = { glue: `${dir}/${q.get("glue") || "openjphjs.js"}`, wasm: `${dir}/${q.get("wasm") || "openjphjs.wasm"}`, dir };
 
 const frames = [];

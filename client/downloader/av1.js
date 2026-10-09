@@ -10,7 +10,7 @@ let cfg = null;
 let importer = (path) => import(path);
 const loaded = {};
 
-/** `d` is the series' decoder config: dav1d's `glue`, `wasm` and `dir`, `groupLength`, and `mixed`: a top over 10 bits to dav1d, its low to WebCodecs (lab/av1/mixdec). */
+/** `d` is the series' decoder config: dav1d's `glue`, `wasm` and `dir`, `groupLength`, and `mixed`: a top over 10 bits to dav1d, its low to WebCodecs (lab/av1/decode/mixed). */
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;

@@ -29,10 +29,10 @@ relying on a clause. Anything not confirmed from a primary source says so.
 | gst-plugin-dav1d 0.13.7 (crates.io, SHA-256 `52614ade…7afb3f6`), built against Ubuntu 24.04's libdav1d7 1.4.1 and GStreamer 1.24.2 | lab only (row XENGINE): a GStreamer AV1 decoder that takes WebKitGTK's frame alignment; not shipped | MIT OR Apache-2.0; dav1d BSD-2-Clause | — | the crate's `Cargo.toml` |
 | Firefox (`FIREFOX_157_0_RELEASE`, `fdd757a2`) and WebKit (`webkitgtk-2.52.6`, `4fb33923`) sources | nowhere: read for row XENGINE, not built | MPL-2.0; LGPL-2.1 and BSD-2-Clause | — | each tree's licence files |
 | AVM v1.0.0 (`avmenc`, `avmdec`; AV2's reference software, commit `966a7d7`) | lab only (row AV2); not shipped, and no browser decoder exists | BSD-3-Clause-Clear (`LICENSE`, © 2021 Alliance for Open Media): no patent rights granted by the code licence | its `PATENTS` is the AOM Patent License 1.0, byte-identical to libaom 3.15.1's (sha256 `661fb8e5…`); its grant covers “the specification designated … for which this License was issued”, and the tree does not say that AOM issued it for AV2's — **unconfirmed** | [LICENSE](https://raw.githubusercontent.com/AOMediaCodec/avm/v1.0.0/LICENSE), [PATENTS](https://raw.githubusercontent.com/AOMediaCodec/avm/v1.0.0/PATENTS), read from the pinned tag |
-| hash-wasm 4.12.0 (npm, its `LICENSE` read from the tarball); blake3 1.0.8 and xxhash 3.6.0 (PyPI wheels, hash-pinned in `lab/av1/exactprod/requirements.txt`) | lab only (row EXACTPROD): the hashes timed in the browser, and the truth's independent hashers; not shipped | hash-wasm MIT; blake3 CC0-1.0 OR Apache-2.0; xxhash BSD-2-Clause (each wheel's metadata) | — | the package files |
+| hash-wasm 4.12.0 (npm, its `LICENSE` read from the tarball); blake3 1.0.8 and xxhash 3.6.0 (PyPI wheels, hash-pinned in `lab/av1/exact/in-production/requirements.txt`) | lab only (row EXACTPROD): the hashes timed in the browser, and the truth's independent hashers; not shipped | hash-wasm MIT; blake3 CC0-1.0 OR Apache-2.0; xxhash BSD-2-Clause (each wheel's metadata) | — | the package files |
 
 All of these are compatible with this repository's MIT licence — LCEVC's code too, though its
-patents are not granted and no open LCEVC encoder exists ([`lab/av1/lcevc`](../../lab/av1/lcevc/README.md)).
+patents are not granted and no open LCEVC encoder exists ([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md)).
 Nothing is relicensed, and none but FFmpeg carries a copyleft or source-offer duty — which never reaches here, since the lab runs
 it as a separate program, links nothing against it and ships nothing built from it.
 
@@ -43,7 +43,7 @@ it as a separate program, links nothing against it and ships nothing built from 
   materials shipped with it — a `THIRD_PARTY` notices file served beside the client.
 * **The AOM Patent License text ships with any AV1 implementation we distribute** (§1.2), and a
   distributor makes its own necessary claims available under the same licence.
-* **How the client meets both:** `lab/av1/dav1d-wasm/build.sh` writes `THIRD_PARTY.txt` beside the
+* **How the client meets both:** `client/decode/wasm/dav1d/build.sh` writes `THIRD_PARTY.txt` beside the
   `.wasm` from the pinned sources' own files — dav1d's `COPYING` and `doc/PATENTS` (the AOM Patent
   License 1.0), emscripten's `LICENSE` and musl's `COPYRIGHT` — and the dispatch arm checks it is
   served there. Nothing is copied by hand, so a tag bump carries its own text.
@@ -52,7 +52,7 @@ it as a separate program, links nothing against it and ships nothing built from 
 * **No endorsement**: VideoLAN's, AOM's or SVT-AV1's names are not used to promote this project
   (SVT-AV1's third clause).
 * **Unconfirmed**: whether Emscripten's generated glue needs its notice (treated as yes).
-* **What the dav1d build links** (`-Wl,--trace`, [`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md)):
+* **What the dav1d build links** (`-Wl,--trace`, [`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md)):
   dav1d, emscripten's libc (musl, MIT), dlmalloc (public domain) and compiler-rt (Apache-2.0 with
   LLVM exception, whose exception waives notice for what compiles into a binary). No libc++: the
   wrapper is C. The libc++ question this line used to ask is answered by that.
@@ -70,7 +70,7 @@ Fetched, never committed; anything derived from them that is published carries t
 listed there.
 
 Row TOTAL's LTE link replays mahimahi's `TMobile-LTE-short` trace (GPL-3.0), fetched by
-`lab/av1/total/run.mjs` into a local cache and checked against the hash PROF recorded; a trace is
+`lab/av1/delivery/total-time/run.mjs` into a local cache and checked against the hash PROF recorded; a trace is
 input to the lab's relay, never committed and never shipped.
 
 ## Patents, as a fact base

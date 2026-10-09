@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 MIXDEC bound</title>
+<script type="module">
+  import { order } from "../../../order.mjs";
+  const call = (w, msg, transfer) => new Promise((r) => { w.onmessage = (e) => r(e.data); w.postMessage(msg, transfer); });
+  /** rows: { set, arm, top[], low[], merge[], exact, frames } for every split arm whose top is over 10 bits. */
+  globalThis.run = async ({ frames: dir, round, sets }) => {
+    const base = location.origin;
+    const manifest = (await (await fetch(`${base}/${dir}/manifest.json`)).json()).filter((s) => !sets || sets.includes(s.name));
+    const decoder = { glue: `${base}/lab/.av1-build/out/simd.js`, wasm: `${base}/lab/.av1-build/out/simd.wasm`, dir: `${base}/lab/.av1-build/out` };
+    const rows = [];
+    for (const set of order(manifest, round)) {
+      const arms = Object.keys(set.arms).filter((a) => a !== "htj2k" && set.bits - Number(a.slice(1)) > 10);
+      for (const arm of order(arms, round)) {
+        const items = await Promise.all(set.frames.map((_, i) =>
+          fetch(`${base}/${dir}/${set.name}/${String(i).padStart(3, "0")}.${set.arms[arm].ext}`).then((x) => x.arrayBuffer()).then((b) => new Uint8Array(b))));
+        const w = new Worker("bound-worker.js", { type: "module" });
+        await call(w, { kind: "init", decoder });
+        const { rows: r } = await call(w, { kind: "run", items, truth: set.frames.map((f) => f.truth) }, items.map((b) => b.buffer));
+        w.terminate();
+        rows.push({ set: set.name, arm, frames: items.length, ...r });
+      }
+    }
+    return rows;
+  };
+  globalThis.ready = crossOriginIsolated;
+</script>

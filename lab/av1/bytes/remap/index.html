@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 REMAP</title>
+<script type="module">
+  import { ARMS, round } from "../../decode/per-frame/drive.js";
+  import { MUTATE, restorer } from "./restore.js";
+  const env = { worker: () => new Worker("/client/downloader/decoder.js", { type: "module" }), channel: () => new MessageChannel() };
+  const sides = new Map();
+  // An AV1 arm is a series' items through the decoder each picks; a remapped arm's picture is restored after it.
+  const av1 = (name) => (base, set) => set.arms[name] && { kind: "product", ext: set.arms[name].ext,
+    restore: sides.get(`${set.name}/${name}`), decoder: { codec: "av1",
+      glue: `${base}/lab/.av1-build/out/simd.js`, wasm: `${base}/lab/.av1-build/out/simd.wasm`, dir: `${base}/lab/.av1-build/out` } };
+  const kinds = new Proxy({}, { get: (_, name) => (name === "htj2k" ? ARMS.htj2k : av1(name)) });
+  globalThis.run = async (opts) => {
+    if (opts.mutate.includes("restore")) MUTATE.restore = true;
+    const base = location.origin;
+    const manifest = await (await fetch(`${base}/${opts.frames}/manifest.json`)).json();
+    for (const set of manifest) {
+      for (const [name, arm] of Object.entries(set.arms)) {
+        if (!arm.side) continue;
+        const maps = arm.side.mode !== "map" ? [] : await Promise.all(set.frames.map((_, i) =>
+          fetch(`${base}/${opts.frames}/${set.name}/${String(i).padStart(3, "0")}.map`).then((r) => r.arrayBuffer())));
+        sides.set(`${set.name}/${name}`, restorer({ side: arm.side, signed: set.signed, maps }));
+      }
+    }
+    return round(env, { base, ...opts, mutate: opts.mutate.filter((k) => k !== "restore") }, kinds);
+  };
+  globalThis.ready = crossOriginIsolated;
+</script>

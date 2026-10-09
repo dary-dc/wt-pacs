@@ -15,12 +15,12 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 | `av1-item.js` | the item's header read, and every malformed case refused by name |
 | `decode-av1.js`, `decode-av1-webcodecs.js` | one stream unit through dav1d-WASM or through WebCodecs, as a picture |
 | `av1-frame.js` | a picture checked against the header and merged to the contract: planes interleaved, split, colour transform and offset undone |
-| `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `lab/av1/item/make_golden.py`) |
+| `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `ingest/coded-frames/make_golden.py`) |
 | `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike |
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
 path untouched, `"av1"` loads `av1.js` and, at the decoder's start, both decoders it may need — dav1d-WASM
-from [`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md) (`glue`, `wasm`, `dir` as for
+from [`client/decode/wasm/dav1d`](../decode/wasm/dav1d/README.md) (`glue`, `wasm`, `dir` as for
 OpenJPH, `THIRD_PARTY.txt` served beside them) or WebCodecs; anything else makes `connect` reject
 with `unknown codec "…"` before a worker starts. Every entry is an item of
 [`docs/av1/item-format.md`](../../docs/av1/item-format.md): a 16-byte header that says the source's
@@ -154,7 +154,7 @@ once three silences had doubled `stallMs` past 15 s, it fired first and the ask 
 left. **It is now silence like the stall's**: both WebTransport clients reject it as `FrameTimeoutError`
 and the downloader resumes the ask on a new session, failing it only when `tries` runs out
 (`downloader.test.mjs`; the conformance clause names it; each mutation caught). Measured on row
-LOSSLINK's harness ([`lab/av1/total`](../../lab/av1/total/README.md) §Row ASKDEADLINE): the 10-bit
+LOSSLINK's harness ([`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md) §Row ASKDEADLINE): the 10-bit
 volume as HTJ2K, 4 frames filled then 8 asked one at a time, 20 Mbit and `lte-good` clean, 2 % and 5 %
 loss, 1×, this downloader against the one before it and against `stallMs` 15 s, 10 rounds interleaved,
 155 of 180 visits kept, **2 160/2 160 frames exact and 0 asks failed in every arm, before as after**. On
