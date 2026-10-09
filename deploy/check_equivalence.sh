@@ -36,6 +36,24 @@ if [ "${1:-}" = "--cert" ]; then cert_chain "${2:-$ROOT/server/dev-cert/cert.pem
 if [ "${1:-}" = "--local" ]; then LOCAL=1; shift; fi
 STUDIES="$(cd "${1:-$ROOT/fixtures/us_cine_smoke}" && pwd)"
 SERIES="${2:-us_cine_smoke}"
+if [ "$LOCAL" -eq 0 ]; then
+  RUNTIME="${RUNTIME:-$(command -v podman || command -v docker)}"
+  IMAGE="${IMAGE:-wt-pacs-web:latest}"
+  # The page and nginx files the image carries, against this tree's: Containerfile's COPYs less its ignore file.
+  in_image='cd /srv/wt-pacs && find client -type f ! -path "client/transport/ts/dist/*" -exec sha256sum {} + &&
+    sha256sum /etc/nginx/templates/wt-pacs.conf.template /usr/local/bin/entrypoint.sh | sed "s#  /.*/#  deploy/nginx/#"'
+  in_tree() {
+    find client -type f ! -name '*.md' ! -name '*.test.mjs' ! -name dev-transport.json ! -path '*/node_modules/*' \
+      ! -path 'client/contract/*' ! -path 'client/transport/ts/dist/*' ! -path 'client/decode/wasm/build/.cache/*' \
+      ! -path 'client/decode/wasm/vendor/openjph/*' ! -path 'client/decode/wasm/dav1d/*' -exec sha256sum {} +
+    sha256sum deploy/nginx/wt-pacs.conf.template deploy/nginx/entrypoint.sh
+  }
+  image=$("$RUNTIME" run --rm --entrypoint sh "$IMAGE" -c "$in_image" 2>/dev/null | LC_ALL=C sort -k2) && [ -n "$image" ] \
+    || { echo "no image $IMAGE: docker compose -f deploy/compose.yml build web" >&2; exit 2; }
+  stale=$(cd "$ROOT" && diff <(echo "$image") <(in_tree | LC_ALL=C sort -k2) | grep '^[<>]' | awk '{print $3}' | sort -u)
+  [ -z "$stale" ] || { printf 'stale image %s, these differ from the tree:\n%s\ndocker compose -f deploy/compose.yml build web\n' \
+    "$IMAGE" "$stale" >&2; exit 2; }
+fi
 PY_PORT=18765
 NG_PORT=18766
 WT="$(mktemp -d)"
@@ -64,10 +82,9 @@ if [ "$LOCAL" -eq 1 ]; then
   nginx -c "$NG/nginx.conf" || { kill $PY; exit 2; }
   trap 'kill $PY 2>/dev/null; nginx -s stop -c "$NG/nginx.conf" 2>/dev/null; rm -rf "$NG" "$WT"' EXIT
 else
-  RUNTIME="${RUNTIME:-$(command -v podman || command -v docker)}"
   "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1
   "$RUNTIME" run -d --rm --name wtpacs-web-check -e SERIES="$SERIES" -p "127.0.0.1:$NG_PORT:8765" \
-    -v "$STUDIES:/studies:ro,z" -v "$WT:/srv/wt-pacs/wt:ro,z" "${IMAGE:-wt-pacs-web:latest}" >/dev/null || { kill $PY; exit 2; }
+    -v "$STUDIES:/studies:ro,z" -v "$WT:/srv/wt-pacs/wt:ro,z" "$IMAGE" >/dev/null || { kill $PY; exit 2; }
   trap 'kill $PY 2>/dev/null; "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1; rm -rf "$WT"' EXIT
 fi
 

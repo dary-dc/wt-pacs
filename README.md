@@ -25,6 +25,7 @@ python3 -m venv lab/av1/.venv && lab/av1/.venv/bin/pip install --require-hashes 
 ```
 
 Without the first, the dispatch rig runs 152 of its 750 checks; without the second, the painter check does not run.
+Without Go 1.24 or newer on PATH, the lab's two Go clients are not compiled (Go fetches the toolchain each `go.mod` names and checks it against its checksum database).
 
 ## Quick start
 
