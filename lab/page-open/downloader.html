@@ -24,8 +24,8 @@
   <link rel="preload" as="script" href="/client/downloader/downloader.js" />
   <link rel="preload" as="script" href="/client/downloader/decoder.js" />
   <link rel="preload" as="script" href="/client/transport-ts/dist/session.js" />
-  <link rel="preload" as="script" href="/lab/decode-bench/vendor/openjph/openjphjs.js" />
-  <link rel="preload" as="fetch" href="/lab/decode-bench/vendor/openjph/openjphjs.wasm" />
+  <link rel="preload" as="script" href="/client/decode/wasm/vendor/openjph/openjphjs.js" />
+  <link rel="preload" as="fetch" href="/client/decode/wasm/vendor/openjph/openjphjs.wasm" />
   <title>page open — the downloader</title>
 </head>
 <body>
@@ -52,9 +52,9 @@
         transport: q.get("transport") === "wasm" ? "/client/transport-wasm/session-adapter.js" : undefined,
         decoders: 3,
         decoder: {
-          glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
-          wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
-          dir: "/lab/decode-bench/vendor/openjph",
+          glue: "/client/decode/wasm/vendor/openjph/openjphjs.js",
+          wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm",
+          dir: "/client/decode/wasm/vendor/openjph",
         },
       });
       mark("session");

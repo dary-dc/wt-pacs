@@ -9,7 +9,7 @@ says otherwise — §What these numbers are not.
 ## The decoder
 
 OpenJPH, through the `@cornerstonejs/codec-openjph` WASM build (wrapper MIT, OpenJPH BSD-2-Clause).
-`lab/decode-bench/fetch_decoder.sh` pulls a pinned version from npm and records the tarball's
+`client/decode/wasm/fetch_openjph.sh` pulls a pinned version from npm and records the tarball's
 checksum; nothing is committed, so provenance is the checksum rather than trust in bytes in this
 repo. Its WASM reports `OpenJPH Ver 0.31.0.` and SIMD level 1, which OpenJPH returns only from its
 WASM SIMD build, so SIMD is already on and is not a lever. The product loads this package.
@@ -271,7 +271,7 @@ predates §The range in the pack**; that win reaches a page only once this is re
 current wrapper, and the hashes above are of the build before it.
 
 **Threaded, adopted by row HTJ2KMT** (§Code-blocks on threads, measured): the same wrapper over OpenJPH with
-`lab/av1/fasthtj2k/cb-threads.patch` applied and one helper thread, built as the row's README does with
+`lab/av1/decode/htj2k-profile/cb-threads.patch` applied and one helper thread, built as the row's README does with
 `ARMS=deliver EXTRA_FLAGS="-pthread -DOJPH_CB_THREADS=1 -sPTHREAD_POOL_SIZE=1"`. It needs the page
 cross-origin isolated, which the consumer already requires. Not delivered yet: no hashes until it is.
 
@@ -389,7 +389,7 @@ in two loops (§The range pass). *Measured and not adopted:* the WebCodecs modul
 `VideoFrame` into a buffer each stream keeps and grows, where it allocates one a frame (25 MB a 2560×3328
 10-bit frame, chroma included) — faster, and dearer in resident memory (below).
 
-**Measured** ([`lab/av1/decode`](../../lab/av1/decode/README.md)): the worker before and after, each
+**Measured** ([`lab/av1/decode/worker`](../../lab/av1/decode/worker/README.md)): the worker before and after, each
 arm its own worker, headless Chromium 141 in the container, the first 4 frames of eight series, 8
 rounds interleaved, 1 024/1 024 frames exact a throttle. ms a frame, median over rounds [range],
 after ÷ before as the median of paired rounds and the rounds after was faster:
@@ -414,7 +414,7 @@ after ÷ before as the median of paired rounds and the rounds after was faster:
 * Where the host saturates: one worker decodes at a time on four cores, so nothing here contends; the
   absolute ms are this container's, not a phone's.
 
-**The fill** (row 23's harness, `lab/av1/total/run.mjs`): every frame of the eight series' first 64 (2–64
+**The fill** (row 23's harness, `lab/av1/delivery/total-time/run.mjs`): every frame of the eight series' first 64 (2–64
 a series) through the downloader against the real server behind the relay, 20 and 50 Mbit/s, 1× and 4×,
 6 rounds of 128 visits, Williams-ordered, 98 `VOID` dropped (n = 2–6 a cell), 20 544/20 544 frames exact.
 **The wire is the clock and the gain all but vanishes into it**: after ÷ before on every frame on the page,
@@ -423,7 +423,7 @@ buffer 0.998 (52/72) and 0.997 (44/73). It shows where frames are large and the 
 mammogram and the synthesized 2D at 4× 0.969–0.985, 3/3 to 6/6 (`syn2d_a` at 20 Mbit/s 2 743 → 2 655 ms);
 nowhere slower beyond its spread.
 
-**Resident memory** (row 38's harness, `lab/av1/footprint`, 3 rounds; MB a worker, the renderer's RSS slope
+**Resident memory** (row 38's harness, `lab/av1/decode/memory`, 3 rounds; MB a worker, the renderer's RSS slope
 from 1 to 4 workers, after the series and at its peak; 2 184/2 184 frames exact):
 
 | series | arm | settled before → after | peak before → after |
@@ -1056,7 +1056,7 @@ pixels at all was built: §The range in the pack.
 ## Faster HTJ2K in the browser
 
 Queue row FASTHTJ2K: where a frame's decode goes on real series, what GPU decoders move, and the
-CPU levers left. [`lab/av1/fasthtj2k`](../../lab/av1/fasthtj2k/README.md) runs it.
+CPU levers left. [`lab/av1/decode/htj2k-profile`](../../lab/av1/decode/htj2k-profile/README.md) runs it.
 
 **Where the time goes.** OpenJPH 0.31.0 with names kept, headless Chromium 141, the first 8 frames
 of seven series, 5 rounds at 1× and at 4× (one core), V8's sampling profiler, 560/560 frames exact.
@@ -1142,7 +1142,7 @@ exceptions, the wrapper's two passes, decoder reuse and the range pass were trie
    in the UVLC suffix split (`0xF` → `0xFF`, a bug fix); the wavelet and colour code are unchanged
    for WASM. Every frame here was already exact on 0.31.0.
 
-**A WebGPU block decoder, bounded (row GPU).** [`lab/av1/gpu`](../../lab/av1/gpu/README.md) runs the
+**A WebGPU block decoder, bounded (row GPU).** [`lab/av1/decode/webgpu`](../../lab/av1/decode/webgpu/README.md) runs the
 measured part.
 
 *How the GPU decoder does it* — Naman and Taubman, "Decoding high-throughput JPEG2000 (HTJ2K) on a GPU",
@@ -1225,9 +1225,9 @@ measured on a phone; the 4× cell is the container's emulation (§A slow CPU, em
 
 ## Code-blocks on threads, measured
 
-Queue row HTJ2KMT: row FASTHTJ2K's lab pool (`lab/av1/fasthtj2k/cb-threads.patch`, a row of code-blocks
+Queue row HTJ2KMT: row FASTHTJ2K's lab pool (`lab/av1/decode/htj2k-profile/cb-threads.patch`, a row of code-blocks
 decoded by the caller and 1 or 3 helpers) measured on frames from 512² to 3328×4096, through the product's
-decoder worker in a fill, and in memory. [`lab/av1/htj2kmt`](../../lab/av1/htj2kmt/README.md) runs it.
+decoder worker in a fill, and in memory. [`lab/av1/decode/htj2k-threads`](../../lab/av1/decode/htj2k-threads/README.md) runs it.
 
 **A frame** — an ask on an idle decoder. Headless Chromium 141 on 4 cores, each build in a worker, the
 first 4 frames of eight series, 10 rounds × 3 passes, Williams-ordered; 2 560/2 560 frames exact. ms a
@@ -1278,7 +1278,7 @@ until a consumer delivers the build. **It is an ask's lever:** a fill on these l
 ## Encoder settings
 
 Queue row HTJ2KENC: does another OpenJPH 0.31.0 setting cut lossless bytes or browser decode against the
-served profile (64² blocks, 5 decompositions, RPCL, no precincts)? [`lab/av1/htj2kenc`](../../lab/av1/htj2kenc/README.md)
+served profile (64² blocks, 5 decompositions, RPCL, no precincts)? [`lab/av1/bytes/htj2k-settings`](../../lab/av1/bytes/htj2k-settings/README.md)
 runs it on the first 8 frames of nine series (3 of the two over 4 M samples): 35 settings, every frame
 exact natively and in Chromium.
 
@@ -1357,7 +1357,7 @@ codestream at that level, not to an independent decoder — and the package's le
 
 ## A frame at the level the screen needs
 
-Queue row 59 (RESLEVEL), [`lab/av1/reslevel`](../../lab/av1/reslevel/README.md): the breast series in the served
+Queue row 59 (RESLEVEL), [`lab/av1/decode/resolution-level`](../../lab/av1/decode/resolution-level/README.md): the breast series in the served
 profile, each decoded at the most reduced level whose long side still holds 1 000 pixels (level 1; level 2 on the
 3328×4096 mammograms), exact at that size, the whole frame after.
 
@@ -1407,7 +1407,7 @@ truncation (117/120 conformance). The TypeScript client's `readMin` is a separat
 ### WebCodecs, what it decodes exactly
 
 Headless Chromium 141.0.7390.37 (the lab's), Linux container, no GPU, 2026-10-03
-(`lab/av1/wcap/`). 24 lossless libaom streams, 256×192, 8 frames each: 4:0:0, 4:2:0, 4:2:2 and
+(`lab/av1/exact/webcodecs/`). 24 lossless libaom streams, 256×192, 8 frames each: 4:0:0, 4:2:0, 4:2:2 and
 4:4:4 (identity matrix, GBR) × 8/10/12 bit × intra-only and inter (one keyframe, seven inter
 frames). Each frame's planes are hashed against the encoder input's SHA-256; native dav1d 1.4.1
 reproduces all 24, so a miss would be the browser's. That holds per stream, not per encoder: on
@@ -1430,7 +1430,7 @@ hash, a corrupted payload byte (to native dav1d).
   that classifies a chunk as key does not take a 12-bit sequence header. *Read since (row VERSIONS):*
   `decode()` parses a key chunk with libgav1's OBU parser, built with `LIBGAV1_MAX_BITDEPTH=10` in
   Chromium 141, 154 and 155, so the parse fails and the chunk is called not key
-  ([`lab/av1/versions`](../../lab/av1/versions/README.md)).
+  ([`lab/av1/tools/newer`](../../lab/av1/tools/newer/README.md)).
 * **`isConfigSupported` does not tell**: it answers `true` for every 12-bit string, and for strings
   the AV1 spec forbids (profile 0 with 4:4:4 or 12 bit, profile 1 with 4:2:0); only profile 1 with
   4:0:0 is `false`. So a client learns what this decoder takes by decoding a known frame, not by
@@ -1453,7 +1453,7 @@ What this cannot say: anything about a phone, Safari, a GPU decoder, or a Chromi
 
 dav1d 1.5.4 under emscripten 3.1.74, `-msimd128`, one thread, 623 KB `.wasm` (238 KB gzipped), is
 exact against two native dav1d builds on every frame tried — 8/10/12-bit, 4:0:0 and 4:4:4, intra and
-inter ([`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md)). It is what `decode-av1.js` runs
+inter ([`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md)). It is what `decode-av1.js` runs
 for an AV1 series, flushed before each frame (G = 1: [`docs/av1/adr-unit.md`](../av1/adr-unit.md)
 §2), and the dispatch arm decodes all six shapes through the downloader to their source's checksum.
 Unlike WebCodecs it takes 12 bits and returns one frame per unit with no `flush()` to wait on. It
@@ -1468,7 +1468,7 @@ series, one that does not say its depth included, gets dav1d-WASM. Each unit is 
 flushed (G = 1), the decoder configured as `av01.0.04M.10` whatever the stream — Chromium decodes
 from the in-band sequence header, and four strings tried gave the same frames for every shape. *Corrected
 (row CODECSTR, 2026-10-07):* each stream is now configured with the string of its own sequence header;
-the same frames, the same decoder on every series ([`lab/av1/codecstr`](../../lab/av1/codecstr/README.md)); a
+the same frames, the same decoder on every series ([`lab/av1/exact/codec-string`](../../lab/av1/exact/codec-string/README.md)); a
 split frame's two units go to two `VideoDecoder`s at once and are merged as
 dav1d's are, by the shared `av1-frame.js`. What it refuses where dav1d refuses, from the frame
 alone: anything but `I420`/`I420P10` with every chroma sample mid-grey (4:0:0) or
@@ -1496,7 +1496,7 @@ below: a group goes through WebCodecs with no flush inside it.*
 
 ### WebCodecs without a flush
 
-Row WCLAT ([`lab/av1/wclat`](../../lab/av1/wclat/README.md)), 2026-10-04, headless Chromium 141.
+Row WCLAT ([`lab/av1/decode/latency`](../../lab/av1/decode/latency/README.md)), 2026-10-04, headless Chromium 141.
 With `optimizeForLatency: true` **each unit gives its frame before the next is sent, exact**. That
 held on every depth and layout WebCodecs takes (8 and 10 bits; 4:0:0, 4:2:0, 4:2:2, 4:4:4), intra
 and G = 8, and on 1, 2 and 4 tile columns: 784 of 784 frames against the encoder's input. With
@@ -1529,7 +1529,7 @@ the flush before the next keyframe then covers it, at the cost measured above.
 
 ### A split item through two decoders
 
-Behind decoder config `mixed` (row MIXDEC, [`lab/av1/mixdec`](../../lab/av1/mixdec/README.md)), a split item
+Behind decoder config `mixed` (row MIXDEC, [`lab/av1/decode/mixed`](../../lab/av1/decode/mixed/README.md)), a split item
 whose top is over 10 bits sends its 8-bit low unit to WebCodecs' `low` decoder before dav1d-WASM decodes the
 top in the worker; the low falls back to dav1d-WASM wherever WebCodecs fails it or its `g8` probe fails, and
 a failed top waits for its low to settle so no low is left in flight for the next item. Headless Chromium 141,
@@ -1539,7 +1539,7 @@ WebKitGTK 2.52 (the last two through dav1d-WASM, as their probes send them). Off
 
 ### AV1 in WebKit and Firefox
 
-Row XBROWSER ([`lab/av1/xbrowser`](../../lab/av1/xbrowser/README.md)), 2026-10-05: the client's path
+Row XBROWSER ([`lab/av1/exact/engines`](../../lab/av1/exact/engines/README.md)), 2026-10-05: the client's path
 as it is — `decoder.js` takes `decode-av1-webcodecs.js` for a series that says `depth` ≤ 10 where
 `VideoDecoder` exists, dav1d-WASM otherwise — on the first 4 frames of all nine series and an 8-bit
 grey set, in every layout row LLSIZE codes, against OpenJPH in the same engine. Chromium 141,
@@ -1578,7 +1578,7 @@ check its samples, and fall back to dav1d-WASM on any difference, refusal or for
 
 ### Why, and what would make it exact
 
-Row XENGINE ([`lab/av1/xengine`](../../lab/av1/xengine/README.md)), 2026-10-07. The causes are read from the
+Row XENGINE ([`lab/av1/exact/engine-readback`](../../lab/av1/exact/engine-readback/README.md)), 2026-10-07. The causes are read from the
 sources of the engines measured (Firefox at `FIREFOX_157_0_RELEASE`, WebKit at `webkitgtk-2.52.6`). Each
 cause was then tested on the same engines with every layout a client could hand `VideoDecoder`, two real
 frames each, every plane against the encoder's input. Codec strings made no difference: row CODECSTR's derived
@@ -1638,7 +1638,7 @@ therefore waits on a device run ([`docs/av1/queue.md`](../av1/queue.md) §Blocke
 **Built: the client reads 8-bit GBR as RGB.** `decode-av1-webcodecs.js` takes a `BGRX` or `RGBX` frame of a
 4:4:4 identity stream and splits it into the G, B and R planes it was coded in. Grey returned as RGB is still
 refused. The per-layout probe now passes `c8` in Firefox, so an 8-bit colour series decodes there through
-WebCodecs. Through the product's worker (`lab/av1/xbrowser`, the ultrasound's first 4 frames, 10 interleaved rounds)
+WebCodecs. Through the product's worker (`lab/av1/exact/engines`, the ultrasound's first 4 frames, 10 interleaved rounds)
 every frame stays exact against the source's checksum, 40/40 per cell. A frame takes 0.77× dav1d-WASM's time
 on the same frames at 1× (range 0.67–1.12, faster in 9 of 10 rounds) and 0.62× at 4× (0.56–0.71, 10 of 10):
 58 against 79 ms, and 190 against 300 ms. One decode at a time on 4 cores, nowhere near the host's saturation;
@@ -1658,7 +1658,7 @@ the stride fix.
 
 ### Decode time against HTJ2K
 
-Row SPEED ([`lab/av1/speed`](../../lab/av1/speed/README.md)), 2026-10-03. The first 18 frames of three
+Row SPEED ([`lab/av1/decode/per-frame`](../../lab/av1/decode/per-frame/README.md)), 2026-10-03. The first 18 frames of three
 real series (row DATA), each as the served HTJ2K and as lossless AV1 intra (libaom 3.15.1 `cpu-used`
 0, G = 1 as row SIZE recommends). Every arm is the product's decoder worker — `decoder.js` with the
 OpenJPH package, `decoder.js` → `decode-av1.js` with dav1d-WASM `simd` — or WebCodecs behind the
@@ -1701,7 +1701,7 @@ HTJ2K, paired by round:
 
 ## JPEG XL
 
-Row JXL ([`lab/av1/jxl`](../../lab/av1/jxl/README.md)), 2026-10-07: lossless JPEG XL (libjxl 0.12.0) at effort 1–7 and
+Row JXL ([`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md)), 2026-10-07: lossless JPEG XL (libjxl 0.12.0) at effort 1–7 and
 `--faster_decoding` 0–4 against the served HTJ2K, on the first 8 frames of seven sets from 8 to 16 bits; libjxl in WASM
 (row EMBED's single-threaded SIMD build) and each engine's own decoder, 8 interleaved rounds at 1× and 4× in Chromium
 154 and Firefox 157. Container-measured.

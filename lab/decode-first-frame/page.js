@@ -35,17 +35,17 @@ async function main() {
   // is also why the engine's code cache has nothing to attach to (S13).
   await new Promise((resolve, reject) => {
     const el = document.createElement("script");
-    el.src = "/lab/decode-bench/vendor/openjph/openjphjs.js";
+    el.src = "/client/decode/wasm/vendor/openjph/openjphjs.js";
     el.onload = resolve;
     el.onerror = () => reject(new Error("decoder glue did not load"));
     document.head.append(el);
   });
   // D8: the product's path hands the glue a binary, which forbids a streamed compile; given none
   // the glue streams its own fetch. Only the streamed one is code-cached.
-  const opts = { locateFile: (f) => "/lab/decode-bench/vendor/openjph/" + f };
+  const opts = { locateFile: (f) => "/client/decode/wasm/vendor/openjph/" + f };
   if (instantiate === "buffer") {
     opts.wasmBinary = await (
-      await fetch("/lab/decode-bench/vendor/openjph/openjphjs.wasm")
+      await fetch("/client/decode/wasm/vendor/openjph/openjphjs.wasm")
     ).arrayBuffer();
   }
   const module = await globalThis.Module(opts);

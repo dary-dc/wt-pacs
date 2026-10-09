@@ -44,8 +44,8 @@ start_static() {
 }
 
 require_vendor() {
-  [[ -f lab/decode-bench/vendor/openjph/openjphjs.js ]] || {
-    echo "the decoder vendor is missing: bash lab/decode-bench/fetch_decoder.sh ($NO_BROWSER_HINT)" >&2
+  [[ -f client/decode/wasm/vendor/openjph/openjphjs.js ]] || {
+    echo "the decoder vendor is missing: bash client/decode/wasm/fetch_openjph.sh ($NO_BROWSER_HINT)" >&2
     exit 2
   }
 }

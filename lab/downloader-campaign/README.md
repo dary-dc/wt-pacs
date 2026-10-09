@@ -5,7 +5,7 @@ says how they were made.
 
 ```bash
 ./server/scripts/gen_dev_cert.sh
-lab/decode-bench/fetch_decoder.sh                         # the decoder the Dd arm runs
+client/decode/wasm/fetch_openjph.sh                         # the decoder the Dd arm runs
 lab/scripts/gen_htj2k_fixtures.sh c512                    # 87 real HTJ2K frames, 512x512x3
 # pack them as a study: NNN.j2c → NNN.htj2k, then
 cargo run --release -p pack-study -- --metadata lab/fixtures/decode_c512/metadata.json --frames <dir> --output c512.sbnd

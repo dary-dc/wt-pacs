@@ -20,9 +20,9 @@ const READ_MIN = Number(q.get("readMin") || 0) || undefined;
 const DIGEST = q.has("digest");
 const CAP_MS = Number(q.get("capMs") || 30000);
 const DECODER = {
-  glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
-  wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
-  dir: "/lab/decode-bench/vendor/openjph",
+  glue: "/client/decode/wasm/vendor/openjph/openjphjs.js",
+  wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm",
+  dir: "/client/decode/wasm/vendor/openjph",
 };
 
 // D7: ?decoder=source points at the build with a 4 MB floor instead of the package's 50 MB.

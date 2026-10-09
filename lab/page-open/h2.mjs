@@ -28,8 +28,8 @@ const HINTS = {
   module: bare.replace("</head>", WORKER_GRAPH.map((u) => `  <link rel="modulepreload" href="${u}" />\n`).join("") + "</head>"),
 };
 const ARMS = process.env.ARMS?.split(",") ?? Object.keys(PROTOCOLS).flatMap((p) => Object.keys(HINTS).map((h) => `${p}:${h}`));
-const GLUE = "/lab/decode-bench/vendor/openjph/openjphjs.js";
-const WASM = "/lab/decode-bench/vendor/openjph/openjphjs.wasm";
+const GLUE = "/client/decode/wasm/vendor/openjph/openjphjs.js";
+const WASM = "/client/decode/wasm/vendor/openjph/openjphjs.wasm";
 const WATCH = { worker: WORKER_GRAPH[0], transport: WORKER_GRAPH[2], decoder: WORKER_GRAPH[1], glue: GLUE, wasm: WASM };
 
 fs.mkdirSync(path.join(T, "variants"));

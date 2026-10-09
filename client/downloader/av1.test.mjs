@@ -1,5 +1,5 @@
 // node client/downloader/av1.test.mjs — the AV1 item reader: golden items through dav1d-WASM (when
-// lab/av1/dav1d-wasm/build.sh has run), every refusal item-format.md names, and the decoder choice.
+// client/decode/wasm/dav1d/build.sh has run), every refusal item-format.md names, and the decoder choice.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -99,7 +99,7 @@ const { parseItem } = await import("./av1-item.js");
 
 /**
  * The codecs string is the one ffmpeg 6.1.1's trace_headers and ffprobe read from the same sequence header
- * (lab/av1/codecstr): reduced still-picture headers as ingest writes them, and full ones with timing info, a
+ * (lab/av1/exact/codec-string): reduced still-picture headers as ingest writes them, and full ones with timing info, a
  * decoder model, frame ids, High tier and nine operating points, the first point's level taken.
  */
 {
@@ -288,7 +288,7 @@ const { parseItem } = await import("./av1-item.js");
 }
 
 /** Golden items from the writer decode to their sources' samples; decoded-stream refusals by name. */
-if (!existsSync(`${OUT}/simd.js`)) console.log(`SKIPPED: golden items — no ${OUT} (lab/av1/dav1d-wasm/build.sh)`);
+if (!existsSync(`${OUT}/simd.js`)) console.log(`SKIPPED: golden items — no ${OUT} (client/decode/wasm/dav1d/build.sh)`);
 else {
   const av1 = await import("./av1.js?golden");
   await av1.init({ glue: `${OUT}/simd.js`, wasm: `${OUT}/simd.wasm`, dir: OUT });

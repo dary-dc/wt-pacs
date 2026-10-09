@@ -1,0 +1,24 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 VERSIONS</title>
+<script type="module">
+  import { ARMS, round } from "../../decode/per-frame/drive.js";
+  const env = {
+    worker: (kind) => new Worker(kind === "dav1d" ? "./dav1d-only.js" : "/client/downloader/decoder.js", { type: "module" }),
+    channel: () => new MessageChannel(),
+  };
+  const built = (base, dir, name) => ({ glue: `${base}/${dir}/${name}.js`, wasm: `${base}/${dir}/${name}.wasm`, dir: `${base}/${dir}` });
+  const dav1d = (base, em) => ({ codec: "av1", ...built(base, `lab/.av1-build/em-${em}/out`, "simd") });
+  // htj2k: the shipped package; ojph-V-E: OpenJPH V built by emscripten E; item: the item's own choice of
+  // decoder (WebCodecs where every stream is ≤ 10 bits); dav1d-E: dav1d 1.5.4 by emscripten E, WebCodecs
+  // absent; dav1d-6.0.11-dav1d-head: dav1d's development head by emscripten 6.0.11.
+  const kinds = new Proxy({}, { get: (_, name) => {
+    if (name === "htj2k") return ARMS.htj2k;
+    const [what, a, b] = name.split("-");
+    if (what === "ojph") return (base) => ({ kind: "product", ext: "htj2k", decoder: built(base, "lab/.av1-build/ojph-wasm", `${a}-${b}`) });
+    if (what === "item") return (base) => ({ kind: "product", ext: "av1", decoder: dav1d(base, "3.1.74") });
+    if (what === "dav1d") return (base) => ({ kind: "dav1d", ext: "av1", decoder: dav1d(base, name.slice("dav1d-".length)) });
+  } });
+  globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, kinds);
+  globalThis.ready = crossOriginIsolated;
+</script>

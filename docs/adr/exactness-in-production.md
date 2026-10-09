@@ -2,7 +2,7 @@
 
 **Status:** Proposed · 2026-10-07 · nothing built in the product; the owner decides. Queue row 73
 (EXACTPROD) of [`../av1/queue.md`](../av1/queue.md); the bench is
-[`lab/av1/exactprod`](../../lab/av1/exactprod/README.md).
+[`lab/av1/exact/in-production`](../../lab/av1/exact/in-production/README.md).
 
 ## 1 · Today
 

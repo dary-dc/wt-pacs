@@ -9,7 +9,7 @@ const q = new URLSearchParams(location.search);
 const FILL = Number(q.get("fill"));
 const DECODERS = Number(q.get("decoders") || 3);
 const PER_DECODER = 2;
-const dir = q.get("decoderDir") || "/lab/decode-bench/vendor/openjph";
+const dir = q.get("decoderDir") || "/client/decode/wasm/vendor/openjph";
 const decoder = { glue: `${dir}/${q.get("glue") || "openjphjs.js"}`, wasm: `${dir}/${q.get("wasm") || "openjphjs.wasm"}`, dir };
 const abs = () => performance.timeOrigin + performance.now();
 

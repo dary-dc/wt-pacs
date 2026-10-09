@@ -340,7 +340,7 @@ carrier's. No default changed (§9 item 2).
 ### Under row LOSSLINK's loss, the product's client, 2026-10-08 (LOSSCC, first run)
 
 `c20e7b0`. Queue row 75 of [`../av1/queue.md`](../av1/queue.md): the three controllers the server ships
-(`--congestion`), on row LOSSLINK's cells ([`../../lab/av1/total/README.md`](../../lab/av1/total/README.md)
+(`--congestion`), on row LOSSLINK's cells ([`../../lab/av1/delivery/total-time/README.md`](../../lab/av1/delivery/total-time/README.md)
 §Row LOSSCC) — the 10-bit tomosynthesis volume as HTJ2K and as the optimized AV1 item, frames 0–3 filled
 then 4–7 asked one at a time, through the downloader in headless Chromium 141; 5/20/50 Mbit and
 `lte-good` × clean, ±5/±20 ms ordered jitter, 1/2/5 % loss × 1× and 4×. Six arms (codec × controller)

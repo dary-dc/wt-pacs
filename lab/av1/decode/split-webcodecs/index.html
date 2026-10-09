@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 SPLIT10</title>
+<script type="module">
+  import { ARMS, round } from "../per-frame/drive.js";
+  const kinds = { product: "/client/downloader/decoder.js", split: "/lab/av1/decode/split-webcodecs/split-worker.js" };
+  const env = { worker: (kind) => new Worker(kinds[kind], { type: "module" }), channel: () => new MessageChannel() };
+  const dav1d = (base) => ({ glue: `${base}/lab/.av1-build/out/simd.js`, wasm: `${base}/lab/.av1-build/out/simd.wasm`,
+    dir: `${base}/lab/.av1-build/out` });
+  const split = (mode, name) => (base, set) => ({ kind: "split", ext: name, decoder: {
+    mode, ...dav1d(base), shift: set.splits[name].shift, offset: set.offset, signed: set.signed,
+    codecs: [`av01.0.00M.10.1.110.01.01.01.0`, `av01.0.00M.08.1.110.01.01.01.0`] } });
+  const arms = { htj2k: ARMS.htj2k, "wc-t10": split("webcodecs", "t10"), "dav1d-t10": split("dav1d", "t10"),
+    "dav1d-t11": split("dav1d", "t11") };
+  globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, arms);
+  globalThis.ready = crossOriginIsolated;
+</script>

@@ -14,12 +14,12 @@ skips the browser steps and says so in its last line.
 rustup target add wasm32-unknown-unknown
 npm i -g wasm-pack                    # or: cargo install wasm-pack
 npm i -g playwright && npx playwright install chromium
-bash lab/decode-bench/fetch_decoder.sh   # the decoder vendor
+bash client/decode/wasm/fetch_openjph.sh   # the decoder vendor
 ```
 
 ### What the gate costs and what it catches
 
-Without `lab/.av1-build/out` (`ARMS=simd lab/av1/dav1d-wasm/build.sh`) the dispatch rig skips every
+Without `lab/.av1-build/out` (`ARMS=simd client/decode/wasm/dav1d/build.sh`) the dispatch rig skips every
 AV1 clause, saying `SKIPPED` — 128 checks run instead of 719 — so build it once where AV1 matters.
 
 **Time** (row GATE, 2026-10-07; 4 cores, warm builds, n = 3 a cell, the two trees' runs interleaved):
@@ -166,16 +166,16 @@ campaign label, *lever 2*), none a standard the code touches uses for something 
 **Renamed:** ARCHITECTURE's *Lever 1, 2, 3* and transport-conclusions' *Lever 1, 2* — five things
 under three numbers — are the opening ask, early SETTINGS, hints in the session URL, the bytes
 pushed at session open and a 32-packet initial window; *S4* is the container campaign; the
-conformance suite's *arms* are clients and rigs; `consumer.js`'s `#arm` is `#waitFor`.
+conformance suite's *arms* are clients and rigs; `consumer.js`'s `#arm` is `#waitFor`. The `lab/av1/` folders named for
+queue rows are named by subject in five groups (`lab/av1/README.md` §The folders, by what they measure).
 
 **Proposed, not applied:**
 
 | name | where | breaks | proposed | why not now |
 | --- | --- | --- | --- | --- |
-| *item* | `docs/av1/item-format.md`, `av1-item.js`, `lab/av1/item/` | DICOM's Item, the encapsulated pixel data's own unit | **coded frame** (`coded-frame.md`, `parseCodedFrame`) | the item format is structural: the owner's |
+| *item* | `docs/av1/item-format.md`, `av1-item.js`, `ingest/coded-frames/` | DICOM's Item, the encapsulated pixel data's own unit | **coded frame** (`coded-frame.md`, `parseCodedFrame`) | the item format is structural: the owner's |
 | `arm` in telemetry rows | `client/record`, `client/harness/shell.js` | names a client, and ARM the CPU | `client` | a row schema the lab's analyses read |
 | *arm* in the lab (≈1 900 lines) | `lab/`, `CLAUDE.md` §Measurement | ARM the CPU | **variant** | the owner's word in `CLAUDE.md` |
-| folders named for queue rows | `lab/av1/{splitok, splittime, encx, llsize, rep14, split10, svcq, svcshape, svcdec, wcap, wcbase, wclat, decspeed, fasthtj2k, pocgap, versions, total, …}` | history | by subject: `split-exactness`, `low-stream-coding`, `lossless-size`, `high-depth-layout`, `newer-tools`, `fill-time`, … | row LAYOUT moves folders by responsibility, and five rows still work in them |
 | campaign labels (*S1–S4*, *R1*, *PO1*, *WP1*) | `docs/`, `lab/` | history | what each measured | doc by doc, with the docs that own them |
 
 **For `CLAUDE.md`, proposed:** *"**Names.** A name states its role in the domain's words. No word from

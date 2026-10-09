@@ -23,8 +23,8 @@
         link("preload", "/lab/.av1-build/out/simd.wasm", "fetch");
       }
     } else {
-      link("preload", "/lab/decode-bench/vendor/openjph/openjphjs.js", "script");
-      link("preload", "/lab/decode-bench/vendor/openjph/openjphjs.wasm", "fetch");
+      link("preload", "/client/decode/wasm/vendor/openjph/openjphjs.js", "script");
+      link("preload", "/client/decode/wasm/vendor/openjph/openjphjs.wasm", "fetch");
     }
   </script>
   <title>page open — by codec</title>
@@ -44,7 +44,7 @@
       mark("config");
       const decoder = q.get("codec") === "av1"
         ? { codec: "av1", glue: "/lab/.av1-build/out/simd.js", wasm: "/lab/.av1-build/out/simd.wasm", dir: "/lab/.av1-build/out" }
-        : { glue: "/lab/decode-bench/vendor/openjph/openjphjs.js", wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm", dir: "/lab/decode-bench/vendor/openjph" };
+        : { glue: "/client/decode/wasm/vendor/openjph/openjphjs.js", wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm", dir: "/client/decode/wasm/vendor/openjph" };
       const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, { decoders: 3, decoder });
       mark("session");
       const f = await c.requestExactFrame(0);

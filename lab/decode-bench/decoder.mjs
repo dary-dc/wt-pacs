@@ -1,4 +1,4 @@
-// The decoder under test, loaded from what fetch_decoder.sh put in vendor/.
+// The decoder under test, loaded from what client/decode/wasm/fetch_openjph.sh put in vendor/.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const decoderDir = path.join(here, 'vendor', 'openjph');
+export const decoderDir = path.join(here, '../../client/decode/wasm/vendor/openjph');
 
 // The glue is a classic script and takes `require` / `__dirname` from its scope in Node.
 globalThis.require = createRequire(import.meta.url);

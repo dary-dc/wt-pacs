@@ -4,7 +4,7 @@ Queue row 1 (TOOL) of [`docs/av1/queue.md`](../../docs/av1/queue.md). The phase'
 [`docs/av1/README.md`](../../docs/av1/README.md); this file holds the commands and the cells.
 
 ```bash
-lab/av1/tools.sh                                                    # build once, ~4 min on 4 cores
+lab/av1/tools/tools.sh                                                    # build once, ~4 min on 4 cores
 python3 lab/av1/roundtrip.py lab/.av1-build lab/.av1-work lab/.av1-work/cells.tsv  # ~20 min
 ```
 
@@ -12,19 +12,20 @@ Both write only under `lab/.av1-build/` and `lab/.av1-work/` (gitignored).
 
 ## The folders, by what they measure
 
-One folder a queue row grew here; read by what each measures, they fall in five groups. Row LAYOUT
-(2026-10-07, every folder placed 2026-10-08) proposes moving them so, renamed by subject (`README.md` §Names);
-the moves wait for the rows still writing in these folders (`docs/av1/queue.md` row 56).
+Five groups, one folder a subject (row LAYOUT, 2026-10-09; each folder's queue row is in its README):
 
-| group | today | proposed |
-| --- | --- | --- |
-| **tools** — build and pin the encoders and decoders | `tools.sh`, `dav1d-wasm/`, `versions/` | `tools/`, `tools/dav1d-wasm/`, `tools/newer/` |
-| **exact** — the round trip, the coded frame's format, every engine | `roundtrip.py`, `item/`, `splitok/`, `wcap/`, `xbrowser/`, `xengine/`, `codecstr/`, `exactprod/` | `exact/`, `exact/coded-frame/`, `exact/split/`, `exact/webcodecs/`, `exact/engines/`, `exact/engine-readback/`, `exact/codec-string/`, `exact/in-production/` |
-| **bytes** — what each coding costs on the wire, and to encode | `size.py`, `depth.py`, `enc.py`, `av2.py`, `llsize/`, `encx/`, `remap/`, `pocgap/`, `embed/`, `jxl/`, `lcevc/`, `htj2kenc/`, `rgbnative/`, `gopmeasure/`, `breast/`, `dbtscale/`, `ffdmscale/` | `bytes/`, `bytes/{represented, low-stream, remap, prior-gap, embedded, jpeg-xl, lcevc, htj2k-settings, colour-transform, frame-groups, breast, dbt-at-scale, mammography-at-scale}/` |
-| **decode** — time and memory a frame, per decoder | `speed/`, `decspeed/`, `split10/`, `rep14/`, `fasthtj2k/`, `htj2kmt/`, `decode/`, `mixdec/`, `footprint/`, `gpu/`, `reslevel/`, `wclat/` | `decode/{per-frame, settings, split-webcodecs, high-depth, htj2k-profile, htj2k-threads, worker, mixed, memory, webgpu, resolution-level, latency}/` |
-| **delivery** — a series through the downloader, wire and decode | `fill/`, `total/`, `splittime/`, `grey420/`, `preview/`, `resid/`, `bases/`, `svc/`, `svcq/`, `svcshape/`, `svcdec/`, `wcbase/` | `delivery/{fill, total-time, split-rule, grey-420, preview, residual, bases-first}/`, `delivery/scalable/{encoder, two-layer, shape, client, webcodecs-base}/` |
+| folder | what it holds |
+| --- | --- |
+| [`tools/`](tools/) | `tools.sh` builds and pins the encoders and native decoders; [`newer/`](tools/newer/README.md) the newer releases against them |
+| [`exact/`](exact/) | [`coded-frame/`](exact/coded-frame/README.md) the ingest checked and timed, [`split/`](exact/split/README.md) every split exact, [`webcodecs/`](exact/webcodecs/README.md), [`engines/`](exact/engines/README.md), [`engine-readback/`](exact/engine-readback/README.md), [`codec-string/`](exact/codec-string/README.md), [`in-production/`](exact/in-production/README.md) |
+| [`bytes/`](bytes/) | `enc.py`, `av2.py`; [`represented/`](bytes/represented/README.md), [`low-stream/`](bytes/low-stream/README.md), [`remap/`](bytes/remap/README.md), [`prior-gap/`](bytes/prior-gap/README.md), [`embedded/`](bytes/embedded/README.md), [`jpeg-xl/`](bytes/jpeg-xl/README.md), [`lcevc/`](bytes/lcevc/README.md), [`htj2k-settings/`](bytes/htj2k-settings/README.md), [`colour-transform/`](bytes/colour-transform/README.md), [`frame-groups/`](bytes/frame-groups/README.md), [`breast/`](bytes/breast/README.md), [`dbt-at-scale/`](bytes/dbt-at-scale/README.md), [`mammography-at-scale/`](bytes/mammography-at-scale/README.md) |
+| [`decode/`](decode/) | [`per-frame/`](decode/per-frame/README.md), [`settings/`](decode/settings/README.md), [`split-webcodecs/`](decode/split-webcodecs/README.md), [`high-depth/`](decode/high-depth/README.md), [`htj2k-profile/`](decode/htj2k-profile/README.md), [`htj2k-threads/`](decode/htj2k-threads/README.md), [`worker/`](decode/worker/README.md), [`mixed/`](decode/mixed/README.md), [`memory/`](decode/memory/README.md), [`webgpu/`](decode/webgpu/README.md), [`resolution-level/`](decode/resolution-level/README.md), [`latency/`](decode/latency/README.md) |
+| [`delivery/`](delivery/) | [`fill/`](delivery/fill/README.md), [`total-time/`](delivery/total-time/README.md), [`split-rule/`](delivery/split-rule/README.md), [`grey-420/`](delivery/grey-420/README.md), [`preview/`](delivery/preview/README.md), [`residual/`](delivery/residual/README.md), [`bases-first/`](delivery/bases-first/README.md); `scalable/` [`encoder/`](delivery/scalable/encoder/README.md), [`two-layer/`](delivery/scalable/two-layer/README.md), [`shape/`](delivery/scalable/shape/README.md), [`client/`](delivery/scalable/client/README.md), [`webcodecs-base/`](delivery/scalable/webcodecs-base/README.md) |
 
-`fetch_data.*`, `provenance*.py`, `data.json` and `requirements.txt` stay here: every group reads the series.
+Here, beside the series every group reads (`fetch_data.*`, `provenance*.py`, `data.json`, `requirements.txt`):
+the modules other groups import — `size.py`, `depth.py`, `roundtrip.py`. What the product runs is not here: the
+dav1d-WASM build is [`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md), the ingest
+[`ingest/coded-frames`](../../ingest/coded-frames/README.md).
 
 ## Tools, pinned
 
@@ -36,7 +37,7 @@ the moves wait for the rows still writing in these folders (`docs/av1/queue.md` 
 | dav1d (CLI, `-Dbitdepths=8,16`) | 1.5.4 | `github.com/videolan/dav1d` tag | commit `54706fc6` |
 | AVM `avmenc`, `avmdec` (AV2's reference software) | v1.0.0 | `github.com/AOMediaCodec/avm` tag; its third-party sources are vendored in that tree | commit `966a7d7c` |
 
-The full checksums and commits are in [`tools.sh`](tools.sh), which refuses a mismatch. Host: gcc
+The full checksums and commits are in [`tools.sh`](tools/tools.sh), which refuses a mismatch. Host: gcc
 13.3.0, cmake 3.28.3, meson 1.3.2, nasm 2.16.01, numpy 2.4.6. The libaom git host refused this
 container, so libaom comes from its release tarballs; `aomdec` (3.15.1) is built alongside and used
 only as a second opinion below.
@@ -60,7 +61,7 @@ dav1d -q -i TU.obu -o DEC.y4m --demuxer section5      # one temporal unit alone
   means; 4:2:0 would drop colour and is not lossless.
 * **`--auto-alt-ref=0` is required for inter at 10 and 12 bits** (below).
 * **`--threads=1` is part of the pin:** libaom's lossless bytes change with the thread count (0.02–0.06 % a
-  frame at 4 on 10-bit DBT, still exact) — [`pocgap`](pocgap/README.md).
+  frame at 4 on 10-bit DBT, still exact) — [`pocgap`](bytes/prior-gap/README.md).
 * SVT-AV1 codes 4:2:0 only, 8 and 10 bits: grey goes in as 4:2:0 with neutral chroma and comes back
   with two chroma planes; RGB and 12-bit are not possible.
 
@@ -202,7 +203,7 @@ ultrasound, at cpu6 0.3–1.4 s; HTJ2K under 1 s a set; JPEG XL 9–33 s a set.
 signed shift not undone, a truth checksum corrupted — each reported inexact. A failed decode or a
 short one counts as inexact rather than stopping the run (the first two mutations found that).
 
-**The breast family (queue row BREAST, [`breast`](breast/README.md)).** Ten more series — a third DBT
+**The breast family (queue row BREAST, [`breast`](bytes/breast/README.md)).** Ten more series — a third DBT
 reconstruction system and a second 10-bit volume, a third system's projections, two FFDM and two synthesized-2D
 series, breast ultrasound cine (grey, RGB) and stills — as items, every item exact natively, in Node and in
 Chromium. **The optimized item is 0.873–0.962 of HTJ2K's bytes on 8 of 10** at cpu0 (0.888–0.979 at the shipped
@@ -211,7 +212,7 @@ these four DBT series at G = 8 and 16** (libaom, alt-ref off) — four slice ser
 on the grey cine it halves the bytes** (G = 16 0.53 of intra, 0.47 of HTJ2K) and the decode, but that clip is a lossy
 MPEG-4 recording whose unchanged blocks repeat exactly, so the gain is the source's, not a scanner's.
 
-**Row DATA3's series ([`breast`](breast/README.md) §Row DATA3's series).** Nine more, 9–16 bits, every frame
+**Row DATA3's series ([`breast`](bytes/breast/README.md) §Row DATA3's series).** Nine more, 9–16 bits, every frame
 exact at every k of its depth natively, in Node and in three engines. Smallest arm over HTJ2K at cpu0: MR 9-bit
 0.910 (k = 0), synthesized 2D 0.938 and 0.951, FFDM 0.986 and 0.989, the two signed CTs 0.899 and 0.939, PET 15-bit
 0.996 (w10), film 16-bit 1.001 (w10); one vendor's FFDM is a stretched range where plain AV1 is 1.29.
@@ -323,7 +324,7 @@ reported inexact.
 at cpu0.
 
 **Rare levels mapped out instead of split (row REMAP)**: the level census and the remapped plane's bytes and decode
-against the split are in [`remap`](remap/README.md).
+against the split are in [`remap`](bytes/remap/README.md).
 
 ## ENC — what lossless encoding costs
 
@@ -335,8 +336,8 @@ two streams timed together. Every output decoded with dav1d and matched the chec
 the frames were made: 546/546 runs exact, the `--rt` inter streams at 10–13 bits included.
 
 ```bash
-python3 lab/av1/enc.py lab/.av1-build lab/.av1-work/enc OUT.tsv 8 3 lab/av1/data/mr_ispy1 …  # ~2 h
-python3 lab/av1/enc.py summary OUT.tsv 8
+python3 lab/av1/bytes/enc.py lab/.av1-build lab/.av1-work/enc OUT.tsv 8 3 lab/av1/data/mr_ispy1 …  # ~2 h
+python3 lab/av1/bytes/enc.py summary OUT.tsv 8
 ```
 
 The tomosynthesis sets ran as a second campaign under the same check, after row CONTENT landed.
@@ -393,7 +394,7 @@ the contention probe.
 
 Row 57: libaom's and dav1d's heads, OpenJPH 0.32.0, emscripten 6.0.11 and Chromium 154 against the pins.
 Nothing gains enough to adopt; libaom's head writes the same bytes. Commands, sources and cells:
-[`versions/README.md`](versions/README.md).
+[`versions/README.md`](tools/newer/README.md).
 
 ## AV2 — AVM v1.0.0 lossless against libaom and HTJ2K
 
@@ -401,9 +402,9 @@ Queue row 32. AVM is AV2's reference software ([`docs/av1/licensing.md`](../../d
 no browser decoder exists, and none is built.
 
 ```bash
-lab/av1/tools.sh                         # AVM v1.0.0 beside libaom 3.15.1 and dav1d
+lab/av1/tools/tools.sh                         # AVM v1.0.0 beside libaom 3.15.1 and dav1d
 lab/av1/fetch_data.sh                    # every row-DATA, CONTENT and TAXO series
-AV2_GROUPS=rf_fluoro:2,dbt10_ea1141:4 AV2_PRESETS=6 python3 lab/av1/av2.py lab/.av1-build WORK OUT.tsv 10 lab/av1/data/…
+AV2_GROUPS=rf_fluoro:2,dbt10_ea1141:4 AV2_PRESETS=6 python3 lab/av1/bytes/av2.py lab/.av1-build WORK OUT.tsv 10 lab/av1/data/…
 ```
 
 **AV2 has no profile over 10 bits.** AVM v1.0.0 defines Main 4:2:0, 4:2:2 and 4:4:4 at 10 bits

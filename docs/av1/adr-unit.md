@@ -173,7 +173,7 @@ round trip. The client already owns which frames it wants; the group is that dec
   runs dav1d with a frame delay of 1. *Corrected by row WASM:* libaom's lossless inter streams are
   coded **with** hidden alt-reference frames (a temporal unit carries up to 3 frames), and that is
   harmless — every temporal unit still shows exactly one frame and dav1d at a frame delay of 1 hands
-  it back before the next goes in ([`lab/av1/dav1d-wasm`](../../lab/av1/dav1d-wasm/README.md)). What
+  it back before the next goes in ([`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md)). What
   it changes is size: a group's bytes are not even across its frames.
 * **The fill's order** is still ascending, one `stream_frames` run. Groups land one after another on
   the shared stream, so the first G frames decode serially on one decoder: frame G−1 of a fill shows
@@ -330,7 +330,7 @@ its own entry, a failure being one entry, and an ask being one entry at G = 1.
 ### The smallest arm that measures it
 
 Row SVCQ's streams split by a lab script into layer-major bundles, served by the unchanged server
-through row FILL's harness ([`lab/av1/fill`](../../lab/av1/fill/README.md)), after row SVCDEC's
+through row FILL's harness ([`lab/av1/delivery/fill`](../../lab/av1/delivery/fill/README.md)), after row SVCDEC's
 decoder and row SVCSHAPE's shape: two arms per series, **single-layer lossless AV1 in frame order**
 (today) against **B layer-major, bases first**, on fluoroscopy (dav1d-WASM) and the ultrasound
 (WebCodecs and dav1d-WASM), 5/20/50 Mbit/s, 1× and 4×, Williams-ordered. Report the time to every
@@ -387,7 +387,7 @@ takes no preview. Three or more spatial layers send every layer below the top as
 were made.
 
 **Checked** (the dispatch arm, headless Chromium; units from
-[`lab/av1/svcdec/make_frames.sh`](../../lab/av1/svcdec/make_frames.sh): libaom 3.15.1's
+[`lab/av1/delivery/scalable/client/make_frames.sh`](../../lab/av1/delivery/scalable/client/make_frames.sh): libaom 3.15.1's
 `svc_encoder_rtc`, two spatial layers, a half-size base at q 40, a lossless top, 64×48 grey): a
 10-bit G = 1 stream asked frame by frame and a 12-bit G = 8 stream of 20 filled — every exact frame
 its source's checksum, at 64×48, never marked; one preview a frame, before it, marked, 32×24, the
