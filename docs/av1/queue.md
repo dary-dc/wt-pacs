@@ -183,7 +183,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 109 | **REGIONDECODE** — region decode, the container half: a 1:1 viewport decoded alone, one asked frame in stripes across the idle decoders; exact and container speed | claimed 2026-10-09 (night, 3c96ac) |
 | 110 | **COARSEPOOL** — the pool's hand-off unit a subband or a resolution instead of a row of code-blocks | claimed 2026-10-09 (night, 190e6c) |
 | 111 | **WEBGPUHT** — a WebGPU HT block decoder, built and proved exact on a software WebGPU; no timing | claimed 2026-10-09 (night, ede213) |
-| 112 | **DECODEPACE** — decode paced to the wire during a fill: fill time unchanged, CPU busy time and wake-ups | ready |
+| 112 | **DECODEPACE** — decode paced to the wire during a fill: fill time unchanged, CPU busy time and wake-ups | claimed 2026-10-09 (night, a3f169) |
 | 113 | **LEVERREVIEW** — rows 108–112 reviewed: each lever's predictions against its numbers, conclusive or not, and the phone or GPU measurement each still needs | after 108, 109, 110, 111, 112 |
 | 114 | **FMT** — rustfmt and clippy defaults adopted, checked by the gate | after the owner merges main |
 
