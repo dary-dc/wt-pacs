@@ -28,7 +28,7 @@ few per cent smaller ([`jpeg2000.md`](jpeg2000.md) §Bytes); no OpenJPH setting 
 The fastest exact decoder measured here on every series but 8-bit RGB, where native JPEG XL behind a flag beats it
 ([`jpeg-xl.md`](jpeg-xl.md) §Browser and device support): [`../decode/README.md`](../decode/README.md) §Decode time
 against HTJ2K, per frame against AV1's paths, and §Faster HTJ2K in the browser, where its time goes (the HT block
-decoder) and what moves it (code-blocks on threads, an ask's lever, adopted by row HTJ2KMT).
+decoder) and what moves it (code-blocks on threads: an ask's lever on frames from 1914×2572 up, not shipped).
 
 ## Total time
 
