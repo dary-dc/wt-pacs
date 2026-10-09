@@ -33,18 +33,16 @@ rm -rf "$WORK" "$OUT/openjph" "$OUT/dav1d" "$OUT/THIRD_PARTY_NOTICES"
 mkdir -p "$WORK" "$OUT/openjph" "$OUT/dav1d"
 MAP="-ffile-prefix-map=$WORK=/build -ffile-prefix-map=$ROOT=/wt-pacs -ffile-prefix-map=$CACHE=/src"
 
-# OpenJPH with row HTJ2KMT's code-block pool, one helper: docs/decode/README.md §The build, as delivered.
+# OpenJPH single-threaded at a 4 MB heap: docs/decode/README.md §The build, as delivered.
 cp -r "$CACHE/openjph" "$WORK/openjph-src"
-patch -s -d "$WORK/openjph-src" -p1 <"$ROOT/client/decode/wasm/openjph/cb-threads.patch"
-LIB="-pthread -DOJPH_CB_THREADS=1 $MAP"
 emcmake cmake -S "$WORK/openjph-src" -B "$WORK/openjph" -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_CXX_FLAGS="$LIB" -DCMAKE_C_FLAGS="$LIB" >/dev/null
+  -DCMAKE_CXX_FLAGS="$MAP" -DCMAKE_C_FLAGS="$MAP" >/dev/null
 cmake --build "$WORK/openjph" -j"$(nproc)" --target openjph >/dev/null
 # shellcheck disable=SC2086
 em++ -O3 -std=c++17 --bind "$ROOT/client/decode/wasm/openjph/htj2k_decoder.cpp" \
   -I"$WORK/openjph-src/src/core/common" -I"$WORK/openjph-src/src/core" \
   "$(find "$WORK/openjph" -name 'libopenjph*.a' | head -1)" \
-  -msimd128 -fexceptions $LIB -sPTHREAD_POOL_SIZE=1 \
+  -msimd128 -fexceptions $MAP \
   -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=$((4 * 1024 * 1024)) \
   -sMODULARIZE=1 -sEXPORT_NAME=OpenJPHModule -sENVIRONMENT=web,worker,node -o "$OUT/openjph/openjph.js"
 cp "$CACHE/openjph/LICENSE" "$OUT/openjph/LICENSE"

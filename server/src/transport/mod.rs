@@ -1,4 +1,5 @@
 pub mod link;
+pub mod loss_bound;
 pub mod restart;
 pub mod pipeline;
 pub mod planner;

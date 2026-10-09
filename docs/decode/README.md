@@ -253,211 +253,52 @@ costs is this section.
 
 ### The build, as delivered
 
-The adopted wrapper, built for a consumer to take, is the `deliver` variant of
-`lab/decode-bench/wasm/build.sh`: it writes `lab/.openjph-build/wasm/deliver.js` and `deliver.wasm`,
-delivered as `openjphjs.js` and `openjphjs.wasm` beside OpenJPH's `LICENSE` and a `SOURCE.txt`
-repeating this. The delivered pair:
+**The product builds its own decoders** (queue row DECODERBUILD): [`client/decode/wasm/build`](../../client/decode/wasm/build/README.md)
+builds OpenJPH 0.31.0 through this wrapper and dav1d 1.5.4's `simd` arm in a Debian container pinned by digest,
+with no network, every input checked by commit or sha256, every embedded path mapped. The page and the gate load
+only what [`manifest.sha256`](../../client/decode/wasm/build/manifest.sha256) pins. The OpenJPH build, `-O3
+-msimd128 -fexceptions`, `INITIAL_MEMORY=4MB`, one thread, with the range in the pack:
 
 ```
-6a9abcc85363adb0864f4d1afed8dc899640a2f51e8945432d25d2069ecf6900  openjphjs.js    55,158 B
-19d11a7564ab48112159c1bf8c806fe85ac8df2c9b4f6d78fad11083369ca796  openjphjs.wasm 245,456 B
+f6f5dce5a61e3db0d4b0e2e13357a73a21224fff9f77422195200300735315a4  openjph.js    55,158 B
+16e10b1413be14daa004cbe3a326317ed5a5612aa80545c3c8e30ca61ac72fc0  openjph.wasm 246,209 B
 ```
 
-Commit `a28587f`, emscripten 3.1.74, `-O3 -msimd128 -fexceptions`, `INITIAL_MEMORY=4MB`, built by
-`EMSDK=… INITIAL_MB=4 VARIANTS=deliver lab/decode-bench/wasm/build.sh`. The `.wasm` is byte-identical to
-the `plain` build of the 522-frame parity run; the glue differs only in the filename it loads. It
-exports `OpenJPHModule` where the package exports `Module`, which `decoder.js` handles. **It
-predates §The range in the pack**; that win reaches a page only once this is rebuilt from the
-current wrapper, and the hashes above are of the build before it.
+* **Exact.** `parity.mjs` on nine sets, 783 frames — 8-bit colour ×2, 8-bit grey, 16-bit unsigned ×3, 16-bit
+  signed, 12-bit signed ×2 — byte-identical to the package, to the encoder's input, on every getter, and its packed
+  range identical to the JS pass. The 107 AV1 payloads of the contract set decode exact through the dav1d build in
+  Chromium 141, Firefox 157.0.1 and WebKitGTK 2.52.6 with `SharedArrayBuffer` on
+  (`lab/decode-bench/av1-engines/run.mjs`); WebKitGTK as shipped has none, the known limit (§AV1 in WebKit and Firefox).
+* **Reproducible.** Built from two clones at different paths with different caches, all eight outputs are
+  byte-identical. Without `-ffile-prefix-map` the OpenJPH `.wasm` differs and carries the build's paths; dav1d's does
+  not (its release build embeds none).
+* **Checked.** Mutants: grey frames made unranged in the wrapper fail parity's range check on `g8`, 87 of 87; a
+  descriptor over another build's `.wasm` or glue is refused by `wasm-glue.js` (`wasm-glue.test.mjs`), and with the
+  check removed the test fails; a sample flipped after each AV1 decode takes every engine to 0/107.
 
-**Threaded, adopted by row HTJ2KMT** (§Code-blocks on threads, measured): the same wrapper over OpenJPH with
-`client/decode/wasm/openjph/cb-threads.patch` applied and one helper thread, built as the row's README does with
-`VARIANTS=deliver EXTRA_FLAGS="-pthread -DOJPH_CB_THREADS=1 -sPTHREAD_POOL_SIZE=1"`. It needs the page
-cross-origin isolated, which the consumer already requires. Not delivered yet: no hashes until it is.
+**Through the downloader** (`lab/decode-bench/builds.mjs`): `g512`, 87 frames of 512² 16-bit grey, three decoders,
+headless Chromium 141 on 4 cores, a fresh browser a visit, 10 rounds with the units Williams-ordered, every frame's
+sha256 against the encoder's input (all exact). Median [range]; × the package paired by round (rounds faster):
 
-## A second decoder
-
-"OpenJPH is fast enough" rested on nothing until it was benched against **OpenHTJ2K**, the other
-open implementation with WASM SIMD paths for the block coder, the wavelet and the colour transform.
-Licence first, because it is a gate: BSD 3-Clause, its bundled `highway` Apache-2.0 — both
-permissive. Pinned at **v0.9.1**, `8cf42e90e6f54a51c8247587437c12f96eb131ec`;
-`git show 90a7f64:lab/decode-bench/wasm/build_openhtj2k.sh` fetched it (never vendored) and linked
-`openhtj2k_decoder.cpp` at the same flags, single-threaded, 4 MB, with the same class surface and
-`pack<T>()`, so `build_variants.mjs` and `parity.mjs` drive both with no branch. It decodes through
-`invoke_line_based_stream()`, the per-row analogue of `pull()`. **It exposes no header surface**
-beyond components, sizes, depth, signedness and DWT levels, so the wrapper reads SIZ and COD itself —
-~40 lines this project would own. `parity.mjs`'s version check is informational for that reason.
-
-### A second decoder, measured
-
-**Bit-exact:** six sets, 522 frames, byte-identical to the package and to the encoder's input, and
-identical on every getter including those read from the markers.
-
-Both through one reused wrapper object, interleaved with the order rotated, 20 timed rounds, 87
-frames per set, in two runs led by either decoder: `c512` OpenJPH 8.076 / 8.000 ms against OpenHTJ2K
-9.433 / 9.338 (**+16.8 %, +16.7 %**), `g512` 3.212 / 3.159 against 4.728 / 4.703 (**+47.2 %,
-+48.9 %**). **40 of 40 rounds to OpenJPH**, every pair of ranges disjoint. From a cold module the first three
-frames tier up over the same two frames on both, and OpenHTJ2K's first is 5.1–7.4 ms dearer.
-
-**Heap after 100 frames favours OpenHTJ2K**: 4.8 MB colour / 4.0 MB grey against 7.0 / 4.8. That is
-the two libraries' working sets, not `restart()` (§Where to put the floor). `.wasm` is 285,058 B
-against 245,447 B.
-
-**One decoder object per codestream is required there.** Re-`init()`ing one `openhtj2k_decoder` —
-the shape `decoder.js` holds — **leaks a codestream per frame** (44–52.8 MB after 100 frames, 1.62
-GB after two sets' rounds): `j2c_src_memory::alloc_memory()` does not free the previous buffer and
-`openhtj2k_decoder_impl::destroy()` is empty. The reused build decoded the same bytes no faster.
-
-**Mutants**, all caught: the interleave stride one short (348 differences, colour only), signed
-negatives clamped to 0 (348, signed only), the COD transform byte read backwards (6 surface
-differences, pixels untouched).
-
-**Not adopted.** Exact on this content, but **15–17 % slower on colour and 33–49 % on grey**, 39 KB
-more `.wasm`, a header surface to supply, and a second codebase to track; 2.2 MB lighter on colour,
-where the floor already gets 10×. The decoder in use is the faster of the two open ones on both
-shapes. Only 512² was benched; one thread decodes on a box carrying other work, so only the
-within-run differences are claimed.
-
-## Faster
-
-**No build lever makes the decoder faster; a newer emscripten makes it slower.** Every variant passed
-`parity.mjs` before it was timed; interleaved, order rotated. *Scope, corrected:* this answers what
-the *build* can do. What the wrapper source does between `pull()` and the caller's buffer is where
-time was found — §The wrapper's two passes.
-
-| against the 3.1.74 build | 512 KB | 768 KB | 8 MB |
+| | package | the build, one thread | row HTJ2KMT's pool, one helper |
 | --- | ---: | ---: | ---: |
-| emscripten 6.0.9, `-O3` | **+15.6 %** (0/8 rounds faster) | +6.5 % (1/6) | **+16.0 %** (0/6) |
-| emscripten 6.0.9, `-O3 -flto` | −1.2 % (7/8) | +2.2 % (3/6) | −1.6 % (4/6) |
+| fill 1× | 553.9 ms [513–667] | ×0.927 (9/10) | ×0.993 (5/10) |
+| fill 4× | 1 789.5 ms [1 644–1 922] | ×0.941 (7/10) | ×1.007 (5/10) |
+| cold ask 1× | 38.7 ms [33–47] | ×0.715 (10/10) | ×0.682 (10/10) |
+| cold ask 4× | 102.0 ms [89–145] | **×0.732 (10/10)** | **×1.078 (3/10)** |
+| JS + WASM, a fill | 157.4 MB | 21.7 MB | 21.9 MB |
+| renderer peak PSS, a fill 1× | 246 MB [240–251] | 239 MB [237–246] | 250 MB [245–255] |
 
-* **A newer emscripten costs 6.5–16 %**, 0 of 8 and 0 of 6 rounds faster where it is largest. **LTO
-  recovers that and stops there**: three ties against 3.1.74. So the pin in `wasm/build.sh` holds
-  about 15 % of decode time, and moving it is a performance decision.
-* **A decoder object reused vs created per frame: tie** (−1.6 % 8/8 at 512 KB, a wash elsewhere).
-  Reuse stays the product's shape; what it costs is memory (§Where to put the floor). The bench: `git show 90a7f64:lab/decode-bench/reuse_cost.mjs`.
-* **`wasm-opt -O4`: tie** (+0.1 %, 275 B larger) — emcc already runs it at `-O3`. Use the emsdk's
-  own `wasm-opt`: binaryen 117 cannot validate 6.0.9's output, and `--all-features` yields a binary
-  Node will not instantiate.
-* **A newer OpenJPH: none exists**; 0.31.0 is the newest tag.
-* **Worth taking, and it is not time: LTO makes the binary 16 % smaller** (200 KB against 239 KB),
-  heap identical.
-* **Native Wasm exceptions: bit-exact, a tie, not adopted** (row 84, `4957d5a`). `-fwasm-exceptions`
-  replaces the 81 call sites that went through a JS `invoke_*` trampoline with native `try`s; six
-  parity sets identical, and an undecodable input still throws. `cold_variants.mjs`, n = 15, Node and
-  headless Chromium: **steady −0.2 to −1.7 %**, frames 0–2 a tie, every range overlapping — under the
-  5 % bar. It buys 4.9 KB of glue; the default is unchanged, and switching is one flag.
+A first campaign of the package and the pool alone read the same: fills ×0.973 and ×0.999, the cold ask ×0.690 at 1×
+and ×1.285 at 4× (2/10). **Adopted: the single-threaded build**, faster than the package in every cell and 7× lighter
+in JS and WASM; the package stays as `parity.mjs`'s reference. The renderer's PSS barely moves because the
+package's 50 MB heaps are reserved more than touched. The 4× asks are this host's cgroup throttle, not a phone.
 
-*A baseline of your own making:* LTO first measured −17.8 % against a `plain` build the lane had
-rebuilt with the newer, slower toolchain. Record which emscripten a rebuild used and compare against
-the pinned one. The 768 KB colour fixture is the noisy one here as elsewhere and settles nothing on
-its own. Build variants other than `plain`/`shared` take `EXTRA_FLAGS` (`VARIANTS=lto EXTRA_FLAGS="-flto"
-lab/decode-bench/wasm/build.sh`); a from-source build against the package, and relaxed SIMD, are in
-§The decode tail.
-
-## The copy, measured
-
-`getDecodedBuffer()` returns a view into the module's heap, so copying out is `.slice()` and not
-copying out is handing the view on. Interleaved, order rotated, 8 timed rounds
-(`lab/decode-bench/copy_cost.mjs`), the copy slower in 8/8 at every size but the noisy 768 KB colour
-one (6/8, left out): **0.071, 0.114, 0.272, 0.599 and 3.018 ms at 50 KB, 128 KB, 512 KB, 2 MB and 8
-MB — 17, 12, 7, 4 and 5 % of the decode.** A fixed per-call cost of ~0.05 ms dominates below ~512 KB
-(164× the frame buys 42× the cost); past that the copy is close to linear and a **shrinking share of
-the decode** as frames grow. On realistic content the share is larger (§Content). Whether to copy
-out is decided by memory, not by this: §Retention, measured.
-
-## Shared memory
-
-The same source and toolchain, two builds differing only in `-pthread` (the shared heap asserted at
-runtime), both bit-exact, 8 timed rounds interleaved, 50 KB to 8 MB (plain → shared: 0.45 → 0.42,
-3.73 → 3.66 at 512 KB, 62.59 → 61.83 ms at 8 MB). **No shared-memory tax is detectable at any
-size**: the shared variant is slower in at most 2 of 8 rounds anywhere, and ranges overlap, so the
-reading is *no tax detectable*, not *sharing is faster*. Heap identical.
-
-*Corrected:* this file once carried a finding from elsewhere that the tax and the copy saved
-cancelled exactly. It did not reproduce here; that is one variant of a two-variant claim, so a failure to
-reproduce rather than a refutation, and it should not be quoted in either direction.
-
-## The decoder worker's hand-off
-
-Row 49 (DECODE) asked whether the HTJ2K and AV1 workers could hand a frame to the consumer with no
-copy, allocate nothing a frame in the steady state, and share one interface.
-
-**Built.** `decoder.js` loads one codec module by the series' codec — `htj2k.js` or `av1.js`, both
-`init(config)` then `decodeFrame(bytes, unit, preview)` → `{ info, sab, byteCount, range }` — and posts
-what it returns; nothing in it is per codec. `htj2k.js` is the HTJ2K path as it was, with the range pass
-in two loops (§The range pass). *Measured and not adopted:* the WebCodecs module copying each
-`VideoFrame` into a buffer each stream keeps and grows, where it allocates one a frame (25 MB a 2560×3328
-10-bit frame, chroma included) — faster, and dearer in resident memory (below).
-
-**Measured** ([`lab/av1/decode/worker`](../../lab/av1/decode/worker/README.md)): the worker before and after, each
-variant its own worker, headless Chromium 141 in the container, the first 4 frames of eight series, 8
-rounds interleaved, 1 024/1 024 frames exact a throttle. ms a frame, median over rounds [range],
-after ÷ before as the median of paired rounds and the rounds after was faster:
-
-| series | | HTJ2K 1× | after ÷ before | 4× | after ÷ before | AV1 1× | after ÷ before | 4× | after ÷ before |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `ffdm_a` | 2560×3328, 12-bit | 91.5 → 75.7 | **0.82** (8/8) | 389 → 313 | **0.81** (8/8) | 340 → 307 | 0.91 (7/8) | 1 367 → 1 292 | 0.94 (7/8) |
-| `syn2d_a` | 2560×3328, 10-bit | 97.6 → 84.2 | **0.84** (8/8) | 425 → 338 | **0.79** (8/8) | 246 → 239 | 0.96 (7/8) | 1 026 → 965 | 0.93 (8/8) |
-| `dbtproj_ge` | 1914×2572, 14-bit | 82.8 → 72.7 | **0.88** (8/8) | 362 → 311 | **0.84** (8/8) | 531 → 547 | 1.01 (4/8) | 2 310 → 2 319 | 1.00 (4/8) |
-| `dbt12_ea1141` | 614×1359, 12-bit | 12.3 → 10.5 | 0.84 (7/8) | 48.1 → 40.3 | 0.82 (6/8) | 45.1 → 40.4 | 0.91 (8/8) | 174 → 170 | 0.96 (6/8) |
-| `dbt10_ea1141` | 678×1727, 10-bit | 16.7 → 14.1 | 0.86 (7/8) | 71.3 → 58.7 | **0.83** (8/8) | 49.4 → 44.6 | 0.91 (7/8) | 186 → 171 | 0.95 (6/8) |
-| `usb_cine` | 512², 8-bit | 3.83 → 3.66 | 0.95 (6/8) | 14.4 → 11.7 | 0.72 (7/8) | 12.4 → 12.9 | 1.01 (4/8) | 36.5 → 34.2 | 0.92 (5/8) |
-| `usb_cine_rgb` | 512², RGB 8 | 7.56 → 7.65 | 1.05 (3/8) | 28.4 → 30.1 | 1.01 (4/8) | 27.1 → 27.4 | 0.99 (5/8) | 102 → 96.2 | 0.95 (7/8) |
-| `rf_fluoro` (control) | 768², 12-bit | 9.54 → 8.11 | 0.87 (7/8) | 35.6 → 27.8 | 0.78 (7/8) | 41.0 → 38.9 | 0.96 (6/8) | 150 → 143 | 0.98 (5/8) |
-
-* **HTJ2K: 12–21 % off a grey frame, at both throttles**, 7/8 or 8/8 on every grey series of 10 to 14 bits
-  (the 8-bit cine's 512² frames are within their noise at 1×). The 8-bit RGB cine takes no range pass
-  (§An 8-bit colour frame takes no range) and ties: the control that says the gain is the pass.
-* **AV1, the reused buffer: 4–9 % where WebCodecs decodes**, on the large frames, mostly 7/8 or 8/8; the
-  14-bit projections, whose 12-bit top goes to dav1d-WASM and never reaches the change, tie (4/8 at both
-  throttles) — the other control. The small cines move within their noise.
-* Where the host saturates: one worker decodes at a time on four cores, so nothing here contends; the
-  absolute ms are this container's, not a phone's.
-
-**The fill** (row 23's harness, `lab/av1/delivery/total-time/run.mjs`): every frame of the eight series' first 64 (2–64
-a series) through the downloader against the real server behind the relay, 20 and 50 Mbit/s, 1× and 4×,
-6 rounds of 128 visits, Williams-ordered, 98 `VOID` dropped (n = 2–6 a cell), 20 544/20 544 frames exact.
-**The wire is the clock and the gain all but vanishes into it**: after ÷ before on every frame on the page,
-pooled over the cells, HTJ2K 0.999 at 1× (faster 50/72) and 0.995 at 4× (57/75); AV1 with the reused
-buffer 0.998 (52/72) and 0.997 (44/73). It shows where frames are large and the CPU slow: HTJ2K on the
-mammogram and the synthesized 2D at 4× 0.969–0.985, 3/3 to 6/6 (`syn2d_a` at 20 Mbit/s 2 743 → 2 655 ms);
-nowhere slower beyond its spread.
-
-**Resident memory** (row 38's harness, `lab/av1/decode/memory`, 3 rounds; MB a worker, the renderer's RSS slope
-from 1 to 4 workers, after the series and at its peak; 2 184/2 184 frames exact):
-
-| series | variant | settled before → after | peak before → after |
-| --- | --- | ---: | ---: |
-| `ffdm_a` 2560×3328 | HTJ2K | 25.1 → 24.9 | 25.1 → 25.0 |
-| | AV1, reused buffer | **7.3 → 44.4** | 28.3 → 43.4 |
-| `dbt10_ea1141` 678×1727 | HTJ2K | 10.9 → 8.1 | 8.9 → 8.8 |
-| | AV1, reused buffer | 9.2 → 10.6 | 24.4 → 10.8 |
-
-* **HTJ2K's change costs no memory.**
-* **The reused buffer holds the largest frame's copy — top and low stream, 37 MB a worker on a
-  mammogram — for as long as the worker lives**, where before the copy was garbage once merged; the
-  absolute peak at four workers is a tie (497 against 492 MB) and lower at one and two. A phone keeps
-  three decoders (`docs/ARCHITECTURE.md` §The decoders), so on a mammogram series the reuse would hold
-  ~110 MB to save 4–9 % of a decode that the wire hides. Not adopted; worth it only if the buffer is
-  released when the worker goes idle, which is more code than the gain pays for at these numbers.
-
-**Not changed, and why.**
-* **A hand-off with no copy.** The consumer keeps each frame as long as the viewer does, so the frame
-  needs storage of its own. Writing it straight into the consumer's `SharedArrayBuffer` would put that
-  storage in the decoder's linear memory — a shared-memory build, and a release message from the page
-  back to the decoder that owns the bytes: a change to the decoder–consumer contract, and a heap that
-  grows with what the viewer retains and never shrinks (§Retention, measured). What a frame costs
-  between the decoders and the page today is one write into its `SharedArrayBuffer`: HTJ2K's `set()`
-  memcpy (row 41 puts copy out at 7–15 % of a frame), and for AV1 the merge in `av1-frame.js`, which
-  is the pass that undoes the split and the offset and takes the range anyway. Proposed only if a phone
-  shows the copy to be the clock.
-* **The frame's own `SharedArrayBuffer`, one a frame.** It is the frame, held by the consumer — not
-  garbage. dav1d-WASM's input buffer and OpenJPH's encoded buffer were already reused, grown only.
-* **The range in the pack** (§The range in the pack) takes the pass out of JS entirely and stays the
-  larger lever for HTJ2K; it needs the build of our own delivered (§What adopting it costs), which this
-  row did not decide.
-* **The WebCodecs chroma check** (`neutral`, a grey frame's chroma read back as mid-grey) walks half a
-  frame's samples; not timed, kept as the guard it is.
+*Corrected:* this section said the delivered build was the `deliver` variant of `lab/decode-bench/wasm/build.sh`,
+before the range in the pack (`openjphjs.wasm` `19d11a75…`, 245,456 B), and that row HTJ2KMT's threaded build was
+adopted as the delivered one. Neither was ever loaded by a page. The pool is not shipped: on 512² frames it ties
+fills and loses the cold ask at 4×, where it starts its helper; row HTJ2KMT's gains were on frames from 1914×2572
+up, on a decoder already running (§Code-blocks on threads, measured).
 
 ## Threads
 
@@ -933,7 +774,7 @@ variant; medians, ms/frame):
   the call but in `decoder.js` taking `getRange()` instead of walking the pixels, which it still does.
   Only the WASM call was timed here.
 
-**Not yet in the product's decoder**: §The build, as delivered predates it.
+**In the product's decoder** since §The build, as delivered.
 
 ## The decode tail
 
@@ -1225,7 +1066,7 @@ measured on a phone; the 4× cell is the container's emulation (§A slow CPU, em
 
 ## Code-blocks on threads, measured
 
-Queue row HTJ2KMT: row FASTHTJ2K's lab pool (`client/decode/wasm/openjph/cb-threads.patch`, a row of code-blocks
+Queue row HTJ2KMT: row FASTHTJ2K's lab pool (`lab/av1/decode/htj2k-profile/cb-threads.patch`, a row of code-blocks
 decoded by the caller and 1 or 3 helpers) measured on frames from 512² to 3328×4096, through the product's
 decoder worker in a fill, and in memory. [`lab/av1/decode/htj2k-threads`](../../lab/av1/decode/htj2k-threads/README.md) runs it.
 
@@ -1274,6 +1115,10 @@ more memory, and slower than two under 1914×2572. A decoder worker loads a thre
 change than `htj2k.js` handing it its glue's URL for its helper (without it the helper starts from the
 decoder worker's own script and the series never fills). The product's harnesses still load the package
 until a consumer delivers the build. **It is an ask's lever:** a fill on these links gains ≤ 3 %.
+
+*Corrected (row DECODERBUILD):* not delivered. Through the downloader on 512² frames the pool tied fills and lost a
+cold ask at 4× (×1.078 against the package, where the single-threaded build is ×0.732), so the product's build is
+single-threaded (§The build, as delivered). Whether to ship the pool for series from 1914×2572 up is the owner's.
 
 ## Encoder settings
 

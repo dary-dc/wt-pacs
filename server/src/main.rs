@@ -103,7 +103,7 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use exact_server::Congestion;
+    use series_server::Congestion;
 
     fn parse(flags: &[&str]) -> Args {
         Args::try_parse_from([&["series-server", "--series", "s.sbnd"], flags].concat()).expect("parses")
@@ -115,6 +115,7 @@ mod tests {
     fn the_default_controller_is_cubic_restart() {
         assert_eq!(parse(&[]).tuning.congestion, Congestion::CubicRestart);
         assert_eq!(parse(&["--congestion", "cubic"]).tuning.congestion, Congestion::Cubic);
+        assert_eq!(parse(&["--congestion", "bbr-bound"]).tuning.congestion, Congestion::BbrBound);
     }
 
     /// The opening ask is on unless turned off, and the bare flag the lab scripts pass still parses.
