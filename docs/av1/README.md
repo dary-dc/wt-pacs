@@ -713,8 +713,8 @@ engines.
 (the relay's p99 over 1 ms: 35 % on the fixed links, 56 % on `lte-good`; steal under 2 % before every round), and 169
 Firefox visits failed to start, the dial not settling in 5 s: 143 of 192 at 10 Mbit/s and 26 of 72 at 20. A pair
 needs both arms kept, so only 5 of 60 cells reach n = 10 kept pairs; 9 have none, every Firefox 10 Mbit/s cell among
-them. Counting `VOID` visits round-paired (both arms in the same round, the owner's second option under
-[`queue.md`](queue.md) §Blocked), 48 cells have n = 12, and each ratio is the kept one's within 0.07 (within 0.01 on
+them. Counting `VOID` visits round-paired (both arms in the same round, as [`queue.md`](queue.md) §Protocol asks of a
+host that cannot meet its bar), 48 cells have n = 12, and each ratio is the kept one's within 0.07 (within 0.01 on
 36 of the 50 cells that have both).
 
 The ratio is AV1's time to every frame on the page over HTJ2K's, the median of round-paired ratios; *side held*
@@ -790,6 +790,11 @@ Chromium 1× on `syn2ds_b3` (0.97 predicted, 1.014–1.016), and Firefox 4× on 
 0.29–0.77 above its predicted ratio, on the predicted side but for `dbts_b4`. Chromium's fixed links land within
 0.03 of prediction on 15 of 20 cells (every visit paired); the misses are on the side predicted: 100 Mbit/s at 1×,
 1.10–1.30 against 1.02–1.06, `dbts_b4` there at 4×, 1.88 against 1.95, and `syn2ds_b3` at 4× on 30, 1.13 against 1.09.
+
+**The two readings agree on both of the rule's decisions and on 17 of the 18 groups both decide**, so by
+§Protocol that is the verdict; they disagree on `syn2ds_a3` Chromium 1× (`lte-good` 1.010 strict, inside the ±0.01
+band, 1.028 round-paired), which is not conclusive on this host. Firefox's 10 Mbit/s cells are unmeasured on any host
+whose dial does not settle in 5 s, `VOID` or not.
 
 **The rule.** (1) The model holds, by kept pairs, for 13 of the 24 series × engine × CPU groups, fails on 5 (the four
 cells above, and `syn2ds_a3` Chromium 1× on `lte-good`, 1.010 kept, 1.028 every visit) and is undecided on 6 for an
