@@ -40,7 +40,7 @@ be a paragraph here is a clause and a `docs/` pointer.
 **Tests are the exception.** A test's doc comment states the claim the test makes, which is
 worth more than its name alone — those are not counted and should not be cut.
 
-`scripts/comment_budget.sh` enforces **0.18 comment lines per code line** per file, floor 10,
+`scripts/comment_budget.sh` enforces **0.18 comment lines per code line** per file (Rust, TypeScript, JavaScript, shell and Python), floor 10,
 counting neither `SAFETY` blocks nor anything from `mod tests {` down. It runs in
 `scripts/gate.sh`. The product sits at 0.10–0.18; going over is a signal about the code, not
 a reason to raise the budget.

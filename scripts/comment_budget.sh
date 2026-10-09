@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
 # Comment budget — no source file spends more than RATIO comment lines per code line.
-#
 #   scripts/comment_budget.sh          check; non-zero exit names the files over budget
 #   scripts/comment_budget.sh --list   every file, worst first, always exit 0
-#
-# A file that needs more than this is either doing too much or is being explained in the
-# wrong place. CLAUDE.md#comments says where the explanation goes instead.
-#
-# Exempt:
-#   `SAFETY:` / `# Safety` blocks — contracts the compiler cannot express, and no budget
-#   should argue for dropping one.
-#   Tests — a test's doc comment states the claim the test makes, which is worth more than
-#   the test's name alone: everything from `mod tests {` to the end of the file (Clippy's
-#   `items_after_test_module` keeps that module last), `client/contract/` and `*/test/`.
+# A file that needs more is doing too much or explaining in the wrong place: CLAUDE.md#comments.
+# Exempt: `SAFETY:` / `# Safety` blocks, contracts no budget should argue away; shellcheck directives;
+# tests, whose doc comments state their claims — from `mod tests {` to the end of the file (clippy's
+# `items_after_test_module` keeps it last), `client/contract/`, `*/test/`, `*.test.mjs`, `*_test.py`.
 set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -21,7 +14,8 @@ FLOOR=${FLOOR:-10}   # what any file may spend regardless of size: header and po
 list=0
 [[ "${1:-}" == "--list" ]] && list=1
 
-files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' | grep -v -e '/node_modules/' -e '^target/' -e '^client/contract/' -e '/test/' -e '\.test\.mjs$')
+files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' '*.sh' '*.py' \
+  | grep -v -e '/node_modules/' -e '^target/' -e '^client/contract/' -e '/test/' -e '\.test\.mjs$' -e '_test\.py$')
 
 # shellcheck disable=SC2086
 awk -v ratio="$RATIO" -v floor="$FLOOR" -v list="$list" '
@@ -29,6 +23,10 @@ awk -v ratio="$RATIO" -v floor="$FLOOR" -v list="$list" '
   /^[[:space:]]*mod tests[[:space:]]*\{/    { tests = 1 }
   tests                                     { next }
   /^[[:space:]]*$/                          { next }
+  FILENAME ~ /\.(sh|py)$/ && /^[[:space:]]*#/ {
+    if (!(FNR == 1 && /^#!/) && !/shellcheck /) comment[FILENAME]++
+    next
+  }
   /^[[:space:]]*(\/\/|\/\*|\*[ \t\/]|\*$)/ {
     if (/SAFETY|# Safety/) safety = 1
     if (!safety) comment[FILENAME]++
