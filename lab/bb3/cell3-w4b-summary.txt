@@ -42,7 +42,7 @@
   test/run.mjs  59.5kb
 
 ⚡ Done in 13ms
-link: 80 ms round trip, 22 Mbit mean down, uplink unshaped; fill 237 x 265000 B; raw: /home/user/runs/bb3/cell3.tsv
+link: 80 ms round trip, 22 Mbit mean down, uplink unshaped; fill 237 x 265000 B; raw: cell3-w4b.tsv
 round 0 flat    500 ms bbr:16000000           fill  23507.4 ms  standing p50 498 max 499 ms  lost 3991 cong 2856
 round 0 flat    500 ms bbr-bound:16000000     fill  23520.3 ms  standing p50 403 max 498 ms  lost 4782 cong 2385 VOID p99 1.09
 round 0 flat    500 ms cubic-restart:16000000 fill  23646.3 ms  standing p50 424 max 498 ms  lost 1682 cong 894
