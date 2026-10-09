@@ -1,4 +1,4 @@
-// node client/downloader/av1.test.mjs — the AV1 item reader: golden items through dav1d-WASM (when
+// node client/decode/av1.test.mjs — the AV1 item reader: golden items through dav1d-WASM (when
 // client/decode/wasm/dav1d/build.sh has run), every refusal item-format.md names, and the decoder choice.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -37,7 +37,7 @@ const u32 = (bytes, at, value) => {
 };
 const refusal = async (decode, bytes) => decode(bytes).then(() => "decoded", (e) => String(e.message));
 
-const { parseItem } = await import("./av1-item.js");
+const { parseItem } = await import("./av1-payload.js");
 
 /** Every header case item-format.md lists is refused by name before anything decodes. */
 {
@@ -103,7 +103,7 @@ const { parseItem } = await import("./av1-item.js");
  * decoder model, frame ids, High tier and nine operating points, the first point's level taken.
  */
 {
-  const { codecString, sequence } = await import("./av1-item.js");
+  const { codecString, sequence } = await import("./av1-payload.js");
   const hex = (h) => Uint8Array.from(h.match(/../g), (x) => parseInt(x, 16));
   const cases = [
     ["0a05180cfffb44", "av01.0.00M.08.1.110.02.02.02.0", "8-bit grey, reduced"],
@@ -145,7 +145,7 @@ const { parseItem } = await import("./av1-item.js");
   // The first failure is init's own load, which no item waits on.
   let importFails = 2;
   const stubs = {
-    "./decode-av1-webcodecs.js": {
+    "./av1-webcodecs.js": {
       init: async () => {},
       probe: async (layout) => (calls.push(`probe ${layout}`), probeOk),
       picture: async (bytes, unit, which) => {
@@ -154,10 +154,10 @@ const { parseItem } = await import("./av1-item.js");
         return which === "low" ? pic(8, 1) : pic(depth, planes);
       },
     },
-    "./decode-av1.js": { init: async () => {}, picture: () => (calls.push("dav1d"), pic(depth, planes)) },
+    "./av1-dav1d.js": { init: async () => {}, picture: () => (calls.push("dav1d"), pic(depth, planes)) },
   };
   const load = async (path) => {
-    if (path === "./decode-av1.js" && importFails-- > 0) throw new Error("import failed");
+    if (path === "./av1-dav1d.js" && importFails-- > 0) throw new Error("import failed");
     return stubs[path];
   };
   const av1 = await import("./av1.js?choice");
@@ -201,7 +201,7 @@ const { parseItem } = await import("./av1-item.js");
   globalThis.VideoDecoder = class {};
   const av1 = await import("./av1.js?warm");
   await av1.init({ glue: "/g.js", wasm: "/g.wasm" }, load);
-  check(asked.join() === "./decode-av1.js,./decode-av1-webcodecs.js", `warm: init imports both decoders before any item (${asked.join()})`);
+  check(asked.join() === "./av1-dav1d.js,./av1-webcodecs.js", `warm: init imports both decoders before any item (${asked.join()})`);
   check(fetched.join() === "/g.js,/g.wasm", `warm: init fetches dav1d's glue and WASM before any item (${fetched.join()})`);
   globalThis.fetch = realFetch;
   await new Promise((r) => setTimeout(r));
@@ -212,7 +212,7 @@ const { parseItem } = await import("./av1-item.js");
   const none = await import("./av1.js?warm-none");
   asked.length = 0;
   await none.init({}, load);
-  check(asked.join() === "./decode-av1.js", `warm: without VideoDecoder only dav1d is imported (${asked.join()})`);
+  check(asked.join() === "./av1-dav1d.js", `warm: without VideoDecoder only dav1d is imported (${asked.join()})`);
 }
 
 /** With `mixed`, a top over 10 bits goes to dav1d and its low to WebCodecs, each item's own low merged, dav1d the fallback. */
@@ -225,7 +225,7 @@ const { parseItem } = await import("./av1-item.js");
   let wcFails = false;
   let topFails = false;
   const stubs = {
-    "./decode-av1-webcodecs.js": {
+    "./av1-webcodecs.js": {
       init: async () => {},
       probe: async (layout) => (calls.push(`probe ${layout}`), probeOk),
       picture: async (bytes, unit, which = "top") => {
@@ -236,7 +236,7 @@ const { parseItem } = await import("./av1-item.js");
         return which === "top" ? one(10, 7) : one(8, (lows++ % 2) + 1);
       },
     },
-    "./decode-av1.js": {
+    "./av1-dav1d.js": {
       init: async () => {},
       picture: (bytes) => {
         calls.push("dav1d");
@@ -246,7 +246,7 @@ const { parseItem } = await import("./av1-item.js");
       },
     },
   };
-  const { units } = await import("./av1-item.js");
+  const { units } = await import("./av1-payload.js");
   const tops = ["plain/g14", "plain/g12", "optimized/g12"].map((n) => {
     const item = parseItem(golden(...n.split("/")));
     return units(item.frames[0], item.split)[0].length;
@@ -373,7 +373,7 @@ else {
         } });
     }
   };
-  const wc = await import("./decode-av1-webcodecs.js?rgb");
+  const wc = await import("./av1-webcodecs.js?rgb");
   for (const f of ["BGRX", "RGBX"]) {
     format = f;
     const pic = await wc.picture(unit("c8"), { key: true, gen: 0, index: 0 });

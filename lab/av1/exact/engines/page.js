@@ -26,7 +26,7 @@ async function caps() {
     w.onerror = (e) => resolve({ error: e.message });
   });
   for (const codec of c.videoDecoder ? CODECS : []) {
-    // The product's own configuration: decode-av1-webcodecs.js.
+    // The product's own configuration: av1-webcodecs.js.
     const config = { codec, hardwareAcceleration: "prefer-software", optimizeForLatency: true };
     c.configs[codec] = await VideoDecoder.isConfigSupported(config).then((r) => r.supported, (e) => `throws ${e.name}`);
   }

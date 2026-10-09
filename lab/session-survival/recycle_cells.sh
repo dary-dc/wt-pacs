@@ -50,7 +50,7 @@ echo "{\"frameCount\": $FRAMES}" > "$T/m.json"
 target/debug/pack-study --metadata "$T/m.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
 
 mkdir -p "$MUTANT"
-cp client/downloader/*.js "$MUTANT/"
+cp client/transport/*.js "$MUTANT/"
 python3 - "$MUTANT/downloader.js" <<'PY'
 import sys
 p = sys.argv[1]

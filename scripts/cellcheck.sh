@@ -10,10 +10,10 @@ source client/conformance/browser_env.sh
 NO_BROWSER_HINT="README.md §Prerequisites"
 require_browser
 require_vendor
-[[ -f client/transport-wasm/pkg/transport_wasm_bg.wasm ]] || { echo "no WASM pkg/: client/transport-wasm/build.sh" >&2; exit 2; }
+[[ -f client/transport/wasm/pkg/transport_wasm_bg.wasm ]] || { echo "no WASM pkg/: client/transport/wasm/build.sh" >&2; exit 2; }
 [[ -f lab/fixtures/decode_c512/086.sha256 ]] || { echo "no c512 frames: lab/scripts/gen_htj2k_fixtures.sh c512" >&2; exit 2; }
 
-bash client/transport-ts/build.sh >/dev/null
+bash client/transport/ts/build.sh >/dev/null
 cargo build --release -q -p exact-server -p pack-study
 BIN="${CARGO_TARGET_DIR:-target}/release"
 T="$(mktemp -d -t cellcheck.XXXXXX)"

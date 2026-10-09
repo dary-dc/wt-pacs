@@ -209,10 +209,10 @@ function browserPid(profileDir) {
 
 // What each boot rung carries rather than fetches: a visit that fetched one is not that rung.
 const BOOT_SKIPS = {
-  bundle: ["/client/downloader/downloader.js", "/client/transport-ts/dist/session.js"],
-  blob: ["/client/downloader/downloader.js"],
-  both: ["/client/downloader/downloader.js", "/client/transport-ts/dist/session.js"],
-  page: ["/client/downloader/downloader.js", "/client/transport-ts/dist/session.js", "/client/downloader/consumer.js"],
+  bundle: ["/client/transport/downloader.js", "/client/transport/ts/dist/session.js"],
+  blob: ["/client/transport/downloader.js"],
+  both: ["/client/transport/downloader.js", "/client/transport/ts/dist/session.js"],
+  page: ["/client/transport/downloader.js", "/client/transport/ts/dist/session.js", "/client/transport/consumer.js"],
 };
 
 // Every visit that decodes a fill must hand back the pixels the first such visit did, frame by frame.

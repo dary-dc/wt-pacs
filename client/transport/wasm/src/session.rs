@@ -277,7 +277,7 @@ fn deliver(st: &Rc<RefCell<SessionState>>, index: u32, view: Uint8Array, now: f6
 }
 
 /// A frame that will not arrive: the waiter rejects, or the fill's `onError` names it — the
-/// path a server `FrameError` takes. `client/transport-ts/frame-session.ts` `failWaiter`.
+/// path a server `FrameError` takes. `client/transport/ts/frame-session.ts` `failWaiter`.
 fn fail_waiter(st: &Rc<RefCell<SessionState>>, index: u32, reason: &str) {
     let refused = {
         let mut s = st.borrow_mut();

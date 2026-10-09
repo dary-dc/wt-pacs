@@ -34,7 +34,7 @@ each (the node tests and both rigs for the client, `cargo test` for the rest):
 
 | code | mutants | killed before | after | left alive, and why |
 | --- | --- | --- | --- | --- |
-| `downloader.js`, `consumer.js` | 76 | 44 | 65 of 72 | 4 were dead code, removed; 7: two only matter when a frozen page's timers fire late, a listener removal and two `??=` change nothing observable, the wire buffer's release only moves memory, a recycle racing a resumption the fake cannot order (`client/downloader/README.md` §Every decision is held by a test) |
+| `downloader.js`, `consumer.js` | 76 | 44 | 65 of 72 | 4 were dead code, removed; 7: two only matter when a frozen page's timers fire late, a listener removal and two `??=` change nothing observable, the wire buffer's release only moves memory, a recycle racing a resumption the fake cannot order (`client/README.md` §Every decision is held by a test) |
 | the decoder modules (`decoder.js`, `htj2k.js`, `av1*.js`, `decode-av1*.js`) | 45 | 45 | 45 | — |
 | the send path (`planner.rs`, `frame_out.rs`, `pipeline.rs`) | 25 | 16 | 20 of 24 | 1 was dead code, removed; 4: `fills` and the end-of-session read report are log lines, and the lab-only byte-budget stall's FIN and its `>`/`>=` send the same bytes |
 | the study bundle's reader and writer | 10 | 3 | 10 | — |
@@ -46,8 +46,8 @@ cost no time of their own, or rest on too few mutants to show one covers the oth
 
 ```bash
 # 1. Build the clients (once, and after changes; dist/ and pkg/ are not tracked)
-bash client/transport-wasm/build.sh   # web_sys WASM client; fetches wasm-opt on first run
-bash client/transport-ts/build.sh     # TypeScript client → dist/
+bash client/transport/wasm/build.sh   # web_sys WASM client; fetches wasm-opt on first run
+bash client/transport/ts/build.sh     # TypeScript client → dist/
 
 # 2. Dev TLS + dev-transport.json
 ./server/scripts/gen_dev_cert.sh
@@ -85,7 +85,7 @@ Open in Chrome:
   The query parameters are listed in `client/harness/shell.js`.
 - The downloader's self-check (decoded frames against `.sha256`): `http://127.0.0.1:8765/harness/`.
   It needs the decoder vendor (§Prerequisites) and the server running the `decode_c512` study in
-  place of the smoke one ([`docs/FIXTURES.md`](docs/FIXTURES.md), `client/downloader/README.md`):
+  place of the smoke one ([`docs/FIXTURES.md`](docs/FIXTURES.md), `client/README.md`):
 
 ```bash
 lab/scripts/gen_htj2k_fixtures.sh c512   # 87 frames and their .sha256; builds OpenJPH's encoder once (cmake, a C++ compiler)
@@ -111,7 +111,7 @@ The TypeScript and WASM transports speak the same wire (FoD on bidi control + en
 streams); the WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
 
 A TCP fallback serves the same envelopes over a WebSocket: `--websocket` on the server, and
-`client/transport-ts/dist/ws-session.js` or `race-session.js` on the page
+`client/transport/ts/dist/ws-session.js` or `race-session.js` on the page
 ([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §Race it).
 
 ## Docs
@@ -173,7 +173,7 @@ queue rows are named by subject in five groups (`lab/av1/README.md` §The folder
 
 | name | where | breaks | proposed | why not now |
 | --- | --- | --- | --- | --- |
-| *item* | `docs/av1/item-format.md`, `av1-item.js`, `ingest/coded-frames/` | DICOM's Item, the encapsulated pixel data's own unit | **coded frame** (`coded-frame.md`, `parseCodedFrame`) | the item format is structural: the owner's |
+| *item* | `docs/av1/item-format.md`, `av1-payload.js`, `ingest/coded-frames/` | DICOM's Item, the encapsulated pixel data's own unit | **coded frame** (`coded-frame.md`, `parseCodedFrame`) | the item format is structural: the owner's |
 | `arm` in telemetry rows | `client/record`, `client/harness/shell.js` | names a client, and ARM the CPU | `client` | a row schema the lab's analyses read |
 | *arm* in the lab (≈1 900 lines) | `lab/`, `CLAUDE.md` §Measurement | ARM the CPU | **variant** | the owner's word in `CLAUDE.md` |
 | campaign labels (*S1–S4*, *R1*, *PO1*, *WP1*) | `docs/`, `lab/` | history | what each measured | doc by doc, with the docs that own them |

@@ -1,6 +1,6 @@
 # codecstr — the WebCodecs codec string from the stream's own sequence header
 
-Queue row 67 (CODECSTR) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): `decode-av1-webcodecs.js`
+Queue row 67 (CODECSTR) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): `av1-webcodecs.js`
 configured every stream as `av01.0.04M.10` (Main, level 3.0, 10 bits), whatever it was. It now configures each
 stream with the AV1 codecs parameter string (AV1-ISOBMFF §5) of the keyframe's own sequence header, every
 optional field written, and reconfigures only when that string changes. The rule is in
@@ -19,7 +19,7 @@ FIREFOX_PATH=... node lab/av1/exact/split/browser.mjs lab/av1/data $W/real   # e
 ```
 
 **`check.mjs`** reads every distinct sequence header of the items (and bare units) under its directories
-and of `av1-probe.js`, derives the string with `av1-item.js`, and builds a second one from ffmpeg's reading
+and of `av1-probe.js`, derives the string with `av1-payload.js`, and builds a second one from ffmpeg's reading
 of the same bytes: the coded fields as `trace_headers` prints their bits, the inferred ones (bit depth,
 monochrome, subsampling, range) from `ffprobe`'s pixel format and range. **`run.mjs`** asks each engine's
 `isConfigSupported` for every derived string, the same with level 31, its four-field short form, and the old

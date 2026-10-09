@@ -10,7 +10,7 @@
   <p>Dial, send nothing for <code>hold</code> ms, then ask for a frame. Alive means the frame arrives.</p>
   <div id="log" style="white-space:pre;font-family:monospace"></div>
   <script type="module">
-    import { TransportSession } from "/client/transport-ts/dist/session.js";
+    import { TransportSession } from "/client/transport/ts/dist/session.js";
     const logEl = document.getElementById("log");
     const log = (...a) => { logEl.textContent += a.join(" ") + "\n"; };
     const q = new URLSearchParams(location.search);

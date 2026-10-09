@@ -9,7 +9,7 @@ the relay: HTJ2K against AV1 on the same frames. Queue row 11 (FILL) of
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
-client/transport-ts/build.sh                                   # the client's session bundle
+client/transport/ts/build.sh                                   # the client's session bundle
 lab/av1/fetch_data.sh rf_fluoro mr_ispy1 us_liver
 FRAMES=1000 lab/av1/.venv/bin/python lab/av1/decode/per-frame/make_frames.py lab/.av1-build lab/.av1-work/fill \
   lab/av1/data/rf_fluoro lab/av1/data/mr_ispy1 lab/av1/data/us_liver        # ~15 min

@@ -24,8 +24,8 @@ which row SIZE recommends. `make_frames.py` decodes every frame natively (ojph_e
 against the checksum written when the series was fetched before keeping it.
 
 **Arms.** Each runs in a decoder worker of its own, as the downloader runs one: `htj2k` and `av1` are
-`client/downloader/decoder.js` itself (in Node through `node-worker.mjs`, which supplies the
-browser-worker globals), so `av1` is `decode-av1.js` on dav1d-WASM `simd`; `webcodecs`
+`client/decode/decoder.js` itself (in Node through `node-worker.mjs`, which supplies the
+browser-worker globals), so `av1` is `av1-dav1d.js` on dav1d-WASM `simd`; `webcodecs`
 (`webcodecs-worker.js`, Chromium only) is `VideoDecoder` behind the same protocol and output —
 one chunk, flushed, copied out and interleaved — on the one set it decodes exactly (8-bit 4:4:4).
 A frame's time is the worker's own `decodeStart`–`decodeEnd` stamps: bytes in, the contract's

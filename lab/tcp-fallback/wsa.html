@@ -9,7 +9,7 @@
   <p>Driven by <code>lab/tcp-fallback/wsa.mjs</code>: one WebSocket session, a fill asked on the
   socket after the upgrade (<code>ws</code>) or carried in the upgrade's URL (<code>ask</code>).</p>
   <script type="module">
-    import { TransportSession } from "/client/transport-ts/dist/ws-session.js";
+    import { TransportSession } from "/client/transport/ts/dist/ws-session.js";
 
     const hex = async (bytes) =>
       [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");

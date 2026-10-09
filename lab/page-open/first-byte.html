@@ -5,9 +5,9 @@
   <link rel="icon" href="data:," />
   <!-- The open is serial without these: each is otherwise discovered one round trip
        later than it could be. lab/page-open/README.md -->
-  <link rel="modulepreload" href="/client/downloader/consumer.js" />
-  <link rel="preload" as="script" href="/client/downloader/downloader.js" />
-  <link rel="preload" as="script" href="/client/downloader/decoder.js" />
+  <link rel="modulepreload" href="/client/transport/consumer.js" />
+  <link rel="preload" as="script" href="/client/transport/downloader.js" />
+  <link rel="preload" as="script" href="/client/decode/decoder.js" />
   <link rel="preload" as="script" href="/client/decode/wasm/vendor/openjph/openjphjs.js" />
   <link rel="preload" as="fetch" href="/client/decode/wasm/vendor/openjph/openjphjs.wasm" />
   <script>
@@ -21,7 +21,7 @@
     const hint = (as, href) => document.head.insertAdjacentHTML("beforeend", `<link rel="preload" as="${as}" href="${href}">`);
     if (!inline) hint("fetch", "/wt/dev-transport.json");
     // `bundle`, `both` and `page` carry the transport in the worker's own script.
-    if (!["no-r4", "bundle", "both", "page"].includes(stage)) hint("script", "/client/transport-ts/dist/session.js");
+    if (!["no-r4", "bundle", "both", "page"].includes(stage)) hint("script", "/client/transport/ts/dist/session.js");
     // A WebTransport cannot be posted to the downloader's worker, so `dial0` is a probe: when a
     // session dialled from the head is ready, and nothing after it.
     if (stage === "dial0" && globalThis.__inline) {
@@ -42,7 +42,7 @@
      * The first frame of a study fill, where downloader.html times a single ask: one rung of the
      * ladder in lab/page-open/README.md per `?stage=`. The frame count is told, not fetched.
      */
-    import { DownloaderClient } from "/client/downloader/consumer.js";
+    import { DownloaderClient } from "/client/transport/consumer.js";
 
     const stage = globalThis.__stage;
     const frames = Number(new URLSearchParams(location.search).get("frames") || 12);
@@ -110,14 +110,14 @@
     /** The boot rungs' worker: a bundle by URL, or the page's own text as a blob. */
     function boot() {
       const abs = (p) => new URL(p, location.origin).href;
-      if (stage === "bundle") return { worker: "/lab/page-open/boot/downloader.bundle.js", decoderWorker: abs("/client/downloader/decoder.js") };
+      if (stage === "bundle") return { worker: "/lab/page-open/boot/downloader.bundle.js", decoderWorker: abs("/client/decode/decoder.js") };
       if (!["blob", "both", "page"].includes(stage)) return {};
       const blob = new Blob([document.getElementById("worker-src").textContent], { type: "text/javascript" });
       // A blob's URL resolves nothing relative, so the worker is told where everything else lives.
       return {
         worker: URL.createObjectURL(blob),
-        decoderWorker: abs("/client/downloader/decoder.js"),
-        ...(stage === "blob" ? { transport: abs("/client/transport-ts/dist/session.js") } : {}),
+        decoderWorker: abs("/client/decode/decoder.js"),
+        ...(stage === "blob" ? { transport: abs("/client/transport/ts/dist/session.js") } : {}),
       };
     }
   </script>

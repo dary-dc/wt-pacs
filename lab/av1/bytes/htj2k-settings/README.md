@@ -15,7 +15,7 @@ $P lab/av1/bytes/htj2k-settings/sweep.py $W/htj2kenc $SETS                     #
 $P lab/av1/bytes/htj2k-settings/report.py $W/htj2kenc/manifest.json
 NODE_PATH=$(npm root -g) node lab/av1/bytes/htj2k-settings/time.mjs --rounds 10 --throttles 1,4   # ~25 min
 FRAMES=100 $P lab/av1/bytes/htj2k-settings/sweep.py $W/htj2kenc-total $D/rf_fluoro $D/dbt12_ea1141 $D/ffdm_a
-client/transport-ts/build.sh
+client/transport/ts/build.sh
 NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W/htj2kenc-total \
   --arms b64x64-d5-RPCL,b64x64-d6-RPCL --ref b64x64-d5-RPCL --links r5000,r20000,r50000 --rounds 10
 ```
@@ -40,7 +40,7 @@ exact**. The COD check caught `-block_size {x,y}` taking width first (the encode
 `MUTATE=1` (one decoded sample flipped) stops the sweep at its first frame.
 
 **Decode time** (`time.mjs`, `index.html`). Each setting one product decoder worker
-(`client/downloader/decoder.js`, the shipped package) as `lab/av1/decode/per-frame/drive.js` drives one: a
+(`client/decode/decoder.js`, the shipped package) as `lab/av1/decode/per-frame/drive.js` drives one: a
 warm-up frame, then every frame one at a time, its time the worker's `decodeStart` to `decodeEnd`,
 its pixels hashed against the source's checksum. Every throttle cell a fresh headless Chromium in a
 Williams order each round, sets and settings rotating inside; 4× is `lab/scripts/cpu_throttle.mjs`;

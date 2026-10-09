@@ -50,7 +50,7 @@ is hashed against that checksum again.
 
 **Decode time.** `encx.mjs` in headless Chromium 141 (playwright 1.56.1), Node 22.22.0. Each arm is a
 decoder worker of its own behind `decoder.js`'s protocol, `worker.js` for the part frames and
-`client/downloader/decoder.js` itself for HTJ2K; a frame's time is the worker's `decodeStart` to
+`client/decode/decoder.js` itself for HTJ2K; a frame's time is the worker's `decodeStart` to
 `decodeEnd`: its bytes in, the merged samples and the range out. WebCodecs and the inflate run beside
 the WASM decoder. One warm-up frame a worker, then every frame one at a time. Every throttle cell a
 fresh browser, the cells in a Williams order each round (`lab/order.mjs`), sets and arms rotating

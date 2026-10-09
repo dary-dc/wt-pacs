@@ -13,6 +13,8 @@ LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
 HTML_ANCHOR = re.compile(r'<a (?:name|id)="([^"]+)"')
 # A path that no longer exists may be named beside the commit, tag or word that says so.
+# Another queue's record, which this repository's later moves do not rewrite: its links resolve, its paths are its own.
+PATHS_AS_WRITTEN = {"docs/cloud-queue.md"}
 HISTORICAL = re.compile(r"\b[0-9a-f]{7,40}\b|archive/|removed|retired|history|in git", re.I)
 
 
@@ -89,7 +91,7 @@ def main():
         for i, line in enumerate(lines):
             links += len(local_links(line))
             bad += link_errors(md, i + 1, line)
-            for path in backticked_paths(line):
+            for path in [] if md in PATHS_AS_WRITTEN else backticked_paths(line):
                 paths += 1
                 if resolves(md, path):
                     continue

@@ -9,7 +9,7 @@ through row SPLITTIME's harness ([`../../delivery/split-rule`](../../delivery/sp
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh
 PATH=lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160 && ingest/coded-frames/build.sh
-client/decode/wasm/fetch_openjph.sh && client/transport-ts/build.sh
+client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh
 lab/av1/fetch_data.sh ffdms_a1 … ffdms_c5 mgraw_a1 … mgraw_c5 syn2ds_a1 … syn2ds_b4 syn2d_c   # ~2.2 GB
 P=lab/av1/.venv/bin/python W=lab/.av1-work
 $P lab/av1/delivery/split-rule/make_frames.py lab/.av1-build $W/ffdmscale lab/av1/data/{ffdms,mgraw,syn2ds}_* \

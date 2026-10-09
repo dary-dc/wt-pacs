@@ -1,5 +1,5 @@
 // node ingest/coded-frames/check.mjs DIR ... — every item ingest.py wrote, decoded by the client's reader
-// (client/downloader/av1.js, dav1d-WASM, as a browser without WebCodecs), against its source's checksum.
+// (client/decode/av1.js, dav1d-WASM, as a browser without WebCodecs), against its source's checksum.
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -11,7 +11,7 @@ globalThis.require = createRequire(import.meta.url);
 globalThis.__dirname = OUT;
 globalThis.fetch = async (url) => new Response(readFileSync(url));
 
-const av1 = await import("../../client/downloader/av1.js");
+const av1 = await import("../../client/decode/av1.js");
 await av1.init({ glue: `${OUT}/simd.js`, wasm: `${OUT}/simd.wasm`, dir: OUT });
 let bad = 0;
 for (const dir of process.argv.slice(2)) {

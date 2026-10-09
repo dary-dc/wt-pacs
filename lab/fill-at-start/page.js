@@ -6,7 +6,7 @@
  * `?at=<ms>` that far after it — a page's long boot task, before or after its worker is alive.
  * Numbers go to window.__wtpacsResult; run.mjs interleaves the arms and README.md reads them.
  */
-import { DownloaderClient } from "/client/downloader/consumer.js";
+import { DownloaderClient } from "/client/transport/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const arm = q.get("arm") || "after";

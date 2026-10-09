@@ -88,7 +88,7 @@ async function until(file, text, ms = 10000) {
 
 execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server"], { cwd: ROOT });
 execFileSync("cargo", ["build", "-q", "-p", "pack-study"], { cwd: ROOT });
-execFileSync("bash", ["client/transport-ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
+execFileSync("bash", ["client/transport/ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
 execFileSync("cc", ["-shared", "-fPIC", "-o", `${T}/tcp_cc.so`, "lab/stream-shape/tcp_cc.c", "-ldl"], { cwd: ROOT });
 const frames = FILL + ASKS;
 fs.mkdirSync(`${T}/frames`);

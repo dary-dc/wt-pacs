@@ -1,2 +1,2 @@
 import "./no-webcodecs.js";
-import "../../../../client/downloader/decoder.js";
+import "../../../../client/decode/decoder.js";

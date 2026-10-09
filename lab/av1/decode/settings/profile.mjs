@@ -1,5 +1,5 @@
 /**
- * Where a lossless frame's decode time goes: the product's decode-av1.js on dav1d-WASM built with
+ * Where a lossless frame's decode time goes: the product's av1-dav1d.js on dav1d-WASM built with
  * function names (`simd-prof`), every frame of a set decoded REPEAT times under V8's sampling profiler,
  * self time summed per function and per stage. Every frame is checked against its truth checksum.
  * lab/av1/decode/settings/README.md
@@ -46,7 +46,7 @@ await session.post("Profiler.enable");
 await session.post("Profiler.setSamplingInterval", { interval: 100 });
 
 for (const set of manifest) {
-  const av1 = await import(`../../../../client/downloader/decode-av1.js?${set.name}`);
+  const av1 = await import(`../../../../client/decode/av1-dav1d.js?${set.name}`);
   const out = `${BASE}/lab/.av1-build/out`;
   await av1.init({ codec: "av1", glue: `${out}/simd-prof.js`, wasm: `${out}/simd-prof.wasm`, dir: out });
   const bytes = set.frames.map((_, i) => readFileSync(`${ROOT}/${FRAMES}/${set.name}/${String(i).padStart(3, "0")}.${EXT}`));

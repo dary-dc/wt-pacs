@@ -18,7 +18,7 @@ deploy/check_equivalence.sh --cert path/to/cert.pem              # the PEM's cha
 ```
 
 Then open `http://127.0.0.1:8765/harness/cell.html?autorun=1`. The image builds the TypeScript bundles
-itself; the WASM arm (`&transport=wasm`) is served only if `client/transport-wasm/build.sh` ran before
+itself; the WASM arm (`&transport=wasm`) is served only if `client/transport/wasm/build.sh` ran before
 the build, since `client/` is copied as it stands. The certificate and `dev-transport.json` are
 mounted, not baked: regenerating the certificate needs a restart, not a rebuild. Making the dev key
 world-readable is for the 10-day localhost certificate only; a real key is mounted owned by uid 10001.

@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 HERE = Path(__file__).resolve().parent
-INGEST, FRAME, ITEM = "ingest/coded-frames/ingest.py", "client/downloader/av1-frame.js", "client/downloader/av1-item.js"
+INGEST, FRAME, ITEM = "ingest/coded-frames/ingest.py", "client/decode/av1-frame.js", "client/decode/av1-payload.js"
 SUBSET = [f"{b}{s}/{g}" for b in (8, 13, 16) for s in "us" for g in ("256x256", "pad")]
 
 # name, file, old, new, check: what is broken in the code, and which check must then fail
@@ -118,7 +118,7 @@ def main():
                     said, code = node(sets, items)
                     hit = code != 0
                 else:
-                    r = run(["node", "client/downloader/av1.test.mjs"])
+                    r = run(["node", "client/decode/av1.test.mjs"])
                     said, hit = r.stdout.strip().splitlines()[-1], r.returncode != 0
             finally:
                 path.write_text(text)

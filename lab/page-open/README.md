@@ -415,7 +415,7 @@ BEFORE=cf4db15 INIT=7d30674 RTTS=0,40,100 NODE_PATH=$(npm root -g) node lab/page
 
 **The serial chain before.** HTJ2K's decoder glue and WASM are preloaded by the page and loaded by
 each decoder at start, beside the dial. An AV1 decoder imported its module on the first item:
-WebCodecs is `decode-av1-webcodecs.js` and its `av1-probe.js`, two hops; dav1d is `decode-av1.js`,
+WebCodecs is `av1-webcodecs.js` and its `av1-probe.js`, two hops; dav1d is `av1-dav1d.js`,
 `wasm-glue.js`, the glue, then 238 KB of gzipped WASM — four hops and the WASM's slow start, all
 after the frame's bytes were in hand. `-after` is today's client: the decoder imports both modules
 and fetches dav1d's glue and WASM at start, and compiles on first use. `-pre` adds the page's

@@ -28,7 +28,7 @@ process.on("exit", () => {
 });
 
 execFileSync("cargo", ["build", "-q", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
-execFileSync("bash", ["client/transport-ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
+execFileSync("bash", ["client/transport/ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
 
 // Sizes from 1 KB to ~600 KB, none a multiple of the server's 64 KiB message, so frames and
 // messages never line up.

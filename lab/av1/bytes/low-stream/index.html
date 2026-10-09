@@ -3,7 +3,7 @@
 <title>AV1 ENCX</title>
 <script type="module">
   import { ARMS, round } from "../../decode/per-frame/drive.js";
-  const kinds = { product: "/client/downloader/decoder.js", encx: "/lab/av1/bytes/low-stream/worker.js" };
+  const kinds = { product: "/client/decode/decoder.js", encx: "/lab/av1/bytes/low-stream/worker.js" };
   const env = { worker: (kind) => new Worker(kinds[kind], { type: "module" }), channel: () => new MessageChannel() };
   const lib = (base, dir, name) => ({ glue: `${base}/${dir}/${name}.js`, wasm: `${base}/${dir}/${name}.wasm`, dir: `${base}/${dir}` });
   const arm = (name) => (base, set) => set.arms[name] && ({ kind: "encx", ext: name, decoder: {

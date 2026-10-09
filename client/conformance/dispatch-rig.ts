@@ -529,7 +529,7 @@ async function framesBeforeAnyDecoderAreHeld(DownloaderClient: DownloaderCtor, c
 async function startWithAFillDialsOnce(_DownloaderClient: DownloaderCtor, check: Check) {
   const ch = `wtpacs-dispatch-${++world}`;
   const fake = workerFake(ch);
-  const w = new Worker("/client/downloader/downloader.js", { type: "module" });
+  const w = new Worker("/client/transport/downloader.js", { type: "module" });
   w.onmessage = () => {};
   w.postMessage({
     kind: "start",
@@ -666,7 +666,7 @@ async function anUndecodableFrameIsAFailureNotAFrame(DownloaderClient: Downloade
   if (!realDecoder) return;
   const bytesOf = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
   const good = await bytesOf("/client/conformance/frames/colour-8.j2c");
-  const wrong = await bytesOf("/client/downloader/README.md");
+  const wrong = await bytesOf("/client/README.md");
 
   const frames: Frame[] = [];
   const failures: Fail[] = [];
@@ -691,7 +691,7 @@ async function anUndecodableFrameIsAFailureNotAFrame(DownloaderClient: Downloade
 /**
  * A frame says what crossed the link. `wireBytes` is the codestream length its envelope declared,
  * on the undecoded path and behind a decoder alike — never the decoded plane, which on a
- * compressed frame is several times larger. client/downloader/README.md §What a frame reports
+ * compressed frame is several times larger. client/README.md §What a frame reports
  */
 async function aFrameCarriesItsWireBytes(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
   const payload = enc.encode("frame-zero-and-then-some-more");
@@ -907,7 +907,7 @@ async function anAv1ItemTakesWebCodecsOnlyWhereItIsExact(DownloaderClient: Downl
   const spans = wc.got.map((f) => f.info.stamps as { decodeStart: number; decodeEnd: number }).sort((a, b) => a.decodeStart - b.decodeStart);
   const overlaps = spans.filter((s, i) => i > 0 && s.decodeStart < spans[i - 1].decodeEnd).length;
   check(spans.length === shallow.length && overlaps === 0, `webcodecs: its decoder takes the items it holds one at a time (${overlaps} overlapping)`);
-  const [item, probe] = ["/client/downloader/av1-item.js", "/client/downloader/av1-probe.js"];
+  const [item, probe] = ["/client/decode/av1-payload.js", "/client/decode/av1-probe.js"];
   const { codecString, sequence, units: streams } = await import(item);
   const { PROBES } = await import(probe);
   const own = (u: Uint8Array) => codecString(sequence(u));
@@ -999,7 +999,7 @@ async function anAv1FrameThatCannotDecodeAloneIsAFailure(DownloaderClient: Downl
   await fake.pushFrame(0, asItem(await fetched(`${AV1_SET}/c8.av1`), 8));
   await fake.pushFrame(1, asItem(await fetched(`${AV1_SET}/inter.av1`), 8));
   await fake.pushFrame(2, new Uint8Array(0));
-  await fake.pushFrame(3, await fetched("/client/downloader/README.md"));
+  await fake.pushFrame(3, await fetched("/client/README.md"));
   await fake.pushFrame(4, await fetched(`${golden("plain", "g12")}.av1`));
   await until(() => frames.length + failures.length >= 5, 5000);
   const refused = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join() || "none";
@@ -1124,7 +1124,7 @@ async function aGroupDecodesThroughEitherDecoder(
     check(refused === "3,4,5,6,7", `${what}: a unit mid-group with no frame fails, and its group's rest (${refused})`);
     check((await inexact(G8, stalled.got, range(8, 19))) === "none", `${what}: the next group is still exact (inexact: ${await inexact(G8, stalled.got, range(8, 19))})`);
     // Group 0 left at frame 4 still holds its references: frame 9's bytes sent as a keyframe must not decode against them.
-    const module = `/client/downloader/${mode === "spy" ? "decode-av1-webcodecs.js" : "decode-av1.js"}`;
+    const module = `/client/decode/${mode === "spy" ? "av1-webcodecs.js" : "av1-dav1d.js"}`;
     const av1 = await import(module);
     await av1.init({ ...AV1, groupLength: 8 });
     for (const i of range(0, 4)) await av1.picture(await fetched(bare[i]), { key: i === 0, gen: 0, index: i });
@@ -1261,7 +1261,7 @@ async function aDecoderRefusesAFrameWhosePredecessorItDidNotDecode(
   log: (line: string) => void,
 ) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 decoder order — no ${AV1_DIR} (client/decode/wasm/dav1d/build.sh)`);
-  const worker = new Worker("/client/downloader/decoder.js", { type: "module" });
+  const worker = new Worker("/client/decode/decoder.js", { type: "module" });
   const ch = new MessageChannel();
   const replies: { kind: string; index?: number; reason?: string }[] = [];
   worker.onmessage = (e) => replies.push(e.data);
@@ -1771,7 +1771,7 @@ async function aCancelDuringAResumeEndsTheFillItsDialCarried(DownloaderClient: D
 async function aCloseDuringARedialAdoptsNoSession(_DownloaderClient: DownloaderCtor, check: Check) {
   const ch = `wtpacs-dispatch-${++world}`;
   const fake = workerFake(ch);
-  const w = new Worker("/client/downloader/downloader.js", { type: "module" });
+  const w = new Worker("/client/transport/downloader.js", { type: "module" });
   const closed = new Promise<void>((r) => (w.onmessage = (e) => e.data.kind === "closed" && r()));
   w.postMessage({
     kind: "start",

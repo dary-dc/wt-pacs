@@ -10,8 +10,8 @@
   <code>0..fill-1</code> and times each one's arrival, then asks <code>asks</code> more frames with
   <code>depth</code> outstanding and times each ask.</p>
   <script type="module">
-    import { TransportSession as Wt } from "/client/transport-ts/dist/session.js";
-    import { TransportSession as Ws } from "/client/transport-ts/dist/ws-session.js";
+    import { TransportSession as Wt } from "/client/transport/ts/dist/session.js";
+    import { TransportSession as Ws } from "/client/transport/ts/dist/ws-session.js";
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

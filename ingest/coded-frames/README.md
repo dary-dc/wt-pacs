@@ -2,7 +2,7 @@
 
 Queue row 39 (UNIFY) of [`docs/av1/queue.md`](../../docs/av1/queue.md): the format of
 [`docs/av1/item-format.md`](../../docs/av1/item-format.md), built end to end. The client's half is
-`client/downloader/av1*.js` ([`client/downloader/README.md`](../../client/downloader/README.md)).
+`client/decode/av1*.js` ([`client/README.md`](../../client/README.md)).
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # aomenc 3.15.1, native dav1d, dav1d-WASM
@@ -36,7 +36,7 @@ probes fail and every colour item goes to dav1d-WASM.
 **`make_golden.py`** writes seven synthetic 64×48 sources — 8, 10, 12 and 14-bit grey, 11 and 13-bit
 signed, 8-bit RGB — with their checksums, and codes each through `ingest.py` in both representations
 into `client/conformance/av1/items/`; and a 16×16 unit per layout WebCodecs may take (grey 8 and
-10-bit, 4:4:4 8 and 10-bit) into `client/downloader/av1-probe.js`, with the FNV-1a of its coded
+10-bit, 4:4:4 8 and 10-bit) into `client/decode/av1-probe.js`, with the FNV-1a of its coded
 planes, checked against native dav1d before it is written.
 
 What was measured on it — every item exact on real series, the check's mutations, one pipeline for both

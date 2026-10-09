@@ -17,7 +17,7 @@ const ROUNDS = Number(process.argv[2] || 7);
 const [MBIT, RTT] = (process.env.LINK || "20,80").split(",").map(Number);
 const PROTOCOLS = { h1: false, h2: true };
 /** The worker graph: each worker's script and the transport it imports. The decoders' glue is a classic script, fetched. */
-const WORKER_GRAPH = ["/client/downloader/downloader.js", "/client/downloader/decoder.js", "/client/transport-ts/dist/session.js"];
+const WORKER_GRAPH = ["/client/transport/downloader.js", "/client/decode/decoder.js", "/client/transport/ts/dist/session.js"];
 const PAGE = fs.readFileSync(path.join(ROOT, "lab/page-open/downloader.html"), "utf8");
 const HINT = /^[ \t]*<link rel="(?:preload|modulepreload)"[^>]*>\n/gm;
 if (PAGE.match(HINT)?.length !== 7) throw new Error("downloader.html's hints changed: re-read what `bare` removes");

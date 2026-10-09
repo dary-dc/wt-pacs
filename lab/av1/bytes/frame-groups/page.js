@@ -7,9 +7,9 @@ const HTJ2K = (dir) => ({ glue: `${dir}/openjphjs.js`, wasm: `${dir}/openjphjs.w
 
 /** name → the worker, the decoder config, the file extension and the group length. */
 function arms(base, groups) {
-  const out = { htj2k: { worker: "/client/downloader/decoder.js", decoder: HTJ2K(`${base}/client/decode/wasm/vendor/openjph`), ext: "htj2k", g: 1 } };
+  const out = { htj2k: { worker: "/client/decode/decoder.js", decoder: HTJ2K(`${base}/client/decode/wasm/vendor/openjph`), ext: "htj2k", g: 1 } };
   for (const g of groups) {
-    out[`webcodecs-g${g}`] = { worker: "/client/downloader/decoder.js", decoder: AV1(`${base}/lab/.av1-build/out`), ext: `g${g}`, g };
+    out[`webcodecs-g${g}`] = { worker: "/client/decode/decoder.js", decoder: AV1(`${base}/lab/.av1-build/out`), ext: `g${g}`, g };
     out[`dav1d-g${g}`] = { worker: "/lab/av1/bytes/frame-groups/dav1d-worker.js", decoder: AV1(`${base}/lab/.av1-build/out`), ext: `g${g}`, g };
   }
   return out;

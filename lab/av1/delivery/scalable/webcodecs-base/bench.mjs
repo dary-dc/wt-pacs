@@ -1,12 +1,12 @@
 /**
  * A scalable payload's base through WebCodecs, by dropping the OBUs of spatial layers above 0, against
- * dav1d-WASM's base on row SVCDEC's path (the product's decode-av1.js, its `preview`). Every picture
+ * dav1d-WASM's base on row SVCDEC's path (the product's av1-dav1d.js, its `preview`). Every picture
  * goes to decoder.js's contract (av1-frame.js) and is hashed: a base against native dav1d's at
  * operating point 1, an exact frame against the encoder's input. lab/av1/delivery/scalable/webcodecs-base/README.md
  */
 import { order } from "../../../../order.mjs";
-import { begin, end } from "../../../../../client/downloader/av1-frame.js";
-import * as dav1d from "../../../../../client/downloader/decode-av1.js";
+import { begin, end } from "../../../../../client/decode/av1-frame.js";
+import * as dav1d from "../../../../../client/decode/av1-dav1d.js";
 
 export const FRAMES = 18;
 const WORK = "/lab/.av1-work/wcbase";
@@ -55,7 +55,7 @@ export function baseOf(unit, mutate = "") {
 
 const FORMATS = { I420: [8, 1], I420P10: [10, 1], I444: [8, 3], I444P10: [10, 3] };
 
-/** A VideoFrame as decode-av1-webcodecs.js reads it: grey 4:0:0 (neutral chroma) or GBR 4:4:4. */
+/** A VideoFrame as av1-webcodecs.js reads it: grey 4:0:0 (neutral chroma) or GBR 4:4:4. */
 async function read(frame) {
   const [bits, components] = FORMATS[frame.format] ?? [];
   if (!bits) throw new Error(`format ${frame.format}`);
@@ -151,7 +151,7 @@ async function sha256(bytes, mutate) {
 let opened = null;
 
 export async function prepare(names, codings, frames) {
-  // Once a page: decode-av1.js keeps its input buffer across calls, in the module it opened.
+  // Once a page: av1-dav1d.js keeps its input buffer across calls, in the module it opened.
   opened ??= dav1d.init({ glue: `${BUILD}/simd.js`, wasm: `${BUILD}/simd.wasm`, dir: BUILD });
   await opened;
   const sets = [];
@@ -169,7 +169,7 @@ export async function prepare(names, codings, frames) {
 /**
  * One arm over a set's units in order, fresh decoder, the first unit a keyframe. Returns the ms from each
  * unit sent to its picture in the contract, and the pictures' hashes. "wc-base" / "wc-all": WebCodecs fed
- * the filtered / whole units; "dav1d-base" / "dav1d-all": decode-av1.js fed whole units, to its preview /
+ * the filtered / whole units; "dav1d-base" / "dav1d-all": av1-dav1d.js fed whole units, to its preview /
  * to its exact frame.
  */
 async function arm(name, s, mutate) {

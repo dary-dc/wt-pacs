@@ -14,7 +14,7 @@
  *   autorun=1          run the cell on load, then close the session and set window.__wtpacsDone
  */
 
-import { DownloaderClient } from "/client/downloader/consumer.js";
+import { DownloaderClient } from "/client/transport/consumer.js";
 
 const params = new URLSearchParams(location.search);
 const telemetry = params.get("telemetry") === "1";
@@ -25,14 +25,14 @@ const depth = Math.max(1, Number(params.get("d") || 1));
 const transportName = params.get("transport") || "ts";
 const TRANSPORTS = {
   ts: undefined,
-  ws: "/client/transport-ts/dist/ws-session.js",
-  wasm: "/client/transport-wasm/session-adapter.js",
+  ws: "/client/transport/ts/dist/ws-session.js",
+  wasm: "/client/transport/wasm/session-adapter.js",
 };
 
 function transportModule() {
   if (!telemetry) return transportName in TRANSPORTS ? TRANSPORTS[transportName] : transportName;
   if (transportName !== "ts") throw new Error(`telemetry=1 records the TS transport only, not transport=${transportName}`);
-  return `/client/transport-ts/dist/session.telemetry.js?stream_mode=${streamMode}`;
+  return `/client/transport/ts/dist/session.telemetry.js?stream_mode=${streamMode}`;
 }
 
 const logEl = document.getElementById("log");

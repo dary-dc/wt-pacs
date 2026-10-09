@@ -3,7 +3,7 @@
  * through VideoDecoder under each codec string, each frame's planes read back by every copy the engine
  * offers and matched with the encoder input's checksums. run.mjs serves and drives it.
  */
-import { codecString, sequence } from "/client/downloader/av1-item.js";
+import { codecString, sequence } from "/client/decode/av1-payload.js";
 
 const STRINGS = { derived: null, legacy: "av01.0.04M.10" };
 const COPIES = ["own", "RGBX", "BGRX"];

@@ -25,7 +25,7 @@ if (!dirs.length) {
 
 async function load(name) {
   const M = await require(path.join(armsDir, `${name}.js`))();
-  // One decoder object for every frame, which is what the product holds — client/downloader/decoder.js.
+  // One decoder object for every frame, which is what the product holds — client/decode/decoder.js.
   const d = new M.HTJ2KDecoder();
   return {
     name,

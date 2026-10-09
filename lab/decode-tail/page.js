@@ -3,7 +3,7 @@
  * landed, when it was handed to a decoder, when decoding started and ended. run.mjs reads the split
  * from them. docs/decode/README.md §The decode tail
  */
-import { DownloaderClient } from "/client/downloader/consumer.js";
+import { DownloaderClient } from "/client/transport/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const FILL = Number(q.get("fill"));

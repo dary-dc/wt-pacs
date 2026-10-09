@@ -1,8 +1,8 @@
 // MIXDEC's bound: one split item's two streams through dav1d-WASM, as the client decodes them today, each
 // stream's decode timed apart and the merged frame checked against its source. lab/av1/decode/mixed/README.md
-import { parseItem, units } from "/client/downloader/av1-item.js";
-import { begin, end } from "/client/downloader/av1-frame.js";
-import * as dav1d from "/client/downloader/decode-av1.js";
+import { parseItem, units } from "/client/decode/av1-payload.js";
+import { begin, end } from "/client/decode/av1-frame.js";
+import * as dav1d from "/client/decode/av1-dav1d.js";
 
 async function sha256(sab) {
   const copy = new Uint8Array(sab.byteLength);

@@ -4,7 +4,7 @@
  * and control has one owner. docs/ARCHITECTURE.md
  */
 /** The transport is a seam: a third implementation plugs in here. docs/CLIENTS.md §The seam */
-const DEFAULT_TRANSPORT = "/client/transport-ts/dist/session.js";
+const DEFAULT_TRANSPORT = "/client/transport/ts/dist/session.js";
 let TransportSession = null;
 
 const abs = () => performance.timeOrigin + performance.now();
@@ -335,7 +335,7 @@ async function start(m) {
   for (const [k, v] of Object.entries(m.config ?? {})) if (v !== undefined) cfg[k] = v;
   const ready = [];
   // The decoder is a seam like the transport: a test points it at a controllable stand-in.
-  const decoderUrl = cfg.decoderWorker ?? new URL("./decoder.js", import.meta.url);
+  const decoderUrl = cfg.decoderWorker ?? new URL("../decode/decoder.js", import.meta.url);
   for (let i = 0; i < (cfg.decode ? cfg.decoders : 0); i++) {
     const worker = new Worker(decoderUrl, { type: "module" });
     const d = { worker, outstanding: 0, next: null };

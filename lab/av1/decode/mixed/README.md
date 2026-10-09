@@ -24,7 +24,7 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W --
 FIREFOX_PATH=... node lab/av1/exact/split/browser.mjs lab/.av1-work/splitok/sets lab/.av1-work/splitok/items --mixed
 ```
 
-**The flag.** `mixed: true` in the series' decoder config (`client/downloader/av1.js`; absent, today's
+**The flag.** `mixed: true` in the series' decoder config (`client/decode/av1.js`; absent, today's
 path): a split item whose top is over 10 bits starts its low unit on WebCodecs' `low` decoder — after the
 `g8` probe passed — then decodes the top through dav1d-WASM in the worker, and merges the two. A low that
 WebCodecs fails or whose probe failed is decoded by dav1d-WASM after the top. A top that fails waits for
@@ -75,7 +75,7 @@ cores are free to run both. Containers, not phones.
 
 ## Built, and exact
 
-`client/downloader/av1.js` behind `mixed` (above); today's path is unchanged with it off (`av1.test.mjs`).
+`client/decode/av1.js` behind `mixed` (above); today's path is unchanged with it off (`av1.test.mjs`).
 
 * **Every frame of the six series at every k of their depth, in three engines** (row 43's harness,
   `lab/av1/exact/split/browser.mjs --mixed`, its decoder tag read per stream): 18 cells, 1 113/1 113 frames exact

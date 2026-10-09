@@ -29,7 +29,7 @@ is what makes a mutation run bearable; `--passes`, `--paints` and `--dprs` size 
 | **gl** | uploads the samples to an integer texture (`RGB8UI`, `R16UI`, `R16I`), window and level as shader uniforms, one draw at display size |
 
 The decoded pixels the downloader produces are a `SharedArrayBuffer`
-(`client/downloader/decoder.js`), which can back `texImage2D` but never an `ImageData` — so the 2D
+(`client/decode/decoder.js`), which can back `texImage2D` but never an `ImageData` — so the 2D
 route's per-frame copy is not an implementation detail it could drop.
 
 ## The sample sets

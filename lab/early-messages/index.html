@@ -3,7 +3,7 @@
 <head><meta charset="utf-8" /><link rel="icon" href="data:," /><title>early messages</title></head>
 <body>
 <script type="module">
-  import { DownloaderClient } from "/client/downloader/consumer.js";
+  import { DownloaderClient } from "/client/transport/consumer.js";
   const q = new URLSearchParams(location.search);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const within = (p, ms) => Promise.race([p.then(() => true, () => false), sleep(ms).then(() => false)]);

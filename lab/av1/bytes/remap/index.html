@@ -4,7 +4,7 @@
 <script type="module">
   import { ARMS, round } from "../../decode/per-frame/drive.js";
   import { MUTATE, restorer } from "./restore.js";
-  const env = { worker: () => new Worker("/client/downloader/decoder.js", { type: "module" }), channel: () => new MessageChannel() };
+  const env = { worker: () => new Worker("/client/decode/decoder.js", { type: "module" }), channel: () => new MessageChannel() };
   const sides = new Map();
   // An AV1 arm is a series' items through the decoder each picks; a remapped arm's picture is restored after it.
   const av1 = (name) => (base, set) => set.arms[name] && { kind: "product", ext: set.arms[name].ext,

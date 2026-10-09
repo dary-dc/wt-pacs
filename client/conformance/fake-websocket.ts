@@ -4,7 +4,7 @@
  * a text message is one FoD message's JSON. One connection is one ordered stream, so a frame cut
  * short can only be the connection closing mid-frame.
  */
-import type { FodMsg } from "../transport-ts/wire.ts";
+import type { FodMsg } from "../transport/ts/wire.ts";
 import { frameBytes } from "./fake-transport.ts";
 
 type Handler<E> = ((e: E) => void) | null;

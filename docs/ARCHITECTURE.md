@@ -6,7 +6,7 @@ page. Below it the transport is a seam — TypeScript, WASM or WebSocket — who
 [`CLIENTS.md`](CLIENTS.md); the bytes are [`WIRE.md`](WIRE.md). What each part is for, what was
 measured and chosen, and what is open.
 
-**Status.** Built in `client/downloader/`; the lab's only client since 2026-10-03, when the harness's
+**Status.** Built in `client/transport/` and `client/decode/` ([`client/README.md`](../client/README.md)); the lab's only client since 2026-10-03, when the harness's
 own page path was removed after S4's last run on it (§The container campaign). `client/harness/index.html` is its self-check,
 `client/harness/cell.html` runs lab cells over it. Figures are a container's unless they say otherwise; none is a phone
 ([`rig-limits.md`](rig-limits.md) §7).
@@ -79,7 +79,7 @@ Stamps are epoch milliseconds (`timeOrigin + now`; each context has its own `tim
 once by the consumer: ask, first byte, last byte, dispatched, decode start, decode end, and
 `decoder`, the index of the decoder it went to. `wire bytes` is the codestream length the envelope
 declared, beside the decoded byte count; a consumer reporting traffic quotes that one
-(`client/downloader/README.md` §What a frame reports).
+(`client/README.md` §What a frame reports).
 
 **A request's identity is its generation, not its frame index.** `cancel` bumps a counter the
 downloader owns; every record, decode, decoder reply and delivery carries the generation it was made
@@ -173,7 +173,7 @@ is one handshake, shared by whoever needs a session: a command that awaited only
 beside a resumption sleeping between tries (a clause holds it). The record keeps three states, each
 read: `wire` is what a resume owes, `queued` what dispatch may take, `decoding` neither. What the
 sweep found dead — the record's generation, two guards in `promote()` — is removed; every decision
-left is held by a test (`client/downloader/README.md` §Every decision is held by a test).
+left is held by a test (`client/README.md` §Every decision is held by a test).
 *The fill's time is unchanged* — the HTJ2K frames through this downloader against the one before
 `f136363` (the arm `lab/av1/delivery/total-time/downloader_arm.sh` adds), the rest of the client the same, the real
 server behind the relay, headless Chromium, 10 rounds interleaved, 10 of 160 visits `VOID` dropped,
@@ -240,11 +240,11 @@ A multithreaded decoder is a separate question ([`decode/README.md`](decode/READ
 
 ### The seams, traced (row SEAM, 2026-10-07)
 
-A frame's path, `client/transport-ts` → `downloader.js` → `decoder.js` → `htj2k.js` or `av1.js` →
+A frame's path, `client/transport/ts` → `downloader.js` → `decoder.js` → `htj2k.js` or `av1.js` →
 `consumer.js`, was read end to end for checks made twice, paths nothing reaches and codec decisions.
-**Merged:** the Emscripten glue's loading, written out in `htj2k.js` and `decode-av1.js`, is
+**Merged:** the Emscripten glue's loading, written out in `htj2k.js` and `av1-dav1d.js`, is
 `wasm-glue.js`; the refusal of a unit that does not follow its predecessor, written out in both AV1
-decoder modules, is `continues()` in `av1-item.js`, each decoder keeping its own last unit. Not
+decoder modules, is `continues()` in `av1-payload.js`, each decoder keeping its own last unit. Not
 fewer lines (+26, −16, the new module's header included); what is gained is one place for each. **No dead path was
 found** — every branch is reached by a product option or a clause (row CLIENT's sweep). **The codec
 is decided once:** `consumer.js` refuses an unknown one before a worker starts and `decoder.js`
@@ -995,7 +995,7 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
   same certificate, `TCP_NODELAY`; `FrameOut::WebSocket` beside `Shared` and `PerFrame`, refusals
   through the same writer; one process serves both. Without the QUIC knobs, the `session path` line,
   or telemetry rows. The opening ask rides the upgrade's URL (WSA, below), with the same flag.
-* **Client**: `client/transport-ts/frame-session.ts` is everything a session does whatever carries its
+* **Client**: `client/transport/ts/frame-session.ts` is everything a session does whatever carries its
   bytes; `session.ts` and `ws-session.ts` are carriers over it, and the downloader takes either as
   `transport`. `race-session.ts` (opt-in) dials both, keeps the first ready, closes the other when its
   dial settles; an opening fill rides the WebSocket's URL alone, and is asked on QUIC if QUIC wins.

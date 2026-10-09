@@ -49,7 +49,7 @@ rustc 1.97.0) against Ubuntu 24.04's libdav1d7 1.4.1 and GStreamer 1.24.2; libao
 it. Sources read: Firefox at `FIREFOX_157_0_RELEASE` (`fdd757a2`), WebKit at `webkitgtk-2.52.6` (`4fb33923`).
 Nothing built, fetched or generated is committed.
 
-**Timing the client's change** (`decode-av1-webcodecs.js` reading 8-bit GBR as RGB): the ultrasound's first 4
+**Timing the client's change** (`av1-webcodecs.js` reading 8-bit GBR as RGB): the ultrasound's first 4
 GBR units from [`xbrowser`](../engines/README.md)'s `make_frames.py`, each wrapped as an item (header version 1,
 8 bits, no split), in a frames directory whose manifest has three arms — `htj2k`, `gbr` (the product's choice)
 and `gbr.d` (`webcodecs: false`: `xbrowser/worker.js` removes `VideoDecoder` before `decoder.js` takes its

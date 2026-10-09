@@ -8,7 +8,7 @@ import { instance, loadFixture, sha256 } from './decoder.mjs';
 
 // The product's own range pass, from the worker module: its handler slot must exist before it loads.
 globalThis.onmessage ??= null;
-const { finish, unranged } = await import('../../client/downloader/htj2k.js');
+const { finish, unranged } = await import('../../client/decode/htj2k.js');
 
 const require = createRequire(import.meta.url);
 const armsDir = process.env.ARMS || path.join(process.cwd(), 'lab/.openjph-build/wasm');

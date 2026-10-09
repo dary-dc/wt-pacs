@@ -14,7 +14,7 @@ require_browser
 require_vendor
 for rig in "${RIGS[@]}"; do
   if [[ ! -f "client/conformance/dist/$rig-rig.js" ]]; then
-    echo "run client/transport-ts/build.sh first: client/conformance/dist/$rig-rig.js is missing" >&2
+    echo "run client/transport/ts/build.sh first: client/conformance/dist/$rig-rig.js is missing" >&2
     exit 1
   fi
 done

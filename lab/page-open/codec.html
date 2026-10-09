@@ -4,20 +4,26 @@
   <meta charset="utf-8" />
   <link rel="icon" href="data:," />
   <!-- ?codec=htj2k|av1 names the series' codec, ?tree=PATH serves client/downloader from PATH (the
-       rig's copy of an earlier commit), ?pre=1 preloads the AV1 decoder's files, ?sha= is the source's
+       rig's copy of a commit before the client was split into transport/ and decode/), ?pre=1 preloads the AV1 decoder's files, ?sha= is the source's
        checksum the first frame must hash to. lab/page-open/README.md §Cold round trips by codec -->
   <script>
     const q = new URLSearchParams(location.search);
-    const tree = (globalThis.__tree = (q.get("tree") ?? "") + "/client/downloader");
+    const old = q.get("tree");
+    const tree = (globalThis.__tree = old ? old + "/client/downloader" : "/client/transport");
+    const dec = old ? tree : "/client/decode";
     const link = (rel, href, as) => document.head.append(Object.assign(document.createElement("link"), { rel, href, as }));
     link("preload", "/wt/dev-transport.json", "fetch");
     link("modulepreload", `${tree}/consumer.js`);
-    for (const f of ["downloader.js", "decoder.js"]) link("preload", `${tree}/${f}`, "script");
-    link("preload", "/client/transport-ts/dist/session.js", "script");
+    link("preload", `${tree}/downloader.js`, "script");
+    link("preload", `${dec}/decoder.js`, "script");
+    link("preload", "/client/transport/ts/dist/session.js", "script");
     if (q.get("codec") === "av1") {
       if (q.get("pre") === "1") {
-        for (const f of ["av1.js", "av1-item.js", "av1-frame.js", "decode-av1.js", "wasm-glue.js", "decode-av1-webcodecs.js", "av1-probe.js"]) {
-          link("preload", `${tree}/${f}`, "script");
+        const names = old
+          ? ["av1.js", "av1-item.js", "av1-frame.js", "decode-av1.js", "wasm-glue.js", "decode-av1-webcodecs.js", "av1-probe.js"]
+          : ["av1.js", "av1-payload.js", "av1-frame.js", "av1-dav1d.js", "wasm-glue.js", "av1-webcodecs.js", "av1-probe.js"];
+        for (const f of names) {
+          link("preload", `${dec}/${f}`, "script");
         }
         link("preload", "/lab/.av1-build/out/simd.js", "fetch");
         link("preload", "/lab/.av1-build/out/simd.wasm", "fetch");

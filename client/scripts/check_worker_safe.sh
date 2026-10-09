@@ -6,16 +6,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-wasm=client/transport-wasm/pkg/transport_wasm_bg.wasm
-artifacts=(client/transport-ts/dist/session.js client/transport-ts/dist/ws-session.js
-  client/transport-ts/dist/race-session.js client/transport-wasm/pkg/transport_wasm.js)
+wasm=client/transport/wasm/pkg/transport_wasm_bg.wasm
+artifacts=(client/transport/ts/dist/session.js client/transport/ts/dist/ws-session.js
+  client/transport/ts/dist/race-session.js client/transport/wasm/pkg/transport_wasm.js)
 
 command -v strings >/dev/null || { echo "strings is missing (binutils)" >&2; exit 2; }
 bad=0
 for f in "${artifacts[@]}" "$wasm"; do
   [[ -f "$f" ]] || {
-    echo "missing $f — build both clients first: client/transport-ts/build.sh and" \
-      "client/transport-wasm/build.sh (README.md §Prerequisites)" >&2
+    echo "missing $f — build both clients first: client/transport/ts/build.sh and" \
+      "client/transport/wasm/build.sh (README.md §Prerequisites)" >&2
     exit 2
   }
 done

@@ -26,7 +26,7 @@ JS+WASM bytes, and the twin arms report each worker's WASM heap directly.
 
 | query | |
 | - | - |
-| `arm` | `prod` (`client/downloader/decoder.js` as adopted) · `perdec1` (it, one frame in flight per worker) · `twin` (the bench's copy in the product's configuration) · `fresh` (a decoder object per frame) · `share` (one `WebAssembly.Module` compiled on the page for every worker) |
+| `arm` | `prod` (`client/decode/decoder.js` as adopted) · `perdec1` (it, one frame in flight per worker) · `twin` (the bench's copy in the product's configuration) · `fresh` (a decoder object per frame) · `share` (one `WebAssembly.Module` compiled on the page for every worker) |
 | `decoders` | workers, default 3 |
 | `series` | a `lab/fixtures/decode_*` set, default `decode_g512` (237 × 512×512 × 16-bit) |
 | `mutate` | `pixel` — flip a sample before the digest · `skip` — drop every fifth frame |

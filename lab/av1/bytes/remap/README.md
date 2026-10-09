@@ -88,7 +88,7 @@ frame it took 108 s against 4.4 s for 0.09 % fewer bytes. **w10** is k = b − 1
 
 ## Decode (2026-10-07)
 
-Decode time a frame through the product's worker (`client/downloader/decoder.js`), the item picking its decoder —
+Decode time a frame through the product's worker (`client/decode/decoder.js`), the item picking its decoder —
 dav1d-WASM where a stream is 12-bit (k = 2 on the source, a map at k = 0), WebCodecs where every stream is ≤ 10 bits
 (w10, a map at k = 2) — and a remapped arm's map applied after the worker on the page (inflate and scatter, or the
 palette's table), its time added. Headless Chromium 141 in the container (4 cores), 10 rounds, each throttle a fresh

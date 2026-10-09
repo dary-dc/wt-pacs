@@ -125,7 +125,7 @@ compression), or a stage that can only be stamped inside the session. Neither is
 
 | Arm | Build | Loaded by |
 | --- | --- | --- |
-| TS | `client/transport-ts/build.sh` → `dist/session.telemetry.js` (entry `session-telemetry.ts`), the downloader's transport | `client/harness/cell.html?telemetry=1` |
+| TS | `client/transport/ts/build.sh` → `dist/session.telemetry.js` (entry `session-telemetry.ts`), the downloader's transport | `client/harness/cell.html?telemetry=1` |
 | WASM | none | not recorded since 2026-10-03: the harness refuses `telemetry=1` with `transport=wasm`, and `verify_e2e.py --telemetry` with a non-TS `--harness` |
 
 *Corrected 2026-10-03:* the WASM row named a `WTPACS_TELEMETRY_BUILD=1` build into `pkg-telemetry/`

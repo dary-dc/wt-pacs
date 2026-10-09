@@ -4,7 +4,7 @@ members = [
     "common/frame-envelope",
     "ingest/study-bundle",
     "server",
-    "client/transport-wasm",
+    "client/transport/wasm",
     "tools/pack-study",
     "tools/check-fastpath",
     "lab/disk-access-bench",

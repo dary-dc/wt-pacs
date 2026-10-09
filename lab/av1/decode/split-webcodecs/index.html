@@ -3,7 +3,7 @@
 <title>AV1 SPLIT10</title>
 <script type="module">
   import { ARMS, round } from "../per-frame/drive.js";
-  const kinds = { product: "/client/downloader/decoder.js", split: "/lab/av1/decode/split-webcodecs/split-worker.js" };
+  const kinds = { product: "/client/decode/decoder.js", split: "/lab/av1/decode/split-webcodecs/split-worker.js" };
   const env = { worker: (kind) => new Worker(kinds[kind], { type: "module" }), channel: () => new MessageChannel() };
   const dav1d = (base) => ({ glue: `${base}/lab/.av1-build/out/simd.js`, wasm: `${base}/lab/.av1-build/out/simd.wasm`,
     dir: `${base}/lab/.av1-build/out` });

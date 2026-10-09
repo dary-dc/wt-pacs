@@ -104,20 +104,20 @@ def main() -> int:
         subprocess.run([str(ROOT / "server/scripts/gen_dev_cert.sh")], check=True, cwd=ROOT)
 
     want_wasm = args.harness in ("wasm", "both")
-    pkg_js = ROOT / "client/transport-wasm/pkg/transport_wasm.js"
+    pkg_js = ROOT / "client/transport/wasm/pkg/transport_wasm.js"
     if want_wasm and not pkg_js.is_file():
-        subprocess.run([str(ROOT / "client/transport-wasm/build.sh")], check=True, cwd=ROOT)
+        subprocess.run([str(ROOT / "client/transport/wasm/build.sh")], check=True, cwd=ROOT)
 
     # transport-ts dist/ is gitignored — build product (and telemetry) bundles when needed.
-    ts_js = ROOT / "client/transport-ts/dist/session.js"
-    ts_tel = ROOT / "client/transport-ts/dist/session.telemetry.js"
+    ts_js = ROOT / "client/transport/ts/dist/session.js"
+    ts_tel = ROOT / "client/transport/ts/dist/session.telemetry.js"
     want_ts = args.harness in ("ts", "both")
     need_ts = want_ts and (
         not ts_js.is_file() or (args.telemetry and not ts_tel.is_file())
     )
     if need_ts:
         subprocess.run(
-            ["bash", str(ROOT / "client/transport-ts/build.sh")],
+            ["bash", str(ROOT / "client/transport/ts/build.sh")],
             check=True,
             cwd=ROOT,
         )

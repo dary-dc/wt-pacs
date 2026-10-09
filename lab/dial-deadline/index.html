@@ -21,13 +21,13 @@
         const wt = new WebTransport(url, { serverCertificateHashes: [{ algorithm: "sha-256", value: hex(hash) }] });
         await wt.ready;
       },
-      ts: async () => (await import("/client/transport-ts/dist/session.js")).TransportSession.connect(url, hash),
+      ts: async () => (await import("/client/transport/ts/dist/session.js")).TransportSession.connect(url, hash),
       wasm: async () => {
-        const mod = await import("/client/transport-wasm/pkg/transport_wasm.js");
+        const mod = await import("/client/transport/wasm/pkg/transport_wasm.js");
         await mod.default();
         return mod.TransportSessionHandle.connect(url, hash);
       },
-      downloader: async () => (await import("/client/downloader/consumer.js")).DownloaderClient.connect(url, hash, {
+      downloader: async () => (await import("/client/transport/consumer.js")).DownloaderClient.connect(url, hash, {
         decoders: 1,
         decoder: {
           glue: "/client/decode/wasm/vendor/openjph/openjphjs.js",

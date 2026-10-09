@@ -13,21 +13,21 @@ const OUT = path.join(ROOT, "lab/page-open/boot");
 export const BOOT_STAGES = ["bundle", "blob", "both", "page"];
 export const BUNDLE = "/lab/page-open/boot/downloader.bundle.js";
 
-const WORKER_PRELOAD = '  <link rel="preload" as="script" href="/client/downloader/downloader.js" />';
-const CONSUMER_PRELOAD = '  <link rel="modulepreload" href="/client/downloader/consumer.js" />';
-const CONSUMER_IMPORT = '    import { DownloaderClient } from "/client/downloader/consumer.js";';
+const WORKER_PRELOAD = '  <link rel="preload" as="script" href="/client/transport/downloader.js" />';
+const CONSUMER_PRELOAD = '  <link rel="modulepreload" href="/client/transport/consumer.js" />';
+const CONSUMER_IMPORT = '    import { DownloaderClient } from "/client/transport/consumer.js";';
 const TRANSPORT_IMPORT = "import(cfg.transport ?? DEFAULT_TRANSPORT)";
 
 function bundle() {
-  const esbuild = createRequire(path.join(ROOT, "client/transport-ts/package.json"))("esbuild");
-  const src = path.join(ROOT, "client/downloader/downloader.js");
+  const esbuild = createRequire(path.join(ROOT, "client/transport/ts/package.json"))("esbuild");
+  const src = path.join(ROOT, "client/transport/downloader.js");
   const code = fs.readFileSync(src, "utf8");
   if (!code.includes(TRANSPORT_IMPORT)) throw new Error(`downloader.js no longer has ${TRANSPORT_IMPORT}`);
   // A literal specifier is one esbuild inlines; the seam stays for a page that names another transport.
   const inlined = code.replace(TRANSPORT_IMPORT, `(cfg.transport ? import(cfg.transport) : import("wtpacs-transport"))`);
   const out = esbuild.buildSync({
     stdin: { contents: inlined, resolveDir: path.dirname(src), sourcefile: "downloader.js" },
-    alias: { "wtpacs-transport": path.join(ROOT, "client/transport-ts/session.ts") },
+    alias: { "wtpacs-transport": path.join(ROOT, "client/transport/ts/session.ts") },
     bundle: true, format: "esm", platform: "browser", target: "es2022", write: false,
   });
   const js = out.outputFiles[0].text;
@@ -50,8 +50,8 @@ export function buildBoot() {
     if (!page.includes(line)) throw new Error(`first-byte.html no longer has ${line.trim()}`);
   }
   const js = bundle();
-  const worker = fs.readFileSync(path.join(ROOT, "client/downloader/downloader.js"), "utf8");
-  const consumer = fs.readFileSync(path.join(ROOT, "client/downloader/consumer.js"), "utf8");
+  const worker = fs.readFileSync(path.join(ROOT, "client/transport/downloader.js"), "utf8");
+  const consumer = fs.readFileSync(path.join(ROOT, "client/transport/consumer.js"), "utf8");
   if (!consumer.includes("export class DownloaderClient")) throw new Error("consumer.js no longer exports the class alone");
   if (/<\/script/i.test(consumer)) throw new Error("consumer.js holds </script and cannot be inlined");
   const both = embed(page.replace(WORKER_PRELOAD + "\n", ""), js);

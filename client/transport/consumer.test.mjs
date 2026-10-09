@@ -1,4 +1,4 @@
-// node client/downloader/consumer.test.mjs — what `connect` refuses before it starts a worker.
+// node client/transport/consumer.test.mjs — what `connect` refuses before it starts a worker.
 import { DownloaderClient } from "./consumer.js";
 
 let failed = 0;

@@ -37,16 +37,16 @@ async function load(rel: string) {
 }
 
 export async function typescriptImpl(): Promise<Implementation> {
-  return sessionImpl("transport-ts", "client/transport-ts/dist/session.js");
+  return sessionImpl("transport-ts", "client/transport/ts/dist/session.js");
 }
 
 export async function websocketImpl(): Promise<Implementation> {
-  return { ...(await sessionImpl("transport-ws", "client/transport-ts/dist/ws-session.js")), overWebSocket: true };
+  return { ...(await sessionImpl("transport-ws", "client/transport/ts/dist/ws-session.js")), overWebSocket: true };
 }
 
 /** Either carrier, whichever dials first: the race's winner is one of the two above. */
 export async function raceImpl(): Promise<Implementation> {
-  return sessionImpl("transport-race", "client/transport-ts/dist/race-session.js");
+  return sessionImpl("transport-race", "client/transport/ts/dist/race-session.js");
 }
 
 async function sessionImpl(name: string, bundle: string): Promise<Implementation> {
@@ -74,7 +74,7 @@ async function sessionImpl(name: string, bundle: string): Promise<Implementation
 
 /** The product's build, or another of the same client: `WTPACS_WASM_PKG` runs the suite on a
  *  feature build without displacing `pkg/`. */
-export const WASM_PKG = process.env.WTPACS_WASM_PKG || path.join(root, "client/transport-wasm/pkg");
+export const WASM_PKG = process.env.WTPACS_WASM_PKG || path.join(root, "client/transport/wasm/pkg");
 
 export function wasmBuilt(): boolean {
   return fs.existsSync(path.join(WASM_PKG, "transport_wasm_bg.wasm"));

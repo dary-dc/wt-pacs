@@ -5,7 +5,7 @@
  *
  *   ?arm=htj2k|av1|webcodecs|EXT[@T][/D]&fill=N&wt=URL&hash=CERT_SHA256[&wc=av01…]
  */
-import { DownloaderClient } from "/client/downloader/consumer.js";
+import { DownloaderClient } from "/client/transport/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const ARM = q.get("arm");

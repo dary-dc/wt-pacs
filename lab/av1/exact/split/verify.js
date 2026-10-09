@@ -1,12 +1,12 @@
 /**
- * One item through the client's reader (client/downloader/av1.js), in Node or a browser worker: which
+ * One item through the client's reader (client/decode/av1.js), in Node or a browser worker: which
  * decoder gave its pictures, each stream's picture against the stream the writer planned from the
  * source (top = v ≫ k, low = v & (2^k − 1), v after the series' offset), and the merged frame's SHA-256
  * against the source's, and the range the contract reports against the source's. Queue row 43; README.md
  */
-import { parseItem } from "../../../../client/downloader/av1-item.js";
+import { parseItem } from "../../../../client/decode/av1-payload.js";
 
-const AV1 = new URL("../../../../client/downloader/av1.js", import.meta.url);
+const AV1 = new URL("../../../../client/decode/av1.js", import.meta.url);
 let calls = [];
 let planned = null;
 
@@ -30,7 +30,7 @@ export async function reader(d) {
       }
     },
   });
-  const names = { "./decode-av1.js": "dav1d", "./decode-av1-webcodecs.js": "webcodecs" };
+  const names = { "./av1-dav1d.js": "dav1d", "./av1-webcodecs.js": "webcodecs" };
   await av1.init(d, async (path) => wrap(names[path], await import(new URL(path, AV1).href)));
   return av1;
 }
