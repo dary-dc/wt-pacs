@@ -7,7 +7,7 @@ against decoders, and where the time goes. Queue row 27 (DECSPEED) of
 
 ```bash
 lab/av1/tools/tools.sh && ARMS="simd simd-mt simd-prof" client/decode/wasm/dav1d/build.sh
-client/decode/wasm/fetch_openjph.sh && client/transport-ts/build.sh     # as lab/av1/delivery/fill
+client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh     # as lab/av1/delivery/fill
 lab/av1/fetch_data.sh rf_fluoro mr_ispy1 us_liver
 JOBS=4 lab/av1/.venv/bin/python lab/av1/decode/settings/make_variants.py lab/.av1-build lab/.av1-work/decspeed \
   lab/av1/data/rf_fluoro lab/av1/data/mr_ispy1 lab/av1/data/us_liver               # ~30 min
@@ -39,7 +39,7 @@ series was fetched, and stops on the first that is not exact. **All 9 variants w
 
 Bytes over HTJ2K's, whole series. Tiles cost 0.1–0.4 %.
 
-**Profile** (`profile.mjs`: the product's `decode-av1.js` on the `simd-prof` build in Node 22,
+**Profile** (`profile.mjs`: the product's `av1-dav1d.js` on the `simd-prof` build in Node 22,
 V8's sampling profiler at 100 µs, self time by function and stage, every frame exact; `--mutate
 sample` made it 0 exact on every series). One thread, 2 decodes of every frame:
 

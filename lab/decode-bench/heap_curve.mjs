@@ -26,7 +26,7 @@ const arms = [];
 for (const spec of armSpecs) {
   const [label, dir] = spec.split('=');
   const M = await require(path.join(dir, 'plain.js'))();
-  // One decoder object for every frame, which is what the product holds — client/downloader/decoder.js.
+  // One decoder object for every frame, which is what the product holds — client/decode/decoder.js.
   arms.push({ label, M, d: new M.HTJ2KDecoder(), atLoad: M.HEAPU8.length });
 }
 

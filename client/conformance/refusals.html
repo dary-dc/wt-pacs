@@ -32,12 +32,12 @@
     async function loadSession(cfg) {
       if (client === "wasm") {
         const { default: init, TransportSessionHandle } =
-          await import("/client/transport-wasm/pkg/transport_wasm.js");
+          await import("/client/transport/wasm/pkg/transport_wasm.js");
         await init();
         return TransportSessionHandle.connect(cfg.wt_url, cfg.cert_sha256);
       }
       const bundle = client === "ws" ? "ws-session.js" : "session.js";
-      const { TransportSession } = await import(`/client/transport-ts/dist/${bundle}`);
+      const { TransportSession } = await import(`/client/transport/ts/dist/${bundle}`);
       return TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
     }
 

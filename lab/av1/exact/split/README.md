@@ -12,7 +12,7 @@ rule is adopted. Correctness only, nothing timed. The format it widened is
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
 P=lab/av1/.venv/bin/python W=lab/.av1-work/splitok
 $P lab/av1/exact/split/merge_test.py                                # the writer's split and merge, every v
-node client/downloader/av1.test.mjs                             # the reader's, every v; the golden matrix
+node client/decode/av1.test.mjs                             # the reader's, every v; the golden matrix
 $P lab/av1/exact/split/make_sets.py $W/sets                         # the synthetic sources, ~1 s
 $P lab/av1/exact/split/run.py lab/.av1-build $W/sets $W/items       # cpu0 and allintra 7, native check; ~25 min
 node lab/av1/exact/split/check.mjs $W/sets $W/items                 # the reader in Node, ~10 s
@@ -35,7 +35,7 @@ frame's SHA-256 is written as it is made; a signed source of 8 bits is stored as
 writes nothing unless native dav1d decodes each item back to its source; a colour set in its plain and
 optimized shapes. `shipped` is each real series' fastest preset within 2 % of cpu0 (rows 14 and 33).
 
-**`verify.js`** (Node and the browsers' worker) runs an item through `client/downloader/av1.js` with
+**`verify.js`** (Node and the browsers' worker) runs an item through `client/decode/av1.js` with
 each decoder module wrapped: it names the decoder that gave the item's pictures, checks each stream's
 picture, when it is returned, against the stream planned from the source, and the merged frame's
 SHA-256 and range against the source's. `browser.mjs` serves the items to Chromium, Firefox and

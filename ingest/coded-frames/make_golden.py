@@ -5,7 +5,7 @@
   client/conformance/av1/items/{plain,optimized}/NAME.sha256 the source samples' checksum
   client/conformance/av1/items/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range (row GREY420)
   client/conformance/av1/items/matrix/b{B}k{K}{u,s}.av1       row 43: every (bits, split, sign) a rule could pick
-  client/downloader/av1-probe.js                              a 16×16 unit per layout WebCodecs may take
+  client/decode/av1-probe.js                              a 16×16 unit per layout WebCodecs may take
 
 Every source is written with the checksum of its samples before anything codes it; ingest.py
 writes an item only if it decodes back to that. A probe's FNV-1a is of its coded planes as made
@@ -28,7 +28,7 @@ import ingest  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ITEMS = ROOT / "client/conformance/av1/items"
-PROBE = ROOT / "client/downloader/av1-probe.js"
+PROBE = ROOT / "client/decode/av1-probe.js"
 W, H = 64, 48
 
 # name: channels, min, max, signed — each a depth or a layout the item format treats apart

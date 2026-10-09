@@ -3,7 +3,7 @@
  * any other unit only after its predecessor, here. Build: client/decode/wasm/dav1d; seam: docs/av1/adr-unit.md §2–3.
  */
 import { neutral } from "./av1-frame.js";
-import { continues } from "./av1-item.js";
+import { continues } from "./av1-payload.js";
 import { instantiate } from "./wasm-glue.js";
 
 let M = null;

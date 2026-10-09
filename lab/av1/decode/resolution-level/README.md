@@ -16,7 +16,7 @@ for s in ffdm_a ffdm_b ffdm_c ffdm_d syn2d_a syn2d_b syn2d_c syn2d_d dbt12_c dbt
 done; wait
 node lab/av1/decode/resolution-level/prefix.mjs lab/.av1-build $W                              # and --mutate prefix|truth
 NODE_PATH=$(npm root -g) node lab/av1/decode/resolution-level/bench.mjs --rounds 10 --out $W/bench.json   # ~40 min; --mutate
-cargo build --release -p exact-server -p pack-study && client/transport-ts/build.sh
+cargo build --release -p exact-server -p pack-study && client/transport/ts/build.sh
 for r in $(seq 0 9); do                                                          # ~20 min a round
   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W --sets ffdm_a,syn2d_b,ffdm_d,dbt12_c,dbt10_d \
     --rounds 1 --first-round $r --out $W/links.jsonl

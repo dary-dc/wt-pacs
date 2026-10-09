@@ -94,8 +94,8 @@ the frame.
 ## Built (row 39, branch `claude/av1-unified`)
 
 The writer is [`ingest/coded-frames/ingest.py`](../../ingest/coded-frames/README.md), `pack-study` bundles its items when the metadata
-says `"codec": "av1"`, and the reader is `client/downloader/av1.js` with `av1-item.js` (the header and its refusals) and
-`av1-frame.js` (the merge) — [`client/downloader/README.md`](../../client/downloader/README.md) §An AV1 series. The
+says `"codec": "av1"`, and the reader is `client/decode/av1.js` with `av1-payload.js` (the header and its refusals) and
+`av1-frame.js` (the merge) — [`client/README.md`](../../client/README.md) §An AV1 series. The
 per-layout probes are 16×16 units (grey 8/10, 4:4:4 8/10, and 8-bit grey as 4:2:0 since row GREY420) in `av1-probe.js`, checked by an FNV-1a of their planes. On
 the first 8 frames of the fluoroscopy, CT, MR and ultrasound series, both representations, all 96 items were written and
 decoded by the reader to their sources; optimized over plain matches row 28 to the third digit

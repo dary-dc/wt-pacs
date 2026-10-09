@@ -1,5 +1,5 @@
 /**
- * client/downloader/decoder.js with one change, for docs/decode/README.md §The decode tail: the pixel
+ * client/decode/decoder.js with one change, for docs/decode/README.md §The decode tail: the pixel
  * buffer is reused, so decoding a frame allocates nothing. Pixels the consumer holds are overwritten.
  */
 let M = null;

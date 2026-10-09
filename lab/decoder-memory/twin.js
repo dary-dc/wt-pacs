@@ -1,5 +1,5 @@
 /**
- * `client/downloader/decoder.js` with one knob per candidate mechanism, so an arm differs from the
+ * `client/decode/decoder.js` with one knob per candidate mechanism, so an arm differs from the
  * product by one line: `reuse` (one decoder object for the worker's life, or one per frame) and
  * `module` (a WebAssembly.Module compiled once on the page and shared, or this worker's own
  * compile of a wasmBinary). docs/decode/README.md §What a decoder worker costs, resident

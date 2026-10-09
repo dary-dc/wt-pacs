@@ -44,7 +44,7 @@ product's `av1-frame.js`, so a base and an exact frame are timed to the same poi
 | --- | --- | --- | --- |
 | `wc-base` | WebCodecs, `prefer-software` | the filtered unit | the base |
 | `wc-all` | WebCodecs | the whole unit | the exact frame |
-| `dav1d-base` | `decode-av1.js` (row SVCDEC: dav1d-WASM `simd`, `all_layers` 1, the unit drained) | the whole unit | its `preview` |
+| `dav1d-base` | `av1-dav1d.js` (row SVCDEC: dav1d-WASM `simd`, `all_layers` 1, the unit drained) | the whole unit | its `preview` |
 | `dav1d-all` | the same call | the whole unit | the exact frame |
 
 WebCodecs requires a key chunk after every `flush()`, so a unit can be flushed for its picture only

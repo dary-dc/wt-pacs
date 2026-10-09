@@ -9,7 +9,7 @@ exactly (row XENGINE: Firefox refuses monochrome, and expands limited-range grey
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
 client/decode/wasm/fetch_openjph.sh
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160      # builds ojph_compress once
-client/transport-ts/build.sh
+client/transport/ts/build.sh
 lab/av1/fetch_data.sh usb_cine usb_still
 P=lab/av1/.venv/bin/python W=lab/.av1-work/grey420
 for s in usb_still usb_cine; do

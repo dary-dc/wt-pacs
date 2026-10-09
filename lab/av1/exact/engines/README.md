@@ -1,7 +1,7 @@
 # xbrowser
 
-The client's AV1 decode path as it is — `decoder.js` choosing `decode-av1-webcodecs.js` at `depth` ≤ 10
-where `VideoDecoder` exists, `decode-av1.js` (dav1d-WASM `simd`) otherwise — in Chromium, Firefox and
+The client's AV1 decode path as it is — `decoder.js` choosing `av1-webcodecs.js` at `depth` ≤ 10
+where `VideoDecoder` exists, `av1-dav1d.js` (dav1d-WASM `simd`) otherwise — in Chromium, Firefox and
 WebKit, against its HTJ2K path in the same engine. Queue row 37 (XBROWSER) of
 [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the verdict is in
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §AV1 in WebKit and Firefox.

@@ -30,7 +30,7 @@ with `{ stallMs: 1000 }` — what the default wait costs, not a proposed default
 1000, probeMs: 800 }` while the client probed, before 2026-09-24).
 `today` passes `survival: false` and does what a page could do without resumption: it re-asks for
 what it is missing the moment the transport reports the fill gone. That is a **generous** baseline:
-a real page today gets the frames named and the fill failed (`client/downloader/README.md`) and has
+a real page today gets the frames named and the fill failed (`client/README.md`) and has
 to do something about it; this one does the best possible thing instantly. Every round runs all
 three, order rotated.
 

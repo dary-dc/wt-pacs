@@ -4,7 +4,7 @@
 <script type="module">
   import { ARMS, round } from "../per-frame/drive.js";
   // `before` is client/downloader as before.sh copied it; `after` is the tree's own.
-  const WORKER = { before: "/lab/.av1-work/decode/before/decoder.js", after: "/client/downloader/decoder.js" };
+  const WORKER = { before: "/lab/.av1-work/decode/before/decoder.js", after: "/client/decode/decoder.js" };
   const env = { worker: (kind) => new Worker(WORKER[kind], { type: "module" }), channel: () => new MessageChannel() };
   // htj2k-T: the shipped OpenJPH package; item-T: the item's own choice of decoder (WebCodecs where every stream is ≤ 10 bits).
   const kinds = new Proxy({}, { get: (_, name) => {

@@ -34,7 +34,7 @@ trap "exit 143" TERM INT
 # Release: a debug server and client at 40 Mbit leave the relay late (VOID) half the time.
 nice -n 19 cargo build -q --release -p exact-server --features exact-server/telemetry -p pack-study -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/release"
-bash client/transport-ts/build.sh > /dev/null
+bash client/transport/ts/build.sh > /dev/null
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
   -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature' \

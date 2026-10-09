@@ -17,8 +17,8 @@ fi
 CHROME="$(node -e 'console.log(process.env.CHROME_PATH || require("playwright").chromium.executablePath())' 2>/dev/null || true)"
 [[ -x "$CHROME" ]] || { echo "SKIPPED: downloader both clients — no headless Chromium"; exit 0; }
 export CHROME_PATH="$CHROME"
-[[ -f client/transport-wasm/pkg/transport_wasm_bg.wasm ]] || {
-  echo "SKIPPED: downloader both clients — no pkg/, run client/transport-wasm/build.sh"; exit 0; }
+[[ -f client/transport/wasm/pkg/transport_wasm_bg.wasm ]] || {
+  echo "SKIPPED: downloader both clients — no pkg/, run client/transport/wasm/build.sh"; exit 0; }
 
 ROUNDS="${ROUNDS:-4}"
 FRAMES="${FRAMES:-12}"
@@ -69,7 +69,7 @@ for r in $(seq 1 "$ROUNDS"); do
   if (( r % 2 )); then arms=(ts wasm); else arms=(wasm ts); fi
   for arm in "${arms[@]}"; do
     url="http://127.0.0.1:$PORT/harness/"
-    if [[ "$arm" == wasm ]]; then url="$url?transport=/client/transport-wasm/session-adapter.js"; fi
+    if [[ "$arm" == wasm ]]; then url="$url?transport=/client/transport/wasm/session-adapter.js"; fi
     out="$(node client/conformance/drive_page.cjs "$url" 2>&1)" || { printf '%s\n' "$out" >&2; exit 1; }
     printf '%s\t%s\n' "$arm" "$(tr '\n' '|' <<<"$out")" >> "$T/rows.tsv"
   done

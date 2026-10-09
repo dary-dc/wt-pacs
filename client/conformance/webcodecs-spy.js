@@ -4,7 +4,7 @@
  * decoder on a one-byte unit, as a decode error would; `fail` on any unit over 1 500 bytes, which no
  * probe is; `stale` hands over the previous unit's frame before each frame; `none` is a browser without one.
  */
-import "/client/downloader/decoder.js";
+import "/client/decode/decoder.js";
 
 const q = new URL(import.meta.url).searchParams;
 const mode = q.get("mode");

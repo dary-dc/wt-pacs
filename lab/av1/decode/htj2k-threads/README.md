@@ -26,7 +26,7 @@ NODE_PATH=$(npm root -g) node lab/av1/decode/htj2k-profile/threads.mjs --rounds 
 # A fill: whole series, the product's downloader and decoder worker (~10 min a round)
 for s in rf_fluoro dbt12_ea1141 dbtproj_ge ffdm_d; do
   lab/av1/.venv/bin/python lab/av1/decode/htj2k-threads/make_frames.py lab/.av1-work/htj2kmt-fill $D/$s; done
-client/transport-ts/build.sh
+client/transport/ts/build.sh
 for r in $(seq 0 9); do NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --rounds 1 --first-round $r \
   --links r50000,lte-good --throttles 1,4 --sets rf_fluoro,dbt12_ea1141,dbtproj_ge,ffdm_d \
   --arms htj2k,web,cb2,cb4 --frames lab/.av1-work/htj2kmt-fill --out fill.jsonl; done

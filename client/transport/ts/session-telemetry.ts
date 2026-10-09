@@ -4,8 +4,8 @@
  * carries the Tap's `stream_mode`.
  */
 
-import { install } from "../record/install.ts";
-import { wrapSession } from "../record/wrap-session.ts";
+import { install } from "../../record/install.ts";
+import { wrapSession } from "../../record/wrap-session.ts";
 import type { ConnectOptions } from "./frame-session.ts";
 import { TransportSession as Inner } from "./session.ts";
 import { encodeFodMsg } from "./wire.ts";

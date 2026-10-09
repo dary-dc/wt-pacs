@@ -1,5 +1,5 @@
 // WebCodecs' AV1 decoder behind decoder.js's protocol and output: one chunk, flushed, copied out and
-// interleaved R, G, B from planes G, B, R into a SharedArrayBuffer, as decode-av1.js returns it.
+// interleaved R, G, B from planes G, B, R into a SharedArrayBuffer, as av1-dav1d.js returns it.
 // 8-bit 4:4:4 only: the one shape here WebCodecs returns exactly (docs/decode/README.md §AV1).
 let decoder = null;
 let toConsumer = null;

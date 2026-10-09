@@ -1,10 +1,10 @@
 /**
- * One AV1 stream's unit through WebCodecs, as a picture av1-frame.js merges, as decode-av1.js: a keyframe
+ * One AV1 stream's unit through WebCodecs, as a picture av1-frame.js merges, as av1-dav1d.js: a keyframe
  * decodes alone, any other unit only after its predecessor, here. Only ≤ 10 bits, where it is exact.
  * docs/decode/README.md §AV1
  */
 import { neutral } from "./av1-frame.js";
-import { codecString, continues, sequence } from "./av1-item.js";
+import { codecString, continues, sequence } from "./av1-payload.js";
 import { PROBES } from "./av1-probe.js";
 
 let groupLength = 1;

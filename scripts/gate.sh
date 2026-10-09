@@ -18,10 +18,10 @@ done
 step() { printf '\n== %s\n' "$*"; }
 
 step "prerequisites: a WASM pkg/ built from this tree; playwright, Chromium and the decoder vendor"
-wasm=client/transport-wasm/pkg/transport_wasm_bg.wasm
-[[ -f "$wasm" ]] || { echo "missing $wasm: client/transport-wasm/build.sh (README.md §Prerequisites)" >&2; exit 2; }
-stale="$(find client/transport-wasm/src client/transport-wasm/Cargo.toml common -newer "$wasm" -print -quit)"
-[[ -z "$stale" ]] || { echo "stale pkg/: $stale is newer than $wasm; client/transport-wasm/build.sh" >&2; exit 2; }
+wasm=client/transport/wasm/pkg/transport_wasm_bg.wasm
+[[ -f "$wasm" ]] || { echo "missing $wasm: client/transport/wasm/build.sh (README.md §Prerequisites)" >&2; exit 2; }
+stale="$(find client/transport/wasm/src client/transport/wasm/Cargo.toml common -newer "$wasm" -print -quit)"
+[[ -z "$stale" ]] || { echo "stale pkg/: $stale is newer than $wasm; client/transport/wasm/build.sh" >&2; exit 2; }
 if [[ $browser -eq 1 ]]; then
   source client/conformance/browser_env.sh
   require_browser
@@ -38,13 +38,13 @@ step "quinn: the opt-in GSO patch still applies to crates.io quinn"
 scripts/patch_crate.sh quinn --check
 
 step "client: build bundles + unit tests"
-bash client/transport-ts/build.sh >/dev/null
+bash client/transport/ts/build.sh >/dev/null
 node client/record/test/run.mjs | tail -1
-node client/transport-ts/test/run.mjs | tail -1
-node client/downloader/htj2k.test.mjs
-node client/downloader/downloader.test.mjs
-node client/downloader/consumer.test.mjs
-node client/downloader/av1.test.mjs
+node client/transport/ts/test/run.mjs | tail -1
+node client/decode/htj2k.test.mjs
+node client/transport/downloader.test.mjs
+node client/transport/consumer.test.mjs
+node client/decode/av1.test.mjs
 python3 server/dev-server.test.py 2>&1 | tail -1
 node client/paint/voi.test.mjs
 
@@ -66,9 +66,9 @@ if [[ $browser -eq 1 ]]; then
 fi
 
 step "client: type-check (product, shared record, conformance and transport-ts tests)"
-(cd client/transport-ts && npx tsc -p tsconfig.check.json)
-(cd client/transport-ts && npx tsc -p ../record/tsconfig.json)
-(cd client/transport-ts && npx tsc -p ../conformance/tsconfig.json)
+(cd client/transport/ts && npx tsc -p tsconfig.check.json)
+(cd client/transport/ts && npx tsc -p ../../record/tsconfig.json)
+(cd client/transport/ts && npx tsc -p ../../conformance/tsconfig.json)
 
 step "lab: the arm order and its predecessor split"
 node lab/order.test.mjs

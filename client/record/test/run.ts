@@ -1,6 +1,6 @@
 /**
  * Unit tests for client/record/ — run with:
- *   bash client/transport-ts/build.sh && node client/record/test/run.mjs
+ *   bash client/transport/ts/build.sh && node client/record/test/run.mjs
  * or: node --experimental-strip-types client/record/test/run.ts
  */
 

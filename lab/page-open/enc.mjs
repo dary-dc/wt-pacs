@@ -32,10 +32,10 @@ const ENCODERS = {
 const ARMS = (process.env.ARMS || Object.keys(ENCODERS).join(",")).split(",");
 /** What the page fetches of the types the template compresses (its `gzip_types`). */
 const ASSETS = [
-  "client/downloader/consumer.js", "client/downloader/downloader.js", "client/downloader/decoder.js",
-  "client/transport-ts/dist/session.js",
-  "client/transport-wasm/session-adapter.js", "client/transport-wasm/pkg/transport_wasm.js",
-  "client/transport-wasm/pkg/transport_wasm_bg.wasm",
+  "client/transport/consumer.js", "client/transport/downloader.js", "client/decode/decoder.js",
+  "client/transport/ts/dist/session.js",
+  "client/transport/wasm/session-adapter.js", "client/transport/wasm/pkg/transport_wasm.js",
+  "client/transport/wasm/pkg/transport_wasm_bg.wasm",
   "client/decode/wasm/vendor/openjph/openjphjs.js", "client/decode/wasm/vendor/openjph/openjphjs.wasm",
   "lab/page-open/metadata.json",
 ];
@@ -140,7 +140,7 @@ function milestones(events) {
 }
 
 const SHORT = {
-  bundle: "client/downloader/consumer.js", transportWasm: "client/transport-wasm/pkg/transport_wasm_bg.wasm",
+  bundle: "client/transport/consumer.js", transportWasm: "client/transport/wasm/pkg/transport_wasm_bg.wasm",
   decoderWasm: "client/decode/wasm/vendor/openjph/openjphjs.wasm", meta: "lab/page-open/metadata.json",
 };
 

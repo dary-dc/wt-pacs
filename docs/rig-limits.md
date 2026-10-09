@@ -47,7 +47,7 @@ Measured 2026-09-19 in an agent container: 4 vCPU Xeon 2.8 GHz, headless Chromiu
 320 asks. Six repeats, arms interleaved with the order reversed, paired against `shared` per
 repeat. `lab/scripts/browser_receive.py` reads per-thread CPU from `/proc/*/task/*/schedstat`
 around each run and drops from `Udp: RcvbufErrors`; `lab/scripts/browser_reads.py` reads what each
-`read()` returns. The client is `client/transport-ts` on the main thread with the default reader
+`read()` returns. The client is `client/transport/ts` on the main thread with the default reader
 and no window. Every run delivered every frame, and the box spent 2.0–2.2 of its 4 cores, so it
 did not saturate. The server arms were built from the transport branch's per-core-endpoint tree
 (`8b903cd`), since parked: the browser's side of every number is independent of that, the

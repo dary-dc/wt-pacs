@@ -1,7 +1,7 @@
 # decode
 
 The decoder worker before and after queue row 49 (DECODE) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md), HTJ2K
-and AV1, through the product's own `client/downloader/decoder.js`. The reading is in
+and AV1, through the product's own `client/decode/decoder.js`. The reading is in
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §The decoder worker's hand-off.
 
 ```bash
@@ -31,7 +31,7 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --summary --ou
 it is kept. `frames/` holds each series' first 4 frames, `fill/` its first 64.
 
 **Arms.** `htj2k-T` is the shipped OpenJPH package and `item-T` the item's own decoder choice (WebCodecs where every
-stream is ≤ 10 bits, dav1d-WASM `simd` otherwise); T is `before`, `client/downloader` at the commit `before.sh` copies,
+stream is ≤ 10 bits, dav1d-WASM `simd` otherwise); T is `before`, `client/downloader` (removed by row 82, which split it) at the commit `before.sh` copies,
 or `after`, the tree's own. In `arms.json`, which row TOTAL's fill and row FOOTPRINT's memory take, the same four are
 `htj2k-before`, `htj2k`, `av1-before` and `av1`.
 

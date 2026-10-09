@@ -9,7 +9,7 @@ verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §A3.
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
-client/transport-ts/build.sh                                   # the client's session bundle
+client/transport/ts/build.sh                                   # the client's session bundle
 lab/av1/fetch_data.sh dbtproj_ge dbtproj_holo ct_lidc
 P="lab/av1/data/dbtproj_ge lab/av1/data/dbtproj_holo lab/av1/data/ct_lidc"
 FRAMES=2 lab/av1/.venv/bin/python lab/av1/decode/high-depth/make_frames.py lab/.av1-build lab/.av1-work/rep14-sweep \

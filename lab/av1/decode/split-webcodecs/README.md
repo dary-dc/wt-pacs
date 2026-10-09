@@ -31,7 +31,7 @@ range out):
 
 | arm | decoder | how |
 | --- | --- | --- |
-| `htj2k` | OpenJPH | `client/downloader/decoder.js` itself |
+| `htj2k` | OpenJPH | `client/decode/decoder.js` itself |
 | `wc-t10` | WebCodecs, two `VideoDecoder`s (`av01.0.00M.10…` and `.08…`, mono) | `split-worker.js`; both units in flight at once, each flushed and copied out whole (`I420P10`, `I420`: chroma included) |
 | `dav1d-t10` | dav1d-WASM `simd`, one instance | `split-worker.js`; unit after unit, merged from the decoder's picture |
 | `dav1d-t11` | the same | the same, on top11+low |

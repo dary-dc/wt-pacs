@@ -57,7 +57,7 @@ async function until(file, text, ms = 10000) {
 
 if (SERVER === "target/release/exact-server") execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server"], { cwd: ROOT });
 execFileSync("cargo", ["build", "-q", "-p", "pack-study"], { cwd: ROOT });
-execFileSync("bash", ["client/transport-ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
+execFileSync("bash", ["client/transport/ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
 fs.mkdirSync(`${T}/frames`);
 const expected = [];
 for (let i = 0; i < FRAMES; i++) {

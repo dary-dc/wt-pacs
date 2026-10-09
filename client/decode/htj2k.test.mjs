@@ -1,4 +1,4 @@
-// node client/downloader/htj2k.test.mjs — htj2k.js's range pass, without a decoder.
+// node client/decode/htj2k.test.mjs — htj2k.js's range pass, without a decoder.
 const { finish } = await import("./htj2k.js");
 
 let failed = 0;

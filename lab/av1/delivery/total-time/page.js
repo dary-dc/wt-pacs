@@ -5,7 +5,7 @@
  *
  *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256[&asks=i,j,…][&after=K][&post=URL]
  */
-import { DownloaderClient } from "/client/downloader/consumer.js";
+import { DownloaderClient } from "/client/transport/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const FILL = Number(q.get("fill"));

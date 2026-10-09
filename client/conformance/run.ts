@@ -2,7 +2,7 @@
  * Node entry: the clauses in clauses.ts against every client implementation, over the fake
  * WebTransport or WebSocket installed on the global scope, then the race between the two.
  *
- *   bash client/transport-ts/build.sh && node client/conformance/run.mjs [transport-ts|transport-wasm|transport-ws|transport-race]
+ *   bash client/transport/ts/build.sh && node client/conformance/run.mjs [transport-ts|transport-wasm|transport-ws|transport-race]
  *
  * With no name, each implementation runs in its own process, side by side: the fakes are global to a
  * process, and one clause waits out 16 s of a trickled frame on each.
@@ -130,8 +130,8 @@ function report(ran: number, failed: number, inapplicable: string[], strays: num
 // Both WebTransport clients or none: the WASM clock is the bug this suite exists for. docs/CLIENTS.md §The seam.
 if (!wasmBuilt()) {
   console.error(
-    "transport-wasm is not built — no client/transport-wasm/pkg/.\n" +
-      "  Build it once: bash client/transport-wasm/build.sh (needs wasm-pack).\n" +
+    "transport-wasm is not built — no client/transport/wasm/pkg/.\n" +
+      "  Build it once: bash client/transport/wasm/build.sh (needs wasm-pack).\n" +
       "  README.md §Prerequisites.",
   );
   process.exit(2);

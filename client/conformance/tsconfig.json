@@ -1,9 +1,9 @@
 {
-  "extends": "../transport-ts/tsconfig.json",
+  "extends": "../transport/ts/tsconfig.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
-    "typeRoots": ["../transport-ts/node_modules/@types"],
+    "typeRoots": ["../transport/ts/node_modules/@types"],
     "types": ["node"]
   },
-  "include": ["*.ts", "../transport-ts/test/*.ts"]
+  "include": ["*.ts", "../transport/ts/test/*.ts"]
 }

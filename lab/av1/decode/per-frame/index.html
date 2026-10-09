@@ -3,7 +3,7 @@
 <title>AV1 SPEED</title>
 <script type="module">
   import { round } from "./drive.js";
-  const kinds = { product: "/client/downloader/decoder.js", webcodecs: "/lab/av1/decode/per-frame/webcodecs-worker.js" };
+  const kinds = { product: "/client/decode/decoder.js", webcodecs: "/lab/av1/decode/per-frame/webcodecs-worker.js" };
   const env = { worker: (kind) => new Worker(kinds[kind], { type: "module" }), channel: () => new MessageChannel() };
   globalThis.run = (opts) => round(env, { base: location.origin, ...opts });
   globalThis.ready = crossOriginIsolated;

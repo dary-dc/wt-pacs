@@ -1,29 +1,42 @@
-# downloader
+# client
 
 One worker owns the session, every frame's record and the queue; decoders hand pixels straight to
 the consumer over a port the downloader hands out. It is the lab's only client.
-Design and what it is for: [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
+Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
+
+**[`transport/`](transport/)** — the page side, the download worker and the transports:
 
 | file | |
 | - | - |
+| `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
 | `downloader.js` | the worker: dial, per-frame records, the fill pushed one run at a time and re-issued after an ask, two-priority queue, dispatch, cancel |
+| `downloader.test.mjs`, `consumer.test.mjs` | node: how many decoders a start makes; what `connect` refuses before a worker starts |
+| `ts/`, `wasm/` | the TypeScript transports and the WASM transport's crate ([`docs/CLIENTS.md`](../docs/CLIENTS.md)) |
+
+**[`decode/`](decode/)** — the decode worker, its codec modules and the decoders' WASM builds:
+
+| file | |
+| - | - |
 | `decoder.js` | one decoder instance: loads the series' codec module and posts each frame it returns to the consumer |
 | `htj2k.js` | an HTJ2K codestream behind the codec modules' interface, one OpenJPH decoder object reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
-| `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
-| `htj2k.test.mjs`, `downloader.test.mjs`, `consumer.test.mjs`, `av1.test.mjs` | node: the range pass; how many decoders a start makes; what `connect` refuses before a worker starts; the AV1 item reader |
 | `av1.js` | an AV1 item behind the codec modules' interface, its decoder chosen per item; loaded only for an AV1 series |
-| `av1-item.js` | the item's header read, and every malformed case refused by name |
-| `decode-av1.js`, `decode-av1-webcodecs.js` | one stream unit through dav1d-WASM or through WebCodecs, as a picture |
+| `av1-payload.js` | the item's header read, and every malformed case refused by name |
+| `av1-dav1d.js`, `av1-webcodecs.js` | one stream unit through dav1d-WASM or through WebCodecs, as a picture |
 | `av1-frame.js` | a picture checked against the header and merged to the contract: planes interleaved, split, colour transform and offset undone |
 | `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `ingest/coded-frames/make_golden.py`) |
 | `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike |
+| `htj2k.test.mjs`, `av1.test.mjs` | node: the range pass; the AV1 item reader |
+| `wasm/` | `dav1d/` builds dav1d-WASM, `fetch_openjph.sh` fetches OpenJPH's into `vendor/` |
+
+The rest: [`conformance/`](conformance/) the transport's clauses and the rigs, [`paint/`](paint/README.md) the
+painter, [`record/`](record/) telemetry, [`harness/`](harness/) the lab's pages.
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
 path untouched, `"av1"` loads `av1.js` and, at the decoder's start, both decoders it may need — dav1d-WASM
-from [`client/decode/wasm/dav1d`](../decode/wasm/dav1d/README.md) (`glue`, `wasm`, `dir` as for
+from [`client/decode/wasm/dav1d`](./decode/wasm/dav1d/README.md) (`glue`, `wasm`, `dir` as for
 OpenJPH, `THIRD_PARTY.txt` served beside them) or WebCodecs; anything else makes `connect` reject
 with `unknown codec "…"` before a worker starts. Every entry is an item of
-[`docs/av1/item-format.md`](../../docs/av1/item-format.md): a 16-byte header that says the source's
+[`docs/av1/item-format.md`](../docs/av1/item-format.md): a 16-byte header that says the source's
 bits, the coded depth, the low bits split apart, signed and offset, the colour transform, then one
 frame (G = 1). The item comes out in the same `{pixels, width, bits, signed, range}` as an HTJ2K
 frame, colour interleaved R, G, B; a malformed one fails with `undecodable: av1 item: …` naming
@@ -40,7 +53,7 @@ it: **−1.0 serial round trips to the first exact frame through WebCodecs and �
 nothing moves. On a link under 20 ms a ≤ 10-bit series pays for the fallback's 238 KB arriving
 beside its first frame (+26 ms at 10 ms, +67 on loopback), dav1d wins from 10 ms. A page that knows
 the series is AV1 can `preload` the seven AV1 modules, the glue and the WASM, as `lab/page-open/codec.html`
-does: AV1 then reaches HTJ2K's 8.0. [`lab/page-open/README.md`](../../lab/page-open/README.md)
+does: AV1 then reaches HTJ2K's 8.0. [`lab/page-open/README.md`](../lab/page-open/README.md)
 §Cold round trips by codec. A WebCodecs frame is taken only for the unit it
 was sent with, so one flushed late from an earlier unit is never taken for the unit in hand. The
 dispatch rig checks the writer's golden items (`client/conformance/av1/items/`, plain and optimized,
@@ -51,16 +64,16 @@ a late frame; `av1.test.mjs` the same reader in node.
 keyframe sits at every multiple of G and the frames between decode only after it. A group is the
 item: an ask for any frame asks its whole group from the keyframe, a fill asks whole groups, and a
 group's frames go to one decoder in index order. A frame that fails fails the rest of its group,
-each by name. Each unit reaches the decoder as an item of one frame. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §3, *Built*; the dispatch rig
+each by name. Each unit reaches the decoder as an item of one frame. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §3, *Built*; the dispatch rig
 checks a G = 8 set and a one-group set (`client/conformance/av1/{g8x20,whole12}`) frame by frame.
 A ≤ 10-bit series in groups decodes through WebCodecs, not flushed inside a group
-([`docs/decode/README.md`](../../docs/decode/README.md) §WebCodecs without a flush).
+([`docs/decode/README.md`](../docs/decode/README.md) §WebCodecs without a flush).
 
 **A scalable AV1 series.** A unit with a lossy base layer under a lossless top decodes through
 dav1d-WASM twice from the same bytes: the base reaches `opts.onPreview` as a frame whose `info` says
 `preview: true` at the base's own size, then the exact frame reaches the ask or `onFrame`, which
 never receive a preview. A unit without its top fails by name after its preview. WebCodecs returns
-the exact frame and no preview. [`docs/av1/adr-unit.md`](../../docs/av1/adr-unit.md) §6; the
+the exact frame and no preview. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §6; the
 dispatch rig checks `client/conformance/av1/scalable/`.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
@@ -75,7 +88,7 @@ fill prices both: the opening ask is **−1.13 round trips** to the first frame 
 40 ms link and 178 ms at 160; the promise is worth nothing measurable on that box.
 
 **How many decoders.** `opts.decoders` defaults to `min(3, navigator.hardwareConcurrency || 3)`:
-a third decoder helps on four cores and not on two ([`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
+a third decoder helps on four cores and not on two ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
 §Resources); `downloader.test.mjs` pins it at two cores and eight. The warm-up frame `opts.warmup` was
 removed on 2026-10-03 — it moved only per-frame waits, not the page's clock; the code is at tag
 `archive/downloader-opts-2026-10-03` and its numbers in `docs/decode/README.md` §Warming the decoders.
@@ -83,7 +96,7 @@ removed on 2026-10-03 — it moved only per-frame waits, not the page's clock; t
 **What a decoder worker costs.** 5.9 MB resident each, 5.7 MB of it the worker's own JS+WASM heap,
 measured as the slope in the decoder count with the instrument calibrated against 32 MB of ballast
 per worker — and 6.1 MB through this whole path, session included, with the page keeping every
-frame ([`docs/decode/README.md`](../../docs/decode/README.md) §What a decoder worker costs,
+frame ([`docs/decode/README.md`](../docs/decode/README.md) §What a decoder worker costs,
 resident). The one decoder object `htj2k.js` reuses accounts for 0.81 MB of that and does not
 grow with the series; each worker compiling its own module accounts for 0.3 MB. So neither is a
 lever worth pulling, and a page where three of these cost tens of MB each is not paying for them.
@@ -96,7 +109,7 @@ back in its `done` or `failed` reply and this worker returns it with `session.re
 so a fill's peak is the pool rather than the series: **−19.2 MB [−20.9…−16.0] of renderer peak on
 an 87-frame 16-bit fill, 8 of 8 rounds**, −10.8 on the colour set, against a constant 3.1 MB the
 pool retains and no movement in the fill's clock
-([`docs/decode/README.md`](../../docs/decode/README.md) §The wire buffer ring). `wireBuffers: 0`
+([`docs/decode/README.md`](../docs/decode/README.md) §The wire buffer ring). `wireBuffers: 0`
 never retains, which is one buffer per frame — the behaviour before it, and what a consumer that
 hands nothing back gets anyway. An undecoded frame (`decode: false`) is transferred to the page and
 never comes back, as before.
@@ -106,7 +119,7 @@ downloader has ended the stream and dropped that request's work; every frame and
 generation it was made under, and anything older is dropped on the page rather than handed over
 under an index the new request is using. A refused *fill* frame has no waiter, so it reaches the
 consumer through `opts.onError({ frameIndex, reason, generation })` — a refused *asked* frame still
-rejects its own promise, and a refusal that fails the rest of a fill spares a frame an ask carries. [`ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §The consumer.
+rejects its own promise, and a refusal that fails the rest of a fill spares a frame an ask carries. [`ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §The consumer.
 
 **What a frame reports.** Beside the decoded `byteCount`, every frame message the decoder and the
 downloader post carries `wireBytes` — the codestream length the frame's envelope declared, which is
@@ -118,10 +131,10 @@ the undecoded one alike; nothing was renamed to make room for it.
 **A frame that did not arrive whole is a failure, not a frame.** Two checks, both inside the worker
 graph, so the page never sees a bad frame. On the wire, a uni stream that ends before the length its
 own envelope declares names the frame it lost and refuses it
-([`docs/CLIENTS.md`](../../docs/CLIENTS.md) §A truncated frame is a failure). In the decoder, a
+([`docs/CLIENTS.md`](../docs/CLIENTS.md) §A truncated frame is a failure). In the decoder, a
 decoded buffer that is empty or shorter than the codestream's header declares is thrown, because one
 decoder object is reused and an undecodable frame otherwise comes back carrying the **previous**
-frame's pixels under the new index ([`docs/decode/README.md`](../../docs/decode/README.md) §A frame
+frame's pixels under the new index ([`docs/decode/README.md`](../docs/decode/README.md) §A frame
 that did not decode). Either way the consumer gets `onError({ frameIndex, reason, generation })` for
 a fill frame or a rejected promise for an asked one, so a fill that lost a frame cannot report
 itself complete. A session that **dies** mid-fill is the third way to lose a frame: the transport
@@ -154,7 +167,7 @@ once three silences had doubled `stallMs` past 15 s, it fired first and the ask 
 left. **It is now silence like the stall's**: both WebTransport clients reject it as `FrameTimeoutError`
 and the downloader resumes the ask on a new session, failing it only when `tries` runs out
 (`downloader.test.mjs`; the conformance clause names it; each mutation caught). Measured on row
-LOSSLINK's harness ([`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md) §Row ASKDEADLINE): the 10-bit
+LOSSLINK's harness ([`lab/av1/delivery/total-time`](../lab/av1/delivery/total-time/README.md) §Row ASKDEADLINE): the 10-bit
 volume as HTJ2K, 4 frames filled then 8 asked one at a time, 20 Mbit and `lte-good` clean, 2 % and 5 %
 loss, 1×, this downloader against the one before it and against `stallMs` 15 s, 10 rounds interleaved,
 155 of 180 visits kept, **2 160/2 160 frames exact and 0 asks failed in every arm, before as after**. On
@@ -165,7 +178,7 @@ up to 9.3 s with today's stall, 12.4 s with 15 s; 3 s re-dials 2–12 times a ce
 tail is longer (p95 19.5 s, max 54 s; Chromium itself drops two of those sessions at 6.6 s of silence),
 within a spread where one burst is ten seconds. The fix changes nothing measured here; it removes the
 one path by which a timer failed an ask the transport might still deliver.
-[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) has the states, the
+[`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) has the states, the
 reasons and what a cut costs today against built.
 
 **A session can be recycled before a byte budget runs out** — `recycleAtBytes: N`, off by default.
@@ -226,8 +239,8 @@ python3 server/dev-server.py --port 8765
 would measure the wrong thing. `dev-server.py` and `deploy/nginx` both send the headers.
 
 **The transport is a seam.** `config.transport` is a module URL exporting `TransportSession`,
-defaulting to `client/transport-ts/dist/session.js`. A third implementation plugs in there without
-the downloader knowing ([`CLIENTS.md`](../../docs/CLIENTS.md) §The seam) — and it is
+defaulting to `client/transport/ts/dist/session.js`. A third implementation plugs in there without
+the downloader knowing ([`CLIENTS.md`](../docs/CLIENTS.md) §The seam) — and it is
 how the conformance suite drives the downloader: `client/conformance/run_browser.sh downloader`, run by the gate.
 `config.decoderWorker` is the same seam for the decoder: `client/conformance/run_browser.sh dispatch`
 points it at a stalling stand-in to force the contention its ordering and dispatch-bound tests need.

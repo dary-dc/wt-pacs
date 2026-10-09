@@ -10,7 +10,7 @@ bytes, decode and total time against HTJ2K. The verdict is in
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 PATH=lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # ojph_compress
-client/transport-ts/build.sh                                   # the client's session bundle
+client/transport/ts/build.sh                                   # the client's session bundle
 lab/av1/fetch_data.sh ct_lidc xa_dynact16 dbtproj_ge dbtproj_holo pt15_cptac mg16_cbis \
   mr_ispy1 rf_fluoro dbt12_ea1141 dbt10_ea1141 mr9_ispy2
 P=lab/av1/.venv/bin/python D=lab/av1/data W=lab/.av1-work/splittime

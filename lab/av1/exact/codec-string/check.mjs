@@ -1,6 +1,6 @@
 /**
  * Every distinct sequence header of every AV1 item under the given directories, and of the client's probes:
- * the codecs string av1-item.js derives, against one built from ffmpeg's own reading of the same OBU
+ * the codecs string av1-payload.js derives, against one built from ffmpeg's own reading of the same OBU
  * (trace_headers for the coded fields, ffprobe for the inferred ones). Queue row 67; README.md
  *
  * A `.obu` file (a low-overhead OBU stream, as aomenc --obu writes it), and an `.av1` file that is not an item, counts as one unit.
@@ -10,8 +10,8 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { codecString, parseItem, sequence, units } from "../../../../client/downloader/av1-item.js";
-import { PROBES } from "../../../../client/downloader/av1-probe.js";
+import { codecString, parseItem, sequence, units } from "../../../../client/decode/av1-payload.js";
+import { PROBES } from "../../../../client/decode/av1-probe.js";
 
 const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : null; };
 const MUTATE = arg("--mutate");

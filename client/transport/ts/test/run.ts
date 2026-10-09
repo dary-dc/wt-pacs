@@ -1,11 +1,11 @@
 /**
  * Tests for the TypeScript client's asks and reads, against the Node stub — run with:
- *   bash client/transport-ts/build.sh && node client/transport-ts/test/run.mjs
+ *   bash client/transport/ts/build.sh && node client/transport/ts/test/run.mjs
  */
 
-import { install, uninstall } from "../../record/install.ts";
-import { getTap } from "../../record/tap.ts";
-import { wrapSession } from "../../record/wrap-session.ts";
+import { install, uninstall } from "../../../record/install.ts";
+import { getTap } from "../../../record/tap.ts";
+import { wrapSession } from "../../../record/wrap-session.ts";
 import { TransportSession } from "../session.ts";
 import { codestreamByte, StubTransport, type StubLink } from "./stub.ts";
 

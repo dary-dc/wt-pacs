@@ -619,17 +619,17 @@ stop_relay
 echo
 echo "== the static host's plane"
 python3 server/dev-server.py --port "$TCP_OUT" > "$T/static.log" 2>&1 & PIDS+=("$!")
-for _ in $(seq 50); do curl -sf "http://127.0.0.1:$TCP_OUT/client/downloader/README.md" >/dev/null && break; sleep 0.1; done
+for _ in $(seq 50); do curl -sf "http://127.0.0.1:$TCP_OUT/client/README.md" >/dev/null && break; sleep 0.1; done
 python3 "$RELAY" --tcp "$TCP_IN:$TCP_OUT" --delay-ms 40 > "$T/tcp.log" 2>&1 & TCP_PID=$!; PIDS+=("$TCP_PID")
 for _ in $(seq 50); do grep -q READY "$T/tcp.log" && break; sleep 0.1; done
-curl -s "http://127.0.0.1:$TCP_IN/client/downloader/README.md" > "$T/got.md"
-if cmp -s "$T/got.md" client/downloader/README.md; then
+curl -s "http://127.0.0.1:$TCP_IN/client/README.md" > "$T/got.md"
+if cmp -s "$T/got.md" client/README.md; then
   say "a relayed fetch is byte-exact" "ok"
 else
   say "a relayed fetch is byte-exact" "FAIL"
   fails=$((fails + 1))
 fi
-tot=$(curl -s -o /dev/null -w '%{time_total}' "http://127.0.0.1:$TCP_IN/client/downloader/README.md")
+tot=$(curl -s -o /dev/null -w '%{time_total}' "http://127.0.0.1:$TCP_IN/client/README.md")
 want "fetch at one-way 40 ms (s): setup + exchange" "$tot" 0.155 0.185
 kill -TERM "$TCP_PID" 2>/dev/null || true
 

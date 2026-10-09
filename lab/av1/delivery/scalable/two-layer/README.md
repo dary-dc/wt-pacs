@@ -51,7 +51,7 @@ process each round, cells in a Williams order (`lab/order.mjs`), sets and arms r
 | WebCodecs | the base's alone | the base |
 
 WebCodecs has no way to choose an operating point: it returns the highest layer of what it is fed,
-so the base alone means sending (or cutting out) the base's units. `decode-av1.js` as shipped would
+so the base alone means sending (or cutting out) the base's units. `av1-dav1d.js` as shipped would
 need `all_layers` 0 before it could take a scalable payload.
 
 ## Bytes

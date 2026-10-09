@@ -42,7 +42,7 @@ checked against the checksum written at fetch; HTJ2K through `ingest.py`'s serve
 run inexact, and the unmutated run must stay exact.
 
 **`items.py`, `time.mjs`, `page.js`** time an ask in headless Chromium through the product's decoder worker
-(`client/downloader/decoder.js`, `groupLength` G): a run's 16 frames asked in order, the top unit from the group
+(`client/decode/decoder.js`, `groupLength` G): a run's 16 frames asked in order, the top unit from the group
 coding and the low unit from the intra one (the client decodes the low stream intra), each frame's decode by the
 worker's own stamps and hashed against the truth (`--mutate` flips a sample, and every frame must then fail).
 The dav1d-WASM arm is the same worker with `VideoDecoder` deleted (`dav1d-worker.js`). An ask at frame k of a group

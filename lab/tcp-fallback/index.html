@@ -10,7 +10,7 @@
   downloader on one transport, asks frames outside the fill while it runs and inside it after, and
   hashes every frame against the source. Correctness only; see the README.</p>
   <script type="module">
-    import { DownloaderClient } from "/client/downloader/consumer.js";
+    import { DownloaderClient } from "/client/transport/consumer.js";
 
     const BUNDLE = { wt: undefined, ws: "ws-session.js", race: "race-session.js" };
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -30,7 +30,7 @@
       const c = await DownloaderClient.connect(url, hash, {
         decode: false,
         decoders: 0,
-        transport: bundle && `/client/transport-ts/dist/${bundle}`,
+        transport: bundle && `/client/transport/ts/dist/${bundle}`,
         onFrame: (f) => {
           keep(f);
           if (frames.size === at && !asks) asks = Promise.all(during.map((i) => c.requestExactFrame(i).then(keep, () => {})));

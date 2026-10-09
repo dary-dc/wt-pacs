@@ -152,13 +152,13 @@ tables (`Tf/(Tf+RTT)` = 40.8/100.8). The netem grid above replaces that run.
 
 ## How it is built
 
-`client/transport-ts` carried the window as an opt-in until 2026-10-03 (`connect(url, hash, { window })`: fixed
+`client/transport/ts` carried the window as an opt-in until 2026-10-03 (`connect(url, hash, { window })`: fixed
 `{ depth: N }`, or `{ depth: "auto", initial }`, `initial` 2 by default); only the TypeScript client had it, and
 nothing set it by default.
 
 ### The estimator, as built
 
-`client/transport-ts/ask-window.ts` (removed; `git show 7bda871:client/transport-ts/ask-window.ts`):
+`client/transport/ts/ask-window.ts` (removed; `git show 7bda871:client/transport/ts/ask-window.ts`):
 
 - **`Tf`** — the median time between the last 8 arrivals: the link's per-frame time once the depth
   saturates it, the delivered pace below that

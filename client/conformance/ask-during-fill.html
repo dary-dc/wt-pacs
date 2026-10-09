@@ -54,7 +54,7 @@
     try {
       const cfg = q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : await (await fetch("/wt/dev-transport.json")).json();
       if (client === "ts" || client === "ws") {
-        const { TransportSession } = await import(`/client/transport-ts/dist/${client === "ws" ? "ws-session" : "session"}.js`);
+        const { TransportSession } = await import(`/client/transport/ts/dist/${client === "ws" ? "ws-session" : "session"}.js`);
         const s = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
         const got = [];
         let askP = null;
@@ -75,13 +75,13 @@
         check(delivered < FILL && rest.length === FILL - delivered, `${client}: asked again, the remaining ${FILL - delivered} arrive (${rest.length} did)`);
         s.close();
       } else {
-        const { DownloaderClient } = await import("/client/downloader/consumer.js");
+        const { DownloaderClient } = await import("/client/transport/consumer.js");
         const got = [];
         let askP = null;
         const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
           decode: false,
           decoders: 0,
-          transport: client === "downloader-ws" ? "/client/transport-ts/dist/ws-session.js" : undefined,
+          transport: client === "downloader-ws" ? "/client/transport/ts/dist/ws-session.js" : undefined,
           onFrame: (f) => { got.push(f.frameIndex); if (got.length === AT && !askP) askP = c.requestExactFrame(ASK); },
         });
         c.fill(Array.from({ length: FILL }, (_, i) => i));

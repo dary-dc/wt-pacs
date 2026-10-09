@@ -6,7 +6,7 @@
  */
 const q = new URLSearchParams(location.search);
 /** `client=` loads another copy of the downloader — a mutant a cell built. */
-const { DownloaderClient } = await import(q.get("client") || "/client/downloader/consumer.js");
+const { DownloaderClient } = await import(q.get("client") || "/client/transport/consumer.js");
 const arm = q.get("arm") || "built";
 /** `quick` is the same code with a tighter wait: what the default costs, not a proposed default. */
 const SURVIVAL = { today: false, built: undefined, quick: { stallMs: 1000 } };

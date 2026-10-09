@@ -1,9 +1,9 @@
 /**
- * A decoder worker for a layer-major scalable series, beside client/downloader/decoder.js and speaking
+ * A decoder worker for a layer-major scalable series, beside client/decode/decoder.js and speaking
  * its protocol: entry i < F decodes to frame i's base, posted as a preview; entry F + i is the whole
  * unit, posted as the exact frame. dav1d-WASM, one decoder a group. docs/av1/adr-unit.md §5
  */
-import { begin, end } from "/client/downloader/av1-frame.js";
+import { begin, end } from "/client/decode/av1-frame.js";
 
 let M = null;
 let cfg = null;

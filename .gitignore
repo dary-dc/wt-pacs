@@ -10,25 +10,25 @@ lab/other-clients/h3/target/
 !/patched/quinn/src/lib.rs
 .venv/
 node_modules/
-client/transport-ts/node_modules/
+client/transport/ts/node_modules/
 
 # Dev TLS and transport endpoint (generate locally)
 server/dev-cert/*.pem
 client/dev-transport.json
 
-# wasm-pack output (build with client/transport-wasm/build.sh)
-client/transport-wasm/pkg/
+# wasm-pack output (build with client/transport/wasm/build.sh)
+client/transport/wasm/pkg/
 
-# Generated TypeScript client bundles (build with client/transport-ts/build.sh)
-client/transport-ts/dist/
-# Shared client recorder tests (build via transport-ts/build.sh)
+# Generated TypeScript client bundles (build with client/transport/ts/build.sh)
+client/transport/ts/dist/
+# Shared client recorder tests (build via client/transport/ts/build.sh)
 client/record/test/run.mjs
-# transport-ts unit tests (build via transport-ts/build.sh)
-client/transport-ts/test/run.mjs
-# Conformance suite bundles (build via transport-ts/build.sh)
+# transport-ts unit tests (build via client/transport/ts/build.sh)
+client/transport/ts/test/run.mjs
+# Conformance suite bundles (build via client/transport/ts/build.sh)
 client/conformance/run.mjs
 client/conformance/dist/
-# Telemetry cost bench bundle (build via transport-ts/build.sh)
+# Telemetry cost bench bundle (build via client/transport/ts/build.sh)
 lab/telemetry-cost/cost.mjs
 
 # Generated Tf-axis fixtures (regenerate with lab/scripts/gen_tf_fixtures.sh)

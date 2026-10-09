@@ -23,7 +23,7 @@ other series only.
 | wire (`common/frame-envelope`, [`WIRE.md`](../WIRE.md)) | `[4B display_index][opaque bytes]` | nothing |
 | store ([`FIXTURES.md`](../FIXTURES.md) §SBND) | a frame table, a metadata JSON, opaque frames | nothing; `pack-study` names its inputs `NNN.htj2k` |
 | server | bytes by index | nothing |
-| decoder (`client/downloader/decoder.js`) | codestream in, `{pixels, width, bits, signed, range}` out | **all of it** (OpenJPH) |
+| decoder (`client/decode/decoder.js`) | codestream in, `{pixels, width, bits, signed, range}` out | **all of it** (OpenJPH) |
 
 So an intra-only AV1 frame — one that decodes alone — needs a codec tag in the series metadata, an
 ingest step and a second decoder behind the same output contract. Nothing above the decoder changes,
@@ -218,7 +218,7 @@ streams — 8/10/12-bit 4:0:0 and 4:4:4 identity, intra and G = 8 — one pictur
 frame delay of 1. 546 KB `.wasm` scalar, 623 KB with SIMD (219 and 238 KB gzipped). Decode time is
 5–10× OpenJPH's on the same frames (below). **It is the client's AV1 decoder at G = 1** (row
 DEC): `decoder.codec: "av1"` loads it behind `decoder.js`'s contract, and every shape decodes
-through the downloader to its source's checksum ([`client/downloader/README.md`](../../client/downloader/README.md)).
+through the downloader to its source's checksum ([`client/README.md`](../../client/README.md)).
 *WCDEC since:* WebCodecs is the client's decoder for a series that says `depth` ≤ 10 in a browser
 with `VideoDecoder`, dav1d-WASM for every other, the top10+low split and a signed series' offset
 undone by both; exact through the downloader in headless Chromium 141, not timed there
@@ -283,7 +283,7 @@ refuses 12-bit — while top10+low keeps every stream ≤ 10 bits at 0.994–1.0
 0.977 direct); a full 16-bit series is not. *Corrected by TAXO:* the rule is **the two low bits
 apart**, not top11 — on 14-bit tomosynthesis projections top12+low (v ≫ 2, v & 3) is 0.952 and 0.923
 of HTJ2K, and top11+low (three low bits) 0.998 and 1.002. A split frame is two temporal units in one store entry:
-the store and the wire stay opaque, but this project's AV1 frame format and `decode-av1.js` change,
+the store and the wire stay opaque, but this project's AV1 frame format and `av1-dav1d.js` change,
 which is a proposal for [`adr-unit.md`](adr-unit.md) — *built since by row WCDEC: the framing and
 its fields are [`adr-unit.md`](adr-unit.md) §2, the transforms.*
 
@@ -513,7 +513,7 @@ scalability is nearly free; a half-size base is 0.03–2.4 % of HTJ2K's bytes at
 decodes in 2–13 % of a lossless frame's time. But the payload carries lossless AV1's size, **1.04–1.64
 of HTJ2K's**, against a separate preview plus exact HTJ2K at 1.008 and 1.07 above; and the exact
 frame decodes 3–30 % slower than single-layer AV1 (dav1d-WASM, Chromium 141 and Node, 1× and 4×,
-n = 15 interleaved). `decode-av1.js` opened dav1d with `all_layers` 1, which returned the base and then
+n = 15 interleaved). `av1-dav1d.js` opened dav1d with `all_layers` 1, which returned the base and then
 failed on such a payload (*corrected by row SVCDEC:* the wrapper dropped the rest of the unit after
 the first picture; it now returns the base as a preview and then the exact frame, [`adr-unit.md`](adr-unit.md) §6); WebCodecs returns the top exactly but cannot be asked for the base, only
 fed its units. Row RESID's preview plus HTJ2K residual (0.947–1.002 of HTJ2K's bytes, 1.31–1.89× its
@@ -544,7 +544,7 @@ dav1d-WASM preview, unit sent to picture in the contract: **0.65× on the ultras
 0.36–0.76× on every series at 4×** (faster in 87/90 paired rounds; ultrasound half-size base 12.6
 against 36.5 ms), but 1.1–1.3× — slower — on the 2–4 ms grey bases at 1×. The base is 7–36 % of
 WebCodecs' own exact frame (headless Chromium 141, this container, 15 interleaved rounds,
-19 440/19 440 pictures matched). Not built into `decode-av1-webcodecs.js`.
+19 440/19 440 pictures matched). Not built into `av1-webcodecs.js`.
 *Bases first, measured (row SVC; [`lab/av1/delivery/bases-first`](../../lab/av1/delivery/bases-first/README.md)).* Row SVCORDER's
 layer-major layout built in the lab — entry i the base, entry F + i the whole unit, a lab decoder
 worker through the downloader's `decoderWorker` seam, the downloader, server and store unchanged —
@@ -1005,7 +1005,7 @@ layers on the wire — are not repeated.
 * **WebCodecs' `optimizeForLatency`.** Chromium maps it to dav1d's `max_frame_delay = 1`; without
   it dav1d buffers up to ⌈√threads⌉ frames, Chromium's own comment says two before the first is out
   (`media/filters/dav1d_video_decoder.cc`). That is WCAP's "holds 2 frames until `flush()`", and
-  `decode-av1-webcodecs.js` sets neither it nor anything but `prefer-software`, so it flushes every
+  `av1-webcodecs.js` sets neither it nor anything but `prefer-software`, so it flushes every
   unit — which is why WebCodecs has no G > 1 path (row 20). Chromium also gives dav1d 2–4 tile
   threads by coded height (≥ 300, ≥ 700 rows), used only if a frame has tiles. Decides: frames out
   per unit without a flush, exact, and the time against today's flush per unit. Container: yes.

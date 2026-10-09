@@ -85,13 +85,13 @@ and `s12` (12-bit in 16).
 
 **The package decodes both signed sets byte for byte and already sign-extends 12-bit samples** —
 `getFrameInfo()` reports `bitsPerSample: 12, isSigned: true` and the samples come back −1500 … 952.
-So `finish`'s sign extension in `client/downloader/decoder.js` is idempotent on this decoder's
+So `finish`'s sign extension in `client/decode/decoder.js` is idempotent on this decoder's
 output. The source build was wrong (§A build of our own).
 
 *Corrected 2026-10-03:* the pass shifted by `16 − bits`, and JS shifts are 32-bit, so it left a raw
 12-bit pattern as it was — a no-op, not an extension; it held only because the package extends
 first. It shifts by `32 − bits` now, skipped when the sample fills its container, and
-`client/downloader/htj2k.test.mjs` holds it to raw patterns. On `ct512` it changes 0 of 87 frames
+`client/decode/htj2k.test.mjs` holds it to raw patterns. On `ct512` it changes 0 of 87 frames
 before and after the fix.
 
 *Corrected:* an earlier record said the package saturates negatives to 32767 and the source build
@@ -132,7 +132,7 @@ figure is an upper bound on the demand. The package's 50 MB is 2× to 14× what 
 
 `lab/decode-bench/wasm/` builds a decoder from OpenJPH source with the package's surface, so one can
 stand in for the other; `parity.mjs` is what makes that checkable. **Every frame of every fixture
-goes through one decoder object**, as `client/downloader/decoder.js` holds it — until 2026-09-20 the
+goes through one decoder object**, as `client/decode/decoder.js` holds it — until 2026-09-20 the
 benches built a fresh decoder per frame, so state carried from one frame to the next was never
 exercised. `parity.mjs` prints a coverage line when fewer than two sample shapes ran, and says so
 when no signed set is among them.
@@ -494,7 +494,7 @@ Width 3; ms per frame (wait + decode + take), batch ms, and rounds of 12 slower 
   hop per frame. What matters is never leaving a decoder idle; the lookahead carries the result.
 
 **So the downloader dispatches with lookahead, not plain first-free**: each decoder holds up to
-`perDecoder` (2) frames and the next goes to the one with fewest (`client/downloader/downloader.js`,
+`perDecoder` (2) frames and the next goes to the one with fewest (`client/transport/downloader.js`,
 `nextDecoder`). What decides whether dispatch matters is **frames per decoder**, and a viewer
 scrubbing a few frames at a time is the case where it does.
 
@@ -565,7 +565,7 @@ interleaved with arm and count order rotated, a fresh context per run, every fra
 148, peak from `VmHWM`, settled after `measureUserAgentSpecificMemory()` with the workers alive.
 
 **A decoder worker costs 5.9 MB [5.2–7.0] resident, of which 5.7 MB is its own JS+WASM heap**
-(`client/downloader/decoder.js` as shipped, two frames in flight; n = 6, median [range]).
+(`client/decode/decoder.js` as shipped, two frames in flight; n = 6, median [range]).
 
 * **Per worker, not per frame in flight**: one frame in flight per worker reads 6.1 [5.6–6.6].
 * **Reuse costs 0.81 MB of it**: a decoder object per frame reads 5.6 [5.3–5.7], its WASM heap 4 096
@@ -639,7 +639,7 @@ only ever the wrong way. Tiering is per function with no on-stack replacement, s
 only the functions it runs — §Warming the decoders.
 
 *Corrected:* the reason first given — that the decoder is instantiated from a buffer and its glue
-evaluated as text, so no cache could attach — describes `client/downloader/decoder.js`, not this
+evaluated as text, so no cache could attach — describes `client/decode/decoder.js`, not this
 harness, whose page loads the glue by `<script src>` with no `wasmBinary` and so already streamed.
 The load-time gain across arms is the HTTP cache plus the JavaScript code cache on the glue.
 
@@ -653,7 +653,7 @@ V8 caches compiled WebAssembly only for a **streaming** compile of a module serv
 `wasmBinary`, which forbids that. `decoder.js` took `decoder.streaming`; given it, no binary was
 passed and the glue's own `WebAssembly.instantiateStreaming` ran. **The default is unchanged**, and
 the option, a tie with no caller, was removed 2026-10-03; code:
-`git show archive/arms-2026-10-03:client/downloader/decoder.js`. The lab arm below keeps its own copy.
+`git show archive/arms-2026-10-03:client/decode/decoder.js`. The lab arm below keeps its own copy.
 
 `lab/decode-first-frame/arms.mjs`, 5 rounds interleaved, a fresh persistent profile per arm, three
 visits each: **a tie.** Streaming's wins on frame 0 are 2/5, 2/5, 1/5 on `g512` and 4/5, 4/5, 2/5 on
@@ -676,7 +676,7 @@ the decoder's is not, and `new Function` would need `unsafe-eval` under a CSP. D
 
 If the first frames are slow because the engine tiers the decoder over them, that cost can be
 **moved**: decode a frame in each decoder while the session is still opening.
-`client/downloader/decoder.js` took `warmup`, a codestream URL fetched beside its own WASM compile
+`client/decode/decoder.js` took `warmup`, a codestream URL fetched beside its own WASM compile
 and decoded through the path a real frame takes, before that decoder answered `ready`. `decodersUp`
 gates dispatch on `ready`; nothing reached the session. **Removed on 2026-10-03** by the owner's
 ruling: it moves only per-frame waits, not the page's clock (below). The option, its rig clause,
@@ -705,7 +705,7 @@ Frames 0–2 are one per decoder. Medians in ms, `(k/12)` rounds better than `no
 * **The shape decides the frames after them, against you on colour**: a mismatched warm-up leaves
   `cine512`'s frames 3–11 at 14.4–14.7 ms against 10.22 with **no warm-up**, disjoint ranges. A
   product that ships a warm-up must pick it from the series' metadata
-  (`client/downloader/README.md`).
+  (`client/README.md`).
 * **It does not reach the page's clock on this box.** The decoders answer `ready` later by about
   what the frames save: frame 0 at the page 119.3 → 130.0 ms (cine, 2/12) and 119.1 → 120.6 (grey,
   6/12) on loopback, and 522 → 555 ms at a 40 ms round trip (`lab/scripts/link_impair.py`).
@@ -1453,7 +1453,7 @@ What this cannot say: anything about a phone, Safari, a GPU decoder, or a Chromi
 
 dav1d 1.5.4 under emscripten 3.1.74, `-msimd128`, one thread, 623 KB `.wasm` (238 KB gzipped), is
 exact against two native dav1d builds on every frame tried — 8/10/12-bit, 4:0:0 and 4:4:4, intra and
-inter ([`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md)). It is what `decode-av1.js` runs
+inter ([`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md)). It is what `av1-dav1d.js` runs
 for an AV1 series, flushed before each frame (G = 1: [`docs/av1/adr-unit.md`](../av1/adr-unit.md)
 §2), and the dispatch arm decodes all six shapes through the downloader to their source's checksum.
 Unlike WebCodecs it takes 12 bits and returns one frame per unit with no `flush()` to wait on. It
@@ -1461,7 +1461,7 @@ is 5–10× slower than OpenJPH on the same frames (§Decode time against HTJ2K)
 
 ### WebCodecs, the decoder the client runs where it is exact
 
-Row WCDEC (2026-10-03). `decode-av1-webcodecs.js` sits beside `decode-av1.js` behind the same
+Row WCDEC (2026-10-03). `av1-webcodecs.js` sits beside `av1-dav1d.js` behind the same
 contract, and `decoder.js` takes it only for a series that says `depth` ≤ 10 (every stream it codes,
 [`docs/av1/adr-unit.md`](../av1/adr-unit.md) §2) in a browser with `VideoDecoder`; any other AV1
 series, one that does not say its depth included, gets dav1d-WASM. Each unit is one key chunk,
@@ -1540,7 +1540,7 @@ WebKitGTK 2.52 (the last two through dav1d-WASM, as their probes send them). Off
 ### AV1 in WebKit and Firefox
 
 Row XBROWSER ([`lab/av1/exact/engines`](../../lab/av1/exact/engines/README.md)), 2026-10-05: the client's path
-as it is — `decoder.js` takes `decode-av1-webcodecs.js` for a series that says `depth` ≤ 10 where
+as it is — `decoder.js` takes `av1-webcodecs.js` for a series that says `depth` ≤ 10 where
 `VideoDecoder` exists, dav1d-WASM otherwise — on the first 4 frames of all nine series and an 8-bit
 grey set, in every layout row LLSIZE codes, against OpenJPH in the same engine. Chromium 141,
 Firefox 157.0 and WebKitGTK 2.52.6 (stock builds; Playwright's were refused), headless in a
@@ -1635,7 +1635,7 @@ with a decoder that is not installed by default. Nothing to adopt.
 therefore waits on a device run ([`docs/av1/queue.md`](../av1/queue.md) §Blocked), and at best covers the same
 8-bit 4:2:0 grey.
 
-**Built: the client reads 8-bit GBR as RGB.** `decode-av1-webcodecs.js` takes a `BGRX` or `RGBX` frame of a
+**Built: the client reads 8-bit GBR as RGB.** `av1-webcodecs.js` takes a `BGRX` or `RGBX` frame of a
 4:4:4 identity stream and splits it into the G, B and R planes it was coded in. Grey returned as RGB is still
 refused. The per-layout probe now passes `c8` in Firefox, so an 8-bit colour series decodes there through
 WebCodecs. Through the product's worker (`lab/av1/exact/engines`, the ultrasound's first 4 frames, 10 interleaved rounds)
@@ -1661,7 +1661,7 @@ the stride fix.
 Row SPEED ([`lab/av1/decode/per-frame`](../../lab/av1/decode/per-frame/README.md)), 2026-10-03. The first 18 frames of three
 real series (row DATA), each as the served HTJ2K and as lossless AV1 intra (libaom 3.15.1 `cpu-used`
 0, G = 1 as row SIZE recommends). Every arm is the product's decoder worker — `decoder.js` with the
-OpenJPH package, `decoder.js` → `decode-av1.js` with dav1d-WASM `simd` — or WebCodecs behind the
+OpenJPH package, `decoder.js` → `av1-dav1d.js` with dav1d-WASM `simd` — or WebCodecs behind the
 same protocol and output, timed by the worker's own decode stamps (bytes in, the contract's pixels
 and range out), one frame at a time after a warm-up frame. 16 rounds, each (environment × throttle)
 cell a fresh process in a Williams order, sets and arms rotated inside it. **7 488 of 7 488 timed
@@ -1690,7 +1690,7 @@ HTJ2K, paired by round:
   earlier desktop figure of ~10× (docs/av1/README.md §Prior evidence) is the right size: 5–10× here
   for dav1d-WASM, worst on the 12-bit fluoroscopy, and the throttle widens it slightly.
 * **The cost is dav1d's, not the copy-out**: `_av1_decode` alone is 67.5, 23.8 and 42.6 ms of the
-  ~71, ~26 and ~46 ms a frame in Node (one pass of 18 frames, not interleaved), so `decode-av1.js`'s
+  ~71, ~26 and ~46 ms a frame in Node (one pass of 18 frames, not interleaved), so `av1-dav1d.js`'s
   interleave and range pass are 6–12 %.
 * **WebCodecs is the faster AV1 path where it is exact** — 1.4–1.9× faster than dav1d-WASM (median 1.55, 32/32 rounds), still
   4.1–4.2× OpenJPH — and that is only 8- and 10-bit (§WebCodecs): of these series, the ultrasound.

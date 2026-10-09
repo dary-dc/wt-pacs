@@ -6,7 +6,7 @@
  */
 import { FakeTransport, installFakeTransport } from "./fake-transport.ts";
 
-export { TransportSession } from "../transport-ts/session.ts";
+export { TransportSession } from "../transport/ts/session.ts";
 
 installFakeTransport();
 /** When each transport was dialled, on this worker's clock. */

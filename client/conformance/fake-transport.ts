@@ -2,10 +2,10 @@
  * A WebTransport stand-in on the global scope. Both implementations reach for
  * `new WebTransport(...)` there — the TS one directly, the WASM one through web_sys — so one
  * fake drives either, in Node, with no browser and no server.
- * It speaks the format in ../transport-ts/wire.ts: `[4B LE len][JSON]` on control,
+ * It speaks the format in ../transport/ts/wire.ts: `[4B LE len][JSON]` on control,
  * `[4B BE len][4B BE index][codestream]` on a unidirectional stream.
  */
-import { decodeFodMsg, encodeFodMsg, type FodMsg } from "../transport-ts/wire.ts";
+import { decodeFodMsg, encodeFodMsg, type FodMsg } from "../transport/ts/wire.ts";
 
 /** web_sys checks `instanceof` on the bidi stream, which returns false for a bare object. */
 class WebTransportBidirectionalStream {

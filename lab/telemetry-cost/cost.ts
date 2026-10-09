@@ -6,7 +6,7 @@
  * The second `off` is a null control — whatever difference it shows against the first is this
  * rig's resolution, and a telemetry cost smaller than that is not a measurement.
  *
- *   bash client/transport-ts/build.sh && node lab/telemetry-cost/cost.mjs
+ *   bash client/transport/ts/build.sh && node lab/telemetry-cost/cost.mjs
  */
 import { FakeTransport, installFakeTransport } from "../../client/conformance/fake-transport.ts";
 import { typescriptImpl, wasmBuilt, wasmImpl } from "../../client/conformance/adapters.ts";
@@ -73,7 +73,7 @@ async function cell(label: string, count: number, size: number, chunks = CHUNKS)
 }
 
 if (IMPL === "transport-wasm" && !wasmBuilt()) {
-  console.error("transport-wasm has no pkg/ — run client/transport-wasm/build.sh");
+  console.error("transport-wasm has no pkg/ — run client/transport/wasm/build.sh");
   process.exit(2);
 }
 console.log(`${impl.name}: ${ROUNDS - WARMUP} timed rounds after ${WARMUP} warmup, three arms interleaved and rotated each round`);

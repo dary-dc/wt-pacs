@@ -7,7 +7,7 @@
  * once 10, 50 or 90 % has landed. Numbers go to window.__wtpacsResult; run.mjs adds what only
  * CDP can see. docs/ARCHITECTURE.md §The container campaign.
  */
-import { DownloaderClient } from "/client/downloader/consumer.js";
+import { DownloaderClient } from "/client/transport/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const arm = q.get("arm") || "Dw";

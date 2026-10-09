@@ -1,5 +1,5 @@
 /** The product's HTJ2K module for the whole frame, beside a frame at a resolution level from the same package. lab/av1/decode/resolution-level/README.md */
-import * as product from "/client/downloader/htj2k.js";
+import * as product from "/client/decode/htj2k.js";
 import { decodeLevel } from "./level.js";
 
 let dec = null;

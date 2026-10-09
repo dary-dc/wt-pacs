@@ -7,8 +7,8 @@ is [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 | Path | What |
 | --- | --- |
-| `client/transport-ts/` | TypeScript, browser ESM (`build.sh` → gitignored `dist/`). `frame-session.ts` is everything a session does whatever carries its bytes; `session.ts` carries it over WebTransport, `ws-session.ts` over a WebSocket, `race-session.ts` dials both |
-| `client/transport-wasm/` | Rust → WASM over `web_sys::WebTransport` (`build.sh` → gitignored `pkg/`; needs `wasm-pack`, `README.md` §Prerequisites) |
+| `client/transport/ts/` | TypeScript, browser ESM (`build.sh` → gitignored `dist/`). `frame-session.ts` is everything a session does whatever carries its bytes; `session.ts` carries it over WebTransport, `ws-session.ts` over a WebSocket, `race-session.ts` dials both |
+| `client/transport/wasm/` | Rust → WASM over `web_sys::WebTransport` (`build.sh` → gitignored `pkg/`; needs `wasm-pack`, `README.md` §Prerequisites) |
 | `client/conformance/` | the suite, §The conformance suite |
 
 ## The seam
@@ -16,7 +16,7 @@ is [`ARCHITECTURE.md`](ARCHITECTURE.md).
 `TransportSession` is one surface with independent implementations behind it. That is what makes
 it a seam rather than a coincidence: another transport plugs in without anything above it knowing,
 and the downloader takes any module exporting `TransportSession` as `config.transport`
-(`client/downloader/README.md`).
+(`client/README.md`).
 
 | | |
 | --- | --- |
@@ -31,7 +31,7 @@ A `FrameResult` is `{ frameIndex, bytes, timing: { askMs, lastChunkMs } }`, time
 `performance.now()` milliseconds. *Corrected 2026-10-03:* it also carried `tier`, `codec`,
 `firstChunkMs`, `chunks` and `serveUs`, constants nobody read; both clients dropped them, and
 `stats()` its `droppedEarlyMedia` and `frameErrors` counters, which nothing read (code:
-`git show archive/arms-2026-10-03:client/transport-ts/frame-session.ts`).
+`git show archive/arms-2026-10-03:client/transport/ts/frame-session.ts`).
 
 **Where the implementations differ**, and the conformance adapters are the only code that knows:
 `endStream` is a promise in TypeScript and synchronous in WASM; the WASM handle is exported as
@@ -65,7 +65,7 @@ so every server stream mode is read by the same code. The certificate is pinned 
 `serverCertificateHashes`. No `congestionControl` hint is requested: it shapes only the browser's
 send side, which carries only asks, Chrome does not expose it, and it is not measured elsewhere
 (the `"low-latency"` request was removed 2026-10-03; code:
-`git show archive/arms-2026-10-03:client/transport-ts/session.ts`).
+`git show archive/arms-2026-10-03:client/transport/ts/session.ts`).
 
 **Over a WebSocket, TypeScript** (`ws-session.ts`). The same `FrameSession` over one socket to
 `wss://` on the same host and port number; the certificate hash is ignored, since a WebSocket
@@ -180,7 +180,7 @@ are in flight that its end is observable. Nothing in the tree is touched.
 **In the gate** (`scripts/gate.sh`): `run.mjs`, the worker-safe static check
 (`client/scripts/check_worker_safe.sh`: no built artifact may contain a `window.` reference), the
 downloader and dispatch rigs, and `run_wire.sh`. **The WASM client is required**: `run.mjs` exits 2
-without `client/transport-wasm/pkg/` (decided 2026-09-18, over the proposal's "skip the arm
+without `client/transport/wasm/pkg/` (decided 2026-09-18, over the proposal's "skip the arm
 loudly"). The headless steps are required too: the gate exits 2 with the install command when
 playwright, Chromium or the decoder vendor is missing (decided 2026-10-03; it was "skip loudly"
 until then, and a gate without a browser passed none of the browser checks);
@@ -244,7 +244,7 @@ still owed once, through `onError`, with the closure's reason, after the waiters
 **What the consumer owns.** A pushed fill cannot time out a frame that never comes; the consumer
 keeps its own record of what it wants. The downloader does, and re-issues the undelivered remainder
 as a new fill once an ask has settled, and resumes on a dead session's report rather than failing
-(`client/downloader/README.md`).
+(`client/README.md`).
 
 ## A truncated frame is a failure
 

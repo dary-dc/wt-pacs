@@ -4,15 +4,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-TS_DIST="$ROOT/client/transport-ts/dist/session.js"
-WASM_JS="$ROOT/client/transport-wasm/pkg/transport_wasm.js"
-WASM_BG="$ROOT/client/transport-wasm/pkg/transport_wasm_bg.wasm"
+TS_DIST="$ROOT/client/transport/ts/dist/session.js"
+WASM_JS="$ROOT/client/transport/wasm/pkg/transport_wasm.js"
+WASM_BG="$ROOT/client/transport/wasm/pkg/transport_wasm_bg.wasm"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # dist/ is gitignored — build the default product bundle when missing.
 if [[ ! -f "$TS_DIST" ]]; then
-  bash "$ROOT/client/transport-ts/build.sh"
+  bash "$ROOT/client/transport/ts/build.sh"
 fi
 if [[ ! -f "$TS_DIST" ]]; then
   fail "missing $TS_DIST after build"

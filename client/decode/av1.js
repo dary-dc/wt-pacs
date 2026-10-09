@@ -3,7 +3,7 @@
  * is ≤ 10 bits and its layout's probe passed, through dav1d-WASM otherwise or when WebCodecs fails.
  * docs/av1/item-format.md §Decoder choice, per item
  */
-import { layouts, parseItem, units } from "./av1-item.js";
+import { layouts, parseItem, units } from "./av1-payload.js";
 import { begin, end } from "./av1-frame.js";
 
 let cfg = null;
@@ -15,8 +15,8 @@ export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
   // Fetched while the session dials, compiled only on first use: lab/page-open/README.md §Cold round trips by codec
-  importer("./decode-av1.js").catch(() => {});
-  if (typeof VideoDecoder === "function") importer("./decode-av1-webcodecs.js").catch(() => {});
+  importer("./av1-dav1d.js").catch(() => {});
+  if (typeof VideoDecoder === "function") importer("./av1-webcodecs.js").catch(() => {});
   for (const url of [d.glue, d.wasm]) if (url) fetch(url).then((r) => r.arrayBuffer()).catch(() => {});
 }
 
@@ -33,7 +33,7 @@ function module(path) {
 
 async function webcodecs(streams) {
   if (typeof VideoDecoder !== "function") return null;
-  const wc = await module("./decode-av1-webcodecs.js").catch(() => null);
+  const wc = await module("./av1-webcodecs.js").catch(() => null);
   if (!wc) return null;
   for (const layout of streams) if (!(await wc.probe(layout))) return null;
   return wc;
@@ -51,7 +51,7 @@ export async function decodeFrame(bytes, unit = { key: true }, preview) {
       /* dav1d decodes what WebCodecs would not */
     }
   }
-  const dav1d = await module("./decode-av1.js");
+  const dav1d = await module("./av1-dav1d.js");
   // A scalable unit's base is lossy and of its own size: shown as it is, never merged with a low unit.
   const base = preview && ((pic) => preview(end(begin(pic, { ...item, split: 0 }))));
   const lowWc = low && cfg.mixed && item.depth > 10 && (await webcodecs(["g8"]));

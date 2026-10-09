@@ -9,7 +9,7 @@ decode, every arm of a series on the same link and CPU. Queue row 23 (TOTAL) of
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
-client/transport-ts/build.sh                                   # the client's session bundle
+client/transport/ts/build.sh                                   # the client's session bundle
 lab/av1/fetch_data.sh rf_fluoro us_liver dbt12_ea1141 dbt10_ea1141
 for s in rf_fluoro us_liver dbt12_ea1141 dbt10_ea1141; do        # ~40 min, one core each
   lab/av1/.venv/bin/python lab/av1/delivery/total-time/make_frames.py lab/.av1-build lab/.av1-work/total lab/av1/data/$s &
@@ -230,7 +230,7 @@ run.mjs --frames lab/.av1-work/losslink --links r20000,lte-good --impairs clean,
 
 whose summary adds per arm the asks failed, the resumes and the silences survived. Chromium 141's
 `WebTransport.getStats()` gave a probe no `packetsReceived` in two visits, so a silence is the application's, not the
-socket's. The reading is in [`client/downloader/README.md`](../../../../client/downloader/README.md)
+socket's. The reading is in [`client/README.md`](../../../../client/README.md)
 §A session that dies is resumed.
 
 **Row LOSSCC, the first claim's run** (`c0a3d8`, set stale mid-run) sets the server's three controllers against each other on row LOSSLINK's cells: the same

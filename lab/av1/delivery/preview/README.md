@@ -97,7 +97,7 @@ level-1 prefix it ranges from 0.4× to 2.2× its time.
 ## Time to a playable cine, and to every frame exact
 
 **Arithmetic, not a transfer measured**: the bytes above at 5, 20 and 50 Mbit/s, frames in display
-order, and the decode times above on today's three decoders (`client/downloader/downloader.js`), a
+order, and the decode times above on today's three decoders (`client/transport/downloader.js`), a
 decoder taking the next frame — or the next group, for G > 1 — when free and decoding it once its
 bytes are in (`model.py`). *Playable*: every preview frame decoded. *Exact*: every exact frame
 decoded. Three arms: exact HTJ2K alone; the AV1 preview's bytes, then HTJ2K's; every frame's level-1

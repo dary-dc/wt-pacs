@@ -19,7 +19,7 @@ const BUILD = {
   wasm: "/lab/.openjph-build/deliver/openjphjs.wasm",
   dir: "/lab/.openjph-build/deliver",
 };
-const PRODUCT = "/client/downloader/decoder.js";
+const PRODUCT = "/client/decode/decoder.js";
 const TWIN = "/lab/decoder-memory/twin.js";
 const ARMS = {
   prod: { worker: PRODUCT, per: 2 },
@@ -89,7 +89,7 @@ async function main() {
   let heap = null;
   if (PATH === "downloader") {
     const cfg = await (await fetch("/wt/dev-transport.json")).json();
-    const { DownloaderClient } = await import("/client/downloader/consumer.js");
+    const { DownloaderClient } = await import("/client/transport/consumer.js");
     const client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
       decoders: D,
       perDecoder: PER,

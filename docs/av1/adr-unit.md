@@ -48,7 +48,7 @@ reply to the consumer. What is codec-specific today — `init` (glue, factory, d
 `decodeFrame(bytes)` — moves behind one interface, one module per codec:
 
 ```js
-// decode-htj2k.js, decode-av1.js
+// decode-htj2k.js, av1-dav1d.js
 export async function init(m) {}          // compile, construct the decoder object
 export function decodeFrame(bytes) {}     // → { info, sab, byteCount, range }
 // info: { width, height, bitsPerSample, componentCount, isSigned }
@@ -56,7 +56,7 @@ export function decodeFrame(bytes) {}     // → { info, sab, byteCount, range }
 
 `init` in `decoder.js` loads the module by `m.decoder.codec` with a dynamic `import()` (it is a
 module worker), so an HTJ2K page never fetches AV1 code and the HTJ2K path is today's code moved,
-not changed. *Built:* only AV1 is a separate module (`decode-av1.js`); HTJ2K's half stays in
+not changed. *Built:* only AV1 is a separate module (`av1-dav1d.js`); HTJ2K's half stays in
 `decoder.js`, moved into `initHtj2k` and otherwise unchanged, so an HTJ2K decoder's boot fetches
 what it did (the worker graph `lab/page-open` preloads). The AV1 module is a relative `import()`,
 which resolves nothing from a blob: a page booting `decoder.js` from one serves HTJ2K only. The `frame` message to the consumer is built from that return value exactly as now, so
@@ -126,7 +126,7 @@ proposal below:
 * **A group split across two decoders is impossible by construction, and refused if it happens.**
   A frame that is not a keyframe goes only to the decoder that took its predecessor, in index order
   whatever order the frames land in; a decoder holds its group while its next frame is still owed,
-  and takes no keyframe meanwhile. `decode-av1.js` refuses a frame unless it is a keyframe (`key`
+  and takes no keyframe meanwhile. `av1-dav1d.js` refuses a frame unless it is a keyframe (`key`
   in the decode message, `index % G == 0`; it flushes then) or follows the frame it decoded last in
   the same request.
 * **A failure fails the rest of its group by name** (invariant 4): a frame that does not decode
@@ -358,7 +358,7 @@ frame came back as its base.
   `av1_layer()` (the picture's `spatial_id`) and `av1_top_layer()` (the highest spatial layer of
   operating point 0, from the sequence header's `operating_point_idc`; 0 for a single-layer stream).
   The build is otherwise unchanged (623 146 B).
-* `decode-av1.js` decodes the unit, and while the picture's layer is below the top it hands that
+* `av1-dav1d.js` decodes the unit, and while the picture's layer is below the top it hands that
   picture to a `preview` callback and asks for the next. A single-layer stream's first picture is
   its top, so it decodes as before. A unit that ends below the top fails by name:
   `spatial layer 0 of 1 is the unit's last`.

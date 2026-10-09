@@ -1,4 +1,4 @@
-// node client/downloader/downloader.test.mjs — decoders a start makes, a timed-out ask; no browser.
+// node client/transport/downloader.test.mjs — decoders a start makes, a timed-out ask; no browser.
 globalThis.onmessage ??= null;
 globalThis.addEventListener ??= () => {};
 const posted = [];

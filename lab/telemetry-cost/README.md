@@ -4,13 +4,13 @@ What `client/record/` costs when it is installed, against the same client withou
 `docs/adr/telemetry-instrument-clients-from-outside.md` §What installing it costs holds the numbers.
 
 ```bash
-bash client/transport-ts/build.sh
+bash client/transport/ts/build.sh
 node lab/telemetry-cost/cost.mjs                                  # transport-ts, both sweeps
 SWEEP=chunks IMPL=transport-wasm ROUNDS=17 node lab/telemetry-cost/cost.mjs
 ```
 
 `SWEEP` is `both`, `bytes`, `chunks` or `frames`; `IMPL` is `transport-ts` or `transport-wasm`
-(the latter needs `client/transport-wasm/pkg`, so `wasm-pack`); `ROUNDS` and `WARMUP` are rounds
+(the latter needs `client/transport/wasm/pkg`, so `wasm-pack`); `ROUNDS` and `WARMUP` are rounds
 timed and rounds discarded.
 
 The seam is a patched global `WebTransport`, which is what `client/conformance/`'s fake already

@@ -8,7 +8,7 @@ server and store, timed on row TOTAL's links and CPU. Queue row 40 (SVC) of
 
 ```bash
 lab/av1/delivery/scalable/encoder/build.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # patched svc_encoder_rtc, dav1d-WASM simd
-client/decode/wasm/fetch_openjph.sh && client/transport-ts/build.sh
+client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 lab/av1/fetch_data.sh rf_fluoro us_liver
 for s in rf_fluoro us_liver; do                                  # ~25 min, one core each
@@ -36,7 +36,7 @@ unit by unit, to the encoder's own base-layer stream — and entry F + i the who
 base and then every exact unit. `single` isolates the layering's cost from the encoder and the group:
 `svc` and `single` are the same encoder, speed and keyframe interval.
 
-**The decoder.** [`decoder.js`](decoder.js) speaks `client/downloader/decoder.js`'s protocol and is
+**The decoder.** [`decoder.js`](decoder.js) speaks `client/decode/decoder.js`'s protocol and is
 handed to the downloader through its `decoderWorker` seam, so the product's worker is untouched. A
 base entry decodes on dav1d-WASM (the product's `simd` build) to its spatial layer 0 and is posted as
 `preview: true`, which the consumer hands to `onPreview`; an exact entry skips its unit's base picture

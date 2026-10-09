@@ -3,7 +3,7 @@
  * the page by the same rule (fewest outstanding, two at most), so what differs from page.js is the
  * downloader worker and nothing else. docs/ARCHITECTURE.md §The downloader arm during a fill, against direct
  */
-import { TransportSession } from "/client/transport-ts/dist/session.js";
+import { TransportSession } from "/client/transport/ts/dist/session.js";
 
 const q = new URLSearchParams(location.search);
 const FILL = Number(q.get("fill"));
@@ -20,7 +20,7 @@ const all = new Promise((r) => (resolveAll = r));
 const workers = [];
 const queue = [];
 for (let i = 0; i < DECODERS; i++) {
-  const worker = new Worker("/client/downloader/decoder.js", { type: "module" });
+  const worker = new Worker("/client/decode/decoder.js", { type: "module" });
   const ch = new MessageChannel();
   const d = { worker, outstanding: 0, i };
   ch.port2.onmessage = (e) => {

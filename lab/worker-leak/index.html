@@ -3,7 +3,7 @@
 <head><meta charset="utf-8" /><link rel="icon" href="data:," /><title>worker leak</title></head>
 <body>
 <script type="module">
-  import { DownloaderClient } from "/client/downloader/consumer.js";
+  import { DownloaderClient } from "/client/transport/consumer.js";
   let world = 0;
   /** Opens a client on the conformance fakes and closes it, `n` times over. */
   globalThis.openClose = async (n, decoders) => {

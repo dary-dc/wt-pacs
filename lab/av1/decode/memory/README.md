@@ -20,7 +20,7 @@ node lab/av1/decode/memory/summary.mjs mem.jsonl first.jsonl
 **Series**, the largest frames here: the 14-bit tomosynthesis projections of one system (`dbtproj_ge`,
 9 × 1914×2572, 4.92 M samples) and the RGB ultrasound (`us_liver`, 70 × 760×421×3).
 
-**Arms**, each the product's `client/downloader/decoder.js` told what `connect` would tell it:
+**Arms**, each the product's `client/decode/decoder.js` told what `connect` would tell it:
 
 | arm | frames | decoder |
 | --- | --- | --- |

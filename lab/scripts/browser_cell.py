@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Browser round trip per frame: a harness cell in headless Chromium against one server binary.
-Needs the static host (`server/dev-server.py --port 8765`) and `client/transport-ts/dist`.
+Needs the static host (`server/dev-server.py --port 8765`) and `client/transport/ts/dist`.
 usage: browser_cell.py <label> <server-bin> <fixture> <cell> <n> <depth> <repeats> [server args...]
 <depth> is the shell's asks in flight.
 Prints one line per repeat: label cell depth n wall_ms us_per_frame delivered failed.
