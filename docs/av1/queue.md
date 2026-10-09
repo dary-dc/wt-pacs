@@ -1908,7 +1908,7 @@ code its page runs.
 **Do:** one build recipe, run in a container: Debian slim pinned by digest, emscripten 3.1.74, cmake pinned, OpenJPH
 0.31.0 and dav1d 1.5.4 at their commits. The script refuses any other version of each. It builds:
 
-* **OpenJPH**, from `lab/decode-bench/wasm/htj2k_decoder.cpp` as it stands (the range in the pack), with
+* **OpenJPH**, from the wrapper as it stands (`client/decode/wasm/openjph/htj2k_decoder.cpp` since this row moved it) (the range in the pack), with
   `INITIAL_MEMORY` 4 MB and `-O3 -msimd128 -fexceptions`.
   * The pack's range becomes a compile-time switch, off for 8-bit unsigned 3-component frames: nothing reads their
     range (`htj2k.js`'s `unranged`). `getRange()` returns an empty range (min > max) for them.
