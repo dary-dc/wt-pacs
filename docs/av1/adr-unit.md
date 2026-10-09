@@ -78,7 +78,7 @@ against another decoder:
 * *Built:* **at G = 1 the decoder is flushed before every frame** (`dav1d_flush`: every reference
   and the sequence header dropped), so a frame decodes from its own bytes or fails. Without it a
   frame of a group handed to a G = 1 series decodes against the previous frame's references to
-  wrong pixels — the conformance clause sees exactly that when the flush is removed.
+  wrong pixels — the contract clause sees exactly that when the flush is removed.
 
 ### The transforms and the decoder choice, as built (row WCDEC)
 

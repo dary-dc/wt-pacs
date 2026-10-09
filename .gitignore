@@ -25,9 +25,9 @@ client/transport/ts/dist/
 client/record/test/run.mjs
 # transport-ts unit tests (build via client/transport/ts/build.sh)
 client/transport/ts/test/run.mjs
-# Conformance suite bundles (build via client/transport/ts/build.sh)
-client/conformance/run.mjs
-client/conformance/dist/
+# Contract suite bundles (build via client/transport/ts/build.sh)
+client/contract/run.mjs
+client/contract/dist/
 # Telemetry cost bench bundle (build via client/transport/ts/build.sh)
 lab/telemetry-cost/cost.mjs
 

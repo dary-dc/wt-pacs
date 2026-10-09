@@ -2,7 +2,7 @@
  * Node entry: the clauses in clauses.ts against every client implementation, over the fake
  * WebTransport or WebSocket installed on the global scope, then the race between the two.
  *
- *   bash client/transport/ts/build.sh && node client/conformance/run.mjs [transport-ts|transport-wasm|transport-ws|transport-race]
+ *   bash client/transport/ts/build.sh && node client/contract/run.mjs [transport-ts|transport-wasm|transport-ws|transport-race]
  *
  * With no name, each implementation runs in its own process, side by side: the fakes are global to a
  * process, and one clause waits out 16 s of a trickled frame on each.
@@ -64,7 +64,7 @@ function nodeRig(impl: Implementation, fake: Fake): Rig {
     open() {
       fake.install();
       dialsAtOpen = fake.dials();
-      return impl.connect("https://conformance.invalid/", CERT);
+      return impl.connect("https://contract.invalid/", CERT);
     },
     fake: () => ({
       pushFrame: async (i, c) => fake.last().pushFrame(i, c),
@@ -122,7 +122,7 @@ function report(ran: number, failed: number, inapplicable: string[], strays: num
   }
   if (strays) console.log(`\n  ${strays} abandoned waiter(s) rejected after their fill was cancelled`);
   console.log(
-    `\nconformance: ${ran - failed}/${ran} checks passed across ${impls} implementations and the race; ` +
+    `\ncontract: ${ran - failed}/${ran} checks passed across ${impls} implementations and the race; ` +
       `${inapplicable.length} not applicable`,
   );
 }

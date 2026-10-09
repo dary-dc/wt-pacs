@@ -203,7 +203,7 @@ path. It does not include the Proxy dispatch that gets it there, or the per-fram
 This is the other number: the same client driven identically with the seam installed and not.
 
 `lab/telemetry-cost/cost.mjs` runs it in Node, no browser and no server: the seam is a patched
-global `WebTransport`, which is what `client/conformance/`'s fake occupies. **Three arms, not two.**
+global `WebTransport`, which is what `client/contract/`'s fake occupies. **Three arms, not two.**
 `off` runs twice; the second is a null control whose difference from the first is the rig's
 resolution. Arms interleave and rotate every round.
 

@@ -13,8 +13,8 @@ SWEEP=chunks IMPL=transport-wasm ROUNDS=17 node lab/telemetry-cost/cost.mjs
 (the latter needs `client/transport/wasm/pkg`, so `wasm-pack`); `ROUNDS` and `WARMUP` are rounds
 timed and rounds discarded.
 
-The seam is a patched global `WebTransport`, which is what `client/conformance/`'s fake already
-occupies — so this runs in Node with no browser and no server, on the conformance harness.
+The seam is a patched global `WebTransport`, which is what `client/contract/`'s fake already
+occupies — so this runs in Node with no browser and no server, on the contract harness.
 
 **Three arms, not two.** `off` runs twice. The second is a null control: whatever difference it
 shows against the first is this rig's resolution, and an overhead smaller than that is not a

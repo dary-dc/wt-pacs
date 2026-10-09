@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """The client's AV1 test payloads and WebCodecs probes, made by the writer from synthetic sources.
 
-  client/conformance/av1/payloads/{plain,optimized}/NAME.av1   one payload each, through ingest.py
-  client/conformance/av1/payloads/{plain,optimized}/NAME.sha256 the source samples' checksum
-  client/conformance/av1/payloads/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range (row GREY420)
-  client/conformance/av1/payloads/matrix/b{B}k{K}{u,s}.av1       row 43: every (bits, split, sign) a rule could pick
+  client/contract/av1/payloads/{plain,optimized}/NAME.av1   one payload each, through ingest.py
+  client/contract/av1/payloads/{plain,optimized}/NAME.sha256 the source samples' checksum
+  client/contract/av1/payloads/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range (row GREY420)
+  client/contract/av1/payloads/matrix/b{B}k{K}{u,s}.av1       row 43: every (bits, split, sign) a rule could pick
   client/decode/av1-probe.js                              a 16×16 unit per layout WebCodecs may take
 
 Every source is written with the checksum of its samples before anything codes it; ingest.py
@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ingest  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-PAYLOADS = ROOT / "client/conformance/av1/payloads"
+PAYLOADS = ROOT / "client/contract/av1/payloads"
 PROBE = ROOT / "client/decode/av1-probe.js"
 W, H = 64, 48
 

@@ -1,5 +1,5 @@
 /**
- * WCBASE in headless Chromium: `--check` decodes every unit of every set once (conformance, `--mutate`
+ * WCBASE in headless Chromium: `--check` decodes every unit of every set once (contract, `--mutate`
  * to break it on purpose); otherwise each throttle is a fresh browser each round, the cells in a
  * Williams order (lab/order.mjs), sets and arms rotating inside. README.md here.
  *

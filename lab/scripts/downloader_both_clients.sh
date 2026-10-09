@@ -70,7 +70,7 @@ for r in $(seq 1 "$ROUNDS"); do
   for arm in "${arms[@]}"; do
     url="http://127.0.0.1:$PORT/harness/"
     if [[ "$arm" == wasm ]]; then url="$url?transport=/client/transport/wasm/session-adapter.js"; fi
-    out="$(node client/conformance/drive_page.cjs "$url" 2>&1)" || { printf '%s\n' "$out" >&2; exit 1; }
+    out="$(node client/contract/drive_page.cjs "$url" 2>&1)" || { printf '%s\n' "$out" >&2; exit 1; }
     printf '%s\t%s\n' "$arm" "$(tr '\n' '|' <<<"$out")" >> "$T/rows.tsv"
   done
   echo "round $r/$ROUNDS" >&2

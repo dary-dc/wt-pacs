@@ -6,7 +6,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-source client/conformance/browser_env.sh
+source client/contract/browser_env.sh
 require_browser
 
 cargo build -q -p series-server -p pack-series
@@ -40,13 +40,13 @@ serving || { echo "the server did not start:" >&2; cat "$T/server.log" >&2; exit
 start_static "$T/static.log"
 
 WT="wt=https://127.0.0.1:$WT_PORT/&hash=$CERT_HASH"
-drive() { node client/conformance/drive_page.cjs "http://127.0.0.1:$PORT/$1" | grep . | tail -1; }
+drive() { node client/contract/drive_page.cjs "http://127.0.0.1:$PORT/$1" | grep . | tail -1; }
 failed=0
-drive "client/conformance/refusals.html?client=ts&n=64&$WT" || failed=1
-drive "client/conformance/refusals.html?client=wasm&n=64&$WT" || failed=1
-drive "client/conformance/refusals.html?client=ws&n=64&$WT" || failed=1
-drive "client/conformance/ask-during-fill.html?client=ts&$WT" || failed=1
-drive "client/conformance/ask-during-fill.html?client=downloader&$WT" || failed=1
-drive "client/conformance/ask-during-fill.html?client=ws&$WT" || failed=1
-drive "client/conformance/ask-during-fill.html?client=downloader-ws&$WT" || failed=1
+drive "client/contract/refusals.html?client=ts&n=64&$WT" || failed=1
+drive "client/contract/refusals.html?client=wasm&n=64&$WT" || failed=1
+drive "client/contract/refusals.html?client=ws&n=64&$WT" || failed=1
+drive "client/contract/ask-during-fill.html?client=ts&$WT" || failed=1
+drive "client/contract/ask-during-fill.html?client=downloader&$WT" || failed=1
+drive "client/contract/ask-during-fill.html?client=ws&$WT" || failed=1
+drive "client/contract/ask-during-fill.html?client=downloader-ws&$WT" || failed=1
 exit $failed

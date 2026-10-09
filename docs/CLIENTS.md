@@ -9,7 +9,7 @@ is [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | --- | --- |
 | `client/transport/ts/` | TypeScript, browser ESM (`build.sh` → gitignored `dist/`). `frame-session.ts` is everything a session does whatever carries its bytes; `session.ts` carries it over WebTransport, `ws-session.ts` over a WebSocket, `race-session.ts` dials both |
 | `client/transport/wasm/` | Rust → WASM over `web_sys::WebTransport` (`build.sh` → gitignored `pkg/`; needs `wasm-pack`, `README.md` §Prerequisites) |
-| `client/conformance/` | the suite, §The conformance suite |
+| `client/contract/` | the suite, §The contract suite |
 
 ## The seam
 
@@ -33,7 +33,7 @@ A `FrameResult` is `{ frameIndex, bytes, timing: { askMs, lastChunkMs } }`, time
 `stats()` its `droppedEarlyMedia` and `frameErrors` counters, which nothing read (code:
 `git show archive/arms-2026-10-03:client/transport/ts/frame-session.ts`).
 
-**Where the implementations differ**, and the conformance adapters are the only code that knows:
+**Where the implementations differ**, and the contract adapters are the only code that knows:
 `endStream` is a promise in TypeScript and synchronous in WASM; the WASM handle is exported as
 `TransportSessionHandle`. `connect`'s options are TypeScript's alone except `wireBuffers`, which
 the WASM `connect` takes as its third argument:
@@ -87,7 +87,7 @@ fallback. On loopback the WebSocket wins 57–58 of 60 dials (headless Chromium,
 server, 200 ms apart), where the handshakes' CPU decides; on a link TCP + TLS + upgrade is three
 round trips against the QUIC dial's 2.1. **Not measured on a link.**
 
-## The conformance suite
+## The contract suite
 
 The surface's clauses as tests, run against every implementation. It proves the client half
 against a fake: a contract test, not an integration test, and an implementation passing it is
@@ -99,7 +99,7 @@ emits the same global lookup. A fake installed on `globalThis` therefore drives 
 plain Node, with no browser and no server. The fake speaks the wire of `WIRE.md` and belongs to the
 suite, not to an implementation. Its media streams are byte streams, as a WebTransport receive
 stream is, so a TypeScript BYOB reader (`readMin`) runs on it too. `WTPACS_WASM_PKG=<pkg> node
-client/conformance/run.mjs` runs the suite on another build of the WASM client.
+client/contract/run.mjs` runs the suite on another build of the WASM client.
 
 | File | What |
 | --- | --- |
@@ -164,13 +164,13 @@ packs 200 random 256 KB frames, makes its own certificate under a temp dir, and 
 send window and `--websocket`, so a fill is still running when an ask lands and few enough frames
 are in flight that its end is observable. Nothing in the tree is touched.
 
-* `client/conformance/refusals.html`: 64 out-of-range asks in flight at once, every waiter
+* `client/contract/refusals.html`: 64 out-of-range asks in flight at once, every waiter
   rejected promptly with **the server's own reason** — TS and WASM over WebTransport, TS over the
   WebSocket. Mutant: the TS control pump dropping one `frame_error` reports 63 of 64, 1 timed out.
   *Corrected 2026-09-25:* the page counted any `unavailable` rejection, and a session that died
   makes every waiter `unavailable`, so the WebSocket client passed 64 of 64 with its refusals sent as
   the wrong message type. It now requires the reason's words; every client still passes 64 of 64.
-* `client/conformance/ask-during-fill.html`: WIRE.md §An ask during a fill, seen from the client,
+* `client/contract/ask-during-fill.html`: WIRE.md §An ask during a fill, seen from the client,
   raw and through the downloader, over both transports. Raw: the ask is served mid-fill, the fill
   ends — 28 of 120 arrive, then nothing — and the rest arrive only once asked again. Downloader: the
   fill completes without being asked again, no frame twice. Mutants: a planner that keeps the fill
@@ -185,7 +185,7 @@ loudly"). The headless steps are required too: the gate exits 2 with the install
 playwright, Chromium or the decoder vendor is missing (decided 2026-10-03; it was "skip loudly"
 until then, and a gate without a browser passed none of the browser checks);
 `scripts/gate.sh --no-browser` skips them and says so in its last line. The suite and the
-transport-ts tests are type-checked (`client/conformance/tsconfig.json`).
+transport-ts tests are type-checked (`client/contract/tsconfig.json`).
 
 Every clause was mutated — the implementation broken on purpose, the check watched failing.
 
@@ -205,7 +205,7 @@ that reason, and a request arriving afterwards fails without arming one.
 counted **from the last byte the session delivered, not from the ask** (since 2026-09-24), so the
 tail of a burst longer than 15 s is not failed while its bytes still arrive.
 
-Measured on the conformance fake — wall-clock gaps of milliseconds against seconds, not a timing
+Measured on the contract fake — wall-clock gaps of milliseconds against seconds, not a timing
 claim; both implementations, same numbers:
 
 | | before | after |
@@ -270,7 +270,7 @@ records the run.
 short length and passes; only its pixels would say, and the per-frame hash is what says that. A
 stream cut inside the 4 bytes of the index cannot name a frame and is not reported.
 
-Conformance: `aTruncatedFrameIsAFailure` — every implementation and the downloader rig — and
+Contract: `aTruncatedFrameIsAFailure` — every implementation and the downloader rig — and
 `aTruncatedFrameIsAFailureNotAFrame` in `dispatch-rig.ts`, which adds the generation the consumer
 sees.
 

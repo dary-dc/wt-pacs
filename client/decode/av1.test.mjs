@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const PAYLOADS = `${ROOT}client/conformance/av1/payloads`;
+const PAYLOADS = `${ROOT}client/contract/av1/payloads`;
 const OUT = `${ROOT}lab/.av1-build/out`;
 // The glue is evaluated as a classic script, which in node reaches for require and for fetch on paths.
 globalThis.require = createRequire(import.meta.url);

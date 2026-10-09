@@ -26,8 +26,8 @@
       const fake = fakeOn(ch);
       const connect = DownloaderClient.connect("https://early.invalid/", "ab".repeat(32), {
         decoders: 3,
-        transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
-        decoderWorker: "/client/conformance/fake-decoder.js",
+        transport: `/client/contract/dist/fake-session.js?ch=${ch}`,
+        decoderWorker: "/client/contract/fake-decoder.js",
         decoder: { delayMs: 0 },
       });
       const frame = connect.then(async (client) => {

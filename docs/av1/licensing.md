@@ -88,5 +88,5 @@ found. Residual risk is counsel's call, not this file's.
 **DICOM defines no AV1 transfer syntax** (PS3.6 Annex A has no AV1 entry; video is MPEG-2/4, HEVC,
 and Sup 225 multi-fragment video). Lossless AV1 is therefore this project's own frame format: the
 store (SBND) is not DICOM, so nothing here breaks, but an archive exchanging AV1 payloads as DICOM would
-need a private transfer syntax and could not claim conformance for it. HTJ2K's lossless transfer
+need a private transfer syntax and could not claim contract for it. HTJ2K's lossless transfer
 syntaxes are `1.2.840.10008.1.2.4.201` and `.202`.

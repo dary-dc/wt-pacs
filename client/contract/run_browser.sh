@@ -6,15 +6,15 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-source client/conformance/browser_env.sh
+source client/contract/browser_env.sh
 RIGS=("$@")
 [[ ${#RIGS[@]} -gt 0 ]] || RIGS=(downloader dispatch)
 
 require_browser
 require_vendor
 for rig in "${RIGS[@]}"; do
-  if [[ ! -f "client/conformance/dist/$rig-rig.js" ]]; then
-    echo "run client/transport/ts/build.sh first: client/conformance/dist/$rig-rig.js is missing" >&2
+  if [[ ! -f "client/contract/dist/$rig-rig.js" ]]; then
+    echo "run client/transport/ts/build.sh first: client/contract/dist/$rig-rig.js is missing" >&2
     exit 1
   fi
 done
@@ -27,7 +27,7 @@ start_static "$T/static.log"
 # Each rig in its own page, side by side: both wait on timers far more than on the CPU.
 pids=()
 for rig in "${RIGS[@]}"; do
-  node client/conformance/drive_page.cjs "http://127.0.0.1:$PORT/client/conformance/page.html?rig=$rig" >"$T/$rig.log" 2>"$T/$rig.err" &
+  node client/contract/drive_page.cjs "http://127.0.0.1:$PORT/client/contract/page.html?rig=$rig" >"$T/$rig.log" 2>"$T/$rig.err" &
   pids+=($!)
 done
 failed=0

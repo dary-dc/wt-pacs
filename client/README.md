@@ -28,7 +28,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `htj2k.test.mjs`, `av1.test.mjs` | node: the range pass; the AV1 payload reader |
 | `wasm/` | `dav1d/` builds dav1d-WASM, `fetch_openjph.sh` fetches OpenJPH's into `vendor/` |
 
-The rest: [`conformance/`](conformance/) the transport's clauses and the rigs, [`paint/`](paint/README.md) the
+The rest: [`contract/`](contract/) the transport's clauses and the rigs, [`paint/`](paint/README.md) the
 painter, [`record/`](record/) telemetry, [`harness/`](harness/) the lab's pages.
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
@@ -56,7 +56,7 @@ the series is AV1 can `preload` the seven AV1 modules, the glue and the WASM, as
 does: AV1 then reaches HTJ2K's 8.0. [`lab/page-open/README.md`](../lab/page-open/README.md)
 §Cold round trips by codec. A WebCodecs frame is taken only for the unit it
 was sent with, so one flushed late from an earlier unit is never taken for the unit in hand. The
-dispatch rig checks the writer's golden payloads (`client/conformance/av1/payloads/`, plain and optimized,
+dispatch rig checks the writer's golden payloads (`client/contract/av1/payloads/`, plain and optimized,
 seven shapes each) through both decoders, every refusal by its message, the choice, the fallback and
 a late frame; `av1.test.mjs` the same reader in node.
 
@@ -65,7 +65,7 @@ keyframe sits at every multiple of G and the frames between decode only after it
 payload: an ask for any frame asks its whole group from the keyframe, a fill asks whole groups, and a
 group's frames go to one decoder in index order. A frame that fails fails the rest of its group,
 each by name. Each unit reaches the decoder as a payload of one frame. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §3, *Built*; the dispatch rig
-checks a G = 8 set and a one-group set (`client/conformance/av1/{g8x20,whole12}`) frame by frame.
+checks a G = 8 set and a one-group set (`client/contract/av1/{g8x20,whole12}`) frame by frame.
 A ≤ 10-bit series in groups decodes through WebCodecs, not flushed inside a group
 ([`docs/decode/README.md`](../docs/decode/README.md) §WebCodecs without a flush).
 
@@ -74,7 +74,7 @@ dav1d-WASM twice from the same bytes: the base reaches `opts.onPreview` as a fra
 `preview: true` at the base's own size, then the exact frame reaches the ask or `onFrame`, which
 never receive a preview. A unit without its top fails by name after its preview. WebCodecs returns
 the exact frame and no preview. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §6; the
-dispatch rig checks `client/conformance/av1/scalable/`.
+dispatch rig checks `client/contract/av1/scalable/`.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
 in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
@@ -166,7 +166,7 @@ act on bytes already in hand). The waiter was the one that could fail an open se
 once three silences had doubled `stallMs` past 15 s, it fired first and the ask failed with re-dials
 left. **It is now silence like the stall's**: both WebTransport clients reject it as `FrameTimeoutError`
 and the downloader resumes the ask on a new session, failing it only when `tries` runs out
-(`downloader.test.mjs`; the conformance clause names it; each mutation caught). Measured on row
+(`downloader.test.mjs`; the contract clause names it; each mutation caught). Measured on row
 LOSSLINK's harness ([`lab/av1/delivery/total-time`](../lab/av1/delivery/total-time/README.md) §Row ASKDEADLINE): the 10-bit
 volume as HTJ2K, 4 frames filled then 8 asked one at a time, 20 Mbit and `lte-good` clean, 2 % and 5 %
 loss, 1×, this downloader against the one before it and against `stallMs` 15 s, 10 rounds interleaved,
@@ -241,8 +241,8 @@ would measure the wrong thing. `dev-server.py` and `deploy/nginx` both send the 
 **The transport is a seam.** `config.transport` is a module URL exporting `TransportSession`,
 defaulting to `client/transport/ts/dist/session.js`. A third implementation plugs in there without
 the downloader knowing ([`CLIENTS.md`](../docs/CLIENTS.md) §The seam) — and it is
-how the conformance suite drives the downloader: `client/conformance/run_browser.sh downloader`, run by the gate.
-`config.decoderWorker` is the same seam for the decoder: `client/conformance/run_browser.sh dispatch`
+how the contract suite drives the downloader: `client/contract/run_browser.sh downloader`, run by the gate.
+`config.decoderWorker` is the same seam for the decoder: `client/contract/run_browser.sh dispatch`
 points it at a stalling stand-in to force the contention its ordering and dispatch-bound tests need.
 `opts.worker` is the downloader's own script: `lab/page-open/boot.mjs` boots it from a bundle or a
 blob (its relative URLs then resolve nothing, so the page names `transport` and `decoderWorker`).

@@ -12,7 +12,7 @@
 #   should argue for dropping one.
 #   Tests — a test's doc comment states the claim the test makes, which is worth more than
 #   the test's name alone: everything from `mod tests {` to the end of the file (Clippy's
-#   `items_after_test_module` keeps that module last), `client/conformance/` and `*/test/`.
+#   `items_after_test_module` keeps that module last), `client/contract/` and `*/test/`.
 set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -21,7 +21,7 @@ FLOOR=${FLOOR:-10}   # what any file may spend regardless of size: header and po
 list=0
 [[ "${1:-}" == "--list" ]] && list=1
 
-files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' | grep -v -e '/node_modules/' -e '^target/' -e '^client/conformance/' -e '/test/')
+files=$(git ls-files '*.rs' '*.ts' '*.js' '*.mjs' | grep -v -e '/node_modules/' -e '^target/' -e '^client/contract/' -e '/test/')
 
 # shellcheck disable=SC2086
 awk -v ratio="$RATIO" -v floor="$FLOOR" -v list="$list" '

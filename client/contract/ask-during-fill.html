@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <link rel="icon" href="data:," />
-  <title>wt-pacs conformance — an ask during a fill, on the real server</title>
+  <title>wt-pacs contract — an ask during a fill, on the real server</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 1rem; }
     #log { white-space: pre; font-size: 12px; background: #111; color: #0f0; padding: 1rem; }
@@ -15,7 +15,7 @@
     On the wire an ask ends a running fill and is served next (<code>docs/WIRE.md</code>).
     The raw client sees exactly that, and the rest arrives only once asked again; the downloader asks
     again by itself. <code>?client=ts|ws|downloader|downloader-ws</code> · <code>wt=</code>/<code>hash=</code> override
-    <code>/wt/dev-transport.json</code>. <code>client/conformance/run_wire.sh</code> drives this from the gate.
+    <code>/wt/dev-transport.json</code>. <code>client/contract/run_wire.sh</code> drives this from the gate.
   </p>
   <div id="log"></div>
   <script type="module">

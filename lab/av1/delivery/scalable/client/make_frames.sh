@@ -2,10 +2,10 @@
 # The scalable AV1 units the dispatch rig decodes: two spatial layers, a half-size lossy base (q 40)
 # under a lossless top, one temporal unit per file, as the store holds it.
 #
-#   client/conformance/av1/scalable/{l2g1,l2g8x20}/NNN.av1   every unit of a G = 1 and a G = 8 stream
+#   client/contract/av1/scalable/{l2g1,l2g8x20}/NNN.av1   every unit of a G = 1 and a G = 8 stream
 #   …/NNN.sha256           the top's truth: the generator's checksum of the encoder's input
 #   …/NNN.preview.sha256   the base, lossy, as native dav1d returns it at operating point 1
-#   client/conformance/av1/scalable/notop.av1              l2g1's unit 1 with the top's OBUs dropped
+#   client/contract/av1/scalable/notop.av1              l2g1's unit 1 with the top's OBUs dropped
 #
 # Needs lab/av1/delivery/scalable/encoder/build.sh (the patched svc_encoder_rtc) and client/decode/wasm/dav1d/build.sh (native
 # dav1d). docs/av1/adr-unit.md §6
@@ -15,7 +15,7 @@ BUILD="${BUILD:-$ROOT/lab/.av1-build}"
 PY="$BUILD/venv/bin/python"
 ENC="$BUILD/aom-3.15.1-svc-b/svc_encoder_rtc"
 DAV1D="$BUILD/native/tools/dav1d"
-OUT="$ROOT/client/conformance/av1/scalable"
+OUT="$ROOT/client/contract/av1/scalable"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 

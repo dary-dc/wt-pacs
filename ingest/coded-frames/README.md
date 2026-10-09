@@ -35,7 +35,7 @@ probes fail and every colour payload goes to dav1d-WASM.
 
 **`make_golden.py`** writes seven synthetic 64×48 sources — 8, 10, 12 and 14-bit grey, 11 and 13-bit
 signed, 8-bit RGB — with their checksums, and codes each through `ingest.py` in both representations
-into `client/conformance/av1/payloads/`; and a 16×16 unit per layout WebCodecs may take (grey 8 and
+into `client/contract/av1/payloads/`; and a 16×16 unit per layout WebCodecs may take (grey 8 and
 10-bit, 4:4:4 8 and 10-bit) into `client/decode/av1-probe.js`, with the FNV-1a of its coded
 planes, checked against native dav1d before it is written.
 

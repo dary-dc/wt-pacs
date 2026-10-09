@@ -16,7 +16,7 @@ against a checkout of the ingest it replaced.
   names the frame (3 mutations, each on a 13-bit signed and an RGB source, each caught).
 * **Every depth and split (row 43).** Grey of 8–16 bits after the offset, unsigned and signed, at every
   k a per-depth rule could pick, synthetic and all nine real series, every frame exact natively, in
-  Node and in three engines; 90 golden payloads in `client/conformance/av1/payloads/matrix/` — the counts,
+  Node and in three engines; 90 golden payloads in `client/contract/av1/payloads/matrix/` — the counts,
   the mutations and the reader's corrected mask are [`lab/av1/exact/split`](../split/README.md) §Checked.
 * **A split payload through two decoders (row 47).** With decoder config `mixed`, a top over 10 bits through
   dav1d-WASM and the low through WebCodecs: the same payloads exact in three engines, faster than one decoder,

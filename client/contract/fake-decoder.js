@@ -4,7 +4,7 @@
  * purpose; `hold: "ready"` keeps `ready` back the same way, so a fill can be on the wire while no
  * decoder exists; a frame whose bytes begin `fail` fails once its wait is over. It tags every frame
  * with the order it started (`decodeSeq`) and the most it ever held at once (`maxInFlight`), which
- * is what the ordering and the two-outstanding-per-decoder bound are read from. docs/ARCHITECTURE.md §The downloader; client/conformance/dispatch-rig.ts drives it.
+ * is what the ordering and the two-outstanding-per-decoder bound are read from. docs/ARCHITECTURE.md §The downloader; client/contract/dispatch-rig.ts drives it.
  */
 let toConsumer = null;
 let delayMs = 120;
