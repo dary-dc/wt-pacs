@@ -280,7 +280,7 @@ f6f5dce5a61e3db0d4b0e2e13357a73a21224fff9f77422195200300735315a4  openjph.js    
 headless Chromium 141 on 4 cores, a fresh browser a visit, 10 rounds with the units Williams-ordered, every frame's
 sha256 against the encoder's input (all exact). Median [range]; × the package paired by round (rounds faster):
 
-| | package | the build, one thread | row HTJ2KMT's pool, one helper |
+| | package | the build, one thread | the code-block pool (queue row HTJ2KMT), one helper |
 | --- | ---: | ---: | ---: |
 | fill 1× | 553.9 ms [513–667] | ×0.927 (9/10) | ×0.993 (5/10) |
 | fill 4× | 1 789.5 ms [1 644–1 922] | ×0.941 (7/10) | ×1.007 (5/10) |
@@ -295,9 +295,9 @@ in JS and WASM; the package stays as `parity.mjs`'s reference. The renderer's PS
 package's 50 MB heaps are reserved more than touched. The 4× asks are this host's cgroup throttle, not a phone.
 
 *Corrected:* this section said the delivered build was the `deliver` variant of `lab/decode-bench/wasm/build.sh`,
-before the range in the pack (`openjphjs.wasm` `19d11a75…`, 245,456 B), and that row HTJ2KMT's threaded build was
+before the range in the pack (`openjphjs.wasm` `19d11a75…`, 245,456 B), and that the code-block pool's threaded build was
 adopted as the delivered one. Neither was ever loaded by a page. The pool is not shipped: on 512² frames it ties
-fills and loses the cold ask at 4×, where it starts its helper; row HTJ2KMT's gains were on frames from 1914×2572
+fills and loses the cold ask at 4×, where it starts its helper; the pool's gains were on frames from 1914×2572
 up, on a decoder already running (§Code-blocks on threads, measured).
 
 ## Threads
@@ -595,7 +595,7 @@ On the lab's transport the session is ready early and the warm-up was judged not
 (above). The workstation's other transport dials longer — a session ready ~1.5 s after navigation on
 an 80 ms link, by its measurement — so the question becomes what a warm-up costs, what it saves, and
 how long an idle window it needs. `lab/decoder-warmup/size.mjs` (removed, at tag `archive/downloader-opts-2026-10-03`)
-(row 85): one decoder (the package), a fresh browser context per sample, compiled from a buffer as
+(cloud-queue row 85): one decoder (the package), a fresh browser context per sample, compiled from a buffer as
 `decoder.js` does, then the warm-up, then the series' frames 0–5; 12 rounds, variants and 1× / 4× rotated
 inside each; every frame checked against the encoder's input. Warm-ups: the shipped 160² frame
 (`w160`), a 512² 16-bit grey one (`w512`, CT only — at 512² the colour one is the series' own frame
@@ -685,7 +685,7 @@ which the gate requires (`run_browser.sh` exits 2 without `vendor/openjph`).
 ## The range pass
 
 The decoder worker writes pixels into a `SharedArrayBuffer` and then walks them again to sign-extend
-and take the sample range (`htj2k.js`, `finish`, in `decoder.js` until row 49). Folding the range into the copy was priced,
+and take the sample range (`htj2k.js`, `finish`, in `decoder.js` until the decoder-worker rework, queue row 49). Folding the range into the copy was priced,
 interleaved, 400 repeats: `set()` plus a range pass 1 104 µs against one loop doing both 1 175 µs on
 512×512×3 8-bit (**1.06× slower** folded), 497 against 583 µs on 512×512 16-bit (**1.17×**).
 **Folding loses**: a native `set()` memcpy plus a read-only loop beats one hand-written copy loop.
@@ -695,7 +695,7 @@ throttle (§The decode tail on a slow CPU). The lever that remains is not walkin
 §The range in the pack. (In C++ the answer was the other one: the wrapper's zero-fill wrote bytes
 nobody reads, and removing it won — §The wrapper's two passes.)
 
-**The pass itself, in two loops** (row 49): one loop that tested `shift` on every sample cost an
+**The pass itself, in two loops** (the decoder-worker rework): one loop that tested `shift` on every sample cost an
 unsigned frame 24 ms on 2560×3328 in Node where a loop without the test takes 14 (−15 to −44 % over
 unsigned and signed 8, 12 and 16-bit, each its own process) — V8 does not hoist the invariant branch.
 `finish` now has a loop per case; in the decoder worker it took HTJ2K's decode 12–21 % down on every grey
@@ -742,7 +742,7 @@ and rounds `built` was sooner:
 ### An 8-bit colour frame takes no range
 
 Nothing reads an 8-bit colour frame's range — its window comes from the tags — so neither side takes
-one there (row 83). `pack` has a template flag `Ranged`, and the min/max run only under it: `false`
+one there (cloud-queue row 83). `pack` has a template flag `Ranged`, and the min/max run only under it: `false`
 for an unsigned 8-bit 3-component frame, `true` for everything else, 16-bit always; the loops are
 otherwise the old ones, with no runtime `if`. `getRange()` is empty (min > max) for such a frame, and
 `decoder.js` gives it the sample type's range, 0..255, with no pass, whichever decoder it holds
@@ -753,7 +753,7 @@ the package and the encoder's input; `getRange()` identical to `finish()` wherev
 and empty wherever `unranged` holds, so the two tests cannot drift apart. `g8`, 512² 8-bit grey, is
 new: the one 8-bit frame that still takes a range. Mutants, each caught: min −1 and max +1 (522/522),
 the range read from the narrowed unsigned sample (s12 and s512, 174), the skip widened to 8-bit grey
-in the wrapper or in `unranged` (g8, 87), `unranged` never true (c512, 87); the row-80 wrapper itself
+in the wrapper or in `unranged` (g8, 87), `unranged` never true (c512, 87); the wrapper with the range in the pack (cloud-queue row 80) itself
 fails on c512 alone. In the gate, `dispatch-rig.ts` holds `decoder.js` to 0..255 on the colour
 160² frame through the package (pixels 0..199) and through `range-glue.js` (which answers −7..7);
 the constant dropped or one short fails both.
@@ -761,16 +761,16 @@ the constant dropped or one short fails both.
 **The WASM call** (`build_variants.mjs`, Node, container, 20 timed rounds rotated, two runs led by either
 variant; medians, ms/frame):
 
-| set | before row 80 | row 80 | row 83 |
+| set | before the range in the pack | the range in the pack | no range for 8-bit colour |
 | --- | ---: | ---: | ---: |
 | c512, colour | 6.117 · 6.129 | 6.322 · 6.263 | 6.148 · 6.187 |
 | g512, 16-bit | 2.498 · 2.484 | 2.520 · 2.469 | 2.454 · 2.463 |
 | g8, 8-bit grey | 1.807 · 1.813 | 1.821 · 1.820 | 1.799 · 1.825 |
 
-* **Colour is back to the pre-row-80 figure**: against row 80, 18/20 and 14/20 rounds faster (−2.8 %,
-  −1.2 %); against the wrapper before row 80, a tie (10/20 in the second run). On this host the pack's
+* **Colour is back to the figure before the range in the pack**: against the range in the pack, 18/20 and 14/20 rounds faster (−2.8 %,
+  −1.2 %); against the wrapper before it, a tie (10/20 in the second run). On this host the pack's
   min/max was 0.1–0.2 ms, under the 5 % bar; the workstation's 0.5 ms is its own figure.
-* **16-bit keeps row 80's win**: its code is unchanged and the WASM call ties; the win was never in
+* **16-bit keeps the win of the range in the pack**: its code is unchanged and the WASM call ties; the win was never in
   the call but in `decoder.js` taking `getRange()` instead of walking the pixels, which it still does.
   Only the WASM call was timed here.
 
@@ -883,7 +883,7 @@ rows of at most 4 blocks, so with 4 threads and no overhead a frame falls to ~0.
 (whether a block's decode touches shared state is unchecked), a `-pthread` build and a thread pool
 inside each decoder worker. **During a fill it is more decoders in disguise**: the pool is busy 95 % of a colour fill.
 Its one use is an ask on an idle pool, and the range pass is worth as much there with no thread.
-*Built in the lab since (row FASTHTJ2K):* two threads take 9–31 % off a frame, four 40 % on the
+*Built in the lab since (the HTJ2K decode profile, queue row FASTHTJ2K):* two threads take 9–31 % off a frame, four 40 % on the
 largest frames only — §Faster HTJ2K in the browser.
 
 **(c) What in the worker scales with the throttle.** Nothing faster than the decode: bytes in,
@@ -921,12 +921,12 @@ on a slow CPU (b) on synthetic sets (70–76 % blocks, 7–9 % wavelet).
 
 **What GPU decoders move — sources.** Read through search excerpts where the hosts were refused, and
 marked so. nvJPEG2000 decodes HTJ2K only as one cleanup pass per block, "no refinement" (its release
-notes; *excerpt only*; *corrected by row GPU:* refinement passes since v0.10.0, the release notes read
+notes; *excerpt only*; *corrected by the GPU-decoder reading (queue row GPU):* refinement passes since v0.10.0, the release notes read
 in full 2026-10-07). Kakadu's ICIP 2019 paper decodes HTJ2K on a GPU with the CPU parsing the
 codestream into code-block lists and the GPU doing block decoding and wavelet synthesis, reporting
 "block coding speedup of ~10× (lossy) to ~40× (lossless)" and 4K 4:4:4 12-bit lossless at 402 frames/s
 on a GTX 1080 — measured with the irreversible 9/7 wavelet, not this profile's 5/3 (*excerpt only*;
-no per-stage breakdown found; *corrected by row GPU:* read in full, the paper has one, below, and its
+no per-stage breakdown found; *corrected by the GPU-decoder reading:* read in full, the paper has one, below, and its
 10×–42× is the HT block coder's speed over the classic one on a 4-core CPU, not a GPU's gain). GPU work on classic JPEG 2000 puts ~90 % in block coding and calls the
 inverse DWT's share small (*excerpts only*). **No WebGPU or WebGL JPEG 2000 or HTJ2K decoder was
 found**, open or published. WebGPU itself is in Chrome on Android 12+ since 121 (ARM, Qualcomm and
@@ -983,7 +983,7 @@ exceptions, the wrapper's two passes, decoder reuse and the range pass were trie
    in the UVLC suffix split (`0xF` → `0xFF`, a bug fix); the wavelet and colour code are unchanged
    for WASM. Every frame here was already exact on 0.31.0.
 
-**A WebGPU block decoder, bounded (row GPU).** [`lab/av1/decode/webgpu`](../../lab/av1/decode/webgpu/README.md) runs the
+**A WebGPU block decoder, bounded** (the GPU-decoder reading). [`lab/av1/decode/webgpu`](../../lab/av1/decode/webgpu/README.md) runs the
 measured part.
 
 *How the GPU decoder does it* — Naman and Taubman, "Decoding high-throughput JPEG2000 (HTJ2K) on a GPU",
@@ -993,7 +993,7 @@ layout — MagSgn grows forward, MEL forward, VLC backward: **KCUPS1** decodes M
 code-block*, serially, writing each quad's significance, EMB patterns and offset as one 32-bit word; **KCUPS2**
 decodes MagSgn from those words with *one warp per 64² block*, a thread to two columns, since MagSgn has no
 dependence across a row. SPP and MRP, when present, ride in the same two kernels; a lossless codestream has
-neither (nor do ours, row FASTHTJ2K). The wavelet (9/7, 32-bit float) and colour transform are one fused
+neither (nor do ours, by the HTJ2K decode profile). The wavelet (9/7, 32-bit float) and colour transform are one fused
 kernel writing 16-bit interleaved samples; all-zero blocks are skipped in it. Lossless 4K 4:4:4 12-bit, ms a
 frame on a 384-core 2017 card / a 2 560-core 2016 card: KCUPS1 4.43 / 0.52, KCUPS2 4.88 / 0.73, wavelet and
 colour 6.15 / 1.19 — 62 / 402 frames/s. The authors note 64² blocks *under-use* the larger card in KCUPS1: its
@@ -1030,7 +1030,7 @@ more at 1× on small frames, 7–12 ms at 4×: a fixed `mapAsync` round trip to 
 own copies run on the CPU, so a phone driver's are not in this; no shader is timed.
 
 *The bound.* What leaves the CPU is the block decoder, code-block to line, the wavelet, colour and pack —
-81–86 % of a frame (row FASTHTJ2K's profile; `*` the projections' per-sample time and shares scaled to a
+81–86 % of a frame (the HTJ2K decode profile; `*` the projections' per-sample time and shares scaled to a
 frame not profiled). Saved = that − the GPU's time − the extra transfer above. The GPU's time two ways from
 the 384-core card's lossless kernels: *throughput*, per sample (0.62 ns); *floor*, KCUPS1 as one block's
 serial latency (4.43 ms whatever the frame, as if that card's 6 300 resident threads waited on one) plus the
@@ -1053,9 +1053,9 @@ port could be checked for exactness and never timed. The bound's GPU is a 2017 d
 phone's GPU through WebGPU, and the dispatch cost of two kernels a frame, are unknown, and 4× is the
 container's emulation of a phone's CPU with the GPU left at full speed. What would settle it: the two
 cleanup kernels and a 5/3 synthesis in WGSL, exact against OpenJPH on SwiftShader here, then timed on a
-phone with WebGPU (Chrome Android 121+, iOS 26) — the owner's, as row 29's phones are.
+phone with WebGPU (Chrome Android 121+, iOS 26) — the owner's, as the AV1 option sweep's phones are (queue row 29).
 
-**A WebGPU block decoder, built (row WEBGPUHT).** [`lab/av1/decode/webgpuht`](../../lab/av1/decode/webgpuht/README.md)
+**A WebGPU block decoder, built** (queue row WEBGPUHT). [`lab/av1/decode/webgpuht`](../../lab/av1/decode/webgpuht/README.md)
 decodes an HTJ2K frame on WebGPU after the packet headers are parsed on the CPU: the cleanup pass as the two kernels
 above — MEL and VLC a thread a code-block; MagSgn a workgroup a code-block, quad rows in order (a row's exponent bound
 needs the magnitudes above it) and each row's bit offsets an exclusive scan, through workgroup memory or `subgroups` —
@@ -1083,8 +1083,8 @@ SwiftShader runs WGSL on the CPU. The phone stage's rule is §L3's, unchanged, a
 
 **What a phone would need.** For an ask: the thread pool, at two helpers, is the one lever measured
 here, worth 9–31 % of a frame and 30–40 % on the largest; nothing else bounded exceeds 15 % (*corrected
-by row GPU:* a ported block decoder bounds higher, unmeasured). For a fill: more decoders or a faster core —
-no lever here adds capacity (*row GPU:* a ported block decoder would). WebGPU on a phone (Chrome
+by the GPU-decoder reading:* a ported block decoder bounds higher, unmeasured). For a fill: more decoders or a faster core —
+no lever here adds capacity (*the GPU-decoder reading:* a ported block decoder would). WebGPU on a phone (Chrome
 Android 121+, iOS 26) leaves the 55–70 % in the block decoder on the CPU unless the HT decoder is
 ported, and the bytes to and from the GPU cost more than the wavelet it would take; ported, it bounds at
 42–67 % of a breast frame from 931×2124 up (§A WebGPU block decoder, bounded). None of this is
@@ -1092,7 +1092,7 @@ measured on a phone; the 4× cell is the container's emulation (§A slow CPU, em
 
 ## Code-blocks on threads, measured
 
-Queue row HTJ2KMT: row FASTHTJ2K's lab pool (`lab/av1/decode/htj2k-profile/cb-threads.patch`, a row of code-blocks
+Queue row HTJ2KMT: the lab pool of §Faster HTJ2K in the browser (`lab/av1/decode/htj2k-profile/cb-threads.patch`, a row of code-blocks
 decoded by the caller and 1 or 3 helpers) measured on frames from 512² to 3328×4096, through the product's
 decoder worker in a fill, and in memory. [`lab/av1/decode/htj2k-threads`](../../lab/av1/decode/htj2k-threads/README.md) runs it.
 
@@ -1111,11 +1111,11 @@ frame, median of round medians; × the single-threaded build paired by round (ro
 | synthesized 2D 2394×2850 | 61.3 | **×0.74 (9/10)** | **×0.74 (9/10)** | 267 | **×0.79 (10/10)** | **×0.73 (10/10)** |
 | full-field 3328×4096 | 74.1 | ×0.94 (6/10) | ×0.84 (6/10) | 337 | **×0.83 (10/10)** | **×0.87 (10/10)** |
 
-`-pthread` alone: ×0.88–1.15, the sign changing by series, as row FASTHTJ2K found. **Two threads take
+`-pthread` alone: ×0.88–1.15, the sign changing by series, as the HTJ2K decode profile found (queue row FASTHTJ2K). **Two threads take
 17–30 % off every frame from 1914×2572 up at 4×, in every round**; under that the gain is 2–19 % and not in
 every round. Four threads beat two only on the projections and lose to them under 1914×2572.
 
-**A fill** — row TOTAL's harness, whole series through the product's downloader and three decoder
+**A fill** — the total-time measurement's harness (queue row TOTAL), whole series through the product's downloader and three decoder
 workers on 3 cores (helpers share cores with other decoders), 50 Mbit and `lte-good`, 10 rounds,
 9 600/9 600 frames exact; 329 of 640 visits VOID on the relay's timing, so these are all visits, each
 cell n = 10 (the VOID-dropped medians agree). Every frame on the page, × the single-threaded build:
@@ -1131,7 +1131,7 @@ cell n = 10 (the VOID-dropped medians agree). Every frame on the page, × the si
 the largest frames at 4×, slower nowhere. The package the product loads today is 0.5–8 % slower than the
 same OpenJPH built here (§The range in the pack), the most on the largest frames at 4×.
 
-**Memory** — row FOOTPRINT's method, 1 and 3 workers, `ffdm_d` and `dbtproj_ge`, 250/250 frames exact;
+**Memory** — the AV1 memory measurement's method (queue row FOOTPRINT), 1 and 3 workers, `ffdm_d` and `dbtproj_ge`, 250/250 frames exact;
 n = 1–2 rounds (the run stopped at its time limit). RSS slope a worker: single-threaded 40.6 and 25.9 MB,
 **2 threads +2.2 and +2.5 MB**, 4 threads +6.3 and +6.9 MB. The page's JS+WASM measure is 9 MB higher a
 worker with threads on the mammograms (57.9 against 48.6 at one worker), equal on the projections.
@@ -1142,7 +1142,7 @@ change than `htj2k.js` handing it its glue's URL for its helper (without it the 
 decoder worker's own script and the series never fills). The product's harnesses still load the package
 until a consumer delivers the build. **It is an ask's lever:** a fill on these links gains ≤ 3 %.
 
-*Corrected (row DECODERBUILD):* not delivered. Through the downloader on 512² frames the pool tied fills and lost a
+*Corrected (the product's decoder build, queue row DECODERBUILD):* not delivered. Through the downloader on 512² frames the pool tied fills and lost a
 cold ask at 4× (×1.078 against the package, where the single-threaded build is ×0.732), so the product's build is
 single-threaded (§The build, as delivered). Whether to ship the pool for series from 1914×2572 up is the owner's.
 
@@ -1207,7 +1207,7 @@ mammogram and the projections, where decode is the clock (88 ms a frame at 1×, 
 0.95–1.06 at 1× and 0.98–1.10 at 4×. 12 400/12 400 frames exact.
 
 **Total time**, the setting with the fewest bytes overall (6 decompositions, 0.997–1.000 of the whole
-series' bytes) against the served one on row TOTAL's fixed links: **×0.99–1.02, a tie in every cell**
+series' bytes) against the served one on the total-time measurement's fixed links (queue row TOTAL): **×0.99–1.02, a tie in every cell**
 (fluoroscopy, the 12-bit volume and the mammogram, 5/20/50 Mbit, 1× and 4×, n = 8–10, 21 of 360 visits
 `VOID`), every frame exact.
 
@@ -1253,7 +1253,7 @@ first image is displayed, and that decision is the workstation's. Four frames pe
 a byte-exact, mutation-checked claim, not to call the percentages a distribution; the source build's
 floor is frame 0 only.
 
-*Corrected (row RESLEVEL, 2026-10-07):* "byte-identical" above is to the same package's decode of the whole
+*Corrected (the level-decode measurement, queue row RESLEVEL, 2026-10-07):* "byte-identical" above is to the same package's decode of the whole
 codestream at that level, not to an independent decoder — and the package's level output is not exact on its own
 (§A frame at the level the screen needs). The byte shares stand; they do not depend on the clamp.
 
@@ -1279,7 +1279,7 @@ codestreams (RPCL, one layer, one tile) already hold it as a prefix: no re-encod
 whole frame's decode through the product's module at 1× and 4×, level 2 ×0.08 (1×: `ffdm_d` 102 → 8.2 ms, `ffdm_a` 59 → 17 ms;
 4×: 445 → 37, 250 → 73 ms); 2 100/2 100 pictures exact.
 
-**On row 23's links** (5/20/50 Mbit, `lte-good`, `wifi-home`, 1× and 4×; 13 rounds, paired n = 5–13 a cell, under 10
+**On the total-time measurement's links** (queue row 23; 5/20/50 Mbit, `lte-good`, `wifi-home`, 1× and 4×; 13 rounds, paired n = 5–13 a cell, under 10
 in 9 of 50, 5 200/5 200 frames and 2 600/2 600 level pictures exact): four views or slices a fill, every level picture
 first, every whole frame after, through the product's downloader and a lab decoder worker. Against today's fill:
 
@@ -1353,7 +1353,7 @@ Headless Chromium 141.0.7390.37 (the lab's), Linux container, no GPU, 2026-10-03
 4:4:4 (identity matrix, GBR) × 8/10/12 bit × intra-only and inter (one keyframe, seven inter
 frames). Each frame's planes are hashed against the encoder input's SHA-256; native dav1d 1.4.1
 reproduces all 24, so a miss would be the browser's. That holds per stream, not per encoder: on
-other content libaom 3.8.2's inter 10- and 12-bit frames were not exact (row WASM).
+other content libaom 3.8.2's inter 10- and 12-bit frames were not exact (the dav1d-WASM exactness check, queue row WASM).
 
 | | 8 bit | 10 bit | 12 bit |
 | --- | --- | --- | --- |
@@ -1369,7 +1369,7 @@ hash, a corrupted payload byte (to native dav1d).
 * **12 bit is refused before the decoder sees it**: `decode()` throws `DataError: A key frame is
   required` on the stream's first chunk, which is a keyframe with its sequence header. 8- and 10-bit
   4:2:2 are Professional profile too and decode, so it is the depth, not the profile — the check
-  that classifies a chunk as key does not take a 12-bit sequence header. *Read since (row VERSIONS):*
+  that classifies a chunk as key does not take a 12-bit sequence header. *Read since (the newer-versions survey, queue row VERSIONS):*
   `decode()` parses a key chunk with libgav1's OBU parser, built with `LIBGAV1_MAX_BITDEPTH=10` in
   Chromium 141, 154 and 155, so the parse fails and the chunk is called not key
   ([`lab/av1/tools/newer`](../../lab/av1/tools/newer/README.md)).
@@ -1403,24 +1403,24 @@ is 5–10× slower than OpenJPH on the same frames (§Decode time against HTJ2K)
 
 ### WebCodecs, the decoder the client runs where it is exact
 
-Row WCDEC (2026-10-03). `av1-webcodecs.js` sits beside `av1-dav1d.js` behind the same
+Queue row WCDEC (2026-10-03). `av1-webcodecs.js` sits beside `av1-dav1d.js` behind the same
 contract, and `decoder.js` takes it only for a series that says `depth` ≤ 10 (every stream it codes,
 [`docs/av1/adr-unit.md`](../av1/adr-unit.md) §2) in a browser with `VideoDecoder`; any other AV1
 series, one that does not say its depth included, gets dav1d-WASM. Each unit is one key chunk,
 flushed (G = 1), the decoder configured as `av01.0.04M.10` whatever the stream — Chromium decodes
 from the in-band sequence header, and four strings tried gave the same frames for every shape. *Corrected
-(row CODECSTR, 2026-10-07):* each stream is now configured with the string of its own sequence header;
+(the derived codec string, queue row CODECSTR, 2026-10-07):* each stream is now configured with the string of its own sequence header;
 the same frames, the same decoder on every series ([`lab/av1/exact/codec-string`](../../lab/av1/exact/codec-string/README.md)); a
 split frame's two units go to two `VideoDecoder`s at once and are merged as
 dav1d's are, by the shared `av1-frame.js`. What it refuses where dav1d refuses, from the frame
 alone: anything but `I420`/`I420P10` with every chroma sample mid-grey (4:0:0) or
 `I444`/`I444P10` with no matrix reported (GBR). That last is weaker than dav1d's check —
 `colorSpace` does not distinguish the identity matrix from an unspecified one — so a 4:4:4 stream
-with matrix 2 would pass here and fail there. *And the other way (row TOTAL):* an identity stream
+with matrix 2 would pass here and fail there. *And the other way (the total-time measurement, queue row TOTAL):* an identity stream
 that is not also tagged sRGB (primaries BT.709, transfer sRGB) is reported as matrix `bt709`, limited
 range, and refused here on every frame although dav1d takes it — libaom's `--matrix-coefficients=identity`
-alone, as every lab encode before TOTAL. So an RGB series meant for WebCodecs is coded with all three
-tags; ffmpeg's `-colorspace rgb` writes them. *Corrected (row CODECSTR):* `colorSpace` echoes the codec
+alone, as every lab encode before the total-time measurement. So an RGB series meant for WebCodecs is coded with all three
+tags; ffmpeg's `-colorspace rgb` writes them. *Corrected (the derived codec string):* `colorSpace` echoes the codec
 string's colour fields, not the stream's, so with the full string configured the check reads
 `matrix_coefficients` from the sequence header, as dav1d's does: both weaknesses are gone, and an
 identity stream without the sRGB tags decodes here exactly.
@@ -1433,16 +1433,16 @@ through both; a frame of a group, an empty unit, a non-AV1 file, YUV 4:2:0 and 4
 keyframe and a decoder closed under a frame refused by both, the next frame exact; and one decoder
 taking its frames one at a time. 17 mutations of the new code each failed a check. One did not and
 is equivalent here: reading `codedWidth` for `visibleRect` — Chromium 141 reports them equal, odd
-sizes included. G > 1 (one flush a group) waits on row GOP's group path. *Built since (row WCLAT),
+sizes included. G > 1 (one flush a group) waits on the group-as-item path (queue row GOP). *Built since (§WebCodecs without a flush),
 below: a group goes through WebCodecs with no flush inside it.*
 
 ### WebCodecs without a flush
 
-Row WCLAT ([`lab/av1/decode/latency`](../../lab/av1/decode/latency/README.md)), 2026-10-04, headless Chromium 141.
+Queue row WCLAT ([`lab/av1/decode/latency`](../../lab/av1/decode/latency/README.md)), 2026-10-04, headless Chromium 141.
 With `optimizeForLatency: true` **each unit gives its frame before the next is sent, exact**. That
 held on every depth and layout WebCodecs takes (8 and 10 bits; 4:0:0, 4:2:0, 4:2:2, 4:4:4), intra
 and G = 8, and on 1, 2 and 4 tile columns: 784 of 784 frames against the encoder's input. With
-neither the option nor a flush, no unit gave its frame. That is WCAP's held frames. A flush per unit
+neither the option nor a flush, no unit gave its frame. Those are the frames held until `flush()` (§WebCodecs, what it decodes exactly). A flush per unit
 cannot carry a group: after a flush the next unit must be a keyframe.
 
 Skipping the flush makes a frame 7–20 % faster at 1× and 3–28 % at 4×, intra, 10 interleaved rounds
@@ -1471,7 +1471,7 @@ the flush before the next keyframe then covers it, at the cost measured above.
 
 ### A split payload through two decoders
 
-Behind decoder config `mixed` (row MIXDEC, [`lab/av1/decode/mixed`](../../lab/av1/decode/mixed/README.md)), a split payload
+Behind decoder config `mixed` (queue row MIXDEC, [`lab/av1/decode/mixed`](../../lab/av1/decode/mixed/README.md)), a split payload
 whose top is over 10 bits sends its 8-bit low unit to WebCodecs' `low` decoder before dav1d-WASM decodes the
 top in the worker; the low falls back to dav1d-WASM wherever WebCodecs fails it or its `g8` probe fails, and
 a failed top waits for its low to settle so no low is left in flight for the next payload. Headless Chromium 141,
@@ -1481,10 +1481,10 @@ WebKitGTK 2.52 (the last two through dav1d-WASM, as their probes send them). Off
 
 ### AV1 in WebKit and Firefox
 
-Row XBROWSER ([`lab/av1/exact/engines`](../../lab/av1/exact/engines/README.md)), 2026-10-05: the client's path
+Queue row XBROWSER ([`lab/av1/exact/engines`](../../lab/av1/exact/engines/README.md)), 2026-10-05: the client's path
 as it is — `decoder.js` takes `av1-webcodecs.js` for a series that says `depth` ≤ 10 where
 `VideoDecoder` exists, dav1d-WASM otherwise — on the first 4 frames of all nine series and an 8-bit
-grey set, in every layout row LLSIZE codes, against OpenJPH in the same engine. Chromium 141,
+grey set, in every layout of the AV1-alone codings (queue row LLSIZE), against OpenJPH in the same engine. Chromium 141,
 Firefox 157.0 and WebKitGTK 2.52.6 (stock builds; Playwright's were refused), headless in a
 container, 6 interleaved rounds at 1× and 4×. Desktop engines, not phones: iOS WebKit decodes
 through the platform's media stack, not GStreamer.
@@ -1500,13 +1500,13 @@ through the platform's media stack, not GStreamer.
   `isConfigSupported` says true for Main 8 and 10, but every monochrome stream is refused
   (`EncodingError: The given encoding is not supported`) and 4:4:4 comes back as 8-bit `BGRX` —
   exact for 8-bit GBR, read as RGB, and 8 bits of a 10-bit RCT stream — which `read()` refuses.
-  *Since row XENGINE:* `read()` takes 8-bit GBR as RGB, below.
+  *Since the engine read-back study (queue row XENGINE):* `read()` takes 8-bit GBR as RGB, below.
   Ordinary 4:2:0 also comes back as `BGRX`. WebKitGTK: every AV1 unit fails (`Decode error`),
   ordinary 4:2:0 controls included. GStreamer's libaom `av1dec` refuses WebKit's `alignment=frame`
   caps. **So in both every series that says `depth` ≤ 10 fails every frame, 0/240 a cell**: the
   8-bit grey, the 10-bit tomosynthesis, the ultrasound and every split whose top is ≤ 10 bits.
   There is no fallback: a WebCodecs refusal is the frame's failure, not a turn to dav1d. Series
-  coded over 10 bits are unaffected. *Since row 39 (UNIFY, the payload format):* the choice is per payload behind a per-layout probe, and
+  coded over 10 bits are unaffected. *Since the unified payload format (queue row 39, UNIFY):* the choice is per payload behind a per-layout probe, and
   a payload WebCodecs fails on is decoded by dav1d-WASM — built and checked in Chromium, not re-run in
   Firefox or WebKitGTK.
 * **WebKitGTK leaves `SharedArrayBuffer` off** under cross-origin isolation (Safari turns it on),
@@ -1520,11 +1520,11 @@ check its samples, and fall back to dav1d-WASM on any difference, refusal or for
 
 ### Why, and what would make it exact
 
-Row XENGINE ([`lab/av1/exact/engine-readback`](../../lab/av1/exact/engine-readback/README.md)), 2026-10-07. The causes are read from the
+Queue row XENGINE ([`lab/av1/exact/engine-readback`](../../lab/av1/exact/engine-readback/README.md)), 2026-10-07. The causes are read from the
 sources of the engines measured (Firefox at `FIREFOX_157_0_RELEASE`, WebKit at `webkitgtk-2.52.6`). Each
 cause was then tested on the same engines with every layout a client could hand `VideoDecoder`, two real
-frames each, every plane against the encoder's input. Codec strings made no difference: row CODECSTR's derived
-string and `av01.0.04M.10` gave the same frames in every cell.
+frames each, every plane against the encoder's input. Codec strings made no difference: the derived codec
+string (queue row CODECSTR) and `av01.0.04M.10` gave the same frames in every cell.
 
 | layout | Chromium 141 | Firefox 157 | WebKitGTK 2.52.6 | WebKitGTK + `dav1ddec` |
 | --- | --- | --- | --- | --- |
@@ -1554,7 +1554,7 @@ Firefox 157 no 10-bit layout can be exact, and 8-bit can, as GBR or as full-rang
 **WebKitGTK 2.52.6.** Three faults stack.
 
 1. WebCodecs takes only `av01.0` strings (`isSupportedDecoderCodec`), so every 4:4:4 stream, being High
-   profile, is refused at `configure`. Row CODECSTR's derived strings make that refusal visible up front, where
+   profile, is refused at `configure`. The derived codec strings make that refusal visible up front, where
    the old fixed string let it fail later as a decode error.
 2. The decoder is handed `video/x-av1, alignment=frame` with no parser in front (parsers are inserted for
    H.264 and H.265 only), and Ubuntu's one AV1 decoder, libaom's `av1dec`, takes `alignment=tu` alone. Every
@@ -1574,7 +1574,7 @@ with a decoder that is not installed by default. Nothing to adopt.
 (`UnifiedWebPreferences.yaml`). Where it is on, it decodes in software through libwebrtc's dav1d
 (`LibWebRTCVPXVideoDecoder`, type AV1), which refuses anything but 8-bit 4:2:0
 (`layout != I420 || bpc != 8`) and returns `NV12`. No hardware decoder is on that path. Exactness on a phone
-therefore waits on a device run ([`docs/av1/queue.md`](../av1/queue.md) §Blocked), and at best covers the same
+therefore waits on a device run (§Open), and at best covers the same
 8-bit 4:2:0 grey.
 
 **Built: the client reads 8-bit GBR as RGB.** `av1-webcodecs.js` takes a `BGRX` or `RGBX` frame of a
@@ -1587,7 +1587,7 @@ on the same frames at 1× (range 0.67–1.12, faster in 9 of 10 rounds) and 0.62
 a container's times, not a phone's. Chromium is unchanged: it returns `I444`, and its frames and choice stay as before. Three
 mutations failed the new checks: G and B swapped, the RGB path removed, and grey taken as RGB.
 
-**Proposed: 8-bit grey coded as full-range 4:2:0.** *Built and measured since (row GREY420), not adopted:* every reader path takes it as grey, Firefox's frames reach the page through WebCodecs exactly, and its slow-CPU fills gain 13–26 % on fast links while Chromium's lose 0.2–3.4 % ([`docs/av1/payload-format.md`](../av1/payload-format.md) §8-bit grey as 4:2:0). The ingest would code 8-bit grey with mid-grey
+**Proposed: 8-bit grey coded as full-range 4:2:0.** *Built and measured since (queue row GREY420), not adopted:* every reader path takes it as grey, Firefox's frames reach the page through WebCodecs exactly, and its slow-CPU fills gain 13–26 % on fast links while Chromium's lose 0.2–3.4 % ([`docs/av1/payload-format.md`](../av1/payload-format.md) §8-bit grey as 4:2:0). The ingest would code 8-bit grey with mid-grey
 chroma and the full-range flag instead of 4:0:0. The cost is +0.07 % bytes on the ultrasound's grey (+0.06 %
 at 10 bits). The client would take `BGRX` with R = G = B as grey. Chromium still returns `I420` with neutral
 chroma, which `read()` already takes. In Firefox this would make every 8-bit grey series exact through
@@ -1600,9 +1600,9 @@ the stride fix.
 
 ### Decode time against HTJ2K
 
-Row SPEED ([`lab/av1/decode/per-frame`](../../lab/av1/decode/per-frame/README.md)), 2026-10-03. The first 18 frames of three
-real series (row DATA), each as the served HTJ2K and as lossless AV1 intra (libaom 3.15.1 `cpu-used`
-0, G = 1 as row SIZE recommends). Every variant is the product's decoder worker — `decoder.js` with the
+Queue row SPEED ([`lab/av1/decode/per-frame`](../../lab/av1/decode/per-frame/README.md)), 2026-10-03. The first 18 frames of three
+real series (the public series set, queue row DATA), each as the served HTJ2K and as lossless AV1 intra (libaom 3.15.1 `cpu-used`
+0, G = 1 as the lossless-bytes measurement recommends, queue row SIZE). Every variant is the product's decoder worker — `decoder.js` with the
 OpenJPH package, `decoder.js` → `av1-dav1d.js` with dav1d-WASM `simd` — or WebCodecs behind the
 same protocol and output, timed by the worker's own decode stamps (bytes in, the contract's pixels
 and range out), one frame at a time after a warm-up frame. 16 rounds, each (environment × throttle)
@@ -1638,18 +1638,18 @@ HTJ2K, paired by round:
   4.1–4.2× OpenJPH — and that is only 8- and 10-bit (§WebCodecs): of these series, the ultrasound.
 * Where the host saturates: one decoder at a time on four cores, so nothing here contends; three
   decoders in parallel were not run, and the fill figures in `docs/av1/README.md` §Total time multiply a
-  single decoder's time out by arithmetic. *Since measured (row FILL):* three decoders through the downloader,
+  single decoder's time out by arithmetic. *Since measured (queue row FILL):* three decoders through the downloader,
   `docs/av1/README.md` §Total time — the arithmetic's verdict holds, its sizes were optimistic.
 
 ## JPEG XL
 
-Row JXL ([`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md)), 2026-10-07: lossless JPEG XL (libjxl 0.12.0) at effort 1–7 and
+Queue row JXL ([`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md)), 2026-10-07: lossless JPEG XL (libjxl 0.12.0) at effort 1–7 and
 `--faster_decoding` 0–4 against the served HTJ2K, on the first 8 frames of seven sets from 8 to 16 bits; libjxl in WASM
-(row EMBED's single-threaded SIMD build) and each engine's own decoder, 8 interleaved rounds at 1× and 4× in Chromium
+(the embedded-codecs measurement's single-threaded SIMD build, queue row EMBED) and each engine's own decoder, 8 interleaved rounds at 1× and 4× in Chromium
 154 and Firefox 157. Container-measured.
 
 * **Exact everywhere it decodes samples.** Every one of 35 codings × 37 frames through `djxl`; 7 040/7 040 timed WASM
-  and OpenJPH frames. Row SIZE's inexact 12-bit cjxl (0.7.0) does not recur in 0.12.0 at any depth up to 16.
+  and OpenJPH frames. The lossless-bytes measurement's inexact 12-bit cjxl (0.7.0, queue row SIZE) does not recur in 0.12.0 at any depth up to 16.
 * **The browsers return 8 bits.** Native JPEG XL decoding exists in Chromium 154 (jxl-rs, behind `JXLImageFormat`, off
   by default; none in Chromium 141) and Firefox 157.0.1 (behind `image.jxl.enabled`, off), not in WebKitGTK 2.52.6.
   Where it decodes, `<img>`, `createImageBitmap`, `ImageDecoder` (always `BGRX`) and a float16 canvas read all give
@@ -1681,6 +1681,8 @@ engines that have it.
 ## Open
 
 * **Anything on a phone** — including whether a tab is killed by counted or by resident memory.
+* **WebCodecs AV1 on Safari** — a device run, which at best covers 8-bit 4:2:0 grey (§Why, and what would make it
+  exact). The owner tracks the device runs in [`docs/av1/queue.md`](../av1/queue.md) §Blocked.
 * The glue evaluated through `new Function`, where no code cache reaches it (§Instantiating by
   streaming). Ranked 2026-10-01 and not queued: a second visit only, ~10 ms per decoder and the
   three in parallel, and off frame 0's path on a link — the decoders are ready about 4–5 round
