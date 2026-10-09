@@ -202,8 +202,7 @@ fn cert_sha256_hex(identity: &Identity) -> Result<String> {
         .collect())
 }
 
-/// Warns where the fast path is absent: the fallback is correct and ~2.5x slower per frame.
-/// `docs/adr/disk-access.md`.
+/// Warns where the fast path is absent: the fallback is correct and slower, `docs/adr/disk-access.md`.
 fn read_fast_path(store: &FrameStore) -> &'static str {
     if store.nowait_supported() {
         return "preadv2";

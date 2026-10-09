@@ -1,11 +1,5 @@
-//! Process-wide telemetry sink — batches in, rows to disk, summary on a timer, report at the end.
-//!
-//! The drain thread appends every record to `telemetry-server.rows` as it arrives (exact, fixed
-//! width), folds it into the live histograms, and rewrites `telemetry-server.json` every
-//! `WTPACS_TELEMETRY_SUMMARY_MS` (default 5 000). A hard kill therefore loses at most the last
-//! unflushed batch of rows and leaves a summary no older than the timer. The final report is
-//! written when the last session's `Tap` drops (normal end) or when [`flush_on_exit`] is called
-//! from the signal handler; it is exact from the row file when the rows fit the inline cap.
+//! The process-wide telemetry sink: rows to disk as they come, a summary on a timer, the report at
+//! the end or at [`flush_on_exit`]. `docs/adr/telemetry-server-pipeline.md`.
 
 use super::report::{final_report, progress_report, LiveSummary, TelemetryReport};
 use super::rows;

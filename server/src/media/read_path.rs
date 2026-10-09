@@ -1,9 +1,5 @@
-//! Two readers, chosen by what the session is doing.
-//!
-//! A fill knows the frame after this one and starts it underneath; a tile ask does not, and
-//! is a miss by nature. That difference picks the escalation — the blocking pool for a fill,
-//! whose misses are rare, and a ring for tiles, whose queue would otherwise be OS threads.
-//! `docs/adr/disk-access.md`.
+//! Two readers, chosen by what the session is doing: a fill on the blocking pool, a tile on a
+//! ring. `docs/adr/disk-access.md` §1.
 
 use crate::media::frame_pool;
 use crate::media::frame_store::{FrameSpan, FrameStore};
@@ -113,8 +109,7 @@ enum Ahead {
 }
 
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
-/// and no ring: a sequential walk is read-ahead's best case and misses about one read in
-/// sixty. `docs/adr/disk-access.md` §Fill at scale.
+/// and no ring: a sequential walk is read-ahead's best case. `docs/adr/disk-access.md` §Fill at scale.
 pub struct FillReader {
     cur: Vec<u8>,
     ahead: Ahead,
@@ -876,7 +871,7 @@ mod tests {
             assert_eq!(ReadMode::parse(value), want, "WTPACS_READ_PATH={value:?}");
         }
         assert!(ReadMode::parse(Some("nonsense")).is_err(), "an unknown value was taken");
-        assert!(ReadMode::parse(Some("uring")).is_err(), "the retired lab lever was taken");
+        assert!(ReadMode::parse(Some("uring")).is_err(), "a value that is not a mode was taken");
     }
 
     #[test]

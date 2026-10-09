@@ -1,15 +1,5 @@
-//! Report assembly — distributions, summary, JSON document (telemetry feature only).
-//!
-//! Two ways to summarise, and the report says which one it used in
-//! `summary.percentile_method`:
-//!
-//! - **exact** (`exact-sort`): every value sorted, nearest-rank percentiles. Used for the final
-//!   report when the rows fit the inline cap.
-//! - **live** (`histogram-loglinear-1024`): log-linear histograms folded as rows stream past.
-//!   Fixed memory; exact counts, totals, min and max; percentiles within 0.1 % (1 µs below
-//!   2 048 µs). Used for the timer rewrite and above the cap.
-//!
-//! The row file beside the report holds every row either way (`rows.rs`).
+//! The telemetry report: distributions, summary, the JSON document; `summary.percentile_method`
+//! says which of the two summaries made it. `docs/adr/telemetry-server-pipeline.md`.
 
 use super::rows;
 use super::tap::{

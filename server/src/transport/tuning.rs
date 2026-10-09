@@ -28,9 +28,8 @@ impl Congestion {
 
 #[derive(Clone, Debug)]
 pub struct TransportTuning {
-    /// Cap on buffered unacknowledged send bytes. quinn default: 10_000_000.
+    /// Cap on buffered unacknowledged send bytes.
     pub send_window: Option<u64>,
-    /// quinn default: 30 000.
     pub max_idle_timeout_ms: Option<u64>,
     /// Server-sent keep-alive. One side is enough to hold a session open, and a browser client
     /// has no such knob, so this is the only lever that reaches one. docs/adr/transport-idle-sessions.md.

@@ -1,8 +1,5 @@
-//! Lab-only Tap hot path — compiled only with `feature = "telemetry"`.
-//!
-//! Sink/drain/report live in sibling modules. Hot path: build a `Copy` row and push it into a
-//! per-session batch; one `try_send` on an owned `SyncSender` clone per [`BATCH`] rows — no
-//! global lock, and no drain-thread wake per row.
+//! The telemetry hot path, lab builds only: a `Copy` row into a per-session batch, one `try_send`
+//! a [`BATCH`]. `docs/adr/telemetry-server-pipeline.md`.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -86,7 +83,7 @@ pub struct FrameRecord {
     /// Ask accepted, µs since the process telemetry origin (first Tap). Same axis across
     /// sessions; inter-ask spacing is read from it.
     pub t_ask_us: u64,
-    /// Pre-read work before locating; ~0 in this build. `docs/adr/telemetry-server-pipeline.md`.
+    /// Pre-read work before locating. `docs/adr/telemetry-server-pipeline.md`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prepare_us: Option<u32>,
     /// An index lookup and nothing else; the frame's real cost is in `send_us`.
