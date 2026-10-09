@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row CROSSMEASURE's reading of rows.jsonl against docs/av1/crossover-protocol.md: per cell the kept pairs, the VOID
+"""The crossover measurement's reading of rows.jsonl against docs/av1/crossover-protocol.md: per cell the kept pairs, the VOID
 share, AV1's time to every frame over HTJ2K's (median of round-paired ratios), the pairs AV1 won, and the rule.
 `--all` also pairs VOID visits, both arms VOID or not in the same round. lab/av1/delivery/crossover/README.md §Measured
 

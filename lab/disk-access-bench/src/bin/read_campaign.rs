@@ -31,7 +31,7 @@ enum Variant {
     /// `pool` with its probe capped at `READ_WINDOW`, which is the one thing the old
     /// `ReadCtx` did that no other variant did. The positive control for that cap.
     PoolCappedProbe,
-    /// **The S5 control**: `hybrid`'s loop with `pool`'s miss mechanism, so the delta
+    /// **The loop-shape control**: `hybrid`'s loop with `pool`'s miss mechanism, so the delta
     /// against `pool` is loop shape alone. `docs/adr/disk-access.md`.
     PoolRingLoop,
     /// `hybrid`, but the ring is built on the *first miss* rather than at session start.
@@ -467,7 +467,7 @@ async fn reader_product_tile(
     Ok(())
 }
 
-/// **S5 control**: `reader_ring`'s shape, `reader_pool`'s miss mechanism, so
+/// **Loop-shape control**: `reader_ring`'s shape, `reader_pool`'s miss mechanism, so
 /// `pool_ringloop − pool` is the loop alone and `hybrid − pool_ringloop` is the ring alone.
 /// In the hit regime the second must come out ~0, or this variant is not built right.
 async fn reader_ringloop(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XBROWSER's frames: the first FRAMES frames of each set in every layout row LLSIZE codes, each as
+"""XBROWSER's frames: the first FRAMES frames of each set in every layout the AV1-alone coding uses, each as
 the client takes it, and the served HTJ2K. Every stream is libaom 3.15.1 lossless intra, cpu0,
 `--tune-content=screen --sb-size=64`; every frame is decoded by native dav1d, merged and matched with
 the series' checksum before it is written (total/make_frames.py's `represented`).

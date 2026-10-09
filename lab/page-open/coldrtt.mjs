@@ -1,5 +1,5 @@
 /**
- * Row COLDRTT: navigation → config → session → the first exact frame, by codec, on high-RTT links,
+ * Cold start by codec: navigation → config → session → the first exact frame, by codec, on high-RTT links,
  * cold and warm. Every variant is the same 64×48 source, so one checksum judges each decode and the
  * frame's own transfer is one flight. lab/page-open/README.md §Cold round trips by codec
  *

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MIXDEC's variants for row TOTAL's harness: beside each split variant kK whose top is over 10 bits, kKm — the
+"""MIXDEC's variants for the total-time harness: beside each split variant kK whose top is over 10 bits, kKm — the
 same payloads, `mixed` in the decoder config. Rewrites OUT/SET/variants.json as lab/av1/delivery/split-rule/make_frames.py
 wrote it.   usage: mixed_variants.py OUT   — lab/av1/decode/mixed/README.md
 """

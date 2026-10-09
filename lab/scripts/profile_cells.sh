@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PROF: link profiles close to a phone, through link_impair.py — a rate trace, a base round trip,
+# Link profiles close to a phone, through link_impair.py — a rate trace, a base round trip,
 # Gilbert–Elliott loss in bursts, a FIFO sized in ms or CoDel, a neighbour, an outage — and the
 # controllers on them. Per run: a 250 KB first ask on a fresh session, then a saturating fill
 # with a 20 ms probe beside it whose extra round trip is the standing queue.

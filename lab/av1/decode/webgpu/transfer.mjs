@@ -13,7 +13,7 @@ const PASSES = Number(arg("--passes", 7));
 const MUTATE = process.argv.includes("--mutate");
 const HTML = readFileSync(new URL("transfer.html", import.meta.url), "utf8");
 
-/** Frame sizes from lab/av1/bytes/breast and row 41's sets; `bytes` a sample as the decoder hands it over;
+/** Frame sizes from lab/av1/bytes/breast and the HTJ2K decode profile's sets; `bytes` a sample as the decoder hands it over;
  *  `ratio` the codestream's share of the samples' bytes — an assumption, the upload is the small term. */
 export const SIZES = [
   { name: "usb_cine 512² 8-bit", w: 512, h: 512, bytes: 1, ratio: 0.5 },

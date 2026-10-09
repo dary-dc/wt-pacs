@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2 — cache miss cost on reversal. docs/adr/client-window-depth.md §E2 — what a cache miss costs
+# Cache-miss cost on reversal. docs/adr/client-window-depth.md §E2 — what a cache miss costs
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

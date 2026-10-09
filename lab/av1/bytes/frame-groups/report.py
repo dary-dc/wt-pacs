@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row GOPMEASURE's tables from gop.py's, rho.py's and arc.py's rows: ρ per series, bytes and gain by G per
+"""The frame-group tables from gop.py's, rho.py's and arc.py's rows: ρ per series, bytes and gain by G per
 encoder and preset, exact counts, and the predictions' deciding numbers. Gain is 1 − bytes(G) ÷ bytes(G = 1).
 
 usage: report.py WORK   — README.md here

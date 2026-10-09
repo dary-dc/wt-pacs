@@ -4,7 +4,7 @@
 #
 #   INITIAL_MB=... VARIANTS="plain shared" lab/decode-bench/wasm/build.sh
 #
-# Any other variant name builds with EXTRA_FLAGS, which is how L17 compares build settings:
+# Any other variant name builds with EXTRA_FLAGS, which is how build settings are compared:
 #   VARIANTS=lto EXTRA_FLAGS="-flto" lab/decode-bench/wasm/build.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"

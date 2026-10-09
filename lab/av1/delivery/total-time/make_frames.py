@@ -4,13 +4,13 @@
 htj2k (the served profile) and av1 (libaom lossless intra, cpu0) for every set; on a 12-bit grey set
 the two splits as the client takes them (`[u32le len(top)][top unit][low unit]`): t11 (v >> 2 at 12
 bits + v & 3, dav1d-WASM) and t10 (v >> 3 at 10 bits + v & 7, WebCodecs); on a set where a group
-beat intra, gop (the whole series one group, no alt-ref); on the fluoroscopy, pre — row PREVIEW's
-lossy preview, 10-bit 4:0:0, G = 8, CRF 20, cpu6. Row TOTAL2 adds row LLSIZE's best codings: l2,
+beat intra, gop (the whole series one group, no alt-ref); on the fluoroscopy, pre — the preview
+measurement's lossy preview, 10-bit 4:0:0, G = 8, CRF 20, cpu6. The second round adds the best AV1-alone codings: l2,
 the two low bits apart on grey; rct, the reversible colour transform on RGB, intra and G = 8. Every
 exact variant is decoded natively and matched with the series' checksum; a preview's truth is its native
-decode's hash. Row TOTAL3 adds x36, row ENCX's changes to l2: the low k bits packed and raw-deflated,
+decode's hash. The third adds x36, the low-stream measurement's changes to l2: the low k bits packed and raw-deflated,
 k = 3 where the noise's σ ≥ 17; and names the two representations of docs/av1/payload-format.md, plain
-and opt, each with the decoder the format picks. Row EXACT adds check: htj2k's frames, each checked in the
+and opt, each with the decoder the format picks. The frame-check round adds check: htj2k's frames, each checked in the
 decoder worker against the series' frame digests.
 
 usage: [VARIANTS=av1,split,gop,pre,l2,rct,x36,plain,check] make_frames.py BUILD OUT SETDIR ...  (OUT/SET/variants.json says
@@ -41,7 +41,7 @@ from size import AOM, Set, av1_cell, decode_y4m, exact, ivf_units, timed, write_
 
 GOP = {"dbt10_ea1141"}
 PREVIEW = {"rf_fluoro": (8, 20)}
-# Row ENCX's k: 3 where the noise's σ ≥ 17 (lab/av1/bytes/low-stream/README.md §The split per series), else 2.
+# The low-stream measurement's k: 3 where the noise's σ ≥ 17 (lab/av1/bytes/low-stream/README.md §The split per series), else 2.
 K36 = {"rf_fluoro": 3, "dbt12_ea1141": 3, "dbt10_ea1141": 2}
 SRGB = ["--color-primaries=bt709", "--transfer-characteristics=srgb", "--matrix-coefficients=identity"]
 
@@ -85,7 +85,7 @@ def split(build, s, work, top_bits, shift):
 
 
 def represented(build, s, work, rep, flags, group):
-    """Row LLSIZE's coding of every plane stream, a frame's streams as the client takes them."""
+    """The AV1-alone coding of every plane stream, a frame's streams as the client takes them."""
     streams = []
     for j, (used, ch, plane) in enumerate(rep.planes):
         bits = llsize.container(used)
@@ -111,7 +111,7 @@ def represented(build, s, work, rep, flags, group):
 
 
 def deflated(build, s, work, rep, k):
-    """rep's top coded as row LLSIZE codes it, the low k bits packed and raw-deflated: `[u32le len(top)][top][low]`."""
+    """rep's top in the AV1-alone coding, the low k bits packed and raw-deflated: `[u32le len(top)][top][low]`."""
     (used, _, top), (_, _, low) = rep.planes
     bits = llsize.container(used)
     y4m, ivf = work / "x.y4m", work / "x.ivf"

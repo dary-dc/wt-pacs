@@ -22,7 +22,7 @@ from size import OJPH, Set, exact, read_pnm  # noqa: E402
 
 FRAMES = int(os.environ.get("FRAMES", 8))
 MUTATE = os.environ.get("MUTATE") == "1"
-LARGE = 4 << 20  # samples; three frames of a set above it, as row ENCX
+LARGE = 4 << 20  # samples; three frames of a set above it, as the low-stream measurement
 SERVED = "b64x64-d5-RPCL"
 
 
@@ -110,7 +110,7 @@ def main():
         manifest.append(dict(name=s.name, width=s.w, height=s.h, channels=s.ch, bits=s.stored, signed=s.signed,
                              frames=[dict(truth=s.truth[i]) for i in range(s.n)],
                              bytes={k: sum(f[k] for f in sizes) for k in sizes[0]}))
-        variants = {k: dict(codec="htj2k", ext=k) for k in sizes[0]}  # row TOTAL's harness, lab/av1/delivery/total-time/run.mjs
+        variants = {k: dict(codec="htj2k", ext=k) for k in sizes[0]}  # the total-time harness, lab/av1/delivery/total-time/run.mjs
         (out / s.name / "variants.json").write_text(json.dumps(dict(name=s.name, frames=s.n, truth=s.truth[:s.n], variants=variants)))
         print(s.name, s.n, "frames exact under", len(sizes[0]), "settings", flush=True)
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))

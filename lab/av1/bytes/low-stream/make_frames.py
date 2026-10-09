@@ -33,7 +33,7 @@ VARIANTS = {
     "wc-low3+deflate": [("{p}top3", "av1:{v}", "wc"), ("{p}low3", "deflate", "deflate")],
     "j2k-low2+deflate": [("{p}top2", "j2k", "j2k"), ("{p}low2", "deflate", "deflate")],
 }
-# The variants timed by default: row 28's coding, the winners on bytes, and HTJ2K's split.
+# The variants timed by default: the AV1-alone coding, the winners on bytes, and HTJ2K's split.
 GREY = ["av1-low2", "av1-low2+deflate", "av1-low3+deflate", "wc-low2+deflate", "wc-low3+deflate", "j2k-low2+deflate"]
 RGB = ["av1-direct", "wc-direct"]
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row GOPMEASURE's bytes (docs/av1/gop-protocol.md §3–4): a run of each series' slices coded in groups of G,
+"""Frame groups' bytes (docs/av1/gop-protocol.md §3–4): a run of each series' slices coded in groups of G,
 each group in an encoder run of its own and decoded alone through native dav1d, every frame merged as the client
 does and checked against its checksum; HTJ2K, the served profile, on the same frames.
 

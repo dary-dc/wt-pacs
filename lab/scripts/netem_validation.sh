@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E0 — does netem tell the truth? Compares the real cloud path against local netem at matched
+# Does netem tell the truth? Compares the real cloud path against local netem at matched
 # RTT/bps. Run BEFORE the emulated grid. docs/adr/client-window-depth.md §E0 — does the emulated link tell the truth?.
 set -euo pipefail
 

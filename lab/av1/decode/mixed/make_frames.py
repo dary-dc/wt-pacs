@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """MIXDEC's frames: lab/av1/delivery/split-rule/make_frames.py's layout (NNN.htj2k, NNN.kK.av1, variants.json, manifest.json)
-for the 13- and 14-bit series, each split k at its shipped preset — the fastest within 2 % of cpu0, as rows 44
-(lab/av1/delivery/split-rule) and 45 (lab/av1/bytes/breast) found it per k.
+for the 13- and 14-bit series, each split k at its shipped preset — the fastest within 2 % of cpu0, as
+lab/av1/delivery/split-rule and lab/av1/bytes/breast found it per k.
 
 usage: make_frames.py BUILD OUT DATA [--jobs 4]   — lab/av1/decode/mixed/README.md
 """

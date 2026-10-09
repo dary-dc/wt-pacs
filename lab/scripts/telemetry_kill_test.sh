@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# P3: a hard kill (SIGKILL — no handler can run) leaves the row file and a timer summary.
+# A hard kill (P3; SIGKILL — no handler can run) leaves the row file and a timer summary.
 #
 # Usage: SERVER_TELEMETRY=path BIND=127.0.0.1 HARNESS_IPV4=1 lab/scripts/telemetry_kill_test.sh
 # Prints one JSON line: rows_in_file, frames in the last timer summary, and pass/fail.

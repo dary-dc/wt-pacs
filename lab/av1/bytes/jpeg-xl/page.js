@@ -2,7 +2,7 @@
  * One engine's share of JXL, run by the page so any browser that opens a URL can take it. `probe`: each set's
  * first frame through every native path (`<img>`, `createImageBitmap`, `ImageDecoder`, a float16 canvas read),
  * compared sample by sample with the fetched series. `time`: each variant's frames in order — native, or a WASM
- * decoder in row EMBED's worker — hashed against the series' checksums. run.mjs serves and drives it.
+ * decoder in the embedded-codec harness's worker — hashed against the series' checksums. run.mjs serves and drives it.
  */
 import { order } from "/lab/order.mjs";
 

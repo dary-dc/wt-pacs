@@ -1,5 +1,5 @@
 """The share of an HTJ2K frame a WebGPU block decoder could take, per series: docs/decode/README.md
-§A WebGPU block decoder, bounded. Inputs are row FASTHTJ2K's profile, this folder's transfer run and the
+§A WebGPU block decoder, bounded. Inputs are the HTJ2K decode profile, this folder's transfer run and the
 ICIP 2019 GPU decoder's lossless kernel times; nothing is measured here."""
 
 # ns a sample on the 384-core card, lossless 4K 4:4:4 12-bit (24.88 M samples): block kernels, wavelet + colour

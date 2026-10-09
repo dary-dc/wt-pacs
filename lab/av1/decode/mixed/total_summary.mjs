@@ -1,5 +1,5 @@
 /**
- * MIXDEC's reading of row TOTAL's rows: per (series, link) at 4×, every frame on the page — median ms [range], n
+ * MIXDEC's reading of the total-time harness's rows: per (series, link) at 4×, every frame on the page — median ms [range], n
  * kept — and the mixed variant's round-paired ratios to today's (same k), to w10 and to HTJ2K. VOID visits dropped.
  *
  *   node lab/av1/decode/mixed/total_summary.mjs rows.jsonl ...   — lab/av1/decode/mixed/README.md

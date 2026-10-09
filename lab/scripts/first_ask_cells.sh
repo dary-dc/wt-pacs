@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# W1: one frame asked on an idle session, through lab/scripts/link_impair.py at 40 and 80 ms round
+# One frame asked on an idle session (W1), through lab/scripts/link_impair.py at 40 and 80 ms round
 # trip and at two frame sizes. `repro` is the session-state and lever sweep; `idle`, `together` and
 # `queue` are the cells that decide a default, and `wake` prices one radio's promotion; they
 # interleave their variants round by round in a Williams order (lab/scripts/order.py).
@@ -274,7 +274,7 @@ queue_cells() {
   done
 }
 
-# C1: Careful Resume's jump, approximated — a fresh session started at half the window a filled one
+# Careful Resume's jump, approximated — a fresh session started at half the window a filled one
 # ended with, without the validation or the retreat. LINKS are relay arguments, `;`-separated.
 resume_cells() {
   local link cwnd

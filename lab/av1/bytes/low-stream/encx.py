@@ -29,7 +29,7 @@ import size  # noqa: E402
 
 llsize.PIXELS = int(os.environ.get("PIXELS", llsize.PIXELS))
 
-# Row 28's best encoder variant per set.
+# The AV1-alone coding's best encoder variant per set.
 BEST = {"ct_lidc": "sb64", "dbtproj_ge": "sb64", "dbtproj_holo": "sb64"}
 FLAGS = {
     "sb64": ["--sb-size=64"],

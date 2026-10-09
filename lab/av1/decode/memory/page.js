@@ -20,7 +20,7 @@ const hex = (b) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(
 
 /** The decoder config `connect` would hand the workers for this variant. */
 function variant(entry) {
-  // A variant may name another decoder worker, as row DECODE's *-before variants do.
+  // A variant may name another decoder worker, as the decoder-worker rework's *-before variants do.
   const { ext, group, truth, worker, probeWorker, codec, openjph, ...connect } = entry.variants?.[VARIANT] ?? {};
   if (OPENJPH[VARIANT] || codec === "htj2k") {
     // A variant may name one of lab/decode-bench/wasm/build.sh's builds (lab/av1/decode/htj2k-threads).

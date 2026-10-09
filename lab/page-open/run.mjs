@@ -1,5 +1,5 @@
 /**
- * R2: navigation → config → session → first frame, on a real round trip, for the harness on both
+ * Cold open (R2): navigation → config → session → first frame, on a real round trip, for the harness on both
  * clients and for the downloader. Cold and warm profile, through lab/scripts/link_impair.py.
  *
  * Each milestone is fitted against the link's round trip across 0 / 40 / 80 ms, so the slope is

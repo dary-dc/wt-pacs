@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row 43's mutations: each breaks the writer, the reader or a payload on purpose, and the check that
+"""The split check's mutations: each breaks the writer, the reader or a payload on purpose, and the check that
 should catch it must fail. A subset of the synthetic matrix (b = 8, 13, 16, unsigned and signed, the
 256×256 and pad sets, every k, cpu0) and the golden payloads carry them.
 

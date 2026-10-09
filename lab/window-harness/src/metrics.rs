@@ -60,9 +60,9 @@ pub enum WindowShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HarnessMode {
-    /// Trace-driven fly / settle (E2).
+    /// Trace-driven fly / settle (the cache-miss cost).
     Trace,
-    /// Stationary pipeline fill only (E1).
+    /// Stationary pipeline fill only (the saturation sweep).
     Saturate,
 }
 
@@ -78,7 +78,7 @@ pub struct RunConfig {
     /// Series frame count for window construction.
     pub frame_count: u32,
     pub mode: HarnessMode,
-    /// Pre-fetch all schedule frames before settle (E2 warm-cache control).
+    /// Pre-fetch all schedule frames before settle (the cache-miss cost's warm control).
     pub warm_cache: bool,
     /// Simulated RTT (ms), applied once on the return path.
     pub rtt_ms: u64,
@@ -143,7 +143,7 @@ pub struct HarnessMetrics {
     pub fill_frames: u32,
     pub fill_bytes: u64,
     pub fill_dwell_ms: u64,
-    /// fill_bytes*8/dwell_s as fraction of read_bps (E1 util).
+    /// fill_bytes*8/dwell_s as fraction of read_bps (the saturation sweep's utilisation).
     pub link_util: f64,
     pub wasted_bytes: u64,
     pub commitment_depth: u32,

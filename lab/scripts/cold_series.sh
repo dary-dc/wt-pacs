@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# L20: what a series nobody has read costs — one ask on an idle session, and a whole fill, each
+# What a series nobody has read costs — one ask on an idle session, and a whole fill, each
 # on its own, cold against warm, interleaved in a real browser. docs/adr/disk-access.md.
 #
 #   ROUNDS=6 FRAMES=120 lab/scripts/cold_series.sh

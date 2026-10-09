@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row 108 (ASKL): each variant's steady depth-1 ask at each loss, pooled over its runs that were not
+"""The ask's loss sensitivity (ASKL): each variant's steady depth-1 ask at each loss, pooled over its runs that were not
 VOID nor short of a steady ask (counted with the VOID), and the least-squares slope of its p50 and p99 per 1 % loss; the first ask (a fresh session)
 by its median; and each round's steady median paired against the first variant's.
 

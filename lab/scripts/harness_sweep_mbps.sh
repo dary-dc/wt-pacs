@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Layer-2 harness sweep: read_bps vs recovered_ms on fly_and_settle (E1 prep).
+# Layer-2 harness sweep: read_bps vs recovered_ms on fly_and_settle (saturation-sweep prep).
 # Against product series-server (serial loop).
 set -euo pipefail
 

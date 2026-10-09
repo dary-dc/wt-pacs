@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FQC: our steady asks, then our fill, against a kernel-TCP Cubic neighbour through the packet-layer
+# Our steady asks, then our fill, against a kernel-TCP Cubic neighbour through the packet-layer
 # relay, behind a FIFO or fq_codel of the same depth, under Cubic and BBR.
 # Per run: the neighbour starts; 3 s on, ASKS 64 KB asks one at a time on a fresh session; then a
 # DWELL_MS saturating fill beside it. Results: docs/transport/transport-conclusions.md §1 (FQC).
@@ -30,7 +30,7 @@ trap cleanup EXIT
 [ -s "$TRACES/Verizon-LTE-short.down" ] || { mkdir -p "$TRACES"; curl -sSfL -o "$TRACES/Verizon-LTE-short.down" \
   https://raw.githubusercontent.com/ravinet/mahimahi/master/traces/Verizon-LTE-short.down; }
 
-# name -> one-way delay ms | relay args: row 99's shallow and deep 5 Mbit, row 86's LTE-loaded.
+# name -> one-way delay ms | relay args: the neighbour cells' shallow and deep 5 Mbit, the phone profiles' LTE-loaded.
 profile() {
   case "$1" in
     shallow)    echo "28|--rate-kbit 5000 --queue-pkts 20" ;;

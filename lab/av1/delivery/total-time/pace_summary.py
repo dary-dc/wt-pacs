@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row DECODEPACE's reading from run.mjs rows: `pace` against `today` per cell, paired by round.
+"""The decode-pacing reading from run.mjs rows: `pace` against `today` per cell, paired by round.
 
 usage: pace_summary.py ROWS.jsonl   — lab/av1/delivery/total-time/README.md §Row DECODEPACE
 Strict keeps a round when neither visit is VOID; round-paired keeps every round both visits finished.

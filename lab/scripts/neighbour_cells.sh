@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NBR: two saturating fills through one relay bottleneck, each from its own server — the netem
+# Two saturating fills through one relay bottleneck, each from its own server — the netem
 # neighbour table in docs/transport/transport-conclusions.md §1, re-run through link_impair.py.
 # The neighbour is quinn's Cubic, a proxy for a phone app's TCP: no HyStart, QUIC's own acks.
 #

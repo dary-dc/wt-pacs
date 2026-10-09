@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# N1: does lab/scripts/link_impair.py tell the truth? Arithmetic first — delay, rate, queue,
+# Does lab/scripts/link_impair.py tell the truth? Arithmetic first — delay, rate, queue,
 # loss, and the floor the relay itself adds — then the two counts the lane owes: a cold open
-# against docs/ARCHITECTURE.md, and a 250 KB ask against S7's slow start.
+# against docs/ARCHITECTURE.md, and a 250 KB ask against its slow-start bound.
 # Reads every number out loud and exits non-zero on the first one outside tolerance.
 # Results and what this harness cannot do: docs/rig-limits.md §3.
 #

@@ -51,7 +51,7 @@ async function finish(client) {
     }
   }
   const { resumedAt, exact: checked } = client.stats();
-  // Row DECODEPACE: the harness reads the decoders' threads while they still exist.
+  // Decode pacing: the harness reads the decoders' threads while they still exist.
   if (q.get("post")) await fetch(`${q.get("post")}filled`, { method: "POST" });
   client.close();
   const sha = {};

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Every sample of 8–16 bits, unsigned and signed, split at every k of 0–8 by ingest.py's plan and
 merged back by its merge, is itself (queue row 43 SPLITOK); and the optimized representation picks
-row SPLITTIME's k at each depth 8–14 (row 72).
+the split-rule sweep's k at each depth 8–14 (queue row 72).
 
 usage: merge_test.py   — exits 1 naming each wrong (bits, sign, k)
 """

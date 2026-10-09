@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row BREAST's bytes: each breast-family series as payloads in every layout, at cpu0 and its shipped preset,
+"""The breast family's bytes: each breast-family series as payloads in every layout, at cpu0 and its shipped preset,
 against HTJ2K on the same frames; then intra against inter by group on the slice series and the cine.
 
 Every payload is written by ingest/coded-frames/ingest.py, which writes nothing unless native dav1d decodes it back
@@ -25,7 +25,7 @@ sys.path.insert(0, str(HERE.parents[3] / "ingest/coded-frames"))
 import ingest  # noqa: E402
 import size  # noqa: E402
 
-# Row 14's speed order of the candidates, fastest first; the shipped preset is the first within 2 % of cpu0.
+# The encode-time sweep's speed order of the candidates, fastest first; the shipped preset is the first within 2 % of cpu0.
 CANDIDATES = ("allintra:7", "allintra:6", "good:6", "allintra:5")
 GROUPS = (1, 8, 16)
 INTER_PRESETS = ("cpu0", "good:6")
@@ -36,7 +36,7 @@ def bits(s):
 
 
 def layouts(s):
-    """name → ingest.py's arguments: plain, optimized (the k = 2 split over 8 bits) and, over 8 bits, row 44's variants
+    """name → ingest.py's arguments: plain, optimized (the k = 2 split over 8 bits) and, over 8 bits, the split-rule sweep's variants
     d12 (k = b − 12), k3 and w10 (k = b − 10) where each is a k of its own; RGB plain and RCT."""
     if s.ch == 3:
         return {"plain": ["--representation", "plain"], "rct": ["--representation", "optimized"]}
@@ -94,7 +94,7 @@ def bytes_job(job):
     return rows
 
 
-# RGB ultrasound ships at cpu0 (payload-format.md): every faster preset cost row 14's ultrasound ≥ 3.2 %.
+# RGB ultrasound ships at cpu0 (payload-format.md): every faster preset cost the encode-time sweep's ultrasound ≥ 3.2 %.
 SHIPPED_CPU0 = {"usb_cine_rgb"}
 
 

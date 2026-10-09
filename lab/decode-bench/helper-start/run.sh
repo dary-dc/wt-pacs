@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# HELPERSTART's campaign: each round runs the four blocks below in a rotated order. README.md
+# The helper-start campaign: each round runs the four blocks below in a rotated order. README.md
 #
 #   lab/decode-bench/helper-start/run.sh ROUNDS OUTDIR [FIRST=0]
 set -euo pipefail

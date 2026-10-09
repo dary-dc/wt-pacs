@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """The shipped preset, re-found per series and k: the fastest of `--allintra` 9…6 and good 6…3 whose
 bytes on the first two frames are within 2 % of cpu0's, then the whole series at it — and, if the whole
-series is not within 2 % of cpu0's, the next fastest, until one is (row 33 found two frames can
+series is not within 2 % of cpu0's, the next fastest, until one is (the 13–14-bit layout run found two frames can
 mislead: the CT's a6). Encodes run `--jobs` at once, so their seconds rank the presets and are not
-uncontended times (row 14's are).
+uncontended times (the encode-time sweep's are).
 
 usage: sweep.py BUILD FRAMES SETDIR ... [--jobs 4] [--out sweep.json] [--confirm]
        --confirm only redoes the whole-series step on --out's rows over 2 %

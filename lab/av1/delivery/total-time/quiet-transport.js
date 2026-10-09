@@ -1,5 +1,5 @@
 /**
- * The product's transport, its silences told to the page (row ASKDEADLINE): each gap over 1 s between
+ * The product's transport, its silences told to the page (the ask-deadline measurement): each gap over 1 s between
  * bytes a session delivered, and how long it had been quiet when it closed. lab/av1/delivery/total-time/README.md
  */
 import { TransportSession as Real } from "/client/transport/ts/dist/session.js";

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Adds variant NAME to every set under FRAMES: the HTJ2K frames through client/downloader/ as it was at
 # REV — the downloader and its decoder modules — beside the tree's own in variant `htj2k`: the
-# before/after of a client change (rows CLIENT, SEAM).
+# before/after of a client change (the downloader and seam reworks).
 #   lab/av1/delivery/total-time/downloader_variant.sh REV NAME [FRAMES]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"

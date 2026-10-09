@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# REGIONDECODE's three decoders: the delivered OpenJPH build (the reference), row HTJ2KMT's pool, OpenHTJ2K with a
+# REGIONDECODE's three decoders: the delivered OpenJPH build (the reference), the multithreaded HTJ2K pool, OpenHTJ2K with a
 # region wrapper. Nothing built is committed; everything lands under lab/.av1-build. lab/av1/decode/region/README.md
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
@@ -29,7 +29,7 @@ em++ -O3 -std=c++17 --bind "$ROOT/client/decode/wasm/openjph/htj2k_decoder.cpp" 
   -msimd128 -fexceptions $MAP -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=$((4 * 1024 * 1024)) \
   -sMODULARIZE=1 -sEXPORT_NAME=OpenJPHModule -sENVIRONMENT=web,worker,node -o "$OUT/ref.js"
 
-# Today's pool: row HTJ2KMT's cb2, one helper.
+# Today's pool: the multithreaded decode's cb2, one helper.
 if [[ ! -d "$ROOT/lab/.openjph-build/src-mt" ]]; then
   cp -r "$OPENJPH" "$ROOT/lab/.openjph-build/src-mt"
   git -C "$ROOT/lab/.openjph-build/src-mt" apply "$ROOT/lab/av1/decode/htj2k-profile/cb-threads.patch"

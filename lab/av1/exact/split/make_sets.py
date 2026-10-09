@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row 43's synthetic sources: per depth b = 8…16 and signedness, one set a geometry, each frame
+"""The split check's synthetic sources: per depth b = 8…16 and signedness, one set a geometry, each frame
 written with the SHA-256 of its samples before anything codes it, as lab/av1/fetch_data.py writes a set.
 
   OUT/{b}{u|s}/{geometry}/NNN.raw, NNN.sha256, metadata.json

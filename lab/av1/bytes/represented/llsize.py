@@ -4,8 +4,8 @@ transforms, and SVT-AV1 where it is exact — against HTJ2K on the same frames.
 
 A coding is a representation (the planes the samples are coded as, and their merge back) and an
 encoder variant, applied to every plane stream. Intra only, one keyframe a frame: the unit is one
-frame (rows SIZE and TAXO found inter collecting nothing), but for the inter variants: one keyframe,
-the rest predicted, --auto-alt-ref=0 (row TOOL: exact only without it). Every frame of every coding is decoded by
+frame (the lossless-bytes measurements found inter collecting nothing), but for the inter variants: one keyframe,
+the rest predicted, --auto-alt-ref=0 (the first round-trip check: exact only without it). Every frame of every coding is decoded by
 native dav1d, merged, and compared with the checksum written when the series was fetched; the last
 frame of an intra coding is decoded alone as well. An inexact coding is reported and its bytes not used.
 

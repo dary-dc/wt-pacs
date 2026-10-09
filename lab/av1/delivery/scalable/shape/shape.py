@@ -5,7 +5,7 @@ libaom 3.15.1's svc_encoder_rtc (lab/av1/delivery/scalable/encoder, patched for 
 ½ and ¼ bases, a quality-only base (same size, lossy), three spatial layers, temporal layers, and
 the keyframe interval. The top operating point of every shape is decoded with dav1d and each frame
 checked against the checksum written when the series was fetched. A series over 12 bits is split as
-rows DEPTH and TAXO found best — the two low bits apart: the scalable payload carries v >> 2, an
+the high-depth measurements found best — the two low bits apart: the scalable payload carries v >> 2, an
 8-bit lossless stream carries v & 3, and the exact frame is their merge.
 
 usage: shape.py BUILD WORK OUT.tsv SET_DIR ...   — lab/av1/delivery/scalable/shape/README.md has the cells.
@@ -58,7 +58,7 @@ class Plane:
 
 
 def htj2k_bytes(s, work):
-    """HTJ2K's served profile (row SIZE's), every frame decoded and checked; None if one is not exact."""
+    """HTJ2K's served profile (the lossless-bytes measurement's), every frame decoded and checked; None if one is not exact."""
     env = {"LD_LIBRARY_PATH": str(size.OJPH / "lib")}
     ext = "pgm" if s.ch == 1 else "ppm"
     src, out, back = work / f"in.{ext}", work / "f.j2c", work / f"back.{ext}"

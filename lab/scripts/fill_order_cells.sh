@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# O1 / S21: the sequential fill against a coarse-to-fine one, each frame asked exactly once.
+# The sequential fill against a coarse-to-fine one (O1 / S21), each frame asked exactly once.
 # Two questions: when is every 8th frame in hand, and what does the permuted order cost the
 # read path when every frame is a miss (`--force-pool-reads`).
 # Results: docs/transport/transport-conclusions.md §3, the fill's order.

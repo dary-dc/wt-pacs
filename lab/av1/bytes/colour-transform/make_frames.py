@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """RGBNATIVE's frames: each colour set as HTJ2K and as AV1 payloads in GBR (plain) and the reversible colour transform
-(optimized), one file per frame and variant, with variants.json (row TOTAL's harness) and manifest.json (the decode harness).
+(optimized), one file per frame and variant, with variants.json (the total-time harness) and manifest.json (the decode harness).
 
 Payloads are written by ingest/coded-frames/ingest.py, which writes nothing unless native dav1d decodes every one back to its
 source. RGB ships at cpu0 (payload-format.md).

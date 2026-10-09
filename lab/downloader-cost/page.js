@@ -27,7 +27,7 @@ const DECODER = {
   dir: "/client/decode/wasm/vendor/openjph",
 };
 
-// D7: ?decoder=source points at the build with a 4 MB floor instead of the package's 50 MB.
+// ?decoder=source points at the build with a 4 MB floor instead of the package's 50 MB.
 const SOURCE_DECODER = {
   glue: "/lab/.openjph-build/wasm/plain.js",
   wasm: "/lab/.openjph-build/wasm/plain.wasm",

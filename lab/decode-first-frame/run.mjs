@@ -1,5 +1,5 @@
 /**
- * D6: a decoder's first frame against its steady state, over three cache variants on a persistent
+ * A decoder's first frame against its steady state, over three cache variants on a persistent
  * profile. lab/decode-first-frame/README.md.
  *
  *   NODE_PATH=$(npm root -g) node lab/decode-first-frame/run.mjs [rounds]
@@ -47,7 +47,7 @@ for (let round = 0; round < ROUNDS; round++) {
       const out = await visit(ctx, set, false);
       if (out?.per) rows.push({ set, variant, ...out });
     }
-    // D6's own suggested remedy, as a fourth variant.
+    // The first-frame study's own suggested remedy, as a fourth variant.
     const w = await visit(ctx, set, true);
     if (w?.per) rows.push({ set, variant: "warm-code+warmup", ...w });
     await ctx.close();
