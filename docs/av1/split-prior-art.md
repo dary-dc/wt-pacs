@@ -1,7 +1,7 @@
 # The bit split against the literature (row 48 SPLITLIT)
 
 Every AV1 layout over 8 bits here splits a sample v (after the series' offset, −min) into top = v ≫ k and
-low = v & (2^k − 1), each a lossless stream ([`item-format.md`](item-format.md) §Representation). The lab reached it
+low = v & (2^k − 1), each a lossless stream ([`payload-format.md`](payload-format.md) §Representation). The lab reached it
 by measurement alone (rows 7, 13, 28, 33, 36). This file asks whether the literature knows it, recommends it, or
 offers something better. Web research only, 2026-10-05, no measurement. Each claim cites its source with the
 source's date. **Unconfirmed** marks a claim that rests on a search summary or secondary text, where the primary
@@ -150,7 +150,7 @@ on a non-linear mapping where a context coder does not. Not measured here. Propo
   ITU-T H.273 v3 names YCgCo-Re and -Ro (codes 16, 17); its approval date is **unconfirmed**.
 
 Row 28 measured YCoCg-R and found it did not beat RCT, so the literature changes nothing at 8 bits. RCT's chroma
-needs one more bit than the input, so RGB over 11 bits cannot go through AV1 after it. `item-format.md` refuses
+needs one more bit than the input, so RGB over 11 bits cannot go through AV1 after it. `payload-format.md` refuses
 RGB over 8 bits already, and no modality here needs it.
 
 **Lossless AV1 itself is barely studied.** No primary 2019–2026 paper measuring lossless AV1 on medical images
@@ -167,9 +167,9 @@ is the trade rows 33 and 44 measure, not one the literature settles.
 ## 4. Patents and standards status
 
 * **Standards:** the split is not standardised and not recommended. DICOM has no transfer syntax for AV1 at any
-  depth (PS3.6 2026d), and its 13–16-bit lossless options are JPEG-LS, JPEG 2000, HTJ2K and JPEG XL. An item
+  depth (PS3.6 2026d), and its 13–16-bit lossless options are JPEG-LS, JPEG 2000, HTJ2K and JPEG XL. A payload
   stored this way is this project's format inside the bundle, not a DICOM encoding. It is converted at
-  ingest, as every AV1 item is.
+  ingest, as every AV1 payload is.
 * **Patents:** six on splitting high-bit-depth samples are listed in §1. Two have expired or been abandoned (2006,
   2013 priorities) and four are listed active to 2031–2037. None was read against this design's claims. Freedom
   to operate is the owner's question, with counsel. The split is also old enough (2006 priority, 2011–2017

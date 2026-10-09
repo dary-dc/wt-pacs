@@ -4,7 +4,7 @@
  * inside it. lab/av1/decode/worker/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/decode/worker/run.mjs [--rounds 10] [--throttles 1,4]
- *     [--arms htj2k-before,htj2k-after,item-before,item-after] [--frames lab/.av1-work/decode/frames] [--sets a,b]
+ *     [--arms htj2k-before,htj2k-after,payload-before,payload-after] [--frames lab/.av1-work/decode/frames] [--sets a,b]
  *     [--mutate sample|truth] [--out rows.json]
  */
 import { spawn } from "node:child_process";
@@ -17,7 +17,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 10));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
-const ARMS = arg("--arms", "htj2k-before,htj2k-after,item-before,item-after").split(",");
+const ARMS = arg("--arms", "htj2k-before,htj2k-after,payload-before,payload-after").split(",");
 const FRAMES = arg("--frames", "lab/.av1-work/decode/frames");
 const MUTATE = arg("--mutate", "").split(",").filter(Boolean);
 const OUT = arg("--out", null);

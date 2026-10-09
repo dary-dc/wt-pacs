@@ -248,7 +248,7 @@ decoder modules, is `continues()` in `av1-payload.js`, each decoder keeping its 
 fewer lines (+26, −16, the new module's header included); what is gained is one place for each. **No dead path was
 found** — every branch is reached by a product option or a clause (row CLIENT's sweep). **The codec
 is decided once:** `consumer.js` refuses an unknown one before a worker starts and `decoder.js`
-routes on it; which AV1 decoder takes an item is `av1.js`'s alone. **Kept, and why:**
+routes on it; which AV1 decoder takes a payload is `av1.js`'s alone. **Kept, and why:**
 
 * *The owed frames are held twice*, by the transport's fill (to name what a dead session owed) and by
   the downloader's records (which outlive the session). One owner means a transport API change —

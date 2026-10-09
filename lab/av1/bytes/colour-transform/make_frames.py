@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""RGBNATIVE's frames: each colour set as HTJ2K and as AV1 items in GBR (plain) and the reversible colour transform
+"""RGBNATIVE's frames: each colour set as HTJ2K and as AV1 payloads in GBR (plain) and the reversible colour transform
 (optimized), one file per frame and arm, with arms.json (row TOTAL's harness) and manifest.json (the decode harness).
 
-Items are written by ingest/coded-frames/ingest.py, which writes nothing unless native dav1d decodes every one back to its
-source. RGB ships at cpu0 (item-format.md).
+Payloads are written by ingest/coded-frames/ingest.py, which writes nothing unless native dav1d decodes every one back to its
+source. RGB ships at cpu0 (payload-format.md).
 
 usage: make_frames.py BUILD OUT SETDIR ... [--preset cpu0] [--jobs 4]   — lab/av1/bytes/colour-transform/README.md
 """
@@ -33,7 +33,7 @@ def htj2k_frames(src, dst):
                 htj2k(s, i, Path(tmp), dst / f"{i:03d}.htj2k")
 
 
-def items(build, src, out, arm, preset):
+def payloads(build, src, out, arm, preset):
     dst = out / ".items" / src.name / f"{arm}.{preset.replace(':', '')}"
     if not (dst / "metadata.json").exists():
         subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, dst, "--representation", ARMS[arm],
@@ -57,7 +57,7 @@ def main():
             dst = out / s.name
             dst.mkdir(parents=True, exist_ok=True)
             work.append((s, dst, pool.submit(htj2k_frames, src, dst),
-                         {arm: pool.submit(items, build, src, out, arm, a.preset) for arm in ARMS}))
+                         {arm: pool.submit(payloads, build, src, out, arm, a.preset) for arm in ARMS}))
         manifest = []
         for s, dst, h, arms in work:
             h.result()

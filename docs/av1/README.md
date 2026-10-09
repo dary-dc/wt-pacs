@@ -3,8 +3,8 @@
 The phase's goal: a study can be served as lossless AV1 as well as lossless HTJ2K, the codec chosen
 per series, and **every frame on screen is bit-exact with the source**, whichever codec carried it.
 This file owns the phase: what is decided, what is open and the measurement that decides each. The
-work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`](licensing.md). The AV1 item — what one stored entry
-carries, in its plain and optimized representations — is [`item-format.md`](item-format.md), adopted
+work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`](licensing.md). The AV1 payload — what one stored entry
+carries, in its plain and optimized representations — is [`payload-format.md`](payload-format.md), adopted
 2026-10-04 and built end to end on `claude/av1-unified` (row 39).
 What each target series is, per the DICOM standard and vendors' conformance statements: [`series.md`](series.md).
 The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
@@ -56,7 +56,7 @@ the curve. The shape is proposed in [`adr-unit.md`](adr-unit.md): a `codec` fiel
 metadata, one decoder module per codec behind `decoder.js`, and for G > 1 the group as the
 *client's* unit — an ask for N is `request_frames [k … N]`, a group goes to one decoder — with the
 wire, the store and the server unchanged. *Built since (row GOP), the simplest form:* a group is the
-item, an ask for N asks k … k+G−1, a group decodes in order on one decoder, every frame exact on a
+payload, an ask for N asks k … k+G−1, a group decodes in order on one decoder, every frame exact on a
 G = 8 and a one-group set; no wire, store or server change was needed (`adr-unit.md` §3, *Built*).
 
 *Scope (row GOPSCOPE, 2026-10-08), for everything below on groups.* **Outside the target series**
@@ -264,7 +264,7 @@ not.
 **A3 — samples above 12 bits, and signed samples.** AV1 codes at most 12 bits a sample and only
 unsigned. Signed data is offset by 2^(B−1), which is reversible (*corrected 2026-10-05: what was built and
 measured is an offset of −min of the series, 0 when it has no negative sample — `lab/av1/size.py` `Set.offset`,
-[`item-format.md`](item-format.md) §Representation; 2^(B−1) is the shift HTJ2K's and JPEG XL's inputs get, `size.py`
+[`payload-format.md`](payload-format.md) §Representation; 2^(B−1) is the shift HTJ2K's and JPEG XL's inputs get, `size.py`
 `pnm()`. It needs fewer bits: the CT, stored 16-bit signed at −2048..3746, takes 13 bits offset by 2048, 16 by
 2^15*); data over 12 bits (stored 16-bit)
 needs a split into planes or streams. Row DEPTH measures the options against HTJ2K on the same frames.
@@ -376,7 +376,7 @@ CPU meets a link of 20 Mbit or more. w10 is the 14-bit choice on one cell only.
 
 *Checked (SPLITOK; [`lab/av1/exact/split`](../../lab/av1/exact/split/README.md)): the split is exact at every depth and
 layout a rule could pick.* Every b = 8…16 bits after the offset, unsigned and signed, at every k = max(0, b − 12) …
-max(b − 8, 4), item format widened to match ([`item-format.md`](item-format.md) §Built): every value split and merged
+max(b − 8, 4), payload format widened to match ([`payload-format.md`](payload-format.md) §Built): every value split and merged
 back in the writer and the reader; 8 280 synthetic frames (seven geometries from 1 pixel wide to 256², ramps holding
 every value, extremes, noise, a pad at the series minimum), 540 frames of 1914×2572 and 4096×5120 at the
 fastest preset, and all 3 310 frames of the nine real series at each of
@@ -394,7 +394,7 @@ it. *Also at scale (row FFDMSCALE):* 30 FFDM exams of three systems, 12 bits for
 §Row DATA3's series): exact at every k of row 43's matrix, natively, in Node and in Chromium, Firefox and WebKitGTK.*
 The best arm per series at cpu0 is k = 0 at 9 bits (0.910 of HTJ2K), k = 1, 2 or 3 at 10–13 bits (0.899–0.989), and w10
 at 15 and 16 bits, where AV1 only ties (0.996, 1.001); the adopted k = 2 is best on two of nine. Plain and optimized
-items refuse 15–16 bits by name, and k = 3 a 16-bit series. Row 44 ranks the arms by time.
+payloads refuse 15–16 bits by name, and k = 3 a 16-bit series. Row 44 ranks the arms by time.
 
 *Rare levels mapped out (row REMAP, [`lab/av1/bytes/remap`](../../lab/av1/bytes/remap/README.md)): the map buys the decoder, not
 bytes.* Two of three projection systems are 12-bit data plus one saturated level (16383: 11 % and 0.6 % of samples),
@@ -405,10 +405,10 @@ stream ≤ 10 bits, so WebCodecs decodes it in 0.46–0.71 of the split's dav1d-
 141 in the container, 1× and 4×, 1 920/1 920 frames a throttle exact against the source); against w10 it is 1.05–1.34×
 the time for 5 % and 12 % fewer bytes on the projections and 1.5 % on two CTs, 4.4–4.8 % more on the third CT and
 the cone-beam. A palette of high parts gives the same at k = 2; at L = 0 (histogram packing) it halves the 16-bit film,
-for HTJ2K as much as for AV1 (0.576 and 0.571 of HTJ2K on the source). Proposed in [`item-format.md`](item-format.md)
+for HTJ2K as much as for AV1 (0.576 and 0.571 of HTJ2K on the source). Proposed in [`payload-format.md`](payload-format.md)
 §Proposed: a remapped plane; not built into the product.
 
-*A split item's two streams through two decoders (row MIXDEC, [`lab/av1/decode/mixed`](../../lab/av1/decode/mixed/README.md)).*
+*A split payload's two streams through two decoders (row MIXDEC, [`lab/av1/decode/mixed`](../../lab/av1/decode/mixed/README.md)).*
 Where the top is over 10 bits, dav1d-WASM decodes both streams today, and **the 8-bit low stream is 17–38 % of a
 13-bit frame's decode and 34–54 % of a 14-bit one's**. Built behind decoder config `mixed` (off by default): the
 low to WebCodecs, started before the top's dav1d-WASM decode, dav1d-WASM taking it wherever the `g8` probe fails
@@ -431,7 +431,7 @@ within 20 ms of HTJ2K's), where k = 2 takes 1.66–1.68 at 4× on 50 Mbit; **14 
 the clock (0.92–0.99) and HTJ2K where a slow CPU meets 20 Mbit or more (k = 2 1.02–1.69, w10 1.01–1.13); **15 and 16
 bits HTJ2K on every cell** (w10 1.02–1.16, d12 1.08–3.11). The adopted k = 2 is the rule at 10–12 and 14 bits, and
 loses only at 9 bits (to the whole samples) and at 13 (to k = 3) — adopted by row 72 as ingest's rule,
-[`item-format.md`](item-format.md) §The split per depth. Containers, not phones.
+[`payload-format.md`](payload-format.md) §The split per depth. Containers, not phones.
 
 **A4 — content.** The synthetic sets add independent noise to every frame
 (`lab/scripts/gen_frame_pnm.py`), so an inter-frame gain measured on them is not a claim about any
@@ -696,7 +696,7 @@ sound series the verdict stands, with one loss at 4× on 50 Mbit (the fluoroscop
 
 ### The plain control and row ENCX's changes, by total time (row TOTAL3, [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md))
 
-The same harness and links as row TOTAL2, four arms a series: HTJ2K; [`item-format.md`](item-format.md)'s
+The same harness and links as row TOTAL2, four arms a series: HTJ2K; [`payload-format.md`](payload-format.md)'s
 **plain** representation (the samples direct, RGB as G, B, R; WebCodecs where ≤ 10 bits, else
 dav1d-WASM); its **optimized** one as adopted (row TOTAL2's top+low2 and RCT through WebCodecs); and
 the optimized one with row ENCX's changes, **x36** — the low bits packed and raw-deflated, inflated by
@@ -763,7 +763,7 @@ reader starts on is this row's premise, not a measured reading pattern); on a fo
 mammogram the MLO pair — IHE's mammography display test hangs all four current views at once, MLOs on the
 left (IHE MESA, Image Display Mammo, test 4000), so the first full hanging needs all four and no order
 shortens it; the MLO pair is the left half of that hanging. Both tomosynthesis volumes and two mammograms
-(`ffdm_c`, `ffdm_a`, stored R CC, L CC, R MLO, L MLO), HTJ2K and the adopted optimized item (k = 2,
+(`ffdm_c`, `ffdm_a`, stored R CC, L CC, R MLO, L MLO), HTJ2K and the adopted optimized payload (k = 2,
 WebCodecs), row TOTAL's links at 1× and 4×; 13 rounds Williams-ordered, 1 191 of 1 248 visits kept, n =
 10–13 a cell but one at 9, **19 032/19 032 frames exact**. Time to the last useful frame on the page, s,
 seq → prio (the median of round-paired ratios), 1× · 4×; the HTJ2K arm — AV1's ratio is within 0.05 of it
@@ -802,7 +802,7 @@ Row TOTAL's harness with the relay adding, on top of each link, **1, 2 or 5 % lo
 the fixed rates; on `lte-good` its bursts of 3.5 packets at that mean) or **±5 or ±20 ms of jitter** each
 way, in sequence as one radio leg delivers — `link_impair.py` in userspace, as every row before; the
 container has no `tc` (iproute2 is not installed). The 10-bit tomosynthesis volume, HTJ2K against the adopted
-optimized item (top + two low bits, through WebCodecs; 0.944 of HTJ2K's bytes). **Fill and ask apart**, in
+optimized payload (top + two low bits, through WebCodecs; 0.944 of HTJ2K's bytes). **Fill and ask apart**, in
 one visit: frames 0–3 filled (2.3 MB), then frames 4–7 asked one at a time once the fill is on the page,
 each timed from the ask to its pixels (a frame ≈ 570 kB). The server's controller is its default,
 `cubic-restart`. 15 rounds Williams-ordered (13 on the loss cells), 1 201 of 1 344 visits kept (143
@@ -839,7 +839,7 @@ fill in s, AV1 ÷ HTJ2K (median of round-paired ratios), and an ask's p50 / p95 
   mattering: at 5 % the fill takes 14.1, 12.8 and 12.4 s at 5, 20 and 50 Mbit. That is Cubic halving on
   loss that is not congestion, the slope [`transport-conclusions.md`](../transport/transport-conclusions.md)
   §1 (CC1) and §5 (ASKL) measured, here through the whole product with both codecs. *Measured since (row LOSSCC, [`transport-conclusions.md`](../transport/transport-conclusions.md) §1): BBR takes 0.04–0.76 of these fills, but costs +2–13 % on some clean and jitter cells; not adopted, the owner's call.*
-* **AV1 is its bytes under loss, and its decode cost is hidden.** On the loss cells the optimized item is
+* **AV1 is its bytes under loss, and its decode cost is hidden.** On the loss cells the optimized payload is
   0.89–0.99 of HTJ2K's fill on 20 of 24 cells and ahead on an ask's median at 1× by 36–271 ms on all 12
   (at 4× by 36–194 ms on the fixed rates, behind by 85–153 ms on bursty 1–2 %); the 4× decode penalty it pays
   where a slow CPU meets a fast clean link (1.07–1.26 at 20 and 50 Mbit, none and jitter) is gone under
@@ -854,7 +854,7 @@ fill in s, AV1 ÷ HTJ2K (median of round-paired ratios), and an ask's p50 / p95 
 * **Saturation** as in row TOTAL: at 4× on 50 Mbit three slowed cores are the clock on the clean and
   jitter cells; under loss the wire is. Nothing is claimed about a phone or a radio's own loss process.
 
-**Verdict.** On a lossy link HTJ2K against AV1 is decided by bytes: the adopted item is 0.89–0.99 of
+**Verdict.** On a lossy link HTJ2K against AV1 is decided by bytes: the adopted payload is 0.89–0.99 of
 HTJ2K's fill on 20 of 24 loss cells (the other four within one loss event's spread, above) and its 4× decode penalty
 disappears, so loss only widens AV1's lead. What 1–5 % loss costs — 1.5–20× on a fill and 1.8–22× on an
 ask, the more the faster the link — is the controller's, the same for both codecs. *Proposed, not
@@ -864,7 +864,7 @@ under 1–3 % random loss in a browser) and which stays opt-in for its queue cos
 
 ### The split per depth (row SPLITTIME, [`lab/av1/delivery/split-rule`](../../lab/av1/delivery/split-rule/README.md))
 
-Row TOTAL's harness on cpu0 items of eleven real series at every arm k, HTJ2K in each cell; 13–16 bits on all
+Row TOTAL's harness on cpu0 payloads of eleven real series at every arm k, HTJ2K in each cell; 13–16 bits on all
 five links (12 rounds, n = 10–12 a cell but one, 204 160/204 160 frames exact), 9–12 bits on the fixed links (10
 rounds, n = 8–10, 42 600/42 600). Round-paired ratios to HTJ2K's time to every frame, 1× · 4×; the best arm per
 series on every cell:
@@ -918,7 +918,7 @@ phone's; the per-series rule is row TOTAL4's.
 
 ### Every change of the round, in Chromium and Firefox (row TOTAL4, [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md))
 
-The optimized item as ingest now writes it (row SPLITRULE's k by depth, cpu0, every item decoded and
+The optimized payload as ingest now writes it (row SPLITRULE's k by depth, cpu0, every payload decoded and
 matched before it is written) against the served HTJ2K, one series per class the split rule tells apart,
 on row TOTAL's five links at 1× and 4×, in Chromium 141 and Firefox 157.0.1, with row CODECSTR's codec
 string, row DECODE's decoder interface and row XENGINE's 8-bit GBR read in the product. 16 rounds (the last
@@ -1142,7 +1142,7 @@ encoder and is not compared. Lossless here costs 1.07–1.58 of HTJ2K's bytes at
 
 **Newer tools (row VERSIONS; [`lab/av1/tools/newer`](../../lab/av1/tools/newer/README.md)), read 2026-10-07.** No
 libaom, SVT-AV1 or dav1d release followed our pins (3.15.1, v4.2.0, 1.5.4). **libaom's head (`4cea455c`) writes
-the same bytes as 3.15.1** on all 22 breast and control cells, cpu0 and the shipped preset (80/80 items
+the same bytes as 3.15.1** on all 22 breast and control cells, cpu0 and the shipped preset (80/80 payloads
 identical, every one exact). dav1d's head and emscripten 6.0.11 tie on dav1d-WASM decode (pooled 0.98–1.01,
 Chromium 141 and 154, 1× and 4×). OpenJPH under emscripten 6.0.11 is 0.94–0.96 of 3.1.74's time pooled, inside
 this harness's spread at 6 rounds; not adopted. OpenJPH 0.32.0 fixes a WASM decoder mask that breaks 24-bit

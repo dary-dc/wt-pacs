@@ -205,8 +205,8 @@ short one counts as inexact rather than stopping the run (the first two mutation
 
 **The breast family (queue row BREAST, [`breast`](bytes/breast/README.md)).** Ten more series — a third DBT
 reconstruction system and a second 10-bit volume, a third system's projections, two FFDM and two synthesized-2D
-series, breast ultrasound cine (grey, RGB) and stills — as items, every item exact natively, in Node and in
-Chromium. **The optimized item is 0.873–0.962 of HTJ2K's bytes on 8 of 10** at cpu0 (0.888–0.979 at the shipped
+series, breast ultrasound cine (grey, RGB) and stills — as payloads, every payload exact natively, in Node and in
+Chromium. **The optimized payload is 0.873–0.962 of HTJ2K's bytes on 8 of 10** at cpu0 (0.888–0.979 at the shipped
 preset); a stretched-range mammogram is 1.006 (plain AV1 1.238) and the 276×305 stills 1.002. **Inter did not pay on
 these four DBT series at G = 8 and 16** (libaom, alt-ref off) — four slice series, 0.963–1.054 of intra at cpu0 and 0.998–1.050 at `good` 6 — **nor on the RGB cine (0.98–1.00);
 on the grey cine it halves the bytes** (G = 16 0.53 of intra, 0.47 of HTJ2K) and the decode, but that clip is a lossy

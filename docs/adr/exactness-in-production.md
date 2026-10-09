@@ -111,7 +111,7 @@ pool 3 decoders plus the page, so nothing past 3 parallel decoders is claimed.
 
 ## 6 · What adopting it takes
 
-The XXH3 digest at ingest (both codecs, the AV1 item's samples after its split is undone), the
+The XXH3 digest at ingest (both codecs, the AV1 payload's samples after its split is undone), the
 metadata field, a WASM hasher in the decoder worker (hash-wasm's XXH3 or a build of
 our own), the second-decode path, the endpoint. HTJ2K's codestreams and the wire are unchanged.
 Open: phones' hash speed; the owner's choice of block against mark; whether the endpoint lives in

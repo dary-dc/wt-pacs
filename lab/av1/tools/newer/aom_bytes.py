@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""VERSIONS: libaom's development head against the pinned 3.15.1 — the optimized item's bytes per series and
+"""VERSIONS: libaom's development head against the pinned 3.15.1 — the optimized payload's bytes per series and
 preset, each written only if ingest.py decodes every frame back to its checksum.
 
 usage: aom_bytes.py BUILD OUT SETDIR@PRESET[,PRESET] ... [--frames 4] [--jobs 4]   — lab/av1/tools/newer/README.md
@@ -19,7 +19,7 @@ from size import Set  # noqa: E402
 VERSIONS = ("3.15.1", "head")
 
 
-def item(build, src, out, version, preset, frames):
+def payload(build, src, out, version, preset, frames):
     s = Set(src)
     split = ["--split", str(max(0, s.stored - 12))] if s.stored > 12 else []
     dst = out / version / preset.replace(":", "") / src.name
@@ -42,10 +42,10 @@ def main():
     cells = [(Path(src), preset, v) for spec in a.sets for src, _, ps in [spec.partition("@")]
              for preset in ps.split(",") for v in VERSIONS]
     with ThreadPoolExecutor(a.jobs) as pool:
-        got = dict(zip(cells, pool.map(lambda c: item(a.build.resolve(), c[0], a.out.resolve(), c[2], c[1],
+        got = dict(zip(cells, pool.map(lambda c: payload(a.build.resolve(), c[0], a.out.resolve(), c[2], c[1],
                                                       a.frames), cells)))
     rows = []
-    print("set\tpreset\tframes\tB 3.15.1\tB head\thead/3.15.1\tidentical items")
+    print("set\tpreset\tframes\tB 3.15.1\tB head\thead/3.15.1\tidentical payloads")
     for (src, preset, v) in cells:
         if v != "head":
             continue

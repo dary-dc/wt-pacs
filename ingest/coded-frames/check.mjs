@@ -1,4 +1,4 @@
-// node ingest/coded-frames/check.mjs DIR ... — every item ingest.py wrote, decoded by the client's reader
+// node ingest/coded-frames/check.mjs DIR ... — every payload ingest.py wrote, decoded by the client's reader
 // (client/decode/av1.js, dav1d-WASM, as a browser without WebCodecs), against its source's checksum.
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
@@ -15,17 +15,17 @@ const av1 = await import("../../client/decode/av1.js");
 await av1.init({ glue: `${OUT}/simd.js`, wasm: `${OUT}/simd.wasm`, dir: OUT });
 let bad = 0;
 for (const dir of process.argv.slice(2)) {
-  const items = readdirSync(dir).filter((f) => f.endsWith(".av1")).sort();
+  const payloads = readdirSync(dir).filter((f) => f.endsWith(".av1")).sort();
   let exact = 0;
   let ms = 0;
-  for (const f of items) {
+  for (const f of payloads) {
     const t0 = performance.now();
     const got = await av1.decodeFrame(new Uint8Array(readFileSync(`${dir}/${f}`)));
     ms += performance.now() - t0;
     const sum = createHash("sha256").update(new Uint8Array(got.sab)).digest("hex");
     if (sum === readFileSync(`${dir}/${f.replace(".av1", ".sha256")}`, "utf8").trim()) exact++;
   }
-  bad += items.length - exact;
-  console.log(`${dir}: ${exact}/${items.length} exact through the reader, ${(ms / items.length).toFixed(1)} ms an item`);
+  bad += payloads.length - exact;
+  console.log(`${dir}: ${exact}/${payloads.length} exact through the reader, ${(ms / payloads.length).toFixed(1)} ms a payload`);
 }
 process.exit(bad ? 1 : 0);

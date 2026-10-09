@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Every set make_sets.py wrote, at every split k of its depth's matrix and every preset, through
-ingest.py — which writes nothing unless native dav1d decodes each item back to its source.
+ingest.py — which writes nothing unless native dav1d decodes each payload back to its source.
 
-  ITEMS/{b}{u|s}/{geometry}/k{K}.{preset}/NNN.av1 …   and ITEMS/native.json, a row a cell
+  PAYLOADS/{b}{u|s}/{geometry}/k{K}.{preset}/NNN.av1 …   and PAYLOADS/native.json, a row a cell
 
 A colour set is coded in its two shapes, plain and optimized (RCT), with no split.
 
-usage: run.py BUILD SETS ITEMS [--presets cpu0,allintra:7,shipped] [--ks all|2,3,b-10] [--jobs 4]   — README.md
+usage: run.py BUILD SETS PAYLOADS [--presets cpu0,allintra:7,shipped] [--ks all|2,3,b-10] [--jobs 4]   — README.md
 """
 import argparse
 import json
@@ -47,7 +47,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("build", type=Path)
     ap.add_argument("sets", type=Path)
-    ap.add_argument("items", type=Path)
+    ap.add_argument("payloads", type=Path)
     ap.add_argument("--presets", default="cpu0,allintra:7")
     ap.add_argument("--ks", default="all")
     ap.add_argument("--jobs", type=int, default=4)

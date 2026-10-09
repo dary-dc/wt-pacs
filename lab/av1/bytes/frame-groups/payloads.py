@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""The decode timing's frames: each kept run as product items at every kept G — the top stream from the group
+"""The decode timing's frames: each kept run as product payloads at every kept G — the top stream from the group
 coding, the low stream from the intra one, as the client decodes a group — and as HTJ2K, with manifest.json.
 
-usage: items.py BUILD WORK OUT SET_DIR ... [--groups 1,4,8,16] [--cell aom-good6.optimized]   — README.md here
+usage: payloads.py BUILD WORK OUT SET_DIR ... [--groups 1,4,8,16] [--cell aom-good6.optimized]   — README.md here
 """
 import argparse
 import json

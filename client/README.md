@@ -19,13 +19,13 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | - | - |
 | `decoder.js` | one decoder instance: loads the series' codec module and posts each frame it returns to the consumer |
 | `htj2k.js` | an HTJ2K codestream behind the codec modules' interface, one OpenJPH decoder object reused; pixels into a `SharedArrayBuffer`, sign extension and range in one pass |
-| `av1.js` | an AV1 item behind the codec modules' interface, its decoder chosen per item; loaded only for an AV1 series |
-| `av1-payload.js` | the item's header read, and every malformed case refused by name |
+| `av1.js` | an AV1 payload behind the codec modules' interface, its decoder chosen per payload; loaded only for an AV1 series |
+| `av1-payload.js` | the payload's header read, and every malformed case refused by name |
 | `av1-dav1d.js`, `av1-webcodecs.js` | one stream unit through dav1d-WASM or through WebCodecs, as a picture |
 | `av1-frame.js` | a picture checked against the header and merged to the contract: planes interleaved, split, colour transform and offset undone |
 | `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `ingest/coded-frames/make_golden.py`) |
 | `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike |
-| `htj2k.test.mjs`, `av1.test.mjs` | node: the range pass; the AV1 item reader |
+| `htj2k.test.mjs`, `av1.test.mjs` | node: the range pass; the AV1 payload reader |
 | `wasm/` | `dav1d/` builds dav1d-WASM, `fetch_openjph.sh` fetches OpenJPH's into `vendor/` |
 
 The rest: [`conformance/`](conformance/) the transport's clauses and the rigs, [`paint/`](paint/README.md) the
@@ -35,19 +35,19 @@ painter, [`record/`](record/) telemetry, [`harness/`](harness/) the lab's pages.
 path untouched, `"av1"` loads `av1.js` and, at the decoder's start, both decoders it may need — dav1d-WASM
 from [`client/decode/wasm/dav1d`](./decode/wasm/dav1d/README.md) (`glue`, `wasm`, `dir` as for
 OpenJPH, `THIRD_PARTY.txt` served beside them) or WebCodecs; anything else makes `connect` reject
-with `unknown codec "…"` before a worker starts. Every entry is an item of
-[`docs/av1/item-format.md`](../docs/av1/item-format.md): a 16-byte header that says the source's
+with `unknown codec "…"` before a worker starts. Every entry is a payload of
+[`docs/av1/payload-format.md`](../docs/av1/payload-format.md): a 16-byte header that says the source's
 bits, the coded depth, the low bits split apart, signed and offset, the colour transform, then one
-frame (G = 1). The item comes out in the same `{pixels, width, bits, signed, range}` as an HTJ2K
-frame, colour interleaved R, G, B; a malformed one fails with `undecodable: av1 item: …` naming
+frame (G = 1). The payload comes out in the same `{pixels, width, bits, signed, range}` as an HTJ2K
+frame, colour interleaved R, G, B; a malformed one fails with `undecodable: av1 payload: …` naming
 what is wrong, before or after decoding, and never as pixels.
 
-**Which decoder, per item.** WebCodecs when every stream of the item is ≤ 10 bits, `VideoDecoder`
+**Which decoder, per payload.** WebCodecs when every stream of the payload is ≤ 10 bits, `VideoDecoder`
 exists, and the probe for each stream's layout — grey 8 or 10-bit, 4:4:4 8 or 10-bit, told apart
 before decoding by the header and the unit's `seq_profile` — returned its samples, once per worker;
-dav1d-WASM otherwise, and for an item WebCodecs fails on. Both modules are imported, and dav1d's
+dav1d-WASM otherwise, and for a payload WebCodecs fails on. Both modules are imported, and dav1d's
 glue and WASM fetched, when the decoder starts, beside the dial; each is initialised on first use,
-and an import that fails is tried again on the next item. Before, the first item waited for all of
+and an import that fails is tried again on the next payload. Before, the first payload waited for all of
 it: **−1.0 serial round trips to the first exact frame through WebCodecs and −3.0 through dav1d on
 100–300 ms links, cold, every paired round** (10.02 → 8.98 and 11.93 → 8.96; HTJ2K 7.99); warm,
 nothing moves. On a link under 20 ms a ≤ 10-bit series pays for the fallback's 238 KB arriving
@@ -56,15 +56,15 @@ the series is AV1 can `preload` the seven AV1 modules, the glue and the WASM, as
 does: AV1 then reaches HTJ2K's 8.0. [`lab/page-open/README.md`](../lab/page-open/README.md)
 §Cold round trips by codec. A WebCodecs frame is taken only for the unit it
 was sent with, so one flushed late from an earlier unit is never taken for the unit in hand. The
-dispatch rig checks the writer's golden items (`client/conformance/av1/items/`, plain and optimized,
+dispatch rig checks the writer's golden payloads (`client/conformance/av1/payloads/`, plain and optimized,
 seven shapes each) through both decoders, every refusal by its message, the choice, the fallback and
 a late frame; `av1.test.mjs` the same reader in node.
 
 **An AV1 series in groups.** `opts.groupLength: G` (absent = 1) with `opts.frameCount` says a
 keyframe sits at every multiple of G and the frames between decode only after it. A group is the
-item: an ask for any frame asks its whole group from the keyframe, a fill asks whole groups, and a
+payload: an ask for any frame asks its whole group from the keyframe, a fill asks whole groups, and a
 group's frames go to one decoder in index order. A frame that fails fails the rest of its group,
-each by name. Each unit reaches the decoder as an item of one frame. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §3, *Built*; the dispatch rig
+each by name. Each unit reaches the decoder as a payload of one frame. [`docs/av1/adr-unit.md`](../docs/av1/adr-unit.md) §3, *Built*; the dispatch rig
 checks a G = 8 set and a one-group set (`client/conformance/av1/{g8x20,whole12}`) frame by frame.
 A ≤ 10-bit series in groups decodes through WebCodecs, not flushed inside a group
 ([`docs/decode/README.md`](../docs/decode/README.md) §WebCodecs without a flush).

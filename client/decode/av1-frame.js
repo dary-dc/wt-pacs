@@ -1,12 +1,12 @@
 /**
- * An AV1 item's decoded pictures as decoder.js's contract, whichever decoder made them. A picture is
+ * An AV1 payload's decoded pictures as decoder.js's contract, whichever decoder made them. A picture is
  * `{ width, height, bits, planes: [{ heap, offset, stride }] }` in samples: one plane for grey, the
- * coded planes for colour. The item's split, colour transform and offset are undone here.
- * docs/av1/item-format.md
+ * coded planes for colour. The payload's split, colour transform and offset are undone here.
+ * docs/av1/payload-format.md
  */
 
 const refuse = (why) => {
-  throw new Error(`undecodable: av1 item: ${why}`);
+  throw new Error(`undecodable: av1 payload: ${why}`);
 };
 
 /** Whether every sample of `planes` is `mid`: a grey stream's chroma when it is coded 4:2:0. */
@@ -19,21 +19,21 @@ export function neutral(planes, width, height, mid) {
   return true;
 }
 
-/** The top picture checked against the item's header and placed. */
-export function begin(pic, item) {
+/** The top picture checked against the payload's header and placed. */
+export function begin(pic, payload) {
   const components = pic.planes.length;
-  if (pic.bits !== item.depth) refuse(`top stream ${pic.bits}-bit, header says ${item.depth}`);
-  if (item.rct && components !== 3) refuse(`top stream of ${components} planes under rct, not three`);
-  const plainRgb = item.bits === 8 && item.depth === 8 && !item.split && !item.signed;
-  if (!item.rct && components === 3 && !plainRgb) refuse("three planes without rct");
-  const { bits, signed } = item;
+  if (pic.bits !== payload.depth) refuse(`top stream ${pic.bits}-bit, header says ${payload.depth}`);
+  if (payload.rct && components !== 3) refuse(`top stream of ${components} planes under rct, not three`);
+  const plainRgb = payload.bits === 8 && payload.depth === 8 && !payload.split && !payload.signed;
+  if (!payload.rct && components === 3 && !plainRgb) refuse("three planes without rct");
+  const { bits, signed } = payload;
   const wide = bits > 8;
   const sab = new SharedArrayBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
   const out = wide ? (signed ? new Int16Array(sab) : new Uint16Array(sab)) : signed ? new Int8Array(sab) : new Uint8Array(sab);
   const mask = wide ? 0xffff : 0xff;
-  const f = { pic, out, sab, components, bits, signed, mask, offset: item.offset, range: { min: Infinity, max: -Infinity } };
-  if (item.rct) unrct(f, pic);
-  else place(f, pic, item.split, !item.split);
+  const f = { pic, out, sab, components, bits, signed, mask, offset: payload.offset, range: { min: Infinity, max: -Infinity } };
+  if (payload.rct) unrct(f, pic);
+  else place(f, pic, payload.split, !payload.split);
   return f;
 }
 

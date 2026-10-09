@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """MIXDEC's arms for row TOTAL's harness: beside each split arm kK whose top is over 10 bits, kKm — the
-same items, `mixed` in the decoder config. Rewrites OUT/SET/arms.json as lab/av1/delivery/split-rule/make_frames.py
+same payloads, `mixed` in the decoder config. Rewrites OUT/SET/arms.json as lab/av1/delivery/split-rule/make_frames.py
 wrote it.   usage: mixed_arms.py OUT   — lab/av1/decode/mixed/README.md
 """
 import json

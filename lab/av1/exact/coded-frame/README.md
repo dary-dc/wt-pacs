@@ -1,13 +1,13 @@
 # lab/av1/exact/coded-frame — the ingest, checked and timed
 
 What was measured on [`ingest/coded-frames`](../../../../ingest/coded-frames/README.md), the ingest that writes a
-series as coded frames ([`docs/av1/item-format.md`](../../../../docs/av1/item-format.md)). `bench.py` sets it
+series as coded frames ([`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md)). `bench.py` sets it
 against a checkout of the ingest it replaced.
 
 ## Checked (2026-10-05)
 
-* **Real series, every item exact.** The first 8 frames of four series of
-  [`docs/FIXTURES.md`](../../../../docs/FIXTURES.md) §AV1 data, both representations, cpu0: 96 items,
+* **Real series, every payload exact.** The first 8 frames of four series of
+  [`docs/FIXTURES.md`](../../../../docs/FIXTURES.md) §AV1 data, both representations, cpu0: 96 payloads,
   every one written (ingest's check) and every one decoded to its source by `check.mjs`. Optimized
   over plain: fluoroscopy 0.918, CT 0.990, MR 0.964, ultrasound 0.861 — row 28's ratios
   (fluoroscopy 0.942/1.027 = 0.917, MR 0.964, ultrasound 0.861) to the third digit.
@@ -16,10 +16,10 @@ against a checkout of the ingest it replaced.
   names the frame (3 mutations, each on a 13-bit signed and an RGB source, each caught).
 * **Every depth and split (row 43).** Grey of 8–16 bits after the offset, unsigned and signed, at every
   k a per-depth rule could pick, synthetic and all nine real series, every frame exact natively, in
-  Node and in three engines; 90 golden items in `client/conformance/av1/items/matrix/` — the counts,
+  Node and in three engines; 90 golden payloads in `client/conformance/av1/payloads/matrix/` — the counts,
   the mutations and the reader's corrected mask are [`lab/av1/exact/split`](../split/README.md) §Checked.
-* **A split item through two decoders (row 47).** With decoder config `mixed`, a top over 10 bits through
-  dav1d-WASM and the low through WebCodecs: the same items exact in three engines, faster than one decoder,
+* **A split payload through two decoders (row 47).** With decoder config `mixed`, a top over 10 bits through
+  dav1d-WASM and the low through WebCodecs: the same payloads exact in three engines, faster than one decoder,
   slower than w10 — [`lab/av1/decode/mixed`](../../decode/mixed/README.md).
 
 ## One pipeline (2026-10-06, queue row 52)
@@ -51,12 +51,12 @@ check moved in-process (`decode.cpp`). `bench.py` sets it against a checkout of 
 libaom carries state across keyframes within one run; every frame was exact either way.
 
 **One encoder run per frame (row 71, 2026-10-07): the bytes no longer depend on `--jobs`, for +12 % encode CPU.**
-`bench.py workers`, OLD this revision with only `av1()`'s encoder loop chunked again (`good:6`, the first 16 frames of each of the 23 sets of rows 2, 45 and 46, 252 items): **every
+`bench.py workers`, OLD this revision with only `av1()`'s encoder loop chunked again (`good:6`, the first 16 frames of each of the 23 sets of rows 2, 45 and 46, 252 payloads): **every
 set byte-identical at 1, 2 and 4 workers**, `ffdm_d` at 1 and 2 (four aomenc on its frames exceed the container's
 memory, as before). Bytes **0.99987–1.00015 of the chunked ingest's** at one worker, 0.999998 in total: a one-frame
-run writes aomenc's reduced still-picture sequence header, the one every golden item already carried, and the
+run writes aomenc's reduced still-picture sequence header, the one every golden payload already carried, and the
 two-pass statistics of one frame instead of the chunk's. Forcing video mode (`--force-video-mode=1`) instead kept
-the chunked bytes on most series but rewrote 106 golden items, so it was not taken; one golden item that row 80
+the chunked bytes on most series but rewrote 106 golden payloads, so it was not taken; one golden payload that row 80
 wrote while it was on the branch (`grey420/g8`) is regenerated, exact through the gate. Mutation: the chunked
 ingest as the new arm fails the check on both tomosynthesis volumes. **Time** (`bench.py time`, whole series,
 n = 5, arms interleaved, four cores, nothing else running), new against chunked, wall at 1 worker: fluoroscopy

@@ -3,7 +3,7 @@
 8-bit grey coded as full-range 4:2:0 with mid-grey chroma instead of 4:0:0, so Firefox's WebCodecs returns it
 exactly (row XENGINE: Firefox refuses monochrome, and expands limited-range grey on its way to RGB). Queue row 80
 (GREY420) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the decision is in
-[`docs/av1/item-format.md`](../../../../docs/av1/item-format.md) §8-bit grey as 4:2:0.
+[`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md) §8-bit grey as 4:2:0.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
@@ -30,7 +30,7 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W/fr
 **Series.** The two 8-bit grey series the lab holds, every frame: the breast ultrasound cine (`usb_cine`,
 64 × 512²) and the stills (`usb_still`, 29 × 276×305). **Arms**, each written by `ingest.py` (optimized
 representation, cpu0) and checked exact natively before it is written: `htj2k`, the served profile; `mono`,
-today's 4:0:0; `420`, `--grey8 420`. In the decode harness `mono.d` and `420.d` are the same items with
+today's 4:0:0; `420`, `--grey8 420`. In the decode harness `mono.d` and `420.d` are the same payloads with
 `VideoDecoder` removed, so dav1d-WASM. Each arm reaches the decoder the product picks: in Chromium both AV1
 arms go to WebCodecs; in Firefox `mono` fails its `g8` probe and goes to dav1d-WASM, `420` passes `g8f`.
 

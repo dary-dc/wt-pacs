@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Row BREAST's bytes: each breast-family series as items in every layout, at cpu0 and its shipped preset,
+"""Row BREAST's bytes: each breast-family series as payloads in every layout, at cpu0 and its shipped preset,
 against HTJ2K on the same frames; then intra against inter by group on the slice series and the cine.
 
-Every item is written by ingest/coded-frames/ingest.py, which writes nothing unless native dav1d decodes it back
+Every payload is written by ingest/coded-frames/ingest.py, which writes nothing unless native dav1d decodes it back
 to its source. Inter codes the optimized representation's streams a group at a time (--auto-alt-ref=0),
 decodes each group alone through native dav1d, merges as the client does and checks every frame.
 
@@ -51,7 +51,7 @@ def layouts(s):
     return out
 
 
-def items(build, s, items_dir, layout, preset, n):
+def payloads(build, s, items_dir, layout, preset, n):
     out = items_dir / s.name / f"{layout}.{preset.replace(':', '')}"
     r = subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, s.path, out, *layouts(s)[layout],
                         "--preset", preset, "--frames", str(n), "--jobs", "1"], capture_output=True, text=True)
@@ -82,11 +82,11 @@ def bytes_job(job):
     if layout == "htj2k":
         with tempfile.TemporaryDirectory() as tmp:
             return [htj2k(s, n, Path(tmp))]
-    rows = [items(build, s, items_dir, layout, "cpu0", n)]
+    rows = [payloads(build, s, items_dir, layout, "cpu0", n)]
     if s.name in SHIPPED_CPU0:
         return rows
     for preset in CANDIDATES:
-        row = items(build, s, items_dir, layout, preset, n)
+        row = payloads(build, s, items_dir, layout, preset, n)
         rows.append(row)
         if row["exact"] and rows[0]["exact"] and row["bytes"] <= 1.02 * rows[0]["bytes"]:
             row["shipped"] = True
@@ -94,7 +94,7 @@ def bytes_job(job):
     return rows
 
 
-# RGB ultrasound ships at cpu0 (item-format.md): every faster preset cost row 14's ultrasound ≥ 3.2 %.
+# RGB ultrasound ships at cpu0 (payload-format.md): every faster preset cost row 14's ultrasound ≥ 3.2 %.
 SHIPPED_CPU0 = {"usb_cine_rgb"}
 
 
@@ -183,7 +183,7 @@ def main():
         s = size.Set(path)
         n = min(a.frames, s.n)
         if a.what == "bytes":
-            jobs += [(build, str(path), a.work / "items", n, layout) for layout in ["htj2k", *layouts(s)]
+            jobs += [(build, str(path), a.work / "payloads", n, layout) for layout in ["htj2k", *layouts(s)]
                      if not a.layouts or layout in a.layouts.split(",")]
         else:
             jobs += [(build, str(path), a.work / "ivf", n, layout, "-") for layout in ["htj2k"]]

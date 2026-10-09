@@ -4,7 +4,7 @@
  * order every round; arms and sets rotate inside it. lab/av1/tools/newer/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/tools/newer/decode.mjs [--rounds 10] [--throttles 1,4] [--browsers 141,154]
- *     [--arms htj2k,item,…] [--frames lab/.av1-work/versions] [--sets a,b] [--mutate sample|truth] [--out rows.json]
+ *     [--arms htj2k,payload,…] [--frames lab/.av1-work/versions] [--sets a,b] [--mutate sample|truth] [--out rows.json]
  */
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -17,7 +17,7 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ROUNDS = Number(arg("--rounds", 10));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
 const BROWSERS = arg("--browsers", "141,154").split(",");
-const ARMS = arg("--arms", "htj2k,ojph-0.31.0-3.1.74,ojph-0.32.0-3.1.74,ojph-0.31.0-6.0.11,ojph-0.32.0-6.0.11,item,dav1d-3.1.74,dav1d-6.0.11,dav1d-6.0.11-dav1d-head").split(",");
+const ARMS = arg("--arms", "htj2k,ojph-0.31.0-3.1.74,ojph-0.32.0-3.1.74,ojph-0.31.0-6.0.11,ojph-0.32.0-6.0.11,payload,dav1d-3.1.74,dav1d-6.0.11,dav1d-6.0.11-dav1d-head").split(",");
 const FRAMES = arg("--frames", "lab/.av1-work/versions");
 const MUTATE = arg("--mutate", "").split(",").filter(Boolean);
 const OUT = arg("--out", null);

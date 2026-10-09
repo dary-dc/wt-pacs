@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Row 43's mutations: each breaks the writer, the reader or an item on purpose, and the check that
+"""Row 43's mutations: each breaks the writer, the reader or a payload on purpose, and the check that
 should catch it must fail. A subset of the synthetic matrix (b = 8, 13, 16, unsigned and signed, the
-256×256 and pad sets, every k, cpu0) and the golden items carry them.
+256×256 and pad sets, every k, cpu0) and the golden payloads carry them.
 
-usage: mutate.py BUILD SETS ITEMS [NAME ...]   — only the mutations whose name holds a NAME, if any; exits 1 naming any mutation that was not caught; README.md
+usage: mutate.py BUILD SETS PAYLOADS [NAME ...]   — only the mutations whose name holds a NAME, if any; exits 1 naming any mutation that was not caught; README.md
 """
 import json
 import shutil
@@ -59,10 +59,10 @@ def swap(b):
 
 
 ITEMS_EDIT = [
-    ("item: split one short", edit_split(-1)),
-    ("item: split one long", edit_split(1)),
-    ("item: top and low swapped", swap),
-    ("item: truncated by a byte", lambda b: b[:-1]),
+    ("payload: split one short", edit_split(-1)),
+    ("payload: split one long", edit_split(1)),
+    ("payload: top and low swapped", swap),
+    ("payload: truncated by a byte", lambda b: b[:-1]),
 ]
 
 
@@ -77,8 +77,8 @@ def native(build, sets, tmp):
     return r.stdout.splitlines()[0] if r.stdout else r.stderr[-200:]
 
 
-def node(sets, items):
-    r = run(["node", HERE / "check.mjs", sets, items])
+def node(sets, payloads):
+    r = run(["node", HERE / "check.mjs", sets, payloads])
     return (r.stdout.splitlines() or [r.stderr[-200:]])[0], r.returncode
 
 
@@ -88,12 +88,12 @@ def main():
     caught, missed = [], []
     with tempfile.TemporaryDirectory(dir=ROOT / "lab/.av1-work") as t:
         tmp = Path(t)
-        sets, items = tmp / "sets", tmp / "items"
+        sets, payloads = tmp / "sets", tmp / "payloads"
         for s in SUBSET:
             shutil.copytree(sets_all / s, sets / s)
             for k in (items_all / s).glob("k*.cpu0"):
-                shutil.copytree(k, items / s / k.name)
-        base, code = node(sets, items)
+                shutil.copytree(k, payloads / s / k.name)
+        base, code = node(sets, payloads)
         if code:
             sys.exit(f"the subset is not exact before any mutation: {base}")
         print(f"unmutated: {native(build, sets, tmp)}; {base}")
@@ -115,7 +115,7 @@ def main():
                         node_said, code = node(sets, tmp / "native")
                         said, hit = f"{said}; {node_said}", code != 0
                 elif check == "node":
-                    said, code = node(sets, items)
+                    said, code = node(sets, payloads)
                     hit = code != 0
                 else:
                     r = run(["node", "client/decode/av1.test.mjs"])
@@ -126,7 +126,7 @@ def main():
         for name, f in filter(lambda m: only(m[0]), ITEMS_EDIT):
             bad = tmp / "edited"
             shutil.rmtree(bad, ignore_errors=True)
-            shutil.copytree(items, bad)
+            shutil.copytree(payloads, bad)
             for p in bad.glob("**/*.av1"):
                 p.write_bytes(f(p.read_bytes()))
             said, code = node(sets, bad)

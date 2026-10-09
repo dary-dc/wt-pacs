@@ -1,12 +1,12 @@
-// node client/decode/av1.test.mjs — the AV1 item reader: golden items through dav1d-WASM (when
-// client/decode/wasm/dav1d/build.sh has run), every refusal item-format.md names, and the decoder choice.
+// node client/decode/av1.test.mjs — the AV1 payload reader: golden payloads through dav1d-WASM (when
+// client/decode/wasm/dav1d/build.sh has run), every refusal payload-format.md names, and the decoder choice.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const ITEMS = `${ROOT}client/conformance/av1/items`;
+const PAYLOADS = `${ROOT}client/conformance/av1/payloads`;
 const OUT = `${ROOT}lab/.av1-build/out`;
 // The glue is evaluated as a classic script, which in node reaches for require and for fetch on paths.
 globalThis.require = createRequire(import.meta.url);
@@ -24,7 +24,7 @@ const check = (ok, what) => {
   }
 };
 const sha = (sab) => createHash("sha256").update(new Uint8Array(sab)).digest("hex");
-const golden = (rep, name) => new Uint8Array(readFileSync(`${ITEMS}/${rep}/${name}.av1`));
+const golden = (rep, name) => new Uint8Array(readFileSync(`${PAYLOADS}/${rep}/${name}.av1`));
 const edit = (bytes, at, value) => {
   const b = Uint8Array.from(bytes);
   b[at] = value;
@@ -37,15 +37,15 @@ const u32 = (bytes, at, value) => {
 };
 const refusal = async (decode, bytes) => decode(bytes).then(() => "decoded", (e) => String(e.message));
 
-const { parseItem } = await import("./av1-payload.js");
+const { parsePayload } = await import("./av1-payload.js");
 
-/** Every header case item-format.md lists is refused by name before anything decodes. */
+/** Every header case payload-format.md lists is refused by name before anything decodes. */
 {
   const g12 = golden("optimized", "g12");
   const c8 = golden("optimized", "c8");
-  const parse = async (b, n = 1) => parseItem(b, n);
+  const parse = async (b, n = 1) => parsePayload(b, n);
   const cases = [
-    [g12.subarray(0, 15), /under the 16-byte header/, "a short item"],
+    [g12.subarray(0, 15), /under the 16-byte header/, "a short payload"],
     [edit(g12, 0, 2), /version 2, not 1/, "version ≠ 1"],
     [edit(g12, 4, 4), /unknown flag bits 0x4/, "an unknown flag bit"],
     [edit(g12, 6, 1), /pad bytes not zero/, "a pad byte set"],
@@ -57,16 +57,16 @@ const { parseItem } = await import("./av1-payload.js");
     [edit(g12, 1, 13), /bits 13 over depth 10 \+ split 2/, "bits > depth + split"],
     [edit(edit(g12, 1, 8), 3, 0), /depth 10 for a top of 8 bits, not 8/, "a depth not the smallest holding the top"],
     [u32(g12, 12, 2), /2 frames, 1 expected/, "n ≠ the count expected"],
-    [u32(g12, 16, 1e6), /frame 0 overruns the item/, "a length past the item"],
-    [u32(g12, 12, 1e6), /frame lengths overrun the item/, "a frame count whose lengths overrun", 1e6],
+    [u32(g12, 16, 1e6), /frame 0 overruns the payload/, "a length past the payload"],
+    [u32(g12, 12, 1e6), /frame lengths overrun the payload/, "a frame count whose lengths overrun", 1e6],
     [Uint8Array.of(...g12, 0), /1 bytes past the last frame/, "bytes after the last frame"],
   ];
   for (const [bytes, want, what, n] of cases) {
     const got = await refusal((b) => parse(b, n), bytes);
     check(want.test(got), `header: ${what} is refused by name (${got})`);
   }
-  check((await refusal(parse, c8)) === "decoded", "header: the optimized colour item parses");
-  check((await refusal((b) => parse(b, 1), golden("plain", "g14"))) === "decoded", "header: the plain 14-bit item parses");
+  check((await refusal(parse, c8)) === "decoded", "header: the optimized colour payload parses");
+  check((await refusal((b) => parse(b, 1), golden("plain", "g14"))) === "decoded", "header: the plain 14-bit payload parses");
 }
 
 /** Every sample of 8–16 bits, unsigned and signed, split at every k of 0–8 and merged by av1-frame.js, is itself. */
@@ -84,8 +84,8 @@ const { parseItem } = await import("./av1-payload.js");
         // As the writer codes it: the smallest of 8, 10, 12 holding the top, and wider only in this test.
         const depth = [8, 10, 12].find((d) => bits - split <= d) ?? bits - split;
         const pic = (heap, b) => ({ width: n, height: 1, bits: b, planes: [{ heap, offset: 0, stride: n }] });
-        const item = { bits, depth, split, signed, rct: false, offset };
-        const got = end(begin(pic(top, depth), item), split ? pic(low, 8) : null);
+        const payload = { bits, depth, split, signed, rct: false, offset };
+        const got = end(begin(pic(top, depth), payload), split ? pic(low, 8) : null);
         const out = bits > 8 ? (signed ? new Int16Array(got.sab) : new Uint16Array(got.sab)) : signed ? new Int8Array(got.sab) : new Uint8Array(got.sab);
         let bad = got.range.min !== -offset || got.range.max !== n - 1 - offset;
         for (let u = 0; u < n && !bad; u++) bad = out[u] !== u - offset;
@@ -135,14 +135,14 @@ const { parseItem } = await import("./av1-payload.js");
   check(sequence(hex("12003200")) === null, "codec string: a unit with no sequence header has none");
 }
 
-/** The decoder chosen per item: WebCodecs only where every stream is ≤ 10 bits and its probe passed. */
+/** The decoder chosen per payload: WebCodecs only where every stream is ≤ 10 bits and its probe passed. */
 {
   const calls = [];
   let [depth, planes] = [8, 1];
   const pic = (bits, n) => ({ width: 1, height: 1, bits, planes: Array.from({ length: n }, () => ({ heap: Uint16Array.of(7), offset: 0, stride: 1 })) });
   let probeOk = true;
   let wcFails = false;
-  // The first failure is init's own load, which no item waits on.
+  // The first failure is init's own load, which no payload waits on.
   let importFails = 2;
   const stubs = {
     "./av1-webcodecs.js": {
@@ -169,24 +169,24 @@ const { parseItem } = await import("./av1-payload.js");
     check(calls.join() === want && got.startsWith(outcome), `choice: ${what} (${calls.join()}; ${got.slice(0, 40)})`);
   };
   globalThis.VideoDecoder = class {};
-  await take("a 10-bit grey item goes to WebCodecs", "plain", "g10", 10, 1, "probe g10,webcodecs");
+  await take("a 10-bit grey payload goes to WebCodecs", "plain", "g10", 10, 1, "probe g10,webcodecs");
   probeOk = false;
-  await take("a failed probe sends the item to dav1d, whose failed import fails it", "plain", "g8", 8, 1, "probe g8", "import failed");
-  await take("and the import is tried again on the next item", "plain", "g8", 8, 1, "probe g8,dav1d");
+  await take("a failed probe sends the payload to dav1d, whose failed import fails it", "plain", "g8", 8, 1, "probe g8", "import failed");
+  await take("and the import is tried again on the next payload", "plain", "g8", 8, 1, "probe g8,dav1d");
   probeOk = true;
   wcFails = true;
   await take("WebCodecs failing falls back to dav1d", "plain", "g8", 8, 1, "probe g8,webcodecs,dav1d");
   wcFails = false;
-  await take("a 12-bit item never reaches WebCodecs", "plain", "g12", 12, 1, "dav1d");
-  await take("a split item's two streams are both probed", "optimized", "g12", 10, 1, "probe g10,probe g8,webcodecs,webcodecs");
-  await take("an rct item probes 4:4:4 10-bit", "optimized", "c8", 10, 3, "probe c10,webcodecs");
-  await take("a plain colour item is told from grey by its profile", "plain", "c8", 8, 3, "probe c8,webcodecs");
+  await take("a 12-bit payload never reaches WebCodecs", "plain", "g12", 12, 1, "dav1d");
+  await take("a split payload's two streams are both probed", "optimized", "g12", 10, 1, "probe g10,probe g8,webcodecs,webcodecs");
+  await take("an rct payload probes 4:4:4 10-bit", "optimized", "c8", 10, 3, "probe c10,webcodecs");
+  await take("a plain colour payload is told from grey by its profile", "plain", "c8", 8, 3, "probe c8,webcodecs");
   await take("8-bit grey coded 4:2:0 probes its own layout", "grey420", "g8", 8, 1, "probe g8f,webcodecs");
   delete globalThis.VideoDecoder;
   await take("no VideoDecoder, no WebCodecs", "plain", "g10", 10, 1, "dav1d");
 }
 
-/** Init starts fetching every decoder the item could need, so none waits for the first item to land; a failure there costs no item. */
+/** Init starts fetching every decoder the payload could need, so none waits for the first payload to land; a failure there costs no payload. */
 {
   const asked = [];
   const fetched = [];
@@ -201,13 +201,13 @@ const { parseItem } = await import("./av1-payload.js");
   globalThis.VideoDecoder = class {};
   const av1 = await import("./av1.js?warm");
   await av1.init({ glue: "/g.js", wasm: "/g.wasm" }, load);
-  check(asked.join() === "./av1-dav1d.js,./av1-webcodecs.js", `warm: init imports both decoders before any item (${asked.join()})`);
-  check(fetched.join() === "/g.js,/g.wasm", `warm: init fetches dav1d's glue and WASM before any item (${fetched.join()})`);
+  check(asked.join() === "./av1-dav1d.js,./av1-webcodecs.js", `warm: init imports both decoders before any payload (${asked.join()})`);
+  check(fetched.join() === "/g.js,/g.wasm", `warm: init fetches dav1d's glue and WASM before any payload (${fetched.join()})`);
   globalThis.fetch = realFetch;
   await new Promise((r) => setTimeout(r));
   fail = false;
   const got = await refusal(av1.decodeFrame, golden("plain", "g8"));
-  check(got === "decoded" && asked.length === 3, `warm: a load that failed at init is tried again by the item (${got}, ${asked.length} loads)`);
+  check(got === "decoded" && asked.length === 3, `warm: a load that failed at init is tried again by the payload (${got}, ${asked.length} loads)`);
   delete globalThis.VideoDecoder;
   const none = await import("./av1.js?warm-none");
   asked.length = 0;
@@ -215,11 +215,11 @@ const { parseItem } = await import("./av1-payload.js");
   check(asked.join() === "./av1-dav1d.js", `warm: without VideoDecoder only dav1d is imported (${asked.join()})`);
 }
 
-/** With `mixed`, a top over 10 bits goes to dav1d and its low to WebCodecs, each item's own low merged, dav1d the fallback. */
+/** With `mixed`, a top over 10 bits goes to dav1d and its low to WebCodecs, each payload's own low merged, dav1d the fallback. */
 {
   const calls = [];
   const one = (bits, v) => ({ width: 1, height: 1, bits, planes: [{ heap: Uint16Array.of(v), offset: 0, stride: 1 }] });
-  // WebCodecs' lows alternate 1, 2: an item merged with the last one's low is off by one.
+  // WebCodecs' lows alternate 1, 2: a payload merged with the last one's low is off by one.
   let lows = 0;
   let probeOk = true;
   let wcFails = false;
@@ -248,8 +248,8 @@ const { parseItem } = await import("./av1-payload.js");
   };
   const { units } = await import("./av1-payload.js");
   const tops = ["plain/g14", "plain/g12", "optimized/g12"].map((n) => {
-    const item = parseItem(golden(...n.split("/")));
-    return units(item.frames[0], item.split)[0].length;
+    const payload = parsePayload(golden(...n.split("/")));
+    return units(payload.frames[0], payload.split)[0].length;
   });
   const isTop = (bytes) => tops.includes(bytes.length);
   const make = async (mixed, tag) => {
@@ -267,35 +267,35 @@ const { parseItem } = await import("./av1-payload.js");
   globalThis.VideoDecoder = class {};
   const on = await make(true, "on");
   await take(on, "a 12-bit top to dav1d, its low to WebCodecs, started first", g14, "probe g8,webcodecs low,dav1d", (7 << 2) | 1);
-  await take(on, "the next item merges its own low, not the last one's", g14, "probe g8,webcodecs low,dav1d", (7 << 2) | 2);
+  await take(on, "the next payload merges its own low, not the last one's", g14, "probe g8,webcodecs low,dav1d", (7 << 2) | 2);
   wcFails = true;
   await take(on, "a failed WebCodecs low is decoded by dav1d", g14, "probe g8,webcodecs low,dav1d,dav1d", (7 << 2) | 3);
   wcFails = false;
   topFails = true;
-  await take(on, "a failed top fails the item once its low has settled", g14, "probe g8,webcodecs low,dav1d", "undecodable: dav1d -1");
-  check(lows === 3, `mixed: the failed top's low settled before the item failed (${lows} lows)`);
+  await take(on, "a failed top fails the payload once its low has settled", g14, "probe g8,webcodecs low,dav1d", "undecodable: dav1d -1");
+  check(lows === 3, `mixed: the failed top's low settled before the payload failed (${lows} lows)`);
   topFails = false;
-  await take(on, "and the item after it merges its own low", g14, "probe g8,webcodecs low,dav1d", (7 << 2) | 2);
+  await take(on, "and the payload after it merges its own low", g14, "probe g8,webcodecs low,dav1d", (7 << 2) | 2);
   probeOk = false;
   await take(on, "a failed g8 probe leaves both streams to dav1d", g14, "probe g8,dav1d,dav1d", (7 << 2) | 3);
   probeOk = true;
-  await take(on, "a 12-bit item with no low stream is dav1d's alone", golden("plain", "g12"), "dav1d", 7);
-  await take(on, "a split item whose top is ≤ 10 bits keeps today's choice", golden("optimized", "g12"),
+  await take(on, "a 12-bit payload with no low stream is dav1d's alone", golden("plain", "g12"), "dav1d", 7);
+  await take(on, "a split payload whose top is ≤ 10 bits keeps today's choice", golden("optimized", "g12"),
     "probe g10,probe g8,webcodecs top,webcodecs low", (7 << 2) | 1);
   await take(await make(undefined, "off"), "without the flag both streams go to dav1d", g14, "dav1d,dav1d", (7 << 2) | 3);
   delete globalThis.VideoDecoder;
   await take(on, "no VideoDecoder, both streams to dav1d", g14, "dav1d,dav1d", (7 << 2) | 3);
 }
 
-/** Golden items from the writer decode to their sources' samples; decoded-stream refusals by name. */
-if (!existsSync(`${OUT}/simd.js`)) console.log(`SKIPPED: golden items — no ${OUT} (client/decode/wasm/dav1d/build.sh)`);
+/** Golden payloads from the writer decode to their sources' samples; decoded-stream refusals by name. */
+if (!existsSync(`${OUT}/simd.js`)) console.log(`SKIPPED: golden payloads — no ${OUT} (client/decode/wasm/dav1d/build.sh)`);
 else {
   const av1 = await import("./av1.js?golden");
   await av1.init({ glue: `${OUT}/simd.js`, wasm: `${OUT}/simd.wasm`, dir: OUT });
   for (const rep of ["plain", "optimized", "grey420"]) {
-    for (const file of readdirSync(`${ITEMS}/${rep}`).filter((f) => f.endsWith(".av1"))) {
+    for (const file of readdirSync(`${PAYLOADS}/${rep}`).filter((f) => f.endsWith(".av1"))) {
       const name = file.slice(0, -4);
-      const want = readFileSync(`${ITEMS}/${rep}/${name}.sha256`, "utf8").trim();
+      const want = readFileSync(`${PAYLOADS}/${rep}/${name}.sha256`, "utf8").trim();
       const f = await av1.decodeFrame(golden(rep, name)).catch((e) => ({ error: e.message }));
       check(f.sab && sha(f.sab) === want, `golden: ${rep} ${name} decodes to its source (${f.error ?? sha(f.sab).slice(0, 12)})`);
       const shape = f.info && `${f.info.componentCount}x${f.info.bitsPerSample}${f.info.isSigned ? "s" : ""}`;
@@ -304,19 +304,19 @@ else {
       check(shape === expect, `golden: ${rep} ${name} says what it is (${shape}, want ${expect})`);
     }
   }
-  const matrix = readdirSync(`${ITEMS}/matrix`).filter((f) => f.endsWith(".av1"));
+  const matrix = readdirSync(`${PAYLOADS}/matrix`).filter((f) => f.endsWith(".av1"));
   let exact = 0;
   for (const file of matrix) {
     const [, bits, split, sign] = file.match(/^b(\d+)k(\d)([us])\.av1$/);
-    const item = new Uint8Array(readFileSync(`${ITEMS}/matrix/${file}`));
-    const f = await av1.decodeFrame(item).catch((e) => ({ error: e.message }));
-    const said = `${item[1]}/${item[3]}/${item[4] & 1 ? "s" : "u"}`;
-    const ok = f.sab && sha(f.sab) === readFileSync(`${ITEMS}/matrix/${file.replace(".av1", ".sha256")}`, "utf8").trim()
+    const payload = new Uint8Array(readFileSync(`${PAYLOADS}/matrix/${file}`));
+    const f = await av1.decodeFrame(payload).catch((e) => ({ error: e.message }));
+    const said = `${payload[1]}/${payload[3]}/${payload[4] & 1 ? "s" : "u"}`;
+    const ok = f.sab && sha(f.sab) === readFileSync(`${PAYLOADS}/matrix/${file.replace(".av1", ".sha256")}`, "utf8").trim()
       && said === `${bits}/${split}/${sign}` && f.info.bitsPerSample === Number(bits) && f.info.isSigned === (sign === "s");
     exact += ok;
     check(ok, `golden: matrix ${file} decodes to its source as ${bits} bits, split ${split} (${f.error ?? said})`);
   }
-  check(matrix.length === 90 && exact === 90, `golden: the matrix's 90 items, ${exact} exact`);
+  check(matrix.length === 90 && exact === 90, `golden: the matrix's 90 payloads, ${exact} exact`);
   const decode = (b) => av1.decodeFrame(b);
   const streamCases = [
     [edit(edit(golden("plain", "g8"), 1, 10), 2, 10), /top stream 8-bit, header says 10/, "a top stream of another depth"],
@@ -341,8 +341,8 @@ else {
   new DataView(swapped.buffer).setUint32(16, swapped.length - 20, true);
   const got = await refusal(decode, swapped);
   check(/low stream 10-bit, not 8/.test(got), `stream: a low stream not 8-bit is refused by name (${got})`);
-  check(sha((await av1.decodeFrame(g12)).sab) === readFileSync(`${ITEMS}/optimized/g12.sha256`, "utf8").trim(),
-    "stream: the decoder that refused them still decodes the next item exactly");
+  check(sha((await av1.decodeFrame(g12)).sab) === readFileSync(`${PAYLOADS}/optimized/g12.sha256`, "utf8").trim(),
+    "stream: the decoder that refused them still decodes the next payload exactly");
 }
 
 /**
@@ -393,5 +393,5 @@ else {
   delete globalThis.EncodedVideoChunk;
 }
 
-console.log(failed ? `${failed} of ${failed + passed} failed` : `av1 item reader: ${passed} ok`);
+console.log(failed ? `${failed} of ${failed + passed} failed` : `av1 payload reader: ${passed} ok`);
 process.exit(failed ? 1 : 0);

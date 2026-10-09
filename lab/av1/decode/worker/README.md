@@ -26,11 +26,11 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --summary --ou
 **Frames.** The breast series this container holds, one of each kind — a mammogram (`ffdm_a`, 12-bit), a synthesized
 2D (`syn2d_a`, 10-bit), tomosynthesis projections (`dbtproj_ge`, 14-bit), two reconstructed volumes (`dbt12_ea1141`,
 `dbt10_ea1141`), the breast ultrasound cine in grey and RGB (`usb_cine`, `usb_cine_rgb`) — and the fluoroscopy
-(`rf_fluoro`) as the non-breast control. HTJ2K is the served profile; AV1 is the optimized item
-(`ingest/coded-frames/ingest.py`) at libaom's `allintra` 7, every item checked natively against the series' checksums before
+(`rf_fluoro`) as the non-breast control. HTJ2K is the served profile; AV1 is the optimized payload
+(`ingest/coded-frames/ingest.py`) at libaom's `allintra` 7, every payload checked natively against the series' checksums before
 it is kept. `frames/` holds each series' first 4 frames, `fill/` its first 64.
 
-**Arms.** `htj2k-T` is the shipped OpenJPH package and `item-T` the item's own decoder choice (WebCodecs where every
+**Arms.** `htj2k-T` is the shipped OpenJPH package and `payload-T` the payload's own decoder choice (WebCodecs where every
 stream is ≤ 10 bits, dav1d-WASM `simd` otherwise); T is `before`, `client/downloader` (removed by row 82, which split it) at the commit `before.sh` copies,
 or `after`, the tree's own. In `arms.json`, which row TOTAL's fill and row FOOTPRINT's memory take, the same four are
 `htj2k-before`, `htj2k`, `av1-before` and `av1`.

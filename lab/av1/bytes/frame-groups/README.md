@@ -18,7 +18,7 @@ $P lab/av1/bytes/frame-groups/gop.py $B $W $W/bytes.jsonl $D/dbts_{a1,b1,c1} --e
 $P lab/av1/bytes/frame-groups/gop.py $B $W $W/bytes.jsonl $D/dbts_{a1,b1,c1} --encoder svt --presets 8,0 --groups 1,2,4,8,16
 $P lab/av1/bytes/frame-groups/gop.py $B $W $W/bytes.jsonl $D/dbts_* --encoder aom --groups 8,16 --altref
 $P lab/av1/bytes/frame-groups/gop.py $B $W $W/bytes.jsonl $D/dbts_{a1,b1,c1} --encoder aom --representation plain
-$P lab/av1/bytes/frame-groups/items.py $B $W $W/frames $D/dbts_{a1,b1,c1}
+$P lab/av1/bytes/frame-groups/payloads.py $B $W $W/frames $D/dbts_{a1,b1,c1}
 NODE_PATH=$(npm root -g) node lab/av1/bytes/frame-groups/time.mjs --frames $W/frames --rounds 10 --out $W/time.json
 $P lab/av1/bytes/frame-groups/report.py $W
 ```
@@ -41,7 +41,7 @@ checked against the checksum written at fetch; HTJ2K through `ingest.py`'s serve
 **`mutate.py`** is §4's mutation: one sample of one frame flipped, and a group's frames reordered, must each make a
 run inexact, and the unmutated run must stay exact.
 
-**`items.py`, `time.mjs`, `page.js`** time an ask in headless Chromium through the product's decoder worker
+**`payloads.py`, `time.mjs`, `page.js`** time an ask in headless Chromium through the product's decoder worker
 (`client/decode/decoder.js`, `groupLength` G): a run's 16 frames asked in order, the top unit from the group
 coding and the low unit from the intra one (the client decodes the low stream intra), each frame's decode by the
 worker's own stamps and hashed against the truth (`--mutate` flips a sample, and every frame must then fail).

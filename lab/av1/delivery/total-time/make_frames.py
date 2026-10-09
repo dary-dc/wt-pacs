@@ -9,7 +9,7 @@ lossy preview, 10-bit 4:0:0, G = 8, CRF 20, cpu6. Row TOTAL2 adds row LLSIZE's b
 the two low bits apart on grey; rct, the reversible colour transform on RGB, intra and G = 8. Every
 exact arm is decoded natively and matched with the series' checksum; a preview's truth is its native
 decode's hash. Row TOTAL3 adds x36, row ENCX's changes to l2: the low k bits packed and raw-deflated,
-k = 3 where the noise's σ ≥ 17; and names the two representations of docs/av1/item-format.md, plain
+k = 3 where the noise's σ ≥ 17; and names the two representations of docs/av1/payload-format.md, plain
 and opt, each with the decoder the format picks.
 
 usage: [ARMS=av1,split,gop,pre,l2,rct,x36,plain] make_frames.py BUILD OUT SETDIR ...  (OUT/SET/arms.json says
