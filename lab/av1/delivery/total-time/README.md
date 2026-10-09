@@ -259,3 +259,27 @@ same decoders (`?opts=`), and `--origin navigation` times both pages from naviga
 --origin navigation`. A row's first frame is the viewer's first exact frame on screen. The reading is in
 [`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The viewer.
 
+
+**Row DECODEPACE** sets the downloader's `followQueue` lab flag against today's pool on the delivered OpenJPH
+build, whole series (`variants.json`'s `"openjph": "delivered"`, and `"followQueue": true` on `pace`):
+
+```bash
+client/decode/wasm/build/build.sh && lab/av1/fetch_data.sh dbt12_ea1141 ffdm_d
+for s in dbt12_ea1141 ffdm_d; do
+  lab/av1/.venv/bin/python lab/av1/decode/htj2k-threads/make_frames.py lab/.av1-work/pace lab/av1/data/$s
+  python3 -c 'import json,sys; p=sys.argv[1]; s=json.load(open(p)); b={"ext":"htj2k","codec":"htj2k","openjph":"delivered"}
+s["variants"]={"today":b,"pace":{**b,"followQueue":True}}; json.dump(s,open(p,"w"),indent=1)' lab/.av1-work/pace/$s/variants.json
+done
+for r in $(seq 0 15); do NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --rounds 1 --first-round $r \
+  --links r20000,r50000,lte-good --throttles 1,4 --sets dbt12_ea1141,ffdm_d --frames lab/.av1-work/pace \
+  --out lab/av1/delivery/total-time/rows-decodepace.jsonl; done                  # ~3 min a round
+python3 lab/av1/delivery/total-time/pace_summary.py lab/av1/delivery/total-time/rows-decodepace.jsonl
+```
+
+A row adds, for Chromium, the decoder worker threads' CPU busy time (`utime` + `stime`) and voluntary context
+switches, read from `/proc/<pid>/task/<tid>` under the browser's process tree at the page's hello and again once
+every frame is in, before the page closes the client (`/filled`); the threads are those named `DedicatedWorker`,
+the lowest tid — the downloader's, started first — left out and reported apart (`downloaderCpuMs`). The decoders
+used, the most busy at once and the mean busy over the fill come from the frames' decode stamps. Rounds 10–15
+topped up the cells `VOID` left under n = 10. `--mutate sample` turned both arms to 0 of 29. The reading is in
+[`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §Follow the queue, measured.

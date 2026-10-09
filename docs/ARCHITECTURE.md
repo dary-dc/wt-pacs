@@ -234,9 +234,51 @@ alike, 19 032/19 032 frames exact
 owner's ruling, on §Resources); before it, a flat 3. The other rule argued:
 **Follow the queue** — start at one, add one while the decode queue stays non-empty across a dispatch,
 retire one left idle — because at 20 Mbit a cine frame needs 0.34 of a desktop decoder and ~0.86 of a
-phone's (arithmetic), so one decoder keeps up on every fixture; not built, and a pool that resizes
-must keep both dispatch clauses (asks first, at most `perDecoder` a decoder) while it resizes. The
-default is measured at two and four cores only.
+phone's (arithmetic), so one decoder keeps up on every fixture; a pool that resizes must keep both
+dispatch clauses (asks first, at most `perDecoder` a decoder) while it resizes. The
+default is measured at two and four cores only. *Built since as a lab flag and measured (row
+DECODEPACE, below); the default is unchanged.*
+
+**Follow the queue, measured** (queue row DECODEPACE, protocol L5 of the decode levers' protocol on
+`claude/av1`). `followQueue` on the downloader, off by default: one decoder at the start, one more when frames
+stay queued after a dispatch, up to `decoders`; a decoder that finishes with nothing queued leaves the pool
+alive and is taken back before another is made. `downloader.test.mjs` holds both clauses through the resizing.
+Row TOTAL's harness, the delivered OpenJPH build in both arms, whole sound series — tomosynthesis 29 × 614×1359
+and full-field 4 × 3328×4096 — on 20 and 50 Mbit and `lte-good`, 1× and 4×, headless Chromium 141 on 3 of 4
+cores, 16 rounds with the arms Williams-ordered, 6 336/6 336 frames exact, 41 of 384 visits `VOID`. Each
+cell's CPU busy time and voluntary context switches (wake-ups) are summed over the decoder worker threads
+from `/proc`, the downloader's thread left out. Pace against today, paired by round, every round (`VOID`
+included); median [range] (rounds ≤ ×1.01):
+
+| series, link, throttle | today, every frame | × fill | × CPU busy | × wake-ups | decoders used today → pace |
+| --- | ---: | ---: | ---: | ---: | --- |
+| tomosynthesis 20M 1× | 6 046 ms | ×1.000 [0.985–1.001] (16/16) | ×0.903 | ×0.299 | 1 → 1 |
+| tomosynthesis 20M 4× | 6 066 | ×1.000 [0.939–1.009] (16/16) | ×0.921 | ×0.374 | 1 → 1 |
+| tomosynthesis 50M 1× | 2 570 | ×0.999 [0.960–1.004] (16/16) | ×0.967 | ×0.357 | 1 → 1 |
+| tomosynthesis 50M 4× | 2 588 | ×1.000 [0.990–1.012] (15/16) | ×0.851 | ×0.369 | 2 → 1 |
+| tomosynthesis LTE 1× | 4 964 | ×1.000 [0.988–1.010] (15/16) | ×0.966 | ×0.453 | 3 → 1 |
+| tomosynthesis LTE 4× | 4 924 | ×1.002 [0.938–1.013] **(12/16)** | ×0.905 | ×0.445 | 3 → 1.5 |
+| full-field 20M 1× | 8 055 | ×1.001 [0.999–1.004] (16/16) | ×0.932 | ×0.209 | 1 → 1 |
+| full-field 20M 4× | 8 320 | ×0.999 [0.978–1.018] (15/16) | ×0.921 | ×0.210 | 1 → 1 |
+| full-field 50M 1× | 3 424 | ×0.998 [0.978–1.007] (16/16) | ×0.976 | ×0.183 | 1 → 1 |
+| full-field 50M 4× | 3 682 | ×1.001 [0.979–1.012] (15/16) | ×0.924 | ×0.240 | 1 → 1 |
+| full-field LTE 1× | 6 240 | ×0.998 [0.983–1.002] (16/16) | ×0.964 | ×0.206 | 1 → 1 |
+| full-field LTE 4× | 6 484 | ×0.999 [0.973–1.015] (13/16) | ×0.953 | ×0.225 | 1 → 1 |
+
+The strict reading, both visits not `VOID` (n = 9–16), agrees: medians ×0.998–1.002, and the same tomosynthesis
+cell under the bar, 8 of 11 (the full-field LTE 4× cell also 8 of 11). **The fill holds; the CPU and the
+wake-ups fall; the container stage does not pass its rule**, which asks every cell ≤ ×1.01 in 8 rounds of 10:
+tomosynthesis on LTE at 4× is 12 of 16. There, the last byte arrives at ×1.001, and in rounds 1–3 the pace arm's
+last byte came 50–64 ms later on one decoder with nothing queued: the overshoot sits in the trace's delivery more
+than in decode, but the rule counts the fill as measured.
+
+What the numbers say about the mechanism: **today's pool already decodes on one decoder** in 9 of 12 cells — the
+least-busy dispatch hands each frame arriving at the wire's pace to the first, idle, decoder — and the other two
+are started and never used. What follow-the-queue saves is their start: −2 to −15 % of the decoders' CPU and
+55–82 % of their wake-ups a fill. Busy-at-once falls only where today used more than one (50 Mbit 4× and LTE on
+the tomosynthesis); the mean busy is the same work, 0.05–0.59 decoders. Energy is not measured: a container
+has no battery, no core types and no frequency a page can see. The run:
+[`lab/av1/delivery/total-time`](../lab/av1/delivery/total-time/README.md) §Row DECODEPACE.
 A multithreaded decoder is a separate question ([`decode/README.md`](decode/README.md) §Threads).
 
 ### The seams, traced (row SEAM, 2026-10-07)
