@@ -1,7 +1,7 @@
 # gopmeasure — frame groups in lossless AV1, measured to a pre-registered rule
 
 Queue row 100 (GOPMEASURE) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md) runs the protocol
-`docs/av1/gop-protocol.md` (on `claude/av1` at 821a368; § numbers below are its) as written: ρ before any encoder (§2), the codings
+`docs/av1/gop-protocol.md` (at `821a368`; § numbers below are its) as written: ρ before any encoder (§2), the codings
 (§3), exactness, bytes and the decode cost of an ask (§4), then the rule fixed before the data (§5) and the
 predictions (§6). The session that ran it read the protocol alone.
 

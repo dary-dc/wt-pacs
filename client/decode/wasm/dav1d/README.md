@@ -20,7 +20,7 @@ Nothing built or generated is committed; everything lands in `lab/.av1-build` (g
 | emscripten | 3.1.74 (emsdk tag `3.1.74`), the version the shipped HTJ2K decoder is built with | emsdk |
 | meson | 1.5.2 | pip, in `lab/.av1-build/venv` |
 | numpy | 2.1.3 | pip, same venv, for `gen_frame_pnm.py` |
-| encoder | the host's ffmpeg 6.1.1-3ubuntu5 with libaom 3.8.2-2ubuntu0.1 | apt; row 1 owns the encoders |
+| encoder | the host's ffmpeg 6.1.1-3ubuntu5 with libaom 3.8.2-2ubuntu0.1 | apt; `lab/av1/tools/tools.sh` pins the encoders |
 | second native decoder | the same ffmpeg's libdav1d 1.4.1-1build1, with its assembly | apt |
 
 ## The build

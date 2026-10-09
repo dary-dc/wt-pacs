@@ -5,7 +5,7 @@ per series, and **every frame on screen is bit-exact with the source**, whicheve
 This file owns AV1's work: what is decided, what is open and the measurement that decides each. The
 work itself is queued in [`queue.md`](queue.md); licences are in [`licensing.md`](licensing.md). The AV1 payload — what one stored entry
 carries, in its plain and optimized representations — is [`payload-format.md`](payload-format.md), adopted
-2026-10-04 and built end to end on `claude/av1-unified` (row 39).
+2026-10-04 and built end to end at `3233a06`.
 What each target series is, per the DICOM standard and vendors' conformance statements: [`series.md`](series.md).
 The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
 Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
@@ -179,7 +179,7 @@ settings*; whether it pays on DBT is asked again, theory first (rows GOPTHEORY, 
 systems, every series under the 20 % line (best +1.51 %), because adjacent slices share little noise (median ρ
 0.11–0.22, against the ½ inter needs); the encoder variants that gain at all (alt-ref on, SVT-AV1, up to +3.2 %) are
 lossless only on one system's 8-bit tops. Cine, ABUS and angiography stay open for want of sound data (row GOPMEASURE
-below; the review is `gop-theory.md` §4a on `claude/av1`).*
+below; the review is [`gop-theory.md`](gop-theory.md) §4a).*
 
 **Frame groups, to a rule fixed before the data (row GOPMEASURE, 2026-10-08,
 [`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md)).** On the middle 16 slices of 15 sound DBT volumes, five

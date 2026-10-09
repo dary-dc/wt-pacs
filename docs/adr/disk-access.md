@@ -676,7 +676,7 @@ volume: random 256 KiB at depth 1 p50 1.3 ms in burst, 4.9 ms after; 51–53 MB/
 Synthetic SBND of 80 × 250 kB, 40 × 4 MB and 20 × 16 MB (a mammogram's order); `lab/scripts/runtime_ab.sh`,
 server on cores 0–1 and `server_ab` on 2–3 of the agent container, loopback, warm, a whole fill per session, six
 repeats reversed every repeat, `rss_after_kib` read once a run's sessions have all ended. Release build of
-`claude/av1-unified` at `bbde485`. No hardware counters in this VM (`perf_event_open` refuses cycles and
+`bbde485`. No hardware counters in this VM (`perf_event_open` refuses cycles and
 instructions), so CPU is rusage. The 16-session cells saturate the two server cores; nothing is claimed past them.
 
 * **CPU per byte does not grow with the frame.** One session: 2.3 µs/kB at 250 kB, 2.6 at 4 MB and 16 MB; sixteen:

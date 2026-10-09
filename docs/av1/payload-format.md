@@ -91,7 +91,7 @@ the frame.
   or a failed probe.
 * Both imported, and dav1d's glue and WASM fetched, when an AV1 series' decoder starts; each initialised on first use, memoised; an HTJ2K page fetches no AV1 code ([`lab/page-open/README.md`](../../lab/page-open/README.md) §Cold round trips by codec).
 
-## Built (row 39, branch `claude/av1-unified`)
+## Built (`3233a06`)
 
 The writer is [`ingest/coded-frames/ingest.py`](../../ingest/coded-frames/README.md), `pack-series` bundles its payloads when the metadata
 says `"codec": "av1"`, and the reader is `client/decode/av1.js` with `av1-payload.js` (the header and its refusals) and
@@ -101,7 +101,7 @@ the first 8 frames of the fluoroscopy, CT, MR and ultrasound series, both repres
 decoded by the reader to their sources; optimized over plain matches row 28 to the third digit
 ([`lab/av1/exact/coded-frame`](../../lab/av1/exact/coded-frame/README.md) §Checked). The lab harnesses of rows 9–38 that hand the client bare temporal units, or import the decoder modules
 (`lab/av1/{speed,fill,total,decspeed,wcbase,xbrowser,footprint,rep14}`), are not ported: on this branch they would
-need their frames written as payloads; their readings stand as measured on `claude/av1`.
+need their frames written as payloads; their readings stand as measured before it.
 
 **Widened (row 43 SPLITOK, [`lab/av1/exact/split`](../../lab/av1/exact/split/README.md)).** The writer (`ingest.py --split K`)
 and the reader take grey of 8–16 bits after the offset, unsigned and signed, at any k ≤ 8 whose top fits a 12-bit

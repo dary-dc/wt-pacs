@@ -123,7 +123,7 @@ P8–P10 wait on sound data ([`queue.md`](queue.md) §Blocked). P1–P7 can be t
 ## 4a · Review against the data (row GOPREVIEW, 2026-10-08)
 
 Row GOPMEASURE ran the protocol on 15 sound, whole DBT volumes, five from each of three systems
-(`lab/av1/gopmeasure/README.md` on `claude/av1-unified`, `4306310`). ρ was measured on every adjacent slice pair; the
+([`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md), `4306310`). ρ was measured on every adjacent slice pair; the
 codings ran on each volume's middle 16 slices (G ≤ 16, the rule's range); cpu0, SVT-AV1 and the plain representation
 ran on one volume a system.
 

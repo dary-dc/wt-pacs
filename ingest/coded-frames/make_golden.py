@@ -3,15 +3,15 @@
 
   client/contract/av1/payloads/{plain,optimized}/NAME.av1   one payload each, through ingest.py
   client/contract/av1/payloads/{plain,optimized}/NAME.sha256 the source samples' checksum
-  client/contract/av1/payloads/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range (row GREY420)
-  client/contract/av1/payloads/matrix/b{B}k{K}{u,s}.av1       row 43: every (bits, split, sign) a rule could pick
+  client/contract/av1/payloads/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range
+  client/contract/av1/payloads/matrix/b{B}k{K}{u,s}.av1       every (bits, split, sign) a rule could pick
   client/decode/av1-probe.js                              a 16×16 unit per layout WebCodecs may take
 
 Every source is written with the checksum of its samples before anything codes it; ingest.py
 writes a payload only if it decodes back to that. A probe's FNV-1a is of its coded planes as made
 here, checked against native dav1d before it is written.
 
-usage: make_golden.py BUILD [--matrix]   — ingest/coded-frames/README.md; --matrix writes only row 43's
+usage: make_golden.py BUILD [--matrix]   — ingest/coded-frames/README.md; --matrix writes only the matrix's
 """
 import base64
 import hashlib

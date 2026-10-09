@@ -1,6 +1,6 @@
 # ingest/coded-frames — a series as coded frames, written and checked
 
-Queue row 39 (UNIFY) of [`docs/av1/queue.md`](../../docs/av1/queue.md): the format of
+The format of
 [`docs/av1/payload-format.md`](../../docs/av1/payload-format.md), built end to end. The client's half is
 `client/decode/av1*.js` ([`client/README.md`](../../client/README.md)).
 
@@ -17,15 +17,15 @@ $P ingest/coded-frames/make_golden.py lab/.av1-build                    # the cl
 
 **`ingest.py`** reads a set as `lab/av1/fetch_data.py` writes it and writes `NNN.av1` payloads, or with
 `--codec htj2k` the served `NNN.htj2k` codestreams (OpenJPH, reversible, 5 decompositions, 64² blocks,
-RPCL — kept by row 70, [`docs/decode/README.md`](../../docs/decode/README.md) §Encoder settings; a signed series coded shifted and its SIZ marked signed), `NNN.sha256` (the source's checksums,
+RPCL — [`docs/decode/README.md`](../../docs/decode/README.md) §Encoder settings; a signed series coded shifted and its SIZ marked signed), `NNN.sha256` (the source's checksums,
 copied) and `metadata.json` (`"codec": "av1"` and the representation for AV1). It writes nothing at all
 unless every frame decodes back in-process (`decode.cpp`: dav1d and OpenJPH, no subprocess, no file):
 each AV1 stream unit alone, at the depth it was coded at, merged as the client merges, and each HTJ2K
 codestream as written, at its depth and signedness, against the checksum written when the source was
 fetched. Each frame is read and offset once. Refused before coding: RGB over 8 bits, grey over 14
 bits after the offset unless `--split K` names the low bits coded apart (k ≤ 8, up to 16 bits, a top of
-at most 12 — row 43's matrix). Without it, optimized takes k by depth (`optimized_split`, row 72: 0 up to 9 bits, 3 at
-13, 2 otherwise) and plain k = max(0, b − 12). `--preset` is `cpu0`, `good:N` or `allintra:N` (row 14 names the fastest
+at most 12 — the matrix of `make_golden.py --matrix`). Without it, optimized takes k by depth (`optimized_split`: 0 up to 9 bits, 3 at
+13, 2 otherwise) and plain k = max(0, b − 12). `--preset` is `cpu0`, `good:N` or `allintra:N` (`lab/av1/bytes/README.md` §ENC names the fastest
 within 2 % of cpu0's bytes per content); frames are coded in `--jobs` processes, each frame's
 stream in an encoder run of its own, so the bytes do not depend on the worker count ([`lab/av1/exact/coded-frame`](../../lab/av1/exact/coded-frame/README.md) §One pipeline). RGB streams carry BT.709 primaries, the sRGB transfer and the identity matrix — AV1's RGB
 signal; with the identity matrix alone Chromium's WebCodecs reports a BT.709 matrix, the 4:4:4
