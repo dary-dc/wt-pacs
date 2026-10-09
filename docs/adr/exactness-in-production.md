@@ -193,6 +193,33 @@ has 4 cores, browser on 3, so nothing past 3 decoders is claimed.
 The dropped links, r5000 and lte-good, are wire-bound at 5–20 s a frame on the projections. They could only
 hide a check further, so they were not run.
 
+**All five of row 23's links, measured since** (the other build's session, `lab/av1/exact/checked`). The same
+pair, `htj2k` against `chk` (its frames with the ingest's digests), on r5000, r20000, lte-good, wifi-home and
+r50000 at 1× and 4×, 10 rounds each, the projections as `dbtproj_c` (9 × 1914×2294, 14-bit: `dbtproj_ge` answered
+404 from the bucket). 17 800/17 800 frames matched their sha256 and 8 900/8 900 `chk` frames were `true`. On this
+host the relay's guard voided 569 of 800 visits (its p99 1–2 ms against the 1 ms bar, on every link but r50000), so
+the table pairs every visit, `VOID` included: both arms ran on the same link in the same round. Fill on ÷ off,
+median of 10 pairs:
+
+| series | r5000 1× / 4× | r20000 | lte-good | wifi-home | r50000 |
+| --- | --- | --- | --- | --- | --- |
+| MR | ×1.000 / ×1.000 | ×1.000 / ×1.000 | ×1.003 / ×0.999 | ×1.036 / ×0.997 | ×1.001 / ×1.003 |
+| fluoroscopy | ×1.000 / ×1.001 | ×1.000 / ×1.003 | ×1.000 / ×1.000 | ×1.008 / ×1.002 | ×0.998 / ×0.997 |
+| projections | ×1.000 / ×1.001 | ×1.000 / ×0.999 | ×1.000 / ×0.998 | ×0.981 / ×0.983 | ×1.001 / ×1.005 |
+| mammogram | ×1.001 / ×1.002 | ×1.000 / ×1.018 | ×0.999 / ×1.009 | ×0.996 / ×1.088 | ×1.014 / ×1.025 |
+
+Every cell's range covers 1. The mammogram at 4× leans slower on the faster links: r20000 ×1.018 [0.96–1.03],
+9 of 10 pairs slower; r50000 ×1.025 [0.97–1.11], 7 of 10; wifi-home ×1.088 [0.93–2.10], whose step trace spreads
+every cell's pairs (×0.62–2.10). The first picture moves ×0.98–1.09. The
+kept visits alone agree where they are many (r50000, n = 5–9 a cell: ×0.992–1.019). So r5000 and LTE hide the
+check entirely, as predicted; the mammogram at 4× on the faster links is the one place it shows, 2–3 %, well
+inside the rule's 15 %. Through every decoder path on r50000 at 1×, one round, every frame `true`: Chromium
+`htj2k` 89, `av1-webcodecs` 80, `av1-dav1d` 98, `av1-mixed` 9 (the projections' 12-bit top through dav1d, its low
+through WebCodecs); Firefox 157.0.1 `htj2k` 89, `av1-dav1d` 187 (its WebCodecs refused every grey payload). The
+ingest digest mutated big-endian turned every frame `false`, the first 4 of MR and of CT on both codecs (16 of 16);
+masked to 12 bits in place of sign-extended, all 8 of CT's (every frame has negative samples) and none of MR's (none
+has).
+
 Two sessions built this row at once. The timed build was the first one (`a784b62`), and the merged code is the
 other's (`29c9361`). The work per frame is the same in both: one XXH3 over the frame's shared buffer, in the decoder
 worker, before it is posted.
