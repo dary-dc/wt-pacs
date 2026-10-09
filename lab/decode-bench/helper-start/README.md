@@ -26,7 +26,8 @@ W=lab/.av1-work/helperstart
 lab/av1/.venv/bin/python lab/av1/decode/htj2k-threads/make_frames.py $W lab/av1/data/dbtproj_ge
 python3 lab/decode-bench/helper-start/sets.py $W lab/fixtures/decode_g512 $W/dbtproj_ge lab/av1/data/dbtproj_ge
 client/transport/ts/build.sh
-lab/decode-bench/helper-start/run.sh 10 rows       # ten rounds, the two harnesses alternating within each
+lab/decode-bench/helper-start/run.sh 10 rows       # ten rounds, the four blocks rotated within each
+node lab/decode-bench/helper-start/summary.mjs rows  # the tables; raw/ holds the campaign's rows
 ```
 
 **Loopback** is `builds.mjs`: a fresh browser a visit on 4 cores, three decoders, every unit Williams-ordered within
