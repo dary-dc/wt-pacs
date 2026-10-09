@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The AV1 frames the client ships and tests with: one temporal unit each, as the store holds it.
+# The AV1 payloads the client ships and tests with: one temporal unit each, as the store holds it.
 #
 #   client/conformance/av1/{g8,g10,g12,c8,c10,c12}.av1  90x70, with the generator's .sha256
 #   client/conformance/av1/inter.av1                    a frame of a group: must not decode alone

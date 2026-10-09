@@ -3,7 +3,7 @@
 Queue row 15 (SVC) of [`docs/av1/queue.md`](../../../../../docs/av1/queue.md). Whether
 `svc_encoder_rtc`, libaom's real-time scalable (SVC) example, codes losslessly at 8, 10 and 12 bits,
 4:0:0 and 4:4:4, every layer's frames checked against the encoder's input. The verdict is also in
-[`docs/av1/README.md`](../../../../../docs/av1/README.md) §Measured here.
+[`docs/av1/README.md`](../../../../../docs/av1/README.md) §Encoding.
 
 ```bash
 lab/av1/delivery/scalable/encoder/build.sh                      # tools.sh, then the example stock and patched, ~2 min

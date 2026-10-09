@@ -6,7 +6,7 @@ series' offset (−min), coded as top = v ≫ k and low = v & (2^k − 1), each 
 k = max(0, b − 12) … max(b − 8, 4), unsigned and signed, through every decoder and engine, before any
 rule is adopted. Correctness only, nothing timed. The format it widened is
 [`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md); the verdict is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A3.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM

@@ -75,7 +75,7 @@ decoder does not survive: encode unsigned, then set each component's sign bit in
 
 The one exception to generated-only: whether AV1's inter coding pays depends on how much
 neighbouring frames share, which synthetic frames with independent noise cannot answer
-([`av1/README.md`](av1/README.md) §A4). Eighty-eight public series, fetched at run time — eighty-five from the
+([`av1/README.md`](av1/README.md) §Content). Eighty-eight public series, fetched at run time — eighty-five from the
 NCI Imaging Data Commons public bucket (anonymous HTTPS; chosen with `idc-index` 0.12.5, IDC release v24),
 three of breast ultrasound from two Zenodo records — never committed:
 

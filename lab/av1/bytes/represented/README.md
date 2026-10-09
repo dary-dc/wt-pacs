@@ -4,7 +4,7 @@ Queue row 28 (LLSIZE) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md). L
 was 2–53 % over HTJ2K (rows SIZE, CONTENT, TAXO), under it only split. This searches AV1-only ways
 to close that, every coding exact: libaom's lossless controls, row DEPTH's splits on content of 12
 bits or fewer, a reversible colour transform for RGB, SVT-AV1 where it is exact, and inter coding.
-The verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §A1.
+The verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §Bytes.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh
@@ -175,7 +175,7 @@ baseline's split, ±5 %. The winners encode in 0.8–3.2× the baseline's time (
 decode stays where row SPEED found it, 5–10× HTJ2K's.
 
 **Inter coding pays on the ultrasound once the colour is transformed** (a lossy-sourced series outside the AV1
-target series, `docs/av1/README.md` §A1, Scope): one keyframe in 8 frames,
+target series, `docs/av1/README.md` §Frame groups, Scope): one keyframe in 8 frames,
 RCT, 0.850 of HTJ2K — against 1.355 for GBR inter, the coding rows SIZE and CONTENT measured — and it
 decodes faster still (0.81× of GBR intra at 1×, 0.83× at 4×); on grey, inter is level with intra or
 worse (0.942–1.006 against 0.902–0.987). A group of 8 is the unit row GOP built.

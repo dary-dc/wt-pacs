@@ -3,7 +3,7 @@
 A lossy AV1 preview **plus** a lossless residual, so that the exact frame is the preview and the
 difference to the source, not the preview and then the whole exact frame again. Queue row 17 (RESID)
 of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the verdict is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A5.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Preview.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM

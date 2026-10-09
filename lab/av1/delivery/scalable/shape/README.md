@@ -5,7 +5,7 @@ scalable AV1 payload — a lossy base and a lossless top — exact and nearly fr
 lossless AV1 with two spatial layers. This sweeps the shapes on every series of rows DATA, CONTENT
 and TAXO: bytes against single-layer lossless AV1 and HTJ2K, the base's bytes and quality, decode
 time of the base and of the full operating point, and the time to a playable base. The verdict is
-in [`docs/av1/README.md`](../../../../../docs/av1/README.md) §A5.
+in [`docs/av1/README.md`](../../../../../docs/av1/README.md) §Preview.
 
 ```bash
 lab/av1/delivery/scalable/encoder/build.sh && lab/av1/delivery/scalable/two-layer/build_wasm.sh        # encoder (patched), dav1d-WASM simd-op

@@ -2,7 +2,7 @@
 
 dav1d built with emscripten, a wrapper in the shape `decoder.js` needs, and a check that it is exact.
 Row 4 (WASM) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the verdict is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A2.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Exactness and the decoders.
 
 ```bash
 client/decode/wasm/dav1d/build.sh          # emsdk, dav1d, native CLI, three WASM arms -> lab/.av1-build

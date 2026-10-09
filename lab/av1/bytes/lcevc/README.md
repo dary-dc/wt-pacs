@@ -2,7 +2,7 @@
 
 Row LCEVC's answer: whether MPEG-5 Part 2 (LCEVC) can carry a lossy AV1 base plus an enhancement
 that ends **exact**, and whether this project could ship it. The verdict lives in
-[`../../../../docs/av1/README.md`](../../../../docs/av1/README.md) §A5, the licences in
+[`../../../../docs/av1/README.md`](../../../../docs/av1/README.md) §Preview, the licences in
 [`../../../../docs/av1/licensing.md`](../../../../docs/av1/licensing.md); this says how it was found.
 **No trial ran**: there is no open encoder to make a stream with (below).
 

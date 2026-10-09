@@ -5,7 +5,7 @@ Each arm encodes the first FRAMES frames of a set alone on the host, arms interl
 output is decoded and compared with the checksums written when the frames were made. A series over
 12 bits is coded as DEPTH's top11+low, two streams, timed together.
 
-usage: enc.py BUILD WORK OUT.tsv FRAMES ROUNDS SETDIR ...   — lab/av1/README.md §ENC.
+usage: enc.py BUILD WORK OUT.tsv FRAMES ROUNDS SETDIR ...   — lab/av1/bytes/README.md §ENC.
        enc.py summary OUT.tsv FRAMES
 """
 import os

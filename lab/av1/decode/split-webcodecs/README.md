@@ -4,7 +4,7 @@ A series over 10 bits as two AV1 streams, decoded in Chromium and merged: top10+
 WebCodecs (every stream ≤ 10 bits, which WebCodecs takes) against top11+low through dav1d-WASM (a
 12-bit stream, which it refuses) and OpenJPH on the same frames. Queue row 13 (SPLIT10) of
 [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the verdict is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A3.
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits.
 
 ```bash
 lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM

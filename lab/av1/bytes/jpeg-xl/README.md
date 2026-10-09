@@ -3,7 +3,7 @@
 Lossless JPEG XL at every effort 1–7 and `--faster_decoding` 0–4, in WASM and decoded natively by the browsers,
 against the served HTJ2K. Queue row 63 (JXL) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the verdict is in
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §JPEG XL and [`docs/av1/README.md`](../../../../docs/av1/README.md)
-§Measured here.
+§Bytes.
 
 ```bash
 lab/av1/bytes/embedded/build.sh                          # libjxl 0.12.0 native and WASM (row EMBED's build)

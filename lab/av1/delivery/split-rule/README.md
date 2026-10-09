@@ -3,7 +3,7 @@
 Queue row 44 (SPLITTIME) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): with the split exact at
 every depth and k (row 43, [`../../exact/split`](../../exact/split/README.md)), which k each depth should store, by
 bytes, decode and total time against HTJ2K. The verdict is in
-[`docs/av1/README.md`](../../../../docs/av1/README.md) §A3 and §Total time, and as a proposal in
+[`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits and §Total time, and as a proposal in
 [`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md).
 
 ```bash

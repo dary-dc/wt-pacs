@@ -101,7 +101,7 @@ rounds [min–max], ms, cpu0's codings; every frame exact (7 350/7 350 at each t
   a frame, nor on any of the four DBT slice series at G = 8 and 16 (libaom, alt-ref off): 0.963–1.054 at cpu0 and 0.998–1.050 at `good` 6. The one gain over 2 %,
   `dbt10_d` at cpu0 (0.963–0.967), turns into a loss at `good` 6 (1.021–1.032). Intra's 0.942–0.945 of HTJ2K is
   already where the DBT bytes are.
-* A group costs random access (docs/av1/README.md §A1); on DBT it buys nothing to pay that with, and decodes within
+* A group costs random access (docs/av1/README.md §Frame groups); on DBT it buys nothing to pay that with, and decodes within
   −9 to +7 % of intra.
 * The host: a container's 4 cores, one decode process at a time, the cgroup throttle at 4×; not a phone.
 

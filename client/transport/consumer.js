@@ -29,7 +29,7 @@ export class DownloaderClient {
 
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
-    // A scalable AV1 frame's lower layer, sent before its exact frame on the same port. docs/av1/adr-unit.md §6
+    // A scalable AV1 payload's lower layer, sent before its exact frame on the same port. docs/av1/adr-unit.md §6
     this.#onPreview = opts.onPreview ?? (() => {});
     this.#onError = opts.onError ?? (() => {});
     // The worker's script is a seam: a page may boot it from a bundle or a blob. lab/page-open/README.md
