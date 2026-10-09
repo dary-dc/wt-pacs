@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""scripts/check_links.py — in every tracked .md file, each link, anchor and backticked repo path resolves."""
+"""scripts/check_links.py — in every tracked .md file, each link, anchor and backticked repo path resolves; every cited archive tag exists on origin."""
 
 import os
 import re
@@ -16,6 +16,7 @@ HTML_ANCHOR = re.compile(r'<a (?:name|id)="([^"]+)"')
 # Another queue's record, which this repository's later moves do not rewrite: its links resolve, its paths are its own.
 PATHS_AS_WRITTEN = {"docs/cloud-queue.md"}
 HISTORICAL = re.compile(r"\b[0-9a-f]{7,40}\b|archive/|removed|retired|history|in git", re.I)
+CITED_TAG = re.compile(r"(?:`|git show )(archive/[\w.-]*\w)")
 
 
 def unfenced_lines(path):
@@ -82,6 +83,19 @@ def resolves(md, path):
     return ignored.returncode == 0
 
 
+def missing_tags():
+    """Every archive tag a tracked file cites outside the queues' records exists on origin."""
+    remote = subprocess.run(["git", "ls-remote", "--tags", "origin"], capture_output=True, text=True)
+    if remote.returncode != 0:
+        print("SKIPPED: cited archive tags — origin unreachable")
+        return []
+    tags = {ref.split("refs/tags/")[1] for ref in remote.stdout.split() if ref.startswith("refs/tags/")}
+    records = [f":!{f}" for f in PATHS_AS_WRITTEN | {"docs/av1/queue.md"}]
+    cited = subprocess.run(["git", "grep", "-n", "archive/", "--", ".", *records], capture_output=True, text=True)
+    return [f"TAG {':'.join(line.split(':', 2)[:2])}: {tag}"
+            for line in cited.stdout.splitlines() for tag in CITED_TAG.findall(line) if tag not in tags]
+
+
 def main():
     os.chdir(ROOT)
     files = subprocess.check_output(["git", "ls-files", "*.md"], text=True).split()
@@ -99,6 +113,7 @@ def main():
                     historical += 1
                 else:
                     bad.append(f"PATH {md}:{i + 1}: `{path}`")
+    bad += missing_tags()
     for error in bad:
         print(error)
     print(f"checked {len(files)} files, {links} links, {paths} backticked paths "

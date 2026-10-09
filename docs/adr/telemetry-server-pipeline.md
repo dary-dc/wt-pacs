@@ -95,7 +95,7 @@ The defaults were set on 2026-09-06 without a product answer; change them by env
 recorded, and the final report is exact and inlines `server_frames` up to 1 000 000 rows
 (`INLINE_CAP`, `record/report.rs`). Both were env variables with no caller, `WTPACS_TELEMETRY_SAMPLE`
 and `WTPACS_TELEMETRY_INLINE_CAP`, until 2026-10-03; code:
-`git show archive/variants-2026-10-03:server/src/record/tap.rs`.
+`git show archive/arms-2026-10-03:server/src/record/tap.rs`.
 
 **Path sampling** rides the same feature on its own switch: `WTPACS_PATH_TELEMETRY=1` appends one
 JSON line per connection per `WTPACS_PATH_TELEMETRY_MS` (default 1000, floor 50) to
@@ -174,7 +174,7 @@ and a file of any other version is refused by its header: v2 has the same record
 * **Rebuild offline** was `series-server --telemetry-report telemetry-server.rows`, for runs past the
   inline cap. It reproduced the inline report on the 2026-09-06 smoke run (distributions, frame
   count and rows identical) and had no caller since; removed 2026-10-03, code:
-  `git show archive/variants-2026-10-03:server/src/record/report.rs`.
+  `git show archive/arms-2026-10-03:server/src/record/report.rs`.
 
 ## The tail at SIGTERM
 
@@ -277,7 +277,7 @@ recorded session's recorder ≈ 3 KB. The SIGTERM lock adds ~11 ns per row (§Th
 
 **Row v3 against v2** (2026-10-04, a 4-core cloud container, not the workstation: a tie on that
 host, nothing more). `lab/scripts/telemetry_e2e_baseline.sh` with `DEFAULT_TELEMETRY=1`, so both
-arms record: the build before the change against it, per-frame streams, depth 4, six interleaved
+variants record: the build before the change against it, per-frame streams, depth 4, six interleaved
 pairs at 1, 4 and 16 sessions. Server CPU per frame, paired median: −2.2 %, −1.0 %, −0.4 %, with the
 new build lower in 5, 4 and 4 of 6 pairs; no harness failed.
 In the default build: nothing, by §Absence.
