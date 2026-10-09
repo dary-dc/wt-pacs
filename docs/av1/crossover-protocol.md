@@ -1,14 +1,15 @@
 # Where AV1 fills first — the measurement protocol
 
-Pre-registered by row 105 (CROSSOVER), 2026-10-09, before any of its data; run by row 106 (CROSSMEASURE) in a session
+Pre-registered by the crossover model (queue row CROSSOVER), 2026-10-09, before any of its data; run by the crossover
+measurement (queue row CROSSMEASURE) in a session
 given this file alone. The measuring session reports the numbers, then whether each prediction held by the rule below.
 
 ## What is measured
 
-Total time to every frame on the page (row TOTAL's `lab/av1/delivery/total-time/run.mjs`, unchanged), HTJ2K against
+Total time to every frame on the page (the five-link total-time measurement's `lab/av1/delivery/total-time/run.mjs`, queue row TOTAL, unchanged), HTJ2K against
 one AV1 variant per series, the payloads as ingest writes them, every frame matched against the encoder's input.
 
-| series | frames (as rows 95 and 96 timed them) | AV1 variant |
+| series | frames (as the DBT- and mammography-at-scale measurements timed them, queue rows DBTSCALE, FFDMSCALE) | AV1 variant |
 | --- | --- | --- |
 | `dbts_a5`, DBT 12-bit | every 8th slice | k = 2 |
 | `dbts_b2`, DBT 10-bit | every 8th slice | k = 2 |
@@ -17,12 +18,12 @@ one AV1 variant per series, the payloads as ingest writes them, every frame matc
 | `syn2ds_a3`, synthesized 2D 12-bit | all four | k = 2 |
 | `syn2ds_b3`, synthesized 2D 10-bit | all four | k = 2 |
 
-Engines: Chromium 141 (playwright 1.56.1's) and Firefox 157.0.1 (the conda-forge build row TOTAL4 pinned). CPU: 1× and
+Engines: Chromium 141 (playwright 1.56.1's) and Firefox 157.0.1 (the conda-forge build the whole-round total-time measurement pinned, queue row TOTAL4). CPU: 1× and
 4× (`lab/scripts/cpu_throttle.mjs`), the browser on three cores (`taskset -c 0-2`), three decoders.
 
 ## The cells
 
-Fixed-rate links (`r<kbit>`, 40 ms round trip, as row TOTAL). Each cell is named with the side the model predicts and
+Fixed-rate links (`r<kbit>`, 40 ms round trip, as in the five-link total-time measurement). Each cell is named with the side the model predicts and
 its predicted ratio, AV1's time over HTJ2K's. — is no cell: none on that side within 5–100 Mbit/s, or Firefox below
 10 Mbit/s, which its dial does not reach.
 
@@ -53,7 +54,7 @@ its predicted ratio, AV1's time over HTJ2K's. — is no cell: none on that side 
 | | Firefox 1× | — | 30 Mbit (1.07) |
 | | Firefox 4× | — | 10 Mbit (1.12) |
 
-**The rule's cells**: every series on `lte-good` (row PROF's LTE trace, as row TOTAL4), both engines, 1× and 4×.
+**The rule's cells**: every series on `lte-good` (the phone-like link profiles' LTE trace, cloud queue PROF, as in the whole-round total-time measurement), both engines, 1× and 4×.
 Predicted ratios there, from the trace's 16.7 Mbit/s mean (Chromium 1× · 4×, Firefox 1× · 4×): `dbts_a5` 0.97 · 1.02,
 0.99 · 1.10; `dbts_b2` 0.97 · 1.01, 0.99 · 1.08; `dbts_b4` 0.79 · 0.81, 0.80 · 0.87; `ffdms_c1` 1.02 · 1.11,
 1.06 · 1.27; `syn2ds_a3` 1.00 · 1.09, 1.05 · 1.26; `syn2ds_b3` 0.97 · 1.03, 1.02 · 1.21.
@@ -64,7 +65,7 @@ Predicted ratios there, from the trace's 16.7 Mbit/s mean (Chromium 1× · 4×, 
   reported with the count of pairs in which AV1 was faster.
 * **Interleaved**: within a round, one series at a time, its cells and both variants in a Williams order
   (`lab/order.mjs`); the series' order rotates by round.
-* **`VOID` under 20 %**: a visit is `VOID` when the relay's p99 exceeds 1 ms (row TOTAL's rule). Run one series and its
+* **`VOID` under 20 %**: a visit is `VOID` when the relay's p99 exceeds 1 ms (the five-link total-time measurement's rule). Run one series and its
   two variants at a time, nothing else on the host; read the host's steal time (`/proc/stat`) for 10 s before each
   round and wait while it exceeds 2 %. A cell over 20 % `VOID` gets more rounds until it has 10 kept; `VOID` visits are
   never counted, and the share is reported per cell.
@@ -80,6 +81,6 @@ Predicted ratios there, from the trace's 16.7 Mbit/s mean (Chromium 1× · 4×, 
 2. **A per-link rule is worth building** only if some series gains ≥ 5 % of fill time (ratio ≤ 0.95, AV1 faster in at
    least 8 of 10 pairs) on `lte-good` or on a fixed link ≤ 20 Mbit/s, at 1× and at 4×, in Chromium and in Firefox,
    **and** its input — the client's throughput and decode rate — is known before the first frame is asked. The
-   second condition is a fact about the client, assessed by the review (row 107), not measured here.
+   second condition is a fact about the client, assessed by the review (queue row EVENREVIEW), not measured here.
 3. A series that gains ≥ 5 % on every phone link at both CPU speeds in both engines is a per-series choice, not a
    per-link one; report it as such.

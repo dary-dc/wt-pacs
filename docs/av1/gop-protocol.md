@@ -1,13 +1,13 @@
 # Frame groups in lossless AV1: protocol and decision rule
 
-Queue row GOPMEASURE runs this protocol. The measuring session reads this file alone, not
+The frame-group measurement (queue row GOPMEASURE) runs this protocol. The measuring session reads this file alone, not
 [`gop-theory.md`](gop-theory.md); it reports the numbers first, then whether each prediction held. The rule
 in §5 was fixed on 2026-10-08, before any data.
 
 ## 1 · Content
 
 * **DBT reconstructed slices.** Every system in the CC BY collections the lab fetches. Only sets whose provenance is
-  sound count (row DATAGUARD: original, uncompressed or lossless-sourced, not derived by lossy coding). Each volume is
+  sound count (per the provenance audit, queue row DATAGUARD: original, uncompressed or lossless-sourced, not derived by lossy coding). Each volume is
   whole and uncropped, every slice in position order. At least two volumes per system where the collection has them.
   For each volume, record the system's scan arc and projection count wherever the DICOM header carries them (the
   X-Ray 3D Acquisition Sequence (0018,9507) and its primary positioner scan arc), and say "not recorded" otherwise.
@@ -30,8 +30,8 @@ give ρ ≈ 0 and ρ = 1.
 
 ## 3 · Codings
 
-* **Representation.** The product's: `ingest/coded-frames/ingest.py --representation optimized`, i.e. row SPLITRULE's k by
-  depth. Report the top and low streams apart, and their sum. Also code the plain representation (the samples
+* **Representation.** The product's: `ingest/coded-frames/ingest.py --representation optimized`, i.e. the adopted per-depth split rule's k by
+  depth (queue row SPLITRULE). Report the top and low streams apart, and their sum. Also code the plain representation (the samples
   direct) on one volume per system.
 * **libaom 3.15.1**, as `lab/av1/tools/tools.sh` pins it:
   * Lossless, one thread.
