@@ -5,7 +5,7 @@
  */
 
 import type { FodMsg } from "./wire.ts";
-import { closedReasonOf, FrameSession, openAskUrl, settleWithin, type ConnectOptions } from "./frame-session.ts";
+import { closedReasonOf, FrameSession, openingAskUrl, settleWithin, type ConnectOptions } from "./frame-session.ts";
 
 export type { ConnectOptions, FrameResult, OpeningFill } from "./frame-session.ts";
 
@@ -26,7 +26,7 @@ export class TransportSession extends FrameSession {
     // A WebSocket cannot pin a certificate by hash: the browser's own trust decides.
     const wsUrl = url.replace(/^https:/, "wss:");
     const fill = options.fill;
-    const socket = new WebSocket(fill ? openAskUrl(wsUrl, fill) : wsUrl);
+    const socket = new WebSocket(fill ? openingAskUrl(wsUrl, fill) : wsUrl);
     socket.binaryType = "arraybuffer";
     const open = new Promise<void>((resolve, reject) => {
       socket.onopen = () => resolve();

@@ -9,7 +9,7 @@ use disk_access_bench::candidate_access::hint_willneed;
 use disk_access_bench::residency::evict_retry;
 use disk_access_bench::uring_access::{Completion, UringReader};
 use series_server::media::frame_store::{FrameSpan, FrameStore};
-use series_server::media::read_path::{ReadMode, SeqReader, TileReader};
+use series_server::media::read_path::{ReadMode, FillReader, TileReader};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -47,7 +47,7 @@ enum Variant {
     /// reads in flight. Under `--cfg tokio_unstable` it reports as `tokio_fs_uring`.
     /// Sequential cursor only; rejected as a product reader. `docs/adr/disk-access.md` §5.
     TokioFs,
-    /// **The shipped fill reader itself** — `server`'s `SeqReader`, not a model of it.
+    /// **The shipped fill reader itself** — `server`'s `FillReader`, not a model of it.
     ProductFill,
     /// **The shipped tile reader itself** — `server`'s `TileReader`, `depth` slots.
     /// `WTPACS_READ_PATH` selects its escalation here too.
@@ -380,7 +380,7 @@ async fn reader_pool(
     }
     Ok(())
 }
-/// The shipped fill reader: one `SeqReader`, the next ask named. Depth is not a lever here
+/// The shipped fill reader: one `FillReader`, the next ask named. Depth is not a lever here
 /// — a sequential reader holds one read at a time by construction.
 #[allow(clippy::too_many_arguments)]
 async fn reader_product_fill(
@@ -393,7 +393,7 @@ async fn reader_product_fill(
     reads: Arc<AtomicU64>,
 ) -> Result<()> {
     let asks = plan.len();
-    let mut seq = SeqReader::new();
+    let mut seq = FillReader::new();
     let mut mine = Vec::with_capacity(asks);
     let mut miss = 0u64;
     for i in 0..asks {

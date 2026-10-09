@@ -148,8 +148,8 @@ measuring.
 ## 6b · Serving depth: the loop was depth 1, and the protocol said otherwise
 
 **Status: built 2026-09-09.** Option B shipped: an ask-reader task owns `control_recv` and
-feeds a planner; `RequestFrame` and `RequestFrames` are the same `Ask::Frame` to the loop.
-The read path split on 2026-09-10 (`SeqReader` / `TileReader`). Historical cost of depth 1
+feeds a planner; `RequestFrame` and `RequestFrames` are the same `Command::Frame` to the loop.
+The read path split on 2026-09-10 (`FillReader` / `TileReader`). Historical cost of depth 1
 is the table below. [`disk-access.md`](disk-access.md).
 
 Until then, `FodMsg::RequestFrame` was documented as "one frame per message (**depth =
@@ -203,7 +203,7 @@ What stood in the way was state, in two places:
    ask-reader task plus planner.
 2. **The reader held one window and its ring one in-flight slot**, so even a concurrent
    loop would have serialised on the buffer. **Fixed**: `TileReader` holds `TILE_SLOTS`
-   frames; `SeqReader` is the double buffer.
+   frames; `FillReader` is the double buffer.
 
 ### The shape to build, when it is built
 
@@ -260,7 +260,7 @@ indexes. A data request during a fill ends the fill and is then served: a second
 **Status: built 2026-09-09; readers split 2026-09-10.** `TileReader::read` starts upcoming
 frames that fit before waiting on this one. A batch supplies that from `frames[i + 1]`. A
 stream of single `RequestFrame` asks supplies it from the ask-reader channel — the planner
-peeks what is already in hand. `SeqReader` names one frame ahead (`FILL_AHEAD`).
+peeks what is already in hand. `FillReader` names one frame ahead (`FILL_AHEAD`).
 
 ### Why the loop change is not optional
 

@@ -3,7 +3,7 @@
 //! FoD message's JSON. `docs/WIRE.md` §The WebSocket mapping.
 
 use crate::transport::frame_out::FrameOut;
-use crate::transport::server::{forward, parse_open_ask, Sessions};
+use crate::transport::server::{forward, parse_opening_ask, Sessions};
 use crate::transport::wire::{Control, MAX_FOD_LEN};
 use anyhow::{bail, Context, Result};
 use bytes::Bytes;
@@ -109,8 +109,8 @@ pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions
     tcp.set_nodelay(true).context("TCP_NODELAY")?;
     let mut opening = None;
     let read_ask = |request: &Request, response: Response| {
-        if sessions.open_ask {
-            opening = parse_open_ask(&request.uri().to_string(), sessions.store.frame_count());
+        if sessions.opening_ask {
+            opening = parse_opening_ask(&request.uri().to_string(), sessions.store.frame_count());
         }
         Ok(response)
     };

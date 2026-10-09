@@ -53,7 +53,7 @@ at `6e9c126`.
 | **Runtime shape** | **One endpoint on the multi-thread runtime.** One endpoint per core won every single-session cell and most saturation cells, and **12 of 16 NAT rebinds kill the session** on it. Parked at `d9ebe32` (§6) |
 
 `--stream-mode per-frame`, `--congestion cubic | bbr`, `--initial-window-bytes`, `--initial-rtt-ms`
-and `--open-ask false` are flags, each for the cell named where it is measured below.
+and `--opening-ask false` are flags, each for the cell named where it is measured below.
 `--packet-threshold`, `--persistent-congestion-threshold` and `--ack-frequency-max-delay-ms` were
 removed with their variants once closed (§3, [`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser);
 code: `git show archive/variants-2026-10-03:server/src/transport/tuning.rs`.
@@ -561,8 +561,8 @@ produced that reading is not known. Not tested: whether a real mobile NAT keeps 
 
 #### The bytes the viewer needs anyway, pushed at session open
 
-`--open-ask`: the session URL carries `?ask=fill:0-k`, so the series's first frames are moving when
-the control stream opens. The TypeScript client sends it (`openAsk`), on by default since 2026-10-02; the design and its
+`--opening-ask`: the session URL carries `?ask=fill:0-k`, so the series's first frames are moving when
+the control stream opens. The TypeScript client sends it (`openingAsk`), on by default since 2026-10-02; the design and its
 browser measurement are [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The opening ask. Pushing 1, 2, 4 and 8
 frames before one more is asked takes that ask at 250 KB / 80 ms from 454.7 ms to 204.0, 157.2,
 127.6 and **103.9 — the filled variant's 104.3**; at 50 KB, 248.2 to 165.9, 124.8, 108.5 and 98.1. **It
@@ -634,7 +634,7 @@ not**: on a new address the 32-packet window gives 167.0 / 321.1 ms against a fr
 167.6 / 323.4 with the same window, while the push rides the session URL and is spent at open (PUSH).
 A per-client jump start from a saved window was proposed (2026-09-24) and not built: at 80 ms the push
 recovers the same (130 against 134 ms of 462). **The push is the default since 2026-10-02**
-(`--open-ask`); the window stays the owner's call.
+(`--opening-ask`); the window stays the owner's call.
 
 #### The idle radio: its penalty, a wake, a keep-alive, 2026-10-01 (IDL, I1)
 

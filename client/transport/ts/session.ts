@@ -10,7 +10,7 @@ import {
   fillTo,
   FrameSession,
   le32,
-  openAskUrl,
+  openingAskUrl,
   settleWithin,
   type ConnectOptions,
 } from "./frame-session.ts";
@@ -38,7 +38,7 @@ export class TransportSession extends FrameSession {
   ): Promise<TransportSession> {
     const hash = hexToBytes(certSha256);
     const fill = options.fill;
-    const transport = new WebTransport(fill ? openAskUrl(wtUrl, fill) : wtUrl, {
+    const transport = new WebTransport(fill ? openingAskUrl(wtUrl, fill) : wtUrl, {
       serverCertificateHashes: [{ algorithm: "sha-256", value: hash }],
     });
     await (options.dialMs

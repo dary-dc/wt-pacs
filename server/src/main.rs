@@ -47,9 +47,9 @@ struct Args {
     /// Lab only: serve every frame as a miss, for measuring a series nobody has read.
     #[arg(long, default_value_t = false)]
     force_pool_reads: bool,
-    /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--open-ask false` turns it off.
+    /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--opening-ask false` turns it off.
     #[arg(long, default_value_t = true, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set)]
-    open_ask: bool,
+    opening_ask: bool,
     #[arg(long, default_value_t = false, help = "Lab only: take each CONNECT and never answer it")]
     hold_sessions: bool,
     /// Lab only: each session sends this many media bytes, then nothing, with no FIN.
@@ -92,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
             segmentation_offload: args.segmentation_offload,
         },
         force_pool_reads: args.force_pool_reads,
-        open_ask: args.open_ask,
+        opening_ask: args.opening_ask,
         hold_sessions: args.hold_sessions,
         stall_after_bytes: args.stall_after_bytes,
         websocket: args.websocket,
@@ -147,8 +147,8 @@ mod tests {
     /// The opening ask is on unless turned off, and the bare flag the lab scripts pass still parses.
     #[test]
     fn the_opening_ask_is_on_by_default_with_a_way_off() {
-        assert!(parse(&[]).open_ask);
-        assert!(parse(&["--open-ask"]).open_ask);
-        assert!(!parse(&["--open-ask", "false"]).open_ask);
+        assert!(parse(&[]).opening_ask);
+        assert!(parse(&["--opening-ask"]).opening_ask);
+        assert!(!parse(&["--opening-ask", "false"]).opening_ask);
     }
 }

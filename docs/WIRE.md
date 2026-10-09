@@ -30,7 +30,7 @@ grace below.
 
 | Message | Direction | What the server does |
 | --- | --- | --- |
-| `{"op":"request_frame","frame":N}` | client → server | one `Ask::Frame`; served with any asks already in hand named as upcoming |
+| `{"op":"request_frame","frame":N}` | client → server | one `Command::Frame`; served with any asks already in hand named as upcoming |
 | `{"op":"stream_frames","from":A,"to":B}` | client → server | a fill of `A..=B`; either end may be omitted (`from` → 0, `to` → the last frame), `{}` is the whole series. Recited until done, until `end_stream`, or until any other message arrives (§An ask during a fill) |
 | `{"op":"end_stream"}` | client → server | ends a running fill at the next frame boundary; the session goes on. Without a fill, nothing |
 | `{"op":"end_session"}` | client → server | ends the session |
@@ -49,7 +49,7 @@ start up to `TILE_SLOTS` (4) reads at once
 start to end without naming every index is `stream_frames`, not a large batch (§6c there).
 
 **A group ask is G pipelined `request_frame`s.** `request_frames` left the wire on 2026-10-03
-(`202644d`); the server had already turned it into one `Ask::Frame` per index, so G
+(`202644d`); the server had already turned it into one `Command::Frame` per index, so G
 `request_frame`s in a row give the planner the same input, order and per-index refusals. A fill of
 whole groups is `stream_frames {from: k, …}`. Not measured: with pipelined asks the first frame may
 be planned before the rest are parsed, so its read-ahead can name fewer upcoming frames; the bytes
@@ -146,7 +146,7 @@ and is not measured here.
 
 ## The opening ask
 
-On by default; `series-server --open-ask false` turns it off. The session URL may carry
+On by default; `series-server --opening-ask false` turns it off. The session URL may carry
 `?ask=frame:N` or `?ask=fill:A-B`, which the server reads before accepting the session and serves
 at once, behind the accept rather than behind the control stream. A malformed or out-of-range
 value is ignored and the session proceeds as without it. A refusal of an opening ask waits for the
@@ -168,7 +168,7 @@ frame path, the store and the planner are the QUIC path's; one process serves bo
 | media | uni streams, one envelope per frame | binary messages whose bytes, joined, are the `shared` uni stream's: the 8-byte head, then the codestream split every 64 KiB — the grain at which a browser, which hands a message over only whole, sees a frame's bytes move |
 | refusals | the control stream | a text message, through the same writer as the frames |
 | stream mode | `--stream-mode` | always one ordered stream |
-| opening ask | `?ask=` with `--open-ask` | the same `?ask=` on the upgrade's URL, with the same flag: served right behind the 101 |
+| opening ask | `?ask=` with `--opening-ask` | the same `?ask=` on the upgrade's URL, with the same flag: served right behind the 101 |
 
 A binary message from the client, or any message over 4 MiB, ends the session. The library
 answers pings. Not on this path: the QUIC knobs (`--congestion`, the windows — TCP's are the

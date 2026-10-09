@@ -73,7 +73,7 @@ of the three cuts; the lab's [`downloader.html`](downloader.html) does.
 
 **R1/R3/R4, 2026-09-20, `d65f959`.** The first frame of a 12-frame fill, with
 [`first-byte.html`](first-byte.html), one rung per `?stage=`, cold only, seven rounds a delay, the
-variants interleaved in every round against one server. `today` sets `openAsk: false`: it is the page as
+variants interleaved in every round against one server. `today` sets `openingAsk: false`: it is the page as
 served before 2026-10-02, when the opening ask became the default.
 
 ```bash
@@ -181,7 +181,7 @@ The HTML lands at 2.94–3.01 round trips in every rung on both hosts.
 ## The push in a browser, at 4×
 
 **PUSH, 2026-10-02, `fa694ee`.** Row 93's rungs with enough rounds that every cell keeps nine or so
-after the drops: `today` (no opening ask), `r1` (the push at session open, `openAsk`), `inline` (the
+after the drops: `today` (no opening ask), `r1` (the push at session open, `openingAsk`), `inline` (the
 push plus the URL in the page).
 
 ```bash

@@ -10,7 +10,7 @@ pub const FILL_AHEAD: usize = 1;
 
 /// What the loop consumes: one item per frame, whichever message carried it.
 #[derive(Debug)]
-pub enum Ask {
+pub enum Command {
     Frame(u32),
     Fill { from: Option<u32>, to: Option<u32> },
     EndStream,
@@ -18,7 +18,7 @@ pub enum Ask {
     Failed(anyhow::Error),
 }
 
-impl Ask {
+impl Command {
     pub fn frame(&self) -> Option<u32> {
         match self {
             Self::Frame(f) => Some(*f),
@@ -51,7 +51,7 @@ pub enum Step {
 }
 
 pub struct Planner {
-    in_hand: VecDeque<Ask>,
+    in_hand: VecDeque<Command>,
     fill: Option<(u32, u32)>,
     frames: u32,
     note_fill: bool,
@@ -69,7 +69,7 @@ impl Planner {
         }
     }
 
-    pub fn push(&mut self, ask: Ask) {
+    pub fn push(&mut self, ask: Command) {
         self.in_hand.push_back(ask);
     }
 
@@ -84,7 +84,7 @@ impl Planner {
     }
 
     /// `poll` yields asks that arrived since the last step; a fill checks it between frames.
-    pub fn next(&mut self, mut poll: impl FnMut() -> Option<Ask>) -> Result<Step> {
+    pub fn next(&mut self, mut poll: impl FnMut() -> Option<Command>) -> Result<Step> {
         while self.in_hand.len() < ASKS_AHEAD {
             let Some(ask) = poll() else { break };
             self.in_hand.push_back(ask);
@@ -109,10 +109,10 @@ impl Planner {
             }
             match self.in_hand.pop_front() {
                 None => return Ok(Step::Wait),
-                Some(Ask::EndSession) => return Ok(Step::End),
-                Some(Ask::Failed(err)) => return Err(err),
-                Some(Ask::EndStream) => continue,
-                Some(Ask::Fill { from, to }) => match fill_range(from, to, self.frames) {
+                Some(Command::EndSession) => return Ok(Step::End),
+                Some(Command::Failed(err)) => return Err(err),
+                Some(Command::EndStream) => continue,
+                Some(Command::Fill { from, to }) => match fill_range(from, to, self.frames) {
                     Ok(range) => {
                         self.fill = Some(range);
                         self.count_this_fill = true;
@@ -125,12 +125,12 @@ impl Planner {
                         })
                     }
                 },
-                Some(Ask::Frame(frame)) => {
+                Some(Command::Frame(frame)) => {
                     let upcoming = self
                         .in_hand
                         .iter()
-                        .take_while(|a| matches!(a, Ask::Frame(_) | Ask::EndStream))
-                        .filter_map(Ask::frame)
+                        .take_while(|a| matches!(a, Command::Frame(_) | Command::EndStream))
+                        .filter_map(Command::frame)
                         .take(ASKS_AHEAD)
                         .collect();
                     return Ok(Step::Serve {
@@ -166,7 +166,7 @@ mod tests {
     fn pipelined_asks_supply_the_upcoming_frames() {
         let mut plan = Planner::new(10);
         for frame in [4, 5, 6] {
-            plan.push(Ask::Frame(frame));
+            plan.push(Command::Frame(frame));
         }
         let Step::Serve {
             frame, upcoming, ..
@@ -182,7 +182,7 @@ mod tests {
     fn each_served_ask_names_the_asks_still_behind_it() {
         let mut plan = Planner::new(10);
         for frame in [1, 4, 5] {
-            plan.push(Ask::Frame(frame));
+            plan.push(Command::Frame(frame));
         }
         let Step::Serve {
             frame, upcoming, ..
@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn a_fill_recites_from_to_inclusive_in_order() {
         let mut plan = Planner::new(8);
-        plan.push(Ask::Fill {
+        plan.push(Command::Fill {
             from: Some(3),
             to: Some(7),
         });
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn end_stream_stops_a_fill_before_the_next_frame() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Fill {
+        plan.push(Command::Fill {
             from: Some(3),
             to: Some(7),
         });
@@ -249,7 +249,7 @@ mod tests {
             plan.next(|| None).unwrap(),
             Step::Serve { frame: 3, .. }
         ));
-        let mut arrived = Some(Ask::EndStream);
+        let mut arrived = Some(Command::EndStream);
         assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::Wait));
     }
 
@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn a_data_request_during_a_fill_ends_it_and_is_served_next() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Fill {
+        plan.push(Command::Fill {
             from: Some(0),
             to: Some(5),
         });
@@ -265,7 +265,7 @@ mod tests {
             plan.next(|| None).unwrap(),
             Step::Serve { frame: 0, .. }
         ));
-        let mut arrived = Some(Ask::Frame(9));
+        let mut arrived = Some(Command::Frame(9));
         let Step::Serve {
             frame, upcoming, ..
         } = plan.next(|| arrived.take()).unwrap()
@@ -279,7 +279,7 @@ mod tests {
     #[test]
     fn end_session_during_a_fill_ends_the_session() {
         let mut plan = Planner::new(6);
-        plan.push(Ask::Fill {
+        plan.push(Command::Fill {
             from: Some(0),
             to: Some(5),
         });
@@ -287,7 +287,7 @@ mod tests {
             plan.next(|| None).unwrap(),
             Step::Serve { frame: 0, .. }
         ));
-        let mut arrived = Some(Ask::EndSession);
+        let mut arrived = Some(Command::EndSession);
         assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::End));
         assert!(matches!(plan.next(|| None).unwrap(), Step::Wait));
     }
@@ -297,7 +297,7 @@ mod tests {
     fn a_bad_range_is_refused_with_from() {
         for (from, to) in [(Some(7), Some(3)), (Some(0), Some(9))] {
             let mut p = Planner::new(4);
-            p.push(Ask::Fill { from, to });
+            p.push(Command::Fill { from, to });
             match p.next(|| None).unwrap() {
                 Step::Refuse { frame, .. } => assert_eq!(frame, from.unwrap_or(0)),
                 other => panic!("served {other:?}"),
@@ -310,7 +310,7 @@ mod tests {
     #[test]
     fn an_empty_series_is_refused_with_from() {
         let mut plan = Planner::new(0);
-        plan.push(Ask::Fill {
+        plan.push(Command::Fill {
             from: None,
             to: None,
         });
@@ -327,11 +327,11 @@ mod tests {
     #[test]
     fn a_fill_stopped_before_its_first_frame_is_not_counted() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Fill {
+        plan.push(Command::Fill {
             from: None,
             to: None,
         });
-        plan.push(Ask::EndStream);
+        plan.push(Command::EndStream);
         assert!(matches!(plan.next(|| None).unwrap(), Step::Wait));
         assert!(
             !plan.take_noted_fill(),
@@ -349,7 +349,7 @@ mod tests {
                 return None;
             }
             offered += 1;
-            Some(Ask::Frame(offered - 1))
+            Some(Command::Frame(offered - 1))
         };
         for _ in 0..100 {
             let _ = plan.next(&mut poll).unwrap();
@@ -365,9 +365,9 @@ mod tests {
     #[test]
     fn upcoming_reads_past_an_end_stream() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Frame(2));
-        plan.push(Ask::EndStream);
-        plan.push(Ask::Frame(4));
+        plan.push(Command::Frame(2));
+        plan.push(Command::EndStream);
+        plan.push(Command::Frame(4));
         let Step::Serve {
             frame, upcoming, ..
         } = plan.next(|| None).unwrap()
@@ -385,12 +385,12 @@ mod tests {
     #[test]
     fn upcoming_stops_at_the_first_ask_that_is_not_a_frame() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Frame(5));
-        plan.push(Ask::Fill {
+        plan.push(Command::Frame(5));
+        plan.push(Command::Fill {
             from: Some(7),
             to: Some(9),
         });
-        plan.push(Ask::Frame(9));
+        plan.push(Command::Frame(9));
         let Step::Serve {
             frame, upcoming, ..
         } = plan.next(|| None).unwrap()
@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn a_reader_error_is_the_session_error() {
         let mut plan = Planner::new(2);
-        plan.push(Ask::Failed(anyhow::anyhow!("control broke")));
+        plan.push(Command::Failed(anyhow::anyhow!("control broke")));
         assert!(plan.next(|| None).is_err(), "reader error was swallowed");
     }
 }

@@ -150,7 +150,7 @@ for (const s of SERVERS) {
     "--port", String(s.srv), "--series", path.join(T, "series.sbnd"),
     "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem"),
     // Inert for a variant that sends no `?ask=`, so every variant runs on one server. R1's variant needs it.
-    "--open-ask",
+    "--opening-ask",
   ], fs.openSync(path.join(T, `server${s.name}.log`), "a"));
 }
 if (HOST === "dev") {

@@ -82,7 +82,7 @@
         {
           decoders: 3,
           fill: [...Array(frames).keys()],
-          openAsk: stage === "r1" || stage === "all" || inline,
+          openingAsk: stage === "r1" || stage === "all" || inline,
           onFrame: (f) => {
             got[f.frameIndex] = f.bytes;
             if (f.frameIndex === 0) first(f);

@@ -5,7 +5,7 @@ use crate::media::frame_store::FrameStore;
 use crate::media::read_path::ReadMode;
 use crate::transport::frame_out::FrameOut;
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
-use crate::transport::planner::{fill_range, Ask, Planner, Step, ASKS_AHEAD};
+use crate::transport::planner::{fill_range, Command, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::websocket;
@@ -43,7 +43,7 @@ pub struct ServeConfig {
     pub force_pool_reads: bool,
     /// Honour `?ask=` in the session URL, so the first frame moves behind the accept instead of
     /// behind the control stream. `docs/ARCHITECTURE.md`.
-    pub open_ask: bool,
+    pub opening_ask: bool,
     /// Lab only: every session request is taken and never answered — WebKit bug 319879's dial
     /// that never settles, made on purpose. `docs/ARCHITECTURE.md` §A dial that never settles.
     pub hold_sessions: bool,
@@ -117,7 +117,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         store,
         read_mode,
         mode: config.mode,
-        open_ask: config.open_ask,
+        opening_ask: config.opening_ask,
         stall: config.stall_after_bytes,
         #[cfg(feature = "telemetry")]
         taps: Arc::new(Tap::for_session),
@@ -146,7 +146,7 @@ pub(super) struct Sessions {
     pub(super) store: Arc<FrameStore>,
     read_mode: ReadMode,
     mode: StreamMode,
-    pub(super) open_ask: bool,
+    pub(super) opening_ask: bool,
     stall: Option<u64>,
     #[cfg(feature = "telemetry")]
     taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
@@ -162,8 +162,8 @@ impl Sessions {
     pub(super) async fn serve<F>(
         &self,
         mut product: ProductPipeline,
-        opening: Option<Ask>,
-        read: impl FnOnce(mpsc::Sender<Ask>) -> F,
+        opening: Option<Command>,
+        read: impl FnOnce(mpsc::Sender<Command>) -> F,
     ) -> Result<()>
     where
         F: Future<Output = ()> + Send + 'static,
@@ -276,8 +276,8 @@ async fn handle_incoming(
     // Read before accepting: the whole point of an opening ask is to serve behind the accept
     // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
     let opening = sessions
-        .open_ask
-        .then(|| parse_open_ask(session_request.path(), sessions.store.frame_count()))
+        .opening_ask
+        .then(|| parse_opening_ask(session_request.path(), sessions.store.frame_count()))
         .flatten();
     let connection = session_request.accept().await.context("accept session")?;
 
@@ -335,23 +335,23 @@ fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> b
 
 /// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
 /// session then proceeds as without it.
-pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
+pub(super) fn parse_opening_ask(path: &str, frames: u32) -> Option<Command> {
     let value = path
         .split_once('?')?
         .1
         .split('&')
         .find_map(|f| f.strip_prefix("ask="))?;
     let ask = match value.split_once(':')? {
-        ("frame", n) => Ask::Frame(n.parse().ok()?),
+        ("frame", n) => Command::Frame(n.parse().ok()?),
         ("fill", range) => {
             let (from, to) = range.split_once('-')?;
-            Ask::Fill { from: Some(from.parse().ok()?), to: Some(to.parse().ok()?) }
+            Command::Fill { from: Some(from.parse().ok()?), to: Some(to.parse().ok()?) }
         }
         _ => return None,
     };
     match ask {
-        Ask::Frame(n) if n >= frames => None,
-        Ask::Fill { from, to } if fill_range(from, to, frames).is_err() => None,
+        Command::Frame(n) if n >= frames => None,
+        Command::Fill { from, to } if fill_range(from, to, frames).is_err() => None,
         ask => Some(ask),
     }
 }
@@ -372,15 +372,15 @@ fn report_path(connection: &wtransport::Connection) {
     );
 }
 
-/// The loop over `Ask`, with no stream in it, so a test can drive it without QUIC. However it
+/// The loop over `Command`, with no stream in it, so a test can drive it without QUIC. However it
 /// ends, outstanding finishes get their grace.
-pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
+pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
     let result = steps(pipeline, asks).await;
     pipeline.drain_acks().await;
     result
 }
 
-async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
+async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
     let mut plan = Planner::new(pipeline.store().frame_count());
     loop {
         let step = plan.next(|| asks.try_recv().ok())?;
@@ -405,26 +405,26 @@ async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask
     }
 }
 
-async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Command>) -> Result<(), ()> {
     forward(read_fod_msg(control_recv).await, tx).await
 }
 
 /// One FoD message as the loop's asks; `Err` once the reader should stop. `None`, the peer's
 /// goodbye, stops it with no ask, so the loop ends when it next waits.
-pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Ask>) -> Result<(), ()> {
+pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Command>) -> Result<(), ()> {
     let ask = match msg {
         Ok(Some(FodMsg::RequestFrame { frame })) => {
-            tx.send(Ask::Frame(frame)).await.map_err(|_| ())?;
+            tx.send(Command::Frame(frame)).await.map_err(|_| ())?;
             return Ok(());
         }
-        Ok(Some(FodMsg::StreamFrames { from, to })) => Ask::Fill { from, to },
-        Ok(Some(FodMsg::EndStream)) => Ask::EndStream,
-        Ok(Some(FodMsg::EndSession)) => Ask::EndSession,
+        Ok(Some(FodMsg::StreamFrames { from, to })) => Command::Fill { from, to },
+        Ok(Some(FodMsg::EndStream)) => Command::EndStream,
+        Ok(Some(FodMsg::EndSession)) => Command::EndSession,
         Ok(Some(FodMsg::FrameError { .. })) => return Ok(()),
         Ok(None) => return Err(()),
-        Err(err) => Ask::Failed(err),
+        Err(err) => Command::Failed(err),
     };
-    let failed = matches!(ask, Ask::Failed(_));
+    let failed = matches!(ask, Command::Failed(_));
     tx.send(ask).await.map_err(|_| ())?;
     if failed {
         Err(())
@@ -502,7 +502,7 @@ mod tests {
             drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        for ask in [Ask::Frame(0), Ask::Frame(2), Ask::Frame(3), Ask::EndSession] {
+        for ask in [Command::Frame(0), Command::Frame(2), Command::Frame(3), Command::EndSession] {
             tx.try_send(ask).expect("queue ask");
         }
         rt.block_on(drive(&mut rec, &mut rx)).expect("drive");
@@ -519,12 +519,12 @@ mod tests {
             drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        tx.try_send(Ask::Fill {
+        tx.try_send(Command::Fill {
             from: Some(1),
             to: Some(3),
         })
         .expect("queue fill");
-        tx.try_send(Ask::EndSession).expect("queue end");
+        tx.try_send(Command::EndSession).expect("queue end");
         drop(tx);
         rt.block_on(drive(&mut rec, &mut rx)).expect("drive fill");
         assert_eq!(rec.fills, 0, "a fill cancelled by EndSession was counted");
@@ -536,7 +536,7 @@ mod tests {
             drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        tx.try_send(Ask::Fill {
+        tx.try_send(Command::Fill {
             from: Some(1),
             to: Some(3),
         })
@@ -562,8 +562,8 @@ mod tests {
         let rt = tokio::runtime::Builder::new_current_thread().build().expect("rt");
         let mut rec = LoopRecorder { store, seen: Vec::new(), fills: 0, drained: false };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        tx.try_send(Ask::Frame(0)).expect("queue ask");
-        tx.try_send(Ask::Failed(anyhow!("a malformed message"))).expect("queue failure");
+        tx.try_send(Command::Frame(0)).expect("queue ask");
+        tx.try_send(Command::Failed(anyhow!("a malformed message"))).expect("queue failure");
         assert!(rt.block_on(drive(&mut rec, &mut rx)).is_err(), "the failure was swallowed");
         assert!(rec.drained, "a session that ended in error skipped the finishes' grace");
         std::fs::remove_dir_all(&dir).ok();
@@ -628,7 +628,7 @@ mod tests {
             store: Arc::new(FrameStore::open(series).expect("open store")),
             read_mode: ReadMode::Auto,
             mode: StreamMode::Shared,
-            open_ask: false,
+            opening_ask: false,
             stall: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(|| None),
@@ -771,7 +771,7 @@ mod tests {
             ("/?ask=frame:x", None),
             ("/", None),
         ] {
-            let got = parse_open_ask(path, 6).map(|ask| format!("{ask:?}"));
+            let got = parse_opening_ask(path, 6).map(|ask| format!("{ask:?}"));
             assert_eq!(got.as_deref(), want, "{path}");
         }
     }
@@ -837,7 +837,7 @@ mod tests {
             bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             tuning: TransportTuning::default(),
             force_pool_reads: false,
-            open_ask: false,
+            opening_ask: false,
             hold_sessions: false,
             stall_after_bytes: None,
             websocket: false,
@@ -941,7 +941,7 @@ mod tests {
             let _ = rustls::crypto::ring::default_provider().install_default();
             rt.block_on(async move {
                 let server = tokio::spawn(run_server(ServeConfig {
-                    open_ask: true,
+                    opening_ask: true,
                     ..serve_config(series, cert_pem, key_pem, port)
                 }));
                 let endpoint = wtransport::Endpoint::client(
@@ -1039,7 +1039,7 @@ mod tests {
             ));
             rt.block_on(async move {
                 let server = tokio::spawn(run_server(ServeConfig {
-                    open_ask: true,
+                    opening_ask: true,
                     websocket: true,
                     ..serve_config(series, cert_pem, key_pem, port)
                 }));
@@ -1158,7 +1158,7 @@ mod tests {
             store: Arc::new(FrameStore::open(&series).expect("open store")),
             read_mode: ReadMode::Auto,
             mode: StreamMode::Shared,
-            open_ask: true,
+            opening_ask: true,
             stall: None,
             taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
         };

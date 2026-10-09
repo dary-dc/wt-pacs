@@ -16,7 +16,7 @@ ask does not. That difference picks the escalation.
 1. **A page-cache hit is served inline.** The whole frame is probed with
    `preadv2(RWF_NOWAIT)` on the executor thread. It returns short instead of waiting on the
    disk, so a cold frame can never park a worker, and a warm ask takes no thread hop at all.
-2. **A fill (`SeqReader`) stays on the pool, and tells the kernel what comes next.** Two
+2. **A fill (`FillReader`) stays on the pool, and tells the kernel what comes next.** Two
    buffers, the next frame named (`FILL_AHEAD = 1`), one `spawn_blocking` + `pread` for a
    miss. No ring, no extra fd. `peak_in_flight` is 1. The device's queue depth comes from
    `posix_fadvise(WILLNEED)` over `FILL_WINDOW` (4 MiB) past the named frame, issued a
@@ -34,7 +34,7 @@ ask does not. That difference picks the escalation.
 
 **And the read path is told what is coming.** On-demand names up to `slots − 1` upcoming
 frames; a fill names one. The tile read-ahead probes `RWF_NOWAIT` first and submits only the
-shortfall. Each `RequestFrame` is one `Ask::Frame`, fed by an ask-reader task into a planner
+shortfall. Each `RequestFrame` is one `Command::Frame`, fed by an ask-reader task into a planner
 (`RequestFrames`, which the server split into one per index, left the wire on 2026-10-03). The reader returns a whole
 frame, and **the frame goes to quinn whole**: its buffer comes from `media/frame_pool.rs`, is
 handed off as `Bytes`, and returns to the pool when quinn drops it after acknowledgement
@@ -45,7 +45,7 @@ no registered buffers, no cursor reads.
 
 | | |
 | --- | --- |
-| Where | `server/src/media/read_path.rs` (`SeqReader`, `TileReader`), `uring_reader.rs` (thin ring), `frame_pool.rs` (the hand-off), `transport/planner.rs` (the loop), `transport/frame_out.rs` (the write) |
+| Where | `server/src/media/read_path.rs` (`FillReader`, `TileReader`), `uring_reader.rs` (thin ring), `frame_pool.rs` (the hand-off), `transport/planner.rs` (the loop), `transport/frame_out.rs` (the write) |
 | Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles). The `uring` lab lever (every tile through the ring) was removed 2026-10-03; code: `git show archive/variants-2026-10-03:server/src/media/read_path.rs` |
 | Feature | `uring`, on by default; the pool path is `--no-default-features --features crypto-ring` |
 | Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… named=… in_flight=… ring=…` per session, default build, with fill/tile hits split (§10) |
@@ -157,7 +157,7 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | **`RWF_NOWAIT` inline for hits** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit (measured with 64 KiB windows; the whole frame since 2026-09-10) | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
 | **Ring per session, built on the first miss, whole rest of the frame** | T | **host-dependent, and P0's question.** Sandbox: misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16. Workstation: a **tie at depth 1**, where the pool was the cheaper of the two (311 vs 326 µs CPU/ask). Agent container: the pool is **+106 to +138 % CPU, 6/6 RESOLVED**. Three hosts, three answers | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted for tiles** — conditional on P0 |
 | **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool variant **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring variant, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | one slot table, no mode machine | **Accepted** |
-| **`SeqReader` — probe, pool on the miss, one frame named** | S | ties every serious variant on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
+| **`FillReader` — probe, pool on the miss, one frame named** | S | ties every serious variant on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
 | **Read ahead (`TILE_SLOTS` / `FILL_AHEAD`)** | B | tiles name up to `slots − 1`, a fill names one; look-ahead **is** depth 2, not a separate effect (§11) | four tile slots / two fill buffers | `slots` is a constructor argument, so a campaign sweeps depth | **Accepted** |
 | **`WILLNEED` window ahead of a fill (`FILL_WINDOW`)** | S | misses **60 % → ~1 %** at the stock read-ahead, 3/3; p99 −62 % where read-ahead is 8 MB; warm a tie once per quarter window (per frame it cost −8.7 % at 16 KiB) | one syscall per MiB walked; no thread, no fd, no buffer | ~15 lines, one test | **Accepted** 2026-09-10 |
 | **Whole frame handed to quinn over pooled buffers** (`media/frame_pool.rs`) | B | **−3 to −8 % CPU per ask in every cell, 5–6/6** | no allocation per frame once the pool is warm | one module, no `unsafe` | **Accepted** 2026-09-23 — [`transport-conclusions.md`](../transport/transport-conclusions.md) |
@@ -178,7 +178,7 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | mmap, any variant | B | naive: faults freeze co-tenants, `gap_max` 1.5–4.2 ms, 7.7 ms under pressure. `mincore` gate: unsafe under pressure 5/5 — residency is not a lease. Always-touch on the pool (2026-08-31): 103 µs/frame, 702 µs neighbour p99. Touch via `block_in_place`: 38 µs, worst neighbour p99 (2.1 ms). `madvise(POPULATE_READ)`: within noise of the touch loop | a thread per ask where the fault is made safe | no copy, no safety — or safe and slow | Rejected (§11) |
 | `tokio-uring` 0.5.0 · `glommio` · `monoio` · `compio` | T | — | — | own current-thread or thread-per-core runtime | Rejected — transport rewrite |
 | tokio's own io_uring driver | S (no positional read) | one session 6 µs; **2.1 ms per 16 KiB at 64 sessions**, ⅓ of the device; executor gaps 10× any other variant | one locked ring per runtime; one fd per session | `--cfg tokio_unstable` in a medical build | Rejected — measured |
-| `tokio::fs::File`, plain | S | **48–223 µs per 16 KiB** vs 3 (a thread hop and a copy per read); +514 % wall, +1872 % CPU against `SeqReader` | threads grow like the pool's, 517 at 64 × 16 | the standard answer, and 15× slower | Rejected — measured, not reopened |
+| `tokio::fs::File`, plain | S | **48–223 µs per 16 KiB** vs 3 (a thread hop and a copy per read); +514 % wall, +1872 % CPU against `FillReader` | threads grow like the pool's, 517 at 64 × 16 | the standard answer, and 15× slower | Rejected — measured, not reopened |
 | `rio` · `ringbahn` · `nuclei` · `uring-fs` · `luring` and 90 other dependents | T | — | — | soundness hole, dead, own runtime, cursor + thread, `LocalSet`-only | Rejected — none drives a ring on multi-thread tokio with positional reads |
 | `sendfile` / `splice` | B | — | — | userspace QUIC copies anyway | Rejected |
 | `O_DIRECT` + SPDK, whole-series preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
@@ -277,7 +277,7 @@ What the code depends on and the types do not enforce, each pinned by a named te
   buffer is reused. *Corrected 2026-10-03:* the drain gave up on any failed wait and the slots were
   then freed under a live read.
   `dropping_a_reader_mid_read_waits_for_the_kernel`, `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused`.
-* **A fill never builds a ring.** `SeqReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
+* **A fill never builds a ring.** `FillReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
 * **A fill keeps `FILL_WINDOW` advised past the named frame.** Otherwise its depth on the device is one blocking read. `a_fill_tells_the_kernel_what_follows_the_named_frame`.
 * **Tile depth is `slots`, default `TILE_SLOTS`.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`.
 * **A jump does not wait on the read-ahead it abandons.** A tile takes a slot with no read in flight first; before 2026-09-23 the wanted frame's read queued behind the dead one. Unpriced on a rig that misses. `an_abandoned_tile_prefetch_does_not_delay_the_frame_that_replaces_it`.
@@ -317,7 +317,7 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 | 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, measured tie. The *only* way to cut the eventfd's per-hit cost (§11, *Short io_uring completions*). Only after P0 keeps the ring |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
-| 10 | **The two readers on the workstation** | the only full-variant measurement of `SeqReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
+| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
 | 13 | **Short io_uring completions on a regular file** | the lab now resubmits the tail and counts them; 0 in 1 032 workstation rows. Incidence on other hosts and sizes past 250 kB is unmeasured |
 
 Numbers are kept because older records cite them; 4 is closed (§8), the missing ones closed or
@@ -334,7 +334,7 @@ on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 
 The planner's `Mode` picks the reader; each is built on the first frame of its kind.
 
-**Fill — `SeqReader`.** Two buffers. `next` is the frame the planner will ask for after this
+**Fill — `FillReader`.** Two buffers. `next` is the frame the planner will ask for after this
 one, and its pooled read is running by the time `read` returns; only it may still be with the
 pool. Then the reader advises `FILL_WINDOW` past `next`, extended a quarter window at a time (one
 syscall per megabyte walked) and restarted on a seek. Frames sit in index order in the bundle,
@@ -720,7 +720,7 @@ NAME=frames_16k_big  BYTES=16384  FRAMES=5120  ./lab/scripts/gen_live_cell_fixtu
 NAME=frames_250k_big BYTES=250000 FRAMES=2048  ./lab/scripts/gen_live_cell_fixture.sh
 NAME=frames_250k_deep BYTES=250000 FRAMES=32000 ./lab/scripts/gen_live_cell_fixture.sh   # 8 GB, the miss fixture
 cargo build -p disk-access-bench -p check-fastpath --release
-lab/scripts/read_path_ab.sh <base-commit>   # SeqReader / TileReader: every cell must tie
+lab/scripts/read_path_ab.sh <base-commit>   # FillReader / TileReader: every cell must tie
 lab/scripts/server_ab.sh <base-commit>      # product server: cold depth 4 is the claim; fill and depth 2 tie
 ```
 

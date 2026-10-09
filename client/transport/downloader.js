@@ -393,7 +393,7 @@ async function connect() {
     const gen = generation;
     // The range is known here, so it rides the session URL and is served behind the accept
     // rather than a round trip later. docs/ARCHITECTURE.md
-    const run = cfg.openAsk !== false ? nextRun() : null;
+    const run = cfg.openingAsk !== false ? nextRun() : null;
     const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
     adopt(await openSession(opening));
     // A cancel during the dial cannot take back the run its URL carries.

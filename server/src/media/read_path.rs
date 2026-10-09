@@ -115,7 +115,7 @@ enum Ahead {
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
 /// and no ring: a sequential walk is read-ahead's best case and misses about one read in
 /// sixty. `docs/adr/disk-access.md` §Fill at scale.
-pub struct SeqReader {
+pub struct FillReader {
     cur: Vec<u8>,
     ahead: Ahead,
     /// End of what the kernel has been asked for; a walk extends it, a seek restarts it.
@@ -123,13 +123,13 @@ pub struct SeqReader {
     stats: ReadStats,
 }
 
-impl Default for SeqReader {
+impl Default for FillReader {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SeqReader {
+impl FillReader {
     pub fn new() -> Self {
         Self {
             cur: Vec::new(),
@@ -580,7 +580,7 @@ mod tests {
         for (name, got) in [
             ("fill", {
                 store.reset_pool_starts();
-                let mut seq = SeqReader::new();
+                let mut seq = FillReader::new();
                 let out = rt
                     .block_on(seq.read(&store, span, None))
                     .expect("read")
@@ -615,7 +615,7 @@ mod tests {
                 store.force_pool_reads();
             }
             let store = Arc::new(store);
-            let mut seq = SeqReader::new();
+            let mut seq = FillReader::new();
             let mut tile = TileReader::new(ReadMode::Auto, &store, TILE_SLOTS);
             for idx in 0..4u32 {
                 let span = store.frame_span(idx).expect("span");
@@ -643,7 +643,7 @@ mod tests {
             unreachable!("two frames")
         };
 
-        let mut seq = SeqReader::new();
+        let mut seq = FillReader::new();
         rt.block_on(seq.read(&store, first, Some(second)))
             .expect("first");
         store.reset_pool_starts();
@@ -671,7 +671,7 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
         let rt = rt();
-        let mut seq = SeqReader::new();
+        let mut seq = FillReader::new();
         for idx in 0..8u32 {
             let span = store.frame_span(idx).expect("span");
             let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1).expect("next"));
@@ -699,7 +699,7 @@ mod tests {
         let all = spans(&store, &(0..24u32).collect::<Vec<_>>());
         let end = |s: FrameSpan| s.offset + u64::from(s.len);
 
-        let mut seq = SeqReader::new();
+        let mut seq = FillReader::new();
         rt.block_on(seq.read(&store, all[0], Some(all[1]))).expect("read");
         assert_eq!(
             store.take_advice(),
@@ -753,7 +753,7 @@ mod tests {
             unreachable!("three frames")
         };
 
-        let mut seq = SeqReader::new();
+        let mut seq = FillReader::new();
         rt.block_on(seq.read(&store, first, Some(second)))
             .expect("first");
         // Frame 1 was named and is in flight; the session asks for 2 instead.
@@ -907,7 +907,7 @@ mod tests {
 
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         if store.nowait_supported() {
-            let mut seq = SeqReader::new();
+            let mut seq = FillReader::new();
             for idx in 0..3u32 {
                 let span = store.frame_span(idx).expect("span");
                 rt.block_on(seq.read(&store, span, None)).expect("read");

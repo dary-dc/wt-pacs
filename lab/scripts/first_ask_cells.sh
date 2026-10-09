@@ -206,7 +206,7 @@ repro() {
       done
       # Pushed at session open: the warm-up rides in the session URL, swept by how many frames it carries.
       for w in 1 2 4 8; do
-        cell "open-push $((w * kb)) KB" open-push "$T/s$kb.sbnd" "$rtt" "$w" --open-ask
+        cell "open-push $((w * kb)) KB" open-push "$T/s$kb.sbnd" "$rtt" "$w" --opening-ask
       done
       # A 32-packet initial window: 32 packets before the first ACK, against quinn's 12 000 bytes.
       cell "fresh, iw 32 pkt" fresh "$T/s$kb.sbnd" "$rtt" "$WARM" --initial-window-bytes 38400
@@ -221,7 +221,7 @@ repro() {
   for rtt in 40 80; do
     cell "fresh" fresh "$T/s250.sbnd" "$rtt" "$WARM"
     cell "fresh, iw 32 pkt" fresh "$T/s250.sbnd" "$rtt" "$WARM" --initial-window-bytes 38400
-    cell "open-push 1000 KB" open-push "$T/s250.sbnd" "$rtt" 4 --open-ask
+    cell "open-push 1000 KB" open-push "$T/s250.sbnd" "$rtt" 4 --opening-ask
   done
   RELAY_EXTRA=()
 }
@@ -250,8 +250,8 @@ together_cells() {
       VARIANTS=()
       variant "fresh|fresh|$WARM|0||"
       variant "iw 32 pkt|fresh|$WARM|0|--initial-window-bytes 38400|"
-      variant "push $((4 * kb)) KB|open-push|4|0|--open-ask|"
-      variant "push + iw 32 pkt|open-push|4|0|--open-ask --initial-window-bytes 38400|"
+      variant "push $((4 * kb)) KB|open-push|4|0|--opening-ask|"
+      variant "push + iw 32 pkt|open-push|4|0|--opening-ask --initial-window-bytes 38400|"
       variant "warmed|filled|$WARM|0||"
       printf '\n== %s KB, %s ms, the two levers together\n' "$kb" "$rtt"
       round_robin "$T/s$kb.sbnd" "$rtt"
@@ -287,8 +287,8 @@ resume_cells() {
         variant "fresh|fresh|$WARM|0||$link"
         variant "warmed|filled|$WARM|0||$link"
         variant "jump $((cwnd / 2)) B|fresh|$WARM|0|--initial-window-bytes $((cwnd / 2))|$link"
-        variant "push 4|open-push|4|0|--open-ask|$link"
-        variant "push 4 + jump|open-push|4|0|--open-ask --initial-window-bytes $((cwnd / 2))|$link"
+        variant "push 4|open-push|4|0|--opening-ask|$link"
+        variant "push 4 + jump|open-push|4|0|--opening-ask --initial-window-bytes $((cwnd / 2))|$link"
         printf '\n== %s KB, %s ms, %s; the filled session ended at cwnd %s B\n' "$kb" "$rtt" "${link:-unshaped}" "$cwnd"
         round_robin "$T/s$kb.sbnd" "$rtt"
       done

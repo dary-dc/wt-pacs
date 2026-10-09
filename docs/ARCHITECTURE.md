@@ -259,7 +259,7 @@ routes on it; which AV1 decoder takes a payload is `av1.js`'s alone. **Kept, and
   one check twice.
 * *Built and not adopted:* groups (`wholeGroups`, `orphaned`, `decoderFor`'s group rule, ~25 lines of
   `downloader.js`, each decoder's continuity), the preview port (`onPreview`, ~10 lines), `mixed` in
-  `av1.js` (lab/av1/decode/mixed, 4 lines), `recycleAtBytes` (WebKit's 16 MB stall), `openAsk: false`, and
+  `av1.js` (lab/av1/decode/mixed, 4 lines), `recycleAtBytes` (WebKit's 16 MB stall), `openingAsk: false`, and
   `decode: false` (lab and tests). Each is reached by a clause; none costs a frame that does not use it.
 
 *The fill's time is unchanged*: the HTJ2K frames through `client/downloader/` as it was before the
@@ -274,13 +274,13 @@ comparison a unit, moved, not added.
 Frames that were asked for are taken at once, fill frames at background priority, so a paint never
 waits behind a fill. The harness's consumer checks each frame against the fixture's `.sha256`.
 
-`DownloaderClient.connect(url, certHash, { onFrame, onError, fill, openAsk, survival, … })` →
+`DownloaderClient.connect(url, certHash, { onFrame, onError, fill, openingAsk, survival, … })` →
 `requestExactFrame(index)`, `fill(indices)`, `cancel()`, `stats()`, `close()`. Every delivered frame
 carries its `generation`; `cancel()` resolves once the downloader has ended the stream and dropped
 that request's work. A refused **fill** frame has no waiter, so it reaches the consumer through
 `onError({ frameIndex, reason, generation })`; a refused *asked* frame rejects its own promise. The
 consumer keeps no timer: the downloader settles every ask. `url` and `certHash` may be promises;
-the opening fill rides the session URL unless `openAsk` is `false` (§The opening ask). The page forwards the triggers a
+the opening fill rides the session URL unless `openingAsk` is `false` (§The opening ask). The page forwards the triggers a
 worker cannot see — `visibilitychange`, `pageshow`, `freeze`, `resume` — as one message.
 
 ### Closing a client
@@ -636,7 +636,7 @@ refuse on and dropped it (`an_opening_ask_is_served_behind_the_accept`).
 rounds a variant at 40, 80 and 160 ms, interleaved, against a ±0.2 spread on milestones it does not touch:
 41 ms at 40, 178 at 160. Re-run 2026-10-02 (PUSH), 14 rounds Williams-ordered: −1.06 at 1×, **−1.52 at
 4×**, and −1.9 / −1.8 with the URL inlined ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The push in a browser, at 4×). **On by default** since 2026-10-02 (a measured win with no cell against it):
-`--open-ask false` on the server and `openAsk: false` on the client turn it off, together — a client
+`--opening-ask false` on the server and `openingAsk: false` on the client turn it off, together — a client
 that sends it to a server that ignores it gets no frame. The URL carries one contiguous run, and no
 host but this box's relay has served it. The WASM client has no opening ask; its downloader adapter
 asks the opening fill on the control stream. Two clauses hold it (honoured and optional; a
@@ -1008,7 +1008,7 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
   ([`rig-limits.md`](rig-limits.md) §3). **On loopback the WebSocket wins the race**, 57–58 of 60 dials:
   with the round trip near zero the handshakes' work decides. On a link TCP + TLS + upgrade is three
   round trips against QUIC's 2.1, so QUIC should win by one — not measured.
-* **WSA, the opening ask on the upgrade** (2026-10-02): with `--open-ask` the server reads `?ask=` from
+* **WSA, the opening ask on the upgrade** (2026-10-02): with `--opening-ask` the server reads `?ask=` from
   the upgrade's URL and serves it right behind the 101; `ws-session.ts` puts an opening fill there.
   **−1.03 to −1.09 round trips to the first frame**, every paired round: −43.6 ms at 40 (7/7), −83.8
   at 80 (10/10), −164.3 at 160 (7/7), the fill's end the same. The opening ask taken from the upgrade, for

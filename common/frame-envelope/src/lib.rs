@@ -2,12 +2,12 @@
 //! where `envelope_len` counts the index and the codestream. Series bundles store raw codestream;
 //! the server streams [`frame_head`] before it, and a client unwraps what follows the length.
 
-pub const ENVELOPE_LEN: usize = 4;
-pub const FRAME_HEAD_LEN: usize = 4 + ENVELOPE_LEN;
+pub const INDEX_LEN: usize = 4;
+pub const FRAME_HEAD_LEN: usize = 4 + INDEX_LEN;
 
 /// The bytes that precede a codestream of `codestream_len` bytes on the wire.
 pub fn frame_head(display_index: u32, codestream_len: u32) -> [u8; FRAME_HEAD_LEN] {
-    let envelope_len = (ENVELOPE_LEN as u32).saturating_add(codestream_len);
+    let envelope_len = (INDEX_LEN as u32).saturating_add(codestream_len);
     let mut head = [0u8; FRAME_HEAD_LEN];
     head[..4].copy_from_slice(&envelope_len.to_be_bytes());
     head[4..].copy_from_slice(&display_index.to_be_bytes());
@@ -15,19 +15,19 @@ pub fn frame_head(display_index: u32, codestream_len: u32) -> [u8; FRAME_HEAD_LE
 }
 
 pub fn unwrap(payload: &[u8]) -> Result<(u32, &[u8]), String> {
-    if payload.len() < ENVELOPE_LEN {
+    if payload.len() < INDEX_LEN {
         return Err(format!(
             "frame envelope too short ({} bytes, need {})",
             payload.len(),
-            ENVELOPE_LEN
+            INDEX_LEN
         ));
     }
     let index = u32::from_be_bytes(
-        payload[0..ENVELOPE_LEN]
+        payload[0..INDEX_LEN]
             .try_into()
             .map_err(|_| "frame envelope header")?,
     );
-    Ok((index, &payload[ENVELOPE_LEN..]))
+    Ok((index, &payload[INDEX_LEN..]))
 }
 
 #[cfg(test)]
