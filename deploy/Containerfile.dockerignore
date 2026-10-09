@@ -1,8 +1,22 @@
 # docker reads this file, podman ../.containerignore: keep the two equal.
 target/
 **/node_modules
-lab/fixtures
-.local
 .git
+.local
+docs/
+**/*.md
+lab/
+!lab/disk-access-bench
+!lab/window-harness
+!lab/telemetry-bench
+!lab/telemetry-cost
 server/dev-cert
 client/dev-transport.json
+client/contract/
+client/**/*.test.mjs
+client/decode/wasm/build/.cache
+client/decode/wasm/vendor/openjph
+client/decode/wasm/dav1d/
+fixtures/*
+!fixtures/us_cine_smoke
+deploy/no-tls

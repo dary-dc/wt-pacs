@@ -1,16 +1,46 @@
-# Local run of both halves. The browser reaches the page on 8765 and the transport on 4433
-# directly — nginx is not in the transport's path and cannot be.
+# Both halves, unattended. The browser reaches the page on 8765 (or 443 over TLS) and the transport on 4433
+# directly: nginx is not in the transport's path and cannot be. Variables: deploy/README.md.
+x-build: &build { context: .., dockerfile: deploy/Containerfile, args: { REGISTRY: "${REGISTRY:-docker.io/library}" }, secrets: [build_ca] }
 services:
-  web:
-    image: wt-pacs-web
-    build: { context: .., dockerfile: deploy/Containerfile, target: web }
-    environment: { SERIES: "${SERIES:-us_cine_smoke}" }
-    volumes: ["../client/dev-transport.json:/srv/wt-pacs/client/dev-transport.json:ro,z"]
-    ports: ["8765:8765"]
   server:
     image: wt-pacs-server
-    build: { context: .., dockerfile: deploy/Containerfile, target: server }
-    command: ["--series", "/fixtures/${SERIES:-us_cine_smoke}/${SERIES:-us_cine_smoke}.sbnd",
-              "--cert-pem", "/certs/cert.pem", "--key-pem", "/certs/key.pem", "--websocket"]
-    volumes: ["../fixtures:/fixtures:ro,z", "../server/dev-cert:/certs:ro,z"]
-    ports: ["4433:4433/udp", "4433:4433/tcp"]
+    build: { <<: *build, target: server }
+    restart: unless-stopped
+    environment:
+      SERIES: "${SERIES:-us_cine_smoke}"
+      WT_URL: "${WT_URL:-https://127.0.0.1:4433/}"
+      RESTART_AFTER: "${RESTART_AFTER:-9d}"
+    volumes:
+      - "${STUDIES:-../fixtures/us_cine_smoke}:/studies:ro,z"
+      - "transport:/run/wt-pacs:z"
+    ports:
+      - "${PUBLISH_ADDR:-127.0.0.1}:4433:4433/udp"
+      - "${PUBLISH_ADDR:-127.0.0.1}:4433:4433/tcp"
+    healthcheck:
+      test: ["CMD", "test", "-s", "/run/wt-pacs/dev-transport.json"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+  web:
+    image: wt-pacs-web
+    build: { <<: *build, target: web }
+    restart: unless-stopped
+    environment: { SERIES: "${SERIES:-us_cine_smoke}" }
+    volumes:
+      - "${STUDIES:-../fixtures/us_cine_smoke}:/studies:ro,z"
+      - "transport:/srv/wt-pacs/wt:ro,z"
+      - "${TLS_DIR:-./no-tls}:/tls:ro,z"
+    ports:
+      - "${PUBLISH_ADDR:-127.0.0.1}:8765:8765"
+      - "${PUBLISH_ADDR:-127.0.0.1}:${TLS_PORT:-443}:443"
+    depends_on:
+      server: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8765/"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+volumes:
+  transport:
+secrets:
+  build_ca: { file: "${BUILD_CA:-/dev/null}" }

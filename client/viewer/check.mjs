@@ -96,7 +96,9 @@ async function open(url) {
   tab.on("pageerror", (e) => fail(`page error: ${e.message}`));
   await tab.goto(page);
   try {
-    return await result;
+    // Read off the page too: a page off loopback may not reach the collector (Chrome's Local Network Access).
+    const read = tab.waitForFunction(() => globalThis.__viewerResult, null, { timeout: 0 }).then((h) => h.jsonValue());
+    return await Promise.race([result, read]);
   } finally {
     await browser.close();
   }

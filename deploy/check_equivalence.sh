@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The web image must answer exactly as server/dev-server.py does: same status, same three
-# isolation headers, same content type, same bytes, on every path the harness uses. And the
-# transport's PEM must carry its own chain.
-# usage: deploy/check_equivalence.sh [--local] [series]
+# isolation headers, same content type, same bytes, on every path the viewer loads; everything
+# else a 404; gzip, and no version in its Server header. And the transport's PEM must carry its own chain.
+# usage: deploy/check_equivalence.sh [--local] [STUDIES_DIR SERIES]   (default: the smoke series)
 #        deploy/check_equivalence.sh --cert [PEM]        the PEM check alone
 # IMAGE names the web image; RUNTIME is podman, else docker.
 # --local runs nginx on this host from the template, so the config is checked without a
@@ -34,35 +34,45 @@ cert_chain() {  # pem named
 LOCAL=0
 if [ "${1:-}" = "--cert" ]; then cert_chain "${2:-$ROOT/server/dev-cert/cert.pem}" "$(( $# > 1 ))"; exit; fi
 if [ "${1:-}" = "--local" ]; then LOCAL=1; shift; fi
-SERIES="${1:-us_cine_smoke}"
+STUDIES="$(cd "${1:-$ROOT/fixtures/us_cine_smoke}" && pwd)"
+SERIES="${2:-us_cine_smoke}"
 PY_PORT=18765
 NG_PORT=18766
-PATHS=(/ /client/viewer/viewer.js /harness/ /harness/index.html /harness/shell.js /wt/dev-transport.json /series/metadata
-       /client/transport/downloader.js /client/harness/index.html /nope-404)
+WT="$(mktemp -d)"
+printf '{"wt_url": "https://127.0.0.1:4433/", "cert_sha256": "%064d"}\n' 0 > "$WT/dev-transport.json"
+chmod 0755 "$WT"
+PATHS=(/ /client/viewer/index.html /client/viewer/viewer.js /client/transport/downloader.js /client/decode/decoder.js
+       /client/decode/wasm/built/openjph/openjph.wasm /client/decode/wasm/build/manifest.sha256
+       /wt/dev-transport.json /series/metadata /nope-404)
+# What the image must not answer: the dev server's lab routes, the checkout, the studies themselves.
+HIDDEN=(/harness/ /lab/order.mjs /fixtures/us_cine_smoke/metadata.json /server/dev-cert/key.pem /deploy/compose.yml
+        "/studies/$SERIES.sbnd" /wt/ /client/contract/run.mjs)
 
-python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --series "$SERIES" >/dev/null 2>&1 &
+python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --metadata "$STUDIES/$SERIES.metadata.json" \
+  --transport "$WT/dev-transport.json" >/dev/null 2>&1 &
 PY=$!
 if [ "$LOCAL" -eq 1 ]; then
   NG=$(mktemp -d)
-  mkdir -p "$NG/tmp"
-  sed -e 's#\${SERIES}#'"$SERIES"'#g' -e "s#/srv/wt-pacs#$ROOT#g" -e "s/listen  *8765;/listen 127.0.0.1:$NG_PORT;/" \
-    "$ROOT/deploy/nginx/wt-pacs.conf.template" > "$NG/server.conf"
+  mkdir -p "$NG/tmp" "$NG/root"
+  ln -s "$ROOT/client" "$NG/root/client"
+  ln -s "$WT" "$NG/root/wt"
+  sed -e 's#\${SERIES}#'"$SERIES"'#g' -e 's#\${TLS_LISTEN}##' -e "s#/srv/wt-pacs#$NG/root#g" -e "s#/studies/#$STUDIES/#g" \
+    -e "s/listen  *8765;/listen 127.0.0.1:$NG_PORT;/" "$ROOT/deploy/nginx/wt-pacs.conf.template" > "$NG/server.conf"
   printf 'pid %s/nginx.pid;\nerror_log %s/error.log error;\nevents {}\nhttp {\n  access_log off;\n' "$NG" "$NG" > "$NG/nginx.conf"
   for d in client_body proxy fastcgi uwsgi scgi; do printf '  %s_temp_path %s/tmp;\n' "$d" "$NG"; done >> "$NG/nginx.conf"
   printf '  include %s/server.conf;\n}\n' "$NG" >> "$NG/nginx.conf"
   nginx -c "$NG/nginx.conf" || { kill $PY; exit 2; }
-  trap 'kill $PY 2>/dev/null; nginx -s stop -c "$NG/nginx.conf" 2>/dev/null; rm -rf "$NG"' EXIT
+  trap 'kill $PY 2>/dev/null; nginx -s stop -c "$NG/nginx.conf" 2>/dev/null; rm -rf "$NG" "$WT"' EXIT
 else
   RUNTIME="${RUNTIME:-$(command -v podman || command -v docker)}"
   "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1
-  "$RUNTIME" run -d --rm --name wtpacs-web-check -e SERIES="$SERIES" -p "$NG_PORT:8765" \
-    -v "$ROOT/client/dev-transport.json:/srv/wt-pacs/client/dev-transport.json:ro,z" \
-    "${IMAGE:-wt-pacs-web:latest}" >/dev/null || { kill $PY; exit 2; }
-  trap 'kill $PY 2>/dev/null; "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1' EXIT
+  "$RUNTIME" run -d --rm --name wtpacs-web-check -e SERIES="$SERIES" -p "127.0.0.1:$NG_PORT:8765" \
+    -v "$STUDIES:/studies:ro,z" -v "$WT:/srv/wt-pacs/wt:ro,z" "${IMAGE:-wt-pacs-web:latest}" >/dev/null || { kill $PY; exit 2; }
+  trap 'kill $PY 2>/dev/null; "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1; rm -rf "$WT"' EXIT
 fi
 
 for port in "$PY_PORT" "$NG_PORT"; do
-  for _ in $(seq 40); do curl -sf "http://127.0.0.1:$port/harness/" -o /dev/null && break; sleep 0.25; done
+  for _ in $(seq 40); do curl -sf "http://127.0.0.1:$port/" -o /dev/null && break; sleep 0.25; done
 done
 
 fail=0
@@ -87,26 +97,26 @@ for p in "${PATHS[@]}"; do
   if [ "$a" = "$b" ]; then printf '  ok   %-38s %s\n' "$p" "$a"
   else printf '  DIFF %-38s\n    dev-server %s\n    nginx      %s\n' "$p" "$a" "$b"; fail=1; fi
 done
-# Two deliberate divergences from dev-server.py, so they are asserted rather than compared.
-# lab/page-open/README.md.
-enc=$(curl -sS -H 'Accept-Encoding: gzip' -o /dev/null -D- "http://127.0.0.1:$NG_PORT/harness/shell.js" \
-      | grep -i '^content-encoding:' | head -1 | tr -d '\r' | cut -d' ' -f2-)
-if [ "$enc" = "gzip" ]; then printf '  ok   %-38s %s\n' "gzip on a module" "$enc"
-else printf '  MISS %-38s got "%s"\n' "gzip on a module" "$enc"; fail=1; fi
-
-# No build emits a hashed name yet, so this probes a path that 404s: `always` still sends the
-# headers, and the header set is the whole of what this rule has to get right.
-h=$(curl -sS -o /dev/null -D- "http://127.0.0.1:$NG_PORT/client/nothing.0123456789ab.js")
-for want in "cache-control: public, max-age=31536000, immutable" \
-            "cross-origin-opener-policy: same-origin" \
-            "cross-origin-embedder-policy: require-corp" \
-            "cross-origin-resource-policy: same-origin"; do
-  if printf '%s' "$h" | tr -d '\r' | grep -qi "^$want\$"; then
-    printf '  ok   %-38s %s\n' "hashed name" "${want%%:*}"
-  else
-    printf '  MISS %-38s %s\n' "hashed name" "$want"; fail=1
-  fi
+for p in "${HIDDEN[@]}"; do
+  s=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$NG_PORT$p")
+  if [ "$s" = 404 ]; then printf '  ok   %-38s 404, not served\n' "$p"
+  else printf '  OPEN %-38s %s\n' "$p" "$s"; fail=1; fi
 done
+# Deliberate divergences from dev-server.py, so they are asserted rather than compared. lab/page-open/README.md
+gzipped() {  # path -> content-encoding
+  curl -sS -H 'Accept-Encoding: gzip' -o /dev/null -D- "http://127.0.0.1:$NG_PORT$1" | grep -i '^content-encoding:' \
+    | head -1 | tr -d '\r' | cut -d' ' -f2-
+}
+large=$(( $(curl -s "http://127.0.0.1:$NG_PORT/series/metadata" | wc -c) > 1024 ))
+for p in /client/viewer/viewer.js /client/decode/wasm/built/openjph/openjph.wasm $([ $large -eq 1 ] && echo /series/metadata); do
+  enc=$(gzipped "$p")
+  if [ "$enc" = "gzip" ]; then printf '  ok   %-38s gzip\n' "$p"
+  else printf '  MISS %-38s gzip, got "%s"\n' "$p" "$enc"; fail=1; fi
+done
+[ $large -eq 1 ] || printf '  skip %-38s under 1 KiB, sent as it is\n' "/series/metadata gzip"
+server=$(curl -sS -o /dev/null -D- "http://127.0.0.1:$NG_PORT/" | grep -i '^server:' | tr -d '\r' | cut -d' ' -f2-)
+if [ "$server" = "nginx" ]; then printf '  ok   %-38s %s\n' "Server header" "$server"
+else printf '  MISS %-38s "%s", not "nginx"\n' "Server header" "$server"; fail=1; fi
 
-[ $fail -eq 0 ] && echo "equivalent on ${#PATHS[@]} paths; the two divergences and the PEM's chain hold" || echo "NOT equivalent"
+[ $fail -eq 0 ] && echo "equivalent on ${#PATHS[@]} paths, ${#HIDDEN[@]} hidden; gzip, the Server header and the PEM's chain hold" || echo "NOT equivalent"
 exit $fail
