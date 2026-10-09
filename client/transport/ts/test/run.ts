@@ -87,7 +87,7 @@ const within = <T>(p: Promise<T>, ms: number) =>
 /** Under the telemetry patch a `readMin` session still reads with its view and `{min}`: every
  *  frame arrives bit-exact, and the Tap closes a row for each. */
 async function telemetryKeepsTheReadersArguments() {
-  const tap = install({ arm: "transport-ts" });
+  const tap = install({ client: "transport-ts" });
   try {
     StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 };
     const session = wrapSession(await TransportSession.connect("https://stub/", HASH, { readMin: 16_384 }));

@@ -2,7 +2,7 @@
 
 export type Us = number; // integer microseconds
 
-export type RowKind = "preload" | "interaction";
+export type RowKind = "fill" | "ask";
 
 /** The first two close a row; the rest are failures. */
 export type ClosedAt =
@@ -148,15 +148,13 @@ export type Integrity = {
 export type TelemetryReport = {
   summary: {
     report_mode: "fill" | "ondemand";
-    arm: string;
+    client: string;
     stream_mode: string;
     ask_granularity: string;
     stages_present: string[];
     stages_absent: string[];
     connect_ms: number | null;
     headline: {
-      ask_to_first_paint: null;
-      ask_to_last_paint: null;
       ask_to_first_frame_complete_us: number | null;
       ask_to_last_frame_complete_us: number | null;
       max_serve_plus_path_us: number | null;
@@ -178,7 +176,6 @@ export type TelemetryReport = {
       copies_per_frame_declared: number;
       copies_source: string;
     };
-    preload_to_decode: null;
     cold_start: { max_queue_us: number | null };
     integrity: Integrity;
   };
@@ -193,7 +190,7 @@ export type TelemetryReport = {
 };
 
 export type TapConfig = {
-  arm: "transport-ts" | "transport-wasm";
+  client: "transport-ts" | "transport-wasm";
   stream_mode: "shared" | "per-frame";
   copies_per_frame_declared: number;
   copies_source: string;

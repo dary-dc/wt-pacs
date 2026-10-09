@@ -13,17 +13,17 @@ let installed = false;
 let RealWebTransport: typeof WebTransport | null = null;
 
 export function install(opts: InstallOptions = {}) {
-  const arm = opts.arm ?? "transport-ts";
+  const client = opts.client ?? "transport-ts";
   const config: TapConfig = {
-    arm,
+    client,
     stream_mode: opts.stream_mode ?? "shared",
     // Source read, not measured here: TS copies once (ByteAccumulator.take); WASM copies
     // chunk → RecvBuf, then RecvBuf → JS heap. Say so in the report.
     copies_per_frame_declared:
-      opts.copies_per_frame_declared ?? (arm === "transport-wasm" ? 2 : 1),
+      opts.copies_per_frame_declared ?? (client === "transport-wasm" ? 2 : 1),
     copies_source:
       opts.copies_source ??
-      (arm === "transport-wasm"
+      (client === "transport-wasm"
         ? "source: session.rs RecvBuf::push_chunk + js_buffer_from"
         : "source: frame-session.ts ByteAccumulator.take"),
     ring_capacity: opts.ring_capacity ?? DEFAULT_RING_CAPACITY,

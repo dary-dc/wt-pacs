@@ -30,7 +30,7 @@ function assertEq(a: unknown, b: unknown, msg: string) {
 
 function cfg(over: Partial<TapConfig> = {}): TapConfig {
   return {
-    arm: "transport-ts",
+    client: "transport-ts",
     stream_mode: "shared",
     copies_per_frame_declared: 1,
     copies_source: "test",
@@ -317,7 +317,7 @@ function sliceRiver(
   assertEq(row.transfer_us, 0, "transfer is 0 when first==last");
   assert(row.binding_term !== "transfer", "transfer excluded from binding_term when chunks==1");
   assert(row.ask_flush_us != null && row.ask_flush_us >= 0, "ask_flush_us exported per row");
-  assert(report.summary.headline.ask_to_last_paint === null, "ask_to_last_paint stays null");
+  assert(!("ask_to_last_paint" in report.summary.headline), "no paint field in the headline: nothing measures paint");
   assert(
     report.summary.headline.ask_to_last_frame_complete_us != null,
     "analogue ask_to_last_frame_complete_us present",
@@ -426,13 +426,13 @@ function sliceRiver(
   tap.onDelivered(77); // never asked
   assert(tap.integrity.marks_after_close === before + 1, "mark with no row increments marks_after_close");
   tap.onDelivered(frameIndex); // already closed and gone: a mark with no row
-  assert(tap.integrity.marks_after_close === before + 2, "second delivered on a closed interaction row is a mark with no row");
+  assert(tap.integrity.marks_after_close === before + 2, "second delivered on a closed ask row is a mark with no row");
   const report = tap.finish();
   assertEq(report.summary.integrity.valid, true, "marks_after_close alone does not void");
   assert(report.summary.integrity.marks_after_close === 2, "marks_after_close still recorded for the reader");
 }
 
-// Fill: `stream_frames 3-5` opens three preload rows, which close at last_byte and then take
+// Fill: `stream_frames 3-5` opens three fill rows, which close at last_byte and then take
 // `delivered` as their deliver stage
 {
   const tap = new Tap(cfg());
@@ -448,23 +448,23 @@ function sliceRiver(
   tap.onDelivered(4);
   tap.onDelivered(5);
   const report = tap.finish();
-  assertEq(report.summary.report_mode, "fill", "preload → fill mode");
+  assertEq(report.summary.report_mode, "fill", "fill rows → fill mode");
   assertEq(report.client_frames.map((r) => r.frame_index), [3, 4, 5], "the rows are frames 3, 4 and 5");
   assertEq(report.summary.ask_granularity, "stream_frames", "a fill report names the op it was asked with");
   for (const r of report.client_frames) {
-    assertEq(r.kind, "preload", "row kind preload");
-    assertEq(r.closed_at, "last_byte", "preload closed_at last_byte");
-    assert(r.deliver_us != null && r.deliver_us >= 0, `preload row ${r.frame_index} carries deliver_us`);
-    assertEq(r.total_spans, "gesture_to_last_byte", "preload total still spans to last_byte");
+    assertEq(r.kind, "fill", "row kind fill");
+    assertEq(r.closed_at, "last_byte", "fill closed_at last_byte");
+    assert(r.deliver_us != null && r.deliver_us >= 0, `fill row ${r.frame_index} carries deliver_us`);
+    assertEq(r.total_spans, "gesture_to_last_byte", "fill total still spans to last_byte");
   }
   assertEq(report.summary.integrity.marks_after_close, 0, "late delivered marks are not marks after close");
   assert(report.summary.distributions.deliver != null && report.summary.distributions.deliver.count === 2, "fill has a deliver distribution over usable rows");
   assert(report.summary.fill_queue_us != null, "fill_queue_us reported once");
-  assertEq(report.summary.distributions.queue, null, "queue distribution excludes preload rows");
-  assertEq(report.summary.integrity.valid, true, "preload fill run valid");
+  assertEq(report.summary.distributions.queue, null, "queue distribution excludes fill rows");
+  assertEq(report.summary.integrity.valid, true, "fill run valid");
 }
 
-// Row kind comes from the op: a stream_frames of ONE frame is still preload
+// Row kind comes from the op: a stream_frames of ONE frame is still a fill
 {
   const tap = new Tap(cfg());
   tap.gesture();
@@ -472,7 +472,7 @@ function sliceRiver(
   const sid = tap.nextStreamId();
   tap.onMediaRead(sid, mediaFor(6));
   const report = tap.finish();
-  assertEq(report.client_frames[0].kind, "preload", "a one-frame stream_frames is preload");
+  assertEq(report.client_frames[0].kind, "fill", "a one-frame stream_frames is a fill");
   assertEq(report.summary.ask_granularity, "stream_frames", "granularity follows the op");
 }
 
@@ -489,7 +489,7 @@ function sliceRiver(
   tap.onControlWrite(concat([fodRequest(1), fodRequest(2)]));
   assertEq(tap.integrity.rows_opened, 2, "both asks in one write are rows");
   const asks = parseFodAsks(concat([fodRequest(1), fodStream(2, 3)]));
-  assertEq(asks.map((a) => a.kind), ["interaction", "preload"], "kinds per message");
+  assertEq(asks.map((a) => a.kind), ["ask", "fill"], "kinds per message");
 }
 
 // Ring capacity is enforced and evictions void the run
@@ -625,7 +625,7 @@ function sliceRiver(
   tap.onAskFlush();
   const report = tap.finish();
   assertEq(report.summary.integrity.valid, false, "open row voids the run");
-  assertEq(report.summary.integrity.open_rows, [{ kind: "interaction", frame_index: 3, ask_ordinal: 0, have: ["gesture", "ask", "ask_flush"] }], "open_rows says which row and what it has");
+  assertEq(report.summary.integrity.open_rows, [{ kind: "ask", frame_index: 3, ask_ordinal: 0, have: ["gesture", "ask", "ask_flush"] }], "open_rows says which row and what it has");
 }
 
 // The Tap runs in a worker, where no long task can be observed: the report claims no exclusion

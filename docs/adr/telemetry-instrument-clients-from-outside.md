@@ -148,7 +148,7 @@ stage that ran in no measurable time is `0`):
 | `deliver_us` | last byte → `delivered`: the receive-side copy and hand-off |
 | `total_us` | `gesture` (else `ask`) → `delivered`, or → last byte for a fill row; `total_spans` names which |
 
-`decode`, `paint`, `stall` and `preload_to_decode` are `null`; nothing here measures them. `deliver`
+`decode`, `paint` and `stall` are `null`; nothing here measures them. `deliver`
 is measurable on its own: 180 µs p50, 425 µs p95 against a 5 µs clock on the TS arm (250 KB frames,
 localhost, 2026-09-06), forty clock ticks, not one.
 
@@ -163,7 +163,7 @@ Report shape: `summary → client_frames → run_end`.
   mean and headline whatever its frame index; first stream, cold pages and JIT land on it
   (×5 on `serve_plus_path` in the run that found it).
 - **Fill:** one gesture and one ask stamp per fill, so `summary.fill_queue_us` is reported once and
-  `distributions.queue` covers interaction rows only. Preload rows close at `last_byte`; a later
+  `distributions.queue` covers ask rows only. Fill rows close at `last_byte`; a later
   `delivered` mark fills their `deliver_us`.
 - **Long tasks: not recorded.** *Corrected 2026-10-03:* this described `integrity.long_tasks`,
   per-row `main_thread_busy_us` and `busy_rows_excluded`. The Tap now runs only in the downloader's
