@@ -186,7 +186,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 112 | **DECODEPACE** — decode paced to the wire during a fill: fill time unchanged, CPU busy time and wake-ups | claimed 2026-10-09 (night, a3f169) |
 | 113 | **LEVERREVIEW** — rows 108–112 reviewed: each lever's predictions against its numbers, conclusive or not, and the phone or GPU measurement each still needs | after 108, 109, 110, 111, 112 |
 | 114 | **FMT** — rustfmt and clippy defaults adopted, checked by the gate | after the owner merges main |
-| 115 | **FFDIAL** — Firefox's dial through the relay that does not settle on 5–20 Mbit/s links: the cause, and a fix if it is ours | ready |
+| 115 | **FFDIAL** — Firefox's dial through the relay that does not settle on 5–20 Mbit/s links: the cause, and a fix if it is ours | claimed 2026-10-09 (night, ab46e8) |
 | 116 | **TAGCITE** — the 15 citations of `archive/variants-2026-10-03`, a tag that does not exist, point at the one that does | ready |
 | 117 | **DOCLABELS** — rows 84 and 85's documentation leftovers that need no decision | ready |
 | 118 | **GUARDS** — row 86's check leftovers that need no decision | ready |
