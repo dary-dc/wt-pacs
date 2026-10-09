@@ -1,14 +1,14 @@
 [package]
-name = "pack-study"
+name = "pack-series"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "pack-study"
+name = "pack-series"
 path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive"] }
-study-bundle = { path = "../../ingest/study-bundle" }
+series-bundle = { path = "../../common/series-bundle" }
 serde_json = { workspace = true }

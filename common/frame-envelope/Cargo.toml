@@ -2,6 +2,6 @@
 name = "frame-envelope"
 version = "0.1.0"
 edition = "2021"
-description = "Display-index prefix for exact-tier HTJ2K wire payloads"
+description = "The envelope: a frame's display index before its codestream on a media stream (docs/WIRE.md)"
 
 [dependencies]

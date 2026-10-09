@@ -1,5 +1,5 @@
 /**
- * What enc.mjs and h2.mjs share: a study behind exact-server, a certificate the browser trusts, nginx
+ * What enc.mjs and h2.mjs share: a series behind series-server, a certificate the browser trusts, nginx
  * on a generated config, and a browser whose process tree the CPU throttle can find.
  */
 import fs from "node:fs";
@@ -38,9 +38,9 @@ export function aged(file) {
   fs.utimesSync(file, then, then);
 }
 
-/** A 12-frame colour study behind exact-server, and the transport config pointing the page at it. */
-export function study() {
-  execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
+/** A 12-frame colour series behind series-server, and the transport config pointing the page at it. */
+export function series() {
+  execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
   const bin = path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "release");
   execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
     -keyout ${T}/key.pem -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' \
@@ -57,11 +57,11 @@ export function study() {
   for (let i = 0; i < FRAMES; i++) {
     fs.copyFileSync(path.join(src, codestreams[i % codestreams.length]), path.join(T, "frames", `${String(i).padStart(3, "0")}.htj2k`));
   }
-  fs.writeFileSync(path.join(T, "study.json"), JSON.stringify({ frameCount: FRAMES }));
-  execFileSync(path.join(bin, "pack-study"), ["--metadata", path.join(T, "study.json"), "--frames", path.join(T, "frames"),
-    "--output", path.join(T, "study.sbnd")]);
+  fs.writeFileSync(path.join(T, "series.json"), JSON.stringify({ frameCount: FRAMES }));
+  execFileSync(path.join(bin, "pack-series"), ["--metadata", path.join(T, "series.json"), "--frames", path.join(T, "frames"),
+    "--output", path.join(T, "series.sbnd")]);
   const wt = port();
-  start(path.join(bin, "exact-server"), ["--port", String(wt), "--study", path.join(T, "study.sbnd"),
+  start(path.join(bin, "series-server"), ["--port", String(wt), "--series", path.join(T, "series.sbnd"),
     "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem")]);
   fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://127.0.0.1:${wt}/`, cert_sha256: hash }) + "\n");
   aged(CFG);

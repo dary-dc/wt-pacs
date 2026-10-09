@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end: exact-server + static host + Chromium harness (WASM and/or TS)."""
+"""End-to-end: series-server + static host + Chromium harness (WASM and/or TS)."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def main() -> int:
     parser.add_argument("--port-http", type=int, default=8765)
     parser.add_argument("--port-wt", type=int, default=4433)
     parser.add_argument(
-        "--study",
+        "--series",
         default=str(ROOT / "fixtures/us_cine_smoke/us_cine_smoke.sbnd"),
     )
     parser.add_argument("--chrome", default=None)
@@ -48,7 +48,7 @@ def main() -> int:
         "--stream-mode",
         choices=("shared", "per-frame"),
         default="per-frame",
-        help="exact-server --stream-mode",
+        help="series-server --stream-mode",
     )
     parser.add_argument("--keep", action="store_true", help="leave servers running")
     parser.add_argument(
@@ -63,11 +63,11 @@ def main() -> int:
         help="with --telemetry: which FoD ask cell to autorun",
     )
     parser.add_argument("--repeats", type=int, default=1)
-    parser.add_argument("--n", type=int, default=None, help="steps to run (default: one pass over the study)")
+    parser.add_argument("--n", type=int, default=None, help="steps to run (default: one pass over the series)")
     parser.add_argument("--depth", type=int, default=1, help="on-demand asks in flight (D); 1 is the control")
     parser.add_argument("--trace", default=None, help="URL path of a lab trace, e.g. /lab/traces/x3_short_scroll.json")
     parser.add_argument("--interval-ms", type=int, default=None, help="pacing between steps becoming due")
-    parser.add_argument("--frames", type=int, default=None, help="study frame count override (remote runs)")
+    parser.add_argument("--frames", type=int, default=None, help="series frame count override (remote runs)")
     parser.add_argument("--run-timeout-s", type=int, default=300)
     parser.add_argument(
         "--allow-void",
@@ -77,7 +77,7 @@ def main() -> int:
     parser.add_argument(
         "--wt-url",
         default=None,
-        help="override WebTransport URL (e.g. shaped cloud rig). Skips local exact-server.",
+        help="override WebTransport URL (e.g. shaped cloud rig). Skips local series-server.",
     )
     parser.add_argument(
         "--cert-sha256",
@@ -94,9 +94,9 @@ def main() -> int:
     remote_wt = args.wt_url is not None
 
     chrome = find_chrome(args.chrome)
-    study = Path(args.study)
-    if not study.is_file():
-        raise SystemExit(f"missing study bundle: {study}")
+    series = Path(args.series)
+    if not series.is_file():
+        raise SystemExit(f"missing series bundle: {series}")
 
     cert = ROOT / "server/dev-cert/cert.pem"
     key = ROOT / "server/dev-cert/key.pem"
@@ -139,11 +139,11 @@ def main() -> int:
 
     try:
         if remote_wt:
-            print(f"remote WebTransport: {args.wt_url} (skip local exact-server)")
+            print(f"remote WebTransport: {args.wt_url} (skip local series-server)")
             server_proc = None
         else:
-            print("building exact-server…")
-            build_cmd = ["cargo", "build", "--release", "-p", "exact-server"]
+            print("building series-server…")
+            build_cmd = ["cargo", "build", "--release", "-p", "series-server"]
             if args.telemetry:
                 # Existing server Tap (feature-gated). No product-path rewrite — ADR.
                 build_cmd.append("--features")
@@ -154,16 +154,16 @@ def main() -> int:
                 env=env,
                 check=True,
             )
-            server_bin = Path(env["CARGO_TARGET_DIR"]) / "release" / "exact-server"
+            server_bin = Path(env["CARGO_TARGET_DIR"]) / "release" / "series-server"
             if not server_bin.is_file():
                 # Fallback when cargo ignores CARGO_TARGET_DIR overrides.
-                server_bin = ROOT / "target" / "release" / "exact-server"
+                server_bin = ROOT / "target" / "release" / "series-server"
             if not server_bin.is_file():
-                raise SystemExit(f"exact-server binary not found under {env['CARGO_TARGET_DIR']}")
+                raise SystemExit(f"series-server binary not found under {env['CARGO_TARGET_DIR']}")
 
         server_info: dict = {}
 
-        def start_exact_server(server_env: dict) -> subprocess.Popen:
+        def start_series_server(server_env: dict) -> subprocess.Popen:
             cmd = [
                 "stdbuf",
                 "-oL",
@@ -171,8 +171,8 @@ def main() -> int:
                 str(server_bin),
                 "--port",
                 str(args.port_wt),
-                "--study",
-                str(study),
+                "--series",
+                str(series),
                 "--cert-pem",
                 str(cert),
                 "--key-pem",
@@ -203,9 +203,9 @@ def main() -> int:
                     if line.startswith("telemetry="):
                         return proc
                 if proc.poll() is not None:
-                    raise SystemExit(f"exact-server exited early:\n{out_buf}")
+                    raise SystemExit(f"series-server exited early:\n{out_buf}")
                 time.sleep(0.05)
-            raise SystemExit(f"timeout waiting for exact-server ready:\n{out_buf}")
+            raise SystemExit(f"timeout waiting for series-server ready:\n{out_buf}")
 
         def stop_proc(proc: subprocess.Popen | None) -> None:
             if proc is None or proc.poll() is not None:
@@ -217,8 +217,8 @@ def main() -> int:
                 proc.kill()
 
         if not remote_wt:
-            print("starting exact-server…")
-            server_proc = start_exact_server(env)
+            print("starting series-server…")
+            server_proc = start_series_server(env)
             procs.append(server_proc)
         print("starting static host…")
         http_log = open("/tmp/wt-verify-http.log", "w")
@@ -229,7 +229,7 @@ def main() -> int:
                     str(ROOT / "server/dev-server.py"),
                     "--port",
                     str(args.port_http),
-                    "--study",
+                    "--series",
                     "us_cine_smoke",
                 ],
                 cwd=ROOT,
@@ -298,7 +298,7 @@ def main() -> int:
         if args.telemetry:
             meas_root.mkdir(parents=True, exist_ok=True)
 
-        study_slug = study.stem.replace(".sbnd", "") if study.suffix == ".sbnd" else study.stem
+        series_slug = series.stem.replace(".sbnd", "") if series.suffix == ".sbnd" else series.stem
         try:
             git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
         except Exception:  # noqa: BLE001 — a harvest outside a checkout still runs
@@ -317,7 +317,7 @@ def main() -> int:
                 run_dir = None
                 if args.telemetry:
                     # Independent pieces in one run folder (no join file):
-                    #   <stamp>-<study>-<arm>-<stream>-<cell>-rN/
+                    #   <stamp>-<series>-<arm>-<stream>-<cell>-rN/
                     #     telemetry-client.json
                     #     telemetry-server.json
                     from datetime import datetime, timezone
@@ -327,7 +327,7 @@ def main() -> int:
                     shape = "shaped50" if remote_wt else "local"
                     run_dir = (
                         meas_root
-                        / f"{stamp}-{study_slug}-{label}-{args.stream_mode}-{args.cell}-d{args.depth}-{shape}-r{rep}"
+                        / f"{stamp}-{series_slug}-{label}-{args.stream_mode}-{args.cell}-d{args.depth}-{shape}-r{rep}"
                     )
                     run_dir.mkdir(parents=True, exist_ok=True)
                     server_report = run_dir / "telemetry-server.json"
@@ -340,8 +340,8 @@ def main() -> int:
                         senv = env.copy()
                         senv["WTPACS_TELEMETRY"] = "1"
                         senv["WTPACS_TELEMETRY_PATH"] = str(server_report)
-                        print(f"starting exact-server (telemetry → {server_report})…")
-                        server_proc = start_exact_server(senv)
+                        print(f"starting series-server (telemetry → {server_report})…")
+                        server_proc = start_series_server(senv)
                         procs.insert(0, server_proc)
                     else:
                         print("remote WT: client-only harvest (cloud server Tap not in this path)")
@@ -417,8 +417,8 @@ def main() -> int:
                         "n": args.n,
                         "trace": args.trace,
                         "interval_ms": args.interval_ms,
-                        "study": str(study),
-                        "study_frames": frames,
+                        "series": str(series),
+                        "series_frames": frames,
                         "repeat": rep,
                         "remote_wt": remote_wt,
                         "wt_url": wt_url,
@@ -459,7 +459,7 @@ def main() -> int:
                                 "Half a harvest is not written as one."
                             )
                         print(f"wrote {server_out}")
-                        server_proc = start_exact_server(env)
+                        server_proc = start_series_server(env)
                         procs.insert(0, server_proc)
                     print(f"OK {label} rep={rep}")
                     continue

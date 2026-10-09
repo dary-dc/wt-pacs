@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ingest.py against the ingest it replaced (rows 52, 71): the same bytes, its wall and CPU time a study, and the
+"""ingest.py against the ingest it replaced (rows 52, 71): the same bytes, its wall and CPU time a series, and the
 check's share. OLD is a checkout of the replaced revision (README.md §One pipeline).
 
 usage: bench.py same    BUILD OLD OUT PRESET SET_DIR ...       every output file's SHA-256, old against new

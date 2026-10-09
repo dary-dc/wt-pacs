@@ -2,10 +2,10 @@
 members = [
     "common/fod",
     "common/frame-envelope",
-    "ingest/study-bundle",
+    "common/series-bundle",
     "server",
     "client/transport/wasm",
-    "tools/pack-study",
+    "tools/pack-series",
     "tools/check-fastpath",
     "lab/disk-access-bench",
     "lab/window-harness",

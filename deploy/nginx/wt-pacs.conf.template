@@ -1,6 +1,6 @@
-# Static host for the harness, the WASM bundles and the study metadata — the shape
+# Static host for the harness, the WASM bundles and the series metadata — the shape
 # server/dev-server.py served, in the server deployment will run.
-# deploy/README.md says why. STUDY is substituted at container start.
+# deploy/README.md says why. SERIES is substituted at container start.
 
 # A re-packed catalog or an edited page must not be read stale from a heuristic cache;
 # nginx's ETag and Last-Modified make each revalidation a 304.
@@ -50,8 +50,8 @@ server {
         add_header Cache-Control "public, max-age=31536000, immutable" always;
     }
 
-    location = /study/metadata {
-        alias /srv/wt-pacs/fixtures/${STUDY}/metadata.json;
+    location = /series/metadata {
+        alias /srv/wt-pacs/fixtures/${SERIES}/metadata.json;
         default_type application/json;
     }
 

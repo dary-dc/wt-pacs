@@ -167,7 +167,7 @@ pub async fn run_harness(
         HarnessMode::Trace => {
             let t = trace_ref.context("trace required")?;
             let schedule = t.frame_schedule();
-            // Wrap as `window_frames` does, or a cursor past the study waits out the timeout.
+            // Wrap as `window_frames` does, or a cursor past the series waits out the timeout.
             let wanted = *schedule.last().context("empty trace")? % cfg.frame_count.max(1);
             (schedule, wanted, t.name.clone())
         }

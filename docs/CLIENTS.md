@@ -159,7 +159,7 @@ that. Chromium can drop a message posted to a channel a worker has already const
 interleaved); on Chromium 141 in this container 103 of 5 000 (`lab/early-messages/run.mjs`). No
 product code uses a `BroadcastChannel`.
 
-**Against the real server** (`run_wire.sh`). It builds a debug `exact-server` and `pack-study`,
+**Against the real server** (`run_wire.sh`). It builds a debug `series-server` and `pack-series`,
 packs 200 random 256 KB frames, makes its own certificate under a temp dir, and serves with a 2 MB
 send window and `--websocket`, so a fill is still running when an ask lands and few enough frames
 are in flight that its end is observable. Nothing in the tree is touched.

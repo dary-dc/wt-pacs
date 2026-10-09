@@ -32,13 +32,13 @@ process.on("exit", () => {
   fs.rmSync(T, { recursive: true, force: true });
 });
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
 const src = path.join(ROOT, "lab/fixtures/decode_c512");
 fs.mkdirSync(path.join(T, "frames"));
 for (const f of fs.readdirSync(src).filter((f) => f.endsWith(".j2c"))) {
   fs.copyFileSync(path.join(src, f), path.join(T, "frames", f.replace(".j2c", ".htj2k")));
 }
-execFileSync(path.join(ROOT, "target/release/pack-study"), ["--metadata", path.join(src, "metadata.json"),
+execFileSync(path.join(ROOT, "target/release/pack-series"), ["--metadata", path.join(src, "metadata.json"),
   "--frames", path.join(T, "frames"), "--output", path.join(T, "c512.sbnd")]);
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem \
   -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' -addext 'subjectAltName=IP:127.0.0.1' 2>/dev/null`]);
@@ -46,8 +46,8 @@ const hash = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -outfor
   .toString().trim();
 const wt = port();
 const http = port();
-kids.push(spawn(path.join(ROOT, "target/release/exact-server"), ["--port", String(wt), "--bind", "127.0.0.1",
-  "--study", path.join(T, "c512.sbnd"), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" }));
+kids.push(spawn(path.join(ROOT, "target/release/series-server"), ["--port", String(wt), "--bind", "127.0.0.1",
+  "--series", path.join(T, "c512.sbnd"), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" }));
 kids.push(spawn("python3", ["server/dev-server.py", "--port", String(http)], { cwd: ROOT, stdio: "ignore" }));
 fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://127.0.0.1:${wt}/`, cert_sha256: hash }) + "\n");
 await new Promise((r) => setTimeout(r, 1500));

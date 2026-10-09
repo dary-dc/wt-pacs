@@ -46,8 +46,8 @@ case "$CELL" in
   *) echo "unknown cell $CELL" >&2; exit 2 ;;
 esac
 
-cargo build -q --release -p exact-server
-cargo build -q -p pack-study
+cargo build -q --release -p series-server
+cargo build -q -p pack-series
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
@@ -55,7 +55,7 @@ HASH=$(openssl x509 -in "$T/cert.pem" -outform DER | openssl dgst -sha256 | awk 
 mkdir -p "$T/frames"
 for i in $(seq 0 $((FILL - 1))); do head -c 438272 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo "{\"frameCount\": $FILL}" > "$T/m.json"
-target/debug/pack-study --metadata "$T/m.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+target/debug/pack-series --metadata "$T/m.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 HTTP=$((45000 + RANDOM % 5000))
 python3 server/dev-server.py --port "$HTTP" > /dev/null 2>&1 &
@@ -65,10 +65,10 @@ one() {  # round mode arm
   local srv=$((30000 + RANDOM % 5000)) in=$((35000 + RANDOM % 5000)) ctrl=$((40000 + RANDOM % 5000))
   local name cc bin extra
   IFS=: read -r name cc bin extra <<< "$3"
-  cc="${cc:-$name}" bin="${bin:-target/release/exact-server}"
+  cc="${cc:-$name}" bin="${bin:-target/release/series-server}"
   local run=(--fill "$FILL")
   [[ $2 == ask ]] && run=(--asks 1)
-  "$bin" --port "$srv" --bind 127.0.0.1 --study "$T/study.sbnd" \
+  "$bin" --port "$srv" --bind 127.0.0.1 --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "$cc" $extra > "$T/server.log" 2>&1 9>&- &
   local server=$!
   python3 lab/scripts/link_impair.py --udp "$in:$srv" --control-port "$ctrl" --seed "$1" "${LINK[@]}" \

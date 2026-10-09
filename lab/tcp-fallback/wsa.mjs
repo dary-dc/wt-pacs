@@ -4,7 +4,7 @@
  * lab/tcp-fallback/README.md §The opening ask in the upgrade's URL
  *
  *   NODE_PATH=$(npm root -g) node lab/tcp-fallback/wsa.mjs [--rounds 12] [--rtts "40 80 160"]
- *     [--rate 20000] [--frame-bytes 250000] [--frames 4] [--server target/release/exact-server]
+ *     [--rate 20000] [--frame-bytes 250000] [--frames 4] [--server target/release/series-server]
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -22,7 +22,7 @@ const RTTS = arg("--rtts", "40 80 160").split(" ").map(Number);
 const RATE = Number(arg("--rate", 20000));
 const FRAME = Number(arg("--frame-bytes", 250000));
 const FRAMES = Number(arg("--frames", 4));
-const SERVER = arg("--server", "target/release/exact-server");
+const SERVER = arg("--server", "target/release/series-server");
 const ARMS = ["ws", "ask"];
 
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "wsa-"));
@@ -55,8 +55,8 @@ async function until(file, text, ms = 10000) {
   throw new Error(`${path.basename(file)} never said ${text}`);
 }
 
-if (SERVER === "target/release/exact-server") execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server"], { cwd: ROOT });
-execFileSync("cargo", ["build", "-q", "-p", "pack-study"], { cwd: ROOT });
+if (SERVER === "target/release/series-server") execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "-p", "pack-series"], { cwd: ROOT });
 execFileSync("bash", ["client/transport/ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
 fs.mkdirSync(`${T}/frames`);
 const expected = [];
@@ -66,7 +66,7 @@ for (let i = 0; i < FRAMES; i++) {
   expected.push(crypto.createHash("sha256").update(bytes).digest("hex"));
 }
 fs.writeFileSync(`${T}/m.json`, JSON.stringify({ frameCount: FRAMES }));
-sh(`target/debug/pack-study --metadata ${T}/m.json --frames ${T}/frames --output ${T}/study.sbnd`);
+sh(`target/debug/pack-series --metadata ${T}/m.json --frames ${T}/frames --output ${T}/series.sbnd`);
 sh(`openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem -out ${T}/cert.pem \
   -days 2 -nodes -subj '/CN=localhost' -addext 'extendedKeyUsage=serverAuth' \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null`);
@@ -97,7 +97,7 @@ async function one(round, rtt, arm) {
 async function visit(round, rtt, arm) {
   const [srv, relayPort] = [port(), port()];
   const server = start(SERVER, ["--port", String(srv), "--bind", "127.0.0.1", "--websocket", "--open-ask",
-    "--study", `${T}/study.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], `${T}/server.log`);
+    "--series", `${T}/series.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], `${T}/server.log`);
   const relay = start("python3", ["lab/scripts/link_impair.py", "--tcp", `${relayPort}:${srv}`, "--seed", String(round),
     "--delay-ms", String(rtt / 2), "--rate-kbit", String(RATE), "--queue-pkts", "200", "--self-timing"], `${T}/relay.log`);
   let r;

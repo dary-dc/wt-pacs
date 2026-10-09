@@ -1,15 +1,15 @@
 [package]
-name = "exact-server"
+name = "series-server"
 version = "0.1.0"
 edition = "2021"
-description = "WebTransport exact HTJ2K server — Media-complete (FoD ask-only)"
+description = "Serves one series' frames over WebTransport, each whole and exact: docs/WIRE.md"
 
 [lib]
-name = "exact_server"
+name = "series_server"
 path = "src/lib.rs"
 
 [[bin]]
-name = "exact-server"
+name = "series-server"
 path = "src/main.rs"
 
 [features]
@@ -29,7 +29,7 @@ bytes = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 fod = { path = "../common/fod" }
 frame-envelope = { path = "../common/frame-envelope" }
-study-bundle = { path = "../ingest/study-bundle" }
+series-bundle = { path = "../common/series-bundle" }
 libc = "0.2"
 io-uring = { version = "0.7", optional = true }
 rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12"] }

@@ -35,12 +35,12 @@ const T = fs.mkdtempSync(path.join(os.tmpdir(), "tail-"));
 const kids = [];
 process.on("exit", () => { for (const k of kids) k.kill(); fs.rmSync(T, { recursive: true, force: true }); });
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem \
   -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null`]);
 const HASH = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`]).toString().trim();
 
-/** A fixture set as a study: its `NNN.j2c` frames under the names pack-study wants. */
+/** A fixture set as a series: its `NNN.j2c` frames under the names pack-series wants. */
 const servers = {};
 let port = 30000 + ((Math.random() * 10000) | 0);
 for (const set of SETS) {
@@ -50,11 +50,11 @@ for (const set of SETS) {
   fs.mkdirSync(d);
   frames.forEach((f, i) => fs.copyFileSync(path.join(src, f), path.join(d, `${String(i).padStart(3, "0")}.htj2k`)));
   fs.writeFileSync(path.join(T, `${set}.json`), JSON.stringify({ frameCount: frames.length }));
-  execFileSync(path.join(ROOT, "target/release/pack-study"), ["--metadata", path.join(T, `${set}.json`),
+  execFileSync(path.join(ROOT, "target/release/pack-series"), ["--metadata", path.join(T, `${set}.json`),
     "--frames", d, "--output", path.join(T, `${set}.sbnd`)]);
   const p = port++;
-  kids.push(spawn(path.join(ROOT, "target/release/exact-server"), ["--port", String(p), "--bind", "127.0.0.1",
-    "--study", path.join(T, `${set}.sbnd`), "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem")],
+  kids.push(spawn(path.join(ROOT, "target/release/series-server"), ["--port", String(p), "--bind", "127.0.0.1",
+    "--series", path.join(T, `${set}.sbnd`), "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem")],
     { stdio: "ignore" }));
   servers[set] = { url: `https://127.0.0.1:${p}/`, frames: frames.length };
 }

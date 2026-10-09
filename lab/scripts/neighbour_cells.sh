@@ -24,7 +24,7 @@ PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }
 trap cleanup EXIT
 
-nice -n 19 cargo build -q -j 4 -p exact-server -p pack-study -p window-harness
+nice -n 19 cargo build -q -j 4 -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -34,14 +34,14 @@ FRAMES=100
 mkdir -p "$T/frames"
 for i in $(seq 0 $((FRAMES - 1))); do head -c 65536 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo "{\"frameCount\": $FRAMES}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 BASE=$((34000 + RANDOM % 4000))
 SRV=("$BASE" $((BASE + 1)))
 IN=($((BASE + 2)) $((BASE + 3)))
 
 start_server() {  # index congestion
-  RUST_LOG=exact_server=info "$BIN/exact-server" --port "${SRV[$1]}" --study "$T/study.sbnd" \
+  RUST_LOG=series_server=info "$BIN/series-server" --port "${SRV[$1]}" --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "$2" > "$T/server$1.log" 2>&1 9>&- &
   PIDS+=("$!")
   for _ in $(seq 100); do grep -q "wt_url=" "$T/server$1.log" && return; sleep 0.1; done

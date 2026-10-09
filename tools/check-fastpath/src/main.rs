@@ -1,10 +1,10 @@
 //! Does this host's storage give the server its fast read path? Run it against the
-//! directory studies will be served from, before deploying: `docs/adr/disk-access.md`.
+//! directory series will be served from, before deploying: `docs/adr/disk-access.md`.
 //!
 //! Exit status is the answer, so it can gate a rollout: 0 fast path, 1 fallback, 2 unknown.
 
 use anyhow::{Context, Result};
-use exact_server::media::frame_store::nowait_supported_at;
+use series_server::media::frame_store::nowait_supported_at;
 use std::path::{Path, PathBuf};
 
 fn main() -> std::process::ExitCode {
@@ -13,8 +13,8 @@ fn main() -> std::process::ExitCode {
         Some(a) if a != "--help" && a != "-h" => PathBuf::from(a),
         _ => {
             eprintln!(
-                "usage: check-fastpath <study.sbnd | directory>\n\n\
-                 Reports whether preadv2(RWF_NOWAIT) works where studies are stored.\n\
+                "usage: check-fastpath <series.sbnd | directory>\n\n\
+                 Reports whether preadv2(RWF_NOWAIT) works where series are stored.\n\
                  Pass the directory the server reads from — support is a property of the\n\
                  mount, not of any one file. Exit 0 = fast path, 1 = fallback, 2 = unknown."
             );
@@ -64,7 +64,7 @@ fn report(target: &Path) -> Result<bool> {
         println!("Most likely cause: this path is on a container's own filesystem (overlayfs)");
         println!("or a tmpfs/RAM disk. Neither implements RWF_NOWAIT.");
         println!();
-        println!("Fix: serve studies from a volume backed by a real filesystem (ext4/XFS)");
+        println!("Fix: serve series from a volume backed by a real filesystem (ext4/XFS)");
         println!("     rather than the container layer. See docs/adr/disk-access.md");
     }
     Ok(supported)

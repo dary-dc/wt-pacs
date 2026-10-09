@@ -12,7 +12,7 @@ ROUNDS=${1:-5}
 HOST=${CLOUD_HOST:?set CLOUD_HOST to the rig address}
 SSH_KEY=${SSH_KEY:?the human rig key, docs/rig-limits.md}
 CELLS=${CELLS:-"off 20:20:0 20:20:1 20:20:3 60:20:1"}
-STUDY=${STUDY:-/home/ubuntu/wt-pacs/fixtures/frames_32k_160.sbnd}
+SERIES=${SERIES:-/home/ubuntu/wt-pacs/fixtures/frames_32k_160.sbnd}
 FRAMES=${FRAMES:-160}
 ASKS=${ASKS:-32}
 SETTLE=${SETTLE:-2}
@@ -22,7 +22,7 @@ PORT=${CLOUD_PORT:-4435}
 ARMS=("default:" "sw768k:--send-window-bytes 786432" "bbr:--congestion bbr")
 # Every arm: with GSO on, netem here sees whole batches and drops them together.
 SERVER_ARGS=${SERVER_ARGS:---segmentation-offload false}
-BIN=${BIN:-$ROOT/target/release/exact-server}
+BIN=${BIN:-$ROOT/target/release/series-server}
 DRIVER=${DRIVER:-$ROOT/target/release/server_ab}
 OUT=${OUT:-$ROOT/.local/measurements/l3-$(date +%Y%m%d-%H%M%S).tsv}
 
@@ -54,17 +54,17 @@ netem_counts() {
 
 # Server CPU in ns summed over its threads, and the host's steal ticks (a burstable VM).
 server_cpu() {
-  "${SSH[@]}" "pid=\$(pgrep -x exact-server-l3); \
+  "${SSH[@]}" "pid=\$(pgrep -x series-server-l3); \
     cat /proc/\$pid/task/*/schedstat | awk '{s+=\$1} END{printf \"%d \", s}'; \
     awk '/^cpu /{print \$9}' /proc/stat"
 }
 
 # The arm's server alone on the port, from a fresh process, ready before the driver dials.
 serve() {
-  "${SSH[@]}" "pkill -x exact-server-l3; while pgrep -x exact-server-l3 >/dev/null; do sleep 0.1; done; \
-    setsid nohup wt-pacs/bin/exact-server-l3 --port $PORT --study $STUDY \
+  "${SSH[@]}" "pkill -x series-server-l3; while pgrep -x series-server-l3 >/dev/null; do sleep 0.1; done; \
+    setsid nohup wt-pacs/bin/series-server-l3 --port $PORT --series $SERIES \
     --cert-pem wt-pacs/cert/cert.pem --key-pem wt-pacs/cert/key.pem $SERVER_ARGS $1 > /tmp/l3-server.log 2>&1 < /dev/null & \
-    for i in \$(seq 50); do grep -q 'exact-server ready' /tmp/l3-server.log && exit 0; sleep 0.1; done; \
+    for i in \$(seq 50); do grep -q 'series-server ready' /tmp/l3-server.log && exit 0; sleep 0.1; done; \
     cat /tmp/l3-server.log >&2; exit 1"
 }
 
@@ -76,8 +76,8 @@ session_stats() {
 }
 
 echo "==> deploy" >&2
-"${SSH[@]}" 'pkill -x exact-server-l3 || true'
-scp -i "$SSH_KEY" -o ControlPath="/tmp/l3-ssh-%C" "$BIN" "ubuntu@$HOST:wt-pacs/bin/exact-server-l3"
+"${SSH[@]}" 'pkill -x series-server-l3 || true'
+scp -i "$SSH_KEY" -o ControlPath="/tmp/l3-ssh-%C" "$BIN" "ubuntu@$HOST:wt-pacs/bin/series-server-l3"
 
 printf 'cell\tround\tarm\tmode\tcode\tp50_ns\tp90_ns\tp99_ns\twall_ns\tserver_cpu_ns\tsteal_ticks\tsent\tlost\tloss_events\tsrtt_us\tprev\n' > "$OUT"
 for cell in $CELLS; do
@@ -109,5 +109,5 @@ for cell in $CELLS; do
   echo "netem $cell sent/dropped before: ${before:-none} after: $(netem_counts || true)" | tee -a "$OUT.qdisc"
 done
 shape off
-"${SSH[@]}" 'pkill -x exact-server-l3 || true'
+"${SSH[@]}" 'pkill -x series-server-l3 || true'
 echo "wrote $OUT" >&2

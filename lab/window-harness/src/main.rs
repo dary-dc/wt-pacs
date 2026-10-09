@@ -20,7 +20,7 @@ struct Args {
     /// Outstanding-ask depth D. 0 = legacy fire-all schedule (trace mode).
     #[arg(long, default_value_t = 0)]
     depth: u32,
-    /// Frame count in the study (for window / pipeline wrap).
+    /// Frame count in the series (for window / pipeline wrap).
     #[arg(long, default_value_t = 20)]
     frame_count: u32,
     /// Stationary dwell for fill_rate / link_util (ms).

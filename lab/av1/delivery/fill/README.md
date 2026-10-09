@@ -22,9 +22,9 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/fill/run.mjs --rounds 1 --rates 5
 12-bit), MR (58 × 512², 11 bits coded at 12) and ultrasound (70 × 760×421, RGB 8). HTJ2K is the
 served profile, AV1 libaom 3.15.1 lossless intra at `cpu-used` 0, one temporal unit a frame —
 row SPEED's `make_frames.py` with the frame cap lifted, every frame decoded natively against the
-checksum written when the series was fetched. Each (series × codec) is packed as its own study.
+checksum written when the series was fetched. Each (series × codec) is packed as its own series.
 
-**A visit.** Its own `exact-server`, relay (`link_impair.py`, 40 ms round trip, a 200-packet queue,
+**A visit.** Its own `series-server`, relay (`link_impair.py`, 40 ms round trip, a 200-packet queue,
 20 or 50 Mbit/s, `--self-timing`) and headless Chromium; the page connects the downloader as the
 product does — three decoders, two frames outstanding each, no warm-up — and fills the whole
 series once connected. *Received* is the last frame's last byte in the downloader's worker,

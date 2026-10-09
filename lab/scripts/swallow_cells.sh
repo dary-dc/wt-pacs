@@ -23,7 +23,7 @@ trap cleanup EXIT
 trap "exit 143" TERM INT
 
 cargo build -q --release -p window-harness
-cargo build -q -p pack-study
+cargo build -q -p pack-series
 COLD="${CARGO_TARGET_DIR:-target}/release/cold_open"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -31,8 +31,8 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/k
 mkdir -p "$T/frames"
 head -c 1024 /dev/zero > "$T/frames/000.htj2k"
 echo '{"frameCount": 1}' > "$T/m.json"
-"${CARGO_TARGET_DIR:-target}/debug/pack-study" --metadata "$T/m.json" --frames "$T/frames" \
-  --output "$T/study.sbnd" >/dev/null
+"${CARGO_TARGET_DIR:-target}/debug/pack-series" --metadata "$T/m.json" --frames "$T/frames" \
+  --output "$T/series.sbnd" >/dev/null
 
 port=$((30000 + RANDOM % 20000))
 declare -A FRONT CTRL
@@ -40,8 +40,8 @@ for s in "${SERVER_LIST[@]}"; do
   name="${s%%=*}" bin="${s#*=}"
   srv=$((port++))
   log="${TRACE:-$T}/$name.log"
-  RUST_LOG="${TRACE:+quinn_proto=trace,wtransport=trace,}exact_server=info" "$bin" --port "$srv" --bind 127.0.0.1 \
-    --study "$T/study.sbnd" --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" > "$log" 2>&1 &
+  RUST_LOG="${TRACE:+quinn_proto=trace,wtransport=trace,}series_server=info" "$bin" --port "$srv" --bind 127.0.0.1 \
+    --series "$T/series.sbnd" --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" > "$log" 2>&1 &
   PIDS+=("$!")
   for rtt in "${RTT_LIST[@]}"; do
     FRONT[$name.$rtt]=$((port++)) CTRL[$name.$rtt]=$((port++))

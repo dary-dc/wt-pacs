@@ -39,8 +39,8 @@ struct Args {
     /// read-ahead or a cold cell is a hit cell wearing a cold label — §14.4.
     #[arg(long, default_value_t = 1)]
     step: u32,
-    /// First frame asked; a fill then streams `asks` frames from it. A study past RAM is cold only
-    /// where no earlier run has read it. Unset: frame 0, and a fill streams the whole study.
+    /// First frame asked; a fill then streams `asks` frames from it. A series past RAM is cold only
+    /// where no earlier run has read it. Unset: frame 0, and a fill streams the whole series.
     #[arg(long)]
     start: Option<u32>,
     #[arg(long, default_value = "")]

@@ -37,8 +37,8 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 143" TERM INT
 
-cargo build -q --release -p exact-server
-cargo build -q -p pack-study
+cargo build -q --release -p series-server
+cargo build -q -p pack-series
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
@@ -47,7 +47,7 @@ mkdir -p "$T/frames"
 for i in $(seq 0 $((FRAMES - 1))); do head -c "$FRAME_BYTES" /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 (cd "$T/frames" && for f in *.htj2k; do echo "$((10#${f%.htj2k})) $(sha256sum < "$f" | cut -d' ' -f1)"; done) > "$T/sha.txt"
 echo "{\"frameCount\": $FRAMES}" > "$T/m.json"
-target/debug/pack-study --metadata "$T/m.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+target/debug/pack-series --metadata "$T/m.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 mkdir -p "$MUTANT"
 cp client/transport/*.js "$MUTANT/"
@@ -70,7 +70,7 @@ one() {  # round arm prev
   [[ $2 == reactive || $2 == proactive || $2 == late ]] && stall=(--stall-after-bytes "$N")
   [[ $2 == proactive || $2 == recycle || $2 == late ]] && query+="&recycle=$N"
   [[ $2 == late ]] && query+="&client=/$MUTANT/consumer.js"
-  target/release/exact-server --port "$srv" --bind 127.0.0.1 --study "$T/study.sbnd" \
+  target/release/series-server --port "$srv" --bind 127.0.0.1 --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "${stall[@]}" > "$T/server.log" 2>&1 9>&- &
   local server=$!
   python3 lab/scripts/link_impair.py --udp "$in:$srv" --control-port "$ctrl" --seed "$1" \

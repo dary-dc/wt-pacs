@@ -27,7 +27,7 @@ fluoroscopy (`rf_fluoro`, 18 × 768² 12-bit) and ultrasound (`us_liver`, 70 × 
 ultrasound and angiography are blocked on the network policy (queue §Blocked); the tomosynthesis
 projections were not run.
 
-**Arms**, each one study, every frame one store entry, the decoder the product's own choice from
+**Arms**, each one series, every frame one store entry, the decoder the product's own choice from
 what `connect` is told:
 
 | arm | stored | `connect` | series |
@@ -107,7 +107,7 @@ FIFO) and the Wi-Fi steps 15/40/10/30/15 Mbit of 12 s (30 ms, 0.5 %, 300 ms) —
 competing flow and outage, which this harness does not run. The trace is fetched into
 `~/.cache/wtpacs-traces` and checked against the hash PROF recorded.
 
-**A visit** is its own `exact-server`, relay (`link_impair.py --self-timing`) and headless Chromium;
+**A visit** is its own `series-server`, relay (`link_impair.py --self-timing`) and headless Chromium;
 the page connects the downloader as the product does — three decoders, two frames outstanding each,
 no warm-up — and fills the whole series once connected. *First* is frame 0's pixels on the page,
 *all* the last frame's, both from the fill's issue; every frame's pixels are hashed against its
@@ -236,7 +236,7 @@ socket's. The reading is in [`client/README.md`](../../../../client/README.md)
 **Row LOSSCC, the first claim's run** (`c0a3d8`, set stale mid-run) sets the server's three controllers against each other on row LOSSLINK's cells: the same
 frames, made the same way into `lab/.av1-work/losscc`, with `arms.json` naming six arms — `htj2k` and
 `opt` under the default `cubic-restart`, and each again as `-bbr` and `-cubic` (`"congestion": "bbr"`).
-An arm's `congestion` is passed to `exact-server --congestion`, and a visit stops unless the server's
+An arm's `congestion` is passed to `series-server --congestion`, and a visit stops unless the server's
 `transport=` line names that controller (Cubic, the one it leaves unprinted, when none is printed).
 Rounds 0–9 of the LOSSLINK command above with `--frames lab/.av1-work/losscc`, then rounds 10–12 on
 `--impairs clean,j5,j20`. Passing no `--congestion` stopped the run at the first `-bbr` visit;

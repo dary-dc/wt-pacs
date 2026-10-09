@@ -1,6 +1,6 @@
 # The stream shape under loss, in a browser
 
-HOL1 (queue row 78): `exact-server --stream-mode shared | per-frame` behind
+HOL1 (queue row 78): `series-server --stream-mode shared | per-frame` behind
 `lab/scripts/link_impair.py` at 20 Mbit / 80 ms, the raw TS client in headless Chromium. Each run
 is a fresh server and relay; a fill, timed per frame, then a run of asks at a fixed depth, each
 timed from its own send. Arms rotate inside every round.

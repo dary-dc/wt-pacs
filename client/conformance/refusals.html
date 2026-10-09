@@ -48,7 +48,7 @@
       const session = await loadSession(cfg);
       log("connect", client, cfg.wt_url, "n", n);
 
-      // Indices far past any study: every one is refused.
+      // Indices far past any series: every one is refused.
       const indices = Uint32Array.from({ length: n }, (_, i) => 1_000_000 + i);
       const t0 = performance.now();
       const results = await Promise.all([...indices].map(async (frame) => {

@@ -43,7 +43,7 @@ const src = path.join(ROOT, "lab/fixtures", SET);
 const names = fs.readdirSync(src).filter((f) => f.endsWith(".j2c")).sort();
 fs.mkdirSync(path.join(T, "frames"));
 for (const f of names) fs.copyFileSync(path.join(src, f), path.join(T, "frames", f.replace(".j2c", ".htj2k")));
-execFileSync(path.join(ROOT, "target/release/pack-study"), ["--metadata", path.join(src, "metadata.json"),
+execFileSync(path.join(ROOT, "target/release/pack-series"), ["--metadata", path.join(src, "metadata.json"),
   "--frames", path.join(T, "frames"), "--output", path.join(T, "set.sbnd")]);
 const wireSha = names.map((f) => crypto.createHash("sha256").update(fs.readFileSync(path.join(src, f))).digest("hex"));
 const pixelSha = names.map((f) => fs.readFileSync(path.join(src, f.replace(".j2c", ".sha256")), "utf8").trim().split(/\s/)[0]);
@@ -59,8 +59,8 @@ const hash = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -outfor
 const wt = port();
 const front = port();
 const http = port();
-kids.push(spawn(path.join(ROOT, "target/release/exact-server"), ["--port", String(wt), "--bind", "127.0.0.1",
-  "--study", path.join(T, "set.sbnd"), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" }));
+kids.push(spawn(path.join(ROOT, "target/release/series-server"), ["--port", String(wt), "--bind", "127.0.0.1",
+  "--series", path.join(T, "set.sbnd"), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { stdio: "ignore" }));
 kids.push(spawn("python3", ["server/dev-server.py", "--port", String(http)], { cwd: ROOT, stdio: "ignore" }));
 fs.writeFileSync(CFG, JSON.stringify({ wt_url: `https://127.0.0.1:${front}/`, cert_sha256: hash }) + "\n");
 await new Promise((r) => setTimeout(r, 1500));

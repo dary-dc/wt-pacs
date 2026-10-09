@@ -4,7 +4,7 @@ nothing at all unless every frame decodes back, in-process, to the samples its c
 
 Reads a set as lab/av1/fetch_data.py writes it (NNN.raw, NNN.sha256, metadata.json); writes
 OUT/NNN.av1 or OUT/NNN.htj2k, OUT/NNN.sha256 and OUT/metadata.json ("codec": "av1" for AV1), which
-pack-study bundles.
+pack-series bundles.
 
 usage: ingest.py BUILD SET_DIR OUT [--codec av1|htj2k] [--representation plain|optimized] [--split K]
                  [--grey8 400|420] [--preset cpu0|good:N|allintra:N] [--frames N] [--jobs N]   — ingest/coded-frames/README.md

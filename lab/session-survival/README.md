@@ -6,7 +6,7 @@ the resumption `docs/ARCHITECTURE.md` describes. The numbers live there,
 
 ```bash
 ./server/scripts/gen_dev_cert.sh                      # then point wt_url at the relay, below
-cargo run --release -p exact-server -- --port 4482 --study <study>.sbnd \
+cargo run --release -p series-server -- --port 4482 --series <series>.sbnd \
   --max-idle-timeout-ms 60000 --keep-alive-interval-ms 20000
 python3 lab/scripts/link_impair.py --udp 5582:4482 --rate-kbit 20000 --queue-pkts 200 \
   --control-port 5583
@@ -15,7 +15,7 @@ NODE_PATH=$(npm root -g) node lab/session-survival/run.mjs --rounds 7 --out cut.
 ```
 
 `client/dev-transport.json` must name the relay, not the server: `"wt_url":
-"https://127.0.0.1:5582/"`. The study is any packed study whose fill outlasts the cut — 87 frames
+"https://127.0.0.1:5582/"`. The series is any packed series whose fill outlasts the cut — 87 frames
 of 428 KB at 20 Mbit is about 15 s, which leaves room to cut a fifth of the way in.
 
 **The cut.** `link_impair.py`'s `cut` blackholes the client port this session is on for good and

@@ -20,7 +20,7 @@ cargo build -q --release -p window-harness --bin cold_open
 declare -A PORT
 for arm in on off; do
   srv=$((30000 + RANDOM % 5000)); in=$((35000 + RANDOM % 5000)); deaf=$((45000 + RANDOM % 5000))
-  "${BIN[$arm]}" --port "$srv" --bind 127.0.0.1 --study lab/fixtures/frames_250k/frames_250k.sbnd \
+  "${BIN[$arm]}" --port "$srv" --bind 127.0.0.1 --series lab/fixtures/frames_250k/frames_250k.sbnd \
     --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem > "$T/server-$arm.log" 2>&1 &
   PIDS+=("$!")
   python3 lab/scripts/link_impair.py --udp "$in:$srv" --control-port $((40000 + RANDOM % 5000)) \

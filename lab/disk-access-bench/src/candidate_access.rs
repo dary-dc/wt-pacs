@@ -1,7 +1,7 @@
 //! Helpers for arms and cell controls the product does not need. The `RWF_NOWAIT` reader is
 //! deliberately not among them: the nowait arms call `FrameStore`'s own.
 
-use crate::study_map::host_page_size;
+use crate::series_map::host_page_size;
 use anyhow::{Context, Result};
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
@@ -16,7 +16,7 @@ pub fn populate_read(bytes: &[u8]) -> Result<()> {
     let addr = bytes.as_ptr() as usize;
     let start = addr & !(page - 1);
     let len = (addr + bytes.len() - start).div_ceil(page) * page;
-    // SAFETY: `bytes` is a live subrange of the study mmap; widening to page bounds stays
+    // SAFETY: `bytes` is a live subrange of the series mmap; widening to page bounds stays
     // inside the mapping because the mapping itself starts and ends on page boundaries.
     let rc = unsafe { libc::madvise(start as *mut libc::c_void, len, libc::MADV_POPULATE_READ) };
     if rc != 0 {
@@ -37,7 +37,7 @@ pub fn unmap_pages(bytes: &[u8]) -> Result<()> {
     if end <= start {
         return Ok(());
     }
-    // SAFETY: whole pages inside a live subrange of the caller's study mmap. The mapping is
+    // SAFETY: whole pages inside a live subrange of the caller's series mmap. The mapping is
     // private and read-only, so re-access simply refaults from the file.
     let rc = unsafe { libc::madvise(start as *mut libc::c_void, end - start, libc::MADV_DONTNEED) };
     if rc != 0 {

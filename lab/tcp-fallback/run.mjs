@@ -27,7 +27,7 @@ process.on("exit", () => {
   fs.rmSync(T, { recursive: true, force: true });
 });
 
-execFileSync("cargo", ["build", "-q", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
 execFileSync("bash", ["client/transport/ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
 
 // Sizes from 1 KB to ~600 KB, none a multiple of the server's 64 KiB message, so frames and
@@ -40,7 +40,7 @@ for (let i = 0; i < FRAMES; i++) {
   expected.push(crypto.createHash("sha256").update(bytes).digest("hex"));
 }
 fs.writeFileSync(`${T}/metadata.json`, JSON.stringify({ frameCount: FRAMES }));
-sh(`target/debug/pack-study --metadata ${T}/metadata.json --frames ${T}/frames --output ${T}/study.sbnd`);
+sh(`target/debug/pack-series --metadata ${T}/metadata.json --frames ${T}/frames --output ${T}/series.sbnd`);
 sh(`openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem -out ${T}/cert.pem \
   -days 2 -nodes -subj '/CN=localhost' -addext 'extendedKeyUsage=serverAuth' \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null`);
@@ -50,8 +50,8 @@ const spki = sh(`openssl x509 -in ${T}/cert.pem -pubkey -noout | openssl pkey -p
 
 const wt = port();
 const http = port();
-kids.push(spawn("target/debug/exact-server", ["--port", String(wt), "--bind", "127.0.0.1", "--websocket",
-  "--study", `${T}/study.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { cwd: ROOT, stdio: "ignore" }));
+kids.push(spawn("target/debug/series-server", ["--port", String(wt), "--bind", "127.0.0.1", "--websocket",
+  "--series", `${T}/series.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], { cwd: ROOT, stdio: "ignore" }));
 kids.push(spawn("python3", ["server/dev-server.py", "--port", String(http)], { cwd: ROOT, stdio: "ignore" }));
 await new Promise((r) => setTimeout(r, 1500));
 

@@ -36,7 +36,7 @@ check moved in-process (`decode.cpp`). `bench.py` sets it against a checkout of 
   range disjoint (n = 3, arms interleaved, `bench.py check`, a stream's first unit): fluoroscopy 40.1 → 29.9 ms
   (AV1) and 9.8 → 4.2 (HTJ2K), ultrasound 38.4 → 24.2 and 9.4 → 3.5, the 10-bit volume 46.8 → 33.4 and
   13.2 → 4.9, the GE projections 326.5 → 273.0 and 55.5 → 25.4.
-* **A study, wall and CPU** (`bench.py time`, `good:6`, n = 3 interleaved, two arms n = 2 after a container
+* **A series, wall and CPU** (`bench.py time`, `good:6`, n = 3 interleaved, two arms n = 2 after a container
   restart; four cores, nothing else running). HTJ2K at one worker: CPU 1.0 → 0.7 s on the fluoroscopy and
   1.4 → 1.1 s on the 10-bit volume (−21 to −27 %, every round), wall 0.7 → 0.6 and 1.2 → 1.0 s; the old ingest
   had no workers, the new one fills four, 0.3 and 0.4 s. AV1: a tie, since the encode is ~99 % of it

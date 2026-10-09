@@ -11,7 +11,7 @@ server/scripts/gen_dev_cert.sh            # server/dev-cert/*.pem and client/dev
 chmod 0644 server/dev-cert/key.pem        # the server runs as uid 10001 and reads it through a mount
 podman build -f deploy/Containerfile --target web    -t wt-pacs-web .
 podman build -f deploy/Containerfile --target server -t wt-pacs-server .
-STUDY=us_cine_smoke podman compose -f deploy/compose.yml up -d
+SERIES=us_cine_smoke podman compose -f deploy/compose.yml up -d
 deploy/check_equivalence.sh us_cine_smoke                        # the web image beside dev-server.py
 deploy/check_equivalence.sh --local us_cine_smoke                # the template on a host nginx, no image
 deploy/check_equivalence.sh --cert path/to/cert.pem              # the PEM's chain alone
@@ -26,7 +26,7 @@ world-readable is for the 10-day localhost certificate only; a real key is mount
 | target | contains | serves |
 | --- | --- | --- |
 | `web` | nginx, the client assets, `fixtures/`, the config | the page on 8765, with the headers below |
-| `server` | the `exact-server` binary, run as a non-root user; fixtures and certificate mounted | the transport on UDP 4433, the WebSocket fallback on TCP 4433 |
+| `server` | the `series-server` binary, run as a non-root user; fixtures and certificate mounted | the transport on UDP 4433, the WebSocket fallback on TCP 4433 |
 
 **nginx is not in the transport's path and cannot be.** The server speaks WebTransport over QUIC on
 UDP 4433 and nginx has no QUIC upstream, so the browser dials it directly — the same shape
@@ -44,7 +44,7 @@ Cross-Origin-Resource-Policy: same-origin
 
 Cross-origin isolation is what gives the page `SharedArrayBuffer`, and losing it degrades the client
 silently rather than failing — the downloader refuses to start without it. The rewrites `dev-server.py`
-performs (`/wt/dev-transport.json`, `/study/metadata`, `/harness/`) are `location` blocks, moved across
+performs (`/wt/dev-transport.json`, `/series/metadata`, `/harness/`) are `location` blocks, moved across
 unchanged because the harness pages depend on them. gzip and an immutable cache rule for
 content-hashed names are two deliberate divergences from `dev-server.py`, asserted rather than compared
 ([`../lab/page-open/README.md`](../lab/page-open/README.md) §Compression and cache headers).

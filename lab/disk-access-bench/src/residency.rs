@@ -2,9 +2,9 @@
 //! *verified*, so one that missed its mix aborts rather than reporting under the wrong
 //! label. The order of [`apply`] is load-bearing.
 
-use crate::study_map::{host_page_size, StudyMap};
+use crate::series_map::{host_page_size, SeriesMap};
 use anyhow::{Context, Result};
-use exact_server::media::frame_store::FrameSpan;
+use series_server::media::frame_store::FrameSpan;
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
@@ -71,7 +71,7 @@ fn fadvise_range(fd: i32, offset: u64, len: u64) -> Result<()> {
 }
 
 /// Reports the page cache, not our page tables, so unmapping does not blind it.
-fn frame_residency(store: &StudyMap, idx: u32) -> Result<f64> {
+fn frame_residency(store: &SeriesMap, idx: u32) -> Result<f64> {
     let slice = store.frame_slice(idx)?;
     if slice.is_empty() {
         return Ok(0.0);
@@ -82,7 +82,7 @@ fn frame_residency(store: &StudyMap, idx: u32) -> Result<f64> {
     let len = (addr + slice.len() - start).div_ceil(page) * page;
     let n = len / page;
     let mut vec = vec![0u8; n];
-    // SAFETY: page-aligned subrange of the live study mmap held by the caller's store.
+    // SAFETY: page-aligned subrange of the live series mmap held by the caller's store.
     let rc = unsafe { libc::mincore(start as *mut libc::c_void, len, vec.as_mut_ptr()) };
     if rc != 0 {
         return Err(std::io::Error::last_os_error()).context("mincore frame residency");
@@ -92,7 +92,7 @@ fn frame_residency(store: &StudyMap, idx: u32) -> Result<f64> {
 
 /// Puts the page cache into the state `plan` describes, then proves it. `unmap` is the
 /// mapping's whole data region.
-pub fn apply(store: &StudyMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Result<MixReport> {
+pub fn apply(store: &SeriesMap, path: &Path, unmap: &[u8], plan: &MixPlan) -> Result<MixReport> {
     let page = host_page_size() as u64;
     crate::candidate_access::unmap_pages(unmap)?;
 

@@ -31,7 +31,7 @@ await settle(1500);
 const askAt = performance.timeOrigin + performance.now();
 client.fill([...Array(FILL).keys()]);
 await Promise.race([all, new Promise((r) => setTimeout(r, 60000))]);
-// One frame asked on an idle, warm session, spread over the study: one frame's latency.
+// One frame asked on an idle, warm session, spread over the series: one frame's latency.
 const asks = [];
 for (const i of (q.get("asks") || "").split(",").filter(Boolean).map(Number)) {
   await settle(300);

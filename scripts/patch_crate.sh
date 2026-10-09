@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 usage="usage: $0 CRATE DIR [--copy-src SRC] | CRATE --check"
 CRATE="${1:?$usage}"
 case "$CRATE" in
-  wtransport) VERSION=0.7.2 WHAT=settings-early
+  wtransport) VERSION=0.7.2 WHAT=settings-in-handshake
     CHECKSUM=b4273ce3157a3262a68665f8d3f20a0ac0c5b8a69ffd67f05ae986832ebec036 ;;
   quinn-proto) VERSION=0.11.18 WHAT=probe-every-space
     CHECKSUM=a9746dbde176634f4f2f1faf2404e30a31b2bc1e9cafb5329c95d8177a18c9fc ;;

@@ -196,7 +196,7 @@ before any run (T1):
   cell whose fixed arm at the formula's depth does not beat `d=1` (the formula is wrong there, and
   the grid is extended until the curve turns over); a dead cell (§Live cells).
 
-The campaign: a browser on the workstation against `exact-server` on the rig
+The campaign: a browser on the workstation against `series-server` on the rig
 ([`rig-limits.md`](../rig-limits.md) §9), `lab/scripts/cloud_netem.sh` at 20, 60 and 150 ms (and
 0.5 % loss) on the server's egress, 10 Mbit; `frames_32k` and `frames_250k`; arms interleaved, six
 repeats: `d=1` (control), `w:<formula D>` (fixed), `w:auto:2` and `w:auto:16` (which must descend).
@@ -242,7 +242,7 @@ Guards every run carries:
 | **`peak_outstanding`** | the highest concurrent ask count observed. **Below `D`, the run is void** |
 | **Frame size** | observed bytes per frame against the fixture's declared size (a tolerance for variable-size fixtures) |
 | **Server output kept** | a silently failing server is indistinguishable from a slow one |
-| **A fresh port per cell** | never rebind one across studies |
+| **A fresh port per cell** | never rebind one across series |
 | **netem, not `--rtt-ms`, on the shared stream** | defect 4 above; `--read-bps 0` whenever `tc` shapes, or the pacer fights netem |
 
 ### E1 — does `D_min` saturate the link?

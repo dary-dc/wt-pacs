@@ -224,12 +224,12 @@ fire late, which headless Chromium does not do; `close()` removing the page list
 (the stand-in decoder returns no buffer, and the ring allocates when empty); and recycling's guard
 against a resumption that finished first is a race the fake cannot order.
 
-Its self-check (`client/harness/index.html`) checks each decoded frame of the `decode_c512` study
-against the fixture's `.sha256`; `client/harness/cell.html` runs a lab cell over any study:
+Its self-check (`client/harness/index.html`) checks each decoded frame of the `decode_c512` series
+against the fixture's `.sha256`; `client/harness/cell.html` runs a lab cell over any series:
 
 ```bash
 ./server/scripts/gen_dev_cert.sh
-cargo run --release -p exact-server -- --port 4433 --study <study>.sbnd
+cargo run --release -p series-server -- --port 4433 --series <series>.sbnd
 python3 server/dev-server.py --port 8765
 # then open http://127.0.0.1:8765/harness/ in a cross-origin-isolated context
 ```

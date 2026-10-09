@@ -17,7 +17,7 @@ struct Args {
     url: String,
     #[arg(long, default_value_t = 200)]
     frames: u32,
-    /// Where in the fill the ask lands, as a percentage of the study.
+    /// Where in the fill the ask lands, as a percentage of the series.
     #[arg(long, default_value_t = 50)]
     at_pct: u32,
     #[arg(long, default_value_t = 5)]

@@ -6,7 +6,7 @@ use bytes::{Bytes, BytesMut};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
-/// Bounded too: remembering every index asked once is a slow leak on a large study.
+/// Bounded too: remembering every index asked once is a slow leak on a large series.
 const MAX_SEEN: usize = 1 << 16;
 
 /// Recycled so a churning cache does not pay a minor fault per page on every admission.
@@ -61,7 +61,7 @@ impl FrameCache {
     }
 
     /// `true` when this caller owns the fill. A first ask only records the index, so one
-    /// linear pass over a huge study cannot evict a working set that is being re-asked.
+    /// linear pass over a huge series cannot evict a working set that is being re-asked.
     pub fn claim_fill(&self, index: u32, len: usize) -> bool {
         if !self.enabled() || len > self.budget {
             return false;

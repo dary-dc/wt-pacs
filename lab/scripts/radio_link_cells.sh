@@ -70,7 +70,7 @@ case "$CELL" in
   *) echo "usage: $0 jitter|outage|two-blinks [rounds]"; exit 2 ;;
 esac
 
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -81,7 +81,7 @@ for i in $(seq 0 "$FILL"); do
   head -c $((KB * 1024)) /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"
 done
 echo "{\"frameCount\": $((FILL + 1))}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 SRV=$((36000 + RANDOM % 2000))
 IN=$((34000 + RANDOM % 2000))
@@ -108,7 +108,7 @@ run() {  # round label relay-args server-args probe-args
   read -ra server_args <<<"$4"
   read -ra probe_args <<<"$5"
   : > "$T/server.log"
-  RUST_LOG=exact_server=info "$BIN/exact-server" --port "$SRV" --study "$T/study.sbnd" \
+  RUST_LOG=series_server=info "$BIN/series-server" --port "$SRV" --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "${server_args[@]}" > "$T/server.log" 2>&1 &
   local srv=$!
   PIDS+=("$srv")

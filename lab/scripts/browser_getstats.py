@@ -15,9 +15,9 @@ CHROME = os.environ.get("CHROME_PATH", "/opt/pw-browsers/chromium-1194/chrome-li
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
 cert = ROOT / "server/dev-cert/cert.pem"
 pin = hashlib.sha256(subprocess.check_output(["openssl", "x509", "-in", str(cert), "-outform", "DER"])).hexdigest()
-srv = subprocess.Popen([bin_, "--port", str(port), "--study", fixture, "--bind", "127.0.0.1",
+srv = subprocess.Popen([bin_, "--port", str(port), "--series", fixture, "--bind", "127.0.0.1",
                         "--cert-pem", str(cert), "--key-pem", str(ROOT / "server/dev-cert/key.pem")], cwd=ROOT,
-                       env=dict(os.environ, NO_COLOR="1", RUST_LOG="exact_server=error"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                       env=dict(os.environ, NO_COLOR="1", RUST_LOG="series_server=error"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 for line in srv.stdout:
     if line.startswith("telemetry="): break
 PROBE = """async ([url, pin]) => {

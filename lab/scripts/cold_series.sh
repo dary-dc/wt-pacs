@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# L20: what a study nobody has read costs — one ask on an idle session, and a whole fill, each
+# L20: what a series nobody has read costs — one ask on an idle session, and a whole fill, each
 # on its own, cold against warm, interleaved in a real browser. docs/adr/disk-access.md.
 #
-#   ROUNDS=6 FRAMES=120 lab/scripts/cold_study.sh
+#   ROUNDS=6 FRAMES=120 lab/scripts/cold_series.sh
 #
 # Cold is forced through the store's own lever (`--force-pool-reads`), not by evicting the page
 # cache, which CLAUDE.md#measurement rules out. Each run prints the server's own miss count, so
@@ -14,17 +14,17 @@ cd "$ROOT"
 if ! node -e 'require("playwright")' 2>/dev/null; then
   export NODE_PATH="${NODE_PATH:-$(npm root -g 2>/dev/null || true)}"
   if ! node -e 'require("playwright")' 2>/dev/null; then
-    echo "SKIPPED: cold study — playwright is not installed (npm install -g playwright)"
+    echo "SKIPPED: cold series — playwright is not installed (npm install -g playwright)"
     exit 0
   fi
 fi
 CHROME="$(node -e 'console.log(process.env.CHROME_PATH || require("playwright").chromium.executablePath())' 2>/dev/null || true)"
-[[ -x "$CHROME" ]] || { echo "SKIPPED: cold study — no headless Chromium (set CHROME_PATH)"; exit 0; }
+[[ -x "$CHROME" ]] || { echo "SKIPPED: cold series — no headless Chromium (set CHROME_PATH)"; exit 0; }
 export CHROME_PATH="$CHROME"
 
 ROUNDS="${ROUNDS:-6}"
 FRAMES="${FRAMES:-120}"
-cargo build -q -p exact-server -p pack-study
+cargo build -q -p series-server -p pack-series
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 T="$(mktemp -d)"
 SERVER=""
@@ -47,7 +47,7 @@ HASH="$(openssl x509 -in "$T/cert.pem" -outform DER | openssl dgst -sha256 | awk
 mkdir -p "$T/frames"
 for i in $(seq 0 $((FRAMES - 1))); do head -c 262144 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo "{\"frameCount\": $FRAMES}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 WT_PORT=$((30000 + RANDOM % 20000))
 PORT=$((20000 + RANDOM % 10000))
@@ -61,12 +61,12 @@ for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/harness/cell.html" >/dev
 run_one() {
   local arm=$1 scenario=$2 log="$T/srv.log" flag=()
   if [[ "$arm" == cold ]]; then flag=(--force-pool-reads); fi
-  RUST_LOG=exact_server=info "$BIN/exact-server" --port "$WT_PORT" --study "$T/study.sbnd" \
+  RUST_LOG=series_server=info "$BIN/series-server" --port "$WT_PORT" --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "${flag[@]}" >"$log" 2>&1 &
   SERVER=$!
   for _ in $(seq 100); do grep -q "wt_url=" "$log" 2>/dev/null && break; sleep 0.1; done
-  # frames= overrides /study/metadata, which the static host answers from fixtures/ and not
-  # from the study this server was given.
+  # frames= overrides /series/metadata, which the static host answers from fixtures/ and not
+  # from the series this server was given.
   local url="http://127.0.0.1:$PORT/harness/cell.html?autorun=1&frames=$FRAMES"
   case "$scenario" in
     ask)  url="$url&cell=ondemand&n=1&d=1" ;;

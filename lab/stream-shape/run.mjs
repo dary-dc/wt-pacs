@@ -86,15 +86,15 @@ async function until(file, text, ms = 10000) {
   throw new Error(`${path.basename(file)} never said ${text}`);
 }
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server"], { cwd: ROOT });
-execFileSync("cargo", ["build", "-q", "-p", "pack-study"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "-p", "pack-series"], { cwd: ROOT });
 execFileSync("bash", ["client/transport/ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
 execFileSync("cc", ["-shared", "-fPIC", "-o", `${T}/tcp_cc.so`, "lab/stream-shape/tcp_cc.c", "-ldl"], { cwd: ROOT });
 const frames = FILL + ASKS;
 fs.mkdirSync(`${T}/frames`);
 for (let i = 0; i < frames; i++) fs.writeFileSync(`${T}/frames/${String(i).padStart(3, "0")}.htj2k`, crypto.randomBytes(FRAME));
 fs.writeFileSync(`${T}/m.json`, JSON.stringify({ frameCount: frames }));
-sh(`target/debug/pack-study --metadata ${T}/m.json --frames ${T}/frames --output ${T}/study.sbnd`);
+sh(`target/debug/pack-series --metadata ${T}/m.json --frames ${T}/frames --output ${T}/series.sbnd`);
 sh(`openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem -out ${T}/cert.pem \
   -days 2 -nodes -subj '/CN=localhost' -addext 'extendedKeyUsage=serverAuth' \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1,IP:${TUN_SERVER}' 2>/dev/null`);
@@ -131,9 +131,9 @@ async function one(round, arm, depth, fill) {
     await until(`${T}/relay.log`, "READY");
     netns = ["nsenter", `--net=${fs.readFileSync(`${T}/relay.log`, "utf8").match(/server_netns=(\S+)/)[1]}`];
   }
-  const [cmd, ...pre] = [...netns, process.env.EXACT_SERVER || "target/release/exact-server"];
+  const [cmd, ...pre] = [...netns, process.env.EXACT_SERVER || "target/release/series-server"];
   const server = start(cmd, [...pre, "--port", String(srv), "--bind", TUN ? TUN_SERVER : "127.0.0.1",
-    "--study", `${T}/study.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
+    "--series", `${T}/series.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
     ...serverArgs(arm)], `${T}/server.log`,
     arm.startsWith("ws:") ? { LD_PRELOAD: `${T}/tcp_cc.so`, WTPACS_TCP_CC: arm.slice(3) } : {});
   let row;

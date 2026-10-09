@@ -44,15 +44,15 @@ const BROWSER_CORES = arg("--browser-cores", "0-2");
 const manifest = JSON.parse(readFileSync(path.join(ROOT, FRAMES, "manifest.json"), "utf8"));
 const SETS = arg("--sets", manifest.map((s) => s.name).join(",")).split(",");
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server"], { cwd: ROOT, stdio: "inherit" });
-execFileSync("cargo", ["build", "-q", "--release", "-p", "pack-study"], { cwd: ROOT, stdio: "inherit" });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server"], { cwd: ROOT, stdio: "inherit" });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "pack-series"], { cwd: ROOT, stdio: "inherit" });
 execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
   "-keyout", `${T}/key.pem`, "-out", `${T}/cert.pem`, "-days", "2", "-nodes", "-subj", "/CN=localhost",
   "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
 const der = execFileSync("openssl", ["x509", "-in", `${T}/cert.pem`, "-outform", "DER"]);
 const HASH = execFileSync("openssl", ["dgst", "-sha256", "-r"], { input: der }).toString().split(" ")[0];
 
-/** One study per (set × codec): the store holds a frame's bytes whatever codec made them. */
+/** One series per (set × codec): the store holds a frame's bytes whatever codec made them. */
 function pack(set, ext) {
   const dir = `${T}/${set.name}-${ext}`;
   mkdirSync(dir);
@@ -61,7 +61,7 @@ function pack(set, ext) {
     symlinkSync(path.join(ROOT, FRAMES, set.name, `${n}.${ext}`), `${dir}/${n}.htj2k`);
   });
   writeFileSync(`${dir}.json`, JSON.stringify({ frameCount: set.frames.length, codec: ext }));
-  execFileSync(path.join(ROOT, "target/release/pack-study"),
+  execFileSync(path.join(ROOT, "target/release/pack-series"),
     ["--metadata", `${dir}.json`, "--frames", dir, "--output", `${dir}.sbnd`], { stdio: "ignore" });
   return `${dir}.sbnd`;
 }
@@ -74,7 +74,7 @@ const sets = manifest.filter((s) => SETS.includes(s.name)).map((s) => ({
   arms: ARMS?.filter((a) => a !== "webcodecs" || s.webcodecs) ?? (s.webcodecs ? ["htj2k", "av1", "webcodecs"] : ["htj2k", "av1"]),
   truth: s.frames.map((f) => (MUTATE === "truth" ? f.truth.replace(/^./, (c) => (c === "0" ? "1" : "0")) : f.truth)),
 }));
-for (const s of sets) s.studies = Object.fromEntries([...new Set(s.arms.map(ext))].map((e) => [e, pack(s, e)]));
+for (const s of sets) s.series = Object.fromEntries([...new Set(s.arms.map(ext))].map((e) => [e, pack(s, e)]));
 
 const HTTP = port();
 const http = spawn("python3", ["server/dev-server.py", "--port", String(HTTP)], { cwd: ROOT, stdio: "ignore" });
@@ -90,8 +90,8 @@ const started = (child, re) => new Promise((resolve, reject) => {
 async function visit(set, arm, rate, throttle, round) {
   const srv = port();
   const relayPort = port();
-  const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/exact-server"), "--port", String(srv), "--bind", "127.0.0.1",
-    "--study", set.studies[ext(arm)], "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`],
+  const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/series-server"), "--port", String(srv), "--bind", "127.0.0.1",
+    "--series", set.series[ext(arm)], "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`],
   { stdio: "ignore" });
   const relay = spawn("chrt", ["-f", "50", "taskset", "-c", RIG_CORE, "python3", "lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`, "--seed", String(round),
     "--delay-ms", String(RTT / 2), "--rate-kbit", String(rate), "--queue-pkts", "200", "--self-timing"], { cwd: ROOT });

@@ -58,7 +58,7 @@ use, and where the learning is. Active threads are queue rows 24–29 ([`queue.m
 | layer | what it carries | codec-specific today |
 | --- | --- | --- |
 | wire (`common/frame-envelope`, [`WIRE.md`](../WIRE.md)) | `[4B display_index][opaque bytes]` | nothing |
-| store ([`FIXTURES.md`](../FIXTURES.md) §SBND) | a frame table, a metadata JSON, opaque frames | nothing; `pack-study` names its inputs `NNN.htj2k` |
+| store ([`FIXTURES.md`](../FIXTURES.md) §SBND) | a frame table, a metadata JSON, opaque frames | nothing; `pack-series` names its inputs `NNN.htj2k` |
 | server | bytes by index | nothing |
 | decoder (`client/decode/decoder.js`) | codestream in, `{pixels, width, bits, signed, range}` out | **all of it** (OpenJPH) |
 

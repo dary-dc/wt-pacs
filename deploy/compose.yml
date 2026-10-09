@@ -4,13 +4,13 @@ services:
   web:
     image: wt-pacs-web
     build: { context: .., dockerfile: deploy/Containerfile, target: web }
-    environment: { STUDY: "${STUDY:-us_cine_smoke}" }
+    environment: { SERIES: "${SERIES:-us_cine_smoke}" }
     volumes: ["../client/dev-transport.json:/srv/wt-pacs/client/dev-transport.json:ro,z"]
     ports: ["8765:8765"]
   server:
     image: wt-pacs-server
     build: { context: .., dockerfile: deploy/Containerfile, target: server }
-    command: ["--study", "/fixtures/${STUDY:-us_cine_smoke}/${STUDY:-us_cine_smoke}.sbnd",
+    command: ["--series", "/fixtures/${SERIES:-us_cine_smoke}/${SERIES:-us_cine_smoke}.sbnd",
               "--cert-pem", "/certs/cert.pem", "--key-pem", "/certs/key.pem", "--websocket"]
     volumes: ["../fixtures:/fixtures:ro,z", "../server/dev-cert:/certs:ro,z"]
     ports: ["4433:4433/udp", "4433:4433/tcp"]

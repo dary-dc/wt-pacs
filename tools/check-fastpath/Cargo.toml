@@ -8,6 +8,6 @@ name = "check-fastpath"
 path = "src/main.rs"
 
 [dependencies]
-exact-server = { path = "../../server" }
+series-server = { path = "../../server" }
 anyhow.workspace = true
 libc = "0.2"

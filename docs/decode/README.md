@@ -579,7 +579,7 @@ interleaved with arm and count order rotated, a fresh context per run, every fra
 **Calibrated first:** with `ballast=32` every worker touches 32 MB and the slope reads **38.3 MB
 [38.3–38.3]**. The calibration caught the harness terminating its workers before the settled
 reading, which had made every arm read 2 MB. **The whole client, ablated the same way**
-(`path=downloader`, a real session against `exact-server`, the page keeping every frame, n = 4):
+(`path=downloader`, a real session against `series-server`, the page keeping every frame, n = 4):
 **6.1 MB [6.0–6.1] per decoder worker**.
 
 **So a decoder worker of ours does not cost tens of MB**, and neither mechanism that could have made

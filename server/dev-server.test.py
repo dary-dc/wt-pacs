@@ -59,13 +59,13 @@ class DevServer(unittest.TestCase):
 
     def test_what_the_pages_fetch_is_served(self):
         """The page trees and the aliased metadata still answer."""
-        for path in ["/client/page.html", "/client/module.js", "/lab/bench.html", "/study/metadata"]:
+        for path in ["/client/page.html", "/client/module.js", "/lab/bench.html", "/series/metadata"]:
             with self.subTest(path=path):
                 self.assertEqual(self.get(path)[0], 200)
 
     def test_a_catalog_and_a_page_are_revalidated(self):
         """Metadata and pages carry `no-cache` beside their validator; a module keeps heuristic caching."""
-        for path, want in [("/study/metadata", "no-cache"), ("/client/page.html", "no-cache"), ("/client/module.js", None)]:
+        for path, want in [("/series/metadata", "no-cache"), ("/client/page.html", "no-cache"), ("/client/module.js", None)]:
             with self.subTest(path=path):
                 _, headers, _ = self.get(path)
                 self.assertEqual(headers.get("Cache-Control"), want)

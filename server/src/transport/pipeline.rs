@@ -191,7 +191,7 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    fn one_frame_study(path: &std::path::Path) {
+    fn one_frame_series(path: &std::path::Path) {
         let meta = br#"{"frameCount":1}"#;
         let mut f = std::fs::File::create(path).expect("create bundle");
         f.write_all(b"SBND").unwrap();
@@ -206,16 +206,16 @@ mod tests {
         f.sync_all().unwrap();
     }
 
-    /// A study of `frames` frames, each a different length, so a span cannot match by luck.
-    fn study(path: &std::path::Path, frames: u32) {
+    /// A series of `frames` frames, each a different length, so a span cannot match by luck.
+    fn series(path: &std::path::Path, frames: u32) {
         let bodies: Vec<Vec<u8>> = (0..frames).map(|i| vec![i as u8; 4 + i as usize]).collect();
         let refs: Vec<&[u8]> = bodies.iter().map(|b| b.as_slice()).collect();
-        study_bundle::write_bundle(
+        series_bundle::write_bundle(
             path,
             format!("{{\"frameCount\":{frames}}}").as_bytes(),
             &refs,
         )
-        .expect("write study");
+        .expect("write series");
     }
 
     /// Serves nothing from disk: `read` hands back an empty frame, and `write` takes
@@ -250,7 +250,7 @@ mod tests {
 
     fn recorder(tag: &str, frames: u32) -> (std::path::PathBuf, StubPipeline) {
         let path = std::env::temp_dir().join(format!("wtpacs-{tag}-{}.sbnd", std::process::id()));
-        study(&path, frames);
+        series(&path, frames);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         (path, StubPipeline { store, write_delay: std::time::Duration::ZERO })
     }
@@ -298,7 +298,7 @@ mod tests {
     }
 
     /// **A refusal is its own row.** The planner refuses a `stream_frames` range and a frame
-    /// outside the study before any frame opens; each row carries the refused frame, not the
+    /// outside the series before any frame opens; each row carries the refused frame, not the
     /// last one served, and every row opened is closed. `docs/adr/telemetry-server-pipeline.md`.
     #[cfg(feature = "telemetry")]
     #[test]
@@ -335,13 +335,13 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// **One index per study, never per session** — nothing in the type system prevents a
+    /// **One index per series, never per session** — nothing in the type system prevents a
     /// session opening its own store, so this pins the shape it actually gets.
     /// `docs/adr/disk-access.md` §Invariants.
     #[test]
     fn sessions_share_one_store_rather_than_opening_their_own() {
         let path = std::env::temp_dir().join(format!("wtpacs-share-{}.sbnd", std::process::id()));
-        one_frame_study(&path);
+        one_frame_series(&path);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
 
         let sessions = 8;
