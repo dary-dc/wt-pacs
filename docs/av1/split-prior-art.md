@@ -1,8 +1,11 @@
-# The bit split against the literature (row 48 SPLITLIT)
+# The bit split against the literature
+
+*Queue row 48 SPLITLIT.*
 
 Every AV1 layout over 8 bits here splits a sample v (after the series' offset, −min) into top = v ≫ k and
 low = v & (2^k − 1), each a lossless stream ([`payload-format.md`](payload-format.md) §Representation). The lab reached it
-by measurement alone (rows 7, 13, 28, 33, 36). This file asks whether the literature knows it, recommends it, or
+by measurement alone (the high-depth split, top10+low WebCodecs, AV1-alone bytes, 13–14-bit layout and
+low-stream measurements, queue rows 7, 13, 28, 33, 36). This file asks whether the literature knows it, recommends it, or
 offers something better. Web research only, 2026-10-05, no measurement. Each claim cites its source with the
 source's date. **Unconfirmed** marks a claim that rests on a search summary or secondary text, where the primary
 source was not read.
@@ -67,8 +70,8 @@ over 11 bits (inference from the format). **Every exact path over 12 bits is WAS
 | **JPEG XL** (ISO/IEC 18181) | integer to 31 bits; libjxl to 24; Main profile Level 5 bounded by 16-bit buffers (arXiv:2506.05987, 2025-06) | Sup 232, final text 2024-09-18: `.110` lossless, bits stored 1–24 | Safari 17+ (stills). Chrome re-added it in 145 (2026-02) behind a flag, still flagged in 154 (2026-09-22); intent to ship 2026-08-24, no milestone. Firefox 152 (2026-06-16) built it in off by default; intent to ship moved to 158. Every native path draws through a canvas (8-bit or float16), so none is exact over 11 bits. WASM: jxl-oxide (MIT/Apache-2.0); whether its output keeps 16 bits is **unconfirmed** |
 | HEVC RExt (H.265 V11, 2026-01) | Monochrome 16 and Main 4:4:4 16 Intra, lossless by `cu_transquant_bypass` | only Main and Main 10 (Sup 195) | browsers at most 12-bit, hardware-dependent; FFmpeg's decoder has no 16-bit format (`libavcodec/hevc/ps.c`) |
 | VVC (H.266 v2, 2022-04) | Main 16 4:4:4 (Intra); 4:0:0 allowed | none | none native; vvdec's WASM build is Main 10 only. The profiles were read from patent text quoting the spec: **unconfirmed** against the ITU text |
-| AV1 | 12 bits (Professional) | none | WebCodecs to 10 bits here (row 3: 12-bit refused); dav1d-WASM to 12 |
-| AV2 v1.0.0 (2026-06-09) | **10 bits** (`bit_depth_idc` > 1 reserved; profiles Main_4xx_10); a 12-bit professional profile "in development"; nothing over 12 announced | none | no decoder ready (row 32: AVM likewise) |
+| AV1 | 12 bits (Professional) | none | WebCodecs to 10 bits here (the WebCodecs capability probe, queue row WCAP: 12-bit refused); dav1d-WASM to 12 |
+| AV2 v1.0.0 (2026-06-09) | **10 bits** (`bit_depth_idc` > 1 reserved; profiles Main_4xx_10); a 12-bit professional profile "in development"; nothing over 12 announced | none | no decoder ready (the AV2 measurement, queue row AV2: AVM likewise) |
 
 **Scalable and layered schemes.**
 
@@ -83,16 +86,16 @@ over 11 bits (inference from the format). **Every exact path over 12 bits is WAS
 * **JPEG XT** (ISO/IEC 18477-6, -8; Part 8 2nd ed. 2020-05) is an 8-bit legacy JPEG base plus a residual layer.
   It is lossless for 16-bit input per its reference implementation (GPL-3.0). It has no DICOM transfer syntax,
   and a browser decodes only the base.
-* **MPEG-5 LCEVC** has an enhancement up to 14 bits and no lossless mode confirmed. Row 19 found it not exact at
+* **MPEG-5 LCEVC** has an enhancement up to 14 bits and no lossless mode confirmed. The LCEVC study (queue row LCEVC) found it not exact at
   14 bits.
 * **Lossy base plus lossless residual.** Yea and Pearlman, IEEE TIP 2006, is the two-stage near-lossless coder,
   motivated by medical data. HTJ2K's own reversible codestream is lossy-to-lossless by truncation. The lab's
-  version is row 17: 0.947–1.002 of HTJ2K's bytes, 1.31–1.89× its decode.
+  version is the preview-plus-residual measurement (queue row RESID): 0.947–1.002 of HTJ2K's bytes, 1.31–1.89× its decode.
 
 ## 3. The lab's design against the literature
 
 **The split itself: in line, and the literature adds nothing better within AV1.** Every source that splits finds
-the low part noise-like and costly, as row 36 found (the low two bits cost AV1 1.34–2.01 bits a sample). No
+the low part noise-like and costly, as the low-stream measurement (queue row ENCX) found (the low two bits cost AV1 1.34–2.01 bits a sample). No
 source codes 13–16-bit samples with a ≤ 12-bit codec by another means that keeps them exact. The alternatives
 change the codec, not the split. Those are a native-depth codec (HTJ2K, JPEG-LS, JPEG XL, all WASM-only in a
 browser, HTJ2K being the product's) or a scalable layer that AV1 lacks.
@@ -106,21 +109,21 @@ floor in closed form.
   9(8), 2000-08, doi:10.1109/83.855427; Kiely, JPL IPN PR 42-159, 2004-11-15).
 * With mean |e| ≈ 0.8 σ for a Laplacian or Gaussian residual, that is k ≈ log2 σ − 0.3.
 
-Row 36's σ is the residual of LOCO-I's own predictor. Its oracle found ⌊log2 σ⌋ − 1, fitted on nine series. But it
+The low-stream measurement's σ is the residual of LOCO-I's own predictor. Its oracle found ⌊log2 σ⌋ − 1, fitted on nine series. But it
 searched only k ∈ {1, 2, 3} (`lab/av1/bytes/low-stream/encx.py` `low_split`). It picked k = 3, the largest it tried, on
 **all four** series with σ ≥ 17, where log2 σ is 4.2–6.1 (fluoroscopy 17.8–32.6, cone-beam 66.7–68.2). So the
 fitted rule is censored at 3 exactly where it matters. The literature's rules say k = 4–6 there. Under that
-noise the low bits cost their full width either way, and the top's noise falls as k grows. Rows 43–44 test
+noise the low bits cost their full width either way, and the top's noise falls as k grows. The split exactness check and the per-depth split measurement (queue rows 43–44) test
 k ≤ max(b − 8, 4) and variants k = 2, 3, d12 and w10, so k = ⌊log2 σ⌋ on the noisy series is untested. Proposed
 below.
 
 **The low bits: deflate is what the literature does.** Raw or entropy-coded remainder bits are the standard
 choices: JPEG-LS's and Rice's appended bits, CCSDS 121.0's split-sample option (**unconfirmed**, the document
 was not opened), EBCOT's bypass of the lower bit planes (Taubman, IEEE TIP 9(7), 2000-07,
-doi:10.1109/83.847830), and US10419781B2's raw LSBs. Row 36's deflated low bits match AV1's coding within
+doi:10.1109/83.847830), and US10419781B2's raw LSBs. The low-stream measurement's deflated low bits match AV1's coding within
 ±0.5 points, and decode in 0.64–0.83× the time. A wrapped Gaussian (the noise taken mod 2^k) is nearly uniform
 for 2^k up to about 2σ. Conditioning the low bits on the top then buys nothing. That is arithmetic on the
-distribution, not a cited result, and row 36's measured plane entropies of 0.99–1.00 bits agree. BD-LVIC's
+distribution, not a cited result, and the low-stream measurement's measured plane entropies of 0.99–1.00 bits agree. BD-LVIC's
 conditioning gain is at d = 8, where the low byte still carries structure.
 
 **The offset: a published alternative beats it on sparse histograms.** −min keeps every gap in the histogram,
@@ -149,20 +152,20 @@ on a non-linear mapping where a context coder does not. Not measured here. Propo
 * AV1 has no colour transform of its own; it signals only `matrix_coefficients` (AV1 spec 1.0.0 with errata).
   ITU-T H.273 v3 names YCgCo-Re and -Ro (codes 16, 17); its approval date is **unconfirmed**.
 
-Row 28 measured YCoCg-R and found it did not beat RCT, so the literature changes nothing at 8 bits. RCT's chroma
+The AV1-alone bytes measurement (queue row LLSIZE) measured YCoCg-R and found it did not beat RCT, so the literature changes nothing at 8 bits. RCT's chroma
 needs one more bit than the input, so RGB over 11 bits cannot go through AV1 after it. `payload-format.md` refuses
 RGB over 8 bits already, and no modality here needs it.
 
 **Lossless AV1 itself is barely studied.** No primary 2019–2026 paper measuring lossless AV1 on medical images
 against JPEG-LS, JPEG 2000 or HEVC was found. On natural 8-bit RGB, Barina (WSCG 2021, arXiv:2108.02557; libaom
 2.0.0) ranks AVIF lossless near the bottom: 12.04 bits a pixel against JPEG-LS 10.59 and JPEG XL 9.43. That run
-had no colour transform and no split, which is row SIZE's starting point too.
+had no colour transform and no split, which is the lossless-bytes measurement's (queue row SIZE) starting point too.
 
 **Above 12 bits: no reason in the literature to prefer a native-depth codec on bytes alone.** The one lossless
 comparison (Ho et al.) favours the split over a weak native codec. BD-LVIC's per-half costs show the split
 loses only the cross-half redundancy, 3.6 % at d = 8 and less at k ≤ 4 where the low part is noise. The reasons
-to prefer native depth are decode and simplicity: one stream, and HTJ2K's 5–10× faster decode (rows 9, 33). That
-is the trade rows 33 and 44 measure, not one the literature settles.
+to prefer native depth are decode and simplicity: one stream, and HTJ2K's 5–10× faster decode (the decode-time and 13–14-bit layout measurements, queue rows SPEED, REP14). That
+is the trade the 13–14-bit layout and per-depth split measurements (queue rows REP14, SPLITTIME) measure, not one the literature settles.
 
 ## 4. Patents and standards status
 
@@ -177,10 +180,10 @@ is the trade rows 33 and 44 measure, not one the literature settles.
 
 ## Proposed follow-ups (not queued)
 
-1. **k up to ⌊log2 σ⌋ on the σ ≥ 17 series.** Run row 36's oracle again with k ∈ {1…6} (b − k ≥ 6) on the
+1. **k up to ⌊log2 σ⌋ on the σ ≥ 17 series.** Run the low-stream measurement's oracle (queue row ENCX) again with k ∈ {1…6} (b − k ≥ 6) on the
    fluoroscopy, 12-bit tomosynthesis, cone-beam and one projection system, bytes then decode. The literature's
    rule (k ≈ log2 σ − 0.3) predicts 4 on the first three and 6 on the cone-beam. This is a bytes sweep and
-   fits row 44's variants.
+   fits the per-depth split measurement's variants (queue row SPLITTIME).
 2. **Histogram packing against −min,** in AV1 and in HTJ2K, on the CT (pad −2048 under data from −1097) and any
-   sparse series rows 45–46 fetched. Measure the fraction of levels used first: Starosolski's gain is
+   sparse series the missing-depths and breast-family measurements fetched (queue rows 45–46). Measure the fraction of levels used first: Starosolski's gain is
    negligible above ½. It is a representation change, so a header field, and structural if adopted.

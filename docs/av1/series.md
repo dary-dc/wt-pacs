@@ -1,7 +1,7 @@
 # AV1 — the target series
 
-What each series AV1 targets is (the owner's list: [`queue.md`](queue.md) §The breast and mixed-decoder rows, breast
-family first), read from the DICOM standard and the vendors' own conformance statements, against what this lab
+What each series AV1 targets is (the owner's list,
+breast family first), read from the DICOM standard and the vendors' own conformance statements, against what this lab
 measured, and what follows for the codec choice (HTJ2K or lossless AV1). Read 2026-10-05: **research, not a
 measurement**. Standard: **DICOM 2026d** (dicom.nema.org/medical/dicom/current, read 2026-10-05). Every vendor value
 is quoted from the vendor's own conformance statement (CS), [S1]–[S6]. **UNCONFIRMED** means no primary source was
@@ -19,7 +19,7 @@ The vendor's Bits Stored is an upper bound on *b*.
 - The bit split codes v as a top stream of b − k bits plus a low stream of k bits:
   - the top fits a 10-bit stream (WebCodecs, as the lab found in browsers) when k ≥ b − 10;
   - it fits a 12-bit stream (dav1d) when k ≥ b − 12.
-- The lab's rule ([`queue.md`](queue.md) rows 43–46, at `c2d4d173`) is k = 2 up to 12 bits. Over 12 bits it needs a 12-bit top (k = b − 12) or k ≥ 3.
+- The lab's rule ([`README.md`](README.md) §Samples over 12 bits, queue rows 43–46, at `c2d4d173`) is k = 2 up to 12 bits. Over 12 bits it needs a 12-bit top (k = b − 12) or k ≥ 3.
 - The WebCodecs spec itself lists 12-bit formats (`I420P12`, `I444P12`…) and no Y-only format [W1]. So "≤ 10 bits" is what the browsers do, not a spec limit.
 
 ## 1. Breast imaging family
@@ -184,7 +184,7 @@ No vendor CS read here offers HTJ2K, and none offers Enhanced US Volume for brea
 - [I1] IHE Radiology TF Supplement, Digital Breast Tomosynthesis (DBT), Rev 1.3, Trial Implementation, 2016-09-09. Open issues 2, 3, 7, 34; §4.8.4.1.2.7. https://www.ihe.net/uploadedFiles/Documents/Radiology/IHE_RAD_Suppl_DBT_Rev1.3_TI_2016-09-09.pdf
 - [A1] AOM, "AV1 Bitstream & Decoding Process Specification", last modified 2023-05-25. Profiles; Annex A levels. https://aomediacodec.github.io/av1-spec/
 - [W1] W3C, WebCodecs, Working Draft 21 September 2026, `VideoPixelFormat`. https://www.w3.org/TR/webcodecs/. AV1 registration: Group Note Draft, 8 June 2026. https://www.w3.org/TR/webcodecs-av1-codec-registration/
-- Lab: [`FIXTURES.md`](../FIXTURES.md) §AV1 data (every set named here, and the raw mammogram behind `ffdm_a`), and [`queue.md`](queue.md) rows 43–46, at `c2d4d173` (2026-10-05).
+- Lab: [`FIXTURES.md`](../FIXTURES.md) §AV1 data (every set named here, and the raw mammogram behind `ffdm_a`), and [`README.md`](README.md) §Samples over 12 bits (queue rows 43–46), at `c2d4d173` (2026-10-05).
 
 **Still open.**
 - GE: Pristina and Invenia ABUS (retry the PDF host, or download them by hand).

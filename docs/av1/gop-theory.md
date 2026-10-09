@@ -1,6 +1,6 @@
 # Frame groups in lossless AV1: why they should or should not pay
 
-Queue row GOPTHEORY, written 2026-10-08 before any new data. What it predicts is tested by the measurement in
+The frame-group theory (queue row GOPTHEORY), written 2026-10-08 before any new data. What it predicts is tested by the measurement in
 [`gop-protocol.md`](gop-protocol.md), and that file is the only one the measuring session is given. Everything below
 comes from the sources at the end. Arithmetic of our own is marked *derived*, and a claim no source confirms is
 marked *unverified*.
@@ -21,7 +21,7 @@ marked *unverified*.
   exact with it off ([`README.md`](README.md) §Exactness and the decoders), so every exact inter coding here so far had alt-ref off.
 * **SVT-AV1 v4.2.0 switches temporal filtering off under lossless** ([S3] `enc_handle.c:3256`). It has no intra-only
   restriction, and 8 and 10 bits are intended ([S3] CHANGELOG v3.1.1). The lab found it exact only on grey 8 and on
-  intra grey 10 (row TOOL), so where it is inexact the measurement reports it and does not use it.
+  intra grey 10 (the encoders' exactness check, queue row TOOL), so where it is inexact the measurement reports it and does not use it.
 
 ## 2 · The mechanism: noise that the previous frame can predict
 
@@ -29,7 +29,7 @@ A lossless coder spends about the entropy of its prediction residual: for a resi
 variance σ_r², about ½·log2(2πe·σ_r²) bits a sample ([S4] ch. 8). Write each frame as structure (anatomy, which
 both predictors can follow) plus noise of variance σ² (quantum, electronic, reconstruction). In a medical frame
 above 8 bits, the noise holds most of the bits: the low bits are noise in every source the lab has measured
-([`split-prior-art.md`](split-prior-art.md); row ENCX).
+([`split-prior-art.md`](split-prior-art.md); the low-stream measurement, queue row ENCX).
 
 * **Intra** predicts a sample from its spatial neighbours. On spatially white noise, no spatial predictor brings
   the noise term below σ².
@@ -49,8 +49,8 @@ Two consequences are checkable without an encoder:
 1. **On noise-dominated content, the gain of inter is bounded by ρ.** It can be measured from the frames: the
    correlation of each frame's intra prediction residual with the next frame's, block by block at the best integer
    offset. Where the median block ρ is under ½, the noise term cannot pay, and any gain must come from structure.
-2. **The low stream of a split** (the k low bits, row SPLITRULE's k = 2 or 3) is noise with ρ ≈ 0. **Inter on the
-   low stream should cost bytes, never save them.** Row ENCX measured this: inter was 0–3.6 % larger.
+2. **The low stream of a split** (the k low bits, the adopted per-depth split rule's k = 2 or 3, queue row SPLITRULE) is noise with ρ ≈ 0. **Inter on the
+   low stream should cost bytes, never save them.** The low-stream measurement measured this: inter was 0–3.6 % larger.
 
 ## 3 · Each target type
 
@@ -67,8 +67,8 @@ Two consequences are checkable without an encoder:
   different amount, and no single offset aligns them all. Prediction: ρ is moderate (0.2–0.5) at the best offset,
   and higher on narrow-arc systems.
 * **Prior evidence.** 3-D JPEG 2000 across all slices gained 3 % over single frames on 25 DBT objects from one system,
-  most of it already with a 10-slice slab [S10], from slides that were not peer-reviewed. In the lab, rows CONTENT
-  and BREAST measured groups on four volumes at −3.7 to +5.4 % of intra, with libaom only and alt-ref off
+  most of it already with a 10-slice slab [S10], from slides that were not peer-reviewed. In the lab, the tomosynthesis and breast-family
+  measurements (queue rows CONTENT, BREAST) measured groups on four volumes at −3.7 to +5.4 % of intra, with libaom only and alt-ref off
   ([`README.md`](README.md) §Frame groups, Scope).
 * **The general literature** finds lossless inter-slice gains large on CT, dynamic 4-D data and fMRI ([S11], [S12],
   [S13]), small on MRI [S14], and up to 15 % over single-frame coders with dedicated 3-D predictors [S15]. Each
@@ -96,7 +96,7 @@ a larger, regular step, so ρ is lower than in a hand-held cine at rest (*derive
 
 Every frame is a new exposure, so its quantum noise is independent of the last: ρ ≈ 0 on the noise. Vessels move
 with the heart and the contrast flows, so structure changes too. Inter can pay only where the dose leaves the noise
-small next to the structure. The lab's fluoroscopy (2 frames a second, 12-bit) gained 0.04 % (row SIZE), but it is
+small next to the structure. The lab's fluoroscopy (2 frames a second, 12-bit) gained 0.04 % (the lossless-bytes measurement, queue row SIZE), but it is
 not a target series and not an angiography run.
 
 ## 4 · Predictions
@@ -118,11 +118,13 @@ Each is stated for the protocol's measurements. *G* is the group length (keyfram
 | P9 | ABUS | gain between 5 and 25 % | outside that range |
 | P10 | contrast angiography run | gain < 5 %; ρ < 0.2 | gain ≥ 10 % |
 
-P8–P10 wait on sound data ([`queue.md`](queue.md) §Blocked). P1–P7 can be tested on the CC BY DBT volumes.
+P8–P10 wait on sound data ([`README.md`](README.md) §Open questions). P1–P7 can be tested on the CC BY DBT volumes.
 
-## 4a · Review against the data (row GOPREVIEW, 2026-10-08)
+## 4a · Review against the data
 
-Row GOPMEASURE ran the protocol on 15 sound, whole DBT volumes, five from each of three systems
+*Queue row GOPREVIEW, 2026-10-08.*
+
+The frame-group measurement (queue row GOPMEASURE) ran the protocol on 15 sound, whole DBT volumes, five from each of three systems
 ([`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md), `4306310`). ρ was measured on every adjacent slice pair; the
 codings ran on each volume's middle 16 slices (G ≤ 16, the rule's range); cpu0, SVT-AV1 and the plain representation
 ran on one volume a system.
@@ -136,7 +138,7 @@ ran on one volume a system.
 | P5 | **held** | low stream ρ 0.058–0.061 against 0.059 for independent noise; inter never under intra by > 0.5 % (best +0.13 %) |
 | P6 | **refuted on system B; untestable on A and C** | alt-ref on beats off by 1.2–6.8 points on 9 of 10 exact cells (best +3.19 % over intra); on A's and C's 10-bit tops it is not lossless |
 | P7 | **refuted on `b1`, the one series SVT-AV1 is exact on** | SVT preset 0 +2.43 % against libaom cpu0 −0.03 %; preset 8 +0.87 % against `good` 6 −0.16 % |
-| P8–P10 | **not testable** | no sound native breast ultrasound cine, ABUS or angiography run (`queue.md` §Blocked) |
+| P8–P10 | **not testable** | no sound native breast ultrasound cine, ABUS or angiography run ([`README.md`](README.md) §Open questions) |
 
 **The mechanism held where it decides.** Every series' ρ is far under ½, the line §2 draws, and no coding gains on
 the noise: the low stream behaves as independent noise (P5), and libaom's alt-ref-off groups lose or tie (P2).

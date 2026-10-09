@@ -1,6 +1,9 @@
-# Lossless medical image coding, 2023–2026, and what runs in a browser (row 58 LITERATURE)
+# Lossless medical image coding, 2023–2026, and what runs in a browser
 
-The lab compared the codecs it knew: HTJ2K (the product's), AV1, JPEG 2000 Part 1 and JPEG XL (rows 6, 22, 28).
+*Queue row 58 LITERATURE.*
+
+The lab compared the codecs it knew: HTJ2K (the product's), AV1, JPEG 2000 Part 1 and JPEG XL (the lossless-bytes,
+embedded-codec and AV1-alone bytes measurements, queue rows SIZE, EMBED, LLSIZE).
 This file asks what has been published since 2023 that could beat them, and whether a browser could decode it today.
 Web research only, 2026-10-06, no measurement. Each claim cites its source and the source's date. **Unconfirmed**
 marks a claim that rests on a search summary or secondary text, where the primary source was not read. The bit
@@ -18,7 +21,7 @@ through JPEG 2000 Part 1 (×1.05, the slides in §1) is an **inference** and is 
   `1.2.840.10008.1.2.8.1`). Sup 244 is DEFLATE on each frame alone, with no limit on pixel attributes. It targets
   1-bit segmentations, and it says zstd and the like "do slightly better than Deflate", but not by enough to justify
   them. A browser inflates it natively (`DecompressionStream("deflate-raw")`). It is therefore the standard's own
-  form of row 36's deflated low bits.
+  form of the low-stream measurement's deflated low bits (queue row ENCX).
 * **HTJ2K costs about 5 % over JPEG 2000 Part 1** in bytes ("~5 %", WG-04's Sup 235 slides, Wallace and Hafey). That is
   advocacy, not a study. The one independent table (§3, Tomoz README) gives 4.5–6.8 %.
 * **AVIF 1.2** (AOM, 2025-12-09) adds *Sample Transform* derived items: a 16-bit image rebuilt from a 12-bit and an
@@ -48,11 +51,12 @@ Table III; read):
 | BD-LVIC (learned, §3) | 8.842 | 5.012 | 4.421 | 1.856 |
 
 * **JPEG XL is the smallest standard intra codec on all four**: 0.85–0.95 of JPEG-LS and 0.82–0.91 of JPEG 2000.
-  Inferred against HTJ2K, it is about 0.78–0.87. The lab measured 0.83–0.95 of HTJ2K (rows 6, 22).
+  Inferred against HTJ2K, it is about 0.78–0.87. The lab measured 0.83–0.95 of HTJ2K (the lossless-bytes and embedded-codec measurements, queue rows SIZE, EMBED).
 * **Coding slices as video helps on the 5 mm CT (Chaos: HEVC 0.88 of its intra) and little elsewhere.** On
   breast tomosynthesis, JPEG 2000 Part 2 across slices gained 3 % over single frames (Clunie, RSNA 2012,
   25 DBT objects, slides read). That predates the window, and it agrees with what the lab measured on four DBT volumes
-  (rows 10, 46: libaom only, alt-ref off, G = 8 and 16 alone in row 46); row 21's projections are outside the target series.
+  (the tomosynthesis and breast-family measurements, queue rows CONTENT, BREAST: libaom only, alt-ref off, G = 8 and 16
+  alone in the breast-family one); the projections measurement's projections (queue row TAXO) are outside the target series.
 * Decode a 512² slice, i9-10900K: JPEG-LS 0.067 s, JPEG XL 0.120 s, HEVC 0.024 s (Table V). A second paper on the
   same machine gives JPEG-LS 0.02 s and JPEG XL 0.05 s (TCT, §3, Table VI). The two disagree by 2–3×, so neither is
   a speed claim to carry here.
@@ -67,7 +71,7 @@ compete only with 16-bit samples split into MSB and LSB planes.
 **Breast imaging: a gap.** No paper from 2020–2026 reports lossless HTJ2K, JPEG XL, learned or video-codec ratios on
 FFDM, synthesized 2D, DBT slices or projections, or breast ultrasound. The white paper's two mammograms are the only
 data point. The newest controlled breast numbers are Clunie's 2012 DBT set: JPEG-LS 4.97 and JPEG 2000 4.89 (ratio
-against 16-bit words), and inter-slice JPEG 2000 5.07. **Rows 46 and 45 hold more breast measurements than the
+against 16-bit words), and inter-slice JPEG 2000 5.07. **The breast-family and missing-depths measurements (queue rows BREAST, DATA3) hold more breast measurements than the
 literature.**
 
 **Implementations since 2023:**
@@ -76,15 +80,15 @@ literature.**
   work, with no CPU stated. Those are native x86 numbers, and WASM SIMD-128 is not AVX2.
 * **libjxl 0.12.0** (2026-07-01) claims a "major overhaul for faster decoding": lossless at faster-decoding levels
   1–4 is 30–80 % smaller than before, and modular decode is up to 4× faster. These are general-content claims.
-  Row 63 measures them.
+  The JPEG XL measurement (queue row JXL) measures them.
 * **jxl-rs** is the decoder Chromium and Firefox adopted (v0.7.4, 2026-09-17). Its README says its speed "closely
   matches" libjxl's, with no numbers given.
 * **CharLS** 2.4.3–2.4.4 (2026) are fixes only. Mapping tables (Part 2) are in an unreleased 3.0.
 * **OpenHTJ2K** v0.19 (2026-05) adds WASM SIMD pack paths. The lab benched it against OpenJPH, and OpenJPH won 40/40
   rounds ([`decode/README.md`](../decode/README.md) §A second decoder, measured).
 * **No new HT block-decoding paper since 2023**, on CPU or GPU, was found. The GPU line is still Naman and
-  Taubman, ICIP 2019 and 2020. No WebGPU decoder for JPEG 2000 or HTJ2K was found, as paper or repository (row 62
-  asks).
+  Taubman, ICIP 2019 and 2020. No WebGPU decoder for JPEG 2000 or HTJ2K was found, as paper or repository (the GPU decoder
+  study, queue row GPU, asks).
 
 ## 3. Learned and context-model coders since 2023
 
@@ -115,9 +119,9 @@ Every exact path over 8 bits is still a decoder in WASM writing typed arrays, as
 [`split-prior-art.md`](split-prior-art.md) §2 found. Native JPEG XL (Safari 17+, Chrome 145 behind a flag, Firefox's
 intent to ship of 2026-08-24, all through jxl-rs or libjxl) reaches a page only through `<img>` and a canvas. A canvas
 gives `unorm8` or `float16` (HTML Living Standard; Chrome 137). float16 holds 11 significant bits, so native JPEG XL
-is exact only on 8-bit sources. That is inference from the formats; row 63 tests it. The JPEG XL WASM packages found
+is exact only on 8-bit sources. That is inference from the formats; the JPEG XL measurement (queue row JXL) tests it. The JPEG XL WASM packages found
 return 8-bit `ImageData` or PNG bytes (`jxl-oxide-wasm` 0.12.6, read from its typings). An exact 16-bit path means
-building libjxl or jxl-rs to WASM with a sample API, as row 22 did.
+building libjxl or jxl-rs to WASM with a sample API, as the embedded-codec measurement (queue row EMBED) did.
 
 ## 5. Ranked: expected gain against browser feasibility
 
@@ -125,12 +129,12 @@ Gain is bytes against HTJ2K on the lab's kind of content. Feasibility is an exac
 
 | rank | candidate | expected bytes against HTJ2K | browser today | why here |
 | --- | --- | --- | --- | --- |
-| 1 | **JPEG XL lossless, libjxl 0.12 or jxl-rs in WASM** | 0.78–0.95 (white paper; BD-LVIC inferred); **lab 0.83–0.95** | yes, WASM; native not exact over 8 bits | the best standard codec, with a DICOM syntax since 2024. Its decode was 4.0–6.2× OpenJPH's (row 22) and 0.12 claims speed: row 63 |
+| 1 | **JPEG XL lossless, libjxl 0.12 or jxl-rs in WASM** | 0.78–0.95 (white paper; BD-LVIC inferred); **lab 0.83–0.95** | yes, WASM; native not exact over 8 bits | the best standard codec, with a DICOM syntax since 2024. Its decode was 4.0–6.2× OpenJPH's (the embedded-codec measurement, queue row EMBED) and 0.12 claims speed: the JPEG XL measurement (queue row JXL) |
 | 2 | **Tomoz** | 0.73–0.85 claimed on CT/MR/PET volumes; ≈ JPEG XL on 2-D mammograms | **yes, WASM on npm**, claimed deterministic | the only learned codec runnable now. Self-reported, unreviewed, and slower to decode than JPEG XL by its own figure. Breast content is where it claims least |
 | 3 | **JPEG-LS (CharLS in WASM)** | 0.91–0.94 (Tomoz's table); ≈ JPEG 2000 Part 1 elsewhere | yes, WASM | never measured here; DICOM since 1999; decode cost in WASM unknown here |
 | 4 | **TCT** | ≈ 0.70–0.83 inferred (0.74–0.87 of JPEG 2000 in its own table) | no code; would be deterministic | the best published result with a CPU decode at JPEG XL's speed. Watch for a code release |
 | 5 | SR-LVC | ≈ 0.78–0.81 inferred on 12-bit CT | code cited, not found; fixed point plausible | tiny model, but recurrent across slices: an ask for one slice would decode its predecessors (README §A1's cost) |
-| 6 | Slices coded as video, JP3D | 0.88–1.0 of intra on CT; 0.97 on DBT (2012) | AV1 already is one | the lab measured inter on DBT and found nothing (rows 10, 21, 46) |
+| 6 | Slices coded as video, JP3D | 0.88–1.0 of intra on CT; 0.97 on DBT (2012) | AV1 already is one | the lab measured inter on DBT and found nothing (the tomosynthesis, projections and breast-family measurements, queue rows CONTENT, TAXO, BREAST) |
 | — | BD-LVIC, BCM-Net, FNLIC, ArIB-BPS, LLM coders | ≈ 0.69–0.79 inferred (BD-LVIC) | no: float on a GPU, not exact by spec, 0.2–273 s a frame | none until an integer version exists |
 
 **Verdict.** JPEG XL lossless is still the codec to beat, and the literature has nothing standard that beats it.
@@ -141,7 +145,7 @@ the lab's own rows are the reference.
 
 ## Proposed measurements (not queued)
 
-1. **JPEG-LS beside HTJ2K and JPEG XL** on the breast series of rows 45–46. Measure bytes, and decode through CharLS in
+1. **JPEG-LS beside HTJ2K and JPEG XL** on the breast series the missing-depths and breast-family measurements fetched (queue rows 45–46). Measure bytes, and decode through CharLS in
    WASM against OpenJPH in headless Chromium, interleaved, every frame exact. It is the one standard lossless codec
    the lab has not measured, and the literature puts it 6–9 % under HTJ2K.
 2. **Tomoz on the lab's volumes**, if its licence (Apache-2.0, to be confirmed in `licensing.md`) and a pinned

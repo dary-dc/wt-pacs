@@ -1,7 +1,7 @@
 # ADR: the codec seam, and the group as the client's unit
 
-**Status:** §1–2 built for G = 1 (row DEC; the transforms and WebCodecs by row WCDEC), §3 built in its simplest form (row GOP); departures marked *Built:*; §5 proposed (row SVCORDER) · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
-· **Answers:** [`README.md`](README.md) §Frame groups, the shape half; SIZE and SPEED own the numbers.
+**Status:** §1–2 built for G = 1 (the dav1d-WASM decoder, queue row DEC; the transforms and WebCodecs by the WebCodecs decoder build, queue row WCDEC), §3 built in its simplest form (the group-as-item build, queue row GOP); departures marked *Built:*; §5 proposed (the bases-first proposal, queue row SVCORDER) · **Date:** 2026-10-03 · **Queue:** row 5 SEAM ([`queue.md`](queue.md))
+· **Answers:** [`README.md`](README.md) §Frame groups, the shape half; the lossless-bytes and decode-time measurements (queue rows SIZE, SPEED) own the numbers.
 
 Read against [`WIRE.md`](../WIRE.md), [`ARCHITECTURE.md`](../ARCHITECTURE.md),
 [`adr-stream-shape.md`](../adr/stream-shape.md) and [`FIXTURES.md`](../FIXTURES.md) §SBND as they
@@ -26,7 +26,7 @@ brings it.
   today and would read `NNN.<codec>`, the extension taken from the metadata.
 * **A transform that makes a series codable is the codec's, and named beside it.** AV1 codes at most
   12 bits and only unsigned ([`README.md`](README.md) §Samples over 12 bits), so a signed series needs its offset and
-  a series over 12 bits its split carried in metadata for the decoder to undo. Row DEPTH chooses
+  a series over 12 bits its split carried in metadata for the decoder to undo. The high-depth split measurement (queue row DEPTH) chooses
   which transforms survive and names their fields; this ADR only fixes the rule below for them.
 * **A value the client does not know is a refusal, before the dial.** `connect` rejects with
   `unknown codec "<value>"` (or `unknown transform …`) and no frame is asked for. *Built:* the
@@ -80,9 +80,11 @@ against another decoder:
   frame of a group handed to a G = 1 series decodes against the previous frame's references to
   wrong pixels — the contract clause sees exactly that when the flush is removed.
 
-### The transforms and the decoder choice, as built (row WCDEC)
+### The transforms and the decoder choice, as built
 
-Three more fields of `decoder`, from the series' metadata beside `codec`. *Superseded by row 39 (UNIFY):
+*Queue row WCDEC.*
+
+Three more fields of `decoder`, from the series' metadata beside `codec`. *Superseded by the unified AV1 branch (queue row UNIFY):
 they live in each payload's header ([`payload-format.md`](payload-format.md)), `split` is 0–2 low bits, and the decoder is
 chosen per payload; the fields below are the series-wide form this section first built.*
 
@@ -94,12 +96,12 @@ chosen per payload; the fields below are the series-wide form this section first
   picks the decoder: WebCodecs where ≤ 10 and the browser has `VideoDecoder`, dav1d-WASM otherwise,
   absent included ([`decode/README.md`](../decode/README.md) §AV1).
 * **`split`** — the bits of the low stream. A split frame is `[u32le top length][top unit][low
-  unit]`, both units of one store entry; the sample is `top << split | low`. Row DEPTH's top10+low
+  unit]`, both units of one store entry; the sample is `top << split | low`. The high-depth split measurement's (queue row DEPTH) top10+low
   at 13 bits is `split: 3`. A frame that is not split in a split series is refused.
 * **`offset`** — subtracted after the merge; present means the source is signed, so `signed` and
   the range are the source's.
-* **`rct`** — *built since (row TOTAL2):* 8-bit RGB coded as JPEG 2000's reversible colour
-  transform, row LLSIZE's best coding on RGB: planes Y = ⌊(R + 2G + B)/4⌋, B − G + 256, R − G + 256 in
+* **`rct`** — *built since the AV1-alone total-time measurement (queue row TOTAL2):* 8-bit RGB coded as JPEG 2000's reversible colour
+  transform, the AV1-alone bytes measurement's best coding on RGB (queue row LLSIZE): planes Y = ⌊(R + 2G + B)/4⌋, B − G + 256, R − G + 256 in
   a 10-bit 4:4:4 identity stream, tagged sRGB as any RGB series for WebCodecs; `depth: 10`. Undone in
   `av1-frame.js` to the contract's 8-bit R, G, B; a frame that is not three 10-bit planes is refused.
 
@@ -109,10 +111,11 @@ built — a field the client does not read is ignored.
 
 ## 3 · If a group of G > 1 frames is the unit
 
-Only if SIZE shows inter coding pays on real content, and SPEED shows the ask it costs is
-acceptable. Until then G = 1 and §1–2 are the whole change (row DEC).
+Only if the lossless-bytes measurement (queue row SIZE) shows inter coding pays on real content, and the decode-time
+measurement (queue row SPEED) shows the ask it costs is acceptable. Until then G = 1 and §1–2 are the whole change
+(the dav1d-WASM decoder, queue row DEC).
 
-*Built (row GOP), on the owner's brief of 2026-10-03 — a group is the payload, asked and sent whole,
+*Built (the group-as-item build, queue row GOP), on the owner's brief of 2026-10-03 — a group is the payload, asked and sent whole,
 no seek inside one.* Beside G = 1, which dispatches as before (every frame a keyframe, no decoder
 ever holding a group); measured on synthetic frames only, nothing timed. Where it departs from the
 proposal below:
@@ -170,7 +173,7 @@ round trip. The client already owns which frames it wants; the group is that dec
 * **One decoder state per decoder worker.** A decoder holds one group at a time: a new keyframe
   replaces the state (a keyframe with its sequence header resets references). The decoder must hand
   a frame back for every frame it is given — no frame delay held for reordering — so the AV1 module
-  runs dav1d with a frame delay of 1. *Corrected by row WASM:* libaom's lossless inter streams are
+  runs dav1d with a frame delay of 1. *Corrected by the dav1d-WASM exactness check (queue row WASM):* libaom's lossless inter streams are
   coded **with** hidden alt-reference frames (a temporal unit carries up to 3 frames), and that is
   harmless — every temporal unit still shows exactly one frame and dav1d at a frame delay of 1 hands
   it back before the next goes in ([`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md)). What
@@ -190,7 +193,7 @@ so the frames decoded on the way to N are not decoded again. Asked frame N settl
 reach the consumer as fill frames do, at background priority. Compressed bytes are released after
 their decode as today, so a group whose decoder was taken by another group is re-fetched from k and
 the frames already delivered are decoded again and dropped. No compressed group is kept to avoid
-that until SPEED says what the re-decode costs.
+that until the decode-time measurement says what the re-decode costs.
 
 ### Invariants this breaks
 
@@ -228,23 +231,24 @@ unchanged; the server stays codec-blind.
 
 | needed | from | for |
 | --- | --- | --- |
-| bytes per frame against HTJ2K at G = 1, 2, 4, 8, 16, 32, per content | SIZE (6) | whether any G > 1 pays, and the smallest G that collects most of it |
-| decode time per frame, dav1d-WASM and WebCodecs against OpenJPH, n ≥ 15, interleaved | SPEED (9): **5.4–9.7× OpenJPH** (dav1d-WASM), 4.1–4.2× (WebCodecs, 8-bit only), 16 rounds, every frame exact | whether G = 1 alone is affordable — the fill is decoder-bound |
-| an ask's cost at G: bytes and serial decodes from k to N, mean (G + 1)/2 frames | SIZE × SPEED | the latency a mid-group ask pays, against today's one decode |
-| the fill's decode time with `min(decoders, groups)` in parallel and the first G serial | SPEED | the fill's cost of affinity |
-| a frame delay of 1 returns one frame per temporal unit, hidden frames or not | WASM (4): **yes**, dav1d-WASM, threads on and off | that a decoder returns one frame per frame given |
+| bytes per frame against HTJ2K at G = 1, 2, 4, 8, 16, 32, per content | the lossless-bytes measurement (queue row SIZE) | whether any G > 1 pays, and the smallest G that collects most of it |
+| decode time per frame, dav1d-WASM and WebCodecs against OpenJPH, n ≥ 15, interleaved | the decode-time measurement (queue row SPEED): **5.4–9.7× OpenJPH** (dav1d-WASM), 4.1–4.2× (WebCodecs, 8-bit only), 16 rounds, every frame exact | whether G = 1 alone is affordable — the fill is decoder-bound |
+| an ask's cost at G: bytes and serial decodes from k to N, mean (G + 1)/2 frames | bytes × decode time, both above | the latency a mid-group ask pays, against today's one decode |
+| the fill's decode time with `min(decoders, groups)` in parallel and the first G serial | the decode-time measurement | the fill's cost of affinity |
+| a frame delay of 1 returns one frame per temporal unit, hidden frames or not | the dav1d-WASM exactness check (queue row WASM): **yes**, dav1d-WASM, threads on and off | that a decoder returns one frame per frame given |
 
 **The rule to choose by, proposed for the owner's review and set before the numbers:** G > 1 is adopted for a content only if its bytes
 fall by at least a fifth against AV1 intra *and* against HTJ2K on that content, and the mid-group
-ask's serial decodes at that G stay inside what SPEED measures for one HTJ2K frame's ask plus the
+ask's serial decodes at that G stay inside what the decode-time measurement gives for one HTJ2K frame's ask plus the
 wire time saved. Otherwise G = 1, and AV1 earns its place, if at all, on intra size and decode
 speed alone.
 
 ## 5 · Bases first: a scalable frame's layers as separate entries
 
-*Proposed (row SVCORDER), not built, nothing measured.* A scalable payload (row SVCQ: a lossy base
+*Proposed (the bases-first proposal, queue row SVCORDER), not built, nothing measured.* A scalable payload (the two-layer
+scalable measurement, queue row SVCQ: a lossy base
 layer and a lossless top in one temporal unit) buys a preview only if **the bases of a whole cine
-arrive before the tops**. Stored as one entry per frame, as row SVCQ coded it, base and top travel
+arrive before the tops**. Stored as one entry per frame, as the two-layer scalable measurement coded it, base and top travel
 together and the fill's last preview lands with its last exact frame.
 
 **The base is a prefix of its temporal unit.** The spec orders a temporal unit's layers by
@@ -258,22 +262,22 @@ output here*; the splitter below refuses a unit where it does not hold.
 | --- | --- | --- | --- |
 | store | 2F entries; the top entry holds only the top's OBUs | 2F entries; the exact entry is the whole temporal unit, base included | F entries, the table gains a per-layer length: SBND version 2 |
 | wire, server | unchanged | unchanged | a layer in the ask and in the envelope; the server reads the table's layers, so it is no longer codec-blind |
-| bytes over the scalable payload | 0 | **the base's share again**: 0.07–2.4 % of HTJ2K's at a half-size base, q 40 (row SVCQ); up to 10.4 % at q 20 on the ultrasound | 0 |
+| bytes over the scalable payload | 0 | **the base's share again**: 0.07–2.4 % of HTJ2K's at a half-size base, q 40 (the two-layer scalable measurement); up to 10.4 % at q 20 on the ultrasound | 0 |
 | the exact frame decodes from | the base's entry *and* the top's, joined; the base's compressed bytes held until then, or fetched again | **its own entry**, as a single-layer frame does today | its own entry |
 | an ask for exact N, G = 1 | two entries, two decodes if the base is not in hand | **one entry, one decode** | one entry, one partial |
 
-**B, recommended.** It costs the base's bytes a second time — the same order as row PREVIEW's
+**B, recommended.** It costs the base's bytes a second time — the same order as the lossy-preview measurement's (queue row PREVIEW)
 separate preview — and in exchange
 the exact frame needs nothing from its preview: no bytes held across entries, no join, no order
 between a frame's two entries, a failure confined to its entry, and the wire, the store's format and
 the server unchanged. A carries the same delivery for those bytes and breaks each of those. C moves
 the change into the wire and the server for the same delivery, and is structural twice over.
 
-B also settles what row SVCQ left open: **WebCodecs cannot be asked for an operating point, but it
-returns the base when fed the base alone and the top when fed the whole unit** (row SVCQ, 8-bit), so
+B also settles what the two-layer scalable measurement left open: **WebCodecs cannot be asked for an operating point, but it
+returns the base when fed the base alone and the top when fed the whole unit** (the same measurement, 8-bit), so
 separate entries choose the picture by what is fed, on either decoder. dav1d-WASM decodes the
-exact entry at operating point 0 with `all_layers` 0 and the base at operating point 1 (row SVCQ);
-whether one decoder at operating point 0 also returns a base fed alone is row SVCDEC's to find
+exact entry at operating point 0 with `all_layers` 0 and the base at operating point 1 (the same measurement);
+whether one decoder at operating point 0 also returns a base fed alone is the scalable-payload decoder build's (queue row SVCDEC) to find
 (*it does, as a preview, and then fails the frame:* §6).
 
 ### The layout: layer-major
@@ -301,7 +305,7 @@ whether one decoder at operating point 0 also returns a base fed alone is row SV
   are index arithmetic on `i mod F`: a base group decodes from its base keyframe and an exact group
   from its own, each on one decoder, independent of each other.
 * **The decoders.** A base entry decodes to a frame marked `preview: true` with the base's own width
-  and height (row SVCDEC's contract); an exact entry decodes as a single-layer frame does.
+  and height (the scalable-payload decoder build's contract); an exact entry decodes as a single-layer frame does.
 * **The consumer and the cache.** Pixels go from a decoder to the consumer directly, so it is the
   consumer, not the downloader, that **drops a preview for a frame whose exact pixels it already
   holds** — a base decoded late on a slow decoder must never replace an exact frame on screen. A
@@ -315,23 +319,23 @@ whether one decoder at operating point 0 also returns a base fed alone is row SV
    is an entry; the frame is `i mod F`. Everything below the consumer must map, and a check that
    compares an entry's pixels against a frame's `.sha256` by index compares the wrong one.
 2. **Frames are decoded once.** Every base is decoded twice — alone as a preview, again inside its
-   exact unit: 2–13 % of a lossless frame's decode for a half-size base (row SVCQ, dav1d-WASM).
+   exact unit: 2–13 % of a lossless frame's decode for a half-size base (the two-layer scalable measurement, dav1d-WASM).
 3. **A frame's bytes cross the wire once.** The base's do twice; `wire bytes` per delivery stays
    per entry, and a frame's traffic is the sum of its two.
 4. **`frameCount` is the series' frame count.** It stays the entry count; a client reading it as
    frames shows twice the series.
 5. **Every delivered frame is exact.** A delivery marked `preview` is not, and is never the last
    delivery for its frame unless the exact unit failed — then the frame fails by name and the preview
-   stays marked (row SVCDEC).
+   stays marked (the scalable-payload decoder build).
 
 Not broken: the envelope, the stream shape, the store's format, the planner, a frame decoding from
 its own entry, a failure being one entry, and an ask being one entry at G = 1.
 
 ### The smallest variant that measures it
 
-Row SVCQ's streams split by a lab script into layer-major bundles, served by the unchanged server
-through row FILL's harness ([`lab/av1/delivery/fill`](../../lab/av1/delivery/fill/README.md)), after row SVCDEC's
-decoder and row SVCSHAPE's shape: two variants per series, **single-layer lossless AV1 in frame order**
+The two-layer scalable measurement's streams split by a lab script into layer-major bundles, served by the unchanged server
+through the fill-decode measurement's harness (queue row FILL, [`lab/av1/delivery/fill`](../../lab/av1/delivery/fill/README.md)), after the
+scalable-payload decoder build's decoder and the scalable-shape sweep's shape (queue row SVCSHAPE): two variants per series, **single-layer lossless AV1 in frame order**
 (today) against **B layer-major, bases first**, on fluoroscopy (dav1d-WASM) and the ultrasound
 (WebCodecs and dav1d-WASM), 5/20/50 Mbit/s, 1× and 4×, Williams-ordered. Report the time to every
 preview on screen, to every frame exact, and the exact fill's delay against the first variant — every
@@ -341,11 +345,12 @@ exact frame is late by that share.
 
 ## 6 · A scalable frame: its base as a preview, then the exact frame, from the same bytes
 
-*Built (row SVCDEC), not timed.* A scalable temporal unit (row SVCQ: a lossy base layer, a lossless
+*Built (the scalable-payload decoder build, queue row SVCDEC), not timed.* A scalable temporal unit (the two-layer
+scalable measurement, queue row SVCQ: a lossy base layer, a lossless
 top predicted from it) reaches the page twice through dav1d-WASM: its base as a **preview**, then
 its exact frame. One entry, one decode, no wire, store or server change.
 
-**Why dav1d returned the base and then failed (row SVCQ).** dav1d at its default `all_layers` 1
+**Why dav1d returned the base and then failed (the two-layer scalable measurement).** dav1d at its default `all_layers` 1
 outputs every spatial layer as it decodes it, so `dav1d_get_picture` gives the base while the top's
 OBUs are still in the decoder's input. The wrapper took that one picture and returned; the next
 unit then found the previous unit's top still queued (`EAGAIN`), took *that* as its picture, and
@@ -380,7 +385,7 @@ the decoder told that the entry ends at the base (the `layers` in its metadata w
 built.
 
 **Not covered.** WebCodecs (a ≤ 10-bit series at G = 1) returns the top exactly and no preview: it
-outputs the highest layer it is fed (row SVCQ). *Row WCBASE:* fed the unit's prefix before the
+outputs the highest layer it is fed (the two-layer scalable measurement). *The WebCodecs-base measurement (queue row WCBASE):* fed the unit's prefix before the
 first OBU with `spatial_id` 1, it returns the base, identical to native dav1d's at operating point 1
 ([`README.md`](README.md) §Preview); not built. A split series
 takes no preview. Three or more spatial layers send every layer below the top as a preview; only two
