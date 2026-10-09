@@ -14,6 +14,12 @@ and no more of it.
 
 **Propose before implementing when the change is structural.** Designs are reviewed.
 
+## Names
+
+**A name states its role in the domain's words.** No word from the project's history — a queue row, a campaign
+label, a numbered lever — and none that a standard the code touches uses for something else (DICOM's Item; ARM).
+One concept, one name, defined once in [`docs/glossary.md`](docs/glossary.md).
+
 ## Comments
 
 **Write none, then add back only what a reader needs at that line to avoid writing a bug:**
