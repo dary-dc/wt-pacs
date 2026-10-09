@@ -7,4 +7,5 @@ run as written, its raw output kept whole here, one file a cell, as each script 
 | file | cell | written by |
 | --- | --- | --- |
 | `cell1-prof.tsv` | 1, PROF's LTE-good + CoDel | `lab/scripts/profile_cells.sh` |
+| `cell2-askl-ge1.jsonl`, `cell2-askl-ge4.jsonl`, `cell2-askl-summary.txt` | 2, ASKL's 1 % and 4 % | `lab/scripts/askl_cells.sh`, its summary `lab/stream-shape/askl.py` |
 | `host.log` | every cell: UTC time, 1-minute load, steal % over the 10 s before | a 10 s sampler of `/proc/stat` beside the runs |
