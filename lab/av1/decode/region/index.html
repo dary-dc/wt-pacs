@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>REGIONDECODE</title>
+<script>
+  const workers = {};
+  const call = (w, m) => new Promise((ok) => { w.onmessage = ({ data }) => ok(data); w.postMessage(m); });
+  const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+
+  globalThis.setup = async (glues) => {
+    for (const [name, glue] of Object.entries(glues)) {
+      workers[name] = new Worker("worker.js");
+      const r = await call(workers[name], { glue });
+      if (r.error) return r.error;
+    }
+    return null;
+  };
+  globalThis.load = (urls) => Promise.all(Object.values(workers).map((w) => call(w, { urls })));
+
+  // An ask: each rectangle to its own worker at once; the time runs from the posts to the last reply.
+  let shared;
+  globalThis.ask = async (asks, samples, check, mutate) => {
+    if (!shared || shared.byteLength < samples * 2) shared = new SharedArrayBuffer(samples * 2);
+    if (check) new Uint16Array(shared).fill(0);
+    const t0 = performance.now();
+    const rs = await Promise.all(asks.map((a) => call(workers[a.worker], { ...a, shared, check, mutate })));
+    const ms = performance.now() - t0;
+    const out = { ms, workerMs: Math.max(...rs.map((r) => r.ms)), hashes: rs.map((r) => r.hash),
+      blockBytes: rs.map((r) => r.blockBytes), error: rs.find((r) => r.error)?.error };
+    if (check) out.whole = hex(await crypto.subtle.digest("SHA-256", new Uint16Array(shared, 0, samples).slice()));
+    return out;
+  };
+  globalThis.ready = crossOriginIsolated;
+</script>

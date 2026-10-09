@@ -1,0 +1,15 @@
+diff --git a/source/core/coding/ht_block_decoding_wasm.cpp b/source/core/coding/ht_block_decoding_wasm.cpp
+index 8e1e21a..0aa5d0e 100644
+--- a/source/core/coding/ht_block_decoding_wasm.cpp
++++ b/source/core/coding/ht_block_decoding_wasm.cpp
+@@ -864,7 +864,10 @@ void j2k_codeblock::dequantize(uint8_t ROIshift) const {
+   }
+ }
+ 
++uint64_t lab_decoded_bytes = 0;
++
+ bool htj2k_decode(j2k_codeblock *block, const uint8_t ROIshift) {
++  lab_decoded_bytes += block->length;
+   uint8_t P0     = 0;
+   int32_t Lcup   = 0;
+   uint32_t Lref  = 0;
