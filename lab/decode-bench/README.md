@@ -26,10 +26,10 @@ initial heap you ask for, plain and shared. It needs emsdk and the OpenJPH sourc
 generator clones:
 
 ```bash
-EMSDK=~/emsdk INITIAL_MB=4 lab/decode-bench/wasm/build.sh
+INITIAL_MB=4 lab/decode-bench/wasm/build.sh
 node lab/decode-bench/parity.mjs lab/fixtures/decode_*      # same surface, same bytes?
 node lab/decode-bench/shared_tax.mjs lab/fixtures/decode_g1024
-EMSDK=~/emsdk lab/decode-bench/wasm/heap_curve.sh lab/fixtures/decode_g512
+lab/decode-bench/wasm/heap_curve.sh lab/fixtures/decode_g512
 ```
 
 `cold_variants.mjs --variants a,b` times two builds from a cold module — frames 0–2 and the steady state,

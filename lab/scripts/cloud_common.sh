@@ -9,9 +9,10 @@ CLOUD_HOST="${CLOUD_HOST:?set CLOUD_HOST to the rig address}"
 CLOUD_USER="${CLOUD_USER:-ubuntu}"
 CLOUD_PORT="${CLOUD_PORT:-4435}"
 CLOUD_URL="${CLOUD_URL:-https://${CLOUD_HOST}:${CLOUD_PORT}/}"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_rig_agent}"
+SSH_KEY="${SSH_KEY:?set SSH_KEY to the rig key, docs/rig-limits.md}"
 REMOTE="${CLOUD_USER}@${CLOUD_HOST}"
-REMOTE_WT="$REMOTE:/home/ubuntu/wt-pacs"
+REMOTE_DIR="${REMOTE_DIR:-wt-pacs}"  # the checkout on the rig, from its home directory
+REMOTE_WT="$REMOTE:$REMOTE_DIR"
 # Prefer workspace known_hosts (cloud agents often lack ~/.ssh/known_hosts entry).
 SSH_KNOWN_HOSTS="${SSH_KNOWN_HOSTS:-$ROOT/.local/r2/known_hosts}"
 mkdir -p "$(dirname "$SSH_KNOWN_HOSTS")"
@@ -49,7 +50,7 @@ cloud_set_netem() {
   local profile=$1
   local loss=${2:-0}
   local model=${3:-iid}
-  "${SSH[@]}" "GE_P=${GE_P:-0.07} GE_R=${GE_R:-14} sudo -n -E /home/ubuntu/wt-pacs/scripts/cloud_netem.sh $profile $loss $model"
+  "${SSH[@]}" "GE_P=${GE_P:-0.07} GE_R=${GE_R:-14} sudo -n -E $REMOTE_DIR/scripts/cloud_netem.sh $profile $loss $model"
 }
 
 cloud_ensure_server() {
@@ -61,7 +62,7 @@ cloud_ensure_server() {
 
 cloud_sync_netem_script() {
   "${SCP[@]}" "$ROOT/lab/scripts/cloud_netem.sh" "$REMOTE_WT/scripts/cloud_netem.sh"
-  "${SSH[@]}" "chmod +x /home/ubuntu/wt-pacs/scripts/cloud_netem.sh"
+  "${SSH[@]}" "chmod +x $REMOTE_DIR/scripts/cloud_netem.sh"
 }
 
 run_cloud_harness() {

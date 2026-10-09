@@ -3,7 +3,7 @@
 # turn, server -> client shaped with netem; each round runs the variants in a Williams order
 # (lab/scripts/order.py) and each variant a fill and an on-demand cell with the native driver. Results: docs/rig-limits.md §3.
 #
-#   SSH_KEY=~/.ssh/id_ed25519_rig lab/scripts/l3_lossy_link.sh [ROUNDS]
+#   SSH_KEY=<the rig key> lab/scripts/l3_lossy_link.sh [ROUNDS]
 #   CELLS="off 20:50:0 20:50:1"   one-way delay ms : rate Mbit : loss %, or off
 set -euo pipefail
 
@@ -12,7 +12,7 @@ ROUNDS=${1:-5}
 HOST=${CLOUD_HOST:?set CLOUD_HOST to the rig address}
 SSH_KEY=${SSH_KEY:?the human rig key, docs/rig-limits.md}
 CELLS=${CELLS:-"off 20:20:0 20:20:1 20:20:3 60:20:1"}
-SERIES=${SERIES:-/home/ubuntu/wt-pacs/fixtures/frames_32k_160.sbnd}
+SERIES=${SERIES:-wt-pacs/fixtures/frames_32k_160.sbnd}  # on the rig, from its home directory
 FRAMES=${FRAMES:-160}
 ASKS=${ASKS:-32}
 SETTLE=${SETTLE:-2}

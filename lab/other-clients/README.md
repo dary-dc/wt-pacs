@@ -15,9 +15,9 @@ this box could run, with early SETTINGS on and off. Each run goes direct, and ag
 
 ```bash
 python3 -m venv /tmp/aq && /tmp/aq/bin/pip install aioquic
-(cd lab/other-clients/go && go build -o /tmp/goclient .)
+(cd lab/other-clients/go && go build -o ../../../target/goclient .)
 (cd lab/other-clients/h3 && CARGO_TARGET_DIR=/tmp/h3t cargo build --release)
-VENV=/tmp/aq GO_CLIENT=/tmp/goclient H3_GET=/tmp/h3t/release/h3-get \
+VENV=/tmp/aq GO_CLIENT=target/goclient H3_GET=/tmp/h3t/release/h3-get \
   lab/other-clients/cells.sh LEVER_ON_BIN LEVER_OFF_BIN 5
 ```
 

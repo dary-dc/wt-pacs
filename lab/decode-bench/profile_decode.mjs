@@ -1,7 +1,7 @@
 // Where one frame's WASM decode goes, by function: a build with names kept, sampled by V8's
 // profiler. docs/decode/README.md §The decode tail on a slow CPU
 //
-// usage: EMSDK=~/emsdk VARIANTS=prof EXTRA_FLAGS=--profiling-funcs lab/decode-bench/wasm/build.sh
+// usage: VARIANTS=prof EXTRA_FLAGS=--profiling-funcs lab/decode-bench/wasm/build.sh
 //        node lab/decode-bench/profile_decode.mjs FIXTURE_DIR [--variant prof] [--passes 20]
 import { createRequire } from 'node:module';
 import inspector from 'node:inspector/promises';

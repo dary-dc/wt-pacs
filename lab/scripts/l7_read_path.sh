@@ -5,7 +5,7 @@
 # against 128 (the workstation's), interleaved. The server's own hit/miss line says how cold each
 # run was. A warm 80 MB series is the hit reference. Results: docs/adr/disk-access.md.
 #
-#   SSH_KEY=~/.ssh/id_ed25519_rig lab/scripts/l7_read_path.sh [ROUNDS]
+#   SSH_KEY=<the rig key> lab/scripts/l7_read_path.sh [ROUNDS]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

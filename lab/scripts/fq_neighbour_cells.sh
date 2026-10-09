@@ -21,7 +21,7 @@ DWELL_MS="${DWELL_MS:-30000}"
 ASKS="${ASKS:-20}"
 read -ra PROFILES <<<"${PROFILES:-shallow deep lte-loaded}"
 read -ra CCS <<<"${CCS:-cubic bbr}"
-TRACES="${TRACES:-$HOME/.cache/wtpacs-traces}"
+TRACES="${TRACES:-$ROOT/lab/.traces}"
 T="$(mktemp -d)"
 PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }

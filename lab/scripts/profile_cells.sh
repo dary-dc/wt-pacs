@@ -17,7 +17,7 @@ DWELL_MS="${DWELL_MS:-30000}"
 read -ra PROFILES <<<"${PROFILES:-control lte-good lte-good-codel lte-loaded lte-moving wifi-home wifi-home-codel wifi-busy}"
 read -ra VARIANTS <<<"${VARIANTS:-cubic bbr}"
 OUT="${OUT:-$(mktemp -t profile_cells.XXXX.tsv)}"
-TRACES="${TRACES:-$HOME/.cache/wtpacs-traces}"
+TRACES="${TRACES:-$ROOT/lab/.traces}"
 LOCK="${LOCK:-/run/user/$(id -u)/wtpacs-rig.lock}"
 MAHIMAHI=https://raw.githubusercontent.com/ravinet/mahimahi/master/traces
 T="$(mktemp -d)"
