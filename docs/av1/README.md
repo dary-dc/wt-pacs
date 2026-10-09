@@ -700,6 +700,107 @@ the previous series of the session) — and its **cost** a second encoding store
 bytes again. Row CROSSMEASURE tests this on the cells either side of each crossover:
 [`crossover-protocol.md`](crossover-protocol.md).
 
+### Where AV1 fills first, measured (row CROSSMEASURE, [`lab/av1/delivery/crossover`](../../lab/av1/delivery/crossover/README.md))
+
+[`crossover-protocol.md`](crossover-protocol.md) run as written, 2026-10-09, by a session given the protocol and its
+rule: row TOTAL's `run.mjs` unchanged, HTJ2K against k = 2 (`allintra` 7, ingest's payload, every one decoded back and
+matched before it was written), every 8th DBT slice (9, 9, 11 frames) and every FFDM and synthesized image, Chromium
+141 and Firefox 157.0.1, 1× and 4×, 12 rounds (0–11) interleaved. **8 762 / 8 762 delivered frames exact over 1 422
+visits**; `--mutate sample` and `--mutate truth` each took every variant of the cell they ran on to 0 exact, in both
+engines.
+
+**The protocol's bar is not met, so nothing here is conclusive by its own rule.** 625 of 1 422 visits are `VOID`
+(the relay's p99 over 1 ms: 35 % on the fixed links, 56 % on `lte-good`; steal under 2 % before every round), and 169
+Firefox visits failed to start, the dial not settling in 5 s: 143 of 192 at 10 Mbit/s and 26 of 72 at 20. A pair
+needs both arms kept, so only 5 of 60 cells reach n = 10 kept pairs; 9 have none, every Firefox 10 Mbit/s cell among
+them. Counting `VOID` visits round-paired (both arms in the same round, the owner's second option under
+[`queue.md`](queue.md) §Blocked), 48 cells have n = 12, and each ratio is the kept one's within 0.07 (within 0.01 on
+36 of the 50 cells that have both).
+
+The ratio is AV1's time to every frame on the page over HTJ2K's, the median of round-paired ratios; *side held*
+reads the kept pairs, then every visit paired. **Kept**, 45 of the 50 paired cells fall on the predicted side;
+**every visit paired**, 50 of 54.
+
+| series | engine, CPU | link | predicted | kept: ratio [spread] | AV1 faster / n | VOID | failed | every visit paired: ratio, n | HTJ2K, s | side held |
+| --- | --- | --- | --: | --- | --: | --: | --: | --- | --: | --- |
+| `dbts_a5` | Chromium 1× | r5000 | 0.96 | 0.959 [0.958–0.960] | 6/6 | 6/24 | 0 | 0.958, 12 | 15.30 | yes · yes |
+|  | Chromium 1× | r100000 | 1.04 | 1.134 [1.054–1.218] | 0/10 | 2/24 | 0 | 1.134, 12 | 1.04 | yes · yes |
+|  | Chromium 1× | lte-good | 0.97 | 0.980 [0.979–0.981] | 2/2 | 12/24 | 0 | 0.987, 12 | 3.44 | yes · yes |
+|  | Chromium 4× | r5000 | 0.97 | 0.971 [0.970–0.974] | 4/4 | 11/24 | 0 | 0.971, 12 | 15.39 | yes · yes |
+|  | Chromium 4× | r30000 | 1.07 | 1.070 [1.052–1.102] | 0/5 | 10/24 | 0 | 1.061, 12 | 2.83 | yes · yes |
+|  | Chromium 4× | lte-good | 1.02 | 1.040 [1.036–1.051] | 0/4 | 12/24 | 0 | 1.040, 12 | 3.53 | yes · yes |
+|  | Firefox 1× | r10000 | 0.98 | — | 0/0 | 14/24 | 19 | —, 0 | nan | — · — |
+|  | Firefox 1× | r50000 | 1.05 | 1.068 [1.040–1.164] | 0/10 | 2/24 | 0 | 1.065, 12 | 1.75 | yes · yes |
+|  | Firefox 1× | lte-good | 0.99 | 1.007 [0.965–1.033] | 1/3 | 12/24 | 0 | 1.013, 12 | 3.22 | **no** · **no** |
+|  | Firefox 4× | r10000 | 1.04 | — | 0/0 | 15/24 | 17 | —, 0 | nan | — · — |
+|  | Firefox 4× | lte-good | 1.10 | 1.358 [1.192–1.395] | 0/4 | 9/24 | 0 | 1.391, 12 | 3.09 | yes · yes |
+| `dbts_b2` | Chromium 1× | r5000 | 0.96 | 0.960 [0.958–0.960] | 5/5 | 9/24 | 0 | 0.960, 12 | 29.83 | yes · yes |
+|  | Chromium 1× | r100000 | 1.02 | 1.116 [1.041–1.141] | 0/9 | 3/24 | 0 | 1.104, 12 | 1.82 | yes · yes |
+|  | Chromium 1× | lte-good | 0.97 | 0.979 [0.978–0.980] | 2/2 | 15/24 | 0 | 0.981, 12 | 5.93 | yes · yes |
+|  | Chromium 4× | r5000 | 0.97 | 0.970 [0.969–0.971] | 4/4 | 11/24 | 0 | 0.971, 12 | 30.05 | yes · yes |
+|  | Chromium 4× | r30000 | 1.04 | 1.054 [1.052–1.056] | 0/2 | 13/24 | 0 | 1.052, 12 | 5.43 | yes · yes |
+|  | Chromium 4× | lte-good | 1.01 | 1.043 [1.029–1.061] | 0/3 | 15/24 | 0 | 1.039, 12 | 6.16 | yes · yes |
+|  | Firefox 1× | r10000 | 0.98 | — | 0/0 | 11/24 | 22 | —, 0 | nan | — · — |
+|  | Firefox 1× | r50000 | 1.04 | 1.113 [1.060–1.153] | 0/10 | 2/24 | 0 | 1.113, 12 | 3.26 | yes · yes |
+|  | Firefox 1× | lte-good | 0.99 | 1.020 [1.018–1.052] | 0/3 | 11/24 | 0 | 1.026, 12 | 5.58 | **no** · **no** |
+|  | Firefox 4× | r10000 | 1.03 | — | 0/0 | 8/24 | 20 | —, 0 | nan | — · — |
+|  | Firefox 4× | lte-good | 1.08 | 1.566 [1.566–1.566] | 0/2 | 17/24 | 0 | 1.547, 12 | 5.65 | yes · yes |
+| `dbts_b4` | Chromium 1× | r20000 | 0.79 | 0.777 [0.774–0.781] | 6/6 | 8/24 | 0 | 0.777, 12 | 6.90 | yes · yes |
+|  | Chromium 1× | lte-good | 0.79 | 0.833 [0.824–0.841] | 2/2 | 12/24 | 0 | 0.829, 12 | 5.44 | yes · yes |
+|  | Chromium 4× | r20000 | 0.82 | 0.811 [0.795–0.821] | 5/5 | 10/24 | 0 | 0.813, 12 | 7.11 | yes · yes |
+|  | Chromium 4× | r100000 | 1.95 | 1.881 [1.603–2.018] | 0/11 | 1/24 | 0 | 1.882, 12 | 1.98 | yes · yes |
+|  | Chromium 4× | lte-good | 0.81 | 0.900 [0.900–0.900] | 1/1 | 20/24 | 0 | 0.872, 12 | 5.65 | yes · yes |
+|  | Firefox 1× | r20000 | 0.81 | 0.800 [0.796–0.803] | 2/2 | 9/24 | 10 | 0.797, 5 | 6.91 | yes · yes |
+|  | Firefox 1× | lte-good | 0.80 | 0.837 [0.829–0.846] | 2/2 | 15/24 | 0 | 0.840, 12 | 5.09 | yes · yes |
+|  | Firefox 4× | r10000 | 0.83 | — | 0/0 | 12/24 | 20 | —, 0 | nan | — · — |
+|  | Firefox 4× | r50000 | 1.55 | 1.982 [1.910–2.274] | 0/10 | 2/24 | 0 | 1.970, 12 | 3.13 | yes · yes |
+|  | Firefox 4× | lte-good | 0.87 | 1.242 [1.229–1.293] | 0/3 | 12/24 | 0 | 1.287, 12 | 5.07 | **no** · **no** |
+| `ffdms_c1` | Chromium 1× | r20000 | 1.03 | 1.031 [1.030–1.044] | 0/3 | 16/24 | 0 | 1.031, 12 | 4.67 | yes · yes |
+|  | Chromium 1× | lte-good | 1.02 | 1.046 [1.042–1.051] | 0/2 | 15/24 | 0 | 1.040, 12 | 3.99 | yes · yes |
+|  | Chromium 4× | r10000 | 1.07 | 1.075 [1.070–1.083] | 0/6 | 9/24 | 0 | 1.077, 12 | 9.33 | yes · yes |
+|  | Chromium 4× | lte-good | 1.11 | 1.143 [1.143–1.143] | 0/1 | 15/24 | 0 | 1.182, 12 | 4.23 | yes · yes |
+|  | Firefox 1× | r20000 | 1.07 | 1.099 [1.088–1.102] | 0/4 | 10/24 | 6 | 1.102, 7 | 4.68 | yes · yes |
+|  | Firefox 1× | lte-good | 1.06 | 1.136 [1.136–1.137] | 0/2 | 17/24 | 0 | 1.139, 12 | 3.66 | yes · yes |
+|  | Firefox 4× | r10000 | 1.16 | 1.234 [1.234–1.234] | 0/1 | 13/24 | 15 | 1.234, 1 | 9.35 | yes · yes |
+|  | Firefox 4× | lte-good | 1.27 | 1.634 [1.632–1.664] | 0/3 | 14/24 | 0 | 1.676, 12 | 3.65 | yes · yes |
+| `syn2ds_a3` | Chromium 1× | r5000 | 0.98 | 0.977 [0.973–0.979] | 7/7 | 7/24 | 0 | 0.977, 12 | 20.64 | yes · yes |
+|  | Chromium 1× | r30000 | 1.03 | 1.030 [1.008–1.033] | 0/6 | 7/24 | 0 | 1.028, 12 | 3.69 | yes · yes |
+|  | Chromium 1× | lte-good | 1.00 | 1.010 [0.998–1.022] | 1/2 | 12/24 | 0 | 1.028, 12 | 4.50 | **no** · yes |
+|  | Chromium 4× | r10000 | 1.05 | 1.069 [1.050–1.144] | 0/5 | 8/24 | 0 | 1.063, 12 | 10.77 | yes · yes |
+|  | Chromium 4× | lte-good | 1.09 | — | 0/0 | 16/24 | 0 | 1.177, 12 | 4.83 | — · yes |
+|  | Firefox 1× | r20000 | 1.06 | 1.076 [1.076–1.076] | 0/1 | 10/24 | 10 | 1.079, 4 | 5.38 | yes · yes |
+|  | Firefox 1× | lte-good | 1.05 | 1.133 [1.121–1.154] | 0/3 | 14/24 | 0 | 1.146, 12 | 4.03 | yes · yes |
+|  | Firefox 4× | r10000 | 1.15 | — | 0/0 | 9/24 | 18 | 1.199, 1 | 10.73 | — · yes |
+|  | Firefox 4× | lte-good | 1.26 | 1.738 [1.687–1.789] | 0/2 | 14/24 | 0 | 1.788, 12 | 4.17 | yes · yes |
+| `syn2ds_b3` | Chromium 1× | r5000 | 0.95 | 0.953 [0.950–0.957] | 8/8 | 4/24 | 0 | 0.953, 12 | 12.08 | yes · yes |
+|  | Chromium 1× | r100000 | 1.06 | 1.297 [1.204–1.501] | 0/6 | 9/24 | 0 | 1.300, 12 | 0.99 | yes · yes |
+|  | Chromium 1× | lte-good | 0.97 | 1.014 [1.000–1.022] | 0/6 | 7/24 | 0 | 1.016, 12 | 2.97 | **no** · **no** |
+|  | Chromium 4× | r5000 | 0.97 | 0.980 [0.975–0.990] | 6/6 | 8/24 | 0 | 0.983, 12 | 12.56 | yes · yes |
+|  | Chromium 4× | r30000 | 1.09 | 1.156 [1.128–1.175] | 0/3 | 12/24 | 0 | 1.125, 12 | 2.80 | yes · yes |
+|  | Chromium 4× | lte-good | 1.03 | — | 0/0 | 17/24 | 0 | 1.105, 12 | 3.44 | — · yes |
+|  | Firefox 1× | r30000 | 1.07 | 1.184 [1.101–1.231] | 0/7 | 5/24 | 0 | 1.186, 12 | 2.25 | yes · yes |
+|  | Firefox 1× | lte-good | 1.02 | 1.132 [1.122–1.223] | 0/3 | 9/24 | 0 | 1.161, 12 | 2.71 | yes · yes |
+|  | Firefox 4× | r10000 | 1.12 | — | 0/0 | 11/24 | 12 | 1.263, 1 | 6.58 | — · yes |
+|  | Firefox 4× | lte-good | 1.21 | 2.049 [1.980–2.118] | 0/2 | 14/24 | 0 | 1.979, 12 | 2.87 | yes · yes |
+
+**Where the model misses**, both readings agree on four cells and all four are `lte-good`: Firefox 1× on the two
+12- and 10-bit DBT volumes (predicted 0.99, measured 1.007–1.026: a tie read as a loss by the ±0.01 band),
+Chromium 1× on `syn2ds_b3` (0.97 predicted, 1.014–1.016), and Firefox 4× on `dbts_b4` (0.87 predicted,
+**1.24–1.29**). Firefox at 4× is where the model is furthest off throughout: every one of its `lte-good` cells is
+0.29–0.77 above its predicted ratio, on the predicted side but for `dbts_b4`. Chromium's fixed links land within
+0.03 of prediction on 15 of 20 cells (every visit paired); the misses are on the side predicted: 100 Mbit/s at 1×,
+1.10–1.30 against 1.02–1.06, `dbts_b4` there at 4×, 1.88 against 1.95, and `syn2ds_b3` at 4× on 30, 1.13 against 1.09.
+
+**The rule.** (1) The model holds, by kept pairs, for 13 of the 24 series × engine × CPU groups, fails on 5 (the four
+cells above, and `syn2ds_a3` Chromium 1× on `lte-good`, 1.010 kept, 1.028 every visit) and is undecided on 6 for an
+unpaired cell; every visit paired, 18 hold, 4 fail, 2 undecided (`dbts_a5`, `dbts_b2` Firefox 4×: 10 Mbit/s never
+dialled). (2) **No series gains ≥ 5 % on a phone link in both engines at both CPU speeds**: `dbts_b4` gains 13–22 %
+on every one but Firefox 4× (1.29 on `lte-good`, 10 Mbit/s unpaired); no other series gains 5 % anywhere ≤ 20 Mbit/s
+(best `syn2ds_b3` Chromium 1× on 5 Mbit/s, 0.953, 8 of 8). So no per-link rule is worth building on this data, and
+(3) `dbts_b4`'s gain is not a per-series choice in both engines either: Firefox at 4× hands it back. The 4×
+cells on 30–100 Mbit/s and on `lte-good` are where the decode on the browser's three cores sets the fill, as rows 95
+and 96 found at 4× on 50 Mbit/s: they place this host's saturation, not a phone's, and nothing past it is claimed.
+
 ## Client resources
 
 A decoder worker's memory and first use, against HTJ2K's: §Decode time and memory, *Memory and first use*. The

@@ -34,8 +34,8 @@ for line in open(sys.argv[1]):
     visits[(r["set"], f"{r['engine'][0]}{r['throttle']}", r["link"])][r["round"]][r["variant"]] = r
 
 failed = lambda r: r["errors"] or r.get("failure") or r["exact"] != r["owed"]
-print("| series | engine, CPU | link | predicted | ratio | AV1 faster | pairs | VOID | failed | HTJ2K, s | holds |")
-print("| --- | --- | --- | --: | --: | --: | --: | --: | --: | --: | --- |")
+print("| series | engine, CPU | link | predicted | ratio | spread | AV1 faster | pairs | VOID | failed | HTJ2K, s | holds |")
+print("| --- | --- | --- | --: | --: | --- | --: | --: | --: | --: | --: | --- |")
 held = defaultdict(list)
 gains = defaultdict(dict)  # series: {(group, link): gained 5 %}, the phone links only
 for s, groups in PREDICTED.items():
@@ -53,8 +53,9 @@ for s, groups in PREDICTED.items():
             held[(s, g)].append(None if ratio is None else side)
             if link == "lte-good" or int(link[1:]) <= 20000:
                 gains[s][(g, link)] = ratio is not None and ratio <= .95 and sum(k < h for k, h in pairs) >= .8 * len(pairs)
+            spread = f"{min(k / h for k, h in pairs):.3f}–{max(k / h for k, h in pairs):.3f}" if pairs else "—"
             htj2k = statistics.median(h for _, h in pairs) / 1000 if pairs else float("nan")
-            print(f"| `{s}` | {GROUP[g]} | {link} | {p:.2f} | {'—' if ratio is None else f'{ratio:.3f}'} | "
+            print(f"| `{s}` | {GROUP[g]} | {link} | {p:.2f} | {'—' if ratio is None else f'{ratio:.3f}'} | {spread} | "
                   f"{sum(k < h for k, h in pairs)} | {len(pairs)} | {void}/{len(rows)} | {bad} | {htj2k:.2f} | {verdict} |")
 print()
 for (s, g), sides in held.items():
