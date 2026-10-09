@@ -242,3 +242,11 @@ Rounds 0–9 of the LOSSLINK command above with `--frames lab/.av1-work/losscc`,
 `--impairs clean,j5,j20`. Passing no `--congestion` stopped the run at the first `-bbr` visit;
 `--mutate sample` and `--mutate truth` each turned all six variants to 0 of 8 exact. The reading is in
 [`docs/transport/transport-conclusions.md`](../../../../docs/transport/transport-conclusions.md) §1 (LOSSCC, first run).
+
+**Row EXACT** times the decoder worker's frame check: `VARIANTS=check make_frames.py` (HTJ2K only) for the
+ADR's four series, `mr_ispy1`, `rf_fluoro`, `dbtproj_ge` and `ffdm_a`, adds `check` — `htj2k`'s frames, `connect`
+told the series' frame digests (`variants.json`'s `digests`, from `ingest/frame_digests.py`) and the hasher —
+then `run.mjs --frames lab/.av1-work/exact --links r20000,r50000,wifi-home --variants htj2k,check --rounds 10`.
+A row's `checked` counts `frame.info.exact` by value: `check` owes every frame `true`, `htj2k` every frame
+`"unchecked"`. `--mutate digest` flips each digest's first hex digit and turned every `check` frame `false`. The
+reading is in [`docs/adr/exactness-in-production.md`](../../../../docs/adr/exactness-in-production.md) §Built.

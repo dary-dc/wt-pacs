@@ -10,9 +10,10 @@ the two low bits apart on grey; rct, the reversible colour transform on RGB, int
 exact variant is decoded natively and matched with the series' checksum; a preview's truth is its native
 decode's hash. Row TOTAL3 adds x36, row ENCX's changes to l2: the low k bits packed and raw-deflated,
 k = 3 where the noise's σ ≥ 17; and names the two representations of docs/av1/payload-format.md, plain
-and opt, each with the decoder the format picks.
+and opt, each with the decoder the format picks. Row EXACT adds check: htj2k's frames, each checked in the
+decoder worker against the series' frame digests.
 
-usage: [VARIANTS=av1,split,gop,pre,l2,rct,x36,plain] make_frames.py BUILD OUT SETDIR ...  (OUT/SET/variants.json says
+usage: [VARIANTS=av1,split,gop,pre,l2,rct,x36,plain,check] make_frames.py BUILD OUT SETDIR ...  (OUT/SET/variants.json says
 what was made; VARIANTS limits it, htj2k always) — lab/av1/delivery/total-time/README.md
 """
 import json
@@ -34,6 +35,8 @@ import llsize  # noqa: E402
 import encode as preview  # noqa: E402
 from make_frames import htj2k  # noqa: E402
 from encx import deflate, inflate, pack, unpack  # noqa: E402
+sys.path.insert(0, str(HERE.parents[3] / "ingest"))
+from frame_digests import series_digests  # noqa: E402
 from size import AOM, Set, av1_cell, decode_y4m, exact, ivf_units, timed, write_y4m  # noqa: E402
 
 GOP = {"dbt10_ea1141"}
@@ -147,13 +150,15 @@ def main():
     build, out = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
     for d in sys.argv[3:]:
         s = Set(Path(d))
-        if s.offset or s.av1_bits is None:
+        want = os.environ.get("VARIANTS", "av1,split,gop,pre,l2,rct").split(",")
+        if (s.offset or s.av1_bits is None) and set(want) - {"check"}:
             sys.exit(f"{s.name}: needs an offset or more than 12 bits")
         dst, work = out / s.name, out / f".{s.name}-work"
         dst.mkdir(parents=True, exist_ok=True)
         work.mkdir(exist_ok=True)
-        want = os.environ.get("VARIANTS", "av1,split,gop,pre,l2,rct").split(",")
         files, variants = {}, {"htj2k": {}}
+        if "check" in want:
+            variants["check"] = dict(ext="htj2k", codec="htj2k", check=True)
         if "av1" in want:
             files["av1"] = intra(build, s, work)
             variants["av1"] = {}
@@ -199,7 +204,8 @@ def main():
         for i in range(s.n):
             htj2k(s, i, work, dst / f"{i:03d}.htj2k")
         sizes = {ext: sum((dst / f"{i:03d}.{ext}").stat().st_size for i in range(s.n)) for ext in ["htj2k", *files]}
-        entry = dict(name=s.name, frames=s.n, bits=s.av1_bits, truth=s.truth, variants=variants, bytes=sizes)
+        entry = dict(name=s.name, frames=s.n, bits=s.av1_bits, truth=s.truth, variants=variants, bytes=sizes,
+                     **({"digests": series_digests(s, s.n, s.stored > 8)} if "check" in want else {}))
         (dst / "variants.json").write_text(json.dumps(entry, indent=1))
         print(s.name, s.n, "frames,", ", ".join(f"{k} {v} B" for k, v in sizes.items()), flush=True)
 
