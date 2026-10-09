@@ -732,8 +732,8 @@ malformed ask leaves the session serving). A re-dial puts the fill's remainder i
 **The server's SETTINGS at 0.5 RTT.** Chromium holds its CONNECT until the server's SETTINGS arrive,
 and `wtransport` 0.7.2 opened the server's control stream only after the handshake completed.
 [`../patches/wtransport-0.7.2-settings-in-handshake.patch`](../patches/wtransport-0.7.2-settings-in-handshake.patch)
-(22 lines in `endpoint.rs`) takes the server's `Connecting` to 0.5-RTT with `into_0rtt` and starts the
-driver on it — on both of the library's server entry points, `Endpoint::accept` and
+(30 lines in `endpoint.rs`) takes the server's `Connecting` to 0.5-RTT with `into_0rtt` and starts the
+driver on it once the ClientHello is whole — on both of the library's server entry points, `Endpoint::accept` and
 `IncomingSessionFuture::with_quic_connecting` — so SETTINGS ride the handshake flight (RFC 9114
 §6.2.1 allows it). It still waits for the handshake before reading the client's SETTINGS and CONNECT,
 so a `SessionRequest` exists only after a completed handshake, and early data stays off. **On by default.** *Corrected in place:* this was first
@@ -768,7 +768,10 @@ page host the lever takes its round trip off the page's first frame in every cel
 #### What early SETTINGS cost
 
 **No bytes**: the SETTINGS take the padding of the server's 1 200 B Initial datagram, so the
-amplification budget is untouched. **Under 1 % loss, no regression**: native session 2.04–2.13 round
+amplification budget is untouched. *Corrected in place 2026-10-09:* since the driver waits for the whole ClientHello
+(a ClientHello split across two datagrams otherwise never got SETTINGS: [`transport/transport-conclusions.md`](transport/transport-conclusions.md)
+§3 *Firefox's dial on a slow link*), they ride the flight's second datagram, 217 → 245 B, sent with the first; Chromium's dial
+ties (median 87.6 → 87.4 ms at 40 ms round trip, 20/20 each, alternated). **Under 1 % loss, no regression**: native session 2.04–2.13 round
 trips against 3.07–3.14, 10/10; Chrome ready 169 against 251 ms, 34/40. **Under a blink** — a 150 ms
 blackout at an offset into a cold dial at 80 ms ([`../lab/page-open/dial-blink.mjs`](../lab/page-open/dial-blink.mjs),
 n = 5 an offset) — it wins by 80–340 ms everywhere but where the blink eats the server's first flight,
