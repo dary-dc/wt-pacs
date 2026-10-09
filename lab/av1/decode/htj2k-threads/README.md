@@ -61,7 +61,7 @@ emscripten 3.1.74; `@cornerstonejs/codec-openjph` 2.4.11. Nothing built or fetch
 
 ## A coarser hand-off unit (row COARSEPOOL)
 
-`docs/decode/levers-protocol.md` §L4 on the frame bench above: the pool handed a whole subband (`sb2`) or every
+the decode levers protocol (on `claude/av1`) §L4 on the frame bench above: the pool handed a whole subband (`sb2`) or every
 subband of one resolution (`rs2`) at once instead of a row of code-blocks (`cb2`), each at 2 threads, against `web`.
 `cb-unit.patch` applies on top of `cb-threads.patch`: `OJPH_CB_UNIT=1` a subband, `=2` a resolution; a unit's blocks
 get buffers of their own, decoded in one `cb_pool::run`, freed when the unit's last band is drained.
