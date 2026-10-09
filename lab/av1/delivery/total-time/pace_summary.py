@@ -31,7 +31,7 @@ def ratio(ps, k):
 exact = sum(r["exact"] for r in rows)
 owed = sum(r["owed"] for r in rows)
 print(f"{len(rows)} visits, {sum(r['void'] for r in rows)} VOID, {exact}/{owed} frames exact")
-print("cell | reading | n | today ms | × fill (≤1.01 in) | × CPU | × wake-ups | decoders used, peak, mean busy today → pace")
+print("cell | reading | n | today ms | × fill (≤1.01 in) | × last byte | × CPU | × wake-ups | decoders used, peak, mean busy today → pace")
 verdict = {}
 for strict in (True, False):
     ok = True
@@ -43,13 +43,13 @@ for strict in (True, False):
             continue
         fill = [p["decodedMs"] / t["decodedMs"] for t, p in ps]
         within = sum(x <= 1.01 for x in fill)
-        cpu, wakes = ratio(ps, "cpuMs"), ratio(ps, "wakes")
+        cpu, wakes, wire = ratio(ps, "cpuMs"), ratio(ps, "wakes"), ratio(ps, "receivedMs")
         tm = median(t["decodedMs"] for t, _ in ps)
         use = lambda side, k: median(pair[side][k] for pair in ps)
         ok &= within >= 0.8 * len(ps) and cpu <= 1.03 and wakes <= 1
         print(f"{cell[0]} {cell[1]} {cell[2]}x | {'strict' if strict else 'paired'} | {len(ps)} | {tm:.0f} "
               f"[{min(t['decodedMs'] for t, _ in ps)}–{max(t['decodedMs'] for t, _ in ps)}] | ×{median(fill):.3f} "
-              f"[{min(fill):.3f}–{max(fill):.3f}] ({within}/{len(ps)}) | ×{cpu:.3f} | ×{wakes:.3f} | "
+              f"[{min(fill):.3f}–{max(fill):.3f}] ({within}/{len(ps)}) | ×{wire:.3f} | ×{cpu:.3f} | ×{wakes:.3f} | "
               f"{use(0, 'decodersUsed'):g}, {use(0, 'peakBusy'):g}, {use(0, 'meanBusy'):.2f} → "
               f"{use(1, 'decodersUsed'):g}, {use(1, 'peakBusy'):g}, {use(1, 'meanBusy'):.2f}")
     verdict["strict" if strict else "paired"] = ok
