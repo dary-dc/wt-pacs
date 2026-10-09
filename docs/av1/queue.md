@@ -2411,11 +2411,11 @@ Pedantic lints are not adopted. **Deliverable:** the format commit, the lint fix
 
 ## Blocked
 
-* **2026-10-09 18:40 UTC: row 107 EVENREVIEW — whether `bbr-bound` stays in the product, opt-in, or is retired as BB2
+* **2026-10-09 17:35 UTC: row 107 EVENREVIEW — whether `bbr-bound` stays in the product, opt-in, or is retired as BB2
   and BBF were;** it failed its rule and nothing recommends it to a user (`transport-conclusions.md` §1, reviewed).
-* **2026-10-09 18:40 UTC: row 107 EVENREVIEW — whether a per-packet loss bound is worth pursuing** (proposed to quinn
+* **2026-10-09 17:35 UTC: row 107 EVENREVIEW — whether a per-packet loss bound is worth pursuing** (proposed to quinn
   upstream, or v3 ported): the round-rate approximation cut after CoDel's drops, not before.
-* **2026-10-09 18:40 UTC: row 107 EVENREVIEW — whether a series AV1 codes a fifth smaller (`dbts_b4`) is served as AV1**:
+* **2026-10-09 17:35 UTC: row 107 EVENREVIEW — whether a series AV1 codes a fifth smaller (`dbts_b4`) is served as AV1**:
   13–22 % faster in Chromium and Firefox at 1×, 1.29 × slower in Firefox at 4× on LTE (`docs/av1/README.md` §Where
   AV1 fills first, reviewed).
 
