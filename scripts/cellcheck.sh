@@ -10,7 +10,7 @@ source client/contract/browser_env.sh
 NO_BROWSER_HINT="README.md §Prerequisites"
 require_browser
 require_vendor
-[[ -f client/transport/wasm/pkg/transport_wasm_bg.wasm ]] || { echo "no WASM pkg/: client/transport/wasm/build.sh" >&2; exit 2; }
+require_transport_wasm
 [[ -f lab/fixtures/decode_c512/086.sha256 ]] || { echo "no c512 frames: lab/scripts/gen_htj2k_fixtures.sh c512" >&2; exit 2; }
 
 bash client/transport/ts/build.sh >/dev/null
