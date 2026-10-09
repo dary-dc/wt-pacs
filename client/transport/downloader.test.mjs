@@ -67,5 +67,96 @@ async function aTimedOutAskIsResumed() {
 }
 await aTimedOutAskIsResumed();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask: ok");
+/** A transport whose fill and asks the test feeds by hand. */
+function handFed() {
+  const fed = { fill: null, asks: new Map() };
+  globalThis.fakeTransport = {
+    connect: async () => ({
+      requestExactFrame: (i) => new Promise((resolve) => fed.asks.set(i, resolve)),
+      stats: () => ({ closed: null, lastByteAt: performance.now() }),
+      fillFrames: (from, to, onFrame) => (fed.fill = onFrame),
+      endStream: async () => {},
+      close() {},
+    }),
+  };
+  return fed;
+}
+
+/** Decoder workers that come up at once and finish a frame only when the test says so. */
+function handDecoders() {
+  const made = [];
+  globalThis.Worker = class {
+    constructor() {
+      this.decoding = [];
+      made.push(this);
+    }
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") this.decoding.push(m);
+    }
+    finish() {
+      const m = this.decoding.shift();
+      this.onmessage({ data: { kind: "done", index: m.index, gen: m.gen } });
+    }
+  };
+  return made;
+}
+
+const settle = () => new Promise((r) => setTimeout(r, 0));
+const frame = (i) => ({ frameIndex: i, bytes: new Uint8Array(4), timing: {} });
+
+/**
+ * `followQueue` starts one decoder, adds one only while frames stay queued after a dispatch, never past
+ * `decoders`, takes a retired decoder back before making another, and keeps both dispatch clauses: asks
+ * first, at most `perDecoder` a decoder.
+ */
+async function followTheQueue() {
+  const fed = handFed();
+  const made = handDecoders();
+  // A source of its own: a module is cached by its URL, and the one above holds the other fake.
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // follow`;
+  await import("./downloader.js?follow");
+  await onmessage({ data: { kind: "start", config: { followQueue: true, decoders: 3, perDecoder: 2, transport, decoderWorker: "x", survival: false } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  check(made.length === 1, `it starts ${made.length} decoders, not 1`);
+  await onmessage({ data: { kind: "fill", indices: [...Array(16).keys()] } });
+  const busy = () => made.map((w) => w.decoding.length);
+  const most = () => Math.max(...busy());
+
+  fed.fill(frame(0));
+  fed.fill(frame(1));
+  await settle();
+  check(made.length === 1, `two frames on one decoder add none (${made.length} decoders)`);
+  fed.fill(frame(2));
+  await settle();
+  check(made.length === 2 && busy()[1] === 1, `a frame left queued adds one, which takes it (${busy()})`);
+  for (let i = 3; i < 10; i++) fed.fill(frame(i));
+  await settle();
+  check(made.length === 3, `never past decoders: ${made.length}`);
+  check(most() <= 2, `at most perDecoder a decoder: ${busy()}`);
+
+  const ask = onmessage({ data: { kind: "ask", index: 11 } });
+  await settle();
+  fed.asks.get(11)(frame(11));
+  await ask;
+  await settle();
+  made[0].finish();
+  check(made[0].decoding.at(-1)?.index === 11, `a freed decoder takes the ask before queued fill frames (${made[0].decoding.map((m) => m.index)})`);
+
+  while (made.some((w) => w.decoding.length)) {
+    for (const w of made) if (w.decoding.length) w.finish();
+    await settle();
+  }
+  fed.fill(frame(10));
+  fed.fill(frame(12));
+  await settle();
+  const working = made.filter((w) => w.decoding.length).length;
+  check(working === 1, `idle decoders retire: two frames find ${working} decoders working, not 1`);
+  fed.fill(frame(13));
+  await settle();
+  check(made.length === 3 && busy().filter((n) => n).length === 2, `a retired decoder is taken back, none made (${made.length} made, ${busy()})`);
+}
+await followTheQueue();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue: ok");
 process.exit(failed ? 1 : 0);

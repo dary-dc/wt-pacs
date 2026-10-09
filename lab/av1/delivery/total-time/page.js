@@ -51,6 +51,8 @@ async function finish(client) {
     }
   }
   const { resumedAt, exact: checked } = client.stats();
+  // Row DECODEPACE: the harness reads the decoders' threads while they still exist.
+  if (q.get("post")) await fetch(`${q.get("post")}filled`, { method: "POST" });
   client.close();
   const sha = {};
   for (const [i, px] of pixels) sha[i] = await sha256(px);
@@ -70,7 +72,8 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   ...OPTS,
   onFrame: (f) => {
     const i = f.frameIndex - (LAYERS - 1) * F;
-    frames.push({ i, page: at(), lastByte: f.info.stamps.lastByte, exact: f.info.exact, path: f.info.path });
+    const { lastByte, decoder, decodeStart: start, decodeEnd: end } = f.info.stamps;
+    frames.push({ i, page: at(), lastByte, decoder, start, end, exact: f.info.exact, path: f.info.path });
     pixels.set(i, f.bytes);
     settled(client);
   },
