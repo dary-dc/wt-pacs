@@ -927,7 +927,7 @@ mod tests {
         let path = write_bundle(&dir, 3, LEN);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         if !store.nowait_supported() {
-            eprintln!("skipped: this filesystem refuses RWF_NOWAIT, so every read reports a miss");
+            eprintln!("SKIPPED: this filesystem refuses RWF_NOWAIT, so every read reports a miss");
             std::fs::remove_dir_all(&dir).ok();
             return;
         }
@@ -978,7 +978,7 @@ mod tests {
         let path = write_bundle(&dir, 3, LEN);
         let mut store = FrameStore::open(&path).expect("open store");
         if !store.nowait_supported() {
-            eprintln!("skipped: this filesystem refuses RWF_NOWAIT");
+            eprintln!("SKIPPED: this filesystem refuses RWF_NOWAIT");
             std::fs::remove_dir_all(&dir).ok();
             return;
         }
@@ -1016,7 +1016,7 @@ mod tests {
                 .await
         });
         if !tile.ring_built() {
-            eprintln!("skipped: io_uring or RWF_NOWAIT is unavailable on this host");
+            eprintln!("SKIPPED: io_uring or RWF_NOWAIT is unavailable on this host");
         } else {
             let read = read.expect("the ring read hung on the end of the file");
             assert!(read.is_err(), "a frame past the end of the file was served");
@@ -1043,7 +1043,7 @@ mod tests {
         let (rd, wr) =
             unsafe { (std::fs::File::from_raw_fd(fds[0]), std::fs::File::from_raw_fd(fds[1])) };
         let Ok(ring) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-            eprintln!("skipped: io_uring is unavailable on this host");
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
             std::fs::remove_dir_all(&dir).ok();
             return;
         };

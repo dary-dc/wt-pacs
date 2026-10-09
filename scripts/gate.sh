@@ -116,9 +116,9 @@ step "lab: the AV1 fetch refuses a lossy source its set does not mark"
 run 1 python3 lab/av1/provenance_test.py
 
 step "server: tests, default features"
-run 1 cargo test -p series-server --quiet
+run 1 cargo test -p series-server --quiet -- --nocapture
 step "server: tests, telemetry feature"
-run 1 cargo test -p series-server --features telemetry --quiet
+run 1 cargo test -p series-server --features telemetry --quiet -- --nocapture
 step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --features crypto-ring --all-targets --quiet
 step "common, ingest and tools: wire, envelope, series bundle, pack-series and check-fastpath"
@@ -146,7 +146,7 @@ fi
 printf '\nGATE OK in %d s' $((SECONDS - t0))
 if [[ -s "$LOG/skipped" ]]; then
   printf '; skipped:\n'
-  sort -u "$LOG/skipped" | sed 's/^ *//; s/^/  /'
+  sed 's/^.*SKIPPED/SKIPPED/' "$LOG/skipped" | sort -u | sed 's/^/  /'
 else
   printf '; nothing skipped\n'
 fi
