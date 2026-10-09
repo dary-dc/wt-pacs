@@ -63,7 +63,7 @@ export function judgeIntegrity(integrity: Integrity): IntegrityJudgement {
   if (integrity.ring_evictions > 0) {
     invalid_reasons.push(`ring_evictions ${integrity.ring_evictions}`);
   }
-  // marks_after_close is recorded but does not void: it now means a mark with no row at all.
+  // marks_after_close is recorded but does not void: a mark with no row at all.
   return { valid: invalid_reasons.length === 0, invalid_reasons };
 }
 

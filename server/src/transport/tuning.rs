@@ -29,10 +29,10 @@ impl Congestion {
 #[derive(Clone, Debug, PartialEq, clap::Args)]
 pub struct TransportTuning {
     /// QUIC send window per connection in bytes: unacknowledged data held, so N sessions × this
-    /// bounds memory under slow clients. quinn default: 10_000_000.
+    /// bounds memory under slow clients.
     #[arg(long = "send-window-bytes")]
     pub send_window: Option<u64>,
-    /// QUIC idle timeout. quinn default: 30 000.
+    /// QUIC idle timeout.
     #[arg(long)]
     pub max_idle_timeout_ms: Option<u64>,
     /// Server-sent keep-alive, off by default; below both peers' idle timeouts to work. A browser

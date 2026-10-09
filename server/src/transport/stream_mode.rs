@@ -46,7 +46,7 @@ mod tests {
         }
     }
 
-    /// Anything else is rejected at the flag, the retired `pool:k` included.
+    /// Anything else is rejected at the flag, `pool:k` among them.
     #[test]
     fn an_unknown_mode_is_rejected() {
         for s in ["pool:2", "pool", "shared:2", ""] {

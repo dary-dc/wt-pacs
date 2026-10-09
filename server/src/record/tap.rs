@@ -1,8 +1,5 @@
-//! Lab-only Tap hot path — compiled only with `feature = "telemetry"`.
-//!
-//! Sink/drain/report live in sibling modules. Hot path: build a `Copy` row and push it into a
-//! per-session batch; one `try_send` on an owned `SyncSender` clone per [`BATCH`] rows — no
-//! global lock, and no drain-thread wake per row.
+//! The telemetry hot path, lab builds only: a `Copy` row into a per-session batch, one `try_send`
+//! a [`BATCH`]. `docs/adr/telemetry-server-pipeline.md`.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

@@ -1,4 +1,4 @@
-/** An HTJ2K codestream through OpenJPH-WASM, one decoder object reused (parity.mjs): docs/decode/README.md §A build of our own */
+/** An HTJ2K codestream through OpenJPH-WASM, one decoder object reused (lab/decode-bench/parity.mjs): docs/decode/README.md §A build of our own */
 import { instantiate } from "./wasm-glue.js";
 
 let dec = null;
