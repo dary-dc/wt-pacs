@@ -188,7 +188,8 @@ done
 A longer series is cut at 9.1–10.3 MB of HTJ2K, so a round fits in half an hour; 15–16 bits are
 HTJ2K's by the rule and have no AV1 variant. Firefox is launched as a process (as row XBROWSER's) and the page
 POSTs its result to the harness; Chromium's result comes the same way. Firefox runs no 5 Mbit cell but the
-probe: its WebTransport dial through the relay at 5 Mbit does not settle (below).
+probe: its WebTransport dial through the relay at 5 Mbit does not settle (below; the server's bug, fixed 2026-10-09 —
+[`docs/transport/transport-conclusions.md`](../../../../docs/transport/transport-conclusions.md) §3 Firefox's dial on a slow link).
 
 The run (2026-10-08): rounds 0–13 (round 4 cut short at 154 of 256 visits by a full disk; each Firefox
 visit's profile is now removed after it), then rounds 14–15 on the cells short of n = 10, through

@@ -649,6 +649,7 @@ Cells are AV1's total time over HTJ2K's, median of round-paired visits, 1× · 4
   92–1 446 ms in Firefox (median by series), the projections and the mammogram the largest.
 * **Firefox's dial through the relay fails at 5 and 20 Mbit**: 49 of 60 and 125 of 394 visits never
   connected (the grey-as-4:2:0 measurement's finding, queue row GREY420; §Open questions), so its 5 and 20 Mbit cells are thin.
+  *Since found to be the server's and fixed:* [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §3 Firefox's dial on a slow link.
 * **Saturation.** At 4× on 50 Mbit and LTE the decode on the browser's three cores is the fill's clock; a
   container is not a phone, and nothing past that is claimed. 46 % of visits were dropped as `VOID`,
   rising after the first rounds on a quiet rig: this container's timing, the same for both variants.
@@ -731,7 +732,8 @@ engines.
 
 **The protocol's bar is not met, so nothing here is conclusive by its own rule.** 625 of 1 422 visits are `VOID`
 (the relay's p99 over 1 ms: 35 % on the fixed links, 56 % on `lte-good`; steal under 2 % before every round), and 169
-Firefox visits failed to start, the dial not settling in 5 s: 143 of 192 at 10 Mbit/s and 26 of 72 at 20. A pair
+Firefox visits failed to start, the dial not settling in 5 s: 143 of 192 at 10 Mbit/s and 26 of 72 at 20 (the server's
+bug, since fixed: [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §3 Firefox's dial on a slow link). A pair
 needs both arms kept, so only 5 of 60 cells reach n = 10 kept pairs; 9 have none, every Firefox 10 Mbit/s cell among
 them. Counting `VOID` visits round-paired (both arms in the same round, as [`queue.md`](queue.md) §Protocol asks of a
 host that cannot meet its bar), 48 cells have n = 12, and each ratio is the kept one's within 0.07 (within 0.01 on

@@ -125,7 +125,9 @@ medians of round-paired ratios, 1× · 4×:
 30 Mbit some did: Firefox completes its side of the handshake and sends the session's `CONNECT`, but the server
 never finishes the QUIC handshake (no connection driver starts in its debug log), and the downloader's 5 s dial
 deadline closes it, five tries running. Chromium dials every link. Not this row's to fix; Firefox's fills here are
-on 50 Mbit, LTE and Wi-Fi only.
+on 50 Mbit, LTE and Wi-Fi only. *Corrected 2026-10-09:* the QUIC handshake did complete; the server never wrote its
+SETTINGS for a ClientHello split across two datagrams, a server bug since fixed
+([`docs/transport/transport-conclusions.md`](../../../../docs/transport/transport-conclusions.md) §3 Firefox's dial on a slow link).
 
 **Checked.** The reader's new paths each failed a test when broken: dav1d-WASM refusing 4:2:0, a wrong mid
 value, three planes returned for grey (`av1.test.mjs`); no range check, no R = G = B check, no grey from RGB, and

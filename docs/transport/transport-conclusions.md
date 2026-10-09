@@ -1011,6 +1011,36 @@ megabyte, nothing to an NVMe, something to a spinning disk or a cold object stor
 change**: ask order is already the client's priority, and what the order should be depends on what
 the viewer does with a partly-filled series.
 
+### Firefox's dial on a slow link, 2026-10-09
+
+**Firefox 157 never got a session through a 5 Mbit/s link, and lost most at 10–20: the server's
+early SETTINGS were ours to fix** ([`../../lab/firefox-dial/README.md`](../../lab/firefox-dial/README.md)).
+Firefox's ClientHello is 1 841 B and spans two Initial datagrams (a post-quantum key share); Chromium
+141's fits its first. The server starts its HTTP/3 driver on the connection's first datagram so SETTINGS
+leave with the handshake flight ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Early SETTINGS); when the
+second datagram arrives after the driver has asked to open its control stream, the stream budget is
+still 0, and quinn-proto 0.11.18 raises it from the client's transport parameters (`StreamsState::set_params`)
+without the event that wakes `open_uni`. The QUIC handshake completes, the server never writes SETTINGS,
+Firefox holds its CONNECT for them, and the downloader's 5 s deadline closes the dial. A slower link spaces
+the two datagrams further apart, hence the rate dependence. **Fix:** the driver starts once the
+ClientHello is whole (`Connecting::handshake_data`), in
+[`../../patches/wtransport-0.7.2-settings-in-handshake.patch`](../../patches/wtransport-0.7.2-settings-in-handshake.patch);
+`a_client_hello_in_two_datagrams_still_gets_its_session` fails without it. Firefox's bare dial, 20 ms
+each way, a 200-packet queue, 30 rounds, (link × build) Williams-ordered:
+
+| link | settled, before | settled, after | median, after |
+| --- | --: | --: | --: |
+| 5 Mbit/s | 0/30 | **30/30** | 197 ms |
+| 10 Mbit/s | 4/30 | **30/30** | 190 ms |
+| 20 Mbit/s | 12/30 | **30/30** | 183 ms |
+| 50 Mbit/s | 21/30 | **30/30** | 200 ms |
+
+Not the relay, not the browser: the server's trace shows every client datagram and a completed
+handshake, and Firefox waits for SETTINGS before an extended CONNECT as RFC 9220 §3 requires. The missing
+wake is quinn-proto's and is not reported upstream from here; the product no longer depends on it. The
+Firefox visits that never dialled in [`../../lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md)
+and [`../../lab/av1/delivery/grey-420`](../../lab/av1/delivery/grey-420/README.md) were this.
+
 ---
 
 ## 4 · CPU per byte: segments per `sendmsg`, a profile-guided build, one copy fewer
