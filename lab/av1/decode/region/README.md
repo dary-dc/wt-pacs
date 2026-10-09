@@ -3,7 +3,7 @@
 Region decode, the container half: a 1:1 phone viewport decoded alone, and one asked frame cut into stripes across
 idle decoder workers, each exact against the encoder's input. Queue row 109 (REGIONDECODE) of
 [`docs/av1/queue.md`](../../../../docs/av1/queue.md), run as
-[`docs/decode/levers-protocol.md`](../../../../docs/decode/levers-protocol.md) §L2 (on `claude/av1`); the reading is in
+the decode levers' protocol, `levers-protocol.md` §L2 (it lives on `claude/av1`); the reading is in
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §Region decode, measured.
 
 ```bash
