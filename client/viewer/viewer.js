@@ -219,7 +219,7 @@ addEventListener("resize", () => repaint());
 
 function report(result) {
   globalThis.__viewerResult = result;
-  if (q.get("post")) fetch(`${q.get("post")}result`, { method: "POST", body: JSON.stringify(result) });
+  if (q.get("post")) fetch(`${q.get("post")}result`, { method: "POST", body: JSON.stringify(result) }).catch(() => {});
 }
 
 const giveUp = q.get("check") ? performance.now() + 60000 : Infinity;

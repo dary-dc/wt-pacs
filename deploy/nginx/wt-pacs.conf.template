@@ -1,6 +1,5 @@
-# Static host for the harness, the WASM bundles and the series metadata, answering as
-# server/dev-server.py does in development.
-# deploy/README.md says why. SERIES is substituted at container start.
+# The static host for the viewer, answering as server/dev-server.py does in development: deploy/README.md.
+# SERIES and TLS_LISTEN are substituted at container start.
 
 # A re-packed catalog or an edited page must not be read stale from a heuristic cache;
 # nginx's ETag and Last-Modified make each revalidation a 304.
@@ -12,10 +11,12 @@ map $sent_http_content_type $revalidate {
 
 server {
     listen       8765;
-    server_name  localhost;
+    ${TLS_LISTEN}
+    server_name  _;
     root         /srv/wt-pacs;
     autoindex    off;
     charset      utf-8;
+    server_tokens off;
 
     # Cross-origin isolation. The page needs SharedArrayBuffer and a 5 us performance.now();
     # losing these degrades the client silently rather than failing, so `always`.
@@ -30,9 +31,8 @@ server {
         text/javascript  js mjs;
     }
 
-    # A cold open fetches the page, its modules and two WASM binaries. Compressed they are
-    # 2.9x smaller, which is bytes rather than round trips once the pages preload them —
-    # lab/page-open/README.md has both halves of that.
+    # A cold open fetches the page, its modules and two WASM binaries: compressed they are 2.9x smaller
+    # (lab/page-open/README.md). Nothing is proxied, so gzip_proxied has nothing to do.
     gzip            on;
     gzip_comp_level 6;
     gzip_min_length 1024;
@@ -40,33 +40,16 @@ server {
     gzip_types      text/css text/javascript application/javascript
                     application/json application/wasm image/svg+xml;
 
-    # A name carrying a content hash cannot go stale. `add_header` in a location REPLACES the
-    # server's, so the three isolation headers are repeated here or the page loses
-    # SharedArrayBuffer on exactly the assets this rule speeds up.
-    location ~ "\.[0-9a-f]{8,}\.(js|mjs|wasm|css)$" {
-        add_header Cross-Origin-Opener-Policy   same-origin   always;
-        add_header Cross-Origin-Embedder-Policy require-corp  always;
-        add_header Cross-Origin-Resource-Policy same-origin   always;
-        add_header Cache-Control "public, max-age=31536000, immutable" always;
-    }
-
-    location = /series/metadata {
-        alias /srv/wt-pacs/fixtures/${SERIES}/metadata.json;
-        default_type application/json;
-    }
-
-    location = /wt/dev-transport.json {
-        alias /srv/wt-pacs/client/dev-transport.json;
-        default_type application/json;
-    }
-
-    # The viewer is the product's page (client/README.md §The viewer).
+    # What the page loads, and nothing else: the page, its code, the series' metadata and the transport file.
     location = / { try_files /client/viewer/index.html =404; }
-    location = /harness  { return 301 /harness/; }
-    location = /harness/ { alias /srv/wt-pacs/client/harness/; index index.html; }
-    location   /harness/ { alias /srv/wt-pacs/client/harness/; }
-
-    # /client/** already resolves under root; dev-server.py's aliases for pkg/
-    # and transport-ts/ were identity mappings and need no rule here.
-    location / { try_files $uri $uri/ =404; }
+    location /client/ { try_files $uri =404; }
+    location = /series/metadata {
+        alias /studies/${SERIES}.metadata.json;
+        default_type application/json;
+    }
+    location = /wt/dev-transport.json {
+        alias /srv/wt-pacs/wt/dev-transport.json;
+        default_type application/json;
+    }
+    location / { return 404; }
 }
