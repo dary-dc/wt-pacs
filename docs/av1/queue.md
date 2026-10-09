@@ -1622,7 +1622,7 @@ reference: one frame's coded data, any codec, is a *coded frame*, and AV1's is t
 "variant" (the lab, its variables, `CLAUDE.md` §Measurement); the telemetry schema's `arm` → `client`, its row kinds to
 ask/fill, the always-null fields dropped; `exact-server` and "exact-tier" by role; "study" → "series" where it means one
 series (`--study`, `pack-study`, `study-bundle`); "conformance" → the transport contract suite; "early" out of the patch
-name; "Media-complete" defined once or renamed. The glossary gets its own file, `docs/glossary.md`, linked from the
+name; "Media-complete" defined once or renamed. The glossary gets its own file, docs/glossary.md, linked from the
 README; the Names rule (row 83's principles, *Names*) goes into `CLAUDE.md`. What a public repository carries and
 which rule governs are not this row's: row 102 analyses them for the owner.
 
@@ -2207,7 +2207,7 @@ should remove and what not, the smallest build and the cell that decides it. **D
 *The smallest build* states it, opt-in beside `bbr` and `cubic-restart` (a controller name the server's flag takes),
 the default unchanged; unit tests of its rules (a round over 2 % sets the cap, the 0.7 × BDP floor, the 1, 2, 4…
 regrowth), each mutated and seen to fail; the gate green. (2) Before any timed run, write
-`docs/transport/bb3-protocol.md` alone, with no reasoning in it: the cells, the arms (`bbr`, the bound, `cubic-restart`),
+docs/transport/bb3-protocol.md alone, with no reasoning in it: the cells, the arms (`bbr`, the bound, `cubic-restart`),
 rounds and order (`lab/scripts/order.py`, `--self-timing`), what is recorded, and this decision rule stated before data:
 *the bound passes* when on PROF's LTE-good + CoDel profile under 2 % of its packets meet CoDel, it stands under 50 ms
 of queue and keeps ≥ 0.9 × `bbr`'s throughput; on ASKL's 4 % cell its ask is ≤ +73 ms over `bbr`; on W4b's `flat`
@@ -2218,7 +2218,7 @@ protocol file. **Branch:** `claude/av1-unified`.
 
 ### 104 BB3MEASURE
 
-**Do:** given only `docs/transport/bb3-protocol.md` and its decision rule (not §1's reasoning), run it. Report the
+**Do:** given only docs/transport/bb3-protocol.md and its decision rule (not §1's reasoning), run it. Report the
 numbers, n and spread, `VOID` visits counted, where the host saturates; then apply the rule — adopt the default only if
 it says so, in its own commit. Budget about 5 hours of runs; push each round's data as it lands. **Deliverable:**
 the numbers in §1 under BB3, the verdict in the queue. **Branch:** `claude/av1-unified`.
@@ -2233,7 +2233,7 @@ new timed data: from the measured bytes and decode times (rows 77, 95, 96 and th
 pipeline (decode overlaps the wire), a model of fill time per codec, link speed and CPU speed; predict, per sound target
 series (DBT 10 and 12 bits, mammography for presentation, synthesized 2D) and engine (Chromium, Firefox), the link speed
 where AV1 and HTJ2K tie at 1× and 4×, with the band the measured spread allows; check the model against row 77's and
-95's existing cells and say where it fails. Then write `docs/av1/crossover-protocol.md` alone: the cells on both sides
+95's existing cells and say where it fails. Then write docs/av1/crossover-protocol.md alone: the cells on both sides
 of each predicted crossover, n ≥ 10 kept visits a cell, interleaved, how `VOID` is kept under 20 % (fewer concurrent
 arms, steal time read before each round), and the rule stated before data: *the model holds* where every measured
 cell falls on its predicted side or within its band; *a per-link rule is worth building* only if a series gains
@@ -2244,7 +2244,7 @@ section, the protocol file. **Branch:** `claude/av1-unified`.
 
 ### 106 CROSSMEASURE
 
-**Do:** given only `docs/av1/crossover-protocol.md` and its decision rule, run it; sound data only. Report numbers, n,
+**Do:** given only docs/av1/crossover-protocol.md and its decision rule, run it; sound data only. Report numbers, n,
 spread, `VOID` share, every frame exact; then whether each predicted side held. Budget about 5 hours of runs; push each
 round's data as it lands. **Deliverable:** the numbers beside row 77's in `docs/av1/README.md`. **Branch:**
 `claude/av1-unified`.
