@@ -56,7 +56,7 @@ at `6e9c126`.
 and `--opening-ask false` are flags, each for the cell named where it is measured below.
 `--packet-threshold`, `--persistent-congestion-threshold` and `--ack-frequency-max-delay-ms` were
 removed with their variants once closed (§3, [`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser);
-code: `git show archive/variants-2026-10-03:server/src/transport/tuning.rs`.
+code: `git show archive/arms-2026-10-03:server/src/transport/tuning.rs`.
 
 ---
 
@@ -814,7 +814,7 @@ them supports "Cubic cannot take a radio's jitter", and §1, which rests on loss
 
 **The reordering threshold is not the mechanism — a prediction refuted.** `--packet-threshold`
 exposed quinn's setter (default 3, unchanged; flag and variants removed 2026-10-03, code:
-`git show archive/variants-2026-10-03:lab/scripts/radio_link_cells.sh`). Under reordering jitter, fill ms at thresholds 3 / 6
+`git show archive/arms-2026-10-03:lab/scripts/radio_link_cells.sh`). Under reordering jitter, fill ms at thresholds 3 / 6
 / 12 / 48: ±2 ms 11 880 / 6 124 / 6 135 / 6 124; ±10 ms 34 217 / 30 214 / 31 094 / 31 428. At ±2 ms
 raising it removes the spurious losses (21 per session become 0 or 1) and still leaves **4.2×**,
 because *one* congestion event is worth that much: every round that declared one ended on an 84 ms
@@ -862,7 +862,7 @@ less queue than Cubic in four. With no exogenous loss no verdict of §1 moves.
 #### An outage: the threshold is not the lever
 
 Fill ms through a blackout, persistent-congestion threshold 3 (default) / 6 / 12 (flag and variant removed
-2026-10-03; code: `git show archive/variants-2026-10-03:lab/scripts/controller_cells.sh`), against 1 437
+2026-10-03; code: `git show archive/arms-2026-10-03:lab/scripts/controller_cells.sh`), against 1 437
 with no outage: 500 ms 6 836 / 6 881 / 6 871; 1 s 7 503 / 7 508 / 7 626; 2 s 8 704 / 9 058 / 9 092.
 **Raising the persistent-congestion threshold changes nothing**: one congestion event and 3 to 11
 lost datagrams per session, so persistent congestion is never declared. The outage costs **+5.4 s**
@@ -1407,7 +1407,7 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    the peer advertises.
 7. **The depth-1 tail.** Headless Chromium 141 does not advertise `min_ack_delay`
    ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser); one run on 148 closes that, with
-   the server's request restored from `archive/variants-2026-10-03`. An
+   the server's request restored from `archive/arms-2026-10-03`. An
    ACK-eliciting packet after an isolated frame would turn a lost tail into a gap, if quinn's packet
    builder can place it *after* the tail. Not before items 1–3.
 8. **Two upstream quinn items, drafted, not posted**:

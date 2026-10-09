@@ -46,7 +46,7 @@ no registered buffers, no cursor reads.
 | | |
 | --- | --- |
 | Where | `server/src/media/read_path.rs` (`FillReader`, `TileReader`), `uring_reader.rs` (thin ring), `frame_pool.rs` (the hand-off), `transport/planner.rs` (the loop), `transport/frame_out.rs` (the write) |
-| Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles). The `uring` lab lever (every tile through the ring) was removed 2026-10-03; code: `git show archive/variants-2026-10-03:server/src/media/read_path.rs` |
+| Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles). The `uring` lab lever (every tile through the ring) was removed 2026-10-03; code: `git show archive/arms-2026-10-03:server/src/media/read_path.rs` |
 | Feature | `uring`, on by default; the pool path is `--no-default-features --features crypto-ring` |
 | Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… named=… in_flight=… ring=…` per session, default build, with fill/tile hits split (§10) |
 
@@ -554,7 +554,7 @@ variable (a first reading that blamed it is retracted). Bracketed from both side
 | `product`, probe **off** (`uring`) | +2.1 %, 6/12 tie | +1.8 %, 7/12 tie |
 
 The probe-off row ran the product's `uring` lever, removed 2026-10-03; code:
-`git show archive/variants-2026-10-03:server/src/media/read_path.rs`.
+`git show archive/arms-2026-10-03:server/src/media/read_path.rs`.
 
 | size | probe covers | `pool_capped_probe` vs `pool` | `product` vs `pool_capped_probe` |
 | ---: | --- | --- | --- |

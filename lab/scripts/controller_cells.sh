@@ -2,7 +2,7 @@
 # W2: the controller questions, through lab/scripts/link_impair.py.
 #   S8  an early slow-start exit — Cubic against BBR (the exit itself is retired); shallow and deep buffer,
 #       with and without jitter.
-#   S9  retired with its flag; code: `git show archive/variants-2026-10-03:lab/scripts/controller_cells.sh`.
+#   S9  retired with its flag; code: `git show archive/arms-2026-10-03:lab/scripts/controller_cells.sh`.
 #       Where in the transfer a blink lands, and the controller variants through it: blink_cells.sh.
 #   S10 `initial_rtt` against the cold-connect tail at 1 % loss.
 # Results: docs/transport/transport-conclusions.md §3.

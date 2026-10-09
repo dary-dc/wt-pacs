@@ -67,7 +67,7 @@ fi
 step "repo: comment budget"
 run 1 scripts/comment_budget.sh
 
-step "repo: every doc link, anchor and backticked path resolves"
+step "repo: every doc link, anchor, backticked path and cited archive tag resolves"
 run 1 python3 scripts/check_links.py
 
 step "repo: no personal path in a tracked file"

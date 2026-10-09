@@ -85,7 +85,7 @@ The defaults were set on 2026-09-06 without a product answer; change them by env
 recorded, and the final report is exact and inlines `server_frames` up to 1 000 000 rows
 (`INLINE_CAP`, `record/report.rs`). Both were env variables with no caller, `WTPACS_TELEMETRY_SAMPLE`
 and `WTPACS_TELEMETRY_INLINE_CAP`, until 2026-10-03; code:
-`git show archive/variants-2026-10-03:server/src/record/tap.rs`.
+`git show archive/arms-2026-10-03:server/src/record/tap.rs`.
 
 **Path sampling** rides the same feature on its own switch: `WTPACS_PATH_TELEMETRY=1` appends one
 JSON line per connection per `WTPACS_PATH_TELEMETRY_MS` (default 1000, floor 50) to
@@ -158,7 +158,7 @@ vocabularies are not unified; that is deferred.
 * **Rebuild offline** was `series-server --telemetry-report telemetry-server.rows`, for runs past the
   inline cap. It reproduced the inline report on the 2026-09-06 smoke run (distributions, frame
   count and rows identical) and had no caller since; removed 2026-10-03, code:
-  `git show archive/variants-2026-10-03:server/src/record/report.rs`.
+  `git show archive/arms-2026-10-03:server/src/record/report.rs`.
 
 ## The tail at SIGTERM
 

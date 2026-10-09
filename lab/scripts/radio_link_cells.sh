@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # N2: what the relay's radio modes change, against the models they sit beside.
 #   jitter      S26 — jitter that reorders against jitter that does not, Cubic and BBR. The
-#               packet-threshold variants went with their flag: `git show archive/variants-2026-10-03:lab/scripts/radio_link_cells.sh`.
+#               packet-threshold variants went with their flag: `git show archive/arms-2026-10-03:lab/scripts/radio_link_cells.sh`.
 #   outage      S33 — a blackout that drops against one that holds, Cubic and BBR.
 #   two-blinks  S33's prediction — a second blink 3 s after the first, on both models.
 # Variants are interleaved inside every round in a Williams order (lab/scripts/order.py), and the relay
