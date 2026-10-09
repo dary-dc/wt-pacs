@@ -2,11 +2,11 @@
 <meta charset="utf-8">
 <title>AV1 DECSPEED</title>
 <script type="module">
-  import { round, ARMS } from "../per-frame/drive.js";
+  import { round, VARIANTS } from "../per-frame/drive.js";
   const env = { worker: () => new Worker("/client/decode/decoder.js", { type: "module" }), channel: () => new MessageChannel() };
   // `ext` is dav1d-WASM simd on that variant's frames; `ext@T` is the threaded build with T threads.
   const kind = (base, name) => {
-    if (name === "htj2k") return ARMS.htj2k(base);
+    if (name === "htj2k") return VARIANTS.htj2k(base);
     const [ext, t] = name.split("@");
     const build = t ? "simd-mt" : "simd";
     return { kind: "product", ext, decoder: { codec: "av1", glue: `${base}/lab/.av1-build/out/${build}.js`,

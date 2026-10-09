@@ -775,7 +775,7 @@ const served = (url: string) => fetch(url, { method: "HEAD" }).then((r) => r.ok,
 const fetched = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
 const sha256 = async (b: Uint8Array) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(b)))].map((x) => x.toString(16).padStart(2, "0")).join("");
-const webcodecsArms = () => (typeof VideoDecoder === "function" ? (["spy", "none"] as const) : (["none"] as const));
+const webcodecsVariants = () => (typeof VideoDecoder === "function" ? (["spy", "none"] as const) : (["none"] as const));
 
 /** A bare unit as a payload of one frame, with the header the writer gives a stream of `depth` bits: the older fixtures. */
 function asPayload(frame: Uint8Array, depth: number) {
@@ -872,7 +872,7 @@ function rangeOf(f: Frame) {
  */
 async function anAv1ItemDecodesToItsSource(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 — no ${AV1_DIR} (client/decode/wasm/dav1d/build.sh)`);
-  for (const mode of webcodecsArms()) {
+  for (const mode of webcodecsVariants()) {
     for (const rep of ["plain", "optimized"]) {
       const bases = GOLDEN.map((n) => golden(rep, n));
       const r = await av1Through(DownloaderClient, bases.map((b) => `${b}.av1`), mode);
@@ -969,7 +969,7 @@ async function aMalformedAv1ItemIsRefusedByName(DownloaderClient: DownloaderCtor
     [set(c8, 4, 1), /three planes without rct/],
   ];
   const good = `${golden("optimized", "g12")}`;
-  for (const mode of webcodecsArms()) {
+  for (const mode of webcodecsVariants()) {
     const what = mode === "spy" ? "webcodecs" : "dav1d";
     const r = await av1Through(DownloaderClient, [...cases.map(([b]) => b), `${good}.av1`], mode);
     for (const [i, [, want]] of cases.entries()) {
@@ -1023,7 +1023,7 @@ async function anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure(DownloaderCl
     await fetched(`${AV1_SET}/yuv444.av1`), c8.subarray(0, c8.length >> 1), new Uint8Array(1)];
   const payloads: (string | Uint8Array)[] = [...bare.map((b) => asPayload(b, 8)), `${golden("plain", "g10")}.av1`];
   const want = (await (await fetch(`${golden("plain", "g10")}.sha256`)).text()).trim();
-  for (const mode of webcodecsArms()) {
+  for (const mode of webcodecsVariants()) {
     const what = mode === "spy" ? "webcodecs" : "dav1d";
     const r = await av1Through(DownloaderClient, payloads, mode);
     const refused = r.failures.map((f) => f.frameIndex).sort((a, b) => a - b).join() || "none";
@@ -1111,7 +1111,7 @@ async function aGroupDecodesThroughEitherDecoder(
   const bare = range(0, 19).map((i) => `${G8}/${String(i).padStart(3, "0")}.av1`);
   const names = await Promise.all(range(0, 19).map((i) => unit(G8, i)));
   const group = { groupLength: 8, frameCount: 20 };
-  for (const mode of webcodecsArms()) {
+  for (const mode of webcodecsVariants()) {
     const what = mode === "spy" ? "webcodecs" : "dav1d";
     const r = await av1Through(DownloaderClient, names, mode, group);
     check((await inexact(G8, r.got, range(0, 19))) === "none" && r.failures.length === 0,

@@ -37,8 +37,8 @@ struct Args {
     #[arg(long, default_value_t = 0)]
     rtt_ms: u64,
     #[arg(long, default_value = "?")]
-    arm: String,
-    /// Labels the run with the server's arm; the reader accepts whatever the server opens.
+    variant: String,
+    /// Labels the run with the server's variant; the reader accepts whatever the server opens.
     #[arg(long, default_value = "per-frame")]
     stream_mode: StreamMode,
     /// Local bind IP. Omit for wtransport's dual-stack default (what L1 used);
@@ -139,11 +139,11 @@ async fn main() -> anyhow::Result<()> {
             asks: args.stall_asks,
             hold_ms: args.stall_hold_ms,
         };
-        let out = run_stall_client(&cfg, &stall, &args.arm).await?;
+        let out = run_stall_client(&cfg, &stall, &args.variant).await?;
         if args.json {
             println!("{}", serde_json::to_string_pretty(&out)?);
         } else {
-            println!("arm={}", out.arm);
+            println!("variant={}", out.variant);
             println!("stream_mode={}", out.stream_mode);
             println!("stall_after_ms={}", out.stall_after_ms);
             println!("hold_ms={}", out.hold_ms);
@@ -166,7 +166,7 @@ async fn main() -> anyhow::Result<()> {
             .collect::<Result<_, _>>()
             .context("parse --depth-sweep")?;
         let trace = trace.context("--trace required with --depth-sweep")?;
-        let results = run_depth_sweep(&trace, &cfg, &depths, &args.arm).await?;
+        let results = run_depth_sweep(&trace, &cfg, &depths, &args.variant).await?;
         if args.json {
             println!("{}", serde_json::to_string_pretty(&results)?);
         } else {
@@ -183,13 +183,13 @@ async fn main() -> anyhow::Result<()> {
         }
         return Ok(());
     }
-    let m = run_harness(trace.as_ref(), &cfg, &args.arm).await?;
+    let m = run_harness(trace.as_ref(), &cfg, &args.variant).await?;
     if args.json {
         println!("{}", serde_json::to_string_pretty(&m)?);
     } else {
         println!("trace={}", m.trace);
         println!("mode={}", m.mode);
-        println!("arm={}", m.arm_label);
+        println!("variant={}", m.variant_label);
         println!("depth={}", m.depth);
         println!("peak_outstanding={}", peak_outstanding());
         println!("read_bps={}", m.read_bps);

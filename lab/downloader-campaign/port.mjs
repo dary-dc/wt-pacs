@@ -13,7 +13,7 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ROUNDS = Number(arg("--rounds", 7));
 const THROTTLES = arg("--throttles", "1,4,6").split(",").map(Number);
 /** [name, what the message carries, frames per message]; frames leave at the fill's pace either way. */
-const ARMS = [["product", "product", 1], ["same SAB", "reused", 1], ["no SAB", "none", 1], ["no stamps", "bare", 1],
+const VARIANTS = [["product", "product", 1], ["same SAB", "reused", 1], ["no SAB", "none", 1], ["no stamps", "bare", 1],
   ["two a message", "product", 2]];
 const FRAMES = 80;
 const EVERY_MS = 8;
@@ -48,10 +48,10 @@ async function cell(throttle, [, variant, per]) {
 
 const rows = [];
 for (let round = 0; round < ROUNDS; round++) {
-  const cells = THROTTLES.flatMap((t) => ARMS.map((a) => [t, a]));
+  const cells = THROTTLES.flatMap((t) => VARIANTS.map((a) => [t, a]));
   for (let k = 0; k < cells.length; k++) {
-    const [throttle, arm] = cells[(k + round) % cells.length];
-    rows.push({ round, throttle, arm: arm[0], ...(await cell(throttle, arm)) });
+    const [throttle, variant] = cells[(k + round) % cells.length];
+    rows.push({ round, throttle, variant: variant[0], ...(await cell(throttle, variant)) });
   }
 }
 await browser.close();
@@ -59,10 +59,10 @@ await browser.close();
 const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
 console.log(`page time per frame, ms, ${FRAMES} frames every ${EVERY_MS} ms; median over ${ROUNDS} rounds (messages seen)`);
 for (const throttle of THROTTLES) {
-  const base = (r) => rows.find((b) => b.round === r.round && b.throttle === throttle && b.arm === ARMS[0][0]).ms;
-  console.log(`${throttle}x  ` + ARMS.map(([name]) => {
-    const rs = rows.filter((r) => r.throttle === throttle && r.arm === name);
-    const less = name === ARMS[0][0] ? "" : `, less in ${rs.filter((r) => r.ms < base(r)).length}/${rs.length}`;
+  const base = (r) => rows.find((b) => b.round === r.round && b.throttle === throttle && b.variant === VARIANTS[0][0]).ms;
+  console.log(`${throttle}x  ` + VARIANTS.map(([name]) => {
+    const rs = rows.filter((r) => r.throttle === throttle && r.variant === name);
+    const less = name === VARIANTS[0][0] ? "" : `, less in ${rs.filter((r) => r.ms < base(r)).length}/${rs.length}`;
     return `${name} ${med(rs.map((r) => r.ms)).toFixed(3)} (${med(rs.map((r) => r.messages))}${less})`;
   }).join("   "));
 }

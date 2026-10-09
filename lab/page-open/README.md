@@ -16,7 +16,7 @@ HOST=h2 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3   # nginx over TLS
 ```
 
 `run.mjs` takes `RTTS=` (default `0,40,80`), `STAGES=` (the first-byte ladder's rungs in place of
-the downloader page, cold only; the TypeScript and WASM page arms were removed with the harness's own page path), `THROTTLE=N` (every browser thread N× slower,
+the downloader page, cold only; the TypeScript and WASM page variants were removed with the harness's own page path), `THROTTLE=N` (every browser thread N× slower,
 [`../scripts/cpu_throttle.mjs`](../scripts/cpu_throttle.mjs)), `RELAY_ARGS=` (shapes each relay
 beyond its delay), `ONLY=`, `SERVERS=`, `NETLOG=`, `ROWS=` and `PORT_BASE=`. `HOST=dns` runs as root.
 
@@ -34,7 +34,7 @@ what they write; three corrections below are this trap.
 **R2, 2026-09-19, `852ae4f`.** Round trips of 0, 40 and 80 ms, three rounds. `config` is the
 transport endpoint in hand, `session` the client connected, `frame` the first frame used by the page.
 
-| arm | milestone | before | after | cut |
+| variant | milestone | before | after | cut |
 | --- | --- | ---: | ---: | ---: |
 | TypeScript | config | 4.62 | 3.60 | −1.0 |
 | | session | 9.69 | 6.64 | **−3.1** |
@@ -46,7 +46,7 @@ transport endpoint in hand, `session` the client connected, `frame` the first fr
 | | session | 12.53 | 6.37 | **−6.2** |
 | | frame | 19.04 | 12.86 | −6.2 |
 
-**Verdict: the preloads cut 3.1 / 5.1 / 6.2 round trips to the session, and the arms converge on
+**Verdict: the preloads cut 3.1 / 5.1 / 6.2 round trips to the session, and the variants converge on
 ~6.5**, ~3.6 for the connection, the page and the config, and the 3.0 the dial cost then. A warm
 profile spent none of this (`config` 0.0, `session` 2.6–3.1, the dial alone) before or after. The
 6.4 from `session` to `frame` is the 428 KB frame's slow start out of a 12 KB window, not the page
@@ -60,7 +60,7 @@ cold `config` and `session` counts are high by one to two round trips.
 | --- | --- | --- |
 | 0 | baseline | 9.69 / 11.86 / 12.53 |
 | 1 | `preload` the transport config | 8.89 / 10.86 / 11.81 |
-| 2 | `modulepreload` the shell and each arm's client | 6.70 / 6.70 / 11.84 |
+| 2 | `modulepreload` the shell and each variant's client | 6.70 / 6.70 / 11.84 |
 | 3 | `preload` the worker, decoder and decoder WASM | 6.64 / 6.72 / **6.37** |
 
 Cut 3 is the downloader's alone: its chain is page → consumer → downloader worker → decoder worker →
@@ -73,14 +73,14 @@ of the three cuts; the lab's [`downloader.html`](downloader.html) does.
 
 **R1/R3/R4, 2026-09-20, `d65f959`.** The first frame of a 12-frame fill, with
 [`first-byte.html`](first-byte.html), one rung per `?stage=`, cold only, seven rounds a delay, the
-arms interleaved in every round against one server. `today` sets `openAsk: false`: it is the page as
+variants interleaved in every round against one server. `today` sets `openAsk: false`: it is the page as
 served before 2026-10-02, when the opening ask became the default.
 
 ```bash
 RTTS=40,80,160 STAGES=today,no-r4,r3,r1,all NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 7
 ```
 
-| arm | what it is | `frame` | ms at 40 / 80 / 160 | `session` | `config` |
+| variant | what it is | `frame` | ms at 40 / 80 / 160 | `session` | `config` |
 | --- | --- | ---: | --- | ---: | ---: |
 | `today` | the load path, no opening ask | 14.57 | 718 / 1303 / 2467 | 8.36 | 4.35 |
 | `no-r4` | minus the `preload` of `dist/session.js` | 15.73 | 792 / 1432 / 2681 | 9.54 | 4.36 |
@@ -88,8 +88,8 @@ RTTS=40,80,160 STAGES=today,no-r4,r3,r1,all NODE_PATH=$(npm root -g) node lab/pa
 | `r1` | the opening fill rides the session URL (`?ask=fill:0-11`) | **13.44** | **677 / 1213 / 2289** | 8.28 | 4.42 |
 | `all` | `r3` and `r1` together | 13.34 | 720 / 1219 / 2314 | 8.44 | 4.46 |
 
-No arm moves `config` and only `no-r4` moves `session`, so their spread, **±0.2 round trips**, is the
-fit's arm-to-arm noise; `run.mjs` kept no per-round range for this ladder. **Verdict: R1 −1.13 round
+No variant moves `config` and only `no-r4` moves `session`, so their spread, **±0.2 round trips**, is the
+fit's variant-to-variant noise; `run.mjs` kept no per-round range for this ladder. **Verdict: R1 −1.13 round
 trips to the first frame, all of it between `session` and `frame`; R4 (already in cut 3) +1.16 when
 removed; R3 −0.06, inside the noise** — cut 3 already preloads what un-gating would start early. A
 device whose worker boot is slower than its dial would decide R3; this box is not one. Comparable
@@ -206,7 +206,7 @@ default since 2026-10-02 (`8f09e2c`). What a rebind re-applies is native:
 
 ## Two servers, and the dial alone
 
-`SERVERS=a=BIN,b=BIN` runs every arm against each server binary, interleaved inside each round,
+`SERVERS=a=BIN,b=BIN` runs every variant against each server binary, interleaved inside each round,
 each behind its own relay, and prints median [min–max] and the rounds each beat the first in;
 `NETLOG=DIR` keeps Chrome's net log per visit for
 [`../scripts/netlog_dial.py`](../scripts/netlog_dial.py). [`dial-blink.mjs`](dial-blink.mjs) is a
@@ -250,15 +250,15 @@ would silently drop cross-origin isolation.
 synthetic 300-frame series's metadata by `?meta=`) from nginx 1.24 over TLS and HTTP/2, each file
 precompressed once (gzip `-6`, brotli `-q 11`, zstd `-19`) and served by its own server block only to
 a client that lists the token. Before a run a request without the token must get the file, and every
-visit must receive that arm's bytes; both checks were watched to fail. Headless Chromium 141 on
-loopback, a fresh context a visit, the four arms rotated in every round, at 1× and 4×.
+visit must receive that variant's bytes; both checks were watched to fail. Headless Chromium 141 on
+loopback, a fresh context a visit, the four variants rotated in every round, at 1× and 4×.
 
 ```bash
 TRACE=0 NODE_PATH=$(npm root -g) node lab/page-open/enc.mjs 20   # the headline; without TRACE=0 the trace's milestones
 ```
 
 Bytes: identity 814 393, gzip 259 850 (−68 %), br 213 000 (−74 %), zstd 228 665 (−72 %). Median ms
-from navigation [range] and the rounds the arm beat identity in, n = 20:
+from navigation [range] and the rounds the variant beat identity in, n = 20:
 
 | | identity | gzip | br | zstd |
 | --- | ---: | ---: | ---: | ---: |
@@ -273,16 +273,16 @@ always on, is right on any link under ~200 Mbit/s, and gzip is enough** — with
 brotli's saving; brotli leans latest and costs the network service the most CPU; zstd ties gzip but
 Safari decodes it only from 26.3. At face value gzip breaks even at 700 Mbit/s and brotli at 206 at
 4×. The cost that shows is the decoder WASM's arrival (+26 to +48 ms at 4×, cause not isolated) and
-the network service's CPU; streaming compile still overlaps in every arm (n = 10, with the trace).
+the network service's CPU; streaming compile still overlaps in every variant (n = 10, with the trace).
 The template still gzips per request, whose server CPU is not measured; a deploy serving br or zstd
 picks by `Accept-Encoding`, falling back to gzip and then the file. *Corrected 2026-09-27, before any
 decision rested on it:* the first two batches served copies written seconds before the run, so every
-decoder worker's fetch revalidated in the compressed arms only (brotli +44 / +35 ms, zstd +42 / +14 at
+decoder worker's fetch revalidated in the compressed variants only (brotli +44 / +35 ms, zstd +42 / +14 at
 4×); an earlier version read that as nginx's behaviour. Each copy now carries its source's time.
 
 ## The first frame on a real host, with early SETTINGS
 
-**PO1, 2026-09-24, `e7211d6`.** The downloader arm from nginx over TLS: `HOST=h1` and `HOST=h2`
+**PO1, 2026-09-24, `e7211d6`.** The downloader variant from nginx over TLS: `HOST=h1` and `HOST=h2`
 invocations alternated round by round, and inside each, early SETTINGS on and off (`SERVERS=on=…,off=…`, the
 second this tree without `[patch.crates-io]`). 7 rounds at `RTTS=40,80`, cold and warm. Each stage is
 timed from the previous one; round trips are the slope from 40 to 80 ms, cold, HTTP/2:
@@ -308,7 +308,7 @@ hour it is answered from cache in 0–8 ms, 8/8. *Corrected before it was publis
 
 **H2, 2026-09-27, `bde3e52`.** [`h2.mjs`](h2.mjs) serves the downloader page from nginx on the deploy
 template (gzip on) over each protocol, three pages each: `bare` (no hints), `today` (cuts 1–3), and
-`module` (`bare` plus a `modulepreload` of the worker graph). Six arms rotated, n = 10, cold, each
+`module` (`bare` plus a `modulepreload` of the worker graph). Six variants rotated, n = 10, cold, each
 visit checked against its protocol. The page's TCP crosses `link_impair.py` at 40 ms each way,
 20 Mbit/s, `--tcp-rate shared`, not DevTools emulation, which reached neither the decoder workers'
 `fetch()` nor connection setup. The WebTransport session is not shaped.
@@ -317,7 +317,7 @@ visit checked against its protocol. The page's TCP crosses `link_impair.py` at 4
 NODE_PATH=$(npm root -g) node lab/page-open/h2.mjs 10    # LINK=20,80 (Mbit/s, round trip ms)
 ```
 
-ms from navigation, median [range], and the rounds each arm beat HTTP/1.1 `bare` in:
+ms from navigation, median [range], and the rounds each variant beat HTTP/1.1 `bare` in:
 
 | | h1 bare | h2 bare | h1 today | h2 today | h1 module | h2 module |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -341,13 +341,13 @@ smaller than a viewer's.
 is the browser's resolver, answering one round trip after each query, and [`h3-host/`](h3-host/) is
 the deploy template's static host (paths, isolation headers, gzip) on quic-go, HTTP/2 and HTTP/3 on
 one port, **no Alt-Svc** — a cold browser finds HTTP/3 only through an HTTPS record. Downloader page,
-cold, five arms interleaved, 7 rounds.
+cold, five variants interleaved, 7 rounds.
 
 ```bash
 sudo HOST=dns RTTS=40,80,160 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 7
 ```
 
-| arm | page | transport | config | dial | session | frame |
+| variant | page | transport | config | dial | session | frame |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
 | `h2` — today's shape | `static.test`, HTTP/2 | same host, its own port | 6.03 | 5.01 | 11.04 | 17.39 |
 | `h2+wt-ip` | same | an IP literal: no lookup | 6.00 | **4.04** | 10.04 | 16.33 |
@@ -370,7 +370,7 @@ the record with the hint together; the transport on UDP 443; a real resolver; ng
 ### The order the page's files leave in
 
 **PORD, 2026-10-01, `37d2af7`.** Does a config asked after a large file land with its last byte? The
-`+meta` arms add a synthetic series's metadata of ~120 KB gzipped ([`metadata.mjs`](metadata.mjs)):
+`+meta` variants add a synthetic series's metadata of ~120 KB gzipped ([`metadata.mjs`](metadata.mjs)):
 `+meta` through the page's own `?meta=` preload, `+meta-first` through `meta-first.html`, which parses
 a static preload one line ahead of the config's. `h2` crosses the relay's TCP plane, `h3` its UDP
 plane with the host's own QUIC congestion control. 12 rounds, 61 of 180 visits `VOID`.
@@ -379,7 +379,7 @@ plane with the host's own QUIC congestion control. 12 rounds, 61 of 180 visits `
 sudo HOST=dns RTTS=40,80,160 ONLY=h3,h2+meta,h2+meta-first,h3+meta,h3+meta-first NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 12
 ```
 
-| arm | config ms at 40 / 80 / 160 | metadata ms at 80 | `config` slope | `session` slope |
+| variant | config ms at 40 / 80 / 160 | metadata ms at 80 | `config` slope | `session` slope |
 | --- | --- | --- | ---: | ---: |
 | `h3` (no metadata) | 230 / 375 / 689 | — | 3.84 | 8.97 |
 | `h3+meta` | 199 / 355 / 679 | 570 | 3.91 | 9.27 |
@@ -399,11 +399,11 @@ order would matter.
 HTJ2K series against an AV1 one, whose decoder module loaded only once the first payload had landed.
 [`codec.html`](codec.html) opens the downloader with `?codec=`, an earlier `client/downloader` by
 `?tree=` and the AV1 decoder's files preloaded by `?pre=1`; [`coldrtt.mjs`](coldrtt.mjs) runs the
-arms interleaved against the deploy template's nginx (TLS, HTTP/2, gzip) behind a 100 Mbit relay.
-Every arm is one 64×48 source — the writer's golden g10 and g12, regenerated and checked against
+variants interleaved against the deploy template's nginx (TLS, HTTP/2, gzip) behind a 100 Mbit relay.
+Every variant is one 64×48 source — the writer's golden g10 and g12, regenerated and checked against
 their `.sha256` by [`coldrtt_frames.py`](coldrtt_frames.py), coded as plain AV1 payloads and as HTJ2K
 in the served profile — so the frame is one flight, and frame 0 must hash to the source's checksum
-or the visit fails (watched to fail on a wrong checksum, every arm).
+or the visit fails (watched to fail on a wrong checksum, every variant).
 
 ```bash
 LD_LIBRARY_PATH=lab/.openjph-build/install/lib python3 lab/page-open/coldrtt_frames.py \
@@ -422,10 +422,10 @@ and fetches dav1d's glue and WASM at start, and compiles on first use. `-pre` ad
 `preload` of the seven AV1 modules, the glue and the WASM.
 
 Round trips to the frame are the slope over 100/200/300 ms; ms at 300 ms are median [range]; the
-rounds an arm beat its path's `-before` in, of the rounds both kept. 24 rounds Williams-ordered,
+rounds a variant beat its path's `-before` in, of the rounds both kept. 24 rounds Williams-ordered,
 15–22 visits kept a cell after the relay's `VOID`s, 0 failed, every frame exact:
 
-| arm | cold frame | at 300 ms | won | warm frame | cold session |
+| variant | cold frame | at 300 ms | won | warm frame | cold session |
 | --- | ---: | ---: | --- | ---: | ---: |
 | `htj2k` | **7.99** | 2 530 [2 500–2 556] | | 5.96 | 7.00 |
 | WebCodecs `-before` | 10.02 | 3 139 [3 113–3 146] | | 5.99 | 7.00 |
@@ -438,12 +438,12 @@ rounds an arm beat its path's `-before` in, of the rounds both kept. 24 rounds W
 **Verdict: the AV1 decoder's load was 2.0 serial round trips through WebCodecs and 3.9 through
 dav1d-WASM, all after the first payload; fetched at the decoder's start it is −1.0 and −3.0 (every
 paired round at 100–300 ms), and with the page's preloads AV1 reaches HTJ2K's 8.0.** Warm, nothing
-moves (5.9–6.0 round trips in every arm): the HTTP cache already held what the cold page waited
+moves (5.9–6.0 round trips in every variant): the HTTP cache already held what the cold page waited
 for. The preloads cost the session +27 to +41 ms, a constant (its slope unchanged), and won 0 of 74
 pairs to it — bytes on the page's connection while it dials, paid back by the first frame from
 100 ms.
 
-**On a short link.** The same arms at 0, 10, 20 and 40 ms (n = 4–10 paired a cell): `-after`
+**On a short link.** The same variants at 0, 10, 20 and 40 ms (n = 4–10 paired a cell): `-after`
 against `-before`, cold, median ms to the frame —
 
 | path | 0 ms | 10 ms | 20 ms | 40 ms |

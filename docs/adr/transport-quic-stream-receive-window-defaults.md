@@ -10,10 +10,10 @@
 ## Decision
 
 **Ship and measure with quinn / wtransport stack defaults for stream flow control.**
-Do **not** equalise `stream_receive_window` across shared (S) and per-frame (P/Q) arms for the
-L1 comparison, and do not change product defaults solely to make those arms symmetric in the lab.
+Do **not** equalise `stream_receive_window` across shared (S) and per-frame (P/Q) variants for the
+L1 comparison, and do not change product defaults solely to make those variants symmetric in the lab.
 
-| Arm | Streams | Per-stream receive window |
+| Variant | Streams | Per-stream receive window |
 | --- | --- | --- |
 | **S** (shared) | one uni for the session | quinn default (~1.25 MB) |
 | **P/Q** (per-frame) | one uni per frame | **same** default on **each** stream |

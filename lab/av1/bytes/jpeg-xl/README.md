@@ -21,7 +21,7 @@ node lab/av1/bytes/jpeg-xl/run.mjs --rounds 8 --engines chromium154+jxl,firefox+
   --sets usb_cine,us_liver,dbt10_ea1141,dbt12_ea1141,ffdm_a,dbtproj_holo \
   --codings jxl-e1-f0,jxl-e2-f0,jxl-e7-f3,jxl-e7-f0 --out rows.json      # ~90 min
 node lab/av1/bytes/jpeg-xl/run.mjs --probe --engines chromium154+jxl,firefox+jxl --mutate source   # every exact path fails
-node lab/av1/bytes/jpeg-xl/run.mjs --rounds 1 --throttles 1 --mutate hash      # every arm fails
+node lab/av1/bytes/jpeg-xl/run.mjs --rounds 1 --throttles 1 --mutate hash      # every variant fails
 ```
 
 **Engines.** Each is launched as a process that opens the page, as row XBROWSER launched them
@@ -53,7 +53,7 @@ last frame's samples out; one warm-up frame untimed. *WASM* is row EMBED's worke
 single-threaded with SIMD; OpenJPH the shipped package) and hashes every frame against the checksums. *Native* is
 `createImageBitmap`, `drawImage`, `getImageData` per frame on the page — the samples a viewer could window — and is
 hashed the same way, so only 8-bit frames can match. Each (engine × throttle) cell is a fresh browser in a Williams
-order every round (`lab/order.mjs`); arms rotate inside it. 4× is `lab/scripts/cpu_throttle.mjs` on the browser's
+order every round (`lab/order.mjs`); variants rotate inside it. 4× is `lab/scripts/cpu_throttle.mjs` on the browser's
 process tree, once the page has loaded. This container: 4 cores, not a phone.
 
 ## Bytes
@@ -172,9 +172,9 @@ canvas holds 8 bits; §The engines).
 |  | Firefox 157 | 1× | 45.3 | 1.07 · 2.59 | 1.70 · 3.11 | 1.73 · 2.84 | 7.51 · 4.51 |
 |  |  | 4× | 214.6 | 1.03 · 2.20 | 1.62 · 2.58 | 1.56 · 2.50 | 6.85 · 3.64 |
 
-* **No JPEG XL arm decodes like HTJ2K in WASM.** Effort 1 is 1.03–1.91× OpenJPH (slower in 181 of 192 paired rounds),
+* **No JPEG XL variant decodes like HTJ2K in WASM.** Effort 1 is 1.03–1.91× OpenJPH (slower in 181 of 192 paired rounds),
   e2 1.51–2.28×, e7 with `--faster_decoding=3` 1.56–2.45× (190 of 192), the default 5.35–10.0× (192 of 192). Firefox's WASM
-  and OpenJPH run in 0.87–1.21× Chromium's time on the same arm.
+  and OpenJPH run in 0.87–1.21× Chromium's time on the same variant.
 * **Native is faster than libjxl-WASM at the default effort and slower at the fast ones**: e7 f0 native 2.2–6.1×
   OpenJPH, under its WASM in 192 of 192 rounds; e1 native 1.7–4.1× on grey above 8 bits, where it is also not exact.
 * **One cell where JPEG XL beats OpenJPH: 8-bit RGB, native, fast efforts** — the ultrasound at e1–e7 f3 decodes in
@@ -185,4 +185,4 @@ canvas holds 8 bits; §The engines).
 
 **Checked.** Mutated, every check failed: `encode.py`'s exactness check one off on every sample, 36/36 codings of
 `usb_cine` and `dbt12_ea1141`; the source one off in the probe, every exact path (12/12) failed; one digit of every checksum in the timing,
-10/10 arms 0/8 (`usb_cine`, `dbt12_ea1141`, OpenJPH, e1 and e7, WASM and native).
+10/10 variants 0/8 (`usb_cine`, `dbt12_ea1141`, OpenJPH, e1 and e7, WASM and native).

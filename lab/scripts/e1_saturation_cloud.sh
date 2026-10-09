@@ -52,7 +52,7 @@ for rtt in "${RTT_ARR[@]}"; do
     set +e
     json=$("$HARNESS" --url "$CLOUD_URL" --mode saturate \
       --read-bps "$HARNESS_READ_BPS" --depth "$depth" --frame-count "$FRAME_COUNT" \
-      --fill-dwell-ms "$FILL_DWELL_MS" --arm "e1_D${depth}_rtt${rtt}" --rtt-ms 0 --json 2>/dev/null)
+      --fill-dwell-ms "$FILL_DWELL_MS" --variant "e1_D${depth}_rtt${rtt}" --rtt-ms 0 --json 2>/dev/null)
     rc=$?
     set -e
     if [[ $rc -ne 0 ]]; then

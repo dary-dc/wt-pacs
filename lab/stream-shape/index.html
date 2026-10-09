@@ -6,7 +6,7 @@
   <title>wt-pacs lab — the stream shape under loss</title>
 </head>
 <body>
-  <p>Driven by <code>lab/stream-shape/run.mjs</code>: <code>runArm()</code> fills frames
+  <p>Driven by <code>lab/stream-shape/run.mjs</code>: <code>runVariant()</code> fills frames
   <code>0..fill-1</code> and times each one's arrival, then asks <code>asks</code> more frames with
   <code>depth</code> outstanding and times each ask.</p>
   <script type="module">
@@ -15,7 +15,7 @@
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    globalThis.runArm = async ({ url, hash, fill, asks, depth, limitMs, ws }) => {
+    globalThis.runVariant = async ({ url, hash, fill, asks, depth, limitMs, ws }) => {
       const s = await (ws ? Ws : Wt).connect(url, hash);
       const arrived = new Array(fill).fill(null);
       const t0 = performance.now();

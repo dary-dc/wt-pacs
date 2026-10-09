@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# dav1d built to WASM in three arms, and the native CLI from the same tag as the reference.
+# dav1d built to WASM in three variants, and the native CLI from the same tag as the reference.
 #
-#   client/decode/wasm/dav1d/build.sh            # all arms
-#   ARMS="plain simd" client/decode/wasm/dav1d/build.sh
+#   client/decode/wasm/dav1d/build.sh            # all variants
+#   VARIANTS="plain simd" client/decode/wasm/dav1d/build.sh
 #
-# Arms: plain (scalar, one thread), simd (-msimd128, one thread), simd-mt (-msimd128 -pthread),
+# Variants: plain (scalar, one thread), simd (-msimd128, one thread), simd-mt (-msimd128 -pthread),
 # simd-prof (simd with function names, for a profile).
 # Nothing built is committed; everything lands under lab/.av1-build. client/decode/wasm/dav1d/README.md
 set -euo pipefail
@@ -15,7 +15,7 @@ DAV1D_TAG="${DAV1D_TAG:-1.5.4}"
 DAV1D_COMMIT="${DAV1D_COMMIT:-54706fc6bc0cdecab7e9593974a4039cc038fca7}"
 EMSCRIPTEN_VERSION="${EMSCRIPTEN_VERSION:-3.1.74}"
 MESON_VERSION=1.5.2
-ARMS="${ARMS:-plain simd simd-mt}"
+VARIANTS="${VARIANTS:-plain simd simd-mt}"
 
 mkdir -p "$BUILD"
 fetch() {
@@ -31,7 +31,7 @@ fetch https://github.com/emscripten-core/emsdk.git "$EMSCRIPTEN_VERSION" "$BUILD
 [[ -x "$BUILD/venv/bin/meson" ]] || { python3 -m venv "$BUILD/venv"; "$BUILD/venv/bin/pip" install -q "meson==$MESON_VERSION"; }
 MESON="$BUILD/venv/bin/meson"
 
-# Assembly is off in every arm: dav1d's is x86/Arm only, and the native reference then runs
+# Assembly is off in every variant: dav1d's is x86/Arm only, and the native reference then runs
 # the same C the WASM does.
 COMMON=(-Dbitdepths=8,16 -Denable_asm=false -Denable_tests=false -Dlogging=false --buildtype=release)
 
@@ -56,9 +56,9 @@ cpu = 'wasm32'
 endian = 'little'
 CROSS
 
-build_arm() {
-  local arm=$1 flags=$2 link=$3
-  local b="$BUILD/wasm-$arm"
+build_variant() {
+  local variant=$1 flags=$2 link=$3
+  local b="$BUILD/wasm-$variant"
   if [[ ! -f "$b/src/libdav1d.a" ]]; then
     "$MESON" setup "$b" "$BUILD/dav1d-src" --cross-file "$BUILD/emscripten.cross" "${COMMON[@]}" \
       -Ddefault_library=static -Denable_tools=false -Dc_args="$flags" >/dev/null
@@ -67,9 +67,9 @@ build_arm() {
   emcc -O3 $flags "$HERE/dav1d_wrap.c" -I"$BUILD/dav1d-src/include" -I"$b/include" "$b/src/libdav1d.a" \
     -sMODULARIZE=1 -sEXPORT_NAME=Dav1dModule -sENVIRONMENT=node,worker,web $link \
     -sALLOW_MEMORY_GROWTH=1 -sEXPORTED_FUNCTIONS=_malloc,_free \
-    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16 -o "$BUILD/out/$arm.js"
-  echo "$arm ($flags $link) -> $BUILD/out/$arm.wasm  $(stat -c%s "$BUILD/out/$arm.wasm") B," \
-    "$(gzip -9c "$BUILD/out/$arm.wasm" | wc -c) B gzip -9"
+    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16 -o "$BUILD/out/$variant.js"
+  echo "$variant ($flags $link) -> $BUILD/out/$variant.wasm  $(stat -c%s "$BUILD/out/$variant.wasm") B," \
+    "$(gzip -9c "$BUILD/out/$variant.wasm" | wc -c) B gzip -9"
 }
 
 # The notices a shipped build owes, from the pinned sources themselves. docs/av1/licensing.md
@@ -83,12 +83,12 @@ mkdir -p "$BUILD/out"
   done
 } >"$BUILD/out/THIRD_PARTY.txt"
 
-for arm in $ARMS; do
-  case "$arm" in
-    plain) build_arm plain "" "" ;;
-    simd) build_arm simd "-msimd128" "" ;;
-    simd-mt) build_arm simd-mt "-msimd128 -pthread" "-sPTHREAD_POOL_SIZE=4" ;;
-    simd-prof) build_arm simd-prof "-msimd128" "--profiling-funcs" ;;
-    *) echo "unknown arm $arm" >&2; exit 2 ;;
+for variant in $VARIANTS; do
+  case "$variant" in
+    plain) build_variant plain "" "" ;;
+    simd) build_variant simd "-msimd128" "" ;;
+    simd-mt) build_variant simd-mt "-msimd128 -pthread" "-sPTHREAD_POOL_SIZE=4" ;;
+    simd-prof) build_variant simd-prof "-msimd128" "--profiling-funcs" ;;
+    *) echo "unknown variant $variant" >&2; exit 2 ;;
   esac
 done

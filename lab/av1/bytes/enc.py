@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Lossless encode time per preset: libaom on one thread, every usage and cpu-used, against OpenJPH.
 
-Each arm encodes the first FRAMES frames of a set alone on the host, arms interleaved per round; its
+Each variant encodes the first FRAMES frames of a set alone on the host, variants interleaved per round; its
 output is decoded and compared with the checksums written when the frames were made. A series over
 12 bits is coded as DEPTH's top11+low, two streams, timed together.
 
@@ -79,7 +79,7 @@ def busy_others():
     return sum(b[p] - a.get(p, b[p]) for p in b if p != me) / os.sysconf("SC_CLK_TCK") / 0.5
 
 
-def av1_arm(build, s, work, inputs, usage, cpu):
+def av1_variant(build, s, work, inputs, usage, cpu):
     wall = cpu_s = 0.0
     nbytes, merged = 0, [np.zeros((s.h, s.w, s.ch), np.int32) for _ in range(s.n)]
     ok = True
@@ -98,7 +98,7 @@ def av1_arm(build, s, work, inputs, usage, cpu):
     return wall, cpu_s, nbytes, ok
 
 
-def ojph_arm(s, work):
+def ojph_variant(s, work):
     env = {"LD_LIBRARY_PATH": str(size.OJPH / "lib")}
     wall = cpu_s = 0.0
     nbytes, ok = 0, True
@@ -116,19 +116,19 @@ def ojph_arm(s, work):
 
 
 def summary(path, frames):
-    """Per set and arm: ms a frame median [min-max] over rounds, frames/s a core, bytes against the
+    """Per set and variant: ms a frame median [min-max] over rounds, frames/s a core, bytes against the
     slowest preset (good0) and OpenJPH, whether every round was exact and the host was otherwise idle."""
     lines = Path(path).read_text().splitlines()
     head = lines[0].split("\t")
     rows = [dict(zip(head, ln.split("\t"))) for ln in lines[1:]]
     for name in dict.fromkeys(r["set"] for r in rows):
         mine = [r for r in rows if r["set"] == name]
-        arms = dict.fromkeys(r["arm"] for r in mine)
-        nbytes = {a: {int(r["bytes"]) for r in mine if r["arm"] == a} for a in arms}
+        variants = dict.fromkeys(r["variant"] for r in mine)
+        nbytes = {a: {int(r["bytes"]) for r in mine if r["variant"] == a} for a in variants}
         ref, ojph = min(nbytes["good0"]), min(nbytes["ojph"])
         print(f"{name}  ({frames} frames; good0 {ref} B, ojph {ojph} B)")
-        for a in arms:
-            rs = [r for r in mine if r["arm"] == a]
+        for a in variants:
+            rs = [r for r in mine if r["variant"] == a]
             ms = sorted(1000 * float(r["wall_s"]) / frames for r in rs)
             busy = max(float(r["others_cpu"]) for r in rs)
             share = min(float(r["cpu_s"]) / float(r["wall_s"]) for r in rs)
@@ -145,24 +145,24 @@ def main():
     build, work, out = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve(), Path(sys.argv[3])
     frames, rounds = int(sys.argv[4]), int(sys.argv[5])
     work.mkdir(parents=True, exist_ok=True)
-    cols = ["set", "round", "pos", "arm", "exact", "bytes", "wall_s", "cpu_s", "others_cpu"]
+    cols = ["set", "round", "pos", "variant", "exact", "bytes", "wall_s", "cpu_s", "others_cpu"]
     with open(out, "w") as fh:
         fh.write("\t".join(cols) + "\n")
         for d in sys.argv[6:]:
             s = size.Set(Path(d))
             s.n = min(s.n, frames)
             inputs = streams(s, work)
-            arms = ["ojph"] + [f"{u}{c}" for u, cs in USAGES.items() for c in cs]
+            variants = ["ojph"] + [f"{u}{c}" for u, cs in USAGES.items() for c in cs]
             for r in range(rounds):
-                for pos, arm in enumerate(order(arms, r)):
+                for pos, variant in enumerate(order(variants, r)):
                     others = busy_others()
-                    if arm == "ojph":
-                        res = ojph_arm(s, work)
+                    if variant == "ojph":
+                        res = ojph_variant(s, work)
                     else:
-                        usage = arm.rstrip("0123456789")
-                        res = av1_arm(build, s, work, inputs, usage, int(arm[len(usage):]))
+                        usage = variant.rstrip("0123456789")
+                        res = av1_variant(build, s, work, inputs, usage, int(variant[len(usage):]))
                     wall, cpu_s, nbytes, ok = res
-                    line = [s.name, r, pos, arm, ok, nbytes, f"{wall:.3f}", f"{cpu_s:.3f}", f"{others:.2f}"]
+                    line = [s.name, r, pos, variant, ok, nbytes, f"{wall:.3f}", f"{cpu_s:.3f}", f"{others:.2f}"]
                     fh.write("\t".join(str(v) for v in line) + "\n")
                     fh.flush()
                     print("\t".join(str(v) for v in line), flush=True)

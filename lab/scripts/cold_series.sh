@@ -6,7 +6,7 @@
 #
 # Cold is forced through the store's own lever (`--force-pool-reads`), not by evicting the page
 # cache, which CLAUDE.md#measurement rules out. Each run prints the server's own miss count, so
-# a cold arm that was not actually cold is visible rather than assumed.
+# a cold variant that was not actually cold is visible rather than assumed.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -56,11 +56,11 @@ python3 server/dev-server.py --port "$PORT" >"$T/static.log" 2>&1 &
 STATIC=$!
 for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/harness/cell.html" >/dev/null 2>&1 && break; sleep 0.1; done
 
-# One measurement: start the server in this arm, drive one page, stop it. The page cache is the
-# kernel's and outlives the process, so restarting between arms does not reset what warm means.
+# One measurement: start the server in this variant, drive one page, stop it. The page cache is the
+# kernel's and outlives the process, so restarting between variants does not reset what warm means.
 run_one() {
-  local arm=$1 scenario=$2 log="$T/srv.log" flag=()
-  if [[ "$arm" == cold ]]; then flag=(--force-pool-reads); fi
+  local variant=$1 scenario=$2 log="$T/srv.log" flag=()
+  if [[ "$variant" == cold ]]; then flag=(--force-pool-reads); fi
   RUST_LOG=series_server=info "$BIN/series-server" --port "$WT_PORT" --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "${flag[@]}" >"$log" 2>&1 &
   SERVER=$!
@@ -83,15 +83,15 @@ run_one() {
     python3 -c 'import json,sys; d=sys.stdin.read().strip(); print(json.loads(d)["wall_ms"] if d else "")' 2>/dev/null || true)"
   # The server's line is ANSI-coloured, so strip CSI before reading a field off it.
   misses="$(sed -r 's/\x1b\[[0-9;]*m//g' "$log" | grep -oE '\bmisses=[0-9]+' | tail -1 | cut -d= -f2 || true)"
-  printf '%s\t%s\t%s\t%s\n' "$arm" "$scenario" "${wall:-NA}" "${misses:-NA}"
+  printf '%s\t%s\t%s\t%s\n' "$variant" "$scenario" "${wall:-NA}" "${misses:-NA}"
 }
 
 : > "$T/rows.tsv"
 for r in $(seq 1 "$ROUNDS"); do
   for scenario in ask fill; do
-    # Arm order reversed every round — CLAUDE.md#measurement.
+    # Variant order reversed every round — CLAUDE.md#measurement.
     if (( r % 2 )); then order=(warm cold); else order=(cold warm); fi
-    for arm in "${order[@]}"; do run_one "$arm" "$scenario" >> "$T/rows.tsv"; done
+    for variant in "${order[@]}"; do run_one "$variant" "$scenario" >> "$T/rows.tsv"; done
   done
   echo "round $r/$ROUNDS done" >&2
 done
@@ -100,19 +100,19 @@ python3 - "$T/rows.tsv" <<'PY'
 import sys, statistics as st
 rows = [l.split('\t') for l in open(sys.argv[1]).read().splitlines() if l]
 data = {}
-for arm, scen, wall, miss in rows:
+for variant, scen, wall, miss in rows:
     if wall == 'NA':
         continue
-    data.setdefault((scen, arm), []).append((float(wall), miss))
-print(f"\n{'scenario':9} {'arm':5} {'n':>3} {'wall ms median':>15} {'[min … max]':>18}  misses")
+    data.setdefault((scen, variant), []).append((float(wall), miss))
+print(f"\n{'scenario':9} {'variant':5} {'n':>3} {'wall ms median':>15} {'[min … max]':>18}  misses")
 for scen in ('ask', 'fill'):
-    for arm in ('warm', 'cold'):
-        v = data.get((scen, arm), [])
+    for variant in ('warm', 'cold'):
+        v = data.get((scen, variant), [])
         if not v:
             continue
         w = [x[0] for x in v]
         miss = {x[1] for x in v}
-        print(f"{scen:9} {arm:5} {len(w):>3} {st.median(w):>15.1f} "
+        print(f"{scen:9} {variant:5} {len(w):>3} {st.median(w):>15.1f} "
               f"{f'[{min(w):.0f} … {max(w):.0f}]':>18}  {','.join(sorted(miss))}")
     a = [x[0] for x in data.get((scen, 'warm'), [])]
     b = [x[0] for x in data.get((scen, 'cold'), [])]

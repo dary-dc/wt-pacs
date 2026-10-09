@@ -2,7 +2,7 @@
  * What client/record costs when it is installed, against the same client without it.
  *
  * The seam is a patched global `WebTransport`, which is exactly what client/contract's fake
- * occupies, so this runs in Node with no browser and no server. Three arms, not two: `off` twice.
+ * occupies, so this runs in Node with no browser and no server. Three variants, not two: `off` twice.
  * The second `off` is a null control — whatever difference it shows against the first is this
  * rig's resolution, and a telemetry cost smaller than that is not a measurement.
  *
@@ -18,16 +18,16 @@ const WARMUP = Number(process.env.WARMUP ?? 2); // the JIT is still moving after
 const CHUNKS = Number(process.env.CHUNKS ?? 1); // a real link delivers a frame in many reads
 const IMPL = process.env.IMPL ?? "transport-ts";
 const impl = IMPL === "transport-wasm" ? await wasmImpl() : await typescriptImpl();
-const ARMS = ["off", "on", "off2"] as const;
-type Arm = (typeof ARMS)[number];
+const VARIANTS = ["off", "on", "off2"] as const;
+type Variant = (typeof VARIANTS)[number];
 
 const median = (a: number[]) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 const range = (a: number[]): [number, number] => [Math.min(...a), Math.max(...a)];
 
 /** One run: `count` frames of `size` bytes through a whole session. Returns µs per frame. */
-async function oneRun(arm: Arm, count: number, size: number, chunks: number): Promise<number> {
+async function oneRun(variant: Variant, count: number, size: number, chunks: number): Promise<number> {
   installFakeTransport();
-  if (arm === "on") install({ client: IMPL as "transport-ts", patch: true });
+  if (variant === "on") install({ client: IMPL as "transport-ts", patch: true });
 
   const session = await impl.connect("https://telemetry-cost.invalid/", CERT);
   const payload = new Uint8Array(size).fill(7);
@@ -42,17 +42,17 @@ async function oneRun(arm: Arm, count: number, size: number, chunks: number): Pr
   const us = ((performance.now() - t0) * 1000) / count;
 
   session.close();
-  if (arm === "on") uninstall();
+  if (variant === "on") uninstall();
   return us;
 }
 
 async function cell(label: string, count: number, size: number, chunks = CHUNKS) {
-  const got: Record<Arm, number[]> = { off: [], on: [], off2: [] };
+  const got: Record<Variant, number[]> = { off: [], on: [], off2: [] };
   for (let round = 0; round < ROUNDS; round++) {
-    const shift = round % ARMS.length;
-    for (const arm of [...ARMS.slice(shift), ...ARMS.slice(0, shift)]) {
-      const us = await oneRun(arm, count, size, chunks);
-      if (round >= WARMUP) got[arm].push(us);
+    const shift = round % VARIANTS.length;
+    for (const variant of [...VARIANTS.slice(shift), ...VARIANTS.slice(0, shift)]) {
+      const us = await oneRun(variant, count, size, chunks);
+      if (round >= WARMUP) got[variant].push(us);
     }
   }
   const n = ROUNDS - WARMUP;
@@ -76,7 +76,7 @@ if (IMPL === "transport-wasm" && !wasmBuilt()) {
   console.error("transport-wasm has no pkg/ — run client/transport/wasm/build.sh");
   process.exit(2);
 }
-console.log(`${impl.name}: ${ROUNDS - WARMUP} timed rounds after ${WARMUP} warmup, three arms interleaved and rotated each round`);
+console.log(`${impl.name}: ${ROUNDS - WARMUP} timed rounds after ${WARMUP} warmup, three variants interleaved and rotated each round`);
 console.log("  cell               off µs/frame          on µs/frame           overhead  on worse  null control");
 
 const SWEEP = process.env.SWEEP ?? "both";

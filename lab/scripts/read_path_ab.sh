@@ -8,7 +8,7 @@
 # Prints tie / RESOLVED per cell under the campaign's 28.5 % rule on p50.
 # A refactor of the read path is expected to tie every product cell; seq1g is P0.
 # The base must know `product_fill` and `product_tile`: the readers split at the commit that
-# separated fill from on-demand, and a base before it has neither arm.
+# separated fill from on-demand, and a base before it has neither variant.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -47,14 +47,14 @@ AFTER="$ROOT/target/release/read_campaign"
 
 : > "$OUT"
 first=1
-emit() { # bin arm label extra args...
-  local bin="$1" arm="$2" label="$3"; shift 3
+emit() { # bin variant label extra args...
+  local bin="$1" variant="$2" label="$3"; shift 3
   local hdr=()
   [[ $first -eq 1 ]] || hdr=(--no-header)
-  "$bin" --arms product_fill,product_tile --label "$label" --repeats 1 --monitors 0 --asks "$ASKS" \
-    "${hdr[@]}" "$@" | awk -v arm="$arm" 'BEGIN{FS=OFS="\t"}
+  "$bin" --variants product_fill,product_tile --label "$label" --repeats 1 --monitors 0 --asks "$ASKS" \
+    "${hdr[@]}" "$@" | awk -v variant="$variant" 'BEGIN{FS=OFS="\t"}
       NR==1 && $1=="label" {print; next}
-      { $2=arm; print }' >> "$OUT"
+      { $2=variant; print }' >> "$OUT"
   first=0
 }
 
@@ -64,11 +64,11 @@ for ((r = 0; r < REPEATS; r++)); do
   if (( r % 2 == 0 )); then bins=("$BEFORE:before" "$AFTER:after")
   else bins=("$AFTER:after" "$BEFORE:before"); fi
   for spec in "${bins[@]}"; do
-    bin="${spec%%:*}"; arm="${spec##*:}"
-    emit "$bin" "$arm" "warm16_d1_r$r"  --series "$TILE" --temps warm --depths 1 --size 16384 --stride 16384
-    emit "$bin" "$arm" "cold16_d1_r$r"  --series "$TILE" --temps cold --depths 1 --size 16384 --stride 250000
-    emit "$bin" "$arm" "cold16_dW_r$r"  --series "$TILE" --temps cold --depths "$W" --size 16384 --stride 250000
-    emit "$bin" "$arm" "seq1g_d1_r$r"   --series "$SEQ"  --temps cold --depths 1 --size 16384 --stride 16384 --partition
+    bin="${spec%%:*}"; variant="${spec##*:}"
+    emit "$bin" "$variant" "warm16_d1_r$r"  --series "$TILE" --temps warm --depths 1 --size 16384 --stride 16384
+    emit "$bin" "$variant" "cold16_d1_r$r"  --series "$TILE" --temps cold --depths 1 --size 16384 --stride 250000
+    emit "$bin" "$variant" "cold16_dW_r$r"  --series "$TILE" --temps cold --depths "$W" --size 16384 --stride 250000
+    emit "$bin" "$variant" "seq1g_d1_r$r"   --series "$SEQ"  --temps cold --depths 1 --size 16384 --stride 16384 --partition
   done
   echo "  round $r done $(date -u +%T)" >&2
 done
@@ -82,22 +82,22 @@ METRIC = "p50_ns"
 cells = collections.defaultdict(dict)
 with open(path, newline="") as fh:
     for r in csv.DictReader(fh, delimiter="\t"):
-        if r["arm"] not in ("before", "after") or not r.get(METRIC):
+        if r["variant"] not in ("before", "after") or not r.get(METRIC):
             continue
         kind, sep, rnd = r["label"].rpartition("_r")
         if not sep:
             continue
-        cells[(kind, rnd)][r["arm"]] = int(r[METRIC])
+        cells[(kind, rnd)][r["variant"]] = int(r[METRIC])
 
 print(f"{'cell':<16} {'n':>3}  {'p50 Δ':>11}  {'signs':>7}  {'verdict':<9}  {'before':>9}  {'after':>9}")
 kinds = sorted({k for k, _ in cells})
 fail = 0
 for kind in kinds:
     ds, b, a = [], [], []
-    for (k, _rep), arms in cells.items():
-        if k != kind or "before" not in arms or "after" not in arms:
+    for (k, _rep), variants in cells.items():
+        if k != kind or "before" not in variants or "after" not in variants:
             continue
-        x, y = arms["before"], arms["after"]
+        x, y = variants["before"], variants["after"]
         if not x:
             continue
         ds.append((y - x) / x * 100); b.append(x); a.append(y)

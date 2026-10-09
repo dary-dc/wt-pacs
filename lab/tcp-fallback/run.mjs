@@ -15,7 +15,7 @@ import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const ROUNDS = Number(process.argv[2] || 3);
-const ARMS = ["wt", "ws", "race"];
+const VARIANTS = ["wt", "ws", "race"];
 const FRAMES = 140;
 const PLAN = { fill: 120, at: 20, during: [130, 135, 139], after: [0, 57, 119] };
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "tc1-"));
@@ -62,22 +62,22 @@ const browser = await chromium.launch({
 });
 let failed = 0;
 const want = { fill: PLAN.fill, during: PLAN.during.length, after: PLAN.after.length, duplicates: 0 };
-console.log(`round arm    fill   during after  duplicates   (bit-exact of ${JSON.stringify(want)})`);
+console.log(`round variant    fill   during after  duplicates   (bit-exact of ${JSON.stringify(want)})`);
 for (let round = 1; round <= ROUNDS; round++) {
-  const order = [...ARMS.slice(round % ARMS.length), ...ARMS.slice(0, round % ARMS.length)];
-  for (const arm of order) {
+  const order = [...VARIANTS.slice(round % VARIANTS.length), ...VARIANTS.slice(0, round % VARIANTS.length)];
+  for (const variant of order) {
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${http}/lab/tcp-fallback/index.html`);
     await page.waitForFunction(() => globalThis.__ready);
-    const r = await page.evaluate((args) => globalThis.runArm(args), {
-      arm, url: `https://127.0.0.1:${wt}/`, hash, expected, ...PLAN,
+    const r = await page.evaluate((args) => globalThis.runVariant(args), {
+      variant, url: `https://127.0.0.1:${wt}/`, hash, expected, ...PLAN,
     });
     await page.close();
     const ok = Object.entries(want).every(([k, v]) => r[k] === v);
     if (!ok) failed += 1;
-    console.log(`${round}     ${arm.padEnd(6)} ${String(r.fill).padEnd(6)} ${String(r.during).padEnd(6)} ${String(r.after).padEnd(6)} ${r.duplicates}${ok ? "" : "   FAIL"}`);
+    console.log(`${round}     ${variant.padEnd(6)} ${String(r.fill).padEnd(6)} ${String(r.during).padEnd(6)} ${String(r.after).padEnd(6)} ${r.duplicates}${ok ? "" : "   FAIL"}`);
   }
 }
 await browser.close();
-console.log(failed ? `\n${failed} run(s) not bit-exact` : `\nevery frame bit-exact on every arm, ${ROUNDS} rounds`);
+console.log(failed ? `\n${failed} run(s) not bit-exact` : `\nevery frame bit-exact on every variant, ${ROUNDS} rounds`);
 process.exit(failed ? 1 : 0);

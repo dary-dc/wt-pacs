@@ -6,7 +6,7 @@ of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the verdict is in
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Preview.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 lab/av1/fetch_data.sh
@@ -43,7 +43,7 @@ and the two tomosynthesis volumes.
 
 Over the exact HTJ2K series' (CT 16 363 741 B, MR 10 821 976, ultrasound 18 019 334, fluoroscopy
 9 267 247, cone-beam 14 811 880, tomosynthesis 14 476 791 and 13 637 860): the preview alone; preview
-then the exact HTJ2K frames (row PREVIEW's arm); preview + residual in HTJ2K; preview + residual in AV1.
+then the exact HTJ2K frames (row PREVIEW's variant); preview + residual in HTJ2K; preview + residual in AV1.
 
 | set | CRF | PSNR · max \|Δ\| | residual bits | preview | + HTJ2K | **+ residual HTJ2K** | + residual AV1 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -117,7 +117,7 @@ end of every group; dav1d-WASM and OpenJPH use one thread.
   at 1× and 1.23–1.74× at 4× (slower in 104/105 and 103/105 paired rounds); through dav1d-WASM
   2.08–3.00× and 2.29–3.14× (105/105 each). With the residual in AV1, 4.9–11.0× (dav1d-WASM's
   lossless decoding, row SPEED).
-* The residual's decode was not timed apart; over HTJ2K alone the arms add the preview's decode and
+* The residual's decode was not timed apart; over HTJ2K alone the variants add the preview's decode and
   the add — the first of which a preview shown first pays anyway. Against row PREVIEW's order (preview, then the
   whole exact frame) RESID decodes the same two things; it saves the bytes, not the time.
 
@@ -131,9 +131,9 @@ end of every group; dav1d-WASM and OpenJPH use one thread.
   adds every residual of every cell to native dav1d's preview and checks it the same way
   (363 frames × 4 CRFs × 2 residual codecs).
 * **Mutated** (on fluoroscopy unless named): `--mutate hash` (one hex digit of every reference)
-  turned 5/5 arms to 0 exact and every preview check to 0; the add's offset off by one turned every residual arm to 0/16 with the
+  turned 5/5 variants to 0 exact and every preview check to 0; the add's offset off by one turned every residual variant to 0/16 with the
   previews still 16/16; dropping the rounding term from R in the browser's colour conversion turned
-  the four ultrasound residual arms to 0/16 (moving its constant by 1/65 536 changed no sample on this
+  the four ultrasound residual variants to 0/16 (moving its constant by 1/65 536 changed no sample on this
   content, and survived); the HTJ2K and the AV1 residual written one too high each stopped
   `encode.py` at frame 0.
 

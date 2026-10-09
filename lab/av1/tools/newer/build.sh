@@ -33,13 +33,13 @@ for em in "${!EMSDK_COMMIT[@]}"; do
   pinned https://github.com/emscripten-core/emsdk.git "$em" "${EMSDK_COMMIT[$em]}" "$b/emsdk"
   [[ -x "$b/emsdk/upstream/emscripten/emcc" ]] \
     || (cd "$b/emsdk" && ./emsdk install "$em" >/dev/null && ./emsdk activate "$em" >/dev/null)
-  [[ -f "$b/out/simd.wasm" ]] || BUILD="$b" EMSCRIPTEN_VERSION="$em" ARMS=simd "$ROOT/client/decode/wasm/dav1d/build.sh"
+  [[ -f "$b/out/simd.wasm" ]] || BUILD="$b" EMSCRIPTEN_VERSION="$em" VARIANTS=simd "$ROOT/client/decode/wasm/dav1d/build.sh"
 done
 
 b="$BUILD/em-6.0.11-dav1d-head"
 at https://github.com/videolan/dav1d.git "$DAV1D_HEAD" "$b/dav1d-src"
 [[ -e "$b/emsdk" ]] || ln -s "$BUILD/em-6.0.11/emsdk" "$b/emsdk"
-[[ -f "$b/out/simd.wasm" ]] || BUILD="$b" EMSCRIPTEN_VERSION=6.0.11 DAV1D_TAG=head DAV1D_COMMIT="$DAV1D_HEAD" ARMS=simd \
+[[ -f "$b/out/simd.wasm" ]] || BUILD="$b" EMSCRIPTEN_VERSION=6.0.11 DAV1D_TAG=head DAV1D_COMMIT="$DAV1D_HEAD" VARIANTS=simd \
   "$ROOT/client/decode/wasm/dav1d/build.sh"
 
 if [[ ! -x "$BUILD/aom-head/bin/aomenc" ]]; then
@@ -62,7 +62,7 @@ for v in "${!OJPH_COMMIT[@]}"; do
   fi
   for em in "${!EMSDK_COMMIT[@]}"; do
     [[ -f "$BUILD/ojph-wasm/$v-$em.wasm" ]] && continue
-    EMSDK="$BUILD/em-$em/emsdk" SRC="$src/src" OUT="$BUILD/ojph-wasm" ARMS="$v-$em" \
+    EMSDK="$BUILD/em-$em/emsdk" SRC="$src/src" OUT="$BUILD/ojph-wasm" VARIANTS="$v-$em" \
       EXTRA_FLAGS="-sENVIRONMENT=web,worker,node" "$ROOT/lab/decode-bench/wasm/build.sh"
   done
 done

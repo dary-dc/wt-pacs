@@ -7,7 +7,7 @@ WebCodecs (every stream ≤ 10 bits, which WebCodecs takes) against top11+low th
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 lab/av1/fetch_data.sh ct_lidc xa_dynact16 mr_ispy1 rf_fluoro
@@ -25,11 +25,11 @@ A frame's file is `[u32le top length][top unit][low unit]` — a lab framing, no
 store. HTJ2K is the served profile. `make_frames.py` decodes every unit alone with native dav1d,
 merges and matches the checksum written when the series was fetched before keeping the frame.
 
-**Arms**, each a decoder worker of its own behind `decoder.js`'s protocol, the frame's time its
+**Variants**, each a decoder worker of its own behind `decoder.js`'s protocol, the frame's time its
 `decodeStart`–`decodeEnd` stamps (bytes in; merged samples, signed where the series is, and the
 range out):
 
-| arm | decoder | how |
+| variant | decoder | how |
 | --- | --- | --- |
 | `htj2k` | OpenJPH | `client/decode/decoder.js` itself |
 | `wc-t10` | WebCodecs, two `VideoDecoder`s (`av01.0.00M.10…` and `.08…`, mono) | `split-worker.js`; both units in flight at once, each flushed and copied out whole (`I420P10`, `I420`: chroma included) |
@@ -40,7 +40,7 @@ range out):
 then 18 frames one at a time, as asks.
 
 **Order.** Every throttle cell is a fresh browser, in a Williams order each round
-(`lab/order.mjs`); sets and arms rotate inside it. 4× is `lab/scripts/cpu_throttle.mjs` on the
+(`lab/order.mjs`); sets and variants rotate inside it. 4× is `lab/scripts/cpu_throttle.mjs` on the
 browser's process tree.
 
 **Checked.** Every merged frame is hashed against its truth checksum. Mutated, each turned its

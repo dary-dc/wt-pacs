@@ -20,10 +20,10 @@ round trips outweigh anything the server does per frame; 20 Mbit is ~2.5 MB/s, a
 core (0.7 % measured on a container's core, §4 LOAD), so no session is heavy and at thousands of sessions the cost is CPU per byte; and the round
 trip is 30–80 ms, so a 28 ms tail that dominates loopback is half a round trip there.
 
-**How to read the numbers.** Arms are interleaved inside every round unless a row says otherwise;
+**How to read the numbers.** Variants are interleaved inside every round unless a row says otherwise;
 figures are medians; "5/7" is rounds won, paired round against round. The userspace relay
 `lab/scripts/link_impair.py` is the impaired link in a container; what it cannot model is
-[`../rig-limits.md`](../rig-limits.md) §3. Rejected arms (`copy` / `split` send paths,
+[`../rig-limits.md`](../rig-limits.md) §3. Rejected variants (`copy` / `split` send paths,
 `--ask-priority`, MTU and socket knobs) were deleted from `server/`, not hidden behind a feature;
 the campaigns that rejected them, with method, reviews and TSVs, are on tag
 `archive/transport-lab-2026-09`:
@@ -33,7 +33,7 @@ git show archive/transport-lab-2026-09:docs/transport/transport-conclusions.md  
 git checkout archive/transport-lab-2026-09 -- lab/transport                      # the campaign drivers
 ```
 
-The arms measured below and retired on 2026-10-02 — the bounded BBR, the early slow-start exit
+The variants measured below and retired on 2026-10-02 — the bounded BBR, the early slow-start exit
 (HyStart), the idle restart, NewReno, the fixed stream pool and the prefault hop — are in the history
 at `6e9c126`.
 
@@ -55,8 +55,8 @@ at `6e9c126`.
 `--stream-mode per-frame`, `--congestion cubic | bbr`, `--initial-window-bytes`, `--initial-rtt-ms`
 and `--open-ask false` are flags, each for the cell named where it is measured below.
 `--packet-threshold`, `--persistent-congestion-threshold` and `--ack-frequency-max-delay-ms` were
-removed with their arms once closed (§3, [`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser);
-code: `git show archive/arms-2026-10-03:server/src/transport/tuning.rs`.
+removed with their variants once closed (§3, [`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser);
+code: `git show archive/variants-2026-10-03:server/src/transport/tuning.rs`.
 
 ---
 
@@ -130,7 +130,7 @@ fill at depth 8 runs beside it. NBR's 5 Mbit, 56 ms link with a shallow (20-pack
 (500-packet) buffer, and PROF's LTE-loaded; FIFO and fq_codel (5:100) hold the same total. 7 rounds
 by `order.py`, `--self-timing`, 1 of 126 runs `VOID`. Medians; a queue is the flow's median sojourn:
 
-| profile | arm | ask p50 / p99 ms | share | our queue ms | the neighbour's queue ms |
+| profile | variant | ask p50 / p99 ms | share | our queue ms | the neighbour's queue ms |
 | --- | --- | --- | --- | --- | --- |
 | shallow | Cubic, FIFO | 289 / 401 | 44.8 % | 35.5 | 34.2 |
 | | Cubic, fq | 278 / 319 | 50.1 % | 6.5 | 5.5 |
@@ -147,7 +147,7 @@ by `order.py`, `--self-timing`, 1 of 126 runs `VOID`. Medians; a queue is the fl
 
 **BBR's neighbour cost does not survive fq_codel; its own queue does.** Behind a shallow FIFO BBR
 leaves kernel TCP 1.2 %; behind fq_codel the split is 49.9 / 50.1 in every round, and the neighbour's
-queue is 4–9 ms in every fq_codel arm whatever our controller does. BBR ignores CoDel's drops (14–26 %
+queue is 4–9 ms in every fq_codel variant whatever our controller does. BBR ignores CoDel's drops (14–26 %
 of its packets, Cubic's 0.6–1.4 %), so its fill stands 27–196 ms in its own flow queue, which its asks
 share. With real TCP the deep FIFO reads 49.6 % (the rig 55.1 %), and a deep FIFO starves quinn's
 paced Cubic against Linux's: 13.1 % in every round, a 2.2 s ask; fq_codel gives it 50.6 %. Every
@@ -179,7 +179,7 @@ A native run (L3, 2026-09-18, [`../rig-limits.md`](../rig-limits.md) §3) found 
 Cubic at 1–3 % loss and left it to be priced in a browser.
 [`../../lab/scripts/controller_browser_cells.sh`](../../lab/scripts/controller_browser_cells.sh):
 headless Chromium, the downloader through `link_impair.py` at **20 Mbit and 80 ms**, a 200-packet
-queue (120 ms) unless stated, one server per run, arms rotated inside every round, **7 rounds**. A
+queue (120 ms) unless stated, one server per run, variants rotated inside every round, **7 rounds**. A
 fill is 20 × 428 KB; an ask is one 428 KB frame on a fresh session. Lost and overflowed are shares
 of the server's datagrams (its `session path` line, the relay's queue counter); the queue is the
 smoothed round trip at the session's end less 80 ms. Median [range], rounds won against Cubic:
@@ -221,14 +221,14 @@ a phone's receive path is not modelled.
 
 ### Through the whole product, on a lossy link, 2026-10-08 (LOSSCC)
 
-Row LOSSLINK's cells through the downloader and both codecs, with the controller as the arm: today's
+Row LOSSLINK's cells through the downloader and both codecs, with the controller as the variant: today's
 `cubic-restart` against `bbr`. Headless Chromium 141, the 10-bit tomosynthesis volume, HTJ2K and the
 optimized AV1 payload (0.943 of its bytes). Frames 0–3 are filled, then 4–7 asked one at a time. Links are
 5/20/50 Mbit at 40 ms and `lte-good`, each with no loss, 1, 2 or 5 % (iid; Gilbert–Elliott bursts on
 `lte-good`), or ±20 ms of ordered jitter, at 1× and 4×. Williams-ordered, with every visit refusing a
 server whose banner names another controller. 28 rounds, the last 16 topping up the cells VOID left short:
-3 416 visits, 1 281 `VOID`. **27 328/27 328 frames exact.** n = 10–19 a cell and arm, except BBR's AV1
-arm on `lte-good` at 4× with no loss (8) and HTJ2K's with jitter (9).
+3 416 visits, 1 281 `VOID`. **27 328/27 328 frames exact.** n = 10–19 a cell and variant, except BBR's AV1
+variant on `lte-good` at 4× with no loss (8) and HTJ2K's with jitter (9).
 
 The VOIDs rose from 11 % of a round to 40–80 % on `lte-good` as the host's steal time rose (≈6 000 ticks
 a round). That is the relay's self-timing refusing what it cannot time, so the kept visits are clean but
@@ -334,7 +334,7 @@ sooner on every LTE profile, every round.** Loss in bursts, not the trace, decid
 Wi-Fi home holds it at 10.4 of the trace's 22 Mbit. **CoDel halves Cubic on LTE-good** (16.2 → 8.3
 Mbit/s, queue 360 → 4.7 ms) while BBR ignores its drops (6.6 % of its packets) and keeps 200 ms, so a
 managed queue widens BBR's lead and makes its queue the neighbour's problem. LTE-loaded is bufferbloat
-for every arm (0.6–0.7 s of queue). One trace each, from its start: a profile's verdict, not a
+for every variant (0.6–0.7 s of queue). One trace each, from its start: a profile's verdict, not a
 carrier's. No default changed (§9 item 2).
 
 ### Under row LOSSLINK's loss, the product's client, 2026-10-08 (LOSSCC, first run)
@@ -343,10 +343,10 @@ carrier's. No default changed (§9 item 2).
 (`--congestion`), on row LOSSLINK's cells ([`../../lab/av1/delivery/total-time/README.md`](../../lab/av1/delivery/total-time/README.md)
 §Row LOSSCC) — the 10-bit tomosynthesis volume as HTJ2K and as the optimized AV1 payload, frames 0–3 filled
 then 4–7 asked one at a time, through the downloader in headless Chromium 141; 5/20/50 Mbit and
-`lte-good` × clean, ±5/±20 ms ordered jitter, 1/2/5 % loss × 1× and 4×. Six arms (codec × controller)
+`lte-good` × clean, ±5/±20 ms ordered jitter, 1/2/5 % loss × 1× and 4×. Six variants (codec × controller)
 interleaved in every cell, cells in a Williams order, 10 rounds and 3 more on the clean and jitter cells;
-2 879 of 3 312 visits kept (433 `VOID`), **n = 5–13 kept an arm and cell** (103 of 288 under 10),
-26 496/26 496 frames exact, no ask failed. The server's own startup line is checked against the arm's
+2 879 of 3 312 visits kept (433 `VOID`), **n = 5–13 kept a variant and cell** (103 of 288 under 10),
+26 496/26 496 frames exact, no ask failed. The server's own startup line is checked against the variant's
 controller every visit. Fill time is frame 0's issue to frame 3 on the page; ratios are median of
 rounds paired:
 
@@ -445,7 +445,7 @@ per-packet `InflightAtLoss`. The full v3 and every existing implementation need 
 delivered and in-flight at send, which quinn does not hand over. All three licences are
 MIT-compatible.
 
-**The cell that decides it**: PROF's LTE-good + CoDel profile, arms `bbr`, the loss bound and `cubic`,
+**The cell that decides it**: PROF's LTE-good + CoDel profile, variants `bbr`, the loss bound and `cubic`,
 ≥ 5 rounds by `order.py`, `--self-timing`. The bound passes if under 2 % of its packets meet CoDel and
 it stands under 50 ms while keeping ≥ 0.9 × BBR's 15.15 Mbit/s. ASKL's 1 % and 4 % cells guard the
 slope (≤ +73 ms over `bbr` at 4 %), and W4b's `flat` at 500 ms its loss (< 3 300). **Nothing built,
@@ -470,11 +470,11 @@ three campaigns behind it and every retraction are
   Chromium through the relay (HOL1, 2026-09-25, Cubic, 128 KB) it moves nothing past 6 %.
 * **A fixed pool is closed, and retired.** `pool:2` cost ~75 % on the p95 with no loss;
   in the browser `pool:2` asks were +23 % at 1 % and 3 %, and `pool:4` / `pool:8` fills +268 to +583 %.
-* **The arms are byte-identical at depth 1**, so the question has teeth only where the client keeps
+* **The variants are byte-identical at depth 1**, so the question has teeth only where the client keeps
   more than one ask outstanding.
 * `send_fairness(true)` was worse than FIFO in every cell and is gone from the product crate.
 * Bursty loss degrades `shared` by 38 % where scattered loss of the same 0.5 % mean degrades it by
-  9 %, and no stream arm changes that: the loss's shape points at the controller (§1), not at the
+  9 %, and no stream variant changes that: the loss's shape points at the controller (§1), not at the
   streams.
 
 ### A closed-loop reader cannot see head-of-line blocking
@@ -510,7 +510,7 @@ holds **180 kB**, 11 % more than a client that merely reads slowly and 50× belo
 withheld bytes queue on the *client* (2.20 MB), because a stalled peer's stack still ACKs and the
 server frees what is acknowledged. On the old `copy` + per-frame path the same client cost
 **6.8 MB** — the arithmetic worry was right for the send path the project used to ship, and the
-chunked path is what removed it. `RssAnon` and total RSS agree within 1.2 % in every arm, so this is
+chunked path is what removed it. `RssAnon` and total RSS agree within 1.2 % in every variant, so this is
 not a file-backed blind spot. Windows stay at quinn's defaults.
 
 With the pooled hand-off quinn holds the reader's own buffer until the peer acknowledges it, so a
@@ -544,7 +544,7 @@ flights. At 50 KB it is 3.1 against 1.3. A warmed session is **4.2× faster** at
 50 KB, at both round trips. quinn keeps a grown window through silence (below), so a warmed session
 stays warm.
 
-**"After a lossy fill the ask is slower than on a fresh session" did not reproduce**: the lossy arm
+**"After a lossy fill the ask is slower than on a fresh session" did not reproduce**: the lossy variant
 lands *between* fresh and filled (−6 % against fresh at 250 KB, −23 % at 50 KB), because the
 blackout collapses the window without taking it below where it started.
 
@@ -565,7 +565,7 @@ produced that reading is not known. Not tested: whether a real mobile NAT keeps 
 the control stream opens. The TypeScript client sends it (`openAsk`), on by default since 2026-10-02; the design and its
 browser measurement are [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The opening ask. Pushing 1, 2, 4 and 8
 frames before one more is asked takes that ask at 250 KB / 80 ms from 454.7 ms to 204.0, 157.2,
-127.6 and **103.9 — the filled arm's 104.3**; at 50 KB, 248.2 to 165.9, 124.8, 108.5 and 98.1. **It
+127.6 and **103.9 — the filled variant's 104.3**; at 50 KB, 248.2 to 165.9, 124.8, 108.5 and 98.1. **It
 reaches the warmed session's speed**, most of the way at 1 MB.
 
 #### A 32-packet initial window
@@ -581,14 +581,14 @@ with the wider window and 11.7 % with the push, most of it the push's own bytes.
 #### Which default for which session shape, 2026-09-20 (LD)
 
 **W1b.** The cells W1 lacks, on the same probe and relay: the two levers together, a warmed session
-left idle, and the wide first flight against the queue depth. Seven rounds a cell, arms interleaved
+left idle, and the wide first flight against the queue depth. Seven rounds a cell, variants interleaved
 inside every round with the order reversed every other round, wins counted round against round;
 `lab/scripts/first_ask_cells.sh together|idle|queue`. The box carried other lanes, so every figure
 reads 3–8 % slower than W1's and only within-cell comparisons are claimed.
 
 **The two levers do not stack.** Ask to last byte, 40 / 80 ms:
 
-| arm | 50 KB | 250 KB | wins vs fresh |
+| variant | 50 KB | 250 KB | wins vs fresh |
 | --- | ---: | ---: | ---: |
 | fresh | 133.8 / 255.9 | 244.0 / 463.3 | |
 | 32-packet window | 89.7 / 171.8 | 182.3 / 333.4 | 7/7 |
@@ -596,15 +596,15 @@ reads 3–8 % slower than W1's and only within-cell comparisons are claimed.
 | **push + 32-packet window** | 58.5 / 110.7 | 65.8 / 132.5 | 7/7 |
 | warmed (the ceiling) | 55.0 / 102.2 | 53.9 / 109.4 | 7/7 |
 
-Against the push alone the combined arm is −4.9 to +1.7 %, on ranges
+Against the push alone the combined variant is −4.9 to +1.7 %, on ranges
 that overlap in all four cells. The push leaves no slow start for a wider first flight to skip.
 
 **A warmed window survives a silence, on both controllers.** Eight frames, then 0, 10 or 30 s of
 silence, then the ask, with the keep-alive pair of [`../adr/transport-idle-sessions.md`](../adr/transport-idle-sessions.md) in
-every arm (without it the native session died at 30 s in 2 of 2 rounds; a browser pings every 15 s).
+every variant (without it the native session died at 30 s in 2 of 2 rounds; a browser pings every 15 s).
 After 30 s, 50 / 250 KB at 80 ms: Cubic 99.4 / 111.1 ms against 103.3 / 108.0 with no silence, BBR
 94.8 / 107.3 against 97.2 / 105.1. The worst cell is 250 KB at 40 ms, Cubic +9 % and BBR +17 %; every
-arm ends on the window it had before the silence, and 56 of 56 rounds served the ask. quinn 0.11.18
+variant ends on the window it had before the silence, and 56 of 56 rounds served the ask. quinn 0.11.18
 has no window restart after idle, and `cubic-restart` does not count an idle spell as an outage (W5b).
 A link that slowed during the silence does not change that verdict (§The window through a silence).
 
@@ -620,7 +620,7 @@ except where marked):
 | 100 pkt | 149.5 → 102.7 | 269.9 → 182.9 | 325.3 → 272.1 | 499.5 → 373.5 |
 
 From 20 packets up the win is flat — −31…−33 % at 50 KB, −16…−25 % at 250 KB. At 10 packets the 250
-KB / 80 ms cell **loses by 11.8 %**: the burst is chopped at the queue, and the wider arm ends the
+KB / 80 ms cell **loses by 11.8 %**: the burst is chopped at the queue, and the wider variant ends the
 session on 44 kB against the default's 87 kB having lost *fewer* datagrams (3.0 against 10.4) — it
 pays a round trip to lose half its window.
 
@@ -665,7 +665,7 @@ nothing on the server reads datagrams, and a control-stream message would end a 
 silence, the link at 8 Mbit, then one 250 KB ask; 60 ms, a 50-packet queue, the keep-alive pair,
 `first_ask_cells.sh stw`, nine interleaved rounds, `--self-timing` (5 of 45 runs `VOID`):
 
-| arm | ask ms | paired against Cubic | wins |
+| variant | ask ms | paired against Cubic | wins |
 | --- | ---: | ---: | ---: |
 | Cubic, 40 → 8 Mbit | **340.9** (338–345) | | |
 | Cubic, 8 Mbit throughout | 382.8 (362–386) | +41.2 | 0/7 |
@@ -699,7 +699,7 @@ was independent per packet and reordered across up to seven of them. With `--jit
 ([`../rig-limits.md`](../rig-limits.md) §3) — `lab/scripts/radio_link_cells.sh`, five rounds, deep
 queue, against each controller's own no-jitter fill:
 
-| arm | ±2 ms reordering | ±2 ms ordered | ±10 ms reordering | ±10 ms ordered |
+| variant | ±2 ms reordering | ±2 ms ordered | ±10 ms reordering | ±10 ms ordered |
 | --- | ---: | ---: | ---: | ---: |
 | Cubic | **8.22×** | **1.01×** | **23.68×** | **1.03×** |
 | BBR | 1.02× | 0.99× | 2.65× | 1.17× |
@@ -709,8 +709,8 @@ was the reordering too. The reordering cells stand as what a multi-leg path woul
 them supports "Cubic cannot take a radio's jitter", and §1, which rests on loss, is untouched.
 
 **The reordering threshold is not the mechanism — a prediction refuted.** `--packet-threshold`
-exposed quinn's setter (default 3, unchanged; flag and arms removed 2026-10-03, code:
-`git show archive/arms-2026-10-03:lab/scripts/radio_link_cells.sh`). Under reordering jitter, fill ms at thresholds 3 / 6
+exposed quinn's setter (default 3, unchanged; flag and variants removed 2026-10-03, code:
+`git show archive/variants-2026-10-03:lab/scripts/radio_link_cells.sh`). Under reordering jitter, fill ms at thresholds 3 / 6
 / 12 / 48: ±2 ms 11 880 / 6 124 / 6 135 / 6 124; ±10 ms 34 217 / 30 214 / 31 094 / 31 428. At ±2 ms
 raising it removes the spurious losses (21 per session become 0 or 1) and still leaves **4.2×**,
 because *one* congestion event is worth that much: every round that declared one ended on an 84 ms
@@ -748,7 +748,7 @@ headless Chromium's downloader fills either buffer to its limit (median 422 / 84
 | burst, 500 ms | 433 | −190, 4/7 | +56, 0/7 |
 | burst, 1 000 ms | 926 | −65, 2/4 | +34, 1/4 |
 
-**The fill is the link's whichever controller** (17.1–24.1 s, every arm within 2.5 % of Cubic); what a
+**The fill is the link's whichever controller** (17.1–24.1 s, every variant within 2.5 % of Cubic); what a
 deep buffer costs is the wait of anything asked behind the fill, up to the whole buffer (2.1–2.2 s at
 `step40`'s 10 Mbit step). **BBR overruns a 500 ms buffer**: 24 000–41 000 of ~51 000 packets declared
 lost where Cubic loses ~1 600, an overflow the link's other users pay for, not the fill. The retired
@@ -757,8 +757,8 @@ less queue than Cubic in four. With no exogenous loss no verdict of §1 moves.
 
 #### An outage: the threshold is not the lever
 
-Fill ms through a blackout, persistent-congestion threshold 3 (default) / 6 / 12 (flag and arm removed
-2026-10-03; code: `git show archive/arms-2026-10-03:lab/scripts/controller_cells.sh`), against 1 437
+Fill ms through a blackout, persistent-congestion threshold 3 (default) / 6 / 12 (flag and variant removed
+2026-10-03; code: `git show archive/variants-2026-10-03:lab/scripts/controller_cells.sh`), against 1 437
 with no outage: 500 ms 6 836 / 6 881 / 6 871; 1 s 7 503 / 7 508 / 7 626; 2 s 8 704 / 9 058 / 9 092.
 **Raising the persistent-congestion threshold changes nothing**: one congestion event and 3 to 11
 lost datagrams per session, so persistent congestion is never declared. The outage costs **+5.4 s**
@@ -768,7 +768,7 @@ outage halved; the ladder is only the difference between the three rows.
 
 #### The first timeout, at 1 % loss
 
-200 cold connects an arm, 80 ms round trip, 1 % loss each way:
+200 cold connects a variant, 80 ms round trip, 1 % loss each way:
 
 | `initial_rtt` | p50 | p95 | p99 |
 | --- | ---: | ---: | ---: |
@@ -786,7 +786,7 @@ right number is the target's round trip, which this rig cannot stand in for — 
 ### After a blink, 2026-09-19
 
 **W3.** [`../../lab/scripts/blink_cells.sh`](../../lab/scripts/blink_cells.sh), five rounds a cell,
-arms interleaved within every round, on W2's link: 80 ms, 20 Mbit, a 1 500-packet queue, a fill of
+variants interleaved within every round, on W2's link: 80 ms, 20 Mbit, a 1 500-packet queue, a fill of
 40 × 64 KB. `wins` counts rounds beaten against Cubic.
 
 **The window says where the time goes.** Sampled every 50 ms from the server's path telemetry, a 1 s
@@ -820,7 +820,7 @@ now remembered until a congestion event spends it, and measured against the RTT 
 *before* it.
 
 **BBR through the same blink** beats Cubic 5/5 at the fill's start and is **worse** mid-fill (0/5).
-Across every blink cell the three arms send within 1 % of each other and lose the same.
+Across every blink cell the three variants send within 1 % of each other and lose the same.
 
 **A blink across an ask costs ~2 s and the restart does not help.** One 250 KB ask on a warmed
 session, the blink fired as it goes out: Cubic 2 099 ms, restart 2 312 (1/5), BBR **1 859** (5/5),
@@ -871,7 +871,7 @@ drops or holds through an outage still decides whether the restart has a target 
 
 **O1.** A fill asked coarse to fine — every 8th frame, then every 4th, then every 2nd, then the rest
 — against sequential, each frame asked once at the same depth. `lab/scripts/fill_order_cells.sh`,
-200 frames of 64 KB, depth 4, arms interleaved with the order reversed every round. Every 8th frame
+200 frames of 64 KB, depth 4, variants interleaved with the order reversed every round. Every 8th frame
 is in hand at **1 043 ms against 5 688** at 80 ms / 20 Mbit (n = 3; fill 5 826 against 6 032), and
 at 27 against 183 ms on loopback with every frame a miss (n = 12; fill 189 against 190).
 
@@ -917,12 +917,12 @@ mechanisms.
   their own buffer and take the next from a pool; `FrameOut` gives quinn head and body with
   `write_all_chunks`, and the buffer returns when quinn drops it after acknowledgement. One copy of
   four gone. The pool is shared, not thread-local, because a work-stealing runtime does not promise
-  a buffer returns to the thread that read it; a thread-local arm measured a tie on every column
+  a buffer returns to the thread that read it; a thread-local variant measured a tie on every column
   (0.1–0.8 %, 2–3/6), so the shared shape buys the invariant, not speed.
 
 **First measured 2026-09-18, after one false alarm.** The first check on the stock multi-thread
 runtime read −38 % throughput: the revert of §6 had left `#[tokio::main(flavor = "current_thread")]`,
-so every arm was single-threaded — CPU per ask down, context switches down, throughput down reads
+so every variant was single-threaded — CPU per ask down, context switches down, throughput down reads
 like lock contention and is equally what one worker looks like. Restored, six repeats paired, all
 6/6: sixteen sessions at depth 4 +13.5 % asks/s at 250 KB and +23.2 % at 32 KB, a 250 KB fill
 +73.9 %, one session at depth 1 p50 −32.5 % and −6.9 %. Over 24 cells of depth × sessions
@@ -953,7 +953,7 @@ PGO re-run **without** the cap (`base` · `pool` · `pgo`, same rig, n = 6): CPU
 **−11.8 % (5/6)** — no cell against. The host saturates at the two server cores in the depth-4 and
 fill cells; nothing is claimed past them.
 
-**A browser does not see it.** Headless Chromium, `lab/scripts/browser_cell.py`, arms interleaved,
+**A browser does not see it.** Headless Chromium, `lab/scripts/browser_cell.py`, variants interleaved,
 wall per frame, n = 6: 32 KB on demand −0.8 % (2/6, a tie), 250 KB +3.2 % (1/6, ranges overlapping).
 At 250 KB Chromium's receive path is ~1.7 ms per frame and is the ceiling
 ([`../rig-limits.md`](../rig-limits.md) §1): its network-service IO thread runs at 82–85 % of a core
@@ -973,7 +973,7 @@ unchanged in total, since quinn held a copy before, and the pool keeps at most 6
 **What would overturn it:** a CPU-bound cell on the production target where the combined binary does
 not beat the plain one on CPU per ask; a quinn upgrade that moves the batching itself. Re-run with
 `lab/scripts/runtime_ab.sh` (`SERVER_CPUS` / `CLIENT_CPUS` pin the two sides) and
-`lab/scripts/runtime_ab_pair.py`, one binary per arm; between arm builds `git checkout Cargo.lock`,
+`lab/scripts/runtime_ab_pair.py`, one binary per variant; between variant builds `git checkout Cargo.lock`,
 because a `--config` patch the lock cannot take is only a warning and the next build may resolve
 quinn to a newer crates.io release.
 
@@ -1030,7 +1030,7 @@ cost a session, not a core (§9 item 9).
 
 ## 5 · Depth and the depth-1 tail: where latency and throughput part
 
-Measured 2026-09-12 on the 4 vCPU VM, client on the box and unpinned, six repeats paired and arm
+Measured 2026-09-12 on the 4 vCPU VM, client on the box and unpinned, six repeats paired and variant
 order reversed unless a row says otherwise; loss is read from the client socket's
 `Udp: RcvbufErrors` (`runtime_ab.sh` carries the column), never assumed.
 
@@ -1085,7 +1085,7 @@ patch, 45), the patch with its ceiling at 24, 16 and 10 (`cap10` isolates the pa
 ten repeats reversed every repeat, the client socket at the kernel's default 212 992 bytes; server
 lost and datagrams per `sendmsg` from its `session path` line. 250 KB, depth 1, four sessions:
 
-| arm | datagrams / `sendmsg` | client drops / run | server lost / run | p99 | CPU / ask |
+| variant | datagrams / `sendmsg` | client drops / run | server lost / run | p99 | CPU / ask |
 | --- | --: | --: | --: | --: | --: |
 | `base` | 9.4 | 53.5 | 535 | 2.4 ms | — |
 | `gso` | 34.8 | 8.5 | 340 | **27.7 ms (0/10 lower)** | −9 % (7/10) |
@@ -1098,14 +1098,14 @@ kernel queues each GSO send as one buffer and a full queue drops all of it — 1
 about 40 in `gso`. A tail loss follows when the dropped send is the frame's last. The capture shows
 it (`tcpdump -s 64` on `lo`, sends after more than 15 ms of silence on their connection): `gso` has
 14, at a median 26.3 ms — the PTO — each after a ~60 KB batch; `base`, `cap16` and `cap24` have none
-despite 20–60 drops a run. On loopback the pacer's burst limit is 256 packets and no arm reached it.
+despite 20–60 drops a run. On loopback the pacer's burst limit is 256 packets and no variant reached it.
 
 **Every cap has the cliff; the size of a send sets how wide it is.** Twenty frame sizes from 100 KB
 to 1 MB, 4–10 repeats; below 200 KB nothing drops. The p99 is a PTO (≥ 15 ms) at **12 of 20 sizes
 for `gso`** (210–240, 250, 275, 300, 350, 400, 700 KB), at 225 KB only for `cap16`, at 240 KB for
 `base` — quinn's own 10 has the cliff too — and at **none for `cap24`** (worst 3.9 ms, at 240 KB).
 
-At 1 MB every arm drops, mid-frame. With the receive buffer at 1 MiB every drop and every tail went,
+At 1 MB every variant drops, mid-frame. With the receive buffer at 1 MiB every drop and every tail went,
 and `gso` kept −11 to −19 % CPU per ask. **So the regression that keeps the patch opt-in is the rig
 client's, not the product's**: Chromium sets `SO_RCVBUF` 1 MiB on its QUIC socket and no `UDP_GRO`
 (strace of Chromium 141 here); the kernel caps that at `net.core.rmem_max` and doubles it, so a drop
@@ -1133,11 +1133,11 @@ seen twice.
 
 `d6068e9`. Depth-1 asks of 131 072 B on a fresh session, 30 a run, through the relay at 60 ms with a
 50-packet queue (`lab/stream-shape/run.mjs --tax`, headless Chromium, the raw TS client, a Williams
-order, `--self-timing`, 8–14 rounds an arm after `VOID` runs). The `ws` arm, the WebSocket through the
+order, `--self-timing`, 8–14 rounds a variant after `VOID` runs). The `ws` variant, the WebSocket through the
 relay's TCP plane with no loss and no window, is an **ideal-TCP floor**, not a TCP reference
 ([`../rig-limits.md`](../rig-limits.md) §3). Tax is the median of asks 2–30 over RTT + size / rate:
 
-| arm | 15 Mbit (floor 129.9 ms) | tax | 25 Mbit (floor 101.9) | tax |
+| variant | 15 Mbit (floor 129.9 ms) | tax | 25 Mbit (floor 101.9) | tax |
 | --- | ---: | ---: | ---: | ---: |
 | `ws`, ideal TCP | 131.6 | +1.7 | 103.6 | +1.6 |
 | Cubic | 132.3 | +2.4 | 115.6 | +13.7 |
@@ -1147,7 +1147,7 @@ relay's TCP plane with no loss and no window, is an **ideal-TCP floor**, not a T
 **Cubic's tax is under 2 % where an ask is longer than a round trip's worth of link, and 13 % where it
 is not** (at 25 Mbit 131 KB is 0.7 of the BDP; paired against `ws` 7/7) — consistent with quinn pacing
 an app-limited window at 1.25 × window / RTT, inferred, not measured. The initial window is spent on
-the first ask (284 → 197 ms at 15 Mbit) and changes nothing after it. A floor arm dialled past the
+the first ask (284 → 197 ms at 15 Mbit) and changes nothing after it. A floor variant dialled past the
 relay (the mutant) reads −128 ms, below arithmetic.
 
 ### The ask's loss sensitivity, QUIC against kernel TCP, 2026-10-02 (ASKL)
@@ -1179,7 +1179,7 @@ ask +160 ms paired; it wins from 1 %. At 4 % asks fail on the client's 15 s time
 Cubic runs, 23 over 2 QUIC Cubic runs), partly the relay's model: Gilbert–Elliott steps once a
 packet, so a silence does not leave the bad state. During a 40-frame fill at 1 % the fallback's
 head-of-line cost ties QUIC's shared stream (frame gap p99 1 522 against 1 368 ms, 9 rounds).
-*Retracted the same day:* a first campaign read QUIC 20× steeper than TCP; its `ws` arm took the
+*Retracted the same day:* a first campaign read QUIC 20× steeper than TCP; its `ws` variant took the
 container's default controller, BBR, so it compared controllers, not transports.
 
 ---
@@ -1225,7 +1225,7 @@ after every frame (`yield_now`) was measured on this shape and rejected: +7 % p5
 **It returns if** a steering answer exists (reuseport steering on the connection ID; not here) and a
 scale cell passes: 64–256 sessions with the client off the box, a few fills looped beside the
 on-demand sessions, against one endpoint on the multi-thread runtime — keep per-core unless the
-multi-thread arm wins throughput by more than 10 % or p99 by more than 30 % on the heavy-tail cell.
+multi-thread variant wins throughput by more than 10 % or p99 by more than 30 % on the heavy-tail cell.
 `lab/scripts/runtime_ab.sh` is the instrument.
 
 ---
@@ -1303,7 +1303,7 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    the peer advertises.
 7. **The depth-1 tail.** Headless Chromium 141 does not advertise `min_ack_delay`
    ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser); one run on 148 closes that, with
-   the server's request restored from `archive/arms-2026-10-03`. An
+   the server's request restored from `archive/variants-2026-10-03`. An
    ACK-eliciting packet after an isolated frame would turn a lost tail into a gap, if quinn's packet
    builder can place it *after* the tail. Not before items 1–3.
 8. **Two upstream quinn items, drafted, not posted**:

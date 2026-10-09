@@ -5,13 +5,13 @@ Queue row 38 (FOOTPRINT) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md)
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Decode time and memory.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
-EMSDK=lab/.av1-build/emsdk INITIAL_MB=4 ARMS=deliver lab/decode-bench/wasm/build.sh   # the adopted wrapper
+EMSDK=lab/.av1-build/emsdk INITIAL_MB=4 VARIANTS=deliver lab/decode-bench/wasm/build.sh   # the adopted wrapper
 lab/av1/fetch_data.sh dbtproj_ge us_liver
 PRESET=a7 lab/av1/.venv/bin/python lab/av1/decode/high-depth/make_frames.py lab/.av1-build lab/.av1-work/footprint/rep14 lab/av1/data/dbtproj_ge
-ARMS=av1,rct lab/av1/.venv/bin/python lab/av1/delivery/total-time/make_frames.py lab/.av1-build lab/.av1-work/footprint/total lab/av1/data/us_liver
+VARIANTS=av1,rct lab/av1/.venv/bin/python lab/av1/delivery/total-time/make_frames.py lab/.av1-build lab/.av1-work/footprint/total lab/av1/data/us_liver
 NODE_PATH=$(npm root -g) node lab/av1/decode/memory/run.mjs --mode mem --rounds 6 --out mem.jsonl
 NODE_PATH=$(npm root -g) node lab/av1/decode/memory/run.mjs --mode first --rounds 12 --out first.jsonl
 node lab/av1/decode/memory/summary.mjs mem.jsonl first.jsonl
@@ -20,9 +20,9 @@ node lab/av1/decode/memory/summary.mjs mem.jsonl first.jsonl
 **Series**, the largest frames here: the 14-bit tomosynthesis projections of one system (`dbtproj_ge`,
 9 × 1914×2572, 4.92 M samples) and the RGB ultrasound (`us_liver`, 70 × 760×421×3).
 
-**Arms**, each the product's `client/decode/decoder.js` told what `connect` would tell it:
+**Variants**, each the product's `client/decode/decoder.js` told what `connect` would tell it:
 
-| arm | frames | decoder |
+| variant | frames | decoder |
 | --- | --- | --- |
 | `htj2k` | the served HTJ2K profile | OpenJPH, the `@cornerstonejs/codec-openjph` 2.4.11 package every AV1 row timed against |
 | `htj2k4` | the same | OpenJPH, the adopted wrapper rebuilt from today's source with a 4 MB initial heap ([`docs/decode/README.md`](../../../../docs/decode/README.md) §The build, as delivered) |
@@ -31,7 +31,7 @@ node lab/av1/decode/memory/summary.mjs mem.jsonl first.jsonl
 | `rct` | the reversible colour transform, 10-bit 4:4:4 (row LLSIZE, cpu0) | dav1d-WASM |
 | `rctwc` | the same frames | WebCodecs |
 
-**Memory** (`--mode mem`): each (set, arm, D ∈ 1, 2, 4) is a fresh browser context, cells in a Williams
+**Memory** (`--mode mem`): each (set, variant, D ∈ 1, 2, 4) is a fresh browser context, cells in a Williams
 order each round (`lab/order.mjs`). The page starts D workers, then stops at four checkpoints — *ready*,
 *first* (each worker has decoded one frame), *series* (the whole series, under the product's rule: the
 least-loaded worker under two in flight takes the next), *again* (the series a second time) — and at each:
@@ -42,19 +42,19 @@ renderer's RSS from `/proc`, which `run.mjs` reads before resuming the page. The
 `VmHWM`. A worker is a thread in the renderer, so its resident cost is the RSS slope in D, paired inside
 a round, as `lab/decoder-memory`. Pixels are hashed and dropped, not held.
 
-**First use** (`--mode first`): each (throttle, set, arm) is a fresh browser context visited three times:
+**First use** (`--mode first`): each (throttle, set, variant) is a fresh browser context visited three times:
 *cold*, then *cached* and *cached2*, new pages in the same context, so with the browser's HTTP and code
 caches as the earlier visits left them. A visit starts one worker, times the `init` message to `ready`
 (fetching the module, compiling, instantiating; for WebCodecs, creating and configuring the
 `VideoDecoder`s) and then three frames one at a time, each from the `decode` message to its pixels on the
 page. *First-use cost* is init + frame 0 − the mean of frames 1 and 2. Whether the `.wasm` came from the
 cache is the worker's own resource timing (transfer 0, body > 0). Throttle cells are each a fresh browser
-in a Williams order, arms rotating inside; 4× is `lab/scripts/cpu_throttle.mjs` on the browser's tree.
+in a Williams order, variants rotating inside; 4× is `lab/scripts/cpu_throttle.mjs` on the browser's tree.
 
 **Checked.** On the projections, `--mutate sample` (a byte of every decoded frame) and `--mutate truth`
-(a digit of every checksum) turned every arm to 0 exact in both modes; `--mutate split` (the split one
-bit short) turned both AV1 arms to 0 with HTJ2K exact. `probe.js` keeping no memory read 0 MB on every
-arm.
+(a digit of every checksum) turned every variant to 0 exact in both modes; `--mutate split` (the split one
+bit short) turned both AV1 variants to 0 with HTJ2K exact. `probe.js` keeping no memory read 0 MB on every
+variant.
 
 ## The reading
 
@@ -62,7 +62,7 @@ Memory, 6 rounds each (the two sets ran as separate campaigns); MB a worker; med
 the WebAssembly linear memory at the series' end, the same after a second pass in every cell; *resident*
 the renderer's RSS slope from 1 to 4 workers, settled and at its peak (`VmHWM`):
 
-| set | arm | heap after frame 1 | heap | resident | resident peak |
+| set | variant | heap after frame 1 | heap | resident | resident peak |
 | --- | --- | ---: | ---: | ---: | ---: |
 | projections | `htj2k` | 50.0 | 50.0 | 26.1 [26.0–26.3] | 31.4 [31.2–43.7] |
 | | `htj2k4` | 20.5 | 28.3 | 24.6 [24.4–25.0] | 30.2 [29.5–31.2] |
@@ -80,7 +80,7 @@ slope reads 88 and 76 MB.
 First use, 12 rounds, ms, median over rounds; *cost* is init + frame 0 − the mean of frames 1–2, the
 range over the cold and both cached visits' medians; every cached visit took its `.wasm` from the cache:
 
-| set | arm | init 1× | frames 1–2, 1× | cost 1× | init 4× | cost 4× |
+| set | variant | init 1× | frames 1–2, 1× | cost 1× | init 4× | cost 4× |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | projections | `htj2k` | 30–36 | 101–102 | 61–65 | 101–107 | 164–187 |
 | | `htj2k4` | 30–38 | 67–68 | 69–82 | 96–104 | 215–225 |
@@ -91,7 +91,7 @@ range over the cold and both cached visits' medians; every cached visit took its
 | | `rct` | 28–39 | 50 | 65–76 | 84–93 | 200–227 |
 | | `rctwc` | 17–24 | 37 | 23–29 | 50–59 | 64–78 |
 
-Per-round ratios of the dav1d arms' cost to `htj2k`'s span 0.1–4.8: the cost is a difference of two
+Per-round ratios of the dav1d variants' cost to `htj2k`'s span 0.1–4.8: the cost is a difference of two
 noisy times, so only the ranges above are claimed, not an ordering inside them.
 
 **Read before trusting a number.** Desktop Chromium on a 4-core container, not a phone: a phone's

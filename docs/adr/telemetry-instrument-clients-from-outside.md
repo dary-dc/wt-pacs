@@ -8,7 +8,7 @@ that collects both reports.
 ## Context and Problem Statement
 
 The browser clients had no latency telemetry, and the WASM-against-TS comparison cannot run without
-it. Its gate: **both arms must stamp at identical points, or the comparison is unmeasurable no
+it. Its gate: **both variants must stamp at identical points, or the comparison is unmeasurable no
 matter how clean the shell is.**
 
 The obvious move is to copy `server/src/record/`: a write-only seam, compiled out when the
@@ -21,7 +21,7 @@ The question is not *whether* to gate telemetry. It is **where the seam belongs*
 
 ## Decision Drivers
 
-- Both arms must stamp at identical points, or the experiment is void
+- Both variants must stamp at identical points, or the experiment is void
 - Default builds must carry no measurement surface
 - The clients are shipped product; the lab is not
 - Instrumentation must not perturb what it measures
@@ -53,16 +53,16 @@ The telemetry entry imports this before the client module; ESM evaluates imports
 order is deterministic rather than a race.
 
 **The decisive property is not tidiness.** `transport-wasm` calls `web_sys::WebTransport`, bindings
-to the same JS global, so **one implementation instruments both arms.** The arms cannot stamp at
+to the same JS global, so **one implementation instruments both variants.** The variants cannot stamp at
 different points, because it is the same code stamping.
 
 | Rejected | Why |
 | --- | --- |
 | **A** | Measurement in the product path of both shipped clients, permanently, with ~8 gated sites per client to prove absent. The right seam for the server, the wrong one here |
 | **B** | A proxy sees call entry and return only. `ask`, `firstByte` and `lastByte` happen inside the call, so B yields the total and cannot split wire time from copy time, which is the question |
-| **C** | Correct and sufficient, but edits `connect()` in both clients and instruments each arm with separate code, reintroducing the risk G removes. **The fallback** if patching the global proves unworkable |
+| **C** | Correct and sufficient, but edits `connect()` in both clients and instruments each variant with separate code, reintroducing the risk G removes. **The fallback** if patching the global proves unworkable |
 | **D** | True wire arrival, and would fix the event-loop confound, but the environments cannot be guaranteed the flag, and its clock needs an anchor. An optional one-off calibration only |
-| **E** | No TypeScript equivalent, so the arms would stamp through different mechanisms |
+| **E** | No TypeScript equivalent, so the variants would stamp through different mechanisms |
 | **F** | A's call sites with indirection; nothing but the tap would consume the events |
 
 ### Consequences
@@ -77,7 +77,7 @@ different points, because it is the same code stamping.
   `dyn_into::<ReadableStreamDefaultReader>()`, an `instanceof` check a substitute object fails; a
   `Proxy` forwards `getPrototypeOf`, and so does every handler in `client/record/proxy.ts`.
   *Corrected 2026-09-26:* this said the trap "carries its own test". None exists in
-  `client/record/test/`; the WASM arm of `lab/telemetry-cost` exercises it.
+  `client/record/test/`; the WASM variant of `lab/telemetry-cost` exercises it.
 - **`gesture` is not covered**: it happens before the transport is called. The harness shell
   supplies it; without one, `queue` exports `null`.
 - The tap sees bytes, not frames, so frame boundaries are recovered arithmetically from byte
@@ -97,7 +97,7 @@ session-method totals only (A2), from stamps inside the product framing helpers 
 | Criterion | A1 + A2 | A3 |
 | --- | --- | --- |
 | Stamp fidelity | `lastByte` at `read()` resolution before any copy; `delivered` at method return. An in-loop stamp sits in the same event-loop turn: nothing gained | same |
-| Arm parity | one JS patch, same bytes, same arithmetic | two implementations kept identical by review |
+| Variant parity | one JS patch, same bytes, same arithmetic | two implementations kept identical by review |
 | Invasiveness | zero product lines | ~8 sites per client, gated |
 | Default-build proof | never added | proven inert in two languages |
 | Batch correctness | deterministic byte arithmetic; ask identity from the FoD op | same |
@@ -106,7 +106,7 @@ session-method totals only (A2), from stamps inside the product framing helpers 
 A1's one real weakness was its first attributor, which re-parsed the accumulated stream on every
 read: at 320 frames of 250 KB (4 883 reads of 16 KB) it spent 76 s on the main thread, 15.6 ms a
 read, longer than the 80 MB transfer takes at 10 Mbit. The streaming attributor took 5 ms, ~1 µs a
-read (localhost, TS arm, not quotable as a wire cost). An implementation defect, not a property of
+read (localhost, TS variant, not quotable as a wire cost). An implementation defect, not a property of
 the seam. A2 alone cannot split wire from copy, so it stays as the `gesture` / `delivered` half.
 
 Carried with the decision:
@@ -123,7 +123,7 @@ compression), or a stage that can only be stamped inside the session. Neither is
 
 ## Turning it on
 
-| Arm | Build | Loaded by |
+| Variant | Build | Loaded by |
 | --- | --- | --- |
 | TS | `client/transport/ts/build.sh` → `dist/session.telemetry.js` (entry `session-telemetry.ts`), the downloader's transport | `client/harness/cell.html?telemetry=1` |
 | WASM | none | not recorded since 2026-10-03: the harness refuses `telemetry=1` with `transport=wasm`, and `verify_e2e.py --telemetry` with a non-TS `--harness` |
@@ -132,7 +132,7 @@ compression), or a stage that can only be stamped inside the session. Neither is
 behind a vacant `telemetry` feature. It was the product wasm in another directory, nothing set it,
 and both are removed. The TS output is gitignored. The code is `client/record/` (`install.ts` patches the global;
 `proxy.ts`, `wrap-session.ts`, `attribution.ts`, `clock.ts`, `rows.ts`, `report.ts`, `tap.ts`),
-which only the TS arm loads. The report is read from `window.__wtpacsTelemetry()`; the harvest writes it to
+which only the TS variant loads. The report is read from `window.__wtpacsTelemetry()`; the harvest writes it to
 `telemetry-client.json` ([server ADR §Harvest](telemetry-server-pipeline.md#harvest)).
 
 ## What it records
@@ -149,7 +149,7 @@ stage that ran in no measurable time is `0`):
 | `total_us` | `gesture` (else `ask`) → `delivered`, or → last byte for a fill row; `total_spans` names which |
 
 `decode`, `paint` and `stall` are `null`; nothing here measures them. `deliver`
-is measurable on its own: 180 µs p50, 425 µs p95 against a 5 µs clock on the TS arm (250 KB frames,
+is measurable on its own: 180 µs p50, 425 µs p95 against a 5 µs clock on the TS variant (250 KB frames,
 localhost, 2026-09-06), forty clock ticks, not one.
 
 Report shape: `summary → client_frames → run_end`.
@@ -203,9 +203,9 @@ path. It does not include the Proxy dispatch that gets it there, or the per-fram
 This is the other number: the same client driven identically with the seam installed and not.
 
 `lab/telemetry-cost/cost.mjs` runs it in Node, no browser and no server: the seam is a patched
-global `WebTransport`, which is what `client/contract/`'s fake occupies. **Three arms, not two.**
+global `WebTransport`, which is what `client/contract/`'s fake occupies. **Three variants, not two.**
 `off` runs twice; the second is a null control whose difference from the first is the rig's
-resolution. Arms interleave and rotate every round.
+resolution. Variants interleave and rotate every round.
 
 Per frame, at 800 frames of 64 KB, against chunks per frame:
 
@@ -225,15 +225,15 @@ drift is larger than the effect, but the comparison is paired within each round,
 
 **It scales with reads, not with frames or bytes alone.** Three components:
 
-* a fixed per-frame cost: ~10 µs on the TS arm, ~20 µs on the WASM arm, which copies a chunk twice
-  where the TS arm copies once;
+* a fixed per-frame cost: ~10 µs on the TS variant, ~20 µs on the WASM variant, which copies a chunk twice
+  where the TS variant copies once;
 * **~0.5 µs a read**: 32 chunks cost about 16 µs more than one. This is the component a real link
   moves;
 * a sub-linear byte term: with one chunk a frame, from nothing at 16 KB (12/25, unresolved) to
   +31.4 µs at 512 KB (20/25).
 
 Per-frame cost is nearly flat in frame count (+11.4 µs at 200 frames, +13.4 at 800, +19.1 at 3 200
-on the TS arm), so a run's total is frames × per-frame.
+on the TS variant), so a run's total is frames × per-frame.
 
 **In a browser** (Chromium sampling profiler at 200 µs, medians of 2, 2026-09-08; the profiling
 driver is not in the tree): on-demand, 32 KB frames, D = 4, 2 000 frames, the recorder added 25–30 µs
@@ -242,7 +242,7 @@ of main-thread time a frame, +17 % busy on TS and +11 % on WASM, and moved wall 
 control write decoded and parsed a second time to open the row (14 ms TS, 31 ms WASM per 2 000
 asks), the clock, then the Proxy traps (`bindGet` allocates a bound function per property read).
 `tap_read_cost_us` saw about a fifth of that cost. Relative comparisons carry the same instrument in
-both arms and stand; **an absolute on-demand figure from a telemetry build should subtract it.**
+both variants and stand; **an absolute on-demand figure from a telemetry build should subtract it.**
 
 **What this does not say.** It does not say the seam is cheap or expensive relative to anything
 else; only one side of that comparison was measured. The number to carry into it is *tens of

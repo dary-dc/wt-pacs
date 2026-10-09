@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# L3: send levers on a lossy, rate-limited link. The rig's one reachable port serves each arm in
-# turn, server -> client shaped with netem; each round runs the arms in a Williams order
-# (lab/scripts/order.py) and each arm a fill and an on-demand cell with the native driver. Results: docs/rig-limits.md §3.
+# L3: send levers on a lossy, rate-limited link. The rig's one reachable port serves each variant in
+# turn, server -> client shaped with netem; each round runs the variants in a Williams order
+# (lab/scripts/order.py) and each variant a fill and an on-demand cell with the native driver. Results: docs/rig-limits.md §3.
 #
 #   SSH_KEY=~/.ssh/id_ed25519_rig lab/scripts/l3_lossy_link.sh [ROUNDS]
 #   CELLS="off 20:50:0 20:50:1"   one-way delay ms : rate Mbit : loss %, or off
@@ -19,8 +19,8 @@ SETTLE=${SETTLE:-2}
 LIMIT=${LIMIT:-500}  # netem queue, packets
 # 4436 and 4437 pass the host firewall but no session reaches them from outside (2026-09-18).
 PORT=${CLOUD_PORT:-4435}
-ARMS=("default:" "sw768k:--send-window-bytes 786432" "bbr:--congestion bbr")
-# Every arm: with GSO on, netem here sees whole batches and drops them together.
+VARIANTS=("default:" "sw768k:--send-window-bytes 786432" "bbr:--congestion bbr")
+# Every variant: with GSO on, netem here sees whole batches and drops them together.
 SERVER_ARGS=${SERVER_ARGS:---segmentation-offload false}
 BIN=${BIN:-$ROOT/target/release/series-server}
 DRIVER=${DRIVER:-$ROOT/target/release/server_ab}
@@ -59,7 +59,7 @@ server_cpu() {
     awk '/^cpu /{print \$9}' /proc/stat"
 }
 
-# The arm's server alone on the port, from a fresh process, ready before the driver dials.
+# The variant's server alone on the port, from a fresh process, ready before the driver dials.
 serve() {
   "${SSH[@]}" "pkill -x series-server-l3; while pgrep -x series-server-l3 >/dev/null; do sleep 0.1; done; \
     setsid nohup wt-pacs/bin/series-server-l3 --port $PORT --series $SERIES \
@@ -79,21 +79,21 @@ echo "==> deploy" >&2
 "${SSH[@]}" 'pkill -x series-server-l3 || true'
 scp -i "$SSH_KEY" -o ControlPath="/tmp/l3-ssh-%C" "$BIN" "ubuntu@$HOST:wt-pacs/bin/series-server-l3"
 
-printf 'cell\tround\tarm\tmode\tcode\tp50_ns\tp90_ns\tp99_ns\twall_ns\tserver_cpu_ns\tsteal_ticks\tsent\tlost\tloss_events\tsrtt_us\tprev\n' > "$OUT"
+printf 'cell\tround\tvariant\tmode\tcode\tp50_ns\tp90_ns\tp99_ns\twall_ns\tserver_cpu_ns\tsteal_ticks\tsent\tlost\tloss_events\tsrtt_us\tprev\n' > "$OUT"
 for cell in $CELLS; do
   shape "$cell"
   before=$(netem_counts || true)
   for ((r = 0; r < ROUNDS; r++)); do
     prev=first
-    for k in $(python3 "$ROOT/lab/scripts/order.py" row "${#ARMS[@]}" "$r"); do
-      IFS=: read -r name args <<<"${ARMS[$k]}"
+    for k in $(python3 "$ROOT/lab/scripts/order.py" row "${#VARIANTS[@]}" "$r"); do
+      IFS=: read -r name args <<<"${VARIANTS[$k]}"
       for mode in fill on-demand; do
         serve "$args"
         read -r cpu0 steal0 < <(server_cpu)
         if [[ $mode == fill ]]; then n=(--asks "$FRAMES"); else n=(--depth 1 --asks "$ASKS" --step 7); fi
         code=0
         line=$(timeout 120 "$DRIVER" --url "https://$HOST:$PORT/" --mode "$mode" --frames "$FRAMES" "${n[@]}" \
-          --arm "$name" --label "$cell" --no-header 2>/dev/null) || code=$?
+          --variant "$name" --label "$cell" --no-header 2>/dev/null) || code=$?
         read -r cpu1 steal1 < <(server_cpu)
         read -r sent lost events srtt < <(session_stats)
         IFS=$'\t' read -r _ _ _ _ _ _ p50 p90 p99 wall _ <<<"${line:-}"

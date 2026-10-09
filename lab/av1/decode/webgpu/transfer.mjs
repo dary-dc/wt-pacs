@@ -23,7 +23,7 @@ export const SIZES = [
   { name: "syn2d_d 2394×2850", w: 2394, h: 2850, bytes: 2, ratio: 0.5 },
   { name: "ffdm_d 3328×4096", w: 3328, h: 4096, bytes: 2, ratio: 0.5 },
 ];
-const ARMS = ["heap", "webgpu"];
+const VARIANTS = ["heap", "webgpu"];
 const FLAGS = ["--enable-unsafe-webgpu", "--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--use-webgpu-adapter=swiftshader", "--enable-features=Vulkan"];
 
 async function inChromium(throttle, round) {
@@ -39,10 +39,10 @@ async function inChromium(throttle, round) {
   const rows = [];
   for (const s of order(SIZES, round)) {
     let prev = null;
-    for (const arm of order(ARMS, round + SIZES.indexOf(s))) {
-      const r = await page.evaluate((o) => globalThis.time(o), { name: s.name, arm, passes: PASSES });
-      rows.push({ round, throttle, size: s.name, unit: arm, prev, v: r.ms, exact: r.exact, passes: r.passes, adapter });
-      prev = arm;
+    for (const variant of order(VARIANTS, round + SIZES.indexOf(s))) {
+      const r = await page.evaluate((o) => globalThis.time(o), { name: s.name, variant, passes: PASSES });
+      rows.push({ round, throttle, size: s.name, unit: variant, prev, v: r.ms, exact: r.exact, passes: r.passes, adapter });
+      prev = variant;
     }
   }
   stop();
@@ -62,8 +62,8 @@ for (let round = 0; round < ROUNDS; round++) {
 console.log(`adapter ${rows[0].adapter}; n = ${ROUNDS} rounds × ${PASSES} passes, per-round medians`);
 console.log("throttle | size | MB back | heap ms [min–max] | webgpu ms [min–max] | webgpu ÷ heap (rounds webgpu slower) | exact");
 for (const { throttle } of cells) for (const s of SIZES) {
-  const at = (arm) => rows.filter((r) => r.throttle === throttle && r.size === s.name && r.unit === arm);
-  const [h, g] = ARMS.map(at);
+  const at = (variant) => rows.filter((r) => r.throttle === throttle && r.size === s.name && r.unit === variant);
+  const [h, g] = VARIANTS.map(at);
   const ratio = g.map((r) => r.v / h.find((x) => x.round === r.round).v);
   const fmt = (rs) => `${median(rs.map((r) => r.v)).toFixed(2)} [${Math.min(...rs.map((r) => r.v)).toFixed(2)}–${Math.max(...rs.map((r) => r.v)).toFixed(2)}]`;
   const exact = [...h, ...g].reduce((a, r) => a + r.exact, 0);
@@ -72,5 +72,5 @@ for (const { throttle } of cells) for (const s of SIZES) {
 }
 for (const { throttle } of cells) {
   const rs = rows.filter((r) => r.throttle === throttle).map((r) => ({ ...r, round: `${r.round}/${r.size}` }));
-  console.log(`${throttle}×`, leadsByPredecessor(rs, ARMS, [["webgpu", "heap"]], 2).join("\n"));
+  console.log(`${throttle}×`, leadsByPredecessor(rs, VARIANTS, [["webgpu", "heap"]], 2).join("\n"));
 }

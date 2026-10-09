@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""SPLITTIME's frames: each series as HTJ2K and as AV1 payloads at every arm's split k, one file per frame and
-arm, with arms.json (row TOTAL's harness) and manifest.json (the decode harness) beside them.
+"""SPLITTIME's frames: each series as HTJ2K and as AV1 payloads at every variant's split k, one file per frame and
+variant, with variants.json (row TOTAL's harness) and manifest.json (the decode harness) beside them.
 
-Arms are named by k: d12 is k = max(0, b − 12), w10 k = max(0, b − 10), and k = 2 and k = 3, each run once
+Variants are named by k: d12 is k = max(0, b − 12), w10 k = max(0, b − 10), and k = 2 and k = 3, each run once
 however many names it has and only where its top fits a 12-bit stream. Payloads are written by
 ingest/coded-frames/ingest.py --split K, which writes nothing unless native dav1d decodes every one back to its
 source; `--reuse DIR` takes ingest's output from row 43's run (DIR/SET/kK.PRESET) where it exists.
@@ -30,7 +30,7 @@ def bits(s):
     return max(1, int(s.hi + s.offset).bit_length())
 
 
-def arms(b):
+def variants(b):
     """k: the names it answers to."""
     named = {}
     for name, k in (("d12", max(0, b - 12)), ("k2", 2), ("k3", 3), ("w10", max(0, b - 10))):
@@ -67,7 +67,7 @@ def main():
     ap.add_argument("--preset", default="cpu0")
     ap.add_argument("--reuse", type=Path)
     ap.add_argument("--jobs", type=int, default=4)
-    ap.add_argument("--k", type=int, help="this split alone, not every arm")
+    ap.add_argument("--k", type=int, help="this split alone, not every variant")
     a = ap.parse_args()
     build, out = a.build.resolve(), a.out.resolve()
     with ThreadPoolExecutor(a.jobs) as pool, ProcessPoolExecutor(a.jobs) as procs:
@@ -77,21 +77,21 @@ def main():
             dst = out / s.name
             dst.mkdir(parents=True, exist_ok=True)
             work.append((src, s, dst, procs.submit(htj2k_frames, src, dst),
-                         {k: pool.submit(payloads, build, src, out, k, a.preset, a.reuse) for k in arms(bits(s)) if a.k in (None, k)}))
+                         {k: pool.submit(payloads, build, src, out, k, a.preset, a.reuse) for k in variants(bits(s)) if a.k in (None, k)}))
         manifest = []
         for src, s, dst, h, ks in work:
             h.result()
-            entry = dict(name=s.name, frames=s.n, bits=bits(s), preset=a.preset, truth=s.truth, arms={"htj2k": {}},
+            entry = dict(name=s.name, frames=s.n, bits=bits(s), preset=a.preset, truth=s.truth, variants={"htj2k": {}},
                          names={}, bytes={"htj2k": sum((dst / f"{i:03d}.htj2k").stat().st_size for i in range(s.n))})
             for k, f in ks.items():
                 made = f.result()
                 for i in range(s.n):
                     shutil.copyfile(made / f"{i:03d}.av1", dst / f"{i:03d}.k{k}.av1")
-                entry["arms"][f"k{k}"] = dict(ext=f"k{k}.av1")
-                entry["names"][f"k{k}"] = arms(entry["bits"])[k]
+                entry["variants"][f"k{k}"] = dict(ext=f"k{k}.av1")
+                entry["names"][f"k{k}"] = variants(entry["bits"])[k]
                 entry["bytes"][f"k{k}"] = sum((dst / f"{i:03d}.k{k}.av1").stat().st_size for i in range(s.n))
-            (dst / "arms.json").write_text(json.dumps(entry, indent=1))
-            manifest.append(dict(name=s.name, arms=entry["arms"], frames=[dict(truth=t) for t in s.truth]))
+            (dst / "variants.json").write_text(json.dumps(entry, indent=1))
+            manifest.append(dict(name=s.name, variants=entry["variants"], frames=[dict(truth=t) for t in s.truth]))
             ratio = ", ".join(f"{n} {v / entry['bytes']['htj2k']:.3f}" for n, v in entry["bytes"].items() if n != "htj2k")
             print(f"{s.name}: {s.n} frames, {entry['bits']} bits, over HTJ2K {ratio}", flush=True)
     (out / "manifest.json").write_text(json.dumps(manifest))

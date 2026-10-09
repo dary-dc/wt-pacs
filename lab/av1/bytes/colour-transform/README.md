@@ -7,7 +7,7 @@ colour ultrasound stored natively and uncompressed: six sets of eight stills, on
 (`usrgb_*`, [`docs/FIXTURES.md`](../../../../docs/FIXTURES.md) §AV1 data, every one `sound`).
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
 client/decode/wasm/fetch_openjph.sh
 lab/av1/fetch_data.sh usrgb_apollo usrgb_crc usrgb_aml usrgb_mel usrgb_lca usrgb_stad
 P=lab/av1/.venv/bin/python W=lab/.av1-work/rgbnative
@@ -17,7 +17,7 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/split-rule/decode.mjs --frames $W
 
 **`make_frames.py`** writes each set as HTJ2K (the served profile, decoded back and checked) and as payloads through
 `ingest.py` in GBR (`plain`) and RCT (`optimized`), each payload decoded back natively before it is written, at cpu0
-(RGB ships at cpu0); `decode.mjs` is row SPLITTIME's harness, which takes any arm the manifest names.
+(RGB ships at cpu0); `decode.mjs` is row SPLITTIME's harness, which takes any variant the manifest names.
 
 **The stills.** Single frames, Lossy Image Compression `00`, explicit VR little endian, Image Type `…\0011` (2-D with
 colour flow) on 42 of 48, `…\0001` (2-D) on the rest; colour pixels (R, G, B not all equal) a median 0.1–5.9 % a
@@ -28,9 +28,9 @@ by object key. A handful of stills is not a cine.
 ## Measured (2026-10-08)
 
 Bytes over HTJ2K's on the same eight stills, and RCT over GBR; decode is ms a frame in the product's decoder worker,
-headless Chromium 141, 8 rounds, 1× and 4× interleaved, HTJ2K the median of round medians and each arm the median of
+headless Chromium 141, 8 rounds, 1× and 4× interleaved, HTJ2K the median of round medians and each variant the median of
 round-paired ratios to it, 1× · 4×. Every payload exact natively; **2 304/2 304 frames exact** in the browser (RGB 4:4:4
-is dav1d-WASM's: WebCodecs takes no High profile). `--mutate sample` and `--mutate truth` each turned every arm to 0
+is dav1d-WASM's: WebCodecs takes no High profile). `--mutate sample` and `--mutate truth` each turned every variant to 0
 exact.
 
 | set | still | GBR / HTJ2K | RCT / HTJ2K | RCT / GBR | HTJ2K, ms | GBR | RCT |
@@ -43,6 +43,6 @@ exact.
 | `usrgb_stad` | 1552×970 | 1.122 | **0.692** | 0.617 | 30.1 · 130 | 2.64 · 2.15 | **2.12 · 1.41** |
 
 **RCT beats GBR on every set: 0.54–0.66 of its bytes, and 0.65–0.94 of HTJ2K's, against GBR's 1.05–1.53.** It
-decodes in 0.78–0.90 of GBR's time at 1× and 0.65–0.78 at 4× (faster in every one of the 96 set-rounds), yet no AV1 arm is as fast as HTJ2K in any round:
+decodes in 0.78–0.90 of GBR's time at 1× and 0.65–0.78 at 4× (faster in every one of the 96 set-rounds), yet no AV1 variant is as fast as HTJ2K in any round:
 RCT is 2.1–2.9× HTJ2K's time a frame at 1× and 1.4–2.3× at 4×. Why AV1 gains a third over HTJ2K here, against row
 LLSIZE's 4 % on `us_liver`, is not measured.

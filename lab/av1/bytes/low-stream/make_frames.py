@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """The frames ENCX decodes in Chromium: each set's frames as the served HTJ2K and as plane-part frames
-assembled from encx.py's cells, each part decoded by the codec its arm names. Only cells encx.py found
+assembled from encx.py's cells, each part decoded by the codec its variant names. Only cells encx.py found
 exact are used; the page checks every merged frame against the series' checksum again.
 
 A part frame is `[u8 n][u32le length × n][part × n]` — a lab framing, not a store format.
 
-usage: make_frames.py WORK OUT SET_DIR ...   [ARMS=name,...; default GREY or RGB below]  — README.md here
+usage: make_frames.py WORK OUT SET_DIR ...   [VARIANTS=name,...; default GREY or RGB below]  — README.md here
 """
 import json
 import os
@@ -21,8 +21,8 @@ import llsize  # noqa: E402
 from make_frames import htj2k  # noqa: E402
 from size import Set  # noqa: E402
 
-# arm → [(plane, encx coder, the worker's codec)], {p} the set's "rct" prefix, {v} its best variant.
-ARMS = {
+# variant → [(plane, encx coder, the worker's codec)], {p} the set's "rct" prefix, {v} its best variant.
+VARIANTS = {
     "av1-direct": [("{p}direct", "av1:{v}", "dav1d")],
     "wc-direct": [("{p}direct", "av1:{v}", "wc")],
     "av1-low2": [("{p}top2", "av1:{v}", "dav1d"), ("{p}low2", "av1:{v}", "dav1d")],
@@ -33,7 +33,7 @@ ARMS = {
     "wc-low3+deflate": [("{p}top3", "av1:{v}", "wc"), ("{p}low3", "deflate", "deflate")],
     "j2k-low2+deflate": [("{p}top2", "j2k", "j2k"), ("{p}low2", "deflate", "deflate")],
 }
-# The arms timed by default: row 28's coding, the winners on bytes, and HTJ2K's split.
+# The variants timed by default: row 28's coding, the winners on bytes, and HTJ2K's split.
 GREY = ["av1-low2", "av1-low2+deflate", "av1-low3+deflate", "wc-low2+deflate", "wc-low3+deflate", "j2k-low2+deflate"]
 RGB = ["av1-direct", "wc-direct"]
 
@@ -56,11 +56,11 @@ def main():
             htj2k(s, i, dst, dst / f"{i:03d}.htj2k")
         for tmp in dst.glob("*.p[gp]m"):
             tmp.unlink()
-        entry = dict(name=s.name, width=s.w, height=s.h, channels=s.ch, signed=s.signed, offset=s.offset, arms={},
+        entry = dict(name=s.name, width=s.w, height=s.h, channels=s.ch, signed=s.signed, offset=s.offset, variants={},
                      frames=[dict(truth=s.truth[i], htj2k=(dst / f"{i:03d}.htj2k").stat().st_size) for i in range(n)])
         p, v = ("rct" if s.ch == 3 else ""), encx.best(s)
-        for name in os.environ["ARMS"].split(",") if "ARMS" in os.environ else (RGB if s.ch == 3 else GREY):
-            spec = [(pl.format(p=p).replace("rctdirect", "rct"), c.format(v=v), codec) for pl, c, codec in ARMS[name]]
+        for name in os.environ["VARIANTS"].split(",") if "VARIANTS" in os.environ else (RGB if s.ch == 3 else GREY):
+            spec = [(pl.format(p=p).replace("rctdirect", "rct"), c.format(v=v), codec) for pl, c, codec in VARIANTS[name]]
             cells = [encx.cell_dir(work, s, pl, c) for pl, c, _ in spec]
             rows = [json.loads((c / "row.json").read_text()) if (c / "row.json").exists() else {} for c in cells]
             if not all(r.get("exact") == n for r in rows):
@@ -79,9 +79,9 @@ def main():
                     head = bytes([len(units)]) + b"".join(len(u).to_bytes(4, "little") for u in units)
                     (dst / f"{i:03d}.{name}").write_bytes(head + b"".join(units))
                     entry["frames"][i][name] = len(head) + sum(map(len, units))
-                entry["arms"][name] = dict(parts=parts)
+                entry["variants"][name] = dict(parts=parts)
         manifest.append(entry)
-        print(s.name, n, "frames:", ", ".join(f"{a} {sum(f.get(a, 0) for f in entry['frames'])} B" for a in ["htj2k", *entry["arms"]]), flush=True)
+        print(s.name, n, "frames:", ", ".join(f"{a} {sum(f.get(a, 0) for f in entry['frames'])} B" for a in ["htj2k", *entry["variants"]]), flush=True)
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
 
 

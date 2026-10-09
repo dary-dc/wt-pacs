@@ -18,17 +18,17 @@ trap "exit 143" TERM INT
 
 cargo build -q --release -p window-harness --bin cold_open
 declare -A PORT
-for arm in on off; do
+for variant in on off; do
   srv=$((30000 + RANDOM % 5000)); in=$((35000 + RANDOM % 5000)); deaf=$((45000 + RANDOM % 5000))
-  "${BIN[$arm]}" --port "$srv" --bind 127.0.0.1 --series lab/fixtures/frames_250k/frames_250k.sbnd \
-    --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem > "$T/server-$arm.log" 2>&1 &
+  "${BIN[$variant]}" --port "$srv" --bind 127.0.0.1 --series lab/fixtures/frames_250k/frames_250k.sbnd \
+    --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem > "$T/server-$variant.log" 2>&1 &
   PIDS+=("$!")
   python3 lab/scripts/link_impair.py --udp "$in:$srv" --control-port $((40000 + RANDOM % 5000)) \
-    --delay-ms $((RTT / 2)) > "$T/relay-$arm.log" 2>&1 &
+    --delay-ms $((RTT / 2)) > "$T/relay-$variant.log" 2>&1 &
   PIDS+=("$!")
-  python3 lab/scripts/half_rtt_deaf.py "$deaf" "$in" > "$T/deaf-$arm.log" &
+  python3 lab/scripts/half_rtt_deaf.py "$deaf" "$in" > "$T/deaf-$variant.log" &
   PIDS+=("$!")
-  PORT[$arm/direct]=$in; PORT[$arm/deaf]=$deaf
+  PORT[$variant/direct]=$in; PORT[$variant/deaf]=$deaf
 done
 sleep 1
 
@@ -46,13 +46,13 @@ client() {
 }
 CLIENTS=(native aioquic webtransport-go quic-go-http3 h3-quinn)
 CELLS=()
-for c in "${CLIENTS[@]}"; do for arm in on off; do for path in direct deaf; do CELLS+=("$c $arm $path"); done; done; done
+for c in "${CLIENTS[@]}"; do for variant in on off; do for path in direct deaf; do CELLS+=("$c $variant $path"); done; done; done
 for round in $(seq "$ROUNDS"); do
   n=${#CELLS[@]}
   for k in $(seq 0 $((n - 1))); do
-    read -r c arm path <<< "${CELLS[$(((k + round * 7) % n))]}"
-    out=$(timeout 20 bash -c "$(declare -f client); $(declare -p VENV GO_CLIENT H3_GET 2>/dev/null); client $c ${PORT[$arm/$path]}" 2>&1 | tail -1) || true
-    echo "$c $arm $path $out" >> "$T/rows"
+    read -r c variant path <<< "${CELLS[$(((k + round * 7) % n))]}"
+    out=$(timeout 20 bash -c "$(declare -f client); $(declare -p VENV GO_CLIENT H3_GET 2>/dev/null); client $c ${PORT[$variant/$path]}" 2>&1 | tail -1) || true
+    echo "$c $variant $path $out" >> "$T/rows"
     sleep 0.3
   done
 done
@@ -62,15 +62,15 @@ import collections, json, statistics, sys
 rtt = float(sys.argv[2])
 cells = collections.defaultdict(list)
 for line in open(sys.argv[1]):
-    c, arm, path, out = line.rstrip("\n").split(" ", 3)
+    c, variant, path, out = line.rstrip("\n").split(" ", 3)
     try:
-        cells[(c, arm, path)].append(json.loads(out))
+        cells[(c, variant, path)].append(json.loads(out))
     except json.JSONDecodeError:
-        cells[(c, arm, path)].append({"error": out})
+        cells[(c, variant, path)].append({"error": out})
 print(f"median round trips at {rtt:.0f} ms (ms / RTT); `get` and `error` as the client reported them")
-for (c, arm, path), rows in cells.items():
+for (c, variant, path), rows in cells.items():
     keys = sorted({k for r in rows for k, v in r.items() if isinstance(v, (int, float))})
     nums = "  ".join(f"{k} {statistics.median(r[k] for r in rows if k in r) / rtt:.2f}" for k in keys)
     words = collections.Counter(str(r.get("get", r.get("error"))) for r in rows if "get" in r or "error" in r)
-    print(f"{c:16} {arm:3} {path:6}  {nums}  n={len(rows)}" + (f"  {dict(words)}" if words else ""))
+    print(f"{c:16} {variant:3} {path:6}  {nums}  n={len(rows)}" + (f"  {dict(words)}" if words else ""))
 PY

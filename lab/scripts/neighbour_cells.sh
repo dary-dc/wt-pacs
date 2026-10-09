@@ -3,7 +3,7 @@
 # neighbour table in docs/transport/transport-conclusions.md §1, re-run through link_impair.py.
 # The neighbour is quinn's Cubic, a proxy for a phone app's TCP: no HyStart, QUIC's own acks.
 #
-#   lab/scripts/neighbour_cells.sh [rounds]     RTT= RATE= DWELL_MS= QUEUES= ARMS= LAG_MS= OUT= FIRST=
+#   lab/scripts/neighbour_cells.sh [rounds]     RTT= RATE= DWELL_MS= QUEUES= VARIANTS= LAG_MS= OUT= FIRST=
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -15,7 +15,7 @@ RATE="${RATE:-5000}"
 DWELL_MS="${DWELL_MS:-30000}"
 QUEUES="${QUEUES:-20 10 500}"
 SOLO_MS=10000
-read -ra ARMS <<<"${ARMS:-cubic bbr bbr:bbr}"  # A's controller[:the neighbour's, cubic]
+read -ra VARIANTS <<<"${VARIANTS:-cubic bbr bbr:bbr}"  # A's controller[:the neighbour's, cubic]
 LAG_MS="${LAG_MS:-0}"         # the neighbour starts this late, stops as early: the netem rig's way
 OUT="${OUT:-$(mktemp -t neighbour_cells.XXXX.tsv)}"
 LOCK="${LOCK:-/run/user/$(id -u)/wtpacs-rig.lock}"
@@ -97,20 +97,20 @@ solo() {
 }
 
 one_round() {  # round
-  local q k arm prev
+  local q k variant prev
   for q in $QUEUES; do
     prev=-
-    for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$1"); do
-      arm="${ARMS[k]}"
-      [[ $arm == *:* ]] || arm="$arm:cubic"
-      run "$1" "$prev" "$q" "$DWELL_MS" "${arm%%:*}" "${arm##*:}"
-      prev="$arm"
+    for k in $(python3 lab/scripts/order.py row "${#VARIANTS[@]}" "$1"); do
+      variant="${VARIANTS[k]}"
+      [[ $variant == *:* ]] || variant="$variant:cubic"
+      run "$1" "$prev" "$q" "$DWELL_MS" "${variant%%:*}" "${variant##*:}"
+      prev="$variant"
     done
   done
 }
 
 echo "link: ${RTT} ms round trip, ${RATE} kbit down, uplink unshaped, dwell ${DWELL_MS} ms; raw: $OUT"
-[ -s "$OUT" ] || printf 'queue\tround\tprev\tarm\ta_mbps\tb_mbps\tvoid\n' > "$OUT"
+[ -s "$OUT" ] || printf 'queue\tround\tprev\tvariant\ta_mbps\tb_mbps\tvoid\n' > "$OUT"
 [[ $FIRST != 0 ]] || locked solo
 for ((r = FIRST; r < ROUNDS; r++)); do locked one_round "$r"; done
 
@@ -118,16 +118,16 @@ python3 - "$OUT" <<'PY'
 import collections, statistics, sys
 rows = [l.rstrip("\n").split("\t") for l in open(sys.argv[1])][1:]
 cells = collections.defaultdict(list)
-for q, r, prev, arm, a, b, void in rows:
+for q, r, prev, variant, a, b, void in rows:
     if r == "-":
-        print("queue %-4s %-18s alone %6s Mbps%s" % (q, arm, a, "" if void == "0" else " VOID"))
+        print("queue %-4s %-18s alone %6s Mbps%s" % (q, variant, a, "" if void == "0" else " VOID"))
     elif void == "0":
         a, b = float(a), float(b)
-        cells[(int(q), arm)].append((a, b, a / (a + b) if a + b else 0, (a + b) ** 2 / (2 * (a * a + b * b)) if a or b else 0))
+        cells[(int(q), variant)].append((a, b, a / (a + b) if a + b else 0, (a + b) ** 2 / (2 * (a * a + b * b)) if a or b else 0))
 print("\n%-6s %-18s %3s %8s %8s %8s %14s %6s" % ("queue", "A:neighbour", "n", "A Mbps", "B Mbps", "A share", "share min-max", "Jain"))
-for (q, arm), v in sorted(cells.items()):
+for (q, variant), v in sorted(cells.items()):
     med = lambda i: statistics.median(x[i] for x in v)
-    print("%-6d %-18s %3d %8.2f %8.2f %7.1f%% %6.1f-%5.1f%% %6.3f" % (q, arm, len(v), med(0), med(1), 100 * med(2),
+    print("%-6d %-18s %3d %8.2f %8.2f %7.1f%% %6.1f-%5.1f%% %6.3f" % (q, variant, len(v), med(0), med(1), 100 * med(2),
           100 * min(x[2] for x in v), 100 * max(x[2] for x in v), med(3)))
 print("void runs dropped: %d" % sum(1 for x in rows if x[6] != "0"))
 PY

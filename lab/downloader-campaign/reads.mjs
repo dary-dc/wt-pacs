@@ -1,7 +1,7 @@
 /**
  * BYM: the downloader's media reads, the default reader against a BYOB reader at `readMin` K, on a
  * link that hands the browser one packet at a time — `link_impair.py --trace`, self-timed, a VOID visit
- * dropped. Decode off (Dw) and on (Dd), 1× and 4×, one fresh browser a visit, arms in a Williams order.
+ * dropped. Decode off (Dw) and on (Dd), 1× and 4×, one fresh browser a visit, variants in a Williams order.
  * Every frame's sha256 is checked. docs/CLIENTS.md §Reading a frame whole
  *
  *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/reads.mjs [rounds=8] [OUT=rows.jsonl]
@@ -80,7 +80,7 @@ async function relay() {
   };
 }
 
-async function visit(arm, throttle) {
+async function visit(variant, throttle) {
   const stopRelay = await relay();
   const server = await chromium.launchServer({ executablePath: process.env.CHROME_PATH || chromium.executablePath(),
     args: ["--disable-background-networking"] });
@@ -89,8 +89,8 @@ async function visit(arm, throttle) {
   try {
     const browser = await chromium.connect(server.wsEndpoint());
     const page = await browser.newPage();
-    await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?arm=${arm.decode ? "Dd" : "Dw"}` +
-      `&scenario=fill&fill=${FILL}&decoders=3&digest=1&capMs=240000${arm.k ? `&readMin=${arm.k}` : ""}`);
+    await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?variant=${variant.decode ? "Dd" : "Dw"}` +
+      `&scenario=fill&fill=${FILL}&decoders=3&digest=1&capMs=240000${variant.k ? `&readMin=${variant.k}` : ""}`);
     // Not the default: polling on every animation frame is main-thread work the visit would be charged.
     const wait = (f) => page.waitForFunction(f, null, { timeout: 300000, polling: 200 });
     await wait(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone);
@@ -114,7 +114,7 @@ async function visit(arm, throttle) {
   }
   // The downloader is the renderer's first worker; its decoders start after it.
   const downloader = each.filter((t) => t.kind === "renderer" && /DedicatedWorker/.test(t.name)).sort((a, b) => a.tid - b.tid)[0];
-  const truth = (arm.decode ? pixelSha : wireSha).slice(0, FILL);
+  const truth = (variant.decode ? pixelSha : wireSha).slice(0, FILL);
   return { fillMs: r.last_frame_ms, frame0Ms: r.received_ms[0], delivered: r.delivered,
     wrong: truth.filter((h, i) => r.digests?.[i] !== h).length, reads: r.stats.mediaReads / FILL,
     cpuMs: downloader?.cpu_ms ?? NaN, vcs: downloader?.vcs ?? NaN, rendererMb: kinds.renderer?.pss_mb ?? NaN,
@@ -122,7 +122,7 @@ async function visit(arm, throttle) {
 }
 
 const label = (a) => `${a.decode ? "Dd" : "Dw"} ${a.k === 0 ? "default" : a.k === WHOLE ? "whole" : `${a.k / 1024}K`}`;
-const ARMS = DECODE.flatMap((decode) => KS.map((k) => ({ decode, k }))).map((a) => ({ ...a, name: label(a) }));
+const VARIANTS = DECODE.flatMap((decode) => KS.map((k) => ({ decode, k }))).map((a) => ({ ...a, name: label(a) }));
 const OUT = process.env.OUT;
 const taken = OUT && fs.existsSync(OUT) ? fs.readFileSync(OUT, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
 const FIRST = taken.length ? Math.max(...taken.map((r) => r.round)) + 1 : 0;
@@ -130,17 +130,17 @@ for (let round = FIRST; round < FIRST + ROUNDS; round++) {
   const visits = [];
   for (const throttle of round % 2 ? [...THROTTLES].reverse() : THROTTLES) {
     let prev = null;
-    for (const arm of order(ARMS, round)) {
-      const r = await visit(arm, throttle);
+    for (const variant of order(VARIANTS, round)) {
+      const r = await visit(variant, throttle);
       if (!r) {
-        process.stderr.write(`round ${round} ${throttle}x ${arm.name}: VOID, dropped\n`);
-        visits.push({ round, throttle, unit: arm.name, prev, void: true });
+        process.stderr.write(`round ${round} ${throttle}x ${variant.name}: VOID, dropped\n`);
+        visits.push({ round, throttle, unit: variant.name, prev, void: true });
       } else {
-        visits.push({ round, throttle, unit: arm.name, prev, ...r });
-        process.stderr.write(`round ${round} ${throttle}x ${arm.name}: fill ${r.fillMs.toFixed(0)} ms, ${r.reads.toFixed(1)} reads/frame, ` +
+        visits.push({ round, throttle, unit: variant.name, prev, ...r });
+        process.stderr.write(`round ${round} ${throttle}x ${variant.name}: fill ${r.fillMs.toFixed(0)} ms, ${r.reads.toFixed(1)} reads/frame, ` +
           `downloader ${r.cpuMs.toFixed(0)} ms ${r.vcs} vcs, wrong ${r.wrong}, resumed ${r.resumes}\n`);
       }
-      prev = arm.name;
+      prev = variant.name;
     }
   }
   taken.push(...visits);
@@ -154,10 +154,10 @@ const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2
 const METRICS = [["reads", "reads/frame", 1], ["cpuMs", "downloader CPU ms", 0], ["vcs", "downloader vcs", 0],
   ["fillMs", "fill ms", 0], ["frame0Ms", "frame 0 ms", 0], ["rendererMb", "renderer peak MB", 1]];
 console.log(`${SET}, ${FILL} frames, trace ${list("TRACE", "40000:1000").join(" ")}, delay ${process.env.DELAY_MS || 20} ms one way; ` +
-  `${rounds} rounds, ${voids} VOID visits dropped; medians, and each arm's paired lead on its decode's default reader (wins/rounds)`);
-console.log(`| throttle | arm | n | wrong frames | resumed (visits, resumes) | ${METRICS.map((m) => m[1]).join(" | ")} |`);
+  `${rounds} rounds, ${voids} VOID visits dropped; medians, and each variant's paired lead on its decode's default reader (wins/rounds)`);
+console.log(`| throttle | variant | n | wrong frames | resumed (visits, resumes) | ${METRICS.map((m) => m[1]).join(" | ")} |`);
 console.log(`| --- | --- | --: | --: | --: | ${METRICS.map(() => "--:").join(" | ")} |`);
-for (const t of THROTTLES) for (const a of ARMS) {
+for (const t of THROTTLES) for (const a of VARIANTS) {
   const rs = rows.filter((r) => r.throttle === t && r.unit === a.name);
   const base = new Map(rows.filter((r) => r.throttle === t && r.unit === label({ ...a, k: 0 })).map((r) => [r.round, r]));
   const cell = ([k, , d]) => {
@@ -172,8 +172,8 @@ for (const t of THROTTLES) for (const a of ARMS) {
 }
 for (const t of THROTTLES) {
   console.log(`${t}×, downloader CPU ms:`);
-  const units = ARMS.map((a) => a.name);
-  const pairs = ARMS.filter((a) => a.k).map((a) => [a.name, label({ ...a, k: 0 })]);
+  const units = VARIANTS.map((a) => a.name);
+  const pairs = VARIANTS.filter((a) => a.k).map((a) => [a.name, label({ ...a, k: 0 })]);
   for (const l of leadsByPredecessor(rows.filter((r) => r.throttle === t).map((r) => ({ ...r, v: r.cpuMs })), units, pairs)) console.log(l);
 }
 process.exit(0);

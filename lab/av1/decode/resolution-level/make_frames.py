@@ -78,9 +78,9 @@ def main():
                 sys.exit(f"{s.name} {i}: OpenJPEG at level {level} is not the clamped 5/3 low band")
             truth.append(hashlib.sha256(px).hexdigest())
         entry = dict(name=s.name, frames=n, width=s.w, height=s.h, bits=s.stored, level=level,
-                     truth=s.truth[:n], reducedTruth=truth, outOfRange=over, arms={"htj2k": {}},
+                     truth=s.truth[:n], reducedTruth=truth, outOfRange=over, variants={"htj2k": {}},
                      bytes={"htj2k": sum((dst / f"{i:03d}.htj2k").stat().st_size for i in range(n))})
-        (dst / "arms.json").write_text(json.dumps(entry, indent=1))
+        (dst / "variants.json").write_text(json.dumps(entry, indent=1))
         print(f"{s.name}: {n} × {s.w}×{s.h}, level {level} ({-(-s.w // 2 ** level)}×{-(-s.h // 2 ** level)}),"
               f" {entry['bytes']['htj2k']} B, {over} low-band samples out of range", flush=True)
 

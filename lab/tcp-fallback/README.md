@@ -4,7 +4,7 @@ TC1 (queue row 77). `series-server --websocket` serves the same envelopes and Fo
 WebSocket, TCP on the QUIC port's number; `run.mjs` drives the downloader over WebTransport, over the
 WebSocket (`ws-session.js`) and over the race (`race-session.js`), and hashes every frame it gets
 against its source: a 120-frame fill of frames 1 KB–600 KB, three asks outside the fill while it
-runs, three inside it after it completes. Arms interleaved, the order rotated each round.
+runs, three inside it after it completes. Variants interleaved, the order rotated each round.
 
 ```bash
 NODE_PATH=$(npm root -g) node lab/tcp-fallback/run.mjs 3    # rounds
@@ -18,7 +18,7 @@ NODE_PATH=$(npm root -g) node lab/tcp-fallback/run.mjs 3    # rounds
 
 WSA (queue row 106). `wsa.mjs` dials `ws-session.js` through the relay's TCP plane and fills four
 250 KB frames: `ws` asks the fill on the socket once it is open (today), `ask` carries it in the
-upgrade's URL (`--open-ask`). Arms Williams-ordered (`lab/order.mjs`), a server and a `--self-timing`
+upgrade's URL (`--open-ask`). Variants Williams-ordered (`lab/order.mjs`), a server and a `--self-timing`
 relay per visit, `VOID` visits dropped.
 
 ```bash
@@ -34,7 +34,7 @@ NODE_PATH=$(npm root -g) node lab/tcp-fallback/wsa.mjs --rounds 12    # [--rtts 
 | 160 ms | 751.3 (8) | 587.6 (11) | −164.3 (7/7) | −1.03 |
 
 The fill's end moves by the same amount; the split by predecessor is flat. A server that ignores
-the query (mutant) gives the `ask` arm no frame at all — the client trusts the push, as over QUIC —
+the query (mutant) gives the `ask` variant no frame at all — the client trusts the push, as over QUIC —
 rather than a tie. The TCP plane shapes rate and delay only and charges the TCP setup round trip;
 TLS is not modelled and there is no loss (`docs/rig-limits.md` §3), so this is the round trip the
 ask saves and nothing about TCP's recovery.

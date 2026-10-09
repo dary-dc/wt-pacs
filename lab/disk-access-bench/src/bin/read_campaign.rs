@@ -1,5 +1,5 @@
-//! Read-path campaign harness: arm × prefetch × depth × readers × temp × stride × size, one
-//! factor per axis. The controls that make a cell evidence rather than a hope — rotated arm
+//! Read-path campaign harness: variant × prefetch × depth × readers × temp × stride × size, one
+//! factor per axis. The controls that make a cell evidence rather than a hope — rotated variant
 //! order, asserted cold residency, a co-tenant monitor, and CPU and threads reported beside
 //! latency — are in `docs/adr/disk-access.md` §The rule every number below obeys.
 
@@ -19,7 +19,7 @@ use std::time::Instant;
 const READ_WINDOW: usize = 64 * 1024;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Arm {
+enum Variant {
     /// The product path: `RWF_NOWAIT` on the executor, `spawn_blocking` for the shortfall.
     Pool,
     /// One ring per reader; every read goes through it.
@@ -29,7 +29,7 @@ enum Arm {
     /// The ADR's escape hatch: every read on the blocking pool, no fast path attempted.
     PooledPread,
     /// `pool` with its probe capped at `READ_WINDOW`, which is the one thing the old
-    /// `ReadCtx` did that no other arm did. The positive control for that cap.
+    /// `ReadCtx` did that no other variant did. The positive control for that cap.
     PoolCappedProbe,
     /// **The S5 control**: `hybrid`'s loop with `pool`'s miss mechanism, so the delta
     /// against `pool` is loop shape alone. `docs/adr/disk-access.md`.
@@ -54,7 +54,7 @@ enum Arm {
     ProductTile,
 }
 
-impl Arm {
+impl Variant {
     fn parse(s: &str) -> Option<Self> {
         match s {
             "pool" => Some(Self::Pool),
@@ -115,7 +115,7 @@ struct Args {
     /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product_fill,
     /// product_tile,uring_ringfd,hybrid_lazyring_ringfd,tokio_fs (sweep shape only)
     #[arg(long, default_value = "pool,uring,hybrid")]
-    arms: String,
+    variants: String,
     /// Comma-separated reads in flight per reader.
     #[arg(long, default_value = "1,4,16")]
     depths: String,
@@ -270,7 +270,7 @@ fn load_trace(path: &PathBuf) -> Result<Vec<(u64, u32)>> {
 }
 
 struct Cell {
-    arm: Arm,
+    variant: Variant,
     prefetch: bool,
     partition: bool,
     depth: usize,
@@ -289,7 +289,7 @@ struct Outcome {
     cpu_ns: u64,
     threads_max: usize,
     misses: u64,
-    /// The product readers' own reach and concurrency. Zero on arms that hold neither.
+    /// The product readers' own reach and concurrency. Zero on variants that hold neither.
     peak_named: u64,
     peak_in_flight: u64,
     /// Resident growth across the cell, and how many sessions ended holding a ring.
@@ -314,8 +314,8 @@ async fn reader_pool(
     let (depth, prefetch) = (cell.depth, cell.prefetch);
     let asks = plan.len();
     let next = Arc::new(AtomicU64::new(0));
-    let always_pool = cell.arm == Arm::PooledPread;
-    let probe_cap = if cell.arm == Arm::PoolCappedProbe {
+    let always_pool = cell.variant == Variant::PooledPread;
+    let probe_cap = if cell.variant == Variant::PoolCappedProbe {
         READ_WINDOW
     } else {
         usize::MAX
@@ -469,7 +469,7 @@ async fn reader_product_tile(
 
 /// **S5 control**: `reader_ring`'s shape, `reader_pool`'s miss mechanism, so
 /// `pool_ringloop − pool` is the loop alone and `hybrid − pool_ringloop` is the ring alone.
-/// In the hit regime the second must come out ~0, or this arm is not built right.
+/// In the hit regime the second must come out ~0, or this variant is not built right.
 async fn reader_ringloop(
     store: Arc<FrameStore>,
     file: Arc<std::fs::File>,
@@ -481,7 +481,7 @@ async fn reader_ringloop(
     let (depth, prefetch) = (cell.depth, cell.prefetch);
     let asks = plan.len();
     // Same slot geometry as `reader_ring`: `depth` buffers sized to the longest read in the
-    // plan, so the two arms hold the same memory and differ only in how a miss is served.
+    // plan, so the two variants hold the same memory and differ only in how a miss is served.
     let cap = plan.iter().map(|(_, l)| *l as usize).max().unwrap_or(0);
     let mut slots: Vec<Vec<u8>> = (0..depth).map(|_| vec![0u8; cap]).collect();
     let mut free: Vec<usize> = (0..depth).collect();
@@ -555,8 +555,8 @@ async fn reader_ring(
 ) -> Result<()> {
     let (depth, prefetch) = (cell.depth, cell.prefetch);
     let asks = plan.len();
-    let lazy = matches!(cell.arm, Arm::HybridLazyRing | Arm::HybridLazyRingFd);
-    let hybrid = cell.arm == Arm::Hybrid || lazy;
+    let lazy = matches!(cell.variant, Variant::HybridLazyRing | Variant::HybridLazyRingFd);
+    let hybrid = cell.variant == Variant::Hybrid || lazy;
     // Registered buffers are fixed-size, so they are sized to the longest read in the plan.
     // Variable-length traces then read into a prefix of the slot.
     let cap = plan.iter().map(|(_, l)| *l as usize).max().unwrap_or(0);
@@ -572,7 +572,7 @@ async fn reader_ring(
             cap,
             true,
             false,
-            cell.arm.completion(),
+            cell.variant.completion(),
         )?)
     };
     let mut local: Vec<Vec<u8>> = if lazy {
@@ -630,7 +630,7 @@ async fn reader_ring(
                     cap,
                     true,
                     false,
-                    cell.arm.completion(),
+                    cell.variant.completion(),
                 )?;
                 r.buf_mut(slot)[..got].copy_from_slice(&local[slot][..got]);
                 ring = Some(r);
@@ -807,7 +807,7 @@ fn run_cell(
         shorts,
         reads,
     ) = rt.block_on(async {
-        // Co-tenant monitor: an arm that stalls the executor shows up here and nowhere else.
+        // Co-tenant monitor: a variant that stalls the executor shows up here and nowhere else.
         let stop = Arc::new(AtomicBool::new(false));
         let mut mons = Vec::new();
         for _ in 0..cell.monitors {
@@ -845,7 +845,7 @@ fn run_cell(
             let sr = Arc::clone(&short_reads);
             let rd = Arc::clone(&reads);
             let c = Cell {
-                arm: cell.arm,
+                variant: cell.variant,
                 prefetch: cell.prefetch,
                 partition: cell.partition,
                 depth: cell.depth,
@@ -858,15 +858,15 @@ fn run_cell(
             };
             let path = path.clone();
             set.spawn(async move {
-                if c.arm == Arm::ProductFill {
+                if c.variant == Variant::ProductFill {
                     reader_product_fill(store, plan, lat, misses, pn, pif, rd).await
-                } else if c.arm == Arm::ProductTile {
+                } else if c.variant == Variant::ProductTile {
                     reader_product_tile(store, &c, plan, lat, misses, pn, pif, rb, rd).await
-                } else if c.arm == Arm::TokioFs {
+                } else if c.variant == Variant::TokioFs {
                     reader_tokio_fs(path, &c, plan, lat).await
-                } else if c.arm.uses_ring() {
+                } else if c.variant.uses_ring() {
                     reader_ring(store, file, &c, plan, lat, misses, pif, sr, rb).await
-                } else if c.arm == Arm::PoolRingLoop {
+                } else if c.variant == Variant::PoolRingLoop {
                     reader_ringloop(store, file, &c, plan, lat, misses).await
                 } else {
                     reader_pool(store, file, &c, plan, lat, misses).await
@@ -914,13 +914,13 @@ fn run_cell(
     let mut v = lat.lock().unwrap().clone();
     v.sort_unstable();
     // Every ask must be accounted for. A cell that silently records a fraction of its work
-    // divides its CPU by the wrong denominator, which is how an arm can look 9x worse than
+    // divides its CPU by the wrong denominator, which is how a variant can look 9x worse than
     // it is.
     let expected = cell.asks * cell.readers;
     if v.len() != expected {
         anyhow::bail!(
             "{} recorded {} of {expected} asks (readers={}, depth={})",
-            cell.arm.as_str(),
+            cell.variant.as_str(),
             v.len(),
             cell.readers,
             cell.depth
@@ -946,10 +946,10 @@ fn run_cell(
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let arms: Vec<Arm> = args
-        .arms
+    let variants: Vec<Variant> = args
+        .variants
         .split(',')
-        .map(|s| Arm::parse(s.trim()).with_context(|| format!("unknown arm {s}")))
+        .map(|s| Variant::parse(s.trim()).with_context(|| format!("unknown variant {s}")))
         .collect::<Result<_>>()?;
     let depths: Vec<usize> = args
         .depths
@@ -966,17 +966,17 @@ fn main() -> Result<()> {
     // `ReadCtx` has no `hint_willneed`, so an `on` cell would compare a prefetching pool
     // against a product that silently ignored the axis.
     if prefetches.contains(&true)
-        && arms
+        && variants
             .iter()
-            .any(|a| matches!(a, Arm::ProductFill | Arm::ProductTile))
+            .any(|a| matches!(a, Variant::ProductFill | Variant::ProductTile))
     {
-        anyhow::bail!("--prefetch on is not implemented for the product arms");
+        anyhow::bail!("--prefetch on is not implemented for the product variants");
     }
     let workers = std::thread::available_parallelism().map_or(4, |n| n.get());
 
     if !args.no_header {
         println!(
-            "label\tarm\tprefetch\ttemp\tshape\tsize\tstride\tdepth\treaders\trepeat\tpos\t\
+            "label\tvariant\tprefetch\ttemp\tshape\tsize\tstride\tdepth\treaders\trepeat\tpos\t\
              asks\tp50_ns\tp90_ns\tp99_ns\tcpu_ns_per_ask\twall_ns\tasks_per_s\tthreads\t\
              gap_p99_ns\tgap_max_ns\tmiss_pct\tresident_pct\tpeak_named\tpeak_in_flight\trss_kib\trings_built\t\
              monitors\tshort_reads\treads_per_ask"
@@ -1025,10 +1025,10 @@ fn main() -> Result<()> {
             for &depth in &depths {
                 for &prefetch in &prefetches {
                     for repeat in 0..args.repeats {
-                        // Rotate arm order per repeat so drift cannot settle on one arm.
-                        let n = arms.len();
+                        // Rotate variant order per repeat so drift cannot settle on one variant.
+                        let n = variants.len();
                         for pos in 0..n {
-                            let arm = arms[(repeat + pos) % n];
+                            let variant = variants[(repeat + pos) % n];
                             let resident = if warm { 0.0 } else { evict_retry(&args.series)? };
                             if !warm && resident > 0.02 {
                                 // Skip rather than abort: one stubborn cell must not throw
@@ -1036,13 +1036,13 @@ fn main() -> Result<()> {
                                 // would be worse than a missing one.
                                 eprintln!(
                                     "  skip: {} d{depth} r{readers_n} — {:.2}% still resident",
-                                    arm.as_str(),
+                                    variant.as_str(),
                                     resident * 100.0
                                 );
                                 continue;
                             }
                             let cell = Cell {
-                                arm,
+                                variant,
                                 prefetch,
                                 partition: args.partition,
                                 depth,
@@ -1060,7 +1060,7 @@ fn main() -> Result<()> {
                                 "{}\t{}\t{}\t{}\t{shape}\t{}\t{}\t{depth}\t{readers_n}\t{repeat}\t{pos}\t\
                                  {}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t{}\t{:.1}\t{:.3}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.2}",
                                 args.label,
-                                arm.as_str(),
+                                variant.as_str(),
                                 if prefetch { "on" } else { "off" },
                                 if warm { "warm" } else { "cold" },
                                 report_size,

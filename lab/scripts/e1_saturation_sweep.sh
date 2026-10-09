@@ -100,7 +100,7 @@ run_one() {
   local json
   json=$(timeout 60 "$HARNESS" --url "https://127.0.0.1:${PORT}/" --mode saturate \
     --read-bps "$bps" --depth "$depth" --frame-count "$frame_count" \
-    --fill-dwell-ms "$FILL_DWELL_MS" --arm "D${depth}_rtt${rtt_ms}" \
+    --fill-dwell-ms "$FILL_DWELL_MS" --variant "D${depth}_rtt${rtt_ms}" \
     "${rtt_args[@]}" --json 2>/dev/null)
   local rc=$?
   set -e

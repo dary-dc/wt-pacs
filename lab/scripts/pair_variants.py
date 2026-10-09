@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Paired arm-vs-arm delta by regime, under the campaign's own rule.
+"""Paired variant-vs-variant delta by regime, under the campaign's own rule.
 
 `s5_split.py` answers one question — how the `pool` -> `hybrid` margin splits into the
 reader loop and the ring — and only ever compares against `pool` or `pool_ringloop`. The
-question that decides which arm ships is a different one: **is any arm established better
+question that decides which variant ships is a different one: **is any variant established better
 than `hybrid_lazyring`?** That needs arbitrary pairs, and this runs them.
 
 It exists because the two statistics disagree, and the readable one is not the one the rule
@@ -17,11 +17,11 @@ what `docs/adr/disk-access.md` §11 defines the threshold against, and the first
 table in its §5 shows — which is how a 24% near-miss came to be read as a 42% win,
 twice. Pair before concluding.
 
-    lab/scripts/pair_arms.py FILE.tsv [more.tsv ...]
-    lab/scripts/pair_arms.py --pairs uring:hybrid_lazyring FILE.tsv
-    lab/scripts/pair_arms.py --by size FILE.tsv       # split each regime by frame size
-    lab/scripts/pair_arms.py --by readers FILE.tsv
-    lab/scripts/pair_arms.py --metric p50_ns --drift 7 --pairs uring_ringfd:uring FILE.tsv
+    lab/scripts/pair_variants.py FILE.tsv [more.tsv ...]
+    lab/scripts/pair_variants.py --pairs uring:hybrid_lazyring FILE.tsv
+    lab/scripts/pair_variants.py --by size FILE.tsv       # split each regime by frame size
+    lab/scripts/pair_variants.py --by readers FILE.tsv
+    lab/scripts/pair_variants.py --metric p50_ns --drift 7 --pairs uring_ringfd:uring FILE.tsv
 
 Archived campaign files come out of git:
 
@@ -35,7 +35,7 @@ import statistics as st
 import sys
 from pathlib import Path
 
-# One cell = one (config, repeat). Arms are compared inside a cell and never across cells.
+# One cell = one (config, repeat). Variants are compared inside a cell and never across cells.
 KEY = ["label", "prefetch", "temp", "shape", "size", "stride", "depth", "readers", "repeat"]
 DRIFT = 28.5
 MIN_N = 5
@@ -56,7 +56,7 @@ def load(path: Path):
     cells = {}
     with open(path, newline="") as fh:
         for r in csv.DictReader(fh, delimiter="\t"):
-            cells.setdefault(tuple(r[k] for k in KEY), {})[r["arm"]] = r
+            cells.setdefault(tuple(r[k] for k in KEY), {})[r["variant"]] = r
     return cells
 
 
@@ -64,22 +64,22 @@ def deltas(cells, a, b, run=None, by=None, metric="cpu_ns_per_ask"):
     """% change of `a` against `b` on `metric`, paired inside each cell, bucketed by regime
     (and `by`).
 
-    Regime is read off `pool`'s miss rate so every arm in a cell is classified identically —
-    an arm that misses less would otherwise classify itself into an easier bucket.
+    Regime is read off `pool`'s miss rate so every variant in a cell is classified identically —
+    a variant that misses less would otherwise classify itself into an easier bucket.
     """
     out = collections.defaultdict(list)
-    for key, arms in cells.items():
-        if a not in arms or b not in arms or "pool" not in arms:
+    for key, variants in cells.items():
+        if a not in variants or b not in variants or "pool" not in variants:
             continue
         if run and not key[0].startswith(run):
             continue
-        base = int(arms[b][metric])
+        base = int(variants[b][metric])
         if not base:
             continue
-        got = int(arms[a][metric])
-        bucket = regime(float(arms["pool"]["miss_pct"]))
+        got = int(variants[a][metric])
+        bucket = regime(float(variants["pool"]["miss_pct"]))
         if by:
-            bucket = (bucket, arms["pool"][by])
+            bucket = (bucket, variants["pool"][by])
         out[bucket].append((got - base) / base * 100)
     return out
 
@@ -101,7 +101,7 @@ def verdict(vals, drift=DRIFT):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("files", nargs="+")
-    ap.add_argument("--pairs", help="comma-separated a:b pairs (default: the arm-choice set)")
+    ap.add_argument("--pairs", help="comma-separated a:b pairs (default: the variant-choice set)")
     ap.add_argument("--by", choices=["size", "readers", "stride", "depth"],
                     help="split every regime by this column — frame size is the one that moves")
     ap.add_argument("--metric", default="cpu_ns_per_ask",
@@ -118,10 +118,10 @@ def main():
     for f in a.files:
         cells = load(Path(f))
         runs = sorted({k[0].split("_")[0] for k in cells})
-        arms = {arm for v in cells.values() for arm in v}
-        print(f"=== {Path(f).name} — arms: {', '.join(sorted(arms))} — metric {a.metric}, drift {a.drift}% ===")
+        variants = {variant for v in cells.values() for variant in v}
+        print(f"=== {Path(f).name} — variants: {', '.join(sorted(variants))} — metric {a.metric}, drift {a.drift}% ===")
         for x, y in pairs:
-            if x not in arms or y not in arms:
+            if x not in variants or y not in variants:
                 continue
             print(f"{x} vs {y}")
             if a.by:

@@ -85,7 +85,7 @@ The defaults were set on 2026-09-06 without a product answer; change them by env
 recorded, and the final report is exact and inlines `server_frames` up to 1 000 000 rows
 (`INLINE_CAP`, `record/report.rs`). Both were env variables with no caller, `WTPACS_TELEMETRY_SAMPLE`
 and `WTPACS_TELEMETRY_INLINE_CAP`, until 2026-10-03; code:
-`git show archive/arms-2026-10-03:server/src/record/tap.rs`.
+`git show archive/variants-2026-10-03:server/src/record/tap.rs`.
 
 **Path sampling** rides the same feature on its own switch: `WTPACS_PATH_TELEMETRY=1` appends one
 JSON line per connection per `WTPACS_PATH_TELEMETRY_MS` (default 1000, floor 50) to
@@ -158,7 +158,7 @@ vocabularies are not unified; that is deferred.
 * **Rebuild offline** was `series-server --telemetry-report telemetry-server.rows`, for runs past the
   inline cap. It reproduced the inline report on the 2026-09-06 smoke run (distributions, frame
   count and rows identical) and had no caller since; removed 2026-10-03, code:
-  `git show archive/arms-2026-10-03:server/src/record/report.rs`.
+  `git show archive/variants-2026-10-03:server/src/record/report.rs`.
 
 ## The tail at SIGTERM
 
@@ -208,10 +208,10 @@ lab/scripts/verify_e2e.py --telemetry --cell fill --wt-url wss://… --cert-sha2
 Flags: `--cell {ondemand,fill}`, `--depth D` (on-demand asks in flight; `1` is the control),
 `--n N` (steps; default one pass over the series), `--trace URL` (a `lab/traces/*.json`: its
 `steps[].frame` and `step_interval_ms`), `--interval-ms`, `--harness ts` (the default and the only
-arm `--telemetry` records; another is refused), `--stream-mode {shared,per-frame}` (default
+variant `--telemetry` records; another is refused), `--stream-mode {shared,per-frame}` (default
 `per-frame`), `--repeats N`, `--allow-void`. `--wt-url` skips the local server: a client-only harvest.
 
-Output goes to `.local/measurements/<stamp>-…/`. Each run folder holds `run.json` (arm, stream
+Output goes to `.local/measurements/<stamp>-…/`. Each run folder holds `run.json` (variant, stream
 mode, cell, depth, schedule, series, git sha, Chromium version, the shell's JS-heap and WASM-memory
 samples, the server banner) beside the reports. A client report that is not `integrity.valid` is
 written as `telemetry-client.VOID.json` and fails the harvest unless `--allow-void`; on a local run a
@@ -266,7 +266,7 @@ The scale review behind the pipeline above. Target: thousands of concurrent view
 and multi-gigabyte series, with the product path knowing nothing of telemetry and the output
 exact (rows are streamed, never sampled away; a summary may be approximate when it says so and
 the rows allow the exact one). All numbers are container-measured on a 4 vCPU / 16 GB VM,
-localhost, unshaped, CPU shared between server and harnesses: relative comparisons between arms
+localhost, unshaped, CPU shared between server and harnesses: relative comparisons between variants
 measured the same way, nothing absolute. Trees: *pre-S2* (`64e2c0a`, a process-wide lock per
 row), *head* (`78537c5`, an owned sender, one `try_send` per row) and *batched* (the shape above).
 

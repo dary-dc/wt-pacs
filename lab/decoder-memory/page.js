@@ -1,5 +1,5 @@
 /**
- * What one decoder worker costs, resident. D workers of one arm decode the series — driven
+ * What one decoder worker costs, resident. D workers of one variant decode the series — driven
  * straight, under the product's dispatch rule, or through the downloader and a session — and
  * every frame is checked against the fixture's digest. `run.mjs` reads the renderer's RSS beside
  * this and takes the slope in D. docs/decode/README.md §What a decoder worker costs, resident
@@ -10,7 +10,7 @@ const MUTATE = q.get("mutate") || "";
 const BALLAST_MB = Number(q.get("ballast") || 0);
 const PATH = q.get("path") === "downloader" ? "downloader" : "direct";
 const HOLD = q.get("hold") === "1";
-/** The ring's size: `0` is one wire buffer per frame, the arm before it. */
+/** The ring's size: `0` is one wire buffer per frame, the variant before it. */
 const WIRE = q.has("wire") ? Number(q.get("wire")) : undefined;
 
 /** The wrapper as delivered — docs/decode/README.md §The build, as delivered. */
@@ -21,16 +21,16 @@ const BUILD = {
 };
 const PRODUCT = "/client/decode/decoder.js";
 const TWIN = "/lab/decoder-memory/twin.js";
-const ARMS = {
+const VARIANTS = {
   prod: { worker: PRODUCT, per: 2 },
   perdec1: { worker: PRODUCT, per: 1 },
   twin: { worker: TWIN, per: 2, reuse: true, share: false },
   fresh: { worker: TWIN, per: 2, reuse: false, share: false },
   share: { worker: TWIN, per: 2, reuse: true, share: true },
 };
-const ARM = ARMS[q.get("arm")] ? q.get("arm") : "prod";
+const VARIANT = VARIANTS[q.get("variant")] ? q.get("variant") : "prod";
 const D = Number(q.get("decoders") || 3);
-const PER = Number(q.get("perDecoder") || ARMS[ARM].per);
+const PER = Number(q.get("perDecoder") || VARIANTS[VARIANT].per);
 
 const logEl = document.getElementById("log");
 const log = (s) => { logEl.textContent += s + "\n"; };
@@ -53,12 +53,12 @@ async function series(withBytes) {
 }
 
 async function main() {
-  const result = { arm: ARM, decoders: D, perDecoder: PER, path: PATH, series: SERIES,
+  const result = { variant: VARIANT, decoders: D, perDecoder: PER, path: PATH, series: SERIES,
     mutate: MUTATE, ballast_mb: BALLAST_MB, hold: HOLD };
   const { meta, declared, n, codestreams, digests } = await series(PATH === "direct");
   result.declared = declared;
   result.frames = n;
-  const spec = ARMS[ARM];
+  const spec = VARIANTS[VARIANT];
 
   const wanted = MUTATE === "skip" ? n - Math.floor(n / 5) : n;
   const scratch = new Uint8Array(meta.width * meta.height * (meta.channels || 1) * 2);
@@ -130,7 +130,7 @@ async function main() {
       workers.push(d);
     }
     result.ready = (await Promise.all(ready)).every(Boolean);
-    if (!result.ready) throw new Error(`a decoder failed to init: ${ARM}`);
+    if (!result.ready) throw new Error(`a decoder failed to init: ${VARIANT}`);
     // run.mjs reads the renderer's RSS here: what the workers cost before a frame is decoded.
     globalThis.__wtpacsReady = true;
 
@@ -193,6 +193,6 @@ async function main() {
 
 main().catch((e) => {
   log("FAILED: " + (e?.stack || e?.message || e));
-  globalThis.__wtpacsResult = { arm: ARM, decoders: D, error: String(e?.message ?? e) };
+  globalThis.__wtpacsResult = { variant: VARIANT, decoders: D, error: String(e?.message ?? e) };
   globalThis.__wtpacsDone = true;
 });

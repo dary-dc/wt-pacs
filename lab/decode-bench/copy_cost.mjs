@@ -16,21 +16,21 @@ if (!dirs.length) {
   process.exit(2);
 }
 
-// Both arms read the same two samples, so the only difference left is the copy itself.
+// Both variants read the same two samples, so the only difference left is the copy itself.
 const consume = (b) => b[0] + b[b.length - 1];
-const ARMS = {
+const VARIANTS = {
   copy: (inst, bytes) => consume(inst.decodeInPlace(bytes).slice()),
   view: (inst, bytes) => consume(inst.decodeInPlace(bytes)),
 };
 
-function pass(inst, frames, arm) {
+function pass(inst, frames, variant) {
   const t0 = performance.now();
   let sink = 0;
-  for (const f of frames) sink += ARMS[arm](inst, f);
+  for (const f of frames) sink += VARIANTS[variant](inst, f);
   return { ms: (performance.now() - t0) / frames.length, sink };
 }
 
-console.log(`copy vs view, ${ROUNDS - 1} timed rounds, arms in a Williams order (lab/order.mjs)`);
+console.log(`copy vs view, ${ROUNDS - 1} timed rounds, variants in a Williams order (lab/order.mjs)`);
 console.log('  fixture      decoded    copy ms/frame*      view ms/frame*      copy cost*   slower in');
 for (const dir of dirs) {
   const { frames, truth, meta, name } = loadFixture(dir);
@@ -48,8 +48,8 @@ for (const dir of dirs) {
   for (let round = 0; round < ROUNDS; round++) {
     const seq = order(['copy', 'view'], round);
     const ms = {};
-    for (const arm of seq) ms[arm] = pass(inst, frames, arm).ms;
-    if (round) for (const arm of seq) got[arm].push(ms[arm]);
+    for (const variant of seq) ms[variant] = pass(inst, frames, variant).ms;
+    if (round) for (const variant of seq) got[variant].push(ms[variant]);
     if (round) seq.forEach((u, i) => rows.push({ round, unit: u, prev: seq[i - 1] ?? null, v: ms[u] }));
   }
 

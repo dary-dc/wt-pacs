@@ -1,8 +1,8 @@
 /**
- * FOOTPRINT's runner. `--mode mem`: every (set, arm, D) one fresh context, interleaved each round; at each
+ * FOOTPRINT's runner. `--mode mem`: every (set, variant, D) one fresh context, interleaved each round; at each
  * of the page's checkpoints the renderer's RSS is read beside the page's own measure, the peak sampled
- * throughout. `--mode first`: every (throttle, set, arm) one fresh context visited three times — cold,
- * then twice with the browser's caches — throttle cells and arms in a Williams order. lab/av1/decode/memory/README.md
+ * throughout. `--mode first`: every (throttle, set, variant) one fresh context visited three times — cold,
+ * then twice with the browser's caches — throttle cells and variants in a Williams order. lab/av1/decode/memory/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/decode/memory/run.mjs --mode mem|first [--rounds 6] [--counts 1,2,4]
  *     [--throttles 1,4] [--mutate sample|truth] [--out rows.jsonl]
@@ -22,7 +22,7 @@ const COUNTS = arg("--counts", "1,2,4").split(",").map(Number);
 const THROTTLES = arg("--throttles", MODE === "first" ? "1,4" : "1").split(",").map(Number);
 const MUTATE = arg("--mutate", "");
 const OUT = arg("--out", "");
-/** set: [frames dir, arms]; an arm is a name in the set's arms.json, or htj2k. */
+/** set: [frames dir, variants]; a variant is a name in the set's variants.json, or htj2k. */
 const SETS = JSON.parse(arg("--sets", JSON.stringify({
   dbtproj_ge: ["lab/.av1-work/footprint/rep14", ["htj2k", "htj2k4", "d12", "w10"]],
   us_liver: ["lab/.av1-work/footprint/total", ["htj2k", "htj2k4", "rct", "rctwc"]],
@@ -51,14 +51,14 @@ async function launch() {
   return { server, browser, renderers };
 }
 
-const url = (set, arm, extra) => `http://127.0.0.1:${PORT}/lab/av1/decode/memory/index.html?frames=${SETS[set][0]}` +
-  `&set=${set}&arm=${arm}${extra}${MUTATE ? `&mutate=${MUTATE}` : ""}`;
+const url = (set, variant, extra) => `http://127.0.0.1:${PORT}/lab/av1/decode/memory/index.html?frames=${SETS[set][0]}` +
+  `&set=${set}&variant=${variant}${extra}${MUTATE ? `&mutate=${MUTATE}` : ""}`;
 
-async function mem(b, set, arm, decoders) {
+async function mem(b, set, variant, decoders) {
   const before = await b.renderers();
   const context = await b.browser.newContext();
   const page = await context.newPage();
-  await page.goto(url(set, arm, `&mode=mem&decoders=${decoders}`));
+  await page.goto(url(set, variant, `&mode=mem&decoders=${decoders}`));
   await page.waitForFunction(() => globalThis.__stage || globalThis.__result, null, { timeout: 600000 });
   const pid = [...(await b.renderers())].find((p) => !before.has(p));
   const rss = {};
@@ -78,12 +78,12 @@ async function mem(b, set, arm, decoders) {
   return { ...result, rss_kib: rss, rss_peak_kib: Math.max(peak, ...Object.values(rss)), rss_hwm_kib: hwm };
 }
 
-async function first(b, set, arm) {
+async function first(b, set, variant) {
   const context = await b.browser.newContext();
   const rows = [];
   for (const visit of VISITS) {
     const page = await context.newPage();
-    await page.goto(url(set, arm, "&mode=first"));
+    await page.goto(url(set, variant, "&mode=first"));
     const r = await page.waitForFunction(() => globalThis.__result, null, { timeout: 600000 }).then((h) => h.jsonValue());
     await page.close();
     rows.push({ ...r, visit });
@@ -93,20 +93,20 @@ async function first(b, set, arm) {
 }
 
 const rows = [];
-const cells = Object.entries(SETS).flatMap(([set, [, arms]]) => arms.flatMap((arm) =>
-  MODE === "mem" ? COUNTS.map((decoders) => ({ set, arm, decoders })) : [{ set, arm }]));
+const cells = Object.entries(SETS).flatMap(([set, [, variants]]) => variants.flatMap((variant) =>
+  MODE === "mem" ? COUNTS.map((decoders) => ({ set, variant, decoders })) : [{ set, variant }]));
 for (let round = FIRST; round < FIRST + ROUNDS; round++) {
   for (const throttle of order(THROTTLES, round)) {
     const b = await launch();
     const stop = throttleTree(b.server.process().pid, throttle);
     for (const c of order(cells, round)) {
-      const got = MODE === "mem" ? [await mem(b, c.set, c.arm, c.decoders)] : await first(b, c.set, c.arm);
+      const got = MODE === "mem" ? [await mem(b, c.set, c.variant, c.decoders)] : await first(b, c.set, c.variant);
       for (const r of got) {
         const row = { round, throttle, ...r };
         rows.push(row);
         if (OUT) fs.appendFileSync(OUT, JSON.stringify(row) + "\n");
         const bad = r.error || r.exact !== r.checked ? ` NOT CLEAN ${r.exact}/${r.checked} ${r.error ?? ""}` : "";
-        console.error(`round ${round} ${throttle}x ${c.set} ${c.arm}${c.decoders ? ` D=${c.decoders}` : ` ${r.visit}`}${bad}`);
+        console.error(`round ${round} ${throttle}x ${c.set} ${c.variant}${c.decoders ? ` D=${c.decoders}` : ` ${r.visit}`}${bad}`);
       }
     }
     stop();

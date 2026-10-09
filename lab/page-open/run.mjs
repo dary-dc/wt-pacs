@@ -8,8 +8,8 @@
  *
  *   NODE_PATH=$(npm root -g) node lab/page-open/run.mjs [rounds]
  *
- * SERVERS=a=BIN,b=BIN runs every arm against each server binary, interleaved inside each round,
- * and prints how often b beat a; ONLY=arm,… keeps those arms; PORT_BASE=N takes ports from N up;
+ * SERVERS=a=BIN,b=BIN runs every variant against each server binary, interleaved inside each round,
+ * and prints how often b beat a; ONLY=variant,… keeps those variants; PORT_BASE=N takes ports from N up;
  * NETLOG=DIR keeps Chrome's net log per visit; ROWS=FILE keeps every visit's milestones.
  * HOST=dns runs as root: it binds 443 and 53 and gives the browser its own resolv.conf.
  */
@@ -33,10 +33,10 @@ const THROTTLE = Number(process.env.THROTTLE || 1);
 // RELAY_ARGS="--rate-kbit N …" shapes the link of every relay beyond its delay.
 const RELAY_ARGS = (process.env.RELAY_ARGS || "").split(" ").filter(Boolean);
 
-// STAGES swaps the three clients for the first-byte ladder: one rung of README.md per arm, on a
+// STAGES swaps the three clients for the first-byte ladder: one rung of README.md per variant, on a
 // cold profile only, since a warm visit spends none of what the ladder cuts.
 const STAGES = process.env.STAGES?.split(",");
-// HOST=dns names each arm's page host and transport host; only h3.test has an HTTPS record.
+// HOST=dns names each variant's page host and transport host; only h3.test has an HTTPS record.
 const PLANES = {
   h2: { page: "static.test", wt: "static.test" },
   "h2+wt-ip": { page: "static.test", wt: "127.0.0.1" },
@@ -53,7 +53,7 @@ const PLANES = {
 const META = "lab/page-open/metadata.json";
 const META_FIRST = "lab/page-open/meta-first.html";
 const HOST = process.env.HOST || "dev";
-const ARMS = STAGES
+const VARIANTS = STAGES
   ? Object.fromEntries(
       // HOST=dns serves the ladder from h3.test, the one name with an HTTPS record: HTTP/3.
       STAGES.map((s) => [s, (base, server) => `${HOST === "dns" ? "https://h3.test" : base}/lab/page-open/${BOOT_STAGES.includes(s) ? `boot/${s}` : "first-byte"}.html` +
@@ -61,7 +61,7 @@ const ARMS = STAGES
         `&wt=${encodeURIComponent(`https://127.0.0.1:${server.inn}/`)}&hash=${hash}`]),
     )
   : HOST === "dns"
-  ? Object.fromEntries(Object.entries(PLANES).map(([arm, p]) => [arm, (_, s) => {
+  ? Object.fromEntries(Object.entries(PLANES).map(([variant, p]) => [variant, (_, s) => {
       const q = new URLSearchParams();
       if (p.hint) q.set("dns", `https://${p.wt}:${s.inn}`);
       if (p.meta) q.set("meta", `/${META}`);
@@ -70,7 +70,7 @@ const ARMS = STAGES
   : {
       downloader: (base) => `${base}/lab/page-open/downloader.html`,
     };
-for (const arm of Object.keys(ARMS)) if (process.env.ONLY && !process.env.ONLY.split(",").includes(arm)) delete ARMS[arm];
+for (const variant of Object.keys(VARIANTS)) if (process.env.ONLY && !process.env.ONLY.split(",").includes(variant)) delete VARIANTS[variant];
 const PROFILES = STAGES || HOST === "dns" ? ["cold"] : ["cold", "warm"];
 
 // HOST=dev (default) is server/dev-server.py, plaintext HTTP/1.1; h1 and h2 are nginx on the deploy
@@ -100,15 +100,15 @@ function stop() {
 }
 process.on("exit", stop);
 
-// A real series: the downloader arm decodes what it gets, so random bytes would not do.
+// A real series: the downloader variant decodes what it gets, so random bytes would not do.
 execFileSync("cargo", ["build", "-q", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
 const BIN = path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug");
 const SERVERS = (process.env.SERVERS || `=${path.join(BIN, "series-server")}`).split(",").map((s) => {
   const [name, bin] = s.split("=");
   return { name, bin, srv: port(), inn: port() };
 });
-const label = (arm, server) => (server.name ? `${arm}@${server.name}` : arm);
-const CELLS = Object.keys(ARMS).flatMap((arm) => SERVERS.map((server) => ({ arm, server })));
+const label = (variant, server) => (server.name ? `${variant}@${server.name}` : variant);
+const CELLS = Object.keys(VARIANTS).flatMap((variant) => SERVERS.map((server) => ({ variant, server })));
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout ${T}/key.pem -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' \
   -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature' \
@@ -149,7 +149,7 @@ for (const s of SERVERS) {
   start(s.bin, [
     "--port", String(s.srv), "--series", path.join(T, "series.sbnd"),
     "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem"),
-    // Inert for an arm that sends no `?ask=`, so every arm runs on one server. R1's arm needs it.
+    // Inert for a variant that sends no `?ask=`, so every variant runs on one server. R1's variant needs it.
     "--open-ask",
   ], fs.openSync(path.join(T, `server${s.name}.log`), "a"));
 }
@@ -218,21 +218,21 @@ const BOOT_SKIPS = {
 // Every visit that decodes a fill must hand back the pixels the first such visit did, frame by frame.
 let pixelsRef = null;
 const pixelsHeld = { same: 0, differ: [] };
-function holdPixels(arm, pixels) {
+function holdPixels(variant, pixels) {
   if (!pixels) return;
-  if (pixels.length !== FRAMES || pixels.some((p) => !p)) throw new Error(`${arm}: ${pixels.filter(Boolean).length} of ${FRAMES} frames`);
-  pixelsRef ??= { arm, pixels };
+  if (pixels.length !== FRAMES || pixels.some((p) => !p)) throw new Error(`${variant}: ${pixels.filter(Boolean).length} of ${FRAMES} frames`);
+  pixelsRef ??= { variant, pixels };
   if (pixels.every((p, i) => p === pixelsRef.pixels[i])) pixelsHeld.same++;
-  else pixelsHeld.differ.push(arm);
+  else pixelsHeld.differ.push(variant);
 }
 
-async function visit(ctx, arm, server) {
+async function visit(ctx, variant, server) {
   const page = await ctx.newPage();
   const asked = [];
   ctx.on("request", (r) => asked.push(new URL(r.url()).pathname));
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
-  await page.goto(ARMS[arm](base, server), { waitUntil: "commit" });
+  await page.goto(VARIANTS[variant](base, server), { waitUntil: "commit" });
   await page.waitForFunction(() => globalThis.__wtpacsDone || globalThis.__wtpacsError, null, {
     timeout: 120000 * THROTTLE,
   });
@@ -254,9 +254,9 @@ async function visit(ctx, arm, server) {
   });
   await page.close();
   if (out.error || err) throw new Error(out.error || err);
-  holdPixels(arm, out.pixels);
-  const wrong = (BOOT_SKIPS[arm] ?? []).filter((f) => asked.includes(f));
-  if (wrong.length) throw new Error(`${arm} fetched ${wrong.join(", ")}, which it carries`);
+  holdPixels(variant, out.pixels);
+  const wrong = (BOOT_SKIPS[variant] ?? []).filter((f) => asked.includes(f));
+  if (wrong.length) throw new Error(`${variant} fetched ${wrong.join(", ")}, which it carries`);
   return { ...out.open, landed: out.landed };
 }
 
@@ -294,11 +294,11 @@ let failed = 0;
 for (const rtt of RTTS) {
   for (let round = 0; round < ROUNDS; round++) {
     let prev = null;
-    for (const { arm, server } of order(CELLS, round)) {
-      pointAt(server, HOST === "dns" ? PLANES[arm]?.wt : undefined);
-      const name = label(arm, server);
+    for (const { variant, server } of order(CELLS, round)) {
+      pointAt(server, HOST === "dns" ? PLANES[variant]?.wt : undefined);
+      const name = label(variant, server);
       const relaysDown = await relaysUp(rtt, `${name}-${rtt}-${round}`);
-      // A fresh profile is what makes the cold arm cold: no HTTP cache, no compiled-code cache.
+      // A fresh profile is what makes the cold variant cold: no HTTP cache, no compiled-code cache.
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "r2p-"));
       const netlog = process.env.NETLOG
         ? [`--log-net-log=${path.resolve(process.env.NETLOG, `${name}-${rtt}-${round}.json`)}`,
@@ -313,7 +313,7 @@ for (const rtt of RTTS) {
       const unthrottle = THROTTLE > 1 ? throttleTree(browserPid(dir), THROTTLE) : () => {};
       const visits = [];
       try {
-        for (const profile of PROFILES) visits.push({ rtt, round, arm: name, prev, profile, ...(await visit(ctx, arm, server)) });
+        for (const profile of PROFILES) visits.push({ rtt, round, variant: name, prev, profile, ...(await visit(ctx, variant, server)) });
       } catch (e) {
         failed++;
         process.stderr.write(`rtt=${rtt} ${name}: ${e.message.split("\n")[0]}\n`);
@@ -333,11 +333,11 @@ for (const rtt of RTTS) {
 
 const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 const MILESTONES = ["tls", ...(HOST === "dns" ? ["dns"] : []), "page", "script", "config", "session", "frame"];
-function fit(arm, profile, key) {
+function fit(variant, profile, key) {
   const xs = [];
   const ys = [];
   for (const rtt of RTTS) {
-    const v = rows.filter((r) => r.arm === arm && r.profile === profile && r.rtt === rtt && r[key] != null);
+    const v = rows.filter((r) => r.variant === variant && r.profile === profile && r.rtt === rtt && r[key] != null);
     if (!v.length) return null;
     xs.push(rtt);
     ys.push(median(v.map((r) => r[key])));
@@ -349,30 +349,30 @@ function fit(arm, profile, key) {
   return { slope, fixed: my - slope * mx, at: Object.fromEntries(xs.map((x, i) => [x, ys[i]])) };
 }
 
-const LABELS = Object.keys(ARMS).flatMap((arm) => SERVERS.map((s) => label(arm, s)));
+const LABELS = Object.keys(VARIANTS).flatMap((variant) => SERVERS.map((s) => label(variant, s)));
 function byPredecessor(key, pairs) {
   console.log(`\n${key}, ms, each lead by the predecessor it ran after, rounds in brackets`);
   for (const rtt of RTTS) {
     for (const profile of PROFILES) {
       const at = rows.filter((r) => r.rtt === rtt && r.profile === profile);
       console.log(`${rtt} ms, ${profile}`);
-      for (const line of leadsByPredecessor(at.map((r) => ({ round: r.round, unit: r.arm, prev: r.prev, v: r[key] })), LABELS, pairs)) console.log(line);
+      for (const line of leadsByPredecessor(at.map((r) => ({ round: r.round, unit: r.variant, prev: r.prev, v: r[key] })), LABELS, pairs)) console.log(line);
     }
   }
 }
 const W = Math.max(11, ...LABELS.map((l) => l.length));
 console.log(
-  `\nhost ${HOST}, cpu ${THROTTLE}x\n${"arm".padEnd(W)} ${"profile".padEnd(8)} ${"milestone".padEnd(10)} ` +
+  `\nhost ${HOST}, cpu ${THROTTLE}x\n${"variant".padEnd(W)} ${"profile".padEnd(8)} ${"milestone".padEnd(10)} ` +
     `${"round trips".padStart(11)} ${"fixed ms".padStart(9)}  ` +
     RTTS.map((r) => `${r} ms`.padStart(8)).join(" "),
 );
-for (const arm of LABELS) {
+for (const variant of LABELS) {
   for (const profile of PROFILES) {
     for (const key of MILESTONES) {
-      const f = fit(arm, profile, key);
+      const f = fit(variant, profile, key);
       if (!f) continue;
       console.log(
-        `${arm.padEnd(W)} ${profile.padEnd(8)} ${key.padEnd(10)} ` +
+        `${variant.padEnd(W)} ${profile.padEnd(8)} ${key.padEnd(10)} ` +
           `${f.slope.toFixed(2).padStart(11)} ${f.fixed.toFixed(0).padStart(9)}  ` +
           RTTS.map((r) => f.at[r].toFixed(0).padStart(8)).join(" "),
       );
@@ -382,85 +382,85 @@ for (const arm of LABELS) {
 
 if (SERVERS.length > 1) {
   console.log(`\nms at each round trip: median [min-max], and rounds each server beat ${SERVERS[0].name} in`);
-  for (const arm of Object.keys(ARMS)) {
+  for (const variant of Object.keys(VARIANTS)) {
     for (const profile of PROFILES) {
       for (const key of MILESTONES) {
         for (const s of SERVERS) {
           const cells = RTTS.map((rtt) => {
-            const of = (name) => rows.filter((r) => r.arm === name && r.profile === profile && r.rtt === rtt && r[key] != null);
-            const mine = of(label(arm, s));
+            const of = (name) => rows.filter((r) => r.variant === name && r.profile === profile && r.rtt === rtt && r[key] != null);
+            const mine = of(label(variant, s));
             if (!mine.length) return "-";
             const v = mine.map((r) => r[key]).sort((x, y) => x - y);
-            const ref = new Map(of(label(arm, SERVERS[0])).map((r) => [r.round, r[key]]));
+            const ref = new Map(of(label(variant, SERVERS[0])).map((r) => [r.round, r[key]]));
             const won = mine.filter((r) => ref.has(r.round) && r[key] < ref.get(r.round)).length;
             return `${median(v).toFixed(0)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}] ${won}/${mine.length}`;
           });
-          console.log(`${label(arm, s).padEnd(W)} ${profile.padEnd(6)} ${key.padEnd(8)} ${cells.join("   ")}`);
+          console.log(`${label(variant, s).padEnd(W)} ${profile.padEnd(6)} ${key.padEnd(8)} ${cells.join("   ")}`);
         }
       }
     }
   }
 }
 if (SERVERS.length > 1) {
-  byPredecessor("frame", Object.keys(ARMS).flatMap((arm) => SERVERS.slice(1).map((s) => [label(arm, s), label(arm, SERVERS[0])])));
+  byPredecessor("frame", Object.keys(VARIANTS).flatMap((variant) => SERVERS.slice(1).map((s) => [label(variant, s), label(variant, SERVERS[0])])));
 }
 if (STAGES) {
   const first = LABELS[0];
-  console.log(`\nms at each round trip: median [min-max], and rounds each arm beat ${first} in; ${voided} visits VOID and dropped, ${failed} failed`);
+  console.log(`\nms at each round trip: median [min-max], and rounds each variant beat ${first} in; ${voided} visits VOID and dropped, ${failed} failed`);
   for (const key of ["config", "session", "frame"]) {
-    for (const arm of LABELS) {
+    for (const variant of LABELS) {
       const cells = RTTS.map((rtt) => {
-        const mine = rows.filter((r) => r.arm === arm && r.rtt === rtt && r[key] != null);
+        const mine = rows.filter((r) => r.variant === variant && r.rtt === rtt && r[key] != null);
         if (!mine.length) return "-";
         const v = mine.map((r) => r[key]).sort((x, y) => x - y);
-        const ref = new Map(rows.filter((r) => r.arm === first && r.rtt === rtt).map((r) => [r.round, r[key]]));
+        const ref = new Map(rows.filter((r) => r.variant === first && r.rtt === rtt).map((r) => [r.round, r[key]]));
         const won = mine.filter((r) => ref.get(r.round) != null && r[key] < ref.get(r.round)).length;
         return `${median(v).toFixed(0)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}] ${won}/${mine.length}`;
       });
-      if (cells.some((c) => c !== "-")) console.log(`${arm.padEnd(W)} ${key.padEnd(8)} ${cells.join("   ")}`);
+      if (cells.some((c) => c !== "-")) console.log(`${variant.padEnd(W)} ${key.padEnd(8)} ${cells.join("   ")}`);
     }
   }
-  byPredecessor("session", LABELS.slice(1).map((arm) => [arm, first]));
+  byPredecessor("session", LABELS.slice(1).map((variant) => [variant, first]));
 }
 if (HOST === "dns") {
   const stage = { tls: (r) => r.tls, dial: (r) => r.session - r.config, session: (r) => r.session };
   const first = LABELS[0];
-  console.log(`\nms at each round trip: median [min-max], and rounds each arm beat ${first} in`);
+  console.log(`\nms at each round trip: median [min-max], and rounds each variant beat ${first} in`);
   for (const [key, of] of Object.entries(stage)) {
-    for (const arm of LABELS) {
+    for (const variant of LABELS) {
       const cells = RTTS.map((rtt) => {
-        const mine = rows.filter((r) => r.arm === arm && r.rtt === rtt && r.session != null);
+        const mine = rows.filter((r) => r.variant === variant && r.rtt === rtt && r.session != null);
         if (!mine.length) return "-";
         const v = mine.map(of).sort((x, y) => x - y);
-        const ref = new Map(rows.filter((r) => r.arm === first && r.rtt === rtt).map((r) => [r.round, of(r)]));
+        const ref = new Map(rows.filter((r) => r.variant === first && r.rtt === rtt).map((r) => [r.round, of(r)]));
         const won = mine.filter((r) => ref.has(r.round) && of(r) < ref.get(r.round)).length;
         return `${median(v).toFixed(0)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}] ${won}/${mine.length}`;
       });
-      console.log(`${arm.padEnd(W)} ${key.padEnd(8)} ${cells.join("   ")}`);
+      console.log(`${variant.padEnd(W)} ${key.padEnd(8)} ${cells.join("   ")}`);
     }
   }
   console.log(`\nthe config's and the metadata's last byte, ms: median; visits the config was asked first in, and landed first in`);
-  for (const arm of LABELS.filter((a) => PLANES[a]?.meta)) {
+  for (const variant of LABELS.filter((a) => PLANES[a]?.meta)) {
     const cells = RTTS.map((rtt) => {
       const at = (r, file) => r.landed.find(([p]) => p === file) ?? [];
-      const mine = rows.filter((r) => r.arm === arm && r.rtt === rtt).map((r) => [at(r, "/wt/dev-transport.json"), at(r, `/${META}`)]);
+      const mine = rows.filter((r) => r.variant === variant && r.rtt === rtt).map((r) => [at(r, "/wt/dev-transport.json"), at(r, `/${META}`)]);
       if (!mine.length) return "-";
       const first = (k) => mine.filter(([c, m]) => c[k] < m[k]).length;
       return `config ${median(mine.map(([c]) => c[2]))} meta ${median(mine.map(([, m]) => m[2]))} ` +
         `asked ${first(1)}/${mine.length} landed ${first(2)}/${mine.length}`;
     });
-    console.log(`${arm.padEnd(W)} ${cells.join("   ")}`);
+    console.log(`${variant.padEnd(W)} ${cells.join("   ")}`);
   }
-  console.log("\nthe document's protocol, visits per arm");
-  for (const arm of LABELS) {
+  console.log("\nthe document's protocol, visits per variant");
+  for (const variant of LABELS) {
     const n = {};
-    for (const r of rows.filter((r) => r.arm === arm)) n[r.proto] = (n[r.proto] ?? 0) + 1;
-    console.log(`${arm.padEnd(W)} ${JSON.stringify(n)}`);
+    for (const r of rows.filter((r) => r.variant === variant)) n[r.proto] = (n[r.proto] ?? 0) + 1;
+    console.log(`${variant.padEnd(W)} ${JSON.stringify(n)}`);
   }
-  byPredecessor("session", LABELS.slice(1).map((arm) => [arm, LABELS[0]]));
+  byPredecessor("session", LABELS.slice(1).map((variant) => [variant, LABELS[0]]));
 }
 if (pixelsRef) {
-  console.log(`\npixels: ${pixelsHeld.same} visits bit-exact to ${pixelsRef.arm}'s first, ${pixelsHeld.differ.length} not` +
+  console.log(`\npixels: ${pixelsHeld.same} visits bit-exact to ${pixelsRef.variant}'s first, ${pixelsHeld.differ.length} not` +
     (pixelsHeld.differ.length ? ` (${[...new Set(pixelsHeld.differ)].join(", ")}) — DIFFER` : ""));
 }
 if (process.env.ROWS) fs.writeFileSync(process.env.ROWS, JSON.stringify(rows));

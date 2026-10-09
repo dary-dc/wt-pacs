@@ -1,8 +1,8 @@
 /**
  * SPLITTIME: decode time a frame through the product's decoder worker, each series' AV1 payloads at every
- * arm's split k (the payload picks WebCodecs or dav1d-WASM) against OpenJPH on the same frames. rep14's
+ * variant's split k (the payload picks WebCodecs or dav1d-WASM) against OpenJPH on the same frames. rep14's
  * harness, its frames now payloads. Every throttle cell is a fresh browser, in a Williams order every
- * round; arms and sets rotate inside it. lab/av1/delivery/split-rule/README.md
+ * round; variants and sets rotate inside it. lab/av1/delivery/split-rule/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/split-rule/decode.mjs [--rounds 12] [--throttles 1,4]
  *     [--frames lab/.av1-work/splittime] [--sets a,b] [--mutate sample|truth] [--out rows.json]
@@ -23,7 +23,7 @@ const OUT = arg("--out", null);
 const ROOT = new URL("../../../..", import.meta.url).pathname;
 const SETS = arg("--sets", null)?.split(",");
 const MANIFEST = JSON.parse(readFileSync(`${ROOT}/${FRAMES}/manifest.json`, "utf8"));
-const ARMS = [...new Set(MANIFEST.flatMap((s) => Object.keys(s.arms)))];
+const VARIANTS = [...new Set(MANIFEST.flatMap((s) => Object.keys(s.variants)))];
 const PORT = 30000 + ((Math.random() * 10000) | 0);
 const BASE = `http://127.0.0.1:${PORT}`;
 
@@ -40,7 +40,7 @@ async function inChromium(throttle, round) {
     throw new Error("page is not cross-origin isolated");
   }
   const stop = throttleTree(server.process().pid, throttle);
-  const rows = await page.evaluate((o) => globalThis.run(o), { frames: FRAMES, arms: ARMS, round, mutate: MUTATE, sets: SETS });
+  const rows = await page.evaluate((o) => globalThis.run(o), { frames: FRAMES, variants: VARIANTS, round, mutate: MUTATE, sets: SETS });
   stop();
   await browser.close();
   await server.close();
@@ -53,7 +53,7 @@ for (let round = 0; round < ROUNDS; round++) {
     const got = await inChromium(throttle, round);
     for (const r of got) rows.push({ round, throttle, ...r });
     for (const r of got.filter((r) => r.error || r.exact !== r.frames)) {
-      console.error(`round ${round} ${throttle}x ${r.set} ${r.arm}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
+      console.error(`round ${round} ${throttle}x ${r.set} ${r.variant}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
     }
     console.error(`round ${round} ${throttle}x done`);
   }
@@ -67,20 +67,20 @@ console.log("ms a frame in its decoder: median over rounds of each round's media
   " ×HTJ2K, the median of paired round ratios [range], and rounds faster than HTJ2K");
 for (const throttle of THROTTLES) {
   for (const set of [...new Set(rows.map((r) => r.set))]) {
-    const of = (arm) => rows.filter((r) => r.throttle === throttle && r.set === set && r.arm === arm);
-    const per = (arm) => new Map(of(arm).filter((r) => r.ms.length).map((r) => [r.round, med(r.ms)]));
+    const of = (variant) => rows.filter((r) => r.throttle === throttle && r.set === set && r.variant === variant);
+    const per = (variant) => new Map(of(variant).filter((r) => r.ms.length).map((r) => [r.round, med(r.ms)]));
     const ref = per("htj2k");
     const parts = [];
-    for (const arm of ARMS) {
-      const rs = of(arm);
+    for (const variant of VARIANTS) {
+      const rs = of(variant);
       if (!rs.length) continue;
-      const m = per(arm);
+      const m = per(variant);
       const exact = `${rs.reduce((n, r) => n + r.exact, 0)}/${rs.reduce((n, r) => n + r.frames, 0)}`;
-      if (!m.size) { parts.push(`${arm} failed (${rs[0].error})`); continue; }
+      if (!m.size) { parts.push(`${variant} failed (${rs[0].error})`); continue; }
       const v = [...m.values()];
-      let line = `${arm} ${f(med(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}] n=${v.length} exact ${exact}`;
+      let line = `${variant} ${f(med(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}] n=${v.length} exact ${exact}`;
       const ratio = (to) => [...m].filter(([r]) => to.has(r)).map(([r, x]) => x / to.get(r));
-      if (arm !== "htj2k") {
+      if (variant !== "htj2k") {
         const r = ratio(ref);
         line += `, ×${med(r).toFixed(2)} HTJ2K ${span(r)}, faster ${r.filter((x) => x < 1).length}/${r.length}`;
       }

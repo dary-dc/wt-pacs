@@ -1,8 +1,8 @@
 // Where one frame's WASM decode goes, by function: a build with names kept, sampled by V8's
 // profiler. docs/decode/README.md §The decode tail on a slow CPU
 //
-// usage: EMSDK=~/emsdk ARMS=prof EXTRA_FLAGS=--profiling-funcs lab/decode-bench/wasm/build.sh
-//        node lab/decode-bench/profile_decode.mjs FIXTURE_DIR [--arm prof] [--passes 20]
+// usage: EMSDK=~/emsdk VARIANTS=prof EXTRA_FLAGS=--profiling-funcs lab/decode-bench/wasm/build.sh
+//        node lab/decode-bench/profile_decode.mjs FIXTURE_DIR [--variant prof] [--passes 20]
 import { createRequire } from 'node:module';
 import inspector from 'node:inspector/promises';
 import path from 'node:path';
@@ -11,11 +11,11 @@ import { loadFixture } from './decoder.mjs';
 const require = createRequire(import.meta.url);
 const argv = process.argv.slice(2);
 const pick = (flag, dflt) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : dflt);
-const arm = pick('--arm', 'prof');
+const variant = pick('--variant', 'prof');
 const PASSES = Number(pick('--passes', 20));
 const dir = argv.find((a, i) => !a.startsWith('--') && !argv[i - 1]?.startsWith('--'));
 
-const M = await require(path.join(process.cwd(), 'lab/.openjph-build/wasm', `${arm}.js`))();
+const M = await require(path.join(process.cwd(), 'lab/.openjph-build/wasm', `${variant}.js`))();
 const d = new M.HTJ2KDecoder();
 const { frames } = loadFixture(dir);
 const decode = (bytes) => {
@@ -62,7 +62,7 @@ for (const [name, us] of self) {
   if (g) inGroup.set(g[0], inGroup.get(g[0]) + us);
   else other += us;
 }
-console.log(`${path.basename(dir)} on ${arm}: ${perFrame.toFixed(2)} ms a frame, ${PASSES} passes of ${frames.length}`);
+console.log(`${path.basename(dir)} on ${variant}: ${perFrame.toFixed(2)} ms a frame, ${PASSES} passes of ${frames.length}`);
 for (const [g, us] of [...inGroup, ['everything else', other]]) {
   console.log(`  ${(100 * us / total).toFixed(1).padStart(5)} %  ${g}`);
 }

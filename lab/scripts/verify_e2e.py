@@ -42,7 +42,7 @@ def main() -> int:
         "--harness",
         choices=("wasm", "ts", "both"),
         default=None,
-        help="default: both, or ts with --telemetry (the only arm it records)",
+        help="default: both, or ts with --telemetry (the only variant it records)",
     )
     parser.add_argument(
         "--stream-mode",
@@ -317,7 +317,7 @@ def main() -> int:
                 run_dir = None
                 if args.telemetry:
                     # Independent pieces in one run folder (no join file):
-                    #   <stamp>-<series>-<arm>-<stream>-<cell>-rN/
+                    #   <stamp>-<series>-<variant>-<stream>-<cell>-rN/
                     #     telemetry-client.json
                     #     telemetry-server.json
                     from datetime import datetime, timezone
@@ -410,7 +410,7 @@ def main() -> int:
                     # Independent facts about the run, so the two reports are never compared
                     # across a cell, stream mode, depth, or tree by filename alone.
                     manifest = {
-                        "arm": label,
+                        "variant": label,
                         "stream_mode": args.stream_mode,
                         "cell": args.cell,
                         "depth": args.depth,

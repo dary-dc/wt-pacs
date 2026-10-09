@@ -6,7 +6,7 @@ WebCodecs takes. Queue row 33 (REP14) of [`docs/av1/queue.md`](../../../../docs/
 verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 client/transport/ts/build.sh                                   # the client's session bundle
@@ -19,10 +19,10 @@ for p in a6 a7 a9; do PRESET=$p lab/av1/.venv/bin/python lab/av1/decode/high-dep
   lab/.av1-build lab/.av1-work/rep14-$p $P; done                # the fast presets' bytes
 NODE_PATH=$(npm root -g) node lab/av1/decode/high-depth/decode.mjs --rounds 12 --out decode.json
 for r in $(seq 0 9); do
-  NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames lab/.av1-work/rep14 --arms htj2k,d12,w10 \
+  NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames lab/.av1-work/rep14 --variants htj2k,d12,w10 \
     --rounds 1 --first-round $r --out total.jsonl
 done                                                   # then rounds 10 and 11, which bring VOID-short cells to n >= 10
-NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames lab/.av1-work/rep14 --arms htj2k,d12,w10 --summary --out total.jsonl
+NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames lab/.av1-work/rep14 --variants htj2k,d12,w10 --summary --out total.jsonl
 ```
 
 **Series.** Every frame of the two tomosynthesis projection series of row TAXO (`dbtproj_ge`,
@@ -32,7 +32,7 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames lab/.
 **Layouts**, a sample v after the offset at b bits, a frame stored `[u32le top length][top unit][low unit]`
 (`docs/av1/adr-unit.md` §2), the decoder the product's own choice from what `connect` is told:
 
-| arm | top | low | `connect` | decoder |
+| variant | top | low | `connect` | decoder |
 | --- | --- | --- | --- | --- |
 | `d12` | v ≫ 2 at 12 bits (Professional) | v & 3 at 8 | `split: 2` | dav1d-WASM |
 | `w10` | v ≫ (b − 10) at 10 bits | the b − 10 low bits at 8 | `split: b − 10, depth: 10` | WebCodecs |
@@ -61,18 +61,18 @@ At presets 1–2 libaom codes the 8-bit two-bit stream 20 % larger, which preset
 On the whole series the CT's a6 is 1.026 (d12) and 1.021 (w10) of cpu0, so its fast preset is cpu6
 (1.010, 1.009); the projections' a7 (d12) is 1.000 and 1.002, a9 (w10) 1.008 and 1.013.
 
-**Decode** (`decode.mjs`): the product's `decoder.js` in headless Chromium, one worker an arm, one
+**Decode** (`decode.mjs`): the product's `decoder.js` in headless Chromium, one worker a variant, one
 warm-up frame, then every frame one at a time; the time is the worker's `decodeStart`–`decodeEnd`
 (bytes in, merged samples and range out), each frame hashed against its truth. Each throttle cell is
-a fresh browser in a Williams order (`lab/order.mjs`); sets and arms rotate inside it. 4× is
+a fresh browser in a Williams order (`lab/order.mjs`); sets and variants rotate inside it. 4× is
 `lab/scripts/cpu_throttle.mjs` on the browser's process tree.
 
 **Total time**: row TOTAL's harness ([`../../delivery/total-time`](../../delivery/total-time/README.md)) unchanged but for taking an
-arm's stored form (`ext`) and `offset` from `arms.json`; its links, CPU, rig and order.
+variant's stored form (`ext`) and `offset` from `variants.json`; its links, CPU, rig and order.
 
 **Checked.** In `make_frames.py`, the native merge's top shifted one bit too far exits on the first
-frame. In `decode.mjs`, on the CT: `--mutate sample` and `--mutate truth` turned every arm 0/100;
-the offset left out of `connect`, and `split` one short, each turned all three AV1 arms 0/100 with
+frame. In `decode.mjs`, on the CT: `--mutate sample` and `--mutate truth` turned every variant 0/100;
+the offset left out of `connect`, and `split` one short, each turned all three AV1 variants 0/100 with
 HTJ2K 100/100.
 
 **Pins.** As [`../../delivery/total-time`](../../delivery/total-time/README.md): Node 22.22.0, playwright 1.56.1's Chromium

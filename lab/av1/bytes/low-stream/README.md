@@ -7,7 +7,7 @@ what is left to cut in bytes and in decode: the low stream's coder, the split's 
 libaom's remaining tools. The verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §Bytes.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh
 client/decode/wasm/fetch_openjph.sh                                 # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160    # builds ojph_compress once
 lab/av1/fetch_data.sh
@@ -48,12 +48,12 @@ coding is then decoded again from its stored units, merged and matched with the 
 the series was fetched: **240/240 codings exact** in the bytes stage. In the browser every merged frame
 is hashed against that checksum again.
 
-**Decode time.** `encx.mjs` in headless Chromium 141 (playwright 1.56.1), Node 22.22.0. Each arm is a
+**Decode time.** `encx.mjs` in headless Chromium 141 (playwright 1.56.1), Node 22.22.0. Each variant is a
 decoder worker of its own behind `decoder.js`'s protocol, `worker.js` for the part frames and
 `client/decode/decoder.js` itself for HTJ2K; a frame's time is the worker's `decodeStart` to
 `decodeEnd`: its bytes in, the merged samples and the range out. WebCodecs and the inflate run beside
 the WASM decoder. One warm-up frame a worker, then every frame one at a time. Every throttle cell a
-fresh browser, the cells in a Williams order each round (`lab/order.mjs`), sets and arms rotating
+fresh browser, the cells in a Williams order each round (`lab/order.mjs`), sets and variants rotating
 inside; 4× is `lab/scripts/cpu_throttle.mjs` on the browser's process tree; 10 rounds; median of the
 round medians [range], and the median of round-paired ratios. **7 100/7 100 frames exact.** A
 container's times, not a phone's; one browser at a time on 4 cores, nothing else running.
@@ -209,7 +209,7 @@ WebCodecs 40.3 and 148 (3.15×, 3.11×).
 
 Every ratio lies on the same side of 1 in 10/10 rounds, but HTJ2K's split against HTJ2K whole on the
 projections and at 4× on the cone-beam set (faster in 1–2 of 10). A dash: the top stream is over 10 bits, which WebCodecs
-refuses (row 3), or the arm was not built for that set.
+refuses (row 3), or the variant was not built for that set.
 
 * **The deflated low stream decodes at 0.64–0.83× of row 28's coding** (1×; 0.63–0.76× at 4×): an
   inflate and an unpack replace the low stream's dav1d-WASM decode.

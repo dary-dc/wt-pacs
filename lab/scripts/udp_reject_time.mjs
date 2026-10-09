@@ -54,29 +54,29 @@ async function dialUntilRejected(page, port, timeoutMs) {
 const rows = [];
 for (let round = 0; round < ROUNDS; round++) {
   // Interleaved, order reversed each round — CLAUDE.md#measurement.
-  const arms = round % 2 === 0 ? ["refused", "silent"] : ["silent", "refused"];
-  for (const arm of arms) {
-    const sock = arm === "silent" ? await silentSocket() : null;
+  const variants = round % 2 === 0 ? ["refused", "silent"] : ["silent", "refused"];
+  for (const variant of variants) {
+    const sock = variant === "silent" ? await silentSocket() : null;
     const port = sock ? sock.address().port : 45000 + ((Math.random() * 1000) | 0);
     const page = await browser.newPage();
     await page.goto(PAGE);
     const r = await dialUntilRejected(page, port, 60000);
     await page.close();
     sock?.close();
-    rows.push({ arm, ...r });
+    rows.push({ variant, ...r });
   }
   process.stderr.write(`round ${round + 1}/${ROUNDS}\n`);
 }
 
 const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
-console.log(`\n${"arm".padEnd(9)} ${"n".padStart(3)} ${"ms median".padStart(11)} ${"[min … max]".padStart(16)}  outcomes`);
-for (const arm of ["refused", "silent"]) {
-  const v = rows.filter((r) => r.arm === arm);
+console.log(`\n${"variant".padEnd(9)} ${"n".padStart(3)} ${"ms median".padStart(11)} ${"[min … max]".padStart(16)}  outcomes`);
+for (const variant of ["refused", "silent"]) {
+  const v = rows.filter((r) => r.variant === variant);
   if (!v.length) continue;
   const ms = v.map((r) => r.ms);
   const outcomes = [...new Set(v.map((r) => r.outcome))].join(",");
   console.log(
-    `${arm.padEnd(9)} ${String(v.length).padStart(3)} ${String(median(ms)).padStart(11)} ` +
+    `${variant.padEnd(9)} ${String(v.length).padStart(3)} ${String(median(ms)).padStart(11)} ` +
       `${`[${Math.min(...ms)} … ${Math.max(...ms)}]`.padStart(16)}  ${outcomes}`,
   );
 }

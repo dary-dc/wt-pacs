@@ -3,7 +3,7 @@
 the first run: pooled nearest-rank p95s, and per-round p95s paired against `shared` for the win count.
 
 usage: summarize.py rows.jsonl [...]          the cells
-       summarize.py --sweep sweep.jsonl        each arm's D_min
+       summarize.py --sweep sweep.jsonl        each variant's D_min
 """
 import collections
 import json
@@ -33,23 +33,23 @@ def gaps(arrived):
 def sweep(rows):
     by = collections.defaultdict(lambda: collections.defaultdict(list))
     for r in rows:
-        by[r["arm"]][r["depth"]].append(1000 * len(r["latencies"]) / r["asksMs"])
-    print("asks/s, median of rounds, by depth; D_min is the smallest depth within 95 % of the arm's best")
-    for arm, depths in by.items():
+        by[r["variant"]][r["depth"]].append(1000 * len(r["latencies"]) / r["asksMs"])
+    print("asks/s, median of rounds, by depth; D_min is the smallest depth within 95 % of the variant's best")
+    for variant, depths in by.items():
         med = {d: statistics.median(v) for d, v in sorted(depths.items())}
         best = max(med.values())
         d_min = min(d for d, v in med.items() if v >= 0.95 * best)
-        print(f"  {arm:9} " + "  ".join(f"{d}:{v:5.2f}" for d, v in med.items()) + f"   D_min {d_min}")
+        print(f"  {variant:9} " + "  ".join(f"{d}:{v:5.2f}" for d, v in med.items()) + f"   D_min {d_min}")
 
 
 def cells(rows):
     by = collections.defaultdict(list)
     for r in rows:
-        by[(r["cell"], r["arm"])].append(r)
+        by[(r["cell"], r["variant"])].append(r)
     for cell in sorted({c for c, _ in by}):
         ref = {r["round"]: r for r in by.get((cell, "shared"), [])}
         print(f"\n{cell}: pooled p50 / p95 ms; rounds whose own p95 beat shared's")
-        for (c, arm), rs in sorted(by.items()):
+        for (c, variant), rs in sorted(by.items()):
             if c != cell:
                 continue
             fill = [g for r in rs for g in gaps(r["arrived"])]
@@ -66,7 +66,7 @@ def cells(rows):
 
             fill_won = won(lambda r: p(gaps(r["arrived"]), 0.95))
             ask_won = won(lambda r: p(r["latencies"], 0.95))
-            print(f"  {arm:9} d={rs[0]['depth']}  received {got}/{owed}, asks {asked} ({failed} failed)"
+            print(f"  {variant:9} d={rs[0]['depth']}  received {got}/{owed}, asks {asked} ({failed} failed)"
                   f"  fill gap {p(fill, .5):6.1f} / {p(fill, .95):7.1f} over {len(fill):3}  won {fill_won}"
                   f"  ask {p(asks, .5):7.1f} / {p(asks, .95):7.1f} over {len(asks):3}  won {ask_won}"
                   f"  fill {statistics.median(r['fillMs'] for r in rs) / 1000:6.1f} s")

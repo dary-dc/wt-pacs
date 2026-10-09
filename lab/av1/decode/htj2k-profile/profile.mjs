@@ -12,7 +12,7 @@ const ROUNDS = Number(arg("--rounds", 5));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
 const PASSES = Number(arg("--passes", 6));
 const FRAMES = arg("--frames", "lab/.av1-work/fasthtj2k");
-const ARM = arg("--arm", "profweb");
+const VARIANT = arg("--variant", "profweb");
 const MUTATE = process.argv.includes("--mutate");
 const OUT = arg("--out", null);
 const ROOT = new URL("../../../..", import.meta.url).pathname;
@@ -64,7 +64,7 @@ async function inChromium(throttle) {
   const rows = [];
   for (const s of order(manifest, 0)) {
     const truth = s.frames.map((f) => f.truth);
-    await page.evaluate((o) => globalThis.load(o), { glue: `${BASE}/lab/.openjph-build/wasm/${ARM}.js`, dir: `${BASE}/${FRAMES}`, set: s.name, n: truth.length });
+    await page.evaluate((o) => globalThis.load(o), { glue: `${BASE}/lab/.openjph-build/wasm/${VARIANT}.js`, dir: `${BASE}/${FRAMES}`, set: s.name, n: truth.length });
     const exact = await page.evaluate(([t, m]) => globalThis.check(t, m), [truth, MUTATE]);
     const ms = await page.evaluate((p) => globalThis.time(p), PASSES);
     await cdp.send("Profiler.start");

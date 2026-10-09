@@ -1,4 +1,4 @@
-// node lab/order.test.mjs — the arm order and the predecessor split, in JS and in lab/scripts/order.py.
+// node lab/order.test.mjs — the variant order and the predecessor split, in JS and in lab/scripts/order.py.
 import { execFileSync } from "node:child_process";
 import { balanced, leadsByPredecessor, order, williams } from "./order.mjs";
 
@@ -51,7 +51,7 @@ for (const [name, orderOf] of Object.entries(ORDERS)) {
 const [line] = leadsByPredecessor(campaign(ORDERS.williams, 4), UNITS, [["B", "A"]]);
 check(/C \+20 \(1\)/.test(line) && /first \+10 \(1\)/.test(line) && /A \+10 \(1\)/.test(line), `the split: ${line}`);
 
-// A campaign cut short of a whole period — 7 rounds of 3 arms, 4 or 6 of 5 — is not flagged.
+// A campaign cut short of a whole period — 7 rounds of 3 variants, 4 or 6 of 5 — is not flagged.
 const cut = (units, rounds) => Array.from({ length: rounds }, (_, round) => order(units, round))
   .flatMap((seq, round) => seq.map((unit, k) => ({ round, unit, prev: seq[k - 1] ?? null })));
 for (const [units, rounds] of [[["A", "B", "C"], 7], [UNITS.concat("E"), 4], [UNITS.concat("E"), 6]]) {

@@ -40,12 +40,12 @@ def timing(work, cells, htj2k):
             per = {}
             for r in runs:
                 if r["throttle"] == throttle and r["set"] == s and len(r["ms"]) == r["frames"] == r["exact"]:
-                    per.setdefault(r["arm"], []).append(ask(r["ms"], r["g"]))
+                    per.setdefault(r["variant"], []).append(ask(r["ms"], r["g"]))
             ref = float(np.median(per["htj2k"]))
             parts = []
-            for arm, v in sorted(per.items(), key=lambda kv: (kv[0].split("-")[0], int(kv[0].split("g")[-1]) if "-g" in kv[0] else 0)):
-                part = f"{arm} {np.median(v):.1f} [{min(v):.1f}–{max(v):.1f}] n={len(v)}"
-                g = int(arm.split("-g")[1]) if "-g" in arm else 0
+            for variant, v in sorted(per.items(), key=lambda kv: (kv[0].split("-")[0], int(kv[0].split("g")[-1]) if "-g" in kv[0] else 0)):
+                part = f"{variant} {np.median(v):.1f} [{min(v):.1f}–{max(v):.1f}] n={len(v)}"
+                g = int(variant.split("-g")[1]) if "-g" in variant else 0
                 if g:
                     base = cells[(s, "aom", "good:6", "optimized", False, 1)]
                     top = cells[(s, "aom", "good:6", "optimized", False, g)]["streams"][0]

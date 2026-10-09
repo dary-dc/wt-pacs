@@ -11,8 +11,8 @@ globalThis.onmessage ??= null;
 const { finish, unranged } = await import('../../client/decode/htj2k.js');
 
 const require = createRequire(import.meta.url);
-const armsDir = process.env.ARMS || path.join(process.cwd(), 'lab/.openjph-build/wasm');
-const arm = process.env.ARM || 'plain';
+const variantsDir = process.env.VARIANTS || path.join(process.cwd(), 'lab/.openjph-build/wasm');
+const variant = process.env.VARIANT || 'plain';
 const dirs = process.argv.slice(2);
 
 if (!dirs.length) {
@@ -66,7 +66,7 @@ function passRange(pixels, info) {
   return plain({ min, max });
 }
 
-const ours = await require(path.join(armsDir, `${arm}.js`))();
+const ours = await require(path.join(variantsDir, `${variant}.js`))();
 const theirsInstance = await instance();
 const theirs = theirsInstance.module;
 
@@ -78,7 +78,7 @@ const theirsDecoder = new theirs.HTJ2KDecoder();
 console.log(`ours:   getVersion()=${ours.getVersion()} getSIMDLevel()=${ours.getSIMDLevel()}`);
 console.log(`theirs: getVersion()=${theirs.getVersion()} getSIMDLevel()=${theirs.getSIMDLevel()}`);
 let bad = 0;
-// A second library is now an arm, so equal versions are no longer the invariant; the byte
+// A second library is now a variant, so equal versions are no longer the invariant; the byte
 // checks below are stronger and are the gate. docs/decode/README.md §A second decoder.
 if (ours.getVersion() !== theirs.getVersion()) {
   console.log('  versions differ — a different library or release, so this is a cross-decoder run');

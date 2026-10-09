@@ -8,7 +8,7 @@ dav1d-WASM's (row SVCDEC's preview)? The verdict is in
 [`docs/av1/README.md`](../../../../../docs/av1/README.md) §Preview.
 
 ```bash
-lab/av1/delivery/scalable/encoder/build.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # patched encoder, native dav1d, dav1d-WASM
+lab/av1/delivery/scalable/encoder/build.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh   # patched encoder, native dav1d, dav1d-WASM
 lab/av1/fetch_data.sh rf_fluoro mr_ispy1 us_liver
 python3 lab/av1/delivery/scalable/webcodecs-base/make_streams.py lab/.av1-build lab/.av1-work/wcbase lab/av1/data/us_liver \
   lab/av1/data/rf_fluoro lab/av1/data/mr_ispy1                                  # ~1.5 min
@@ -37,10 +37,10 @@ padding is cut. A base, lossy: native dav1d 1.5.4 on the two-layer stream at `--
 drop those whose extension header says `spatial_id` > 0. Its output is compared byte for byte with
 the encoder's own base-only stream (`*_0.av1`).
 
-**Arms**, in headless Chromium 141, every picture taken to `decoder.js`'s contract through the
+**Variants**, in headless Chromium 141, every picture taken to `decoder.js`'s contract through the
 product's `av1-frame.js`, so a base and an exact frame are timed to the same point:
 
-| arm | decoder | fed | out |
+| variant | decoder | fed | out |
 | --- | --- | --- | --- |
 | `wc-base` | WebCodecs, `prefer-software` | the filtered unit | the base |
 | `wc-all` | WebCodecs | the whole unit | the exact frame |
@@ -53,9 +53,9 @@ and its picture awaited up to 250 ms before the next is sent; what comes out onl
 is counted as late.
 
 **Timing.** `half-g1` and `full-g1` on the ultrasound and both top-10 series, the first 18 units: per
-arm an untimed pass, then a timed one on a fresh decoder (dav1d-WASM: the keyframe flushes it), the
+variant an untimed pass, then a timed one on a fresh decoder (dav1d-WASM: the keyframe flushes it), the
 ms from a unit sent to its picture in the contract, meaned over the 18. Each throttle a fresh browser
-each round, the throttles in a Williams order (`lab/order.mjs`), sets and arms rotating inside;
+each round, the throttles in a Williams order (`lab/order.mjs`), sets and variants rotating inside;
 1× and 4× (`lab/scripts/cpu_throttle.mjs`); 15 rounds; median [min–max].
 
 ## Exact
@@ -79,7 +79,7 @@ once. Without `optimizeForLatency` it was not tried (row WCLAT's question).
 Mutated on the ultrasound, grey 10 and MR top 10, each caught: the filter keeping the top's OBUs —
 every WebCodecs "base" is the top, 0/432 match, and 0/432 units equal the base-only stream; dropping
 layer 0's too — no picture out (G = 1: "0 frames out of unit 0"; past it nothing, late or not); one
-sample of every decoded picture flipped — 0 matches on every arm.
+sample of every decoded picture flipped — 0 matches on every variant.
 
 ## Bytes
 

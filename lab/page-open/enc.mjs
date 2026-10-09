@@ -1,11 +1,11 @@
 /**
  * ENC: the lab's page served by nginx over TLS and HTTP/2 from precompressed files — identity, gzip,
- * brotli, zstd — on loopback, at each CPU throttle, the arms in a Williams order inside every round
+ * brotli, zstd — on loopback, at each CPU throttle, the variants in a Williams order inside every round
  * (lab/order.mjs).
  * lab/page-open/README.md §What an encoding costs on loopback
  *
  *   NODE_PATH=$(npm root -g) node lab/page-open/enc.mjs [rounds]
- *   THROTTLES=1,4 ARMS=identity,gzip,br,zstd TRANSPORT=wasm|ts TRACE=0 ROWS=FILE DUMP=PREFIX
+ *   THROTTLES=1,4 VARIANTS=identity,gzip,br,zstd TRANSPORT=wasm|ts TRACE=0 ROWS=FILE DUMP=PREFIX
  */
 import fs from "node:fs";
 import https from "node:https";
@@ -29,7 +29,7 @@ const ENCODERS = {
   br: ["brotli", ["-q", "11", "-c"]],
   zstd: ["zstd", ["-19", "-q", "-c"]],
 };
-const ARMS = (process.env.ARMS || Object.keys(ENCODERS).join(",")).split(",");
+const VARIANTS = (process.env.VARIANTS || Object.keys(ENCODERS).join(",")).split(",");
 /** What the page fetches of the types the template compresses (its `gzip_types`). */
 const ASSETS = [
   "client/transport/consumer.js", "client/transport/downloader.js", "client/decode/decoder.js",
@@ -53,64 +53,64 @@ const ISOLATION = `add_header Cross-Origin-Opener-Policy same-origin always;
     add_header Cross-Origin-Embedder-Policy require-corp always;
     add_header Cross-Origin-Resource-Policy same-origin always;`;
 const servers = {};
-for (const arm of ARMS) {
-  const dir = path.join(T, `www-${arm}`);
+for (const variant of VARIANTS) {
+  const dir = path.join(T, `www-${variant}`);
   for (const a of ASSETS) {
     const raw = fs.readFileSync(path.join(ROOT, a));
-    const enc = ENCODERS[arm] ? execFileSync(ENCODERS[arm][0], [...ENCODERS[arm][1], path.join(ROOT, a)], { maxBuffer: 1 << 26 }) : raw;
-    (bytes[a] ??= {})[arm] = enc.length;
-    if (!ENCODERS[arm]) continue;
-    if (arm === "gzip" && !zlib.gunzipSync(enc).equals(raw)) throw new Error(`${a}: gzip does not round-trip`);
+    const enc = ENCODERS[variant] ? execFileSync(ENCODERS[variant][0], [...ENCODERS[variant][1], path.join(ROOT, a)], { maxBuffer: 1 << 26 }) : raw;
+    (bytes[a] ??= {})[variant] = enc.length;
+    if (!ENCODERS[variant]) continue;
+    if (variant === "gzip" && !zlib.gunzipSync(enc).equals(raw)) throw new Error(`${a}: gzip does not round-trip`);
     fs.mkdirSync(path.dirname(path.join(dir, a)), { recursive: true });
     fs.writeFileSync(path.join(dir, a), enc);
     // Its source's age, so its Last-Modified: a copy seconds old gets no heuristic freshness and every worker's fetch revalidates.
     const { atime, mtime } = fs.statSync(path.join(ROOT, a));
     fs.utimesSync(path.join(dir, a), atime, mtime);
   }
-  servers[arm] = port();
+  servers[variant] = port();
 }
-const conf = ARMS.map((arm) => `
+const conf = VARIANTS.map((variant) => `
   server {
-    ${tls(servers[arm], true)}
+    ${tls(servers[variant], true)}
     root ${ROOT};
     ${ISOLATION}
     types { }
     include /etc/nginx/mime.types;
     types { application/wasm wasm; text/javascript js mjs; application/json json; }
     location = /wt/dev-transport.json { alias ${CFG}; }
-    ${ENCODERS[arm] ? `location / {
-      root ${T}/www-${arm};
+    ${ENCODERS[variant] ? `location / {
+      root ${T}/www-${variant};
       ${ISOLATION}
-      add_header Content-Encoding ${arm} always;
+      add_header Content-Encoding ${variant} always;
       add_header Vary Accept-Encoding always;
       error_page 418 = @file;
-      if ($http_accept_encoding !~* "\\b${arm}\\b") { return 418; }
+      if ($http_accept_encoding !~* "\\b${variant}\\b") { return 418; }
       try_files $uri @file;
     }
     location @file { }` : ""}
   }`).join("\n");
 await nginx(`  gzip off;\n${conf}`);
 
-// A client that does not advertise an arm's token must get the file itself, never bytes it cannot decode.
-const get = (arm, accept) => new Promise((ok, fail) => https.get({
-  host: "127.0.0.1", port: servers[arm], path: `/${ASSETS[0]}`, ca: fs.readFileSync(cert),
+// A client that does not advertise a variant's token must get the file itself, never bytes it cannot decode.
+const get = (variant, accept) => new Promise((ok, fail) => https.get({
+  host: "127.0.0.1", port: servers[variant], path: `/${ASSETS[0]}`, ca: fs.readFileSync(cert),
   headers: { "accept-encoding": accept },
 }, (res) => {
   const chunks = [];
   res.on("data", (c) => chunks.push(c)).on("end", () => ok({ encoding: res.headers["content-encoding"], length: Buffer.concat(chunks).length }));
 }).on("error", fail));
-for (const arm of ARMS.filter((a) => ENCODERS[a])) {
-  const plain = await get(arm, "identity");
-  const taken = await get(arm, `gzip, deflate, ${arm}`);
-  if (plain.encoding || plain.length !== bytes[ASSETS[0]].identity) throw new Error(`${arm}: no fallback — ${JSON.stringify(plain)}`);
-  if (taken.encoding !== arm || taken.length !== bytes[ASSETS[0]][arm]) throw new Error(`${arm}: not served — ${JSON.stringify(taken)}`);
+for (const variant of VARIANTS.filter((a) => ENCODERS[a])) {
+  const plain = await get(variant, "identity");
+  const taken = await get(variant, `gzip, deflate, ${variant}`);
+  if (plain.encoding || plain.length !== bytes[ASSETS[0]].identity) throw new Error(`${variant}: no fallback — ${JSON.stringify(plain)}`);
+  if (taken.encoding !== variant || taken.length !== bytes[ASSETS[0]][variant]) throw new Error(`${variant}: not served — ${JSON.stringify(taken)}`);
 }
 
 console.log("bytes on the wire, per encoding");
-console.log(`${"asset".padEnd(48)} ${ARMS.map((a) => a.padStart(9)).join(" ")}`);
-for (const a of ASSETS) console.log(`${a.padEnd(48)} ${ARMS.map((arm) => String(bytes[a][arm]).padStart(9)).join(" ")}`);
-const total = (arm) => ASSETS.reduce((s, a) => s + bytes[a][arm], 0);
-console.log(`${"total".padEnd(48)} ${ARMS.map((arm) => String(total(arm)).padStart(9)).join(" ")}`);
+console.log(`${"asset".padEnd(48)} ${VARIANTS.map((a) => a.padStart(9)).join(" ")}`);
+for (const a of ASSETS) console.log(`${a.padEnd(48)} ${VARIANTS.map((variant) => String(bytes[a][variant]).padStart(9)).join(" ")}`);
+const total = (variant) => ASSETS.reduce((s, a) => s + bytes[a][variant], 0);
+console.log(`${"total".padEnd(48)} ${VARIANTS.map((variant) => String(total(variant)).padStart(9)).join(" ")}`);
 
 const { server, browser: b, cdp } = await browser();
 const CATEGORIES = "devtools.timeline,v8.wasm,disabled-by-default-v8.wasm.detailed,blink.user_timing,loading,netlog,v8.execute";
@@ -165,12 +165,12 @@ function cpu() {
 }
 const PROCESSES = { cpuNet: /network\.mojom\.NetworkService/, cpuRenderer: /--type=renderer/, cpuBrowser: /^(?![^]*--type=)/ };
 
-async function visit(arm, throttle) {
+async function visit(variant, throttle) {
   const unthrottle = throttleTree(server.process().pid, throttle);
   const page = await b.newPage();
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
-  const url = `https://127.0.0.1:${servers[arm]}/lab/page-open/downloader.html?meta=/lab/page-open/metadata.json` +
+  const url = `https://127.0.0.1:${servers[variant]}/lab/page-open/downloader.html?meta=/lab/page-open/metadata.json` +
     (TRANSPORT === "wasm" ? "&transport=wasm" : "");
   let spent;
   const run = async () => {
@@ -190,10 +190,10 @@ async function visit(arm, throttle) {
   const { out, events } = await (TRACE ? traced(cdp, CATEGORIES, run) : run().then((o) => ({ out: o })))
     .finally(async () => { await page.close(); unthrottle(); });
   if (err || out.error) throw new Error(err || out.error);
-  if (process.env.DUMP && TRACE) fs.writeFileSync(`${process.env.DUMP}-${arm}-${throttle}x.json`, JSON.stringify(events));
-  // A control that must be able to fail: each asset came as this arm's bytes, or the arm is void.
+  if (process.env.DUMP && TRACE) fs.writeFileSync(`${process.env.DUMP}-${variant}-${throttle}x.json`, JSON.stringify(events));
+  // A control that must be able to fail: each asset came as this variant's bytes, or the variant is void.
   for (const r of out.resources.filter((r) => bytes[r.name] && r.encoded)) {
-    if (r.encoded !== bytes[r.name][arm]) throw new Error(`${r.name}: ${r.encoded} bytes on the wire, ${bytes[r.name][arm]} expected`);
+    if (r.encoded !== bytes[r.name][variant]) throw new Error(`${r.name}: ${r.encoded} bytes on the wire, ${bytes[r.name][variant]} expected`);
   }
   const { script, config, session, frame, meta } = out.open;
   const ends = Object.fromEntries(Object.entries(SHORT).map(([k, url]) => [k, out.resources.find((r) => r.name === url)?.end]));
@@ -201,17 +201,17 @@ async function visit(arm, throttle) {
 }
 
 const rows = [];
-const cells = THROTTLES.flatMap((t) => ARMS.map((a) => [t, a]));
-const unit = (throttle, arm) => `${arm}@${throttle}x`;
+const cells = THROTTLES.flatMap((t) => VARIANTS.map((a) => [t, a]));
+const unit = (throttle, variant) => `${variant}@${throttle}x`;
 for (let round = 0; round < ROUNDS; round++) {
   let prev = null;
-  for (const [throttle, arm] of order(cells, round)) {
+  for (const [throttle, variant] of order(cells, round)) {
     try {
-      rows.push({ round, arm, throttle, prev, ...(await visit(arm, throttle)) });
+      rows.push({ round, variant, throttle, prev, ...(await visit(variant, throttle)) });
     } catch (e) {
-      process.stderr.write(`${arm} ${throttle}x round ${round}: ${e.message.split("\n")[0]}\n`);
+      process.stderr.write(`${variant} ${throttle}x round ${round}: ${e.message.split("\n")[0]}\n`);
     }
-    prev = unit(throttle, arm);
+    prev = unit(throttle, variant);
     await new Promise((r) => setTimeout(r, 300));
   }
   process.stderr.write(`round ${round} done\n`);
@@ -220,36 +220,36 @@ if (process.env.ROWS) fs.writeFileSync(process.env.ROWS, JSON.stringify(rows));
 
 const KEYS = ["bundle", "script", "meta", "metaParsed", "config", "transportWasm", "transportCompiled", "transportStreamLag",
   "decoderWasm", "decoderCompiled", "session", "frame", ...Object.keys(PROCESSES)];
-console.log(`\nms from navigation: median [min-max], and rounds each arm beat ${ARMS[0]} in`);
+console.log(`\nms from navigation: median [min-max], and rounds each variant beat ${VARIANTS[0]} in`);
 for (const throttle of THROTTLES) {
-  console.log(`\n${throttle}x ${"milestone".padEnd(18)} ${ARMS.map((a) => a.padEnd(26)).join("")}`);
+  console.log(`\n${throttle}x ${"milestone".padEnd(18)} ${VARIANTS.map((a) => a.padEnd(26)).join("")}`);
   for (const key of KEYS) {
-    const cells = ARMS.map((arm) => {
-      const mine = rows.filter((r) => r.arm === arm && r.throttle === throttle && Number.isFinite(r[key]));
+    const cells = VARIANTS.map((variant) => {
+      const mine = rows.filter((r) => r.variant === variant && r.throttle === throttle && Number.isFinite(r[key]));
       if (!mine.length) return "-".padEnd(26);
       const v = mine.map((r) => r[key]).sort((x, y) => x - y);
-      const ref = new Map(rows.filter((r) => r.arm === ARMS[0] && r.throttle === throttle).map((r) => [r.round, r[key]]));
+      const ref = new Map(rows.filter((r) => r.variant === VARIANTS[0] && r.throttle === throttle).map((r) => [r.round, r[key]]));
       const won = mine.filter((r) => ref.has(r.round) && r[key] < ref.get(r.round)).length;
-      return `${median(v).toFixed(1)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}] ${arm === ARMS[0] ? "" : `${won}/${mine.length}`}`.padEnd(26);
+      return `${median(v).toFixed(1)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}] ${variant === VARIANTS[0] ? "" : `${won}/${mine.length}`}`.padEnd(26);
     });
     console.log(`   ${key.padEnd(18)} ${cells.join("")}`);
   }
 }
 
 console.log("\nthe first frame, ms: each lead by the predecessor it ran after, rounds in brackets");
-const byUnit = rows.map((r) => ({ round: r.round, unit: unit(r.throttle, r.arm), prev: r.prev, v: r.frame }));
-const pairs = THROTTLES.flatMap((t) => ARMS.slice(1).map((a) => [unit(t, a), unit(t, ARMS[0])]));
+const byUnit = rows.map((r) => ({ round: r.round, unit: unit(r.throttle, r.variant), prev: r.prev, v: r.frame }));
+const pairs = THROTTLES.flatMap((t) => VARIANTS.slice(1).map((a) => [unit(t, a), unit(t, VARIANTS[0])]));
 for (const line of leadsByPredecessor(byUnit, cells.map(([t, a]) => unit(t, a)), pairs)) console.log(line);
 
-// What an arm costs on loopback is paid back once the bytes it saves take that long on the link.
-console.log(`\nbreak-even: the rate below which each arm's saved bytes outweigh its loopback cost on the first frame`);
-const saved = (arm) => total(ARMS[0]) - total(arm);
+// What a variant costs on loopback is paid back once the bytes it saves take that long on the link.
+console.log(`\nbreak-even: the rate below which each variant's saved bytes outweigh its loopback cost on the first frame`);
+const saved = (variant) => total(VARIANTS[0]) - total(variant);
 for (const throttle of THROTTLES) {
-  for (const arm of ARMS.slice(1)) {
-    const of = (a) => median(rows.filter((r) => r.arm === a && r.throttle === throttle).map((r) => r.frame));
-    const cost = of(arm) - of(ARMS[0]);
-    const rate = cost > 0 ? `${((saved(arm) * 8) / cost / 1000).toFixed(0)} Mbit/s` : "none: no loopback cost";
-    console.log(`${throttle}x ${arm.padEnd(9)} saves ${saved(arm)} B, costs ${cost.toFixed(1)} ms -> ${rate}`);
+  for (const variant of VARIANTS.slice(1)) {
+    const of = (a) => median(rows.filter((r) => r.variant === a && r.throttle === throttle).map((r) => r.frame));
+    const cost = of(variant) - of(VARIANTS[0]);
+    const rate = cost > 0 ? `${((saved(variant) * 8) / cost / 1000).toFixed(0)} Mbit/s` : "none: no loopback cost";
+    console.log(`${throttle}x ${variant.padEnd(9)} saves ${saved(variant)} B, costs ${cost.toFixed(1)} ms -> ${rate}`);
   }
 }
 process.exit(0);

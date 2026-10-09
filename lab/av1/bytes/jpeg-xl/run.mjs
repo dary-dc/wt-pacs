@@ -1,7 +1,7 @@
 /**
  * JXL in the browsers: `--probe` hands each set's first frame to every native path of every engine and compares
- * it with the fetched series; otherwise each (engine × throttle) cell is a fresh browser timing every set's arms —
- * native, libjxl-WASM per coding, OpenJPH on the served HTJ2K — in a Williams order every round, arms rotating
+ * it with the fetched series; otherwise each (engine × throttle) cell is a fresh browser timing every set's variants —
+ * native, libjxl-WASM per coding, OpenJPH on the served HTJ2K — in a Williams order every round, variants rotating
  * inside. Engines are launched as row XBROWSER launched them. lab/av1/bytes/jpeg-xl/README.md
  *
  *   node lab/av1/bytes/jpeg-xl/run.mjs --probe [--engines ...] [--codings jxl-e7-f0,...] [--mutate source]
@@ -58,16 +58,16 @@ const sets = JSON.parse(readFileSync(`${ROOT}/${WORK}/manifest.json`, "utf8")).s
 const unit = (s, c, i) => `/${WORK}/${s.name}/${c}/${String(i).padStart(3, "0")}.${c.split("-")[0]}`;
 const probeSets = sets.map((s) => ({ name: s.name, data: DATA, stored: s.stored, shift: s.shift, channels: s.channels,
   width: s.width, height: s.height, truth: s.truth, probe: CODINGS.map((c) => unit(s, c, 0)) }));
-const arms = sets.flatMap((s) => {
+const variants = sets.flatMap((s) => {
   const n = Math.min(FRAMES, s.frames);
   const urls = (c) => Array.from({ length: n }, (_, i) => unit(s, c, i));
   const want = MUTATE === "hash" ? s.truth.slice(0, n).map((h) => h.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : s.truth.slice(0, n);
   const fmt = { bits: s.stored, signed: s.signed, shift: s.shift, width: s.width, height: s.height, channels: s.channels };
   return [
-    { set: s.name, arm: "htj2k", o: { arm: "htj2k", urls: urls("htj2k"), ...fmt }, want },
+    { set: s.name, variant: "htj2k", o: { variant: "htj2k", urls: urls("htj2k"), ...fmt }, want },
     ...CODINGS.flatMap((c) => [
-      { set: s.name, arm: `${c} wasm`, o: { arm: "jxl", urls: urls(c), ...fmt }, want },
-      { set: s.name, arm: `${c} native`, o: { arm: "native", urls: urls(c), ...fmt }, want },
+      { set: s.name, variant: `${c} wasm`, o: { variant: "jxl", urls: urls(c), ...fmt }, want },
+      { set: s.name, variant: `${c} native`, o: { variant: "native", urls: urls(c), ...fmt }, want },
     ]),
   ];
 });
@@ -89,7 +89,7 @@ const server = createServer((req, res) => {
       } else if (req.url === "/jx/hello") {
         cell.ua = m.ua;
         cell.stop = throttleTree(cell.pid, cell.throttle);
-        res.end(JSON.stringify(PROBE ? { mode: "probe", sets: probeSets, mutate: MUTATE === "source" } : { mode: "time", round: cell.round, arms }));
+        res.end(JSON.stringify(PROBE ? { mode: "probe", sets: probeSets, mutate: MUTATE === "source" } : { mode: "time", round: cell.round, variants }));
       } else {
         res.end("{}");
         cell.done(m);
@@ -144,8 +144,8 @@ for (let round = 0; round < ROUNDS; round++) {
     if (r.probes) probes[engine] = { ua: r.ua, probes: r.probes };
     for (const row of r.rows ?? []) {
       rows.push({ round, engine, throttle, ...row });
-      if (row.error || (row.exact !== row.frames && !row.arm.endsWith("native"))) {
-        console.error(`round ${round} ${engine} ${throttle}x ${row.set} ${row.arm}: ${row.exact}/${row.frames} ${row.error ?? ""}`);
+      if (row.error || (row.exact !== row.frames && !row.variant.endsWith("native"))) {
+        console.error(`round ${round} ${engine} ${throttle}x ${row.set} ${row.variant}: ${row.exact}/${row.frames} ${row.error ?? ""}`);
       }
     }
     console.error(`round ${round} ${engine} ${throttle}x done`);
@@ -171,19 +171,19 @@ if (PROBE) {
 }
 
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
-console.log("engine\tthrottle\tset\tarm\tms a frame: median [min–max] n\tpaired ratio to htj2k (median)\texact frames");
+console.log("engine\tthrottle\tset\tvariant\tms a frame: median [min–max] n\tpaired ratio to htj2k (median)\texact frames");
 for (const engine of ENGINE_NAMES) {
   for (const throttle of THROTTLES) {
-    for (const { set, arm } of arms) {
-      const pick = (a) => rows.filter((r) => r.engine === engine && r.throttle === throttle && r.set === set && r.arm === a);
-      const rs = pick(arm);
+    for (const { set, variant } of variants) {
+      const pick = (a) => rows.filter((r) => r.engine === engine && r.throttle === throttle && r.set === set && r.variant === a);
+      const rs = pick(variant);
       const ht = new Map(pick("htj2k").map((r) => [r.round, r.ms / r.frames]));
       const per = rs.filter((r) => r.ms !== undefined).map((r) => r.ms / r.frames);
       const ratio = rs.filter((r) => r.ms !== undefined && ht.has(r.round)).map((r) => r.ms / r.frames / ht.get(r.round));
       const exact = `${rs.reduce((n, r) => n + r.exact, 0)}/${rs.reduce((n, r) => n + r.frames, 0)}`;
       const t = per.length ? `${med(per).toFixed(2)} [${Math.min(...per).toFixed(2)}–${Math.max(...per).toFixed(2)}] n=${per.length}\t${med(ratio).toFixed(2)}`
         : `failed (${rs[0]?.error})\t`;
-      console.log(`${engine}\t${throttle}x\t${set}\t${arm}\t${t}\texact ${exact}`);
+      console.log(`${engine}\t${throttle}x\t${set}\t${variant}\t${t}\texact ${exact}`);
     }
   }
 }

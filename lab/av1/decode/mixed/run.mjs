@@ -1,6 +1,6 @@
 /**
  * MIXDEC: decode time a frame of a split payload in headless Chromium, every throttle cell a fresh browser in a
- * Williams order every round, sets and arms rotating inside it. `bound`: both streams through dav1d-WASM,
+ * Williams order every round, sets and variants rotating inside it. `bound`: both streams through dav1d-WASM,
  * each timed apart — the low stream's share. `decode`: through the product's decoder worker, today's path
  * (kK), the mixed one (kKm) and w10, against OpenJPH. lab/av1/decode/mixed/README.md
  *
@@ -25,7 +25,7 @@ const OUT = arg("--out", null);
 const SETS = arg("--sets", null)?.split(",");
 const ROOT = new URL("../../../..", import.meta.url).pathname;
 const MANIFEST = JSON.parse(readFileSync(`${ROOT}/${FRAMES}/manifest.json`, "utf8")).filter((s) => !SETS || SETS.includes(s.name));
-const ARMS = ["htj2k", ...[1, 2, 3, 4].flatMap((k) => [`k${k}`, `k${k}m`])];
+const VARIANTS = ["htj2k", ...[1, 2, 3, 4].flatMap((k) => [`k${k}`, `k${k}m`])];
 const PORT = 30000 + ((Math.random() * 10000) | 0);
 const BASE = `http://127.0.0.1:${PORT}`;
 
@@ -42,7 +42,7 @@ async function inChromium(throttle, round) {
     throw new Error("page is not cross-origin isolated");
   }
   const stop = throttleTree(server.process().pid, throttle);
-  const rows = await page.evaluate((o) => globalThis.run(o), { frames: FRAMES, arms: ARMS, round, mutate: MUTATE, sets: SETS });
+  const rows = await page.evaluate((o) => globalThis.run(o), { frames: FRAMES, variants: VARIANTS, round, mutate: MUTATE, sets: SETS });
   stop();
   await browser.close();
   await server.close();
@@ -58,7 +58,7 @@ for (let round = FIRST; round < FIRST + ROUNDS && !SUMMARY; round++) {
     const got = await inChromium(throttle, round);
     for (const r of got) rows.push({ round, throttle, ...r });
     for (const r of got.filter((r) => r.error || r.exact !== r.frames)) {
-      console.error(`round ${round} ${throttle}x ${r.set} ${r.arm}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
+      console.error(`round ${round} ${throttle}x ${r.set} ${r.variant}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
     }
     console.error(`round ${round} ${throttle}x done`);
   }
@@ -75,11 +75,11 @@ if (MODE === "bound") {
   for (const throttle of THROTTLES) {
     for (const set of sets) {
       const parts = [];
-      for (const arm of [...new Set(rows.filter((r) => r.set === set).map((r) => r.arm))].sort()) {
-        const rs = rows.filter((r) => r.throttle === throttle && r.set === set && r.arm === arm);
+      for (const variant of [...new Set(rows.filter((r) => r.set === set).map((r) => r.variant))].sort()) {
+        const rs = rows.filter((r) => r.throttle === throttle && r.set === set && r.variant === variant);
         const per = (k) => rs.map((r) => med(r[k]));
         const share = rs.map((r) => med(r.low.map((l, i) => l / (r.top[i] + l + r.merge[i]))));
-        parts.push(`${arm} top ${f(med(per("top")))} low ${f(med(per("low")))} merge ${f(med(per("merge")))}` +
+        parts.push(`${variant} top ${f(med(per("top")))} low ${f(med(per("low")))} merge ${f(med(per("merge")))}` +
           ` share ${med(share).toFixed(3)} ${span(share)} n=${rs.length} exact ${exact(rs)}`);
       }
       console.log(`${throttle}x ${set}: ${parts.join(" · ")}`);
@@ -91,20 +91,20 @@ if (MODE === "bound") {
   for (const throttle of THROTTLES) {
     for (const set of sets) {
       const bits = MANIFEST.find((s) => s.name === set).bits;
-      const of = (arm) => rows.filter((r) => r.throttle === throttle && r.set === set && r.arm === arm);
-      const per = (arm) => new Map(of(arm).filter((r) => r.ms.length).map((r) => [r.round, med(r.ms)]));
+      const of = (variant) => rows.filter((r) => r.throttle === throttle && r.set === set && r.variant === variant);
+      const per = (variant) => new Map(of(variant).filter((r) => r.ms.length).map((r) => [r.round, med(r.ms)]));
       const ratio = (m, to) => [...m].filter(([r]) => to.has(r)).map(([r, x]) => x / to.get(r));
       const vs = (m, to, name) => { const r = ratio(m, to); return r.length ? `, ×${med(r).toFixed(2)} ${name} ${span(r)} faster ${r.filter((x) => x < 1).length}/${r.length}` : ""; };
       const w10 = per(`k${bits - 10}`);
       const parts = [];
-      for (const arm of ARMS) {
-        const rs = of(arm);
+      for (const variant of VARIANTS) {
+        const rs = of(variant);
         if (!rs.length) continue;
-        const m = per(arm);
-        if (!m.size) { parts.push(`${arm} failed (${rs[0].error})`); continue; }
-        let line = `${arm} ${f(med([...m.values()]))} ${span([...m.values()])} n=${m.size} exact ${exact(rs)}`;
-        if (arm !== "htj2k") line += vs(m, per("htj2k"), "HTJ2K");
-        if (arm.endsWith("m")) line += vs(m, per(arm.slice(0, -1)), "today") + vs(m, w10, "w10");
+        const m = per(variant);
+        if (!m.size) { parts.push(`${variant} failed (${rs[0].error})`); continue; }
+        let line = `${variant} ${f(med([...m.values()]))} ${span([...m.values()])} n=${m.size} exact ${exact(rs)}`;
+        if (variant !== "htj2k") line += vs(m, per("htj2k"), "HTJ2K");
+        if (variant.endsWith("m")) line += vs(m, per(variant.slice(0, -1)), "today") + vs(m, w10, "w10");
         parts.push(line);
       }
       console.log(`${throttle}x ${set}: ${parts.join(" · ")}`);

@@ -20,14 +20,14 @@ console.log("ms from the fill's issue, median [min–max]; res ÷ htj2k, the med
   " zoom = res's first exact frame − its last level picture; exact: frames, level pictures, over every visit");
 const cells = [...new Set(rows.map((r) => `${r.set} ${r.link} ${r.throttle}`))];
 for (const cell of cells) {
-  const of = (arm, from = kept) => from.filter((r) => `${r.set} ${r.link} ${r.throttle}` === cell && r.arm === arm);
+  const of = (variant, from = kept) => from.filter((r) => `${r.set} ${r.link} ${r.throttle}` === cell && r.variant === variant);
   const h = new Map(of("htj2k").map((r) => [r.round, r]));
   const res = of("res");
   const parts = Object.entries(measures).map(([k, f]) => {
     const q = res.filter((r) => h.has(r.round)).map((r) => f.res(r) / f.htj2k(h.get(r.round)));
     return `${k} ${span([...h.values()].map(f.htj2k))} → ${span(res.map(f.res))} ×${med(q).toFixed(2)} [${Math.min(...q).toFixed(2)}–${Math.max(...q).toFixed(2)}] ${q.filter((x) => x < 1).length}/${q.length}`;
   });
-  const all = (arm) => of(arm, rows);
+  const all = (variant) => of(variant, rows);
   const sum = (k) => [...all("htj2k"), ...all("res")].reduce((n, r) => n + (r[k] ?? 0), 0);
   const exact = `${sum("exact")}/${sum("frames")}, ${sum("failures")} failed`;
   const shown = `${all("res").reduce((n, r) => n + (r.previewExact ?? 0), 0)}/${all("res").reduce((n, r) => n + (r.previews ?? 0), 0)}`;

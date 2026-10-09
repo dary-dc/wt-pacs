@@ -1,4 +1,4 @@
-//! A series, plus the memory mapping the rejected mmap arms need. It lives here and not in
+//! A series, plus the memory mapping the rejected mmap variants need. It lives here and not in
 //! `server/` because mmap lost: `docs/adr/disk-access.md`.
 
 use anyhow::{bail, Context, Result};
@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 /// A `FrameStore` with a mapping over the same file. `Deref`s to the store, so a `pread`
-/// arm calls it exactly as the product does and only the mmap arms reach for `frame_slice`.
+/// variant calls it exactly as the product does and only the mmap variants reach for `frame_slice`.
 pub struct SeriesMap {
     store: FrameStore,
     mmap: Mmap,
@@ -39,7 +39,7 @@ impl SeriesMap {
         Ok(&self.mmap[start..end])
     }
 
-    /// The whole data region, for arms that unmap or advise the series as a unit.
+    /// The whole data region, for variants that unmap or advise the series as a unit.
     pub fn data_span(&self) -> Result<&[u8]> {
         let first = self.store.frame_span(0)?;
         Ok(&self.mmap[first.offset as usize..])
@@ -54,7 +54,7 @@ impl Deref for SeriesMap {
     }
 }
 
-/// Host page size from `sysconf(_SC_PAGESIZE)`, fallback 4096. Only the mmap arms need it.
+/// Host page size from `sysconf(_SC_PAGESIZE)`, fallback 4096. Only the mmap variants need it.
 pub fn host_page_size() -> usize {
     static PAGE: OnceLock<usize> = OnceLock::new();
     *PAGE.get_or_init(|| {

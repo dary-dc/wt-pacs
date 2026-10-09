@@ -39,7 +39,7 @@ else
 fi
 
 run_harness() {
-  local url=$1 arm=$2 rtt_ms=$3 read_bps=$4
+  local url=$1 variant=$2 rtt_ms=$3 read_bps=$4
   local netem_note=""
   local extra=(--rtt-ms "$rtt_ms")
   if [[ "${USE_NETEM:-0}" == "1" ]]; then
@@ -48,7 +48,7 @@ run_harness() {
   fi
   "$HARNESS" --url "$url" --trace "$TRACE" --read-bps "$read_bps" \
     --depth "$DEPTH" --frame-count "$FRAME_COUNT" --fill-dwell-ms 0 \
-    --mode trace --arm "$arm" "${extra[@]}" --json
+    --mode trace --variant "$variant" "${extra[@]}" --json
 }
 
 echo "=== E0 step 1: cloud (real path, unshaped) ===" >&2

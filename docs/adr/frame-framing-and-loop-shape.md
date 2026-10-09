@@ -219,10 +219,10 @@ none of the table above — that number is device queueing, not wire time.
 
 **A page-cache hit still never touches the ring.** The read ahead probes with
 `RWF_NOWAIT` first, exactly as an on-demand read does, and only a shortfall is submitted.
-Anything else would rebuild the `uring` arm's +131% on hits
+Anything else would rebuild the `uring` variant's +131% on hits
 ([`disk-access.md`](disk-access.md) §The trap).
 
-**This does not change the read arm.** At depth 1 `hybrid_lazyring` and `uring` tie; the
+**This does not change the read variant.** At depth 1 `hybrid_lazyring` and `uring` tie; the
 choice between them only becomes interesting once this is built
 (depth × readers, evidence tag `v33_cross.tsv`) — and now that a batch runs at
 depth 2, that question is open again on a host bigger than 4 vCPU.

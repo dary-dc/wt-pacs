@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # L7: the read path where it misses. On the cloud rig, server and native driver on the rig's own
 # loopback, a 4 GB series on a 954 MB host, so reads reach the throttled block device without any
-# eviction; every run starts at a frame no earlier run read. Arms: read_ahead_kb 2048 (the rig's)
+# eviction; every run starts at a frame no earlier run read. Variants: read_ahead_kb 2048 (the rig's)
 # against 128 (the workstation's), interleaved. The server's own hit/miss line says how cold each
 # run was. A warm 80 MB series is the hit reference. Results: docs/adr/disk-access.md.
 #
@@ -34,16 +34,16 @@ serve() {
   for _ in $(seq 100); do grep -q 'series-server ready' /tmp/l7-server.log && break; sleep 0.05; done
 }
 
-# arm cell series frames start driver-args...
+# variant cell series frames start driver-args...
 run() {
-  local arm=$1 cell=$2 series=$3 frames=$4 start=$5; shift 5
+  local variant=$1 cell=$2 series=$3 frames=$4 start=$5; shift 5
   serve "$series"
   local pid; pid=$(pgrep -x series-server-l7)
   local line steal0
   steal0=$(awk '/^cpu /{print $9}' /proc/stat)
   line=$(bin/server_ab-l7 --url https://127.0.0.1:4480/ --server-pid "$pid" --frames "$frames" \
-    --start "$start" --arm "$arm" --label "$cell" --temp "ra$(cat /sys/block/$dev/queue/read_ahead_kb)" \
-    --no-header "$@" 2> /dev/null) || line="$arm	$cell	FAILED"
+    --start "$start" --variant "$variant" --label "$cell" --temp "ra$(cat /sys/block/$dev/queue/read_ahead_kb)" \
+    --no-header "$@" 2> /dev/null) || line="$variant	$cell	FAILED"
   pkill -x series-server-l7; sleep 0.3
   local hm
   hm=$(sed 's/\x1b\[[0-9;]*m//g' /tmp/l7-server.log | grep -o 'session reads hits=[0-9]* misses=[0-9]*' \
@@ -51,19 +51,19 @@ run() {
   printf '%s\t%s\t%s\n' "$line" "$hm" "$(( $(awk '/^cpu /{print $9}' /proc/stat) - steal0 ))"
 }
 
-printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\thits\tmisses\tsteal_ticks\n'
+printf 'label\tvariant\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\thits\tmisses\tsteal_ticks\n'
 k=0
 for ((r = 0; r < $1; r++)); do
   for ra in $( ((r % 2)) && echo "128 2048" || echo "2048 128" ); do
     echo "$ra" | sudo -n tee /sys/block/$dev/queue/read_ahead_kb > /dev/null
-    arm=ra$ra
+    variant=ra$ra
     for cell in od1 od4 od4s fill; do
       k=$((k + 1)); od=$(( (k * 1601) % BIG_FRAMES )); fs=$(( (k * 2003) % (BIG_FRAMES - 400) ))
       case $cell in
-        od1)  run "$arm" od1  "$BIG" $BIG_FRAMES "$od" --mode on-demand --depth 1 --asks 128 --step 997 ;;
-        od4)  run "$arm" od4  "$BIG" $BIG_FRAMES "$od" --mode on-demand --depth 4 --asks 128 --step 997 ;;
-        od4s) run "$arm" od4s "$BIG" $BIG_FRAMES "$od" --mode on-demand --depth 1 --sessions 4 --asks 64 --step 997 ;;
-        fill) run "$arm" fill "$BIG" $BIG_FRAMES "$fs" --mode fill --asks 400 ;;
+        od1)  run "$variant" od1  "$BIG" $BIG_FRAMES "$od" --mode on-demand --depth 1 --asks 128 --step 997 ;;
+        od4)  run "$variant" od4  "$BIG" $BIG_FRAMES "$od" --mode on-demand --depth 4 --asks 128 --step 997 ;;
+        od4s) run "$variant" od4s "$BIG" $BIG_FRAMES "$od" --mode on-demand --depth 1 --sessions 4 --asks 64 --step 997 ;;
+        fill) run "$variant" fill "$BIG" $BIG_FRAMES "$fs" --mode fill --asks 400 ;;
       esac
     done
   done

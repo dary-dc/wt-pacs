@@ -4,8 +4,8 @@ the client takes it, and the served HTJ2K. Every stream is libaom 3.15.1 lossles
 `--tune-content=screen --sb-size=64`; every frame is decoded by native dav1d, merged and matched with
 the series' checksum before it is written (total/make_frames.py's `represented`).
 
-An arm is `connect`'s decoder fields: `depth` is the top stream's container, so the product's own
-rule picks WebCodecs at ≤ 10 bits; an arm ending `.d` is the same file with no depth, so dav1d-WASM.
+A variant is `connect`'s decoder fields: `depth` is the top stream's container, so the product's own
+rule picks WebCodecs at ≤ 10 bits; a variant ending `.d` is the same file with no depth, so dav1d-WASM.
 `grey8` is the ultrasound's green plane as 8-bit grey PGMs, its checksums written as it is made.
 
   make_frames.py BUILD OUT SETDIR ...   OUT/SET/NNN.{htj2k,dir,low2,low3,gbr,rct}, OUT/manifest.json
@@ -49,11 +49,11 @@ def grey8(src, out):
     return out
 
 
-def arms_of(s, reps):
+def variants_of(s, reps):
     """name: (file, connect's decoder fields), and the reps to code."""
     bits = int(s.hi + s.offset).bit_length()
     offset = {"offset": s.offset} if s.offset else {}
-    arms, coded = {"htj2k": ("htj2k", {})}, []
+    variants, coded = {"htj2k": ("htj2k", {})}, []
     for rep in reps.values():
         # low3 only where it alone brings the top to WebCodecs' 10 bits; no split at 8 bits.
         if rep.name not in REPS or (rep.name == "low3" and not llsize.container(bits - 3) <= 10 < llsize.container(bits - 2)) \
@@ -67,10 +67,10 @@ def arms_of(s, reps):
         if rep.name == "rct":
             fields["rct"] = True
         coded.append(rep)
-        arms[name] = (name, {**fields, "depth": top})
+        variants[name] = (name, {**fields, "depth": top})
         if top <= 10:
-            arms[f"{name}.d"] = (name, fields)
-    return arms, coded
+            variants[f"{name}.d"] = (name, fields)
+    return variants, coded
 
 
 def make(build, out, src):
@@ -79,15 +79,15 @@ def make(build, out, src):
     dst, work = out / s.name, out / f".{s.name}-work"
     dst.mkdir(parents=True, exist_ok=True)
     work.mkdir(exist_ok=True)
-    arms, coded = arms_of(s, {r.name: r for r in llsize.representations(s)})
+    variants, coded = variants_of(s, {r.name: r for r in llsize.representations(s)})
     for rep in coded:
         for i, unit in enumerate(total.represented(build, s, work, rep, FLAGS, 1)):
             (dst / f"{i:03d}.{REPS[rep.name]}").write_bytes(unit)
     for i in range(s.n):
         htj2k(s, i, work, dst / f"{i:03d}.htj2k")
-    sizes = {f: sum((dst / f"{i:03d}.{f}").stat().st_size for i in range(s.n)) for f, _ in arms.values()}
+    sizes = {f: sum((dst / f"{i:03d}.{f}").stat().st_size for i in range(s.n)) for f, _ in variants.values()}
     entry = dict(name=s.name, w=s.w, h=s.h, ch=s.ch, bits=int(s.hi + s.offset).bit_length(), bytes=sizes,
-                 arms={k: dict(ext=f, **fields) for k, (f, fields) in arms.items()},
+                 variants={k: dict(ext=f, **fields) for k, (f, fields) in variants.items()},
                  frames=[dict(truth=t) for t in s.truth])
     print(s.name, s.n, "frames,", ", ".join(f"{k} {v} B" for k, v in sizes.items()), flush=True)
     return entry

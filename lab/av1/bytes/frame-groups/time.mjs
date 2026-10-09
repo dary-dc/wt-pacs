@@ -1,10 +1,10 @@
 /**
  * GOPMEASURE's decode cost of an ask: each run's frames as product payloads at every G, through WebCodecs and
  * through dav1d-WASM, against HTJ2K, in headless Chromium's product decoder worker. Every throttle cell is a
- * fresh browser, in a Williams order every round; sets and arms rotate inside it. README.md here
+ * fresh browser, in a Williams order every round; sets and variants rotate inside it. README.md here
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/bytes/frame-groups/time.mjs --frames lab/.av1-work/gop/frames [--rounds 10]
- *     [--throttles 1,4] [--arms a,b] [--mutate] [--out rows.json]
+ *     [--throttles 1,4] [--variants a,b] [--mutate] [--out rows.json]
  */
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -17,7 +17,7 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ROUNDS = Number(arg("--rounds", 10));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
 const FRAMES = arg("--frames", "lab/.av1-work/gop/frames");
-const ONLY = arg("--arms", null)?.split(",");
+const ONLY = arg("--variants", null)?.split(",");
 const MUTATE = process.argv.includes("--mutate");
 const OUT = arg("--out", null);
 const ROOT = new URL("../../../..", import.meta.url).pathname;
@@ -49,7 +49,7 @@ for (let round = 0; round < ROUNDS; round++) {
     const got = await inChromium(throttle, round);
     rows.push(...got.map((r) => ({ round, throttle, ...r })));
     for (const r of got.filter((r) => r.error || r.exact !== r.frames)) {
-      console.error(`round ${round} ${throttle}x ${r.set} ${r.arm}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
+      console.error(`round ${round} ${throttle}x ${r.set} ${r.variant}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
     }
     console.error(`round ${round} ${throttle}x done`);
     if (OUT) writeFileSync(OUT, JSON.stringify(rows));
@@ -71,13 +71,13 @@ console.log("ms per ask through the decoder worker: median over rounds of each r
 for (const throttle of THROTTLES) {
   for (const set of [...new Set(rows.map((r) => r.set))]) {
     const parts = [];
-    for (const arm of [...new Set(rows.map((r) => r.arm))]) {
-      const rs = rows.filter((r) => r.throttle === throttle && r.set === set && r.arm === arm);
+    for (const variant of [...new Set(rows.map((r) => r.variant))]) {
+      const rs = rows.filter((r) => r.throttle === throttle && r.set === set && r.variant === variant);
       if (!rs.length) continue;
       const exact = `${rs.reduce((n, r) => n + r.exact, 0)}/${rs.reduce((n, r) => n + r.frames, 0)}`;
       const v = rs.filter((r) => r.ms.length === r.frames).map((r) => ask(r.ms, r.g));
-      if (!v.length) { parts.push(`${arm} failed (${rs[0].error})`); continue; }
-      parts.push(`${arm} ${f(med(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}] n=${v.length} exact ${exact}`);
+      if (!v.length) { parts.push(`${variant} failed (${rs[0].error})`); continue; }
+      parts.push(`${variant} ${f(med(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}] n=${v.length} exact ${exact}`);
     }
     console.log(`${throttle}x ${set}: ${parts.join(" · ")}`);
   }

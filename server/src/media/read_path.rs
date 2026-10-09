@@ -918,7 +918,7 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// **The arm's whole point**: a session that never misses never builds a ring, so on a
+    /// **The variant's whole point**: a session that never misses never builds a ring, so on a
     /// hit-dominated workload the change is inert by design rather than by configuration.
     #[test]
     #[cfg(feature = "uring")]

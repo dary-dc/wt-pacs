@@ -17,7 +17,7 @@
     // `inline`, `dial0` and the boot rungs take the transport URL from the page, as an inlined config would.
     const inline = (globalThis.__inlineStage = ["inline", "dial0", "bundle", "blob", "both", "page"].includes(stage));
     globalThis.__inline = q.get("wt") && q.get("hash") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : null;
-    // These hints are the ones an arm drops, so they are written rather than parsed.
+    // These hints are the ones a variant drops, so they are written rather than parsed.
     const hint = (as, href) => document.head.insertAdjacentHTML("beforeend", `<link rel="preload" as="${as}" href="${href}">`);
     if (!inline) hint("fetch", "/wt/dev-transport.json");
     // `bundle`, `both` and `page` carry the transport in the worker's own script.

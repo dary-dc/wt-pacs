@@ -1,6 +1,6 @@
 // Row ENCX's coding behind decoder.js's protocol: a frame is `[u32le top length][top unit][low]`, the
 // top AV1 through WebCodecs, the low k bits packed MSB first and raw-deflated, inflated beside the top
-// and merged by the product's own av1-frame.js. A lab arm, not the product. lab/av1/delivery/total-time/README.md
+// and merged by the product's own av1-frame.js. A lab variant, not the product. lab/av1/delivery/total-time/README.md
 import { begin, end, units } from "/client/decode/av1-frame.js";
 
 let cfg = null;

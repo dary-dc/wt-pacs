@@ -1,5 +1,5 @@
 // One Node process's share of a SPEED round; speed.mjs spawns it and throttles its threads.
-//   node lab/av1/decode/per-frame/node-run.mjs '{"base":…,"frames":…,"arms":[…],"round":N}'
+//   node lab/av1/decode/per-frame/node-run.mjs '{"base":…,"frames":…,"variants":[…],"round":N}'
 import { MessageChannel, Worker } from "node:worker_threads";
 import { round } from "./drive.js";
 

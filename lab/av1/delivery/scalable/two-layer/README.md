@@ -31,11 +31,11 @@ the input's 2×2 mean, so it holds the encoder's downscaling filter as well as i
 ultrasound's 421 rows, padded to 422, came out as 212 rows, not 211; compared over 211).
 
 **Decode time.** `bench.mjs` in Node and in headless Chromium 141, at 1× and 4×
-(`lab/scripts/cpu_throttle.mjs`): each arm decodes a set's first 18 temporal units in order on a
+(`lab/scripts/cpu_throttle.mjs`): each variant decodes a set's first 18 temporal units in order on a
 fresh decoder, after an untimed pass on another, and the time is the run's mean ms a frame —
 WebCodecs needs a key chunk after every flush, so a group cannot be timed frame by frame on it, and
-every arm is timed the same way. Base quantizer 40. Each (environment × throttle) cell is a fresh
-process each round, cells in a Williams order (`lab/order.mjs`), sets and arms rotating inside;
+every variant is timed the same way. Base quantizer 40. Each (environment × throttle) cell is a fresh
+process each round, cells in a Williams order (`lab/order.mjs`), sets and variants rotating inside;
 15 rounds; median [min–max]. dav1d-WASM is row WASM's `simd` with
 [`dav1d_wrap_op.c`](dav1d_wrap_op.c), which opens the decoder with an operating point and
 `all_layers` 0 (`build_wasm.sh`, 623 138 B; lab only).
@@ -87,7 +87,7 @@ SIZE, at the real-time encoder's speed).
 ms a frame, median [min–max], n = 15; Chromium (Node within 11 % on every dav1d cell over 15 ms and
 up to 20 % on the smaller bases, in the same order); every top and single frame exact, 270/270 a cell:
 
-| set | arm | 1× | 4× |
+| set | variant | 1× | 4× |
 | --- | --- | --- | --- |
 | `us_liver` | single, dav1d-WASM | 67.7 [63.1–80.0] | 304 [289–333] |
 | | half: base / both | 8.6 [7.7–11.3] / 75.9 [69.9–85.6] | 38.2 [34.0–44.0] / 341 [314–369] |

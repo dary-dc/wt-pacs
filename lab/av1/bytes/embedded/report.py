@@ -5,7 +5,7 @@ Bytes are over the served HTJ2K series'; PSNR is the mean over frames (the minim
 parentheses) against the source, peak 2^B − 1 for the B bits the series' range needs.
 
 With time.mjs's rows, the decode table too: ms a frame as the median over rounds [range], and each
-arm over OpenJPH's exact decode as the median of the rounds' paired ratios.
+variant over OpenJPH's exact decode as the median of the rounds' paired ratios.
 
 usage: report.py WORK [ROWS.json]   — lab/av1/bytes/embedded/README.md
 """
@@ -14,7 +14,7 @@ import statistics
 import sys
 from pathlib import Path
 
-ARMS = ("htj2k", "j2k layer 1", "j2k all", "jxl-prog first picture", "jxl-prog all", "jxl all")
+VARIANTS = ("htj2k", "j2k layer 1", "j2k all", "jxl-prog first picture", "jxl-prog all", "jxl all")
 
 
 def main():
@@ -51,21 +51,21 @@ def timing(manifest, rows):
     throttles = sorted({r["throttle"] for r in rows})
     exact = sum(r["exact"] for r in rows), sum(r["frames"] for r in rows)
     print(f"\nframes exact {exact[0]}/{exact[1]}; rounds {len({r['round'] for r in rows})}")
-    print("| set | arm | " + " | ".join(f"{t}× ms" for t in throttles) + " | "
+    print("| set | variant | " + " | ".join(f"{t}× ms" for t in throttles) + " | "
           + " | ".join(f"{t}× ÷ HTJ2K" for t in throttles) + " |")
     print("| --- " * (2 + 2 * len(throttles)) + "|")
     for s in manifest["sets"]:
-        for arm in ARMS:
+        for variant in VARIANTS:
             ms, ratio = [], []
             for t in throttles:
                 mine = {r["round"]: r["ms"] / r["frames"] for r in rows
-                        if r["set"] == s["name"] and r["arm"] == arm and r["throttle"] == t}
+                        if r["set"] == s["name"] and r["variant"] == variant and r["throttle"] == t}
                 base = {r["round"]: r["ms"] / r["frames"] for r in rows
-                        if r["set"] == s["name"] and r["arm"] == "htj2k" and r["throttle"] == t}
+                        if r["set"] == s["name"] and r["variant"] == "htj2k" and r["throttle"] == t}
                 v = list(mine.values())
                 ms.append(f"{statistics.median(v):.1f} [{min(v):.1f}–{max(v):.1f}]")
                 ratio.append(f"{statistics.median(mine[k] / base[k] for k in mine):.2f}")
-            print(f"| `{s['name']}` | {arm} | " + " | ".join(ms) + " | " + " | ".join(ratio) + " |")
+            print(f"| `{s['name']}` | {variant} | " + " | ".join(ms) + " | " + " | ".join(ratio) + " |")
 
 
 if __name__ == "__main__":

@@ -111,7 +111,7 @@ searched only k ∈ {1, 2, 3} (`lab/av1/bytes/low-stream/encx.py` `low_split`). 
 **all four** series with σ ≥ 17, where log2 σ is 4.2–6.1 (fluoroscopy 17.8–32.6, cone-beam 66.7–68.2). So the
 fitted rule is censored at 3 exactly where it matters. The literature's rules say k = 4–6 there. Under that
 noise the low bits cost their full width either way, and the top's noise falls as k grows. Rows 43–44 test
-k ≤ max(b − 8, 4) and arms k = 2, 3, d12 and w10, so k = ⌊log2 σ⌋ on the noisy series is untested. Proposed
+k ≤ max(b − 8, 4) and variants k = 2, 3, d12 and w10, so k = ⌊log2 σ⌋ on the noisy series is untested. Proposed
 below.
 
 **The low bits: deflate is what the literature does.** Raw or entropy-coded remainder bits are the standard
@@ -180,7 +180,7 @@ is the trade rows 33 and 44 measure, not one the literature settles.
 1. **k up to ⌊log2 σ⌋ on the σ ≥ 17 series.** Run row 36's oracle again with k ∈ {1…6} (b − k ≥ 6) on the
    fluoroscopy, 12-bit tomosynthesis, cone-beam and one projection system, bytes then decode. The literature's
    rule (k ≈ log2 σ − 0.3) predicts 4 on the first three and 6 on the cone-beam. This is a bytes sweep and
-   fits row 44's arms.
+   fits row 44's variants.
 2. **Histogram packing against −min,** in AV1 and in HTJ2K, on the CT (pad −2048 under data from −1097) and any
    sparse series rows 45–46 fetched. Measure the fraction of levels used first: Starosolski's gain is
    negligible above ½. It is a representation change, so a header field, and structural if adopted.

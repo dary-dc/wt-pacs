@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Row TOTAL4's frames: each set's first N frames as the product's ingest writes them, the served HTJ2K and
-# the optimized AV1 payload, into OUT/SET with the arms.json run.mjs reads. lab/av1/delivery/total-time/README.md §Row TOTAL4
+# the optimized AV1 payload, into OUT/SET with the variants.json run.mjs reads. lab/av1/delivery/total-time/README.md §Row TOTAL4
 #
 #   lab/av1/delivery/total-time/payload_frames.sh BUILD OUT SETDIR:N ...
 set -euo pipefail
@@ -26,8 +26,8 @@ for i in range(n):
 truth = [(dst / f"opt/{i:03d}.sha256").read_text().strip() for i in range(n)]
 assert truth == [(dst / f"htj2k/{i:03d}.sha256").read_text().strip() for i in range(n)]
 size = {ext: sum((dst / f"{i:03d}.{ext}").stat().st_size for i in range(n)) for ext in ("htj2k", "opt.av1")}
-(dst / "arms.json").write_text(json.dumps(dict(name=name, frames=n, truth=truth, bytes=size,
-                                               arms={"htj2k": {}, "opt": {"ext": "opt.av1"}}), indent=1))
+(dst / "variants.json").write_text(json.dumps(dict(name=name, frames=n, truth=truth, bytes=size,
+                                               variants={"htj2k": {}, "opt": {"ext": "opt.av1"}}), indent=1))
 print(name, n, "frames,", ", ".join(f"{k} {v} B" for k, v in size.items()), f"opt/htj2k {size['opt.av1'] / size['htj2k']:.3f}")
 EOF
 done

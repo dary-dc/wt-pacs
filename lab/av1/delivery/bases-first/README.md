@@ -7,7 +7,7 @@ server and store, timed on row TOTAL's links and CPU. Queue row 40 (SVC) of
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Preview, *Bases first, measured*.
 
 ```bash
-lab/av1/delivery/scalable/encoder/build.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # patched svc_encoder_rtc, dav1d-WASM simd
+lab/av1/delivery/scalable/encoder/build.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh   # patched svc_encoder_rtc, dav1d-WASM simd
 client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 lab/av1/fetch_data.sh rf_fluoro us_liver
@@ -21,9 +21,9 @@ done
 NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames lab/.av1-work/bases --links r5000,r20000,r50000 --summary --out rows.jsonl
 ```
 
-**Arms**, each one series through the product's downloader, three decoders, two frames outstanding each:
+**Variants**, each one series through the product's downloader, three decoders, two frames outstanding each:
 
-| arm | stored | entries | decoder |
+| variant | stored | entries | decoder |
 | --- | --- | --- | --- |
 | `htj2k` | the served HTJ2K profile | F | OpenJPH |
 | `av1` | libaom 3.15.1 lossless intra, cpu0 (row TOTAL's) | F | dav1d-WASM, G = 1 |
@@ -53,7 +53,7 @@ dav1d 1.5.4's decode of the base stream at operating point 1. Links, rig, 4× an
 are row TOTAL's ([`../total-time/README.md`](../total-time/README.md)); fixed rates only.
 
 **Checked, and mutated** (fluoroscopy, 50 Mbit/s, 1×): `--mutate sample` and `--mutate truth` turned
-every arm to 0/18 exact and every base to 0/18 as native; a base entry decoded to the top layer failed
+every variant to 0/18 exact and every base to 0/18 as native; a base entry decoded to the top layer failed
 every base by name; previews left unmarked showed 0/18 previews and 18 stray exact frames; previews
 posted 3 s late showed 18 late and *shown* fell back to the exact frames.
 

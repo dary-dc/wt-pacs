@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MIXDEC's frames: lab/av1/delivery/split-rule/make_frames.py's layout (NNN.htj2k, NNN.kK.av1, arms.json, manifest.json)
+"""MIXDEC's frames: lab/av1/delivery/split-rule/make_frames.py's layout (NNN.htj2k, NNN.kK.av1, variants.json, manifest.json)
 for the 13- and 14-bit series, each split k at its shipped preset — the fastest within 2 % of cpu0, as rows 44
 (lab/av1/delivery/split-rule) and 45 (lab/av1/bytes/breast) found it per k.
 
@@ -46,17 +46,17 @@ def main():
             dst = out / name
             dst.mkdir(parents=True, exist_ok=True)
             htj2k_frames(a.data / name, dst)
-            entry = dict(name=name, frames=s.n, bits=bits(s), truth=s.truth, arms={"htj2k": {}}, presets={},
+            entry = dict(name=name, frames=s.n, bits=bits(s), truth=s.truth, variants={"htj2k": {}}, presets={},
                          bytes={"htj2k": sum((dst / f"{i:03d}.htj2k").stat().st_size for i in range(s.n))})
             for k, preset in ks.items():
                 src = made[(name, k)].result()
                 for i in range(s.n):
                     shutil.copyfile(src / f"{i:03d}.av1", dst / f"{i:03d}.k{k}.av1")
-                entry["arms"][f"k{k}"] = dict(ext=f"k{k}.av1")
+                entry["variants"][f"k{k}"] = dict(ext=f"k{k}.av1")
                 entry["presets"][f"k{k}"] = preset
                 entry["bytes"][f"k{k}"] = sum((dst / f"{i:03d}.k{k}.av1").stat().st_size for i in range(s.n))
-            (dst / "arms.json").write_text(json.dumps(entry, indent=1))
-            manifest.append(dict(name=name, bits=entry["bits"], arms=entry["arms"], frames=[dict(truth=t) for t in s.truth]))
+            (dst / "variants.json").write_text(json.dumps(entry, indent=1))
+            manifest.append(dict(name=name, bits=entry["bits"], variants=entry["variants"], frames=[dict(truth=t) for t in s.truth]))
             ratio = ", ".join(f"{n} {v / entry['bytes']['htj2k']:.3f}" for n, v in entry["bytes"].items() if n != "htj2k")
             print(f"{name}: {s.n} frames, {entry['bits']} bits, over HTJ2K {ratio}", flush=True)
     (out / "manifest.json").write_text(json.dumps(manifest))

@@ -16,7 +16,7 @@ if (typeof VideoDecoder === "function") {
 }
 const send = self.postMessage.bind(self);
 self.postMessage = (m, transfer) => send({ ...m, webcodecsUnits: units }, transfer);
-// An arm that says `webcodecs: false` runs the same decoder.js with no VideoDecoder: dav1d-WASM, as the product falls back.
+// A variant that says `webcodecs: false` runs the same decoder.js with no VideoDecoder: dav1d-WASM, as the product falls back.
 const handle = self.onmessage;
 self.onmessage = (e) => {
   if (e.data?.kind === "init" && e.data.decoder?.webcodecs === false) delete self.VideoDecoder;

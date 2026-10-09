@@ -6,7 +6,7 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 A Rust toolchain, Python 3 and Node. `scripts/gate.sh` requires everything below and exits 2,
 with the install command, when any is missing: the WASM client is part of the product, not an
-optional arm (the contract and worker-safe steps cover both clients or neither), and the
+optional variant (the contract and worker-safe steps cover both clients or neither), and the
 browser steps need playwright, Chromium and the decoder vendor. `scripts/gate.sh --no-browser`
 skips the browser steps and says so in its last line.
 
@@ -19,7 +19,7 @@ bash client/decode/wasm/fetch_openjph.sh   # the decoder vendor
 
 ### What the gate costs and what it catches
 
-Without `lab/.av1-build/out` (`ARMS=simd client/decode/wasm/dav1d/build.sh`) the dispatch rig skips every
+Without `lab/.av1-build/out` (`VARIANTS=simd client/decode/wasm/dav1d/build.sh`) the dispatch rig skips every
 AV1 clause, saying `SKIPPED` — 128 checks run instead of 719 — so build it once where AV1 matters.
 
 **Time** (row GATE, 2026-10-07; 4 cores, warm builds, n = 3 a cell, the two trees' runs interleaved):
@@ -162,12 +162,12 @@ campaign label, *lever 2*), none a standard the code touches uses for something 
 | group | G frames from a keyframe, decoded in order on one decoder; **unit**, one AV1 temporal unit |
 | split | a sample as a top stream (v ≫ k) and a low one (v & (2^k − 1)) |
 | client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one); **rig**, the harness that drives one through the contract clauses |
-| arm | in the lab only: one condition of a timed comparison |
+| variant | in the lab only: one condition of a timed comparison |
 
 **Renamed:** ARCHITECTURE's *Lever 1, 2, 3* and transport-conclusions' *Lever 1, 2* — five things
 under three numbers — are the opening ask, early SETTINGS, hints in the session URL, the bytes
 pushed at session open and a 32-packet initial window; *S4* is the container campaign; the
-contract suite's *arms* are clients and rigs; `consumer.js`'s `#arm` is `#waitFor`. The `lab/av1/` folders named for
+contract suite's *variants* are clients and rigs; `consumer.js`'s `#variant` is `#waitFor`. The `lab/av1/` folders named for
 queue rows are named by subject in five groups (`lab/av1/README.md` §The folders, by what they measure). The AV1
 *item* is the AV1 payload (row AV1DOCS): `payload-format.md`, `av1-payload.js`, `parsePayload`.
 
@@ -175,8 +175,8 @@ queue rows are named by subject in five groups (`lab/av1/README.md` §The folder
 
 | name | where | breaks | proposed | why not now |
 | --- | --- | --- | --- | --- |
-| `arm` in telemetry rows | `client/record`, `client/harness/shell.js` | names a client, and ARM the CPU | `client` | a row schema the lab's analyses read |
-| *arm* in the lab (≈1 900 lines) | `lab/`, `CLAUDE.md` §Measurement | ARM the CPU | **variant** | the owner's word in `CLAUDE.md` |
+| `variant` in telemetry rows | `client/record`, `client/harness/shell.js` | names a client, and ARM the CPU | `client` | a row schema the lab's analyses read |
+| *variant* in the lab (≈1 900 lines) | `lab/`, `CLAUDE.md` §Measurement | ARM the CPU | **variant** | the owner's word in `CLAUDE.md` |
 | campaign labels (*S1–S4*, *R1*, *PO1*, *WP1*) | `docs/`, `lab/` | history | what each measured | doc by doc, with the docs that own them |
 
 **For `CLAUDE.md`, proposed:** *"**Names.** A name states its role in the domain's words. No word from

@@ -19,7 +19,7 @@ globalThis.setup = async ({ sizes, mutate }) => {
     for (let i = 0; i < samples.length; i++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; samples[i] = x & 0xff; }
     const truth = await hex(samples);
     const codestream = samples.slice(0, Math.ceil(samples.length * s.ratio / 4) * 4);
-    // The device holds the frame as a decode stage would leave it; the heap arm reads its copy from wasm memory.
+    // The device holds the frame as a decode stage would leave it; the heap variant reads its copy from wasm memory.
     const decoded = device.createBuffer({ size: samples.length, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
     const input = device.createBuffer({ size: codestream.length, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     const staging = device.createBuffer({ size: samples.length, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
@@ -35,7 +35,7 @@ globalThis.setup = async ({ sizes, mutate }) => {
   return out;
 };
 
-const arms = {
+const variants = {
   async heap({ s, memory }) {
     const frame = new Uint8Array(s.w * s.h * s.bytes);
     frame.set(new Uint8Array(memory.buffer, 0, frame.length));
@@ -54,13 +54,13 @@ const arms = {
   },
 };
 
-globalThis.time = async ({ name, arm, passes }) => {
+globalThis.time = async ({ name, variant, passes }) => {
   const set = sets.get(name);
   const ms = [];
   let exact = 0;
   for (let p = 0; p < passes; p++) {
     const t0 = performance.now();
-    const frame = await arms[arm](set);
+    const frame = await variants[variant](set);
     ms.push(performance.now() - t0);
     if (await hex(frame) === set.truth) exact++;
   }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The frames FASTHTJ2K profiles: each set's first FRAMES frames as the served HTJ2K.
 
-Encoded and checked exactly as row SPEED's HTJ2K arm (ojph_expand against the checksum written when
+Encoded and checked exactly as row SPEED's HTJ2K variant (ojph_expand against the checksum written when
 the series was fetched; a signed series signed in SIZ).
 
 usage: make_frames.py OUT SETDIR ...   — lab/av1/decode/htj2k-profile/README.md

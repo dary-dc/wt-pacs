@@ -7,7 +7,7 @@ bytes, decode and total time against HTJ2K. The verdict is in
 [`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md).
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 PATH=lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # ojph_compress
 client/transport/ts/build.sh                                   # the client's session bundle
@@ -24,16 +24,16 @@ done
 NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W --summary --out total.jsonl
 ```
 
-**Arms**, per series of b bits after its offset, named by k so none is ambiguous, each run once
+**Variants**, per series of b bits after its offset, named by k so none is ambiguous, each run once
 however many names it has, and only where its top fits a 12-bit stream: **HTJ2K** (the served
 profile); **d12**, k = max(0, b − 12); **k = 2**, the adopted optimized rule; **k = 3**; **w10**,
-k = max(0, b − 10), every stream ≤ 10 bits. Each AV1 arm is the series' payloads
+k = max(0, b − 10), every stream ≤ 10 bits. Each AV1 variant is the series' payloads
 ([`payload-format.md`](../../../../docs/av1/payload-format.md)) written by `ingest.py --split K`, libaom 3.15.1
 lossless with `--tune-content=screen --sb-size=64`, and the payload picks its decoder: WebCodecs where
 every stream is ≤ 10 bits, dav1d-WASM otherwise. A row-43 payload (`--reuse`) is the same file ingest
 would write: both came from `ingest.py` at the same preset, and row 43 checked every one exact.
 
-| b | series | arms (k) |
+| b | series | variants (k) |
 | --- | --- | --- |
 | 16 | `mg16_cbis` | d12 4, w10 6 |
 | 15 | `pt15_cptac` | d12 = k3 3, w10 5 |
@@ -44,8 +44,8 @@ would write: both came from `ingest.py` at the same preset, and row 43 checked e
 | 10, 9 | `dbt10_ea1141`, `mr9_ispy2` | d12 = w10 0, k2 2, k3 3 |
 
 **The port to payloads.** The decode harness (`decode.mjs`, `index.html`) is row REP14's with its frames
-as payloads and its arms read from `manifest.json`; row TOTAL's `run.mjs` takes `arms.json` unchanged,
-an AV1 arm being only its stored form (`ext`) under `codec: "av1"`.
+as payloads and its variants read from `manifest.json`; row TOTAL's `run.mjs` takes `variants.json` unchanged,
+an AV1 variant being only its stored form (`ext`) under `codec: "av1"`.
 
 ## Bytes (2026-10-06)
 
@@ -53,7 +53,7 @@ Every frame of each series, the payload's bytes (header and lengths included) ov
 the shipped preset: the fastest of `--allintra` 9…6 and good 6…3 within 2 % of cpu0 on the first two
 frames, then confirmed on the whole series (`sweep.py`; on the CT and the MR's k = 2 the two-frame pick,
 `--allintra` 6, was 2.1–2.7 % over on the whole series and good 6 replaced it, as row 33 found for the
-CT). **Bold** is each series' smallest arm at the shipped preset.
+CT). **Bold** is each series' smallest variant at the shipped preset.
 
 | b | series | d12 | k = 2 | k = 3 | w10 | shipped presets |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -70,7 +70,7 @@ CT). **Bold** is each series' smallest arm at the shipped preset.
 | 9 | MR, 9 bits | k0 0.916 · **0.927** | 1.028 · 1.036 | 1.007 · 1.019 | = d12 | good 6, good 6, a6 |
 
 Each cell is cpu0 · shipped. The mammogram has one frame, so its shipped figure is the sweep's. **At 15
-and 16 bits every arm is over HTJ2K** (1.012–1.099 shipped), on the first real series of those depths
+and 16 bits every variant is over HTJ2K** (1.012–1.099 shipped), on the first real series of those depths
 here, and w10 (more low bits) is the smaller. Under 12 bits the low two bits pay
 off where the samples are noisy (the 10-bit tomosynthesis, the MR) and not on the 9-bit MR, whose top
 at k = 0 is all its samples.
@@ -79,7 +79,7 @@ at k = 0 is all its samples.
 
 A frame through the product's `decoder.js` as of `2d77d7d` (before row DECODE's changes) in headless Chromium 141, every frame of each series' cpu0
 payloads, 12 rounds interleaved (`decode.mjs`), 59 280/59 280 frames exact. HTJ2K is ms a frame, median of
-round medians at 1× · 4×; each arm the median of round-paired ratios to it. `wc` marks an arm whose
+round medians at 1× · 4×; each variant the median of round-paired ratios to it. `wc` marks a variant whose
 streams are all ≤ 10 bits, so WebCodecs decodes it; the rest are dav1d-WASM.
 
 | b | series | HTJ2K, ms | d12 | k = 2 | k = 3 | w10 |
@@ -96,25 +96,25 @@ streams are all ≤ 10 bits, so WebCodecs decodes it; the rest are dav1d-WASM.
 | 10 | tomosynthesis 10-bit | 17.1 · 72.4 | k0 wc 4.10 · 3.80 | wc **2.61 · 2.27** | wc 2.78 · 2.53 | = d12 |
 | 9 | MR, 9 bits | 1.45 · 1.90 | k0 wc 4.64 · 7.57 | wc **4.02 · 7.18** | wc 4.17 · 7.36 | = d12 |
 
-**No arm decodes as fast as HTJ2K on any series** (0/12 rounds faster, every cell): the fastest arm is
+**No variant decodes as fast as HTJ2K on any series** (0/12 rounds faster, every cell): the fastest variant is
 1.59–4.12× HTJ2K's time a frame, and it is always the one WebCodecs takes, never dav1d-WASM's 12-bit top
 (5.6–11.6×). The port reproduces row REP14's cells within their spread: the CT's w10 13.4 · 40.7 ms
 (REP14 13.8 · 41.0), system 1's w10 246 · 999 (246 · 1 023) and its d12 635 · 2 709 (622 · 2 665). The
 PET's HTJ2K frame, 256², is ~1 ms at 1× and at 4× alike: the throttle does not reach a decode that
-short, so its 4× ratios overstate. `--mutate sample` and `--mutate truth` each turned every arm to 0 exact.
+short, so its 4× ratios overstate. `--mutate sample` and `--mutate truth` each turned every variant to 0 exact.
 
 ## Total time, 13–16 bits (2026-10-07)
 
 Row TOTAL's `run.mjs` on these payloads (`--frames lab/.av1-work/splittime`), links, CPU and Williams order
 unchanged, rounds 0–9, then 10–11 on every link but 50 Mbit to top up the cells `VOID` had left short; rounds 6–11 ran from a checkout frozen at the run's first revision (`90eb331`), since
 the branch moved under it. 204 160/204 160 frames exact over 2 552 visits, 41 `VOID`
-dropped, n = 10–12 a cell but one (9). Each HTJ2K cell is the median seconds to every frame on the page; each arm
+dropped, n = 10–12 a cell but one (9). Each HTJ2K cell is the median seconds to every frame on the page; each variant
 the median of round-paired ratios to it; 1× · 4×. The port reproduces row REP14's cells within their
 spread: the CT's w10 at 50 Mbit is 0.94 · 0.95 (REP14 0.94 · 0.94, HTJ2K 2.87 · 2.88 s both), d12 on
-system 2 at 5 Mbit 0.93 · 0.95 (0.93 · 0.94). `--mutate sample` and `--mutate truth` each turned every arm
+system 2 at 5 Mbit 0.93 · 0.95 (0.93 · 0.94). `--mutate sample` and `--mutate truth` each turned every variant
 to 0 exact.
 
-| series | arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| series | variant | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
 | --- | --- | --- | --- | --- | --- | --- |
 | ct_lidc | HTJ2K, s | 26.7 · 26.7 | 6.81 · 6.82 | 2.87 · 2.88 | 5.4 · 5.34 | 11.8 · 11.2 |
 | ct_lidc | k1 | 0.93 · 0.93 | 0.93 · 0.94 | 0.94 · 1.63 | 0.95 · 1.04 | 0.89 · 0.90 |
@@ -148,7 +148,7 @@ to 0 exact.
   on system 2's Wi-Fi, and lose 2–69 % elsewhere. The two are within 0.03 of each other on every cell,
   k = 2 ahead on system 2, k = 3 on system 1. w10 (k = 4) is 1.00–1.13: its decode is the fastest
   (§Decode), its four low bits cost more than that buys.
-* **15 and 16 bits: HTJ2K on every cell.** w10 is the better AV1 arm on both, 1.02–1.16; the 12-bit top
+* **15 and 16 bits: HTJ2K on every cell.** w10 is the better AV1 variant on both, 1.02–1.16; the 12-bit top
   (d12) 1.08–1.91 on the PET and 1.16–3.11 on the mammogram, whose one 30-megapixel frame through
   dav1d-WASM is 13 s behind HTJ2K's at 4×.
 * **Saturation.** As rows TOTAL and REP14 found: at 4× on 50 Mbit, and on 20 Mbit for the projections and
@@ -159,7 +159,7 @@ to 0 exact.
 The same harness and frozen checkout on the fixed links only (`--links r5000,r20000,r50000`, as rows TOTAL2
 and TOTAL3), rounds 0–9: 42 600/42 600 frames exact over 1 260 visits, 31 `VOID` dropped, n = 8–10 a cell.
 
-| series | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| series | variant | 5 Mbit | 20 Mbit | 50 Mbit |
 | --- | --- | --- | --- | --- |
 | mr_ispy1 | HTJ2K, s | 17.7 · 17.7 | 4.55 · 4.56 | 1.97 · 1.98 |
 | mr_ispy1 | k0 | 1.03 · 1.04 | 1.04 · 1.05 | 1.04 · 1.50 |
@@ -185,7 +185,7 @@ and TOTAL3), rounds 0–9: 42 600/42 600 frames exact over 1 260 visits, 31 `VOI
 
 * **12 bits: k = 3 by a hair, k = 2 within 0.02 of it.** Both are 0.94–0.97 at 1× and 0.94–1.02 at 4×; d12 (k = 0, the samples whole at 12 bits through dav1d-WASM) is 1.02–1.09, and 1.52–1.54 at 4×
   on 50 Mbit.
-* **11 bits (MR): a tie.** k = 1, 2 and 3 are 0.99–1.02 of HTJ2K; k = 2 is the only arm at or under 1.00 on
+* **11 bits (MR): a tie.** k = 1, 2 and 3 are 0.99–1.02 of HTJ2K; k = 2 is the only variant at or under 1.00 on
   every cell but one (1.01).
 * **10 bits: k = 2**, 0.95–0.99; the whole samples (k = 0, WebCodecs) 0.97–1.15.
 * **9 bits: k = 0**, the samples whole at 10 bits through WebCodecs, 0.93–1.01; k = 2 and 3 are 1.01–1.07, their

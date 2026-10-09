@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""What a browser receives from each server arm, and what every thread spends to receive it.
+"""What a browser receives from each server variant, and what every thread spends to receive it.
 
-The TS harness cell in headless Chromium against several server binaries at once, arms
+The TS harness cell in headless Chromium against several server binaries at once, variants
 interleaved and their order reversed every repeat. Around each run: CPU per thread of the
 server and of every Chromium process (`/proc/*/task/*/schedstat`, ns), and the datagrams the
 client socket dropped (`Udp: RcvbufErrors`). Needs the static host (`server/dev-server.py
@@ -10,8 +10,8 @@ client socket dropped (`Udp: RcvbufErrors`). Needs the static host (`server/dev-
 usage: browser_receive.py <fixture> <cell> <n> <depth> <repeats> \\
          <label-a> <bin-a> [server args...] -- <label-b> <bin-b> [server args...] [-- ...]
 <depth> is the shell's asks in flight.
-An arm arg `@rmem=<bytes>` sets `net.core.rmem_max` for that arm's runs (root), restored after.
-One TSV row per run: label arm cell depth asked wall_ms mb_per_s delivered failed sock_drops
+A variant arg `@rmem=<bytes>` sets `net.core.rmem_max` for that variant's runs (root), restored after.
+One TSV row per run: label variant cell depth asked wall_ms mb_per_s delivered failed sock_drops
 rcvbuf_drops in_datagrams srv_ms ns_main_ms ns_io_ms rend_main_ms rend_other_ms chrome_other_ms heap_peak_mb
 """
 import hashlib, json, os, signal, socket, subprocess, sys, threading
@@ -29,13 +29,13 @@ ask = f"d={int(depth)}"
 if os.environ.get("INTERVAL_MS"): ask += f"&interval_ms={int(os.environ['INTERVAL_MS'])}"
 frame_bytes = json.loads((Path(fixture).parent / "metadata.json").read_text())["meanFrameBytes"]
 
-arms = []
+variants = []
 rest = sys.argv[6:]
 while rest:
     cut = rest.index("--") if "--" in rest else len(rest)
     label, bin_, *args = rest[:cut]
     rmem = next((int(a[6:]) for a in args if a.startswith("@rmem=")), None)
-    arms.append((label, bin_, [a for a in args if not a.startswith("@rmem=")], rmem))
+    variants.append((label, bin_, [a for a in args if not a.startswith("@rmem=")], rmem))
     rest = rest[cut + 1:]
 
 
@@ -124,13 +124,13 @@ def start_server(bin_, args):
 
 cert = ROOT / "server/dev-cert/cert.pem"
 pin = hashlib.sha256(subprocess.check_output(["openssl", "x509", "-in", str(cert), "-outform", "DER"])).hexdigest()
-servers = [start_server(b, a) for (_, b, a, _) in arms]
+servers = [start_server(b, a) for (_, b, a, _) in variants]
 frames = servers[0][2]
 rmem_default = int(RMEM.read_text()) if RMEM.exists() else None
 
 
 def one_run(browser, i, r):
-    label, _, _, rmem = arms[i]
+    label, _, _, rmem = variants[i]
     srv, port, _ = servers[i]
     if rmem is not None: RMEM.write_text(str(rmem))
     (ROOT / "client/dev-transport.json").write_text(json.dumps({"wt_url": f"https://127.0.0.1:{port}/", "cert_sha256": pin}) + "\n")
@@ -170,11 +170,11 @@ def one_run(browser, i, r):
 try:
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=CHROME, headless=True, args=["--enable-features=WebTransport", "--no-sandbox"])
-        print("label\tarm\tcell\tdepth\tasked\twall_ms\tmb_per_s\tdelivered\tfailed\tsock_drops\trcvbuf_drops\tin_datagrams\tsrv_ms\tns_main_ms\tns_io_ms\trend_main_ms\trend_other_ms\tchrome_other_ms\theap_peak_mb")
-        for i in range(len(arms)):
+        print("label\tvariant\tcell\tdepth\tasked\twall_ms\tmb_per_s\tdelivered\tfailed\tsock_drops\trcvbuf_drops\tin_datagrams\tsrv_ms\tns_main_ms\tns_io_ms\trend_main_ms\trend_other_ms\tchrome_other_ms\theap_peak_mb")
+        for i in range(len(variants)):
             one_run(browser, i, 0)
         for r in range(1, reps + 1):
-            order = range(len(arms)) if r % 2 else range(len(arms) - 1, -1, -1)
+            order = range(len(variants)) if r % 2 else range(len(variants) - 1, -1, -1)
             for i in order:
                 one_run(browser, i, r)
         browser.close()

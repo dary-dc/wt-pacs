@@ -34,7 +34,7 @@ round trips from the first packet to a ready session):
 
 | client | today | SETTINGS in the first flight |
 | --- | --: | --: |
-| Chrome, page arms, 8 rounds at 40 and 80 ms | 3.15–3.55 | **2.14–2.49**, 8/8 rounds won |
+| Chrome, page variants, 8 rounds at 40 and 80 ms | 3.15–3.55 | **2.14–2.49**, 8/8 rounds won |
 | wtransport client, 6 rounds | 3.10 | **2.10**, 6/6 |
 | webtransport-go v0.9.0, 5 rounds at 40 ms | 3.21 | **2.17** |
 | aioquic 1.3.0, 5 rounds at 40 ms | 3.48 | **2.45** |

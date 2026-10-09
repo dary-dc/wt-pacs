@@ -1,7 +1,7 @@
 /**
  * page.js without the downloader: the same transport on the page, the same decoder workers fed from
  * the page by the same rule (fewest outstanding, two at most), so what differs from page.js is the
- * downloader worker and nothing else. docs/ARCHITECTURE.md §The downloader arm during a fill, against direct
+ * downloader worker and nothing else. docs/ARCHITECTURE.md §The downloader variant during a fill, against direct
  */
 import { TransportSession } from "/client/transport/ts/dist/session.js";
 
@@ -61,6 +61,6 @@ await Promise.race([all, new Promise((r) => setTimeout(r, 60000))]);
 session.close();
 fetch(`http://127.0.0.1:${q.get("report")}/`, {
   method: "POST",
-  body: JSON.stringify({ set: q.get("set"), arm: q.get("arm"), askAt, frames }),
+  body: JSON.stringify({ set: q.get("set"), variant: q.get("variant"), askAt, frames }),
   keepalive: true,
 });

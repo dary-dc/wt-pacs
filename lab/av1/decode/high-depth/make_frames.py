@@ -7,7 +7,7 @@ the b - 10 low bits, every stream WebCodecs takes. Each stream is libaom 3.15.1,
 Every unit is decoded alone by native dav1d, merged and matched with the series' checksum before a
 frame is written; HTJ2K is the served profile.
 
-  make_frames.py BUILD OUT SETDIR ...            OUT/SET/NNN.{htj2k,d12,w10}, arms.json; OUT/manifest.json
+  make_frames.py BUILD OUT SETDIR ...            OUT/SET/NNN.{htj2k,d12,w10}, variants.json; OUT/manifest.json
   make_frames.py BUILD OUT --sweep P,P SETDIR ...  bytes and encode seconds of the first FRAMES frames a preset
 
 lab/av1/decode/high-depth/README.md
@@ -132,11 +132,11 @@ def frames(build, out, paths):
                 sizes[name] = sum(map(len, r["frames"]))
             k = layouts(s.bits)["w10"][1]
             signed = {"offset": s.offset} if s.offset else {}
-            arms = {"htj2k": {}, "d12": dict(split=2, **signed), "w10": dict(split=k, depth=10, **signed),
+            variants = {"htj2k": {}, "d12": dict(split=2, **signed), "w10": dict(split=k, depth=10, **signed),
                     "w10d": dict(ext="w10", split=k, **signed)}
-            entry = dict(name=s.name, frames=s.n, bits=s.bits, preset=PRESET, truth=s.truth, arms=arms, bytes=sizes)
-            (dst / "arms.json").write_text(json.dumps(entry, indent=1))
-            manifest.append(dict(name=s.name, arms=arms, frames=[dict(truth=t) for t in s.truth]))
+            entry = dict(name=s.name, frames=s.n, bits=s.bits, preset=PRESET, truth=s.truth, variants=variants, bytes=sizes)
+            (dst / "variants.json").write_text(json.dumps(entry, indent=1))
+            manifest.append(dict(name=s.name, variants=variants, frames=[dict(truth=t) for t in s.truth]))
             print(s.name, s.n, "frames,", ", ".join(f"{a} {b} B" for a, b in sizes.items()), flush=True)
     (out / "manifest.json").write_text(json.dumps(manifest))
 

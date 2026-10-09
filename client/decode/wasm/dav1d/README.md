@@ -5,9 +5,9 @@ Row 4 (WASM) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the verdic
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Exactness and the decoders.
 
 ```bash
-client/decode/wasm/dav1d/build.sh          # emsdk, dav1d, native CLI, three WASM arms -> lab/.av1-build
+client/decode/wasm/dav1d/build.sh          # emsdk, dav1d, native CLI, three WASM variants -> lab/.av1-build
 client/decode/wasm/dav1d/make_streams.sh   # lossless test streams -> lab/.av1-build/streams
-node client/decode/wasm/dav1d/exact.mjs    # every frame, every arm; MUTATE=sample|order to watch it fail
+node client/decode/wasm/dav1d/exact.mjs    # every frame, every variant; MUTATE=sample|order to watch it fail
 ```
 
 Nothing built or generated is committed; everything lands in `lab/.av1-build` (gitignored).
@@ -31,14 +31,14 @@ Nothing built or generated is committed; everything lands in `lab/.av1-build` (g
 CLI on: its assembly is off too (no nasm on the host), so the second native decoder, ffmpeg's
 libdav1d, is the one that runs assembly.
 
-| arm | compile flags | link | `.wasm` | gzip -9 |
+| variant | compile flags | link | `.wasm` | gzip -9 |
 | --- | --- | --- | --- | --- |
 | plain | — | — | 546 284 B | 218 863 B |
 | simd | `-msimd128` | — | 623 042 B | 237 924 B |
 | simd-mt | `-msimd128 -pthread` | `-sPTHREAD_POOL_SIZE=4` | 635 174 B | 243 738 B |
 
 `-msimd128` is the compiler's auto-vectorisation only: dav1d has no hand-written WASM SIMD. The
-threaded arm builds and decodes (four threads, Node 22); in a browser it needs cross-origin
+threaded variant builds and decodes (four threads, Node 22); in a browser it needs cross-origin
 isolation, which the client already has for its `SharedArrayBuffer`s, and its pool is workers spawned
 from inside a decoder worker. The emscripten glue is not counted in the sizes.
 
@@ -47,7 +47,7 @@ What the link pulls in (`-Wl,--trace`): `libdav1d.a`, emscripten's libc (musl, M
 
 ## The wrapper
 
-The client's own module is `client/decode/av1-dav1d.js`, which runs the `simd` arm and flushes
+The client's own module is `client/decode/av1-dav1d.js`, which runs the `simd` variant and flushes
 before every keyframe (every frame at G = 1); `make_client_frames.sh` makes its warm-ups and
 contract frames, the two group sets (G = 8 and one group) coded without alt-ref frames.
 `build.sh` also writes `THIRD_PARTY.txt` beside the builds — the notices a shipped build owes.
@@ -76,14 +76,14 @@ frame.
 
 ## Exactness
 
-`exact.mjs` decodes every stream with each arm and checks every frame against four things: the
+`exact.mjs` decodes every stream with each variant and checks every frame against four things: the
 generator's `.sha256` of its samples (interleaved, the ground truth), the planar input fed to the
-encoder, the native dav1d CLI (`--muxer yuv`) and ffmpeg's libdav1d. **Every arm matches both native
-decoders on every frame**: 3 arms × 12 streams × 16 frames, one picture per temporal unit, in order,
+encoder, the native dav1d CLI (`--muxer yuv`) and ffmpeg's libdav1d. **Every variant matches both native
+decoders on every frame**: 3 variants × 12 streams × 16 frames, one picture per temporal unit, in order,
 threads on and off.
 
 Against the input, 27 of 36 stream runs are exact — every intra stream, and inter at 8 bits and at
-c10. The other three streams (each in all three arms) are **libaom 3.8.2's, not a decoder's**: all
+c10. The other three streams (each in all three variants) are **libaom 3.8.2's, not a decoder's**: all
 three decoders agree and the input differs.
 
 | stream | frames wrong | samples wrong | max \|Δ\| |
@@ -92,6 +92,6 @@ three decoders agree and the input differs.
 | g12 G = 8 | 6 of 16 | 15 904 of 1 048 576 | 11 |
 | c12 G = 8 | 6 of 16 | 144 of 3 145 728 | 2 |
 
-Mutations, run against the simd arm: one sample flipped in the WASM output (`MUTATE=sample`) fails
+Mutations, run against the simd variant: one sample flipped in the WASM output (`MUTATE=sample`) fails
 all 12 streams against both natives; the colour planes interleaved in the wrong order
 (`MUTATE=order`) fails all 6 colour streams, because the two ground truths then disagree.

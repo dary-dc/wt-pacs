@@ -1,6 +1,6 @@
 /**
  * What closed downloader clients leave behind in the renderer: its threads and resident memory
- * after `--clients` are opened and closed, against an idle page, arms interleaved. `--driver none`
+ * after `--clients` are opened and closed, against an idle page, variants interleaved. `--driver none`
  * launches Chromium with no DevTools session attached to any worker; `playwright` also counts the
  * worker targets. docs/ARCHITECTURE.md §Closing a client
  *

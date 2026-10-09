@@ -99,9 +99,9 @@ async function frameRecord(frame, mutate) {
   return record;
 }
 
-// arm: "tu" (a chunk per temporal unit, flushed), "noflush" (the same, never flushed; "noflush:N"
+// variant: "tu" (a chunk per temporal unit, flushed), "noflush" (the same, never flushed; "noflush:N"
 // sends only the first N units), "nodelim" (temporal delimiters stripped).
-window.decodeStream = async ({ url, codec, mode, gop, arm, hardwareAcceleration, mutate }) => {
+window.decodeStream = async ({ url, codec, mode, gop, variant, hardwareAcceleration, mutate }) => {
   const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
   const frames = [];
   const errors = [];
@@ -112,13 +112,13 @@ window.decodeStream = async ({ url, codec, mode, gop, arm, hardwareAcceleration,
   });
   try {
     decoder.configure({ codec, hardwareAcceleration });
-    const limit = arm.startsWith("noflush:") ? +arm.split(":")[1] : Infinity;
+    const limit = variant.startsWith("noflush:") ? +variant.split(":")[1] : Infinity;
     temporalUnits(bytes).slice(0, limit).forEach((unit, i) => {
-      const data = arm === "nodelim" ? withoutTemporalDelimiters(unit) : unit;
+      const data = variant === "nodelim" ? withoutTemporalDelimiters(unit) : unit;
       const type = mode === "intra" || i % gop === 0 ? "key" : "delta";
       decoder.decode(new EncodedVideoChunk({ type, timestamp: i * 40000, data }));
     });
-    if (arm.startsWith("noflush")) await new Promise((r) => setTimeout(r, 1000));
+    if (variant.startsWith("noflush")) await new Promise((r) => setTimeout(r, 1000));
     else await decoder.flush();
   } catch (e) {
     errors.push(`${e.name}: ${e.message}`);

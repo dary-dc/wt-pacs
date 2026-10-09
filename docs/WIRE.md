@@ -151,7 +151,7 @@ On by default; `series-server --open-ask false` turns it off. The session URL ma
 at once, behind the accept rather than behind the control stream. A malformed or out-of-range
 value is ignored and the session proceeds as without it. A refusal of an opening ask waits for the
 control stream, since that is the only place one can be sent. The TypeScript client sends it for
-`connect(url, hash, { fill })` and arms the fill without sending `stream_frames`. Why:
+`connect(url, hash, { fill })` and variants the fill without sending `stream_frames`. Why:
 [`ARCHITECTURE.md`](ARCHITECTURE.md), session open.
 
 ## The WebSocket mapping

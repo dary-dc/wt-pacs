@@ -36,10 +36,10 @@ def series(build, out, spec, frames):
                         "--preset", preset or "cpu0", "--frames", str(n), "--jobs", "4"], check=True, capture_output=True)
     for i in range(n):
         shutil.copyfile(payloads / f"{i:03d}.av1", dst / f"{i:03d}.av1")
-    # One arms.json for lab/av1/delivery/total-time's fill and lab/av1/decode/memory's memory: each codec before and after row 49.
+    # One variants.json for lab/av1/delivery/total-time's fill and lab/av1/decode/memory's memory: each codec before and after row 49.
     before = dict(worker="/lab/.av1-work/decode/before/decoder.js", probeWorker="/lab/av1/decode/worker/before-probed.js")
-    arms = {"htj2k": {}, "htj2k-before": dict(codec="htj2k", ext="htj2k", **before), "av1": {}, "av1-before": dict(ext="av1", **before)}
-    (dst / "arms.json").write_text(json.dumps(dict(name=s.name, frames=n, truth=s.truth[:n], arms=arms), indent=1))
+    variants = {"htj2k": {}, "htj2k-before": dict(codec="htj2k", ext="htj2k", **before), "av1": {}, "av1-before": dict(ext="av1", **before)}
+    (dst / "variants.json").write_text(json.dumps(dict(name=s.name, frames=n, truth=s.truth[:n], variants=variants), indent=1))
     print(f"{s.name}: {n} frames of {s.w}x{s.h}x{s.ch}, {s.stored}-bit, {preset or 'cpu0'}", flush=True)
     return dict(name=s.name, preset=preset or "cpu0", frames=[dict(truth=t) for t in s.truth[:n]])
 

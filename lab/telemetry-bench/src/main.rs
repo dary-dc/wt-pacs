@@ -10,7 +10,7 @@
 //! Seams mirror `server/src/record/tap.rs` (`global-lock`) and the proposed per-session
 //! designs (`own-sender`, `own-batch`). Drain shapes mirror today's in-memory report
 //! (`current`) and the proposed streaming design (`streaming`). Rows share one fixed
-//! layout so the arms differ only in the thing being measured.
+//! layout so the variants differ only in the thing being measured.
 //!
 //! See docs/adr/telemetry-server-pipeline.md.
 

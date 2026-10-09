@@ -13,7 +13,7 @@ python3 lab/av1/decode/webgpu/bound.py   # the bound, from the profile, this run
 **Transfer** (`transfer.mjs`, `transfer.html`). Headless Chromium with WebGPU on SwiftShader (the
 container has no GPU; Chromium offers no adapter without the flags). Per frame size, a frame of
 deterministic samples is made in the page and its SHA-256 written; the device holds it as a decode
-stage would leave it, and the wasm heap holds the same bytes. Two arms, each returning a buffer the
+stage would leave it, and the wasm heap holds the same bytes. Two variants, each returning a buffer the
 page keeps:
 
 * `heap` — the copy out today: a new buffer filled from a `WebAssembly.Memory`.
@@ -22,9 +22,9 @@ page keeps:
   runs: this is the plumbing alone, the term a bound subtracts.
 
 Every pass's frame is hashed against the truth after its timing. A fresh browser per (round ×
-throttle), throttles, sizes and arms in Williams orders (`lab/order.mjs`); per-round median of 7
+throttle), throttles, sizes and variants in Williams orders (`lab/order.mjs`); per-round median of 7
 passes. 4× is `lab/scripts/cpu_throttle.mjs` on one core. `--mutate` flips one bit of the frame both
-arms hold: every cell went 0/n. Timer resolution is the page's 0.1 ms (not cross-origin isolated).
+variants hold: every cell went 0/n. Timer resolution is the page's 0.1 ms (not cross-origin isolated).
 
 **What SwiftShader leaves unmeasured.** The device's own copies here are CPU copies, so a discrete
 GPU's bus and a phone's driver are not in these numbers; no shader is timed, since SwiftShader runs

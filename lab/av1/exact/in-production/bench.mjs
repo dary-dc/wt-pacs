@@ -19,7 +19,7 @@ const COPIES = Number(arg("--copies", 6));
 const FRAMES = arg("--frames", "lab/.av1-work/exactprod");
 const MUTATE = process.argv.includes("--mutate");
 const OUT = arg("--out", null);
-const ARMS = ["decode", "sha256-webcrypto", "sha256-wasm", "blake3-wasm", "xxh3-wasm", "crc32-wasm"];
+const VARIANTS = ["decode", "sha256-webcrypto", "sha256-wasm", "blake3-wasm", "xxh3-wasm", "crc32-wasm"];
 const POOL = ["none", "sha256-webcrypto", "blake3-wasm", "xxh3-wasm"];
 const ROOT = new URL("../../../..", import.meta.url).pathname;
 const PORT = 30000 + ((Math.random() * 10000) | 0);
@@ -51,21 +51,21 @@ async function inChromium(throttle, round) {
   const rows = [];
   for (const s of order(manifest, round)) {
     const r = await page.evaluate((o) => globalThis.bench(o), { glue, hashWasm, urls: urls(s), raw: !!s.raw,
-      frames: s.frames, order: order(ARMS, round), passes: PASSES, mutate: MUTATE });
+      frames: s.frames, order: order(VARIANTS, round), passes: PASSES, mutate: MUTATE });
     if (r.error) throw new Error(r.error);
-    for (const a of ARMS) {
+    for (const a of VARIANTS) {
       if (a === "decode" && s.raw) continue;
-      rows.push({ kind: "hash", round, throttle, set: s.name, arm: a, frames: s.frames.length, exact: r.exact[a], ms: r.ms[a] });
+      rows.push({ kind: "hash", round, throttle, set: s.name, variant: a, frames: s.frames.length, exact: r.exact[a], ms: r.ms[a] });
       if (r.exact[a] !== s.frames.length) { failures++; console.error(`round ${round} ${throttle}x ${s.name} ${a}: ${r.exact[a]}/${s.frames.length}`); }
     }
   }
   for (const s of order(manifest.filter((s) => !s.raw), round)) {
-    for (const arm of order(POOL, round)) {
-      const r = await page.evaluate((o) => globalThis.pool(o), { glue, hashWasm, urls: urls(s), frames: s.frames, arm,
+    for (const variant of order(POOL, round)) {
+      const r = await page.evaluate((o) => globalThis.pool(o), { glue, hashWasm, urls: urls(s), frames: s.frames, variant,
         decoders: DECODERS, copies: COPIES, mutate: MUTATE });
       if (r.error) throw new Error(r.error);
-      if (r.failed) { failures++; console.error(`round ${round} ${throttle}x pool ${s.name} ${arm}: ${r.failed} failed`); }
-      rows.push({ kind: "pool", round, throttle, set: s.name, arm, ...r });
+      if (r.failed) { failures++; console.error(`round ${round} ${throttle}x pool ${s.name} ${variant}: ${r.failed} failed`); }
+      rows.push({ kind: "pool", round, throttle, set: s.name, variant, ...r });
     }
   }
   stop();
@@ -90,9 +90,9 @@ const range = (v) => `${f(med(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}]
 console.log("hash: ms a frame, median of each round's median [range over rounds]; MB/s; × decode paired by round; exact");
 for (const { throttle } of cells) for (const s of manifest) {
   const mb = s.width * s.height * s.channels * (s.bits > 8 ? 2 : 1) / 1e6;
-  const of = (a) => rows.filter((r) => r.kind === "hash" && r.throttle === throttle && r.set === s.name && r.arm === a);
+  const of = (a) => rows.filter((r) => r.kind === "hash" && r.throttle === throttle && r.set === s.name && r.variant === a);
   const dec = new Map(of("decode").map((r) => [r.round, med(r.ms)]));
-  for (const a of ARMS) {
+  for (const a of VARIANTS) {
     const rs = of(a);
     if (!rs.length) continue;
     const per = rs.map((r) => med(r.ms));
@@ -103,7 +103,7 @@ for (const { throttle } of cells) for (const s of manifest) {
 }
 console.log(`pool: ${DECODERS} decoders, ${COPIES}× each set's frames; first and last frame handed on, ms; × none paired by round; checked`);
 for (const { throttle } of cells) for (const s of manifest.filter((s) => !s.raw)) {
-  const of = (a) => rows.filter((r) => r.kind === "pool" && r.throttle === throttle && r.set === s.name && r.arm === a);
+  const of = (a) => rows.filter((r) => r.kind === "pool" && r.throttle === throttle && r.set === s.name && r.variant === a);
   const none = new Map(of("none").map((r) => [r.round, r]));
   for (const a of POOL) {
     const rs = of(a);

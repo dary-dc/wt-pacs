@@ -46,7 +46,7 @@ struct Args {
     #[arg(long, default_value = "")]
     label: String,
     #[arg(long, default_value = "")]
-    arm: String,
+    variant: String,
     #[arg(long, default_value = "cold")]
     temp: String,
     #[arg(long)]
@@ -109,14 +109,14 @@ async fn run(args: Args) -> Result<()> {
     lats.sort_unstable();
     if !args.no_header {
         println!(
-            "label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\t\
+            "label\tvariant\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\t\
              asks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed"
         );
     }
     println!(
         "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t-\t-",
         args.label,
-        args.arm,
+        args.variant,
         args.temp,
         match args.mode {
             Mode::OnDemand => "on-demand",

@@ -1,12 +1,12 @@
 # total
 
 A whole series filled through the downloader against the real server behind the relay, wire plus
-decode, every arm of a series on the same link and CPU. Queue row 23 (TOTAL) of
+decode, every variant of a series on the same link and CPU. Queue row 23 (TOTAL) of
 [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the reading is in
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Total time.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 client/transport/ts/build.sh                                   # the client's session bundle
@@ -27,10 +27,10 @@ fluoroscopy (`rf_fluoro`, 18 × 768² 12-bit) and ultrasound (`us_liver`, 70 × 
 ultrasound and angiography are blocked on the network policy (queue §Blocked); the tomosynthesis
 projections were not run.
 
-**Arms**, each one series, every frame one store entry, the decoder the product's own choice from
+**Variants**, each one series, every frame one store entry, the decoder the product's own choice from
 what `connect` is told:
 
-| arm | stored | `connect` | series |
+| variant | stored | `connect` | series |
 | --- | --- | --- | --- |
 | `htj2k` | the served HTJ2K profile | OpenJPH | all |
 | `av1` | libaom 3.15.1 lossless intra, cpu0 | `codec: "av1"` → dav1d-WASM | all |
@@ -41,9 +41,9 @@ what `connect` is told:
 | `pre` | row PREVIEW's lossy preview: 10-bit 4:0:0, G = 8, CRF 20, cpu6 | `groupLength: 8` → dav1d-WASM | `rf_fluoro` |
 
 **Row TOTAL2** adds row LLSIZE's best codings (libaom 3.15.1, cpu0, one thread), made with
-`ARMS=l2,rct make_frames.py …` and run on the fixed links only (`--links r5000,r20000,r50000`):
+`VARIANTS=l2,rct make_frames.py …` and run on the fixed links only (`--links r5000,r20000,r50000`):
 
-| arm | stored | `connect` | series |
+| variant | stored | `connect` | series |
 | --- | --- | --- | --- |
 | `l2` | v ≫ 2 at its container + v & 3 at 8, `--tune-content=screen --sb-size=64` | `split: 2` → dav1d-WASM | grey |
 | `l2wc` | the same frames | `+ depth` (10, or 8 on `dbt10`) → WebCodecs | grey |
@@ -52,23 +52,23 @@ what `connect` is told:
 | `rct8wc` | the same transform, G = 8, no alt-ref, libaom's default tuning | `+ groupLength: 8` → WebCodecs | `us_liver` |
 
 The ultrasound's preview is 4:2:0 colour, which neither product decoder takes, so it has no `pre`
-arm. Colour is tagged sRGB (primaries BT.709, transfer sRGB, identity matrix): with the identity
+variant. Colour is tagged sRGB (primaries BT.709, transfer sRGB, identity matrix): with the identity
 matrix alone, WebCodecs reports BT.709 and the product module refuses every frame
-([`docs/decode/README.md`](../../../../docs/decode/README.md) §AV1). Every exact arm's frames are
+([`docs/decode/README.md`](../../../../docs/decode/README.md) §AV1). Every exact variant's frames are
 decoded natively and matched with the checksum written when the series was fetched before they
 are written; `pre`'s truth is its native decode's per-frame hash.
 
-Row TOTAL2's run: `make_frames.py` with `ARMS=l2,rct` into `lab/.av1-work/total2`, then rounds 0–11
+Row TOTAL2's run: `make_frames.py` with `VARIANTS=l2,rct` into `lab/.av1-work/total2`, then rounds 0–11
 of `run.mjs --links r5000,r20000,r50000 --frames lab/.av1-work/total2`, rounds 12–15 on the cells
 `VOID` left under n = 10; the reading is in the same README, §Total time. `--mutate sample` and
-`--mutate truth` each turned every new arm to 0 exact.
+`--mutate truth` each turned every new variant to 0 exact.
 
 **Row TOTAL3** sets the two representations of [`payload-format.md`](../../../../docs/av1/payload-format.md)
 against HTJ2K and row ENCX's encoding changes against the adopted one, made with
-`ARMS=av1,l2,rct,x36,plain make_frames.py …` into `lab/.av1-work/total3` and run as
-`--arms htj2k,plain,opt,x36 --links r5000,r20000,r50000`:
+`VARIANTS=av1,l2,rct,x36,plain make_frames.py …` into `lab/.av1-work/total3` and run as
+`--variants htj2k,plain,opt,x36 --links r5000,r20000,r50000`:
 
-| arm | stored | `connect` | series |
+| variant | stored | `connect` | series |
 | --- | --- | --- | --- |
 | `plain` | `av1`'s frames: the samples direct, RGB as G, B, R | `depth` when ≤ 10 → WebCodecs, else dav1d-WASM | all |
 | `opt` | `l2` on grey, `rct` on RGB | `l2wc`, `rctwc` | all |
@@ -76,7 +76,7 @@ against HTJ2K and row ENCX's encoding changes against the adopted one, made with
 
 Rounds 0–12, 18 minutes each (10–12 topping up the cells `VOID` left short); 38 532/38 532 frames exact
 over 1 170 visits, 144 `VOID`; `--summary --ref opt` sets x36 against the adopted representation. The
-reading is in the same README, §Total time. `--mutate sample` and `--mutate truth` each turned every arm
+reading is in the same README, §Total time. `--mutate sample` and `--mutate truth` each turned every variant
 to 0 exact, and the worker's unpack reading one bit off turned x36 alone to 0; ingest's merge shifted one
 bit too far stops `make_frames.py` at frame 0.
 The ultrasound has no `x36`: row ENCX's changes are the grey split's. `x36`'s frames are matched
@@ -84,10 +84,10 @@ with the series' checksum after a native decode and Python's inflate before they
 
 **Row ORDER** sets the order frames are asked in against the sequential fill, on the breast series
 of rows 10 and 45: both tomosynthesis volumes and two four-view screening mammograms (`ffdm_c`, 4 ×
-1914×2294, and `ffdm_a`, 4 × 2560×3328, 12-bit, stored R CC, L CC, R MLO, L MLO). Two arms a series,
+1914×2294, and `ffdm_a`, 4 × 2560×3328, 12-bit, stored R CC, L CC, R MLO, L MLO). Two variants a series,
 HTJ2K and the adopted optimized payload (`k2`: k = 2, WebCodecs), made with row SPLITTIME's
 `make_frames.py --k 2` into `lab/.av1-work/order`, and two orders each, run as
-`--arms htj2k,k2 --orders seq,prio --links r5000,r20000,r50000`:
+`--variants htj2k,k2 --orders seq,prio --links r5000,r20000,r50000`:
 
 | order | the page | useful |
 | --- | --- | --- |
@@ -98,7 +98,7 @@ HTJ2K and the adopted optimized payload (`k2`: k = 2, WebCodecs), made with row 
 The downloader takes asks before the fill and serves a fill as contiguous runs, lowest first
 ([`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The downloader), so `prio` is the order a
 client can already ask for, with no product change. `--mutate sample` and `--mutate truth` each turned
-both orders of both arms to 0 exact.
+both orders of both variants to 0 exact.
 
 **Links.** `r5000`, `r20000`, `r50000`: a fixed rate, 40 ms round trip, a 200-packet queue, as row
 FILL. `lte-good` and `wifi-home`: row PROF's profiles (`lab/scripts/profile_cells.sh`) — mahimahi's
@@ -113,13 +113,13 @@ no warm-up — and fills the whole series once connected. *First* is frame 0's p
 *all* the last frame's, both from the fill's issue; every frame's pixels are hashed against its
 truth once the fill is done. 4× is `lab/scripts/cpu_throttle.mjs` on the browser's process tree, from the
 page's `hello` on (since row TOTAL4; before it, from the browser's launch): after the browser's start, before the dial.
-(set × link × throttle) cells run in a Williams order each round (`lab/order.mjs`), the arms inside
+(set × link × throttle) cells run in a Williams order each round (`lab/order.mjs`), the variants inside
 each cell the same way offset by the cell's position; a visit whose relay prints `VOID` is dropped.
 
 **The rig.** Four cores: the relay alone on core 3 at `chrt -f 50`, browser and server on 0–2.
 
 **Checked.** `--mutate sample` (one bit of every decoded frame) and `--mutate truth` (one hex digit
-of every checksum) each turned every arm of all four series to 0 exact.
+of every checksum) each turned every variant of all four series to 0 exact.
 
 **Pins.** Node 22.22.0; playwright's Chromium 141.0.7390.37 (`CHROME_PATH` overrides);
 `@cornerstonejs/codec-openjph` 2.4.11; dav1d 1.5.4 under emscripten 3.1.74 (`simd.wasm`,
@@ -129,16 +129,16 @@ Firefox 157.0.1 (BuildID 20261005135250, conda-forge `firefox-157.0.1-hee9eb32_0
 SHA-256 `8761c382127e6363bd9e0a2451aa3ef90d071a79133f736e2f759a3bf13040dd`);
 `TMobile-LTE-short.down` sha256 `4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43`. Nothing built, fetched or generated is committed.
 
-**Row CLIENT** times a change to the downloader itself: `ARMS=none make_frames.py` (HTJ2K only) for
-`rf_fluoro` and `dbt10_ea1141`, then `downloader_arm.sh f136363^ before` adds an arm running the
-downloader as it was before the row, beside `htj2k` (the tree's), and (row SEAM, `downloader_arm.sh 541ceaf seambefore`) its decoder modules with it, and
-`run.mjs --links r20000,r50000 --arms htj2k,before --rounds 10`. The reading is in
+**Row CLIENT** times a change to the downloader itself: `VARIANTS=none make_frames.py` (HTJ2K only) for
+`rf_fluoro` and `dbt10_ea1141`, then `downloader_variant.sh f136363^ before` adds a variant running the
+downloader as it was before the row, beside `htj2k` (the tree's), and (row SEAM, `downloader_variant.sh 541ceaf seambefore`) its decoder modules with it, and
+`run.mjs --links r20000,r50000 --variants htj2k,before --rounds 10`. The reading is in
 [`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The downloader.
 
 **Row LOSSLINK** puts loss or jitter on top of each link and times an ask apart from the fill. The
-10-bit volume as HTJ2K (`ARMS=l2 make_frames.py`, its `htj2k`) and as the adopted optimized payload
+10-bit volume as HTJ2K (`VARIANTS=l2 make_frames.py`, its `htj2k`) and as the adopted optimized payload
 (`ingest/coded-frames/ingest.py --representation optimized --preset cpu0`, each `NNN.av1` linked in as
-`NNN.opt.av1` and `arms.json` set to `{"htj2k": {}, "opt": {"ext": "opt.av1"}}`), then rounds 0–12 of
+`NNN.opt.av1` and `variants.json` set to `{"htj2k": {}, "opt": {"ext": "opt.av1"}}`), then rounds 0–12 of
 
 ```bash
 run.mjs --frames lab/.av1-work/losslink --links r5000,r20000,r50000,lte-good \
@@ -152,7 +152,7 @@ nothing overtaken); the relay's tally of server → client packets lost is kept 
 1.00–1.10 %, 2.04–2.13 %, 5.03–5.21 % a cell. A visit fills frames 0–3 (`--fill`), then once they are on the
 page asks frames 4–7 one at a time (`--asks-after`), each timed from `requestExactFrame` to its pixels;
 every frame of both hashed against its truth. `--mutate sample` and `--mutate truth` each turned both
-arms to 0 of 12 exact (`--fill 8 --asks-after 4`, `l1` on 50 Mbit). The server's controller is its default, `cubic-restart`. The reading is in
+variants to 0 of 12 exact (`--fill 8 --asks-after 4`, `l1` on 50 Mbit). The server's controller is its default, `cubic-restart`. The reading is in
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Under loss and jitter.
 
 **Row TOTAL4** sets the payload as ingest now writes it against the served HTJ2K, in Chromium and in Firefox,
@@ -186,7 +186,7 @@ done
 | `us_liver` | 40 of 70, 760×421 | ultrasound, RGB 8 | — | the colour transform, 10-bit 4:4:4 |
 
 A longer series is cut at 9.1–10.3 MB of HTJ2K, so a round fits in half an hour; 15–16 bits are
-HTJ2K's by the rule and have no AV1 arm. Firefox is launched as a process (as row XBROWSER's) and the page
+HTJ2K's by the rule and have no AV1 variant. Firefox is launched as a process (as row XBROWSER's) and the page
 POSTs its result to the harness; Chromium's result comes the same way. Firefox runs no 5 Mbit cell but the
 probe: its WebTransport dial through the relay at 5 Mbit does not settle (below).
 
@@ -194,18 +194,18 @@ The run (2026-10-08): rounds 0–13 (round 4 cut short at 154 of 256 visits by a
 visit's profile is now removed after it), then rounds 14–15 on the cells short of n = 10, through
 `--sets`/`--links`/`--throttles` per engine. 3 746 visits, **90 949/90 949 delivered frames exact**; 1 706
 `VOID` (46 %: the relay's p99 over 1 ms, from 17 % in round 0 to 33–61 % after, on a quiet rig — this
-container's timing, not the arms') and 182 Firefox visits that never dialled: 49 of 60 at 5 Mbit, 125 of
+container's timing, not the variants') and 182 Firefox visits that never dialled: 49 of 60 at 5 Mbit, 125 of
 394 at 20 Mbit, 8 of 394 at 50 Mbit, none on the profiles. 1 930 visits kept, round-paired n = 0–13 a cell;
 the cells short of 10 are named in [`docs/av1/README.md`](../../../../docs/av1/README.md) §Every change of
-the round. `--mutate sample` and `--mutate truth` each turned both arms of every set to 0 of 708 delivered
+the round. `--mutate sample` and `--mutate truth` each turned both variants of every set to 0 of 708 delivered
 frames exact, in both engines (50 Mbit, 1×).
 
 **Row LOSSCC** sets the server's controller under row LOSSLINK's cells: today's `cubic-restart` against
 `bbr`, each with both codecs. The 10-bit volume's first 8 frames, through the product's ingest both ways
 (`payload_frames.sh lab/.av1-build lab/.av1-work/losscc $D/dbt10_ea1141:8`; 0.943 of HTJ2K's bytes), with
-`arms.json` given two more arms, `htj2kbbr` (`"codec": "htj2k", "congestion": "bbr"`) and `optbbr`
+`variants.json` given two more variants, `htj2kbbr` (`"codec": "htj2k", "congestion": "bbr"`) and `optbbr`
 (`"ext": "opt.av1", "congestion": "bbr"`). A visit refuses to run when the server's banner names
-another controller than the arm's. Then rounds 0–11 of
+another controller than the variant's. Then rounds 0–11 of
 
 ```bash
 taskset -c 0-2 run.mjs --frames lab/.av1-work/losscc --links r5000,r20000,r50000,lte-good \
@@ -213,13 +213,13 @@ taskset -c 0-2 run.mjs --frames lab/.av1-work/losscc --links r5000,r20000,r50000
 ```
 
 ±5 ms is not run: row LOSSLINK found it ±20 ms's row, less. `--mutate sample` and `--mutate truth` each
-turned both BBR arms to 0 of 8 exact (`l1` on 50 Mbit), and an arm started under `cubic` while it named
-`bbr` stopped the run. Plain Cubic is not an arm: `cubic-restart` has been the default since 2026-10-02,
+turned both BBR variants to 0 of 8 exact (`l1` on 50 Mbit), and a variant started under `cubic` while it named
+`bbr` stopped the run. Plain Cubic is not a variant: `cubic-restart` has been the default since 2026-10-02,
 and row CC1 measured the two side by side ([`docs/transport/transport-conclusions.md`](../../../../docs/transport/transport-conclusions.md) §1).
 
 **Row ASKDEADLINE** times the downloader's own deadlines under loss. Row LOSSLINK's HTJ2K frames
-(`ARMS=none make_frames.py`), `downloader_arm.sh cf4db15 before` for the downloader before the row, and
-in `arms.json` a third arm `stall15` (`"codec": "htj2k", "survival": {"stallMs": 15000}`); every arm with
+(`VARIANTS=none make_frames.py`), `downloader_variant.sh cf4db15 before` for the downloader before the row, and
+in `variants.json` a third variant `stall15` (`"codec": "htj2k", "survival": {"stallMs": 15000}`); every variant with
 `"transport": "/lab/av1/delivery/total-time/quiet-transport.js"`, the product's transport that tells the page each
 silence over 1 s it lived through and how long it had been quiet when closed. Then
 
@@ -228,17 +228,17 @@ run.mjs --frames lab/.av1-work/losslink --links r20000,lte-good --impairs clean,
   --fill 4 --asks-after 8 --rounds 10
 ```
 
-whose summary adds per arm the asks failed, the resumes and the silences survived. Chromium 141's
+whose summary adds per variant the asks failed, the resumes and the silences survived. Chromium 141's
 `WebTransport.getStats()` gave a probe no `packetsReceived` in two visits, so a silence is the application's, not the
 socket's. The reading is in [`client/README.md`](../../../../client/README.md)
 §A session that dies is resumed.
 
 **Row LOSSCC, the first claim's run** (`c0a3d8`, set stale mid-run) sets the server's three controllers against each other on row LOSSLINK's cells: the same
-frames, made the same way into `lab/.av1-work/losscc`, with `arms.json` naming six arms — `htj2k` and
+frames, made the same way into `lab/.av1-work/losscc`, with `variants.json` naming six variants — `htj2k` and
 `opt` under the default `cubic-restart`, and each again as `-bbr` and `-cubic` (`"congestion": "bbr"`).
-An arm's `congestion` is passed to `series-server --congestion`, and a visit stops unless the server's
+A variant's `congestion` is passed to `series-server --congestion`, and a visit stops unless the server's
 `transport=` line names that controller (Cubic, the one it leaves unprinted, when none is printed).
 Rounds 0–9 of the LOSSLINK command above with `--frames lab/.av1-work/losscc`, then rounds 10–12 on
 `--impairs clean,j5,j20`. Passing no `--congestion` stopped the run at the first `-bbr` visit;
-`--mutate sample` and `--mutate truth` each turned all six arms to 0 of 8 exact. The reading is in
+`--mutate sample` and `--mutate truth` each turned all six variants to 0 of 8 exact. The reading is in
 [`docs/transport/transport-conclusions.md`](../../../../docs/transport/transport-conclusions.md) §1 (LOSSCC, first run).

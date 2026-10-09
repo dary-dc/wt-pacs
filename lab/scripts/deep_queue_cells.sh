@@ -3,7 +3,7 @@
 # controller — how long the fill takes and how much queue stands behind it.
 # Results: docs/transport/transport-conclusions.md §3 The slow-start exit.
 #
-#   lab/scripts/deep_queue_cells.sh [rounds]     RTT= LINKS= QUEUES= ARMS= OUT= FIRST=
+#   lab/scripts/deep_queue_cells.sh [rounds]     RTT= LINKS= QUEUES= VARIANTS= OUT= FIRST=
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -15,7 +15,7 @@ read -ra LINKS <<<"${LINKS:-flat step step40 burst}"
 read -ra QUEUES <<<"${QUEUES:-500 1000}"     # ms at the link's mean rate
 # controller[:client] — the client is first_ask with this stream credit in bytes (quinn's 1.25 MB
 # when absent), or `browser`: headless Chromium's downloader, lab/session-survival.
-read -ra ARMS <<<"${ARMS:-cubic cubic:16000000 bbr:16000000 cubic:browser}"
+read -ra VARIANTS <<<"${VARIANTS:-cubic cubic:16000000 bbr:16000000 cubic:browser}"
 FRAMES=237
 FRAME_BYTES=265000
 OUT="${OUT:-$(mktemp -t deep_queue_cells.XXXX.tsv)}"
@@ -81,13 +81,13 @@ session_path() {  # lost congestion_events
     sed -n 's/.*session path .*\blost=\([0-9]*\) congestion_events=\([0-9]*\).*/\1 \2/p' | tail -1
 }
 
-run() {  # round prev link queue arm: one row of $OUT
-  local r="$1" prev="$2" link="$3" q="$4" arm="$5" fill sq50 sqmax lost cong void window=()
-  [[ $arm == *:[0-9]* ]] && window=(--stream-recv-window "${arm##*:}")
+run() {  # round prev link queue variant: one row of $OUT
+  local r="$1" prev="$2" link="$3" q="$4" variant="$5" fill sq50 sqmax lost cong void window=()
+  [[ $variant == *:[0-9]* ]] && window=(--stream-recv-window "${variant##*:}")
   rm -f "$T/path.jsonl"
   WTPACS_PATH_TELEMETRY=1 WTPACS_PATH_TELEMETRY_MS=100 WTPACS_PATH_TELEMETRY_PATH="$T/path.jsonl" \
     RUST_LOG=series_server=info "$BIN/series-server" --port "$SRV" --bind 127.0.0.1 --series "$T/series.sbnd" \
-    --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "${arm%%:*}" > "$T/server.log" 2>&1 &
+    --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "${variant%%:*}" > "$T/server.log" 2>&1 &
   local server=$!
   for _ in $(seq 100); do grep -q "wt_url=" "$T/server.log" && break; sleep 0.1; done
   # shellcheck disable=SC2046
@@ -96,8 +96,8 @@ run() {  # round prev link queue arm: one row of $OUT
   local relay=$!
   PIDS=("$server" "$relay")
   for _ in $(seq 50); do grep -q READY "$T/relay.log" && break; sleep 0.1; done
-  if [[ $arm == *:browser ]]; then
-    NODE_PATH="${NODE_PATH:-$(npm root -g)}" node lab/session-survival/run.mjs --rounds 1 --arms built \
+  if [[ $variant == *:browser ]]; then
+    NODE_PATH="${NODE_PATH:-$(npm root -g)}" node lab/session-survival/run.mjs --rounds 1 --variants built \
       --base "http://127.0.0.1:$HTTP" --no-cut --fill "$FRAMES" --timeout 120000 --out "$T/row.jsonl" \
       > /dev/null 2>&1 || true
     fill=$(python3 -c 'import json,sys; r=json.loads(open(sys.argv[1]).read().splitlines()[-1]); print(r["spanMs"] if r["done"] and not r["failures"] else "")' "$T/row.jsonl" 2>/dev/null || true)
@@ -115,33 +115,33 @@ run() {  # round prev link queue arm: one row of $OUT
   read -r lost cong <<<"$(session_path)"
   void=$(grep -c VOID "$T/relay.log" || true)
   p99=$(sed -n 's/^self-timing .* p99 \([0-9.]*\) .*/\1/p' "$T/relay.log")
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$link" "$q" "$r" "$prev" "$arm" "${fill:--}" \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$link" "$q" "$r" "$prev" "$variant" "${fill:--}" \
     "$sq50" "$sqmax" "${lost:--}" "${cong:--}" "$void" "${p99:--}" >> "$OUT"
   printf 'round %s %-6s %4s ms %-22s fill %8s ms  standing p50 %s max %s ms  lost %s cong %s%s\n' \
-    "$r" "$link" "$q" "$arm" "${fill:-FAILED}" "$sq50" "$sqmax" "${lost:--}" "${cong:--}" \
+    "$r" "$link" "$q" "$variant" "${fill:-FAILED}" "$sq50" "$sqmax" "${lost:--}" "${cong:--}" \
     "$([[ $void != 0 ]] && echo " VOID p99 $p99")"
   sleep 1
 }
 
 echo "link: ${RTT} ms round trip, 22 Mbit mean down, uplink unshaped; fill $FRAMES x $FRAME_BYTES B; raw: $OUT"
-[ -s "$OUT" ] || printf 'link\tqueue_ms\tround\tprev\tarm\tfill_ms\tsq_p50_ms\tsq_max_ms\tlost\tcong\tvoid\trelay_p99_ms\n' > "$OUT"
+[ -s "$OUT" ] || printf 'link\tqueue_ms\tround\tprev\tvariant\tfill_ms\tsq_p50_ms\tsq_max_ms\tlost\tcong\tvoid\trelay_p99_ms\n' > "$OUT"
 for ((r = FIRST; r < ROUNDS; r++)); do
   for link in "${LINKS[@]}"; do
     for q in "${QUEUES[@]}"; do
       prev=-
-      for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$r"); do
-        run "$r" "$prev" "$link" "$q" "${ARMS[k]}"
-        prev="${ARMS[k]}"
+      for k in $(python3 lab/scripts/order.py row "${#VARIANTS[@]}" "$r"); do
+        run "$r" "$prev" "$link" "$q" "${VARIANTS[k]}"
+        prev="${VARIANTS[k]}"
       done
     done
   done
 done
 
-python3 - "$OUT" "${ARMS[@]}" <<'PY'
+python3 - "$OUT" "${VARIANTS[@]}" <<'PY'
 import collections, statistics, sys
 sys.path.insert(0, "lab/scripts")
 from order import leads_by_predecessor
-arms = sys.argv[2:]
+variants = sys.argv[2:]
 head = open(sys.argv[1]).readline().rstrip("\n").split("\t")
 rows = [dict(zip(head, l.rstrip("\n").split("\t"))) for l in open(sys.argv[1]).readlines()[1:]]
 ok = [r for r in rows if r["void"] == "0" and r["fill_ms"] != "-"]
@@ -152,21 +152,21 @@ for r in ok:
 f = lambda x: "%.0f" % x
 for (link, q), rs in cells.items():
     print("\n== %s, %s ms queue" % (link, q))
-    print("%-22s %3s %9s %15s %9s %9s %6s %5s %10s" % ("arm", "n", "fill ms", "fill min-max", "sq p50", "sq max", "lost", "cong", "vs " + arms[0]))
-    at = {r["round"]: float(r["fill_ms"]) for r in rs if r["arm"] == arms[0]}
-    for a in arms:
-        v = [r for r in rs if r["arm"] == a]
+    print("%-22s %3s %9s %15s %9s %9s %6s %5s %10s" % ("variant", "n", "fill ms", "fill min-max", "sq p50", "sq max", "lost", "cong", "vs " + variants[0]))
+    at = {r["round"]: float(r["fill_ms"]) for r in rs if r["variant"] == variants[0]}
+    for a in variants:
+        v = [r for r in rs if r["variant"] == a]
         if not v:
             continue
         fill = [float(r["fill_ms"]) for r in v]
         med = lambda k: statistics.median(float(r[k]) for r in v if r[k] != "-") if any(r[k] != "-" for r in v) else float("nan")
         lead = [float(r["fill_ms"]) - at[r["round"]] for r in v if r["round"] in at]
         better = sum(d < 0 for d in lead)
-        vs = "-" if a == arms[0] else "%+.0f %d/%d" % (statistics.median(lead), better, len(lead)) if lead else "-"
+        vs = "-" if a == variants[0] else "%+.0f %d/%d" % (statistics.median(lead), better, len(lead)) if lead else "-"
         print("%-22s %3d %9s %7s-%-7s %9s %9s %6.0f %5.0f %10s" % (a, len(v), f(statistics.median(fill)), f(min(fill)), f(max(fill)),
               f(med("sq_p50_ms")), f(med("sq_max_ms")), med("lost"), med("cong"), vs))
-    split = [{"round": int(r["round"]), "unit": r["arm"], "prev": None if r["prev"] == "-" else r["prev"],
+    split = [{"round": int(r["round"]), "unit": r["variant"], "prev": None if r["prev"] == "-" else r["prev"],
               "v": float(r["fill_ms"])} for r in rs]
-    for line in leads_by_predecessor(split, arms, [(a, arms[0]) for a in arms[1:]]):
+    for line in leads_by_predecessor(split, variants, [(a, variants[0]) for a in variants[1:]]):
         print(line)
 PY

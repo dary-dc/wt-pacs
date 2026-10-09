@@ -167,12 +167,12 @@ export async function prepare(names, codings, frames) {
 }
 
 /**
- * One arm over a set's units in order, fresh decoder, the first unit a keyframe. Returns the ms from each
+ * One variant over a set's units in order, fresh decoder, the first unit a keyframe. Returns the ms from each
  * unit sent to its picture in the contract, and the pictures' hashes. "wc-base" / "wc-all": WebCodecs fed
  * the filtered / whole units; "dav1d-base" / "dav1d-all": av1-dav1d.js fed whole units, to its preview /
  * to its exact frame.
  */
-async function arm(name, s, mutate) {
+async function variant(name, s, mutate) {
   const ms = [];
   const base = [];
   const top = [];
@@ -219,19 +219,19 @@ async function arm(name, s, mutate) {
   return { ms, base: exactBase, top: exactTop, late, errors };
 }
 
-const ARMS = ["wc-base", "wc-all", "dav1d-base", "dav1d-all"];
+const VARIANTS = ["wc-base", "wc-all", "dav1d-base", "dav1d-all"];
 
-/** Rows, one per (set, coding, arm): the mean ms a frame and what was exact. `warm` runs each arm once untimed first. */
-export async function round(sets, r, { mutate = "", warm = true, arms = ARMS } = {}) {
+/** Rows, one per (set, coding, variant): the mean ms a frame and what was exact. `warm` runs each variant once untimed first. */
+export async function round(sets, r, { mutate = "", warm = true, variants = VARIANTS } = {}) {
   const rows = [];
   for (const s of order(sets, r)) {
     const filtered = s.whole.map((u) => baseOf(u, mutate));
     const sameAsAlone = filtered.filter((u, i) => u.length === s.alone[i].length && u.every((b, k) => b === s.alone[i][k])).length;
-    for (const a of order(arms, r)) {
-      if (warm) await arm(a, s, mutate);
-      const got = await arm(a, s, mutate);
+    for (const a of order(variants, r)) {
+      if (warm) await variant(a, s, mutate);
+      const got = await variant(a, s, mutate);
       const mean = got.ms.length ? got.ms.reduce((x, y) => x + y, 0) / got.ms.length : null;
-      rows.push({ set: s.m.name, coding: s.coding, arm: a, round: r, units: s.whole.length, ms: mean, sameAsAlone,
+      rows.push({ set: s.m.name, coding: s.coding, variant: a, round: r, units: s.whole.length, ms: mean, sameAsAlone,
         late: got.late, bases: got.base.filter((x) => x !== null).length, baseExact: got.base.filter((x) => x === true).length,
         tops: got.top.filter((x) => x !== null).length, topExact: got.top.filter((x) => x === true).length, errors: got.errors });
     }

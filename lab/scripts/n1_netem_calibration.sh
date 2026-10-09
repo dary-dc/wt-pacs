@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Can a container's impaired link stand in for the kernel's? On the cloud rig, one server and the
 # cold_open probe on its own loopback; per round and delay the link is either link_impair.py (the
-# userspace relay rows 36-38 were measured through) or netem on `lo`, arms interleaved. Each arm's
+# userspace relay rows 36-38 were measured through) or netem on `lo`, variants interleaved. Each variant's
 # three delays are fitted: slope = round trips, intercept = fixed cost. Results: docs/rig-limits.md §3.
 #
 #   SSH_KEY=~/.ssh/id_ed25519_rig lab/scripts/n1_netem_calibration.sh [ROUNDS]
@@ -34,8 +34,8 @@ for _ in $(seq 100); do grep -q wt_url= server.log && break; sleep 0.1; done
 
 for ((r = 0; r < $1; r++)); do
   for d in 20 40 80; do
-    for arm in $( ((r % 2)) && echo "netem relay" || echo "relay netem" ); do
-      if [[ $arm == relay ]]; then
+    for variant in $( ((r % 2)) && echo "netem relay" || echo "relay netem" ); do
+      if [[ $variant == relay ]]; then
         python3 link_impair.py --udp "$IN:$SRV" --delay-ms "$d" --control-port $CTRL > relay.log 2>&1 &
         relay=$!
         for _ in $(seq 50); do grep -q READY relay.log && break; sleep 0.1; done
@@ -46,8 +46,8 @@ for ((r = 0; r < $1; r++)); do
         port=$SRV
       fi
       line=$(./cold_open --url "https://127.0.0.1:$port/" --rounds 5 --rtt-ms $((2 * d)) 2>&1 | tail -1)
-      if [[ $arm == relay ]]; then kill "$relay"; wait "$relay" 2> /dev/null; else sudo -n tc qdisc del dev lo root; fi
-      printf '%s\t%s\t%s\t%s\n' "$r" "$arm" $((2 * d)) "$line"
+      if [[ $variant == relay ]]; then kill "$relay"; wait "$relay" 2> /dev/null; else sudo -n tc qdisc del dev lo root; fi
+      printf '%s\t%s\t%s\t%s\n' "$r" "$variant" $((2 * d)) "$line"
       sleep 1
     done
   done
@@ -65,16 +65,16 @@ def fit(pts):
     slope = sum((x - mx) * (y - my) for x, y in pts) / sum((x - mx) ** 2 for x in xs)
     return slope, my - slope * mx
 for phase in ("session", "first_byte", "ask_to_last_byte"):
-    for arm in ("relay", "netem"):
+    for variant in ("relay", "netem"):
         fits = []
         for r in sorted({x[0] for x in rows}):
             pts = [(float(rtt), float(m.group(1))) for rr, a, rtt, line in rows
-                   if rr == r and a == arm and (m := re.search(phase + r"=([0-9.]+)ms", line))]
+                   if rr == r and a == variant and (m := re.search(phase + r"=([0-9.]+)ms", line))]
             if len(pts) == 3:
                 fits.append(fit(pts))
         if fits:
             s, i = [f[0] for f in fits], [f[1] for f in fits]
-            print(f"{phase:17} {arm:6} round trips {st.median(s):5.2f} [{min(s):.2f}–{max(s):.2f}]"
+            print(f"{phase:17} {variant:6} round trips {st.median(s):5.2f} [{min(s):.2f}–{max(s):.2f}]"
                   f"  fixed ms {st.median(i):6.1f} [{min(i):.1f}–{max(i):.1f}]  n={len(fits)}")
 PY
 echo "wrote $OUT" >&2

@@ -16,7 +16,7 @@ function varint(raw, at) {
   }
 }
 
-/** `restore(pixels, i, ms)` for one arm: `side` is remap.json, `maps[i]` frame i's map bytes. */
+/** `restore(pixels, i, ms)` for one variant: `side` is remap.json, `maps[i]` frame i's map bytes. */
 export function restorer({ side, signed, maps }) {
   const Out = signed ? Int16Array : Uint16Array;
   const off = side.source_offset;

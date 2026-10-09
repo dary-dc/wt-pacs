@@ -70,7 +70,7 @@ step "client: type-check (product, shared record, contract and transport-ts test
 (cd client/transport/ts && npx tsc -p ../../record/tsconfig.json)
 (cd client/transport/ts && npx tsc -p ../../contract/tsconfig.json)
 
-step "lab: the arm order and its predecessor split"
+step "lab: the variant order and its predecessor split"
 node lab/order.test.mjs
 
 step "lab: the AV1 fetch refuses a lossy source its set does not mark"
@@ -86,7 +86,7 @@ step "common + ingest: wire, envelope and series-bundle tests"
 cargo test -p fod -p frame-envelope -p series-bundle --quiet
 step "lab: window-harness tests"
 cargo test -p window-harness --quiet
-step "lab: disk-access-bench and telemetry-bench compile (the arms are part of the API)"
+step "lab: disk-access-bench and telemetry-bench compile (the variants are part of the API)"
 cargo check -p disk-access-bench -p telemetry-bench --all-targets --quiet
 
 if [[ $browser -eq 1 ]]; then

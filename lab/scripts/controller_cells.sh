@@ -2,8 +2,8 @@
 # W2: the controller questions, through lab/scripts/link_impair.py.
 #   S8  an early slow-start exit — Cubic against BBR (the exit itself is retired); shallow and deep buffer,
 #       with and without jitter.
-#   S9  retired with its flag; code: `git show archive/arms-2026-10-03:lab/scripts/controller_cells.sh`.
-#       Where in the transfer a blink lands, and the controller arms through it: blink_cells.sh.
+#   S9  retired with its flag; code: `git show archive/variants-2026-10-03:lab/scripts/controller_cells.sh`.
+#       Where in the transfer a blink lands, and the controller variants through it: blink_cells.sh.
 #   S10 `initial_rtt` against the cold-connect tail at 1 % loss.
 # Results: docs/transport/transport-conclusions.md §3.
 #
@@ -102,7 +102,7 @@ run() {  # label state [probe args...]
 
 head_row() {
   printf '\n== %s\n%-26s %9s %9s %8s %7s %8s\n' "$1" \
-    "arm" "fill ms" "sent" "lost" "cong" "end rtt"
+    "variant" "fill ms" "sent" "lost" "cong" "end rtt"
 }
 
 echo "link: ${RTT} ms round trip, ${RATE} kbit, fill $((FILL * KB)) KB"
@@ -111,14 +111,14 @@ for buffer in "shallow:20" "deep:1500"; do
   for jitter in 0 2 10; do
     head_row "S8 · ${buffer%%:*} buffer (${buffer##*:} packets), jitter ${jitter} ms"
     RELAY_ARGS=(--rate-kbit "$RATE" --queue-pkts "${buffer##*:}" --jitter-ms "$jitter")
-    for arm in cubic bbr; do
-      SERVER_ARGS=(--congestion "$arm")
-      run "$arm" filled
+    for variant in cubic bbr; do
+      SERVER_ARGS=(--congestion "$variant")
+      run "$variant" filled
     done
   done
 done
 
-printf '\n== S10 · the cold-connect tail at 1 %% loss\n%-26s %s\n' "arm" "cold open, $((ROUNDS * 8)) connects"
+printf '\n== S10 · the cold-connect tail at 1 %% loss\n%-26s %s\n' "variant" "cold open, $((ROUNDS * 8)) connects"
 RELAY_ARGS=(--loss 1)
 for rtt_ms in 333 100 50; do
   if [[ $rtt_ms -eq 333 ]]; then SERVER_ARGS=(); else

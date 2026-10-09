@@ -96,7 +96,7 @@ would drop queued work — worth it if a phone shows a decode long against a swi
 
 **`start` and `dial` are two messages**, so the decoders boot and the opening fill is recorded before
 the page has the URL. **It buys no round trip** — 14.51 against 14.57 to the first frame of a fill,
-inside the ±0.2 arms wander ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The first
+inside the ±0.2 variants wander ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The first
 byte on a fill), because the preload already warms the worker graph — and costs nothing. A device
 whose worker boot is slower than its dial would decide it.
 
@@ -115,7 +115,7 @@ so none needs a handshake:
 The one pattern that does lose messages — a `BroadcastChannel` a worker constructs and the page posts
 to at once — is used only by the contract fakes, which wait for `listening`. **Measured**
 ([`../lab/early-messages/run.mjs`](../lab/early-messages/run.mjs), driverless Chromium 141, 5 × 1 000
-opens an arm, rotated): the downloader path lost **0 of 5 000**, the harness's worker **0 of 5 000**,
+opens a variant, rotated): the downloader path lost **0 of 5 000**, the harness's worker **0 of 5 000**,
 the `BroadcastChannel` control **103 of 5 000**. Exposed on purpose, each site was caught: the pixel
 port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 ms late 20 of 20.
 
@@ -175,7 +175,7 @@ read: `wire` is what a resume owes, `queued` what dispatch may take, `decoding` 
 sweep found dead — the record's generation, two guards in `promote()` — is removed; every decision
 left is held by a test (`client/README.md` §Every decision is held by a test).
 *The fill's time is unchanged* — the HTJ2K frames through this downloader against the one before
-`f136363` (the arm `lab/av1/delivery/total-time/downloader_arm.sh` adds), the rest of the client the same, the real
+`f136363` (the variant `lab/av1/delivery/total-time/downloader_variant.sh` adds), the rest of the client the same, the real
 server behind the relay, headless Chromium, 10 rounds interleaved, 10 of 160 visits `VOID` dropped,
 n = 7–10 a cell: every frame on the page after / before **0.99–1.00** on the fluoroscopy (18 × 768²)
 and the 10-bit tomosynthesis (24 × 678×1727) at 20 and 50 Mbit, 1× and 4× (fluoroscopy at 50 Mbit
@@ -189,7 +189,7 @@ the downloader has them before it dials. Otherwise the page posts `fill` after `
 thread inside a long boot task cannot post it until the task ends.
 
 Measured ([`../lab/fill-at-start/`](../lab/fill-at-start/README.md), 8 cores, 20 frames of ~51 KB,
-decode off, one fresh page and session per arm, **12 rounds**, order reversed on odd rounds). Median
+decode off, one fresh page and session per variant, **12 rounds**, order reversed on odd rounds). Median
 [min … max] from `connect()`. Over a **50 ms round trip, the main thread held 300 ms from 25 ms in**
 — the worker alive and dialling, which is a viewer's ordering:
 
@@ -263,7 +263,7 @@ routes on it; which AV1 decoder takes a payload is `av1.js`'s alone. **Kept, and
   `decode: false` (lab and tests). Each is reached by a clause; none costs a frame that does not use it.
 
 *The fill's time is unchanged*: the HTJ2K frames through `client/downloader/` as it was before the
-row (`downloader_arm.sh 541ceaf`, decoders included) against the tree, row CLIENT's harness and cells,
+row (`downloader_variant.sh 541ceaf`, decoders included) against the tree, row CLIENT's harness and cells,
 10 rounds interleaved, 12 of 160 visits `VOID` dropped, n = 8–10: after / before **1.00** in all 8
 cells (fluoroscopy at 50 Mbit and 1×, 1 723 [1 720–1 736] against 1 725 [1 719–1 729] ms), slower in
 29 of 68 paired rounds, 3 360/3 360 frames exact. The AV1 continuity check was not timed: it is one
@@ -326,7 +326,7 @@ behind a `tail`.
 ### The container campaign
 
 The container campaign ([`../lab/downloader-campaign/`](../lab/downloader-campaign/README.md)). 4
-cores, loopback, 87 real HTJ2K frames of 512×512×3 (~430 KB each). Three arms, one fresh session
+cores, loopback, 87 real HTJ2K frames of 512×512×3 (~430 KB each). Three variants, one fresh session
 each, order rotated every round, **8 rounds**, 120 runs, no errors: **H**, the harness path — the TS
 session on the page, a waiter per frame; **Dw**, the downloader with decode off, the like-for-like
 comparison; **Dd**, the downloader decoding with three decoders, the product path. Median
@@ -355,7 +355,7 @@ that H's ask competes with the fill's parsing on one thread is a mechanism offer
 **What differs is the fill**: on H the server ends it and nothing re-issues it, so 23 or 53 frames
 arrive and the page holds waiters that would sit out 15 s; on Dw the fill completes in a plain fill's
 time. On Dd an ask at 10 % waits behind the two frames each decoder holds — the dispatch bound's price.
-The decode arm alone: 80 frames in **472 ms [435 … 481]**, decode-bound on four cores and not
+The decode variant alone: 80 frames in **472 ms [435 … 481]**, decode-bound on four cores and not
 transferable; main thread 33 ms, page JS heap peak 1.7 MB (the pixels are `SharedArrayBuffer`s the
 page never copies); a cold ask 39.6 ms, one decode.
 
@@ -366,7 +366,7 @@ none but holds a promise and a 15 s timer per frame on the page. Loopback in a c
 the window the ask waits behind is this host's, and a long fat link holds more of it.
 
 **Re-run on `641df69`, H's last run before its removal** (2026-10-02, workstation, 8 cores, headless
-Chrome 148, the same page and arms, 12 rounds, 180 runs, no errors). Median [min … max], and the rounds
+Chrome 148, the same page and variants, 12 rounds, 180 runs, no errors). Median [min … max], and the rounds
 in which Dw beat H:
 
 | | H | Dw | Dw better | Dd |
@@ -391,11 +391,11 @@ picture (fill 456 against 464 ms, ranges overlapping).
 
 ### Under a throttled CPU
 
-The same 80-frame fill on H, Dw and Dd at 1×, 4× and 6× Chromium CPU throttle, arms and throttles
+The same 80-frame fill on H, Dw and Dd at 1×, 4× and 6× Chromium CPU throttle, variants and throttles
 rotated inside each of 5 rounds ([`../lab/downloader-campaign/throttle.mjs`](../lab/downloader-campaign/throttle.mjs)),
 collections and task time per thread from each fill's trace, allocations sampled on the page:
 
-| arm | fill, 1× / 4× / 6× | page collections (pause) | worker threads' time | page allocation, KiB |
+| variant | fill, 1× / 4× / 6× | page collections (pause) | worker threads' time | page allocation, KiB |
 | --- | --: | --: | --: | --: |
 | H | 279 / 478 / 692 ms | 1 (3.0 / 13.4 / 15.0 ms) | 0 | 812 / 474 / 465 |
 | Dw | 273 / 283 / 300 | **0** | 37–41 ms | 192–224, `consumer.js` 42–53 |
@@ -459,7 +459,7 @@ A second decoder shortens the fill in 7 of 7 rounds everywhere, a third in 7 of 
   decoders" is not a lever. A phone reports its little cores too, so the rule bites only on two-core
   devices; whether a phone's scheduler behaves like this emulation is for a device.
 * **The heap floor is a link-time choice**: on the decoder built from source with a 4 MB floor the Dd
-  arm holds **16.3 MB against 161.4**, fill and cold ask identical to the tenth, byte-identical on all
+  variant holds **16.3 MB against 161.4**, fill and cold ask identical to the tenth, byte-identical on all
   six fixture sets. Whether that build ships is a supply question ([`decode/README.md`](decode/README.md)
   §A build of our own).
 
@@ -478,10 +478,10 @@ cross-origin isolated so `performance.now()` is 5 µs and a one-tick difference 
   every size from 512 KB. A `SharedArrayBuffer` tracks the transferred frame and edges it at 2–8 MB.
 * **Pulling each frame adds a `postMessage` per frame to the main thread.**
 
-Both arms were mutated and moved as they should: `shared` given a transfer list delivers nothing, and
+Both variants were mutated and moved as they should: `shared` given a transfer list delivers nothing, and
 `direct` routed through the receive worker takes relay's numbers.
 
-### The downloader arm during a fill, against direct
+### The downloader variant during a fill, against direct
 
 Does the downloader worker lengthen the per-frame interval during a fill, against a client on the
 page feeding the same decoders? [`../lab/decode-tail/`](../lab/decode-tail/run.mjs) `page.js`
@@ -588,9 +588,9 @@ The counts above use this tree's dev dial: a self-signed 450 B leaf pinned by ha
 validated the client's address a QUIC server may send three times what it received**; a quinn Initial
 is 1 200 B, so the first flight is capped at **3 600 B** and the rest waits a round trip. Chains from a
 throwaway CA, padded as a public CA issues them, flights read by `lab/scripts/first_flight.py`, slopes
-over 40 / 80 / 160 ms, five arms interleaved, n = 7 a delay:
+over 40 / 80 / 160 ms, five variants interleaved, n = 7 a delay:
 
-| arm | server's first flight | first byte | session ready |
+| variant | server's first flight | first byte | session ready |
 | --- | --- | --- | --- |
 | dev dial | 1 338 B / 2 datagrams | 4.03 rt | 3.03 rt |
 | ECDSA P-256 chain | 2 810 B / 4 | 4.04 rt — a tie | 3.05 rt |
@@ -633,7 +633,7 @@ A refusal in such a session, for a later ask, waits for the control stream: the 
 refuse on and dropped it (`an_opening_ask_is_served_behind_the_accept`).
 
 **Worth −1.13 round trips to the first frame of a fill in a browser** — 13.44 against 14.57, seven
-rounds an arm at 40, 80 and 160 ms, interleaved, against a ±0.2 spread on milestones it does not touch:
+rounds a variant at 40, 80 and 160 ms, interleaved, against a ±0.2 spread on milestones it does not touch:
 41 ms at 40, 178 at 160. Re-run 2026-10-02 (PUSH), 14 rounds Williams-ordered: −1.06 at 1×, **−1.52 at
 4×**, and −1.9 / −1.8 with the URL inlined ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The push in a browser, at 4×). **On by default** since 2026-10-02 (a measured win with no cell against it):
 `--open-ask false` on the server and `openAsk: false` on the client turn it off, together — a client
@@ -667,15 +667,15 @@ session, 7/7 at 40 and 80 ms (not re-measured here; this server uses `Endpoint::
 **Worth one round trip off the dial**, in a browser ([`../lab/page-open/run.mjs`](../lab/page-open/run.mjs)
 with `SERVERS=`, both builds behind their own relays, interleaved, 8 rounds at 0, 40 and 80 ms):
 
-| arm | profile | dial, unpatched | dial, patched | rounds won at 40 / 80 ms |
+| variant | profile | dial, unpatched | dial, patched | rounds won at 40 / 80 ms |
 | --- | --- | ---: | ---: | --- |
 | ts | cold | 3.15 rt | **2.14 rt** | 8/8 · 8/8 |
 | wasm | cold | 3.41 rt | **2.49 rt** | 8/8 · 8/8 |
 | downloader | cold | 3.40 rt | **2.41 rt** | 8/8 · 8/8 |
 | downloader | warm | 3.51 rt | **2.18 rt** | 8/8 · 8/8 |
 
-At 0 ms the arms tie, as a round-trip lever must. Chrome's net log
-([`../lab/scripts/netlog_dial.py`](../lab/scripts/netlog_dial.py), 18 of 18 sessions an arm at 80 ms)
+At 0 ms the variants tie, as a round-trip lever must. Chrome's net log
+([`../lab/scripts/netlog_dial.py`](../lab/scripts/netlog_dial.py), 18 of 18 sessions a variant at 80 ms)
 shows the SETTINGS in the first flight and the CONNECT leaving before `HANDSHAKE_DONE`. From a TLS
 page host the lever takes its round trip off the page's first frame in every cell
 ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The first frame on a real host).
@@ -855,10 +855,10 @@ clause `aSessionNearItsBudgetIsReplaced` holds the client (three mutants caught)
 2026-10-02): headless Chromium, the downloader (`decode: false`) through the relay at 20 Mbit with a
 200-packet queue, a 61 MB fill (87 frames of 701 KB), N = 16 MiB, 7 rounds Williams-ordered, each
 run its own server and relay, `--self-timing` (two runs `VOID`, dropped), 609 of 609 frames
-bit-exact in every arm. Fill time, median ms, and the lead over `none`; every arm's range is under
+bit-exact in every variant. Fill time, median ms, and the lead over `none`; every variant's range is under
 ±40 ms, so each lead holds in every round:
 
-| arm | 40 ms | 80 ms | 160 ms | gap at each swap (40 / 80 / 160) |
+| variant | 40 ms | 80 ms | 160 ms | gap at each swap (40 / 80 / 160) |
 | --- | --- | --- | --- | --- |
 | `none` — no stall, no recycle | 24 967 | 25 186 | 25 705 | — |
 | `reactive` — the stall, today's client | **+22 500** | **+23 410** | **+25 440** | 3 stalls: 3.8, 6.8, 12.8 s at 40 |
@@ -895,11 +895,11 @@ is not a flat 20 Mbit.
 rebinds its own upstream port: the old path gone, a new one working, **and nothing telling the
 client**. A blackout is not this — the same path comes back and QUIC recovers by itself. Method:
 [`../lab/session-survival/README.md`](../lab/session-survival/README.md). 428 KB frames at 20 Mbit, a
-fill of 80 cut after 12, **7 rounds**, arms interleaved; `today` is `survival: false` plus a page that
+fill of 80 cut after 12, **7 rounds**, variants interleaved; `today` is `survival: false` plus a page that
 re-asks for everything missing the instant the fill is reported gone — a generous baseline. Median
 [min … max] ms from the cut:
 
-| arm | noticed | first frame after the cut | fill completed | frames failed |
+| variant | noticed | first frame after the cut | fill completed | frames failed |
 | --- | --- | --- | --- | --- |
 | `today` | 6 552 [6 539 … 6 558] | 6 745 [6 740 … 6 758] | 7/7 | **476** (68 a round) |
 | built, probe design | 5 010 [4 996 … 5 023] | 5 191 [5 172 … 5 216] | 7/7 | 0 |
@@ -949,7 +949,7 @@ push**, 134.0 jumping to half the warmed window, 112.7 with both; behind a 10 Mb
 push reaches the ceiling alone (313.7 against 302.8) and the jump is 38 % slower than it. "Jump"
 approximates Careful Resume with no pacing, validation or retreat. What would reopen it: reconnects
 with nothing to push, a bottleneck the push cannot fill in one burst on the target link, and a real
-Careful Resume arm in that cell.
+Careful Resume variant in that cell.
 
 ### A fill outlasts the screen lock
 
@@ -1016,7 +1016,7 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
   ([`../lab/tcp-fallback/`](../lab/tcp-fallback/README.md) §The opening ask in the upgrade's URL).
 
 **Before it is enabled anywhere**: a device check of the iOS stall and of recycling. **What the shaped
-A/B on the workstation should measure**, arms interleaved: (1) a fill's wall time and per-frame
+A/B on the workstation should measure**, variants interleaved: (1) a fill's wall time and per-frame
 inter-arrival p99, WebTransport against WebSocket, at 40 and 80 ms, clean and at 1 % / 3 % loss — the
 p99 is where head-of-line blocking shows; (2) an ask during a fill, which waits behind QUIC's send
 window or TCP's socket buffer, not the same size; (3) each dial's time to ready and which one the race

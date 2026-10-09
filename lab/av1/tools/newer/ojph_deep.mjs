@@ -14,7 +14,7 @@ const ROOT = new URL("../../../..", import.meta.url).pathname;
 const BUILD = process.argv[2]?.startsWith("--") ? `${ROOT}/lab/.av1-build` : process.argv[2] ?? `${ROOT}/lab/.av1-build`;
 const MUTATE = process.argv.includes("--mutate");
 const OJPH = `${BUILD}/ojph-0.31.0/install`;
-const ARMS = ["0.31.0-3.1.74", "0.32.0-3.1.74", "0.31.0-6.0.11", "0.32.0-6.0.11"];
+const VARIANTS = ["0.31.0-3.1.74", "0.32.0-3.1.74", "0.31.0-6.0.11", "0.32.0-6.0.11"];
 const W = 256, H = 256;
 
 let seed = 57;
@@ -41,8 +41,8 @@ for (const [name, f] of Object.entries(FRAMES)) {
 }
 
 let failed = 0;
-for (const arm of ARMS) {
-  const M = await createRequire(import.meta.url)(`${BUILD}/ojph-wasm/${arm}.js`)();
+for (const variant of VARIANTS) {
+  const M = await createRequire(import.meta.url)(`${BUILD}/ojph-wasm/${variant}.js`)();
   for (const name of Object.keys(FRAMES)) {
     const j2c = readFileSync(`${dir}/${name}.j2c`);
     const d = new M.HTJ2KDecoder();
@@ -52,7 +52,7 @@ for (const arm of ARMS) {
     const got = new Uint16Array(d.getDecodedBuffer().slice().buffer);
     const bad = got.reduce((n, v, i) => n + (v !== truth[name][i]), 0);
     failed += bad > 0;
-    console.log(`${arm} ${name}: ${bad ? `${bad} samples differ` : "exact"}, ${j2c.length} B`);
+    console.log(`${variant} ${name}: ${bad ? `${bad} samples differ` : "exact"}, ${j2c.length} B`);
     d.delete();
   }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# client/downloader as it was at COMMIT, into lab/.av1-work/decode/before/, where every arm named *-before loads it.
+# client/downloader as it was at COMMIT, into lab/.av1-work/decode/before/, where every variant named *-before loads it.
 #
 #   lab/av1/decode/worker/before.sh COMMIT
 set -euo pipefail

@@ -1,7 +1,7 @@
 /**
  * SPEED: decode time a frame, OpenJPH on HTJ2K against dav1d-WASM and WebCodecs on AV1 of the same
  * frames, through the product's decoder worker. Every (environment × throttle) cell is a fresh
- * process, in a Williams order every round; arms and sets rotate inside it. lab/av1/decode/per-frame/README.md
+ * process, in a Williams order every round; variants and sets rotate inside it. lab/av1/decode/per-frame/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/decode/per-frame/speed.mjs [--rounds 16] [--throttles 1,4]
  *     [--envs node,chromium] [--frames lab/.av1-work/speed] [--mutate sample|truth] [--out rows.json]
@@ -29,7 +29,7 @@ process.on("exit", () => http.kill());
 await new Promise((r) => setTimeout(r, 1000));
 
 async function inNode(throttle, round) {
-  const opts = { base: BASE, frames: FRAMES, arms: ["htj2k", "av1"], round, mutate: MUTATE };
+  const opts = { base: BASE, frames: FRAMES, variants: ["htj2k", "av1"], round, mutate: MUTATE };
   const child = spawn(process.execPath, [new URL("node-run.mjs", import.meta.url).pathname, JSON.stringify(opts)],
     { stdio: ["ignore", "pipe", "inherit"] });
   const stop = throttleTree(child.pid, throttle);
@@ -50,7 +50,7 @@ async function inChromium(throttle, round) {
   }
   const stop = throttleTree(server.process().pid, throttle);
   const rows = await page.evaluate((o) => globalThis.run(o),
-    { frames: FRAMES, arms: ["htj2k", "av1", "webcodecs"], round, mutate: MUTATE });
+    { frames: FRAMES, variants: ["htj2k", "av1", "webcodecs"], round, mutate: MUTATE });
   stop();
   await browser.close();
   await server.close();
@@ -64,7 +64,7 @@ for (let round = 0; round < ROUNDS; round++) {
     const got = await (env === "node" ? inNode : inChromium)(throttle, round);
     for (const r of got) rows.push({ round, env, throttle, ...r });
     const bad = got.filter((r) => r.error || r.exact !== r.frames);
-    for (const r of bad) console.error(`round ${round} ${env} ${throttle}x ${r.set} ${r.arm}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
+    for (const r of bad) console.error(`round ${round} ${env} ${throttle}x ${r.set} ${r.variant}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
     console.error(`round ${round} ${env} ${throttle}x done`);
   }
 }
@@ -75,17 +75,17 @@ const f = (v) => v.toFixed(v < 10 ? 2 : 1);
 console.log("ms a frame in its decoder: median over rounds of each round's median [range of round medians]; exact frames");
 for (const { env, throttle } of cells) {
   for (const set of [...new Set(rows.map((r) => r.set))]) {
-    const of = (arm) => rows.filter((r) => r.env === env && r.throttle === throttle && r.set === set && r.arm === arm);
+    const of = (variant) => rows.filter((r) => r.env === env && r.throttle === throttle && r.set === set && r.variant === variant);
     const ref = new Map(of("htj2k").map((r) => [r.round, med(r.ms)]));
     const parts = [];
-    for (const arm of ["htj2k", "av1", "webcodecs"]) {
-      const rs = of(arm);
+    for (const variant of ["htj2k", "av1", "webcodecs"]) {
+      const rs = of(variant);
       if (!rs.length) continue;
       const per = rs.filter((r) => r.ms.length).map((r) => med(r.ms));
       const exact = `${rs.reduce((n, r) => n + r.exact, 0)}/${rs.reduce((n, r) => n + r.frames, 0)}`;
-      if (!per.length) { parts.push(`${arm} failed (${rs[0].error})`); continue; }
-      let line = `${arm} ${f(med(per))} [${f(Math.min(...per))}–${f(Math.max(...per))}] n=${per.length} exact ${exact}`;
-      if (arm !== "htj2k") {
+      if (!per.length) { parts.push(`${variant} failed (${rs[0].error})`); continue; }
+      let line = `${variant} ${f(med(per))} [${f(Math.min(...per))}–${f(Math.max(...per))}] n=${per.length} exact ${exact}`;
+      if (variant !== "htj2k") {
         const ratios = rs.filter((r) => ref.has(r.round) && r.ms.length).map((r) => med(r.ms) / ref.get(r.round));
         line += `, ×${med(ratios).toFixed(2)} HTJ2K [${Math.min(...ratios).toFixed(2)}–${Math.max(...ratios).toFixed(2)}]`;
       }

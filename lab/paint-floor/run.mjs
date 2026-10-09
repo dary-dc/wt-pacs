@@ -139,7 +139,7 @@ for (let pass = 0; pass < PASSES; pass++) {
 }
 
 console.log(`renderer  ${renderer}`);
-console.log(`${mode}, ${PASSES} passes x ${PAINTS} paints per route per cell, arms interleaved, smoothing ${SMOOTH}\n`);
+console.log(`${mode}, ${PASSES} passes x ${PAINTS} paints per route per cell, variants interleaved, smoothing ${SMOOTH}\n`);
 console.log("set        window    dpr  display     2d main ms        gl main ms       2d/gl   2d raf  gl raf  2d kB  gl kB");
 for (const [k, v] of [...cells.keys()].sort().map((k) => [k, cells.get(k)])) {
   const [set, win, dpr, display] = k.split("|");

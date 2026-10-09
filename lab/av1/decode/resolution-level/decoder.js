@@ -1,5 +1,5 @@
 /**
- * The `res` arm's decoder worker, beside client/decode/decoder.js and speaking its protocol: entry i < F is
+ * The `res` variant's decoder worker, beside client/decode/decoder.js and speaking its protocol: entry i < F is
  * frame i's prefix, posted as a preview at the series' level; entry F + i is the rest, joined to the prefix and
  * posted as the exact frame. Workers share prefixes, since the rest may reach another. lab/av1/decode/resolution-level/README.md
  */

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """RGBNATIVE's frames: each colour set as HTJ2K and as AV1 payloads in GBR (plain) and the reversible colour transform
-(optimized), one file per frame and arm, with arms.json (row TOTAL's harness) and manifest.json (the decode harness).
+(optimized), one file per frame and variant, with variants.json (row TOTAL's harness) and manifest.json (the decode harness).
 
 Payloads are written by ingest/coded-frames/ingest.py, which writes nothing unless native dav1d decodes every one back to its
 source. RGB ships at cpu0 (payload-format.md).
@@ -22,7 +22,7 @@ sys.path.insert(0, str(HERE.parents[1] / "decode/per-frame"))
 from make_frames import htj2k  # noqa: E402
 from size import Set  # noqa: E402
 
-ARMS = {"gbr": "plain", "rct": "optimized"}
+VARIANTS = {"gbr": "plain", "rct": "optimized"}
 
 
 def htj2k_frames(src, dst):
@@ -33,10 +33,10 @@ def htj2k_frames(src, dst):
                 htj2k(s, i, Path(tmp), dst / f"{i:03d}.htj2k")
 
 
-def payloads(build, src, out, arm, preset):
-    dst = out / ".payloads" / src.name / f"{arm}.{preset.replace(':', '')}"
+def payloads(build, src, out, variant, preset):
+    dst = out / ".payloads" / src.name / f"{variant}.{preset.replace(':', '')}"
     if not (dst / "metadata.json").exists():
-        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, dst, "--representation", ARMS[arm],
+        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, dst, "--representation", VARIANTS[variant],
                         "--preset", preset, "--jobs", "1"], check=True, capture_output=True)
     return dst
 
@@ -57,22 +57,22 @@ def main():
             dst = out / s.name
             dst.mkdir(parents=True, exist_ok=True)
             work.append((s, dst, pool.submit(htj2k_frames, src, dst),
-                         {arm: pool.submit(payloads, build, src, out, arm, a.preset) for arm in ARMS}))
+                         {variant: pool.submit(payloads, build, src, out, variant, a.preset) for variant in VARIANTS}))
         manifest = []
-        for s, dst, h, arms in work:
+        for s, dst, h, variants in work:
             h.result()
-            entry = dict(name=s.name, frames=s.n, preset=a.preset, truth=s.truth, arms={"htj2k": {}},
+            entry = dict(name=s.name, frames=s.n, preset=a.preset, truth=s.truth, variants={"htj2k": {}},
                          bytes={"htj2k": sum((dst / f"{i:03d}.htj2k").stat().st_size for i in range(s.n))})
-            for arm, f in arms.items():
+            for variant, f in variants.items():
                 made = f.result()
                 for i in range(s.n):
-                    link = dst / f"{i:03d}.{arm}.av1"
+                    link = dst / f"{i:03d}.{variant}.av1"
                     link.unlink(missing_ok=True)
                     os.link(made / f"{i:03d}.av1", link)
-                entry["arms"][arm] = dict(ext=f"{arm}.av1")
-                entry["bytes"][arm] = sum((dst / f"{i:03d}.{arm}.av1").stat().st_size for i in range(s.n))
-            (dst / "arms.json").write_text(json.dumps(entry, indent=1))
-            manifest.append(dict(name=s.name, arms=entry["arms"], frames=[dict(truth=t) for t in s.truth]))
+                entry["variants"][variant] = dict(ext=f"{variant}.av1")
+                entry["bytes"][variant] = sum((dst / f"{i:03d}.{variant}.av1").stat().st_size for i in range(s.n))
+            (dst / "variants.json").write_text(json.dumps(entry, indent=1))
+            manifest.append(dict(name=s.name, variants=entry["variants"], frames=[dict(truth=t) for t in s.truth]))
             ratio = ", ".join(f"{n} {v / entry['bytes']['htj2k']:.3f}" for n, v in entry["bytes"].items() if n != "htj2k")
             print(f"{s.name}: {s.n} frames, over HTJ2K {ratio}", flush=True)
     (out / "manifest.json").write_text(json.dumps(manifest))

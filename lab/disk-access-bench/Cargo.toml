@@ -2,7 +2,7 @@
 name = "disk-access-bench"
 version = "0.1.0"
 edition = "2021"
-description = "Compare series disk-access arms (mmap / pread / madvise) with shared metrics"
+description = "Compare series disk-access variants (mmap / pread / madvise) with shared metrics"
 
 [[bin]]
 name = "disk-access-bench"
@@ -17,7 +17,7 @@ name = "evict"
 path = "src/bin/evict.rs"
 
 [features]
-# tokio's io_uring file driver, for the `tokio_fs` arm only. Needs `RUSTFLAGS="--cfg tokio_unstable"`
+# tokio's io_uring file driver, for the `tokio_fs` variant only. Needs `RUSTFLAGS="--cfg tokio_unstable"`
 # as well — the feature alone does not compile it in. Never a product feature.
 tokio-uring = ["tokio/io-uring"]
 

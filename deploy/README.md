@@ -18,7 +18,7 @@ deploy/check_equivalence.sh --cert path/to/cert.pem              # the PEM's cha
 ```
 
 Then open `http://127.0.0.1:8765/harness/cell.html?autorun=1`. The image builds the TypeScript bundles
-itself; the WASM arm (`&transport=wasm`) is served only if `client/transport/wasm/build.sh` ran before
+itself; the WASM variant (`&transport=wasm`) is served only if `client/transport/wasm/build.sh` ran before
 the build, since `client/` is copied as it stands. The certificate and `dev-transport.json` are
 mounted, not baked: regenerating the certificate needs a restart, not a rebuild. Making the dev key
 world-readable is for the 10-day localhost certificate only; a real key is mounted owned by uid 10001.
@@ -79,7 +79,7 @@ compared on status and headers only; and `dev-server.py`'s aliases for `pkg/` an
 pointed at this tree. It passes, and each assertion was mutated (`gzip off`, the immutable rule deleted,
 `always` dropped from a header) and seen to fail. Re-run 2026-10-03 with `Cache-Control` compared, the `nginx:1-alpine`
 image's nginx 1.31.5 standing in for a host one: it passes, and dropping the `Cache-Control` line, its
-JSON arm or the `.js` type each fails it. **The images were built and run on 2026-10-03** with
+JSON variant or the `.js` type each fails it. **The images were built and run on 2026-10-03** with
 docker 29 (podman was not available, so the podman lines are unrun): both targets build from a clean
 context, `compose up` starts both, the server prints `wt_url=` and `ws_url=`, TCP 4433 answers a
 WebSocket upgrade with 101, the check passes against the image on its 8 paths, and

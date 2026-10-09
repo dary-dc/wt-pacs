@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # LV1: how the client decides a session is dead, on a cut and on links that only look dead —
-# a radio, a slow link, a standing queue, blinks, a burst of asks. Arms interleaved, order rotated
+# a radio, a slow link, a standing queue, blinks, a burst of asks. Variants interleaved, order rotated
 # each round. docs/ARCHITECTURE.md §Detection by the bytes
 #
-#   lab/session-survival/cells.sh cut|radio|slow|deep|blinks|asks [rounds]   [ARMS=built,quick]
+#   lab/session-survival/cells.sh cut|radio|slow|deep|blinks|asks [rounds]   [VARIANTS=built,quick]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -61,6 +61,6 @@ sleep 2
 
 echo "cell $CELL: relay ${RELAY[*]}"
 NODE_PATH="${NODE_PATH:-$(npm root -g)}" node lab/session-survival/run.mjs --rounds "$ROUNDS" \
-  --base "http://127.0.0.1:$HTTP" --control "$CTRL" --arms "${ARMS:-built}" "${RUN[@]}" ${RUN_ARGS:-}
+  --base "http://127.0.0.1:$HTTP" --control "$CTRL" --variants "${VARIANTS:-built}" "${RUN[@]}" ${RUN_ARGS:-}
 [[ -n "${KEEP_SERVER_LOG:-}" ]] && cp "$T/server.log" "$KEEP_SERVER_LOG"
 exit 0

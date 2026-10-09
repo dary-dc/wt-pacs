@@ -1,6 +1,6 @@
 /**
  * MIXDEC's reading of row TOTAL's rows: per (series, link) at 4×, every frame on the page — median ms [range], n
- * kept — and the mixed arm's round-paired ratios to today's (same k), to w10 and to HTJ2K. VOID visits dropped.
+ * kept — and the mixed variant's round-paired ratios to today's (same k), to w10 and to HTJ2K. VOID visits dropped.
  *
  *   node lab/av1/decode/mixed/total_summary.mjs rows.jsonl ...   — lab/av1/decode/mixed/README.md
  */
@@ -14,7 +14,7 @@ const frames = (set) => Math.max(...rows.filter((r) => r.set === set).map((r) =>
 console.log(`exact ${rows.reduce((n, r) => n + r.exact, 0)}/${rows.reduce((n, r) => n + frames(r.set), 0)} over every visit; VOID ${rows.filter((r) => r.void).length} of ${rows.length}`);
 for (const set of Object.keys(BITS)) {
   for (const link of [...new Set(rows.map((r) => r.link))]) {
-    const of = (arm) => new Map(kept.filter((r) => r.set === set && r.link === link && r.arm === arm).map((r) => [r.round, r.decodedMs]));
+    const of = (variant) => new Map(kept.filter((r) => r.set === set && r.link === link && r.variant === variant).map((r) => [r.round, r.decodedMs]));
     const paired = (a, b) => [...a].filter(([r]) => b.has(r)).map(([r, v]) => v / b.get(r));
     const w10 = of(`k${BITS[set] - 10}`);
     const parts = [`htj2k ${med([...of("htj2k").values()])} n=${of("htj2k").size}`];

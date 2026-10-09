@@ -6,16 +6,16 @@ against decoders, and where the time goes. Queue row 27 (DECSPEED) of
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Decode time and memory, *Cutting the decode*.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS="simd simd-mt simd-prof" client/decode/wasm/dav1d/build.sh
+lab/av1/tools/tools.sh && VARIANTS="simd simd-mt simd-prof" client/decode/wasm/dav1d/build.sh
 client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh     # as lab/av1/delivery/fill
 lab/av1/fetch_data.sh rf_fluoro mr_ispy1 us_liver
 JOBS=4 lab/av1/.venv/bin/python lab/av1/decode/settings/make_variants.py lab/.av1-build lab/.av1-work/decspeed \
   lab/av1/data/rf_fluoro lab/av1/data/mr_ispy1 lab/av1/data/us_liver               # ~30 min
 node lab/av1/decode/settings/profile.mjs --frames lab/.av1-work/decspeed --ext av1 --repeat 2
 NODE_PATH=$(npm root -g) node lab/av1/decode/settings/screen.mjs --frames lab/.av1-work/decspeed \
-  --arms htj2k,av1,av1-cpu6,…,av1-t4@3 --rounds 6 --out screen.json                # ~1 h
+  --variants htj2k,av1,av1-cpu6,…,av1-t4@3 --rounds 6 --out screen.json                # ~1 h
 NODE_PATH=$(npm root -g) node lab/av1/delivery/fill/run.mjs --frames lab/.av1-work/decspeed --cores 3 \
-  --arms htj2k,av1,av1-t4@2/3,… --rates 50000 --out fill.jsonl
+  --variants htj2k,av1,av1-t4@2/3,… --rates 50000 --out fill.jsonl
 ```
 
 **Frames.** The three series of row FILL, every frame: fluoroscopy (18 × 768², 12-bit), MR
@@ -56,12 +56,12 @@ serial within a tile and has no SIMD form. The 4-tile variant profiles the same 
 
 **Screen** (`screen.mjs`: ms a frame, one frame at a time through the product's decoder worker in
 headless Chromium 141, the browser on three cores, at 4× three cores each a quarter as fast; a fresh
-browser per (round × throttle), Williams-ordered, series and arms rotated inside it; 6 rounds, the
-median of each round's median; **every arm exact on every frame of every round**; `--mutate sample`
-turned every arm to 0 exact). `@T` is the `simd-mt` build with T threads; × is paired by round
+browser per (round × throttle), Williams-ordered, series and variants rotated inside it; 6 rounds, the
+median of each round's median; **every variant exact on every frame of every round**; `--mutate sample`
+turned every variant to 0 exact). `@T` is the `simd-mt` build with T threads; × is paired by round
 against `av1`:
 
-| arm | fluoroscopy 1× · 4× | MR 1× · 4× | ultrasound 1× · 4× |
+| variant | fluoroscopy 1× · 4× | MR 1× · 4× | ultrasound 1× · 4× |
 | --- | --- | --- | --- |
 | `htj2k`, ms | 10.3 · 39.8 | 5.04 · 18.6 | 8.51 · 32.4 |
 | `av1`, ms | 75.7 · 314 | 28.0 · 113 | 51.2 · 214 |
@@ -88,11 +88,11 @@ frame's entropy decoding: 2 threads ×0.50–0.68, 3 threads ×0.37–0.50. Fram
 server behind the relay at 50 Mbit/s and 40 ms, headless Chromium 141; `--cores 3` makes 4× three
 slowed cores for the whole browser, not a quarter-core per thread, so its 4× AV1 times are longer
 than row FILL's; 12 rounds, Williams-ordered, 17 of 504 visits `VOID` and dropped, n = 9–12 a cell;
-**every frame of every visit exact**, 24 528 of 24 528; `--mutate sample` turned three arms to
+**every frame of every visit exact**, 24 528 of 24 528; `--mutate sample` turned three variants to
 0/18). `EXT@T/D` is T threads × D decoders on frames `NNN.EXT`. Seconds to every frame on the page,
 medians:
 
-| arm | fluoroscopy 1× · 4× | MR 1× · 4× | ultrasound 1× · 4× |
+| variant | fluoroscopy 1× · 4× | MR 1× · 4× | ultrasound 1× · 4× |
 | --- | --- | --- | --- |
 | `htj2k` (3 decoders) | 1.73 · 1.75 | 1.98 · 1.99 | 3.15 · 3.18 |
 | `av1` (3 decoders, today) | 1.83 · 3.20 | 2.05 · 3.69 | 3.54 · 7.37 |
@@ -102,9 +102,9 @@ medians:
 | `av1-t4sb64@2/3` | 1.80 · 3.32 | 2.05 · 4.09 | 3.52 · 7.71 |
 | `av1-t4sb64@3/3` | 1.78 · 3.32 | 2.04 · 4.25 | 3.51 · 7.80 |
 
-At 1× every AV1 arm follows its bytes; threads trim the decoding left after the last byte by
-20–40 ms. At 4× AV1 is the clock in every arm, slower than HTJ2K in every paired fill (1.81–2.45×).
-The arms differ by −3 to +4 % on two series. Oversubscribing the three cores (2 × 3, 3 × 3 threads)
+At 1× every AV1 variant follows its bytes; threads trim the decoding left after the last byte by
+20–40 ms. At 4× AV1 is the clock in every variant, slower than HTJ2K in every paired fill (1.81–2.45×).
+The variants differ by −3 to +4 % on two series. Oversubscribing the three cores (2 × 3, 3 × 3 threads)
 costs 11–15 % on the MR. The decoder's total CPU work sets the fill's time, and only fewer coded
 symbols would cut it.
 

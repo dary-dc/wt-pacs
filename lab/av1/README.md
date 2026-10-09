@@ -213,7 +213,7 @@ on the grey cine it halves the bytes** (G = 16 0.53 of intra, 0.47 of HTJ2K) and
 MPEG-4 recording whose unchanged blocks repeat exactly, so the gain is the source's, not a scanner's.
 
 **Row DATA3's series ([`breast`](bytes/breast/README.md) §Row DATA3's series).** Nine more, 9–16 bits, every frame
-exact at every k of its depth natively, in Node and in three engines. Smallest arm over HTJ2K at cpu0: MR 9-bit
+exact at every k of its depth natively, in Node and in three engines. Smallest variant over HTJ2K at cpu0: MR 9-bit
 0.910 (k = 0), synthesized 2D 0.938 and 0.951, FFDM 0.986 and 0.989, the two signed CTs 0.899 and 0.939, PET 15-bit
 0.996 (w10), film 16-bit 1.001 (w10); one vendor's FFDM is a stretched range where plain AV1 is 1.29.
 
@@ -298,7 +298,7 @@ reaches.
 
 **What each costs the decoder.** Native dav1d 1.5.4 (its assembly on), one thread, a whole cpu6
 stream a process with its start-up, output discarded; ms a frame summed over a split's streams,
-median [min–max], n = 15, arms interleaved per set; container numbers (tomosynthesis not timed):
+median [min–max], n = 15, variants interleaved per set; container numbers (tomosynthesis not timed):
 
 | set | direct | hi8+lo8 | top12+low | top11+low | top10+low | low12+top |
 | --- | --- | --- | --- | --- | --- | --- |

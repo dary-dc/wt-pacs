@@ -1,11 +1,11 @@
 # downloader-campaign
 
-What the downloader costs, its two arms on the same server, interleaved. The numbers live in [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Results; this
+What the downloader costs, its two variants on the same server, interleaved. The numbers live in [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Results; this
 says how they were made.
 
 ```bash
 ./server/scripts/gen_dev_cert.sh
-client/decode/wasm/fetch_openjph.sh                         # the decoder the Dd arm runs
+client/decode/wasm/fetch_openjph.sh                         # the decoder the Dd variant runs
 lab/scripts/gen_htj2k_fixtures.sh c512                    # 87 real HTJ2K frames, 512x512x3
 # pack them as a series: NNN.j2c → NNN.htj2k, then
 cargo run --release -p pack-series -- --metadata lab/fixtures/decode_c512/metadata.json --frames <dir> --output c512.sbnd
@@ -14,15 +14,15 @@ python3 server/dev-server.py --port 8765
 NODE_PATH=$(npm root -g) node lab/downloader-campaign/run.mjs --rounds 8 --out campaign.jsonl
 ```
 
-Two arms, one fresh session each: **Dw**, the downloader with decode off — the bytes, delivered from
+Two variants, one fresh session each: **Dw**, the downloader with decode off — the bytes, delivered from
 its worker; **Dd**, the downloader decoding with three decoders — pixels in a `SharedArrayBuffer`, the
 product path. **H**, the harness's own path (the TS session on the page, a waiter per fill frame), was
-the third arm until its removal on 2026-10-03; its last run is §The container campaign's re-run on `641df69`, and the code
+the third variant until its removal on 2026-10-03; its last run is §The container campaign's re-run on `641df69`, and the code
 is in history there. Five scenarios: a fill of 80
 frames, one cold ask, and a fill with an ask for a frame outside it once 10, 50 or 90 % has landed.
 
-Every round runs every scenario on every arm with the arm order rotated, so a drift in the host
-lands on all arms alike. The page measures ask → delivered, fill issue → last frame at the page,
+Every round runs every scenario on every variant with the variant order rotated, so a drift in the host
+lands on all variants alike. The page measures ask → delivered, fill issue → last frame at the page,
 frames delivered, its own handling time and JS-heap peak, and `measureUserAgentSpecificMemory`
 after; the driver adds, over CDP, the page's main-thread task time and the renderer's GC count —
 tracing is stopped *before* the memory measurement, which forces a GC of its own. *Corrected
@@ -36,7 +36,7 @@ a sampled allocation profile. It waits on a 200 ms timer, because waiting on ani
 main-thread work the fill would be charged.
 
 ```bash
-NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs 5   # rounds; THROTTLES=1,4,6 ARMS=Dw,Dd ALLOC=0
+NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs 5   # rounds; THROTTLES=1,4,6 VARIANTS=Dw,Dd ALLOC=0
 NODE_PATH=$(npm root -g) node lab/downloader-campaign/port.mjs --rounds 7   # the pixel port's message alone
 NODE_PATH=$(npm root -g) node lab/downloader-campaign/resources.mjs 7       # DECODERS=1,2,3 CORES=2,4 THROTTLES=1,4
 ```
@@ -51,7 +51,7 @@ handler. `ALLOC=0` turns the allocation sampler off, whose cost lands on the pag
 `port.mjs` posts the decoder's message, and variants of it, from a worker at a fill's pace and charges
 each dispatch from the trace.
 
-**Read before trusting a number.** Container-measured, loopback, 4 cores: the Dd arm is
+**Read before trusting a number.** Container-measured, loopback, 4 cores: the Dd variant is
 decode-bound here and says nothing about a device. `run.mjs` launches the full Chromium by
 explicit path — the headless shell playwright otherwise picks has no
 `measureUserAgentSpecificMemory`.

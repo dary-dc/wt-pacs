@@ -7,7 +7,7 @@ WebKit, against its HTJ2K path in the same engine. Queue row 37 (XBROWSER) of
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §AV1 in WebKit and Firefox.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 lab/av1/fetch_data.sh                                          # every row DATA, CONTENT and TAXO series
@@ -42,24 +42,24 @@ green plane, 8-bit grey, its checksums written as it is made), in each layout ro
 `dir` (grey, one stream), `low2` (the two low bits apart), `low3` (13 bits: the top at 10), `gbr`
 (RGB as G, B, R), `rct` (the reversible colour transform), each stream libaom 3.15.1 lossless intra,
 cpu0, `--tune-content=screen --sb-size=64` — and the served HTJ2K. Every frame is decoded by native
-dav1d, merged and matched with the series' checksum before it is written. An arm is `connect`'s
+dav1d, merged and matched with the series' checksum before it is written. A variant is `connect`'s
 decoder fields: `depth` is the top stream's container, so `decoder.js` chooses as it would; `.d` is
 the same file with no `depth`, so dav1d-WASM. CT carries its +2048 `offset`.
 
 **A cell** is one engine at one throttle, a fresh browser opening `index.html`; `page.js` reports
-what the engine offers (`--caps`), then runs every set's every arm through `worker.js` — `decoder.js`
+what the engine offers (`--caps`), then runs every set's every variant through `worker.js` — `decoder.js`
 itself, its messages carrying how many units reached `VideoDecoder` — one warm-up frame, then each
 frame one at a time. The time is the worker's `decodeStart`–`decodeEnd`; each frame is hashed
-against its truth. Cells run in a Williams order every round (`lab/order.mjs`), sets and arms
+against its truth. Cells run in a Williams order every round (`lab/order.mjs`), sets and variants
 rotate inside each. 4× is `lab/scripts/cpu_throttle.mjs` on the browser's process tree, applied
-once the page has loaded. `--probe` hands each WebCodecs arm's first frame straight to
+once the page has loaded. `--probe` hands each WebCodecs variant's first frame straight to
 `VideoDecoder` (the product's configuration) and reports what comes back; `control.py`'s ordinary
 4:2:0 keyframes, lossy and lossless, 8 and 10 bits, tell an engine that refuses the lossless shapes
 from one that decodes no AV1.
 
 **Checked.** `--mutate sample` (one bit of every decoded frame) and `--mutate truth` (one hex digit
-of every checksum) each turned every decoded arm in all three engines to 0 exact; the unit counter
-left out turned Chromium's WebCodecs arms from 2–4 units a frame to 0; the probe's RGB check with R
+of every checksum) each turned every decoded variant in all three engines to 0 exact; the unit counter
+left out turned Chromium's WebCodecs variants from 2–4 units a frame to 0; the probe's RGB check with R
 and B swapped turned Firefox's exact 8-bit GBR to inexact; `grey8`'s checksum taken from the red
 plane stopped `make_frames.py` at its first frame. Whether each module needs WASM SIMD:
 `wasm-validate --disable-simd` (wabt 1.0.37, npm tarball SHA-256 `904e3047…c6d43b7`) refuses both

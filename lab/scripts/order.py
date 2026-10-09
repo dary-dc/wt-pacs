@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The arm order of the lab's interleaved campaigns, and the check that it held — lab/order.mjs
-for Python and shell. docs/rig-limits.md §6 Interleave the arms.
+"""The variant order of the lab's interleaved campaigns, and the check that it held — lab/order.mjs
+for Python and shell. docs/rig-limits.md §6 Interleave the variants.
 
     lab/scripts/order.py row N ROUND    the indices 0..N-1 in the order they run in ROUND
 """

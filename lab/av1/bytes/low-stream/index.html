@@ -2,14 +2,14 @@
 <meta charset="utf-8">
 <title>AV1 ENCX</title>
 <script type="module">
-  import { ARMS, round } from "../../decode/per-frame/drive.js";
+  import { VARIANTS, round } from "../../decode/per-frame/drive.js";
   const kinds = { product: "/client/decode/decoder.js", encx: "/lab/av1/bytes/low-stream/worker.js" };
   const env = { worker: (kind) => new Worker(kinds[kind], { type: "module" }), channel: () => new MessageChannel() };
   const lib = (base, dir, name) => ({ glue: `${base}/${dir}/${name}.js`, wasm: `${base}/${dir}/${name}.wasm`, dir: `${base}/${dir}` });
-  const arm = (name) => (base, set) => set.arms[name] && ({ kind: "encx", ext: name, decoder: {
-    ...set.arms[name], width: set.width, height: set.height, channels: set.channels, signed: set.signed, offset: set.offset,
+  const variant = (name) => (base, set) => set.variants[name] && ({ kind: "encx", ext: name, decoder: {
+    ...set.variants[name], width: set.width, height: set.height, channels: set.channels, signed: set.signed, offset: set.offset,
     dav1d: lib(base, "lab/.av1-build/out", "simd"), openjph: lib(base, "client/decode/wasm/vendor/openjph", "openjphjs") } });
-  const arms = new Proxy({ htj2k: ARMS.htj2k }, { get: (t, k) => t[k] ?? arm(k) });
-  globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, arms);
+  const variants = new Proxy({ htj2k: VARIANTS.htj2k }, { get: (t, k) => t[k] ?? variant(k) });
+  globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, variants);
   globalThis.ready = crossOriginIsolated;
 </script>

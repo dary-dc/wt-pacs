@@ -1,10 +1,10 @@
 //! Disk-access campaign harness (lab-only). Decision record: `docs/adr/disk-access.md`.
-//! Rejected arms (mincore gate, WILLNEED) use `rejected_access` — not product FrameStore.
+//! Rejected variants (mincore gate, WILLNEED) use `rejected_access` — not product FrameStore.
 //!
 //! Instrument (post-review):
 //! - Co-tenant `yield_now` gap monitor (ns), not sleep heartbeat
 //! - Await once per frame + quinn-shaped chunked write_sim
-//! - Every arm consumes frame bytes through the same write step
+//! - Every variant consumes frame bytes through the same write step
 //! - Cold = one pass (no `i % n` revisits)
 //! - Temp cold copies cleaned on Drop
 //! - Optional: memory-pressure cell, multi-session load
@@ -27,7 +27,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::runtime::Builder;
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum Arm {
+enum Variant {
     MmapNaive,
     MmapBlockingTouch,
     MmapHybridMincore,
@@ -68,7 +68,7 @@ enum Arm {
     ///
     /// **This is the shipped shape** — `stream_codestream` in `server/src/transport/`.
     PreadNowaitEscalate,
-    /// Control for the pipelined io_uring arms: the *next* window's pool read is issued
+    /// Control for the pipelined io_uring variants: the *next* window's pool read is issued
     /// before the current window is written, so the hop overlaps the wire instead of
     /// preceding it. Isolates "pipelining" from "io_uring".
     PreadPipelinedPool,
@@ -91,7 +91,7 @@ enum Arm {
     UringNowaitWhole,
     /// Registered, one read for the **whole frame** — no windows at all.
     ///
-    /// The windowed arms exist because `RWF_NOWAIT` needs a bounded executor copy. A ring
+    /// The windowed variants exist because `RWF_NOWAIT` needs a bounded executor copy. A ring
     /// read never runs on the executor, so it has no such reason to split a frame into
     /// four, and splitting is not free when every read misses: four device round trips
     /// where one would do.
@@ -100,13 +100,13 @@ enum Arm {
     /// one lands** instead of after all of them have.
     ///
     /// `uring_tuned` waits for the whole frame before writing a byte of it, which is why
-    /// it was the worst arm on a miss (224 parked completions on a cold random trace).
-    /// That is a property of that arm, not of io_uring: the ring can have every window in
+    /// it was the worst variant on a miss (224 parked completions on a cold random trace).
+    /// That is a property of that variant, not of io_uring: the ring can have every window in
     /// flight at once *and* stream. This is what "plain io_uring" should be judged as.
     UringBatchedStream,
 }
 
-impl Arm {
+impl Variant {
     fn as_str(self) -> &'static str {
         match self {
             Self::MmapNaive => "mmap_naive",
@@ -135,7 +135,7 @@ impl Arm {
         }
     }
 
-    fn all() -> &'static [Arm] {
+    fn all() -> &'static [Variant] {
         &[
             Self::MmapNaive,
             Self::MmapBlockingTouch,
@@ -163,7 +163,7 @@ impl Arm {
         ]
     }
 
-    fn decision() -> &'static [Arm] {
+    fn decision() -> &'static [Variant] {
         &[
             Self::MmapNaive,
             Self::MmapBlockingTouch,
@@ -173,7 +173,7 @@ impl Arm {
         ]
     }
 
-    /// Arms that need `block_in_place` — abort early on a current-thread runtime rather
+    /// Variants that need `block_in_place` — abort early on a current-thread runtime rather
     /// than panicking mid-cell.
     fn needs_multi_thread(self) -> bool {
         matches!(self, Self::MmapTouchInPlace)
@@ -220,7 +220,7 @@ impl AccessMode {
 /// access, not just its size: reads take a prefix and skip the rest of the frame, so the
 /// file is strided rather than swept, and the kernel read-ahead the `RWF_NOWAIT` fast path
 /// leans on has less to work with. A global rather than a threaded parameter because every
-/// arm must see the same lengths for the comparison to mean anything.
+/// variant must see the same lengths for the comparison to mean anything.
 static PREFIX_BYTES: AtomicU64 = AtomicU64::new(0);
 
 fn served_len(whole: u32) -> usize {
@@ -247,12 +247,12 @@ impl RuntimeKind {
     }
 }
 
-/// Which arm the background sessions run in the multi-session cell.
+/// Which variant the background sessions run in the multi-session cell.
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
-enum BgArm {
+enum BgVariant {
     /// Archived C2 shape: neighbours always use always-touch.
     AlwaysTouch,
-    /// Fair all-sessions cell (`later.md`): every session runs the arm under test.
+    /// Fair all-sessions cell (`later.md`): every session runs the variant under test.
     Same,
 }
 
@@ -283,7 +283,7 @@ struct Args {
     #[arg(long = "series", required_unless_present = "selftest")]
     series: Vec<PathBuf>,
     #[arg(long, value_enum)]
-    arm: Option<Vec<Arm>>,
+    variant: Option<Vec<Variant>>,
     #[arg(long, value_enum)]
     trace: Option<Vec<TraceKind>>,
     #[arg(long = "trace-file")]
@@ -314,9 +314,9 @@ struct Args {
     /// Worker threads for `--runtime multi` (default: host CPUs).
     #[arg(long)]
     workers: Option<usize>,
-    /// Arm used by background sessions in the multi-session cell.
-    #[arg(long, value_enum, default_value_t = BgArm::AlwaysTouch)]
-    bg_arm: BgArm,
+    /// Variant used by background sessions in the multi-session cell.
+    #[arg(long, value_enum, default_value_t = BgVariant::AlwaysTouch)]
+    bg_variant: BgVariant,
     /// Co-tenant `yield_now` gap monitors. One (default) matches the archived instrument;
     /// raising it toward `--workers` models a runtime with no idle worker to steal into,
     /// at the cost of pinning every core to a spin loop.
@@ -331,11 +331,11 @@ struct Args {
     /// codestream fitted to a viewport actually asks for. `0` = whole frames.
     #[arg(long, default_value_t = 0)]
     prefix: u64,
-    /// Start a kernel submission thread for the io_uring arms. Submits then cost no
+    /// Start a kernel submission thread for the io_uring variants. Submits then cost no
     /// syscall at all, at the price of a core spinning — check `cpu_us`, not just latency.
     #[arg(long, default_value_t = false)]
     uring_sqpoll: bool,
-    /// Windows `uring_pipelined` keeps in flight. 2 reproduces the first campaign's arm.
+    /// Windows `uring_pipelined` keeps in flight. 2 reproduces the first campaign's variant.
     #[arg(long, default_value_t = 2)]
     uring_depth: usize,
     /// Cap Tokio's blocking pool (default: Tokio's own 512).
@@ -352,7 +352,7 @@ struct Args {
     /// mix campaign — `--temp` and the single-primary multi-session cell do not apply.
     #[arg(long = "mix")]
     mixes: Option<Vec<f64>>,
-    /// Sessions run **together**, all on the arm under test, all measured. The first
+    /// Sessions run **together**, all on the variant under test, all measured. The first
     /// campaign's `--sessions` had warm background sessions around one cold primary, so no
     /// cell ever had more than one session on the miss path. Repeatable to sweep.
     #[arg(long = "concurrency")]
@@ -360,7 +360,7 @@ struct Args {
     /// Frames per mix cell, split evenly across the sessions.
     ///
     /// Each cell takes the **next** region of the series so the hypervisor's cache cannot
-    /// follow one arm around: an 80 MB series re-read runs 10x faster on the second pass
+    /// follow one variant around: an 80 MB series re-read runs 10x faster on the second pass
     /// here, which is the effect that made the first campaign's cold cells unreadable.
     #[arg(long, default_value_t = 256)]
     region_frames: u32,
@@ -397,7 +397,7 @@ struct Args {
     /// is nanoseconds; this says how many of those nanoseconds the instrument invented.
     #[arg(long, default_value_t = false)]
     selftest: bool,
-    /// Append one row per ask (`arm temp trace repeat ordinal latency_ns hop_ns`).
+    /// Append one row per ask (`variant temp trace repeat ordinal latency_ns hop_ns`).
     ///
     /// A cell's `later_p99` is the 316th of 319 samples — nearly a single observation. Raw
     /// samples let percentiles pool across repeats, which shrinks the error bar on a tail
@@ -473,7 +473,7 @@ fn make_cold_copy(series: &Path) -> Result<ColdCopy> {
 /// Opening a `FrameStore` parses the header and index, and that read drags readahead into
 /// the first frames — so a cold cell has to be verified (and re-evicted) *after* the open,
 /// not just after `fadvise`. Header/index pages are excluded: they are pinned by the parse
-/// and are not what the arms are timed on.
+/// and are not what the variants are timed on.
 ///
 /// Guest-cold is the level the decision needs (does a major fault land on the executor).
 /// It says nothing about the hypervisor's own cache, so absolute fault service time still
@@ -637,7 +637,7 @@ fn selftest() {
     );
 
     // The gap monitor with nothing to be blocked by: its own floor. Any reported
-    // `gap_p50` at or below this is measuring the monitor, not the arm.
+    // `gap_p50` at or below this is measuring the monitor, not the variant.
     for (label, workers) in [("current", 0usize), ("multi(4)", 4usize)] {
         let rt = if workers == 0 {
             Builder::new_current_thread().enable_all().build().unwrap()
@@ -806,7 +806,7 @@ struct FrameOutcome {
     latency_ns: u64,
     hop_ns: u64,
     bytes_copied: u64,
-    /// Round trips this ask had to park on: `spawn_blocking` joins for the pool arms,
+    /// Round trips this ask had to park on: `spawn_blocking` joins for the pool variants,
     /// eventfd parks for the io_uring ones.
     ///
     /// `hop_ns` cannot distinguish one 400 us hop from four 100 us ones, and that is
@@ -818,7 +818,7 @@ struct FrameOutcome {
     /// Time spent inside `read_at_nowait` on calls that **came up short**, and the bytes
     /// those calls returned before giving up.
     ///
-    /// The gap between an arm that probes and one that does not is supposed to be exactly
+    /// The gap between a variant that probes and one that does not is supposed to be exactly
     /// this. Measuring it directly says whether the probe is a wasted syscall (returns 0,
     /// costs a syscall) or real work (returns a partial frame, and those bytes are kept) —
     /// which is the difference between skipping it being worth 10 us and worth 2.
@@ -827,12 +827,12 @@ struct FrameOutcome {
 }
 
 /// Per-worker scratch that must survive across frames: reusing it is the difference
-/// between measuring an arm and measuring an allocator (and, for io_uring, between
+/// between measuring a variant and measuring an allocator (and, for io_uring, between
 /// measuring reads and measuring `register_buffers`).
-struct ArmState {
+struct VariantState {
     sink: Vec<u8>,
     pread_pool: Vec<u8>,
-    /// Two buffers for the pipelined pool arm.
+    /// Two buffers for the pipelined pool variant.
     pipe: [Vec<u8>; 2],
     uring: Option<uring_access::UringReader>,
     read_chunk: usize,
@@ -840,7 +840,7 @@ struct ArmState {
     uring_depth: usize,
 }
 
-impl ArmState {
+impl VariantState {
     fn new(cfg: &CellCfg) -> Self {
         Self {
             sink: Vec::new(),
@@ -854,15 +854,15 @@ impl ArmState {
     }
 }
 
-/// What an arm needs to serve one frame. Every *shipped* read path — mmap slice, pool
+/// What a variant needs to serve one frame. Every *shipped* read path — mmap slice, pool
 /// `pread`, `RWF_NOWAIT` — goes through the product `FrameStore`, so the lab times shipped
 /// code. `file` is a second fd on the same inode (same page cache, same results) for the
-/// io_uring arms, which have no product counterpart to borrow one from.
+/// io_uring variants, which have no product counterpart to borrow one from.
 #[derive(Clone)]
 struct ServeCtx {
     store: Arc<SeriesMap>,
     file: Arc<File>,
-    /// Kept so the mix cells can `fadvise` the same inode the arms read from.
+    /// Kept so the mix cells can `fadvise` the same inode the variants read from.
     path: PathBuf,
 }
 
@@ -880,7 +880,7 @@ impl ServeCtx {
 }
 
 struct RunRow {
-    arm: String,
+    variant: String,
     series: String,
     temp: String,
     trace: String,
@@ -912,8 +912,8 @@ struct RunRow {
     /// Process CPU (user+sys) burned during the timed series, ns.
     ///
     /// io_uring moves work into kernel threads and SQPOLL burns a core outright, so latency
-    /// alone cannot rank these arms. Run with `--monitors 0` to read this: the gap monitor
-    /// is a spin loop, so otherwise a slower arm is charged more monitor CPU.
+    /// alone cannot rank these variants. Run with `--monitors 0` to read this: the gap monitor
+    /// is a spin loop, so otherwise a slower variant is charged more monitor CPU.
     cpu_ns: u64,
     /// Executor shape this cell ran on — `current` (archived) or `multi` (product).
     runtime: String,
@@ -928,14 +928,14 @@ struct RunRow {
 }
 
 fn tsv_header() -> &'static str {
-    "arm\tseries\ttemp\ttrace\taccess\tchunk\trepeat\tframes\tasks\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tgap_p50_ns\tgap_p99_ns\tgap_max_ns\tgap_samples\tbytes_copied\thop_p50_ns\tother_later_p50_ns\tother_later_p99_ns\tother_asks\tcpu_ns\tthreads_max\truntime\thop_count"
+    "variant\tseries\ttemp\ttrace\taccess\tchunk\trepeat\tframes\tasks\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tgap_p50_ns\tgap_p99_ns\tgap_max_ns\tgap_samples\tbytes_copied\thop_p50_ns\tother_later_p50_ns\tother_later_p99_ns\tother_asks\tcpu_ns\tthreads_max\truntime\thop_count"
 }
 
 impl RunRow {
     fn to_tsv(&self) -> String {
         format!(
             "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            self.arm,
+            self.variant,
             self.series,
             self.temp,
             self.trace,
@@ -966,7 +966,7 @@ impl RunRow {
     }
 }
 
-/// Everything about a cell that is not the arm under test.
+/// Everything about a cell that is not the variant under test.
 #[derive(Clone, Copy)]
 struct CellCfg {
     access: AccessMode,
@@ -975,11 +975,11 @@ struct CellCfg {
     session_asks: u32,
     runtime: RuntimeKind,
     workers: usize,
-    bg_arm: BgArm,
+    bg_variant: BgVariant,
     monitors: usize,
     read_chunk: usize,
     uring_sqpoll: bool,
-    /// Windows kept in flight by `uring_pipelined`. 2 is the arm the campaign measured.
+    /// Windows kept in flight by `uring_pipelined`. 2 is the variant the campaign measured.
     uring_depth: usize,
     /// Cap on Tokio's blocking pool. Tokio's default is 512, which is not a pool an
     /// operator would run — and the cap is exactly what decides whether a miss-dominated
@@ -1009,7 +1009,7 @@ fn build_runtime(cfg: &CellCfg) -> Result<tokio::runtime::Runtime> {
 }
 
 fn run_cell(
-    arm: Arm,
+    variant: Variant,
     series_src: &Path,
     temp: Temp,
     trace_name: &str,
@@ -1058,13 +1058,13 @@ fn run_cell(
         }
     }
 
-    // A silent EOPNOTSUPP would make the nowait arms look like a hop-free win while they
-    // were really doing nothing. `FrameStore` probed at open; refuse to report the arm here.
-    if matches!(arm, Arm::PreadNowait | Arm::PreadNowaitChunked) && !store.nowait_supported() {
+    // A silent EOPNOTSUPP would make the nowait variants look like a hop-free win while they
+    // were really doing nothing. `FrameStore` probed at open; refuse to report the variant here.
+    if matches!(variant, Variant::PreadNowait | Variant::PreadNowaitChunked) && !store.nowait_supported() {
         anyhow::bail!(
-            "RWF_NOWAIT unsupported on {} (overlayfs and tmpfs refuse it) — the nowait arms \
+            "RWF_NOWAIT unsupported on {} (overlayfs and tmpfs refuse it) — the nowait variants \
              degrade to whole-frame pooled `pread` there, and reporting them as a separate \
-             arm would be misleading",
+             variant would be misleading",
             path.display()
         );
     }
@@ -1102,22 +1102,22 @@ fn run_cell(
                 for i in 0..bg_ctx.store.frame_count() {
                     let _ = touch_frame_pages(&bg_ctx.store, i);
                 }
-                let bg_arm = match cfg.bg_arm {
-                    BgArm::AlwaysTouch => Arm::MmapBlockingTouch,
-                    BgArm::Same => arm,
+                let bg_variant = match cfg.bg_variant {
+                    BgVariant::AlwaysTouch => Variant::MmapBlockingTouch,
+                    BgVariant::Same => variant,
                 };
                 for _ in 0..cfg.sessions {
                     let c = bg_ctx.clone();
                     let acc = Arc::clone(&other_lats_acc);
                     let asks = cfg.session_asks;
                     bg_handles.push(tokio::spawn(async move {
-                        let mut state = ArmState::new(&cfg);
+                        let mut state = VariantState::new(&cfg);
                         let nframes = c.store.frame_count();
                         for i in 0..asks {
                             let idx = i % nframes;
                             let t0 = Instant::now();
                             serve_frame_async(
-                                bg_arm,
+                                bg_variant,
                                 &c,
                                 idx,
                                 Some((i + 1) % nframes),
@@ -1140,11 +1140,11 @@ fn run_cell(
                 let mut hops = Vec::with_capacity(trace_w.len());
                 let mut per_ask: Vec<(u64, u64)> = Vec::with_capacity(trace_w.len());
                 let mut bytes = 0u64;
-                let mut state = ArmState::new(&cfg);
+                let mut state = VariantState::new(&cfg);
                 let wall0 = Instant::now();
                 for (i, &idx) in trace_w.iter().enumerate() {
                     let next = trace_w.get(i + 1).copied();
-                    let out = serve_frame_async(arm, &ctx_w, idx, next, access, chunk, &mut state)
+                    let out = serve_frame_async(variant, &ctx_w, idx, next, access, chunk, &mut state)
                         .await?;
                     lats.push(out.latency_ns);
                     per_ask.push((out.latency_ns, out.hop_ns));
@@ -1198,7 +1198,7 @@ fn run_cell(
     let other_asks = other.len() as u32;
 
     Ok(RunRow {
-        arm: arm.as_str().to_string(),
+        variant: variant.as_str().to_string(),
         series: series_src
             .file_name()
             .and_then(|s| s.to_str())
@@ -1235,20 +1235,20 @@ fn run_cell(
 
 #[allow(clippy::too_many_arguments)]
 async fn serve_frame_async(
-    arm: Arm,
+    variant: Variant,
     ctx: &ServeCtx,
     idx: u32,
     next: Option<u32>,
     access: AccessMode,
     chunk: usize,
-    state: &mut ArmState,
+    state: &mut VariantState,
 ) -> Result<FrameOutcome> {
     let store = &ctx.store;
     let read_chunk = state.read_chunk;
     let uring_sqpoll = state.uring_sqpoll;
     let sink = &mut state.sink;
-    match arm {
-        Arm::MmapNaive => {
+    match variant {
+        Variant::MmapNaive => {
             let t0 = Instant::now();
             let slice = store.frame_slice(idx)?;
             write_sim(slice, chunk, sink).await;
@@ -1261,7 +1261,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::MmapBlockingTouch => {
+        Variant::MmapBlockingTouch => {
             let t0 = Instant::now();
             let s = Arc::clone(store);
             let th = Instant::now();
@@ -1280,7 +1280,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::MmapHybridMincore => {
+        Variant::MmapHybridMincore => {
             let t0 = Instant::now();
             let mut hop = 0u64;
             if !resident_for_access(store, idx, access).unwrap_or(false) {
@@ -1302,7 +1302,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::MmapDedicatedPool => {
+        Variant::MmapDedicatedPool => {
             let t0 = Instant::now();
             let s = Arc::clone(store);
             let th = Instant::now();
@@ -1319,7 +1319,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::PreadBlocking => {
+        Variant::PreadBlocking => {
             let len = access_len(store, idx, access)?;
             let t0 = Instant::now();
             let s = Arc::clone(store);
@@ -1343,7 +1343,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::PreadBlockingPooled => {
+        Variant::PreadBlockingPooled => {
             // Reuse one buffer across asks — removes per-frame allocation from the comparison.
             let len = access_len(store, idx, access)?;
             let t0 = Instant::now();
@@ -1370,7 +1370,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::MmapWillneed => {
+        Variant::MmapWillneed => {
             let t0 = Instant::now();
             advise_frame_willneed(store, idx)?;
             let slice = store.frame_slice(idx)?;
@@ -1384,7 +1384,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::MmapWillneedNext => {
+        Variant::MmapWillneedNext => {
             let t0 = Instant::now();
             advise_frame_willneed(store, idx)?;
             if let Some(n) = next {
@@ -1401,7 +1401,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::MmapTouchInPlace => {
+        Variant::MmapTouchInPlace => {
             // No pool round trip: block on this worker and let the runtime move the
             // co-tenants off it. Warm touch is ~free once the PTEs exist; cold pays the
             // fault here, but tokio has already evacuated the local queue.
@@ -1420,7 +1420,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::MmapPopulateRead => {
+        Variant::MmapPopulateRead => {
             let t0 = Instant::now();
             let s = Arc::clone(store);
             let th = Instant::now();
@@ -1439,7 +1439,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::PreadNowait => {
+        Variant::PreadNowait => {
             let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
             let t0 = Instant::now();
@@ -1470,7 +1470,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::PreadNowaitChunked => {
+        Variant::PreadNowaitChunked => {
             let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
             let window = read_chunk.min(len).max(1);
@@ -1517,7 +1517,7 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::PreadNowaitEscalate => {
+        Variant::PreadNowaitEscalate => {
             // Window the executor's reads; do not window the pool's.
             let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
@@ -1588,7 +1588,7 @@ async fn serve_frame_async(
                 probe_got,
             })
         }
-        Arm::PreadNowaitPrefetch => {
+        Variant::PreadNowaitPrefetch => {
             // The hint goes out *before* this ask's own reads, so the kernel has this whole
             // ask's duration to satisfy it. That is the entire mechanism: it only helps if
             // one ask takes longer than one read-ahead, which is a property of the
@@ -1646,10 +1646,10 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::PreadPipelinedPool => {
+        Variant::PreadPipelinedPool => {
             // Same pool hop as `pread_blocking_pooled`, but issued one window early so it
             // overlaps `write_sim` instead of preceding it. If pipelining is what helps,
-            // this arm captures it without io_uring.
+            // this variant captures it without io_uring.
             let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
             let win = read_chunk.min(len).max(1);
@@ -1702,17 +1702,17 @@ async fn serve_frame_async(
                 probe_got: 0,
             })
         }
-        Arm::UringNaive
-        | Arm::UringTuned
-        | Arm::UringPipelined
-        | Arm::UringNowaitHybrid
-        | Arm::UringNowaitWhole
-        | Arm::UringWhole
-        | Arm::UringBatchedStream => {
+        Variant::UringNaive
+        | Variant::UringTuned
+        | Variant::UringPipelined
+        | Variant::UringNowaitHybrid
+        | Variant::UringNowaitWhole
+        | Variant::UringWhole
+        | Variant::UringBatchedStream => {
             let offset = store.frame_span(idx)?.offset;
             let len = access_len(store, idx, access)?;
-            // The whole-frame arm ignores `--read-chunk`: one read is the point of it.
-            let win = if matches!(arm, Arm::UringWhole | Arm::UringNowaitWhole) {
+            // The whole-frame variant ignores `--read-chunk`: one read is the point of it.
+            let win = if matches!(variant, Variant::UringWhole | Variant::UringNowaitWhole) {
                 len.max(1)
             } else {
                 read_chunk.min(len).max(1)
@@ -1734,10 +1734,10 @@ async fn serve_frame_async(
                 let (win_len, batched_slots) = uring_access::ring_geometry(read_chunk, max_len);
                 // `uring_whole` reads a frame per submit, so its one buffer has to be the
                 // longest frame rather than a window of it.
-                let (buf_len, slots) = match arm {
-                    Arm::UringWhole | Arm::UringNowaitWhole => (max_len.max(1), 1),
-                    Arm::UringTuned | Arm::UringBatchedStream => (win_len, batched_slots),
-                    Arm::UringPipelined => {
+                let (buf_len, slots) = match variant {
+                    Variant::UringWhole | Variant::UringNowaitWhole => (max_len.max(1), 1),
+                    Variant::UringTuned | Variant::UringBatchedStream => (win_len, batched_slots),
+                    Variant::UringPipelined => {
                         (win_len, state.uring_depth.max(2).min(batched_slots.max(2)))
                     }
                     // Hybrid and naive hold exactly one window, like `pread_nowait_chunked`.
@@ -1747,7 +1747,7 @@ async fn serve_frame_async(
                     &ctx.file,
                     slots,
                     buf_len,
-                    arm != Arm::UringNaive,
+                    variant != Variant::UringNaive,
                     uring_sqpoll,
                 )?);
             }
@@ -1759,8 +1759,8 @@ async fn serve_frame_async(
             let mut probe_ns = 0u64;
             let mut probe_got = 0u64;
 
-            match arm {
-                Arm::UringTuned => {
+            match variant {
+                Variant::UringTuned => {
                     // Every window of the frame in one `io_uring_enter` — the only batch
                     // this workload offers.
                     for w in 0..windows {
@@ -1777,7 +1777,7 @@ async fn serve_frame_async(
                         write_sim(&ring.buf(w)[..this], chunk, &mut state.sink).await;
                     }
                 }
-                Arm::UringPipelined => {
+                Variant::UringPipelined => {
                     // Read window n+1 while window n is on the wire: the read latency hides
                     // behind the write, which a synchronous `pread` cannot do. `depth` is
                     // how many windows may be in flight; 2 is the shape the first campaign
@@ -1818,7 +1818,7 @@ async fn serve_frame_async(
                         done += 1;
                     }
                 }
-                Arm::UringNowaitWhole => {
+                Variant::UringNowaitWhole => {
                     // Probe the whole frame inline; the ring finishes whatever is missing.
                     let tp = Instant::now();
                     let got = store.read_at_nowait(&mut ring.buf_mut(0)[..len], offset)?;
@@ -1834,7 +1834,7 @@ async fn serve_frame_async(
                     }
                     write_sim(&ring.buf(0)[..len], chunk, &mut state.sink).await;
                 }
-                Arm::UringWhole => {
+                Variant::UringWhole => {
                     ring.push(0, file, offset, len)?;
                     ring.submit()?;
                     let th = Instant::now();
@@ -1842,10 +1842,10 @@ async fn serve_frame_async(
                     hop += th.elapsed().as_nanos() as u64;
                     write_sim(&ring.buf(0)[..len], chunk, &mut state.sink).await;
                 }
-                Arm::UringBatchedStream => {
+                Variant::UringBatchedStream => {
                     // Every window in flight at once, like `uring_tuned` — but each one is
                     // written the moment it lands instead of after the last one does. The
-                    // difference only shows when reads miss, which is the cell this arm was
+                    // difference only shows when reads miss, which is the cell this variant was
                     // added for.
                     for w in 0..windows {
                         let at = w * win;
@@ -1861,7 +1861,7 @@ async fn serve_frame_async(
                         write_sim(&ring.buf(w)[..this], chunk, &mut state.sink).await;
                     }
                 }
-                Arm::UringNowaitHybrid => {
+                Variant::UringNowaitHybrid => {
                     let mut pos = 0usize;
                     while pos < len {
                         let this = win.min(len - pos);
@@ -1905,7 +1905,7 @@ async fn serve_frame_async(
                 probe_got,
             })
         }
-        Arm::MmapBlockingAhead2 => {
+        Variant::MmapBlockingAhead2 => {
             let t0 = Instant::now();
             let s = Arc::clone(store);
             let th = Instant::now();
@@ -1936,7 +1936,7 @@ async fn serve_frame_async(
 /// One mix cell: `concurrency` sessions, each on its own slice of a region whose
 /// page-cache residency was set and verified before the cell started.
 struct MixRow {
-    arm: String,
+    variant: String,
     trace: String,
     repeat: u32,
     concurrency: u32,
@@ -1959,7 +1959,7 @@ struct MixRow {
     /// four 100 us window hops and one 400 us frame hop look identical there.
     hop_events: u64,
     /// Median time in a `read_at_nowait` call that came up short, and the median bytes it
-    /// returned. Zero for arms that never probe. See `FrameOutcome::probe_ns`.
+    /// returned. Zero for variants that never probe. See `FrameOutcome::probe_ns`.
     probe_ns_p50: u64,
     probe_got_p50: u64,
     hop_p50_ns: u64,
@@ -1976,14 +1976,14 @@ struct MixRow {
 }
 
 fn mix_tsv_header() -> &'static str {
-    "arm\ttrace\trepeat\tconcurrency\tregion_start\tregion_frames\tregion_stride\tmix_target\tmix_achieved\thit_resident\tmiss_resident\tasks\twall_ns\tthroughput_fps\tp50_ns\tp90_ns\tp99_ns\tmax_ns\thop_count\thop_events\tprobe_ns_p50\tprobe_got_p50\thop_p50_ns\thop_p99_ns\tgap_p99_ns\tgap_max_ns\tcpu_ns\tcpu_per_ask_ns\tthreads_max\tread_chunk\turing_depth\truntime"
+    "variant\ttrace\trepeat\tconcurrency\tregion_start\tregion_frames\tregion_stride\tmix_target\tmix_achieved\thit_resident\tmiss_resident\tasks\twall_ns\tthroughput_fps\tp50_ns\tp90_ns\tp99_ns\tmax_ns\thop_count\thop_events\tprobe_ns_p50\tprobe_got_p50\thop_p50_ns\thop_p99_ns\tgap_p99_ns\tgap_max_ns\tcpu_ns\tcpu_per_ask_ns\tthreads_max\tread_chunk\turing_depth\truntime"
 }
 
 impl MixRow {
     fn to_tsv(&self) -> String {
         format!(
             "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{}\t{}\t{:.1}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            self.arm,
+            self.variant,
             self.trace,
             self.repeat,
             self.concurrency,
@@ -2019,7 +2019,7 @@ impl MixRow {
     }
 }
 
-/// Everything a mix cell needs that is not the arm.
+/// Everything a mix cell needs that is not the variant.
 #[derive(Clone, Copy)]
 struct MixCfg {
     cell: CellCfg,
@@ -2034,11 +2034,11 @@ struct MixCfg {
 /// Run one mix cell.
 ///
 /// Shape, and why: every session is measured (there is no privileged "primary"), every
-/// session runs the arm under test, and the sessions share one `FrameStore` — which is
+/// session runs the variant under test, and the sessions share one `FrameStore` — which is
 /// also what the product does, so read-ahead state is shared between them exactly as it
 /// would be in production.
 fn run_mix_cell(
-    arm: Arm,
+    variant: Variant,
     ctx: &ServeCtx,
     mcfg: MixCfg,
     trace: TraceKind,
@@ -2052,20 +2052,20 @@ fn run_mix_cell(
         .collect();
 
     if matches!(
-        arm,
-        Arm::PreadNowait
-            | Arm::PreadNowaitChunked
-            | Arm::PreadNowaitEscalate
-            | Arm::UringNowaitWhole
+        variant,
+        Variant::PreadNowait
+            | Variant::PreadNowaitChunked
+            | Variant::PreadNowaitEscalate
+            | Variant::UringNowaitWhole
     ) && !store.nowait_supported()
     {
         anyhow::bail!(
-            "RWF_NOWAIT unsupported on this series — the nowait arms are not themselves here"
+            "RWF_NOWAIT unsupported on this series — the nowait variants are not themselves here"
         );
     }
 
     // Residency is set per cell, not per campaign: reading the region is what warms it, so
-    // the arm that ran before this one left it warm.
+    // the variant that ran before this one left it warm.
     let plan = residency::MixPlan::build(&region, mcfg.mix, mcfg.seed ^ u64::from(repeat) << 32);
     let report = residency::apply(store, &ctx.path, data_span(store)?, &plan)?;
     if (report.achieved - report.target).abs() > 0.05 {
@@ -2135,14 +2135,14 @@ fn run_mix_cell(
             let gate = Arc::clone(&gate);
             let acc = Arc::clone(&acc);
             handles.push(tokio::spawn(async move {
-                let mut state = ArmState::new(&cfg);
+                let mut state = VariantState::new(&cfg);
                 let mut mine: Vec<(u64, u64, u32, u64, u64)> = Vec::with_capacity(part.len());
                 gate.wait().await;
                 for (i, &idx) in part.iter().enumerate() {
                     let next = part.get(i + 1).copied();
                     let t0 = Instant::now();
                     let out =
-                        serve_frame_async(arm, &c, idx, next, cfg.access, cfg.chunk, &mut state)
+                        serve_frame_async(variant, &c, idx, next, cfg.access, cfg.chunk, &mut state)
                             .await?;
                     mine.push((
                         t0.elapsed().as_nanos() as u64,
@@ -2202,7 +2202,7 @@ fn run_mix_cell(
     let asks = lats.len() as u32;
 
     Ok(MixRow {
-        arm: arm.as_str().to_string(),
+        variant: variant.as_str().to_string(),
         trace: trace.as_str().to_string(),
         repeat,
         concurrency: mcfg.concurrency,
@@ -2343,7 +2343,7 @@ fn assert_cgroup_mem_limit(max_bytes: u64) -> Result<()> {
 /// changing the instrument the accepted decision rests on.
 fn run_mix_campaign(
     args: &Args,
-    arms: &[Arm],
+    variants: &[Variant],
     chunks: &[usize],
     repeats: u32,
     workers: usize,
@@ -2381,14 +2381,14 @@ fn run_mix_campaign(
         );
         // Every cell takes the next region unless pinned. An 80 MB series re-read is 10x
         // faster on its second pass here (442 ms then 31 ms) — the hypervisor caches it —
-        // so an arm that runs second on the same bytes is measuring the cache, not itself.
+        // so a variant that runs second on the same bytes is measuring the cache, not itself.
         let mut cell = 0u32;
         for &chunk in chunks {
             for &mix in &mixes {
                 for &conc in &concurrencies {
                     for &trace in &traces {
                         for rep in 1..=repeats {
-                            for &arm in arms {
+                            for &variant in variants {
                                 let region_start = if args.region_fixed {
                                     0
                                 } else {
@@ -2403,7 +2403,7 @@ fn run_mix_campaign(
                                         session_asks: 0,
                                         runtime: args.runtime,
                                         workers,
-                                        bg_arm: args.bg_arm,
+                                        bg_variant: args.bg_variant,
                                         monitors: args.monitors,
                                         read_chunk: args.read_chunk.max(1),
                                         uring_sqpoll: args.uring_sqpoll,
@@ -2417,7 +2417,7 @@ fn run_mix_campaign(
                                     region_stride: stride,
                                     seed: args.mix_seed,
                                 };
-                                let row = run_mix_cell(arm, &ctx, mcfg, trace, rep)?;
+                                let row = run_mix_cell(variant, &ctx, mcfg, trace, rep)?;
                                 println!("{}", row.to_tsv());
                                 rows.push(row);
                             }
@@ -2433,13 +2433,13 @@ fn run_mix_campaign(
             std::fs::create_dir_all(parent)?;
         }
         let mut body = String::from(
-            "arm\ttrace\tmix_target\tconcurrency\trepeat\tordinal\tlatency_ns\thop_ns\thop_events\tprobe_ns\tprobe_got\n",
+            "variant\ttrace\tmix_target\tconcurrency\trepeat\tordinal\tlatency_ns\thop_ns\thop_events\tprobe_ns\tprobe_got\n",
         );
         for r in &rows {
             for (i, (lat, hop, ev, pns, pgot)) in r.samples.iter().enumerate() {
                 body.push_str(&format!(
                     "{}\t{}\t{:.2}\t{}\t{}\t{i}\t{lat}\t{hop}\t{ev}\t{pns}\t{pgot}\n",
-                    r.arm, r.trace, r.mix_target, r.concurrency, r.repeat
+                    r.variant, r.trace, r.mix_target, r.concurrency, r.repeat
                 ));
             }
         }
@@ -2475,12 +2475,12 @@ fn main() -> Result<()> {
     if let Some(limit) = args.require_cgroup_mem_bytes {
         assert_cgroup_mem_limit(limit)?;
     }
-    let arms = if let Some(a) = args.arm.clone() {
+    let variants = if let Some(a) = args.variant.clone() {
         a
     } else if args.decision || args.realistic {
-        Arm::decision().to_vec()
+        Variant::decision().to_vec()
     } else {
-        Arm::all().to_vec()
+        Variant::all().to_vec()
     };
     let accesses = if let Some(a) = args.access.clone() {
         a
@@ -2498,26 +2498,26 @@ fn main() -> Result<()> {
         .workers
         .unwrap_or_else(|| std::thread::available_parallelism().map_or(4, |n| n.get()));
     if args.runtime == RuntimeKind::Current {
-        if let Some(bad) = arms.iter().copied().find(|a| a.needs_multi_thread()) {
+        if let Some(bad) = variants.iter().copied().find(|a| a.needs_multi_thread()) {
             anyhow::bail!(
-                "arm {} needs --runtime multi (block_in_place panics on a current-thread runtime)",
+                "variant {} needs --runtime multi (block_in_place panics on a current-thread runtime)",
                 bad.as_str()
             );
         }
     }
     PREFIX_BYTES.store(args.prefix, Ordering::Relaxed);
     eprintln!(
-        "runtime={} workers={} monitors={} bg_arm={:?} repeats={} prefix={}",
+        "runtime={} workers={} monitors={} bg_variant={:?} repeats={} prefix={}",
         args.runtime.as_str(),
         workers,
         args.monitors,
-        args.bg_arm,
+        args.bg_variant,
         repeats,
         args.prefix
     );
 
     if let Some(mixes) = args.mixes.clone() {
-        return run_mix_campaign(&args, &arms, &chunks, repeats, workers, mixes);
+        return run_mix_campaign(&args, &variants, &chunks, repeats, workers, mixes);
     }
 
     let mut rows = Vec::new();
@@ -2560,21 +2560,21 @@ fn main() -> Result<()> {
                             session_asks: args.session_asks,
                             runtime: args.runtime,
                             workers,
-                            bg_arm: args.bg_arm,
+                            bg_variant: args.bg_variant,
                             monitors: args.monitors,
                             read_chunk: args.read_chunk.max(1),
                             uring_sqpoll: args.uring_sqpoll,
                             uring_depth: args.uring_depth.max(2),
                             max_blocking: args.max_blocking,
                         };
-                        // Repeat is the OUTER loop: arms interleave round-robin so slow
-                        // host drift lands on every arm instead of on whichever arm
+                        // Repeat is the OUTER loop: variants interleave round-robin so slow
+                        // host drift lands on every variant instead of on whichever variant
                         // happened to run in a hot (or cold) block. Running all repeats of
-                        // one arm back to back is how the archived campaign could show
+                        // one variant back to back is how the archived campaign could show
                         // hybrid beating naive, which is impossible by construction.
                         for rep in 1..=repeats {
-                            for &arm in &arms {
-                                let row = run_cell(arm, &series, temp, tname, &tframes, rep, cfg)?;
+                            for &variant in &variants {
+                                let row = run_cell(variant, &series, temp, tname, &tframes, rep, cfg)?;
                                 println!("{}", row.to_tsv());
                                 rows.push(row);
                             }
@@ -2590,12 +2590,12 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(parent)?;
         }
         let mut body =
-            String::from("arm\ttemp\ttrace\tchunk\truntime\trepeat\tordinal\tlatency_ns\thop_ns\n");
+            String::from("variant\ttemp\ttrace\tchunk\truntime\trepeat\tordinal\tlatency_ns\thop_ns\n");
         for r in &rows {
             for (i, (lat, hop)) in r.samples.iter().enumerate() {
                 body.push_str(&format!(
                     "{}\t{}\t{}\t{}\t{}\t{}\t{i}\t{lat}\t{hop}\n",
-                    r.arm, r.temp, r.trace, r.chunk, r.runtime, r.repeat
+                    r.variant, r.temp, r.trace, r.chunk, r.runtime, r.repeat
                 ));
             }
         }

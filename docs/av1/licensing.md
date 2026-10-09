@@ -45,7 +45,7 @@ it as a separate program, links nothing against it and ships nothing built from 
   distributor makes its own necessary claims available under the same licence.
 * **How the client meets both:** `client/decode/wasm/dav1d/build.sh` writes `THIRD_PARTY.txt` beside the
   `.wasm` from the pinned sources' own files — dav1d's `COPYING` and `doc/PATENTS` (the AOM Patent
-  License 1.0), emscripten's `LICENSE` and musl's `COPYRIGHT` — and the dispatch arm checks it is
+  License 1.0), emscripten's `LICENSE` and musl's `COPYRIGHT` — and the dispatch variant checks it is
   served there. Nothing is copied by hand, so a tag bump carries its own text.
 * **Defensive termination** (§1.3): the patent licence ends for whoever starts patent litigation
   alleging an AV1 implementation infringes.

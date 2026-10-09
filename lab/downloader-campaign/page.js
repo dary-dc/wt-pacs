@@ -1,5 +1,5 @@
 /**
- * One arm, one scenario, one fresh session, against the real server. Two arms (H, the harness's
+ * One variant, one scenario, one fresh session, against the real server. Two variants (H, the harness's
  * own path, was removed 2026-10-03 after its last run, docs/ARCHITECTURE.md §The container campaign):
  *   Dw  the downloader with decode off — the same bytes, delivered from its worker
  *   Dd  the downloader decoding, `decoders` of them (3) — pixels in a SharedArrayBuffer (the product path)
@@ -10,7 +10,7 @@
 import { DownloaderClient } from "/client/transport/consumer.js";
 
 const q = new URLSearchParams(location.search);
-const arm = q.get("arm") || "Dw";
+const variant = q.get("variant") || "Dw";
 const scenario = q.get("scenario") || "fill";
 const FILL = Number(q.get("fill") || 80);
 const DECODERS = Number(q.get("decoders") || 3);
@@ -46,7 +46,7 @@ function handle(bytes) {
   handlerMs += performance.now() - t;
 }
 
-async function downloaderArm(cfg, decode) {
+async function downloaderVariant(cfg, decode) {
   let deliver = () => {};
   let mediaReads;
   const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
@@ -76,11 +76,11 @@ async function downloaderArm(cfg, decode) {
 }
 
 async function main() {
-  const result = { arm, scenario, fill: FILL, askFrame: ASK, cores: navigator.hardwareConcurrency };
+  const result = { variant, scenario, fill: FILL, askFrame: ASK, cores: navigator.hardwareConcurrency };
   const cfg = await (await fetch("/wt/dev-transport.json")).json();
-  const rig = await downloaderArm(cfg, arm === "Dd");
+  const rig = await downloaderVariant(cfg, variant === "Dd");
   result.workers = rig.workers;
-  log(`${arm} ${scenario}: connected, workers=${rig.workers}, crossOriginIsolated=${globalThis.crossOriginIsolated}`);
+  log(`${variant} ${scenario}: connected, workers=${rig.workers}, crossOriginIsolated=${globalThis.crossOriginIsolated}`);
 
   // The driver snapshots its counters and starts tracing here, then lets the scenario go.
   globalThis.__wtpacsReady = true;
@@ -163,6 +163,6 @@ async function main() {
 
 main().catch((e) => {
   log("FAILED: " + (e?.stack || e?.message || e));
-  globalThis.__wtpacsResult = { arm, scenario, error: String(e?.message ?? e) };
+  globalThis.__wtpacsResult = { variant, scenario, error: String(e?.message ?? e) };
   globalThis.__wtpacsDone = true;
 });

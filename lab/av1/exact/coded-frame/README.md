@@ -33,10 +33,10 @@ check moved in-process (`decode.cpp`). `bench.py` sets it against a checkout of 
   identical** by each file's SHA-256, 2 088 files a side; `ffdm_d`'s two AV1 cells at `--jobs 1`, since four
   aomenc at once on its 13.6 M-sample frames (3.5 GB each) exceed the container's memory, old and new alike.
 * **The check, in-process: 0.63–0.84 of the subprocess's time a frame on AV1, 0.37–0.46 on HTJ2K**, every cell's
-  range disjoint (n = 3, arms interleaved, `bench.py check`, a stream's first unit): fluoroscopy 40.1 → 29.9 ms
+  range disjoint (n = 3, variants interleaved, `bench.py check`, a stream's first unit): fluoroscopy 40.1 → 29.9 ms
   (AV1) and 9.8 → 4.2 (HTJ2K), ultrasound 38.4 → 24.2 and 9.4 → 3.5, the 10-bit volume 46.8 → 33.4 and
   13.2 → 4.9, the GE projections 326.5 → 273.0 and 55.5 → 25.4.
-* **A series, wall and CPU** (`bench.py time`, `good:6`, n = 3 interleaved, two arms n = 2 after a container
+* **A series, wall and CPU** (`bench.py time`, `good:6`, n = 3 interleaved, two variants n = 2 after a container
   restart; four cores, nothing else running). HTJ2K at one worker: CPU 1.0 → 0.7 s on the fluoroscopy and
   1.4 → 1.1 s on the 10-bit volume (−21 to −27 %, every round), wall 0.7 → 0.6 and 1.2 → 1.0 s; the old ingest
   had no workers, the new one fills four, 0.3 and 0.4 s. AV1: a tie, since the encode is ~99 % of it
@@ -58,8 +58,8 @@ run writes aomenc's reduced still-picture sequence header, the one every golden 
 two-pass statistics of one frame instead of the chunk's. Forcing video mode (`--force-video-mode=1`) instead kept
 the chunked bytes on most series but rewrote 106 golden payloads, so it was not taken; one golden payload that row 80
 wrote while it was on the branch (`grey420/g8`) is regenerated, exact through the gate. Mutation: the chunked
-ingest as the new arm fails the check on both tomosynthesis volumes. **Time** (`bench.py time`, whole series,
-n = 5, arms interleaved, four cores, nothing else running), new against chunked, wall at 1 worker: fluoroscopy
+ingest as the new variant fails the check on both tomosynthesis volumes. **Time** (`bench.py time`, whole series,
+n = 5, variants interleaved, four cores, nothing else running), new against chunked, wall at 1 worker: fluoroscopy
 61.0 [59.5–61.4] against 54.1 [53.2–55.7] s, the 10-bit volume 103.4 [101.7–108.8] against 92.2 [91.2–92.7],
 the ultrasound 165.7 [160.9–169.4] against 147.8 [145.2–151.9] — +12–13 % CPU, every range disjoint; at 4
 workers +6–13 % wall (17.7 against 15.7, 25.9 against 24.4, 43.0 against 39.8 s). Whole series, bytes

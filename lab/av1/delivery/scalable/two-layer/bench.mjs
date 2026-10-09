@@ -1,8 +1,8 @@
 /**
- * One round of SVCQ's decode arms, in Node or a page: each arm decodes a set's first FRAMES temporal
+ * One round of SVCQ's decode variants, in Node or a page: each variant decodes a set's first FRAMES temporal
  * units in order on a fresh decoder, after an untimed warm-up pass on another, and reports the mean
  * ms a frame over the whole run (WebCodecs needs a key chunk after every flush, so a group cannot be
- * timed frame by frame on it). The top and the single-layer arms are hashed against the truth.
+ * timed frame by frame on it). The top and the single-layer variants are hashed against the truth.
  */
 import { createDecoder } from "../../../../../client/decode/wasm/dav1d/dav1d.mjs";
 import { order } from "../../../../order.mjs";
@@ -28,8 +28,8 @@ function units(buf) {
   });
 }
 
-// (arm, stream, dav1d operating point; null = WebCodecs, which cannot choose one, checked = exact expected)
-const ARMS = [
+// (variant, stream, dav1d operating point; null = WebCodecs, which cannot choose one, checked = exact expected)
+const VARIANTS = [
   ["single", "single.ivf_0", 0, true],
   ["half-base", "half-q40.ivf_0", 1, false],
   ["half-all", "half-q40.ivf_1", 0, true],
@@ -48,12 +48,12 @@ export async function prepare(get, names, webcodecs) {
     for (let i = 0; i < FRAMES; i++) {
       truth.push(new TextDecoder().decode(await get(`lab/av1/data/${name}/${String(i).padStart(3, "0")}.sha256`)).trim());
     }
-    const arms = [];
-    for (const [arm, stream, op, checked] of ARMS) {
+    const variants = [];
+    for (const [variant, stream, op, checked] of VARIANTS) {
       if (op === null && !(webcodecs && SETS[name] <= 10)) continue; // WebCodecs refuses 12-bit
-      arms.push({ arm, op, checked, units: units(await get(`${WORK}/${name}/${stream}.av1`)) });
+      variants.push({ variant, op, checked, units: units(await get(`${WORK}/${name}/${stream}.av1`)) });
     }
-    sets.push({ name, meta, bits: SETS[name], truth, arms });
+    sets.push({ name, meta, bits: SETS[name], truth, variants });
   }
   return sets;
 }
@@ -123,11 +123,11 @@ async function webcodecsRun(list) {
   return { ms, frames: out };
 }
 
-/** env: { dav1d: the module factory }. Rows: one per (set, arm). mutate "sample" flips a bit of each frame. */
+/** env: { dav1d: the module factory }. Rows: one per (set, variant). mutate "sample" flips a bit of each frame. */
 export async function round(env, sets, r, mutate = "") {
   const rows = [];
   for (const s of order(sets, r)) {
-    for (const a of order(s.arms, r)) {
+    for (const a of order(s.variants, r)) {
       const { ms, frames } = a.op === null ? await webcodecsRun(a.units) : await dav1dRun(env.dav1d, a.op, a.units);
       let exact = null;
       if (a.checked) {
@@ -138,7 +138,7 @@ export async function round(env, sets, r, mutate = "") {
           exact += (await sha256(stored(s.meta, f.width, f.planes))) === s.truth[i];
         }
       }
-      rows.push({ set: s.name, arm: a.arm, round: r, ms, frames: frames.length, exact,
+      rows.push({ set: s.name, variant: a.variant, round: r, ms, frames: frames.length, exact,
         size: `${frames[0]?.width}x${frames[0]?.height}` });
     }
   }

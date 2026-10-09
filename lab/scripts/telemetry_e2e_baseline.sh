@@ -69,7 +69,7 @@ one_run() {
   for i in $(seq 1 "$n"); do
     "$HARNESS" --url "https://127.0.0.1:$PORT/" --mode saturate --depth "$DEPTH" \
       --read-bps "$HARNESS_READ_BPS" --fill-dwell-ms "$DWELL_MS" --frame-count 20 \
-      --stream-mode "$STREAM_MODE" --arm "s$i" --json "${harness_args[@]}" \
+      --stream-mode "$STREAM_MODE" --variant "s$i" --json "${harness_args[@]}" \
       > "$dir/harness-$i.json" 2> "$dir/harness-$i.err" &
     pids+=($!)
   done

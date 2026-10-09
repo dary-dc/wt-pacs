@@ -7,7 +7,7 @@ optional field written, and reconfigures only when that string changes. The rule
 [`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md) §Decoder choice, per payload.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # OpenJPH, for ingest's check
 ingest/coded-frames/build.sh && lab/av1/fetch_data.sh                 # ingest's in-process check; all 28 series
 W=lab/.av1-work/codecstr

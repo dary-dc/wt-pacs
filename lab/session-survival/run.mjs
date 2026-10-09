@@ -1,5 +1,5 @@
 /**
- * Cut the path under a live fill and time the first frame after the cut, both arms interleaved:
+ * Cut the path under a live fill and time the first frame after the cut, both variants interleaved:
  * every round runs `today` and `built` with the order rotated, so a drift in the host lands on
  * both alike. The cut is `link_impair.py`'s `cut` — the port this session is on is blackholed for
  * good and a session from a new port is not, which is what a handover does on one host.
@@ -21,7 +21,7 @@ const FILL = Number(arg("--fill", 80));
 const BASE = arg("--base", "http://127.0.0.1:8792");
 const CONTROL = Number(arg("--control", 5583));
 const OUT = arg("--out", "");
-const ARMS = arg("--arms", "today,built,quick").split(",");
+const VARIANTS = arg("--variants", "today,built,quick").split(",");
 /** `--no-cut` runs the fill undisturbed: every resume it reports is a false alarm. */
 const NO_CUT = process.argv.includes("--no-cut");
 const BLINK_EVERY = Number(arg("--blink-every", 0));
@@ -48,7 +48,7 @@ const browser = await chromium.launch({
   ],
 });
 
-async function runOne(arm) {
+async function runOne(variant) {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -59,7 +59,7 @@ async function runOne(arm) {
     page.on("worker", (w) => w.on("console", say(w.url().split("/").pop())));
   }
   const startAt = Date.now();
-  await page.goto(`${BASE}/lab/session-survival/index.html?arm=${arm}&fill=${FILL}&asks=${ASKS}${QUERY ? `&${QUERY}` : ""}`);
+  await page.goto(`${BASE}/lab/session-survival/index.html?variant=${variant}&fill=${FILL}&asks=${ASKS}${QUERY ? `&${QUERY}` : ""}`);
   let cutAt = Infinity;
   if (!NO_CUT) {
     await page.waitForFunction((n) => (globalThis.__wtpacsFrames ?? 0) >= n, CUT_AFTER, { timeout: 60000 });
@@ -79,7 +79,7 @@ async function runOne(arm) {
   // What noticed: this client resuming, or — with no resumption — the transport failing the run.
   const noticed = [...(r.resumedAt ?? []), ...r.failures.map((f) => f.at)].filter((t) => t > cutAt);
   return {
-    arm,
+    variant,
     done,
     noticedMs: noticed.length ? Math.round(Math.min(...noticed) - cutAt) : null,
     firstAfterMs: after.length ? Math.round(Math.min(...after)) : null,
@@ -102,11 +102,11 @@ async function runOne(arm) {
 
 const rows = [];
 for (let round = 0; round < ROUNDS; round++) {
-  for (const arm of ARMS.map((_, k) => ARMS[(k + round) % ARMS.length])) {
-    const row = { round, ...(await runOne(arm)) };
+  for (const variant of VARIANTS.map((_, k) => VARIANTS[(k + round) % VARIANTS.length])) {
+    const row = { round, ...(await runOne(variant)) };
     rows.push(row);
     console.log(
-      `round ${round} ${row.arm.padEnd(5)} noticed ${String(row.noticedMs ?? "never").padStart(6)} ms` +
+      `round ${round} ${row.variant.padEnd(5)} noticed ${String(row.noticedMs ?? "never").padStart(6)} ms` +
         `  first frame after the cut ${String(row.firstAfterMs ?? "never").padStart(6)} ms` +
         `  (${row.before} before, ${row.delivered}/${ASKS || FILL} delivered, ${row.failures} failed, ${row.resumes} resumes, ${row.tookMs} ms)` +
         (row.reason ? `  ${row.reason}` : "") +
@@ -124,12 +124,12 @@ const cell = (rs, k) => {
   return got.length ? `${median(got)} [${Math.min(...got)} … ${Math.max(...got)}]` : "never";
 };
 console.log(`\nms from the cut, ${ROUNDS} rounds, interleaved`);
-for (const arm of ARMS) {
-  const rs = rows.filter((r) => r.arm === arm);
+for (const variant of VARIANTS) {
+  const rs = rows.filter((r) => r.variant === variant);
   const complete = rs.filter((r) => r.delivered === (ASKS || FILL)).length;
   const resumes = rs.map((r) => r.resumes);
   console.log(
-    `  ${arm.padEnd(5)} noticed ${cell(rs, "noticedMs").padEnd(22)} first frame ${cell(rs, "firstAfterMs").padEnd(22)}` +
+    `  ${variant.padEnd(5)} noticed ${cell(rs, "noticedMs").padEnd(22)} first frame ${cell(rs, "firstAfterMs").padEnd(22)}` +
       ` took ${cell(rs, "tookMs").padEnd(26)} resumes ${resumes.join(",")}` +
       ` failed ${rs.map((r) => r.failures).join(",")} n=${rs.length}, completed ${complete}/${rs.length}`,
   );

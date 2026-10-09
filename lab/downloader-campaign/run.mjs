@@ -1,8 +1,8 @@
 /**
- * Drive page.js headless, interleaving the arms: every round runs each scenario on each arm
- * with the arm order rotated, so a drift in the host lands on all arms alike. Adds what only
+ * Drive page.js headless, interleaving the variants: every round runs each scenario on each variant
+ * with the variant order rotated, so a drift in the host lands on all variants alike. Adds what only
  * CDP sees — the page's main-thread task time and the renderer's GC count over the scenario —
- * then prints median [min … max] per arm. docs/ARCHITECTURE.md §The container campaign.
+ * then prints median [min … max] per variant. docs/ARCHITECTURE.md §The container campaign.
  *
  *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/run.mjs [--rounds 8] [--base http://127.0.0.1:8765]
  */
@@ -16,7 +16,7 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ROUNDS = Number(arg("--rounds", 8));
 const BASE = arg("--base", "http://127.0.0.1:8765");
 const OUT = arg("--out", "");
-const ARMS = ["Dw", "Dd"];
+const VARIANTS = ["Dw", "Dd"];
 const SCENARIOS = ["fill", "ask", "ask10", "ask50", "ask90"];
 
 // An explicit path launches the full browser; the headless shell playwright otherwise picks has
@@ -27,7 +27,7 @@ const browser = await chromium.launch({
   args: ["--disable-background-networking", "--enable-precise-memory-info", "--enable-blink-features=ForceEagerMeasureMemory"],
 });
 
-async function runOne(arm, scenario) {
+async function runOne(variant, scenario) {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -35,7 +35,7 @@ async function runOne(arm, scenario) {
   let gcs = 0;
   cdp.on("Tracing.dataCollected", (d) => { for (const e of d.value || []) if (/^V8\.GC/.test(e.name || "")) gcs += 1; });
   await cdp.send("Performance.enable");
-  await page.goto(`${BASE}/lab/downloader-campaign/index.html?arm=${arm}&scenario=${scenario}`);
+  await page.goto(`${BASE}/lab/downloader-campaign/index.html?variant=${variant}&scenario=${scenario}`);
   await page.waitForFunction(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone, null, { timeout: 60000 });
   const metric = (m, name) => m.metrics.find((x) => x.name === name)?.value ?? 0;
   const before = await cdp.send("Performance.getMetrics");
@@ -61,13 +61,13 @@ async function runOne(arm, scenario) {
 
 const rows = [];
 for (let round = 0; round < ROUNDS; round++) {
-  const order = ARMS.map((_, i) => ARMS[(i + round) % ARMS.length]);
+  const order = VARIANTS.map((_, i) => VARIANTS[(i + round) % VARIANTS.length]);
   for (const scenario of SCENARIOS) {
-    for (const arm of order) {
-      const r = await runOne(arm, scenario);
+    for (const variant of order) {
+      const r = await runOne(variant, scenario);
       rows.push({ round, ...r });
       const brief = r.error ? `ERROR ${r.error}` : `${r.ask_ms != null ? `ask ${r.ask_ms.toFixed(1)} ms ` : ""}${r.last_frame_ms != null ? `fill ${r.last_frame_ms.toFixed(0)} ms ${r.delivered}/${r.fill} ` : ""}main ${r.main_thread_ms.toFixed(0)} ms gcs ${r.gcs} mem ${(r.memory_bytes / 1048576).toFixed(1)} MB`;
-      console.log(`round ${round} ${scenario.padEnd(5)} ${arm.padEnd(2)} ${brief}${r.errors.length ? ` pageerrors ${r.errors.length}` : ""}`);
+      console.log(`round ${round} ${scenario.padEnd(5)} ${variant.padEnd(2)} ${brief}${r.errors.length ? ` pageerrors ${r.errors.length}` : ""}`);
     }
   }
 }
@@ -76,9 +76,9 @@ if (OUT) fs.writeFileSync(OUT, rows.map((r) => JSON.stringify(r)).join("\n") + "
 
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const fmt = (xs, d = 1) => xs.length ? `${median(xs).toFixed(d)} [${Math.min(...xs).toFixed(d)} … ${Math.max(...xs).toFixed(d)}]` : "—";
-const pick = (scenario, arm, key) => rows.filter((r) => r.scenario === scenario && r.arm === arm && r[key] != null && !r.error).map((r) => r[key]);
+const pick = (scenario, variant, key) => rows.filter((r) => r.scenario === scenario && r.variant === variant && r[key] != null && !r.error).map((r) => r[key]);
 const first = rows.find((r) => !r.error) ?? {};
-console.log(`\n### ${ROUNDS} rounds, arm order rotated each round, fill of ${first.fill} frames, ask for frame ${first.askFrame}, ${first.cores} cores\n`);
+console.log(`\n### ${ROUNDS} rounds, variant order rotated each round, fill of ${first.fill} frames, ask for frame ${first.askFrame}, ${first.cores} cores\n`);
 const METRICS = [
   ["ask_ms", "ask → delivered (ms)", 2],
   ["last_frame_ms", "fill: issue → last frame at the page (ms)", 0],

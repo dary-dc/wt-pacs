@@ -24,23 +24,23 @@ codestream) cover the sizes no series has: 512² at 8 bits, 4096×3328 at 8 and 
 
 **Truth.** `make_truth.py` reads each fetched `NNN.raw`, holds its SHA-256 to the checksum written when
 it was fetched, and writes its BLAKE3 (`blake3` 1.0.8), XXH3-64 (`xxhash` 3.6.0) and CRC-32 (zlib)
-beside it: every arm is checked against an independent implementation over the encoder's input, never
-against another arm.
+beside it: every variant is checked against an independent implementation over the encoder's input, never
+against another variant.
 
 **Hash** (`worker.js` `bench`). One worker a set, as the product runs a decoder: each frame decoded
 by the shipped OpenJPH package and copied into a `SharedArrayBuffer`, as `decodeFrame` hands samples
-on; then every arm's digest of every frame checked, then 3 timed passes an arm, the arms in a
-Williams order per round. Arms: `decode` (codestream to shared samples), `sha256-webcrypto` (a copy
+on; then every variant's digest of every frame checked, then 3 timed passes a variant, the variants in a
+Williams order per round. Variants: `decode` (codestream to shared samples), `sha256-webcrypto` (a copy
 out of shared memory first: WebCrypto refuses a shared view, which the run prints), `sha256-wasm`,
 `blake3-wasm`, `xxh3-wasm`, `crc32-wasm` (hash-wasm 4.12.0).
 
 **Pool** (`index.html` `pool`). A decode-bound fill: 3 decoder workers take each set's frames 6 times
-over (24 frames) as fast as they finish, each frame decoded then hashed by the arm before it is
+over (24 frames) as fast as they finish, each frame decoded then hashed by the variant before it is
 handed on (`none`: not checked); the first frame handed on is the earliest a checked picture can be
 painted, the last the fill's decode side. No wire: where the wire is the fill's clock, a check that
 fits in the decoders' idle time costs nothing.
 
-A fresh headless Chromium per (round × throttle), the throttles, sets and arms each in a Williams
+A fresh headless Chromium per (round × throttle), the throttles, sets and variants each in a Williams
 order; browser on 4 cores (`taskset`); 4× is `lab/scripts/cpu_throttle.mjs`, four cores each a
 quarter as fast. `--mutate` flips one byte of every decoded frame before it is hashed: every hash and
 pool cell went 0/n and the run exits 1.

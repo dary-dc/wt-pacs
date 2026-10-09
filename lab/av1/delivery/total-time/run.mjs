@@ -1,14 +1,14 @@
 /**
- * TOTAL: a whole series filled through the downloader, wire plus decode, every arm of a series on
+ * TOTAL: a whole series filled through the downloader, wire plus decode, every variant of a series on
  * the same link and CPU: HTJ2K, AV1 intra through dav1d-WASM and WebCodecs, the splits, one group,
  * a lossy preview, row LLSIZE's codings (TOTAL2), a layer-major scalable series (BASES), row ENCX's (TOTAL3),
  * the order the frames are asked in (ORDER), loss and jitter and asks after a partial fill (LOSSLINK). Fixed rates and
  * phone-like profiles behind the relay, headless Chromium (and Firefox, TOTAL4) at 1× and 4×. Every visit is its own server, relay and browser;
- * (set × link × impairment × throttle) cells in a Williams order each round, the arms inside each cell the same way.
+ * (set × link × impairment × throttle) cells in a Williams order each round, the variants inside each cell the same way.
  * lab/av1/delivery/total-time/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
- *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--arms a,b]
+ *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth] [--out rows.jsonl]
  *     [--summary [--ref htj2k]]
  */
@@ -80,11 +80,11 @@ writeFileSync(`${T}/wifi-home.trace`, execFileSync("python3", [path.join(ROOT, "
 
 const DAV1D = { codec: "av1", glue: "/lab/.av1-build/out/simd.js", wasm: "/lab/.av1-build/out/simd.wasm", dir: "/lab/.av1-build/out" };
 const OPENJPH = { glue: "/client/decode/wasm/vendor/openjph/openjphjs.js", wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm", dir: "/client/decode/wasm/vendor/openjph" };
-/** One of lab/decode-bench/wasm/build.sh's arms by name (lab/av1/decode/htj2k-threads). */
+/** One of lab/decode-bench/wasm/build.sh's variants by name (lab/av1/decode/htj2k-threads). */
 const built = (n) => ({ glue: `/lab/.openjph-build/wasm/${n}.js`, wasm: `/lab/.openjph-build/wasm/${n}.wasm`, dir: "/lab/.openjph-build/wasm" });
-/** What the store holds for an arm, and what connect is told: the product's own decoder choice. */
-function arm(set, name) {
-  const a = set.arms[name];
+/** What the store holds for a variant, and what connect is told: the product's own decoder choice. */
+function variantOf(set, name) {
+  const a = set.variants[name];
   const ext = a.ext ?? (name === "wc" ? "av1" : name);
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
@@ -93,7 +93,7 @@ function arm(set, name) {
       opts: { decoder: { ...(a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Row ASKDEADLINE: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
-        // A `downloader` arm runs that revision of the downloader (row CLIENT).
+        // A `downloader` variant runs that revision of the downloader (row CLIENT).
         ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }) } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
@@ -105,11 +105,11 @@ function arm(set, name) {
     truth: a.truth, previewTruth: a.previewTruth, congestion: a.congestion };
 }
 
-const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.join(ROOT, FRAMES, d, "arms.json")))
-  .map((d) => JSON.parse(readFileSync(path.join(ROOT, FRAMES, d, "arms.json"), "utf8")))
+const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.join(ROOT, FRAMES, d, "variants.json")))
+  .map((d) => JSON.parse(readFileSync(path.join(ROOT, FRAMES, d, "variants.json"), "utf8")))
   .filter((s) => arg("--sets", s.name).split(",").includes(s.name));
-const ARMS = arg("--arms", null)?.split(",");
-for (const s of sets) s.armNames = Object.keys(s.arms).filter((a) => !ARMS || ARMS.includes(a));
+const VARIANTS = arg("--variants", null)?.split(",");
+for (const s of sets) s.variantNames = Object.keys(s.variants).filter((a) => !VARIANTS || VARIANTS.includes(a));
 
 execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT, stdio: "inherit" });
 execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
@@ -212,10 +212,10 @@ const started = (child, re) => new Promise((resolve, reject) => {
 });
 
 async function visit(engine, set, variant, linkName, impairment, throttle, round) {
-  const [armName, orderName = "seq"] = variant.split("@");
-  const a = arm(set, armName);
+  const [variantName, orderName = "seq"] = variant.split("@");
+  const a = variantOf(set, variantName);
   const fill = Number(FILL ?? a.entries);
-  if (fill + AFTER > a.entries || (AFTER && (a.opts.groupLength || a.opts.decoder.layers))) throw new Error(`${set.name} ${armName}: ${fill} + ${AFTER} asks`);
+  if (fill + AFTER > a.entries || (AFTER && (a.opts.groupLength || a.opts.decoder.layers))) throw new Error(`${set.name} ${variantName}: ${fill} + ${AFTER} asks`);
   const need = useful(set);
   const flip = (t) => (MUTATE === "truth" ? t.replace(/^./, (c) => (c === "0" ? "1" : "0")) : t);
   const truth = (a.truth ?? set.truth).map(flip);
@@ -230,7 +230,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   await started(server, /transport=.*\n/);
   // The controller the server says it runs, not the one asked for: Cubic is the one it leaves unprinted.
   const ran = /congestion=([\w-]+)/.exec(serverOut)?.[1] ?? "cubic";
-  if (ran !== (a.congestion ?? "cubic-restart")) throw new Error(`${armName}: the server runs ${ran}, not ${a.congestion}`);
+  if (ran !== (a.congestion ?? "cubic-restart")) throw new Error(`${variantName}: the server runs ${ran}, not ${a.congestion}`);
   const [oneWay, linkArgs] = link(linkName, impairment);
   const relay = spawn("chrt", ["-f", "50", "taskset", "-c", RIG_CORE, "python3", "lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`,
     "--seed", String(round), "--delay-ms", String(oneWay), ...linkArgs, "--self-timing"], { cwd: ROOT });
@@ -258,14 +258,14 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
 
   const late = relayLog.match(/self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)/g)?.pop();
   const s2c = relayLog.match(/server->client sent (\d+) lost (\d+)/)?.slice(1).map(Number);
-  const row = { round, engine, set: set.name, arm: variant, congestion: ran, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
+  const row = { round, engine, set: set.name, variant: variant, congestion: ran, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
   // A frame's first picture: its base when one came before its exact frame.
   const shown = new Map(r.frames.map((f) => [f.i, f.page]));
   for (const p of r.previews ?? []) if (!p.late) shown.set(p.i, Math.min(shown.get(p.i) ?? Infinity, p.page));
-  // A layered arm owes one preview a frame, and exact frames only under frame indices.
+  // A layered variant owes one preview a frame, and exact frames only under frame indices.
   const previews = previewTruth ? {
     previews: r.previews.length,
     strays: r.frames.filter((f) => !(f.i >= 0 && f.i < set.frames)).length,
@@ -301,7 +301,7 @@ function useful(set) {
   return [c, c - 1, c + 1, c - 2, c + 2];
 }
 /** `seq` fills every frame; `prio` asks the useful ones first, then fills. */
-const variants = (set) => set.armNames.flatMap((a) => ORDERS.map((o) => (o === "seq" ? a : `${a}@${o}`)));
+const variants = (set) => set.variantNames.flatMap((a) => ORDERS.map((o) => (o === "seq" ? a : `${a}@${o}`)));
 
 const cells = ENGINES.flatMap((engine) => sets.flatMap((s) => LINKS.flatMap((l) => IMPAIRS.flatMap((impairment) =>
   THROTTLES.map((throttle) => ({ engine, set: s.name, link: l, impairment, throttle }))))));
@@ -334,7 +334,7 @@ console.log("ms from the fill's issue: first frame on the page, every frame on t
   `÷ ${REF} on every frame, median of rounds paired; frames exact over every visit`);
 for (const { engine, set: name, link: l, impairment, throttle } of cells) {
   const set = sets.find((s) => s.name === name);
-  const of = (a, from = kept) => from.filter((r) => r.engine === engine && r.set === name && r.link === l && r.impairment === impairment && r.throttle === throttle && r.arm === a);
+  const of = (a, from = kept) => from.filter((r) => r.engine === engine && r.set === name && r.link === l && r.impairment === impairment && r.throttle === throttle && r.variant === a);
   const ref = new Map(of(REF).map((r) => [r.round, r.decodedMs]));
   const parts = variants(set).map((a) => {
     const rs = of(a);

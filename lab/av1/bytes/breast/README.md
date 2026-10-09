@@ -6,7 +6,7 @@ breast ultrasound cine and stills — as AV1 payloads against HTJ2K, and intra a
 another (DBT slices by position, cine by time, never re-sorted).
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
 lab/av1/fetch_data.sh dbt12_c dbt10_d dbtproj_c ffdm_c ffdm_d syn2d_c syn2d_d usb_cine usb_cine_rgb usb_still
 P=lab/av1/.venv/bin/python W=lab/.av1-work/breast D=lab/av1/data
 $P lab/av1/bytes/breast/breast.py lab/.av1-build $W $W/bytes.jsonl bytes $D/ffdm_d … --frames 8     # ~2 h
@@ -20,7 +20,7 @@ NODE_PATH=$(npm root -g) node lab/av1/bytes/represented/time.mjs --work $W/ivf -
 
 **`breast.py bytes`** writes each series' first N frames as payloads through `ingest/coded-frames/ingest.py` (nothing is
 written unless native dav1d decodes every payload back to its source) in each layout — plain; optimized, the k = 2
-split over 8 bits; over 8 bits row 44's arms d12 (k = b − 12), k3 and w10 (k = b − 10), each where it is a k of its
+split over 8 bits; over 8 bits row 44's variants d12 (k = b − 12), k3 and w10 (k = b − 10), each where it is a k of its
 own (row BREAST's run had w10 only, over 12 bits); RGB plain and RCT — at cpu0 and at the shipped preset, the first
 of `allintra` 7, `allintra` 6, `good` 6, `allintra` 5 (row 14's speed order) within 2 % of cpu0's bytes; RGB
 ultrasound ships at cpu0. HTJ2K is OpenJPH 0.31.0 in the served profile on the same frames, decoded back and checked.
@@ -119,7 +119,7 @@ b − 10 the matrix allows: 24/24 cells and 1 358/1 358 frames in each engine, W
 dav1d-WASM the rest and everything in the other two, each as the engine should choose.
 
 **Bytes over HTJ2K's**, the first 8 frames (all when fewer), cpu0, and in brackets the shipped preset and its ratio;
-an arm equal to another is run once, a refusal is the format's, by name:
+a variant equal to another is run once, a refusal is the format's, by name:
 
 | series | b | plain | optimized, k = 2 | d12 | k = 3 | w10 |
 | --- | --: | --- | --- | --- | --- | --- |

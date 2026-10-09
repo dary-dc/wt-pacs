@@ -1,5 +1,5 @@
 /**
- * The range pass alone, in a browser worker: range.html's arms with the shapes, in a Williams order
+ * The range pass alone, in a browser worker: range.html's variants with the shapes, in a Williams order
  * every round (lab/order.mjs).
  * At 1×: a pass this short outruns the throttle's enforcement. docs/decode/README.md §The decode tail on a slow CPU
  *
@@ -14,7 +14,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 7));
 const THROTTLES = arg("--throttles", "1").split(",").map(Number);
-const ARMS = ["product", "ints"];
+const VARIANTS = ["product", "ints"];
 const SHAPES = ["c512", "g512", "s12"];
 const ROOT = new URL("../..", import.meta.url).pathname;
 const PORT = 30000 + ((Math.random() * 10000) | 0);
@@ -29,18 +29,18 @@ await page.goto(`http://127.0.0.1:${PORT}/lab/decode-tail/range.html`);
 await page.waitForFunction(() => globalThis.ready);
 
 const rows = [];
-const cells = THROTTLES.flatMap((t) => SHAPES.flatMap((s) => ARMS.map((a) => [t, s, a])));
-const unit = (throttle, shape, arm) => `${arm}/${shape}@${throttle}x`;
+const cells = THROTTLES.flatMap((t) => SHAPES.flatMap((s) => VARIANTS.map((a) => [t, s, a])));
+const unit = (throttle, shape, variant) => `${variant}/${shape}@${throttle}x`;
 for (let round = 0; round < ROUNDS; round++) {
   let prev = null;
-  for (const [throttle, shape, arm] of order(cells, round)) {
+  for (const [throttle, shape, variant] of order(cells, round)) {
     const stop = throttleTree(server.process().pid, throttle);
-    const { out, result } = await page.evaluate(([a, s]) => globalThis.run(a, s, 15), [arm, shape]);
+    const { out, result } = await page.evaluate(([a, s]) => globalThis.run(a, s, 15), [variant, shape]);
     stop();
     // The first calls tier up; the steady state is the question.
     const steady = out.slice(5).sort((x, y) => x - y);
-    rows.push({ round, throttle, shape, arm, prev, ms: steady[steady.length >> 1], result });
-    prev = unit(throttle, shape, arm);
+    rows.push({ round, throttle, shape, variant, prev, ms: steady[steady.length >> 1], result });
+    prev = unit(throttle, shape, variant);
   }
 }
 await browser.close();
@@ -49,7 +49,7 @@ await server.close();
 const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
 console.log("median over rounds of each round's steady-state median, ms a frame");
 for (const throttle of THROTTLES) for (const shape of SHAPES) {
-  const of = (arm) => rows.filter((r) => r.throttle === throttle && r.shape === shape && r.arm === arm);
+  const of = (variant) => rows.filter((r) => r.throttle === throttle && r.shape === shape && r.variant === variant);
   const [p, i] = [of("product"), of("ints")];
   const same = p.every((r, k) => JSON.stringify(r.result) === JSON.stringify(i[k].result));
   const faster = i.filter((r) => r.ms < p.find((x) => x.round === r.round).ms).length;
@@ -57,7 +57,7 @@ for (const throttle of THROTTLES) for (const shape of SHAPES) {
     `  ints faster in ${faster}/${i.length}  same range: ${same}`);
 }
 console.log("\neach lead by the predecessor it ran after, ms a frame, rounds in brackets");
-const byUnit = rows.map((r) => ({ round: r.round, unit: unit(r.throttle, r.shape, r.arm), prev: r.prev, v: r.ms }));
+const byUnit = rows.map((r) => ({ round: r.round, unit: unit(r.throttle, r.shape, r.variant), prev: r.prev, v: r.ms }));
 const pairs = THROTTLES.flatMap((t) => SHAPES.map((s) => [unit(t, s, "ints"), unit(t, s, "product")]));
 for (const line of leadsByPredecessor(byUnit, cells.map((c) => unit(...c)), pairs, 2)) console.log(line);
 process.exit(0);

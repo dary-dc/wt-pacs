@@ -31,7 +31,7 @@ A `FrameResult` is `{ frameIndex, bytes, timing: { askMs, lastChunkMs } }`, time
 `performance.now()` milliseconds. *Corrected 2026-10-03:* it also carried `tier`, `codec`,
 `firstChunkMs`, `chunks` and `serveUs`, constants nobody read; both clients dropped them, and
 `stats()` its `droppedEarlyMedia` and `frameErrors` counters, which nothing read (code:
-`git show archive/arms-2026-10-03:client/transport/ts/frame-session.ts`).
+`git show archive/variants-2026-10-03:client/transport/ts/frame-session.ts`).
 
 **Where the implementations differ**, and the contract adapters are the only code that knows:
 `endStream` is a promise in TypeScript and synchronous in WASM; the WASM handle is exported as
@@ -65,7 +65,7 @@ so every server stream mode is read by the same code. The certificate is pinned 
 `serverCertificateHashes`. No `congestionControl` hint is requested: it shapes only the browser's
 send side, which carries only asks, Chrome does not expose it, and it is not measured elsewhere
 (the `"low-latency"` request was removed 2026-10-03; code:
-`git show archive/arms-2026-10-03:client/transport/ts/session.ts`).
+`git show archive/variants-2026-10-03:client/transport/ts/session.ts`).
 
 **Over a WebSocket, TypeScript** (`ws-session.ts`). The same `FrameSession` over one socket to
 `wss://` on the same host and port number; the certificate hash is ignored, since a WebSocket
@@ -180,7 +180,7 @@ are in flight that its end is observable. Nothing in the tree is touched.
 **In the gate** (`scripts/gate.sh`): `run.mjs`, the worker-safe static check
 (`client/scripts/check_worker_safe.sh`: no built artifact may contain a `window.` reference), the
 downloader and dispatch rigs, and `run_wire.sh`. **The WASM client is required**: `run.mjs` exits 2
-without `client/transport/wasm/pkg/` (decided 2026-09-18, over the proposal's "skip the arm
+without `client/transport/wasm/pkg/` (decided 2026-09-18, over the proposal's "skip the variant
 loudly"). The headless steps are required too: the gate exits 2 with the install command when
 playwright, Chromium or the decoder vendor is missing (decided 2026-10-03; it was "skip loudly"
 until then, and a gate without a browser passed none of the browser checks);
@@ -339,7 +339,7 @@ The server could ask its peer for a smaller `max_ack_delay` (`--ack-frequency-ma
 25 ms half of the depth-1 tail. quinn uses the extension only where the peer advertises
 `min_ack_delay`; frames sent were logged as `ack_frequency=` on the `session path` line. The flag
 and the log field were removed 2026-10-03 as having no browser to act on; code:
-`git show archive/arms-2026-10-03:server/src/transport/tuning.rs`.
+`git show archive/variants-2026-10-03:server/src/transport/tuning.rs`.
 
 Measured 2026-09-14, 32 KB fixture, on-demand, three cells:
 

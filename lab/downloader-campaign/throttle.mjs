@@ -3,9 +3,9 @@
  * worker side. From the trace of each fill: collections (MinorGC, MajorGC) and top-level task time
  * per thread, the page's main thread against every worker thread. From the page, a sampled
  * allocation profile, summed by function, which says what the page allocates per frame.
- * Throttles and arms rotate inside every round. docs/ARCHITECTURE.md §Under a throttled CPU
+ * Throttles and variants rotate inside every round. docs/ARCHITECTURE.md §Under a throttled CPU
  *
- *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs [rounds]   [THROTTLES=1,4,6] [ARMS=Dw,Dd] [ALLOC=0]
+ *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs [rounds]   [THROTTLES=1,4,6] [VARIANTS=Dw,Dd] [ALLOC=0]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -17,7 +17,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const ROUNDS = Number(process.argv[2] || 5);
 const THROTTLES = (process.env.THROTTLES || "1,4,6").split(",").map(Number);
-const ARMS = (process.env.ARMS || "Dw,Dd").split(",");
+const VARIANTS = (process.env.VARIANTS || "Dw,Dd").split(",");
 // ALLOC=0: no allocation sampling, whose cost lands on every allocation the page's time is charged.
 const SAMPLE = process.env.ALLOC !== "0";
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "m1-"));
@@ -103,12 +103,12 @@ function allocations(profile) {
   return out;
 }
 
-async function runOne(arm, throttle) {
+async function runOne(variant, throttle) {
   const page = await browser.newPage();
   const cdp = await page.context().newCDPSession(page);
   const events = [];
   cdp.on("Tracing.dataCollected", (d) => events.push(...(d.value ?? [])));
-  await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?arm=${arm}&scenario=fill`);
+  await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?variant=${variant}&scenario=fill`);
   await page.waitForFunction(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone, null, { timeout: 60000 });
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
   await cdp.send("HeapProfiler.enable");
@@ -132,18 +132,18 @@ async function runOne(arm, throttle) {
   await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: 60000 });
   const result = await page.evaluate(() => globalThis.__wtpacsResult ?? {});
   await page.close();
-  return { arm, throttle, fillMs: result.last_frame_ms, delivered: result.delivered, handlerMs: result.handler_ms,
+  return { variant, throttle, fillMs: result.last_frame_ms, delivered: result.delivered, handlerMs: result.handler_ms,
     received: result.received_ms ?? [], threads: byThread(events), alloc: allocations(profile) };
 }
 
 const rows = [];
 for (let round = 0; round < ROUNDS; round++) {
   for (const throttle of THROTTLES.map((_, k) => THROTTLES[(k + round) % THROTTLES.length])) {
-    for (const arm of ARMS.map((_, k) => ARMS[(k + round) % ARMS.length])) {
-      const r = await runOne(arm, throttle);
+    for (const variant of VARIANTS.map((_, k) => VARIANTS[(k + round) % VARIANTS.length])) {
+      const r = await runOne(variant, throttle);
       rows.push(r);
       const { page: p, workers: w } = r.threads;
-      console.log(`round ${round} ${arm} ${throttle}x  fill ${Math.round(r.fillMs)} ms ${r.delivered} frames  ` +
+      console.log(`round ${round} ${variant} ${throttle}x  fill ${Math.round(r.fillMs)} ms ${r.delivered} frames  ` +
         `page: ${p.gcs} gcs ${p.gc_ms.toFixed(1)} ms paused, ${Math.round(p.task_ms)} ms of tasks  ` +
         `workers: ${w.gcs} gcs ${w.gc_ms.toFixed(1)} ms paused, ${Math.round(w.task_ms)} ms of tasks`);
     }
@@ -153,12 +153,12 @@ await browser.close();
 
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[s.length >> 1]; };
 console.log("\nmedian per fill: page main thread against the worker threads; allocation sampled on the page");
-for (const arm of ARMS) {
+for (const variant of VARIANTS) {
   for (const throttle of THROTTLES) {
-    const rs = rows.filter((r) => r.arm === arm && r.throttle === throttle);
+    const rs = rows.filter((r) => r.variant === variant && r.throttle === throttle);
     const m = (side, k) => median(rs.map((r) => r.threads[side][k]));
     const kib = median(rs.map((r) => [...r.alloc.values()].reduce((a, b) => a + b, 0))) / 1024;
-    console.log(`${arm} ${throttle}x  fill ${Math.round(median(rs.map((r) => r.fillMs)))} ms  ` +
+    console.log(`${variant} ${throttle}x  fill ${Math.round(median(rs.map((r) => r.fillMs)))} ms  ` +
       `page ${m("page", "gcs")} gcs ${m("page", "gc_ms").toFixed(1)} ms paused ${Math.round(m("page", "task_ms"))} ms tasks ` +
       `(product ${Math.round(m("page", "product_ms"))}, lab ${Math.round(m("page", "lab_ms"))}), ` +
       `${kib.toFixed(0)} KiB sampled  workers ${m("workers", "gcs")} gcs ${m("workers", "gc_ms").toFixed(1)} ms paused ` +

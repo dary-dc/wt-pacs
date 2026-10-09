@@ -275,9 +275,9 @@ do nothing without tiles. With 4 tile columns (+0.1–0.4 % bytes) and 3 threads
 0.37–0.44 of its time: 29 against 76 ms on the fluoroscopy at 1×, 116 against 314 at 4×. That is
 still 2.6–2.9× HTJ2K's. Through the fill at 50 Mbit, 12 rounds, 487 of 504 visits kept and all 24 528
 frames exact, the gain goes away at 4×. Here 4× is three slowed cores for the whole browser, as a
-phone has, which is stricter than row FILL's quarter-core per thread. Seven arms ran: today's
+phone has, which is stricter than row FILL's quarter-core per thread. Seven variants ran: today's
 3 decoders; 6 decoders; and the tiled frames on 1 decoder × 3 threads, 2 × 2, 3 × 2 and 3 × 3. They
-end within −3 to +4 % of each other on the fluoroscopy and ultrasound, and the oversubscribed arms
+end within −3 to +4 % of each other on the fluoroscopy and ultrasound, and the oversubscribed variants
 are worst on the MR (+11–15 %). The cores are the clock, and threads only move the same work between
 them. **The best combination is 1 decoder × 3 threads on 4-tile frames**: 1.83×, 1.81× and 2.39× HTJ2K's
 fill at 4× (3.21, 3.60, 7.62 s against 1.75, 1.99, 3.18), against today's 1.82×, 1.86× and 2.32×.
@@ -332,7 +332,7 @@ its fields are [`adr-unit.md`](adr-unit.md) §2, the transforms.*
 *Measured (SPLIT10; [`lab/av1/decode/split-webcodecs`](../../lab/av1/decode/split-webcodecs/README.md)):* **top10+low decodes
 exactly through WebCodecs** on all four series. Two `VideoDecoder`s, 10- and 8-bit 4:0:0, take the
 units together and the samples are merged in the worker. 9 216/9 216 frames were exact across every
-arm. Chromium 141 headless decoded the first 18 frames a series in 16 interleaved rounds at 1× and
+variant. Chromium 141 headless decoded the first 18 frames a series in 16 interleaved rounds at 1× and
 4×. Each figure is ms a frame, bytes in to merged samples and range out, as the median of round
 medians:
 
@@ -385,7 +385,7 @@ a cell, 28 of 1 080 visits `VOID` and dropped. **44 640/44 640 frames were exact
 the median seconds to every frame on the page. Each layout cell gives the median of round-paired
 ratios to HTJ2K, at 1× · 4×:
 
-| series | arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| series | variant | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
 | --- | --- | --- | --- | --- | --- | --- |
 | CT, 13 bits | HTJ2K, s | 26.7 · 26.7 | 6.81 · 6.82 | 2.87 · 2.88 | 5.41 · 5.37 | 11.3 · 11.1 |
 | | d12, dav1d | 0.92 · 0.92 | 0.92 · 0.93 | 0.93 · 1.52 | 0.94 · 1.02 | 0.90 · 0.93 |
@@ -434,9 +434,9 @@ it. *Also at scale (row FFDMSCALE):* 30 FFDM exams of three systems, 12 bits for
 
 *Real 9-, 15- and 16-bit series and two more signed CTs (row DATA3, [`lab/av1/bytes/breast`](../../lab/av1/bytes/breast/README.md)
 §Row DATA3's series): exact at every k of row 43's matrix, natively, in Node and in Chromium, Firefox and WebKitGTK.*
-The best arm per series at cpu0 is k = 0 at 9 bits (0.910 of HTJ2K), k = 1, 2 or 3 at 10–13 bits (0.899–0.989), and w10
+The best variant per series at cpu0 is k = 0 at 9 bits (0.910 of HTJ2K), k = 1, 2 or 3 at 10–13 bits (0.899–0.989), and w10
 at 15 and 16 bits, where AV1 only ties (0.996, 1.001); the adopted k = 2 is best on two of nine. Plain and optimized
-payloads refuse 15–16 bits by name, and k = 3 a 16-bit series. Row 44 ranks the arms by time.
+payloads refuse 15–16 bits by name, and k = 3 a 16-bit series. Row 44 ranks the variants by time.
 
 *Rare levels mapped out (row REMAP, [`lab/av1/bytes/remap`](../../lab/av1/bytes/remap/README.md)): the map buys the decoder, not
 bytes.* Two of three projection systems are 12-bit data plus one saturated level (16383: 11 % and 0.6 % of samples),
@@ -463,9 +463,9 @@ two CTs where today loses 18–23 %. Containers, not phones; whether the flag be
 owner's.
 
 *The split per depth, by bytes, decode and total time (row SPLITTIME, [`lab/av1/delivery/split-rule`](../../lab/av1/delivery/split-rule/README.md)).*
-Eleven real series of 9–16 bits, every arm k a rule could pick (d12 = max(0, b − 12), 2, 3, w10 = max(0, b − 10)),
+Eleven real series of 9–16 bits, every variant k a rule could pick (d12 = max(0, b − 12), 2, 3, w10 = max(0, b − 10)),
 every frame exact: 59 280/59 280 decoded through `decoder.js` and 246 760/246 760 filled on row TOTAL's harness.
-**WebCodecs' arm decodes fastest on every series** (1.59–4.12× HTJ2K's time a frame, dav1d-WASM's 12-bit top
+**WebCodecs' variant decodes fastest on every series** (1.59–4.12× HTJ2K's time a frame, dav1d-WASM's 12-bit top
 5.6–11.6×), and by total time the layout per depth is: **9 bits k = 0** (the samples whole, 0.93–1.01 of HTJ2K's
 fill; k = 2 and 3 1.01–1.07); **10 bits k = 2** (0.95–0.99); **11 bits a tie** of k = 1–3 (0.99–1.02); **12 bits
 k = 3 or 2** within 0.02 of each other (0.94–1.02); **13 bits k = 3 = w10** on every cell (0.91–0.98, first frame
@@ -690,7 +690,7 @@ WebCodecs on the ultrasound, its one exact series, keeps up — 3.60 s (116) at 
 
 ### Every exact form, five links (row TOTAL, [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md))
 
-The measure that decided against AV1 before, now with every form this queue made exact. Each arm
+The measure that decided against AV1 before, now with every form this queue made exact. Each variant
 fills a whole series through the downloader against the real server behind the relay. The browser
 is headless Chromium 141 at 1× and 4×, with three decoders. Links are fixed 5/20/50 Mbit/s and
 row PROF's LTE trace and Wi-Fi steps, without their competing flow and outage. 14 rounds ran in a
@@ -698,9 +698,9 @@ Williams order (more where `VOID` drops left a cell short), n = 10–16 a cell, 
 visits were dropped. **70 022/70 022 frames were exact against the source**; the 2 520 preview
 frames matched native dav1d. Each HTJ2K cell gives the median seconds to every frame on the page.
 Each AV1 cell gives the median of round-paired ratios to HTJ2K, at 1× · 4×. In brackets, each
-arm's bytes over HTJ2K's:
+variant's bytes over HTJ2K's:
 
-| series | arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| series | variant | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
 | --- | --- | --- | --- | --- | --- | --- |
 | fluoroscopy 18 × 768², 12-bit | HTJ2K, s | 15.2 · 15.2 | 3.93 · 3.97 | 1.73 · 1.76 | 3.43 · 3.42 | 5.85 · 5.59 |
 | | AV1 intra, dav1d (1.024) | 1.03 · 1.04 | 1.04 · 1.10 | 1.07 · 1.74 | 1.04 · 1.22 | 1.04 · 1.08 |
@@ -719,11 +719,11 @@ arm's bytes over HTJ2K's:
 | | AV1 intra, dav1d (1.117) | 1.12 · 1.12 | 1.12 · 1.14 | 1.13 · 2.22 | 1.11 · 1.35 | 1.10 · 1.13 |
 | | AV1 intra, WebCodecs (1.117) | 1.12 · 1.12 | 1.12 · 1.13 | 1.12 · 1.38 | 1.11 · 1.12 | 1.14 · 1.13 |
 
-* **Where the link is the clock, bytes decide.** At 1× and on every link at 5 Mbit, each arm's
+* **Where the link is the clock, bytes decide.** At 1× and on every link at 5 Mbit, each variant's
   total follows its bytes. On the 12-bit series top11+low is 0–5 % under HTJ2K. The 10-bit
   tomosynthesis coded whole is within 1 % of it or up to 4 % under. The ultrasound
   loses 10–14 % everywhere, which is its bytes.
-* **Where the CPU is the clock, HTJ2K wins.** At 4× on 50 Mbit every intra dav1d-WASM arm
+* **Where the CPU is the clock, HTJ2K wins.** At 4× on 50 Mbit every intra dav1d-WASM variant
   takes 1.74–2.22× HTJ2K's time, and WebCodecs takes 1.10–1.38×. At 4× on LTE dav1d-WASM takes
   1.09–1.35×. A whole series as one group puts it on one decoder. That group needs 10.3–10.8 s at
   4× on every link of 20 Mbit or more, against HTJ2K's 2.5–8.8 s.
@@ -731,7 +731,7 @@ arm's bytes over HTJ2K's:
   dav1d-WASM. Through WebCodecs the gap is 5–70 ms at 1× and 70–210 ms at 4×.
 * **The preview makes the fluoroscopy playable in 0.45 s at 1× and 1.1–1.2 s at 4× on any link**,
   against 1.7–15 s for every exact frame. Its first picture arrives in 0.11–0.29 s. At 4× the
-  preview's own decode through dav1d-WASM is its clock. This arm fills the preview only, and the
+  preview's own decode through dav1d-WASM is its clock. This variant fills the preview only, and the
   exact frames would follow it by its 0.8 % of the bytes (row PREVIEW).
 * **Saturation.** At 4× on 50 Mbit, AV1's decode on the browser's three cores is the fill's clock;
   HTJ2K's is not on any cell. Nothing is claimed about a phone. The Wi-Fi cells spread ±20 %
@@ -760,16 +760,16 @@ interleaved; only the ranking is claimed, not the size of the loss.
 
 ### Row LLSIZE's codings, by total time (row TOTAL2, [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md))
 
-The same harness on the fixed links (5/20/50 Mbit/s, 40 ms), 1× and 4×, the arms interleaved, with
+The same harness on the fixed links (5/20/50 Mbit/s, 40 ms), 1× and 4×, the variants interleaved, with
 row LLSIZE's best coding of each series: the two low bits apart on grey (`--tune-content=screen
 --sb-size=64`; top 10 bits on the 12-bit series, 8 on the 10-bit one, so every stream is ≤ 10 bits)
 through dav1d-WASM and through WebCodecs; on the ultrasound JPEG 2000's reversible colour transform,
 intra through both and in groups of 8 through WebCodecs. 12 rounds and top-ups where `VOID` drops
 left a cell short: 932 of 1 022 visits kept, n = 10–15 a cell, **38 744/38 744 frames exact**. The
-client undoes the transform as `rct` (`adr-unit.md` §2, the dispatch arm checks it). Cells as in the
+client undoes the transform as `rct` (`adr-unit.md` §2, the dispatch variant checks it). Cells as in the
 table above, in brackets bytes over HTJ2K's on the whole series:
 
-| series | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| series | variant | 5 Mbit | 20 Mbit | 50 Mbit |
 | --- | --- | --- | --- | --- |
 | fluoroscopy, 12-bit | HTJ2K, s | 15.2 · 15.2 | 3.93 · 3.96 | 1.73 · 1.75 |
 | | top10+low2, dav1d (0.943) | 0.95 · 0.96 | 0.96 · 1.01 | 0.99 · 1.43 |
@@ -810,7 +810,7 @@ sound series the verdict stands, with one loss at 4× on 50 Mbit (the fluoroscop
 
 ### The plain control and row ENCX's changes, by total time (row TOTAL3, [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md))
 
-The same harness and links as row TOTAL2, four arms a series: HTJ2K; [`payload-format.md`](payload-format.md)'s
+The same harness and links as row TOTAL2, four variants a series: HTJ2K; [`payload-format.md`](payload-format.md)'s
 **plain** representation (the samples direct, RGB as G, B, R; WebCodecs where ≤ 10 bits, else
 dav1d-WASM); its **optimized** one as adopted (row TOTAL2's top+low2 and RCT through WebCodecs); and
 the optimized one with row ENCX's changes, **x36** — the low bits packed and raw-deflated, inflated by
@@ -819,10 +819,10 @@ tomosynthesis; k = 2 on the 10-bit volume), the top through WebCodecs. x36 is de
 merging through the product's `av1-frame.js`, not by the product. The ultrasound has no x36: row ENCX's
 changes are the grey split's. Plain is libaom cpu0, not the format's fastest preset within 2 % of it.
 13 rounds Williams-ordered, 1 026 of 1 170 visits kept (144 `VOID`, more in the later rounds and spread
-evenly over the arms), n = 5–13 a cell, **38 532/38 532 frames exact**. Every fill ÷ HTJ2K's, the
+evenly over the variants), n = 5–13 a cell, **38 532/38 532 frames exact**. Every fill ÷ HTJ2K's, the
 median of round-paired ratios, 1× · 4×; in brackets bytes over HTJ2K's on the whole series:
 
-| series | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| series | variant | 5 Mbit | 20 Mbit | 50 Mbit |
 | --- | --- | --- | --- | --- |
 | fluoroscopy, 12-bit | HTJ2K, s | 15.2 · 15.2 | 3.93 · 3.96 | 1.73 · 1.75 |
 | | plain, dav1d (1.024) | 1.03 · 1.04 | 1.04 · 1.09 | 1.06 · 1.61 |
@@ -880,7 +880,7 @@ shortens it; the MLO pair is the left half of that hanging. Both tomosynthesis v
 (`ffdm_c`, `ffdm_a`, stored R CC, L CC, R MLO, L MLO), HTJ2K and the adopted optimized payload (k = 2,
 WebCodecs), row TOTAL's links at 1× and 4×; 13 rounds Williams-ordered, 1 191 of 1 248 visits kept, n =
 10–13 a cell but one at 9, **19 032/19 032 frames exact**. Time to the last useful frame on the page, s,
-seq → prio (the median of round-paired ratios), 1× · 4×; the HTJ2K arm — AV1's ratio is within 0.05 of it
+seq → prio (the median of round-paired ratios), 1× · 4×; the HTJ2K variant — AV1's ratio is within 0.05 of it
 but at 4× on 50 Mbit, below:
 
 | series | 5 Mbit | 20 Mbit | 50 Mbit |
@@ -920,7 +920,7 @@ optimized payload (top + two low bits, through WebCodecs; 0.944 of HTJ2K's bytes
 one visit: frames 0–3 filled (2.3 MB), then frames 4–7 asked one at a time once the fill is on the page,
 each timed from the ask to its pixels (a frame ≈ 570 kB). The server's controller is its default,
 `cubic-restart`. 15 rounds Williams-ordered (13 on the loss cells), 1 201 of 1 344 visits kept (143
-`VOID`, 67 of them on `lte-good`), n = 8–15 a cell and arm, **10 752/10 752 frames exact**. HTJ2K's
+`VOID`, 67 of them on `lte-good`), n = 8–15 a cell and variant, **10 752/10 752 frames exact**. HTJ2K's
 fill in s, AV1 ÷ HTJ2K (median of round-paired ratios), and an ask's p50 / p95 in ms, all 1× · 4×:
 
 | link | impairment | HTJ2K fill, s | AV1 ÷ HTJ2K | ask, HTJ2K | ask, AV1 |
@@ -974,16 +974,16 @@ disappears, so loss only widens AV1's lead. What 1–5 % loss costs — 1.5–20
 ask, the more the faster the link — is the controller's, the same for both codecs. *Proposed, not
 built:* the loss cells again with `--congestion bbr`, which the server already takes (CC1: 12–19× faster
 under 1–3 % random loss in a browser) and which stays opt-in for its queue cost (transport-conclusions
-§1); the harness would need only a server argument per arm.
+§1); the harness would need only a server argument per variant.
 
 ### The split per depth (row SPLITTIME, [`lab/av1/delivery/split-rule`](../../lab/av1/delivery/split-rule/README.md))
 
-Row TOTAL's harness on cpu0 payloads of eleven real series at every arm k, HTJ2K in each cell; 13–16 bits on all
+Row TOTAL's harness on cpu0 payloads of eleven real series at every variant k, HTJ2K in each cell; 13–16 bits on all
 five links (12 rounds, n = 10–12 a cell but one, 204 160/204 160 frames exact), 9–12 bits on the fixed links (10
-rounds, n = 8–10, 42 600/42 600). Round-paired ratios to HTJ2K's time to every frame, 1× · 4×; the best arm per
+rounds, n = 8–10, 42 600/42 600). Round-paired ratios to HTJ2K's time to every frame, 1× · 4×; the best variant per
 series on every cell:
 
-| b | series | best arm | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
+| b | series | best variant | 5 Mbit | 20 Mbit | 50 Mbit | LTE | Wi-Fi |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 16 | mammogram | w10 (k6) | 1.02 · 1.03 | 1.06 · 1.09 | 1.13 · 1.16 | 1.08 · 1.11 | 1.04 · 1.06 |
 | 15 | PET | w10 (k5) | 1.04 · 1.04 | 1.04 · 1.04 | 1.04 · 1.16 | 1.04 · 1.04 | 1.06 · 1.03 |
@@ -1005,10 +1005,10 @@ table, the decode and the bytes per preset: [`lab/av1/delivery/split-rule`](../.
 
 **At scale (row DBTSCALE, [`lab/av1/bytes/dbt-at-scale`](../../lab/av1/bytes/dbt-at-scale/README.md)).** Fifteen whole, uncropped DBT
 volumes, five exams from each of the three reconstruction systems, every source sound, 994 slices, every frame exact
-in every arm. *Bytes, every slice, `allintra` 7:* **k = 2 is the smallest arm on all fifteen** — 0.948–0.956 of
+in every variant. *Bytes, every slice, `allintra` 7:* **k = 2 is the smallest variant on all fifteen** — 0.948–0.956 of
 HTJ2K at 12 bits (k = 3 0.950–0.958, k = 0 1.054–1.083) and 0.939–0.956 at 10 bits on three volumes, 0.760 and 0.797
 on two others of the 10-bit system, where AV1 gains a fifth over HTJ2K at every k (why is not measured). At cpu0 (each volume's two middle slices) k = 3 is ahead at 12 bits by 0.3–0.8 %, as row SPLITTIME found;
-at the shipped preset it is not. *Decode, every 8th slice:* no arm is as fast as HTJ2K on any volume in any of 8
+at the shipped preset it is not. *Decode, every 8th slice:* no variant is as fast as HTJ2K on any volume in any of 8
 rounds — the fastest 2.9–3.7× HTJ2K's time a frame at 12 bits (k = 3), 2.0–2.6× at 10 bits. *Total time, one exam a
 system, every 8th slice, 6 rounds:* k = 2 wins 3–4 % wherever the wire is the clock (5 and 20 Mbit/s at 1×), ties at
 50 Mbit/s at 1×, and **loses 25–39 % at 4× on 50 Mbit/s** (k = 3 at 12 bits 1.25–1.33, k = 2 at 10 bits 1.32) — not
@@ -1019,10 +1019,10 @@ decode", as row TOTAL2 found, and HTJ2K's at 4× on 50 Mbit/s. Container numbers
 **Mammograms at scale (row FFDMSCALE, [`lab/av1/bytes/mammography-at-scale`](../../lab/av1/bytes/mammography-at-scale/README.md)).** Five four-view
 exams per system of FFDM for presentation and of its 14-bit raw (FOR PROCESSING) companion on all three systems, and
 of synthesized 2D (four of the second vendor's, all it holds, with `syn2d_c` the fifth), every source sound, 159
-images, every one exact in every arm. *Bytes, `allintra` 7:* for presentation AV1's best arm is 0.945–0.992 of HTJ2K
+images, every one exact in every variant. *Bytes, `allintra` 7:* for presentation AV1's best variant is 0.945–0.992 of HTJ2K
 on system C, 0.956–1.017 on A (k = 2 smallest on nine of these ten exams) and only **0.990–1.003 on B** (k = 3; k = 2
 1.030–1.043), as row BREAST's two exams of B had it; synthesized 2D k = 2 0.940–0.971; raw k = 2 or 3 0.935–0.975.
-*Decode, one median exam a kind and system, 6 rounds:* no arm as fast as HTJ2K in any round — 3.1–3.7× at 12 bits,
+*Decode, one median exam a kind and system, 6 rounds:* no variant as fast as HTJ2K in any round — 3.1–3.7× at 12 bits,
 1.7× at 10, and at 14 bits w10 1.9–3.9× against the 12-bit top's 6.9–8.3× through dav1d-WASM. *Total time, the same
 exams, 4 rounds:* **HTJ2K is as fast or faster on every cell but 5 Mbit/s at 1×**, where AV1's best is 0.95–1.01;
 elsewhere its best is 0.99–1.23 at 20 Mbit/s and 1.04–1.61 at 50 (a few large frames leave more decode after the last
@@ -1079,7 +1079,7 @@ Cells are AV1's total time over HTJ2K's, median of round-paired visits, 1× · 4
   connected (row GREY420's finding, §Blocked of the queue), so its 5 and 20 Mbit cells are thin.
 * **Saturation.** At 4× on 50 Mbit and LTE the decode on the browser's three cores is the fill's clock; a
   container is not a phone, and nothing past that is claimed. 46 % of visits were dropped as `VOID`,
-  rising after the first rounds on a quiet rig: this container's timing, the same for both arms.
+  rising after the first rounds on a quiet rig: this container's timing, the same for both variants.
 * The ultrasound is lossy-sourced (`us_liver`, DERIVED, ratio 12.4): its cells are provisional and enter
   no rule.
 

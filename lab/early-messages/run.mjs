@@ -1,7 +1,7 @@
 /**
  * Messages posted before the other side listens, in the product's own sites: each trial opens the
  * receiver and posts at once, and a message that never arrives is a loss. Driverless — a DevTools
- * session pauses every worker at start — one page per arm per round, arms rotated.
+ * session pauses every worker at start — one page per variant per round, variants rotated.
  * docs/ARCHITECTURE.md §Messages posted before anyone listens
  *
  *   NODE_PATH=$(npm root -g) node lab/early-messages/run.mjs --rounds 5 --n 1000
@@ -17,7 +17,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 5));
 const N = Number(arg("--n", 1000));
-const ARMS = arg("--arms", "bc,downloader").split(",");
+const VARIANTS = arg("--variants", "bc,downloader").split(",");
 const PORT = Number(process.env.PORT || 8774);
 const CHROME = process.env.CHROME_PATH || chromium.executablePath();
 
@@ -38,10 +38,10 @@ const sink = http.createServer((req, res) => {
 });
 await new Promise((r) => sink.listen(0, "127.0.0.1", r));
 
-async function page(arm) {
+async function page(variant) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "early-"));
   const got = new Promise((r) => (report = r));
-  const url = `http://127.0.0.1:${PORT}/lab/early-messages/index.html?arm=${arm}&n=${N}&report=${sink.address().port}`;
+  const url = `http://127.0.0.1:${PORT}/lab/early-messages/index.html?variant=${variant}&n=${N}&report=${sink.address().port}`;
   const chrome = spawn(CHROME, ["--headless=new", "--no-sandbox", "--no-first-run", "--disable-background-networking",
     `--user-data-dir=${dir}`, url], { stdio: "ignore" });
   const out = await got;
@@ -52,8 +52,8 @@ async function page(arm) {
 }
 
 for (let round = 0; round < ROUNDS; round++) {
-  for (let k = 0; k < ARMS.length; k++) {
-    console.log(JSON.stringify({ round: round + 1, ...(await page(ARMS[(k + round) % ARMS.length])) }));
+  for (let k = 0; k < VARIANTS.length; k++) {
+    console.log(JSON.stringify({ round: round + 1, ...(await page(VARIANTS[(k + round) % VARIANTS.length])) }));
   }
 }
 process.exit(0);

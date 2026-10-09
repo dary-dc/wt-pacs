@@ -46,7 +46,7 @@ no registered buffers, no cursor reads.
 | | |
 | --- | --- |
 | Where | `server/src/media/read_path.rs` (`SeqReader`, `TileReader`), `uring_reader.rs` (thin ring), `frame_pool.rs` (the hand-off), `transport/planner.rs` (the loop), `transport/frame_out.rs` (the write) |
-| Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles). The `uring` lab lever (every tile through the ring) was removed 2026-10-03; code: `git show archive/arms-2026-10-03:server/src/media/read_path.rs` |
+| Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles). The `uring` lab lever (every tile through the ring) was removed 2026-10-03; code: `git show archive/variants-2026-10-03:server/src/media/read_path.rs` |
 | Feature | `uring`, on by default; the pool path is `--no-default-features --features crypto-ring` |
 | Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… named=… in_flight=… ring=…` per session, default build, with fill/tile hits split (§10) |
 
@@ -85,7 +85,7 @@ a **tie**, which is a real answer.
 
 | Comparison | Result |
 | --- | --- |
-| Shipped reader vs the lab arm it implements (`product` vs `hybrid_lazyring`) | **tie** on p50, p99 and CPU at every depth and reader count, two hosts |
+| Shipped reader vs the lab variant it implements (`product` vs `hybrid_lazyring`) | **tie** on p50, p99 and CPU at every depth and reader count, two hosts |
 | Shipped reader vs the pool it replaced, 16 KiB misses | **−45.4 % CPU per ask, RESOLVED** |
 | Ring-on-the-miss vs pool, misses, depth 1 / 4 / 16 | **−56 / −70 / −75 %**, RESOLVED |
 | Every-read-through-the-ring vs ring-on-the-miss | misses tie; hits **+164.8 % CPU per ask at depth 1, RESOLVED** (`--monitors 0`) — why a hit must never touch a ring. The depth-scaled latency figures this row used to carry are retracted: §11, *Correction* |
@@ -95,7 +95,7 @@ a **tie**, which is a real answer.
 | Per session that misses | 2 fds, 8.7 KiB, 15.6 µs to build the ring; the second slot did not change the cost |
 | Read ahead by one, cold 16 KiB at 99.6 % misses, one session (`v36`) | **+73.8 % asks/s, 12/12, RESOLVED**, p50 −53.4 %; **warm a tie** — the load-bearing row; 16 missing tiles 1.14 → 0.62 ms |
 | The depth ladder on the shipped path (`v35`) | 1 → 2 is **+67.4 %** and collects 62 % of what depth 16 offers; from the medians 2 → 4 adds +37 %, 4 → 16 +28 % |
-| Where the hosts stop separating the arms | ~64 reads in flight: the sandbox on CPU, the workstation on the device (~840 MB/s at 0.42 of 8 cores). **Past it every arm ties by construction** |
+| Where the hosts stop separating the variants | ~64 reads in flight: the sandbox on CPU, the workstation on the device (~840 MB/s at 0.42 of 8 cores). **Past it every variant ties by construction** |
 | Sequential streaming, 16 KiB, 8–64 sessions (`x15`) | shipped reader, pool and ring-on-miss **tie at ~3 µs per read**; `tokio::fs::File` 48–223 µs; the same on tokio's io_uring driver 141 µs–2.1 ms |
 | A cold 250 kB fill at the stock 128 KiB `read_ahead_kb` (2026-09-10) | **59–66 % misses at one read in flight** before `FILL_WINDOW`; **0.7–1.1 %** after, 3/3; where read-ahead is 8 MB the 3.8 ms p99 bursts go (−62 %, +5.6 % 3/3); warm a tie at both frame sizes. §11, *Fill against on-demand* |
 
@@ -120,7 +120,7 @@ a **tie**, which is a real answer.
 | 2026-08-31 | mmap, pages pre-touched on the blocking pool every ask | overturned: its harness ran a current-thread runtime while the product is multi-thread (a hop costs 40 µs there, 103 µs here); its neighbour cell never let neighbours pay the hop; `RWF_NOWAIT` was never in its table |
 | 2026-09-04 | `RWF_NOWAIT` inline, `spawn_blocking` for the shortfall | 2.5× warm against always-touch; io_uring a tie — at the ~0 % miss rate those cells fixed |
 | 2026-09-06 | the ring on the miss, built on the first miss | the read-path campaign, four hosts, six runs: **−42 to −73 % CPU per miss, RESOLVED everywhere**. Inert on warm workloads by construction, so it did not wait on the layout that decides the miss rate |
-| 2026-09-07 | a miss reads the rest of the frame | on a fixture where a miss is a real device read, windowing the escalation cost 2–3 round trips per 250 KB frame and stopped scaling at ~1 600 f/s where whole-frame arms reach ~5 000 |
+| 2026-09-07 | a miss reads the rest of the frame | on a fixture where a miss is a real device read, windowing the escalation cost 2–3 round trips per 250 KB frame and stopped scaling at ~1 600 f/s where whole-frame variants reach ~5 000 |
 | 2026-09-08 | keep driving `io-uring` directly; **validate on the production target before any further backend change**; **read ahead by one built** for batches; **the server reports its own miss rate** | backend research found no standard alternative (§5); the owners' weights and the container traps (§6) mean the ring's margin has to be shown on the target, not a laptop (`x14`, `x15`); read-ahead measured +73.8 % on missing tiles and a tie warm (`v36`); every threshold in this file is a miss rate, and the server could not report one |
 | 2026-09-10 | **two readers**: a fill on the pool, tiles on the ring; the probe is the whole frame; look-ahead is depth | the capped 64 KiB probe was the whole of a +37–97 % penalty at frames past 64 KiB (§11, *Line 221*); a fill built a ring to serve one miss in sixty (§11, *Fill at scale*) |
 | 2026-09-10 | **the fill advises the kernel `FILL_WINDOW` past the named frame**, a quarter window at a time | a fill reported slower than on-demand; measured cold at the stock read-ahead: 60 % misses at one read in flight, against depth 4 on demand. `WILLNEED` takes it to ~1 % with no thread and no ring and removes the 8 MB read-ahead's burst tail; per frame the syscall cost −8.7 % at 16 KiB, per quarter window nothing |
@@ -156,8 +156,8 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | --- | --- | --- | --- | --- | --- |
 | **`RWF_NOWAIT` inline for hits** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit (measured with 64 KiB windows; the whole frame since 2026-09-10) | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
 | **Ring per session, built on the first miss, whole rest of the frame** | T | **host-dependent, and P0's question.** Sandbox: misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16. Workstation: a **tie at depth 1**, where the pool was the cheaper of the two (311 vs 326 µs CPU/ask). Agent container: the pool is **+106 to +138 % CPU, 6/6 RESOLVED**. Three hosts, three answers | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted for tiles** — conditional on P0 |
-| **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool arm **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring arm, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | one slot table, no mode machine | **Accepted** |
-| **`SeqReader` — probe, pool on the miss, one frame named** | S | ties every serious arm on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
+| **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool variant **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring variant, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | one slot table, no mode machine | **Accepted** |
+| **`SeqReader` — probe, pool on the miss, one frame named** | S | ties every serious variant on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
 | **Read ahead (`TILE_SLOTS` / `FILL_AHEAD`)** | B | tiles name up to `slots − 1`, a fill names one; look-ahead **is** depth 2, not a separate effect (§11) | four tile slots / two fill buffers | `slots` is a constructor argument, so a campaign sweeps depth | **Accepted** |
 | **`WILLNEED` window ahead of a fill (`FILL_WINDOW`)** | S | misses **60 % → ~1 %** at the stock read-ahead, 3/3; p99 −62 % where read-ahead is 8 MB; warm a tie once per quarter window (per frame it cost −8.7 % at 16 KiB) | one syscall per MiB walked; no thread, no fd, no buffer | ~15 lines, one test | **Accepted** 2026-09-10 |
 | **Whole frame handed to quinn over pooled buffers** (`media/frame_pool.rs`) | B | **−3 to −8 % CPU per ask in every cell, 5–6/6** | no allocation per frame once the pool is warm | one module, no `unsafe` | **Accepted** 2026-09-23 — [`transport-conclusions.md`](../transport/transport-conclusions.md) |
@@ -173,18 +173,18 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | Ahead-N `POSIX_FADV_WILLNEED` for tiles | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
 | Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 (§9) |
 | One shared ring per runtime (tokio's shape) | B | **1.36–1.45× slower** than a ring per thread on concurrent positional reads (tokio #8367); reproduced on streams | 0 per-session fds; one lock across every session | a dispatcher and a waker slab | Not now |
-| Whole-frame `RWF_NOWAIT`, one read (2026-09-06) | B | best miss throughput of any arm | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected then. **Corrected 2026-09-10:** the shipped readers probe the whole frame (§3); its co-tenant gap has **not been re-measured** since |
+| Whole-frame `RWF_NOWAIT`, one read (2026-09-06) | B | best miss throughput of any variant | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected then. **Corrected 2026-09-10:** the shipped readers probe the whole frame (§3); its co-tenant gap has **not been re-measured** since |
 | Larger window (128 / 256 KiB) | B | −12–25 % warm throughput | — | wider executor copy | Rejected; moot since the whole-frame probe |
 | mmap, any variant | B | naive: faults freeze co-tenants, `gap_max` 1.5–4.2 ms, 7.7 ms under pressure. `mincore` gate: unsafe under pressure 5/5 — residency is not a lease. Always-touch on the pool (2026-08-31): 103 µs/frame, 702 µs neighbour p99. Touch via `block_in_place`: 38 µs, worst neighbour p99 (2.1 ms). `madvise(POPULATE_READ)`: within noise of the touch loop | a thread per ask where the fault is made safe | no copy, no safety — or safe and slow | Rejected (§11) |
 | `tokio-uring` 0.5.0 · `glommio` · `monoio` · `compio` | T | — | — | own current-thread or thread-per-core runtime | Rejected — transport rewrite |
-| tokio's own io_uring driver | S (no positional read) | one session 6 µs; **2.1 ms per 16 KiB at 64 sessions**, ⅓ of the device; executor gaps 10× any other arm | one locked ring per runtime; one fd per session | `--cfg tokio_unstable` in a medical build | Rejected — measured |
+| tokio's own io_uring driver | S (no positional read) | one session 6 µs; **2.1 ms per 16 KiB at 64 sessions**, ⅓ of the device; executor gaps 10× any other variant | one locked ring per runtime; one fd per session | `--cfg tokio_unstable` in a medical build | Rejected — measured |
 | `tokio::fs::File`, plain | S | **48–223 µs per 16 KiB** vs 3 (a thread hop and a copy per read); +514 % wall, +1872 % CPU against `SeqReader` | threads grow like the pool's, 517 at 64 × 16 | the standard answer, and 15× slower | Rejected — measured, not reopened |
 | `rio` · `ringbahn` · `nuclei` · `uring-fs` · `luring` and 90 other dependents | T | — | — | soundness hole, dead, own runtime, cursor + thread, `LocalSet`-only | Rejected — none drives a ring on multi-thread tokio with positional reads |
 | `sendfile` / `splice` | B | — | — | userspace QUIC copies anyway | Rejected |
 | `O_DIRECT` + SPDK, whole-series preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
 | Bounded process-private frame cache | T | **−20.2 % CPU** at a 0.92 hit rate; +4.2 % where nothing repeats | duplicates RAM the page cache holds | needs a real ask trace to size | Lab only, not ported |
 | Sequential: wider windows | S | 20–30 % less CPU per byte | escalations climb 1 % → 13.5 % | — | Rejected |
-| Sequential: depth above 2 per stream | S | at 64 sessions × 16 every arm queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
+| Sequential: depth above 2 per stream | S | at 64 sessions × 16 every variant queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
 
 ## 6 · Deployment
 
@@ -267,10 +267,10 @@ What the code depends on and the types do not enforce, each pinned by a named te
   of 384 KB at a thousand readers. `sessions_share_one_store_rather_than_opening_their_own`.
 * **The bytes quinn sends are process-private.** The read path copies into a buffer from
   `media/frame_pool.rs`, hands that buffer to quinn and gets it back on acknowledgement; it
-  never hands quinn a mapping — which is why `server/` has no mapping at all; the mmap arms
+  never hands quinn a mapping — which is why `server/` has no mapping at all; the mmap variants
   live in `lab/`. `a_handed_off_frame_is_the_buffer_itself_and_comes_back_when_dropped`.
 * **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm tile would
-  go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
+  go through it, the `uring` variant's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
 * **A buffer is never grown or reused while the kernel owns it.** Dropping a ring drains its
   reads first, retrying an interrupted wait; a ring that fails with reads in flight leaks the
   slots' buffers with a WARN rather than free them. An abandoned fill read is settled before its
@@ -317,7 +317,7 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 | 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, measured tie. The *only* way to cut the eventfd's per-hit cost (§11, *Short io_uring completions*). Only after P0 keeps the ring |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
-| 10 | **The two readers on the workstation** | the only full-arm measurement of `SeqReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
+| 10 | **The two readers on the workstation** | the only full-variant measurement of `SeqReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
 | 13 | **Short io_uring completions on a regular file** | the lab now resubmits the tail and counts them; 0 in 1 032 workstation rows. Incidence on other hosts and sizes past 250 kB is unmeasured |
 
 Numbers are kept because older records cite them; 4 is closed (§8), the missing ones closed or
@@ -353,20 +353,20 @@ ask, so `Off` means both "never wanted" and "refused".
 because tokio migrates a task between workers, and blocking in `io_uring_enter` would be the
 stall this exists to prevent, so the reader parks on an eventfd (plain `register_eventfd`). A
 short completion is resubmitted for its tail. Buffers are **not** registered: that pins pages
-against `RLIMIT_MEMLOCK`, and the lab arm that registered them tied on misses.
+against `RLIMIT_MEMLOCK`, and the lab variant that registered them tied on misses.
 
 Also: the pool path reads ahead too (the `JoinHandle` is held, not awaited); delivery stays in
 ask order — reading *n+1* early is pipelining, not reordering; the planner bounds `in_hand` at
 `ASKS_AHEAD` and stops upcoming at the first `Fill` or `EndSession` (it also streamed a
 `RequestFrames` batch rather than collecting it, until that message left the wire on 2026-10-03). `READ_WINDOW` (64 KiB) is off the product path: a test-only constant in
-`frame_store.rs`, and `read_campaign.rs`'s own for the arm that reproduces the capped probe. `--no-default-features` alone has no
+`frame_store.rs`, and `read_campaign.rs`'s own for the variant that reproduces the capped probe. `--no-default-features` alone has no
 rustls provider and does not link; add `--features crypto-ring`.
 
 ### The trap
 
 On overlayfs or tmpfs, `RWF_NOWAIT` returns 0 for every read, hit or miss. A ring keyed only on
 "the inline read came up short" would then serve every warm ask through the ring — the `uring`
-arm, **+131 to +142 % on hits, RESOLVED**. The ring is gated on
+variant, **+131 to +142 % on hits, RESOLVED**. The ring is gated on
 `FrameStore::nowait_supported()`, not on the shortfall alone.
 
 | `RWF_NOWAIT` | io_uring | Path |
@@ -377,7 +377,7 @@ arm, **+131 to +142 % on hits, RESOLVED**. The ring is gated on
 
 ### Flags
 
-No performance toggle: `TileReader` already chooses per session, and the arm a "miss-optimised"
+No performance toggle: `TileReader` already chooses per session, and the variant a "miss-optimised"
 flag would pick is the trap above. `WTPACS_READ_PATH=pool` is the **kill switch** (the pre-ring
 path on tiles); an unrecognised value, `uring` included since its lever was removed, warns and
 uses `auto`; a fill ignores it. `--force-pool-reads` (lab) clears the store's `nowait` at open, so every frame
@@ -452,11 +452,11 @@ across campaigns on these hosts. So:
 > agreement **≥ 0.8n**, **and** it keeps its sign across independent runs.
 
 Everything else is a **tie** — not a small effect. `lab/scripts/s5_split.py` applies it. The
-rule is defined on **paired** per-cell deltas, not pooled medians per arm, and the two disagree
+rule is defined on **paired** per-cell deltas, not pooled medians per variant, and the two disagree
 by about 2× on the comparison most wanted: `uring` against `hybrid_lazyring` on misses is
 −41.9 % as a ratio of medians and −24.0 % (a tie) as the median of per-cell ratios, on the same
-84 cells. It has been misread as a 42 % win twice; run `lab/scripts/pair_arms.py` first. Never
-compare p50 across arms whose `peak_in_flight` differs.
+84 cells. It has been misread as a 42 % win twice; run `lab/scripts/pair_variants.py` first. Never
+compare p50 across variants whose `peak_in_flight` differs.
 
 ### The ring on the miss, and where its margin comes from (2026-09-06)
 
@@ -465,7 +465,7 @@ miss — what ships for tiles) is **tied for cheapest CPU per read at every miss
 **−61.8 / −64.4 % RESOLVED** against `pool` on misses. `pool_ringloop` holds the loop fixed to
 split the two: the **ring** is **−42 to −73 % RESOLVED on misses on every host and run**; the
 **loop** is a smaller, core-dependent term (nothing on 4 vCPU, −48 to −53 % on mixed cells at
-8 CPU). Ring arms stay at **5 OS threads** to 128 readers where `pool` reaches 381. Re-measured
+8 CPU). Ring variants stay at **5 OS threads** to 128 readers where `pool` reaches 381. Re-measured
 2026-09-08, `uring` against `hybrid_lazyring` on 16 KiB misses ties at depth 1 / 4 / 16, and its
 hit penalty exceeds its miss saving everywhere: breakeven at 53 % misses at depth 4, 64 % at 16.
 
@@ -478,14 +478,14 @@ warm. On that ~1.25 GB/s device a blocking pool capped at four threads lost noth
 
 ### Re-measured on the code that ships (2026-09-09)
 
-`read_campaign`'s `product` arm drives the shipped reader; 4 vCPU sandbox, depth 4, cold misses
+`read_campaign`'s `product` variant drives the shipped reader; 4 vCPU sandbox, depth 4, cold misses
 98.8–100 %. At 16 KiB it ties `hybrid_lazyring` warm and cold; at 250 kB cold **`pool` was ahead**
-(514 against 623 µs p50) — the size-dependence above. That arm modelled depth as session count,
-a defect corrected under *Line 221*; the corrected arm trailed `pool` by more.
+(514 against 623 µs p50) — the size-dependence above. That variant modelled depth as session count,
+a defect corrected under *Line 221*; the corrected variant trailed `pool` by more.
 
 **mmap: cheaper, and not safe.** In the harness that also times a quinn-shaped copy, `mmap_naive`
 spends a third to a half less CPU than a windowed `pread` — exactly the bytes it never copies.
-But at 250 kB cold every mmap arm has a **p99 of 3 276–3 914 µs** against 1 036, and
+But at 250 kB cold every mmap variant has a **p99 of 3 276–3 914 µs** against 1 036, and
 `mmap_naive` holds a worker for **3 991 µs**; the variants that make the fault safe are 2–3×
 slower at 1.5–2× the CPU. Its cold median flatters it (cold ÷ warm 1.1× against 5.3× for
 `pread`): fault-around pulls in neighbours, so **it is not doing the same I/O faster, it is doing
@@ -495,8 +495,8 @@ less of it.** The workstation reproduced the freeze: 2 187–3 699 µs against 2
 read; 12 interleaved repeats; desktop up, governor unpinned, so absolute µs carry drift),
 250 kB cold `product` against `pool` is **+38.5 % p50, +36.5 % CPU, RESOLVED at depth 1**,
 while `hybrid_lazyring` **ties** `pool` at every depth. **That retracted "the shipped path *is*
-the arm" at 250 kB**: the penalty was the old `ReadCtx`'s, not the ring's; *Line 221* found it.
-At 16 KiB they tie. 250 kB at depth 16 is past saturation there (×1.09 for 4× depth, every arm
+the variant" at 250 kB**: the penalty was the old `ReadCtx`'s, not the ring's; *Line 221* found it.
+At 16 KiB they tie. 250 kB at depth 16 is past saturation there (×1.09 for 4× depth, every variant
 within 5.3 %), so no claim is made in it.
 
 ### Correction — `uring`'s depth-scaled hit penalty was queue depth
@@ -521,16 +521,16 @@ Against `pool` it is +154.1 % at depth 1 and a tie above.
 The depth-1 CPU figure first published as +224.3 % came from an **instrument defect**:
 `--monitors 1` counts the co-tenant monitor's own CPU, a large intermittent addend on warm cells.
 It also faked a 1.9× gap in the 2026-09-09 warm 250 kB column (`product` 54.4 µs, a median
-between two modes); at `--monitors 0` the three arms read 34.4 / 34.6 / 34.8 µs. Every warm CPU
-figure in the `w1_*_arms.tsv` dumps carries it; the cold cells do not.
+between two modes); at `--monitors 0` the three variants read 34.4 / 34.6 / 34.8 µs. Every warm CPU
+figure in the `w1_*_variants.tsv` dumps carries it; the cold cells do not.
 
 ### Short io_uring completions
 
-The lab's ring arms were credited for bytes the kernel did not deliver: `drain` freed a slot on
+The lab's ring variants were credited for bytes the kernel did not deliver: `drain` freed a slot on
 any non-negative result, while the product and `pool` always completed the tail. `drain` now
 resubmits the tail, `UringReader::short_reads()` counts it, and
 `a_short_completion_is_resubmitted_for_its_tail` pins it on a pipe delivering 64 bytes in two
-halves. On the workstation: 0 short reads on every ring arm at 250 kB cold, and **0 in all
+halves. On the workstation: 0 short reads on every ring variant at 250 kB cold, and **0 in all
 1 032 rows** of the five w3 campaigns, so no published ring number needs re-running.
 
 **`IORING_REGISTER_EVENTFD_ASYNC` is unavailable to this design.** It signals only for
@@ -554,7 +554,7 @@ variable (a first reading that blamed it is retracted). Bracketed from both side
 | `product`, probe **off** (`uring`) | +2.1 %, 6/12 tie | +1.8 %, 7/12 tie |
 
 The probe-off row ran the product's `uring` lever, removed 2026-10-03; code:
-`git show archive/arms-2026-10-03:server/src/media/read_path.rs`.
+`git show archive/variants-2026-10-03:server/src/media/read_path.rs`.
 
 | size | probe covers | `pool_capped_probe` vs `pool` | `product` vs `pool_capped_probe` |
 | ---: | --- | --- | --- |
@@ -572,7 +572,7 @@ depth 2 ties at every size (+2.6 to +7.6 %, 7–9/12); depth 2 is worth −48 to
 RESOLVED, to `product`, `pool` and `hybrid_lazyring` alike. A published "−33.3 % win over `pool`
 at 250 kB" compared depth 2 against depth 1 and is retracted; at equal depth the probe penalty
 was still there (+106.1 % at 128 KiB, +63.2 % at 250 kB). A harness defect is corrected with
-it: the old `product` arm modelled depth as *session count* (a `ReadCtx` per task); it survives
+it: the old `product` variant modelled depth as *session count* (a `ReadCtx` per task); it survives
 as `product_sessions`, and its depth-4 and 16 rows were withdrawn.
 
 ### Fill at scale
@@ -583,18 +583,18 @@ threads** from 1 to 64 readers; `pooled_pread` loses (+69 to +501 % RESOLVED) an
 151–206 threads. **What separates them is the ring, paid by sessions that barely miss**: the old
 reader built **1.00 ring per session** at every reader count, including a 16 KiB fill missing
 1.6 % — two fds and ~8.7 KiB for the session's life to serve one read in sixty, against an 8 192
-KiB memlock ceiling of **~941 sessions**. That is why a fill has its own reader. (A lab ring arm
+KiB memlock ceiling of **~941 sessions**. That is why a fill has its own reader. (A lab ring variant
 that registers buffers fails outright at 64 readers × 250 kB; the shipped reader registers none
 and falls back to the pool on refusal.)
 
-### The two readers, every arm (2026-09-10, agent container)
+### The two readers, every variant (2026-09-10, agent container)
 
-Twelve arms, cold, depth 1, one reader, `--monitors 0`, six repeats; `product_tile` and
+Twelve variants, cold, depth 1, one reader, `--monitors 0`, six repeats; `product_tile` and
 `product_fill` are the shipped readers. **Direction and shape only**: `pool` and
 `pool_capped_probe` are the same code at 16 KiB and read 6.0–23.5 % apart here. Wall · CPU per
 ask against the shape's own reader:
 
-| arm | tile 16 KiB (~99 % miss) | tile 250 kB | fill 16 KiB (0.4 % miss) | rings |
+| variant | tile 16 KiB (~99 % miss) | tile 250 kB | fill 16 KiB (0.4 % miss) | rings |
 | --- | --- | --- | --- | ---: |
 | `product_tile` | — | — (1st) | −2.8 · −4.3 % tie | 1 |
 | `product_fill` | **+62.0 · +133.0 % RES** | **+45.3 · +110.2 % RES** | — | **0** |
@@ -605,7 +605,7 @@ ask against the shape's own reader:
 | `tokio_fs` | — | — | **+513.9 · +1871.7 % RES** | 0 |
 
 **Each reader is first-or-tied on its own shape and RESOLVED worse on the other** — the case for
-the split — and `product_fill` builds no ring. Ring arms held 5 OS threads, pool arms 6. The
+the split — and `product_fill` builds no ring. Ring variants held 5 OS threads, pool variants 6. The
 250 kB fill cell resolves nothing (every p99 3.3–4.3 ms). Not covered: depth above 1, more than
 one reader, RSS, warm cells, the co-tenant gap.
 
@@ -615,7 +615,7 @@ one reader, RSS, warm cells, the co-tenant gap.
 `server_ab`, before/after interleaved and reversed, three rounds, misses from `session reads`.
 **A miss here is served from the hypervisor (~12 µs)**: rate, tail and direction, not magnitude.
 
-| `read_ahead_kb` | arm | asks/s | p50 | p99 | fill miss rate |
+| `read_ahead_kb` | variant | asks/s | p50 | p99 | fill miss rate |
 | --- | --- | ---: | ---: | ---: | ---: |
 | 128 (stock) | fill, before | 1 617 | 583 µs | 1 613 µs | **59–66 %** at `in_flight=1` |
 | 128 | **fill, after** | 1 582 (tie) | 585 | 1 599 | **0.7–1.1 %** |
@@ -664,7 +664,7 @@ interleaved rounds (`lab/scripts/l7_read_path.sh`). The device (`O_DIRECT`) is a
 volume: random 256 KiB at depth 1 p50 1.3 ms in burst, 4.9 ms after; 51–53 MB/s sequential.
 
 * **A spread ask misses (76–92 %), and a miss costs ~1 ms at p50**: 2.5–2.7 ms cold against
-  1.5 ms warm, 6/6 on both read-ahead arms, disjoint ranges — L20's hop, and as much again.
+  1.5 ms warm, 6/6 on both read-ahead variants, disjoint ranges — L20's hop, and as much again.
 * **The fill does not miss past RAM**: 1 %, as warm. `FILL_WINDOW` holds on a real device.
 * **`read_ahead_kb` 128 against 2 048: no clean result in any cell.**
 * **The host saturates on CPU; claim nothing past a median.** A burstable 2-vCPU instance losing
@@ -708,12 +708,12 @@ workstation (the only bare-metal host) and the agent sandbox — ext4, btrfs, re
 (R3); force- rather than pressure-evicted (R4, cgroup cap verified by `failcnt`); ring count at
 scale (R5, 128 rings at 53–79 % miss spawn no io-wq workers; `pool` reaches 265 threads);
 filesystem support (R6, `check-fastpath`); loop against ring (R8). Open, not worth closing:
-guest-cold understates the ring (R2); one read per ask affects every arm alike (R7).
+guest-cold understates the ring (R2); one read per ask affects every variant alike (R7).
 
 ## 12 · Re-running the evidence
 
 `lab/disk-access-bench` stays a workspace member on the tip (the 2026-08-31 decision went wrong
-partly because its harness had to be restored from a commit), mmap arms included.
+partly because its harness had to be restored from a commit), mmap variants included.
 
 ```bash
 NAME=frames_16k_big  BYTES=16384  FRAMES=5120  ./lab/scripts/gen_live_cell_fixture.sh
@@ -724,8 +724,8 @@ lab/scripts/read_path_ab.sh <base-commit>   # SeqReader / TileReader: every cell
 lab/scripts/server_ab.sh <base-commit>      # product server: cold depth 4 is the claim; fill and depth 2 tie
 ```
 
-`read_campaign --arms product_fill,product_tile` drives the shipped readers themselves; the base
-of `read_path_ab.sh` must know both arms. A sandbox number is a direction, not a magnitude.
+`read_campaign --variants product_fill,product_tile` drives the shipped readers themselves; the base
+of `read_path_ab.sh` must know both variants. A sandbox number is a direction, not a magnitude.
 **Make the miss real.** Use a fixture larger than the host cache: an 80 MB series fits in the
 hypervisor, where a "miss" is ~12 µs and hides every miss-path effect. Consecutive asks must
 stride past `read_ahead_kb` — of the filesystem's bdi, not the block device — or a cold cell is
@@ -737,7 +737,7 @@ every read must miss, use `--force-pool-reads`, not eviction ([`CLAUDE.md`](../.
 
 **The two readers on the workstation** (§9 item 10): the tile shape per `--size` in 16384, 65536,
 131072, 250000, stride re-derived on the day —
-`read_campaign --arms pool,uring,hybrid,pooled_pread,pool_capped_probe,pool_ringloop,hybrid_lazyring,uring_ringfd,hybrid_lazyring_ringfd,product_fill,product_tile --temps cold --depths 1,2,4,8,16 --readers 1,16,64 --monitors 0 --repeats 12`;
+`read_campaign --variants pool,uring,hybrid,pooled_pread,pool_capped_probe,pool_ringloop,hybrid_lazyring,uring_ringfd,hybrid_lazyring_ringfd,product_fill,product_tile --temps cold --depths 1,2,4,8,16 --readers 1,16,64 --monitors 0 --repeats 12`;
 then the fill shape, `--stride` = `--size`, adding `tokio_fs`. Verdicts on wall and CPU per ask.
 Three columns carry the claims: `rings` stays 0 for `product_fill`, `peak_named` follows
 `--depths` past 4, and the 128 KiB / 250 kB penalty stays gone.

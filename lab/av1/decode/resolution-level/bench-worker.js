@@ -3,7 +3,7 @@ import { order } from "/lab/order.mjs";
 import { decodePreview, decodeWhole, init } from "./codec.js";
 
 const OPENJPH = { glue: "/client/decode/wasm/vendor/openjph/openjphjs.js", wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm", dir: "/client/decode/wasm/vendor/openjph" };
-const ARMS = ["whole", "level", "prefix"];
+const VARIANTS = ["whole", "level", "prefix"];
 const bytes = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
 
 async function sha256(sab, mutate) {
@@ -17,19 +17,19 @@ async function run({ frames, sets, round, mutate }) {
   await init(OPENJPH);
   const rows = [];
   for (const [k, name] of order(sets, round).entries()) {
-    const set = await (await fetch(`/${frames}/${name}/arms.json`)).json();
+    const set = await (await fetch(`/${frames}/${name}/variants.json`)).json();
     const n = (i) => String(i).padStart(3, "0");
     const whole = await Promise.all([...Array(set.frames).keys()].map((i) => bytes(`/${frames}/${name}/${n(i)}.htj2k`)));
     const head = await Promise.all([...Array(set.frames).keys()].map((i) => bytes(`/${frames}/${name}/${n(i)}.res`)));
-    const cells = Object.fromEntries(ARMS.map((a) => [a, { set: name, arm: a, ms: [], exact: 0, frames: 0 }]));
+    const cells = Object.fromEntries(VARIANTS.map((a) => [a, { set: name, variant: a, ms: [], exact: 0, frames: 0 }]));
     for (let i = 0; i < set.frames; i++) {
-      for (const arm of order(ARMS, round + k + i)) {
+      for (const variant of order(VARIANTS, round + k + i)) {
         const t0 = performance.now();
-        const r = arm === "whole" ? decodeWhole(whole[i]) : decodePreview(arm === "level" ? whole[i] : head[i], set.level);
-        cells[arm].ms.push(performance.now() - t0);
-        const truth = arm === "whole" ? set.truth[i] : set.reducedTruth[i];
-        cells[arm].frames++;
-        if ((await sha256(r.sab, mutate)) === truth) cells[arm].exact++;
+        const r = variant === "whole" ? decodeWhole(whole[i]) : decodePreview(variant === "level" ? whole[i] : head[i], set.level);
+        cells[variant].ms.push(performance.now() - t0);
+        const truth = variant === "whole" ? set.truth[i] : set.reducedTruth[i];
+        cells[variant].frames++;
+        if ((await sha256(r.sab, mutate)) === truth) cells[variant].exact++;
       }
     }
     rows.push(...Object.values(cells));

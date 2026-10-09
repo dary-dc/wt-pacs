@@ -54,7 +54,7 @@ temporal units after an untimed pass on another; the mean ms a frame. The base i
 its operating point (libaom numbers op i = spatial · T + temporal from the top down: a two-layer base
 is op 1, a three-layer one op 2, temporal layer 0 of L1T3 op 2); the full point is op 0 on the whole
 stream, plus the low-bits stream's decode on a split series. Base quantizer 40. A fresh browser per
-(throttle × set) each round, throttles and sets in a Williams order (`lab/order.mjs`), arms
+(throttle × set) each round, throttles and sets in a Williams order (`lab/order.mjs`), variants
 rotating inside; 1× and 4× (`lab/scripts/cpu_throttle.mjs`); 10 rounds; median [min–max]. One
 browser at a time, dav1d single-threaded: the host is not saturated.
 

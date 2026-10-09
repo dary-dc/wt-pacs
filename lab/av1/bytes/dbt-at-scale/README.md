@@ -7,7 +7,7 @@ SPLITTIME's harness ([`../../delivery/split-rule`](../../delivery/split-rule/REA
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
 client/decode/wasm/fetch_openjph.sh
 lab/av1/fetch_data.sh dbts_a1 dbts_a2 dbts_a3 dbts_a4 dbts_a5 dbts_b1 dbts_b2 dbts_b3 dbts_b4 dbts_b5 \
   dbts_c1 dbts_c2 dbts_c3 dbts_c4 dbts_c5                                # ~6 GB fetched, ~6 GB of frames
@@ -23,7 +23,7 @@ SeriesInstanceUID, the first five from patients the lab had not used, each serie
 
 Every slice, `allintra` 7 (the shipped preset row SPLITTIME found for DBT's k = 2 and k = 3), each payload decoded back
 natively and matched with the fetch's checksum before it is written (`ingest.py`), HTJ2K in the served profile
-decoded back and checked: 994/994 frames exact in every arm. HTJ2K's bits a sample, then each arm's bytes over
+decoded back and checked: 994/994 frames exact in every variant. HTJ2K's bits a sample, then each variant's bytes over
 HTJ2K's on the whole volume. k is the low bits split off; at 10 bits k = 0 is d12 and w10 alike, at 12 bits k = 0
 is d12 and k = 2 is w10.
 
@@ -73,7 +73,7 @@ cell but three, all k = 3 (`dbts_b4` +0.021, `dbts_c3` +0.015, `dbts_c4` +0.019)
 Row SPLITTIME's `decode.mjs` unchanged, every 8th slice of each volume (130 frames, hard-linked into
 `$W/dbtscale-dec` with a `manifest.json` of their checksums), headless Chromium 141, 8 rounds, 1× and 4× interleaved,
 the host otherwise idle: **8 320/8 320 frames exact**. HTJ2K is ms a frame, median of round medians, 1× · 4×; each
-arm the median of round-paired ratios to it. Every AV1 arm here is WebCodecs' (every stream ≤ 10 bits) but k = 0 at
+variant the median of round-paired ratios to it. Every AV1 variant here is WebCodecs' (every stream ≤ 10 bits) but k = 0 at
 12 bits, which is dav1d-WASM's.
 
 | set | HTJ2K, ms | k = 0 | k = 2 | k = 3 |
@@ -94,7 +94,7 @@ arm the median of round-paired ratios to it. Every AV1 arm here is WebCodecs' (e
 | `dbts_c4` | 21.3 · 78.8 | 5.33 · 6.17 | 3.47 · 3.61 | 2.95 · 3.18 |
 | `dbts_c5` | 29.8 · 133 | 6.59 · 6.61 | 3.86 · 3.40 | 3.53 · 3.05 |
 
-**No AV1 arm decodes as fast as HTJ2K on any volume in any round** (0/8 faster, every cell). The fastest arm is
+**No AV1 variant decodes as fast as HTJ2K on any volume in any round** (0/8 faster, every cell). The fastest variant is
 k = 3 at 12 bits, 2.87–3.68× HTJ2K's time a frame, and at 10 bits k = 2 or k = 3, 1.99–2.64× (k = 2 alone
 2.00–2.78×); row SPLITTIME's two DBT volumes were 3.07 · 2.83 (12-bit, k = 3) and 2.61 · 2.27 (10-bit, k = 2),
 inside these ranges.
@@ -110,9 +110,9 @@ hours here, so the fill is a sample of the volume, not the volume.
 119 of the 324 visits are `VOID` (the relay's p99 over 1 ms; 1.0–2.0 ms here), mostly the long fills at 5 and
 20 Mbit/s, leaving n = 0–6 a cell. Where a cell kept any, its ratio with the void visits counted is the kept one's
 within 0.01, and within 0.04 at 4× on 50 Mbit/s, so the table counts every visit (n = 6) and says so. HTJ2K is seconds to every frame on the page,
-median, 1× · 4×; each arm the median of round-paired ratios to it.
+median, 1× · 4×; each variant the median of round-paired ratios to it.
 
-| set | arm | 5 Mbit | 20 Mbit | 50 Mbit |
+| set | variant | 5 Mbit | 20 Mbit | 50 Mbit |
 | --- | --- | --- | --- | --- |
 | `dbts_a5`, 12-bit | HTJ2K, s | 15.3 · 15.4 | 3.97 · 4.07 | 1.77 · 1.84 |
 | | k = 2 | 0.96 · 0.97 | 0.97 · 1.02 | 0.99 · 1.39 |
@@ -124,7 +124,7 @@ median, 1× · 4×; each arm the median of round-paired ratios to it.
 | | k = 2 | 0.96 · 0.97 | 0.97 · 1.01 | 0.99 · 1.30 |
 | | k = 3 | 0.96 · 0.97 | 0.97 · 1.00 | 0.99 · 1.25 |
 
-**Where the wire is the clock k = 2 wins by its bytes, 3–4 %; at 4× on 50 Mbit/s every arm loses 25–39 %**, and
+**Where the wire is the clock k = 2 wins by its bytes, 3–4 %; at 4× on 50 Mbit/s every variant loses 25–39 %**, and
 at 4× on 20 Mbit/s they tie or lose 1–6 %. k = 3 on the 10-bit volume loses everywhere (its bytes are 1.004). The 4× cells on 50 Mbit/s are the host's saturation: the decode on three cores is
 the fill's clock, and nothing past it is claimed. `--mutate sample` and `--mutate truth` on the decode harness's
-sample each turned every arm to 0 exact.
+sample each turned every variant to 0 exact.

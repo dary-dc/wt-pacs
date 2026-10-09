@@ -8,10 +8,10 @@ exact, and what does the flush per unit cost. Queue row 30 (WCLAT) of
 ```bash
 lab/av1/tools/tools.sh && lab/av1/fetch_data.sh rf_fluoro us_liver
 JOBS=4 lab/av1/.venv/bin/python lab/av1/decode/latency/make_streams.py lab/.av1-build lab/.av1-work/wclat lab/av1/data  # ~25 min
-NODE_PATH=$(npm root -g) node lab/av1/decode/latency/run.mjs --arms flush,latency,hold --rounds 1 --throttles 1 --wait-ms 500
-NODE_PATH=$(npm root -g) node lab/av1/decode/latency/run.mjs --arms flush,latency --rounds 1 --throttles 1 --mutate \
+NODE_PATH=$(npm root -g) node lab/av1/decode/latency/run.mjs --variants flush,latency,hold --rounds 1 --throttles 1 --wait-ms 500
+NODE_PATH=$(npm root -g) node lab/av1/decode/latency/run.mjs --variants flush,latency --rounds 1 --throttles 1 --mutate \
   --streams mono_10_g8,444_8_intra,rf_fluoro_intra_t4,us_liver_g8_t2
-NODE_PATH=$(npm root -g) node lab/av1/decode/latency/run.mjs --arms flush,latency,keyflush --rounds 10 \
+NODE_PATH=$(npm root -g) node lab/av1/decode/latency/run.mjs --variants flush,latency,keyflush --rounds 10 \
   --streams rf_fluoro_intra_t1,rf_fluoro_intra_t2,rf_fluoro_intra_t4,rf_fluoro_g8_t1,rf_fluoro_g8_t4,us_liver_intra_t1,us_liver_intra_t2,us_liver_intra_t4,us_liver_g8_t1,us_liver_g8_t4
 ```
 
@@ -23,7 +23,7 @@ grey), at 1, 2 and 4 tile columns, intra and G = 8. The truth is a SHA-256 per f
 the encoder's input. The real frames are checked against their fetch checksums first. Native dav1d
 decodes every stream against that truth before it is used. **All 28 streams were exact.**
 
-**Arms.** Each unit goes in as one chunk, `key` on keyframes, and its frame is awaited up to a
+**Variants.** Each unit goes in as one chunk, `key` on keyframes, and its frame is awaited up to a
 deadline, timed from `decode()` to the output callback:
 
 * `flush`, as the product was: a flush after every unit.
@@ -33,18 +33,18 @@ deadline, timed from `decode()` to the output callback:
 
 All are at `prefer-software`, Chromium 141, the browser on three cores, and 4× is those cores each a
 quarter as fast. A fresh browser runs per (round × throttle) in a Williams order, with streams and
-arms rotated inside it.
+variants rotated inside it.
 
 **Exact, frame by frame** (1×, one round, 500 ms a unit): with `optimizeForLatency` **every unit
 gave its frame before the next was sent, exact, on all 28 streams**: 784/784 frames, every
 depth and layout, intra and G = 8, 1 to 4 tiles. With neither option, no unit gave its frame
-(0/784), and all came out exact at the final flush. That is the arm that shows the check can fail.
+(0/784), and all came out exact at the final flush. That is the variant that shows the check can fail.
 Flushed per unit, a G = 8 stream gives its keyframe and then refuses the next unit ("a key frame is
 required after configure() or flush()"): 1 frame of each group. `--mutate` (one sample of every
-frame) turned every arm on four streams to 0 exact.
+frame) turned every variant on four streams to 0 exact.
 
 **Time, ms a frame** (10 rounds, median of each round's median; × is paired by round against
-`flush`; every frame exact in every arm and round). Bytes are over the one-tile intra stream:
+`flush`; every frame exact in every variant and round). Bytes are over the one-tile intra stream:
 
 | stream | flush 1× · 4× | no flush (`latency`) | flushed before keys | bytes |
 | --- | --- | --- | --- | --- |
@@ -59,7 +59,7 @@ frame) turned every arm on four streams to 0 exact.
 | ultrasound, G = 8, 1 tile | — | 34.6 · 146 ms | 34.9 · 150 ms | +34 % |
 | 4 tiles | — | 15.3 · 60.8 ms | 15.4 · 63.0 ms | +33 % |
 
-The G = 8 rows are ms. The flushed arm gives no group, so they stand against the intra rows above.
+The G = 8 rows are ms. The flushed variant gives no group, so they stand against the intra rows above.
 
 **Pins.** Node 22.22.0; playwright 1.56.1's Chromium 141.0.7390.37 (`CHROME_PATH` overrides); libaom
 3.15.1 and dav1d 1.5.4 as `lab/av1/tools/tools.sh` pins them. Nothing built or generated is committed.
