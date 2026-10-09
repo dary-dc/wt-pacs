@@ -10,7 +10,6 @@ lab/other-clients/h3/target/
 !/patched/quinn/src/lib.rs
 .venv/
 node_modules/
-client/transport/ts/node_modules/
 
 # Dev TLS and transport endpoint (generate locally)
 server/dev-cert/*.pem
@@ -67,7 +66,6 @@ __pycache__/
 # AV1 public series and their frames (fetch with lab/av1/fetch_data.sh)
 lab/av1/data/
 # AV1 tools built by lab/av1/tools/tools.sh, and the frames lab/av1/roundtrip.py makes
-lab/.av1-build/
 lab/.av1-work/
 # Link traces a lab run fetches (lab/av1/delivery/total-time/run.mjs, lab/scripts/*_cells.sh)
 lab/.traces/

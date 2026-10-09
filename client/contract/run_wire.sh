@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The client against the real server, headless, over QUIC and over its WebSocket: refusals back to
-# back with none lost, and an ask during a fill seen with the server's own semantics. Builds a debug server, packs a synthetic
-# series and makes its own cert under a temp dir — nothing in the tree is touched. Needs playwright
-# and Chromium.
+# back with none lost, and an ask during a fill seen with the server's own semantics. Builds a debug
+# server, packs a synthetic series and makes its own cert under a temp dir — nothing in the tree is
+# touched. Needs playwright and Chromium.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
