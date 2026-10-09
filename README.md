@@ -4,75 +4,61 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 ## Prerequisites
 
-A Rust toolchain, Python 3 and Node. `scripts/gate.sh` requires everything below and exits 2,
-with the install command, when any is missing: the WASM client is part of the product, not an
-optional variant (the contract and worker-safe steps cover both clients or neither), and the
-browser steps need playwright, Chromium and the decoder vendor. `scripts/gate.sh --no-browser`
-skips the browser steps and says so in its last line.
+Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
+with `rustup`, Node 22 (`.nvmrc`), Python 3.11 or newer, and on PATH: git, curl, tar, patch, sha256sum,
+openssl, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
 
 ```bash
 rustup target add wasm32-unknown-unknown
-npm i -g wasm-pack                    # or: cargo install wasm-pack
-npm i -g playwright && npx playwright install chromium
-bash client/decode/wasm/fetch_openjph.sh   # the decoder vendor
+cargo install wasm-pack --version 0.15.0 --locked
+npm i -g playwright@1.56.1 && npx playwright install chromium
+bash client/decode/wasm/fetch_openjph.sh            # the HTJ2K decoder the page runs
 ```
 
-### What the gate costs and what it catches
+Two more open what the gate otherwise skips, by name, in its log:
 
-Without `lab/.av1-build/out` (`VARIANTS=simd client/decode/wasm/dav1d/build.sh`) the dispatch rig skips every
-AV1 clause, saying `SKIPPED` — 128 checks run instead of 719 — so build it once where AV1 matters.
+```bash
+VARIANTS=simd client/decode/wasm/dav1d/build.sh     # the AV1 decoder: git, ninja, a C compiler; fetches emscripten (~5 min)
+python3 -m venv lab/av1/.venv && lab/av1/.venv/bin/pip install --require-hashes -r lab/av1/requirements.txt
+                                                    # numpy for the painter check: PYTHON=lab/av1/.venv/bin/python
+```
 
-**Time** (row GATE, 2026-10-07; 4 cores, warm builds, n = 3 a cell, the two trees' runs interleaved):
-**161.4 [159.8–161.7] → 105.9 [104.9–106.1] s** `--quick`, **160.7 [160.5–161.1] → 107.0
-[106.0–107.0] s** full. The two steps that waited on timers now wait side by side: transport
-contract runs each implementation in its own process (54.4 → 18.2 s; one clause trickles a frame
-for 16 s on each), and the two browser rigs run in parallel pages (57.0 → 38.3 s). Next largest:
-the real-server wire step 13 s, the two server test runs 11 s each, nothing else over 6 s.
+Without the first, the dispatch rig runs 152 of its 750 checks; without the second, the painter check does not run.
 
-**What it catches** — mutants made by hand at each decision, the step that owns the code run on
-each (the node tests and both rigs for the client, `cargo test` for the rest):
-
-| code | mutants | killed before | after | left alive, and why |
-| --- | --- | --- | --- | --- |
-| `downloader.js`, `consumer.js` | 76 | 44 | 65 of 72 | 4 were dead code, removed; 7: two only matter when a frozen page's timers fire late, a listener removal and two `??=` change nothing observable, the wire buffer's release only moves memory, a recycle racing a resumption the fake cannot order (`client/README.md` §Every decision is held by a test) |
-| the decoder modules (`decoder.js`, `htj2k.js`, `av1*.js`, `decode-av1*.js`) | 45 | 45 | 45 | — |
-| the send path (`planner.rs`, `frame_out.rs`, `pipeline.rs`) | 25 | 16 | 20 of 24 | 1 was dead code, removed; 4: `fills` and the end-of-session read report are log lines, and the lab-only byte-budget stall's FIN and its `>`/`>=` send the same bytes |
-| the series bundle's reader and writer | 10 | 3 | 10 | — |
-
-No test was cut: the pairs whose mutants another test also kills are checks inside one clause, which
-cost no time of their own, or rest on too few mutants to show one covers the other.
-
-## Quick start (harness)
+## Quick start
 
 ```bash
 # 1. Build the clients (once, and after changes; dist/ and pkg/ are not tracked)
-bash client/transport/wasm/build.sh   # web_sys WASM client; fetches wasm-opt on first run
-bash client/transport/ts/build.sh     # TypeScript client → dist/
+bash client/transport/wasm/build.sh   # the WASM client; fetches binaryen's wasm-opt, pinned by checksum, on first run
+bash client/transport/ts/build.sh     # the TypeScript client and the test bundles; npm install on first run
 
-# 2. Dev TLS + dev-transport.json
+# 2. A dev certificate, valid 10 days, and client/dev-transport.json pointing at port 4433
 ./server/scripts/gen_dev_cert.sh
 
-# 3. Pack the smoke bundle, or use the tracked one
+# 3. The smoke bundle is tracked; packing it again writes the same bytes
 cargo run -p pack-series -- \
   --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames \
   --output fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
-# Terminal 1 — WebTransport server
+# 4. Terminal 1 — the WebTransport server
 cargo run --release -p series-server -- \
   --port 4433 \
   --series fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
-# Terminal 2 — static host
+#    Terminal 2 — the static host
 python3 server/dev-server.py --port 8765 --series us_cine_smoke
+
+# 5. Before pushing: the gate (about 100 s on 4 cores, warm builds); --no-browser skips the browser steps, --quick two absence checks
+scripts/gate.sh
 ```
 
-Open in Chrome:
+Then open in Chrome:
 
-- A cell over the downloader, on any series: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the
-  URL the static host prints. `&transport=wasm` runs the WASM client. `&transport=ws` runs the
-  WebSocket fallback, which needs the server started with `--websocket` (add it to Terminal 1's
-  command) and a Chrome that trusts the dev certificate, since a WebSocket cannot pin it by hash
+- A cell over the downloader: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the URL the static host
+  prints; its last line is `run_end` with `delivered` equal to `asked`. `&transport=wasm` runs the WASM client.
+  `&transport=ws` runs the WebSocket fallback, which needs the server started with `--websocket` and a Chrome
+  that trusts the dev certificate, since a WebSocket cannot pin it by hash
   ([`docs/WIRE.md`](docs/WIRE.md) §The WebSocket mapping):
 
   ```bash
@@ -83,36 +69,31 @@ Open in Chrome:
   ```
 
   The query parameters are listed in `client/harness/shell.js`.
-- The downloader's self-check (decoded frames against `.sha256`): `http://127.0.0.1:8765/harness/`.
-  It needs the decoder vendor (§Prerequisites) and the server running the `decode_c512` series in
-  place of the smoke one ([`docs/FIXTURES.md`](docs/FIXTURES.md), `client/README.md`):
+- The downloader's self-check, every decoded frame against its `.sha256`: `http://127.0.0.1:8765/harness/`.
+  It needs the decoder (§Prerequisites) and the server on the `decode_c512` series in place of the smoke one
+  ([`docs/FIXTURES.md`](docs/FIXTURES.md)); the frames need cmake and a C++ compiler for OpenJPH's encoder:
 
-```bash
-lab/scripts/gen_htj2k_fixtures.sh c512   # 87 frames and their .sha256; builds OpenJPH's encoder once (cmake, a C++ compiler)
-mkdir -p target/c512
-for f in lab/fixtures/decode_c512/*.j2c; do cp "$f" "target/c512/$(basename "$f" .j2c).htj2k"; done
-cargo run -p pack-series -- \
-  --metadata lab/fixtures/decode_c512/metadata.json \
-  --frames target/c512 \
-  --output target/c512.sbnd
+  ```bash
+  lab/scripts/gen_htj2k_fixtures.sh c512   # 87 frames and their .sha256
+  mkdir -p target/c512
+  for f in lab/fixtures/decode_c512/*.j2c; do cp "$f" "target/c512/$(basename "$f" .j2c).htj2k"; done
+  cargo run -p pack-series -- --metadata lab/fixtures/decode_c512/metadata.json --frames target/c512 \
+    --output target/c512.sbnd
+  cargo run --release -p series-server -- --port 4433 --series target/c512.sbnd   # Terminal 1, in place of the smoke series
+  ```
 
-# Terminal 1, in place of the smoke series
-cargo run --release -p series-server -- --port 4433 --series target/c512.sbnd
-```
+`scripts/cellcheck.sh` runs both pages headless in one go, after the c512 frames above: the cells over both
+clients must each deliver what they asked, the refuse cell none of it, and the self-check must pass. It makes its
+own server, bundle and certificate, so it needs neither terminal nor step 2; the gate does not run it.
+`deploy/check_equivalence.sh` checks that the web image answers every path the harness uses exactly as
+`server/dev-server.py` does; it needs podman or docker, or nginx with `--local` ([`deploy/README.md`](deploy/README.md)).
 
-`scripts/cellcheck.sh` runs both pages headless in one go: the cells over both clients (on-demand at
-depth 1 and 4, fill, refuse, a fill on a busy main thread, telemetry) must each deliver what they asked,
-the refuse cell none of it, and the self-check must pass. It builds a release server, packs the c512
-series and makes its own cert under a temp dir, so it needs the c512 frames above, the WASM `pkg/` and
-the browser prerequisites, but not the two terminals or `gen_dev_cert.sh`. `scripts/gate.sh` does not run
-it, since the gate does not require the c512 frames.
+Both clients and the TCP fallback are [`docs/CLIENTS.md`](docs/CLIENTS.md); the bytes they speak, [`docs/WIRE.md`](docs/WIRE.md).
 
-The TypeScript and WASM transports speak the same wire (FoD on bidi control + envelope on server uni
-streams); the WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
-
-A TCP fallback serves the same envelopes over a WebSocket: `--websocket` on the server, and
-`client/transport/ts/dist/ws-session.js` or `race-session.js` on the page
-([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §Race it).
+**What the gate catches** — mutants made by hand at each decision, run by the step that owns the code: the
+downloader's in [`client/README.md`](client/README.md) §Every decision is held by a test; the decoder modules
+45 of 45; the send path (`planner.rs`, `frame_out.rs`, `pipeline.rs`) 20 of 24, the four alive being log lines
+and a lab-only stall's equivalent sends; the series bundle's reader and writer 10 of 10.
 
 ## Docs
 

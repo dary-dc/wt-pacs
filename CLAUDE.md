@@ -66,4 +66,5 @@ The rules below have each already produced a wrong answer here when broken.
 ```bash
 scripts/gate.sh          # client bundles, type-check, server tests, absence checks
 scripts/gate.sh --quick  # skip the two absence checks
+scripts/gate.sh --no-browser  # skip the browser steps, and say so
 ```

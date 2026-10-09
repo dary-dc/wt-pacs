@@ -10,7 +10,7 @@ Every number in this repository was taken on one of three hosts:
   unless its section says why it can (§1's browser campaign, §3's relay);
 * **the cloud rig** (§9) — a 2-vCPU VM, where `sch_netem` loads, for shaped links.
 
-Eight limits (§1–§8) bound what they can decide. Each is stated with the evidence that established
+Seven limits (§1–§7) bound what they can decide; §8's was lifted. Each is stated with the evidence that established
 it and with what would lift it — written for an agent working somewhere else. §9 is the cloud rig
 and how a campaign runs there; §10 is where the raw rows went.
 

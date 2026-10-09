@@ -10,6 +10,9 @@ is [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | `client/transport/ts/` | TypeScript, browser ESM (`build.sh` → gitignored `dist/`). `frame-session.ts` is everything a session does whatever carries its bytes; `session.ts` carries it over WebTransport, `ws-session.ts` over a WebSocket, `race-session.ts` dials both |
 | `client/transport/wasm/` | Rust → WASM over `web_sys::WebTransport` (`build.sh` → gitignored `pkg/`; needs `wasm-pack`, `README.md` §Prerequisites) |
 | `client/contract/` | the suite, §The contract suite |
+| `client/transport/` | beside the transports, the page side (`consumer.js`) and the download worker (`downloader.js`): [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| `client/decode/` | the decode worker, its codec modules and the decoders' WASM builds: [`decode/README.md`](decode/README.md) |
+| `client/paint/`, `client/record/`, `client/harness/`, `client/scripts/` | the painter, the telemetry recorder (Tap), the lab's pages, the worker-safe and absence checks: [`../client/README.md`](../client/README.md) |
 
 ## The seam
 

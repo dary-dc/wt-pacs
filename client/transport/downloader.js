@@ -421,7 +421,7 @@ async function firstDial() {
   }
 }
 
-/** A command after a closure re-dials, as the proposal requires. */
+/** A command after a closure re-dials: docs/ARCHITECTURE.md §The downloader. */
 async function live() {
   await resuming;
   if (session && !session.stats().closed) return session;
