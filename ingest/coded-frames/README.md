@@ -1,7 +1,10 @@
 # ingest/coded-frames — a series as coded frames, written and checked
 
 The format of
-[`docs/av1/payload-format.md`](../../docs/av1/payload-format.md), built end to end. The client's half is
+[`docs/av1/payload-format.md`](../../docs/av1/payload-format.md), built end to end. `ingest.py` is the encode-and-check
+core: the product's DICOM ingest ([`../from-dicom`](../from-dicom/from_dicom.py), [`docs/FIXTURES.md`](../../docs/FIXTURES.md)
+§From DICOM) codes through it, and its command here takes a set as the lab fetches it. The lab imports the core
+from here (`lab/av1/size.py` takes `exact` and `ivf_units`) and keeps no copy. The client's half is
 `client/decode/av1*.js` ([`client/README.md`](../../client/README.md)).
 
 ```bash

@@ -130,9 +130,9 @@ def probes(build, work):
         px = content(ch, 0, (1 << depth) - 1, 100 + seed, 16, 16)
         y4m, ivf = work / f"{name}.y4m", work / f"{name}.ivf"
         ingest.write_y4m(y4m, [px], depth, layout)
-        subprocess.run([build / f"aom-{ingest.size.AOM}/bin/aomenc", "-q", "-o", ivf, "--limit=1",
+        subprocess.run([build / f"aom-{ingest.AOM}/bin/aomenc", "-q", "-o", ivf, "--limit=1",
                         *ingest.encoder_args("cpu0", "plain", depth, layout), y4m], check=True, capture_output=True)
-        unit = ingest.size.ivf_units(ivf)[0]
+        unit = ingest.ivf_units(ivf)[0]
         got, bits = ingest.decode(build, unit, work)
         want = fnv([px[..., c] for c in range(ch)])
         if bits != depth or fnv([got[..., c] for c in range(ch)]) != want:
