@@ -85,7 +85,7 @@ first; the other is closed when its own dial settles. An opening fill rides the 
 alone, since in both URLs both servers would push it: if QUIC wins it is asked there as
 `stream_frames`, and the losing socket's close fails none of its frames. If both dials fail, one
 error names both,
-a `DialTimeoutError` if either timed out. Why race rather than detect: ARCHITECTURE.md, TCP
+a `DialTimeoutError` if either timed out. Why race rather than detect: [`ARCHITECTURE.md`](ARCHITECTURE.md) §The TCP
 fallback. On loopback the WebSocket wins 57–58 of 60 dials (headless Chromium, debug and release
 server, 200 ms apart), where the handshakes' CPU decides; on a link TCP + TLS + upgrade is three
 round trips against the QUIC dial's 2.1. **Not measured on a link.**
