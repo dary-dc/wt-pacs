@@ -43,6 +43,14 @@ start_static() {
   exit 1
 }
 
+# The transport's WASM build, refused when missing or older than its sources.
+require_transport_wasm() {
+  local wasm=client/transport/wasm/pkg/transport_wasm_bg.wasm stale
+  [[ -f "$wasm" ]] || { echo "missing $wasm: client/transport/wasm/build.sh (README.md §Prerequisites)" >&2; exit 2; }
+  stale="$(find client/transport/wasm/src client/transport/wasm/Cargo.toml common -newer "$wasm" -print -quit)"
+  [[ -z "$stale" ]] || { echo "stale pkg/: $stale is newer than $wasm; client/transport/wasm/build.sh" >&2; exit 2; }
+}
+
 require_vendor() {
   [[ -f client/decode/wasm/vendor/openjph/openjphjs.js ]] || {
     echo "the decoder vendor is missing: bash client/decode/wasm/fetch_openjph.sh ($NO_BROWSER_HINT)" >&2

@@ -39,10 +39,8 @@ numpy=0
 "$PYTHON" -c "import numpy" 2>/dev/null && numpy=1
 
 step "prerequisites: built clients newer than their sources; playwright, Chromium and the decoder vendor"
-wasm=client/transport/wasm/pkg/transport_wasm_bg.wasm
-[[ -f "$wasm" ]] || { echo "missing $wasm: client/transport/wasm/build.sh (README.md §Prerequisites)" >&2; exit 2; }
-stale="$(find client/transport/wasm/src client/transport/wasm/Cargo.toml common -newer "$wasm" -print -quit)"
-[[ -z "$stale" ]] || { echo "stale pkg/: $stale is newer than $wasm; client/transport/wasm/build.sh" >&2; exit 2; }
+source client/contract/browser_env.sh
+require_transport_wasm
 built=client/decode/wasm/built
 if [[ -f "$built/THIRD_PARTY_NOTICES" ]]; then
   stale="$(find client/decode/wasm/build client/decode/wasm/openjph client/decode/wasm/dav1d/dav1d_wrap.c -newer "$built/THIRD_PARTY_NOTICES" \
@@ -59,7 +57,6 @@ if [[ $quick -eq 0 ]]; then
   done
 fi
 if [[ $browser -eq 1 ]]; then
-  source client/contract/browser_env.sh
   require_browser
   require_vendor
 fi
@@ -140,6 +137,13 @@ step "common, ingest and tools: wire, envelope, series bundle, pack-series and c
 run 1 cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p check-fastpath --quiet
 step "lab: window-harness tests"
 run 1 cargo test -p window-harness --quiet
+step "lab: the Go and h3 clients compile"
+if command -v go >/dev/null; then
+  run 1 bash -c "(cd lab/other-clients/go && go build -o /dev/null .) && (cd lab/page-open/h3-host && go build -o /dev/null .)"
+else
+  skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
+fi
+run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
 step "lab: disk-access-bench and telemetry-bench compile (the variants are part of the API)"
 run 1 cargo check -p disk-access-bench -p telemetry-bench --all-targets --quiet
 
