@@ -734,7 +734,7 @@ monochrome and returns 4:4:4 as 8-bit `BGRX`, WebKitGTK's WebCodecs decodes no A
 A size or depth a decoder or engine refuses is reported by name, not dropped.
 
 **Golden items** for every (bits, depth, split, signed, rct) the matrix emits, beside row 39's 14 in
-`client/conformance/av1/payloads/`, decoded in Node and Chromium; every refusal of `payload-format.md`, old and new, matched by
+`client/contract/av1/payloads/`, decoded in Node and Chromium; every refusal of `payload-format.md`, old and new, matched by
 its message.
 
 **Checks:** each frame's SHA-256 against its source's; native dav1d, dav1d-WASM and WebCodecs pictures of each stream
@@ -1011,7 +1011,7 @@ interleaved; say where the host saturates. **Adopt:** the round's rule. **Branch
 
 ### 52 INGEST
 
-**Question.** Can the HTJ2K ingest (whatever drives `ojph_compress` into `ingest/study-bundle` and `tools/pack-study`)
+**Question.** Can the HTJ2K ingest (whatever drives `ojph_compress` into `common/series-bundle` and `tools/pack-series`)
 and the AV1 ingest (`ingest/coded-frames/ingest.py`) be one pipeline that reads, offsets and checks each frame once?
 **Why it matters:** ingest cost is paid per study before any phone sees it, and two pipelines are two things to keep
 true. **Do:** map each pipeline's passes over the pixels; merge them into one with a codec stage; measure the exact
@@ -1456,7 +1456,7 @@ with examples where one pattern repeats.
   Media-complete (`server/Cargo.toml:5`, `client/transport/ts/session.ts:2`), SBND, series/study, cell, rig, tile, Tap,
   stream mode, preview, golden item, ring, top/low stream, RCT. No vendor/upstream glossary.
 * One concept, several names: the stored series — study / bundle / SBND / the store (`docs/FIXTURES.md:8`,
-  `README.md:156`, `--study` `server/src/main.rs:13`, `tools/pack-study`, `ingest/study-bundle`); the on-demand ask —
+  `README.md:156`, `--study` `server/src/main.rs:13`, `tools/pack-series`, `common/series-bundle`); the on-demand ask —
   "tile" (`server/src/media/read_path.rs:28,274` `TILE_SLOTS`/`TileReader`, `docs/adr/disk-access.md:13,25`, clashes
   with codec tiles); the fill reader — `SeqReader` (`read_path.rs:115`); `enum Ask` also carries Fill/EndStream/EndSession
   (`server/src/transport/planner.rs:13`); `open_ask`/`--open-ask` against "the opening ask" (`server/src/main.rs:52`);
@@ -1465,7 +1465,7 @@ with examples where one pattern repeats.
   (`server/src/record/report.rs:6`, `frame-envelope/src/lib.rs:1`); the client's stall timeout — `stallMs` / `quietMs` /
   "silence" (`client/transport/downloader.js:16,33,263`); the last byte — `lastByte` / `lastChunkMs` / `lastByteAt`
   (`client/transport/consumer.js:107`); the recorder — `Tap` / `record/` / telemetry (`client/record/tap.ts:20`); the TCP
-  client — transport-ws / `ws` / `OverTcp` / TCP fallback (`client/conformance/run.ts:85`, `race-session.ts:8`); the
+  client — transport-ws / `ws` / `OverTcp` / TCP fallback (`client/contract/run.ts:85`, `race-session.ts:8`); the
   downloader worker — "receive worker" (`docs/ARCHITECTURE.md:18`); "harness" for the rig and for `client/harness/`
   (`README.md:163`, `client/harness/shell.js:2`); "client" for the whole stack and for a transport
   (`docs/ARCHITECTURE.md:1`); `epoch` defined twice (`docs/ARCHITECTURE.md:829`, `README.md:158`); "unit" for a group
@@ -1473,14 +1473,14 @@ with examples where one pattern repeats.
   (`client/transport/ts/build.sh:15`); `.j2c` and `.htj2k` (`README.md:93`); `wtpacs` and `wt-pacs`
   (`deploy/check_equivalence.sh:57`, `deploy/Containerfile:24`); `wt_port` also binds the TCP port
   (`server/src/transport/server.rs:53`).
-* History words in names: "arm" in the A/B sense — `webcodecsArms` (`client/conformance/dispatch-rig.ts:778`), `armFill`
+* History words in names: "arm" in the A/B sense — `webcodecsArms` (`client/contract/dispatch-rig.ts:778`), `armFill`
   (`client/transport/ts/frame-session.ts:249`), `read_path.rs:921`, `scripts/gate.sh:66,79`, `deploy/README.md:21,82`,
   `README.md:9`, and the variables `ARMS` (19 reads, `README.md:22`), `ARM_LIST`, `ARM_URL`, `ARM_PID`, `ARM_BIN`,
   `ARM_LOG`, `ARMS_DIR` (`lab/scripts/server_ab.sh`); "phase" (`README.md:135`, `docs/av1/README.md:3`,
   `lab/README.md:20`, `lab/av1/fetch_data.sh:2`); "campaign" (`lab/downloader-campaign/`,
   `lab/disk-access-bench/src/bin/read_campaign.rs`, `tools/check-fastpath/src/main.rs:43`,
   `server/src/transport/tuning.rs:166`, `read_path.rs:837`); "exact-tier", "Media-complete … ask-only"
-  (`server/Cargo.toml:2,5`, crate `exact-server`); "early" (`patches/wtransport-0.7.2-settings-early.patch`,
+  (`server/Cargo.toml:2,5`, crate `exact-server`); "early" (`patches/wtransport-0.7.2-settings-in-handshake.patch`,
   `scripts/patch_crate.sh:14`); `READ_WINDOW` "the retired 64 KiB read chunk" (`server/src/media/frame_store.rs:15`);
   `.gitignore:34,38,62` ("Tf-axis", "Rung-layout", "The earlier client"); "S4" (`docs/ARCHITECTURE.md:10`), "pre-S2"
   (`docs/adr/telemetry-server-pipeline.md:270,281,300`).
@@ -1489,7 +1489,7 @@ with examples where one pattern repeats.
   `lab/traces/x3_short_scroll.json`); `lab/scripts/cloud_common.sh:16` (`.local/r2/`); `lab/av1/` folders named for rows
   (`splitok`, `encx`, `llsize`, `rep14`, `wcap`, …) with product comments pointing into them
   (`client/decode/av1.js:13`, `av1-webcodecs.js:51,124`, `av1-payload.js:171`, `av1-frame.js:80`); test and code
-  comments `client/conformance/dispatch-rig.ts:557,579,797,1388`, `client/harness/shell.js:43`,
+  comments `client/contract/dispatch-rig.ts:557,579,797,1388`, `client/harness/shell.js:43`,
   `client/README.md:149,157,160,177`; product docs — `docs/av1/README.md` (96 "row X", headings :541–:871),
   `docs/decode/README.md` (53), `docs/transport/transport-conclusions.md` (FQC, CC1, BB2, BBF, PROF, BB3, LD, IDL,
   W4b, LOAD, GS1, ASKL in headings :123–:1039), `docs/rig-limits.md:43,240,256,258,261,398,517`,
@@ -1499,11 +1499,11 @@ with examples where one pattern repeats.
   files (e.g. `lab/disk-access-bench/src/bin/read_campaign.rs:34`, `lab/page-open/downloader.html:35`). Fix: name what
   was measured. The working branch named as where something lives: `docs/av1/README.md:8`, `docs/av1/payload-format.md:94`,
   `docs/adr/disk-access.md:679` — a commit.
-* Standards' terms: "item" (DICOM Item; 96 uses in 14 docs, `av1-payload.js`, `parseItem`, `client/conformance/av1/payloads/`);
-  "conformance" (`client/conformance/`, `scripts/gate.sh:53,61`, `docs/CLIENTS.md:90`) beside DICOM's Conformance
+* Standards' terms: "item" (DICOM Item; 96 uses in 14 docs, `av1-payload.js`, `parseItem`, `client/contract/av1/payloads/`);
+  "conformance" (`client/contract/`, `scripts/gate.sh:53,61`, `docs/CLIENTS.md:90`) beside DICOM's Conformance
   Statement; "study" for one series (DICOM Study); telemetry row kinds `interaction`/`preload` for ask/fill
   (`client/record/parse.ts:61,65`).
-* Environment variables and paths: `CHROME_PATH` (`client/conformance/browser_env.sh:13`, `drive_page.cjs:9`); personal
+* Environment variables and paths: `CHROME_PATH` (`client/contract/browser_env.sh:13`, `drive_page.cjs:9`); personal
   defaults `EMSDK=${EMSDK:-$HOME/emsdk}` (`lab/decode-bench/wasm/build.sh:12`, `lab/decode-bench/README.md:29,32`,
   `lab/decode-bench/retained/README.md:16`), `$HOME/.ssh/id_ed25519_rig_agent` (`lab/scripts/cloud_common.sh:12`),
   `~/.ssh/id_ed25519_rig` (`lab/scripts/l3_lossy_link.sh:6`), `/home/ubuntu/wt-pacs` (`cloud_common.sh:14,52,64`,
@@ -1514,13 +1514,13 @@ with examples where one pattern repeats.
   README; `.gitignore:47-49` (`frames_500x64k`, `frames_500x250k`, a README that does not exist); the unapplied
   `patches/quinn-proto-0.11.18-ack-when-congestion-blocked.patch` beside the applied ones (its draft:
   `docs/transport/upstream-quinn-ack.md:81`); the study-bundle format the server reads lives in `ingest/`
-  (`ingest/study-bundle/src/format.rs:1`, read by `server/src/media/frame_store.rs:8`) — `common/`.
+  (`common/series-bundle/src/format.rs:1`, read by `server/src/media/frame_store.rs:8`) — `common/`.
 
 *Row 85 — README onboarding, docs, diagrams, duplicates*
 * Prerequisites (`README.md:5-18`): no `rust-toolchain.toml` (`patched/wtransport/Cargo.toml:6` needs 1.88), no Node
   pin (`.nvmrc`/`engines`; the image uses 22, `deploy/Containerfile:31`), Python unpinned; Linux not stated though io_uring
   is a default feature (`server/Cargo.toml:16`); `wasm-pack` and `playwright` installed unpinned (`README.md:15-16`);
-  unlisted: openssl (`server/scripts/gen_dev_cert.sh:10`, `client/conformance/run_wire.sh:20`), curl, patch, tar,
+  unlisted: openssl (`server/scripts/gen_dev_cert.sh:10`, `client/contract/run_wire.sh:20`), curl, patch, tar,
   sha256sum (`scripts/patch_crate.sh:42,49`), binutils `nm`/`strings` (`server/scripts/check_telemetry_absent.sh:22`,
   `client/scripts/check_worker_safe.sh:13`), cmake and a C++ compiler (only in a comment, `README.md:91`), llvm-tools
   (`scripts/pgo_build.sh:130`), podman or docker, Chrome and its minimum version (`README.md:70`), network for
@@ -1559,7 +1559,7 @@ with examples where one pattern repeats.
   `server-load/`; `lab/av1/README.md` §The folders omits `htj2kenc/`, `htj2kmt/`, `xengine/`; 8 lab folders without a
   README (`clock-resolution`, `decode-tail`, `early-messages`, `idle-sessions`, `worker-leak`, `window-harness`,
   `disk-access-bench`, `telemetry-bench`); `lab/scripts/gen_live_cell_fixture.sh:40-41` writes a dangling "§0b" and one
-  rate for every size into 10 fixture READMEs; `docs/FIXTURES.md` omits `client/conformance/av1/**` and its generators;
+  rate for every size into 10 fixture READMEs; `docs/FIXTURES.md` omits `client/contract/av1/**` and its generators;
   `docs/CLIENTS.md:8-12` omits `downloader/`, `harness/`, `record/`, `scripts/`; `client/transport/downloader.js:424`
   "the proposal" names no doc; `deploy/nginx/wt-pacs.conf.template:2` garbled.
 * Diagrams: an ask during a fill (`docs/WIRE.md:105`), session survival (`docs/ARCHITECTURE.md:752-890`), session open's
@@ -1571,7 +1571,7 @@ with examples where one pattern repeats.
 
 *Row 86 — the gate, the stale-build guard, formatting, hygiene, dead code, comments*
 * The gate's report: "GATE OK" (`scripts/gate.sh:97`) with no recap of what it skipped — the AV1 dispatch clauses
-  (`client/conformance/dispatch-rig.ts:874,899`, 128 of 719 checks), the golden items (`av1.test.mjs:291`), the io_uring
+  (`client/contract/dispatch-rig.ts:874,899`, 128 of 719 checks), the golden items (`av1.test.mjs:291`), the io_uring
   tests that `eprintln!("skipped…")` and pass (`server/src/media/read_path.rs:930,981,1019,1046`,
   `uring_reader.rs:196,231,265,292,335`), `client/scripts/check_telemetry_absent.sh:25,31,38` skipping silently,
   `cellcheck.sh` and `deploy/check_equivalence.sh` never run; `| tail -N` hides failures (`gate.sh:42-48,54,84`); no
@@ -1583,7 +1583,7 @@ with examples where one pattern repeats.
 * Formatting: no `cargo fmt --check`, clippy, JS/TS formatter, shellcheck or config; 29 product lines over 120 characters
   (e.g. `client/decode/av1-frame.js:32`, `av1-payload.js:36`).
 * Stale-build guard: only `transport-wasm` (`gate.sh:22-23`); none for `lab/.av1-build/out/simd.wasm`,
-  `client/conformance/run_browser.sh:16`, `client/scripts/check_worker_safe.sh:16`,
+  `client/contract/run_browser.sh:16`, `client/scripts/check_worker_safe.sh:16`,
   `client/scripts/check_telemetry_absent.sh:13-14`, `server/dev-server.py:12`, `scripts/cellcheck.sh:174`, the image
   (`deploy/Containerfile:41`).
 * Hygiene: `server/dev-server.py` and `lab/scripts/l3_summary.py:6`, `l7_summary.py:4` have shebangs at 100644; 86 lab
@@ -1591,7 +1591,7 @@ with examples where one pattern repeats.
   `.gitignore:12-13` and `:51,71` duplicates; `.cargo/config.toml:1-6` the same rustflags twice;
   `patched/quinn/Cargo.toml:5-14` generated boilerplate; `deploy/check_equivalence.sh:10` `set -u` alone;
   `scripts/check_links.py:11` omits `common/`, `ingest/`, `tools/`, `patches/`, `patched/`, `fixtures/`;
-  `docs/CLIENTS.md:85` a link as plain text; `client/conformance/run_wire.sh:3` unwrapped.
+  `docs/CLIENTS.md:85` a link as plain text; `client/contract/run_wire.sh:3` unwrapped.
 * Comment budget's reach: `scripts/comment_budget.sh:24` counts `*.test.mjs` (tests are exempt) and never `.sh`, `.py`,
   `.c`, `.go`, the Containerfile, Cargo.toml, the nginx template or inline `<script>`; three shell scripts would be over
   0.18 (`lab/scripts/gen_htj2k_fixtures.sh`, `lab/av1/delivery/scalable/client/make_frames.sh`, `lab/scripts/runtime_ab.sh`).
@@ -2305,7 +2305,7 @@ the owner must still choose, in plain words. **Deliverable:** a review section i
     `interaction`/`preload` → ask/fill (`client/record/types.ts:151`, `parse.ts:61,65`; always-null fields
     `report.ts:145-146,200` kept or dropped); the crate `exact-server` and "exact-tier"; "study" for one series
     (`--study`, `pack-study`, `study-bundle`); "conformance" for the transport contract suite; "early" in
-    `patches/wtransport-0.7.2-settings-early.patch`; "Media-complete" kept and defined, or renamed; the queue-named
+    `patches/wtransport-0.7.2-settings-in-handshake.patch`; "Media-complete" kept and defined, or renamed; the queue-named
     `lab/av1/` folders (row 56). Whether the proposed Names rule goes into `CLAUDE.md`, and whether the glossary stays in
     README §Names or gets its own file.
   * *Where product code lives:* the shipped AV1 decoder's build (`lab/av1/dav1d-wasm/`), the AV1 ingest
@@ -2314,7 +2314,7 @@ the owner must still choose, in plain words. **Deliverable:** a review section i
     product workspace and image (`Cargo.toml:10-12`, `deploy/Containerfile:16`); lab-only flags in the product binary
     (`server/src/main.rs:43-57`); `readMin` (`client/transport/downloader.js:374`), set only by the lab; the rejected
     read shapes kept compiled (`lab/disk-access-bench/src/rejected_access.rs`); the opt-in GSO patch (`gate.sh:37`);
-    splitting `client/conformance/dispatch-rig.ts` (2 192 lines).
+    splitting `client/contract/dispatch-rig.ts` (2 192 lines).
   * *What a public repository carries:* README §Provenance (`README.md:186-193`); `docs/rig-limits.md` §9 (:531-611,
     a cloud host's ports, a long-lived server, SSH key roles); third-party names cited as sources in
     `docs/av1/series.md:175-180` and as the HTJ2K decoder package's npm scope (README.md:17, 16 lab files); 59
