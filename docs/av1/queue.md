@@ -1477,16 +1477,16 @@ with examples where one pattern repeats.
   (`client/transport/ts/frame-session.ts:249`), `read_path.rs:921`, `scripts/gate.sh:66,79`, `deploy/README.md:21,82`,
   `README.md:9`, and the variables `ARMS` (19 reads, `README.md:22`), `ARM_LIST`, `ARM_URL`, `ARM_PID`, `ARM_BIN`,
   `ARM_LOG`, `ARMS_DIR` (`lab/scripts/server_ab.sh`); "phase" (`README.md:135`, `docs/av1/README.md:3`,
-  `lab/README.md:20`, `lab/av1/fetch_data.sh:2`); "campaign" (`lab/downloader-campaign/`,
+  `lab/README.md:20`, `lab/av1/fetch_data.sh:2`); "campaign" (`lab/downloader-cost/`,
   `lab/disk-access-bench/src/bin/read_campaign.rs`, `tools/check-fastpath/src/main.rs:43`,
   `server/src/transport/tuning.rs:166`, `read_path.rs:837`); "exact-tier", "Media-complete … ask-only"
   (`server/Cargo.toml:2,5`, crate `exact-server`); "early" (`patches/wtransport-0.7.2-settings-in-handshake.patch`,
   `scripts/patch_crate.sh:14`); `READ_WINDOW` "the retired 64 KiB read chunk" (`server/src/media/frame_store.rs:15`);
   `.gitignore:34,38,62` ("Tf-axis", "Rung-layout", "The earlier client"); "S4" (`docs/ARCHITECTURE.md:10`), "pre-S2"
   (`docs/adr/telemetry-server-pipeline.md:270,281,300`).
-* Campaign and queue labels: 12 lab file names (`lab/scripts/e0_netem_validation.sh`, `e1_saturation_*.sh`,
+* Campaign and queue labels: 12 lab file names (`lab/scripts/netem_validation.sh`, `e1_saturation_*.sh`,
   `e2_miss_cost_*.sh`, `l3_lossy_link.sh`, `l3_summary.py`, `l7_*`, `n1_netem_calibration.sh`, `s5_split.py`,
-  `lab/traces/x3_short_scroll.json`); `lab/scripts/cloud_common.sh:16` (`.local/r2/`); `lab/av1/` folders named for rows
+  `lab/traces/short_scroll.json`); `lab/scripts/cloud_common.sh:16` (`.local/r2/`); `lab/av1/` folders named for rows
   (`splitok`, `encx`, `llsize`, `rep14`, `wcap`, …) with product comments pointing into them
   (`client/decode/av1.js:13`, `av1-webcodecs.js:51,124`, `av1-payload.js:171`, `av1-frame.js:80`); test and code
   comments `client/contract/dispatch-rig.ts:557,579,797,1388`, `client/harness/shell.js:43`,
@@ -1506,7 +1506,7 @@ with examples where one pattern repeats.
 * Environment variables and paths: `CHROME_PATH` (`client/contract/browser_env.sh:13`, `drive_page.cjs:9`); personal
   defaults `EMSDK=${EMSDK:-$HOME/emsdk}` (`lab/decode-bench/wasm/build.sh:12`, `lab/decode-bench/README.md:29,32`,
   `lab/decode-bench/retained/README.md:16`), `$HOME/.ssh/id_ed25519_rig_agent` (`lab/scripts/cloud_common.sh:12`),
-  `~/.ssh/id_ed25519_rig` (`lab/scripts/l3_lossy_link.sh:6`), `/home/ubuntu/wt-pacs` (`cloud_common.sh:14,52,64`,
+  `~/.ssh/id_ed25519_rig` (`lab/scripts/lossy_link_levers.sh:6`), `/home/ubuntu/wt-pacs` (`cloud_common.sh:14,52,64`,
   `l3_lossy_link.sh:15`), `/tmp/goclient` (`lab/other-clients/README.md:18`), `~/.cache/wtpacs-traces`
   (`lab/av1/delivery/total-time/run.mjs:44`, its README:108).
 * Folder leftovers: `lab/fixtures/decode_warmup_{c,c92,g,g277,g512}/` referenced nowhere; `lab/fixtures/queue_large/README.md:1`
@@ -1545,9 +1545,9 @@ with examples where one pattern repeats.
   `docs/adr/disk-access.md:116-127` and dated headings :461–:674, `docs/av1/README.md:27-541`,
   `docs/decode/README.md:1083,1088`, `docs/rig-limits.md:14,556-569,613-627`, `docs/ARCHITECTURE.md:692`,
   `docs/FIXTURES.md:205`, `deploy/README.md:76,79-87,99-102,113-122`, `client/README.md:37-44,74-99,128,145,149-167`
-  (measurements belong in docs/), lab comments with dates (`lab/downloader-campaign/page.js:3`, `throttle.mjs:78`,
+  (measurements belong in docs/), lab comments with dates (`lab/downloader-cost/page.js:3`, `throttle.mjs:78`,
   `lab/disk-access-bench/src/main.rs:51,1489,1619`, `src/bin/server_ab.rs:54`, `lab/scripts/controller_cells.sh:3,5`,
-  `radio_link_cells.sh:4`, `lab/decode-bench/parity.mjs:81`, `lab/scripts/l3_lossy_link.sh:20`).
+  `radio_link_cells.sh:4`, `lab/decode-bench/parity.mjs:81`, `lab/scripts/lossy_link_levers.sh:20`).
 * Duplicates: the race (`docs/CLIENTS.md:78-89`, `docs/ARCHITECTURE.md:982-986`); BBR 12–19×
   (`transport-conclusions.md:176`, `docs/rig-limits.md:205`, `docs/av1/README.md:824`); the gate's steps (`CLAUDE.md:60-63`,
   `README.md:7-30`, `docs/CLIENTS.md:180`); `read_ahead_kb` (`docs/adr/disk-access.md:246,295`, `docs/rig-limits.md:346`);
@@ -1586,7 +1586,7 @@ with examples where one pattern repeats.
   `client/contract/run_browser.sh:16`, `client/scripts/check_worker_safe.sh:16`,
   `client/scripts/check_telemetry_absent.sh:13-14`, `server/dev-server.py:12`, `scripts/cellcheck.sh:174`, the image
   (`deploy/Containerfile:41`).
-* Hygiene: `server/dev-server.py` and `lab/scripts/l3_summary.py:6`, `l7_summary.py:4` have shebangs at 100644; 86 lab
+* Hygiene: `server/dev-server.py` and `lab/scripts/lossy_link_summary.py:6`, `l7_summary.py:4` have shebangs at 100644; 86 lab
   `.py` with a shebang at 100644 run through `python3`; `lab/scripts/cloud_common.sh` 100755 but only sourced;
   `.gitignore:12-13` and `:51,71` duplicates; `.cargo/config.toml:1-6` the same rustflags twice;
   `patched/quinn/Cargo.toml:5-14` generated boilerplate; `deploy/check_equivalence.sh:10` `set -u` alone;
