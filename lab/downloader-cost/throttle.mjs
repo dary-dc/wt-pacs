@@ -5,7 +5,7 @@
  * allocation profile, summed by function, which says what the page allocates per frame.
  * Throttles and variants rotate inside every round. docs/ARCHITECTURE.md §Under a throttled CPU
  *
- *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs [rounds]   [THROTTLES=1,4,6] [VARIANTS=Dw,Dd] [ALLOC=0]
+ *   NODE_PATH=$(npm root -g) node lab/downloader-cost/throttle.mjs [rounds]   [THROTTLES=1,4,6] [VARIANTS=Dw,Dd] [ALLOC=0]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -108,7 +108,7 @@ async function runOne(variant, throttle) {
   const cdp = await page.context().newCDPSession(page);
   const events = [];
   cdp.on("Tracing.dataCollected", (d) => events.push(...(d.value ?? [])));
-  await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?variant=${variant}&scenario=fill`);
+  await page.goto(`http://127.0.0.1:${http}/lab/downloader-cost/index.html?variant=${variant}&scenario=fill`);
   await page.waitForFunction(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone, null, { timeout: 60000 });
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
   await cdp.send("HeapProfiler.enable");

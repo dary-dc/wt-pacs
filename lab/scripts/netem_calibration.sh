@@ -4,7 +4,7 @@
 # userspace relay rows 36-38 were measured through) or netem on `lo`, variants interleaved. Each variant's
 # three delays are fitted: slope = round trips, intercept = fixed cost. Results: docs/rig-limits.md §3.
 #
-#   SSH_KEY=<the rig key> lab/scripts/n1_netem_calibration.sh [ROUNDS]
+#   SSH_KEY=<the rig key> lab/scripts/netem_calibration.sh [ROUNDS]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

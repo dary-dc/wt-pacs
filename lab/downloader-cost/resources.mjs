@@ -3,7 +3,7 @@
  * the browser confined to 2 or 4 cores and every thread slowed or not. One fresh browser per visit;
  * decoders, cores, throttles and scenarios rotate inside every round. docs/ARCHITECTURE.md §Resources
  *
- *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/resources.mjs [rounds]
+ *   NODE_PATH=$(npm root -g) node lab/downloader-cost/resources.mjs [rounds]
  *     [DECODERS=1,2,3] [CORES=2,4] [THROTTLES=1,4] [SCENARIOS=fill,ask]
  */
 import fs from "node:fs";
@@ -69,7 +69,7 @@ async function visit(decoders, cores, throttle, scenario) {
     const page = await browser.newPage();
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Performance.enable");
-    await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?variant=Dd&scenario=${scenario}&decoders=${decoders}`);
+    await page.goto(`http://127.0.0.1:${http}/lab/downloader-cost/index.html?variant=Dd&scenario=${scenario}&decoders=${decoders}`);
     // Not the default: polling on every animation frame is main-thread work the visit would be charged.
     const wait = (f) => page.waitForFunction(f, null, { timeout: 300000, polling: 200 });
     await wait(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone);

@@ -1,5 +1,5 @@
 {
-  "name": "x3_short_scroll",
+  "name": "short_scroll",
   "max_step": 1,
   "step_interval_ms": 185,
   "settle_on": "last_asked",

@@ -1,4 +1,4 @@
-# downloader-campaign
+# downloader-cost
 
 What the downloader costs, its two variants on the same server, interleaved. The numbers live in [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §Results; this
 says how they were made.
@@ -11,7 +11,7 @@ lab/scripts/gen_htj2k_fixtures.sh c512                    # 87 real HTJ2K frames
 cargo run --release -p pack-series -- --metadata lab/fixtures/decode_c512/metadata.json --frames <dir> --output c512.sbnd
 cargo run --release -p series-server -- --port 4433 --series c512.sbnd
 python3 server/dev-server.py --port 8765
-NODE_PATH=$(npm root -g) node lab/downloader-campaign/run.mjs --rounds 8 --out campaign.jsonl
+NODE_PATH=$(npm root -g) node lab/downloader-cost/run.mjs --rounds 8 --out campaign.jsonl
 ```
 
 Two variants, one fresh session each: **Dw**, the downloader with decode off — the bytes, delivered from
@@ -36,9 +36,9 @@ a sampled allocation profile. It waits on a 200 ms timer, because waiting on ani
 main-thread work the fill would be charged.
 
 ```bash
-NODE_PATH=$(npm root -g) node lab/downloader-campaign/throttle.mjs 5   # rounds; THROTTLES=1,4,6 VARIANTS=Dw,Dd ALLOC=0
-NODE_PATH=$(npm root -g) node lab/downloader-campaign/port.mjs --rounds 7   # the pixel port's message alone
-NODE_PATH=$(npm root -g) node lab/downloader-campaign/resources.mjs 7       # DECODERS=1,2,3 CORES=2,4 THROTTLES=1,4
+NODE_PATH=$(npm root -g) node lab/downloader-cost/throttle.mjs 5   # rounds; THROTTLES=1,4,6 VARIANTS=Dw,Dd ALLOC=0
+NODE_PATH=$(npm root -g) node lab/downloader-cost/port.mjs --rounds 7   # the pixel port's message alone
+NODE_PATH=$(npm root -g) node lab/downloader-cost/resources.mjs 7       # DECODERS=1,2,3 CORES=2,4 THROTTLES=1,4
 ```
 
 `resources.mjs` (RC1) runs Dd with `?decoders=`, one fresh browser a visit pinned with `taskset`,

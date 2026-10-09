@@ -144,7 +144,7 @@ RTT inert on the shared stream:
 | - | ------ | ------ |
 | 1 | `ask_frame` slept `RTT/2` inline, and every caller awaited it in a loop | asks were never simultaneously in flight; `D` was a counter with no wire meaning |
 | 2 | `LinkPacer::consume_bytes` held its mutex across the sleep | one uni stream read at a time; concurrent delivery impossible by construction |
-| 3 | `e1_saturation_sweep.sh` discarded the server's output | a failed bind was silent, and the 250 KB cells were served by another fixture's server (51 004 bytes per frame) |
+| 3 | `saturation_sweep.sh` discarded the server's output | a failed bind was silent, and the 250 KB cells were served by another fixture's server (51 004 bytes per frame) |
 | 4 | `--rtt-ms` has no effect on the shared stream until RTT exceeds `Tf` (`D`=1, 250 KB, 10 Mbit: util 1.000 at RTT 60 and 150, where 0.77 and 0.57 are correct; exact at 400) | depth cannot be measured there with it; mechanism **not established** |
 
 Defects 1 and 2 pinned utilisation at the `D`=1 value for every depth — the flat 0.408 of the old
@@ -255,8 +255,8 @@ other than pipelining limits the run. Metric: delivered throughput as a fraction
 **Pass, fixed in advance:** measured `D_min`, the smallest depth reaching 95 % of the ceiling
 control, within ±1 of predicted at every point. Consistently higher would mean sizing depth from a
 measured curve; consistently lower, that the transport buffers more than a frame. Result: six of six
-on the shared stream (§Validated). Drivers `lab/scripts/e1_saturation_sweep.sh`,
-`e1_saturation_cloud.sh`.
+on the shared stream (§Validated). Drivers `lab/scripts/saturation_sweep.sh`,
+`saturation_cloud.sh`.
 
 ### E2 — what a cache miss costs
 
@@ -267,8 +267,8 @@ latency), and **warm cache**, which must read ≈ 0 — a non-zero warm control 
 not the design. Metric: **`recovered_ms`, reversal → the wanted frame displayable**, not first
 byte: per-frame streams interleave, so a first byte can arrive while earlier frames still drain,
 and a partial frame cannot be shown. **Pass:** treatment within 20 % of `(D − 1) · Tf`. Result:
-**inconclusive** — rows outside the 20 % band. Drivers `lab/scripts/e2_miss_cost_sweep.sh`,
-`e2_miss_cost_cloud.sh` (the mild cell, reversal at 60 %).
+**inconclusive** — rows outside the 20 % band. Drivers `lab/scripts/miss_cost_sweep.sh`,
+`miss_cost_cloud.sh` (the mild cell, reversal at 60 %).
 
 ### E4 — does the formula pick the right `D`?
 
@@ -303,7 +303,7 @@ together. Run the harness over the rig's **real path, unshaped**, recording RTT 
 the same trace locally under netem set to those values; compare `mean_wait_ms`, mean and p95.
 Within ~15 %: the emulated grid is trustworthy. Diverges: stop and re-read every emulated result.
 `mean_wait_ms` is measured client-side end to end, so no clock is compared across machines.
-Driver `lab/scripts/e0_netem_validation.sh`. **Not run**, and listed as open in
+Driver `lab/scripts/netem_validation.sh`. **Not run**, and listed as open in
 [`cloud-queue.md`](../cloud-queue.md) §Open owner decisions (2026-10-03). What was calibrated instead is the
 container's userspace relay against netem on the rig, on delay only
 ([`rig-limits.md`](../rig-limits.md) §3).

@@ -65,7 +65,7 @@ def main() -> int:
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--n", type=int, default=None, help="steps to run (default: one pass over the series)")
     parser.add_argument("--depth", type=int, default=1, help="on-demand asks in flight (D); 1 is the control")
-    parser.add_argument("--trace", default=None, help="URL path of a lab trace, e.g. /lab/traces/x3_short_scroll.json")
+    parser.add_argument("--trace", default=None, help="URL path of a lab trace, e.g. /lab/traces/short_scroll.json")
     parser.add_argument("--interval-ms", type=int, default=None, help="pacing between steps becoming due")
     parser.add_argument("--frames", type=int, default=None, help="series frame count override (remote runs)")
     parser.add_argument("--run-timeout-s", type=int, default=300)

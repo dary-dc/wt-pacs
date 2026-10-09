@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Paired variant-vs-variant delta by regime, under the campaign's own rule.
 
-`s5_split.py` answers one question — how the `pool` -> `hybrid` margin splits into the
+`read_path_split.py` answers one question — how the `pool` -> `hybrid` margin splits into the
 reader loop and the ring — and only ever compares against `pool` or `pool_ringloop`. The
 question that decides which variant ships is a different one: **is any variant established better
 than `hybrid_lazyring`?** That needs arbitrary pairs, and this runs them.

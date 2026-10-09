@@ -300,7 +300,7 @@ its count (`aCutFrameIsNamedWithItsBytes`).
 **Bound on K.** Each read moves `lastByteAt`, which the downloader's stall watch reads, so a read
 must resolve inside `stallMs` (3 s) at the slowest rate a session should survive, and across an
 outage inside what the outage leaves: **K ≤ rate × (`stallMs` − outage − QUIC's recovery after
-it).** Measured (RMD, 2026-10-02, `lab/downloader-campaign/reads.mjs`, 2 s outages every 8 s, 6
+it).** Measured (RMD, 2026-10-02, `lab/downloader-cost/reads.mjs`, 2 s outages every 8 s, 6
 rounds, self-timed): at 0.5 Mbit/s while up, 16 KB kept every session the default reader keeps; 32 KB
 (0.52 s a read) was re-dialled in 1 of 6 visits, 64 KB and a whole frame in all of them, each re-dial
 costing the fill seconds. **16 KB is the largest K inside the bound.** At 1 Mbit/s only the whole

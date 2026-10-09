@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Summarise an l7_read_path.sh TSV: per cell and variant, median [range] over rounds of p50, p99, wall,
+"""Summarise an read_path_cloud.sh TSV: per cell and variant, median [range] over rounds of p50, p99, wall,
 server CPU per ask and the server's own miss rate; read_ahead 128 against 2048 paired by round.
 
-    lab/scripts/l7_summary.py .local/measurements/l7-*.tsv
+    lab/scripts/read_path_cloud_summary.py .local/measurements/l7-*.tsv
 """
 import csv, statistics as st, sys
 from collections import defaultdict
