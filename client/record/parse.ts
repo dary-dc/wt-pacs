@@ -4,7 +4,7 @@ import type { RowKind } from "./types.ts";
 
 export type FodAsk = { kind: RowKind; frames: number[] };
 
-/** One FoD message decoded from the control stream (either direction). */
+/** One FoD message, either direction: docs/WIRE.md §FoD messages; also decoded by `client/transport/ts/wire.ts`. */
 export type FodMessage =
   | { op: "request_frame"; frame: number }
   | { op: "stream_frames"; from?: number; to?: number }

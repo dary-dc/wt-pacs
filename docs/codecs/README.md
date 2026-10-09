@@ -20,18 +20,18 @@ does not round-trip exactly is not used for that series ([`../av1/README.md`](..
 
 The owner's order ([`../av1/series.md`](../av1/series.md)): **the breast family first** — FFDM, synthesized 2D, DBT
 slices and projections, breast ultrasound and ABUS — **general cine second** (echo and ultrasound cine, XA, RF), and
-**CT and MR stay HTJ2K**. Measured so far, no series qualifies: by row TOTAL4's rule a series is served as AV1 only
+**CT and MR stay HTJ2K**. Measured so far, no series qualifies: by the per-series codec rule (queue row TOTAL4) a series is served as AV1 only
 where it fills first in Chromium and Firefox on every link and CPU, and none does
 ([`../av1/README.md`](../av1/README.md) §Total time). Breast ultrasound, ABUS and angiography have no sound source
-here ([`../av1/queue.md`](../av1/queue.md) §Blocked).
+here (§Why HTJ2K is the default, and what would reopen it).
 
 ## The choice, as built
 
 ```
-series ── row TOTAL4's rule: AV1 only where it fills first in both engines on every cell
+series ── the per-series codec rule (queue row TOTAL4): AV1 only where it fills first in both engines on every cell
    │        none qualifies today ─────────────────────────────────► HTJ2K, every depth to 16 bits, signed, RGB
    │
-   └─ AV1 on request (ingest.py --codec av1), by b, the bits after the offset (row 72):
+   └─ AV1 on request (ingest.py --codec av1), by b, the bits after the offset (the per-depth split rule, queue row 72):
         RGB 8 ────────── RCT, one 10-bit 4:4:4 stream ───────────► WebCodecs*, else dav1d-WASM
         grey ≤ 8 ─────── one 8-bit 4:0:0 stream ─────────────────► WebCodecs*, else dav1d-WASM
         grey 9 ───────── k = 0, one 10-bit stream ───────────────► WebCodecs*, else dav1d-WASM
@@ -55,11 +55,11 @@ probe, [`../decode/README.md`](../decode/README.md) §Why, and what would make i
 
 | series | b | where it is known from |
 | --- | --- | --- |
-| FFDM for presentation | 12 | [`series.md`](../av1/series.md) §1d (two vendors); 30 exams of three systems, row FFDMSCALE ([`../av1/README.md`](../av1/README.md) §Samples over 12 bits) |
-| FFDM for processing (raw) | 13–14 | §1d (13, one raw image); row FFDMSCALE (14) |
+| FFDM for presentation | 12 | [`series.md`](../av1/series.md) §1d (two vendors); 30 exams of three systems, the mammography-at-scale measurement (queue row FFDMSCALE; [`../av1/README.md`](../av1/README.md) §Samples over 12 bits) |
+| FFDM for processing (raw) | 13–14 | §1d (13, one raw image); the mammography-at-scale measurement (14) |
 | synthesized 2D | 10, 12 | §1d |
-| DBT slices | 10, 12 | §1d; 15 volumes of three systems, row DBTSCALE ([`../av1/README.md`](../av1/README.md) §Total time, *At scale*) |
-| DBT projections | 14 | §1d; three systems, row BREAST ([`../av1/README.md`](../av1/README.md) §Samples over 12 bits) |
+| DBT slices | 10, 12 | §1d; 15 volumes of three systems, the DBT-at-scale measurement (queue row DBTSCALE; [`../av1/README.md`](../av1/README.md) §Total time, *At scale*) |
+| DBT projections | 14 | §1d; three systems, the breast-family fetch (queue row BREAST; [`../av1/README.md`](../av1/README.md) §Samples over 12 bits) |
 | breast ultrasound, still and cine | 8 | §1d, from the standard and every statement read; no sound source in the lab |
 | ABUS | 8 | §1d, one vendor's statement; none in the lab |
 | echo and general ultrasound cine | 8 | [`series.md`](../av1/series.md) §2 |
@@ -67,7 +67,7 @@ probe, [`../decode/README.md`](../decode/README.md) §Why, and what would make i
 | RF (fluoroscopy) | 12 | §2 |
 | CT | 13 | [`series.md`](../av1/series.md) §3 (three vendors) |
 | MR | 9–11 | §3 |
-| PET; a digitized film | 15; 16 | row DATA3 ([`../av1/README.md`](../av1/README.md) §Samples over 12 bits) |
+| PET; a digitized film | 15; 16 | the missing-content search (queue row DATA3; [`../av1/README.md`](../av1/README.md) §Samples over 12 bits) |
 
 ## At a glance
 
@@ -99,7 +99,7 @@ HTJ2K on the same frames; "1× · 4×" is the CPU throttle.
 
 Keys: **A-** [`../av1/README.md`](../av1/README.md): *bytes* §Bytes; *stands* §Where AV1 stands; *total* §Total time,
 *Every exact form, five links*; *total4* §Total time, *Every change of the round*; *mem* §Decode time and memory,
-*Memory and first use*; *exact* §Exactness and the decoders; *enc* §Encoding; *14* §Samples over 12 bits, row REP14.
+*Memory and first use*; *exact* §Exactness and the decoders; *enc* §Encoding; *14* §Samples over 12 bits, the 13- and 14-bit layout measurement (queue row REP14).
 **D-** [`../decode/README.md`](../decode/README.md): *speed* §Decode time against HTJ2K; *jxl* §JPEG XL; *build*
 §The build, as delivered; *dav1d* §dav1d-WASM, the decoder the client runs; *engines* §AV1 in WebKit and Firefox;
 *why* §Why, and what would make it exact. **L-** *embed* [`lab/av1/bytes/embedded`](../../lab/av1/bytes/embedded/README.md)
@@ -112,11 +112,12 @@ provisional (a lossy-sourced set, [`../av1/README.md`](../av1/README.md)).
 ## Why HTJ2K is the default, and what would reopen it
 
 HTJ2K decodes every frame faster than any exact AV1 path, exactly, in every engine measured; it holds every target
-depth in one codestream; it has a DICOM transfer syntax; and by row TOTAL4's rule no series fills first as AV1 in
+depth in one codestream; it has a DICOM transfer syntax; and by the per-series codec rule (queue row TOTAL4) no series fills first as AV1 in
 both engines on every cell. AV1's lead is bytes, and it collects them only where the wire is slower than its
 decoder.
 
-What would reopen it, each the owner's call or an engine's change ([`../av1/queue.md`](../av1/queue.md) §Blocked):
+What would reopen it, each the owner's call or an engine's change; the owner tracks them in
+[`../av1/queue.md`](../av1/queue.md) §Blocked:
 
 * **a rule by link or by client** in place of "every cell in both engines" — the server would need to know them;
 * **a faster exact AV1 path outside Chromium**: Firefox returning grey and over 8 bits from WebCodecs, or WebKit's
@@ -140,5 +141,5 @@ What would reopen it, each the owner's call or an engine's change ([`../av1/queu
 
 **Not read.** ISO/IEC 15444-15 (HTJ2K) and ISO/IEC 18181-1 and -2 (JPEG XL) are sold; nothing here rests on them,
 and T.814 is the common text of the first. ITU-T T.800 (JPEG 2000 Part 1) is free and was not read: no claim here
-rests on it. AV2's specification: announced 2026-06-09, its host refused this container in row SWEEP and not tried
+rests on it. AV2's specification: announced 2026-06-09, its host refused this container in the AV1-options sweep (queue row SWEEP) and not tried
 since ([`av2.md`](av2.md)). Patent declarations on T.814 and T.800 (the ITU's patent database): not read.

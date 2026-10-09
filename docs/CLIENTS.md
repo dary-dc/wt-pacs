@@ -84,11 +84,8 @@ as truncated rather than merely owed.
 first; the other is closed when its own dial settles. An opening fill rides the WebSocket's URL
 alone, since in both URLs both servers would push it: if QUIC wins it is asked there as
 `stream_frames`, and the losing socket's close fails none of its frames. If both dials fail, one
-error names both,
-a `DialTimeoutError` if either timed out. Why race rather than detect: [`ARCHITECTURE.md`](ARCHITECTURE.md) §The TCP
-fallback. On loopback the WebSocket wins 57–58 of 60 dials (headless Chromium, debug and release
-server, 200 ms apart), where the handshakes' CPU decides; on a link TCP + TLS + upgrade is three
-round trips against the QUIC dial's 2.1. **Not measured on a link.**
+error names both, a `DialTimeoutError` if either timed out. Why race rather than detect, and which
+wins on loopback and on a link: [`ARCHITECTURE.md`](ARCHITECTURE.md) §The TCP fallback.
 
 ## The contract suite
 
@@ -316,8 +313,7 @@ not moving because the link binds — but a whole frame is outside the bound. At
 downloader's CPU **−105 ms at 1× and −90 at 4×** a fill and the renderer's peak **−37 MB**, every
 round; the fill ties (−5 / +3 ms).
 
-**Off by default, and an open owner decision** ([`cloud-queue.md`](cloud-queue.md) §Open owner
-decisions). Frame 0 does not lean: on the workstation (RMD4, 2026-10-03; Chrome 148, `KS=0,16384,32768
+**Off by default, and an open owner decision** (§Open). Frame 0 does not lean: on the workstation (RMD4, 2026-10-03; Chrome 148, `KS=0,16384,32768
 DECODE=1`, 24 rounds at 4× and 12 at 1×, Williams-ordered, self-timed, 3 of 108 visits `VOID`, every
 frame bit-exact), paired leads on the default reader, wins/rounds:
 
@@ -333,8 +329,8 @@ two dispatch clauses fail. A session whose bytes come slower than 16 KB per `sta
 is re-dialled, since a read with `min` resolves only at `min` bytes (the bound above, made a default) — the
 owner's trade against −97 ms and −38 MB a fill. And a cut whose end is already queued when the read is
 made errors the stream (a pull-into it cannot fill), which is taken for a stream end, so the frame is
-not named — **a defect of the `readMin` path, to fix before any default**. Row 5's ~12 ms BYOB frame 0
-is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The BYOB read path).
+not named — **a defect of the `readMin` path, to fix before any default**. The BYOB read's ~12 ms frame 0 (cloud
+queue row 5) is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The BYOB read path).
 
 ## ACK frequency, by browser
 
@@ -380,3 +376,10 @@ the code does, read from the code.
 The two that bite without a device are the hung dial, which now has its deadline, and
 `navigator.connection`, whose absence moves a network change from the radio's event to the byte
 silence: `stallMs`, 3 s.
+
+## Open
+
+The owner decides these; they are tracked in [`cloud-queue.md`](cloud-queue.md) §Open owner decisions.
+
+* **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s, and the `readMin` path's
+  defect is fixed first (§Reading a frame whole).

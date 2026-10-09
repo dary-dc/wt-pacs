@@ -11,14 +11,15 @@ ISO/IEC 18181: a still-image codec whose lossless (modular) mode trades encoder 
 
 ## How we use it (or would)
 
-Lab only, as the reference column of row SIZE, the progressive codestream of row EMBED and the effort sweep of row
-JXL. Not adopted: no setting is both smaller than HTJ2K and as fast to decode.
+Lab only, as the reference column of the lossless-bytes measurement (queue row SIZE), the progressive codestream of
+the embedded-preview measurement (queue row EMBED) and the effort sweep of the JPEG XL measurement (queue row JXL). Not adopted: no setting is both smaller than HTJ2K and as fast to decode.
 
 ## Bytes
 
 0.81–0.96 of HTJ2K at the default effort, 0.94–1.03 at the fastest, and half on a 16-bit film scan
 ([`../decode/README.md`](../decode/README.md) §JPEG XL; per set and effort,
-[`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md)). Row SIZE's reference column, on three series:
+[`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md)). The lossless-bytes measurement's reference column (queue row
+SIZE), on three series:
 [`../av1/README.md`](../av1/README.md) §Bytes. The literature puts it at 0.78–0.95 of HTJ2K
 ([`../av1/lossless-literature.md`](../av1/lossless-literature.md) §5).
 
@@ -33,7 +34,7 @@ Unmeasured.
 
 ## Client resources
 
-Code: row EMBED's libjxl WASM decoder, sized in [`lab/av1/bytes/embedded`](../../lab/av1/bytes/embedded/README.md).
+Code: the embedded-preview measurement's (queue row EMBED) libjxl WASM decoder, sized in [`lab/av1/bytes/embedded`](../../lab/av1/bytes/embedded/README.md).
 Memory: unmeasured.
 
 ## Browser and device support
@@ -58,11 +59,11 @@ Every frame is its own codestream; an ask decodes one frame.
 **6–48 % of the bytes** (tomosynthesis 6 %, CT, MR and cone-beam 44–48 %), at 28–47 dB. libjxl
 pauses at no progression step in a lossless frame, so a preview is a prefix flushed. The first
 picture decodes in 1.3–2.9× OpenJPH's exact time and the whole codestream in 4.0–6.2×, and its
-bytes are 0.91–0.95 of HTJ2K's. Row EMBED's run: [`jpeg2000.md`](jpeg2000.md) §Decode speed.
+bytes are 0.91–0.95 of HTJ2K's. The embedded-preview measurement's run (queue row EMBED): [`jpeg2000.md`](jpeg2000.md) §Decode speed.
 
 ## Exactness risks and how they're checked
 
-Row SIZE's 12-bit codings with libjxl 0.7.0 were inexact; 0.12.0 is exact at every depth up to 16. The browsers'
+The lossless-bytes measurement's 12-bit codings (queue row SIZE) with libjxl 0.7.0 were inexact; 0.12.0 is exact at every depth up to 16. The browsers'
 native paths are exact on 8-bit sources only. Both: [`../decode/README.md`](../decode/README.md) §JPEG XL.
 
 ## Licensing / patents
