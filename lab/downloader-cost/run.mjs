@@ -4,7 +4,7 @@
  * CDP sees — the page's main-thread task time and the renderer's GC count over the scenario —
  * then prints median [min … max] per variant. docs/ARCHITECTURE.md §The container campaign.
  *
- *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/run.mjs [--rounds 8] [--base http://127.0.0.1:8765]
+ *   NODE_PATH=$(npm root -g) node lab/downloader-cost/run.mjs [--rounds 8] [--base http://127.0.0.1:8765]
  */
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -35,7 +35,7 @@ async function runOne(variant, scenario) {
   let gcs = 0;
   cdp.on("Tracing.dataCollected", (d) => { for (const e of d.value || []) if (/^V8\.GC/.test(e.name || "")) gcs += 1; });
   await cdp.send("Performance.enable");
-  await page.goto(`${BASE}/lab/downloader-campaign/index.html?variant=${variant}&scenario=${scenario}`);
+  await page.goto(`${BASE}/lab/downloader-cost/index.html?variant=${variant}&scenario=${scenario}`);
   await page.waitForFunction(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone, null, { timeout: 60000 });
   const metric = (m, name) => m.metrics.find((x) => x.name === name)?.value ?? 0;
   const before = await cdp.send("Performance.getMetrics");

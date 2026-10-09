@@ -325,7 +325,7 @@ behind a `tail`.
 
 ### The container campaign
 
-The container campaign ([`../lab/downloader-campaign/`](../lab/downloader-campaign/README.md)). 4
+The container campaign ([`../lab/downloader-cost/`](../lab/downloader-cost/README.md)). 4
 cores, loopback, 87 real HTJ2K frames of 512×512×3 (~430 KB each). Three variants, one fresh session
 each, order rotated every round, **8 rounds**, 120 runs, no errors: **H**, the harness path — the TS
 session on the page, a waiter per frame; **Dw**, the downloader with decode off, the like-for-like
@@ -392,7 +392,7 @@ picture (fill 456 against 464 ms, ranges overlapping).
 ### Under a throttled CPU
 
 The same 80-frame fill on H, Dw and Dd at 1×, 4× and 6× Chromium CPU throttle, variants and throttles
-rotated inside each of 5 rounds ([`../lab/downloader-campaign/throttle.mjs`](../lab/downloader-campaign/throttle.mjs)),
+rotated inside each of 5 rounds ([`../lab/downloader-cost/throttle.mjs`](../lab/downloader-cost/throttle.mjs)),
 collections and task time per thread from each fill's trace, allocations sampled on the page:
 
 | variant | fill, 1× / 4× / 6× | page collections (pause) | worker threads' time | page allocation, KiB |
@@ -420,7 +420,7 @@ throttle is Chromium's, not a phone; allocations are sampled at 8 KiB.
 **Nothing is changed: the cost was counted twice (above), and on a slow CPU coalescing has almost
 nothing to batch.** At 4×, a frame's 0.84 ms is ~0.22 deserialising the message, ~0.10 `#deliver` and
 ~0.24 the dispatch around it — ~4 % of a 4×-throttled main thread at a frame every 20 ms. What costs is
-the message, not what it carries: [`port.mjs`](../lab/downloader-campaign/port.mjs) posts the decoder's
+the message, not what it carries: [`port.mjs`](../lab/downloader-cost/port.mjs) posts the decoder's
 message from a worker at a fill's pace, 80 frames, 7 rounds, and neither dropping the
 `SharedArrayBuffer` nor the stamps separates from the product message, while **two frames a message
 does** (0.101 → 0.068 ms at 1×, 0.385 → 0.212 at 4×, 7/7 each; 0.401 → 0.351 at 6×, 4/7).
@@ -436,7 +436,7 @@ through the downloader or a shared ring the page reads — a change to §The dec
 
 What the product path holds and burns, and whether the decoder count should follow the cores.
 [`../lab/scripts/proc_sampler.mjs`](../lab/scripts/proc_sampler.mjs) reads each process's PSS and each
-thread's on-CPU time every 100 ms; [`resources.mjs`](../lab/downloader-campaign/resources.mjs) runs the
+thread's on-CPU time every 100 ms; [`resources.mjs`](../lab/downloader-cost/resources.mjs) runs the
 Dd fill and a cold ask with 1, 2 and 3 decoders, the browser pinned to 2 or 4 cores, at 1× and 4×
 (every thread slowed) — a fresh browser a visit, everything rotated, 7 rounds, 252 visits. Medians:
 

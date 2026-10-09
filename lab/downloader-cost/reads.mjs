@@ -4,7 +4,7 @@
  * dropped. Decode off (Dw) and on (Dd), 1× and 4×, one fresh browser a visit, variants in a Williams order.
  * Every frame's sha256 is checked. docs/CLIENTS.md §Reading a frame whole
  *
- *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/reads.mjs [rounds=8] [OUT=rows.jsonl]
+ *   NODE_PATH=$(npm root -g) node lab/downloader-cost/reads.mjs [rounds=8] [OUT=rows.jsonl]
  *     [THROTTLES=1,4] [KS=0,whole,65536,16384] [DECODE=0,1] [TRACE=40000:1000] [DELAY_MS=20] [QUEUE_MS=200] [FILL=87]
  * With OUT, a run resumes after OUT's last round and appends to it, so each round can take its own lock hold.
  */
@@ -89,7 +89,7 @@ async function visit(variant, throttle) {
   try {
     const browser = await chromium.connect(server.wsEndpoint());
     const page = await browser.newPage();
-    await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?variant=${variant.decode ? "Dd" : "Dw"}` +
+    await page.goto(`http://127.0.0.1:${http}/lab/downloader-cost/index.html?variant=${variant.decode ? "Dd" : "Dw"}` +
       `&scenario=fill&fill=${FILL}&decoders=3&digest=1&capMs=240000${variant.k ? `&readMin=${variant.k}` : ""}`);
     // Not the default: polling on every animation frame is main-thread work the visit would be charged.
     const wait = (f) => page.waitForFunction(f, null, { timeout: 300000, polling: 200 });

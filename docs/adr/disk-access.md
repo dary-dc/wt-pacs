@@ -451,7 +451,7 @@ across campaigns on these hosts. So:
 > A difference counts only if **|median| ≥ 28.5 %** (the measured p90 drift) **and** sign
 > agreement **≥ 0.8n**, **and** it keeps its sign across independent runs.
 
-Everything else is a **tie** — not a small effect. `lab/scripts/s5_split.py` applies it. The
+Everything else is a **tie** — not a small effect. `lab/scripts/read_path_split.py` applies it. The
 rule is defined on **paired** per-cell deltas, not pooled medians per variant, and the two disagree
 by about 2× on the comparison most wanted: `uring` against `hybrid_lazyring` on misses is
 −41.9 % as a ratio of medians and −24.0 % (a tie) as the median of per-cell ratios, on the same
@@ -660,7 +660,7 @@ order, measured the same way, cost the read path 0.3 % (`lab/scripts/fill_order_
 
 L7. A 4 GB series on a 954 MB host, so reads reach the block volume with no eviction; native
 driver on loopback; every run starts at a frame no earlier run read; asks 997 frames apart; six
-interleaved rounds (`lab/scripts/l7_read_path.sh`). The device (`O_DIRECT`) is a throttled network
+interleaved rounds (`lab/scripts/read_path_cloud.sh`). The device (`O_DIRECT`) is a throttled network
 volume: random 256 KiB at depth 1 p50 1.3 ms in burst, 4.9 ms after; 51–53 MB/s sequential.
 
 * **A spread ask misses (76–92 %), and a miss costs ~1 ms at p50**: 2.5–2.7 ms cold against

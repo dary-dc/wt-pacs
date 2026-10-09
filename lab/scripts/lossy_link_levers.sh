@@ -3,7 +3,7 @@
 # turn, server -> client shaped with netem; each round runs the variants in a Williams order
 # (lab/scripts/order.py) and each variant a fill and an on-demand cell with the native driver. Results: docs/rig-limits.md §3.
 #
-#   SSH_KEY=<the rig key> lab/scripts/l3_lossy_link.sh [ROUNDS]
+#   SSH_KEY=<the rig key> lab/scripts/lossy_link_levers.sh [ROUNDS]
 #   CELLS="off 20:50:0 20:50:1"   one-way delay ms : rate Mbit : loss %, or off
 set -euo pipefail
 

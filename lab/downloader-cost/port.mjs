@@ -3,7 +3,7 @@
  * carries and how many frames it holds: port.html's variants, rotated with the throttles every round.
  * Charged from the trace: each message's dispatch, callback included. docs/ARCHITECTURE.md §The hand-off
  *
- *   NODE_PATH=$(npm root -g) node lab/downloader-campaign/port.mjs [--rounds 7] [--throttles 1,4,6]
+ *   NODE_PATH=$(npm root -g) node lab/downloader-cost/port.mjs [--rounds 7] [--throttles 1,4,6]
  */
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -28,7 +28,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH 
 async function cell(throttle, [, variant, per]) {
   const page = await browser.newPage();
   const cdp = await page.context().newCDPSession(page);
-  await page.goto(`http://127.0.0.1:${PORT}/lab/downloader-campaign/port.html`);
+  await page.goto(`http://127.0.0.1:${PORT}/lab/downloader-cost/port.html`);
   await page.waitForFunction(() => globalThis.ready);
   // Tiered up first, unthrottled and untraced: the question is the steady state.
   await page.evaluate(([v, p]) => globalThis.run(v, 40, 2, p), [variant, per]);

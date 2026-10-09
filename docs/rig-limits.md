@@ -173,11 +173,11 @@ Shaping the loopback interface needs root, which this box's agent context does n
 
 **What lifts it:** the cloud rig (§9). `lab/scripts/cloud_netem.sh` shapes rate, one-way delay and
 loss on the server's egress, with an iid and a Gilbert-Elliott burst model;
-`lab/scripts/e0_netem_validation.sh` compares the real path with an emulated one of the same RTT
+`lab/scripts/netem_validation.sh` compares the real path with an emulated one of the same RTT
 and rate ([`adr/client-window-depth.md`](adr/client-window-depth.md) §E0).
 
-**Measured there, 2026-09-18 (lane L3):** `lab/scripts/l3_lossy_link.sh`, summarised by
-`lab/scripts/l3_summary.py`. The native driver runs on the workstation, and the server runs on the rig
+**Measured there, 2026-09-18 (lane L3):** `lab/scripts/lossy_link_levers.sh`, summarised by
+`lab/scripts/lossy_link_summary.py`. The native driver runs on the workstation, and the server runs on the rig
 across the real WAN (~28 ms RTT, 27–58 Mbit unshaped, varying run to run). netem adds one-way delay,
 20 Mbit, iid loss and a 500-packet queue, on the server's egress only. Each run is a 5.12 MB fill
 (160 × 32 kB frames, wall time including connect) and 32 asks at depth 1. Three variants, interleaved,
@@ -220,7 +220,7 @@ Instrument notes, each of which would have produced a wrong number:
   2.87 %, 1.45 %.
 * **Only UDP 4435 reaches the rig from outside**; 4436 and 4437 pass its host firewall, but no
   session arrives. The variants share one port, and the server restarts per run.
-* `e0_netem_validation.sh` was not run: it compares the real path with a locally *simulated* RTT,
+* `netem_validation.sh` was not run: it compares the real path with a locally *simulated* RTT,
   not netem on the rig. Instead the shaping was checked directly: goodput caps at the netem rate,
   and the loss counts match.
 * Not modelled: jitter (netem reorders), loss on the client → server path, a browser receiver, a
@@ -272,7 +272,7 @@ relay's floor and the crypto fall out as the intercept, on the native client:
 * **One 250 KB ask on a fresh session is 5.59 round trips + 12.5 ms** — S7's ~5 flights out of a
   12 KB initial window, on a link with no rate limit, so it is slow start and not the link.
 
-**Calibrated against `netem`, 2026-09-19** (`lab/scripts/n1_netem_calibration.sh`), on delay only:
+**Calibrated against `netem`, 2026-09-19** (`lab/scripts/netem_calibration.sh`), on delay only:
 on the cloud rig, server and `cold_open` on its loopback, each round and delay either this relay or
 `netem` on `lo`, interleaved, 5 rounds, the same fit:
 
@@ -344,9 +344,9 @@ a major fault costs milliseconds the first should lose badly, but this box never
 
 **What lifts it:** slower storage, a series far past the 15 GB of RAM, or a reduced
 `read_ahead_kb` — already recorded as moving miss rate 2–15× ([`adr/disk-access.md`](adr/disk-access.md)
-§8). Drivers: `lab/scripts/e2_miss_cost_cloud.sh`, `lab/scripts/read_path_ab.sh`.
+§8). Drivers: `lab/scripts/miss_cost_cloud.sh`, `lab/scripts/read_path_ab.sh`.
 
-**On the cloud rig it does** (2026-09-18, L7, `lab/scripts/l7_read_path.sh`). A 4 GB series on its
+**On the cloud rig it does** (2026-09-18, L7, `lab/scripts/read_path_cloud.sh`). A 4 GB series on its
 954 MB host misses 76–97 % of spread asks, and each is ~1 ms slower at p50 than warm, 6/6 with
 disjoint ranges. The fill still does not miss: 1 % cold, as warm. That host's stolen CPU caps what
 it can price at a median — every cell, warm included, has a p99 of 60–100 ms
@@ -421,7 +421,7 @@ finding).
 Figures taken before row 90 (`abc55e6`) used each driver's former order (a fixed cycle, a rotation,
 or two variants reversed every other round) and are left as written; a cell re-run now takes the square. Which driver had which order, and where each doc quotes it, is
 in `git show 6e9c126:docs/rig-limits.md` §6. **Not converted**, outside the row's three groups
-(page-open, the link campaigns, the decode benches): `lab/downloader-campaign/`, `decoder-memory/`,
+(page-open, the link campaigns, the decode benches): `lab/downloader-cost/`, `decoder-memory/`,
 `session-survival/`, `early-messages/`, `stream-shape/`, `tcp-fallback/`,
 `worker-leak/`, `telemetry-cost/`, `other-clients/cells.sh`, and the two-variant scripts
 that reverse every other round (already the square, with no split printed).

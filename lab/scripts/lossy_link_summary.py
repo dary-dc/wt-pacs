@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Summarise an l3_lossy_link.sh TSV: per cell and variant, median [range] and rounds better than the
+"""Summarise an lossy_link_levers.sh TSV: per cell and variant, median [range] and rounds better than the
 default variant, paired by round, and that lead by the variant's predecessor (lab/scripts/order.py). Fill is wall time (connect included) and goodput; on demand is the
 per-ask p50 and p90; loss is the server's own datagram count.
 
-    lab/scripts/l3_summary.py .local/measurements/l3-*.tsv [--fill-bytes N]
+    lab/scripts/lossy_link_summary.py .local/measurements/l3-*.tsv [--fill-bytes N]
 """
 import csv
 import os

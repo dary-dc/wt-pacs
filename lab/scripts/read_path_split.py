@@ -24,8 +24,8 @@ bucket-for-bucket — v25's L-on-mix reads a flat tie with `C_readers` in and RE
 with it out, on the same runs. Pass `--phases` to restrict every file to the same phases;
 without it, a warning is printed whenever the files disagree about which phases they contain.
 
-    lab/scripts/s5_split.py v24_s5_loop_vs_ring.tsv [more.tsv ...]
-    lab/scripts/s5_split.py --phases A_stride,A_sweep v25_*.tsv v28_*.tsv
+    lab/scripts/read_path_split.py v24_s5_loop_vs_ring.tsv [more.tsv ...]
+    lab/scripts/read_path_split.py --phases A_stride,A_sweep v25_*.tsv v28_*.tsv
 """
 import csv
 import math
