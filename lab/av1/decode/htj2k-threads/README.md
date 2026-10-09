@@ -58,3 +58,30 @@ every row.
 
 **Pins.** Node 22.22.0; playwright 1.56.1's Chromium 141.0.7390.37; OpenJPH 0.31.0 (`c68064d`);
 emscripten 3.1.74; `@cornerstonejs/codec-openjph` 2.4.11. Nothing built or fetched is committed.
+
+## A coarser hand-off unit (row COARSEPOOL)
+
+`docs/decode/levers-protocol.md` §L4 on the frame bench above: the pool handed a whole subband (`sb2`) or every
+subband of one resolution (`rs2`) at once instead of a row of code-blocks (`cb2`), each at 2 threads, against `web`.
+`cb-unit.patch` applies on top of `cb-threads.patch`: `OJPH_CB_UNIT=1` a subband, `=2` a resolution; a unit's blocks
+get buffers of their own, decoded in one `cb_pool::run`, freed when the unit's last band is drained.
+
+```bash
+FRAMES=87 OUT_ROOT=lab/.av1-work/g512src lab/scripts/gen_htj2k_fixtures.sh g512   # numpy on PATH
+FRAMES=4 lab/av1/.venv/bin/python lab/av1/decode/htj2k-profile/make_frames.py lab/.av1-work/coarsepool \
+  $D/dbt12_ea1141 $D/dbt12_c $D/dbtproj_ge $D/syn2d_d $D/ffdm_d    # then g512's first 4 frames added as set g512
+cp -r lab/.openjph-build/src-mt lab/.openjph-build/src-unit
+git -C lab/.openjph-build/src-unit apply "$PWD/lab/av1/decode/htj2k-profile/cb-unit.patch"
+export INITIAL_MB=4    # the product's floor, so the heap's high-water shows
+VARIANTS=web EXTRA_FLAGS="$E" lab/decode-bench/wasm/build.sh
+SRC=$PWD/lab/.openjph-build/src-mt VARIANTS=cb2 EXTRA_FLAGS="$E -pthread -DOJPH_CB_THREADS=1 -sPTHREAD_POOL_SIZE=1" \
+  lab/decode-bench/wasm/build.sh
+for u in 1 2; do SRC=$PWD/lab/.openjph-build/src-unit VARIANTS=$([ $u = 1 ] && echo sb2 || echo rs2) \
+  EXTRA_FLAGS="$E -pthread -DOJPH_CB_THREADS=1 -DOJPH_CB_UNIT=$u -sPTHREAD_POOL_SIZE=1" lab/decode-bench/wasm/build.sh; done
+NODE_PATH=$(npm root -g) node lab/av1/decode/htj2k-profile/threads.mjs --rounds 10 --throttles 1,4 --passes 3 \
+  --frames lab/.av1-work/coarsepool --variants web,cb2,sb2,rs2 --out coarse.json
+```
+
+**Heap** is the worker's WASM memory after its set (`HEAP8.buffer.byteLength`, a fresh worker per set and build),
+so it moves in emscripten's growth steps. **Checked:** `--mutate` took `sb2` and `rs2` to 0/4 on all six sets; a unit
+whose pool skips its last block, and one whose blocks read the next row's codestream, 0/4 on all six at both units.

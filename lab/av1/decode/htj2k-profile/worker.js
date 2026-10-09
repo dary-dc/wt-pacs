@@ -1,5 +1,5 @@
 // One decoder build in a worker, as the product runs it: load a set, check every frame, time passes.
-let d, frames;
+let d, M, frames;
 const decode = (bytes) => { d.getEncodedBuffer(bytes.length).set(bytes); d.readHeader(); d.decode(); };
 const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 
@@ -7,7 +7,7 @@ onmessage = async ({ data: { glue, urls, truth, passes, mutate } }) => {
   try {
     if (!d) {
       importScripts(glue);
-      const M = await OpenJPHModule({ locateFile: (f) => glue.replace(/[^/]*$/, f), mainScriptUrlOrBlob: glue });
+      M = await OpenJPHModule({ locateFile: (f) => glue.replace(/[^/]*$/, f), mainScriptUrlOrBlob: glue });
       d = new M.HTJ2KDecoder();
     }
     frames = await Promise.all(urls.map(async (u) => new Uint8Array(await (await fetch(u)).arrayBuffer())));
@@ -22,6 +22,6 @@ onmessage = async ({ data: { glue, urls, truth, passes, mutate } }) => {
     for (let p = 0; p < passes; p++) for (const f of frames) {
       const t0 = performance.now(); decode(f); ms.push(performance.now() - t0);
     }
-    postMessage({ exact, ms });
+    postMessage({ exact, ms, heap: M.HEAP8.buffer.byteLength });
   } catch (e) { postMessage({ error: String(e) }); }
 };

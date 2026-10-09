@@ -77,7 +77,8 @@ for (const { throttle } of cells) for (const s of manifest) {
     const ratio = of(a).filter((r) => ref.has(r.round)).map((r) => med(r.ms) / ref.get(r.round));
     console.log(`${throttle}× ${s.name} ${a}: ${per.length ? `${f(med(per))} [${f(Math.min(...per))}–${f(Math.max(...per))}]` : "failed"}` +
       ` ×${per.length ? med(ratio).toFixed(3) : "-"} faster ${ratio.filter((x) => x < 1).length}/${ratio.length}` +
-      ` exact ${all.reduce((n, r) => n + (r.exact ?? 0), 0)}/${all.reduce((n, r) => n + r.frames, 0)}`);
+      ` exact ${all.reduce((n, r) => n + (r.exact ?? 0), 0)}/${all.reduce((n, r) => n + r.frames, 0)}` +
+      ` heap ${(Math.max(...all.map((r) => r.heap ?? 0)) / 2 ** 20).toFixed(1)} MB`);
   }
 }
 process.exit(0);

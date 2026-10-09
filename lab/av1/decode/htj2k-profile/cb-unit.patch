@@ -1,0 +1,191 @@
+diff --git a/src/core/codestream/ojph_codeblock.h b/src/core/codestream/ojph_codeblock.h
+index 4d6fbe4..8198998 100644
+--- a/src/core/codestream/ojph_codeblock.h
++++ b/src/core/codestream/ojph_codeblock.h
+@@ -83,6 +83,10 @@ namespace ojph {
+ 
+       void decode();
+       void pull_line(line_buf *line);
++#ifdef OJPH_CB_UNIT
++      size_t buf_bytes() const { return (size_t)buf_size * precision; }
++      void set_buf(void* p) { buf32 = (ui32*)p; }
++#endif
+ 
+     private:
+       ui32 precision;
+diff --git a/src/core/codestream/ojph_resolution.h b/src/core/codestream/ojph_resolution.h
+index 6156455..f081e2e 100644
+--- a/src/core/codestream/ojph_resolution.h
++++ b/src/core/codestream/ojph_resolution.h
+@@ -89,6 +89,9 @@ namespace ojph {
+       bool get_top_left_precinct(point &top_left);
+       void write_one_precinct(outfile_base *file);
+       resolution *next_resolution() { return child_res; }
++#ifdef OJPH_CB_UNIT
++      subband* get_bands() { return bands; }
++#endif
+       void parse_all_precincts(ui32& data_left, infile_base *file);
+       void parse_one_precinct(ui32& data_left, infile_base *file);
+ 
+diff --git a/src/core/codestream/ojph_subband.cpp b/src/core/codestream/ojph_subband.cpp
+index aeb0e60..a97a58e 100644
+--- a/src/core/codestream/ojph_subband.cpp
++++ b/src/core/codestream/ojph_subband.cpp
+@@ -127,6 +127,11 @@ namespace {
+ }
+ #endif
+ 
++#ifdef OJPH_CB_UNIT
++#include <cstdlib>
++#include <new>
++#endif
++
+ namespace ojph {
+ 
+   namespace local
+@@ -205,6 +210,10 @@ namespace ojph {
+       this->band_num = subband_num;
+       this->band_rect = band_rect;
+       this->parent = res;
++#ifdef OJPH_CB_UNIT
++      this->unit = NULL;
++      this->grid = NULL;
++#endif
+ 
+       ui32 comp_num = parent->get_comp_num();
+       const param_cod* cdp = codestream->get_coc(comp_num);
+@@ -411,12 +420,99 @@ namespace ojph {
+       }
+     }
+ 
++    //////////////////////////////////////////////////////////////////////////
++#ifdef OJPH_CB_UNIT
++    // OJPH_CB_UNIT 1: a subband a hand-off; 2: every subband of one resolution.
++    struct cb_unit
++    {
++      codeblock* blocks;
++      void* bufs;
++      ui32 live;                   // bands not yet drained
++    };
++
++    //////////////////////////////////////////////////////////////////////////
++    size subband::cb_size_at(ui32 row, ui32 col) const
++    {
++      ui32 tbx0 = band_rect.org.x, tby0 = band_rect.org.y;
++      ui32 tbx1 = tbx0 + band_rect.siz.w, tby1 = tby0 + band_rect.siz.h;
++      ui32 xlb = (tbx0 >> xcb_prime) << xcb_prime;
++      ui32 ylb = (tby0 >> ycb_prime) << ycb_prime;
++      size s;
++      s.w = ojph_min(tbx1, xlb + ((col + 1) << xcb_prime))
++          - ojph_max(tbx0, xlb + (col << xcb_prime));
++      s.h = ojph_min(tby1, ylb + ((row + 1) << ycb_prime))
++          - ojph_max(tby0, ylb + (row << ycb_prime));
++      return s;
++    }
++
++    //////////////////////////////////////////////////////////////////////////
++    void subband::decode_unit(subband* const* bands, ui32 n)
++    {
++      size_t count = 0, bytes = 0;
++      for (ui32 k = 0; k < n; ++k) {
++        count += bands[k]->num_blocks.area();
++        bytes += bands[k]->num_blocks.area() * bands[k]->blocks[0].buf_bytes();
++      }
++      cb_unit* u = new cb_unit;
++      u->blocks = (codeblock*)malloc(count * sizeof(codeblock));
++      if (posix_memalign(&u->bufs, byte_alignment, bytes) != 0 || !u->blocks)
++        OJPH_ERROR(0x000300A2, "Cannot allocate a hand-off unit.");
++      u->live = n;
++      codeblock* cb = u->blocks;
++      ui8* buf = (ui8*)u->bufs;
++      for (ui32 k = 0; k < n; ++k) {
++        subband* b = bands[k];
++        b->unit = u;
++        b->grid = cb;
++        for (ui32 r = 0; r < b->num_blocks.h; ++r)
++          for (ui32 i = 0; i < b->num_blocks.w; ++i, ++cb) {
++            new (cb) codeblock(b->blocks[i]);
++            cb->set_buf(buf);
++            buf += cb->buf_bytes();
++            cb->recreate(b->cb_size_at(r, i),
++                         b->coded_cbs + i + r * b->num_blocks.w);
++          }
++      }
++      cb_pool::get().run(u->blocks, (ui32)count);
++    }
++#endif
++
+     //////////////////////////////////////////////////////////////////////////
+     line_buf *subband::pull_line()
+     {
+       if (empty)
+         return lines;
+ 
++#ifdef OJPH_CB_UNIT
++      if (--cur_line <= 0 && cur_cb_row < num_blocks.h)
++      {
++        if (grid == NULL) {
++#if OJPH_CB_UNIT == 2
++          subband* b[4];
++          ui32 n = 0;
++          for (int k = 0; k < 4; ++k)
++            if (parent->get_bands()[k].exists())
++              b[n++] = parent->get_bands() + k;
++#else
++          subband* b[1] = { this };
++          ui32 n = 1;
++#endif
++          decode_unit(b, n);
++        }
++        cur_line = cur_cb_height = (int)cb_size_at(cur_cb_row, 0).h;
++        ++cur_cb_row;
++      }
++      assert(cur_line >= 0);
++      codeblock* row = grid + (cur_cb_row - 1) * num_blocks.w;
++      for (ui32 i = 0; i < num_blocks.w; ++i)
++        row[i].pull_line(lines + 0);
++      if (cur_line == 1 && cur_cb_row == num_blocks.h && --unit->live == 0) {
++        free(unit->blocks);
++        free(unit->bufs);
++        delete unit;
++      }
++      return lines;
++#else
+       //pull from codeblocks
+       if (--cur_line <= 0)
+       {
+@@ -461,6 +557,7 @@ namespace ojph {
+         blocks[i].pull_line(lines + 0);
+ 
+       return lines;
++#endif
+     }
+ 
+   }
+diff --git a/src/core/codestream/ojph_subband.h b/src/core/codestream/ojph_subband.h
+index e1c291a..a589124 100644
+--- a/src/core/codestream/ojph_subband.h
++++ b/src/core/codestream/ojph_subband.h
+@@ -57,6 +57,9 @@ namespace ojph {
+     struct precinct;
+     class codeblock;
+     struct coded_cb_header;
++#ifdef OJPH_CB_UNIT
++    struct cb_unit;
++#endif
+   
+   //////////////////////////////////////////////////////////////////////////
+     class subband
+@@ -98,6 +101,12 @@ namespace ojph {
+       const resolution* get_parent() const { return parent; }
+ 
+     private:
++#ifdef OJPH_CB_UNIT
++      size cb_size_at(ui32 row, ui32 col) const;
++      static void decode_unit(subband* const* bands, ui32 n);
++      cb_unit* unit;               // every row's blocks, decoded at once
++      codeblock* grid;             // this band's rows within unit
++#endif
+       bool empty;                  // true if the subband has no pixels or
+                                    // the subband is NOT USED
+       ui32 res_num, band_num;
