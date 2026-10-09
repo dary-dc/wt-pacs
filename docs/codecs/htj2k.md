@@ -12,7 +12,7 @@ block coder replaced by a faster one. The reversible 5/3 path is lossless.
 ## How we use it (or would)
 
 Every frame is one codestream in the served profile — reversible 5/3, five decompositions, 64² code-blocks, RPCL,
-one layer, one tile ([`../decode/README.md`](../decode/README.md) §The decoder), kept by row HTJ2KENC against 35
+one layer, one tile ([`../decode/README.md`](../decode/README.md) §The decoder), kept by the HTJ2K encoder-settings measurement (queue row HTJ2KENC) against 35
 other settings (§Encoder settings there). Ingest writes it with OpenJPH
 (`ingest/coded-frames/ingest.py --codec htj2k`); the client decodes it with OpenJPH in WASM, a build the product makes from pinned sources
 ([`client/decode/wasm/build`](../../client/decode/wasm/build/README.md)).
@@ -32,8 +32,8 @@ decoder) and what moves it (code-blocks on threads: an ask's lever on frames fro
 
 ## Total time
 
-The baseline of every total-time table ([`../av1/README.md`](../av1/README.md) §Total time). In row TOTAL's fills its
-decode was the clock on no cell, where AV1's was at 4× on 50 Mbit.
+The baseline of every total-time table ([`../av1/README.md`](../av1/README.md) §Total time). In the five-link
+total-time measurement's fills (queue row TOTAL) its decode was the clock on no cell, where AV1's was at 4× on 50 Mbit.
 
 ## Client resources
 
@@ -74,7 +74,7 @@ needs). Proposed, not built: [`../adr/resolution-fitting-for-large-frames.md`](.
 * The package's reduced-level output can leave the sample range; a clamp fixes it ([`../decode/README.md`](../decode/README.md) §A frame at the level
   the screen needs).
 * OpenJPH 0.32.0 fixes a WASM decoder mask that breaks 24-bit reversible code-blocks; nothing up to 16 bits reaches
-  it ([`../av1/README.md`](../av1/README.md) §Encoding, row VERSIONS).
+  it ([`../av1/README.md`](../av1/README.md) §Encoding, the codec-versions measurement, queue row VERSIONS).
 
 ## Licensing / patents
 

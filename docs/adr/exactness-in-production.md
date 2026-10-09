@@ -1,8 +1,8 @@
 # ADR: proving every shown frame exact in production
 
 **Status:** Built, §2 steps 1–3, on by default wherever the series' metadata carries digests · 2026-10-09,
-queue row 88 (EXACT), §Built. Reporting (§5) stays proposed. Proposed 2026-10-07 by queue row 73
-(EXACTPROD) of [`../av1/queue.md`](../av1/queue.md); its bench is
+§Built (queue row 88, EXACT). Reporting (§5) stays proposed; the open questions, the owner's calls among them, end §6
+and §Built. Proposed 2026-10-07 (queue row 73, EXACTPROD, of [`../av1/queue.md`](../av1/queue.md)); its bench is
 [`lab/av1/exact/in-production`](../../lab/av1/exact/in-production/README.md).
 
 ## 1 · Today
@@ -73,7 +73,8 @@ fast as they finish, each checked before it is handed on (n = 10 each, × unchec
 
 **An XXH3 check before paint costs 0–15 % of a decode-bound fill and of the first picture; SHA-256
 up to double the fill on a mammogram.** These are the fill's decode side alone, no wire: where the
-wire is the fill's clock (row 23's 1× cells, [`../av1/README.md`](../av1/README.md) §Total time) a
+wire is the fill's clock (the total-time measurement's 1× cells, queue row 23,
+[`../av1/README.md`](../av1/README.md) §Total time) a
 check that fits the decoders' idle time costs the fill nothing, and the first picture still pays one
 hash. The MR's sub-100-ms fills carry the most noise (ranges overlap); the host has 4 cores and the
 pool 3 decoders plus the page, so nothing past 3 parallel decoders is claimed.
@@ -118,7 +119,9 @@ our own), the second-decode path, the endpoint. HTJ2K's codestreams and the wire
 Open: phones' hash speed; the owner's choice of block against mark; whether the endpoint lives in
 the server or the deployment beside it.
 
-## Built · 2026-10-09 (queue row 88, EXACT)
+## Built · 2026-10-09
+
+*Queue row 88, EXACT.*
 
 **What.** §2's steps 1–3, as the client README's *A frame is checked against its digest* describes them:
 
@@ -163,8 +166,8 @@ Chromium 141: 766 of 766 rig checks on the merged code. Firefox 157.0.1 (`client
 dav1d-WASM frames `true`; its WebCodecs took none of these payloads, so that path is unverified there.
 
 **Cost through the product, measured.** The fill through the downloader, check off (`htj2k`) against on
-(`check`): the four series of §3 as the served HTJ2K, behind the relay on row 23's r20000, r50000 and wifi-home
-links, at 1× and 4×. Headless Chromium 141 on cores 0–2, 3 decoders, 14 rounds interleaved by `lab/order.mjs`
+(`check`): the four series of §3 as the served HTJ2K, behind the relay on the total-time measurement's (queue row
+23) r20000, r50000 and wifi-home links, at 1× and 4×. Headless Chromium 141 on cores 0–2, 3 decoders, 14 rounds interleaved by `lab/order.mjs`
 (the last 4 on r20000 and wifi-home only). The harness is
 [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md) §Row EXACT.
 
@@ -193,7 +196,7 @@ has 4 cores, browser on 3, so nothing past 3 decoders is claimed.
 The dropped links, r5000 and lte-good, are wire-bound at 5–20 s a frame on the projections. They could only
 hide a check further, so they were not run.
 
-**All five of row 23's links, measured since** (the other build's session, `lab/av1/exact/checked`). The same
+**All five of the total-time measurement's links, measured since** (the other build's session, `lab/av1/exact/checked`). The same
 pair, `htj2k` against `chk` (its frames with the ingest's digests), on r5000, r20000, lte-good, wifi-home and
 r50000 at 1× and 4×, 10 rounds each, the projections as `dbtproj_c` (9 × 1914×2294, 14-bit: `dbtproj_ge` answered
 404 from the bucket). 17 800/17 800 frames matched their sha256 and 8 900/8 900 `chk` frames were `true`. On this

@@ -139,7 +139,7 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 | [`lab/README.md`](lab/README.md) | which lab directory reproduces which claim; each lab README runs its cells — [`lab/page-open/README.md`](lab/page-open/README.md) the page open |
 | [`docs/adr/`](docs/adr/README.md) | the decisions, one per record, indexed with their status: stream shape, the session loop, ask window, stride, resolution fitting, what the server refuses to do, the read path, idle sessions, receive windows, telemetry |
 | [`docs/transport/upstream-*.md`](docs/transport/) | upstream drafts, not filed |
-| [`docs/cloud-queue.md`](docs/cloud-queue.md) | the work queue, closed: its protocol, where each row's verdict lives, and the open owner decisions |
+| [`docs/cloud-queue.md`](docs/cloud-queue.md) | the work queue, closed: its protocol and where each row's verdict lives; an open decision is in its owning doc's §Open |
 | [`docs/codecs/`](docs/codecs/README.md) | the codecs side by side — HTJ2K, AV1, JPEG XL, JPEG 2000, AV2 — which carries which series, and why |
 | [`docs/av1/`](docs/av1/README.md) | AV1, a second lossless codec: what is open and what decides it; its own queue |
 

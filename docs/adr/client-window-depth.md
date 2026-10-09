@@ -303,15 +303,21 @@ together. Run the harness over the rig's **real path, unshaped**, recording RTT 
 the same trace locally under netem set to those values; compare `mean_wait_ms`, mean and p95.
 Within ~15 %: the emulated grid is trustworthy. Diverges: stop and re-read every emulated result.
 `mean_wait_ms` is measured client-side end to end, so no clock is compared across machines.
-Driver `lab/scripts/netem_validation.sh`. **Not run**, and listed as open in
-[`cloud-queue.md`](../cloud-queue.md) §Open owner decisions (2026-10-03). What was calibrated instead is the
-container's userspace relay against netem on the rig, on delay only
+Driver `lab/scripts/netem_validation.sh`. **Not run**, and listed as open since 2026-10-03 (§Open). What was
+calibrated instead is the container's userspace relay against netem on the rig, on delay only
 ([`rig-limits.md`](../rig-limits.md) §3).
 
 ### What invalidates a run
 
 A null control that is not flat; a warm control that is not ≈ 0; a `D` sweep without the ceiling
 control; a dead cell; `peak_outstanding` below `D`.
+
+## Open
+
+* **Which depth ships** — `auto` or a fixed `D` per link class; T1 decides it (§Which depth ships — open).
+* **E0, the emulated link against a real path** — not run; it needs the rig's real path, unshaped, or a device on a
+  real network, which no container has (§E0). The owner tracks it in [`cloud-queue.md`](../cloud-queue.md) §Open
+  owner decisions.
 
 ## Pros and Cons of the Options
 

@@ -159,8 +159,8 @@ range on the wire twice). **The dial and the decoders start together**: start-to
 52 ms** on the TS client and **70 → 57 ms** on the WASM one, loopback, 4 interleaved rounds — the floor;
 on a real link the saving is a whole handshake.
 
-**Two defects on the re-dial path, fixed 2026-10-06 (row CLIENT).** A resumption dials with the
-owed run in its URL, so a `cancel` that lands while that dial is open could not take the run back:
+**Two defects on the re-dial path, fixed 2026-10-06 (the client state-machine review, queue row CLIENT).**
+A resumption dials with the owed run in its URL, so a `cancel` that lands while that dial is open could not take the run back:
 the new session now ends that stream once it opens. And `close()` during a re-dial let `resume()`
 adopt the new session and ask the owed work on it: a dial that opens after `close` is closed, and
 `resume()` stops. The ask and fill handlers' generation check after `await live()` was already
@@ -236,14 +236,14 @@ owner's ruling, on §Resources); before it, a flat 3. The other rule argued:
 retire one left idle — because at 20 Mbit a cine frame needs 0.34 of a desktop decoder and ~0.86 of a
 phone's (arithmetic), so one decoder keeps up on every fixture; a pool that resizes must keep both
 dispatch clauses (asks first, at most `perDecoder` a decoder) while it resizes. The
-default is measured at two and four cores only. *Built since as a lab flag and measured (row
-DECODEPACE, below); the default is unchanged.*
+default is measured at two and four cores only. *Built since as a lab flag and measured
+(*Follow the queue, measured*, below); the default is unchanged.*
 
 **Follow the queue, measured** (queue row DECODEPACE, protocol L5 of the decode levers' protocol on
 `claude/av1`). `followQueue` on the downloader, off by default: one decoder at the start, one more when frames
 stay queued after a dispatch, up to `decoders`; a decoder that finishes with nothing queued leaves the pool
 alive and is taken back before another is made. `downloader.test.mjs` holds both clauses through the resizing.
-Row TOTAL's harness, the delivered OpenJPH build in both arms, whole sound series — tomosynthesis 29 × 614×1359
+The total-time measurement's harness (queue row TOTAL), the delivered OpenJPH build in both arms, whole sound series — tomosynthesis 29 × 614×1359
 and full-field 4 × 3328×4096 — on 20 and 50 Mbit and `lte-good`, 1× and 4×, headless Chromium 141 on 3 of 4
 cores, 16 rounds with the arms Williams-ordered, 6 336/6 336 frames exact, 41 of 384 visits `VOID`. Each
 cell's CPU busy time and voluntary context switches (wake-ups) are summed over the decoder worker threads
@@ -281,7 +281,9 @@ has no battery, no core types and no frequency a page can see. The run:
 [`lab/av1/delivery/total-time`](../lab/av1/delivery/total-time/README.md) §Row DECODEPACE.
 A multithreaded decoder is a separate question ([`decode/README.md`](decode/README.md) §Threads).
 
-### The seams, traced (row SEAM, 2026-10-07)
+### The seams, traced
+
+*Queue row SEAM, 2026-10-07.*
 
 A frame's path, `client/transport/ts` → `downloader.js` → `decoder.js` → `htj2k.js` or `av1.js` →
 `consumer.js`, was read end to end for checks made twice, paths nothing reaches and codec decisions.
@@ -289,7 +291,7 @@ A frame's path, `client/transport/ts` → `downloader.js` → `decoder.js` → `
 `wasm-glue.js`; the refusal of a unit that does not follow its predecessor, written out in both AV1
 decoder modules, is `continues()` in `av1-payload.js`, each decoder keeping its own last unit. Not
 fewer lines (+26, −16, the new module's header included); what is gained is one place for each. **No dead path was
-found** — every branch is reached by a product option or a clause (row CLIENT's sweep). **The codec
+found** — every branch is reached by a product option or a clause (the client state-machine review's sweep, queue row CLIENT). **The codec
 is decided once:** `consumer.js` refuses an unknown one before a worker starts and `decoder.js`
 routes on it; which AV1 decoder takes a payload is `av1.js`'s alone. **Kept, and why:**
 
@@ -306,7 +308,7 @@ routes on it; which AV1 decoder takes a payload is `av1.js`'s alone. **Kept, and
   `decode: false` (lab and tests). Each is reached by a clause; none costs a frame that does not use it.
 
 *The fill's time is unchanged*: the HTJ2K frames through `client/downloader/` as it was before the
-row (`downloader_variant.sh 541ceaf`, decoders included) against the tree, row CLIENT's harness and cells,
+row (`downloader_variant.sh 541ceaf`, decoders included) against the tree, the client state-machine review's harness and cells,
 10 rounds interleaved, 12 of 160 visits `VOID` dropped, n = 8–10: after / before **1.00** in all 8
 cells (fluoroscopy at 50 Mbit and 1×, 1 723 [1 720–1 736] against 1 725 [1 719–1 729] ms), slower in
 29 of 68 paired rounds, 3 360/3 360 frames exact. The AV1 continuity check was not timed: it is one
@@ -595,7 +597,7 @@ The product's page (queue row VIEWER), built on the downloader, the decoders, th
 together ([`../client/README.md`](../client/README.md) §The viewer). It opens with the whole series as the opening
 fill and paints each frame as it arrives. Frames stay in memory, because the cache seam is still open (§Open).
 
-**The page check holds it** on the three series row INGEST made from the lab's sets, each as HTJ2K and as AV1:
+**The page check holds it** on the three series the DICOM-to-bundle ingest (queue row 89, INGEST) made from the lab's sets, each as HTJ2K and as AV1:
 `ct_nlst` (a windowed, signed CT, 76 frames), `us_liver` (an RGB cine, 70 frames, cine run) and `dbt12_ea1141`
 (tomosynthesis, 29 frames). In both headless Chromium 141 (SwiftShader) and Firefox 157.0.1 (Xvfb, Mesa llvmpipe),
 on every series in both codecs:
@@ -617,8 +619,9 @@ Five mutants each fail the check by name:
 
 **It adds nothing to the fill.** Measured on the CT series: the viewer against total-time's page (the same
 downloader and decoders, no paint), both timed from navigation. The baseline is not `client/harness/cell.html`: it
-does not decode, so measured against it the viewer would be charged for decoding, not for itself. Row 23's five links at 1× and 4×, behind the relay,
-12 rounds interleaved, headless Chromium 141 on 3 cores. All 36 480 delivered frames were exact and checked `true`.
+does not decode, so measured against it the viewer would be charged for decoding, not for itself. The
+total-time measurement's five links (queue row 23, TOTAL) at 1× and 4×, behind the relay, 12 rounds interleaved,
+headless Chromium 141 on 3 cores. All 36 480 delivered frames were exact and checked `true`.
 177 of 480 visits were `VOID` and are dropped, leaving 1–12 pairs a cell: n ≥ 10 is met only on r50000.
 
 * **The fill**, viewer ÷ page, paired by round: ×0.994–1.004 (medians) on the fixed links and LTE, in both codecs.
@@ -662,8 +665,7 @@ through the relay. "po §" is a section of [`../lab/page-open/README.md`](../lab
 
 A head-script dial reaches the session ~2 round trips sooner still, but Chromium cannot hand a
 `WebTransport` to a worker, so it is a ceiling, not a shape a page can ship (po §The dial before the
-config). Which opt-in rows to take is an owner decision ([`cloud-queue.md`](cloud-queue.md) §Open owner
-decisions).
+config). Which opt-in rows to take is an owner decision (§Open).
 
 ### What production adds
 
@@ -1055,8 +1057,8 @@ impairs UDP drops rather than answers, so the realistic cost is **four seconds o
 
 **iOS.** WebKit bug 319818 (open): a WebTransport connection stalls after 16 MB because flow control
 never refills, so a 61 MB fill would freeze **on every iPhone, on a good network** — read from the bug,
-not reproduced. Recycling the session before 16 MB keeps QUIC there. *Corrected 2026-10-02 (row 105),
-was "nobody has measured what recycling costs":* with the stall emulated in the lab, today's client
+not reproduced. Recycling the session before 16 MB keeps QUIC there. *Corrected 2026-10-02 (the recycling
+measurement, cloud queue row 105), was "nobody has measured what recycling costs":* with the stall emulated in the lab, today's client
 takes a 61 MB fill from ~25 s to 47–51 s, and recycling to 27–31 s (§Recycling before the stall).
 
 **What TCP gives up**: independent streams, so a slow frame blocks every frame behind it
@@ -1080,17 +1082,17 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
   or telemetry rows. The opening ask rides the upgrade's URL (WSA, below), with the same flag.
 * **Client**: `client/transport/ts/frame-session.ts` is everything a session does whatever carries its
   bytes; `session.ts` and `ws-session.ts` are carriers over it, and the downloader takes either as
-  `transport`. `race-session.ts` (opt-in) dials both, keeps the first ready, closes the other when its
-  dial settles; an opening fill rides the WebSocket's URL alone, and is asked on QUIC if QUIC wins.
+  `transport`. `race-session.ts` (opt-in) races the two ([`CLIENTS.md`](CLIENTS.md) §The race).
 * **Contract**: every clause runs against the WebSocket client, with the per-frame halves of two
   clauses and *a frame slow on its own stream holds no other* listed as not applicable; five race
   clauses (QUIC first, TCP first, QUIC refused, the opening fill when either wins); `run_wire.sh` runs refusals and an
   ask during a fill over the WebSocket, raw and through the downloader.
 * **The loopback smoke** ([`../lab/tcp-fallback/`](../lab/tcp-fallback/README.md)): every frame
   bit-exact over WebTransport, WebSocket and the race, 3 rounds interleaved. No performance claim
-  ([`rig-limits.md`](rig-limits.md) §3). **On loopback the WebSocket wins the race**, 57–58 of 60 dials:
-  with the round trip near zero the handshakes' work decides. On a link TCP + TLS + upgrade is three
-  round trips against QUIC's 2.1, so QUIC should win by one — not measured.
+  ([`rig-limits.md`](rig-limits.md) §3). **On loopback the WebSocket wins the race**, 57–58 of 60 dials
+  (headless Chromium, debug and release server, 200 ms apart): with the round trip near zero the
+  handshakes' work decides. On a link TCP + TLS + upgrade is three round trips against QUIC's 2.1, so
+  QUIC should win by one — not measured.
 * **WSA, the opening ask on the upgrade** (2026-10-02): with `--opening-ask` the server reads `?ask=` from
   the upgrade's URL and serves it right behind the 101; `ws-session.ts` puts an opening fill there.
   **−1.03 to −1.09 round trips to the first frame**, every paired round: −43.6 ms at 40 (7/7), −83.8
@@ -1108,6 +1110,8 @@ drops UDP, the race's time to ready against the four seconds.
 
 ## Open
 
+The owner decisions here are tracked in [`cloud-queue.md`](cloud-queue.md) §Open owner decisions.
+
 * **The decoder count**: `min(3, hardwareConcurrency)` is the default; a pool that follows the queue
   is not built (§The decoders); a phone's scheduler (efficiency cores) and decode speed.
 * **The reader pause** that bounds the compressed queue (§The downloader) — not built.
@@ -1124,6 +1128,8 @@ drops UDP, the race's time to ready against the four seconds.
 * **Survival on a device**: the Wi-Fi → cellular freeze and what the page sees; the triggers where a
   radio change and `freeze` are real; the screen-lock pair; whether 5 s suits a dial on a phone.
   Detection of a dead *idle* session with a server idle timeout below 30 s is not measured.
+* **Which opt-in rows of §The session open to take** — the transport URL inlined, the page carrying the worker
+  graph, HTTP/2 in nginx, the preloads on the downloader page: the owner's call.
 * **The opening ask beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
   check before enabling, the recycling cost, the shaped A/B).
 

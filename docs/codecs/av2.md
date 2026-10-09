@@ -11,12 +11,12 @@ text was not read here.
 
 ## How we use it (or would)
 
-Lab only (row AV2): bytes and native decode against libaom 3.15.1 and HTJ2K on the same frames. Nothing to adopt
+Lab only (the AV2 measurement, queue row AV2): bytes and native decode against libaom 3.15.1 and HTJ2K on the same frames. Nothing to adopt
 while no browser decoder exists.
 
 ## Bytes
 
-*Measured (row AV2, [`lab/av1/bytes`](../../lab/av1/bytes/README.md) §AV2), one middle frame a series:*
+*Measured (the AV2 measurement, queue row AV2, [`lab/av1/bytes`](../../lab/av1/bytes/README.md) §AV2), one middle frame a series:*
 AV2 has no profile over 10 bits, so it codes 11–14-bit samples split. On grey up to 13 bits but
 CT it is the smallest coding here, 0.937–0.964 of HTJ2K and 0.4–4.7 % under libaom on the same
 planes; libaom's 12-bit split stays 3–8 % smaller on CT and the 14-bit projections. The RGB

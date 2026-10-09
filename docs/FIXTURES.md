@@ -72,8 +72,9 @@ RLE goes through pydicom's own decoder.
 A frame that does not decode back to its samples is refused by number, and an encoder or in-process decoder that
 does not report its pinned version is refused before anything runs.
 
-**The codec.** `auto` is HTJ2K: row TOTAL4 adopted AV1 for no series ([`av1/README.md`](av1/README.md) §Total time).
-AV1's preset defaults by content to row ENC's fastest within 2 % of the slowest's bytes:
+**The codec.** `auto` is HTJ2K: the per-series codec rule (queue row TOTAL4) adopted AV1 for no series ([`av1/README.md`](av1/README.md) §Total time).
+AV1's preset defaults by content to the fastest, in the encode-time measurement (queue row ENC), within 2 % of the
+slowest's bytes:
 
 | content | preset |
 | --- | --- |
@@ -178,7 +179,8 @@ signed as sign-extended int16. The set digest is the SHA-256 of the frames' hex 
 concatenated in order. Stacks are ordered by position along the slice normal (uniform spacing,
 checked). A set may name a `crop` [y, x, h, w], kept from every frame. Every frame was checked once
 against the file's `PixelData` bytes read directly, not through the DICOM library's pixel decoder:
-all 387 identical (row DATA3's nine sets: 565/565; row BREAST's seven: 140/140), and no sample carries bits above
+all 387 identical (the missing-content search's nine sets, queue row DATA3: 565/565; the
+breast-family fetch's seven, queue row BREAST: 140/140), and no sample carries bits above
 `BitsStored`. The ultrasound sets are a pinned zip's pinned members decoded by FFmpeg 6.1.1 (`-threads 1`;
 RGB through its bit-exact `swscale` flags, which the digest pins: other flags change it): their frames are what
 that decoder makes of a lossy clip, checked against a second run with FFmpeg's default threads (128/128) and the
@@ -247,7 +249,7 @@ stills against Pillow 11.3.0's PNG decoder (29/29). Dependencies: pydicom 3.0.1 
 
 ### Provenance
 
-What each set's source says about its pixels (row DATAGUARD, 2026-10-08), read from every file's header
+What each set's source says about its pixels (the provenance audit, queue row DATAGUARD, 2026-10-08), read from every file's header
 (every file, all agreeing within a set) and recorded by `fetch_data.py` in each set's `metadata.json`
 (`provenance`, `sources`). The class is `data.json`'s `provenance`:
 
@@ -256,8 +258,8 @@ What each set's source says about its pixels (row DATAGUARD, 2026-10-08), read f
 * **lossy-sourced** — lossy-coded at some point before the archive, by its header or because it is a video clip;
 * **unknown** — an image export whose history nothing records.
 
-**A lossy-sourced or unknown set enters no bytes, time or inter verdict** ([`av1/queue.md`](av1/queue.md)
-§Protocol): its numbers stand as measured, marked provisional. `fetch_data.py` refuses, before reading
+**A lossy-sourced or unknown set enters no bytes, time or inter verdict**, the rule every AV1 measurement
+follows ([`av1/queue.md`](av1/queue.md) §Protocol): its numbers stand as measured, marked provisional. `fetch_data.py` refuses, before reading
 a frame, a source its set's class does not admit — Lossy Image Compression (0028,2110) `01`, a transfer
 syntax that may be lossy, or a video clip unless the set is `lossy-sourced`; an image export unless it is
 `lossy-sourced` or `unknown` (`lab/av1/provenance.py`; `provenance_test.py` in the gate, every case mutated
@@ -310,7 +312,7 @@ synthesized 2D), not a re-coding; none is flagged.
   any offset, pad or not. `xa_dynact16` needs 13; `mr_ispy1` is signed by its header and holds no
   negative sample.
 * **No angiography run is open here.** IDC holds no multi-frame XA under CC BY (re-checked for
-  row CONTENT: every XA series but `xa_dynact16`'s volume is single frames, mostly monitor
+  the tomosynthesis-and-angiography search, queue row CONTENT: every XA series but `xa_dynact16`'s volume is single frames, mostly monitor
   captures); `rf_fluoro` is the nearest X-ray sequence (a slow fluoroscopy run, not a contrast run at 15–30 frames/s), and
   `xa_dynact16` is a reconstructed volume, kept for its depth. A verdict on angiography says so.
 * **The tomosynthesis volumes** are each the reconstructed slices of one view, from two different
@@ -325,7 +327,7 @@ synthesized 2D), not a re-coding; none is flagged.
   value. `dbtproj_ge`'s crop is the bounding box of its samples that are not 16383 over all views
   (outside it every sample is 16383, checked); the second vendor's views have no such margin. Its
   series has 9 views; the same study's L CC series, missing one, was not used.
-* **Row DATA3's depths, after the offset (the series' minimum) and measured over every frame:**
+* **The missing-content search's depths (queue row DATA3), after the offset (the series' minimum) and measured over every frame:**
   9 bits `mr9_ispy2`; 10 `syn2d_a`; 12 `ffdm_a`, `ffdm_b`, `syn2d_b`; 13 `ct_nlst`, `ct_crc`;
   15 `pt15_cptac`; 16 `mg16_cbis`. `BitsStored` says 12 or 16 for all of them. The PET is scaled per slice
   to 32767 (signed by its header, no negative sample, 38 % zeros). `mg16_cbis` spans 0..65535 but holds 2 969
@@ -335,7 +337,7 @@ synthesized 2D), not a re-coding; none is flagged.
   taken: CMMD's mammograms (8-bit), three NM series (5, 7 and 10 bits), CTs from two more vendors
   (12 bits, no negative sample), a third's (an MPR clipped at −2000..4000), the raw (`FOR PROCESSING`)
   mammogram behind `ffdm_a` (13 bits, MONOCHROME1).
-* **Still not open here (row DATA3, IDC v24, the newest release on PyPI, `idc-index-data` 24.2.2):** no
+* **Still not open here (the missing-content search, IDC v24, the newest release on PyPI, `idc-index-data` 24.2.2):** no
   breast ultrasound cine or still beyond CMB-BRCA's 14, no automated breast ultrasound, and no multi-frame XA
   (all 35 XA series single frames, re-read). Every other host tried refused the tunnel (CONNECT 403,
   2026-10-05 13:30–14:26 UTC): `zenodo.org`, `www.cancerimagingarchive.net`,
@@ -345,12 +347,12 @@ synthesized 2D), not a re-coding; none is flagged.
   `openneuro.org`, `data.kitware.com`, `www.ebi.ac.uk`. `github.com` and `api.github.com` answer 403;
   `raw.githubusercontent.com` answers. pydicom's test data (MIT) holds DICOM test files, none of the missing
   content.
-* **Row POCGAP's two 10-bit DBT series, not fetched (2026-10-07):** the UPMC breast tomography collection on
+* **The proof-of-concept gap check's two 10-bit DBT series (queue row POCGAP), not fetched (2026-10-07):** the UPMC breast tomography collection on
   D. Clunie's public archive (`dclunie.com/pixelmedimagearchive`, its Case22 137 MB, MD5-listed, served from
   `dl.dropbox.com`) states no licence; TCIA's Breast-Cancer-Screening-DBT (DOI 10.7937/E4WT-CD02, holding
   DBT-P01237) is CC BY-NC 4.0 on every file group. Both pages answered; neither licence is CC BY or CC0, so
-  the row measured `dbt10_ea1141` and `dbt10_d` alone and the choice is the owner's (queue §Blocked).
-* **The breast family, per target series** (row BREAST): bits after the offset (the series' minimum, measured over
+  the check measured `dbt10_ea1141` and `dbt10_d` alone and the choice is the owner's (§Open).
+* **The breast family, per target series** (the breast-family fetch, queue row BREAST): bits after the offset (the series' minimum, measured over
   every frame, never `BitsStored`). **Nothing presented or reconstructed exceeds 12 bits; only the raw projections
   (14) and the digitized film (16, a ~12-bit scan stretched) do.**
 
@@ -369,9 +371,9 @@ synthesized 2D), not a re-coding; none is flagged.
   | `usb_cine`, `usb_cine_rgb` | ultrasound cine | 8, 3 × 8 | no | 64, 64 | 512² |
   | `usb_still` | ultrasound stills | 8 | no | 29 | 276×305 |
 
-  No automated breast ultrasound volume is open (below). The raw (`FOR PROCESSING`) mammogram row DATA3 probed is
+  No automated breast ultrasound volume is open (below). The raw (`FOR PROCESSING`) mammogram the missing-content search probed is
   13 bits.
-* **Row BREAST's sources.** The DBT volumes add a third reconstruction system (`dbt12_c`, stored in slice order, 1 mm
+* **The breast-family fetch's sources.** The DBT volumes add a third reconstruction system (`dbt12_c`, stored in slice order, 1 mm
   apart, checked) and a second volume of the lab's 10-bit system from another patient; `dbtproj_c` is the third
   system's raw views, 16383 only outside its crop. Every DBT series in IDC and in TCIA's own index (both reachable
   since 2026-10-05) comes from the lab's two vendors: no third vendor's tomosynthesis is open. `usb_cine` is a
@@ -379,27 +381,27 @@ synthesized 2D), not a re-coding; none is flagged.
   picture; `usb_cine_rgb`'s chroma departs from neutral on 59 % of samples. Both are 512² MPEG-4 Part 2 clips, so
   their frames carry that coding's loss and resizing: what an archive of such clips holds, not a scanner's output.
   `usb_still`'s images are crops around the lesion, PNG.
-* **Row DBTSCALE's volumes** (`dbts_*`): five exams, five patients the lab had not used, from each of the three
+* **The DBT-at-scale measurement's volumes** (queue row DBTSCALE; `dbts_*`): five exams, five patients the lab had not used, from each of the three
   reconstruction systems EA1141 holds — A and C the systems of `dbt12_ea1141` and `dbt12_c`, B that of `dbt10_ea1141`
   and `dbt10_d` — each series' 1 mm slice instance whole and uncropped, frames as stored (not its 10 mm slab). Chosen
   per system as the first five by SeriesInstanceUID (`idc-index` 0.12.5, `idc-index-data` 24.2.2, IDC v24); about
   6.1 GB. System B stores two detector sizes (one 2560×3328 volume, four 1890–1996×2457).
-* **Row FFDMSCALE's mammograms** (`ffdms_*`, `mgraw_*`, `syn2ds_*`): per kind and system, the first five complete
+* **The mammography-at-scale measurement's mammograms** (queue row FFDMSCALE; `ffdms_*`, `mgraw_*`, `syn2ds_*`): per kind and system, the first five complete
   four-view exams (R CC, L CC, R MLO, L MLO, one frame size) by SeriesInstanceUID, from patients the lab had not used
   for that kind, every header read first (`idc-index` 0.12.5, `idc-index-data` 24.2.2, IDC v24); 156 images, about
-  2.2 GB. Systems as row DBTSCALE's: A and C one vendor's two detectors, B the other vendor's. The raw images are the
+  2.2 GB. Systems as the DBT-at-scale measurement's: A and C one vendor's two detectors, B the other vendor's. The raw images are the
   FOR PROCESSING companions of the same exams on system A, of three of the five on B and C. The first vendor's synthesized images name no
   view or laterality, so an exam is a study holding four of one size. EA1141 holds four complete exams of the second
   vendor's synthesized 2D — three of its later algorithm, and the earlier algorithm's only one (`syn2ds_b4`, another
   study of `syn2ds_b1`'s patient) — and CMB-BRCA one, three views (`syn2d_c`): five only with `syn2d_c`.
-* **Row RGBNATIVE's colour stills** (`usrgb_*`): colour ultrasound stored natively, uncompressed and unflagged —
+* **The native colour-stills measurement's stills** (queue row RGBNATIVE; `usrgb_*`): colour ultrasound stored natively, uncompressed and unflagged —
   of the first 25 US series of each CC BY collection in IDC v24, the RGB single frames, grouped by collection and
   size; each set eight stills of one group, colour flow first. Mostly grey B-mode with a colour-flow box: colour
   pixels a median 0.1–5.9 % a set, 51 % on `usrgb_crc`. Stills, not a cine.
-* **Hosts, 2026-10-05 15:49 UTC (row BREAST), after the environment's network access was set to full:** every host
-  row DATA3 found refused answered (200, 202, 301, 302, 400 or 404), but `pan.baidu.com` (connection reset).
+* **Hosts, 2026-10-05 15:49 UTC (the breast-family fetch), after the environment's network access was set to full:** every host
+  the missing-content search found refused answered (200, 202, 301, 302, 400 or 404), but `pan.baidu.com` (connection reset).
 * `us_liver` is stored uncompressed, but scan-converted; whether it was lossy-coded before it was
-  archived is not known (not checked) — *corrected by DATAGUARD: its header says it was, Lossy Image
+  archived is not known (not checked) — *corrected by the provenance audit: its header says it was, Lossy Image
   Compression `01` at 12.4:1 (§Provenance)*. It is what an archive serves, not a probe's raw output.
 * TCIA's own API, Zenodo and PhysioNet are refused by this container's network policy; IDC mirrors
   the TCIA collections, so the data is the same, through a host it reaches.
@@ -428,3 +430,11 @@ Dataset for Assessing Computer-aided Diagnosis Systems", Medical Physics 51, 311
 full citation each collection asks for is on its DOI page, which this container could not reach.
 Series UIDs are in `data.json`. Frames derived from these sets (their AV1 or HTJ2K codings) carry
 the same attribution wherever they are published; none are.
+
+## Open
+
+The owner decides these; they are tracked in [`av1/queue.md`](av1/queue.md) §Blocked.
+
+* **Several series of one study** — proposed, not built; the design is the owner's call (§From DICOM).
+* **The two 10-bit DBT series the proof-of-concept gap check named** — neither licence is CC BY or CC0; whether to
+  use them is the owner's (§AV1 data, *Provenance*).
