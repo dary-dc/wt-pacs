@@ -128,6 +128,13 @@ Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out
 that serves and lists, and a page cached otherwise than `dev-server.py`. `--local` runs a host nginx on the
 template instead of the image.
 
+**A stale image is refused** (exit 2) before anything is compared: every file the Containerfile copies from
+`client/` and `deploy/nginx/`, less what its ignore file keeps out, is hashed in the image and in the tree, and any
+that differs, is missing or is extra is named. It compares content, not time: a cached rebuild keeps the image's
+creation time, so a touched file would otherwise be refused after every rebuild. Mutated: a changed module, template
+and decoder build, a file added and one removed (each named, exit 2); a touched file, a changed `*.md` and
+`*.test.mjs` (passed, as the image leaves them out); no image (exit 2).
+
 **The transport's PEM.** The same script checks `${CERT_PEM:-server/dev-cert/cert.pem}` before it compares any
 path. One self-signed certificate passes; two or more is a chain and passes; one certificate issued by something
 else warns, since a browser then fetches the intermediate over AIA on every cold open
