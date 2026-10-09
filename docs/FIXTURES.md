@@ -48,6 +48,7 @@ profile the project serves: reversible 5/3, 5 levels, 64×64 blocks, RPCL, one l
 | size | frame | content |
 | --- | --- | --- |
 | `g160`, `g256`, `g512`, `g1024`, `g2048` | 160² … 2048², 1 × 16-bit | `field`: 50 KB to 8 MB decoded, the ladder the copy-cost and heap work needs |
+| `g8` | 512², 1 × 8-bit | `field`: 256 KB decoded, the 8-bit frame that still takes a range |
 | `c512` | 512², 3 × 8-bit | `field` |
 | `sat256` | 256², 1 × 16-bit | `ramp`: a full-range gradient hitting exactly 0 and 65 535, the only set that exercises a decoder's clamp |
 | `s512`, `s12` | 512², 1 × 16-bit / 12-bit, **signed** | `field` |

@@ -1,28 +1,8 @@
 #!/usr/bin/env bash
-# Synthetic HTJ2K fixtures for lab/decode-bench, at the sizes the decode work needs.
-#
-# The decoder this project uses ships no encoder, so this builds OpenJPH from source
-# (BSD-2-Clause, the same release the decoder is built from) purely for ojph_compress.
-# Images are generated, never derived from a study: reproducible anywhere, no provenance.
-#
+# Synthetic HTJ2K fixtures for lab/decode-bench: the sets, their sizes and the profile are docs/FIXTURES.md.
+# OpenJPH is built from source for ojph_compress alone; images are generated, never derived from a series.
 #   OUT_ROOT=... FRAMES=... lab/scripts/gen_htj2k_fixtures.sh [size ...]
-#
-# Sizes name the decoded frame, which is what the decoder's heap answers to. The
-# greyscale ladder doubles from 50 KB to 8 MB, the range the copy-cost sweep needs:
-#   sat256 256x256  1x16-bit  ramp       128 KB decoded, saturates at both ends
-#   g160   160x160  1x16-bit  greyscale  50 KB decoded
-#   g256   256x256  1x16-bit  greyscale  128 KB decoded
-#   g512   512x512  1x16-bit  greyscale  512 KB decoded
-#   c512   512x512  3x8-bit   colour     768 KB decoded
-#   g8     512x512  1x8-bit   greyscale  256 KB decoded, the 8-bit frame that still takes a range
-# rig_c and rig_g are the dispatch rig's real codestreams rather than a bench set: 160x160 of each
-# shape the product serves, content that still reaches the block decoder — docs/decode/README.md.
-#   g1024  1024x1024 1x16-bit greyscale  2 MB decoded
-#   g2048  2048x2048 1x16-bit greyscale  8 MB decoded
-#
-# The frames are gitignored; the metadata.json beside them is tracked. A set made at another
-# FRAMES must have its metadata committed with it, or a bench reads a count that is not on disk —
-# lab/decoder-memory/README.md says what catches that.
+# A set made at another FRAMES needs its tracked metadata.json committed with it (lab/decoder-memory/README.md).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT_ROOT="${OUT_ROOT:-$ROOT/lab/fixtures}"
@@ -45,8 +25,7 @@ if [[ ! -x "$ojph_compress" ]]; then
   cmake --install "$BUILD/b" >/dev/null
 fi
 
-# The profile this project serves: part 15, reversible 5/3, 5 levels, 64x64 blocks, RPCL,
-# one layer, one tile. docs/decode/README.md says why each frame is one tile.
+# The profile this project serves: docs/FIXTURES.md; why one tile, docs/decode/README.md.
 encode() {
   local pnm=$1 out=$2
   "$ojph_compress" -i "$pnm" -o "$out" \
@@ -68,7 +47,7 @@ for size in "${SIZES[@]}"; do
     # Signed: encoded unsigned, then the sign bit set in SIZ — lab/scripts/sign_htj2k.py.
     s512)  w=512;  h=512;  ch=1; depth=65535; signed=1 ;;
     s12)   w=512;  h=512;  ch=1; depth=4095;  signed=1 ;;
-    # F2: content that compresses like a real series rather than like `field` (1.25:1).
+    # Content that compresses like a real series rather than like `field` (1.25:1).
     cine512) w=512; h=512; ch=3; depth=255;   mode=cine ;;
     ct512)   w=512; h=512; ch=1; depth=4095;  signed=1; mode=ct ;;
     # The dispatch rig's real codestreams, one per shape the product serves — client/contract/frames/.

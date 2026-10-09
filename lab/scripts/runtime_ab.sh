@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 # Interleaved A/B of two server binaries on one warm cell, both servers up for the whole run,
 # variant order reversed every repeat. `docs/transport/transport-conclusions.md` §6.
-#
 #   lab/scripts/runtime_ab.sh <fixture> <on-demand|fill> <depth> <asks> <sessions> <repeats> \
 #     <label-a> <bin-a> [server args...] -- <label-b> <bin-b> [server args...] [-- ...]
-#
-# One row per run, `server_ab`'s columns plus the server's context switches per ask, the
-# datagrams the client's socket dropped (`Udp: RcvbufErrors`), and the server's own `session path`
-# counters — packets it declared lost, datagrams per `sendmsg` — so a tail can be read against loss —
-# and its resident set once every session of the run has ended (what a peak leaves held).
+# One row per run: `server_ab`'s columns, the server's context switches per ask, the client socket's
+# drops, the server's lost packets and datagrams per `sendmsg`, and its resident set after the run.
 # SERVER_CPUS / CLIENT_CPUS pin the two sides (taskset lists) so a saturated cell is the server's.
 # RELAY puts `link_impair.py` with those arguments in front of each server (RELAY_CPUS pins it), e.g.
-# row 23's 50 Mbit link: RELAY="--delay-ms 20 --rate-kbit 50000 --queue-pkts 200".
+# a 50 Mbit link: RELAY="--delay-ms 20 --rate-kbit 50000 --queue-pkts 200".
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 fx=$1; mode=$2; depth=$3; asks=$4; sessions=$5; reps=$6; shift 6
