@@ -75,7 +75,7 @@ pub struct RunConfig {
     pub depth: u32,
     /// After settle + wanted, dwell this many ms to measure fill_rate.
     pub fill_dwell_ms: u64,
-    /// Study frame count for window construction.
+    /// Series frame count for window construction.
     pub frame_count: u32,
     pub mode: HarnessMode,
     /// Pre-fetch all schedule frames before settle (E2 warm-cache control).
@@ -245,7 +245,7 @@ pub struct MetricsState {
     pub cache: HashSet<u32>,
     /// LRU order for `cache`, most-recently-used last. Empty when the cache is unbounded.
     pub cache_lru: Vec<u32>,
-    /// Max frames held, 0 = unbounded. Unbounded, the client holds the whole study within
+    /// Max frames held, 0 = unbounded. Unbounded, the client holds the whole series within
     /// seconds, no jump can miss, and head-of-line blocking becomes unmeasurable.
     pub cache_cap: usize,
     /// Per want: ms until displayable (0 on cache hit).

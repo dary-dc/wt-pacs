@@ -26,33 +26,33 @@ PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }
 trap cleanup EXIT
 
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
   -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature' \
   -addext 'extendedKeyUsage=serverAuth' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
 
-study() {  # frames kb out
+series() {  # frames kb out
   local n="$1" kb="$2" out="$3" d="$T/f$3"
   mkdir -p "$d"
   for i in $(seq 0 "$n"); do
     head -c $((kb * 1024)) /dev/urandom > "$d/$(printf '%03d' "$i").htj2k"
   done
   echo "{\"frameCount\": $((n + 1))}" > "$T/m$3.json"
-  "$BIN/pack-study" --metadata "$T/m$3.json" --frames "$d" --output "$T/$out.sbnd" >/dev/null
+  "$BIN/pack-series" --metadata "$T/m$3.json" --frames "$d" --output "$T/$out.sbnd" >/dev/null
 }
-study "$FILL" "$KB" fill
-study "$ASK_WARM" "$ASK_KB" ask
+series "$FILL" "$KB" fill
+series "$ASK_WARM" "$ASK_KB" ask
 
 SRV=$((36000 + RANDOM % 2000))
 IN=$((34000 + RANDOM % 2000))
 CTRL=$((38000 + RANDOM % 2000))
 
-start_server() {  # study extra args...
-  local study="$1"; shift
+start_server() {  # series extra args...
+  local series="$1"; shift
   : > "$T/server.log"
-  RUST_LOG=exact_server=info "$BIN/exact-server" --port "$SRV" --study "$T/$study.sbnd" \
+  RUST_LOG=series_server=info "$BIN/series-server" --port "$SRV" --series "$T/$series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "$@" > "$T/server.log" 2>&1 &
   SERVER_PID=$!
   PIDS+=("$SERVER_PID")
@@ -80,10 +80,10 @@ PY
 
 # One round of one arm. Appends "<metric ms> <sent> <lost> <cong> <round> <predecessor> <next ask ms>"
 # to the arm's file; a run the relay timed late (`VOID`) is dropped.
-one() {  # cell arm study warm target [harness args...]
-  local cell="$1" arm="$2" study="$3" warm="$4" target="$5"
+one() {  # cell arm series warm target [harness args...]
+  local cell="$1" arm="$2" series="$3" warm="$4" target="$5"
   shift 5
-  start_server "$study" --congestion "$arm"
+  start_server "$series" --congestion "$arm"
   start_relay
   local line
   line=$(RUST_BACKTRACE=0 "$BIN/first_ask" --url "https://127.0.0.1:$IN/" --warm "$warm" \
@@ -149,15 +149,15 @@ head_row() {
     "arm" "median" "min" "max" "paired" "wins" "sent" "lost" "cong" "rows" "next ask" "paired"
 }
 
-cell() {  # label study warm target [harness args...]
+cell() {  # label series warm target [harness args...]
   local label="$1"; shift
-  local study="$1" warm="$2" target="$3"; shift 3
+  local series="$1" warm="$2" target="$3"; shift 3
   local key="${label// /_}"
   rm -f "$T/$key".*
   for ROUND in $(seq 0 $((ROUNDS - 1))); do
     PREV=first
     for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$ROUND"); do
-      one "$key" "${ARMS[$k]}" "$study" "$warm" "$target" "$@"
+      one "$key" "${ARMS[$k]}" "$series" "$warm" "$target" "$@"
       PREV="${ARMS[$k]}"
     done
   done

@@ -65,10 +65,10 @@ for ((r = 0; r < REPEATS; r++)); do
   else bins=("$AFTER:after" "$BEFORE:before"); fi
   for spec in "${bins[@]}"; do
     bin="${spec%%:*}"; arm="${spec##*:}"
-    emit "$bin" "$arm" "warm16_d1_r$r"  --study "$TILE" --temps warm --depths 1 --size 16384 --stride 16384
-    emit "$bin" "$arm" "cold16_d1_r$r"  --study "$TILE" --temps cold --depths 1 --size 16384 --stride 250000
-    emit "$bin" "$arm" "cold16_dW_r$r"  --study "$TILE" --temps cold --depths "$W" --size 16384 --stride 250000
-    emit "$bin" "$arm" "seq1g_d1_r$r"   --study "$SEQ"  --temps cold --depths 1 --size 16384 --stride 16384 --partition
+    emit "$bin" "$arm" "warm16_d1_r$r"  --series "$TILE" --temps warm --depths 1 --size 16384 --stride 16384
+    emit "$bin" "$arm" "cold16_d1_r$r"  --series "$TILE" --temps cold --depths 1 --size 16384 --stride 250000
+    emit "$bin" "$arm" "cold16_dW_r$r"  --series "$TILE" --temps cold --depths "$W" --size 16384 --stride 250000
+    emit "$bin" "$arm" "seq1g_d1_r$r"   --series "$SEQ"  --temps cold --depths 1 --size 16384 --stride 16384 --partition
   done
   echo "  round $r done $(date -u +%T)" >&2
 done

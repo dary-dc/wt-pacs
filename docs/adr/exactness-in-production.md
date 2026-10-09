@@ -18,7 +18,7 @@ not exist here and nothing was fixed. What follows proposes the check from nothi
 ## 2 · Recommendation
 
 1. **Ingest** hashes each frame's stored samples (little-endian, the bytes `decodeFrame` hands on)
-   with **XXH3-64** and writes the 16 hex digits per frame into the study's metadata — a change to
+   with **XXH3-64** and writes the 16 hex digits per frame into the series's metadata — a change to
    the store's content, so structural; the bundle's metadata is JSON, so the binary format and the
    wire are unchanged.
 2. **The decoder worker** hashes every frame **before it is handed on**, against that digest. No
@@ -97,15 +97,15 @@ pool 3 decoders plus the page, so nothing past 3 parallel decoders is claimed.
 
 ## 5 · Reporting and persistence (proposed, not measured)
 
-* **A failure, at once:** study key, frame index, codec, decoder path (`htj2k`, `av1-dav1d`,
+* **A failure, at once:** series key, frame index, codec, decoder path (`htj2k`, `av1-dav1d`,
   `av1-webcodecs`), WebCodecs codec string, engine and version, `navigator.hardwareConcurrency`,
   expected and actual digest, whether the second decode passed. No pixels, which are patient data,
   and no identifier the session does not already use.
 * **Counts:** frames checked and failed per decoder path, so a failure rate has a denominator.
 * **Transport:** `fetch(…, { keepalive: true })` at once for a failure, counts flushed with
   `navigator.sendBeacon` on `visibilitychange` to hidden — phones do not reliably fire anything at
-  study close. A report over the WebTransport session would be a wire change; an HTTP endpoint
-  beside the study's is not.
+  series close. A report over the WebTransport session would be a wire change; an HTTP endpoint
+  beside the series's is not.
 * **Server:** append-only, one record per failure and per flush, keyed by engine × decoder path, so
   a path that fails on one engine can be turned off for it.
 

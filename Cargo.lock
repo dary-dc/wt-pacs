@@ -237,8 +237,8 @@ name = "check-fastpath"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "exact-server",
  "libc",
+ "series-server",
 ]
 
 [[package]]
@@ -410,7 +410,6 @@ dependencies = [
  "anyhow",
  "bytes",
  "clap",
- "exact-server",
  "fod",
  "frame-envelope",
  "io-uring",
@@ -421,6 +420,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "series-server",
  "tokio",
  "wtransport",
 ]
@@ -444,34 +444,6 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "exact-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytes",
- "clap",
- "fod",
- "frame-envelope",
- "futures-util",
- "io-uring",
- "libc",
- "quinn-proto",
- "rcgen 0.13.2",
- "rustls",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "study-bundle",
- "time",
- "tokio",
- "tokio-rustls",
- "tokio-tungstenite",
- "tracing",
- "tracing-subscriber",
- "wtransport",
 ]
 
 [[package]]
@@ -993,13 +965,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
-name = "pack-study"
+name = "pack-series"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "serde_json",
- "study-bundle",
+ "series-bundle",
 ]
 
 [[package]]
@@ -1430,6 +1402,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "series-bundle"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
+name = "series-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "clap",
+ "fod",
+ "frame-envelope",
+ "futures-util",
+ "io-uring",
+ "libc",
+ "quinn-proto",
+ "rcgen 0.13.2",
+ "rustls",
+ "serde",
+ "serde_json",
+ "series-bundle",
+ "sha2 0.10.9",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-tungstenite",
+ "tracing",
+ "tracing-subscriber",
+ "wtransport",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1520,13 +1527,6 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
-
-[[package]]
-name = "study-bundle"
-version = "0.1.0"
-dependencies = [
- "anyhow",
-]
 
 [[package]]
 name = "subtle"

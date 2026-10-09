@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="${OUT:-$ROOT/.local/measurements/E2_MISS_COST.tsv}"
-STUDY="${STUDY:-$ROOT/lab/fixtures/queue_large/queue_large.sbnd}"
+SERIES="${SERIES:-$ROOT/lab/fixtures/queue_large/queue_large.sbnd}"
 CERT="$ROOT/server/dev-cert/cert.pem"
 KEY="$ROOT/server/dev-cert/key.pem"
 PORT="${PORT:-4433}"
@@ -17,10 +17,10 @@ FRAME_COUNT="${FRAME_COUNT:-20}"
 
 mkdir -p "$(dirname "$OUT")"
 [[ -f "$CERT" ]] || "$ROOT/server/scripts/gen_dev_cert.sh"
-cargo build -p exact-server -p window-harness --release >/dev/null
+cargo build -p series-server -p window-harness --release >/dev/null
 
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
-SERVER="$CARGO_TARGET_DIR/release/exact-server"
+SERVER="$CARGO_TARGET_DIR/release/series-server"
 BPS=$((MBPS * 1000000))
 # Tf ms ≈ frame_bytes*8/bps * 1000
 TF_MS=$(python3 -c "print(f'{$FRAME_BYTES * 8 / $BPS * 1000:.2f}')")
@@ -33,7 +33,7 @@ run_one() {
   local group=$1 depth=$2 trace=$3 warm=$4
   local pred
   pred=$(python3 -c "print(f'{max(0, $depth - 1) * $FRAME_BYTES * 8 / $BPS * 1000:.2f}')")
-  "$SERVER" --port "$PORT" --study "$STUDY" \
+  "$SERVER" --port "$PORT" --series "$SERIES" \
     --stream-mode per-frame \
     --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
   local sp=$!

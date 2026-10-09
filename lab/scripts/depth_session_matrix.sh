@@ -10,8 +10,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-BASE="${BASE:-/tmp/base-target/release/exact-server}"
-TREE="${TREE:-target/release/exact-server}"
+BASE="${BASE:-/tmp/base-target/release/series-server}"
+TREE="${TREE:-target/release/series-server}"
 REPS="${REPS:-6}"
 DEPTHS="${DEPTHS:-1 2 4 8}"
 SESSIONS="${SESSIONS:-1 4 16}"
@@ -20,7 +20,7 @@ tmp=$(mktemp -d)
 printf 'frame\tdepth\tsessions\td_asks_per_s\tpaired\td_p50\tpaired\td_cpu_per_ask\tpaired\n'
 
 for fx in 32k 250k; do
-  study="lab/fixtures/frames_${fx}/frames_${fx}.sbnd"
+  series="lab/fixtures/frames_${fx}/frames_${fx}.sbnd"
   for sessions in $SESSIONS; do
     case "$fx:$sessions" in
       32k:1) asks=400 ;; 32k:4) asks=300 ;; 32k:16) asks=200 ;;
@@ -30,7 +30,7 @@ for fx in 32k 250k; do
     for depth in $DEPTHS; do
       out="$tmp/$fx-$depth-$sessions.tsv"
       SERVER_CPUS="${SERVER_CPUS:-0,1}" CLIENT_CPUS="${CLIENT_CPUS:-2,3}" \
-        lab/scripts/runtime_ab.sh "$study" on-demand "$depth" "$asks" "$sessions" "$REPS" \
+        lab/scripts/runtime_ab.sh "$series" on-demand "$depth" "$asks" "$sessions" "$REPS" \
         base "$BASE" -- tree "$TREE" >"$out" 2>/dev/null
       lab/scripts/runtime_ab_pair.py "$out" base tree 2>/dev/null \
         | awk -v f="$fx" -v d="$depth" -v s="$sessions" '

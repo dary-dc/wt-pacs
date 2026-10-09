@@ -247,7 +247,7 @@ would silently drop cross-origin isolation.
 ### What an encoding costs on loopback
 
 **ENC, 2026-09-27, `badcf76`, corrected `2426b8f`.** The downloader page (`?transport=wasm`, a
-synthetic 300-frame study's metadata by `?meta=`) from nginx 1.24 over TLS and HTTP/2, each file
+synthetic 300-frame series's metadata by `?meta=`) from nginx 1.24 over TLS and HTTP/2, each file
 precompressed once (gzip `-6`, brotli `-q 11`, zstd `-19`) and served by its own server block only to
 a client that lists the token. Before a run a request without the token must get the file, and every
 visit must receive that arm's bytes; both checks were watched to fail. Headless Chromium 141 on
@@ -370,7 +370,7 @@ the record with the hint together; the transport on UDP 443; a real resolver; ng
 ### The order the page's files leave in
 
 **PORD, 2026-10-01, `37d2af7`.** Does a config asked after a large file land with its last byte? The
-`+meta` arms add a synthetic study's metadata of ~120 KB gzipped ([`metadata.mjs`](metadata.mjs)):
+`+meta` arms add a synthetic series's metadata of ~120 KB gzipped ([`metadata.mjs`](metadata.mjs)):
 `+meta` through the page's own `?meta=` preload, `+meta-first` through `meta-first.html`, which parses
 a static preload one line ahead of the config's. `h2` crosses the relay's TCP plane, `h3` its UDP
 plane with the host's own QUIC congestion control. 12 rounds, 61 of 180 visits `VOID`.
@@ -396,7 +396,7 @@ order would matter.
 ## Cold round trips by codec
 
 **COLDRTT, 2026-10-07, `21c5cd9`.** Navigation to the first *exact* frame on 100–300 ms links, an
-HTJ2K study against an AV1 one, whose decoder module loaded only once the first payload had landed.
+HTJ2K series against an AV1 one, whose decoder module loaded only once the first payload had landed.
 [`codec.html`](codec.html) opens the downloader with `?codec=`, an earlier `client/downloader` by
 `?tree=` and the AV1 decoder's files preloaded by `?pre=1`; [`coldrtt.mjs`](coldrtt.mjs) runs the
 arms interleaved against the deploy template's nginx (TLS, HTTP/2, gzip) behind a 100 Mbit relay.

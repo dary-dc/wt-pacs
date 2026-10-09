@@ -22,7 +22,7 @@ PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }
 trap cleanup EXIT
 
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -33,7 +33,7 @@ for i in $(seq 0 "$FILL"); do
   head -c $((KB * 1024)) /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"
 done
 echo "{\"frameCount\": $((FILL + 1))}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 SRV=$((36000 + RANDOM % 2000))
 IN=$((34000 + RANDOM % 2000))
@@ -41,7 +41,7 @@ CTRL=$((38000 + RANDOM % 2000))
 
 start_server() {  # extra server args...
   : > "$T/server.log"
-  RUST_LOG=exact_server=info "$BIN/exact-server" --port "$SRV" --study "$T/study.sbnd" \
+  RUST_LOG=series_server=info "$BIN/series-server" --port "$SRV" --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "$@" > "$T/server.log" 2>&1 &
   SERVER_PID=$!
   PIDS+=("$SERVER_PID")

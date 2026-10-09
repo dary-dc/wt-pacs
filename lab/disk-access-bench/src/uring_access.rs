@@ -145,7 +145,7 @@ impl UringReader {
         })
     }
 
-    /// Sized once for the study's longest frame, so a depth from the frame in hand can
+    /// Sized once for the series's longest frame, so a depth from the frame in hand can
     /// index past it.
     pub fn slots(&self) -> usize {
         self.bufs.len()
@@ -338,7 +338,7 @@ impl UringReader {
     }
 }
 
-/// Buffers are registered once, so they must cover the study's **longest** frame, not the
+/// Buffers are registered once, so they must cover the series's **longest** frame, not the
 /// first one asked for. Upholds `win <= buf_len` and `windows <= slots` for every frame.
 pub fn ring_geometry(read_chunk: usize, max_len: usize) -> (usize, usize) {
     let buf_len = read_chunk.min(max_len).max(1);
@@ -494,8 +494,8 @@ mod tests {
         );
     }
 
-    /// The geometry must hold for *every* frame in the study, not the first one served: a
-    /// ring built from frame 0 panicked on a study of variable-length frames.
+    /// The geometry must hold for *every* frame in the series, not the first one served: a
+    /// ring built from frame 0 panicked on a series of variable-length frames.
     #[test]
     fn ring_geometry_covers_every_frame_not_just_the_first() {
         for &read_chunk in &[1usize, 4096, 65536, 1 << 20] {

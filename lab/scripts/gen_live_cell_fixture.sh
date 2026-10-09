@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Primary live cell: 250 KB frames × 320 count (~80 MB study).
+# Primary live cell: 250 KB frames × 320 count (~80 MB series).
 # Does not overwrite lab/fixtures/frames_250k/ (80 frames) — separate path for gate/E0/E2/E4.
 set -euo pipefail
 

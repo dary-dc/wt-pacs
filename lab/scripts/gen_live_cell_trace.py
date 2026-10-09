@@ -86,7 +86,7 @@ def main() -> None:
             "reversal_step_index": REVERSAL_STEP,
             "reversal_fraction": REVERSAL_STEP / len(schedule),
             "forward_unique_through": UNIQUE_FORWARD,
-            "notes": "Explicit steps; no frame_modulo. Requires study frameCount >= 300.",
+            "notes": "Explicit steps; no frame_modulo. Requires series frameCount >= 300.",
         },
         "steps": [{"frame": f} for f in schedule],
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for cloud-side measurements (harness local → exact-server on E2).
+# Shared helpers for cloud-side measurements (harness local → series-server on E2).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -53,8 +53,8 @@ cloud_set_netem() {
 }
 
 cloud_ensure_server() {
-  "${SSH[@]}" 'pgrep -x exact-server >/dev/null || {
-    echo "exact-server not running on the rig" >&2
+  "${SSH[@]}" 'pgrep -x series-server >/dev/null || {
+    echo "series-server not running on the rig" >&2
     exit 1
   }'
 }

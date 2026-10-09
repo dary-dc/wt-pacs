@@ -48,7 +48,7 @@ const PLANES = {
   "h3+meta": { page: "h3.test", wt: "h3.test", meta: "downloader.html" },
   "h3+meta-first": { page: "h3.test", wt: "h3.test", meta: "meta-first.html" },
 };
-// A study's metadata of ~120 KB gzipped. The page's `?meta=` preload is script-made, so it leaves after
+// A series's metadata of ~120 KB gzipped. The page's `?meta=` preload is script-made, so it leaves after
 // every parsed link; meta-first.html, written per run, parses one ahead of the config's.
 const META = "lab/page-open/metadata.json";
 const META_FIRST = "lab/page-open/meta-first.html";
@@ -100,10 +100,10 @@ function stop() {
 }
 process.on("exit", stop);
 
-// A real study: the downloader arm decodes what it gets, so random bytes would not do.
-execFileSync("cargo", ["build", "-q", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
+// A real series: the downloader arm decodes what it gets, so random bytes would not do.
+execFileSync("cargo", ["build", "-q", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
 const BIN = path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug");
-const SERVERS = (process.env.SERVERS || `=${path.join(BIN, "exact-server")}`).split(",").map((s) => {
+const SERVERS = (process.env.SERVERS || `=${path.join(BIN, "series-server")}`).split(",").map((s) => {
   const [name, bin] = s.split("=");
   return { name, bin, srv: port(), inn: port() };
 });
@@ -137,17 +137,17 @@ for (let i = 0; i < FRAMES; i++) {
   );
 }
 fs.writeFileSync(path.join(T, "metadata.json"), JSON.stringify({ frameCount: FRAMES }));
-execFileSync(path.join(BIN, "pack-study"), [
+execFileSync(path.join(BIN, "pack-series"), [
   "--metadata", path.join(T, "metadata.json"),
   "--frames", path.join(T, "frames"),
-  "--output", path.join(T, "study.sbnd"),
+  "--output", path.join(T, "series.sbnd"),
 ]);
 
 if (STAGES?.some((s) => BOOT_STAGES.includes(s))) console.error("boot bytes", buildBoot());
 
 for (const s of SERVERS) {
   start(s.bin, [
-    "--port", String(s.srv), "--study", path.join(T, "study.sbnd"),
+    "--port", String(s.srv), "--series", path.join(T, "series.sbnd"),
     "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem"),
     // Inert for an arm that sends no `?ask=`, so every arm runs on one server. R1's arm needs it.
     "--open-ask",
@@ -170,7 +170,7 @@ if (HOST === "dev") {
     `/etc/resolv.conf && exec "$0" "$@"' ${process.env.CHROME_PATH || chromium.executablePath()} "$@"\n`, { mode: 0o755 });
 } else {
   const site = fs.readFileSync(path.join(ROOT, "deploy/nginx/wt-pacs.conf.template"), "utf8")
-    .replace(/\$\{STUDY\}/g, "us_cine_smoke")
+    .replace(/\$\{SERIES\}/g, "us_cine_smoke")
     .replace(/\/srv\/wt-pacs/g, ROOT)
     .replace(/listen\s+8765;/, `listen 127.0.0.1:${TCP_SRV} ssl${HOST === "h2" ? " http2" : ""};\n` +
       `    ssl_certificate ${T}/cert.pem;\n    ssl_certificate_key ${T}/key.pem;`);

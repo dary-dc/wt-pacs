@@ -3,11 +3,11 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use study_bundle::BundleWriter;
+use series_bundle::BundleWriter;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "pack-study")]
+#[command(name = "pack-series")]
 struct Args {
     #[arg(long)]
     metadata: PathBuf,

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Profile-guided release build of exact-server: instrument, train on the cells the server is
+# Profile-guided release build of series-server: instrument, train on the cells the server is
 # measured on, rebuild with the profile. The profile is bound to the source it was taken from,
 # so this runs per build, never from a stored profile. `docs/transport/transport-conclusions.md` §4.
 #
-#   scripts/pgo_build.sh            → target/pgo/release/exact-server
+#   scripts/pgo_build.sh            → target/pgo/release/series-server
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -18,13 +18,13 @@ PROFDATA=$(ls "$(rustc --print sysroot)"/lib/rustlib/*/bin/llvm-profdata 2>/dev/
 [[ -f lab/fixtures/frames_tiny/frames_tiny.sbnd ]] || NAME=frames_tiny BYTES=100 FRAMES=80 bash lab/scripts/gen_live_cell_fixture.sh >/dev/null
 cargo build --release -p disk-access-bench --bin server_ab
 
-RUSTFLAGS="-Cprofile-generate=$PROFILES" cargo build --release -p exact-server --target-dir "$OUT/instrumented"
+RUSTFLAGS="-Cprofile-generate=$PROFILES" cargo build --release -p series-server --target-dir "$OUT/instrumented"
 
 # The training set is the measured cell shape: fill, depth 4 with several sessions, depth 1.
 train() {
   local fx=$1 log; log=$(mktemp)
   local port; port=$(python3 -c 'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(("127.0.0.1",0));print(s.getsockname()[1])')
-  NO_COLOR=1 RUST_LOG=exact_server=warn "$OUT/instrumented/release/exact-server" --port "$port" --study "$fx" \
+  NO_COLOR=1 RUST_LOG=series_server=warn "$OUT/instrumented/release/series-server" --port "$port" --series "$fx" \
     --stream-mode shared --bind 127.0.0.1 --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem >"$log" 2>&1 &
   local pid=$!
   for _ in $(seq 1 200); do grep -q '^telemetry=' "$log" && break; sleep 0.05; done
@@ -42,5 +42,5 @@ train lab/fixtures/frames_tiny/frames_tiny.sbnd
 
 "$PROFDATA" merge -o "$PROFILES/merged.profdata" "$PROFILES"/*.profraw
 RUSTFLAGS="-Cprofile-use=$PROFILES/merged.profdata -Cllvm-args=-pgo-warn-missing-function" \
-  cargo build --release -p exact-server --target-dir "$OUT"
-echo "pgo_binary=$OUT/release/exact-server"
+  cargo build --release -p series-server --target-dir "$OUT"
+echo "pgo_binary=$OUT/release/series-server"

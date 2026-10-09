@@ -12,9 +12,9 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use disk_access_bench::candidate_access::{hint_willneed, populate_read, unmap_pages};
-use disk_access_bench::study_map::{host_page_size, StudyMap};
+use disk_access_bench::series_map::{host_page_size, SeriesMap};
 use disk_access_bench::{rejected_access, residency, uring_access};
-use exact_server::media::frame_store::{FrameSpan, FrameStore};
+use series_server::media::frame_store::{FrameSpan, FrameStore};
 use rejected_access::{advise_frame_willneed, frame_pages_resident, touch_frame_pages};
 use serde::Deserialize;
 use std::fs::File;
@@ -55,7 +55,7 @@ enum Arm {
     ///
     /// The candidate for an access shape read-ahead cannot see — a prefix taken from each
     /// frame, which strides the file. Costs one syscall and no copy, needs no change to how
-    /// the study is laid out, and only helps if the hint lands far enough ahead of the ask.
+    /// the series is laid out, and only helps if the hint lands far enough ahead of the ask.
     PreadNowaitPrefetch,
     /// `PreadNowaitChunked`, except that a window which misses sends **the rest of the
     /// frame** to the pool rather than the rest of that window.
@@ -278,10 +278,10 @@ impl Temp {
 #[derive(Parser)]
 #[command(name = "disk-access-bench")]
 struct Args {
-    /// Study bundles to measure. Required for every mode except `--selftest`, which
-    /// measures the instrument itself and never opens a study.
-    #[arg(long = "study", required_unless_present = "selftest")]
-    studies: Vec<PathBuf>,
+    /// Series bundles to measure. Required for every mode except `--selftest`, which
+    /// measures the instrument itself and never opens a series.
+    #[arg(long = "series", required_unless_present = "selftest")]
+    series: Vec<PathBuf>,
     #[arg(long, value_enum)]
     arm: Option<Vec<Arm>>,
     #[arg(long, value_enum)]
@@ -359,8 +359,8 @@ struct Args {
     concurrencies: Option<Vec<u32>>,
     /// Frames per mix cell, split evenly across the sessions.
     ///
-    /// Each cell takes the **next** region of the study so the hypervisor's cache cannot
-    /// follow one arm around: an 80 MB study re-read runs 10x faster on the second pass
+    /// Each cell takes the **next** region of the series so the hypervisor's cache cannot
+    /// follow one arm around: an 80 MB series re-read runs 10x faster on the second pass
     /// here, which is the effect that made the first campaign's cold cells unreadable.
     #[arg(long, default_value_t = 256)]
     region_frames: u32,
@@ -442,7 +442,7 @@ fn advise_dontneed(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn make_cold_copy(study: &Path) -> Result<ColdCopy> {
+fn make_cold_copy(series: &Path) -> Result<ColdCopy> {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.local/measurements");
     std::fs::create_dir_all(&dir)?;
     let stamp = SystemTime::now()
@@ -457,9 +457,9 @@ fn make_cold_copy(study: &Path) -> Result<ColdCopy> {
         stamp,
         seq
     ));
-    // Stream copy — avoid loading the whole study into the heap (OOM under cgroup limit).
+    // Stream copy — avoid loading the whole series into the heap (OOM under cgroup limit).
     {
-        let mut src = std::fs::File::open(study)?;
+        let mut src = std::fs::File::open(series)?;
         let mut dst = std::fs::File::create(&dest)?;
         std::io::copy(&mut src, &mut dst)?;
         dst.sync_all()?;
@@ -468,7 +468,7 @@ fn make_cold_copy(study: &Path) -> Result<ColdCopy> {
     Ok(ColdCopy { path: dest })
 }
 
-/// Fraction of the study's **frame data** pages resident in this guest's page cache.
+/// Fraction of the series's **frame data** pages resident in this guest's page cache.
 ///
 /// Opening a `FrameStore` parses the header and index, and that read drags readahead into
 /// the first frames — so a cold cell has to be verified (and re-evicted) *after* the open,
@@ -478,7 +478,7 @@ fn make_cold_copy(study: &Path) -> Result<ColdCopy> {
 /// Guest-cold is the level the decision needs (does a major fault land on the executor).
 /// It says nothing about the hypervisor's own cache, so absolute fault service time still
 /// varies run to run — read cold cells for shape (`gap_max`, hop count), not absolutes.
-fn data_residency(store: &StudyMap) -> Result<f64> {
+fn data_residency(store: &SeriesMap) -> Result<f64> {
     let (resident, total) = page_residency(data_span(store)?)?;
     Ok(if total == 0 {
         0.0
@@ -487,8 +487,8 @@ fn data_residency(store: &StudyMap) -> Result<f64> {
     })
 }
 
-/// The study's frame-data region as one contiguous slice of the mmap.
-fn data_span(store: &StudyMap) -> Result<&[u8]> {
+/// The series's frame-data region as one contiguous slice of the mmap.
+fn data_span(store: &SeriesMap) -> Result<&[u8]> {
     let n = store.frame_count();
     if n == 0 {
         return Ok(&[]);
@@ -497,7 +497,7 @@ fn data_span(store: &StudyMap) -> Result<&[u8]> {
     let last = store.frame_slice(n - 1)?;
     let start = first.as_ptr() as usize;
     let end = last.as_ptr() as usize + last.len();
-    // SAFETY: [start, end) is one contiguous live subrange of the study mmap; frames are
+    // SAFETY: [start, end) is one contiguous live subrange of the series mmap; frames are
     // laid out in index order by the SBND writer.
     Ok(unsafe { std::slice::from_raw_parts(start as *const u8, end - start) })
 }
@@ -512,7 +512,7 @@ fn page_residency(bytes: &[u8]) -> Result<(u64, u64)> {
     let len = (addr + bytes.len() - start).div_ceil(page) * page;
     let n = len / page;
     let mut vec = vec![0u8; n];
-    // SAFETY: page-aligned subrange of the live study mmap held by the caller's store.
+    // SAFETY: page-aligned subrange of the live series mmap held by the caller's store.
     let rc = unsafe { libc::mincore(start as *mut libc::c_void, len, vec.as_mut_ptr()) };
     if rc != 0 {
         return Err(std::io::Error::last_os_error()).context("mincore residency probe");
@@ -552,7 +552,7 @@ fn load_trace_file(path: &Path, frame_count: u32) -> Result<(String, Vec<u32>)> 
     for (i, step) in parsed.steps.iter().enumerate() {
         if step.frame >= frame_count {
             anyhow::bail!(
-                "trace {} step {i}: frame {} >= study frame_count {frame_count}",
+                "trace {} step {i}: frame {} >= series frame_count {frame_count}",
                 path.display(),
                 step.frame
             );
@@ -747,7 +747,7 @@ fn fault_tx() -> &'static Mutex<mpsc::Sender<FaultJob>> {
     })
 }
 
-async fn dedicated_fault_touch(store: Arc<StudyMap>, idx: u32, access: AccessMode) -> Result<()> {
+async fn dedicated_fault_touch(store: Arc<SeriesMap>, idx: u32, access: AccessMode) -> Result<()> {
     let (done_tx, done_rx) = tokio::sync::oneshot::channel();
     {
         let tx = fault_tx().lock().expect("fault tx");
@@ -761,22 +761,22 @@ async fn dedicated_fault_touch(store: Arc<StudyMap>, idx: u32, access: AccessMod
     Ok(())
 }
 
-fn touch_for_access(store: &StudyMap, idx: u32, _access: AccessMode) -> Result<()> {
+fn touch_for_access(store: &SeriesMap, idx: u32, _access: AccessMode) -> Result<()> {
     touch_frame_pages(store, idx)
 }
 
-fn resident_for_access(store: &StudyMap, idx: u32, _access: AccessMode) -> Result<bool> {
+fn resident_for_access(store: &SeriesMap, idx: u32, _access: AccessMode) -> Result<bool> {
     frame_pages_resident(store, idx)
 }
 
-fn access_len(store: &StudyMap, idx: u32, _access: AccessMode) -> Result<usize> {
+fn access_len(store: &SeriesMap, idx: u32, _access: AccessMode) -> Result<usize> {
     let len = store.frame_span(idx)?.len;
     Ok(served_len(len))
 }
 
 /// Hand one window buffer to the blocking pool and get it back with the bytes in it.
 fn spawn_window_read(
-    store: &Arc<StudyMap>,
+    store: &Arc<SeriesMap>,
     slot: &mut Vec<u8>,
     offset: u64,
     window: usize,
@@ -860,7 +860,7 @@ impl ArmState {
 /// io_uring arms, which have no product counterpart to borrow one from.
 #[derive(Clone)]
 struct ServeCtx {
-    store: Arc<StudyMap>,
+    store: Arc<SeriesMap>,
     file: Arc<File>,
     /// Kept so the mix cells can `fadvise` the same inode the arms read from.
     path: PathBuf,
@@ -869,7 +869,7 @@ struct ServeCtx {
 impl ServeCtx {
     fn open(path: &Path) -> Result<Self> {
         Ok(Self {
-            store: Arc::new(StudyMap::open(path)?),
+            store: Arc::new(SeriesMap::open(path)?),
             file: Arc::new(
                 File::open(path)
                     .with_context(|| format!("open {} for io_uring", path.display()))?,
@@ -881,7 +881,7 @@ impl ServeCtx {
 
 struct RunRow {
     arm: String,
-    study: String,
+    series: String,
     temp: String,
     trace: String,
     access: String,
@@ -928,7 +928,7 @@ struct RunRow {
 }
 
 fn tsv_header() -> &'static str {
-    "arm\tstudy\ttemp\ttrace\taccess\tchunk\trepeat\tframes\tasks\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tgap_p50_ns\tgap_p99_ns\tgap_max_ns\tgap_samples\tbytes_copied\thop_p50_ns\tother_later_p50_ns\tother_later_p99_ns\tother_asks\tcpu_ns\tthreads_max\truntime\thop_count"
+    "arm\tseries\ttemp\ttrace\taccess\tchunk\trepeat\tframes\tasks\tfirst_frame_ns\tlater_p50_ns\tlater_p99_ns\tlater_mean_ns\tseries_wall_ns\tgap_p50_ns\tgap_p99_ns\tgap_max_ns\tgap_samples\tbytes_copied\thop_p50_ns\tother_later_p50_ns\tother_later_p99_ns\tother_asks\tcpu_ns\tthreads_max\truntime\thop_count"
 }
 
 impl RunRow {
@@ -936,7 +936,7 @@ impl RunRow {
         format!(
             "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             self.arm,
-            self.study,
+            self.series,
             self.temp,
             self.trace,
             self.access,
@@ -1010,7 +1010,7 @@ fn build_runtime(cfg: &CellCfg) -> Result<tokio::runtime::Runtime> {
 
 fn run_cell(
     arm: Arm,
-    study_src: &Path,
+    series_src: &Path,
     temp: Temp,
     trace_name: &str,
     trace: &[u32],
@@ -1020,13 +1020,13 @@ fn run_cell(
     let access = cfg.access;
     let chunk = cfg.chunk;
     let cold_guard = match temp {
-        Temp::Cold => Some(make_cold_copy(study_src)?),
+        Temp::Cold => Some(make_cold_copy(series_src)?),
         Temp::Warm => None,
     };
     let path = cold_guard
         .as_ref()
         .map(|c| c.path.clone())
-        .unwrap_or_else(|| study_src.to_path_buf());
+        .unwrap_or_else(|| series_src.to_path_buf());
 
     let ctx = ServeCtx::open(&path)?;
     let store = Arc::clone(&ctx.store);
@@ -1097,8 +1097,8 @@ fn run_cell(
             let mut bg_handles = Vec::new();
             let other_lats_acc: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
             if cfg.sessions > 0 {
-                // Warm a second mapping of the *source* study so background sessions are hot.
-                let bg_ctx = ServeCtx::open(study_src)?;
+                // Warm a second mapping of the *source* series so background sessions are hot.
+                let bg_ctx = ServeCtx::open(series_src)?;
                 for i in 0..bg_ctx.store.frame_count() {
                     let _ = touch_frame_pages(&bg_ctx.store, i);
                 }
@@ -1199,10 +1199,10 @@ fn run_cell(
 
     Ok(RunRow {
         arm: arm.as_str().to_string(),
-        study: study_src
+        series: series_src
             .file_name()
             .and_then(|s| s.to_str())
-            .unwrap_or("study")
+            .unwrap_or("series")
             .to_string(),
         temp: temp.as_str().to_string(),
         trace: trace_name.to_string(),
@@ -1720,7 +1720,7 @@ async fn serve_frame_async(
             let windows = len.div_ceil(win);
             if state.uring.is_none() {
                 // Registered buffers are allocated once and reused for every ask, so their
-                // geometry must cover the study's **longest** frame — not whichever frame
+                // geometry must cover the series's **longest** frame — not whichever frame
                 // was asked for first. HTJ2K frames are variable length; sizing from frame
                 // 0 reads past the buffer as soon as a longer frame arrives. The campaign
                 // fixture is fixed-size (320 x 250 000 B), which is why this never fired
@@ -1783,7 +1783,7 @@ async fn serve_frame_async(
                     // how many windows may be in flight; 2 is the shape the first campaign
                     // measured, and the flag exists because a miss-dominated cell is the
                     // one place a deeper queue could pay for itself. It comes from the ring
-                    // rather than from this frame — the ring was sized for the study's
+                    // rather than from this frame — the ring was sized for the series's
                     // longest frame, and indexing past its slots would panic.
                     let depth = ring.slots().max(2);
                     let mut issued = 0usize;
@@ -2060,7 +2060,7 @@ fn run_mix_cell(
     ) && !store.nowait_supported()
     {
         anyhow::bail!(
-            "RWF_NOWAIT unsupported on this study — the nowait arms are not themselves here"
+            "RWF_NOWAIT unsupported on this series — the nowait arms are not themselves here"
         );
     }
 
@@ -2338,7 +2338,7 @@ fn assert_cgroup_mem_limit(max_bytes: u64) -> Result<()> {
 /// The miss-ratio / concurrency campaign.
 ///
 /// Separate from the classic loop on purpose. That loop's unit is "one primary session on
-/// a whole study at one temperature"; this one's is "N sessions on a region whose miss
+/// a whole series at one temperature"; this one's is "N sessions on a region whose miss
 /// ratio was chosen and verified", and folding the second into the first would have meant
 /// changing the instrument the accepted decision rests on.
 fn run_mix_campaign(
@@ -2357,9 +2357,9 @@ fn run_mix_campaign(
     let mut rows: Vec<MixRow> = Vec::new();
     println!("{}", mix_tsv_header());
 
-    for study in &args.studies {
-        let study = study.canonicalize().context("study")?;
-        let ctx = ServeCtx::open(&study)?;
+    for series in &args.series {
+        let series = series.canonicalize().context("series")?;
+        let ctx = ServeCtx::open(&series)?;
         let n = ctx.store.frame_count();
         let region_frames = args.region_frames.max(1);
         let stride = args.region_stride.max(1);
@@ -2367,19 +2367,19 @@ fn run_mix_campaign(
         if span > n {
             anyhow::bail!(
                 "--region-frames {region_frames} x --region-stride {stride} spans {span} frames, \
-                 past the study's {n}"
+                 past the series's {n}"
             );
         }
         let regions = n / span;
         eprintln!(
-            "study={} frames={n} region_frames={region_frames} stride={stride} regions={regions} \
+            "series={} frames={n} region_frames={region_frames} stride={stride} regions={regions} \
              nowait={} concurrency={:?} mixes={:?}",
-            study.display(),
+            series.display(),
             ctx.store.nowait_supported(),
             concurrencies,
             mixes,
         );
-        // Every cell takes the next region unless pinned. An 80 MB study re-read is 10x
+        // Every cell takes the next region unless pinned. An 80 MB series re-read is 10x
         // faster on its second pass here (442 ms then 31 ms) — the hypervisor caches it —
         // so an arm that runs second on the same bytes is measuring the cache, not itself.
         let mut cell = 0u32;
@@ -2522,9 +2522,9 @@ fn main() -> Result<()> {
 
     let mut rows = Vec::new();
     println!("{}", tsv_header());
-    for study in &args.studies {
-        let study = study.canonicalize().context("study")?;
-        let store_probe = FrameStore::open(&study)?;
+    for series in &args.series {
+        let series = series.canonicalize().context("series")?;
+        let store_probe = FrameStore::open(&series)?;
         let n = store_probe.frame_count();
         drop(store_probe);
 
@@ -2574,7 +2574,7 @@ fn main() -> Result<()> {
                         // hybrid beating naive, which is impossible by construction.
                         for rep in 1..=repeats {
                             for &arm in &arms {
-                                let row = run_cell(arm, &study, temp, tname, &tframes, rep, cfg)?;
+                                let row = run_cell(arm, &series, temp, tname, &tframes, rep, cfg)?;
                                 println!("{}", row.to_tsv());
                                 rows.push(row);
                             }

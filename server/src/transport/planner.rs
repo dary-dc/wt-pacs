@@ -149,7 +149,7 @@ pub fn fill_range(from: Option<u32>, to: Option<u32>, frames: u32) -> Result<(u3
     let from = from.unwrap_or(0);
     let to = to.unwrap_or(last);
     if frames == 0 {
-        Err("study is empty".into())
+        Err("series is empty".into())
     } else if from > to || to >= frames {
         Err(format!("StreamFrames {from}..={to} outside 0..={last}"))
     } else {
@@ -292,7 +292,7 @@ mod tests {
         assert!(matches!(plan.next(|| None).unwrap(), Step::Wait));
     }
 
-    /// `from > to`, or `to` past the study: `refuse` with `from`, no frame served.
+    /// `from > to`, or `to` past the series: `refuse` with `from`, no frame served.
     #[test]
     fn a_bad_range_is_refused_with_from() {
         for (from, to) in [(Some(7), Some(3)), (Some(0), Some(9))] {
@@ -306,9 +306,9 @@ mod tests {
         }
     }
 
-    /// An empty study refuses `StreamFrames {}` with `from` 0.
+    /// An empty series refuses `StreamFrames {}` with `from` 0.
     #[test]
-    fn an_empty_study_is_refused_with_from() {
+    fn an_empty_series_is_refused_with_from() {
         let mut plan = Planner::new(0);
         plan.push(Ask::Fill {
             from: None,
@@ -317,7 +317,7 @@ mod tests {
         match plan.next(|| None).unwrap() {
             Step::Refuse { frame, reason } => {
                 assert_eq!(frame, 0);
-                assert!(reason.contains("empty"), "empty study refused as {reason}");
+                assert!(reason.contains("empty"), "empty series refused as {reason}");
             }
             other => panic!("{other:?}"),
         }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal static host for harness, WASM pkg, study metadata, and dev-transport.json."""
+"""Minimal static host for harness, WASM pkg, series metadata, and dev-transport.json."""
 
 import argparse
 import json
@@ -15,15 +15,15 @@ REVALIDATED = {"text/html", "application/json"}
 
 
 class Handler(SimpleHTTPRequestHandler):
-    study_name: str = "us_cine_smoke"
+    series_name: str = "us_cine_smoke"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def translate_path(self, path: str) -> str:
         path = unquote(path.split("?", 1)[0])
-        if path.startswith("/study/metadata"):
-            p = ROOT / "fixtures" / self.study_name / "metadata.json"
+        if path.startswith("/series/metadata"):
+            p = ROOT / "fixtures" / self.series_name / "metadata.json"
             return str(p)
         if path.startswith("/wt/dev-transport.json"):
             p = ROOT / "client" / "dev-transport.json"
@@ -59,12 +59,12 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765, help="0 picks a free one")
-    parser.add_argument("--study", default="us_cine_smoke")
+    parser.add_argument("--series", default="us_cine_smoke")
     args = parser.parse_args()
-    Handler.study_name = args.study
+    Handler.series_name = args.series
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     port = server.server_address[1]
-    print(f"port={port} http://127.0.0.1:{port}/harness/cell.html?autorun=1 study={args.study}", flush=True)
+    print(f"port={port} http://127.0.0.1:{port}/harness/cell.html?autorun=1 series={args.series}", flush=True)
     server.serve_forever()
 
 

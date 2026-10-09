@@ -1,6 +1,6 @@
 # The same fill over QUIC, a WebSocket and the race
 
-TC1 (queue row 77). `exact-server --websocket` serves the same envelopes and FoD messages over a
+TC1 (queue row 77). `series-server --websocket` serves the same envelopes and FoD messages over a
 WebSocket, TCP on the QUIC port's number; `run.mjs` drives the downloader over WebTransport, over the
 WebSocket (`ws-session.js`) and over the race (`race-session.js`), and hashes every frame it gets
 against its source: a 120-frame fill of frames 1 KB–600 KB, three asks outside the fill while it

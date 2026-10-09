@@ -1,4 +1,4 @@
-//! N sessions fill the same study at once; each fill's time, every frame matched byte for byte
+//! N sessions fill the same series at once; each fill's time, every frame matched byte for byte
 //! with the item ingest wrote, and the server's CPU and memory over the fills. lab/server-load.
 //!
 //! usage: fill_load --url https://127.0.0.1:4433/ --items DIR --ext htj2k --sessions 8

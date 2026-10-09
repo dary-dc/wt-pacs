@@ -60,9 +60,9 @@ fn since_origin_us() -> u64 {
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct RunMeta {
     pub stream_mode: String,
-    pub study: String,
-    /// Frames in the study bundle (the summary's `frame_count` is rows recorded).
-    pub study_frames: u32,
+    pub series: String,
+    /// Frames in the series bundle (the summary's `frame_count` is rows recorded).
+    pub series_frames: u32,
 }
 
 static RUN_META: OnceLock<RunMeta> = OnceLock::new();

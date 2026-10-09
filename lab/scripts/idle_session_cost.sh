@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)/.."
 cd "$ROOT"
 
 PORT="${PORT:-4433}"
-STUDY="${STUDY:-fixtures/us_cine_smoke/us_cine_smoke.sbnd}"
+SERIES="${SERIES:-fixtures/us_cine_smoke/us_cine_smoke.sbnd}"
 SESSIONS="${SESSIONS:-1 10 50 200}"
 HOLD="${HOLD:-30}"
 KEEP_ALIVES="${KEEP_ALIVES:-none 3}"
@@ -19,7 +19,7 @@ IDLE_MS="${IDLE_MS:-30000}"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"; [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
-cargo build --release -p exact-server -p window-harness >/dev/null 2>&1
+cargo build --release -p series-server -p window-harness >/dev/null 2>&1
 
 rss_kb()   { awk '/^VmRSS:/ {print $2}' "/proc/$1/status"; }
 cpu_ticks() { awk '{print $14 + $15}' "/proc/$1/stat"; }
@@ -27,7 +27,7 @@ cpu_ticks() { awk '{print $14 + $15}' "/proc/$1/stat"; }
 udp_out()  { awk '/^Udp:/ {getline; print $5}' /proc/net/snmp; }
 
 start_server() {
-  ./target/release/exact-server --port "$PORT" --study "$STUDY" \
+  ./target/release/series-server --port "$PORT" --series "$SERIES" \
     --max-idle-timeout-ms "$IDLE_MS" >"$SCRATCH/server.log" 2>&1 &
   SERVER_PID=$!
   for _ in $(seq 50); do

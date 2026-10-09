@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 command -v nm >/dev/null || { echo "nm is missing (binutils)" >&2; exit 2; }
 
-cargo build --release -p exact-server
+cargo build --release -p series-server
 
 target_dir="${CARGO_TARGET_DIR:-}"
 if [[ -z "$target_dir" ]]; then
@@ -13,13 +13,13 @@ if [[ -z "$target_dir" ]]; then
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
 fi
 
-BIN="$target_dir/release/exact-server"
+BIN="$target_dir/release/series-server"
 if [[ ! -f "$BIN" ]]; then
   echo "error: expected binary at $BIN (set CARGO_TARGET_DIR if using a custom target dir)" >&2
   exit 1
 fi
 
-if grep -qE 'exact_server::record::(tap|sink|report|rows)|Tap::for_session|LiveSummary|prepare_us|overhead_us|ack_us|server_work_us|flush_on_exit' <(nm -C "$BIN"); then
+if grep -qE 'series_server::record::(tap|sink|report|rows)|Tap::for_session|LiveSummary|prepare_us|overhead_us|ack_us|server_work_us|flush_on_exit' <(nm -C "$BIN"); then
   echo "FAIL: telemetry symbols found in default build" >&2
   nm -C "$BIN" | grep -E 'record::(tap|sink|report|rows)|Tap::|overhead_us|ack_us' || true
   exit 1

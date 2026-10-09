@@ -288,7 +288,7 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    fn one_frame_study(path: &std::path::Path) {
+    fn one_frame_series(path: &std::path::Path) {
         let meta = br#"{"frameCount":1}"#;
         let mut f = std::fs::File::create(path).expect("create bundle");
         f.write_all(b"SBND").unwrap();
@@ -303,16 +303,16 @@ mod tests {
         f.sync_all().unwrap();
     }
 
-    /// A study of `frames` frames, each a different length, so a span cannot match by luck.
-    fn study(path: &std::path::Path, frames: u32) {
+    /// A series of `frames` frames, each a different length, so a span cannot match by luck.
+    fn series(path: &std::path::Path, frames: u32) {
         let bodies: Vec<Vec<u8>> = (0..frames).map(|i| vec![i as u8; 4 + i as usize]).collect();
         let refs: Vec<&[u8]> = bodies.iter().map(|b| b.as_slice()).collect();
-        study_bundle::write_bundle(
+        series_bundle::write_bundle(
             path,
             format!("{{\"frameCount\":{frames}}}").as_bytes(),
             &refs,
         )
-        .expect("write study");
+        .expect("write series");
     }
 
     /// Records what reaches the read path. `locate` is the product's; only the sink is the
@@ -347,7 +347,7 @@ mod tests {
 
     fn recorder(tag: &str, frames: u32) -> (std::path::PathBuf, SeamRecorder) {
         let path = std::env::temp_dir().join(format!("wtpacs-{tag}-{}.sbnd", std::process::id()));
-        study(&path, frames);
+        series(&path, frames);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         (
             path,
@@ -381,7 +381,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// An upcoming frame outside the study is dropped from `ahead`, never an error for the
+    /// An upcoming frame outside the series is dropped from `ahead`, never an error for the
     /// frame being served.
     #[test]
     fn an_upcoming_frame_out_of_range_is_dropped_not_refused() {
@@ -401,7 +401,7 @@ mod tests {
     }
 
     /// **A refused range is its own row.** The planner refuses a `stream_frames` range outside
-    /// the study before any frame opens; its row carries the refused frame, not the last one
+    /// the series before any frame opens; its row carries the refused frame, not the last one
     /// served. A frame refused at `locate` keeps the one row it opened, and every row opened is
     /// closed. `docs/adr/telemetry-server-pipeline.md`.
     #[cfg(feature = "telemetry")]
@@ -444,7 +444,7 @@ mod tests {
     #[test]
     fn a_refusal_with_no_control_stream_returns_once_the_session_closes() {
         let path = std::env::temp_dir().join(format!("wtpacs-late-{}.sbnd", std::process::id()));
-        one_frame_study(&path);
+        one_frame_series(&path);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         let (closed, late) = oneshot::channel();
         let mut product =
@@ -464,13 +464,13 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// **One index per study, never per session** — nothing in the type system prevents a
+    /// **One index per series, never per session** — nothing in the type system prevents a
     /// session opening its own store, so this pins the shape it actually gets.
     /// `docs/adr/disk-access.md` §Invariants.
     #[test]
     fn sessions_share_one_store_rather_than_opening_their_own() {
         let path = std::env::temp_dir().join(format!("wtpacs-share-{}.sbnd", std::process::id()));
-        one_frame_study(&path);
+        one_frame_series(&path);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
 
         let sessions = 8;

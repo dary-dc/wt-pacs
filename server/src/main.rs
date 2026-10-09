@@ -1,16 +1,16 @@
 use clap::Parser;
-use exact_server::{run_server, Congestion, ServeConfig, StreamMode, TransportTuning};
+use series_server::{run_server, Congestion, ServeConfig, StreamMode, TransportTuning};
 use std::net::IpAddr;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
-#[command(name = "exact-server")]
+#[command(name = "series-server")]
 struct Args {
     #[arg(long, default_value = "4433")]
     port: u16,
     #[arg(long)]
-    study: PathBuf,
+    series: PathBuf,
     #[arg(long, default_value = "server/dev-cert/cert.pem")]
     cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
@@ -44,7 +44,7 @@ struct Args {
     /// batches.
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     segmentation_offload: bool,
-    /// Lab only: serve every frame as a miss, for measuring a study nobody has read.
+    /// Lab only: serve every frame as a miss, for measuring a series nobody has read.
     #[arg(long, default_value_t = false)]
     force_pool_reads: bool,
     /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--open-ask false` turns it off.
@@ -69,7 +69,7 @@ fn install_crypto_provider() -> anyhow::Result<()> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive("exact_server=info".parse()?))
+        .with_env_filter(EnvFilter::from_default_env().add_directive("series_server=info".parse()?))
         .init();
 
     install_crypto_provider()?;
@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let server = run_server(ServeConfig {
         wt_port: args.port,
-        study_path: args.study,
+        series_path: args.series,
         cert_pem: args.cert_pem,
         key_pem: args.key_pem,
         mode: args.stream_mode,
@@ -105,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
             // Lab builds: write the telemetry report before the process goes away. The harvest
             // sends SIGTERM between runs; without this the drain thread dies with its rows.
             #[cfg(feature = "telemetry")]
-            exact_server::record::flush_on_exit();
+            series_server::record::flush_on_exit();
             Ok(())
         }
     }
@@ -133,7 +133,7 @@ mod tests {
     use super::*;
 
     fn parse(flags: &[&str]) -> Args {
-        Args::try_parse_from([&["exact-server", "--study", "s.sbnd"], flags].concat()).expect("parses")
+        Args::try_parse_from([&["series-server", "--series", "s.sbnd"], flags].concat()).expect("parses")
     }
 
     /// The restart after a silence is the default controller: it won every dropped blink and tied

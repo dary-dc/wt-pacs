@@ -37,7 +37,7 @@ each (the node tests and both rigs for the client, `cargo test` for the rest):
 | `downloader.js`, `consumer.js` | 76 | 44 | 65 of 72 | 4 were dead code, removed; 7: two only matter when a frozen page's timers fire late, a listener removal and two `??=` change nothing observable, the wire buffer's release only moves memory, a recycle racing a resumption the fake cannot order (`client/README.md` §Every decision is held by a test) |
 | the decoder modules (`decoder.js`, `htj2k.js`, `av1*.js`, `decode-av1*.js`) | 45 | 45 | 45 | — |
 | the send path (`planner.rs`, `frame_out.rs`, `pipeline.rs`) | 25 | 16 | 20 of 24 | 1 was dead code, removed; 4: `fills` and the end-of-session read report are log lines, and the lab-only byte-budget stall's FIN and its `>`/`>=` send the same bytes |
-| the study bundle's reader and writer | 10 | 3 | 10 | — |
+| the series bundle's reader and writer | 10 | 3 | 10 | — |
 
 No test was cut: the pairs whose mutants another test also kills are checks inside one clause, which
 cost no time of their own, or rest on too few mutants to show one covers the other.
@@ -53,23 +53,23 @@ bash client/transport/ts/build.sh     # TypeScript client → dist/
 ./server/scripts/gen_dev_cert.sh
 
 # 3. Pack the smoke bundle, or use the tracked one
-cargo run -p pack-study -- \
+cargo run -p pack-series -- \
   --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames \
   --output fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
 # Terminal 1 — WebTransport server
-cargo run --release -p exact-server -- \
+cargo run --release -p series-server -- \
   --port 4433 \
-  --study fixtures/us_cine_smoke/us_cine_smoke.sbnd
+  --series fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
 # Terminal 2 — static host
-python3 server/dev-server.py --port 8765 --study us_cine_smoke
+python3 server/dev-server.py --port 8765 --series us_cine_smoke
 ```
 
 Open in Chrome:
 
-- A cell over the downloader, on any study: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the
+- A cell over the downloader, on any series: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the
   URL the static host prints. `&transport=wasm` runs the WASM client. `&transport=ws` runs the
   WebSocket fallback, which needs the server started with `--websocket` (add it to Terminal 1's
   command) and a Chrome that trusts the dev certificate, since a WebSocket cannot pin it by hash
@@ -84,26 +84,26 @@ Open in Chrome:
 
   The query parameters are listed in `client/harness/shell.js`.
 - The downloader's self-check (decoded frames against `.sha256`): `http://127.0.0.1:8765/harness/`.
-  It needs the decoder vendor (§Prerequisites) and the server running the `decode_c512` study in
+  It needs the decoder vendor (§Prerequisites) and the server running the `decode_c512` series in
   place of the smoke one ([`docs/FIXTURES.md`](docs/FIXTURES.md), `client/README.md`):
 
 ```bash
 lab/scripts/gen_htj2k_fixtures.sh c512   # 87 frames and their .sha256; builds OpenJPH's encoder once (cmake, a C++ compiler)
 mkdir -p target/c512
 for f in lab/fixtures/decode_c512/*.j2c; do cp "$f" "target/c512/$(basename "$f" .j2c).htj2k"; done
-cargo run -p pack-study -- \
+cargo run -p pack-series -- \
   --metadata lab/fixtures/decode_c512/metadata.json \
   --frames target/c512 \
   --output target/c512.sbnd
 
-# Terminal 1, in place of the smoke study
-cargo run --release -p exact-server -- --port 4433 --study target/c512.sbnd
+# Terminal 1, in place of the smoke series
+cargo run --release -p series-server -- --port 4433 --series target/c512.sbnd
 ```
 
 `scripts/cellcheck.sh` runs both pages headless in one go: the cells over both clients (on-demand at
 depth 1 and 4, fill, refuse, a fill on a busy main thread, telemetry) must each deliver what they asked,
 the refuse cell none of it, and the self-check must pass. It builds a release server, packs the c512
-study and makes its own cert under a temp dir, so it needs the c512 frames above, the WASM `pkg/` and
+series and makes its own cert under a temp dir, so it needs the c512 frames above, the WASM `pkg/` and
 the browser prerequisites, but not the two terminals or `gen_dev_cert.sh`. `scripts/gate.sh` does not run
 it, since the gate does not require the c512 frames.
 

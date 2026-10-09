@@ -5,7 +5,7 @@
   "settle_on": "last_asked",
   "send_cancel_on_settle": false,
   "_design": {
-    "notes": "Short scroll for stream-mode X3; study frameCount >= 48"
+    "notes": "Short scroll for stream-mode X3; series frameCount >= 48"
   },
   "steps": [
     {

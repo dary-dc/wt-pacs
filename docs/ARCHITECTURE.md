@@ -146,7 +146,7 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   an 87-frame 16-bit fill, 8 of 8 rounds**, the fill's clock unmoved ([`decode/README.md`](decode/README.md)
   §The wire buffer ring). **The reader pause is proposed, not built**: past a bound of queued
   compressed bytes, stop reading and let QUIC flow control stop the server — no server cap, no new
-  message. Until then the compressed queue grows with the study whenever the decoders fall behind the
+  message. Until then the compressed queue grows with the series whenever the decoders fall behind the
   wire (read from the code). It replaces a fill window that was never built, whose reason — a waiter
   per frame — pushed fills removed.
 
@@ -313,7 +313,7 @@ the downloader against a stalling fake decoder so contention is forced; both are
 | worker-safe clocks; transferable results | `workerSafe`, `transferable`; `client/scripts/check_worker_safe.sh` | the same: stamps across two worker boundaries non-zero and ordered, a delivered buffer movable. **Move-not-copy across the boundary is not page-observable** — a dropped transfer list arrives as a clone that still detaches, found by a mutant that passed |
 | an ask during a fill, served before the fill's queue | `ask-during-fill.html` against a real server: the ask is served, the fill ends — 28 of 120 arrive, then nothing | the same page: the ask is served and the fill completes without being asked again, no frame twice; dispatch `askBeatsQueuedFill`, `promoteBeatsQueuedFill`, `asksTheWireForAnOwedFrame`, `reissuesAfterAsk` |
 | `stats`; one dial serves later asks; re-dial after closure | `reportsStats`, `oneDialServesLaterAsks`, `redialsAfterClosure` | the same; `stats` answered on the page |
-| 8-bit multi-component, 16-bit unsigned, 16-bit signed | `parity.mjs`, signed against ground truth an independent decoder confirmed ([`decode/README.md`](decode/README.md) §Signed) | 8-bit 3-component byte-identical in `client/harness/index.html`; the others rest on the package, which sign-extends itself. **Not yet run behind the downloader on a signed study** |
+| 8-bit multi-component, 16-bit unsigned, 16-bit signed | `parity.mjs`, signed against ground truth an independent decoder confirmed ([`decode/README.md`](decode/README.md) §Signed) | 8-bit 3-component byte-identical in `client/harness/index.html`; the others rest on the package, which sign-extends itself. **Not yet run behind the downloader on a signed series** |
 | every decoded frame byte-identical to `.sha256` | `parity.mjs`, `lab/decode-bench/` | `client/harness/index.html`, mutation-checked both ways: one perturbed sample turns every line to `MISMATCH`, every fifth frame dropped reports 9/12 |
 | TS, WASM and WebSocket transports behind the same downloader | every clause against every transport; the gate requires the WASM package | `lab/scripts/downloader_both_clients.sh`: single ask byte-exact on TS and WASM, fill a tie (120 / 125 ms); WebSocket and the race in §What was built |
 
@@ -599,7 +599,7 @@ over 40 / 80 / 160 ms, five arms interleaved, n = 7 a delay:
 
 **An RSA chain costs a round trip on every cold open and reconnect (+60–80 ms at the target's round
 trip); an ECDSA chain costs nothing — issue the server an ECDSA certificate.** Certificate compression
-(`exact-server`'s `cert-compression` feature, no code) buys the round trip back, −32.3 % on the
+(`series-server`'s `cert-compression` feature, no code) buys the round trip back, −32.3 % on the
 Certificate message; Chrome 148 offers it over QUIC, brotli only. **It stays off by default**: five
 crates and +1.29 MiB on the binary, for what ECDSA gets with none. **A leaf-only PEM** makes the
 browser fetch the intermediate over AIA on every cold open until cached; `deploy/check_equivalence.sh`
@@ -623,12 +623,12 @@ a static host and a DNS change.
 **The ask in the session URL**, `?ask=frame:42` or `?ask=fill:0-486`. `SessionRequest::path()` is
 readable before `accept()`, so the server opens the media stream behind its own accept while the client
 is still opening its control stream; no crate patch. The control stream is unchanged and owns every
-later ask; a session with no URL ask behaves as before. The URL is untrusted: the study resolves against
+later ask; a session with no URL ask behaves as before. The URL is untrusted: the series resolves against
 the configured root, and a malformed or out-of-range ask is ignored, the session going on as without it
 (`WIRE.md` §The opening ask). **Corrected 2026-10-03:** this line said a bad ask is refused with
 `FrameError`. Until that date only an inverted fill (`fill:7-3`) was, once the control stream opened; an
 out-of-range one was ignored, and a fill with a non-numeric end (`fill:abc-xyz`, `fill:3-x`) was widened
-to the whole study or to its end. All three are now ignored (`an_opening_ask_is_taken_only_whole_and_in_range`).
+to the whole series or to its end. All three are now ignored (`an_opening_ask_is_taken_only_whole_and_in_range`).
 A refusal in such a session, for a later ask, waits for the control stream: the prototype had none to
 refuse on and dropped it (`an_opening_ask_is_served_behind_the_accept`).
 
@@ -646,7 +646,7 @@ malformed ask leaves the session serving). A re-dial puts the fill's remainder i
 
 **The server's SETTINGS at 0.5 RTT.** Chromium holds its CONNECT until the server's SETTINGS arrive,
 and `wtransport` 0.7.2 opened the server's control stream only after the handshake completed.
-[`../patches/wtransport-0.7.2-settings-early.patch`](../patches/wtransport-0.7.2-settings-early.patch)
+[`../patches/wtransport-0.7.2-settings-in-handshake.patch`](../patches/wtransport-0.7.2-settings-in-handshake.patch)
 (22 lines in `endpoint.rs`) takes the server's `Connecting` to 0.5-RTT with `into_0rtt` and starts the
 driver on it — on both of the library's server entry points, `Endpoint::accept` and
 `IncomingSessionFuture::with_quic_connecting` — so SETTINGS ride the handshake flight (RFC 9114
@@ -914,7 +914,7 @@ triggers are covered by clauses, not by this campaign.
 ### A dial that never settles
 
 WebKit bug 319879 (Safari 26 on macOS): the server answers the CONNECT with 200 and `ready` never
-settles. **Not WebKit's alone**: `exact-server --hold-sessions`, a lab flag, takes each CONNECT and never
+settles. **Not WebKit's alone**: `series-server --hold-sessions`, a lab flag, takes each CONNECT and never
 answers, and a bare `new WebTransport`, the TS and WASM clients and the downloader all stayed pending
 past 180 s in Chromium 141 ([`../lab/dial-deadline/`](../lab/dial-deadline/README.md)) — neither
 Chromium nor QUIC's idle timeout ends it. An overloaded server that stalls a CONNECT does the same.
@@ -942,7 +942,7 @@ sends it, for one round trip off a re-dial (derived). Every client message is a 
 safe until the URL carries a credential. Revisit when Chrome resumes WebTransport sessions.
 
 **Careful Resume — a remembered congestion window for the reconnect — is not recommended.** It is
-reachable (an `accept_with` in the settings-early patch, keyed on a server-issued token in the URL, not
+reachable (an `accept_with` in the settings-in-handshake patch, keyed on a server-issued token in the URL, not
 on an address a carrier NAT shares), but **the push at open recovers the same slow start with no saved
 state**: a first ask of 250 KB at 80 ms, 7 rounds, takes 461.6 ms fresh, 104.6 warmed, **130.1 with the
 push**, 134.0 jumping to half the warmed window, 112.7 with both; behind a 10 Mbit, 20-packet queue the

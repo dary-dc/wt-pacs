@@ -2,7 +2,7 @@
 name = "disk-access-bench"
 version = "0.1.0"
 edition = "2021"
-description = "Compare study disk-access arms (mmap / pread / madvise) with shared metrics"
+description = "Compare series disk-access arms (mmap / pread / madvise) with shared metrics"
 
 [[bin]]
 name = "disk-access-bench"
@@ -27,7 +27,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
 [dependencies]
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive"] }
-exact-server = { path = "../../server" }
+series-server = { path = "../../server" }
 fod = { path = "../../common/fod" }
 frame-envelope = { path = "../../common/frame-envelope" }
 bytes = { workspace = true }

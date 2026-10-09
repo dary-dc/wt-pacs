@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     let path = PathBuf::from(
         std::env::args()
             .nth(1)
-            .context("usage: evict <study.sbnd>")?,
+            .context("usage: evict <series.sbnd>")?,
     );
     let resident = evict_retry(&path)?;
     println!("{resident}");

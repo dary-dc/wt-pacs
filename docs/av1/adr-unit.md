@@ -18,11 +18,11 @@ brings it.
 
 * **Values:** `"htj2k"` and `"av1"`. **Absent means `"htj2k"`**, so every bundle and fixture made
   so far reads unchanged and nothing has to be repacked.
-* **A bundle carries one codec.** `exact-server --study` serves one bundle, and a bundle is one
+* **A bundle carries one codec.** `series-server --series` serves one bundle, and a bundle is one
   series today, so "the codec belongs to the series" ([`README.md`](README.md) §Decided) needs no
   per-frame field. The envelope stays `[len][index][opaque]`.
 * **The server does not read it.** It serves bytes by index; the metadata is opaque to it except
-  `frameCount`. The only server-side change is in ingest: `pack-study` reads `DIR/NNN.htj2k`
+  `frameCount`. The only server-side change is in ingest: `pack-series` reads `DIR/NNN.htj2k`
   today and would read `NNN.<codec>`, the extension taken from the metadata.
 * **A transform that makes a series codable is the codec's, and named beside it.** AV1 codes at most
   12 bits and only unsigned ([`README.md`](README.md) §Samples over 12 bits), so a signed series needs its offset and
@@ -286,10 +286,10 @@ whether one decoder at operating point 0 also returns a base fed alone is row SV
   `request_frames` batch of every even index, which an ask then waits behind ([`WIRE.md`](../WIRE.md)).
 * **The bases are contiguous on disk**, so the read-ahead of a bases run reads one small region.
 * **The metadata** gains `"layers": 2`; `frameCount` stays the entry count the bundle and
-  `pack-study` mean, so the series has `frameCount / layers` frames. Absent means 1: entry = frame,
+  `pack-series` mean, so the series has `frameCount / layers` frames. Absent means 1: entry = frame,
   and every HTJ2K and single-layer AV1 bundle reads unchanged.
 * **Ingest** splits each temporal unit at the first OBU with `spatial_id` > 0 and writes the prefix
-  as entry i, the whole unit as entry F + i; `pack-study` itself does not change.
+  as entry i, the whole unit as entry F + i; `pack-series` itself does not change.
 
 ### What each part changes
 

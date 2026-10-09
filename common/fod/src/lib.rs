@@ -13,7 +13,7 @@ pub enum FodMsg {
     RequestFrame {
         frame: u32,
     },
-    /// `{}` is the whole study; an omitted `from` is the first frame, an omitted `to` the last.
+    /// `{}` is the whole series; an omitted `from` is the first frame, an omitted `to` the last.
     StreamFrames {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         from: Option<u32>,
@@ -74,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    fn stream_frames_empty_is_the_whole_study() {
+    fn stream_frames_empty_is_the_whole_series() {
         let msg = FodMsg::StreamFrames {
             from: None,
             to: None,

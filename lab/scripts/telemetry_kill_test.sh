@@ -6,7 +6,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="${WORK:-$ROOT/.local/telemetry-kill-test}"
-STUDY="${STUDY:-$ROOT/lab/fixtures/queue_large/queue_large.sbnd}"
+SERIES="${SERIES:-$ROOT/lab/fixtures/queue_large/queue_large.sbnd}"
 CERT="$ROOT/server/dev-cert/cert.pem"; KEY="$ROOT/server/dev-cert/key.pem"
 PORT="${PORT:-4434}"
 BIND="${BIND:-}"; HARNESS_IPV4="${HARNESS_IPV4:-0}"
@@ -23,7 +23,7 @@ bind_args=(); [[ -n "$BIND" ]] && bind_args=(--bind "$BIND")
 harness_args=(); [[ "$HARNESS_IPV4" == "1" ]] && harness_args=(--ipv4)
 
 WTPACS_TELEMETRY=1 WTPACS_TELEMETRY_PATH="$report" WTPACS_TELEMETRY_SUMMARY_MS="$SUMMARY_MS" \
-  "$SERVER_TELEMETRY" --port "$PORT" --study "$STUDY" --cert-pem "$CERT" --key-pem "$KEY" \
+  "$SERVER_TELEMETRY" --port "$PORT" --series "$SERIES" --cert-pem "$CERT" --key-pem "$KEY" \
     "${bind_args[@]}" > "$WORK/server.out" 2> "$WORK/server.err" &
 spid=$!
 sleep 1

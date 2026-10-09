@@ -26,8 +26,8 @@ for i in "${!arms[@]}"; do
   port=$(python3 -c 'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(("127.0.0.1",0));print(s.getsockname()[1])')
   log=$(mktemp)
   # shellcheck disable=SC2086
-  NO_COLOR=1 RUST_LOG=exact_server=warn,exact_server::transport::server=info ${SERVER_CPUS:+taskset -c "$SERVER_CPUS"} "${bins[$i]}" \
-    --port "$port" --study "$fx" \
+  NO_COLOR=1 RUST_LOG=series_server=warn,series_server::transport::server=info ${SERVER_CPUS:+taskset -c "$SERVER_CPUS"} "${bins[$i]}" \
+    --port "$port" --series "$fx" \
     --bind 127.0.0.1 --cert-pem "$ROOT/server/dev-cert/cert.pem" --key-pem "$ROOT/server/dev-cert/key.pem" \
     ${args[$i]} >"$log" 2>&1 &
   pids+=($!); logs+=("$log")

@@ -21,7 +21,7 @@ done
 NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames lab/.av1-work/bases --links r5000,r20000,r50000 --summary --out rows.jsonl
 ```
 
-**Arms**, each one study through the product's downloader, three decoders, two frames outstanding each:
+**Arms**, each one series through the product's downloader, three decoders, two frames outstanding each:
 
 | arm | stored | entries | decoder |
 | --- | --- | --- | --- |

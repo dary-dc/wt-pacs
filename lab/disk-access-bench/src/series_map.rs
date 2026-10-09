@@ -1,8 +1,8 @@
-//! A study, plus the memory mapping the rejected mmap arms need. It lives here and not in
+//! A series, plus the memory mapping the rejected mmap arms need. It lives here and not in
 //! `server/` because mmap lost: `docs/adr/disk-access.md`.
 
 use anyhow::{bail, Context, Result};
-use exact_server::media::frame_store::FrameStore;
+use series_server::media::frame_store::FrameStore;
 use memmap2::Mmap;
 use std::ops::Deref;
 use std::path::Path;
@@ -10,18 +10,18 @@ use std::sync::OnceLock;
 
 /// A `FrameStore` with a mapping over the same file. `Deref`s to the store, so a `pread`
 /// arm calls it exactly as the product does and only the mmap arms reach for `frame_slice`.
-pub struct StudyMap {
+pub struct SeriesMap {
     store: FrameStore,
     mmap: Mmap,
 }
 
-impl StudyMap {
+impl SeriesMap {
     pub fn open(path: &Path) -> Result<Self> {
         let store = FrameStore::open(path)?;
         let file = std::fs::File::open(path).with_context(|| format!("open {}", path.display()))?;
-        // SAFETY: `file` is a study bundle, which is immutable once written; the mapping is
+        // SAFETY: `file` is a series bundle, which is immutable once written; the mapping is
         // only read.
-        let mmap = unsafe { Mmap::map(&file) }.context("mmap study bundle")?;
+        let mmap = unsafe { Mmap::map(&file) }.context("mmap series bundle")?;
         Ok(Self { store, mmap })
     }
 
@@ -39,14 +39,14 @@ impl StudyMap {
         Ok(&self.mmap[start..end])
     }
 
-    /// The whole data region, for arms that unmap or advise the study as a unit.
+    /// The whole data region, for arms that unmap or advise the series as a unit.
     pub fn data_span(&self) -> Result<&[u8]> {
         let first = self.store.frame_span(0)?;
         Ok(&self.mmap[first.offset as usize..])
     }
 }
 
-impl Deref for StudyMap {
+impl Deref for SeriesMap {
     type Target = FrameStore;
 
     fn deref(&self) -> &FrameStore {

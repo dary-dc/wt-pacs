@@ -18,9 +18,9 @@ and how a campaign runs there; §10 is where the raw rows went.
 
 Measured 2026-09-11, sampling the browser's threads per run: Chromium's network-service IO thread
 costs **~9.8 ms of CPU per MB received** — ~14 µs per 1 452-byte datagram, inferred from that rate
-— which caps a fill near 100 MB/s on this box whatever the server does. A 61 MB study fills at
-94.5 MB/s with that thread at a full core (107 % in its busiest 100 ms); a 4.4 MB study reaches
-73.6 MB/s with it at 61 %, so something else holds the small study back first — start-up, loss
+— which caps a fill near 100 MB/s on this box whatever the server does. A 61 MB series fills at
+94.5 MB/s with that thread at a full core (107 % in its busiest 100 ms); a 4.4 MB series reaches
+73.6 MB/s with it at 61 %, so something else holds the small series back first — start-up, loss
 recovery, and the 5× higher frame count per MB are all candidates, **not separated**.
 
 The consequence is that **no sender-side lever shortens a browser fill here**. Measured against
@@ -330,7 +330,7 @@ Instrument notes, each a trap:
 
 ## 4. The reader never misses
 
-A fully evicted 61 MB study still reports `fill_hits=237 fill_misses=0`. On this NVMe the
+A fully evicted 61 MB series still reports `fill_hits=237 fill_misses=0`. On this NVMe the
 one-frame look-ahead completes before the reader needs it, so eviction moves the read earlier
 without ever blocking — eviction is real (residency 1.0 → 0 → 1.0, verified per run), it simply
 has nothing to bite on. Page-cache eviction is not the lever; force a miss through the store's own
@@ -342,11 +342,11 @@ that escalates to a blocking pool ([`adr/disk-access.md`](adr/disk-access.md)). 
 a major fault costs milliseconds the first should lose badly, but this box never produces one.
 **A rig that cannot make the reader miss cannot price either design.**
 
-**What lifts it:** slower storage, a study far past the 15 GB of RAM, or a reduced
+**What lifts it:** slower storage, a series far past the 15 GB of RAM, or a reduced
 `read_ahead_kb` — already recorded as moving miss rate 2–15× ([`adr/disk-access.md`](adr/disk-access.md)
 §8). Drivers: `lab/scripts/e2_miss_cost_cloud.sh`, `lab/scripts/read_path_ab.sh`.
 
-**On the cloud rig it does** (2026-09-18, L7, `lab/scripts/l7_read_path.sh`). A 4 GB study on its
+**On the cloud rig it does** (2026-09-18, L7, `lab/scripts/l7_read_path.sh`). A 4 GB series on its
 954 MB host misses 76–97 % of spread asks, and each is ~1 ms slower at p50 than warm, 6/6 with
 disjoint ranges. The fill still does not miss: 1 % cold, as warm. That host's stolen CPU caps what
 it can price at a median — every cell, warm included, has a p99 of 60–100 ms
@@ -355,21 +355,21 @@ it can price at a median — every cell, warm included, has a p99 of 60–100 ms
 ## 5. Natively, the send path is already at its ceiling
 
 Browser-free, with native drivers on both sides (connect, ask, drain, end, no decode) on a 61.18 MB
-study of 237 frames of ~259 KB, evicted before every run: this server and a comparison server of
+series of 237 frames of ~259 KB, evicted before every run: this server and a comparison server of
 the same protocol shape both land at 225–284 MB/s with **99 %+ of `serve_us` inside `send`**;
 `locate` and `prepare` are ~0. Cold, n = 5 per arm, all three arms sat inside one arm's own
 run-to-run range, so the workstation could not separate them. A server-side change that does not touch
 `send` has nowhere to show.
 
-**Warm, n = 20, with a 3 s settle gap after each run, fill separates.** On the 61 MB study this
+**Warm, n = 20, with a 3 s settle gap after each run, fill separates.** On the 61 MB series this
 server fills **6.2 % faster** than the comparison server (median paired Δ, 95 % CI −12.3 … −2.2 %,
 17/20 pairs) and spends **10.9 % less server CPU** (−13.8 … −3.6 %, 16/20). On-demand at depth 1
-ties (+0.9 %, 8/20). A 3.6 MB study stays undecided: its 25–50 ms runs move 22–33 % with their
+ties (+0.9 %, 8/20). A 3.6 MB series stays undecided: its 25–50 ms runs move 22–33 % with their
 place in the pair. Cold was not re-run at n = 20. Each side drives its server with its own native
 client, so this compares server plus protocol stack.
 
 **What lifts it:** a regime where `send` is not the ceiling — a shaped link (§3), several sessions
-at once, or a study that makes the reader work (§4).
+at once, or a series that makes the reader work (§4).
 
 ## 6. One box, and only one statistic survives it
 
@@ -433,13 +433,13 @@ only on flow control — the peer's. At depth 1 the serve spans are a ninth of t
 is always full and they are 0.94 of it (`serve_total ≤ wall` in 80/80 runs). On one interleaved
 depth ladder `serve_us` p50 climbs 15.0 → 156.5 µs from depth 1 to 87 while wall per frame falls
 276.6 → 221.1 µs. And the driver moves it: the same server measured **147.7 µs per frame under a
-native driver and 67.6 µs under a browser** on the same fill (p10), because the 3.59 MB study fits
+native driver and 67.6 µs under a browser** on the same fill (p10), because the 3.59 MB series fits
 the send window a browser advertises — inferred from the two numbers and the source, not isolated.
 A 61 MB fill the server completes in 184 ms natively was credited 677 ms of `serve_us` under the
 browser, which sat inside `send` while the page decoded. **Compare wall time, and name the client.**
 
 To re-run the cells: `server_ab --mode fill --asks 87` and `server_ab --mode on-demand --depth 1
---asks 10` against `exact-server --stream-mode shared` built with `--features telemetry`
+--asks 10` against `series-server --stream-mode shared` built with `--features telemetry`
 (`WTPACS_TELEMETRY=1`), one server and one session per run; in a browser,
 `/harness/cell.html?autorun=1&stream_mode=shared&frames=87&cell=fill` (or `&cell=ondemand&d=1&n=10`) on
 `server/dev-server.py`, after `server/scripts/gen_dev_cert.sh` — Chromium refuses a dev certificate

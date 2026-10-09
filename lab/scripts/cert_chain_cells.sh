@@ -106,24 +106,24 @@ printf '  %-4s leaf %d B  intermediate -       shipped %d B\n' dev \
 
 echo
 echo "== builds"
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 mkdir -p "$T/bin-off" "$T/bin-on"
 D="${CARGO_TARGET_DIR:-target}/debug"
-cp "$D/exact-server" "$D/cold_open" "$D/pack-study" "$T/bin-off/"
-cargo build -q -p exact-server -p window-harness \
-  --features exact-server/cert-compression,window-harness/cert-compression
-cp "$D/exact-server" "$D/cold_open" "$T/bin-on/"
-echo "  off $(stat -c%s "$T/bin-off/exact-server") B   on $(stat -c%s "$T/bin-on/exact-server") B  (debug)"
+cp "$D/series-server" "$D/cold_open" "$D/pack-series" "$T/bin-off/"
+cargo build -q -p series-server -p window-harness \
+  --features series-server/cert-compression,window-harness/cert-compression
+cp "$D/series-server" "$D/cold_open" "$T/bin-on/"
+echo "  off $(stat -c%s "$T/bin-off/series-server") B   on $(stat -c%s "$T/bin-on/series-server") B  (debug)"
 
 mkdir -p "$T/frames"
 for i in $(seq 0 9); do head -c 256000 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo '{"frameCount": 10}' > "$T/metadata.json"
-"$T/bin-off/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" > /dev/null
+"$T/bin-off/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" > /dev/null
 
 start_servers() {
   for arm in "${ARMS[@]}"; do
-    RUST_LOG="${SERVER_LOG:-exact_server=warn}" "$(bin_of "$arm")/exact-server" \
-      --port "$(port_of "$arm" server)" --study "$T/study.sbnd" \
+    RUST_LOG="${SERVER_LOG:-series_server=warn}" "$(bin_of "$arm")/series-server" \
+      --port "$(port_of "$arm" server)" --series "$T/series.sbnd" \
       --cert-pem "$(cert_of "$arm").cert.pem" --key-pem "$(cert_of "$arm").key.pem" \
       > "$T/server-$arm.log" 2>&1 &
     PIDS+=("$!")

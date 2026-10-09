@@ -5,7 +5,7 @@ use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
-use study_bundle::read_layout;
+use series_bundle::read_layout;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -23,7 +23,7 @@ pub struct FrameSpan {
     pub len: u32,
 }
 
-/// **Open once per study, never per session.** `docs/adr/disk-access.md` §Invariants.
+/// **Open once per series, never per session.** `docs/adr/disk-access.md` §Invariants.
 pub struct FrameStore {
     file: File,
     index: Vec<(u64, u32)>,
@@ -38,11 +38,11 @@ pub struct FrameStore {
 }
 
 impl FrameStore {
-    pub fn open(study_path: &Path) -> Result<Self> {
-        let file = File::open(study_path)
-            .with_context(|| format!("open study bundle {}", study_path.display()))?;
+    pub fn open(series_path: &Path) -> Result<Self> {
+        let file = File::open(series_path)
+            .with_context(|| format!("open series bundle {}", series_path.display()))?;
         let layout = read_layout(&file)
-            .with_context(|| format!("read layout of {}", study_path.display()))?;
+            .with_context(|| format!("read layout of {}", series_path.display()))?;
         Ok(Self {
             nowait: probe_nowait(&file, layout.data_base as u64),
             file,
@@ -232,7 +232,7 @@ pub fn nowait_supported_at(path: &Path) -> Result<bool> {
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use study_bundle::write_bundle;
+    use series_bundle::write_bundle;
 
     fn scratch(name: &str) -> std::path::PathBuf {
         let stamp = SystemTime::now()
@@ -282,7 +282,7 @@ mod tests {
             store.nowait_supported(),
             "check-fastpath would report a different answer than the server acts on"
         );
-        // A directory too: that is how the tool is used, before any study is in place.
+        // A directory too: that is how the tool is used, before any series is in place.
         let dir = path.parent().expect("scratch dir");
         assert_eq!(
             nowait_supported_at(dir)?,

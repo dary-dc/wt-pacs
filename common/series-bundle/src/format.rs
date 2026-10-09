@@ -18,7 +18,7 @@ pub struct ParsedLayout {
     pub data_base: usize,
 }
 
-/// `bytes` is the prefix; `file_len` is the study file, which the index is checked against.
+/// `bytes` is the prefix; `file_len` is the series file, which the index is checked against.
 fn parse_layout_checked(bytes: &[u8], file_len: u64) -> Result<ParsedLayout> {
     if bytes.len() < HEADER_SIZE {
         bail!("bundle too small");

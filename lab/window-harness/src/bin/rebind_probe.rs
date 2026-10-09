@@ -23,7 +23,7 @@ struct Args {
     url: String,
     #[arg(long, default_value_t = 5556)]
     control_port: u16,
-    /// Frames to take before the rebind. The study must hold at least one more.
+    /// Frames to take before the rebind. The series must hold at least one more.
     #[arg(long, default_value_t = 10)]
     warm: u32,
     #[arg(long, default_value_t = 20_000)]

@@ -32,7 +32,7 @@ trap cleanup EXIT
 trap "exit 143" TERM INT
 
 # Release: a debug server and client at 40 Mbit leave the relay late (VOID) half the time.
-nice -n 19 cargo build -q --release -p exact-server --features exact-server/telemetry -p pack-study -p window-harness
+nice -n 19 cargo build -q --release -p series-server --features series-server/telemetry -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/release"
 bash client/transport/ts/build.sh > /dev/null
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
@@ -42,7 +42,7 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/k
 mkdir -p "$T/frames"
 for i in $(seq 0 $((FRAMES - 1))); do head -c "$FRAME_BYTES" /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo "{\"frameCount\": $FRAMES}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 # Every link has a 22 Mbit mean. step: a home Wi-Fi link's steps; step40 the same loop entered a
 # step later, so the fill crosses 40 → 10; burst: a 1 ms grant every 10 ms.
@@ -86,7 +86,7 @@ run() {  # round prev link queue arm: one row of $OUT
   [[ $arm == *:[0-9]* ]] && window=(--stream-recv-window "${arm##*:}")
   rm -f "$T/path.jsonl"
   WTPACS_PATH_TELEMETRY=1 WTPACS_PATH_TELEMETRY_MS=100 WTPACS_PATH_TELEMETRY_PATH="$T/path.jsonl" \
-    RUST_LOG=exact_server=info "$BIN/exact-server" --port "$SRV" --bind 127.0.0.1 --study "$T/study.sbnd" \
+    RUST_LOG=series_server=info "$BIN/series-server" --port "$SRV" --bind 127.0.0.1 --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "${arm%%:*}" > "$T/server.log" 2>&1 &
   local server=$!
   for _ in $(seq 100); do grep -q "wt_url=" "$T/server.log" && break; sleep 0.1; done

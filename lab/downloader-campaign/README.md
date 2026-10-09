@@ -7,9 +7,9 @@ says how they were made.
 ./server/scripts/gen_dev_cert.sh
 client/decode/wasm/fetch_openjph.sh                         # the decoder the Dd arm runs
 lab/scripts/gen_htj2k_fixtures.sh c512                    # 87 real HTJ2K frames, 512x512x3
-# pack them as a study: NNN.j2c → NNN.htj2k, then
-cargo run --release -p pack-study -- --metadata lab/fixtures/decode_c512/metadata.json --frames <dir> --output c512.sbnd
-cargo run --release -p exact-server -- --port 4433 --study c512.sbnd
+# pack them as a series: NNN.j2c → NNN.htj2k, then
+cargo run --release -p pack-series -- --metadata lab/fixtures/decode_c512/metadata.json --frames <dir> --output c512.sbnd
+cargo run --release -p series-server -- --port 4433 --series c512.sbnd
 python3 server/dev-server.py --port 8765
 NODE_PATH=$(npm root -g) node lab/downloader-campaign/run.mjs --rounds 8 --out campaign.jsonl
 ```

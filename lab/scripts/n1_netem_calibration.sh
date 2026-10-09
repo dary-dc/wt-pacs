@@ -11,23 +11,23 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ROUNDS=${1:-5}
 HOST=${CLOUD_HOST:?set CLOUD_HOST to the rig address}
 SSH_KEY=${SSH_KEY:?the human rig key, docs/rig-limits.md}
-STUDY=${STUDY:?a .sbnd of 256 kB frames, as link_impair_check.sh packs}
+SERIES=${SERIES:?a .sbnd of 256 kB frames, as link_impair_check.sh packs}
 OUT=${OUT:-$ROOT/.local/measurements/n1-netem-$(date +%Y%m%d-%H%M%S).tsv}
 SSH=(ssh -i "$SSH_KEY" -o BatchMode=yes "ubuntu@$HOST")
 
 mkdir -p "$(dirname "$OUT")"
 "${SSH[@]}" 'mkdir -p n1'
-scp -q -i "$SSH_KEY" "$ROOT/target/release/exact-server" "$ROOT/target/release/cold_open" \
-  "$ROOT/lab/scripts/link_impair.py" "$STUDY" "ubuntu@$HOST:n1/"
+scp -q -i "$SSH_KEY" "$ROOT/target/release/series-server" "$ROOT/target/release/cold_open" \
+  "$ROOT/lab/scripts/link_impair.py" "$SERIES" "ubuntu@$HOST:n1/"
 
-"${SSH[@]}" bash -s "$ROUNDS" "$(basename "$STUDY")" <<'REMOTE' > "$OUT"
+"${SSH[@]}" bash -s "$ROUNDS" "$(basename "$SERIES")" <<'REMOTE' > "$OUT"
 set -u
 cd ~/n1
 SRV=36600 IN=34600 CTRL=38600
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout key.pem -out cert.pem \
   -days 2 -nodes -subj '/CN=localhost' -addext 'subjectAltName=IP:127.0.0.1' 2> /dev/null
 sudo -n tc qdisc del dev lo root 2> /dev/null
-RUST_LOG=exact_server=warn ./exact-server --port $SRV --bind 127.0.0.1 --study "$2" \
+RUST_LOG=series_server=warn ./series-server --port $SRV --bind 127.0.0.1 --series "$2" \
   --cert-pem cert.pem --key-pem key.pem > server.log 2>&1 &
 server=$!
 for _ in $(seq 100); do grep -q wt_url= server.log && break; sleep 0.1; done

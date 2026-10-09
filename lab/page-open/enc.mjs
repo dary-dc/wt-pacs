@@ -14,7 +14,7 @@ import zlib from "node:zlib";
 import { execFileSync } from "node:child_process";
 import { leadsByPredecessor, order } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
-import { ROOT, T, browser, median, nginx, onExit, port, study, tls, traced } from "./host.mjs";
+import { ROOT, T, browser, median, nginx, onExit, port, series, tls, traced } from "./host.mjs";
 import { metadata } from "./metadata.mjs";
 
 const ROUNDS = Number(process.argv[2] || 10);
@@ -43,7 +43,7 @@ onExit(() => fs.rmSync(path.join(ROOT, "lab/page-open/metadata.json"), { force: 
 
 fs.writeFileSync(path.join(ROOT, "lab/page-open/metadata.json"), metadata());
 
-const { cfg: CFG, cert } = study();
+const { cfg: CFG, cert } = series();
 
 // Each encoding is its own server block: a precompressed copy where one exists and the browser
 // advertises the token, else the file itself. `add_header` in a location replaces the server's,

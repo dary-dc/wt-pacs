@@ -1,5 +1,5 @@
 //! Exact-tier wire framing, one frame: `[4B BE envelope_len][4B BE display_index][codestream…]`,
-//! where `envelope_len` counts the index and the codestream. Study bundles store raw codestream;
+//! where `envelope_len` counts the index and the codestream. Series bundles store raw codestream;
 //! the server streams [`frame_head`] before it, and a client unwraps what follows the length.
 
 pub const ENVELOPE_LEN: usize = 4;

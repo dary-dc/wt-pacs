@@ -30,7 +30,7 @@ RELAY_PID=""
 cleanup() { stop_relay; stop_server; rm -rf "$T"; }
 trap cleanup EXIT
 
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -43,7 +43,7 @@ for kb in 50 250; do
     head -c $((kb * 1000)) /dev/urandom > "$T/f$kb/$(printf '%03d' "$i").htj2k"
   done
   echo "{\"frameCount\": $FRAMES}" > "$T/m$kb.json"
-  "$BIN/pack-study" --metadata "$T/m$kb.json" --frames "$T/f$kb" --output "$T/s$kb.sbnd" >/dev/null
+  "$BIN/pack-series" --metadata "$T/m$kb.json" --frames "$T/f$kb" --output "$T/s$kb.sbnd" >/dev/null
 done
 
 SRV=$((36000 + RANDOM % 2000))
@@ -53,15 +53,15 @@ CTRL=$((38000 + RANDOM % 2000))
 # A pid can be recycled onto another lane's process between the spawn and the kill.
 kill_ours() { [[ -n "$1" ]] && grep -qa "$2" "/proc/$1/cmdline" 2>/dev/null && kill "$1" 2>/dev/null; }
 
-start_server() {  # study extra...
+start_server() {  # series extra...
   : > "$T/server.log"
-  RUST_LOG=exact_server=info "$BIN/exact-server" --port "$SRV" --study "$1" \
+  RUST_LOG=series_server=info "$BIN/series-server" --port "$SRV" --series "$1" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "${@:2}" > "$T/server.log" 2>&1 &
   SERVER_PID=$!
   for _ in $(seq 100); do grep -q "wt_url=" "$T/server.log" && return; sleep 0.1; done
   echo "server did not start:"; cat "$T/server.log"; exit 1
 }
-stop_server() { kill_ours "$SERVER_PID" exact-server || true; SERVER_PID=""; sleep 0.3; }
+stop_server() { kill_ours "$SERVER_PID" series-server || true; SERVER_PID=""; sleep 0.3; }
 
 RELAY_EXTRA=()
 start_relay() {  # rtt_ms; RELAY_EXTRA carries rate and queue when a cell wants them
@@ -92,10 +92,10 @@ else:
 PY
 }
 
-cell() {  # label state study rtt warm extra_server_args...
-  local label="$1" state="$2" study="$3" rtt="$4" warm="$5"
+cell() {  # label state series rtt warm extra_server_args...
+  local label="$1" state="$2" series="$3" rtt="$4" warm="$5"
   shift 5
-  start_server "$study" "$@"
+  start_server "$series" "$@"
   start_relay "$rtt"
   local line
   line=$(RUST_BACKTRACE=0 "$BIN/first_ask" --url "https://127.0.0.1:$IN/" --state "$state" --warm "$warm" \
@@ -121,12 +121,12 @@ header() {
 ARMS=()
 arm() { ARMS+=("$1"); }
 
-one_round() {  # state warm idle study rtt server_args relay_args probe_args -> "ms cwnd sent lost ce"
-  local state="$1" warm="$2" idle="$3" study="$4" rtt="$5" srv probe line ms next
+one_round() {  # state warm idle series rtt server_args relay_args probe_args -> "ms cwnd sent lost ce"
+  local state="$1" warm="$2" idle="$3" series="$4" rtt="$5" srv probe line ms next
   read -r -a srv <<<"$6"
   read -r -a RELAY_EXTRA <<<"$7"
   read -r -a probe <<<"${8:-}"
-  start_server "$study" ${srv[@]+"${srv[@]}"}
+  start_server "$series" ${srv[@]+"${srv[@]}"}
   start_relay "$rtt"
   if line=$(RUST_BACKTRACE=0 "$BIN/first_ask" --url "https://127.0.0.1:$IN/" --state "$state" \
       --warm "$warm" --target "$TARGET" --idle-ms "$idle" --control-port "$CTRL" --rounds 1 \
@@ -147,15 +147,15 @@ one_round() {  # state warm idle study rtt server_args relay_args probe_args -> 
   echo "$ms $cost ${next:-NaN}"
 }
 
-round_robin() {  # study rtt
-  local study="$1" rtt="$2" n=${#ARMS[@]} i k prev
+round_robin() {  # series rtt
+  local series="$1" rtt="$2" n=${#ARMS[@]} i k prev
   rm -rf "$T/rr"; mkdir -p "$T/rr"
   for ((k = 0; k < n; k++)); do cut -d'|' -f1 <<<"${ARMS[k]}" >> "$T/rr/labels"; done
   for ((i = 0; i < ROUNDS; i++)); do
     prev=-1
     for k in $(python3 lab/scripts/order.py row "$n" "$i"); do
       IFS='|' read -r _ state warm idle srv rly probe <<<"${ARMS[k]}"
-      echo "$(one_round "$state" "$warm" "$idle" "$study" "$rtt" "$srv" "$rly" "$probe") $i $prev" >> "$T/rr/$k"
+      echo "$(one_round "$state" "$warm" "$idle" "$series" "$rtt" "$srv" "$rly" "$probe") $i $prev" >> "$T/rr/$k"
       prev=$k
     done
   done

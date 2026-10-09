@@ -31,7 +31,7 @@ if (!BEFORE || !fs.existsSync(path.join(FRAMES_DIR, "g12.sha256"))) {
 const TREE = "/lab/page-open/.coldrtt";
 const TREES = { before: BEFORE, ...(process.env.INIT ? { init: process.env.INIT } : {}) };
 
-// arm: [study, page query]; `-before` loads BEFORE's client/downloader, `-pre` adds the page's AV1 preloads.
+// arm: [series, page query]; `-before` loads BEFORE's client/downloader, `-pre` adds the page's AV1 preloads.
 const ARMS = {
   htj2k: ["g12-htj2k", { codec: "htj2k" }],
   "wc-before": ["g10-av1", { codec: "av1", tree: `${TREE}/before` }],
@@ -45,7 +45,7 @@ const ARMS = {
 };
 for (const arm of Object.keys(ARMS)) if (process.env.ONLY && !process.env.ONLY.split(",").includes(arm)) delete ARMS[arm];
 const PROFILES = ["cold", "warm"];
-const sha = (study) => fs.readFileSync(path.join(FRAMES_DIR, `${study.split("-")[0]}.sha256`), "utf8").trim();
+const sha = (series) => fs.readFileSync(path.join(FRAMES_DIR, `${series.split("-")[0]}.sha256`), "utf8").trim();
 
 const port = () => 30000 + ((Math.random() * 20000) | 0);
 const TCP_SRV = port();
@@ -81,7 +81,7 @@ for (const dir of [...trees, "client/transport", "client/decode", "client/transp
 }
 age(path.join(ROOT, "lab/page-open/codec.html"));
 
-execFileSync("cargo", ["build", "-q", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
 const BIN = path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug");
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout ${T}/key.pem -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' \
@@ -92,16 +92,16 @@ execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_c
 const hash = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`]).toString().trim();
 
 const SERVERS = {};
-for (const study of new Set(Object.values(ARMS).map(([s]) => s))) {
-  const s = (SERVERS[study] = { srv: port(), inn: port() });
-  execFileSync(path.join(BIN, "pack-study"), ["--metadata", path.join(FRAMES_DIR, study, "metadata.json"),
-    "--frames", path.join(FRAMES_DIR, study, "frames"), "--output", path.join(T, `${study}.sbnd`)]);
-  start(path.join(BIN, "exact-server"), ["--port", String(s.srv), "--study", path.join(T, `${study}.sbnd`),
-    "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem")], fs.openSync(path.join(T, `${study}.log`), "a"));
+for (const series of new Set(Object.values(ARMS).map(([s]) => s))) {
+  const s = (SERVERS[series] = { srv: port(), inn: port() });
+  execFileSync(path.join(BIN, "pack-series"), ["--metadata", path.join(FRAMES_DIR, series, "metadata.json"),
+    "--frames", path.join(FRAMES_DIR, series, "frames"), "--output", path.join(T, `${series}.sbnd`)]);
+  start(path.join(BIN, "series-server"), ["--port", String(s.srv), "--series", path.join(T, `${series}.sbnd`),
+    "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem")], fs.openSync(path.join(T, `${series}.log`), "a"));
 }
 // The deploy template's nginx over TLS and HTTP/2, as lab/page-open/run.mjs's HOST=h2.
 const site = fs.readFileSync(path.join(ROOT, "deploy/nginx/wt-pacs.conf.template"), "utf8")
-  .replace(/\$\{STUDY\}/g, "us_cine_smoke").replace(/\/srv\/wt-pacs/g, ROOT)
+  .replace(/\$\{SERIES\}/g, "us_cine_smoke").replace(/\/srv\/wt-pacs/g, ROOT)
   .replace(/listen\s+8765;/, `listen 127.0.0.1:${TCP_SRV} ssl http2;\n    ssl_certificate ${T}/cert.pem;\n    ssl_certificate_key ${T}/key.pem;`);
 fs.writeFileSync(path.join(T, "site.conf"), site);
 fs.mkdirSync(path.join(T, "ngx"));
@@ -126,11 +126,11 @@ function browserPid(dir) {
 }
 
 async function visit(ctx, arm) {
-  const [study, query] = ARMS[arm];
+  const [series, query] = ARMS[arm];
   const page = await ctx.newPage();
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
-  await page.goto(`https://127.0.0.1:${TCP_IN}/lab/page-open/codec.html?${new URLSearchParams({ ...query, sha: sha(study) })}`, { waitUntil: "commit" });
+  await page.goto(`https://127.0.0.1:${TCP_IN}/lab/page-open/codec.html?${new URLSearchParams({ ...query, sha: sha(series) })}`, { waitUntil: "commit" });
   await page.waitForFunction(() => globalThis.__wtpacsDone, null, { timeout: 120000 * THROTTLE });
   const out = await page.evaluate(() => ({
     page: Math.round(performance.getEntriesByType("navigation")[0].responseEnd),

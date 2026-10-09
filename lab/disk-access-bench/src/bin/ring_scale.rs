@@ -5,11 +5,11 @@
 //! thousand rings, and file descriptors, kernel memory and setup latency are all per-session
 //! costs the campaign never measured.
 //!
-//!     ring_scale <study.sbnd> <count>
+//!     ring_scale <series.sbnd> <count>
 
 use anyhow::{Context, Result};
-use exact_server::media::read_path::TILE_SLOTS;
-use exact_server::media::uring_reader::UringReader;
+use series_server::media::read_path::TILE_SLOTS;
+use series_server::media::uring_reader::UringReader;
 use std::time::Instant;
 
 fn open_fds() -> usize {
@@ -34,10 +34,10 @@ fn rss_kib() -> u64 {
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
-        eprintln!("usage: ring_scale <study.sbnd> <count>");
+        eprintln!("usage: ring_scale <series.sbnd> <count>");
         std::process::exit(2);
     }
-    let file = std::fs::File::open(&args[1]).context("open study")?;
+    let file = std::fs::File::open(&args[1]).context("open series")?;
     let count: usize = args[2].parse()?;
 
     let (fd0, rss0) = (open_fds(), rss_kib());

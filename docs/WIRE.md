@@ -9,7 +9,7 @@ acknowledgement message. The server's banner prints what a client dials: `wt_url
 `cert_sha256=` (the hash a browser pins through `serverCertificateHashes`), `stream_mode=`, and
 `ws_url=` with `--websocket`.
 
-The study on disk is SBND, [`FIXTURES.md`](FIXTURES.md). What each client does with these bytes is
+The series on disk is SBND, [`FIXTURES.md`](FIXTURES.md). What each client does with these bytes is
 [`CLIENTS.md`](CLIENTS.md).
 
 ## FoD messages
@@ -31,14 +31,14 @@ grace below.
 | Message | Direction | What the server does |
 | --- | --- | --- |
 | `{"op":"request_frame","frame":N}` | client → server | one `Ask::Frame`; served with any asks already in hand named as upcoming |
-| `{"op":"stream_frames","from":A,"to":B}` | client → server | a fill of `A..=B`; either end may be omitted (`from` → 0, `to` → the last frame), `{}` is the whole study. Recited until done, until `end_stream`, or until any other message arrives (§An ask during a fill) |
+| `{"op":"stream_frames","from":A,"to":B}` | client → server | a fill of `A..=B`; either end may be omitted (`from` → 0, `to` → the last frame), `{}` is the whole series. Recited until done, until `end_stream`, or until any other message arrives (§An ask during a fill) |
 | `{"op":"end_stream"}` | client → server | ends a running fill at the next frame boundary; the session goes on. Without a fill, nothing |
 | `{"op":"end_session"}` | client → server | ends the session |
 | `{"op":"frame_error","frame_index":N,"reason":"…"}` | server → client | a refusal. Ignored if a client sends one |
 
 **Refusals.** A frame out of range is refused with `frame index N out of range (count)`; a fill
-range outside the study with one `frame_error` at `from` (0 when omitted), reason `StreamFrames
-A..=B outside 0..=last`; an empty study with `study is empty`. A refusal takes no media stream.
+range outside the series with one `frame_error` at `from` (0 when omitted), reason `StreamFrames
+A..=B outside 0..=last`; an empty series with `series is empty`. A refusal takes no media stream.
 
 **Depth is the client's.** The real-time path is one `request_frame` per message, and the client's
 window ([`adr/client-window-depth.md`](adr/client-window-depth.md)) is how many it keeps
@@ -75,7 +75,7 @@ before `envelope_len` bytes ([`CLIENTS.md`](CLIENTS.md#a-truncated-frame-is-a-fa
 
 ## Stream modes
 
-`exact-server --stream-mode`, process-wide, never told to the client — nothing in the handshake or
+`series-server --stream-mode`, process-wide, never told to the client — nothing in the handshake or
 the envelope says which is in force. Clients read every uni stream the server opens as a sequence
 of envelopes, so both are read by the same code.
 
@@ -120,7 +120,7 @@ already in flight** — written into the send window and not yet delivered. Ask-
 so they outrank the ask's frame.
 
 **What it costs.** `lab/window-harness/src/bin/ask_during_fill.rs`, browser-free, against
-`exact-server` in `shared` mode over a synthetic 200-frame series of 250 KB frames, measured in
+`series-server` in `shared` mode over a synthetic 200-frame series of 250 KB frames, measured in
 the container, one client, no shaping. Each round a fresh session: start the fill, send
 `request_frame` for a frame the fill has not reached, stop the clock on that frame's last byte.
 Nine rounds per position, positions interleaved and their order rotated:
@@ -146,7 +146,7 @@ and is not measured here.
 
 ## The opening ask
 
-On by default; `exact-server --open-ask false` turns it off. The session URL may carry
+On by default; `series-server --open-ask false` turns it off. The session URL may carry
 `?ask=frame:N` or `?ask=fill:A-B`, which the server reads before accepting the session and serves
 at once, behind the accept rather than behind the control stream. A malformed or out-of-range
 value is ignored and the session proceeds as without it. A refusal of an opening ask waits for the
@@ -156,7 +156,7 @@ control stream, since that is the only place one can be sent. The TypeScript cli
 
 ## The WebSocket mapping
 
-Off by default; `exact-server --websocket` also serves one WebSocket per session beside QUIC. The
+Off by default; `series-server --websocket` also serves one WebSocket per session beside QUIC. The
 frame path, the store and the planner are the QUIC path's; one process serves both.
 
 | | QUIC | WebSocket |

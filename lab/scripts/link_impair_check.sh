@@ -664,7 +664,7 @@ echo
 echo "== the counts this lane owes"
 kill "$ECHO_PID" 2>/dev/null || true   # the real server takes the echo's port
 sleep 0.3
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -673,8 +673,8 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/k
 mkdir -p "$T/frames"
 for i in $(seq 0 9); do head -c 256000 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo '{"frameCount": 10}' > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
-RUST_LOG=exact_server=warn "$BIN/exact-server" --port "$UDP_OUT" --study "$T/study.sbnd" \
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
+RUST_LOG=series_server=warn "$BIN/series-server" --port "$UDP_OUT" --series "$T/series.sbnd" \
   --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" > "$T/server.log" 2>&1 & PIDS+=("$!")
 for _ in $(seq 100); do grep -q "wt_url=" "$T/server.log" && break; sleep 0.1; done
 grep -q "wt_url=" "$T/server.log" || { echo "server did not start:"; cat "$T/server.log"; exit 1; }

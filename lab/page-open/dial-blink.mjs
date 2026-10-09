@@ -28,7 +28,7 @@ process.on("exit", () => {
   fs.rmSync(T, { recursive: true, force: true });
 });
 
-execFileSync("cargo", ["build", "-q", "-p", "pack-study"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "-p", "pack-series"], { cwd: ROOT });
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout ${T}/key.pem -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null`]);
@@ -37,14 +37,14 @@ const hash = execFileSync("bash", ["-c",
 fs.mkdirSync(path.join(T, "frames"));
 fs.writeFileSync(path.join(T, "frames/000.htj2k"), Buffer.alloc(1024));
 fs.writeFileSync(path.join(T, "metadata.json"), JSON.stringify({ frameCount: 1 }));
-execFileSync(path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug", "pack-study"), [
+execFileSync(path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug", "pack-series"), [
   "--metadata", path.join(T, "metadata.json"), "--frames", path.join(T, "frames"),
-  "--output", path.join(T, "study.sbnd")]);
+  "--output", path.join(T, "series.sbnd")]);
 
 const servers = process.env.SERVERS.split(",").map((s) => {
   const [name, bin] = s.split("=");
   const p = { name, srv: nextPort++, front: nextPort++, ctrl: nextPort++ };
-  kids.push(spawn(bin, ["--port", String(p.srv), "--bind", "127.0.0.1", "--study", path.join(T, "study.sbnd"),
+  kids.push(spawn(bin, ["--port", String(p.srv), "--bind", "127.0.0.1", "--series", path.join(T, "series.sbnd"),
     "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem")], { stdio: "ignore" }));
   kids.push(spawn("python3", ["lab/scripts/link_impair.py", "--udp", `${p.front}:${p.srv}`,
     "--delay-ms", String(RTT / 2), "--control-port", String(p.ctrl), "--loss", process.env.LOSS || "0"],

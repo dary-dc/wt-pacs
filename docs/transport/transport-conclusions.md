@@ -561,7 +561,7 @@ produced that reading is not known. Not tested: whether a real mobile NAT keeps 
 
 #### The bytes the viewer needs anyway, pushed at session open
 
-`--open-ask`: the session URL carries `?ask=fill:0-k`, so the study's first frames are moving when
+`--open-ask`: the session URL carries `?ask=fill:0-k`, so the series's first frames are moving when
 the control stream opens. The TypeScript client sends it (`openAsk`), on by default since 2026-10-02; the design and its
 browser measurement are [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The opening ask. Pushing 1, 2, 4 and 8
 frames before one more is asked takes that ask at 250 KB / 80 ms from 454.7 ms to 204.0, 157.2,
@@ -879,7 +879,7 @@ at 27 against 183 ms on loopback with every frame a miss (n = 12; fill 189 again
 permuted order costs the read path 0.3 %, warm 1.9 % — a stride of eight moves the read head half a
 megabyte, nothing to an NVMe, something to a spinning disk or a cold object store. **No server
 change**: ask order is already the client's priority, and what the order should be depends on what
-the viewer does with a partly-filled study.
+the viewer does with a partly-filled series.
 
 ---
 
@@ -906,7 +906,7 @@ mechanisms.
   `main` hard-code 10 with no `TransportConfig` knob (quinn-rs/quinn#2189, the shape that would
   remove the patch). Never raise the cap from `max_gso_segments()` alone: over 65 527 bytes returns
   `EINVAL` and `quinn-udp` disables offload for that socket permanently. **Opt-in**:
-  `cargo build --release -p exact-server --config 'patch.crates-io.quinn.path="patched/quinn"'`;
+  `cargo build --release -p series-server --config 'patch.crates-io.quinn.path="patched/quinn"'`;
   the gate runs `scripts/patch_crate.sh quinn --check`. Refresh: bump the version in
   `scripts/patch_crate.sh` and `patched/quinn/Cargo.toml`, retarget the hunks, `--check`.
 - **PGO** — `scripts/pgo_build.sh` instruments, trains on the cells this section measures, and
@@ -1011,7 +1011,7 @@ resident set over the warmed server:
 
 * **One core delivers about 400 MB/s of fills, and a fill departs from its single-session time where
   the sessions' rates sum past it**: between 64 and 80 sessions at 50 Mbit (400 → 500 MB/s asked), at
-  about 160 at 20 Mbit. Past the knee every fill stretches alike, to N × study ÷ ~380–400 MB/s;
+  about 160 at 20 Mbit. Past the knee every fill stretches alike, to N × series ÷ ~380–400 MB/s;
   unpaced, the server is the clock from two sessions on (one: 0.98 cores, 33 / 31 ms).
 * **2.0–3.1 ms of server CPU a MB**, the same for both codecs — the server sends bytes, and AV1's 5 %
   fewer is its whole difference. A 20 Mbit fill costs **0.7 % of a core** (0.84–0.89 cores over 128).
@@ -1156,7 +1156,7 @@ relay (the mutant) reads −128 ms, below arithmetic.
 QUIC's or any reliable transport's was not measurable there. Through the packet-layer relay
 ([`../rig-limits.md`](../rig-limits.md) §3, TUN) kernel TCP meets the same loss: depth-1 asks of
 256 000 B on a fresh session, 30 a run, the raw TS client in headless Chromium over QUIC
-(`exact-server`) or the WebSocket fallback; 80 ms, a 24 / 12 Mbit step trace down and 20 Mbit up, a
+(`series-server`) or the WebSocket fallback; 80 ms, a 24 / 12 Mbit step trace down and 20 Mbit up, a
 100-packet queue, Gilbert–Elliott loss both ways in bursts of 3.5. `ws:<cc>` sets the server sockets'
 controller (`lab/stream-shape/tcp_cc.c`). Williams order, 9 rounds, `--self-timing` (33 of 180 runs
 `VOID`); `lab/scripts/askl_cells.sh`, summarised by `lab/stream-shape/askl.py`; p50 · p99 over asks

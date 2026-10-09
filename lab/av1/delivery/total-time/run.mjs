@@ -111,14 +111,14 @@ const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.
 const ARMS = arg("--arms", null)?.split(",");
 for (const s of sets) s.armNames = Object.keys(s.arms).filter((a) => !ARMS || ARMS.includes(a));
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT, stdio: "inherit" });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT, stdio: "inherit" });
 execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
   "-keyout", `${T}/key.pem`, "-out", `${T}/cert.pem`, "-days", "2", "-nodes", "-subj", "/CN=localhost",
   "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
 const der = execFileSync("openssl", ["x509", "-in", `${T}/cert.pem`, "-outform", "DER"]);
 const HASH = execFileSync("openssl", ["dgst", "-sha256", "-r"], { input: der }).toString().split(" ")[0];
 
-/** One study per (set × stored form): the store holds a frame's bytes whatever made them. */
+/** One series per (set × stored form): the store holds a frame's bytes whatever made them. */
 function pack(set, ext, entries, codec = ext === "htj2k" ? "htj2k" : "av1") {
   const dir = `${T}/${set.name}-${ext}`;
   if (existsSync(`${dir}.sbnd`)) return `${dir}.sbnd`;
@@ -128,7 +128,7 @@ function pack(set, ext, entries, codec = ext === "htj2k" ? "htj2k" : "av1") {
     symlinkSync(path.join(ROOT, FRAMES, set.name, `${n}.${ext}`), `${dir}/${n}.${codec}`);
   }
   writeFileSync(`${dir}.json`, JSON.stringify({ frameCount: entries, codec }));
-  execFileSync(path.join(ROOT, "target/release/pack-study"),
+  execFileSync(path.join(ROOT, "target/release/pack-series"),
     ["--metadata", `${dir}.json`, "--frames", dir, "--output", `${dir}.sbnd`], { stdio: "ignore" });
   return `${dir}.sbnd`;
 }
@@ -222,8 +222,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const previewTruth = a.previewTruth?.map(flip);
   const srv = port();
   const relayPort = port();
-  const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/exact-server"), "--port", String(srv), "--bind", "127.0.0.1",
-    "--study", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
+  const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/series-server"), "--port", String(srv), "--bind", "127.0.0.1",
+    "--series", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
     ...(a.congestion ? ["--congestion", a.congestion] : [])], { stdio: ["ignore", "pipe", "ignore"] });
   let serverOut = "";
   server.stdout.on("data", (d) => (serverOut += d));

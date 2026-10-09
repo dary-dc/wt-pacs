@@ -11,7 +11,7 @@
     "reversal_step_index": 300,
     "reversal_fraction": 0.6,
     "forward_unique_through": 300,
-    "notes": "Explicit steps; no frame_modulo. Requires study frameCount >= 300."
+    "notes": "Explicit steps; no frame_modulo. Requires series frameCount >= 300."
   },
   "steps": [
     {

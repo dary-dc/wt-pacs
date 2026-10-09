@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { leadsByPredecessor, order } from "../order.mjs";
-import { ROOT, T, aged, browser, median, nginx, port, start, study, tls } from "./host.mjs";
+import { ROOT, T, aged, browser, median, nginx, port, start, series, tls } from "./host.mjs";
 
 const ROUNDS = Number(process.argv[2] || 7);
 const [MBIT, RTT] = (process.env.LINK || "20,80").split(",").map(Number);
@@ -38,9 +38,9 @@ for (const [name, html] of Object.entries(HINTS)) {
   fs.writeFileSync(path.join(T, "variants", `${name}.html`), html);
   aged(path.join(T, "variants", `${name}.html`));
 }
-study();
+series();
 const template = fs.readFileSync(path.join(ROOT, "deploy/nginx/wt-pacs.conf.template"), "utf8")
-  .replace(/\$\{STUDY\}/g, "us_cine_smoke").replace(/\/srv\/wt-pacs/g, ROOT);
+  .replace(/\$\{SERIES\}/g, "us_cine_smoke").replace(/\/srv\/wt-pacs/g, ROOT);
 const hosts = Object.fromEntries(Object.keys(PROTOCOLS).map((p) => [p, { srv: port(), inn: port() }]));
 await nginx(Object.entries(PROTOCOLS).map(([p, http2]) => template
   .replace(/listen\s+8765;/, tls(hosts[p].srv, http2))

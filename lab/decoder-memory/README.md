@@ -31,7 +31,7 @@ JS+WASM bytes, and the twin arms report each worker's WASM heap directly.
 | `series` | a `lab/fixtures/decode_*` set, default `decode_g512` (237 × 512×512 × 16-bit) |
 | `mutate` | `pixel` — flip a sample before the digest · `skip` — drop every fifth frame |
 | `ballast` | MB each worker allocates and touches: the slope's calibration |
-| `path` | `direct` (the workers alone) or `downloader` — the whole client, session included, which needs `exact-server` on a study of the same frames and `client/dev-transport.json` pointing at it |
+| `path` | `direct` (the workers alone) or `downloader` — the whole client, session included, which needs `series-server` on a series of the same frames and `client/dev-transport.json` pointing at it |
 | `hold` | `1` keeps every decoded frame to the end, as a viewer does |
 | `wire` | the session's wire-buffer ring size on `path=downloader`; `0` is one buffer per frame, the arm before it. `--wire 0,8` runs both, rotated every round like the arms |
 

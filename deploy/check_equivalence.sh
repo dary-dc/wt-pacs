@@ -2,7 +2,7 @@
 # The web image must answer exactly as server/dev-server.py does: same status, same three
 # isolation headers, same content type, same bytes, on every path the harness uses. And the
 # transport's PEM must carry its own chain.
-# usage: deploy/check_equivalence.sh [--local] [study]
+# usage: deploy/check_equivalence.sh [--local] [series]
 #        deploy/check_equivalence.sh --cert [PEM]        the PEM check alone
 # IMAGE names the web image; RUNTIME is podman, else docker.
 # --local runs nginx on this host from the template, so the config is checked without a
@@ -34,18 +34,18 @@ cert_chain() {  # pem named
 LOCAL=0
 if [ "${1:-}" = "--cert" ]; then cert_chain "${2:-$ROOT/server/dev-cert/cert.pem}" "$(( $# > 1 ))"; exit; fi
 if [ "${1:-}" = "--local" ]; then LOCAL=1; shift; fi
-STUDY="${1:-us_cine_smoke}"
+SERIES="${1:-us_cine_smoke}"
 PY_PORT=18765
 NG_PORT=18766
-PATHS=(/harness/ /harness/index.html /harness/shell.js /wt/dev-transport.json /study/metadata
+PATHS=(/harness/ /harness/index.html /harness/shell.js /wt/dev-transport.json /series/metadata
        /client/transport/downloader.js /client/harness/index.html /nope-404)
 
-python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --study "$STUDY" >/dev/null 2>&1 &
+python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --series "$SERIES" >/dev/null 2>&1 &
 PY=$!
 if [ "$LOCAL" -eq 1 ]; then
   NG=$(mktemp -d)
   mkdir -p "$NG/tmp"
-  sed -e 's#\${STUDY}#'"$STUDY"'#g' -e "s#/srv/wt-pacs#$ROOT#g" -e "s/listen  *8765;/listen 127.0.0.1:$NG_PORT;/" \
+  sed -e 's#\${SERIES}#'"$SERIES"'#g' -e "s#/srv/wt-pacs#$ROOT#g" -e "s/listen  *8765;/listen 127.0.0.1:$NG_PORT;/" \
     "$ROOT/deploy/nginx/wt-pacs.conf.template" > "$NG/server.conf"
   printf 'pid %s/nginx.pid;\nerror_log %s/error.log error;\nevents {}\nhttp {\n  access_log off;\n' "$NG" "$NG" > "$NG/nginx.conf"
   for d in client_body proxy fastcgi uwsgi scgi; do printf '  %s_temp_path %s/tmp;\n' "$d" "$NG"; done >> "$NG/nginx.conf"
@@ -55,7 +55,7 @@ if [ "$LOCAL" -eq 1 ]; then
 else
   RUNTIME="${RUNTIME:-$(command -v podman || command -v docker)}"
   "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1
-  "$RUNTIME" run -d --rm --name wtpacs-web-check -e STUDY="$STUDY" -p "$NG_PORT:8765" \
+  "$RUNTIME" run -d --rm --name wtpacs-web-check -e SERIES="$SERIES" -p "$NG_PORT:8765" \
     -v "$ROOT/client/dev-transport.json:/srv/wt-pacs/client/dev-transport.json:ro,z" \
     "${IMAGE:-wt-pacs-web:latest}" >/dev/null || { kill $PY; exit 2; }
   trap 'kill $PY 2>/dev/null; "$RUNTIME" rm -f wtpacs-web-check >/dev/null 2>&1' EXIT

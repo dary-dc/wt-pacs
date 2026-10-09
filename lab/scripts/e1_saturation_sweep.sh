@@ -20,19 +20,19 @@ FILL_DWELL_MS="${FILL_DWELL_MS:-3000}"
 U="${U:-0.95}"
 USE_NETEM="${USE_NETEM:-0}"
 IFACE="${IFACE:-lo}"
-STUDIES="${STUDIES:-frames_32k:$ROOT/lab/fixtures/frames_32k/frames_32k.sbnd:32000:80,queue_large:$ROOT/lab/fixtures/queue_large/queue_large.sbnd:51000:20,frames_250k:$ROOT/lab/fixtures/frames_250k/frames_250k.sbnd:250000:80}"
+SERIES="${SERIES:-frames_32k:$ROOT/lab/fixtures/frames_32k/frames_32k.sbnd:32000:80,queue_large:$ROOT/lab/fixtures/queue_large/queue_large.sbnd:51000:20,frames_250k:$ROOT/lab/fixtures/frames_250k/frames_250k.sbnd:250000:80}"
 FRAME_COUNT_DEFAULT="${FRAME_COUNT:-80}"
 
 mkdir -p "$(dirname "$OUT")"
 [[ -f "$CERT" ]] || "$ROOT/server/scripts/gen_dev_cert.sh"
 [[ -f "$ROOT/lab/fixtures/frames_32k/frames_32k.sbnd" ]] || bash "$ROOT/lab/scripts/gen_tf_fixtures.sh"
-cargo build -p exact-server -p window-harness --release >/dev/null
+cargo build -p series-server -p window-harness --release >/dev/null
 
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
-SERVER="$CARGO_TARGET_DIR/release/exact-server"
+SERVER="$CARGO_TARGET_DIR/release/series-server"
 
 {
-  echo -e "study\tframe_bytes\tdepth\tmbps\trtt_ms\tlink_util\tfill_rate\tfill_bytes\tfill_frames\tpred_dmin\ttf_ms"
+  echo -e "series\tframe_bytes\tdepth\tmbps\trtt_ms\tlink_util\tfill_rate\tfill_bytes\tfill_frames\tpred_dmin\ttf_ms"
 } > "$OUT"
 
 CURRENT_RTT_MS=0
@@ -79,13 +79,13 @@ print(f'{pred} {tf_ms:.3f}')
 }
 
 run_one() {
-  local study_name=$1 study_path=$2 frame_bytes=$3 frame_count=$4 depth=$5 mbps=$6 rtt_ms=$7
+  local series_name=$1 series_path=$2 frame_bytes=$3 frame_count=$4 depth=$5 mbps=$6 rtt_ms=$7
   local bps=$((mbps * 1000000))
   read -r pred tf_ms < <(pred_dmin "$frame_bytes" "$mbps" "$rtt_ms")
 
   kill "$spid" 2>/dev/null || true
   wait "$spid" 2>/dev/null || true
-  "$SERVER" --port "$PORT" --study "$study_path" \
+  "$SERVER" --port "$PORT" --series "$series_path" \
     --stream-mode per-frame \
     --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
   spid=$!
@@ -109,7 +109,7 @@ run_one() {
   spid=""
 
   if [[ $rc -ne 0 ]]; then
-    echo -e "${study_name}\t${frame_bytes}\t${depth}\t${mbps}\t${rtt_ms}\tFAIL\t-\t-\t-\t${pred}\t${tf_ms}" >> "$OUT"
+    echo -e "${series_name}\t${frame_bytes}\t${depth}\t${mbps}\t${rtt_ms}\tFAIL\t-\t-\t-\t${pred}\t${tf_ms}" >> "$OUT"
     return
   fi
   printf '%s' "$json" | python3 -c "
@@ -117,19 +117,19 @@ import json,sys
 name, fb, depth, mbps, rtt, pred, tf = sys.argv[1:8]
 d=json.load(sys.stdin)
 print(f\"{name}\t{fb}\t{depth}\t{mbps}\t{rtt}\t{d['link_util']:.4f}\t{d['fill_rate']:.2f}\t{d['fill_bytes']}\t{d['fill_frames']}\t{pred}\t{tf}\", flush=True)
-" "$study_name" "$frame_bytes" "$depth" "$mbps" "$rtt_ms" "$pred" "$tf_ms" >> "$OUT"
+" "$series_name" "$frame_bytes" "$depth" "$mbps" "$rtt_ms" "$pred" "$tf_ms" >> "$OUT"
 }
 
 IFS=',' read -ra DEPTH_ARR <<< "$DEPTHS"
 IFS=',' read -ra MBPS_ARR <<< "$MBPS_LIST"
 IFS=',' read -ra RTT_ARR <<< "$RTTS_MS"
-IFS=',' read -ra STUDY_ARR <<< "$STUDIES"
+IFS=',' read -ra SERIES_ARR <<< "$SERIES"
 
 n=0
-total=$(( ${#DEPTH_ARR[@]} * ${#MBPS_ARR[@]} * ${#STUDY_ARR[@]} * ${#RTT_ARR[@]} ))
+total=$(( ${#DEPTH_ARR[@]} * ${#MBPS_ARR[@]} * ${#SERIES_ARR[@]} * ${#RTT_ARR[@]} ))
 for rtt in "${RTT_ARR[@]}"; do
   set_rtt "$rtt"
-  for spec in "${STUDY_ARR[@]}"; do
+  for spec in "${SERIES_ARR[@]}"; do
     IFS=':' read -r sname spath sbytes scount <<< "$spec"
     scount="${scount:-$FRAME_COUNT_DEFAULT}"
     [[ -f "$spath" ]] || { echo "missing $spath" >&2; continue; }
@@ -163,14 +163,14 @@ with open(path) as f:
             continue
         rows.append(p)
 
-# key = (study, mbps, rtt) -> depth -> util
+# key = (series, mbps, rtt) -> depth -> util
 by = defaultdict(dict)
 meta = {}
 for r in rows:
-    study, fb, d, mbps, rtt, util = r[0], int(r[1]), int(r[2]), r[3], int(r[4]), float(r[5])
+    series, fb, d, mbps, rtt, util = r[0], int(r[1]), int(r[2]), r[3], int(r[4]), float(r[5])
     pred, tf = int(float(r[9])), float(r[10])
-    by[(study, mbps, rtt)][d] = util
-    meta[(study, mbps, rtt)] = (fb, pred, tf)
+    by[(series, mbps, rtt)][d] = util
+    meta[(series, mbps, rtt)] = (fb, pred, tf)
 
 lines = []
 lines.append("# E1 saturation sweep")
@@ -180,18 +180,18 @@ lines.append("**RTT path:** harness `--rtt-ms` unless USE_NETEM=1")
 lines.append("")
 lines.append("RTT=0 is a **floor control** (pred→1). Gate answers are at RTT>0.")
 lines.append("")
-lines.append("| study | mbps | RTT ms | Tf ms | pred D | meas D_min | ceil util | D64 util | role | pass? |")
+lines.append("| series | mbps | RTT ms | Tf ms | pred D | meas D_min | ceil util | D64 util | role | pass? |")
 lines.append("| ----- | ---- | ------ | ----- | ------ | ---------- | --------- | -------- | ---- | ----- |")
 
 gate_pass = []
 gate_fail = []
 for key in sorted(by, key=lambda k: (k[0], float(k[1]), k[2])):
-    study, mbps, rtt = key
+    series, mbps, rtt = key
     util = by[key]
     fb, pred, tf = meta[key]
     role = "floor" if rtt == 0 else "gate"
     if 64 not in util:
-        lines.append(f"| {study} | {mbps} | {rtt} | {tf:.1f} | {pred} | MISSING D=64 | — | — | {role} | invalid |")
+        lines.append(f"| {series} | {mbps} | {rtt} | {tf:.1f} | {pred} | MISSING D=64 | — | — | {role} | invalid |")
         if rtt > 0:
             gate_fail.append(key)
         continue
@@ -208,9 +208,9 @@ for key in sorted(by, key=lambda k: (k[0], float(k[1]), k[2])):
     if role == "floor":
         cell = "n/a (floor)" if ok else f"FAIL floor ({meas} vs {pred})"
     else:
-        (gate_pass if ok else gate_fail).append((study, mbps, rtt, pred, meas))
+        (gate_pass if ok else gate_fail).append((series, mbps, rtt, pred, meas))
     lines.append(
-        f"| {study} | {mbps} | {rtt} | {tf:.1f} | {pred} | {meas} | {ceil:.3f} | {u64:.3f} | {role} | {cell} |"
+        f"| {series} | {mbps} | {rtt} | {tf:.1f} | {pred} | {meas} | {ceil:.3f} | {u64:.3f} | {role} | {cell} |"
     )
 
 lines.append("")

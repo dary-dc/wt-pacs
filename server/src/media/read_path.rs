@@ -509,7 +509,7 @@ mod tests {
     use crate::media::frame_store::READ_WINDOW;
     use std::io::Write;
 
-    /// A study of `frames` frames of `len` bytes, each filled with a per-frame pattern so a
+    /// A series of `frames` frames of `len` bytes, each filled with a per-frame pattern so a
     /// mis-assembled frame cannot pass by accident.
     fn write_bundle(dir: &std::path::Path, frames: u32, len: u32) -> std::path::PathBuf {
         let meta = format!("{{\"frameCount\":{frames}}}");

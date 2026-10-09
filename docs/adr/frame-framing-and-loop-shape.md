@@ -239,7 +239,7 @@ uses. 16 missing tiles: 1.14 ms → 0.62 ms.
 
 **Status: built 2026-09-09.** Messages and the loop: [`disk-access.md`](disk-access.md).
 
-This is the **fill** app mode. The client sends `StreamFrames` (empty = the whole study;
+This is the **fill** app mode. The client sends `StreamFrames` (empty = the whole series;
 optional `from` / `to` default to 0 and the last frame). Current use is start-to-end; `from`
 / `to` stay on the type so a later range does not need a new message. The server recites its
 own index. `RequestFrames` is not it — it still names every index.
@@ -266,7 +266,7 @@ peeks what is already in hand. `SeqReader` names one frame ahead (`FILL_AHEAD`).
 
 The two app modes are **fill** (`StreamFrames`) and **on-demand** (`RequestFrame` /
 `RequestFrames`). Fill needs the reader task so `EndStream` can arrive while the loop is
-reciting the study. On-demand that pipelines `RequestFrame` needs it so those asks become
+reciting the series. On-demand that pipelines `RequestFrame` needs it so those asks become
 `upcoming`. An interactive viewer that asks as the user moves still has depth 1 by nature —
 there is no next ask to name.
 
@@ -318,7 +318,7 @@ Invariants an implementation has to keep, each of which is a way to get this wro
 2. **`EndSession` must not overtake queued asks** — it is a message in the same stream, so it
    must be handled where it arrives in the sequence, not when it is read. **`EndStream` is
    different:** it stops a fill. Generated indexes are not in the channel, so the loop must
-   `try_recv` between stream frames or `EndStream` waits until the study ends.
+   `try_recv` between stream frames or `EndStream` waits until the series ends.
 3. **A closed channel ends the session**, and the reader task's error is the session's error —
    losing it turns a broken control stream into a silent hang.
 4. **Capacity `ASKS_AHEAD`, shared with `in_hand`.** The channel holds control messages, not
@@ -332,7 +332,7 @@ Invariants an implementation has to keep, each of which is a way to get this wro
 
 ### How to know it worked
 
-`window-harness --mode saturate --depth 4` against the same study, before and after,
+`window-harness --mode saturate --depth 4` against the same series, before and after,
 interleaved. Expect the miss-dominated cells to move by something like the batch path's
 **+73.8% asks/s** and warm
 cells to tie. A warm regression means the look-ahead is reaching the ring on a hit, which is

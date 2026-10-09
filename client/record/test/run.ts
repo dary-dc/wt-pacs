@@ -476,7 +476,7 @@ function sliceRiver(
   assertEq(report.summary.ask_granularity, "stream_frames", "granularity follows the op");
 }
 
-// A stream_frames without `to` runs to the study's end, which the client cannot see: no rows
+// A stream_frames without `to` runs to the series's end, which the client cannot see: no rows
 {
   const tap = new Tap(cfg());
   tap.onControlWrite(fodStream(3));

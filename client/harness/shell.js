@@ -5,10 +5,10 @@
  *   transport=…        ts (default) | ws | wasm | a module URL exporting TransportSession
  *   telemetry=1        record in the downloader's worker; harvest via window.__wtpacsTelemetry (transport=ts only)
  *   stream_mode=…      shared | per-frame (must match the server; recorded in the report)
- *   cell=…             ondemand (one ask per step, `d` in flight) | fill (one pushed fill) | refuse (ondemand past the study: no media)
+ *   cell=…             ondemand (one ask per step, `d` in flight) | fill (one pushed fill) | refuse (ondemand past the series: no media)
  *   d=…                outstanding asks for on-demand (default 1 — the control)
- *   n=…                steps to run (default: one pass over the study)
- *   frames=…           study frame count (default: /study/metadata frameCount)
+ *   n=…                steps to run (default: one pass over the series)
+ *   frames=…           series frame count (default: /series/metadata frameCount)
  *   trace=…            URL of a lab trace (steps[].frame, step_interval_ms) instead of n/frames
  *   interval_ms=…      pacing between steps becoming due (default: the trace's, else 0)
  *   autorun=1          run the cell on load, then close the session and set window.__wtpacsDone
@@ -70,17 +70,17 @@ function heapPeakSampler(stats) {
   };
 }
 
-async function studyFrameCount() {
+async function seriesFrameCount() {
   const p = params.get("frames");
   if (p) return Number(p);
-  const meta = await fetch("/study/metadata").then((r) => r.json());
+  const meta = await fetch("/series/metadata").then((r) => r.json());
   return Number(meta.frameCount);
 }
 
-/** Step list and pacing: a lab trace, or `n` steps cycling over the study. */
+/** Step list and pacing: a lab trace, or `n` steps cycling over the series. */
 async function schedule() {
   const traceUrl = params.get("trace");
-  const frames = await studyFrameCount();
+  const frames = await seriesFrameCount();
   let steps;
   let interval = 0;
   let name;
@@ -232,7 +232,7 @@ async function boot() {
         asked,
         delivered: stats.delivered,
         failed: stats.failed,
-        study_frames: frames,
+        series_frames: frames,
         wall_ms: Math.round(wallMs),
         checksum,
         js_heap_bytes: { start: heapStart, end: heapBytes(), peak: stats.heap_peak },

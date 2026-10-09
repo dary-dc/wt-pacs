@@ -59,10 +59,10 @@ ADR's escape hatch; here it is the default and costs no extra hop.
 ### The workload and the weights
 
 Set with the owners on 2026-09-08. **Latency first; simplicity and clean code valued;
-thousands of sessions at depth 4 or more; studies far larger than RAM**, so misses are the
+thousands of sessions at depth 4 or more; series far larger than RAM**, so misses are the
 common case, not the exception; **cloud for sure, Docker possibly, not decided**. Two use
 cases with opposite access shapes: a tile viewport asks for scattered frames out of order;
-streaming pushes a study start to end.
+streaming pushes a series start to end.
 
 ### The constraints that ruled options out before any measurement
 
@@ -70,9 +70,9 @@ streaming pushes a study start to end.
   brings its own runtime is a transport rewrite, not a read-path change.
 * **Never block a worker.** A major page fault is not an `.await`; it freezes every task on
   that OS thread. Measured on mmap: `gap_max` 1.5–4.2 ms cold, 7.7 ms under pressure.
-* **Positional reads, one fd per study.** Tiles read `(offset, len)` out of order. A cursor
+* **Positional reads, one fd per series.** Tiles read `(offset, len)` out of order. A cursor
   API needs one open file per session and cannot express reads in flight.
-* **The page cache is shared** across every session on one study. `O_DIRECT` would throw
+* **The page cache is shared** across every session on one series. `O_DIRECT` would throw
   that away.
 * **`RWF_NOWAIT` is filesystem-conditional.** Honoured on ext4, xfs, btrfs; refused on
   overlayfs and tmpfs. Measured, not assumed — §6.
@@ -181,7 +181,7 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | `tokio::fs::File`, plain | S | **48–223 µs per 16 KiB** vs 3 (a thread hop and a copy per read); +514 % wall, +1872 % CPU against `SeqReader` | threads grow like the pool's, 517 at 64 × 16 | the standard answer, and 15× slower | Rejected — measured, not reopened |
 | `rio` · `ringbahn` · `nuclei` · `uring-fs` · `luring` and 90 other dependents | T | — | — | soundness hole, dead, own runtime, cursor + thread, `LocalSet`-only | Rejected — none drives a ring on multi-thread tokio with positional reads |
 | `sendfile` / `splice` | B | — | — | userspace QUIC copies anyway | Rejected |
-| `O_DIRECT` + SPDK, whole-study preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
+| `O_DIRECT` + SPDK, whole-series preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
 | Bounded process-private frame cache | T | **−20.2 % CPU** at a 0.92 hit rate; +4.2 % where nothing repeats | duplicates RAM the page cache holds | needs a real ask trace to size | Lab only, not ported |
 | Sequential: wider windows | S | 20–30 % less CPU per byte | escalations climb 1 % → 13.5 % | — | Rejected |
 | Sequential: depth above 2 per stream | S | at 64 sessions × 16 every arm queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
@@ -205,20 +205,20 @@ correct, safe, and **132.5 µs per frame against 48.4 µs** on the validation ho
 | NFS / EFS / Filestore | *unknown* | **not measured** — run the tool; do not assume |
 
 **Check before shipping, from where the server reads.** `cargo build -p check-fastpath
---release`, then `check-fastpath /srv/studies` — the directory, not a file; it creates and
-removes a probe file, so it works before any study is in place, and prints the filesystem,
+--release`, then `check-fastpath /srv/series` — the directory, not a file; it creates and
+removes a probe file, so it works before any series is in place, and prints the filesystem,
 `read_ahead_kb` and the verdict. Exit **0** fast path, **1** fallback, **2** could not
 determine, so it can gate a rollout. Ship it in the image and run it inside the container
 (`docker exec` / `kubectl exec`): the host's answer is not the container's.
 
-**Serve studies from a mounted volume, never from the container's own layer.** A bind mount
+**Serve series from a mounted volume, never from the container's own layer.** A bind mount
 carries the underlying filesystem through — verified: the same directory reports `overlayfs /
 REFUSED` inside an overlayfs tree and `ext2/ext3/ext4 / honoured` with an ext4 bind mount over
-it. A study `COPY`'d into the image works, passes tests, and has silently lost the fast path —
+it. A series `COPY`'d into the image works, passes tests, and has silently lost the fast path —
 as the 2026-08-31 campaign's overlayfs host had, which is part of why it concluded wrongly.
 
 ```bash
-docker run -v /srv/studies:/srv/studies:ro \
+docker run -v /srv/series:/srv/series:ro \
   --ulimit nofile=65535:65535 --ulimit memlock=-1 myserver
 ```
 
@@ -235,7 +235,7 @@ Ring memory is charged against **`RLIMIT_MEMLOCK`** unless the process holds `CA
 (kernel 6.18, `io_uring/memmap.c`, verified). The 8 MB default is **~940 rings**, and it bit
 first on a real host: two cells of a scale run were refused by it. The failure is silent — the
 ring is refused, the session falls back to the pool and gets slower. The descriptor budget is `2
-× sessions that miss + sockets + 1 per study`.
+× sessions that miss + sockets + 1 per series`.
 
 In a unit file, `LimitNOFILE=65535` and `LimitMEMLOCK=infinity` (or at least 16 KiB × the
 sessions expected to miss at once). Kubernetes has no per-pod ulimit — the node runtime's apply;
@@ -253,7 +253,7 @@ depends on it (`FILL_WINDOW`); tiles still do. Record it with any published numb
 
 One campaign run on the cloud instance, volume class and container image: `product_tile`
 against `pool`, cold, both frame sizes, 64–256 sessions at depth 4, `check-fastpath` on the
-study volume and `ulimit -l` recorded. The rule is fixed in advance: a tie deletes the ring and
+series volume and `ulimit -l` recorded. The rule is fixed in advance: a tie deletes the ring and
 ships the pool; a resolved margin keeps it and folds in the ring-fd change. It can go either
 way, because a cloud miss is device-bound and the ring's remaining claim is threads and CPU per
 miss. Status in §9.
@@ -262,7 +262,7 @@ miss. Status in §9.
 
 What the code depends on and the types do not enforce, each pinned by a named test.
 
-* **One index per study, never per session.** `FrameStore` is opened once and shared by
+* **One index per series, never per session.** `FrameStore` is opened once and shared by
   `Arc`; 12 B per frame, immutable after open. A per-session store would cost 384 MB instead
   of 384 KB at a thousand readers. `sessions_share_one_store_rather_than_opening_their_own`.
 * **The bytes quinn sends are process-private.** The read path copies into a buffer from
@@ -309,11 +309,11 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 
 | # | Item | Why it is still open |
 | --- | --- | --- |
-| 1 | **P0 — ring vs pool on the production target** | §6. Sandbox, workstation and agent container gave three answers. **The cloud rig cannot answer it** (L7, 2026-09-18): burstable, stolen CPU, every p99 60–100 ms (§11, *A study past RAM*). A non-burstable host is needed |
+| 1 | **P0 — ring vs pool on the production target** | §6. Sandbox, workstation and agent container gave three answers. **The cloud rig cannot answer it** (L7, 2026-09-18): burstable, stolen CPU, every p99 60–100 ms (§11, *A series past RAM*). A non-burstable host is needed |
 | 2 | **`server_ab.sh` on the workstation** | **Done 2026-09-09**: cold depth 4 −42.1 %, 16/16, RESOLVED, where the sandbox missed the bar (§11, *Serving depth*). Still one bare-metal host and untested on the production instance type — that is P0's run |
 | 3 | **Throttled link** (20 Mbps, 50 ms, 1 % loss, cold tiles, client depth 4) | Predicted tie: the wire hides the 0.2 ms depth 2 → 4 saving. Unmeasured |
-| 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the study volume (§6). Not in a unit file yet |
-| 6 | **`read_ahead_kb` and study layout for tiles, per target** | on-demand missed 14–69 % at the stock value in the fill cells; on the cloud rig 128 against 2 048 was no clean result in any cell. A large value hurts only the fill's tail, which `FILL_WINDOW` fixed |
+| 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the series volume (§6). Not in a unit file yet |
+| 6 | **`read_ahead_kb` and series layout for tiles, per target** | on-demand missed 14–69 % at the stock value in the fill cells; on the cloud rig 128 against 2 048 was no clean result in any cell. A large value hurts only the fill's tail, which `FILL_WINDOW` fixed |
 | 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, measured tie. The *only* way to cut the eventfd's per-hit cost (§11, *Short io_uring completions*). Only after P0 keeps the ring |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
@@ -430,10 +430,10 @@ INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_event
 | A parked reader is woken (the `_async` eventfd hangs it) | `a_read_that_cannot_complete_inline_wakes_the_parked_reader` |
 | The session line reports the miss rate | `read_stats_report_the_session_miss_rate` |
 | The frame quinn sends is the pooled buffer, and it comes back | `a_handed_off_frame_is_the_buffer_itself_and_comes_back_when_dropped` |
-| One store per study | `sessions_share_one_store_rather_than_opening_their_own` |
+| One store per series | `sessions_share_one_store_rather_than_opening_their_own` |
 | `in_hand` cannot grow with ask rate | `the_loop_holds_no_more_than_asks_ahead` |
 | Upcoming stops at Fill | `upcoming_stops_at_the_first_ask_that_is_not_a_frame` |
-| Fill and EndStream on the wire | `empty_stream_frames_is_the_whole_study`, `end_stream_stops_a_fill_on_the_wire` |
+| Fill and EndStream on the wire | `empty_stream_frames_is_the_whole_series`, `end_stream_stops_a_fill_on_the_wire` |
 
 Mutate every new test ([`CLAUDE.md`](../../CLAUDE.md)). The suite reads page-cached files, where
 a completion lands before anything awaits it; only the park test covers the parked path.
@@ -646,19 +646,19 @@ warm and fill tie on both hosts. `read_path_ab.sh` ties every cell, so the win b
 serving shape. The workstation's ladder on HEAD: 2 831 → 4 813 → 7 710 asks/s. Per-session RSS
 **+39 to +49 KiB**.
 
-### A study nobody has read (2026-09-18)
+### A series nobody has read (2026-09-18)
 
-L20, headless Chromium through the harness's page path, before 2026-10-03 (`lab/scripts/cold_study.sh`, 8 rounds,
+L20, headless Chromium through the harness's page path, before 2026-10-03 (`lab/scripts/cold_series.sh`, 8 rounds,
 120 × 256 KB), cold forced by `--force-pool-reads`, the server's `misses` read back per run.
 One ask on an idle session: 6.5 ms warm, 7.0 cold (1 miss). A whole fill: 318.5 ms warm, 320.5
 cold (120 misses). **A tie in both** (3/8 and 5/8 slower). The forced miss still reads from the
 container's page cache, so this prices the executor-to-pool hop alone — ~0.5 ms on one ask,
-nothing measurable across a fill. What a cold study costs is the device's. A coarse-to-fine fill
+nothing measurable across a fill. What a cold series costs is the device's. A coarse-to-fine fill
 order, measured the same way, cost the read path 0.3 % (`lab/scripts/fill_order_cells.sh`).
 
-### A study past RAM (2026-09-18, cloud rig)
+### A series past RAM (2026-09-18, cloud rig)
 
-L7. A 4 GB study on a 954 MB host, so reads reach the block volume with no eviction; native
+L7. A 4 GB series on a 954 MB host, so reads reach the block volume with no eviction; native
 driver on loopback; every run starts at a frame no earlier run read; asks 997 frames apart; six
 interleaved rounds (`lab/scripts/l7_read_path.sh`). The device (`O_DIRECT`) is a throttled network
 volume: random 256 KiB at depth 1 p50 1.3 ms in burst, 4.9 ms after; 51–53 MB/s sequential.
@@ -726,7 +726,7 @@ lab/scripts/server_ab.sh <base-commit>      # product server: cold depth 4 is th
 
 `read_campaign --arms product_fill,product_tile` drives the shipped readers themselves; the base
 of `read_path_ab.sh` must know both arms. A sandbox number is a direction, not a magnitude.
-**Make the miss real.** Use a fixture larger than the host cache: an 80 MB study fits in the
+**Make the miss real.** Use a fixture larger than the host cache: an 80 MB series fits in the
 hypervisor, where a "miss" is ~12 µs and hides every miss-path effect. Consecutive asks must
 stride past `read_ahead_kb` — of the filesystem's bdi, not the block device — or a cold cell is
 a hit cell wearing a cold label, and **a stride calibrated on one host is not portable**: 16 KiB

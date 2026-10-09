@@ -77,13 +77,13 @@ step "lab: the AV1 fetch refuses a lossy source its set does not mark"
 python3 lab/av1/provenance_test.py
 
 step "server: tests, default features"
-cargo test -p exact-server --quiet
+cargo test -p series-server --quiet
 step "server: tests, telemetry feature"
-cargo test -p exact-server --features telemetry --quiet
+cargo test -p series-server --features telemetry --quiet
 step "server: compiles without io_uring (the pool path alone)"
-cargo check -p exact-server --no-default-features --features crypto-ring --all-targets --quiet
-step "common + ingest: wire, envelope and study-bundle tests"
-cargo test -p fod -p frame-envelope -p study-bundle --quiet
+cargo check -p series-server --no-default-features --features crypto-ring --all-targets --quiet
+step "common + ingest: wire, envelope and series-bundle tests"
+cargo test -p fod -p frame-envelope -p series-bundle --quiet
 step "lab: window-harness tests"
 cargo test -p window-harness --quiet
 step "lab: disk-access-bench and telemetry-bench compile (the arms are part of the API)"

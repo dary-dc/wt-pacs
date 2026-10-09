@@ -30,7 +30,7 @@ use crate::transport::pipeline::RecordedPipeline;
 
 pub struct ServeConfig {
     pub wt_port: u16,
-    pub study_path: PathBuf,
+    pub series_path: PathBuf,
     pub cert_pem: PathBuf,
     pub key_pem: PathBuf,
     pub mode: StreamMode,
@@ -38,7 +38,7 @@ pub struct ServeConfig {
     pub bind: Option<IpAddr>,
     /// QUIC transport knobs. Unset fields keep the library default.
     pub tuning: TransportTuning,
-    /// Lab only: serve every frame as a miss, so a cold study can be measured without
+    /// Lab only: serve every frame as a miss, so a cold series can be measured without
     /// relying on page-cache eviction. `docs/adr/disk-access.md`.
     pub force_pool_reads: bool,
     /// Honour `?ask=` in the session URL, so the first frame moves behind the accept instead of
@@ -68,7 +68,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         None
     };
 
-    let mut store = FrameStore::open(&config.study_path).context("open study")?;
+    let mut store = FrameStore::open(&config.series_path).context("open series")?;
     if config.force_pool_reads {
         warn!("--force-pool-reads: every read reports a miss; this is a lab flag, not a deployment one");
         store.force_pool_reads();
@@ -78,8 +78,8 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     #[cfg(feature = "telemetry")]
     crate::record::set_run_meta(crate::record::RunMeta {
         stream_mode: config.mode.to_string(),
-        study: config.study_path.display().to_string(),
-        study_frames: store.frame_count(),
+        series: config.series_path.display().to_string(),
+        series_frames: store.frame_count(),
     });
 
     let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
@@ -88,7 +88,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         println!("ws_url=wss://127.0.0.1:{}/", config.wt_port);
     }
     println!("cert_sha256={cert_sha256}");
-    println!("study={}", config.study_path.display());
+    println!("series={}", config.series_path.display());
     println!("frames={}", store.frame_count());
     println!("read_fast_path={}", read_fast_path(&store));
     println!("stream_mode={}", config.mode);
@@ -100,9 +100,9 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("telemetry=absent");
     info!(
         %wt_url,
-        study = %config.study_path.display(),
+        series = %config.series_path.display(),
         stream_mode = %config.mode,
-        "exact-server ready (Media-complete)"
+        "series-server ready (Media-complete)"
     );
 
     if let Some(bytes) = config.stall_after_bytes {
@@ -489,8 +489,8 @@ mod tests {
     fn the_loop_hands_serve_the_frames_the_planner_named() {
         let dir = std::env::temp_dir().join(format!("wtpacs-drive-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 4);
-        let store = Arc::new(FrameStore::open(&study).expect("open store"));
+        let series = write_series(&dir, 4);
+        let store = Arc::new(FrameStore::open(&series).expect("open store"));
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .expect("rt");
@@ -558,7 +558,7 @@ mod tests {
     fn the_loop_drains_its_finishes_however_the_asks_end() {
         let dir = std::env::temp_dir().join(format!("wtpacs-drain-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let store = Arc::new(FrameStore::open(&write_study(&dir, 2)).expect("open store"));
+        let store = Arc::new(FrameStore::open(&write_series(&dir, 2)).expect("open store"));
         let rt = tokio::runtime::Builder::new_current_thread().build().expect("rt");
         let mut rec = LoopRecorder { store, seen: Vec::new(), fills: 0, drained: false };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
@@ -579,7 +579,7 @@ mod tests {
     {
         let dir = std::env::temp_dir().join(format!("wtpacs-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 4);
+        let series = write_series(&dir, 4);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -588,9 +588,9 @@ mod tests {
             .build()
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let sessions = plain_sessions(&study);
+        let sessions = plain_sessions(&series);
         let ended = rt.block_on(async move {
-            let config = ServeConfig { tuning, ..serve_config(study, cert_pem, key_pem, port) };
+            let config = ServeConfig { tuning, ..serve_config(series, cert_pem, key_pem, port) };
             let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
                 .await
                 .expect("identity");
@@ -623,9 +623,9 @@ mod tests {
     }
 
     /// Shared streams, no opening ask, nothing recorded.
-    fn plain_sessions(study: &std::path::Path) -> Sessions {
+    fn plain_sessions(series: &std::path::Path) -> Sessions {
         Sessions {
-            store: Arc::new(FrameStore::open(study).expect("open store")),
+            store: Arc::new(FrameStore::open(series).expect("open store")),
             read_mode: ReadMode::Auto,
             mode: StreamMode::Shared,
             open_ask: false,
@@ -697,7 +697,7 @@ mod tests {
 
         let dir = std::env::temp_dir().join(format!("wtpacs-ws-bye-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 2);
+        let series = write_series(&dir, 2);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
         let cert = std::fs::read(&cert_pem).expect("cert");
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -706,7 +706,7 @@ mod tests {
             .build()
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let sessions = plain_sessions(&study);
+        let sessions = plain_sessions(&series);
         let ended = rt.block_on(async move {
             let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
             let (listener, tls) =
@@ -776,18 +776,18 @@ mod tests {
         }
     }
 
-    /// A study of `frames` frames, each a different length and pattern, so a batch served
+    /// A series of `frames` frames, each a different length and pattern, so a batch served
     /// out of the wrong window or the wrong order cannot pass.
-    fn write_study(dir: &std::path::Path, frames: u32) -> std::path::PathBuf {
+    fn write_series(dir: &std::path::Path, frames: u32) -> std::path::PathBuf {
         let bodies: Vec<Vec<u8>> = (0..frames).map(pattern).collect();
         let refs: Vec<&[u8]> = bodies.iter().map(|b| b.as_slice()).collect();
         let path = dir.join("batch.sbnd");
-        study_bundle::write_bundle(
+        series_bundle::write_bundle(
             &path,
             format!("{{\"frameCount\":{frames}}}").as_bytes(),
             &refs,
         )
-        .expect("write study");
+        .expect("write series");
         path
     }
 
@@ -827,10 +827,10 @@ mod tests {
     }
 
     /// A server on loopback `port`: shared streams, every lab flag off, no opening ask.
-    fn serve_config(study: PathBuf, cert_pem: PathBuf, key_pem: PathBuf, port: u16) -> ServeConfig {
+    fn serve_config(series: PathBuf, cert_pem: PathBuf, key_pem: PathBuf, port: u16) -> ServeConfig {
         ServeConfig {
             wt_port: port,
-            study_path: study,
+            series_path: series,
             cert_pem,
             key_pem,
             mode: StreamMode::Shared,
@@ -930,7 +930,7 @@ mod tests {
             let dir = std::env::temp_dir()
                 .join(format!("wtpacs-open-{}-{}", std::process::id(), want.unwrap_or(99)));
             std::fs::create_dir_all(&dir).expect("tmpdir");
-            let study = write_study(&dir, frames);
+            let series = write_series(&dir, frames);
             let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
             let port = free_port();
             let rt = tokio::runtime::Builder::new_multi_thread()
@@ -942,7 +942,7 @@ mod tests {
             rt.block_on(async move {
                 let server = tokio::spawn(run_server(ServeConfig {
                     open_ask: true,
-                    ..serve_config(study, cert_pem, key_pem, port)
+                    ..serve_config(series, cert_pem, key_pem, port)
                 }));
                 let endpoint = wtransport::Endpoint::client(
                     ClientConfig::builder()
@@ -1019,7 +1019,7 @@ mod tests {
             let dir = std::env::temp_dir()
                 .join(format!("wtpacs-ws-open-{}-{}", std::process::id(), want.unwrap_or(99)));
             std::fs::create_dir_all(&dir).expect("tmpdir");
-            let study = write_study(&dir, 6);
+            let series = write_series(&dir, 6);
             let (cert_pem, key_pem, _) = write_dev_cert(&dir);
             let port = free_port();
             let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1041,7 +1041,7 @@ mod tests {
                 let server = tokio::spawn(run_server(ServeConfig {
                     open_ask: true,
                     websocket: true,
-                    ..serve_config(study, cert_pem, key_pem, port)
+                    ..serve_config(series, cert_pem, key_pem, port)
                 }));
                 let mut tcp = None;
                 for _ in 0..50 {
@@ -1096,7 +1096,7 @@ mod tests {
         use tokio::io::AsyncReadExt;
         let dir = std::env::temp_dir().join(format!("wtpacs-ws-silent-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 1);
+        let series = write_series(&dir, 1);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1108,7 +1108,7 @@ mod tests {
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
                 websocket: true,
-                ..serve_config(study, cert_pem, key_pem, port)
+                ..serve_config(series, cert_pem, key_pem, port)
             }));
             let mut tcp = None;
             for _ in 0..50 {
@@ -1144,7 +1144,7 @@ mod tests {
         use crate::record::tap::{Live, Record, Tap};
         let dir = std::env::temp_dir().join(format!("wtpacs-open-tap-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 4);
+        let series = write_series(&dir, 4);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1155,7 +1155,7 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let (tx, rows) = std::sync::mpsc::sync_channel(64);
         let sessions = Sessions {
-            store: Arc::new(FrameStore::open(&study).expect("open store")),
+            store: Arc::new(FrameStore::open(&series).expect("open store")),
             read_mode: ReadMode::Auto,
             mode: StreamMode::Shared,
             open_ask: true,
@@ -1163,7 +1163,7 @@ mod tests {
             taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
         };
         rt.block_on(async move {
-            let config = serve_config(study, cert_pem, key_pem, port);
+            let config = serve_config(series, cert_pem, key_pem, port);
             let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
                 .await
                 .expect("identity");
@@ -1219,7 +1219,7 @@ mod tests {
     fn a_held_dial_neither_connects_nor_fails() {
         let dir = std::env::temp_dir().join(format!("wtpacs-hold-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 1);
+        let series = write_series(&dir, 1);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1231,7 +1231,7 @@ mod tests {
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
                 hold_sessions: true,
-                ..serve_config(study, cert_pem, key_pem, port)
+                ..serve_config(series, cert_pem, key_pem, port)
             }));
             let endpoint = wtransport::Endpoint::client(
                 ClientConfig::builder()
@@ -1267,7 +1267,7 @@ mod tests {
         let frames = 4u32;
         let dir = std::env::temp_dir().join(format!("wtpacs-stall-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, frames);
+        let series = write_series(&dir, frames);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let budget = (8 + pattern(0).len() + 8 + pattern(1).len() / 2) as u64;
@@ -1280,7 +1280,7 @@ mod tests {
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
                 stall_after_bytes: Some(budget),
-                ..serve_config(study, cert_pem, key_pem, port)
+                ..serve_config(series, cert_pem, key_pem, port)
             }));
             let endpoint = wtransport::Endpoint::client(
                 ClientConfig::builder()
@@ -1330,13 +1330,13 @@ mod tests {
     /// The server's SETTINGS leave with its handshake flight: a client that loses everything it
     /// sends after its first flight — so the server's handshake can never complete — still
     /// receives the HTTP/3 control stream, opening with SETTINGS. Without
-    /// `patches/wtransport-0.7.2-settings-early.patch` it never does.
+    /// `patches/wtransport-0.7.2-settings-in-handshake.patch` it never does.
     /// `docs/ARCHITECTURE.md` §Early SETTINGS.
     #[test]
     fn settings_ride_the_handshake_flight() {
         let dir = std::env::temp_dir().join(format!("wtpacs-settings-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 1);
+        let series = write_series(&dir, 1);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1346,7 +1346,7 @@ mod tests {
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
-            let server = tokio::spawn(run_server(serve_config(study, cert_pem, key_pem, port)));
+            let server = tokio::spawn(run_server(serve_config(series, cert_pem, key_pem, port)));
             until_bound(port, Duration::from_secs(5)).await;
             assert_settings_before_the_handshake(port, cert_hash).await;
             server.abort();
@@ -1452,7 +1452,7 @@ mod tests {
         const ONE_WAY: Duration = Duration::from_millis(50);
         let dir = std::env::temp_dir().join(format!("wtpacs-first-flight-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 1);
+        let series = write_series(&dir, 1);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1462,7 +1462,7 @@ mod tests {
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
-            let server = tokio::spawn(run_server(serve_config(study, cert_pem, key_pem, port)));
+            let server = tokio::spawn(run_server(serve_config(series, cert_pem, key_pem, port)));
             until_bound(port, Duration::from_secs(5)).await;
 
             // Every datagram is delayed ONE_WAY; the server's burst in the first ONE_WAY after its
@@ -1543,7 +1543,7 @@ mod tests {
     }
 
     async fn connect_session(
-        study: PathBuf,
+        series: PathBuf,
         cert_pem: PathBuf,
         key_pem: PathBuf,
         cert_hash: [u8; 32],
@@ -1552,7 +1552,7 @@ mod tests {
     ) -> (tokio::task::JoinHandle<Result<()>>, wtransport::Connection, SendStream) {
         let server = tokio::spawn(run_server(ServeConfig {
             mode,
-            ..serve_config(study, cert_pem, key_pem, port)
+            ..serve_config(series, cert_pem, key_pem, port)
         }));
         let endpoint = wtransport::Endpoint::client(
             ClientConfig::builder()
@@ -1591,7 +1591,7 @@ mod tests {
         let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!("wtpacs-wire-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, frames);
+        let series = write_series(&dir, frames);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1602,7 +1602,7 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
             let (server, conn, control) =
-                connect_session(study, cert_pem, key_pem, cert_hash, port, StreamMode::Shared).await;
+                connect_session(series, cert_pem, key_pem, cert_hash, port, StreamMode::Shared).await;
             let media = conn.accept_uni().await.expect("accept media uni");
             body(control, media).await;
             server.abort();
@@ -1638,10 +1638,10 @@ mod tests {
         });
     }
 
-    /// `StreamFrames {}` recites the whole study, in order, and nothing past it.
+    /// `StreamFrames {}` recites the whole series, in order, and nothing past it.
     /// `docs/adr/disk-access.md`.
     #[test]
-    fn empty_stream_frames_is_the_whole_study() {
+    fn empty_stream_frames_is_the_whole_series() {
         let frames = 4u32;
         wire_test(frames, |mut control, mut media| async move {
             control
@@ -1664,11 +1664,11 @@ mod tests {
             }
             let extra =
                 tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
-            assert!(extra.is_err(), "fill sent a frame past the study");
+            assert!(extra.is_err(), "fill sent a frame past the series");
         });
     }
 
-    /// `EndStream` after the fill has started stops it before the study ends.
+    /// `EndStream` after the fill has started stops it before the series ends.
     /// Does not pin the last frame delivered — QUIC may already hold one.
     #[test]
     fn end_stream_stops_a_fill_on_the_wire() {
@@ -1750,7 +1750,7 @@ mod tests {
         let frames = 3u32;
         let dir = std::env::temp_dir().join(format!("wtpacs-ws-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, frames);
+        let series = write_series(&dir, frames);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
         let cert = std::fs::read(&cert_pem).expect("cert");
         let port = free_port();
@@ -1763,7 +1763,7 @@ mod tests {
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
                 websocket: true,
-                ..serve_config(study, cert_pem, key_pem, port)
+                ..serve_config(series, cert_pem, key_pem, port)
             }));
             let mut roots = rustls::RootCertStore::empty();
             for der in rustls::pki_types::CertificateDer::pem_slice_iter(&cert) {

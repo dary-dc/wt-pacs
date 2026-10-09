@@ -1,6 +1,6 @@
 /**
  * K1: what each client does when the server takes its CONNECT and never answers it
- * (`exact-server --hold-sessions`), all four clients dialling side by side, and the same four
+ * (`series-server --hold-sessions`), all four clients dialling side by side, and the same four
  * against a server that answers, as the control. lab/dial-deadline/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/dial-deadline/run.mjs [cap ms]   [SERVER_ARGS="--keep-alive-interval-ms 5000"]
@@ -28,7 +28,7 @@ process.on("exit", () => {
   fs.rmSync(T, { recursive: true, force: true });
 });
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server"], { cwd: ROOT });
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem \
   -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' -addext 'subjectAltName=IP:127.0.0.1' 2>/dev/null`]);
 const hash = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`])
@@ -38,7 +38,7 @@ start("python3", ["server/dev-server.py", "--port", String(http)]);
 const extra = (process.env.SERVER_ARGS || "").split(" ").filter(Boolean);
 const servers = { held: port(), answered: port() };
 for (const [name, p] of Object.entries(servers)) {
-  start("target/release/exact-server", ["--port", String(p), "--bind", "127.0.0.1", "--study", "lab/fixtures/frames_250k/frames_250k.sbnd",
+  start("target/release/series-server", ["--port", String(p), "--bind", "127.0.0.1", "--series", "lab/fixtures/frames_250k/frames_250k.sbnd",
     "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`, ...extra, ...(name === "held" ? ["--hold-sessions"] : [])]);
 }
 await new Promise((r) => setTimeout(r, 1500));

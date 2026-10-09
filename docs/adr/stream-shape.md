@@ -191,7 +191,7 @@ Each was published or specified, then found wrong. Kept so none is re-derived.
   won later on other evidence; X3 is cited in neither direction.
 * **"Per-frame is worse under loss" was never a finding.** Per-frame *without priority* is worse for
   ordered demand at any loss, because concurrent streams share fairly.
-* **X3's `mild_cell` timeout was a harness defect**, not a stall: asks wrapped modulo the study's
+* **X3's `mild_cell` timeout was a harness defect**, not a stall: asks wrapped modulo the series's
   80 frames while the waits did not, so from step 81 the harness waited for a frame never asked.
   Fixed in `lab/window-harness/src/client.rs`; the 80-step trace X3 swapped in was the workaround.
 * **The v2 control was specified at the wrong depth.** "All arms close at 20 ms" was checked at
@@ -252,7 +252,7 @@ What the corrections above cost to learn, and what the cell drivers enforced (re
 * **A truncated frame is reported the same in both modes**; the client cannot tell them apart, and
   narrowing per-frame's report would need a wire field for a mode the default does not use
   ([`CLIENTS.md`](../CLIENTS.md)).
-* **The WebSocket path** (`exact-server --websocket`) carries the shared stream's bytes as binary
+* **The WebSocket path** (`series-server --websocket`) carries the shared stream's bytes as binary
   messages on one TCP stream, which the session's refusals share. It gives up independent streams
   and per-stream loss recovery; the conformance clauses that need them are not applicable there.
   Its tail under loss is not measured.

@@ -8,8 +8,8 @@ use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
 use disk_access_bench::residency::evict_retry;
 use disk_access_bench::uring_access::{Completion, UringReader};
-use exact_server::media::frame_store::{FrameSpan, FrameStore};
-use exact_server::media::read_path::{ReadMode, SeqReader, TileReader};
+use series_server::media::frame_store::{FrameSpan, FrameStore};
+use series_server::media::read_path::{ReadMode, SeqReader, TileReader};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -111,7 +111,7 @@ impl Arm {
 #[command(name = "read_campaign")]
 struct Args {
     #[arg(long)]
-    study: PathBuf,
+    series: PathBuf,
     /// Comma-separated: pool,uring,hybrid,pooled_pread,pool_ringloop,hybrid_lazyring,product_fill,
     /// product_tile,uring_ringfd,hybrid_lazyring_ringfd,tokio_fs (sweep shape only)
     #[arg(long, default_value = "pool,uring,hybrid")]
@@ -142,8 +142,8 @@ struct Args {
     /// Co-tenant `yield_now` monitors. 0 disables (and removes their CPU from the totals).
     #[arg(long, default_value_t = 1)]
     monitors: usize,
-    /// Disjoint readers model sessions on *different* studies; overlapping ones model
-    /// sessions on the same study, which legitimately share the page cache. Both are real.
+    /// Disjoint readers model sessions on *different* series; overlapping ones model
+    /// sessions on the same series, which legitimately share the page cache. Both are real.
     #[arg(long)]
     partition: bool,
     /// Tag written into every row, so phases can share one file.
@@ -1029,7 +1029,7 @@ fn main() -> Result<()> {
                         let n = arms.len();
                         for pos in 0..n {
                             let arm = arms[(repeat + pos) % n];
-                            let resident = if warm { 0.0 } else { evict_retry(&args.study)? };
+                            let resident = if warm { 0.0 } else { evict_retry(&args.series)? };
                             if !warm && resident > 0.02 {
                                 // Skip rather than abort: one stubborn cell must not throw
                                 // away a campaign, and a silent warm cell labelled cold
@@ -1053,7 +1053,7 @@ fn main() -> Result<()> {
                                 warm,
                                 monitors: args.monitors,
                             };
-                            let o = run_cell(&args.study, &cell, workers, trace.as_deref())?;
+                            let o = run_cell(&args.series, &cell, workers, trace.as_deref())?;
                             let n_asks = o.lat.len().max(1) as u64;
                             let total = (asks * readers_n) as u64;
                             println!(

@@ -17,15 +17,15 @@ COPY lab ./lab
 COPY patched ./patched
 COPY patches ./patches
 COPY scripts/patch_crate.sh ./scripts/
-RUN cargo build --release -p exact-server
+RUN cargo build --release -p series-server
 
 # Same Debian release as `build`: the binary links glibc and a mismatch fails only at start.
 FROM docker.io/library/debian:bookworm-slim AS server
 RUN useradd -r -u 10001 wtpacs
-COPY --from=build /src/target/release/exact-server /usr/local/bin/exact-server
+COPY --from=build /src/target/release/series-server /usr/local/bin/series-server
 USER wtpacs
 EXPOSE 4433/udp 4433/tcp
-ENTRYPOINT ["exact-server"]
+ENTRYPOINT ["series-server"]
 
 # ---------------------------------------------------------------- client bundles
 FROM docker.io/library/node:22-bookworm-slim AS bundles

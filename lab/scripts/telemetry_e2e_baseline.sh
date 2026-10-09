@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end telemetry cost on localhost: exact-server + N saturate harnesses.
+# End-to-end telemetry cost on localhost: series-server + N saturate harnesses.
 # Compares a default binary against a telemetry binary (feature + env on) at the same N.
 # Localhost, unshaped, shared CPU — relative comparisons only (T2-local).
 #
@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="${1:-$ROOT/.local/measurements/telemetry-e2e-$(date -u +%Y%m%dT%H%M%SZ).jsonl}"
 WORK="${WORK:-$ROOT/.local/telemetry-e2e-work}"
-STUDY="${STUDY:-$ROOT/lab/fixtures/queue_large/queue_large.sbnd}"
+SERIES="${SERIES:-$ROOT/lab/fixtures/queue_large/queue_large.sbnd}"
 CERT="$ROOT/server/dev-cert/cert.pem"
 KEY="$ROOT/server/dev-cert/key.pem"
 SESSIONS="${SESSIONS:-1 4 16 32}"
@@ -33,7 +33,7 @@ mkdir -p "$(dirname "$OUT")" "$WORK"
 [[ -f "$CERT" ]] || "$ROOT/server/scripts/gen_dev_cert.sh" >/dev/null
 
 if [[ -z "${SERVER_DEFAULT:-}" || -z "${SERVER_TELEMETRY:-}" ]]; then
-  echo "set SERVER_DEFAULT and SERVER_TELEMETRY to prebuilt exact-server binaries" >&2
+  echo "set SERVER_DEFAULT and SERVER_TELEMETRY to prebuilt series-server binaries" >&2
   exit 1
 fi
 cargo build --release -p window-harness >/dev/null
@@ -56,10 +56,10 @@ one_run() {
   [[ "$HARNESS_IPV4" == "1" ]] && harness_args=(--ipv4)
   if [[ "$telemetry" == "1" ]]; then
     WTPACS_TELEMETRY=1 WTPACS_TELEMETRY_PATH="$report" \
-      "$bin" --port "$PORT" --study "$STUDY" --cert-pem "$CERT" --key-pem "$KEY" \
+      "$bin" --port "$PORT" --series "$SERIES" --cert-pem "$CERT" --key-pem "$KEY" \
         --stream-mode "$STREAM_MODE" "${bind_args[@]}" > "$dir/server.out" 2> "$dir/server.err" &
   else
-    "$bin" --port "$PORT" --study "$STUDY" --cert-pem "$CERT" --key-pem "$KEY" \
+    "$bin" --port "$PORT" --series "$SERIES" --cert-pem "$CERT" --key-pem "$KEY" \
       --stream-mode "$STREAM_MODE" "${bind_args[@]}" > "$dir/server.out" 2> "$dir/server.err" &
   fi
   local spid=$!

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""N concurrent fills of one study against the real server, HTJ2K and AV1, interleaved — queue row 81
+"""N concurrent fills of one series against the real server, HTJ2K and AV1, interleaved — queue row 81
 (SERVERLOAD); README.md here says how to run it, docs/transport/transport-conclusions.md §4 LOAD what it found.
 
-    run.py --study htj2k=DIR,htj2k --study av1=DIR,av1 --rounds 10 --out rows.jsonl
+    run.py --series htj2k=DIR,htj2k --series av1=DIR,av1 --rounds 10 --out rows.jsonl
     run.py --summary --out rows.jsonl
 """
 import argparse
@@ -28,8 +28,8 @@ PORT = 4600
 def start_server(codec, items, port):
     sbnd = os.path.join(items, f"{codec}.sbnd")
     proc = subprocess.Popen(
-        ["taskset", "-c", SERVER_CPUS, f"{BIN}/exact-server", "--port", str(port), "--bind", "0.0.0.0",
-         "--study", sbnd, "--cert-pem", f"{ROOT}/server/dev-cert/cert.pem",
+        ["taskset", "-c", SERVER_CPUS, f"{BIN}/series-server", "--port", str(port), "--bind", "0.0.0.0",
+         "--series", sbnd, "--cert-pem", f"{ROOT}/server/dev-cert/cert.pem",
          "--key-pem", f"{ROOT}/server/dev-cert/key.pem"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.5)
@@ -50,15 +50,15 @@ def fill_load(port, items, ext, n, rate, pid, mutate=False):
 
 def run(args):
     """A fresh server for every cell, warmed by one unrecorded fill, so its memory is the cell's own."""
-    studies = dict(s.split("=", 1) for s in args.study)
+    series = dict(s.split("=", 1) for s in args.series)
     sessions = [int(n) for n in args.sessions.split(",")]
     rates = [int(r) for r in args.rates.split(",")]
-    cells = list(itertools.product(studies, rates, sessions))
+    cells = list(itertools.product(series, rates, sessions))
     with open(args.out, "a") as out:
         for rnd in range(args.first_round, args.first_round + args.rounds):
             prev = None
             for pos, (codec, rate, n) in enumerate(order(cells, rnd)):
-                items, ext = studies[codec].split(",")
+                items, ext = series[codec].split(",")
                 server = start_server(codec, items, PORT)
                 try:
                     warm = fill_load(PORT, items, ext, 1, 0, server.pid)
@@ -113,7 +113,7 @@ def summary(args):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--study", action="append", default=[], help="codec=ITEMS_DIR,EXT; ITEMS_DIR/<codec>.sbnd served")
+    p.add_argument("--series", action="append", default=[], help="codec=ITEMS_DIR,EXT; ITEMS_DIR/<codec>.sbnd served")
     p.add_argument("--sessions", default="1,2,4,8,16,32,64,128,256")
     p.add_argument("--rates", default="0,2500000,6250000", help="bytes/s each session reads at; 0 = unpaced")
     p.add_argument("--rounds", type=int, default=1)

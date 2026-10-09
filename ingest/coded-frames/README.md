@@ -10,7 +10,7 @@ FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160 # OpenJPH 0.31.0
 ingest/coded-frames/build.sh                                            # the check's in-process decoders (decode.cpp)
 P=lab/av1/.venv/bin/python                                              # numpy, from lab/av1/requirements.txt
 $P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/rf_fluoro OUT --representation optimized --preset good:6
-target/release/pack-study --metadata OUT/metadata.json --frames OUT --output rf_fluoro.sbnd
+target/release/pack-series --metadata OUT/metadata.json --frames OUT --output rf_fluoro.sbnd
 node ingest/coded-frames/check.mjs OUT                                  # every payload through the client's reader
 $P ingest/coded-frames/make_golden.py lab/.av1-build                    # the client's golden payloads and probes
 ```
@@ -31,7 +31,7 @@ stream in an encoder run of its own, so the bytes do not depend on the worker co
 signal; with the identity matrix alone Chromium's WebCodecs reports a BT.709 matrix, the 4:4:4
 probes fail and every colour payload goes to dav1d-WASM.
 
-**`pack-study`** takes `NNN.av1` when the metadata says `"codec": "av1"` and `NNN.htj2k` otherwise.
+**`pack-series`** takes `NNN.av1` when the metadata says `"codec": "av1"` and `NNN.htj2k` otherwise.
 
 **`make_golden.py`** writes seven synthetic 64×48 sources — 8, 10, 12 and 14-bit grey, 11 and 13-bit
 signed, 8-bit RGB — with their checksums, and codes each through `ingest.py` in both representations

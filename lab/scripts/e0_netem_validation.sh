@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT_DIR="${OUT_DIR:-$ROOT/.local/measurements}"
 TRACE="${TRACE:-$ROOT/lab/traces/live_cell_scroll.json}"
-STUDY="${STUDY:-$ROOT/lab/fixtures/frames_250k_live/frames_250k_live.sbnd}"
+SERIES="${SERIES:-$ROOT/lab/fixtures/frames_250k_live/frames_250k_live.sbnd}"
 CERT="${CERT:-$ROOT/server/dev-cert/cert.pem}"
 KEY="${KEY:-$ROOT/server/dev-cert/key.pem}"
 FRAME_COUNT="${FRAME_COUNT:-320}"
@@ -25,12 +25,12 @@ TOLERANCE="${TOLERANCE:-0.15}"  # 15%
 
 mkdir -p "$OUT_DIR"
 [[ -f "$TRACE" ]] || { echo "missing trace $TRACE — run gen_live_cell_trace.py" >&2; exit 1; }
-[[ -f "$STUDY" ]] || { echo "missing study $STUDY — run gen_live_cell_fixture.sh" >&2; exit 1; }
+[[ -f "$SERIES" ]] || { echo "missing series $SERIES — run gen_live_cell_fixture.sh" >&2; exit 1; }
 
-SERVER="$CARGO_TARGET_DIR/release/exact-server"
+SERVER="$CARGO_TARGET_DIR/release/series-server"
 HARNESS="$CARGO_TARGET_DIR/release/window-harness"
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-  cargo build -p exact-server -p window-harness --release >/dev/null
+  cargo build -p series-server -p window-harness --release >/dev/null
 else
   [[ -x "$SERVER" && -x "$HARNESS" ]] || {
     echo "SKIP_BUILD=1 but missing $SERVER or $HARNESS" >&2
@@ -70,7 +70,7 @@ if [[ -z "$MEASURED_RTT_MS" || -z "$MEASURED_READ_BPS" ]]; then
 fi
 
 echo "=== E0 step 2: local netem/sim at RTT=${MEASURED_RTT_MS}ms bps=${MEASURED_READ_BPS} ===" >&2
-"$SERVER" --port "$LOCAL_PORT" --study "$STUDY" \
+"$SERVER" --port "$LOCAL_PORT" --series "$SERIES" \
   --stream-mode per-frame \
   --cert-pem "$CERT" --key-pem "$KEY" >/dev/null 2>&1 &
 spid=$!

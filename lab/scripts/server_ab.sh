@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Interleaved A/B of exact-server: HEAD against a worktree at <base-commit>.
+# Interleaved A/B of series-server: HEAD against a worktree at <base-commit>.
 # The driver is a client; both servers stay up for the whole run.
 # `docs/adr/disk-access.md`.
 #
@@ -51,16 +51,16 @@ trap cleanup EXIT
 
 echo "worktree $WT at $BASE" >&2
 git worktree add --detach "$WT" "$BASE"
-(cd "$WT" && cargo build -p exact-server --bin exact-server --release)
-cargo build -p exact-server --bin exact-server --release
+(cd "$WT" && cargo build -p series-server --bin series-server --release)
+cargo build -p series-server --bin series-server --release
 cargo build -p disk-access-bench --bin server_ab --bin evict --release
 
-BEFORE="$WT/target/release/exact-server"
-AFTER="$ROOT/target/release/exact-server"
+BEFORE="$WT/target/release/series-server"
+AFTER="$ROOT/target/release/series-server"
 DRIVER="$ROOT/target/release/server_ab"
 EVICT="$ROOT/target/release/evict"
 [[ -x "$BEFORE" && -x "$AFTER" && -x "$DRIVER" && -x "$EVICT" ]] || {
-  echo "build missing exact-server or server_ab" >&2
+  echo "build missing series-server or server_ab" >&2
   exit 1
 }
 
@@ -69,7 +69,7 @@ EVICT="$ROOT/target/release/evict"
   echo "date $(date -u +%FT%TZ)"
   echo "HEAD $(git rev-parse HEAD)"
   echo "base $BASE ($(git rev-parse "$BASE"))"
-  echo "study $TILE"
+  echo "series $TILE"
   echo "stream_mode shared"
   if command -v check-fastpath >/dev/null 2>&1 || [[ -x "$ROOT/target/release/check-fastpath" ]]; then
     echo "check-fastpath"
@@ -81,8 +81,8 @@ EVICT="$ROOT/target/release/evict"
 
 start_server() {
   local bin="$1" port="$2" log="$3"
-  NO_COLOR=1 RUST_LOG=exact_server=info "$bin" \
-    --port "$port" --study "$TILE" --stream-mode shared --bind 127.0.0.1 \
+  NO_COLOR=1 RUST_LOG=series_server=info "$bin" \
+    --port "$port" --series "$TILE" --stream-mode shared --bind 127.0.0.1 \
     --cert-pem "$CERT" --key-pem "$KEY" >"$log" 2>&1 &
   echo $!
 }
@@ -228,8 +228,8 @@ for ((r = 0; r < RSS_ROUNDS; r++)); do
   for arm in "${order[@]}"; do
     port=$((PORT_BEFORE + 100 + r * 2 + ${#arm}))
     log="$LOGDIR/rss_${arm}_$r.log" ; : >"$log"
-    NO_COLOR=1 RUST_LOG=exact_server=info "${ARM_BIN[$arm]}" \
-      --port "$port" --study "$TILE" --stream-mode shared --bind 127.0.0.1 \
+    NO_COLOR=1 RUST_LOG=series_server=info "${ARM_BIN[$arm]}" \
+      --port "$port" --series "$TILE" --stream-mode shared --bind 127.0.0.1 \
       --cert-pem "$CERT" --key-pem "$KEY" >"$log" 2>&1 &
     pid=$!
     wait_banner "$log"

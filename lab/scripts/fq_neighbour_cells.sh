@@ -40,7 +40,7 @@ profile() {
   esac
 }
 
-nice -n 19 cargo build -q -j 4 -p exact-server -p pack-study -p window-harness
+nice -n 19 cargo build -q -j 4 -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -49,7 +49,7 @@ FRAMES=100
 mkdir -p "$T/frames"
 for i in $(seq 0 $((FRAMES - 1))); do head -c 65536 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo "{\"frameCount\": $FRAMES}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 cat > "$T/bulk.py" <<'PY'
 """send PORT: one connection's worth of zeros, as fast as Cubic lets it, until killed.
@@ -89,8 +89,8 @@ run() {  # round prev profile cc qdisc: one row of $OUT
   local relay=$!
   for _ in $(seq 50); do grep -q READY "$T/relay.log" && break; sleep 0.1; done
   ns=(nsenter "--net=$(grep -o 'server_netns=[^ ]*' "$T/relay.log" | cut -d= -f2)")
-  RUST_LOG=exact_server=info "${ns[@]}" "$BIN/exact-server" --port "$srv" --bind 10.77.0.2 \
-    --study "$T/study.sbnd" --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "$cc" \
+  RUST_LOG=series_server=info "${ns[@]}" "$BIN/series-server" --port "$srv" --bind 10.77.0.2 \
+    --series "$T/series.sbnd" --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "$cc" \
     > "$T/server.log" 2>&1 & PIDS+=("$!")
   "${ns[@]}" python3 "$T/bulk.py" send "$nport" & PIDS+=("$!")
   for _ in $(seq 100); do grep -q "wt_url=" "$T/server.log" && break; sleep 0.1; done

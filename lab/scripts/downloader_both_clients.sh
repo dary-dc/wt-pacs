@@ -22,7 +22,7 @@ export CHROME_PATH="$CHROME"
 
 ROUNDS="${ROUNDS:-4}"
 FRAMES="${FRAMES:-12}"
-cargo build -q -p exact-server -p pack-study
+cargo build -q -p series-server -p pack-series
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 T="$(mktemp -d)"
 SERVER=""; STATIC=""
@@ -41,7 +41,7 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/k
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
 HASH="$(openssl x509 -in "$T/cert.pem" -outform DER | openssl dgst -sha256 | awk '{print $2}')"
 
-# The harness checks decoded pixels against the encoder's input, so the study must be real
+# The harness checks decoded pixels against the encoder's input, so the series must be real
 # codestreams, not random bytes.
 SRC=lab/fixtures/decode_c512  # the harness checks against this set's .sha256
 mkdir -p "$T/frames"
@@ -51,12 +51,12 @@ while [[ $i -lt $FRAMES ]]; do
   cp "$T/frames/000.htj2k" "$T/frames/$(printf '%03d' "$i").htj2k"; i=$((i+1))
 done
 echo "{\"frameCount\": $FRAMES}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 WT_PORT=$((30000 + RANDOM % 20000))
 PORT=$((20000 + RANDOM % 10000))
 printf '{"wt_url": "https://127.0.0.1:%s/", "cert_sha256": "%s"}\n' "$WT_PORT" "$HASH" > "$CFG"
-RUST_LOG=exact_server=warn "$BIN/exact-server" --port "$WT_PORT" --study "$T/study.sbnd" \
+RUST_LOG=series_server=warn "$BIN/series-server" --port "$WT_PORT" --series "$T/series.sbnd" \
   --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" >"$T/srv.log" 2>&1 &
 SERVER=$!
 for _ in $(seq 100); do grep -q "wt_url=" "$T/srv.log" 2>/dev/null && break; sleep 0.1; done

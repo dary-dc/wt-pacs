@@ -31,8 +31,8 @@ cert = ROOT / "server/dev-cert/cert.pem"
 pin = hashlib.sha256(subprocess.check_output(["openssl", "x509", "-in", str(cert), "-outform", "DER"])).hexdigest()
 (ROOT / "client/dev-transport.json").write_text(json.dumps({"wt_url": f"https://127.0.0.1:{page_port}/", "cert_sha256": pin}) + "\n")
 
-env = dict(os.environ, NO_COLOR="1", RUST_LOG="exact_server=error")  # a WARN per refusal would be the measurement
-srv = subprocess.Popen([bin_, "--port", str(wt_port), "--study", fixture, "--stream-mode", "shared", "--bind", "127.0.0.1",
+env = dict(os.environ, NO_COLOR="1", RUST_LOG="series_server=error")  # a WARN per refusal would be the measurement
+srv = subprocess.Popen([bin_, "--port", str(wt_port), "--series", fixture, "--stream-mode", "shared", "--bind", "127.0.0.1",
                         "--cert-pem", str(cert), "--key-pem", str(ROOT / "server/dev-cert/key.pem"), *extra],
                        cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 frames = None
