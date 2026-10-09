@@ -19,12 +19,14 @@ const MUTATE = arg("--mutate", "");
 const BUDGET = 256 * 2 ** 20;  // a batch's coefficient bytes
 const FLAGS = ["--enable-unsafe-webgpu", "--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--use-webgpu-adapter=swiftshader", "--enable-features=Vulkan"];
 
-/** Broken on purpose, each must take its arms to 0 exact: a lifting constant, a block one row down, a scan made inclusive. */
+/** Broken on purpose: each takes its arms to 0 exact (a lifting constant, a block one row down, a scan made
+ *  inclusive), or, `lanes`, makes every workgroup count a fault. */
 const MUTANTS = {
   lift: ["ht.wgsl", "((h0 + h1 + 2i) >> 2u)", "((h0 + h1 + 1i) >> 2u)"],
   row: ["ht.wgsl", "planes[b.dst + y * b.stride + x]", "planes[b.dst + (y + 1u) * b.stride + x]"],
   scan: ["ht.mjs", "return vec2u(scan_buf[t] - c, scan_buf[31]);", "return vec2u(scan_buf[t], scan_buf[31]);"],
   scansub: ["ht.mjs", "return vec2u(before + incl - c, total);", "return vec2u(before + incl, total);"],
+  lanes: ["ht.mjs", "subgroupBroadcastFirst(t) + lane != t", "subgroupBroadcastFirst(t) + lane == t"],
 };
 
 function sets() {
