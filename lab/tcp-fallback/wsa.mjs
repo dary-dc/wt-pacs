@@ -96,7 +96,7 @@ async function one(round, rtt, variant) {
 
 async function visit(round, rtt, variant) {
   const [srv, relayPort] = [port(), port()];
-  const server = start(SERVER, ["--port", String(srv), "--bind", "127.0.0.1", "--websocket", "--open-ask",
+  const server = start(SERVER, ["--port", String(srv), "--bind", "127.0.0.1", "--websocket", "--opening-ask",
     "--series", `${T}/series.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], `${T}/server.log`);
   const relay = start("python3", ["lab/scripts/link_impair.py", "--tcp", `${relayPort}:${srv}`, "--seed", String(round),
     "--delay-ms", String(rtt / 2), "--rate-kbit", String(RATE), "--queue-pkts", "200", "--self-timing"], `${T}/relay.log`);

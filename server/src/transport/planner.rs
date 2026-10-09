@@ -8,7 +8,7 @@ pub const ASKS_AHEAD: usize = 8;
 
 /// What the loop consumes. `EndSession` and `Failed` end it; every other ask carries frames.
 #[derive(Debug)]
-pub enum Ask {
+pub enum Command {
     Frame(u32),
     Fill { from: Option<u32>, to: Option<u32> },
     EndStream,
@@ -43,7 +43,7 @@ struct Fill {
 }
 
 pub struct Planner {
-    in_hand: VecDeque<Ask>,
+    in_hand: VecDeque<Command>,
     fill: Option<Fill>,
     frames: u32,
 }
@@ -57,7 +57,7 @@ impl Planner {
         }
     }
 
-    pub fn push(&mut self, ask: Ask) {
+    pub fn push(&mut self, ask: Command) {
         self.in_hand.push_back(ask);
     }
 
@@ -67,7 +67,7 @@ impl Planner {
     }
 
     /// `poll` yields asks that arrived since the last step; a fill checks it between frames.
-    pub fn next(&mut self, mut poll: impl FnMut() -> Option<Ask>) -> Result<Step> {
+    pub fn next(&mut self, mut poll: impl FnMut() -> Option<Command>) -> Result<Step> {
         while self.in_hand.len() < ASKS_AHEAD {
             let Some(ask) = poll() else { break };
             self.in_hand.push_back(ask);
@@ -83,23 +83,23 @@ impl Planner {
             }
             match self.in_hand.pop_front() {
                 None => return Ok(Step::Wait),
-                Some(Ask::EndSession) => return Ok(Step::End),
-                Some(Ask::Failed(err)) => return Err(err),
-                Some(Ask::EndStream) => continue,
-                Some(Ask::Fill { from, to }) => match fill_range(from, to, self.frames) {
+                Some(Command::EndSession) => return Ok(Step::End),
+                Some(Command::Failed(err)) => return Err(err),
+                Some(Command::EndStream) => continue,
+                Some(Command::Fill { from, to }) => match fill_range(from, to, self.frames) {
                     Ok((frame, to)) => self.fill = Some(Fill { frame, to, first: true }),
                     Err(reason) => return Ok(Step::Refuse { frame: from.unwrap_or(0), reason }),
                 },
-                Some(Ask::Frame(frame)) => {
+                Some(Command::Frame(frame)) => {
                     if let Err(reason) = frame_in_range(frame, self.frames) {
                         return Ok(Step::Refuse { frame, reason });
                     }
                     let names = self
                         .in_hand
                         .iter()
-                        .take_while(|a| matches!(a, Ask::Frame(_) | Ask::EndStream))
+                        .take_while(|a| matches!(a, Command::Frame(_) | Command::EndStream))
                         .filter_map(|a| match a {
-                            Ask::Frame(f) => frame_in_range(*f, self.frames).is_ok().then_some(*f),
+                            Command::Frame(f) => frame_in_range(*f, self.frames).is_ok().then_some(*f),
                             _ => None,
                         })
                         .collect();
@@ -144,7 +144,7 @@ mod tests {
     fn pipelined_asks_supply_the_upcoming_frames() {
         let mut plan = Planner::new(10);
         for frame in [4, 5, 6] {
-            plan.push(Ask::Frame(frame));
+            plan.push(Command::Frame(frame));
         }
         assert_eq!(plan.next(|| None).unwrap(), Step::Serve { frame: 4, next: tiles(&[5, 6]) });
     }
@@ -154,7 +154,7 @@ mod tests {
     fn each_served_ask_names_the_asks_still_behind_it() {
         let mut plan = Planner::new(10);
         for frame in [1, 4, 5] {
-            plan.push(Ask::Frame(frame));
+            plan.push(Command::Frame(frame));
         }
         assert_eq!(plan.next(|| None).unwrap(), Step::Serve { frame: 1, next: tiles(&[4, 5]) });
         assert_eq!(plan.next(|| None).unwrap(), Step::Serve { frame: 4, next: tiles(&[5]) });
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn a_fill_recites_from_to_inclusive_in_order() {
         let mut plan = Planner::new(8);
-        plan.push(Ask::Fill { from: Some(3), to: Some(7) });
+        plan.push(Command::Fill { from: Some(3), to: Some(7) });
         let mut served = Vec::new();
         loop {
             match plan.next(|| None).unwrap() {
@@ -190,9 +190,9 @@ mod tests {
     #[test]
     fn end_stream_stops_a_fill_before_the_next_frame() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Fill { from: Some(3), to: Some(7) });
+        plan.push(Command::Fill { from: Some(3), to: Some(7) });
         assert!(matches!(plan.next(|| None).unwrap(), Step::Serve { frame: 3, .. }));
-        let mut arrived = Some(Ask::EndStream);
+        let mut arrived = Some(Command::EndStream);
         assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::Wait));
     }
 
@@ -200,9 +200,9 @@ mod tests {
     #[test]
     fn a_data_request_during_a_fill_ends_it_and_is_served_next() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Fill { from: Some(0), to: Some(5) });
+        plan.push(Command::Fill { from: Some(0), to: Some(5) });
         assert!(matches!(plan.next(|| None).unwrap(), Step::Serve { frame: 0, .. }));
-        let mut arrived = Some(Ask::Frame(9));
+        let mut arrived = Some(Command::Frame(9));
         assert_eq!(plan.next(|| arrived.take()).unwrap(), Step::Serve { frame: 9, next: tiles(&[]) });
     }
 
@@ -210,9 +210,9 @@ mod tests {
     #[test]
     fn end_session_during_a_fill_ends_the_session() {
         let mut plan = Planner::new(6);
-        plan.push(Ask::Fill { from: Some(0), to: Some(5) });
+        plan.push(Command::Fill { from: Some(0), to: Some(5) });
         assert!(matches!(plan.next(|| None).unwrap(), Step::Serve { frame: 0, .. }));
-        let mut arrived = Some(Ask::EndSession);
+        let mut arrived = Some(Command::EndSession);
         assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::End));
         assert!(matches!(plan.next(|| None).unwrap(), Step::Wait));
     }
@@ -222,7 +222,7 @@ mod tests {
     fn a_bad_range_is_refused_with_from() {
         for (from, to) in [(Some(7), Some(3)), (Some(0), Some(9))] {
             let mut p = Planner::new(4);
-            p.push(Ask::Fill { from, to });
+            p.push(Command::Fill { from, to });
             match p.next(|| None).unwrap() {
                 Step::Refuse { frame, .. } => assert_eq!(frame, from.unwrap_or(0)),
                 other => panic!("served {other:?}"),
@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn an_empty_series_is_refused_with_from() {
         let mut plan = Planner::new(0);
-        plan.push(Ask::Fill { from: None, to: None });
+        plan.push(Command::Fill { from: None, to: None });
         match plan.next(|| None).unwrap() {
             Step::Refuse { frame, reason } => {
                 assert_eq!(frame, 0);
@@ -245,23 +245,23 @@ mod tests {
         }
     }
 
-    /// A frame past the study is refused by the planner, before any reader or stream is touched.
+    /// A frame past the series is refused by the planner, before any reader or stream is touched.
     #[test]
     fn a_frame_out_of_range_is_refused_by_the_planner() {
         let mut plan = Planner::new(4);
-        plan.push(Ask::Frame(99));
+        plan.push(Command::Frame(99));
         assert_eq!(
             plan.next(|| None).unwrap(),
             Step::Refuse { frame: 99, reason: "frame index 99 out of range (4)".into() }
         );
     }
 
-    /// A name past the study behind the served frame is skipped, and the names after it kept.
+    /// A name past the series behind the served frame is skipped, and the names after it kept.
     #[test]
     fn an_out_of_range_name_is_skipped_not_a_stop() {
         let mut plan = Planner::new(4);
         for frame in [1, 99, 2] {
-            plan.push(Ask::Frame(frame));
+            plan.push(Command::Frame(frame));
         }
         assert_eq!(plan.next(|| None).unwrap(), Step::Serve { frame: 1, next: tiles(&[2]) });
     }
@@ -269,7 +269,7 @@ mod tests {
     /// A fill is counted by its first frame once, and a fill stopped before its first frame never.
     #[test]
     fn a_fill_counts_once_and_a_cancelled_fill_not_at_all() {
-        let firsts = |asks: Vec<Ask>| {
+        let firsts = |asks: Vec<Command>| {
             let mut plan = Planner::new(10);
             asks.into_iter().for_each(|a| plan.push(a));
             let mut firsts = 0;
@@ -278,8 +278,8 @@ mod tests {
             }
             firsts
         };
-        assert_eq!(firsts(vec![Ask::Fill { from: Some(2), to: Some(5) }]), 1);
-        assert_eq!(firsts(vec![Ask::Fill { from: None, to: None }, Ask::EndStream]), 0);
+        assert_eq!(firsts(vec![Command::Fill { from: Some(2), to: Some(5) }]), 1);
+        assert_eq!(firsts(vec![Command::Fill { from: None, to: None }, Command::EndStream]), 0);
     }
 
     /// Both refusal texts are the ones `docs/WIRE.md` §FoD messages documents, word for word.
@@ -287,7 +287,7 @@ mod tests {
     fn the_refusal_texts_are_the_documented_ones() {
         assert_eq!(frame_in_range(9, 4), Err("frame index 9 out of range (4)".into()));
         assert_eq!(fill_range(Some(2), Some(9), 4), Err("StreamFrames 2..=9 outside 0..=3".into()));
-        assert_eq!(fill_range(None, None, 0), Err("study is empty".into()));
+        assert_eq!(fill_range(None, None, 0), Err("series is empty".into()));
     }
 
     /// A flood of asks holds at most `ASKS_AHEAD`, the frame being served among them; the rest stay in `poll`.
@@ -300,7 +300,7 @@ mod tests {
                 return None;
             }
             offered += 1;
-            Some(Ask::Frame(offered - 1))
+            Some(Command::Frame(offered - 1))
         };
         for _ in 0..100 {
             let _ = plan.next(&mut poll).unwrap();
@@ -316,9 +316,9 @@ mod tests {
     #[test]
     fn upcoming_reads_past_an_end_stream() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Frame(2));
-        plan.push(Ask::EndStream);
-        plan.push(Ask::Frame(4));
+        plan.push(Command::Frame(2));
+        plan.push(Command::EndStream);
+        plan.push(Command::Frame(4));
         assert_eq!(
             plan.next(|| None).unwrap(),
             Step::Serve { frame: 2, next: tiles(&[4]) },
@@ -330,9 +330,9 @@ mod tests {
     #[test]
     fn upcoming_stops_at_the_first_ask_that_is_not_a_frame() {
         let mut plan = Planner::new(10);
-        plan.push(Ask::Frame(5));
-        plan.push(Ask::Fill { from: Some(7), to: Some(9) });
-        plan.push(Ask::Frame(9));
+        plan.push(Command::Frame(5));
+        plan.push(Command::Fill { from: Some(7), to: Some(9) });
+        plan.push(Command::Frame(9));
         assert_eq!(
             plan.next(|| None).unwrap(),
             Step::Serve { frame: 5, next: tiles(&[]) },
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn a_reader_error_is_the_session_error() {
         let mut plan = Planner::new(2);
-        plan.push(Ask::Failed(anyhow::anyhow!("control broke")));
+        plan.push(Command::Failed(anyhow::anyhow!("control broke")));
         assert!(plan.next(|| None).is_err(), "reader error was swallowed");
     }
 }

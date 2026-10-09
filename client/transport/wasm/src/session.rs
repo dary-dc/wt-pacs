@@ -195,7 +195,7 @@ async fn read_length_prefixed_frame(
     let len = frame_envelope::envelope_len(buf.as_slice()[0..4].try_into().unwrap())?;
     buf.reserve_for(4 + len);
     if !read_exact(reader, buf, 4 + len, st).await? {
-        return Ok(lost(buf.as_slice(), len - frame_envelope::ENVELOPE_LEN));
+        return Ok(lost(buf.as_slice(), len - frame_envelope::INDEX_LEN));
     }
     let envelope = &buf.as_slice()[4..4 + len];
     let (index, codestream) = unwrap_envelope(envelope).map_err(|e| format!("envelope: {e}"))?;
@@ -207,7 +207,7 @@ async fn read_length_prefixed_frame(
 
 /// `head` is what arrived of `[4B BE len][4B BE index][codestream]` before the stream ended.
 fn lost(head: &[u8], declared: usize) -> Envelope {
-    let named = 4 + frame_envelope::ENVELOPE_LEN;
+    let named = 4 + frame_envelope::INDEX_LEN;
     if head.len() < named {
         return Envelope::Lost { index: None, reason: "truncated before its index".into() };
     }

@@ -413,7 +413,7 @@ export class ByteAccumulator {
   }
 }
 
-/** `:` and `-` are legal in a query, and `parse_open_ask` splits on them literally. */
-export function openAskUrl(url: string, fill: { from: number; to: number }): string {
+/** `:` and `-` are legal in a query, and `parse_opening_ask` splits on them literally. */
+export function openingAskUrl(url: string, fill: { from: number; to: number }): string {
   return `${url}${url.includes("?") ? "&" : "?"}ask=fill:${fill.from}-${fill.to}`;
 }

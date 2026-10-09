@@ -18,7 +18,7 @@ NODE_PATH=$(npm root -g) node lab/tcp-fallback/run.mjs 3    # rounds
 
 WSA (queue row 106). `wsa.mjs` dials `ws-session.js` through the relay's TCP plane and fills four
 250 KB frames: `ws` asks the fill on the socket once it is open (today), `ask` carries it in the
-upgrade's URL (`--open-ask`). Variants Williams-ordered (`lab/order.mjs`), a server and a `--self-timing`
+upgrade's URL (`--opening-ask`). Variants Williams-ordered (`lab/order.mjs`), a server and a `--self-timing`
 relay per visit, `VOID` visits dropped.
 
 ```bash

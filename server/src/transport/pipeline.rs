@@ -2,7 +2,7 @@
 //! override steps, never the story. `docs/adr/telemetry-server-pipeline.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
-use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
+use crate::media::read_path::{ReadMode, FillReader, TileReader, TILE_SLOTS};
 use crate::transport::link::Link;
 use crate::transport::planner::Next;
 use anyhow::Result;
@@ -13,7 +13,7 @@ use tracing::info;
 #[cfg(feature = "telemetry")]
 use crate::record::tap::Tap;
 #[cfg(feature = "telemetry")]
-use frame_envelope::ENVELOPE_LEN;
+use frame_envelope::INDEX_LEN;
 
 /// Implementors override **steps**, never [`serve`](Self::serve).
 pub(crate) trait FramePipeline: Send {
@@ -41,7 +41,7 @@ pub(crate) struct ProductPipeline {
     link: Link,
     /// Built on the first frame of its kind, so a session pays for neither reader it
     /// does not use. `docs/adr/disk-access.md`.
-    seq: Option<SeqReader>,
+    seq: Option<FillReader>,
     tile: Option<TileReader>,
     mode: ReadMode,
     fills: u64,
@@ -60,7 +60,7 @@ impl ProductPipeline {
     }
 }
 
-/// The spans the read path starts on: the planner's names, through the study's index.
+/// The spans the read path starts on: the planner's names, through the series' index.
 fn ahead(store: &FrameStore, next: &Next) -> Vec<FrameSpan> {
     match next {
         Next::Fill { after, .. } => after.iter().map(|&f| store.frame_span(f)).collect(),
@@ -80,7 +80,7 @@ impl FramePipeline for ProductPipeline {
         match next {
             Next::Fill { first, .. } => {
                 *fills += u64::from(*first);
-                seq.get_or_insert_with(|| SeqReader::new(Arc::clone(store)))
+                seq.get_or_insert_with(|| FillReader::new(Arc::clone(store)))
                     .read(span, ahead.first().copied())
                     .await
             }
@@ -109,7 +109,7 @@ impl Drop for ProductPipeline {
     /// In `Drop` because a session ends several ways, and a miss rate only some of them
     /// report is worse than none. `docs/adr/disk-access.md` §Reporting.
     fn drop(&mut self) {
-        let seq = self.seq.as_ref().map(SeqReader::stats).unwrap_or_default();
+        let seq = self.seq.as_ref().map(FillReader::stats).unwrap_or_default();
         let tile = self
             .tile
             .as_ref()
@@ -167,7 +167,7 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
     }
 
     async fn write(&mut self, frame: u32, body: Bytes) -> Result<()> {
-        let envelope_len = ENVELOPE_LEN + body.len();
+        let envelope_len = INDEX_LEN + body.len();
         let written = self.inner.write(frame, body).await;
         match &written {
             Ok(()) => self.tap.emit_sent(envelope_len),
@@ -304,14 +304,14 @@ mod tests {
     #[test]
     fn a_refused_range_records_a_row_of_its_own() {
         use crate::record::tap::{Live, Record};
-        use crate::transport::planner::{Ask, ASKS_AHEAD};
+        use crate::transport::planner::{Command, ASKS_AHEAD};
         let (path, rec) = recorder("refused-row", 4);
         let (tx, rows) = std::sync::mpsc::sync_channel(64);
         let mut recorded = RecordedPipeline::new(rec, Tap::new(1, Some(tx), &Live::default()));
         let (asks_tx, mut asks) = tokio::sync::mpsc::channel(ASKS_AHEAD);
-        asks_tx.try_send(Ask::Frame(1)).expect("queue ask");
-        asks_tx.try_send(Ask::Fill { from: Some(6), to: Some(9) }).expect("queue fill");
-        asks_tx.try_send(Ask::Frame(99)).expect("queue ask");
+        asks_tx.try_send(Command::Frame(1)).expect("queue ask");
+        asks_tx.try_send(Command::Fill { from: Some(6), to: Some(9) }).expect("queue fill");
+        asks_tx.try_send(Command::Frame(99)).expect("queue ask");
         drop(asks_tx);
         let rt = tokio::runtime::Builder::new_current_thread().build().expect("rt");
         rt.block_on(crate::transport::server::drive(&mut recorded, &mut asks)).expect("drive");

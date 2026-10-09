@@ -30,7 +30,7 @@ enum State {
     /// A fill, then the relay changes its source port: a new path resets the controller.
     Rebound,
     /// The warm-up rides in the session URL instead, so the bytes the viewer needs anyway are
-    /// already moving when the control stream opens. Needs the server's `--open-ask` (on by default).
+    /// already moving when the control stream opens. Needs the server's `--opening-ask` (on by default).
     OpenPush,
 }
 

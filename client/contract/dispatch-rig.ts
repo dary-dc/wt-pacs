@@ -42,7 +42,7 @@ type OpenOpts = {
   /** The stand-ins wait for `hold.release()` before each decode, or before `ready`. */
   hold?: "decode" | "ready";
   /** `"default"` leaves it unset; the other clauses ask on the control stream. */
-  openAsk?: boolean | "default";
+  openingAsk?: boolean | "default";
   url?: Promise<string>;
   /** The real decoder in place of the stand-in, with the glue and wasm it loads. */
   realDecoder?: RealDecoder;
@@ -82,7 +82,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     decoders: opts.decoders ?? 1,
     perDecoder: opts.perDecoder ?? 2,
     fill: opts.fill,
-    openAsk: opts.openAsk === "default" ? undefined : (opts.openAsk ?? false),
+    openingAsk: opts.openingAsk === "default" ? undefined : (opts.openingAsk ?? false),
     transport: `/client/contract/dist/fake-session.js?ch=${ch}&hang=${opts.hangDials ?? 0}&refuse=${opts.refuseDials ?? 0}`,
     decoderWorker: opts.decoderWorker ?? (opts.realDecoder ? undefined : `/client/contract/fake-decoder.js?ch=${ch}`),
     decoder: opts.realDecoder ?? {
@@ -578,13 +578,13 @@ async function theDecodersComeUpWhileTheUrlIsUnknown(DownloaderClient: Downloade
 /**
  * R1: the fill the consumer opens with rides the session URL, so the server serves it behind its
  * accept, and the control stream is never asked for it a second time. On unless turned off, as
- * the server's `--open-ask` is. docs/ARCHITECTURE.md
+ * the server's `--opening-ask` is. docs/ARCHITECTURE.md
  */
 async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor, check: Check) {
   const indices = [0, 1, 2, 3];
   const got: Frame[] = [];
   const { c, fake } = await open(DownloaderClient, {
-    decode: false, fill: indices, openAsk: "default", onFrame: (f) => got.push(f),
+    decode: false, fill: indices, openingAsk: "default", onFrame: (f) => got.push(f),
   });
   const url = await fake.dialUrl();
   check(url.endsWith("?ask=fill:0-3"), `open ask: the session URL carries the fill (${url})`);
@@ -595,7 +595,7 @@ async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor,
   c.close();
 
   const { c: c2, fake: fake2 } = await open(DownloaderClient, {
-    decode: false, fill: indices, openAsk: false,
+    decode: false, fill: indices, openingAsk: false,
   });
   const plain = await fake2.dialUrl();
   check(!plain.includes("ask="), `open ask: turned off, the session URL carries nothing (${plain})`);
@@ -609,7 +609,7 @@ async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor,
 async function aRefusedOpeningFillReachesTheConsumer(DownloaderClient: DownloaderCtor, check: Check) {
   const failures: Fail[] = [];
   const { c, fake } = await open(DownloaderClient, {
-    decode: false, fill: [0, 1, 2, 3], openAsk: true, onError: (f) => failures.push(f),
+    decode: false, fill: [0, 1, 2, 3], openingAsk: true, onError: (f) => failures.push(f),
   });
   await fake.pushRefusal(0, "no such frame");
   await until(() => failures.length >= 4);
@@ -1748,7 +1748,7 @@ async function aCancelDuringARedialDropsWhatWasAsked(DownloaderClient: Downloade
  * cannot take it back: the new session's stream is ended once it opens, and none of it reaches the consumer.
  */
 async function aCancelDuringAResumeEndsTheFillItsDialCarried(DownloaderClient: DownloaderCtor, check: Check) {
-  const { c, fake, got } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 }, openAsk: "default" });
+  const { c, fake, got } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 }, openingAsk: "default" });
   await fake.openAfterMs(300);
   await fake.serverClose(0, "the server went away");
   const redialled = await until(async () => (await fake.dials()) >= 2);
@@ -1776,7 +1776,7 @@ async function aCloseDuringARedialAdoptsNoSession(_DownloaderClient: DownloaderC
   w.postMessage({
     kind: "start",
     config: {
-      decode: false, decoders: 0, openAsk: false, survival: { ...QUICK, stallMs: 30_000 },
+      decode: false, decoders: 0, openingAsk: false, survival: { ...QUICK, stallMs: 30_000 },
       transport: `/client/contract/dist/fake-session.js?ch=${ch}`,
     },
   });
