@@ -10,14 +10,14 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decodeStart?: number; decodeEnd?: number; decoder?: number } } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number; path?: string; exact?: boolean | string; reason?: string; mismatchOn?: string; stamps?: { decodeStart?: number; decodeEnd?: number; decoder?: number } } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
   fill(indices: number[]): void;
   cancel(): Promise<void>;
   close(): void;
-  stats(): { resumedAt: number[]; recycledAt: number[] };
+  stats(): { resumedAt: number[]; recycledAt: number[]; exact?: Record<string, Record<string, number>> };
 };
 type DownloaderCtor = {
   connect(url: string, certHash: string, opts: Record<string, unknown>): Promise<Downloader>;
@@ -50,6 +50,7 @@ type OpenOpts = {
   decoderWorker?: string;
   groupLength?: number;
   frameCount?: number;
+  digests?: (string | null)[];
   survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number };
   hangDials?: number;
   /** The first `n` dials are refused. */
@@ -92,6 +93,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     },
     groupLength: opts.groupLength,
     frameCount: opts.frameCount,
+    digests: opts.digests,
     survival: opts.survival,
     recycleAtBytes: opts.recycleAtBytes,
     onFrame: opts.onFrame ?? (() => {}),
@@ -765,6 +767,50 @@ async function aFrameCarriesItsDecodersRangeOrItsOwn(DownloaderClient: Downloade
     check(f?.info.min === 0 && f?.info.max === 255,
       `range: an 8-bit colour frame through ${name} carries 0..255, no pass taken (${f?.info.min}..${f?.info.max})`);
   }
+}
+
+/** XXH3-64 of the two codestreams' samples as decodeFrame hands them on, from ojph_expand and Python's xxhash. */
+const GREY16_XXH3 = "750932eabd34755e";
+const COLOUR8_XXH3 = "5f99dd7c0b2fc5e9";
+
+/**
+ * A frame says whether it is exact: its samples' XXH3-64 against the series' digest. A match is `true`; a
+ * mismatch is decoded once more in a decoder object of its own, `true` if that matches and `false` with both
+ * decodes named if not; a frame without a digest is `unchecked`, never `true`; `stats()` counts each per path.
+ * docs/adr/exactness-in-production.md §2
+ */
+async function aFrameSaysWhetherItIsExact(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  const vendor = await vendorDecoder(log, "the frame check");
+  if (!vendor) return;
+  const grey = await fetched("/client/contract/frames/grey-16.j2c");
+  const colour = await fetched("/client/contract/frames/colour-8.j2c");
+  const run = async (glue: string, digests: (string | null)[], codestreams: Uint8Array[]) => {
+    const got: Frame[] = [];
+    const { c, fake } = await open(DownloaderClient, { realDecoder: { ...vendor, glue }, digests, onFrame: (f) => got.push(f) });
+    c.fill(codestreams.map((_, i) => i));
+    for (const [i, b] of codestreams.entries()) await fake.pushFrame(i, b);
+    await until(() => got.length >= codestreams.length);
+    const counts = c.stats().exact;
+    c.close();
+    return { info: (i: number) => got.find((f) => f.frameIndex === i)?.info, counts };
+  };
+  const wrong = "0123456789abcdef";
+  const r = await run(vendor.glue, [GREY16_XXH3, wrong, null, COLOUR8_XXH3], [grey, grey, grey, colour]);
+  const said = (i: number) => `${r.info(i)?.path} ${r.info(i)?.exact} ${r.info(i)?.reason ?? ""}`;
+  check(r.info(0)?.exact === true && r.info(0)?.path === "htj2k", `exact: a 16-bit grey frame matching its digest is true (${said(0)})`);
+  check(r.info(3)?.exact === true, `exact: an 8-bit colour frame matching its digest is true (${said(3)})`);
+  check(r.info(1)?.exact === false && /^htj2k gave 750932eabd34755e, not 0123456789abcdef; htj2k gave 750932eabd34755e$/.test(r.info(1)?.reason ?? ""),
+    `exact: a mismatch is decoded again, and still false names both decodes (${said(1)})`);
+  check(r.info(2)?.exact === "unchecked", `exact: a frame without a digest is unchecked (${said(2)})`);
+  const n = r.counts?.htj2k;
+  check(n?.true === 2 && n?.false === 1 && n?.unchecked === 1, `exact: stats() counts each per path (${JSON.stringify(r.counts)})`);
+
+  const first = await run("/client/contract/flip-glue.js?first", [GREY16_XXH3], [grey]);
+  check(first.info(0)?.exact === true && first.info(0)?.mismatchOn === "htj2k",
+    `exact: a sample flipped in the first decode alone is caught and the second decode is taken (${first.info(0)?.exact} ${first.info(0)?.mismatchOn})`);
+  const all = await run("/client/contract/flip-glue.js?all", [GREY16_XXH3], [grey]);
+  check(all.info(0)?.exact === false && /; htj2k gave [0-9a-f]{16}$/.test(all.info(0)?.reason ?? ""),
+    `exact: a sample flipped in every decode is false after a second decode (${all.info(0)?.exact} ${all.info(0)?.reason})`);
 }
 
 const AV1_DIR = "/lab/.av1-build/out";
@@ -2124,6 +2170,7 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log): Promise<v
     anUndecodableFrameIsAFailureNotAFrame,
     aFrameCarriesItsWireBytes,
     aFrameCarriesItsDecodersRangeOrItsOwn,
+    aFrameSaysWhetherItIsExact,
     anAv1ItemDecodesToItsSource,
     anAv1ItemTakesWebCodecsOnlyWhereItIsExact,
     aMalformedAv1ItemIsRefusedByName,

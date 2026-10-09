@@ -154,7 +154,8 @@ const { parsePayload } = await import("./av1-payload.js");
         return which === "low" ? pic(8, 1) : pic(depth, planes);
       },
     },
-    "./av1-dav1d.js": { init: async () => {}, picture: () => (calls.push("dav1d"), pic(depth, planes)) },
+    // A low unit is asked with two arguments, a top with three.
+    "./av1-dav1d.js": { init: async () => {}, picture: (...a) => (calls.push("dav1d"), a.length === 2 ? pic(8, 1) : pic(depth, planes)) },
   };
   const load = async (path) => {
     if (path === "./av1-dav1d.js" && importFails-- > 0) throw new Error("import failed");
@@ -182,6 +183,32 @@ const { parsePayload } = await import("./av1-payload.js");
   await take("an rct payload probes 4:4:4 10-bit", "optimized", "c8", 10, 3, "probe c10,webcodecs");
   await take("a plain colour payload is told from grey by its profile", "plain", "c8", 8, 3, "probe c8,webcodecs");
   await take("8-bit grey coded 4:2:0 probes its own layout", "grey420", "g8", 8, 1, "probe g8f,webcodecs");
+  // The second decode after a digest mismatch takes another path, or none: docs/adr/exactness-in-production.md §2
+  const again = async (what, name, d, avoid, want, outcome, unit = { key: true }) => {
+    [depth, planes] = [d, 1];
+    calls.length = 0;
+    const got = await av1.decodeFrame(golden("plain", name), unit, null, avoid).then((r) => r.path, (e) => String(e.message));
+    check(calls.join() === want && got.startsWith(outcome), `second decode: ${what} (${calls.join()}; ${got.slice(0, 40)})`);
+  };
+  await again("a first decode names WebCodecs as its path", "g10", 10, undefined, "probe g10,webcodecs", "av1-webcodecs");
+  await again("a first decode names dav1d as its path", "g12", 12, undefined, "dav1d", "av1-dav1d");
+  await again("after WebCodecs, dav1d", "g10", 10, "av1-webcodecs", "dav1d", "av1-dav1d");
+  await again("after dav1d, WebCodecs", "g10", 10, "av1-dav1d", "probe g10,webcodecs", "av1-webcodecs");
+  await again("after dav1d over 10 bits, none", "g12", 12, "av1-dav1d", "", "no WebCodecs decoder");
+  wcFails = true;
+  await again("after dav1d, a failing WebCodecs is not dav1d again", "g10", 10, "av1-dav1d", "probe g10,webcodecs", "undecodable");
+  wcFails = false;
+  await again("inside a group, none", "g10", 10, "av1-webcodecs", "", "a frame inside a group", { key: false });
+  const mixed = await import("./av1.js?mixed");
+  await mixed.init({ mixed: true }, load);
+  const split = (avoid) => mixed.decodeFrame(golden("optimized", "g14"), { key: true }, null, avoid).then((r) => r.path, (e) => String(e.message));
+  [depth, planes] = [12, 1];
+  calls.length = 0;
+  let path = await split();
+  check(calls.join() === "probe g8,webcodecs,dav1d" && path === "av1-mixed", `second decode: a mixed decode names its path (${calls.join()}; ${path})`);
+  calls.length = 0;
+  path = await split("av1-mixed");
+  check(calls.join() === "dav1d,dav1d" && path === "av1-dav1d", `second decode: after a mixed decode, dav1d alone (${calls.join()}; ${path})`);
   delete globalThis.VideoDecoder;
   await take("no VideoDecoder, no WebCodecs", "plain", "g10", 10, 1, "dav1d");
 }

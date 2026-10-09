@@ -341,7 +341,7 @@ async function start(m) {
     const d = { worker, outstanding: 0, next: null };
     ready.push(new Promise((r) => { d.ready = r; }));
     const ch = new MessageChannel();
-    worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength }, [ch.port1]);
+    worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength, digests: cfg.digests }, [ch.port1]);
     worker.onmessage = (e) => {
       if (e.data.buffer) session?.releaseWireBuffer(e.data.buffer);
       if (e.data.kind === "done") onDone(d, e.data);

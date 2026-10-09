@@ -1,4 +1,4 @@
-# pip install --require-hashes -r lab/av1/requirements.txt — fetch_data.sh's only dependencies
+# pip install --require-hashes -r lab/av1/requirements.txt — fetch_data.sh's dependencies and the ingest's frame digest (xxhash: CPython 3.11 x86-64)
 numpy==2.4.6 \
     --hash=sha256:001fbb8e08d942dd57599e781f2472269ee7f2755fae407b4f67b2f0b17da3f1 \
     --hash=sha256:0280e0356c0829a18d9de1cb7eee50ec22ca639878d7240307ca0943d73cd2c4 \
@@ -75,3 +75,5 @@ numpy==2.4.6 \
 pydicom==3.0.1 \
     --hash=sha256:7b8be344b5b62493c9452ba6f5a299f78f8a6ab79786c729b0613698209603ec \
     --hash=sha256:db32f78b2641bd7972096b8289111ddab01fb221610de8d7afa835eb938adb41
+xxhash==3.6.0 \
+    --hash=sha256:297b7fbf86c82c550e12e8fb71968b3f033d27b874276ba3624ea868c11165a8

@@ -13,6 +13,7 @@ rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0 --locked
 npm i -g playwright@1.56.1 && npx playwright install chromium
 bash client/decode/wasm/fetch_openjph.sh            # the HTJ2K decoder the page runs
+bash client/decode/wasm/fetch_xxh3.sh               # the hash that checks each decoded frame
 ```
 
 Two more open what the gate otherwise skips, by name, in its log:
