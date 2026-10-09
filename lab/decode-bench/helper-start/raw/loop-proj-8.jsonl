@@ -1,0 +1,12 @@
+{"round":8,"unit":"lab:cb2late ask 1x","prev":null,"arm":"lab:cb2late","scenario":"ask","throttle":1,"ms":125.99000000022352,"frames":1,"exact":1,"rendererMb":144.935546875,"jsMb":107.02749347686768}
+{"round":8,"unit":"lab:cb2late ask 4x","prev":"lab:cb2late ask 1x","arm":"lab:cb2late","scenario":"ask","throttle":4,"ms":458.23000000044703,"frames":1,"exact":1,"rendererMb":154.3388671875,"jsMb":107.01142597198486}
+{"round":8,"unit":"lab:cb2 warm 4x","prev":"lab:cb2late ask 4x","arm":"lab:cb2","scenario":"warm","throttle":4,"ms":575.7750000003725,"frames":9,"exact":9,"rendererMb":376.9306640625,"jsMb":118.01359367370605}
+{"round":8,"unit":"lab:cb2late warm 1x","prev":"lab:cb2 warm 4x","arm":"lab:cb2late","scenario":"warm","throttle":1,"ms":105.99000000022352,"frames":9,"exact":9,"rendererMb":369.68359375,"jsMb":129.72611141204834}
+{"round":8,"unit":"lab:cb2 warm 1x","prev":"lab:cb2late warm 1x","arm":"lab:cb2","scenario":"warm","throttle":1,"ms":62.19500000029802,"frames":9,"exact":9,"rendererMb":374.5546875,"jsMb":125.84784507751465}
+{"round":8,"unit":"lab:cb2late warm 4x","prev":"lab:cb2 warm 1x","arm":"lab:cb2late","scenario":"warm","throttle":4,"ms":371.65499999932945,"frames":9,"exact":9,"rendererMb":381.74609375,"jsMb":118.0594596862793}
+{"round":8,"unit":"lab:cb2 ask 4x","prev":"lab:cb2late warm 4x","arm":"lab:cb2","scenario":"ask","throttle":4,"ms":421.429999999702,"frames":1,"exact":1,"rendererMb":151.3388671875,"jsMb":107.01014995574951}
+{"round":8,"unit":"built ask 1x","prev":"lab:cb2 ask 4x","arm":"built","scenario":"ask","throttle":1,"ms":121.55500000156462,"frames":1,"exact":1,"rendererMb":138.47265625,"jsMb":45.68181324005127}
+{"round":8,"unit":"lab:cb2 ask 1x","prev":"built ask 1x","arm":"lab:cb2","scenario":"ask","throttle":1,"ms":128.82000000029802,"frames":1,"exact":1,"rendererMb":145.5986328125,"jsMb":107.02493572235107}
+{"round":8,"unit":"built ask 4x","prev":"lab:cb2 ask 1x","arm":"built","scenario":"ask","throttle":4,"ms":435.0049999989569,"frames":1,"exact":1,"rendererMb":147.853515625,"jsMb":45.69469928741455}
+{"round":8,"unit":"built warm 4x","prev":"built ask 4x","arm":"built","scenario":"warm","throttle":4,"ms":444.73499999940395,"frames":9,"exact":9,"rendererMb":369.8515625,"jsMb":109.97808933258057}
+{"round":8,"unit":"built warm 1x","prev":"built warm 4x","arm":"built","scenario":"warm","throttle":1,"ms":128.18500000052154,"frames":9,"exact":9,"rendererMb":373.07421875,"jsMb":129.4365997314453}
