@@ -2198,6 +2198,83 @@ keeps it), or cut from history too (a rewrite of a pushed branch, only if a risk
 changes. Group by recommendation, the riskiest first. **Deliverable:** under this brief, nothing else edited; one line
 under §Blocked pointing here for the owner's decision. **Branch:** this one.
 
+**The audit (2026-10-09, `60f7db`), read-only.** Swept: the trees of all six remote branches (`claude/av1-unified` at
+`4bbddd3` as the fullest, 1 281 files), the 37 tags on the remote (row 83 counted 59), and the whole history reachable
+from them (1 990 commits), for secrets, addresses, host and account details, personal paths, third-party names, notes
+to other projects and archive tags. Items are named here by place and kind, never by the name or value itself.
+**No secret was found**: no private key, no token of the common services, no password assignment, in any tree or in
+the history.
+
+*Act outside the repository — the one item whose risk asks for it:*
+
+1. **The rig's public address.** The cloud rig's public IPv4 address was in the lab scripts from 2026-08-26 until
+   `b537cce7` (2026-10-02) replaced it with `CLOUD_HOST` on `main`. It is still in **the tree of `claude/av1`** (10
+   lines in 9 `lab/scripts/*.sh`, as the default host and login), in **the tree of every one of the 37 tags** (7–13
+   lines each), and in 19 commits of history. Read with what else is public — `docs/rig-limits.md` §9 (which UDP port
+   is open, which one a long-lived server holds, that two keys exist by role and that root accounts once accepted the
+   agent's key), the cloud provider and region named in 14 commit messages, and that image's default login in three
+   history paths — it tells a scanner which machine, which ports and what runs there. *Risk:* not a credential (the
+   login is by key); likely to be scanned anyway, as every public address is; bad mainly for the rig's measurements and
+   whatever else that machine serves. *Choices:* (a) **give the rig a new address, or let only the workstation reach
+   its SSH and UDP ports** — every mention, in tags and history alike, then points at nothing; nothing in the repository
+   changes; this is the recommendation if the rig still exists, and nothing if it does not; (b) drop the defaults from
+   `claude/av1`'s scripts as `b537cce7` did on `main` (9 files, `${CLOUD_HOST:?…}`), or let row 69 fold the branch;
+   (c) cutting it from history is **not** recommended: it rewrites 6 branches and 37 tags, changes every hash the docs
+   cite (434 backticked on `claude/av1-unified`), and clones and forks keep the old objects anyway.
+
+*Reword — cheap, and the knowledge stays:*
+
+2. **`docs/rig-limits.md` §9 (`:531-575` on `claude/av1-unified`): the rig's firewall and accounts.** What a campaign
+   needs is the host's size, its throttled volume and that one UDP port is reachable; the second port's long-lived
+   server and the root accounts that once took the agent's key add only to item 1's map. *Who reads it:* the owner
+   and a local agent running a campaign; nothing links to those lines. *Risk:* low alone, moderate beside item 1.
+   *Recommendation:* keep the key-rotation procedure (it is general and correct), cut the two details. Cost: two
+   sentences.
+3. **Another viewer's SDK named as the HTJ2K decoder package's npm scope**: `client/decode/wasm/fetch_openjph.sh:8`
+   (the pin the gate's prerequisites run, `README.md` §Prerequisites) and prose in `docs/decode/README.md` and 15 lab
+   READMEs — 17 files, 20 lines. *Risk:* the queue's own rule (never name another viewer or its SDK); licence none (the
+   wrapper is MIT); reputation low. *Recommendation:* keep the name where it is a pin — a fetch must name what it
+   fetches — and reword the prose to "the OpenJPH npm package (`client/decode/wasm/fetch_openjph.sh`)"; once row 91's
+   own OpenJPH build is all the product loads, the fetch is lab-only. Cost: 20 lines, no links.
+4. **Imaging and GPU vendors named as sources**: `docs/av1/series.md` (35 lines: six vendors' conformance statements,
+   [S1]–[S6], and two more under *Still open*), GPU vendors in `docs/decode/README.md`, a DICOM toolkit's test data
+   at `docs/av1/queue.md:800`. They are citations of public primary documents, which the docs rule asks for. *Risk:*
+   legal negligible (factual citation); it is the rule question below. *Recommendation:* keep, as citations.
+5. **"A private codebase" and "an earlier private proof of concept"**: README §Provenance (`README.md:130-136`), the
+   AV1 README's §Prior evidence, row 66 and `lab/av1/bytes/prior-gap`. No project is named; each confirms one exists.
+   *Risk:* low. *Recommendation:* keep — §Provenance is where a reader learns why commits carry attribution trailers.
+
+*Keep — low risk, and cutting costs more:*
+
+6. **Commit identities**: the owner's name (three spellings) and e-mail on 879 commits, one coding agent's identity on
+   931, a second third-party coding tool's agent and bot on 179; 811 messages carry attribution trailers. Inherent to
+   git; changing any of it is item 1(c)'s rewrite.
+7. **Archive tags**: 37 on the remote. 23 are named `archive/<tool>/…` after that second coding tool; the docs cite
+   only `archive/transport-lab-2026-09`, `archive/downloader-opts-2026-10-03`, `archive/n6-wasm-vs-ts-2026-09` and the
+   five `read-path-*` tags. Deleting an uncited tag removes the tool's name from the tag list but not its commits from
+   GitHub, and every tag's tree carries item 1's address — so (a) there settles them. **Found on the way:**
+   `archive/variants-2026-10-03`, cited 15 times on `claude/av1-unified`, does not exist on the remote; the tag is
+   `archive/arms-2026-10-03` (row 84 renamed the word in the text, not the tag). Either name works if the owner adds
+   the other; the link check does not see tags.
+8. **Branch names** carrying the coding agent's name (5 of 6), three of them idle since 2026-10-03–05
+   (`claude/onerror`, `claude/unified-2026-09-23`, `claude/server-design`). The tool's convention; deleting the idle
+   ones once merged is housekeeping, the owner's.
+9. **Drafts addressed to other projects**: `docs/transport/upstream-quinn-ack.md` (and its `.patch`) and
+   `docs/transport/upstream-wtransport-settings.md`, unfiled issues for two open-source libraries, one linking its
+   maintainer's repository. *Risk:* a note read before it is filed; none else. Keep until filed or dropped.
+10. **Paths and private addresses**: no personal path in any tree (`scripts/check_personal_paths.sh` runs in the
+    gate); history has the owner's local home directory 8 times and the rig's home ~600. The lab's TUN and loopback
+    addresses (`10.77.0.x`, `127.0.0.2`) and two LAN addresses in history are private ranges. The product's default
+    ports are documentation. The cloud image's default login in 3 scripts on `claude/av1-unified` (7 lines,
+    `ubuntu@$HOST`) is harmless without the address; reading it from `CLOUD_USER`, as `cloud_common.sh` does, is two
+    lines. Public-key fingerprints of the rig's keys are in history (`0752e5db` removed the last): they identify a
+    key, they cannot log in.
+
+*Which rule governs, from the sweep:* the queue's "never name another viewer, SDK, vendor" against the docs rule that
+every claim cites its primary source (items 3 and 4) — whether the rule means *never cite* or *never compare with,
+endorse or copy from* is the owner's; and README §Provenance's "names cleaned" against a history that keeps them,
+already corrected in place on 2026-10-03 (item 6).
+
 ### 103 BB3
 
 **Question.** Does v3's loss bound keep BBR's win under random loss while removing its measured costs?
@@ -2258,6 +2335,7 @@ the owner must still choose, in plain words. **Deliverable:** a review section i
 
 ## Blocked
 
+* **2026-10-09 09:46 UTC: row 102 PUBLICAUDIT — what the public repository should stop carrying is the owner's.** No secret was found; one item asks for action outside the repository (the rig's public address, still in `claude/av1`'s tree, every tag and history: give the rig a new address or close its ports to all but the workstation), and nine are reword-or-keep calls — row 102's brief, *The audit*.
 * *Resolved, 2026-10-08 23:45 UTC (the owner): product dependencies leave `lab/` first, every proposed rename is
   adopted (rows 56 and 84's briefs); what a public repository carries and which rule governs go to row 102 for analysis.*
   **2026-10-08 16:15 UTC: row 56 LAYOUT — the moves wait on two of row 83's decisions.** Every prerequisite row is done
