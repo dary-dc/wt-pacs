@@ -3,9 +3,11 @@
  * a fill and a cold ask at 1× and 4×, every unit Williams-ordered within each round, one fresh browser a visit,
  * each frame's sha256 against the encoder's input, the renderer's peak PSS. docs/decode/README.md §The build, as delivered
  *
- * `ARMS` takes `source` too, page.js's lab build.
+ * `ARMS` takes `source` and `lab:<variant>` too, page.js's lab builds. HELPERSTART's scenarios: `warm`, an ask on idle
+ * decoders after a fill of the others, and `ready`, the decoder workers' start (lab/decode-bench/helper-start).
  *
- *   NODE_PATH=$(npm root -g) node lab/decode-bench/builds.mjs [rounds] [SERIES=g512] [CORES=4] [ARMS=package,built] [OUT=rows.jsonl]
+ *   NODE_PATH=$(npm root -g) node lab/decode-bench/builds.mjs [rounds] [SERIES=g512|fixture dir] [CORES=4] [ARMS=package,built]
+ *     [SCENARIOS=fill,ask] [FIRST=0] [OUT=rows.jsonl]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -22,7 +24,9 @@ const ROUNDS = Number(process.argv[2] || 10);
 const SERIES = process.env.SERIES || "g512";
 const CORES = Number(process.env.CORES || 4);
 const ARMS = (process.env.ARMS || "package,built").split(",");
-const UNITS = ARMS.flatMap((arm) => ["fill", "ask"].flatMap((scenario) => [1, 4].map((throttle) => ({ arm, scenario, throttle }))));
+const SCENARIOS = (process.env.SCENARIOS || "fill,ask").split(",");
+const FIRST = Number(process.env.FIRST || 0);
+const UNITS = ARMS.flatMap((arm) => SCENARIOS.flatMap((scenario) => [1, 4].map((throttle) => ({ arm, scenario, throttle }))));
 const name = (u) => `${u.arm} ${u.scenario} ${u.throttle}x`;
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "builds-"));
 const CFG = path.join(ROOT, "client/dev-transport.json");
@@ -37,7 +41,7 @@ process.on("exit", () => {
 });
 
 execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
-const src = path.join(ROOT, `lab/fixtures/decode_${SERIES}`);
+const src = SERIES.includes("/") ? path.resolve(SERIES) : path.join(ROOT, `lab/fixtures/decode_${SERIES}`);
 const truth = fs.readdirSync(src).filter((f) => f.endsWith(".sha256")).sort().map((f) => fs.readFileSync(path.join(src, f), "utf8").trim());
 fs.mkdirSync(path.join(T, "frames"));
 for (const f of fs.readdirSync(src).filter((f) => f.endsWith(".j2c"))) {
@@ -68,7 +72,8 @@ async function visit({ arm, scenario, throttle }) {
     const browser = await chromium.connect(server.wsEndpoint());
     const page = await browser.newPage();
     const decoder = arm === "package" ? "" : `&decoder=${arm}`;
-    await page.goto(`http://127.0.0.1:${http}/lab/downloader-cost/index.html?variant=Dd&scenario=${scenario}&fill=${truth.length}` +
+    const fill = scenario === "warm" ? truth.length - 1 : truth.length;
+    await page.goto(`http://127.0.0.1:${http}/lab/downloader-cost/index.html?variant=Dd&scenario=${scenario}&fill=${fill}` +
       `&askFrame=${truth.length - 1}&digest${decoder}`);
     const wait = (f) => page.waitForFunction(f, null, { timeout: 300000, polling: 200 });
     await wait(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone);
@@ -81,9 +86,11 @@ async function visit({ arm, scenario, throttle }) {
     const r = await page.evaluate(() => globalThis.__wtpacsResult);
     await browser.close();
     if (r.error) throw new Error(`${arm} ${scenario}: ${r.error}`);
-    const exact = scenario === "ask" ? Number(r.ask_digest === truth[truth.length - 1]) : r.digests.filter((d, i) => d === truth[i]).length;
-    return { arm, scenario, throttle, ms: scenario === "ask" ? r.ask_ms : r.last_frame_ms, frames: scenario === "ask" ? 1 : truth.length,
-      exact, rendererMb: kinds.renderer?.pss_mb ?? 0, jsMb: r.memory_bytes / 1048576 };
+    if (scenario === "ready") return { arm, scenario, throttle, ms: Math.max(...r.ready_ms), readyMs: r.ready_ms, frames: 0, exact: 0, rendererMb: 0, jsMb: 0 };
+    const askOk = Number(r.ask_digest === truth[truth.length - 1]);
+    const exact = scenario === "ask" ? askOk : r.digests.filter((d, i) => d === truth[i]).length + (scenario === "warm" ? askOk : 0);
+    return { arm, scenario, throttle, ms: scenario === "fill" ? r.last_frame_ms : r.ask_ms, frames: scenario === "ask" ? 1 : truth.length,
+      exact, rendererMb: kinds.renderer?.pss_mb ?? 0, jsMb: (r.memory_bytes ?? 0) / 1048576 };
   } finally {
     await server.close();
     unthrottle();
@@ -91,7 +98,7 @@ async function visit({ arm, scenario, throttle }) {
 }
 
 const rows = [];
-for (let round = 0; round < ROUNDS; round++) {
+for (let round = FIRST; round < FIRST + ROUNDS; round++) {
   let prev = null;
   for (const u of order(UNITS, round)) {
     const r = await visit(u);
@@ -105,16 +112,16 @@ if (process.env.OUT) fs.writeFileSync(process.env.OUT, rows.map((r) => JSON.stri
 const med = (a) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const span = (a, d = 1) => `${med(a).toFixed(d)} [${Math.min(...a).toFixed(d)}–${Math.max(...a).toFixed(d)}]`;
 console.log(`\n${SERIES}, ${truth.length} frames, ${ROUNDS} rounds, ${CORES} cores, three decoders; median [range]\n`);
-console.log("| scenario | throttle | arm | ms | ÷ package, paired by round (rounds faster) | exact | renderer peak PSS | JS+WASM |");
+console.log(`| scenario | throttle | arm | ms | ÷ ${ARMS[0]}, paired by round (rounds faster) | exact | renderer peak PSS | JS+WASM |`);
 console.log("| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: |");
-for (const scenario of ["fill", "ask"]) {
+for (const scenario of SCENARIOS) {
   for (const throttle of [1, 4]) {
     const of = (arm) => rows.filter((r) => r.arm === arm && r.scenario === scenario && r.throttle === throttle);
-    const p = of("package");
+    const p = of(ARMS[0]);
     for (const arm of ARMS) {
       const b = of(arm);
       const ratio = b.map((r) => r.ms / p.find((q) => q.round === r.round).ms);
-      const vs = arm === "package" ? "—" : `×${med(ratio).toFixed(3)} (${ratio.filter((x) => x < 1).length}/${ratio.length})`;
+      const vs = arm === ARMS[0] ? "—" : `×${med(ratio).toFixed(3)} (${ratio.filter((x) => x < 1).length}/${ratio.length})`;
       console.log(`| ${scenario} | ${throttle}× | ${arm} | ${span(b.map((r) => r.ms))} | ${vs} | ${b.reduce((n, r) => n + r.exact, 0)}/` +
         `${b.reduce((n, r) => n + r.frames, 0)} | ${span(b.map((r) => r.rendererMb), 0)} MB | ${span(b.map((r) => r.jsMb))} MB |`);
     }

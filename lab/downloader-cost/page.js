@@ -4,7 +4,8 @@
  *   Dw  the downloader with decode off — the same bytes, delivered from its worker
  *   Dd  the downloader decoding, `decoders` of them (3) — pixels in a SharedArrayBuffer (the product path)
  * Five scenarios: a fill of `fill` frames; one cold ask; a fill with an ask for a frame outside it
- * once 10, 50 or 90 % has landed. Numbers go to window.__wtpacsResult; run.mjs adds what only
+ * once 10, 50 or 90 % has landed. HELPERSTART adds `warm`, an ask after the fill on idle decoders, and
+ * `ready`, the decoder workers alone from start to ready. Numbers go to window.__wtpacsResult; run.mjs adds what only
  * CDP can see. docs/ARCHITECTURE.md §The container campaign.
  */
 import { DownloaderClient } from "/client/transport/consumer.js";
@@ -33,8 +34,26 @@ const SOURCE_DECODER = {
   dir: "/lab/.openjph-build/wasm",
 };
 
-// DECODERBUILD: ?decoder=built is the product's own build, checked against its manifest.
-const chosenDecoder = async (name) => (name === "source" ? SOURCE_DECODER : name === "built" ? await built("openjph") : DECODER);
+// DECODERBUILD: ?decoder=built is the product's own build, checked against its manifest; `lab:<variant>` is one of
+// lab/decode-bench/wasm/build.sh's.
+const labDecoder = (n) => ({ glue: `/lab/.openjph-build/wasm/${n}.js`, wasm: `/lab/.openjph-build/wasm/${n}.wasm`, dir: "/lab/.openjph-build/wasm" });
+const chosenDecoder = async (name) =>
+  name === "source" ? SOURCE_DECODER : name === "built" ? await built("openjph") : name?.startsWith("lab:") ? labDecoder(name.slice(4)) : DECODER;
+
+/** Ms from `new Worker` to `ready` for each of DECODERS product decoder workers started together. */
+async function decodersReady() {
+  const decoder = await chosenDecoder(q.get("decoder"));
+  const t0 = performance.now();
+  return Promise.all(Array.from({ length: DECODERS }, () => new Promise((resolve, reject) => {
+    const w = new Worker("/client/decode/decoder.js", { type: "module" });
+    const ch = new MessageChannel();
+    w.onmessage = (e) => {
+      if (e.data.kind === "ready") resolve(performance.now() - t0);
+      else if (e.data.kind === "init-failed") reject(new Error(e.data.reason));
+    };
+    w.postMessage({ kind: "init", toConsumer: ch.port1, decoder }, [ch.port1]);
+  })));
+}
 
 const logEl = document.getElementById("log");
 const log = (s) => { logEl.textContent += s + "\n"; };
@@ -79,6 +98,15 @@ async function downloaderVariant(cfg, decode) {
 
 async function main() {
   const result = { variant, scenario, fill: FILL, askFrame: ASK, cores: navigator.hardwareConcurrency };
+  if (scenario === "ready") {
+    globalThis.__wtpacsReady = true;
+    while (!globalThis.__wtpacsGo) await sleep(5);
+    result.ready_ms = await decodersReady();
+    globalThis.__wtpacsScenarioDone = true;
+    globalThis.__wtpacsResult = result;
+    globalThis.__wtpacsDone = true;
+    return;
+  }
   const cfg = await (await fetch("/wt/dev-transport.json")).json();
   const rig = await downloaderVariant(cfg, variant === "Dd");
   result.workers = rig.workers;
@@ -98,7 +126,7 @@ async function main() {
     handle(b);
     if (DIGEST) result.ask_digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", b.slice()))].map((x) => x.toString(16).padStart(2, "0")).join("");
   } else {
-    const k = scenario === "fill" ? null : Number(scenario.slice(3)) / 100;
+    const k = scenario === "fill" || scenario === "warm" ? null : Number(scenario.slice(3)) / 100;
     const askAt = k === null ? Infinity : Math.round(FILL * k);
     let delivered = 0;
     let lastFrameMs = 0;
@@ -139,6 +167,13 @@ async function main() {
     result.last_frame_ms = lastFrameMs;
     const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
     if (DIGEST) result.digests = (await Promise.all(digests)).map(hex);
+    if (scenario === "warm") {
+      await sleep(500);
+      const t = performance.now();
+      const b = await rig.ask(ASK);
+      result.ask_ms = performance.now() - t;
+      if (DIGEST) result.ask_digest = hex(await crypto.subtle.digest("SHA-256", b.slice()));
+    }
   }
 
   clearInterval(sampler);
