@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The AV1 phase's public series — docs/FIXTURES.md §AV1 data. Fetched, checked against the
+# AV1's public series — docs/FIXTURES.md §AV1 data. Fetched, checked against the
 # SHA-256s pinned in data.json, never committed.
 #
 #   OUT=... lab/av1/fetch_data.sh [set ...]     default OUT lab/av1/data, every set

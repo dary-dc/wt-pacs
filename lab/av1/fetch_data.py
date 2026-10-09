@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch the AV1 phase's public series and extract their frames as raw samples.
+"""Fetch AV1's public series and extract their frames as raw samples.
 
 Every DICOM file is checked against the SHA-256 pinned in data.json before it is read, and every
 set's frames against the digest pinned there after extraction: a mismatch exits non-zero and

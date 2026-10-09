@@ -267,7 +267,7 @@ and multi-gigabyte series, with the product path knowing nothing of telemetry an
 exact (rows are streamed, never sampled away; a summary may be approximate when it says so and
 the rows allow the exact one). All numbers are container-measured on a 4 vCPU / 16 GB VM,
 localhost, unshaped, CPU shared between server and harnesses: relative comparisons between variants
-measured the same way, nothing absolute. Trees: *pre-S2* (`64e2c0a`, a process-wide lock per
+measured the same way, nothing absolute. Trees: *locked* (`64e2c0a`, a process-wide lock per
 row), *head* (`78537c5`, an owned sender, one `try_send` per row) and *batched* (the shape above).
 
 ```bash
@@ -278,7 +278,7 @@ lab/scripts/telemetry_kill_test.sh        # SIGKILL mid-run: rows and timer summ
 
 **Emit, per row on the emitting thread** (microbench, ring 4 096, batch 64):
 
-| Load | pre-S2 | head | batched |
+| Load | locked | head | batched |
 | --- | --- | --- | --- |
 | busy, 4 / 16 / 64 producers | 7.1 / 10.2 / 11.6 µs | 358 / 125 / 149 ns | 17 / 23 / 33 ns |
 | paced, 16 sessions, 150 k rows/s (≈ 5 000 viewers at 30 fps) | 67–78 µs | 33.7 µs | 0.24–0.5 µs |
@@ -297,7 +297,7 @@ Histogram and exact percentiles were identical on the synthetic distribution.
 **End to end, telemetry off → on** (per-frame mode, N `window-harness` sessions saturating at
 depth 4, `queue_large` fixture ≈ 50 KB frames, medians of 3):
 
-| N | ΔCPU pre-S2 | ΔCPU head | ΔCPU batched | batched `overhead_us` p50 |
+| N | ΔCPU locked | ΔCPU head | ΔCPU batched | batched `overhead_us` p50 |
 | --- | --- | --- | --- | --- |
 | 1 | +14 % | +6 % | **+0.3 %** | 1 µs (head ≈ 27) |
 | 4 | +11 % | +5 % | **+1.5 %** | 1 µs (head ≈ 33) |

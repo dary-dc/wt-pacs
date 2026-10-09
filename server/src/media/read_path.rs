@@ -834,7 +834,7 @@ mod tests {
     }
 
     /// Slots are a constructor argument, so the depth a tile session runs at is a number the
-    /// campaign can sweep rather than a constant. `docs/adr/disk-access.md` §1.
+    /// lab run can sweep rather than a constant. `docs/adr/disk-access.md` §1.
     #[test]
     fn a_tile_reader_holds_as_many_frames_as_it_was_given_slots() {
         let dir = scratch("slots");

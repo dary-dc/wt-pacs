@@ -7,15 +7,15 @@ page. Below it the transport is a seam — TypeScript, WASM or WebSocket — who
 measured and chosen, and what is open.
 
 **Status.** Built in `client/transport/` and `client/decode/` ([`client/README.md`](../client/README.md)); the lab's only client since 2026-10-03, when the harness's
-own page path was removed after S4's last run on it (§The container campaign). `client/harness/index.html` is its self-check,
+own page path was removed after the container campaign's last run on it (§The container campaign). `client/harness/index.html` is its self-check,
 `client/harness/cell.html` runs lab cells over it. Figures are a container's unless they say otherwise; none is a phone
 ([`rig-limits.md`](rig-limits.md) §7).
 
 ## Why a downloader
 
 A consumer built from the raw transport surface ends up with two orchestrators — one on the page,
-one in a receive worker. Measured per frame of a fill before the downloader: **four messages**, the
-pixels crossing **two** threads (decoder → receive worker → page); the page **asking for each frame**
+one in a download worker. Measured per frame of a fill before the downloader: **four messages**, the
+pixels crossing **two** threads (decoder → download worker → page); the page **asking for each frame**
 of a fill it already asked for, so a decoded frame waits for the ask; a **waiter per frame** for frames
 that arrive in order anyway; the compressed bytes sent back to the page **only to be counted**; sign
 extension and the range scan **on the main thread**; and, while a fast fill lands, a paint of a frame

@@ -163,7 +163,7 @@ mod tests {
         t.to_transport_config().expect("builds");
     }
 
-    /// Every departure from quinn's stock stack is named in the banner, so a campaign row cannot
+    /// Every departure from quinn's stock stack is named in the banner, so a measured row cannot
     /// be mislabelled, and the stock stack names none. docs/transport/transport-conclusions.md §3.
     #[test]
     fn each_knob_set_is_named_in_the_banner() {
