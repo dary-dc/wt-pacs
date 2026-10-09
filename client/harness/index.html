@@ -13,12 +13,13 @@
   <h1>harness — the downloader's self-check</h1>
   <p>
     One downloader worker owns the session; decoders hand pixels straight to this page. Needs the
-    <code>decode_c512</code> series and the decoder vendor. A lab cell over any series: <a href="/harness/cell.html">cell.html</a>.
+    <code>decode_c512</code> series and the decoder builds (<code>client/decode/wasm/build/build.sh</code>). A lab cell over any series: <a href="/harness/cell.html">cell.html</a>.
     <code>docs/ARCHITECTURE.md</code>
   </p>
   <div id="log"></div>
   <script type="module">
     import { DownloaderClient } from "/client/transport/consumer.js";
+    import { built } from "/client/decode/wasm-glue.js";
 
     const logEl = document.getElementById("log");
     const log = (...a) => { logEl.textContent += a.join(" ") + "\n"; };
@@ -50,6 +51,7 @@
       log(`crossOriginIsolated=${globalThis.crossOriginIsolated} cores=${navigator.hardwareConcurrency}`);
       if (!count(globalThis.crossOriginIsolated)) { log("FAIL: not cross-origin isolated"); return; }
       await groundTruth(FRAMES);
+      const decoder = await built("openjph");
       const cfg = await (await fetch("/wt/dev-transport.json")).json();
       // The seam takes a module exporting TransportSession; absent, the downloader's default.
       const transport = new URLSearchParams(location.search).get("transport") || undefined;
@@ -59,11 +61,7 @@
       const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
         decoders: 3,
         transport,
-        decoder: {
-          glue: "/client/decode/wasm/vendor/openjph/openjphjs.js",
-          wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm",
-          dir: "/client/decode/wasm/vendor/openjph",
-        },
+        decoder,
         onFrame: (f) => fillFrames.push(f),
       });
       log(`started, dialled and decoders up in ${(performance.now() - t0).toFixed(0)} ms\n`);
@@ -115,11 +113,7 @@
       // 5 — a session opened after a closure serves frames again
       const again = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
         decoders: 1,
-        decoder: {
-          glue: "/client/decode/wasm/vendor/openjph/openjphjs.js",
-          wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm",
-          dir: "/client/decode/wasm/vendor/openjph",
-        },
+        decoder,
       });
       const v5 = await check(await again.requestExactFrame(1));
       log(`re-dial:     a session opened after a closure serves frame 1: ${v5.ok ? "ok" : "MISMATCH"}`);

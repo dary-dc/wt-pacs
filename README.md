@@ -19,7 +19,7 @@ bash client/decode/wasm/fetch_xxh3.sh               # the hash that checks each 
 Two more open what the gate otherwise skips, by name, in its log:
 
 ```bash
-VARIANTS=simd client/decode/wasm/dav1d/build.sh     # the AV1 decoder: git, ninja, a C compiler; fetches emscripten (~5 min)
+client/decode/wasm/build/build.sh                  # the decoder builds the page loads: docker; fetches emscripten (~5 min)
 python3 -m venv lab/av1/.venv && lab/av1/.venv/bin/pip install --require-hashes -r lab/av1/requirements.txt
                                                     # numpy for the painter check: PYTHON=lab/av1/.venv/bin/python
 ```

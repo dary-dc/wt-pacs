@@ -43,10 +43,15 @@ wasm=client/transport/wasm/pkg/transport_wasm_bg.wasm
 [[ -f "$wasm" ]] || { echo "missing $wasm: client/transport/wasm/build.sh (README.md §Prerequisites)" >&2; exit 2; }
 stale="$(find client/transport/wasm/src client/transport/wasm/Cargo.toml common -newer "$wasm" -print -quit)"
 [[ -z "$stale" ]] || { echo "stale pkg/: $stale is newer than $wasm; client/transport/wasm/build.sh" >&2; exit 2; }
-dav1d=lab/.av1-build/out/simd.wasm
-if [[ -f "$dav1d" ]]; then
-  stale="$(find client/decode/wasm/dav1d/build.sh client/decode/wasm/dav1d/dav1d_wrap.c -newer "$dav1d" -print -quit)"
-  [[ -z "$stale" ]] || { echo "stale $dav1d: $stale is newer; VARIANTS=simd client/decode/wasm/dav1d/build.sh" >&2; exit 2; }
+built=client/decode/wasm/built
+if [[ -f "$built/THIRD_PARTY_NOTICES" ]]; then
+  stale="$(find client/decode/wasm/build client/decode/wasm/openjph client/decode/wasm/dav1d/dav1d_wrap.c -newer "$built/THIRD_PARTY_NOTICES" \
+    -type f ! -path '*/.cache/*' ! -name manifest.sha256 ! -name README.md -print -quit)"
+  [[ -z "$stale" ]] || { echo "stale $built: $stale is newer; client/decode/wasm/build/build.sh" >&2; exit 2; }
+  (cd "$built" && sha256sum -c --quiet ../build/manifest.sha256) \
+    || { echo "$built is not the build client/decode/wasm/build/manifest.sha256 pins; client/decode/wasm/build/build.sh" >&2; exit 2; }
+else
+  skip "the decoder builds and their manifest check — no $built (client/decode/wasm/build/build.sh, docker)"
 fi
 if [[ $quick -eq 0 ]]; then
   for tool in nm strings; do
@@ -76,6 +81,7 @@ run 1 bash client/transport/ts/build.sh
 run 1 node client/record/test/run.mjs
 run 1 node client/transport/ts/test/run.mjs
 run 1 node client/decode/htj2k.test.mjs
+run 1 node client/decode/wasm-glue.test.mjs
 run 1 node client/transport/downloader.test.mjs
 run 1 node client/transport/consumer.test.mjs
 run 2 node client/decode/av1.test.mjs

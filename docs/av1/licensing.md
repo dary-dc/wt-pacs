@@ -44,10 +44,13 @@ it as a separate program, links nothing against it and ships nothing built from 
   materials shipped with it — a `THIRD_PARTY` notices file served beside the client.
 * **The AOM Patent License text ships with any AV1 implementation we distribute** (§1.2), and a
   distributor makes its own necessary claims available under the same licence.
-* **How the client meets both:** `client/decode/wasm/dav1d/build.sh` writes `THIRD_PARTY.txt` beside the
-  `.wasm` from the pinned sources' own files — dav1d's `COPYING` and `doc/PATENTS` (the AOM Patent
-  License 1.0), emscripten's `LICENSE` and musl's `COPYRIGHT` — and the dispatch variant checks it is
-  served there. Nothing is copied by hand, so a tag bump carries its own text.
+* **How the client meets both:** the product's decoder builds ([`client/decode/wasm/build`](../../client/decode/wasm/build/README.md))
+  write one `THIRD_PARTY_NOTICES`, served with the client at `client/decode/wasm/built/`, from the pinned sources'
+  own files: OpenJPH's `LICENSE`; dav1d's `COPYING` and `doc/PATENTS` (the AOM Patent License 1.0); emscripten's
+  `LICENSE`, musl's `COPYRIGHT`, and the `LICENSE.TXT` of libc++, libc++abi and compiler-rt (the OpenJPH build
+  is C++); hash-wasm's `LICENSE`. Each build's own licence files sit beside it, and the manifest pins the notices'
+  bytes with the binaries'. Nothing is copied by hand, so a tag bump carries its own text. The lab's
+  `client/decode/wasm/dav1d/build.sh` still writes its `THIRD_PARTY.txt` beside its variants.
 * **The frame check's hasher** carries hash-wasm's MIT `LICENSE`, fetched beside its script from the pinned
   tarball by `client/decode/wasm/fetch_xxh3.sh` and served with it.
 * **Defensive termination** (§1.3): the patent licence ends for whoever starts patent litigation
@@ -58,7 +61,8 @@ it as a separate program, links nothing against it and ships nothing built from 
 * **What the dav1d build links** (`-Wl,--trace`, [`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md)):
   dav1d, emscripten's libc (musl, MIT), dlmalloc (public domain) and compiler-rt (Apache-2.0 with
   LLVM exception, whose exception waives notice for what compiles into a binary). No libc++: the
-  wrapper is C. The libc++ question this line used to ask is answered by that.
+  wrapper is C. The libc++ question this line used to ask is answered by that. The OpenJPH build is C++
+  and links libc++ and libc++abi (Apache-2.0 with LLVM exception); their notices ship anyway.
 
 ## Data
 
