@@ -1,6 +1,6 @@
 # ADR: frame framing and session-loop shape
 
-**Status:** open — analysis recorded, decision deferred · **Date:** 2026-08-27 ·
+**Status:** built — §6b–6d on 2026-09-09, §6 closed by [`stream-shape.md`](stream-shape.md) · **Date:** 2026-08-27 ·
 **Corrects:** the architecture comparison quoted in
 [`client-window-depth.md`](client-window-depth.md) and §4b of the August cleanup plan
 (retired, in history) ·

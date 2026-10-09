@@ -37,8 +37,7 @@ with open(out, "wb") as f:
 open(os.path.join(dir, "metadata.json"), "w").write(json.dumps(meta, indent=2) + "\n")
 open(os.path.join(dir, "README.md"), "w").write(
     f"# {name}\n\n"
-    f"Synthetic SBND for live-cell experiments (§0b): {nframes} frames × {nbytes} B.\n"
-    f"Primary cell with 10 Mbps: link ~4.9 f/s, reader ~9 f/s, ratio ~1.8.\n"
+    f"A synthetic series bundle for live cells: {nframes} frames × {nbytes} B.\n"
 )
 print("wrote", out, "bytes", os.path.getsize(out))
 PY

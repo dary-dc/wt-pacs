@@ -9,5 +9,8 @@
     "@types/node": "^22.20.5",
     "esbuild": "^0.25.0",
     "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

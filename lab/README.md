@@ -1,6 +1,8 @@
 # lab
 
-Measurement only: no product crate depends on anything here. Each directory reproduces a claim a doc
+Measurement only: no product crate depends on anything here. Each directory's README names what it needs past
+`README.md` §Prerequisites: most AV1 cells the venv of `av1/requirements.txt` and the AV1 build, the shaped-link
+cells `sudo` for netem or a TUN device. Each directory reproduces a claim a doc
 cites; the doc holds the number, the directory holds how to get it. Variants are interleaved with
 `order.mjs` (`scripts/order.py` for shell), which the gate tests.
 
@@ -14,6 +16,7 @@ cites; the doc holds the number, the directory holds how to get it. Variants are
 | `stream-shape/`, `tcp-fallback/` | the stream shape under loss, the WebSocket and the race — `docs/adr/stream-shape.md`, `docs/transport/transport-conclusions.md` |
 | `disk-access-bench/` | the server's read path — `docs/adr/disk-access.md` |
 | `telemetry-bench/`, `telemetry-cost/` | what telemetry costs — `docs/adr/telemetry-*.md` |
+| `server-load/` | how many concurrent fills one server core carries, HTJ2K and AV1 — `docs/transport/transport-conclusions.md` §4 |
 | `clock-resolution/`, `idle-sessions/` | the browser's clock floor and what an idle session survives — `docs/rig-limits.md` §6, `docs/adr/transport-idle-sessions.md` |
 | `av1/` | AV1, the second codec: tools, exactness, bytes, decode and delivery — `av1/README.md` §The folders, by what they measure, `docs/av1/README.md` |
 | `fixtures/`, `traces/` | series and link traces the cells use |

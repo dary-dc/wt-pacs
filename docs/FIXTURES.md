@@ -54,6 +54,7 @@ profile the project serves: reversible 5/3, 5 levels, 64×64 blocks, RPCL, one l
 | `cine512` | 512², 3 × 8-bit | `cine`: compresses like an ultrasound cine |
 | `ct512` | 512², 1 × 12-bit signed | `ct`: compresses like CT |
 | `rig_c`, `rig_g` | 160², colour / 16-bit grey, one frame | the dispatch rig's real codestreams (`client/contract/frames/`); the warm-up frames until 2026-10-03 |
+| `client/contract/av1/` | AV1 payloads, each with the generator's `.sha256` | `client/decode/wasm/dav1d/make_client_frames.sh` (the units), `ingest/coded-frames/make_golden.py` (`payloads/`), `lab/av1/delivery/scalable/client/make_frames.sh` (`scalable/`) |
 
 **Content decides the numbers.** `field` compresses about 1.25:1, which no modality does, and skews
 every decode number toward block decoding; `cine` and `ct` land near the ratios their modalities
