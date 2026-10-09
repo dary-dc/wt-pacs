@@ -60,6 +60,8 @@ server {
         default_type application/json;
     }
 
+    # The viewer is the product's page (client/README.md §The viewer).
+    location = / { try_files /client/viewer/index.html =404; }
     location = /harness  { return 301 /harness/; }
     location = /harness/ { alias /srv/wt-pacs/client/harness/; index index.html; }
     location   /harness/ { alias /srv/wt-pacs/client/harness/; }

@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Regenerate dev WebTransport cert and client/dev-transport.json
+#   --if-needed   only when the cert or the transport file is missing, or the cert ends within a day
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CERT_DIR="$ROOT/server/dev-cert"
+if [[ "${1:-}" == "--if-needed" && -f "$CERT_DIR/cert.pem" && -f "$ROOT/client/dev-transport.json" ]] &&
+  openssl x509 -in "$CERT_DIR/cert.pem" -noout -checkend 86400 >/dev/null; then
+  exit 0
+fi
 
 mkdir -p "$CERT_DIR"
 

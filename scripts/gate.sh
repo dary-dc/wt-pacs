@@ -97,6 +97,8 @@ run 2 node client/contract/run.mjs
 if [[ $browser -eq 1 ]]; then
   step "client: the downloader in headless Chromium — the clauses through it, and its dispatch order and per-decoder bound"
   run 4 bash client/contract/run_browser.sh
+  step "client: the viewer's page check — a complete, exact, drawn page (headless Chromium)"
+  run 3 bash client/viewer/run_check.sh
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
   if [[ $numpy -eq 1 ]]; then
     run 1 env PYTHON="$PYTHON" node client/paint/check.mjs --zoom1

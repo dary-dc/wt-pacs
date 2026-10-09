@@ -8,7 +8,8 @@ measured and chosen, and what is open.
 
 **Status.** Built in `client/transport/` and `client/decode/` ([`client/README.md`](../client/README.md)); the lab's only client since 2026-10-03, when the harness's
 own page path was removed after the container campaign's last run on it (§The container campaign). `client/harness/index.html` is its self-check,
-`client/harness/cell.html` runs lab cells over it. Figures are a container's unless they say otherwise; none is a phone
+`client/harness/cell.html` runs lab cells over it. Since 2026-10-09 the product has a page on it: the viewer,
+`client/viewer/`, served at `/` (§The viewer). Figures are a container's unless they say otherwise; none is a phone
 ([`rig-limits.md`](rig-limits.md) §7).
 
 ## Why a downloader
@@ -545,6 +546,46 @@ display. DPR 1, identity window, main-thread ms a paint:
 ([`adr/resolution-fitting-for-large-frames.md`](adr/resolution-fitting-for-large-frames.md)); nothing
 here is a viewer or the target — the shape transfers, not the milliseconds. On a 60 Hz display a change
 to one ask moves the median only when it crosses a 16.7 ms line.
+
+## The viewer
+
+The product's page (queue row VIEWER), built on the downloader, the decoders, the frame check and the painter
+together ([`../client/README.md`](../client/README.md) §The viewer). It opens with the whole series as the opening
+fill and paints each frame as it arrives. Frames stay in memory, because the cache seam is still open (§Open).
+
+**The page check holds it** on the three series row INGEST made from the lab's sets, each as HTJ2K and as AV1:
+`ct_nlst` (a windowed, signed CT, 76 frames), `us_liver` (an RGB cine, 70 frames, cine run) and `dbt12_ea1141`
+(tomosynthesis, 29 frames). In both headless Chromium 141 (SwiftShader) and Firefox 157.0.1 (Xvfb, Mesa llvmpipe),
+on every series in both codecs:
+
+* every frame received and exact;
+* the protocol after the fill passed;
+* the first, middle and last frame's readback at zoom 1 equal to the CPU reference byte for byte;
+* the HTJ2K and AV1 readbacks identical.
+
+Chromium decoded AV1 through WebCodecs and Firefox through dav1d-WASM.
+
+Five mutants each fail the check by name:
+
+* a frame dropped in the consumer: the fill did not complete;
+* a sample altered in the HTJ2K module: not every frame exact;
+* WebCodecs taken away: "decoded by av1-dav1d, not av1-webcodecs";
+* the AV1 modules preloaded on an HTJ2K page: AV1 code fetched;
+* the paint placed one row low: worst |Δ| 220–242 against the reference.
+
+**It adds nothing to the fill.** Measured on the CT series: the viewer against total-time's page (the same
+downloader and decoders, no paint), both timed from navigation. The baseline is not `client/harness/cell.html`: it
+does not decode, so measured against it the viewer would be charged for decoding, not for itself. Row 23's five links at 1× and 4×, behind the relay,
+12 rounds interleaved, headless Chromium 141 on 3 cores. All 36 480 delivered frames were exact and checked `true`.
+177 of 480 visits were `VOID` and are dropped, leaving 1–12 pairs a cell: n ≥ 10 is met only on r50000.
+
+* **The fill**, viewer ÷ page, paired by round: ×0.994–1.004 (medians) on the fixed links and LTE, in both codecs.
+  wifi-home's own spread runs ×0.86–1.53, n = 2–7.
+* **The first exact frame on screen**: +55–148 ms at 1× and +212–331 ms at 4× over the page's first arrival, at
+  576–847 ms and 974–1 195 ms from navigation. That is the first paint on a software renderer, which the page
+  without a viewer does not do. A GPU's is not measured.
+
+[`../lab/av1/delivery/total-time/README.md`](../lab/av1/delivery/total-time/README.md) §Row VIEWER says how to run it.
 
 ## The session open
 
