@@ -25,9 +25,10 @@ from pathlib import Path
 import numpy as np
 import xxhash
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lab/av1"))
-import size  # noqa: E402
-
+ROOT = Path(__file__).resolve().parents[2]
+AOM = "3.15.1"
+OJPH = ROOT / "lab/.openjph-build/install"
+DECODERS = "dav1d 1.5.4-0-g54706fc, openjph 0.31.0"
 FLAG_SIGNED, FLAG_RCT = 1, 2
 MAX_BITS, MAX_SPLIT = 16, 8
 HTJ2K_ARGS = ["-num_decomps", "5", "-block_size", "{64,64}", "-prog_order", "RPCL", "-reversible", "true"]
@@ -79,6 +80,36 @@ def plan(s, representation, split=None, grey8="400"):
         streams.append((8, "400", lambda i: v(i) & ((1 << split) - 1)))
     flags = FLAG_SIGNED if s.signed else 0
     return dict(bits=bits, depth=depth, split=split, flags=flags), streams
+
+
+def ivf_units(path):
+    raw, pos, units = path.read_bytes(), 32, []
+    while pos < len(raw):
+        n = int.from_bytes(raw[pos:pos + 4], "little")
+        units.append(raw[pos + 12:pos + 12 + n])
+        pos += 12 + n
+    return units
+
+
+def exact(s, i, samples):
+    """samples: (h, w, ch) in coded values; back to stored order and compared with the truth."""
+    stored = (samples.astype(np.int32) - s.offset).astype(s.dtype)
+    return hashlib.sha256(np.ascontiguousarray(stored).tobytes()).hexdigest() == s.truth[i]
+
+
+@functools.cache
+def pinned(build):
+    """The encoders and decoders as pinned, or Refused naming the one that is not."""
+    aom = subprocess.run([build / f"aom-{AOM}/bin/aomenc", "--help"], capture_output=True, text=True).stdout
+    if f"AV1 Encoder v{AOM}" not in aom:
+        raise Refused(f"aomenc in {build} is not libaom {AOM}")
+    if not (OJPH / "lib/libopenjph.so.0.31.0").exists():
+        raise Refused(f"ojph_compress in {OJPH} is not OpenJPH 0.31.0")
+    lib = native(build)
+    lib.decoder_versions.restype = ctypes.c_char_p
+    if (got := lib.decoder_versions().decode()) != DECODERS:
+        raise Refused(f"the in-process decoders are {got}, not {DECODERS} (ingest/coded-frames/build.sh)")
+    return True
 
 
 def frame_digest(px, wide):
@@ -167,9 +198,9 @@ def encode(build, work, px, depth, layout, preset, representation):
     so a run of several would make a frame's bytes depend on --jobs (lab/av1/exact/coded-frame/README.md §One pipeline)."""
     y4m, ivf = work / "in.y4m", work / "out.ivf"
     write_y4m(y4m, [px], depth, layout)
-    subprocess.run([build / f"aom-{size.AOM}/bin/aomenc", "-q", "-o", ivf, "--limit=1",
+    subprocess.run([build / f"aom-{AOM}/bin/aomenc", "-q", "-o", ivf, "--limit=1",
                     *encoder_args(preset, representation, depth, layout), y4m], check=True, capture_output=True)
-    (unit,) = size.ivf_units(ivf)
+    (unit,) = ivf_units(ivf)
     return unit
 
 
@@ -186,7 +217,7 @@ def av1(build, s, work, a, b, representation, split, preset, grey8):
             if shape.bits != streams[j][0]:
                 raise Refused(f"frame {i}: stream {j} decoded at {shape.bits} bits, coded at {streams[j][0]}")
             pictures.append(px)
-        if not size.exact(s, i, merge(header, pictures)[:s.h, :s.w]):
+        if not exact(s, i, merge(header, pictures)[:s.h, :s.w]):
             raise Refused(f"frame {i} does not decode back to its source")
         frame = struct.pack("<I", len(units[0])) + units[0] + units[1] if len(units) == 2 else units[0]
         out.append((i, payload(header, [frame])))
@@ -204,14 +235,14 @@ def htj2k(build, s, work, a, b, *_):
         with open(src, "wb") as fh:
             fh.write(b"%s\n%d %d\n%d\n" % (b"P5" if s.ch == 1 else b"P6", s.w, s.h, maxval))
             fh.write((s.frame(i).astype(np.int32) + shift).astype(">u2" if maxval > 255 else "u1").tobytes())
-        subprocess.run([size.OJPH / "bin/ojph_compress", "-i", src, "-o", cs, *HTJ2K_ARGS], check=True,
-                       capture_output=True, env={"LD_LIBRARY_PATH": str(size.OJPH / "lib")})
+        subprocess.run([OJPH / "bin/ojph_compress", "-i", src, "-o", cs, *HTJ2K_ARGS], check=True,
+                       capture_output=True, env={"LD_LIBRARY_PATH": str(OJPH / "lib")})
         data = bytearray(cs.read_bytes())
         if s.signed:
             for c in range(struct.unpack(">H", data[40:42])[0]):
                 data[42 + 3 * c] |= 0x80
         px, shape = decoded(build, "htj2k", bytes(data), s.h * s.w * s.ch)
-        if (shape.bits, shape.signed) != (s.stored, s.signed) or not size.exact(s, i, px + s.offset):
+        if (shape.bits, shape.signed) != (s.stored, s.signed) or not exact(s, i, px + s.offset):
             raise Refused(f"frame {i} does not decode back to its source")
         out.append((i, bytes(data)))
     return out
@@ -222,9 +253,29 @@ CODECS = {"av1": av1, "htj2k": htj2k}
 
 def chunk(job):
     """Frames [a, b) through the codec; the coded frames, or why not."""
-    build, set_dir, codec, *rest = job
+    build, s, codec, *rest = job
+    pinned(build)
     with tempfile.TemporaryDirectory() as tmp:
-        return CODECS[codec](build, size.Set(Path(set_dir)), Path(tmp), *rest)
+        return CODECS[codec](build, s, Path(tmp), *rest)
+
+
+def coded(build, s, n, codec, jobs, representation="optimized", split=None, preset="cpu0", grey8="400"):
+    """Frames [0, n) of a series coded, every one checked, in frame order; Refused if any is not exact."""
+    per = -(-n // jobs)
+    piece = s.part if hasattr(s, "part") else lambda a, b: s
+    work = [(build.resolve(), piece(i, min(i + per, n)), codec, i, min(i + per, n), representation, split, preset, grey8)
+            for i in range(0, n, per)]
+    pinned(build.resolve())
+    if codec == "av1":
+        plan(s, representation, split, grey8)
+    with ProcessPoolExecutor(jobs) as pool:
+        return [x for part in pool.map(chunk, work) for x in part]
+
+
+def digests(s, n, codec, representation="optimized", split=None, grey8="400"):
+    """`metadata.json`'s `digests`; decodeFrame hands on two bytes a sample over 8 bits, for AV1 the payload's bits."""
+    wide = plan(s, representation, split, grey8)[0]["bits"] > 8 if codec == "av1" else s.stored > 8
+    return dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), wide) for i in range(n)])
 
 
 def main():
@@ -240,16 +291,12 @@ def main():
     ap.add_argument("--frames", type=int)
     ap.add_argument("--jobs", type=int, default=4)
     a = ap.parse_args()
+    sys.path.insert(0, str(ROOT / "lab/av1"))
+    import size  # a fetched set is the lab's: ingest/from-dicom reads DICOM
     s = size.Set(a.set_dir)
     n = min(a.frames or s.n, s.n)
-    per = -(-n // a.jobs)
-    jobs = [(a.build.resolve(), str(a.set_dir), a.codec, i, min(i + per, n), a.representation, a.split, a.preset, a.grey8)
-            for i in range(0, n, per)]
     try:
-        if a.codec == "av1":
-            plan(s, a.representation, a.split, a.grey8)
-        with ProcessPoolExecutor(a.jobs) as pool:
-            payloads = [x for part in pool.map(chunk, jobs) for x in part]
+        payloads = coded(a.build, s, n, a.codec, a.jobs, a.representation, a.split, a.preset, a.grey8)
     except Refused as e:
         sys.exit(f"{a.set_dir.name}: nothing written — {e}")
     a.out.mkdir(parents=True, exist_ok=True)
@@ -257,9 +304,7 @@ def main():
         (a.out / f"{i:03d}.{a.codec}").write_bytes(data)
         shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
     meta = json.loads((a.set_dir / "metadata.json").read_text())
-    # decodeFrame hands samples on in two bytes over 8 bits, which for AV1 is the payload's bits, not the stored.
-    wide = plan(s, a.representation, a.split, a.grey8)[0]["bits"] > 8 if a.codec == "av1" else s.stored > 8
-    meta.update(frameCount=n, digests=dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), wide) for i in range(n)]))
+    meta.update(frameCount=n, digests=digests(s, n, a.codec, a.representation, a.split, a.grey8))
     if a.codec == "av1":
         meta.update(codec="av1", representation=a.representation)
     if a.codec == "av1" and a.split is not None:

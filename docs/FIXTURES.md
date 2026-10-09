@@ -40,6 +40,76 @@ hashes one byte a sample as AV1. The digest is taken from the encoder's input �
 written from — never from a decoder's output. Metadata without `digests` is served as before; its frames
 arrive `unchecked` ([`../client/README.md`](../client/README.md) §A frame says whether it is exact).
 
+## From DICOM
+
+The product's ingest: one series to a served bundle, and nothing at all unless every frame decodes back exactly.
+
+```bash
+cargo build --release -p pack-series && bash ingest/coded-frames/build.sh   # the bundler and the in-process decoders
+python3 ingest/from-dicom/from_dicom.py BUILD INPUT OUT.sbnd [--codec htj2k|av1|auto] [--preset P] [--jobs N]
+```
+
+It writes `OUT.sbnd` and `OUT.metadata.json`, the metadata the bundle carries. `BUILD` holds libaom and dav1d
+(`lab/av1/tools/tools.sh`) and `payload/libdecode.so`. Python needs `pydicom`, `numpy` and `xxhash`, hash-pinned
+in `lab/av1/requirements.txt`.
+
+**Input.** `INPUT` is one object or a folder of single-frame objects of one series, ordered by InstanceNumber.
+Each frame's samples are read as `decodeFrame` hands them on: little-endian, colour interleaved, PlanarConfiguration
+honoured, the HighBit's bits taken and signed samples sign-extended. The reader parses native pixel data itself;
+RLE goes through pydicom's own decoder.
+
+**Refused**, each by name, and nothing written:
+
+* files of another SeriesInstanceUID, Rows, Columns, BitsAllocated, BitsStored or PhotometricInterpretation;
+* a file without an InstanceNumber, or two files with the same one;
+* a multi-frame object in a folder;
+* a photometric interpretation other than MONOCHROME1, MONOCHROME2 or RGB;
+* bits allocated other than 8 or 16;
+* a lossy transfer syntax: its samples are not the original's;
+* a lossless encapsulated one other than RLE (JPEG lossless, JPEG-LS, JPEG 2000 and HTJ2K lossless), because pydicom
+  decodes those only through plugins this ingest does not pin.
+
+A frame that does not decode back to its samples is refused by number, and an encoder or in-process decoder that
+does not report its pinned version is refused before anything runs.
+
+**The codec.** `auto` is HTJ2K: row TOTAL4 adopted AV1 for no series ([`av1/README.md`](av1/README.md) §Total time).
+AV1's preset defaults by content to row ENC's fastest within 2 % of the slowest's bytes:
+
+| content | preset |
+| --- | --- |
+| MR, mammography and tomosynthesis | `good:6` |
+| CT | `allintra:6` |
+| fluoroscopy and angiography | `allintra:7` |
+| RGB, and anything else | `cpu0` |
+
+`--preset` overrides it.
+
+**The metadata**, per series:
+
+* `frameCount`, `width`, `height`, `channels`, `bitsAllocated`, `bitsStored`, `highBit`, `signed`, `photometric`
+  and `modality`;
+* `frameTimeMs` (FrameTime) and `cineRate` (CineRate) when present;
+* `rescale` `{slope, intercept}`;
+* `window` `{center: [...], width: [...], function}`: every value, the first the default, and the function
+  LINEAR when absent;
+* `min` and `max` of the stored samples;
+* `codec`, and for AV1 `representation` and `preset`;
+* `digests` (§Frame digests).
+
+An enhanced object's per-frame functional group (Frame VOI LUT, Pixel Value Transformation) wins over its shared
+group, which wins over the object's own attributes. An attribute that differs between frames moves to `perFrame`,
+one value a frame, as `perFrame.window[i]`.
+
+**No patient or study identifier is copied**: no name, ID, birth date, accession number or UID. The bundle is
+known by its file name. Checked on the lab's sets in [`lab/av1/exact/from-dicom`](../lab/av1/exact/from-dicom/README.md).
+
+**Several series of one study — proposed, not built.** A server process serves one bundle today (`--series`). A
+study would be one bundle per series plus a study index, `study.json`: each series' bundle name, its `modality`,
+`frameCount` and display attributes, in the study's order. The server would take `--study DIR` and route by path,
+`/series/<name>/…`, one store per series. The session URL would name the series it opens. Its asks and fills stay
+per series, so the wire is unchanged, but what the server serves and how the page names a series both change. That
+is the owner's design call.
+
 ## The sets
 
 | Where | What | How it is made |
