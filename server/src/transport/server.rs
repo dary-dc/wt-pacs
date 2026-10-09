@@ -1541,6 +1541,81 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// A client whose ClientHello spans two datagrams, the second arriving after the server has
+    /// answered the first, still gets a session: the stream budget the client's transport
+    /// parameters grant is there when it opens. Opened from the first datagram, as
+    /// `patches/wtransport-0.7.2-settings-in-handshake.patch` did until it waited for the whole
+    /// ClientHello, the server never sends SETTINGS. `docs/ARCHITECTURE.md` §Early SETTINGS.
+    #[test]
+    fn a_client_hello_in_two_datagrams_still_gets_its_session() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-split-hello-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let series = write_series(&dir, 1);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(serve_config(series, cert_pem, key_pem, port)));
+            until_bound(port, Duration::from_secs(5)).await;
+
+            // The client's second datagram is held 100 ms; every other passes at once.
+            let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            let relay = front.local_addr().expect("relay addr");
+            let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+            tokio::spawn(async move {
+                let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+                let (mut client, mut sent) = (None, 0);
+                loop {
+                    tokio::select! {
+                        Ok((n, from)) = front.recv_from(&mut up) => {
+                            client = Some(from);
+                            sent += 1;
+                            let (back, d) = (back.clone(), up[..n].to_vec());
+                            let hold = if sent == 2 { Duration::from_millis(100) } else { Duration::ZERO };
+                            tokio::spawn(async move {
+                                tokio::time::sleep(hold).await;
+                                back.send(&d).await.ok();
+                            });
+                        }
+                        Ok(n) = back.recv(&mut down) => {
+                            if let Some(to) = client {
+                                front.send_to(&down[..n], to).await.ok();
+                            }
+                        }
+                    }
+                }
+            });
+
+            // ALPN entries the server ignores push the ClientHello past one datagram.
+            let mut tls = wtransport::tls::client::build_default_tls_config(
+                Arc::new(rustls::RootCertStore::empty()),
+                Some(Arc::new(wtransport::tls::client::ServerHashVerification::new([
+                    wtransport::tls::Sha256Digest::new(cert_hash),
+                ]))),
+            );
+            tls.alpn_protocols.extend((0..6u8).map(|i| vec![b'x' + i; 250]));
+            let endpoint = wtransport::Endpoint::client(
+                ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_custom_tls(tls)
+                    .build(),
+            )
+            .expect("client endpoint");
+            tokio::time::timeout(Duration::from_secs(3), endpoint.connect(format!("https://{relay}/")))
+                .await
+                .expect("no session in 3 s: the server's SETTINGS never left")
+                .expect("session");
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     async fn connect_session(
         series: PathBuf,
         cert_pem: PathBuf,
