@@ -122,14 +122,14 @@ the server or the deployment beside it.
 
 **What.** §2's steps 1–3, as the client README's *A frame is checked against its digest* describes them:
 
-* `ingest/frame_digests.py` writes `frameDigests` into `metadata.json`
-  ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests). It hashes samples whose `NNN.sha256` it has first matched.
+* `ingest/coded-frames/ingest.py` writes `digests` into `metadata.json`
+  ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), from the samples its `.sha256` was written from.
 * The decoder worker loads hash-wasm 4.12.0's XXH3 build (`client/decode/wasm/fetch_xxh3.sh`) when `connect` is given
-  `digests` and `decoder.hasher`, and checks every frame before it is posted.
+  `digests`, and checks every frame before it is posted.
 * A mismatch is decoded once more: an AV1 payload by the other AV1 decoder, an HTJ2K codestream by a fresh decoder
   object, since the reused one is the suspect.
-* The frame carries `exact` (`true`, `false` or `"unchecked"`), `path` and, when false, `exactReason`.
-  `stats().exact` counts them per path.
+* The frame carries `exact` (`true`, `false` or `"unchecked"`), `path`, `mismatchOn` when a second decode
+  rescued it and, when false, `reason`. `stats().exact` counts them per path.
 
 §2.3's "the viewport shows the frame as failed" is left to the page: the frame is delivered, marked `false`.
 
@@ -138,13 +138,13 @@ reference frames, so it fails and the frame stays `false`: the check still holds
 payload with a 12-bit stream has no other AV1 decoder in any engine, and neither has any payload in an engine whose
 WebCodecs refuses it (Firefox here), so the second decode fails by name. HTJ2K always has its fresh object.
 
-**Held by.** `anHtj2kFrameIsCheckedAgainstItsDigest` and `anAv1FrameIsCheckedAgainstItsDigest` in
-`client/contract/dispatch-rig.ts`, against `NAME.xxh3` digests written by Python's `xxhash`, an implementation
-independent of the browser's. They check:
+**Held by.** `aFrameSaysWhetherItIsExact` (HTJ2K) and `anAv1FrameIsCheckedAgainstItsDigest` in
+`client/contract/dispatch-rig.ts`, with `client/decode/av1.test.mjs`. Their digests were written by Python's `xxhash`,
+an implementation independent of the browser's (`NAME.xxh3` beside each golden payload). They check:
 
 * every golden AV1 shape and all 90 matrix payloads (8–16 bits, every split, both signs), and the two HTJ2K contract
   frames, `true`;
-* no digest, or a frame missing from the digests, `"unchecked"`;
+* a frame without a digest `"unchecked"`;
 * one sample changed in the reused HTJ2K object's output (`flip-glue.js`), or in WebCodecs' (`webcodecs-spy.js?mode=flip`),
   `true` after the second decode;
 * digests that match nothing, `false`, with both decodes named.
@@ -159,7 +159,7 @@ Mutants, each caught:
 * the ingest digest big-endian: 80 of 90 matrix frames `false`, every two-byte one;
 * the ingest digest zero-extended from 13 bits instead of sign-extended: 40 of 90 `false`, every signed two-byte one.
 
-Chromium 141: 764 of 764 rig checks. Firefox 157.0.1 (`client/contract/run_firefox.sh`): 13 of 13, with OpenJPH and
+Chromium 141: 766 of 766 rig checks on the merged code. Firefox 157.0.1 (`client/contract/run_firefox.sh`): 13 of 13, with OpenJPH and
 dav1d-WASM frames `true`; its WebCodecs took none of these payloads, so that path is unverified there.
 
 **Cost through the product, measured.** The fill through the downloader, check off (`htj2k`) against on
@@ -192,6 +192,10 @@ has 4 cores, browser on 3, so nothing past 3 decoders is claimed.
 
 The dropped links, r5000 and lte-good, are wire-bound at 5–20 s a frame on the projections. They could only
 hide a check further, so they were not run.
+
+Two sessions built this row at once. The timed build was the first one (`a784b62`), and the merged code is the
+other's (`29c9361`). The work per frame is the same in both: one XXH3 over the frame's shared buffer, in the decoder
+worker, before it is posted.
 
 **Adopted** by the row's rule: the 1× fill stays within its spread, and 4× moves ≤ 15 %. The check is on wherever
 `connect` is given the digests. Open: phones; Firefox's and WebKit's WebCodecs paths; reporting (§5); and whether a

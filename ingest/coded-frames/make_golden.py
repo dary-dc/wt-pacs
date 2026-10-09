@@ -76,7 +76,7 @@ def keep(out, dst, name):
     dst.mkdir(parents=True, exist_ok=True)
     (dst / f"{name}.av1").write_bytes((out / "000.av1").read_bytes())
     (dst / f"{name}.sha256").write_text((out / "000.sha256").read_text())
-    (dst / f"{name}.xxh3").write_text(json.loads((out / "metadata.json").read_text())["frameDigests"]["frames"][0] + "\n")
+    (dst / f"{name}.xxh3").write_text(json.loads((out / "metadata.json").read_text())["digests"]["frames"][0] + "\n")
 
 
 def payloads(build, work):

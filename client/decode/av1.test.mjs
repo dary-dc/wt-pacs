@@ -1,5 +1,5 @@
 // node client/decode/av1.test.mjs — the AV1 payload reader: golden payloads through dav1d-WASM (when
-// client/decode/wasm/dav1d/build.sh has run), every refusal payload-format.md names, and the decoder choice.
+// client/decode/wasm/build/build.sh has run), every refusal payload-format.md names, and the decoder choice.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const PAYLOADS = `${ROOT}client/contract/av1/payloads`;
-const OUT = `${ROOT}lab/.av1-build/out`;
+const OUT = `${ROOT}client/decode/wasm/built/dav1d`;
 // The glue is evaluated as a classic script, which in node reaches for require and for fetch on paths.
 globalThis.require = createRequire(import.meta.url);
 globalThis.__dirname = OUT;
@@ -154,7 +154,8 @@ const { parsePayload } = await import("./av1-payload.js");
         return which === "low" ? pic(8, 1) : pic(depth, planes);
       },
     },
-    "./av1-dav1d.js": { init: async () => {}, picture: () => (calls.push("dav1d"), pic(depth, planes)) },
+    // A low unit is asked with two arguments, a top with three.
+    "./av1-dav1d.js": { init: async () => {}, picture: (...a) => (calls.push("dav1d"), a.length === 2 ? pic(8, 1) : pic(depth, planes)) },
   };
   const load = async (path) => {
     if (path === "./av1-dav1d.js" && importFails-- > 0) throw new Error("import failed");
@@ -182,6 +183,32 @@ const { parsePayload } = await import("./av1-payload.js");
   await take("an rct payload probes 4:4:4 10-bit", "optimized", "c8", 10, 3, "probe c10,webcodecs");
   await take("a plain colour payload is told from grey by its profile", "plain", "c8", 8, 3, "probe c8,webcodecs");
   await take("8-bit grey coded 4:2:0 probes its own layout", "grey420", "g8", 8, 1, "probe g8f,webcodecs");
+  // The second decode after a digest mismatch takes another path, or none: docs/adr/exactness-in-production.md §2
+  const again = async (what, name, d, avoid, want, outcome, unit = { key: true }) => {
+    [depth, planes] = [d, 1];
+    calls.length = 0;
+    const got = await av1.decodeFrame(golden("plain", name), unit, null, avoid).then((r) => r.path, (e) => String(e.message));
+    check(calls.join() === want && got.startsWith(outcome), `second decode: ${what} (${calls.join()}; ${got.slice(0, 40)})`);
+  };
+  await again("a first decode names WebCodecs as its path", "g10", 10, undefined, "probe g10,webcodecs", "av1-webcodecs");
+  await again("a first decode names dav1d as its path", "g12", 12, undefined, "dav1d", "av1-dav1d");
+  await again("after WebCodecs, dav1d", "g10", 10, "av1-webcodecs", "dav1d", "av1-dav1d");
+  await again("after dav1d, WebCodecs", "g10", 10, "av1-dav1d", "probe g10,webcodecs", "av1-webcodecs");
+  await again("after dav1d over 10 bits, none", "g12", 12, "av1-dav1d", "", "no WebCodecs decoder");
+  wcFails = true;
+  await again("after dav1d, a failing WebCodecs is not dav1d again", "g10", 10, "av1-dav1d", "probe g10,webcodecs", "undecodable");
+  wcFails = false;
+  await again("inside a group, none", "g10", 10, "av1-webcodecs", "", "a frame inside a group", { key: false });
+  const mixed = await import("./av1.js?mixed");
+  await mixed.init({ mixed: true }, load);
+  const split = (avoid) => mixed.decodeFrame(golden("optimized", "g14"), { key: true }, null, avoid).then((r) => r.path, (e) => String(e.message));
+  [depth, planes] = [12, 1];
+  calls.length = 0;
+  let path = await split();
+  check(calls.join() === "probe g8,webcodecs,dav1d" && path === "av1-mixed", `second decode: a mixed decode names its path (${calls.join()}; ${path})`);
+  calls.length = 0;
+  path = await split("av1-mixed");
+  check(calls.join() === "dav1d,dav1d" && path === "av1-dav1d", `second decode: after a mixed decode, dav1d alone (${calls.join()}; ${path})`);
   delete globalThis.VideoDecoder;
   await take("no VideoDecoder, no WebCodecs", "plain", "g10", 10, 1, "dav1d");
 }
@@ -288,10 +315,10 @@ const { parsePayload } = await import("./av1-payload.js");
 }
 
 /** Golden payloads from the writer decode to their sources' samples; decoded-stream refusals by name. */
-if (!existsSync(`${OUT}/simd.js`)) console.log(`SKIPPED: golden payloads — no ${OUT} (client/decode/wasm/dav1d/build.sh)`);
+if (!existsSync(`${OUT}/dav1d.js`)) console.log(`SKIPPED: golden payloads — no ${OUT} (client/decode/wasm/build/build.sh)`);
 else {
   const av1 = await import("./av1.js?golden");
-  await av1.init({ glue: `${OUT}/simd.js`, wasm: `${OUT}/simd.wasm`, dir: OUT });
+  await av1.init({ glue: `${OUT}/dav1d.js`, wasm: `${OUT}/dav1d.wasm`, dir: OUT });
   for (const rep of ["plain", "optimized", "grey420"]) {
     for (const file of readdirSync(`${PAYLOADS}/${rep}`).filter((f) => f.endsWith(".av1"))) {
       const name = file.slice(0, -4);

@@ -36,13 +36,14 @@ export async function init(d) {
   dec = new M.HTJ2KDecoder();
 }
 
-/** `again` names the path a frame failed its check on: a fresh decoder object takes it, the reused one is suspect. */
-export function decodeFrame(bytes, unit, preview, again) {
-  const fresh = again === "htj2k" && new M.HTJ2KDecoder();
+/** `avoid` set: a second decode, in a decoder object of its own, there being one HTJ2K decoder. */
+export function decodeFrame(bytes, unit, preview, avoid) {
+  if (!avoid) return decodeWith(dec, bytes);
+  const fresh = new M.HTJ2KDecoder();
   try {
-    return decodeWith(fresh || dec, bytes);
+    return decodeWith(fresh, bytes);
   } finally {
-    fresh?.delete?.();
+    fresh.delete?.();
   }
 }
 

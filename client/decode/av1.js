@@ -39,24 +39,25 @@ async function webcodecs(streams) {
   return wc;
 }
 
-export async function decodeFrame(bytes, unit = { key: true }, preview, again) {
+export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
+  if (avoid && !unit.key) throw new Error("a frame inside a group decodes on its group's decoder alone");
   const payload = parsePayload(bytes);
   const [top, low] = units(payload.frames[0], payload.split);
-  const wc = again !== "av1-webcodecs" && payload.depth <= 10 && (await webcodecs(layouts(payload, top)));
+  const wc = avoid !== "av1-webcodecs" && payload.depth <= 10 && (await webcodecs(layouts(payload, top)));
   if (wc) {
     try {
       const [t, l] = await Promise.all([wc.picture(top, unit), low && wc.picture(low, { key: true }, "low")]);
       return { ...end(begin(t, payload), l), path: "av1-webcodecs" };
     } catch (e) {
-      if (again) throw e;
+      if (avoid === "av1-dav1d") throw e;
       /* dav1d decodes what WebCodecs would not */
     }
   }
-  if (again === "av1-dav1d") throw new Error("no other AV1 decoder takes this payload");
+  if (avoid === "av1-dav1d") throw new Error("no WebCodecs decoder for this payload");
   const dav1d = await module("./av1-dav1d.js");
   // A scalable unit's base is lossy and of its own size: shown as it is, never merged with a low unit.
   const base = preview && ((pic) => preview(end(begin(pic, { ...payload, split: 0 }))));
-  const lowWc = low && cfg.mixed && payload.depth > 10 && (await webcodecs(["g8"]));
+  const lowWc = low && cfg.mixed && !avoid && payload.depth > 10 && (await webcodecs(["g8"]));
   const pending = lowWc && lowWc.picture(low, { key: true }, "low").catch(() => null);
   let f;
   try {
@@ -64,5 +65,7 @@ export async function decodeFrame(bytes, unit = { key: true }, preview, again) {
   } finally {
     await pending; // in flight, it would be taken as the next payload's low
   }
-  return { ...end(f, low && ((await pending) || dav1d.picture(low, { key: true }))), path: "av1-dav1d" };
+  const lowPic = low && (await pending);
+  const path = lowPic ? "av1-mixed" : "av1-dav1d";
+  return { ...end(f, low && (lowPic || dav1d.picture(low, { key: true }))), path };
 }

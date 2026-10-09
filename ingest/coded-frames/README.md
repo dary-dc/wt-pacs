@@ -19,7 +19,7 @@ $P ingest/coded-frames/make_golden.py lab/.av1-build                    # the cl
 `--codec htj2k` the served `NNN.htj2k` codestreams (OpenJPH, reversible, 5 decompositions, 64² blocks,
 RPCL — [`docs/decode/README.md`](../../docs/decode/README.md) §Encoder settings; a signed series coded shifted and its SIZ marked signed), `NNN.sha256` (the source's checksums,
 copied) and `metadata.json` (`"codec": "av1"` and the representation for AV1, and every frame's
-`frameDigests` entry from `../frame_digests.py`, [`docs/FIXTURES.md`](../../docs/FIXTURES.md) §Frame digests). It writes nothing at all
+`digests` from `frame_digest`, [`docs/FIXTURES.md`](../../docs/FIXTURES.md) §Frame digests). It writes nothing at all
 unless every frame decodes back in-process (`decode.cpp`: dav1d and OpenJPH, no subprocess, no file):
 each AV1 stream unit alone, at the depth it was coded at, merged as the client merges, and each HTJ2K
 codestream as written, at its depth and signedness, against the checksum written when the source was

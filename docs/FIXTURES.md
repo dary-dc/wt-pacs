@@ -26,22 +26,19 @@ removed 2026-10-03 (code: `git show archive/variants-2026-10-03:tools/pack-serie
 
 ## Frame digests
 
-A series' `metadata.json` may carry each frame's digest, which the client's decoder worker checks every
-decoded frame against ([`adr/exactness-in-production.md`](adr/exactness-in-production.md) §Built):
+`ingest/coded-frames/ingest.py` writes each frame's digest into the series' `metadata.json`:
 
 ```json
-"frameDigests": { "algorithm": "xxh3-64", "frames": ["5f99dd7c0b2fc5e9", "…"] }
+"digests": { "algorithm": "xxh3-64", "frames": ["750932eabd34755e", …] }
 ```
 
-`frames[i]` is frame *i*'s XXH3-64, 16 lower-case hex digits, of its samples exactly as `decodeFrame`
-hands them on: interleaved by pixel, one byte a sample when the decoded frame is ≤ 8 bits and two
-little-endian bytes over that, signed samples in two's complement at that width — an AV1 payload's
-split, colour transform and offset undone. The width is the decoded frame's, so an HTJ2K series takes its
-stored bits and an AV1 one the payload header's. `null`, or no entry, leaves the frame unchecked; no
-`frameDigests` leaves every frame unchecked. `ingest/frame_digests.py` writes it from samples the set's
-`NNN.sha256` vouches for (`ingest/coded-frames/ingest.py` calls it), with `xxhash` 3.6.0, hash-pinned in
-`lab/av1/requirements.txt`. The golden AV1 payloads and the two HTJ2K contract frames keep theirs as
-`NAME.xxh3` beside them.
+one per frame in index order, 16 lowercase hex digits, the canonical (big-endian) XXH3-64 of the frame's
+samples **as `decodeFrame` hands them on**: colour interleaved, one byte a sample at 8 bits or fewer and two
+little-endian above, signed samples sign-extended to that width. The width is the codec's: an HTJ2K frame's
+`bitsStored`, an AV1 payload's `bits` ([`av1/payload-format.md`](av1/payload-format.md)), so a series stored in 16 bits whose values fit in 8
+hashes one byte a sample as AV1. The digest is taken from the encoder's input — the samples the `.sha256` was
+written from — never from a decoder's output. Metadata without `digests` is served as before; its frames
+arrive `unchecked` ([`../client/README.md`](../client/README.md) §A frame says whether it is exact).
 
 ## The sets
 

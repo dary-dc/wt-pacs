@@ -3,41 +3,47 @@
  * consumer over the port the downloader handed out. docs/ARCHITECTURE.md §The decoders
  */
 let codec = null;
-let check = null;
 let toConsumer = null;
 let queue = Promise.resolve();
+/** The series' XXH3-64 per frame, 16 hex digits, and the hasher; absent, every frame is unchecked. docs/FIXTURES.md §Frame digests */
+let digests = null;
+let xxh3 = null;
 
 const abs = () => performance.timeOrigin + performance.now();
 
-/** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview)` → `{ info, sab, byteCount, range }`. */
+/** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview, avoid)` → `{ info, sab, byteCount, range, path }`, `avoid` a path not to take. */
 async function init(m) {
   // Only an AV1 series loads AV1 code; which decoder takes a payload is chosen per payload. docs/av1/payload-format.md
   codec = await import(m.decoder?.codec === "av1" ? "./av1.js" : "./htj2k.js");
   await codec.init({ ...m.decoder, groupLength: m.groupLength });
-  check = m.digests ? await checker(m.digests, m.decoder?.hasher) : null;
+  digests = m.digests ?? null;
+  if (digests) xxh3 = await hasher();
 }
 
-/** The series' digest of each frame, and an XXH3-64 over what a decode hands on. docs/adr/exactness-in-production.md */
-async function checker({ algorithm, frames }, hasher) {
-  if (algorithm !== "xxh3-64") throw new Error(`frame digests in ${algorithm}, not xxh3-64`);
-  if (!hasher) throw new Error("frame digests with no decoder.hasher to check them");
-  // hash-wasm's per-algorithm build is UMD: run as a classic script, it leaves `hashwasm` on the global.
-  new Function(await (await fetch(hasher)).text()).call(globalThis);
-  const h = await globalThis.hashwasm.createXXHash3();
-  const digest = (sab) => {
-    h.init();
-    h.update(new Uint8Array(sab));
-    return h.digest("hex");
-  };
-  return { frames, digest };
+/** hash-wasm's XXH3, fetched by wasm/fetch_xxh3.sh; its UMD sets `hashwasm` on the global. */
+async function hasher() {
+  const src = await (await fetch(new URL("./wasm/vendor/hash-wasm/xxhash3.umd.min.js", import.meta.url))).text();
+  new Function(src).call(globalThis);
+  return globalThis.hashwasm.createXXHash3();
 }
 
-/** `true` or `false` against the series' digest, `"unchecked"` with none. */
-function verify(index, r) {
-  const want = check?.frames[index];
-  if (!want) return { exact: "unchecked" };
-  const got = check.digest(r.sab);
-  return { exact: got === want, got, want };
+const hash = (sab) => xxh3.init().update(new Uint8Array(sab)).digest("hex");
+
+/** A mismatch is decoded once more on another path, never asked again: docs/adr/exactness-in-production.md §2 */
+async function checked(m, r) {
+  const want = digests?.[m.index];
+  if (!want) return { ...r, exact: "unchecked" };
+  const got = hash(r.sab);
+  if (got === want) return { ...r, exact: true };
+  const first = `${r.path} gave ${got}, not ${want}`;
+  try {
+    const again = await codec.decodeFrame(m.bytes, m, null, r.path);
+    const second = hash(again.sab);
+    if (second === want) return { ...again, exact: true, mismatchOn: r.path };
+    return { ...r, exact: false, reason: `${first}; ${again.path} gave ${second}` };
+  } catch (err) {
+    return { ...r, exact: false, reason: `${first}; no second decode: ${err?.message ?? err}` };
+  }
 }
 
 onmessage = async (e) => {
@@ -60,11 +66,9 @@ async function decode(m) {
   const stamps = { ...m.stamps, decodeStart: abs() };
   const preview = (r) => toConsumer.postMessage({ ...picture(m, r, { ...stamps, decodeEnd: abs() }), preview: true });
   try {
-    let r = await codec.decodeFrame(m.bytes, m, preview);
-    let v = verify(m.index, r);
-    if (v.exact === false) [r, v] = await again(m, r, v);
+    const r = await checked(m, await codec.decodeFrame(m.bytes, m, preview));
     stamps.decodeEnd = abs();
-    toConsumer.postMessage({ ...picture(m, r, stamps), exact: v.exact, exactReason: v.reason, path: r.path });
+    toConsumer.postMessage(picture(m, r, stamps));
     // The wire buffer goes back to the transport's ring, where the next frame is read into it.
     postMessage({ kind: "done", index: m.index, gen: m.gen, byteCount: r.byteCount, buffer: m.bytes.buffer }, [m.bytes.buffer]);
   } catch (err) {
@@ -73,20 +77,7 @@ async function decode(m) {
   }
 }
 
-/** A mismatch decoded once more on the other path; exact only if that passes. Asking again would bring the same bytes. */
-async function again(m, r, v) {
-  const first = `${r.path} gave ${v.got}, the series says ${v.want}`;
-  try {
-    const r2 = await codec.decodeFrame(m.bytes, m, null, r.path);
-    const v2 = verify(m.index, r2);
-    if (v2.exact === true) return [r2, v2];
-    return [r, { ...v, reason: `${first}; ${r2.path} gave ${v2.got}` }];
-  } catch (err) {
-    return [r, { ...v, reason: `${first}; again: ${String(err?.message ?? err)}` }];
-  }
-}
-
-function picture(m, { info, sab, byteCount, range }, stamps) {
+function picture(m, { info, sab, byteCount, range, path, exact, reason, mismatchOn }, stamps) {
   return {
     kind: "frame",
     index: m.index,
@@ -100,6 +91,10 @@ function picture(m, { info, sab, byteCount, range }, stamps) {
     min: range.min,
     max: range.max,
     byteCount,
+    path,
+    exact,
+    reason,
+    mismatchOn,
     wireBytes: m.bytes.length,
     stamps,
   };
