@@ -127,3 +127,4 @@ for (const scenario of SCENARIOS) {
     }
   }
 }
+process.exit(0);
