@@ -1237,6 +1237,46 @@ are the same bytes. At 5 Mbit a 3328×4096 study is on screen in 2.6 s, not 31.6
 7.3. The wire is the clock throughout: 4× moves no ratio by more than 0.10. Container-measured on a loopback relay,
 not a phone; the proposal is in [`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §7.
 
+## Region decode, measured
+
+Queue row REGIONDECODE, `levers-protocol.md` §L2's container half (on `claude/av1`):
+[`lab/av1/decode/region`](../../lab/av1/decode/region/README.md). OpenHTJ2K v0.19.0 built to WASM decodes (a) a
+1080×2400 viewport at 1:1, alone, and (b) one asked frame in k horizontal stripes on k idle decoder workers, each
+writing its stripe into a `SharedArrayBuffer`. The reference is the delivered OpenJPH recipe, one thread
+(§The build, as delivered). Headless Chromium 141 on 4 cores, 10 rounds, Williams-ordered, the first 4 frames of each
+set, 3 timed passes after a checking pass. **2 800/2 800 decodes exact**: every region and stripe against the same
+rectangle of the encoder's input, every assembled frame against the set's checksum. ms from the ask to the last
+rectangle written, the median of round medians; × an arm paired by round (rounds under it):
+
+| series | OpenJPH 1× | OpenHTJ2K whole | viewport, corner | viewport, centre | 3 stripes | 3 stripes, × the pool | OpenJPH 4× | 3 stripes 4× |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `g512` | 5.4 | ×1.30 | — | — | ×0.99 (5/10) | — | 17.0 | ×1.08 (4/10) |
+| tomosynthesis 614×1359 | 10.1 | ×1.18 | — | — | ×0.85 (7/10) | — | 42.0 | ×0.71 (8/10) |
+| tomosynthesis 931×2124 | 19.4 | ×1.13 | ×1.23 (0/10) | ×1.18 (1/10) | ×0.90 (8/10) | — | 90.0 | ×0.76 (10/10) |
+| projections 1914×2572 | 85.3 | ×1.14 | ×1.19 (0/10) | ×1.19 (3/10) | ×0.70 (10/10) | ×0.95 (7/10) | 387 | **×0.62 (10/10)** |
+| synthesized 2D 2394×2850 | 72.9 | ×1.21 | ×1.06 (3/10) | ×1.07 (1/10) | ×0.70 (10/10) | ×0.87 (8/10) | 359 | **×0.60 (10/10)** |
+| full-field 3328×4096 | 96.5 | ×1.31 | ×0.82 (10/10) | ×0.86 (7/10) | ×0.74 (10/10) | ×0.88 (9/10) | 456 | **×0.68 (10/10)** |
+
+At 4× the viewport on 3328×4096 is ×0.84 (corner) and ×0.97 (centre) of OpenJPH's whole frame, and 2 stripes
+×0.70–1.17. Against OpenHTJ2K's own whole frame, 3 stripes are ×0.47–0.49 at 4× on the three large series and
+×0.57–0.60 at 1×; the viewport ×0.60–0.69 on 3328×4096 and ×0.90–1.04 under it.
+
+**A viewport costs its rows, not its area.** OpenHTJ2K's row range skips the code-blocks above and below the region,
+but its column range only narrows the wavelet: every block of every row the region reaches is decoded, and at the
+coarse levels a block's 64 rows span up to 2 048 of the frame's. So the viewport decodes 72 % (corner) and 84 %
+(centre) of a 3328×4096 frame's code-block bytes for 19 % of its area, 95–100 % below that; the same count bounds the
+bytes it would need to fetch, and today's codestreams (one precinct per resolution) cannot be fetched by region at all.
+OpenHTJ2K is also ×1.13–1.41 OpenJPH's time on the whole frame, so (a) loses to the reference on every series but
+3328×4096. **Stripes are a pool without threads** that beats today's pool (×0.77–0.85 at 4×, 10/10): 3 workers take
+the large frames to ×0.60–0.68 of the reference at 4×, decoding 1.13–1.17× the code-block bytes (the overlaps).
+Under 1914×2572 they gain less, and on `g512` nothing.
+
+**By §L2's rule, region decode is not worth a design here:** every region and stripe is exact, but (a) on 3328×4096
+is ×0.82–0.97 of the reference against ≤ 0.40, and (b) at k = 3 is ×0.68 (full-field) and ×0.62 (projections) at 4×
+against ≤ 0.60, ×0.60 on the synthesized 2D; it is faster than today's pool on all three. A decoder that skips blocks
+outside the columns, or precincts in the stored layout, would change (a); neither is measured, and the layout is the
+owner's. Container-measured; what a phone's cores do with three busy workers is not.
+
 ## The BYOB read path
 
 Retired; code in history at `6e9c126`. The WASM client's BYOB reader (`byob`, `byob-min`) read each
