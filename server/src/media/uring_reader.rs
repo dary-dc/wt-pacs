@@ -193,7 +193,7 @@ mod tests {
         let _guard = rt.enter();
 
         let Ok(mut reader) = UringReader::new(&file, TILE_SLOTS as u32) else {
-            eprintln!("skipped: io_uring is unavailable on this host");
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
             std::fs::remove_dir_all(&dir).ok();
             return;
         };
@@ -228,7 +228,7 @@ mod tests {
             .expect("rt");
         let _guard = rt.enter();
         let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-            eprintln!("skipped: io_uring is unavailable on this host");
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
             return;
         };
         let buf: &'static mut [u8] = Box::leak(vec![0u8; 64].into_boxed_slice());
@@ -262,7 +262,7 @@ mod tests {
             .expect("rt");
         let _guard = rt.enter();
         let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-            eprintln!("skipped: io_uring is unavailable on this host");
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
             return;
         };
         let buf: &'static mut [u8] = Box::leak(vec![0u8; 64].into_boxed_slice());
@@ -289,7 +289,7 @@ mod tests {
             .expect("rt");
         rt.block_on(async move {
             let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-                eprintln!("skipped: io_uring is unavailable on this host");
+                eprintln!("SKIPPED: io_uring is unavailable on this host");
                 return;
             };
             let mut buf = vec![0u8; 64];
@@ -332,7 +332,7 @@ mod tests {
         let _guard = rt.enter();
 
         let Ok(mut reader) = UringReader::new(&file, TILE_SLOTS as u32) else {
-            eprintln!("skipped: io_uring is unavailable on this host");
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
             std::fs::remove_dir_all(&dir).ok();
             return;
         };
