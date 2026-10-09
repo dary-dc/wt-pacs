@@ -646,6 +646,60 @@ the wire is slower than the decoder, and HTJ2K wherever a slow CPU meets a fast 
 than Chromium's. A rule by link or by client would need the server to know them; that is a product call
 (the queue's §Blocked).
 
+### Where AV1 fills first, a model (row CROSSOVER, [`lab/av1/delivery/crossover`](../../lab/av1/delivery/crossover/README.md))
+
+Theory from the numbers rows DBTSCALE and FFDMSCALE measured; no new timing. A fill of N frames through the
+downloader is a two-stage pipeline: the wire delivers a frame in b/R, P decoders take t each, so
+
+  T = c + b/R + t + (N − 1) · max(b/R, t/P)
+
+with c the ask's round trips, fitted per series on HTJ2K's 5 Mbit/s 1× cell alone. P = 3 for OpenJPH and dav1d-WASM
+(three decoder workers on three cores); WebCodecs decodes outside the workers, so its P is the one parameter fitted on
+AV1, on one cell (12-bit DBT, 4× on 50 Mbit/s): **1.9**. AV1's b and t are HTJ2K's times its measured bytes ratio
+(k = 2, or k = 3 on system B's FFDM) and its measured decode ratio a frame, at 1× and 4×.
+
+**Against the 48 cells measured** (eight series, three links, two CPU speeds, Chromium 141): predicted minus
+measured median −0.002, **44/48 within 0.05**. The four misses are all at 4× on 50 Mbit/s, the host's saturation:
+FFDM `a3` 1.47 against 1.68, `b2` 1.57 against 1.45, synthesized 2D `b3` 1.41 against 1.28, DBT `b2` 1.27 against
+1.32. Where a few large frames meet a slow decoder the model is off by up to 0.21; nothing is claimed there.
+
+**Crossover**, the link speed in Mbit/s below which AV1 fills first; Chromium with AV1's decode ±15 % (the spread of
+k = 2's decode ratio across one kind's volumes); Firefox, where no AV1 stream of these is exact through WebCodecs and
+dav1d-WASM decodes all (§Exactness and the decoders), with dav1d at 1.6, 1.9 and 2.2× WebCodecs' time — an assumption
+from row XBROWSER's ranges, not a measurement on these series:
+
+| series | Chromium 1× | Chromium 4× | Firefox 1× | Firefox 4× |
+| --- | --- | --- | --- | --- |
+| DBT 12-bit (`dbts_a5`) | 45 [37–56] | 11 [9–14] | 25 / 20 / 17 | 6 / 5 / 4 |
+| DBT 10-bit (`dbts_b2`) | 56 [45–73] | 14 [11–19] | 28 / 23 / 19 | 7 / 6 / 5 |
+| DBT 12-bit (`dbts_c5`) | 50 [42–63] | 13 [11–17] | 28 / 23 / 19 | 7 / 6 / 5 |
+| FFDM 12-bit (`ffdms_a3`) | 7 [6–8] | 2 [1–2] | 4 / 3 / 3 | never |
+| FFDM 12-bit (`ffdms_b2`, k = 3) | 4 [3–5] | 1 [never–1] | 2 / 2 / 1 | never |
+| FFDM 12-bit (`ffdms_c1`) | 4 [3–5] | never | 2 / 2 / 2 | never |
+| synthesized 2D 12-bit (`syn2ds_a3`) | 15 [12–19] | 4 [3–5] | 8 / 7 / 6 | 2 / 2 / 1 |
+| synthesized 2D 10-bit (`syn2ds_b3`) | 36 [27–54] | 10 [7–16] | 15 / 12 / 10 | 4 / 3 / 2 |
+
+* **Where the wire is the clock AV1's gain is its bytes, less one frame's extra decode at the end**: at most 4.9 %
+  on these series (5 Mbit/s, 1×), 2.7–2.9 % on DBT and the 10-bit synthesized 2D at 16.7 Mbit/s (the LTE trace's
+  mean), and on a slow CPU at 16.7–20 Mbit/s it already loses. FFDM never gains more than 0.4 %.
+* **A few large frames cross early**: four images leave the last one's decode (3.4–3.8× HTJ2K's) after the last byte,
+  so FFDM crosses at 4–7 Mbit/s at 1× and below 2 at 4×; DBT's 9–10 sampled slices cross at 45–56 and 11–14.
+* **The two 10-bit volumes AV1 codes a fifth smaller** (`dbts_b4`, `dbts_b5`, 0.760 and 0.797; predicted only, never
+  timed whole): AV1 first below 140–151 Mbit/s at 1× and 37–38 at 4×, gaining 17–22 % at 16.7 Mbit/s at 1× and 14–19 %
+  at 4×.
+* **Checked against row TOTAL4's Firefox cells** (other series, n = 1–13, qualitatively): it predicts Firefox loses on
+  tomosynthesis at 4× on 20 Mbit/s and on the mammogram at 1× on 50 Mbit/s, as measured (1.03, 1.18); its Wi-Fi win
+  on the mammogram (0.83, n < 10) it does not predict.
+
+**What it predicts for a rule.** A per-link choice gains under 5 % on every series of the ≈0.95 bytes class on a
+phone's link, so by the round's bar it is not worth building there; on the two volumes coded a fifth smaller it
+gains 13–22 % on every phone link at both CPU speeds, which a per-series choice already takes, and a per-link one
+adds only the fast-link, slow-CPU cell it would hand back to HTJ2K. **The rule's input** would be the client's
+throughput and decode rate before the first frame — neither is known then without a probe (the metadata's fetch, or
+the previous series of the session) — and its **cost** a second encoding stored per series, about 0.95× HTJ2K's
+bytes again. Row CROSSMEASURE tests this on the cells either side of each crossover:
+[`crossover-protocol.md`](crossover-protocol.md).
+
 ## Client resources
 
 A decoder worker's memory and first use, against HTJ2K's: §Decode time and memory, *Memory and first use*. The
