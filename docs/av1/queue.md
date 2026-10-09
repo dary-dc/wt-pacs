@@ -188,7 +188,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 114 | **FMT** — rustfmt and clippy defaults adopted, checked by the gate | after the owner merges main |
 | 115 | **FFDIAL** — Firefox's dial through the relay that does not settle on 5–20 Mbit/s links: the cause, and a fix if it is ours | claimed 2026-10-09 (night, ab46e8) |
 | 116 | **TAGCITE** — the 15 citations of `archive/variants-2026-10-03`, a tag that does not exist, point at the one that does | claimed 2026-10-09 (night, 349f49) |
-| 117 | **DOCLABELS** — rows 84 and 85's documentation leftovers that need no decision | ready |
+| 117 | **DOCLABELS** — rows 84 and 85's documentation leftovers that need no decision | claimed 2026-10-09 (night, 6ddf25) |
 | 118 | **GUARDS** — row 86's check leftovers that need no decision | ready |
 
 ## Briefs
