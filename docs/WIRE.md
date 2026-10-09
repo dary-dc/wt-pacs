@@ -141,7 +141,7 @@ CPU-bound where a link is congestion-bound: on a link with a large bandwidth-del
 window holds more, and the ask waits behind more of it. Over the WebSocket the same holds with the
 TCP socket buffer in place of the send window; the two are not the same size, and neither link
 case is measured. Seen from the client, against the real server with a 2 MB send window:
-[`CLIENTS.md`](CLIENTS.md) §The conformance suite. A client's `endStream()` is a different thing
+[`CLIENTS.md`](CLIENTS.md) §The contract suite. A client's `endStream()` is a different thing
 and is not measured here.
 
 ## The opening ask
@@ -177,6 +177,6 @@ kernel's), the per-session `session path` line, and telemetry rows. The idle-ses
 transfer; nothing here measures TCP's.
 
 One ordered byte stream gives up what QUIC's streams give: a slow or lost frame holds every frame
-behind it, and a retransmit stalls everything. The conformance suite reports the independent-
+behind it, and a retransmit stalls everything. The contract suite reports the independent-
 delivery clauses as not applicable rather than passing
-([`CLIENTS.md`](CLIENTS.md#the-conformance-suite)).
+([`CLIENTS.md`](CLIENTS.md#the-contract-suite)).

@@ -23,7 +23,7 @@ wasm=client/transport/wasm/pkg/transport_wasm_bg.wasm
 stale="$(find client/transport/wasm/src client/transport/wasm/Cargo.toml common -newer "$wasm" -print -quit)"
 [[ -z "$stale" ]] || { echo "stale pkg/: $stale is newer than $wasm; client/transport/wasm/build.sh" >&2; exit 2; }
 if [[ $browser -eq 1 ]]; then
-  source client/conformance/browser_env.sh
+  source client/contract/browser_env.sh
   require_browser
   require_vendor
 fi
@@ -51,12 +51,12 @@ node client/paint/voi.test.mjs
 step "client: worker-safe (no artifact reaches for window)"
 bash client/scripts/check_worker_safe.sh
 
-step "client: transport conformance (every implementation, and the race)"
-node client/conformance/run.mjs | tail -2
+step "client: transport contract (every implementation, and the race)"
+node client/contract/run.mjs | tail -2
 
 if [[ $browser -eq 1 ]]; then
   step "client: the downloader in headless Chromium — the clauses through it, and its dispatch order and per-decoder bound"
-  bash client/conformance/run_browser.sh
+  bash client/contract/run_browser.sh
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
   if PYTHON="${PYTHON:-python3}" && "$PYTHON" -c "import numpy" 2>/dev/null; then
     PYTHON="$PYTHON" node client/paint/check.mjs --zoom1 | tail -1
@@ -65,10 +65,10 @@ if [[ $browser -eq 1 ]]; then
   fi
 fi
 
-step "client: type-check (product, shared record, conformance and transport-ts tests)"
+step "client: type-check (product, shared record, contract and transport-ts tests)"
 (cd client/transport/ts && npx tsc -p tsconfig.check.json)
 (cd client/transport/ts && npx tsc -p ../../record/tsconfig.json)
-(cd client/transport/ts && npx tsc -p ../../conformance/tsconfig.json)
+(cd client/transport/ts && npx tsc -p ../../contract/tsconfig.json)
 
 step "lab: the arm order and its predecessor split"
 node lab/order.test.mjs
@@ -91,7 +91,7 @@ cargo check -p disk-access-bench -p telemetry-bench --all-targets --quiet
 
 if [[ $browser -eq 1 ]]; then
   step "client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)"
-  bash client/conformance/run_wire.sh | tail -8
+  bash client/contract/run_wire.sh | tail -8
 fi
 
 if [[ $quick -eq 0 ]]; then

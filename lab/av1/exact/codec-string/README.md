@@ -12,8 +12,8 @@ FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # OpenJPH, for 
 ingest/coded-frames/build.sh && lab/av1/fetch_data.sh                 # ingest's in-process check; all 28 series
 W=lab/.av1-work/codecstr
 lab/av1/exact/codec-string/series.sh lab/.av1-build lab/av1/data $W/real # 2 frames a series, every layout, ~10 min
-node lab/av1/exact/codec-string/check.mjs client/conformance/av1 $W/real --out $W/strings.json
-node lab/av1/exact/codec-string/mutate.mjs client/conformance/av1 $W/real
+node lab/av1/exact/codec-string/check.mjs client/contract/av1 $W/real --out $W/strings.json
+node lab/av1/exact/codec-string/mutate.mjs client/contract/av1 $W/real
 FIREFOX_PATH=... node lab/av1/exact/codec-string/run.mjs $W/strings.json  # isConfigSupported, three engines
 FIREFOX_PATH=... node lab/av1/exact/split/browser.mjs lab/av1/data $W/real   # every payload exact, its decoder
 ```
@@ -28,7 +28,7 @@ and over 12 bits a 10-bit top beside the default, every payload checked by inges
 
 ## Checked (2026-10-07)
 
-* **The derivation is ffmpeg's reading.** 91 distinct sequence headers, 419 units — the conformance fixtures
+* **The derivation is ffmpeg's reading.** 91 distinct sequence headers, 419 units — the contract fixtures
   (payloads, bare units, groups, scalable), the four probes, 59 payloads of all 28 taxonomy series, and 8 headers
   aomenc and `svc_encoder_rtc` wrote to reach what ingest never writes (timing info and a decoder model,
   frame ids, High tier at levels 4.0 and 6.3, nine operating points, one with its first point's level edited

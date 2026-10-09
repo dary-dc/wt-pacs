@@ -6,7 +6,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-source client/conformance/browser_env.sh
+source client/contract/browser_env.sh
 NO_BROWSER_HINT="README.md §Prerequisites"
 require_browser
 require_vendor

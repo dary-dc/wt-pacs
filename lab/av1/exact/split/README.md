@@ -67,7 +67,7 @@ bits, dav1d-WASM otherwise and in the two others.
   through dav1d-WASM, each as expected. Not coded at cpu0 (3–20 min a projection frame there, below);
   the real projections were.
 * **The golden matrix.** 90 payloads (32×24, b = 8…16, every k, both signs) in
-  `client/conformance/av1/payloads/matrix/`, exact in Node and through the downloader in Chromium, by
+  `client/contract/av1/payloads/matrix/`, exact in Node and through the downloader in Chromium, by
   WebCodecs and by dav1d-WASM; every refusal of `payload-format.md`, old and new, matched by its message
   in both.
 * **The real series.** All nine of `docs/FIXTURES.md` §AV1 data, every frame, at every k of its
@@ -94,4 +94,4 @@ bits, dav1d-WASM otherwise and in the two others.
 `client/decode/wasm/dav1d/build.sh` pin them; numpy 2.4.6; Node 22.22.0; the engines of `lab/av1/exact/engines`
 (Chromium 141.0.7390.37, Firefox 157.0 from conda-forge, SHA-256 `a379ab49…63195ee`, WebKitGTK 2.52.6,
 `.deb` SHA-256 `3b3f7e2c…8108ac03`), each checked here against row 37's checksum. Nothing built,
-fetched or generated is committed but the golden matrix (`client/conformance/av1/payloads/matrix/`).
+fetched or generated is committed but the golden matrix (`client/contract/av1/payloads/matrix/`).

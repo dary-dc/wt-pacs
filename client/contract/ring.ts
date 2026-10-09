@@ -44,7 +44,7 @@ async function fill(
 ): Promise<Landed[]> {
   fake.install();
   const s = await impl.connect(
-    "https://conformance.invalid/",
+    "https://contract.invalid/",
     CERT,
     wireBuffers === undefined ? undefined : { wireBuffers },
   );
@@ -85,7 +85,7 @@ export async function runRing(impl: Implementation, fake: RingFake, check: Check
 
   // Every one of the twelve released at once, none taken: the free list keeps three.
   fake.install();
-  const s = await impl.connect("https://conformance.invalid/", CERT, { wireBuffers: 3 });
+  const s = await impl.connect("https://contract.invalid/", CERT, { wireBuffers: 3 });
   const first: ArrayBuffer[] = [];
   s.fillFrames(0, 11, (f: ConformantFrame) => first.push(f.bytes.buffer as ArrayBuffer));
   fake.last().pushOnOneStream(twelve.map((n, i) => [i, body(i, n)] as [number, Uint8Array]));

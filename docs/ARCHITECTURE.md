@@ -113,7 +113,7 @@ so none needs a handshake:
 | downloader / decoder → their `Worker` objects | — | the owner sets `onmessage` in the task that created the worker |
 
 The one pattern that does lose messages — a `BroadcastChannel` a worker constructs and the page posts
-to at once — is used only by the conformance fakes, which wait for `listening`. **Measured**
+to at once — is used only by the contract fakes, which wait for `listening`. **Measured**
 ([`../lab/early-messages/run.mjs`](../lab/early-messages/run.mjs), driverless Chromium 141, 5 × 1 000
 opens an arm, rotated): the downloader path lost **0 of 5 000**, the harness's worker **0 of 5 000**,
 the `BroadcastChannel` control **103 of 5 000**. Exposed on purpose, each site was caught: the pixel
@@ -296,17 +296,17 @@ per client** — 40 clients took the renderer from 10 to 50 threads and 106 to 2
 identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 141 headless); after,
 10–12 threads and 118–123 MB. **Terminating the decoders from the downloader as well strands it**:
 10–12 of 40 downloader workers stayed alive, script dead, thread and memory held — a race
-`client/conformance/drive_page.cjs` checks for by counting leftover workers after every page.
+`client/contract/drive_page.cjs` checks for by counting leftover workers after every page.
 
 ## Capabilities
 
-Every row passed on the downloader before the harness's path was removed (2026-10-03); its column is the record. **conformance** is
-`client/conformance/run.mjs`, every clause against every transport; **dispatch** is `run_browser.sh dispatch`,
+Every row passed on the downloader before the harness's path was removed (2026-10-03); its column is the record. **contract** is
+`client/contract/run.mjs`, every clause against every transport; **dispatch** is `run_browser.sh dispatch`,
 the downloader against a stalling fake decoder so contention is forced; both are in `scripts/gate.sh`.
 
 | capability | the harness's path | the downloader |
 | --- | --- | --- |
-| connect, single ask, fill; shared and per-frame stream modes | conformance `workerSafe`, `cancellable`, `bothStreamModes`; server `stream_frames_range_arrives_in_order` (`a_batch_arrives_whole_and_in_ask_order` was removed with `request_frames`, `202644d`) | the same clauses plus `pushedFill`; `downloader.html` against the real server, byte-identical |
+| connect, single ask, fill; shared and per-frame stream modes | contract `workerSafe`, `cancellable`, `bothStreamModes`; server `stream_frames_range_arrives_in_order` (`a_batch_arrives_whole_and_in_ask_order` was removed with `request_frames`, `202644d`) | the same clauses plus `pushedFill`; `downloader.html` against the real server, byte-identical |
 | a fill cancelled mid-way, the session still serving | `cancellable`; server `end_stream_stops_a_fill_on_the_wire` | `cancellable`; dispatch `lateFramesOfACancelledRequestAreDropped`, `aLateDoneDoesNotDropTheNewRequestsFrame`, `cancelCompletesAndUnblocksTheNextFill` |
 | a closed session noticed at once, waiters failed; a live one's frame owed its full wait | `noticesClose` | the same — an in-flight ask is woken at once; an ask after the closure re-dials and is served |
 | refusals delivered, none lost | `refusals.html` headless against a real server (`run_wire.sh`), both clients | a refused ask arrives with the server's reason; a refused fill through `onError` — dispatch `aRefusedFillReachesTheConsumer` |
@@ -978,7 +978,7 @@ takes a 61 MB fill from ~25 s to 47–51 s, and recycling to 27–31 s (§Recycl
 
 **What TCP gives up**: independent streams, so a slow frame blocks every frame behind it
 ([`adr/stream-shape.md`](adr/stream-shape.md)); loss recovery per stream; the idle behaviour measured
-for QUIC; `stream_frames` as the same protocol. A degraded viewer beats none, but the conformance
+for QUIC; `stream_frames` as the same protocol. A degraded viewer beats none, but the contract
 clauses about independent delivery are marked not applicable on it rather than green.
 
 ### Race it
@@ -999,7 +999,7 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
   bytes; `session.ts` and `ws-session.ts` are carriers over it, and the downloader takes either as
   `transport`. `race-session.ts` (opt-in) dials both, keeps the first ready, closes the other when its
   dial settles; an opening fill rides the WebSocket's URL alone, and is asked on QUIC if QUIC wins.
-* **Conformance**: every clause runs against the WebSocket client, with the per-frame halves of two
+* **Contract**: every clause runs against the WebSocket client, with the per-frame halves of two
   clauses and *a frame slow on its own stream holds no other* listed as not applicable; five race
   clauses (QUIC first, TCP first, QUIC refused, the opening fill when either wins); `run_wire.sh` runs refusals and an
   ask during a fill over the WebSocket, raw and through the downloader.

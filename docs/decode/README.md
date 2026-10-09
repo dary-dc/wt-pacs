@@ -618,7 +618,7 @@ peak is `VmHWM`, paired inside each round, MB, median [range]:
   30 and at 87 frames, against a peak that falls 3.2, 19.2 and 10.8 MB; settled RSS rises +1.9 to
   +7.7 MB. On a device it is the peak a tab is killed for.
 * **The clock does not move** (the ring lower in 4/8, 6/8, 4/6).
-* **Pixels**: 0 mismatches in 44 cells. `client/conformance/ring.ts` holds the mechanism against
+* **Pixels**: 0 mismatches in 44 cells. `client/contract/ring.ts` holds the mechanism against
   **both** session implementations; six mutants, each caught.
 
 **The size stays `decoders × perDecoder + 2`.** 2, 8 and 16 on both shapes, n = 5: **peak does not
@@ -812,7 +812,7 @@ host is not saturated at one decoder. The table says what a warm-up costs; the o
 
 The wrapper reports nothing: it logs an `ojph error` and returns, and `decoder.js` reuses **one**
 `HTJ2KDecoder` across every frame. Decoder 2.4.11, one reused object, the two 160² codestreams
-the dispatch rig decodes (`client/conformance/frames/`, the warm-up frames until 2026-10-03):
+the dispatch rig decodes (`client/contract/frames/`, the warm-up frames until 2026-10-03):
 
 | input | `getFrameInfo()` | `getDecodedBuffer().length` | the pixels |
 | --- | --- | ---: | --- |
@@ -837,8 +837,8 @@ each decoded buffer exactly the declared size.
 **A truncated codestream is invisible here** (full size, wrong pixels); it is caught on the wire
 against the envelope's declared length — [`../CLIENTS.md`](../CLIENTS.md) §A truncated frame is a
 failure. The two checks are disjoint on purpose. A codestream the server truncated *before* framing
-passes both; only a per-frame `.sha256` oracle sees it. Conformance:
-`anUndecodableFrameIsAFailureNotAFrame` in `client/conformance/dispatch-rig.ts`, real decoder,
+passes both; only a per-frame `.sha256` oracle sees it. Contract:
+`anUndecodableFrameIsAFailureNotAFrame` in `client/contract/dispatch-rig.ts`, real decoder,
 which the gate requires (`run_browser.sh` exits 2 without `vendor/openjph`).
 
 ## The range pass
@@ -875,7 +875,7 @@ the package and the encoder's input, `getRange()` identical to `finish()` on the
 Mutants, each caught: the colour range from its first component (87/87 differ), one line's range
 (348/348), the clamp one short at the top — **reached only by sat256**, now part of the run. In the
 gate, `dispatch-rig.ts` holds `decoder.js` to both halves with the package and a stand-in glue that
-answers `getRange()` (`client/conformance/range-glue.js`); always-pass and never-pass each fail one.
+answers `getRange()` (`client/contract/range-glue.js`); always-pass and never-pass each fail one.
 
 **What it buys.** [`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs), the wrapper
 before (`today`) against `built`, both from source at a 16 MB heap through `decoder-split.js`; every
@@ -1399,7 +1399,7 @@ frame straight into its own JS buffer. Time tied on both fixtures and cells, and
 a session's first frame cost about 12 ms more in 8 of 8 rounds, not from acquiring the reader. It
 allocated less — 338 → 201 (`byob`) → 165 (`byob-min`) collections per 237-frame fill, 5/5 rounds —
 but a free list on the default path was never designed. `byob-min` errored instead of naming a
-truncation (117/120 conformance). The TypeScript client's `readMin` is a separate path, still open
+truncation (117/120 contract). The TypeScript client's `readMin` is a separate path, still open
 ([`../CLIENTS.md`](../CLIENTS.md) §Reading a frame whole).
 
 ## AV1

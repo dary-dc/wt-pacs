@@ -254,7 +254,7 @@ What the corrections above cost to learn, and what the cell drivers enforced (re
   ([`CLIENTS.md`](../CLIENTS.md)).
 * **The WebSocket path** (`series-server --websocket`) carries the shared stream's bytes as binary
   messages on one TCP stream, which the session's refusals share. It gives up independent streams
-  and per-stream loss recovery; the conformance clauses that need them are not applicable there.
+  and per-stream loss recovery; the contract clauses that need them are not applicable there.
   Its tail under loss is not measured.
 
 ## What would reopen it

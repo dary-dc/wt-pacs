@@ -77,14 +77,14 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
   const ch = `wtpacs-dispatch-${++world}`;
   const fake = workerFake(ch);
   const hold = decoderHold(ch);
-  const connect = DownloaderClient.connect((opts.url ?? "https://conformance.invalid/") as string, CERT, {
+  const connect = DownloaderClient.connect((opts.url ?? "https://contract.invalid/") as string, CERT, {
     decode: opts.decode ?? true,
     decoders: opts.decoders ?? 1,
     perDecoder: opts.perDecoder ?? 2,
     fill: opts.fill,
     openAsk: opts.openAsk === "default" ? undefined : (opts.openAsk ?? false),
-    transport: `/client/conformance/dist/fake-session.js?ch=${ch}&hang=${opts.hangDials ?? 0}&refuse=${opts.refuseDials ?? 0}`,
-    decoderWorker: opts.decoderWorker ?? (opts.realDecoder ? undefined : `/client/conformance/fake-decoder.js?ch=${ch}`),
+    transport: `/client/contract/dist/fake-session.js?ch=${ch}&hang=${opts.hangDials ?? 0}&refuse=${opts.refuseDials ?? 0}`,
+    decoderWorker: opts.decoderWorker ?? (opts.realDecoder ? undefined : `/client/contract/fake-decoder.js?ch=${ch}`),
     decoder: opts.realDecoder ?? {
       delayMs: opts.delayMs ?? 0,
       hold: opts.hold,
@@ -533,9 +533,9 @@ async function startWithAFillDialsOnce(_DownloaderClient: DownloaderCtor, check:
   w.onmessage = () => {};
   w.postMessage({
     kind: "start",
-    config: { decode: false, decoders: 0, transport: `/client/conformance/dist/fake-session.js?ch=${ch}`, fill: [0, 1, 2, 3] },
+    config: { decode: false, decoders: 0, transport: `/client/contract/dist/fake-session.js?ch=${ch}`, fill: [0, 1, 2, 3] },
   });
-  w.postMessage({ kind: "dial", url: "https://conformance.invalid/", certHash: CERT });
+  w.postMessage({ kind: "dial", url: "https://contract.invalid/", certHash: CERT });
   w.postMessage({ kind: "ask", index: 50 });
 
   let dialled = 0;
@@ -568,7 +568,7 @@ async function theDecodersComeUpWhileTheUrlIsUnknown(DownloaderClient: Downloade
   });
   const ready = await until(() => hold.ready() >= 1, 5000);
   check(ready, "un-gated: the decoder is ready while the session URL is still withheld");
-  giveUrl("https://conformance.invalid/");
+  giveUrl("https://contract.invalid/");
   const c = await connect;
   await fake.pushFrame(0, enc.encode("first"));
   check(await until(() => got.length > 0, 5000), "un-gated: and the first frame is decoded once the URL is given");
@@ -665,7 +665,7 @@ async function anUndecodableFrameIsAFailureNotAFrame(DownloaderClient: Downloade
   const realDecoder = await vendorDecoder(log, "an undecodable frame");
   if (!realDecoder) return;
   const bytesOf = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
-  const good = await bytesOf("/client/conformance/frames/colour-8.j2c");
+  const good = await bytesOf("/client/contract/frames/colour-8.j2c");
   const wrong = await bytesOf("/client/README.md");
 
   const frames: Frame[] = [];
@@ -708,7 +708,7 @@ async function aFrameCarriesItsWireBytes(DownloaderClient: DownloaderCtor, check
 
   const realDecoder = await vendorDecoder(log, "wire bytes behind a decoder");
   if (!realDecoder) return;
-  const codestream = new Uint8Array(await (await fetch("/client/conformance/frames/colour-8.j2c")).arrayBuffer());
+  const codestream = new Uint8Array(await (await fetch("/client/contract/frames/colour-8.j2c")).arrayBuffer());
 
   const decoded: Frame[] = [];
   const { c: c2, fake: fake2 } = await open(DownloaderClient, {
@@ -734,8 +734,8 @@ async function aFrameCarriesItsDecodersRangeOrItsOwn(DownloaderClient: Downloade
   const vendor = await vendorDecoder(log, "a frame's range");
   if (!vendor) return;
   const bytesOf = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
-  const grey = await bytesOf("/client/conformance/frames/grey-16.j2c");
-  const colour = await bytesOf("/client/conformance/frames/colour-8.j2c");
+  const grey = await bytesOf("/client/contract/frames/grey-16.j2c");
+  const colour = await bytesOf("/client/contract/frames/colour-8.j2c");
   const rangeOf = async (glue: string, codestream: Uint8Array) => {
     const got: Frame[] = [];
     const { c, fake } = await open(DownloaderClient, {
@@ -749,7 +749,7 @@ async function aFrameCarriesItsDecodersRangeOrItsOwn(DownloaderClient: Downloade
     return got[0];
   };
   const pkg = vendor.glue;
-  const glue = "/client/conformance/range-glue.js";
+  const glue = "/client/contract/range-glue.js";
 
   const own = await rangeOf(pkg, grey);
   let [min, max] = [Infinity, -Infinity];
@@ -769,7 +769,7 @@ async function aFrameCarriesItsDecodersRangeOrItsOwn(DownloaderClient: Downloade
 
 const AV1_DIR = "/lab/.av1-build/out";
 const AV1 = { codec: "av1", glue: `${AV1_DIR}/simd.js`, wasm: `${AV1_DIR}/simd.wasm`, dir: AV1_DIR };
-const AV1_SET = "/client/conformance/av1";
+const AV1_SET = "/client/contract/av1";
 const PAYLOADS = `${AV1_SET}/payloads`;
 const served = (url: string) => fetch(url, { method: "HEAD" }).then((r) => r.ok, () => false);
 const fetched = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
@@ -824,7 +824,7 @@ async function av1Through(
   const failures: Fail[] = [];
   const { c, fake } = await open(DownloaderClient, {
     decoders: 1, perDecoder: 2, delayMs: 0, realDecoder: AV1,
-    decoderWorker: `/client/conformance/webcodecs-spy.js?mode=${mode}&ch=${ch}`,
+    decoderWorker: `/client/contract/webcodecs-spy.js?mode=${mode}&ch=${ch}`,
     onFrame: (f) => got.push(f), onError: (f) => failures.push(f), ...group,
   });
   c.fill(payloads.map((_, i) => i));
@@ -1301,7 +1301,7 @@ async function scalableThrough(
   const n = units.length;
   const { c, fake } = await open(DownloaderClient, {
     decoders: 2, perDecoder: 2, delayMs: 0, realDecoder: AV1,
-    decoderWorker: `/client/conformance/webcodecs-spy.js?mode=${opts.mode}&ch=${ch}`,
+    decoderWorker: `/client/contract/webcodecs-spy.js?mode=${opts.mode}&ch=${ch}`,
     groupLength: opts.groupLength, frameCount: opts.groupLength ? n : undefined,
     onPreview: (f) => { seen.push(`p${f.frameIndex}`); previews.push(f); shown(f); },
     onFrame: (f) => { seen.push(`f${f.frameIndex}`); frames.push(f); shown(f); },
@@ -1777,10 +1777,10 @@ async function aCloseDuringARedialAdoptsNoSession(_DownloaderClient: DownloaderC
     kind: "start",
     config: {
       decode: false, decoders: 0, openAsk: false, survival: { ...QUICK, stallMs: 30_000 },
-      transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
+      transport: `/client/contract/dist/fake-session.js?ch=${ch}`,
     },
   });
-  w.postMessage({ kind: "dial", url: "https://conformance.invalid/", certHash: CERT });
+  w.postMessage({ kind: "dial", url: "https://contract.invalid/", certHash: CERT });
   w.postMessage({ kind: "fill", indices: [0, 1, 2, 3] });
   await onTheWire(fake, "stream_frames 0-3");
   await fake.pushFrame(0, enc.encode("fill-0"));
@@ -1834,7 +1834,7 @@ async function aDecoderLostBeforeTheDialDoesNotFailTheStart(DownloaderClient: Do
   await until(() => hold.holding() >= 1);
   hold.release();
   await settle(100);
-  giveUrl("https://conformance.invalid/");
+  giveUrl("https://contract.invalid/");
   const c = await started(connect).catch((e: Error) => e);
   check(!(c instanceof Error), `decoder init: one lost before the dial does not fail the start (${c instanceof Error ? c.message : "started"})`);
   if (c instanceof Error) return;
@@ -2095,8 +2095,8 @@ async function framesWithNoDecoderLeftAreNamed(DownloaderClient: DownloaderCtor,
 
 /** An option that cannot cross to the worker fails `connect` by name; drive_page.cjs counts the worker it must not leave. */
 async function anOptionThatCannotBeClonedFailsConnect(DownloaderClient: DownloaderCtor, check: Check) {
-  const outcome = await DownloaderClient.connect("https://conformance.invalid/", CERT, {
-    decode: false, decoders: 0, transport: "/client/conformance/dist/fake-session.js", notCloneable: () => {},
+  const outcome = await DownloaderClient.connect("https://contract.invalid/", CERT, {
+    decode: false, decoders: 0, transport: "/client/contract/dist/fake-session.js", notCloneable: () => {},
   }).then((c) => (c.close(), "started"), (e: Error) => e.name);
   check(outcome === "DataCloneError", `connect: an option that cannot be cloned fails it (${outcome})`);
 }

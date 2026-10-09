@@ -71,7 +71,7 @@ for size in "${SIZES[@]}"; do
     # F2: content that compresses like a real series rather than like `field` (1.25:1).
     cine512) w=512; h=512; ch=3; depth=255;   mode=cine ;;
     ct512)   w=512; h=512; ch=1; depth=4095;  signed=1; mode=ct ;;
-    # The dispatch rig's real codestreams, one per shape the product serves — client/conformance/frames/.
+    # The dispatch rig's real codestreams, one per shape the product serves — client/contract/frames/.
     rig_c) w=160; h=160; ch=3; depth=255;   mode=cine ;;
     rig_g) w=160; h=160; ch=1; depth=65535; mode=ct ;;
     *) echo "unknown size $size" >&2; exit 2 ;;

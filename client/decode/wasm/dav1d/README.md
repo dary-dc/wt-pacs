@@ -49,7 +49,7 @@ What the link pulls in (`-Wl,--trace`): `libdav1d.a`, emscripten's libc (musl, M
 
 The client's own module is `client/decode/av1-dav1d.js`, which runs the `simd` arm and flushes
 before every keyframe (every frame at G = 1); `make_client_frames.sh` makes its warm-ups and
-conformance frames, the two group sets (G = 8 and one group) coded without alt-ref frames.
+contract frames, the two group sets (G = 8 and one group) coded without alt-ref frames.
 `build.sh` also writes `THIRD_PARTY.txt` beside the builds — the notices a shipped build owes.
 
 `dav1d.mjs`: `createDecoder(factory, {threads})` gives `decode(bytes)` — one temporal unit in, one

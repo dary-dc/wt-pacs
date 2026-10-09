@@ -23,7 +23,7 @@ async function dial(race: Implementation, quicMs: number | null, tcpMs: number |
   FakeWebSocket.failNext = tcpMs === null ? 1 : 0;
   const [quicAt, tcpAt] = [FakeTransport.dials, FakeWebSocket.dials];
   try {
-    return await race.connect("https://conformance.invalid/", CERT);
+    return await race.connect("https://contract.invalid/", CERT);
   } finally {
     FakeTransport.openAfterMs = FakeWebSocket.openAfterMs = 0;
     if (FakeTransport.dials === quicAt || FakeWebSocket.dials === tcpAt) throw new Error("the race did not dial both");
@@ -84,7 +84,7 @@ async function dialWithFill(race: Implementation, quicMs: number, tcpMs: number,
   FakeTransport.openAfterMs = quicMs;
   FakeWebSocket.openAfterMs = tcpMs;
   try {
-    return await (race.connect as FillDial)("https://conformance.invalid/", CERT, {
+    return await (race.connect as FillDial)("https://contract.invalid/", CERT, {
       fill: { from: 0, to: 1, onFrame: (f: ConformantFrame) => got.push(f.frameIndex), onError: (i: number) => failed.push(i) },
     });
   } finally {

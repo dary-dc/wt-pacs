@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # The AV1 payloads the client ships and tests with: one temporal unit each, as the store holds it.
 #
-#   client/conformance/av1/{g8,g10,g12,c8,c10,c12}.av1  90x70, with the generator's .sha256
-#   client/conformance/av1/inter.av1                    a frame of a group: must not decode alone
-#   client/conformance/av1/{s13,n13,n16}.av1            grey split top10+low: 13-bit, 13 and 16 signed
-#   client/conformance/av1/r8.av1                       8-bit RGB as its reversible colour transform
-#   client/conformance/av1/{yuv420,yuv444}.av1          colour as YUV: must be refused, not returned
-#   client/conformance/av1/{g8x20,whole12}/NNN.av1      every unit of a G = 8 and a one-group stream
+#   client/contract/av1/{g8,g10,g12,c8,c10,c12}.av1  90x70, with the generator's .sha256
+#   client/contract/av1/inter.av1                    a frame of a group: must not decode alone
+#   client/contract/av1/{s13,n13,n16}.av1            grey split top10+low: 13-bit, 13 and 16 signed
+#   client/contract/av1/r8.av1                       8-bit RGB as its reversible colour transform
+#   client/contract/av1/{yuv420,yuv444}.av1          colour as YUV: must be refused, not returned
+#   client/contract/av1/{g8x20,whole12}/NNN.av1      every unit of a G = 8 and a one-group stream
 #
 # Intra-only, which libaom 3.8.2 codes exactly at every depth; the groups without alt-ref frames,
 # which it then codes exactly too — client/decode/wasm/dav1d/README.md.
@@ -57,7 +57,7 @@ frame() {
   echo "$out: $(stat -c%s "$out") B"
 }
 
-C="$ROOT/client/conformance/av1"
+C="$ROOT/client/contract/av1"
 mkdir -p "$C"
 for cell in "g8 1 255 ct" "g10 1 1023 ct" "g12 1 4095 ct" "c8 3 255 field" "c10 3 1023 field" "c12 3 4095 field"; do
   read -r name ch maxval mode <<<"$cell"

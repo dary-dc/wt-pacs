@@ -1,5 +1,5 @@
 /**
- * The module `config.transport` points at during a conformance run: evaluated inside the
+ * The module `config.transport` points at during a contract run: evaluated inside the
  * downloader's worker, it installs the fake WebTransport there, then answers the page's
  * commands over the BroadcastChannel named by its own `?ch=` — the control path into a
  * worker the page cannot otherwise reach. Exports the real TransportSession over the fake.
@@ -52,7 +52,7 @@ function run(cmd: string, args: unknown[]): unknown {
   throw new Error(`unknown command ${cmd}`);
 }
 
-const name = new URL(import.meta.url).searchParams.get("ch") ?? "wtpacs-conformance";
+const name = new URL(import.meta.url).searchParams.get("ch") ?? "wtpacs-contract";
 const bc = new BroadcastChannel(name);
 bc.onmessage = (e: MessageEvent<Command>) => {
   const { id, cmd, args } = e.data;
