@@ -33,14 +33,14 @@ Every pin is in [`pins.sh`](pins.sh) and [`requirements.txt`](requirements.txt);
 
 | output | from | flags |
 | --- | --- | --- |
-| `openjph/openjph.{js,wasm}` | [`../openjph/htj2k_decoder.cpp`](../openjph/htj2k_decoder.cpp) over OpenJPH with [`../openjph/cb-threads.patch`](../openjph/cb-threads.patch) | `-O3 -msimd128 -fexceptions -pthread -DOJPH_CB_THREADS=1 -sPTHREAD_POOL_SIZE=1 -sINITIAL_MEMORY=4MB -sALLOW_MEMORY_GROWTH=1` |
+| `openjph/openjph.{js,wasm}` | [`../openjph/htj2k_decoder.cpp`](../openjph/htj2k_decoder.cpp) over OpenJPH | `-O3 -msimd128 -fexceptions -sINITIAL_MEMORY=4MB -sALLOW_MEMORY_GROWTH=1`, one thread |
 | `dav1d/dav1d.{js,wasm}` | [`../dav1d/dav1d_wrap.c`](../dav1d/dav1d_wrap.c) over dav1d | the lab's `simd` arm: `-O3 -msimd128`, `-Dbitdepths=8,16 -Denable_asm=false` |
 | `THIRD_PARTY_NOTICES` | every licence the page's code ships under | [`docs/av1/licensing.md`](../../../../docs/av1/licensing.md) §What it obliges |
 
-The OpenJPH build is row HTJ2KMT's adopted one: the code-block pool with one helper thread, so a page that loads it
-is cross-origin isolated, as the client already requires. Its range is taken as it packs, except for an 8-bit
-unsigned 3-component frame, whose `getRange()` is empty (min > max) and whose window comes from the tags; the
-switch is the `pack<…, Ranged>` template argument, chosen per frame from the header.
+The OpenJPH build is single-threaded: row HTJ2KMT's code-block pool lost a cold ask at 4× here and won no fill
+(docs/decode/README.md §The build, as delivered). Its range is taken as it packs, except for an 8-bit unsigned
+3-component frame, whose `getRange()` is empty (min > max) and whose window comes from the tags; the switch is the
+`pack<…, Ranged>` template argument, chosen per frame from the header.
 
 **Reproducible.** Each compile maps the build directory, the repository and the cache with `-ffile-prefix-map`
 (OpenJPH's assertions carry `__FILE__`), so a clone at another path builds the same bytes: the manifest is that

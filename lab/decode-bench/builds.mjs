@@ -3,7 +3,9 @@
  * a fill and a cold ask at 1× and 4×, every unit Williams-ordered within each round, one fresh browser a visit,
  * each frame's sha256 against the encoder's input, the renderer's peak PSS. docs/decode/README.md §The build, as delivered
  *
- *   NODE_PATH=$(npm root -g) node lab/decode-bench/builds.mjs [rounds] [SERIES=g512] [CORES=4] [OUT=rows.jsonl]
+ * `ARMS` takes `source` too, page.js's lab build.
+ *
+ *   NODE_PATH=$(npm root -g) node lab/decode-bench/builds.mjs [rounds] [SERIES=g512] [CORES=4] [ARMS=package,built] [OUT=rows.jsonl]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -19,7 +21,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../.
 const ROUNDS = Number(process.argv[2] || 10);
 const SERIES = process.env.SERIES || "g512";
 const CORES = Number(process.env.CORES || 4);
-const ARMS = ["package", "built"];
+const ARMS = (process.env.ARMS || "package,built").split(",");
 const UNITS = ARMS.flatMap((arm) => ["fill", "ask"].flatMap((scenario) => [1, 4].map((throttle) => ({ arm, scenario, throttle }))));
 const name = (u) => `${u.arm} ${u.scenario} ${u.throttle}x`;
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "builds-"));
@@ -65,7 +67,7 @@ async function visit({ arm, scenario, throttle }) {
   try {
     const browser = await chromium.connect(server.wsEndpoint());
     const page = await browser.newPage();
-    const decoder = arm === "built" ? "&decoder=built" : "";
+    const decoder = arm === "package" ? "" : `&decoder=${arm}`;
     await page.goto(`http://127.0.0.1:${http}/lab/downloader-cost/index.html?variant=Dd&scenario=${scenario}&fill=${truth.length}` +
       `&askFrame=${truth.length - 1}&digest${decoder}`);
     const wait = (f) => page.waitForFunction(f, null, { timeout: 300000, polling: 200 });
@@ -103,17 +105,18 @@ if (process.env.OUT) fs.writeFileSync(process.env.OUT, rows.map((r) => JSON.stri
 const med = (a) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const span = (a, d = 1) => `${med(a).toFixed(d)} [${Math.min(...a).toFixed(d)}–${Math.max(...a).toFixed(d)}]`;
 console.log(`\n${SERIES}, ${truth.length} frames, ${ROUNDS} rounds, ${CORES} cores, three decoders; median [range]\n`);
-console.log("| scenario | throttle | package ms | built ms | built ÷ package, paired by round (rounds faster) | exact | renderer peak PSS, package → built | JS+WASM, package → built |");
-console.log("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+console.log("| scenario | throttle | arm | ms | ÷ package, paired by round (rounds faster) | exact | renderer peak PSS | JS+WASM |");
+console.log("| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: |");
 for (const scenario of ["fill", "ask"]) {
   for (const throttle of [1, 4]) {
     const of = (arm) => rows.filter((r) => r.arm === arm && r.scenario === scenario && r.throttle === throttle);
-    const [p, b] = ARMS.map(of);
-    const ratio = b.map((r) => r.ms / p.find((q) => q.round === r.round).ms);
-    const exact = [...p, ...b].reduce((n, r) => n + r.exact, 0);
-    const frames = [...p, ...b].reduce((n, r) => n + r.frames, 0);
-    console.log(`| ${scenario} | ${throttle}× | ${span(p.map((r) => r.ms))} | ${span(b.map((r) => r.ms))} | ×${med(ratio).toFixed(3)} ` +
-      `(${ratio.filter((x) => x < 1).length}/${ratio.length}) | ${exact}/${frames} | ${span(p.map((r) => r.rendererMb), 0)} → ` +
-      `${span(b.map((r) => r.rendererMb), 0)} MB | ${span(p.map((r) => r.jsMb))} → ${span(b.map((r) => r.jsMb))} MB |`);
+    const p = of("package");
+    for (const arm of ARMS) {
+      const b = of(arm);
+      const ratio = b.map((r) => r.ms / p.find((q) => q.round === r.round).ms);
+      const vs = arm === "package" ? "—" : `×${med(ratio).toFixed(3)} (${ratio.filter((x) => x < 1).length}/${ratio.length})`;
+      console.log(`| ${scenario} | ${throttle}× | ${arm} | ${span(b.map((r) => r.ms))} | ${vs} | ${b.reduce((n, r) => n + r.exact, 0)}/` +
+        `${b.reduce((n, r) => n + r.frames, 0)} | ${span(b.map((r) => r.rendererMb), 0)} MB | ${span(b.map((r) => r.jsMb))} MB |`);
+    }
   }
 }
