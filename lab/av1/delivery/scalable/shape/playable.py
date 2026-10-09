@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Time to a playable base, arithmetic over measured bytes and decode times: every base of the series
-sent first back to back at the link's rate (row SVCORDER's bases-first, proposed, not built), each
+sent first back to back at the link's rate (the bases-first proposal, not built), each
 frame's share of the bytes equal, one decoder in order (the base is inter-coded); playable when the
 last base is decoded. The exact series: every byte of the payload, then its last frame decoded.
 

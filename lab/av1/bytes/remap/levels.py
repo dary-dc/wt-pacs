@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The share of samples and of levels each series uses above 12 (and 10) bits after its offset — row REMAP's
+"""The share of samples and of levels each series uses above 12 (and 10) bits after its offset — the remap measurement's
 first question, lab/av1/bytes/remap/README.md.
 
 usage: levels.py SET_DIR... [--out levels.json]

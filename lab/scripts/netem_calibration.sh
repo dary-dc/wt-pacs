@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Can a container's impaired link stand in for the kernel's? On the cloud rig, one server and the
 # cold_open probe on its own loopback; per round and delay the link is either link_impair.py (the
-# userspace relay rows 36-38 were measured through) or netem on `lo`, variants interleaved. Each variant's
+# userspace relay the earlier transport cells were measured through) or netem on `lo`, variants interleaved. Each variant's
 # three delays are fitted: slope = round trips, intercept = fixed cost. Results: docs/rig-limits.md §3.
 #
 #   SSH_KEY=<the rig key> lab/scripts/netem_calibration.sh [ROUNDS]

@@ -2,7 +2,7 @@
  * JXL in the browsers: `--probe` hands each set's first frame to every native path of every engine and compares
  * it with the fetched series; otherwise each (engine × throttle) cell is a fresh browser timing every set's variants —
  * native, libjxl-WASM per coding, OpenJPH on the served HTJ2K — in a Williams order every round, variants rotating
- * inside. Engines are launched as row XBROWSER launched them. lab/av1/bytes/jpeg-xl/README.md
+ * inside. Engines are launched as lab/av1/exact/engines launches them. lab/av1/bytes/jpeg-xl/README.md
  *
  *   node lab/av1/bytes/jpeg-xl/run.mjs --probe [--engines ...] [--codings jxl-e7-f0,...] [--mutate source]
  *   node lab/av1/bytes/jpeg-xl/run.mjs [--rounds 10] [--throttles 1,4] [--engines chromium154+jxl] [--codings ...]

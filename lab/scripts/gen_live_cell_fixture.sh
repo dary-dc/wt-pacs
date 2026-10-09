@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Primary live cell: 250 KB frames × 320 count (~80 MB series).
-# Does not overwrite lab/fixtures/frames_250k/ (80 frames) — separate path for gate/E0/E2/E4.
+# Does not overwrite lab/fixtures/frames_250k/ (80 frames) — separate path for the gate, netem check, miss cost and depth choice.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

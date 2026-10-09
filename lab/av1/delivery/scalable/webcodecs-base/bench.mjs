@@ -1,6 +1,6 @@
 /**
  * A scalable payload's base through WebCodecs, by dropping the OBUs of spatial layers above 0, against
- * dav1d-WASM's base on row SVCDEC's path (the product's av1-dav1d.js, its `preview`). Every picture
+ * dav1d-WASM's base on the scalable client path (the product's av1-dav1d.js, its `preview`). Every picture
  * goes to decoder.js's contract (av1-frame.js) and is hashed: a base against native dav1d's at
  * operating point 1, an exact frame against the encoder's input. lab/av1/delivery/scalable/webcodecs-base/README.md
  */

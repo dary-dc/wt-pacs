@@ -1,10 +1,10 @@
 /**
- * Row 43's payloads in Chromium, Firefox and WebKitGTK, as row 37 ran them (stock builds; lab/av1/exact/engines): each
+ * The split payloads in Chromium, Firefox and WebKitGTK, as the cross-engine run ran them (stock builds; lab/av1/exact/engines): each
  * engine opens index.html once and its worker takes every payload of the manifest through verify.js. Which
  * decoder gave each payload's pictures is read from verify.js's tag and held against what the engine should
  * choose: WebCodecs in Chromium where every stream is ≤ 10 bits, dav1d-WASM otherwise and in the other two.
  *
- * With --mixed (row 47, MIXDEC), a top over 10 bits goes to dav1d-WASM and its low to WebCodecs where the engine's probe passes.
+ * With --mixed (the mixed decode, queue row MIXDEC), a top over 10 bits goes to dav1d-WASM and its low to WebCodecs where the engine's probe passes.
  *
  *   node lab/av1/exact/split/browser.mjs SETS PAYLOADS [--engines chromium,firefox,webkit+sab] [--only k2,k3] [--mixed] [--out rows.json]
  */

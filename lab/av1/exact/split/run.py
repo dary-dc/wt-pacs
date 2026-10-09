@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from make_sets import splits  # noqa: E402
 
-# The fastest preset within 2 % of cpu0's bytes per series: rows 14 (lab/av1/bytes §ENC) and 33 (README §Samples over 12 bits).
+# The fastest preset within 2 % of cpu0's bytes per series: the encode-time sweep (lab/av1/bytes §ENC) and the 13–14-bit layout run (README §Samples over 12 bits).
 SHIPPED = {"ct_lidc": "allintra:6", "mr_ispy1": "good:6", "us_liver": "cpu0", "rf_fluoro": "allintra:7",
            "xa_dynact16": "good:6", "dbt12_ea1141": "allintra:5", "dbt10_ea1141": "good:6",
            "dbtproj_ge": "allintra:7", "dbtproj_holo": "allintra:7"}

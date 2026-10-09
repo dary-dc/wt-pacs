@@ -1,5 +1,5 @@
 /**
- * D8: the same decoder from a buffer and by streaming, interleaved, over three visits to a
+ * The same decoder from a buffer and by streaming, interleaved, over three visits to a
  * persistent profile, with what Chrome wrote to its WASM code cache beside the timings.
  * lab/decode-first-frame/README.md.
  *

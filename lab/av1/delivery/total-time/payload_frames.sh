@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Row TOTAL4's frames: each set's first N frames as the product's ingest writes them, the served HTJ2K and
+# The adopted payload's frames: each set's first N frames as the product's ingest writes them, the served HTJ2K and
 # the optimized AV1 payload, into OUT/SET with the variants.json run.mjs reads. lab/av1/delivery/total-time/README.md §Row TOTAL4
 #
 #   lab/av1/delivery/total-time/payload_frames.sh BUILD OUT SETDIR:N ...

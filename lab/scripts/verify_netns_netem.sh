@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Verify unshare + netem on lo works without host sudo (§0b local path).
-# Safe to run alongside E1/E3 agents — read-only probe.
+# Safe to run alongside other measurement agents — read-only probe.
 set -euo pipefail
 
 if unshare --user --map-root-user --net -- bash -c '

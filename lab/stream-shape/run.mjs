@@ -1,5 +1,5 @@
 /**
- * HOL1: one stream or a stream per frame, in Chromium through the relay. Every run
+ * One stream or a stream per frame, in Chromium through the relay. Every run
  * starts its own server and relay; the variants are rotated inside every round. lab/stream-shape/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/stream-shape/run.mjs --cell loss1 [--rounds 7]
@@ -40,7 +40,7 @@ const RATE = Number(arg("--rate", 20000));
 const LINK = ["--delay-ms", String(RTT / 2), "--rate-kbit", String(RATE), "--queue-pkts", arg("--queue", "200"),
   ...(TAX || TUN ? ["--self-timing"] : []), ...(arg("--trace") ? ["--trace", arg("--trace")] : [])];
 const CELLS = { loss0: [], loss1: ["--loss", "1"], loss3: ["--loss", "3"], burst: ["--loss-model", "ge"] };
-// Bursts of 3.5 packets, as row 86's profiles: p is what puts the mean at the cell's percent.
+// Bursts of 3.5 packets, as the phone-link profiles: p is what puts the mean at the cell's percent.
 for (const mean of [0.5, 1, 2, 4]) {
   CELLS[`ge${mean}`] = ["--loss-model", "ge", "--ge-r", "28.57", "--ge-p", String((mean * 28.57) / (100 - mean))];
 }

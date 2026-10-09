@@ -1,5 +1,5 @@
 //! What one frame costs when it is the first thing a session asks for, in four session states
-//! and under two levers. S7 says it is slow start and not the link — `lab/page-open/README.md`
+//! and under two levers. The page-open runs say it is slow start and not the link — `lab/page-open/README.md`
 //! counts the same thing for a page. `docs/transport/transport-conclusions.md` holds the verdict.
 //!
 //! Run it through `lab/scripts/link_impair.py`, which the `lossy` and `rebound` states drive

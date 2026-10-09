@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row EXACT's series for total-time's run.mjs: each set through the product's ingest, as HTJ2K and as the
+"""The frame check's series for total-time's run.mjs: each set through the product's ingest, as HTJ2K and as the
 optimized AV1 payload, every frame's digest from the ingest's metadata, and the variants that serve them:
 
   htj2k, chk        the HTJ2K frames, unchecked and checked

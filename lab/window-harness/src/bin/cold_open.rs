@@ -1,7 +1,7 @@
 //! What a cold open costs, phase by phase, and what one ask on a fresh session costs after it.
 //!
 //! The counts this checks are `docs/ARCHITECTURE.md` (four round trips to first byte)
-//! and S7 (a 250 KB ask is slow-start-bound, ~5 flights). Run it through
+//! and the slow-start bound (a 250 KB ask, ~5 flights). Run it through
 //! `lab/scripts/link_impair.py` — on loopback every phase reads ~0 and decides nothing.
 //!
 //! usage: cold_open --url https://127.0.0.1:5555/ --rounds 5 --rtt-ms 80
@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
             format!("{name}={m:.1}ms ")
         }
     };
-    // S10 is a tail, not a median: a first probe timeout only shows in the worst few per cent.
+    // A tail, not a median: a first probe timeout only shows in the worst few per cent.
     let tail = |name: &str, v: Vec<f64>| {
         format!("{name}_p95={:.1}ms {name}_p99={:.1}ms ", quantile(v.clone(), 0.95), quantile(v, 0.99))
     };

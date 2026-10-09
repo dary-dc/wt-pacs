@@ -1,4 +1,4 @@
-//! S21: a fill asked coarse to fine — every 8th frame, then every 4th … — against the sequential
+//! A fill asked coarse to fine — every 8th frame, then every 4th … — against the sequential
 //! order, each frame asked exactly once. What it moves is time-to-scrubbable, not total fill time;
 //! `--force-pool-reads` on the server says what the permuted order costs the read path.
 //! `docs/transport/transport-conclusions.md` §3, the fill's order.

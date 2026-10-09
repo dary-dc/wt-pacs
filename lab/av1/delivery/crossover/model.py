@@ -15,7 +15,7 @@ def fill(n, mb, ms, p, mbit, c):
     return c + wire + dec + (n - 1) * max(wire, dec / p)
 
 
-# Rows 95 and 96, Chromium 141, every input from lab/av1/bytes/{dbt,mammography}-at-scale/README.md:
+# The DBT and mammography at-scale runs, Chromium 141, every input from lab/av1/bytes/{dbt,mammography}-at-scale/README.md:
 # frames timed, HTJ2K MB of them (DBT given; FFDM from the 5 Mbit/s 1x cell), AV1's best variant's bytes over HTJ2K's,
 # HTJ2K ms a frame 1x and 4x, AV1 over HTJ2K a frame 1x and 4x (WebCodecs, the split's top <= 10 bits),
 # and the measured fill ratios at 5, 20, 50 Mbit/s, 1x and 4x.
@@ -97,7 +97,7 @@ for k, s in cal.items():
     print(f"  {k}: " + ", ".join(f"{m} Mbit {1 - ratio(s, m, 0, fit):+.3f} / {1 - ratio(s, m, 1, fit):+.3f}" for m in (5, 16.7, 20)))
 
 # Predicted only: the two 10-bit volumes AV1 codes a fifth smaller, never timed whole. Bytes from their bit/sample,
-# every 8th slice as rows 95 and 96 timed, the round-trip constant the timed volumes' median.
+# every 8th slice as the at-scale runs timed, the round-trip constant the timed volumes' median.
 for name, slices, w, h, bps, rho, t, tau in (("DBT 10 dbts_b4", 84, 1996, 2457, 2.44, 0.760, (61.9, 279), (2.25, 2.00)),
                                              ("DBT 10 dbts_b5", 66, 1890, 2457, 2.39, 0.797, (65.0, 252), (2.11, 2.09))):
     s = (math.ceil(slices / 8), w * h * bps / 8 / 1e6, rho, t, tau, None, 0.5)

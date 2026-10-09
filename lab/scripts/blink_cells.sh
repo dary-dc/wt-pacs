@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# W3: what a blink costs, where in the transfer it lands, and whether restarting slow start
+# What a blink costs (W3), where in the transfer it lands, and whether restarting slow start
 # after the silence is worth it. Variants interleaved within every round, in a Williams order
 # (lab/scripts/order.py).
 # Results: docs/transport/transport-conclusions.md §3, after a blink.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Row 108 (ASKL): depth-1 asks over QUIC and over kernel TCP (the WebSocket fallback), each with the
+# The ask's loss sensitivity: depth-1 asks over QUIC and over kernel TCP (the WebSocket fallback), each with the
 # same controller, through the packet-layer relay, at 0 / 0.5 / 1 / 2 / 4 % Gilbert-Elliott loss, 80 ms, a step trace.
 # Summarised by lab/stream-shape/askl.py; results in docs/transport/transport-conclusions.md §5, ASKL.
 #

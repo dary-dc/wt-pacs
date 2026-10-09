@@ -1,5 +1,5 @@
 /**
- * Row CROSSMEASURE: docs/av1/crossover-protocol.md's cells through row TOTAL's run.mjs, one series at a time, its
+ * The crossover measurement: docs/av1/crossover-protocol.md's cells through the total-time run.mjs, one series at a time, its
  * engine × CPU groups in a Williams order, the series' order rotating by round. lab/av1/delivery/crossover/README.md §Measured
  *
  *   FIREFOX_PATH=... NODE_PATH=$(npm root -g) node lab/av1/delivery/crossover/measure.mjs --frames DIR --out rows.jsonl

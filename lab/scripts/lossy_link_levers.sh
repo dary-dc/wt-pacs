@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# L3: send levers on a lossy, rate-limited link. The rig's one reachable port serves each variant in
+# Send levers on a lossy, rate-limited link. The rig's one reachable port serves each variant in
 # turn, server -> client shaped with netem; each round runs the variants in a Williams order
 # (lab/scripts/order.py) and each variant a fill and an on-demand cell with the native driver. Results: docs/rig-limits.md §3.
 #

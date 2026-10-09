@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# W2: the controller questions, through lab/scripts/link_impair.py.
+# The controller questions (W2), through lab/scripts/link_impair.py.
 #   S8  an early slow-start exit — Cubic against BBR (the exit itself is retired); shallow and deep buffer,
 #       with and without jitter.
 #   S9  retired with its flag; code: `git show archive/arms-2026-10-03:lab/scripts/controller_cells.sh`.
@@ -61,7 +61,7 @@ start_relay() {  # extra relay args...
 stop_relay() { kill -TERM "$RELAY_PID" 2>/dev/null || true; sleep 0.3; }
 
 # Per session: datagrams sent, lost, congestion events, and the smoothed RTT the session ended
-# on — on a deep buffer that last one is the standing queue, which is what S8 is about.
+# on — on a deep buffer that last one is the standing queue, which is what the slow-start-exit cell is about.
 link_cost() {
   python3 - "$T/server.log" <<'PY'
 import re, sys

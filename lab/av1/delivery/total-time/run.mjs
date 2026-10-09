@@ -1,7 +1,7 @@
 /**
  * TOTAL: a whole series filled through the downloader, wire plus decode, every variant of a series on
  * the same link and CPU: HTJ2K, AV1 intra through dav1d-WASM and WebCodecs, the splits, one group,
- * a lossy preview, row LLSIZE's codings (TOTAL2), a layer-major scalable series (BASES), row ENCX's (TOTAL3),
+ * a lossy preview, the AV1-alone codings (TOTAL2), a layer-major scalable series (BASES), the low-stream changes (TOTAL3),
  * the order the frames are asked in (ORDER), loss and jitter and asks after a partial fill (LOSSLINK). Fixed rates and
  * phone-like profiles behind the relay, headless Chromium (and Firefox, TOTAL4) at 1× and 4×. Every visit is its own server, relay and browser;
  * (set × link × impairment × throttle) cells in a Williams order each round, the variants inside each cell the same way.
@@ -92,13 +92,13 @@ function variantOf(set, name) {
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, viewer: a.viewer,
       opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
-        // Row DECODEPACE: the downloader's lab flag.
+        // Decode pacing: the downloader's lab flag.
         ...(a.followQueue && { followQueue: true }),
-        // Row ASKDEADLINE: the downloader's survival deadlines, and a transport that reports its silences.
+        // Ask deadlines: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
-        // A `downloader` variant runs that revision of the downloader (row CLIENT).
+        // A `downloader` variant runs that revision of the downloader.
         ...(a.downloader && { worker: a.downloader, decoderWorker: a.decoder }),
-        // Row EXACT: the series' digests, so each decoder worker checks every frame.
+        // Frame check: the series' digests, so each decoder worker checks every frame.
         ...(a.digests && { digests: MUTATE === "digest" ? a.digests.map((d) => d.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : a.digests }) } };
   }
   const decoder = { ...DAV1D, ...(a.split && { split: a.split }), ...(a.depth && { depth: a.depth }), ...(a.offset && { offset: a.offset }),
@@ -208,7 +208,7 @@ async function inBrowser(engine, url, throttle, errors, threads = {}) {
 }
 
 const TICK_MS = 1000 / Number(execFileSync("getconf", ["CLK_TCK"]));
-/** Row DECODEPACE: each dedicated worker thread under `root`, by tid — CPU ms (utime + stime) and voluntary switches. */
+/** Decode pacing: each dedicated worker thread under `root`, by tid — CPU ms (utime + stime) and voluntary switches. */
 function workerThreads(root) {
   const parent = new Map();
   for (const p of readdirSync("/proc").filter((d) => /^\d+$/.test(d))) {
@@ -275,7 +275,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const errors = [];
   const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
     ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}),
-    // Row VIEWER: the product's page on the variant's metadata, and both pages timed from navigation.
+    // The viewer: the product's page on the variant's metadata, and both pages timed from navigation.
     ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(arg("--origin") && { origin: arg("--origin") }) });
   let r = null;
   const threads = {};
@@ -333,7 +333,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
 }
 
 /**
- * Row DECODEPACE: the decoders' work over the fill. Worker threads by tid, the downloader's first and left out,
+ * Decode pacing: the decoders' work over the fill. Worker threads by tid, the downloader's first and left out,
  * each counted from the page's hello; and from the frames' stamps, decoders used and busy at once.
  */
 function pool(frames, { before, after }) {

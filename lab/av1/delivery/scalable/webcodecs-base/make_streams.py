@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Row SVCQ's two-layer payloads (a lossy base at q 40, half or full size, under a lossless top), with
+"""The scalable two-layer payloads (a lossy base at q 40, half or full size, under a lossless top), with
 one keyframe and with one every unit (G = 1), and the truth WCBASE checks them against: each top
 frame's checksum written when its input was made, and each base as native dav1d returns it at
 operating point 1.
 
 The series WebCodecs can take whole are the 8-bit ultrasound and the synthetic grey 10 and RGB 8 sets;
-the fluoroscopy and MR (12 bits) are coded as well, and also as their top 10 bits, row SPLIT10's top
+the fluoroscopy and MR (12 bits) are coded as well, and also as their top 10 bits, the top10+low split's top
 stream, a derived input whose checksums are written here once its source frames match theirs.
 
 usage: make_streams.py BUILD WORK SET_DIR ...   — lab/av1/delivery/scalable/webcodecs-base/README.md

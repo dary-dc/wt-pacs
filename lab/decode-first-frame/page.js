@@ -1,4 +1,4 @@
-// D6: what a decoder's first frame pays that its steady state does not. One fresh instance per
+// What a decoder's first frame pays that its steady state does not. One fresh instance per
 // visit, then K decodes of the same fixture, each timed on its own.
 // ?set=decode_g512&k=8[&warmup=1][&instantiate=streaming|buffer]
 const params = new URLSearchParams(location.search);
@@ -40,7 +40,7 @@ async function main() {
     el.onerror = () => reject(new Error("decoder glue did not load"));
     document.head.append(el);
   });
-  // D8: the product's path hands the glue a binary, which forbids a streamed compile; given none
+  // The product's path hands the glue a binary, which forbids a streamed compile; given none
   // the glue streams its own fetch. Only the streamed one is code-cached.
   const opts = { locateFile: (f) => "/client/decode/wasm/vendor/openjph/" + f };
   if (instantiate === "buffer") {

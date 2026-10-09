@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# L7: the read path where it misses. On the cloud rig, server and native driver on the rig's own
+# The read path where it misses. On the cloud rig, server and native driver on the rig's own
 # loopback, a 4 GB series on a 954 MB host, so reads reach the throttled block device without any
 # eviction; every run starts at a frame no earlier run read. Variants: read_ahead_kb 2048 (the rig's)
 # against 128 (the workstation's), interleaved. The server's own hit/miss line says how cold each

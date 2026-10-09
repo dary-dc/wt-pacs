@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CC1: the congestion controller priced in headless Chromium, the downloader through the relay —
+# The congestion controller priced in headless Chromium, the downloader through the relay —
 # a fill and one ask on a fresh session, per controller, variants in a Williams order inside every round
 # (lab/scripts/order.py). Each run starts its own server and relay, and the server's `session path`
 # line gives what was sent, lost and the smoothed round trip at the end. Results: docs/transport/transport-conclusions.md §1.

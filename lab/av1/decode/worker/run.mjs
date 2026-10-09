@@ -1,5 +1,5 @@
 /**
- * DECODE: decode time a frame through the product's decoder worker, client/downloader before row 49 against after,
+ * DECODE: decode time a frame through the product's decoder worker, client/downloader before the worker rework against after,
  * in headless Chromium. Every throttle is a fresh browser, in a Williams order every round; variants and sets rotate
  * inside it. lab/av1/decode/worker/README.md
  *

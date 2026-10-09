@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """RESID's bytes per set and CRF, over the exact HTJ2K series': the preview alone, preview + HTJ2K
-(row PREVIEW's variant: the exact frames sent whole after the preview), and preview + residual in HTJ2K
+(the preview measurement's variant: the exact frames sent whole after the preview), and preview + residual in HTJ2K
 and in AV1 — the preview's net cost is the last two minus 1.
 
 usage: summary.py OUT/manifest.json   — lab/av1/delivery/residual/README.md

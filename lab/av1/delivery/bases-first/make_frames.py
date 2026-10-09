@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """BASES' frames: each set as HTJ2K, intra AV1, single-layer and layer-major scalable AV1, one file per entry.
 
-htj2k and av1 as row TOTAL makes them. single: libaom 3.15.1's svc_encoder_rtc, one lossless layer, one
-keyframe, in frame order. svc: the same encoder at row SVCSHAPE's least-overhead shape (two spatial
+htj2k and av1 as the total-time harness makes them. single: libaom 3.15.1's svc_encoder_rtc, one lossless layer, one
+keyframe, in frame order. svc: the same encoder at the scalable-shape sweep's least-overhead shape (two spatial
 layers, a quarter-size base at q 40, a lossless top, one keyframe) as docs/av1/adr-unit.md §5 lays it
 out: entry i < F is frame i's base (its temporal unit up to the first OBU of spatial layer 1), entry
 F + i the whole unit. Every exact entry is decoded natively and matched with the checksum of the
@@ -28,7 +28,7 @@ import svc  # noqa: E402
 from size import Set  # noqa: E402
 from units import drop_top, ivf_units  # noqa: E402
 
-# Row TOTAL's frame maker, under its own name: it imports speed's make_frames itself.
+# The total-time frame maker, under its own name: it imports speed's make_frames itself.
 _spec = importlib.util.spec_from_file_location("total_frames", HERE.parent / "total-time/make_frames.py")
 total = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(total)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Row INGEST's checks on the lab's pinned sets: the product's DICOM ingest against independent paths.
+"""Checks on the lab's pinned sets: the product's DICOM ingest against independent paths.
 
   samples    every frame byte-identical to fetch_data.py's NNN.raw (pydicom's pixel_array, not the ingest's reader)
   attributes every display attribute equal to DCMTK's dcmdump's

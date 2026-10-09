@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# W4b: a fill many times a deep buffer, at a flat rate and on traces of the same mean, per
+# A fill many times a deep buffer, at a flat rate and on traces of the same mean, per
 # controller — how long the fill takes and how much queue stands behind it.
 # Results: docs/transport/transport-conclusions.md §3 The slow-start exit.
 #
