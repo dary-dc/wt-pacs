@@ -2,14 +2,15 @@
 # The decoder built from source, with the initial heap a parameter and the shared-heap
 # variant built from the same file. docs/decode/README.md says what it is for.
 #
-#   EMSDK=... INITIAL_MB=... VARIANTS="plain shared" lab/decode-bench/wasm/build.sh
+#   INITIAL_MB=... VARIANTS="plain shared" lab/decode-bench/wasm/build.sh
 #
 # Any other variant name builds with EXTRA_FLAGS, which is how L17 compares build settings:
 #   VARIANTS=lto EXTRA_FLAGS="-flto" lab/decode-bench/wasm/build.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 HERE="$ROOT/lab/decode-bench/wasm"
-EMSDK="${EMSDK:-$HOME/emsdk}"
+EMSDK="${EMSDK:-$ROOT/lab/.av1-build/emsdk}"
+[[ -f "$EMSDK/emsdk_env.sh" ]] || { echo "no emsdk at $EMSDK: client/decode/wasm/dav1d/build.sh fetches the pinned one, or set EMSDK" >&2; exit 2; }
 SRC="${SRC:-$ROOT/lab/.openjph-build/src}"
 OUT="${OUT:-$ROOT/lab/.openjph-build/wasm}"
 INITIAL_MB="${INITIAL_MB:-16}"

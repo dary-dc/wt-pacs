@@ -105,7 +105,7 @@ FILL. `lte-good` and `wifi-home`: row PROF's profiles (`lab/scripts/profile_cell
 `TMobile-LTE-short` trace (16.7 Mbit mean, 50 ms, Gilbert–Elliott 0.01 % in bursts of 3.5, a 500 ms
 FIFO) and the Wi-Fi steps 15/40/10/30/15 Mbit of 12 s (30 ms, 0.5 %, 300 ms) — **without** PROF's
 competing flow and outage, which this harness does not run. The trace is fetched into
-`~/.cache/wtpacs-traces` and checked against the hash PROF recorded.
+`lab/.traces/` and checked against the hash PROF recorded.
 
 **A visit** is its own `series-server`, relay (`link_impair.py --self-timing`) and headless Chromium;
 the page connects the downloader as the product does — three decoders, two frames outstanding each,

@@ -17,7 +17,7 @@ import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, r
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { order } from "../../../order.mjs";
 import { throttleTree } from "../../../scripts/cpu_throttle.mjs";
@@ -44,7 +44,7 @@ const port = () => 20000 + ((Math.random() * 25000) | 0);
 /** The relay times the link and anything that preempts it reads as jitter: it has a core to itself. */
 const RIG_CORE = arg("--rig-core", "3");
 const BROWSER_CORES = arg("--browser-cores", "0-2");
-const TRACES = process.env.TRACES ?? path.join(homedir(), ".cache/wtpacs-traces");
+const TRACES = process.env.TRACES ?? path.join(ROOT, "lab/.traces");
 
 /** Mahimahi's trace, fetched for local use only (GPL-3.0); its hash as PROF recorded it. */
 const LTE = { file: "TMobile-LTE-short.down", sha256: "4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43" };

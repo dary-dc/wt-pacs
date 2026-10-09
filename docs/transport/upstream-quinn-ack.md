@@ -78,7 +78,7 @@ The test is also the learning path: it pins the behaviour in quinn's terms (spac
 the congestion gate) before touching `poll_transmit`.
 
 **Written and run 2026-09-25 (QA1)** — `ack_is_not_held_back_by_a_full_congestion_window`, in
-[`../../patches/quinn-proto-0.11.18-ack-when-congestion-blocked.patch`](../../patches/quinn-proto-0.11.18-ack-when-congestion-blocked.patch)
+[`upstream-quinn-ack.patch`](upstream-quinn-ack.patch)
 with the fix below. 100 ms one way, a server whose Cubic window is two packets, a client PING;
 the time from the PING to the client's first ACK frame, on a 1 ms simulated clock:
 

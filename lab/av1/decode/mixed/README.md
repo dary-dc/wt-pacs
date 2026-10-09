@@ -38,7 +38,7 @@ decodes it today; `kKm` the same file with the flag, only where its top is over 
 2; 14 bits: k = 2, 3); w10 is k = b − 10, every stream through WebCodecs.
 
 **`run.mjs bound`** decodes each split payload whose top is over 10 bits through dav1d-WASM in a lab worker
-(`bound-worker.js`), as `av1.js` does today, timing the top's decode (with its placement), the low's and
+(`bound-worker.js`, on the page `bound.html`), as `av1.js` does today, timing the top's decode (with its placement), the low's and
 the merge apart: the low's share of the frame is the most the flag can save. **`run.mjs decode`** is row
 REP14's harness (`lab/av1/decode/per-frame/drive.js`) over today's, the mixed and the w10 variant and OpenJPH: the
 product's decoder worker, one frame in flight, the worker's `decodeStart`–`decodeEnd`. Both hash every

@@ -13,7 +13,7 @@ client/decode/wasm/fetch_openjph.sh                          # the package build
 FRAMES=87  lab/scripts/gen_htj2k_fixtures.sh c512          # the three series the lane asks for
 FRAMES=237 lab/scripts/gen_htj2k_fixtures.sh g512
 FRAMES=64  lab/scripts/gen_htj2k_fixtures.sh g2048
-EMSDK=~/emsdk INITIAL_MB=4 lab/decode-bench/wasm/build.sh  # the build at its 4 MB floor
+INITIAL_MB=4 lab/decode-bench/wasm/build.sh  # the build at its 4 MB floor
 
 npm install -g playwright && export NODE_PATH="$(npm root -g)"
 export CHROME_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome   # if playwright's pin differs

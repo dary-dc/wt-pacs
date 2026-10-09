@@ -587,7 +587,7 @@ decisions).
 The counts above use this tree's dev dial: a self-signed 450 B leaf pinned by hash. **Before it has
 validated the client's address a QUIC server may send three times what it received**; a quinn Initial
 is 1 200 B, so the first flight is capped at **3 600 B** and the rest waits a round trip. Chains from a
-throwaway CA, padded as a public CA issues them, flights read by `lab/scripts/first_flight.py`, slopes
+throwaway CA, padded as a public CA issues them (`lab/scripts/cert_chain_cells.sh` runs it all), flights read by `lab/scripts/first_flight.py`, slopes
 over 40 / 80 / 160 ms, five variants interleaved, n = 7 a delay:
 
 | variant | server's first flight | first byte | session ready |
