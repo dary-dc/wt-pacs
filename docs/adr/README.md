@@ -13,7 +13,7 @@ One record per decision, corrected in place when a claim in it is wrong ([`disk-
 | [`reject-server-ordering.md`](reject-server-ordering.md) | the server serves asks in the order they arrive | accepted |
 | [`disk-access.md`](disk-access.md) | how the server reads frame bytes: a page-cache hit inline, a miss to the ring or the pool, and its deployment | accepted |
 | [`transport-idle-sessions.md`](transport-idle-sessions.md) | a keep-alive pair holds a session open while the user reads | proposed; built, off by default |
-| [`transport-quic-stream-receive-window-defaults.md`](transport-quic-stream-receive-window-defaults.md) | quinn's default stream receive windows, not equalised across arms | accepted |
+| [`transport-quic-stream-receive-window-defaults.md`](transport-quic-stream-receive-window-defaults.md) | quinn's default stream receive windows, not equalised across variants | accepted |
 | [`telemetry-server-pipeline.md`](telemetry-server-pipeline.md) | server telemetry: the lab wraps the product's pipeline steps, in a feature-gated build | accepted |
 | [`telemetry-instrument-clients-from-outside.md`](telemetry-instrument-clients-from-outside.md) | the browser clients are instrumented by patching `WebTransport` from outside, not by an inline recorder | accepted |
 | [`exactness-in-production.md`](exactness-in-production.md) | every shown frame checked in the decoder worker against an XXH3-64 digest written at ingest, before paint; a mismatch decoded again, else blocked, and reported | proposed 2026-10-07; not built |

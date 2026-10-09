@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The downloader over each transport client in turn, against a real server. A fill and a
-# cold ask per arm, interleaved with the order reversed each round.
+# cold ask per variant, interleaved with the order reversed each round.
 # docs/ARCHITECTURE.md §Capabilities.
 #
 #   ROUNDS=4 lab/scripts/downloader_both_clients.sh
@@ -66,12 +66,12 @@ for _ in $(seq 50); do curl -sf "http://127.0.0.1:$PORT/harness/" >/dev/null 2>&
 
 : > "$T/rows.tsv"
 for r in $(seq 1 "$ROUNDS"); do
-  if (( r % 2 )); then arms=(ts wasm); else arms=(wasm ts); fi
-  for arm in "${arms[@]}"; do
+  if (( r % 2 )); then variants=(ts wasm); else variants=(wasm ts); fi
+  for variant in "${variants[@]}"; do
     url="http://127.0.0.1:$PORT/harness/"
-    if [[ "$arm" == wasm ]]; then url="$url?transport=/client/transport/wasm/session-adapter.js"; fi
+    if [[ "$variant" == wasm ]]; then url="$url?transport=/client/transport/wasm/session-adapter.js"; fi
     out="$(node client/contract/drive_page.cjs "$url" 2>&1)" || { printf '%s\n' "$out" >&2; exit 1; }
-    printf '%s\t%s\n' "$arm" "$(tr '\n' '|' <<<"$out")" >> "$T/rows.tsv"
+    printf '%s\t%s\n' "$variant" "$(tr '\n' '|' <<<"$out")" >> "$T/rows.tsv"
   done
   echo "round $r/$ROUNDS" >&2
 done
@@ -80,19 +80,19 @@ python3 - "$T/rows.tsv" <<'PY'
 import re, sys, statistics as st
 rows = [l.split('\t', 1) for l in open(sys.argv[1]).read().splitlines() if l]
 got = {}
-for arm, blob in rows:
+for variant, blob in rows:
     start = re.search(r'decoders up in (\d+) ms', blob)
     ask = re.search(r'single ask .*?sha (ok|MISMATCH)', blob)
     fill = re.search(r'fill .*?(\d+) ms', blob)
-    d = got.setdefault(arm, {'start': [], 'fill': [], 'sha': set()})
+    d = got.setdefault(variant, {'start': [], 'fill': [], 'sha': set()})
     if start: d['start'].append(int(start.group(1)))
     if fill: d['fill'].append(int(fill.group(1)))
     if ask: d['sha'].add(ask.group(1))
 med = lambda a: st.median(a) if a else float('nan')
-print(f"\n{'arm':6} {'n':>3} {'start+dial ms':>15} {'fill ms':>10}  single ask")
-for arm in ('ts', 'wasm'):
-    d = got.get(arm)
+print(f"\n{'variant':6} {'n':>3} {'start+dial ms':>15} {'fill ms':>10}  single ask")
+for variant in ('ts', 'wasm'):
+    d = got.get(variant)
     if not d: continue
-    print(f"{arm:6} {len(d['start']):>3} {med(d['start']):>15.0f} {med(d['fill']):>10.0f}  "
+    print(f"{variant:6} {len(d['start']):>3} {med(d['start']):>15.0f} {med(d['fill']):>10.0f}  "
           f"{','.join(sorted(d['sha'])) or 'not seen'}")
 PY

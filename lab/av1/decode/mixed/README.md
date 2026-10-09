@@ -8,7 +8,7 @@ decodes the top. The bytes do not change; only decode can. The verdict is in
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §AV1.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 ingest/coded-frames/build.sh                                          # ingest's in-process check
@@ -17,7 +17,7 @@ P=lab/av1/.venv/bin/python W=lab/.av1-work/mixdec
 $P lab/av1/decode/mixed/make_frames.py lab/.av1-build $W lab/av1/data   # each k at its shipped preset, ~30 min
 NODE_PATH=$(npm root -g) node lab/av1/decode/mixed/run.mjs bound --rounds 10 --out bound.json
 NODE_PATH=$(npm root -g) node lab/av1/decode/mixed/run.mjs decode --rounds 10 --out decode.json
-$P lab/av1/decode/mixed/mixed_arms.py $W                             # kKm beside kK in arms.json
+$P lab/av1/decode/mixed/mixed_variants.py $W                             # kKm beside kK in variants.json
 NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W --links r20000,r50000 --throttles 4 \
   --rounds 10 --out total.jsonl
 # exactness, row 43's synthetic set and the real series, every engine (row 43's harness, --mixed):
@@ -30,7 +30,7 @@ path): a split payload whose top is over 10 bits starts its low unit on WebCodec
 WebCodecs fails or whose probe failed is decoded by dav1d-WASM after the top. A top that fails waits for
 its low to settle, so no low is left in flight for the next payload.
 
-**Series and arms.** The 13- and 14-bit series of rows 2, 21 and 45: the CT (`ct_lidc`), the cone-beam
+**Series and variants.** The 13- and 14-bit series of rows 2, 21 and 45: the CT (`ct_lidc`), the cone-beam
 (`xa_dynact16`), the two signed CTs (`ct_nlst`, `ct_crc`) and both projection systems (`dbtproj_ge`,
 `dbtproj_holo`), every frame. Payloads are `ingest/coded-frames/ingest.py --split K` at each (series, k)'s shipped
 preset, as rows 44 and 45 found it (`make_frames.py`'s table). `kK` is the payload split at k as the client
@@ -40,10 +40,10 @@ decodes it today; `kKm` the same file with the flag, only where its top is over 
 **`run.mjs bound`** decodes each split payload whose top is over 10 bits through dav1d-WASM in a lab worker
 (`bound-worker.js`), as `av1.js` does today, timing the top's decode (with its placement), the low's and
 the merge apart: the low's share of the frame is the most the flag can save. **`run.mjs decode`** is row
-REP14's harness (`lab/av1/decode/per-frame/drive.js`) over today's, the mixed and the w10 arm and OpenJPH: the
+REP14's harness (`lab/av1/decode/per-frame/drive.js`) over today's, the mixed and the w10 variant and OpenJPH: the
 product's decoder worker, one frame in flight, the worker's `decodeStart`–`decodeEnd`. Both hash every
 frame against its source's checksum; every throttle cell is a fresh headless Chromium in a Williams order
-each round, sets and arms rotating inside it; 4× is `lab/scripts/cpu_throttle.mjs` on the browser's tree.
+each round, sets and variants rotating inside it; 4× is `lab/scripts/cpu_throttle.mjs` on the browser's tree.
 
 ## The bound (2026-10-06)
 
@@ -136,8 +136,8 @@ the 13-bit series, 113–207 and 442–790 on the projections.
 
 Row TOTAL's harness (`lab/av1/delivery/total-time/run.mjs`, the real server behind the relay, links and rig unchanged) on the
 cells where the decoder is the clock: 4×, 50 Mbit, 12 rounds, Williams order, `VOID` visits dropped (19 of 432),
-n = 10–12 an arm; `mixed_arms.py` adds the kKm arms, `total_summary.mjs` pairs them by round. **Every frame of
-every visit exact** (35 616/35 616, 20 Mbit's included). Seconds to every frame on the page, and the mixed arm's
+n = 10–12 a variant; `mixed_variants.py` adds the kKm variants, `total_summary.mjs` pairs them by round. **Every frame of
+every visit exact** (35 616/35 616, 20 Mbit's included). Seconds to every frame on the page, and the mixed variant's
 round-paired ratios:
 
 | series | HTJ2K s | k | today s | mixed s | ×today | ×w10 | ×HTJ2K |
@@ -164,7 +164,7 @@ round-paired ratios:
 * **Against HTJ2K it wins on the two CTs (0.93–0.97, where today loses 1.18–1.23)** and loses 2–18 % elsewhere,
   where today loses 16–45 %.
 * **20 Mbit is not claimed.** 88 of its 144 visits (four rounds) came back `VOID` — the relay's p99 a hair over
-  1 ms on this host — and the kept ones (n = 0–4 an arm) put mixed at 0.95–1.00 of today: the wire is that
+  1 ms on this host — and the kept ones (n = 0–4 a variant) put mixed at 0.95–1.00 of today: the wire is that
   cell's clock, as row REP14 found.
 * **Saturation.** As rows TOTAL and REP14: at 4× on 50 Mbit the browser's three slowed cores are the clock.
   Mixed moves the low's decode off the worker's thread onto WebCodecs' — the same cores — so what it buys

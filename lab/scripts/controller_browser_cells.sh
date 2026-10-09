@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # CC1: the congestion controller priced in headless Chromium, the downloader through the relay —
-# a fill and one ask on a fresh session, per controller, arms in a Williams order inside every round
+# a fill and one ask on a fresh session, per controller, variants in a Williams order inside every round
 # (lab/scripts/order.py). Each run starts its own server and relay, and the server's `session path`
 # line gives what was sent, lost and the smoothed round trip at the end. Results: docs/transport/transport-conclusions.md §1.
 #
 #   lab/scripts/controller_browser_cells.sh loss1|loss3|radio|blink|jitter10|jitter20 [rounds]
-#     [ARMS="cubic bbr cubic-restart"] [MODES="fill ask"] [RTT=80] [RATE=20000] [FILL=20] [QUEUE=200]
+#     [VARIANTS="cubic bbr cubic-restart"] [MODES="fill ask"] [RTT=80] [RATE=20000] [FILL=20] [QUEUE=200]
 #     [LOCK=file — held through each round, so a shared host's other campaigns stay out of it]
 #
-# An arm is a controller, or `name:controller[:server-binary[:server flags]]` — another build, or
+# A variant is a controller, or `name:controller[:server-binary[:server flags]]` — another build, or
 # the same one with flags: `iw32:cubic::--initial-window-bytes=38400`.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 CELL="${1:?cell}"
 ROUNDS="${2:-7}"
-read -r -a ARM_LIST <<< "${ARMS:-cubic bbr cubic-restart}"
+read -r -a VARIANT_LIST <<< "${VARIANTS:-cubic bbr cubic-restart}"
 read -r -a MODE_LIST <<< "${MODES:-fill ask}"
 RTT="${RTT:-80}"
 RATE="${RATE:-20000}"
@@ -61,7 +61,7 @@ HTTP=$((45000 + RANDOM % 5000))
 python3 server/dev-server.py --port "$HTTP" > /dev/null 2>&1 &
 PIDS+=("$!")
 
-one() {  # round mode arm
+one() {  # round mode variant
   local srv=$((30000 + RANDOM % 5000)) in=$((35000 + RANDOM % 5000)) ctrl=$((40000 + RANDOM % 5000))
   local name cc bin extra
   IFS=: read -r name cc bin extra <<< "$3"
@@ -76,7 +76,7 @@ one() {  # round mode arm
   local relay=$!
   echo "{\"wt_url\": \"https://127.0.0.1:$in/\", \"cert_sha256\": \"$HASH\"}" > "$CFG"
   sleep 1
-  NODE_PATH="${NODE_PATH:-$(npm root -g)}" node lab/session-survival/run.mjs --rounds 1 --arms built \
+  NODE_PATH="${NODE_PATH:-$(npm root -g)}" node lab/session-survival/run.mjs --rounds 1 --variants built \
     --base "http://127.0.0.1:$HTTP" --control "$ctrl" --no-cut --timeout 600000 --out "$T/row.jsonl" \
     "${run[@]}" "${BLINK[@]}" > /dev/null 9>&-
   # The page's close is still in the relay's delay queue; the server logs the session when it lands.
@@ -96,7 +96,7 @@ log = re.sub(r"\x1b\[[0-9;]*m", "", open(sys.argv[2], errors="replace").read())
 paths = re.findall(r"session path .*?rtt_us=(\d+) cwnd=(\d+) sent=(\d+) lost=(\d+) congestion_events=(\d+)", log)
 sent = sum(int(p[2]) for p in paths); lost = sum(int(p[3]) for p in paths)
 rtt = int(paths[-1][0]) / 1000 if paths else None
-print(json.dumps({"round": int(sys.argv[3]), "mode": sys.argv[4], "arm": sys.argv[5], "prev": sys.argv[8],
+print(json.dumps({"round": int(sys.argv[3]), "mode": sys.argv[4], "variant": sys.argv[5], "prev": sys.argv[8],
                   "ms": row["spanMs"], "done": row["delivered"] > 0 and row["failures"] == 0,
                   "delivered": row["delivered"], "took_ms": row["tookMs"],
                   "relay_packets": int(late[-1][0]) if late else None,
@@ -109,20 +109,20 @@ PY
 }
 
 echo "cell $CELL: relay ${LINK[*]} ${BLINK[*]}"
-n=${#ARM_LIST[@]}
+n=${#VARIANT_LIST[@]}
 for round in $(seq "$ROUNDS"); do
   if [[ -n ${LOCK:-} ]]; then exec 9> "$LOCK"; flock 9; fi
   for mode in "${MODE_LIST[@]}"; do
     PREV=first
     for k in $(python3 lab/scripts/order.py row "$n" "$round"); do
-      one "$round" "$mode" "${ARM_LIST[$k]}"
-      PREV="${ARM_LIST[$k]%%:*}"
+      one "$round" "$mode" "${VARIANT_LIST[$k]}"
+      PREV="${VARIANT_LIST[$k]%%:*}"
     done
   done
   if [[ -n ${LOCK:-} ]]; then exec 9>&-; fi
 done | tee "$T/rows.jsonl"
 
-python3 - "$T/rows.jsonl" "${ARM_LIST[@]%%:*}" <<'PY'
+python3 - "$T/rows.jsonl" "${VARIANT_LIST[@]%%:*}" <<'PY'
 import collections, json, statistics, sys
 sys.path.insert(0, "lab/scripts")
 from order import leads_by_predecessor
@@ -132,12 +132,12 @@ rows = [r for r in rows if not r["void"]]
 names = sys.argv[2:]
 ref = names[0]
 by = collections.defaultdict(dict)
-# An arm whose every run timed out still gets its line.
+# A variant whose every run timed out still gets its line.
 med = lambda xs: statistics.median(xs) if xs else float("nan")
 for r in rows:
-    by[(r["mode"], r["arm"])][r["round"]] = r
-print(f"\nmedian [min-max]; rounds each arm beat {ref} in; retransmitted share; standing queue ms; window at close")
-for (mode, arm), rs in sorted(by.items()):
+    by[(r["mode"], r["variant"])][r["round"]] = r
+print(f"\nmedian [min-max]; rounds each variant beat {ref} in; retransmitted share; standing queue ms; window at close")
+for (mode, variant), rs in sorted(by.items()):
     ms = sorted(r["ms"] for r in rs.values() if r["ms"] is not None)
     won = sum(1 for k, r in rs.items() if r["ms"] is not None and by[(mode, ref)].get(k, {}).get("ms") is not None
               and r["ms"] < by[(mode, ref)][k]["ms"])
@@ -145,15 +145,15 @@ for (mode, arm), rs in sorted(by.items()):
     queue = med([r["queue_ms"] for r in rs.values() if r["queue_ms"] is not None])
     bad = sum(1 for r in rs.values() if not r["done"])
     over = med([r["queue_overflowed"] / r["sent"] for r in rs.values() if r["sent"] and r["queue_overflowed"] is not None])
-    print(f"{mode:5} {arm:14} {med(ms):8.0f} [{(ms or [0])[0]:.0f}-{(ms or [0])[-1]:.0f}]  {won}/{len(rs)}"
+    print(f"{mode:5} {variant:14} {med(ms):8.0f} [{(ms or [0])[0]:.0f}-{(ms or [0])[-1]:.0f}]  {won}/{len(rs)}"
           f"  lost {100 * share:5.1f} % (queue overflow {100 * over:5.1f} %)  queue {queue:6.1f}"
           f"  resumes {sum(r['resumes'] for r in rs.values())}"
           + f"  window {med([r['cwnd_kb'] for r in rs.values() if r['cwnd_kb'] is not None]):6.1f} KB"
           + (f"  INCOMPLETE {bad}" if bad else ""))
-print(f"VOID, dropped: {len(void)}" + "".join(f" · round {r['round']} {r['arm']}" for r in void))
+print(f"VOID, dropped: {len(void)}" + "".join(f" · round {r['round']} {r['variant']}" for r in void))
 print("\nms, each lead by the predecessor it ran after, rounds in brackets")
 for mode in sorted({r["mode"] for r in rows}):
-    split = [{"round": r["round"], "unit": r["arm"], "prev": None if r["prev"] == "first" else r["prev"], "v": r["ms"]}
+    split = [{"round": r["round"], "unit": r["variant"], "prev": None if r["prev"] == "first" else r["prev"], "v": r["ms"]}
              for r in rows if r["mode"] == mode]
     print(mode)
     for line in leads_by_predecessor(split, names, [(n, ref) for n in names[1:]]):

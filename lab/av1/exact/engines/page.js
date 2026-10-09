@@ -1,6 +1,6 @@
 /**
  * One engine's share of a round, run by the page itself so any browser that opens a URL can take it:
- * what the engine offers, then every set's every arm through the product's decoder worker, each frame
+ * what the engine offers, then every set's every variant through the product's decoder worker, each frame
  * timed by the worker's stamps and hashed against its truth. run.mjs serves and drives it.
  */
 import { order } from "/lab/order.mjs";
@@ -77,8 +77,8 @@ async function start(decoder) {
   };
 }
 
-const decoderOf = (name, arm) => {
-  const { ext, ...fields } = arm;
+const decoderOf = (name, variant) => {
+  const { ext, ...fields } = variant;
   if (name === "htj2k") {
     const dir = `${location.origin}/client/decode/wasm/vendor/openjph`;
     return { glue: `${dir}/openjphjs.js`, wasm: `${dir}/openjphjs.wasm`, dir };
@@ -87,22 +87,22 @@ const decoderOf = (name, arm) => {
   return { codec: "av1", glue: `${dir}/simd.js`, wasm: `${dir}/simd.wasm`, dir, ...fields };
 };
 
-/** rows: { set, arm, ms[], exact, frames, units, error? }; `units` is how many reached WebCodecs. */
+/** rows: { set, variant, ms[], exact, frames, units, error? }; `units` is how many reached WebCodecs. */
 async function run({ frames: dir, round, mutate = [], warm = 1 }) {
   for (const k of mutate) MUTATE[k] = true;
   const manifest = await (await fetch(`/${dir}/manifest.json`)).json();
   const rows = [];
   for (const set of order(manifest, round)) {
     const truth = set.frames.map((f) => (MUTATE.truth ? f.truth.replace(/^./, (c) => (c === "0" ? "1" : "0")) : f.truth));
-    for (const name of order(Object.keys(set.arms), round)) {
-      const arm = set.arms[name];
+    for (const name of order(Object.keys(set.variants), round)) {
+      const variant = set.variants[name];
       const bytes = await Promise.all(set.frames.map((_, i) =>
-        fetch(`/${dir}/${set.name}/${String(i).padStart(3, "0")}.${arm.ext ?? name}`)
+        fetch(`/${dir}/${set.name}/${String(i).padStart(3, "0")}.${variant.ext ?? name}`)
           .then((x) => x.arrayBuffer()).then((b) => new Uint8Array(b))));
-      const row = { set: set.name, arm: name, ms: [], exact: 0, frames: bytes.length, units: 0 };
+      const row = { set: set.name, variant: name, ms: [], exact: 0, frames: bytes.length, units: 0 };
       let dec = null;
       try {
-        dec = await start(decoderOf(name, arm));
+        dec = await start(decoderOf(name, variant));
         for (let i = 0; i < warm; i++) await dec.decode(bytes[0], -1);
         for (let i = 0; i < bytes.length; i++) {
           const { ms, pixels, units } = await dec.decode(bytes[i], i);
@@ -123,21 +123,21 @@ async function run({ frames: dir, round, mutate = [], warm = 1 }) {
 
 const hex = async (bytes) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
 
-/** Each WebCodecs arm's first frame straight into VideoDecoder: what the engine returns, and an 8-bit RGB frame's samples against the truth. */
+/** Each WebCodecs variant's first frame straight into VideoDecoder: what the engine returns, and an 8-bit RGB frame's samples against the truth. */
 async function probe({ frames: dir }) {
   const manifest = await (await fetch(`/${dir}/manifest.json`)).json();
   const controls = await fetch(`/${dir}/control.json`).then((r) => (r.ok ? r.json() : []));
-  const sets = [{ name: "control", arms: Object.fromEntries(controls.map((c) => [c, { ext: "obu", depth: 10 }])) }, ...manifest];
+  const sets = [{ name: "control", variants: Object.fromEntries(controls.map((c) => [c, { ext: "obu", depth: 10 }])) }, ...manifest];
   const rows = [];
   for (const set of sets) {
-    for (const [name, arm] of Object.entries(set.arms)) {
-      if (!(arm.depth <= 10)) continue;
-      const file = set.name === "control" ? `control/${name}.obu` : `${set.name}/000.${arm.ext}`;
+    for (const [name, variant] of Object.entries(set.variants)) {
+      if (!(variant.depth <= 10)) continue;
+      const file = set.name === "control" ? `control/${name}.obu` : `${set.name}/000.${variant.ext}`;
       const bytes = new Uint8Array(await (await fetch(`/${dir}/${file}`)).arrayBuffer());
-      const n = arm.split ? new DataView(bytes.buffer).getUint32(0, true) : bytes.length;
-      const units = arm.split ? [bytes.subarray(4, 4 + n), bytes.subarray(4 + n)] : [bytes];
+      const n = variant.split ? new DataView(bytes.buffer).getUint32(0, true) : bytes.length;
+      const units = variant.split ? [bytes.subarray(4, 4 + n), bytes.subarray(4 + n)] : [bytes];
       for (const [k, unit] of units.entries()) {
-        const row = { set: set.name, arm: name, unit: k ? "low" : "top" };
+        const row = { set: set.name, variant: name, unit: k ? "low" : "top" };
         try {
           const frame = await new Promise((resolve, reject) => {
             const vd = new VideoDecoder({ output: resolve, error: reject });
@@ -146,7 +146,7 @@ async function probe({ frames: dir }) {
             vd.flush().catch(reject);
           });
           Object.assign(row, { format: frame.format, coded: `${frame.codedWidth}x${frame.codedHeight}`, matrix: frame.colorSpace.matrix });
-          if (/^(BGRX|RGBX|BGRA|RGBA)$/.test(frame.format) && !arm.rct && set.ch === 3) {
+          if (/^(BGRX|RGBX|BGRA|RGBA)$/.test(frame.format) && !variant.rct && set.ch === 3) {
             const px = new Uint8Array(frame.allocationSize());
             await frame.copyTo(px);
             const rgb = new Uint8Array((px.length / 4) * 3);

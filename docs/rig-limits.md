@@ -44,12 +44,12 @@ Pixel 5 over 5G (WWW '24).
 
 Measured 2026-09-19 in an agent container: 4 vCPU Xeon 2.8 GHz, headless Chromium 141, loopback,
 `rmem_max` 4 MB. Fills of 800 frames at 250 KB and 32 KB; on-demand at depth 1 and 4, 250 KB,
-320 asks. Six repeats, arms interleaved with the order reversed, paired against `shared` per
+320 asks. Six repeats, variants interleaved with the order reversed, paired against `shared` per
 repeat. `lab/scripts/browser_receive.py` reads per-thread CPU from `/proc/*/task/*/schedstat`
 around each run and drops from `Udp: RcvbufErrors`; `lab/scripts/browser_reads.py` reads what each
 `read()` returns. The client is `client/transport/ts` on the main thread with the default reader
 and no window. Every run delivered every frame, and the box spent 2.0–2.2 of its 4 cores, so it
-did not saturate. The server arms were built from the transport branch's per-core-endpoint tree
+did not saturate. The server variants were built from the transport branch's per-core-endpoint tree
 (`8b903cd`), since parked: the browser's side of every number is independent of that, the
 server's own CPU per MB is not.
 
@@ -106,7 +106,7 @@ clock (n = 4, interleaved).
 
 **Send shapes, paired against `shared`:**
 
-| arm | fill 250 KB, MB/s | fill 32 KB, MB/s | on-demand d1, per ask | on-demand d4, per ask | network service ms/MB | renderer main ms/MB |
+| variant | fill 250 KB, MB/s | fill 32 KB, MB/s | on-demand d1, per ask | on-demand d4, per ask | network service ms/MB | renderer main ms/MB |
 | --- | --: | --: | --: | --: | --: | --: |
 | per-frame | **−26.0 % (6/6)** | **−62.2 % (6/6)** | **+31.9 % (6/6)** | **+35.3 % (6/6)** | +35 % at 250 KB, +177 % at 32 KB (6/6) | +35 % / +159 % (6/6) |
 | `pool:2`, retired | −1.0 % (4/6) | +14.7 % (4/6) | — | — | tie | +9 % (6/6) at 250 KB |
@@ -116,7 +116,7 @@ clock (n = 4, interleaved).
 | `rmem_max` 212 992 | −5.9 % (3/6) | −3.0 % (3/6) | — | — | +7.5 % (3/6) | +6 % (4/6) |
 
 The rule, fixed before the run, was +10 % MB/s at 5/6 with neither thread's CPU per MB up by more
-than 5 % and no more drops. **No arm clears it, so `shared` and quinn's windows stay the defaults.**
+than 5 % and no more drops. **No variant clears it, so `shared` and quinn's windows stay the defaults.**
 What is established: **a stream per frame costs a browser receiver a quarter of its throughput at
 250 KB and three fifths at 32 KB, and a third more latency at depth 1** — the network service pays
 per stream what it pays per packet, and the renderer opens a reader per stream; the 42 ms over 87
@@ -180,7 +180,7 @@ and rate ([`adr/client-window-depth.md`](adr/client-window-depth.md) §E0).
 `lab/scripts/l3_summary.py`. The native driver runs on the workstation, and the server runs on the rig
 across the real WAN (~28 ms RTT, 27–58 Mbit unshaped, varying run to run). netem adds one-way delay,
 20 Mbit, iid loss and a 500-packet queue, on the server's egress only. Each run is a 5.12 MB fill
-(160 × 32 kB frames, wall time including connect) and 32 asks at depth 1. Three arms, interleaved,
+(160 × 32 kB frames, wall time including connect) and 32 asks at depth 1. Three variants, interleaved,
 n = 5 per cell, median [range] and rounds better than the default:
 
 | delay · rate · loss | fill, default | 768 KB send window | BBR | ask p50, default | ask p50, BBR |
@@ -215,11 +215,11 @@ Instrument notes, each of which would have produced a wrong number:
 
 * **netem on the sending host drops whole GSO batches.** quinn hands the kernel up to 64 datagrams
   per send; netem sees each batch as one packet, so "1 %" was 1 % of batches (0.2 % by its own
-  count, bursty by construction). Every arm here runs with `--segmentation-offload false`, a lab
+  count, bursty by construction). Every variant here runs with `--segmentation-offload false`, a lab
   flag added for this. The server's own loss count then matches the configured rate: 1.41 %,
   2.87 %, 1.45 %.
 * **Only UDP 4435 reaches the rig from outside**; 4436 and 4437 pass its host firewall, but no
-  session arrives. The arms share one port, and the server restarts per run.
+  session arrives. The variants share one port, and the server restarts per run.
 * `e0_netem_validation.sh` was not run: it compares the real path with a locally *simulated* RTT,
   not netem on the rig. Instead the shaping was checked directly: goodput caps at the netem rate,
   and the loss counts match.
@@ -312,7 +312,7 @@ Instrument notes, each a trap:
   is an outage, and `0:9 400000:1` is a grant cycle, 39.6 Mbit delivered once every 10 ms.
 * **Name the TCP controller.** This container's kernel defaults to **BBR**, and inside `unshare -rn`
   the sysctl cannot be changed; a socket's `TCP_CONGESTION` can, and an accepted socket inherits its
-  listener's (`lab/stream-shape/tcp_cc.c`, row 108). The TUN checks ran on BBR. A cell whose TCP arm
+  listener's (`lab/stream-shape/tcp_cc.c`, row 108). The TUN checks ran on BBR. A cell whose TCP variant
   takes the host's default compares controllers, not transports: row 108's first campaign did.
 * **Under `--tun`, set a rate.** With none, the sender outruns the loop and the TUN's own queue drops
   what was not read in time (7 110 segments retransmitted at ~760 Mbit, none dropped by the model).
@@ -357,7 +357,7 @@ it can price at a median — every cell, warm included, has a p99 of 60–100 ms
 Browser-free, with native drivers on both sides (connect, ask, drain, end, no decode) on a 61.18 MB
 series of 237 frames of ~259 KB, evicted before every run: this server and a comparison server of
 the same protocol shape both land at 225–284 MB/s with **99 %+ of `serve_us` inside `send`**;
-`locate` and `prepare` are ~0. Cold, n = 5 per arm, all three arms sat inside one arm's own
+`locate` and `prepare` are ~0. Cold, n = 5 per variant, all three variants sat inside one variant's own
 run-to-run range, so the workstation could not separate them. A server-side change that does not touch
 `send` has nowhere to show.
 
@@ -379,7 +379,7 @@ page-cached: `miss_rate=0.0` in all 240 runs): the same binary on the same cell 
 in one batch and 25 083 µs in another — **1.86× apart with no code change**. Spread of each
 statistic across four batches: min 1.10×, **p10 1.05×**, p25 1.28×, median 1.86×.
 
-* **Interleave the arms, in a balanced order.** Sequential before/after measured +8.1 % on code that
+* **Interleave the variants, in a balanced order.** Sequential before/after measured +8.1 % on code that
   was a tie, and a median from one batch against a median from another produced a false
   30 %-against-43 % "improvement". Interleaving is not enough on its own: see below.
 * **Quote p10 or the whole distribution**, never one batch's median against another's. The
@@ -395,35 +395,35 @@ statistic across four batches: min 1.10×, **p10 1.05×**, p25 1.28×, median 1.
 * Browser page-clock values drift ~300 ms between sessions, so only ratios taken inside one
   interleaved campaign hold.
 
-**A balanced arm order** (row 90, ORD, 2026-09-28). On the workstation a fixed arm cycle tilted
-loopback rows: the same arm always followed the same predecessor, and a run that started after an
+**A balanced variant order** (row 90, ORD, 2026-09-28). On the workstation a fixed variant cycle tilted
+loopback rows: the same variant always followed the same predecessor, and a run that started after an
 idle gap paid a one-off cost (there a laptop GPU waking from runtime suspend, ~0.3 s at browser
-start; not reproducible in a container). A rotation by one a round does not cure it — every arm sits
+start; not reproducible in a container). A rotation by one a round does not cure it — every variant sits
 at every position, but still after the same one. **A Williams square does:** over a period of N
-rounds (2N for odd N) every arm sits at every position, and runs right after every other arm, equally
+rounds (2N for odd N) every variant sits at every position, and runs right after every other variant, equally
 often. [`../lab/order.mjs`](../lab/order.mjs) and [`../lab/scripts/order.py`](../lab/scripts/order.py)
 (`order.py row N ROUND` for a shell loop) build it; for odd N each row alternates with its mirror, so
 a campaign cut short stays within one visit of balance at every length but exactly N rounds. For two
-arms it is the order reversed every other round, which the two-arm drivers already had.
+variants it is the order reversed every other round, which the two-variant drivers already had.
 
-Each converted driver's summary also prints **every paired lead split by the arm's predecessor**
+Each converted driver's summary also prints **every paired lead split by the variant's predecessor**
 inside the round (`first` when it opened the round, which folds in both the idle-gap start and the
 previous round's last visit — the square does not balance that boundary), with the rounds in
-brackets. It appends `UNBALANCED predecessors` when the arm's or the reference's predecessor counts
+brackets. It appends `UNBALANCED predecessors` when the variant's or the reference's predecessor counts
 differ by more than one. `node lab/order.test.mjs` holds the square, the split and the flag, and the
 Python module against the JS one (run by `scripts/gate.sh`). It fails when `order` returns the fixed
 cycle, when a Python square is a plain rotation, when either flag never rises, and when the mirrors
 come in a block after the rows. Against a driver: `first_ask_cells.sh together`, 50 KB, 40 ms, five
-arms, six rounds, flags nothing. With `order.py` forced to the fixed cycle it prints each lead under a
+variants, six rounds, flags nothing. With `order.py` forced to the fixed cycle it prints each lead under a
 single predecessor, every one flagged (container, loopback relay; the leads themselves are not a
 finding).
 
 Figures taken before row 90 (`abc55e6`) used each driver's former order (a fixed cycle, a rotation,
-or two arms reversed every other round) and are left as written; a cell re-run now takes the square. Which driver had which order, and where each doc quotes it, is
+or two variants reversed every other round) and are left as written; a cell re-run now takes the square. Which driver had which order, and where each doc quotes it, is
 in `git show 6e9c126:docs/rig-limits.md` §6. **Not converted**, outside the row's three groups
 (page-open, the link campaigns, the decode benches): `lab/downloader-campaign/`, `decoder-memory/`,
 `session-survival/`, `early-messages/`, `stream-shape/`, `tcp-fallback/`,
-`worker-leak/`, `telemetry-cost/`, `other-clients/cells.sh`, and the two-arm scripts
+`worker-leak/`, `telemetry-cost/`, `other-clients/cells.sh`, and the two-variant scripts
 that reverse every other round (already the square, with no split printed).
 
 **`serve_us` is not a speed, and it is not the server's alone.** It covers the read plus
@@ -457,7 +457,7 @@ across runs.
   rebuilt with a newer, slower compiler; against the pinned toolchain it is worth nothing. Record
   the toolchain of anything rebuilt.
 * **A background process moving the ground.** Check the running process's flags before and after
-  each arm, and keep a control that is *expected* to fail, so a rig that cannot observe the failure
+  each variant, and keep a control that is *expected* to fail, so a rig that cannot observe the failure
   is caught rather than believed.
 * **The clock floor.** `performance.now()` is 5 µs under cross-origin isolation (headless Chromium,
   2026-08-30, `lab/clock-resolution/measure_clock_resolution.py`; the row is
@@ -486,8 +486,8 @@ across runs.
   (DL0, `../lab/page-open/README.md` §The dial before the config).
 * **A file written just before a run is stale to the browser.** Without `Cache-Control`, Chromium's
   freshness for a response is a fraction of its `Last-Modified` age. A file seconds old is therefore
-  revalidated on every later read, as a 304 on the wire, while an older file in the other arm is read
-  from the cache. ENC's first two batches carried this against every precompressed arm
+  revalidated on every later read, as a 304 on the wire, while an older file in the other variant is read
+  from the cache. ENC's first two batches carried this against every precompressed variant
   ([`../lab/page-open/README.md`](../lab/page-open/README.md) §What an encoding costs on loopback).
   `run.mjs` rewrites the transport config before every visit, and that is the round trip PO1 read
   as the config fetched twice (corrected there). Give a generated file its source's age, or a
@@ -586,11 +586,11 @@ rotated on exposure, not on evidence of use:
   there instead of on the rig.
 * **A VOID cell is a design error, never a cell to re-run with more repeats** — raising repeats on
   it manufactures a result. The first stream-shape campaign found six such faults, every one in
-  the cell rather than the rig or the arms: the client pacer left at its default (`window-harness
+  the cell rather than the rig or the variants: the client pacer left at its default (`window-harness
   --read-bps` is 2 Mbit/s unless set to 0, which is required whenever `tc` shapes), a reader
   stepping faster than the link delivers, a cold page cache pooled with warm repeats, a step
   interval taken from the link's label rather than its measured rate, a void check on a misread
-  field, and an estimator that flattered the arm that missed most. One claim was published and
+  field, and an estimator that flattered the variant that missed most. One claim was published and
   retracted within the hour (a 3.5× throughput gap that was one 4-second sample), and a prediction
   called falsified at six repeats was un-falsified at eighteen.
 * **`on_time_rate` and `late_*` are closed-reader metrics**: under `--reader-mode open` they are
@@ -604,9 +604,9 @@ rotated on exposure, not on evidence of use:
 ### What comes back
 
 Raw rows and an execution log, in their own commit, **with no interpretation in the same commit**:
-the commit the binaries were built from and the arms' binary names; `uname -r`, core count and the
+the commit the binaries were built from and the variants' binary names; `uname -r`, core count and the
 `tc qdisc show` line the cell actually installed; every deviation and retry; the pooler's or
-`lab/scripts/runtime_ab_pair.py`'s output verbatim, VOID included. Whether an arm passed is
+`lab/scripts/runtime_ab_pair.py`'s output verbatim, VOID included. Whether a variant passed is
 decided against a rule written before the run. The reading goes into the document that owns the
 subject.
 

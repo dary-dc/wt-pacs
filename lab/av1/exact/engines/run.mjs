@@ -1,7 +1,7 @@
 /**
  * XBROWSER: the product's AV1 decode path in Chromium, Firefox and WebKit, against its HTJ2K path in the
  * same engine. Each (engine × throttle) cell is a fresh browser opening page.js, the cells in a Williams
- * order every round; sets and arms rotate inside it. lab/av1/exact/engines/README.md
+ * order every round; sets and variants rotate inside it. lab/av1/exact/engines/README.md
  *
  *   node lab/av1/exact/engines/run.mjs [--caps | --probe] [--rounds 8] [--throttles 1,4] [--engines chromium,firefox,webkit,webkit+sab]
  *     [--frames lab/.av1-work/xbrowser] [--mutate sample|truth] [--out rows.json]
@@ -119,7 +119,7 @@ for (let round = 0; round < ROUNDS; round++) {
     if (r.error) console.error(`round ${round} ${engine} ${throttle}x: ${r.error}`);
     for (const row of r.rows ?? []) rows.push({ round, engine, throttle, ...row });
     for (const row of (r.rows ?? []).filter((x) => x.error || x.exact !== x.frames)) {
-      console.error(`round ${round} ${engine} ${throttle}x ${row.set} ${row.arm}: ${row.exact}/${row.frames} exact, ${row.units} units to WebCodecs ${row.error ?? ""}`);
+      console.error(`round ${round} ${engine} ${throttle}x ${row.set} ${row.variant}: ${row.exact}/${row.frames} exact, ${row.units} units to WebCodecs ${row.error ?? ""}`);
     }
     console.error(`round ${round} ${engine} ${throttle}x done`);
   }
@@ -132,7 +132,7 @@ if (CAPS) process.exit(0);
 if (PROBE) {
   for (const [engine, ps] of Object.entries(probes)) {
     for (const p of ps) {
-      console.log(`${engine} ${p.set} ${p.arm} ${p.unit}: ${p.error ?? `${p.format} ${p.coded} matrix ${p.matrix}${p.exactAsRgb === undefined ? "" : ` exact as RGB ${p.exactAsRgb}`}`}`);
+      console.log(`${engine} ${p.set} ${p.variant} ${p.unit}: ${p.error ?? `${p.format} ${p.coded} matrix ${p.matrix}${p.exactAsRgb === undefined ? "" : ` exact as RGB ${p.exactAsRgb}`}`}`);
     }
   }
   process.exit(0);
@@ -146,21 +146,21 @@ console.log("ms a frame in its decoder: median over rounds of each round's media
 for (const engine of ENGINE_NAMES) {
   for (const throttle of THROTTLES) {
     for (const set of [...new Set(rows.map((r) => r.set))]) {
-      const of = (arm) => rows.filter((r) => r.engine === engine && r.throttle === throttle && r.set === set && r.arm === arm);
-      const per = (arm) => new Map(of(arm).filter((r) => r.ms.length === r.frames).map((r) => [r.round, med(r.ms)]));
+      const of = (variant) => rows.filter((r) => r.engine === engine && r.throttle === throttle && r.set === set && r.variant === variant);
+      const per = (variant) => new Map(of(variant).filter((r) => r.ms.length === r.frames).map((r) => [r.round, med(r.ms)]));
       const ref = per("htj2k");
       const parts = [];
-      for (const arm of [...new Set(rows.filter((r) => r.set === set).map((r) => r.arm))]) {
-        const rs = of(arm);
+      for (const variant of [...new Set(rows.filter((r) => r.set === set).map((r) => r.variant))]) {
+        const rs = of(variant);
         if (!rs.length) continue;
         const exact = `${rs.reduce((n, r) => n + r.exact, 0)}/${rs.reduce((n, r) => n + r.frames, 0)}`;
         const units = rs.reduce((n, r) => n + r.units, 0);
-        const m = per(arm);
-        if (!m.size) { parts.push(`${arm} failed ${exact} (${rs.find((r) => r.error)?.error})`); continue; }
+        const m = per(variant);
+        if (!m.size) { parts.push(`${variant} failed ${exact} (${rs.find((r) => r.error)?.error})`); continue; }
         const v = [...m.values()];
-        let line = `${arm} ${f(med(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}] n=${v.length} exact ${exact} wc ${units}`;
+        let line = `${variant} ${f(med(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}] n=${v.length} exact ${exact} wc ${units}`;
         const ratio = [...m].filter(([r]) => ref.has(r)).map(([r, x]) => x / ref.get(r));
-        if (arm !== "htj2k" && ratio.length) line += `, ×${med(ratio).toFixed(2)} ${span(ratio)} slower ${ratio.filter((x) => x > 1).length}/${ratio.length}`;
+        if (variant !== "htj2k" && ratio.length) line += `, ×${med(ratio).toFixed(2)} ${span(ratio)} slower ${ratio.filter((x) => x > 1).length}/${ratio.length}`;
         parts.push(line);
       }
       console.log(`${engine} ${throttle}x ${set}: ${parts.join(" · ")}`);

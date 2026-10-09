@@ -125,7 +125,7 @@ read_fast_path_after=$(banner_val "$after_log" read_fast_path)
   echo "frames $frames  step $STEP  asks $ASKS"
 } | tee -a "$HOST"
 
-printf 'label\tarm\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\n' > "$OUT"
+printf 'label\tvariant\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\tasks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed\n' > "$OUT"
 
 # CSI-stripped `key=number`; `[^0-9]*` after the key would read the 0 in `[0m`.
 # `|| true`: no match yet is what the caller retries on, not a reason to end the run.
@@ -136,8 +136,8 @@ field_from_log() {
 }
 
 drive() {
-  local pid="$1" url="$2" arm="$3" label="$4" temp="$5" mode="$6" depth="$7" sessions="${8:-1}"
-  "$DRIVER" --url "$url" --server-pid "$pid" --arm "$arm" --label "$label" \
+  local pid="$1" url="$2" variant="$3" label="$4" temp="$5" mode="$6" depth="$7" sessions="${8:-1}"
+  "$DRIVER" --url "$url" --server-pid "$pid" --variant "$variant" --label "$label" \
     --temp "$temp" --mode "$mode" --depth "$depth" --asks "$ASKS" \
     --sessions "$sessions" --frames "$frames" --step "$STEP" --no-header
 }
@@ -145,18 +145,18 @@ drive() {
 # A fill is sequential, so read-ahead turns it into hits by design: it is evicted like a
 # cold cell but not held to the miss floor. Only the on-demand cells are.
 emit() {
-  local pid="$1" url="$2" log="$3" arm="$4" kind="$5" temp="$6" mode="$7" depth="$8"
+  local pid="$1" url="$2" log="$3" variant="$4" kind="$5" temp="$6" mode="$7" depth="$8"
   local sessions="${9:-1}"
   local label="${kind}_r${r}"
   local off row miss named
   off=$(wc -c <"$log")
   if [[ "$temp" == warm ]]; then
-    drive "$pid" "$url" "$arm" "${kind}_warm_discard" "$temp" "$mode" "$depth" "$sessions" >/dev/null
+    drive "$pid" "$url" "$variant" "${kind}_warm_discard" "$temp" "$mode" "$depth" "$sessions" >/dev/null
     off=$(wc -c <"$log")
   else
     "$EVICT" "$TILE" >/dev/null
   fi
-  row=$(drive "$pid" "$url" "$arm" "$label" "$temp" "$mode" "$depth" "$sessions")
+  row=$(drive "$pid" "$url" "$variant" "$label" "$temp" "$mode" "$depth" "$sessions")
   miss=""
   named=""
   for _ in $(seq 1 200); do
@@ -166,7 +166,7 @@ emit() {
     sleep 0.1
   done
   [[ -n "$miss" ]] || {
-    echo "no session-reads line for $label ($arm): the cold control is unreadable" >&2
+    echo "no session-reads line for $label ($variant): the cold control is unreadable" >&2
     exit 1
   }
   row=$(printf '%s\n' "$row" | awk -v m="$miss" -v n="${named:--}" 'BEGIN{FS=OFS="\t"} { $(NF-1)=m; $NF=n; print }')
@@ -184,7 +184,7 @@ PY
   fi
   # HEAD logs named; 580e312 does not. Missing named on before is expected.
   # After at depth ≥ 2 must name at least two frames or W is not engaging.
-  if [[ "$arm" == after && "$mode" == on-demand && "$depth" -ge 2 ]]; then
+  if [[ "$variant" == after && "$mode" == on-demand && "$depth" -ge 2 ]]; then
     python3 - "${named:--}" "$label" <<'PY'
 import sys
 raw, label = sys.argv[1], sys.argv[2]
@@ -200,21 +200,21 @@ PY
   fi
 }
 
-# Keyed by arm, not packed into one string: a URL has colons in it.
-declare -A ARM_PID=([before]="$before_pid" [after]="$after_pid")
-declare -A ARM_URL=([before]="https://127.0.0.1:${PORT_BEFORE}/" [after]="https://127.0.0.1:${PORT_AFTER}/")
-declare -A ARM_LOG=([before]="$before_log" [after]="$after_log")
+# Keyed by variant, not packed into one string: a URL has colons in it.
+declare -A VARIANT_PID=([before]="$before_pid" [after]="$after_pid")
+declare -A VARIANT_URL=([before]="https://127.0.0.1:${PORT_BEFORE}/" [after]="https://127.0.0.1:${PORT_AFTER}/")
+declare -A VARIANT_LOG=([before]="$before_log" [after]="$after_log")
 
 for ((r = 0; r < REPEATS; r++)); do
   if (( r % 2 == 0 )); then order=(before after); else order=(after before); fi
-  for arm in "${order[@]}"; do
-    pid="${ARM_PID[$arm]}"; url="${ARM_URL[$arm]}"; log="${ARM_LOG[$arm]}"
-    emit "$pid" "$url" "$log" "$arm" "cold_d1" cold on-demand 1
-    emit "$pid" "$url" "$log" "$arm" "cold_d2" cold on-demand 2
-    emit "$pid" "$url" "$log" "$arm" "cold_d4" cold on-demand 4
-    emit "$pid" "$url" "$log" "$arm" "warm_d1" warm on-demand 1
-    emit "$pid" "$url" "$log" "$arm" "warm_d4" warm on-demand 4
-    emit "$pid" "$url" "$log" "$arm" "fill"    cold fill 1
+  for variant in "${order[@]}"; do
+    pid="${VARIANT_PID[$variant]}"; url="${VARIANT_URL[$variant]}"; log="${VARIANT_LOG[$variant]}"
+    emit "$pid" "$url" "$log" "$variant" "cold_d1" cold on-demand 1
+    emit "$pid" "$url" "$log" "$variant" "cold_d2" cold on-demand 2
+    emit "$pid" "$url" "$log" "$variant" "cold_d4" cold on-demand 4
+    emit "$pid" "$url" "$log" "$variant" "warm_d1" warm on-demand 1
+    emit "$pid" "$url" "$log" "$variant" "warm_d4" warm on-demand 4
+    emit "$pid" "$url" "$log" "$variant" "fill"    cold fill 1
   done
   echo "  round $r done $(date -u +%T)" >&2
 done
@@ -222,18 +222,18 @@ done
 # Per-session memory needs an untouched heap, so each measurement gets its own server.
 kill "$before_pid" "$after_pid" 2>/dev/null || true
 before_pid="" ; after_pid=""
-declare -A ARM_BIN=([before]="$BEFORE" [after]="$AFTER")
+declare -A VARIANT_BIN=([before]="$BEFORE" [after]="$AFTER")
 for ((r = 0; r < RSS_ROUNDS; r++)); do
   if (( r % 2 == 0 )); then order=(before after); else order=(after before); fi
-  for arm in "${order[@]}"; do
-    port=$((PORT_BEFORE + 100 + r * 2 + ${#arm}))
-    log="$LOGDIR/rss_${arm}_$r.log" ; : >"$log"
-    NO_COLOR=1 RUST_LOG=series_server=info "${ARM_BIN[$arm]}" \
+  for variant in "${order[@]}"; do
+    port=$((PORT_BEFORE + 100 + r * 2 + ${#variant}))
+    log="$LOGDIR/rss_${variant}_$r.log" ; : >"$log"
+    NO_COLOR=1 RUST_LOG=series_server=info "${VARIANT_BIN[$variant]}" \
       --port "$port" --series "$TILE" --stream-mode shared --bind 127.0.0.1 \
       --cert-pem "$CERT" --key-pem "$KEY" >"$log" 2>&1 &
     pid=$!
     wait_banner "$log"
-    "$DRIVER" --url "https://127.0.0.1:$port/" --server-pid "$pid" --arm "$arm" \
+    "$DRIVER" --url "https://127.0.0.1:$port/" --server-pid "$pid" --variant "$variant" \
       --label "rss_d4_r$r" --temp warm --mode on-demand --depth 4 --asks "$ASKS" \
       --sessions "$RSS_SESSIONS" --frames "$frames" --step "$STEP" --no-header |
       awk 'BEGIN{FS=OFS="\t"} { $NF="-"; print }' >> "$OUT"
@@ -257,21 +257,21 @@ WANT = {
 cells = collections.defaultdict(dict)
 with open(path, newline="") as fh:
     for r in csv.DictReader(fh, delimiter="\t"):
-        if r["arm"] not in ("before", "after") or not r.get("p50_ns"):
+        if r["variant"] not in ("before", "after") or not r.get("p50_ns"):
             continue
         kind, sep, rnd = r["label"].rpartition("_r")
         if not sep:
             continue
-        cells[(kind, rnd)][r["arm"]] = int(r["p50_ns"])
+        cells[(kind, rnd)][r["variant"]] = int(r["p50_ns"])
 
 print(f"{'cell':<12} {'n':>3}  {'p50 Δ':>11}  {'signs':>7}  {'verdict':<9}  {'want':<10}  {'before':>9}  {'after':>9}")
 fail = 0
 for kind in ["cold_d1", "cold_d2", "cold_d4", "warm_d1", "warm_d4", "fill"]:
     ds, b, a = [], [], []
-    for (k, _rep), arms in cells.items():
-        if k != kind or "before" not in arms or "after" not in arms:
+    for (k, _rep), variants in cells.items():
+        if k != kind or "before" not in variants or "after" not in variants:
             continue
-        x, y = arms["before"], arms["after"]
+        x, y = variants["before"], variants["after"]
         if not x:
             continue
         ds.append((y - x) / x * 100); b.append(x); a.append(y)
@@ -294,11 +294,11 @@ for kind in ["cold_d1", "cold_d2", "cold_d4", "warm_d1", "warm_d4", "fill"]:
         fail += 1
     print(f"{kind:<12} {len(ds):>3}  {med:>+10.1f}%  {agree:>3}/{len(ds):<3}  {verdict:<9}  {want:<10}  {st.median(b):>9.0f}  {st.median(a):>9.0f}")
 
-# HEAD depth ladder on asks/s (after arm only).
+# HEAD depth ladder on asks/s (after variant only).
 ladder = collections.defaultdict(list)
 with open(path, newline="") as fh:
     for r in csv.DictReader(fh, delimiter="\t"):
-        if r["arm"] != "after" or r.get("mode") != "on-demand" or r.get("temp") != "cold":
+        if r["variant"] != "after" or r.get("mode") != "on-demand" or r.get("temp") != "cold":
             continue
         kind, sep, _ = r["label"].rpartition("_r")
         if kind in ("cold_d1", "cold_d2", "cold_d4") and r.get("asks_per_s"):
@@ -314,7 +314,7 @@ rss = collections.defaultdict(list)
 with open(path, newline="") as fh:
     for r in csv.DictReader(fh, delimiter="\t"):
         if r["label"].startswith("rss_d4_r") and r.get("rss_kib"):
-            rss[r["arm"]].append(int(r["rss_kib"]))
+            rss[r["variant"]].append(int(r["rss_kib"]))
 if rss.get("before") and rss.get("after"):
     b, a = st.median(rss["before"]), st.median(rss["after"])
     n = int(sys.argv[2]) if len(sys.argv) > 2 else 64
@@ -329,12 +329,12 @@ with open(path, newline="") as fh:
         if r.get("temp") != "cold" or r.get("mode") != "on-demand" or r.get("depth") != "4":
             continue
         try:
-            named_d4[r["arm"]].append(int(float(r["named"])))
+            named_d4[r["variant"]].append(int(float(r["named"])))
         except (TypeError, ValueError, KeyError):
             pass
-for arm in ("before", "after"):
-    xs = named_d4.get(arm) or []
-    print(f"{arm}  cold_d4_named={st.median(xs) if xs else '-'}")
+for variant in ("before", "after"):
+    xs = named_d4.get(variant) or []
+    print(f"{variant}  cold_d4_named={st.median(xs) if xs else '-'}")
 
 print(f"tsv: {path}")
 sys.exit(1 if fail else 0)

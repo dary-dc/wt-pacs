@@ -58,9 +58,9 @@ ratio and byte-exact on both decoders against the encoder's input:
 
 ## Ground truth
 
-A bench that checks each arm against pixels it decoded itself cannot fail: flipping one byte of
+A bench that checks each variant against pixels it decoded itself cannot fail: flipping one byte of
 every decoded frame **did not fail that check**, because the corruption reached the oracle and the
-arm alike. Every bench here checks against the `.sha256` the generator wrote from the encoder's
+variant alike. Every bench here checks against the `.sha256` the generator wrote from the encoder's
 input. Four mutants — a flipped byte, a truncated buffer, a skipped `decode()`, a corrupted view in
 the copy bench — each report 87/87 frames differing and exit non-zero; the control is clean.
 
@@ -157,7 +157,7 @@ Two things between `pull()` and the caller's buffer, both in `htj2k_decoder.cpp`
 * **D10** — `decode()` zero-filled the whole output and then wrote every byte again, in a loop that
   branched on sample width *inside* the per-pixel loop, which stops `-msimd128` taking it.
 
-Four arms, one binary each, interleaved with the order rotated, 12 timed rounds of 87 frames, one
+Four variants, one binary each, interleaved with the order rotated, 12 timed rounds of 87 frames, one
 decoder object reused. ms per frame, and rounds of 12 better than `base`:
 
 | set | components | base | +D11 | +D10 | both |
@@ -179,7 +179,7 @@ adopted because one documented library call replaces a destructor plus a placeme
 effect is in §Where to put the floor.
 
 **Where this host saturates.** One thread decodes and the box ran other work throughout, so only
-differences across arms inside a run are claimed; the absolute ms are not comparable with any other
+differences across variants inside a run are claimed; the absolute ms are not comparable with any other
 table here.
 
 **Mutants**, `parity.mjs` over c512 → g512 → s512 → sat256. Caught: the interleave stride `comps −
@@ -192,7 +192,7 @@ frames byte-identical. Bytes are not what `restart()` protects; parity cannot ga
 ### Where to put the floor
 
 Six initial heaps — 2, 4, 8, 16, 32, 50 MB — interleaved and rotated, a fresh decoder per frame
-(`wasm/heap_curve.sh`). **The floor costs no time**: every arm within 2.2 % of the best at both
+(`wasm/heap_curve.sh`). **The floor costs no time**: every variant within 2.2 % of the best at both
 sizes, ranges overlapping (g512 5.09–5.21 ms, g2048 85.0–86.9 ms). On `g512` the high-water is 4.3
 MB from 2, **4.0 MB from 4**, and the floor itself above that. On `g2048` every floor up to 16 MB
 converges on 24.6 MB, so **start at 4 MB and let it grow** — 2× less than the package.
@@ -213,11 +213,11 @@ read off the per-frame ladder. 2 MB ends 0.3 MB heavier on grey because it gives
 growth step what it saves at load; colour prefers 2 MB by 0.4 MB, the smaller effect. The floor is a
 link-time parameter: `EMSDK=… INITIAL_MB=2 lab/decode-bench/wasm/build.sh`.
 
-**The 4.8 MB is the wrapper's, not one arm's.** Re-read on the merged binary with three arms in one
+**The 4.8 MB is the wrapper's, not one variant's.** Re-read on the merged binary with three variants in one
 process — `base` (destroy and placement-new every frame), `d11` (`restart()` alone), `merged`
 (adopted) — at `INITIAL_MB=4`, 6 repeats × 6 rounds: **4.8 MB grey and 7.0 MB colour on all three,
 36 readings without spread.** *Corrected:* the reason once given — that the codestream's arena lifts
-a reused decoder off the floor — is wrong, since the arm that discards the arena every frame reads
+a reused decoder off the floor — is wrong, since the variant that discards the arena every frame reads
 the same. What reuse keeps is the decoder object's other buffers.
 
 **The arena shows when the frame size grows.** One decoder, `g512` then `c512`, 6/6: **7.7 MB with
@@ -227,7 +227,7 @@ reused across shapes is budgeted at **7.7 MB**, and every heap figure here is a 
 order-dependent whenever sizes differ.
 
 **Behind the downloader** (three decoders, `?decoder=source` on the campaign page, 3 rounds
-interleaved): the decode arm is **161.4 MB on the package and 16.3 MB on the 4 MB build**, with fill
+interleaved): the decode variant is **161.4 MB on the package and 16.3 MB on the 4 MB build**, with fill
 (80.0 ms) and cold ask (86.0 ms) identical to the tenth of a millisecond.
 
 The 4 MB floor holds **only while the pixels leave the heap** — §Retention, measured. Neither ladder
@@ -253,7 +253,7 @@ costs is this section.
 
 ### The build, as delivered
 
-The adopted wrapper, built for a consumer to take, is the `deliver` arm of
+The adopted wrapper, built for a consumer to take, is the `deliver` variant of
 `lab/decode-bench/wasm/build.sh`: it writes `lab/.openjph-build/wasm/deliver.js` and `deliver.wasm`,
 delivered as `openjphjs.js` and `openjphjs.wasm` beside OpenJPH's `LICENSE` and a `SOURCE.txt`
 repeating this. The delivered pair:
@@ -264,7 +264,7 @@ repeating this. The delivered pair:
 ```
 
 Commit `a28587f`, emscripten 3.1.74, `-O3 -msimd128 -fexceptions`, `INITIAL_MEMORY=4MB`, built by
-`EMSDK=… INITIAL_MB=4 ARMS=deliver lab/decode-bench/wasm/build.sh`. The `.wasm` is byte-identical to
+`EMSDK=… INITIAL_MB=4 VARIANTS=deliver lab/decode-bench/wasm/build.sh`. The `.wasm` is byte-identical to
 the `plain` build of the 522-frame parity run; the glue differs only in the filename it loads. It
 exports `OpenJPHModule` where the package exports `Module`, which `decoder.js` handles. **It
 predates §The range in the pack**; that win reaches a page only once this is rebuilt from the
@@ -272,7 +272,7 @@ current wrapper, and the hashes above are of the build before it.
 
 **Threaded, adopted by row HTJ2KMT** (§Code-blocks on threads, measured): the same wrapper over OpenJPH with
 `lab/av1/decode/htj2k-profile/cb-threads.patch` applied and one helper thread, built as the row's README does with
-`ARMS=deliver EXTRA_FLAGS="-pthread -DOJPH_CB_THREADS=1 -sPTHREAD_POOL_SIZE=1"`. It needs the page
+`VARIANTS=deliver EXTRA_FLAGS="-pthread -DOJPH_CB_THREADS=1 -sPTHREAD_POOL_SIZE=1"`. It needs the page
 cross-origin isolated, which the consumer already requires. Not delivered yet: no hashes until it is.
 
 ## A second decoder
@@ -283,7 +283,7 @@ Licence first, because it is a gate: BSD 3-Clause, its bundled `highway` Apache-
 permissive. Pinned at **v0.9.1**, `8cf42e90e6f54a51c8247587437c12f96eb131ec`;
 `git show 90a7f64:lab/decode-bench/wasm/build_openhtj2k.sh` fetched it (never vendored) and linked
 `openhtj2k_decoder.cpp` at the same flags, single-threaded, 4 MB, with the same class surface and
-`pack<T>()`, so `build_arms.mjs` and `parity.mjs` drive both with no branch. It decodes through
+`pack<T>()`, so `build_variants.mjs` and `parity.mjs` drive both with no branch. It decodes through
 `invoke_line_based_stream()`, the per-row analogue of `pull()`. **It exposes no header surface**
 beyond components, sizes, depth, signedness and DWT levels, so the wrapper reads SIZ and COD itself —
 ~40 lines this project would own. `parity.mjs`'s version check is informational for that reason.
@@ -320,7 +320,7 @@ within-run differences are claimed.
 
 ## Faster
 
-**No build lever makes the decoder faster; a newer emscripten makes it slower.** Every arm passed
+**No build lever makes the decoder faster; a newer emscripten makes it slower.** Every variant passed
 `parity.mjs` before it was timed; interleaved, order rotated. *Scope, corrected:* this answers what
 the *build* can do. What the wrapper source does between `pull()` and the caller's buffer is where
 time was found — §The wrapper's two passes.
@@ -343,14 +343,14 @@ time was found — §The wrapper's two passes.
   heap identical.
 * **Native Wasm exceptions: bit-exact, a tie, not adopted** (row 84, `4957d5a`). `-fwasm-exceptions`
   replaces the 81 call sites that went through a JS `invoke_*` trampoline with native `try`s; six
-  parity sets identical, and an undecodable input still throws. `cold_arms.mjs`, n = 15, Node and
+  parity sets identical, and an undecodable input still throws. `cold_variants.mjs`, n = 15, Node and
   headless Chromium: **steady −0.2 to −1.7 %**, frames 0–2 a tie, every range overlapping — under the
   5 % bar. It buys 4.9 KB of glue; the default is unchanged, and switching is one flag.
 
 *A baseline of your own making:* LTO first measured −17.8 % against a `plain` build the lane had
 rebuilt with the newer, slower toolchain. Record which emscripten a rebuild used and compare against
 the pinned one. The 768 KB colour fixture is the noisy one here as elsewhere and settles nothing on
-its own. Build arms other than `plain`/`shared` take `EXTRA_FLAGS` (`ARMS=lto EXTRA_FLAGS="-flto"
+its own. Build variants other than `plain`/`shared` take `EXTRA_FLAGS` (`VARIANTS=lto EXTRA_FLAGS="-flto"
 lab/decode-bench/wasm/build.sh`); a from-source build against the package, and relaxed SIMD, are in
 §The decode tail.
 
@@ -370,11 +370,11 @@ out is decided by memory, not by this: §Retention, measured.
 The same source and toolchain, two builds differing only in `-pthread` (the shared heap asserted at
 runtime), both bit-exact, 8 timed rounds interleaved, 50 KB to 8 MB (plain → shared: 0.45 → 0.42,
 3.73 → 3.66 at 512 KB, 62.59 → 61.83 ms at 8 MB). **No shared-memory tax is detectable at any
-size**: the shared arm is slower in at most 2 of 8 rounds anywhere, and ranges overlap, so the
+size**: the shared variant is slower in at most 2 of 8 rounds anywhere, and ranges overlap, so the
 reading is *no tax detectable*, not *sharing is faster*. Heap identical.
 
 *Corrected:* this file once carried a finding from elsewhere that the tax and the copy saved
-cancelled exactly. It did not reproduce here; that is one arm of a two-arm claim, so a failure to
+cancelled exactly. It did not reproduce here; that is one variant of a two-variant claim, so a failure to
 reproduce rather than a refutation, and it should not be quoted in either direction.
 
 ## The decoder worker's hand-off
@@ -390,7 +390,7 @@ in two loops (§The range pass). *Measured and not adopted:* the WebCodecs modul
 10-bit frame, chroma included) — faster, and dearer in resident memory (below).
 
 **Measured** ([`lab/av1/decode/worker`](../../lab/av1/decode/worker/README.md)): the worker before and after, each
-arm its own worker, headless Chromium 141 in the container, the first 4 frames of eight series, 8
+variant its own worker, headless Chromium 141 in the container, the first 4 frames of eight series, 8
 rounds interleaved, 1 024/1 024 frames exact a throttle. ms a frame, median over rounds [range],
 after ÷ before as the median of paired rounds and the rounds after was faster:
 
@@ -426,7 +426,7 @@ nowhere slower beyond its spread.
 **Resident memory** (row 38's harness, `lab/av1/decode/memory`, 3 rounds; MB a worker, the renderer's RSS slope
 from 1 to 4 workers, after the series and at its peak; 2 184/2 184 frames exact):
 
-| series | arm | settled before → after | peak before → after |
+| series | variant | settled before → after | peak before → after |
 | --- | --- | ---: | ---: |
 | `ffdm_a` 2560×3328 | HTJ2K | 25.1 → 24.9 | 25.1 → 25.0 |
 | | AV1, reused buffer | **7.3 → 44.4** | 28.3 → 43.4 |
@@ -536,7 +536,7 @@ the retained decoders hold (100.7, 211.3 and 912.4 MB), the package's heaps are 
 MB build's **4.58–5.10×** on the 512² series (1.74–1.89× at 2048²): a build that starts at 4 MB
 grows by two orders of magnitude and carries every step.
 
-**The 4 MB floor is right if and only if the pixels leave the heap.** In the copy-out arms the heap
+**The 4 MB floor is right if and only if the pixels leave the heap.** In the copy-out variants the heap
 holds only transients — 4.0 MB on the 512×512 series, 24.6 MB on the 2048×2048 one, reproducing
 §Where to put the floor.
 
@@ -548,7 +548,7 @@ holds only transients — 4.0 MB on the 512×512 series, 24.6 MB on the 2048×20
 
 **The mutant.** Keeping a frame the next decode overwrote looks like a win in memory.
 `mutate=heap-reused` makes the kept arrangement reuse one decoder: **`MISMATCH ×86` of 87**, memory
-collapsing from 476 MB to 3.0 MB, copy-out arms clean. The ground-truth check is what stands between
+collapsing from 476 MB to 3.0 MB, copy-out variants clean. The ground-truth check is what stands between
 this table and a fiction.
 
 **What this is not.** Headless Chromium 141, 4 vCPU, synthetic fixtures; memory, not time. This
@@ -561,7 +561,7 @@ quoted.
 A dedicated worker is a thread in the page's renderer, so its cost is a **slope in the worker
 count**: the same page decodes the same series at `decoders=1` and `decoders=3`, and the answer is
 `(RSS₃ − RSS₁) / 2`. `lab/decoder-memory/`, 87 × 512×512 × 16-bit, the wrapper as delivered,
-interleaved with arm and count order rotated, a fresh context per run, every frame checked. Chrome
+interleaved with variant and count order rotated, a fresh context per run, every frame checked. Chrome
 148, peak from `VmHWM`, settled after `measureUserAgentSpecificMemory()` with the workers alive.
 
 **A decoder worker costs 5.9 MB [5.2–7.0] resident, of which 5.7 MB is its own JS+WASM heap**
@@ -578,7 +578,7 @@ interleaved with arm and count order rotated, a fresh context per run, every fra
 
 **Calibrated first:** with `ballast=32` every worker touches 32 MB and the slope reads **38.3 MB
 [38.3–38.3]**. The calibration caught the harness terminating its workers before the settled
-reading, which had made every arm read 2 MB. **The whole client, ablated the same way**
+reading, which had made every variant read 2 MB. **The whole client, ablated the same way**
 (`path=downloader`, a real session against `series-server`, the page keeping every frame, n = 4):
 **6.1 MB [6.0–6.1] per decoder worker**.
 
@@ -641,7 +641,7 @@ only the functions it runs — §Warming the decoders.
 *Corrected:* the reason first given — that the decoder is instantiated from a buffer and its glue
 evaluated as text, so no cache could attach — describes `client/decode/decoder.js`, not this
 harness, whose page loads the glue by `<script src>` with no `wasmBinary` and so already streamed.
-The load-time gain across arms is the HTTP cache plus the JavaScript code cache on the glue.
+The load-time gain across variants is the HTTP cache plus the JavaScript code cache on the glue.
 
 This may be §The BYOB read path's unexplained ~12 ms: frame 0 here is 11.8–16.9 ms against a 3 ms
 steady state. Not confirmed — a different path and rig.
@@ -653,13 +653,13 @@ V8 caches compiled WebAssembly only for a **streaming** compile of a module serv
 `wasmBinary`, which forbids that. `decoder.js` took `decoder.streaming`; given it, no binary was
 passed and the glue's own `WebAssembly.instantiateStreaming` ran. **The default is unchanged**, and
 the option, a tie with no caller, was removed 2026-10-03; code:
-`git show archive/arms-2026-10-03:client/decode/decoder.js`. The lab arm below keeps its own copy.
+`git show archive/variants-2026-10-03:client/decode/decoder.js`. The lab variant below keeps its own copy.
 
-`lab/decode-first-frame/arms.mjs`, 5 rounds interleaved, a fresh persistent profile per arm, three
+`lab/decode-first-frame/variants.mjs`, 5 rounds interleaved, a fresh persistent profile per variant, three
 visits each: **a tie.** Streaming's wins on frame 0 are 2/5, 2/5, 1/5 on `g512` and 4/5, 4/5, 2/5 on
 `cine512` across the three visits, and no cell holds its sign. **The WASM cache never engages**:
 across 60 visits and five configurations — the host as is; `Cache-Control: public, max-age=31536000,
-immutable`; sixty decodes and a fifteen-second settle; `--no-wasm-lazy-compilation`; the buffer arm
+immutable`; sixty decodes and a fifteen-second settle; `--no-wasm-lazy-compilation`; the buffer variant
 as control — `Code Cache/wasm` held nothing but its index, and a CDP trace shows
 `wasm.TopTierCompilation` every visit and no `v8.wasm` cache event.
 
@@ -667,7 +667,7 @@ as control — `Code Cache/wasm` held nothing but its index, and a CDP trace sho
 deserializes it on visit 3; with the HTTP cache that is the whole 22.9 → 13.1 ms fall in time to a
 ready decoder. **The product does not get it**: `decoder.js` evaluates the glue through `new
 Function` in a module worker. Moving the glue onto a cacheable script is the larger lever, not
-measured. Output is byte-identical on both paths (`arms.mjs --parity`; 12-bit signed not covered).
+measured. Output is byte-identical on both paths (`variants.mjs --parity`; 12-bit signed not covered).
 
 If the cache ever engages: `deploy/nginx` gives `Cache-Control` only to content-hashed names, which
 the decoder's is not, and `new Function` would need `unsafe-eval` under a CSP. Desktop, headless.
@@ -683,13 +683,13 @@ ruling: it moves only per-frame waits, not the page's clock (below). The option,
 `lab/decoder-warmup/` and the frames' `ready` stamp are at tag `archive/downloader-opts-2026-10-03`;
 the numbers stay here.
 
-`lab/decoder-warmup/` (removed, at the tag): four arms interleaved with the order rotated, 12 rounds, a 12-frame fill on
+`lab/decoder-warmup/` (removed, at the tag): four variants interleaved with the order rotated, 12 rounds, a 12-frame fill on
 three decoders, a fresh page and session per visit, loopback. **none** · **mismatch** (the other
 set's shape) · **mismatch-sized** (the other shape at the matching sample count) · **match**. The
 shipped frames: `colour-8.j2c`, 160×160×3 8-bit, 6 708 B; `grey-16.j2c`, 160×160 16-bit, 38 331 B.
 Frames 0–2 are one per decoder. Medians in ms, `(k/12)` rounds better than `none`:
 
-| set | arm | frame 0 | frame 1 | frame 2 | frames 3–11 | 12 decodes |
+| set | variant | frame 0 | frame 1 | frame 2 | frames 3–11 | 12 decodes |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | `cine512` 8-bit colour | none | 44.33 [38.2 … 47.4] | 45.15 | 44.41 | 10.22 [9.6 … 11.5] | 229.6 |
 | | mismatch | 34.58 (12/12) | 34.51 (12/12) | 33.08 (12/12) | **14.66 [13.7 … 16.9]** | 234.1 |
@@ -701,7 +701,7 @@ Frames 0–2 are one per decoder. Medians in ms, `(k/12)` rounds better than `no
 | | **match** | **20.74 [17.7 … 22.2]** (12/12) | 20.23 (12/12) | 19.09 (12/12) | 7.95 [6.8 … 9.7] | **134.7** |
 
 * **A warm-up is worth 30–45 % of frames 0–2, and almost none of that is the shape**: at equal
-  sample count the matching arm gains only 2–3 ms more. The first frames want samples to tier on.
+  sample count the matching variant gains only 2–3 ms more. The first frames want samples to tier on.
 * **The shape decides the frames after them, against you on colour**: a mismatched warm-up leaves
   `cine512`'s frames 3–11 at 14.4–14.7 ms against 10.22 with **no warm-up**, disjoint ranges. A
   product that ships a warm-up must pick it from the series' metadata
@@ -755,13 +755,13 @@ On the lab's transport the session is ready early and the warm-up was judged not
 an 80 ms link, by its measurement — so the question becomes what a warm-up costs, what it saves, and
 how long an idle window it needs. `lab/decoder-warmup/size.mjs` (removed, at tag `archive/downloader-opts-2026-10-03`)
 (row 85): one decoder (the package), a fresh browser context per sample, compiled from a buffer as
-`decoder.js` does, then the warm-up, then the series' frames 0–5; 12 rounds, arms and 1× / 4× rotated
+`decoder.js` does, then the warm-up, then the series' frames 0–5; 12 rounds, variants and 1× / 4× rotated
 inside each; every frame checked against the encoder's input. Warm-ups: the shipped 160² frame
 (`w160`), a 512² 16-bit grey one (`w512`, CT only — at 512² the colour one is the series' own frame
 0), and a frame of the series' own shape and content (`own`, its frame 86). Medians in ms; `s1`, `s2`
-what it saves on the decoder's first and second frame; every arm faster on frames 0+1 in 12/12 rounds.
+what it saves on the decoder's first and second frame; every variant faster on frames 0+1 in 12/12 rounds.
 
-| set | cpu | compile | arm | warm-up | frames 0 / 1 / 2 | s1 | s2 | frame 0 breaks even at | hidden at |
+| set | cpu | compile | variant | warm-up | frames 0 / 1 / 2 | s1 | s2 | frame 0 breaks even at | hidden at |
 | --- | --: | --: | --- | --: | --- | --: | --: | --: | --: |
 | cine512 | 1× | 9.4 | none | — | 17.2 / 12.3 / 6.5 | | | | |
 | | | | **w160** | **6.5** | 12.8 / 10.3 / 6.8 | 4.5 | 2.0 | **2.1** | **6.5** |
@@ -789,7 +789,7 @@ warm-up's cost the first frame is sooner by part of `s1`; past it, by all of it.
 * **The window it needs is short.** Frame 0 breaks even at **1–2 ms of idle window at 1×, 4–7 ms at
   4×**, and the warm-up is wholly hidden at 6.5 / 28 ms. A dial that leaves the decoders ~1.5 s
   before the first byte — the workstation's figure for its other transport — hides it 20–250 times
-  over, on every arm here; the lab's own loopback leaves it none (above).
+  over, on every variant here; the lab's own loopback leaves it none (above).
   Per transport, the stamp below reads the window directly.
 * **From the third frame on, the shipped frame moves nothing**; only the larger ones take ~4 ms more
   off CT's frame 2 at 4×.
@@ -917,8 +917,8 @@ fails on c512 alone. In the gate, `dispatch-rig.ts` holds `decoder.js` to 0..255
 160² frame through the package (pixels 0..199) and through `range-glue.js` (which answers −7..7);
 the constant dropped or one short fails both.
 
-**The WASM call** (`build_arms.mjs`, Node, container, 20 timed rounds rotated, two runs led by either
-arm; medians, ms/frame):
+**The WASM call** (`build_variants.mjs`, Node, container, 20 timed rounds rotated, two runs led by either
+variant; medians, ms/frame):
 
 | set | before row 80 | row 80 | row 83 |
 | --- | ---: | ---: | ---: |
@@ -957,7 +957,7 @@ content only**: on the rig a 237-frame 16-bit fill ended 15 ms after its last by
 
 * **Build flags.** The package (`@cornerstonejs/codec-openjph` 2.4.11) has SIMD128 — 4 450 `v128`
   instructions — and no relaxed SIMD; `-mrelaxed-simd` on a source build produces a byte-identical
-  binary. `build_arms.mjs`, Node, 9 rounds, colour / 16-bit: from source (emscripten 3.1.74) `-O3`
+  binary. `build_variants.mjs`, Node, 9 rounds, colour / 16-bit: from source (emscripten 3.1.74) `-O3`
   is **−7.9 % / −10.6 %** against the package (7/8, 7/8), `-O2` −11.1 % / −10.5 % (8/8, 8/8), `-Os`
   −8.3 % / −2.0 %; the ranges touch, so it is reported, not decided. In the page the colour fill
   does not separate (682 → 661 ms `-O3`, 4/7). *Nothing changed.*
@@ -1028,7 +1028,7 @@ per round, 7 rounds at each of 1× / 4× / 6×: **nothing separates on an ask** 
 cell better than 6 of 7). Per-frame WASM moves −1.6 to −3.7 % on colour and up to −12.2 % on 16-bit
 at 4–6× (5–6 of 7), which agrees with the Node figure in §The decode tail. The one 7-of-7 result,
 the 4 MB build's colour fill at 4× and 6× (**−7.5 %, −5.3 %**), is not claimed as a faster decoder:
-its range pass — identical JavaScript in every arm — is also faster 7/7 (−13 %, −15 %), so part of
+its range pass — identical JavaScript in every variant — is also faster 7/7 (−13 %, −15 %), so part of
 the gain is a memory effect of the smaller heap or of this rig.
 
 **(b) One frame's code-blocks in parallel — identified, not built.** The seam is
@@ -1110,7 +1110,7 @@ exceptions, the wrapper's two passes, decoder reuse and the range pass were trie
 
 1. **Code-blocks decoded in parallel inside a frame — built in the lab and measured.** A row of
    code-blocks decoded by the caller and 1 or 3 helper threads (`cb-threads.patch` at
-   `subband::pull_line`), each arm in a worker, one frame at a time, 6 rounds Williams-ordered,
+   `subband::pull_line`), each variant in a worker, one frame at a time, 6 rounds Williams-ordered,
    2 688/2 688 frames exact, two mutations caught 56/56. × the plain build, paired by round:
 
    | series | 2 threads 1× | 4 threads 1× | 2 threads 4× | 4 threads 4× |
@@ -1173,7 +1173,7 @@ shifts). A port is two cleanup kernels and a 5/3 integer synthesis; nothing of O
 
 *Transfer, measured.* Headless Chromium 141 on SwiftShader, the codestream up and the frame back into a
 buffer the page keeps, against today's copy out of the wasm heap; 8 rounds × 7 passes interleaved, per-round
-medians [range], 1 344/1 344 frames exact both arms, a one-bit mutation caught in every cell:
+medians [range], 1 344/1 344 frames exact both variants, a one-bit mutation caught in every cell:
 
 | frame | MB back | heap 1× | WebGPU 1× | heap 4× | WebGPU 4× |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -1299,7 +1299,7 @@ container depth, so a 12- or 14-bit series is coded as 16-bit, for 1.0000–1.00
 decode change; the colour transform on RGB is the same.
 
 **Decode** a frame, the product's worker and package, 10 rounds interleaved, 1× and 4×: block size,
-decompositions 3–6, LRCP, precincts and the `imagecodecs` arm are each within the round-to-round spread of
+decompositions 3–6, LRCP, precincts and the `imagecodecs` variant are each within the round-to-round spread of
 the served profile: the median paired ratio is 0.80–1.37 and every one of the 162 ranges spans 1; on the
 mammogram and the projections, where decode is the clock (88 ms a frame at 1×, 355 ms at 4×), it is
 0.95–1.06 at 1× and 0.98–1.10 at 4×. 12 400/12 400 frames exact.
@@ -1455,7 +1455,7 @@ dav1d 1.5.4 under emscripten 3.1.74, `-msimd128`, one thread, 623 KB `.wasm` (23
 exact against two native dav1d builds on every frame tried — 8/10/12-bit, 4:0:0 and 4:4:4, intra and
 inter ([`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md)). It is what `av1-dav1d.js` runs
 for an AV1 series, flushed before each frame (G = 1: [`docs/av1/adr-unit.md`](../av1/adr-unit.md)
-§2), and the dispatch arm decodes all six shapes through the downloader to their source's checksum.
+§2), and the dispatch variant decodes all six shapes through the downloader to their source's checksum.
 Unlike WebCodecs it takes 12 bits and returns one frame per unit with no `flush()` to wait on. It
 is 5–10× slower than OpenJPH on the same frames (§Decode time against HTJ2K).
 
@@ -1483,7 +1483,7 @@ string's colour fields, not the stream's, so with the full string configured the
 `matrix_coefficients` from the sequence header, as dav1d's does: both weaknesses are gone, and an
 identity stream without the sRGB tags decodes here exactly.
 
-The dispatch arm (headless Chromium 141) checks, every frame against its source's checksum and its
+The dispatch variant (headless Chromium 141) checks, every frame against its source's checksum and its
 range against its own samples: 8/10-bit grey and RGB through WebCodecs, every unit counted reaching
 it; the same frames with `VideoDecoder` removed, and 12-bit grey and RGB with it present, through
 dav1d-WASM with none reaching it; 13-bit split, 13-bit signed and 16-bit signed split frames
@@ -1515,7 +1515,7 @@ to 15 ms at 1× and from 118–135 to 66–70 ms at 4×, for −0.6 to +0.4 % by
 `decoder.js` now hands a ≤ 10-bit series in groups to WebCodecs. A unit that gives neither a frame
 nor an error would stall its decoder. Chromium does this on a one-byte or delimiter-only delta, so
 after 2 s the unit is flushed and fails by name, and the rest of its group fails with it. The
-dispatch arm checks four things, each through WebCodecs and through dav1d-WASM:
+dispatch variant checks four things, each through WebCodecs and through dav1d-WASM:
 
 * a G = 8 colour series, every frame exact and all 20 units reaching WebCodecs (none with
   `VideoDecoder` removed);
@@ -1548,8 +1548,8 @@ container, 6 interleaved rounds at 1× and 4×. Desktop engines, not phones: iOS
 through the platform's media stack, not GStreamer.
 
 * **dav1d-WASM and OpenJPH are exact in every engine**: 408/408 and 240/240 frames a cell, every
-  layout, signed CT included; dav1d-WASM 4.1–9.6× OpenJPH at 1× and 3.9–10.0× at 4× (every AV1 arm
-  slower in 732/732 paired rounds), each engine within 0.85–1.22× of Chromium's time on the same arm (median
+  layout, signed CT included; dav1d-WASM 4.1–9.6× OpenJPH at 1× and 3.9–10.0× at 4× (every AV1 variant
+  slower in 732/732 paired rounds), each engine within 0.85–1.22× of Chromium's time on the same variant (median
   1.01–1.06). The `simd` build loads everywhere — all three validate WASM SIMD. Without SIMD it
   would not compile, and neither would OpenJPH: both `.wasm` files fail `wasm-validate
   --disable-simd`, so an engine without it loses HTJ2K with AV1.
@@ -1660,11 +1660,11 @@ the stride fix.
 
 Row SPEED ([`lab/av1/decode/per-frame`](../../lab/av1/decode/per-frame/README.md)), 2026-10-03. The first 18 frames of three
 real series (row DATA), each as the served HTJ2K and as lossless AV1 intra (libaom 3.15.1 `cpu-used`
-0, G = 1 as row SIZE recommends). Every arm is the product's decoder worker — `decoder.js` with the
+0, G = 1 as row SIZE recommends). Every variant is the product's decoder worker — `decoder.js` with the
 OpenJPH package, `decoder.js` → `av1-dav1d.js` with dav1d-WASM `simd` — or WebCodecs behind the
 same protocol and output, timed by the worker's own decode stamps (bytes in, the contract's pixels
 and range out), one frame at a time after a warm-up frame. 16 rounds, each (environment × throttle)
-cell a fresh process in a Williams order, sets and arms rotated inside it. **7 488 of 7 488 timed
+cell a fresh process in a Williams order, sets and variants rotated inside it. **7 488 of 7 488 timed
 frames exact** against the series' checksums; flipping one bit of every decoded frame, or one digit
 of every checksum, turns all 13 cells to 0/18.
 

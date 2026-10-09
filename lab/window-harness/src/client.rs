@@ -117,7 +117,7 @@ pub async fn run_depth_sweep(
     trace: &TraceSpec,
     cfg: &RunConfig,
     depths: &[u32],
-    arm_prefix: &str,
+    variant_prefix: &str,
 ) -> Result<Vec<HarnessMetrics>> {
     let mut out = Vec::with_capacity(depths.len());
     for &depth in depths {
@@ -125,7 +125,7 @@ pub async fn run_depth_sweep(
         reset_ask_join();
         let mut run_cfg = cfg.clone();
         run_cfg.depth = depth;
-        let label = format!("{arm_prefix}_d{depth}");
+        let label = format!("{variant_prefix}_d{depth}");
         out.push(run_harness(Some(trace), &run_cfg, &label).await?);
     }
     Ok(out)
@@ -134,7 +134,7 @@ pub async fn run_depth_sweep(
 pub async fn run_harness(
     trace: Option<&TraceSpec>,
     cfg: &RunConfig,
-    arm_label: &str,
+    variant_label: &str,
 ) -> Result<HarnessMetrics> {
     reset_peak_outstanding();
     reset_ask_join();
@@ -244,7 +244,7 @@ pub async fn run_harness(
         mode,
         cfg.read_bps,
         cfg.depth,
-        arm_label,
+        variant_label,
         asks_sent,
         cfg.fill_dwell_ms,
         cfg.warm_cache,
@@ -522,7 +522,7 @@ async fn run_reader_open_loop(
     let step = Duration::from_secs_f64((base_ms as f64 * cfg.step_scale.max(0.001)) / 1000.0);
 
     for (i, &cursor) in schedule.iter().enumerate() {
-        // ABSOLUTE deadline: a per-iteration sleep would give a slower arm a slower reader.
+        // ABSOLUTE deadline: a per-iteration sleep would give a slower variant a slower reader.
         tokio::time::sleep_until(t0 + step * i as u32).await;
 
         let frame = cursor % n;
@@ -825,7 +825,7 @@ async fn on_frame_arrived(
 
 /// Every uni the server opens, each carrying `[4B BE envelope_len][envelope]` frames until it
 /// ends: one stream for `shared`, one per frame for `per-frame`. One reader
-/// for both, so an arm's numbers never carry a reader difference. Post-processing is
+/// for both, so a variant's numbers never carry a reader difference. Post-processing is
 /// spawned so no read loop is blocked by it.
 async fn accept_and_read_loop(
     connection: Connection,

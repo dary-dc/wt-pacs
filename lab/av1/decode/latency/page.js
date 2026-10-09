@@ -42,10 +42,10 @@ async function hashes(frame, planes, mutate) {
   return out;
 }
 
-async function stream(cell, arm, { dir, mutate, waitMs }) {
+async function stream(cell, variant, { dir, mutate, waitMs }) {
   const bytes = new Uint8Array(await (await fetch(`${dir}/${cell.name}.ivf`)).arrayBuffer());
   const planes = cell.layout === "mono" ? 1 : 3;
-  const row = { stream: cell.name, arm, ms: [], perUnit: 0, frames: 0, exact: 0, expected: cell.frames, errors: [] };
+  const row = { stream: cell.name, variant, ms: [], perUnit: 0, frames: 0, exact: 0, expected: cell.frames, errors: [] };
   const got = new Map();
   let waiting = null;
   const decoder = new VideoDecoder({
@@ -56,7 +56,7 @@ async function stream(cell, arm, { dir, mutate, waitMs }) {
     },
     error: (e) => row.errors.push(`${e.name}: ${e.message}`),
   });
-  const { flush, before, ...extra } = CONFIG[arm];
+  const { flush, before, ...extra } = CONFIG[variant];
   try {
     decoder.configure({ codec: cell.codec, hardwareAcceleration: "prefer-software", ...extra });
     for (const [i, unit] of units(bytes).entries()) {
@@ -88,11 +88,11 @@ async function stream(cell, arm, { dir, mutate, waitMs }) {
   return row;
 }
 
-globalThis.run = async ({ dir, names, arms, round, mutate, waitMs }) => {
+globalThis.run = async ({ dir, names, variants, round, mutate, waitMs }) => {
   const manifest = (await (await fetch(`${dir}/manifest.json`)).json()).filter((c) => !names || names.includes(c.name));
   const rows = [];
   for (const cell of order(manifest, round)) {
-    for (const arm of order(arms, round)) rows.push({ ...(await stream(cell, arm, { dir, mutate, waitMs })), tiles: cell.tiles, bytes: cell.bytes });
+    for (const variant of order(variants, round)) rows.push({ ...(await stream(cell, variant, { dir, mutate, waitMs })), tiles: cell.tiles, bytes: cell.bytes });
   }
   return rows;
 };

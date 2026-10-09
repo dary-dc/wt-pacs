@@ -7,7 +7,7 @@ bits or fewer, a reversible colour transform for RGB, SVT-AV1 where it is exact,
 The verdict is in [`docs/av1/README.md`](../../../../docs/av1/README.md) §Bytes.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160   # builds ojph_compress once
 lab/av1/fetch_data.sh
 W=lab/.av1-work; P=lab/av1/.venv/bin/python

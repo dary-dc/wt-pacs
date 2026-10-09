@@ -6,7 +6,7 @@ exactly (row XENGINE: Firefox refuses monochrome, and expands limited-range grey
 [`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md) §8-bit grey as 4:2:0.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
 client/decode/wasm/fetch_openjph.sh
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160      # builds ojph_compress once
 client/transport/ts/build.sh
@@ -22,17 +22,17 @@ export FIREFOX_PATH=.../FirefoxApp/firefox   # Firefox 157.0.1 as lab/av1/bytes/
 node lab/av1/exact/engines/run.mjs --rounds 10 --throttles 1,4 --engines chromium,firefox --frames $W/frames --out decode.json
 for r in $(seq 0 9); do
   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W/frames --engines chromium,firefox \
-    --arms htj2k,mono,420 --rounds 1 --first-round $r --out total.jsonl
+    --variants htj2k,mono,420 --rounds 1 --first-round $r --out total.jsonl
 done
-NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W/frames --engines chromium,firefox --arms htj2k,mono,420 --summary --out total.jsonl
+NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W/frames --engines chromium,firefox --variants htj2k,mono,420 --summary --out total.jsonl
 ```
 
 **Series.** The two 8-bit grey series the lab holds, every frame: the breast ultrasound cine (`usb_cine`,
-64 × 512²) and the stills (`usb_still`, 29 × 276×305). **Arms**, each written by `ingest.py` (optimized
+64 × 512²) and the stills (`usb_still`, 29 × 276×305). **Variants**, each written by `ingest.py` (optimized
 representation, cpu0) and checked exact natively before it is written: `htj2k`, the served profile; `mono`,
 today's 4:0:0; `420`, `--grey8 420`. In the decode harness `mono.d` and `420.d` are the same payloads with
-`VideoDecoder` removed, so dav1d-WASM. Each arm reaches the decoder the product picks: in Chromium both AV1
-arms go to WebCodecs; in Firefox `mono` fails its `g8` probe and goes to dav1d-WASM, `420` passes `g8f`.
+`VideoDecoder` removed, so dav1d-WASM. Each variant reaches the decoder the product picks: in Chromium both AV1
+variants go to WebCodecs; in Firefox `mono` fails its `g8` probe and goes to dav1d-WASM, `420` passes `g8f`.
 
 **Pins.** Chromium 141 (Playwright 1.56.1's), Firefox 157.0.1 (conda-forge `firefox-157.0.1-hee9eb32_0.conda`,
 SHA-256 `f1b53de2…4d7127f35`, micromamba 2.9.0 SHA-256 `8761c382…f13040dd`), libaom 3.15.1, dav1d 1.5.4 and
@@ -53,8 +53,8 @@ ultrasound's 760×421 green plane at libaom's default tuning.
 
 `lab/av1/exact/engines`'s harness: the product's decoder worker, one frame at a time after a warm-up frame, every frame
 hashed against its source's checksum; 10 rounds, each engine × throttle cell a fresh browser in a Williams order,
-sets and arms rotated inside it. **Every frame exact in every cell: 18 600/18 600** (93 frames × 5
-arms × 2 engines × 2 throttles × 10 rounds). ms a frame, median of round medians [range]; then 4:2:0 over 4:0:0 through the decoder the product picks,
+sets and variants rotated inside it. **Every frame exact in every cell: 18 600/18 600** (93 frames × 5
+variants × 2 engines × 2 throttles × 10 rounds). ms a frame, median of round medians [range]; then 4:2:0 over 4:0:0 through the decoder the product picks,
 median of round-paired ratios [range], rounds slower:
 
 | engine | | series | HTJ2K | 4:0:0 (product) | 4:2:0 (product) | 4:2:0 / 4:0:0 |
@@ -86,7 +86,7 @@ One decoder at a time on four cores: nowhere near the host's saturation. Contain
 `lab/av1/delivery/total-time`'s harness: each series filled whole through the downloader against the real server behind the
 relay, the browser on three cores and the relay on the fourth, Chromium on row TOTAL's five links and Firefox on
 the three it can dial (below). 17 rounds, each engine's cells in a Williams order, the engines taking turns to go
-first; 265 of 1 632 visits `VOID` (the relay's own timing) and dropped, **n = 7–17 a cell and arm. Every frame
+first; 265 of 1 632 visits `VOID` (the relay's own timing) and dropped, **n = 7–17 a cell and variant. Every frame
 that reached the page was exact, 75 760 of 75 888**; the other 128 are two Firefox visits that got no frame at all
 (one dial timeout at 50 Mbit, one fill that never ended). Seconds to every frame on the page, HTJ2K's median; then
 medians of round-paired ratios, 1× · 4×:
@@ -118,7 +118,7 @@ medians of round-paired ratios, 1× · 4×:
   takes it off. At 1×, and on Wi-Fi, ±3 %. The first frame is 13 ms later at 1× and 72 ms sooner at 4× (medians).
 * 8-bit grey AV1 against HTJ2K, either form: the cine fills in 0.89–0.93 of HTJ2K's time wherever the wire is
   the clock, the stills within 1–2 %; at 4× on fast links HTJ2K wins (Chromium 1.04–1.11; Firefox 4:0:0 up to 1.84, 4:2:0 up to 1.44).
-* **Saturation**: at 4× on 50 Mbit and LTE the browser's three slowed cores are the clock for every AV1 arm; nothing
+* **Saturation**: at 4× on 50 Mbit and LTE the browser's three slowed cores are the clock for every AV1 variant; nothing
   past that is claimed. Containers, not phones.
 
 **Firefox and the fixed-rate links.** On the relay's fixed 5 Mbit link every Firefox dial failed, and on 10, 20 and

@@ -69,7 +69,7 @@ async function visit(decoders, cores, throttle, scenario) {
     const page = await browser.newPage();
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Performance.enable");
-    await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?arm=Dd&scenario=${scenario}&decoders=${decoders}`);
+    await page.goto(`http://127.0.0.1:${http}/lab/downloader-campaign/index.html?variant=Dd&scenario=${scenario}&decoders=${decoders}`);
     // Not the default: polling on every animation frame is main-thread work the visit would be charged.
     const wait = (f) => page.waitForFunction(f, null, { timeout: 300000, polling: 200 });
     await wait(() => globalThis.__wtpacsReady || globalThis.__wtpacsDone);

@@ -1,7 +1,7 @@
 /**
  * One engine's share of JXL, run by the page so any browser that opens a URL can take it. `probe`: each set's
  * first frame through every native path (`<img>`, `createImageBitmap`, `ImageDecoder`, a float16 canvas read),
- * compared sample by sample with the fetched series. `time`: each arm's frames in order — native, or a WASM
+ * compared sample by sample with the fetched series. `time`: each variant's frames in order — native, or a WASM
  * decoder in row EMBED's worker — hashed against the series' checksums. run.mjs serves and drives it.
  */
 import { order } from "/lab/order.mjs";
@@ -104,7 +104,7 @@ async function probeOne(s, url, mutate) {
 }
 
 /** Native: each frame to an `ImageBitmap`, drawn and read back — the samples a viewer could window. */
-async function nativeArm(a) {
+async function nativeVariant(a) {
   const units = await Promise.all(a.urls.map(bytes));
   const ctx = canvasOf(a.width, a.height).getContext("2d", { willReadFrequently: true });
   const decode = async (u) => {
@@ -128,7 +128,7 @@ async function nativeArm(a) {
   return { ms, hashes };
 }
 
-const wasmArm = (o) => new Promise((resolve) => {
+const wasmVariant = (o) => new Promise((resolve) => {
   const w = new Worker("/lab/av1/bytes/embedded/worker.js", { type: "module" });
   w.onmessage = (e) => { w.terminate(); resolve(e.data); };
   w.onerror = (e) => { w.terminate(); resolve({ error: e.message }); };
@@ -143,10 +143,10 @@ try {
     await post("/jx/done", { probes });
   } else {
     const rows = [];
-    for (const a of order(cfg.arms, cfg.round)) {
-      const got = a.o.arm === "native" ? await nativeArm(a.o).catch((e) => ({ error: String(e) })) : await wasmArm(a.o);
+    for (const a of order(cfg.variants, cfg.round)) {
+      const got = a.o.variant === "native" ? await nativeVariant(a.o).catch((e) => ({ error: String(e) })) : await wasmVariant(a.o);
       const exact = got.hashes ? got.hashes.filter((h, i) => h === a.want[i]).length : 0;
-      rows.push({ set: a.set, arm: a.arm, frames: a.want.length, exact, ms: got.ms, error: got.error });
+      rows.push({ set: a.set, variant: a.variant, frames: a.want.length, exact, ms: got.ms, error: got.error });
     }
     await post("/jx/done", { rows });
   }

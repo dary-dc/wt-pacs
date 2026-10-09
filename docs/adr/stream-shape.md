@@ -26,7 +26,7 @@ how long a stream lives: one per session, `k` per session dealt round-robin, or 
 The textbook argument is that one stream holds every later frame behind one lost packet, and one
 stream per frame confines a loss to its own frame. It was pre-registered as H4, and it lost.
 
-**The validity condition, before any number.** The arms are byte-identical when one frame is in
+**The validity condition, before any number.** The variants are byte-identical when one frame is in
 flight: at depth 1 all three send one frame on one stream. A cell measures stream shape only where
 `D_min > 1` ([`client-window-depth.md`](client-window-depth.md)) — 32 KB to 250 KB on a
 10 Mbit link. **Nothing here transfers to mammography and tomosynthesis sizes**, where `Tf ≫ RTT`
@@ -45,7 +45,7 @@ it moved into a `JoinSet`, per-frame at 250 KB, `D` = 4, 10 Mbit / 60 ms reads *
 and every frame finishes late; one ordered stream sends frame 1 whole, then frame 2, so the frame
 the reader waits for lands first. For ordered demand that ordering is alignment, not a defect. The
 cloud rig measured it lossless (2026-08-29, 432 rows, 5 s dwell, 3 repeats, `--mode saturate`),
-three arms — **S** shared, **P** per-frame FIFO, **Q** per-frame with ask-order priority:
+three variants — **S** shared, **P** per-frame FIFO, **Q** per-frame with ask-order priority:
 
 | `frames_32k` | S | P | Q |
 | --- | ---: | ---: | ---: |
@@ -53,7 +53,7 @@ three arms — **S** shared, **P** per-frame FIFO, **Q** per-frame with ask-orde
 | 150 ms, `D` = 12 | **7.408** | 6.350 | **7.374** |
 | 150 ms, `D` = 8 | 6.520 | 5.052 | 5.991 |
 
-P trails S by 10–25 % across the grid; Q ties S and never beats it. At `D` = 1 the arms agree
+P trails S by 10–25 % across the grid; Q ties S and never beats it. At `D` = 1 the variants agree
 (250 KB spread 0.133 Mbps, 32 KB 0.034), and divergence starts at `D` = 2, the first depth with two
 streams to share — the predicted onset. It accounts for X2's lossless 18 % gap at 150 ms, and is
 consistent with X2's `D_min` of 8 for per-frame against 2 for shared (Q's own `D_min` was not
@@ -89,13 +89,13 @@ the priority — expressed at the transport. Before the campaign below it had be
 32 KB, inside noise at the decision cell (pooled CI [−7.3, +26.3] % at 0.5 % loss; the one tight
 cell +1.5 %, CI [+0.6, +5.1]).
 
-## 2 · The three-arm campaign, native, 2026-09-15
+## 2 · The three-variant campaign, native, 2026-09-15
 
 `shared`, `pool:2` (frames dealt round-robin over two long-lived streams, each ranked by the frame
 last dealt to it) and `per-frame` with priority. 250 KB, depth 2, 10 Mbit / 60 ms under netns
-netem, six repeats, arms interleaved with the order reversed every repeat, one warm-up pass per arm
+netem, six repeats, variants interleaved with the order reversed every repeat, one warm-up pass per variant
 discarded; the bursty cell (Gilbert–Elliott, `p 0.07 % r 14 %`: 0.5 % mean, bursts of ~7 packets)
-re-run at eighteen. p95 over **every step, zeros included**, so each arm brings the same samples
+re-run at eighteen. p95 over **every step, zeros included**, so each variant brings the same samples
 (486 per six repeats); against `shared` in the same cell:
 
 | cell | `per-frame` | `pool:2` |
@@ -111,28 +111,28 @@ reading a dead heat and −21.7 % is not a finding.
 
 **`pool:2` is decisively worse, on four independent signals.** It costs ~75 % of tail with no loss
 at all — two equal frames interleave where one stream would finish the first early — so it is the
-arm's own cost, not a loss effect. It strands 24–29 frames of 49 in every repeat against 2–13. In
+variant's own cost, not a loss effect. It strands 24–29 frames of 49 in every repeat against 2–13. In
 the bursty cell its mean wait is 197–217 ms against 27–49, and it sat at exactly 483 ms in fifteen
 runs and **collapsed to 26 s in two of eighteen**.
 
-**Throughput separates nothing.** Six 10 s saturation probes per arm per loss level: 4.30 / 4.10 /
+**Throughput separates nothing.** Six 10 s saturation probes per variant per loss level: 4.30 / 4.10 /
 4.30 frames/s (`shared` / `pool:2` / `per-frame`) at 0 %, 4.30 / 4.00 / 4.35 at 0.5 %, 2.65 / 1.95 /
-2.05 at 2 %. At 2 % each arm's probes span ~3× and the ranges overlap almost entirely.
+2.05 at 2 %. At 2 % each variant's probes span ~3× and the ranges overlap almost entirely.
 
-**Bursts cost more than the arms do.** From the same baselines, bursty loss at 0.5 % mean degrades
+**Bursts cost more than the variants do.** From the same baselines, bursty loss at 0.5 % mean degrades
 `shared`'s tail by 38 % (18 repeats; 46 % at six) where scattered loss of the same mean costs 9 %,
-and neither stream arm changes that. That points at the congestion controller
+and neither stream variant changes that. That points at the congestion controller
 ([`transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1), not at the streams.
 
 ## HOL1 — in Chromium, through the relay (2026-09-25)
 
 Queue row 78. The same question asked of a browser, for a client deciding whether to move from
-one shared stream to K persistent ones — so the pool at `k` = 2, 4, 8 is the arm that matters. `lab/stream-shape/` ([README](../../lab/stream-shape/README.md)); rows in history at
+one shared stream to K persistent ones — so the pool at `k` = 2, 4, 8 is the variant that matters. `lab/stream-shape/` ([README](../../lab/stream-shape/README.md)); rows in history at
 `d184333`.
 
 **The rig.** 20 Mbit, 40 ms each way, a 200-packet queue (`lab/scripts/link_impair.py`), Cubic,
 128 KB frames, the raw TS client in headless Chromium. Per run: a fresh release server and relay, a
-fill of 40 frames, then 30 asks with the arm's `D_min` outstanding. Arms `shared`, `per-frame`,
+fill of 40 frames, then 30 asks with the variant's `D_min` outstanding. Variants `shared`, `per-frame`,
 `pool:2`, `pool:4`, `pool:8`, rotated every round, 7 rounds. Cells 0 %, 1 %, 3 % iid, and
 Gilbert–Elliott at the relay's default (0.5 % mean, bursts of ~7 packets). The pool's priority is
 exact only while a stream holds one unsent frame: a stream still sending frame `n` takes frame
@@ -140,19 +140,19 @@ exact only while a stream holds one unsent frame: a stream still sending frame `
 
 **The rule, pushed before the first run:**
 
-1. `D_min` per arm from a lossless sweep of depths 1–6: the smallest within 95 % of the arm's best.
+1. `D_min` per variant from a lossless sweep of depths 1–6: the smallest within 95 % of the variant's best.
 2. Metrics: all received; the fill's gap (frame `i` shows once `0..i` have landed), 7 × 39 = 273
    samples; an ask's latency, 7 × 30 = 210. Nearest-rank p95 — about the 14th and 11th largest.
-3. Control: at 0 % every arm receives everything and `per-frame` sits within 15 % of `shared` on
+3. Control: at 0 % every variant receives everything and `per-frame` sits within 15 % of `shared` on
    both p95s, or no loss cell is read. A pool outside 15 % at 0 % is read against its own control.
-4. Per lossy cell and arm: *worth it* if pooled p95 is ≥ 20 % under `shared`'s and the run's own p95
+4. Per lossy cell and variant: *worth it* if pooled p95 is ≥ 20 % under `shared`'s and the run's own p95
    is under `shared`'s in ≥ 5 of 7 rounds, everything received; *costs* the other way; otherwise
    *no separation*.
 5. K persistent streams are worth moving to if some `pool:k` is *worth it* on either metric in at
    least two of the three lossy cells, and passes its control or stays worth it against its own.
 
-**Results.** Every arm received everything in every cell: 280 of 280 fill frames, 210 of 210 asks.
-`D_min` is 3 for every arm (6.1 / 12.7 / 15.2 asks/s at depths 1 / 2 / 3, flat after). The control
+**Results.** Every variant received everything in every cell: 280 of 280 fill frames, 210 of 210 asks.
+`D_min` is 3 for every variant (6.1 / 12.7 / 15.2 asks/s at depths 1 / 2 / 3, flat after). The control
 passes: `per-frame` −2.1 % on the fill's gap and +0.3 % on asks.
 
 | pooled p95 vs `shared` | `shared` gap / ask | `per-frame` | `pool:2` | `pool:4` | `pool:8` |
@@ -185,7 +185,7 @@ independent delivery may then have something to rescue; that cell was not run.
 
 Each was published or specified, then found wrong. Kept so none is re-derived.
 
-* **The X3 campaign (2026-08-28) is invalid, and its "chosen: shared" retracted.** It ran both arms
+* **The X3 campaign (2026-08-28) is invalid, and its "chosen: shared" retracted.** It ran both variants
   at `D` = 4 where their `D_min` were 2 and 8; its 0 % control showed per-frame 92 % worse and was not
   treated as a stop; X2's > 10 % stop gate was overridden; its p95 rested on ~4 tail samples. Shared
   won later on other evidence; X3 is cited in neither direction.
@@ -194,7 +194,7 @@ Each was published or specified, then found wrong. Kept so none is re-derived.
 * **X3's `mild_cell` timeout was a harness defect**, not a stall: asks wrapped modulo the series's
   80 frames while the waits did not, so from step 81 the harness waited for a frame never asked.
   Fixed in `lab/window-harness/src/client.rs`; the 80-step trace X3 swapped in was the workaround.
-* **The v2 control was specified at the wrong depth.** "All arms close at 20 ms" was checked at
+* **The v2 control was specified at the wrong depth.** "All variants close at 20 ms" was checked at
   `D` = 16, where concurrency is the effect under test; at `D` = 1 it passes. The same campaign
   carried no loss and, in saturate mode, no p95, so it could not evaluate its own decision rule.
 * **A 3.5× throughput claim, retracted within the hour.** One 4 s probe at 2 % loss read `shared`
@@ -213,9 +213,9 @@ Each was published or specified, then found wrong. Kept so none is re-derived.
 * **Median of per-run p95 inverted a slope** on the same rows in the 32 KB priority lane; the pooled
   estimator replaced it.
 * **A first 0.5 % cell pooled two cache regimes.** Its first repeat was a cold page cache (hit rate
-  0.28–0.30 against 0.70–0.84), making `shared` 50× the worst arm with it and the best without.
+  0.28–0.30 against 0.70–0.84), making `shared` 50× the worst variant with it and the best without.
 * **A first 2 % cell over-demanded ~2×**: the step interval came from the link label while Cubic
-  carried 2.5–4.3 of 10 Mbit, and every arm censored 5–33 % of waits.
+  carried 2.5–4.3 of 10 Mbit, and every variant censored 5–33 % of waits.
 * **Shared was not "worst under loss".** [`frame-framing-and-loop-shape.md`](frame-framing-and-loop-shape.md)
   §4 ranked it so by argument; measured against per-frame with priority, it is level.
 
@@ -226,13 +226,13 @@ What the corrections above cost to learn, and what the cell drivers enforced (re
 
 * **An open-loop reader.** A closed-loop reader cannot produce head-of-line blocking (0.00 MB
   stranded); no result from `--reader-mode closed`, still the harness default, is admissible.
-* **Each arm at its own `D_min`**, and a zero-loss control where `per-frame` and `shared` must sit
+* **Each variant at its own `D_min`**, and a zero-loss control where `per-frame` and `shared` must sit
   within 15 %, or the gap is the instrument. A pool's own zero-loss cost is divided out, not a stop.
-* **Equal samples per arm** — every step, not positive waits only — and a bootstrap CI.
-* **One discarded warm-up pass per arm**; a cache-hit spread above 0.25 within an arm voids the cell.
-* **The step interval measured**, from a saturate probe on the reference arm, one interval for every
-  arm — so the cell adapts to loss, rate and controller.
-* **VOID is a verdict**: fewer than 20 reference-arm misses, a reader that never met its schedule, or
+* **Equal samples per variant** — every step, not positive waits only — and a bootstrap CI.
+* **One discarded warm-up pass per variant**; a cache-hit spread above 0.25 within a variant voids the cell.
+* **The step interval measured**, from a saturate probe on the reference variant, one interval for every
+  variant — so the cell adapts to loss, rate and controller.
+* **VOID is a verdict**: fewer than 20 reference-variant misses, a reader that never met its schedule, or
   service from cache. Fix the cell; do not raise the repeats.
 * **A bursty cell needs two to three times an iid cell's repeats**: bursts damage fewer frames at the
   same mean loss (47 pooled misses against 106).

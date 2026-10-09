@@ -42,6 +42,6 @@ for (const i of (q.get("asks") || "").split(",").filter(Boolean).map(Number)) {
 client.close();
 fetch(`http://127.0.0.1:${q.get("report")}/`, {
   method: "POST",
-  body: JSON.stringify({ set: q.get("set"), arm: q.get("arm"), askAt, frames, asks }),
+  body: JSON.stringify({ set: q.get("set"), variant: q.get("variant"), askAt, frames, asks }),
   keepalive: true,
 });

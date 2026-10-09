@@ -1,6 +1,6 @@
 //! What a per-session ring costs when there are thousands of sessions.
 //!
-//! Both ring arms build one io_uring plus one eventfd per session that misses. CPU per read
+//! Both ring variants build one io_uring plus one eventfd per session that misses. CPU per read
 //! is not the only thing that has to scale: at a thousand concurrent sessions that is a
 //! thousand rings, and file descriptors, kernel memory and setup latency are all per-session
 //! costs the campaign never measured.

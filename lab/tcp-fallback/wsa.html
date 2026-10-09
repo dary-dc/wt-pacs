@@ -15,7 +15,7 @@
       [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
 
     /** ms from the dial to the first frame and to the fill's last, on the page clock; null if it never came. */
-    globalThis.runArm = async ({ arm, url, from, to, expected, limitMs }) => {
+    globalThis.runVariant = async ({ variant, url, from, to, expected, limitMs }) => {
       const got = new Map();
       let first = null;
       let done;
@@ -27,8 +27,8 @@
       };
       const onError = () => {};
       const t0 = performance.now();
-      const s = await TransportSession.connect(url, "", arm === "ask" ? { fill: { from, to, onFrame, onError } } : {});
-      if (arm === "ws") s.fillFrames(from, to, onFrame, onError);
+      const s = await TransportSession.connect(url, "", variant === "ask" ? { fill: { from, to, onFrame, onError } } : {});
+      if (variant === "ws") s.fillFrames(from, to, onFrame, onError);
       const fill = await Promise.race([all, new Promise((r) => setTimeout(() => r(null), limitMs))]);
       s.close();
       let exact = 0;

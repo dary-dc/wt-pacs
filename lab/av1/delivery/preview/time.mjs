@@ -1,8 +1,8 @@
 /**
- * PREVIEW's decode time: each set's cine decoded whole, in order, in one worker per arm — OpenJPH on
+ * PREVIEW's decode time: each set's cine decoded whole, in order, in one worker per variant — OpenJPH on
  * the exact HTJ2K frames and on their level-1 prefixes, dav1d-WASM and WebCodecs on every lossy AV1
  * preview — in headless Chromium at each throttle. Every (throttle) cell is a fresh browser, in a
- * Williams order every round; arms rotate inside it the same way. lab/av1/delivery/preview/README.md
+ * Williams order every round; variants rotate inside it the same way. lab/av1/delivery/preview/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/preview/time.mjs [--rounds 15] [--throttles 1,4]
  *     [--frames lab/.av1-work/preview] [--mutate hash] [--out rows.json]
@@ -31,17 +31,17 @@ const http = spawn("python3", ["server/dev-server.py", "--port", String(PORT)], 
 process.on("exit", () => http.kill());
 await new Promise((r) => setTimeout(r, 1000));
 
-/** Every arm of every set: what the worker is handed and the hashes its frames must have. */
-const arms = manifest.flatMap((s) => {
+/** Every variant of every set: what the worker is handed and the hashes its frames must have. */
+const variants = manifest.flatMap((s) => {
   const url = (dir, ext) => Array.from({ length: s.frames }, (_, i) => `/${FRAMES}/${dir}/${String(i).padStart(3, "0")}.${ext}`);
   const l1 = prefix.get(s.name).levels[1];
   return [
-    { set: s.name, arm: "htj2k", o: { arm: "htj2k", level: 0, group: 1, urls: url(s.name, "htj2k") }, want: s.truth },
-    { set: s.name, arm: "htj2k-l1", o: { arm: "htj2k", level: 1, group: 1, urls: url(s.name, "htj2k"), lengths: l1.map((f) => f.bytes) },
+    { set: s.name, variant: "htj2k", o: { variant: "htj2k", level: 0, group: 1, urls: url(s.name, "htj2k") }, want: s.truth },
+    { set: s.name, variant: "htj2k-l1", o: { variant: "htj2k", level: 1, group: 1, urls: url(s.name, "htj2k"), lengths: l1.map((f) => f.bytes) },
       want: l1.map((f) => f.digest) },
     ...s.previews.flatMap((p) => [
-      { set: s.name, arm: `dav1d ${p.cell}`, o: { arm: "dav1d", group: p.group, urls: url(`${s.name}/${p.cell}`, "av1") }, want: p.hashes },
-      { set: s.name, arm: `webcodecs ${p.cell}`, o: { arm: "webcodecs", group: p.group, codec: p.webcodecs, grey: s.channels === 1,
+      { set: s.name, variant: `dav1d ${p.cell}`, o: { variant: "dav1d", group: p.group, urls: url(`${s.name}/${p.cell}`, "av1") }, want: p.hashes },
+      { set: s.name, variant: `webcodecs ${p.cell}`, o: { variant: "webcodecs", group: p.group, codec: p.webcodecs, grey: s.channels === 1,
         urls: url(`${s.name}/${p.cell}`, "av1") }, want: p.hashes },
     ]),
   ];
@@ -55,11 +55,11 @@ async function inChromium(throttle, round) {
   await page.waitForFunction(() => globalThis.ready);
   const stop = throttleTree(server.process().pid, throttle);
   const rows = [];
-  for (const a of order(arms, round)) {
-    const got = await page.evaluate((o) => globalThis.arm(o), a.o);
+  for (const a of order(variants, round)) {
+    const got = await page.evaluate((o) => globalThis.variant(o), a.o);
     const want = MUTATE ? a.want.map((h) => h.replace(/^./, (c) => (c === "0" ? "1" : "0"))) : a.want;
     const exact = got.hashes ? got.hashes.filter((h, i) => h === want[i]).length : 0;
-    rows.push({ round, throttle, set: a.set, arm: a.arm, frames: a.want.length, exact, ms: got.ms, error: got.error });
+    rows.push({ round, throttle, set: a.set, variant: a.variant, frames: a.want.length, exact, ms: got.ms, error: got.error });
   }
   stop();
   await browser.close();
@@ -73,7 +73,7 @@ for (let round = 0; round < ROUNDS; round++) {
     const got = await inChromium(throttle, round);
     rows.push(...got);
     for (const r of got.filter((r) => r.error || r.exact !== r.frames)) {
-      console.error(`round ${round} ${throttle}x ${r.set} ${r.arm}: ${r.exact}/${r.frames} ${r.error ?? ""}`);
+      console.error(`round ${round} ${throttle}x ${r.set} ${r.variant}: ${r.exact}/${r.frames} ${r.error ?? ""}`);
     }
     console.error(`round ${round} ${throttle}x done`);
   }
@@ -83,12 +83,12 @@ if (OUT) writeFileSync(OUT, JSON.stringify(rows));
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 console.log("ms a frame, a whole cine in one worker: median of rounds [min–max], n; exact frames");
 for (const throttle of THROTTLES) {
-  for (const { set, arm } of arms) {
-    const rs = rows.filter((r) => r.throttle === throttle && r.set === set && r.arm === arm);
+  for (const { set, variant } of variants) {
+    const rs = rows.filter((r) => r.throttle === throttle && r.set === set && r.variant === variant);
     const per = rs.filter((r) => r.ms !== undefined).map((r) => r.ms / r.frames);
     const exact = `${rs.reduce((n, r) => n + r.exact, 0)}/${rs.reduce((n, r) => n + r.frames, 0)}`;
     const t = per.length ? `${med(per).toFixed(2)} [${Math.min(...per).toFixed(2)}–${Math.max(...per).toFixed(2)}] n=${per.length}` : `failed (${rs[0]?.error})`;
-    console.log(`${throttle}x\t${set}\t${arm}\t${t}\texact ${exact}`);
+    console.log(`${throttle}x\t${set}\t${variant}\t${t}\texact ${exact}`);
   }
 }
 process.exit(0);

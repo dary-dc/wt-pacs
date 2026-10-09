@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
 BUILD="${BUILD:-$ROOT/lab/.av1-build}"
-ARMS=simd BUILD="$BUILD" "$ROOT/client/decode/wasm/dav1d/build.sh" >/dev/null
+VARIANTS=simd BUILD="$BUILD" "$ROOT/client/decode/wasm/dav1d/build.sh" >/dev/null
 # shellcheck disable=SC1091
 source "$BUILD/emsdk/emsdk_env.sh" >/dev/null 2>&1
 emcc -O3 -msimd128 "$ROOT/lab/av1/delivery/scalable/two-layer/dav1d_wrap_op.c" -I"$BUILD/dav1d-src/include" \

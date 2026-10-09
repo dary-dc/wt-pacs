@@ -224,35 +224,35 @@ let placeOffset = 0;
 if (mode === "bench") {
   const ROUNDS = Number(flag("rounds", 10));
   const big = { w: 768, h: 576 };
-  const arms = [
-    { arm: "512² new frame", set: "ct512", css: { w: 512, h: 512 }, newFrame: true },
-    { arm: "512² window change", set: "ct512", css: { w: 512, h: 512 }, newFrame: false },
-    { arm: "4096×3072 new frame", set: "big16", css: big, newFrame: true },
-    { arm: "4096×3072 window change", set: "big16", css: big, newFrame: false },
+  const variants = [
+    { variant: "512² new frame", set: "ct512", css: { w: 512, h: 512 }, newFrame: true },
+    { variant: "512² window change", set: "ct512", css: { w: 512, h: 512 }, newFrame: false },
+    { variant: "4096×3072 new frame", set: "big16", css: big, newFrame: true },
+    { variant: "4096×3072 window change", set: "big16", css: big, newFrame: false },
   ];
-  const rows = Object.fromEntries(arms.map((a) => [a.arm, []]));
+  const rows = Object.fromEntries(variants.map((a) => [a.variant, []]));
   const context = await browser.newContext({ deviceScaleFactor: 1, viewport: { width: 1200, height: 900 } });
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${port}/client/paint/check.html`);
   await page.waitForFunction(() => globalThis.ready);
   let toggle = 0;
   for (let round = -1; round < ROUNDS; round++) {
-    for (const a of order(arms, Math.max(round, 0))) {
+    for (const a of order(variants, Math.max(round, 0))) {
       const s = SETS[a.set];
       const spec = { width: s.width, height: s.height, components: 1, bits: s.bits, signed: s.signed };
       const st = stats[a.set];
       const display = { voi: { center: st.p50 + (toggle++ % 2), width: Math.max(2, st.p90 - st.p10), function: "LINEAR" }, view: { fit: true } };
       const t = await page.evaluate(([set, sp, d, css, nf]) => globalThis.time(set, sp, d, css, nf), [a.set, spec, display, a.css, a.newFrame]);
-      if (round >= 0) rows[a.arm].push(t);
+      if (round >= 0) rows[a.variant].push(t);
     }
   }
   const renderer = await page.evaluate(() => globalThis.check([], { w: 1, h: 1 }).then((r) => r.renderer));
   const med = (xs) => { const s = [...xs].sort((x, y) => x - y); return s[s.length >> 1]; };
   const span = (xs) => `${med(xs).toFixed(2)} [${Math.min(...xs).toFixed(2)}–${Math.max(...xs).toFixed(2)}]`;
   console.log(`renderer ${renderer}; ms, median [min–max] of ${ROUNDS} interleaved rounds`);
-  for (const a of arms) {
-    const r = rows[a.arm];
-    console.log(`${a.arm.padEnd(26)} worker ${span(r.map((x) => x.worker))}  page ${span(r.map((x) => x.page))}  round trip ${span(r.map((x) => x.roundTrip))}  uploaded ${r.filter((x) => x.uploaded).length}/${r.length}`);
+  for (const a of variants) {
+    const r = rows[a.variant];
+    console.log(`${a.variant.padEnd(26)} worker ${span(r.map((x) => x.worker))}  page ${span(r.map((x) => x.page))}  round trip ${span(r.map((x) => x.roundTrip))}  uploaded ${r.filter((x) => x.uploaded).length}/${r.length}`);
   }
   process.exit(0);
 }

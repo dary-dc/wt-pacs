@@ -36,7 +36,7 @@ def bits(s):
 
 
 def layouts(s):
-    """name → ingest.py's arguments: plain, optimized (the k = 2 split over 8 bits) and, over 8 bits, row 44's arms
+    """name → ingest.py's arguments: plain, optimized (the k = 2 split over 8 bits) and, over 8 bits, row 44's variants
     d12 (k = b − 12), k3 and w10 (k = b − 10) where each is a k of its own; RGB plain and RCT."""
     if s.ch == 3:
         return {"plain": ["--representation", "plain"], "rct": ["--representation", "optimized"]}

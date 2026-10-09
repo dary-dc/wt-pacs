@@ -1,5 +1,5 @@
 /**
- * FOOTPRINT: what one arm of one set costs the product's decoder workers. `mode=mem` decodes the series on D
+ * FOOTPRINT: what one variant of one set costs the product's decoder workers. `mode=mem` decodes the series on D
  * workers twice over and stops at four checkpoints for run.mjs to read the renderer's RSS beside the page's
  * own measure; `mode=first` times a fresh worker's init and its first frames. Every frame is hashed against
  * the checksum written when the series was fetched. lab/av1/decode/memory/README.md
@@ -7,7 +7,7 @@
 const q = new URLSearchParams(location.search);
 const DIR = q.get("frames");
 const SET = q.get("set");
-const ARM = q.get("arm");
+const VARIANT = q.get("variant");
 const MODE = q.get("mode") === "first" ? "first" : "mem";
 const D = Number(q.get("decoders") || 1);
 const PER = 2;
@@ -18,17 +18,17 @@ const DAV1D = "/lab/.av1-build/out";
 
 const hex = (b) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
 
-/** The decoder config `connect` would hand the workers for this arm. */
-function arm(entry) {
-  // An arm may name another decoder worker, as row DECODE's *-before arms do.
-  const { ext, group, truth, worker, probeWorker, codec, openjph, ...connect } = entry.arms?.[ARM] ?? {};
-  if (OPENJPH[ARM] || codec === "htj2k") {
-    // An arm may name one of lab/decode-bench/wasm/build.sh's builds (lab/av1/decode/htj2k-threads).
-    const [dir, name] = OPENJPH[ARM] ?? (openjph ? ["/lab/.openjph-build/wasm", openjph] : OPENJPH.htj2k);
+/** The decoder config `connect` would hand the workers for this variant. */
+function variant(entry) {
+  // A variant may name another decoder worker, as row DECODE's *-before variants do.
+  const { ext, group, truth, worker, probeWorker, codec, openjph, ...connect } = entry.variants?.[VARIANT] ?? {};
+  if (OPENJPH[VARIANT] || codec === "htj2k") {
+    // A variant may name one of lab/decode-bench/wasm/build.sh's builds (lab/av1/decode/htj2k-threads).
+    const [dir, name] = OPENJPH[VARIANT] ?? (openjph ? ["/lab/.openjph-build/wasm", openjph] : OPENJPH.htj2k);
     return { ext: "htj2k", worker: probeWorker, decoder: { glue: `${dir}/${name}.js`, wasm: `${dir}/${name}.wasm`, dir } };
   }
   if (MUTATE === "split" && connect.split) connect.split--;
-  return { ext: ext ?? ARM, worker: probeWorker, groupLength: group,
+  return { ext: ext ?? VARIANT, worker: probeWorker, groupLength: group,
     decoder: { codec: "av1", glue: `${DAV1D}/simd.js`, wasm: `${DAV1D}/simd.wasm`, dir: DAV1D, ...connect } };
 }
 
@@ -69,12 +69,12 @@ function spawn(cfg, onFrame) {
 }
 
 async function main() {
-  const entry = await (await fetch(`/${DIR}/${SET}/arms.json`)).json();
-  const cfg = arm(entry);
+  const entry = await (await fetch(`/${DIR}/${SET}/variants.json`)).json();
+  const cfg = variant(entry);
   const truth = entry.truth.map((t) => (MUTATE === "truth" ? (t[0] === "0" ? "1" : "0") + t.slice(1) : t));
   const frames = await Promise.all(truth.map((_, i) =>
     fetch(`/${DIR}/${SET}/${String(i).padStart(3, "0")}.${cfg.ext}`).then((r) => r.arrayBuffer()).then((b) => new Uint8Array(b))));
-  const result = { set: SET, arm: ARM, mode: MODE, decoders: D, frames: frames.length, exact: 0, checked: 0 };
+  const result = { set: SET, variant: VARIANT, mode: MODE, decoders: D, frames: frames.length, exact: 0, checked: 0 };
 
   let chain = Promise.resolve();
   const check = (index, pixels) => (chain = chain.then(async () => {
@@ -141,4 +141,4 @@ async function main() {
   globalThis.__result = result;
 }
 
-main().catch((e) => { globalThis.__result = { set: SET, arm: ARM, mode: MODE, decoders: D, error: String(e?.message ?? e) }; });
+main().catch((e) => { globalThis.__result = { set: SET, variant: VARIANT, mode: MODE, decoders: D, error: String(e?.message ?? e) }; });

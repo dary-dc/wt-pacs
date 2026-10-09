@@ -17,7 +17,7 @@ NODE_PATH=$(npm root -g) node lab/av1/bytes/htj2k-settings/time.mjs --rounds 10 
 FRAMES=100 $P lab/av1/bytes/htj2k-settings/sweep.py $W/htj2kenc-total $D/rf_fluoro $D/dbt12_ea1141 $D/ffdm_a
 client/transport/ts/build.sh
 NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W/htj2kenc-total \
-  --arms b64x64-d5-RPCL,b64x64-d6-RPCL --ref b64x64-d5-RPCL --links r5000,r20000,r50000 --rounds 10
+  --variants b64x64-d5-RPCL,b64x64-d6-RPCL --ref b64x64-d5-RPCL --links r5000,r20000,r50000 --rounds 10
 ```
 
 **Frames.** The first 8 frames of nine series (3 where a frame is over 4 M samples): fluoroscopy
@@ -32,7 +32,7 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames $W/ht
   `_htj2k.pyx`, sdist sha256 `03a6add9…278175f`, read, not run). Every coding parameter is OpenJPH's
   own default — 5 decompositions, 64², RPCL, no precincts, the colour transform on RGB — the served
   profile's. The one difference: SIZ declares the array's container depth (`itemsize × 8`), so a
-  12- or 14-bit series is coded as 16-bit. That is what this arm codes.
+  12- or 14-bit series is coded as 16-bit. That is what this variant codes.
 
 **Checked.** Every codestream is decoded by `ojph_expand` and matched with the checksum written when
 the series was fetched, and its COD marker read back against the setting: **315 frames × 35 settings
@@ -48,10 +48,10 @@ Williams order each round, sets and settings rotating inside; 4× is `lab/script
 setting. **12 400/12 400 frames exact.** `--mutate sample` and `--mutate truth` each turned every
 cell to 0 exact. A container's times, not a phone's; one browser at a time on 4 cores.
 
-**Total time.** Row TOTAL's harness (`lab/av1/delivery/total-time`) unchanged, with each series' `arms.json`
-written by `sweep.py`: two arms, the served profile and the setting with the fewest bytes overall
+**Total time.** Row TOTAL's harness (`lab/av1/delivery/total-time`) unchanged, with each series' `variants.json`
+written by `sweep.py`: two variants, the served profile and the setting with the fewest bytes overall
 (6 decompositions), the whole series, the fixed links. `--mutate sample` and `--mutate truth` each
-turned both arms to 0 exact.
+turned both variants to 0 exact.
 
 **Pins.** OpenJPH 0.31.0 (`c68064d`); `@cornerstonejs/codec-openjph` 2.4.11 (tarball sha256
 `b47e4f67…ad105e15e`); Node 22.22.0; playwright 1.56.1's Chromium 141. Nothing built, fetched or

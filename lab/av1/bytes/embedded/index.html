@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <title>EMBED</title>
 <script type="module">
-  globalThis.arm = (o) => new Promise((resolve) => {
+  globalThis.variant = (o) => new Promise((resolve) => {
     const w = new Worker("./worker.js", { type: "module" });
     w.onmessage = (e) => { w.terminate(); resolve(e.data); };
     w.postMessage({ base: location.origin, ...o });

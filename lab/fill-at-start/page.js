@@ -1,15 +1,15 @@
 /**
- * One arm, one fresh session, against the real server, decode off. Two arms:
+ * One variant, one fresh session, against the real server, decode off. Two variants:
  *   after  connect(), wait for `started`, then fill() — what the page did before
  *   start  the fill handed to connect(), so it rides in the `start` message
  * `?block=<ms>` holds the main thread for that long, `?at=call` inside connect()'s own task and
  * `?at=<ms>` that far after it — a page's long boot task, before or after its worker is alive.
- * Numbers go to window.__wtpacsResult; run.mjs interleaves the arms and README.md reads them.
+ * Numbers go to window.__wtpacsResult; run.mjs interleaves the variants and README.md reads them.
  */
 import { DownloaderClient } from "/client/transport/consumer.js";
 
 const q = new URLSearchParams(location.search);
-const arm = q.get("arm") || "after";
+const variant = q.get("variant") || "after";
 const FILL = Number(q.get("fill") || 20);
 const BLOCK_MS = Number(q.get("block") || 0);
 const BLOCK_AT = q.get("at") || "call";
@@ -26,7 +26,7 @@ function hold(ms) {
 }
 
 async function main() {
-  const result = { arm, fill: FILL, block: BLOCK_MS, at: BLOCK_AT };
+  const result = { variant, fill: FILL, block: BLOCK_MS, at: BLOCK_AT };
   const cfg = await (await fetch("/wt/dev-transport.json")).json();
   const indices = Array.from({ length: FILL }, (_, i) => i);
 
@@ -48,7 +48,7 @@ async function main() {
   };
 
   const opts = { decode: false, decoders: 0, onFrame };
-  if (arm === "start") opts.fill = indices;
+  if (variant === "start") opts.fill = indices;
 
   // The clock starts where the page's work does: the worker is born inside connect().
   await sleep(0);
@@ -59,7 +59,7 @@ async function main() {
   else if (BLOCK_MS) setTimeout(() => hold(BLOCK_MS), Number(BLOCK_AT));
   const c = await opening;
   result.started_ms = performance.now() - t0;
-  if (arm !== "start") c.fill(indices);
+  if (variant !== "start") c.fill(indices);
 
   await Promise.race([fillDone, sleep(30000)]);
   result.received = received;
@@ -75,6 +75,6 @@ async function main() {
 
 main().catch((e) => {
   log("FAILED: " + (e?.stack || e?.message || e));
-  globalThis.__wtpacsResult = { arm, block: BLOCK_MS, at: BLOCK_AT, error: String(e?.message ?? e) };
+  globalThis.__wtpacsResult = { variant, block: BLOCK_MS, at: BLOCK_AT, error: String(e?.message ?? e) };
   globalThis.__wtpacsDone = true;
 });

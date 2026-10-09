@@ -41,7 +41,7 @@ function decodeFrame(bytes) {
     throw new Error(`undecodable: ${out.length} bytes for a header declaring ${declared}`);
   }
 
-  // Lab arm: one pixel buffer for the life of the decoder, so a frame allocates nothing.
+  // Lab variant: one pixel buffer for the life of the decoder, so a frame allocates nothing.
   if (reused?.byteLength !== out.length) reused = new SharedArrayBuffer(out.length);
   const sab = reused;
   new Uint8Array(sab).set(out);

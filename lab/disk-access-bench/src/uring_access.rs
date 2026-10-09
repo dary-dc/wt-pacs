@@ -53,7 +53,7 @@ pub struct UringReader {
     in_flight: Vec<bool>,
     owed: Vec<Owed>,
     short_reads: usize,
-    /// `false` when the file/buffers are not registered (the naive arm).
+    /// `false` when the file/buffers are not registered (the naive variant).
     fixed: bool,
 }
 
@@ -173,7 +173,7 @@ impl UringReader {
         self.push_at(slot, 0, file, offset, len)
     }
 
-    /// How the hybrid arm finishes a window `RWF_NOWAIT` could only partly fill.
+    /// How the hybrid variant finishes a window `RWF_NOWAIT` could only partly fill.
     pub fn push_at(
         &mut self,
         slot: usize,
@@ -240,7 +240,7 @@ impl UringReader {
     }
 
     /// Reaps the whole CQ, recording which slots came back **whole**. A short completion is
-    /// resubmitted for its tail: freeing the slot would credit an arm for bytes the kernel
+    /// resubmitted for its tail: freeing the slot would credit a variant for bytes the kernel
     /// never delivered.
     fn drain(&mut self, freed: &mut Vec<usize>) -> Result<usize> {
         self.ring.completion().sync();
@@ -353,7 +353,7 @@ mod tests {
     /// **A short completion is not a finished read.** The writer delivers the 64 bytes in
     /// two halves, so the kernel completes the first 32 and the tail has to be resubmitted.
     /// Before `drain` compared bytes landed against bytes asked, the slot was freed on the
-    /// first CQE and the arm was credited a whole ask for half a buffer.
+    /// first CQE and the variant was credited a whole ask for half a buffer.
     #[test]
     fn a_short_completion_is_resubmitted_for_its_tail() {
         let mut fds = [0i32; 2];
@@ -404,7 +404,7 @@ mod tests {
         });
     }
 
-    /// The `x14` arms rest on one kernel fact: a reader parked on the ring's **own** fd is
+    /// The `x14` variants rest on one kernel fact: a reader parked on the ring's **own** fd is
     /// woken when a CQE lands, exactly as one parked on a registered eventfd is. This pins
     /// it down deterministically — the read is from a pipe nobody has written to yet, so it
     /// cannot complete inline, and the writer only writes after the reader has parked.

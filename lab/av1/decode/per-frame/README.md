@@ -6,7 +6,7 @@ worker. Queue row 9 (SPEED) of [`docs/av1/queue.md`](../../../../docs/av1/queue.
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Decode time and memory.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 lab/av1/fetch_data.sh rf_fluoro mr_ispy1 us_liver
@@ -23,7 +23,7 @@ AV1 is libaom 3.15.1, `--lossless=1 --cpu-used=0 --kf-max-dist=0`, one temporal 
 which row SIZE recommends. `make_frames.py` decodes every frame natively (ojph_expand, dav1d 1.5.4)
 against the checksum written when the series was fetched before keeping it.
 
-**Arms.** Each runs in a decoder worker of its own, as the downloader runs one: `htj2k` and `av1` are
+**Variants.** Each runs in a decoder worker of its own, as the downloader runs one: `htj2k` and `av1` are
 `client/decode/decoder.js` itself (in Node through `node-worker.mjs`, which supplies the
 browser-worker globals), so `av1` is `av1-dav1d.js` on dav1d-WASM `simd`; `webcodecs`
 (`webcodecs-worker.js`, Chromium only) is `VideoDecoder` behind the same protocol and output —
@@ -32,13 +32,13 @@ A frame's time is the worker's own `decodeStart`–`decodeEnd` stamps: bytes in,
 pixels and range out. One warm-up frame per worker, then 18 frames one at a time, as asks.
 
 **Order.** Every (environment × throttle) cell is a fresh process, the cells in a Williams order
-each round (`lab/order.mjs`); sets and arms rotate inside it the same way. 4× is
+each round (`lab/order.mjs`); sets and variants rotate inside it the same way. 4× is
 `lab/scripts/cpu_throttle.mjs` on the whole process tree, which slows a worker where Chromium's own
 throttle cannot.
 
 **Checked.** Every decoded frame is hashed against its truth checksum; `--mutate sample` (one bit
 of every decoded frame) and `--mutate truth` (one hex digit of every checksum) each turned all 13
-(set × arm × environment) cells to 0/18.
+(set × variant × environment) cells to 0/18.
 
 **Pins.** Node 22.22.0; playwright 1.56.1's Chromium 141.0.7390.37 (`CHROME_PATH` overrides);
 `@cornerstonejs/codec-openjph` 2.4.11 (tarball SHA-256 `b47e4f67…ad105e15e`); dav1d 1.5.4 under

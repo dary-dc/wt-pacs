@@ -38,15 +38,15 @@ ten series matches both witnesses.
 **The prefix.** [`prefix.mjs`](prefix.mjs) binary-searches the shortest prefix whose decode at the level (through the
 package and `level.js`) is the truth, and checks, per frame: the whole codestream exact, its level exact, the prefix's
 level exact, the prefix one byte short not, and OpenJPEG (`-allow-partial`) decoding the prefix to the truth. It
-writes the `res` arm: entry i < F is frame i's prefix, entry F + i the rest of its codestream.
+writes the `res` variant: entry i < F is frame i's prefix, entry F + i the rest of its codestream.
 
-**Decode only.** [`bench.mjs`](bench.mjs) times, in headless Chromium, three arms a frame in a Williams order: `whole`
+**Decode only.** [`bench.mjs`](bench.mjs) times, in headless Chromium, three variants a frame in a Williams order: `whole`
 (the product's `htj2k.js` on the whole codestream), `level` (the level from the whole codestream) and `prefix` (the
 level from the prefix), each as the product leaves a frame — in a `SharedArrayBuffer`, its range taken; a fresh
 browser per throttle, throttles in a Williams order a round.
 
 **On the links.** `lab/av1/delivery/total-time/run.mjs` (row TOTAL's harness: the real server behind the relay, the product's
-downloader, row 23's five links, 1× and 4×) carries the `res` arm through [`decoder.js`](decoder.js), handed in by the
+downloader, row 23's five links, 1× and 4×) carries the `res` variant through [`decoder.js`](decoder.js), handed in by the
 downloader's `decoderWorker` seam: a prefix is posted as a preview at the level, a rest is joined to its prefix and
 decoded whole by the product's module. Prefixes are shared between the decoder workers over a `BroadcastChannel`,
 since a rest may reach another. The fill asks entries 0 … 2F − 1, so every level picture comes first and every

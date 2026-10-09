@@ -7,7 +7,7 @@ read and the cells.
 
 ```bash
 lab/av1/tools/tools.sh && ingest/coded-frames/build.sh            # libaom 3.15.1, native dav1d, ingest's in-process check
-client/decode/wasm/fetch_openjph.sh                    # the shipped OpenJPH package (arm htj2k)
+client/decode/wasm/fetch_openjph.sh                    # the shipped OpenJPH package (variant htj2k)
 lab/av1/tools/newer/build.sh                            # everything below "built", ~40 min on 4 cores
 lab/av1/fetch_data.sh ffdm_a ffdm_b syn2d_a syn2d_b dbt12_ea1141 dbt10_ea1141 dbtproj_ge dbtproj_holo \
   usb_cine usb_cine_rgb ct_lidc
@@ -38,7 +38,7 @@ RD changes for high bit depth (`df49183d` transform search and skip for HBD shar
 RD penalties, `f9faa216` trellis tweaks, `38bf46ed` sub-block variance in RD), all 2026-09-21 to 10-05.
 
 **SVT-AV1.** No release after v4.2.0 (2026-07-14). 176 commits on master since; the lossless ones are an RTC
-build guard (`8de4b131`, `CONFIG_ENABLE_LOSSLESS`), and the rest is RTC IntraBC, x86 SSE4.1 tiers and Arm
+build guard (`8de4b131`, `CONFIG_ENABLE_LOSSLESS`), and the rest is RTC IntraBC, x86 SSE4.1 tiers and Variant
 kernels. Row 28's finding stands unmeasured again: 4:2:0 at 8 and 10 bits only, never smaller than libaom.
 
 **dav1d.** No release after 1.5.4 (2026-07-14). 30 commits on master to 2026-09-30, nearly all x86 and AArch64
@@ -80,13 +80,13 @@ since the tag do not reach a lossless encode at these presets. The lever was che
 ## Decode time a frame (`decode.mjs`)
 
 The product's decoder worker in headless Chromium 141 (Playwright's) and 154, 1× and 4× CPU throttle, 6 rounds,
-each (throttle × browser) cell a fresh browser in a Williams order per round, arms and sets rotating inside it;
+each (throttle × browser) cell a fresh browser in a Williams order per round, variants and sets rotating inside it;
 11 series × 4 frames (2 on `ffdm_b`, `syn2d_a`). **8 640/8 640 frames exact.** One decode at a time on a 4-core
 container, so the host is not saturated; container times, not a phone's. A ratio is the median of paired round
 ratios (each round's median frame), per series; "pooled" is the median over all 66 (series, round) pairs, with
-how many of them the new arm was faster.
+how many of them the new variant was faster.
 
-| arm against its reference | Chromium | 1× pooled [per-series medians], faster | 4× pooled [per-series medians], faster |
+| variant against its reference | Chromium | 1× pooled [per-series medians], faster | 4× pooled [per-series medians], faster |
 | --- | --- | --- | --- |
 | OpenJPH 0.31.0, emscripten 6.0.11 / 3.1.74 | 141 | 0.948 [0.894–1.081], 47/66 | 0.942 [0.531–1.018], 42/66 |
 | | 154 | 0.960 [0.897–1.092], 45/66 | 0.952 [0.890–1.052], 46/66 |

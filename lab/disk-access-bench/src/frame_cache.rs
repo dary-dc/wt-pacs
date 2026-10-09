@@ -1,4 +1,4 @@
-//! Bounded, process-private frame cache — **a lab arm**; nothing in `server/` uses it. A
+//! Bounded, process-private frame cache — **a lab variant**; nothing in `server/` uses it. A
 //! byte budget with LRU eviction, admission on the *second* ask, and fills from bytes the
 //! caller already holds. What it is worth: `docs/adr/disk-access.md` §Levers.
 

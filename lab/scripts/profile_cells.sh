@@ -6,7 +6,7 @@
 # LTE traces are mahimahi's, fetched into $TRACES and never committed; the Wi-Fi ones are steps.
 # Results: docs/transport/transport-conclusions.md §1 (PROF).
 #
-#   lab/scripts/profile_cells.sh [rounds]     PROFILES= ARMS= DWELL_MS= OUT= FIRST= TRACES=
+#   lab/scripts/profile_cells.sh [rounds]     PROFILES= VARIANTS= DWELL_MS= OUT= FIRST= TRACES=
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -15,7 +15,7 @@ ROUNDS="${1:-5}"
 FIRST="${FIRST:-0}"
 DWELL_MS="${DWELL_MS:-30000}"
 read -ra PROFILES <<<"${PROFILES:-control lte-good lte-good-codel lte-loaded lte-moving wifi-home wifi-home-codel wifi-busy}"
-read -ra ARMS <<<"${ARMS:-cubic bbr}"
+read -ra VARIANTS <<<"${VARIANTS:-cubic bbr}"
 OUT="${OUT:-$(mktemp -t profile_cells.XXXX.tsv)}"
 TRACES="${TRACES:-$HOME/.cache/wtpacs-traces}"
 LOCK="${LOCK:-/run/user/$(id -u)/wtpacs-rig.lock}"
@@ -119,7 +119,7 @@ saturate() {  # port dwell_ms json
     --timeout-ms 120000 --json > "$3" 2>/dev/null 9>&- || true
 }
 
-run() {  # round prev profile arm: one row of $OUT
+run() {  # round prev profile variant: one row of $OUT
   local r="$1" prev="$2" name="$3" cc="$4" delay args nb hold flows=() udp
   IFS='|' read -r delay args nb hold <<<"$(profile "$name")"
   start_server "$SRV" "$cc" "$T/server.log"
@@ -181,15 +181,15 @@ one_round() {  # round
   local name k prev
   for name in "${PROFILES[@]}"; do
     prev=-
-    for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$1"); do
-      run "$1" "$prev" "$name" "${ARMS[k]}"
-      prev="${ARMS[k]}"
+    for k in $(python3 lab/scripts/order.py row "${#VARIANTS[@]}" "$1"); do
+      run "$1" "$prev" "$name" "${VARIANTS[k]}"
+      prev="${VARIANTS[k]}"
     done
   done
 }
 
 echo "dwell ${DWELL_MS} ms; traces: $(cd "$TRACES" && sha256sum ./*.down | cut -c1-16,66- | tr '\n' ' '); raw: $OUT"
-[ -s "$OUT" ] || printf 'round\tprev\tprofile\tarm\task_ms\tmbps\tneighbour_mbps\tqueue_ms\tprobe_loss\tsent\tlost\toverflowed\tcodel\tcong\tvoid\n' > "$OUT"
+[ -s "$OUT" ] || printf 'round\tprev\tprofile\tvariant\task_ms\tmbps\tneighbour_mbps\tqueue_ms\tprobe_loss\tsent\tlost\toverflowed\tcodel\tcong\tvoid\n' > "$OUT"
 for ((r = FIRST; r < ROUNDS; r++)); do locked one_round "$r"; done
 
 python3 - "$OUT" <<'PY'
@@ -198,32 +198,32 @@ rows = [dict(zip(h, l.rstrip("\n").split("\t"))) for h in [open(sys.argv[1]).rea
         for l in list(open(sys.argv[1]))[1:]]
 kept = [x for x in rows if x["void"] == "0"]
 med = lambda v: statistics.median(v) if v else float("nan")
-print("\n%-16s %-12s %2s %9s %8s %7s %9s %7s %7s %7s" % ("profile", "arm", "n", "ask ms", "Mbit/s", "share",
+print("\n%-16s %-12s %2s %9s %8s %7s %9s %7s %7s %7s" % ("profile", "variant", "n", "ask ms", "Mbit/s", "share",
       "queue ms", "lost %", "over %", "codel %"))
 cells = collections.defaultdict(list)
 for x in kept:
-    cells[(x["profile"], x["arm"])].append(x)
-for (p, arm), v in sorted(cells.items()):
+    cells[(x["profile"], x["variant"])].append(x)
+for (p, variant), v in sorted(cells.items()):
     pct = lambda k: med([100 * int(x[k]) / max(1, int(x["sent"]) + int(x["lost"]) + int(x["overflowed"]) + int(x["codel"])) for x in v])
     a = [float(x["mbps"]) for x in v]
     share = med([float(x["mbps"]) / (float(x["mbps"]) + float(x["neighbour_mbps"])) for x in v
                  if float(x["neighbour_mbps"]) > 0])
-    print("%-16s %-12s %2d %9.1f %8.2f %6s %9.1f %7.2f %7.2f %7.2f" % (p, arm, len(v),
+    print("%-16s %-12s %2d %9.1f %8.2f %6s %9.1f %7.2f %7.2f %7.2f" % (p, variant, len(v),
           med([float(x["ask_ms"]) for x in v if x["ask_ms"] != "-"]), med(a),
           "-" if share != share else "%.0f%%" % (100 * share), med([float(x["queue_ms"]) for x in v]),
           pct("lost"), pct("overflowed"), pct("codel")))
 # Paired by round, against Cubic: fill ratio and ask difference, and how many rounds each wins.
 print("\npaired against cubic, same profile and round: fill x (rounds faster) | ask ms (rounds faster)")
-by = {(x["profile"], x["arm"], x["round"]): x for x in kept}
-for (p, arm) in sorted(cells):
-    if arm == "cubic":
+by = {(x["profile"], x["variant"], x["round"]): x for x in kept}
+for (p, variant) in sorted(cells):
+    if variant == "cubic":
         continue
-    pairs = [(by[(p, arm, r)], by[(p, "cubic", r)]) for (pp, aa, r) in by if pp == p and aa == arm and (p, "cubic", r) in by]
+    pairs = [(by[(p, variant, r)], by[(p, "cubic", r)]) for (pp, aa, r) in by if pp == p and aa == variant and (p, "cubic", r) in by]
     if not pairs:
         continue
     fx = [float(a["mbps"]) / float(c["mbps"]) for a, c in pairs if float(c["mbps"]) > 0]
     asks = [float(a["ask_ms"]) - float(c["ask_ms"]) for a, c in pairs if "-" not in (a["ask_ms"], c["ask_ms"])]
-    print("%-16s %-12s %5.2fx (%d/%d)   %+8.1f ms (%d/%d)" % (p, arm, med(fx), sum(f > 1 for f in fx), len(fx),
+    print("%-16s %-12s %5.2fx (%d/%d)   %+8.1f ms (%d/%d)" % (p, variant, med(fx), sum(f > 1 for f in fx), len(fx),
           med(asks), sum(d < 0 for d in asks), len(asks)))
 print("\nvoid runs dropped: %d of %d" % (len(rows) - len(kept), len(rows)))
 PY

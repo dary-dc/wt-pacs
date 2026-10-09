@@ -146,7 +146,7 @@ series (README §Total time, *The split per depth*); the grey rows of §Represen
 | 10–12 | 2 | as before | WebCodecs | unchanged (k = 3 at 12 bits within 0.02) |
 | 13 | 3 | 10 bits (w10) | WebCodecs | 0.91–0.98 on every cell; k = 2 is 1.66–1.68 at 4× on 50 Mbit |
 | 14 | 2 | 12 bits | dav1d-WASM | unchanged; HTJ2K where a slow CPU meets ≥ 20 Mbit |
-| 15–16 | — | serve HTJ2K | OpenJPH | every AV1 arm 1.02–3.11; refused by name, as before |
+| 15–16 | — | serve HTJ2K | OpenJPH | every AV1 variant 1.02–3.11; refused by name, as before |
 
 The format did not change: `split` and `depth` already carried every k (row 43), and the reader decodes each
 layout exactly (§Built; golden `optimized/g9` and `optimized/s13`).

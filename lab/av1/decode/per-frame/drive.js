@@ -1,4 +1,4 @@
-// One process's share of a SPEED round, the same in Node and in a page: every arm over every set,
+// One process's share of a SPEED round, the same in Node and in a page: every variant over every set,
 // frames asked one at a time, each timed by its decoder's own stamps and checked against the truth.
 import { order } from "../../../order.mjs";
 
@@ -41,7 +41,7 @@ async function start(env, kind, decoder) {
   };
 }
 
-export const ARMS = {
+export const VARIANTS = {
   htj2k: (base) => ({ kind: "product", ext: "htj2k", decoder: {
     glue: `${base}/client/decode/wasm/vendor/openjph/openjphjs.js`,
     wasm: `${base}/client/decode/wasm/vendor/openjph/openjphjs.wasm`,
@@ -52,27 +52,27 @@ export const ARMS = {
   webcodecs: (base, set) => set.webcodecs && ({ kind: "webcodecs", ext: "av1", decoder: { codec: set.webcodecs } }),
 };
 
-/** rows: { set, arm, ms[], exact, frames }; an arm's `restore` turns its decoder's picture into the frame.
+/** rows: { set, variant, ms[], exact, frames }; a variant's `restore` turns its decoder's picture into the frame.
  * A frame that fails to decode is a row with an error. */
-export async function round(env, { base, frames: dir, arms, round: r, mutate = [], sets }, kinds = ARMS) {
+export async function round(env, { base, frames: dir, variants, round: r, mutate = [], sets }, kinds = VARIANTS) {
   for (const k of mutate) MUTATE[k] = true;
   const manifest = (await (await fetch(`${base}/${dir}/manifest.json`)).json()).filter((s) => !sets || sets.includes(s.name));
   const rows = [];
   for (const set of order(manifest, r)) {
     const truth = set.frames.map((f) => (MUTATE.truth ? f.truth.replace(/^./, (c) => (c === "0" ? "1" : "0")) : f.truth));
-    for (const name of order(arms, r)) {
-      const arm = kinds[name](base, set);
-      if (!arm) continue;
+    for (const name of order(variants, r)) {
+      const variant = kinds[name](base, set);
+      if (!variant) continue;
       const bytes = await Promise.all(set.frames.map((_, i) =>
-        fetch(`${base}/${dir}/${set.name}/${String(i).padStart(3, "0")}.${arm.ext}`)
+        fetch(`${base}/${dir}/${set.name}/${String(i).padStart(3, "0")}.${variant.ext}`)
           .then((x) => x.arrayBuffer()).then((b) => new Uint8Array(b))));
-      const row = { set: set.name, arm: name, ms: [], exact: 0, frames: bytes.length };
+      const row = { set: set.name, variant: name, ms: [], exact: 0, frames: bytes.length };
       try {
-        const dec = await start(env, arm.kind, arm.decoder);
+        const dec = await start(env, variant.kind, variant.decoder);
         await dec.decode(bytes[0], -1);  // the warm-up frame the product decodes at init
         for (let i = 0; i < bytes.length; i++) {
           let { ms, pixels } = await dec.decode(bytes[i], i);
-          if (arm.restore) ({ ms, pixels } = await arm.restore(pixels, i, ms));
+          if (variant.restore) ({ ms, pixels } = await variant.restore(pixels, i, ms));
           row.ms.push(ms);
           if ((await sha256(pixels)) === truth[i]) row.exact++;
         }

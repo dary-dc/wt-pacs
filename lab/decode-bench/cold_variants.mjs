@@ -1,7 +1,7 @@
 // One build of the decoder against another from a cold module: frames 0-2 and the steady state,
 // a fresh Node process or a fresh browser context per sample. docs/decode/README.md §Faster
 //
-// usage: NODE_PATH=$(npm root -g) node cold_arms.mjs --arms exc4,wex4 [--rounds 12]
+// usage: NODE_PATH=$(npm root -g) node cold_variants.mjs --variants exc4,wex4 [--rounds 12]
 //          [--where node,browser] FIXTURE_DIR [FIXTURE_DIR ...]
 import { spawn, execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -11,17 +11,17 @@ import { loadFixture, median, range, sha256 } from './decoder.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const armsDir = process.env.ARMS_DIR || path.join(ROOT, 'lab/.openjph-build/wasm');
+const variantsDir = process.env.VARIANTS_DIR || path.join(ROOT, 'lab/.openjph-build/wasm');
 const argv = process.argv.slice(2);
 const pick = (flag, dflt) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : dflt);
 const COLD = 3;
 const STEADY_FROM = 10;
 
-/** The child: one arm, one set, every frame once, checked against the encoder's input. */
+/** The child: one variant, one set, every frame once, checked against the encoder's input. */
 if (argv[0] === '--child') {
-  const [, arm, dir] = argv;
+  const [, variant, dir] = argv;
   const { frames, truth } = loadFixture(dir);
-  const M = await require(path.join(armsDir, `${arm}.js`))();
+  const M = await require(path.join(variantsDir, `${variant}.js`))();
   const d = new M.HTJ2KDecoder();
   const ms = [];
   let wrong = 0;
@@ -38,14 +38,14 @@ if (argv[0] === '--child') {
   process.exit(0);
 }
 
-const names = pick('--arms', 'exc4,wex4').split(',');
+const names = pick('--variants', 'exc4,wex4').split(',');
 const ROUNDS = Number(pick('--rounds', 12));
 const WHERE = pick('--where', 'node,browser').split(',');
-const dirs = argv.filter((a, i) => !a.startsWith('--') && !['--arms', '--rounds', '--where'].includes(argv[i - 1]));
+const dirs = argv.filter((a, i) => !a.startsWith('--') && !['--variants', '--rounds', '--where'].includes(argv[i - 1]));
 
-function inNode(arm, dir) {
-  const out = execFileSync(process.execPath, [new URL(import.meta.url).pathname, '--child', arm, dir], {
-    env: { ...process.env, ARMS_DIR: armsDir },
+function inNode(variant, dir) {
+  const out = execFileSync(process.execPath, [new URL(import.meta.url).pathname, '--child', variant, dir], {
+    env: { ...process.env, VARIANTS_DIR: variantsDir },
     stdio: ['ignore', 'pipe', 'ignore'],
   });
   return JSON.parse(out.toString());
@@ -64,19 +64,19 @@ async function openBrowser() {
 }
 
 /** A fresh context: no HTTP cache, no code cache; the module is compiled from a buffer as decoder.js does. */
-async function inBrowser(arm, dir, frameCount, truth) {
+async function inBrowser(variant, dir, frameCount, truth) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(`${base}/lab/decode-bench/README.md`);
   const rel = path.relative(ROOT, dir);
-  const armRel = path.relative(ROOT, armsDir);
-  const r = await page.evaluate(async ({ arm, armRel, rel, frameCount, truth }) => {
+  const variantRel = path.relative(ROOT, variantsDir);
+  const r = await page.evaluate(async ({ variant, variantRel, rel, frameCount, truth }) => {
     const frames = [];
     for (let i = 0; i < frameCount; i++) {
       frames.push(new Uint8Array(await (await fetch(`/${rel}/${String(i).padStart(3, '0')}.j2c`)).arrayBuffer()));
     }
-    const src = await (await fetch(`/${armRel}/${arm}.js`)).text();
-    const wasmBinary = await (await fetch(`/${armRel}/${arm}.wasm`)).arrayBuffer();
+    const src = await (await fetch(`/${variantRel}/${variant}.js`)).text();
+    const wasmBinary = await (await fetch(`/${variantRel}/${variant}.wasm`)).arrayBuffer();
     const factory = new Function(`${src}\nreturn OpenJPHModule;`)();
     const M = await factory({ wasmBinary });
     const d = new M.HTJ2KDecoder();
@@ -97,13 +97,13 @@ async function inBrowser(arm, dir, frameCount, truth) {
       if (h !== truth[i]) wrong++;
     }
     return { ms, wrong };
-  }, { arm, armRel, rel, frameCount, truth });
+  }, { variant, variantRel, rel, frameCount, truth });
   await ctx.close();
   return r;
 }
 
 if (WHERE.includes('browser')) await openBrowser();
-console.log(`arms ${names.join(' · ')}, ${ROUNDS} rounds, Williams order (lab/order.mjs); first arm the baseline; ms`);
+console.log(`variants ${names.join(' · ')}, ${ROUNDS} rounds, Williams order (lab/order.mjs); first variant the baseline; ms`);
 for (const where of WHERE) {
   for (const dir of dirs) {
     const { frames, truth, name } = loadFixture(dir);
@@ -113,7 +113,7 @@ for (const where of WHERE) {
       for (const n of order(names, round)) {
         const r = where === 'node' ? inNode(n, dir) : await inBrowser(n, dir, frames.length, truth);
         if (r.wrong) {
-          console.error(`${where} ${name} ${n}: ${r.wrong} frames differ from the encoder's input — not an arm`);
+          console.error(`${where} ${name} ${n}: ${r.wrong} frames differ from the encoder's input — not a variant`);
           process.exit(1);
         }
         got[n].push({ round, prev, cold: r.ms.slice(0, COLD), steady: median(r.ms.slice(STEADY_FROM)) });

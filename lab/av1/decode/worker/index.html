@@ -2,14 +2,14 @@
 <meta charset="utf-8">
 <title>AV1 DECODE</title>
 <script type="module">
-  import { ARMS, round } from "../per-frame/drive.js";
+  import { VARIANTS, round } from "../per-frame/drive.js";
   // `before` is client/downloader as before.sh copied it; `after` is the tree's own.
   const WORKER = { before: "/lab/.av1-work/decode/before/decoder.js", after: "/client/decode/decoder.js" };
   const env = { worker: (kind) => new Worker(WORKER[kind], { type: "module" }), channel: () => new MessageChannel() };
   // htj2k-T: the shipped OpenJPH package; payload-T: the payload's own choice of decoder (WebCodecs where every stream is ≤ 10 bits).
   const kinds = new Proxy({}, { get: (_, name) => {
     const [what, tree] = name.split("-");
-    return (base) => ({ ...ARMS[what === "payload" ? "av1" : "htj2k"](base), kind: tree });
+    return (base) => ({ ...VARIANTS[what === "payload" ? "av1" : "htj2k"](base), kind: tree });
   } });
   globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, kinds);
   globalThis.ready = crossOriginIsolated;

@@ -27,7 +27,7 @@ def main():
     sweep = {(r["set"], r["shape"]): r for r in csv.DictReader(open(sys.argv[1]), delimiter="\t")}
     times = {}
     for row in json.load(open(sys.argv[2])):
-        times.setdefault((row["set"], row["arm"], row["throttle"]), []).append(row["ms"])
+        times.setdefault((row["set"], row["variant"], row["throttle"]), []).append(row["ms"])
     ms = {k: statistics.median(v) for k, v in times.items()}
     print("set\tshape\tthrottle\t" + "\t".join(f"base {r}M s" for r in RATES) + "\t" +
           "\t".join(f"exact {r}M s" for r in RATES))

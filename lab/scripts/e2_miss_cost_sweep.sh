@@ -45,7 +45,7 @@ run_one() {
   json=$("$HARNESS" --url "https://127.0.0.1:${PORT}/" --mode trace \
     --trace "$trace" --read-bps "$BPS" --depth "$depth" \
     --frame-count "$FRAME_COUNT" --fill-dwell-ms 0 \
-    --arm "$group" "${extra[@]}" --json 2>/dev/null)
+    --variant "$group" "${extra[@]}" --json 2>/dev/null)
   local rc=$?
   set -e
   kill "$sp" 2>/dev/null || true

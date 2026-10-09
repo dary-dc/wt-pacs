@@ -1,4 +1,4 @@
-// One arm of RESID's decode timing in a worker of its own: a series' first frames made exact, in
+// One variant of RESID's decode timing in a worker of its own: a series' first frames made exact, in
 // order — HTJ2K alone, or a preview group decoded, then each frame's residual decoded and added.
 // The clock runs from the first unit handed over to the last frame's samples written. Hashed after.
 import { createDecoder } from "../../../../client/decode/wasm/dav1d/dav1d.mjs";

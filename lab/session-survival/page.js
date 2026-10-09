@@ -1,5 +1,5 @@
 /**
- * One arm, one fill, against the real server through the relay: the page records when each frame
+ * One variant, one fill, against the real server through the relay: the page records when each frame
  * landed and run.mjs cuts the path under it. `built` is the client as it is; `today` turns
  * resumption off and does what a page could do without it — re-ask once the transport says the
  * fill is gone. docs/ARCHITECTURE.md §The measurement this owes
@@ -7,10 +7,10 @@
 const q = new URLSearchParams(location.search);
 /** `client=` loads another copy of the downloader — a mutant a cell built. */
 const { DownloaderClient } = await import(q.get("client") || "/client/transport/consumer.js");
-const arm = q.get("arm") || "built";
+const variant = q.get("variant") || "built";
 /** `quick` is the same code with a tighter wait: what the default costs, not a proposed default. */
 const SURVIVAL = { today: false, built: undefined, quick: { stallMs: 1000 } };
-// Unknown arms (a recycle cell's) are the client as it is.
+// Unknown variants (a recycle cell's) are the client as it is.
 const FILL = Number(q.get("fill") || 80);
 /** `asks=K` asks for frames 0..K-1 at once instead of filling: each settles its own promise. */
 const ASKS = Number(q.get("asks") || 0);
@@ -53,7 +53,7 @@ async function finish() {
     sha[i] = [...d].map((x) => x.toString(16).padStart(2, "0")).join("");
   }
   globalThis.__wtpacsResult = {
-    arm, frames, failures, resumedAt, recycledAt, issuedAt, sha, spanMs: frames.length ? Math.round(last - issuedAt) : null,
+    variant, frames, failures, resumedAt, recycledAt, issuedAt, sha, spanMs: frames.length ? Math.round(last - issuedAt) : null,
   };
   globalThis.__wtpacsDone = true;
   client.close();
@@ -64,7 +64,7 @@ const cfg = await (await fetch("/wt/dev-transport.json")).json();
 client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
   decode: false,
   decoders: 0,
-  survival: SURVIVAL[arm],
+  survival: SURVIVAL[variant],
   recycleAtBytes: RECYCLE,
   onFrame: (f) => {
     frames.push({ i: f.frameIndex, at: at() });
@@ -74,12 +74,12 @@ client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
   },
   onError: (e) => {
     failures.push({ i: e.frameIndex, at: at(), reason: e.reason });
-    if (arm === "today") askAgain();
+    if (variant === "today") askAgain();
   },
 });
 globalThis.__wtpacsReady = true;
 if (ASKS) {
-  log(`arm ${arm}, asking for ${ASKS} frames at once`);
+  log(`variant ${variant}, asking for ${ASKS} frames at once`);
   const t0 = at();
   issuedAt = t0;
   await Promise.all([...Array(ASKS).keys()].map((i) => client.requestExactFrame(i).then(
@@ -89,7 +89,7 @@ if (ASKS) {
   globalThis.__wtpacsFrames = frames.length;
   finish();
 } else {
-  log(`arm ${arm}, filling ${FILL} frames`);
+  log(`variant ${variant}, filling ${FILL} frames`);
   issuedAt = at();
   client.fill([...Array(FILL).keys()]);
 }

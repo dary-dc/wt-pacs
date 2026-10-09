@@ -1,10 +1,10 @@
 /**
  * DECODE: decode time a frame through the product's decoder worker, client/downloader before row 49 against after,
- * in headless Chromium. Every throttle is a fresh browser, in a Williams order every round; arms and sets rotate
+ * in headless Chromium. Every throttle is a fresh browser, in a Williams order every round; variants and sets rotate
  * inside it. lab/av1/decode/worker/README.md
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/decode/worker/run.mjs [--rounds 10] [--throttles 1,4]
- *     [--arms htj2k-before,htj2k-after,payload-before,payload-after] [--frames lab/.av1-work/decode/frames] [--sets a,b]
+ *     [--variants htj2k-before,htj2k-after,payload-before,payload-after] [--frames lab/.av1-work/decode/frames] [--sets a,b]
  *     [--mutate sample|truth] [--out rows.json]
  */
 import { spawn } from "node:child_process";
@@ -17,7 +17,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 10));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
-const ARMS = arg("--arms", "htj2k-before,htj2k-after,payload-before,payload-after").split(",");
+const VARIANTS = arg("--variants", "htj2k-before,htj2k-after,payload-before,payload-after").split(",");
 const FRAMES = arg("--frames", "lab/.av1-work/decode/frames");
 const MUTATE = arg("--mutate", "").split(",").filter(Boolean);
 const OUT = arg("--out", null);
@@ -40,7 +40,7 @@ async function inChromium(throttle, round) {
   }
   const version = browser.version();
   const stop = throttleTree(server.process().pid, throttle);
-  const rows = await page.evaluate((o) => globalThis.run(o), { frames: FRAMES, arms: ARMS, round, mutate: MUTATE, sets: SETS });
+  const rows = await page.evaluate((o) => globalThis.run(o), { frames: FRAMES, variants: VARIANTS, round, mutate: MUTATE, sets: SETS });
   stop();
   await browser.close();
   await server.close();
@@ -53,7 +53,7 @@ for (let round = 0; round < ROUNDS; round++) {
     const got = await inChromium(throttle, round);
     for (const r of got) rows.push({ round, throttle, ...r });
     for (const r of got.filter((r) => r.error || r.exact !== r.frames)) {
-      console.error(`round ${round} ${throttle}x ${r.set} ${r.arm}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
+      console.error(`round ${round} ${throttle}x ${r.set} ${r.variant}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
     }
     console.error(`round ${round} ${throttle}x done (${got[0]?.version})`);
     if (OUT) writeFileSync(OUT, JSON.stringify(rows));
@@ -67,18 +67,18 @@ console.log("ms a frame: median over rounds of each round's median [range]; exac
 const per = (sel) => new Map(rows.filter(sel).filter((r) => r.ms.length).map((r) => [r.round, med(r.ms)]));
 for (const throttle of THROTTLES) {
   for (const set of [...new Set(rows.map((r) => r.set))]) {
-    const at = (arm) => (r) => r.throttle === throttle && r.set === set && r.arm === arm;
+    const at = (variant) => (r) => r.throttle === throttle && r.set === set && r.variant === variant;
     const parts = [];
-    for (const arm of ARMS) {
-      const rs = rows.filter(at(arm));
+    for (const variant of VARIANTS) {
+      const rs = rows.filter(at(variant));
       if (!rs.length) continue;
-      const m = per(at(arm));
+      const m = per(at(variant));
       const exact = `${rs.reduce((n, r) => n + r.exact, 0)}/${rs.reduce((n, r) => n + r.frames, 0)}`;
-      if (!m.size) { parts.push(`${arm} failed (${rs[0].error})`); continue; }
+      if (!m.size) { parts.push(`${variant} failed (${rs[0].error})`); continue; }
       const v = [...m.values()];
-      let line = `${arm} ${f(med(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}] n=${v.length} exact ${exact}`;
-      if (arm.endsWith("-after")) {
-        const ref = per(at(arm.replace("-after", "-before")));
+      let line = `${variant} ${f(med(v))} [${f(Math.min(...v))}–${f(Math.max(...v))}] n=${v.length} exact ${exact}`;
+      if (variant.endsWith("-after")) {
+        const ref = per(at(variant.replace("-after", "-before")));
         const r = [...m].filter(([k]) => ref.has(k)).map(([k, x]) => x / ref.get(k));
         if (r.length) line += `, ×${med(r).toFixed(3)} [${Math.min(...r).toFixed(3)}–${Math.max(...r).toFixed(3)}] faster ${r.filter((x) => x < 1).length}/${r.length}`;
       }

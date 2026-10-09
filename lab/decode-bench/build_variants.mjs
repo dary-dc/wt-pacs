@@ -1,6 +1,6 @@
 // Time one build of the decoder against another, byte-exactness first. docs/decode/README.md
 //
-// usage: node build_arms.mjs --arms plain,lto FIXTURE_DIR [FIXTURE_DIR ...] [--rounds N]
+// usage: node build_variants.mjs --variants plain,lto FIXTURE_DIR [FIXTURE_DIR ...] [--rounds N]
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,30 +8,30 @@ import { leadsByPredecessor, order } from '../order.mjs';
 import { loadFixture, median, range, sha256 } from './decoder.mjs';
 
 const require = createRequire(import.meta.url);
-const armsDir = process.env.ARMS_DIR || path.join(process.cwd(), 'lab/.openjph-build/wasm');
+const variantsDir = process.env.VARIANTS_DIR || path.join(process.cwd(), 'lab/.openjph-build/wasm');
 const argv = process.argv.slice(2);
 const pick = (flag, dflt) => {
   const i = argv.indexOf(flag);
   return i === -1 ? dflt : argv[i + 1];
 };
-const names = pick('--arms', 'plain,lto').split(',');
+const names = pick('--variants', 'plain,lto').split(',');
 const ROUNDS = Number(pick('--rounds', 9));
-const dirs = argv.filter((a, i) => !a.startsWith('--') && !['--arms', '--rounds'].includes(argv[i - 1]));
+const dirs = argv.filter((a, i) => !a.startsWith('--') && !['--variants', '--rounds'].includes(argv[i - 1]));
 
 if (!dirs.length) {
-  console.error('usage: node build_arms.mjs --arms plain,lto FIXTURE_DIR [...] [--rounds N]');
+  console.error('usage: node build_variants.mjs --variants plain,lto FIXTURE_DIR [...] [--rounds N]');
   process.exit(2);
 }
 
 async function load(name) {
-  const M = await require(path.join(armsDir, `${name}.js`))();
+  const M = await require(path.join(variantsDir, `${name}.js`))();
   // One decoder object for every frame, which is what the product holds — client/decode/decoder.js.
   const d = new M.HTJ2KDecoder();
   return {
     name,
     // These builds export no HEAPU8; a typed_memory_view is backed by the WASM memory itself.
     heap: () => d.getEncodedBuffer(1).buffer.byteLength,
-    wasmBytes: fs.statSync(path.join(armsDir, `${name}.wasm`)).size,
+    wasmBytes: fs.statSync(path.join(variantsDir, `${name}.wasm`)).size,
     decode(bytes) {
       d.getEncodedBuffer(bytes.length).set(bytes);
       d.readHeader();
@@ -41,15 +41,15 @@ async function load(name) {
   };
 }
 
-const arms = {};
-for (const n of names) arms[n] = await load(n);
-console.log(`arms: ${names.map((n) => `${n} (${(arms[n].wasmBytes / 1024).toFixed(0)} KB wasm)`).join(', ')}`);
-console.log(`${ROUNDS - 1} timed rounds, Williams order (lab/order.mjs); the first arm is the baseline`);
+const variants = {};
+for (const n of names) variants[n] = await load(n);
+console.log(`variants: ${names.map((n) => `${n} (${(variants[n].wasmBytes / 1024).toFixed(0)} KB wasm)`).join(', ')}`);
+console.log(`${ROUNDS - 1} timed rounds, Williams order (lab/order.mjs); the first variant is the baseline`);
 
 const consume = (b) => b[0] + b[b.length - 1];
 
 // A module tiers up as it runs, so the first frames are only cold once per process: this pass
-// runs before anything else and its order is the order of --arms, which the caller rotates.
+// runs before anything else and its order is the order of --variants, which the caller rotates.
 const COLD_TO = 100;
 {
   const { frames } = loadFixture(dirs[0]);
@@ -57,20 +57,20 @@ const COLD_TO = 100;
     const first = [];
     for (let i = 0; i < COLD_TO; i++) {
       const t0 = performance.now();
-      consume(arms[n].decode(frames[i % frames.length]));
+      consume(variants[n].decode(frames[i % frames.length]));
       if (i < 3) first.push(performance.now() - t0);
     }
     console.log(`  ${n.padEnd(8)} cold frames 1-3: ${first.map((v) => v.toFixed(1)).join(' / ')} ms` +
-      `, heap after ${COLD_TO}: ${(arms[n].heap() / 1048576).toFixed(1)} MB`);
+      `, heap after ${COLD_TO}: ${(variants[n].heap() / 1048576).toFixed(1)} MB`);
   }
 }
 
 for (const dir of dirs) {
   const { frames, truth, meta, name } = loadFixture(dir);
   for (const n of names) {
-    const wrong = frames.filter((f, i) => sha256(arms[n].decode(f).slice()) !== truth[i]).length;
+    const wrong = frames.filter((f, i) => sha256(variants[n].decode(f).slice()) !== truth[i]).length;
     if (wrong) {
-      console.error(`${name}/${n}: ${wrong}/${frames.length} frames differ from the encoder's input — not an arm`);
+      console.error(`${name}/${n}: ${wrong}/${frames.length} frames differ from the encoder's input — not a variant`);
       process.exit(1);
     }
   }
@@ -83,7 +83,7 @@ for (const dir of dirs) {
     for (const n of seq) {
       const t0 = performance.now();
       let sink = 0;
-      for (const f of frames) sink += consume(arms[n].decode(f));
+      for (const f of frames) sink += consume(variants[n].decode(f));
       ms[n] = (performance.now() - t0) / frames.length;
       if (sink === Infinity) console.log('');
     }
@@ -100,7 +100,7 @@ for (const dir of dirs) {
     const better = n === names[0] ? '' :
       `  ${got[n].filter((v, i) => v < got[names[0]][i]).length}/${ROUNDS - 1} rounds faster`;
     const rel = n === names[0] ? 'baseline' : `${(((m - base) / base) * 100).toFixed(1)}%`;
-    console.log(`    ${n.padEnd(8)} ${m.toFixed(3)} ms/frame [${lo.toFixed(3)}-${hi.toFixed(3)}]  ${rel.padStart(8)}  heap ${(arms[n].heap() / 1048576).toFixed(1)} MB${better}`);
+    console.log(`    ${n.padEnd(8)} ${m.toFixed(3)} ms/frame [${lo.toFixed(3)}-${hi.toFixed(3)}]  ${rel.padStart(8)}  heap ${(variants[n].heap() / 1048576).toFixed(1)} MB${better}`);
   }
   console.log('    ms/frame, each lead by the predecessor it ran after, rounds in brackets');
   for (const line of leadsByPredecessor(rows, names, names.slice(1).map((n) => [n, names[0]]), 3)) console.log(`  ${line}`);

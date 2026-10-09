@@ -1,12 +1,12 @@
 /**
  * Row COLDRTT: navigation → config → session → the first exact frame, by codec, on high-RTT links,
- * cold and warm. Every arm is the same 64×48 source, so one checksum judges each decode and the
+ * cold and warm. Every variant is the same 64×48 source, so one checksum judges each decode and the
  * frame's own transfer is one flight. lab/page-open/README.md §Cold round trips by codec
  *
  *   BEFORE=<rev> NODE_PATH=$(npm root -g) node lab/page-open/coldrtt.mjs FRAMES_DIR [rounds]
  *
  * FRAMES_DIR is coldrtt_frames.py's output. BEFORE is the commit whose client/downloader the
- * `-before` arms load; INIT=<rev>, if given, adds `-init` arms loading that commit's. RTTS= (default 0,100,200,300), ONLY=arm,…, RELAY_ARGS=, THROTTLE=N, ROWS=FILE;
+ * `-before` variants load; INIT=<rev>, if given, adds `-init` variants loading that commit's. RTTS= (default 0,100,200,300), ONLY=variant,…, RELAY_ARGS=, THROTTLE=N, ROWS=FILE;
  * FIRST_ROUND=N and PRIOR=FILE (an earlier ROWS) top up the cells VOID visits left short.
  */
 import fs from "node:fs";
@@ -31,8 +31,8 @@ if (!BEFORE || !fs.existsSync(path.join(FRAMES_DIR, "g12.sha256"))) {
 const TREE = "/lab/page-open/.coldrtt";
 const TREES = { before: BEFORE, ...(process.env.INIT ? { init: process.env.INIT } : {}) };
 
-// arm: [series, page query]; `-before` loads BEFORE's client/downloader, `-pre` adds the page's AV1 preloads.
-const ARMS = {
+// variant: [series, page query]; `-before` loads BEFORE's client/downloader, `-pre` adds the page's AV1 preloads.
+const VARIANTS = {
   htj2k: ["g12-htj2k", { codec: "htj2k" }],
   "wc-before": ["g10-av1", { codec: "av1", tree: `${TREE}/before` }],
   ...(TREES.init ? { "wc-init": ["g10-av1", { codec: "av1", tree: `${TREE}/init` }] } : {}),
@@ -43,7 +43,7 @@ const ARMS = {
   "dav1d-after": ["g12-av1", { codec: "av1" }],
   "dav1d-pre": ["g12-av1", { codec: "av1", pre: 1 }],
 };
-for (const arm of Object.keys(ARMS)) if (process.env.ONLY && !process.env.ONLY.split(",").includes(arm)) delete ARMS[arm];
+for (const variant of Object.keys(VARIANTS)) if (process.env.ONLY && !process.env.ONLY.split(",").includes(variant)) delete VARIANTS[variant];
 const PROFILES = ["cold", "warm"];
 const sha = (series) => fs.readFileSync(path.join(FRAMES_DIR, `${series.split("-")[0]}.sha256`), "utf8").trim();
 
@@ -92,7 +92,7 @@ execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_c
 const hash = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`]).toString().trim();
 
 const SERVERS = {};
-for (const series of new Set(Object.values(ARMS).map(([s]) => s))) {
+for (const series of new Set(Object.values(VARIANTS).map(([s]) => s))) {
   const s = (SERVERS[series] = { srv: port(), inn: port() });
   execFileSync(path.join(BIN, "pack-series"), ["--metadata", path.join(FRAMES_DIR, series, "metadata.json"),
     "--frames", path.join(FRAMES_DIR, series, "frames"), "--output", path.join(T, `${series}.sbnd`)]);
@@ -125,8 +125,8 @@ function browserPid(dir) {
   throw new Error(`no browser on ${dir}`);
 }
 
-async function visit(ctx, arm) {
-  const [series, query] = ARMS[arm];
+async function visit(ctx, variant) {
+  const [series, query] = VARIANTS[variant];
   const page = await ctx.newPage();
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
@@ -158,14 +158,14 @@ const rows = process.env.PRIOR ? JSON.parse(fs.readFileSync(process.env.PRIOR, "
 const FIRST = Number(process.env.FIRST_ROUND || 0);
 let voided = 0;
 let failed = 0;
-const CELLS = Object.keys(ARMS);
+const CELLS = Object.keys(VARIANTS);
 for (const rtt of RTTS) {
   for (let round = FIRST; round < FIRST + ROUNDS; round++) {
     let prev = null;
-    for (const arm of order(CELLS, round)) {
-      const s = SERVERS[ARMS[arm][0]];
+    for (const variant of order(CELLS, round)) {
+      const s = SERVERS[VARIANTS[variant][0]];
       pointAt(s);
-      const relayDown = await relayUp(rtt, s, `${arm}-${rtt}-${round}`);
+      const relayDown = await relayUp(rtt, s, `${variant}-${rtt}-${round}`);
       // A fresh profile is what makes the cold visit cold: no HTTP cache, no compiled-code cache.
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coldrttp-"));
       const ctx = await chromium.launchPersistentContext(dir, {
@@ -177,19 +177,19 @@ for (const rtt of RTTS) {
       const unthrottle = THROTTLE > 1 ? throttleTree(browserPid(dir), THROTTLE) : () => {};
       const visits = [];
       try {
-        for (const profile of PROFILES) visits.push({ rtt, round, arm, prev, profile, ...(await visit(ctx, arm)) });
+        for (const profile of PROFILES) visits.push({ rtt, round, variant, prev, profile, ...(await visit(ctx, variant)) });
       } catch (e) {
         failed++;
-        process.stderr.write(`rtt=${rtt} ${arm}: ${e.message.split("\n")[0]}\n`);
+        process.stderr.write(`rtt=${rtt} ${variant}: ${e.message.split("\n")[0]}\n`);
       }
       unthrottle();
       await ctx.close();
       fs.rmSync(dir, { recursive: true, force: true });
       if (await relayDown()) {
         voided++;
-        process.stderr.write(`rtt=${rtt} ${arm} round ${round}: VOID, the relay was late\n`);
+        process.stderr.write(`rtt=${rtt} ${variant} round ${round}: VOID, the relay was late\n`);
       } else rows.push(...visits);
-      prev = arm;
+      prev = variant;
     }
   }
   process.stderr.write(`rtt ${rtt} done\n`);
@@ -197,31 +197,31 @@ for (const rtt of RTTS) {
 if (process.env.ROWS) fs.writeFileSync(process.env.ROWS, JSON.stringify(rows));
 
 const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
-const cell = (arm, profile, rtt, key) => rows.filter((r) => r.arm === arm && r.profile === profile && r.rtt === rtt && r[key] != null);
-function slope(arm, profile, key) {
-  const pts = RTTS.map((rtt) => [rtt, cell(arm, profile, rtt, key)]).filter(([, v]) => v.length).map(([x, v]) => [x, median(v.map((r) => r[key]))]);
+const cell = (variant, profile, rtt, key) => rows.filter((r) => r.variant === variant && r.profile === profile && r.rtt === rtt && r[key] != null);
+function slope(variant, profile, key) {
+  const pts = RTTS.map((rtt) => [rtt, cell(variant, profile, rtt, key)]).filter(([, v]) => v.length).map(([x, v]) => [x, median(v.map((r) => r[key]))]);
   if (pts.length < 2) return null;
   const mx = pts.reduce((a, [x]) => a + x, 0) / pts.length;
   const my = pts.reduce((a, [, y]) => a + y, 0) / pts.length;
   return pts.reduce((a, [x, y]) => a + (x - mx) * (y - my), 0) / pts.reduce((a, [x]) => a + (x - mx) ** 2, 0);
 }
-// Each AV1 arm against its path's `-before`, HTJ2K against nothing.
-const ref = (arm) => (arm.endsWith("-before") || arm === "htj2k" ? null : arm.replace(/-(after|pre|init)$/, "-before"));
+// Each AV1 variant against its path's `-before`, HTJ2K against nothing.
+const ref = (variant) => (variant.endsWith("-before") || variant === "htj2k" ? null : variant.replace(/-(after|pre|init)$/, "-before"));
 console.log(`\ncpu ${THROTTLE}x, ${voided} visits VOID and dropped, ${failed} failed`);
-console.log("round trips (slope over the RTTs) and ms at each: median [min-max], rounds won against the arm's -before");
+console.log("round trips (slope over the RTTs) and ms at each: median [min-max], rounds won against the variant's -before");
 for (const profile of PROFILES) {
   for (const key of ["config", "session", "frame"]) {
-    for (const arm of CELLS) {
+    for (const variant of CELLS) {
       const cells = RTTS.map((rtt) => {
-        const mine = cell(arm, profile, rtt, key);
+        const mine = cell(variant, profile, rtt, key);
         if (!mine.length) return "-";
         const v = mine.map((r) => r[key]).sort((x, y) => x - y);
-        const base = ref(arm) && new Map(cell(ref(arm), profile, rtt, key).map((r) => [r.round, r[key]]));
+        const base = ref(variant) && new Map(cell(ref(variant), profile, rtt, key).map((r) => [r.round, r[key]]));
         const won = base ? ` ${mine.filter((r) => base.has(r.round) && r[key] < base.get(r.round)).length}/${mine.filter((r) => base.has(r.round)).length}` : "";
         return `${median(v).toFixed(0)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}]${won}`;
       });
-      const s = slope(arm, profile, key);
-      console.log(`${profile.padEnd(5)} ${key.padEnd(8)} ${arm.padEnd(13)} ${s == null ? "  -  " : s.toFixed(2).padStart(5)}   ${cells.join("   ")}`);
+      const s = slope(variant, profile, key);
+      console.log(`${profile.padEnd(5)} ${key.padEnd(8)} ${variant.padEnd(13)} ${s == null ? "  -  " : s.toFixed(2).padStart(5)}   ${cells.join("   ")}`);
     }
   }
 }

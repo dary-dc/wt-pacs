@@ -9,12 +9,12 @@
     w.postMessage(m, transfer);
   });
 
-  /** One set through one worker: each arm's digests checked and timed. */
+  /** One set through one worker: each variant's digests checked and timed. */
   globalThis.bench = async (o) => { const w = spawn(); const r = await ask(w, { kind: "bench", ...o }); w.terminate(); return r; };
 
-  /** A decode-bound fill: `frames` through `decoders` workers, each frame decoded then hashed by `arm`; the
+  /** A decode-bound fill: `frames` through `decoders` workers, each frame decoded then hashed by `variant`; the
    *  first frame handed on and the last, from the first frame given out. */
-  globalThis.pool = async ({ glue, hashWasm, urls, frames, arm, decoders, copies, mutate }) => {
+  globalThis.pool = async ({ glue, hashWasm, urls, frames, variant, decoders, copies, mutate }) => {
     const coded = await Promise.all(urls.map(async (u) => new Uint8Array(await (await fetch(u)).arrayBuffer())));
     const ws = Array.from({ length: decoders }, spawn);
     await Promise.all(ws.map((w) => ask(w, { kind: "warm", glue, hashWasm })));
@@ -24,7 +24,7 @@
     await Promise.all(ws.map(async (w) => {
       while (next < jobs.length) {
         const i = jobs[next++];
-        const r = await ask(w, { kind: "one", glue, hashWasm, bytes: coded[i].slice(), arm, frame: frames[i], mutate });
+        const r = await ask(w, { kind: "one", glue, hashWasm, bytes: coded[i].slice(), variant, frame: frames[i], mutate });
         if (r.error) throw new Error(r.error);
         if (r.ok === true) ok++; else if (r.ok === false) failed++;
         first = Math.min(first, r.handed - t0);

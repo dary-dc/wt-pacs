@@ -1,5 +1,5 @@
 /**
- * One round of SVCSHAPE's decode arms in a page: each arm decodes a set's first FRAMES temporal units
+ * One round of SVCSHAPE's decode variants in a page: each variant decodes a set's first FRAMES temporal units
  * in order on a fresh dav1d-WASM decoder, after an untimed pass on another, and reports the mean ms a
  * frame. Every full operating point is merged with the set's low bits when it is split and hashed
  * against the truth.
@@ -29,9 +29,9 @@ function units(buf) {
   });
 }
 
-// (arm, stream, operating point: libaom numbers op i = spatial·T + temporal from the top down,
+// (variant, stream, operating point: libaom numbers op i = spatial·T + temporal from the top down,
 // so a base of S spatial layers is op S − 1 and temporal layer 0 of T is op T − 1; checked = exact expected)
-const ARMS = [
+const VARIANTS = [
   ["single", "single.ivf_0", 0, true],
   ["half-base", "half-q40.ivf_0", 1, false],
   ["half-all", "half-q40.ivf_1", 0, true],
@@ -53,11 +53,11 @@ export async function prepare(get, names) {
     for (let i = 0; i < FRAMES && i < meta.frameCount; i++) {
       truth.push(new TextDecoder().decode(await get(`lab/av1/data/${name}/${String(i).padStart(3, "0")}.sha256`)).trim());
     }
-    const arms = [];
-    for (const [arm, stream, op, checked] of ARMS) arms.push({ arm, op, checked, units: units(await get(`${WORK}/${name}/${stream}.av1`)) });
+    const variants = [];
+    for (const [variant, stream, op, checked] of VARIANTS) variants.push({ variant, op, checked, units: units(await get(`${WORK}/${name}/${stream}.av1`)) });
     const low = await get(`${WORK}/${name}/low.ivf_0.av1`).catch(() => null);
-    if (low) arms.push({ arm: "low", op: 0, checked: false, units: units(low) });
-    sets.push({ name, meta, truth, arms });
+    if (low) variants.push({ variant: "low", op: 0, checked: false, units: units(low) });
+    sets.push({ name, meta, truth, variants });
   }
   return sets;
 }
@@ -102,12 +102,12 @@ async function dav1dRun(factory, op, list) {
   return { ms, frames: out.map((f, i) => ({ pts: list[i].pts, width: f.width, height: f.height, planes: f.planes })) };
 }
 
-/** env: { dav1d: the module factory }. Rows: one per (set, arm). mutate "sample" flips a bit of each frame. */
+/** env: { dav1d: the module factory }. Rows: one per (set, variant). mutate "sample" flips a bit of each frame. */
 export async function round(env, sets, r, mutate = "") {
   const rows = [];
   for (const s of order(sets, r)) {
     const runs = new Map();
-    for (const a of order(s.arms, r)) runs.set(a.arm, { a, ...(await dav1dRun(env.dav1d, a.op, a.units)) });
+    for (const a of order(s.variants, r)) runs.set(a.variant, { a, ...(await dav1dRun(env.dav1d, a.op, a.units)) });
     const low = runs.get("low")?.frames;
     for (const { a, ms, frames } of runs.values()) {
       let exact = null;
@@ -118,7 +118,7 @@ export async function round(env, sets, r, mutate = "") {
           exact += (await sha256(stored(s.meta, f, low?.[i]))) === s.truth[f.pts];
         }
       }
-      rows.push({ set: s.name, arm: a.arm, round: r, ms, frames: frames.length, exact, size: `${frames[0]?.width}x${frames[0]?.height}` });
+      rows.push({ set: s.name, variant: a.variant, round: r, ms, frames: frames.length, exact, size: `${frames[0]?.width}x${frames[0]?.height}` });
     }
   }
   return rows;

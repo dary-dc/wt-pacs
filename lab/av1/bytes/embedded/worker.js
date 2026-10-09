@@ -1,4 +1,4 @@
-// One arm of EMBED's decode timing in a worker of its own: a set's frames decoded in order, the
+// One variant of EMBED's decode timing in a worker of its own: a set's frames decoded in order, the
 // clock from the first codestream handed over to the last frame's samples copied out. Hashed after.
 import { createJxl, createOpj } from "./codecs.mjs";
 
@@ -28,7 +28,7 @@ async function module(base, file, name) {
   return { factory, wasmBinary: await (await fetch(`${base}/${file}.wasm`)).arrayBuffer() };
 }
 
-const ARMS = {
+const VARIANTS = {
   async htj2k({ base }) {
     const { factory, wasmBinary } = await module(base, "client/decode/wasm/vendor/openjph/openjphjs", "Module");
     const M = await factory({ wasmBinary });
@@ -57,7 +57,7 @@ const ARMS = {
 onmessage = async ({ data: o }) => {
   try {
     const units = (await Promise.all(o.urls.map(fetchBytes))).map((u, i) => (o.lengths ? u.subarray(0, o.lengths[i]) : u));
-    const run = await ARMS[o.arm](o);
+    const run = await VARIANTS[o.variant](o);
     run(units.slice(0, 1));  // warm-up: the first frame, untimed
     const t0 = performance.now();
     const frames = run(units);

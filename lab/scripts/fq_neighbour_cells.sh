@@ -137,17 +137,17 @@ PY
   tail -1 "$OUT"
 }
 
-ARMS=()
-for cc in "${CCS[@]}"; do for qd in fifo fq; do ARMS+=("$cc/$qd"); done; done
+VARIANTS=()
+for cc in "${CCS[@]}"; do for qd in fifo fq; do VARIANTS+=("$cc/$qd"); done; done
 
 one_round() {  # round
-  local name k prev arm
+  local name k prev variant
   for name in "${PROFILES[@]}"; do
     prev=-
-    for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$1"); do
-      arm="${ARMS[k]}"
-      run "$1" "$prev" "$name" "${arm%/*}" "${arm#*/}"
-      prev="$arm"
+    for k in $(python3 lab/scripts/order.py row "${#VARIANTS[@]}" "$1"); do
+      variant="${VARIANTS[k]}"
+      run "$1" "$prev" "$name" "${variant%/*}" "${variant#*/}"
+      prev="$variant"
     done
   done
 }

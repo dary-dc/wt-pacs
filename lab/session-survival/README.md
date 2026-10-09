@@ -25,7 +25,7 @@ gone, a new one works, and **nothing tells the client** — no close, no reset, 
 `blackout` is not this: the same path comes back, and QUIC recovers by itself without anything
 here doing a thing.
 
-**Three arms, same binary, same page.** `built` is the client as it is. `quick` is the same code
+**Three variants, same binary, same page.** `built` is the client as it is. `quick` is the same code
 with `{ stallMs: 1000 }` — what the default wait costs, not a proposed default (it was `{ stallMs:
 1000, probeMs: 800 }` while the client probed, before 2026-09-24).
 `today` passes `survival: false` and does what a page could do without resumption: it re-asks for
@@ -40,7 +40,7 @@ frame` is the gap to the first frame the page receives after the cut, which is `
 and a frame. Latency, not throughput: the fill's rate before and after the cut is the link's
 and says nothing about this. The host saturates well above 20 Mbit on loopback, so the rate is the
 relay's and not the box's; what the box's load does reach is the dial and the decode, which this
-arm does not run (`decode: false`).
+variant does not run (`decode: false`).
 
 **What it read, 2026-09-22, 7 rounds interleaved** (median [min … max] ms from the cut): `today`
 noticed 6552 [6539 … 6558], `built` 5010 [4996 … 5023], `quick` 1816 [1803 … 1821]; first frame
@@ -57,7 +57,7 @@ asks instead of filling. Its readings are `docs/ARCHITECTURE.md` §Detection by 
 bytes.
 
 **[`recycle_cells.sh`](recycle_cells.sh)** (row 105) times a session recycled before WebKit's 16 MB
-stall: a 61 MB fill against a server run with `--stall-after-bytes`, arms `reactive`, `proactive`,
+stall: a 61 MB fill against a server run with `--stall-after-bytes`, variants `reactive`, `proactive`,
 `late` (a mutated downloader that dials only after closing), `recycle` and `none`, each run its own
 server and relay, Williams-ordered, every frame hashed against its source, runs the relay's
 `--self-timing` voids dropped. `page.js?client=` loads the mutant, `run.mjs --query` passes

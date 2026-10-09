@@ -123,11 +123,11 @@ def main():
             total.htj2k(s, i, work, dst / f"{i:03d}.htj2k")
         sizes = {ext: sum(f.stat().st_size for f in dst.glob(f"*.{ext}")) for ext in ["htj2k", *files]}
         sizes["svc base"] = sum(len(u) for u in files["svc"][:s.n])
-        arms = {"htj2k": {}, "av1": {},
+        variants = {"htj2k": {}, "av1": {},
                 "single": dict(group=s.n, truth=truth),
                 "svc": dict(group=s.n, layers=2, truth=truth, previewTruth=base_truth)}
-        entry = dict(name=s.name, frames=s.n, bits=s.av1_bits, truth=s.truth, arms=arms, bytes=sizes)
-        (dst / "arms.json").write_text(json.dumps(entry, indent=1))
+        entry = dict(name=s.name, frames=s.n, bits=s.av1_bits, truth=s.truth, variants=variants, bytes=sizes)
+        (dst / "variants.json").write_text(json.dumps(entry, indent=1))
         print(s.name, s.n, "frames,", ", ".join(f"{k} {v} B" for k, v in sizes.items()), flush=True)
 
 

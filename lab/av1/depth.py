@@ -130,10 +130,10 @@ def merge_cost(n=200):
 def decode_rounds(build, work, s, cells, rounds):
     """Decode time a frame for each cell, summed over its streams, rounds interleaved; process
     start-up included, output discarded."""
-    arms = [c for c in cells if c and c["exact"] and c["preset"] == PRESETS[-1] and c["group"] == 1]
-    times = {a["split"]: [] for a in arms}
+    variants = [c for c in cells if c and c["exact"] and c["preset"] == PRESETS[-1] and c["group"] == 1]
+    times = {a["split"]: [] for a in variants}
     for r in range(rounds):
-        for a in order(arms, r):
+        for a in order(variants, r):
             secs = sum(dav1d(build, st["ivf"], "--muxer", "null", "-o", "-") for st in a["streams"])
             times[a["split"]].append(1000 * secs / s.n)
     return times

@@ -16,7 +16,7 @@ the idle ring).
 
 The rule is `docs/adr/disk-access.md` §11, applied mechanically: a difference counts only if
 |median| >= 28.5% **and** sign agreement >= 0.8n **and** it keeps its sign across runs.
-Regime is read off `pool`'s miss rate so every arm in a cell is classified identically.
+Regime is read off `pool`'s miss rate so every variant in a cell is classified identically.
 
 **Compare campaigns only on a shared cell population.** A regime bucket is whatever cells
 land in it, so a campaign that includes `C_readers` and one that does not are not comparable
@@ -55,23 +55,23 @@ def load(path, phases=None):
             seen.add(ph)
             if phases and ph not in phases:
                 continue
-            cells.setdefault(tuple(r[k] for k in KEY), {})[r["arm"]] = r
+            cells.setdefault(tuple(r[k] for k in KEY), {})[r["variant"]] = r
     return cells, seen
 
 
 def deltas(cells, a, b, run):
-    """% change of arm `a` against baseline `b`, paired per cell, bucketed by regime."""
+    """% change of variant `a` against baseline `b`, paired per cell, bucketed by regime."""
     out = {}
-    for key, arms in cells.items():
-        if a not in arms or b not in arms or "pool" not in arms:
+    for key, variants in cells.items():
+        if a not in variants or b not in variants or "pool" not in variants:
             continue
         if run and not key[0].startswith(run):
             continue
-        base = int(arms[b]["cpu_ns_per_ask"])
+        base = int(variants[b]["cpu_ns_per_ask"])
         if not base:
             continue
-        got = int(arms[a]["cpu_ns_per_ask"])
-        out.setdefault(regime(float(arms["pool"]["miss_pct"])), []).append(
+        got = int(variants[a]["cpu_ns_per_ask"])
+        out.setdefault(regime(float(variants["pool"]["miss_pct"])), []).append(
             (got - base) / base * 100
         )
     return out
@@ -108,19 +108,19 @@ def main():
     for arg in args:
         cells, _ = load(Path(arg), phases)
         runs = sorted({k[0].split("_")[0] for k in cells})
-        arms = {a for v in cells.values() for a in v}
+        variants = {a for v in cells.values() for a in v}
         pairs = [
             ("L   loop alone       pool_ringloop - pool", "pool_ringloop", "pool"),
             ("R   ring alone       hybrid - pool_ringloop", "hybrid", "pool_ringloop"),
             ("L+R campaign reports hybrid - pool", "hybrid", "pool"),
         ]
-        if "hybrid_lazyring" in arms:
+        if "hybrid_lazyring" in variants:
             pairs.append(
                 ("Z   lazy ring        hybrid_lazyring - pool", "hybrid_lazyring", "pool")
             )
         print(f"=== {Path(arg).name} ===")
         for title, a, b in pairs:
-            if a not in arms or b not in arms:
+            if a not in variants or b not in variants:
                 continue
             print(title)
             for g in ["hit", "mix", "miss"]:

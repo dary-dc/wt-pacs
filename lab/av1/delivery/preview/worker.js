@@ -1,4 +1,4 @@
-// One arm of PREVIEW's decode timing in a worker of its own: a whole cine decoded in order, the
+// One variant of PREVIEW's decode timing in a worker of its own: a whole cine decoded in order, the
 // clock from the first chunk handed over to the last frame's planes copied out. Hashed after.
 import { createDecoder } from "../../../../client/decode/wasm/dav1d/dav1d.mjs";
 
@@ -25,7 +25,7 @@ async function loadScript(url, name) {
   return new Function(`${src}\nreturn ${name};`).call(self);
 }
 
-const ARMS = {
+const VARIANTS = {
   async dav1d({ base }) {
     const factory = await loadScript(`${base}/lab/.av1-build/out/simd.js`, "Dav1dModule");
     const wasmBinary = await (await fetch(`${base}/lab/.av1-build/out/simd.wasm`)).arrayBuffer();
@@ -93,7 +93,7 @@ const ARMS = {
 onmessage = async ({ data: o }) => {
   try {
     const units = (await Promise.all(o.urls.map(fetchBytes))).map((u, i) => (o.lengths ? u.subarray(0, o.lengths[i]) : u));
-    const run = await ARMS[o.arm](o);
+    const run = await VARIANTS[o.variant](o);
     await run(units.slice(0, o.group), o.group);  // warm-up: the first group, untimed
     const t0 = performance.now();
     const frames = await run(units, o.group);

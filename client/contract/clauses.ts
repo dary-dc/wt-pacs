@@ -281,7 +281,7 @@ async function oneDialServesLaterAsks(rig: Rig, check: Check) {
 }
 
 /**
- * A fill pushed as it lands: every frame reaches the callback once and in order, none arms a
+ * A fill pushed as it lands: every frame reaches the callback once and in order, none variants a
  * waiter, in both stream modes; an ask during it keeps its own promise; endStream() drops the rest.
  */
 async function pushedFill(rig: Rig, check: Check) {
@@ -291,7 +291,7 @@ async function pushedFill(rig: Rig, check: Check) {
     const got: ConformantFrame[] = [];
     s.fillFrames(0, 2, (f) => got.push(f));
     await settle();
-    check(s.stats().inFlight === 0, `${rig.name}: a pushed ${mode} fill arms no waiter`);
+    check(s.stats().inFlight === 0, `${rig.name}: a pushed ${mode} fill variants no waiter`);
     // Frame 9 is outside the fill: it must be dropped, not pushed.
     const frames = [0, 1, 2, 9].map((i) => [i, enc.encode(`frame-${i}`)] as [number, Uint8Array]);
     if (mode === "shared") await t.pushOnOneStream(frames);

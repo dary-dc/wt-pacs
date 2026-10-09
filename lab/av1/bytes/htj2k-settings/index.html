@@ -2,9 +2,9 @@
 <meta charset="utf-8">
 <title>HTJ2K encoder settings</title>
 <script type="module">
-  import { ARMS, round } from "../../decode/per-frame/drive.js";
+  import { VARIANTS, round } from "../../decode/per-frame/drive.js";
   const env = { worker: () => new Worker("/client/decode/decoder.js", { type: "module" }), channel: () => new MessageChannel() };
-  const arms = new Proxy({}, { get: (_, name) => (base) => ({ ...ARMS.htj2k(base), ext: name }) });
-  globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, arms);
+  const variants = new Proxy({}, { get: (_, name) => (base) => ({ ...VARIANTS.htj2k(base), ext: name }) });
+  globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, variants);
   globalThis.ready = crossOriginIsolated;
 </script>

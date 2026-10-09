@@ -6,7 +6,7 @@ Queue row 64 (REMAP) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): wh
 [`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md) §Proposed: a remapped plane.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # libaom 3.15.1, dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh   # libaom 3.15.1, dav1d, dav1d-WASM
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # ojph_compress 0.31.0
 ingest/coded-frames/build.sh && client/decode/wasm/fetch_openjph.sh  # ingest's check; OpenJPH-WASM
 lab/av1/fetch_data.sh dbtproj_ge dbtproj_holo dbtproj_c ct_lidc ct_nlst ct_crc xa_dynact16 pt15_cptac mg16_cbis
@@ -16,7 +16,7 @@ for s in dbtproj_ge dbtproj_holo ct_lidc ct_nlst ct_crc xa_dynact16 mg16_cbis; d
   for m in map palette; do $P lab/av1/bytes/remap/remap.py $D/$s $W/$s.$m --mode $m; done; done
 $P lab/av1/bytes/remap/mutate.py $W $D/ct_lidc $D/dbtproj_holo
 $P lab/av1/bytes/remap/bytes.py lab/.av1-build $W $D/{dbtproj_holo,dbtproj_ge,ct_lidc,ct_nlst,ct_crc,xa_dynact16,mg16_cbis} --out bytes.json
-$P lab/av1/bytes/remap/make_frames.py $W $W/frames $D/dbtproj_holo:8 $D/dbtproj_ge:6 $D/ct_lidc:18 --arms k2,k3,k4,mapk0,mapk2,palettek2
+$P lab/av1/bytes/remap/make_frames.py $W $W/frames $D/dbtproj_holo:8 $D/dbtproj_ge:6 $D/ct_lidc:18 --variants k2,k3,k4,mapk0,mapk2,palettek2
 NODE_PATH=$(npm root -g) node lab/av1/bytes/remap/decode.mjs --rounds 10 --out decode.json
 ```
 
@@ -64,7 +64,7 @@ cone-beam (no L fits), L = 0 on the film.
 
 Every frame of each series, over HTJ2K's (the served profile, on the source), the map included; AV1 at row
 SPLITTIME's shipped preset for k = 2 — `--allintra --cpu-used=7` on the projections, good 6 on the CTs and cone-beam,
-`--allintra --cpu-used=6` on the film — every arm of a series at the same preset. cpu0 was not run: on one projection
+`--allintra --cpu-used=6` on the film — every variant of a series at the same preset. cpu0 was not run: on one projection
 frame it took 108 s against 4.4 s for 0.09 % fewer bytes. **w10** is k = b − 10, every stream ≤ 10 bits.
 
 | series | k = 2 | w10 | map k = 0 | map k = 2 | palette k = 2 | HTJ2K on the palette's plane |
@@ -90,9 +90,9 @@ frame it took 108 s against 4.4 s for 0.09 % fewer bytes. **w10** is k = b − 1
 
 Decode time a frame through the product's worker (`client/decode/decoder.js`), the payload picking its decoder —
 dav1d-WASM where a stream is 12-bit (k = 2 on the source, a map at k = 0), WebCodecs where every stream is ≤ 10 bits
-(w10, a map at k = 2) — and a remapped arm's map applied after the worker on the page (inflate and scatter, or the
+(w10, a map at k = 2) — and a remapped variant's map applied after the worker on the page (inflate and scatter, or the
 palette's table), its time added. Headless Chromium 141 in the container (4 cores), 10 rounds, each throttle a fresh
-browser in a Williams order, arms and sets rotating inside; the first 8, 6 and 18 frames; every frame of every
+browser in a Williams order, variants and sets rotating inside; the first 8, 6 and 18 frames; every frame of every
 round exact against the source, 1 920/1 920 a throttle. Median of round medians, ms; in brackets the median
 paired round ratio against k = 2 and against w10, with rounds faster.
 
@@ -112,7 +112,7 @@ paired round ratio against k = 2 and against w10, with rounds faster.
   `crc` 0.926 against 0.940 and 0.904 against 0.918), and 4.4–4.8 % more on two (CT `nlst`, cone-beam).
 * **A map at k = 0** (one 12-bit stream, dav1d-WASM) decodes at 0.90–1.11 of k = 2, so it gains neither bytes nor time.
 * The palette's table is cheaper to apply than the map's inflate and scatter: 0.88–0.99 of the map's time.
-* Every AV1 arm is 2.6–7.3× HTJ2K. Container numbers; at 4× the 4.9-megapixel projections take dav1d-WASM 3.1 s a
+* Every AV1 variant is 2.6–7.3× HTJ2K. Container numbers; at 4× the 4.9-megapixel projections take dav1d-WASM 3.1 s a
   frame. Nothing is claimed about a phone.
 
 ## Checked
@@ -120,4 +120,4 @@ paired round ratio against k = 2 and against w10, with rounds faster.
 * `mutate.py`: a run's gap not accumulated, the window's low end off by one, the last outlier dropped, a palette rank
   off by one, the palette's low bits one fewer — each refused on the CT and a projection series, 5/5.
 * `decode.mjs --mutate restore` (the restore skips the last outlier, or the palette's top entry is off by one), `sample`
-  and `truth`: every arm affected reports 0 exact frames.
+  and `truth`: every variant affected reports 0 exact frames.

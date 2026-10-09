@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end telemetry cost on localhost: series-server + N saturate harnesses.
 # Compares a default binary against a telemetry binary (feature + env on) at the same N;
-# DEFAULT_TELEMETRY=1 records the first arm too, for one telemetry build against another.
+# DEFAULT_TELEMETRY=1 records the first variant too, for one telemetry build against another.
 # Localhost, unshaped, shared CPU — relative comparisons only (T2-local).
 #
 # Usage:
@@ -68,7 +68,7 @@ one_run() {
   for i in $(seq 1 "$n"); do
     "$HARNESS" --url "https://127.0.0.1:$PORT/" --mode saturate --depth "$DEPTH" \
       --read-bps "$HARNESS_READ_BPS" --fill-dwell-ms "$DWELL_MS" --frame-count 20 \
-      --stream-mode "$STREAM_MODE" --arm "s$i" --json \
+      --stream-mode "$STREAM_MODE" --variant "s$i" --json \
       > "$dir/harness-$i.json" 2> "$dir/harness-$i.err" &
     pids+=($!)
   done

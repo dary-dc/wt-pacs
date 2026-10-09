@@ -9,7 +9,7 @@ rule is adopted. Correctness only, nothing timed. The format it widened is
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
 P=lab/av1/.venv/bin/python W=lab/.av1-work/splitok
 $P lab/av1/exact/split/merge_test.py                                # the writer's split and merge, every v
 node client/decode/av1.test.mjs                             # the reader's, every v; the golden matrix

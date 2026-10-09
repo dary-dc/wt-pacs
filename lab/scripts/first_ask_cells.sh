@@ -2,8 +2,8 @@
 # W1: one frame asked on an idle session, through lab/scripts/link_impair.py at 40 and 80 ms round
 # trip and at two frame sizes. `repro` is the session-state and lever sweep; `idle`, `together` and
 # `queue` are the cells that decide a default, and `wake` prices one radio's promotion; they
-# interleave their arms round by round in a Williams order (lab/scripts/order.py).
-# The server's own `session path` line gives the window, loss and congestion events per arm.
+# interleave their variants round by round in a Williams order (lab/scripts/order.py).
+# The server's own `session path` line gives the window, loss and congestion events per variant.
 # Results and the verdict they correct: docs/transport/transport-conclusions.md §3.
 #
 #   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume|wake|stw|late|keep|rebind] [rounds]
@@ -21,7 +21,7 @@ SIZES="${SIZES:-50 250}"
 RTTS="${RTTS:-40 80}"
 TARGET=$((WARM + 1))
 FRAMES=$((TARGET + 2))
-# The pair docs/adr/transport-idle-sessions.md proposes, in every `idle` arm; `HOLD=` runs the same
+# The pair docs/adr/transport-idle-sessions.md proposes, in every `idle` variant; `HOLD=` runs the same
 # cell without it, which is the survive-or-die question.
 HOLD="${HOLD---keep-alive-interval-ms 20000 --max-idle-timeout-ms 60000}"
 T="$(mktemp -d)"
@@ -113,13 +113,13 @@ cell() {  # label state series rtt warm extra_server_args...
 
 header() {
   printf '\n== %s\n%-22s %-9s %9s %8s %9s %6s %6s\n' "$1" \
-    "arm" "rtt" "ask ms" "trips" "sent/sess" "lost" "cong"
+    "variant" "rtt" "ask ms" "trips" "sent/sess" "lost" "cong"
 }
 
-# An arm is `label|state|warm|idle_ms|server args|relay args|probe args`. Arms are compared, so a
+# A variant is `label|state|warm|idle_ms|server args|relay args|probe args`. Variants are compared, so a
 # round runs every one of them, in a Williams order.
-ARMS=()
-arm() { ARMS+=("$1"); }
+VARIANTS=()
+variant() { VARIANTS+=("$1"); }
 
 one_round() {  # state warm idle series rtt server_args relay_args probe_args -> "ms cwnd sent lost ce"
   local state="$1" warm="$2" idle="$3" series="$4" rtt="$5" srv probe line ms next
@@ -148,13 +148,13 @@ one_round() {  # state warm idle series rtt server_args relay_args probe_args ->
 }
 
 round_robin() {  # series rtt
-  local series="$1" rtt="$2" n=${#ARMS[@]} i k prev
+  local series="$1" rtt="$2" n=${#VARIANTS[@]} i k prev
   rm -rf "$T/rr"; mkdir -p "$T/rr"
-  for ((k = 0; k < n; k++)); do cut -d'|' -f1 <<<"${ARMS[k]}" >> "$T/rr/labels"; done
+  for ((k = 0; k < n; k++)); do cut -d'|' -f1 <<<"${VARIANTS[k]}" >> "$T/rr/labels"; done
   for ((i = 0; i < ROUNDS; i++)); do
     prev=-1
     for k in $(python3 lab/scripts/order.py row "$n" "$i"); do
-      IFS='|' read -r _ state warm idle srv rly probe <<<"${ARMS[k]}"
+      IFS='|' read -r _ state warm idle srv rly probe <<<"${VARIANTS[k]}"
       echo "$(one_round "$state" "$warm" "$idle" "$series" "$rtt" "$srv" "$rly" "$probe") $i $prev" >> "$T/rr/$k"
       prev=$k
     done
@@ -172,7 +172,7 @@ for k in range(n):
     cols.append([(float(r[0]) if r[0] != "nan" else None, r[1:]) for r in rows if r[0] != "void"])
 base = {int(c[-2]): v for v, c in cols[0] if v is not None}
 print("%-26s %9s %15s %9s %7s %8s %7s %6s %5s %9s" %
-      ("arm", "ask ms", "min-max", "paired", "wins", "cwnd", "lost", "fails", "void", "next ask"))
+      ("variant", "ask ms", "min-max", "paired", "wins", "cwnd", "lost", "fails", "void", "next ask"))
 for k in range(n):
     got = [v for v, _ in cols[k] if v is not None]
     pairs = [v - base[int(c[-2])] for v, c in cols[k] if v is not None and int(c[-2]) in base]
@@ -230,10 +230,10 @@ repro() {
 idle_cells() {
   for kb in $SIZES; do
     for rtt in $RTTS; do
-      ARMS=()
+      VARIANTS=()
       for cc in cubic bbr; do
         for s in 0 10 30; do
-          arm "$cc, idle ${s}s|filled|$WARM|$((s * 1000))|--congestion $cc $HOLD|"
+          variant "$cc, idle ${s}s|filled|$WARM|$((s * 1000))|--congestion $cc $HOLD|"
         done
       done
       printf '\n== %s KB, %s ms, a warmed session left idle%s\n' "$kb" "$rtt" \
@@ -247,12 +247,12 @@ idle_cells() {
 together_cells() {
   for kb in $SIZES; do
     for rtt in $RTTS; do
-      ARMS=()
-      arm "fresh|fresh|$WARM|0||"
-      arm "iw 32 pkt|fresh|$WARM|0|--initial-window-bytes 38400|"
-      arm "push $((4 * kb)) KB|open-push|4|0|--open-ask|"
-      arm "push + iw 32 pkt|open-push|4|0|--open-ask --initial-window-bytes 38400|"
-      arm "warmed|filled|$WARM|0||"
+      VARIANTS=()
+      variant "fresh|fresh|$WARM|0||"
+      variant "iw 32 pkt|fresh|$WARM|0|--initial-window-bytes 38400|"
+      variant "push $((4 * kb)) KB|open-push|4|0|--open-ask|"
+      variant "push + iw 32 pkt|open-push|4|0|--open-ask --initial-window-bytes 38400|"
+      variant "warmed|filled|$WARM|0||"
       printf '\n== %s KB, %s ms, the two levers together\n' "$kb" "$rtt"
       round_robin "$T/s$kb.sbnd" "$rtt"
     done
@@ -264,9 +264,9 @@ queue_cells() {
   for kb in $SIZES; do
     for rtt in $RTTS; do
       for q in 10 20 40 100; do
-        ARMS=()
-        arm "default|fresh|$WARM|0||--rate-kbit 10000 --queue-pkts $q"
-        arm "iw 32 pkt|fresh|$WARM|0|--initial-window-bytes 38400|--rate-kbit 10000 --queue-pkts $q"
+        VARIANTS=()
+        variant "default|fresh|$WARM|0||--rate-kbit 10000 --queue-pkts $q"
+        variant "iw 32 pkt|fresh|$WARM|0|--initial-window-bytes 38400|--rate-kbit 10000 --queue-pkts $q"
         printf '\n== %s KB, %s ms, 10 Mbit, a %s-packet queue\n' "$kb" "$rtt" "$q"
         round_robin "$T/s$kb.sbnd" "$rtt"
       done
@@ -283,12 +283,12 @@ resume_cells() {
     for rtt in $RTTS; do
       for link in "${links[@]}"; do
         read -r _ cwnd _ <<<"$(one_round filled "$WARM" 0 "$T/s$kb.sbnd" "$rtt" "" "$link")"
-        ARMS=()
-        arm "fresh|fresh|$WARM|0||$link"
-        arm "warmed|filled|$WARM|0||$link"
-        arm "jump $((cwnd / 2)) B|fresh|$WARM|0|--initial-window-bytes $((cwnd / 2))|$link"
-        arm "push 4|open-push|4|0|--open-ask|$link"
-        arm "push 4 + jump|open-push|4|0|--open-ask --initial-window-bytes $((cwnd / 2))|$link"
+        VARIANTS=()
+        variant "fresh|fresh|$WARM|0||$link"
+        variant "warmed|filled|$WARM|0||$link"
+        variant "jump $((cwnd / 2)) B|fresh|$WARM|0|--initial-window-bytes $((cwnd / 2))|$link"
+        variant "push 4|open-push|4|0|--open-ask|$link"
+        variant "push 4 + jump|open-push|4|0|--open-ask --initial-window-bytes $((cwnd / 2))|$link"
         printf '\n== %s KB, %s ms, %s; the filled session ended at cwnd %s B\n' "$kb" "$rtt" "${link:-unshaped}" "$cwnd"
         round_robin "$T/s$kb.sbnd" "$rtt"
       done
@@ -297,18 +297,18 @@ resume_cells() {
 }
 
 # One radio's idle penalty (relay --idle-promote) and a wake datagram sent L ms ahead of the ask:
-# each arm should read the unpromoted ask plus max(0, P - L). docs/transport/transport-conclusions.md §3.
+# each variant should read the unpromoted ask plus max(0, P - L). docs/transport/transport-conclusions.md §3.
 wake_cells() {
   local p l radio
   for kb in $SIZES; do
     for rtt in $RTTS; do
-      ARMS=()
-      arm "no promotion|filled|$WARM|6000||--self-timing|"
+      VARIANTS=()
+      variant "no promotion|filled|$WARM|6000||--self-timing|"
       for p in ${PROMOTIONS:-80 300}; do
         radio="--self-timing --idle-promote 5:$p"
-        arm "P $p, no wake|filled|$WARM|6000||$radio|"
+        variant "P $p, no wake|filled|$WARM|6000||$radio|"
         for l in 0 50 100 200; do
-          arm "P $p, wake $l ms ahead|filled|$WARM|6000||$radio|--wake-lead-ms $l"
+          variant "P $p, wake $l ms ahead|filled|$WARM|6000||$radio|--wake-lead-ms $l"
         done
       done
       printf '\n== %s KB, %s ms, idle 6 s, a radio promoted after 5 s\n' "$kb" "$rtt"
@@ -326,13 +326,13 @@ stw_cells() {
   python3 lab/scripts/gen_step_trace.py 40000:60000 > "$T/fast.trace"
   for kb in $SIZES; do
     for rtt in $RTTS; do
-      ARMS=()
+      VARIANTS=()
       link="--self-timing --queue-pkts 50 --trace"
       for cc in cubic cubic-restart; do
-        arm "$cc, 40 -> 8|filled|$WARM|$idle|--congestion $cc $HOLD|$link $T/step.trace|"
+        variant "$cc, 40 -> 8|filled|$WARM|$idle|--congestion $cc $HOLD|$link $T/step.trace|"
       done
-      arm "cubic, 8 throughout|filled|$WARM|$idle|--congestion cubic $HOLD|$link $T/slow.trace|"
-      arm "cubic, 40 throughout|filled|$WARM|$idle|--congestion cubic $HOLD|$link $T/fast.trace|"
+      variant "cubic, 8 throughout|filled|$WARM|$idle|--congestion cubic $HOLD|$link $T/slow.trace|"
+      variant "cubic, 40 throughout|filled|$WARM|$idle|--congestion cubic $HOLD|$link $T/fast.trace|"
       printf '\n== %s KB, %s ms, idle %s ms, the link 40 -> 8 Mbit at %s ms, a 50-packet queue\n' \
         "$kb" "$rtt" "$idle" "$step"
       round_robin "$T/s$kb.sbnd" "$rtt"
@@ -347,10 +347,10 @@ late_cells() {
   for kb in $SIZES; do
     for rtt in $RTTS; do
       for idle in 6000 10000; do
-        ARMS=()
-        arm "no promotion|filled|$WARM|$idle|$HOLD|--self-timing|--next-ask"
+        VARIANTS=()
+        variant "no promotion|filled|$WARM|$idle|$HOLD|--self-timing|--next-ask"
         for p in 200 400 1000 1900; do
-          arm "P $p|filled|$WARM|$idle|$HOLD|--self-timing --idle-promote 5:$p|--next-ask"
+          variant "P $p|filled|$WARM|$idle|$HOLD|--self-timing --idle-promote 5:$p|--next-ask"
         done
         printf '\n== %s KB, %s ms, idle %s ms, a radio promoted after 5 s\n' "$kb" "$rtt" "$idle"
         round_robin "$T/s$kb.sbnd" "$rtt"
@@ -366,13 +366,13 @@ keep_cells() {
   radio="--self-timing --idle-promote 5:$p"
   for kb in $SIZES; do
     for rtt in $RTTS; do
-      ARMS=()
-      arm "no keep-alive|filled|$WARM|10000|--max-idle-timeout-ms 60000|$radio|--next-ask"
+      VARIANTS=()
+      variant "no keep-alive|filled|$WARM|10000|--max-idle-timeout-ms 60000|$radio|--next-ask"
       for ka in 3 5 10; do
-        arm "keep-alive ${ka} s|filled|$WARM|10000|--keep-alive-interval-ms $((ka * 1000)) --max-idle-timeout-ms 60000|$radio|--next-ask"
+        variant "keep-alive ${ka} s|filled|$WARM|10000|--keep-alive-interval-ms $((ka * 1000)) --max-idle-timeout-ms 60000|$radio|--next-ask"
       done
       for l in 100 300; do
-        arm "poke $l ms ahead|filled|$WARM|10000|--max-idle-timeout-ms 60000|$radio|--next-ask --wake-lead-ms $l"
+        variant "poke $l ms ahead|filled|$WARM|10000|--max-idle-timeout-ms 60000|$radio|--next-ask --wake-lead-ms $l"
       done
       printf '\n== %s KB, %s ms, idle 10 s, P %s ms after 5 s quiet\n' "$kb" "$rtt" "$p"
       round_robin "$T/s$kb.sbnd" "$rtt"
@@ -386,14 +386,14 @@ rebind_cells() {
   local iw="--initial-window-bytes 38400"
   for kb in $SIZES; do
     for rtt in $RTTS; do
-      ARMS=()
-      arm "fresh|fresh|$WARM|0||--self-timing|"
-      arm "warmed|filled|$WARM|0||--self-timing|"
-      arm "rebound|rebound|$WARM|0||--self-timing|"
-      arm "fresh, iw 32 pkt|fresh|$WARM|0|$iw|--self-timing|"
-      arm "rebound, iw 32 pkt|rebound|$WARM|0|$iw|--self-timing|"
-      arm "new address|rebound|$WARM|0||--self-timing --rebind-ip 127.0.0.2|"
-      arm "new address, iw 32 pkt|rebound|$WARM|0|$iw|--self-timing --rebind-ip 127.0.0.2|"
+      VARIANTS=()
+      variant "fresh|fresh|$WARM|0||--self-timing|"
+      variant "warmed|filled|$WARM|0||--self-timing|"
+      variant "rebound|rebound|$WARM|0||--self-timing|"
+      variant "fresh, iw 32 pkt|fresh|$WARM|0|$iw|--self-timing|"
+      variant "rebound, iw 32 pkt|rebound|$WARM|0|$iw|--self-timing|"
+      variant "new address|rebound|$WARM|0||--self-timing --rebind-ip 127.0.0.2|"
+      variant "new address, iw 32 pkt|rebound|$WARM|0|$iw|--self-timing --rebind-ip 127.0.0.2|"
       printf '\n== %s KB, %s ms, a rebind after the warm-up\n' "$kb" "$rtt"
       round_robin "$T/s$kb.sbnd" "$rtt"
     done

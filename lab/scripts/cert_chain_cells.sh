@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # H1: what a production certificate chain costs a cold open, and what RFC 8879 compression
 # gives back. Builds throwaway WebPKI-shaped chains from a private CA made here, reads each
-# server first flight off the wire, and refits cold_open's first-byte slope with the arms
+# server first flight off the wire, and refits cold_open's first-byte slope with the variants
 # interleaved in a Williams order (lab/scripts/order.py). Numbers and what they mean: docs/ARCHITECTURE.md §What production adds.
 #
 #   lab/scripts/cert_chain_cells.sh [rounds]
@@ -14,7 +14,7 @@ cd "$ROOT"
 
 ROUNDS="${1:-7}"
 DELAYS=(20 40 80)
-ARMS=(dev ec rsa ec-z rsa-z)
+VARIANTS=(dev ec rsa ec-z rsa-z)
 
 T="$(mktemp -d)"
 PIDS=()
@@ -22,9 +22,9 @@ cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm 
 trap cleanup EXIT
 
 BASE=$((30000 + (RANDOM % 200) * 100))
-port_of() {  # arm kind -> port
+port_of() {  # variant kind -> port
   local i=0 a
-  for a in "${ARMS[@]}"; do [[ "$a" == "$1" ]] && break; i=$((i + 1)); done
+  for a in "${VARIANTS[@]}"; do [[ "$a" == "$1" ]] && break; i=$((i + 1)); done
   case "$2" in
     front) echo $((BASE + i * 4)) ;;
     server) echo $((BASE + i * 4 + 1)) ;;
@@ -121,19 +121,19 @@ echo '{"frameCount": 10}' > "$T/metadata.json"
 "$T/bin-off/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" > /dev/null
 
 start_servers() {
-  for arm in "${ARMS[@]}"; do
-    RUST_LOG="${SERVER_LOG:-series_server=warn}" "$(bin_of "$arm")/series-server" \
-      --port "$(port_of "$arm" server)" --series "$T/series.sbnd" \
-      --cert-pem "$(cert_of "$arm").cert.pem" --key-pem "$(cert_of "$arm").key.pem" \
-      > "$T/server-$arm.log" 2>&1 &
+  for variant in "${VARIANTS[@]}"; do
+    RUST_LOG="${SERVER_LOG:-series_server=warn}" "$(bin_of "$variant")/series-server" \
+      --port "$(port_of "$variant" server)" --series "$T/series.sbnd" \
+      --cert-pem "$(cert_of "$variant").cert.pem" --key-pem "$(cert_of "$variant").key.pem" \
+      > "$T/server-$variant.log" 2>&1 &
     PIDS+=("$!")
   done
-  for arm in "${ARMS[@]}"; do
-    for _ in $(seq 100); do grep -q "wt_url=" "$T/server-$arm.log" && break; sleep 0.1; done
-    grep -q "wt_url=" "$T/server-$arm.log" || { echo "server $arm did not start:"; cat "$T/server-$arm.log"; exit 1; }
+  for variant in "${VARIANTS[@]}"; do
+    for _ in $(seq 100); do grep -q "wt_url=" "$T/server-$variant.log" && break; sleep 0.1; done
+    grep -q "wt_url=" "$T/server-$variant.log" || { echo "server $variant did not start:"; cat "$T/server-$variant.log"; exit 1; }
   done
 }
-start_relay() {  # arm listen_port upstream_port delay_ms
+start_relay() {  # variant listen_port upstream_port delay_ms
   python3 lab/scripts/link_impair.py --udp "$2:$3" --delay-ms "$4" > "$T/relay-$1.log" 2>&1 &
   echo "$!" >> "$T/relays"
   PIDS+=("$!")
@@ -149,43 +149,43 @@ stop_relays() {
 start_servers
 
 echo
-echo "== the server's first flight, on the wire (one-way 40 ms, three cold opens per arm)"
-for arm in "${ARMS[@]}"; do
-  start_relay "$arm" "$(port_of "$arm" front)" "$(port_of "$arm" server)" 40
-  python3 lab/scripts/first_flight.py "$(port_of "$arm" tap)" "$(port_of "$arm" front)" \
-    > "$T/tap-$arm.log" 2>&1 &
+echo "== the server's first flight, on the wire (one-way 40 ms, three cold opens per variant)"
+for variant in "${VARIANTS[@]}"; do
+  start_relay "$variant" "$(port_of "$variant" front)" "$(port_of "$variant" server)" 40
+  python3 lab/scripts/first_flight.py "$(port_of "$variant" tap)" "$(port_of "$variant" front)" \
+    > "$T/tap-$variant.log" 2>&1 &
   TAP=$!; PIDS+=("$TAP")
   sleep 0.3
-  "$(bin_of "$arm")/cold_open" --url "https://127.0.0.1:$(port_of "$arm" tap)/" --rounds 3 --rtt-ms 80 > /dev/null
+  "$(bin_of "$variant")/cold_open" --url "https://127.0.0.1:$(port_of "$variant" tap)/" --rounds 3 --rtt-ms 80 > /dev/null
   kill -TERM "$TAP" 2>/dev/null || true
   sleep 0.4
   stop_relays
-  printf '  %-6s %s\n' "$arm" "$(head -1 "$T/tap-$arm.log")"
+  printf '  %-6s %s\n' "$variant" "$(head -1 "$T/tap-$variant.log")"
 done
 
 echo
-echo "== first byte, arms in a Williams order, $ROUNDS rounds per delay"
+echo "== first byte, variants in a Williams order, $ROUNDS rounds per delay"
 : > "$T/samples.tsv"
 for d in "${DELAYS[@]}"; do
-  for arm in "${ARMS[@]}"; do
-    start_relay "$arm" "$(port_of "$arm" front)" "$(port_of "$arm" server)" "$d"
+  for variant in "${VARIANTS[@]}"; do
+    start_relay "$variant" "$(port_of "$variant" front)" "$(port_of "$variant" server)" "$d"
   done
   for round in $(seq 0 $((ROUNDS - 1))); do
     prev=first
-    for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$round"); do
-      arm="${ARMS[$k]}"
-      line=$("$(bin_of "$arm")/cold_open" --url "https://127.0.0.1:$(port_of "$arm" front)/" \
+    for k in $(python3 lab/scripts/order.py row "${#VARIANTS[@]}" "$round"); do
+      variant="${VARIANTS[$k]}"
+      line=$("$(bin_of "$variant")/cold_open" --url "https://127.0.0.1:$(port_of "$variant" front)/" \
              --rounds 1 --rtt-ms $((2 * d)))
-      printf '%s\t%s\t%s\t%s\t%s\n' "$arm" "$((2 * d))" "$round" "$prev" "$line" >> "$T/samples.tsv"
-      prev="$arm"
+      printf '%s\t%s\t%s\t%s\t%s\n' "$variant" "$((2 * d))" "$round" "$prev" "$line" >> "$T/samples.tsv"
+      prev="$variant"
     done
   done
   stop_relays
 done
 
 cat > "$T/fit.py" <<'FIT'
-"""Median per (arm, rtt), the slope of that median against the rtt, how often each arm's
-first byte landed behind the reference arm's in the same round, and that lead by predecessor."""
+"""Median per (variant, rtt), the slope of that median against the rtt, how often each variant's
+first byte landed behind the reference variant's in the same round, and that lead by predecessor."""
 import collections, re, statistics, sys
 sys.path.insert(0, "lab/scripts")
 from order import leads_by_predecessor
@@ -194,34 +194,34 @@ phase, ref = sys.argv[2], sys.argv[3]
 cells = collections.defaultdict(list)
 visits = collections.defaultdict(list)
 for line in open(sys.argv[1]):
-    arm, rtt, rnd, prev, out = line.rstrip("\n").split("\t", 4)
+    variant, rtt, rnd, prev, out = line.rstrip("\n").split("\t", 4)
     v = float(re.search(phase + r"=([0-9.]+)ms", out).group(1))
-    cells[(arm, int(rtt))].append(v)
-    visits[int(rtt)].append({"round": int(rnd), "unit": arm, "prev": None if prev == "first" else prev, "v": v})
+    cells[(variant, int(rtt))].append(v)
+    visits[int(rtt)].append({"round": int(rnd), "unit": variant, "prev": None if prev == "first" else prev, "v": v})
 
-arms = sorted({a for a, _ in cells}, key=lambda a: [x[0] for x in cells].index(a))
+variants = sorted({a for a, _ in cells}, key=lambda a: [x[0] for x in cells].index(a))
 rtts = sorted({r for _, r in cells})
-print("  %-7s %s" % ("arm", "  ".join("%-26s" % ("rtt %d ms" % r) for r in rtts)))
-for arm in arms:
+print("  %-7s %s" % ("variant", "  ".join("%-26s" % ("rtt %d ms" % r) for r in rtts)))
+for variant in variants:
     row, xs, ys = [], [], []
     for rtt in rtts:
-        v = sorted(cells[(arm, rtt)])
+        v = sorted(cells[(variant, rtt)])
         med = statistics.median(v)
-        beat = sum(1 for a, b in zip(cells[(arm, rtt)], cells[(ref, rtt)]) if a > b)
+        beat = sum(1 for a, b in zip(cells[(variant, rtt)], cells[(ref, rtt)]) if a > b)
         row.append("%7.1f [%5.1f-%5.1f] %d/%d" % (med, v[0], v[-1], beat, len(v)))
         xs.append(rtt); ys.append(med)
     mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
     slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
-    print("  %-7s %s  ->  %.2f round trips + %.1f ms" % (arm, "  ".join(row), slope, my - slope * mx))
+    print("  %-7s %s  ->  %.2f round trips + %.1f ms" % (variant, "  ".join(row), slope, my - slope * mx))
 for rtt in rtts:
     print("  rtt %d ms, each lead by the predecessor it ran after, rounds in brackets" % rtt)
-    for line in leads_by_predecessor(visits[rtt], arms, [(a, ref) for a in arms if a != ref], 1):
+    for line in leads_by_predecessor(visits[rtt], variants, [(a, ref) for a in variants if a != ref], 1):
         print("  " + line)
 FIT
 
 echo
-echo "first_byte: median ms [min-max] and rounds behind $([[ ${ARMS[0]} == dev ]] && echo dev)"
-python3 "$T/fit.py" "$T/samples.tsv" first_byte "${ARMS[0]}"
+echo "first_byte: median ms [min-max] and rounds behind $([[ ${VARIANTS[0]} == dev ]] && echo dev)"
+python3 "$T/fit.py" "$T/samples.tsv" first_byte "${VARIANTS[0]}"
 echo
 echo "session ready:"
-python3 "$T/fit.py" "$T/samples.tsv" session "${ARMS[0]}"
+python3 "$T/fit.py" "$T/samples.tsv" session "${VARIANTS[0]}"

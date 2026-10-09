@@ -7,7 +7,7 @@ uncontended times (row 14's are).
 
 usage: sweep.py BUILD FRAMES SETDIR ... [--jobs 4] [--out sweep.json] [--confirm]
        --confirm only redoes the whole-series step on --out's rows over 2 %
-       FRAMES is make_frames.py's cpu0 OUT (its arms and HTJ2K bytes) — lab/av1/delivery/split-rule/README.md
+       FRAMES is make_frames.py's cpu0 OUT (its variants and HTJ2K bytes) — lab/av1/delivery/split-rule/README.md
 """
 import argparse
 import json
@@ -34,20 +34,20 @@ def encode(build, src, k, preset, frames, out):
 def confirm(build, frames, sets, rows, tmp, jobs):
     """Each row whose whole series is over 2 %: the candidates by their two-frame speed until one is within it."""
     def one(row):
-        entry = json.loads((frames / row["set"] / "arms.json").read_text())
+        entry = json.loads((frames / row["set"] / "variants.json").read_text())
         src = next(p for p in sets if p.name == row["set"])
         tried = {row["preset"]: row["shipped"]}
         for p in sorted(CANDIDATES, key=lambda p: row["two"][p][1]):
             if p in tried:
                 continue
-            tried[p] = round(encode(build, src, int(row["arm"][1:]), p, None, tmp / f"{row['set']}.{row['arm']}.{p}")[0]
+            tried[p] = round(encode(build, src, int(row["variant"][1:]), p, None, tmp / f"{row['set']}.{row['variant']}.{p}")[0]
                              / entry["bytes"]["htj2k"], 4)
             if tried[p] <= row["cpu0"] * WITHIN:
                 break
         ok = [p for p, v in tried.items() if v <= row["cpu0"] * WITHIN]
         row["whole"] = tried
         row["preset"], row["shipped"] = (ok[-1], tried[ok[-1]]) if ok else ("cpu0", row["cpu0"])
-        print(f"{row['set']} {row['arm']}: confirmed {row['preset']}, over HTJ2K {row['shipped']} (tried {tried})", flush=True)
+        print(f"{row['set']} {row['variant']}: confirmed {row['preset']}, over HTJ2K {row['shipped']} (tried {tried})", flush=True)
     with ThreadPoolExecutor(jobs) as pool:
         list(pool.map(one, [r for r in rows if r["shipped"] > r["cpu0"] * WITHIN]))
 
@@ -72,24 +72,24 @@ def main():
     with tempfile.TemporaryDirectory() as tmp, ThreadPoolExecutor(a.jobs) as pool:
         cells = []
         for src in a.sets:
-            entry = json.loads((a.frames / src.name / "arms.json").read_text())
+            entry = json.loads((a.frames / src.name / "variants.json").read_text())
             two = min(2, entry["frames"])
-            for arm in (x for x in entry["arms"] if x != "htj2k"):
-                k = int(arm[1:])
-                ref = sum((a.frames / src.name / f"{i:03d}.{arm}.av1").stat().st_size for i in range(two))
-                tries = {p: pool.submit(encode, build, src, k, p, two, Path(tmp) / f"{src.name}.{arm}.{p}") for p in CANDIDATES}
-                cells.append((src, entry, arm, k, ref, tries))
-        for src, entry, arm, k, ref, tries in cells:
+            for variant in (x for x in entry["variants"] if x != "htj2k"):
+                k = int(variant[1:])
+                ref = sum((a.frames / src.name / f"{i:03d}.{variant}.av1").stat().st_size for i in range(two))
+                tries = {p: pool.submit(encode, build, src, k, p, two, Path(tmp) / f"{src.name}.{variant}.{p}") for p in CANDIDATES}
+                cells.append((src, entry, variant, k, ref, tries))
+        for src, entry, variant, k, ref, tries in cells:
             got = {p: f.result() for p, f in tries.items()}
             ok = [p for p in CANDIDATES if got[p][0] <= ref * WITHIN]
             pick = min(ok, key=lambda p: got[p][1]) if ok else "cpu0"
-            whole = encode(build, src, k, pick, None, Path(tmp) / f"{src.name}.{arm}.whole")[0] if pick != "cpu0" else entry["bytes"][arm]
-            row = dict(set=src.name, arm=arm, names=entry["names"][arm], preset=pick,
+            whole = encode(build, src, k, pick, None, Path(tmp) / f"{src.name}.{variant}.whole")[0] if pick != "cpu0" else entry["bytes"][variant]
+            row = dict(set=src.name, variant=variant, names=entry["names"][variant], preset=pick,
                        two={p: [round(b / ref, 4), round(s, 1)] for p, (b, s) in got.items()},
-                       cpu0=round(entry["bytes"][arm] / entry["bytes"]["htj2k"], 4),
+                       cpu0=round(entry["bytes"][variant] / entry["bytes"]["htj2k"], 4),
                        shipped=round(whole / entry["bytes"]["htj2k"], 4))
             rows.append(row)
-            print(f"{src.name} {arm} ({'/'.join(row['names'])}): {pick}, over HTJ2K cpu0 {row['cpu0']} shipped {row['shipped']}",
+            print(f"{src.name} {variant} ({'/'.join(row['names'])}): {pick}, over HTJ2K cpu0 {row['cpu0']} shipped {row['shipped']}",
                   flush=True)
     if a.out:
         a.out.write_text(json.dumps(rows, indent=1))

@@ -46,38 +46,38 @@ def main():
     decoders = int(sys.argv[3]) if len(sys.argv) > 3 else 3
     manifest = json.loads((frames / "manifest.json").read_text())
     prefix = {p["name"]: p for p in json.loads((frames / "prefix.json").read_text())}
-    print("set\tthrottle\tarm\tpreview_B\tpreview_psnr\t" + "\t".join(f"{m}M_playable\t{m}M_exact" for m in LINKS))
+    print("set\tthrottle\tvariant\tpreview_B\tpreview_psnr\t" + "\t".join(f"{m}M_playable\t{m}M_exact" for m in LINKS))
     for s in manifest:
         n, htj2k = s["frames"], s["htj2k"]
         l1 = [f["bytes"] for f in prefix[s["name"]]["levels"]["1"]]
         for throttle in sorted({r["throttle"] for r in rows}):
-            def per(arm):
-                rs = [r["ms"] / r["frames"] / 1e3 for r in rows if r["set"] == s["name"] and r["arm"] == arm
+            def per(variant):
+                rs = [r["ms"] / r["frames"] / 1e3 for r in rows if r["set"] == s["name"] and r["variant"] == variant
                       and r["throttle"] == throttle and r.get("ms") is not None and r["exact"] == r["frames"]]
                 return statistics.median(rs) if rs else None
             full = per("htj2k")
-            arms = [("exact", None, None, None), ("prefix", l1, per("htj2k-l1"), 1)]
+            variants = [("exact", None, None, None), ("prefix", l1, per("htj2k-l1"), 1)]
             for p in s["previews"]:
                 for dec in ("dav1d", "webcodecs"):
-                    arms.append((f"{dec} {p['cell']}", p["sizes"], per(f"{dec} {p['cell']}"), p["group"], p["psnr_mean"]))
+                    variants.append((f"{dec} {p['cell']}", p["sizes"], per(f"{dec} {p['cell']}"), p["group"], p["psnr_mean"]))
             psnr_l1 = statistics.mean(f["psnr"] for f in prefix[s["name"]]["levels"]["1"])
-            for arm, sizes, d, g, *q in arms:
-                if arm != "exact" and d is None:
+            for variant, sizes, d, g, *q in variants:
+                if variant != "exact" and d is None:
                     continue
                 cols = []
                 for mbit in LINKS:
-                    if arm == "exact":
+                    if variant == "exact":
                         t, _ = pool([(a, [full]) for a in arrivals(htj2k, mbit)], [0.0] * decoders)
                         cols += [t, t]
                         continue
                     pa = arrivals(sizes, mbit)
                     playable, free = pool(groups(pa, d, g), [0.0] * decoders)
-                    rest = [h - b for h, b in zip(htj2k, sizes)] if arm == "prefix" else htj2k
+                    rest = [h - b for h, b in zip(htj2k, sizes)] if variant == "prefix" else htj2k
                     ea = arrivals(rest, mbit, pa[-1])
                     exact, _ = pool([(a, [full]) for a in ea], free)
                     cols += [playable, exact]
-                psnr = q[0] if q else (psnr_l1 if arm == "prefix" else "-")
-                print(f"{s['name']}\t{throttle}x\t{arm}\t{sum(sizes) if sizes else sum(htj2k)}\t{psnr if psnr == '-' else round(psnr, 1)}\t"
+                psnr = q[0] if q else (psnr_l1 if variant == "prefix" else "-")
+                print(f"{s['name']}\t{throttle}x\t{variant}\t{sum(sizes) if sizes else sum(htj2k)}\t{psnr if psnr == '-' else round(psnr, 1)}\t"
                       + "\t".join(f"{c:.2f}" for c in cols))
 
 

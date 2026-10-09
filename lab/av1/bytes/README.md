@@ -24,7 +24,7 @@ The tomosynthesis sets ran as a second campaign under the same check, after row 
 thread, nothing else started during the campaign; before each run two `/proc` samples 0.5 s apart
 summed every other process's CPU — at most 0.22 of a core over the 546 — and each child's CPU time
 was ≥ 0.96 of its wall time on every run over 1 s (≥ 0.88 on the shortest, where start-up and file
-I/O weigh most). Arms interleaved per set
+I/O weigh most). Variants interleaved per set
 (`lab/scripts/order.py`), n = 3 rounds; bytes were identical in every round. A time is wall clock
 over 8 frames with the process's start and its Y4M read inside, so the fastest presets read slow by
 a few ms a frame. Container numbers, x86-64 with libaom's assembly.
@@ -41,7 +41,7 @@ ms a frame, median of 3 [min–max]; bytes over `--good` cpu0's (the slowest pre
 | `dbt10_ea1141` 678×1727, 10-bit | 17.2 (1.023) | 11 141 [10 990–11 288] | **936** (1.019) | 7 292 (1.005) | 2 178 (1.009) | 488 (1.021) | 280 (1.030) | 81.1 [78.1–86.1] (1.055) | 460 (0.992) | 111.1 (1.006) |
 | `dbt12_ea1141` 614×1359, 12-bit | 13.2 (0.962) | 7 399 [7 378–8 026] | 731 (1.026) | 5 931 (1.012) | **1 618** (1.015) | 285 (1.033) | 208 (1.037) | 78.8 [76.2–81.4] (1.068) | 547 (1.025) | 91.2 (1.061) |
 
-Every `cpu-used` is in the TSV. In 23 of the 182 (set × arm) cells one round of three is 13–50 % off
+Every `cpu-used` is in the TSV. In 23 of the 182 (set × variant) cells one round of three is 13–50 % off
 the median, all but two (CT `--good` 3 at 2.3 s, fluoroscopy `--rt` 5 at 0.55 s) under 0.3 s a
 frame; the median is quoted.
 

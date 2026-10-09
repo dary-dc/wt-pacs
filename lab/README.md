@@ -1,7 +1,7 @@
 # lab
 
 Measurement only: no product crate depends on anything here. Each directory reproduces a claim a doc
-cites; the doc holds the number, the directory holds how to get it. Arms are interleaved with
+cites; the doc holds the number, the directory holds how to get it. Variants are interleaved with
 `order.mjs` (`scripts/order.py` for shell), which the gate tests.
 
 | where | what |

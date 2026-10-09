@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TOTAL's frames: each set's every frame as each arm serves it, one file per frame and arm.
+"""TOTAL's frames: each set's every frame as each variant serves it, one file per frame and variant.
 
 htj2k (the served profile) and av1 (libaom lossless intra, cpu0) for every set; on a 12-bit grey set
 the two splits as the client takes them (`[u32le len(top)][top unit][low unit]`): t11 (v >> 2 at 12
@@ -7,13 +7,13 @@ bits + v & 3, dav1d-WASM) and t10 (v >> 3 at 10 bits + v & 7, WebCodecs); on a s
 beat intra, gop (the whole series one group, no alt-ref); on the fluoroscopy, pre — row PREVIEW's
 lossy preview, 10-bit 4:0:0, G = 8, CRF 20, cpu6. Row TOTAL2 adds row LLSIZE's best codings: l2,
 the two low bits apart on grey; rct, the reversible colour transform on RGB, intra and G = 8. Every
-exact arm is decoded natively and matched with the series' checksum; a preview's truth is its native
+exact variant is decoded natively and matched with the series' checksum; a preview's truth is its native
 decode's hash. Row TOTAL3 adds x36, row ENCX's changes to l2: the low k bits packed and raw-deflated,
 k = 3 where the noise's σ ≥ 17; and names the two representations of docs/av1/payload-format.md, plain
 and opt, each with the decoder the format picks.
 
-usage: [ARMS=av1,split,gop,pre,l2,rct,x36,plain] make_frames.py BUILD OUT SETDIR ...  (OUT/SET/arms.json says
-what was made; ARMS limits it, htj2k always) — lab/av1/delivery/total-time/README.md
+usage: [VARIANTS=av1,split,gop,pre,l2,rct,x36,plain] make_frames.py BUILD OUT SETDIR ...  (OUT/SET/variants.json says
+what was made; VARIANTS limits it, htj2k always) — lab/av1/delivery/total-time/README.md
 """
 import json
 import os
@@ -152,55 +152,55 @@ def main():
         dst, work = out / s.name, out / f".{s.name}-work"
         dst.mkdir(parents=True, exist_ok=True)
         work.mkdir(exist_ok=True)
-        want = os.environ.get("ARMS", "av1,split,gop,pre,l2,rct").split(",")
-        files, arms = {}, {"htj2k": {}}
+        want = os.environ.get("VARIANTS", "av1,split,gop,pre,l2,rct").split(",")
+        files, variants = {}, {"htj2k": {}}
         if "av1" in want:
             files["av1"] = intra(build, s, work)
-            arms["av1"] = {}
+            variants["av1"] = {}
         if "av1" in want and s.av1_bits <= 10:
-            arms["wc"] = dict(ext="av1", depth=s.av1_bits)
+            variants["wc"] = dict(ext="av1", depth=s.av1_bits)
         reps = {r.name: r for r in llsize.representations(s)}
         if "l2" in want and "low2" in reps:
             files["l2"] = represented(build, s, work, reps["low2"], ["--tune-content=screen", "--sb-size=64"], 1)
-            arms["l2"] = dict(split=2)
-            arms["l2wc"] = dict(ext="l2", split=2, depth=llsize.container(reps["low2"].planes[0][0]))
+            variants["l2"] = dict(split=2)
+            variants["l2wc"] = dict(ext="l2", split=2, depth=llsize.container(reps["low2"].planes[0][0]))
         if "rct" in want and "rct" in reps:
             files["rct"] = represented(build, s, work, reps["rct"], ["--tune-content=screen", "--sb-size=64"], 1)
             files["rct8"] = represented(build, s, work, reps["rct"], [], 8)
-            arms["rct"] = dict(rct=True)
-            arms["rctwc"] = dict(ext="rct", rct=True, depth=10)
-            arms["rct8wc"] = dict(ext="rct8", rct=True, depth=10, group=8)
+            variants["rct"] = dict(rct=True)
+            variants["rctwc"] = dict(ext="rct", rct=True, depth=10)
+            variants["rct8wc"] = dict(ext="rct8", rct=True, depth=10, group=8)
         if "split" in want and s.ch == 1 and s.av1_bits == 12:
             files["t11"] = split(build, s, work, 12, 2)
             files["t10"] = split(build, s, work, 10, 3)
-            arms["t11"] = dict(split=2)
-            arms["t10"] = dict(split=3, depth=10)
+            variants["t11"] = dict(split=2)
+            variants["t10"] = dict(split=3, depth=10)
         if "gop" in want and s.name in GOP:
             files["gop"] = gop(build, s, work)
-            arms["gop"] = dict(group=s.n)
+            variants["gop"] = dict(group=s.n)
         if "pre" in want and s.name in PREVIEW:
             group, crf = PREVIEW[s.name]
             files["pre"], truth = lossy(build, s, work, group, crf)
-            arms["pre"] = dict(group=group, truth=truth)
+            variants["pre"] = dict(group=group, truth=truth)
         if "x36" in want and s.name in K36:
             k = K36[s.name]
             rep = reps[f"low{k}"]
             files["x36"] = deflated(build, s, work, rep, k)
-            arms["x36"] = dict(split=k, depth=llsize.container(rep.planes[0][0]), worker="/lab/av1/delivery/total-time/deflate-worker.js")
+            variants["x36"] = dict(split=k, depth=llsize.container(rep.planes[0][0]), worker="/lab/av1/delivery/total-time/deflate-worker.js")
         if "plain" in want and "av1" in files:
-            arms["plain"] = dict(ext="av1", **({"depth": s.av1_bits} if s.av1_bits <= 10 else {}))
-        if "plain" in want and "l2wc" in arms:
-            arms["opt"] = arms["l2wc"]
-        if "plain" in want and "rctwc" in arms:
-            arms["opt"] = arms["rctwc"]
+            variants["plain"] = dict(ext="av1", **({"depth": s.av1_bits} if s.av1_bits <= 10 else {}))
+        if "plain" in want and "l2wc" in variants:
+            variants["opt"] = variants["l2wc"]
+        if "plain" in want and "rctwc" in variants:
+            variants["opt"] = variants["rctwc"]
         for ext, units in files.items():
             for i, unit in enumerate(units):
                 (dst / f"{i:03d}.{ext}").write_bytes(unit)
         for i in range(s.n):
             htj2k(s, i, work, dst / f"{i:03d}.htj2k")
         sizes = {ext: sum((dst / f"{i:03d}.{ext}").stat().st_size for i in range(s.n)) for ext in ["htj2k", *files]}
-        entry = dict(name=s.name, frames=s.n, bits=s.av1_bits, truth=s.truth, arms=arms, bytes=sizes)
-        (dst / "arms.json").write_text(json.dumps(entry, indent=1))
+        entry = dict(name=s.name, frames=s.n, bits=s.av1_bits, truth=s.truth, variants=variants, bytes=sizes)
+        (dst / "variants.json").write_text(json.dumps(entry, indent=1))
         print(s.name, s.n, "frames,", ", ".join(f"{k} {v} B" for k, v in sizes.items()), flush=True)
 
 

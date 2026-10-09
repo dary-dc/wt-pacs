@@ -1,9 +1,9 @@
 /**
  * DECSPEED's screen: ms a frame for every encoder variant and thread count, one frame at a time through
  * the product's decoder worker in headless Chromium. Each (throttle) cell is a fresh browser, in a
- * Williams order every round; sets and arms rotate inside it. lab/av1/decode/settings/README.md
+ * Williams order every round; sets and variants rotate inside it. lab/av1/decode/settings/README.md
  *
- *   NODE_PATH=$(npm root -g) node lab/av1/decode/settings/screen.mjs --arms htj2k,av1,av1-t4@2 [--rounds 8]
+ *   NODE_PATH=$(npm root -g) node lab/av1/decode/settings/screen.mjs --variants htj2k,av1,av1-t4@2 [--rounds 8]
  *     [--throttles 1,4] [--cores 3] [--frames lab/.av1-work/decspeed] [--mutate sample|truth] [--out rows.json]
  */
 import { spawn } from "node:child_process";
@@ -18,7 +18,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 8));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
-const ARMS = arg("--arms", "htj2k,av1").split(",");
+const VARIANTS = arg("--variants", "htj2k,av1").split(",");
 const CORES = Number(arg("--cores", 3));
 const FRAMES = arg("--frames", "lab/.av1-work/decspeed");
 const MUTATE = arg("--mutate", "").split(",").filter(Boolean);
@@ -44,7 +44,7 @@ async function inChromium(throttle, round) {
     throw new Error("page is not cross-origin isolated");
   }
   const stop = throttleTree(server.process().pid, throttle, { cores: CORES });
-  const rows = await page.evaluate((o) => globalThis.run(o), { frames: FRAMES, arms: ARMS, round, mutate: MUTATE });
+  const rows = await page.evaluate((o) => globalThis.run(o), { frames: FRAMES, variants: VARIANTS, round, mutate: MUTATE });
   stop();
   await browser.close();
   await server.close();
@@ -58,7 +58,7 @@ for (let round = 0; round < ROUNDS; round++) {
     const got = await inChromium(throttle, round);
     for (const r of got) rows.push({ round, throttle, ...r });
     for (const r of got.filter((r) => r.error || r.exact !== r.frames)) {
-      console.error(`round ${round} ${throttle}x ${r.set} ${r.arm}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
+      console.error(`round ${round} ${throttle}x ${r.set} ${r.variant}: ${r.exact}/${r.frames} exact ${r.error ?? ""}`);
     }
     console.error(`round ${round} ${throttle}x done`);
     if (OUT) writeFileSync(OUT, JSON.stringify(rows));
@@ -67,19 +67,19 @@ for (let round = 0; round < ROUNDS; round++) {
 
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const f = (v) => v.toFixed(v < 10 ? 2 : 1);
-console.log("ms a frame: median over rounds of each round's median [range of round medians]; × the base AV1 arm, paired by round; exact");
+console.log("ms a frame: median over rounds of each round's median [range of round medians]; × the base AV1 variant, paired by round; exact");
 for (const { throttle } of cells) {
   for (const set of [...new Set(rows.map((r) => r.set))]) {
-    const of = (arm) => rows.filter((r) => r.throttle === throttle && r.set === set && r.arm === arm && r.ms.length);
+    const of = (variant) => rows.filter((r) => r.throttle === throttle && r.set === set && r.variant === variant && r.ms.length);
     const ref = new Map(of("av1").map((r) => [r.round, med(r.ms)]));
-    for (const arm of ARMS) {
-      const all = rows.filter((r) => r.throttle === throttle && r.set === set && r.arm === arm);
-      const per = of(arm).map((r) => med(r.ms));
+    for (const variant of VARIANTS) {
+      const all = rows.filter((r) => r.throttle === throttle && r.set === set && r.variant === variant);
+      const per = of(variant).map((r) => med(r.ms));
       const exact = `${all.reduce((n, r) => n + r.exact, 0)}/${all.reduce((n, r) => n + r.frames, 0)}`;
-      if (!per.length) { console.log(`${throttle}x ${set} ${arm}: failed (${all[0]?.error}) exact ${exact}`); continue; }
-      const ratios = of(arm).filter((r) => ref.has(r.round)).map((r) => med(r.ms) / ref.get(r.round));
+      if (!per.length) { console.log(`${throttle}x ${set} ${variant}: failed (${all[0]?.error}) exact ${exact}`); continue; }
+      const ratios = of(variant).filter((r) => ref.has(r.round)).map((r) => med(r.ms) / ref.get(r.round));
       const x = ratios.length ? ` ×${med(ratios).toFixed(2)} [${Math.min(...ratios).toFixed(2)}–${Math.max(...ratios).toFixed(2)}]` : "";
-      console.log(`${throttle}x ${set} ${arm}: ${f(med(per))} [${f(Math.min(...per))}–${f(Math.max(...per))}] n=${per.length}${x} exact ${exact}`);
+      console.log(`${throttle}x ${set} ${variant}: ${f(med(per))} [${f(Math.min(...per))}–${f(Math.max(...per))}] n=${per.length}${x} exact ${exact}`);
     }
   }
 }

@@ -12,10 +12,10 @@ node lab/decode-bench/copy_cost.mjs lab/fixtures/decode_g512 lab/fixtures/decode
 
 `decode_bench.mjs` runs 1..4 instances over one fixture set, dealing frames round-robin, and
 reports heap per instance and in total. It is **serial by design**: the claim is memory, and a
-parallel arm would turn it into a throughput claim as well. `copy_cost.mjs` prices `.slice()`
+parallel variant would turn it into a throughput claim as well. `copy_cost.mjs` prices `.slice()`
 against handing back the heap view, across frame sizes.
 
-Round 0 warms up and is not counted; the arms run in a Williams order (`docs/rig-limits.md` §6), and
+Round 0 warms up and is not counted; the variants run in a Williams order (`docs/rig-limits.md` §6), and
 each summary splits its leads by predecessor. Every decoded frame is checked
 against the `.sha256` the generator wrote from the **encoder's input**, not against an oracle this
 decoder produced — an oracle built by the code under test shares its bugs, which a mutation proved
@@ -32,7 +32,7 @@ node lab/decode-bench/shared_tax.mjs lab/fixtures/decode_g1024
 EMSDK=~/emsdk lab/decode-bench/wasm/heap_curve.sh lab/fixtures/decode_g512
 ```
 
-`cold_arms.mjs --arms a,b` times two builds from a cold module — frames 0–2 and the steady state,
+`cold_variants.mjs --variants a,b` times two builds from a cold module — frames 0–2 and the steady state,
 a fresh Node process or browser context per sample, every frame checked against the `.sha256`.
 
 `parity.mjs` is the one that matters: it compares our build against the package byte for byte and

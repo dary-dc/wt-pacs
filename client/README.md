@@ -170,7 +170,7 @@ and the downloader resumes the ask on a new session, failing it only when `tries
 LOSSLINK's harness ([`lab/av1/delivery/total-time`](../lab/av1/delivery/total-time/README.md) §Row ASKDEADLINE): the 10-bit
 volume as HTJ2K, 4 frames filled then 8 asked one at a time, 20 Mbit and `lte-good` clean, 2 % and 5 %
 loss, 1×, this downloader against the one before it and against `stallMs` 15 s, 10 rounds interleaved,
-155 of 180 visits kept, **2 160/2 160 frames exact and 0 asks failed in every arm, before as after**. On
+155 of 180 visits kept, **2 160/2 160 frames exact and 0 asks failed in every variant, before as after**. On
 the clean links and iid loss nothing fires — no silence over 1 s, no resume, fill ×0.98–1.03 and ask
 medians within 70 ms. On `lte-good`'s bursts the silences are real and the session lives through them:
 up to 9.3 s with today's stall, 12.4 s with 15 s; 3 s re-dials 2–12 times a cell, and the ask tail (p95

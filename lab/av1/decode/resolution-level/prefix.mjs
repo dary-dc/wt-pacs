@@ -1,6 +1,6 @@
 /**
  * Cuts each frame of make_frames.py's sets at the smallest prefix that decodes to its level exactly, and writes the
- * `res` arm: entry i < F is frame i's prefix, entry F + i the rest of its codestream. The shipped OpenJPH package
+ * `res` variant: entry i < F is frame i's prefix, entry F + i the rest of its codestream. The shipped OpenJPH package
  * decodes, clamped by level.js; the level's truth is OpenJPEG's, and OpenJPEG must decode the prefix to it as well. lab/av1/decode/resolution-level/README.md
  *
  *   node lab/av1/decode/resolution-level/prefix.mjs BUILD WORK [--mutate prefix|truth]
@@ -56,9 +56,9 @@ function openjpeg(bytes, level) {
 }
 
 let failed = 0;
-for (const name of readdirSync(WORK).filter((d) => existsSync(path.join(WORK, d, "arms.json")))) {
+for (const name of readdirSync(WORK).filter((d) => existsSync(path.join(WORK, d, "variants.json")))) {
   const dir = path.join(WORK, name);
-  const set = JSON.parse(readFileSync(path.join(dir, "arms.json"), "utf8"));
+  const set = JSON.parse(readFileSync(path.join(dir, "variants.json"), "utf8"));
   const { frames: F, level } = set;
   const cuts = [];
   for (let i = 0; i < F; i++) {
@@ -80,10 +80,10 @@ for (const name of readdirSync(WORK).filter((d) => existsSync(path.join(WORK, d,
     writeFileSync(path.join(dir, `${String(F + i).padStart(3, "0")}.res`), cs.subarray(cut));
     cuts.push({ prefix: cut, whole: cs.length });
   }
-  set.arms.res = { codec: "htj2k", layers: 2, level, worker: "/lab/av1/decode/resolution-level/decoder.js", previewTruth: set.reducedTruth };
+  set.variants.res = { codec: "htj2k", layers: 2, level, worker: "/lab/av1/decode/resolution-level/decoder.js", previewTruth: set.reducedTruth };
   set.prefix = cuts;
   set.bytes.prefix = cuts.reduce((s, c) => s + c.prefix, 0);
-  writeFileSync(path.join(dir, "arms.json"), JSON.stringify(set, null, 1));
+  writeFileSync(path.join(dir, "variants.json"), JSON.stringify(set, null, 1));
   const share = cuts.map((c) => (100 * c.prefix) / c.whole);
   console.log(`${name}: level ${level}, prefix ${Math.min(...share).toFixed(1)}–${Math.max(...share).toFixed(1)} % of the frame, ` +
     `${set.bytes.prefix} of ${set.bytes.htj2k} B`);

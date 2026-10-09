@@ -1,5 +1,5 @@
-// The arm order of the lab's interleaved campaigns, and the check that it held.
-// docs/rig-limits.md §6 Interleave the arms.
+// The variant order of the lab's interleaved campaigns, and the check that it held.
+// docs/rig-limits.md §6 Interleave the variants.
 
 /** A Williams square's rows: over them every unit sits at every position, and follows every other, equally often. */
 export function williams(n) {

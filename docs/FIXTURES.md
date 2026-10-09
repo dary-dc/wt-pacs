@@ -24,7 +24,7 @@ the frame: the server stops at startup and `pack-study` refuses to write it.
 Pack loose frames with `cargo run -p pack-series -- --metadata M.json --frames DIR --output
 X.sbnd`: `metadata.json` must carry `frameCount`, and the frames are `DIR/000.htj2k`,
 `001.htj2k`, …. The metadata a host serves is that input file; `--sidecar`, which copied it, was
-removed 2026-10-03 (code: `git show archive/arms-2026-10-03:tools/pack-series/src/main.rs`).
+removed 2026-10-03 (code: `git show archive/variants-2026-10-03:tools/pack-series/src/main.rs`).
 
 ## The sets
 

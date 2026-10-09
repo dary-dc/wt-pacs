@@ -161,7 +161,7 @@ at once, behind the accept rather than behind the control stream. A malformed or
 value is ignored and the session proceeds as without it, so an opening ask is never refused (this
 said until 2026-10-04 that a refusal of one waits for the control stream: that case cannot occur).
 The TypeScript client sends it for
-`connect(url, hash, { fill })` and arms the fill without sending `stream_frames`. Why:
+`connect(url, hash, { fill })` and variants the fill without sending `stream_frames`. Why:
 [`ARCHITECTURE.md`](ARCHITECTURE.md), session open.
 
 ## The WebSocket mapping

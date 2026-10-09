@@ -8,7 +8,7 @@ input exactly. The findings live in [`../../../../docs/decode/README.md`](../../
 pip install numpy==2.1.3
 python3 lab/av1/exact/webcodecs/make_streams.py /tmp/wcap        # 24 IVFs + manifest.json, ~40 s
 NODE_PATH=$(npm root -g) node lab/av1/exact/webcodecs/probe.mjs /tmp/wcap /tmp/wcap.json
-MUTATE=1 ARMS=tu PREFS=no-preference NODE_PATH=$(npm root -g) node lab/av1/exact/webcodecs/probe.mjs /tmp/wcap
+MUTATE=1 VARIANTS=tu PREFS=no-preference NODE_PATH=$(npm root -g) node lab/av1/exact/webcodecs/probe.mjs /tmp/wcap
 ```
 
 **Pins.** The distribution's FFmpeg 6.1.1-3ubuntu5 with libaom 3.8.2-2ubuntu0.1 (encoder) and
@@ -29,7 +29,7 @@ the identity matrix); `G` is 1 (intra) or 8 (inter). Each IVF frame is one tempo
 probe hands each to the decoder as one `EncodedVideoChunk`, `key` on keyframes, sequence header
 in-band, no `description`.
 
-**Arms.** `tu` (flushed), `nodelim` (temporal delimiters stripped), `noflush` and `noflush:N` (the
+**Variants.** `tu` (flushed), `nodelim` (temporal delimiters stripped), `noflush` and `noflush:N` (the
 first N units, never flushed: how many frames the decoder holds), each under `no-preference`,
 `prefer-software` and `prefer-hardware`. `MUTATE=1` flips one sample of every decoded frame; every
 cell must then fail.

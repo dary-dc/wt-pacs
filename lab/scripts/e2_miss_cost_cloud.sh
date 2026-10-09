@@ -39,7 +39,7 @@ run_one() {
   local json
   json=$("$HARNESS" --url "$CLOUD_URL" --mode trace --trace "$trace" \
     --read-bps "$HARNESS_READ_BPS" --depth "$depth" --frame-count "$FRAME_COUNT" \
-    --fill-dwell-ms 0 --arm "${group}_rtt${rtt}" "${extra[@]}" --rtt-ms 0 --json 2>/dev/null)
+    --fill-dwell-ms 0 --variant "${group}_rtt${rtt}" "${extra[@]}" --rtt-ms 0 --json 2>/dev/null)
   local rc=$?
   set -e
   if [[ $rc -ne 0 ]]; then

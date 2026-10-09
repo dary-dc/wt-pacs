@@ -58,13 +58,13 @@ ab() {  # label [server args...]; RELAY_ARGS picks the link
     port=$IN
   fi
   : > "$T/ab.tsv"
-  local r arms arm line
+  local r variants variant line
   for r in $(seq 1 "${AB_ROUNDS:-$((ROUNDS * 4))}"); do
-    if (( r % 2 )); then arms=(sequential coarse); else arms=(coarse sequential); fi
-    for arm in "${arms[@]}"; do
+    if (( r % 2 )); then variants=(sequential coarse); else variants=(coarse sequential); fi
+    for variant in "${variants[@]}"; do
       line=$(RUST_BACKTRACE=0 "$BIN/fill_order" --url "https://127.0.0.1:$port/" \
-        --frames "$FRAMES" --depth "$DEPTH" --order "$arm" --rounds 1 2>&1) || continue
-      printf '%s\t%s\t%s\n' "$arm" \
+        --frames "$FRAMES" --depth "$DEPTH" --order "$variant" --rounds 1 2>&1) || continue
+      printf '%s\t%s\t%s\n' "$variant" \
         "$(sed -n 's/.*fill_ms=\([0-9]*\).*/\1/p' <<<"$line")" \
         "$(sed -n 's/.*every_8th_ms=\([0-9]*\).*/\1/p' <<<"$line")" >> "$T/ab.tsv"
     done
@@ -76,8 +76,8 @@ ab() {  # label [server args...]; RELAY_ARGS picks the link
 import statistics as st, sys
 rows = [l.split("\t") for l in open(sys.argv[1]).read().splitlines() if l]
 by = {}
-for arm, fill, coarse in rows:
-    by.setdefault(arm, []).append((float(fill), float(coarse)))
+for variant, fill, coarse in rows:
+    by.setdefault(variant, []).append((float(fill), float(coarse)))
 seq = st.median(v[0] for v in by.get("sequential", [(float('nan'),)*2]))
 crs = st.median(v[0] for v in by.get("coarse", [(float('nan'),)*2]))
 crs8 = st.median(v[1] for v in by.get("coarse", [(float('nan'),)*2]))

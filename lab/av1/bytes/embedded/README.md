@@ -85,11 +85,11 @@ codestream handed in to the last frame's samples copied out; median over 15 inte
 this container (4 cores), one decoder at a time, every decoder single-threaded WASM with SIMD:
 OpenJPH from the shipped package, OpenJPEG and libjxl built by `build.sh` (249 KB and 625 KB `.wasm`,
 82 KB and 220 KB gzipped). 22 680/22 680 frames matched their references — the series' checksums
-for a whole codestream, `layers.mjs`'s decode for a preview. Mutated, every check failed: the hash, all 42 arms;
+for a whole codestream, `layers.mjs`'s decode for a preview. Mutated, every check failed: the hash, all 42 variants;
 a prefix one byte short, all 1 089 layer and 726 first-picture prefixes; an exactness check off by
 one sample, every frame in `encode.py` and `layers.mjs`.
 
-| set | arm | 1× ms | 4× ms | 1× ÷ HTJ2K | 4× ÷ HTJ2K |
+| set | variant | 1× ms | 4× ms | 1× ÷ HTJ2K | 4× ÷ HTJ2K |
 | --- | --- | --- | --- | --- | --- |
 | `ct_lidc` | htj2k | 4.4 [4.1–6.9] | 17.8 [16.0–26.7] | 1.00 | 1.00 |
 | `ct_lidc` | j2k layer 1 | 5.0 [4.2–7.0] | 20.9 [17.4–28.1] | 1.06 | 1.14 |

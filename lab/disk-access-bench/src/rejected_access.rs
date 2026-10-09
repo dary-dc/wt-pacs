@@ -1,4 +1,4 @@
-//! Arms the ADR rejected as defaults. Here rather than in `FrameStore`, which exposes only
+//! Variants the ADR rejected as defaults. Here rather than in `FrameStore`, which exposes only
 //! what the accepted path needs.
 
 use crate::series_map::{host_page_size, SeriesMap};

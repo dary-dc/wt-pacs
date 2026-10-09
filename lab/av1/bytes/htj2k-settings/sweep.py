@@ -110,8 +110,8 @@ def main():
         manifest.append(dict(name=s.name, width=s.w, height=s.h, channels=s.ch, bits=s.stored, signed=s.signed,
                              frames=[dict(truth=s.truth[i]) for i in range(s.n)],
                              bytes={k: sum(f[k] for f in sizes) for k in sizes[0]}))
-        arms = {k: dict(codec="htj2k", ext=k) for k in sizes[0]}  # row TOTAL's harness, lab/av1/delivery/total-time/run.mjs
-        (out / s.name / "arms.json").write_text(json.dumps(dict(name=s.name, frames=s.n, truth=s.truth[:s.n], arms=arms)))
+        variants = {k: dict(codec="htj2k", ext=k) for k in sizes[0]}  # row TOTAL's harness, lab/av1/delivery/total-time/run.mjs
+        (out / s.name / "variants.json").write_text(json.dumps(dict(name=s.name, frames=s.n, truth=s.truth[:s.n], variants=variants)))
         print(s.name, s.n, "frames exact under", len(sizes[0]), "settings", flush=True)
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
 

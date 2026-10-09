@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # N2: what the relay's radio modes change, against the models they sit beside.
 #   jitter      S26 — jitter that reorders against jitter that does not, Cubic and BBR. The
-#               packet-threshold arms went with their flag: `git show archive/arms-2026-10-03:lab/scripts/radio_link_cells.sh`.
+#               packet-threshold variants went with their flag: `git show archive/variants-2026-10-03:lab/scripts/radio_link_cells.sh`.
 #   outage      S33 — a blackout that drops against one that holds, Cubic and BBR.
 #   two-blinks  S33's prediction — a second blink 3 s after the first, on both models.
-# Arms are interleaved inside every round in a Williams order (lab/scripts/order.py), and the relay
-# takes the round as its seed, so every arm of a round meets the same draw. Results: docs/transport/transport-conclusions.md §3.
+# Variants are interleaved inside every round in a Williams order (lab/scripts/order.py), and the relay
+# takes the round as its seed, so every variant of a round meets the same draw. Results: docs/transport/transport-conclusions.md §3.
 #
 #   lab/scripts/radio_link_cells.sh jitter|outage|two-blinks [rounds]
 set -euo pipefail
@@ -26,7 +26,7 @@ trap cleanup EXIT
 case "$CELL" in
   jitter)
     FILL="${FILL:-40}"
-    ARMS=(
+    VARIANTS=(
       "cubic j0|--jitter-ms 0||"
       "bbr j0|--jitter-ms 0|--congestion bbr|"
       "cubic j2 reorder|--jitter-ms 2 --jitter-mode reorder||"
@@ -43,11 +43,11 @@ case "$CELL" in
     ;;
   outage)
     FILL="${FILL:-40}"
-    ARMS=()
+    VARIANTS=()
     for ms in 500 1000 2000; do
-      for arm in "cubic:" "bbr:--congestion bbr"; do
+      for variant in "cubic:" "bbr:--congestion bbr"; do
         for mode in drop hold; do
-          ARMS+=("${arm%%:*} $mode $ms|--blackout-mode $mode|${arm#*:}|--blackout-ms $ms")
+          VARIANTS+=("${variant%%:*} $mode $ms|--blackout-mode $mode|${variant#*:}|--blackout-ms $ms")
         done
       done
     done
@@ -56,7 +56,7 @@ case "$CELL" in
     ;;
   two-blinks)
     FILL="${FILL:-200}"
-    ARMS=(
+    VARIANTS=(
       "cubic drop x1|--blackout-mode drop||--blackout-ms 1000"
       "cubic drop x2 +3s|--blackout-mode drop||--blackout-ms 1000 --blackout-again-after-ms 3000"
       "cubic drop x2 +0.2s|--blackout-mode drop||--blackout-ms 1000 --blackout-again-after-ms 1200"
@@ -145,8 +145,8 @@ run() {  # round label relay-args server-args probe-args
 echo "cell $CELL · ${RTT} ms round trip, ${RATE} kbit, queue $QUEUE, fill $((FILL * KB)) KB, $ROUNDS rounds"
 for round in $(seq 1 "$ROUNDS"); do
   PREV=first
-  for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$round"); do
-    IFS='|' read -r label relay server probe <<<"${ARMS[$k]}"
+  for k in $(python3 lab/scripts/order.py row "${#VARIANTS[@]}" "$round"); do
+    IFS='|' read -r label relay server probe <<<"${VARIANTS[$k]}"
     run "$round" "$label" "$relay" "$server" "$probe"
     PREV="$label"
   done
@@ -154,7 +154,7 @@ for round in $(seq 1 "$ROUNDS"); do
 done
 
 if [[ -n "${OUT_TSV:-}" ]]; then cp "$T/rows.tsv" "$OUT_TSV"; fi
-python3 - "$T/rows.tsv" "$PAIRS" "${ARMS[@]%%|*}" <<'PY'
+python3 - "$T/rows.tsv" "$PAIRS" "${VARIANTS[@]%%|*}" <<'PY'
 import statistics as st, sys
 sys.path.insert(0, "lab/scripts")
 from order import leads_by_predecessor
@@ -166,7 +166,7 @@ for rnd, label, fill, sent, lost, ce, rtt, prev in rows:
         order.append(label)
     by[label][int(rnd)] = (float(fill), sent, lost, ce, rtt)
 print("\n%-24s %3s %9s %19s %7s %7s %6s %7s %3s" %
-      ("arm", "n", "fill ms", "min-max", "sent", "lost", "cong", "end rtt", "nc"))
+      ("variant", "n", "fill ms", "min-max", "sent", "lost", "cong", "end rtt", "nc"))
 for label in order:
     v = by[label]
     f = sorted(x[0] for x in v.values())
@@ -175,7 +175,7 @@ for label in order:
     print("%-24s %3d %9.0f %8.0f -%9.0f %7.0f %7.0f %6.1f %7.0f %3d" %
           (label, len(f), st.median(f), f[0], f[-1],
            col(1), col(2), col(3), col(4), len(counted)))
-print("\n%-24s %-24s %8s %8s" % ("arm", "against", "x median", "wins"))
+print("\n%-24s %-24s %8s %8s" % ("variant", "against", "x median", "wins"))
 for pair in sys.argv[2].split(";"):
     a, b = pair.split(">")
     if a not in by or b not in by:

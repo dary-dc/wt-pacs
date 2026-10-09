@@ -1,7 +1,7 @@
 /**
  * SVCQ's decode time: dav1d-WASM (`simd-op`) on the base alone, both layers and single-layer lossless,
  * WebCodecs beside it on the 8-bit series. Every (environment × throttle) cell is a fresh process each
- * round, the cells in a Williams order (lab/order.mjs); sets and arms rotate inside. README.md here.
+ * round, the cells in a Williams order (lab/order.mjs); sets and variants rotate inside. README.md here.
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/scalable/two-layer/time.mjs [--rounds 15] [--throttles 1,4]
  *     [--envs node,chromium] [--mutate sample] [--out rows.json]
@@ -77,7 +77,7 @@ if (OUT) writeFileSync(OUT, JSON.stringify(rows));
 const median = (v) => { const s = [...v].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const groups = new Map();
 for (const row of rows) {
-  const k = [row.env, row.throttle, row.set, row.arm].join(" ");
+  const k = [row.env, row.throttle, row.set, row.variant].join(" ");
   groups.set(k, [...(groups.get(k) ?? []), row]);
 }
 for (const [k, g] of groups) {

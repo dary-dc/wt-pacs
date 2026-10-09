@@ -1,8 +1,8 @@
-// Every frame of every stream through each WASM arm, against the encoder's input and two native
+// Every frame of every stream through each WASM variant, against the encoder's input and two native
 // decoders. Exit 1 when the WASM differs from either native decoder or the two ground truths
 // disagree; a stream all three decode alike but not to the input is the encoder's, reported as such.
 //
-//   node client/decode/wasm/dav1d/exact.mjs [arm ...]      MUTATE=sample|order to watch it fail
+//   node client/decode/wasm/dav1d/exact.mjs [variant ...]      MUTATE=sample|order to watch it fail
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -13,7 +13,7 @@ import { createDecoder, ivfFrames } from "./dav1d.mjs";
 
 const BUILD = process.env.BUILD ?? join(dirname(fileURLToPath(import.meta.url)), "../../../../lab/.av1-build");
 const STREAMS = join(BUILD, "streams");
-const arms = process.argv.slice(2).length ? process.argv.slice(2) : ["plain", "simd", "simd-mt"];
+const variants = process.argv.slice(2).length ? process.argv.slice(2) : ["plain", "simd", "simd-mt"];
 const require = createRequire(import.meta.url);
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 const bytesOf = (p) => new Uint8Array(p.buffer, p.byteOffset, p.byteLength);
@@ -59,12 +59,12 @@ function references(cell, stream, frameBytes) {
 }
 
 let failures = 0;
-for (const arm of arms) {
-  const factory = require(join(BUILD, "out", `${arm}.js`));
+for (const variant of variants) {
+  const factory = require(join(BUILD, "out", `${variant}.js`));
   for (const cell of readdirSync(STREAMS).sort()) {
     const truth = readFileSync(join(STREAMS, cell, "input.sha256"), "utf8").trim().split("\n");
     for (const stream of ["g1", "g8"]) {
-      const dec = await createDecoder(factory, { threads: arm.endsWith("-mt") ? 4 : 1 });
+      const dec = await createDecoder(factory, { threads: variant.endsWith("-mt") ? 4 : 1 });
       const tally = { generator: 0, input: 0, dav1d: 0, ffmpeg: 0 };
       let refs = null;
       let n = 0;
@@ -89,7 +89,7 @@ for (const arm of arms) {
       const status = !native ? "FAIL   " : tally.generator === n && tally.input === n ? "exact  " : "encoder";
       if (!native) failures++;
       const cols = Object.entries(tally).map(([k, v]) => `${k} ${v}/${n}`).join("  ");
-      console.log(`${status}  ${arm.padEnd(7)} ${cell} ${stream.padEnd(2)}  ${shape}  ${cols}`);
+      console.log(`${status}  ${variant.padEnd(7)} ${cell} ${stream.padEnd(2)}  ${shape}  ${cols}`);
     }
   }
 }

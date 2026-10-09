@@ -1,5 +1,5 @@
-//! Helpers for arms and cell controls the product does not need. The `RWF_NOWAIT` reader is
-//! deliberately not among them: the nowait arms call `FrameStore`'s own.
+//! Helpers for variants and cell controls the product does not need. The `RWF_NOWAIT` reader is
+//! deliberately not among them: the nowait variants call `FrameStore`'s own.
 
 use crate::series_map::host_page_size;
 use anyhow::{Context, Result};

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarises lab/scripts/fq_neighbour_cells.sh's rows: each arm's asks, share and queues, then
+"""Summarises lab/scripts/fq_neighbour_cells.sh's rows: each variant's asks, share and queues, then
 fq_codel against the FIFO the same round. `VOID` runs are dropped.
 
     lab/scripts/fq_summary.py OUT.tsv

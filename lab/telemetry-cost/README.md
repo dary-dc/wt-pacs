@@ -16,9 +16,9 @@ timed and rounds discarded.
 The seam is a patched global `WebTransport`, which is what `client/contract/`'s fake already
 occupies — so this runs in Node with no browser and no server, on the contract harness.
 
-**Three arms, not two.** `off` runs twice. The second is a null control: whatever difference it
+**Three variants, not two.** `off` runs twice. The second is a null control: whatever difference it
 shows against the first is this rig's resolution, and an overhead smaller than that is not a
-measurement, it is noise with a sign. Arms interleave and rotate every round.
+measurement, it is noise with a sign. Variants interleave and rotate every round.
 
 Chunks per frame is a knob here rather than an observation. A real link decides it, and the cost
 tracks it more closely than it tracks frame size — so the row to read is whichever chunk count a

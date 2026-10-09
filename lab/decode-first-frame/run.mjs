@@ -1,5 +1,5 @@
 /**
- * D6: a decoder's first frame against its steady state, over three cache arms on a persistent
+ * D6: a decoder's first frame against its steady state, over three cache variants on a persistent
  * profile. lab/decode-first-frame/README.md.
  *
  *   NODE_PATH=$(npm root -g) node lab/decode-first-frame/run.mjs [rounds]
@@ -43,13 +43,13 @@ for (let round = 0; round < ROUNDS; round++) {
       executablePath: process.env.CHROME_PATH || chromium.executablePath(),
       args: ["--disable-background-networking"],
     });
-    for (const arm of ["cold", "warm-http", "warm-code"]) {
+    for (const variant of ["cold", "warm-http", "warm-code"]) {
       const out = await visit(ctx, set, false);
-      if (out?.per) rows.push({ set, arm, ...out });
+      if (out?.per) rows.push({ set, variant, ...out });
     }
-    // D6's own suggested remedy, as a fourth arm.
+    // D6's own suggested remedy, as a fourth variant.
     const w = await visit(ctx, set, true);
-    if (w?.per) rows.push({ set, arm: "warm-code+warmup", ...w });
+    if (w?.per) rows.push({ set, variant: "warm-code+warmup", ...w });
     await ctx.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -60,19 +60,19 @@ host.kill();
 
 const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 console.log(
-  `\n${"set".padEnd(15)} ${"arm".padEnd(17)} ${"load ms".padStart(8)} ${"frame 0".padStart(8)} ` +
+  `\n${"set".padEnd(15)} ${"variant".padEnd(17)} ${"load ms".padStart(8)} ${"frame 0".padStart(8)} ` +
     `${"frames 1-5".padStart(11)} ${"steady".padStart(8)} ${"first pays".padStart(11)}`,
 );
 for (const set of SETS) {
-  for (const arm of ["cold", "warm-http", "warm-code", "warm-code+warmup"]) {
-    const v = rows.filter((r) => r.set === set && r.arm === arm);
+  for (const variant of ["cold", "warm-http", "warm-code", "warm-code+warmup"]) {
+    const v = rows.filter((r) => r.set === set && r.variant === variant);
     if (!v.length) continue;
     const first = median(v.map((r) => r.per[0].ms));
     const early = median(v.flatMap((r) => r.per.slice(1, 6).map((p) => p.ms)));
     const steady = median(v.flatMap((r) => r.per.slice(5).map((p) => p.ms)));
     const load = median(v.map((r) => r.loadMs));
     console.log(
-      `${set.padEnd(15)} ${arm.padEnd(17)} ${load.toFixed(0).padStart(8)} ${first.toFixed(1).padStart(8)} ` +
+      `${set.padEnd(15)} ${variant.padEnd(17)} ${load.toFixed(0).padStart(8)} ${first.toFixed(1).padStart(8)} ` +
         `${early.toFixed(1).padStart(11)} ${steady.toFixed(1).padStart(8)} ` +
         `${(first / steady).toFixed(2).padStart(10)}x`,
     );

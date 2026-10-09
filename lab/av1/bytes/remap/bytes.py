@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bytes of each arm over HTJ2K's, every frame of each series: the reference split(s), and each map that
+"""Bytes of each variant over HTJ2K's, every frame of each series: the reference split(s), and each map that
 fits 12 bits coded at k = 0 and k = 2 and as HTJ2K, the map's own bytes included. ingest.py writes nothing that does
 not decode back to its input, and remap.py nothing that does not come back to the source.
 
@@ -13,9 +13,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 INGEST = HERE.parents[3] / "ingest/coded-frames/ingest.py"
-# Row SPLITTIME's shipped preset for k = 2 (k = 6 on the 16-bit mammogram): every AV1 arm of a series at it.
+# Row SPLITTIME's shipped preset for k = 2 (k = 6 on the 16-bit mammogram): every AV1 variant of a series at it.
 PRESETS = {"dbtproj": "allintra:7", "ct": "good:6", "xa": "good:6", "mg16": "allintra:6"}
-# k = 2, and w10 (every stream ≤ 10 bits, WebCodecs) where it differs: row SPLITTIME's arms.
+# k = 2, and w10 (every stream ≤ 10 bits, WebCodecs) where it differs: row SPLITTIME's variants.
 REFERENCE = {13: [2, 3], 14: [2, 4], 16: [4, 6]}
 
 

@@ -12,7 +12,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 8));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
-const ARMS = arg("--arms", "web,webpt,cb2,cb4").split(",");
+const VARIANTS = arg("--variants", "web,webpt,cb2,cb4").split(",");
 const PASSES = Number(arg("--passes", 3));
 const CORES = Number(arg("--cores", 4));
 const FRAMES = arg("--frames", "lab/.av1-work/fasthtj2k");
@@ -42,10 +42,10 @@ async function inChromium(throttle, round) {
   const rows = [];
   for (const s of order(manifest, round)) {
     const urls = s.frames.map((_, i) => `${BASE}/${FRAMES}/${s.name}/${String(i).padStart(3, "0")}.htj2k`);
-    for (const a of order(ARMS, round)) {
-      const r = await page.evaluate((o) => globalThis.arm(o), { glue: `${BASE}/lab/.openjph-build/wasm/${a}.js`, urls,
+    for (const a of order(VARIANTS, round)) {
+      const r = await page.evaluate((o) => globalThis.variant(o), { glue: `${BASE}/lab/.openjph-build/wasm/${a}.js`, urls,
         truth: s.frames.map((f) => f.truth), passes: PASSES, mutate: MUTATE });
-      rows.push({ round, throttle, set: s.name, arm: a, frames: urls.length, ...r });
+      rows.push({ round, throttle, set: s.name, variant: a, frames: urls.length, ...r });
       if (r.error || r.exact !== urls.length) console.error(`round ${round} ${throttle}x ${s.name} ${a}: ${r.exact}/${urls.length} ${r.error ?? ""}`);
     }
   }
@@ -67,12 +67,12 @@ for (let round = 0; round < ROUNDS; round++) {
 
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const f = (v) => v.toFixed(v < 10 ? 2 : 1);
-console.log(`ms a frame, median over rounds of each round's median [range]; × ${ARMS[0]} paired by round, rounds faster; exact`);
+console.log(`ms a frame, median over rounds of each round's median [range]; × ${VARIANTS[0]} paired by round, rounds faster; exact`);
 for (const { throttle } of cells) for (const s of manifest) {
-  const of = (a) => rows.filter((r) => r.throttle === throttle && r.set === s.name && r.arm === a && r.ms);
-  const ref = new Map(of(ARMS[0]).map((r) => [r.round, med(r.ms)]));
-  for (const a of ARMS) {
-    const all = rows.filter((r) => r.throttle === throttle && r.set === s.name && r.arm === a);
+  const of = (a) => rows.filter((r) => r.throttle === throttle && r.set === s.name && r.variant === a && r.ms);
+  const ref = new Map(of(VARIANTS[0]).map((r) => [r.round, med(r.ms)]));
+  for (const a of VARIANTS) {
+    const all = rows.filter((r) => r.throttle === throttle && r.set === s.name && r.variant === a);
     const per = of(a).map((r) => med(r.ms));
     const ratio = of(a).filter((r) => ref.has(r.round)).map((r) => med(r.ms) / ref.get(r.round));
     console.log(`${throttle}× ${s.name} ${a}: ${per.length ? `${f(med(per))} [${f(Math.min(...per))}–${f(Math.max(...per))}]` : "failed"}` +

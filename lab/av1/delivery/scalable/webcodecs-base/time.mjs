@@ -1,7 +1,7 @@
 /**
  * WCBASE in headless Chromium: `--check` decodes every unit of every set once (contract, `--mutate`
  * to break it on purpose); otherwise each throttle is a fresh browser each round, the cells in a
- * Williams order (lab/order.mjs), sets and arms rotating inside. README.md here.
+ * Williams order (lab/order.mjs), sets and variants rotating inside. README.md here.
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/scalable/webcodecs-base/time.mjs --check [--mutate keep-top|drop-base|sample]
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/scalable/webcodecs-base/time.mjs [--rounds 15] [--throttles 1,4] [--out rows.json]
@@ -63,7 +63,7 @@ if (OUT) writeFileSync(OUT, JSON.stringify(rows));
 const median = (v) => { const s = [...v].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const groups = new Map();
 for (const row of rows) {
-  const k = [row.throttle, row.set, row.coding, row.arm].join(" ");
+  const k = [row.throttle, row.set, row.coding, row.variant].join(" ");
   groups.set(k, [...(groups.get(k) ?? []), row]);
 }
 const sum = (g, f) => g.reduce((n, x) => n + x[f], 0);

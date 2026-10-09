@@ -6,7 +6,7 @@ Queue row 100 (GOPMEASURE) of [`docs/av1/queue.md`](../../../../docs/av1/queue.m
 predictions (§6). The session that ran it read the protocol alone.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # libaom 3.15.1, SVT-AV1 v4.2.0, dav1d 1.5.4, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh   # libaom 3.15.1, SVT-AV1 v4.2.0, dav1d 1.5.4, dav1d-WASM
 lab/av1/fetch_data.sh dbts_a1 … dbts_c5                     # 15 sound DBT volumes, five a system
 P=/path/to/venv/bin/python D=lab/av1/data W=lab/.av1-work/gop B=lab/.av1-build
 $P lab/av1/bytes/frame-groups/rho_test.py && $P lab/av1/bytes/frame-groups/rho.py $W/rho.jsonl $D/dbts_*          # ~1 h, 4 cores
@@ -45,7 +45,7 @@ run inexact, and the unmutated run must stay exact.
 (`client/decode/decoder.js`, `groupLength` G): a run's 16 frames asked in order, the top unit from the group
 coding and the low unit from the intra one (the client decodes the low stream intra), each frame's decode by the
 worker's own stamps and hashed against the truth (`--mutate` flips a sample, and every frame must then fail).
-The dav1d-WASM arm is the same worker with `VideoDecoder` deleted (`dav1d-worker.js`). An ask at frame k of a group
+The dav1d-WASM variant is the same worker with `VideoDecoder` deleted (`dav1d-worker.js`). An ask at frame k of a group
 costs the group's frames 0 … k; the summary is its mean over the run, per round, then the median over rounds.
 
 ## Measured (2026-10-08)
@@ -148,7 +148,7 @@ preset 0 at G = 16, is 0.985 of HTJ2K's bytes, 5 % over libaom's intra at either
 
 Headless Chromium 141.0.7390.37 (playwright 1.56.1, Node 22.22.0), the product's `decoder.js` worker, one ask at a
 time; the 16-slice runs of `dbts_a1`, `dbts_b1`, `dbts_c1` at `good` 6; 1× and 4× CPU throttle, each a fresh browser
-every round, 10 rounds in a Williams order (`lab/order.mjs`), arms and sets rotating inside. **Mean ask, ms**: the
+every round, 10 rounds in a Williams order (`lab/order.mjs`), variants and sets rotating inside. **Mean ask, ms**: the
 median over rounds of each round's mean over the run's asks, [range], n = 10; every one of 5 760 frames exact.
 
 | throttle | series | HTJ2K | dav1d-WASM G1 | WebCodecs G1 | G4 | G8 | G16 | rule's bound, G4–G16 |

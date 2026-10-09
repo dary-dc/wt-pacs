@@ -327,14 +327,14 @@ whether one decoder at operating point 0 also returns a base fed alone is row SV
 Not broken: the envelope, the stream shape, the store's format, the planner, a frame decoding from
 its own entry, a failure being one entry, and an ask being one entry at G = 1.
 
-### The smallest arm that measures it
+### The smallest variant that measures it
 
 Row SVCQ's streams split by a lab script into layer-major bundles, served by the unchanged server
 through row FILL's harness ([`lab/av1/delivery/fill`](../../lab/av1/delivery/fill/README.md)), after row SVCDEC's
-decoder and row SVCSHAPE's shape: two arms per series, **single-layer lossless AV1 in frame order**
+decoder and row SVCSHAPE's shape: two variants per series, **single-layer lossless AV1 in frame order**
 (today) against **B layer-major, bases first**, on fluoroscopy (dav1d-WASM) and the ultrasound
 (WebCodecs and dav1d-WASM), 5/20/50 Mbit/s, 1× and 4×, Williams-ordered. Report the time to every
-preview on screen, to every frame exact, and the exact fill's delay against the first arm — every
+preview on screen, to every frame exact, and the exact fill's delay against the first variant — every
 exact frame against its source's checksum, every preview replaced. The arithmetic it tests: every
 base is in after the bases' share of the exact fill's wire time plus a round trip, and the last
 exact frame is late by that share.
@@ -386,7 +386,7 @@ first OBU with `spatial_id` 1, it returns the base, identical to native dav1d's 
 takes no preview. Three or more spatial layers send every layer below the top as a preview; only two
 were made.
 
-**Checked** (the dispatch arm, headless Chromium; units from
+**Checked** (the dispatch variant, headless Chromium; units from
 [`lab/av1/delivery/scalable/client/make_frames.sh`](../../lab/av1/delivery/scalable/client/make_frames.sh): libaom 3.15.1's
 `svc_encoder_rtc`, two spatial layers, a half-size base at q 40, a lossless top, 64×48 grey): a
 10-bit G = 1 stream asked frame by frame and a 12-bit G = 8 stream of 20 filled — every exact frame

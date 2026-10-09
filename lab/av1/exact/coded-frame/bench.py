@@ -4,7 +4,7 @@ check's share. OLD is a checkout of the replaced revision (README.md §One pipel
 
 usage: bench.py same    BUILD OLD OUT PRESET SET_DIR ...       every output file's SHA-256, old against new
        bench.py workers BUILD OLD OUT PRESET FRAMES SET_DIR ... new's bytes at 1, 2, 4 workers; old's at 1 against them
-       bench.py time    BUILD OLD OUT ROUNDS SPEC ...           SPEC = SET_DIR:codec:preset, arms interleaved
+       bench.py time    BUILD OLD OUT ROUNDS SPEC ...           SPEC = SET_DIR:codec:preset, variants interleaved
        bench.py check   BUILD OLD OUT ROUNDS SET_DIR ...        a frame's check, subprocess against in-process
 """
 import hashlib
@@ -106,10 +106,10 @@ def timing(build, old, out, rounds, specs):
     for spec in specs:
         src, codec, preset = spec.split(":", 2)
         src = Path(src)
-        arms = [("new", w) for w in WORKERS] + ([("old", 1)] if codec == "htj2k" else [("old", w) for w in WORKERS])
+        variants = [("new", w) for w in WORKERS] + ([("old", 1)] if codec == "htj2k" else [("old", w) for w in WORKERS])
         want = {}
         for rnd in range(rounds):
-            for impl, w in order(arms, rnd):
+            for impl, w in order(variants, rnd):
                 dst = out / f"{src.name}.{codec}.{impl}{w}"
                 subprocess.run(["rm", "-rf", dst])
                 wall, cpu = run(command(build, old, src, dst, codec, impl, preset, w))
@@ -154,13 +154,13 @@ def check(build, old, out, rounds, sets):
             def native_check(i, data):
                 return ingest.decoded(build, codec, data if codec == "htj2k" else unit(data), s.h * s.w * s.ch)[0]
 
-            arms = {"subprocess": subprocess_check, "in-process": native_check}
+            variants = {"subprocess": subprocess_check, "in-process": native_check}
             for rnd in range(rounds):
-                for arm in order(arms, rnd):
+                for variant in order(variants, rnd):
                     t0 = time.perf_counter()
                     for i, data in enumerate(frames):
-                        arms[arm](i, data)
-                    rows.append(dict(set=src.name, codec=codec, arm=arm, round=rnd, frames=len(frames),
+                        variants[variant](i, data)
+                    rows.append(dict(set=src.name, codec=codec, variant=variant, round=rnd, frames=len(frames),
                                      ms_frame=round(1e3 * (time.perf_counter() - t0) / len(frames), 2)))
                     print(json.dumps(rows[-1]), flush=True)
     (out / "check.json").write_text(json.dumps(rows, indent=1))

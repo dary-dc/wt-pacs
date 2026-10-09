@@ -2,7 +2,7 @@
 // (dav1d-WASM, WebCodecs, OpenJPH, or k-bit samples packed raw or deflated), shifted, OR-ed together,
 // then the offset undone or the reversible colour transform inverted, with the range.
 // Frame file: [u8 n][u32le length × n][part × n]. lab/av1/bytes/low-stream/README.md
-let arm = null;
+let variant = null;
 let toConsumer = null;
 const abs = () => performance.timeOrigin + performance.now();
 
@@ -157,11 +157,11 @@ function finish(acc, a) {
 
 async function decodeFrame(bytes) {
   const units = parts(bytes);
-  const { width, height, channels } = arm;
+  const { width, height, channels } = variant;
   // WebCodecs and the inflates run beside the WASM decoders; a WASM decoder's picture is read before its next decode.
-  const async = arm.parts.map((p, i) => (p.codec === "wc" ? p.decode(units[i]) : p.codec === "deflate" ? inflate(units[i]) : null));
-  const acc = arm.acc;
-  for (const [i, p] of arm.parts.entries()) {
+  const async = variant.parts.map((p, i) => (p.codec === "wc" ? p.decode(units[i]) : p.codec === "deflate" ? inflate(units[i]) : null));
+  const acc = variant.acc;
+  for (const [i, p] of variant.parts.entries()) {
     let pic;
     if (p.codec === "wc") pic = await async[i];
     else if (p.codec === "deflate") pic = unpack(await async[i], p.bits, width, height, channels);
@@ -169,7 +169,7 @@ async function decodeFrame(bytes) {
     else pic = p.decode(units[i], channels);
     place(acc, pic, p.shift, i === 0, channels);
   }
-  return finish(acc, arm);
+  return finish(acc, variant);
 }
 
 onmessage = async (e) => {
@@ -184,7 +184,7 @@ onmessage = async (e) => {
         if (p.codec === "j2k") p.decode = wasm.j2k ??= await openjph(d.openjph);
         if (p.codec === "wc") p.decode = webcodecs(p.webcodecs);
       }
-      arm = { ...d, acc: new Int32Array(d.width * d.height * d.channels) };
+      variant = { ...d, acc: new Int32Array(d.width * d.height * d.channels) };
       postMessage({ kind: "ready" });
     } catch (err) {
       postMessage({ kind: "init-failed", reason: String(err?.message ?? err) });
@@ -195,7 +195,7 @@ onmessage = async (e) => {
   try {
     const { sab, range } = await decodeFrame(m.bytes);
     stamps.decodeEnd = abs();
-    toConsumer.postMessage({ kind: "frame", index: m.index, pixels: sab, width: arm.width, height: arm.height, min: range.min, max: range.max, stamps });
+    toConsumer.postMessage({ kind: "frame", index: m.index, pixels: sab, width: variant.width, height: variant.height, min: range.min, max: range.max, stamps });
   } catch (err) {
     postMessage({ kind: "failed", index: m.index, reason: String(err?.message ?? err) });
   }

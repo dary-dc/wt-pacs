@@ -15,7 +15,7 @@ const [dir, out] = process.argv.slice(2);
 const mutate = process.env.MUTATE === "1";
 const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
 const GOP = 8;
-const ARMS = (process.env.ARMS || "tu,noflush,nodelim").split(",");
+const VARIANTS = (process.env.VARIANTS || "tu,noflush,nodelim").split(",");
 const PREFS = (process.env.PREFS || "no-preference,prefer-software,prefer-hardware").split(",");
 
 const browser = await chromium.launch({
@@ -37,10 +37,10 @@ const grid = await page.evaluate(() => window.configGrid());
 const cells = [];
 for (const cell of manifest) {
   const codec = `av01.${cell.profile}.00M.${String(cell.bits).padStart(2, "0")}`;
-  for (const arm of ARMS)
+  for (const variant of VARIANTS)
     for (const hardwareAcceleration of PREFS) {
       const r = await page.evaluate((a) => window.decodeStream(a), {
-        url: `/${cell.name}.ivf`, codec, mode: cell.mode, gop: GOP, arm, hardwareAcceleration, mutate,
+        url: `/${cell.name}.ivf`, codec, mode: cell.mode, gop: GOP, variant, hardwareAcceleration, mutate,
       });
       const compared = r.frames.map((f, i) => {
         const truth = cell.truth[i] || [];
@@ -49,7 +49,7 @@ for (const cell of manifest) {
       const exactFrames = compared.filter(Boolean).length;
       const first = r.frames[0];
       cells.push({
-        name: cell.name, arm, hardwareAcceleration, codec, nativeExact: cell.nativeExact,
+        name: cell.name, variant, hardwareAcceleration, codec, nativeExact: cell.nativeExact,
         frames: r.frames.length, expected: cell.truth.length, exactFrames,
         exact: r.frames.length === cell.truth.length && exactFrames === cell.truth.length,
         format: first?.format, planes: first?.planes.length,
@@ -58,7 +58,7 @@ for (const cell of manifest) {
       });
       const c = cells.at(-1);
       console.log(
-        `${c.name.padEnd(15)} ${arm.padEnd(8)} ${hardwareAcceleration.padEnd(15)} ` +
+        `${c.name.padEnd(15)} ${variant.padEnd(8)} ${hardwareAcceleration.padEnd(15)} ` +
           `${String(c.frames).padStart(2)}/${c.expected} frames, ${c.exactFrames} exact  ` +
           `${c.format ?? "-"} ${c.planes ?? ""}p ${c.errors[0] ?? ""}`,
       );
@@ -67,6 +67,6 @@ for (const cell of manifest) {
 await browser.close();
 
 const exactCells = [...new Set(cells.filter((c) => c.exact).map((c) => c.name))];
-console.log(`\nChromium ${version}${mutate ? " (MUTATE)" : ""}: exact in some arm: ${exactCells.length}/${manifest.length}`);
+console.log(`\nChromium ${version}${mutate ? " (MUTATE)" : ""}: exact in some variant: ${exactCells.length}/${manifest.length}`);
 console.log(`isConfigSupported true: ${grid.filter((g) => g.supported === true).length}/${grid.length}`);
 if (out) writeFileSync(out, JSON.stringify({ version, mutate, grid, cells }, null, 1));

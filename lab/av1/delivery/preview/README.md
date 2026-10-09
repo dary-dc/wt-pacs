@@ -6,7 +6,7 @@ row 12 (PREVIEW) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); the ve
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Preview.
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 lab/av1/fetch_data.sh rf_fluoro us_liver
@@ -74,7 +74,7 @@ the last frame's planes copied out; median over 15 interleaved rounds [range], h
 this container (4 cores). WebCodecs runs its own decoder threads, each capped at 1/rate of a CPU at
 4×, so it may use more than one core; dav1d-WASM and OpenJPH use one.
 
-| set | arm | 1× | 4× |
+| set | variant | 1× | 4× |
 | --- | --- | --- | --- |
 | `rf_fluoro` | OpenJPH, exact | 6.37 [5.17–6.81] | 25.3 [21.3–28.4] |
 | | OpenJPH, level-1 prefix | 2.33 [1.81–3.14] | 7.80 [6.91–8.65] |
@@ -100,14 +100,14 @@ level-1 prefix it ranges from 0.4× to 2.2× its time.
 order, and the decode times above on today's three decoders (`client/transport/downloader.js`), a
 decoder taking the next frame — or the next group, for G > 1 — when free and decoding it once its
 bytes are in (`model.py`). *Playable*: every preview frame decoded. *Exact*: every exact frame
-decoded. Three arms: exact HTJ2K alone; the AV1 preview's bytes, then HTJ2K's; every frame's level-1
+decoded. Three variants: exact HTJ2K alone; the AV1 preview's bytes, then HTJ2K's; every frame's level-1
 prefix, then the rest of each (each frame decoded twice). Contention between three decoders on four
 cores is not in it, and nothing serves a preview today, so none of this ran through the server.
 
 Seconds, playable / exact, for the bold cells (WebCodecs; dav1d-WASM where it differs by more than
 0.05 s):
 
-| set | arm | 5 Mbit/s, 1× | 20 Mbit/s, 1× | 50 Mbit/s, 1× | 50 Mbit/s, 4× |
+| set | variant | 5 Mbit/s, 1× | 20 Mbit/s, 1× | 50 Mbit/s, 1× | 50 Mbit/s, 4× |
 | --- | --- | --- | --- | --- | --- |
 | `rf_fluoro` | HTJ2K alone | 14.83 / 14.83 | 3.71 / 3.71 | 1.49 / 1.49 | 1.51 / 1.51 |
 | | HTJ2K level-1 prefix first | 3.85 / 14.83 | 0.96 / 3.71 | 0.39 / 1.49 | 0.39 / 1.51 |
@@ -131,13 +131,13 @@ The full grid (every cell, both decoders, both throttles) is what `model.py` pri
 
 ## Checked
 
-* Every decoded frame — 68 640 over 15 rounds, 52 arms, two throttles — hashed against its
+* Every decoded frame — 68 640 over 15 rounds, 52 variants, two throttles — hashed against its
   reference: an exact HTJ2K frame against the checksum written when the series was fetched; a
   level-1 prefix against the package's decode of the whole codestream at that level; an AV1 preview
   frame, through dav1d-WASM and through WebCodecs, against native dav1d 1.5.4's decode of the same
   stream (a lossy stream has no source to match; its quality is measured against the source).
   All matched.
-* Mutated: `--mutate hash` (one hex digit of every reference) turned 52/52 arms to 0 exact; an
+* Mutated: `--mutate hash` (one hex digit of every reference) turned 52/52 variants to 0 exact; an
   HTJ2K sample off by one stopped `encode.py` at frame 0; a corrupted truth stopped `prefix.mjs`
   at that frame; a prefix one byte longer than the minimum tripped the one-byte-short check.
 

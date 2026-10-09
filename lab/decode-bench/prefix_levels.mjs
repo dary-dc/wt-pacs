@@ -53,10 +53,10 @@ function timeDecode(M, bytes, level) {
 
 const M = (await instance()).module;
 const require_ = createRequire(import.meta.url);
-const armsDir = process.env.ARMS || path.join(here, '..', '.openjph-build', 'wasm');
+const variantsDir = process.env.VARIANTS || path.join(here, '..', '.openjph-build', 'wasm');
 let source = null;
 try {
-  source = await require_(path.join(armsDir, 'plain.js'))();
+  source = await require_(path.join(variantsDir, 'plain.js'))();
 } catch {
   /* reported per fixture below */
 }

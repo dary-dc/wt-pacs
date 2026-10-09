@@ -5,7 +5,7 @@ Queue row 39 (UNIFY) of [`docs/av1/queue.md`](../../docs/av1/queue.md): the form
 `client/decode/av1*.js` ([`client/README.md`](../../client/README.md)).
 
 ```bash
-lab/av1/tools/tools.sh && ARMS=simd client/decode/wasm/dav1d/build.sh   # aomenc 3.15.1, native dav1d, dav1d-WASM
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh   # aomenc 3.15.1, native dav1d, dav1d-WASM
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160 # OpenJPH 0.31.0, built once
 ingest/coded-frames/build.sh                                            # the check's in-process decoders (decode.cpp)
 P=lab/av1/.venv/bin/python                                              # numpy, from lab/av1/requirements.txt

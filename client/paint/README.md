@@ -110,7 +110,7 @@ difference must be explained. **Until that run, the fractional zooms are unprove
 
 `check.mjs bench`: a 512² signed 12-bit frame on a 512² canvas, and a 4096×3072 16-bit frame fit into
 768×576, each on a new frame (upload, window, place) and on a window change (window, place). The four
-arms run interleaved (`lab/order.mjs`) over 10 rounds, on SwiftShader on this container's 4 cores. Every
+variants run interleaved (`lab/order.mjs`) over 10 rounds, on SwiftShader on this container's 4 cores. Every
 number is the software renderer's.
 
 ms a paint, median [min–max]. *Worker* runs from the message to the draw having executed (a one-pixel

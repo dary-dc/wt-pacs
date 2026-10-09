@@ -1,7 +1,7 @@
 /**
  * SVCSHAPE's decode time: dav1d-WASM (`simd-op`) on each q 40 shape's base and full operating point and
  * on single-layer lossless, in headless Chromium. Each throttle is a fresh browser each round, the
- * throttles and the sets in a Williams order (lab/order.mjs), the arms rotating inside. README.md here.
+ * throttles and the sets in a Williams order (lab/order.mjs), the variants rotating inside. README.md here.
  *
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/scalable/shape/time.mjs [--rounds 10] [--throttles 1,4]
  *     [--sets a,b] [--mutate sample] [--out rows.json]
@@ -55,7 +55,7 @@ for (let r = 0; r < ROUNDS; r++) {
 const median = (v) => { const s = [...v].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const groups = new Map();
 for (const row of rows) {
-  const k = [row.throttle, row.set, row.arm].join(" ");
+  const k = [row.throttle, row.set, row.variant].join(" ");
   groups.set(k, [...(groups.get(k) ?? []), row]);
 }
 for (const [k, g] of groups) {
