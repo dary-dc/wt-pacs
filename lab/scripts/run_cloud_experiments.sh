@@ -21,7 +21,7 @@ if pgrep -f 'e4_premise_check.sh' >/dev/null 2>&1; then
 fi
 
 export SKIP_BUILD=1
-export CLOUD_URL="${CLOUD_URL:-https://168.138.130.163:4435/}"
+export CLOUD_URL="${CLOUD_URL:-https://${CLOUD_HOST:?set CLOUD_HOST to the rig address}:4435/}"
 
 echo "--- deploy / sync ---"
 "$ROOT/lab/scripts/deploy_exact_server_cloud.sh"

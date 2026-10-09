@@ -9,7 +9,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ROUNDS=${1:-5}
-HOST=${CLOUD_HOST:-168.138.130.163}
+HOST=${CLOUD_HOST:?set CLOUD_HOST to the rig address}
 SSH_KEY=${SSH_KEY:?the human rig key, docs/rig-limits.md}
 STUDY=${STUDY:?a .sbnd of 256 kB frames, as link_impair_check.sh packs}
 OUT=${OUT:-$ROOT/.local/measurements/n1-netem-$(date +%Y%m%d-%H%M%S).tsv}

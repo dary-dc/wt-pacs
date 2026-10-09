@@ -9,7 +9,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ROUNDS=${1:-5}
-HOST=${CLOUD_HOST:-168.138.130.163}
+HOST=${CLOUD_HOST:?set CLOUD_HOST to the rig address}
 SSH_KEY=${SSH_KEY:?the human rig key, docs/rig-limits.md}
 CELLS=${CELLS:-"off 20:20:0 20:20:1 20:20:3 60:20:1"}
 STUDY=${STUDY:-/home/ubuntu/wt-pacs/fixtures/frames_32k_160.sbnd}

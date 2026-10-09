@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Restore MVP1.5b field-test server on the Oracle E2 rig (stops wt-pacs exact-server).
 set -euo pipefail
-SERVER="${SERVER:-ubuntu@168.138.130.163}"
+SERVER="${SERVER:-ubuntu@${CLOUD_HOST:?set CLOUD_HOST to the rig address}}"
 KEY="${KEY:-$HOME/.ssh/id_ed25519}"
 SSH=(ssh -i "$KEY" -o BatchMode=yes "$SERVER")
 
@@ -22,4 +22,4 @@ sleep 3
 pgrep -x mvp1-5b-datagra || { tail -20 /tmp/deck.log; exit 1; }
 ss -tulnp 2>/dev/null | grep -E "4435|4436" || true
 REMOTE
-echo "MVP1.5b restored on 168.138.130.163"
+echo "MVP1.5b restored on ${SERVER#*@}"

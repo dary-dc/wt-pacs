@@ -10,7 +10,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ROUNDS=${1:-6}
-HOST=${CLOUD_HOST:-168.138.130.163}
+HOST=${CLOUD_HOST:?set CLOUD_HOST to the rig address}
 SSH_KEY=${SSH_KEY:?the human rig key, docs/rig-limits.md}
 OUT=${OUT:-$ROOT/.local/measurements/l7-$(date +%Y%m%d-%H%M%S).tsv}
 SSH=(ssh -i "$SSH_KEY" -o BatchMode=yes "ubuntu@$HOST")

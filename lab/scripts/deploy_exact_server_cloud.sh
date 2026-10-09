@@ -6,7 +6,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-SERVER="${SERVER:-ubuntu@168.138.130.163}"
+SERVER="${SERVER:-ubuntu@${CLOUD_HOST:?set CLOUD_HOST to the rig address}}"
 # The bare id_ed25519 fallback is NOT the rig key any more; default to the agent key
 # docs/rig-limits.md names, and honour SSH_KEY as cloud_common.sh does.
 KEY="${KEY:-${SSH_KEY:-$HOME/.ssh/id_ed25519_rig_agent}}"
@@ -57,4 +57,4 @@ grep -E '^wt_url=|^cert_sha256=|^frames=' /tmp/wt-pacs-exact.log || cat /tmp/wt-
 ss -ulnp 2>/dev/null | grep ":$PORT " || true
 REMOTE
 
-echo "CLOUD_URL=https://168.138.130.163:${PORT}/" >&2
+echo "CLOUD_URL=https://${SERVER#*@}:${PORT}/" >&2

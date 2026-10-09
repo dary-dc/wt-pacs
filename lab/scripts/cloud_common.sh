@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export ROOT
 
-CLOUD_HOST="${CLOUD_HOST:-168.138.130.163}"
+CLOUD_HOST="${CLOUD_HOST:?set CLOUD_HOST to the rig address}"
 CLOUD_USER="${CLOUD_USER:-ubuntu}"
 CLOUD_PORT="${CLOUD_PORT:-4435}"
 CLOUD_URL="${CLOUD_URL:-https://${CLOUD_HOST}:${CLOUD_PORT}/}"
