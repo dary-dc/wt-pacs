@@ -3,6 +3,7 @@
 
   client/contract/av1/payloads/{plain,optimized}/NAME.av1   one payload each, through ingest.py
   client/contract/av1/payloads/{plain,optimized}/NAME.sha256 the source samples' checksum
+  client/contract/av1/payloads/*/NAME.xxh3                  its frame digest (docs/FIXTURES.md §Frame digests)
   client/contract/av1/payloads/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range
   client/contract/av1/payloads/matrix/b{B}k{K}{u,s}.av1       every (bits, split, sign) a rule could pick
   client/decode/av1-probe.js                              a 16×16 unit per layout WebCodecs may take
@@ -70,6 +71,14 @@ def write_set(d, ch, lo, hi, signed, seed, w=W, h=H):
     (d / "metadata.json").write_text(json.dumps(meta) + "\n")
 
 
+def keep(out, dst, name):
+    """ingest.py's one payload as dst/NAME.av1, beside its source's checksum and its frame digest."""
+    dst.mkdir(parents=True, exist_ok=True)
+    (dst / f"{name}.av1").write_bytes((out / "000.av1").read_bytes())
+    (dst / f"{name}.sha256").write_text((out / "000.sha256").read_text())
+    (dst / f"{name}.xxh3").write_text(json.loads((out / "metadata.json").read_text())["frameDigests"]["frames"][0] + "\n")
+
+
 def payloads(build, work):
     for seed, (name, (ch, lo, hi, signed)) in enumerate(SETS.items()):
         src = work / name
@@ -78,16 +87,11 @@ def payloads(build, work):
             out = work / f"{name}.{rep}"
             subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, src, out,
                             "--representation", rep, "--jobs", "1"], check=True)
-            dst = PAYLOADS / rep
-            dst.mkdir(parents=True, exist_ok=True)
-            (dst / f"{name}.av1").write_bytes((out / "000.av1").read_bytes())
-            (dst / f"{name}.sha256").write_text((out / "000.sha256").read_text())
+            keep(out, PAYLOADS / rep, name)
     out, dst = work / "g8.grey420", PAYLOADS / "grey420"
     subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, work / "g8", out, "--grey8", "420", "--jobs", "1"],
                    check=True)
-    dst.mkdir(exist_ok=True)
-    (dst / "g8.av1").write_bytes((out / "000.av1").read_bytes())
-    (dst / "g8.sha256").write_text((out / "000.sha256").read_text())
+    keep(out, dst, "g8")
 
 
 def matrix(build, work):
@@ -106,8 +110,7 @@ def matrix(build, work):
                 out = work / f"{name}.k{k}"
                 subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, src, out, "--split", str(k),
                                 "--jobs", "1"], check=True)
-                (dst / f"b{b}k{k}{name[-1]}.av1").write_bytes((out / "000.av1").read_bytes())
-                (dst / f"b{b}k{k}{name[-1]}.sha256").write_text((out / "000.sha256").read_text())
+                keep(out, dst, f"b{b}k{k}{name[-1]}")
 
 
 def fnv(planes):
