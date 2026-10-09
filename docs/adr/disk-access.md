@@ -292,7 +292,7 @@ path does not become the whole plan.
 | --- | --- | --- |
 | **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** with a quinn peer — the largest effect measured anywhere in this investigation | **Closed for browser clients**: Chromium 141 advertises 1 472 and quinn takes the smaller bound; no datagram above 1 472 in 85 k with the server's bound at 4 000 and 8 972. Reopen only for a native peer |
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on the sandbox | **Built**; unmeasured on a throttled link (§9) |
-| `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob; the layout study measured **17.6×** on the same reads, against 2–4× for the read path (`git show read-path-evidence-2026-09-09:docs/disk-layout/`) | Not tuned; layout undecided |
+| `read_ahead_kb` and layout | miss rates moved by that one knob (§6 *Read-ahead*); the layout study measured **17.6×** on the same reads, against 2–4× for the read path (`git show read-path-evidence-2026-09-09:docs/disk-layout/`) | Not tuned; layout undecided |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | Lab only — needs a real ask trace |
 | `MALLOC_MMAP_THRESHOLD_=1048576` in the unit | memory at rest after large-frame fills **−46 to −57 %**, CPU a tie to +5 % (§11, *Frames past 250 kB*) | Measured 2026-10-06, not taken: the owner's, if large frames ship |
 | AEAD provider (`aws-lc-rs` for `ring`) | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | **Measured 2026-09-10, not taken**; the feature was removed 2026-10-03 (`c9fce63`) |
@@ -648,7 +648,7 @@ serving shape. The workstation's ladder on HEAD: 2 831 → 4 813 → 7 710 asks/
 
 ### A series nobody has read (2026-09-18)
 
-L20, headless Chromium through the harness's page path, before 2026-10-03 (`lab/scripts/cold_series.sh`, 8 rounds,
+*Queue row L20.* Headless Chromium through the harness's page path, before 2026-10-03 (`lab/scripts/cold_series.sh`, 8 rounds,
 120 × 256 KB), cold forced by `--force-pool-reads`, the server's `misses` read back per run.
 One ask on an idle session: 6.5 ms warm, 7.0 cold (1 miss). A whole fill: 318.5 ms warm, 320.5
 cold (120 misses). **A tie in both** (3/8 and 5/8 slower). The forced miss still reads from the
@@ -658,7 +658,7 @@ order, measured the same way, cost the read path 0.3 % (`lab/scripts/fill_order_
 
 ### A series past RAM (2026-09-18, cloud rig)
 
-L7. A 4 GB series on a 954 MB host, so reads reach the block volume with no eviction; native
+*Queue row L7.* A 4 GB series on a 954 MB host, so reads reach the block volume with no eviction; native
 driver on loopback; every run starts at a frame no earlier run read; asks 997 frames apart; six
 interleaved rounds (`lab/scripts/read_path_cloud.sh`). The device (`O_DIRECT`) is a throttled network
 volume: random 256 KiB at depth 1 p50 1.3 ms in burst, 4.9 ms after; 51–53 MB/s sequential.
@@ -671,7 +671,9 @@ volume: random 256 KiB at depth 1 p50 1.3 ms in burst, 4.9 ms after; 51–53 MB/
   ~2.6 s to steal over a 2.1 s fill; every p99, warm included, is 60–100 ms. P0 cannot be asked
   here.
 
-### Frames past 250 kB, and memory at rest (2026-10-06, AV1 queue row 51)
+### Frames past 250 kB, and memory at rest
+
+*2026-10-06, AV1 queue row 51.*
 
 Synthetic SBND of 80 × 250 kB, 40 × 4 MB and 20 × 16 MB (a mammogram's order); `lab/scripts/runtime_ab.sh`,
 server on cores 0–1 and `server_ab` on 2–3 of the agent container, loopback, warm, a whole fill per session, six
@@ -697,7 +699,7 @@ What the brief's other levers would buy was already measured and is not repeated
 2026-09-23 (§5, the pooled hand-off; the one copy left, page cache → buffer, is what makes the bytes
 process-private, §1 *Guarantee*); mmap and `sendfile` stay rejected (§5). The per-frame allocations left — the
 envelope's 8-byte head, the planner's and the pipeline's upcoming lists — are three small allocations against
-0.4–43 ms of CPU a frame, below any noise floor here. Fill time on row 23's 50 Mbit link was not run, since nothing
+0.4–43 ms of CPU a frame, below any noise floor here. Fill time on the five-link total-time measurement's 50 Mbit link (AV1 queue row TOTAL) was not run, since nothing
 changed the send path (`RELAY=` in `runtime_ab.sh` runs it).
 
 ### Hosts and closed risks

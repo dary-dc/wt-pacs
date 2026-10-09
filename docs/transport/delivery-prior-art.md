@@ -1,4 +1,6 @@
-# How other systems deliver medical images, and what they do better (row 61 TRANSFER)
+# How other systems deliver medical images, and what they do better
+
+*Queue row 61, TRANSFER.*
 
 The transport was built by measurement against one baseline ([`transport-conclusions.md`](transport-conclusions.md)).
 This file reads how others deliver: DICOMweb, progressive HTJ2K in an open-source web viewer and in cloud imaging
@@ -119,11 +121,11 @@ of JPIP or JPEG 2000 streaming of medical images in a browser was found (**uncon
 | what others do | what the product does | the measurement here |
 | --- | --- | --- |
 | **A frame's prefix first, the rest after**, no byte twice (the viewer's two stages over RPCL + Range; DICOM's RPCL syntax exists for it) | whole frames; the decoder can draw a prefix (L19) and the wire piece is unbuilt | the cell already fixed in [`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §6 (25 % prefix, 20 Mbit / 50 ms, adopt at ≥ 2× to first viewable), with the rest on the same stream |
-| **Coarse-to-fine order across a series**, prefixes in strides then the whole frames | the fill is sequential; O1 measured every 8th frame 5.5× sooner and the fill unchanged, not adopted ([`transport-conclusions.md`](transport-conclusions.md) §The fill's order) | O1's order combined with prefixes, time to a scrubbable series, on phone profiles |
+| **Coarse-to-fine order across a series**, prefixes in strides then the whole frames | the fill is sequential; the coarse-to-fine fill (queue row O1) measured every 8th frame 5.5× sooner and the fill unchanged, not adopted ([`transport-conclusions.md`](transport-conclusions.md) §The fill's order) | that order combined with prefixes, time to a scrubbable series, on phone profiles |
 | **A frame is a cacheable HTTP resource** — a CDN or the browser's cache can serve a repeat | every byte comes from the server over a session | not a lab cell; a deployment property. What a repeat view costs the server is the measurable half |
 | **Survives where UDP does not**, over any HTTP | WebSocket fallback built, off ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The TCP fallback) | field failure rate (open item 10 there) |
 | **Tail protection by FEC** (FlEC: the last flight only) | a lost tail waits for recovery; the depth-1 tail is open ([`transport-conclusions.md`](transport-conclusions.md) §9 item 7) | in the relay: a 64 KB ask at 1–3 % loss, 30–80 ms, depth 1, with the frame's last packets sent twice against once; p50 and p95, interleaved |
-| **A server-rendered lossy picture** (`/rendered`, `/thumbnail`) | none; lossy previews measured as client decodes (rows 12, 17, 22, 24 in [`../av1/queue.md`](../av1/queue.md)) | already measured by those rows; nothing new |
+| **A server-rendered lossy picture** (`/rendered`, `/thumbnail`) | none; lossy previews measured as client decodes: the lossy first picture, the lossy preview plus residual, the embedded codecs and the scalable payload (queue rows 12, 17, 22, 24 in [`../av1/queue.md`](../av1/queue.md)) | already measured there; nothing new |
 
 **Not better here.** Range on multipart frames covers the multipart markers, so a prefix needs the response's shape
 held fixed; a multi-range ask is preflighted; no service documents partial retrieval; under random loss HTTP/3's
@@ -133,10 +135,10 @@ exact frames.
 ## Proposed rows (not queued)
 
 1. **FETCH — the same frames over plain HTTP/3 `fetch()`.** One GET a frame, then the viewer's two stages (a Range
-   prefix, then the rest), against the product, through the relay on row PROF's phone profiles, interleaved: ask
+   prefix, then the rest), against the product, through the relay on the phone profiles ([`transport-conclusions.md`](transport-conclusions.md) §1 *Link profiles close to a phone*), interleaved: ask
    latency, fill, time to every 8th frame. The lab has never measured the product against the way everyone else
    delivers, and the transport's choices rest on that comparison being won.
-2. **PREFIX — the §6 cell above**, prefix then rest on the shared stream, combined with O1's order.
+2. **PREFIX — the §6 cell above**, prefix then rest on the shared stream, combined with the coarse-to-fine order.
 3. **TAIL — a duplicated tail** in the relay, the cell in the table; a server change only if it pays at the target.
 4. **One Chromium session's transport parameters** — whether it advertises `reset_stream_at` — added to the draft
    compatibility check that is already open item 1 in [`transport-conclusions.md`](transport-conclusions.md) §9.
