@@ -1,0 +1,75 @@
+
+  dist/session.js  12.9kb
+
+⚡ Done in 11ms
+
+  dist/ws-session.js  11.6kb
+
+⚡ Done in 8ms
+
+  dist/race-session.js  15.7kb
+
+⚡ Done in 6ms
+
+  dist/session-telemetry.js  45.5kb
+
+⚡ Done in 17ms
+
+  ../../record/test/run.mjs  46.8kb
+
+⚡ Done in 10ms
+
+  ../../contract/run.mjs  39.3kb
+
+⚡ Done in 9ms
+
+  ../../contract/dist/fake-session.js  21.1kb
+
+⚡ Done in 8ms
+
+  ../../contract/dist/downloader-rig.js  20.0kb
+
+⚡ Done in 6ms
+
+  ../../contract/dist/dispatch-rig.js  102.0kb
+
+⚡ Done in 19ms
+
+  ../../../lab/telemetry-cost/cost.mjs  42.4kb
+
+⚡ Done in 11ms
+
+  test/run.mjs  59.5kb
+
+⚡ Done in 13ms
+link: 80 ms round trip, 22 Mbit mean down, uplink unshaped; fill 237 x 265000 B; raw: /home/user/runs/bb3/cell3.tsv
+round 0 flat    500 ms bbr:16000000           fill  23507.4 ms  standing p50 498 max 499 ms  lost 3991 cong 2856
+round 0 flat    500 ms bbr-bound:16000000     fill  23520.3 ms  standing p50 403 max 498 ms  lost 4782 cong 2385 VOID p99 1.09
+round 0 flat    500 ms cubic-restart:16000000 fill  23646.3 ms  standing p50 424 max 498 ms  lost 1682 cong 894
+round 1 flat    500 ms cubic-restart:16000000 fill  23650.6 ms  standing p50 424 max 501 ms  lost 1681 cong 908
+round 1 flat    500 ms bbr-bound:16000000     fill  23501.2 ms  standing p50 397 max 498 ms  lost 2802 cong 1820 VOID p99 1.75
+round 1 flat    500 ms bbr:16000000           fill  23503.8 ms  standing p50 170 max 275 ms  lost 0 cong 0
+round 2 flat    500 ms bbr-bound:16000000     fill  23446.5 ms  standing p50 340 max 498 ms  lost 1297 cong 669
+round 2 flat    500 ms cubic-restart:16000000 fill  23649.2 ms  standing p50 423 max 498 ms  lost 1681 cong 908
+round 2 flat    500 ms bbr:16000000           fill  23515.6 ms  standing p50 498 max 506 ms  lost 19966 cong 9539 VOID p99 1.69
+round 3 flat    500 ms bbr:16000000           fill  23502.0 ms  standing p50 365 max 498 ms  lost 17401 cong 8045
+round 3 flat    500 ms cubic-restart:16000000 fill  23648.4 ms  standing p50 423 max 498 ms  lost 1679 cong 883
+round 3 flat    500 ms bbr-bound:16000000     fill  23532.7 ms  standing p50 409 max 498 ms  lost 927 cong 637
+round 4 flat    500 ms cubic-restart:16000000 fill  23649.0 ms  standing p50 423 max 498 ms  lost 1682 cong 908
+round 4 flat    500 ms bbr:16000000           fill  23432.7 ms  standing p50 498 max 500 ms  lost 25349 cong 11070
+round 4 flat    500 ms bbr-bound:16000000     fill  23588.4 ms  standing p50 161 max 222 ms  lost 0 cong 0
+round 5 flat    500 ms bbr-bound:16000000     fill  23445.7 ms  standing p50 393 max 499 ms  lost 3269 cong 1945
+round 5 flat    500 ms bbr:16000000           fill  23502.2 ms  standing p50 417 max 499 ms  lost 1305 cong 757 VOID p99 1.29
+round 5 flat    500 ms cubic-restart:16000000 fill  23648.0 ms  standing p50 423 max 499 ms  lost 1678 cong 910
+round 6 flat    500 ms bbr:16000000           fill  23563.2 ms  standing p50 497 max 503 ms  lost 40676 cong 15838
+round 6 flat    500 ms bbr-bound:16000000     fill  23693.4 ms  standing p50 293 max 498 ms  lost 599 cong 213
+round 6 flat    500 ms cubic-restart:16000000 fill  23655.9 ms  standing p50 423 max 498 ms  lost 1681 cong 908
+void runs dropped: 4, failed: 0
+
+== flat, 500 ms queue
+variant                  n   fill ms    fill min-max    sq p50    sq max   lost  cong vs bbr:16000000
+bbr:16000000             5     23504   23433-23563         497       499  17401  8045          -
+bbr-bound:16000000       5     23533   23446-23693         340       498    927   637   +130 0/3
+cubic-restart:16000000   7     23649   23646-23656         423       498   1681   908   +146 0/5
+  bbr-bound:16000000 − bbr:16000000 by bbr-bound:16000000's predecessor: cubic-restart:16000000 +31 (1) · bbr:16000000 +143 (2)  UNBALANCED predecessors
+  cubic-restart:16000000 − bbr:16000000 by cubic-restart:16000000's predecessor: bbr-bound:16000000 +116 (2) · first +182 (2) · bbr:16000000 +146 (1)  UNBALANCED predecessors
