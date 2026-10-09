@@ -1,6 +1,8 @@
-# BB3 — the loss bound's protocol
+# The loss bound's protocol
 
-Fixed 2026-10-09, before any timed run of the bound. Row 104 runs it as written.
+*Queue row BB3.*
+
+Fixed 2026-10-09, before any timed run of the bound. The bound's measurement (queue row BB3MEASURE) runs it as written.
 
 ## Arms
 
@@ -16,13 +18,13 @@ Each script orders its arms by `lab/scripts/order.py` and runs with `--self-timi
 
 | # | cell | command | rounds |
 | --- | --- | --- | --- |
-| 1 | PROF's LTE-good + CoDel | `PROFILES=lte-good-codel VARIANTS="bbr bbr-bound cubic-restart" lab/scripts/profile_cells.sh 7` | 7 |
-| 2 | ASKL's 1 % and 4 % | `lab/scripts/askl_cells.sh OUT 9 "cc:bbr cc:bbr-bound cc:cubic-restart" "ge1 ge4"` | 9 |
-| 3 | W4b's `flat`, 500 ms | `LINKS=flat QUEUES=500 VARIANTS="bbr:16000000 bbr-bound:16000000 cubic-restart:16000000" lab/scripts/deep_queue_cells.sh 7` | 7 |
-| 4 | row 75's cells, through the product | `lab/av1/delivery/total-time/run.mjs`, as `lab/av1/delivery/total-time/README.md` §Row LOSSCC runs it, `--links r5000,r20000,r50000,lte-good --impairs clean,l1,l2,l5,j20 --fill 4 --asks-after 4 --throttles 1,4`; six variants in `variants.json`: `htj2k`, `opt` and each again with `"congestion": "bbr"` and `"congestion": "bbr-bound"` | 10 |
+| 1 | the phone profiles' LTE-good + CoDel (queue row PROF) | `PROFILES=lte-good-codel VARIANTS="bbr bbr-bound cubic-restart" lab/scripts/profile_cells.sh 7` | 7 |
+| 2 | the ask's loss-sensitivity cells, 1 % and 4 % (queue row ASKL) | `lab/scripts/askl_cells.sh OUT 9 "cc:bbr cc:bbr-bound cc:cubic-restart" "ge1 ge4"` | 9 |
+| 3 | the deep-buffer fill's `flat`, 500 ms (queue row W4b) | `LINKS=flat QUEUES=500 VARIANTS="bbr:16000000 bbr-bound:16000000 cubic-restart:16000000" lab/scripts/deep_queue_cells.sh 7` | 7 |
+| 4 | the product's lossy-link cells (queue row LOSSCC) | `lab/av1/delivery/total-time/run.mjs`, as `lab/av1/delivery/total-time/README.md` §Row LOSSCC runs it, `--links r5000,r20000,r50000,lte-good --impairs clean,l1,l2,l5,j20 --fill 4 --asks-after 4 --throttles 1,4`; six variants in `variants.json`: `htj2k`, `opt` and each again with `"congestion": "bbr"` and `"congestion": "bbr-bound"` | 10 |
 
-Cell 1's trace is PROF's `TMobile-LTE-short`, checked against the sha256 PROF recorded. Cell 4's frames are row
-LOSSCC's (`lab/.av1-work/losscc`).
+Cell 1's trace is the phone profiles' `TMobile-LTE-short`, checked against the sha256 they recorded. Cell 4's frames
+are the product's lossy-link run's (`lab/.av1-work/losscc`).
 
 ## Recorded
 
