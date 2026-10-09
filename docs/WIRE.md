@@ -113,6 +113,15 @@ for it again; the downloader does so by itself. Tests: `a_data_request_during_a_
 (`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
 reciting after the mode switch").
 
+```
+client                                   server: planner                   media stream
+  │ stream_frames 0..199  ───────────────►  fill 0, 1, 2, …   ───────────►  0 1 2 … 40 41 42 43 44
+  │ request_frame 120     ───────────────►  between two frames: a message
+  │                                          in hand ends the fill
+  │                                          serve 120 next    ───────────►  … 45 (in flight) 120
+  │ stream_frames 46..199 ───────────────►  a new fill, if the client still wants the rest
+```
+
 So a fill and an ask never share the connection, and there is nothing for a stream priority to
 order: the fill's stream has stopped being fed. What the ask waits behind is **what of the fill is
 already in flight** — written into the send window and not yet delivered. Ask-order priority
