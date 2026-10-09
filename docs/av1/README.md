@@ -806,6 +806,30 @@ on every one but Firefox 4× (1.29 on `lte-good`, 10 Mbit/s unpaired); no other 
 cells on 30–100 Mbit/s and on `lte-good` are where the decode on the browser's three cores sets the fill, as rows 95
 and 96 found at 4× on 50 Mbit/s: they place this host's saturation, not a phone's, and nothing past it is claimed.
 
+### Where AV1 fills first, reviewed (row EVENREVIEW, 2026-10-09)
+
+Row CROSSOVER's predictions against row CROSSMEASURE's numbers (the two sections above), both readings:
+
+| prediction | held? | why |
+| --- | --- | --- |
+| each cell on its predicted side, Chromium | held on 28 of 30 kept, 31 of 32 round-paired; refuted on `syn2ds_b3` 1× `lte-good` (1.014–1.016 against 0.97), `syn2ds_a3` there not conclusive (1.010 kept, 1.028 paired, against 1.00) | fixed links land within 0.03 on 15 of 20; the misses are `lte-good` |
+| the same, Firefox | held on 17 of 20 kept, 19 of 22 round-paired, refuted on the same 3 `lte-good` cells (DBT 1×, a tie read as a loss; `dbts_b4` 4×, 1.29 against 0.87); its 10 Mbit/s cells untested | below |
+| AV1's gain where the wire is the clock is its bytes, ≤ 4.9 % (1×, 5 Mbit/s) | held: 2.3–4.7 % at 5 Mbit/s and 1× (0.953–0.977), 1.7–2.9 % at 4× | |
+| `dbts_b4` gains 13–22 % on every phone link at both CPU speeds | held in Chromium (0.78–0.87) and Firefox 1× (0.80–0.84); **refuted** at Firefox 4× (`lte-good` 1.29) | Firefox's AV1 decode, below |
+| Firefox's AV1 decode is dav1d at 1.6–2.2 × WebCodecs' time (an assumption) | **refuted**: fitted to the paired fixed-link cells it is 2.1–3.3 × (`dbts_a5`, `dbts_b2` 1× on 50 Mbit/s; `dbts_b4` 4× on 50; `syn2ds_b3` 1× on 30) | an assumption from other series, never measured on these |
+| the LTE trace behaves as its 16.7 Mbit/s mean | **refuted**, in both engines: every `lte-good` cell at 4× sits above prediction (Chromium +0.02 to +0.09, Firefox +0.29 to +0.77; Firefox 4× would need dav1d at ~4 ×) | *likely, not measured:* the trace delivers in bursts above its mean, so the decoders are the clock for more of the fill than the mean says |
+
+**Conclusive for the rule's two decisions, both readings agreeing:** no series gains ≥ 5 % on a phone link in both
+engines at both CPU speeds, so **no per-link codec rule is built**; and `dbts_b4`'s 13–22 % does not hold in Firefox
+at 4×, so it is **not a per-series choice for every client either**. The rule's second condition, its input known
+before the first frame, is moot: no series passes the first. **Not conclusive** on two things: the model's sides on
+`syn2ds_a3` Chromium 1× (strict and round-paired disagree, inside the ±0.01 band) and every Firefox 10 Mbit/s cell,
+which no visit here could dial in 5 s. **What it now decides:** ingest keeps HTJ2K for every series measured here,
+as row TOTAL4 left it; the model ranks the series correctly by fixed link in Chromium but is not a predictor for
+Firefox or for a bursty link until its Firefox decode and its link model are fitted on measurement. **What the owner
+still chooses:** whether a series like `dbts_b4`, a fifth smaller as AV1 and 13–22 % faster in Chromium and in
+Firefox at 1×, is served as AV1 although a slow Firefox client then fills it 1.29 × slower on LTE.
+
 ## Client resources
 
 A decoder worker's memory and first use, against HTJ2K's: §Decode time and memory, *Memory and first use*. The
