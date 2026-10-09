@@ -14,6 +14,8 @@ python3 server/dev-server.py --port 8792
 NODE_PATH=$(npm root -g) node lab/session-survival/run.mjs --rounds 7 --out cut.jsonl
 ```
 
+`DEBUG=1` prints the page's and its workers' console, each line timed from the visit's start.
+
 `client/dev-transport.json` must name the relay, not the server: `"wt_url":
 "https://127.0.0.1:5582/"`. The series is any packed series whose fill outlasts the cut — 87 frames
 of 428 KB at 20 Mbit is about 15 s, which leaves room to cut a fifth of the way in.

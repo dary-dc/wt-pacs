@@ -67,7 +67,7 @@ export function judgeIntegrity(integrity: Integrity): IntegrityJudgement {
   return { valid: invalid_reasons.length === 0, invalid_reasons };
 }
 
-export function bindingRollup(
+function bindingRollup(
   frames: ClientFrameRow[],
 ): Record<string, number> {
   const out: Record<string, number> = {
@@ -88,7 +88,7 @@ export function bindingRollup(
  * The earliest ask of the run, by ask time. Warm-up (first stream, server cold pages, JIT)
  * lands on it whatever its frame index; it is reported on its own and excluded from means.
  */
-export function pickFirstAsk(rows: OpenRow[]): OpenRow | null {
+function pickFirstAsk(rows: OpenRow[]): OpenRow | null {
   let first: OpenRow | null = null;
   for (const r of rows) {
     if (r.ask_us == null) continue;
