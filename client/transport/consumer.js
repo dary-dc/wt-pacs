@@ -24,6 +24,7 @@ export class DownloaderClient {
   #cancels = [];
   #resumedAt = [];
   #recycledAt = [];
+  #exact = {};
   #triggers = new AbortController();
   #ending = null;
 
@@ -108,6 +109,8 @@ export class DownloaderClient {
       info: m,
     };
     if (m.preview) return void this.#onPreview(frame);
+    const tally = (this.#exact[m.path ?? "unnamed"] ??= { exact: 0, inexact: 0, unchecked: 0 });
+    tally[m.exact === true ? "exact" : m.exact === false ? "inexact" : "unchecked"]++;
     if (w) {
       this.#waiters.delete(m.index);
       w.resolve(frame);
@@ -165,7 +168,13 @@ export class DownloaderClient {
   }
 
   stats() {
-    return { closed: this.#closedReason, inFlight: this.#waiters.size, resumedAt: [...this.#resumedAt], recycledAt: [...this.#recycledAt] };
+    return {
+      closed: this.#closedReason,
+      inFlight: this.#waiters.size,
+      resumedAt: [...this.#resumedAt],
+      recycledAt: [...this.#recycledAt],
+      exact: structuredClone(this.#exact),
+    };
   }
 
   close() {

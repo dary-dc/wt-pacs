@@ -22,14 +22,17 @@
 
     const logEl = document.getElementById("log");
     const log = (line) => { logEl.textContent += line + "\n"; };
-    const rig = new URLSearchParams(location.search).get("rig") || "downloader";
+    const q = new URLSearchParams(location.search);
+    const rig = q.get("rig") || "downloader";
     import(`/client/contract/dist/${rig}-rig.js`)
-      .then(({ run }) => run(DownloaderClient, log))
+      .then(({ run }) => run(DownloaderClient, log, q.get("only")?.split(",")))
       .catch((e) => {
         log("FAILED: " + (e?.stack || e?.message || e));
         globalThis.__wtpacsFailed = 1;
         globalThis.__wtpacsDone = true;
-      });
+      })
+      // A browser with no remote protocol (drive_firefox.mjs) takes the log by POST.
+      .then(() => q.get("post") && fetch(q.get("post"), { method: "POST", body: JSON.stringify({ failed: globalThis.__wtpacsFailed ?? 1, log: logEl.textContent }) }));
   </script>
 </body>
 </html>

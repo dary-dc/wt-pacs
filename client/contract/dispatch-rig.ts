@@ -10,14 +10,14 @@ const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
 const text = (b?: Uint8Array) => (b ? new TextDecoder().decode(Uint8Array.from(b)) : "");
 
-type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decodeStart?: number; decodeEnd?: number; decoder?: number } } };
+type Frame = { frameIndex: number; generation: number; bytes: Uint8Array; info: { exact?: boolean | "unchecked"; exactReason?: string; path?: string; width?: number; height?: number; bits?: number; components?: number; signed?: boolean; preview?: boolean; decodeSeq?: number; maxInFlight?: number; byteCount?: number; wireBytes?: number; min?: number; max?: number; stamps?: { decodeStart?: number; decodeEnd?: number; decoder?: number } } };
 type Fail = { frameIndex: number; reason: string; generation: number };
 type Downloader = {
   requestExactFrame(index: number): Promise<Frame>;
   fill(indices: number[]): void;
   cancel(): Promise<void>;
   close(): void;
-  stats(): { resumedAt: number[]; recycledAt: number[] };
+  stats(): { resumedAt: number[]; recycledAt: number[]; exact: Record<string, { exact: number; inexact: number; unchecked: number }> };
 };
 type DownloaderCtor = {
   connect(url: string, certHash: string, opts: Record<string, unknown>): Promise<Downloader>;
@@ -25,7 +25,7 @@ type DownloaderCtor = {
 type Wire = { op: string; from?: number; to?: number; frame?: number };
 type Log = (line: string) => void;
 type Clause = (DownloaderClient: DownloaderCtor, check: Check, log: Log) => Promise<void>;
-type RealDecoder = { glue: string; wasm: string; dir: string; codec?: string; depth?: number; split?: number; offset?: number; rct?: boolean };
+type RealDecoder = { glue: string; wasm: string; dir: string; hasher?: string; codec?: string; depth?: number; split?: number; offset?: number; rct?: boolean };
 
 let world = 0;
 
@@ -50,6 +50,7 @@ type OpenOpts = {
   decoderWorker?: string;
   groupLength?: number;
   frameCount?: number;
+  digests?: { algorithm: string; frames: (string | null)[] };
   survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number };
   hangDials?: number;
   /** The first `n` dials are refused. */
@@ -92,6 +93,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     },
     groupLength: opts.groupLength,
     frameCount: opts.frameCount,
+    digests: opts.digests,
     survival: opts.survival,
     recycleAtBytes: opts.recycleAtBytes,
     onFrame: opts.onFrame ?? (() => {}),
@@ -812,7 +814,7 @@ function unitLengths(payload: Uint8Array) {
 async function av1Through(
   DownloaderClient: DownloaderCtor,
   payloads: readonly (string | Uint8Array)[],
-  mode: "spy" | "none" | "fail" | "stale",
+  mode: "spy" | "none" | "fail" | "stale" | "flip",
   group: Partial<OpenOpts> = {},
 ) {
   const ch = `wtpacs-webcodecs-${++world}`;
@@ -1031,6 +1033,101 @@ async function anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure(DownloaderCl
     const after = r.got.find((f) => f.frameIndex === 7);
     check(after !== undefined && (await sha256(after.bytes)) === want, `${what}: the next payload after them is still exact`);
   }
+}
+
+const HASHER = "/client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js";
+const digestOf = async (base: string) => (await (await fetch(`${base}.xxh3`)).text()).trim();
+const xxh3 = (frames: (string | null)[]) => ({ algorithm: "xxh3-64", frames });
+const verdicts = (got: Frame[]) => [...got].sort((a, b) => a.frameIndex - b.frameIndex).map((f) => `${f.info.path}:${f.info.exact}`).join() || "none";
+
+/** HTJ2K codestreams, each through the downloader, and what became of them. */
+async function htj2kChecked(DownloaderClient: DownloaderCtor, realDecoder: RealDecoder, frames: Uint8Array[], digests?: OpenOpts["digests"]) {
+  const got: Frame[] = [];
+  const { c, fake } = await open(DownloaderClient, { realDecoder, digests, onFrame: (f) => got.push(f) });
+  c.fill(frames.map((_, i) => i));
+  for (const [i, b] of frames.entries()) await fake.pushFrame(i, Uint8Array.from(b));
+  await until(() => got.length >= frames.length);
+  const stats = c.stats().exact;
+  c.close();
+  return { got, stats };
+}
+
+/**
+ * A decoded frame is hashed against the series' digest of it: `exact: true` only on a match, a frame
+ * the metadata gives no digest `"unchecked"`, never `true`; a mismatch is decoded once more on a fresh
+ * decoder object and is exact only if that matches, else `false` with both results named; `stats()`
+ * counts each by path. docs/adr/exactness-in-production.md §Built
+ */
+async function anHtj2kFrameIsCheckedAgainstItsDigest(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  const vendor = await vendorDecoder(log, "the frame check");
+  if (!vendor) return;
+  if (!(await served(HASHER))) return void log(`  SKIPPED: the frame check — no ${HASHER} (bash client/decode/wasm/fetch_xxh3.sh)`);
+  const realDecoder = { ...vendor, hasher: HASHER };
+  const names = ["colour-8", "grey-16"].map((n) => `/client/contract/frames/${n}`);
+  const frames = await Promise.all(names.map((n) => fetched(`${n}.j2c`)));
+  const digests = xxh3(await Promise.all(names.map(digestOf)));
+
+  const ok = await htj2kChecked(DownloaderClient, realDecoder, frames, digests);
+  check(verdicts(ok.got) === "htj2k:true,htj2k:true", `check: both frames match their digests (${verdicts(ok.got)})`);
+  check(ok.stats.htj2k?.exact === 2 && ok.stats.htj2k.inexact === 0, `check: stats() counts them by path (${JSON.stringify(ok.stats)})`);
+
+  const none = await htj2kChecked(DownloaderClient, realDecoder, frames);
+  check(verdicts(none.got) === "htj2k:unchecked,htj2k:unchecked", `check: with no digests, unchecked (${verdicts(none.got)})`);
+  const one = await htj2kChecked(DownloaderClient, realDecoder, frames, xxh3([digests.frames[0]]));
+  check(verdicts(one.got) === "htj2k:true,htj2k:unchecked", `check: a frame without a digest is unchecked, never true (${verdicts(one.got)})`);
+
+  const flipped = { ...realDecoder, glue: "/client/contract/flip-glue.js" };
+  const again = await htj2kChecked(DownloaderClient, flipped, frames, digests);
+  check(verdicts(again.got) === "htj2k:true,htj2k:true" && again.got.every((f) => f.info.exactReason === undefined),
+    `check: a sample changed in the reused decoder's output is decoded again on a fresh one, and matches (${verdicts(again.got)})`);
+
+  const wrong = await htj2kChecked(DownloaderClient, realDecoder, frames, xxh3([...digests.frames].reverse()));
+  const reasons = wrong.got.map((f) => f.info.exactReason ?? "");
+  check(verdicts(wrong.got) === "htj2k:false,htj2k:false" && reasons.every((r) => (r.match(/htj2k gave/g) ?? []).length === 2),
+    `check: a frame matching nowhere is false, both decodes named (${verdicts(wrong.got)}; ${reasons[0] || "no reason"})`);
+  check(wrong.got.every((f) => f.bytes.length > 0) && wrong.stats.htj2k?.inexact === 2, `check: and still delivered, and counted (${JSON.stringify(wrong.stats)})`);
+}
+
+/**
+ * The same check on AV1 payloads, against the writer's digests: exact through whichever decoder took
+ * each; a sample changed in WebCodecs' output is decoded again by dav1d-WASM and matches; a digest
+ * matching neither decoder's frame leaves it false, both decoders named, or the second decode's
+ * failure where no other decoder takes the payload. docs/adr/exactness-in-production.md §Built
+ */
+async function anAv1FrameIsCheckedAgainstItsDigest(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 frame check — no ${AV1_DIR} (client/decode/wasm/dav1d/build.sh)`);
+  if (!(await served(HASHER))) return void log(`  SKIPPED: AV1 frame check — no ${HASHER} (bash client/decode/wasm/fetch_xxh3.sh)`);
+  const shallow = ["g8", "g10", "s11", "s13", "c8"].map((n) => golden("optimized", n));
+  const deep = ["g12", "g14"].map((n) => golden("plain", n));
+  const bases = [...shallow, ...deep];
+  const digests = xxh3(await Promise.all(bases.map(digestOf)));
+  const through = (mode: "spy" | "none" | "flip", d = digests) =>
+    av1Through(DownloaderClient, bases.map((b) => `${b}.av1`), mode, { realDecoder: { ...AV1, hasher: HASHER }, digests: d });
+  const paths = (wc: string) => [...shallow.map(() => wc), ...deep.map(() => "av1-dav1d")];
+  const want = (wc: string) => paths(wc).map((p) => `${p}:true`).join();
+  let wcTook = false;
+
+  for (const mode of webcodecsVariants()) {
+    const r = await through(mode);
+    // An engine whose probes refuse a layout (Firefox) decodes it in dav1d-WASM.
+    const took = verdicts(r.got);
+    wcTook ||= took === want("av1-webcodecs");
+    check(took === want("av1-dav1d") || (mode === "spy" && took === want("av1-webcodecs")), `av1 check ${mode === "spy" ? "webcodecs" : "dav1d"}: every frame matches its digest, by the decoder that took it (${took})`);
+    const matrix = MATRIX.map(([b, k, sign]) => `${PAYLOADS}/matrix/b${b}k${k}${sign}`);
+    const m = await av1Through(DownloaderClient, matrix.map((b) => `${b}.av1`), mode,
+      { realDecoder: { ...AV1, hasher: HASHER }, digests: xxh3(await Promise.all(matrix.map(digestOf))) });
+    const off = m.got.filter((f) => f.info.exact !== true).map((f) => matrix[f.frameIndex].split("/").pop());
+    check(m.got.length === matrix.length && off.length === 0,
+      `av1 check matrix ${mode === "spy" ? "webcodecs" : "dav1d"}: every depth, split and sign matches its digest (${m.got.length - off.length}/${matrix.length}; off: ${off.slice(0, 6).join() || "none"})`);
+    const wrong = await through(mode, xxh3([...digests.frames.slice(1), digests.frames[0]]));
+    const twice = wrong.got.every((f) => /gave .* (gave|again: no other AV1 decoder)/.test(f.info.exactReason ?? ""));
+    check(wrong.got.length === bases.length && wrong.got.every((f) => f.info.exact === false) && twice,
+      `av1 check ${mode === "spy" ? "webcodecs" : "dav1d"}: a frame matching no digest is false, the second decode named (${verdicts(wrong.got)}; ${wrong.got[0]?.info.exactReason ?? "no reason"})`);
+  }
+  if (!wcTook) return void log("  SKIPPED: AV1 frame check, a WebCodecs sample changed — WebCodecs took none of these payloads here");
+  const flipped = await through("flip");
+  check(verdicts(flipped.got) === want("av1-dav1d"),
+    `av1 check: a sample changed in WebCodecs' output is decoded again by dav1d-WASM, and matches (${verdicts(flipped.got)})`);
 }
 
 /**
@@ -2101,7 +2198,8 @@ async function anOptionThatCannotBeClonedFailsConnect(DownloaderClient: Download
   check(outcome === "DataCloneError", `connect: an option that cannot be cloned fails it (${outcome})`);
 }
 
-export async function run(DownloaderClient: DownloaderCtor, log: Log): Promise<void> {
+/** `only` names the clauses to run, all of them when absent. */
+export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: string[]): Promise<void> {
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   const clauses: Clause[] = [
     askBeatsQueuedFill,
@@ -2129,6 +2227,8 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log): Promise<v
     aMalformedAv1ItemIsRefusedByName,
     anAv1FrameThatCannotDecodeAloneIsAFailure,
     anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure,
+    anHtj2kFrameIsCheckedAgainstItsDigest,
+    anAv1FrameIsCheckedAgainstItsDigest,
     anUnknownCodecIsRefusedBeforeTheDial,
     aGroupDecodesOnOneDecoderInOrder,
     aGroupDecodesThroughEitherDecoder,
@@ -2181,7 +2281,7 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log): Promise<v
     anOptionThatCannotBeClonedFailsConnect,
   ];
   await tally(log, "dispatch", "dispatch", async (check) => {
-    for (const clause of clauses) {
+    for (const clause of clauses.filter((c) => !only || only.includes(c.name))) {
       try {
         await clause(DownloaderClient, check, log);
       } catch (e) {

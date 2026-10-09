@@ -24,6 +24,25 @@ X.sbnd`: `metadata.json` must carry `frameCount`, and the frames are `DIR/000.ht
 `001.htj2k`, …. The metadata a host serves is that input file; `--sidecar`, which copied it, was
 removed 2026-10-03 (code: `git show archive/variants-2026-10-03:tools/pack-series/src/main.rs`).
 
+## Frame digests
+
+A series' `metadata.json` may carry each frame's digest, which the client's decoder worker checks every
+decoded frame against ([`adr/exactness-in-production.md`](adr/exactness-in-production.md) §Built):
+
+```json
+"frameDigests": { "algorithm": "xxh3-64", "frames": ["5f99dd7c0b2fc5e9", "…"] }
+```
+
+`frames[i]` is frame *i*'s XXH3-64, 16 lower-case hex digits, of its samples exactly as `decodeFrame`
+hands them on: interleaved by pixel, one byte a sample when the decoded frame is ≤ 8 bits and two
+little-endian bytes over that, signed samples in two's complement at that width — an AV1 payload's
+split, colour transform and offset undone. The width is the decoded frame's, so an HTJ2K series takes its
+stored bits and an AV1 one the payload header's. `null`, or no entry, leaves the frame unchecked; no
+`frameDigests` leaves every frame unchecked. `ingest/frame_digests.py` writes it from samples the set's
+`NNN.sha256` vouches for (`ingest/coded-frames/ingest.py` calls it), with `xxhash` 3.6.0, hash-pinned in
+`lab/av1/requirements.txt`. The golden AV1 payloads and the two HTJ2K contract frames keep theirs as
+`NAME.xxh3` beside them.
+
 ## The sets
 
 | Where | What | How it is made |

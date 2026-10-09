@@ -1,6 +1,7 @@
 /** An HTJ2K codestream through OpenJPH-WASM, one decoder object reused (lab/decode-bench/parity.mjs): docs/decode/README.md §A build of our own */
 import { instantiate } from "./wasm-glue.js";
 
+let M = null;
 let dec = null;
 
 /** Sign-extend narrow samples (JS shifts are 32-bit) and take the range in one pass — docs/decode/README.md §The range pass. */
@@ -31,11 +32,21 @@ export const unranged = (info) => info.componentCount === 3 && info.bitsPerSampl
 
 export async function init(d) {
   // A threaded build starts its helpers from the glue, not from this worker. docs/decode/README.md §Threads
-  const M = await instantiate(d, `typeof Module !== "undefined" ? Module : OpenJPHModule`, { mainScriptUrlOrBlob: d.glue });
+  M = await instantiate(d, `typeof Module !== "undefined" ? Module : OpenJPHModule`, { mainScriptUrlOrBlob: d.glue });
   dec = new M.HTJ2KDecoder();
 }
 
-export function decodeFrame(bytes) {
+/** `again` names the path a frame failed its check on: a fresh decoder object takes it, the reused one is suspect. */
+export function decodeFrame(bytes, unit, preview, again) {
+  const fresh = again === "htj2k" && new M.HTJ2KDecoder();
+  try {
+    return decodeWith(fresh || dec, bytes);
+  } finally {
+    fresh?.delete?.();
+  }
+}
+
+function decodeWith(dec, bytes) {
   // Already a Uint8Array over the transferred buffer; wrapping it again is a copy. docs/decode/README.md §The range pass
   dec.getEncodedBuffer(bytes.length).set(bytes);
   dec.readHeader();
@@ -59,5 +70,5 @@ export function decodeFrame(bytes) {
   const range = unranged(info)
     ? { min: 0, max: 255 }
     : dec.getRange ? dec.getRange() : finish(view, info.bitsPerSample, info.isSigned);
-  return { info, sab, byteCount: out.length, range };
+  return { info, sab, byteCount: out.length, range, path: "htj2k" };
 }

@@ -39,18 +39,20 @@ async function webcodecs(streams) {
   return wc;
 }
 
-export async function decodeFrame(bytes, unit = { key: true }, preview) {
+export async function decodeFrame(bytes, unit = { key: true }, preview, again) {
   const payload = parsePayload(bytes);
   const [top, low] = units(payload.frames[0], payload.split);
-  const wc = payload.depth <= 10 && (await webcodecs(layouts(payload, top)));
+  const wc = again !== "av1-webcodecs" && payload.depth <= 10 && (await webcodecs(layouts(payload, top)));
   if (wc) {
     try {
       const [t, l] = await Promise.all([wc.picture(top, unit), low && wc.picture(low, { key: true }, "low")]);
-      return end(begin(t, payload), l);
-    } catch {
+      return { ...end(begin(t, payload), l), path: "av1-webcodecs" };
+    } catch (e) {
+      if (again) throw e;
       /* dav1d decodes what WebCodecs would not */
     }
   }
+  if (again === "av1-dav1d") throw new Error("no other AV1 decoder takes this payload");
   const dav1d = await module("./av1-dav1d.js");
   // A scalable unit's base is lossy and of its own size: shown as it is, never merged with a low unit.
   const base = preview && ((pic) => preview(end(begin(pic, { ...payload, split: 0 }))));
@@ -62,5 +64,5 @@ export async function decodeFrame(bytes, unit = { key: true }, preview) {
   } finally {
     await pending; // in flight, it would be taken as the next payload's low
   }
-  return end(f, low && ((await pending) || dav1d.picture(low, { key: true })));
+  return { ...end(f, low && ((await pending) || dav1d.picture(low, { key: true }))), path: "av1-dav1d" };
 }

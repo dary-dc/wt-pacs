@@ -26,7 +26,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `ingest/coded-frames/make_golden.py`) |
 | `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike |
 | `htj2k.test.mjs`, `av1.test.mjs` | node: the range pass; the AV1 payload reader |
-| `wasm/` | `dav1d/` builds dav1d-WASM, `fetch_openjph.sh` fetches OpenJPH's into `vendor/` |
+| `wasm/` | `dav1d/` builds dav1d-WASM, `fetch_openjph.sh` fetches OpenJPH's and `fetch_xxh3.sh` hash-wasm's XXH3 into `vendor/` |
 
 The rest: [`contract/`](contract/) the transport's clauses and the rigs, [`paint/`](paint/README.md) the
 painter, [`record/`](record/) telemetry, [`harness/`](harness/) the lab's pages.
@@ -127,6 +127,16 @@ what actually crossed the link. A consumer reporting traffic quotes that one: on
 the decoded plane is several times larger, so `byteCount` would overstate the link by that factor.
 It reaches the page as `frame.info.wireBytes`, the way `byteCount` does, on the decoded path and on
 the undecoded one alike; nothing was renamed to make room for it.
+
+**A frame is checked against its digest.** `opts.digests` — the series' `frameDigests`
+([`docs/FIXTURES.md`](../docs/FIXTURES.md) §Frame digests) — with `opts.decoder.hasher`, the URL of
+hash-wasm's XXH3 build (`decode/wasm/fetch_xxh3.sh`), has the decoder worker hash every frame before
+handing it on. `frame.info.exact` is `true` on a match, `"unchecked"` where no digest names the frame,
+and `false` otherwise: a mismatch is decoded once more — an AV1 payload by the other AV1 decoder, an
+HTJ2K codestream by a fresh decoder object — and is `true` only if that one matches, else it arrives
+`false` with both results in `info.exactReason`, and must not be shown as exact. `info.path` names the
+decoder (`htj2k`, `av1-webcodecs`, `av1-dav1d`); `stats().exact` counts `{ exact, inexact, unchecked }`
+per path. What it costs: [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md) §Built.
 
 **A frame that did not arrive whole is a failure, not a frame.** Two checks, both inside the worker
 graph, so the page never sees a bad frame. On the wire, a uni stream that ends before the length its
