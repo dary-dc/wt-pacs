@@ -2,7 +2,7 @@
 
 Whether the HTJ2K code-block pool's helper Worker, started after the decoder answers ready, takes the cold-ask loss
 off the pool and keeps its warm gain. Queue row 108 (HELPERSTART) of [`docs/av1/queue.md`](../../../docs/av1/queue.md),
-run as `docs/decode/levers-protocol.md` §L1 on `claude/av1` fixes it; the reading is in
+run as `levers-protocol.md` §L1 (on `claude/av1`) fixes it; the reading is in
 [`docs/decode/README.md`](../../../docs/decode/README.md) §Code-blocks on threads, measured.
 
 **Arms.** `ref` is the delivered build (`client/decode/wasm/build`, checked against its manifest; `built` in
