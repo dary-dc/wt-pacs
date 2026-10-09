@@ -78,8 +78,8 @@ the server streams its `frame_head` before the codestream, clients `unwrap`, and
 `the_head_is_the_envelope_length_then_the_index_big_endian` pins the bytes. A frame is
 identified by its index, never by the stream it came on. Clients stop reading a stream whose
 `envelope_len` is under 4 or over 64 MiB (`MAX_FRAME_LEN`, checked by the crate's `envelope_len` in the
-Rust clients and the harness; `wire.ts` holds the TypeScript copy), and a study holding a larger frame
-fails to open ([`FIXTURES.md`](FIXTURES.md#sbnd-study-bundle)). Clients name a frame whose stream ends
+Rust clients and the harness; `wire.ts` holds the TypeScript copy), and a series holding a larger frame
+fails to open ([`FIXTURES.md`](FIXTURES.md#sbnd-series-bundle)). Clients name a frame whose stream ends
 before `envelope_len` bytes ([`CLIENTS.md`](CLIENTS.md#a-truncated-frame-is-a-failure)).
 
 ## Stream modes
@@ -122,6 +122,15 @@ for it again; the downloader does so by itself. Tests: `a_data_request_during_a_
 (`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
 reciting after the mode switch").
 
+```
+client                                   server: planner                   media stream
+  │ stream_frames 0..199  ───────────────►  fill 0, 1, 2, …   ───────────►  0 1 2 … 40 41 42 43 44
+  │ request_frame 120     ───────────────►  between two frames: a message
+  │                                          in hand ends the fill
+  │                                          serve 120 next    ───────────►  … 45 (in flight) 120
+  │ stream_frames 46..199 ───────────────►  a new fill, if the client still wants the rest
+```
+
 So a fill and an ask never share the connection, and there is nothing for a stream priority to
 order: the fill's stream has stopped being fed. What the ask waits behind is **what of the fill is
 already in flight** — written into the send window and not yet delivered. Ask-order priority
@@ -161,7 +170,7 @@ at once, behind the accept rather than behind the control stream. A malformed or
 value is ignored and the session proceeds as without it, so an opening ask is never refused (this
 said until 2026-10-04 that a refusal of one waits for the control stream: that case cannot occur).
 The TypeScript client sends it for
-`connect(url, hash, { fill })` and variants the fill without sending `stream_frames`. Why:
+`connect(url, hash, { fill })` and arms the fill without sending `stream_frames`. Why:
 [`ARCHITECTURE.md`](ARCHITECTURE.md), session open.
 
 ## The WebSocket mapping
