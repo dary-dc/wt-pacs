@@ -469,8 +469,8 @@ Priced before the shape was chosen (`git show 90a7f64:lab/thread-hops/README.md`
 standing in for decode and receive, no transport, no decoder; headless Chromium 141, 4 vCPU,
 cross-origin isolated so `performance.now()` is 5 µs and a one-tick difference is quantisation).
 
-* **Relaying through the receive worker costs ~0.1–0.2 ms while it is quiet** against a direct port,
-  flat in frame size; **under a busy receive worker it becomes unbounded** — 0.15–36.6 ms at 512 KB
+* **Relaying through the download worker costs ~0.1–0.2 ms while it is quiet** against a direct port,
+  flat in frame size; **under a busy download worker it becomes unbounded** — 0.15–36.6 ms at 512 KB
   with the worker 9–12 % busy and the host at 70 % (queueing, not saturation), while direct stays
   within 0.05–0.27 ms. That load is far above the product's; it is the one that shows the failure.
 * **A copy costs far more than any hop**: at 8 MB a frame posted without its transfer list costs the
@@ -479,7 +479,7 @@ cross-origin isolated so `performance.now()` is 5 µs and a one-tick difference 
 * **Pulling each frame adds a `postMessage` per frame to the main thread.**
 
 Both variants were mutated and moved as they should: `shared` given a transfer list delivers nothing, and
-`direct` routed through the receive worker takes relay's numbers.
+`direct` routed through the download worker takes relay's numbers.
 
 ### The downloader variant during a fill, against direct
 
