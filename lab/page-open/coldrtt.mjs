@@ -76,7 +76,7 @@ const trees = Object.entries(TREES).map(([name, rev]) => {
   }
   return dir;
 });
-for (const dir of [...trees, "client/downloader", "client/decode", "client/transport/ts/dist", "lab/.av1-build/out", "client/decode/wasm/vendor/openjph"]) {
+for (const dir of [...trees, "client/transport", "client/decode", "client/transport/ts/dist", "lab/.av1-build/out", "client/decode/wasm/vendor/openjph"]) {
   for (const f of fs.readdirSync(path.resolve(ROOT, dir))) age(path.resolve(ROOT, dir, f));
 }
 age(path.join(ROOT, "lab/page-open/codec.html"));
