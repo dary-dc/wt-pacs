@@ -1186,7 +1186,7 @@ container's default controller, BBR, so it compared controllers, not transports.
 
 ## 6 · One endpoint per core — parked
 
-**Not in `server/`.** The work is whole at `d9ebe32`, the tip of `claude/per-core-endpoints`. It was
+**Not in `server/`.** The work is whole at `d9ebe32`, an unmerged branch's tip. It was
 `--workers N`: N OS threads, each a `current_thread` runtime owning its own endpoint on an `SO_REUSEPORT` socket,
 so the kernel hashes a client's 4-tuple to one thread for the life of the session.
 

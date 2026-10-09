@@ -44,13 +44,13 @@ class Refused(Exception):
 
 
 def optimized_split(bits):
-    """k by depth after the offset, row SPLITTIME's rule: docs/av1/payload-format.md §Representation at ingest."""
+    """k by depth after the offset: docs/av1/payload-format.md §Representation at ingest."""
     return 0 if bits <= 9 else 3 if bits == 13 else 2
 
 
 def plan(s, representation, split=None, grey8="400"):
     """The header and the streams: [(depth, layout, frame → int array h×w×c in coded planes)], layout "444",
-    "400" or "420" (grey with mid-grey chroma, full range: row GREY420). `split` forces grey's k; None takes
+    "400" or "420" (grey with mid-grey chroma, full range: docs/av1/payload-format.md). `split` forces grey's k; None takes
     the representation's."""
     v = functools.lru_cache(1)(lambda i: s.frame(i).astype(np.int32) + s.offset)
     bits = max(1, int(s.hi + s.offset).bit_length())

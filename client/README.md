@@ -159,7 +159,7 @@ frame last arrived, so sessions that are accepted and never deliver end in the o
 instead, which livelocked on a slow link. An ask keeps no timer in the consumer: the downloader
 settles it, and the transports time a frame from the last byte, not from the ask.
 
-**No client timer fails an ask whose bytes are still coming** (row ASKDEADLINE, 2026-10-07). The timers
+**No client timer fails an ask whose bytes are still coming** (2026-10-07). The timers
 that can end a frame are the stall above, `dialMs`, and each transport's 15 s per-ask waiter — no byte
 on the session for 15 s, restarted by every byte (the consumer's close deadline and WebCodecs' 2 s flush
 act on bytes already in hand). The waiter was the one that could fail an open session's ask outright:
@@ -187,7 +187,7 @@ ready the old one is closed and the records' remainder is issued on the new one,
 issues it, and the page is told as `stats().recycledAt`. It is for WebKit's session that stalls after
 16 MB; what it costs, and against what, is `docs/ARCHITECTURE.md` §Recycling before the stall.
 
-**Every decision is held by a test** (row CLIENT, 2026-10-07). A sweep of 76 mutants over
+**Every decision is held by a test** (2026-10-07). A sweep of 76 mutants over
 `downloader.js` and `consumer.js` — each branch, guard and threshold broken in turn, the node tests
 and both browser rigs run against it — left 32 alive. Each of the 21 that were decisions no test
 reached now has one that fails on its mutant (`dispatch-rig.ts` unless named):

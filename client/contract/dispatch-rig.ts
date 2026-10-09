@@ -1385,7 +1385,7 @@ async function aScalableFrameWithoutItsTopFailsByName(
 
 /**
  * Through WebCodecs, a ≤ 10-bit scalable series is exact but has no preview: it returns the highest
- * layer it is fed and cannot be asked for the base (row 31). docs/av1/adr-unit.md §6
+ * layer it is fed and cannot be asked for the base. docs/av1/adr-unit.md §6
  */
 async function aScalableFrameThroughWebCodecsIsExactWithoutAPreview(
   DownloaderClient: DownloaderCtor,
