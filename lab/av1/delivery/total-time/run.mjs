@@ -89,7 +89,7 @@ function variantOf(set, name) {
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion,
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, viewer: a.viewer,
       opts: { decoder: { ...(a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Row ASKDEADLINE: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
@@ -103,7 +103,7 @@ function variantOf(set, name) {
   const entries = set.frames * (a.layers ?? 1);
   // A layer-major series decodes in lab/av1/delivery/bases-first' worker: the product's has no base entry.
   const worker = a.layers ? { decoderWorker: "/lab/av1/delivery/bases-first/decoder.js" } : a.worker && { decoderWorker: a.worker };
-  return { ext, entries, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }), ...(a.digests && { digests: a.digests }) },
+  return { ext, entries, viewer: a.viewer, opts: { decoder, ...worker, ...(a.group && { groupLength: a.group, frameCount: entries }), ...(a.digests && { digests: a.digests }) },
     truth: a.truth, previewTruth: a.previewTruth, congestion: a.congestion };
 }
 
@@ -244,10 +244,12 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
 
   const errors = [];
   const q = new URLSearchParams({ opts: JSON.stringify(a.opts), fill, after: AFTER, wt: `https://127.0.0.1:${relayPort}/`, hash: HASH,
-    ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}) });
+    ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}),
+    // Row VIEWER: the product's page on the variant's metadata, and both pages timed from navigation.
+    ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(arg("--origin") && { origin: arg("--origin") }) });
   let r = null;
   try {
-    r = await inBrowser(engine, `http://127.0.0.1:${HTTP}/lab/av1/delivery/total-time/index.html?${q}`, throttle, errors);
+    r = await inBrowser(engine, `http://127.0.0.1:${HTTP}/${a.viewer ? "client/viewer/index.html" : "lab/av1/delivery/total-time/index.html"}?${q}`, throttle, errors);
     if (r.error) throw new Error(r.error);
   } catch (e) {
     errors.push(String(e.message).split("\n")[0]);
@@ -289,7 +291,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     resumes: r.resumes,
     survived: r.quiet?.filter((q) => q.survived).map((q) => Math.round(q.survived)),
     closedAfter: r.quiet?.filter((q) => q.closedAfter).map((q) => Math.round(q.closedAfter)),
-    firstMs: Math.round(t("page", Math.min)),
+    firstMs: Math.round(r.firstShown ? r.firstShown - r.issuedAt : t("page", Math.min)),
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
     centreMs: Math.round(shown.get(need[0]) - r.issuedAt),

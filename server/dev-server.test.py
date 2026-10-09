@@ -25,6 +25,7 @@ class DevServer(unittest.TestCase):
             ".git/config": "[core]",
             "README.md": "readme",
             "client/page.html": "<p>page",
+            "client/viewer/index.html": "<p>viewer",
             "client/module.js": "export {};",
             "lab/bench.html": "<p>bench",
             "fixtures/us_cine_smoke/metadata.json": '{"frameCount": 1}',
@@ -50,8 +51,8 @@ class DevServer(unittest.TestCase):
             return e.code, e.headers, b""
 
     def test_the_dev_key_and_git_are_refused(self):
-        """Nothing outside what the pages fetch answers: not the dev key, not .git, not the checkout's root."""
-        for path in ["/server/dev-cert/key.pem", "/.git/config", "/README.md", "/", "/client/../server/dev-cert/key.pem"]:
+        """Nothing outside what the pages fetch answers: not the dev key, not .git, not the checkout's files."""
+        for path in ["/server/dev-cert/key.pem", "/.git/config", "/README.md", "/client/../server/dev-cert/key.pem"]:
             with self.subTest(path=path):
                 status, _, body = self.get(path)
                 self.assertEqual(status, 404)
@@ -62,6 +63,28 @@ class DevServer(unittest.TestCase):
         for path in ["/client/page.html", "/client/module.js", "/lab/bench.html", "/series/metadata"]:
             with self.subTest(path=path):
                 self.assertEqual(self.get(path)[0], 200)
+
+    def test_the_viewer_is_the_root_page(self):
+        """`/` is the viewer, isolated and revalidated like any page."""
+        status, headers, body = self.get("/")
+        self.assertEqual((status, body), (200, b"<p>viewer"))
+        self.assertEqual(headers.get("Cross-Origin-Embedder-Policy"), "require-corp")
+        self.assertEqual(headers.get("Cache-Control"), "no-cache")
+
+    def test_metadata_and_transport_given_by_path(self):
+        """`--metadata` and `--transport` serve files from anywhere under their two names, and nothing beside them."""
+        with tempfile.TemporaryDirectory() as other:
+            meta, transport = Path(other) / "m.json", Path(other) / "t.json"
+            meta.write_text('{"frameCount": 7}')
+            transport.write_text('{"wt_url": "x"}')
+            (Path(other) / "secret.txt").write_text("SECRET")
+            dev_server.Handler.metadata, dev_server.Handler.transport = meta, transport
+            try:
+                self.assertEqual(self.get("/series/metadata")[2], b'{"frameCount": 7}')
+                self.assertEqual(self.get("/wt/dev-transport.json")[2], b'{"wt_url": "x"}')
+                self.assertEqual(self.get(f"/{other}/secret.txt")[0], 404)
+            finally:
+                dev_server.Handler.metadata = dev_server.Handler.transport = None
 
     def test_a_catalog_and_a_page_are_revalidated(self):
         """Metadata and pages carry `no-cache` beside their validator; a module keeps heuristic caching."""
