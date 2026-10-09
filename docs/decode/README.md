@@ -271,7 +271,7 @@ predates §The range in the pack**; that win reaches a page only once this is re
 current wrapper, and the hashes above are of the build before it.
 
 **Threaded, adopted by row HTJ2KMT** (§Code-blocks on threads, measured): the same wrapper over OpenJPH with
-`lab/av1/decode/htj2k-profile/cb-threads.patch` applied and one helper thread, built as the row's README does with
+`client/decode/wasm/openjph/cb-threads.patch` applied and one helper thread, built as the row's README does with
 `VARIANTS=deliver EXTRA_FLAGS="-pthread -DOJPH_CB_THREADS=1 -sPTHREAD_POOL_SIZE=1"`. It needs the page
 cross-origin isolated, which the consumer already requires. Not delivered yet: no hashes until it is.
 
@@ -1225,7 +1225,7 @@ measured on a phone; the 4× cell is the container's emulation (§A slow CPU, em
 
 ## Code-blocks on threads, measured
 
-Queue row HTJ2KMT: row FASTHTJ2K's lab pool (`lab/av1/decode/htj2k-profile/cb-threads.patch`, a row of code-blocks
+Queue row HTJ2KMT: row FASTHTJ2K's lab pool (`client/decode/wasm/openjph/cb-threads.patch`, a row of code-blocks
 decoded by the caller and 1 or 3 helpers) measured on frames from 512² to 3328×4096, through the product's
 decoder worker in a fill, and in memory. [`lab/av1/decode/htj2k-threads`](../../lab/av1/decode/htj2k-threads/README.md) runs it.
 
