@@ -12,6 +12,8 @@ fi
 npx esbuild session.ts --bundle --format=esm --outfile=dist/session.js --platform=browser --target=es2022
 npx esbuild ws-session.ts --bundle --format=esm --outfile=dist/ws-session.js --platform=browser --target=es2022
 npx esbuild race-session.ts --bundle --format=esm --outfile=dist/race-session.js --platform=browser --target=es2022
+# --product: the transports a page loads, and nothing for the lab or the tests (deploy/Containerfile).
+[[ "${1:-}" == "--product" ]] && { echo "wrote dist/session.js dist/ws-session.js dist/race-session.js"; exit 0; }
 npx esbuild session-telemetry.ts --bundle --format=esm --outfile=dist/session-telemetry.js --platform=browser --target=es2022
 npx esbuild ../../record/test/run.ts --bundle --format=esm --outfile=../../record/test/run.mjs --platform=node --target=node20
 npx esbuild ../../contract/run.ts --bundle --format=esm --outfile=../../contract/run.mjs --platform=node --target=node20
