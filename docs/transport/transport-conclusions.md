@@ -534,6 +534,29 @@ passes. **`cubic-restart` stays the default and `bbr-bound` opt-in**; cell 4 cou
 misses both of its own bars on most cells. Every `bbr` and `bbr-bound` visit of cell 1 was `VOID`, so its verdict
 rests on visits the relay's timing flags; nothing in cells 2–4 depends on that.
 
+### The bound, reviewed (EVENREVIEW, 2026-10-09)
+
+Row 103's predictions (above, *Predictions for the bound as built*) against row 104's numbers:
+
+| prediction | held? | why |
+| --- | --- | --- |
+| under 2 % of its packets meet CoDel, its queue under 50 ms (derived) | **refuted** on CoDel: 2.27–3.23 % in all 7 rounds; the queue held at the bar, 49.9 ms [38.3–60.8] | *likely, not measured:* the cap is set from a round's loss rate, not v3's per-packet `InflightAtLoss`: by the round a > 2 % loss is seen, the in-flight that overfilled CoDel is already sent, so the bound cuts after the drops it was meant to prevent |
+| its fill ≥ 0.9 × `bbr`'s (not derived) | held, ×0.933 [0.908–0.964] | |
+| < 3 300 lost on W4b's `flat` (≲ 2 600 derived) | held, 927 kept (1 297 over all seven) | the overrun arithmetic holds where the buffer, not random loss, stops the window |
+| ≤ +73 ms over `bbr` on ASKL's 4 % ask (derived) | **refuted**: +375 ms, lower in 0 of 5 rounds | *likely, not measured:* at 4 % iid loss nearly every round loses > 2 %, so the cap stays near its 0.6 BDP floor through the ask; the derivation counted one capped round, not a cap that never lifts |
+| over 1.10 × `bbr` on `l2`, `l5`; within it on `l1` (side derived, size not) | held on `l2`, `l5` (up to ×8.3, far past the ~1.7 sketched); **not** on `l1`, 7 of 15 cells over | *likely:* the same cap that never lifts, at 1 % iid already; 1–5 pairs a cell |
+| clean and jitter cells at `bbr`'s own time (not derived) | untested as stated (no `bbr` arm on them); 10 of 29 over 1.01 × `cubic-restart` | |
+
+**Conclusive for the decision, not for every number.** The bound fails its rule on cell 2 alone — 8 kept runs, no
+`VOID` dependence — so `cubic-restart` stays the default and `bbr-bound` opt-in whatever cell 1 says. Cell 1's CoDel
+share rests on visits every one of which is `VOID` for `bbr` and `bbr-bound`, so the strict reading has no data
+there and the round-paired one alone refutes it: not conclusive on this host by itself, and not needed. Cell 4 holds
+1–5 pairs a cell and decides nothing. **What it now decides:** the controller's default stays `cubic-restart`; a
+round-rate approximation of v3's bound does not deliver v3's guarantee. **What the owner still chooses:** whether
+`bbr-bound` stays in the product as an opt-in nobody should pick, or is retired as BB2 and BBF were; and whether a
+per-packet bound — which needs quinn to hand over each packet's delivered and in-flight at send — is worth
+proposing upstream or porting (§1, the ~2 000-line v3).
+
 ## 2 · One shared stream
 
 **The binary defaults to `shared`; `per-frame` is a product flag.** The decision, the
