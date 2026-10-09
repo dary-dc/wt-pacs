@@ -9,6 +9,9 @@
 #include <openjph/ojph_file.h>
 #include <openjph/ojph_mem.h>
 #include <openjph/ojph_params.h>
+#include <openjph/ojph_version.h>
+
+#include <cstdio>
 
 namespace {
 
@@ -105,4 +108,12 @@ extern "C" int htj2k_decode(const uint8_t* bytes, size_t len, int32_t* out, size
   } catch (...) {
     return -1;
   }
+}
+
+// What ingest pins and refuses otherwise: "dav1d X.Y.Z, openjph X.Y.Z".
+extern "C" const char* decoder_versions() {
+  static char v[64];
+  std::snprintf(v, sizeof v, "dav1d %s, openjph %d.%d.%d", dav1d_version(), OPENJPH_VERSION_MAJOR, OPENJPH_VERSION_MINOR,
+                OPENJPH_VERSION_PATCH);
+  return v;
 }

@@ -21,6 +21,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from order import order  # noqa: E402
 
 GROUPS = (2, 4, 8, 16, 32)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "ingest/coded-frames"))
+from ingest import exact, ivf_units  # noqa: E402,F401  the product's check, used here as the lab's
+
 AOM = os.environ.get("AOM_VERSION", "3.15.1")
 AOM_PRESETS = (0, 6)
 SVT_PRESETS = (0, 8)
@@ -57,12 +60,6 @@ class Set:
 
     def raw_bytes(self):
         return self.n * self.w * self.h * self.ch * np.dtype(self.dtype).itemsize
-
-
-def exact(s, i, samples):
-    """samples: (h, w, ch) in coded values; back to stored order and compared with the truth."""
-    stored = (samples.astype(np.int32) - s.offset).astype(s.dtype)
-    return hashlib.sha256(np.ascontiguousarray(stored).tobytes()).hexdigest() == s.truth[i]
 
 
 def timed(cmd, **kw):
@@ -126,15 +123,6 @@ def write_y4m(s, path):
             px = (s.frame(i).astype(np.int32) + s.offset).astype(dt)
             planes = [px[..., 1], px[..., 2], px[..., 0]] if s.ch == 3 else [px[..., 0], neutral, neutral]
             fh.write(b"FRAME\n" + b"".join(np.ascontiguousarray(p).tobytes() for p in planes))
-
-
-def ivf_units(path):
-    raw, pos, units = path.read_bytes(), 32, []
-    while pos < len(raw):
-        size = int.from_bytes(raw[pos:pos + 4], "little")
-        units.append(raw[pos + 12:pos + 12 + size])
-        pos += 12 + size
-    return units
 
 
 def decode_y4m(build, src, out):

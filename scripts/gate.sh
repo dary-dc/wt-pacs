@@ -115,6 +115,13 @@ else
   skip "the split's merge test needs numpy (PYTHON=... with numpy, README.md §Prerequisites)"
 fi
 
+step "ingest: the DICOM reader — order, planes, sign, functional groups, refusals"
+if "$PYTHON" -c "import pydicom, numpy" 2>/dev/null; then
+  run 1 "$PYTHON" ingest/from-dicom/from_dicom_test.py
+else
+  skip "the DICOM reader's tests need pydicom and numpy (PYTHON=... with lab/av1/requirements.txt)"
+fi
+
 step "lab: the variant order and its predecessor split"
 run 1 node lab/order.test.mjs
 
