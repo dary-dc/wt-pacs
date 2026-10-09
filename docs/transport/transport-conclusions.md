@@ -43,7 +43,7 @@ at `6e9c126`.
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). Through the whole product on lossy links, BBR fills in 0.04–0.76 of `cubic-restart`'s time on both codecs but costs +2–13 % on some clean and jitter cells, so it is not adopted (LOSSCC, the owner's call). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). Through the product's client, 1–5 % loss: BBR 0.04–0.74 of the fill, Cubic with or without the restart the same; not adopted, 1.01–1.04 on clean 5 Mbit (LOSSCC). A bounded BBR was built and retired (BB2, BBF); the next candidate is v3's loss bound, unbuilt (BB3) |
+| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 W5b). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). Through the whole product on lossy links, BBR fills in 0.04–0.76 of `cubic-restart`'s time on both codecs but costs +2–13 % on some clean and jitter cells, so it is not adopted (LOSSCC, the owner's call). In a browser under 1–3 % random loss BBR fills 12–19× faster (CC1); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (PROF). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (FQC). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 ASKL). Through the product's client, 1–5 % loss: BBR 0.04–0.74 of the fill, Cubic with or without the restart the same; not adopted, 1.01–1.04 on clean 5 Mbit (LOSSCC). A bounded BBR was built and retired (BB2, BBF); v3's loss bound is built opt-in as `bbr-bound`, unmeasured, its protocol fixed (BB3) |
 | **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed and retired (§2, [`../adr/stream-shape.md`](../adr/stream-shape.md)) |
 | **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever and the default (§3) |
 | **Send path** | **The reader's buffer handed to quinn** as `Bytes`, one copy of four gone: −3 to −8 % CPU per ask in every cell, nothing against (§4). It also bounds what a stalled client costs (§3) |
@@ -448,8 +448,26 @@ MIT-compatible.
 **The cell that decides it**: PROF's LTE-good + CoDel profile, variants `bbr`, the loss bound and `cubic`,
 ≥ 5 rounds by `order.py`, `--self-timing`. The bound passes if under 2 % of its packets meet CoDel and
 it stands under 50 ms while keeping ≥ 0.9 × BBR's 15.15 Mbit/s. ASKL's 1 % and 4 % cells guard the
-slope (≤ +73 ms over `bbr` at 4 %), and W4b's `flat` at 500 ms its loss (< 3 300). **Nothing built,
-no default changed.**
+slope (≤ +73 ms over `bbr` at 4 %), and W4b's `flat` at 500 ms its loss (< 3 300).
+
+*Built since (row BB3, 2026-10-09):* `--congestion bbr-bound` (`server/src/transport/loss_bound.rs`), the first
+shape above, opt-in; the default unchanged. A round ends with the first acknowledgement of a packet sent after it
+began; its loss is the bytes quinn declared lost during it over those plus the bytes acknowledged, and its in-flight
+the last `on_end_acks` value. The run that decides it is fixed, before any data, in
+[`bb3-protocol.md`](bb3-protocol.md).
+
+**Predictions for the bound as built**, per cost; *derived* from the rules above, or *not derived*:
+
+| cost | predicted on the protocol's cell | |
+| --- | --- | --- |
+| CoDel ignored (PROF) | under 2 % of its packets meet CoDel and its queue stands under 50 ms: a lossy round caps the window at 0.85 of the in-flight that filled CoDel's queue | derived |
+| | its fill ≥ 0.9 × `bbr`'s: where the cap settles between 0.85 × in-flight and the regrowth is not derived | not derived |
+| the overrun's loss (W4b `flat`, 500 ms) | < 3 300 lost: the cap regrows 1, 2, 4… packets a round, so from 0.85 × (BDP + buffer), ≈ 1 330 packets here, it takes ~8 rounds of ~0.5 s to overshoot again, by at most the last step, ≤ 256 packets: ≈ 5 overshoots in a 22 s fill, ≲ 1 300 lost, plus Startup's one overshoot of at most a round's excess, ≲ 1 330: ≲ 2 600. The queue stays ≈ 0.85 of the buffer, as v3's CRUISE does | derived |
+| ASKL's slope, 4 % | ≤ +73 ms over `bbr`: the 0.7 × BDP floor bounds what one capped round costs a 256 KB ask | derived (§1's table) |
+| row 75's lossy cells (`l1`–`l5`) | at 2 % and 5 % iid loss most rounds lose over 2 %, so the cap sits near its floor, 0.85 × 0.7 ≈ 0.6 BDP, and a link-bound fill takes up to ~1.7 × `bbr`'s time; over 1.10 × on `l2` and `l5` wherever the wire is the clock, within it on `l1` | derived, the size not |
+| row 75's clean and jitter cells | `bbr`'s own time, so `bbr`'s +2–13 % over `cubic-restart` stays — unless those costs are BBR's own overflow, which a lossy round would cap: LOSSCC did not attribute them | not derived |
+
+So the bound is predicted to pass the protocol's first three cells and not to become the default.
 
 ---
 
@@ -1280,7 +1298,7 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    then, one calibration of `link_impair.py` against `netem`. On phone-like profiles BBR ties or beats
    Cubic (PROF); behind fq_codel it costs a neighbour nothing but keeps 27–196 ms of its own queue
    (FQC); an ask's loss slope is the controller's on either transport (§5 ASKL). In the product's client under 1–5 % loss it fills in 0.04–0.74 of Cubic's time and is 1.01–1.04 of it on a clean 5 Mbit link (LOSSCC). The candidate is v3's
-   loss bound over quinn's BBR, ~150 lines, unbuilt, decided on PROF's LTE-good + CoDel cell (BB3).
+   loss bound over quinn's BBR, built opt-in as `bbr-bound` and decided by [`bb3-protocol.md`](bb3-protocol.md) (BB3).
 3. **The first ask's defaults**: the push at session open is on by default since 2026-10-02; the
    initial window stays the owner's call (§3). A port-only rebind keeps quinn's window,
    and a new address resets it, which re-applies the window lever but not the push (§3, PUSH). Not
