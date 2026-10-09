@@ -1,0 +1,12 @@
+{"round":2,"unit":"built warm 1x","prev":null,"arm":"built","scenario":"warm","throttle":1,"ms":112.52000000001863,"frames":9,"exact":9,"rendererMb":365.6708984375,"jsMb":117.77025699615479}
+{"round":2,"unit":"built warm 4x","prev":"built warm 1x","arm":"built","scenario":"warm","throttle":4,"ms":419.3450000002049,"frames":9,"exact":9,"rendererMb":372.6015625,"jsMb":113.88545799255371}
+{"round":2,"unit":"built ask 4x","prev":"built warm 4x","arm":"built","scenario":"ask","throttle":4,"ms":450.125,"frames":1,"exact":1,"rendererMb":148.544921875,"jsMb":45.67880725860596}
+{"round":2,"unit":"lab:cb2 ask 1x","prev":"built ask 4x","arm":"lab:cb2","scenario":"ask","throttle":1,"ms":115.9550000000745,"frames":1,"exact":1,"rendererMb":145.3876953125,"jsMb":107.02062702178955}
+{"round":2,"unit":"built ask 1x","prev":"lab:cb2 ask 1x","arm":"built","scenario":"ask","throttle":1,"ms":117.37000000011176,"frames":1,"exact":1,"rendererMb":138.9443359375,"jsMb":45.678894996643066}
+{"round":2,"unit":"lab:cb2 ask 4x","prev":"built ask 1x","arm":"lab:cb2","scenario":"ask","throttle":4,"ms":366.17499999981374,"frames":1,"exact":1,"rendererMb":152.5517578125,"jsMb":107.01844501495361}
+{"round":2,"unit":"lab:cb2late warm 4x","prev":"lab:cb2 ask 4x","arm":"lab:cb2late","scenario":"warm","throttle":4,"ms":330.0599999995902,"frames":9,"exact":9,"rendererMb":377.3583984375,"jsMb":114.14881801605225}
+{"round":2,"unit":"lab:cb2 warm 1x","prev":"lab:cb2late warm 4x","arm":"lab:cb2","scenario":"warm","throttle":1,"ms":68.88999999966472,"frames":9,"exact":9,"rendererMb":378.8525390625,"jsMb":125.83723640441895}
+{"round":2,"unit":"lab:cb2late warm 1x","prev":"lab:cb2 warm 1x","arm":"lab:cb2late","scenario":"warm","throttle":1,"ms":86.3500000005588,"frames":9,"exact":9,"rendererMb":382.1923828125,"jsMb":120.89477920532227}
+{"round":2,"unit":"lab:cb2 warm 4x","prev":"lab:cb2late warm 1x","arm":"lab:cb2","scenario":"warm","throttle":4,"ms":212.4799999995157,"frames":9,"exact":9,"rendererMb":377.3349609375,"jsMb":114.15690326690674}
+{"round":2,"unit":"lab:cb2late ask 4x","prev":"lab:cb2 warm 4x","arm":"lab:cb2late","scenario":"ask","throttle":4,"ms":417.59999999962747,"frames":1,"exact":1,"rendererMb":154.4287109375,"jsMb":107.02804660797119}
+{"round":2,"unit":"lab:cb2late ask 1x","prev":"lab:cb2late ask 4x","arm":"lab:cb2late","scenario":"ask","throttle":1,"ms":132.42500000074506,"frames":1,"exact":1,"rendererMb":145.4443359375,"jsMb":107.01968288421631}
