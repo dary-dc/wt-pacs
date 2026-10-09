@@ -8,6 +8,7 @@
  * CDP can see. docs/ARCHITECTURE.md §The container campaign.
  */
 import { DownloaderClient } from "/client/transport/consumer.js";
+import { built } from "/client/decode/wasm-glue.js";
 
 const q = new URLSearchParams(location.search);
 const variant = q.get("variant") || "Dw";
@@ -32,6 +33,9 @@ const SOURCE_DECODER = {
   dir: "/lab/.openjph-build/wasm",
 };
 
+// DECODERBUILD: ?decoder=built is the product's own build, checked against its manifest.
+const chosenDecoder = async (name) => (name === "source" ? SOURCE_DECODER : name === "built" ? await built("openjph") : DECODER);
+
 const logEl = document.getElementById("log");
 const log = (s) => { logEl.textContent += s + "\n"; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -52,9 +56,7 @@ async function downloaderVariant(cfg, decode) {
   const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
     decode,
     decoders: decode ? DECODERS : 0,
-    decoder: decode
-      ? (new URLSearchParams(location.search).get("decoder") === "source" ? SOURCE_DECODER : DECODER)
-      : undefined,
+    decoder: decode ? await chosenDecoder(q.get("decoder")) : undefined,
     readMin: READ_MIN,
     onFrame: (f) => deliver(f),
   });
@@ -94,6 +96,7 @@ async function main() {
     const b = await rig.ask(ASK);
     result.ask_ms = performance.now() - t0;
     handle(b);
+    if (DIGEST) result.ask_digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", b.slice()))].map((x) => x.toString(16).padStart(2, "0")).join("");
   } else {
     const k = scenario === "fill" ? null : Number(scenario.slice(3)) / 100;
     const askAt = k === null ? Infinity : Math.round(FILL * k);

@@ -1,5 +1,5 @@
 // node client/decode/av1.test.mjs — the AV1 payload reader: golden payloads through dav1d-WASM (when
-// client/decode/wasm/dav1d/build.sh has run), every refusal payload-format.md names, and the decoder choice.
+// client/decode/wasm/build/build.sh has run), every refusal payload-format.md names, and the decoder choice.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const PAYLOADS = `${ROOT}client/contract/av1/payloads`;
-const OUT = `${ROOT}lab/.av1-build/out`;
+const OUT = `${ROOT}client/decode/wasm/built/dav1d`;
 // The glue is evaluated as a classic script, which in node reaches for require and for fetch on paths.
 globalThis.require = createRequire(import.meta.url);
 globalThis.__dirname = OUT;
@@ -315,10 +315,10 @@ const { parsePayload } = await import("./av1-payload.js");
 }
 
 /** Golden payloads from the writer decode to their sources' samples; decoded-stream refusals by name. */
-if (!existsSync(`${OUT}/simd.js`)) console.log(`SKIPPED: golden payloads — no ${OUT} (client/decode/wasm/dav1d/build.sh)`);
+if (!existsSync(`${OUT}/dav1d.js`)) console.log(`SKIPPED: golden payloads — no ${OUT} (client/decode/wasm/build/build.sh)`);
 else {
   const av1 = await import("./av1.js?golden");
-  await av1.init({ glue: `${OUT}/simd.js`, wasm: `${OUT}/simd.wasm`, dir: OUT });
+  await av1.init({ glue: `${OUT}/dav1d.js`, wasm: `${OUT}/dav1d.wasm`, dir: OUT });
   for (const rep of ["plain", "optimized", "grey420"]) {
     for (const file of readdirSync(`${PAYLOADS}/${rep}`).filter((f) => f.endsWith(".av1"))) {
       const name = file.slice(0, -4);
