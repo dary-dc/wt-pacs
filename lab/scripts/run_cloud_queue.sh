@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 LOG="$ROOT/.local/measurements/cloud/RUN.log"
-export SKIP_BUILD=1 CLOUD_URL="${CLOUD_URL:-https://168.138.130.163:4435/}"
+export SKIP_BUILD=1 CLOUD_URL="${CLOUD_URL:-https://${CLOUD_HOST:?set CLOUD_HOST to the rig address}:4435/}"
 exec >> "$LOG" 2>&1
 echo "=== E4 gate (8 runs @ RTT 90 ms) $(date -Iseconds) ==="
 "$ROOT/lab/scripts/e4_premise_cloud.sh" CELL=mild RTTS_MS=90
