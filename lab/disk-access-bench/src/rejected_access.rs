@@ -70,11 +70,3 @@ fn pages_resident(bytes: &[u8]) -> Option<bool> {
     Some(vec.iter().all(|&b| b & 1 != 0))
 }
 
-/// No-op if `mincore` says hot, else `touch_frame_pages`.
-#[allow(dead_code)]
-pub fn touch_frame_pages_if_cold(store: &SeriesMap, index: u32) -> Result<()> {
-    if frame_pages_resident(store, index)? {
-        return Ok(());
-    }
-    touch_frame_pages(store, index)
-}

@@ -14,7 +14,7 @@ export type FodMessage =
 
 /** LE length + JSON, possibly several back to back. Returns the messages and the bytes they
  * consumed; a trailing partial message is left for the next read. */
-export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; consumed: number } {
+function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; consumed: number } {
   const messages: FodMessage[] = [];
   const decoder = new TextDecoder();
   let off = 0;

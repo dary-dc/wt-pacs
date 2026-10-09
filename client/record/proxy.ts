@@ -28,7 +28,7 @@ function bindGet<T extends object>(_target: T): ProxyHandler<T> {
   };
 }
 
-export function proxyWriter(writer: WritableStreamDefaultWriter<Uint8Array>) {
+function proxyWriter(writer: WritableStreamDefaultWriter<Uint8Array>) {
   const base = bindGet(writer);
   return new Proxy(writer, {
     ...base,
@@ -77,11 +77,11 @@ function proxyRead<R extends Readable>(reader: R, onBytes: (bytes: Uint8Array) =
   });
 }
 
-export function proxyReader(reader: ReadableStreamDefaultReader<Uint8Array>, streamId: number) {
+function proxyReader(reader: ReadableStreamDefaultReader<Uint8Array>, streamId: number) {
   return proxyRead(reader, (bytes) => getTap()?.onMediaRead(streamId, bytes));
 }
 
-export function proxyMediaStream(stream: ReadableStream<Uint8Array>) {
+function proxyMediaStream(stream: ReadableStream<Uint8Array>) {
   const tap = getTap();
   const streamId = tap ? tap.nextStreamId() : -1;
   const base = bindGet(stream);
@@ -103,11 +103,11 @@ export function proxyMediaStream(stream: ReadableStream<Uint8Array>) {
 }
 
 /** Control downlink: the server's `frame_error` refusals arrive here. */
-export function proxyControlReader(reader: ReadableStreamDefaultReader<Uint8Array>) {
+function proxyControlReader(reader: ReadableStreamDefaultReader<Uint8Array>) {
   return proxyRead(reader, (bytes) => getTap()?.onControlRead(bytes));
 }
 
-export function proxyBidi(bidi: {
+function proxyBidi(bidi: {
   readable: ReadableStream;
   writable: WritableStream;
 }) {
@@ -149,7 +149,7 @@ export function proxyBidi(bidi: {
   });
 }
 
-export function proxyIncomingUnis(incoming: ReadableStream<ReadableStream<Uint8Array>>) {
+function proxyIncomingUnis(incoming: ReadableStream<ReadableStream<Uint8Array>>) {
   const base = bindGet(incoming);
   return new Proxy(incoming, {
     ...base,
