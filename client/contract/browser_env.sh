@@ -48,4 +48,8 @@ require_vendor() {
     echo "the decoder vendor is missing: bash client/decode/wasm/fetch_openjph.sh ($NO_BROWSER_HINT)" >&2
     exit 2
   }
+  [[ -f client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js ]] || {
+    echo "the frame check's hasher is missing: bash client/decode/wasm/fetch_xxh3.sh ($NO_BROWSER_HINT)" >&2
+    exit 2
+  }
 }

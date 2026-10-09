@@ -26,6 +26,8 @@ export class DownloaderClient {
   #recycledAt = [];
   #triggers = new AbortController();
   #ending = null;
+  /** Per decoder path, frames delivered `exact` true, false and unchecked. docs/adr/exactness-in-production.md */
+  #exact = {};
 
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
@@ -108,6 +110,10 @@ export class DownloaderClient {
       info: m,
     };
     if (m.preview) return void this.#onPreview(frame);
+    if (m.path) {
+      const n = (this.#exact[m.path] ??= { true: 0, false: 0, unchecked: 0 });
+      n[m.exact] += 1;
+    }
     if (w) {
       this.#waiters.delete(m.index);
       w.resolve(frame);
@@ -165,7 +171,7 @@ export class DownloaderClient {
   }
 
   stats() {
-    return { closed: this.#closedReason, inFlight: this.#waiters.size, resumedAt: [...this.#resumedAt], recycledAt: [...this.#recycledAt] };
+    return { closed: this.#closedReason, inFlight: this.#waiters.size, resumedAt: [...this.#resumedAt], recycledAt: [...this.#recycledAt], exact: structuredClone(this.#exact) };
   }
 
   close() {

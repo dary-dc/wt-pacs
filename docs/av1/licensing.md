@@ -30,6 +30,7 @@ relying on a clause. Anything not confirmed from a primary source says so.
 | Firefox (`FIREFOX_157_0_RELEASE`, `fdd757a2`) and WebKit (`webkitgtk-2.52.6`, `4fb33923`) sources | nowhere: read for row XENGINE, not built | MPL-2.0; LGPL-2.1 and BSD-2-Clause | — | each tree's licence files |
 | AVM v1.0.0 (`avmenc`, `avmdec`; AV2's reference software, commit `966a7d7`) | lab only (row AV2); not shipped, and no browser decoder exists | BSD-3-Clause-Clear (`LICENSE`, © 2021 Alliance for Open Media): no patent rights granted by the code licence | its `PATENTS` is the AOM Patent License 1.0, byte-identical to libaom 3.15.1's (sha256 `661fb8e5…`); its grant covers “the specification designated … for which this License was issued”, and the tree does not say that AOM issued it for AV2's — **unconfirmed** | [LICENSE](https://raw.githubusercontent.com/AOMediaCodec/avm/v1.0.0/LICENSE), [PATENTS](https://raw.githubusercontent.com/AOMediaCodec/avm/v1.0.0/PATENTS), read from the pinned tag |
 | hash-wasm 4.12.0 (npm, its `LICENSE` read from the tarball); blake3 1.0.8 and xxhash 3.6.0 (PyPI wheels, hash-pinned in `lab/av1/exact/in-production/requirements.txt`) | lab only (row EXACTPROD): the hashes timed in the browser, and the truth's independent hashers; not shipped | hash-wasm MIT; blake3 CC0-1.0 OR Apache-2.0; xxhash BSD-2-Clause (each wheel's metadata) | — | the package files |
+| hash-wasm 4.12.0, its single-algorithm XXH3 build (`dist/xxhash3.umd.min.js`, 18 KB with its WASM inline; `client/decode/wasm/fetch_xxh3.sh`, tarball sha256 pinned); xxhash 3.6.0 (PyPI wheel, hash-pinned in `lab/av1/requirements.txt`) | client (the decoder worker's frame check), ingest (the frame digest) | hash-wasm MIT; xxhash BSD-2-Clause, wrapping xxHash (BSD-2-Clause) | — | the tarball's `LICENSE`; the wheel's metadata |
 
 All of these are compatible with this repository's MIT licence — LCEVC's code too, though its
 patents are not granted and no open LCEVC encoder exists ([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md)).
@@ -47,6 +48,8 @@ it as a separate program, links nothing against it and ships nothing built from 
   `.wasm` from the pinned sources' own files — dav1d's `COPYING` and `doc/PATENTS` (the AOM Patent
   License 1.0), emscripten's `LICENSE` and musl's `COPYRIGHT` — and the dispatch variant checks it is
   served there. Nothing is copied by hand, so a tag bump carries its own text.
+* **The frame check's hasher** carries hash-wasm's MIT `LICENSE`, fetched beside its script from the pinned
+  tarball by `client/decode/wasm/fetch_xxh3.sh` and served with it.
 * **Defensive termination** (§1.3): the patent licence ends for whoever starts patent litigation
   alleging an AV1 implementation infringes.
 * **No endorsement**: VideoLAN's, AOM's or SVT-AV1's names are not used to promote this project

@@ -23,6 +23,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
+import xxhash
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lab/av1"))
 import size  # noqa: E402
@@ -78,6 +79,13 @@ def plan(s, representation, split=None, grey8="400"):
         streams.append((8, "400", lambda i: v(i) & ((1 << split) - 1)))
     flags = FLAG_SIGNED if s.signed else 0
     return dict(bits=bits, depth=depth, split=split, flags=flags), streams
+
+
+def frame_digest(px, wide):
+    """XXH3-64 of a frame as decodeFrame hands it on: docs/FIXTURES.md §Frame digests."""
+    signed = px.dtype.kind == "i"
+    dt = ("<i2" if signed else "<u2") if wide else ("i1" if signed else "u1")
+    return xxhash.xxh3_64_hexdigest(np.ascontiguousarray(px, dt).tobytes())
 
 
 def encoder_args(preset, representation, depth, layout):
@@ -249,7 +257,9 @@ def main():
         (a.out / f"{i:03d}.{a.codec}").write_bytes(data)
         shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
     meta = json.loads((a.set_dir / "metadata.json").read_text())
-    meta.update(frameCount=n)
+    # decodeFrame hands samples on in two bytes over 8 bits, which for AV1 is the payload's bits, not the stored.
+    wide = plan(s, a.representation, a.split, a.grey8)[0]["bits"] > 8 if a.codec == "av1" else s.stored > 8
+    meta.update(frameCount=n, digests=dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), wide) for i in range(n)]))
     if a.codec == "av1":
         meta.update(codec="av1", representation=a.representation)
     if a.codec == "av1" and a.split is not None:

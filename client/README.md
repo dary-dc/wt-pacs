@@ -143,6 +143,18 @@ list rather than failing the run, and fails it only once the re-dials have run o
 dies is resumed). Neither check sees a codestream the server truncated *before* framing it; the
 harness's per-frame `.sha256` is what sees that.
 
+**A frame says whether it is exact.** Given the series' digests — `opts.digests`, the metadata's
+`digests.frames` when its `algorithm` is `xxh3-64` ([`docs/FIXTURES.md`](../docs/FIXTURES.md) §Frame digests) —
+each decoder worker hashes every frame it decodes before handing it on, and the frame carries
+`info.exact`: `true` when its XXH3-64 matches, `"unchecked"` when the series or the frame has no digest.
+A mismatch is decoded once more on another path (`info.path`: `htj2k` in a decoder object of its own,
+`av1-webcodecs` ⇄ `av1-dav1d`, `av1-mixed` → `av1-dav1d`; inside a group there is none) and is `true`
+only if that matches, with `info.mismatchOn` naming the path that missed; otherwise `false`, its
+`info.reason` naming both decodes. A frame is never asked again for it: the same bytes would come back.
+`stats().exact` counts frames per path as `{ true, false, unchecked }`. The hasher is hash-wasm's XXH3
+(`decode/wasm/fetch_xxh3.sh`); a worker given digests that cannot load it fails its start. What it costs
+and why it is on: [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md).
+
 **A session that dies is resumed.** A path that goes away takes no byte with it that the records do
 not already hold, so the worker treats a death as a resumption rather than a failure. Every
 platform trigger — `online`/`offline` and `navigator.connection` `change` in the worker,
