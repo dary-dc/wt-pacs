@@ -1055,6 +1055,32 @@ container's emulation of a phone's CPU with the GPU left at full speed. What wou
 cleanup kernels and a 5/3 synthesis in WGSL, exact against OpenJPH on SwiftShader here, then timed on a
 phone with WebGPU (Chrome Android 121+, iOS 26) — the owner's, as row 29's phones are.
 
+**A WebGPU block decoder, built (row WEBGPUHT).** [`lab/av1/decode/webgpuht`](../../lab/av1/decode/webgpuht/README.md)
+decodes an HTJ2K frame on WebGPU after the packet headers are parsed on the CPU: the cleanup pass as the two kernels
+above — MEL and VLC a thread a code-block; MagSgn a workgroup a code-block, quad rows in order (a row's exponent bound
+needs the magnitudes above it) and each row's bit offsets an exclusive scan, through workgroup memory or `subgroups` —
+then the 5/3 synthesis a thread a line, and a pack to the samples OpenJPH emits. Run as `levers-protocol.md` §L3 states
+it, on SwiftShader in headless Chromium 141, every frame against the checksum written when its input was made: the
+twelve synthetic sets (87 frames each, `parity.mjs`'s nine among them) and every frame of the five sound breast series
+(tomosynthesis 614×1359 and 931×2124, 29 and 68; projections 1914×2572, 9; synthesized 2D and full-field, 4 each):
+
+| arm | frames exact | dispatches a frame | read-backs a frame |
+| --- | ---: | ---: | ---: |
+| one frame a dispatch, workgroup scan | 1 158 / 1 158 | 13 | 1 |
+| one frame a dispatch, subgroups | 1 158 / 1 158 | 13 | 1 |
+| a batch a dispatch, workgroup scan | 1 158 / 1 158 | 0.15–3.25 | 0.01–0.25 |
+| a batch a dispatch, subgroups | 1 158 / 1 158 | 0.15–3.25 | 0.01–0.25 |
+| mixed: frame k of all 17 sets in one batch, k = 0…3, each scan | 136 / 136 | 0.76 | 0.06 |
+
+A batch is 13 dispatches — 2 cleanup, 2 per wavelet level, 1 pack — and one read-back, holding up to 256 MB of
+coefficients: 87 frames of 512², 4 of 3328×4096. The mixed batches put 160² to 3328×4096, 8 to 16 bits, signed and
+unsigned, grey and RGB in the same dispatches. **L3-P1 and L3-P2 held; the container stage passes.** Checked: one
+byte flipped after decoding, the lifting's rounding constant 2 → 1, a code-block written one row down, and the scan
+made inclusive (each scan) took every arm to 0 / 580 on `g8`, `c512`, `s12` and `dbt12_ea1141`; the subgroup lane
+check inverted counted faults on every scan. *Not built:* the refinement passes — no code-block here has one (OpenJPH's
+encoder writes the cleanup pass alone), so none could be checked; a stream with them is refused. *No time is claimed:*
+SwiftShader runs WGSL on the CPU. The phone stage's rule is §L3's, unchanged, and waits for the owner's phones.
+
 **What a phone would need.** For an ask: the thread pool, at two helpers, is the one lever measured
 here, worth 9–31 % of a frame and 30–40 % on the largest; nothing else bounded exceeds 15 % (*corrected
 by row GPU:* a ported block decoder bounds higher, unmeasured). For a fill: more decoders or a faster core —

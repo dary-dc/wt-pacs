@@ -10,7 +10,7 @@ struct Block { offset: u32, lcup: u32, w: u32, h: u32, missing: u32, kmax: u32, 
 @group(0) @binding(4) var<storage, read_write> ms: array<u32>;
 @group(0) @binding(5) var<storage, read_write> ms_bits: array<u32>;
 @group(0) @binding(6) var<storage, read_write> planes: array<i32>;
-// [0] blocks whose MEL+VLC length is impossible, [1] workgroups whose subgroups are not contiguous
+// [0] blocks whose MEL+VLC length is impossible, [1] scan lanes found out of invocation order
 @group(0) @binding(7) var<storage, read_write> faults: array<atomic<u32>, 2>;
 
 const VLC1 = 1024u;

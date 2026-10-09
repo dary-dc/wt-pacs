@@ -15,7 +15,7 @@ fn scan(t: u32, c: u32) -> vec2u {
   return vec2u(scan_buf[t] - c, scan_buf[31]);
 }`;
 
-// Lanes are assumed to be consecutive invocations; a workgroup where they are not is counted in faults[1].
+// Lanes are assumed to be consecutive invocations; each lane found otherwise is counted in faults[1].
 const SCAN_SUBGROUP = /* wgsl */ `
 fn scan(t: u32, c: u32) -> vec2u {
   let incl = subgroupInclusiveAdd(c);
