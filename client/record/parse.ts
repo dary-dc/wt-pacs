@@ -58,11 +58,11 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
 export function parseFodAsks(chunk: Uint8Array): FodAsk[] {
   const asks: FodAsk[] = [];
   for (const m of parseFodMessages(chunk).messages) {
-    if (m.op === "request_frame") asks.push({ kind: "interaction", frames: [m.frame] });
+    if (m.op === "request_frame") asks.push({ kind: "ask", frames: [m.frame] });
     else if (m.op === "stream_frames") {
       const from = m.from ?? 0;
       asks.push({
-        kind: "preload",
+        kind: "fill",
         frames: typeof m.to === "number" ? Array.from({ length: m.to - from + 1 }, (_, i) => from + i) : [],
       });
     }

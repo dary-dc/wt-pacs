@@ -171,13 +171,13 @@ export class Tap {
     row.last_byte_us = last_byte_us;
     row.chunks = chunks;
     row.bytes = bytes;
-    if (row.kind === "preload") {
+    if (row.kind === "fill") {
       this.closeRow(row, "last_byte");
       this.deliveredLater.expect(row);
     }
   }
 
-  /** The app has the bytes. Interaction rows close here; a closed preload row takes the mark as its `deliver` stage. */
+  /** The app has the bytes. Ask rows close here; a closed fill row takes the mark as its `deliver` stage. */
   onDelivered(frame_index: number) {
     const t = nowUs();
     const row = this.openIndex.findOpen(frame_index) ?? this.deliveredLater.take(frame_index);
@@ -190,7 +190,7 @@ export class Tap {
       return;
     }
     row.delivered_us = t;
-    if (!row.closed && row.kind === "interaction") {
+    if (!row.closed && row.kind === "ask") {
       this.closeRow(row, "delivered");
     }
   }
@@ -198,7 +198,7 @@ export class Tap {
   private openRow(kind: RowKind, frame_index: number, ask_us: Us) {
     const ask_ordinal = this.takeOrdinal(frame_index);
     let gesture_us = this.pendingGestures.get(frame_index) ?? null;
-    if (gesture_us == null && kind === "preload") gesture_us = this.bulkGesture;
+    if (gesture_us == null && kind === "fill") gesture_us = this.bulkGesture;
     this.pendingGestures.delete(frame_index);
     const row = createOpenRow(kind, frame_index, ask_ordinal, gesture_us, ask_us);
     this.openIndex.add(row);
@@ -244,7 +244,7 @@ export class Tap {
     }
 
     for (const row of this.openIndex.openRows()) {
-      if (!row.closed && row.last_byte_us != null && row.kind === "preload") {
+      if (!row.closed && row.last_byte_us != null && row.kind === "fill") {
         this.closeRow(row, "last_byte");
       }
     }

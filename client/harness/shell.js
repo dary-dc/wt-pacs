@@ -223,7 +223,7 @@ async function boot() {
       const wallMs = performance.now() - t0;
       stopHeapSampler();
       const summary = {
-        arm: `downloader/${transportName}`,
+        client: `downloader/${transportName}`,
         cell,
         depth: cell === "fill" ? asked : depth,
         interval_ms: interval,

@@ -12,7 +12,7 @@ import { encodeFodMsg } from "./wire.ts";
 
 const query = new URL(import.meta.url).searchParams;
 const tap = install({
-  arm: "transport-ts",
+  client: "transport-ts",
   stream_mode: query.get("stream_mode") === "per-frame" ? "per-frame" : "shared",
 });
 

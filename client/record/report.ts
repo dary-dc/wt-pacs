@@ -20,7 +20,7 @@ const DIST_ACCESSORS: {
   include?: (f: ClientFrameRow) => boolean;
 }[] = [
   // Fill rows share one gesture and one ask stamp: their queue is a scalar, reported once.
-  { key: "queue", get: (f) => f.queue_us, include: (f) => f.kind === "interaction" },
+  { key: "queue", get: (f) => f.queue_us, include: (f) => f.kind === "ask" },
   { key: "serve_plus_path", get: (f) => f.serve_plus_path_us },
   {
     key: "transfer",
@@ -130,9 +130,9 @@ export function assembleReport(args: {
   };
   for (const f of frames) outcomes[f.closed_at] += 1;
 
-  const hasPreload = frames.some((f) => f.kind === "preload");
-  const report_mode = hasPreload ? "fill" : "ondemand";
-  const ask_granularity = hasPreload ? "stream_frames" : "request_frame";
+  const hasFill = frames.some((f) => f.kind === "fill");
+  const report_mode = hasFill ? "fill" : "ondemand";
+  const ask_granularity = hasFill ? "stream_frames" : "request_frame";
 
   const serve = usable
     .map((f) => f.serve_plus_path_us)
@@ -142,8 +142,6 @@ export function assembleReport(args: {
     .filter((v): v is number => v != null);
 
   const headline = {
-    ask_to_first_paint: null,
-    ask_to_last_paint: null,
     ask_to_first_frame_complete_us: minOf(askToComplete),
     ask_to_last_frame_complete_us: maxOf(askToComplete),
     max_serve_plus_path_us: maxOf(serve),
@@ -159,11 +157,11 @@ export function assembleReport(args: {
     distributions[key] = distributionStats(vals);
   }
 
-  // One number per fill: the first preload row's queue (they all share the stamps).
-  const firstPreload = converted
-    .filter((c) => c.open.kind === "preload" && c.row.queue_us != null)
+  // One number per fill: the first fill row's queue (they all share the stamps).
+  const firstFill = converted
+    .filter((c) => c.open.kind === "fill" && c.row.queue_us != null)
     .sort((a, b) => (a.open.ask_us ?? 0) - (b.open.ask_us ?? 0))[0];
-  const fill_queue_us = firstPreload ? firstPreload.row.queue_us : null;
+  const fill_queue_us = firstFill ? firstFill.row.queue_us : null;
 
   const meanBytes =
     usable.length === 0
@@ -180,7 +178,7 @@ export function assembleReport(args: {
   return {
     summary: {
       report_mode,
-      arm: args.config.arm,
+      client: args.config.client,
       stream_mode: args.config.stream_mode,
       ask_granularity,
       stages_present: ["queue", "serve_plus_path", "transfer", "deliver"],
@@ -197,7 +195,6 @@ export function assembleReport(args: {
         copies_per_frame_declared: args.config.copies_per_frame_declared,
         copies_source: args.config.copies_source,
       },
-      preload_to_decode: null,
       cold_start: {
         max_queue_us: maxOf(queueVals),
       },

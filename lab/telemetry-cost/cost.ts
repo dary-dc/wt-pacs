@@ -27,7 +27,7 @@ const range = (a: number[]): [number, number] => [Math.min(...a), Math.max(...a)
 /** One run: `count` frames of `size` bytes through a whole session. Returns µs per frame. */
 async function oneRun(arm: Arm, count: number, size: number, chunks: number): Promise<number> {
   installFakeTransport();
-  if (arm === "on") install({ arm: IMPL as "transport-ts", patch: true });
+  if (arm === "on") install({ client: IMPL as "transport-ts", patch: true });
 
   const session = await impl.connect("https://telemetry-cost.invalid/", CERT);
   const payload = new Uint8Array(size).fill(7);
