@@ -17,7 +17,7 @@ Written by queue row MERGEPREP, 2026-10-10, for the owner, who merges. Nothing h
 this branch stops on 24 conflicts — `Cargo.lock`; `server/src/main.rs`, `media/read_path.rs`, `record/tap.rs` and
 `transport/` (`mod.rs`, `pipeline.rs`, `planner.rs`, `server.rs`, `tuning.rs`, `websocket.rs`, and `frame_out.rs`,
 deleted on `main` and changed here); `common/frame-envelope/src/lib.rs` and `common/series-bundle/src/writer.rs`
-(`ingest/study-bundle/Cargo.toml` changed on `main`, moved here); `client/transport/wasm/src/session.rs`;
+(`ingest/study-bundle/Cargo.toml` changed on `main` at `c7230a9`, moved here); `client/transport/wasm/src/session.rs`;
 `docs/WIRE.md` and four ADRs; `lab/disk-access-bench` (2 files), `lab/scripts/telemetry_e2e_baseline.sh` and
 `server/scripts/check_telemetry_absent.sh`. Most are this branch's renames (below) meeting PR #34's refactor of the
 same lines. The trial was aborted; how and where they are resolved is the owner's (`queue.md` §Blocked).
@@ -51,8 +51,8 @@ Each change with the measurement that adopted it; HTJ2K codestreams are byte-for
 
 **Renamed, which breaks a caller that uses the old names** (no behaviour change): the server binary `exact-server` →
 `series-server`, `--study` → `--series`, `/study/metadata` → `/series/metadata`, `pack-study` → `pack-series`,
-`ingest/study-bundle` → `common/series-bundle`; the client as `client/transport/` (downloader, consumer,
-`ts/`, `wasm/`), `client/decode/` and `client/contract/` (was `client/conformance/`). `deploy/` and every script in
+`ingest/study-bundle` → `common/series-bundle` (each old name retired); the client as `client/transport/` (downloader, consumer,
+`ts/`, `wasm/`), `client/decode/` and `client/contract/` (retired: `client/conformance/`). `deploy/` and every script in
 the tree use the new names.
 
 ## What ships that is not code
