@@ -2548,6 +2548,19 @@ proposed, nothing queued. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
+* **2026-10-10 20:50 UTC: row 113 LEVERREVIEW — whether to ship today's code-block pool for series from 1914×2572 up**, as a second OpenJPH build
+  chosen per series: row 91's missing cold ask is now measured (row 108: projections ×0.89–0.94 cold, ×0.72–0.76 warm,
+  ×1.31–1.36 on the ready path, fills ±1.3 %; +2.2–2.5 MB a worker). The helper-after-ready variant and the coarser
+  hand-off units failed their rules (`levers-protocol.md` §Review, L1 and L4).
+* **2026-10-10 20:50 UTC: row 113 LEVERREVIEW — whether three stripes on idle workers are pursued as an ask's lever**: ×0.60–0.68 of the
+  reference at 4× on large frames and ×0.77–0.85 of the pool, but through OpenHTJ2K, a second decoder ×1.13–1.41
+  slower whole; and whether precincts in the stored layout are worth a re-encode, the only way a viewport would decode
+  or fetch by its area (§Review, L2).
+* **2026-10-10 20:50 UTC: row 113 LEVERREVIEW — the phone stages of L3 and L5**: which phones (Chrome Android 121+ and Safari 26 for the
+  WebGPU decoder's time; little cores and an iPhone for paced decode's energy) and when; and whether L5's one-cell
+  miss (12 of 16 rounds against 8 of 10, median ×1.002) stands, or a decoder started on first need is measured first,
+  since the saving found is the start of two unused decoders (§Review, L3 and L5).
+
 * **2026-10-09 17:35 UTC: row 107 EVENREVIEW — whether `bbr-bound` stays in the product, opt-in, or is retired as BB2
   and BBF were;** it failed its rule and nothing recommends it to a user (`transport-conclusions.md` §1, reviewed).
 * **2026-10-09 17:35 UTC: row 107 EVENREVIEW — whether a per-packet loss bound is worth pursuing** (proposed to quinn
