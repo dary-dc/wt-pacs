@@ -118,6 +118,95 @@ of JPIP or JPEG 2000 streaming of medical images in a browser was found (**uncon
   ([`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §6), still not
   in quinn or wtransport.
 
+## 8. HTTP/3 `fetch()` in place of WebTransport, reasoned
+
+*Queue row H3FETCH, 2026-10-10: mechanism, predictions and a protocol; nothing built or timed. It sharpens §Proposed
+rows 1 (FETCH).* Chromium's source is read at tag `141.0.7390.37` (`net/quic/`, `net/spdy/`), the lab's browser;
+Firefox's and Safari's HTTP/3 stacks were not read.
+
+**What stays the same.**
+
+* **The QUIC stack and its receive bound.** In Chromium both paths are quiche, and both build their configuration
+  with the same `InitializeQuicConfig`: a 15 MB connection and a 6 MB stream receive window
+  (`quic_context.cc`, `kQuicSessionMaxRecvWindowSize`, `kQuicStreamMaxRecvWindowSize`), used by the session pool
+  that carries `fetch()` (`quic_session_pool.cc`) and by `DedicatedWebTransportHttp3Client`. Whatever bounds the
+  browser's receive rate today ([`transport-conclusions.md`](transport-conclusions.md)) bounds a fetch too.
+* **The server's congestion control**, if the server is ours: a GET served over the same quinn endpoint sends with
+  the same controller and initial window. A frame's bytes, its digest and the client's exactness check do not change.
+* **Loss and head-of-line blocking.** A request is a stream of its own, the shape measured as `per-frame`; with an
+  order on the server's side it was level with the shared stream ([`../adr/stream-shape.md`](../adr/stream-shape.md)),
+  and the HTTP/3 studies in §5 found streams buy little under random loss.
+
+**What changes.**
+
+* **The connection is pooled.** `fetch()` to an origin rides the page's own HTTP/3 connection when it has one
+  (`QuicSessionPool`); WebTransport opens a dedicated connection and session every time, and never resumed one in
+  216 dials ([`transport-conclusions.md`](transport-conclusions.md) §9, *Closed*). A frame fetched from the page's
+  origin, on a connection already up, skips the dial — the 3.03 round trips to a ready session that
+  [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §What production adds counts — and a reconnect can resume TLS and send a
+  GET in 0-RTT, which the WebTransport draft forbids for CONNECT. Discovery is the price: Chromium uses HTTP/3 only
+  after an `Alt-Svc` from a TCP response or an HTTPS DNS record with `alpn=h3` (measured: −1.06 round trips to every
+  milestone, §The static plane there), so a first visit without the record speaks HTTP/2 over TCP.
+* **Connection migration.** Chromium's migration on network change lives in `QuicChromiumClientSession`, driven by
+  the session pool; the dedicated WebTransport client has none ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §What this
+  means for the stack choice). A pooled HTTP/3 fetch is the only way a page reaches it. Whether Chromium on Android
+  migrates by default, and how often a viewer changes network mid-series, are not read or measured.
+* **A request a frame, or a range of frames.** Each GET is a request stream with QPACK-coded headers (tens of
+  bytes) and a response header; a fill is either one GET a frame or one GET for `[k … N]` whose body is the frames
+  in order — the shared stream's shape. The server's `initial_max_streams_bidi` caps requests in flight; Chromium
+  queues the rest.
+* **Priorities are the browser's, advisory.** Chromium writes an RFC 9218 `priority` header on every HTTP/3 request,
+  urgency = `HIGHEST − ` the request's priority, incremental from the request (`spdy_http_utils.cc`,
+  `quic_http_utils.cc`); how Blink maps `fetch()`'s `priority` hint and a worker's requests onto that was not read.
+  Today the ask jumps the fill because the server orders one stream; with fetch it jumps only if the server honours
+  urgency or the client cancels the fill.
+* **Cancellation.** `AbortController` ends the request; the bytes in flight are spent and count against connection
+  flow control (§5). An ask during a one-GET fill means aborting the fill and re-asking from where it stopped — the
+  downloader's re-issue today ([`../WIRE.md`](../WIRE.md) §An ask during a fill).
+* **No push at session open.** The opening ask — frame 0 sent with the session — has no HTTP equivalent; a GET for
+  frame 0 sent at page load, or in 0-RTT on a resumed connection, is the nearest.
+* **HTTP caching and CDNs.** A frame with a stable URL is cacheable: a repeat view from the browser's cache, a CDN in
+  front of the server. The cache writes every frame to the device's disk on first view, and on a shared device a
+  patient's frames persist there; `Cache-Control: no-store` turns it off. Which is wanted is the owner's.
+* **CORS.** Same-origin frames need nothing. Cross-origin, a GET with no custom header and at most one `Range` is a
+  simple request; any other header (a session token) draws a preflight, cached for `Access-Control-Max-Age`.
+* **TCP comes for free.** The same `fetch()` falls back to HTTP/2 over TCP where UDP is blocked; today that needs the
+  WebSocket path behind `--websocket` ([`transport-conclusions.md`](transport-conclusions.md) §9 item 10).
+
+**What the server would need.** Today its HTTP/3 surface ends any non-CONNECT request with no response
+(`wtransport`'s behaviour, [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Other clients). A GET path means a request
+handler on the same quinn endpoint (wtransport extended, or `h3` over `h3-quinn`, which the lab's other clients
+already build), a TCP listener for HTTP/2 and `Alt-Svc`, responses from the same store with the frame's length and,
+for a fill, the frames in order on one response; caching and CORS headers; and an HTTPS DNS record in deployment.
+Structural: a second wire beside today's, not built.
+
+**Predictions** (fetch × today's WebTransport, the same server, controller and initial window, Chromium):
+
+| cell | predicted | why |
+| --- | --- | --- |
+| warm ask, every link | ×0.97–1.05 | the same round trip; a request header more |
+| fill, clean links, 1× | ×0.97–1.03 | the same stack and controller; the wire is the clock |
+| fill at 4× | ×1.00–1.06 | a request's per-frame work in the renderer and network service |
+| fill under 1–3 % loss | ×0.95–1.05 | streams buy little under random loss (§5) |
+| ask behind a running fill | ×1.0–2.0 | today the server orders one stream; fetch relies on urgency or an abort |
+| first frame, cold, the page's origin already on HTTP/3 | ×0.5–0.7 | the dedicated dial skipped |
+| first frame, cold, no HTTPS record | ×1.0–1.3 | HTTP/2 over TCP and TLS |
+| a reconnect after a network change on a phone | far below today's | migration or 0-RTT against a cold session; not container-measurable |
+
+**Protocol.** The server with a GET path beside WebTransport on one quinn endpoint, both arms printing their full
+settings (controller and initial window, transport options, decoder path) and differing in the delivery path alone;
+the lab downloader with a fetch arm in its worker (one GET a frame, and one GET a fill); headless Chromium 141 through
+the relay on 5, 20, 50 Mbit, `lte-good` and `wifi-home`, 1× and 4×; `g512`, tomosynthesis 614×1359 and full-field
+3328×4096; arms Williams-ordered, n ≥ 10, `VOID` handled as [`../av1/queue.md`](../av1/queue.md) §Protocol says; every frame against its digest. Measured:
+the first frame cold with the origin's connection up and with none, a warm ask, an ask behind a fill, the fill, and
+time to every 8th frame. Firefox as a second engine where its dial settles.
+
+**Decision rule.** *Worth a design* (a GET path beside WebTransport, the owner's) when the warm ask and the fill are
+≤ ×1.02 in ≥ 8 of 10 rounds on every link and throttle, the ask behind a fill ≤ ×1.10, and the cold first frame on
+an origin already up ≤ ×0.85. *Rejected* when any fill or warm ask is over ×1.05 at 4× in ≥ 8 of 10 rounds. Between
+the two, not conclusive in the container: migration and 0-RTT decide it on a phone, and the owner's criterion asks
+first how often a viewer changes network mid-series (field telemetry). *Proposed, not queued.*
+
 ## What they do better, and the measurement that would test it
 
 | what others do | what the product does | the measurement here |
@@ -136,7 +225,7 @@ exact frames.
 
 ## Proposed rows (not queued)
 
-1. **FETCH — the same frames over plain HTTP/3 `fetch()`.** One GET a frame, then the viewer's two stages (a Range
+1. **FETCH — the same frames over plain HTTP/3 `fetch()`.** *Mechanism, predictions and rule: §8.* One GET a frame, then the viewer's two stages (a Range
    prefix, then the rest), against the product, through the relay on the phone profiles ([`transport-conclusions.md`](transport-conclusions.md) §1 *Link profiles close to a phone*), interleaved: ask
    latency, fill, time to every 8th frame. The lab has never measured the product against the way everyone else
    delivers, and the transport's choices rest on that comparison being won.
