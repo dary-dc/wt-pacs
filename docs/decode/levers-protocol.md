@@ -196,6 +196,100 @@ little cores and on an iPhone.
 busy time ≤ ×1.03 and wake-ups no more. *Stated now for the phone stage:* worth adopting only if energy per fill is
 ≤ ×0.95 of today's on every phone measured, with the fill ≤ ×1.01.
 
+## Review (row LEVERREVIEW, 2026-10-10)
+
+Rows HELPERSTART, REGIONDECODE, COARSEPOOL, WEBGPUHT and DECODEPACE ran §L1–§L5 as written on `claude/av1-unified`;
+their numbers are in *decode §Code-blocks on threads, measured*, *§A coarser hand-off unit, measured*, *§Region
+decode, measured*, *§A WebGPU block decoder, built*, and `docs/ARCHITECTURE.md` §Follow the queue, measured. This
+review was written by a session that measured none of them. Every frame, region and stripe of every row was exact.
+
+**L1 — the helper after ready: does not hold; conclusive in the container.**
+
+| # | predicted | measured | |
+| --- | --- | --- | --- |
+| P1 | pool ×1.35–1.60, *late* ×0.97–1.03 | pool ×1.16, *late* ×1.19 (1/10) at 4×; ×1.18 and ×1.06 at 1× | refuted, both |
+| P2 | both ×0.98–1.02 | pool ×0.99, *late* ×1.02–1.04 | pool held, *late* refuted |
+| P3 | both ×0.70–0.80 | pool ×0.72–0.76, *late* ×0.81–0.84 | pool held, *late* refuted |
+| P4 | both ×0.88–0.95 | pool ×0.92 at 1×, ×0.82 at 4×; *late* ×1.03–1.14 | pool held at 1×, *late* refuted |
+| P5 | ×0.98–1.01 | ×0.987–1.004 | held |
+
+The margins are wide (cold ask ≤ ×1.03 in 4 and 2 of 10 rounds against 8; warm 6 and 7), and strict and round-paired
+readings agree, so the verdict does not wait on more rounds. The mechanism held only in part: the pool's start does
+sit on the ready path (+58 ms at 4×, 10/10), and *late* takes part of it off (×1.36 → ×1.14), but its cold ask at 4×
+is no better than the pool's, and it gives back a third of the warm gain on large frames. Why is not measured; a
+helper still loading while the first frames decode, on the same throttled cores, is the obvious candidate. The cold
+loss the lever was built for was also smaller than the earlier ×1.47 (a ratio of two package-relative readings): the
+pool is ×1.16 on `g512` at 4×, and on the 14-bit projections it already wins a cold ask (×0.89–0.94, 7 and 9 of 10).
+*Still to measure on a phone:* nothing for *late*; for the pool, its cold and warm asks with the helper on a little
+core — the owner's pool decision (§Blocked) has its container data now.
+
+**L2 — region decode: not worth a design; stripes beat the pool; conclusive for (a), narrow for (b).**
+
+| # | predicted | measured | |
+| --- | --- | --- | --- |
+| P1 | viewport on 3328×4096 0.20–0.35 of OpenHTJ2K whole | 0.60–0.69 | refuted |
+| P2 | viewport on 1914×2572, 2394×2850 under 0.60 | 0.90–1.04 | refuted |
+| P3 | 3 stripes on large 0.40–0.50 of one worker | 0.47–0.49 at 4×, 0.57–0.60 at 1× | held at 4×, refuted at 1× |
+| P4 | reported | `g512` ×0.99–1.08 of OpenJPH; tomosynthesis ×0.71–0.90 | — |
+| P5 | reported | OpenHTJ2K whole ×1.13–1.41 of OpenJPH | — |
+
+(a) failed on its mechanism, not its margin: OpenHTJ2K's column range narrows the wavelet but decodes every block of
+each row the region reaches, so a 19 % viewport costs 72–84 % of the block bytes; the predictions had scaled with
+area. Today's codestreams (one precinct a resolution) cannot be fetched
+by region either. (b) missed ≤ 0.60 by 0.02–0.08 on two of three large series at 4× (×0.62, ×0.68; ×0.60 on the
+synthesized 2D), 10 of 10 rounds each, so the miss is real but small, and stripes beat today's pool there (×0.77–0.85,
+10/10) with no threads. Stripes need OpenHTJ2K, a second decoder ×1.13–1.41 slower on a whole frame, and k idle
+workers, which a fill does not leave: an ask's lever only. *Still to measure:* a decoder that skips blocks outside the
+columns, or precincts in the stored layout, would change (a) — a re-encode, the owner's; on a phone, three stripe
+workers on mixed cores.
+
+**L3 — a WebGPU HT block decoder: the container stage passes; nothing about speed is known.** P1 held (4 768 of 4 768
+frames exact, one frame a dispatch and batched, workgroup scan and `subgroups`); P2 held (136 frames in mixed batches
+of 160² to 3328×4096, 8 to 16 bits, signed, grey and RGB); four mutants each took every arm to 0 / 580. Conclusive for
+exactness on what the ingest writes: OpenJPH's encoder writes the cleanup pass alone, so the refinement passes are
+untested and a stream carrying them is refused, not decoded wrong. Untested by design: every time. *Still to measure,
+on the owner's phones* (Chrome Android 121+, Safari 26): a warm ask on a breast frame from 931×2124 up, upload and
+read-back included, against the reference — ≤ ×0.70 in 8 of 10 rounds — and a fill ≤ ×1.01; Safari's `mapAsync`
+stall [8] and which phones expose `subgroups` [7] are read there, not here.
+
+**L4 — a coarser hand-off unit: the row unit stays; conclusive.**
+
+| # | predicted | measured | |
+| --- | --- | --- | --- |
+| P1 | 512²: row ×0.88–0.95, coarse toward ×0.70 | row ×0.80–0.86, coarse ×0.68–0.71 | coarse held; the row faster than predicted |
+| P2 | large: row ×0.70–0.79, coarse toward ×0.65 | row ×0.68–0.84 (in range 4 of 6 cells), coarse ×0.66–0.81 | row mostly held; coarse reaches ×0.66 on the projections at 4× only |
+| P3 | +~15 MB at 1914×2572, resolution only | +20–22 MB, subband as costly as resolution; +54–61 MB at 3328×4096 | refuted |
+
+The rule fails: 0.03 under the row on every large series in 2–7 of 10 rounds against 8, and at 1× on the
+projections all three units tie. P3's mechanism was wrong: OpenJPH pulls every band of every resolution line by line,
+so any unit decoded at once holds the whole frame's coefficients. The row's 512² ratio moves between sessions on the
+same bench (×0.80–0.86 here, ×0.88–0.91 in row HTJ2KMT, ×0.82–0.92 in L1's warm ask): a 512² pool gain is not known
+closer than ±0.06. *Still to measure on a phone:* the little-core straggle the lever was for (a 2-block row predicted
+up to ×1.7 slower with a slow helper) — only if the pool ships.
+
+**L5 — decode paced to the wire: the fill holds, the container stage misses its rule on one cell; the mechanism is not
+the one predicted.**
+
+| # | predicted | measured | |
+| --- | --- | --- | --- |
+| P1 | fill ×0.99–1.01 where the wire is the clock | medians ×0.998–1.002 | held |
+| P2 | not predicted (full-field 50 Mbit 4×) | ×1.001, 15/16 | — |
+| P3 | CPU busy ×0.97–1.03 | ×0.85–0.98, under the range in 7 of 12 cells | refuted, low |
+| P4 | fewer wake-ups and decoders busy at once | wake-ups ×0.18–0.47; busy at once lower in 3 of 12 cells | held |
+
+Tomosynthesis on `lte-good` at 4× is ≤ ×1.01 in 12 of 16 rounds (strict 8 of 11) against 8 of 10, so by the rule as
+written the container stage does not pass, both readings agreeing. As evidence against the lever it is weak: the
+cell's median is ×1.002 and its last byte arrived at ×1.001, the overshoot in the trace's delivery more than in decode.
+P3's refutation is the finding: today's least-busy dispatch already decodes on one decoder in 9 of 12 cells, so the
+work is not spread as the hypothesis assumed; what follow-the-queue saves is the start of two decoders never used
+(−2 to −15 % CPU, 55–82 % of wake-ups). A decoder started on first need, without retiring, would take most of that and
+was not an arm. *Still to measure, on phones* with little cores and an iPhone: energy per fill, ≤ ×0.95 of today's
+with the fill ≤ ×1.01; the saving the container shows is a start cost, which a phone's energy may or may not see.
+
+**Across the five.** No lever moves a fill: the wire is its clock on every link measured. For an ask on frames from
+1914×2572 up, today's pool (warm ×0.72–0.76, cold ×0.89–0.94) and three stripes on idle workers (×0.60–0.68 at 4×)
+are the two container gains; the GPU's is unknown until a phone runs it. Nothing here changes a product default.
+
 ## Sources (all read 2026-10-09)
 
 1. Emscripten settings reference, `PTHREAD_POOL_SIZE` and `PTHREAD_POOL_DELAY_LOAD` —
