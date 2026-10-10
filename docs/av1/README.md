@@ -54,6 +54,8 @@ committed); a size verdict names its content. They are a CT stack, an MR stack, 
 cine, a 12-bit fluoroscopy run, a 16-bit cone-beam volume and, from the tomosynthesis measurement (queue row CONTENT), two breast
 tomosynthesis volumes (12- and 10-bit), all CC BY ([`FIXTURES.md`](../FIXTURES.md) §AV1 data); no
 open angiography run was found, re-checked by the tomosynthesis measurement.
+Which closed verdicts rest on lossy-sourced, off-target or thinly sampled data, and what would settle the critical
+ones, is [`FIXTURES.md`](../FIXTURES.md) §Provenance, *Every closed verdict against its data*.
 
 ## How we use it
 

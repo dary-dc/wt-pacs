@@ -431,10 +431,94 @@ full citation each collection asks for is on its DOI page, which this container 
 Series UIDs are in `data.json`. Frames derived from these sets (their AV1 or HTJ2K codings) carry
 the same attribution wherever they are published; none are.
 
+#### Every closed verdict against its data
+
+*2026-10-10, queue row DATAAUDIT. A reading of every result cell of rows 1–118 in [`av1/queue.md`](av1/queue.md)
+against the classes above and [`av1/series.md`](av1/series.md)'s targets; nothing re-run.* "Off-target" is content
+outside the breast family: CT, MR, PET, fluoroscopy, the cone-beam volume, liver ultrasound, film, synthetic sets.
+Raw `FOR PROCESSING` images (the DBT projections, `mgraw_*`, 14 bits) are listed separately. Row GOPSCOPE scoped the
+projections out, but `series.md` lists both kinds in the family, so their status is the owner's (§Open).
+
+**No dependence.** The verdict is an exactness or byte-identity result, which counts on any data (§Protocol). Or it
+is a build, a docs or research row, or a transport result that does not turn on content, or it was decided on sound
+target data with a margin the weak part cannot close:
+
+* 1–5, 8, 15, 16, 19, 20, 22, 24–26, 29, 30, 32, 35, 37–39, 43, 45, 48–59;
+* 61–63, 65, 67, 68, 70–74, 76–79, 81–89;
+* 92–94, 98–104, 109–111, 115–118.
+
+Rows 69 and 114 are not closed. Two rows on that list are marked:
+
+* **32 AV2** is thin (one frame a series), but no browser decoder exists, and that decides it.
+* **15 SVC** — row GOPSCOPE listed it, but its verdict is exactness; only an aside on bytes is off-target.
+
+**Dependent verdicts.** Criticality is by the decision fed: *critical* is a product default, the codec choice, AV1
+frame groups, ultrasound handling or a transport default; *minor* is a lab reading or a proposal not built. "Since"
+names a later row on sound target data that has already decided the same question.
+
+| row | decision fed | rests on | weakness | since | class |
+| --- | --- | --- | --- | --- | --- |
+| 6 SIZE, 10 CONTENT, 46 BREAST (DBT half) | AV1 frame groups | fluoroscopy, MR, `us_liver` (6); two DBT volumes (10); four at G = 8, 16 (46) | off-target or lossy; one encoder, alt-ref off, few G | 100 GOPMEASURE: 15 sound volumes, G = 1 by its pre-stated rule (best inter gain +1.51 %; decode 4.6–24.6× over the bound) | critical, settled for DBT |
+| 46 BREAST (cine half), 28 LLSIZE ("inter pays on the ultrasound") | AV1 frame groups, ultrasound | `usb_cine` (MPEG-4 clip), `us_liver` | lossy-sourced: the gain is the clip's coding | none | **critical, open** (below) |
+| 80 GREY420 | ultrasound handling: the ingest keeps 4:0:0, Firefox needs 4:2:0 | `usb_cine`, `usb_still` only | lossy-sourced and unknown; no sound 8-bit grey series | none | **critical, open** |
+| 9 SPEED, 11 FILL (WebCodecs on 8 bits) | codec choice for 8-bit grey | `us_liver` alone | lossy-sourced, off-target | none for 8-bit grey | **critical, open** |
+| 28 LLSIZE, 34 TOTAL2 (RCT, built into the client) | ultrasound colour handling | `us_liver` | lossy-sourced | 97 RGBNATIVE: RCT 0.54–0.66 of GBR on 48 sound native stills, six collections. Not breast and not a cine | minor |
+| 7 DEPTH, 13 SPLIT10, 44 SPLITTIME (≤ 12 bits) | the split per depth | CT, MR, fluoroscopy, cone-beam | off-target; one series a depth | 45 DATA3, 95 DBTSCALE (k = 2 on 13 of 15 volumes), 96 FFDMSCALE | minor |
+| 9, 11, 13, 23 TOTAL, 27 DECSPEED, 42 TOTAL3 | codec choice by decode and total time | fluoroscopy, MR, `us_liver`; DBT only in 23, 34, 42 | off-target; 23's host moved cells 15–25 % | 77 TOTAL4, 95, 96, 106 | minor |
+| 95 DBTSCALE (time), 96 FFDMSCALE (time) | codec choice: HTJ2K per series | sound DBT and mammograms | time on 3 exams and every 8th slice, 6 rounds, 37 % `VOID` (95); 4 rounds (96); 95's 4× 50 Mbit verdict is where row 105 says the host saturates | — | **critical** |
+| 105 CROSSOVER, 106 CROSSMEASURE, 107 EVENREVIEW | codec choice: no per-link or per-series rule | six sound series | 44 % `VOID`; n ≥ 10 strict on 5 of 60 cells; Firefox's 10 Mbit cells ran with the dial fault row 115 fixed (143 of 192 dials unsettled) | — | **critical** |
+| 75 LOSSCC (with 104, 119) | transport default: `cubic-restart` | one sound DBT volume | 37 % `VOID` under steal on the clean cells that block BBR; its arms also differ by a 20× initial window (row 119) | — | **critical** |
+| 60 LOSSLINK (codec half) | codec under loss | one volume, 8 frames a visit | one series | — | minor |
+| 91 DECODERBUILD | product default: the delivered build | synthetic `g512` for speed | no target frame timed; size and exactness also decide | — | critical, low risk |
+| 96 FFDMSCALE (14 bits), 33 REP14, 44 SPLITTIME (13–16 bits), 47 MIXDEC | product rules for 13–16 bits | projections, raw mammograms, CT, cone-beam, PET, `mg16_cbis` (16 bits alone) | off-target, or `FOR PROCESSING`; one series a depth | — | minor unless raw images become targets (§Open) |
+| 12 PREVIEW, 17 RESID, 18 SVCQ, 31 WCBASE, 40 SVC | the lossy preview (not adopted) | fluoroscopy, MR, `us_liver`, synthetic | off-target; no DBT or mammogram | — | minor; re-run if a preview is wanted |
+| 14 ENC, 66 POCGAP | ingest cost; a refuted gain | 8 frames, 3 rounds (14); 4 frames of 2 volumes (66) | thin | margins wide | minor |
+| 21 TAXO, 41 FASTHTJ2K, 108 HELPERSTART, 113 LEVERREVIEW (L1), 110 COARSEPOOL | lab levers, the pool not shipped | projections, synthetic `g512` | off-target | — | minor |
+| 36 ENCX | low-stream k | all nine original series, k fitted to them and searched to 3 only (row 48: noise floors put it at 4–6) | fitted | — | minor |
+| 64 REMAP, 90 VIEWER, 97 RGBNATIVE, 112 DECODEPACE | proposals and lab readings | off-target (64, 90 on one CT), non-breast stills (97), one cell (112) | — | — | minor |
+
+Row GOPSCOPE's list stands, with 15 out (above). This reading adds 7, 13, 17, 27, 31, 33, 40, 44, 47, 64, 80, 106
+and 107.
+
+**What would settle the critical ones.**
+
+* **The codec choice (95, 96, 105–107).** The data is here: the 15 DBT volumes and 39 mammography exams. The time is
+  what is thin. Re-run row 106's protocol on a host that meets its `VOID` bar, with whole volumes and Firefox after
+  row 115's fix. Then re-read rows 95 and 96's time cells.
+* **The transport default (75).** Content is not the question. Row 119's R1 runs first, then row 75's clean and
+  jitter cells within the `VOID` bar.
+* **Ultrasound and frame groups on truly lossless cine (46, 28, 80, 9, 11):** breast ultrasound, ABUS, angiography.
+  * **What is needed:** row GOPMEASURE's minimum, two independent sources of two series each, with
+    * native frames stored uncompressed or losslessly (Lossy Image Compression absent or `00`, no video clip);
+    * whole series in acquisition order;
+    * a licence that allows commercial use (CC BY or alike; CC BY-NC is not usable).
+
+    Per kind:
+    * **B-mode breast cine:** grey 8-bit and colour, with the probe slow or still.
+    * **ABUS:** volumes as stored, US Multi-frame or Enhanced US Volume.
+    * **Angiography:** contrast runs at 15–30 frames/s.
+  * **What was looked for, 2026-10-10:**
+    * **CADICA** (coronary angiography, Mendeley Data `p9bpx9ctcv` v5): CC BY 4.0 by its API. Acquired as DICOM at
+      10 frames/s but published as frames, by its paper (arXiv 2402.00570, read through a search summary only), so at
+      best `unknown`, and one source.
+    * **Breast-Lesions-USG** (TCIA, 10.7937/9WKK-Q141): CC BY 4.0, but 256 PNG stills, not a cine.
+    * **TDSC-ABUS 2023:** released on a signed request, licence not stated.
+    * **IDC v24:** still none (above).
+
+    No sound source is open.
+  * **The owner's options** (§Blocked, row DATAGUARD): a partner's native DICOM under a data use agreement, or
+    phantom scans on two vendors' scanners stored uncompressed. A phantom would satisfy "native frames", though not a
+    patient's motion.
+  * **What re-runs on it:** row GOPTHEORY's protocol for row GOPMEASURE's untested P8–P10, row GREY420's bytes and
+    fills, row BREAST's cine half, and rows SPEED and FILL's 8-bit WebCodecs cells.
+
 ## Open
 
 The owner decides these; they are tracked in [`av1/queue.md`](av1/queue.md) §Blocked.
 
 * **Several series of one study** — proposed, not built; the design is the owner's call (§From DICOM).
+* **Whether raw `FOR PROCESSING` images are targets** — the DBT projections and raw mammograms, 14 bits. Row GOPSCOPE
+  scoped the projections out, but [`av1/series.md`](av1/series.md) lists both kinds. The 13–16-bit rules (rows 33, 44, 47, 96)
+  matter only if they are targets (§Provenance, *Every closed verdict against its data*).
 * **The two 10-bit DBT series the proof-of-concept gap check named** — neither licence is CC BY or CC0; whether to
   use them is the owner's (§AV1 data, *Provenance*).
