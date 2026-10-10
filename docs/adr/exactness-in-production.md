@@ -35,7 +35,8 @@ not exist here and nothing was fixed. What follows proposes the check from nothi
 Why XXH3 and not a cryptographic hash: the check guards against a decoder, a build or an engine
 returning wrong samples — a random fault, against which a 64-bit hash misses one in 2⁶⁴. It cannot
 guard against a hostile server, which would send a matching hash with its wrong frame over the same
-authenticated session; a cryptographic hash buys nothing there and costs 6–15× more (§3).
+authenticated session; a cryptographic hash buys nothing there and costs 6–15× more (§3). The sources behind each
+step, the probability at world volume and the alternatives are §7.
 
 ## 3 · What a check costs, measured
 
@@ -118,6 +119,183 @@ metadata field, a WASM hasher in the decoder worker (hash-wasm's XXH3 or a build
 our own), the second-decode path, the endpoint. HTJ2K's codestreams and the wire are unchanged.
 Open: phones' hash speed; the owner's choice of block against mark; whether the endpoint lives in
 the server or the deployment beside it.
+
+## 7 · Why XXH3-64: the sources
+
+*2026-10-10, queue row 122 (HASHWHY). Theory only: from outside sources and §3's measurements, nothing built or timed.*
+
+**In short.** Each frame the viewer shows is hashed and compared with the digest the ingest wrote from the encoder's
+input. The check is there to catch a decoder, a browser engine, a processor or a memory that returns wrong samples.
+Large operators find such faults in the field, and nothing on the wire can see them: QUIC already authenticates every
+byte between the server and the browser. A random wrong frame passes a 64-bit digest about once in 1.8 × 10¹⁹ tries.
+If every frame of every medical imaging exam in the world for a year came out wrong, about 10¹⁴, the check would
+let one through about once in 180 000 years. XXH3-64 passes the hash test suites wherever its seed is fixed and its
+input is long, as ours are. It is 7× faster than BLAKE3 and 16× faster than SHA-256 in the browser (§3). A
+cryptographic hash would protect against a hostile server only if the digests were also signed by a key the viewer
+trusts, which is a different design. File systems, databases and compressors make the same choice: a fast
+non-cryptographic checksum for damage, and a cryptographic hash only where a collision does harm.
+
+**Read.** Each was fetched on 2026-10-10 and pinned by its sha256 (first 12 hex) or its commit:
+
+* RFC 9001, QUIC-TLS (`3bbaecdf5afd`); the W3C Web Cryptography API (`e211cbfe5185`); the WebAssembly SIMD proposal
+  (`9c29fd45b95d`).
+* xxHash v0.8.3 (`e626a72b`): its README (`750a69246094`) and specification (`61c47af338b2`).
+* SMHasher, rurban's fork at `93316446`: its README (`6c9a6b55114f`), `doc/xxh3.txt` (`a80a255ac176`) and
+  `KeysetTest.h` (`a54fa1f3bfeb`). SMHasher3 at `3b619371`: its results summary (`062f9ef96b28`) and
+  `raw/XXH3-64.txt` (`1d75b391a4bd`).
+* Btrfs's *Checksumming* (`8418d6fbffb8`) and *Deduplication* (`4a9721616693`) pages. OpenZFS's *Checksums and
+  Their Use in ZFS* (`07b5721e4dd0`). RocksDB at `4b44c2b4`: `include/rocksdb/table.h` (`d512f6fbf0d8`) and
+  `HISTORY.md` (`51b303182170`). RFC 8878, Zstandard (`8ee6be035341`). The LZ4 frame format v1.10.0
+  (`8c2a10c4b99b`).
+* Koopman, "32-bit cyclic redundancy codes for Internet applications", DSN 2002 (`fb143ae1843b`), and his CRC zoo's
+  32-bit page (`079e3bc9fe2f`).
+* Dixit et al., "Silent data corruptions at scale", arXiv 2102.11245, 2021 (`8cdaf6dcb39c`). Hochschild et al.,
+  "Cores that don't count", HotOS 2021 (`482b7318d0ba`). Nightingale, Douceur and Orgovan, "Cycles, cells and
+  platters", EuroSys 2011 (`5c06312a0992`). Schroeder, Pinheiro and Weber, "DRAM errors in the wild", SIGMETRICS 2009
+  (`f66c2edcb704`).
+* UNSCEAR 2020/2021 Report, Volume I, Annex A (`cfced4646561`).
+* The READMEs of hash-wasm v4.12.0 (`240e346e626e`), BLAKE3 at `f55849f8` (`129edcd4fe45`) and rapidhash at
+  `1ae7842f` (`ea72fbd30295`).
+
+**Not read**, so not cited: NHS England's Diagnostic Imaging Dataset (the host answered 202 with no body, and NHS
+Digital 403), so no national figure is given and the world's figure bounds any nation; the xxHash wiki's collision
+study (403).
+
+### The threat model
+
+**What the wire already covers.** QUIC protects every 1-RTT packet with the AEAD that TLS negotiated, with a 16-byte
+authentication tag (RFC 9001 §5, §5.3). A packet that fails is discarded (§5.5) and its data is sent again, so the
+browser receives the bytes the server's QUIC stack encrypted, or nothing. Only Initial and Retry packets lack integrity
+protection (§5), and they carry no frame. AES-GCM's forgery limit is 2⁵² invalid packets per key (§6.6). The wire
+needs no hash of ours.
+
+**What it cannot cover**, and the check does, is everything before encryption and after decryption: the server's store
+and memory, then the client's worker memory, the decoder, the browser engine, the JIT and the processor. Field faults
+in these places are measured, not hypothetical:
+
+* Meta found hundreds of CPUs that silently compute wrong results across hundreds of thousands of machines (Dixit et
+  al., abstract). Their worked case is a decompression whose size computation returned 0 on one core, so files were
+  silently skipped (§3–4).
+* Google sees "on the order of a few mercurial cores per several thousand machines" (Hochschild et al., §1).
+* Consumer machines usually lack ECC memory. Over 8 months, a PC with 30 days of CPU time had a 1 in 190 chance of a
+  crash from a CPU fault, and DRAM faults recur in the same place (Nightingale et al., abstract).
+* Even with ECC, more than 8 % of a server fleet's DIMMs see errors in a year (Schroeder et al., abstract).
+* In this repository's own benches, a lossless path has come out not exact: libaom 3.8.2's inter 10- and 12-bit
+  frames on some content ([`../decode/README.md`](../decode/README.md) §AV1).
+
+These are random faults with respect to the hash: nothing in a broken multiplier or a flipped bit knows XXH3.
+
+**What it does not cover.** The check holds the samples the worker hashed. Painting them is outside it: the GPU, the
+grey pipeline and the display. A hostile server is outside it too. It can serve a wrong frame with a digest that
+matches, since the digests come from the same server over the same session. To cover that, the ingest would sign each
+series's digest list with a site key, and the viewer would check the signature with a public key it trusts from
+somewhere other than that server. The digest would then have to resist a crafted second preimage, which XXH3 is not
+designed to do (its specification's introduction: "not meant to avoid intentional collisions … or to prevent producing a
+message with a predefined digest"). So the frame hash becomes BLAKE3: ×0.28–0.64 of a decode at 1× instead of
+×0.04–0.10, and a decode-bound fill ×1.15–1.51 instead of ×1.00–1.15 (§3). There would also be one signature check a
+series, plus a key's issue, storage and rotation. This is sketched only, not proposed: today the server is trusted for
+the metadata, the page and the code that does the checking.
+
+### The probability
+
+Assume XXH3-64's output acts as a random function of a damaged frame, which is the property the suites below test. A
+damaged frame then passes its own digest with probability 2⁻⁶⁴ ≈ 5.4 × 10⁻²⁰.
+
+**There is no birthday bound here.** Each decoded frame is compared with one expected value, its own, so N damaged
+frames are N independent tries at 2⁻⁶⁴. The birthday bound, about N²/2⁶⁵ colliding pairs among N digests, applies when
+digests are used as identities: deduplication, content addressing, or a cache keyed by digest. At 10¹⁴ frames that is
+2.7 × 10⁸ pairs at 64 bits, so **a cache must not use these digests as keys.** At 128 bits it is 1.5 × 10⁻¹¹. The
+check also binds each digest to its frame's index ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests). A frame
+delivered at the wrong index fails unless its samples equal the right frame's, and then the picture is right anyway.
+RocksDB had to add this binding later (below).
+
+**The volume.** Worldwide there are about 4.2 × 10⁹ radiological examinations a year, about 4 × 10⁸ of them CT
+(UNSCEAR 2020/2021, Vol. I, Annex A, ¶63 and the summary; MR and ultrasound are not in its count). A screening
+tomosynthesis exam is four views of about 60 slices plus 15–26 projections each ([`../av1/series.md`](../av1/series.md)
+§1c), so about 300–350 frames. Allowing 10⁴ frames an exam and rounding up for the modalities UNSCEAR leaves out gives
+a deliberately high ceiling of **10¹⁴ frames a year** (an assumption, not a source).
+
+**Expected misses a year, at that ceiling:**
+
+* If every frame were damaged: 10¹⁴ × 2⁻⁶⁴ ≈ 5.4 × 10⁻⁶, one miss in about 184 000 years. A real fault rate is many
+  orders of magnitude below "every frame".
+* With a 32-bit check (CRC-32C, or RocksDB's and zstd's truncated digests): 10¹⁴ × 2⁻³² ≈ 23 000 misses a year if
+  every frame were damaged. That is why 32 bits are not used here and 64 bits are enough.
+
+### The hash's quality
+
+* **XXH3's maintainers** state that every xxHash variant passes the original SMHasher, along with newer forks' extended
+  tests and their own collision tester at billions of hashes (README, *Quality*). The specification labels it
+  non-cryptographic.
+* **rurban's SMHasher** (`doc/xxh3.txt`) records no full 64-bit collision in any keyset with a fixed seed. The one
+  64-bit failure is *PerlinNoise AV*: 1 260 collisions among 16–38-byte keys, with the seed varied as one of the
+  coordinates (`KeysetTest.h`, `PerlinNoiseAV`). The README's other notes on xxh3, *DiffDist bit 7 w. 36 bits, BIC*,
+  are biases seen at 32–36-bit truncations of short keys. XXH128 and xxh3's low 32 bits carry no failure note.
+* **SMHasher3** fails XXH3-64 on 27 of 250 tests (XXH3-128 on 36; rapidhash and BLAKE3 pass all). Full 64-bit
+  collisions appear only in the tests that vary the seed: *Seed Zeroes*, *SeedSparse*, *Seed BlockLength* and *Seed
+  BlockOffset*. The fixed-seed failures are biases at 32–40-bit truncations on keys of 3–11 bytes (*BIC*, *Sparse*,
+  *Bitflip*).
+* **Why none of this applies here.** We hash with the default seed and secret, never varied, and every frame is
+  hundreds of kilobytes or more. XXH3 runs a separate algorithm for inputs of 241 bytes and more (specification,
+  *XXH3 Algorithm Overview*), a path the
+  short-key failures do not test. The weaknesses found are seed-independent collisions and short-key bias. Turning
+  either into a missed frame would take inputs chosen against the hash, which is an adversary, not a fault. Even if
+  the hash were 2²⁰ times worse than ideal on our inputs, a miss would still be 2⁻⁴⁴ ≈ 6 × 10⁻¹⁴.
+
+### Precedent
+
+* **Btrfs** defaults to CRC-32C. Since kernel 5.5 it also offers xxhash (64-bit XXH64), which "can be used as CRC32C
+  successor … good collision resistance and error detection", and SHA-256 or BLAKE2b, which are "cryptographic-strength".
+  Its cycles per 4 KiB are CRC-32C 470, XXHASH 870, SHA-256 7 600–78 000, and BLAKE2b 10 000–14 100. Its
+  deduplication compares bytes, not checksums.
+* **OpenZFS** defaults to `fletcher4`, which it marks not OK for dedup. A deduped dataset uses `sha256` by default,
+  with `blake3`, `sha512` and `skein` as the other dedup-safe choices. Edon-R forces byte verification "in an abundance
+  of caution".
+* **RocksDB** made `kXXH3` its default block checksum in 7.8.0, "because it is faster on common hardware"
+  (`HISTORY.md`). Every type stores 32 bits of "checking power (1 in 4B chance of failing to detect random
+  corruption)". It found that a block moved within a file, or from another file, passed more often than that, and
+  `format_version=6` made the checksum depend on the block's file and offset (`table.h`). Our per-index digest does
+  the same thing from the start.
+* **Zstandard** has an optional content checksum: the low 4 bytes of XXH64 over the decoded data (RFC 8878 §3.1.1).
+* **LZ4's frame format** has xxHash-32 over the decoded data, which "validates … that the encoding/decoding process
+  itself generated no distortion". That is this check's own purpose, a decoder's output against its input.
+
+All five use a fast non-cryptographic checksum against random damage. The two that deduplicate keep a cryptographic
+hash or a byte comparison for that, which is where the birthday bound applies.
+
+### The alternatives
+
+Speeds are §3's browser-worker figures at 1× where measured, otherwise native and labelled.
+
+* **CRC-32C.** It guarantees detection of every error of up to 3 bits and every burst of up to 32 bits, for data words
+  up to 2 147 483 615 bits (≈ 268 MB), and of up to 5 bits for words up to 5 243 bits (Koopman's zoo, `0x8f6e37a0`).
+  Any other change passes with probability 2⁻³². The WebAssembly SIMD proposal has no CRC or carry-less multiply
+  instruction, so its CRC-32 runs at ≈ 1 500 MB/s against XXH3's 4 000 (§3). It is slower, and half the bits. A
+  decoder's or a processor's fault damages whole blocks or frames, not 3 bits, so the burst guarantee buys nothing
+  here.
+* **CRC-64** (hash-wasm has the ECMA polynomial): 2⁻⁶⁴, with bursts of up to 64 bits guaranteed. It is not timed here,
+  and natively its hardware CRC runs at about a quarter of xxh3's speed (SMHasher: `crc64_hw` 5 579 MiB/s, `xxh3`
+  20 854).
+* **XXH3-128**: 2⁻¹²⁸, at 29.6 GB/s natively against XXH3-64's 31.5 (xxHash README), and in hash-wasm 4.12.0. It is
+  not timed in WASM here. It adds 16 hex digits a frame to `metadata.json`, about 16 kB uncompressed for a
+  1 000-frame series. It would matter only if the digests became identities (the birthday bound above).
+* **BLAKE3**: cryptographic, ≈ 570 MB/s here, 7× XXH3's cost. It is the hash to choose if the signed design above is
+  ever wanted.
+* **SHA-256 through WebCrypto**: ≈ 250 MB/s here, even on a host with SHA instructions. `digest()` takes a
+  `BufferSource`, not shared memory, so it pays a copy first (§3), and it is asynchronous. WebCrypto offers SHA-1,
+  -256, -384 and -512 only.
+* **rapidhash / wyhash**: rapidhash passes every test in both suites. Natively its bulk speed is 8.8 bytes a cycle
+  against XXH3-64's 12.8, while wyhash fails 15 tests (SMHasher3). Neither is in hash-wasm, so it would be a build of
+  our own, with a second implementation for the ingest's independent check. What they improve is short-key and
+  seeded behaviour, which this job does not use.
+
+**Verdict.** None beats XXH3-64 for this job. CRC-32C is slower in WASM and has too few bits at scale. XXH3-128,
+BLAKE3 and SHA-256 cost more and buy protection against a collision or an adversary that the check cannot meet without
+signatures anyway. rapidhash would be a new build for no gain on long, unseeded input. The one rule this adds to §2 is
+that **these digests are checks, never keys.**
+
+**Proposed, not queued.** Time XXH3-128 and CRC-64 in hash-wasm beside §3's table, by `lab/av1/exact/in-production`'s
+harness, only if a 128-bit digest is ever wanted for identity.
 
 ## Built · 2026-10-09
 
