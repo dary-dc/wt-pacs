@@ -1699,6 +1699,124 @@ So JPEG XL earns no place in the decode path: where it saves 5 % of the bytes or
 browsers cannot hand over samples above 8 bits, and the one case where native beats OpenJPH sits behind a flag in both
 engines that have it.
 
+## Not yet tried
+
+Queue row DECODEOPT, 2026-10-10: what is left for today's codecs, read from sources and from the decoders' code;
+nothing built or timed. Rows 9, 11, 27, 57, 78 and 108–113 hold what was tried — build flags, relaxed SIMD as a flag,
+the wrapper's two passes, the range pass, encoder settings (block size and shape, 3–6 decompositions, LRCP,
+precincts), code-blocks on threads and coarser units, stripes and region decode, a WebGPU block decoder, decode paced
+to the wire, dav1d threads with tiles — and none of it is proposed again. Every gain below is a prediction, not a
+measurement, unless it names the row that measured it.
+
+**What the code says.**
+
+* **OpenJPH has no ARM SIMD.** At 0.31.0 (`c68064d`) and at upstream's head (`6238b0e`, 2026-10-06) the
+  `OJPH_ARCH_ARM` branch of every dispatch — block decoder (`ojph_codeblock_fun.cpp`), wavelet
+  (`ojph_transform.cpp`) and colour (`ojph_colour.cpp`) — is empty, so a native ARM build runs the scalar block
+  decoder and wavelet; x86 gets SSSE3 and AVX2 block decoders and SSE2 to AVX-512 wavelets, POWER gets VSX. Its
+  status page says SIMD "for Intel and ARM" may come later [1]. The WASM build has its own SIMD block decoder,
+  wavelet and colour (`*_wasm.cpp`), which an engine lowers to NEON on a phone: **in the browser a phone gets
+  OpenJPH's SIMD; natively it does not.** SIMDe 0.8.2 implements the WASM SIMD128 API in C with NEON paths (203
+  NEON branches in `simde/wasm/simd128.h`) [2], so the `*_wasm.cpp` kernels could compile natively on ARM unchanged
+  — not tried.
+* **OpenJPH skips PLT and TLM on read** (`ojph_codestream_local.cpp`: "Skipping TLM/PLT marker segment"), and its
+  core has no threads at either commit. Markers that let a decoder seek buy OpenJPH nothing; they matter only to a
+  decoder that decodes or fetches part of a frame (§Region decode, measured).
+* **dav1d-WASM is C only.** dav1d 1.5.4 (`54706fc`) has hand-written x86 and ARM assembly for everything a
+  lossless frame uses — the entropy decoder (`msac.S`: `msac_decode_symbol_adapt4/8/16_neon`, `hi_tok`), the 4×4
+  Walsh–Hadamard at 8 and 16 bits (`inv_txfm_add_wht_wht_4x4_16bpc_neon`), intra prediction — and none for WASM;
+  `-msimd128` is auto-vectorisation (`client/decode/wasm/dav1d/README.md`). Native dav1d with its assembly, one
+  thread and process start included, read 46.9 ms on a `cpu-used` 6 fluoroscopy stream where dav1d-WASM read 70–72 ms
+  on the `cpu-used` 0 one in row SPEED — different streams, runs and harnesses, so ~0.65 of WASM is a hint, not a ratio ([`lab/av1/README.md`](../../lab/av1/README.md)
+  §What each costs the decoder; §Decode time against HTJ2K). A lossless frame is 66–84 % entropy decoding, serial
+  within a tile (row DECSPEED), which bounds what any SIMD can take.
+
+**What the platforms say.** WASM SIMD is in Chrome 91, Firefox 89 and Safari 16.4; relaxed SIMD in Chrome 114 and
+Firefox 145, Safari only behind a JavaScriptCore flag; threads everywhere [3]. Wider vectors (Flexible Vectors) are a
+phase-1 proposal [4]: 128 bits is the browser's width for the foreseeable future. §The decode tail found `-mrelaxed-simd`
+leaves OpenJPH's binary byte-identical, so relaxed SIMD pays only through hand-written intrinsics, and then not in
+Safari. Hardware AV1 decode on Apple ships from the iPhone 15 Pro's A17 Pro and M3 (secondary sources quoting Apple's
+2023 announcement; Apple's own page not read) [5]; Android guarantees Main 8/10 at level 4.1 (row SWEEP). Whether any
+hardware decoder returns a lossless 4:0:0 or split stream exactly is unknown until a device runs it (§Open).
+
+**The source of "~570 MB of coded queue on tomosynthesis" was not found** in any branch's docs, lab READMEs or
+history (searched 2026-10-10); what is known is that the compressed queue grows whenever decoders fall behind the wire,
+read from the code, and that a reader pause is proposed, not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md)
+§Memory).
+
+**Left, ranked by expected gain on the target** (phones; an ask and a fill both count; *large* is 1914×2572 and up):
+
+| # | lever | where | mechanism | expected | decides it |
+| --- | --- | --- | --- | --- | --- |
+| 1 | **Tiles as independent codestreams** for large frames: k horizontal tiles, each stored as its own HTJ2K codestream, decoded by k idle OpenJPH workers into one shared frame | browser and native; an ask | row REGIONDECODE's stripes, ×0.60–0.68 of OpenJPH at 4× on large frames, paid OpenHTJ2K's ×1.13–1.41 slower decoder and 1.13–1.17× the block bytes for overlaps; tiles have neither, and need no threads and no second decoder | ×0.45–0.60 of today's ask at 4× on large frames, k = 3; bytes +0.2–1.5 % (the wavelet stops at a tile's edge; unmeasured); a fill unchanged | P-TILE below; a change to the store's format — structural, the owner's |
+| 2 | **OpenJPH under a newer emscripten** (6.0.11 against the pinned 3.1.74) | browser; every frame | code generation | ×0.94–0.97 a frame, fill and ask (row VERSIONS: 0.94–0.96 pooled, inside a 2–7 % spread at 6 rounds — "the one lever worth a longer run") | P-EMSDK |
+| 3 | **OpenJPH's SIMD on native ARM**: the `*_wasm.cpp` kernels through SIMDe, or a NEON port | native phone and Apple Silicon | the empty ARM dispatch above | without it a native ARM decode is predicted 1.3–2.0× the browser's on the same phone; with it, at or under the browser's | P-ARM, before row NATIVEPLAN's first timing |
+| 4 | **The copy out of the heap and the RGB pack** | browser; every frame | samples written once, where the page reads them; a shuffle interleave for three components (row FASTHTJ2K's ranks 2 and 3, bounded, never built) | ×0.88–0.95 grey, ×0.82–0.92 RGB | P-COPY |
+| 5 | **Decoders started on first need**, never retired | browser; a fill's CPU and an ask's start | row DECODEPACE: today's dispatch decodes on one decoder in 9 of 12 cells, and what pacing saved was starting the two never used | fill ×0.99–1.01; decoder CPU ×0.85–0.98; wake-ups fewer; cold ask unchanged | P-START |
+| 6 | **The reader pause** (bound the coded queue; QUIC flow control stops the server) | browser and native; memory | decoders slower than the wire hold the series' coded bytes | peak memory bounded at the pause's size on a fill where decode is the clock; time ×1.00–1.02 | memory, not time; a row of its own if a phone's memory binds |
+| 7 | **The WebGPU block decoder natively** through wgpu, painting from the GPU | native | row WEBGPUHT's WGSL runs unchanged on Metal, Vulkan and D3D12; a native painter drops `mapAsync`'s read-back, which on SwiftShader cost 2× the heap copy on frames over 4 MB | the bound's *ideal* column, 67–75 % of a large frame (§A WebGPU block decoder, bounded); unmeasured on any GPU | row NATIVEPLAN; §L3's phone stage first |
+| 8 | **Relaxed SIMD, hand-written** in the HT block decoder's swizzles and the wavelet | browser, not Safari | fewer instructions per lane shuffle on x86; on ARM most relaxed ops lower as the strict ones | ≤ 3 % a frame; two builds to ship | not proposed |
+| 9 | **dav1d's entropy decoder in WASM SIMD** | browser, AV1 only | `msac`'s CDF search vectorised, as its NEON does | ≤ 0.65 of dav1d-WASM's time by the native hint, still 3–6× OpenJPH | not proposed while no series is served as AV1 (`../codecs/README.md` §Which series AV1 is for) |
+| 10 | **Hardware AV1 on a phone** (A17 Pro and later, Android SoCs) for 8- and 10-bit streams and the top10+low split | phones | a fixed-function decoder | unknown; exactness first | a device run (§Open) |
+
+*Not a lever:* decoding an ask's lower resolutions while its last bytes arrive — the last resolution is ~¾ of the
+samples and of the decode, and §A frame at the level the screen needs already draws a level picture first; PLT and TLM
+for OpenJPH (it skips them).
+
+**Other lossless codecs, listed, not explored.**
+
+* **JPEG-LS** (CharLS, in WASM as `@cornerstonejs/codec-charls`): as good as or better than JPEG 2000 on breast
+  tomosynthesis, over 4–5:1, unless multi-slice JPEG 2000 is used (Clunie, RSNA 2012 [6]); CodSpeed's simulated runs
+  of Cornerstone's codecs show ~16–20 ms for a 512² CT frame (simulated instruction counts, not wall time; search
+  excerpts only) [7]. A DICOM transfer syntax; no resolution prefix.
+* **Tomoz**: no published codec under that name was found (searched 2026-10-10); a codebook-based tomosynthesis
+  patent exists [8]. Listed as not found.
+* **TCT** (tri-plane context trees, Bai et al., arXiv 2608.13897, 2026-08-14): lossless volumetric coding learned per
+  input, no network weights, "on par with recent DNN-based methods", "fast coding speeds" (abstract read) [9]; its
+  per-slice decode of 0.05–0.06 s against JPEG-LS's 0.02–0.03 s is from a search excerpt of its Table VI, not read.
+
+**Proposed measurements** (none queued; each in the container first, every frame against the encoder's input,
+interleaved, n ≥ 10, `g512` and the five sound breast series):
+
+* **P-TILE.** k = 2 and 3 horizontal tiles on the large series, each tile its own codestream in the served profile.
+  Predictions: bytes +0.2–1.5 %; a warm ask on k idle workers ×0.45–0.60 of the reference at 4×, ×0.55–0.70 at 1×;
+  ×1.00–1.03 on one worker. *Rule:* worth a store-format proposal when every frame is exact, bytes ≤ +1.0 %, and the
+  k = 3 ask is ≤ ×0.60 at 4× on every large series in ≥ 8 of 10 rounds and under three stripes' ratio (row
+  REGIONDECODE); otherwise not, naming the cell.
+* **P-EMSDK.** OpenJPH 0.31.0 built by the product's recipe under emscripten 6.0.11 and 3.1.74, a frame, a cold ask
+  and a fill (50 Mbit, `lte-good`), 1× and 4×. Prediction ×0.94–0.97. *Rule:* adopt when ≤ ×0.97 on every set at 1×
+  and 4× in ≥ 8 of 10 rounds and no fill over ×1.01.
+* **P-ARM.** On x86 in the container, one native binary per arm over the same frames, process start excluded: OpenJPH
+  with `-DOJPH_DISABLE_SIMD=ON`, with its SSSE3 kernels only, and with its `*_wasm.cpp` kernels through SIMDe; and the
+  WASM build in Node. Predictions: scalar 1.3–2.0× the SSSE3 arm; SIMDe within ×0.95–1.10 of SSSE3; WASM in Node
+  ×1.1–1.5 of SSSE3. *Rule:* if scalar is over ×1.2 of the SIMDe arm, native ARM needs the port before any native
+  timing is compared with the browser; then the same three arms on an ARM host (a phone or Apple Silicon, the owner's).
+* **P-COPY.** The wrapper writing samples into a buffer the page keeps (a `SharedArrayBuffer` view) and a shuffle
+  interleave for RGB, against the delivered build, a frame at 1× and 4×. Predictions as row 4 of the table. *Rule:*
+  adopt when ≤ ×0.95 on every set in ≥ 8 of 10 rounds and the page's peak memory is no higher.
+* **P-START.** The downloader starting a second and third decoder only when the queue first holds work for them,
+  never retiring, against today's, row DECODEPACE's harness and cells. Predictions as row 5 of the table. *Rule:* the
+  container stage passes when every fill is ≤ ×1.01 in ≥ 8 of 10 rounds, the cold ask ≤ ×1.02, and decoder CPU
+  ≤ ×1.00; energy is a phone's (§L5's phone rule).
+
+Sources (read 2026-10-10 unless marked):
+
+1. OpenJPH `docs/status.md` and source at `0.31.0` (`c68064d0`) and `main` (`6238b0ec`) — <https://github.com/aous72/OpenJPH>
+2. SIMDe v0.8.2, `simde/wasm/simd128.h`, sha256 `7e2fed8b…ce70b` — <https://github.com/simd-everywhere/simde>
+3. WebAssembly feature status, `features.json` (WebAssembly/website `main`), sha256 `c2e06fac…28904` —
+   <https://webassembly.org/features/>
+4. WebAssembly proposals, phase 1, sha256 `7119f6d1…2fcb` — <https://github.com/WebAssembly/proposals>
+5. Bitmovin, "Apple AV1 support" (quoting Apple and HLS's Roger Pantos; search excerpt only) —
+   <https://bitmovin.com/blog/apple-av1-support>
+6. D. Clunie, "Lossless compression of breast tomosynthesis", RSNA 2012 LL-INS-WE6B (search excerpt only) —
+   <https://dclunie.com/papers/RSNA_2012_LL-INS_WE6B_Clunie_MammoTomoCompression.pdf>
+7. CodSpeed runs of cornerstonejs/codecs (search excerpt only) — <https://codspeed.io/cornerstonejs/codecs>
+8. US patent 12164768, "Medical imaging data compression utilizing codebooks" (title only) —
+   <https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/12164768>
+9. Y. Bai et al., "Practical Lossless Volumetric Medical Image Compression via Tri-plane Context Tree Learning",
+   arXiv 2608.13897 (abstract) — <https://arxiv.org/abs/2608.13897>
+10. dav1d 1.5.4 source (`54706fc6`) — <https://code.videolan.org/videolan/dav1d>
+
 ## What these numbers are not
 
 * **Every millisecond is container-measured** and reported, not decided on. Heap, byte-exactness and
