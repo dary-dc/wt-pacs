@@ -56,6 +56,10 @@ conclusive or not, and why. Rows already queued keep their briefs.
 * **Sound data only decides** (row DATAGUARD, 2026-10-08). A set classed `lossy-sourced` or `unknown` in
   `lab/av1/data.json` ([`../FIXTURES.md`](../FIXTURES.md) §Provenance, on `claude/av1-unified`) enters no bytes,
   time or inter verdict: its numbers are reported as measured and marked provisional. Exactness on it still counts.
+* **Arms differ in the lever alone (the owner, 2026-10-10).** A timing prints each arm's full settings — congestion
+  controller and its initial window, transport options, codec build, decoder path — and the cell names any difference
+  besides the lever. A comparison with another difference decides nothing (row 119 found a 20× initial window between
+  row 75's BBR and Cubic arms; row 121 lists what that left open).
 * **Pin every tool** (tag or version, and a checksum of anything fetched). Fetched data and built
   binaries are not committed; the script that makes them is.
 * **Code beside today's path, not instead of it.** HTJ2K keeps working unchanged; the gate
@@ -193,6 +197,13 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 119 | **CCTHEORY** — congestion control for lossy mobile links without the clean-link cost: what others do and what exists, ranked for the target, measurement rows proposed with their rules; theory only | done `6387ff4` on `claude/av1-unified` — **nothing changes in the product; the earlier BBR-against-Cubic clean cells also compare a 20× initial window**: from 24 sources pinned by sha256 and quinn-proto 0.11.18's source, BBR's clean cost is no loss (row 104's cell 4: 0 relay drops on every fixed-rate clean and ±20 ms cell for every controller, BBR ≤ +1 % datagrams) but three departures missed before — a 240 000-byte initial window (Cubic's 12 000; derived ×0.99/0.92/0.78 of the clean fills at 5/20/50 Mbit against 1.01–1.04/0.90–0.95/0.82–0.94 measured), ProbeRtt at the first unlimited ACK (≈ +1.6 % derived at 5 Mbit against +2–3 %), and an all-time maximum of per-ACK bandwidth with the all-time minimum RTT (the ±20 ms condition); the clean ask's +70 ms not derived; ranked: 1 a Cubic that skips the cut on loss classed random (no clean cost by construction, ~150 lines), 2 a switch after the first round trips (per-peer choice at accept needs a wtransport patch and sees only an address; the state a switch must carry tabled), 3 quinn's BBR without the departures, 4 BBRv3 (gives up loss above ~1–2 % by design), 5 delay-based, 6 FEC (no browser decodes it); classifier accuracy read only from a 2002 simulation; the downlink's loss mix is read best by the server's own RTT samples in a field pilot (the owner's). Proposed, not queued: R1 CCATTRIB (the confound and ProbeRtt, arms with swapped initial windows), R2 LOSSCLASS (classifier errors on the relay's known causes: ≤ 5 % / ≤ 30 % to go on), R3 LOSSIGNORE (default if clean ≤ 1.01, fixed-rate 1–2 % ≤ 0.75, neighbour within 5 points), R4 CCSWITCH (only if R3 misses), R5 FIELD — `docs/transport/transport-conclusions.md` §1 *The way out, surveyed*, §9 item 2 |
 | 120 | **ORDERNEED** — whether readers need some frames first: reading behaviour per target series from primary sources, the expected gain of a reordered fill on row 65's numbers, a pre-registered verdict; theory only | done `d545fcd` on `claude/av1-unified` (the rule alone first, `fa72816`) — **dropped on every target type; no measurement row**: rule E = p·g − (1−p)·c ≥ 0.2 × T at the lower end of p; from IHE's DBT supplement, DICOM PS3.3 §C.23 and three eye-tracking studies (Drew 2013, Aizenman 2017, Wolfe 2022), no source supports a first view inside the series — DBT stacks are swept from an end and back (3.8 slices a fixation), the four-view mammogram is hung at once, cine plays from frame 1, ABUS is read in whole coronal passes; at 20 Mbit the centre-first fill would need p ≈ 0.4 (DBT) and ≈ 0.66 (an MLO-first hanging) against ≈ 0 supported; the order across series (2D before the DBT stacks) noted, not estimated; `docs/ARCHITECTURE.md` unchanged — `docs/av1/README.md` §The order frames are asked in |
 | 121 | **DATAAUDIT** — every closed row's verdict against the provenance and sampling of the data it used; the critical ones, the sound data each needs and the rows to re-run; nothing queued | done `171846d` on `claude/av1-unified` — **76 of the 116 closed rows depend on nothing weak; three critical questions stay open**: every result cell of rows 1–118 read against `data.json`'s classes and `series.md`'s targets (rows 69, 114 not closed); exactness, build, docs and content-free transport verdicts stand; the early frame-group, depth and decode verdicts on off-target or lossy data are settled since on sound target data (rows 45, 77, 95–97, 100); **open:** (1) lossless cine — frame groups for breast US, ABUS and angiography (46, 28), grey 4:2:0 for Firefox (80, wholly on `usb_cine`/`usb_still`) and 8-bit WebCodecs (9, 11, `us_liver` alone): no open sound source (CADICA CC BY 4.0 but frames, one source; Breast-Lesions-USG PNG stills; TDSC-ABUS on request), the owner's options under row 94's line; (2) the codec choice's time cells (95: 3 exams, 37 % `VOID`; 105–107: 44 % `VOID`, strict n ≥ 10 on 5 of 60 cells, Firefox 10 Mbit cells before row 115's dial fix); (3) the transport default's clean cells (75: 37 % `VOID`, and a 20× initial window between arms, row 119). Proposed, not queued: row 106's protocol re-run on a host within its bar with whole volumes and Firefox after row 115; row 119's R1 then row 75's clean cells; on sound cine, row 99's P8–P10, row 80, row 46's cine half, rows 9 and 11's 8-bit cells. Row 98's list kept but 15, with 7, 13, 17, 27, 31, 33, 40, 44, 47, 64, 80, 106 and 107 added — `docs/FIXTURES.md` §Provenance, *Every closed verdict against its data* |
+| 122 | **HASHWHY** — why the frame digest is XXH3-64 and not a cryptographic hash, backed by outside sources, with an abstract the owner can hand to a team; theory only | ready |
+| 123 | **MISMATCH** — the response to a digest mismatch, what row 73's ADR and row 88's build leave open: block or mark, a client cache, frame groups, reporting; theory only | after 122 |
+| 124 | **QUICSURVEY** — the native version's transport: every QUIC implementation that could run in a desktop and a phone client, in any language, read against the target; every finding listed, every decision left to the owner; theory only | ready |
+| 125 | **DECODEOPT** — faster decoding with today's codecs, what rows 9–11 and 108–113 did not try: HTJ2K's decode time from the stored layout, SIMD and hardware in the browser and natively, decode matched to arrival; other codecs listed, not explored; theory only | ready |
+| 126 | **INGESTPLAN** — the product's ingest at the site: language (Rust against C++), the C parser's integration in stages, the exactness check, the Python reference, the link to the server; a design for the owner; theory only | ready |
+| 127 | **NATIVEPLAN** — the native version's plan beyond transport and decode: platforms (desktop first, phones the goal), paint and cache, app shape, costs, and the desktop-first measurement plan run in cloud containers; theory only | after 124, 125 |
+| 128 | **H3FETCH** — plain HTTP/3 `fetch()` as the simplest alternative to WebTransport for the fill and the ask: mechanism, what the browser does differently, predictions and a protocol; theory only | ready |
 
 ## Briefs
 
@@ -2545,6 +2556,180 @@ angiography**, which the owner wants settled on sound data (rows 99–101; row 1
 independent sources of two series each). **Deliverable:** the verdict table in `docs/FIXTURES.md` §Provenance
 (extended, not a new file), a pointer from `docs/av1/README.md` §Content; the result cell lists the re-run rows
 proposed, nothing queued. **Branch:** `claude/av1-unified`.
+
+## The owner's design rows (122–128), 2026-10-10
+
+The owner, 2026-10-10. Every row here is **theory first** and builds and times nothing, under the same rules as
+rows 119–121 (their preamble above): primary sources, every number keyed to its source, a source the container cannot
+reach listed as not read, measurements proposed in the result cell and not queued. **Read before writing:** what this
+repository already did on the subject (the rows each brief names, and `git log` / `git grep` on `claude/av1-unified`),
+so nothing measured or designed is proposed again; a brief that turns out to repeat closed work says so in its cell and
+narrows to what is left. Two of the owner's criteria apply to every proposal these rows make: an idea that helps only
+under some link conditions must show that the condition is common on the target, that it works there, and that it
+costs little elsewhere, or be switched on only where the condition is detected; and nothing is measured without its
+theory written first. Docs only, on `claude/av1-unified`; cells on `claude/av1`.
+
+### 122 HASHWHY
+
+**Question.** Is a 64-bit non-cryptographic hash enough to prove a shown frame exact, and is XXH3-64 the right one?
+**Why it matters:** the owner wants the decision formalized with outside evidence so a team understands it, not taken
+on this repository's word. [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §2 already gives
+the argument (a random fault is missed one time in 2⁶⁴; a hostile server sends a matching digest over the same
+authenticated session, so a cryptographic hash buys nothing there) and §3 the cost (row 73: XXH3 ≈ 4 000 MB/s, BLAKE3
+≈ 570, SHA-256 ≈ 250 in a browser worker; a checked fill ×1.00–1.15 with XXH3, ×1.15–1.51 with BLAKE3). **Do:** back
+or correct each step from sources:
+* *The threat model.* What the check guards against (decoder, build, engine and memory faults; storage and cache
+  damage) against what it cannot (a hostile server; that needs signatures over the digests from a key the client
+  trusts, a different design, sketched in a paragraph with its cost, not proposed). QUIC's per-packet AEAD (RFC 9001)
+  and what it already covers on the wire.
+* *The probability.* The chance a random change passes a 64-bit digest, assuming the hash's output behaves as random
+  for such inputs; why the birthday bound does not apply (each frame is compared with its own expected digest, not
+  with every other frame); the expected number of misses at a realistic national volume of frames per year, with the
+  volume's source.
+* *The hash's quality.* XXH3's results in SMHasher and its successors, its specification and maintainers' notes;
+  known weaknesses (seed-independent collisions, crafted inputs) and why they need an adversary.
+* *Precedent.* Systems that chose a fast non-cryptographic checksum for integrity and kept cryptographic hashes for
+  deduplication or tamper evidence: file systems (Btrfs's `xxhash`, ZFS's `fletcher4` beside `sha256`/`blake3`),
+  storage engines (RocksDB's checksum types), compression formats (zstd's and LZ4's frame checksums); each read from
+  its documentation, with what it says about the choice.
+* *Alternatives*, one line each with speed and guarantee: CRC-32C and CRC-64 (burst guarantees; no hardware CRC in
+  WASM), XXH3-128, BLAKE3, SHA-256 through WebCrypto (hardware SHA on the host, and the copy row 73 measured),
+  rapidhash/wyhash. Whether any beats XXH3-64 for this job, and what a 128-bit digest would cost in metadata.
+**Deliverable:** a section in the ADR, *Why XXH3-64: the sources* (extended, not a new file), opening with an
+abstract of at most ten lines in plain words that the owner can share with a team as it stands; §2's paragraph points
+at it. **Branch:** `claude/av1-unified`.
+
+### 123 MISMATCH
+
+**Question.** What exactly happens after a mismatch, and is it enough? **Why it matters:** row 73's ADR (§2.3, §4,
+§5) and row 88's build already decode a mismatch once more on the other path and deliver the frame marked `false`;
+the owner, 2026-10-10, wants the response checked as a whole. Left open by them: block against mark (§6, the owner's),
+the page's display of a failed frame, reporting (§5, not built), phones, and a frame inside a group (G > 1) that has no
+recovery. A client cache adds a case the ADR does not weigh: stored coded bytes damaged on the device, where asking the
+server again *does* help (§2.3's "asking again does not help" holds for the wire only). **Do:** from sources and the
+code:
+* *Locating the fault.* Whether a second digest over each frame's coded bytes (written at ingest beside the samples')
+  separates storage or cache damage (fetch again) from a decoder's fault (decode on the other path), what it costs at
+  ingest and in the client, and whether QUIC's AEAD and the server's own reads make it redundant without a cache.
+* *Never cache an unverified frame*, and what a cache must store to be re-checked on read.
+* *Block or mark.* What the practice parameters and standards say about showing an image whose integrity is not
+  verified: DICOM's Lossy Image Compression attribute and its display requirement, the ACR–AAPM–SIIM practice
+  parameters for electronic practice and display, IEC 62304 / IEC 82304-1 and ISO 14971 hazard framing, FDA guidance on
+  device software functions; what open viewers and PACS do on a decode failure (OHIF/Cornerstone3D, dcm4chee, Orthanc,
+  from their code or docs). The options for the owner with what each means for a reader.
+* *Reporting.* §5's design against privacy (no patient data), the denominator, and how a field failure rate turns a
+  decoder path off per engine.
+* *G > 1.* What a group's frame needs to recover (the group decoded again on the other path) and its cost.
+**Deliverable:** a section in the ADR, *After a mismatch* (extended), its open choices listed for the owner under
+§Blocked; proposed measurement or build rows in the result cell, none queued. **Branch:** `claude/av1-unified`.
+
+### 124 QUICSURVEY
+
+**Question.** Which QUIC implementation should a native client use, on desktop first and phones in the end? **Why it
+matters:** the owner, 2026-10-10, wants a native version of the viewer, not a web page and not WebTransport; the
+browser's QUIC stack bounds today's receive rate and its choices (row 104's receiver-bound cells,
+`docs/transport/transport-conclusions.md`), and a native client picks its own. The owner wants **every finding and to
+take every decision**: the row reports and compares, it does not choose. The same choice may serve the link from a
+site's ingest to the server (row 126), so read each candidate for that use too. **Do:** for every implementation that
+could run in a desktop client (Linux, macOS, Windows) and a phone client (Android, iOS), in any language — at least
+quinn, s2n-quic, Cloudflare quiche, Google's QUICHE (and Cronet as Android's packaged form), msquic, ngtcp2, lsquic,
+picoquic, mvfst, quic-go, neqo, tquic, xquic, Apple's Network.framework — record from sources:
+* *Speed:* published throughput and CPU per byte at the target's rates, receive-side cost (the papers measuring QUIC
+  stacks against each other and against TCP — for example Yu & Benson 2021, Jaeger et al. 2023, Zhang et al. 2024;
+  leads to verify), GSO/GRO, pacing, ECN, the interop runner's goodput and loss cases.
+* *Control:* congestion controllers shipped and whether one can be plugged in (row 119's options need a controller
+  of our own), loss recovery's knobs (initial RTT, PTO), flow-control windows, stream priorities, datagrams.
+* *Mobility:* connection migration, multipath QUIC (the IETF draft) and who ships it, 0-RTT, behaviour on network
+  change and in the background on each phone OS.
+* *Building and shipping:* language and FFI cost from Rust, Swift and Kotlin, threading model, binary size on a
+  phone, build on each platform, maturity (deployments, release cadence, security record), licence against this
+  repository's MIT.
+* *Talking to our server:* WebTransport over HTTP/3 from a native client, or raw QUIC with our own framing beside the
+  WebTransport endpoint (an ALPN of its own), and what each means for the server.
+A table of candidates by these columns, every cell sourced or marked unknown; the findings in plain words; the
+decisions the owner faces, each with its options and what decides it; for the owner's picks, proposed desktop
+measurement rows (cloud containers first, so they run unattended) with predictions and rules. **Deliverable:** a new
+`docs/native/quic.md` (the subject is new), the owner's decisions under §Blocked. **Branch:** `claude/av1-unified`.
+
+### 125 DECODEOPT
+
+**Question.** How much faster can today's codecs decode, in the browser and natively, before anything new is tried?
+**Why it matters:** decode is the client's other clock beside the wire; the owner, 2026-10-10, wants the codecs we
+have optimized before any new one is explored. Much is done — read first `docs/decode/README.md`,
+`docs/decode/levers-protocol.md` (L1–L5: the code-block pool, region decode and stripes, the coarse pool, the WebGPU
+HT block decoder, paced decode; rows 108–113 and row 113's review), rows 9, 11 and 78 — and propose none of it again.
+**Do:** from sources and the decoders' code, what is left:
+* *HTJ2K decode time from the stored layout:* what the encoder's choices cost the decoder — decomposition levels,
+  code-block size and shape, precincts and tiles (row 113's re-encode question), HT-only coding, markers that let a
+  decoder skip (PLT, TLM) — each with the bytes it costs.
+* *SIMD and hardware in the browser:* whether the shipped OpenJPH and dav1d WASM builds use SIMD128, what relaxed SIMD
+  and wider vectors would add, how much of each decoder's native SIMD path a WASM build can reuse; what hardware a page
+  can reach (WebGPU, row 111's decoder; WebCodecs' hardware AV1 and whether it is ever exact for our streams, rows 29
+  and 80).
+* *Natively:* the same decoders with their native SIMD and threads, the gap to WASM from published numbers, GPU
+  HTJ2K decoders (vendors' libraries, papers), phone AV1 hardware and exactness (row 29) — input to row 127.
+* *Decode matched to arrival, and arrival to decode:* after L5 (decode paced to the wire; its saving was the start of
+  two unused decoders), what is left — decoders started on first need and stopped when idle, and backpressure when the
+  coded queue grows (it reached ~570 MB on tomosynthesis in the lab's notes; find the source) so a slow decoder slows
+  the wire instead of filling memory.
+* *Other lossless codecs as options only*, one line each with the claim and its source, not explored: JPEG-LS in
+  WASM, Tomoz, TCT.
+Rank what is left by expected gain on the target (phones; the fill and the ask both count), each with its mechanism,
+sources and the measurement that decides it. **Deliverable:** a section in `docs/decode/README.md`, *Not yet tried*
+(extended, not a new file); proposed rows with predictions and rules in the result cell, none queued. **Branch:**
+`claude/av1-unified`.
+
+### 126 INGESTPLAN
+
+**Question.** How should the product's ingest be built? **Why it matters:** the owner, 2026-10-07 and 10-10: ingest
+runs at the site, not beside the server; it parses the DICOM with the C parser `DICMele2deck`
+(a public C repository; read it only if its name is in this repository already, else list it as not read; Part 10, explicit little endian only), encodes the frames itself exactly and
+checked, and sends the bundles to the server. The reasons for a compiled ingest are integration, one deployable
+binary, one definition of the store's format shared with the server, and streaming memory — not CPU: the encoders
+take ~99 % of ingest time. Today: read `ingest/` and the docs that own it on `claude/av1-unified`. **Do:**
+* *Language, weighed both ways:* Rust against C++ — calling the C parser, OpenJPH (C++: a C shim from Rust), libaom
+  and SVT-AV1 (C), the bundle format's single definition (Rust today, shared with the server), the link to the server
+  (quinn, the server's QUIC, against a C++ stack), the team's languages; the owner leans neither way yet.
+* *The parser's integration in stages:* first encode the files the parser writes (its extra write and read measured
+  against encode time, on tmpfs), then — only if that share matters — a pipe or the parser linked as a library; what
+  each needs from the parser's code and its licence (none shown in the repository: a blocker to settle).
+* *Exactness:* the check ported (digests over the encoder's input samples, as `ingest/coded-frames/ingest.py`
+  writes them), and the Python ingest kept as the reference until the new one reproduces its bundles byte for byte and
+  is stable, correct and optimized.
+* *The link from the site to the server:* bulk upload over QUIC (row 124's findings when they land; Thruflux,
+  github.com/samsungplay/Thruflux, C++ MIT, parallel QUIC streams, read for its ideas and whether its code is reusable),
+  against what the server already speaks.
+* *Deployment:* one binary at the site, what it needs there, updates.
+**Deliverable:** the plan in the doc that owns ingest on `claude/av1-unified` (a new `docs/ingest.md` only if none
+does), the owner's decisions under §Blocked. **Branch:** `claude/av1-unified`.
+
+### 127 NATIVEPLAN
+
+**Question.** What else does a native version need, and how is it measured? **Why it matters:** the owner,
+2026-10-10: desktop is the first target because it is easier to start there; phones are the goal. Rows 124 and 125
+cover transport and decode. **Do:** from sources:
+* *Paint and cache:* native GPU (Metal, Vulkan, Direct3D; wgpu across them) for 16-bit grey with window/level, and the
+  file system in place of the browser's storage.
+* *App shape:* one shared core (transport, decode, cache, exactness) with a thin interface per platform, or a
+  cross-platform framework; what each costs to build and to keep.
+* *Costs:* app stores and updates, the team's skills, medical-device rules where an app differs from a page.
+* *The measurement plan:* native against the browser on the same machine, for fill time and the ask's latency;
+  desktop first, in cloud containers first so the investigation runs unattended, then a desktop with a GPU, then
+  phones; predictions and rules for the first rows.
+**Deliverable:** `docs/native/README.md` (the plan, pointing at `quic.md`), decisions under §Blocked. **Branch:**
+`claude/av1-unified`.
+
+### 128 H3FETCH
+
+**Question.** How would plain HTTP/3 `fetch()` do against WebTransport for the fill and the ask? **Why it matters:**
+it is the simplest alternative and was never measured or reasoned through here. **Do:** read
+`docs/transport/delivery-prior-art.md` and `transport-conclusions.md` first. Then, from the browsers' network stacks
+and the specifications: what changes when frames come as HTTP/3 responses (one request per frame or a range of frames,
+the browser's connection and stream limits, priorities, flow-control windows, HTTP caching, cancellation of an ask
+that is no longer needed, CORS and preflight, Firefox and Safari), what stays the same (the same QUIC stack and its
+receive bound), and what the server would need. Predictions per link and series, and a protocol with its rule.
+**Deliverable:** a section in `docs/transport/delivery-prior-art.md` (extended); the proposed row in the result cell,
+not queued. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
