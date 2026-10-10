@@ -496,6 +496,67 @@ E = p·g − (1 − p)·c, against T = the in-order fill's expected time to the 
   a measurement of where readers start, not of the fill.
 * The verdict changes [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The first fill only if a type earns a row.
 
+#### Whether readers need some frames first — the estimate
+
+*The same day, after the rule above was pushed (`fa72816`). Theory only, nothing measured.*
+
+**Read.** Each was fetched on 2026-10-10:
+
+* IHE RAD Technical Framework Supplement *Digital Breast Tomosynthesis*, Rev. 1.3 Trial Implementation, 2016-09-09
+  (sha256 `08ca8f214ff6…`).
+* DICOM PS3.3 2026d §C.23 and §C.23.3 Hanging Protocol modules (`2a5e2656a677…`, `2e111690f6ba…`) and PS3.17
+  annex V (`79bf5b84e45b…`).
+* Three eye-tracking studies, read through a web-fetch tool, since PubMed Central refuses scripted fetches; the text
+  is not pinned:
+  * Drew et al., "Scanners and drillers", J Vision 13(10):3, 2013;
+  * Aizenman et al., DBT against FFDM, J Med Imaging 4(4), 2017;
+  * Wolfe et al., "What eye tracking can tell us about how radiologists use automated breast ultrasound", J Med
+    Imaging 9(4):045502, 2022.
+
+Drew et al.'s PDF host refused (502). No reading study of breast ultrasound cine was found.
+
+**What they say about where a reader starts.**
+
+* **DBT.** No source names a starting slice, and every source describes the whole stack being swept, more than once.
+  * Aizenman et al. (§3.1.4): "many more sawtooth plots as the observer moves back and forth through the stack
+    multiple times". Readers cross 3.8 slices per fixation (§3.1.2) through 54–78 slices.
+  * Drew et al. (CT): 19 of 24 readers "drill" through the full depth one quadrant at a time; scanners start at the
+    top and work down.
+  * IHE's DBT profile asks for "instantaneous scrolling through slices" (§37.4.2.1.1) and frames the screening review
+    as "when the user wants to start scrolling through the case" (open issue 6). It rejects split data sets because
+    "all images are needed prior to starting the review (e.g., in order to evaluate asymmetries)" (closed issue 12),
+    and its display is "simultaneous review of DBT and conventional 2D".
+  * DICOM's Hanging Protocol gives a `STACK` image box for stepping, a sort direction (`INCREASING` or
+    `DECREASING`) and no initial-frame attribute; only a reformat has an initial view direction (§C.23.3).
+* **FFDM and synthesized 2D.** IHE's display test hangs all four current views at once (as above). None of the
+  sources read describes a hanging that shows one pair alone first.
+* **Breast ultrasound cine.** DICOM's playback model starts at frame 1 (Preferred Playback Sequencing: looping
+  1, 2…n, sweeping, or stop, §C.23.3). No reading study was found.
+* **ABUS.** Readers take "the left coronal field" first and move "through the depth of the coronal image from nipple
+  to chest wall", then the transverse images; "observers tend to look through all of the images that are available"
+  (Wolfe et al., §4.1, §5).
+  *Inferred:* a coronal plane is a reformat across the whole volume, so its first view needs every frame.
+
+**The estimate, at 20 Mbit and 1×,** from the table above (HTJ2K):
+
+| type | U | g (seq → prio, for a reader starting in U) | c (for a reader starting at frame 1) | p needed for E ≥ 0.2 T | p the sources support | verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| DBT slices, 29 | centre ±2 | 3.65 → 1.19 s, 2.46 s | ≈ 1.1 s: five slices' wire time before slice 1, at ≈ 0.21 s a slice (3.65 s brings 17) | ≈ 0.4 | none for a centre start: the stack is swept from an end, repeatedly | **dropped** |
+| FFDM / synthesized 2D, 4 views | the MLO pair | 3.27 → 1.62 s, for a reader who hangs the MLO pair alone | the four-view hanging: +13–72 ms; a CC-first pair: ≈ 1.6 s | ≈ 0.66 | ≈ 0: the first hanging is all four views | **dropped** |
+| breast US cine | none fits | — | the whole delay of U | — | the first view is frame 1 by the playback model | **dropped** |
+| ABUS | none fits | — | — | — | the coronal pass needs the whole volume | **dropped** |
+
+At 5 and 50 Mbit g and c scale together with the link, so p needed stays near the same.
+
+**Verdict: dropped on every type.** No source read supports a reader whose first view is a set inside the series.
+Readers of a stack sweep it from an end, and readers of a mammogram hang every view. That is the in-order fill's
+case, so the in-order fill is right.
+
+What the sources do point at lies outside row ORDER's question. An exam's first hanging pairs the 2D views with the DBT
+stacks (IHE: "simultaneous review"), so the order *across* series — four 2D frames before stacks of 50–80 slices each
+— could matter more than any order within one. That is the viewer's ask order, and the rule above does not apply to
+it. It is not estimated here. It would need the study's series and their bytes.
+
 ### Under loss and jitter
 
 *[`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md), queue row LOSSLINK.*
