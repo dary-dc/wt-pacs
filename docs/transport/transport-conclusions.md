@@ -279,6 +279,8 @@ ask's p50/p95 in ms over both codecs. Each cell is 1× · 4×:
   * An ask on a clean fixed rate at 4×: p50 +70 ms at 20 Mbit (353 → 423) and +74 ms at 50 Mbit
     (224 → 298).
   * Clean 20 and 50 Mbit fills, and `lte-good` without loss, are 0.85–0.99 for BBR.
+  * *Added 2026-10-10:* every clean cell here also compares a 240 kB initial window with Cubic's 12 kB; how much of
+    each figure that explains is unmeasured (*The way out, surveyed*, R1).
 * **`cubic-restart` reproduces the lossy-link codec comparison** within one loss event's spread: 1 % at 5 Mbit 5.37 s against
   5.82, 5 % at 50 Mbit 12.5 s against 12.4.
 * **Not adopted, by the round's rule**: a controller may not regress a clean cell, and BBR does (above).
@@ -414,6 +416,9 @@ departures.** The minimum round trip is all-time, not v1's 10 s window: on expir
 faithful and missed this). The pacer ignores BBR's pacing rate (not the overflow's cause, *Priced in a browser*). And
 `exiting_quiescence` is never set, so BBR enters ProbeRtt on the first ACK after ≥ 10 s idle. The
 window ignores loss in Startup (`window()`, line 488), as v3 does, so that is not a departure to fix.
+*Corrected 2026-10-10* (*The way out, surveyed*, below): three more departures were missed — a 240 000-byte
+initial window (Cubic's is 12 000), ProbeRtt entered at the first acknowledgement not application-limited, and a
+bandwidth estimate that is the all-time maximum of per-acknowledgement rates.
 
 ### quinn's BBR against BBRv3
 
@@ -574,6 +579,235 @@ round-rate approximation of v3's bound does not deliver v3's guarantee. **What t
 `bbr-bound` stays in the product as an opt-in nobody should pick, or is retired as the bounded BBR was; and whether a
 per-packet bound — which needs quinn to hand over each packet's delivered and in-flight at send — is worth
 proposing upstream or porting (§1, the ~2 000-line v3; §9 item 2).
+
+### The way out, surveyed
+
+*2026-10-10, queue row CCTHEORY. Theory only: from sources and this file's own runs, nothing built or timed.*
+
+**The question.** Under loss the controller is the clock — BBR fills in 0.04–0.76 of `cubic-restart`'s time (*Through
+the whole product*) — but BBR costs +2–3 % at 5 Mbit clean, +12–13 % at 50 Mbit with ±20 ms jitter and +70 ms on a
+clean ask at 4×, and a bounded BBR failed twice (*A bounded BBR, retired*; *The bound, reviewed*). Where does that
+cost come from, and which way out keeps the gain without it?
+
+**Read.** Each was fetched on 2026-10-10 and pinned by its sha256 (first 12 hex):
+
+* draft-ietf-ccwg-bbr-06 (`ba4f90e93d83`), with the IETF 117 and 120 CCWG BBRv3 slides (`cd4cfb79433a`,
+  `3043a9812fe0`) and the IETF 121 ICCRG "Promises and potential of BBRv3" slides (`3a1b8811a391`).
+* RFC 9002 (`3a8a54eea1ad`), RFC 9406 HyStart++ (`43e3ddc1d344`), RFC 9438 CUBIC (`baa4dd77295e`), RFC 9330 and 9331
+  L4S (`31ebe0cc2b40`, `92de982f553f`) and RFC 9265 on FEC and congestion control (`b180b4a8dcfe`).
+* draft-swett-nwcrg-coding-for-quic-04 (`0c805258225b`) and draft-michel-quic-fec-01 (`74a772a20615`); QUIC-FEC,
+  arXiv 1904.11326 (`83d3aa9122d4`); FlEC, arXiv 2208.07741 (`8f27452958af`).
+* Sprout, NSDI 2013 (`8369c0ab1587`); Copa, NSDI 2018 (`95de571ee90a`); PCC Vivace, NSDI 2018 (`8c71ac85b096`);
+  Pantheon, USENIX ATC 2018 (`b6bb4e9f214e`).
+* Cao et al., "When to use and when not to use BBR", IMC 2019 (`cd1a7d8d4fe4`), and its replication by Datta and Fund,
+  IMC 2023 (`88bb703be296`).
+* Cen, Cosman and Voelker, "End-to-end differentiation of congestion and wireless losses", MMCN 2002
+  (`a616c20f20e8`).
+* Meta's engineering post on Copa for live video, 2019-11-17, and Cloudflare's on CUBIC and HyStart++ in quiche,
+  2020-05.
+* quinn-proto 0.11.18 `congestion/` and `connection/paths.rs` from the crate the build pins, and wtransport 0.7.2's
+  `endpoint.rs` (the crate checksums in `scripts/patch_crate.sh`).
+* The W3C WebTransport Editor's Draft of 2026-10-10 (`60b3f0bd378f`).
+
+**Not read**, so not cited: the BBR paper in ACM Queue (2016; the host refused, 403), Huang et al.'s LTE study
+(SIGCOMM 2013; TLS refused), Verus (SIGCOMM 2015; ACM refused), any Akamai report (none found), and Chromium's QUIC
+source on ECN.
+
+#### Where BBR's clean-link cost comes from
+
+**Nothing is lost on the cost cells.** The bound's cell 4 (`lab/bb3/cell4-losscc.jsonl`, 12 visits per arm and cell,
+`VOID` included: these are counts, not timings) ran `bbr` and `cubic-restart` on the clean and ±20 ms cells.
+
+* On every fixed-rate cell, for every controller, the relay dropped no datagram (`s2c`, median 0, max 0); on
+  `lte-good` the max was 6.
+* BBR sent at most 1 % more datagrams than `cubic-restart` (r5000 clean: 3 139 against 3 114).
+
+So the cost is not overflow, loss or retransmission. It is the window's timing, and three departures of quinn's BBR,
+read from source, are where it can come from. None of the three is in the earlier reading (*quinn's BBR read against
+the published BBRv1*; corrected there).
+
+1. **Its initial window is 240 000 bytes**: `BbrConfig::default` is 200 × 1 200 (`K_MAX_INITIAL_CONGESTION_WINDOW`).
+   Cubic's is 12 000. The server sets neither unless `--initial-window-bytes` is given, so **every BBR against Cubic
+   comparison in this file also compares a 20× initial window.**
+
+   Derived: Cubic's slow start from 12 kB to one BDP at 40 ms wastes ~21 ms at 5 Mbit, ~87 at 20 and ~137 at
+   50 Mbit. That predicts BBR ×0.99, ×0.92 and ×0.78 of the clean fills; measured 1.01–1.04, 0.90–0.95 and 0.82–0.94 (both runs above).
+   It fits at 20 Mbit, leaves 5 Mbit's cost to departure 2 and overstates at 50, where the pacer's first flight before an RTT sample is not modelled.
+
+   Likely, not measured: BBR's clean-link *gains* at 20–50 Mbit are its initial window, which §3 measures as a
+   lever of its own (*A 32-packet initial window*).
+2. **It enters ProbeRTT at the first acknowledgement that is not application-limited.**
+   `probe_rtt_last_started_at` starts at `None`, which `is_min_rtt_expired` reads as expired. ProbeRTT then holds
+   the window at 0.75 × the BDP for at least 200 ms and a round, and does so again every 10 s.
+
+   Derived for r5000 clean: about 25 % of the link for about 240 ms, so ≈ 60 ms (+1.6 %) against the measured
+   +2–3 %. That is about half the cost; the rest is not derived. Whether the first estimate is set when ProbeRTT
+   binds decides its size, and only a trace shows that.
+3. **The bandwidth estimate is the all-time maximum of per-acknowledgement rates.** `BandwidthEstimation::on_ack`
+   offers the windowed max filter only samples above its current maximum, so the window's expiry never runs. A
+   sample is the smaller of two instantaneous rates: the last two sends, and the last two acknowledgements. It is not
+   a delivery rate over a packet's flight. With the all-time minimum RTT (already known), the window
+   2 × max bw × min RTT can fall when min RTT does, and never when bandwidth does.
+
+   Derived, the jitter cell: ±20 ms on 40 ms gives a minimum near 20 ms, so the window holds about 40 ms of data at
+   the estimate against a mean round trip of 40 ms and more. The window binds whenever the round trip exceeds twice
+   the minimum, which is the +12–13 % cell's condition. Not derived: why 5 Mbit with the same jitter escapes (0.99–1.01).
+
+**The clean ask at 4×** (+70 ms; in cell 4, also +78 ms at 1× on 50 Mbit) is **not derived.** After a lossless fill,
+Cubic never left slow start, so its window is whatever the fill grew. BBR's is 2 × the estimate × a trough minimum,
+plus aggregation, and a throttled client acknowledges in bursts. The trace in proposal R1 decides it.
+
+**What each published variant removes.** BBRv3 (draft-06, §5.3–§5.6) fixes 1 to 3 as a design:
+
+* a 10 s windowed minimum;
+* ProbeRTT every 5 s at 0.5 × the BDP, about 2 % of throughput;
+* a delivery-rate sampler;
+* Startup cwnd gain 2.0 (IETF 117 slide 8).
+
+But its loss response is the point that matters here. A probe round losing more than 2 % (`BBR.LossThresh`) cuts
+`inflight_longterm`, and every lossy round outside probing trims the short-term bounds to 0.7 × the previous. The
+draft's design goal is loss "of up to 1 %" (§3.1). Derived from that: on `l2` and `l5`, v3 gives up the 0.04–0.30
+that quinn's v1 buys, as `bbr-bound` did (up to ×8.3 of `bbr` on `l5`, *The bound, measured*).
+
+Google reports v3 against v1 only — retransmits −12 %, latency −0.2 %, throughput within 1 % on YouTube (IETF 117
+slides 10–11) — with no loss regime, no network type and no number against CUBIC. The ICCRG study (100 Mbit, 1 and
+16 × BDP) finds v3 "struggles to co-exist with loss-based CCAs", worse in shallow buffers. CUBIC with HyStart++ (RFC
+9406) targets slow-start overshoot, not random loss: −50 % bytes retransmitted on a 1-BDP buffer. The early
+slow-start exit built here was retired (§3).
+
+#### The ways out, ranked for the target
+
+Mobile, lossy wireless; the lossless fill and the on-demand ask both count. "Size" is the code over quinn's public
+`Controller` trait, judged against `restart.rs` (345 lines with tests) and `loss_bound.rs` (265).
+
+| # | option | mechanism and sources | cost on a clean link | size in quinn | risks | decided by |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | **Cubic that skips the cut on a loss classed random** | Cubic runs unchanged. A congestion event whose losses met no queue — the round trip at the loss under min RTT + q* — skips the multiplicative decrease; persistent congestion and CE always cut. RFC 9265 §6.3 names "replacing the congestion control by one that ignores a portion of the encountered losses" as the baseline FEC must beat; Cen et al. compare such classifiers | **none by construction**: with no loss the code path is `cubic-restart`'s | a wrapper like `restart.rs`, ~150 lines and tests | a loss classed random that was congestive: bounded, since the queue it builds crosses q* and the next loss cuts. A deep queue on a lossy link (LTE-loaded's 0.6–0.9 s) classes every loss congestive: no gain there, no loss either. Jitter above q* blurs it | R2, then R3 |
+| 2 | **Choose the controller after the first round trips, or switch mid-connection** | the same classifier; on loss with a flat round trip the wrapper swaps Cubic for BBR, and back on loss after a queue | none until a switch | ~250–350 lines: the switch below | after the switch, BBR's queue and shallow-FIFO share (98.8 %, *A neighbour behind fq_codel*), and 1–3 above | R2, then R4 |
+| 3 | **quinn's BBR without its three departures** | the initial window at Cubic's, no ProbeRTT before a first estimate, a windowed bandwidth filter | removes what 1–3 explain (R1 says how much) | a carried quinn-proto patch, ~30–60 lines, or upstream | does nothing for BBR's standing queue (2 × BDP) or its neighbour's share | R1 |
+| 4 | **BBRv3 in full** | draft-06 | unknown; Google's "within 1 %" has no regime | ~2 000 lines and a pacer patch (*quinn's BBR against BBRv3*) | gives up the gain above ~1–2 % loss, by design | not proposed |
+| 5 | **A delay-based controller** (Copa, PCC Vivace) | Copa's target rate is 1/(δ·queue delay) and it is "largely insensitive to stochastic loss" (Copa §5.4). Vivace's utility tolerates random loss up to its c; c = 11.35 for 5 % (Vivace §5). Sprout needs a receiver that forecasts, which a browser is not: excluded | unknown on jitter. Pantheon: which scheme is best "varies by path", by direction and in time (Findings 1–3) | a new controller, several hundred lines (*not derived*) | Copa needs a competitive mode against Cubic and switches wrongly under churn (§5.1). Vivace in latency mode is "entirely dominated" by Cubic (§4.4). Meta's Copa had 4–5× Cubic's retransmissions in the tail | not proposed before R3 |
+| 6 | **FEC** | repair symbols, not reaction; [`delivery-prior-art.md`](delivery-prior-art.md) §6 | 3–15 % bytes (FlEC, Figs 8–9); ×1.5 at code rate 2/3 (QUIC-FEC) | needs the receiver to decode: no browser's QUIC does; over WebTransport, datagrams and an application decoder | RFC 9265 recommendation 1: a recovered packet still counts as lost to the controller, which "does not apply to the usage of FEC on a path that is known to be lossy", so it does not stop Cubic's cut without option 1's classifier | not proposed |
+
+**Telling radio loss from congestion loss — what is known of accuracy.** The one comparison of classifiers read here is
+a 2002 ns simulation (Cen et al., a simulated CDMA link, TFRC flows):
+
+* **Wireless last hop:** inter-arrival classifiers misclass 6 % of wireless losses as congestion, and 0 % of
+  congestion losses as wireless, alone on the link. Under competition the second share "increases dramatically",
+  giving 8–11 % congestion loss.
+* **Delay-based classifiers (Spike, ZigZag):** keep that second share at 0.7–1.2 % but misclass 58–65 % of wireless
+  losses.
+* **Verdict:** "no single base algorithm performs well across all topologies and competition."
+* **No measured accuracy on cellular or Wi-Fi traces was read.**
+
+What a wrong call costs differs by option:
+
+* Under 1, classing radio loss as congestion costs exactly today's behaviour, and classing congestion as radio costs at
+  most q* of queue before the next loss cuts.
+* Under 2, a wrong switch to BBR costs BBR's queue and its neighbour's share.
+
+So option 1's errors are bounded where §1's 63 % / 48 % (picking one controller for all) is not. ECN would settle a
+congestive loss where it is present: quinn sends ECT(0) and hands a CE mark to the controller as a congestion event.
+Whether phone bottlenecks mark, and whether browsers echo counts, is not known. RFC 9330 §6.3 says an L4S response to
+loss on radio links "has to be as drastic as a Classic response".
+
+**Switching inside quinn, from its source.** `ControllerFactory::build` gets only `now` and the MTU. wtransport 0.7.2's
+`IncomingSession` reaches quinn's `Incoming` only through the default accept, so the controller cannot be chosen per
+peer at accept without a fourth carried patch. Even then it would see an address and not a client: the session's URL
+arrives one round trip after the controller is built.
+
+**A choice "from the client's history" is therefore a switch after the handshake.** It needs the same wrapper as a
+switch on the link's own evidence, which needs nothing external. `restart.rs` already swaps its inner controller
+through the trait. What a switch must carry:
+
+| state | carried how | if not |
+| --- | --- | --- |
+| window | the new controller's config `initial_window` := the old window | Cubic restarts slow start from 12 kB, about 4 round trips to a 50 Mbit BDP at 40 ms |
+| slow-start threshold (to Cubic) | one synthetic `on_congestion_event(now, now, false, 0)` right after building. That leaves 0.7 × the carried window, ssthresh, `w_max` and a recovery epoch at `now`, in congestion avoidance | `ssthresh = u64::MAX`: Cubic doubles from BBR's 2 × BDP and overflows |
+| min RTT | nothing: both read quinn's `RttEstimator` | — |
+| bandwidth estimate (to BBR) | cannot be injected; BBR starts in Startup from the carried window | a Startup overshoot of up to 2.885× the window, whose loss BBR ignores, and a ProbeRTT at once (departure 2) |
+| recovery epoch | the wrapper drops congestion events for packets sent before the switch, as `restart.rs` does after a silence | the new controller cuts for the old one's losses |
+| pacing rate | nothing: quinn paces 1.25 × window / srtt for any controller | — |
+
+#### The deciding fact: the loss mix, and how to get it
+
+* **The server sees the downlink itself.** The round trip it samples on every acknowledgement includes the downlink's
+  queue, and a recording wrapper sees `now`, `sent`, `RttEstimator::get`, `conservative` and `min` on every ACK and
+  every congestion event. So "the round-trip trend before each loss" needs no client half for the fill's direction.
+  Built as a wrapper that changes nothing (*Why two answers and not one*: one line a session today), it gives, per
+  loss, the queue delay at loss and its trend over the prior second, plus CE. It cannot give ground truth: what it
+  reads is the classifier's own signal.
+* **The client's `getStats()`** (WebTransport Editor's Draft: `packetsLost`, `smoothedRtt`, `minRtt`, `rttVariation`)
+  counts the client's own sends: asks, the uplink. Chromium 141 returned no `packetsReceived` (row ASKDEADLINE).
+* **Public traces** do not carry it. Mahimahi's (GPL-3.0, used for the phone profiles) are delivery opportunities, not
+  losses. The Pantheon archive holds packet traces of real cellular paths, but the paper states no licence; it would
+  have to be read and checked before use. A trace of other schemes' traffic shows those schemes' losses.
+* **A field pilot** with the recording wrapper on real phones is the only source of the target's mix. Who is recorded,
+  where and for how long is the owner's.
+
+#### Proposed rows (not queued)
+
+Each states its predictions and rule before any data; queued, each runs in a session given only the protocol and the
+rule.
+
+* **R1 CCATTRIB — what BBR's clean cost is.** A recording wrapper logs the inner controller's `metrics()` (window,
+  pacing rate) per ACK batch. Arms:
+  * `bbr`;
+  * `bbr --initial-window-bytes 12000`;
+  * `cubic-restart`;
+  * `cubic-restart --initial-window-bytes 240000`.
+
+  Cells: r5000, r20000 and r50000 clean, and r50000 ±20 ms, at 1× and 4×; ≥ 10 rounds Williams-ordered, the two
+  readings per §Protocol. Predictions:
+  * P1: BBR at 12 kB is ≥ 0.97 × `cubic-restart` on clean r20000 and r50000, and `cubic-restart` at 240 kB is
+    ≤ 0.95 there.
+  * P2: a ProbeRTT inside the first second in ≥ 9 of 10 BBR visits, and its window ≤ 0.8 × the delivered rate × srtt
+    for ≥ 150 ms.
+  * P3: on r50000 ±20 ms, BBR's window ≤ in-flight-needed (rate × srtt) for ≥ 30 % of the fill.
+
+  Rule: if P1 holds, every BBR-against-Cubic clean cell in this file is restated with the confound named. If P1 and
+  P2 together leave ≤ 1 % of the r5000 cost, option 3 is proposed as a quinn patch. Otherwise option 3 is dropped.
+* **R2 LOSSCLASS — whether loss can be classed here.** The relay with a known cause:
+  * overflow only (20- and 500-packet FIFOs);
+  * iid 1/2/5 % and Gilbert–Elliott bursts, each on a 20- and a 500-packet queue;
+  * ±5 and ±20 ms of jitter;
+  * the LTE profiles.
+
+  The recording wrapper runs under `cubic-restart` and `bbr`. Every loss is labelled from the relay's own counters,
+  so the truth is the relay's and not the classifier's. Report both error shares for q* ∈ {max(4 ms, min RTT/8) (RFC
+  9406's threshold), 10, 20 ms}. Predictions:
+  * congestion classed radio ≤ 5 % on every overflow cell, since a FIFO only drops when full;
+  * radio classed congestion ≤ 20 % on shallow-queue random cells under Cubic, whose window collapses;
+  * > 50 % on deep-queue random cells, since Cubic fills the queue before each loss.
+
+  Rule: a q* with congestion-as-radio ≤ 5 % on every overflow cell and radio-as-congestion ≤ 30 % on every
+  shallow-queue random cell goes to R3 and R4. Without one, options 1 and 2 close.
+* **R3 LOSSIGNORE — option 1.** Arms `cubic-restart`, `bbr` and the wrapper with R2's q*. Cells:
+  * row LOSSCC's grid: r5000, r20000, r50000 and `lte-good` × clean, ±20 ms, 1, 2, 5 % × 1× and 4×;
+  * *A neighbour behind fq_codel*'s shallow and deep FIFO cells;
+  * the phone profiles' LTE-good + CoDel.
+
+  Predictions:
+  * clean and jitter cells within 0.99–1.01 × `cubic-restart`, and the ask's p50 within ±10 ms;
+  * fills ≤ 0.6 × `cubic-restart` on 1 % and 2 % at fixed rates, and ≤ 0.5 at 5 %;
+  * on `lte-good`'s bursts at 500 ms of buffer, ≥ 0.8: the queue classes them congestive;
+  * the neighbour's share within 5 points of `cubic-restart`'s;
+  * CoDel met ≤ 2 × `cubic-restart`'s 0.33 %.
+
+  Rule: default if no clean or jitter cell is over 1.01, every fixed-rate 1–2 % cell is ≤ 0.75, and both neighbour
+  bars hold, in both readings. Otherwise it stays opt-in or goes.
+* **R4 CCSWITCH — option 2, only if R3 misses its fill bar.** Arms `cubic-restart`, `bbr` and the switch. Cells:
+  R3's. Predictions:
+  * no switch in ≥ 95 % of clean visits, and clean cells ±1 %;
+  * on 1–5 % at fixed rates, ≤ 1.15 × `bbr` from the first switch.
+
+  Rule: default if clean cells ≤ 1.01, lossy fixed-rate cells ≤ 0.75, and the shallow-FIFO neighbour keeps ≥ 40 %.
+* **R5 FIELD — the loss mix.** The recording wrapper in a pilot; the owner's (above). It decides between 1 and 2 only
+  where R3 and R4 both pass.
+
+**What this decides now:** nothing changes in the product. What it changes is how the earlier BBR-against-Cubic clean
+cells read: as two controllers *and* two initial windows. The way out most likely to keep the gain without the clean
+cost is a classifier in front of Cubic's cut (option 1), and R2 decides first whether one can be trusted on this rig.
 
 ## 2 · One shared stream
 
@@ -1449,6 +1683,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    Cubic (§1 *Link profiles close to a phone*); behind fq_codel it costs a neighbour nothing but keeps 27–196 ms of its own queue
    (§1 *A neighbour behind fq_codel*); an ask's loss slope is the controller's on either transport (§5 *The ask's loss sensitivity*). In the product's client under 1–5 % loss it fills in 0.04–0.74 of Cubic's time and is 1.01–1.04 of it on a clean 5 Mbit link (§1 *Through the whole product, on a lossy link*). The candidate is v3's
    loss bound over quinn's BBR, built opt-in as `bbr-bound` and decided by [`bb3-protocol.md`](bb3-protocol.md) (§1 *quinn's BBR against BBRv3*).
+   The ways out, ranked, and the rows that would decide them — what BBR's clean cost is (it also carries a 20× initial
+   window), whether loss can be classed here, a Cubic that skips the cut on loss classed random — are §1 *The way out,
+   surveyed*; the loss mix is read best from the server's own round-trip samples, in a field pilot that is the owner's.
    **The owner's calls:** whether loss's 4–25× through the product outweighs BBR's cost where nothing is lost,
    its standing queue and its neighbour's share (§1 *Through the whole product, on a lossy link*); whether
    `bbr-bound` stays as an opt-in nobody should pick or is retired, and whether a per-packet bound is worth
