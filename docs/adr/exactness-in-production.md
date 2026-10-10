@@ -29,7 +29,7 @@ not exist here and nothing was fixed. What follows proposes the check from nothi
    (AV1 through WebCodecs → dav1d-WASM; HTJ2K in a fresh decoder instance, there being one HTJ2K
    decoder), and shown only if that passes; otherwise the viewport shows the frame as failed, never
    its pixels as if they were right. Asking the server again does not help: QUIC authenticates every
-   byte, so the same bytes come back.
+   byte, so the same bytes come back. What follows a mismatch, with a cache and without, is §8.
 4. **Report** each failure at once, and per-path counts of frames checked, as in §5.
 
 Why XXH3 and not a cryptographic hash: the check guards against a decoder, a build or an engine
@@ -296,6 +296,148 @@ that **these digests are checks, never keys.**
 
 **Proposed, not queued.** Time XXH3-128 and CRC-64 in hash-wasm beside §3's table, by `lab/av1/exact/in-production`'s
 harness, only if a 128-bit digest is ever wanted for identity.
+
+## 8 · After a mismatch
+
+*2026-10-10, queue row 123 (MISMATCH). Theory only: from sources and the code as built (§Built), nothing built or
+timed.*
+
+**In short.** Today a frame whose digest does not match is decoded once more on the other path. If that one
+matches, it is shown; if not, it is delivered marked `false`, and the viewer paints it under a red *NOT EXACT* banner
+(`client/viewer/viewer.js`, `repaint`). That is *mark*, where §2.3 recommended *block*; which one is the owner's call
+(§Blocked). Four gaps are left. Without a cache, re-fetching never helps, but a digest of the coded bytes would say
+whether the store or the decoder is at fault. A frame with no second path (AV1 on WebKit, 12-bit streams, groups)
+has no recovery. Reporting is not built, and as written in §5 it would carry an identifier that DICOM's
+de-identification profile replaces. A cache, when there is one, must hold only verified frames and must be able to
+check them again.
+
+**Read**, fetched 2026-10-10, sha256 (first 12 hex) or commit:
+
+* DICOM PS3.3 2026d §C.7.6.1 (`8d7d584b8f88`) and PS3.15 2026d Annex E (`cb214710fce7`).
+* The ACR–AAPM–SIIM *Technical Standard for Electronic Practice of Medical Imaging*, revised 2022, amended 2023
+  (`382d1bf36947`), and the *Practice Parameter for Determinants of Image Quality in Mammography* (`1e4481e5b9a1`).
+* FDA, *Content of Premarket Submissions for Device Software Functions*, 2023-06-14 (`dee0c15e1149`).
+* Cornerstone3D v5.11.7 (`50f7341e`): `StackViewport.ts` (`811ca9da7ddf`). OHIF v3.13.12 (`e844561f`): the
+  cornerstone extension's `init.tsx` (`2fb3454afaac`) and `ViewportImageSliceLoadingIndicator.tsx` (`dc1ac63f8ac8`).
+* Orthanc 1.12.9: `OrthancRestResources.cpp` (`ca36396fda51`) and `Configuration.json` (`8c9905fdfe95`).
+* dcm4chee-arc-light 5.35.1 (`674a8642`): `StorageDescriptor.java` (`9839554b566c`) and
+  `StorageVerificationPolicy.java` (`01422946599c`).
+
+**Not read**, so not cited: IEC 62304, IEC 82304-1 and ISO 14971, which are sold, not published (iso.org answered
+403); the FDA's 2000 guidance on medical image management devices, which the ACR standard cites for the display label
+(its link gave no PDF); and HHS's de-identification guidance (403).
+
+### Locating the fault
+
+A mismatch means one of two things: the coded bytes the decoder was given are wrong, or the decode of right bytes is
+wrong. Today the ladder tries the second (a second decode) and cannot tell the first apart.
+
+* **Without a cache, the coded bytes can only be wrong at the server.** QUIC delivers the server's bytes or nothing
+  (§7). Damage in the store or in the server's memory comes back the same on every fetch, so §2.3's "asking again does
+  not help" holds. The archives make the same choice and check their store on the server: Orthanc stores an MD5
+  per file "to detect disk corruption" (`StoreMD5ForAttachments`, on by default) and verifies it on demand
+  (`/attachments/{name}/verify-md5`). dcm4chee keeps a digest per stored object (`StorageDescriptor.digestAlgorithm`)
+  and offers `OBJECT_CHECKSUM` as a storage verification policy.
+* **A digest of the coded bytes**, written by the ingest beside the samples' digest, would tell the two cases apart:
+  if the coded bytes match, the decoder is at fault; if they don't, the store is. Hashed only after a mismatch, it
+  costs the client nothing on the common path, because the wire bytes are still in the worker when `checked` runs. It
+  adds 16 hex digits a frame to the metadata and one XXH3 a frame at ingest. It changes the store's content, so it is
+  structural (§2.1): proposed, not built. Without a cache it only *names* the fault, for the report and the operator.
+  A server that checks its own store on read, or in a scrub as the archives do, finds the same damage without any
+  client.
+
+### A client cache
+
+None exists: the cache seam is open ([`../ARCHITECTURE.md`](../ARCHITECTURE.md), §A cache seam and a paint sink).
+When one is built:
+
+* **Never cache an unverified frame.** Store a frame only once its check is `true`, never `false` or `"unchecked"`.
+  A frame rescued by a second decode is stored as its coded bytes, which were right.
+* **Store what is needed to check it again on read:** the coded bytes, the frame's sample digest and the metadata's
+  version. The version is needed because a check against newer metadata would wrongly fail an old entry. The key is
+  the series, the frame index and that version, never a digest (§7: digests are checks, not keys).
+* **On read**, the decode's own check re-verifies the entry at no extra cost. A mismatch on a cached frame then runs
+  this ladder: second decode; if that fails, evict the entry and fetch the frame again (here asking again *does*
+  help); if the fresh copy passes, the cache was damaged. With a coded-bytes digest, the cache case is found before
+  any second decode.
+* Caching decoded samples instead would take their full size rather than the coded size, and would be re-checked
+  by one XXH3 on read.
+
+### Block or mark
+
+**What the standards say.**
+
+* DICOM records lossy compression permanently: once Lossy Image Compression (0028,2110) is "01" it "shall not be
+  reset" (PS3.3 §C.7.6.1.1.5).
+* The display requirement comes from the FDA, as the ACR states it: "when an image is displayed it be labeled with a
+  message stating if irreversible compression has been applied", along with the ratio and the method. The ACR adds
+  that a display should indicate "prior application of irreversible compression ratio, processing, or cropping"
+  (Technical Standard, §III.B and §III.D).
+* For mammography the FDA "does not allow irreversible compression … for retention, transmission, or final
+  interpretation", priors for comparison excepted (both ACR documents).
+* None of these sources covers a frame whose fidelity is *unknown*, which is what a mismatch is. The nearest case is
+  lossy compression of unknown degree. That is labelled everywhere and excluded from reading mammograms.
+* The FDA asks for Enhanced Documentation where a software failure "could present a hazardous situation with a
+  probable risk of death or serious injury … prior to implementation of risk control measures" (the 2023 guidance,
+  §V). A wrong but plausible frame in a diagnostic read is such a hazard. The check is a risk control, and so is the
+  response to a mismatch.
+
+**What open viewers do with a frame that fails to decode.** None checks decoded samples against a digest, so a wrong
+decode that does not throw is drawn. When a decode does throw:
+
+* Cornerstone3D draws only on success; on failure it raises `IMAGE_LOAD_ERROR` and leaves the viewport's index
+  unchanged (`StackViewport.ts`).
+* OHIF lays a half-opaque veil over the viewport with "Error Loading Image" and the error text
+  (`ViewportImageSliceLoadingIndicator.tsx`), and passes the error to its HTTP error handler (`init.tsx`).
+* Orthanc answers 415 for an instance it cannot decode, or redirects to an `unsupported.png` placeholder when asked
+  (`returnUnsupportedImage`).
+
+So all three block: none draws the pixels of a frame that failed.
+
+**The options, for the owner:**
+
+* **Mark** (today): the pixels are drawn under a banner. The reader sees the frame, and the banner can be missed, or
+  ignored once it has been seen often. Measurements and window/level work on possibly wrong values.
+* **Block**: a placeholder that names the failure, and no pixels, as the open viewers do on a decode error. The
+  reader loses that frame and steps on. It is safe, and a whole series failing on one path still shows nothing.
+* **Block, with an explicit reveal**: the placeholder, plus an action that shows the pixels under a mark that stays
+  for as long as they are on screen, with measurement off. The reader can still look, and does so knowingly.
+
+The sources lean towards *block* by default for anything read for diagnosis: mammography forbids even known lossy
+frames for final reading. Whether a reveal exists is a product decision, not a technical one.
+
+### Frames with no second path
+
+* **A frame inside a group (G > 1)** cannot be decoded alone on the other path (`av1.js`: "a frame inside a group
+  decodes on its group's decoder alone"). Recovering it means decoding its group again from the key frame on the
+  other decoder, up to G decodes for the last frame. The product codes G = 1 ([`../av1/README.md`](../av1/README.md)
+  §Frame groups), so nothing needs building until a G > 1 series ships.
+* **A 12-bit stream, or AV1 on an engine whose WebCodecs refuses the payload** (Firefox here; WebKit takes only 8-bit
+  4:2:0, [`../av1/queue.md`](../av1/queue.md) §Blocked) has one AV1 decoder. That is every AV1 frame on an iPhone.
+  The cheapest fallback is the one HTJ2K already uses: a fresh instance of the same decoder. It catches a corrupted
+  state but not a deterministic decoder or engine bug. A frame that still fails is a frame to block. Neither the
+  fallback nor its cost is measured.
+
+### Reporting
+
+§5's design checked against what it needs:
+
+* **Privacy.** §5 reports a "series key". If that is a Series or Study Instance UID, it is one of the identifiers
+  DICOM's Basic Application Level Confidentiality Profile replaces (`U`, PS3.15 Table E.1-1). The report should carry
+  an opaque key the server issued for the session, which the server alone maps back. Engine, version, decoder path,
+  codec string and both digests carry no patient data. Pixels never leave the device.
+* **The denominator.** The counts per path and engine (`stats().exact`) give the rate. A path whose second decode
+  rescued frames (`mismatchOn`) is the faulty path; a frame both paths failed points at the bytes, or at both.
+* **Turning a path off per engine.** A correct decoder fails no frame, so there is no "acceptable" rate to estimate.
+  A proposed rule: one rescued mismatch puts the path on that engine's major version in front of the owner, and
+  rescued mismatches from two distinct sessions turn it off for that engine version, through the metadata or the
+  configuration the server sends. The thresholds are the owner's.
+* **Phones** send at `visibilitychange` (§5). Nothing here depends on the series being closed.
+
+**Proposed, not queued:** a fault-injection bench that flips samples in each path on each engine (Chromium, Firefox,
+WebKit) and records which rung of the ladder catches it and what it costs; the server's own check of each frame's
+coded bytes on read, timed against today's send path (queue row 51's harness); and the report endpoint, once the
+owner's choices below are made.
 
 ## Built · 2026-10-09
 
