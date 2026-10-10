@@ -476,6 +476,26 @@ AV1 alike. It needs no change to the product, the wire or the server: it is the 
 downloader already serves first. Nothing adopted; the two round trips are the only cost a viewer pays, and
 the next step is the viewer's, which frames it asks for.
 
+#### Whether readers need some frames first — the rule, stated before the estimate
+
+*2026-10-10, queue row ORDERNEED. Committed alone, before any source on reading behaviour was read.*
+
+Per target series type ([`series.md`](series.md): DBT slices, FFDM and synthesized 2D, breast ultrasound cine, ABUS),
+a reordered fill asks a set U first. A reader's *first view* is the frame they first look at with intent. Let p be the
+probability that it is in U, g the time it saves that reader (seq → prio, from the table above, at 20 Mbit and 1×),
+and c the time it costs a reader whose first view is outside U. A reader who starts at frame 1 waits for U's frames
+and the extra round trip before frame 1 arrives; c counts that delay at full weight. The expected gain is
+E = p·g − (1 − p)·c, against T = the in-order fill's expected time to the first view.
+
+* **Earns a measurement row** if, on at least one type, E ≥ 0.2 × T with p at the **lower** end of what the sources
+  support.
+* **Dropped** if E < 0.2 × T on every type at the lower end of p.
+* A type whose p no source read here supports earns nothing by itself. It is listed with the reading that would give
+  p.
+* A type where E passes at the upper end of p and fails at the lower is **not conclusive**. The row it would earn is
+  a measurement of where readers start, not of the fill.
+* The verdict changes [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The first fill only if a type earns a row.
+
 ### Under loss and jitter
 
 *[`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md), queue row LOSSLINK.*
