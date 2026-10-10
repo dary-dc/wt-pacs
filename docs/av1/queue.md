@@ -190,6 +190,9 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 116 | **TAGCITE** — the 15 citations of `archive/variants-2026-10-03`, a tag that does not exist, point at the one that does | done `66f1ca4` on `claude/av1-unified` — **15 of 15 citations now name `archive/arms-2026-10-03`, 0 cite a missing tag**: 8 files; four cited paths had moved since the tag and now read as they were at it (`client/transport-ts/`, `client/downloader/decoder.js`, `tools/pack-study/`), all 11 `tag:path` citations `git cat-file -e` clean; `claude/av1` cites it only in the queue's record of the finding; `scripts/check_links.py` now fails on a backticked or `git show` archive tag `git ls-remote --tags origin` lacks (outside the two queues), SKIPPED offline, mutated twice to fail. The link step stays at 1 unresolved from row 108's lane (`lab/decode-bench/helper-start/README.md` names `docs/decode/levers-protocol.md`, which is on `claude/av1` only) |
 | 117 | **DOCLABELS** — rows 84 and 85's documentation leftovers that need no decision | done `edebcd9`, `ef1b94f`, `cbd9564`, `a981781`, `8982ca8` — **the three product docs and the lab's code comments name the measurement, the label kept as a pointer; eight lab READMEs; each doc's open items in its own §Open**: queue and campaign labels named in `docs/av1/` (10 files), `docs/decode/README.md` (61 → 47 matches, all pointers), `transport-conclusions.md` (~133 bare labels → 0; 18 headings' labels and dates moved to a pointer line), `rig-limits.md`, `disk-access.md`, the codec docs, `FIXTURES.md`, `ARCHITECTURE.md`; 98 lab code files (109 → 23 `row X` hits, the rest pointers, output strings or CLI help); `docs/av1/README.md`, `decode/README.md`, `transport-conclusions.md` §9, `ARCHITECTURE.md`, `CLIENTS.md`, `FIXTURES.md`, `client-window-depth.md` point at their own §Open instead of a queue; READMEs for `clock-resolution`, `decode-tail`, `disk-access-bench`, `early-messages`, `idle-sessions`, `telemetry-bench`, `window-harness`, `worker-leak`; BBR's 12–19× kept in `transport-conclusions.md` §1, `read_ahead_kb` in `disk-access.md` §6, the race's measurement in `ARCHITECTURE.md` and its behaviour in `CLIENTS.md`, each pointed at elsewhere; FoD's two decoders (`parse.ts`, `wire.ts`) are duplicated code, not comments — each now points at `WIRE.md` and the other, not merged (a refactor); no anchor with an inbound link changed; link check 0 unresolved from this row (1 left: row 108's `lab/decode-bench/helper-start/README.md` names `docs/decode/levers-protocol.md`, which reaches this branch with the merge); `scripts/gate.sh --no-browser` OK in 123 s, the contract and downloader browser steps pass, the viewer check fails here only for want of the docker decoder builds (pinned-build refusal, environmental); *left:* labels used as a lab folder's own name (~150, lab READMEs' `§Row …` headings), a few undefined short labels (S14, C4, R1, L19) |
 | 118 | **GUARDS** — row 86's check leftovers that need no decision | done `e8a244b`, `6fe5caa` on `claude/av1-unified` — **two stale-build guards and the lab's Go and h3 clients compiled, each mutant caught; gate green in 345 s**: `cellcheck.sh` refuses a transport WASM build older than its sources (exit 2), one `require_transport_wasm` shared with the gate; `deploy/check_equivalence.sh` refuses a web image whose page or nginx files differ from the tree's, by content not time (an mtime guard was built first and failed: a cached rebuild keeps the image's creation time, so a touched file was refused after every rebuild), tested on a real `wt-pacs-web` build: equivalent on 10 paths fresh, refused (exit 2, each file named) on a changed module, template and decoder build, a file added, one removed and no image, passed on a touched file and changed `*.md`/`*.test.mjs`; new gate step `lab: the Go and h3 clients compile` (`go build` in `lab/other-clients/go` and `lab/page-open/h3-host`, `cargo check --locked` in `lab/other-clients/h3`): 2 s warm, about 75 s cold, a syntax error in each of the three caught, `SKIPPED` by name without `go`; cellcheck ALL OK on a fresh build. Gate steps: client unit tests 8 s, contract 19 s, downloader in Chromium 44 s, viewer page 78 s, server tests 77 + 30 + 22 s, the rest ≤ 22 s each. Note: the gate on `claude/av1-unified` fails its link check today on row 108's `lab/decode-bench/helper-start/README.md:5` → `docs/decode/levers-protocol.md`, which is on `claude/av1` only; green with that doc present. Finding: `deploy/README.md` §The checks, `README.md` §Prerequisites. |
+| 119 | **CCTHEORY** — congestion control for lossy mobile links without the clean-link cost: what others do and what exists, ranked for the target, measurement rows proposed with their rules; theory only | night |
+| 120 | **ORDERNEED** — whether readers need some frames first: reading behaviour per target series from primary sources, the expected gain of a reordered fill on row 65's numbers, a pre-registered verdict; theory only | night |
+| 121 | **DATAAUDIT** — every closed row's verdict against the provenance and sampling of the data it used; the critical ones, the sound data each needs and the rows to re-run; nothing queued | night |
 
 ## Briefs
 
@@ -2450,6 +2453,98 @@ and pointed at elsewhere. Not here: the several-names cases row 83 lists without
 clients compiled by the gate (skipped and named when the toolchain is absent). Each new guard mutated to fail. Not
 here: a formatter or linter (row 114). **Deliverable:** the guards, the gate's step list and timings, gate green.
 **Branch:** `claude/av1-unified`.
+
+## The research rows (119–121), 2026-10-10
+
+The owner, 2026-10-10: three questions read before anything is built. Each row is **theory first** (§Protocol): from
+primary sources (specifications, peer-reviewed papers, maintainers' source and documentation, operators' published
+reports) and this repository's own measurements, it writes the mechanism, predictions and a measurement protocol with
+its decision rule, and **builds and times nothing**. A measurement it proposes is listed in its result cell, not
+queued; queued later, it is run by a different session given only the protocol and the rule. The outputs are in plain
+words, every number keyed to its source (a paper, a standard's clause, a row and its commit), every claim not
+measured here marked so. A source the container cannot reach is listed as not read, never cited from memory as read.
+**Docs only, so each runs beside row 69:** what is pushed before row 69 describes the merge into `main` goes into that
+merge; what lands later goes into the next one. The owning docs are current only on `claude/av1-unified`, so the rows
+write there; the queue's cells stay on `claude/av1`.
+
+### 119 CCTHEORY
+
+**Question.** How does the product get BBR's gain on a lossy link without BBR's cost on a clean one? **Why it
+matters:** under loss the controller is the clock — 1 % turns a 0.62 s fill at 50 Mbit into 4.0 s and an ask's 153 ms
+into 1.5 s, the same for both codecs (row 60). BBR fills in 0.04–0.76 of `cubic-restart`'s time under 1–5 % loss and
+cuts `lte-good`'s 5 % ask p95 from ~10 s to 0.7–1.9 s, but costs +2–3 % at 5 Mbit clean, +12–13 % at 50 Mbit with
+±20 ms jitter and +70 ms on a clean ask's p50 at 4× (row 75), and its standing queue and neighbour share are measured
+(`docs/transport/transport-conclusions.md` §1). Bounding BBR failed: BB2 and BBF retired, v3's loss bound failed its
+rule (rows 103, 104, 107; §1 *The bound, measured* and *reviewed*). The default stays `cubic-restart` until the loss mix
+is known (§1, §9 item 2). **Do:** survey, from sources, each way out and what it would cost here:
+* *Telling radio loss from congestion loss* — loss with and without RTT growth, ECN marks, delay-gradient signals;
+  how accurate published classifiers are on cellular and Wi-Fi traces, and what a wrong call costs each way (§1's 63 %
+  against 48 %).
+* *Choosing the controller per connection* from a characterization of the link — at connection start from the
+  client's history, or after the first round trips — and *switching mid-connection*: in quinn (the version the server
+  pins, read from its source) a wrapper `Controller` that delegates, what state must carry across a switch (window,
+  slow-start threshold, min RTT, bandwidth estimate, recovery epoch, pacing rate) and what breaks if it does not.
+* *Where BBR's clean-link cost comes from* — startup and drain, PROBE_RTT, the pacing gain's cycle, the standing
+  queue — attributed to row 75's three cost cells where the data allows, and whether a variant removes it: BBRv3 as
+  deployed (the IETF CCWG draft and its deployment notes), Copa, PCC Vivace, cellular designs (Sprout, Verus and their
+  successors), CUBIC with HyStart++ (RFC 9406; quinn's Cubic has none, §1) and loss-tolerant variants.
+* *Forward error correction for QUIC* as an alternative to reacting to loss — the IETF drafts (coding for QUIC,
+  FlEC and others), their measured results, the overhead on a clean link, and what it does to an ask's tail.
+* *What large deployments report on mobile* — Google and YouTube's BBR, Meta, Akamai, Cloudflare, academic
+  measurement studies — read for the regime each measured, since §1's lesson is that a result read outside its loss
+  regime flips.
+Rank the options by expected gain on the target (mobile, lossy wireless; the lossless fill and the on-demand ask both
+count), each with its mechanism, sources, cost on a clean link, implementation size in quinn, risks (the neighbour's
+share included) and the measurement that decides it. The real loss mix of the target links is unmeasured and is the
+deciding fact (§1, §9 item 2): propose how to get it (client telemetry of the RTT trend before each loss, public
+cellular traces and their licences, a field pilot) and what each source can and cannot tell. Then, for the top
+options, proposed measurement rows with predictions per cell and a decision rule each, stated before any data.
+**Deliverable:** a section in `docs/transport/transport-conclusions.md` §1 (extended, not a new file) and its §9
+item 2 pointing at it; the proposed rows and their rules in the result cell, none queued. **Branch:**
+`claude/av1-unified`.
+
+### 120 ORDERNEED
+
+**Question.** Do readers need some frames first, and is a reordered fill worth a deeper look? **Why it matters:**
+row 65 measured that asking the "useful" frames first — a DBT volume's centre slice ±2, a four-view mammogram's MLO
+pair — puts them on screen in 0.30–0.52 and 0.47–0.77 of the in-order fill's time, for +72–113 ms on the whole fill
+(`docs/av1/README.md` §The order frames are asked in). Nothing was adopted, and "useful" was our choice: the slice a
+reader starts on is that measurement's premise, not a measured reading pattern. It is a real trade: readers often
+scroll from the first frame through the stack to place themselves in space or time, which the in-order fill already
+serves, and a reordered fill delays that first frame by the frames asked before it. **Do:** a small, bounded reading
+of primary sources: reading-behaviour and eye-tracking studies of DBT, mammography, CT stack and ultrasound cine
+reading (for example the "scanners and drillers" CT study, Drew et al. 2013, and DBT against FFDM eye tracking,
+Aizenman et al. 2017 — leads to verify, not conclusions), hanging protocols (DICOM PS3.3 Hanging Protocols), IHE's
+Mammography Image and Digital Breast Tomosynthesis profiles: where readers start, how they navigate, how soon they
+jump. First, before the estimate, commit the decision rule alone: below what expected gain in time to the reader's
+first useful view the idea is dropped, above what it earns a measurement row, and how the cost to a reader who starts
+at the first frame counts. Then, per target series type ([`series.md`](series.md): DBT slices, FFDM and synthesized
+2D, breast ultrasound cine, ABUS; other cine secondary), estimate the probability that the first view is in a
+reordered set, the gain from row 65's ratios and the cost to the reader who starts at frame 1, and apply the rule.
+**Deliverable:** a short section in `docs/av1/README.md` §The order frames are asked in (extended, not a new file),
+`docs/ARCHITECTURE.md` §The first fill corrected in place if the verdict changes what it says; the verdict in the
+result cell: drop, or a proposed measurement row with its predictions and rule, not queued. **Branch:**
+`claude/av1-unified`.
+
+### 121 DATAAUDIT
+
+**Question.** Which verdicts rest on data that cannot be trusted, and which must be re-run? **Why it matters:** row
+94 classed every set's provenance (sound, lossless-but-unrepresentative, lossy-sourced, unknown;
+[`../FIXTURES.md`](../FIXTURES.md) §Provenance) and made sound data the only kind that decides; row 98 re-scoped the
+frame-group evidence and listed 17 closed rows resting on off-taxonomy content or thin sampling (its brief, above). No
+one has yet read every verdict against both. **Do:** for every closed row 1–118: the data sets its verdict used, their
+provenance class (`lab/av1/data.json`), and whether the verdict depends on lossy-sourced, unknown, off-taxonomy or
+thinly sampled data — n, the `VOID` share, host noise, one encoder or preset, a few frames. Class each affected
+verdict by how critical the decision it feeds is (a product default, the codec choice, frame groups for AV1,
+ultrasound handling, a transport default, a lab-only reading). For the critical ones: the sound data that would
+settle it (modality, bit depth, vendor, series size, licence — CC BY or alike; CC BY-NC is not usable, §Blocked row
+94), where it could come from (CC BY public sets not yet fetched, named; or the owner's options under §Blocked: a
+partner's native DICOM under a data use agreement, phantom scans on real scanners), and which rows' methodology
+would be re-run on it. Name as its own case **frame groups for AV1 on truly lossless cine — breast ultrasound, ABUS,
+angiography**, which the owner wants settled on sound data (rows 99–101; row 100's §Blocked line gives the minimum: two
+independent sources of two series each). **Deliverable:** the verdict table in `docs/FIXTURES.md` §Provenance
+(extended, not a new file), a pointer from `docs/av1/README.md` §Content; the result cell lists the re-run rows
+proposed, nothing queued. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
