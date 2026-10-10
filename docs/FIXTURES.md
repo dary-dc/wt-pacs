@@ -111,6 +111,118 @@ study would be one bundle per series plus a study index, `study.json`: each seri
 per series, so the wire is unchanged, but what the server serves and how the page names a series both change. That
 is the owner's design call.
 
+### A compiled ingest at the site — the plan
+
+Queue row INGESTPLAN, 2026-10-10: a design for the owner, theory only; nothing built or timed. The owner's frame: ingest
+runs at the site, reads the DICOM through a C parser of the owner's, codes every frame itself, exactly and checked,
+and sends the bundles to the server; the reasons for a compiled ingest are integration, one deployable binary, one
+definition of the store's format shared with the server, and streaming memory. **The parser was not read**: its name
+appears in this repository only in the row's brief, so this plan knows of it what the brief says — C, DICOM Part 10,
+explicit VR little endian only — and its licence is unknown (§Decisions, 2).
+
+**What today's ingest is.** `from_dicom.py` reads a series with pydicom and its own native-pixel reader, and
+`ingest.py` codes each frame by running the pinned `aomenc` or `ojph_compress` as a subprocess on a temporary file,
+decodes it back in-process (`decode.cpp`, a C ABI over dav1d and OpenJPH), compares the samples with the SHA-256
+written from the source, writes the XXH3-64 digests (§Frame digests), and `pack-series` (Rust,
+`common/series-bundle`, the server's own crate) writes the `.sbnd`. Bundles identical at `--jobs` 1, 2 and 4 (rows
+71 and 89).
+
+**"Not CPU" holds for AV1, not for HTJ2K.** For AV1 the encode is ~99 % of ingest: 3.3 s a frame at `good:6`
+against the check's 30–40 ms ([`lab/av1/exact/coded-frame`](../lab/av1/exact/coded-frame/README.md)). For HTJ2K,
+every series' codec today, the same measurement read 0.7 s of CPU for the fluoroscopy's 18 frames, ~39 ms a 768²
+frame, of which the in-process check is 4.2 ms; `ojph_compress` codes such frames at 73–136 a second, process start
+included ([`lab/av1/bytes`](../lab/av1/bytes/README.md) §ENC), 7–14 ms. So **the encoder is roughly a third of an
+HTJ2K ingest and the rest — Python, NumPy, the temporary files, a process per frame — is unapportioned**: a compiled
+ingest calling OpenJPH as a library is predicted to take HTJ2K's CPU to 0.4–0.6 of today's (P-PROFILE decides it).
+For AV1 nothing compiled moves the time.
+
+**Language, weighed both ways.** The parts and what each language pays:
+
+| part | Rust | C++ |
+| --- | --- | --- |
+| the C parser | a `-sys` crate: `cc` builds it, `bindgen` writes the declarations; every call `unsafe` | a direct include |
+| OpenJPH (C++) | a C shim, as `decode.cpp` already is for decoding; an encode shim is the same shape | direct |
+| libaom, SVT-AV1, dav1d (C) | `-sys` crates or `bindgen`; `decode.cpp` links as is | direct |
+| the bundle format | `common/series-bundle`, the server's own definition, used as is | a second definition, or the Rust crate behind a C ABI |
+| the digests | `xxhash-rust`, `sha2` | xxHash's C, any SHA-256 |
+| the link to the server | quinn, the server's stack, one implementation at both ends | a second QUIC stack (lsquic, msquic, ngtcp2) against quinn; interoperable by the standard, a second set of bugs and tunings |
+| build and gate | cargo, already the gate's; `cmake` and `cc` crates for the C and C++ | CMake beside cargo; the gate gains a toolchain |
+| memory safety around untrusted files | the parser stays C either way; everything after it checked | the whole binary |
+
+**Recommended: Rust**, with C++ only inside OpenJPH behind its shim. The server's format crate and QUIC stack are
+both Rust, so a Rust ingest has one definition of each; the C++ side's gains are direct calls the shims already make
+cheap. What would flip it: a team that writes C++ only, or a parser whose integration needs C++ callbacks into the
+ingest. The team's languages are the owner's to state.
+
+**The parser's integration, in stages.**
+
+1. **Files.** The parser writes each frame's samples and the series' attributes; the ingest reads them, codes and
+   checks. Needs from the parser: the samples as `decodeFrame` hands them on (§Input above), the attributes in
+   §The metadata, and the refusals of §Refused. The cost is one write and one read a frame: on tmpfs a 27 MB
+   3328×4096 frame is predicted at 5–15 ms each way against hundreds of ms of HTJ2K encode, under 5 % (P-STAGE).
+2. **A pipe**, only if stage 1's share is over 5 %: the parser streams frames on stdout; no file, one process each.
+3. **The parser linked as a library**: a call per frame into a buffer the ingest owns. Needs a library API from the
+   parser (open, next frame, attributes, close) and its licence to allow static linking.
+
+At every stage the parser's coverage gates what the ingest takes: explicit VR little endian only refuses implicit VR
+little endian (DICOM's default syntax), big endian, deflate, RLE and every encapsulated lossless syntax, all of which
+today's reader takes or refuses by name. A series the parser cannot read is refused by name, never coded from
+something else.
+
+**Exactness, ported.** The same three checks, in the same order: each frame's samples hashed (SHA-256) as read, each
+coded frame decoded back in-process through `decode.cpp` and compared, each frame's XXH3-64 digest written from the
+encoder's input; nothing written unless every frame passes. The encoders are pinned and refused when they report
+another version, as today. **The Python ingest stays the reference** until the compiled one writes byte-identical
+`.sbnd` files for every lab set and every from-DICOM case at `--jobs` 1, 2 and 4, reproduces every refusal by name,
+and passes the mutations `ingest.py` passes; then a gate step keeps the two equal while both exist. Byte identity is
+by construction in stage 1 if the compiled ingest still runs the pinned `ojph_compress` and `aomenc`; moving to the
+libraries must reproduce their settings (OpenJPH's comment marker, `aomenc`'s controls, one encoder context a frame as
+row 71 made it), which the parity check proves.
+
+**Streaming memory.** One frame at a time per worker, read, coded, checked and appended; the bundle's frame table
+written last. Today's reader holds the whole series to take its minimum (`DicomSeries.lo`); the offset needs one pass
+over the samples before coding, so a streaming ingest reads twice or keeps the samples on disk between passes.
+
+**The link from the site to the server.** Today there is none: the server opens a bundle from its disk
+(`--series`). Three options:
+
+* **A file copy** by an existing tool (rsync or SFTP over SSH, object storage): no server change; resume and
+  integrity are the tool's, and a bundle is published by a rename once its SHA-256 matches.
+* **An upload endpoint on the server**: raw QUIC with an ALPN of its own beside the WebTransport endpoint (quinn
+  serves several ALPNs on one socket), the ingest a quinn client; a bundle in chunks with a hash each, resumable,
+  published by rename. Structural: a server change and a new wire, proposed here, not designed.
+* **Thruflux** (github.com/samsungplay/Thruflux, `a9f51b1`, read 2026-10-10): C++, MIT, beta, peer-to-peer over
+  lsquic with ICE and a TURN fallback, 2 MiB chunks, resumable, 256 MiB connection and 32 MiB stream windows by
+  default; its own benchmark, Chicago to Seoul, 10 GiB in 2 min 20 s against SCP's 15 min 06 s and rsync's 15 min 18
+  s, 1 000 × 10 MiB in 2 min 18 s. Its code is an application on boost-asio, libnice and lsquic, not a library, and
+  peer-to-peer discovery is not needed between a site and a known server: reusable for ideas, not code. Its ideas
+  that apply: large flow-control windows on a long path, many files on one connection without a round trip each, and
+  chunked resume. Many streams on one connection share one congestion controller, so they add nothing over one
+  stream once the windows are large (reasoning, not measured); row QUICSURVEY reads the stacks themselves.
+
+**Deployment.** One binary a site platform, the encoders, decoders and parser linked statically; their notices
+shipped (libaom, dav1d and OpenJPH are BSD-2-Clause, [`av1/licensing.md`](av1/licensing.md); the parser's unknown). It
+needs at the site the DICOM source (a folder, or a DICOM listener, which is new), disk for one series in flight, and a
+path to the server. Updates replace the binary; since the bytes depend on the encoders' versions, a release pins them
+and the metadata names them, so a re-ingest is known to reproduce. Which platforms sites run is the owner's.
+
+**Proposed measurements** (none queued):
+
+* **P-PROFILE.** Where today's HTJ2K and AV1 ingest CPU goes — read, hash, temporary files, process start, encode,
+  check — on the fluoroscopy, the 10-bit tomosynthesis, the projections and a mammogram, interleaved, n ≥ 5.
+  Predictions: the encoder 25–45 % of HTJ2K's CPU, ≥ 98 % of AV1's. *Rule:* if the non-encoder share of HTJ2K is
+  ≥ 30 %, CPU is a reason for the compiled ingest beside the owner's four.
+* **P-STAGE.** Stage 1's extra write and read on tmpfs against encode time, the same sets. Prediction under 5 % for
+  HTJ2K, under 0.1 % for AV1. *Rule:* stay at stage 1 when ≤ 5 %.
+* **P-PARITY.** The compiled ingest against the Python reference, every set and case above: byte-identical bundles,
+  identical refusals, every mutation caught. *Rule:* the Python ingest stops being the product's when this holds;
+  it stays as the reference.
+
+**Decisions** (the owner's, listed under the queue's §Blocked): (1) Rust or C++; (2) the parser's licence and how it
+is shipped with the ingest — none is shown in this repository; (3) the transfer syntaxes the parser does not read:
+refused, converted before it, or added to it; (4) the link: a file copy, an upload endpoint on the server, or a
+third-party tool; (5) the site platforms and how updates reach them.
+
 ## The sets
 
 | Where | What | How it is made |
