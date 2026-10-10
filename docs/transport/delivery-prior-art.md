@@ -6,8 +6,10 @@ The transport was built by measurement against one baseline ([`transport-conclus
 This file reads how others deliver: DICOMweb, progressive HTJ2K in an open-source web viewer and in cloud imaging
 services, JPIP, plain HTTP/3, QUIC datagrams with forward error correction, and Media over QUIC. Web research only,
 2026-10-07, no measurement. Each claim cites its source and the source's date; **unconfirmed** marks what rests on a
-search summary or secondary text. Products, viewers and services are not named (the repository is public, `CLAUDE.md`);
-their documentation was read and is described, not linked.
+search summary or secondary text. Products, viewers and services are not named here, under a naming rule since
+narrowed (the owner, 2026-10-09): only the private comparison stack the term scanner guards is never named; open-source
+projects, vendors and standards are named and cited like any other source. Their documentation was read and is
+described, not linked.
 
 ## 1. DICOMweb: WADO-RS
 
