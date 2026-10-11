@@ -1,0 +1,123 @@
+--- a/client/decode/wasm/openjph/htj2k_decoder.cpp
++++ b/client/decode/wasm/openjph/htj2k_decoder.cpp
+@@ -5,6 +5,7 @@
+ #include <emscripten/val.h>
+ 
+ #include <cstdint>
++#include <cstdlib>
+ #include <cstring>
+ #include <string>
+ #include <vector>
+@@ -16,6 +17,8 @@
+ #include <openjph/ojph_params.h>
+ #include <openjph/ojph_version.h>
+ 
++#include <wasm_simd128.h>
++
+ namespace {
+ 
+ struct Point {
+@@ -66,18 +69,46 @@
+   range = {mn, mx};
+ }
+ 
++// Three 8-bit lines clamped and interleaved 16 pixels a step; the tail goes through pack.
++uint32_t interleave3(const ojph::si32* r, const ojph::si32* g, const ojph::si32* b, uint8_t* dst, uint32_t w) {
++  auto narrow = [](const ojph::si32* p) {
++    const v128_t lo = wasm_i16x8_narrow_i32x4(wasm_v128_load(p), wasm_v128_load(p + 4));
++    const v128_t hi = wasm_i16x8_narrow_i32x4(wasm_v128_load(p + 8), wasm_v128_load(p + 12));
++    return wasm_u8x16_narrow_i16x8(lo, hi);
++  };
++  uint32_t x = 0;
++  for (; x + 16 <= w; x += 16, dst += 48) {
++    const v128_t R = narrow(r + x), G = narrow(g + x), B = narrow(b + x);
++    const v128_t t0 = wasm_i8x16_shuffle(R, G, 0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23);
++    const v128_t t1 = wasm_i8x16_shuffle(R, G, 8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31);
++    const v128_t u = wasm_i8x16_shuffle(t0, t1, 11, 0, 12, 13, 0, 14, 15, 0, 16, 17, 0, 18, 19, 0, 20, 21);
++    wasm_v128_store(dst, wasm_i8x16_shuffle(t0, B, 0, 1, 16, 2, 3, 17, 4, 5, 18, 6, 7, 19, 8, 9, 20, 10));
++    wasm_v128_store(dst + 16, wasm_i8x16_shuffle(u, B, 0, 21, 2, 3, 22, 5, 6, 23, 8, 9, 24, 11, 12, 25, 14, 15));
++    wasm_v128_store(dst + 32, wasm_i8x16_shuffle(t1, B, 26, 6, 7, 27, 8, 9, 28, 10, 11, 29, 12, 13, 30, 14, 15, 31));
++  }
++  return x;
++}
++
+ }  // namespace
+ 
+ class HTJ2KDecoder {
+  public:
++  ~HTJ2KDecoder() { std::free(pixels_); }
++
+   emscripten::val getEncodedBuffer(size_t n) {
+     encoded_.resize(n);
+     return emscripten::val(emscripten::typed_memory_view(n, encoded_.data()));
+   }
+ 
+-  emscripten::val getDecodedBuffer() {
+-    return emscripten::val(emscripten::typed_memory_view(decoded_.size(), decoded_.data()));
++  emscripten::val getDecodedBuffer() { return emscripten::val(emscripten::typed_memory_view(size_, pixels_)); }
++
++  // The frame's address in the shared heap: the caller keeps it until release(), and the next decode writes elsewhere.
++  uintptr_t takeFrame() {
++    uint8_t* f = pixels_;
++    pixels_ = nullptr;
++    return (uintptr_t)f;
+   }
++  static void release(uintptr_t frame) { std::free((void*)frame); }
+ 
+   void readHeader() {
+     in_.close();
+@@ -107,18 +138,31 @@
+     const int32_t half = (int32_t)(1u << (frame_.bitsPerSample - 1));
+     const int32_t lo = frame_.isSigned ? -half : 0;
+     const int32_t top = frame_.isSigned ? half - 1 : 2 * half - 1;
+-    // Not assign(…, 0): pack() writes every byte, and the fill was a second full-frame pass.
+-    decoded_.resize((size_t)w * h * comps * wide);
++    std::free(pixels_);
++    size_ = (size_t)w * h * comps * wide;
++    pixels_ = (uint8_t*)std::malloc(size_);
+     range_ = {top, lo};
+     // Must match decoder.js's `unranged`, which gives this frame its sample type's range instead.
+     const bool ranged = !(comps == 3 && frame_.bitsPerSample == 8 && !frame_.isSigned);
+ 
+     for (uint32_t y = 0; y < h; ++y) {
++      if (comps == 3 && !ranged) {
++        const ojph::si32* line[3];
++        for (uint32_t c = 0; c < 3; ++c) {
++          uint32_t got = 0;
++          const ojph::line_buf* l = cs_.pull(got);
++          line[got] = l->i32;
++        }
++        uint8_t* row = pixels_ + (size_t)y * w * 3;
++        const uint32_t x = interleave3(line[0], line[1], line[2], row, w);
++        for (uint32_t c = 0; c < 3; ++c) pack<uint8_t, false>(line[c] + x, row + 3 * x + c, w - x, 3, lo, top, range_);
++        continue;
++      }
+       for (uint32_t c = 0; c < comps; ++c) {
+         uint32_t got = 0;
+         ojph::line_buf* line = cs_.pull(got);
+         const ojph::si32* src = line->i32;
+-        uint8_t* dst = decoded_.data() + ((size_t)y * w * comps + got) * wide;
++        uint8_t* dst = pixels_ + ((size_t)y * w * comps + got) * wide;
+         if (wide == 2) pack<uint16_t, true>(src, dst, w, comps, lo, top, range_);
+         else if (ranged) pack<uint8_t, true>(src, dst, w, comps, lo, top, range_);
+         else pack<uint8_t, false>(src, dst, w, comps, lo, top, range_);
+@@ -163,7 +207,9 @@
+   }
+ 
+  private:
+-  std::vector<uint8_t> encoded_, decoded_;
++  std::vector<uint8_t> encoded_;
++  uint8_t* pixels_ = nullptr;
++  size_t size_ = 0;
+   ojph::mem_infile in_;
+   ojph::codestream cs_;
+   FrameInfo frame_;
+@@ -201,6 +247,8 @@
+       .constructor<>()
+       .function("getEncodedBuffer", &HTJ2KDecoder::getEncodedBuffer)
+       .function("getDecodedBuffer", &HTJ2KDecoder::getDecodedBuffer)
++      .function("takeFrame", &HTJ2KDecoder::takeFrame)
++      .class_function("release", &HTJ2KDecoder::release)
+       .function("readHeader", &HTJ2KDecoder::readHeader)
+       .function("decode", &HTJ2KDecoder::decode)
+       .function("getFrameInfo", &HTJ2KDecoder::getFrameInfo)
