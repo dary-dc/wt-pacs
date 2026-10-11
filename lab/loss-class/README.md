@@ -65,8 +65,43 @@ voids a visit when its p99 lateness is over 1 ms; both readings are reported, st
 shallow-queue random cell goes to R3 and R4. Without one, options 1 and 2 close. *Applied here:* every overflow cell
 is `of-q20` and `of-q500`, every shallow-queue random cell the six `*-q20` random cells; a (cell, controller) is
 judged on ≥ 10 events of the class its bar counts, and must pass under each controller where judged. If a rule cell
-under `cubic-restart` — the controller option 1 wraps — has fewer, the rule is not judged.
+under `cubic-restart` — the controller option 1 wraps — has fewer, the rule is not judged, unless a judged cell fails:
+the rule is a conjunction, so one judged miss fails it (*corrected after the run*: `run.py` always applied this
+precedence; the sentence before it did not say so).
 
 ## Results
 
-Not yet run.
+*2026-10-11, row LOSSCLASS, run by a session given only this protocol.* Six rounds, 252 visits (12 a cell), 8 `VOID`
+(relay p99 1.1–9.8 ms); 03:31–04:22 UTC. Every drop log matched the relay's tally; the lag held (p50 0.07 ms, p99
+0.25 ms, 0.4 % of events over 2 ms). 4 470 drops matched no event and 1 074 opening events had no drop. Both readings
+give the same verdicts; the numbers below are strict, all-visits where they differ. Shares are congestion classed
+radio (C→R) and radio classed congestion (R→C), per q*.
+
+| cell | cc | congestion / radio events | rfc9406 C→R \| R→C | 10 ms | 20 ms |
+| --- | --- | --- | --- | --- | --- |
+| `of-q20` | cubic-restart | 36 / 0 | 0 % \| – | 3 % \| – | 100 % \| – |
+| `of-q20` | bbr | 1 115 / 0 | 0 % \| – | 25 % \| – | 100 % \| – |
+| `of-q500` | both | 0 / 0 | – | – | – |
+| `*-q20` random (six) | cubic-restart | 0–10 / 116–364 | 0 % \| 1–2 % | 0 % \| 0–1 % | 100 % \| 0–1 % |
+| `*-q20` random (six) | bbr | 694–1 032 / 57–436 | 0–3 % \| 30–41 % | 26–30 % \| 4–6 % | 100 % \| 0 % |
+| `*-q500` random (six) | cubic-restart | 0 / 130–366 | – \| 0–14 % | – \| 0–11 % | – \| 0–9 % |
+| `*-q500` random (six) | bbr | 0 / 229–665 | – \| 84–93 % | – \| 73–89 % | – \| 58–84 % |
+| `j5-q20` | cubic-restart \| bbr | 42 \| 1 015 / 0 | 0 % \| 0 % | 17 % \| 3 % | 83 % \| 75 % |
+| `j20-q20` | cubic-restart \| bbr | 33 \| 769 / 0 | 0 % \| 0 % | 3 % \| 0 % | 9 % \| 2 % |
+| `j*-q500` | both | 0 / 0 | – | – | – |
+| `lte-good`, `-loaded`, `-moving` | both | 0 / 4–44 | – \| 71–100 % | – \| 71–100 % | – \| 67–100 % |
+
+Median fill rates: overflow and jitter cells 18–19 Mbit, `cubic-restart` on random cells 2.9–3.2, `bbr` 16–18.
+
+* **Prediction 1** (C→R ≤ 5 % on every overflow cell): holds at RFC 9406's q* on `of-q20` (0 % under both); fails at
+  10 ms (`bbr` 25 %) and 20 ms (100 %). **`of-q500` is untested:** it never dropped a packet. The fill keeps at most
+  8 asks × 64 KB = 512 KB in flight, under the 100 kB path plus 750 kB FIFO it takes to overflow, and it ran at
+  19.3 Mbit with an empty tail — a limit of this harness, found by the run. The `j*-q500` cells are empty for the same reason.
+* **Prediction 2** (R→C ≤ 20 % on shallow random cells under Cubic): holds at every q* (0–2 %).
+* **Prediction 3** (R→C > 50 % on deep random cells): fails under `cubic-restart` (0–14 %), whose window collapses
+  under the loss (2.9 Mbit), so no queue builds; holds under `bbr` (58–93 %).
+* **Rule: no q* passes, in both readings.** RFC 9406's q* misses on `bbr`'s shallow random cells (R→C 30–41 %, bar
+  30 %), 10 ms on `of-q20` under `bbr` (C→R 25 %), 20 ms on `of-q20` under both (100 %). The mutation (`--mutate
+  truth`) fails or leaves unjudged every q* and is caught by the tally check (201 | 208 visits disagree).
+
+The review is in [`transport-conclusions.md`](../../docs/transport/transport-conclusions.md) §1, R2.

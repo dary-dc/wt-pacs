@@ -838,6 +838,23 @@ rule.
 
   Rule: a q* with congestion-as-radio ≤ 5 % on every overflow cell and radio-as-congestion ≤ 30 % on every
   shallow-queue random cell goes to R3 and R4. Without one, options 1 and 2 close.
+  *Run (row LOSSCLASS, 2026-10-11).* [`lab/loss-class`](../../lab/loss-class/README.md): the relay's drop log
+  against a per-event loss trace, 252 visits, 8 `VOID`, both readings alike. **By the rule no q* passes, so options 1
+  and 2 close as written.** RFC 9406's q* misses only on `bbr`'s shallow random cells: BBR keeps the 20-packet FIFO
+  full, so its random losses meet a queue (R→C 30–41 % against 30 %). 10 ms misses on `bbr`'s overflow cell (C→R
+  25 %), and 20 ms on every overflow cell (100 %). Predictions 1 (at RFC 9406's q*) and 2 held. Prediction 3 failed
+  under Cubic: random loss keeps its window under any queue (2.9 Mbit on 20), so R→C is 0–14 % on deep FIFOs, not
+  > 50 %.
+  *Review.* Conclusive for the rule, and narrower than it reads:
+  * **Every miss is BBR's.** Under `cubic-restart`, the controller option 1 wraps, RFC 9406's q* meets both bars on
+    every judged cell: C→R 0 % on `of-q20` (n 36), R→C 1–2 % on the six shallow random cells (n 116–364).
+  * **The deep overflow cell is untested.** The fill is capped at 512 KB in flight, which never fills a 500-packet
+    FIFO at 20 Mbit (0 drops, 19.3 Mbit). Option 1's worst case, a congestive loss behind a deep queue classed radio,
+    had no event here, and `of-q20`'s 36 events are few.
+  * **So R2 closes option 2 on evidence** (it runs BBR after a switch, and BBR is what fails). It closes option 1 by the
+    rule's conjunction over controllers, not by a measured miss under Cubic. Reopening option 1 would take a
+    Cubic-only rule, fixed before data, and an `of-q500` run with ≥ 1 MB in flight. That is the owner's call; nothing
+    is queued. The product does not change.
 * **R3 LOSSIGNORE — option 1.** Arms `cubic-restart`, `bbr` and the wrapper with R2's q*. Cells:
   * row LOSSCC's grid: r5000, r20000, r50000 and `lte-good` × clean, ±20 ms, 1, 2, 5 % × 1× and 4×;
   * *A neighbour behind fq_codel*'s shallow and deep FIFO cells;

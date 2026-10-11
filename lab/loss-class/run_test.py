@@ -43,7 +43,7 @@ class Attribution(unittest.TestCase):
 
 def rows(overflow_rtt, random_rtt, n=12):
     def visit(kind, cell, rtt, cause):
-        return {"cell": cell, "kind": kind, "cc": "cubic-restart", "void": False,
+        return {"cell": cell, "kind": kind, "cc": "cubic-restart", "void": False, "relay_tally": [],
                 "losses": [event(100 * i, rtt) for i in range(1, n + 1)],
                 "drops": [[str(100 * i * MS), cause, "1452"] for i in range(1, n + 1)]}
     return [visit("overflow", "of-q20", overflow_rtt, "overflow"), visit("random-q20", "iid1-q20", random_rtt, "loss")]
