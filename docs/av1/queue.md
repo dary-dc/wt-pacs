@@ -219,6 +219,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 141 | **LOSSCLASS** — row 119's R2 run by a session given only its protocol and rule: how often a loss classifier is wrong on the relay's known causes | ready |
 | 142 | **STARTMEASURE** — row 125's P-START run by a session given only its protocol and rule: decoders started on first need | claimed 2026-10-11 (night, 3b985b) |
 | 143 | **TILEDESIGN** — the owner's rule for large frames written into the design, and the tiled store and decode it implies: a proposal; theory only | done `23e6ca5f` on `claude/av1-unified` — **a proposal, theory only: tiles as independent codestreams cut into level bands, laid out band-major, asked on today's wire**: the rule reaches only For Processing images in the breast family (raw FFDM 13–14 bits, raw projections 14; row 121's open question) and CR/DX over 12 bits outside it; on a phone device pixels need L1 where CSS pixels need L2–L3 (4–13× the bytes), on a 5 MP display both L0; same OpenJPH build on k idle workers (row 133 ×0.39–0.45 at 4×), a digest per tile and level; five decisions under §Blocked, three rows proposed, none queued — [`docs/adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §8 |
+| 144 | **FFPORTGC** — Firefox loses decoded frames when the downloader drops its copy of each decoder's transferred `MessagePort`: fixed by holding it, a test that fails without, and a Firefox fill large enough to hit it | ready |
 
 ## Briefs
 
@@ -2887,6 +2888,26 @@ whose frames are still large (12-bit mammograms: fill time per link from rows 95
 series types outside the breast family it covers (CT, MR, CR/DX, XA, from `docs/av1/series.md` and DICOM).
 **Deliverable:** the ADR extended; the owner's decisions under §Blocked; proposed rows, none queued. **Branch:**
 `claude/av1-unified`.
+
+### 144 FFPORTGC
+
+**A defect, found 2026-10-11 in the reference implementation's client, which shares this design.** Firefox does not
+copy a message that carries a `SharedArrayBuffer`: it stores it in a process-wide table under the *sending* port's
+uuid, a transferred port keeps that uuid, and when any `MessagePort` object with that uuid is destroyed Firefox deletes
+every message stored under it (`dom/ipc/RefMessageBodyService.cpp`, `dom/messagechannel/SharedMessageBody.cpp`,
+`dom/messagechannel/MessagePort.cpp`: `~MessagePort → CloseForced → ForgetPort(uuid)`). Here `spawn()` in
+`client/transport/downloader.js` creates a `MessageChannel`, transfers `ch.port1` to the decoder and keeps no reference
+to the neutered copy; when the downloader's garbage collector reclaims it during a fill, frames still in flight to the
+page are deleted and the page gets `messageerror` (no index), while the decoder has already posted `done` — the frame
+is lost silently. There it took 237-frame fills to 206–232 frames in Firefox 157 in 7/7 runs, and 237/237 in 9/9 once
+the downloader held `port1`. `followQueue`, which spawns and retires decoders, leaves more such ports. **Do:** hold each
+decoder's `port1` on its record for the decoder's life (one line and a pointer to the owning doc); a Node test that
+drops the stub decoders' copies, runs `gc()` and asserts the ports are still alive (fails without the fix, mutated);
+then a Firefox run through `client/contract/drive_firefox.mjs` on a fill large enough to hit it (a 200+ frame series),
+before and after. Also report, without fixing, whether this client can still lose a frame silently the other ways the
+reference found: a `messageerror` with no index and no handler, a decoder worker crash with no `onerror`, a decode that
+never returns (no fill deadline). **Deliverable:** the fix, the test, the Firefox before/after in the client doc that
+owns the downloader; the three silent-loss answers in the result cell. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
