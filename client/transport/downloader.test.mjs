@@ -158,5 +158,33 @@ async function followTheQueue() {
 }
 await followTheQueue();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue: ok");
+/** `startOnNeed` starts one decoder, adds one only while frames stay queued after a dispatch, never past `decoders`, and never retires one. */
+async function startOnNeed() {
+  const fed = handFed();
+  const made = handDecoders();
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // need`;
+  await import("./downloader.js?need");
+  await onmessage({ data: { kind: "start", config: { startOnNeed: true, decoders: 3, perDecoder: 2, transport, decoderWorker: "x", survival: false } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  check(made.length === 1, `it starts ${made.length} decoders, not 1`);
+  await onmessage({ data: { kind: "fill", indices: [...Array(16).keys()] } });
+  const busy = () => made.map((w) => w.decoding.length);
+  fed.fill(frame(0));
+  fed.fill(frame(1));
+  await settle();
+  check(made.length === 1, `two frames on one decoder add none (${made.length} decoders)`);
+  for (let i = 2; i < 10; i++) fed.fill(frame(i));
+  await settle();
+  check(made.length === 3 && Math.max(...busy()) <= 2, `a queue adds decoders up to decoders, perDecoder each (${busy()})`);
+  while (made.some((w) => w.decoding.length)) {
+    for (const w of made) if (w.decoding.length) w.finish();
+    await settle();
+  }
+  for (const i of [10, 11, 12]) fed.fill(frame(i));
+  await settle();
+  check(made.length === 3 && busy().every((n) => n === 1), `idle decoders stay in the pool: three frames on three (${busy()})`);
+}
+await startOnNeed();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue, start on need: ok");
 process.exit(failed ? 1 : 0);

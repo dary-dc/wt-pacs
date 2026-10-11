@@ -127,9 +127,12 @@ function pump() {
   grow();
 }
 
-/** `followQueue`: frames still queued after a dispatch add a decoder, up to `cfg.decoders`. docs/ARCHITECTURE.md §How many */
+/** Lab flags `followQueue` and `startOnNeed` (which never retires): one decoder at the start. docs/ARCHITECTURE.md §How many */
+const growsOnNeed = () => cfg.followQueue || cfg.startOnNeed;
+
+/** Frames still queued after a dispatch add a decoder, up to `cfg.decoders`. */
 function grow() {
-  if (!cfg.followQueue || growing || queue.ask.length + queue.fill.length === 0 || decoders.length >= cfg.decoders) return;
+  if (!growsOnNeed() || growing || queue.ask.length + queue.fill.length === 0 || decoders.length >= cfg.decoders) return;
   const back = parked.pop();
   if (back) {
     decoders.push(back);
@@ -393,7 +396,7 @@ function spawn() {
 async function start(m) {
   // A config field the consumer left out must not clobber the default with `undefined`.
   for (const [k, v] of Object.entries(m.config ?? {})) if (v !== undefined) cfg[k] = v;
-  const count = !cfg.decode ? 0 : cfg.followQueue ? Math.min(1, cfg.decoders) : cfg.decoders;
+  const count = !cfg.decode ? 0 : growsOnNeed() ? Math.min(1, cfg.decoders) : cfg.decoders;
   for (let i = 0; i < count; i++) decoders.push(spawn());
   const ready = decoders.map((d) => d.up);
   if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
