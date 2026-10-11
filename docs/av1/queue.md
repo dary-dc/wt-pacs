@@ -204,6 +204,14 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 126 | **INGESTPLAN** — the product's ingest at the site: language (Rust against C++), the C parser's integration in stages, the exactness check, the Python reference, the link to the server; a design for the owner; theory only | done `8e29123` on `claude/av1-unified` — **a plan, Rust recommended; and for HTJ2K the encoder is about a third of ingest CPU, not 99 %**: theory only; the parser not read (named only in this brief; licence unknown); row 52's numbers give AV1 3.3 s encode against a 30–40 ms check (~99 %) but HTJ2K ~39 ms of CPU a 768² frame with a 4.2 ms check and a 7–14 ms `ojph_compress`, so a compiled HTJ2K ingest is predicted at 0.4–0.6 of today's CPU; Rust keeps one bundle definition (`common/series-bundle`) and one QUIC stack (quinn) with the server, C++ only inside OpenJPH behind a shim like `decode.cpp`; the parser in three stages (files, a pipe if their share is over 5 %, a library), its explicit-LE-only coverage refusing DICOM's default implicit LE by name; the three checks ported, the Python ingest the reference until bundles are byte-identical at `--jobs` 1/2/4; link: a file copy, an upload ALPN beside WebTransport (structural), or Thruflux (C++, MIT, beta, lsquic, P2P; ideas, not code); proposed, none queued: P-PROFILE, P-STAGE, P-PARITY; five decisions under §Blocked — [`FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site — the plan |
 | 127 | **NATIVEPLAN** — the native version's plan beyond transport and decode: platforms (desktop first, phones the goal), paint and cache, app shape, costs, and the desktop-first measurement plan run in cloud containers; theory only | done `6d29cd1` on `claude/av1-unified` — **one Rust core with a thin interface per platform; paint carries over as it is; the cache is the app's clearest gain and its new liability; speed is not yet a reason**: from pinned sources (wgpu 30.0.1, Vulkan-Docs 1.4.365, Apple, Android, freedesktop, FDA, EU, AAPM, the stores) — `R16Uint` needs no wgpu feature and no API filters integer textures, so the in-shader bilinear and the 1:1 proof port; 4096×3072 fits the default 8192 limit; GLES 3.0 has no compute for the WGSL decoder; ten grey bits to a panel unproven anywhere; cache places and eviction per OS (Android's cache dir is for small data, iOS class A closes it ~10 s after lock); only a Rust core with native UIs or a pure-Rust GUI keeps the wgpu painter on all five targets (Tauri's wgpu path has no Wayland, iOS or Android; Flutter has five texture paths; MAUI and React Native no Linux); UniFFI has no async cancellation; WebTransport is in every engine since Safari 26.4; FDA and MDR are platform-independent, the stores' medical rules (Apple 1.4.1, 5.1.1(ix), 5.1.3, 2.5.2; Play's declaration) apply to the app alone; five decisions under §Blocked; proposed, none queued: M1 PAINTPROOF, M2 NATIVEFILL (P2: fills tie at 20 and 50 Mbit), M3 CACHE, M4 PHONEFIRST, ordered containers → GPU desktop → phones after quic.md's N1, N2 and decode's P-ARM — [`native/README.md`](../native/README.md) |
 | 128 | **H3FETCH** — plain HTTP/3 `fetch()` as the simplest alternative to WebTransport for the fill and the ask: mechanism, what the browser does differently, predictions and a protocol; theory only | done `a0eafd6` on `claude/av1-unified` — **the same QUIC stack and receive bound, a different connection: fetch rides the page's pooled HTTP/3 connection, which WebTransport never does**: theory only, Chromium 141.0.7390.37's source read; both paths build their config with `InitializeQuicConfig` (15 MB connection, 6 MB stream receive windows), so the receive bound is shared; pooled HTTP/3 brings what WebTransport lacks — no dial on a warm origin (today's 3.03 round trips to a ready session), TLS resumption and 0-RTT GETs, and Chromium's connection migration — and loses the opening ask's push and the server's own ordering (Chromium's RFC 9218 urgency is advisory); caching (a privacy question on shared devices), CORS and an HTTP/2 fallback come with it; the server would need a GET path beside wtransport (structural); predicted ×0.97–1.05 on warm asks and fills, ×1.0–2.0 on an ask behind a fill, ×0.5–0.7 on a cold first frame with the origin up; a protocol and rule proposed, not queued; Firefox's and Safari's stacks not read — [`delivery-prior-art.md`](../transport/delivery-prior-art.md) §8 |
+| 129 | **WTCOMPAT** — the browsers' WebTransport draft and `reset_stream_at` against the server: what each engine's stable, beta and nightly speak, what breaks when one moves, and a check that warns before a release does | ready |
+| 130 | **INITRTT** — a 100 ms initial RTT on the server: the first open's tail under loss against spurious resends on slow links; theory only | ready |
+| 131 | **TAILDUP** — a frame's last packets sent twice: where tail loss bites (the ask, a burst's end), how often on the target, its cost elsewhere; theory only | ready |
+| 132 | **CCATTRIB** — row 119's R1 run by a session given only its protocol and rule: BBR's clean-link cost with the initial windows swapped between arms, ProbeRtt apart | ready |
+| 133 | **TILEMEASURE** — row 125's P-TILE run by a session given only its protocol and rule: tiles stored as independent codestreams for large-frame asks, bytes and the ask, exact | ready |
+| 134 | **EMSDKMEASURE** — row 125's P-EMSDK and P-COPY run by a session given only their protocols and rules | ready |
+| 135 | **RECVCOST** — row 124's first measurement (receive CPU per byte per client stack, desktop, in a container) run by a session given only its protocol and rule | ready |
+| 136 | **INGESTPROFILE** — row 126's P-PROFILE run by a session given only its protocol and rule: where today's ingest CPU goes, per codec | ready |
 
 ## Briefs
 
@@ -2730,6 +2738,80 @@ that is no longer needed, CORS and preflight, Firefox and Safari), what stays th
 receive bound), and what the server would need. Predictions per link and series, and a protocol with its rule.
 **Deliverable:** a section in `docs/transport/delivery-prior-art.md` (extended); the proposed row in the result cell,
 not queued. **Branch:** `claude/av1-unified`.
+
+## The next rows (129–136), 2026-10-10 evening
+
+The owner, 2026-10-10: usage is plentiful, so the cloud keeps working. Rows 129–131 are **theory first** under the
+preamble of rows 119–121 and the criteria of rows 122–128 (an idea that helps only under some link conditions shows
+the condition is common on the target, that it works there and that it costs little elsewhere, or is switched on only
+where detected). Rows 132–136 are **measurements** of protocols already written: the session reads only the named
+protocol and its rule (not the reasoning around it), runs it with arms interleaved and differing in the lever alone
+(§Protocol), reports the numbers and whether each prediction held, and leaves the verdict's review to a later row.
+Nothing here changes a product default. Docs on `claude/av1-unified`, cells on `claude/av1`.
+
+### 129 WTCOMPAT
+
+**Question.** Will a browser update break the server? WebTransport over HTTP/3 is an IETF draft; each engine speaks
+one draft version and the server another (`docs/transport/upstream-wtransport-settings.md`; row 124 read the server as
+draft-02). Newer drafts lean on QUIC's `reset_stream_at` (draft-ietf-quic-reliable-stream-reset) so a cancelled
+stream still delivers its header. **Do:** from each engine's source and release notes: which draft and SETTINGS
+Chromium (stable, beta, canary), Firefox (release, nightly) and Safari speak, when each plans to move, whether
+`reset_stream_at` is negotiated or required, and what the server does with each today. Then build a check that dials
+the server from the newest available Chromium and Firefox builds in a container and fails loudly on a draft or
+`reset_stream_at` mismatch (mutated to prove it fails), runnable by hand or on a schedule. **Deliverable:** a section
+in `docs/transport/transport-conclusions.md` (extended), the check under `scripts/` with a line in its README; what
+the server would need to follow a newer draft, proposed, not built. **Branch:** `claude/av1-unified`.
+
+### 130 INITRTT
+
+**Question.** Should the server assume a 100 ms round trip before it has measured one? quinn's default initial RTT is
+333 ms (RFC 9002 §6.2.2), so a lost first flight waits ~1 s; Chromium's own QUIC assumes 100 ms. A lab reading puts
+the slowest 1 % of first opens from 1 335 to 638 ms at 1 % loss (find its source in the repository and cite it, or say
+it has none). **Do:** the mechanism (PTO before any sample, the server's Initial and Handshake flights, amplification
+limit), the cost on links slower than 100 ms (spurious resends of the first flight: bytes, and whether they disturb
+the controller), how often target links exceed 100 ms, what deployed stacks choose and why; predictions per link and
+a protocol with its rule. **Deliverable:** a section in `docs/transport/transport-conclusions.md` (extended); the
+proposed row in the result cell. **Branch:** `claude/av1-unified`.
+
+### 131 TAILDUP
+
+**Question.** Is sending a frame's last packets twice worth it? A lost tail packet can be detected only by a timer
+(PTO) unless later packets follow; during a fill the next frames' packets detect it within a packet threshold, so the
+tail matters most for an ask on an idle connection and for a burst's last frames. **Do:** from QUIC's loss detection
+(RFC 9002), quinn's code and the literature on tail loss (TCP's TLP and RACK, QUIC tail-loss studies, FEC on tails):
+the share of frames whose loss falls where only a timer recovers it, per loss rate and frame size; the gain on an ask's
+p95/p99 at the target links (row 60's loss numbers); the cost on a clean link (bytes, the controller seeing
+duplicates); a version switched on only where loss is detected. Apply the owner's criteria explicitly. **Deliverable:**
+a section in `docs/transport/transport-conclusions.md` (extended); drop or a proposed row with predictions and a rule.
+**Branch:** `claude/av1-unified`.
+
+### 132 CCATTRIB
+
+Row 119's R1, as written in `docs/transport/transport-conclusions.md` §1 *The way out, surveyed*. Read that protocol
+and rule only. **Deliverable:** the numbers and each prediction's outcome beside the protocol; whether row 75's clean
+cells must be re-read. **Branch:** `claude/av1-unified`.
+
+### 133 TILEMEASURE
+
+Row 125's P-TILE, as written in `docs/decode/README.md` §Not yet tried. Read that protocol and rule only; exactness
+against the encoder's input for every frame. **Deliverable:** numbers and predictions' outcomes beside the protocol.
+**Branch:** `claude/av1-unified`.
+
+### 134 EMSDKMEASURE
+
+Row 125's P-EMSDK and P-COPY, as written in `docs/decode/README.md` §Not yet tried; the delivered decoder build is not
+replaced. **Deliverable:** as row 133. **Branch:** `claude/av1-unified`.
+
+### 135 RECVCOST
+
+Row 124's first measurement (receive CPU per byte per client stack), as written in `docs/native/quic.md`; desktop, in
+this container; the host's saturation point stated and nothing claimed past it. **Deliverable:** as row 133.
+**Branch:** `claude/av1-unified`.
+
+### 136 INGESTPROFILE
+
+Row 126's P-PROFILE, as written in `docs/FIXTURES.md` §A compiled ingest at the site. **Deliverable:** as row 133; the
+"~99 % encode" claim corrected in place wherever it stands. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
