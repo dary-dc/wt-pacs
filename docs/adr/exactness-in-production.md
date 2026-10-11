@@ -434,6 +434,32 @@ frames for final reading. Whether a reveal exists is a product decision, not a t
   configuration the server sends. The thresholds are the owner's.
 * **Phones** send at `visibilitychange` (§5). Nothing here depends on the series being closed.
 
+### The fault bench, run 2026-10-11
+
+*Queue row 145 (FAULTBENCH).* One fault on frame 2 of a six-frame series, through the real server, the product's
+downloader and its `decoder.js` unchanged; the fault lives in the harness, which wraps the codec modules
+([`../../lab/faultbench`](../../lab/faultbench/README.md)). HTJ2K: six copies of the contract's `grey-16` frame; AV1: the
+optimized golden payloads `g8 g10 s11 s13 c8 g9`, digests from Python's `xxhash`. Headless Chromium 141 and Firefox
+157.0.1, one visit per cell; the control (no fault) delivered 6/6 exact in every cell. *Sample* flips one byte of the
+first decode's output; *always* flips it on every decode; *truncate* gives the decoder half the frame's coded bytes on
+every decode (a store that serves a short frame with a matching length); *hang* never returns from frame 2's decode.
+
+| fault | HTJ2K (both engines) | AV1, dav1d-WASM (Chromium with WebCodecs taken away; all of Firefox) | AV1, WebCodecs (Chromium) |
+| --- | --- | --- | --- |
+| sample | caught; a fresh object decodes it again: **exact, shown** | caught; **no second path** ("no WebCodecs decoder"): **marked false, shown** | caught; dav1d-WASM decodes it again: **exact, shown** |
+| always | caught; second decode wrong too: **marked false, shown** | **marked false, shown** | caught, dav1d wrong too: **marked false, shown** |
+| truncate | OpenJPH decodes the short codestream without error; caught: **marked false, shown** | refused before decode, "av1 payload: frame 0 overruns the payload": **failed by name**, not shown | as dav1d |
+| hang | **never arrives, no failure**; frame 5, queued behind it on the same decoder, never arrives either | the same | the same |
+
+*Marked false, shown* is §8's *mark*: the viewer draws the pixels under the red *NOT EXACT* banner with the reason;
+*failed by name* reaches the viewer's `onError` and its status line, with nothing drawn. Every frame not faulted was
+exact wherever it arrived, in all 30 visits. **What it adds to §8:** a transient fault in dav1d-WASM is not rescued — the AV1 ladder's only
+second path is the other decoder, so on Firefox and WebKit, where WebCodecs refuses these payloads, a decoder fault
+that a fresh instance would clear is shown marked; HTJ2K's fresh object rescues the same fault. A truncated HTJ2K
+codestream is not an error to OpenJPH, so only the digest stands between it and a silent wrong frame. A decode that
+never returns is invisible to the check and to the page and takes the frames queued behind it on its decoder (row 144
+lists the missing deadline). Not run: WebKit (none in a container).
+
 **Proposed, not queued:** a fault-injection bench that flips samples in each path on each engine (Chromium, Firefox,
 WebKit) and records which rung of the ladder catches it and what it costs; the server's own check of each frame's
 coded bytes on read, timed against today's send path (queue row 51's harness); and the report endpoint, once the
