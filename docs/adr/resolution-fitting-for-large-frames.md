@@ -206,7 +206,9 @@ level the screen needs): L1 25.8–29.0 % of the frame, L2 7.0–7.5 % (measured
 from §2's ladder (not measured on breast). So device pixels cost **4× to 13× the bytes of CSS pixels** on a phone
 (L1 against L2–L3), and give the radiologist the sharpness the panel has; CSS pixels upscale by the DPR. **On a 5 MP
 diagnostic display both counts are L0**: the rule there sends every pixel, and tiles never apply until a zoom past 1:1.
-The choice of count is the owner's; the viewport, not the screen, is what the client measures (§1).
+**Decided (the owner, 2026-10-11): device pixels.** CSS pixels would be an upscaled preview on phones, which the
+rule rules out. The viewport, not the screen, is what the client measures (§1); per viewport or per screen is still
+the owner's.
 
 ### 8.3 · The store
 
