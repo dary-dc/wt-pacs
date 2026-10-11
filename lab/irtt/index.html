@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<script type="module">
+const q = new URLSearchParams(location.search);
+const hash = Uint8Array.from(q.get("hash").match(/../g), (h) => parseInt(h, 16));
+const post = (r) => fetch(q.get("post"), { method: "POST", body: JSON.stringify(r) });
+const t0 = performance.now();
+const wt = new WebTransport(q.get("wt"), { serverCertificateHashes: [{ algorithm: "sha-256", value: hash }] });
+const cap = Number(q.get("cap"));
+const timer = setTimeout(() => post({ ok: false, ms: cap, error: "unsettled" }), cap);
+wt.ready.then(async () => {
+  const ms = performance.now() - t0;
+  clearTimeout(timer);
+  // An empty control stream is the server's goodbye: its session ends and logs `session path`.
+  const s = await wt.createBidirectionalStream();
+  await s.writable.close();
+  await post({ ok: true, ms });
+}, (e) => { clearTimeout(timer); post({ ok: false, ms: performance.now() - t0, error: String(e) }); });
+</script>
