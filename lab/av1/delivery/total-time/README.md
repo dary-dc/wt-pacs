@@ -241,6 +241,31 @@ started without the window flag stopped the run at the first `bbr12k` visit. Thr
 wrong field read as the mode, a doubled window, a window off by one byte) each failed its test. The reading is in
 `transport-conclusions.md` §1, R1.
 
+**Row STARTMEASURE** runs P-START of [`docs/decode/README.md`](../../../../docs/decode/README.md) §Not yet tried:
+`startOnNeed` on the downloader (one decoder at the start, another when frames stay queued after a dispatch, none
+retired) against today's, on row DECODEPACE's frames and cells, and a cold ask (`--fill 0 --asks-after 1`: frame 0
+the session's first work) in each:
+
+```bash
+W=lab/.av1-work/start
+for s in dbt12_ea1141 ffdm_d; do
+  lab/av1/.venv/bin/python lab/av1/decode/htj2k-threads/make_frames.py $W lab/av1/data/$s
+  python3 -c 'import json,sys; p=sys.argv[1]; s=json.load(open(p)); b={"ext":"htj2k","codec":"htj2k","openjph":"delivered"}
+s["variants"]={"today":b,"need":{**b,"startOnNeed":True}}; json.dump(s,open(p,"w"),indent=1)' $W/$s/variants.json
+done
+F="--links r20000,r50000,lte-good --throttles 1,4 --sets dbt12_ea1141,ffdm_d --frames $W --out rows-startmeasure.jsonl"
+for r in $(seq 0 17); do   # the fill and the cold ask in an order that alternates by round; ~5 min a round
+  NODE_PATH=$(npm root -g) node run.mjs $F --rounds 1 --first-round $r
+  NODE_PATH=$(npm root -g) node run.mjs $F --rounds 1 --first-round $r --fill 0 --asks-after 1
+done
+python3 start_summary.py rows-startmeasure.jsonl
+```
+
+Each round waited for `/proc/stat`'s steal to read ≤ 2 % over 10 s. `--mutate sample` and `--mutate truth` each took
+the cold ask to 0 of 1 in both arms; `downloader.test.mjs` holds the flag's three clauses, each mutated to fail (a
+retired decoder, all three at the start, no growth). `start_summary.py` with its arms swapped reads decoder CPU
+×1.17, and without its fill and ask clauses passes. The reading is in `docs/decode/README.md` §Not yet tried, P-START.
+
 **Row ASKDEADLINE** times the downloader's own deadlines under loss. Row LOSSLINK's HTJ2K frames
 (`VARIANTS=none make_frames.py`), `downloader_variant.sh cf4db15 before` for the downloader before the row, and
 in `variants.json` a third variant `stall15` (`"codec": "htj2k", "survival": {"stallMs": 15000}`); every variant with
