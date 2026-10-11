@@ -20,16 +20,18 @@ WebTransport session (§Resumption and 0-RTT). A native client chooses all three
 4. [Talking to our server](#4-talking-to-our-server)
 5. [The owner's decisions](#5-the-owners-decisions)
 6. [Proposed rows (not queued)](#6-proposed-rows-not-queued)
-7. [Sources](#7-sources)
+7. [At their best, not their defaults](#7-at-their-best-not-their-defaults)
+8. [Sources](#8-sources)
 
 ## 1. The answer in plain words
 
 * **The client's library matters through throughput and latency, the product's purpose.** It cannot raise either above
   what the server's controller and the link allow; it can only lose them — through its receive cost, its flow-control
   windows, when it acknowledges, its handshake and resumption, and migration. A default is not a limit when the
-  setting can be changed or patched: the candidates are compared at their best in row 152 QUICTUNED
-  ([`../av1/queue.md`](../av1/queue.md)); the tables below read them at their defaults. *(Corrected in place
-  2026-10-11; this section first opened with the controller point below.)*
+  setting can be changed or patched: §7 reads the candidates at their best (row 152); §2's tables read them at their
+  defaults. At their best, no stack is flow-control-bound at the target's 5–50 Mbit/s, msquic's 64 KiB stream window
+  doubles to 16 MiB, and no published study compares tuned stacks at the target's rates with loss (§7.6). *(Corrected
+  in place 2026-10-11; this section first opened with the controller point below.)*
 * **For the fill and the ask, the client's congestion controller does not matter: the server sends.** What the
   client's stack decides is its receive cost (batched reads, GRO, ACKs), its flow-control windows, migration and
   resumption. Row 119's controller options stay on the server, in quinn, whose `Controller` trait `bbr-bound` already
@@ -67,7 +69,7 @@ WebTransport session (§Resumption and 0-RTT). A native client chooses all three
 
 ## 2. The candidates, by column
 
-Each cell is from §7's sources, read 2026-10-10; **unknown** means searched and not found. GSO is batched send, GRO
+Each cell is from §8's sources, read 2026-10-10; **unknown** means searched and not found. GSO is batched send, GRO
 batched receive, CC the congestion controller, MP multipath QUIC, WT a WebTransport-over-HTTP/3 client.
 
 ### Speed
@@ -76,7 +78,7 @@ batched receive, CC the congestion controller, MP multipath QUIC, WT a WebTransp
 | --- | --- | --- | --- | --- | --- |
 | quinn 0.11.12 / quinn-proto 0.11.19 / quinn-udp 0.5.16 | none; Firefox on quinn-udp: < 1 → 4 Gbit/s | `recvmmsg` ×32 (Linux, Android); GRO Linux, Android; Windows URO off by default (quinn#2041); Apple: one per call unless `fast-apple-datapath` | GSO Linux, Android; Windows USO on (Firefox rolled USO back: loss, a driver crash) | always · yes | G 9 302 kbps, C 4 358; L2, C2 9/9 |
 | s2n-quic 1.90.0 | none | GRO and `recvmmsg` on Linux only; none on Android, iOS, Windows | GSO Linux only; needs kernel ≥ 5.0 | yes · yes | G 9 226, C 4 046; all loss cases 10/10 |
-| Cloudflare quiche 0.30.0 | 80–90 MB/s with plain `sendmsg` (2020, one laptop) | GRO, `recvmmsg` only in tokio-quiche, Linux | GSO, SO_TXTIME in tokio-quiche, Linux | app honours `SendInfo.at` · unknown | G 9 240, C 6 004 |
+| Cloudflare quiche 0.30.0 | 80–90 MB/s with plain `sendmsg` (2020, one laptop) | GRO, `recvmmsg` only in tokio-quiche, Linux | GSO, SO_TXTIME in tokio-quiche, Linux | app honours `SendInfo.at`, but Cubic and Reno get no pacing (*corrected 2026-10-11*, §7.1) · unknown | G 9 240, C 6 004 |
 | neqo 0.32.0 | none alone (Firefox as above) | quinn-udp 0.6 with `fast-apple-datapath` on | as quinn-udp | on · yes (~50 % of Firefox paths ECN-capable) | G 9 341, C 5 389 |
 | Google QUICHE (`main` c8b1052) | SIGCOMM 2017: server CPU ≈ 2× TLS/TCP after optimisation | GRO cmsg path in its own POSIX layer; Chromium uses neither by default | GSO, `sendmmsg` writers (own layer) | yes · yes, Prague shipped | not in the runner ("quiche" there is Cloudflare's) |
 | Cronet / HttpEngine (Chromium 155) | none | Chromium's: one `recvmsg` per datagram by default | no GSO in `udp_socket_posix.cc` | QUICHE's | "chrome" client runs H3 only |
@@ -105,12 +107,12 @@ against a server like ours exists; every `result.json` returned 404.
 | neqo | NewReno, Cubic; HyStart, SEARCH; `spurious_recovery` on | no | **100 ms** · `max_pto`, `fast_pto` | 1 → 10 MiB stream, 2 → 20 MiB conn | yes · yes |
 | Google QUICHE | Cubic, Reno, BBR, BBRv2, BBRv3, PCC, GoogCC, Prague | **yes**: `SendAlgorithmInterface` via `SetSendAlgorithm`; `LossDetectionTunerInterface` | 100 ms · via config | settable | RFC 9218, WT send groups · yes |
 | Cronet / HttpEngine | QUICHE's, chosen by tag strings (embedded Cronet only) | no | not exposed | not exposed | request priority · no |
-| msquic | Cubic; BBR in preview only | no (internal table); statistics event only | 333 ms · none | stream **64 KiB**, conn 16 MiB | `STREAM_PRIORITY` · yes, off by default |
+| msquic | Cubic; BBR in preview only | no (internal table); statistics event only | 333 ms · none | stream **64 KiB**, doubling to 16 MiB as the reader keeps up (*corrected 2026-10-11*, §7.1); conn 16 MiB | `STREAM_PRIORITY` · yes, off by default |
 | Network.framework | not exposed | no | not exposed | `initialMaxData`, `initialMaxStreamData*` | not exposed · yes (iOS 15; Swift `QUICDatagram` iOS 26) |
 | ngtcp2 | Reno, Cubic, BBRv2 | no (internal `ngtcp2_cc.h`) | settable · derived | auto-tune caps | in nghttp3 · yes |
 | lsquic | Cubic, BBRv1, adaptive (default) | no (internal `cong_ctl_if`) | unknown | 15 MiB conn (client) | yes · yes |
 | picoquic | NewReno (default), Cubic, BBRv3, BBRv1, Prague, C4, … | **yes**: `picoquic_congestion_algorithm_t`; per-ACK newly-lost bytes, loss ranges, lost packet number, one-way delay, ECN-CE | 250 ms constant · none public | settable | yes · yes |
-| mvfst | Cubic, NewReno, Copa, BBR, BBR2, static, none | **yes**: `CongestionControllerFactory`, `CongestionControlType::Custom` | **50 ms** · — | settable | yes · yes |
+| mvfst | Cubic, NewReno, Copa, BBR, BBR2, static, none | **yes**: `CongestionControllerFactory`, `CongestionControlType::Custom` | **50 ms** · — | stream 65 KiB, conn 1 MiB, auto-tune off (§7.2) | yes · yes |
 | xquic | Cubic (default), BBR, BBR2, Reno, Copa | **yes**: `xqc_cong_ctrl_callback_t`; `on_lost` gets only a send time | 250 ms · `initial_pto_duration`, backoff | settable | H3 · yes; **FEC** built in (xquic both ends) |
 | tquic | **BBR (default)**, Cubic, BBRv3, Copa | no (private module) | settable · `set_max_pto` | settable | yes · **none** |
 | quic-go | Reno-style in a Cubic sender, IW 32 | no (`internal/`; #776 future work) | 100 ms fixed · none | 512 KB → 6 MB stream, 15 MB conn | RFC 9218 · yes |
@@ -304,7 +306,319 @@ server build, controller (`cubic-restart`), initial window and relay, printed pe
   unprobed switch loses packets in flight, neqo's does not. Rule: if both keep the session, a native client recovers
   a handover without §Re-dial and re-issue's cold session, and decision 3 is weighed on N4's time against a re-dial.
 
-## 7. Sources
+## 7. At their best, not their defaults
+
+*Queue row 152, QUICTUNED, 2026-10-11. Theory only: read from source at the pins in §8, nothing built or timed. A
+number marked derived is arithmetic on a sourced one; the owner's decisions are listed in §7.7, not taken.*
+
+**The target, in numbers.** 5–50 Mbit/s, a round trip of 30–80 ms and up to 150 ms, mobile loss
+([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md), The target). The server sends and
+the client receives. A lever helps only on the side that owns it, so each lever is read below with its owner.
+
+| owned by | lever | what it bounds |
+| --- | --- | --- |
+| receiver (the client; the server for an upload) | stream and connection receive windows | throughput, ≤ window ÷ RTT |
+| receiver | ACK policy: how many packets per ACK, and how long it may wait | the sender's clock and its loss timer; CPU on both ends |
+| receiver | socket receive buffer, batched reads (`recvmmsg`, GRO) | drops when the reader stalls; CPU per byte |
+| sender (the server) | controller and initial window | throughput under loss; how fast a fill starts |
+| sender | pacing, GSO batch size | burst loss on shallow queues; CPU per byte |
+| sender | send window | memory per session |
+| both | 0-RTT resumption, migration | the time to reconnect |
+
+### 7.1 Each lever, its mechanism and its numbers
+
+**Receive window: a hard ceiling, set by the receiver.** A sender can have only one window of unread data
+outstanding, and it learns that more is allowed one round trip later. So one stream moves at most window ÷ RTT,
+whatever the controller does. At 50 Mbit/s and 150 ms that is 50 × 10⁶ × 0.15 ÷ 8 ≈ **0.94 MB**, and a smaller window
+caps the link. Raising the window costs nothing until the reader falls behind, and then the window is memory: it is
+how much the receiver agrees to buffer.
+
+* **A fixed window** stays at what is set: quinn (1.25 MB), s2n-quic (3.75 MB), and lsquic and mvfst by default.
+  quinn's 1.25 MB is chosen in its source for "100 Mbit/s at 100 ms" (`config/transport.rs:366–370`). It caps one stream at
+  1.25 MB ÷ RTT: 125 Mbit/s at 80 ms, 67 at 150 ms, 50 at 200 ms (derived). It is above the target at every target
+  RTT, by 1.3× at 150 ms. A contributor's runs show the cap exactly: quinn with default windows gave 918, 465, 233
+  and 95 Mbit/s at 10, 20, 40 and 100 ms, which is 1.25 MB ÷ RTT within 5 % (quinn issue #2262, 2025-08-12).
+* **An auto-tuned window** starts small and doubles when the reader keeps up. Each stack's rule is "the last update
+  went out less than about 2 RTT ago" (quiche, ngtcp2, quic-go, Google QUICHE, lsquic and mvfst when on) or "a
+  quarter drained within a round trip" (msquic). A window that doubles cannot bind for long, but **it binds at the
+  start of every new stream**, which is when a viewer asks for the first frame.
+* **The owner's example, read from source:** msquic's stream window starts at **64 KiB**, which is **5.24 Mbit/s at
+  100 ms**, but only until its first doubling. `QuicStreamOnBytesDelivered` doubles the window each time a quarter of it
+  drains fast enough (`stream_recv.c:807–834`, drain ratio 4, `quicdef.h:355`), up to the 16 MiB connection window:
+  1.34 Gbit/s at 100 ms (derived). From 64 KiB to 1 MiB takes four doublings, after 16 + 32 + 64 + 128 = 240 KiB has
+  been read (derived; the wall-clock ramp also waits on the sender's slow start, not measured). The cap the owner
+  named is real for the first ~quarter of a fresh stream, and is a setting (`StreamRecvWindowDefault`) after that.
+* **Defaults that would bind at the target** (derived, at 80 ms): mvfst's 65 KiB stream window with auto-tune off
+  → 6.7 Mbit/s; Google QUICHE's bare library default of 16 KB → 1.6 Mbit/s (Chromium sets 6 MB per stream and 15 MB
+  per connection); Cloudflare quiche's library default of 0 (the app must set one; tokio-quiche uses 1 MB per stream).
+  Each is one setting.
+
+**ACK policy: the receiver sets the sender's clock.** Every ACK is a packet the receiver builds, encrypts and sends,
+and one the sender must process. RFC 9000 §13.2.2 says to acknowledge every second packet: at 50 Mbit/s with 1 452-byte
+packets that is ~4 300 packets and ~2 150 ACKs a second (derived). Fewer ACKs save CPU on both ends. Jaeger et al.
+saw LSQUIC's client fall from 180 k to 46 k ACKs per 8 GB with a larger buffer. Zhang et al. put 2.97 s of Chromium's
+8.5 s per GB in "generate QUIC responses (e.g., ACK)". The cost is in the sender's control. It grows its window and
+detects loss only from ACKs, and a lost tail waits for a probe timeout that includes the peer's `max_ack_delay`:
+`PTO = srtt + max(4·rttvar, 1 ms) + max_ack_delay` (RFC 9002 §6.2.1).
+
+* **What each stack does by default.**
+  * Every second packet: quinn, msquic, neqo, ngtcp2, lsquic, quic-go.
+  * Every 10th: s2n-quic (hard-coded) and mvfst.
+  * Google QUICHE starts at every second packet and moves to every 10th after 100 packets, with a delay of
+    min(25 ms, min_rtt ÷ 4); Chromium is built on it.
+  * Cloudflare quiche has no ACK timer: it acknowledges in whatever packet the app next asks it to build, which a
+    2026 paper measured as ~1 reply per packet sent (Zhang et al., PEMI).
+  * picoquic adapts: about a quarter of the window in packets, a delay of RTT ÷ 4 and at most 10 ms.
+* **The draft lets the sender choose.** draft-ietf-quic-ack-frequency-14 (2026-02; WG consensus, not an RFC) lets a
+  sender ask its peer for an ACK every *n* packets and a maximum delay. It works only when the peer advertises
+  `min_ack_delay`. At codepoint `0xff04de1b`:
+  * quinn and picoquic advertise it and send the frames, quinn only when the app sets `AckFrequencyConfig`;
+  * msquic advertises it and obeys, but never asks;
+  * mvfst advertises it only when `minAckDelay` is set;
+  * quic-go parses it but does not support it.
+
+  neqo and lsquic use an older codepoint (`0xff02de1a`), so they do not negotiate with the others (derived from the
+  codepoints). Chromium 141 does not advertise it, as measured here ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency).
+* **What it buys this product.** In the target range the client spends ≤ 0.05 cores (§6 N1, measured), so fewer
+  ACKs are not a throughput lever. The latency lever runs the other way. A **native** quinn client lets the server
+  ask for a shorter `max_ack_delay`, which cuts a lost tail's PTO by up to 20 ms (25 → 5 ms, derived). That is the
+  "25 ms half of the depth-1 tail" the browser could not be asked for. The flag was removed on 2026-10-03 for want
+  of a peer ([`../CLIENTS.md`](../CLIENTS.md)).
+
+**Socket buffer and batched reads: drops and CPU, not the link's rate.** The kernel holds datagrams the app has not
+read yet. When the buffer is full, the kernel drops them, and QUIC reads that as congestion. Linux before 6.18 caps a
+socket at `rmem_max` = 212 992 bytes unless the host raises it. That is ≈ 34 ms at 50 Mbit/s (derived, an upper bound,
+since the kernel counts buffer overhead). So a reader that stalls longer than that, such as a phone's thread
+descheduled for a moment, drops packets. Linux 6.18 raised both limits to 4 MiB (`net/core/sock.c`).
+
+* Who sets the buffer: msquic asks for `INT32_MAX` (the kernel clamps it), quic-go for 7 MiB and warns when refused,
+  neqo for 1 MiB, Google QUICHE for 1 MiB. quinn, s2n-quic, quiche, ngtcp2, picoquic and lsquic leave it to the app.
+  For quinn, the app builds the socket (socket2) and hands it to `Endpoint::new`; for wtransport, `with_bind_socket`.
+* Published effect, all far above the target's rate:
+  * Jaeger et al.: the 208 KiB default cost 0.1–0.2 % drops at 10 Gbit/s, and a buffer 16× larger gave +3 % to +8.7 %.
+  * quinn #2262: an internet path at 10 ms went from 335 to 897 Mbit/s when `rmem_max` went from 212 992 to
+    2 097 152; msquic went from 927 to 1 146.
+* At the target, the buffer matters for stalls rather than for the link's rate. How often a phone's reader stalls
+  for more than 34 ms is not known. Batched reads (GRO, `recvmmsg`) are CPU: §6 N1 measured quinn at 2.1 ms per MB
+  with GRO and 3.1 without.
+
+**Pacing and GSO: how bursty the sender is.** A sender with a full window can emit it back to back. A shallow queue at
+the bottleneck then drops the tail of the burst, and QUIC reads that as congestion. Pacing spreads the packets out
+over the round trip. GSO sends many datagrams in one system call, which cuts CPU, but the kernel releases the batch
+back to back unless it is patched.
+
+* quinn always paces, with no switch. It refills a token bucket at 1.25 × cwnd ÷ sRTT, and the bucket holds
+  cwnd × 2 ms ÷ sRTT, clamped to 10–256 packets (`pacing.rs:145–151`). It checks the bucket before every datagram of
+  a GSO batch, so pacing cuts a batch short. At 50 Mbit/s and 80 ms the burst is the 10-packet floor, 14.5 KB: 2.3 ms
+  of the link, or 5.8 ms at 20 Mbit/s (derived).
+* Cloudflare quiche **does not pace Cubic or Reno at all**: `get_next_release_time` returns `Immediate`, and only its
+  BBRv2 has a pacer. mvfst's pacing is off by default. msquic, ngtcp2 (the app must honour it), picoquic, lsquic,
+  neqo, quic-go and Google QUICHE pace by default.
+* Published: Kempf et al. ("QUIC Steps", 40 Mbit/s, 40 ms, a 2-BDP queue, each stack's example client and server at
+  defaults with Cubic):
+  * About half of all packets left back to back.
+  * Drops were 503–861 per 100 MiB for quiche, picoquic and ngtcp2, against TCP's 16.5.
+  * ngtcp2 reached only 15.93 Mbit/s against 34.67–37.37 for the others.
+
+  Turning quiche's GSO off, or pacing it with a kernel patch, did not lower drops (6.35 → 160–166), which the authors
+  put on HyStart++ leaving slow start later. **Pacing quality is the one lever in the target's range with published
+  loss numbers, and none of them includes quinn.**
+* quinn hard-codes 10 GSO segments per `sendmsg`. This repository's patch raises that to 45, which cut CPU per ask by
+  16–21 % ([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §4). That is sessions per
+  core, not throughput.
+
+**Initial window, controller, send window: the server's, and already this repository's subject.**
+* The initial window decides how many round trips a fill or an ask spends in slow start. It is a setting in every
+  stack but picoquic and neqo (constants). Defaults:
+  * 12 000 B: quinn;
+  * 10 packets: msquic, quiche, ngtcp2, mvfst;
+  * 32 packets: quic-go, Google QUICHE, lsquic.
+* The controllers and their trial are [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md)'s
+  subject (rows 75, 119, 121).
+* quinn's 10 MB send window bounds what a session buffers, not the rate (0.94 MB is the target's largest BDP). It is
+  memory: 3.7–4.8 MB resident per filling session, measured (§4 there).
+
+**0-RTT: one round trip off a reconnect.** A resumed client sends its request in its first flight (RFC 9001 §4.6), so
+a re-dial saves one RTT: 80 ms at 80 ms (derived; today's dial measures 2.12 RTT to ready,
+[`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Other clients). quinn supports it on both ends (`Connecting::into_0rtt`,
+`max_early_data_size`). **wtransport 0.7.2 exposes neither**, so a WebTransport client on quinn has no 0-RTT without a
+patch to wtransport on both ends. Whether a WebTransport CONNECT may ride 0-RTT was not read. s2n-quic drops 0-RTT
+packets ("FIXME … when we support zero-rtt").
+
+### 7.2 Each candidate at its best
+
+Read at §8's pins. "Fork" means a hard-coded constant: changing it means patching the stack. The receiver columns
+matter for a client, and the sender columns for a server.
+
+| stack | receive window: default → cap, auto-tune | ACKs: default · ack-frequency draft | socket buffer · batched reads | pacing (sender) | initial window (sender) | fork needed for |
+| --- | --- | --- | --- | --- | --- | --- |
+| quinn 0.11.12 | 1.25 MB stream, connection unbounded; **fixed**, any value | every 2nd, 25 ms (no setter) · sends and obeys, off until `AckFrequencyConfig` | app's · `recvmmsg` ×32, GRO (Linux, Android) | always, 1.25×, burst 10–256 packets | 12 000 B, settable | GSO 10 segments, 20 datagrams per drive, pacing constants, own `max_ack_delay`, one driver task per endpoint (#1576) |
+| s2n-quic 1.90.0 | 3.75 MB all; fixed | **every 10th**, 25 ms settable · none | app's · `recvmmsg`, GRO on | always, bursts of 10 | settable | ACK every 10, burst 10 |
+| Cloudflare quiche 0.30.0 | 0 (app sets) → 16/24 MiB; auto | on each packet the app builds, no timer · none | app's · tokio-quiche: GRO, one `recvmsg` | **none for Cubic/Reno**; BBRv2 only | 10 packets, settable | the ACK policy, Cubic unpaced, auto-tune factors |
+| neqo 0.32.0 | 1 → 10 MiB stream, 2 → 20 MiB conn; auto | every 2nd, 20 ms · old codepoint, asks for cwnd ÷ 4 packets | 1 MiB · GRO (Linux), URO, Apple fast path | on, burst 2 packets; switchable | constant | caps, burst, initial window |
+| Google QUICHE `c8b1052` | 16 KB library (Chromium: 6/15 MB) → 16/24 MB; auto | every 2nd, then 10th after 100, ≤ min(25 ms, RTT/4) · receive behind an off flag | 1 MiB · `recvmmsg` ×16 | on | 32 packets (10–200) | — (flags) |
+| msquic 2.6.2 | 64 KiB stream → 16 MiB, conn 16 MiB; **auto** (stream) | every 2nd, 25 ms · obeys, never asks | `INT32_MAX` · `recvmmsg`/`sendmmsg` ×53, GRO, GSO after a self-test | on, settable | 10 packets, settable | drain ratio, ack tolerance, batch 53 |
+| ngtcp2 1.25.0 | app's (examples: client 16 MiB stream) → `max_stream_window`; auto off until set | every 2nd, ≤ min(25 ms, srtt/8) · none | app's · examples: GRO, one `recvmsg` | computed, app honours | min(10 MSS, 14 720) | auto-tune factors, ACK delay rule, pacing gain |
+| lsquic 4.10.0 | client 6 MiB stream, 15 MiB conn; auto off | every 2nd, 25 ms (fixed) · old draft, PID-tuned tolerance | app's · app's | on | 32 × 1 460 B | ACK every 2, 25 ms |
+| picoquic `v2026.10.09` | 2 MiB local stream, 1 MiB conn → unbounded; auto | adaptive: ~¼ window, ≤ 10 ms · sends and obeys | off unless set · plain `recvmsg` ×10, no GRO | always | 15 360 B, no setter | ACK algorithm, batch 10, initial window |
+| mvfst `v2026.10.05.00` | **65 KiB stream**, 1 MiB conn; auto off (caps 16/32 MiB when on) | every 10th · only if `minAckDelay` set | — · GRO off, `recvmmsg` off by default | **off** by default | 10 MSS | — (settings) |
+| quic-go 0.63.0 | 512 KiB → 6 MiB stream, 768 KiB → 15 MiB conn; auto | every 2nd, 25 ms · parsed, unsupported | 7 MiB · `recvmmsg` ×8, no GRO | on, 5/4× | 32 × 1 280 B | — |
+| Network.framework | `initialMaxData`, `initialMaxStreamData*` settable; defaults and auto-tune undocumented | not exposed | not exposed | not exposed | not exposed | everything else (closed) |
+| Cronet / HttpEngine | not exposed (QUICHE tags pass through `addConnectionOption`) | `AKDU`/`AKD3` tags | not exposed | QUICHE's | QUICHE's | everything else |
+
+xquic and tquic were not re-read this round; §2 holds what row 124 found.
+
+**In plain words.** At its best, every candidate but the two platform stacks can be given windows far above the
+target's 0.94 MB, so **flow control binds no tuned stack in the target range**. What stays different at their best is:
+
+* how often each acknowledges, which is a fork in s2n-quic, lsquic and Cloudflare quiche;
+* whether it paces: never for Cloudflare quiche's Cubic, and not by default in mvfst;
+* how it batches reads, which is CPU;
+* what its controller does under loss, which only a public hook lets this repository change: quinn, Google QUICHE,
+  picoquic, mvfst and xquic (§2 Control).
+
+### 7.3 Every published result, on one table
+
+"Tuned" means a stack's settings were changed from its defaults for the run. "Defaults" means they were not, or the
+source does not say.
+
+| source | stacks | setup: link · RTT · loss · hardware | settings | result |
+| --- | --- | --- | --- | --- |
+| Bünstorf & Jaeger, TUM seminar SS 23 | picoquic, quiche, LSQUIC, msquic | 10GBase-T back to back · none stated · none stated · three host pairs; one 1 073 MB file, 10 runs | **not stated** | msquic 5 443 / 4 845 / 3 898 Mbit/s, LSQUIC 2 568 / 4 416 / 3 543, quiche 1 847 / 2 525 / 2 441, picoquic 1 445 / 1 957 / 1 579 (E5-1650 v3 / Gold 6312U / EPYC 7543) |
+| Jaeger et al., IFIP Networking 2023 | aioquic, quic-go 0.31.1, mvfst, picoquic, quiche, LSQUIC (commits in its artifact) | 10 Gbit/s · LAN · none · EPYC 7543, kernel 5.10; 8 GB, 50 runs | Cubic or Reno; LSQUIC and quiche windows set to their apps' defaults; else defaults | 52–3 004 Mbit/s across pairs; TCP 8 010; 208 KiB buffer drops 0.1–0.2 %; larger buffer +3 to +8.7 %; GSO/GRO: goodput flat, client CPU 82 → 92 % |
+| Kempf et al., "QUIC Steps", CoNEXT 2025 | quiche, picoquic, ngtcp2 | **40 Mbit/s · 40 ms** · queue 2 BDP · I210, kernel 6.1-rt; 100 MiB, 20 runs | defaults, Cubic, 50 MiB receive buffer | 34.67 / 37.09 / 15.93 Mbit/s, TCP 37.37; drops 687 / 861 / 503 against 16.5; ~50 % of packets back to back |
+| Zhang et al., WWW '24 | Chromium against LSQUIC (OpenLiteSpeed 1.7.15) | 1 Gbit/s · LAN · none · Xeon E5-2640 / i7-6700, Pixel 5 on 5G; 1 GB | buffers > 10 BDP; Cubic | H3 18.60 s against H2 9.32 s; Pixel 5 78.65 s against 37.11 s; receive 8.5 s per GB, 2.97 s in responses |
+| quinn #2262, 2025 (contributors) | quinn, msquic `secnetperf`, s2n-quic | docker, no loss, 0–100 ms; and an internet path at 10 ms | **quinn at defaults against secnetperf's tuned harness** (128 MiB server window) | at 100 ms: quinn 95 Mbit/s (its 1.25 MB window), s2n-quic 286–292, msquic 2 237–2 812; at 0 ms: 11.8–12.4, 13.0, 14.8–16.4 Gbit/s; quinn with 8–16 MB windows ≈ 1 Gbit/s on the internet path |
+| msquic netperf dashboard, read 2026-10-11 | msquic | 200 Gbit/s NICs in VMs, and Azure 4-vCPU · RTT not stated · none; 1 connection, 12 s | tuned harness (128 MiB window, send buffering off) | download 7.8–8.0 Gbit/s Linux, 6.2–8.0 Windows lab, 11.5–12.0 Azure Windows; TCP 14.5–25.0 |
+| Cloudflare, 2020-01-08 | quiche (NGINX) | not stated; h2load, 100 MB × 10 | sendmsg, sendmmsg, GSO | 80–90 MB/s with plain `sendmsg`; the rest charts only |
+| Huitema, 2023-12-12 and 2024-10 | picoquic | loopback, a Windows laptop | Cubic, BBR | 1.5–2 Gbit/s (2023); Cubic 3 Gbit/s, BBR 1.7 (2024); ACK gap capped at 32: Cubic 1.3–1.8 → 3.4 Gbit/s |
+| LiteSpeed, 2020-06-01 | lsquic | 10 GbE, KVM guest · LAN · none | UDP against XDP | 102 → 146 MB/s with XDP; server CPU-bound |
+| Inden, 2025 | neqo (Firefox) | CPU-bound, loopback | quinn-udp batching | < 1 → 4 Gbit/s; `mmsg` +11 % on loopback |
+| PEMI, Zhang et al., arXiv 2602.12732 | quiche, quinn, quic-go | Mininet 2 ms 0–5 % 100 Mbit/s and 50 ms 10 Mbit/s; a cellular trace | defaults | quiche clients reply to ~100 % of packets, quinn and quic-go ~50 %; PEMI −45 to −70 % median frame delay on the trace |
+| Sidhu & Bentaleb, arXiv 2505.21769 | aioquic, mvfst, picoquic, LSQUIC, quinn, TQUIC, xquic | 5G and LTE traces, TBF | defaults; then aioquic's windows raised | raising aioquic's windows: +16 % VMAF, −84 % RTT |
+| QUIC interop runner, run 2026-10-11T19:32 (partial) | picoquic server against five clients | 10 Mbit/s · 15 ms · 25-packet queue (simulator) | each image's defaults | 9 194–9 408 kbps goodput; quinn client 9 263 |
+| this repository, §6 N1 (row 135) | Chromium 141, wtransport and web-transport-quinn on quinn 0.11.11 | loopback; 20 and 50 Mbit/s, 20 ms each way, 2 % loss | defaults, `cubic-restart` server | quinn 2.05–2.16 ms CPU per MB with GRO, 3.1 without, Chromium 4.0–4.3 (network service); under 2 % loss Chromium 5–9 % slower |
+
+Kernel and UDP path, not QUIC: de Bruijn and Dumazet, LPC 2018, found UDP GSO 1.6× more efficient per cycle at
+10 Gbit/s, and GRO about 1.8× (preliminary). Tailscale's 2023 post measured wireguard-go going from 8.32 to
+13.0 Gbit/s with UDP GSO and GRO. Earlier: Langley et al., SIGCOMM 2017, for 0-RTT (88 % of gQUIC handshakes) and
+15 MB client windows; §3's papers. Not read (publisher refused): Custura et al. 2022 on ACK frequency, Kempf et al.
+2024 (journal), and the full text of Marx et al. 2020.
+
+**What the table shows.**
+* **Only one study ran inside the target's range**: Kempf et al., at 40 Mbit/s and 40 ms, clean, with three stacks
+  at defaults and neither quinn nor msquic.
+* **No published study compares tuned stacks at 5–50 Mbit/s with RTT and loss.** Searched: arXiv's QUIC titles for
+  2024–2026, and quinn, msquic, mobile, pacing, flow control and acknowledgement.
+* **Every multi-gigabit result measures CPU per byte, not link behaviour.**
+* **The one quinn-against-msquic comparison sets defaults against a tuned harness.** quinn's 95 Mbit/s at 100 ms is its
+  window, not its speed.
+
+### 7.4 The owner's paper, read critically
+
+Bünstorf and Jaeger, "MsQuic – A High-speed QUIC Implementation", TUM seminar IITM SS 23, doi
+10.2313/NET-2023-11-1_01. Row 152's reading is **confirmed**, with three notes.
+
+* **What it is.** A student seminar paper using Jaeger et al.'s framework ("we used the test framework by Jaeger et
+  al. [13]").
+* **The setup.**
+  * One 1 073 MB file, ten runs per stack, 10GBase-T back to back.
+  * Added delay and loss are **not mentioned at all**: "none" is inferred from their absence.
+  * HTTP version, OS and kernel are not stated.
+  * Four stacks, no quinn. No versions, windows, buffers, controllers or GSO settings are stated.
+* **The numbers.** Its Figure 3 gives msquic 5 443, 4 845 and 3 898 Mbit/s, the highest on every pair.
+  * Its text calls 3 898 "the lowest goodput on this host pair", and its next paragraph says msquic "still
+    surpasses all the other implementations on the newer hardware".
+  * "Double the goodput of LSQUIC" holds on the E5-1650 v3 alone (×2.12); on the newer two it is ×1.10 and ×1.10.
+  * Its text describes four host pairs and reports three.
+* **[13] does not include msquic.** Jaeger et al. ran aioquic, quic-go, mvfst, picoquic, quiche and LSQUIC, so the
+  seminar's settings cannot be read from [13]. Their artifact sets LSQUIC's and quiche's windows to those apps'
+  defaults and changes nothing else.
+* **A reason the ranking may be partly configuration, not code (a hypothesis, unmeasured).** msquic asks the kernel
+  for an `INT32_MAX` receive buffer itself, while [13] found the 208 KiB default dropping packets for the other stacks.
+* **What it bears on.** It measures CPU-bound bulk goodput at 4–5 Gbit/s on servers: CPU per byte. That is a phone's
+  battery and a server's sessions per core. It is not throughput or latency at 5–50 Mbit/s with RTT and loss, where
+  every stack here is far from CPU-bound (§6 N1).
+
+### 7.5 The server's stack as a candidate
+
+The server is the sender, so its stack decides four things. Each is set against what is published:
+
+* **Its controller, under loss.** This is the lever with the most at stake (row 119's options). A stack can carry
+  this repository's controllers only through a public hook: quinn's `Controller` (today), Google QUICHE's
+  `SendAlgorithmInterface`, picoquic's algorithm table, mvfst's `CongestionControllerFactory`, or xquic's callback.
+  msquic, s2n-quic (behind an unstable feature), quiche, ngtcp2, lsquic, neqo and quic-go would need a fork.
+* **Its pacing.** quinn paces always, in bursts of at least 10 packets. No published loss result includes quinn, so
+  whether another stack's pacing loses less on the target's queues is open (§7.6).
+* **Its send cost per byte, which sets sessions per core.** Target sessions run at ~0.4–0.7 % of a core each at
+  20 Mbit/s (measured, transport-conclusions The target), so this is the cost at thousands of sessions, not the link
+  rate. The one comparison at equal settings is quinn #2262 at 0 ms: quinn 11.8–12.4, s2n-quic 13.0, msquic 14.8–16.4
+  Gbit/s on one connection. That puts msquic about 1.3× ahead, inside a 10× margin that CPU is not using today
+  (derived). The comparison is a contributor's docker setup, not a server's workload.
+* **Its memory per session.** quinn's 10 MB send window is a setting.
+
+**What changing the server's stack would cost**, read from this tree:
+
+* **The WebTransport layer.** Today it is wtransport 0.7.2 over quinn. A replacement needs a WebTransport-over-HTTP/3
+  server on the new stack. Released: lsquic 4.10.0 (`es_webtransport_server`). Unreleased or branches: Google QUICHE,
+  picoquic's picowt, ngtcp2/nghttp3. None for msquic, s2n-quic or quic-go's core (webtransport-go refuses this
+  server's clients today, §4).
+* **The controllers.** `restart.rs`, `loss_bound.rs` and `cc_trace.rs` (927 lines, with their tests) implement quinn's
+  `Controller` trait and read quinn-proto's `RttEstimator`. They would be ported to the new hook, or lost on a stack
+  without one.
+* **The session code.** `server/src/transport/server.rs` (1 912 lines) and the stream code (`wire.rs`, `frame_out.rs`,
+  `pipeline.rs`) are written against wtransport's API. The quinn GSO patch (`patches/`, checked by the gate) goes away
+  or is replaced.
+* **The contract.** [`../WIRE.md`](../WIRE.md)'s messages need not change, but every claim about them (stream mode,
+  framing, exactness) would be re-proved on the new stack.
+* **The gate.** Its server tests run against wtransport's client; a C stack adds a C build to the gate.
+
+**In plain words.** Nothing published shows another server stack moving bytes faster or with less latency than quinn
+at the target's rates, tuned or not. What a change could buy is sessions per core, ~1.3× on the one comparable
+reading, and possibly better behaviour under loss, which is unpublished. Against that it costs the WebTransport layer,
+927 lines of controller work and the gate. **Theory does not make the case for a change; it names the two
+measurements that could** (§7.6).
+
+### 7.6 What theory settles, and what it cannot
+
+**Settled from source and published numbers:**
+1. **No tuned stack is flow-control-bound in the target range.** quinn's fixed 1.25 MB covers 50 Mbit/s up to 200 ms.
+   The auto-tuned stacks double past the target's BDP within a fresh stream's first few hundred KB. The defaults
+   that would bind (mvfst, bare Google QUICHE, quiche's 0) are one setting each.
+2. **msquic's 64 KiB is a starting window, not a cap.** It doubles to 16 MiB. The owner's 5 Mbit/s at 100 ms holds
+   only for the first quarter-window of each new stream.
+3. **The receive path is CPU, not rate, at the target** on desktop: ≤ 0.05 cores at 50 Mbit/s (§6 N1, measured).
+   GRO saves a third of quinn's receive CPU.
+4. **ACK frequency is a latency lever only a native client can unlock.** A server on quinn can ask a quinn client
+   for a shorter `max_ack_delay`, up to 20 ms off a lost tail's PTO (derived). Chromium does not advertise the
+   extension.
+5. **0-RTT on quinn needs a wtransport patch on both ends, or a raw-QUIC ALPN** (§4). It saves one RTT per re-dial.
+6. **The owner's paper ranks CPU efficiency at 4–5 Gbit/s with unstated settings.** It does not bear on the target's
+   throughput or latency.
+
+**Open, each in one line, for the owner to decide whether to measure:**
+* *Sessions per server core* on quinn, msquic and one other sender at a fixed 20 Mbit/s each. Nothing published.
+* *Loss under each stack's pacing* on a shallow queue at 20–50 Mbit/s with mobile loss, stacks tuned. Only Kempf et
+  al.'s clean 40 Mbit/s run exists, without quinn.
+* *Why Chromium is 5–9 % slower than quinn under 2 % loss* (§6 N1). A candidate mechanism: QUICHE's ACK decimation
+  to every 10th packet with a ¼-RTT delay slows the sender's loss detection. Unmeasured.
+* *How often a phone's reader stalls past the socket buffer* (≈ 34 ms at 50 Mbit/s with 208 KiB). Also unknown:
+  Android's default `rmem_max`, and whether an app may raise its own buffer there.
+* *What a shorter `max_ack_delay` buys a lossy ask's p95* with a native quinn client. Derived only.
+* *iOS*: §6 N3 already.
+
+### 7.7 The owner's decisions (listed, not taken)
+
+1. **The native client's receive settings.** Keep quinn's defaults, which are above the target. Or set them
+   explicitly: windows sized to the largest BDP (~1 MB at 50 Mbit/s and 150 ms), and a socket receive buffer raised
+   through `with_bind_socket`.
+2. **ACK frequency toward native clients.** Restore the server's `AckFrequencyConfig` (removed 2026-10-03 for want of
+   a browser peer) for quinn clients, or not.
+3. **0-RTT.** Patch wtransport on both ends; use 0-RTT only on a raw-QUIC ALPN (decision 2 of §5); or leave it.
+4. **The server's stack.** quinn stays, which is what theory supports today. Or the owner measures the two open items
+   above (sessions per core, loss under pacing) before a stack is chosen for the long term.
+
+## 8. Sources
 
 Fetched 2026-10-10, pinned by tag or commit and the first 12 hex of the fetched file's sha256 (a clone: of `git archive
 HEAD`). Raw copies are not committed.
@@ -354,6 +668,44 @@ HEAD`). Raw copies are not committed.
 * **IETF**: draft-ietf-quic-multipath-21 (`c9812f7c0fc6`) and its Datatracker record (`01e6642ec67a`);
   draft-ietf-webtrans-http3-16 (`49e0a03b06f0`).
 
+**Row 152 (§7), fetched 2026-10-11**, pinned the same way:
+
+* **quinn** 0.11.12 (`4051e23e9185`), quinn-proto 0.11.19 (`0e750cca55fe`; `config/transport.rs` `6921939145be`),
+  quinn-udp 0.5.16 (`af66907df186`) and 0.6.3 (`47091c86514c`); wtransport 0.7.2 (`b4273ce3157a`). quinn issues
+  #2262, #1126, #1576, read live on GitHub (the API refused a hashed copy).
+* **s2n-quic** 1.90.0 (`dc6fef951224`), -core 0.90.0 (`eb550bfe8d41`), -transport (`5d8cca099376`), -platform
+  (`8796d0d3dc8d`). **neqo** `v0.32.0` (`28cacc8ea2b0`).
+* **msquic** `v2.6.2` (`819ab74f851e`): `Settings.md` `da803bd4ea02`, `settings.c` `e5161a97a6ba`, `quicdef.h`
+  `b4e1012cd2bd`, `stream_recv.c` `426854b5b81b`, `send_buffer.c` `626209cb7670`, `datapath_linux.c` `84fea9daeffe`,
+  `datapath_winuser.c` `d98b5eb9a5c6`. The netperf `deploy` branch's result files (`1bcdca29c8bb`, `3735e2b36259`,
+  `d6eeeb4c09e3`, `634416013a59`) and its `secnetperf.md` (`008e39e6920f`).
+* **Cloudflare quiche** `0.30.0` (`07671779dead`: `flowcontrol.rs` `ec1f8d02cbef`, `congestion/recovery.rs`
+  `8574077a38fb`, `gcongestion/pacer.rs` `ad35e18573cc`); tokio-quiche `0.20.0` (`84857b7e8ee4`; `settings/quic.rs`
+  `aaef8ad4b0ae`, `quic/io/gso.rs` `063c4d9051fd`).
+* **ngtcp2** `v1.25.0` (`843aa72100b5`; `ngtcp2_conn.c` `c7c2515c1944`, `ngtcp2_settings.c` `f282b9f41002`, `ngtcp2_cc.c`
+  `f3e18b883759`, `examples/client_base.h` `c9f596e9d331`); nghttp3 `v1.18.0` (`868e81b343d1`).
+* **picoquic** `v2026.10.09.938685c` (`frames.c` `6c01e6fb03d7`, `quicctx.c` `8121babf41f3`, `pacing.c` `525889ca9d1f`,
+  `sockloop.c` `77f9b7cda903`). **lsquic** `v4.10.0` (`lsquic.h` `fb84c9add4b3`, `lsquic_engine.c` `ae4cb4a84cd3`,
+  `lsquic_full_conn_ietf.c` `085a89b42fbc`, `lsquic_send_ctl.c` `d24ad24cc604`).
+* **quic-go** `v0.63.0` (`flow_controller_base.go` `290f7a2495f8`, `internal/protocol/params.go` `ffb7c4be1bcb`,
+  `received_packet_tracker.go` `1c496fb40b02`, `connection.go` `168593a4b6fe`, `sys_conn_buffers.go` `0a89b5f76413`,
+  `pacer.go` `0b54925fc279`). **mvfst** `v2026.10.05.00` (`TransportSettings.h` `153fa17f8321`, `QuicConstants.h`
+  `b629e036ce32`).
+* **Google QUICHE** `c8b1052048f1` (`quic_received_packet_manager.cc` `64a7c3c9a3b8`, `quic_flow_controller.cc`
+  `df119c2fc56d`, `quic_constants.h` `8b38b35a52cd`, `quic_config.cc` `408ed26a4e5a`, `quiche_protocol_flags_list.h`
+  `14cf4084c39c`); Chromium `9de79faf785b` (`net/quic/quic_context.cc` `5bf388311d45`, `QuicOptions.java`
+  `38a8a3c143d3`). Apple `NWProtocolQUIC.Options` JSON (`04576994859a`), `initialMaxData` (`77871ac30c44`).
+* **IETF and kernel**: draft-ietf-quic-ack-frequency-14 (`aed59e2a6fd2`); RFC 9000 (`f88aae47f8b1`), 9001
+  (`3bbaecdf5afd`), 9002 (`3a8a54eea1ad`); Linux `net/core/sock.c` at v6.17 (`25305e30f6a8`) and v6.18 (`42d20ab6d561`).
+* **Papers and posts**: Bünstorf & Jaeger, the TUM PDF (`624c3d3d9a83`); Jaeger et al.'s artifact `tumi8/quic-10g-paper`
+  `936484444d62`; Kempf et al.'s artifact `tumi8/quic-pacing-paper` `7c2161cc171c`; PEMI, arXiv 2602.12732v1
+  (`4185b441392c`); Sidhu & Bentaleb, arXiv 2505.21769v2 (`847970b51385`); de Bruijn & Dumazet, LPC 2018
+  (`46d3c424defa`); Tailscale, 2023-04-13 (`b1e1bc0d24cb`); Cloudflare 2020 (`47f5497601ab`); C. Huitema,
+  2024-10-13 (`afcaf1844cf7`), 2024-10-23 (`98245e0a047c`), 2022-12-13 (`189b176c7969`); LiteSpeed, 2020-06-01
+  (`4807f37c3ac0`). Interop runner: `logs/quic/logs.json` (`3b11fd8a2ebc`), run 2026-10-11T19:32 per-pair
+  `output.txt` files (partial; every `result.json` 404).
+
 **Not read**, so not cited: Kempf et al., Computer Communications 2024 (publisher 403, API 429); the full texts of
 Marx et al. and Seemann & Iyengar (ACM 403); every QUIC `result.json` of the interop runner (404); GitHub's release
-and advisory pages for the C stacks (403); Firefox's security advisories for neqo.
+and advisory pages for the C stacks (403); Firefox's security advisories for neqo. Row 152: Custura et al. 2022 (Wiley 403), Kempf et al. 2024
+(still refused), the full text of Marx et al. 2020, Google's ACK-decimation results (not found).
