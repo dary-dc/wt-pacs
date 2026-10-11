@@ -1,3 +1,4 @@
+pub mod cc_trace;
 pub mod frame_out;
 pub mod loss_bound;
 pub mod restart;

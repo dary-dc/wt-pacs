@@ -10,7 +10,7 @@
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth|digest] [--out rows.jsonl]
- *     [--summary [--ref htj2k]]
+ *     [--cc-trace DIR] [--summary [--ref htj2k]]
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -45,6 +45,8 @@ const port = () => 20000 + ((Math.random() * 25000) | 0);
 const RIG_CORE = arg("--rig-core", "3");
 const BROWSER_CORES = arg("--browser-cores", "0-2");
 const TRACES = process.env.TRACES ?? path.join(ROOT, "lab/.traces");
+/** The server's controller, one row per batch of acknowledgements (series-server's `cc_trace.rs`), a file per visit. */
+const CC_TRACE = arg("--cc-trace", null);
 
 /** Mahimahi's trace, fetched for local use only (GPL-3.0); its hash as PROF recorded it. */
 const LTE = { file: "TMobile-LTE-short.down", sha256: "4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43" };
@@ -90,7 +92,7 @@ function variantOf(set, name) {
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, viewer: a.viewer,
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer,
       opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Decode pacing: the downloader's lab flag.
         ...(a.followQueue && { followQueue: true }),
@@ -254,15 +256,20 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const previewTruth = a.previewTruth?.map(flip);
   const srv = port();
   const relayPort = port();
+  const ccTrace = CC_TRACE && path.resolve(CC_TRACE, `${round}-${linkName}-${impairment}-${throttle}x-${variant}.jsonl`);
+  if (ccTrace) { mkdirSync(CC_TRACE, { recursive: true }); rmSync(ccTrace, { force: true }); }
   const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/series-server"), "--port", String(srv), "--bind", "127.0.0.1",
     "--series", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
-    ...(a.congestion ? ["--congestion", a.congestion] : [])], { stdio: ["ignore", "pipe", "ignore"] });
+    ...(a.congestion ? ["--congestion", a.congestion] : []), ...(a.initialWindow ? ["--initial-window-bytes", String(a.initialWindow)] : [])],
+    { stdio: ["ignore", "pipe", "ignore"], env: { ...process.env, ...(ccTrace && { WTPACS_CC_TRACE: ccTrace }) } });
   let serverOut = "";
   server.stdout.on("data", (d) => (serverOut += d));
   await started(server, /transport=.*\n/);
   // The controller the server says it runs, not the one asked for: Cubic is the one it leaves unprinted.
   const ran = /congestion=([\w-]+)/.exec(serverOut)?.[1] ?? "cubic";
   if (ran !== (a.congestion ?? "cubic-restart")) throw new Error(`${variantName}: the server runs ${ran}, not ${a.congestion}`);
+  const window = Number(/initial_window=(\d+)/.exec(serverOut)?.[1] ?? 0) || undefined;
+  if (window !== a.initialWindow) throw new Error(`${variantName}: the server's initial window is ${window ?? "quinn's"}, not ${a.initialWindow}`);
   const [oneWay, linkArgs] = link(linkName, impairment);
   const relay = spawn("chrt", ["-f", "50", "taskset", "-c", RIG_CORE, "python3", "lab/scripts/link_impair.py", "--udp", `${relayPort}:${srv}`,
     "--seed", String(round), "--delay-ms", String(oneWay), ...linkArgs, "--self-timing"], { cwd: ROOT });
@@ -293,7 +300,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
 
   const late = relayLog.match(/self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)/g)?.pop();
   const s2c = relayLog.match(/server->client sent (\d+) lost (\d+)/)?.slice(1).map(Number);
-  const row = { round, engine, set: set.name, variant: variant, congestion: ran, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
+  const row = { round, engine, set: set.name, variant: variant, congestion: ran, initialWindow: window, transport: /transport=(.*)/.exec(serverOut)[1], ccTrace, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;

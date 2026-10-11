@@ -105,7 +105,7 @@ impl TransportTuning {
         }
         tc.enable_segmentation_offload(self.segmentation_offload);
 
-        tc.congestion_controller_factory(self.congestion.factory(self.initial_window));
+        tc.congestion_controller_factory(crate::transport::cc_trace::traced(self.congestion.factory(self.initial_window)));
         Ok(tc)
     }
 
