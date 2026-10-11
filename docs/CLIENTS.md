@@ -369,7 +369,7 @@ the code does, read from the code.
 | `navigator.deviceMemory` | nothing today | declined | — |
 | `freeze` / `resume` (Page Lifecycle) | survival triggers the consumer forwards | not checked; a Chromium API | they never fire; `visibilitychange` and `pageshow` still do |
 | Speculation Rules (prerender) | nothing built ([`rig-limits.md`](rig-limits.md) §8) | absent | prerender's saving is Chromium-only |
-| OPFS | a planned cache, not built | present; script-written storage deleted after 7 days without interaction, `persist()` no exemption | when built, an OPFS cache must be evictable on WebKit, not a store |
+| OPFS | a planned cache, not built | present; script-written storage deleted after 7 days without interaction, `persist()` no exemption (*qualified 2026-10-11:* the source's default window is 30 operating days, 7 for a domain flagged by link decoration; shipping Safari not traced, [`adr/frame-path.md`](adr/frame-path.md) §4) | when built, an OPFS cache must be evictable on WebKit, not a store |
 | 2D canvas `alpha: false` | `lab/paint-floor/` only | no effect | the lab's 2D route measures something different on WebKit |
 | WebAssembly under Lockdown Mode | the decoder, the WASM client | disabled when introduced; not verified for current iOS | a blank viewer, not a slow one. Needs a device |
 

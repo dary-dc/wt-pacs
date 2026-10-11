@@ -338,6 +338,9 @@ comparison a unit, moved, not added.
 Frames that were asked for are taken at once, fill frames at background priority, so a paint never
 waits behind a fill. The harness's consumer checks each frame against the fixture's `.sha256`.
 
+**Where a frame should go next** — the page out of the pixel path, the frame store in the paint worker, an OPFS cache
+behind it — is proposed, theory only, in [`adr/frame-path.md`](adr/frame-path.md).
+
 `DownloaderClient.connect(url, certHash, { onFrame, onError, fill, openingAsk, survival, … })` →
 `requestExactFrame(index)`, `fill(indices)`, `cancel()`, `stats()`, `close()`. Every delivered frame
 carries its `generation`; `cancel()` resolves once the downloader has ended the stream and dropped
@@ -1146,7 +1149,7 @@ The owner decisions here are tracked in [`cloud-queue.md`](cloud-queue.md) §Ope
 * **The cache seam** (an interface, in-memory and OPFS behind it; whether it holds compressed or
   decoded frames is to be evaluated — and "all frames decoded" cannot mean all resident on a phone) and
   the paint sink — the sink is built (§Paint), the cache seam is not. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
-  §On WebKit).
+  §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md).
 * **Survival on a device**: the Wi-Fi → cellular freeze and what the page sees; the triggers where a
   radio change and `freeze` are real; the screen-lock pair; whether 5 s suits a dial on a phone.
   Detection of a dead *idle* session with a server idle timeout below 30 s is not measured.
