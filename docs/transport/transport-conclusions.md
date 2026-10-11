@@ -1423,6 +1423,69 @@ wake is quinn-proto's and is not reported upstream from here; the product no lon
 Firefox visits that never dialled in [`../../lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md)
 and [`../../lab/av1/delivery/grey-420`](../../lab/av1/delivery/grey-420/README.md) were this.
 
+### Will a browser update break the server? Drafts and `reset_stream_at`, 2026-10-11
+
+**Not the next releases: every shipping and preview Chromium and Firefox build dials today's server on draft-02, and
+the two moves under way fall back to draft-07, which the server also offers and Chromium has dialled exact. The risks
+are a browser dropping draft-07 too, and Safari, whose draft could not be read or run here.** Read from each engine's
+source at the commit its channel ships, then measured with
+[`../../scripts/wtcompat.py`](../../scripts/wtcompat.py): each browser dials the server through a recording relay,
+asks for frame 0 and checks its codestream against the source file's bytes, and the dial is decrypted from the browser's
+TLS key log ([`../../scripts/quic_peek.py`](../../scripts/quic_peek.py), RFC 9001 §5, its Appendix A vectors pass) to read
+both sides' SETTINGS and transport parameters.
+
+**What the server speaks.** wtransport 0.7.2 sends `SETTINGS_ENABLE_WEBTRANSPORT` (`0x2b603742`, draft-02) = 1 and
+`WEBTRANSPORT_MAX_SESSIONS` (`0xc671706a`, draft-07) = 1, `H3_DATAGRAM` (`0x33`), `ENABLE_CONNECT_PROTOCOL`; so a client
+may negotiate either draft. It ignores the client's SETTINGS, ignores an unknown transport parameter (RFC 9000 §7.4.2),
+and refuses a CONNECT whose `:protocol` is not `webtransport` (`wtransport-proto` `session.rs`). quinn-proto 0.11.18 has
+no `reset_stream_at`; neither has quinn's `main` (`38b9f52`, 2026-10-08), nor wtransport's `master` (`b16674e`) a newer
+draft.
+
+**What each engine speaks,** measured 2026-10-11 (one dial each, frame 0 exact in every row; `wtcompat.py --fetch`):
+
+| browser | source read | offers | `reset_stream_at` (TP) | negotiated |
+| --- | --- | --- | --- | --- |
+| Chrome for Testing 155.0.8059.39 (stable), 156.0.8078.12 (beta), 157.0.8097.0 (canary); Chromium 141 | quiche `0b2bc13`, `a162819`, `541aa2a` per each channel's `DEPS`; `net/quic/dedicated_web_transport_http3_client.cc` | draft-02; draft-07 behind `EnableWebTransportDraft07`, disabled by default in all three, absent from the field-trial testing config | not offered: quiche knows it (`0x17f7586d2cb571`, frame `0x24`) but only `SetReliableStreamReset(false)` is called outside tests | draft-02 (Chrome's net log agrees: `webtransport_http3_version` draft-02) |
+| the same canary with `--enable-features=EnableWebTransportDraft07` | as above | draft-02, draft-07 | not offered | **draft-07, frame exact, 3/3 by net log** |
+| Firefox 157.0.1 (release) | neqo v0.31.1 (`965bea0`) | draft-02 only (`0x2b603742`) | offered (`0x1d`), not required of the server | draft-02 |
+| Firefox 160.0a1 (nightly, build 20261010192814); 158 (release branch) and 159 (beta) carry v0.31.1 and v0.32.0 | neqo v0.32.0 (`28cacc8`) | draft-02 only | offered, not required | draft-02 |
+| Safari 26.4 and later | WebKit `56118d9`: the protocol is Apple's Network.framework, closed | not readable; WebKit sets `wt-available-protocols` and the initial stream limits, names from draft-13 on | not readable | **not measured**: no WebKit runs in a container ([`../CLIENTS.md`](../CLIENTS.md) §On WebKit) |
+
+**Where each engine is going.** The IETF draft is at -16 (2026-07-06, in WG last call): the server sends
+`SETTINGS_WT_ENABLED` (`0x2c7cf000`, a codepoint per draft until the RFC, §7.1), the CONNECT carries `:protocol:
+webtransport-h3`, and *both* ends must offer an empty `reset_stream_at` (`0x1d`, draft-ietf-quic-reliable-stream-reset-11,
+frame `0x24`). *Chromium:* no change between stable and canary, and no public date found (Chromium's tracker not
+searched). *Firefox:* neqo's branch `users/jesup/ietf_draft_15_support` (`c3d983e`, 2026-09-03, 42 commits not on
+`main`) speaks draft-15, accepts draft-07, and stops recognising draft-02 by design (its test
+`legacy_draft02_webtransport_setting_is_not_recognised`); Bugzilla 1981483 (the meta, no milestone) and 2033974 say
+the same. Against today's server it would negotiate draft-07 on the `0xc671706a` the server already sends — the path the
+flagged canary row exercised. *A near miss already happened:* neqo v0.31.0 (#3756) made the *peer's* `reset_stream_at`
+a requirement for WebTransport; it failed every WebTransport platform test, its Firefox uplift was backed out (Bugzilla
+2065405), and v0.31.1 (`5bbaf9b`, #3918) went back to tolerating a peer without it. A release with that requirement
+would refuse this server, since quinn cannot offer the parameter.
+
+**The check.** `scripts/wtcompat.py --fetch DIR` fetches the newest Chrome for Testing stable, beta and canary and Firefox
+release and nightly (Firefox against Mozilla's published SHA-256s; Chrome's printed), dials from each, and exits 1 when a
+dial or frame 0 fails, when the key log does not decrypt the dial, or when the drafts, SETTINGS or `reset_stream_at` that
+either side offers, or the draft negotiated, differ from [`../../scripts/wtcompat.json`](../../scripts/wtcompat.json).
+`NAME=BINARY` arguments dial named builds; `--flags NAME=...` passes a browser arguments. About 3 min for five browsers,
+by hand or on a schedule. Mutated: Chromium with draft-07 enabled, an expectation without Firefox's `reset_stream_at`, frame
+1's bytes in place of frame 0's, and a wrong Initial salt each fail it, by name; the five builds above pass.
+
+**The captures also answer §9 item 1's side question.** `min_ack_delay`: the server offers it at `0xff04de1b` (1 000 µs),
+Firefox at `0xff02de1a` (1 000 µs), an older draft's codepoint, and Chromium not at all, so no browser here negotiates
+ACK frequency with the server ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser). `max_udp_payload_size`:
+Chromium 1 472, the server 1 472, Firefox none (the default, 65 527).
+
+**Proposed, not built: what following draft-15 or later needs.** (1) quinn-proto: `reset_stream_at`, the transport
+parameter and the frame, sent for a uni stream reset after its header so the header still arrives — the change that
+matters, since a browser that requires it of the server cannot be met any other way. (2) wtransport: send
+`0x2c7cf000`, read the client's draft codepoints and keep the highest shared per connection, accept `webtransport-h3`
+when draft-15 is chosen; keep `0x2b603742` and `0xc671706a` beside them while any browser needs them. (3) Leave the
+per-session flow-control SETTINGS (`0x2b61`, `0x2b64`, `0x2b65`) unsent, so only quinn's windows bound a session (§9
+item 1). Each is upstream work in quinn and wtransport, or a patch here in the shape of `patches/`. Not measured: the
+draft-07 path's stream resets, datagrams and session close, beyond one dial and one frame.
+
 ---
 
 ## 4 · CPU per byte: segments per `sendmsg`, a profile-guided build, one copy fewer
@@ -1924,11 +1987,12 @@ Cubic default, not the stream default).
 Ranked for the target. *By report* marks a claim from specifications and public reports read
 2026-09-14, unverified here.
 
-1. **Draft compatibility — gating, unverified.** wtransport 0.7.2 speaks the legacy draft-02 and the
-   draft-07 SETTINGS with the `webtransport` token; by report every current browser accepts that, so
-   the risk is the day a stable browser drops draft-07. Owed: one session and one frame per stable
-   browser, capturing the SETTINGS and transport parameters it sends (which also answers
-   `min_ack_delay` and `max_udp_payload_size`). Advertise neither draft-14 nor any WebTransport
+1. **Draft compatibility — gating; Chromium and Firefox measured, Safari not.** wtransport 0.7.2 speaks the legacy draft-02 and the
+   draft-07 SETTINGS with the `webtransport` token. *Measured 2026-10-11, was "by report":* Chrome for Testing stable,
+   beta and canary and Firefox release and nightly each negotiate draft-02 and fetch a frame exact, and Chromium's
+   draft-07 path works too; the risk is the day a browser drops draft-07 or requires `reset_stream_at`, and Safari,
+   unread and unmeasured (§3 *Will a browser update break the server?*, `scripts/wtcompat.py` the check). Still owed
+   from Safari: one session and one frame, capturing the SETTINGS and transport parameters it sends. Advertise neither draft-14 nor any WebTransport
    flow-control SETTING, so only quinn's two windows bound a session; by report a WebKit browser
    offered draft-14 without `WT_MAX_DATA` capsules hangs, and its certificate-hash pinning fails in
    some releases. A failure is a release blocker.
