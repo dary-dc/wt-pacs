@@ -799,6 +799,30 @@ rule.
   failed. Outside the rule: what is left of the r5000 cost once the windows are swapped (+3.3 % at 1×, +2.5–2.9 % at
   4×) is about the share of the fill that ProbeRtt's window leaves idle (3.6–3.7 %). And on every clean 20 and
   50 Mbit cell, Cubic with BBR's 240 kB window fills faster than BBR. The review row weighs both.
+  *Reviewed (row CCREVIEW, 2026-10-11).* **Conclusive for the rule, both readings: option 3 is dropped and nothing
+  changes in the product.** The host voided 106 of 384 visits (28 %, over the 20 % bar), so strict n is 3–12 a cell, but
+  every verdict-carrying number agrees between the readings (re-derived from `rows-ccattrib.jsonl`, the table above
+  reproduced to the third decimal). P1's miss rests on one cell, `bbr` 12 kB on r50000 1× (0.937 | 0.937, strict n = 8,
+  faster in 11 of 12 pairs), 0.03 past the bar: a clear miss, not a tie. P2's second half fails by count (61/96 against
+  9 in 10), and the rule's ≤ 1 % test fails by itself: swapping the windows left BBR +3.3 % at r5000 1×, more than it
+  removed (1.029 → 1.033). What the rule's conjunction hides:
+  * **The confound is real on its own.** P1's first half held with a wide margin (0.72–0.91, 12 of 12 pairs on every
+    cell), and BBR at Cubic's window gives up its gain at 20 Mbit and at 50 Mbit 4× (0.995–1.164). Read against these numbers, the
+    earlier clean BBR-against-Cubic cells measure mostly the initial window, as *Where BBR's clean-link cost comes
+    from* already says; the rule asked for no restatement, and that sentence stays the reading.
+  * **Not refuted:** a patch removing ProbeRtt's first entry alone. The residual r5000 cost matches ProbeRtt's idle
+    share (3.3 % against 3.6–3.7 %), but no arm ran without it. It matters only if BBR were a candidate default, and
+    no row proposes that.
+  * **The default stays `cubic-restart`.** Its initial window is the lever these cells move (0.72 at r50000, 0.68–0.71
+    with ±20 ms), and it is §3's open question (*What the numbers support, by session shape*: the window stays the
+    owner's call). A 240 kB first flight is about 200 datagrams; §3's queue-depth table already sees a 26-datagram
+    flight lose 11.8 % on a 10-packet queue, and no shallow-queue or lossy cell ran here, so these cells widen no
+    default.
+  * **For R3's cells:** its `bbr` arm, run as built, carries quinn's 240 kB window against the others' 12 kB — a second
+    difference (§Protocol, arms differ in the lever alone). R3 names it in its cells, or runs `bbr` at 12 kB, whose
+    ±20 ms cells this run puts at 1.44–1.76; R3's rule compares the wrapper with `cubic-restart`, which share a window,
+    so its verdict does not depend on this. P3 (BBR's window short for 0.68 of the jittered fill) and BBR at 12 kB
+    collapsing there (1.72–1.76 against 0.95–1.01 at 240 kB, 1×) say R3's jitter bar is the one where `bbr` is least comparable.
 * **R2 LOSSCLASS — whether loss can be classed here.** The relay with a known cause:
   * overflow only (20- and 500-packet FIFOs);
   * iid 1/2/5 % and Gilbert–Elliott bursts, each on a 20- and a 500-packet queue;
