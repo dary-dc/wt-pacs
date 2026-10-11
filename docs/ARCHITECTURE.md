@@ -180,10 +180,45 @@ one frame each before (frames 24 and 28, of 240 and 1 200), 0 of 14 after**; wit
 0 of 11 before, 0 of 8 after, since its ports are collected before any frame is in flight. Every delivered frame was
 exact. Rare here, but silent; the reference implementation lost 5–31 of 237 frames in 7/7 Firefox fills.
 
-**Three ways a frame can still go missing without a failure** (read from the code, none fixed): the page's pixel port
-has no `onmessageerror`, so a message that cannot be deserialised is dropped with no index; a decoder worker has no
-`onerror`, so a crash leaves its frames `decoding` and its slots taken for good; and no deadline covers a decode, since
-the stall watch reads the wire alone, so a decode that never returns holds its frame for ever.
+**Three silent losses, closed 2026-10-11 (queue row FRAMELOSS).** *Corrected in place:* this paragraph read "three
+ways a frame can still go missing without a failure (read from the code, none fixed)": the page's pixel port had no
+`onmessageerror`, so an unreadable message was dropped with no index; a decoder worker had no `onerror`, so a crash
+left its frames `decoding` and its slots taken for good; and no deadline covered a decode, so one that never returned
+held its frame, and the frame queued behind it on that decoder, for ever. Now:
+
+* **A decoded frame is forgotten only on the page's ack.** `consumer.js` posts `ack` with the index and generation on
+  the control channel for every exact frame it is handed (never a preview); the downloader deletes the record then,
+  not on the decoder's `done`, so a late `done` cannot delete a newer record of the same index either.
+* **A lost decoder is replaced.** Its worker's `error` or `messageerror`, no answer for `decodeMs` while it owes a
+  frame, or the page's `undelivered` (a `messageerror` on its pixel port names no frame, so the page sends that
+  decoder's id) each terminate the decoder; a fresh one takes its slot and is dispatched to once it is `ready`, and
+  every frame the old one held unacknowledged is asked of the wire again — its coded bytes went with the worker — as
+  an ask, which ends a running fill like any other ([`WIRE.md`](WIRE.md) §An ask during a fill).
+* **`decodeMs` is 10 s, one constant in `deadlines`.** It restarts at each answer, so it covers one decode and the
+  check's second one: the slowest decode measured here is 355 ms a frame (the mammogram at 4× CPU, `decode/README.md`
+  §Encoder settings), ~28× under it; a phone's is not measured. `survival: false` leaves it on.
+* **Lost twice, a frame fails by name** through `failed` (`ATTEMPTS`): an asked frame's waiter rejects, a fill frame
+  reaches `onError`. A frame that shared the lost decoder both times fails with it. With `groupLength` above 1 a lost
+  frame whose keyframe the page already has fails by name as orphaned; it is not recovered.
+* **What it allows:** a frame whose first delivery arrives after its re-ask may reach the page twice, the same pixels.
+
+Each path has a test that fails without its fix: `downloader.test.mjs` (a crash, an unread delivery, a hang, lost
+twice), `consumer.test.mjs` (the ack, the report) and three dispatch-rig clauses through real workers in Chromium 141
+and Firefox 157.0.1 (`run_firefox.sh dispatch`), 3/3 in each of three runs per engine. Mutants: no `onerror` → the
+crash checks fail (Node and both engines); records deleted on `done` → the unread-delivery check fails; no `arm` on
+dispatch → the hang check fails (Node; the rig's hang still fires off the first frame's `done`); no attempt cap → the
+lost-twice check fails (Node and both engines); `undelivered` ignored → its check fails; the page's ack removed or sent
+for a preview, or its `onmessageerror` removed → `consumer.test.mjs` fails. **Row 145's fault bench, re-run** (both
+engines × HTJ2K, dav1d-WASM, WebCodecs, 30 visits; [`../lab/faultbench`](../lab/faultbench/README.md)): every *hang*
+cell, frame 2 never arriving with no failure before, now **fails by name** after two deadlines ("decoder 0 answered
+nothing in 10000 ms (lost 2 times)"), and frame 5, queued behind it and lost with it before, **arrives exact**; the 24
+other cells read as before, controls 6/6 exact. **The ack costs no fill** ([`../lab/frameloss`](../lab/frameloss/README.md)): the
+240-frame 1024² 16-bit series of row FFPORTGC through the real server on loopback, `downloader.js` and `consumer.js`
+today against `dc1524d7^` and nothing else different (TS transport, 3 decoders at start, `perDecoder` 2, OpenJPH WASM,
+server `cubic-restart` at quinn's default window), 10 rounds interleaved: last frame **2 671 [2 276–2 871] ms with the
+ack against 2 605 [2 464–2 872]** in Chromium 141, paired ratio 0.985 [0.898–1.159], slower in 5 of 10; **3 555
+[3 369–3 771] against 3 488 [3 357–3 732]** in Firefox 157.0.1, 1.022 [0.958–1.080], slower in 7 of 10. A tie within
+the spread; 9 600/9 600 frames exact. The 4-core container is decode-bound here, so nothing past it is claimed.
 
 **The states are as few as the behaviour allows.** `generation` (the request) and `epoch` (the
 session) move on different events — a cancel keeps the session, a resume keeps the request (§Re-dial
@@ -191,7 +226,7 @@ and re-issue) — so one counter would either drop a resumed request's frames or
 callbacks through. `resuming` is the whole resumption, re-dials and waits between them; `dialling`
 is one handshake, shared by whoever needs a session: a command that awaited only `dialling` dials
 beside a resumption sleeping between tries (a clause holds it). The record keeps three states, each
-read: `wire` is what a resume owes, `queued` what dispatch may take, `decoding` neither. What the
+read: `wire` is what a resume owes, `queued` what dispatch may take, `decoding` neither, until the page's ack. What the
 sweep found dead — the record's generation, two guards in `promote()` — is removed; every decision
 left is held by a test (`client/README.md` §Every decision is held by a test).
 *The fill's time is unchanged* — the HTJ2K frames through this downloader against the one before
