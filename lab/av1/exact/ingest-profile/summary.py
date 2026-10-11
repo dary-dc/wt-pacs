@@ -43,7 +43,7 @@ for (name, codec, preset), d in by.items():
     d["cli"] = [c / d["n"] for c in d["cli_run"]]
     fixed = med(d["cli_run"]) - med(d["sum"]) * d["n"]
     rng = lambda k: f"{med(d[k]) * 1e3:.1f} ms [{min(d[k]) * 1e3:.1f}–{max(d[k]) * 1e3:.1f}]"
-    print(f"{name} {codec} {preset}, {len(d["sum"])} rounds, {d["n"]} frames: sum {rng('sum')} a frame, CLI {rng('cli')}"
+    print(f"{name} {codec} {preset}, {len(d['sum'])} rounds, {d['n']} frames: sum {rng('sum')} a frame, CLI {rng('cli')}"
           f" (sum ÷ CLI {med(d['sum']) / med(d['cli']):.3f}); {med(d['execs/frame']):.0f} execs and"
           f" {med(d['reads/frame']):.0f} reads a frame; the CLI's fixed cost a run {fixed:.2f} s")
     print("  " + ", ".join(f"{k} {med(d[k]) * 1e3:.1f} ms ({med(d[k + '%']):.1f} %)" for k in STAGES))
