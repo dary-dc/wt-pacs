@@ -10,7 +10,7 @@ export FIREFOX_PATH=.../FirefoxApp/firefox TRACES=dir/with/Verizon-LTE-short.dow
 lab/irtt/run.py --phase a --rounds 20 --out a.jsonl     # cells A (swallow 40, 80, 150) and clean 40, 80, 150
 lab/irtt/run.py --phase c --rounds 20 --out c.jsonl     # cells C: 300, 400, 600, 1 000 ms and LTE-loaded
 lab/irtt/run.py --phase b --rounds 1000 --quiet --out b.jsonl   # cell B: 1 % each way at 80 ms
-lab/irtt/run.py --summary --out a.jsonl --out b.jsonl --out c.jsonl
+lab/irtt/run.py --summary --out lab/irtt/raw/a.jsonl.gz --out lab/irtt/raw/b.jsonl.gz --out lab/irtt/raw/c.jsonl.gz   # this row's rows
 ```
 
 **A visit** is one dial through its own relay (`link_impair.py --self-timing`, `chrt -f 50` on core 3) and its own
@@ -18,7 +18,8 @@ tap, in front of a long-lived server per (arm, certificate); clients run on core
 server, so it sees each server datagram as sent: *before the first ACK* is before the first client datagram that
 reaches it at least half the path's round trip after the server's first, and a gap over 20 ms starts a new round.
 Clients: `cold_open`, headless Chromium (one browser, a fresh context a dial) and headless Firefox (a fresh profile a
-dial), both on `index.html`, which times `new WebTransport` to `ready` and then opens an empty control stream so the
+dial; restarted after a missed result and every 500 dials, since a long-lived one began missing results after a few
+thousand), both on `index.html`, which times `new WebTransport` to `ready` and then opens an empty control stream so the
 server ends the session and logs `session path`. The (client, arm) units of a (cell, certificate) block run in a
 Williams order every round (`lab/scripts/order.py`); the relay's seed is the round, so both arms of a pair meet the same
 loss draws. The first line of every output file prints each arm's settings and every pin.

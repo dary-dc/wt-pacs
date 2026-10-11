@@ -15,6 +15,7 @@ before the first client datagram that reaches it half a path RTT or more after t
 Env: SERVER, COLD_OPEN, WINDOW_HARNESS, PACK_SERIES (target/release), FIREFOX_PATH, TRACES (Verizon-LTE-short.down).
 """
 import argparse
+import gzip
 import collections
 import hashlib
 import http.server
@@ -407,7 +408,7 @@ def boot(v, stat, n=2000, seed=1):
 
 
 def summary(args):
-    rows = [json.loads(l) for f in args.out for l in open(f)]
+    rows = [json.loads(l) for f in args.out for l in (gzip.open(f, "rt") if f.endswith(".gz") else open(f))]
     for r in rows:
         if "settings" in r:
             print("settings:", json.dumps(r["settings"]))

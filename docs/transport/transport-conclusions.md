@@ -1368,6 +1368,88 @@ Arms alternate within every round (`lab/scripts/order.py`), and both readings ar
 * **If C fails:** keep 333 ms and queue alternative 2 as a quinn patch with this row's cells A and C.
 * **If P1 fails on the ECDSA chain only:** the amplification budget is the clock. Trace it before choosing.
 
+#### Measured: IRTTMEASURE, 2026-10-11
+
+*Queue row 139*, run from the protocol and rule above only: [`lab/irtt`](../../lab/irtt/README.md), raw rows in
+`lab/irtt/raw/`. One `series-server` binary (sha256 `5c29b21a…`), `cubic-restart` in both arms, the arms differing only
+in `initial_rtt_ms=100`; quinn 0.11.11, quinn-proto 0.11.18, wtransport 0.7.2. The dev certificate (one P-256 leaf)
+and an ECDSA chain (leaf and intermediate, 2 091 B). Chromium 141.0.7390.37 headless, Firefox 157.0.1 headless,
+`cold_open`. A visit is its own relay (`--self-timing`) and tap; (client, arm) units Williams-ordered every round.
+10 000 visits, 843 `VOID` (A 117 of 1 200, C 48 of 800, B 678 of 8 000); 305 Chromium dials returned no result
+(146 and 159 by arm: a harness fault of the long-lived browser, fixed mid-B by restarting it), so a
+cell's n is its complete pairs. Leads are 333 − 100, the median of round-paired differences, *strict* (neither visit
+`VOID`) · *round-paired* (all).
+
+**A, the first flight lost** (n = 10–20 pairs strict, 18–20 round-paired), ms the 100 ms arm is ready sooner:
+
+| client | certificate | 40 ms | 80 ms | 150 ms |
+| --- | --- | ---: | ---: | ---: |
+| Chromium | dev · chain | +700 · +700 | +701 · +700 | +700 · +700 |
+| `cold_open` | dev | +699 · +699 | +698 · +698 | +698 · +698 |
+| `cold_open` | chain | **+739 · +739** | **+780 · +780** | **+850 · +850** |
+| Firefox | dev | +697 · +697 | +695 · +697 | **+625 · +641** (497–751) |
+| Firefox | chain | +696 · +696 | +703 · +700 | +690 · +686 |
+
+`cold_open` on the chain gains 699 ms plus about one round trip: its 333 ms arm is ready at 1 208 / 1 408 / 1 759 ms
+against 1 125 / 1 246 / 1 456 on the dev certificate, while its 100 ms arm costs the chain only the chain's bytes.
+Firefox's 100 ms arm spreads 840–1 040 ms in that cell, against 604–898 at 80 ms.
+
+**B, 1 % each way at 80 ms** (1 000 rounds; complete pairs 1 000 for `cold_open` and 855–884 for Chromium
+round-paired, 819–848 and 727–742 strict). Medians, both readings: 164.9–167.2 ms in both arms, leads ±0.1 ms. A
+server probe before the first ACK (the tap: a second round of server datagrams before the client's first reply) in
+**0.80 % of `cold_open`'s opens in the 100 ms arm (8 of 1 000 a certificate) and in none of the 333 ms arm's, nor in
+any Chromium open**. Those 16 opens were ready at 548 (dev) and 629 ms (chain) against 1 245 and 1 409 in the same
+rounds' 333 ms arm. The tails, p99 [95 % bootstrap interval], round-paired:
+
+| client | certificate | 333 ms | 100 ms | p95 333 · 100 |
+| --- | --- | ---: | ---: | ---: |
+| `cold_open` | dev | 1 170 [792–1 246] | 796 [742–1 165] | 327 · 261 |
+| `cold_open` | chain | 1 165 [792–1 409] | 792 [657–1 165] | 420 · 420 |
+| Chromium | dev | 471 [415–1 167] | 468 [416–470] | 329 · 330 |
+| Chromium | chain | 471 [419–1 167] | 468 [419–469] | 331 · 330 |
+
+The protocol's other count, `datagrams_tx` over the clean 80 ms cell's median, reads 96–100 % of `cold_open`'s opens in
+both arms and 5–9 % of Chromium's: it counts every retransmission of the session, not a probe, and decides nothing.
+
+**C, slow clean links and LTE-loaded** (n = 13–20 strict, 17–20 round-paired). Every 300–1 000 ms cell: leads within
+±1 ms (the widest single pair −28 ms), 0 congestion events in every visit, `cwnd` 12 000 in both arms, `rtt_us` within
+0.5 % of the path. Probe rounds before the first ACK, opens of 40 per arm, 333 · 100:
+
+| client | 300 ms | 400 ms | 600 ms | 1 000 ms | LTE-loaded |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `cold_open` | 0 · 22 | 0 · 40 | 0 · 40 | 1 · 40 | 0 · 37 |
+| Chromium | 0 · 0 | 0 · 0 | 38 · 40 | 40 · 40 | 0 · 1 |
+
+No open had more than one probe round. Chromium's at 600 and 1 000 ms are in both arms: its own repeated Initial,
+reaching the server before its first ACK, draws a second server flight. The clean 40, 80 and 150 ms cells had no
+probe round in any open. LTE-loaded leads −12 to +11 ms (spread −1 302 to +2 633), with congestion events in **both
+arms**: 9 of 80 visits in the 333 ms arm and 11 of 80 in the 100 ms arm, 17 events each; `cwnd` 12 000, `rtt_us`
+497–574 ms on a 60 ms base (the loaded queue).
+
+**Predictions.**
+
+* **P1: held on Chromium (both certificates), on `cold_open` with the dev certificate and on Firefox but one cell;
+  refuted on `cold_open` with the chain** (+739 to +850, outside ±50 at every RTT, ≈ 699 ms plus one round trip), and
+  on Firefox with the dev certificate at 150 ms (+625 strict, +641 round-paired).
+* **P2: held for `cold_open`, refuted for Chromium.** 0.80 % of `cold_open`'s opens waited for a server probe; their
+  wait fell from 1 245–1 409 to 548–629 ms (≈ 1 000 + 1 RTT → ≈ 300 + 1 RTT, with the 165 ms handshake); medians
+  moved ≤ 0.1 ms. No Chromium open waited for a server probe. S10's p95 gap does not appear: p95 ties in every cell
+  but `cold_open` on the dev certificate (327 → 261); `cold_open`'s p99 falls 1 165–1 170 → 792–796.
+* **P3:** ≤ 250 ms no extra datagram: **held**. 400 and 600 ms, one probe round in the 100 ms arm and none in 333:
+  **held for `cold_open`** (40/40 against 0/40), **not for Chromium** (none at 400 ms in either arm; at 600 ms in both,
+  by its own repeat). 1 000 ms and LTE-loaded, the 100 ms arm up to two rounds and 333 ≤ one: **held** (one at most).
+  In every C cell medians within ±10 ms, no congestion event, `cwnd` equal, `rtt_us` within 10 %: **held on the slow
+  links; refuted on LTE-loaded**, whose congestion events come in both arms and whose round-paired lead reads −12 ms
+  (Chromium, dev certificate).
+
+**The rule does not pass**: P1 is outside ±50 ms for `cold_open` on the ECDSA chain at every RTT and for Firefox on the
+dev certificate at 150 ms, in both readings; and C's "no congestion event in any visit" fails on LTE-loaded, in both
+arms. B's clauses hold. By the rule, a C failure keeps 333 ms and queues alternative 2 as a quinn patch; P1 fails on
+the chain for one client and not only on the chain, so its tracing clause applies to `cold_open` alone, where the 333 ms
+arm's extra round trip is the amplification budget's signature. Whether LTE-loaded's congestion events, which the 333 ms
+arm meets as often (9 and 11 visits of 80), count against the 100 ms arm is the review's call. The default is unchanged by this row.
+
+
 ### After a blink, 2026-09-19
 
 *Queue row W3.* [`../../lab/scripts/blink_cells.sh`](../../lab/scripts/blink_cells.sh), five rounds a cell,
