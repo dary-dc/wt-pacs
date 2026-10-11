@@ -188,7 +188,8 @@ written last. Today's reader holds the whole series to take its minimum (`DicomS
 over the samples before coding, so a streaming ingest reads twice or keeps the samples on disk between passes.
 
 **The link from the site to the server.** Today there is none: the server opens a bundle from its disk
-(`--series`). Three options:
+(`--series`). *The owner decided TCP (HTTPS) on 2026-10-11; the reasons, and what QUIC would have to show, are in
+[`ingest/link.md`](ingest/link.md).* Three options were weighed:
 
 * **A file copy** by an existing tool (rsync or SFTP over SSH, object storage): no server change; resume and
   integrity are the tool's, and a bundle is published by a rename once its SHA-256 matches.
