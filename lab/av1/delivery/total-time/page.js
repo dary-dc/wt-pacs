@@ -3,7 +3,7 @@
  * fills F bases as previews, then F exact frames; then frames N … N+K−1 asked one at a time, each timed
  * from its ask. run.mjs drives it. lab/av1/delivery/total-time/README.md
  *
- *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256[&asks=i,j,…][&after=K][&post=URL]
+ *   ?opts=<JSON of connect's decoder, groupLength, frameCount>&fill=N&wt=URL&hash=CERT_SHA256[&asks=i,j,…][&after=K][&post=URL]  (fill=0: a cold ask)
  */
 import { DownloaderClient } from "/client/transport/consumer.js";
 
@@ -96,6 +96,5 @@ issuedAt = q.get("origin") === "navigation" ? performance.timeOrigin : at();
 for (const i of q.get("asks")?.split(",").map(Number) ?? []) {
   client.requestExactFrame(i).then(exact, (e) => failures.push({ i, reason: String(e?.message ?? e) })).then(() => settled(client));
 }
-// `fill=0` with `after`: a cold ask, the session's first work.
 if (FILL || q.get("asks")) client.fill([...Array(FILL).keys()]);
 else finish(client);
