@@ -147,21 +147,24 @@ def main():
         res = {}
         for reading in ("strict", "paired"):
             b, b12 = out["cells"][nm]["bbr"][reading], out["cells"][nm]["bbr12k"][reading]
+            if b is None or b12 is None:
+                continue
             res[reading] = {"cost": b - 1, "after_window": b12 - 1, "probe_idle": med(idle), "left": b12 - 1 - med(idle)}
             print(f"  {th}x {reading}: {b - 1:+.3f}; {b12 - 1:+.3f}; {med(idle):.3f}; left {b12 - 1 - med(idle):+.3f}")
         out["r5000"][th] = res
 
     print("\nPredictions and rule, each reading")
     for reading in ("strict", "paired"):
-        p1 = all(out["cells"][f"{l} clean {th}x"]["bbr12k"][reading] >= 0.97 and out["cells"][f"{l} clean {th}x"]["cr240k"][reading] <= 0.95
-                 for l in ("r20000", "r50000") for th in (1, 4) if f"{l} clean {th}x" in out["cells"])
+        got = [out["cells"][f"{l} clean {th}x"] for l in ("r20000", "r50000") for th in (1, 4) if f"{l} clean {th}x" in out["cells"]]
+        p1 = all(c["bbr12k"][reading] is not None and c["cr240k"][reading] is not None
+                 and c["bbr12k"][reading] >= 0.97 and c["cr240k"][reading] <= 0.95 for c in got)
         b = out.get("p2_bbr", {})
         p2_holds = bool(b.get("visits")) and b["early"] >= 0.9 * b["visits"] and b["long"] >= 0.9 * b["visits"]
         p3 = bool(out["p3"]) and all(v >= 0.30 for v in out["p3"].values())
-        left = max((v[reading]["left"] for v in out["r5000"].values()), default=None)
+        left = max((v[reading]["left"] for v in out["r5000"].values() if reading in v), default=None)
         option3 = p1 and p2_holds and left is not None and left <= 0.01
         print(f"  {reading}: P1 {'holds' if p1 else 'fails'}, P2 {'holds' if p2_holds else 'fails'}, P3 {'holds' if p3 else 'fails'};"
-              f" restate clean cells: {'yes' if p1 else 'no'}; option 3: {'proposed' if option3 else 'dropped'} (r5000 left {left:+.3f})")
+              f" restate clean cells: {'yes' if p1 else 'no'}; option 3: {'proposed' if option3 else 'dropped'} (r5000 left {left if left is None else f'{left:+.3f}'})")
 
 
 if __name__ == "__main__":
