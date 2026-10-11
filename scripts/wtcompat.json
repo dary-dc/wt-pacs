@@ -1,0 +1,10 @@
+{
+ "server": {"drafts": ["draft-02", "draft-07"], "settings": ["0x1", "0x2b603742", "0x33", "0x7", "0x8", "0xc671706a"],
+            "reset_stream_at": []},
+ "engines": {
+  "chromium": {"drafts": ["draft-02"], "settings": ["0x1", "0x2b603742", "0x33", "0x6", "0x7", "0xffd277"],
+               "reset_stream_at": [], "negotiated": "draft-02"},
+  "firefox": {"drafts": ["draft-02"], "settings": ["0x1", "0x2b603742", "0x33", "0x7", "0x8", "0xffd277"],
+              "reset_stream_at": ["0x1d"], "negotiated": "draft-02"}
+ }
+}

@@ -89,6 +89,9 @@ Then open in Chrome:
 `scripts/cellcheck.sh` runs both pages headless in one go, after the c512 frames above: the cells over both
 clients must each deliver what they asked, the refuse cell none of it, and the self-check must pass. It makes its
 own server, bundle and certificate, so it needs neither terminal nor step 2; the gate does not run it.
+`scripts/wtcompat.py --fetch DIR` fetches the newest Chrome and Firefox builds and fails if any no longer dials the
+server, gets frame 0 exact, or offers a different WebTransport draft or `reset_stream_at` than `scripts/wtcompat.json`
+expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) §3); the gate does not run it.
 `deploy/check_equivalence.sh` checks that the web image answers every path the harness uses exactly as
 `server/dev-server.py` does; it needs podman or docker, or nginx with `--local` ([`deploy/README.md`](deploy/README.md)).
 
