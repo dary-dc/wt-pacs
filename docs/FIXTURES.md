@@ -543,6 +543,51 @@ full citation each collection asks for is on its DOI page, which this container 
 Series UIDs are in `data.json`. Frames derived from these sets (their AV1 or HTJ2K codings) carry
 the same attribution wherever they are published; none are.
 
+#### The data hosts and the candidates (queue row NETPROBE, 2026-10-11)
+
+**Every host refused on 2026-10-03/04 is reached now.** From the cloud container, 2026-10-11 02:32:56–02:33:01 UTC, one
+`curl -I` per host over HTTPS through the container's HTTPS proxy (`HTTPS_PROXY`, `https_proxy`, `NO_PROXY`, `no_proxy`
+and the per-tool copies — `npm_config_https_proxy`, `YARN_HTTPS_PROXY`, `GLOBAL_AGENT_HTTPS_PROXY`, `DOCKER_HTTPS_PROXY`,
+`CLOUDSDK_PROXY_*` — set; the proxy's identity was not probed further). The CONNECT answered 200 for every host, so the
+proxy now refuses none; the status is the host's own.
+
+| host | DNS (first A) | CONNECT | HEAD `/` |
+| --- | --- | --- | --- |
+| `zenodo.org` | 188.184.103.118 | 200 | 200 |
+| `www.cancerimagingarchive.net` | 144.30.169.13 | 200 | 200 |
+| `services.cancerimagingarchive.net` (TCIA's API) | 144.30.169.13 | 200 | 404 (no page at `/`) |
+| `physionet.org` | 18.25.8.254 | 200 | 200 |
+| `data.mendeley.com` | 162.159.133.86 | 200 | 200 |
+| `grand-challenge.org` | 3.170.152.85 | 200 | 200 |
+| `www.synapse.org` | 44.194.89.171 | 200 | 200 |
+| `drive.google.com` | 74.125.201.101 | 200 | 302 |
+| `figshare.com` | 34.255.32.219 | 200 | 202 |
+| `huggingface.co` | 3.170.185.33 | 200 | 200 |
+| `www.kaggle.com` | 35.244.233.98 | 200 | 404 (to `HEAD`) |
+| `osf.io` | 35.190.84.173 | 200 | 200 |
+
+**The candidates, read from their landing pages and metadata APIs; nothing was downloaded.** Row 100's bar for a
+verdict: native frames stored uncompressed or losslessly, whole series in acquisition order, a licence that allows
+commercial use, ≥ 2 independent sources of ≥ 2 series per type.
+
+| dataset | content | as published | native frames, lossless? | size | licence (verbatim) | access | meets row 100's bar? |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| CADICA, Mendeley Data `p9bpx9ctcv` v5 (2025-11-05) | invasive coronary angiography, Siemens Artis Zee, 42 patients, 668 runs of 1–151 frames at 10 fps | one PNG per frame, every frame of each run, 512×512 | PNG is lossless; the DICOM's transfer syntax, bit depth and any resize or window before the PNG are not stated | 3 076 112 179 B, `CADICA.zip`, SHA-256 `ac945f94…dad97b` (Mendeley's) | "CC BY 4.0 — Creative Commons Attribution 4.0 International" | open | **whole runs, CC BY: the nearest; `unknown` class** (an image export whose history is not recorded) — one source |
+| ARCADE, Zenodo `10390295` (2023-12-15; `8386059` the challenge's) | coronary angiography | PNG frames "extracted from DICOM recordings", 1 200 + 1 200 + 600 single images | single selected frames, not runs | 451 573 813 B | `cc-zero` | open | no: not runs |
+| Angiographic dataset for stenosis detection (Danilov et al.), Mendeley `ydrm75xywg` v3 (2026-03-18) | coronary angiography, Siemens Coroscop and GE Innova, 100 patients | 8 325 images, 512×512 to 1000×1000, selected by a cardiologist | selected frames, not runs | 8 300 927 983 B | CC BY 4.0 | open | no: not runs |
+| CoronaryDominance, Hugging Face `BearSubj13/CoronaryDominance` (DOI 10.57967/hf/4360) | coronary angiography, Philips Allura Clarity and Azurion, 1 574 studies | whole runs as NumPy `.npz`, "Float array, size of frames×512×512", "Range: 0 - 255" | resampled to 512×512 and to float: not native frames | 88.6 GB in four `.7z` | `cc0-1.0` | open | no: not native; `unknown` at best |
+| TDSC-ABUS 2023 (grand-challenge, files on Baidu Pan) | automated breast ultrasound, 200 volumes, 843×546×270 to 865×682×354 | `.nrrd` | NRRD may be raw or gzip, both lossless; the scanner export before it not stated | not stated | none stated; the agreement: "Participants should use the data only by themselves. Redistribution or transfer of data or data link is not allowed. The challenge data and results will be free to use after the submission of a joint journal paper." | signed agreement mailed to the organisers, and a submission (Docker container and paper) owed | no: no licence, redistribution barred, a submission owed |
+| Breast-Lesions-USG, TCIA (2024) | breast ultrasound, 256 patients | PNG and ZIP, 66.67 MB | stills | 66.67 MB | "CC BY 4.0" | open, TCIA Data Usage Policy | no: stills |
+| Breast ultrasound, Thomas Jefferson University, TCIA | B-mode breast ultrasound, 75 participants, 1 370 images | DICOM, 208 GB | stills; contrast cine loops "may be added in the future" | 208 GB | not read | limited access, on request | no: stills, on request |
+
+Searched and not found: an open multi-frame breast ultrasound cine stored losslessly (the video sets found — CVA-Net's
+188 clips, BUV — are video files, `lossy-sourced` by the rule above), and an open set of angiography runs in their DICOM.
+**What is reachable now does not meet row 100's bar for any of the three types**; CADICA is the one set of whole
+angiography runs under CC BY, one source, and would enter as `unknown` (provisional numbers only). Whether to take it, to
+ask CADICA's or CoronaryDominance's authors for the DICOM, or to source elsewhere is the owner's (av1/queue.md §Blocked).
+Sources: the hosts' pages and APIs above, read 2026-10-11; CADICA's article (arXiv:2402.00570 §Data acquisition);
+CoronaryDominance's `DATASET_DESCRIPTION.md`; TDSC-ABUS's agreement PDF in `PerceptionComputingLab/TDSC-ABUS2023`.
+
 #### Every closed verdict against its data
 
 *2026-10-10, queue row DATAAUDIT. A reading of every result cell of rows 1–118 in [`av1/queue.md`](av1/queue.md)
