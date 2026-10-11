@@ -55,9 +55,12 @@ Row CROSSRERUN (138) runs the same protocol on whole DBT volumes (71, 71 and 84 
 ```bash
 for r in $(seq 0 11); do
   NODE_PATH=$(npm root -g) node lab/av1/delivery/crossover/measure.mjs --frames $W/cross --out lab/av1/delivery/crossover/rows-whole.jsonl --rounds 1 --first-round $r
-done                                                               # ~96 min a round
+done                                                               # 96–137 min a round
 python3 lab/av1/delivery/crossover/verdict.py lab/av1/delivery/crossover/rows-whole.jsonl [--all]
 ```
+
+`run.mjs` leaves each call's packed bundles in `/tmp/av1-total-*` (about 270 MB a DBT call): the run here removed
+those no running process named, once a minute, or the disk would have filled by round 6.
 
 The k = 2 bytes over HTJ2K's on the whole volumes are 0.953, 0.956, 0.760. `--mutate sample` and `--mutate truth`
 each took both variants to 0 exact on `dbts_a5` (Chromium 1×, 100 Mbit/s), `--mutate truth` on `ffdms_c1` in Firefox
