@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>ffportgc — a whole fill through the downloader, every frame checked</title>
+<script type="module">
+  // One fill of `n` frames through the product's downloader and decoders; posts {failed, log} to `post`.
+  // lab/ffportgc/README.md
+  import { DownloaderClient } from "/client/transport/consumer.js";
+  import { built } from "/client/decode/wasm-glue.js";
+
+  const q = new URLSearchParams(location.search);
+  const n = Number(q.get("n"));
+  const dir = q.get("dir");
+  const lines = [];
+  const log = (s) => lines.push(s);
+  const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+  let failed = 0;
+  try {
+    if (!globalThis.crossOriginIsolated) throw new Error("not cross-origin isolated");
+    const truth = await Promise.all([...Array(n).keys()].map(async (i) =>
+      (await (await fetch(`${dir}/${String(i).padStart(3, "0")}.sha256`)).text()).trim()));
+    const cfg = await (await fetch("/wt/dev-transport.json")).json();
+    const frames = new Map();
+    const errors = [];
+    let last = performance.now();
+    const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
+      decoders: 3,
+      followQueue: q.get("follow") === "1",
+      decoder: await built("openjph"),
+      onFrame: (f) => { frames.set(f.frameIndex, f); last = performance.now(); },
+      onError: (e) => errors.push(e),
+    });
+    const t0 = performance.now();
+    c.fill([...Array(n).keys()]);
+    while (frames.size + errors.length < n && performance.now() - last < 15000) await new Promise((r) => setTimeout(r, 50));
+    const ms = last - t0;
+    let exact = 0;
+    for (const [i, f] of frames) {
+      const flat = new Uint8Array(f.bytes.length);
+      flat.set(f.bytes);
+      exact += hex(await crypto.subtle.digest("SHA-256", flat)) === truth[i];
+    }
+    const missing = [...Array(n).keys()].filter((i) => !frames.has(i));
+    log(`${frames.size}/${n} delivered, ${exact} exact, ${errors.length} failed by name, ${missing.length} missing` +
+        ` [${missing.slice(0, 12).join(",")}${missing.length > 12 ? ",…" : ""}], last frame at ${ms.toFixed(0)} ms`);
+    failed = frames.size === n && exact === n ? 0 : 1;
+    c.close();
+  } catch (e) {
+    failed = 1;
+    log(`FAILED: ${e?.stack || e}`);
+  }
+  await fetch(q.get("post"), { method: "POST", body: JSON.stringify({ failed, log: lines.join("\n") }) });
+</script>

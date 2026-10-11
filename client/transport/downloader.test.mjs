@@ -1,4 +1,6 @@
 // node client/transport/downloader.test.mjs — decoders a start makes, a timed-out ask; no browser.
+import v8 from "node:v8";
+import vm from "node:vm";
 globalThis.onmessage ??= null;
 globalThis.addEventListener ??= () => {};
 const posted = [];
@@ -186,5 +188,37 @@ async function startOnNeed() {
 }
 await startOnNeed();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue, start on need: ok");
+/**
+ * The downloader keeps each decoder's end of its pixel channel reachable for the decoder's life: Firefox deletes
+ * the frames in flight through a transferred port once the sender's object is collected.
+ */
+async function portsOutliveCollection() {
+  v8.setFlagsFromString("--expose-gc");
+  const gc = vm.runInNewContext("gc");
+  // Plain objects stand in for the ports: Node keeps its own entangled ports alive whatever the downloader holds.
+  globalThis.MessageChannel = class {
+    port1 = {};
+    port2 = {};
+  };
+  const ports = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind !== "init") return;
+      ports.push(new WeakRef(m.toConsumer));
+      queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+    }
+  };
+  await import("./downloader.js?ports");
+  await onmessage({ data: { kind: "start", config: { decoders: 3, decoderWorker: "x", survival: false } } });
+  posted.length = 0;
+  for (let i = 0; i < 5; i++) {
+    await settle();
+    gc();
+  }
+  const alive = ports.filter((p) => p.deref() !== undefined).length;
+  check(ports.length === 3 && alive === 3, `${alive} of ${ports.length} decoders' ports survive a collection, not 3 of 3`);
+}
+await portsOutliveCollection();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue, start on need, ports held: ok");
 process.exit(failed ? 1 : 0);

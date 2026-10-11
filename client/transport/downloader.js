@@ -376,6 +376,8 @@ function spawn() {
   const d = { worker, outstanding: 0, next: null, id: spawned++ };
   d.up = new Promise((r) => { d.ready = r; });
   const ch = new MessageChannel();
+  // Firefox drops frames in flight once this object is collected: ARCHITECTURE.md §The downloader.
+  d.port = ch.port1;
   worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength, digests: cfg.digests }, [ch.port1]);
   worker.onmessage = (e) => {
     if (e.data.buffer) session?.releaseWireBuffer(e.data.buffer);
