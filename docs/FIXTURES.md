@@ -615,12 +615,59 @@ commercial use, ≥ 2 independent sources of ≥ 2 series per type.
 | Breast ultrasound, Thomas Jefferson University, TCIA | B-mode breast ultrasound, 75 participants, 1 370 images | DICOM, 208 GB | stills; contrast cine loops "may be added in the future" | 208 GB | not read | limited access, on request | no: stills, on request |
 
 Searched and not found: an open multi-frame breast ultrasound cine stored losslessly (the video sets found — CVA-Net's
-188 clips, BUV — are video files, `lossy-sourced` by the rule above), and an open set of angiography runs in their DICOM.
+188 clips, BUV — are video files, `lossy-sourced` by the rule above), and an open set of angiography runs in their DICOM. *Corrected by the wider search below (queue row NATIVECINE): one such set is open, its licence not stated.*
 **What is reachable now does not meet row 100's bar for any of the three types**; CADICA is the one set of whole
 angiography runs under CC BY, one source, and would enter as `unknown` (provisional numbers only). Whether to take it, to
 ask CADICA's or CoronaryDominance's authors for the DICOM, or to source elsewhere is the owner's (av1/queue.md §Blocked).
 Sources: the hosts' pages and APIs above, read 2026-10-11; CADICA's article (arXiv:2402.00570 §Data acquisition);
 CoronaryDominance's `DATASET_DESCRIPTION.md`; TDSC-ABUS's agreement PDF in `PerceptionComputingLab/TDSC-ABUS2023`.
+
+#### The wider search (queue row NATIVECINE, 2026-10-11)
+
+Breast ultrasound cine, automated breast ultrasound (ABUS) volumes and contrast angiography runs, searched by modality
+beyond the hosts above, 2026-10-11 15:01–15:50 UTC. Metadata only: landing pages, APIs and, where a host serves a file
+by HTTP range, a DICOM header read from its first 256 KiB with pydicom 3.0.1 (`stop_before_pixels`); no pixel data
+kept. Where: IDC v25 through `idc-index` 0.13.0 / `idc-index-data` 25.0.0 (the BigQuery index needs a Google Cloud
+project this container has none of; `idc-index` is built from it); TCIA's public API (`nbia-api/services/v1/getSeries`
+by modality) and its whole catalogue (`/api/v1/collections`, 240 collections, and `/api/v1/downloads`, 888 records,
+filtered by `data_type`); Zenodo, Figshare, Mendeley Data, OSF, Harvard Dataverse, Dryad, Hugging Face and Kaggle by
+their search APIs; grand-challenge's API (264 challenges), RSNA, AAPM, MIDRC's public index (`data.midrc.org/guppy`),
+PhysioNet, Synapse; the sample files of GDCM (`gdcmData`), dcm4che, pydicom-data, fo-dicom, cornerstone3D, DCMTK,
+Orthanc's demo, Slicer's sample data, D. Clunie's site, the OsiriX library, Rubo Medical's samples and dicomlibrary.com.
+
+| dataset | content | as published | native frames, lossless? | size | licence (verbatim) | access | meets row 100's bar? |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `MesserMMP/coronary-angiography-syntax`, Hugging Face (revision `15646dc0`, 2026-09-08) | invasive coronary angiography, Philips Allura Clarity and Siemens AXIOM-Artis, 11 177 study folders | 87 626 DICOM files, one run per file | **yes on every header read:** 14 of 14 sampled are XA multi-frame (7–69 frames, 512×512, 8 bits), explicit or implicit little endian, Lossy Image Compression `00`, Philips `ORIGINAL\PRIMARY`, Siemens `DERIVED\PRIMARY`, 10 or 15 frames/s | 980 274 542 490 B | none stated: no card, no README, no licence tag | open, not gated | **the format and the runs, yes; the licence, no** — nothing grants use; one uploader, two vendors |
+| prostate 3D TRUS, IDC `prostate_mri_us_biopsy` | prostate ultrasound volumes, Eigen Artemis, 1 151 patients | 1 762 multi-frame US objects | yes: 280 frames of 452×452, 8 bits, explicit LE, no lossy flag, `DERIVED\SECONDARY\ENDORECTAL` (the device's volume from a rotational sweep) | 67 957 MB | CC BY 4.0 | open | not a target: the nearest **ABUS analogue** (a swept volume), other anatomy |
+| ReMIND, IDC `remind` | intra-operative brain ultrasound volumes, 114 patients | 320 multi-frame secondary captures, converted from NRRD by PixelMed | 193–222 frames, 8 bits, uncompressed; an NRRD export before DICOM | 23 102 MB | CC BY 4.0 | open | no: an export, other anatomy |
+| Zenodo `4445444` (2009) | a C-arm cone-beam run of two phantoms, Siemens AXIOM-Artis | two XA objects, one run each | yes: 543 frames of 1024×1024, 12 bits, JPEG lossless (`1.2.840.10008.1.2.4.70`), Lossy `00`, 30 frames/s | 378 380 916 + 280 257 502 B | `cc-by-4.0` | open | no: a rotational projection run of a phantom, not a contrast run |
+| GDCM `GE_DLX-8-MONO2-Multiframe*.dcm`, fo-dicom `GH1442.dcm`, `XA-MONO2-8-12x-catheter.dcm` | coronary runs (GE DLX), a Philips AlluraXper run, a 1990s demo loop | toolkit test files | yes: 56 and 67 frames (8 bits, native and JPEG lossless), 7 frames (10 bits, JPEG lossless), 12 frames | 5.7–14.7 MB each | gdcmData: none stated; fo-dicom: MS-PL | open | no: single test runs, not a source of series |
+| MIDRC Open-R1, XA and RF | fluoroscopy: swallow studies, ERCP, C-arm and GI runs; no vascular contrast run; its US is mostly echo, 75 of 129 flagged lossy, none breast | 66 XA and 223 RF files, one zip per series | DICOM; Lossy `00` on 39/66 XA and 16/223 RF, the rest not recorded; transfer syntax not exposed | MBS XA runs 110–561 MB | the DUA: "Non-Commercial Research Purposes. Any commercial use, sale, or other monetization is prohibited"; §6 forbids redistribution | registration and DUA | no: not angiography; non-commercial, no redistribution |
+| DSCA, Zenodo `11255024` (IEEE TMI 2025) | cerebral DSA, three vendors, 58 patients | 224 sequences "stored in a DICOM file", ~8 frames each | transfer syntax and lossy flag not stated; "All sequences retained arterial phase frames while discarding non-contrast, capillary phase, and venous phase frames" | not shown | `cc-by-4.0`; "These datasets are released for academic research purpose only." | restricted, on request | no: cut runs, not whole |
+| TDSC-ABUS 2023 (re-read) | ABUS, GE Invenia, 200 volumes | `.nrrd` | an export; the scanner's DICOM not published | not stated | "All data annotations are released under a CC BY-NC-ND 6.0 license. … Participants should use the data only for the Challenge." (as the page gives it); its Dataset page now also says "The data is publicly available" | agreement, or the Baidu link the Dataset page gives | no: an export, non-commercial, challenge use only |
+| AmTICIS (Zenodo `17790966`), CARDIAG (`19958730`), AngioCAD (`15826856`), DIAS (`11637181`), WEISS fluoroscopy (UCL `10.5522/04/24624243`), CathAction | cerebral DSA runs; coronary runs; coronary; intracranial DSA; catheter fluoroscopy; phantom and animal catheter video | NIfTI; PNG per frame; PNG "extracted from DICOM", RAR; PNG subsets (~5 a sequence); HDF5 frames; video at 500×500 | exports | 14.2, 4.6, 16.4 GB; — | `cc-by-nc-nd-4.0`; `cc-by-4.0` ×3 (DIAS, CARDIAG, AngioCAD); "CC BY 4.0"; "CC BY-NC-SA" | open; form for CathAction | no: exports |
+| BUVFM demo (Zenodo `20901197`, `usb_cine`'s source), CVA-Net's BUV | breast ultrasound clips, 871 and 188 | AVI; frames as images | lossy video or an export | 1.5 GB; — | `cc-by-4.0`; "available for only non-commercial use in research or educational purpose" | open | no: video (the nearest breast cine, as before) |
+| MIMIC-IV-ECHO (PhysioNet 1.0.1), cornerstone3D's US sample, fo-dicom `10200904.dcm` | echocardiography | DICOM | MIMIC not read (credentialed); cornerstone3D's flagged lossy 100:1 JPEG; fo-dicom's RLE-lossless, 79 frames | — | "PhysioNet Credentialed Health Data License 1.5.0"; MIT; MS-PL | credentialed; open; open | no: other anatomy |
+
+**IDC v25 and TCIA hold nothing new for the three types.** Every one of IDC's 39 XA series is single frames (re-read in
+v25); its multi-frame ultrasound beyond the prostate and brain volumes is cine flagged lossy — `cmb_crc`'s echo clips
+(Lossy `01`, 100:1, `ISO_10918_1`), `cmb_mel`'s 115-frame biopsy cine (`01`, ~26:1) and `b_mode_and_ceus_liver`
+(above); its breast ultrasound is CMB-BRCA's 40 stills. TCIA's catalogue adds five collections listing XA or US whose
+series its public API does not list — AHOD0831, AREN0532/0533/0534 under the "NCTN/NCORP Data Archive License (Without
+Collaborative Agreement)", AHEP0731 under the "NIH Controlled Data Access Policy" (limited), APOLLO-5 "TCIA Limited" —
+not read: frames and syntax unknown, none breast by its subject. The OsiriX library's two angiograms are behind a login
+and "compressed in JPEG2000", "not authorized to redistribute … or use them for commercial purposes". NEMA's old
+multi-frame sample directories answer 404. Searched and empty: ABUS or ABVS on every repository and challenge host;
+breast ultrasound in DICOM cine anywhere. Two public uploads of coronary angiography were found whose file names or
+headers appear to carry patient identity; they are left out of this table on purpose and named to the owner alone.
+
+**Against row 100's bar: still nothing for any of the three types.** *Angiography:* the Hugging Face set is native,
+unflagged whole runs from two vendors — the first open DICOM runs found — but one source with no licence stated, so
+nothing grants its use; the rest are exports, cut runs, non-angiographic or non-commercial. *Breast ultrasound cine:*
+nothing native and lossless at any host; the nearest stay the MPEG clips (`lossy-sourced`). *ABUS:* no DICOM volume is
+published; TDSC-ABUS's NRRD is the one set, challenge use only; IDC's prostate TRUS volumes are the nearest swept
+volumes stored natively. Whether to ask the Hugging Face set's uploader for a licence is the owner's
+(av1/queue.md §Blocked).
 
 #### Every closed verdict against its data
 
