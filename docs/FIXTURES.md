@@ -127,8 +127,9 @@ written from the source, writes the XXH3-64 digests (§Frame digests), and `pack
 `common/series-bundle`, the server's own crate) writes the `.sbnd`. Bundles identical at `--jobs` 1, 2 and 4 (rows
 71 and 89).
 
-**"Not CPU" holds for AV1, not for HTJ2K.** For AV1 the encode is ~99 % of ingest: 3.3 s a frame at `good:6`
-against the check's 30–40 ms ([`lab/av1/exact/coded-frame`](../lab/av1/exact/coded-frame/README.md)). For HTJ2K,
+**"Not CPU" holds for AV1, not for HTJ2K.** For AV1 the encode is 94–99 % of ingest (*corrected 2026-10-11 from
+"~99 %" by row INGESTPROFILE, below: 93.6 % on the fluoroscopy at `allintra:7`, 97.3–98.8 % on the breast sets at
+`good:6`*): 3.3 s a frame at `good:6` against the check's 30–40 ms ([`lab/av1/exact/coded-frame`](../lab/av1/exact/coded-frame/README.md)). For HTJ2K,
 every series' codec today, the same measurement read 0.7 s of CPU for the fluoroscopy's 18 frames, ~39 ms a 768²
 frame, of which the in-process check is 4.2 ms; `ojph_compress` codes such frames at 73–136 a second, process start
 included ([`lab/av1/bytes`](../lab/av1/bytes/README.md) §ENC), 7–14 ms. So **the encoder is roughly a third of an
@@ -212,6 +213,37 @@ and the metadata names them, so a re-ingest is known to reproduce. Which platfor
   check — on the fluoroscopy, the 10-bit tomosynthesis, the projections and a mammogram, interleaved, n ≥ 5.
   Predictions: the encoder 25–45 % of HTJ2K's CPU, ≥ 98 % of AV1's. *Rule:* if the non-encoder share of HTJ2K is
   ≥ 30 %, CPU is a reason for the compiled ingest beside the owner's four.
+
+  *Measured 2026-10-11, queue row INGESTPROFILE* ([`lab/av1/exact/ingest-profile`](../lab/av1/exact/ingest-profile/README.md),
+  raw `raw/profile.jsonl`). The runs go through `ingest.py`'s own coding path at one job, each stage charged by
+  wrapping its functions, the encoder by its children's rusage less a no-op run's start. The first 8 frames of each set
+  (`ffdm_d` 4); AV1 at `from_dicom.py`'s presets (`allintra:7` for the fluoroscopy, `good:6` for the breast sets). Each
+  set runs as stages and as the CLI end to end, 16 units Williams-ordered, **5 rounds**, one container, 4 cores. CPU
+  a frame and share of the stages, medians of rounds:
+
+  | set | codec | stages ms a frame | encoder (its start) | hash | temporary files | check | read · spawn · write | CLI ms a frame (fixed a run) |
+  | --- | --- | ---: | --- | --- | --- | --- | --- | ---: |
+  | fluoroscopy 768² | HTJ2K | 32.6 | **43.1 %** (+9.7) | 16.3 % | 10.6 % | 12.4 % | 3.1 · 1.7 · 1.3 % | 103.8 (0.57 s) |
+  | 10-bit tomosynthesis 678×1727 | HTJ2K | 56.8 | **33.2 %** (+6.2) | 24.1 % | 18.4 % | 12.3 % | 4.0 · 1.1 · 0.8 % | 127.2 (0.56 s) |
+  | projections 1914×2572 | HTJ2K | 308 | **28.9 %** (+1.0) | 28.1 % | 17.6 % | 11.8 % | 4.6 · 0.2 · 0.8 % | 357 (0.40 s) |
+  | mammogram 3328×4096 | HTJ2K | 906 | **15.2 %** (+0.4) | 40.8 % | 24.3 % | 9.7 % | 4.5 · 0.1 · 0.6 % | 979 (0.29 s) |
+  | fluoroscopy | AV1 `allintra:7` | 1 227 | **93.6 %** (+0.5) | 0.4 % | 0.6 % | 4.5 % | ≤ 0.1 % each | 1 310 |
+  | 10-bit tomosynthesis | AV1 `good:6` | 8 565 | **98.8 %** (+0.1) | 0.1 % | 0.1 % | 0.9 % | ≤ 0.1 % each | 8 552 |
+  | projections | AV1 `good:6` | 50 757 | **98.7 %** (+0.0) | 0.2 % | 0.3 % | 0.8 % | ≤ 0.1 % each | 50 896 |
+  | mammogram | AV1 `good:6` | 70 402 | **97.3 %** (+0.0) | 0.9 % | 0.5 % | 1.2 % | ≤ 0.1 % each | 71 950 |
+
+  HTJ2K's encoder share ranged 12.7–45.5 % over the rounds. *Rule:* **the non-encoder share of HTJ2K is 57–85 %**
+  (47–84 % if the encoder's start counts as the encoder), against a 30 % bar. **So CPU is a reason for the compiled
+  ingest.** Most of it is hashing (16–41 %: the SHA-256 check and the XXH3-64 digests, each after a NumPy conversion of
+  the frame), then the temporary files (11–24 %) and the check's decode (10–12 %). End to end, the CLI adds 0.3–0.6 s a
+  run, its interpreter, imports and process pool. Over 8 frames that leaves the encoder 13–25 % of the CLI's HTJ2K CPU.
+  The fixed cost is per run, so a longer series dilutes it.
+
+  *Predictions:*
+  * The encoder 25–45 % of HTJ2K's CPU: **held on 3 of 4.** The mammogram reads 15.2 %: its hashing grows with the
+    frame and its encode does not grow as fast.
+  * ≥ 98 % of AV1's: **held on 2 of 4.** The fluoroscopy at `allintra:7` is 93.6 %, its check 4.5 %; the mammogram is
+    97.3 %.
 * **P-STAGE.** Stage 1's extra write and read on tmpfs against encode time, the same sets. Prediction under 5 % for
   HTJ2K, under 0.1 % for AV1. *Rule:* stay at stage 1 when ≤ 5 %.
 * **P-PARITY.** The compiled ingest against the Python reference, every set and case above: byte-identical bundles,
