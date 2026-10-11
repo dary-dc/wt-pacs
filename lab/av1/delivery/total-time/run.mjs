@@ -304,6 +304,10 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const row = { round, engine, set: set.name, variant: variant, congestion: ran, initialWindow: window, transport: /transport=(.*)/.exec(serverOut)[1],
     ...(ccTrace && { ccTrace: path.relative(ROOT, ccTrace) }), link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog) };
+  if (!r?.frames.length && r?.after.length) {
+    const exact = r.after.filter((f) => r.sha[f.i] === truth[f.i]).length;
+    return { ...row, frames: 0, failures: r.failures.length, failure: r.failures[0]?.reason, exact, afterMs: r.after.map((f) => Math.round(f.ms)) };
+  }
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
   // A frame's first picture: its base when one came before its exact frame.
