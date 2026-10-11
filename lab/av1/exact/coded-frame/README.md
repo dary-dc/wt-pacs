@@ -39,7 +39,7 @@ check moved in-process (`decode.cpp`). `bench.py` sets it against a checkout of 
 * **A series, wall and CPU** (`bench.py time`, `good:6`, n = 3 interleaved, two variants n = 2 after a container
   restart; four cores, nothing else running). HTJ2K at one worker: CPU 1.0 → 0.7 s on the fluoroscopy and
   1.4 → 1.1 s on the 10-bit volume (−21 to −27 %, every round), wall 0.7 → 0.6 and 1.2 → 1.0 s; the old ingest
-  had no workers, the new one fills four, 0.3 and 0.4 s. AV1: a tie, since the encode is ~99 % of it
+  had no workers, the new one fills four, 0.3 and 0.4 s. AV1: a tie, since the encode is 94–99 % of it (*"~99 %" corrected by row INGESTPROFILE, [`docs/FIXTURES.md`](../../../../docs/FIXTURES.md) §A compiled ingest at the site*)
   (3.3 s a frame against the check's 30–40 ms) — CPU −2.0 %, −3.6 % and +1.7 % at one worker on the fluoroscopy,
   the ultrasound and the 10-bit volume, ranges overlapping; four workers 3.5–3.9× one, old and new alike.
 * **Mutations, each refused by the check and only in its codec:** one sample +1 in the AV1 decode (both sets
