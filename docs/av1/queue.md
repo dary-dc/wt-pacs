@@ -218,7 +218,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 140 | **CCREVIEW** — row 132's numbers against row 119's predictions: conclusive or not, and what it leaves for the default | done `8a63600` on `claude/av1-unified` — **R1 conclusive for its rule in both readings (28 % `VOID`, strict n 3–12, every deciding number agreeing): option 3 dropped, `cubic-restart` stays the default**: P1's miss is one clear cell (`bbr` 12 kB r50000 1× 0.937 \| 0.937, 11/12 pairs), P2 fails by count (61/96), and the swap left BBR +3.3 % at r5000 (≤ 1 % needed); the confound itself is real (Cubic at 240 kB 0.68–0.91 on every 20/50 Mbit cell, 12/12 pairs), which leaves the initial window the owner's open §3 call, untested on shallow or lossy queues; a ProbeRtt-only patch not refuted, no row needs it; R3's `bbr` arm carries a 20× window to be named — `transport-conclusions.md` §1 R1, *Reviewed* |
 | 141 | **LOSSCLASS** — row 119's R2 run by a session given only its protocol and rule: how often a loss classifier is wrong on the relay's known causes | ready |
 | 142 | **STARTMEASURE** — row 125's P-START run by a session given only its protocol and rule: decoders started on first need | claimed 2026-10-11 (night, 3b985b) |
-| 143 | **TILEDESIGN** — the owner's rule for large frames written into the design, and the tiled store and decode it implies: a proposal; theory only | ready |
+| 143 | **TILEDESIGN** — the owner's rule for large frames written into the design, and the tiled store and decode it implies: a proposal; theory only | claimed 2026-10-11 (night, f52221) |
 
 ## Briefs
 
