@@ -227,7 +227,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | done `36f15dd` on `claude/av1-unified` — **still nothing meets row 100's bar for any of the three types; one open set of native angiography runs exists, without a licence**: `MesserMMP/coronary-angiography-syntax` (Hugging Face, 87 626 XA files, 980 GB, Philips and Siemens, 14/14 headers read multi-frame, uncompressed, Lossy `00`) states no licence; IDC v25 and TCIA add nothing (39/39 XA single frames, multi-frame US cine flagged lossy 26–100:1); no breast ultrasound cine in DICOM and no ABUS volume in DICOM at any of ~25 hosts; nearest ABUS analogue IDC's prostate 3D TRUS (1 762 volumes, 280 frames, native, CC BY 4.0); DSCA's DSA runs are cut, MIDRC's fluoroscopy is not angiography and non-commercial — `docs/FIXTURES.md` §Provenance, The wider search |
 | 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | after 138, 147, 148, 149 |
 | 151 | **CHECKCOST** — what the exactness checks cost a frame in today's client: the XXH3-64 check after decode by path, the second decode on a mismatch, and a cache read's re-check; cost only, the checks stay on | after 150 |
-| 152 | **QUICTUNED** — row 124's candidates at their best configuration for the target, not their defaults: what each lets be tuned or patched, each lever's mechanism and its effect on throughput and on latency, the published rankings read; theory only | after 150 |
+| 152 | **QUICTUNED** — row 124's candidates at their best configuration for the target, not their defaults: what each lets be tuned or patched, each lever's mechanism and its effect on throughput and on latency, every published result on one table, the server's stack read as a candidate too; theory only | after 150 |
 
 ## Briefs
 
@@ -3068,11 +3068,18 @@ own). **Branch:** `claude/av1-unified`.
 
 ### 152 QUICTUNED
 
+*Amended 2026-10-11 (the owner): this round gathers everything published before anything is measured, and reads
+the server's stack as a candidate too.*
+
 **The candidates at their best, not their defaults.** Row 124 read each QUIC stack at its default configuration. A
 default is not a limit when the setting can be changed or patched (the owner, 2026-10-11: msquic's 64 KiB default
 stream window caps one stream near 5 Mbit/s at 100 ms, but it is a setting). Throughput and latency are the product's
 purpose, and the owner is learning: **explain, don't list.** Theory only; nothing built or timed.
 
+* **Everything published, first, on one table.** Every published result per candidate and per lever, each with its
+  setup (link rate, RTT, loss, hardware, stacks' versions and settings): papers, the implementers' own benchmarks and
+  performance dashboards, the interop runner, issue trackers and talks. For every comparison, say whether its stacks
+  were tuned or ran at defaults.
 * **Per candidate, read from its source:** what can be tuned, to what, by a setting or by a small patch — stream and
   connection flow-control windows and whether they auto-tune; ACK frequency and ACK delay
   (draft-ietf-quic-ack-frequency); receive batching (`recvmmsg`, GRO, Windows URO, Apple's paths); socket buffer sizes;
@@ -3080,14 +3087,23 @@ purpose, and the owner is learning: **explain, don't list.** Theory only; nothin
 * **Each lever's mechanism and its effect on throughput and on latency,** in plain words with worked numbers (a window
   must be at least bandwidth × RTT: 50 Mbit/s × 150 ms ≈ 0.94 MB, so a smaller one caps the link whatever the
   controller does).
-* **The published rankings:** find and read the work that ranks msquic — or any stack — first for throughput or
-  latency (the owner saw a paper saying so): name it, pin it, and set its setup against the target's links. For every
-  comparison read, say whether its stacks were tuned or ran at defaults.
-* **A pre-registered measurement protocol, proposed, not queued:** each shortlisted client at default and at tuned
-  settings against the server, on the target's links (5–50 Mbit/s, 20–150 ms RTT, 0–2 % loss, a mobile trace),
-  reporting fill time and ask time (each quoted alone, not both) and receive CPU per MB; predictions and a rule. The
-  server stays quinn; a client without a WebTransport client needs a lab-only raw-QUIC endpoint — say how small that
-  is.
+* **The server's stack is a candidate too, not fixed at quinn.** The server is the sender: its controller, pacing, GSO
+  and send cost per byte decide throughput and latency on the link. Read every candidate as a server as well as a
+  client. A change of server stack has to be worth it: state what it would cost — the WebTransport layer (wtransport
+  today), `bbr-bound` and the controller work, [`../WIRE.md`](../WIRE.md)'s contract, and the gate.
+* **The owner's paper, read critically:** Bünstorf and Jaeger, "MsQuic – A High-speed QUIC Implementation", TUM seminar
+  IITM SS 23, doi 10.2313/NET-2023-11-1_01,
+  <https://www.net.in.tum.de/fileadmin/TUM/NET/NET-2023-11-1/NET-2023-11-1_01.pdf>. Read already, to be confirmed: a
+  student seminar paper on Jaeger et al.'s testbed — one 1 073 MB download over 10GBase-T back to back, no added RTT or
+  loss, 10 runs; four stacks (picoquic, Cloudflare quiche, LSQUIC, msquic), no quinn, settings not stated. msquic's
+  goodput is the highest on all three host pairs (5 443 Mbit/s on a Xeon E5-1650 v3, 4 845 on a Xeon Gold 6312U, 3 898
+  on an EPYC 7543). Its text calls 3 898 "the lowest" on the AMD pair while its figure shows it highest, and its
+  conclusion's "double the goodput of LSQUIC" holds on the older pair only (×1.09–1.10 on the newer two, from the
+  figures). It measures CPU-bound bulk goodput at 4–5 Gbit/s — CPU efficiency, which bears on a phone's CPU and
+  battery and on the server's cost, not on throughput or latency at the target's 5–50 Mbit/s with RTT and loss. Read
+  its source [13] (Jaeger et al., "QUIC on the Highway", IFIP Networking 2023) for the stacks' settings.
+* **The row ends with what theory settles,** and the specific gaps it cannot settle and why. No measurement protocol is
+  proposed: a gap that needs one is described in one line, for the owner to decide later.
 * The owner's decisions are listed, not taken.
 
 **Deliverable:** `docs/native/quic.md` (a section of its own, §1 kept consistent). **Branch:** `claude/av1-unified`.
