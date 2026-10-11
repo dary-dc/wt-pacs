@@ -928,14 +928,124 @@ The crossover model's predictions against the crossover measurement's numbers (t
 
 **Conclusive for the rule's two decisions, both readings agreeing:** no series gains ≥ 5 % on a phone link in both
 engines at both CPU speeds, so **no per-link codec rule is built**; and `dbts_b4`'s 13–22 % does not hold in Firefox
-at 4×, so it is **not a per-series choice for every client either**. The rule's second condition, its input known
+at 4×, so it is **not a per-series choice for every client either**. *Corrected by CROSSRERUN on whole volumes (below): it is — 0.755–0.778 on every phone link in both engines at both CPU speeds.* The rule's second condition, its input known
 before the first frame, is moot: no series passes the first. **Not conclusive** on two things: the model's sides on
 `syn2ds_a3` Chromium 1× (strict and round-paired disagree, inside the ±0.01 band) and every Firefox 10 Mbit/s cell,
 which no visit here could dial in 5 s. **What it now decides:** ingest keeps HTJ2K for every series measured here,
 as the whole-round total-time measurement (queue row TOTAL4) left it; the model ranks the series correctly by fixed link in Chromium but is not a predictor for
 Firefox or for a bursty link until its Firefox decode and its link model are fitted on measurement. **What the owner
 still chooses:** whether a series like `dbts_b4`, a fifth smaller as AV1 and 13–22 % faster in Chromium and in
-Firefox at 1×, is served as AV1 although a slow Firefox client then fills it 1.29 × slower on LTE.
+Firefox at 1×, is served as AV1 although a slow Firefox client then fills it 1.29 × slower on LTE. *Corrected by CROSSRERUN: on the whole volume that client fills it 0.778 × on LTE; the cost is a slow client on
+a 50–100 Mbit/s link, 1.7–2.0 × (§Where AV1 fills first, whole volumes).*
+
+### Where AV1 fills first, whole volumes
+
+*[`lab/av1/delivery/crossover`](../../lab/av1/delivery/crossover/README.md) §Whole volumes, queue row CROSSRERUN.*
+
+[`crossover-protocol.md`](crossover-protocol.md) re-run as the data audit (queue row DATAAUDIT) proposed, 2026-10-11,
+by a session given the protocol and its rule: the same harness, payloads (k = 2, `allintra` 7, 0.953, 0.956, 0.760 of
+HTJ2K's bytes) and engines, but **whole DBT volumes** (71, 71 and 84 slices; the exams' four images as before), and
+Firefox after its slow-link dial fix; 12 rounds (0–11) interleaved, all six sets `sound`. **60 140 / 60 140 delivered
+frames exact over 1 416 visits**; 5 Firefox visits gave no result in 600 s (rounds 4–5, none at 10 Mbit/s), and **all
+192 Firefox 10 Mbit/s visits dialled** (143 of 192 did not before the fix). `--mutate sample` and `--mutate truth` each
+took both variants to 0 exact (Chromium on `dbts_a5`, Firefox on `ffdms_c1`).
+
+**This host is over the protocol's bar, so the verdict is the two readings' (§Protocol, [`queue.md`](queue.md)).** 319
+of 1 416 visits are `VOID` (15 % on the fixed links, 34 % on `lte-good`; 5 % in rounds 0–2, 30–37 % in rounds 5–11,
+steal under 2 % before every round), so 3–12 kept pairs a cell, n ≥ 10 on 12 of 59. Every visit paired, 57 cells have
+n = 12 and 2 have 11. **The two readings agree on every series × engine × CPU group and on both of the rule's
+decisions**; they differ on one cell's side, `dbts_b2` Firefox 1× `lte-good`, 0.991 kept against 0.990 paired, the
+edge of the ±0.01 band, in a group that fails on another cell either way. Kept, 46 of 59 cells fall on the predicted
+side; every visit paired, 47.
+
+| series | engine, CPU | link | predicted | kept: ratio [spread] | AV1 faster / n | VOID | failed | every visit paired: ratio, n | HTJ2K, s | side held |
+| --- | --- | --- | --: | --- | --: | --: | --: | --- | --: | --- |
+| `dbts_a5` | Chromium 1× | r5000 | 0.96 | 0.954 [0.954–0.954] | 9/9 | 5/24 | 0 | 0.954, 12 | 119.19 | yes · yes |
+|  | Chromium 1× | r100000 | 1.04 | 0.974 [0.967–0.984] | 12/12 | 0/24 | 0 | 0.974, 12 | 6.24 | **no** · **no** |
+|  | Chromium 1× | lte-good | 0.97 | 0.947 [0.944–0.948] | 7/7 | 8/24 | 0 | 0.947, 12 | 37.14 | yes · yes |
+|  | Chromium 4× | r5000 | 0.97 | 0.956 [0.952–0.960] | 9/9 | 3/24 | 0 | 0.956, 12 | 119.30 | yes · yes |
+|  | Chromium 4× | r30000 | 1.07 | 0.966 [0.964–0.969] | 8/8 | 6/24 | 0 | 0.966, 12 | 20.13 | **no** · **no** |
+|  | Chromium 4× | lte-good | 1.02 | 0.947 [0.941–0.950] | 7/7 | 6/24 | 0 | 0.948, 12 | 37.42 | **no** · **no** |
+|  | Firefox 1× | r10000 | 0.98 | 0.956 [0.940–0.956] | 8/8 | 4/24 | 0 | 0.956, 12 | 59.81 | yes · yes |
+|  | Firefox 1× | r50000 | 1.05 | 0.965 [0.664–0.970] | 12/12 | 0/24 | 0 | 0.965, 12 | 12.16 | **no** · **no** |
+|  | Firefox 1× | lte-good | 0.99 | 0.954 [0.944–0.960] | 7/7 | 7/24 | 0 | 0.959, 12 | 38.40 | yes · yes |
+|  | Firefox 4× | r10000 | 1.04 | 0.965 [0.963–0.975] | 11/11 | 1/24 | 0 | 0.965, 12 | 59.88 | **no** · **no** |
+|  | Firefox 4× | lte-good | 1.10 | 0.970 [0.964–0.975] | 7/7 | 7/24 | 0 | 0.970, 12 | 38.54 | **no** · **no** |
+| `dbts_b2` | Chromium 1× | r5000 | 0.96 | 0.957 [0.956–0.957] | 9/9 | 4/24 | 0 | 0.956, 12 | 234.25 | yes · yes |
+|  | Chromium 1× | r100000 | 1.02 | 0.970 [0.965–1.017] | 10/11 | 1/24 | 0 | 0.972, 12 | 12.03 | **no** · **no** |
+|  | Chromium 1× | lte-good | 0.97 | 0.980 [0.980–0.981] | 6/6 | 11/24 | 0 | 0.980, 12 | 81.80 | yes · yes |
+|  | Chromium 4× | r5000 | 0.97 | 0.958 [0.957–0.958] | 8/8 | 5/24 | 0 | 0.958, 12 | 234.46 | yes · yes |
+|  | Chromium 4× | r30000 | 1.04 | 0.967 [0.965–0.970] | 8/8 | 6/24 | 0 | 0.967, 12 | 39.45 | **no** · **no** |
+|  | Chromium 4× | lte-good | 1.01 | 0.985 [0.984–0.990] | 6/6 | 7/24 | 0 | 0.984, 12 | 81.98 | **no** · **no** |
+|  | Firefox 1× | r10000 | 0.98 | 0.959 [0.959–0.967] | 11/11 | 1/24 | 0 | 0.959, 12 | 117.48 | yes · yes |
+|  | Firefox 1× | r50000 | 1.04 | 0.972 [0.786–1.206] | 11/12 | 0/24 | 0 | 0.972, 12 | 23.74 | **no** · **no** |
+|  | Firefox 1× | lte-good | 0.99 | 0.991 [0.948–1.037] | 6/8 | 4/24 | 0 | 0.990, 12 | 81.06 | **no** · yes |
+|  | Firefox 4× | r10000 | 1.03 | 0.969 [0.963–0.971] | 7/7 | 7/24 | 0 | 0.969, 12 | 117.73 | **no** · **no** |
+|  | Firefox 4× | lte-good | 1.08 | 1.012 [1.010–1.014] | 0/4 | 11/24 | 0 | 1.012, 12 | 81.15 | yes · yes |
+| `dbts_b4` | Chromium 1× | r20000 | 0.79 | 0.762 [0.751–0.763] | 11/11 | 2/24 | 0 | 0.762, 12 | 51.38 | yes · yes |
+|  | Chromium 1× | lte-good | 0.79 | 0.755 [0.754–0.756] | 5/5 | 11/24 | 0 | 0.755, 12 | 75.10 | yes · yes |
+|  | Chromium 4× | r20000 | 0.82 | 0.766 [0.765–0.768] | 8/8 | 6/24 | 0 | 0.767, 12 | 51.59 | yes · yes |
+|  | Chromium 4× | r100000 | 1.95 | 1.974 [1.907–2.242] | 0/12 | 0/24 | 0 | 1.974, 12 | 10.84 | yes · yes |
+|  | Chromium 4× | lte-good | 0.81 | 0.759 [0.757–0.760] | 7/7 | 7/24 | 0 | 0.759, 12 | 75.32 | yes · yes |
+|  | Firefox 1× | r20000 | 0.81 | 0.765 [0.732–0.771] | 9/9 | 3/24 | 0 | 0.765, 12 | 51.51 | yes · yes |
+|  | Firefox 1× | lte-good | 0.80 | 0.767 [0.717–0.869] | 6/6 | 9/24 | 0 | 0.768, 12 | 76.79 | yes · yes |
+|  | Firefox 4× | r10000 | 0.83 | 0.770 [0.770–0.772] | 7/7 | 5/24 | 0 | 0.770, 12 | 102.92 | yes · yes |
+|  | Firefox 4× | r50000 | 1.55 | 1.707 [1.580–1.958] | 0/11 | 0/24 | 1 | 1.707, 11 | 20.96 | yes · yes |
+|  | Firefox 4× | lte-good | 0.87 | 0.778 [0.728–0.782] | 6/6 | 8/24 | 0 | 0.778, 12 | 75.70 | yes · yes |
+| `ffdms_c1` | Chromium 1× | r20000 | 1.03 | 1.031 [1.026–1.038] | 0/9 | 3/24 | 0 | 1.032, 12 | 4.66 | yes · yes |
+|  | Chromium 1× | lte-good | 1.02 | 1.036 [1.024–1.042] | 0/7 | 8/24 | 0 | 1.038, 12 | 3.99 | yes · yes |
+|  | Chromium 4× | r10000 | 1.07 | 1.072 [1.056–1.082] | 0/8 | 4/24 | 0 | 1.078, 12 | 9.33 | yes · yes |
+|  | Chromium 4× | lte-good | 1.11 | 1.155 [1.082–1.163] | 0/6 | 10/24 | 0 | 1.162, 12 | 4.22 | yes · yes |
+|  | Firefox 1× | r20000 | 1.07 | 1.097 [1.095–1.112] | 0/4 | 9/24 | 0 | 1.096, 12 | 4.66 | yes · yes |
+|  | Firefox 1× | lte-good | 1.06 | 1.108 [0.381–2.642] | 1/6 | 6/24 | 0 | 1.124, 12 | 3.71 | yes · yes |
+|  | Firefox 4× | r10000 | 1.16 | 1.218 [1.200–1.240] | 0/8 | 5/24 | 0 | 1.218, 12 | 9.29 | yes · yes |
+|  | Firefox 4× | lte-good | 1.27 | 1.629 [1.489–1.658] | 0/4 | 11/24 | 0 | 1.668, 12 | 3.78 | yes · yes |
+| `syn2ds_a3` | Chromium 1× | r5000 | 0.98 | 0.978 [0.975–0.989] | 11/11 | 1/24 | 0 | 0.977, 12 | 20.64 | yes · yes |
+|  | Chromium 1× | r30000 | 1.03 | 1.030 [1.020–1.052] | 0/8 | 4/24 | 0 | 1.030, 12 | 3.68 | yes · yes |
+|  | Chromium 1× | lte-good | 1.00 | 1.027 [1.017–1.077] | 0/6 | 7/24 | 0 | 1.024, 12 | 4.50 | yes · yes |
+|  | Chromium 4× | r10000 | 1.05 | 1.062 [1.050–1.073] | 0/10 | 2/24 | 0 | 1.063, 12 | 10.81 | yes · yes |
+|  | Chromium 4× | lte-good | 1.09 | 1.193 [1.168–1.217] | 0/6 | 8/24 | 0 | 1.188, 12 | 4.78 | yes · yes |
+|  | Firefox 1× | r20000 | 1.06 | 1.073 [0.753–1.089] | 1/9 | 5/24 | 0 | 1.069, 12 | 5.36 | yes · yes |
+|  | Firefox 1× | lte-good | 1.05 | 1.108 [1.092–2.659] | 0/6 | 6/24 | 0 | 1.110, 12 | 4.08 | yes · yes |
+|  | Firefox 4× | r10000 | 1.15 | 1.191 [1.177–1.210] | 0/7 | 7/24 | 0 | 1.195, 12 | 10.74 | yes · yes |
+|  | Firefox 4× | lte-good | 1.26 | 1.602 [1.580–1.831] | 0/3 | 12/24 | 0 | 1.624, 12 | 4.33 | yes · yes |
+| `syn2ds_b3` | Chromium 1× | r5000 | 0.95 | 0.954 [0.948–0.960] | 7/7 | 6/24 | 0 | 0.954, 12 | 12.07 | yes · yes |
+|  | Chromium 1× | r100000 | 1.06 | 1.197 [1.167–1.315] | 0/9 | 3/24 | 0 | 1.202, 12 | 0.99 | yes · yes |
+|  | Chromium 1× | lte-good | 0.97 | 0.999 [0.993–1.009] | 3/5 | 10/24 | 0 | 1.001, 12 | 2.98 | **no** · **no** |
+|  | Chromium 4× | r5000 | 0.97 | 0.980 [0.967–1.010] | 7/8 | 5/24 | 0 | 0.984, 12 | 12.56 | yes · yes |
+|  | Chromium 4× | r30000 | 1.09 | 1.107 [1.089–1.179] | 0/7 | 6/24 | 0 | 1.115, 12 | 2.80 | yes · yes |
+|  | Chromium 4× | lte-good | 1.03 | 1.107 [1.025–1.144] | 0/8 | 5/24 | 0 | 1.096, 12 | 3.38 | yes · yes |
+|  | Firefox 1× | r30000 | 1.07 | 1.149 [1.128–2.487] | 0/8 | 3/24 | 2 | 1.148, 11 | 2.27 | yes · yes |
+|  | Firefox 1× | lte-good | 1.02 | 1.111 [1.094–1.144] | 0/5 | 8/24 | 2 | 1.126, 11 | 2.73 | yes · yes |
+|  | Firefox 4× | r10000 | 1.12 | 1.234 [1.219–1.300] | 0/10 | 2/24 | 0 | 1.234, 12 | 6.53 | yes · yes |
+|  | Firefox 4× | lte-good | 1.21 | 1.847 [1.817–2.117] | 0/5 | 8/24 | 0 | 1.905, 12 | 2.85 | yes · yes |
+
+**Where the model misses: the 12- and 10-bit volumes, whole, are AV1's almost everywhere.** All but one HTJ2K-side
+cell of `dbts_a5` and `dbts_b2` come out AV1-faster: 0.965–0.974 at 30–100 Mbit/s in both engines at 1× and 4×, 0.965–0.969
+on Firefox 4× at 10 Mbit/s, 0.947–0.985 on `lte-good` at 4× in three of four, where 1.02–1.10 was predicted — AV1 faster in 11 or 12 of 12
+round-paired visits of each; the one held is `dbts_b2` Firefox 4× on `lte-good` (1.012). `dbts_b2` Firefox 1× there,
+predicted 0.99, reads 0.991 and 0.990: a tie on the band's edge. At
+100 Mbit/s and 1× HTJ2K fills `dbts_a5` in 6.24 s, 73.1 MB at 94 Mbit/s, so the wire, not the decode, is the clock
+there and AV1's 4.7 % fewer bytes lead. *Likely, not measured:* the model's per-series constants were fitted on
+every 8th slice, where the decoders' start and the last frames' decode are a larger share of the fill than on a whole
+volume. The other miss is row 106's: `syn2ds_b3` Chromium 1× on `lte-good`, 0.999 kept and 1.001 paired against
+0.97, a tie. `syn2ds_a3` Chromium 1× there, not conclusive before, now holds in both readings (1.027, 1.024).
+
+**The rule.** (1) The model holds for 15 of the 24 groups in both readings — every group of `dbts_b4`, `ffdms_c1` and
+`syn2ds_a3`, and three of `syn2ds_b3` — and fails on 9: all eight of `dbts_a5` and `dbts_b2`, and `syn2ds_b3` Chromium
+1×. (2) **`dbts_b4` gains ≥ 5 % on every phone link in both engines at both CPU speeds**: 0.755–0.778 on 10–20 Mbit/s
+and `lte-good`, AV1 faster in every kept pair (5/5 to 11/11) and in all 12 round-paired visits of all eight cells.
+No other series does: `dbts_a5` gains 5.3 % only on `lte-good` in Chromium (0.947 at 1× and 4×), 3.0–4.6 % elsewhere;
+`dbts_b2` at most 4.3 %, and 1.2 % slower on Firefox 4× `lte-good`; the three exams none. So (3) **`dbts_b4`'s gain is a per-series choice, not a per-link one**,
+and no per-link rule is worth building. Its price is on fast links at 4×, where the AV1 decode on the browser's three
+cores is the fill's clock: 1.97 × HTJ2K's time in Chromium at 100 Mbit/s (95.5 MB in 21.4 s, 36 Mbit/s) and 1.71 × in
+Firefox at 50 (21 Mbit/s). That places this host's saturation, not a phone's, and nothing past it is claimed.
+
+**Row EVENREVIEW's verdict, against this.** *No per-link rule* stands. *`dbts_b4` is not a per-series choice for
+every client* does not: on the whole volume Firefox at 4× fills it 0.778 of HTJ2K's time on `lte-good` (row 106's 11
+slices, 1.24–1.29) and 0.770 on 10 Mbit/s, which no visit could dial then. *The model ranks the series correctly by
+fixed link in Chromium* does not hold for whole DBT volumes: it puts their crossover at 30–100 Mbit/s and none falls
+below 100 Mbit/s at 1×.
 
 ## Client resources
 
