@@ -113,7 +113,8 @@ is the owner's design call.
 
 ### A compiled ingest at the site — the plan
 
-Queue row INGESTPLAN, 2026-10-10: a design for the owner, theory only; nothing built or timed. The owner's frame: ingest
+Queue row INGESTPLAN, 2026-10-10: a design for the owner, theory only; nothing built or timed. The pipeline from the parser to the PACS, weighed against alternatives on every axis, is
+[`ingest/design.md`](ingest/design.md) (row INGESTDESIGN). The owner's frame: ingest
 runs at the site, reads the DICOM through a C parser of the owner's, codes every frame itself, exactly and checked,
 and sends the bundles to the server; the reasons for a compiled ingest are integration, one deployable binary, one
 definition of the store's format shared with the server, and streaming memory. **The parser was not read**: its name
