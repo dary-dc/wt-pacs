@@ -96,4 +96,6 @@ issuedAt = q.get("origin") === "navigation" ? performance.timeOrigin : at();
 for (const i of q.get("asks")?.split(",").map(Number) ?? []) {
   client.requestExactFrame(i).then(exact, (e) => failures.push({ i, reason: String(e?.message ?? e) })).then(() => settled(client));
 }
-client.fill([...Array(FILL).keys()]);
+// `fill=0` with `after`: a cold ask, the session's first work.
+if (FILL || q.get("asks")) client.fill([...Array(FILL).keys()]);
+else finish(client);
