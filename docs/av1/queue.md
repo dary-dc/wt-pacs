@@ -228,7 +228,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | after 138, 147, 148, 149, 152, 153, 154 |
 | 151 | **CHECKCOST** — what the exactness checks cost a frame in today's client: the XXH3-64 check after decode by path, the second decode on a mismatch, and a cache read's re-check; cost only, the checks stay on | after 150 |
 | 152 | **QUICTUNED** — row 124's candidates at their best configuration for the target, not their defaults: what each lets be tuned or patched, each lever's mechanism and its effect on throughput and on latency, every published result on one table, the server's stack read as a candidate too; theory only || claimed 2026-10-11 (night, 8a9ecb) |
-| 153 | **INGESTDESIGN** — the best design of the pipeline from the owner's C parser to the PACS, compared against alternatives on every axis: where frames are encoded, how the parser hands over, what travels, where the layout, the per-study SQLite and the catalog are built, the integrity chain, metadata compression, recovery, prior art; theory only | claimed 2026-10-11 (night, c3ac38) |
+| 153 | **INGESTDESIGN** — the best design of the pipeline from the owner's C parser to the PACS, compared against alternatives on every axis: where frames are encoded, how the parser hands over, what travels, where the layout, the per-study SQLite and the catalog are built, the integrity chain, metadata compression, recovery, prior art; theory only | done `bafb9ee2` on `claude/av1-unified` — **the proposal holds on most axes; the gap is when a series is complete** (DICOM marks no last instance): theory only, ~60 sources pinned; (a) code at the site — raw + zstd costs 1.0–1.8× HTJ2K's bytes on the link (≈ 1.4×, seven images, one source; JPEG 2000 1.17–1.72× gzip over Clunie's 3 679), the parser's HTJ2K is grok, AGPL v3, not OpenJPH's bytes; (b) keep the directory: a checkpoint and a process boundary for C on untrusted files, an instance-complete marker owed; (c) one archive a series (`.sbnd` + its groups); (d) study database first, catalog derived by a generation upsert, PostgreSQL recommended (ATTACH caps cross-database SQL at 125); (e) a 10 KB group hashes in ≈ 1.5 µs, so compressed-byte hashes save ~1 µs — the parser's BLAKE3 after decompression proves parser → PACS, once 3 of its 4 group hashes cover the bytes written; SHA-256 without SHA-NI (53–91 ms a 27 MB frame) costs more than OpenJPH's encode (29 ms), XXH3 0.5–0.9 ms; (f) one zstd stream a series, a dictionary only per group (×1.5–4.7 on 300 B–6 KB); (g) idempotent by UID + digest, resumable by offset, published by rename + fsync; no prior art codes and checks at the edge (AWS checks in the cloud with CRC32); nine decisions under §Blocked — [`docs/ingest/design.md`](../ingest/design.md) on `claude/av1-unified` |
 | 154 | **LINKTCP** — the hospital→PACS link is TCP (decided): the reasons written with pinned sources, what QUIC would gain or cost there in numbers from research, the resumable-upload options over HTTPS, and what would have to be true for QUIC to win; theory only | claimed 2026-10-11 (night, b6113a) |
 | 155 | **INGESTRS1** — the Rust ingest, phase 1: a Python mirror of the owner's C parser's directory output for frames, and a Rust ingest that reads it, hashes, codes with the pinned OpenJPH, checks, digests and writes the `.sbnd` byte-identical to the Python ingest's | after 150 |
 
@@ -3232,6 +3232,16 @@ metadata logic is ever written in Python.
 **Deliverable:** the crate, the mirror, `docs/ingest/README.md`, the gate step. **Branch:** `claude/av1-unified`.
 
 ## Blocked
+
+* **2026-10-11 UTC: row 153 INGESTDESIGN — nine choices for the pipeline** (`docs/ingest/design.md` §10 on
+  `claude/av1-unified`): (1) when a series is complete — the association's end, a quiet period, or another signal — and
+  whether a late instance makes a new generation; (2) the unit on the link: one archive a series (recommended), the
+  parser's files, or one a study; (3) where frames are coded: at the site (recommended), in the parser on grok (AGPL v3),
+  or in the cloud; (4) the catalog: PostgreSQL (recommended), MySQL or libSQL's server, and its schema scope; (5) the
+  raw-frame check's hash: SHA-256, BLAKE3 or the XXH3-64 already written; (6) a changed duplicate: replace, keep both
+  generations, or hold; (7) a bad instance: refuse its series (today) or store the rest marked incomplete; (8) whether
+  the parser hashes the bytes it writes, so every group can be checked; (9) metadata compressed a series at a time
+  (recommended) or a group at a time with a shipped dictionary.
 
 * **2026-10-11 UTC: row 149 NATIVECINE — whether to ask for a licence** (`docs/FIXTURES.md` §Provenance, The wider search,
   on `claude/av1-unified`): the one open set of native, unflagged angiography runs (Hugging Face
