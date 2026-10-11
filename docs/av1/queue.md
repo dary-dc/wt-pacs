@@ -212,7 +212,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 134 | **EMSDKMEASURE** — row 125's P-EMSDK and P-COPY run by a session given only their protocols and rules | claimed 2026-10-11 (night, 040d89) |
 | 135 | **RECVCOST** — row 124's first measurement (receive CPU per byte per client stack, desktop, in a container) run by a session given only its protocol and rule | claimed 2026-10-11 (night, c24705); *provisional, rounds 1–3 of 7:* loopback CPU per MB (median), Chromium 141 6.3 (32 KB frames) and 10.0 (250 KB, 6.8–13.0), wtransport and web-transport-quinn with GRO 2.0–2.2, without 3.0–3.1; at 20 and 50 Mbit clean every arm fills within 0.5 % of the others; under 2 % loss Chromium 95 s against the quinn arms' 85–90 s; every frame exact |
 | 136 | **INGESTPROFILE** — row 126's P-PROFILE run by a session given only its protocol and rule: where today's ingest CPU goes, per codec | claimed 2026-10-11 (night, 5b3742); *provisional, round 1 of 5 (`1126da5c` on `claude/av1-unified`): HTJ2K's encoder is 15–38 % of its ingest stages' CPU (62–85 % not the encoder: hashing 19–41 %, temporary files 14–31 %), AV1's 94–99 %* |
-| 137 | **NETPROBE** — which data hosts the cloud environment reaches today, and what refuses the rest: rows 2 and 35's refusals are a week old | claimed 2026-10-11 (night, 3b985b) |
+| 137 | **NETPROBE** — which data hosts the cloud environment reaches today, and what refuses the rest: rows 2 and 35's refusals are a week old | done `2e9c5b4` on `claude/av1-unified` — **every refused host is reached now (12 of 12, CONNECT 200, 2026-10-11 02:33 UTC); no reachable source meets row 100's bar: CADICA (668 angiography runs, CC BY 4.0, PNG with its DICOM history unrecorded, so `unknown`) is the nearest and alone; ARCADE and the stenosis set are single frames, CoronaryDominance is resampled to float, TDSC-ABUS bars redistribution, the breast ultrasound sets are stills** — `docs/FIXTURES.md` §Provenance, The data hosts and the candidates |
 | 138 | **CROSSRERUN** — row 106's protocol re-run as row 121 proposes: whole volumes, Firefox after row 115's dial fix, both readings where the host voids | claimed 2026-10-11 (night, d1afc1) |
 | 139 | **IRTTMEASURE** — row 130's protocol run by a session given only its protocol and rule: the server's initial RTT at 100 ms against 333 | claimed 2026-10-11 (night, f52221) |
 | 140 | **CCREVIEW** — row 132's numbers against row 119's predictions: conclusive or not, and what it leaves for the default | ready |
@@ -2890,6 +2890,12 @@ series types outside the breast family it covers (CT, MR, CR/DX, XA, from `docs/
 
 ## Blocked
 
+* **2026-10-11 UTC: row 137 NETPROBE — which source, if any, for angiography and breast ultrasound cine** (`docs/FIXTURES.md` §Provenance,
+  The data hosts and the candidates, on `claude/av1-unified`): every host is reached now, and none of what they hold meets row 100's bar.
+  (1) whether CADICA (CC BY 4.0, whole runs as PNG, one source) is fetched as an `unknown` set for provisional numbers; (2) whether to ask
+  CADICA's or CoronaryDominance's authors for the runs' DICOM; (3) whether TDSC-ABUS's agreement (no redistribution, a challenge submission
+  owed) is acceptable for an internal measurement.
+
 * **2026-10-11 UTC: row 133 TILEMEASURE — tiles as independent codestreams** ([`../decode/README.md`](../decode/README.md) §Not yet
   tried, P-TILE, on `claude/av1-unified`): P-TILE passed its rule (k = 3 ×0.39–0.45 of today's ask at 4× on large frames,
   +0.12 % bytes). Its next step is a change to the store's format, which is structural: whether a store-format proposal for
@@ -2988,6 +2994,7 @@ series types outside the breast family it covers (CT, MR, CR/DX, XA, from `docs/
   absent or `00`), whole series in acquisition order, under a licence that allows commercial use (CC BY or alike, not
   CC BY-NC) — B-mode breast ultrasound cine with the probe slow or still, ABUS volumes, contrast angiography runs. The
   lab's breast cine are MPEG-4 Part 2 clips and enter no verdict. Until then these stay at G = 1 by default.
+  *Updated 2026-10-11 (row 137):* every host is reached now; still no source meets this bar (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates, on `claude/av1-unified`): CADICA (CC BY 4.0, 668 angiography runs as PNG, source compression unrecorded: `unknown`) is the nearest, one source; no open lossless breast cine; TDSC-ABUS bars redistribution.
 
 * **2026-10-08 15:20 UTC: row 77 TOTAL4 — whether to serve AV1 by link or client is the owner's.** By the brief's rule
   (AV1 only where it fills first in both engines on every cell) no series qualifies and ingest keeps HTJ2K. AV1 is the
@@ -3118,6 +3125,7 @@ series types outside the breast family it covers (CT, MR, CR/DX, XA, from `docs/
     (hosts refused). IDC v24's 35 XA series are all single frames.
 
 * **2026-10-04 20:43 UTC: row 35 DATA2 stopped at its first step** — `zenodo.org` and `www.cancerimagingarchive.net` are still refused (CONNECT 403, organization policy), so breast ultrasound cine and angiography stay unmeasured; allowing a host is the owner's.
+  *Updated 2026-10-11 (row 137):* `zenodo.org` and `www.cancerimagingarchive.net` are reached now (CONNECT 200); the data that would have unblocked this is still missing (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates, on `claude/av1-unified`).
 
 * **2026-10-04 07:10 UTC: row 23 TOTAL is measured twice over, or about to be.** The session that claimed it at
   `04fa4d3` was mid-run when its claim was set stale (14 rounds × 160 visits take ~10 h, with no commit until the
@@ -3136,6 +3144,7 @@ series types outside the breast family it covers (CT, MR, CR/DX, XA, from `docs/
   the container's network policy. The owner decides whether one is worth sourcing elsewhere (a host
   to allow, or a licence other than CC BY/CC0); until then no verdict covers angiography. A
   CC BY-NC 4.0 tomosynthesis collection exists in IDC and was not needed: two CC BY 4.0 volumes were.
+  *Updated 2026-10-11 (row 137):* TCIA, Zenodo and PhysioNet are reached now. Open angiography found: CADICA (whole runs, CC BY 4.0, PNG, `unknown`), CoronaryDominance (whole runs resampled to float, CC0), ARCADE and the stenosis set (single frames) (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates, on `claude/av1-unified`).
 * **Breast ultrasound cine, automated breast ultrasound and angiography (row 21).** None is open
   and reachable: IDC v24 holds no ultrasound of the breast but one series of 14 single-frame stills
   (CMB-BRCA, Ultrasound Image Storage), no automated breast ultrasound volume, and no multi-frame
@@ -3146,6 +3155,7 @@ series types outside the breast family it covers (CT, MR, CR/DX, XA, from `docs/
   `drive.google.com`. The owner decides whether to allow one, and which dataset and licence to
   take. IDC also holds an in-silico tomosynthesis collection (VICTRE, CC BY 3.0, simulated
   projections and volumes); not used, since the question is about real content.
+  *Updated 2026-10-11 (row 137):* all eleven hosts are reached now (CONNECT 200). No open lossless breast cine found; TDSC-ABUS (200 ABUS volumes, NRRD) has no licence and its agreement bars redistribution; Breast-Lesions-USG and Jefferson's TCIA set are stills (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates, on `claude/av1-unified`).
 * **Phone hardware decoders (row 29).** Whether a phone's AV1 decoder takes lossless frames and
   returns them exactly needs phones; a container has none. From source only: Android's public API
   names AV1 Main 8/10-bit only, and its performance class guarantees a hardware Main 10 decoder at
