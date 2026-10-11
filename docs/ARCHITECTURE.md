@@ -166,6 +166,25 @@ adopt the new session and ask the owed work on it: a dial that opens after `clos
 `resume()` stops. The ask and fill handlers' generation check after `await live()` was already
 right. Each is reproduced by a dispatch clause that failed before the fix.
 
+**A frame lost silently in Firefox, fixed 2026-10-11 (queue row FFPORTGC).** Firefox keeps a message that carries a
+`SharedArrayBuffer` in a process-wide table under the sending port's uuid, a transferred port keeps that uuid, and when
+any `MessagePort` object with it is destroyed every message stored under it is deleted
+(`dom/messagechannel/MessagePort.cpp`, `~MessagePort → CloseForced → ForgetPort`). `spawn()` transferred each decoder's
+`port1` and kept nothing, so once the downloader's collector took that neutered object, the frames then in flight to
+the page were deleted: the page got a `messageerror` it has no handler for, the decoder had already posted `done`, and
+the frame never arrived, with no failure. The record now holds `port1` for the decoder's life;
+`downloader.test.mjs` collects garbage and finds 0 of 3 ports alive without the line, 3 of 3 with it. In Firefox
+157.0.1 headless ([`../lab/ffportgc`](../lab/ffportgc/README.md), a 1024² 16-bit HTJ2K series through the real server
+and decoders, visits alternating): with the decoders spawned as the queue grows (`followQueue`), **2 of 17 fills lost
+one frame each before (frames 24 and 28, of 240 and 1 200), 0 of 14 after**; with the whole pool spawned at the start,
+0 of 11 before, 0 of 8 after, since its ports are collected before any frame is in flight. Every delivered frame was
+exact. Rare here, but silent; the reference implementation lost 5–31 of 237 frames in 7/7 Firefox fills.
+
+**Three ways a frame can still go missing without a failure** (read from the code, none fixed): the page's pixel port
+has no `onmessageerror`, so a message that cannot be deserialised is dropped with no index; a decoder worker has no
+`onerror`, so a crash leaves its frames `decoding` and its slots taken for good; and no deadline covers a decode, since
+the stall watch reads the wire alone, so a decode that never returns holds its frame for ever.
+
 **The states are as few as the behaviour allows.** `generation` (the request) and `epoch` (the
 session) move on different events — a cancel keeps the session, a resume keeps the request (§Re-dial
 and re-issue) — so one counter would either drop a resumed request's frames or let a dead session's
