@@ -242,6 +242,45 @@ server build, controller (`cubic-restart`), initial window and relay, printed pe
 
   Rule: P1 holding makes the native receive path a lever on desktop and Android; P3 failing at 50 Mbit/s names the
   receive path as a bound inside the target range. Say where the container saturates.
+
+  **Measured 2026-10-11 (queue row 135), run from this protocol and rule alone** ([`../../lab/recv-cost`](../../lab/recv-cost/README.md)):
+  7 rounds, the five arms in a Williams order inside each (cell, round), 210 fills, **168 000 / 168 000 frames exact**
+  against SHA-256s written when the series were made (random bytes, 800 × 250 KB and 800 × 32 KB). Every arm: one
+  `series-server` build (this tree at `84cb4a8`), `cubic-restart`, quinn's default initial window, `stream_mode=shared`,
+  on core 0; clients on cores 1–2; the relay (`link_impair.py`, 20 ms each way, a 200-packet queue) on core 3; the
+  relay cells use the 32 KB series. Arms: headless Chromium 141.0.7390.37 with a page reading the shared stream (not
+  the product's downloader), every Chromium process counted; wtransport 0.7.2 and web-transport-quinn 0.13.2, both on
+  quinn 0.11.11 / quinn-proto 0.11.18 / quinn-udp 0.5.15 with each stack's own transport defaults, `UDP_GRO` on (quinn-udp's
+  default) or off, read back from the socket in every fill. **Not run:** the raw-QUIC quinn arm — the server speaks
+  WebTransport only, so it needs a raw-QUIC server, which would make the arms differ in more than the client.
+
+  | loopback, client CPU per MB (ms), median [min–max] | 250 KB frames | 32 KB frames |
+  | --- | --: | --: |
+  | Chromium, all processes | 12.43 [6.78–13.39] | 6.36 [6.23–7.70] |
+  | Chromium, network service alone (its QUIC receive) | 4.25 [3.97–4.68] | 3.98 [3.50–4.40] |
+  | wtransport, GRO | 2.16 [1.88–2.81] | 2.16 [2.01–2.49] |
+  | web-transport-quinn, GRO | 2.05 [1.88–2.54] | 2.16 [1.90–2.57] |
+  | wtransport, no GRO | 3.11 [2.98–4.67] | 3.14 [2.86–3.26] |
+  | web-transport-quinn, no GRO | 3.07 [2.88–3.77] | 3.11 [2.84–3.54] |
+
+  Chromium's renderer — the page and Blink's streams — is the rest, and bimodal at 250 KB (2.5–3.3 in two rounds,
+  7.2–8.6 in five), a page holding 200 MB of frames. On the relay every arm is far from busy (≤ 0.53 cores) and CPU per
+  MB is mostly time, not bytes: Chromium 90–178, the quinn arms 26–44.
+
+  * **P1 holds:** quinn with GRO 2.05–2.16 ms per MB (max 2.81) against Chromium's 6.4–12.4 whole, 4.0–4.3 for its
+    network service alone.
+  * **P2 holds:** without GRO 3.07–3.14 (max 4.67); GRO is worth about a third of quinn's receive CPU.
+  * **P3 holds clean and fails under loss.** Clean, at 20 and 50 Mbit/s every arm fills within 0.6 % of the others
+    (Chromium 0.995 and 0.996 of the quinn arms' mean). Under 2 % loss Chromium is slower in 7/7 rounds at both rates:
+    1.089 [1.077–1.109] of the quinn arms at 20 Mbit/s, 1.054 [1.024–1.101] at 50, while the four quinn arms stay within
+    ±3.7 % of each other.
+
+  **By the rule:** the native receive path is a lever on desktop (Android is not measured here), and P3's failure at
+  50 Mbit/s names the receive path as a bound inside the target range — though not by CPU: the client spends ≤ 0.05
+  cores there, so what differs is the stack's behaviour under loss, which this protocol does not separate. **Where the
+  container saturates:** on loopback the server's one core runs at ~0.9 during a quinn arm's fill (about 670 MB/s) and
+  the clients at 1.3–1.5 of their two cores, so loopback fill times compare nothing; CPU per MB is the claim. Also seen,
+  not asked: the server spends 2.3–2.6 ms per MB sending to Chromium against 1.3–1.5 to quinn with GRO and 1.9 without.
 * **N2 NATIVEWT — which native clients reach the server unchanged.** Arms: wtransport, web-transport-quinn, neqo,
   picowt, QUICHE's `WebTransportOnlyClient`, ngtcp2's branch (with `webtransport` as its token), webtransport-go
   v0.9.0 and v0.13.0; 5 rounds at 40 ms. Prediction: all but webtransport-go v0.13.0 open a session and receive
