@@ -1829,6 +1829,45 @@ interleaved, n ≥ 10, `g512` and the five sound breast series):
 * **P-COPY.** The wrapper writing samples into a buffer the page keeps (a `SharedArrayBuffer` view) and a shuffle
   interleave for RGB, against the delivered build, a frame at 1× and 4×. Predictions as row 4 of the table. *Rule:*
   adopt when ≤ ×0.95 on every set in ≥ 8 of 10 rounds and the page's peak memory is no higher.
+
+  **P-EMSDK and P-COPY, measured 2026-10-11** (queue row EMSDKMEASURE; run from the protocols and rules above alone;
+  [`lab/decode-bench/emsdk`](../../lab/decode-bench/emsdk/README.md), [`lab/decode-bench/copy`](../../lab/decode-bench/copy/README.md)).
+  Headless Chromium 141 in the container, 10 rounds Williams-ordered, each arm ÷ the delivered build paired by round.
+  Every frame was exact against the encoder's input: 8 040 a frame, 480 cold asks and 16 080 filled for P-EMSDK, and
+  17 280 for P-COPY. `--mutate sample` and `truth` failed every frame.
+
+  * **P-EMSDK: not adopted.** It fails the rule on a frame and on a cold ask.
+    * **A frame, ×median [range], rounds ≤ ×0.97:**
+
+      | set | 1× | 4× |
+      | --- | --- | --- |
+      | `g512` | ×0.991 [0.92–1.10], 3/10 | ×0.962 [0.40–2.43], 5/10 |
+      | tomosynthesis 614×1359 | ×0.989 [0.62–1.14], 3/10 | ×1.061 [0.82–1.29], 3/10 |
+      | tomosynthesis 931×2124 | ×0.975 [0.61–1.42], 5/10 | ×0.968 [0.77–1.12], 5/10 |
+      | projections | **×0.931, 9/10** | **×0.886, 10/10** |
+      | synthesized 2D | ×0.957, 6/10 | ×0.959, 6/10 |
+      | full-field | ×0.965, 6/10 | ×0.931, 6/10 |
+
+      The prediction (×0.94–0.97) held in 5 of 12 cells. The newer toolchain gains on the largest frames and nothing
+      that separates on the rest.
+    * **A cold ask** (`--fill 1`, 50 Mbit and `lte-good`): ×0.960–1.017 by cell, at most 6 of 10 rounds ≤ ×0.97.
+      Strict and round-paired agree (72 of 480 visits `VOID`).
+    * **A fill:** ×0.995–1.003 by cell. The wire is the fill's clock, so no fill is over ×1.01; that clause holds
+      (49 of 480 `VOID`, readings agree).
+    * **A recipe fix is owed before any later move.** Emscripten 6.0.2 dropped `wasmBinary` and
+      `mainScriptUrlOrBlob` from the default `INCOMING_MODULE_JS_API`. Under 6.0.11 the delivered recipe therefore
+      builds a glue that ignores the bytes `wasm-glue.js` checked against the manifest and fetches its own `.wasm`,
+      unchecked. The measured arm restores both names; the `.wasm` is the same bytes either way.
+  * **P-COPY: not adopted.** It is under ×0.95 in ≥ 8 of 10 rounds in one cell of 14.
+    * **Grey sets:** ×0.95–1.05 (`g512` ×0.985 / ×0.863, the tomosynthesis ×0.95–0.97, projections ×0.999 / ×1.028,
+      full-field ×0.955 / ×1.049, at 1× / 4×). This refutes the prediction of ×0.88–0.95: the copy the patch removes
+      is smaller than the spread.
+    * **RGB, on `c512` only** (synthetic, 87 × 512²; no sound RGB set is in the protocol's list): ×0.954 at 1×, 4 of
+      10 rounds, and **×0.866 at 4×, 8 of 10**. The prediction (×0.82–0.92) held at 4× only.
+    * **`-pthread` alone,** which the shared heap needs: ×0.95–1.06, no cost that separates.
+    * **Peak memory** (every frame kept, 3 rounds): no higher, and 5–25 MB lower on the three 4.9–13.6 M-sample sets
+      (full-field 588 → 563 MB).
+    * The memory clause holds; the time clause fails on every grey set.
 * **P-START.** The downloader starting a second and third decoder only when the queue first holds work for them,
   never retiring, against today's, row DECODEPACE's harness and cells. Predictions as row 5 of the table. *Rule:* the
   container stage passes when every fill is ≤ ×1.01 in ≥ 8 of 10 rounds, the cold ask ≤ ×1.02, and decoder CPU
