@@ -82,7 +82,7 @@ Where a frame cache belongs, and whether the OS takes it back:
 | macOS | `~/Library/Caches` | unknown | |
 | iOS | Application Support + `isExcludedFromBackup` (set again on every save) | Caches can be purged when space is very low, never while the app runs | encrypted by default (Data Protection class C); class A (`complete`) locks the cache ~10 s after the device locks, which stops a background prefetch |
 | Android | `getFilesDir` | `getCacheDir` is deleted oldest-first under a moving quota and "designed to store a small amount" | file-based encryption on Android 10+ |
-| browser (today) | OPFS | best-effort unless persisted; ≈ 60 % of disk per origin (Chrome, Safari), 15 % in a web view; Safari deletes script-written storage after 7 days without interaction | not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open) |
+| browser (today) | OPFS | best-effort unless persisted; ≈ 60 % of disk per origin (Chrome, Safari), 15 % in a web view; Safari deletes script-written storage after 7 days without interaction (30 operating days in the source's default, [`../adr/frame-path.md`](../adr/frame-path.md) §4) | not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open) |
 
 **What a cache must do on any OS**, from the exactness ADR ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md)
 §8, *A client cache*): hold only frames whose check is `true`, never key by digest, and re-check on read. From the
