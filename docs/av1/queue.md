@@ -225,6 +225,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 147 | **FRAMELOSS** — no frame lost silently: a decoder crash, a delivery the page cannot read and a decode that never returns each end in a re-decode or a loud failure, a test per path that fails without | done `361fb9b` on `claude/av1-unified` (`2e16d88`, `5a0a222`) — **no frame is lost silently now: a crashed, hung or unreadable decoder is replaced and its unacknowledged frames asked again; lost twice, a frame fails by name**. Records are forgotten on the page's ack, not on `done`; `decodeMs` 10 s (~28× the slowest decode measured, 355 ms). Tests per path in Node and three dispatch-rig clauses through real workers, 3/3 in Chromium 141 and Firefox 157.0.1; every mutant caught. Row 145's bench re-run, 30 visits: every *hang* cell now fails by name after two deadlines and frame 5 behind it arrives exact (both were silent); the other 24 cells as before. Cost: a tie — last frame of 240 at 2 671 against 2 605 ms in Chromium (paired 0.985 [0.898–1.159]) and 3 555 against 3 488 ms in Firefox (1.022 [0.958–1.080]), 10 rounds interleaved, 9 600/9 600 frames exact; decode-bound on 4 cores. `docs/ARCHITECTURE.md` §The downloader |
 | 148 | **FRAMEPATH** — where a decoded frame should go now that the client has a paint worker and will get an OPFS cache: the page in or out of the pixel path, who owns the frame store, what OPFS costs; theory only | done `b6624828` on `claude/av1-unified` — theory only, nothing timed: **recommended B′**, decoder → paint worker (which owns the memory store and every viewport) → a store worker writing checked, decoded frames to OPFS (sync handles are dedicated-worker-only, exclusive per file, take shared memory); the page's measured 0.07–1.15 ms a frame is not the reason — a busy page is (predicted: < 1 ms on a quiet page, up to a long task's length per waited frame and cine kept under one); decoded samples kept (CT series 40 MB, mammogram 17 MB a frame; reopen = read + one XXH3, no decode), re-checked on every read; WebKit's OPFS deletion is 30 operating days in its source's default, not 7 (qualified in place); protocol and rule proposed, not queued ([`../adr/frame-path.md`](../adr/frame-path.md)); five decisions under [`## Blocked`](#blocked) |
 | 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | done `aa61f4e` on `claude/av1-unified` — **still nothing meets row 100's bar for any of the three types; one open set of native angiography runs exists, without a licence**: `MesserMMP/coronary-angiography-syntax` (Hugging Face, 87 626 XA files, 980 GB, Philips and Siemens, 14/14 headers read multi-frame, uncompressed, Lossy `00`) states no licence; IDC v25 and TCIA add nothing (39/39 XA single frames, multi-frame US cine flagged lossy 26–100:1); no breast ultrasound cine in DICOM and no ABUS volume in DICOM at any of ~25 hosts; nearest ABUS analogue IDC's prostate 3D TRUS (1 762 volumes, 280 frames, native, CC BY 4.0); DSCA's DSA runs are cut, MIDRC's fluoroscopy is not angiography and non-commercial — `docs/FIXTURES.md` §Provenance, The wider search |
+| 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | after 138, 147, 148, 149 |
 
 ## Briefs
 
@@ -2986,6 +2987,17 @@ beside `docs/ARCHITECTURE.md` §The consumer with the mechanism, predictions per
 pre-stated rule (proposed, not queued), and the decisions listed for the owner under `## Blocked`. A change to the
 store's format or the wire is structural: proposed, not built. **Branch:** `claude/av1-unified`.
 
+**Owner input, 2026-10-11 (after dispatch; the result above reads against it):**
+
+* Taking the page out of the pixel path is likely unnecessary (today ~0.1 ms of page thread a frame, no copy): settled
+  as it is unless a measured cost says otherwise.
+* The owner leans to decoded frames in OPFS; weighed against coded bytes on quota, write cost and phones.
+* Eviction possibly link-dependent: to be weighed against plain LRU per study or series, noting that the link at reopen
+  may differ from the link now.
+* A cached frame is re-checked on read; the owner proposes checks off by default, switched on when needed, so they cost
+  the product nothing. What each default costs (check time a frame against decode and read, by size) and what it leaves
+  uncovered is a decision for the owner; the production ADR (rows 73, 88) has the decode check on today.
+
 ### 149 NATIVECINE
 
 **A wider search for sound data, the three types row 100 could not decide.** Row 137 reached every host rows 2 and 35
@@ -3002,6 +3014,43 @@ conformance image libraries vendors and toolkits publish; scanner QA and phantom
 Licences are reported, not filtered: the owner decides on licence (2026-10-11). **Deliverable:** the candidates table
 extended in `docs/FIXTURES.md` §Provenance, The data hosts and the candidates: what meets row 100's bar, what comes
 closest and why it falls short. **Branch:** `claude/av1-unified`.
+
+### 150 MAINBASE
+
+**The goal: the final PR to `main` merges with no conflict, and the owner can see that PR #34's work survived.**
+`claude/av1-unified` was cut before `main` took PR #34 (the server refactor, 48 files); a trial merge stops on 24 of
+them. This row rebuilds the branch on current `origin/main` and re-authors every replayed commit to
+`dary-dc <crespoydelgado@gmail.com>` (the owner, 2026-10-07). No other row is fired until it is done; all new work
+starts from its result (the owner, 2026-10-11).
+
+**Steps.**
+
+* Replay every commit of `claude/av1-unified` not on `origin/main`, in order, onto `origin/main`, author and committer
+  `dary-dc <crespoydelgado@gmail.com>`. Resolve each conflict in the commit that causes it: keep PR #34's structure and
+  re-apply the branch's change on top of it (the ClientHello fix, `bbr-bound`, the renames, …). 23 of the ~870 commits
+  touch the 24 conflicting files.
+* The same author rewrite for `claude/av1`'s commits not on `main`.
+* **Every hash reference follows.** Build the old→new map for both branches; every reference to a replaced commit — in
+  both branches' files (docs, queue, READMEs) and in the commit messages — names the new commit. A check script lists
+  every 7–40-hex token in both trees and in all replayed messages that resolves to an old commit and not a new one: it
+  must print none. Mutate it: plant one old hash and watch it caught. The map is committed as
+  `docs/av1/rehash-map.tsv` on `claude/av1` for the local follow-ups (the reference implementation's `SOURCE.txt`, the
+  owner's notes) and deleted after them.
+
+**Verification (the owner must be able to see that PR #34's work survived).**
+
+* (a) `git diff <old tip> <new tip>` outside the 48 files PR #34 changed is empty but for the hash replacements — shown
+  by the diff filtered through the map.
+* (b) `docs/av1/MAINBASE.md` on the new branch: each of PR #34's 48 files, kept as `main` has it or changed by the
+  branch, each changed hunk with its branch commit and why; and each of the 24 conflicts with how it was resolved.
+* (c) The full gate green on the new tip; Chromium and Firefox fills exact (the client's page check).
+* (d) The final PR diff (`origin/main...<new tip>`), summarized by area.
+
+**Publishing.** First push the old tips as `claude/av1-unified-pre-main` and `claude/av1-pre-main` (temporary, deleted
+after the owner's look); then force-push the new histories under the same names, `claude/av1-unified` and
+`claude/av1`, with `--force-with-lease` against the old tips. Never touch `main` or any other branch. Mark the row done
+with the new hashes and the report's path. **Stop** and leave it under `## Blocked` if a conflict cannot be resolved
+without choosing between PR #34's behaviour and the branch's.
 
 ## Blocked
 
