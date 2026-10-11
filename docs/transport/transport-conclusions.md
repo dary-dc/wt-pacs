@@ -1145,7 +1145,155 @@ three times a 333 ms assumption. `--initial-rtt-ms 100` halves the p99 and leave
 **50 ms is worse at p95**: the first probe fires before an 80 ms path could have answered.
 Twenty-four connects showed none of this; the tail needs a couple of hundred. **Not changed**: the
 right number is the target's round trip, which this rig cannot stand in for — 100 ms is right at
-80 ms and wrong at 300.
+80 ms and wrong at 300. *Read again 2026-10-11 (*A 100 ms initial RTT, read from sources*, below):* the three arms
+ran one after another, and the client stayed at quinn's 333 ms, so only the server's assumption moved.
+
+### A 100 ms initial RTT, read from sources, 2026-10-11
+
+*Queue row INITRTT. Theory only: from sources, the code and this file's own runs; nothing built or timed.*
+
+**The question.** Should the server assume a 100 ms round trip before it has measured one? The lab reading behind it
+is *The first timeout, at 1 % loss* above: `lab/scripts/controller_cells.sh` S10, `edd006f` (row W2, 2026-09-19).
+Two things about that run bound what it says. Its three arms ran one after another, not interleaved. Its client,
+`cold_open`, is quinn at its own 333 ms default, so only the server's assumption moved.
+
+**Read.** Fetched 2026-10-11, pinned by sha256 (first 12 hex) or commit:
+
+* RFC 9002 (`3a8a54eea1ad`, the same file row CCTHEORY pinned) and RFC 9000 (`f88aae47f8b1`).
+* Langley et al., "The QUIC Transport Protocol", SIGCOMM 2017 (`e0e622044a20`).
+* quinn-proto 0.11.18 (`connection/mod.rs`, `paths.rs`, `spaces.rs`, `pacing.rs`, `transport_parameters.rs`), the
+  crate `scripts/patch_crate.sh` pins (`a9746dbde176`), with the carried probe-every-space patch.
+* Google's quiche `c8b1052` (`quic_constants.h`, `quic_sent_packet_manager.cc`, `quic_config.cc`,
+  `transport_parameters.cc`) and Chromium `2fb66b0` (`net/quic/quic_session_pool.cc`, `quic_context.h`,
+  `dedicated_web_transport_http3_client.cc`).
+* The defaults of neqo `cce5f8f`, ngtcp2 `b9fc4d5`, msquic `52d3fb9`, Cloudflare quiche `b60aff9`, s2n-quic
+  `8eb095f`, picoquic `42ca373` and lsquic `1d0876d`.
+
+**Not read:** RFC 6298 itself (cited through RFC 9002), Firefox's own configuration of neqo, Safari's QUIC (Network.framework
+is closed), and any per-country mobile RTT survey newer than 2017 (none fetched).
+
+#### The mechanism
+
+* **Before any sample, the PTO is three initial RTTs.** quinn's `RttEstimator::new` sets `var = initial / 2`, and
+  `pto_base` is `rtt + 4 × var`. Initial and Handshake add no `max_ack_delay` (`Connection::pto`). That gives
+  **999 ms at 333 ms and 300 ms at 100**: the +1.0 s tail of S10 and the +1.001 s probe the swallow trace saw
+  ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The losing phase, removed). RFC 9002 §6.2.2 chose 333 ms to match TCP's
+  1 s initial RTO.
+* **The first sample replaces the assumption entirely.** `RttEstimator::update` sets `smoothed = latest`,
+  `var = latest / 2` (RFC 9002 §5.3). So the assumption governs one thing only: the server's PTO on its first flight
+  until the client's first ACK arrives. Pacing is untouched, because quinn's pacer bursts at least 10 packets
+  (`MIN_BURST_SIZE`, "doesn't slow down the handshake"), more than the flight's 2–4 datagrams.
+* **Where it decides the time.**
+  * *The datagram that carries the server's Initial is lost* (probability ≈ the downlink loss): the client cannot
+    decrypt the rest, so no ACK comes back. quinn does not use the client's repeated Initial to resend early (RFC 9002
+    §6.2.3 makes this a MAY). Chrome repeats at +300 ms and "quinn answers none" (the swallow trace). The server's
+    PTO is the only clock, and 100 ms saves **3 × 233 = 699 ms** on each such open.
+  * *The client's ClientHello is lost:* the client's own PTO decides, not ours. Chromium's dedicated WebTransport client
+    builds its config with `InitializeQuicConfig` and never calls `ConfigureInitialRttEstimate`, so it runs at
+    `kInitialRttMs = 100`, a 300 ms PTO (quiche's `kPtoMultiplierWithoutRttSamples = 3`). neqo's default is the same
+    100 ms ("Defined in -recovery 6.2 as 333ms but using lower value"). The lab's quinn client waits 999 ms, so in S10
+    about 1 % of opens kept a 1 s wait in every arm.
+  * *The client's ACK and Finished are lost:* the client already has a sample. Its PTO, about 3 RTT, resends the
+    Handshake flight before either server arm fires at 80 ms.
+* **The amplification limit caps the probe.** Before the client's address is validated, the server sends at most
+  3 × what it received (RFC 9000 §8.1). If it cannot send at all, quinn disarms the PTO
+  (`set_loss_detection_timer`). The development certificate's flight is 1 338 B in 2 datagrams; the ECDSA chain's is
+  2 810 B in 4 ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §What production adds). Against a single-datagram ClientHello
+  of ~1 250 B (Chromium; not traced here), that is ~3 750 B, so a whole repeated flight fits for the development
+  certificate and not for the ECDSA chain. The chain's probe then waits for the client's own repeat, which raises the
+  budget. Whether that costs anything at 100 ms is untraced, because Chrome's repeat leaves at the same +300 ms.
+* **Chromium's own hint does not reach us.** Over plain HTTP/3, Chromium sends a cached smoothed RTT (or 1 200 ms on
+  2G, 400 ms on 3G) in Google's `initial_round_trip_time` transport parameter, `0x3127`. A quiche server adopts it,
+  clamped to 10 ms – 1 s and untrusted. quinn ignores unknown parameters, and the WebTransport client does not send
+  it anyway: there is no hint to read.
+
+#### What a 100 ms assumption costs on a slower link
+
+If the handshake round trip exceeds ~300 ms, the 100 ms server probes before the ACK can arrive. A spurious probe:
+
+* **Bytes:** it repeats data of the oldest in-flight packet per space (`maybe_queue_probe`), with the probe-every-space
+  patch in every space. That is at most one flight (1.3–2.8 KB) per backoff round, within the amplification budget:
+  probes at +300 ms and +900 ms on a 1 s path.
+* **The controller:** a PTO is not a congestion event in quinn. The originals are acknowledged, and duplicates still
+  in flight when Initial and Handshake keys are discarded leave bytes-in-flight without being declared lost (RFC 9002
+  §6.2.2). The first RTT sample comes from the original's ACK, which leaves first, so it is not shortened. Derived,
+  not traced.
+* **Time:** none expected, since the original was not lost.
+
+How often a target link is that slow:
+
+* Google's 2017 fleet saw **> 20 % of connections with a minimum RTT over 150 ms and 10 % over 300 ms**, and a mean
+  minimum of 38 ms in South Korea, 50 ms in the USA and 188 ms in India (SIGCOMM 2017, Fig. 8, Table 3). A minimum
+  RTT is a lower bound on the handshake's.
+* On this rig's phone profiles, an idle LTE or Wi-Fi link sits at 30–70 ms. A loaded one (LTE-loaded, 731 ms of queue,
+  *Link profiles close to a phone*) is past 300 ms on every cold open made beside other traffic.
+* The radio's idle-to-connected promotion (190–396 ms on 4G by report, §9 item 4) delays the ClientHello, not the
+  server's flight, so it moves the client's PTO (Chrome's 300 ms), not ours.
+
+**What deployed stacks choose:**
+
+| initial RTT | stacks |
+| --- | --- |
+| 333 ms | quinn, ngtcp2, msquic (settable `InitialRttMs`), Cloudflare quiche, s2n-quic, lsquic |
+| 250 ms | picoquic |
+| 100 ms | Google's quiche and Chromium (`kInitialRttMs`), neqo |
+
+quiche also seeds a server from the client's hint or from cached network parameters; none of those apply here. The
+browsers already run 100 ms on their side, so a 100 ms server matches the clock the client uses on the same handshake.
+
+**Alternatives, by size:**
+
+1. **`--initial-rtt-ms 100`**: a flag that exists and is tested (`tuning.rs`).
+2. **Answer a duplicate client Initial once with the unacknowledged flight** (RFC 9002 §6.2.3): a quinn-proto patch.
+   It is clocked by the client's own PTO, so it is RTT-agnostic, and spurious only when the client's repeat is.
+3. **A per-address cache of the last smoothed RTT** (RFC 9002 §6.2.2 "MAY"): state and a policy for phones that
+   change address. Not proposed.
+
+Measured, 1 is the smallest change that would be kept; 2 is the fallback if 1's slow-link cost shows.
+
+#### Proposed row: IRTTMEASURE, with predictions and a rule
+
+**Arms.** `series-server` unset (333 ms) against `--initial-rtt-ms 100`: the same binary and the same certificate,
+with every other setting printed. Each cell runs twice: once on the development certificate, once on the ECDSA chain.
+Arms alternate within every round (`lab/scripts/order.py`), and both readings are reported per §Protocol.
+
+**Cells.**
+
+* **A, the first flight lost:** `lab/scripts/swallow_cells.sh` drops exactly the server's first flight. 40, 80 and
+  150 ms; headless Chromium 141, Firefox (`lab/firefox-dial`) and `cold_open`; n = 20 a cell and arm.
+* **B, random loss:** 1 % each way, 80 ms, Chromium and `cold_open`, ≥ 1 000 cold opens an arm. Report:
+  * the share of opens whose server sent a probe before the first ACK (the server's `session path` line:
+    `datagrams_tx` over the clean cell's);
+  * those opens' session-ready time;
+  * p50 / p95 / p99 with bootstrap intervals.
+* **C, slow clean links:** 300, 400, 600 and 1 000 ms with no loss, plus the LTE-loaded profile; Chromium and
+  `cold_open`; n = 20. Report:
+  * server datagrams and bytes before the first ACK;
+  * session-ready time;
+  * `rtt_us` and `cwnd` at the session's end;
+  * `congestion_events`.
+
+**Predictions.**
+
+* **P1 (A):** the 100 ms arm is ready 699 ± 50 ms sooner at every RTT and with every client, on both certificates.
+* **P2 (B):** 0.6–1.5 % of opens wait for a server probe. Their wait falls from ≈ 1 000 ms + 1 RTT to ≈ 300 ms + 1 RTT,
+  and the median moves ≤ 5 ms. S10's p95 gap (418 → 256 ms) is not explained by this model, so there is no
+  prediction for it: report it.
+* **P3 (C):**
+  * ≤ 250 ms: no extra server datagram in either arm.
+  * 400 and 600 ms: the 100 ms arm sends one probe round per open; the 333 ms arm sends none.
+  * 1 000 ms and LTE-loaded: the 100 ms arm sends up to two rounds; the 333 ms arm sends ≤ one.
+  * In every C cell: session-ready medians within ± 10 ms, `congestion_events` 0 in both arms, `cwnd` equal, and
+    `rtt_us` within 10 % of the path's RTT.
+
+**Rule.**
+
+* **Adopt 100 ms as the server default** if all of these hold, in both readings:
+  * P1 within ± 50 ms on every client;
+  * in B, the median within ± 5 ms and the probe-waiting opens ≥ 500 ms sooner;
+  * in C, no cell's median over + 10 ms and no congestion event in any visit.
+* **If C fails:** keep 333 ms and queue alternative 2 as a quinn patch with this row's cells A and C.
+* **If P1 fails on the ECDSA chain only:** the amplification budget is the clock. Trace it before choosing.
 
 ### After a blink, 2026-09-19
 
@@ -1809,7 +1957,7 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    comes often enough to prevent it. On the relay it costs P once, a wake sent L ahead takes L off it,
    and a keep-alive at ≤ S keeps it off the ask (§3 *The idle radio*); S, P, the gesture's lead and the
    energy are a device's.
-5. **`--initial-rtt-ms`**, at the target's real round trip (§3).
+5. **`--initial-rtt-ms`**, at the target's real round trip (§3): proposed row IRTTMEASURE (§3 *A 100 ms initial RTT*).
 6. **The GSO cap: 24, or 45 behind the product's buffer** — the owner's call (§5). Owed: 44 against
    10 on CPU per ask at 20 Mbit / 50 ms and 100 Mbit / 30 ms, with a 1 Gbit / 1 ms control that must
    separate; within 5 % means inert on the target, kept only for a LAN deployment. **The packet
