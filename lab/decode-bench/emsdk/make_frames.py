@@ -3,7 +3,7 @@
 manifest.json for lab/av1/tools/newer/decode.mjs (a frame) and variants.json for lab/av1/delivery/total-time/run.mjs
 (a cold ask and a fill): `del` the delivered build, `em6` the same recipe under emscripten 6.0.11.
 
-usage: make_frames.py OUT SETDIR|g512 ...   — lab/decode-bench/emsdk/README.md
+usage: make_frames.py OUT SETDIR|g512|c512 ...   — lab/decode-bench/emsdk/README.md
 """
 import hashlib
 import json
@@ -20,18 +20,20 @@ from make_frames import htj2k  # noqa: E402
 from size import Set  # noqa: E402
 
 GEN = HERE.parents[1] / "scripts/gen_frame_pnm.py"
-G512_FRAMES = 87
+SYNTHETIC = {"g512": ("1", "65535"), "c512": ("3", "255")}
+SYNTHETIC_FRAMES = 87
 VARIANTS = {"del": dict(ext="htj2k", codec="htj2k", openjph="delivered"),
             "em6": dict(ext="htj2k", codec="htj2k", openjph="em6")}
 
 
-def g512(out):
-    """As lab/scripts/gen_htj2k_fixtures.sh makes it: 87 frames of 512² grey at 16 bits."""
-    src = out / ".g512-src" / "g512"
+def synthetic(out, name):
+    """As lab/scripts/gen_htj2k_fixtures.sh makes it: 87 frames of 512², grey at 16 bits or RGB at 8."""
+    src = out / f".{name}-src" / name
     src.mkdir(parents=True, exist_ok=True)
-    for i in range(G512_FRAMES):
-        subprocess.run([sys.executable, GEN, src / f"{i:03d}.pgm", "512", "512", "1", "65535", str(i), str(G512_FRAMES)],
-                       check=True)
+    ch, top = SYNTHETIC[name]
+    for i in range(SYNTHETIC_FRAMES):
+        subprocess.run([sys.executable, GEN, src / f"{i:03d}.{'pgm' if ch == '1' else 'ppm'}", "512", "512", ch, top, str(i),
+                        str(SYNTHETIC_FRAMES)], check=True)
     return src
 
 
@@ -39,7 +41,7 @@ def main():
     out = Path(sys.argv[1]).resolve()
     manifest = []
     for arg in sys.argv[2:]:
-        s = Set(g512(out) if arg == "g512" else Path(arg))
+        s = Set(synthetic(out, arg) if arg in SYNTHETIC else Path(arg))
         dst, work = out / s.name, out / f".{s.name}-work"
         dst.mkdir(parents=True, exist_ok=True)
         work.mkdir(exist_ok=True)
