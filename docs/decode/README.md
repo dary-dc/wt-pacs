@@ -1873,6 +1873,27 @@ interleaved, n ≥ 10, `g512` and the five sound breast series):
   container stage passes when every fill is ≤ ×1.01 in ≥ 8 of 10 rounds, the cold ask ≤ ×1.02, and decoder CPU
   ≤ ×1.00; energy is a phone's (§L5's phone rule).
 
+  *Measured (row STARTMEASURE, 2026-10-11; [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md)
+  §Row STARTMEASURE).* `startOnNeed` on the downloader (a lab flag beside `followQueue`, off by default) against
+  today's, the delivered OpenJPH build, row DECODEPACE's cells (whole tomosynthesis 29 × 614×1359 and full-field
+  4 × 3328×4096; r20000, r50000, `lte-good`; 1× and 4×) and a cold ask in each (a fresh browser, frame 0 the session's
+  first work, timed from the ask). Headless Chromium 141 in a 4-core container; the arms differ in the flag alone
+  (same build, `cubic-restart`, quinn's window). 18 Williams-ordered rounds, 864 visits, 120 `VOID` (fills 9 %, asks
+  19 %, under the 20 % bar), 7 560/7 560 frames exact. `need` ÷ today, paired by round, strict | round-paired:
+
+  | | fills, median a cell | fill ≤ ×1.01 | decoder CPU | wake-ups | cold ask, median a cell |
+  | --- | --- | --- | --- | --- | --- |
+  | strict (n 8–18) | ×0.994–1.004 | 11/15–16/16 a cell | ×0.86–0.95 | ×0.18–0.44 | ×0.952–1.026 |
+  | round-paired (n 18) | ×0.998–1.003 | 12/18–18/18 | ×0.89–0.96 | ×0.18–0.44 | ×0.948–1.028 |
+
+  Predictions: fill ×0.99–1.01 held; decoder CPU ×0.85–0.98 held; wake-ups fewer held; cold ask unchanged held on
+  11 of 12 cells, not on tomosynthesis `lte-good` 4× (×1.026 \| ×1.028, 5/11 and 7/18 within ×1.02). **The container
+  stage fails its rule, in both readings**, on two counts: the full-field fill at 4× on r20000 and r50000 is ≤ ×1.01
+  in 11/15 and 12/17 strict rounds (13/18, 12/18 paired; medians ×0.994–1.004, spread ×0.92–1.06), under 8 in 10,
+  and that one cold ask is over ×1.02. Decoder CPU passes on every cell. Today starts three decoders and uses one in
+  8 of 12 fill cells; `startOnNeed` uses one in every cell but tomosynthesis over `lte-good`, where it uses two of today's three. Not measured:
+  whether the 4× full-field spread is this lever's or the host's (no A/A arm ran); energy, a phone's.
+
 Sources (read 2026-10-10 unless marked):
 
 1. OpenJPH `docs/status.md` and source at `0.31.0` (`c68064d0`) and `main` (`6238b0ec`) — <https://github.com/aous72/OpenJPH>
