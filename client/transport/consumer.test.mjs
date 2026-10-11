@@ -1,4 +1,4 @@
-// node client/transport/consumer.test.mjs — what `connect` refuses before it starts a worker.
+// node client/transport/consumer.test.mjs — what `connect` refuses before it starts a worker; acks and unreadable deliveries.
 import { DownloaderClient } from "./consumer.js";
 
 let failed = 0;
@@ -27,5 +27,32 @@ globalThis.Worker = class {
 };
 check(/worker made/.test(await refusal({ decode: false })), "decode: false is not refused for isolation");
 
-console.log(failed ? `${failed} failed` : "consumer refusals: ok");
+/** The page acknowledges every exact frame it is handed, never a preview, and reports an unreadable delivery with its decoder's id. */
+async function acksAndUnreadable() {
+  const sent = [];
+  let worker;
+  globalThis.Worker = class {
+    constructor() {
+      worker = this;
+    }
+    postMessage(m) {
+      sent.push(m);
+      if (m.kind === "dial") queueMicrotask(() => this.onmessage({ data: { kind: "started" } }));
+    }
+  };
+  globalThis.crossOriginIsolated = true;
+  const client = await DownloaderClient.connect("https://x.invalid/", "ab", {});
+  const port = {};
+  worker.onmessage({ data: { kind: "pixel-port", port, decoder: 4 } });
+  port.onmessage({ data: { index: 7, gen: 0, pixels: new Uint8Array(1), preview: true } });
+  port.onmessage({ data: { index: 7, gen: 0, pixels: new Uint8Array(1) } });
+  port.onmessageerror?.(new Event("messageerror"));
+  const acks = sent.filter((m) => m.kind === "ack");
+  check(acks.length === 1 && acks[0].index === 7 && acks[0].gen === 0, `one ack, for the exact frame (${JSON.stringify(acks)})`);
+  check(sent.some((m) => m.kind === "undelivered" && m.decoder === 4), "an unreadable delivery is reported with its decoder");
+  client.close();
+}
+await acksAndUnreadable();
+
+console.log(failed ? `${failed} failed` : "consumer refusals, acks, unreadable deliveries: ok");
 process.exit(failed ? 1 : 0);

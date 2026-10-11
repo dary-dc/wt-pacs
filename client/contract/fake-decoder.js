@@ -2,7 +2,8 @@
  * A decoder stand-in for the dispatch rig: it decodes nothing, it stalls. Each decode takes `delayMs`,
  * or, under `hold: "decode"`, waits for the page's release, so the downloader's queue backs up on
  * purpose; `hold: "ready"` keeps `ready` back the same way, so a fill can be on the wire while no
- * decoder exists; a frame whose bytes begin `fail` fails once its wait is over. It tags every frame
+ * decoder exists; a frame whose bytes begin `fail` fails once its wait is over, and one whose bytes
+ * begin `lose` crashes its worker or never answers, `lose.times` times across the stand-ins. It tags every frame
  * with the order it started (`decodeSeq`) and the most it ever held at once (`maxInFlight`), which
  * is what the ordering and the two-outstanding-per-decoder bound are read from. docs/ARCHITECTURE.md §The downloader; client/contract/dispatch-rig.ts drives it.
  */
@@ -13,6 +14,7 @@ let up = false;
 let inFlight = 0;
 let maxInFlight = 0;
 let decodeSeq = 0;
+let lose = null;
 
 const abs = () => performance.timeOrigin + performance.now();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -37,6 +39,7 @@ onmessage = async (e) => {
     toConsumer = m.toConsumer;
     if (m.decoder && typeof m.decoder.delayMs === "number") delayMs = m.decoder.delayMs;
     hold = m.decoder?.hold ?? null;
+    lose = m.decoder?.lose ?? null;
     // The decoders share one ticket, so exactly one of them fails, once the page releases it.
     const failOne = m.decoder?.failOneInit;
     if (failOne && Atomics.add(failOne.ticket, 0, 1) === 0) {
@@ -58,6 +61,10 @@ onmessage = async (e) => {
   const stamps = { ...m.stamps, decodeStart: abs() };
   const bytes = new Uint8Array(m.bytes);
   await (hold === "decode" ? held() : sleep(delayMs));
+  if (lose && new TextDecoder().decode(bytes).startsWith("lose") && Atomics.add(lose.ticket, 0, 1) < lose.times) {
+    if (lose.how === "crash") setTimeout(() => { throw new Error("the stand-in crashed on purpose"); });
+    return;
+  }
   if (new TextDecoder().decode(bytes).startsWith("fail")) {
     inFlight -= 1;
     return void postMessage({ kind: "failed", index: m.index, gen: m.gen, reason: "the stand-in failed it on purpose" });
