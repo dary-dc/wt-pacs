@@ -224,7 +224,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 146 | **LOSSIGNORE** — row 119's R3 run by a session given only its protocol and rule, if R2's result (row 141) lets it go on | done — **closed unrun, as its brief says: row 141's R2 met no q* bar** (nothing measured; whether option 1 is reopened is under [`## Blocked`](#blocked)) |
 | 147 | **FRAMELOSS** — no frame lost silently: a decoder crash, a delivery the page cannot read and a decode that never returns each end in a re-decode or a loud failure, a test per path that fails without | claimed 2026-10-11 (night, a1f8a1) |
 | 148 | **FRAMEPATH** — where a decoded frame should go now that the client has a paint worker and will get an OPFS cache: the page in or out of the pixel path, who owns the frame store, what OPFS costs; theory only | claimed 2026-10-11 (night, 54c9bc) |
-| 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | ready |
+| 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | claimed 2026-10-11 (night, b3dabd) |
 
 ## Briefs
 
