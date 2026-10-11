@@ -51,13 +51,15 @@ type OpenOpts = {
   groupLength?: number;
   frameCount?: number;
   digests?: (string | null)[];
-  survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number };
+  survival?: false | { stallMs?: number; redialMs?: number; tries?: number; dialMs?: number; decodeMs?: number };
   hangDials?: number;
   /** The first `n` dials are refused. */
   refuseDials?: number;
   recycleAtBytes?: number;
   /** One stand-in decoder fails its init when `hold.release()` is called. */
   failOneInit?: boolean;
+  /** A frame whose bytes begin `lose` crashes its stand-in, or is never answered, `times` times in all. */
+  lose?: { how: "crash" | "hang"; times: number };
 };
 
 /** The stand-ins' hold, seen from the page; only a stand-in already holding is sure to hear the release. */
@@ -90,6 +92,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
       delayMs: opts.delayMs ?? 0,
       hold: opts.hold,
       failOneInit: opts.failOneInit && { ticket: new Int32Array(new SharedArrayBuffer(4)) },
+      lose: opts.lose && { ...opts.lose, ticket: new Int32Array(new SharedArrayBuffer(4)) },
     },
     groupLength: opts.groupLength,
     frameCount: opts.frameCount,
@@ -1953,6 +1956,47 @@ async function aDecoderLostBeforeTheDialDoesNotFailTheStart(DownloaderClient: Do
   c.close();
 }
 
+/** A fill of four whose frame 1 is lost with its decoder: what reaches the page, and what fails. */
+async function aFillLosingFrameOne(DownloaderClient: DownloaderCtor, lose: OpenOpts["lose"], survival: OpenOpts["survival"] = false) {
+  const got: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, { lose, survival, onFrame: (f) => got.push(f), onError: (f) => failures.push(f) });
+  const bytes = (i: number) => enc.encode(i === 1 ? "lose-1" : `fill-${i}`);
+  c.fill([0, 1, 2, 3]);
+  for (const i of [0, 1, 2, 3]) await fake.pushFrame(i, bytes(i));
+  // Every frame the lost decoder held is asked again, and answered here.
+  let answered = 0;
+  const delivered = () => [...new Set(got.map((f) => f.frameIndex))].sort();
+  for (const deadline = Date.now() + 4000; delivered().length + failures.length < 4 && Date.now() < deadline; await settle(20)) {
+    const asks = ((await fake.controlMessages()) as Wire[]).filter((m) => m.op === "request_frame");
+    for (const m of asks.slice(answered)) await fake.pushFrame(m.frame ?? -1, bytes(m.frame ?? -1));
+    answered = asks.length;
+  }
+  c.close();
+  return { delivered: delivered().join(), failures };
+}
+
+/** A decoder whose worker crashes is replaced, and the frames it held reach the page; nothing fails. */
+async function aCrashedDecoderIsReplaced(DownloaderClient: DownloaderCtor, check: Check) {
+  const { delivered, failures } = await aFillLosingFrameOne(DownloaderClient, { how: "crash", times: 1 });
+  check(delivered === "0,1,2,3" && failures.length === 0, `lost decodes: a crash loses no frame (delivered ${delivered}; failed ${failures.map((f) => f.reason)})`);
+}
+
+/** A decode that never answers is cut off at `decodeMs`, and the frames its decoder held reach the page. */
+async function aHungDecodeIsReplaced(DownloaderClient: DownloaderCtor, check: Check) {
+  const { delivered, failures } = await aFillLosingFrameOne(DownloaderClient, { how: "hang", times: 1 }, { ...QUICK, stallMs: 30_000, decodeMs: 300 });
+  check(delivered === "0,1,2,3" && failures.length === 0, `lost decodes: a hang loses no frame (delivered ${delivered}; failed ${failures.map((f) => f.reason)})`);
+}
+
+/** A frame lost with its decoder twice fails by name, and every other frame still arrives. */
+async function aFrameLostTwiceFailsByName(DownloaderClient: DownloaderCtor, check: Check) {
+  const { delivered, failures } = await aFillLosingFrameOne(DownloaderClient, { how: "crash", times: 2 });
+  // Frames that shared the crashed decoder with frame 1 twice fail with it; none is silent.
+  const named = failures.some((f) => f.frameIndex === 1) && failures.every((f) => /crashed/.test(f.reason));
+  const all = delivered.split(",").concat(failures.map((f) => String(f.frameIndex))).sort().join();
+  check(named && all === "0,1,2,3", `lost decodes: lost twice, frame 1 fails by name (delivered ${delivered}; failed ${failures.map((f) => `${f.frameIndex}: ${f.reason}`)})`);
+}
+
 /** An ask alone on a session that closes under it is asked again on a new one, not failed. */
 async function anAskAloneOnAClosedSessionIsReasked(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await open(DownloaderClient, { decode: false, survival: { ...QUICK, stallMs: 30_000 } });
@@ -2274,6 +2318,9 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: str
     aFrameGoesToTheLeastBusyDecoder,
     aFillOfFramesInHandAsksOnlyTheRest,
     aDecoderLostBeforeTheDialDoesNotFailTheStart,
+    aCrashedDecoderIsReplaced,
+    aHungDecodeIsReplaced,
+    aFrameLostTwiceFailsByName,
     anAskAloneOnAClosedSessionIsReasked,
     aSilentSessionOwingAnAskIsRedialled,
     aRecycledSessionTakesTheOwedAsk,

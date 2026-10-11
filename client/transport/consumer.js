@@ -82,6 +82,8 @@ export class DownloaderClient {
     if (m.kind === "pixel-port") {
       // `onmessage`, not `addEventListener`: only it starts the port and releases the frames queued on it.
       m.port.onmessage = (e) => this.#deliver(e.data);
+      // The event names no frame: the downloader asks again whatever that decoder holds unacknowledged.
+      m.port.onmessageerror = () => this.#worker.postMessage({ kind: "undelivered", decoder: m.decoder });
       return;
     }
     if (m.kind === "frame") return void this.#deliver(m);
@@ -110,6 +112,7 @@ export class DownloaderClient {
       info: m,
     };
     if (m.preview) return void this.#onPreview(frame);
+    this.#worker.postMessage({ kind: "ack", index: m.index, gen: m.gen });
     if (m.path) {
       const n = (this.#exact[m.path] ??= { true: 0, false: 0, unchecked: 0 });
       n[m.exact] += 1;

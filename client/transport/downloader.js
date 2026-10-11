@@ -12,8 +12,10 @@ const abs = () => performance.timeOrigin + performance.now();
 let session = null;
 /** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
 let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true };
-/** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns it all off. */
-const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000 };
+/** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
+const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
+/** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
+const ATTEMPTS = 2;
 let dial = null;
 let dialling = null;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
@@ -42,7 +44,7 @@ const decoders = [];
 /** Lab flag `followQueue`: decoders retired idle, kept to be taken back, and the one coming up. */
 const parked = [];
 let growing = null;
-/** index → { state, priority, stamps, bytes }. State: wire | queued | decoding. */
+/** index → { state, priority, stamps, bytes, decoder, attempts }. State: wire | queued | decoding, the last until the page acknowledges it. */
 const records = new Map();
 const queue = { ask: [], fill: [] };
 /** Fill frames the consumer wants and the wire has not delivered; never one an ask carries, which the ask settles. */
@@ -89,7 +91,7 @@ function decoderFor(index) {
   if (!isKey(index)) return decoders.find((d) => d.next === index && d.outstanding < cfg.perDecoder);
   let best = null;
   for (const d of decoders) {
-    if (d.outstanding >= cfg.perDecoder || holdsAGroup(d)) continue;
+    if (!d.live || d.outstanding >= cfg.perDecoder || holdsAGroup(d)) continue;
     if (!best || d.outstanding < best.outstanding) best = d;
   }
   return best;
@@ -160,9 +162,11 @@ function retire(d) {
 
 function dispatch(d, index, rec) {
   rec.state = "decoding";
+  rec.decoder = d;
   rec.stamps.dispatched = abs();
   rec.stamps.decoder = d.id;
   d.outstanding += 1;
+  if (d.outstanding === 1) arm(d);
   d.next = index + 1;
   d.worker.postMessage(
     { kind: "decode", index, gen: generation, key: isKey(index), bytes: rec.bytes, stamps: rec.stamps },
@@ -200,7 +204,7 @@ function want(indices, askMs) {
 
 function record(index, priority, askMs) {
   const stamps = { ask: askMs, lastByte: 0, dispatched: 0, decodeStart: 0, decodeEnd: 0 };
-  records.set(index, { state: "wire", priority, stamps });
+  records.set(index, { state: "wire", priority, stamps, attempts: 0 });
 }
 
 /** A frame's bytes are here: straight to the consumer, or into the queue for a decoder. */
@@ -362,36 +366,79 @@ async function resume() {
   for (const [i, rec] of [...records]) if (rec.state === "wire") fail(i, reason);
 }
 
-function onDone(d, m) {
+function onDone(d) {
   d.outstanding -= 1;
-  if (m.gen === generation) records.delete(m.index);
+  arm(d);
   pump();
   retire(d);
+}
+
+/** A decoder that owes a frame and answers nothing for `decodeMs` is replaced: the clock restarts at each answer. */
+function arm(d) {
+  clearTimeout(d.deadline);
+  if (d.outstanding > 0) d.deadline = setTimeout(() => replace(d, `decoder ${d.id} answered nothing in ${deadlines.decodeMs} ms`), deadlines.decodeMs);
+}
+
+/** A crashed or hung decoder, or one whose delivery the page could not read: a fresh one in its place, and every frame it holds unacknowledged asked again. */
+function replace(d, reason) {
+  if (!d.live) return lose(d, reason);
+  if (d.gone) return;
+  d.gone = true;
+  clearTimeout(d.deadline);
+  d.worker.terminate();
+  const at = decoders.indexOf(d);
+  if (at >= 0) decoders[at] = spawn();
+  if (parked.includes(d)) parked.splice(parked.indexOf(d), 1);
+  for (const [index, rec] of records) if (rec.decoder === d) again(index, rec, reason);
+}
+
+/** Its coded bytes went with the decoder, so the frame is asked of the wire again. */
+async function again(index, rec, reason) {
+  rec.attempts += 1;
+  if (rec.attempts >= ATTEMPTS) return fail(index, `${reason} (lost ${rec.attempts} times)`);
+  const gen = generation;
+  const s = await live().catch(() => null);
+  if (gen !== generation || records.get(index) !== rec) return;
+  if (!s) return fail(index, reason);
+  rec.state = "wire";
+  rec.priority = "ask";
+  rec.decoder = null;
+  ask(index, s.requestExactFrame(index));
 }
 
 /** A decoder worker, up once `d.up` settles; `start` puts it in the pool at once, `grow` once it is up. */
 function spawn() {
   // The decoder is a seam like the transport: a test points it at a controllable stand-in.
   const worker = new Worker(cfg.decoderWorker ?? new URL("../decode/decoder.js", import.meta.url), { type: "module" });
-  const d = { worker, outstanding: 0, next: null, id: spawned++ };
+  const d = { worker, outstanding: 0, next: null, id: spawned++, live: false, deadline: null };
   d.up = new Promise((r) => { d.ready = r; });
   const ch = new MessageChannel();
   // Firefox drops frames in flight once this object is collected: ARCHITECTURE.md §The downloader.
   d.port = ch.port1;
   worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength, digests: cfg.digests }, [ch.port1]);
+  worker.onerror = (e) => {
+    e.preventDefault();
+    replace(d, `decoder ${d.id} crashed: ${e.message}`);
+  };
+  worker.onmessageerror = () => replace(d, `a message from decoder ${d.id} could not be read`);
   worker.onmessage = (e) => {
     if (e.data.buffer) session?.releaseWireBuffer(e.data.buffer);
-    if (e.data.kind === "done") onDone(d, e.data);
-    else if (e.data.kind === "ready") d.ready();
+    if (e.data.kind === "done") onDone(d);
+    else if (e.data.kind === "ready") {
+      d.live = true;
+      d.ready();
+      pump();
+    }
     else if (e.data.kind === "init-failed") lose(d, e.data.reason);
     else if (e.data.kind === "failed") {
       d.outstanding -= 1;
+      arm(d);
       if (e.data.gen === generation) fail(e.data.index, e.data.reason);
       pump();
       retire(d);
     }
   };
-  postMessage({ kind: "pixel-port", port: ch.port2 }, [ch.port2]);
+  postMessage({ kind: "pixel-port", port: ch.port2, decoder: d.id }, [ch.port2]);
   return d;
 }
 
@@ -501,6 +548,12 @@ onmessage = async (e) => {
       return void issueFill();
     }
     if (m.kind === "check") return void watch();
+    // A decoded frame is forgotten only once the page has it. docs/ARCHITECTURE.md §The downloader
+    if (m.kind === "ack") return void (m.gen === generation && records.delete(m.index));
+    if (m.kind === "undelivered") {
+      const d = decoders.concat(parked).find((x) => x.id === m.decoder);
+      return void (d && replace(d, `a frame from decoder ${d.id} could not be read on the page`));
+    }
     if (m.kind === "cancel") {
       generation += 1;
       clearTimeout(stall);

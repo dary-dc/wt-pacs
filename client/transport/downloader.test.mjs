@@ -1,4 +1,4 @@
-// node client/transport/downloader.test.mjs — decoders a start makes, a timed-out ask; no browser.
+// node client/transport/downloader.test.mjs — decoders a start makes, a timed-out ask, lost decodes; no browser.
 import v8 from "node:v8";
 import vm from "node:vm";
 globalThis.onmessage ??= null;
@@ -99,6 +99,13 @@ function handDecoders() {
     finish() {
       const m = this.decoding.shift();
       this.onmessage({ data: { kind: "done", index: m.index, gen: m.gen } });
+      return m;
+    }
+    crash() {
+      this.onerror({ message: "the stand-in crashed", preventDefault() {} });
+    }
+    terminate() {
+      this.terminated = true;
     }
   };
   return made;
@@ -188,6 +195,82 @@ async function startOnNeed() {
 }
 await startOnNeed();
 
+/** A downloader on hand-fed transport and decoders, filling frames 0–3, one decoder taking two frames at a time. */
+async function lossWorld(name, survival = false) {
+  const fed = handFed();
+  const made = handDecoders();
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+  await import(`./downloader.js?${name}`);
+  await onmessage({ data: { kind: "start", config: { decoders: 1, perDecoder: 2, transport, decoderWorker: "x", survival } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  await onmessage({ data: { kind: "fill", indices: [0, 1, 2, 3] } });
+  posted.length = 0;
+  return { fed, made, failed: () => posted.filter((m) => m.kind === "failed") };
+}
+
+/** A decoder that crashes is terminated and replaced, and the frames it held are asked again and decoded by the new one. */
+async function aCrashIsRecovered() {
+  const { fed, made, failed } = await lossWorld("crash");
+  fed.fill(frame(0));
+  fed.fill(frame(1));
+  await settle();
+  made[0].crash();
+  await settle();
+  check(made[0].terminated && made.length === 2, `the crashed decoder is terminated and a new one made (${made.length} made)`);
+  check(fed.asks.has(0) && fed.asks.has(1), `both frames it held are asked again (${[...fed.asks.keys()]})`);
+  fed.asks.get(0)?.(frame(0));
+  fed.asks.get(1)?.(frame(1));
+  await settle();
+  check(made[1]?.decoding.map((m) => m.index).join() === "0,1", `the new decoder takes them (${made[1].decoding.map((m) => m.index)})`);
+  check(failed().length === 0, `nothing fails (${failed().map((m) => m.reason)})`);
+}
+await aCrashIsRecovered();
+
+/** A decoded frame the page has not acknowledged is asked again when the page reports an unreadable delivery; one it acknowledged is not. */
+async function anUnreadDeliveryIsRecovered() {
+  const { fed, made } = await lossWorld("undelivered");
+  fed.fill(frame(0));
+  fed.fill(frame(1));
+  await settle();
+  const first = made[0].finish();
+  const second = made[0].finish();
+  await onmessage({ data: { kind: "ack", index: first.index, gen: first.gen } });
+  await onmessage({ data: { kind: "undelivered", decoder: 0 } });
+  await settle();
+  check(made[0].terminated && made.length === 2, `the decoder is replaced (${made.length} made)`);
+  check(fed.asks.has(second.index) && !fed.asks.has(first.index), `only the unacknowledged frame is asked again (${[...fed.asks.keys()]})`);
+}
+await anUnreadDeliveryIsRecovered();
+
+/** A decode that never answers is cut off at `decodeMs`: the decoder is replaced and both frames it held are asked again. */
+async function aHangIsRecovered() {
+  const { fed, made } = await lossWorld("hang", { decodeMs: 30, stallMs: 60_000 });
+  fed.fill(frame(0));
+  fed.fill(frame(1));
+  await settle();
+  await new Promise((r) => setTimeout(r, 60));
+  check(made[0].terminated && made.length === 2, `the hung decoder is replaced (${made.length} made)`);
+  check(fed.asks.has(0) && fed.asks.has(1), `both frames it held are asked again (${[...fed.asks.keys()]})`);
+}
+await aHangIsRecovered();
+
+/** A frame lost twice fails by name, through `failed`, and is not asked a third time. */
+async function lostTwiceFailsLoudly() {
+  const { fed, made, failed } = await lossWorld("twice");
+  fed.fill(frame(0));
+  await settle();
+  made[0].crash();
+  await settle();
+  fed.asks.get(0)(frame(0));
+  await settle();
+  const asked = fed.asks.size;
+  made[1].crash();
+  await settle();
+  check(failed().some((m) => m.index === 0 && /crashed/.test(m.reason)), `frame 0 fails by name (${failed().map((m) => `${m.index}: ${m.reason}`)})`);
+  check(fed.asks.size === asked, `and is not asked again (${fed.asks.size} asks, not ${asked})`);
+}
+await lostTwiceFailsLoudly();
+
 /**
  * The downloader keeps each decoder's end of its pixel channel reachable for the decoder's life: Firefox deletes
  * the frames in flight through a transferred port once the sender's object is collected.
@@ -220,5 +303,5 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue, start on need, ports held: ok");
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue, start on need, lost decodes, ports held: ok");
 process.exit(failed ? 1 : 0);
