@@ -224,7 +224,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 146 | **LOSSIGNORE** — row 119's R3 run by a session given only its protocol and rule, if R2's result (row 141) lets it go on | done — **closed unrun, as its brief says: row 141's R2 met no q* bar** (nothing measured; whether option 1 is reopened is under [`## Blocked`](#blocked)) |
 | 147 | **FRAMELOSS** — no frame lost silently: a decoder crash, a delivery the page cannot read and a decode that never returns each end in a re-decode or a loud failure, a test per path that fails without | claimed 2026-10-11 (night, a1f8a1) |
 | 148 | **FRAMEPATH** — where a decoded frame should go now that the client has a paint worker and will get an OPFS cache: the page in or out of the pixel path, who owns the frame store, what OPFS costs; theory only | done `050d4c64` on `claude/av1-unified` — theory only, nothing timed: **recommended B′**, decoder → paint worker (which owns the memory store and every viewport) → a store worker writing checked, decoded frames to OPFS (sync handles are dedicated-worker-only, exclusive per file, take shared memory); the page's measured 0.07–1.15 ms a frame is not the reason — a busy page is (predicted: < 1 ms on a quiet page, up to a long task's length per waited frame and cine kept under one); decoded samples kept (CT series 40 MB, mammogram 17 MB a frame; reopen = read + one XXH3, no decode), re-checked on every read; WebKit's OPFS deletion is 30 operating days in its source's default, not 7 (qualified in place); protocol and rule proposed, not queued ([`../adr/frame-path.md`](../adr/frame-path.md)); five decisions under [`## Blocked`](#blocked) |
-| 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | claimed 2026-10-11 (night, b3dabd) |
+| 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | done `36f15dd` on `claude/av1-unified` — **still nothing meets row 100's bar for any of the three types; one open set of native angiography runs exists, without a licence**: `MesserMMP/coronary-angiography-syntax` (Hugging Face, 87 626 XA files, 980 GB, Philips and Siemens, 14/14 headers read multi-frame, uncompressed, Lossy `00`) states no licence; IDC v25 and TCIA add nothing (39/39 XA single frames, multi-frame US cine flagged lossy 26–100:1); no breast ultrasound cine in DICOM and no ABUS volume in DICOM at any of ~25 hosts; nearest ABUS analogue IDC's prostate 3D TRUS (1 762 volumes, 280 frames, native, CC BY 4.0); DSCA's DSA runs are cut, MIDRC's fluoroscopy is not angiography and non-commercial — `docs/FIXTURES.md` §Provenance, The wider search |
 
 ## Briefs
 
@@ -3004,6 +3004,12 @@ extended in `docs/FIXTURES.md` §Provenance, The data hosts and the candidates: 
 closest and why it falls short. **Branch:** `claude/av1-unified`.
 
 ## Blocked
+
+* **2026-10-11 UTC: row 149 NATIVECINE — whether to ask for a licence** (`docs/FIXTURES.md` §Provenance, The wider search,
+  on `claude/av1-unified`): the one open set of native, unflagged angiography runs (Hugging Face
+  `MesserMMP/coronary-angiography-syntax`, two vendors, one uploader) states no licence, so nothing grants its use. Whether
+  to ask its uploader for one, and whether one source of two vendors counts toward row 100's two sources. Breast
+  ultrasound cine and ABUS have no native candidate at all; whether to request data from a site is also the owner's.
 
 * **2026-10-11 UTC: row 148 FRAMEPATH — where a decoded frame goes** ([`../adr/frame-path.md`](../adr/frame-path.md) §8 on
   `claude/av1-unified`): (1) the page out of the pixel path (B′: decoder → paint worker, a store worker behind it) or
