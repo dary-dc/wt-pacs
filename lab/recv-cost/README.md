@@ -2,7 +2,7 @@
 
 Receive CPU per MB of a whole-series fill, per client stack: queue row 135 (RECVCOST) of
 [`docs/av1/queue.md`](../../docs/av1/queue.md), the protocol N1 in [`docs/native/quic.md`](../../docs/native/quic.md) §6.
-The reading is written there beside the protocol when the run ends.
+The reading is beside the protocol there.
 
 ```bash
 cargo build --release -p series-server -p pack-series
