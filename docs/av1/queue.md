@@ -225,9 +225,12 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 147 | **FRAMELOSS** — no frame lost silently: a decoder crash, a delivery the page cannot read and a decode that never returns each end in a re-decode or a loud failure, a test per path that fails without | done `361fb9b` on `claude/av1-unified` (`2e16d88`, `5a0a222`) — **no frame is lost silently now: a crashed, hung or unreadable decoder is replaced and its unacknowledged frames asked again; lost twice, a frame fails by name**. Records are forgotten on the page's ack, not on `done`; `decodeMs` 10 s (~28× the slowest decode measured, 355 ms). Tests per path in Node and three dispatch-rig clauses through real workers, 3/3 in Chromium 141 and Firefox 157.0.1; every mutant caught. Row 145's bench re-run, 30 visits: every *hang* cell now fails by name after two deadlines and frame 5 behind it arrives exact (both were silent); the other 24 cells as before. Cost: a tie — last frame of 240 at 2 671 against 2 605 ms in Chromium (paired 0.985 [0.898–1.159]) and 3 555 against 3 488 ms in Firefox (1.022 [0.958–1.080]), 10 rounds interleaved, 9 600/9 600 frames exact; decode-bound on 4 cores. `docs/ARCHITECTURE.md` §The downloader |
 | 148 | **FRAMEPATH** — where a decoded frame should go now that the client has a paint worker and will get an OPFS cache: the page in or out of the pixel path, who owns the frame store, what OPFS costs; theory only | done `b6624828` on `claude/av1-unified` — theory only, nothing timed: **recommended B′**, decoder → paint worker (which owns the memory store and every viewport) → a store worker writing checked, decoded frames to OPFS (sync handles are dedicated-worker-only, exclusive per file, take shared memory); the page's measured 0.07–1.15 ms a frame is not the reason — a busy page is (predicted: < 1 ms on a quiet page, up to a long task's length per waited frame and cine kept under one); decoded samples kept (CT series 40 MB, mammogram 17 MB a frame; reopen = read + one XXH3, no decode), re-checked on every read; WebKit's OPFS deletion is 30 operating days in its source's default, not 7 (qualified in place); protocol and rule proposed, not queued ([`../adr/frame-path.md`](../adr/frame-path.md)); five decisions under [`## Blocked`](#blocked) |
 | 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | done `aa61f4e` on `claude/av1-unified` — **still nothing meets row 100's bar for any of the three types; one open set of native angiography runs exists, without a licence**: `MesserMMP/coronary-angiography-syntax` (Hugging Face, 87 626 XA files, 980 GB, Philips and Siemens, 14/14 headers read multi-frame, uncompressed, Lossy `00`) states no licence; IDC v25 and TCIA add nothing (39/39 XA single frames, multi-frame US cine flagged lossy 26–100:1); no breast ultrasound cine in DICOM and no ABUS volume in DICOM at any of ~25 hosts; nearest ABUS analogue IDC's prostate 3D TRUS (1 762 volumes, 280 frames, native, CC BY 4.0); DSCA's DSA runs are cut, MIDRC's fluoroscopy is not angiography and non-commercial — `docs/FIXTURES.md` §Provenance, The wider search |
-| 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | after 138, 147, 148, 149 |
+| 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | after 138, 147, 148, 149, 152, 153, 154 |
 | 151 | **CHECKCOST** — what the exactness checks cost a frame in today's client: the XXH3-64 check after decode by path, the second decode on a mismatch, and a cache read's re-check; cost only, the checks stay on | after 150 |
-| 152 | **QUICTUNED** — row 124's candidates at their best configuration for the target, not their defaults: what each lets be tuned or patched, each lever's mechanism and its effect on throughput and on latency, every published result on one table, the server's stack read as a candidate too; theory only | after 150 |
+| 152 | **QUICTUNED** — row 124's candidates at their best configuration for the target, not their defaults: what each lets be tuned or patched, each lever's mechanism and its effect on throughput and on latency, every published result on one table, the server's stack read as a candidate too; theory only | ready |
+| 153 | **INGESTDESIGN** — the best design of the pipeline from the owner's C parser to the PACS, compared against alternatives on every axis: where frames are encoded, how the parser hands over, what travels, where the layout, the per-study SQLite and the catalog are built, the integrity chain, metadata compression, recovery, prior art; theory only | ready |
+| 154 | **LINKTCP** — the hospital→PACS link is TCP (decided): the reasons written with pinned sources, what QUIC would gain or cost there in numbers from research, the resumable-upload options over HTTPS, and what would have to be true for QUIC to win; theory only | ready |
+| 155 | **INGESTRS1** — the Rust ingest, phase 1: a Python mirror of the owner's C parser's directory output for frames, and a Rust ingest that reads it, hashes, codes with the pinned OpenJPH, checks, digests and writes the `.sbnd` byte-identical to the Python ingest's | after 150 |
 
 ## Briefs
 
@@ -3019,6 +3022,9 @@ closest and why it falls short. **Branch:** `claude/av1-unified`.
 
 ### 150 MAINBASE
 
+*Amended 2026-10-11 (the owner): also after rows 152–154, so that tonight's theory rows land on the branch before
+the rebuild replays it; the owner takes the native transport decision tonight.*
+
 **The goal: the final PR to `main` merges with no conflict, and the owner can see that PR #34's work survived.**
 `claude/av1-unified` was cut before `main` took PR #34 (the server refactor, 48 files); a trial merge stops on 24 of
 them. This row rebuilds the branch on current `origin/main` and re-authors every replayed commit to
@@ -3108,6 +3114,123 @@ purpose, and the owner is learning: **explain, don't list.** Theory only; nothin
 
 **Deliverable:** `docs/native/quic.md` (a section of its own, §1 kept consistent). **Branch:** `claude/av1-unified`.
 
+### 153 INGESTDESIGN
+
+**The question: the best design of the pipeline from the owner's C parser to the PACS.** Today's proposal (parser →
+directory → Rust ingest that hashes, codes exactly, checks and compresses → outbox → TCP → the PACS checks, writes the
+image layout and builds one SQLite per study, a catalog server indexing them) is the natural progression of what exists,
+not a design compared against alternatives. Theory only: sources pinned (sha256 or commit), nothing built or timed.
+Compare the options on each axis, with what each costs and gains:
+
+* **(a) Where frames are coded.** In the hospital by the Rust ingest; inside the parser in C before anything is written
+  (it already has an HTJ2K output, on the grok encoder); or in the cloud — raw frames sent zstd-compressed and coded
+  there, as AWS HealthImaging converts to HTJ2K on import. Weigh hospital CPU (free) against cloud CPU (money), the
+  bytes on the link (HTJ2K lossless against zstd on raw samples, from published ratios), and where the exactness check
+  runs and what it then proves.
+* **(b) How the parser hands over.** A directory (the start, decided), a stream (its key-value stream output), or a
+  library call; what each costs per frame and what it changes in failure handling.
+* **(c) What travels.** Frame files plus metadata groups as written, prebuilt series bundles, or one archive per study.
+* **(d) Where the image layout, each study's SQLite and the catalog are built.** The catalog server: Postgres, MySQL,
+  or a libSQL/Turso server keeping one SQL dialect with the study databases. Its schema scope (what a cross-study
+  search and a worklist need), and how it stays consistent with the study databases (who writes first, how a study
+  database rebuilt from its groups re-registers).
+* **(e) The integrity chain, and what each hash costs.** The raw frame (end to end, proved by the decode-back compare);
+  the coded frame (lets the PACS check without decoding); the metadata, original or compressed; reuse of the parser's
+  BLAKE3 group hashes, which it already writes in each group's file name; the client's XXH3-64. Check the owner's point
+  with numbers: a hash over compressed metadata saves only if the PACS keeps the metadata compressed, and it decompresses
+  to build the study database.
+* **(f) Metadata compression.** Plain zstd against zstd with a trained dictionary on small DICOM groups (published
+  ratios; the groups repeat across instances of a series).
+* **(g) Recovery.** Resumability and idempotence; dedupe (the parser's group hash lets a receiver skip a group it
+  already holds); a bad instance, series or study isolated without touching the rest.
+* **(h) Prior art.** DICOMweb STOW-RS; AWS HealthImaging, Google Cloud Healthcare API, Azure's DICOM service; Orthanc
+  and dcm4chee; edge gateways in front of cloud archives — what each does on each axis above.
+
+**The row ends with the options side by side and the owner's decisions listed, not taken.** **Deliverable:**
+`docs/ingest/design.md`. **Branch:** `claude/av1-unified`.
+
+### 154 LINKTCP
+
+**The hospital→PACS link is TCP — the owner's decision of 2026-10-11.** Write the reasons with pinned sources, and what
+QUIC would gain or cost there in numbers from research; the owner dropped a QUIC shipper for now and wants its gains
+proven before it returns. Theory only.
+
+* **CPU per byte:** QUIC in user space against kernel TCP with TSO/GSO/GRO and NIC offloads (Zhang et al., WWW '24;
+  Yang et al. on QUIC's CPU cycles against TCP+TLS; Jaeger et al.; others found).
+* **UDP on the way out:** how often outbound UDP is blocked or throttled in enterprise and hospital networks
+  (published fallback rates, operators' reports), and what a QUIC link would need as a fallback.
+* **Long fat paths:** BBR and window autotuning on Linux TCP, and what tuning a site host needs.
+* **What QUIC's advantages are worth here:** migration, 0-RTT and stream independence on a wired bulk upload.
+* **Published bulk-transfer comparisons** of QUIC and TCP over WAN at realistic RTT and loss, with their setups.
+* **Resumable upload over HTTPS:** tus, S3-style multipart, plain range PUT, rsync over SSH — each one's integrity and
+  resume semantics.
+
+**The row ends with what would have to be true for QUIC to win.** No measurement protocol. **Deliverable:**
+`docs/ingest/link.md`. **Branch:** `claude/av1-unified`.
+
+### 155 INGESTRS1
+
+**Phase 1 of the Rust ingest (the owner, 2026-10-11): production-shaped, with a Python stand-in for the parser's frame
+output only.** Phase 2 swaps the stand-in for the owner's C parser and passes its metadata through untouched; no other
+metadata logic is ever written in Python.
+
+* **The Python mirror** writes exactly what the parser's directory output writes for frames, per instance: the same
+  directory layout, frame file names and raw bytes, and the instance group holding only the attributes a frame needs
+  to be read — (0028,0002) samples per pixel, (0028,0004) photometric interpretation, (0028,0006) planar configuration,
+  (0028,0008) number of frames, (0028,0010) rows, (0028,0011) columns, (0028,0100) bits allocated, (0028,0101) bits
+  stored, (0028,0102) high bit, (0028,0103) pixel representation — plus the UIDs and study date the path needs. It
+  reads every set `ingest.py` takes today. It is a stand-in, deleted in phase 2.
+* **The Rust ingest** (a workspace crate) reads that directory as it will read the parser's: per instance, the frame
+  description from the groups (found by tag in the instance group, then the series group), then per frame: hash the raw
+  samples, code with the pinned OpenJPH exactly as `ingest.py` does today (byte identity), decode back in-process and
+  compare, write the XXH3-64 digests, and write the `.sbnd` with `common/series-bundle`.
+* **Done when** its `.sbnd` files are byte-identical to the Python ingest's for every lab set at `--jobs` 1, 2 and 4;
+  it refuses the same series by name; every new test is mutated and fails; the gate is green, with a gate step keeping
+  the two ingests equal while both exist.
+* **Not in this row:** AV1 (a later row); the outbox and the transport (after row 153).
+
+**The input contract, read from the parser's public source (2026-10-11).** Write it as the first section of
+`docs/ingest/README.md`.
+
+* **One parser run per SOP instance**, writing under its working directory. Paths, with `/` separators:
+  * study date: `<D>/` — the study date (0008,0020) as `YYMMDD` (century dropped) coded as below, 4 characters; `PbPb`
+    when the date is not 8 characters long;
+  * exam: `<D>/<E>/`, E = the study instance UID (0020,000D) coded;
+  * series: `<D>/<E>/<S>/`, S = the series instance UID (0020,000E) coded;
+  * instance: `<D>/<E>/<S>/<I>/`, I = the SOP instance UID (0008,0018) coded.
+* **The UID coding.** Each character maps to a nibble: NUL (the UI padding) 0, `\` 1, `^` 2, `-` 3, `+` 4, `.` 5, `0`–`9`
+  6–15. Each three characters (12 bits) become two characters of the alphabet
+  `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~`, the first from the top 6 bits. A remainder of one
+  character becomes `alphabet[n0 << 2]` then `0`; of two, `alphabet[(n0 << 2) + (n1 >> 2)]` then `alphabet[(n1 & 3) << 4]`.
+  The UID's trailing NUL pad, when present, is coded with it.
+* **Group files**, named `<marker>.<64 lowercase hex of the group's BLAKE3-256>`: exam group `<D>/<E>/--.<h>`, series
+  group `<D>/<E>/<S>/---.<h>`, instance group `<D>/<E>/<S>/<I>/----.<h>`, private group `<D>/<E>/<S>/<I>/priv.<h>`
+  (only when the instance has private attributes, or group 0002). An existing exam or series group file is not
+  rewritten.
+* **A group file** is a sequence of records, no bytes between them: 1 byte key length KL (8 at the dataset's top level,
+  8 more per sequence item level), KL key bytes, 4 bytes value length VL little endian, VL value bytes. A top-level key
+  is the tag as big-endian group and element (4 bytes), the VR as two ASCII characters, and 2 bytes of the parser's
+  charset index (0 for anything not text in a specific character set). A value whose charset index is non-zero is
+  written converted to UTF-8, VL its converted length; any other value is written exactly as in the DICOM file. Group
+  lengths (gggg,0000) and (0008,0005) are dropped; sequence and item delimiters are not written.
+* **Frame files**, in the instance directory: `%05d` (1-based) plus `.OPC` for MONOCHROME1 and MONOCHROME2, `.RGB` for
+  RGB, `.PLT` for PALETTE COLOR; a frame's file is `rows × columns × samples per pixel × bits allocated / 8` bytes
+  copied from the pixel data (7FE0,0010) at offset `frame × that size`, so a 12-bit-in-16 frame is its 16-bit words as
+  stored, little endian. Number of frames absent or 0 writes one frame. YBR_FULL, YBR_FULL_422, YBR_PARTIAL_420,
+  YBR_ICT, YBR_RCT and XYB write no frame (the parser prints "not handled").
+* **What the parser takes:** DICOM Part 10 in explicit VR little endian only, so native pixels only; an encapsulated
+  transfer syntax is not read (row 126's decision (3) stays open).
+* **Open points, not settled by the source:** (1) planar configuration (0028,0006) is not read by the parser, so an
+  RGB frame with planar configuration 1 is written as stored, plane by plane (a comment there says it "needs to
+  interleave"); the mirror does the same and the ingest refuses planar 1 by name until the owner decides. (2) The exam
+  group's hash covers the bytes written; the series, instance and private groups' hashes cover a length summed before the
+  UTF-8 conversion, which differs from the bytes written when a text value changes length. The ingest checks no group
+  hash in phase 1; the owner is told. (3) Which group each pixel-description tag lands in depends on a table in the parser
+  not read here; the ingest looks in the instance group, then the series group. (4) A frame count above 99 999 is
+  truncated by the five-digit name.
+
+**Deliverable:** the crate, the mirror, `docs/ingest/README.md`, the gate step. **Branch:** `claude/av1-unified`.
+
 ## Blocked
 
 * **2026-10-11 UTC: row 149 NATIVECINE — whether to ask for a licence** (`docs/FIXTURES.md` §Provenance, The wider search,
@@ -3168,7 +3291,13 @@ purpose, and the owner is learning: **explain, don't list.** Theory only; nothin
   (3) the reporting rule — an opaque session key in place of the series key, and how many rescued mismatches turn a
   decoder path off for an engine version.
 
-* *Resolved in part, 2026-10-11 (the owner): (1) the compiled ingest is **Rust**. (2) The parser is the owner's own, so
+* *Amended 2026-10-11 (the owner): (4) the hospital→PACS link is **TCP**; the QUIC shipper is dropped for now, and the
+  gains it would bring are to be proven with numbers, from research first (row 154 LINKTCP). The parser's **directory
+  output** is the start: one directory per instance — exam, series and instance groups, one file per frame. Metadata
+  goes into **one SQLite per study**, built in the PACS, so that bad localized data never forces rebuilding a shared
+  database; a separate catalog server (MySQL or Postgres, not embedded) indexes every study database — row 153
+  INGESTDESIGN compares the options.*
+  *Resolved in part, 2026-10-11 (the owner): (1) the compiled ingest is **Rust**. (2) The parser is the owner's own, so
   its licence is no concern; how it ships stays open, pending where its source lives. (4) The link from the site to the
   server is a **QUIC experiment from the start**, behind an outbox seam — the ingest writes checked bundles to an
   outbox, a shipper sends them, the server publishes a bundle when its hash matches — for learning and experimenting;
