@@ -212,6 +212,13 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 134 | **EMSDKMEASURE** — row 125's P-EMSDK and P-COPY run by a session given only their protocols and rules | claimed 2026-10-11 (night, 040d89) |
 | 135 | **RECVCOST** — row 124's first measurement (receive CPU per byte per client stack, desktop, in a container) run by a session given only its protocol and rule | claimed 2026-10-11 (night, c24705); *provisional, rounds 1–3 of 7:* loopback CPU per MB (median), Chromium 141 6.3 (32 KB frames) and 10.0 (250 KB, 6.8–13.0), wtransport and web-transport-quinn with GRO 2.0–2.2, without 3.0–3.1; at 20 and 50 Mbit clean every arm fills within 0.5 % of the others; under 2 % loss Chromium 95 s against the quinn arms' 85–90 s; every frame exact |
 | 136 | **INGESTPROFILE** — row 126's P-PROFILE run by a session given only its protocol and rule: where today's ingest CPU goes, per codec | claimed 2026-10-11 (night, 5b3742) |
+| 137 | **NETPROBE** — which data hosts the cloud environment reaches today, and what refuses the rest: rows 2 and 35's refusals are a week old | ready |
+| 138 | **CROSSRERUN** — row 106's protocol re-run as row 121 proposes: whole volumes, Firefox after row 115's dial fix, both readings where the host voids | ready |
+| 139 | **IRTTMEASURE** — row 130's protocol run by a session given only its protocol and rule: the server's initial RTT at 100 ms against 333 | ready |
+| 140 | **CCREVIEW** — row 132's numbers against row 119's predictions: conclusive or not, and what it leaves for the default | ready |
+| 141 | **LOSSCLASS** — row 119's R2 run by a session given only its protocol and rule: how often a loss classifier is wrong on the relay's known causes | ready |
+| 142 | **STARTMEASURE** — row 125's P-START run by a session given only its protocol and rule: decoders started on first need | ready |
+| 143 | **TILEDESIGN** — the owner's rule for large frames written into the design, and the tiled store and decode it implies: a proposal; theory only | ready |
 
 ## Briefs
 
@@ -2812,6 +2819,74 @@ this container; the host's saturation point stated and nothing claimed past it. 
 
 Row 126's P-PROFILE, as written in `docs/FIXTURES.md` §A compiled ingest at the site. **Deliverable:** as row 133; the
 "~99 % encode" claim corrected in place wherever it stands. **Branch:** `claude/av1-unified`.
+
+## The overnight rows (137–143), 2026-10-11
+
+The owner, 2026-10-10 night: schedule every row that needs no decision of theirs. Same rules as rows 129–136: theory
+rows build and time nothing; measurement rows read only the named protocol and its rule; one question per row; nothing
+changes a product default. Docs on `claude/av1-unified`, cells on `claude/av1`.
+
+### 137 NETPROBE
+
+**Question.** Are the data hosts still refused, and by what? Rows 2 and 35 (2026-10-03/04) found `zenodo.org`,
+`www.cancerimagingarchive.net`, `physionet.org`, `data.mendeley.com`, `grand-challenge.org` and others refused with
+CONNECT 403 ("organization policy"); the owner reports the environment now has full network access. **Do:** from this
+container, for every host listed under §Blocked rows 10, 21, 35 and 100 plus `figshare.com`, `huggingface.co`,
+`www.kaggle.com`, `osf.io`: DNS, a HEAD over HTTPS through whatever proxy the container uses, the status and the
+proxy's own message (verbatim), UTC time; the proxy's identity and environment variables (names only, no secrets).
+Then read, without downloading data, each candidate lossless dataset's landing page and licence (CADICA, ARCADE,
+TDSC-ABUS 2023, Breast-Lesions-USG, and any multi-frame breast ultrasound or XA set found): format, whether native
+frames are stored uncompressed or losslessly, size, licence verbatim, access terms (open, on request, data use
+agreement). Fetch nothing. **Deliverable:** a table in `docs/FIXTURES.md` §Provenance (extended); §Blocked rows 10,
+21, 35 and 100 updated in place with what is now reachable; the licence question is the owner's. **Branch:**
+`claude/av1-unified`.
+
+### 138 CROSSRERUN
+
+Row 106's protocol (row 105's model; `docs/av1/README.md` §Where AV1 fills first) re-run as row 121 proposed: whole
+volumes, Firefox included now that row 115 fixed its dial, strict and round-paired readings both where the host voids
+past its bar (§Protocol). Read the protocol and its rule only. **Deliverable:** numbers and each prediction's outcome
+beside the protocol; whether row 107's verdict stands. **Branch:** `claude/av1-unified`.
+
+### 139 IRTTMEASURE
+
+Row 130's IRTTMEASURE, as written in `docs/transport/transport-conclusions.md`. **Deliverable:** numbers and
+predictions' outcomes beside the protocol, and whether its adoption rule passes; the default is not changed by this
+row. **Branch:** `claude/av1-unified`.
+
+### 140 CCREVIEW
+
+The short review closing R1: row 132's numbers against row 119's predictions and R1's rule, conclusive or not, why,
+and what follows for the default (`cubic-restart`) and for R3's cells. **Deliverable:** a paragraph in
+`docs/transport/transport-conclusions.md` §1 R1. **Branch:** `claude/av1-unified`.
+
+### 141 LOSSCLASS
+
+Row 119's R2, as written in `docs/transport/transport-conclusions.md` §1 *The way out, surveyed*. **Deliverable:**
+numbers and predictions' outcomes beside the protocol. **Branch:** `claude/av1-unified`.
+
+### 142 STARTMEASURE
+
+Row 125's P-START, as written in `docs/decode/README.md` §Not yet tried. **Deliverable:** numbers and predictions'
+outcomes beside the protocol. **Branch:** `claude/av1-unified`.
+
+### 143 TILEDESIGN
+
+**The owner's rule (2026-10-10):** every series over 12 bits that is not a volume or 3D view — breast or not; the
+product serves whatever a radiologist reads, breast is only the next phase — is served at the resolution that fits the
+client's screen, plus tiles for zoomed regions; volumes and 3D views keep their own path, HTJ2K only for now; series
+at 12 bits or less are filled. **Question.** What store, wire and client does that rule need? Row 133 measured tiles
+stored as independent codestreams: +0.01–0.59 % bytes, three tiles on three idle workers ×0.388–0.448 of the whole
+frame's ask at 4×. **Do:** write the rule into `docs/adr/resolution-fitting-for-large-frames.md` (extended, the rule
+quoted with its date); then propose, without building: the store's layout for a tiled series (tiles as independent
+codestreams against precincts with PLT inside one codestream, which needs a decoder that decodes by region — OpenJPH
+does not, rows 109 and 113), how the fitting level and the tiles are asked on the wire, whether the client needs a
+different decoder build or the same one with more workers, how idle decoders are used (row 113's L2 and row 133), how
+"fits the screen" is counted (device or CSS pixels: the owner's choice, both costed), and the 12-bit-and-under series
+whose frames are still large (12-bit mammograms: fill time per link from rows 95–96) as a case for the owner. List the
+series types outside the breast family it covers (CT, MR, CR/DX, XA, from `docs/av1/series.md` and DICOM).
+**Deliverable:** the ADR extended; the owner's decisions under §Blocked; proposed rows, none queued. **Branch:**
+`claude/av1-unified`.
 
 ## Blocked
 
