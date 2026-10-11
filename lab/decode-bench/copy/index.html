@@ -1,0 +1,48 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>P-COPY</title>
+<script type="module">
+  import { round } from "../../av1/decode/per-frame/drive.js";
+  const env = {
+    worker: (kind) => new Worker(kind === "copy" ? "./decoder.js" : "/client/decode/decoder.js", { type: "module" }),
+    channel: () => new MessageChannel(),
+  };
+  const built = (base, name) => ({ glue: `${base}/lab/.openjph-build/wasm/${name}.js`, wasm: `${base}/lab/.openjph-build/wasm/${name}.wasm`,
+    dir: `${base}/lab/.openjph-build/wasm` });
+  // del: the delivered build; pt: its wrapper with -pthread; copy: pt with wrapper.patch, through ./decoder.js.
+  const kinds = {
+    del: (base) => ({ kind: "product", ext: "htj2k", decoder: { glue: `${base}/client/decode/wasm/built/openjph/openjph.js`,
+      wasm: `${base}/client/decode/wasm/built/openjph/openjph.wasm`, dir: `${base}/client/decode/wasm/built/openjph` } }),
+    pt: (base) => ({ kind: "product", ext: "htj2k", decoder: built(base, "pt") }),
+    copy: (base) => ({ kind: "copy", ext: "htj2k", decoder: built(base, "copy") }),
+  };
+  globalThis.run = (opts) => round(env, { base: location.origin, ...opts }, kinds);
+
+  /** Every frame of a set decoded and kept, as a fill keeps them; the harness reads the tree's peak memory after. */
+  globalThis.keep = async ({ frames: dir, set: name, variant }) => {
+    const base = location.origin;
+    const set = (await (await fetch(`${base}/${dir}/manifest.json`)).json()).find((s) => s.name === name);
+    const v = kinds[variant](base);
+    const worker = env.worker(v.kind);
+    const { port1, port2 } = env.channel();
+    let waiting = null;
+    const next = () => new Promise((resolve, reject) => (waiting = { resolve, reject }));
+    worker.onmessage = (e) => {
+      if (e.data.kind === "ready") waiting.resolve();
+      if (e.data.kind === "init-failed" || e.data.kind === "failed") waiting.reject(new Error(e.data.reason));
+    };
+    port2.onmessage = (e) => e.data.kind === "frame" && waiting.resolve(e.data);
+    const ready = next();
+    worker.postMessage({ kind: "init", toConsumer: port1, decoder: v.decoder }, [port1]);
+    await ready;
+    globalThis.kept = [];
+    for (let i = 0; i < set.frames.length; i++) {
+      const bytes = new Uint8Array(await (await fetch(`${base}/${dir}/${name}/${String(i).padStart(3, "0")}.htj2k`)).arrayBuffer());
+      const done = next();
+      worker.postMessage({ kind: "decode", index: i, gen: 0, key: true, bytes, stamps: {} }, [bytes.buffer]);
+      globalThis.kept.push((await done).pixels);
+    }
+    return globalThis.kept.length;
+  };
+  globalThis.ready = crossOriginIsolated;
+</script>
