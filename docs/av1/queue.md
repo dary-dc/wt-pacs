@@ -220,6 +220,8 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 142 | **STARTMEASURE** — row 125's P-START run by a session given only its protocol and rule: decoders started on first need | claimed 2026-10-11 (night, 3b985b) |
 | 143 | **TILEDESIGN** — the owner's rule for large frames written into the design, and the tiled store and decode it implies: a proposal; theory only | done `23e6ca5f` on `claude/av1-unified` — **a proposal, theory only: tiles as independent codestreams cut into level bands, laid out band-major, asked on today's wire**: the rule reaches only For Processing images in the breast family (raw FFDM 13–14 bits, raw projections 14; row 121's open question) and CR/DX over 12 bits outside it; on a phone device pixels need L1 where CSS pixels need L2–L3 (4–13× the bytes), on a 5 MP display both L0; same OpenJPH build on k idle workers (row 133 ×0.39–0.45 at 4×), a digest per tile and level; five decisions under §Blocked, three rows proposed, none queued — [`docs/adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §8 |
 | 144 | **FFPORTGC** — Firefox loses decoded frames when the downloader drops its copy of each decoder's transferred `MessagePort`: fixed by holding it, a test that fails without, and a Firefox fill large enough to hit it | ready |
+| 145 | **FAULTBENCH** — row 123's fault-injection bench: a wrong sample injected per decoder path and engine, the check and the second decode observed; measures today's code, changes nothing | ready |
+| 146 | **LOSSIGNORE** — row 119's R3 run by a session given only its protocol and rule, if R2's result (row 141) lets it go on | after 141 |
 
 ## Briefs
 
@@ -2908,6 +2910,20 @@ before and after. Also report, without fixing, whether this client can still los
 reference found: a `messageerror` with no index and no handler, a decoder worker crash with no `onerror`, a decode that
 never returns (no fill deadline). **Deliverable:** the fix, the test, the Firefox before/after in the client doc that
 owns the downloader; the three silent-loss answers in the result cell. **Branch:** `claude/av1-unified`.
+
+### 145 FAULTBENCH
+
+Row 123's proposed fault-injection bench, as written in `docs/adr/exactness-in-production.md` §8: for each decoder path
+(HTJ2K, dav1d-WASM, WebCodecs) and engine available in the container (Chromium, Firefox), inject a wrong sample, a
+truncated frame and a decoder that never answers, and record what the check, the second decode and the page do — the
+evidence the owner's block-or-mark choice needs. Changes no product code; the injection lives in the test harness.
+**Deliverable:** the table beside §8. **Branch:** `claude/av1-unified`.
+
+### 146 LOSSIGNORE
+
+Row 119's R3, as written in `docs/transport/transport-conclusions.md` §1 *The way out, surveyed*, run only if row
+141's R2 result meets R2's go-on bar (≤ 5 % / ≤ 30 %); otherwise the row closes saying so. **Deliverable:** numbers
+and predictions' outcomes beside the protocol. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
