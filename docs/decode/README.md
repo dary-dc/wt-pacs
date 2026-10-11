@@ -1783,6 +1783,41 @@ interleaved, n ≥ 10, `g512` and the five sound breast series):
   ×1.00–1.03 on one worker. *Rule:* worth a store-format proposal when every frame is exact, bytes ≤ +1.0 %, and the
   k = 3 ask is ≤ ×0.60 at 4× on every large series in ≥ 8 of 10 rounds and under three stripes' ratio (row
   REGIONDECODE); otherwise not, naming the cell.
+
+  *Measured 2026-10-11, queue row TILEMEASURE* ([`lab/av1/decode/tile`](../../lab/av1/decode/tile/README.md), raw
+  `raw/tile.jsonl`). The run is REGIONDECODE's harness, rounds and pins: headless Chromium 141 on 4 cores, 1× and 4×,
+  10 rounds Williams-ordered, the first 4 frames of `g512` and the five breast series, 3 timed passes after a checking
+  one. The arms differ only in what each worker decodes: the `ref` build (sha256 `65c1501a…`) on 1 or k workers, and
+  row REGIONDECODE's three OpenHTJ2K stripes (`6e0c00f2…`). **2 640/2 640 asks exact**, each tile and each frame
+  against the encoder's input. `--mutate flip`, `shift` and `swap` took every arm they touch to 0/4. Each ask is the
+  median of round medians, × `ref` paired by round:
+
+  | set | bytes t2 · t3 | ref ms 1× · 4× | t2 1× · 4× | t3 1× · 4× (rounds ≤ ×0.60 at 4×) | t3 ÷ 3 stripes, 4× | t2, t3 on one worker 4× |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | `g512` 512² | +0.10 · +0.59 % | 5.07 · 14.8 | ×0.587 · ×0.468 | ×0.548 · ×0.300 (10/10) | — | ×1.031 · ×1.085 |
+  | 614×1359 | +0.12 · +0.21 % | 9.27 · 33.8 | ×0.565 · ×0.504 | ×0.530 · ×0.413 (10/10) | — | ×0.968 · ×1.050 |
+  | 931×2124 | +0.13 · +0.13 % | 18.4 · 74.8 | ×0.648 · ×0.646 | ×0.478 · ×0.476 (10/10) | — | ×1.129 · ×1.041 |
+  | **1914×2572** | +0.07 · +0.13 % | 76.6 · 336 | ×0.558 · ×0.555 | ×0.448 · **×0.388 (10/10)** | ×0.627 (10/10 under) | ×1.038 · ×1.080 |
+  | **2394×2850** | +0.04 · +0.12 % | 66.7 · 305 | ×0.616 · ×0.569 | ×0.441 · **×0.405 (10/10)** | ×0.682 (10/10 under) | ×1.068 · ×1.043 |
+  | **3328×4096** | +0.01 · +0.12 % | 91.9 · 395 | ×0.543 · ×0.565 | ×0.433 · **×0.448 (10/10)** | ×0.650 (10/10 under) | ×0.998 · ×0.996 |
+
+  **The rule passes on every count:** every frame exact, bytes ≤ +0.59 % (bar +1.0 %), and k = 3 at 4× on the three
+  large series is ×0.388–0.448 of the reference in 10 of 10 rounds each. It is also under the three stripes' ratio in
+  every round: the stripes read ×0.597–0.689 here, as row REGIONDECODE found. So it is worth a store-format proposal,
+  which is the owner's (§Blocked in the queue).
+
+  *Predictions:*
+  * Bytes +0.2–1.5 %: **lower than predicted**, +0.01–0.13 % at k = 2 and +0.12–0.59 % at k = 3. Only `g512` and
+    614×1359 at k = 3 fall in the range.
+  * The ask on k workers at 4×, ×0.45–0.60: **held at k = 2** on 5 of 6 sets (931×2124 reads ×0.646). **Beaten at
+    k = 3**: ×0.300–0.476, under the range on 5 of 6.
+  * At 1×, ×0.55–0.70: **held at k = 2** on 5 of 6 (3328×4096 reads ×0.543). **Beaten at k = 3**: ×0.433–0.548 on
+    all 6.
+  * One worker ×1.00–1.03: **did not hold**. It reads ×0.97–1.13 at 4× and up to ×1.24 at 1× on 614×1359: k decoder
+    calls in turn cost a small frame more than predicted. On the large series it is ×0.99–1.08.
+
+  Container times, not a phone's. Three decoding workers and the page fit the 4 cores, so nothing past k = 3 is
+  claimed.
 * **P-EMSDK.** OpenJPH 0.31.0 built by the product's recipe under emscripten 6.0.11 and 3.1.74, a frame, a cold ask
   and a fill (50 Mbit, `lte-good`), 1× and 4×. Prediction ×0.94–0.97. *Rule:* adopt when ≤ ×0.97 on every set at 1×
   and 4× in ≥ 8 of 10 rounds and no fill over ×1.01.
