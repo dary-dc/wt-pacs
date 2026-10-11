@@ -3012,7 +3012,11 @@ closest and why it falls short. **Branch:** `claude/av1-unified`.
   (4) and (5), stay open.*
   **2026-10-11 UTC: row 143 TILEDESIGN — the owner's rule for large frames, five choices** ([`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §8 on `claude/av1-unified`): (1) the store — tiles as independent codestreams in level bands, band-major (proposed), or precincts with PLT in one codestream, which needs a region decoder and a JPIP-like server; and the map from (frame, tile, band) to entry in the metadata or a version 2 SBND table, with a digest per tile and level; (2) the wire — entries asked as frames today (proposed first) or a region ask; (3) "fits the screen" in device or CSS pixels, and per viewport or per screen (a phone at 3328×4096: L1 ~27 % against L3 ~2 % of the bytes); (4) whether 12-bit large frames keep the plain fill or take §7's level first (four-view FFDM 10.9–20.0 s at 5 Mbit filled, ×0.06–0.50 level first); (5) the strip count and grid (k = 3 strips measured, a 2D grid not).
 
-* **2026-10-11 UTC: row 137 NETPROBE — which source, if any, for angiography and breast ultrasound cine** (`docs/FIXTURES.md` §Provenance,
+* *Resolved in part, 2026-10-11 (the owner): a set that is not native lossless — CADICA (`unknown`), CoronaryDominance
+  (resampled), the MPEG cine — may be used only labelled as such; it enters no verdict and no decision rests on it. The
+  frame-group question for these types stays at G = 1 until sound data exists; row 149 searches wider. (2) and (3) stay
+  open.*
+  **2026-10-11 UTC: row 137 NETPROBE — which source, if any, for angiography and breast ultrasound cine** (`docs/FIXTURES.md` §Provenance,
   The data hosts and the candidates, on `claude/av1-unified`): every host is reached now, and none of what they hold meets row 100's bar.
   (1) whether CADICA (CC BY 4.0, whole runs as PNG, one source) is fetched as an `unknown` set for provisional numbers; (2) whether to ask
   CADICA's or CoronaryDominance's authors for the runs' DICOM; (3) whether TDSC-ABUS's agreement (no redistribution, a challenge submission
