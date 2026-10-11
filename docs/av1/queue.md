@@ -222,6 +222,9 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 144 | **FFPORTGC** — Firefox loses decoded frames when the downloader drops its copy of each decoder's transferred `MessagePort`: fixed by holding it, a test that fails without, and a Firefox fill large enough to hit it | done `066f8b8` on `claude/av1-unified` — **fixed: each decoder's `port1` is held on its record; Firefox 157.0.1 lost a frame silently in 2 of 17 fills before (`followQueue`, frames 24 and 28 of 240 and 1 200), 0 of 14 after**; with the whole pool spawned at start 0 of 11 before and 0 of 8 after, its ports collected before any frame is in flight; every delivered frame exact; the Node test finds 0 of 3 ports alive after a collection without the line, 3 of 3 with it. **Silent losses still open, not fixed:** (1) a `messageerror` — the page's pixel port has no `onmessageerror`, the event carries no index, and the downloader has already deleted the record on `done`: lost silently; (2) a decoder worker crash — no `onerror` on decoder workers, its frames stay `decoding` and its slots taken for good; (3) a decode that never returns — no decode or fill deadline, the stall watch reads the wire alone: the frame waits for ever. `docs/ARCHITECTURE.md` §The downloader |
 | 145 | **FAULTBENCH** — row 123's fault-injection bench: a wrong sample injected per decoder path and engine, the check and the second decode observed; measures today's code, changes nothing | done `b78fd57` on `claude/av1-unified` — **the ladder holds where a second path exists and nowhere else, and a hung decode is invisible**: 30 visits, Chromium 141 and Firefox 157.0.1 × HTJ2K, dav1d-WASM, WebCodecs × five faults on frame 2, the product's `decoder.js` unchanged; control 6/6 exact everywhere. A transient wrong sample: HTJ2K rescued by a fresh object, WebCodecs by dav1d-WASM, dav1d-WASM not at all (no second AV1 path, so every AV1 frame in Firefox): shown marked *NOT EXACT*; a persistent one marked on every path; half the coded bytes: OpenJPH decodes it without error and the digest marks it, the AV1 payload is refused by name; a decode that never returns: no failure, and the frame queued behind it on that decoder never arrives either. WebKit not run. `docs/adr/exactness-in-production.md` §8 *The fault bench* |
 | 146 | **LOSSIGNORE** — row 119's R3 run by a session given only its protocol and rule, if R2's result (row 141) lets it go on | done — **closed unrun, as its brief says: row 141's R2 met no q* bar** (nothing measured; whether option 1 is reopened is under [`## Blocked`](#blocked)) |
+| 147 | **FRAMELOSS** — no frame lost silently: a decoder crash, a delivery the page cannot read and a decode that never returns each end in a re-decode or a loud failure, a test per path that fails without | ready |
+| 148 | **FRAMEPATH** — where a decoded frame should go now that the client has a paint worker and will get an OPFS cache: the page in or out of the pixel path, who owns the frame store, what OPFS costs; theory only | ready |
+| 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | ready |
 
 ## Briefs
 
@@ -2924,6 +2927,81 @@ evidence the owner's block-or-mark choice needs. Changes no product code; the in
 Row 119's R3, as written in `docs/transport/transport-conclusions.md` §1 *The way out, surveyed*, run only if row
 141's R2 result meets R2's go-on bar (≤ 5 % / ≤ 30 %); otherwise the row closes saying so. **Deliverable:** numbers
 and predictions' outcomes beside the protocol. **Branch:** `claude/av1-unified`.
+
+### 147 FRAMELOSS
+
+**The three silent losses rows 144 and 145 left open, closed (the owner, 2026-10-11).** Row 144 fixed the transferred
+port; its cell and row 145's bench found three more ways a frame vanishes with no error and no retry: (1) a decoder
+worker that crashes — no `onerror` on decoder workers, its frames stay `decoding` and its slots are taken for good;
+(2) a delivery the page cannot read — the pixel port has no `onmessageerror`, the event carries no index, and the
+downloader has already forgotten the frame on `done`; (3) a decode that never returns — no decode deadline, the stall
+watch reads the wire alone, so the frame waits for ever and so does every frame queued behind it on that decoder.
+**Do**, in `client/transport/downloader.js` and the page's consumer:
+
+* *Crash:* `onerror` and `onmessageerror` on every decoder worker; the worker is terminated, a fresh decoder spawned in
+  its place, and its in-flight frames re-queued with an attempt count.
+* *Delivery:* the downloader forgets a frame only when the page acknowledges its index (the ack rides the existing
+  control channel; it carries the index and generation). A `messageerror` on the pixel port, or a frame still
+  unacknowledged when its decoder is retired, re-decodes the unacknowledged frames.
+* *Hang:* a per-decode deadline, one named constant whose value and reason live in `docs/ARCHITECTURE.md`
+  §The downloader; on expiry the worker is terminated and replaced and its frames re-queued.
+* After **2 failed attempts** a frame fails loudly through the existing `failed` path (an asked frame's waiter rejects,
+  a fill frame reaches `onError`). No path waits for ever.
+
+**Checks:** one test per path that fails without its fix (mutate each and record the mutant and what caught it); the
+gate green; Chromium and Firefox fills exact (`client/contract/drive_firefox.mjs` for Firefox); row 145's fault bench
+re-run, showing the hung decode recovered or failed loudly where it was invisible. **Cost:** clean fills unchanged —
+the ack must not cost a fill: a few interleaved rounds (`lab/order.mjs`) with and without, on row 144's 200+ frame
+series, both arms' full settings printed. **Docs:** `docs/ARCHITECTURE.md` §The downloader's "silent losses still
+open" corrected in place. The reference implementation's client gets the same design locally, outside this queue.
+**Deliverable:** the fix, the tests, the bench re-run and the cost numbers in the doc that owns the downloader.
+**Branch:** `claude/av1-unified`.
+
+### 148 FRAMEPATH
+
+**One question: the best path for a decoded frame in this client.** It now has a paint worker (`client/paint/`:
+OffscreenCanvas, WebGL2, samples uploaded straight from shared memory) and will get an OPFS client cache (decided, the
+owner, 2026-10-10: OPFS for both web clients; no re-decoding; whether it stores decoded samples or coded bytes is open).
+Today: decoder → pixel port → the page's consumer (`client/transport/consumer.js`, a `SharedArrayBuffer` handle,
+~0.1 ms of page thread, `client/paint/README.md` §What it costs) → the painter → the paint worker, which shares the
+buffer. **The owner's idea, to evaluate against today:** decoder → paint worker directly, the frame also written to
+OPFS efficiently, the page out of the pixel path. Theory only: nothing built or timed. **Cover:**
+
+* what the page thread costs per frame today at fill rates, and what a busy page thread (layout, a long task) does to
+  delivery and paint in each design;
+* who owns the frame store — memory and OPFS — and its eviction, and how the paint worker gets a frame it does not hold
+  (scrolling back, a second viewport);
+* OPFS mechanics from the specs and engines' sources: sync access handles in dedicated workers only, quota and
+  eviction per engine, write cost per MB, decoded 16-bit samples against coded bytes, and what each costs on reopen
+  (read, re-check, upload; coded bytes mean a decode, against the no-re-decoding rule);
+* which worker writes, and whether the write sits on the fill's critical path;
+* the exactness digest's place (`docs/adr/exactness-in-production.md`): checked before paint today; whether a frame
+  read back from OPFS must be checked again, and against what;
+* memory on phones (decoded frames held in shared memory, the cache's working set);
+* what the reference implementation's client — decoded frames in a memory cache, painted from the page — could take
+  from the design chosen.
+
+Sources pinned (spec sections, engine source at a commit, sha256 of anything fetched). **Deliverable:** a design note
+beside `docs/ARCHITECTURE.md` §The consumer with the mechanism, predictions per design, a measurement protocol with a
+pre-stated rule (proposed, not queued), and the decisions listed for the owner under `## Blocked`. A change to the
+store's format or the wire is structural: proposed, not built. **Branch:** `claude/av1-unified`.
+
+### 149 NATIVECINE
+
+**A wider search for sound data, the three types row 100 could not decide.** Row 137 reached every host rows 2 and 35
+named and found nothing that meets row 100's bar (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates).
+This row searches wider, for breast ultrasound cine (B-mode, probe slow or still), ABUS volumes and contrast angiography
+runs as **native DICOM stored uncompressed or losslessly**, whole series in acquisition order. Search only: fetch
+metadata (landing pages, APIs, DICOM headers where a host serves them alone), no pixel data. **Where:** TCIA's whole
+collection list filtered by modality (US, XA, RF) and its multi-frame series; Imaging Data Commons (Google Cloud's
+DICOM stores and BigQuery index); MIDRC; RSNA, AAPM and MICCAI challenge data; Stanford AIMI; PhysioNet; dataset
+registries and repositories (Zenodo, Figshare, OSF, Mendeley searched by modality, not by name); the DICOM sample and
+conformance image libraries vendors and toolkits publish; scanner QA and phantom datasets; papers' supplementary data.
+**For each candidate:** content, series and frames per series, transfer syntax and Lossy Image Compression
+(0028,2110) read from metadata where reachable, licence verbatim, access (open, registration, agreement, on request).
+Licences are reported, not filtered: the owner decides on licence (2026-10-11). **Deliverable:** the candidates table
+extended in `docs/FIXTURES.md` §Provenance, The data hosts and the candidates: what meets row 100's bar, what comes
+closest and why it falls short. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
