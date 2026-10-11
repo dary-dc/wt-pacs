@@ -69,3 +69,4 @@ lab/av1/data/
 lab/.av1-work/
 # Link traces a lab run fetches (lab/av1/delivery/total-time/run.mjs, lab/scripts/*_cells.sh)
 lab/.traces/
+lab/recv-cost/target/
