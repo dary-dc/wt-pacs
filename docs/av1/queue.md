@@ -207,7 +207,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 129 | **WTCOMPAT** — the browsers' WebTransport draft and `reset_stream_at` against the server: what each engine's stable, beta and nightly speak, what breaks when one moves, and a check that warns before a release does | claimed 2026-10-11 (night, c24705) |
 | 130 | **INITRTT** — a 100 ms initial RTT on the server: the first open's tail under loss against spurious resends on slow links; theory only | claimed 2026-10-11 (night, 040d89) |
 | 131 | **TAILDUP** — a frame's last packets sent twice: where tail loss bites (the ask, a burst's end), how often on the target, its cost elsewhere; theory only | claimed 2026-10-11 (night, 5b3742) |
-| 132 | **CCATTRIB** — row 119's R1 run by a session given only its protocol and rule: BBR's clean-link cost with the initial windows swapped between arms, ProbeRtt apart | ready |
+| 132 | **CCATTRIB** — row 119's R1 run by a session given only its protocol and rule: BBR's clean-link cost with the initial windows swapped between arms, ProbeRtt apart | claimed 2026-10-11 (night, 187f43) |
 | 133 | **TILEMEASURE** — row 125's P-TILE run by a session given only its protocol and rule: tiles stored as independent codestreams for large-frame asks, bytes and the ask, exact | ready |
 | 134 | **EMSDKMEASURE** — row 125's P-EMSDK and P-COPY run by a session given only their protocols and rules | ready |
 | 135 | **RECVCOST** — row 124's first measurement (receive CPU per byte per client stack, desktop, in a container) run by a session given only its protocol and rule | ready |
