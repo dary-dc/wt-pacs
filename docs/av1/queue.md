@@ -226,6 +226,8 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 148 | **FRAMEPATH** — where a decoded frame should go now that the client has a paint worker and will get an OPFS cache: the page in or out of the pixel path, who owns the frame store, what OPFS costs; theory only | done `050d4c64` on `claude/av1-unified` — theory only, nothing timed: **recommended B′**, decoder → paint worker (which owns the memory store and every viewport) → a store worker writing checked, decoded frames to OPFS (sync handles are dedicated-worker-only, exclusive per file, take shared memory); the page's measured 0.07–1.15 ms a frame is not the reason — a busy page is (predicted: < 1 ms on a quiet page, up to a long task's length per waited frame and cine kept under one); decoded samples kept (CT series 40 MB, mammogram 17 MB a frame; reopen = read + one XXH3, no decode), re-checked on every read; WebKit's OPFS deletion is 30 operating days in its source's default, not 7 (qualified in place); protocol and rule proposed, not queued ([`../adr/frame-path.md`](../adr/frame-path.md)); five decisions under [`## Blocked`](#blocked) |
 | 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | done `36f15dd` on `claude/av1-unified` — **still nothing meets row 100's bar for any of the three types; one open set of native angiography runs exists, without a licence**: `MesserMMP/coronary-angiography-syntax` (Hugging Face, 87 626 XA files, 980 GB, Philips and Siemens, 14/14 headers read multi-frame, uncompressed, Lossy `00`) states no licence; IDC v25 and TCIA add nothing (39/39 XA single frames, multi-frame US cine flagged lossy 26–100:1); no breast ultrasound cine in DICOM and no ABUS volume in DICOM at any of ~25 hosts; nearest ABUS analogue IDC's prostate 3D TRUS (1 762 volumes, 280 frames, native, CC BY 4.0); DSCA's DSA runs are cut, MIDRC's fluoroscopy is not angiography and non-commercial — `docs/FIXTURES.md` §Provenance, The wider search |
 | 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | after 138, 147, 148, 149 |
+| 151 | **CHECKCOST** — what the exactness checks cost a frame in today's client: the XXH3-64 check after decode by path, the second decode on a mismatch, and a cache read's re-check; cost only, the checks stay on | after 150 |
+| 152 | **QUICTUNED** — row 124's candidates at their best configuration for the target, not their defaults: what each lets be tuned or patched, each lever's mechanism and its effect on throughput and on latency, the published rankings read; theory only | after 150 |
 
 ## Briefs
 
@@ -3052,6 +3054,44 @@ after the owner's look); then force-push the new histories under the same names,
 with the new hashes and the report's path. **Stop** and leave it under `## Blocked` if a conflict cannot be resolved
 without choosing between PR #34's behaviour and the branch's.
 
+### 151 CHECKCOST
+
+**What the exactness checks cost, measured; their adoption is not the question.** The owner decided 2026-10-11 that the
+checks stay on by default — the decode check, and the re-check of a frame read from the OPFS cache (row 148) — and wants
+their time known. Measure, in today's client, ms a frame and its share of the frame's decode time: (1) the XXH3-64
+check after decode on each path — HTJ2K WASM, dav1d-WASM, WebCodecs; (2) the second decode a failed check triggers
+(row 145's injected fault reused); (3) the cache read's re-check, predicted as XXH3-64 over the decoded samples, timed
+on the same buffers. **Sets:** a small (512²), a medium (1914×2572) and a large (3328×4096) frame, 8- to 16-bit where
+the path takes them. **Engines:** Chromium and Firefox. Interleaved (`lab/order.mjs`), n ≥ 5 rounds, every frame exact;
+quote time a frame, not throughput. **Deliverable:** the table in `docs/adr/exactness-in-production.md` (a section of its
+own). **Branch:** `claude/av1-unified`.
+
+### 152 QUICTUNED
+
+**The candidates at their best, not their defaults.** Row 124 read each QUIC stack at its default configuration. A
+default is not a limit when the setting can be changed or patched (the owner, 2026-10-11: msquic's 64 KiB default
+stream window caps one stream near 5 Mbit/s at 100 ms, but it is a setting). Throughput and latency are the product's
+purpose, and the owner is learning: **explain, don't list.** Theory only; nothing built or timed.
+
+* **Per candidate, read from its source:** what can be tuned, to what, by a setting or by a small patch — stream and
+  connection flow-control windows and whether they auto-tune; ACK frequency and ACK delay
+  (draft-ietf-quic-ack-frequency); receive batching (`recvmmsg`, GRO, Windows URO, Apple's paths); socket buffer sizes;
+  pacing; 0-RTT; migration — and what cannot change without a fork.
+* **Each lever's mechanism and its effect on throughput and on latency,** in plain words with worked numbers (a window
+  must be at least bandwidth × RTT: 50 Mbit/s × 150 ms ≈ 0.94 MB, so a smaller one caps the link whatever the
+  controller does).
+* **The published rankings:** find and read the work that ranks msquic — or any stack — first for throughput or
+  latency (the owner saw a paper saying so): name it, pin it, and set its setup against the target's links. For every
+  comparison read, say whether its stacks were tuned or ran at defaults.
+* **A pre-registered measurement protocol, proposed, not queued:** each shortlisted client at default and at tuned
+  settings against the server, on the target's links (5–50 Mbit/s, 20–150 ms RTT, 0–2 % loss, a mobile trace),
+  reporting fill time and ask time (each quoted alone, not both) and receive CPU per MB; predictions and a rule. The
+  server stays quinn; a client without a WebTransport client needs a lab-only raw-QUIC endpoint — say how small that
+  is.
+* The owner's decisions are listed, not taken.
+
+**Deliverable:** `docs/native/quic.md` (a section of its own, §1 kept consistent). **Branch:** `claude/av1-unified`.
+
 ## Blocked
 
 * **2026-10-11 UTC: row 149 NATIVECINE — whether to ask for a licence** (`docs/FIXTURES.md` §Provenance, The wider search,
@@ -3060,7 +3100,9 @@ without choosing between PR #34's behaviour and the branch's.
   to ask its uploader for one, and whether one source of two vendors counts toward row 100's two sources. Breast
   ultrasound cine and ABUS have no native candidate at all; whether to request data from a site is also the owner's.
 
-* **2026-10-11 UTC: row 148 FRAMEPATH — where a decoded frame goes** ([`../adr/frame-path.md`](../adr/frame-path.md) §8 on
+* *Resolved in part, 2026-10-11 (the owner): the exactness checks stay **on by default** — the decode check and the
+  re-check of a frame read from the OPFS cache; their time is measured by row 151 CHECKCOST. Choices (1)–(5) stay open.*
+  **2026-10-11 UTC: row 148 FRAMEPATH — where a decoded frame goes** ([`../adr/frame-path.md`](../adr/frame-path.md) §8 on
   `claude/av1-unified`): (1) the page out of the pixel path (B′: decoder → paint worker, a store worker behind it) or
   today's path with a store worker (A), decided by the note's §7 rule if its protocol is queued; (2) decoded samples in
   OPFS (recommended, from the no-re-decoding rule) against coded bytes; (3) a file per frame or a packed file per series;
@@ -3110,7 +3152,12 @@ without choosing between PR #34's behaviour and the branch's.
   (3) the reporting rule — an opaque session key in place of the series key, and how many rescued mismatches turn a
   decoder path off for an engine version.
 
-* **2026-10-10 UTC: row 126 INGESTPLAN — the compiled ingest's five decisions** (`docs/FIXTURES.md` §A compiled ingest at the site on `claude/av1-unified`): (1) Rust (recommended: the server's bundle crate and QUIC stack) or C++; (2) the C parser's licence and how it ships with the ingest — none is shown in this repository, and it was not read; (3) the transfer syntaxes it does not read (implicit VR little endian, DICOM's default, big endian, deflate, RLE, encapsulated lossless): refused, converted before it, or added to it; (4) the link to the server: a file copy, an upload endpoint beside WebTransport, or a third-party tool; (5) the site platforms and how updates reach them.
+* *Resolved in part, 2026-10-11 (the owner): (1) the compiled ingest is **Rust**. (2) The parser is the owner's own, so
+  its licence is no concern; how it ships stays open, pending where its source lives. (4) The link from the site to the
+  server is a **QUIC experiment from the start**, behind an outbox seam — the ingest writes checked bundles to an
+  outbox, a shipper sends them, the server publishes a bundle when its hash matches — for learning and experimenting;
+  which QUIC stack follows row 124's decision (4). (3) and (5) stay open.*
+  **2026-10-10 UTC: row 126 INGESTPLAN — the compiled ingest's five decisions** (`docs/FIXTURES.md` §A compiled ingest at the site on `claude/av1-unified`): (1) Rust (recommended: the server's bundle crate and QUIC stack) or C++; (2) the C parser's licence and how it ships with the ingest — none is shown in this repository, and it was not read; (3) the transfer syntaxes it does not read (implicit VR little endian, DICOM's default, big endian, deflate, RLE, encapsulated lossless): refused, converted before it, or added to it; (4) the link to the server: a file copy, an upload endpoint beside WebTransport, or a third-party tool; (5) the site platforms and how updates reach them.
 
 * **2026-10-10 UTC: row 121 DATAAUDIT — whether raw `FOR PROCESSING` images (the DBT projections, raw mammograms, 14 bits)
   are AV1 targets.** Row 98 scoped the projections out; `series.md` lists both in the breast family. The 13–16-bit rules (rows 33,
