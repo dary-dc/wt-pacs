@@ -127,7 +127,8 @@ def run(args):
                         collector.result, _ = {}, collector.got.clear()
                         profile = tempfile.mkdtemp(dir=tmp)
                         url = (f"http://127.0.0.1:{port}/lab/faultbench/index.html?dir=/{os.path.relpath(dirs[codec], ROOT)}"
-                               f"&fault={fault}&at={AT}&webcodecs={webcodecs}&wt={wt}&hash={cert}&post={collector.url}")
+                               f"&fault={fault}&at={AT}&webcodecs={webcodecs}&wt={wt}&hash={cert}&quiet={args.quiet_ms}"
+                               f"&post={collector.url}")
                         browser = launch(engine, binary, url, profile)
                         collector.got.wait(90)
                         os.killpg(browser.pid, signal.SIGKILL)
@@ -170,6 +171,8 @@ def main():
     ap.add_argument("--chrome", default=os.environ.get("CHROME_PATH", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"))
     ap.add_argument("--firefox")
     ap.add_argument("--rounds", type=int, default=1)
+    # Past two of the downloader's decode deadlines, so a hung frame is seen to fail.
+    ap.add_argument("--quiet-ms", type=int, default=30000)
     ap.add_argument("--out", default="rows.jsonl")
     ap.add_argument("--summary")
     args = ap.parse_args()
