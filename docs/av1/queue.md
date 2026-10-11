@@ -214,7 +214,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 136 | **INGESTPROFILE** — row 126's P-PROFILE run by a session given only its protocol and rule: where today's ingest CPU goes, per codec | claimed 2026-10-11 (night, 5b3742); *provisional, round 1 of 5 (`1126da5c` on `claude/av1-unified`): HTJ2K's encoder is 15–38 % of its ingest stages' CPU (62–85 % not the encoder: hashing 19–41 %, temporary files 14–31 %), AV1's 94–99 %* |
 | 137 | **NETPROBE** — which data hosts the cloud environment reaches today, and what refuses the rest: rows 2 and 35's refusals are a week old | claimed 2026-10-11 (night, 3b985b) |
 | 138 | **CROSSRERUN** — row 106's protocol re-run as row 121 proposes: whole volumes, Firefox after row 115's dial fix, both readings where the host voids | claimed 2026-10-11 (night, d1afc1) |
-| 139 | **IRTTMEASURE** — row 130's protocol run by a session given only its protocol and rule: the server's initial RTT at 100 ms against 333 | ready |
+| 139 | **IRTTMEASURE** — row 130's protocol run by a session given only its protocol and rule: the server's initial RTT at 100 ms against 333 | claimed 2026-10-11 (night, f52221) |
 | 140 | **CCREVIEW** — row 132's numbers against row 119's predictions: conclusive or not, and what it leaves for the default | ready |
 | 141 | **LOSSCLASS** — row 119's R2 run by a session given only its protocol and rule: how often a loss classifier is wrong on the relay's known causes | ready |
 | 142 | **STARTMEASURE** — row 125's P-START run by a session given only its protocol and rule: decoders started on first need | ready |
