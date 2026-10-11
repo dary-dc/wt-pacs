@@ -46,3 +46,20 @@ each took both variants to 0 exact on `dbts_a5` (Chromium 1×, 100 Mbit/s) and `
 Pins as row TOTAL4's: libaom 3.15.1, dav1d 1.5.4 under emscripten 3.1.74 (`simd.wasm` 623 146 B), OpenJPH 0.31.0,
 `@cornerstonejs/codec-openjph` 2.4.11, Chromium 141.0.7390.37, Firefox 157.0.1 (BuildID 20261005135250, the conda
 package's SHA-256 `f1b53de2…4d7127f35`, micromamba 2.9.0 `8761c382…f13040dd`), meson 1.5.2 for native dav1d.
+
+## Whole volumes
+
+Row CROSSRERUN (138) runs the same protocol on whole DBT volumes (71, 71 and 84 slices, no `every_nth.py`: each
+`cross-data/$s` is a link to `lab/av1/data/$s`), Firefox after its slow-link dial fix, into `rows-whole.jsonl`:
+
+```bash
+for r in $(seq 0 11); do
+  NODE_PATH=$(npm root -g) node lab/av1/delivery/crossover/measure.mjs --frames $W/cross --out lab/av1/delivery/crossover/rows-whole.jsonl --rounds 1 --first-round $r
+done                                                               # ~96 min a round
+python3 lab/av1/delivery/crossover/verdict.py lab/av1/delivery/crossover/rows-whole.jsonl [--all]
+```
+
+The k = 2 bytes over HTJ2K's on the whole volumes are 0.953, 0.956, 0.760. `--mutate sample` and `--mutate truth`
+each took both variants to 0 exact on `dbts_a5` (Chromium 1×, 100 Mbit/s), `--mutate truth` on `ffdms_c1` in Firefox
+(20 Mbit/s); unmutated, `ffdms_c1` there was 4/4 in both engines. Pins as above; Firefox 157.0.1 fetched and checked
+against both SHA-256s on 2026-10-11.
