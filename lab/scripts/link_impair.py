@@ -15,7 +15,7 @@ usage: link_impair.py {--udp 5555:4433 [--udp 5557:4435 ...] [--tcp 8443:8000] |
                       [--rate-kbit 10000] [--rate-up-kbit 2000] [--trace FILE] [--queue-pkts 50 | --queue-bytes N |
                       --queue-ms N] [--codel 5:100] [--fq-codel] [--loss 0.5 | --loss-model ge]
                       [--idle-promote 5:300]
-                      [--self-timing]
+                      [--self-timing] [--drop-log FILE]
                       [--control-port 5556]
 
 --delay-ms is ONE WAY and applies to each direction, so a round trip reads twice it, matching
@@ -306,6 +306,11 @@ class Pipe:
         self.pending = []
         self.seq = 0
         self.sent = self.lost = self.overflowed = self.managed = 0
+        self.drop_log = None
+
+    def _dropped(self, now, cause, size):
+        if self.drop_log:
+            self.drop_log.write("%d %s %d\n" % (round(now * 1e9), cause, size))
 
     def _drop(self):
         if self.ge:
@@ -317,6 +322,7 @@ class Pipe:
     def offer(self, now, payload, blacked_out, to=None, flow=None):
         if self.lossy and (blacked_out or self._drop()):
             self.lost += 1
+            self._dropped(now, "blackout" if blacked_out else "loss", len(payload))
             return
         link = self.link
         if self.lossy and link.fq:
@@ -330,10 +336,12 @@ class Pipe:
         if (self.limit and len(link.tx) >= self.limit
                 or self.limit_bytes and link.queued + size > self.limit_bytes):
             self.overflowed += 1
+            self._dropped(now, "overflow", size)
             return
         dequeue = max(now, link.next_free)
         if self.lossy and link.codel and link.codel.drop(dequeue, dequeue - now, link.queued):
             self.managed += 1
+            self._dropped(now, "codel", size)
             return
         link.count(flow, size, dequeue - now)
         departure = link.depart(now, size)
@@ -760,6 +768,8 @@ def main():
                          "both directions P ms, as one radio's promotion does")
     ap.add_argument("--self-timing", action="store_true",
                     help="tally how late each packet left; VOID when p99 is over 1 ms")
+    ap.add_argument("--drop-log", help="udp: one line per server->client datagram dropped, "
+                    "`<CLOCK_MONOTONIC ns> loss|blackout|overflow|codel <bytes>`; not with --fq-codel")
     ap.add_argument("--rebind-ip", default="127.0.0.1",
                     help="the address a rebind moves the server's side to; another one is a new path")
     ap.add_argument("--control-port", type=int)
@@ -778,6 +788,8 @@ def main():
     up_bps = (args.rate_kbit if args.rate_up_kbit is None else args.rate_up_kbit) * 1000.0
     trace = Trace(args.trace, time.monotonic()) if args.trace else None
 
+    if args.drop_log and (args.fq_codel or not args.udp):
+        ap.error("--drop-log logs the udp plane's FIFO: --udp, without --fq-codel")
     if args.fq_codel and not args.codel:
         args.codel = (5, 100)
 
@@ -795,6 +807,9 @@ def main():
     radio = {s: links(s) for s in ("upstream", "client")}
     udps = [UdpPlane(sel, *pair, args, rng, radio.get, lateness) for pair in args.udp or ()]
     udp = udps[0] if udps else None
+    drop_log = open(args.drop_log, "w", buffering=1 << 16) if args.drop_log else None
+    for plane in udps:
+        plane.to_client.drop_log = drop_log
     tcp = TcpPlane(sel, *args.tcp, args, rng, links, lateness) if args.tcp else None
     tun = TunPlane(sel, args, rng, radio.get, lateness) if args.tun else None
     planes = udps + ([tcp] if tcp else []) + ([tun] if tun else [])
@@ -887,6 +902,8 @@ def main():
             print(lateness.tally(), flush=True)
         if tun:
             tun.close()
+        if drop_log:
+            drop_log.close()
 
 
 if __name__ == "__main__":
