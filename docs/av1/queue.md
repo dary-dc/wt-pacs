@@ -210,7 +210,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 132 | **CCATTRIB** — row 119's R1 run by a session given only its protocol and rule: BBR's clean-link cost with the initial windows swapped between arms, ProbeRtt apart | claimed 2026-10-11 (night, 187f43) |
 | 133 | **TILEMEASURE** — row 125's P-TILE run by a session given only its protocol and rule: tiles stored as independent codestreams for large-frame asks, bytes and the ask, exact | claimed 2026-10-11 (night, 5b3742) |
 | 134 | **EMSDKMEASURE** — row 125's P-EMSDK and P-COPY run by a session given only their protocols and rules | claimed 2026-10-11 (night, 040d89) |
-| 135 | **RECVCOST** — row 124's first measurement (receive CPU per byte per client stack, desktop, in a container) run by a session given only its protocol and rule | claimed 2026-10-11 (night, c24705) |
+| 135 | **RECVCOST** — row 124's first measurement (receive CPU per byte per client stack, desktop, in a container) run by a session given only its protocol and rule | claimed 2026-10-11 (night, c24705); *provisional, round 1 of 7:* loopback CPU per MB, Chromium 141 6.3–7.5, wtransport and web-transport-quinn with GRO 1.9–2.6, without 2.9–3.3; at 20 and 50 Mbit clean every arm fills within 0.5 % of the others; under 2 % loss Chromium 95 s against the quinn arms' 85–90 s; 4 800/4 800 frames exact |
 | 136 | **INGESTPROFILE** — row 126's P-PROFILE run by a session given only its protocol and rule: where today's ingest CPU goes, per codec | ready |
 
 ## Briefs
