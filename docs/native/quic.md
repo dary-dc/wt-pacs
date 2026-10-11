@@ -24,6 +24,12 @@ WebTransport session (§Resumption and 0-RTT). A native client chooses all three
 
 ## 1. The answer in plain words
 
+* **The client's library matters through throughput and latency, the product's purpose.** It cannot raise either above
+  what the server's controller and the link allow; it can only lose them — through its receive cost, its flow-control
+  windows, when it acknowledges, its handshake and resumption, and migration. A default is not a limit when the
+  setting can be changed or patched: the candidates are compared at their best in row 152 QUICTUNED
+  ([`../av1/queue.md`](../av1/queue.md)); the tables below read them at their defaults. *(Corrected in place
+  2026-10-11; this section first opened with the controller point below.)*
 * **For the fill and the ask, the client's congestion controller does not matter: the server sends.** What the
   client's stack decides is its receive cost (batched reads, GRO, ACKs), its flow-control windows, migration and
   resumption. Row 119's controller options stay on the server, in quinn, whose `Controller` trait `bbr-bound` already
