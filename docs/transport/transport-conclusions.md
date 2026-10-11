@@ -1584,6 +1584,112 @@ head-of-line cost ties QUIC's shared stream (frame gap p99 1 522 against 1 368 m
 *Retracted the same day:* a first campaign read QUIC 20× steeper than TCP; its `ws` variant took the
 container's default controller, BBR, so it compared controllers, not transports.
 
+### A frame's tail sent twice, 2026-10-11
+
+*Queue row TAILDUP. Theory only: nothing here is built or timed; every number is keyed to its source, and a derived
+one says so.*
+
+**Dropped for now.** Under the default Cubic, sending a frame's last packets twice saves at most one probe timeout
+(PTO, ~0.1 s on the lab's fixed links, derived), on 1–10 % of asks at 1–5 % loss. That is 2–8 % of row LOSSLINK's
+ask p95 and inside its spread. Whether such loss is common on the target is not known. On the relay's bursts, a
+duplicate sent back to back is lost with the original 71 % of the time. Two things would reopen it, both at once:
+the field pilot (§1 *The deciding fact*) shows ≥ 1 % random loss on a real share of target sessions, and the default
+controller no longer makes loss the ask's clock. Under BBR a PTO is 25–75 % of a lossy ask on 20 and 50 Mbit (LOSSCC).
+
+**Where only a timer recovers a loss.** RFC 9002 §6.1 detects a lost packet when a later one is acknowledged: by
+packet threshold (3, quinn's default, `config/transport.rs:381`) or by time threshold (9/8 of the round trip,
+`:382`). Anything after the lost packet that arrives will reveal it within about one round trip. Only a packet with
+nothing delivered after it waits for the PTO: `smoothed_rtt + max(4·rttvar, 1 ms) + max_ack_delay` (§6.2.1; quinn
+`paths.rs:331`, `ack_frequency.rs:62`). Chromium's `max_ack_delay` is 25 ms (quiche `kDefaultPeerDelayedAckTimeMs`,
+`quic_constants.h:148` at `c8b10520`). When the PTO fires, quinn sends two probes. Each carries new data if there is
+any, otherwise the oldest unacknowledged packet's data (`spaces.rs` `maybe_queue_probe`). Each further PTO doubles
+(`mod.rs:1843`). So a lost tail adds one PTO to the frame, and more if the probes are lost too. That is already TCP's
+TLP (RFC 9002 §4.7, RFC 8985 §7). The RTO-sized tails of Flach et al. 2013 (77 % of losses recovered by timeout,
+median RTO 6× the RTT, before TLP) are not this server's starting point. What is left is PTO against zero.
+
+* **An ask on an idle session** is one burst with nothing after it. Its last packet is lost with probability *p*.
+  A retransmission that goes out after the last new packet, and is lost again, is a second tail. So per ask
+  P(timer) runs from *p* toward 2*p*. It reaches the upper end when the last flight holds ≥ ~1/*p* packets: a
+  51 kB frame (~36 packets) at 5 % is 0.05 + 0.84 × 0.05 ≈ 9 %. Frame size matters only through that second term.
+  Derived, iid loss.
+* **A fill** sends frame after frame on one stream. A frame's lost tail is revealed by the next frame's packets, so
+  only the fill's last frame (and any pause where the pipeline drains) is a tail.
+* **An ACK lost** delays no frame: the data arrived. The PTO then sends one packet of spurious retransmission.
+* **The ask itself** (client → server, one packet) is the browser's tail, recovered by the browser's PTO. The server
+  cannot shorten it, and a page cannot duplicate a packet. Out of this row's reach.
+* **Bursts.** `link_impair.py`'s Gilbert–Elliott drops every packet in its bad state and leaves it with r = 1/3.5 per
+  packet (`lab/av1/delivery/total-time/run.mjs` `ge`). So a copy sent right after a lost packet is lost with
+  probability 1 − r = 0.71, and two copies with 0.51. The state moves only when a packet passes, so a silence does
+  not end a burst (§5 *The ask's loss sensitivity*). Both probes after the PTO meet the same burst. That is part of
+  row LOSSLINK's 8–15 s p95 on `lte-good` at 5 % (`docs/av1/README.md` §Under loss and jitter), and part of it
+  belongs to the model. Copies spaced in time would beat a burst on a real radio, whose bursts are in time. In the
+  relay they cannot, because its bursts are counted in packets. A rig limit, so no lab cell can price that version.
+
+**The gain at the target links** (row LOSSLINK's iid cells, 40 ms base round trip; derived, not measured). Cubic's
+window sits below the path under loss (§5 *The ask's loss sensitivity*: 20–56 KB), so the queue stays short and
+srtt is 40–60 ms with rttvar 5–15 ms. That makes the PTO 85–145 ms. With P(timer) between *p* and 2*p*:
+
+| loss (iid) | asks that wait a PTO | p95 | p99 | against row LOSSLINK's ask p95 (Cubic) |
+| --- | --- | --- | --- | --- |
+| 10⁻⁵ (residual LTE/5G by report, §1) | ~10⁻⁵ | — | — | nothing |
+| 1 % | 1–2 % | — | ≤ 1 PTO | 1.8–2.4 s: one PTO is ≤ 8 % |
+| 2 % | 2–4 % | — | ≤ 1 PTO | 2.5–3.3 s: ≤ 6 % |
+| 5 % | 5–10 % | ≤ 1 PTO | ≤ 1 PTO | 3.8–4.4 s: ≤ 4 % |
+
+Under Cubic the ask's loss slope is the controller's: +339 ms at p50 and +2 606 at p99 per 1 % (§5). A PTO is a small
+share of that, and one loss event spans a second of row LOSSLINK's spread (n = 8–15 a cell), so no cell would show
+the gain. Under BBR the lossy ask on 20 and 50 Mbit stays at 190–349 ms (§1 *Under 1–5 % loss*), where one PTO is 25–75 % of it. The
+lever would matter there, but BBR is not the default.
+
+**The cost where nothing is lost.** One copy of the last packet is 0.25 % of a 570 kB frame (~395 packets) and 2.8 %
+of a 51 kB one. A fill pays it once, at its end. The duplicate needs no client change: QUIC receivers must accept
+duplicated stream data (RFC 9000 §2.2). The controller pays more:
+* When both copies arrive, both are acknowledged and nothing is lost.
+* When one copy is lost and the other arrives, the lost copy is declared lost and Cubic halves its window for data
+  that was delivered. To avoid that, the copy would be excluded from the loss signal, as quinn already excludes a
+  lost MTU probe (`mod.rs:1738`). FlEC (Michel et al., IEEE/ACM ToN 2023, arXiv 2208.07741) sends its tail repair
+  symbols only within the congestion window, "without additional link pressure".
+* quinn does not know where a frame ends. So it needs a patch to both quinn and quinn-proto: an API on the send side
+  that marks a frame's end, and a copy kept out of the congestion signal. The wire is unchanged, but it is a third
+  carried transport patch.
+
+**Cheaper neighbours.** One ack-eliciting PING after a frame's last packet (§9 item 7) turns a lost tail into a
+loss the time threshold catches. It costs about 40 bytes a frame and saves PTO − 9/8 RTT ≈ 4·rttvar + 25 ms − RTT/8:
+20–80 ms at the lab's links (derived). The duplicate saves the whole PTO at about 35× the bytes. Both fail when the
+burst that took the tail also takes what follows it. FEC over the tail, as FlEC does, recovers any one loss among k
+packets with one repair symbol. In FlEC's bulk evaluation that is "similar results as previous works", from simulated
+loss at 0.1–8 % and 10–200 ms. On a real Starlink link it took a lossy 50 kB upload's median from 272 to 247 ms, with
+430 of 20 150 uploads lossy. It needs a receiver that decodes, which no browser has.
+
+**Switched on only where loss is seen.** The session's `lost_packets` and `sent` are already read once a session
+(`server/src/record/path.rs`). A per-connection flag, raised once the running loss exceeds 0.5 % over the last
+1 000 packets, would keep the copy off clean sessions. That is zero cost there, and the first loss takes ~1/*p*
+packets to show, one or two frames. This meets the owner's third criterion (costs little elsewhere). It does not meet
+the first or the second.
+
+**The owner's criteria, applied.** (1) *Common on the target:* not shown. The target's loss mix is unknown and the
+field pilot is the only source (§1). By report, residual loss on LTE/5G is near 10⁻⁵, where tail events are 10⁻⁵ of
+asks. The Wi-Fi profiles' 0.5–1 % are picks (§1 *Link profiles close to a phone*). (2) *Works there:* on iid loss
+yes, leaving *p*² of tails. On the relay's bursts back to back, 29 %. On a radio's bursts in time, unknown and not
+measurable in this rig. (3) *Little cost elsewhere:* yes once gated by detection, but it is a patch carried in two
+crates. Fail on (1). On (2), fail on bursts under the relay's model; on a radio's timed bursts, unknown.
+
+**If reopened** (not queued): the 2- and 5 % iid cells and `lte-good`'s 2 % bursts of row LOSSLINK, through the
+product's client, depth-1 asks of the 10-bit volume, arms `bbr` and `bbr + tail copy`, Williams-ordered, ≥ 10 rounds,
+the server's startup line naming the arm every visit, and every other setting printed and equal.
+* *Predictions:* ask p95 at 5 % iid falls by 60–150 ms (one PTO, less what the copy's own loss leaves). p50 does not
+  move (±10 ms). Bytes on clean cells rise ≤ 0.3 % at 570 kB. On bursts, a back-to-back copy recovers ≤ 35 % of the
+  iid gain.
+* *Rule:* adopt behind detection only if p95 falls ≥ 50 ms at 5 % iid in ≥ 7 of 10 paired rounds, no clean cell's
+  fill or ask worsens by > 1 %, and the copy never triggers a congestion event (qlog). Otherwise drop for good. The
+  PING variant runs in the same campaign as a third arm, under the same rule.
+
+*Sources read 2026-10-11 (sha256 of each fetch):* RFC 9002 (`3a8a54ea…`) §4.7, §6.1, §6.2; RFC 8985 (`5b947b1d…`)
+§7.2; RFC 9000 (`f88aae47…`) §2.2; draft-dukkipati-tcpm-tcp-loss-probe-01 (`99b45d7b…`); Flach et al., "Reducing Web
+Latency: the Virtue of Gentle Aggression", SIGCOMM 2013 (the authors' PDF, `66900afa…`) §2–5; Michel et al., "FlEC",
+arXiv 2208.07741 (`8f274529…`) §III and §V; quiche `quic_constants.h` at `c8b10520` (`8b38b35a…`); quinn-proto 0.11.18
+with this tree's patch (`scripts/patch_crate.sh quinn-proto`). No QUIC tail-loss field study was found beyond these.
+
 ---
 
 ## 6 · One endpoint per core — parked
@@ -1714,7 +1820,7 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser); one run on 148 closes that, with
    the server's request restored from `archive/arms-2026-10-03`. An
    ACK-eliciting packet after an isolated frame would turn a lost tail into a gap, if quinn's packet
-   builder can place it *after* the tail. Not before items 1–3.
+   builder can place it *after* the tail. Not before items 1–3. Sending the tail twice: dropped for now (§5 *A frame's tail sent twice*).
 8. **Two upstream quinn items, drafted, not posted**:
    [`upstream-quinn-ack.md`](upstream-quinn-ack.md) (the patch is carried, off; whether it removes
    the session-open probe in a browser is unmeasured) and the probe-every-space companion in
