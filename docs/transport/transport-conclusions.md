@@ -767,6 +767,38 @@ rule.
 
   Rule: if P1 holds, every BBR-against-Cubic clean cell in this file is restated with the confound named. If P1 and
   P2 together leave ≤ 1 % of the r5000 cost, option 3 is proposed as a quinn patch. Otherwise option 3 is dropped.
+
+  *Measured (row CCATTRIB, 2026-10-11; [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md)
+  §Row CCATTRIB).* The 10-bit volume's first 8 frames as the product's HTJ2K, 4 filled then 4 asked, headless
+  Chromium in a container; the arms differ in controller and initial window alone (each row carries the server's
+  `transport=` line). 12 Williams-ordered rounds, 384 visits, 106 `VOID`, 3 072/3 072 frames exact. Fill ÷
+  `cubic-restart`'s, strict | round-paired:
+
+  | cell | `cubic-restart` 240 kB | `bbr` | `bbr` 12 kB |
+  | --- | --- | --- | --- |
+  | r5000 1× | 0.991 \| 0.992 | 1.029 \| 1.030 | 1.033 \| 1.033 |
+  | r5000 4× | 0.999 \| 0.994 | 1.015 \| 1.015 | 1.025 \| 1.029 |
+  | r20000 1× | 0.906 \| 0.903 | 0.923 \| 0.909 | 1.036 \| 1.016 |
+  | r20000 4× | 0.906 \| 0.912 | 0.954 \| 0.929 | 1.164 \| 1.075 |
+  | r50000 1× | 0.719 \| 0.721 | 0.871 \| 0.862 | 0.937 \| 0.937 |
+  | r50000 4× | 0.803 \| 0.803 | 0.846 \| 0.871 | 0.996 \| 0.995 |
+  | r50000 ±20 ms 1× | 0.676 \| 0.681 | 0.947 \| 1.009 | 1.757 \| 1.721 |
+  | r50000 ±20 ms 4× | 0.707 \| 0.703 | 0.986 \| 1.058 | 1.445 \| 1.443 |
+
+  Strict n = 3–12 a cell, round-paired 12. The trace's terms were fixed before the data (`ccattrib.py`): the
+  delivered rate is the most the visit delivered in any 100 ms, "needed" is that rate × the row's srtt.
+  * P1 **fails, on one cell**: `cubic-restart` at 240 kB is ≤ 0.95 on all four (0.72–0.91), and BBR at 12 kB is
+    ≥ 0.97 on r20000 at both throttles and r50000 4×, but 0.937 on r50000 1× in both readings.
+  * P2 **fails on its second half**: quinn's BBR enters ProbeRtt at its first batch of acknowledgements in 96/96
+    visits (its unit test in `cc_trace.rs` shows the same). Its window is ≤ 0.8 × needed for ≥ 150 ms in only 61/96
+    visits, with a median run of 244 ms (4–534).
+  * P3 **holds**: on r50000 ±20 ms, BBR's window is ≤ needed for a median 0.68 of the fill at 1× and at 4×
+    (0.54–1.00).
+
+  By the rule, option 3 is **dropped** in both readings, and the clean cells need no restatement, because P1
+  failed. Outside the rule: what is left of the r5000 cost once the windows are swapped (+3.3 % at 1×, +2.5–2.9 % at
+  4×) is about the share of the fill that ProbeRtt's window leaves idle (3.6–3.7 %). And on every clean 20 and
+  50 Mbit cell, Cubic with BBR's 240 kB window fills faster than BBR. The review row weighs both.
 * **R2 LOSSCLASS — whether loss can be classed here.** The relay with a known cause:
   * overflow only (20- and 500-packet FIFOs);
   * iid 1/2/5 % and Gilbert–Elliott bursts, each on a 20- and a 500-packet queue;

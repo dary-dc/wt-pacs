@@ -218,6 +218,29 @@ turned both BBR variants to 0 of 8 exact (`l1` on 50 Mbit), and a variant starte
 `bbr` stopped the run. Plain Cubic is not a variant: `cubic-restart` has been the default since 2026-10-02,
 and row CC1 measured the two side by side ([`docs/transport/transport-conclusions.md`](../../../../docs/transport/transport-conclusions.md) §1).
 
+**Row CCATTRIB** runs R1 of [`docs/transport/transport-conclusions.md`](../../../../docs/transport/transport-conclusions.md)
+§1 *The way out, surveyed*: BBR's clean cost with the initial windows swapped. The 10-bit volume's first 8 frames
+as the product's HTJ2K (`ingest/coded-frames/ingest.py BUILD lab/av1/data/dbt10_ea1141 OUT/htj2k --codec htj2k
+--frames 8`, linked as `NNN.htj2k`). `variants.json` names four variants: `htj2k` (`cubic-restart`, quinn's 12 000 B),
+`cr240k` (`"initialWindow": 240000`), `bbr` (`"congestion": "bbr"`, quinn's 240 000 B) and `bbr12k` (both). A
+variant's `initialWindow` goes to `--initial-window-bytes`, and a visit stops unless the server's `transport=` line
+names that window. `--cc-trace DIR` sets `WTPACS_CC_TRACE` for each visit's server
+(`server/src/transport/cc_trace.rs`), which writes the controller's window, pacing rate, in-flight bytes, bytes
+delivered and lost, srtt and BBR's mode once per batch of acknowledgements. Each round runs two invocations, in an
+order that alternates from round to round:
+
+```bash
+run.mjs --frames lab/.av1-work/ccattrib --fill 4 --asks-after 4 --throttles 1,4 --rounds 1 --first-round $r \
+  --out rows-ccattrib.jsonl --cc-trace lab/.av1-work/ccattrib/traces --links r5000,r20000,r50000 --impairs clean
+# and the same with --links r50000 --impairs j20
+python3 ccattrib.py rows-ccattrib.jsonl lab/.av1-work/ccattrib/dbt10_ea1141
+```
+
+for rounds 0–11. `--mutate truth` and `--mutate sample` each turned all four variants to 0 of 8 exact. A server
+started without the window flag stopped the run at the first `bbr12k` visit. Three mutations of `cc_trace.rs` (the
+wrong field read as the mode, a doubled window, a window off by one byte) each failed its test. The reading is in
+`transport-conclusions.md` §1, R1.
+
 **Row ASKDEADLINE** times the downloader's own deadlines under loss. Row LOSSLINK's HTJ2K frames
 (`VARIANTS=none make_frames.py`), `downloader_variant.sh cf4db15 before` for the downloader before the row, and
 in `variants.json` a third variant `stall15` (`"codec": "htj2k", "survival": {"stallMs": 15000}`); every variant with

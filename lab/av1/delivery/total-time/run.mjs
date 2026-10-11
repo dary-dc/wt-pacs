@@ -300,7 +300,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
 
   const late = relayLog.match(/self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)/g)?.pop();
   const s2c = relayLog.match(/server->client sent (\d+) lost (\d+)/)?.slice(1).map(Number);
-  const row = { round, engine, set: set.name, variant: variant, congestion: ran, initialWindow: window, transport: /transport=(.*)/.exec(serverOut)[1], ccTrace, link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
+  const row = { round, engine, set: set.name, variant: variant, congestion: ran, initialWindow: window, transport: /transport=(.*)/.exec(serverOut)[1],
+    ...(ccTrace && { ccTrace: path.relative(ROOT, ccTrace) }), link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length) return { ...row, frames: 0, exact: 0, failure: r?.failures[0]?.reason };
   const t = (k, f) => f(...r.frames.map((x) => x[k])) - r.issuedAt;
