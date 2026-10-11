@@ -212,7 +212,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 134 | **EMSDKMEASURE** — row 125's P-EMSDK and P-COPY run by a session given only their protocols and rules | claimed 2026-10-11 (night, 040d89) |
 | 135 | **RECVCOST** — row 124's first measurement (receive CPU per byte per client stack, desktop, in a container) run by a session given only its protocol and rule | claimed 2026-10-11 (night, c24705); *provisional, rounds 1–3 of 7:* loopback CPU per MB (median), Chromium 141 6.3 (32 KB frames) and 10.0 (250 KB, 6.8–13.0), wtransport and web-transport-quinn with GRO 2.0–2.2, without 3.0–3.1; at 20 and 50 Mbit clean every arm fills within 0.5 % of the others; under 2 % loss Chromium 95 s against the quinn arms' 85–90 s; every frame exact |
 | 136 | **INGESTPROFILE** — row 126's P-PROFILE run by a session given only its protocol and rule: where today's ingest CPU goes, per codec | claimed 2026-10-11 (night, 5b3742) |
-| 137 | **NETPROBE** — which data hosts the cloud environment reaches today, and what refuses the rest: rows 2 and 35's refusals are a week old | ready |
+| 137 | **NETPROBE** — which data hosts the cloud environment reaches today, and what refuses the rest: rows 2 and 35's refusals are a week old | claimed 2026-10-11 (night, 3b985b) |
 | 138 | **CROSSRERUN** — row 106's protocol re-run as row 121 proposes: whole volumes, Firefox after row 115's dial fix, both readings where the host voids | ready |
 | 139 | **IRTTMEASURE** — row 130's protocol run by a session given only its protocol and rule: the server's initial RTT at 100 ms against 333 | ready |
 | 140 | **CCREVIEW** — row 132's numbers against row 119's predictions: conclusive or not, and what it leaves for the default | ready |
