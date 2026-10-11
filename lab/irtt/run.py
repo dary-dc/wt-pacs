@@ -151,6 +151,7 @@ class Rig:
                 self.servers[(cert, arm)] = self.start_server(f"{cert}.{arm}", self.certs[cert], extra)
         self.neighbour = self.start_server("neighbour", self.certs["dev"], [], series=f"{self.T}/big.sbnd")
         self.chrome = None
+        self.dials = 0
         self.settings = self.describe()
         self.chromium()
 
@@ -293,8 +294,14 @@ class Rig:
             c = self.chromium()
             c.stdin.write(page + "\n")
             c.stdin.flush()
-            self.got.wait(cap_ms / 1000 + 30)
-            c.stdout.readline()
+            self.dials += 1
+            if self.got.wait(cap_ms / 1000 + 5) and self.dials % 500:
+                c.stdout.readline()
+            else:
+                # A long-lived browser starts missing results; a fresh one does not.
+                c.kill()
+                c.wait()
+                self.chrome = None
         else:
             profile = tempfile.mkdtemp(dir=self.T)
             ff = subprocess.Popen(["taskset", "-c", self.a.client_cores, os.environ["FIREFOX_PATH"], "--headless", "--no-remote",
