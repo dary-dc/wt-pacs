@@ -25,6 +25,9 @@ WebTransport session (§Resumption and 0-RTT). A native client chooses all three
 
 ## 1. The answer in plain words
 
+*Each stack explained lever by lever, with its throughput ceiling from 1 Mbit/s to 1 Gbit/s and 10 to 300 ms and a
+native client on raw QUIC: [`quic-compared.md`](quic-compared.md) (row 156).*
+
 * **The client's library matters through throughput and latency, the product's purpose.** It cannot raise either above
   what the server's controller and the link allow; it can only lose them — through its receive cost, its flow-control
   windows, when it acknowledges, its handshake and resumption, and migration. A default is not a limit when the
