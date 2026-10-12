@@ -1,6 +1,6 @@
 # ADR: proving every shown frame exact in production
 
-**Status:** Built, §2 steps 1–3, on by default wherever the series' metadata carries digests · 2026-10-09,
+**Status:** Built, §2 steps 1–3 (their cost by path: §9), on by default wherever the series' metadata carries digests · 2026-10-09,
 §Built (queue row 88, EXACT). Reporting (§5) stays proposed; the open questions, the owner's calls among them, end §6
 and §Built. Proposed 2026-10-07 (queue row 73, EXACTPROD, of [`../av1/queue.md`](../av1/queue.md)); its bench is
 [`lab/av1/exact/in-production`](../../lab/av1/exact/in-production/README.md).
@@ -578,3 +578,39 @@ worker, before it is posted.
 `connect` is given the digests. Open: phones; Firefox's and WebKit's WebCodecs paths; reporting (§5); and whether a
 page shows a `false` frame (§2.3, the owner's).
 
+
+## 9 · What each check costs a frame, by path · 2026-10-12
+
+*Queue row 151 (CHECKCOST). Cost only: the checks stay on (the owner, 2026-10-11).* The product's `decoder.js`
+unchanged, one instance per arm, timed by its own `decodeEnd − decodeStart`: `off` (no digests), `on` (decode, then
+XXH3-64) and `fault` (`on` with row 145's `sample` fault on every frame, so each is checked, decoded again on the other
+path and checked again); and XXH3 alone (hash-wasm 4.12.0, as the decoder loads it) over the same frame's shared
+samples (*check*) and over a plain copy of them (*re-check*: what a cache read would hand back; no cache exists yet,
+so this is row 148's predicted re-check). The arms differ in the lever alone: same engine, build, worker and frame,
+interleaved per frame in a Williams order, a fresh browser a round. Headless Chromium 141.0.7390.37 and Firefox
+157.0.1, 4 cores, one decode at a time (nothing near saturation), 6 rounds, 4 frames × 2 passes a round; median of
+the rounds' medians, range over rounds; × is the share of the round's `off` decode. Every delivered `off` and `on`
+frame matched the SHA-256 written from the encoder's input (1 344/1 344), every rescued `fault` frame too (480; the 192 marked false are the cells with no second path), and every hash the ingest's digest (2 688/2 688);
+`--mutate` (one digit of every digest and checksum) failed every cell. The bench is
+[`lab/av1/exact/checkcost`](../../lab/av1/exact/checkcost/README.md).
+
+| frame | path | decode, ms | check (XXH3), ms | re-check of a copy, ms | second decode: `fault` − `on`, ms | outcome of the fault |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| MR 512², 11 bits in 16, 0.52 MB | HTJ2K, Chromium / Firefox | 3.0 / 3.6 | 0.15 ×0.05 / 0.16 ×0.04 | 0.10 / 0.11 | 3.1 / 3.0 | fresh object, exact |
+| | AV1 WebCodecs, Chromium | 14.5 | 0.14 ×0.009 | 0.10 | 26 ×1.8 | dav1d-WASM, exact |
+| | AV1 dav1d-WASM, Chromium / Firefox | 28 / 28 | 0.15 ×0.005 / 0.15 ×0.005 | 0.10 / 0.12 | 13.5 / 0.9 | WebCodecs, exact / none: marked false |
+| projections 1914×2572, 14-bit, 9.85 MB | HTJ2K, Chromium / Firefox | 55 / 49 | 2.8 ×0.05 / 2.7 ×0.06 | 2.3 / 2.3 | 56 / 56 | fresh object, exact |
+| | AV1 dav1d-WASM (a 12-bit top: no WebCodecs), Chromium / Firefox | 534 / 535 | 2.9 ×0.005 / 3.0 ×0.006 | 2.4 / 2.4 | ≈ 0 (within ±30) | none: marked false |
+| mammogram 3328×4096, 12-bit, 27.3 MB | HTJ2K, Chromium / Firefox | 69 / 72 | 8.1 ×0.12 / 7.8 ×0.11 | 6.3 / 6.4 | 87 / 78 | fresh object, exact |
+| | AV1 WebCodecs, Chromium | 383 | 8.2 ×0.02 | 6.3 | 774 ×2.0 | dav1d-WASM, exact |
+| | AV1 dav1d-WASM, Chromium / Firefox | 804 / 776 | 8.1 ×0.010 / 8.1 ×0.011 | 6.4 / 6.5 | 371 / ≈ 0 (within ±85) | WebCodecs, exact / none: marked false |
+
+**The check costs 0.15 ms on a 512² frame, 2.8 ms at 1914×2572 and 8 ms at 3328×4096, in both engines** — about
+3.3 GB/s, a function of bytes alone, so the share follows the decoder: 4–12 % of an HTJ2K decode, 0.5–2 % of an AV1
+one. `on − off` through the worker agrees within its spread (×1.00–1.16, its paired ranges covering the hash). **The
+re-check of a cached frame costs 0.75–0.8 of the check** (0.10, 2.3–2.4 and 6.3–6.5 ms): the same hash over
+unshared memory. **A failed check costs what its second path costs**: HTJ2K's fresh object a second decode (×2.1–2.3
+in all), WebCodecs' fallback a dav1d-WASM decode (×2.8–3.0), dav1d's fallback a WebCodecs decode where the payload
+allows it (×1.5); where no second path exists — a top over 10 bits, or Firefox, whose WebCodecs refuses these
+payloads — the refusal is immediate, the cost is the hash, and the frame stays marked false. These are a
+container's times on one host (Xeon, 4 cores), 1×; phones are not measured.
