@@ -79,7 +79,7 @@ for st, path in pr34:
         who = '; '.join('`%s` %s' % (x[:8], subj(x)) for x in key) or 'the resolution (§The conflicts)'
         lines.append('  * %s: %s' % (', '.join(at), who))
     details.append('\n'.join(lines))
-for r in rows:
-    print('| `%s` | %s | %s |' % r)
+for path, where, how in rows:
+    print('| `%s` | %s | %s |' % (path if exists(tip, path) else MAIN[:7] + ':' + path, where, how))
 print()
 print('\n'.join(details))

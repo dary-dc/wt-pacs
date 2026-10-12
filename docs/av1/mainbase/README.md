@@ -2,18 +2,21 @@
 
 The night routine of 2026-10-12 built and verified the rebuild of `claude/av1-unified` on `main` (PR #34 kept) and
 the re-authoring of both AV1 branches, then could not publish it: the force-push was refused by the session's
-permission policy. The old tips were pushed as `claude/av1-unified-pre-main` (`581c507`) and `claude/av1-pre-main`
-(`5cce6c0`). Everything needed to publish is here, and it is deterministic: run on those two tips, `replay.py`
-gives `7cb02d3f` and `cf04350b` and the same 1 557-line map, checked twice.
+permission policy. The old tips were pushed as `claude/av1-unified-pre-main` and `claude/av1-pre-main`.
+Everything needed to publish is here, and it is deterministic: run on those two tips, `replay.py`
+gives `581c5079` and `5cce6c0b` and the same 989-line map. *Corrected 2026-10-12, on publishing:* this line first said
+`7cb02d3f`, `cf04350b` and 1 557 commits; on the full history neither reproduces — `git rev-list` counts 989 commits
+off `main` on those tips, 992 on the tips that were published (the claim's commit and two queue commits). Why the
+first run differed was not found; a shallow clone is a guess, untested.
 
 ## What was verified on the result (2026-10-12)
 
-* 1 557 commits re-authored to `dary-dc <crespoydelgado@gmail.com>`, the 423 that descend from `main`'s `8407095`
+* 992 commits re-authored (as published; see above) to `dary-dc <crespoydelgado@gmail.com>`, the 423 that descend from `main`'s `8407095`
   replayed onto `c7230a9`; 55 distinct conflicts over the history, all resolved (`table.py` says how: the tip's 24 by
   hand in `resolution/`, 25 by the branch's renames, 3 carried from the tip, 3 in `manual/`).
-* 92 287 hash tokens carried; `rehash_check.py` prints nothing on both new tips and catches an old hash planted in a
+* 92 108 hash tokens carried (as published); `rehash_check.py` prints nothing on both new tips and catches an old hash planted in a
   tree and in a message. `docs/cloud-queue.md` is left as it is (it names two replaced commits).
-* (a) `verify_a.py`: outside PR #34's 48 files, 20 paths differ from the old tip, each only by hash replacements.
+* (a) `verify_a.py`: outside PR #34's 48 files, 16 paths differ (as published) from the old tip, each only by hash replacements.
 * (c) `scripts/gate.sh` green on the final tree (278 s; the decoder builds made with docker and checked against their
   manifest, so the viewer's page check ran: 3/3 exact in Chromium; Firefox and the numpy checks skipped by name).
 * The new tip is a fast-forward of `main`. `MAINBASE.md.draft` is the report, (b) and (d) in it.
@@ -22,7 +25,7 @@ gives `7cb02d3f` and `cf04350b` and the same 1 557-line map, checked twice.
 
 ```bash
 git fetch origin
-U=$(git rev-parse origin/claude/av1-unified); A=$(git rev-parse origin/claude/av1)   # U must still be 581c507
+U=$(git rev-parse origin/claude/av1-unified); A=$(git rev-parse origin/claude/av1)   # U must still be claude/av1-unified-pre-main's tip
 python3 docs/av1/mainbase/replay.py $U $A /tmp/mainbase        # map.tsv, refs.tsv, late.tsv (empty), tips
 git worktree add /tmp/newu $(awk '/^unified/{print $2}' /tmp/mainbase/tips) && cd /tmp/newu
 git switch -c mainbase
@@ -39,5 +42,5 @@ git push --force-with-lease=claude/av1-unified:$U --force-with-lease=claude/av1:
 
 Then, on the new `claude/av1`: `/tmp/mainbase/map.tsv` committed as `docs/av1/rehash-map.tsv` with
 `rehash_check.py` beside it, row 150 done with the new hashes, rows 151, 155 and 156 `ready`. If
-`claude/av1-unified` has moved past `581c507`, `replay.py` stops at its tip assertion or on a conflict
+`claude/av1-unified` has moved past `claude/av1-unified-pre-main`'s tip, `replay.py` stops at its tip assertion or on a conflict
 `table.py` has not met: resolve that one in `resolution/` or `manual/` and run again.
