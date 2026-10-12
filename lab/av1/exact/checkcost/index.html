@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>checkcost — what the exactness checks cost a frame</title>
+<script type="module">
+  // One round: each set × decoder path through the product's decoder.js, check off, on, and on with one sample flipped
+  // (the second decode); then XXH3 alone over the shared samples and over a copy. Rows go to `post`.
+  // lab/av1/exact/checkcost/README.md
+  import { order } from "/lab/order.mjs";
+  import { built } from "/client/decode/wasm-glue.js";
+
+  const q = new URLSearchParams(location.search);
+  const round = Number(q.get("round"));
+  const passes = Number(q.get("passes") ?? 3);
+  const mutate = q.get("mutate") === "1";
+  const ARMS = ["off", "on", "fault"];
+  const rows = [];
+  const post = (r) => fetch(q.get("post"), { method: "POST", body: JSON.stringify(r) });
+  const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const wrong = (h) => (mutate ? h.replace(/^./, (c) => (c === "0" ? "1" : "0")) : h);
+
+  function decoder(cfg, digests) {
+    const w = new Worker("/lab/av1/exact/checkcost/decode/decoder.js", { type: "module" });
+    const ch = new MessageChannel();
+    let waiting = null;
+    ch.port2.onmessage = (e) => !e.data.preview && waiting?.(e.data);
+    w.onmessage = (e) => e.data.kind === "failed" && waiting?.({ failed: e.data.reason });
+    const ready = new Promise((ok, no) => {
+      const was = w.onmessage;
+      w.onmessage = (e) => {
+        if (e.data.kind === "ready") { w.onmessage = was; ok(); }
+        else if (e.data.kind === "init-failed") no(new Error(e.data.reason));
+      };
+    });
+    w.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg, groupLength: 1, digests }, [ch.port1]);
+    const decode = (index, bytes, extra) => new Promise((ok) => {
+      waiting = ok;
+      w.postMessage({ kind: "decode", index, gen: 0, key: true, bytes: bytes.slice(), stamps: {}, ...extra });
+    });
+    return { ready, decode, close: () => w.terminate() };
+  }
+
+  const hasher = new Worker("/lab/av1/exact/checkcost/hasher.js", { type: "module" });
+  const hashed = () => new Promise((ok) => (hasher.onmessage = (e) => ok(e.data)));
+  await hashed();
+
+  try {
+    if (!globalThis.crossOriginIsolated) throw new Error("not cross-origin isolated");
+    const sets = q.get("sets").split(",");
+    const paths = q.get("paths").split(",");
+    const builds = { htj2k: await built("openjph"), av1: { codec: "av1", ...(await built("dav1d")) } };
+    for (const set of order(sets, round)) {
+      const meta = await (await fetch(`/${q.get("dir")}/${set}/variants.json`)).json();
+      const n = meta.frames;
+      const truth = meta.truth.map(wrong);
+      for (const path of order(paths, round)) {
+        const codec = path === "htj2k" ? "htj2k" : "av1";
+        const digests = meta.variants[codec === "htj2k" ? "chk" : "av1chk"].digests.map(wrong);
+        const extra = path === "av1-dav1d" ? { first: "av1-dav1d" } : {};
+        const coded = await Promise.all([...Array(n).keys()].map(async (i) =>
+          new Uint8Array(await (await fetch(`/${q.get("dir")}/${set}/${String(i).padStart(3, "0")}.${codec}`)).arrayBuffer())));
+        const arms = { off: decoder(builds[codec], null), on: decoder(builds[codec], digests), fault: decoder(builds[codec], digests) };
+        await Promise.all(Object.values(arms).map((a) => a.ready));
+        // Each arm's first frame compiles and warms its decoders, the second path's included: not timed.
+        const warm = {};
+        for (const arm of ARMS) warm[arm] = await arms[arm].decode(0, coded[0], { ...extra, fault: arm === "fault" });
+        // A payload this path never takes (a top over 10 bits has no WebCodecs decoder) is not this path's to time.
+        if (warm.off.path !== path) {
+          rows.push({ round, set, path, arm: "skipped", took: warm.off.path ?? warm.off.failed });
+          Object.values(arms).forEach((a) => a.close());
+          continue;
+        }
+        let k = 0;
+        for (let p = 0; p < passes; p++) {
+          for (let i = 0; i < n; i++) {
+            for (const arm of order(ARMS, round * passes * n + k++)) {
+              const f = await arms[arm].decode(i, coded[i], { ...extra, fault: arm === "fault" });
+              const row = { round, set, path, arm, frame: i, pass: p };
+              if (f.failed) { rows.push({ ...row, failed: f.failed }); continue; }
+              const copy = new Uint8Array(f.pixels.byteLength);
+              copy.set(new Uint8Array(f.pixels));
+              const sha = hex(await crypto.subtle.digest("SHA-256", copy));
+              rows.push({ ...row, ms: f.stamps.decodeEnd - f.stamps.decodeStart, took: f.path, exact: f.exact,
+                          mismatchOn: f.mismatchOn ?? null, reason: f.reason ?? null, truth: sha === truth[i],
+                          width: f.width, height: f.height, bits: f.bits, bytes: f.pixels.byteLength });
+              if (arm === "off") {
+                const pending = hashed();
+                hasher.postMessage({ sab: f.pixels, copy: copy.buffer, want: digests[i], passes }, [copy.buffer]);
+                const h = await pending;
+                rows.push({ ...row, arm: "xxh3", check: h.ms.check, recheck: h.ms.recheck, ok: h.ok, of: h.of });
+              }
+            }
+          }
+        }
+        Object.values(arms).forEach((a) => a.close());
+      }
+    }
+    await post({ ok: true, rows, ua: navigator.userAgent, cores: navigator.hardwareConcurrency });
+  } catch (e) {
+    await post({ ok: false, error: String(e?.stack || e), rows });
+  }
+</script>
