@@ -99,6 +99,6 @@ parser's author.
 
 * [`design.md`](design.md) — each part of this pipeline against its alternatives, with the prior art.
 * [`link.md`](link.md) — why the link is TCP, and what QUIC would have to show.
-* [`contract.md`](contract.md) — the parser's directory output as the ingest reads it (written with the phase 1 ingest).
+* contract.md, not yet written — the parser's directory output as the ingest reads it (written with the phase 1 ingest).
 * [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site — today's Python ingest and the plan for the
   compiled one.
