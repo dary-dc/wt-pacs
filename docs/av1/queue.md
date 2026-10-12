@@ -234,6 +234,8 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 154 | **LINKTCP** — the hospital→PACS link is TCP (decided): the reasons written with pinned sources, what QUIC would gain or cost there in numbers from research, the resumable-upload options over HTTPS, and what would have to be true for QUIC to win; theory only | done `ee9522df` on `claude/av1-unified` — **TCP's reasons hold on every axis read; QUIC's wins belong to other links**: QUIC in user space costs ~2–3× TCP's CPU per byte (3.5× → ~2× at Google; ~3× against TSO on 10G; 2.5× on a receiver, 744 K datagrams against 58 K a GB), noise at a few GB a day (100 GB ≈ 130–400 core-s) but on the server's receive side; 4.4 % of clients could not use QUIC in 2016, "commonly … corporate networks", and Palo Alto, Zscaler, Cisco, SonicWall and Defender advise blocking it — no hospital rate published, so a QUIC link needs the TCP path anyway (RFC 9308 §2); Linux's 4 MiB `tcp_wmem[2]` caps an upload at ~671/224 Mbit/s at 50/150 ms, the receiver's 6 MiB before 6.16 at ~503/168 — fine to 100 Mbit/s, a few sysctls for 1 Gbit/s; 0-RTT unusable for uploads (RFC 8470), migration worth nothing wired, one RTT a kept connection; no published comparison measured an upload, and those nearest the link (Kempf 40 Mbit/s 40 ms, Shreedhar > 20 MB, Yu–Benson ≥ 1 MB) show TCP equal or ahead; S3 multipart, tus, the IETF draft -13 (no integrity) and rsync compared; QUIC returns only if UDP/443 is open at the sites and quinn's receive cost does not cap the server, plus loss, multiplexing or short connections; five decisions listed — [`ingest/link.md`](../ingest/link.md) on `claude/av1-unified` |
 | 155 | **INGESTRS1** — the Rust ingest, phase 1: a Python mirror of the owner's C parser's directory output for frames, and a Rust ingest that reads it, hashes, codes with the pinned OpenJPH, checks, digests and writes the `.sbnd` byte-identical to the Python ingest's | done `800651d3` on `claude/av1-unified-mainbase` (`a7502b67`, `883c9934`, `7ac80584`) — **the Rust ingest writes `.sbnd` files byte-identical to the Python ingest's on all 88 lab sets at `--jobs` 1, 2 and 4**: `ingest/from-parser` reads the parser's directory output (`mirror.py` the stand-in: one multi-frame instance a set, UIDs made from the name, date `PbPb`), XXH3-64 of the samples as read, HTJ2K in-process through OpenJPH 0.31.0 with `ojph_compress`'s calls (`encode.cpp`), decode-back through `decode.cpp`, `common/series-bundle`; 528 bundles, 2 447 frames, 8–16 bits, 8 colour, 3 signed, 2.42 GB a side, none refused by either (no lab set is refused by HTJ2K; refusal checked by injected faults); the metadata compared is `from_dicom.py`'s frame-attribute keys, the rest phase 2's; 11 mutants, each caught (a perturbed encoder sample refused by the Rust check; digest width, signed SIZ, metadata, frame order in bundle and mirror, both new `ingest.py` checks, two group-file reader cases); the check removed alone is no fault, removed with the perturbed encoder the comparison catches it; `ingest.py` and `from_dicom` check by XXH3-64 now — SHA-256 left: `exact()` (the lab's check against the fetch's checksums, no longer called by the ingest), the copied `NNN.sha256`, the summary line's 12-hex fingerprint, `make_golden.py`'s `.sha256` (the client tests' truth), the fetch's pins; gate green with a step keeping the two equal (`same_test.py`, six synthetic layouts); *not done:* AV1, several instances a series, the from-DICOM cases (phase 2) — `docs/ingest/contract.md` on that branch, `FIXTURES.md` §A compiled ingest |
 | 156 | **QUICCOMPARE** — the QUIC implementations compared one by one, for learning: what each is, its design, how it handles every lever, its throughput ceiling as a function of bandwidth and RTT at defaults and at its best, and what it would mean as our client and as our server; theory and writing, from rows 124 and 152's sources | done `b9b23abc`, `dcb8c5be` on `claude/av1-unified-mainbase` — **every stack obeys one ceiling, min(link, window ÷ RTT, the sender's controller under loss, CPU); at defaults three bind at ordinary rates, at their best only neqo's constant 10 MiB binds in the grid, and under loss the controller binds first**: theory and writing, eleven stacks deep and four brief, every claim labelled source, derived or measured; window ÷ RTT at 80 ms: Google QUICHE's bare 16 KB 1.6 Mbit/s, mvfst's 65 KiB 6.55, msquic's 64 KiB start 6.55 then 1 678, quinn's 1.25 MB 125 (33 at 300 ms), neqo 280 at 300 ms at its best; CUBIC's own response function (RFC 9438 §5) gives 1.74 Mbit/s at 1 % loss and 80 ms for every stack; CPU binds nowhere in the grid on server CPUs (quinn 11.8–12.4, msquic 14.8–16.4 Gbit/s one connection), phones unknown; on raw QUIC every stack but Cronet can be our client once the server takes our ALPN, so quinn's lead narrows to the shared crate, the measured 2.1 ms/MB receive and ACK_FREQUENCY (also msquic, picoquic); as a server only quinn has a released WebTransport server and a public controller hook (Google QUICHE and picoquic unreleased); `quic_grid.py` checked against RFC 9438's tables (5 mutations caught); gate `--quick --no-browser` green, the page check not run here (decoder build refused by Docker Hub, 429) — [`../native/quic-compared.md`](../native/quic-compared.md) on `claude/av1-unified-mainbase` |
+| 157 | **QUICREWRITE** — row 156's comparison rewritten with each stack at its best configuration as the reading, defaults only as what must be changed, every number traceable to its exact source or derivation; theory and writing | ready |
+| 158 | **QUICLATENCY** — what each QUIC stack, at its best, does to latency: time to the first frame, an ask on a clean and a lossy link, head-of-line blocking, receive CPU per frame, migration; theory, formulas over RTT and loss | after 157 |
 
 ## Briefs
 
@@ -3271,6 +3273,55 @@ used, say so. Reuse rows 124 and 152's pinned sources (`docs/native/quic.md` §2
 gap, pinned the same way.
 
 **Deliverable:** `docs/native/quic-compared.md`, linked from `docs/native/quic.md` §1. **Branch:** `claude/av1-unified-mainbase`.
+
+### 157 QUICREWRITE
+
+**The owner, 2026-10-12, on row 156:** a reading led by defaults made one stack look like the winner for a reason the
+owner had ruled out (defaults are settings, not limits), and a theory round carried many numbers without visible
+backing. One question: **how do the stacks compare when each is at its best?**
+
+* **Rewrite [`../native/quic-compared.md`](../native/quic-compared.md) in place** (a retracted reading is corrected
+  in place, as CLAUDE.md §Docs says: say what changed and why, once, at the top).
+* **Each stack at its best is the reading.** For every lever (windows, ACK policy and ACK frequency, socket buffer and
+  batched I/O, pacing, controller and its hook, migration, 0-RTT, multipath), state the best setting the stack
+  allows or a small patch would allow, and the ceiling that results. Where a term stops separating the stacks once
+  tuned, say so plainly, and say what does separate them. Defaults shrink to one table: "what you would change, and
+  how" (setting, patch or fork).
+* **Every number traceable.** Each number carries its own source at the point of use: the file and line at the pinned
+  tag (for code), or the paper or RFC and its table, figure or section; or its derivation written out (the formula
+  and its inputs, each sourced). A section-level "(S)" is not enough. A number not needed to understand a point is
+  cut. Measured results (this repository) stay apart and named with their row.
+* **Keep:** theory only; the native client on raw QUIC with our own ALPN, WebTransport only for the server's browser
+  side; no claim restricted to the assumed 5–50 Mbit/s, 30–150 ms band; the 1 Mbit/s–1 Gbit/s × 10–300 ms grid where
+  a grid helps. Reuse rows 124, 152 and 156's pins; fetch new sources only to pin a number, pinned the same way.
+* **Not in this row:** latency (row 158).
+
+**Deliverable:** the rewritten `docs/native/quic-compared.md`, `quic.md` §1's pointer still true. **Branch:**
+`claude/av1-unified-mainbase`.
+
+### 158 QUICLATENCY
+
+**The owner, 2026-10-12:** row 156 has no latency investigation, and latency is half the product's purpose. One
+question: **what does each QUIC stack, at its best, do to the latency of a frame?** Theory only.
+
+* **The terms, each as a formula over RTT and loss, and each with its mechanism in plain words:**
+  * time to the first frame: handshake round trips, 0-RTT resumption (and what it needs on our raw-QUIC ALPN), the
+    initial window and initial RTT, pacing of the first flight;
+  * an ask's latency (one frame requested during or outside a fill) on a clean link and under loss: how fast a lost
+    packet is detected and repaired — ACK policy, `max_ack_delay` and ACK frequency, the probe timeout
+    (`PTO = srtt + max(4·rttvar, 1 ms) + max_ack_delay`), packet- and time-threshold loss detection, tail-loss probes;
+  * head-of-line blocking between streams, and within one stream (today's fill shares one stream, `docs/WIRE.md`);
+  * receive CPU per frame on the client, and when it reaches the latency at all;
+  * migration: how long a network change costs, probe-then-switch against rebind.
+* **Per stack, at its best** (row 157's settings): which of these each controls, what it allows, and the resulting
+  number on the grid (1 Mbit/s–1 Gbit/s × 10–300 ms × loss 0–1e-2). Where the server's stack sets the term (the sender's
+  loss recovery and pacing), say so: the client's stack cannot change it.
+* **Rules:** row 157's — every number at its point of use with its exact source or its derivation; measured results
+  (this repository's, e.g. row 135's receive CPU) apart and named; no claim restricted to the assumed band; the
+  native client on raw QUIC.
+
+**Deliverable:** a §Latency in `docs/native/quic-compared.md` (after row 157's rewrite), summarised in its §1.
+**Branch:** `claude/av1-unified-mainbase`.
 
 ## Blocked
 
