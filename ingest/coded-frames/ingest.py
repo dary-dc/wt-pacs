@@ -92,9 +92,19 @@ def ivf_units(path):
 
 
 def exact(s, i, samples):
-    """samples: (h, w, ch) in coded values; back to stored order and compared with the truth."""
+    """The lab's check: samples (h, w, ch) in coded values, back to stored order, against the fetch's SHA-256."""
     stored = (samples.astype(np.int32) - s.offset).astype(s.dtype)
     return hashlib.sha256(np.ascontiguousarray(stored).tobytes()).hexdigest() == s.truth[i]
+
+
+def raw_digest(px):
+    """The ingest's raw-frame check: XXH3-64 of a frame's samples as read (docs/ingest/README.md §2)."""
+    return xxhash.xxh3_64_intdigest(np.ascontiguousarray(px).tobytes())
+
+
+def matches(s, raw, samples):
+    """samples: (h, w, ch) in coded values; back to stored order and checked against the raw frame's digest."""
+    return raw_digest((samples.astype(np.int32) - s.offset).astype(s.dtype)) == raw
 
 
 @functools.cache
@@ -217,7 +227,7 @@ def av1(build, s, work, a, b, representation, split, preset, grey8):
             if shape.bits != streams[j][0]:
                 raise Refused(f"frame {i}: stream {j} decoded at {shape.bits} bits, coded at {streams[j][0]}")
             pictures.append(px)
-        if not exact(s, i, merge(header, pictures)[:s.h, :s.w]):
+        if not matches(s, raw_digest(s.frame(i)), merge(header, pictures)[:s.h, :s.w]):
             raise Refused(f"frame {i} does not decode back to its source")
         frame = struct.pack("<I", len(units[0])) + units[0] + units[1] if len(units) == 2 else units[0]
         out.append((i, payload(header, [frame])))
@@ -231,18 +241,18 @@ def htj2k(build, s, work, a, b, *_):
     src, cs = work / ("in.pgm" if s.ch == 1 else "in.ppm"), work / "out.j2c"
     out = []
     for i in range(a, b):
-        maxval = (1 << s.stored) - 1
+        maxval, px = (1 << s.stored) - 1, s.frame(i)
         with open(src, "wb") as fh:
             fh.write(b"%s\n%d %d\n%d\n" % (b"P5" if s.ch == 1 else b"P6", s.w, s.h, maxval))
-            fh.write((s.frame(i).astype(np.int32) + shift).astype(">u2" if maxval > 255 else "u1").tobytes())
+            fh.write((px.astype(np.int32) + shift).astype(">u2" if maxval > 255 else "u1").tobytes())
         subprocess.run([OJPH / "bin/ojph_compress", "-i", src, "-o", cs, *HTJ2K_ARGS], check=True,
                        capture_output=True, env={"LD_LIBRARY_PATH": str(OJPH / "lib")})
         data = bytearray(cs.read_bytes())
         if s.signed:
             for c in range(struct.unpack(">H", data[40:42])[0]):
                 data[42 + 3 * c] |= 0x80
-        px, shape = decoded(build, "htj2k", bytes(data), s.h * s.w * s.ch)
-        if (shape.bits, shape.signed) != (s.stored, s.signed) or not exact(s, i, px + s.offset):
+        back, shape = decoded(build, "htj2k", bytes(data), s.h * s.w * s.ch)
+        if (shape.bits, shape.signed) != (s.stored, s.signed) or not matches(s, raw_digest(px), back + s.offset):
             raise Refused(f"frame {i} does not decode back to its source")
         out.append((i, bytes(data)))
     return out

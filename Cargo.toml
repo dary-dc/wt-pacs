@@ -6,6 +6,7 @@ members = [
     "server",
     "client/transport/wasm",
     "tools/pack-series",
+    "ingest/from-parser",
     "tools/check-fastpath",
     "lab/disk-access-bench",
     "lab/window-harness",

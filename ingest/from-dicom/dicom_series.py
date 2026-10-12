@@ -1,5 +1,4 @@
 """A DICOM series as the ingest core codes it, and its display attributes — docs/FIXTURES.md §From DICOM."""
-import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -31,7 +30,6 @@ class DicomSeries:
         self.lo = int(min(f.min() for f in frames))
         self.hi = int(max(f.max() for f in frames))
         self.offset = -self.lo if self.lo < 0 else 0
-        self.truth = [hashlib.sha256(f.tobytes()).hexdigest() for f in frames]
 
     def frame(self, i):
         return self.frames[i]
