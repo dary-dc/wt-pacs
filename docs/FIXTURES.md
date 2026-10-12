@@ -187,8 +187,11 @@ row 71 made it), which the parity check proves.
 **Phase 1, built (row INGESTRS1, 2026-10-12).** `ingest/from-parser` reads the parser's directory output
 ([`ingest/contract.md`](ingest/contract.md)), written for now by a Python mirror of the lab sets, and codes HTJ2K
 in-process through OpenJPH 0.31.0 with `ojph_compress`'s calls; its `.sbnd` files are byte-identical to the Python
-ingest's at `--jobs` 1, 2 and 4 on every lab set (the row's cell in `docs/av1/queue.md` gives the count), and
-`same_test.py` keeps the two equal in the gate. Not yet: AV1, the from-DICOM cases (the parser's own output, phase 2),
+ingest's at `--jobs` 1, 2 and 4 on all 88 sets of `lab/av1/data.json` (2 447 frames, 8 to 16 bits, 8 colour, 3
+signed; 528 bundles, none refused by either), and `same_test.py` keeps the two equal in the gate. Eleven mutants, each
+caught by a test or by the comparison: a perturbed encoder sample (refused by the Rust check), the digest's width, the
+signed SIZ, the metadata, the frame order in the bundle and in the mirror, both of `ingest.py`'s new checks, and two
+of the group-file reader's. Not yet: AV1, the from-DICOM cases (the parser's own output, phase 2),
 and a series of several instances.
 
 **Streaming memory.** One frame at a time per worker, read, coded, checked and appended; the bundle's frame table

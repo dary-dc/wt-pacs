@@ -13,6 +13,7 @@ $P ingest/from-parser/mirror.py lab/av1/data/rf_fluoro OUT                 # pri
 target/release/from-parser OUT/PbPb/<E>/<S> rf_fluoro.sbnd --jobs 4
 $P ingest/from-parser/same.py lab/.av1-build lab/av1/data/rf_fluoro WORK   # both ingests, --jobs 1, 2, 4: identical
 $P ingest/from-parser/same_test.py                                        # the same on synthetic sets: the gate's step
+for s in lab/av1/data/*/; do $P ingest/from-parser/same.py lab/.av1-build "$s" WORK; done   # every fetched set
 ```
 
 `mirror.py` is the parser's stand-in until phase 2, deleted then. `OPENJPH` and `INGEST_BUILD` move the libraries the
