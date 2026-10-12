@@ -188,6 +188,9 @@ generation number is enough for one PACS.
 
 ## 6. (e) The integrity chain and what each hash costs
 
+*Decided 2026-10-12 (the owner): the raw-frame check is the XXH3-64 written for the client, one hash family per frame;
+both ingests check by it since row INGESTRS1 ([`README.md`](README.md) §2). The table below is the comparison as written.*
+
 **What each hash proves.**
 
 | hash | over | written | checked | proves |

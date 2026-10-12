@@ -125,8 +125,8 @@ explicit VR little endian only — and its licence is unknown (§Decisions, 2).
 
 **What today's ingest is.** `from_dicom.py` reads a series with pydicom and its own native-pixel reader, and
 `ingest.py` codes each frame by running the pinned `aomenc` or `ojph_compress` as a subprocess on a temporary file,
-decodes it back in-process (`decode.cpp`, a C ABI over dav1d and OpenJPH), compares the samples with the SHA-256
-written from the source, writes the XXH3-64 digests (§Frame digests), and `pack-series` (Rust,
+decodes it back in-process (`decode.cpp`, a C ABI over dav1d and OpenJPH), compares the samples' XXH3-64 with that of
+the samples as read (*the SHA-256 written from the source until row INGESTRS1, 2026-10-12*), writes the XXH3-64 digests (§Frame digests), and `pack-series` (Rust,
 `common/series-bundle`, the server's own crate) writes the `.sbnd`. Bundles identical at `--jobs` 1, 2 and 4 (rows
 71 and 89).
 
@@ -173,7 +173,8 @@ little endian (DICOM's default syntax), big endian, deflate, RLE and every encap
 today's reader takes or refuses by name. A series the parser cannot read is refused by name, never coded from
 something else.
 
-**Exactness, ported.** The same three checks, in the same order: each frame's samples hashed (SHA-256) as read, each
+**Exactness, ported.** The same three checks, in the same order: each frame's samples hashed as read (XXH3-64 since
+the owner's ruling of 2026-10-12, the frame digest itself; SHA-256 before), each
 coded frame decoded back in-process through `decode.cpp` and compared, each frame's XXH3-64 digest written from the
 encoder's input; nothing written unless every frame passes. The encoders are pinned and refused when they report
 another version, as today. **The Python ingest stays the reference** until the compiled one writes byte-identical
@@ -182,6 +183,13 @@ and passes the mutations `ingest.py` passes; then a gate step keeps the two equa
 by construction in stage 1 if the compiled ingest still runs the pinned `ojph_compress` and `aomenc`; moving to the
 libraries must reproduce their settings (OpenJPH's comment marker, `aomenc`'s controls, one encoder context a frame as
 row 71 made it), which the parity check proves.
+
+**Phase 1, built (row INGESTRS1, 2026-10-12).** `ingest/from-parser` reads the parser's directory output
+([`ingest/contract.md`](ingest/contract.md)), written for now by a Python mirror of the lab sets, and codes HTJ2K
+in-process through OpenJPH 0.31.0 with `ojph_compress`'s calls; its `.sbnd` files are byte-identical to the Python
+ingest's at `--jobs` 1, 2 and 4 on every lab set (the row's cell in `docs/av1/queue.md` gives the count), and
+`same_test.py` keeps the two equal in the gate. Not yet: AV1, the from-DICOM cases (the parser's own output, phase 2),
+and a series of several instances.
 
 **Streaming memory.** One frame at a time per worker, read, coded, checked and appended; the bundle's frame table
 written last. Today's reader holds the whole series to take its minimum (`DicomSeries.lo`); the offset needs one pass

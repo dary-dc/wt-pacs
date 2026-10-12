@@ -7,6 +7,7 @@ from_dicom.py writes for the keys the frame attributes decide; the Rust one is f
 usage: same.py BUILD SET_DIR WORK   — exit 0 when the two agree, printing one line
 """
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -21,8 +22,8 @@ import ingest  # noqa: E402
 import mirror  # noqa: E402
 import size  # noqa: E402
 
-RUST = ROOT / "target/release/from-parser"
-PACK = ROOT / "target/release/pack-series"
+RELEASE = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")) / "release"
+RUST, PACK = RELEASE / "from-parser", RELEASE / "pack-series"
 JOBS = (1, 2, 4)
 
 

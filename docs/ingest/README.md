@@ -40,8 +40,7 @@ choice stands.
 
 | hash | over | written by | checked by | proves |
 | --- | --- | --- | --- | --- |
-| raw-frame hash (which one: open) | the raw samples, as read | the ingest | the ingest, after decode-back | the coded frame is the encoder's input |
-| XXH3-64 | the raw samples | the ingest | the client, after its decode | the shown frame is the encoder's input |
+| XXH3-64 | the raw samples, as read | the ingest | the ingest after decode-back; the client after its decode | the coded frame, and the shown one, is the encoder's input |
 | coded-frame digest (open) | the coded bytes | the ingest | the PACS on receipt, the server on read | transit and storage, without decoding |
 | BLAKE3-256 | a metadata group | the parser | the PACS, after decompressing | parser → PACS for metadata, once the parser hashes the bytes it writes (§3) |
 | TLS | the bytes on the wire | — | — | the link alone |
@@ -73,7 +72,7 @@ The client's checks stay on by default.
 | Metadata compressed one stream per series | recommended | [`design.md`](design.md) §7 |
 | Publish by rename after `fsync`; idempotent by UID + digest | recommended | [`design.md`](design.md) §8 |
 | When a series is complete; what a late instance does | open | [`design.md`](design.md) §4 |
-| Which hash checks the raw frame (SHA-256, BLAKE3, the XXH3-64 already written) | open | [`design.md`](design.md) §6 |
+| The raw-frame check is the XXH3-64 already written for the client | **decided** 2026-10-12 | [`design.md`](design.md) §6 |
 | A digest of the coded bytes | open | [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 |
 | A changed duplicate: replace, keep both, or hold | open | [`design.md`](design.md) §8 |
 | A bad instance: refuse the series, or store the rest marked incomplete | open | [`design.md`](design.md) §8 |
@@ -99,6 +98,6 @@ parser's author.
 
 * [`design.md`](design.md) — each part of this pipeline against its alternatives, with the prior art.
 * [`link.md`](link.md) — why the link is TCP, and what QUIC would have to show.
-* contract.md, not yet written — the parser's directory output as the ingest reads it (written with the phase 1 ingest).
+* [`contract.md`](contract.md) — the parser's directory output as the ingest reads it, and what phase 1 reads of it.
 * [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site — today's Python ingest and the plan for the
   compiled one.
