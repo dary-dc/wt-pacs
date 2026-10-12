@@ -231,6 +231,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 153 | **INGESTDESIGN** — the best design of the pipeline from the owner's C parser to the PACS, compared against alternatives on every axis: where frames are encoded, how the parser hands over, what travels, where the layout, the per-study SQLite and the catalog are built, the integrity chain, metadata compression, recovery, prior art; theory only | done `0de61363` on `claude/av1-unified` — **the proposal holds on most axes; the gap is when a series is complete** (DICOM marks no last instance): theory only, ~60 sources pinned; (a) code at the site — raw + zstd costs 1.0–1.8× HTJ2K's bytes on the link (≈ 1.4×, seven images, one source; JPEG 2000 1.17–1.72× gzip over Clunie's 3 679), the parser's HTJ2K is grok, AGPL v3, not OpenJPH's bytes; (b) keep the directory: a checkpoint and a process boundary for C on untrusted files, an instance-complete marker owed; (c) one archive a series (`.sbnd` + its groups); (d) study database first, catalog derived by a generation upsert, PostgreSQL recommended (ATTACH caps cross-database SQL at 125); (e) a 10 KB group hashes in ≈ 1.5 µs, so compressed-byte hashes save ~1 µs — the parser's BLAKE3 after decompression proves parser → PACS, once 3 of its 4 group hashes cover the bytes written; SHA-256 without SHA-NI (53–91 ms a 27 MB frame) costs more than OpenJPH's encode (29 ms), XXH3 0.5–0.9 ms; (f) one zstd stream a series, a dictionary only per group (×1.5–4.7 on 300 B–6 KB); (g) idempotent by UID + digest, resumable by offset, published by rename + fsync; no prior art codes and checks at the edge (AWS checks in the cloud with CRC32); nine decisions under §Blocked — [`docs/ingest/design.md`](../ingest/design.md) on `claude/av1-unified` |
 | 154 | **LINKTCP** — the hospital→PACS link is TCP (decided): the reasons written with pinned sources, what QUIC would gain or cost there in numbers from research, the resumable-upload options over HTTPS, and what would have to be true for QUIC to win; theory only | done `ee9522df` on `claude/av1-unified` — **TCP's reasons hold on every axis read; QUIC's wins belong to other links**: QUIC in user space costs ~2–3× TCP's CPU per byte (3.5× → ~2× at Google; ~3× against TSO on 10G; 2.5× on a receiver, 744 K datagrams against 58 K a GB), noise at a few GB a day (100 GB ≈ 130–400 core-s) but on the server's receive side; 4.4 % of clients could not use QUIC in 2016, "commonly … corporate networks", and Palo Alto, Zscaler, Cisco, SonicWall and Defender advise blocking it — no hospital rate published, so a QUIC link needs the TCP path anyway (RFC 9308 §2); Linux's 4 MiB `tcp_wmem[2]` caps an upload at ~671/224 Mbit/s at 50/150 ms, the receiver's 6 MiB before 6.16 at ~503/168 — fine to 100 Mbit/s, a few sysctls for 1 Gbit/s; 0-RTT unusable for uploads (RFC 8470), migration worth nothing wired, one RTT a kept connection; no published comparison measured an upload, and those nearest the link (Kempf 40 Mbit/s 40 ms, Shreedhar > 20 MB, Yu–Benson ≥ 1 MB) show TCP equal or ahead; S3 multipart, tus, the IETF draft -13 (no integrity) and rsync compared; QUIC returns only if UDP/443 is open at the sites and quinn's receive cost does not cap the server, plus loss, multiplexing or short connections; five decisions listed — [`ingest/link.md`](../ingest/link.md) on `claude/av1-unified` |
 | 155 | **INGESTRS1** — the Rust ingest, phase 1: a Python mirror of the owner's C parser's directory output for frames, and a Rust ingest that reads it, hashes, codes with the pinned OpenJPH, checks, digests and writes the `.sbnd` byte-identical to the Python ingest's | after 150 |
+| 156 | **QUICCOMPARE** — the QUIC implementations compared one by one, for learning: what each is, its design, how it handles every lever, its throughput ceiling as a function of bandwidth and RTT at defaults and at its best, and what it would mean as our client and as our server; theory and writing, from rows 124 and 152's sources | after 150 |
 
 ## Briefs
 
@@ -3228,6 +3229,36 @@ linked from `docs/ingest/README.md`.
   as `ingest.py` holds them, and the ingest checks no group hash.
 
 **Deliverable:** the crate, the mirror, `docs/ingest/contract.md`, the gate step. **Branch:** `claude/av1-unified`.
+
+### 156 QUICCOMPARE
+
+**The QUIC implementations actually compared, for learning (the owner, 2026-10-11).** Rows 124 and 152 hold the facts,
+but they read as tables and verdicts; the owner wants to learn how each implementation works and what that means for
+throughput and latency. Theory and writing; nothing built or timed. One question: how do the candidates compare, lever
+by lever, and why.
+
+* **A short glossary first**, each term with its mechanism in plain words: receive windows (fixed, auto-tuned),
+  bandwidth-delay product, ACK policy and ACK frequency, socket buffer, batched I/O (`recvmmsg`, GRO, GSO), pacing,
+  congestion controller and its hook, migration, 0-RTT, multipath, WebTransport over HTTP/3.
+* **One section per implementation.** Deep on quinn, msquic, Cloudflare quiche, ngtcp2, picoquic, Google QUICHE, neqo,
+  s2n-quic, quic-go, lsquic and mvfst; brief on the rest of row 124's fifteen. Each section:
+  * what it is, who builds it and for what;
+  * its design: I/O model, threads, TLS;
+  * how it handles each lever — windows (fixed or auto-tuned, and the rule), ACK policy and ACK frequency, socket
+    buffer and batched I/O, pacing and GSO, controllers and hooks, migration, 0-RTT, multipath, WebTransport;
+  * **its throughput ceiling as a function of bandwidth and RTT**, at its defaults and at its best: the formula
+    (window ÷ RTT, and what else bounds it), plus a grid from 1 Mbit/s to 1 Gbit/s and from 10 to 300 ms;
+  * platforms, build, security record and licence;
+  * what it would mean as our client and as our server.
+* **A side-by-side summary** at the end.
+
+**Rules.** Label every claim **source** (pinned), **derived** (arithmetic on a source) or **measured** (this
+repository, with the row); theory first, measured results kept apart and named as such. **No claim restricted to a
+"target band"**: the repository's 5–50 Mbit/s and 30–150 ms are an assumption, not field data — wherever they are
+used, say so. Reuse rows 124 and 152's pinned sources (`docs/native/quic.md` §2, §7, §8); read new ones only to fill a
+gap, pinned the same way.
+
+**Deliverable:** `docs/native/quic-compared.md`, linked from `docs/native/quic.md` §1. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
