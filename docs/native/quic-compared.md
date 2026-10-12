@@ -155,150 +155,6 @@ stream's first window and the second the window it grows to. Defaults are §7.2 
 | lsquic | 5 033 | 1 678 | 629 | 336 | 168 |
 | mvfst | 52.4 | 17.5 | 6.55 | 3.5 | 1.75 |
 
-#### quinn: 1.25 MB stream, fixed
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | **33.3** |
-| 100 Mbit/s | link | link | link | **66.7** | **33.3** |
-| 500 Mbit/s | link | **333** | **125** | **66.7** | **33.3** |
-| 1000 Mbit/s | link | **333** | **125** | **66.7** | **33.3** |
-
-#### msquic: 64 KiB stream doubling to the 16 MiB connection window
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | link |
-| 100 Mbit/s | link | link | link | link | link |
-| 500 Mbit/s | link | link | link | link | **447** |
-| 1000 Mbit/s | link | link | link | **895** | **447** |
-
-#### Cloudflare quiche: app-set start (tokio-quiche 1 MB), auto-tuned to 16 MiB
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | link |
-| 100 Mbit/s | link | link | link | link | link |
-| 500 Mbit/s | link | link | link | link | **447** |
-| 1000 Mbit/s | link | link | link | **895** | **447** |
-
-#### ngtcp2: app's; the example client's 16 MiB
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | link |
-| 100 Mbit/s | link | link | link | link | link |
-| 500 Mbit/s | link | link | link | link | **447** |
-| 1000 Mbit/s | link | link | link | **895** | **447** |
-
-#### picoquic: 2 MiB stream, 1 MiB connection, auto-tuned without a cap
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | link |
-| 100 Mbit/s | link | link | link | link | link |
-| 500 Mbit/s | link | link | link | link | link |
-| 1000 Mbit/s | link | link | link | link | link |
-
-#### Google QUICHE: 16 KB bare library
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | **0.853** | **0.427** |
-| 5 Mbit/s | link | **4.27** | **1.6** | **0.853** | **0.427** |
-| 10 Mbit/s | link | **4.27** | **1.6** | **0.853** | **0.427** |
-| 50 Mbit/s | **12.8** | **4.27** | **1.6** | **0.853** | **0.427** |
-| 100 Mbit/s | **12.8** | **4.27** | **1.6** | **0.853** | **0.427** |
-| 500 Mbit/s | **12.8** | **4.27** | **1.6** | **0.853** | **0.427** |
-| 1000 Mbit/s | **12.8** | **4.27** | **1.6** | **0.853** | **0.427** |
-
-#### Google QUICHE in Chromium: 6 MB stream auto-tuned to 16 MB
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | link |
-| 100 Mbit/s | link | link | link | link | link |
-| 500 Mbit/s | link | link | link | link | **427** |
-| 1000 Mbit/s | link | link | link | **853** | **427** |
-
-#### neqo: 1 MiB stream auto-tuned to 10 MiB
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | link |
-| 100 Mbit/s | link | link | link | link | link |
-| 500 Mbit/s | link | link | link | link | **280** |
-| 1000 Mbit/s | link | link | link | **559** | **280** |
-
-#### s2n-quic: 3.75 MB, fixed
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | link |
-| 100 Mbit/s | link | link | link | link | link |
-| 500 Mbit/s | link | link | **375** | **200** | **100** |
-| 1000 Mbit/s | link | link | **375** | **200** | **100** |
-
-#### quic-go: 512 KiB stream auto-tuned to 6 MiB
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | link |
-| 100 Mbit/s | link | link | link | link | link |
-| 500 Mbit/s | link | link | link | **336** | **168** |
-| 1000 Mbit/s | link | link | **629** | **336** | **168** |
-
-#### lsquic: client 6 MiB stream, fixed
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | link | link |
-| 10 Mbit/s | link | link | link | link | link |
-| 50 Mbit/s | link | link | link | link | link |
-| 100 Mbit/s | link | link | link | link | link |
-| 500 Mbit/s | link | link | link | **336** | **168** |
-| 1000 Mbit/s | link | link | **629** | **336** | **168** |
-
-#### mvfst: 65 KiB stream, auto-tune off
-
-| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
-| --- | --- | --- | --- | --- | --- |
-| 1 Mbit/s | link | link | link | link | link |
-| 5 Mbit/s | link | link | link | **3.5** | **1.75** |
-| 10 Mbit/s | link | link | **6.55** | **3.5** | **1.75** |
-| 50 Mbit/s | link | **17.5** | **6.55** | **3.5** | **1.75** |
-| 100 Mbit/s | **52.4** | **17.5** | **6.55** | **3.5** | **1.75** |
-| 500 Mbit/s | **52.4** | **17.5** | **6.55** | **3.5** | **1.75** |
-| 1000 Mbit/s | **52.4** | **17.5** | **6.55** | **3.5** | **1.75** |
-
 **At their best** every window above is a setting except neqo's caps (10 MiB stream, 20 MiB connection, constants;
 S, [`quic.md`](quic.md) §7.2) and picoquic's, which has none. Set to the grid's largest BDP (37.5 MB, 1 Gbit/s ×
 300 ms), no other stack's window binds anywhere in the grid (D). neqo's binds at 300 ms above 280 Mbit/s and at
@@ -319,12 +175,12 @@ checked against the RFC's own Tables 1 and 2):
 | 1e-05 | 441 | 165 | 129 | 111 | 93 |
 | 1e-06 | 1 394 | 930 | 728 | 622 | 523 |
 
-* It applies to **every stack's** Cubic and Reno: the formula is the controller's, not the implementation's. Real
-  stacks treat several losses in one RTT as one event, so at high p this is a lower estimate of the event rate and the
-  numbers are rough (D).
+* It applies to **every stack's** Cubic and Reno: the formula is the controller's, not the implementation's. p is
+  the rate of congestion events, and a QUIC stack counts several losses in one RTT as one event, so under random
+  packet loss p the real window is somewhat larger: read the table as an order of magnitude (D).
 * **BBR does not follow it.** Its draft tolerates up to 2 % loss per round trip before it backs off (S,
-  draft-ietf-ccwg-bbr-06 §2.8). (M, rows 75 and 119: in a browser under 1–3 % random loss BBR filled 12–19× faster
-  than Cubic, [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1.)
+  draft-ietf-ccwg-bbr-06 §2.8). (M: in a browser under 1–3 % random loss BBR filled 12–19× faster than Cubic,
+  [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1 *Priced in a browser*.)
 * **The controller is the sender's.** For a fill or an ask the server sends, so this term is the server's stack's
   and the client's stack changes nothing in it. It is the client's only for the ingest upload.
 
@@ -400,8 +256,8 @@ labelled otherwise.
   crate. Five RustSec advisories, two in 2026 (DoS). MIT OR Apache-2.0.
 * **As our client.** The server's own crate: the framing and exactness code can be one Rust crate on both ends.
   Receive cost measured at 2.05–2.16 ms per MB with GRO (M, row 135). Raise the stream window if a site's BDP can
-  exceed 1.25 MB. The one native client that can be asked for a shorter `max_ack_delay`, and 0-RTT on raw QUIC needs
-  no wtransport patch (§6). Migration is a rebind without a probe.
+  exceed 1.25 MB. It obeys ACK_FREQUENCY at the current codepoint (as msquic and picoquic do), so the server can ask
+  it for a shorter `max_ack_delay`; 0-RTT on raw QUIC needs no wtransport patch (§6). Migration is a rebind without a probe.
 * **As our server.** Today's. Carries this repository's controllers through the public hook; paces always. Its known
   limits are one I/O task per endpoint and the GSO constant (patched here).
 
