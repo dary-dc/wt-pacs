@@ -225,7 +225,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 147 | **FRAMELOSS** — no frame lost silently: a decoder crash, a delivery the page cannot read and a decode that never returns each end in a re-decode or a loud failure, a test per path that fails without | done `361fb9b` on `claude/av1-unified` (`2e16d88`, `5a0a222`) — **no frame is lost silently now: a crashed, hung or unreadable decoder is replaced and its unacknowledged frames asked again; lost twice, a frame fails by name**. Records are forgotten on the page's ack, not on `done`; `decodeMs` 10 s (~28× the slowest decode measured, 355 ms). Tests per path in Node and three dispatch-rig clauses through real workers, 3/3 in Chromium 141 and Firefox 157.0.1; every mutant caught. Row 145's bench re-run, 30 visits: every *hang* cell now fails by name after two deadlines and frame 5 behind it arrives exact (both were silent); the other 24 cells as before. Cost: a tie — last frame of 240 at 2 671 against 2 605 ms in Chromium (paired 0.985 [0.898–1.159]) and 3 555 against 3 488 ms in Firefox (1.022 [0.958–1.080]), 10 rounds interleaved, 9 600/9 600 frames exact; decode-bound on 4 cores. `docs/ARCHITECTURE.md` §The downloader |
 | 148 | **FRAMEPATH** — where a decoded frame should go now that the client has a paint worker and will get an OPFS cache: the page in or out of the pixel path, who owns the frame store, what OPFS costs; theory only | done `b6624828` on `claude/av1-unified` — theory only, nothing timed: **recommended B′**, decoder → paint worker (which owns the memory store and every viewport) → a store worker writing checked, decoded frames to OPFS (sync handles are dedicated-worker-only, exclusive per file, take shared memory); the page's measured 0.07–1.15 ms a frame is not the reason — a busy page is (predicted: < 1 ms on a quiet page, up to a long task's length per waited frame and cine kept under one); decoded samples kept (CT series 40 MB, mammogram 17 MB a frame; reopen = read + one XXH3, no decode), re-checked on every read; WebKit's OPFS deletion is 30 operating days in its source's default, not 7 (qualified in place); protocol and rule proposed, not queued ([`../adr/frame-path.md`](../adr/frame-path.md)); five decisions under [`## Blocked`](#blocked) |
 | 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | done `aa61f4e` on `claude/av1-unified` — **still nothing meets row 100's bar for any of the three types; one open set of native angiography runs exists, without a licence**: `MesserMMP/coronary-angiography-syntax` (Hugging Face, 87 626 XA files, 980 GB, Philips and Siemens, 14/14 headers read multi-frame, uncompressed, Lossy `00`) states no licence; IDC v25 and TCIA add nothing (39/39 XA single frames, multi-frame US cine flagged lossy 26–100:1); no breast ultrasound cine in DICOM and no ABUS volume in DICOM at any of ~25 hosts; nearest ABUS analogue IDC's prostate 3D TRUS (1 762 volumes, 280 frames, native, CC BY 4.0); DSCA's DSA runs are cut, MIDRC's fluoroscopy is not angiography and non-commercial — `docs/FIXTURES.md` §Provenance, The wider search |
-| 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | ready — not for the night routine: its backup branches are outside what it may push (§Blocked) |
+| 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | ready |
 | 151 | **CHECKCOST** — what the exactness checks cost a frame in today's client: the XXH3-64 check after decode by path, the second decode on a mismatch, and a cache read's re-check; cost only, the checks stay on | after 150 |
 | 152 | **QUICTUNED** — row 124's candidates at their best configuration for the target, not their defaults: what each lets be tuned or patched, each lever's mechanism and its effect on throughput and on latency, every published result on one table, the server's stack read as a candidate too; theory only || done `75938f98`: at their best no candidate is flow-control-bound at 5–50 Mbit/s (quinn's fixed 1.25 MB covers 50 Mbit/s to 200 ms; msquic's 64 KiB doubles to 16 MiB, so 5.24 Mbit/s at 100 ms holds only for a fresh stream's first quarter-window); no published study compares tuned stacks at the target's rates with loss (one at 40 Mbit/s 40 ms, no quinn or msquic); the owner's paper confirmed as CPU efficiency at 4–5 Gbit/s with settings unstated; a server-stack change buys ~1.3× sessions per core on the one comparable reading against the WebTransport layer, 927 lines of controller work and the gate — [`../native/quic.md`](../native/quic.md) §7 on `claude/av1-unified` |
 | 153 | **INGESTDESIGN** — the best design of the pipeline from the owner's C parser to the PACS, compared against alternatives on every axis: where frames are encoded, how the parser hands over, what travels, where the layout, the per-study SQLite and the catalog are built, the integrity chain, metadata compression, recovery, prior art; theory only | done `bafb9ee2` on `claude/av1-unified` — **the proposal holds on most axes; the gap is when a series is complete** (DICOM marks no last instance): theory only, ~60 sources pinned; (a) code at the site — raw + zstd costs 1.0–1.8× HTJ2K's bytes on the link (≈ 1.4×, seven images, one source; JPEG 2000 1.17–1.72× gzip over Clunie's 3 679), the parser's HTJ2K is grok, AGPL v3, not OpenJPH's bytes; (b) keep the directory: a checkpoint and a process boundary for C on untrusted files, an instance-complete marker owed; (c) one archive a series (`.sbnd` + its groups); (d) study database first, catalog derived by a generation upsert, PostgreSQL recommended (ATTACH caps cross-database SQL at 125); (e) a 10 KB group hashes in ≈ 1.5 µs, so compressed-byte hashes save ~1 µs — the parser's BLAKE3 after decompression proves parser → PACS, once 3 of its 4 group hashes cover the bytes written; SHA-256 without SHA-NI (53–91 ms a 27 MB frame) costs more than OpenJPH's encode (29 ms), XXH3 0.5–0.9 ms; (f) one zstd stream a series, a dictionary only per group (×1.5–4.7 on 300 B–6 KB); (g) idempotent by UID + digest, resumable by offset, published by rename + fsync; no prior art codes and checks at the edge (AWS checks in the cloud with CRC32); nine decisions under §Blocked — [`docs/ingest/design.md`](../ingest/design.md) on `claude/av1-unified` |
@@ -3170,6 +3170,11 @@ proven before it returns. Theory only.
 
 ### 155 INGESTRS1
 
+*Amended 2026-10-11 (the owner): no effort on what the parser accepts. The mirror is a simple first step that writes the
+parser's directory output shape — the contract — from the frames `ingest.py` already reads, so the parser can be swapped
+in later; no input-acceptance logic beyond `ingest.py`'s own. The parser's open points are notes for its author in
+`docs/ingest/README.md` §5, not this row's work. The contract goes to `docs/ingest/contract.md`.*
+
 **Phase 1 of the Rust ingest (the owner, 2026-10-11): production-shaped, with a Python stand-in for the parser's frame
 output only.** Phase 2 swaps the stand-in for the owner's C parser and passes its metadata through untouched; no other
 metadata logic is ever written in Python.
@@ -3181,7 +3186,7 @@ metadata logic is ever written in Python.
   stored, (0028,0102) high bit, (0028,0103) pixel representation — plus the UIDs and study date the path needs. It
   reads every set `ingest.py` takes today. It is a stand-in, deleted in phase 2.
 * **The Rust ingest** (a workspace crate) reads that directory as it will read the parser's: per instance, the frame
-  description from the groups (found by tag in the instance group, then the series group), then per frame: hash the raw
+  description from the instance group, then per frame: hash the raw
   samples, code with the pinned OpenJPH exactly as `ingest.py` does today (byte identity), decode back in-process and
   compare, write the XXH3-64 digests, and write the `.sbnd` with `common/series-bundle`.
 * **Done when** its `.sbnd` files are byte-identical to the Python ingest's for every lab set at `--jobs` 1, 2 and 4;
@@ -3189,8 +3194,8 @@ metadata logic is ever written in Python.
   the two ingests equal while both exist.
 * **Not in this row:** AV1 (a later row); the outbox and the transport (after row 153).
 
-**The input contract, read from the parser's public source (2026-10-11).** Write it as the first section of
-`docs/ingest/README.md`.
+**The input contract, read from the parser's public source (2026-10-11).** Write it to `docs/ingest/contract.md`,
+linked from `docs/ingest/README.md`.
 
 * **One parser run per SOP instance**, writing under its working directory. Paths, with `/` separators:
   * study date: `<D>/` — the study date (0008,0020) as `YYMMDD` (century dropped) coded as below, 4 characters; `PbPb`
@@ -3218,22 +3223,17 @@ metadata logic is ever written in Python.
   copied from the pixel data (7FE0,0010) at offset `frame × that size`, so a 12-bit-in-16 frame is its 16-bit words as
   stored, little endian. Number of frames absent or 0 writes one frame. YBR_FULL, YBR_FULL_422, YBR_PARTIAL_420,
   YBR_ICT, YBR_RCT and XYB write no frame (the parser prints "not handled").
-* **What the parser takes:** DICOM Part 10 in explicit VR little endian only, so native pixels only; an encapsulated
-  transfer syntax is not read (row 126's decision (3) stays open).
-* **Open points, not settled by the source:** (1) planar configuration (0028,0006) is not read by the parser, so an
-  RGB frame with planar configuration 1 is written as stored, plane by plane (a comment there says it "needs to
-  interleave"); the mirror does the same and the ingest refuses planar 1 by name until the owner decides. (2) The exam
-  group's hash covers the bytes written; the series, instance and private groups' hashes cover a length summed before the
-  UTF-8 conversion, which differs from the bytes written when a text value changes length. The ingest checks no group
-  hash in phase 1; the owner is told. (3) Which group each pixel-description tag lands in depends on a table in the parser
-  not read here; the ingest looks in the instance group, then the series group. (4) A frame count above 99 999 is
-  truncated by the five-digit name.
+* **Not this row's work:** what the parser accepts (explicit VR little endian only) and its open points (planar
+  configuration, three group hashes over a pre-conversion length, five-digit frame names). The mirror writes frames
+  as `ingest.py` holds them, and the ingest checks no group hash.
 
-**Deliverable:** the crate, the mirror, `docs/ingest/README.md`, the gate step. **Branch:** `claude/av1-unified`.
+**Deliverable:** the crate, the mirror, `docs/ingest/contract.md`, the gate step. **Branch:** `claude/av1-unified`.
 
 ## Blocked
 
-* **2026-10-11 UTC: row 150 MAINBASE — not for the night routine.** Its publishing step pushes the old tips as
+* *Resolved, 2026-10-11 (the owner): the night routine's prompt now allows row 150's two backup branches; the owner
+  authorized pushing any wt-pacs branch except `main`. Row 150 is `ready` again.*
+  **2026-10-11 UTC: row 150 MAINBASE — not for the night routine.** Its publishing step pushes the old tips as
   `claude/av1-unified-pre-main` and `claude/av1-pre-main` before the force-push; the night routine may push only
   `claude/av1` and `claude/av1-unified`, so it cannot take the row's own safety step. The owner's choice: allow those two
   backup branches in the night routine's prompt, name another backup it may push, or run the row from a day session.
@@ -3245,7 +3245,9 @@ metadata logic is ever written in Python.
   tail's PTO, derived); (3) 0-RTT through a wtransport patch on both ends, only on a raw-QUIC ALPN, or not at all;
   (4) quinn stays as the server's stack, or sessions per core and loss under pacing are measured first (§7.6).
 
-* **2026-10-11 UTC: row 153 INGESTDESIGN — nine choices for the pipeline** (`docs/ingest/design.md` §10 on
+* *Resolved in part, 2026-10-11 (the owner): choice (4), the catalog's engine, is deferred — a far-away decision, no
+  energy on it yet. The others stay open; their status is in `docs/ingest/README.md` §4 on `claude/av1-unified`.*
+  **2026-10-11 UTC: row 153 INGESTDESIGN — nine choices for the pipeline** (`docs/ingest/design.md` §10 on
   `claude/av1-unified`): (1) when a series is complete — the association's end, a quiet period, or another signal — and
   whether a late instance makes a new generation; (2) the unit on the link: one archive a series (recommended), the
   parser's files, or one a study; (3) where frames are coded: at the site (recommended), in the parser on grok (AGPL v3),
