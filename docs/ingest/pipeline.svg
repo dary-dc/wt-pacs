@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1780" height="800" viewBox="0 0 1780 800" font-family="Liberation Sans, Helvetica, Arial, sans-serif">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#37474f"/></marker><marker id="aho" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e65100"/></marker></defs>
+<rect width="1780" height="800" fill="#ffffff"/>
+<rect x="20" y="60" width="750" height="640" rx="14" fill="#fafafa" stroke="#b0bec5" stroke-width="1.5"/>
+<text x="38" y="90" font-size="18" font-weight="bold" fill="#546e7a" letter-spacing="1.5">HOSPITAL (site)</text>
+<rect x="890" y="60" width="740" height="640" rx="14" fill="#fafafa" stroke="#b0bec5" stroke-width="1.5"/>
+<text x="908" y="90" font-size="18" font-weight="bold" fill="#546e7a" letter-spacing="1.5">PACS (cloud)</text>
+<path d="M160,160 L190,160" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M340,160 L370,160" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M570,160 L600,160" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M160,387 L160,407" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M160,459 L160,479" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M160,531 L160,551" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M385,387 L385,407" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M675,215 L675,240 L270,240 L270,270" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M500,465 L525,465" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M635,465 L655,465" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M755,465 L910,465" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M1005,410 L1005,160 L1150,160" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M1005,520 L1005,610 L1150,610" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M1350,610 L1400,610" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M1350,160 L1400,160" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M1500,560 L1500,205" fill="none" stroke="#37474f" stroke-width="2" stroke-dasharray="7 4" marker-end="url(#ah)"/>
+<path d="M1600,160 L1650,160" fill="none" stroke="#37474f" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="40" y="115" width="120" height="90" rx="8" fill="#ffffff" stroke="#455a64" stroke-width="2"/>
+<text x="100.0" y="147.0" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">Image sources</text>
+<text x="100.0" y="167.0" font-size="12.5" fill="#37474f" text-anchor="middle">modalities,</text>
+<text x="100.0" y="184.0" font-size="12.5" fill="#37474f" text-anchor="middle">other PACS</text>
+<rect x="190" y="115" width="150" height="90" rx="8" fill="#ffffff" stroke="#455a64" stroke-width="2"/>
+<text x="265.0" y="155.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">DICOM receiver</text>
+<text x="265.0" y="175.5" font-size="12.5" fill="#37474f" text-anchor="middle">modified storescp</text>
+<rect x="370" y="105" width="200" height="110" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="470.0" y="138.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">C parser</text>
+<text x="470.0" y="158.5" font-size="12.5" fill="#37474f" text-anchor="middle">one directory per instance:</text>
+<text x="470.0" y="175.5" font-size="12.5" fill="#37474f" text-anchor="middle">group files (BLAKE3)</text>
+<text x="470.0" y="192.5" font-size="12.5" fill="#37474f" text-anchor="middle">+ one file per frame</text>
+<rect x="501.6" y="95" width="62.4" height="19" rx="9.5" fill="#2e7d32"/>
+<text x="532.8" y="109" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="bold">decided</text>
+<polygon points="675.0,105 750,160.0 675.0,215 600,160.0" fill="#fff3e0" stroke="#e65100" stroke-width="2" stroke-dasharray="7 4"/>
+<text x="675.0" y="155.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">Series</text>
+<text x="675.0" y="175.5" font-size="12.5" fill="#37474f" text-anchor="middle">complete?</text>
+<rect x="703.2" y="95" width="40.8" height="19" rx="9.5" fill="#e65100"/>
+<text x="723.6" y="109" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="bold">open</text>
+<rect x="40" y="270" width="460" height="355" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="270.0" y="294" font-size="17" font-weight="bold" fill="#263238" text-anchor="middle">Rust ingest</text>
+<rect x="381.2" y="260" width="112.8" height="19" rx="9.5" fill="#2e7d32"/>
+<text x="437.6" y="274" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="bold">decided · Rust</text>
+<rect x="60" y="335" width="200" height="52" rx="8" fill="#fff3e0" stroke="#e65100" stroke-width="2" stroke-dasharray="7 4"/>
+<text x="160.0" y="356.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">hash raw frame</text>
+<text x="160.0" y="376.5" font-size="12.5" fill="#37474f" text-anchor="middle">which hash: open</text>
+<rect x="60" y="407" width="200" height="52" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="160.0" y="428.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">exact encode</text>
+<text x="160.0" y="448.5" font-size="12.5" fill="#37474f" text-anchor="middle">HTJ2K · AV1</text>
+<rect x="60" y="479" width="200" height="52" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="160.0" y="500.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">decode back · compare</text>
+<text x="160.0" y="520.5" font-size="12.5" fill="#37474f" text-anchor="middle">nothing written unless equal</text>
+<rect x="60" y="551" width="200" height="52" rx="8" fill="#fff3e0" stroke="#e65100" stroke-width="2" stroke-dasharray="7 4"/>
+<text x="160.0" y="572.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">hash coded frame</text>
+<text x="160.0" y="592.5" font-size="12.5" fill="#37474f" text-anchor="middle">PACS checks without decoding</text>
+<rect x="290" y="335" width="190" height="52" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="385.0" y="356.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">metadata groups</text>
+<text x="385.0" y="376.5" font-size="12.5" fill="#37474f" text-anchor="middle">as the parser wrote them</text>
+<rect x="290" y="407" width="190" height="52" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+<text x="385.0" y="428.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">compress per series</text>
+<text x="385.0" y="448.5" font-size="12.5" fill="#37474f" text-anchor="middle">one zstd stream</text>
+<rect x="525" y="420" width="110" height="90" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+<text x="580.0" y="452.0" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">Series</text>
+<text x="580.0" y="472.0" font-size="12.5" fill="#37474f" text-anchor="middle">archive</text>
+<text x="580.0" y="489.0" font-size="12.5" fill="#37474f" text-anchor="middle">.sbnd + groups</text>
+<rect x="588.2" y="410" width="40.8" height="19" rx="9.5" fill="#1565c0"/>
+<text x="608.6" y="424" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="bold">rec.</text>
+<rect x="655" y="420" width="100" height="90" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="705.0" y="452.0" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">Outbox</text>
+<text x="705.0" y="472.0" font-size="12.5" fill="#37474f" text-anchor="middle">sent when</text>
+<text x="705.0" y="489.0" font-size="12.5" fill="#37474f" text-anchor="middle">complete</text>
+<rect x="770" y="486" width="124" height="28" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="832.0" y="502.5" font-size="12" font-weight="bold" fill="#263238" text-anchor="middle">TCP: decided</text>
+<rect x="770" y="522" width="124" height="28" rx="8" fill="#fff3e0" stroke="#e65100" stroke-width="2" stroke-dasharray="7 4"/>
+<text x="832.0" y="538.5" font-size="12" font-weight="bold" fill="#263238" text-anchor="middle">upload shape: open</text>
+<rect x="910" y="410" width="190" height="110" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+<text x="1005.0" y="452.0" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">PACS receiver</text>
+<text x="1005.0" y="472.0" font-size="12.5" fill="#37474f" text-anchor="middle">verify digests</text>
+<text x="1005.0" y="489.0" font-size="12.5" fill="#37474f" text-anchor="middle">publish: rename + fsync</text>
+<rect x="1053.2" y="400" width="40.8" height="19" rx="9.5" fill="#1565c0"/>
+<text x="1073.6" y="414" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="bold">rec.</text>
+<rect x="1150" y="115" width="200" height="90" rx="8" fill="#ffffff" stroke="#455a64" stroke-width="2"/>
+<text x="1250.0" y="155.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">Image store</text>
+<text x="1250.0" y="175.5" font-size="12.5" fill="#37474f" text-anchor="middle">one .sbnd per series</text>
+<rect x="1150" y="560" width="200" height="100" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="1250.0" y="597.0" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">Study database</text>
+<text x="1250.0" y="617.0" font-size="12.5" fill="#37474f" text-anchor="middle">one SQLite per study,</text>
+<text x="1250.0" y="634.0" font-size="12.5" fill="#37474f" text-anchor="middle">built in the PACS</text>
+<rect x="1281.6" y="550" width="62.4" height="19" rx="9.5" fill="#2e7d32"/>
+<text x="1312.8" y="564" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="bold">decided</text>
+<rect x="1400" y="560" width="200" height="100" rx="8" fill="#f5f5f5" stroke="#757575" stroke-width="2" stroke-dasharray="2 4"/>
+<text x="1500.0" y="597.0" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">Catalog server</text>
+<text x="1500.0" y="617.0" font-size="12.5" fill="#37474f" text-anchor="middle">indexes the study databases</text>
+<text x="1500.0" y="634.0" font-size="12.5" fill="#37474f" text-anchor="middle">engine: deferred</text>
+<rect x="1524.4" y="550" width="69.6" height="19" rx="9.5" fill="#757575"/>
+<text x="1559.2" y="564" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="bold">deferred</text>
+<rect x="1400" y="115" width="200" height="90" rx="8" fill="#ffffff" stroke="#455a64" stroke-width="2"/>
+<text x="1500.0" y="155.5" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">wt-pacs server</text>
+<text x="1500.0" y="175.5" font-size="12.5" fill="#37474f" text-anchor="middle">WebTransport</text>
+<rect x="1650" y="105" width="115" height="110" rx="8" fill="#ffffff" stroke="#455a64" stroke-width="2"/>
+<text x="1707.5" y="147.0" font-size="15" font-weight="bold" fill="#263238" text-anchor="middle">Clients</text>
+<text x="1707.5" y="167.0" font-size="12.5" fill="#37474f" text-anchor="middle">web</text>
+<text x="1707.5" y="184.0" font-size="12.5" fill="#37474f" text-anchor="middle">native</text>
+<rect x="40" y="741" width="26" height="18" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+<text x="53.0" y="747.0" font-size="1" font-weight="bold" fill="#263238" text-anchor="middle"></text>
+<rect x="230" y="741" width="26" height="18" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+<text x="243.0" y="747.0" font-size="1" font-weight="bold" fill="#263238" text-anchor="middle"></text>
+<rect x="420" y="741" width="26" height="18" rx="8" fill="#fff3e0" stroke="#e65100" stroke-width="2" stroke-dasharray="7 4"/>
+<text x="433.0" y="747.0" font-size="1" font-weight="bold" fill="#263238" text-anchor="middle"></text>
+<rect x="610" y="741" width="26" height="18" rx="8" fill="#f5f5f5" stroke="#757575" stroke-width="2" stroke-dasharray="2 4"/>
+<text x="623.0" y="747.0" font-size="1" font-weight="bold" fill="#263238" text-anchor="middle"></text>
+<rect x="800" y="741" width="26" height="18" rx="8" fill="#ffffff" stroke="#455a64" stroke-width="2"/>
+<text x="813.0" y="747.0" font-size="1" font-weight="bold" fill="#263238" text-anchor="middle"></text>
+<rect x="727.4" y="338" width="209.20000000000002" height="59" rx="5" fill="#ffffff" stroke="#cfd8dc"/>
+<text x="832" y="352" font-size="12.5" fill="#263238" text-anchor="middle">TCP · resumable HTTPS upload</text>
+<text x="832" y="369" font-size="12.5" fill="#263238" text-anchor="middle">idempotent: UID + digest</text>
+<text x="832" y="386" font-size="12.5" fill="#263238" text-anchor="middle">resumable by offset</text>
+<text x="30" y="36" font-size="22" fill="#263238" text-anchor="start" font-weight="bold">Hospital ↔ PACS — the current proposal</text>
+<text x="270" y="318" font-size="12.5" fill="#1565c0" text-anchor="middle" font-weight="normal">codes at the site</text>
+<text x="74" y="755" font-size="13" fill="#37474f" text-anchor="start" font-weight="normal">decided</text>
+<text x="264" y="755" font-size="13" fill="#37474f" text-anchor="start" font-weight="normal">recommended</text>
+<text x="454" y="755" font-size="13" fill="#37474f" text-anchor="start" font-weight="normal">open</text>
+<text x="644" y="755" font-size="13" fill="#37474f" text-anchor="start" font-weight="normal">deferred</text>
+<text x="834" y="755" font-size="13" fill="#37474f" text-anchor="start" font-weight="normal">exists today</text>
+</svg>
