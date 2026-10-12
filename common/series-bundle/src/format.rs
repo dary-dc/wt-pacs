@@ -69,7 +69,7 @@ fn parse_layout_checked(bytes: &[u8], file_len: u64) -> Result<ParsedLayout> {
     })
 }
 
-/// A frame no client would read is refused when the study is written or opened, naming it.
+/// A frame no client would read is refused when the series is written or opened, naming it.
 pub(crate) fn check_frame_len(index: usize, length: u32) -> Result<()> {
     ensure!(
         length as usize <= MAX_CODESTREAM_LEN,
@@ -185,7 +185,7 @@ mod tests {
         assert!(parse_layout(&bytes).is_err(), "offset + length overflows");
     }
 
-    /// A frame over the client's limit fails the study at open, naming the frame, rather than
+    /// A frame over the client's limit fails the series at open, naming the frame, rather than
     /// every client that asks for it. The file is sparse: the entry must also lie inside it.
     #[test]
     fn an_oversized_frame_is_refused_at_open_naming_it() {

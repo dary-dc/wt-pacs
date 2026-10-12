@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Barrier;
-use window_harness::wire::MAX_FRAME_LEN;
+use frame_envelope::MAX_FRAME_LEN;
 use wtransport::{ClientConfig, Endpoint};
 
 #[derive(Parser)]

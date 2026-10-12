@@ -378,15 +378,15 @@ bundle, the server) checks that limit. A study with one oversized frame would ma
 drop the stream, with an error that names neither the study nor the frame.
 
 **Evidence.**
-* The limit is declared in `client/transport-ts/wire.ts:33`,
-  `client/transport-wasm/src/session.rs:176`, `lab/window-harness/src/wire.rs:11`,
+* The limit is declared in `client/transport/ts/wire.ts:33`,
+  `client/transport/wasm/src/session.rs:176`, `lab/window-harness/src/wire.rs:11`,
   `bin/cold_open.rs:20` and `bin/rebind_probe.rs:17`, and as prose in `WIRE.md:73`.
 * The checks disagree on the low bound. The WASM client and the TS client refuse `< 4`
   (`session.rs:197`, `frame-session.ts:315,348`); the harness refuses only `== 0` (`wire.rs:92`,
   `frames.rs:38`, `cold_open.rs:75`, `rebind_probe.rs:131`).
 * The bundle layout checks each entry against the file's length only
-  (`ingest/study-bundle/src/format.rs:46-56`). `BundleWriter::create`
-  (`ingest/study-bundle/src/writer.rs:16-46`) and `FrameStore::open` (`frame_store.rs:40-56`)
+  (`common/series-bundle/src/format.rs:46-56`). `BundleWriter::create`
+  (`common/series-bundle/src/writer.rs:16-46`) and `FrameStore::open` (`frame_store.rs:40-56`)
   check no maximum.
 * W9 is done: `frame-envelope` already owns `frame_head` and `unwrap`
   (`common/frame-envelope/src/lib.rs`).

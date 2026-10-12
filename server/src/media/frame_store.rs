@@ -265,7 +265,7 @@ mod tests {
         Ok(())
     }
 
-    /// A study holding a frame no client would read stops the server at startup, naming the
+    /// A series holding a frame no client would read stops the server at startup, naming the
     /// frame. Laid out by hand, since the writer refuses it too; sparse, so nothing is written.
     #[test]
     fn a_study_with_an_oversized_frame_fails_to_open_naming_it() -> Result<()> {
@@ -282,7 +282,7 @@ mod tests {
         File::options().write(true).open(&path)?.set_len(data_base + u64::from(too_big))?;
         let opened = FrameStore::open(&path);
         let _ = std::fs::remove_file(&path);
-        let err = format!("{:#}", opened.err().expect("the oversized study opened"));
+        let err = format!("{:#}", opened.err().expect("the oversized series opened"));
         assert!(err.contains("frame 0 "), "the refusal does not name the frame: {err}");
         Ok(())
     }
