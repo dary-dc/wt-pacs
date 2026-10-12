@@ -7,10 +7,12 @@ and its branch belong to other work.
 
 ## Protocol
 
-**This queue lives on `claude/av1`. Push only to `claude/av1`** — never to
+**This queue lives on `claude/av1-mainbase`, and the work on `claude/av1-unified-mainbase`** (since row 150,
+2026-10-12): wherever a row names `claude/av1` or `claude/av1-unified`, read these; the old branches are unused.
+**Push only to `claude/av1-mainbase`** — never to
 `claude/unified-2026-09-23`, `main` or any other branch, and never edit `docs/cloud-queue.md`.
 
-1. `git fetch origin && git checkout claude/av1 && git rebase origin/claude/av1`.
+1. `git fetch origin && git checkout claude/av1-mainbase && git rebase origin/claude/av1-mainbase`.
 2. Read `CLAUDE.md`, then [`README.md`](README.md) (this phase), then the table below.
 3. Take the **topmost `ready` row**. Set it to `claimed` with the date and a 6-hex id you draw once per session (`openssl rand -hex 3`), e.g. `claimed 2026-10-07 (night, a3f91c)`, commit that alone, push; a row whose claim does not carry your id is not yours. The
    push is the lock: if it is rejected, rebase and take the next `ready` row.
@@ -225,13 +227,13 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 147 | **FRAMELOSS** — no frame lost silently: a decoder crash, a delivery the page cannot read and a decode that never returns each end in a re-decode or a loud failure, a test per path that fails without | done `2ab670c` on `claude/av1-unified` (`dc1524d`, `a1ad5fd`) — **no frame is lost silently now: a crashed, hung or unreadable decoder is replaced and its unacknowledged frames asked again; lost twice, a frame fails by name**. Records are forgotten on the page's ack, not on `done`; `decodeMs` 10 s (~28× the slowest decode measured, 355 ms). Tests per path in Node and three dispatch-rig clauses through real workers, 3/3 in Chromium 141 and Firefox 157.0.1; every mutant caught. Row 145's bench re-run, 30 visits: every *hang* cell now fails by name after two deadlines and frame 5 behind it arrives exact (both were silent); the other 24 cells as before. Cost: a tie — last frame of 240 at 2 671 against 2 605 ms in Chromium (paired 0.985 [0.898–1.159]) and 3 555 against 3 488 ms in Firefox (1.022 [0.958–1.080]), 10 rounds interleaved, 9 600/9 600 frames exact; decode-bound on 4 cores. `docs/ARCHITECTURE.md` §The downloader |
 | 148 | **FRAMEPATH** — where a decoded frame should go now that the client has a paint worker and will get an OPFS cache: the page in or out of the pixel path, who owns the frame store, what OPFS costs; theory only | done `050d4c64` on `claude/av1-unified` — theory only, nothing timed: **recommended B′**, decoder → paint worker (which owns the memory store and every viewport) → a store worker writing checked, decoded frames to OPFS (sync handles are dedicated-worker-only, exclusive per file, take shared memory); the page's measured 0.07–1.15 ms a frame is not the reason — a busy page is (predicted: < 1 ms on a quiet page, up to a long task's length per waited frame and cine kept under one); decoded samples kept (CT series 40 MB, mammogram 17 MB a frame; reopen = read + one XXH3, no decode), re-checked on every read; WebKit's OPFS deletion is 30 operating days in its source's default, not 7 (qualified in place); protocol and rule proposed, not queued ([`../adr/frame-path.md`](../adr/frame-path.md)); five decisions under [`## Blocked`](#blocked) |
 | 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | done `36f15dd` on `claude/av1-unified` — **still nothing meets row 100's bar for any of the three types; one open set of native angiography runs exists, without a licence**: `MesserMMP/coronary-angiography-syntax` (Hugging Face, 87 626 XA files, 980 GB, Philips and Siemens, 14/14 headers read multi-frame, uncompressed, Lossy `00`) states no licence; IDC v25 and TCIA add nothing (39/39 XA single frames, multi-frame US cine flagged lossy 26–100:1); no breast ultrasound cine in DICOM and no ABUS volume in DICOM at any of ~25 hosts; nearest ABUS analogue IDC's prostate 3D TRUS (1 762 volumes, 280 frames, native, CC BY 4.0); DSCA's DSA runs are cut, MIDRC's fluoroscopy is not angiography and non-commercial — `docs/FIXTURES.md` §Provenance, The wider search |
-| 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | built — published as `claude/av1-unified-mainbase` `7cd9e97e` and `claude/av1-mainbase` (the replay's tip `77bafbe5`, this record on top); the swap is the owner's — **992 commits re-authored** (the first run's 1 557 is not reproduced, [`mainbase/`](mainbase/README.md)), 423 replayed onto `c7230a9`, 92 108 hash tokens carried, `rehash_check.py` silent on both tips and catching an old hash planted in a tree and in a message; (a) 16 paths outside PR #34 differ, each by hash replacements alone; gate green in 359 s (page check 3/3 exact in Chromium, Firefox skipped by name); a fast-forward of `main`, +77 621 −5 411 over 1 335 files; report `docs/av1/MAINBASE.md` on the unified branch; map `rehash-map.tsv` and `rehash_check.py` here |
-| 151 | **CHECKCOST** — what the exactness checks cost a frame in today's client: the XXH3-64 check after decode by path, the second decode on a mismatch, and a cache read's re-check; cost only, the checks stay on | after 150 |
+| 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | done — published as `claude/av1-unified-mainbase` `7cd9e97e` and `claude/av1-mainbase` (the replay's tip `77bafbe5`, this record on top); all work continues on these two, the old branches unused (the owner, 2026-10-12) — **992 commits re-authored** (the first run's 1 557 is not reproduced, [`mainbase/`](mainbase/README.md)), 423 replayed onto `c7230a9`, 92 108 hash tokens carried, `rehash_check.py` silent on both tips and catching an old hash planted in a tree and in a message; (a) 16 paths outside PR #34 differ, each by hash replacements alone; gate green in 359 s (page check 3/3 exact in Chromium, Firefox skipped by name); a fast-forward of `main`, +77 621 −5 411 over 1 335 files; report `docs/av1/MAINBASE.md` on the unified branch; map `rehash-map.tsv` and `rehash_check.py` here |
+| 151 | **CHECKCOST** — what the exactness checks cost a frame in today's client: the XXH3-64 check after decode by path, the second decode on a mismatch, and a cache read's re-check; cost only, the checks stay on | ready |
 | 152 | **QUICTUNED** — row 124's candidates at their best configuration for the target, not their defaults: what each lets be tuned or patched, each lever's mechanism and its effect on throughput and on latency, every published result on one table, the server's stack read as a candidate too; theory only || done `6626fbed`: at their best no candidate is flow-control-bound at 5–50 Mbit/s (quinn's fixed 1.25 MB covers 50 Mbit/s to 200 ms; msquic's 64 KiB doubles to 16 MiB, so 5.24 Mbit/s at 100 ms holds only for a fresh stream's first quarter-window); no published study compares tuned stacks at the target's rates with loss (one at 40 Mbit/s 40 ms, no quinn or msquic); the owner's paper confirmed as CPU efficiency at 4–5 Gbit/s with settings unstated; a server-stack change buys ~1.3× sessions per core on the one comparable reading against the WebTransport layer, 927 lines of controller work and the gate — [`../native/quic.md`](../native/quic.md) §7 on `claude/av1-unified` |
 | 153 | **INGESTDESIGN** — the best design of the pipeline from the owner's C parser to the PACS, compared against alternatives on every axis: where frames are encoded, how the parser hands over, what travels, where the layout, the per-study SQLite and the catalog are built, the integrity chain, metadata compression, recovery, prior art; theory only | done `0de61363` on `claude/av1-unified` — **the proposal holds on most axes; the gap is when a series is complete** (DICOM marks no last instance): theory only, ~60 sources pinned; (a) code at the site — raw + zstd costs 1.0–1.8× HTJ2K's bytes on the link (≈ 1.4×, seven images, one source; JPEG 2000 1.17–1.72× gzip over Clunie's 3 679), the parser's HTJ2K is grok, AGPL v3, not OpenJPH's bytes; (b) keep the directory: a checkpoint and a process boundary for C on untrusted files, an instance-complete marker owed; (c) one archive a series (`.sbnd` + its groups); (d) study database first, catalog derived by a generation upsert, PostgreSQL recommended (ATTACH caps cross-database SQL at 125); (e) a 10 KB group hashes in ≈ 1.5 µs, so compressed-byte hashes save ~1 µs — the parser's BLAKE3 after decompression proves parser → PACS, once 3 of its 4 group hashes cover the bytes written; SHA-256 without SHA-NI (53–91 ms a 27 MB frame) costs more than OpenJPH's encode (29 ms), XXH3 0.5–0.9 ms; (f) one zstd stream a series, a dictionary only per group (×1.5–4.7 on 300 B–6 KB); (g) idempotent by UID + digest, resumable by offset, published by rename + fsync; no prior art codes and checks at the edge (AWS checks in the cloud with CRC32); nine decisions under §Blocked — [`docs/ingest/design.md`](../ingest/design.md) on `claude/av1-unified` |
 | 154 | **LINKTCP** — the hospital→PACS link is TCP (decided): the reasons written with pinned sources, what QUIC would gain or cost there in numbers from research, the resumable-upload options over HTTPS, and what would have to be true for QUIC to win; theory only | done `ee9522df` on `claude/av1-unified` — **TCP's reasons hold on every axis read; QUIC's wins belong to other links**: QUIC in user space costs ~2–3× TCP's CPU per byte (3.5× → ~2× at Google; ~3× against TSO on 10G; 2.5× on a receiver, 744 K datagrams against 58 K a GB), noise at a few GB a day (100 GB ≈ 130–400 core-s) but on the server's receive side; 4.4 % of clients could not use QUIC in 2016, "commonly … corporate networks", and Palo Alto, Zscaler, Cisco, SonicWall and Defender advise blocking it — no hospital rate published, so a QUIC link needs the TCP path anyway (RFC 9308 §2); Linux's 4 MiB `tcp_wmem[2]` caps an upload at ~671/224 Mbit/s at 50/150 ms, the receiver's 6 MiB before 6.16 at ~503/168 — fine to 100 Mbit/s, a few sysctls for 1 Gbit/s; 0-RTT unusable for uploads (RFC 8470), migration worth nothing wired, one RTT a kept connection; no published comparison measured an upload, and those nearest the link (Kempf 40 Mbit/s 40 ms, Shreedhar > 20 MB, Yu–Benson ≥ 1 MB) show TCP equal or ahead; S3 multipart, tus, the IETF draft -13 (no integrity) and rsync compared; QUIC returns only if UDP/443 is open at the sites and quinn's receive cost does not cap the server, plus loss, multiplexing or short connections; five decisions listed — [`ingest/link.md`](../ingest/link.md) on `claude/av1-unified` |
-| 155 | **INGESTRS1** — the Rust ingest, phase 1: a Python mirror of the owner's C parser's directory output for frames, and a Rust ingest that reads it, hashes, codes with the pinned OpenJPH, checks, digests and writes the `.sbnd` byte-identical to the Python ingest's | after 150 |
-| 156 | **QUICCOMPARE** — the QUIC implementations compared one by one, for learning: what each is, its design, how it handles every lever, its throughput ceiling as a function of bandwidth and RTT at defaults and at its best, and what it would mean as our client and as our server; theory and writing, from rows 124 and 152's sources | after 150 |
+| 155 | **INGESTRS1** — the Rust ingest, phase 1: a Python mirror of the owner's C parser's directory output for frames, and a Rust ingest that reads it, hashes, codes with the pinned OpenJPH, checks, digests and writes the `.sbnd` byte-identical to the Python ingest's | ready |
+| 156 | **QUICCOMPARE** — the QUIC implementations compared one by one, for learning: what each is, its design, how it handles every lever, its throughput ceiling as a function of bandwidth and RTT at defaults and at its best, and what it would mean as our client and as our server; theory and writing, from rows 124 and 152's sources | ready |
 
 ## Briefs
 
@@ -3071,7 +3073,7 @@ check after decode on each path — HTJ2K WASM, dav1d-WASM, WebCodecs; (2) the s
 on the same buffers. **Sets:** a small (512²), a medium (1914×2572) and a large (3328×4096) frame, 8- to 16-bit where
 the path takes them. **Engines:** Chromium and Firefox. Interleaved (`lab/order.mjs`), n ≥ 5 rounds, every frame exact;
 quote time a frame, not throughput. **Deliverable:** the table in `docs/adr/exactness-in-production.md` (a section of its
-own). **Branch:** `claude/av1-unified`.
+own). **Branch:** `claude/av1-unified-mainbase`.
 
 ### 152 QUICTUNED
 
@@ -3171,6 +3173,11 @@ proven before it returns. Theory only.
 
 ### 155 INGESTRS1
 
+*Amended 2026-10-12 (the owner): SHA-256 is replaced, and the raw-frame check is XXH3-64.* The Rust ingest hashes the
+raw samples with XXH3-64 and compares the decode-back's XXH3-64 — the digest it writes for the client anyway, so one
+hash family per frame. `ingest.py`'s raw-frame check moves from SHA-256 to XXH3-64 in this row, so both ingests check
+alike and stay byte-identical; any other SHA-256 left in the ingest is listed in the report with what it does.
+
 *Amended 2026-10-11 (the owner): no effort on what the parser accepts. The mirror is a simple first step that writes the
 parser's directory output shape — the contract — from the frames `ingest.py` already reads, so the parser can be swapped
 in later; no input-acceptance logic beyond `ingest.py`'s own. The parser's open points are notes for its author in
@@ -3228,9 +3235,14 @@ linked from `docs/ingest/README.md`.
   configuration, three group hashes over a pre-conversion length, five-digit frame names). The mirror writes frames
   as `ingest.py` holds them, and the ingest checks no group hash.
 
-**Deliverable:** the crate, the mirror, `docs/ingest/contract.md`, the gate step. **Branch:** `claude/av1-unified`.
+**Deliverable:** the crate, the mirror, `docs/ingest/contract.md`, the gate step. **Branch:** `claude/av1-unified-mainbase`.
 
 ### 156 QUICCOMPARE
+
+*Amended 2026-10-12 (the owner): the native version does not use WebTransport (2026-10-10).* "As our client" means a
+native client on raw QUIC with our own ALPN; WebTransport counts only for the server's browser side. Rows 124 and 127's
+conclusions that assume a WebTransport native client, the assumed band or quinn on the server are inputs to examine,
+not verdicts to repeat.
 
 **The QUIC implementations actually compared, for learning (the owner, 2026-10-11).** Rows 124 and 152 hold the facts,
 but they read as tables and verdicts; the owner wants to learn how each implementation works and what that means for
@@ -3258,11 +3270,17 @@ repository, with the row); theory first, measured results kept apart and named a
 used, say so. Reuse rows 124 and 152's pinned sources (`docs/native/quic.md` §2, §7, §8); read new ones only to fill a
 gap, pinned the same way.
 
-**Deliverable:** `docs/native/quic-compared.md`, linked from `docs/native/quic.md` §1. **Branch:** `claude/av1-unified`.
+**Deliverable:** `docs/native/quic-compared.md`, linked from `docs/native/quic.md` §1. **Branch:** `claude/av1-unified-mainbase`.
 
 ## Blocked
 
-* **2026-10-12 UTC: row 150 MAINBASE — the swap is the owner's.** Published as `claude/av1-unified-mainbase` (`7cd9e97e`) and `claude/av1-mainbase`, plain pushes; `claude/av1-unified` and `claude/av1` (at the claim) are untouched. Moving them onto the new branches is the owner's; rows 151, 155 and 156 stay `after 150` until then.
+* *Resolved, 2026-10-12 (the owner): no swap.* Row 150 is done as two new branches, `claude/av1-unified-mainbase` (work)
+  and `claude/av1-mainbase` (this queue); all work continues there and the old `claude/av1`, `claude/av1-unified` and
+  `-pre-main` branches are unused until the owner deletes them. Rows 151, 155 and 156 are `ready`.
+
+* *Owner rulings, 2026-10-12:* **DBT slice stacks are cine-like and in AV1's immediate scope** (row 138's `dbts_b4`
+  per-series choice stands as an AV1 candidate); **SHA-256 is replaced by XXH3-64** as the raw-frame check (row 153's
+  choice 5; row 155 amended).
 
 * **2026-10-12 (the owner): row 150 is published under new names, with no force-push.** The session that takes it:
   1. claims row 150 on `claude/av1` and pushes, then makes **no other commit to `claude/av1` or `claude/av1-unified`**
