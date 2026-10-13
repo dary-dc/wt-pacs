@@ -344,6 +344,104 @@ answer and nothing is claimed at or above it. **A trap:** a mixed workload built
 cycle of three sizes over three workers gives each worker one size and reverses the result; the
 sizes are a seeded shuffle.
 
+## An ask behind the decoders
+
+*Queue row ASKBEHIND (183), 2026-10-13. Theory: nothing built or timed but a model of the dispatch,
+[`lab/ask-behind/sim.py`](../../lab/ask-behind/sim.py) (`--test` checks its claims, each mutated to fail). The protocol
+below is for a separate session given it and its rule only.*
+
+**The question.** At the measured rates, what does an ask wait behind in a decoder's queue, and does ask-aware
+dispatch cut it with the fill unchanged? This is the wait from the ask's bytes in hand (`stamps.lastByte`) to its
+pixels (`decodeEnd`); the wait before, behind the fill's written-ahead bytes, is row 167's ninth item and ASKAHEAD's.
+
+**Today.** Asks queue before fill frames, and a frame goes to the decoder with the fewest outstanding, at most
+`perDecoder` (2) each (`client/transport/downloader.js`, `decoderFor`, `pump`). In the decoder worker the frames run
+in arrival order (`client/decode/decoder.js`, one promise chain). With T a frame's decode and n = 3 decoders:
+
+* **Some decoder idle:** the ask decodes at once. Its wait is its own decode, T.
+* **Every decoder busy, one with a free slot:** the ask goes behind that decoder's current frame. Ties go to the first
+  in the list, not the one that ends first, so the wait is R + T with R the remaining part of that decode, T/2 on
+  average.
+* **Every decoder full** (the fill is decode-bound): the ask waits in the downloader for the first slot. A slot frees
+  on a decoder's `done`, the moment that decoder starts its queued frame. So the ask waits R_min, then that whole
+  frame, then its own decode: **R_min + 2T**, with R_min ≈ T/4 for three decoders out of phase.
+
+So the decoders cost an ask up to one fill frame's decode on top of the first decode to end. That is 34–139 ms on
+`dbt12` at 4× and 395 ms on a mammogram at 4× (§Net protocols' decode times, AV1 at 1.6–4.1× HTJ2K's,
+[`../av1/README.md`](../av1/README.md)). `perDecoder` is not the lever: it keeps decoders from idling on the hop
+(§Dispatch). At 1 it would cost the fill, and the ask would still wait R_min + T.
+
+**Two ways to make dispatch ask-aware:**
+
+* **hold** — fill frames never take the last free slot, so one stays open for an ask. The ask waits for that one
+  decoder's current frame, T/2 on average, not the first to end. But the decoder with the open slot idles between its
+  frames, so a decode-bound fill pays for it.
+* **jump** — the ask goes at once to the decoder whose current decode ends first, one over its cap, and decodes before
+  that decoder's queued frame: **R_min + T**. No work is added: the same frames decode, and one fill frame moves back
+  by T. So a decode-bound fill ends when the same work ends. For equal frames, the decoder that ends first is the one
+  that started its current frame earliest. The downloader knows that moment: it is the later of the frame's dispatch
+  and the previous frame's `done`.
+
+**Where decode is the clock at row 162's rates** (§Net protocols: one frame's decode ÷ 3 against its wire time):
+nowhere at 1×. At 4× and 300 Mbit/s, `dbt12` HTJ2K is at the edge (11.3 against 13 ms) and AV1 is decode-bound at
+both ends of its range. At 4× and 100 Mbit/s, AV1 is decode-bound at 4.1×. A mammogram's 4 frames end before a queue
+forms. So the lever can only show at 4× (a phone's CPU), at 300 Mbit/s, or with AV1.
+
+**Predicted, by the model** (frames as each set has them, decode ±10 % per frame, a 0.5 ms hop, 200 asks at uniform
+moments in the fill's middle; ms from the ask's bytes in hand to its pixels, median / p90; the fill's end against
+today's). Every 1× cell and every 4× cell at 100 Mbit/s but AV1 at 4.1× is identical under all three policies, and
+so is the mammogram:
+
+| series, 4× | link | today | hold, fill | jump, fill |
+| --- | --- | --: | --: | --: |
+| `dbt12` HTJ2K, 29 frames | 300 Mbit/s | 41 / 63 | 41 / 63, 1.000 | **36 / 41**, 1.000 |
+| `dbt12` AV1 at 1.6× | 300 Mbit/s | 114 / 130 | 82 / 106, 1.036 | **65 / 93**, 1.000 |
+| `dbt12` AV1 at 4.1× | 100 Mbit/s | 259 / 309 | 204 / 264, 1.019 | **185 / 262**, 1.000 |
+| | 300 Mbit/s | 318 / 374 | 209 / 263, 1.057 | **181 / 241**, 1.000 |
+
+AV1 at 4.1× and 1× on 300 Mbit/s, at the edge: today 55 / 72, jump 45 / 59, hold no gain at a fill 1.010.
+
+**Net or a trade-off.** *jump* is predicted **net**. Where the wire is the clock it equals today. Where decode is the
+clock it cuts the ask's decoder wait by ×0.57–0.88 at the median and the p90 to as low as ×0.64, and leaves the fill's
+end unchanged. Its costs are in code: a two-level queue in `decoder.js`, a `priority` field on the decode message,
+`currentSince` per decoder in the downloader, and one wire buffer more while an ask is in flight (the ring holds
+`decoders × perDecoder + 2`). With groups (G > 1) an ask can jump only to a decoder holding no group; the product's
+G is 1. *hold* is a **trade-off**: it cuts less and costs a decode-bound fill 1–6 %, so it is not proposed. Neither
+helps an ask whose frame is already in a decoder's queue (it is promoted only in the downloader). Nor does either
+help the wire's part, which at 103 Mbit/s is the larger (0.49 s, row 167).
+
+**Protocol, for a separate session (the measuring row):**
+
+* **Build**, a lab flag `askJump` (off by default): an ask's frame, once its bytes are in hand, goes to the live
+  decoder whose current decode started earliest (an idle one first), past `perDecoder` by one. Its decode message
+  carries `priority: "ask"`, and `decoder.js` runs it before its queued fill frames. Under the flag the ring holds one
+  buffer more. Only when that decoder holds no group. The build's test fails without it: a fake decoder that never
+  finishes its current frame, and an ask that must not wait behind the frame queued after it.
+* **Arms:** A (today), A′ (today under another name), B (`askJump`), by §Net protocols' common rule
+  (`lab/scripts/aa_rule.py`, three arms in `lab/scripts/order.py`'s order, n = 12, up to 24 for a cell not
+  conclusive). Each arm prints its settings: build sha256s, controller and initial window, transport options, decoder
+  path, `perDecoder` and the ring's size, which differs by one under B and nowhere else.
+* **Rig:** `lab/ask-ahead` (`cells.py`, `page.js`, `visit.mjs`) with decoding on, and Chromium's CPU throttle at 1×
+  and 4× as `lab/av1/delivery/fill` sets it. The page fills the whole series and, once half has landed, asks for the last
+  frame. Per run it records the ask's decoder wait (`decodeEnd − lastByte` of the asked frame), its total, the
+  fill's issue to its last frame on the page, and how long the transport waited for a free wire buffer.
+* **Cells:** `r100000` and `r300000`, 23 ms one way and a FIFO of `--queue-ms 650` (§Net protocols), 1× and 4×.
+  Series: `dbt12_ea1141` as HTJ2K and as the product's AV1 (`ingest/coded-frames`, `--representation optimized`),
+  both `sound`. Check the relay's ceiling at 300 Mbit/s first: it has never been run there. A link whose shaped visits
+  are over 20 % `VOID` is dropped and said, and both readings are reported where `VOID`s occur.
+* **Truth:** every frame against the encoder's input; `--mutate sample` and `truth` fail every frame.
+* **Predictions:** the ask's decoder wait, B/A, is a tie in every 1× cell and at 4× on 100 Mbit/s for HTJ2K. At 4×
+  it is under 1 in the cells the table marks: HTJ2K at 300 ×0.88 median and ×0.64 p90; AV1 at 300 ×0.57 or under.
+  The fill's B/A is a tie everywhere. The wait for a wire buffer is a tie.
+* **Rule:** `askJump` is adopted, as the default, only if:
+  * no cell is worse beyond the A/A spread on the ask's total or on the fill;
+  * the ask's decoder wait is better in at least one 4× cell;
+  * every frame is exact;
+  * the wait for a wire buffer is no worse.
+
+  If no 4× cell is decode-bound on the host (the decoder wait a tie at 4× on AV1), the row says so and is not
+  conclusive on this host. Otherwise the flag stays off, and the row names the cell.
+
 ## Retained-frame residency
 
 Every bench above releases each frame, so each prices a decoder. A viewer keeps what it decoded, and
