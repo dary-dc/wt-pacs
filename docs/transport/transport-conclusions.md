@@ -19,6 +19,11 @@ of sessions per server. In numbers: at 20 Mbit a 250 KB frame is 100 ms on the w
 round trips outweigh anything the server does per frame; 20 Mbit is ~2.5 MB/s, about 0.4 % of a
 core (0.7 % measured on a container's core, §4 *Many fills at once*), so no session is heavy and at thousands of sessions the cost is CPU per byte; and the round
 trip is 30–80 ms, so a 28 ms tail that dominates loopback is half a round trip there.
+*Corrected 2026-10-13 (queue row LINKREAL): the 20 Mbit and 30–80 ms were assumptions, and 20 Mbit is the slow
+tail.* Measured by others, a phone reaches a near server at ~100 Mbit/s median on cellular (p10 18) and ~220 on Wi-Fi,
+and one stream to an off-net server at 27–85 Mbit/s by country; idle round trips are 16–55 ms, but under a
+saturating transfer 0.7–0.8 s median on cellular. The profiles, their sources and the verdicts resting on the old
+band are in [`link-conditions.md`](link-conditions.md).
 
 **How to read the numbers.** Variants are interleaved inside every round unless a row says otherwise;
 figures are medians; "5/7" is rounds won, paired round against round. The userspace relay
