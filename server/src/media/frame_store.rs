@@ -43,17 +43,23 @@ impl FrameStore {
             .with_context(|| format!("open series bundle {}", series_path.display()))?;
         let layout = read_layout(&file)
             .with_context(|| format!("read layout of {}", series_path.display()))?;
-        Ok(Self {
-            nowait: probe_nowait(&file, layout.data_base as u64),
+        Ok(Self::with_index(file, layout.index, layout.data_base as u64))
+    }
+
+    /// A series whose table another container's parser read: `lab/container-bench`.
+    /// Every entry must lie inside `file`; nothing here checks it.
+    pub fn with_index(file: File, index: Vec<(u64, u32)>, probe_at: u64) -> Self {
+        Self {
+            nowait: probe_nowait(&file, probe_at),
             file,
-            index: layout.index,
+            index,
             #[cfg(test)]
             nowait_cap: None,
             #[cfg(test)]
             pool_starts: AtomicUsize::new(0),
             #[cfg(test)]
             advised: Mutex::new(Vec::new()),
-        })
+        }
     }
 
     /// Where this is false every read reports a miss, cached or not, so a caller that

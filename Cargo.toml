@@ -9,6 +9,7 @@ members = [
     "ingest/from-parser",
     "tools/check-fastpath",
     "lab/disk-access-bench",
+    "lab/container-bench",
     "lab/window-harness",
     "lab/telemetry-bench",
 ]
