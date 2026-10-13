@@ -1675,6 +1675,14 @@ HTJ2K, paired by round:
   single decoder's time out by arithmetic. *Since measured (queue row FILL):* three decoders through the downloader,
   `docs/av1/README.md` §Total time — the arithmetic's verdict holds, its sizes were optimistic.
 
+## Hardware decode
+
+Queue row HWDECODE, theory only: [`hardware.md`](hardware.md). No browser path serves the viewer as the product codes
+AV1: Chromium's hardware front end refuses 4:0:0, and WebCodecs cannot read back a hardware 10-bit frame (`P010` has
+no `VideoPixelFormat`). Native APIs return the decoder's planes exactly by construction, limited by what each decoder
+takes: AV1 Main 4:2:0 everywhere, 4:0:0 shown only on NVDEC. Whether hardware lossless is exact waits on a device run
+(§Open).
+
 ## JPEG XL
 
 Queue row JXL ([`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md)), 2026-10-07: lossless JPEG XL (libjxl 0.12.0) at effort 1–7 and
@@ -1735,8 +1743,8 @@ measurement, unless it names the row that measured it.
 Firefox 145, Safari only behind a JavaScriptCore flag; threads everywhere [3]. Wider vectors (Flexible Vectors) are a
 phase-1 proposal [4]: 128 bits is the browser's width for the foreseeable future. §The decode tail found `-mrelaxed-simd`
 leaves OpenJPH's binary byte-identical, so relaxed SIMD pays only through hand-written intrinsics, and then not in
-Safari. Hardware AV1 decode on Apple ships from the iPhone 15 Pro's A17 Pro and M3 (secondary sources quoting Apple's
-2023 announcement; Apple's own page not read) [5]; Android guarantees Main 8/10 at level 4.1 (row SWEEP). Whether any
+Safari. Hardware AV1 decode on Apple ships from the iPhone 15 Pro's A17 Pro and M3 [5] (*since row HWDECODE:* Apple's
+own 2023 newsroom pages, read, [`hardware.md`](hardware.md) §5); Android guarantees Main 8/10 at level 4.1 (row SWEEP). Whether any
 hardware decoder returns a lossless 4:0:0 or split stream exactly is unknown until a device runs it (§Open).
 
 **The source of "~570 MB of coded queue on tomosynthesis" was not found** in any branch's docs, lab READMEs or
@@ -1757,7 +1765,7 @@ read from the code, and that a reader pause is proposed, not built ([`../ARCHITE
 | 7 | **The WebGPU block decoder natively** through wgpu, painting from the GPU | native | row WEBGPUHT's WGSL runs unchanged on Metal, Vulkan and D3D12; a native painter drops `mapAsync`'s read-back, which on SwiftShader cost 2× the heap copy on frames over 4 MB | the bound's *ideal* column, 67–75 % of a large frame (§A WebGPU block decoder, bounded); unmeasured on any GPU | row NATIVEPLAN; §L3's phone stage first |
 | 8 | **Relaxed SIMD, hand-written** in the HT block decoder's swizzles and the wavelet | browser, not Safari | fewer instructions per lane shuffle on x86; on ARM most relaxed ops lower as the strict ones | ≤ 3 % a frame; two builds to ship | not proposed |
 | 9 | **dav1d's entropy decoder in WASM SIMD** | browser, AV1 only | `msac`'s CDF search vectorised, as its NEON does | ≤ 0.65 of dav1d-WASM's time by the native hint, still 3–6× OpenJPH | not proposed while no series is served as AV1 (`../codecs/README.md` §Which series AV1 is for) |
-| 10 | **Hardware AV1 on a phone** (A17 Pro and later, Android SoCs) for 8- and 10-bit streams and the top10+low split | phones | a fixed-function decoder | unknown; exactness first | a device run (§Open) |
+| 10 | **Hardware AV1 on a phone** (A17 Pro and later, Android SoCs) for 8- and 10-bit streams and the top10+low split | phones | a fixed-function decoder | unknown; exactness first | a device run (§Open); what each path takes and returns, [`hardware.md`](hardware.md) |
 
 *Not a lever:* decoding an ask's lower resolutions while its last bytes arrive — the last resolution is ~¾ of the
 samples and of the decode, and §A frame at the level the screen needs already draws a level picture first; PLT and TLM
