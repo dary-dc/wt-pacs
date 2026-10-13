@@ -355,7 +355,7 @@ while the series is still being parsed and coded, and what would that take and s
 * **The parser hands over whole instances**, one directory each ([`README.md`](README.md) §1, step 2). A multi-frame
   instance (a cine, a tomosynthesis volume) gives no frame until all of it is received and parsed. Streaming inside one
   instance needs the parser's stream output (§3).
-* **The draft target is front-loaded as well.** Row 164's header carries the entry count, and its index (offset,
+* **The draft target is front-loaded as well.** [`../disk-layout/target.md`](../disk-layout/target.md)'s header carries the entry count, and its index (offset,
   length, a coded and a samples XXH3-64, 28 B a frame) precedes the frames. It drops only the metadata, which moves to
   the study database.
 * **Display order.** Frames lie back to back in display order, and a fill asks the kernel for
