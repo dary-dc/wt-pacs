@@ -10,7 +10,7 @@ exactly; the draft that replaces it is [`target.md`](target.md). Every line refe
  │ header 16 B          │ index 12 B × N │ metadata JSON     │ frame 0   │ frame 1   │  …  │ frame N − 1 │
  │ "SBND" ver mlen N    │ offset │ len   │ (UTF-8, mlen B)   │           │           │     │             │
  └──────────────────────┴────────────────┴───────────────────┴───────────┴───────────┴─────┴─────────────┘
-                          read once at open (two preads)       back to back, display order, unaligned
+  └──── the prefix: read once at open, two preads ────────────┘ └── back to back, display order, unaligned ──┘
 ```
 
 ## The bytes
