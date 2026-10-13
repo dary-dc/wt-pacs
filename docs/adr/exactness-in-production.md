@@ -614,3 +614,72 @@ in all), WebCodecs' fallback a dav1d-WASM decode (×2.8–3.0), dav1d's fallback
 allows it (×1.5); where no second path exists — a top over 10 bits, or Firefox, whose WebCodecs refuses these
 payloads — the refusal is immediate, the cost is the hash, and the frame stays marked false. These are a
 container's times on one host (Xeon, 4 cores), 1×; phones are not measured.
+
+## 10 · Where the check's 3.3 GB/s goes, and what would be faster · 2026-10-13
+
+*Queue row 176 (HASHFAST). Theory: nothing built or timed. The digest must stay bit-identical. XXH3-64's output is
+fixed for every implementation and version from xxHash 0.8.0 on (`xxhash.h` at v0.8.4, `c87183a77d67`, §XXH3), and
+§9's check must keep covering what it covers now.*
+
+**What ships.** hash-wasm 4.12.0's single-algorithm XXH3 build (`373b796205ab`, the `v4.12.0` tag). Three things
+about it, each read in its source:
+
+* **Scalar only.** Its own port of xxHash is compiled `-O3` for plain `wasm32`, and `-msimd128` is a commented-out
+  flag (its `Makefile-clang`, lines 1–4). The bulk loop is `XXH3_accumulate_512_scalar` (`src/xxhash3.c:312–328`).
+* **A copy of every byte.** The module's memory is a fixed 128 KiB. `update` copies the input into it 16 KiB at a
+  time with `TypedArray.set` and calls `Hash_Update` once per chunk (`lib/WASMInterface.ts:12`, `:138–146`): 1 666
+  calls and 27.3 MB copied for the 3328×4096 mammogram.
+* **It reads the frame's `SharedArrayBuffer`.** The decoder has already copied its output there
+  (`client/decode/htj2k.js`, `new Uint8Array(sab).set(out)`), and `decoder.js` hashes that SAB.
+
+**The split, by elimination (D).**
+* §9 measured the same hash over an unshared copy at 0.75–0.8 of the check: 6.3 against 8.1 ms on the mammogram.
+  So **reading shared memory costs about 1.8 ms of the 8.1 there**.
+* hash-wasm's own table reads its XXH64 at ~16 GB/s on 1 MB inputs (README §Benchmark, host unstated). That is
+  through the same chunked copy and calls, so copy and calls together cost at most ~1.7 ms on 27.3 MB.
+* That leaves **~4.6–6.3 ms of scalar XXH3 core** (4.3–5.9 GB/s) on the mammogram. These are bounds from three
+  sources on different hosts, not a measured split.
+
+**What would be faster, digest unchanged:**
+
+| arm | change | predicted on the mammogram (D) | what it costs |
+| --- | --- | --- | --- |
+| A, today | — | 8.1 ms | — |
+| B, hash before the copy | the same hasher over the decoder's own output, before it is copied to the SAB | ×0.75–0.80 (§9's unshared copy) | **the copy goes unchecked**: worker memory is inside §7's threat model, so B narrows coverage, a trade-off, not net |
+| C, upstream xxHash with SIMD128 | xxHash v0.8.4's XXH3, whose WASM SIMD128 path is its NEON code through SIMDe's `arm_neon.h` (`xxhash.h:3877`, `:5368–5550`), built `-O3 -msimd128`, over the SAB through the same 16 KiB chunks | the core ×0.33–0.5 (xxHash's changelog: "improved WASM speed by x2/x3 using SIMD128", v0.8.2), so 3.9–5.8 ms, ×0.48–0.72 (D, over the split's range) | a second vendored build of a BSD-2 library (`licensing.md` first); one report found no gain from a SIMD XXH3 prototype on aarch64 (jungomi/xxhash-wasm#29), so ARM may read ×1.0 |
+| D, C reading the frame in place | each frame's SAB allocated from the hasher's shared `WebAssembly.Memory` | the core alone, ~1.5–3.2 ms, ×0.19–0.39 | that memory only grows, so frames would need a pool of their own: not proposed |
+
+A one-shot XXH3 over the whole frame saves only the per-chunk calls, ≤ 0.3 ms (D: 1 666 calls at ≤ 200 ns). It
+needs a hasher memory as large as a frame, so it is not an arm.
+
+**Only C is a candidate.** It keeps the check where it is, over the samples that are handed on. Its gain is
+≤ 4.2 ms on a 69 ms HTJ2K decode (≤ 6 %) and proportionally less on smaller frames and on AV1. A decode-bound fill
+checked with XXH3 read ×1.00–1.15 (§3), so C would take at most half of that back.
+
+### Protocol, for a separate session (row 179, HASHMEASURE)
+
+* **Arms:**
+  * A: today.
+  * C: xxHash v0.8.4 built with `-O3 -msimd128`.
+  * C0: the same build without `-msimd128`. It separates the SIMD from the build and version.
+  * B: reported only, as the trade-off above.
+
+  Each arm runs behind the same `createXXHash3()`-shaped interface, takes 16 KiB chunks and reads the frame's SAB.
+  The compiler and emscripten are pinned as `client/decode/wasm/build/pins.sh` pins them.
+* **Bench:** row 151's ([`lab/av1/exact/checkcost`](../../lab/av1/exact/checkcost/README.md)) and its three frames
+  (MR 512², projections 1914×2572, mammogram 3328×4096). Headless Chromium 141 and Firefox 157, interleaved per frame
+  in a Williams order, a fresh browser a round, ≥ 10 rounds. `--mutate` changes one digit of every digest and must
+  fail every cell.
+* **Measured:** each arm's hash time per frame, and its digest against the ingest's for every frame.
+* **Predictions:**
+  * C at ×0.48–0.72 of A on the two large frames in both engines;
+  * C0 within ±10 % of A;
+  * B at ×0.75–0.80;
+  * every digest identical in every arm.
+* **Rule:**
+  * C is adopted only if its digest equals the ingest's on every frame in every engine, no cell is slower than A
+    beyond its spread, and it is ≥ 15 % faster on both large frames in both engines.
+  * Otherwise A stays, naming the cell.
+  * C0 slower than A beyond its spread means hash-wasm's port is the better scalar code, and the row says so.
+  * B is reported for the owner whatever it reads, since it narrows coverage.
+  * Nothing is claimed for a phone: x86 is the only host, and ARM is predicted ×1.0 at worst.
