@@ -3732,6 +3732,11 @@ defaults. **Deliverable:** the doc that owns the lever (the codec's doc under `d
 
 ## Blocked
 
+* *Owner rulings, 2026-10-13 (evening):* **tiles for large frames are shelved** — they make one frame's ask faster
+  (×0.39–0.45 at 4×) but not the series' total decode or a fill, and the owner finds the trade not interesting; row
+  175's proposal stays as the record, nothing is built on it. **GPU decoding is not pursued for now**: no device run of
+  row 111's WebGPU decoder is queued (row 113's L3 phone stage stays open, unscheduled).
+
 * **2026-10-13: owner calls named only in their docs (row 166's audit, added by row DOCFIX)**, each on
   `claude/av1-unified-mainbase`: (1) the **GSO segment cap**, 24 or 45 behind the product's buffer
   (`docs/transport/transport-conclusions.md` §9 item 6; FASTCLOCK prices it); (2) the **32-packet initial window**
