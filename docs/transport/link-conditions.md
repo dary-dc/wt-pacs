@@ -210,7 +210,8 @@ sourced numbers. The measurements that would decide are §Re-measured, proposed.
      bytes in flight at k × the estimated BDP is a controller change, the trade-offs of §1 *The ways out*. Pacing
      spreads the same bytes and removes none. An ask on its own stream at a higher priority would skip the unsent
      part too but is a wire change, structural, and buys nothing the send window does not.
-   Decided by ASKAHEAD.
+   **Measured by ASKAHEAD (row 171): a trade-off** — the ask −34 to −67 % where the credit does not bind, the fill
+   +0.7–11 % (§Re-measured, proposed).
 
 What is still open: phone loss distributions, a hospital's uplink, a hospital's Wi-Fi, the RTT from a phone to
 the cloud region a deployment would actually use, and buffer depths, which items 3 and 9 turn on. Each needs a field
@@ -233,6 +234,66 @@ frame checked against the encoder's input, each arm's full settings printed and 
   18 / 103 / 309 Mbit/s (D, M ≈ 1.1 MB on this volume) — and within ±10 % of today behind 360 and 800 ms; fill time within its spread everywhere;
   RSS per session lower. *Rule:* adopt as the default if the ask improves ≥ 20 % in every short-queue cell and no
   cell's fill or ask is worse beyond its spread; a fill worse anywhere makes it a trade-off for the owner.
+
+  **Measured (row 171, 2026-10-13): a trade-off, not adopted.** The ask is cut by up to two thirds wherever the credit
+  is not what binds, and the fill is worse beyond its spread in 8 of 16 cells. The arm is
+  `series-server --send-window-follows-cwnd` (lab only, off by default; M = 2 × 571 632 B), the rig
+  [`../../lab/ask-ahead/`](../../lab/ask-ahead/README.md) and the rows `rows-askahead.jsonl` there.
+  Chromium 141.0.7390.37 through the product's downloader (decoding off), `dbt10_ea1141` as the served HTJ2K
+  (24 frames, 13.6 MB, every frame's codestream matched with the one checked exact against the fetch's checksums).
+  The arms differ in the flag alone: `cubic-restart`, quinn's defaults, shared stream, server `aad95192`. 16 cells,
+  10 rounds Williams-ordered. The relay ran under `chrt -f 50`, and **174 of 320 runs were `VOID`**. Both readings are
+  given below, and they agree on the verdict in every cell that has strict pairs. On this host they disagree only on
+  the ask at 103/92/FIFO 20 ms, which is not conclusive here. **309 Mbit/s is past this host's ceiling**: in the pilot
+  the fill delivered ~140 Mbit/s whatever the arm, so nothing is claimed there. **HyStart's arm was not run**: the
+  server has no slow-start exit to switch on, since it was retired on 2026-10-02 (history at `6e9c126`, transport-conclusions
+  §The answer). Restoring it is code, not a flag.
+
+  | Mbit/s, idle RTT, queue | ask ms today → arm | ask, paired (strict) | fill ms today → arm | fill, paired (strict) | MB ahead | RSS MB |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | 18, 46, FIFO 20 ms | 3 124 → 1 025 | −67 % (−67, n = 2) | 6 486 → 6 518 | +0.8 % (+0.5) | 6.26 → 1.71 | 9.1 → 4.6 |
+  | 18, 46, FIFO 360 ms | 3 081 → 1 027 | −67 % (n = 0) | 6 337 → 6 384 | **+0.7 %** [+0.6…+0.9] | 6.26 → 1.71 | 9.4 → 6.0 |
+  | 18, 46, FIFO 800 ms | 2 270 → 925 | −59 % (−60) | 6 338 → 6 393 | **+0.9 %** (+0.8) | 6.26 → 3.43 | 9.5 → 7.9 |
+  | 18, 46, CoDel | 3 447 → 1 174 | −65 % (n = 0) | 6 813 → 6 782 | −0.5 % [−2.7…+4.0] | 6.26 → 1.71 | 9.1 → 4.7 |
+  | 18, 92, FIFO 20 ms | 3 085 → 1 028 | −67 % (−67) | 6 841 → 6 938 | +1.4 % [+0.2…+3.0] (+2.4) | 6.26 → 1.71 | 9.1 → 4.7 |
+  | 18, 92, FIFO 360 ms | 3 036 → 917 | −70 % (n = 0) | 6 593 → 6 687 | **+1.4 %** [+1.3…+1.5] | 6.26 → 2.29 | 9.4 → 6.1 |
+  | 18, 92, FIFO 800 ms | 2 207 → 1 219 | −45 % (−47) | 6 593 → 6 687 | **+1.4 %** (+1.4) | 6.26 → 4.56 | 9.6 → 7.9 |
+  | 18, 92, CoDel | 3 466 → 1 184 | −67 % (n = 0) | 7 372 → 7 414 | +0.7 % [−1.0…+5.7] | 6.26 → 1.71 | 9.1 → 4.6 |
+  | 103, 46, FIFO 20 ms | 537 → 223 | −59 % (−58) | 1 388 → 1 458 | **+5.3 %** (+5.3) | 6.26 → 2.29 | 9.4 → 6.0 |
+  | 103, 46, FIFO 360 ms | 537 → 537 | 0 % (0) | 1 383 → 1 387 | +0.3 % (0) | 6.26 → 6.26 | 9.7 → 9.3 |
+  | 103, 46, FIFO 800 ms | 537 → 537 | −0.1 % (−0.1) | 1 384 → 1 386 | +0.2 % (+0.2) | 6.26 → 6.26 | 9.8 → 9.3 |
+  | 103, 46, CoDel | 468 → 286 | −39 % (−39) | 1 390 → 1 491 | **+7.1 %** (+7.4) | 6.26 → 2.86 | 9.4 → 6.7 |
+  | 103, 92, FIFO 20 ms | 445 → 280 | −34 % (**+7.8**, n = 3) | 1 871 → 2 079 | **+11.2 %** (+27.1) | 6.26 → 2.29 | 9.5 → 7.2 |
+  | 103, 92, FIFO 360 ms | 536 → 537 | −0.1 % (−0.1) | 1 786 → 1 786 | +0.2 % (−0.1) | 6.26 → 6.26 | 9.7 → 9.2 |
+  | 103, 92, FIFO 800 ms | 535 → 537 | +0.3 % (+0.3) | 1 782 → 1 781 | −0.2 % (−0.1) | 6.26 → 6.26 | 9.8 → 9.2 |
+  | 103, 92, CoDel | 464 → 388 | −15 % (−21) | 1 910 → 2 074 | **+8.8 %** (+8.8) | 6.26 → 3.71 | 9.7 → 7.9 |
+
+  Medians of 10, paired changes as the median over rounds (strict: pairs with neither run `VOID`). The fill is in
+  bold where it is worse beyond its spread: the two arms' ranges do not overlap. "MB ahead" is the fill frames that
+  landed between the ask and its frame. RSS is the server's peak over its idle RSS, one session per process.
+  `lab/ask-ahead/summary.py` prints the ranges.
+  * *Today's ask ≈ 6 MiB ÷ R + RTT:* **held** at 103 Mbit/s and 46 ms (537 ms against 0.54 s), and at 18 Mbit/s on the
+    short queues, +9 % (the asked frame's own 0.57 MB is 0.25 s there). It came out lower behind 800 ms at 18 Mbit/s
+    (2.2 s) and at 103 Mbit/s and 92 ms (0.45 s): part of what was written ahead had already left.
+  * *The arm ≈ (cwnd + M) ÷ R + RTT:* **held at 103** (223 ms against ~0.2 s). **Missed at 18**: 1.03 s against
+    ~0.6 s. The prediction left out the asked frame's own time, and quinn takes a whole frame once the window
+    has room, so up to one frame more is ahead (1.71 MB against cwnd + M = 1.28 MB).
+  * *Within ±10 % of today behind 360 and 800 ms:* **held at 103** (±0.3 %). **Failed at 18** (−45 to −70 %): those
+    queues hold 0.8–1.8 MB at 18 Mbit/s, so the credit never bound there and the window does.
+  * *Fill within its spread everywhere:* **failed.** It is +0.7–1.4 % at 18 Mbit/s behind 360 and 800 ms FIFOs, and +5–11 % at
+    103 Mbit/s behind 20 ms and CoDel. The fill is a tie wherever the window changed nothing. The derived mechanism,
+    not separated: once the asked frame lands, the downloader re-asks the fill's remainder
+    ([`../WIRE.md`](../WIRE.md) §An ask during a fill). Today that remainder was already written behind the ask.
+    With the window it was not, so the fill idles for about a round trip: +70 ms at 46 ms, +160–210 ms at 92 ms.
+    The excess over one round trip at 92 ms may be `cubic-restart`'s restart after idle, not measured.
+  * *RSS per session lower:* **held**, 9.1–9.8 MB → 4.6–7.9 MB wherever the window binds.
+  * *Rule:* the ask improves ≥ 20 % in every short-queue cell except 103/92 CoDel (−15 %, strict −21 %) and
+    103/92/FIFO 20 ms (not conclusive), and the fill is worse in 8 cells. So it is **a trade-off for the owner**: an
+    ask 0.3–2.1 s sooner and 1.5–4.5 MB less server memory a session, against a fill 30–210 ms longer. The flag
+    stays lab-only and off.
+  * *Proposed:* **ASKTHENFILL** — does re-issuing the fill's remainder right behind the ask, rather than once it
+    settles (client only, no wire change), remove the window's fill cost? Arms: today, the window, the window with the
+    re-issue, and the same three under `cubic` to separate the idle restart.
 * **IWDEEP (item 3) — is the 32-packet initial window net behind the buffers phones have?** Arms: quinn's 12 000
   bytes; 38 400. Cells: 18, 103, 309 Mbit/s; idle RTT 46 and 92 ms; FIFO 10 packets (the old losing depth), 20 ms, 360 ms. A fresh ask-only
   session asks one 250 KB and one 50 KB frame; a control session opens with the push. *Predictions:* −25 to −33 % at
