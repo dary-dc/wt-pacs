@@ -4,7 +4,8 @@ order (lab/scripts/order.py), each run its own server and relay (`link_impair.py
 headless Chromium (visit.mjs) for the whole campaign. One JSON row per run on stdout.
 
 usage: cells.py SERIES_DIR ROUNDS CELL ...   CELL = RATE_MBIT/RTT_MS/QUEUE, QUEUE = fifoMS or codel
-       ARMS=today,follow  (a further arm is name=--server-flag ...)   — lab/ask-ahead/README.md
+       ARMS=today,follow  (a further arm is name=--server-flag ..., or name=PATH/series-server [flag ...])
+       — lab/ask-ahead/README.md
 """
 import json
 import os
@@ -63,9 +64,10 @@ def wait_for(log, pattern, proc, secs=10):
 def run(t, visit, http, cell, arm, rnd, prev):
     srv, inp, ctrl = free_port(), free_port(), free_port()
     slog, rlog = t / "server.log", t / "relay.log"
+    binary, flags = (ARMS[arm][0], ARMS[arm][1:]) if ARMS[arm][:1] and ARMS[arm][0].endswith("series-server") else (SERVER, ARMS[arm])
     with open(slog, "w") as f:
-        server = subprocess.Popen(env={**os.environ, "RUST_LOG": "series_server::transport::link=debug"}, args=[SERVER, "--port", str(srv), "--bind", "127.0.0.1", "--series", t / "series.sbnd",
-                                   "--cert-pem", t / "cert.pem", "--key-pem", t / "key.pem", *ARMS[arm]],
+        server = subprocess.Popen(env={**os.environ, "RUST_LOG": "series_server::transport::link=debug"}, args=[binary, "--port", str(srv), "--bind", "127.0.0.1", "--series", t / "series.sbnd",
+                                   "--cert-pem", t / "cert.pem", "--key-pem", t / "key.pem", *flags],
                                   stdout=f, stderr=subprocess.STDOUT)
     with open(rlog, "w") as f:
         relay = subprocess.Popen([*PRIO, sys.executable, ROOT / "lab/scripts/link_impair.py", "--udp", f"{inp}:{srv}",
@@ -82,6 +84,7 @@ def run(t, visit, http, cell, arm, rnd, prev):
     # The page's close is still in the relay's queue; the server logs the session once it lands.
     path = wait_for(slog, r"session path .*?rtt_us=(\d+) cwnd=(\d+) sent=(\d+) lost=(\d+)", server, 5)
     asked = wait_for(slog, r"ask written.*?cwnd=(\d+)", server, 1)
+    gso = path and wait_for(slog, r"session path .*?datagrams_tx=(\d+) sendmsg=(\d+)", server, 1)
     hwm = status(server.pid, "VmHWM")
     server.terminate()
     relay.terminate()
@@ -100,6 +103,7 @@ def run(t, visit, http, cell, arm, rnd, prev):
             "rss_session_kb": hwm - rss0,
             "rtt_ms": int(path.group(1)) / 1000 if path else None, "cwnd": int(path.group(2)) if path else None,
             "sent": int(path.group(3)) if path else None, "lost": int(path.group(4)) if path else None,
+            "per_sendmsg": round(int(gso.group(1)) / max(int(gso.group(2)), 1), 1) if gso else None,
             "relay_p99_ms": float(late[-1]) if late else None, "void": not late or "VOID" in tally}
 
 

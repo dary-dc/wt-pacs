@@ -25,10 +25,10 @@ BIN = os.path.join(ROOT, "target", "release")
 PORT = 4600
 
 
-def start_server(codec, items, port):
+def start_server(codec, items, port, binary=f"{BIN}/series-server"):
     sbnd = os.path.join(items, f"{codec}.sbnd")
     proc = subprocess.Popen(
-        ["taskset", "-c", SERVER_CPUS, f"{BIN}/series-server", "--port", str(port), "--bind", "0.0.0.0",
+        ["taskset", "-c", SERVER_CPUS, binary, "--port", str(port), "--bind", "0.0.0.0",
          "--series", sbnd, "--cert-pem", f"{ROOT}/server/dev-cert/cert.pem",
          "--key-pem", f"{ROOT}/server/dev-cert/key.pem"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -53,21 +53,22 @@ def run(args):
     series = dict(s.split("=", 1) for s in args.series)
     sessions = [int(n) for n in args.sessions.split(",")]
     rates = [int(r) for r in args.rates.split(",")]
-    cells = list(itertools.product(series, rates, sessions))
+    servers = dict(s.split("=", 1) for s in args.server) or {"base": f"{BIN}/series-server"}
+    cells = list(itertools.product(series, rates, sessions, servers))
     with open(args.out, "a") as out:
         for rnd in range(args.first_round, args.first_round + args.rounds):
             prev = None
-            for pos, (codec, rate, n) in enumerate(order(cells, rnd)):
+            for pos, (codec, rate, n, build) in enumerate(order(cells, rnd)):
                 items, ext = series[codec].split(",")
-                server = start_server(codec, items, PORT)
+                server = start_server(codec, items, PORT, servers[build])
                 try:
                     warm = fill_load(PORT, items, ext, 1, 0, server.pid)
                     res = fill_load(PORT, items, ext, n, rate, server.pid, args.mutate)
                 finally:
                     server.terminate()
                     server.wait()
-                unit = f"{codec}/{rate}/{n}"
-                row = {"round": rnd, "pos": pos, "unit": unit, "prev": prev, "codec": codec, "rate": rate}
+                unit = f"{codec}/{rate}/{n}/{build}"
+                row = {"round": rnd, "pos": pos, "unit": unit, "prev": prev, "codec": codec, "rate": rate, "server": build}
                 if warm.returncode == 0 and res.returncode == 0:
                     row.update(json.loads(res.stdout.strip().splitlines()[-1]))
                 else:
@@ -86,11 +87,11 @@ def summary(args):
     ok = [r for r in rows if r not in bad]
     print(f"{len(ok)} runs, {sum(r['exact'] for r in ok)}/{sum(r['frames'] for r in ok)} frames exact; "
           f"{len(bad)} runs failed or inexact")
-    key = lambda r: (r["codec"], r["rate"], r["sessions"])  # noqa: E731
+    key = lambda r: (r["codec"], r["rate"], r["sessions"], r.get("server", "base"))  # noqa: E731
     groups = {}
     for r in ok:
         groups.setdefault(key(r), []).append(r)
-    print("codec rate_MBps N n | fill_ms p50 [min-max of run p50] | worst session p50 | ×N=1 | "
+    print("codec rate_MBps N server n | fill_ms p50 [min-max of run p50] | worst session p50 | ×N=1 | "
           "server cores | server ms/MB | client cores | host busy | server RSS MB over warm | rcvbuf drops")
     base = {}
     for k in sorted(groups):
@@ -99,10 +100,10 @@ def summary(args):
         worst = [max(r["fill_ms"]) for r in g]
         med = statistics.median(p50)
         if k[2] == 1:
-            base[k[:2]] = med
+            base[k[:2] + k[3:]] = med
         mb = [r["bytes"] / 1e6 for r in g]
-        print(f"{k[0]:5} {k[1] / 1e6:5.2f} {k[2]:3} {len(g):2} | {med:8.0f} [{min(p50):.0f}-{max(p50):.0f}] | "
-              f"{statistics.median(worst):8.0f} | {med / base.get(k[:2], med):5.2f} | "
+        print(f"{k[0]:5} {k[1] / 1e6:5.2f} {k[2]:3} {k[3]:6} {len(g):2} | {med:8.0f} [{min(p50):.0f}-{max(p50):.0f}] | "
+              f"{statistics.median(worst):8.0f} | {med / base.get(k[:2] + k[3:], med):5.2f} | "
               f"{statistics.median(r['server_cpu_s'] / r['wall_s'] for r in g):5.2f} | "
               f"{statistics.median(r['server_cpu_s'] * 1e3 / m for r, m in zip(g, mb)):5.2f} | "
               f"{statistics.median(r['client_cpu_s'] / r['wall_s'] for r in g):5.2f} | "
@@ -116,6 +117,7 @@ if __name__ == "__main__":
     p.add_argument("--series", action="append", default=[], help="codec=ITEMS_DIR,EXT; ITEMS_DIR/<codec>.sbnd served")
     p.add_argument("--sessions", default="1,2,4,8,16,32,64,128,256")
     p.add_argument("--rates", default="0,2500000,6250000", help="bytes/s each session reads at; 0 = unpaced")
+    p.add_argument("--server", action="append", default=[], help="NAME=PATH to a series-server build; each one an arm")
     p.add_argument("--rounds", type=int, default=1)
     p.add_argument("--first-round", type=int, default=0)
     p.add_argument("--mutate", action="store_true")

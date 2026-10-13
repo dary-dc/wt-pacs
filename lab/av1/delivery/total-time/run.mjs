@@ -10,7 +10,7 @@
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth|digest] [--out rows.jsonl]
- *     [--cc-trace DIR] [--summary [--ref htj2k]]
+ *     [--cc-trace DIR] [--one-way-ms 20] [--summary [--ref htj2k]]
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -47,6 +47,8 @@ const BROWSER_CORES = arg("--browser-cores", "0-2");
 const TRACES = process.env.TRACES ?? path.join(ROOT, "lab/.traces");
 /** The server's controller, one row per batch of acknowledgements (series-server's `cc_trace.rs`), a file per visit. */
 const CC_TRACE = arg("--cc-trace", null);
+/** A fixed-rate link's one-way delay in ms: half its round trip. */
+const ONE_WAY = Number(arg("--one-way-ms", 20));
 
 /** Mahimahi's trace, fetched for local use only (GPL-3.0); its hash as PROF recorded it. */
 const LTE = { file: "TMobile-LTE-short.down", sha256: "4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43" };
@@ -63,7 +65,7 @@ function link(name, impairment = "clean") {
   if (impairment !== "clean" && !loss && !jitter.length) throw new Error(`unknown impairment ${impairment}`);
   // Row NETRULES' cells: 23 ms one way and a 650 ms FIFO, so a fill that fills it sees a ~0.7 s RTT.
   if (name.startsWith("n")) return [23, ["--rate-kbit", name.slice(1), "--queue-ms", "650", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
-  if (name.startsWith("r")) return [20, ["--rate-kbit", name.slice(1), "--queue-pkts", "200", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
+  if (name.startsWith("r")) return [ONE_WAY, ["--rate-kbit", name.slice(1), "--queue-pkts", "200", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
   if (name === "lte-good") return [25, ["--trace", path.join(TRACES, LTE.file), ...ge(loss || 0.01), "--queue-ms", "500", ...jitter]];
   if (name === "wifi-home") return [15, ["--trace", `${T}/wifi-home.trace`, ...ge(loss || 0.5), "--queue-ms", "300", ...jitter]];
   throw new Error(`unknown link ${name}`);
@@ -304,7 +306,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const late = relayLog.match(/self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)/g)?.pop();
   const s2c = relayLog.match(/server->client sent (\d+) lost (\d+)/)?.slice(1).map(Number);
   const row = { round, engine, set: set.name, variant: variant, congestion: ran, initialWindow: window, transport: /transport=(.*)/.exec(serverOut)[1],
-    ...(ccTrace && { ccTrace: path.relative(ROOT, ccTrace) }), link: linkName, impairment, throttle, owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
+    ...(ccTrace && { ccTrace: path.relative(ROOT, ccTrace) }), link: linkName, impairment, throttle,
+    oneWayMs: Number(/delay_ms=([\d.]+)/.exec(relayLog)?.[1]), rateKbit: Number(/rate_kbit=([\d.]+)/.exec(relayLog)?.[1]), owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog) };
   if (!r?.frames.length && r?.after.length) {
     const exact = r.after.filter((f) => r.sha[f.i] === truth[f.i]).length;
