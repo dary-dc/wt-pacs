@@ -2251,7 +2251,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    and a keep-alive at ≤ S keeps it off the ask (§3 *The idle radio*); S, P, the gesture's lead and the
    energy are a device's.
 5. **`--initial-rtt-ms`**, at the target's real round trip (§3): proposed row IRTTMEASURE (§3 *A 100 ms initial RTT*).
-6. **The GSO cap: 24, or 45 behind the product's buffer** — the owner's call (§5). Owed: 44 against
+6. **The GSO cap: 24, or 45 behind the product's buffer** — the owner's call (§5). 24 meets FASTCLOCK's rule as the
+   build default (row 182: −14 to −21 % server CPU a MB, fills and asks a tie; [`link-conditions.md`](link-conditions.md)
+   §Re-measured). Owed: 44 against
    10 on CPU per ask at 20 Mbit / 50 ms and 100 Mbit / 30 ms, with a 1 Gbit / 1 ms control that must
    separate; within 5 % means inert on the target, kept only for a LAN deployment. **The packet
    size**: where a browser advertises `max_udp_payload_size` ≥ 1 472, raise

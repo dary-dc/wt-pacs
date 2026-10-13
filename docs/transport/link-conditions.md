@@ -102,7 +102,8 @@ sourced numbers. The measurements that would decide are §Re-measured, proposed.
    the clock, but AV1's fill of `dbts_b4` at 4× ran at 36 (§Where AV1 fills first, whole volumes, in
    [`../av1/README.md`](../av1/README.md)): on a slow CPU AV1's decoders, not bytes and round trips, are the fill's
    clock below the median link. HTJ2K at 4× was not timed above 50 Mbit/s. The framing that follows: **CPU per byte on the server and decode rate on the client rank
-   with bytes**, which raises items 6 and 7. Decided by FASTCLOCK.
+   with bytes**, which raises items 6 and 7. Decided by FASTCLOCK: HTJ2K's fill is the wire's through 218 Mbit/s at 1×
+   and 4×, AV1's the decoders' from 50 at 4× and from 218 at 1× (§Re-measured, *FASTCLOCK*).
 2. **The congestion controller** (§1 there: `cubic-restart` default, BBR opt-in): cells at 5/20/50 Mbit/s and the
    phone profiles, whose loss rates and buffer depths were picks; the 1–5 % loss cells are the measured tail. The
    loaded-latency rows above say the queue a controller builds is the dominant RTT on real phones, which is BBR's
@@ -156,7 +157,8 @@ sourced numbers. The measurements that would decide are §Re-measured, proposed.
    core sends, D), so the "+10 to +30 % throughput" stays a loopback number; the −16 to −21 % CPU per ask is what
    reaches the target, as ×1.19–1.27 the fills a core carries (D) — at the measured rates the binding constraint from
    ~31 sessions a core on. The tail it carried at depth 1 was the rig client's receive queue (§5 *Why a drop takes the
-   tail*) and does not depend on the rate. Ship 24 or 45 stays the owner's call; FASTCLOCK prices it.
+   tail*) and does not depend on the rate. Ship 24 or 45 stays the owner's call; FASTCLOCK prices it: 24 meets its rule,
+   server CPU a MB −14 to −21 % at 32 sessions × 103 Mbit/s with fills and asks a tie (§Re-measured, *FASTCLOCK*).
 7. **AV1 against HTJ2K by total time** ([`../av1/README.md`](../av1/README.md) §Total time, §Where AV1 fills first):
    AV1 fills first below 11–56 Mbit/s on DBT and 1–7 on FFDM. At the measured medians most sessions are above every
    crossover, which strengthens the verdict that ingest keeps HTJ2K; the cellular p10 (18–29) and NDT's lower
@@ -345,6 +347,73 @@ frame checked against the encoder's input, each arm's full settings printed and 
   wire-bound through 103, decode-bound at 4× from ≤ 103; AV1 decode-bound at 4× from 50; the GSO cap −16 to −21 % CPU
   a MB with no fill worse. *Rule:* nothing adopted from the fill cells (they rank levers, not decide them); the GSO
   cap of 24 becomes the build default if its CPU saving holds and no fill or ask is worse beyond its spread.
+
+  **Measured (row 182, 2026-10-13): HTJ2K's fill stays the wire's through 218 Mbit/s even at 4×, AV1's is the
+  decoders' from 50 at 4× and from 218 at 1×; the cap of 24 meets the rule (server CPU a MB ×0.79–0.86, fills and
+  asks a tie) and waits on the owner's yes to become the build default.** Rig, commands and rows:
+  [`../../lab/fastclock/`](../../lab/fastclock/README.md). Run blind to row 167's reasoning; the protocol does not say
+  what *decode-bound* means, so it was defined before the fill numbers: between two adjacent rates, a fill that shrinks
+  by less than half of what its last byte shrinks is the decoders' from the higher rate.
+
+  *Fill cells.* `lab/av1/delivery/total-time/run.mjs` as rows TOTAL and CROSSMEASURE run it (the product's downloader,
+  three decoders, every frame's pixels hashed against the checksum written at fetch): `dbt10_ea1141` (24 × 678×1727,
+  13.6 MB HTJ2K) and `ffdms_c1` (4 views, 10.9 MB), HTJ2K against the optimized AV1 payload (`k2`, libaom 3.15.1
+  `allintra:7`, 0.960 and 0.992 of the bytes; WebCodecs in Chromium, dav1d-WASM in Firefox), Chromium 141.0.7390.37 and
+  Firefox 157.0.1, 1× and 4× (`cpu_throttle.mjs`), 50 / 103 / 218 Mbit/s, 23 ms each way (every row carries the delay
+  the relay printed), the rig's 200-packet queue. The arms differ in the codec alone: one server build, `cubic-restart`,
+  quinn's defaults, shared stream. 10 rounds, cells and arms Williams-ordered; **6 720 / 6 720 frames exact** over 480
+  visits, 63 `VOID` (the relay's guard; 40 of them at 218). The relay's ceiling, measured after: four native
+  sessions through it delivered 94 Mbit/s asked 103, 177–182 asked 218, 243–254 asked 400 and 455–480 unshaped, slow
+  start included, so 218 is under it. Strict medians (`VOID` dropped); with `VOID` kept every clock below is the same
+  but Firefox's AV1 DBT at 1×, which moves to 50→103 by its 8 s visits (below).
+
+  | engine, series | HTJ2K 1×: tail ms at 50 / 103 / 218 | HTJ2K 4× | AV1 1× | AV1 4×: fill s at 50 / 103 / 218 (tail) | AV1 ÷ HTJ2K, fill, 1× · 4× at 50 / 103 / 218 |
+  | --- | --- | --- | --- | --- | --- |
+  | Chromium, DBT | 21 / 17 / 16 — wire | 62 / 75 / 173 — wire | 54 / 90 / 440 — decoders from 218 | 2.86 / 2.84 / 2.87 (0.49–1.97) — decoders from ≤ 50 | 0.98 / 1.04 / 1.49 · 1.13 / 1.95 / 2.62 |
+  | Chromium, FFDM | 78 / 71 / 80 — wire | 289 / 326 / 389 — wire | 267 / 278 / 484 — decoders from 218 | 3.55 / 3.31 / 3.16 (1.54–2.36) — decoders from ≤ 50 | 1.08 / 1.18 / 1.45 · 1.52 / 2.19 / 2.63 |
+  | Firefox, DBT | 15 / 15 / 13 — wire | 62 / 52 / 100 — wire | 142 / 559 / 996 — decoders from 218 | 4.93 / 4.86 / 5.03 (2.56–4.02) — decoders from ≤ 50 | 1.02 / 1.41 / 1.93 · 1.95 / 3.31 / 4.72 |
+  | Firefox, FFDM | 68 / 64 / 64 — wire | 249 / 253 / 292 — wire | 692 / 858 / 974 — decoders from 218 | 6.05 / 5.79 / 5.67 (4.05–4.75) — decoders from ≤ 50 | 1.29 / 1.65 / 2.05 · 2.66 / 3.86 / 4.51 |
+
+  The last byte lands at 2.0–2.5 s at 50 Mbit/s, 1.2–1.4 s at 103 and 0.8–0.97 s at 218 in every cell. AV1 at 4× is
+  flat across the three rates, so the decoders are already the clock at 50 (the detector, which sees only transitions,
+  reads 50→103); HTJ2K at 4× still shrinks with the wire from 103 to 218 by 0.75–0.93 of what its last byte shrinks, its
+  decoders busy 1.9–2.6 of 3 at 218: near the turn, not past it. Round-paired, AV1 is slower in ≥ 8 of 10 rounds in every cell
+  but Chromium's DBT at 1× and 50 Mbit/s (0.98, faster in 10 of 10).
+  * *HTJ2K at 1× wire-bound through 103:* **held**, and through 218 in both engines on both series (tail 13–80 ms).
+  * *HTJ2K decode-bound at 4× from ≤ 103:* **failed.** It is the wire's through 218; where it turns is past what
+    this rig times (309 Mbit/s voids it).
+  * *AV1 decode-bound at 4× from 50:* **held**, in both engines on both series; at 1× it turns at 103→218.
+  * *Unpredicted:* Firefox's last byte came 7.4–8.4 s after the fill's issue in 9 of its 240 visits (either codec,
+    50 and 103 Mbit/s, 1× and 4×, 7 not `VOID`), a ~6 s stall Chromium never showed. It sets those cells' maxima.
+
+  *GSO cells.* Today's build (crates.io quinn 0.11.11: 10 segments a `sendmsg`, 20 datagrams a poll) against `cap24`
+  (`patches/quinn-0.11.11-mtu-gso.patch` with its ceiling at 24, so also 64 datagrams a poll, as row GS1's `cap24`);
+  the binaries differ in that alone, measured: 9.9 against 23.2 datagrams a `sendmsg` unshaped. `lab/server-load/run.py`,
+  server on core 0, `fill_load` on 1–3, each session read-paced at 103 Mbit/s, the client sockets' buffer at 4 MB; and
+  an ask for the last frame once half the fill has landed (`lab/ask-ahead/cells.py`, Chromium 141, decoding off) at
+  103 Mbit/s, 46 ms, behind a 20 ms and a 360 ms FIFO. 10 rounds each, Williams-ordered; 31 680 / 31 680 and 40 / 40
+  exact; 3 of the 40 ask runs `VOID`.
+
+  | cell | server ms a MB, today → cap24 | paired | fill p50 ms | ask ms (strict · `VOID` kept) | datagrams a `sendmsg` |
+  | --- | --- | --- | --- | --- | --- |
+  | 32 sessions × 103 Mbit/s, HTJ2K | 2.03 [1.88–2.52] → 1.80 [1.56–1.97] | **×0.864, 10/10 lower** | 1 061 → 1 061 | — | — |
+  | 32 sessions × 103 Mbit/s, AV1 | 2.17 [1.93–2.46] → 1.69 [1.54–1.90] | **×0.791, 10/10 lower** | 1 009 → 1 009 | — | — |
+  | 1 session, either codec | 2.2–2.3 → 2.2–2.3 | ×1.000 (10 ms CPU granularity) | a tie | — | — |
+  | Chromium, 103 / 46 / FIFO 20 ms | — | — | 1 388 → 1 384, ×0.997 | 537 → 537, ×0.999 · ×0.998 | 7.8 → 9.5 |
+  | Chromium, 103 / 46 / FIFO 360 ms | — | — | 1 383 → 1 386, ×1.003 | 536 → 537, ×1.002 · ×1.002 | 8.6 → 15.9 |
+
+  * *−16 to −21 % CPU a MB:* **held** on AV1 (−21 %), just short on HTJ2K (−14 %); lower in every round of both.
+  * *No fill worse:* **held**: native fills a tie at the read pace, and the browser fills and asks inside today's
+    spread in both cells, both readings (strict and `VOID` kept agree).
+  * *Rule:* the CPU saving holds and no fill or ask is worse beyond its spread, so **the cap of 24 qualifies as the build
+    default**. It is not flipped here: it replaces today's build rather than sitting beside it, and the owner's call on
+    24 or 45 is open in [`../av1/queue.md`](../av1/queue.md) §Blocked. The change is two lines: the patch's ceiling
+    64 → 24 and `quinn = { path = "patched/quinn" }` under `[patch.crates-io]`. Not covered: a client without a large
+    receive buffer at depth 1 (§5 of [`transport-conclusions.md`](transport-conclusions.md)); these clients had
+    Chromium's 1 MiB and the rig's 4 MB.
+  * *Proposed:* **FFSTALL** — what holds Firefox 157's receive for ~6 s in 4 % of fills, and is it ours (the dial, flow
+    control) or the engine's? **HTJ2KTURN** — at what rate does HTJ2K's fill at 4× turn decode-bound, on a relay that
+    holds 309 Mbit/s?
 * **B4FAST (item 7) — what does serving `dbts_b4` as AV1 cost across the measured distribution?** The crossover
   protocol ([`../av1/crossover-protocol.md`](../av1/crossover-protocol.md)) on the whole volume, both codecs, at 18,
   103, 218 and 309 Mbit/s and 46 ms, Chromium and Firefox, 1× and 4×. *Predictions:* AV1 ≤ 0.85 at 18 at both speeds;

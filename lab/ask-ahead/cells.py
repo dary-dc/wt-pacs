@@ -43,6 +43,10 @@ def link(cell):
     return args + ["--queue-ms", queue.removeprefix("fifo")]
 
 
+def shown(args):
+    return [os.path.relpath(a, ROOT) if a.endswith("series-server") else a for a in args]
+
+
 def status(pid, key):
     m = re.search(rf"^{key}:\s+(\d+) kB", Path(f"/proc/{pid}/status").read_text(), re.M)
     return int(m.group(1))
@@ -93,7 +97,7 @@ def run(t, visit, http, cell, arm, rnd, prev):
     tally = rlog.read_text()
     late = re.findall(r"self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)", tally)
     sha_ok = r.get("sha") and all(r["sha"].get(str(i)) == d for i, d in enumerate(t.digests))
-    return {"round": rnd, "cell": cell, "arm": arm, "prev": prev, "settings": f"{settings} {' '.join(ARMS[arm])}".strip(),
+    return {"round": rnd, "cell": cell, "arm": arm, "prev": prev, "settings": f"{settings} {' '.join(shown(ARMS[arm]))}".strip(),
             "ask_ms": round(r["askMs"], 1) if "askMs" in r else None,
             "fill_ms": round(r["fillMs"], 1) if "fillMs" in r else None,
             "ahead": r.get("ahead"), "ahead_bytes": sum(t.sizes[i] for i in r.get("ahead") or []),
@@ -150,7 +154,7 @@ def main():
                                  stdout=subprocess.PIPE, text=True, env=env)
         print(json.dumps({"chromium": json.loads(visit.stdout.readline())["chromium"],
                           "server": subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"], capture_output=True,
-                                                   text=True).stdout.strip(), "arms": {a: ARMS[a] for a in arms},
+                                                   text=True).stdout.strip(), "arms": {a: shown(ARMS[a]) for a in arms},
                           "series": str(series.name), "relay_chrt": os.environ.get("RELAY_CHRT"), "frames": t.frames, "bytes": sum(t.sizes)}), flush=True)
         time.sleep(0.5)
         try:
