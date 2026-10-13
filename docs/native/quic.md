@@ -34,9 +34,12 @@ Row 157 corrects several of §7.2's facts there.*
   what the server's controller and the link allow; it can only lose them — through its receive cost, its flow-control
   windows, when it acknowledges, its handshake and resumption, and migration. A default is not a limit when the
   setting can be changed or patched: §7 reads the candidates at their best (row 152); §2's tables read them at their
-  defaults. At their best, no stack is flow-control-bound at the target's 5–50 Mbit/s, msquic's 64 KiB stream window
+  defaults. At their best, no stack is flow-control-bound at the old 5–50 Mbit/s target, msquic's 64 KiB stream window
   doubles to 16 MiB, and no published study compares tuned stacks at the target's rates with loss (§7.6). *(Corrected
-  in place 2026-10-11; this section first opened with the controller point below.)*
+  in place 2026-10-11; this section first opened with the controller point below.)* *Corrected (queue row
+  DOCFIX, 2026-10-13):* at the measured links (~100 Mbit/s median, 0.7 s loaded RTT) quinn's 1.25 MB stream window
+  binds above 97 ms at 103 Mbit/s and 32 ms at 309; Chromium's 6 MiB does not bind at any idle RTT measured
+  ([`../transport/link-conditions.md`](../transport/link-conditions.md) §Verdicts that rest on the band, item 4).
 * **For the fill and the ask, the client's congestion controller does not matter: the server sends.** What the
   client's stack decides is its receive cost (batched reads, GRO, ACKs), its flow-control windows, migration and
   resumption. Row 119's controller options stay on the server, in quinn, whose `Controller` trait `bbr-bound` already
@@ -317,7 +320,10 @@ server build, controller (`cubic-restart`), initial window and relay, printed pe
 number marked derived is arithmetic on a sourced one; the owner's decisions are listed in §7.7, not taken.*
 
 **The target, in numbers.** 5–50 Mbit/s, a round trip of 30–80 ms and up to 150 ms, mobile loss
-([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md), The target). The server sends and
+([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md), The target). *Corrected (queue row
+DOCFIX, 2026-10-13):* that band is the slow tail; the measured links are 18 · 103 · 309 Mbit/s on cellular (p10 · p50
+· p90), 16–55 ms idle and 0.7–0.8 s loaded at the median ([`../transport/link-conditions.md`](../transport/link-conditions.md) §Link profiles). This
+section's readings at 5–50 Mbit/s stand as written there; where the band decides one, link-conditions.md re-derives it. The server sends and
 the client receives. A lever helps only on the side that owns it, so each lever is read below with its owner.
 
 | owned by | lever | what it bounds |
@@ -563,7 +569,9 @@ The server is the sender, so its stack decides four things. Each is set against 
   whether another stack's pacing loses less on the target's queues is open (§7.6).
 * **Its send cost per byte, which sets sessions per core.** Target sessions run at ~0.4–0.7 % of a core each at
   20 Mbit/s (measured, transport-conclusions The target), so this is the cost at thousands of sessions, not the link
-  rate. The one comparison at equal settings is quinn #2262 at 0 ms: quinn 11.8–12.4, s2n-quic 13.0, msquic 14.8–16.4
+  rate. *Corrected (queue row DOCFIX, 2026-10-13):* at the measured median of 103 Mbit/s a fill costs 2.6–4.0 % of a
+  core, ~31 sessions a core against ~160 at 20 (derived, [`../transport/link-conditions.md`](../transport/link-conditions.md) §Verdicts that rest on the
+  band, item 1). The one comparison at equal settings is quinn #2262 at 0 ms: quinn 11.8–12.4, s2n-quic 13.0, msquic 14.8–16.4
   Gbit/s on one connection. That puts msquic about 1.3× ahead, inside a 10× margin that CPU is not using today
   (derived). The comparison is a contributor's docker setup, not a server's workload.
 * **Its memory per session.** quinn's 10 MB send window is a setting.

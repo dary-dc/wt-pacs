@@ -41,7 +41,7 @@ choice stands.
 | hash | over | written by | checked by | proves |
 | --- | --- | --- | --- | --- |
 | XXH3-64 | the raw samples, as read | the ingest | the ingest after decode-back; the client after its decode | the coded frame, and the shown one, is the encoder's input |
-| coded-frame digest (open) | the coded bytes | the ingest | the PACS on receipt, the server on read | transit and storage, without decoding |
+| coded-frame digest (XXH3-64, in the agreed draft target; not built) | the coded bytes | the ingest | the PACS on receipt, the server on read | transit and storage, without decoding |
 | BLAKE3-256 | a metadata group | the parser | the PACS, after decompressing | parser → PACS for metadata, once the parser hashes the bytes it writes (§3) |
 | TLS | the bytes on the wire | — | — | the link alone |
 
@@ -73,7 +73,7 @@ The client's checks stay on by default.
 | Publish by rename after `fsync`; idempotent by UID + digest | recommended | [`design.md`](design.md) §8 |
 | When a series is complete; what a late instance does | open | [`design.md`](design.md) §4 |
 | The raw-frame check is the XXH3-64 already written for the client | **decided** 2026-10-12 | [`design.md`](design.md) §6 |
-| A digest of the coded bytes | open | [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 |
+| A digest of the coded bytes | **agreed** in the draft target (2026-10-12), XXH3-64 in each entry, not built; checking it on every read stays optional (*corrected, queue row DOCFIX, 2026-10-13*: this line said open) | [`../disk-layout/target.md`](../disk-layout/target.md) §The two hashes; [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 |
 | A changed duplicate: replace, keep both, or hold | open | [`design.md`](design.md) §8 |
 | A bad instance: refuse the series, or store the rest marked incomplete | open | [`design.md`](design.md) §8 |
 | The upload's shape (S3-style multipart, tus, per-file PUT, rsync) | open | [`link.md`](link.md) §7, §9 |

@@ -126,7 +126,7 @@ and neither stream variant changes that. That points at the congestion controlle
 
 ## HOL1 — in Chromium, through the relay (2026-09-25)
 
-Queue row 78. The same question asked of a browser, for a client deciding whether to move from
+Queue row 78 of the closed [`../cloud-queue.md`](../cloud-queue.md) (cq 78; not the AV1 queue's row 78, HTJ2KMT). The same question asked of a browser, for a client deciding whether to move from
 one shared stream to K persistent ones — so the pool at `k` = 2, 4, 8 is the variant that matters. `lab/stream-shape/` ([README](../../lab/stream-shape/README.md)); rows in history at
 `d184333`.
 

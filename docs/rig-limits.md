@@ -98,9 +98,11 @@ a full core, falls behind; the buffer overflows and Cubic backs off. A smaller b
 *fewer*, because the overflow comes at a smaller window; a 768 KB send window never lets the bytes
 in flight reach the buffer. The 45-segment batch is not the cause: 10 segments drop the same.
 Throughput does not follow the drops — the 768 KB window is +4.7 % and +0.3 % (3/6 each), a tie.
-On the target link 768 KB is five times the bandwidth-delay product and never binds, but at depth
-4 it cost the server +17.8 % CPU per MB (6/6). **Recorded as the drop lever for a fast-link
-deployment, not adopted.** Nor is a client-host `rmem_max`: the Linux-default buffer costs no
+On the old 5–50 Mbit/s target 768 KB was five times the bandwidth-delay product and never bound, and at
+depth 4 it cost the server +17.8 % CPU per MB (6/6). **Not adopted.** *Corrected (queue row DOCFIX,
+2026-10-13):* at the measured links it binds above ~60 ms at 103 Mbit/s and ~20 ms at 309, inside the idle
+RTTs, so it would cost fills and is no longer "the drop lever for a fast-link deployment"
+([`transport/link-conditions.md`](transport/link-conditions.md) §Verdicts that rest on the band, item 5). Nor is a client-host `rmem_max`: the Linux-default buffer costs no
 resolved throughput (−5.9 %, 3/6). The workstation saw the same event earlier: 403–559 drops per 3.6 MB
 fill from this server and from a comparison server alike, quinn's `lost_packets` matching the kernel's
 count one for one, and the 768 KB window removing them in 4/4 without moving the ask or the page

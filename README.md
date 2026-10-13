@@ -123,10 +123,12 @@ inverts, `0` resets; `?fill=0` asks each frame as it is stepped to instead of fi
 
 Both clients and the TCP fallback are [`docs/CLIENTS.md`](docs/CLIENTS.md); the bytes they speak, [`docs/WIRE.md`](docs/WIRE.md).
 
-**What the gate catches** — mutants made by hand at each decision, run by the step that owns the code: the
+**What the gate costs and what it catches** — mutants made by hand at each decision, run by the step that owns the code: the
 downloader's in [`client/README.md`](client/README.md) §Every decision is held by a test; the decoder modules
 45 of 45; the send path (`planner.rs`, `frame_out.rs`, `pipeline.rs`) 20 of 24, the four alive being log lines
-and a lab-only stall's equivalent sends; the series bundle's reader and writer 10 of 10.
+and a lab-only stall's equivalent sends; the series bundle's reader and writer 10 of 10. Its time, row GATE
+(2026-10-07, 4 cores, warm builds): `--quick` 161 → 106 s once the two timer-bound steps ran side by side; the
+before-and-after table is at `git show 0d293c89^:README.md`, and each step's time is in the gate's own log.
 
 ## Docs
 

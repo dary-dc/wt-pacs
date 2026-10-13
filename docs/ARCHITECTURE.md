@@ -1173,14 +1173,18 @@ drops UDP, the race's time to ready against the four seconds.
 The owner decisions here are tracked in [`cloud-queue.md`](cloud-queue.md) §Open owner decisions.
 
 * **The decoder count**: `min(3, hardwareConcurrency)` is the default; a pool that follows the queue
-  is not built (§The decoders); a phone's scheduler (efficiency cores) and decode speed.
+  is built as two lab flags, off by default — `followQueue` (row 112) and `startOnNeed` (row 142), measured in
+  [`decode/README.md`](decode/README.md) §Not yet tried (P-START), neither adopted (*corrected, queue row DOCFIX,
+  2026-10-13*: this line said "not built"); a phone's scheduler (efficiency cores) and decode speed.
 * **The reader pause** that bounds the compressed queue (§The downloader) — not built.
 * **Coalescing decoded frames across decoders** — a merge point for ~10 ms of a throttled fill's main
   thread: design it or drop it, the owner's call (§The hand-off).
 * **An out-of-band cancel** that drops work already queued to a decoder — only if a phone shows a
   decode long against a switch.
 * **One preallocated shared store per fill** in place of a `SharedArrayBuffer` per frame — estimated
-  ~0.2–0.3 ms a frame, not run.
+  ~0.2–0.3 ms a frame, not run as such. A close relative was: P-COPY (row 134), each frame packed into a buffer in a
+  shared decoder heap the page keeps — grey ×0.95–1.05, synthetic RGB ×0.866 at 4×, peak memory 5–25 MB lower, not
+  adopted by a fixed bar ([`decode/README.md`](decode/README.md) §Not yet tried, P-COPY; *Net protocols*, COPYRGB).
 * **The cache seam** (an interface, in-memory and OPFS behind it; whether it holds compressed or
   decoded frames is to be evaluated — and "all frames decoded" cannot mean all resident on a phone) and
   the paint sink — the sink is built (§Paint), the cache seam is not. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)

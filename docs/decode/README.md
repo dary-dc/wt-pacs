@@ -704,6 +704,25 @@ series (§The decoder worker's hand-off).
 **One copy did go** (S14): `new Uint8Array(m.bytes)` re-wrapped a view that already was one, copying
 the codestream for nothing — 5.9 µs at 48 KB to 16.2 at 418 KB, plus a buffer per frame. Removed.
 
+## The decoder worker's hand-off
+
+*Row 49 (DECODE), 2026-10-07. The section was dropped from this file by row DECODERBUILD's rewrite (`3187b224`) and
+is restored here in short by row DOCFIX, nothing re-measured; its tables are at `git show 3187b224^:docs/decode/README.md`.*
+Headless Chromium 141, 8 rounds interleaved, 1 024/1 024 frames exact a throttle
+([`lab/av1/decode/worker`](../../lab/av1/decode/worker/README.md)).
+
+* **One codec-module interface, adopted:** `decoder.js` loads `htj2k.js` or `av1.js`, each `init(config)` then
+  `decodeFrame(bytes, unit, preview)`, and holds nothing per codec.
+* **HTJ2K 12–21 % off a grey frame** at 1× and 4×, 7/8 or 8/8 on every grey series of 10–14 bits, from the range
+  pass in two loops (§The range pass); the 8-bit RGB cine, which takes no pass, ties.
+* **AV1's WebCodecs output copied into a reused buffer: not adopted.** 4–9 % off a frame where WebCodecs decodes, but
+  the buffer holds the largest frame for the worker's life: 37 MB a worker on a mammogram (settled 7.3 → 44.4 MB on
+  `ffdm_a`), ~110 MB at three decoders, to save a decode the wire hides (fills 0.995–0.999 pooled at 20 and
+  50 Mbit/s).
+* **No zero-copy hand-off:** the consumer keeps each frame as long as the viewer does, so writing it into the
+  decoder's heap needs a shared-memory build and a release message back — a contract change. P-COPY (§Not yet tried)
+  measured that build later.
+
 ## The range in the pack
 
 The source wrapper clamps and narrows every sample as it packs a line (`htj2k_decoder.cpp`, `pack`);
