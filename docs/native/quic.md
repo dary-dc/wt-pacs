@@ -25,8 +25,9 @@ WebTransport session (§Resumption and 0-RTT). A native client chooses all three
 
 ## 1. The answer in plain words
 
-*Each stack explained lever by lever, with its throughput ceiling from 1 Mbit/s to 1 Gbit/s and 10 to 300 ms and a
-native client on raw QUIC: [`quic-compared.md`](quic-compared.md) (row 156).*
+*Each stack explained lever by lever and compared at its best, every number sourced at its point of use, with its
+throughput ceiling from 1 Mbit/s to 1 Gbit/s and 10 to 300 ms and a native client on raw QUIC:
+[`quic-compared.md`](quic-compared.md) (rows 156, 157). Row 157 corrects several of §7.2's facts there.*
 
 * **The client's library matters through throughput and latency, the product's purpose.** It cannot raise either above
   what the server's controller and the link allow; it can only lose them — through its receive cost, its flow-control
@@ -449,6 +450,12 @@ patch to wtransport on both ends. Whether a WebTransport CONNECT may ride 0-RTT 
 packets ("FIXME … when we support zero-rtt").
 
 ### 7.2 Each candidate at its best
+
+*Corrected 2026-10-12 by row 157, which re-read the same pins line by line ([`quic-compared.md`](quic-compared.md)):
+the window that matters is the client's for a server-opened unidirectional stream (lsquic's client 32 KiB, picoquic
+65 535 B); Google QUICHE's client never auto-tunes; msquic does send ACK_FREQUENCY, Google QUICHE never does, and
+mvfst's codepoint is `0xff04de1a`; Cloudflare quiche's window caps are settings; quic-go defaults to Reno; mvfst's
+stream window is 66 560 B. The table below is row 152's reading; where it differs, `quic-compared.md` holds.*
 
 Read at §8's pins. "Fork" means a hard-coded constant: changing it means patching the stack. The receiver columns
 matter for a client, and the sender columns for a server.
