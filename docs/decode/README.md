@@ -1922,6 +1922,112 @@ Sources (read 2026-10-10 unless marked):
    arXiv 2608.13897 (abstract) — <https://arxiv.org/abs/2608.13897>
 10. dav1d 1.5.4 source (`54706fc6`) — <https://code.videolan.org/videolan/dav1d>
 
+### Net protocols
+
+*Queue row NETRULES, 2026-10-13. Theory: nothing built or timed but the rule's own simulation. Each protocol below is
+for a separate session given that protocol, the common rule and nothing else of this part.*
+
+**The question.** Judged by an A/A arm's spread instead of a fixed bar, do P-EMSDK, P-COPY and P-START have a fair
+protocol? **Yes, all three, under one rule.** Fixed bars refused them, not a loss shown beyond the host's spread: a
+gain bar for the first two (≤ ×0.97, ≤ ×0.95, in 8 of 10 rounds), a no-worse bar with no A/A arm for the third; the owner's net reading (the queue's rows 165–170 brief) asks instead that nothing be
+worse beyond its measured spread and something be better. P-EMSDK and P-COPY are predicted net. P-START is predicted
+to **lose at 300 Mbit/s**, where its late starts land on the fill's critical path, so it is predicted a trade-off.
+
+**The common rule** ([`lab/scripts/aa_rule.py`](../../lab/scripts/aa_rule.py), its claims in `aa_rule_test.py`, each
+mutated to fail).
+
+* **Three arms a round:** today's (A), today's again under another name (A′, the same bytes and settings), the lever
+  (B), in `lab/scripts/order.py`'s order (three arms: a period of 6 rounds). **n = 12**, up to 24 for a cell the rule
+  calls not conclusive. Each cell's values are B/A and A′/A paired by round.
+* **Worse** when B/A is stochastically larger than A′/A (one-sided Mann–Whitney, p < 0.05), **and again** in a
+  confirming run of the cell (fresh rounds; a cell flagged once only is a tie). **Better** the same way, reversed.
+* **Not conclusive** when neither, and the loss the rule would catch in 80 % of campaigns at that cell's A/A spread
+  (its MDL, printed per cell) is over 5 %. A lever is adopted on no not-conclusive cell; the row goes back to `night`
+  for a host that passes, as the queue's `VOID` rule says.
+* **The rule's reach**, by its simulation (`aa_rule.py --simulate`, a lognormal arm spread σ): false *worse* ≤ 0.05 %
+  a cell; a loss caught in 80 % of campaigns at n = 12 of +1.7 % at σ = 1 %, +3.2 % at 2 %, +4.8 % at 3 %, +8.2 % at
+  5 % (n = 24: +1.2, +2.3, +3.4, +5.6 %). The other bar in use here, a median past the A/A's p90 \|A′/A − 1\|
+  ([`../disk-layout/README.md`](../disk-layout/README.md) §The writer), needs +5.7 % at σ = 2 % and +13.9 % at 5 % for
+  the same 80 %: ~1.8× the loss. Row 134's 4× ranges (`g512` ×0.40–2.43) suggest σ well over 5 % on some cells, so
+  the not-conclusive class is expected to be used.
+* **Both readings** where `VOID`s occur (strict and round-paired, the queue's rule); the steal gate of row 142 (≤ 2 %
+  over 10 s before a round); every arm's settings printed (build sha256, controller and initial window, transport
+  options, decoder path), equal but for the lever; every frame against the encoder's input, `--mutate sample` and
+  `truth` failing every frame. Container times; Chromium 141 unless a cell names another engine.
+
+**The cells at row 162's rates.** `r100000` and `r300000` with 23 ms one way (a 46 ms idle RTT, the cellular median
+plus a near region) and a FIFO of `--queue-ms 650`, so a Cubic fill that fills it sees a ~0.7 s RTT
+([`../transport/link-conditions.md`](../transport/link-conditions.md) §Link profiles). `run.mjs`'s `r` links have
+20 ms and 200 packets; the measuring row adds the variant. **The relay's ceiling first:** 100 Mbit/s spaced its sends
+at p99 0.36–0.67 ms late ([`../rig-limits.md`](../rig-limits.md) §6); 300 has never been run. A link whose shaped
+visits `VOID` over 20 % is dropped and said, and nothing is claimed past it. A cold ask is the session's first work,
+so its queue is empty and it sees the idle RTT; the 0.7 s is a fill's.
+
+**Where decode is the fill's clock** (D): when one frame's decode ÷ the decoders in use exceeds its time on the wire.
+Wire a frame at 100 · 300 Mbit/s: `dbt12_ea1141` (~0.50 MB, [`../disk-layout/containers.md`](../disk-layout/containers.md))
+40 · 13 ms; `ffdm_d` (4.81 MB, §A frame at the level the screen needs) 385 · 128 ms. Decode a frame, one worker,
+1× · 4× (row 133's `ref`): 9.3 · 33.8 ms and 91.9 · 395 ms. So at 1× the wire is the clock everywhere; at 4× `dbt12`
+on three decoders is at the edge at 300 (11.3 against 13 ms) and `ffdm_d` too (132 against 128 ms), and `ffdm_d` on
+one decoder is decode-bound from 100 (395 against 385 ms). Elsewhere a decoder lever moves a fill only by its last
+frame's decode.
+
+#### EMSDKNET — P-EMSDK, net
+
+* **Arms:** `del` (the delivered build), `del′` (its `.js` and `.wasm` copied under a second name, sha256 equal),
+  `em6` (row 134's: 6.0.11 with `wasmBinary` and `mainScriptUrlOrBlob` restored). The `em6` glue must request no
+  `.wasm` of its own: a check counting the page's `.wasm` fetches (one, the manifest-checked one) fails without the
+  restored names.
+* **Cells:** a frame on `dbt12_ea1141`, `dbt12_c`, `dbtproj_ge`, `syn2d_d`, `ffdm_d` (sound) and `g512` (synthetic,
+  reported, deciding nothing), 1× and 4× (`newer/decode.mjs`); a fill and a cold ask on `dbt12_ea1141`, `dbtproj_ge`
+  and `ffdm_d` at both links, 1× and 4× (`total-time/run.mjs`).
+* **Predictions.** A frame: better on the projections (×0.89–0.93) and on `syn2d_d` and `ffdm_d` at 4× (×0.93–0.97);
+  a tie on the tomosynthesis volumes, **row 134's ×1.061 cell (614×1359 at 4×) inside A/A** (its ×0.82–1.29 range
+  is the host's). A fill: a tie but `ffdm_d` at 4× and 300, ×0.97–0.99 (~28 ms of a ~1.1 s fill: the last frame's
+  decode × 0.07). A cold ask: `ffdm_d` and `dbtproj_ge` at 4× ×0.91–0.96 (decode 70–75 % of the ask at 300), a tie on
+  the volumes.
+* **Rule:** adopt the 6.0.x pin with the two names restored when no cell is worse, none is not conclusive, and at
+  least one sound cell is better. Otherwise the cells, for the owner.
+
+#### COPYRGB — P-COPY, net, with sound colour
+
+* **Arms:** `del`, `del′`, `copy` (row 134's `wrapper.patch` and worker, `-pthread -sPTHREAD_POOL_SIZE=0`). `pt`
+  (the shared heap alone) is run and reported, deciding nothing.
+* **Cells:** a frame on the six sound colour still sets (`usrgb_*`, 8 × 960×720 to 1552×970, 8-bit RGB, [`../FIXTURES.md`](../FIXTURES.md)),
+  `c512` (synthetic, reported), and the five grey sets above, 1× and 4×, **in Chromium 141 and in Firefox** (the
+  heap is shared in both, and adoption ships to both); peak memory (`--memory`, `VmHWM` summed) with its own A/A, 3
+  rounds; a fill and a cold ask on `usrgb_mel` (1400×1050) and `ffdm_d` at both links, 4×.
+* **Predictions.** RGB a frame: better, ×0.85–0.95 at 4× and ×0.92–0.98 at 1× (`c512` read ×0.866 and ×0.954; a
+  natural still's larger dark field decodes cheaply, so the copy's share is no smaller). Grey: a tie everywhere,
+  **row 134's ×1.049 (`ffdm_d` 4×) and ×1.028 (projections 4×) inside A/A**. Memory: lower beyond A/A on the three
+  large grey sets (−5 to −25 MB) and by about one frame on RGB (~4 MB at 1400×1050). Fill: a tie. Cold ask on
+  `usrgb_mel` 4×: ×0.93–0.98.
+* **Rule:** adopt when no cell in either engine is worse in time or memory, none is not conclusive, and an RGB frame
+  cell or a memory cell is better. If Firefox alone loses, the cells go to the owner (a per-engine build is a trade
+  in code, not net).
+
+#### STARTAA — `startOnNeed`, net
+
+* **Arms:** `today`, `today′` (the same `variants.json` entry under a second name), `need`; row 142's harness,
+  `cubic-restart`, quinn's window, the delivered OpenJPH.
+* **Cells:** a fill and a cold ask on `dbt12_ea1141`, `dbtproj_ge` (9 × 1914×2572) and `ffdm_d` at both links, 1×
+  and 4×; decoder CPU, wake-ups, and the decoders started, per visit.
+* **Mechanism.** `need` starts a decoder when frames stay queued after a dispatch: exactly when decode has become the
+  clock. Its start (13–23 ms to a ready decoder at 1×, §Instantiating by streaming; ~4× that at 4×) then sits on the
+  fill's critical path, where today's was paid at open. Where one decoder keeps up, `need` never starts the others,
+  which is its saving.
+* **Predictions.** At 100 Mbit/s and at 1×: fill and cold ask a tie, decoder CPU better (×0.86–0.96) and wake-ups
+  fewer, as row 142. At 4× and 300 on `ffdm_d` and `dbtproj_ge`: **fill worse, ×1.03–1.08** (two late starts of
+  50–90 ms on a ~1.1 s fill), decoder CPU a tie (all three used). The cold ask a tie in every cell (row 142's ×1.026
+  inside A/A: one decoder starts at open in both arms).
+* **Rule:** adopt when no fill or cold ask is worse, none is not conclusive, and decoder CPU or wake-ups are better in
+  at least one cell. If only the decode-bound cells lose, `startOnNeed` is a trade-off for the owner and the row
+  proposes STARTAHEAD below.
+
+**Proposed rows** (theory first; none queued): **STARTAHEAD** — does starting the next decoder when the queued frames'
+decode time first exceeds the next frame's wire time keep `startOnNeed`'s CPU saving with no decode-bound fill
+worse? **AARULE** — should every net row's timing use `aa_rule.py` (rows 160 and 168's resolution bar among them),
+and does its lognormal model fit the spread the lab's raw rounds show?
+
 ## What these numbers are not
 
 * **Every millisecond is container-measured** and reported, not decided on. Heap, byte-exactness and
