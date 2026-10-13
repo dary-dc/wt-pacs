@@ -272,7 +272,7 @@ not `ready`.
 | 189 | **INITIALMEASURE** — row 187's protocol: answering a client's repeated Initial with the unacknowledged server flight, against today, A′ and the 100 ms initial RTT | claimed 2026-10-13 (night, fd940f) |
 | 190 | **DEVICEPLAN** — the plan for testing on real devices: the owner's phone, local machine and Oracle cloud machine — what each test settles, the rig, the links, the order; writing | claimed 2026-10-13 (night, 34029c) |
 | 191 | **IWOPTIN** — the 38 400-byte initial window back to opt-in (a flag, default 12 000), kept as an experimental proposal | claimed 2026-10-14 (night, 86a912) |
-| 192 | **GSODEFAULT** — the GSO cap of 24 in the default server build (row 182) | ready |
+| 192 | **GSODEFAULT** — the GSO cap of 24 in the default server build (row 182) | claimed 2026-10-14 (night, 81fcaa) |
 | 193 | **STREAMSWIDE** — one stream against several under head-of-line blocking across a wide range of rates and losses, random and bursty: where several must win in theory, and why the measurements so far did not show it; theory | ready |
 | 194 | **COMPLEMENT** — complementary approaches to lossless bytes and decode beside the codec: the bit split for HTJ2K and JPEG XL, inter-slice decorrelation, value maps, the noise floor that bounds every codec; theory | ready |
 | 195 | **DOCKERREAD** — the server's file reading inside a Docker container, the likely deployment: storage driver and mounts, the page cache and folios, `WILLNEED`, `RWF_NOWAIT`, io_uring under the default seccomp profile; measured on the owner's machine | local |
