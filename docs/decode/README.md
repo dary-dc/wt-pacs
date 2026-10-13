@@ -566,6 +566,106 @@ nothing. 2 settles 2.5 MB lower but starves the free list, and on colour is slow
 rounds (+19 ms [15–35] of 657). Frames 87/87 in all 30 cells. Desktop Chrome 148, loopback, 87-frame
 series; the rig's 130 MB is a 237-frame fill and the saving is not a constant to carry across.
 
+### A reader pause
+
+*Queue row READERPAUSE (184), 2026-10-13. Theory: arithmetic (D), nothing built or timed. The protocol below is for
+a separate session given it and its rule only.*
+
+**The question.** At 100–300 Mbit/s, how large does the coded queue grow on large series, and does a reader pause
+bound it with the fill and an ask unchanged?
+
+**How large.** The reader is never paused (above), so every frame that lands while the decoders are full waits in the
+downloader as coded bytes. Take S as the series' coded bytes, W as the wire's rate and D as three decoders' rate, both
+in bytes a second. Where D < W the queue grows at W − D until the last byte lands, so its peak is
+**Q = S (1 − D/W)**; where D ≥ W it is the ring and nothing grows. With §Net protocols' times (D):
+
+| series, 4× | S | W at 100 · 300 Mbit/s | D, HTJ2K · AV1 at 1.6× · 4.1× | Q at 100 · 300 Mbit/s |
+| --- | --: | --: | --: | --: |
+| `dbt12`, 29 × 0.50 MB | 14.6 MB | 12.5 · 37.5 MB/s | 44 · 27.7 · 10.8 MB/s | AV1 at 4.1×: 2.0 · 10.4 MB; AV1 at 1.6×: 0 · 3.8 MB; HTJ2K: 0 |
+| `ffdm_d`, 4 × 4.81 MB | 19.2 MB | same | 36.5 (HTJ2K) | one frame at 300, 4.8 MB; 0 at 100 |
+
+At 1× D is 3.6–4.3× larger and no cell queues. So **on the series measured so far the queue stays under 11 MB**. It grows
+with S only on a long series whose fill is decode-bound: a 100-slice CT, or a whole uncropped tomosynthesis volume
+(`dbts_*`), at 4× and 300 Mbit/s or as AV1. How long and how decode-bound those are is FASTCLOCK's (row 182)
+measurement, not this row's.
+
+**What it weighs against.** A viewer keeps every frame it decoded (§Retained-frame residency). With r the pixels'
+bytes over the coded bytes (r > 1 for any lossless coding), what the page holds at time t is
+r × decoded(t) + (landed(t) − decoded(t)). That is at most r S, the pixels at the fill's end. **So the live queue
+never raises the fill's peak above the pixels the series ends with.** It does raise it at earlier moments, and
+whatever is left as garbage adds to the peak. A frame read while the ring's free list is empty gets a fresh buffer,
+and that buffer is dropped when it comes back to a full list. Uncollected (neither isolate collects during a fill,
+above), that is up to Q more. So a pause can lower the peak by at most about **Q of garbage, and the live queue's
+excess only before the end**: ≤ 1/r of the peak. With r ≈ 2–3 for these series that is ≤ 33–50 % of the peak where
+Q ≈ S. On every cell above it is ≤ 10.4 MB.
+
+**What a pause does.** If the downloader stops reading the session's frames while H coded bytes sit queued, the bytes
+stop at the browser's flow control. In Chromium that is a 256 KiB pipe to the page and a 6 MiB stream window, not
+auto-tuned (Firefox: 1 MiB auto-tuned to 10 MiB). Then the server is blocked. So a pause holds the page's queue to H,
+and the device's to **H + 6.25 MiB**, and with H at or under the ring it ends the fresh buffers too. In the
+product's `shared` stream mode one stream carries every frame, so the bound is one stream's window. Chromium's
+window lives in the network service, so on a phone those 6.25 MiB are still on the device. **On every cell above, Q
+is under H + 6.25 MiB, and a pause saves at most 4 MB of device memory, against the 6.25 MiB it keeps
+elsewhere.** It can only pay where Q is well over 6.25 MiB, on a long, decode-bound series.
+
+**The fill is unchanged** while the decoders never starve. On resuming at L queued bytes, the window's 6.25 MiB is
+read at once, and the server's next byte comes one RTT after the window update. So the condition is
+**L + 6.25 MiB ≥ D × RTT**. While the pause holds, the fill's own queue at the bottleneck drains. If it held the
+loaded RTT, the RTT on resuming is the idle one: 46 ms × ≤ 37.5 MB/s = 1.7 MB, covered by the window with L = 0. If
+another flow holds a 0.7 s queue, D × RTT reaches 7.6–26 MB, and L must hold most of what the pause was to save.
+**So a pause is predicted net only where the fill holds its own queue, and a trade-off where another flow holds it.**
+Whether a phone's session meets another flow's queue is not measured (`../transport/link-conditions.md`).
+
+**An ask is no worse, and may be better.** In `shared` mode the ask's bytes follow every fill byte the server has
+written, so a pause must end the moment an ask is in flight. Today the fill bytes ahead of an ask are in the
+bottleneck's queue (row 167: 0.49 s at 103 Mbit/s). During a pause, up to 6.25 MiB of them are already in the browser
+and are read at once, and the rest wait at the server behind no queue. The read-through lifts the page's queue by up
+to 6.25 MiB for as long as the decoders take to drain it. Those are frames the fill wanted anyway.
+
+**Net or a trade-off.** Net, predicted, only on long series whose fill is decode-bound (Q ≫ 6.25 MiB) and whose
+queue is the fill's own. A tie on every series measured so far; a trade-off (fill or memory) behind another flow's
+queue. The code it takes:
+
+* a pause and a resume on the session, in both implementations behind the seam (`client/transport/ts`,
+  `client/transport/wasm`);
+* the downloader driving it from its queued bytes, never from the ring's free list, which can deadlock a consumer
+  that keeps buffers (above);
+* an ask that ends the pause.
+
+The row's view: queue it only if FASTCLOCK finds a target series with Q over ~20 MB at a measured rate.
+
+**Protocol, for a separate session (the measuring row):**
+
+* **Build**, a lab flag `readerPause: { high, low }` in MB of queued coded bytes (off by default). The downloader
+  calls the session's `pause()` at `high` and `resume()` under `low`, and any ask resumes it at once. The build's test
+  fails without it: a fake session that counts reads while the queue is over `high`.
+* **Arms:** A (today), A′ (today under another name), B (`high` = the ring's frames' bytes, `low` = 0), by §Net
+  protocols' common rule (`lab/scripts/aa_rule.py`, three arms, `lab/scripts/order.py`, n = 12, up to 24). Each arm
+  prints its full settings.
+* **Rig:** `lab/ask-ahead` with decoding on, and Chromium's CPU throttle at 4× as `lab/av1/delivery/fill` sets it.
+  Per run it records:
+  * the page's renderer peak (`VmHWM`) and the network service's, summed;
+  * the downloader's largest queued coded bytes;
+  * the fill's issue to its last frame on the page;
+  * an ask's total, the ask once half has landed;
+  * every frame against the encoder's input (`--mutate sample` and `truth` fail every frame).
+* **Cells:** `r100000` and `r300000`, 23 ms one way, a FIFO of 650 ms. Then the same with a competing bulk flow
+  through the relay (`lab/scripts/link_impair.py`), so that the bottleneck's queue is another flow's. Series: the
+  longest sound series FASTCLOCK finds decode-bound at 4×, and `dbt12_ea1141` as AV1 as the cell with a small Q.
+  The relay's ceiling at 300 Mbit/s first; a link over 20 % `VOID` is dropped and said.
+* **Predictions:**
+  * on `dbt12` every reading is a tie;
+  * on a series with Q ≫ 6.25 MiB, B's summed peak is lower by about Q − 6.25 MiB − `high`;
+  * B's largest queue stays at `high` (+ ≤ 6.25 MiB during an ask);
+  * the fill and the ask are a tie on the fill's own queue;
+  * behind another flow's queue the fill is worse.
+* **Rule:** `readerPause` is adopted only if, on the fill's own queue:
+  * no cell is worse beyond the A/A spread on the fill or the ask;
+  * the summed peak is better in at least one cell;
+  * every frame is exact.
+
+  Behind another flow's queue, a worse fill makes it the owner's trade-off, which the row states with its numbers.
+
 ## The first frame
 
 A decoder just created is slower than the same decoder a few frames later.
