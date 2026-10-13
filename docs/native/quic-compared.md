@@ -1,9 +1,9 @@
 # The QUIC implementations, compared
 
-*Queue rows 156, QUICCOMPARE, and 157, QUICREWRITE, 2026-10-12, and 158, QUICLATENCY, 2026-10-13. Theory and
-writing: nothing built or timed. How each stack works, lever by lever, how the stacks compare when each is at its
-best, and what each does to a frame's latency (§8). Every choice stays the owner's ([`quic.md`](quic.md) §5,
-§7.7).*
+*Queue rows 156, QUICCOMPARE, and 157, QUICREWRITE, 2026-10-12, 158, QUICLATENCY, and 174, QUICSTREAMS,
+2026-10-13. Theory and writing: nothing built or timed. How each stack works, lever by lever, how the stacks compare
+when each is at its best, what each does to a frame's latency (§8), and how each treats many streams (§9). Every
+choice stays the owner's ([`quic.md`](quic.md) §5, §7.7).*
 
 **What row 157 changed, and why (corrected in place).** Row 156 read each stack at its defaults and showed its best
 only as a footnote, so a stack with a small default window looked worse for a reason the owner had ruled out:
@@ -25,11 +25,11 @@ point of use. Re-reading the code at the same pins also corrected row 156's fact
   off by default.
 
 **How a number is sourced.** At its point of use, each number carries one of:
-* a file and line at the stack's pinned tag (§10), written `path:line` beside the stack's name;
+* a file and line at the stack's pinned tag (§11), written `path:line` beside the stack's name;
 * an RFC, draft or paper with its section, table or figure;
 * its derivation, written out (D), every input sourced; [`quic_grid.py`](quic_grid.py) prints the tables.
 
-Measured results (this repository) are kept apart, in §9, and named with their row.
+Measured results (this repository) are kept apart, in §10, and named with their row.
 
 **Two framings kept from row 156.**
 * **"Our client" is a native client on raw QUIC with an ALPN of our own** (the owner, 2026-10-10). WebTransport
@@ -48,8 +48,9 @@ Measured results (this repository) are kept apart, in §9, and named with their 
 6. [Defaults: what you would change, and how](#6-defaults-what-you-would-change-and-how)
 7. [Raw QUIC for the native client: what it changes](#7-raw-quic-for-the-native-client-what-it-changes)
 8. [Latency, at each stack's best](#8-latency-at-each-stacks-best)
-9. [Measured here](#9-measured-here)
-10. [Sources](#10-sources)
+9. [Streams](#9-streams)
+10. [Measured here](#10-measured-here)
+11. [Sources](#11-sources)
 
 ## 1. What the comparison shows
 
@@ -75,6 +76,10 @@ Measured results (this repository) are kept apart, in §9, and named with their 
   flight waits (3 × its initial RTT, 150–999 ms across the stacks), whether a lost last packet waits its 25 ms ack
   delay or 1 ms (quinn, msquic and picoquic obey the server's ACK_FREQUENCY), 0-RTT (which saves its RTT only with an
   address token), and how it notices and survives a network change.
+* **Streams (§9):** one stream is enough for throughput at the measured links; what decides the design is the ask
+  during a fill. Today's `per-frame` flag leaves more ahead of an ask than `shared` (10 MB against 6 MiB). A send
+  window that follows the congestion window is net. `per-frame` with the ask above the fill is a trade-off: faster
+  behind short queues, slower behind deep ones. WebTransport's `sendOrder` orders only a browser's own sends.
 * **Throughput's best window and latency's part.** A client window far above the BDP lets a fill queue more ahead of
   an ask on the shared stream (§8.2); an auto-tuned window that grows with the reader approximates the BDP by itself.
 
@@ -377,7 +382,7 @@ Only **picoquic** at its pin, at draft-20's transport parameter `0x3e` (`picoqui
 | Google QUICHE | a client (`WebTransportOnlyClient`) and server code, unreleased | `quiche/quic/tools/web_transport_only_client.h:40` |
 | lsquic | server only, behind a build flag, off by default | `include/lsquic.h:1197`, `:1203` |
 | quic-go | through webtransport-go v0.13.0, client and server | [`quic.md`](quic.md) §8 |
-| msquic, Cloudflare quiche, ngtcp2, s2n-quic, mvfst | none at the pins (§10) | ngtcp2's is on unreleased branches ([`quic.md`](quic.md) §8) |
+| msquic, Cloudflare quiche, ngtcp2, s2n-quic, mvfst | none at the pins (§11) | ngtcp2's is on unreleased branches ([`quic.md`](quic.md) §8) |
 
 ## 5. Each stack at its best
 
@@ -385,7 +390,7 @@ What each is, its best configuration, and what still separates it. "Fork" means 
 
 * **quinn** — a pure-Rust QUIC on tokio, community-maintained; today's server. **Best:** windows set to the BDP;
   `AckFrequencyConfig` on, to tune its peer; BBR or this repository's controllers through the public hook; GRO on Linux.
-  **Still separating:** pacing always on; the GSO constant (10 segments, patched here, §9); a rebind without a probe;
+  **Still separating:** pacing always on; the GSO constant (10 segments, patched here, §10); a rebind without a probe;
   no multipath outside the noq fork. **As our client:** the server's own crate; obeys ACK_FREQUENCY. **As our
   server:** the only stack with a released WebTransport server, a public hook and raw QUIC on one endpoint today.
 * **msquic** — Microsoft's C library with its own worker threads. **Best:** `StreamRecvWindowUnidiDefault` and
@@ -464,7 +469,7 @@ Rows 124 and 127 assumed a WebTransport native client and quinn on the server; e
   our ALPN to a raw handler (read from the API, not built; a wire change, proposed not built). After it every stack but
   Cronet can be our client ([`quic.md`](quic.md) §2).
 * **What quinn keeps as a client:** the server's own crate, so the wire's framing and exactness code is one Rust
-  crate on both ends; the only measured native receive cost (§9); ACK_FREQUENCY at the current codepoint — shared
+  crate on both ends; the only measured native receive cost (§10); ACK_FREQUENCY at the current codepoint — shared
   with msquic and picoquic (§4.1); 0-RTT on raw QUIC without patching wtransport, which exposes none
   ([`quic.md`](quic.md) §7.1).
 * **What raw QUIC opens.** Apple's Network.framework becomes a possible iOS client ([`quic.md`](quic.md) §2), and
@@ -664,7 +669,7 @@ At p = 1e-2:
 * **after the last byte**, only the last datagram's share: 2.16 ms/MB × 1 452 B ≈ 3 µs (D);
 * **as queueing**, when receive work approaches a whole core: 1 ÷ 2.16 ms per MB = 463 MB/s, about 3.7 Gbit/s on that
   host (D), far above the grid. At 50 Mbit/s it is 6.25 MB/s × 2.16 ms = 1.35 % of a core (D), as measured (≤ 0.05
-  cores, §9).
+  cores, §10).
 
 No other stack's receive cost was measured here; on a phone it is unknown for every stack, and §3.3's published
 rates are whole-connection, both-ends costs, not a client's per frame.
@@ -711,7 +716,229 @@ ones that differ between stacks are a lost first flight's wait (150–999 ms, se
 stacks), a lost last packet's 24 ms (only where the client obeys the server's ACK_FREQUENCY: quinn, msquic, picoquic),
 0-RTT (missing in s2n-quic and on msquic's Schannel), and how a network change is noticed and survived (§8.5).
 
-## 9. Measured here
+## 9. Streams
+
+*Row 174, QUICSTREAMS, 2026-10-13. Theory: nothing built or timed. The question: how each stack treats many streams,
+and which stream design serves a fill and an ask best at the measured links ([`../transport/link-conditions.md`](../transport/link-conditions.md)
+§Link profiles: cellular 18 · 103 · 309 Mbit/s, idle RTT 17–52 ms, loaded 0.4–1.9 s). Read as QUIC streams (the
+owner's "several streams"; the owner corrects this if it meant something else). [`quic_streams.py`](quic_streams.py)
+prints every table (D). Inputs: Chromium's windows for an incoming uni stream and for the connection, 6 MiB and
+15 MiB (`net/quic/quic_context.cc:21–22`, set at `:94–97`; no auto-tuning, §9.2); quinn's send window, 10 MB
+(`quinn-proto/src/config/transport.rs:379`); the 10-bit DBT volume's frames, an ask F = 0.55 MB, M = 1.1 MB (two of
+its largest, the ASKAHEAD protocol's).*
+
+**What it shows.**
+* **For throughput, one stream is enough at the measured links.** A loss-based controller builds its own queue, so
+  the loaded RTT it causes never binds its own window; one stream's 6 MiB binds only above 547 Mbit/s at a 92 ms
+  idle RTT (D, §9.3). Only another flow's queue makes it bind: 6 MiB ÷ RTT is 252 Mbit/s at 0.2 s and 63 at 0.8 s.
+  There, several streams lift the bound to the connection's 15 MiB, and several connections take more than one
+  flow's share. One controller sees every stream, so several streams change nothing under random loss.
+* **What decides the design is the ask during a fill.** On a stream the ask waits behind the bytes already written
+  to it, and at 18 Mbit/s that is 3.1 s (D). **Today's `per-frame` flag is worse than `shared`**: the fill's frames
+  outrank the ask, and the bound becomes quinn's 10 MB send window instead of one stream's 6 MiB (4.7 s at
+  18 Mbit/s, D).
+* **Two server-only levers bring the bytes ahead down to about one congestion window.** The first is row 171's send
+  window following the congestion window, on the shared stream. The second is `per-frame` with the ask ranked above
+  the fill. Behind a short queue (20 ms) the second is the faster by M ÷ R (D): 155 against 240 ms at 103 Mbit/s,
+  356 against 845 ms at 18. **Behind an 800 ms FIFO it is the slower at 103 and 309 Mbit/s** (865 against 577 ms at
+  103): the shared stream's credit was what capped the controller's queue, and per-frame's cap is the 10 MB send
+  window. So the second lever is a trade-off, decided by a measurement (§9.5).
+* **Per-frame also confines a loss to its own frame.** On the shared stream one loss holds back 3.4 frames of 250 kB
+  at 103 Mbit/s and 17 at 309 (idle RTT 92 ms, 20 ms queue, D). A fill's end moves only where 6 MiB of credit does
+  not cover a repair: at 309 Mbit/s with a 92 ms idle RTT (§9.3).
+* **WebTransport's `sendOrder` and `sendGroup` steer only what a browser sends.** The product's media flows from
+  server to client, so the browser's send scheduler orders nothing the product sends. The server's equivalent is
+  quinn's `set_priority` (§9.2).
+
+### 9.1 How each stack schedules streams
+
+The sender's terms, at each stack's pin (§11). "Higher" means a larger number is sent sooner. Window and auto-tune
+are §3.1.
+
+| stack | scheduler, by default | priority API | equal priority | lost data | what bounds a write | cwnd readable | uni MAX_STREAMS granted, re-raised |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| quinn | strict priority, a heap on (priority, recency) (`quinn-proto/src/connection/streams/mod.rs:460–475`) | `set_priority(i32)`, higher, default 0; takes effect at the next push (`quinn/src/send_stream.rs:214–220`) | round robin, one STREAM frame a turn (`send_fairness`, default on, `quinn-proto/src/config/transport.rs:380`; `quinn-proto/src/connection/streams/state.rs:644–653`) | first within its stream (`quinn-proto/src/connection/send_buffer.rs:97–115`); across streams by priority, no boost (`quinn-proto/src/connection/streams/state.rs:732–746`) | min(connection credit left, send window − unacknowledged), 10 MB (`quinn-proto/src/connection/streams/state.rs:842–846`); not cwnd | yes, `stats().path.cwnd`, `congestion_state()` | 100 (`quinn-proto/src/config/transport.rs:374`); batched past ⅛ of it (`quinn-proto/src/connection/streams/state.rs:879–890`) |
+| s2n-quic | FIFO by when a stream became ready; no priority (`quic/s2n-quic-transport/src/stream/stream_container.rs:137–139`) | none | rotates per packet (`stream_batch_size` 1, `quic/s2n-quic-core/src/connection/limits.rs:41`) | all streams' lost data before any new (`stream/manager.rs:846–880`) | 4 MiB per stream, not credit or cwnd (`s2n-quic-core/src/stream/limits.rs:12`) | event subscriber only | 100; synced per tenth closed (`stream/controller/remote_initiated.rs:26–27`) |
+| Cloudflare quiche | RFC 9218 urgency, lower sooner; default 127, incremental (`quiche/src/stream/mod.rs:48`, `:952–982`) | `stream_priority(id, urgency, incremental)` (`lib.rs:6211`) | incremental rotates per frame; one STREAM frame a packet (`lib.rs:5316–5335`) | first within its stream; across streams by priority (`stream/send_buf.rs:380–432`) | min(cwnd available, credit) × factor 1.0 (`lib.rs:8987–8996`) | yes, `path_stats().cwnd` | 0 until set (`transport_params.rs:204–209`); re-raised at half (`stream/mod.rs:728–734`) |
+| neqo | 5 strict levels; within one, unfair streams FIFO, then fair ones by sendGroup and `SendOrder` (`neqo-transport/src/send_stream.rs:44–62`, `:2228–2367`) | `stream_priority`, `stream_sendorder(i64)` higher, `stream_sendgroup` (`connection/mod.rs:3820`, `:3836`, `:3857`) | fair: round robin per packet (`send_stream.rs:2256–2285`) | a level up by default, so before every Normal stream's new data (`send_stream.rs:64–104`) | min(credit, 10 MiB buffer) (`send_stream.rs:474`, `:1397–1405`); not cwnd | yes, `stats()` | 100; a sliding window (`fc.rs:316–322`) |
+| msquic | one list by priority, FIFO at equal; default scheme FIFO, a stream drains first (`src/core/send.c:165–183`, `:1055–1057`) | `QUIC_PARAM_STREAM_PRIORITY` u16, higher, default 0x7FFF | FIFO; round robin of 8 packets as an option (`send.c:1033–1053`) | first within its stream; no boost (`stream_send.c:1404–1408`) | never blocks; buffering stops at the "ideal" bytes, which follow cwnd (`send_buffer.c:117–212`) | yes, `QUIC_PARAM_CONN_STATISTICS_V2` | 0 until set (`settings.c:87–88`); +1 per release |
+| ngtcp2 | the application picks the stream at each write; internally round robin by cycle (`lib/ngtcp2_conn.c:830–839`) | none | round robin per frame | all streams' lost data before new (`ngtcp2_conn.c:3920–4251`) | no library buffer; credit and cwnd at send (`ngtcp2_conn.c:1708–1713`) | yes, `ngtcp2_conn_get_conn_info2` | 0 until set; raised only by the application (`ngtcp2.h:5601–5611`) |
+| lsquic | callbacks in priority order; with the default HTTP iterator a non-HTTP stream's priority collapses to one bucket, by stream id (`src/liblsquic/lsquic_hpi.c:58`) | `lsquic_stream_set_priority(1–256)`: the header says lower is sooner, the code stores 256 − p (`lsquic_stream.c:4617`) | per tick (`lsquic_stream.c:2466–2475`) | lost packets queued whole, no priority (`lsquic_send_ctl.c:1669–1690`) | min(stream, connection credit) (`lsquic_stream.c:944–959`) | yes, `lci_cwnd` | the client grants 100, re-raised at half; **no public API opens an application uni stream** (`include/lsquic.h:1628`) |
+| picoquic | strict `uint8_t`, lower sooner, default 9 (`picoquic/picoquic.h:1536–1580`) | `picoquic_set_stream_priority` | even level round robin, odd FIFO by id (`streams.c:625–648`) | by priority, then id and offset, each level's lost before its new (`frames.c:2004–2046`, `streams.c:1338–1388`) | unbounded copy; or pulled with no buffer (`streams.c:335–405`) | yes, `picoquic_get_cwin` | 512; +512 when half are closed (`quicctx.c:1421`, `frames.c:4624–4636`) |
+| Google QUICHE | RFC 9218 urgency, lower sooner, default 3 non-incremental (`quiche/quic/core/quic_stream_priority.h:32–35`); for WebTransport a send-order scheduler (§9.2) | `SetPriority` | FIFO; a stream keeps its turn for 16 000 B (`quic_write_blocked_list.cc:70–74`) | by loss order, not priority, before new data (`quic_session.cc:835`, `:2799–2857`) | 8 KiB per stream, overshoot accepted (`quic_stream.cc:1506`, `:939–955`) | yes, `sent_packet_manager()` | 100 + 3 static; re-raised at half (`quic_stream_id_manager.cc:101–142`) |
+| quic-go | RFC 9218 urgency, lower sooner, default 3 incremental (`send_stream.go:16`, `:803`; `framer.go:49–72`) | `SetPriority(urgency, incremental)` | incremental: one frame a turn | all lost data, every urgency, before new (`framer.go:140–176`) | a write returns once all but ≤ 1 452 B is in packets (`send_stream.go:264–283`) | no | 100; one MAX_STREAMS per closed stream (`streams_map_incoming.go:185–197`) |
+| mvfst | RFC 9218 queue, default 3 incremental (`quic/priority/HTTPPriorityQueue.h:43–53`) | `setStreamPriority` | rotates per full packet (`quic/api/QuicPacketScheduler.cpp:871–892`) | within its stream's queue slot, no global pass (`QuicStreamManager.cpp:1146–1170`) | unbounded; an optional cwnd factor, 0 by default (`QuicTransportBaseLite.cpp:2680–2693`) | yes, `getTransportInfo()` | 2048; at half (`quic/QuicConstants.h:600`) |
+
+**A stream's cost.** Each stack keeps a heap object per stream and no per-stream timer. In eight of the eleven a
+STREAM frame drops its length when it fills the packet, and in every stack it drops the offset at 0; msquic, ngtcp2
+and Cloudflare quiche always write a 2-byte length. On a frame of 250 kB that is a few bytes in ~170 packets
+(D: 250 000 ÷ 1 452). Every stack puts several streams in one packet except Cloudflare quiche, which sends one STREAM
+frame a packet. So for the product's frame sizes a stream per frame costs memory and scheduling, not bytes.
+
+**Scheduler cost.** neqo walks the whole stream map per level per packet (`send_stream.rs:2228`, `:2271`), msquic
+and picoquic walk the ready list per frame (`send.c:1020–1022`, `streams.c:1015–1083`), and quinn's
+`can_send_stream_data` scans its pending set (`quinn-proto/src/connection/streams/state.rs:402–410`). Each is linear in the number of streams
+with data, which per-frame keeps to the frames in flight (≤ 40 of 250 kB in 10 MB, D).
+
+**The server runs quinn-proto 0.11.18** (`scripts/patch_crate.sh`, `a9746dbde176`). Its `streams/mod.rs`,
+`streams/send.rs` and `send_buffer.rs` are identical to 0.11.19's, and `state.rs` differs only in two stream-limit
+checks, so the quinn row holds for the product.
+
+### 9.2 The browsers: `sendOrder`, `sendGroup`, and what they grant a server
+
+* **Chromium** (`d43693a6d80b`, 2026-10-13). `sendOrder` and `sendGroup` reach QUICHE's scheduler: Blink
+  (`third_party/blink/renderer/modules/webtransport/web_transport_send_stream.cc:53–74`) → the network service
+  (`services/network/web_transport.cc:1126–1134`) → `WebTransportStreamAdapter::SetPriority`
+  (`quiche/quic/core/http/web_transport_stream_adapter.cc:194–209`). The session's scheduler is the WebTransport
+  one (`net/quic/dedicated_web_transport_http3_client.cc:243–249`):
+  * a higher `sendOrder` is sent first, strictly, with FIFO at ties (`quiche/common/btree_scheduler.h:113–116`);
+  * groups are interleaved, not ranked, and "incremental priorities are not currently supported"
+    (`web_transport_write_blocked_list.h:31–41`);
+  * the attributes are behind the runtime flag `WebTransportSendGroup`, whose state was not read.
+
+  As a client it grants a server 100 incoming uni streams, or the page's
+  `anticipatedConcurrentIncomingUnidirectionalStreams` if higher (`dedicated_web_transport_http3_client.cc:61–63`,
+  `:853–857`), re-raised at half. Each stream gets 6 MiB of window and the connection 15 MiB, neither auto-tuned
+  (`quic_session.cc:184`). Each incoming stream gets a 256 KiB pipe into the page
+  (`services/network/web_transport.cc:1448–1449`). **No WebTransport session-level flow control:** `WT_MAX_STREAMS`
+  and `WT_MAX_STREAM_DATA` are ignored (`quic_spdy_stream.cc:1667–1675`); draft 02 is negotiated, 07 behind a flag.
+  *QUICHE lines are at `c8b1052048f1`; this Chromium's `DEPS` pins QUICHE `99a81c25`, not re-read.*
+* **Firefox** (`64cfaf34e56f`, 2026-10-13). `sendOrder` reaches neqo
+  (`netwerk/protocol/http/Http3WebTransportStream.cpp:644–649` → `Http3Session.cpp:3230–3236` → the glue's
+  `neqo_http3conn_webtransport_set_sendorder`). Every stream carries one, 0 by default. Ordering:
+  * a higher `sendOrder` strictly starves a lower one within a group;
+  * equal ones share round robin per packet, and groups round robin;
+  * ordinary HTTP/3 streams go before any WebTransport data (`neqo-transport/src/send_stream.rs:2225–2347`);
+  * the source's "does not yet implement SendOrder" comment (`dom/webtransport/api/WebTransportSendStream.cpp:42`)
+    is stale.
+
+  It grants 100 uni streams, shared with the server's HTTP/3 control and QPACK streams, at 1 MiB each auto-tuned to
+  10 MiB. The connection gets 24 MiB (pref `network.http.http3.max_data`). No session-level limits are implemented.
+* **Safari**: Network.framework is closed; nothing read.
+
+**For the product:** the client sends only small messages on its control stream, so `sendOrder` has nothing to order.
+A server stream's priority is quinn's `set_priority`, which the `per-frame` mode already uses
+(`server/src/transport/link.rs`). Chromium's 100 streams, re-raised at half, bound a stream-per-frame design at 50–100 × F in flight. On
+the volume's frames that is at least 12–27 MB, above every cwnd here (D), and a page could raise it with the hint.
+
+### 9.3 Several streams against one, and several connections
+
+```
+one stream:              rate ≤ min(R, stream credit ÷ RTT, controller)
+several streams:         rate ≤ min(R, connection credit ÷ RTT, controller)        one controller, one share
+several connections, n:  rate ≤ min(R, n × connection credit ÷ RTT, n × controller)  n shares, n slow starts
+```
+
+* **Self-induced queues never bind a window.** The fill's own controller makes the loaded RTT. A window-bound sender
+  stops adding to the queue at its window, so the queue it builds is window − R × idle RTT, and the rate stays R
+  while window ≥ R × idle RTT. One stream's 6 MiB is above that at 309 Mbit/s even at 92 ms (3.6 MB, D). **The
+  loaded RTT binds a window only when another flow holds the queue**, Mbit/s (D):
+
+| window | 46 ms | 92 ms | 200 ms | 400 ms | 800 ms |
+| --- | --: | --: | --: | --: | --: |
+| one stream, 6 MiB | 1 094 | 547 | 252 | 126 | 63 |
+| the connection, 15 MiB | 2 735 | 1 368 | 629 | 315 | 157 |
+| quinn's send window, 10 MB | 1 739 | 870 | 400 | 200 | 100 |
+
+  Against another flow's 0.4–0.8 s queue, one stream binds at 63–126 Mbit/s, under the cellular median. Several
+  streams lift that to 157–315, and so does a larger send window with per-frame. Whether a phone's session meets
+  another flow's queue is not measured (link-conditions.md, What is still open).
+* **Under random loss several streams buy nothing**: one controller, one loss response (§3.2). n connections get
+  n × CUBIC's bound (§3.2), and take that share from whatever else crosses the bottleneck. They also pay n
+  handshakes, n slow starts and n sessions on the server. As a throughput lever that is a fairness decision, not a
+  stream design; loss on these links is unmeasured.
+* **Head-of-line blocking.** A loss on the shared stream holds every byte behind it for about one loaded RTT until
+  the repair (§8.3). Frames of 250 kB held per loss, and whether 6 MiB covers the repair (the window plus one more
+  RTT of data), behind a 20 ms queue (D):
+
+| idle RTT | 18 Mbit/s | 103 Mbit/s | 309 Mbit/s |
+| --- | --- | --- | --- |
+| 46 ms | 0.6; yes | 3.4; yes | 10.2; yes |
+| 92 ms | 1.0; yes | 5.8; yes | 17.3; **no** |
+
+  Where the credit covers the repair, the held frames arrive late together but the fill ends when it would have.
+  Where it does not, the sender stalls until the repair; per-frame streams draw on the connection's 15 MiB instead.
+  Behind a deep FIFO the credit is exhausted already but the queue keeps the link busy through the repair (D).
+  Per-frame measured level with shared on both rigs under Cubic ([`../adr/stream-shape.md`](../adr/stream-shape.md));
+  none of those cells was at 309 Mbit/s with 92 ms.
+
+### 9.4 The ask during a fill, by stream design
+
+An ask ends the fill and is served next ([`../WIRE.md`](../WIRE.md) §An ask during a fill), behind what is already
+written. In quinn a write is accepted while min(credit left, send window − unacknowledged) > 0
+(`quinn-proto/src/connection/streams/state.rs:842–846`). It is never bounded by cwnd, which is enforced only when packets are built
+(`quinn-proto/src/connection/mod.rs:616`). The bytes ahead, per design (D):
+
+* **shared, today:** the stream's credit, 6 MiB, of which a cwnd is in flight and the rest waits in quinn;
+* **shared, send window = cwnd + M (row 171):** min(6 MiB, cwnd + M);
+* **per-frame, today:** each stream ranks by ask order (`server/src/transport/link.rs`, `ask_priority`), so the fill's frames outrank
+  the ask. The bound is min(15 MiB, 10 MB), quinn's send window;
+* **per-frame, an ask above the fill:** the ask's stream outranks every unsent fill byte (quinn's heap,
+  `quinn-proto/src/connection/streams/mod.rs:460–475`), so only the bytes in flight are ahead: min(cwnd, 10 MB). Its own bytes enter quinn as
+  acknowledgements free the send window, at the link's rate.
+
+The controller fills the path and the queue: cwnd = R × (idle RTT + queue), capped by what may be unacknowledged.
+Ask → last byte = idle RTT + (ahead + F) ÷ R, ms, at a 46 ms idle RTT (D; 92 ms in the script):
+
+| design | 18 · 20 ms queue | 103 · 20 | 309 · 20 | 18 · 360 | 103 · 360 | 309 · 360 | 18 · 800 | 103 · 800 | 309 · 800 |
+| --- | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| shared, today | 3 087 | 577 | 223 | 3 087 | 577 | 223 | 3 087 | 577 | 223 |
+| shared, send window = cwnd + M | 845 | 240 | 155 | 1 185 | 577 | 223 | 1 625 | 577 | 223 |
+| per-frame, today | 4 735 | 865 | 319 | 4 735 | 865 | 319 | 4 735 | 865 | 319 |
+| per-frame, an ask above the fill | 356 | 155 | 126 | 696 | 495 | 319 | 1 136 | 865 | 319 |
+
+* **Net:** the send window following cwnd is no worse than today in any cell. It is the lever already queued
+  (row 171).
+* **A trade-off:** per-frame with the ask above the fill. It gains M ÷ R where the queue is short and confines
+  losses to one frame. It loses where the queue is deep and the link fast, because the stream credit no longer caps
+  the controller. A send window of cwnd + M does not restore that cap, since cwnd grows into whatever is written
+  (D). The cost is one stream per frame (§9.1) and a planner change to tell `server/src/transport/link.rs` an ask from a fill. No wire
+  change: clients already read any number of uni streams the same way ([`../WIRE.md`](../WIRE.md) §Stream modes).
+* **Not worth building:** today's per-frame ranking for asks during a fill. It is the slowest arm in every cell.
+  Its place is a loss's retransmit, which per-frame's ask order puts before newer frames.
+* **Several connections** (an ask on its own connection): the ask still waits behind the fill's queue at the
+  bottleneck, the queue's time, plus F at a shared rate. That is no better than the per-frame lever behind a short queue
+  and no better than today's behind a deep one (D). It is a structural change (a second session), not pursued.
+
+### 9.5 Protocol, for a separate session (row 180, STREAMSMEASURE)
+
+**Question:** does `per-frame` with the ask ranked above the fill serve an ask during a fill better than `shared`,
+with and without row 171's send window, at no cost to the fill?
+
+* **Arms (4):** `shared`; `shared` + send window = cwnd + M (row 171's, M = 2 × the largest frame); `per-frame`
+  today; `per-frame` with every ask's stream ranked above every fill stream. The last arm is built beside today's
+  path as a server flag. Every other setting is equal and printed: Cubic, quinn's initial window, the 10 MB send
+  window except in arm 2, the client.
+* **Cells:** 18, 103 and 309 Mbit/s; idle RTT 46 ms, plus 92 ms at 309; FIFO 20, 360 and 800 ms; and 1 % random loss
+  behind the 20 ms queue. Each through `lab/scripts/link_impair.py` at a rate first shown to be sustained; nothing is
+  claimed past it.
+* **Client and data:** Chromium 141 through the product's client; the 10-bit DBT volume, every frame checked against
+  the encoder's input; an ask for a frame the fill has not reached, at 50 % of it.
+* **Measured:** ask → last byte; the fill's issue → last frame; the largest gap between in-order frames (the
+  loss cells); server RSS per session; the server's cwnd at the ask. At least 10 rounds, Williams-ordered by
+  `lab/scripts/order.py`.
+* **Predictions** (the §9.4 table, ±15 %):
+  * arm 4 the fastest ask in every 20 ms-queue cell;
+  * arm 4 slower than arms 1–2 at 103 and 309 Mbit/s behind 800 ms;
+  * arm 3 the slowest everywhere;
+  * the fill's time within its spread in every arm and clean cell;
+  * under 1 % loss, arm 4's largest gap below arms 1–2's at 309 Mbit/s;
+  * arm 4's RSS above arm 2's.
+* **Rule:**
+  * If arm 4's ask beats the better of arms 1–2 by ≥ 15 % in every short-queue cell and is not worse beyond the
+    spread in any cell, per-frame with ask-first becomes the default.
+  * If it beats them only behind short queues, it is a trade-off for the owner, with the cells that cost.
+  * If it beats them nowhere by ≥ 15 %, `shared` stays and the flag is not built further.
+  * A fill worse beyond its spread in any arm makes that arm a trade-off whatever its ask.
+  * Arm 3 slower than arm 1 confirms §9.4; arm 3 faster refutes the model, and the row says so.
+
+**Further rows the theory points to:**
+* whether a phone session meets another flow's queue (§9.3's only throughput case for several streams) is a field
+  measurement, with the open items of link-conditions.md;
+* lsquic's priority direction and its iterator collapsing non-HTTP priorities are worth an upstream issue, should
+  lsquic ever be a candidate.
+
+## 10. Measured here
 
 Kept apart from the theory above; each names its row.
 
@@ -723,7 +950,7 @@ Kept apart from the theory above; each names its row.
   than Cubic.
 * **Chromium's ACK_FREQUENCY:** Chromium 141 does not advertise it ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency).
 
-## 10. Sources
+## 11. Sources
 
 **Code, at the pins of [`quic.md`](quic.md) §8**, re-fetched 2026-10-12 for row 157. Each archive or file hash
 matched the pin listed there: quinn `quinn-proto-0.11.19` (archive `3ad67a0cb40f`; quinn 0.11.12 and quinn-udp
@@ -736,6 +963,14 @@ lsquic `v4.10.0` (`lsquic.h` `fb84c9add4b3`, `lsquic_full_conn_ietf.c` `085a89b4
 `ffb7c4be1bcb`, `received_packet_tracker.go` `1c496fb40b02`); Google QUICHE `c8b1052048f1755982feef370c7a07d4418d0f04`
 (`quic_flow_controller.cc` `df119c2fc56d`, `quic_constants.h` `8b38b35a52cd`). Paths in the text are relative to each
 repository's root; Google QUICHE's under `quiche/`.
+
+**Row 174 (§9), read 2026-10-13** at the same pins (each clone's commit matched them: quinn `8192ed399a26`, s2n-quic
+`b0a09202be1c`, Cloudflare quiche `be47c5011215`, neqo `28cacc8ea2b0`, msquic `819ab74f851e`, ngtcp2 `f9e9ff01ad21`,
+lsquic `af9286e8a439`, picoquic `938685c48ba2`, mvfst `8ca1fa0beac4`, quic-go `9d085cc690f7`, Google QUICHE
+`c8b1052048f1`), plus the crate quinn-proto 0.11.18 that `scripts/patch_crate.sh` pins (`a9746dbde176`), Chromium
+`main` `d43693a6d80b` (2026-10-13; its `DEPS` pins QUICHE `99a81c25`, not read) and Firefox `main` `64cfaf34e56f`
+(2026-10-13; the neqo glue and preferences read from the same commit), sparse clones of the WebTransport and QUIC
+directories. Chromium and Firefox are cited by commit, as git verifies their contents.
 
 **Papers**, the pinned arXiv versions of [`quic.md`](quic.md) §8, re-fetched with matching hashes: Jaeger et al.,
 arXiv 2309.16395v1 (`ac596357096a`), Fig. 3; Kempf et al., "QUIC Steps", arXiv 2505.09222v1 (`a776a96ec961`),
