@@ -1993,7 +1993,7 @@ for OpenJPH (it skips them).
 * **JPEG-LS** (CharLS, in WASM as `@cornerstonejs/codec-charls`): as good as or better than JPEG 2000 on breast
   tomosynthesis, over 4–5:1, unless multi-slice JPEG 2000 is used (Clunie, RSNA 2012 [6]); CodSpeed's simulated runs
   of Cornerstone's codecs show ~16–20 ms for a 512² CT frame (simulated instruction counts, not wall time; search
-  excerpts only) [7]. A DICOM transfer syntax; no resolution prefix.
+  excerpts only) [7]. A DICOM transfer syntax; no resolution prefix. Theory below (row JPEGLS).
 * **Tomoz**: no published codec under that name was found (searched 2026-10-10); a codebook-based tomosynthesis
   patent exists [8]. Listed as not found. *Corrected (row AUDITCODEC, 2026-10-13):* row LITERATURE had found it on
   2026-10-06 — an unreviewed Apache-2.0 codec with a WASM build on npm, self-reported 0.73–0.85 of HTJ2K on volumes
@@ -2001,6 +2001,62 @@ for OpenJPH (it skips them).
 * **TCT** (tri-plane context trees, Bai et al., arXiv 2608.13897, 2026-08-14): lossless volumetric coding learned per
   input, no network weights, "on par with recent DNN-based methods", "fast coding speeds" (abstract read) [9]; its
   per-slice decode of 0.05–0.06 s against JPEG-LS's 0.02–0.03 s is from a search excerpt of its Table VI, not read.
+
+**JPEG-LS through CharLS.**
+
+*Queue row JPEGLS (188), 2026-10-13. Theory: CharLS read at 2.4.5 (`14b654df`), sources as cited; nothing built or
+timed. The protocol below is for a separate session given it and its rule only.*
+
+**The question.** CharLS in WASM on the target series: bytes and decode against OpenJPH, exact?
+
+**Mechanism.** JPEG-LS (ISO/IEC 14495-1, LOCO-I: Weinberger, Seroussi and Sapiro, IEEE TIP 9(8), 2000) codes pixel
+by pixel. Three gradients of the causal neighbours pick one of 365 contexts. The median edge detector predicts, a
+per-context bias corrects, and Golomb–Rice codes the residual; flat runs switch to run mode. CharLS's decode loop
+reads `ra` from the pixel it decoded one step before, and updates the context the next pixel may use
+(`src/scan.h:360–381`). So the loop is serial by construction, with no SIMD in it. HTJ2K's block coder was designed
+to be the opposite: three independent streams a code-block (MagSgn, MEL, VLC) and SIMD on the magnitude bits.
+
+**Bytes, from sources** (D, chained):
+
+* JPEG-LS against JPEG 2000 Part 1: 0.86–1.07 on four 16-bit volumes (BD-LVIC's Table III, above), 0.98 on
+  tomosynthesis (Clunie, RSNA 2012: 4.97 against 4.89, the ratio of 16-bit words).
+* Part 1 is 0.93–0.96 of HTJ2K here ([`../codecs/jpeg2000.md`](../codecs/jpeg2000.md) §Bytes).
+* So JPEG-LS is **0.80–1.03 of HTJ2K**, 0.92–0.95 on tomosynthesis. One third-party table puts it at 0.91–0.94
+  ([`../av1/lossless-literature.md`](../av1/lossless-literature.md)).
+
+Its parameters are thresholds T1–T3 and the context reset interval, at the standard's defaults for the bit depth.
+Published tuning moves bytes by fractions of a percent on medical images (unmeasured here).
+
+**Decode, from sources.** OpenJPH in WASM decodes a 512² CT slice in 5.9 ms here (row 64, 1×). Cornerstone's CharLS
+build reads ~16–20 ms for a 512² CT frame, in simulated instruction counts, not wall time (CodSpeed, a search excerpt
+[7]). Natively the two papers above disagree by 2–3× (0.02–0.067 s a slice). So the one number on a comparable
+footing puts CharLS-WASM at **×2.7–3.4 of OpenJPH**. The serial loop gives no reason to expect less on larger frames,
+or under 4×.
+
+**Prediction.** 0.80–1.03 of HTJ2K's bytes at ×2–4 its decode. That is JPEG XL e2's corner (0.89–0.97 at 1.7–2.6×,
+row JXL), and **a trade-off at best, never net**: on the measured links decode is the clock more often than bytes
+([`../transport/link-conditions.md`](../transport/link-conditions.md), row 162). As a DICOM transfer syntax (`.80`) it would let a store serve JPEG-LS objects as they are, which is a
+reason to decode it, not to code to it.
+
+**Protocol, for a separate session (the measuring row):**
+
+* **Build:** CharLS 2.4.5 (commit `14b654df…`, BSD-3-Clause, into [`../av1/licensing.md`](../av1/licensing.md) first;
+  it carries the GHSA-vx55-856r-qqxw fix that `@cornerstonejs/codec-charls` 1.2.7 lacks). It is built to WASM under
+  the decoders' pinned emscripten (`client/decode/wasm/build/pins.sh`), `-O3 -msimd128`, behind a wrapper
+  `decode(bytes) → { width, height, bits, samples }`, and natively from the same commit for encoding. Cornerstone's
+  1.2.7 package is timed beside it as the build viewers ship, deciding nothing.
+* **Codings:** each sound target set's first 8 frames (`dbt10_ea1141`, `dbt12_ea1141`, `ffdm_a`, `dbtproj_ge`,
+  `mr_ispy1`, `ct_lidc`), lossless (NEAR = 0). The tuned best per set comes from a grid of T1–T3 at 0.5×, 1× and 2×
+  the defaults and the reset interval at 32, 64 and 128; the smallest is timed with the default. Signed sets are
+  shifted by 2^(B−1), as for HTJ2K.
+* **Timing:** OpenJPH (the product's build) against CharLS-WASM, by row JXL's `run.mjs` (a set's frames decoded in
+  order, one warm-up). Headless Chromium 141 and Firefox 157, 1× and 4×, n = 8 rounds in a Williams order. Every
+  arm's build is printed by sha256. Every frame is hashed against the checksum written from the encoder's input;
+  `--mutate hash` fails every variant.
+* **Rule:**
+  * Proposed to the owner as a codec only if a set's best coding is ≤ 0.97 of HTJ2K's bytes and its decode is no
+    slower than OpenJPH's beyond the spread of the round ratios, in both engines at 1× and 4×, with every frame exact.
+  * Otherwise closed, naming the closest cell, with the bytes and the decode as a trade-off for the owner.
 
 **Proposed measurements** (none queued; each in the container first, every frame against the encoder's input,
 interleaved, n ≥ 10, `g512` and the five sound breast series):
