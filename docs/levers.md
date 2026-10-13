@@ -15,7 +15,8 @@ and the coded queue's memory matter; and the RTT at which server-side ask orderi
 by the owner's net ruling** (2026-10-13): two levers that were refused by a fixed bar, not by a loss — P-COPY and
 `startOnNeed` — now want only an A/A spread. **Never tried**, cheaply: answering a client's repeated Initial, a PING
 after an isolated frame, the MTU bound, deploy limits. The ranked list is [§Proposed rows](#proposed-rows-ranked-by-expected-net-gain);
-the trade-offs, for the owner, [§Trade-offs](#trade-offs-for-the-owner).
+the trade-offs, for the owner, [§Trade-offs](#trade-offs-for-the-owner). The largest single item outside this
+audit is row 167's: an ask waits behind the fill the server has written ahead, ~0.5 s at the cellular median (D).
 
 **How to read a line.** *Rows* are the [AV1 queue](av1/queue.md)'s (current copy on `claude/av1-mainbase`); "cq X"
 is a row of the closed [`cloud-queue.md`](cloud-queue.md); "RP" is the read-path campaign of 2026-09-06…10
@@ -58,8 +59,8 @@ Owner: [`adr/disk-access.md`](adr/disk-access.md) (§5 · Every candidate, one t
 | Release LTO, one codegen unit | RP: −4 to −8 % CPU | held (landed) | §8 |
 | Container format (MP4, fMP4, MKV, MXF, DICOM EOT, IVF) against `.sbnd` | rows 159, 160: reads, fill, CPU tie; the open loses 13–26 ms; none round-trips | held (verdict proposed to the owner) | [`disk-layout/containers.md`](disk-layout/containers.md) §Verdict |
 | `.sbnd` v2 (148 B header, 28 B entries) | row 160: ties v1, 0.006–0.07 % smaller | held; the build not queued | [`disk-layout/target.md`](disk-layout/target.md) §Layout 0 |
-| The writer's 8 KiB `BufWriter` against 1 MiB writes | row 160: hits 24–31 % and fill 24–32 % slower; mechanism unmeasured | **queued: row 168** | [`disk-layout/README.md`](disk-layout/README.md) §The writer |
-| `fallocate` to the final size; frames aligned to 4 KiB | — | never (`fallocate` is in row 168; alignment is not) | §The writer; containers.md §5 |
+| The writer's 8 KiB `BufWriter` against 1 MiB writes | row 160: hits 24–31 % and fill 24–32 % slower; row 168 (theory): write-sized page-cache folios, a 1 MiB buffer the one-line fix | **never** as a fix (row 168's measuring protocol, not queued) | [`disk-layout/README.md`](disk-layout/README.md) §The writer |
+| `fallocate` to the final size; frames aligned to 4 KiB | — | never (row 168, theory: `fallocate` touches no hit; alignment is in its folio model) | §The writer; containers.md §5 |
 | Publish by `.partial` → fsync → rename → fsync | row 153 (theory) | never (agreed in the draft target) | target.md §Packing and publishing |
 | A coded-bytes hash per entry, checked on read | rows 73, 123 (theory); 151: XXH3 ~3.3 GB/s client-side | owner (row 123 (2)) | target.md §The two hashes |
 | Metadata stored twice, read by neither the server nor `from-parser` | row 164 (documented) | never | README.md §The metadata, twice |
@@ -89,32 +90,32 @@ Owner: [`transport/transport-conclusions.md`](transport/transport-conclusions.md
 
 ## Transport
 
-Owner: TC, [`native/quic.md`](native/quic.md), [`WIRE.md`](WIRE.md). Row 167 re-derives the eight verdicts in
+Owner: TC, [`native/quic.md`](native/quic.md), [`WIRE.md`](WIRE.md). Row 167 (done) re-derived the eight verdicts in
 [`transport/link-conditions.md`](transport/link-conditions.md) §Verdicts that rest on the band, plus an ask behind
-the session's own fill; this table marks those **queued**.
+the session's own fill (theory, (D)); each line gives its result and the protocol it proposed, none queued.
 
 | lever | measured by | class | owning section |
 | --- | --- | --- | --- |
-| Controller: `cubic-restart` default, BBR opt-in | row 60: 1 % loss turns 0.62 s into 4.0 s; row 75: BBR 0.04–0.76 of the fill under loss, +2–13 % clean; cq ASKL, L3, PROF, NBR, FQC: BBR takes 94–99 % from a neighbour | owner (§Blocked, row 75); queued: row 167 item 2 | TC §1 |
+| Controller: `cubic-restart` default, BBR opt-in | row 60: 1 % loss turns 0.62 s into 4.0 s; row 75: BBR 0.04–0.76 of the fill under loss, +2–13 % clean; cq ASKL, L3, PROF, NBR, FQC: BBR takes 94–99 % from a neighbour | owner (§Blocked, row 75); holds at the measured links (row 167 item 2) | TC §1 |
 | `cubic-restart` after a silence | cq W3, W5b: −4.6 to −6.6 s after a dropped blink, a tie otherwise | held | TC §After a blink |
 | `bbr-bound` (v3's loss bound) | rows 103, 104, 107: fails its rule | owner (§Blocked, row 107: retire or keep) | TC §The bound, reviewed |
 | Bounded BBR (BB2, BBF) | cq BBF, TAX: +95 to +106 ms tax | held | TC §A bounded BBR, retired |
 | HyStart, early slow-start exit | cq W2: within 5 %; cq W4b: a tie on time, 239–454 ms less standing queue | **premise** (link band: at a 0.7 s loaded RTT the queue cut is ask latency) | TC §The slow-start exit |
 | Cubic that skips the cut on random loss | rows 119, 141: no q* passes; row 146 closed it unrun | owner (§Blocked, row 141) | TC §The way out, surveyed |
 | A per-peer controller switch | row 141 | held | TC §1 |
-| 32-packet initial window | cq W1: −28 to −33 % first ask; cq W1b: +11.8 % on a 10-packet queue; rows 119, 132, 140 | queued: row 167 item 3 | TC §A 32-packet initial window |
+| 32-packet initial window | cq W1: −28 to −33 % first ask; cq W1b: +11.8 % on a 10-packet queue; rows 119, 132, 140 | open (row 167 item 3: its losing cell is a 10-packet queue; IWDEEP proposed) | TC §A 32-packet initial window |
 | The opening ask, pushed at open | cq PUSH, W1b: 454.7 → 103.9 ms; cq WSA | held (the default) | TC §The bytes the viewer needs anyway |
 | A per-client jump start from a saved window | — (the push recovers 130 of 134 ms) | never (little to win) | TC §What the numbers support |
 | Initial RTT 100 ms | cq W2; rows 130, 139: the rule fails, the 100 ms arm never worse | held; row 139's "review's call" has no row | TC §Measured: IRTTMEASURE |
 | Answering a repeated client Initial (RFC 9002 §6.2.3) | — (row 139's rule says to queue it; never queued) | **never** | TC §A 100 ms initial RTT, read from sources |
 | A per-address RTT cache | — | never | same |
 | Packet and persistent-congestion thresholds | cq W2, N2: nothing changes | held | TC §An outage |
-| Flow-control windows | window harness: a stalled client costs 180 kB; row 152 | queued: row 167 item 4 | TC §Flow-control windows |
-| Send window 768 KB against 10 MB | cq T12: drops 1 348 → 0, +17.8 % CPU/MB at depth 4; row 81: 3.7–4.8 MB per session | queued: row 167 item 5 | [`rig-limits.md`](rig-limits.md) §What a browser receives |
-| A cap on bytes in flight during an ask | — | queued: row 167's ninth item | WIRE.md §An ask during a fill |
-| GSO segment cap 45 or 24 | TC §4: −16 to −21 % CPU, p99 1.9 → 27.5 ms; cq GS1: `cap24` −16 % with no tail | owner (TC §9 #6); queued: row 167 item 6 | TC §4 |
+| Flow-control windows | window harness: a stalled client costs 180 kB; row 152 | held for Chromium (6 MiB); flips for a quinn client (row 167 item 4) | TC §Flow-control windows |
+| Send window 768 KB against 10 MB | cq T12: drops 1 348 → 0, +17.8 % CPU/MB at depth 4; row 81: 3.7–4.8 MB per session | held (row 167 item 5) | [`rig-limits.md`](rig-limits.md) §What a browser receives |
+| A send window tracking cwnd + 2 frames, so an ask does not wait behind the written-ahead fill | row 167's ninth item (theory): an ask waits behind 6 MiB written ahead, 0.49 s at 103 Mbit/s and 2.8 s at 18 (D), ~0.1 s with the cap | **never** (ASKAHEAD proposed, not queued) | WIRE.md §An ask during a fill |
+| GSO segment cap 45 or 24 | TC §4: −16 to −21 % CPU, p99 1.9 → 27.5 ms; cq GS1: `cap24` −16 % with no tail | owner (TC §9 #6); holds (row 167 item 6; FASTCLOCK proposed to price it) | TC §4 |
 | Pacing (quinn's, always on) | — (cq TAX inferred it) | never | native/quic.md §7.1, §7.6 |
-| A frame's tail sent twice | row 131: dropped (one PTO, 2–8 % of p95) | queued: row 167 item 8 | TC §A frame's tail sent twice |
+| A frame's tail sent twice | row 131: dropped (one PTO, 2–8 % of p95) | held (row 167 item 8) | TC §A frame's tail sent twice |
 | A PING after an isolated frame | — (row 131's third arm, never run) | **never** | TC §9 #7 |
 | ACK frequency | Chromium 141 does not advertise `min_ack_delay` | owner (row 152 choice 2, native only) | [`CLIENTS.md`](CLIENTS.md) §ACK frequency, by browser |
 | 0-RTT, resumption | TC §9: 0 of 216 browser dials resumed | held (browsers); owner (row 152 choice 3, native) | TC §9 |
@@ -172,7 +173,7 @@ Owner: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`decode/README.md`](decode/README.
 | The browser's ask window depth | removed for pushed fills, its win never measured | never | [`adr/client-window-depth.md`](adr/client-window-depth.md) §Which depth ships — open |
 | Stride | ADR accepted, not built | never | [`adr/stride-is-bandwidth-conservation.md`](adr/stride-is-bandwidth-conservation.md) §Follow-up actions |
 | The fill inside `start` | fill-at-start: first frame 486 → 335 ms under a blocked page | held | ARCHITECTURE.md §The first fill |
-| Asks first, centre-out | rows 65, 120: 0.30–0.77 | queued: row 167 item 8 | ARCHITECTURE.md §The first fill |
+| Asks first, centre-out | rows 65, 120: 0.30–0.77 | held (row 167 item 8) | ARCHITECTURE.md §The first fill |
 | The level picture first | row 59: first view ×0.09–0.69 at 5–50 Mbit/s | owner (row 143 choice 4); weaker at row 162's rates | resolution-fitting ADR §7 |
 | Page-open preloads, the inlined URL, the page-carried worker graph | cq 87–109: −1.0 to −1.24 round trips each | owner (cq §Open) | ARCHITECTURE.md §The session open |
 | dav1d fetched at decoder start | row 79: −1.0 / −3.0 round trips | owner (§Blocked, row 79: the ≤ 10-bit skip) | [`page-open`](../lab/page-open/README.md) §Cold round trips by codec |
@@ -218,8 +219,11 @@ Owner: [`ingest/design.md`](ingest/design.md), [`FIXTURES.md`](FIXTURES.md) §Fr
 ## Proposed rows, ranked by expected net gain
 
 Each is a theory row: a name and one question, for the orchestrator to queue (ORCHESTRATE.md §2, beside the queue on
-`claude/av1-mainbase`). The gain is the expected one and its basis; none is measured. Row 168 (the writer, −24–32 % on hits and fill) and
-row 167 (the band's verdicts) already take the two largest open items and are not repeated.
+`claude/av1-mainbase`). The gain is the expected one and its basis; none is measured. Ahead of every line below, by size, stand
+proposals already written in their owning docs and not repeated: row 167's **ASKAHEAD** (an ask's wait behind the
+written-ahead fill, 0.49 s → ~0.1 s at 103 Mbit/s, (D)), **IWDEEP**, **FASTCLOCK** and **B4FAST**
+([`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, proposed), and row 168's measuring
+row for the writer (hits and fill −24–32 %, [`disk-layout/README.md`](disk-layout/README.md) §The writer).
 
 1. **HASHFAST** — how fast can XXH3-64 over the handed-on samples run in the decoder worker with no copy (SIMD128,
    in the decoder's heap), and is it any faster than today's ~3.3 GB/s? *Basis:* the check is 4–12 % of every
@@ -248,7 +252,7 @@ row 167 (the band's verdicts) already take the two largest open items and are no
    now hold, and what would last-ask-first save over FIFO? *Basis:* the ADR's own §6.
 9. **TAILPING** — does one ack-eliciting PING after an isolated frame cut an ask's p99 by PTO − 9/8·RTT for ~40 B a
    frame? *Basis:* under a loaded queue the variance term grows the saving (20–80 ms derived at the lab links);
-   the third arm of row 131, if row 167 re-measures the tail copy.
+   the third arm row 131 proposed and never ran; row 167 item 8 keeps the tail copy dropped.
 10. **INLINECAP** — what does the whole-frame inline `RWF_NOWAIT` copy cost co-tenant tasks at 2.8–16 MB frames, and
     does sending frames above a size to the pool remove it at no fill cost? *Basis:* a 4.0 ms gap at 250 kB (RP); a
     pool hop is 24–34 µs.
@@ -272,8 +276,8 @@ row 167 (the band's verdicts) already take the two largest open items and are no
     steps run concurrently? Tooling; row 118's step times suggest ~106 → ~60 s.
 20. Small, each one question: **FIRSTREADY** (does dispatching to the first ready decoder ever move frame 0 or a cold
     ask?), **GLUECACHE** (does a cacheable glue script cut a second visit's time to ready?), **ONECOPY** (can one of
-    the two metadata copies go?). And to row 168, an arm: frames aligned to 4 KiB. To row 167's ninth item, an arm:
-    HyStart's queue cut (cq W4b: 239–454 ms less standing queue).
+    the two metadata copies go?). And to ASKAHEAD's protocol, an arm: HyStart's queue cut (cq W4b: 239–454 ms less
+    standing queue).
 
 ## Trade-offs, for the owner
 
@@ -314,7 +318,7 @@ Not corrected here (an audit edits only its deliverable); each for the session t
 
 * **Not corrected for row 162's band:** [`rig-limits.md`](rig-limits.md) §1 still says 768 KB "never binds" on the
   target link; [`native/quic.md`](native/quic.md) §7 still states 5–50 Mbit/s and "0.4–0.7 % of a core". Row 167
-  takes both.
+  re-derived both in link-conditions.md; neither doc is corrected in place.
 * **Dangling owners:** rows 54 and 86 cite `README.md` §What the gate costs and what it catches, which is not on this
   branch; row 49 cites [`decode/README.md`](decode/README.md) §The decoder worker's hand-off, also missing, and its
   numbers (the WebCodecs buffer reuse, +37 MB a worker) are in no doc. Rows 52 and 71's owner, once in ingest's coded-frames README (removed), is now [`coded-frame`](../lab/av1/exact/coded-frame/README.md). `CLAUDE.md` names
