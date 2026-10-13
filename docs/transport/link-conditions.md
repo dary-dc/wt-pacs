@@ -124,7 +124,9 @@ sourced numbers. The measurements that would decide are §Re-measured, proposed.
    carries over unchanged; its one losing cell was a 10-packet queue at 10 Mbit/s, 12 ms of buffer. A 38 400-byte
    burst is under 3 ms at 103 Mbit/s (D), and the loaded RTTs imply buffers of hundreds of ms on both cellular and
    Wi-Fi, so that cell is far from the measured common case — but no measured buffer distribution says how far. The
-   evidence now leans toward the wider window, and the call stays the owner's; decided by IWDEEP.
+   evidence now leans toward the wider window, and the call stays the owner's; decided by IWDEEP. *Decided since
+   (row 181, §Re-measured, proposed: IWDEEP): 38 400 is the default — the ask −26 to −38 % at 18 and 103 Mbit/s, worse
+   only behind a 10-packet buffer.*
 4. **Flow-control windows** (quinn's defaults; [`../native/quic.md`](../native/quic.md) §7: "no candidate is
    flow-control-bound at 5–50 Mbit/s"): quinn's 1.25 MB stream window caps one stream at 1.25 MB ÷ RTT, so at the
    cellular median of 103 Mbit/s it binds above 97 ms, and at the p90 of 309 above 32 ms (D). The loaded RTTs above
@@ -301,6 +303,41 @@ frame checked against the encoder's input, each arm's full settings printed and 
   10 packets, at every rate (a ~26-datagram burst exceeds it); the push-opened control a tie. *Rule:* the default if
   no cell but the 10-packet ones is worse beyond its spread and those are disclosed as the shallow-buffer price; otherwise it stays
   the owner's call with these numbers.
+
+  **Measured (row 181, 2026-10-13): adopted — `series-server` starts at 38 400 bytes by default** (`TransportTuning`'s
+  `INITIAL_WINDOW`; `--initial-window-bytes 12000` restores quinn's). The fresh ask is **−26 to −38 %** in every cell
+  outside the 10-packet queue, and nothing there is worse; behind 10 packets the 250 KB ask is worse, which is the
+  shallow-buffer price. Rig: `lab/scripts/first_ask_cells.sh iwdeep` ([`../../lab/iwdeep/`](../../lab/iwdeep/README.md),
+  `rows.jsonl`, `summary.py`), `first_ask` through `link_impair.py` under `chrt -f 50`, server `b54cb37a` (debug
+  build), `cubic-restart`, quinn's defaults but the lever: each arm's banner is `congestion=cubic-restart`, plus
+  `initial_window=38400` on the wide arm. Random 50 and 250 KB frames, every delivered frame compared with its
+  source file (a run that fails it records no time; a wrong source failed 12/12). 24 cells × 4 arms × 10 rounds
+  Williams-ordered, 960 runs, none failed; **1–9 of 20 runs `VOID` a cell** (242/960). **The relay's ceiling** on a
+  15 MB fill at 2 ms: 17.6 Mbit/s delivered at 18, 98.9 at 103, **181.6 at 309** (285 unshaped): **309 Mbit/s is past
+  this host and was not run**; nothing is claimed there.
+
+  | Mbit/s, idle RTT | fresh ask, 250 KB: 12 000 → 38 400 ms | 50 KB | push-opened control (250 / 50 KB) | behind 10 packets, fresh 250 / 50 KB |
+  | --- | --- | --- | --- | --- |
+  | 18, 46 | 287 → 210 (−27 %), 287 → 212 (−26 %) | 166 → 103 (−38 %), 166 → 103 (−38 %) | −0.5 / −0.4 %, +0.2 / +0.4 % | +12 % / −32 % |
+  | 18, 92 | 530 → 379 (−29 %), 528 → 379 (−29 %) | 293 → 195 (−34 %), 315 → 195 (−38 %) | +1.0 / −4.9 %, 0 / −4.0 % | +25 % / −30 % |
+  | 103, 46 | 271 → 192 (−29 %), 271 → 195 (−28 %) | 146 → 97 (−34 %), 158 → 97 (−38 %) | −0.3 / −2.3 %, −0.8 / −5.6 % | +23 % / −46 % |
+  | 103, 92 | 523 → 373 (−29 %), 523 → 371 (−29 %) | 289 → 189 (−34 %), 307 → 190 (−38 %) | −0.6 / +1.0 %, −1.5 / +0.5 % | +0.5 % / −36 % |
+
+  Medians of 10; the two figures per cell are behind the 20 ms and the 360 ms FIFO; changes are the median of the
+  round-paired ratios, `VOID` included. The strict reading (neither run `VOID`, n = 3–9) agrees with it
+  within 5 points in every cell outside the 10-packet queue. Every fresh cell outside it is better beyond its spread
+  (the ranges do not overlap); no control cell is worse beyond it. Behind 10 packets the ranges overlap and the
+  readings scatter (push-opened 250 KB at 18/92: +86 % paired, +58 % strict; 50 KB at 103/92: +21 % paired, −22 %
+  strict), which is the regime the burst overruns.
+  * *−25 to −33 % at 103 behind 20 and 360 ms:* **held** for 250 KB (−28 to −29 %); 50 KB went further (−34 to −38 %).
+  * *−10 to −20 % at 18 Mbit/s:* **failed** — the same −26 to −38 % as at 103. A 250 KB ask is 0.11 s of wire at 18
+    Mbit/s against ~5 round trips of slow start, so it is no more rate-bound there than at 103.
+  * *A loss only behind 10 packets, at every rate:* **held for 250 KB** (+12 to +25 %, a tie at 103/92), **failed for
+    50 KB**, which still gains −30 to −46 % there.
+  * *The push-opened control a tie:* **held**, −5.6 to +1.0 % outside the 10-packet queue.
+  * *Rule:* no cell but the 10-packet ones is worse beyond its spread, so 38 400 is the default; the price is a
+    250 KB first ask 12–25 % slower behind a 10-packet buffer. *Since this default, a lab arm with no
+    `--initial-window-bytes` runs 38 400; rows before it ran 12 000, and pass `--initial-window-bytes 12000` to repeat them.*
 * **FASTCLOCK (items 1, 6) — above what rate is each codec's fill the decoders', not the wire's?** Arms: HTJ2K and
   AV1 (the optimized payload), Chromium 141 and Firefox, 1× and 4× CPU. Cells: 50, 103, 218 Mbit/s at 46 ms, the
   10-bit DBT volume and a four-view FFDM exam. Measure the fill's time and the decode left after the last byte, and

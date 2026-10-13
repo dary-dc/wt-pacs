@@ -422,7 +422,7 @@ ceiling_cells() {
 # against 38 400 on a fresh ask-only session and a push-opened control, behind three queue depths.
 # One JSON row per run to $OUT; lab/iwdeep/summary.py reads them. RTTs and sizes are the protocol's.
 iwdeep_cells() {
-  local out="${OUT:?OUT=rows.jsonl}" rate rtt q kb n i k prev r raw link label iw a
+  local out="${OUT:?OUT=rows.jsonl}" rate rtt q kb n i k prev r raw link label iw
   local queues=("--queue-pkts 10" "--queue-ms 20" "--queue-ms 360")
   RAW_MS="$T/raw"
   for rate in ${RATES:-18000 103000 309000}; do
@@ -431,10 +431,9 @@ iwdeep_cells() {
         for kb in ${IW_SIZES:-250 50}; do
           link="--rate-kbit $rate $q --self-timing"
           VARIANTS=()
-          for iw in 12000 38400; do  # 12 000 is quinn's default, so that arm passes no flag
-            a="--initial-window-bytes $iw"; [[ $iw == 12000 ]] && a=""
-            variant "fresh iw $iw|fresh|$WARM|0|$a|$link|--expect-dir $T/f$kb"
-            variant "push iw $iw|open-push|4|0|$a|$link|--expect-dir $T/f$kb"
+          for iw in 12000 38400; do
+            variant "fresh iw $iw|fresh|$WARM|0|--initial-window-bytes $iw|$link|--expect-dir $T/f$kb"
+            variant "push iw $iw|open-push|4|0|--initial-window-bytes $iw|$link|--expect-dir $T/f$kb"
           done
           n=${#VARIANTS[@]}
           for ((i = 0; i < ROUNDS; i++)); do
