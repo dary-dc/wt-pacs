@@ -51,8 +51,11 @@ The routine **"wt-pacs AV1 night worker"** (`trig_01Gr7ihaiQMUhPT9YNv4Ps8r`, dis
 that works the queue by §Protocol: it takes the topmost ready row, claims it, does it, flips `after` rows, repeats.
 
 * Fire **one run per ready row**, no more; a row `after` another is taken by the session that finishes the first.
-* From a session with the `RemoteTrigger` tool: `RemoteTrigger run trig_01Gr7ihaiQMUhPT9YNv4Ps8r`, once per row. Without
-  it, the owner presses *Run* on the routine's page at claude.ai, once per row.
+* The routine was made through the API, so an agent cannot fire it (`fire_trigger` refuses it); the owner presses *Run*
+  on its page at claude.ai, once per row. A cloud orchestrator instead starts one session per row with
+  `create_session` on `claude/av1-mainbase`, its prompt the routine's own word for word (`get_trigger` reads it).
+* **Spread the rows over usage windows:** a session takes the next `ready` row when it finishes, so only one window's
+  rows are `ready` at a time; the orchestrator queues and starts the next window's when it comes.
 * Many parallel sessions share one usage window; if a limit cuts them, stale claims are reset (§1) and fired again.
 * The routine's prompt names the only branches a session may push (`claude/av1-mainbase`,
   `claude/av1-unified-mainbase`) and forbids force-push and branch deletion. Change it only with the owner.
