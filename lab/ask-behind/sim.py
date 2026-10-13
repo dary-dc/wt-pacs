@@ -134,6 +134,12 @@ def test():
     # Decode-bound, today: the first slot frees as that decoder starts its queued frame, so the ask waits behind it.
     w, _ = run("today", 30, 1, 30, ask_at=200.5, hop=0)
     check(w >= 2 * 30 - 1e-9, f"today, decode-bound: the ask waits a whole fill frame and its own, got {w}")
+    # ...and no longer: the ask is taken before every queued fill frame.
+    w, _ = run("today", 30, 1, 30, ask_at=200.5, hop=0)
+    check(w <= 3 * 30 + 1e-9, f"today, decode-bound: the ask goes before the queued fill frames, got {w}")
+    # A slot frees `hop` after its decode ends: one decoder holding one frame idles a hop between frames.
+    _, end = run("today", 3, 0, 10, n=1, cap=1, hop=5)
+    check(abs(end - 40) < 1e-9, f"one decoder, cap 1, three 10 ms frames and 5 ms hops end at 40, got {end}")
     # jump: the ask waits only for the first decode to end, then its own.
     w, _ = run("jump", 30, 1, 30, ask_at=200.5, hop=0)
     check(w <= 30 + 30 + 1e-9 and w < run("today", 30, 1, 30, ask_at=200.5, hop=0)[0] - 29, f"jump cuts a frame, got {w}")
