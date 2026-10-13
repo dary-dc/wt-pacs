@@ -37,9 +37,15 @@ def fill():
           f"{sum(r['exact'] for r in rs)}/{sum(r['owed'] for r in rs)} frames exact over every visit")
     print("engine set variant CPU | per rate (Mbit/s): last byte ms, fill ms, tail ms (fill − last byte), decoders busy, n "
           "| the decoders' clock from (Δfill < ½ Δlast byte)")
+    for reading, keep in (("strict: VOID dropped", lambda r: not r["void"]), ("VOID kept", lambda r: True)):
+        print(f"### {reading}")
+        clocks(rs, keep)
+
+
+def clocks(rs, keep):
     cells = defaultdict(lambda: defaultdict(list))
     for r in rs:
-        if not r["void"] and r["frames"]:
+        if keep(r) and r["frames"]:
             cells[(r["engine"], r["set"], r["variant"], r["throttle"])][r["rateKbit"] / 1000].append(r)
     for (engine, s, v, cpu), by_rate in sorted(cells.items()):
         parts, prev, clock = [], None, "never"
@@ -52,6 +58,9 @@ def fill():
                 clock = f"{prev[2]:.0f}→{rate:.0f}"
             prev = (last, done, rate)
         print(f"{engine} {s} {v} {cpu}x | " + " · ".join(parts) + f" | {clock}")
+
+
+def ratios(rs):
     print("\nAV1 (k2) over HTJ2K, fill, round-paired, strict (neither visit VOID): median [slower/n]")
     by = defaultdict(dict)
     for r in rs:
@@ -115,5 +124,6 @@ def ask():
 
 
 fill()
+ratios(rows("rows-fill.jsonl"))
 gso()
 ask()
