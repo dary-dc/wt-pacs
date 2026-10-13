@@ -245,7 +245,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 165 | **AUDITCODEC** — is every codec lever tried or closed? HTJ2K, AV1, JPEG XL, JPEG-LS, AV2, LCEVC, SVC, colour transforms and the bit split: closed by evidence, closed by a premise since changed, never tried, or waiting on the owner; ranked by net gain; audit | claimed 2026-10-13 (night, ff3101) |
 | 166 | **AUDITPATH** — the same audit outside the codecs: disk reads and the writer, the server's send path, transport, the client's downloader, decoders, paint and memory, ingest, the gate; audit | claimed 2026-10-13 (night, eb2ead) |
 | 167 | **BANDRECHECK** — row 162's eight verdicts that rest on the old 5–50 Mbit/s band, each re-derived at the measured link profiles: holds, flips or open, and the measurement that would decide; theory | claimed 2026-10-13 (night, ef589a) |
-| 168 | **PACKWRITE** — why a `.sbnd` written through an 8 KiB `BufWriter` reads 24–31 % slower than the same bytes written in 1 MiB writes (row 160): the mechanism, whether production would see it, and the protocol for the fix; theory | ready |
+| 168 | **PACKWRITE** — why a `.sbnd` written through an 8 KiB `BufWriter` reads 24–31 % slower than the same bytes written in 1 MiB writes (row 160): the mechanism, whether production would see it, and the protocol for the fix; theory | claimed 2026-10-13 (night, b293d7) |
 | 169 | **DISPLAY** — what reaches the radiologist's screen: bits per sample after the window, the grayscale standard display function, colour management for RGB, in the browser and natively; theory | ready |
 | 170 | **FETCHPIN** — `lab/av1/fetch_data.sh` runs as written: the hash-pinned `typing-extensions` that `blake3` needs (row 160's side finding) | ready |
 
