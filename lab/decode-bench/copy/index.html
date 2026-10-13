@@ -9,10 +9,11 @@
   };
   const built = (base, name) => ({ glue: `${base}/lab/.openjph-build/wasm/${name}.js`, wasm: `${base}/lab/.openjph-build/wasm/${name}.wasm`,
     dir: `${base}/lab/.openjph-build/wasm` });
-  // del: the delivered build; pt: its wrapper with -pthread; copy: pt with wrapper.patch, through ./decoder.js.
+  // del: the delivered build; delcopy: its files under a second name (the A/A arm); pt: its wrapper with -pthread; copy: pt with wrapper.patch, through ./decoder.js.
   const kinds = {
     del: (base) => ({ kind: "product", ext: "htj2k", decoder: { glue: `${base}/client/decode/wasm/built/openjph/openjph.js`,
       wasm: `${base}/client/decode/wasm/built/openjph/openjph.wasm`, dir: `${base}/client/decode/wasm/built/openjph` } }),
+    delcopy: (base) => ({ kind: "product", ext: "htj2k", decoder: built(base, "delcopy") }),
     pt: (base) => ({ kind: "product", ext: "htj2k", decoder: built(base, "pt") }),
     copy: (base) => ({ kind: "copy", ext: "htj2k", decoder: built(base, "copy") }),
   };
@@ -45,4 +46,13 @@
     return globalThis.kept.length;
   };
   globalThis.ready = crossOriginIsolated;
+
+  // A browser Playwright cannot drive opens the page with the work in its query and the rows go to `post`.
+  const q = new URLSearchParams(location.search);
+  if (q.has("post")) {
+    const say = (what, body) => fetch(q.get("post") + what, { method: "POST", body: JSON.stringify(body) });
+    await say("hello", { ready: crossOriginIsolated });
+    const o = JSON.parse(q.get("work"));
+    say("result", await (o.memory ? globalThis.keep(o) : globalThis.run(o)).catch((e) => ({ error: String(e?.message ?? e) })));
+  }
 </script>

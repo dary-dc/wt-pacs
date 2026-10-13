@@ -61,6 +61,8 @@ function link(name, impairment = "clean") {
   const loss = impairment[0] === "l" ? Number(impairment.slice(1)) : 0;
   const jitter = impairment[0] === "j" ? ["--jitter-ms", impairment.slice(1), "--jitter-mode", "ordered"] : [];
   if (impairment !== "clean" && !loss && !jitter.length) throw new Error(`unknown impairment ${impairment}`);
+  // Row NETRULES' cells: 23 ms one way and a 650 ms FIFO, so a fill that fills it sees a ~0.7 s RTT.
+  if (name.startsWith("n")) return [23, ["--rate-kbit", name.slice(1), "--queue-ms", "650", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
   if (name.startsWith("r")) return [20, ["--rate-kbit", name.slice(1), "--queue-pkts", "200", ...(loss ? ["--loss", String(loss)] : []), ...jitter]];
   if (name === "lte-good") return [25, ["--trace", path.join(TRACES, LTE.file), ...ge(loss || 0.01), "--queue-ms", "500", ...jitter]];
   if (name === "wifi-home") return [15, ["--trace", `${T}/wifi-home.trace`, ...ge(loss || 0.5), "--queue-ms", "300", ...jitter]];

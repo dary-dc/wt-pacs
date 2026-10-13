@@ -3,7 +3,7 @@
  * (index.html names the variants), in each Chromium. Every (throttle × browser) cell is a fresh browser, in a Williams
  * order every round; variants and sets rotate inside it. lab/av1/tools/newer/README.md
  *
- *   NODE_PATH=$(npm root -g) node lab/av1/tools/newer/decode.mjs [--rounds 10] [--throttles 1,4] [--browsers 141,154]
+ *   NODE_PATH=$(npm root -g) node lab/av1/tools/newer/decode.mjs [--rounds 10] [--first-round 0] [--throttles 1,4] [--browsers 141,154]
  *     [--variants htj2k,payload,…] [--frames lab/.av1-work/versions] [--sets a,b] [--mutate sample|truth] [--out rows.json]
  */
 import { spawn } from "node:child_process";
@@ -15,6 +15,7 @@ import { throttleTree } from "../../../scripts/cpu_throttle.mjs";
 const { chromium } = createRequire(import.meta.url)("playwright");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ROUNDS = Number(arg("--rounds", 10));
+const FIRST = Number(arg("--first-round", 0));
 const THROTTLES = arg("--throttles", "1,4").split(",").map(Number);
 const BROWSERS = arg("--browsers", "141,154").split(",");
 const VARIANTS = arg("--variants", "htj2k,ojph-0.31.0-3.1.74,ojph-0.32.0-3.1.74,ojph-0.31.0-6.0.11,ojph-0.32.0-6.0.11,payload,dav1d-3.1.74,dav1d-6.0.11,dav1d-6.0.11-dav1d-head").split(",");
@@ -51,7 +52,7 @@ async function inChromium(browserName, throttle, round) {
 
 const cells = THROTTLES.flatMap((throttle) => BROWSERS.map((browser) => ({ throttle, browser })));
 const rows = [];
-for (let round = 0; round < ROUNDS; round++) {
+for (let round = FIRST; round < FIRST + ROUNDS; round++) {
   for (const { throttle, browser } of order(cells, round)) {
     const got = await inChromium(browser, throttle, round);
     for (const r of got) rows.push({ round, throttle, browser, ...r });
