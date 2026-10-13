@@ -1613,6 +1613,135 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// Dials a server whose datagrams are dropped for `swallow` after its first, every datagram
+    /// delayed `one_way`, with a client whose first probe comes at 300 ms, as Chromium's and
+    /// Firefox's do. Returns the time to the client's handshake and, per round of client datagrams
+    /// the server received, the server's bytes in the `one_way` after the round's first.
+    fn dial_with_first_answers_swallowed(
+        tuning: TransportTuning,
+        one_way: Duration,
+        swallow: Duration,
+    ) -> (Duration, Vec<usize>) {
+        let dir = std::env::temp_dir().join(format!("wtpacs-repeat-{}-{}", std::process::id(), swallow.as_millis()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let series = write_series(&dir, 1);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let result = rt.block_on(async move {
+            let config = ServeConfig { tuning, ..serve_config(series, cert_pem, key_pem, port) };
+            let server = tokio::spawn(run_server(config));
+            until_bound(port, Duration::from_secs(5)).await;
+
+            let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            let relay = front.local_addr().expect("relay addr");
+            let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+            let delivered = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let answered = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let (to_server, from_server) = (delivered.clone(), answered.clone());
+            tokio::spawn(async move {
+                let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+                let mut client = None;
+                let mut first_answer: Option<tokio::time::Instant> = None;
+                loop {
+                    tokio::select! {
+                        Ok((n, from)) = front.recv_from(&mut up) => {
+                            client = Some(from);
+                            let (back, d, log) = (back.clone(), up[..n].to_vec(), to_server.clone());
+                            tokio::spawn(async move {
+                                tokio::time::sleep(one_way).await;
+                                log.lock().unwrap().push(tokio::time::Instant::now());
+                                back.send(&d).await.ok();
+                            });
+                        }
+                        Ok(n) = back.recv(&mut down) => {
+                            let now = tokio::time::Instant::now();
+                            from_server.lock().unwrap().push((now, n));
+                            if now - *first_answer.get_or_insert(now) < swallow {
+                                continue;
+                            }
+                            let (front, d, to) = (front.clone(), down[..n].to_vec(), client);
+                            tokio::spawn(async move {
+                                tokio::time::sleep(one_way).await;
+                                if let Some(to) = to {
+                                    front.send_to(&d, to).await.ok();
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+
+            let config = ClientConfig::builder()
+                .with_bind_config(IpBindConfig::InAddrAnyV4)
+                .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                .build();
+            let mut quic = config.quic_config().clone();
+            let mut transport = wtransport::quinn::TransportConfig::default();
+            transport.initial_rtt(Duration::from_millis(100));
+            quic.transport_config(Arc::new(transport));
+            let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap())
+                .expect("quinn client");
+            endpoint.set_default_client_config(quic);
+            let start = std::time::Instant::now();
+            let _connection = tokio::time::timeout(
+                Duration::from_secs(5),
+                endpoint.connect(relay, "localhost").expect("connect"),
+            )
+            .await
+            .expect("no handshake in 5 s")
+            .expect("client side of the handshake");
+            let handshake = start.elapsed();
+            server.abort();
+            let answered = answered.lock().unwrap().clone();
+            let mut rounds: Vec<tokio::time::Instant> = Vec::new();
+            for &at in delivered.lock().unwrap().iter() {
+                if rounds.last().is_none_or(|&last| at - last > one_way) {
+                    rounds.push(at);
+                }
+            }
+            let bytes_after = rounds
+                .iter()
+                .map(|&at| answered.iter().filter(|(t, _)| *t >= at && *t < at + one_way).map(|(_, n)| n).sum())
+                .collect();
+            (handshake, bytes_after)
+        });
+        std::fs::remove_dir_all(&dir).ok();
+        result
+    }
+
+    /// A server whose first flight is lost resends it when the client repeats its Initial, at
+    /// 300 ms, not at its own probe timeout near 1 s. Without `--reply-repeated-initial` the
+    /// handshake takes over a second. docs/transport/transport-conclusions.md §3, Answering a
+    /// repeated Initial.
+    #[test]
+    fn a_repeated_initial_draws_the_lost_flight_at_once() {
+        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
+        let one_way = Duration::from_millis(25);
+        let (handshake, bytes_after) = dial_with_first_answers_swallowed(tuning, one_way, one_way);
+        assert!(bytes_after.len() >= 2, "the client never repeated its Initial: {bytes_after:?}");
+        assert!(bytes_after[1] >= 1200, "the repeat drew {} bytes, not the flight", bytes_after[1]);
+        assert!(handshake < Duration::from_millis(700), "handshake took {handshake:?}: the flight waited for the server's PTO");
+    }
+
+    /// The reply is once a connection: with the first flight and its resend both lost, the
+    /// client's second repeat draws only an ACK, and the flight waits for the server's PTO.
+    #[test]
+    fn a_second_repeated_initial_draws_only_an_ack() {
+        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
+        let (_, bytes_after) =
+            dial_with_first_answers_swallowed(tuning, Duration::from_millis(25), Duration::from_millis(500));
+        assert!(bytes_after.len() >= 3, "the client repeated its Initial fewer than twice: {bytes_after:?}");
+        assert!(bytes_after[1] >= 1200, "the first repeat drew {} bytes, not the flight", bytes_after[1]);
+        assert!(bytes_after[2] < 1200, "the second repeat drew {} bytes, more than an ACK", bytes_after[2]);
+    }
+
     /// A client whose ClientHello spans two datagrams, the second arriving after the server has
     /// answered the first, still gets a session: the stream budget the client's transport
     /// parameters grant is there when it opens. Opened from the first datagram, as

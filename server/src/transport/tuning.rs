@@ -75,6 +75,10 @@ pub struct TransportTuning {
     /// quinn default: 333 ms.
     #[arg(long)]
     pub initial_rtt_ms: Option<u64>,
+    /// Lab only: answer a client's repeated Initial with the unacknowledged handshake flight,
+    /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
+    #[arg(long)]
+    pub reply_repeated_initial: bool,
     /// Lab only: `false` sends each datagram alone, so netem on the sending host drops datagrams,
     /// not whole GSO batches (docs/rig-limits.md §3).
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
@@ -93,6 +97,7 @@ impl Default for TransportTuning {
             congestion: Congestion::default(),
             initial_window: Some(INITIAL_WINDOW),
             initial_rtt_ms: None,
+            reply_repeated_initial: false,
             segmentation_offload: true,
         }
     }
@@ -116,6 +121,7 @@ impl TransportTuning {
         if let Some(ms) = self.initial_rtt_ms {
             tc.initial_rtt(Duration::from_millis(ms));
         }
+        tc.reply_repeated_initial(self.reply_repeated_initial);
         tc.enable_segmentation_offload(self.segmentation_offload);
 
         tc.congestion_controller_factory(crate::transport::cc_trace::traced(self.congestion.factory(self.initial_window)));
@@ -138,6 +144,9 @@ impl TransportTuning {
         }
         if let Some(v) = self.initial_rtt_ms {
             parts.push(format!("initial_rtt_ms={v}"));
+        }
+        if self.reply_repeated_initial {
+            parts.push("reply_repeated_initial".to_string());
         }
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
@@ -183,6 +192,7 @@ mod tests {
             congestion: Congestion::Bbr,
             initial_window: Some(32 * 1200),
             initial_rtt_ms: Some(100),
+            reply_repeated_initial: true,
             segmentation_offload: false,
         };
         t.to_transport_config().expect("builds");
@@ -199,6 +209,7 @@ mod tests {
             (TransportTuning { keep_alive_interval_ms: Some(20_000), ..stock() }, "keep_alive_interval_ms=20000"),
             (TransportTuning { initial_window: Some(38_400), ..stock() }, "initial_window=38400"),
             (TransportTuning { initial_rtt_ms: Some(100), ..stock() }, "initial_rtt_ms=100"),
+            (TransportTuning { reply_repeated_initial: true, ..stock() }, "reply_repeated_initial"),
             (TransportTuning { segmentation_offload: false, ..stock() }, "segmentation_offload=false"),
         ] {
             assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
