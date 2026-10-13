@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """IRTTMEASURE: the server's initial RTT, unset (333 ms) against `--initial-rtt-ms 100`, one binary and one
 certificate per pair, on the dev certificate and on an ECDSA chain. Protocol and rule:
-docs/transport/transport-conclusions.md §3 *Proposed row: IRTTMEASURE*.
+docs/transport/transport-conclusions.md §3 *Proposed row: IRTTMEASURE*. `--row reply` runs INITIALMEASURE's four arms
+instead: today, today again, `--reply-repeated-initial` and `--initial-rtt-ms 100` (§3 *Answering a repeated Initial*).
 
-    lab/irtt/run.py --phase abc|b [--rounds N] [--first-round K] --out rows.jsonl
+    lab/irtt/run.py [--row irtt|reply] --phase abc|b [--rounds N] [--first-round K] --out rows.jsonl
     lab/irtt/run.py --summary --out rows.jsonl [--out more.jsonl]
     lab/irtt/run.py --tap LISTEN UPSTREAM          (internal: the server-side tap)
 
@@ -39,9 +40,43 @@ SCRIPTS = os.path.join(ROOT, "lab/scripts")
 sys.path.insert(0, SCRIPTS)
 from order import order  # noqa: E402
 
-ARMS = {"irtt333": [], "irtt100": ["--initial-rtt-ms", "100"]}
+ROWS = {
+    "irtt": {"irtt333": [], "irtt100": ["--initial-rtt-ms", "100"]},
+    "reply": {"today": [], "today2": [], "reply": ["--reply-repeated-initial"], "irtt100": ["--initial-rtt-ms", "100"]},
+}
 SWALLOW_MS = 50
 LTE_LOADED_ONE_WAY_MS = 30
+
+
+def varint(b, i):
+    n = 1 << (b[i] >> 6)
+    v = b[i] & 0x3F
+    for k in range(1, n):
+        v = (v << 8) | b[i + k]
+    return v, i + n
+
+
+def only_initial(d):
+    """Whether a QUIC v1 datagram holds Initial packets and nothing else: a ClientHello sent or repeated, not a reply."""
+    i = 0
+    try:
+        while i < len(d):
+            if not d[i] & 0x80:
+                return False
+            kind = (d[i] >> 4) & 3
+            if kind != 0:
+                return False
+            i += 5
+            i += 1 + d[i]
+            i += 1 + d[i]
+            token, i = varint(d, i)
+            length, i = varint(d, i + token)
+            i += length
+            while i < len(d) and d[i] == 0:
+                i += 1
+    except IndexError:
+        return False
+    return True
 
 
 def tap(listen, upstream):
@@ -68,25 +103,39 @@ def tap(listen, upstream):
                     up.connect(("127.0.0.1", upstream))
                     c = conns[addr] = {"up": up, "t0": now, "log": []}
                     by_sock[up] = addr
-                c["log"].append((round(now - c["t0"], 6), "c", len(data)))
+                c["log"].append((round(now - c["t0"], 6), "c", len(data), only_initial(data)))
                 c["up"].send(data)
             else:
                 addr = by_sock[s]
                 data = s.recv(65535)
                 c = conns[addr]
-                c["log"].append((round(now - c["t0"], 6), "s", len(data)))
+                c["log"].append((round(now - c["t0"], 6), "s", len(data), None))
                 front.sendto(data, addr)
 
 
+def rounds_of(times):
+    return 1 + sum(1 for a, b in zip(times, times[1:]) if b - a > 0.020) if times else 0
+
+
 def pre_ack(log, path_rtt_s):
-    """The server's datagrams and bytes before the first ACK, and how many rounds they came in (a gap > 20 ms)."""
-    first_s = next((t for t, d, _ in log if d == "s"), None)
+    """Before the first ACK: the server's datagrams, bytes and rounds (a gap > 20 ms). Before the client's first datagram
+    that is not Initial-only (its reply to the server's flight): the client's Initial-only rounds, so 2 or more is a
+    repeated Initial, and the server's datagrams and bytes before that reply, in all and from the first repeat on."""
+    first_s = next((e[0] for e in log if e[1] == "s"), None)
     if first_s is None:
         return None
-    ack = next((t for t, d, _ in log if d == "c" and t >= first_s + path_rtt_s / 2), float("inf"))
-    sent = [(t, n) for t, d, n in log if d == "s" and t < ack]
-    rounds = 1 + sum(1 for a, b in zip(sent, sent[1:]) if b[0] - a[0] > 0.020)
-    return {"dgrams": len(sent), "bytes": sum(n for _, n in sent), "rounds": rounds}
+    ack = next((e[0] for e in log if e[1] == "c" and e[0] >= first_s + path_rtt_s / 2), float("inf"))
+    sent = [(e[0], e[2]) for e in log if e[1] == "s" and e[0] < ack]
+    out = {"dgrams": len(sent), "bytes": sum(n for _, n in sent), "rounds": rounds_of([t for t, _ in sent])}
+    if log and len(log[0]) == 4:
+        reply = next((e[0] for e in log if e[1] == "c" and not e[3]), float("inf"))
+        hellos = [e[0] for e in log if e[1] == "c" and e[0] < reply]
+        repeat = next((b for a, b in zip(hellos, hellos[1:]) if b - a > 0.020), None)
+        before = [e[2] for e in log if e[1] == "s" and e[0] < reply]
+        after = [e[2] for e in log if e[1] == "s" and repeat is not None and repeat <= e[0] < reply]
+        out.update({"c_rounds": rounds_of(hellos), "to_reply_dgrams": len(before), "to_reply_bytes": sum(before),
+                    "after_repeat_dgrams": len(after), "after_repeat_bytes": sum(after)})
+    return out
 
 
 # cell -> one-way delay ms, relay args, neighbour, swallow
@@ -148,7 +197,7 @@ class Rig:
         self.page = self.start_page()
         self.servers = {}
         for cert in self.certs:
-            for arm, extra in ARMS.items():
+            for arm, extra in ROWS[args.row].items():
                 self.servers[(cert, arm)] = self.start_server(f"{cert}.{arm}", self.certs[cert], extra)
         self.neighbour = self.start_server("neighbour", self.certs["dev"], [], series=f"{self.T}/big.sbnd")
         self.chrome = None
@@ -260,7 +309,7 @@ class Rig:
         sha = lambda f: hashlib.sha256(open(f, "rb").read()).hexdigest()[:16]
         ff = subprocess.run([os.environ["FIREFOX_PATH"], "--version"], capture_output=True, text=True).stdout.strip() \
             if os.environ.get("FIREFOX_PATH") else "absent"
-        return {"servers": {f"{c}.{a}": s["transport"] for (c, a), s in self.servers.items()},
+        return {"row": self.a.row, "servers": {f"{c}.{a}": s["transport"] for (c, a), s in self.servers.items()},
                 "server_sha256": sha(self.bins["server"]), "cold_open_sha256": sha(self.bins["cold_open"]),
                 "quinn": ver("quinn"), "quinn-proto": ver("quinn-proto"), "wtransport": ver("wtransport"),
                 "firefox": ff, "relay": "link_impair.py --self-timing, chrt -f 50 on core %s" % self.a.rig_core,
@@ -360,7 +409,7 @@ class Rig:
         logs = json.loads(tapper.communicate(timeout=10)[0].strip().splitlines()[-1])
         mine = logs[0] if logs else []
         return {"round": rnd, "cell": cell, "cert": cert, "client": client, "arm": arm, "ready_ms": ready, "error": error,
-                "path": path, "pre_ack": pre_ack(mine, path_rtt), "tap_s2c": sum(d == "s" for _, d, _ in mine), "void": "VOID" in tally,
+                "path": path, "pre_ack": pre_ack(mine, path_rtt), "tap_log": mine if self.a.keep_log else None, "tap_s2c": sum(e[1] == "s" for e in mine), "void": "VOID" in tally,
                 "late": (re.search(r"self-timing .*", tally) or [""])[0], "conns": len(logs)}
 
     def close(self):
@@ -378,10 +427,11 @@ def run(args):
             out.write(json.dumps({"settings": rig.settings, "phase": args.phase, "started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}) + "\n")
             print(json.dumps(rig.settings), flush=True)
             cells = [c for p in args.phase for c in PHASE_CELLS[p]]
+            cells = [c for c in cells if not args.cells or c in args.cells.split(",")]
             for rnd in range(args.first_round, args.first_round + args.rounds):
                 for cell in cells:
                     for cert in args.certs.split(","):
-                        units = [(c, a) for c in clients_of(cell) for a in ARMS]
+                        units = [(c, a) for c in clients_of(cell) for a in ROWS[args.row]]
                         prev = None
                         for client, arm in order(units, rnd):
                             row = rig.visit(rnd, cell, cert, client, arm)
@@ -409,9 +459,13 @@ def boot(v, stat, n=2000, seed=1):
 
 def summary(args):
     rows = [json.loads(l) for f in args.out for l in (gzip.open(f, "rt") if f.endswith(".gz") else open(f))]
+    row = "irtt"
     for r in rows:
         if "settings" in r:
             print("settings:", json.dumps(r["settings"]))
+            row = r["settings"].get("row", "irtt")
+    arms = list(ROWS[row])
+    base = arms[0]
     rows = [r for r in rows if "cell" in r]
     by = collections.defaultdict(dict)
     for r in rows:
@@ -419,56 +473,69 @@ def summary(args):
     print("visits %d, VOID %d, failed %d" % (len(rows), sum(r["void"] for r in rows), sum(r["ready_ms"] is None for r in rows)))
     cells = sorted({(r["cell"], r["cert"], r["client"]) for r in rows})
     clean80 = {cert: statistics.median([r["path"]["datagrams_tx"] for r in rows if r["cell"] == "clean-80" and r["cert"] == cert
-                                        and r["arm"] == "irtt333" and r["path"]] or [0]) for cert in ("dev", "chain")}
+                                        and r["arm"] == base and r["path"]] or [0]) for cert in ("dev", "chain")}
     for reading in ("strict", "round-paired"):
-        print(f"\n== {reading}: per cell, 333 then 100, ready median, lead (333 − 100) median of pairs, n pairs")
-        for cell, cert, client in cells:
-            pairs = [p for (c, k, cl, _), p in by.items() if (c, k, cl) == (cell, cert, client) and len(p) == 2
-                     and all(x["ready_ms"] is not None for x in p.values())
-                     and (reading == "round-paired" or not any(x["void"] for x in p.values()))]
-            if not pairs:
-                print(f"{cell:11} {cert:5} {client:8} no pairs")
-                continue
-            a = [p["irtt333"]["ready_ms"] for p in pairs]
-            b = [p["irtt100"]["ready_ms"] for p in pairs]
-            lead = [x - y for x, y in zip(a, b)]
-            pa = lambda arm, k: [p[arm]["pre_ack"][k] for p in pairs if p[arm]["pre_ack"]]
-            pt = lambda arm, k: [p[arm]["path"][k] for p in pairs if p[arm]["path"]]
-            line = (f"{cell:11} {cert:5} {client:8} n={len(pairs):4} ready {statistics.median(a):7.1f} {statistics.median(b):7.1f}"
-                    f"  lead {statistics.median(lead):+7.1f} [{min(lead):+.0f},{max(lead):+.0f}]")
-            line += "  pre-ACK dgrams %s/%s bytes %s/%s rounds max %s/%s" % (
-                statistics.median(pa("irtt333", "dgrams")), statistics.median(pa("irtt100", "dgrams")),
-                statistics.median(pa("irtt333", "bytes")), statistics.median(pa("irtt100", "bytes")),
-                max(pa("irtt333", "rounds")), max(pa("irtt100", "rounds")))
-            if cell.startswith(("slow", "lte", "clean")):
-                line += "  cong %d/%d cwnd %s/%s rtt_us %s/%s" % (
-                    sum(pt("irtt333", "congestion_events")), sum(pt("irtt100", "congestion_events")),
-                    statistics.median(pt("irtt333", "cwnd")), statistics.median(pt("irtt100", "cwnd")),
-                    statistics.median(pt("irtt333", "rtt_us")), statistics.median(pt("irtt100", "rtt_us")))
-            print(line)
-            if cell.startswith("loss"):
-                for arm, v in (("irtt333", a), ("irtt100", b)):
-                    ps = [p[arm] for p in pairs]
-                    probed = [x for x in ps if x["pre_ack"] and x["pre_ack"]["rounds"] > 1]
-                    over = [x for x in ps if x["path"] and x["path"]["datagrams_tx"] > clean80[cert]]
-                    print("    %s: p50 %.1f %s p95 %.1f %s p99 %.1f %s | probe before first ACK %d/%d (%.2f %%), their ready median %s"
-                          " | datagrams_tx over clean-80's %s: %d (%.1f %%)" % (
-                              arm, q(v, .5), boot(v, lambda s: q(s, .5)), q(v, .95), boot(v, lambda s: q(s, .95)),
-                              q(v, .99), boot(v, lambda s: q(s, .99)), len(probed), len(ps), 100 * len(probed) / len(ps),
-                              statistics.median([x["ready_ms"] for x in probed]) if probed else "-", clean80[cert],
-                              len(over), 100 * len(over) / len(ps)))
+        for arm in arms[1:]:
+            print(f"\n== {reading}: per cell, {base} then {arm}, ready median, lead ({base} − {arm}) median of pairs, n pairs")
+            for cell, cert, client in cells:
+                pairs = [p for (c, k, cl, _), p in by.items() if (c, k, cl) == (cell, cert, client) and base in p and arm in p
+                         and all(p[x]["ready_ms"] is not None for x in (base, arm))
+                         and (reading == "round-paired" or not any(p[x]["void"] for x in (base, arm)))]
+                if not pairs:
+                    print(f"{cell:11} {cert:5} {client:8} no pairs")
+                    continue
+                a = [p[base]["ready_ms"] for p in pairs]
+                b = [p[arm]["ready_ms"] for p in pairs]
+                lead = [x - y for x, y in zip(a, b)]
+                pa = lambda x, k: [p[x]["pre_ack"].get(k, 0) for p in pairs if p[x]["pre_ack"]]
+                pt = lambda x, k: [p[x]["path"][k] for p in pairs if p[x]["path"]]
+                line = (f"{cell:11} {cert:5} {client:8} n={len(pairs):4} ready {statistics.median(a):7.1f} {statistics.median(b):7.1f}"
+                        f"  lead {statistics.median(lead):+7.1f} [{min(lead):+.0f},{max(lead):+.0f}]")
+                line += "  pre-ACK dgrams %s/%s bytes %s/%s rounds max %s/%s" % (
+                    statistics.median(pa(base, "dgrams")), statistics.median(pa(arm, "dgrams")),
+                    statistics.median(pa(base, "bytes")), statistics.median(pa(arm, "bytes")),
+                    max(pa(base, "rounds")), max(pa(arm, "rounds")))
+                if row == "reply":
+                    rep = lambda x: [p[x] for p in pairs if p[x]["pre_ack"] and p[x]["pre_ack"].get("c_rounds", 0) > 1]
+                    unasked = lambda x: sum(p[x]["pre_ack"]["to_reply_dgrams"] for p in pairs if p[x]["pre_ack"]
+                                            and p[x]["pre_ack"].get("c_rounds", 0) <= 1)
+                    line += "  repeats %d/%d, after them dgrams %d/%d bytes %d/%d, to the reply without one: dgrams %d/%d; tap %d/%d" % (
+                        len(rep(base)), len(rep(arm)),
+                        sum(x["pre_ack"]["after_repeat_dgrams"] for x in rep(base)), sum(x["pre_ack"]["after_repeat_dgrams"] for x in rep(arm)),
+                        sum(x["pre_ack"]["after_repeat_bytes"] for x in rep(base)), sum(x["pre_ack"]["after_repeat_bytes"] for x in rep(arm)),
+                        unasked(base), unasked(arm), sum(p[base]["tap_s2c"] for p in pairs), sum(p[arm]["tap_s2c"] for p in pairs))
+                if cell.startswith(("slow", "lte", "clean", "loss")):
+                    line += "  cong %d/%d cwnd %s/%s rtt_us %s/%s" % (
+                        sum(pt(base, "congestion_events")), sum(pt(arm, "congestion_events")),
+                        statistics.median(pt(base, "cwnd") or [0]), statistics.median(pt(arm, "cwnd") or [0]),
+                        statistics.median(pt(base, "rtt_us") or [0]), statistics.median(pt(arm, "rtt_us") or [0]))
+                print(line)
+                if cell.startswith("loss"):
+                    for x, v in ((base, a), (arm, b)):
+                        ps = [p[x] for p in pairs]
+                        probed = [y for y in ps if y["pre_ack"] and y["pre_ack"]["rounds"] > 1]
+                        over = [y for y in ps if y["path"] and y["path"]["datagrams_tx"] > clean80[cert]]
+                        print("    %s: p50 %.1f %s p95 %.1f %s p99 %.1f %s | probe before first ACK %d/%d (%.2f %%), their ready median %s"
+                              " | datagrams_tx over clean-80's %s: %d (%.1f %%)" % (
+                                  x, q(v, .5), boot(v, lambda s: q(s, .5)), q(v, .95), boot(v, lambda s: q(s, .95)),
+                                  q(v, .99), boot(v, lambda s: q(s, .99)), len(probed), len(ps), 100 * len(probed) / len(ps),
+                                  statistics.median([y["ready_ms"] for y in probed]) if probed else "-", clean80[cert],
+                                  len(over), 100 * len(over) / len(ps)))
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tap", nargs=2, type=int)
+    ap.add_argument("--row", choices=list(ROWS), default="irtt")
     ap.add_argument("--phase", default="ac")
     ap.add_argument("--rounds", type=int, default=20)
     ap.add_argument("--first-round", type=int, default=0)
     ap.add_argument("--certs", default="dev,chain")
+    ap.add_argument("--cells", default="", help="a subset of the phase's cells, comma-separated")
     ap.add_argument("--out", action="append")
     ap.add_argument("--summary", action="store_true")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--keep-log", action="store_true", help="keep each visit's tap log in its row")
     ap.add_argument("--cap-ms", type=int, default=15000)
     ap.add_argument("--traces", default=os.environ.get("TRACES", os.path.join(ROOT, "lab/.traces")))
     ap.add_argument("--rig-core", default="3")
