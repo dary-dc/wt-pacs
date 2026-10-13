@@ -8,7 +8,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 OUT="${OUT:-$HERE/data}"
 VENV="${VENV:-$HERE/.venv}"
 if [[ ! -x "$VENV/bin/python" ]]; then
-  python3 -m venv "$VENV"
+  "${PYTHON:-python3.11}" -m venv "$VENV"
   "$VENV/bin/pip" install -q --require-hashes -r "$HERE/requirements.txt"
 fi
 exec "$VENV/bin/python" "$HERE/fetch_data.py" "$HERE/data.json" "$OUT" "$@"
