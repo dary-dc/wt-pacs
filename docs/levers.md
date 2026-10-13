@@ -214,7 +214,7 @@ Owner: [`ingest/design.md`](ingest/design.md), [`FIXTURES.md`](FIXTURES.md) §Fr
 | A JS/TS formatter; shellcheck | rows 83, 86: "a style decision first" | never | — |
 | Wider gate parallelism; a shared build cache | row 118 gives the step times (server tests 77 + 30 + 22 s in series) | never | `scripts/gate.sh` |
 | Automated mutation (cargo-mutants); a CI runner | — | never | — |
-| `fetch_data.sh` pinned whole | row 160's side finding | queued: row 170 | `lab/av1/requirements.txt` |
+| `fetch_data.sh` pinned whole | row 160's side finding; row 170 pinned `typing-extensions` with its hash | held | `lab/av1/requirements.txt` |
 
 ## Proposed rows, ranked by expected net gain
 
