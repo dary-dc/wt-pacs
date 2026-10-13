@@ -7,7 +7,8 @@ no provenance — except §AV1 data, whose question is about real content.
 
 ## SBND series bundle
 
-What `series-server --series` serves (`common/series-bundle`). All integers little-endian:
+What `series-server --series` serves (`common/series-bundle`); the layout exactly in
+[`disk-layout/README.md`](disk-layout/README.md), the draft target in [`disk-layout/target.md`](disk-layout/target.md). All integers little-endian:
 
 ```text
 magic "SBND" · version u32 (1) · metadata_len u32 · frame_count u32

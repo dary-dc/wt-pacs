@@ -36,7 +36,8 @@ frame  := one temporal unit                       when split = 0
   smallest of 8, 10, 12 holding the top's `bits − split` (*was* `bits` ≤ 8 with `depth + split` > 8 *until the split exactness check*,
   which refused every split 8-bit source); a non-zero `offset` without `signed`. *Built, and also refused:* a payload under 16 bytes, a pad byte not 0, a `depth` other than 8, 10
   or 12, and bytes past the last frame.
-* HTJ2K coded frames stay bare codestreams (the bundle's codec field says which).
+* HTJ2K coded frames stay bare codestreams (the series' metadata, `codec`, says which; the bundle has no codec field,
+  [`../disk-layout/README.md`](../disk-layout/README.md)).
 
 ## Representation at ingest
 

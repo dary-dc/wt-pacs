@@ -6,7 +6,8 @@ decision (provenance at the end)
 The one document for the read path. §1 the decision; §2 what shaped it, with the numbers safe
 to quote and the claims retracted; §3 its history; §4 consequences; §5 every candidate; §6
 deployment; §7–9 invariants, levers outside it, what is open; §10 the code as built; §11 the
-evidence; §12 how to re-run it.
+evidence; §12 how to re-run it. The file it reads is laid out in [`../disk-layout/README.md`](../disk-layout/README.md),
+and its draft successor in [`../disk-layout/target.md`](../disk-layout/target.md).
 
 ## 1 · The decision, as it ships
 
