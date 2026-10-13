@@ -17,7 +17,7 @@ git fetch origin && git checkout claude/av1-mainbase && git pull --rebase origin
 git config user.name "dary-dc" && git config user.email "crespoydelgado@gmail.com"
 ```
 
-Read `CLAUDE.md`, [`README.md`](README.md), then `queue.md`: §Protocol, the table, §Blocked. A row's status is the
+Read `CLAUDE.md`, [`README.md`](README.md), the latest handoff here ([`handoff-2026-10-13.md`](handoff-2026-10-13.md)), then `queue.md`: §Protocol, the table, §Blocked. A row's status is the
 last cell of its table line; every row not done:
 
 ```bash
