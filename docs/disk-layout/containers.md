@@ -431,3 +431,144 @@ Fetched 2026-10-13; nothing fetched is committed. SHA-256 of each file as read.
 | DCMTK COPYRIGHT, README; pydicom LICENSE | master / main, commit not pinned | `6c8ade56…14a0`, `41b90b60…e9b`, `a567a2a7…e7e` |
 
 Not obtainable: ISO/IEC 14496-12 (the ITTF free list is closed), 15444-3 / T.802, 15444-16 and 23001-17 (paywalled).
+
+## Measured (row 160, 2026-10-13)
+
+Measured blind to §1–§8 and §10 (given §9 only; the session saw row 159's one-line queue cell through a `grep` before
+any number). Code: [`lab/container-bench`](../../lab/container-bench/README.md); every arm is opened by our parser of
+its own index into the server's (offset, length) table (`FrameStore::with_index`), then read by the shipped readers.
+
+**Setup, the same for every arm.** Host: 4 vCPU Xeon @ 2.10 GHz cloud VM, 15 GB, ext4 on virtio (`RWF_NOWAIT`
+honoured, `read_ahead_kb` 128), kernel 6.18.44. Payloads from `ingest/coded-frames/ingest.py`: HTJ2K by OpenJPH 0.31.0
+(reversible, 5 decompositions, 64² blocks, RPCL); AV1 optimized by aomenc 3.15.1 `good:6` (`pt15_cptac` `--split 3`),
+every frame decoded back to its source before it was written. Read path: `TileReader` one slot (`ReadMode::Auto`), a
+random permutation of the frames repeated to ≥ 400 asks; `FillReader` whole walks in display order to ≥ 256 MiB.
+*Hit* is the page cache through `RWF_NOWAIT`; *forced miss* is `force_pool_reads`. *Cold open* reads through
+`O_DIRECT` (past the cache, nothing evicted); *warm open* through the cache. One session on the server's one runtime:
+the host never saturated, and nothing here is claimed for concurrent sessions or for a device-bound miss.
+
+**Data** — sound sets only, one per frame size the sound sets offer (none near 16 KiB): `pt15_cptac` (335 frames, the
+largest sound series by count; median frame 32 kB HTJ2K / 35 kB AV1), `mr9_ispy2` (34; 41 / 38 kB), `ct_lidc` (100;
+163 / 154 kB), `dbt12_ea1141` (29; 503 / 476 kB), `ffdm_b` (2; 2.77 / 2.76 MB).
+
+**Arms.** `sbnd1` (`pack-series`), `sbnd1-aa` (the same, another file: the A/A control), `sbnd2` (28 B entries,
+ours), `mp4` (ours: `moov` first, one sample a chunk; `co64` past 4 GiB), `mp4-ff` (FFmpeg 6.1.1 `-movflags
++faststart`, its own chunks), `fmp4-1` / `fmp4-30` (ours, one global `sidx`), `mkv` (ours: Cues first, a cue a frame
+with `CueRelativePosition`, `V_MS/VFW/FOURCC`), `mkv-ff` (FFmpeg `-cues_to_front 1`), `dicom` / `dicom-fg` (ours
+through pydicom 3.0.1: one fragment a frame, Extended Offset Table, TS .201; `-fg` adds the source's per-frame
+attributes), `mxf` (ours: OP1a partitions, frame-wrapped, KAG 1, the index in the footer — **no structural header
+metadata**, a layout to time, which FFmpeg refuses to open), `mxf-ff` (FFmpeg, KAG 512 with a system item a frame),
+`ivf` (AV1 only, no index). Our arms carry the draft's identity (both UIDs, each frame's coded and samples XXH3-64):
+a private `uuid` box (MP4), a `TagBinary` (Matroska), native UIDs and a private block (DICOM), a dark KLV (MXF);
+none is a standard field. **AV1 is opaque in every container but the `.sbnd`** (MP4 `sbav`, Matroska FourCC `SBAV`,
+a private DICOM TS UID, MXF's picture key); **FFmpeg cannot pack it** — its input must name a codec — so `mp4-ff`,
+`mkv-ff` and `mxf-ff` exist for HTJ2K only. mkvmerge, MP4Box and DCMTK were not fetched.
+
+**Exact.** 3 120 timed cells (26 Williams rounds, `lab/scripts/order.py`), 25 324 884 frames read, each XXH3-64-checked
+against the encoder's codestream: 0 inexact. Every arm's every frame (12 000) through the fill reader, decoded, against
+the digest ingest took from the encoder's input: 0 inexact. Mutations, each caught: `--mutate shift|short` on all 13
+arm kinds (238/238 frames flagged each); 17 source mutations of the parsers and packers (`cargo test`); a flipped byte
+after the read, both payloads, against the decode check.
+
+### Per-frame read, fill and CPU: a tie everywhere
+
+Paired per round against `sbnd1` (the same series, payload and round), pooled over the 10 series·payload cells. The
+resolution is this campaign's A/A drift (p90 of |`sbnd1-aa`/`sbnd1` − 1|): hit latency 30.3 %, forced-miss latency
+17.0 %, fill hit 22.8 %, fill miss 17.6 %, CPU/GB hit 23.9 %, miss 14.5 %. A difference counts at ≥ the resolution
+and ≥ 80 % sign agreement (`disk-access.md` §2).
+
+| arm | hit latency | miss latency | fill hit | fill miss | CPU/GB hit | CPU/GB miss |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `sbnd1-aa` | 1.001 | 1.017 | 1.001 | 0.992 | 1.003 | 1.007 |
+| `sbnd2` | 0.887 | 0.985 | 1.100 | 1.038 | 0.913 | 0.960 |
+| `mp4` | 0.894 | 0.978 | 1.083 | 1.027 | 0.921 | 0.974 |
+| `mp4-ff` | 0.986 | 1.037 | 1.028 | 0.992 | 0.975 | 1.008 |
+| `fmp4-1` | 0.893 | 0.995 | 1.138 | 1.052 | 0.876 | 0.956 |
+| `fmp4-30` | 0.892 | 0.989 | 1.096 | 1.039 | 0.914 | 0.967 |
+| `mkv` | 0.918 | 0.989 | 1.051 | 1.004 | 0.957 | 0.991 |
+| `mkv-ff` | 0.884 | 0.984 | 1.123 | 1.017 | 0.887 | 0.978 |
+| `dicom` | 0.879 | 0.990 | 1.066 | 1.022 | 0.939 | 0.978 |
+| `dicom-fg` | 0.878 | 0.978 | 1.090 | 1.019 | 0.917 | 0.978 |
+| `mxf` | 0.918 | 0.980 | 1.106 | 1.039 | 0.906 | 0.963 |
+| `mxf-ff` | 0.887 | 0.995 | 1.159 | 1.037 | 0.882 | 0.965 |
+| `ivf` | 0.883 | 0.981 | 1.132 | 1.040 | 0.884 | 0.968 |
+
+Median ratio to `sbnd1`; every cell is a **tie** (agreement 50–80 %, all under the resolution). Absolute, `sbnd1`:
+hit p50 2.3–5.5 µs at 32–41 kB, 15–17 µs at 160 kB, 26–29 µs at 500 kB, 216–220 µs at 2.8 MB; CPU 0.16–0.18 s per GB
+served on hits. The ~11 % that `sbnd1` and `mp4-ff` trail the rest on small-frame hits is the **writer, not the
+layout**: `sbnd1` rewritten with 1 MiB writes (`dd`) against `sbnd2` rewritten with 8 KiB writes, 16 interleaved
+rounds on `mr9_ispy2` and `pt15_cptac` HTJ2K: hit p50 0.76 / 0.69 of `sbnd1` with 1 MiB writes (81 % / 100 % agree),
+1.05 / 1.08 with 8 KiB; fill 1.32 / 1.24 against 1.00 / 0.96. `pack-series` writes through an 8 KiB `BufWriter`. The
+mechanism (page-cache folio size is the suspect) is not measured; it belongs to the read path's owner, `disk-access.md`.
+
+### Open, bytes and packing: where the arms part
+
+| arm | reads at open (`pt15`, N = 335) | cold open p50 `pt15` HTJ2K / AV1 [p10–p90] | warm open p50 `pt15` | bytes vs `sbnd2`, worst series | packing `pt15` HTJ2K, ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `sbnd1` | 2 | 168 [108–263] / 142 µs | 5.5 µs | +0.07 % | 10 |
+| `sbnd2` | 2 | 161 [99–273] / 136 µs | 4.3 µs | 0 | 20 |
+| `mp4` | 1 (64 KiB window) | 159 [117–234] / 172 µs | 16.8 µs | +0.04 % | 18 |
+| `mp4-ff` | 1 | 182 [124–290] µs | 16.6 µs | −0.07 %¹ | 73 (no faststart 72) |
+| `fmp4-1` | 336 | 13.7 [11.6–16.2] / 14.2 ms | 242 µs | +0.33 % | 18 |
+| `fmp4-30` | 13 | 679 [436–894] / 676 µs | 21 µs | +0.05 % | 21 |
+| `mkv` | 338 | 13.6 [9.5–17.3] / 14.1 ms | 198 µs | +0.13 % | 20 |
+| `mkv-ff` | 671 | 25.9 [20.6–29.3] ms | 339 µs | +0.07 %¹ | 96 (no cues to front 81) |
+| `dicom` | 1 | 185 [118–301] / 198 µs | 9.9 µs | +0.10 % | 888 |
+| `dicom-fg` | 2 | 311 [196–446] / 261 µs | 14.9 µs | **+1.21 %** | 1 336 |
+| `mxf` | 341 | 14.7 [9.9–16.2] / 14.0 ms | 257 µs | +0.09 % | 18 |
+| `mxf-ff` | 343 | 14.0 [11.0–18.6] ms | 251 µs | **+2.62 %**¹ | 84 |
+| `ivf` | 336 | — / 13.3 [9.2–16.0] ms | 161 µs | −0.05 % | 16 (AV1) |
+
+¹ FFmpeg's files carry no identity (16 B a frame less than ours). Reads scale with N for `fmp4-1`, Matroska, MXF and IVF:
+at `ct_lidc` (N = 100) they open cold in 3.9–4.8 ms (`mkv-ff` 8.3), at `ffdm_b` (N = 2) in 0.2–0.4 ms. Cold-open
+resolution (A/A p90) is 107 %: one `O_DIRECT` read costs ~40–170 µs on this host. Packing is the process's wall time
+from ingest's files, 8 interleaved rounds: ours (Rust) hashes every frame for the identity, `pack-series` does not;
+`dicom` is Python with pydicom's import and the source headers read; FFmpeg's ~55 ms is mostly its start-up.
+
+### Round trips through the reference tools (decision rule (d)), all five series
+
+| arm | ours → tool | tool → ours |
+| --- | --- | --- |
+| MP4, fMP4 F = 1 and 30, Matroska | FFmpeg 6.1.1 `-c copy`: 500/500 exact, both payloads (it copies the opaque AV1 track) | HTJ2K 500/500 (`mp4-ff`, `mkv-ff`, FFmpeg's `frag_every_frame` + `global_sidx`); AV1: FFmpeg cannot pack it |
+| MXF | ours refused by FFmpeg (no material package) | HTJ2K `mxf-ff` 500/500; AV1 cannot be packed |
+| IVF | FFmpeg parses the payload as AV1 and fails: 0/500 | — |
+| DICOM, EOT | pydicom 3.0.1 `generate_frames` with the EOT: 500/500, both payloads | pydicom's `encapsulate_extended`: HTJ2K 241/500, AV1 268/500 — it writes each length padded to even, where PS3.3 C.7.6.3.1.8 says the length excludes the padding (fetched 2026-10-13); every odd frame comes back one byte long |
+
+UIDs travel in a standard field only in DICOM; the two hashes in none; nothing the tools pack carries them.
+
+### Verdict (*proposed*, for the owner and the team): the `.sbnd` stays
+
+| arm | (a) read, fill, CPU | (b) cold open `pt15` ≤ 1 ms | (c) ≤ 1 % of `sbnd2` | (d) round trip, identity |
+| --- | --- | --- | --- | --- |
+| `sbnd2` | tie | yes | — | (ours) |
+| `mp4`, `mp4-ff` | tie | yes | yes | no: AV1 not packable by the tool; identity only in a private box |
+| `fmp4-30` | tie | yes | yes | no: the same |
+| `fmp4-1`, `mkv`, `mkv-ff`, `mxf`, `mxf-ff`, `ivf` | tie | **no** (13–26 ms) | yes but `mxf-ff` | no |
+| `dicom` | tie | yes | yes | no: pydicom's padded lengths; hashes only in a private block |
+| `dicom-fg` | tie | yes | **no** (+1.2 %) | no |
+
+No container meets all four, so **the `.sbnd` stays** as the stored form, and no arm meets (d) even for HTJ2K alone, so
+**no export format is proposed by the rule**. Nearest: DICOM with an Extended Offset Table and no per-frame groups
+passes (a)–(c) and round-trips both payloads into the reference tool exactly; it misses (d) on the tool's own packing
+(a deviation in pydicom 3.0.1, not in the format) and on the hashes, which DICOM has no field for. Progressive MP4
+passes (a)–(c) with HTJ2K exact both ways through FFmpeg, and misses on the identity. `.sbnd` v2 ties v1 on every
+metric and is 0.006–0.07 % smaller. Not measured: concurrent sessions, a device-bound miss, a frame near 16 KiB, a
+series with thousands of frames (the N-read opens would grow past 14 ms), DCMTK, MP4Box and mkvmerge.
+
+### §9's predictions, against the numbers
+
+* **Read latency, fill and CPU tie for arms 2–7 at 16 KiB and above** — held at 32 kB–2.8 MB, both payloads, hit and
+  forced miss. FFmpeg's MXF fill −6 % at 16 KiB: not testable (no sound series near 16 KiB; at 32–41 kB it ties,
+  and −6 % is under this host's 17–23 % resolution).
+* **Open: arms 1–3 within a few reads** — held: 2, 2 and 1 reads; cold 159–182 µs against 168.
+* **Arm 6 grows with its per-frame metadata** — held: the source's groups take `pt15`'s open from 1 read to 2 and its
+  cold p50 from 185 to 311 µs; at 29–100 frames the groups still fit the first 64 KiB read.
+* **Arms 4 (F = 1), 5 and 7 grow with N** — held: one read a frame (FFmpeg's Matroska two), 13.6–25.9 ms cold at
+  N = 335. F = 30 grows by N / 30 (13 reads, 0.68 ms).
+* **Arm 8 slowest** — not held: IVF's chained reads (13.3 ms cold, 161 µs warm) are no slower than the indexed
+  containers that still read a header a frame; FFmpeg's Matroska is slowest (a cluster a frame: 671 reads).
+* **Bytes within 0.3 % except as §4 says** — held: FFmpeg's MXF measured 844–1 050 B a frame against §4's 847–1 039
+  (+2.5–2.6 % at 32–41 kB), our one-frame fragments 130–156 B against FFmpeg's 183 (+0.30–0.33 %); everything else
+  ≤ 0.13 %. Not in §4: the source's per-frame groups cost DICOM ~400 B a frame (+1.1–1.2 % at 32–41 kB).
+* **FFmpeg's faststart or `cues_to_front` cost about one extra copy** — not seen at these sizes: +1 % and +2–18 % of
+  wall time, within FFmpeg's start-up and the page cache; not conclusive.
