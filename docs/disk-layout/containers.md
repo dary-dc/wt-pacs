@@ -499,7 +499,8 @@ served on hits. The ~11 % that `sbnd1` and `mp4-ff` trail the rest on small-fram
 layout**: `sbnd1` rewritten with 1 MiB writes (`dd`) against `sbnd2` rewritten with 8 KiB writes, 16 interleaved
 rounds on `mr9_ispy2` and `pt15_cptac` HTJ2K: hit p50 0.76 / 0.69 of `sbnd1` with 1 MiB writes (81 % / 100 % agree),
 1.05 / 1.08 with 8 KiB; fill 1.32 / 1.24 against 1.00 / 0.96. `pack-series` writes through an 8 KiB `BufWriter`. The
-mechanism (page-cache folio size is the suspect) is not measured; it belongs to the read path's owner, `disk-access.md`.
+mechanism (page-cache folio size is the suspect) is not measured; row 168's theory and protocol are
+[`README.md`](README.md) §The writer.
 
 ### Open, bytes and packing: where the arms part
 
