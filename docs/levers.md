@@ -59,8 +59,8 @@ Owner: [`adr/disk-access.md`](adr/disk-access.md) (§5 · Every candidate, one t
 | Release LTO, one codegen unit | RP: −4 to −8 % CPU | held (landed) | §8 |
 | Container format (MP4, fMP4, MKV, MXF, DICOM EOT, IVF) against `.sbnd` | rows 159, 160: reads, fill, CPU tie; the open loses 13–26 ms; none round-trips | held (verdict proposed to the owner) | [`disk-layout/containers.md`](disk-layout/containers.md) §Verdict |
 | `.sbnd` v2 (148 B header, 28 B entries) | row 160: ties v1, 0.006–0.07 % smaller | held; the build not queued | [`disk-layout/target.md`](disk-layout/target.md) §Layout 0 |
-| The writer's 8 KiB `BufWriter` against 1 MiB writes | row 160: hits 24–31 % and fill 24–32 % slower; row 168 (theory): write-sized page-cache folios, a 1 MiB buffer the one-line fix | **never** as a fix (row 168's measuring protocol, not queued) | [`disk-layout/README.md`](disk-layout/README.md) §The writer |
-| `fallocate` to the final size; frames aligned to 4 KiB | — | never (row 168, theory: `fallocate` touches no hit; alignment is in its folio model) | §The writer; containers.md §5 |
+| The writer's 8 KiB `BufWriter` against 1 MiB writes | row 160: hits 24–31 % and fill 24–32 % slower; row 168 (theory): write-sized page-cache folios; row 172: folios confirmed on ext4 (4.9 → 1.3 a 32–41 kB frame), hit p50 ×0.62–0.83, none beyond the A/A resolution | **never** (row 172's rule (e): closed; WRITERAA proposed) | [`disk-layout/README.md`](disk-layout/README.md) §The writer |
+| `fallocate` to the final size; frames aligned to 4 KiB | row 172: `fallocate` ties `pack-series` on folios and hits | never (row 168, theory: `fallocate` touches no hit; alignment is in its folio model) | §The writer; containers.md §5 |
 | Publish by `.partial` → fsync → rename → fsync | row 153 (theory) | never (agreed in the draft target) | target.md §Packing and publishing |
 | A coded-bytes hash per entry, checked on read | rows 73, 123 (theory); 151: XXH3 ~3.3 GB/s client-side | owner (row 123 (2)) | target.md §The two hashes |
 | Metadata stored twice, read by neither the server nor `from-parser` | row 164 (documented) | never | README.md §The metadata, twice |

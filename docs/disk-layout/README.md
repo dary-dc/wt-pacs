@@ -62,7 +62,7 @@ It writes **to the final name** (`File::create(path)`, `writer.rs:28`) and ends 
 refused at open, because its last entry points past the end. A power loss after the pack can leave the full length
 with blocks never written, which nothing detects: no hash covers the coded bytes.
 
-### Why its files read slower on a hit (row 168: theory, not measured)
+### Why its files read slower on a hit (row 168: theory; measured by row 172, §Measured below)
 
 Row 160 found a `.sbnd` from `pack-series` 24–31 % slower on warm hits than the same bytes rewritten in 1 MiB
 writes, at 32–41 kB frames ([`containers.md`](containers.md) §Measured). Sources are Linux **v6.18.44** (the host's
@@ -143,7 +143,7 @@ code alone — but a gain in server CPU, not in fill time at the target's links.
 Row 164's draft target (`.partial` → `fsync` → `rename`, [`target.md`](target.md)) changes none of them: the folios
 belong to the inode, which `rename` keeps, and writeback cleans folios without resizing them (reasoned, no line cited).
 
-### Protocol for the measuring row (*proposed*)
+### Protocol for the measuring row (run by row 172)
 
 Given to a separate session with nothing above this heading.
 
@@ -177,6 +177,117 @@ Given to a separate session with nothing above this heading.
   instead* only if A2 beats A1 the same way. *(d)* If A6 is slower than A0 beyond the resolution, the fill's `WILLNEED`
   is the larger lever, and the read path's owner gets a theory row for it; nothing in the read path changes in this
   row. *(e)* A tie in (b) closes the writer as not worth a line.
+
+### Measured (row 172)
+
+Run by a session given only the protocol; it read §Why after the numbers were in. Host: a 4-vCPU cloud VM, Linux
+6.18.44, 15 GiB, one reader process at a time, so the host does not saturate and nothing is claimed about load. Rust
+1.97.0 release builds. Driver, lab writer, folio counter and summary: `lab/container-bench/writer.py`,
+`src/bin/writer_bench.rs`, `writer_summary.py` ([`../../lab/container-bench/README.md`](../../lab/container-bench/README.md)).
+
+* **Arms as specified.** A1 and A3 come from a lab copy of `BundleWriter::create`'s writes; at an 8 KiB buffer its
+  `write(2)` sequence equals `pack-series`' under `strace` on three cells (337, 101 and 337 calls, sizes in order),
+  and the check fails at 1 MiB (11 calls). All 160 arms are SHA-256-equal to their A0: none void. Cells: `pt15_cptac`
+  HTJ2K (median frame 32 kB, 335 frames), `mr9_ispy2` (41 kB, 34), `pt15_cptac` AV1 (35 kB, `--split 3`), `ct_lidc`
+  (163 kB, 100), `dbt12_ea1141` (503 kB, 29); ingest's coded frames, every one exact.
+* **Filesystems:** the host's ext4 on `/dev/vda` (`rw,relatime,discard,…`, `read_ahead_kb` 128, `max_sectors_kb`
+  4096), and 2 GiB loop images (`read_ahead_kb` 2560, `max_sectors_kb` 1280): ext4 with defaults, ext4
+  `data=journal` (the mount adds `nodelalloc`), XFS from xfsprogs 6.6.0-1ubuntu2.1 (Ubuntu's archive; `.deb`
+  SHA-256 `2da65187043b2f87…`).
+* **16 rounds**, arms in `lab/scripts/order.py`'s order inside each cell, 4 000 asks a tile cell, 256 MiB a fill
+  cell. Pack time: 16 more rounds, each arm written to a scratch name and removed (no A/A arm there).
+* **Exact:** 47.3 M reads checked by XXH3-64 against the coded bytes, 0 inexact; all 160 arms' 26 656 frames
+  through the fill reader decoded against ingest's sample digests, 0 inexact; `--mutate shift|short` fails all
+  19 095 reads of a cell; the folio counter's layout check (each folio starts on its own size and is tails to its
+  end) fails with `--mutate`, which reads compound heads as plain pages. Recounted after the last round: 0 of 160
+  arms' folios changed.
+
+**Folios per frame, counted** (host; loop ext4 the same but A5; XFS within 0.3 but A2 at 1.07–1.90):
+
+| cell | A0, A0′, A3 | A1 | A2 | A4 | A5 | A6 | predicted A0 / A1 / A2 / A4 / A6 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `pt15_cptac` HTJ2K, 32 kB | 4.86 | 1.27 | 1.04 | 4.79 | 1.35 | 8.58 | 5.1 / 1.3 / 1.0 / 5.4 / 9.9 |
+| `mr9_ispy2`, 41 kB | 5.26 | 1.38 | 1.15 | 5.91 | 2.53 | 10.79 | same |
+| `pt15_cptac` AV1, 35 kB | 4.96 | 1.30 | 1.04 | 5.16 | 1.37 | 9.33 | same |
+| `ct_lidc`, 163 kB | 7.26 | 2.46 | 1.19 | 20.98 | 2.65 | 40.95 | 7.2 / 2.5 / 1.2 / 20.6 / 40.1 |
+| `dbt12_ea1141`, 503 kB | 9.00 | 5.45 | 1.62 | 61.93 | 6.24 | 122.86 | 9.0 / 5.4 / 1.6 / 61.2 / 121.4 |
+
+Every arm under `data=journal` counts A6's column: 4 KiB folios only. A5 on the loops: 1.38–5.66, 4.15 on `mr9_ispy2`.
+Extents: 1 a file on the host, 1–6 under `data=journal`.
+
+**Hit p50**, median of the 16 per-round ratios to A0 (share of rounds A0 lost); *res.* is the resolution, the p90
+of \|A0′/A0 − 1\| over the rounds; bold is beyond it:
+
+| filesystem, cell | A0 | res. | A0′ | A1 | A2 | A3 | A4 | A5 | A6 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| host ext4, `pt15_cptac` HTJ2K | 4.10 µs | 0.49 | 0.99 (50) | 0.62 (100) | 0.59 (100) | 0.94 (56) | 1.15 (25) | 0.74 (94) | 1.41 (0) |
+| host ext4, `mr9_ispy2` | 2.66 µs | 0.25 | 0.97 (75) | 0.77 (94) | 0.75 (88) | 0.99 (56) | 1.07 (25) | 0.85 (69) | 1.25 (12) |
+| host ext4, `pt15_cptac` AV1 | 4.72 µs | 0.41 | 1.01 (44) | 0.69 (94) | 0.73 (94) | 1.10 (44) | 1.06 (38) | 0.87 (88) | 1.11 (31) |
+| host ext4, `ct_lidc` | 16.17 µs | 0.35 | 1.11 (19) | 0.95 (56) | 0.83 (88) | 1.04 (44) | **1.58 (0)** | 0.99 (50) | **2.02 (0)** |
+| host ext4, `dbt12_ea1141` | 52.46 µs | 0.31 | 1.02 (50) | 1.05 (44) | 0.90 (81) | 1.01 (50) | **1.44 (0)** | 0.98 (50) | **1.99 (0)** |
+| loop ext4, `pt15_cptac` HTJ2K | 4.02 µs | 0.38 | 0.99 (56) | 0.70 (94) | 0.70 (100) | 0.92 (62) | 1.05 (38) | 0.67 (81) | 1.11 (31) |
+| loop ext4, `mr9_ispy2` | 2.43 µs | 0.47 | 1.01 (44) | 0.80 (81) | 0.79 (88) | 0.96 (62) | 1.16 (25) | 0.92 (69) | 1.18 (12) |
+| loop ext4, `pt15_cptac` AV1 | 4.33 µs | 0.68 | 1.03 (50) | 0.83 (75) | 0.83 (81) | 1.06 (44) | 0.97 (62) | 0.92 (62) | 1.67 (0) |
+| loop ext4, `ct_lidc` | 21.32 µs | 0.26 | 0.95 (56) | 0.93 (75) | 0.88 (81) | 0.93 (62) | 1.18 (12) | 0.76 (88) | 1.15 (19) |
+| loop ext4, `dbt12_ea1141` | 51.61 µs | 0.22 | 0.96 (62) | 0.94 (56) | 0.86 (69) | 0.96 (69) | **1.33 (0)** | 0.99 (50) | **1.43 (12)** |
+| loop XFS, `pt15_cptac` HTJ2K | 2.88 µs | 0.43 | 1.06 (38) | 0.93 (69) | 1.00 (50) | 1.02 (44) | 0.97 (56) | 0.97 (56) | 1.07 (38) |
+| loop XFS, `mr9_ispy2` | 2.08 µs | 0.26 | 1.06 (31) | 0.93 (62) | 0.92 (62) | 1.02 (44) | 1.01 (44) | 1.02 (38) | 1.07 (25) |
+| loop XFS, `pt15_cptac` AV1 | 3.06 µs | 0.63 | 1.09 (31) | 0.86 (69) | 1.05 (38) | 1.02 (44) | 0.99 (50) | 0.89 (69) | 1.06 (38) |
+| loop XFS, `ct_lidc` | 14.42 µs | 0.54 | 1.04 (38) | 1.07 (44) | 0.90 (62) | 1.02 (44) | 1.11 (25) | 0.90 (75) | 1.03 (50) |
+| loop XFS, `dbt12_ea1141` | 52.20 µs | 0.32 | 0.97 (56) | 0.89 (69) | 0.96 (56) | 0.97 (56) | 1.15 (38) | 0.92 (75) | 1.22 (6) |
+| `data=journal`, `pt15_cptac` HTJ2K | 4.36 µs | 0.48 | 0.85 (94) | 0.73 (94) | 0.83 (88) | 0.84 (69) | 0.75 (100) | 0.69 (100) | 0.76 (88) |
+| `data=journal`, `mr9_ispy2` | 3.11 µs | 0.43 | 0.92 (62) | 0.91 (81) | 0.92 (81) | 0.97 (69) | 0.87 (69) | 0.76 (81) | 0.75 (62) |
+| `data=journal`, `pt15_cptac` AV1 | 3.38 µs | 0.57 | 1.03 (44) | 1.00 (50) | 1.16 (25) | 1.09 (38) | 1.10 (44) | 1.04 (44) | 1.08 (38) |
+| `data=journal`, `ct_lidc` | 20.00 µs | 0.50 | 0.92 (75) | 0.93 (81) | 0.93 (69) | 0.91 (62) | 0.92 (69) | 0.87 (62) | 0.82 (88) |
+| `data=journal`, `dbt12_ea1141` | 49.68 µs | 0.33 | 0.98 (50) | 1.10 (25) | 0.97 (56) | 0.97 (69) | 1.01 (44) | 0.96 (56) | 0.97 (62) |
+
+The other metrics, same reading; **beyond the resolution** only: A6 on the host's `ct_lidc` and `dbt12_ea1141` — hit
+p99 ×1.60 and ×1.66, forced-miss p50 ×1.31 and ×1.50, fill hit ×0.68 and ×0.64 frames/s, fill CPU per GB ×1.49 and
+×1.56 on a hit and ×1.26 and ×1.42 on a miss, fill miss ×0.66 on `dbt12_ea1141`; on loop ext4 fill-miss CPU ×1.19
+(`dbt12_ea1141`), fill hit ×0.83 and its CPU ×1.21 (`mr9_ispy2`), hit p99 ×2.59 (`pt15_cptac` AV1). A4 on the host's
+`ct_lidc` fill hit ×0.80, its `dbt12_ea1141` forced miss ×1.21 and fill CPU ×1.27 hit, ×1.17 miss; on loop ext4's
+`dbt12_ea1141` hit p99 ×1.27 and fill-miss CPU ×1.17. A2's fill hit on `mr9_ispy2` ×1.33 (host) and ×1.20 (loop ext4),
+its fill-hit CPU ×0.86 on loop ext4's `pt15_cptac` AV1. A1 is beyond it on no metric in any cell, better or worse; its
+fill hit at 32–41 kB is ×1.10–1.22 on host and loop ext4 (75–100 % of rounds), within 0.15–0.25. XFS separates no arm
+on any metric. **Pack wall time**, medians: A0 3.4–11.3 ms a cell off `data=journal`, 4.5–33.7 ms on it; A1 −0.3 to
++3.2 ms (−2 to +35 %) against A0 off `data=journal`, A3 −1.5 to +6.0 ms; A6's `WILLNEED` warm 226–255 ms, A5's 3–21 ms
+— no A/A arm, so none of this is called.
+
+**Against the predictions.** Folios: A0 ≈ A3 ≈ 5, A4 ≈ 5.4, A1 ≈ 1.3, A2 ≈ 1.0 and A6 ≈ 9.9 held within 20 % on every
+filesystem but `data=journal`, and the model's 160 and 500 kB columns within 3 %; **A5 ≈ 1–2 did not hold on
+`mr9_ispy2`** (2.53 host, 4.15 loops). Hit ranking at 32–41 kB, A2 ≤ A1 ≈ A5 < A0 ≈ A3 ≈ A4 < A6: **held on the host
+and loop ext4 in the medians** (host `pt15_cptac` HTJ2K 0.59, 0.62, 0.74, 0.94, 1, 1.15, 1.41), A1's absolute median
+2.88 µs against A0's 4.10, ~340 ns for each of ~3.6 folios against the predicted 150–300; **not on XFS**, where every
+arm ties with the same folio counts. Gaps at 160 and 500 kB below the resolution: held for A1, A2, A3, A5; A4 and A6
+grow there instead (21–124 folios a frame). Forced miss ties: held but A6 on the host's 160 and 500 kB cells and A4 on
+its 500 kB. `data=journal` ties: held, every arm at 4 KiB folios and within its resolution. Extents without effect:
+held (1–6, no ordering).
+
+**The rule.**
+
+* **(a) Mechanism: confirmed on ext4, not on XFS.** Counts match within 20 % (A5 on `mr9_ispy2` aside), the
+  hit ranking follows them on both ext4s, and the `data=journal` arms tie; arms of equal counts (A0, A0′, A3) never
+  differ beyond the resolution. On XFS the counts are the same and the hits do not part — the cost of a folio is
+  not visible there; why is open.
+* **(b) F1 not adopted.** A1 against A0 at 32–41 kB, hit p50: 0.62–0.77 on the host, 0.70–0.83 on loop ext4,
+  0.86–0.93 on XFS, 0.73–1.00 under `data=journal`, with 75–100 % sign agreement on both ext4s — but no cell
+  beyond its resolution of 0.25–0.68. The resolution is the spread of one round's ratio, against a median of 16:
+  a bar the rule chose, and under it the gap does not count. Pack time has no A/A arm, so (b)'s "worse on no metric"
+  was not checkable there either.
+* **(c) F2 not adopted:** A2 beats A1 beyond the resolution nowhere (0.59 against 0.62 on the host).
+* **(d) Fires.** A6, a cache warmed by the fill's `WILLNEED`, is slower than A0 beyond the resolution on the host's
+  `ct_lidc` and `dbt12_ea1141` (hit ×2.02 and ×1.99, fill hit ×0.68 and ×0.64, CPU per GB ×1.49 and ×1.56) and on loop
+  ext4's `dbt12_ea1141` (hit ×1.43): after reclaim, 41–123 folios a 160–500 kB frame against `pack-series`' 7–9.
+  The fill's `WILLNEED` is the larger lever; nothing in the read path changes here. Proposed for the read path's
+  owner: **WILLNEEDFOLIO** — does the fill's `POSIX_FADV_WILLNEED` (4 KiB folios, `mm/readahead.c:275–276`) cost
+  hits and fill CPU on 160 kB–3 MB frames after reclaim, against a blocking `readahead(2)` or `MADV_POPULATE_READ`
+  that builds large folios, with the fill's wait unchanged? Theory.
+* **(e) Closes the writer as not worth a line:** (b) is a tie. `pack-series` keeps its 8 KiB `BufWriter`.
+
+Proposed beyond the brief: **WRITERAA** — would a resolution taken on the 16-round median (A0′'s median ratio,
+here 0.95–1.11) instead of one round's spread have adopted F1, and should the rule's bar be that? An owner's call,
+since it re-judges a pre-stated rule. **XFSFOLIO** — why do 1 and 9 folios a frame read alike on XFS, here a loop
+image on a VM?
 
 ## The reader
 

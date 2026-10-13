@@ -24,3 +24,22 @@ $P lab/container-bench/summary.py $W
 
 A cold open reads through `O_DIRECT`, past the page cache without evicting it; a forced miss is the store's
 `force_pool_reads`. `measure --mutate shift|short` breaks the index on purpose and must fail the exactness check.
+
+## The writer (row 172)
+
+The same `.sbnd` bytes written eight ways on four filesystems, folios counted from `/proc/kpageflags`, then the
+shipped readers timed as above: [`docs/disk-layout/README.md`](../../docs/disk-layout/README.md) §The writer, §Measured.
+Root is needed for the loop mounts and `/proc/kpageflags`; `mkfs.xfs` is xfsprogs 6.6.0-1ubuntu2.1.
+
+```bash
+$P lab/container-bench/writer.py mount $W                  # loop ext4, ext4 data=journal, XFS under W/fs
+$P lab/container-bench/writer.py syscalls $W pt15_cptac htj2k   # the lab writer at 8 KiB issues pack-series' writes
+$P lab/container-bench/writer.py make $W                   # every arm, its folios, extents and SHA-256
+$P lab/container-bench/writer.py verify $W                 # every arm's frames decoded against ingest's digests
+$P lab/container-bench/writer.py time $W 16
+$P lab/container-bench/writer.py packtime $W 16
+$P lab/container-bench/writer.py recount $W                # folios unchanged since make
+python3 lab/container-bench/writer_summary.py $W
+```
+
+`writer_bench folios --mutate` reads compound heads as plain pages and must fail the folio layout check.
