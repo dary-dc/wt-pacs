@@ -252,7 +252,7 @@ not `ready`.
 | 171 | **ASKAHEAD** — row 167's protocol: a send window that follows the congestion window, so an ask during a fill stops waiting behind 6 MiB written ahead | claimed 2026-10-13 (night, 523dc4) |
 | 172 | **WRITERMEASURE** — row 168's protocol: `.sbnd` files written in 8 KiB against 1 MiB writes, folios counted, hit and fill timed | claimed 2026-10-13 (night, 3af8e7) |
 | 173 | **NETRULES** — rows 134 and 142's three refused levers (OpenJPH under emscripten 6.0.x, the shared-heap copy, decoders started on first need) given protocols judged by an A/A arm's spread under the net reading; theory | claimed 2026-10-13 (night, 6e868b) |
-| 174 | **QUICSTREAMS** — how each QUIC stack handles many streams (scheduling, priority, flow control, limits, retransmission order) and which stream design serves a fill and an ask best at the measured links; theory | ready |
+| 174 | **QUICSTREAMS** — how each QUIC stack handles many streams (scheduling, priority, flow control, limits, retransmission order) and which stream design serves a fill and an ask best at the measured links; theory | claimed 2026-10-13 (night, 903220) |
 | 175 | **TILESTORE** — tiles for large frames: the store-format proposal rows 133 and 143 left for the owner; writing, nothing built | ready |
 | 176 | **HASHFAST** — the frame check's XXH3-64 in the decoder worker: where its ~3.3 GB/s goes, and whether a SIMD128 build over the decoder's own heap is faster with the digest unchanged; theory | ready |
 | 177 | **DOCFIX** — row 166's found-on-the-way list: docs not corrected for row 162's band, dangling owners, stale lines, owner calls missing from §Blocked | ready |
