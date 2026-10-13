@@ -267,6 +267,7 @@ not `ready`.
 | 186 | **JXLRS** — jxl-rs in WASM with a sample API: is any JPEG XL setting as fast as OpenJPH and smaller; theory | done `1365b749` on `claude/av1-unified-mainbase` — theory, jxl-rs read at v0.7.4: its 16-bit modular buffers apply only at ≤ 12 bits (libjxl's encoder clears the flag above), the per-pixel tree, predictor and entropy loop stays scalar in both decoders, its u16 output is exact through f32 (D); predicted ×0.8–1.2 of libjxl-WASM, so e1 at 0.85–2.3× OpenJPH for 1–5 % fewer bytes — **no setting predicted both smaller and as fast; a trade-off at best**. Protocol (a `wasm-bindgen` crate over `jxl` 0.7.4, three arms by row JXL's timing) and rule — `docs/codecs/jpeg-xl.md` §jxl-rs in WASM |
 | 187 | **INITIALREPLY** — answering a repeated Initial with the unacknowledged server flight: a lost first flight's 700 ms cut, nothing sent on clean links; theory | done `77dfcfe7` on `claude/av1-unified-mainbase` — theory: quinn-proto 0.11.18 only ACKs a repeated client Initial (`process_early_payload`) and waits for its 999 ms PTO; a once-per-connection reply is predicted **net against today** — the browsers' lost first flight **+699 ± 50 ms** (the repeat at +300 ms lifts the amplification budget, so the ECDSA chain fits), `cold_open` ±0, nothing sent under ~400 ms, one spurious 1.3–2.8 KB flight at 600–1 000 ms where Chromium already repeats — and **equal to the 100 ms initial-RTT arm for browsers**, so the owner's fallback if that arm is declined. Four-arm protocol (today, A′, reply, 100 ms) and rule — `docs/transport/transport-conclusions.md` §Answering a repeated Initial |
 | 188 | **JPEGLS** — CharLS in WASM on the target series: bytes and decode against OpenJPH, exact; theory | done `f2b591d6` on `claude/av1-unified-mainbase` — theory, CharLS read at 2.4.5: its decode loop is serial by construction (each pixel's context and prediction need the one before, `src/scan.h:360–381`), so no SIMD; by the sources JPEG-LS is **0.80–1.03 of HTJ2K's bytes** (0.92–0.95 on tomosynthesis) at **×2.7–3.4 OpenJPH's decode** — JPEG XL e2's corner, **a trade-off at best, never net**. Protocol (CharLS 2.4.5 to WASM under the pinned emscripten, a T1–T3 and reset grid for each set's best, row JXL's timing) and rule — `docs/decode/README.md` §Not yet tried, JPEG-LS through CharLS |
+| 189 | **INITIALMEASURE** — row 187's protocol: answering a client's repeated Initial with the unacknowledged server flight, against today, A′ and the 100 ms initial RTT | ready |
 
 ## Briefs
 
@@ -3730,7 +3731,19 @@ the lever can be net at all or is a trade-off for the owner. JPEGLS and JXLRS at
 defaults. **Deliverable:** the doc that owns the lever (the codec's doc under `docs/codecs/`, `docs/decode/README.md`,
 `docs/transport/transport-conclusions.md`). **Branch:** `claude/av1-unified-mainbase`.
 
+### 189 INITIALMEASURE
+
+**The owner, 2026-10-13:** investigate row 187. **Measurement, by row 187's protocol**
+([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §3, *Answering a repeated Initial*):
+read its four arms (today, A′, reply, the 100 ms initial RTT), predictions and rule, nothing else of row 187, before the
+numbers are in. The reply is built beside today's path, a server flag off by default, with a test that fails without it.
+**Deliverable:** that section's *Measured*. **Branch:** `claude/av1-unified-mainbase`.
+
 ## Blocked
+
+* *Owner rulings, 2026-10-13 (night):* row 183's ask-aware dispatch **needs a design first and is not pursued now**;
+  row 187 is **measured** (row 189). Rows 181 (the 38 400-byte initial window, adopted by its rule) and 182 (the GSO
+  cap of 24) wait on the owner's answer to the orchestrator's explanation.
 
 * **2026-10-13, row 182 FASTCLOCK (for the owner):** the GSO cap of 24 meets its pre-stated rule — server CPU a MB
   ×0.79–0.86 at 32 sessions × 103 Mbit/s, fills and asks a tie (`docs/transport/link-conditions.md` §Re-measured,
