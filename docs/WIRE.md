@@ -92,6 +92,7 @@ of envelopes, so both are read by the same code.
 | --- | --- | --- |
 | `shared` (default) | one uni, opened at session start, for the whole session; frames arrive strictly in ask order | none set |
 | `per-frame` | one uni per frame, finished after it; the session waits up to 2 s for outstanding finishes when it ends, however it ends | each stream ranks by ask order: an earlier ask outranks a later one, so a lost frame's retransmit goes before newer frames' data |
+| `per-frame-asks-first` (lab only) | as `per-frame` | every frame asked by name ranks above every frame a fill recites, each kind in ask order: [`native/quic-compared.md`](native/quic-compared.md) §9.5 |
 
 Why `shared` is the default, and what `per-frame` (and the retired `pool:k`, in history at `6e9c126`)
 cost under loss: [`adr/stream-shape.md`](adr/stream-shape.md).

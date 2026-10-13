@@ -27,6 +27,7 @@ function maybeDone() {
   Promise.all(Object.values(sha)).then(() => {
     globalThis.__result = {
       askMs: askDoneAt - askAt, fillMs: fillLast - issuedAt, landedBeforeAsk, ahead,
+      landedMs: [...Array(N).keys()].map((i) => landed.get(i) - issuedAt),
       sha: Object.fromEntries(Object.entries(sha).map(([i, p]) => [i, p.value])),
     };
     client.close();

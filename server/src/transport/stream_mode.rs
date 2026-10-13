@@ -10,6 +10,8 @@ pub enum StreamMode {
     Shared,
     /// Independent delivery per frame; allows `set_priority` and `reset`.
     PerFrame,
+    /// Lab only: per-frame, every ask's stream ranked above every fill stream. `docs/native/quic-compared.md` §9.5.
+    PerFrameAsksFirst,
 }
 
 impl fmt::Display for StreamMode {
@@ -17,6 +19,7 @@ impl fmt::Display for StreamMode {
         match self {
             Self::Shared => f.write_str("shared"),
             Self::PerFrame => f.write_str("per-frame"),
+            Self::PerFrameAsksFirst => f.write_str("per-frame-asks-first"),
         }
     }
 }
@@ -28,7 +31,8 @@ impl FromStr for StreamMode {
         match s {
             "shared" => Ok(Self::Shared),
             "per-frame" => Ok(Self::PerFrame),
-            _ => Err(format!("expected `shared` or `per-frame`, got `{s}`")),
+            "per-frame-asks-first" => Ok(Self::PerFrameAsksFirst),
+            _ => Err(format!("expected `shared`, `per-frame` or `per-frame-asks-first`, got `{s}`")),
         }
     }
 }
@@ -40,7 +44,7 @@ mod tests {
     /// Every spelling the CLI and the lab scripts pass round-trips through its own label.
     #[test]
     fn every_mode_round_trips_through_its_label() {
-        for s in ["shared", "per-frame"] {
+        for s in ["shared", "per-frame", "per-frame-asks-first"] {
             let mode: StreamMode = s.parse().expect("parses");
             assert_eq!(mode.to_string(), s, "`{s}` did not round-trip");
         }

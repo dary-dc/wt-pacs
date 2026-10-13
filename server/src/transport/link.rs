@@ -11,7 +11,7 @@ use frame_envelope::{frame_head, FRAME_HEAD_LEN};
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
-use tracing::warn;
+use tracing::{debug, warn};
 use wtransport::stream::SendStream;
 use wtransport::Connection;
 
@@ -34,7 +34,8 @@ pub(crate) enum Link {
 
 pub(crate) enum Media {
     Shared(SendStream),
-    PerFrame { acks: JoinSet<()>, seq: u32 },
+    /// `asks` counts the asks served when they rank above every fill (`per-frame-asks-first`).
+    PerFrame { acks: JoinSet<()>, seq: u32, asks: Option<u32> },
 }
 
 /// The opening ask is served before the client opens control, so its stream may still be coming.
@@ -61,17 +62,21 @@ impl Link {
                     .await
                     .context("shared uni ready")?,
             ),
-            StreamMode::PerFrame => Media::PerFrame { acks: JoinSet::new(), seq: 0 },
+            StreamMode::PerFrame => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: None },
+            StreamMode::PerFrameAsksFirst => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: Some(0) },
         };
         Ok(Self::Quic { media, control, connection, stall_left, cwnd_ahead })
     }
 
     /// `body` is the whole codestream in the reader's own buffer; quinn keeps it until the
     /// peer acknowledges it and the pool gets it back. `media/frame_pool.rs`.
-    pub(crate) async fn send_frame(&mut self, idx: u32, body: Bytes) -> Result<()> {
+    pub(crate) async fn send_frame(&mut self, idx: u32, body: Bytes, ask: bool) -> Result<()> {
         let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
         match self {
             Self::Quic { media, connection, stall_left, cwnd_ahead, .. } => {
+                if ask {
+                    debug!(frame = idx, cwnd = connection.quic_connection().stats().path.cwnd, "ask written");
+                }
                 if let Some(ahead) = cwnd_ahead {
                     let quic = connection.quic_connection();
                     quic.set_send_window(quic.stats().path.cwnd + *ahead);
@@ -80,7 +85,7 @@ impl Link {
                 match stall_left {
                     Some(left) if whole > *left => {
                         let (head, body, whole) = within(head, body, *left as usize);
-                        media.send(connection, head, body, whole).await?;
+                        media.send(connection, head, body, whole, ask).await?;
                         connection.closed().await;
                         Err(anyhow!("the session stalled after its byte budget"))
                     }
@@ -88,7 +93,7 @@ impl Link {
                         if let Some(left) = stall_left {
                             *left -= whole;
                         }
-                        media.send(connection, head, body, true).await
+                        media.send(connection, head, body, true, ask).await
                     }
                 }
             }
@@ -126,17 +131,21 @@ impl Link {
 
 impl Media {
     /// `whole` false is the lab stall's cut frame, whose stream must never finish.
-    async fn send(&mut self, connection: &Connection, head: Bytes, body: Bytes, whole: bool) -> Result<()> {
+    async fn send(&mut self, connection: &Connection, head: Bytes, body: Bytes, whole: bool, ask: bool) -> Result<()> {
         match self {
             Self::Shared(uni) => write_frame(uni, head, body).await,
-            Self::PerFrame { acks, seq } => {
+            Self::PerFrame { acks, seq, asks } => {
                 let mut uni = connection
                     .open_uni()
                     .await
                     .context("open uni")?
                     .await
                     .context("open uni ready")?;
-                let _ = uni.set_priority(take_priority(seq));
+                let priority = match asks {
+                    Some(asks) if ask => take_ask_priority(asks),
+                    _ => take_priority(seq),
+                };
+                let _ = uni.set_priority(priority);
                 write_frame(&mut uni, head, body).await?;
                 // A dropped stream is finished, so a cut one is held open instead.
                 acks.spawn(async move {
@@ -183,6 +192,13 @@ fn ask_priority(seq: u32) -> i32 {
 fn take_priority(seq: &mut u32) -> i32 {
     let p = ask_priority(*seq);
     *seq = seq.saturating_add(1);
+    p
+}
+
+/// Above every fill's rank (≤ 0), earlier asks above later ones.
+fn take_ask_priority(asks: &mut u32) -> i32 {
+    let p = i32::MAX - i32::try_from(*asks).unwrap_or(i32::MAX).min(i32::MAX - 1);
+    *asks = asks.saturating_add(1);
     p
 }
 
@@ -233,6 +249,19 @@ mod tests {
         let mut seq = 0;
         let ranks: Vec<i32> = (0..3).map(|_| take_priority(&mut seq)).collect();
         assert_eq!(ranks, [0, -1, -2]);
+    }
+
+    /// With asks first, every ask ranks above every fill frame, however many of either came
+    /// before, and earlier asks above later ones.
+    #[test]
+    fn asks_first_rank_every_ask_above_every_fill() {
+        let (mut seq, mut asks) = (0, 0);
+        let fill: Vec<i32> = (0..3).map(|_| take_priority(&mut seq)).collect();
+        let ask: Vec<i32> = (0..3).map(|_| take_ask_priority(&mut asks)).collect();
+        assert!(ask.windows(2).all(|w| w[0] > w[1]), "later asks not ranked below earlier ones: {ask:?}");
+        assert!(ask.iter().all(|a| fill.iter().all(|f| a > f)), "an ask ranks at or below a fill: {ask:?} {fill:?}");
+        let (mut seq, mut asks) = (0, u32::MAX);
+        assert!(take_ask_priority(&mut asks) > take_priority(&mut seq), "the last ask ranks at or below the first fill");
     }
 
     /// A budget cuts the envelope where it ends, head first, and only a budget that covers the

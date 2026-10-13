@@ -15,7 +15,7 @@ struct Args {
     cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     key_pem: PathBuf,
-    /// How frames reach the client: `shared` or `per-frame`.
+    /// How frames reach the client: `shared` or `per-frame` (lab only: `per-frame-asks-first`).
     #[arg(long, default_value = "shared")]
     stream_mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to

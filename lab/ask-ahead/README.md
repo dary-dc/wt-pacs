@@ -14,7 +14,11 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   (`lab/scripts/link_impair.py --self-timing`, under `chrt -f $RELAY_CHRT` when set); one headless Chromium
   (`visit.mjs`) loads `index.html` for every run. One JSON row per run: the ask's time to its frame, the fill's issue
   to its last frame, the fill frames that landed between the ask and its frame (`ahead`), whether every frame's
-  SHA-256 matched, the server's peak RSS over its idle RSS, its `session path` line, the relay's p99 and `VOID`.
+  SHA-256 matched, the longest wait between two fill frames becoming usable in order (`gap_ms`), the server's cwnd
+  when it wrote the ask (`cwnd_at_ask`), its peak RSS over its idle RSS, its `session path` line, the relay's p99
+  and `VOID`. A `CELL` of `RATE/RTT/QUEUE/lossP` adds `P` % iid loss. `ARMS` names any set of arms, a bare name
+  being today's server: STREAMSMEASURE (row 180) ran `ARMS="shared,window=--send-window-follows-cwnd,perframe=--stream-mode
+  per-frame,asksfirst=--stream-mode per-frame-asks-first"`, read by `streams.py`.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
 * The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once half has
   landed, asks for the last frame.

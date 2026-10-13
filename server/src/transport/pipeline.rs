@@ -22,13 +22,14 @@ pub(crate) trait FramePipeline: Send {
     /// `frame` and `next` come from the planner, which has already refused anything out of range.
     async fn serve(&mut self, frame: u32, next: &Next) -> Result<()> {
         let body = self.read(frame, next).await?;
-        self.write(frame, body).await
+        self.write(frame, body, matches!(next, Next::Tiles(_))).await
     }
 
     /// The frame's bytes, by the reader `next` names, with `next`'s reads started underneath.
     async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes>;
 
-    async fn write(&mut self, frame: u32, body: Bytes) -> Result<()>;
+    /// `ask` is a frame asked by name, not one a fill recites.
+    async fn write(&mut self, frame: u32, body: Bytes, ask: bool) -> Result<()>;
 
     async fn refuse(&mut self, frame: u32, reason: String) -> Result<()>;
 
@@ -92,8 +93,8 @@ impl FramePipeline for ProductPipeline {
         }
     }
 
-    async fn write(&mut self, frame: u32, body: Bytes) -> Result<()> {
-        self.link.send_frame(frame, body).await
+    async fn write(&mut self, frame: u32, body: Bytes, ask: bool) -> Result<()> {
+        self.link.send_frame(frame, body, ask).await
     }
 
     async fn refuse(&mut self, frame: u32, reason: String) -> Result<()> {
@@ -166,9 +167,9 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         read
     }
 
-    async fn write(&mut self, frame: u32, body: Bytes) -> Result<()> {
+    async fn write(&mut self, frame: u32, body: Bytes, ask: bool) -> Result<()> {
         let envelope_len = INDEX_LEN + body.len();
-        let written = self.inner.write(frame, body).await;
+        let written = self.inner.write(frame, body, ask).await;
         match &written {
             Ok(()) => self.tap.emit_sent(envelope_len),
             Err(_) => self.tap.emit_failed(),
@@ -234,7 +235,7 @@ mod tests {
             Ok(Bytes::new())
         }
 
-        async fn write(&mut self, _frame: u32, _body: Bytes) -> Result<()> {
+        async fn write(&mut self, _frame: u32, _body: Bytes, _ask: bool) -> Result<()> {
             if !self.write_delay.is_zero() {
                 tokio::time::sleep(self.write_delay).await;
             }

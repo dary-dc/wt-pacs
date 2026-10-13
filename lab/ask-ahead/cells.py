@@ -33,8 +33,10 @@ def free_port(kind=socket.SOCK_DGRAM):
 
 
 def link(cell):
-    rate, rtt, queue = cell.split("/")
+    rate, rtt, queue, *loss = cell.split("/")
     args = ["--delay-ms", str(int(rtt) / 2), "--rate-kbit", str(int(float(rate) * 1000)), "--self-timing"]
+    if loss:
+        args += ["--loss", loss[0].removeprefix("loss")]
     if queue == "codel":
         return args + ["--queue-ms", "800", "--codel", "5:100"]
     return args + ["--queue-ms", queue.removeprefix("fifo")]
@@ -62,7 +64,7 @@ def run(t, visit, http, cell, arm, rnd, prev):
     srv, inp, ctrl = free_port(), free_port(), free_port()
     slog, rlog = t / "server.log", t / "relay.log"
     with open(slog, "w") as f:
-        server = subprocess.Popen([SERVER, "--port", str(srv), "--bind", "127.0.0.1", "--series", t / "series.sbnd",
+        server = subprocess.Popen(env={**os.environ, "RUST_LOG": "series_server::transport::link=debug"}, args=[SERVER, "--port", str(srv), "--bind", "127.0.0.1", "--series", t / "series.sbnd",
                                    "--cert-pem", t / "cert.pem", "--key-pem", t / "key.pem", *ARMS[arm]],
                                   stdout=f, stderr=subprocess.STDOUT)
     with open(rlog, "w") as f:
@@ -79,6 +81,7 @@ def run(t, visit, http, cell, arm, rnd, prev):
     r = json.loads(visit.stdout.readline())
     # The page's close is still in the relay's queue; the server logs the session once it lands.
     path = wait_for(slog, r"session path .*?rtt_us=(\d+) cwnd=(\d+) sent=(\d+) lost=(\d+)", server, 5)
+    asked = wait_for(slog, r"ask written.*?cwnd=(\d+)", server, 1)
     hwm = status(server.pid, "VmHWM")
     server.terminate()
     relay.terminate()
@@ -92,10 +95,21 @@ def run(t, visit, http, cell, arm, rnd, prev):
             "fill_ms": round(r["fillMs"], 1) if "fillMs" in r else None,
             "ahead": r.get("ahead"), "ahead_bytes": sum(t.sizes[i] for i in r.get("ahead") or []),
             "exact": bool(sha_ok), "error": r.get("error") or (r.get("errors") or [None])[0],
+            "gap_ms": gap(r["landedMs"]) if "landedMs" in r else None,
+            "cwnd_at_ask": int(asked.group(1)) if asked else None,
             "rss_session_kb": hwm - rss0,
             "rtt_ms": int(path.group(1)) / 1000 if path else None, "cwnd": int(path.group(2)) if path else None,
             "sent": int(path.group(3)) if path else None, "lost": int(path.group(4)) if path else None,
             "relay_p99_ms": float(late[-1]) if late else None, "void": not late or "VOID" in tally}
+
+
+def gap(landed):
+    """The longest wait between two frames becoming usable in order, the asked (last) frame left out."""
+    usable, last = [], 0.0
+    for t in landed[:-1]:
+        last = max(last, t)
+        usable.append(last)
+    return round(max(b - a for a, b in zip(usable, usable[1:])), 1)
 
 
 class Rig(type(Path())):
@@ -106,7 +120,7 @@ def main():
     series, rounds, cells = Path(sys.argv[1]).resolve(), int(sys.argv[2]), sys.argv[3:]
     for spec in os.environ.get("ARMS", "today,follow").split(","):
         name, _, flag = spec.partition("=")
-        if flag:
+        if flag or name not in ARMS:
             ARMS[name] = flag.split()
     arms = os.environ.get("ARMS", "today,follow").split(",")
     arms = [a.partition("=")[0] for a in arms]

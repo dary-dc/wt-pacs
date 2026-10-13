@@ -466,7 +466,7 @@ mod tests {
             self.seen.push((frame, next.clone()));
             Ok(bytes::Bytes::new())
         }
-        async fn write(&mut self, _frame: u32, _body: bytes::Bytes) -> Result<()> {
+        async fn write(&mut self, _frame: u32, _body: bytes::Bytes, _ask: bool) -> Result<()> {
             Ok(())
         }
         async fn refuse(&mut self, _frame: u32, _reason: String) -> Result<()> {
