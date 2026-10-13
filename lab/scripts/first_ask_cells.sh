@@ -6,7 +6,7 @@
 # The server's own `session path` line gives the window, loss and congestion events per variant.
 # Results and the verdict they correct: docs/transport/transport-conclusions.md §3.
 #
-#   lab/scripts/first_ask_cells.sh [repro|idle|together|queue|resume|wake|stw|late|keep|rebind] [rounds]
+#   lab/scripts/first_ask_cells.sh [repro|ceiling|iwdeep|idle|together|queue|resume|wake|stw|late|keep|rebind] [rounds]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -65,7 +65,7 @@ stop_server() { kill_ours "$SERVER_PID" series-server || true; SERVER_PID=""; sl
 
 RELAY_EXTRA=()
 start_relay() {  # rtt_ms; RELAY_EXTRA carries rate and queue when a cell wants them
-  python3 lab/scripts/link_impair.py --udp "$IN:$SRV" --delay-ms "$(($1 / 2))" \
+  ${RELAY_PREFIX:-} python3 lab/scripts/link_impair.py --udp "$IN:$SRV" --delay-ms "$(($1 / 2))" \
     --control-port "$CTRL" ${RELAY_EXTRA[@]+"${RELAY_EXTRA[@]}"} > "$T/relay.log" 2>&1 &
   RELAY_PID=$!
   for _ in $(seq 50); do grep -q READY "$T/relay.log" && return; sleep 0.1; done
@@ -141,6 +141,7 @@ one_round() {  # state warm idle series rtt server_args relay_args probe_args ->
   local cost
   cost=$(link_cost)
   stop_relay
+  [[ -n "${RAW_MS:-}" ]] && echo "$ms" > "$RAW_MS"  # the reading before a VOID replaces it
   grep -q VOID "$T/relay.log" && ms=void  # --self-timing: the relay, not the link, was late
   [[ $state != rebound ]] || grep -q REBOUND "$T/relay.log" || ms=nan  # the poke never landed
   stop_server
@@ -400,7 +401,72 @@ rebind_cells() {
   done
 }
 
+# The relay's ceiling at each IWDEEP rate: a sustained fill through a deep queue, its Mbit/s.
+ceiling_cells() {
+  local rate line fill
+  for rate in ${RATES:-18000 103000 309000}; do
+    RELAY_EXTRA=(--rate-kbit "$rate" --queue-ms 360 --self-timing)
+    start_server "$T/s250.sbnd"
+    start_relay "${CEILING_RTT:-2}"
+    line=$("$BIN/first_ask" --url "https://127.0.0.1:$IN/" --state filled --warm "$WARM" --target "$TARGET" \
+      --rounds "$ROUNDS" --expect-dir "$T/f250" 2>&1) || line="FAILED $line"
+    stop_relay
+    stop_server
+    fill=$(sed -n 's/.*fill_ms median=\([0-9.]*\).*/\1/p' <<<"$line")
+    printf 'ceiling rate=%s kbit fill_ms=%s delivered_mbit=%s %s\n' "$rate" "$fill" \
+      "$(python3 -c "print(round($WARM * 250000 * 8 / ($fill * 1000), 1))")" "$(grep -o 'VOID.*' "$T/relay.log" | head -1)"
+  done
+}
+
+# IWDEEP (docs/transport/link-conditions.md §Re-measured, proposed): quinn's 12 000-byte initial window
+# against 38 400 on a fresh ask-only session and a push-opened control, behind three queue depths.
+# One JSON row per run to $OUT; lab/iwdeep/summary.py reads them. RTTs and sizes are the protocol's.
+iwdeep_cells() {
+  local out="${OUT:?OUT=rows.jsonl}" rate rtt q kb n i k prev r raw link label iw a
+  local queues=("--queue-pkts 10" "--queue-ms 20" "--queue-ms 360")
+  RAW_MS="$T/raw"
+  for rate in ${RATES:-18000 103000 309000}; do
+    for rtt in ${IW_RTTS:-46 92}; do
+      for q in "${queues[@]}"; do
+        for kb in ${IW_SIZES:-250 50}; do
+          link="--rate-kbit $rate $q --self-timing"
+          VARIANTS=()
+          for iw in 12000 38400; do  # 12 000 is quinn's default, so that arm passes no flag
+            a="--initial-window-bytes $iw"; [[ $iw == 12000 ]] && a=""
+            variant "fresh iw $iw|fresh|$WARM|0|$a|$link|--expect-dir $T/f$kb"
+            variant "push iw $iw|open-push|4|0|$a|$link|--expect-dir $T/f$kb"
+          done
+          n=${#VARIANTS[@]}
+          for ((i = 0; i < ROUNDS; i++)); do
+            prev=-1
+            for k in $(python3 lab/scripts/order.py row "$n" "$i"); do
+              IFS='|' read -r label state warm idle srv rly probe <<<"${VARIANTS[k]}"
+              r=$(one_round "$state" "$warm" "$idle" "$T/s$kb.sbnd" "$rtt" "$srv" "$rly" "$probe")
+              raw=$(cat "$RAW_MS")
+              python3 - "$out" "$rate" "$rtt" "$q" "$kb" "$label" "$i" "$prev" "$raw" "$r" \
+                "$(grep -m1 '^transport=' "$T/server.log" || true)" <<'PY'
+import json, sys
+out, rate, rtt, q, kb, label, rnd, prev, raw, r, transport = sys.argv[1:]
+f = r.split()
+num = lambda x: None if x in ("-", "nan", "NaN", "void") else float(x)
+row = {"rate_kbit": int(rate), "rtt_ms": int(rtt), "queue": q.replace("--", ""), "kb": int(kb), "arm": label,
+       "round": int(rnd), "prev": int(prev), "ms": num(raw), "void": f[0] == "void",
+       "cwnd": num(f[1]), "sent": num(f[2]), "lost": num(f[3]), "cong": num(f[4]), "transport": transport}
+open(out, "a").write(json.dumps(row) + "\n")
+PY
+              prev=$k
+            done
+          done
+          printf '%s kbit %s ms %s %s KB: %s rounds done\n' "$rate" "$rtt" "$q" "$kb" "$ROUNDS"
+        done
+      done
+    done
+  done
+}
+
 case "$CELL" in
+  ceiling) ceiling_cells ;;
+  iwdeep) iwdeep_cells ;;
   repro) repro ;;
   rebind) rebind_cells ;;
   idle) idle_cells ;;

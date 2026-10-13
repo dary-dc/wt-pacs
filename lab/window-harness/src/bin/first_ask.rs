@@ -79,6 +79,21 @@ struct Args {
     /// has no more than this in flight, whatever the controller would send.
     #[arg(long)]
     stream_recv_window: Option<u64>,
+    /// The packed frames' source directory: every frame delivered must equal its `NNN.htj2k`.
+    #[arg(long)]
+    expect_dir: Option<std::path::PathBuf>,
+}
+
+/// The next frame, checked against its source file when `--expect-dir` is set.
+async fn take(frames: &mut Frames, args: &Args) -> Result<(u32, usize)> {
+    let (index, body) = frames.next_body(args.timeout_ms).await?;
+    if let Some(dir) = &args.expect_dir {
+        let want = std::fs::read(dir.join(format!("{index:03}.htj2k"))).context("source frame")?;
+        if body != want {
+            bail!("frame {index} is not its source: {} bytes against {}", body.len(), want.len());
+        }
+    }
+    Ok((index, body.len()))
 }
 
 fn poke(port: u16, cmd: &str) -> Result<()> {
@@ -112,14 +127,14 @@ async fn ask(
     control: &mut wtransport::SendStream,
     frames: &mut Frames,
     frame: u32,
-    timeout_ms: u64,
+    args: &Args,
 ) -> Result<(f64, usize)> {
     let asked = Instant::now();
     control
         .write_all(&encode_fod_msg(&FodMsg::RequestFrame { frame })?)
         .await
         .context("request_frame")?;
-    let (index, bytes) = frames.next(timeout_ms).await.context("the ask")?;
+    let (index, bytes) = take(frames, args).await.context("the ask")?;
     if index != frame {
         bail!("asked for {frame} and got {index}");
     }
@@ -159,7 +174,7 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize, f64, Vec<f64>)> {
     let filling = Instant::now();
     if args.state == State::OpenPush {
         for _ in 0..args.warm {
-            frames.next(args.timeout_ms).await.context("pushed frame")?;
+            take(&mut frames, args).await.context("pushed frame")?;
         }
     } else if args.state != State::Fresh {
         control
@@ -172,7 +187,7 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize, f64, Vec<f64>)> {
             .context("stream_frames")?;
         blackout_at(args, 0)?;
         for i in 0..args.warm {
-            frames.next(args.timeout_ms).await.context("warm frame")?;
+            take(&mut frames, args).await.context("warm frame")?;
             blackout_at(args, i + 1)?;
         }
         fill_ms = filling.elapsed().as_secs_f64() * 1000.0;
@@ -191,15 +206,15 @@ async fn one_round(args: &Args) -> Result<(f64, f64, usize, f64, Vec<f64>)> {
         tokio::time::sleep(Duration::from_millis(lead)).await;
     }
 
-    let (ms, bytes) = ask(&mut control, &mut frames, args.target, args.timeout_ms).await?;
+    let (ms, bytes) = ask(&mut control, &mut frames, args.target, args).await?;
     let next = if args.next_ask {
-        ask(&mut control, &mut frames, args.target + 1, args.timeout_ms).await?.0
+        ask(&mut control, &mut frames, args.target + 1, args).await?.0
     } else {
         f64::NAN
     };
     let mut steady = Vec::new();
     for frame in args.target + 1..args.target + args.asks {
-        steady.push(ask(&mut control, &mut frames, frame, args.timeout_ms).await?.0);
+        steady.push(ask(&mut control, &mut frames, frame, args).await?.0);
     }
     connection.close(0u32.into(), b"done");
     // The close ends the session, and the end is what prints the server's `session path` line.
