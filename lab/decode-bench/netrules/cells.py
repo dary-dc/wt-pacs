@@ -2,10 +2,13 @@
 """Row NETMEASURE's raw rounds as lab/scripts/aa_rule.py's cells, judged: one line a cell, both readings where a
 visit was VOID (strict drops the round in all three arms; round-paired keeps it).
 
-    cells.py CAMPAIGN [--confirm TAG] [--bar 0.05]      CAMPAIGN as run.sh names it — lab/decode-bench/netrules/README.md
+    cells.py CAMPAIGN [--with TAG] [--confirm TAG] [--bar 0.05]   — lab/decode-bench/netrules/README.md
+
+CAMPAIGN as run.sh names it; --with adds a later campaign's rounds to the same cells (n up to 24), --confirm judges
+the flagged cells again on fresh rounds.
 """
-import glob
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -22,9 +25,13 @@ ARMS = {"emsdk-frame": ("ojph-del-3.1.74", "ojph-delcopy-3.1.74", ["ojph-em6-6.0
         "copy-net": ("del", "delcopy", ["copy"])}
 
 
+def files(tag):
+    return sorted(f for f in RAW.iterdir() if re.fullmatch(rf"{re.escape(tag)}(-chromium|-firefox)?-\d+\.json", f.name))
+
+
 def frame_rows(tag):
     """A frame: the round's median ms a frame for each (engine, set, throttle, arm); every frame exact or no value."""
-    for f in sorted(glob.glob(str(RAW / f"{tag}-*.json"))):
+    for f in files(tag):
         for r in json.load(open(f)):
             ok = not r.get("error") and r["exact"] == r["frames"] and r["ms"]
             yield (r.get("engine", "chromium"), r["set"], f"{r['throttle']}x"), r["round"], r["variant"], \
@@ -32,7 +39,7 @@ def frame_rows(tag):
 
 
 def memory_rows(tag):
-    for f in sorted(glob.glob(str(RAW / f"{tag}-*.json"))):
+    for f in files(tag):
         for r in json.load(open(f)):
             yield (r["engine"], r["set"]), r["round"], r["variant"], {"peakMB": r["peakKb"] / 1024 if r.get("kept") else None}, False
 
@@ -46,15 +53,16 @@ def net_rows(tag):
         for line in open(p):
             r = json.loads(line)
             ok = r["exact"] == r["owed"] and not r.get("failures")
-            v = {"fill": r.get("decodedMs") if mode == "fill" else (r.get("afterMs") or [None])[0]}
-            if mode == "fill" and ok:
+            v = {"ms": r.get("decodedMs") if mode == "fill" else (r.get("afterMs") or [None])[0]}
+            if mode == "fill" and tag.startswith("start-net"):
                 v.update(cpuMs=r.get("cpuMs"), wakes=r.get("wakes"), decoders=r.get("decodersUsed"))
             yield (mode, r["set"], r["link"], f"{r['throttle']}x"), r["round"], r["variant"], \
                 {k: (x if ok else None) for k, x in v.items()}, r["void"]
 
 
-def cells(tag, campaign):
-    rows = memory_rows(tag) if campaign == "copy-memory" else frame_rows(tag) if campaign.endswith("frame") else net_rows(tag)
+def cells(tags, campaign):
+    rows = [x for tag in tags for x in (memory_rows(tag) if campaign == "copy-memory" else
+                                        frame_rows(tag) if campaign.endswith("frame") else net_rows(tag))]
     by = {}
     for key, rnd, arm, values, void in rows:
         for metric, x in values.items():
@@ -80,8 +88,8 @@ def cells(tag, campaign):
 def main(argv):
     campaign = argv[0]
     bar = float(argv[argv.index("--bar") + 1]) if "--bar" in argv else 0.05
-    first = cells(campaign, campaign)
-    second = cells(argv[argv.index("--confirm") + 1], campaign) if "--confirm" in argv else None
+    first = cells([campaign] + ([argv[argv.index("--with") + 1]] if "--with" in argv else []), campaign)
+    second = cells([argv[argv.index("--confirm") + 1]], campaign) if "--confirm" in argv else None
     voids = any(None in c["ref"] for c in first["paired"].values()) or first["strict"] != first["paired"]
     for reading in ("strict", "paired") if voids else ("strict",):
         judged = judge(first[reading], second and second[reading], bar)

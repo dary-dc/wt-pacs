@@ -3,6 +3,7 @@
 # each after /proc/stat's steal reads ≤ 2 % over 10 s, the fill and the cold ask in an order that alternates by round.
 #
 #   lab/decode-bench/netrules/run.sh emsdk-frame|emsdk-net|start-net|copy-frame|copy-memory|copy-net ROUNDS [FIRST] [TAG]
+#   LINKS=n100000 narrows a fill or ask campaign to that link (a confirming run).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$ROOT"
@@ -19,7 +20,7 @@ steal_ok() {
 }
 gate() { until steal_ok; do echo "round $1: steal over 2 %, waiting" >&2; done; }
 
-NET=(--links n100000,n300000 --frames $W)
+NET=(--links "${LINKS:-n100000,n300000}" --frames $W)
 for ((r = FIRST; r < FIRST + ROUNDS; r++)); do
   gate "$r"
   case $WHAT in
