@@ -1455,6 +1455,74 @@ arm's extra round trip is the amplification budget's signature. Whether LTE-load
 arm meets as often (9 and 11 visits of 80), count against the 100 ms arm is the review's call. The default is unchanged by this row.
 
 
+### Answering a repeated Initial, 2026-10-13
+
+*Queue row INITIALREPLY (187). Theory: quinn-proto 0.11.18 read as carried here, and row 139's measurements above;
+nothing built or timed. The protocol below is for a separate session given it and its rule only.*
+
+**The question.** Does answering a client's repeated Initial with the unacknowledged server flight cut a lost first
+flight's wait, with nothing sent on clean links? This is alternative 2 above.
+
+**Today.** A client Initial that repeats CRYPTO data the server already has is not a duplicate packet: it has a new
+packet number. `read_crypto` inserts its bytes as a no-op (`src/connection/mod.rs:2097`). `process_early_payload`
+then only marks an immediate ACK (`:2736–2740`). That is the "second round of server datagrams" row 139 counted on
+Chromium at 600 and 1 000 ms. The server's lost flight is resent only by its own PTO
+(`on_loss_detection_timeout`, `:1658–1693`). The carried probe-every-space patch extends that PTO to every space with
+data in flight. At the default 333 ms the PTO fires at 999 ms.
+
+**The change.** On the server, while handshaking, at most once per connection: when an Initial brings no new CRYPTO
+data and the server has Initial or Handshake data in flight, queue one probe in each space with data in flight. That
+is `on_loss_detection_timeout`'s `loss_probes`, without `pto_count` or the timer. The probe goes out with the
+immediate ACK already owed. RFC 9002 §6.2.3 allows it ("MAY … for a limited number of times per connection … earlier
+than the PTO expiry, subject to the address validation limits").
+
+**Predictions, by case:**
+
+* **The server's first flight lost** (row 139's cell A). Chromium and neqo run a 100 ms initial RTT, so their PTO
+  repeats the Initial at +300 ms (above). The reply leaves the moment that repeat lands. The client is then ready at
+  about 300 ms + 1 RTT + the handshake, against today's 999 ms + 1 RTT: **+699 ± 50 ms on Chromium and Firefox,
+  both certificates.** On the ECDSA chain the repeat itself lifts the amplification budget by 3 × its ≥ 1 200 B. So
+  the whole 2 810 B flight fits, and the chain is predicted at +699 too, where the 100 ms arm's own probe waited for
+  budget on `cold_open` (+739 to +850). For `cold_open` (a quinn client, 333 ms) the repeat comes at +999 ms, with the
+  server's own PTO: **+0 ± 50.**
+* **Random loss, 1 % each way** (cell B). The opens that today wait for a server PTO (0.8 % of `cold_open`'s, none of
+  Chromium's in row 139) gain only where the client repeats first: Chromium and Firefox. Medians ± 1 ms.
+* **Slow and clean** (cell C). Nothing is sent unless the client repeats. Chromium repeated in 0 of 40 opens at 300
+  and 400 ms and in 38–40 of 40 at 600 and 1 000 ms. So no extra server datagram at ≤ 400 ms. At 600 and 1 000 ms,
+  one spurious flight of 1.3–2.8 KB an open, answering a repeat that was itself spurious; `cold_open` at 1 000 ms
+  only. No time change, no congestion event (a probe is not one in quinn, above), `cwnd` equal.
+* **With the 100 ms arm** (alternative 1). The server's PTO (300 ms after its send) and the client's repeat (300 ms
+  after its own, landing RTT/2 later) fire within one-way delay of each other. So for the browsers the reply adds
+  **nothing over the 100 ms arm**: ± 50 ms in cell A.
+
+**Net or a trade-off.** Against today it is predicted **net**: the browsers' lost first flight 0.7 s sooner. Nothing
+is sent on links under ~400 ms, and only bytes on slower ones, where the client already sent a spurious repeat. Its
+cost is code: a second carried patch to quinn-proto, with a unit test. **Against the 100 ms arm** it is predicted equal
+for the browsers. It is better only where the 100 ms arm is weak: `cold_open` on the chain, a lab client, and the
+probes the 100 ms arm sends `cold_open` on slow links. So it is the owner's fallback, as row 139 placed it, if the
+owner declines the 100 ms default (an open owner call: row 139 left it to a review that has no row). Both together buy nothing more.
+
+**Protocol, for a separate session (the measuring row):**
+
+* **Build**, a lab flag `--reply-repeated-initial` (off by default), as the change above in a patch beside
+  `patches/quinn-proto-0.11.18-probe-every-space.patch`, applied by `scripts/patch_crate.sh`. Its unit test must fail
+  without it: a server whose first flight is dropped, then the client's repeated Initial. The server must resend its
+  CRYPTO before its PTO, once, and a second repeat must draw only an ACK.
+* **Arms:** today (333 ms), today again (A′), R (333 ms + the flag), H (`--initial-rtt-ms 100`), in
+  `lab/scripts/order.py`'s order, both certificates. Every other setting is printed and equal.
+* **Cells:** row 139's A (40, 80, 150 ms, the first flight swallowed; Chromium 141, Firefox 157, `cold_open`; n = 20),
+  B (1 % each way at 80 ms, ≥ 1 000 opens an arm, Chromium and `cold_open`) and C (300, 400, 600, 1 000 ms and
+  LTE-loaded). The same reports as row 139, plus server datagrams and bytes from the repeat to the first ACK. Both
+  readings where `VOID`s occur.
+* **Rule:**
+  * **R is net against today** if, in both readings:
+    * cell A puts R ahead by 699 ± 50 ms on Chromium and Firefox, both certificates;
+    * no C cell has a server datagram beyond today's where the client sent no repeat;
+    * every C and B median is within the A/A spread, with no congestion event beyond today's.
+  * Then **R against H** goes to the owner with both readings. If R ties H on the browsers (± 50 ms in A), the choice
+    is a setting against a carried patch, and this row recommends H unless the owner refuses H's slow-link probes.
+  * If R misses cell A on a browser, the repeat is not the clock: say which client and close it.
+
 ### After a blink, 2026-09-19
 
 *Queue row W3.* [`../../lab/scripts/blink_cells.sh`](../../lab/scripts/blink_cells.sh), five rounds a cell,
