@@ -932,6 +932,63 @@ with and without row 171's send window, at no cost to the fill?
   * A fill worse beyond its spread in any arm makes that arm a trade-off whatever its ask.
   * Arm 3 slower than arm 1 confirms §9.4; arm 3 faster refutes the model, and the row says so.
 
+**Measured (row 180, STREAMSMEASURE, 2026-10-13): a trade-off for the owner; `shared` stays the default.** Run in a
+session given only the protocol and its rule; `lab/ask-ahead` (`cells.py`, read by `streams.py`; rows
+`rows-streams.jsonl`). Arms: `shared`; `--send-window-follows-cwnd`; `--stream-mode per-frame`; `--stream-mode
+per-frame-asks-first`, built beside today's path for this row (lab only, [`../WIRE.md`](../WIRE.md) §Stream modes).
+Every arm Cubic (`cubic-restart`), quinn's initial window, the 10 MB send window except arm 2, the same release
+build, Chromium 141.0.7390.37 through the product's downloader with decoding off; the 10-bit DBT volume
+(`dbt10_ea1141`, 24 frames, 13.6 MB HTJ2K, every frame decoded and matched with its fetch checksum before packing),
+the ask for the last frame once half has landed. 10 rounds, arms Williams-ordered per cell (`order.py`), relay under
+`chrt -f 50`: 640 runs, **640/640 exact** by SHA-256 against the packed codestreams, 111 `VOID`. Definitions fixed
+before the data (`streams.py`): an arm's spread is its [min, max] over rounds; "beats" is a median ask ≤ 0.85 of the
+better of arms 1–2; "worse beyond the spread" is a median above that arm's max; a fill is worse beyond its spread when
+its median is above `shared`'s max.
+
+* **309 Mbit/s is not sustained here:** its clean cells are `VOID` in 10–18 of 40 visits (5–10 of 10 rounds; the
+  relay's p99 0.72 ms median, against 0.35–0.41 at 18 and 103). Its numbers are in the rows; nothing is claimed for
+  them. Its 1 % loss cells run loss-limited near 3 Mbit/s (2/40 `VOID`) and are claimed.
+* **Ask, median of 10 (round-paired; strict, with no `VOID` arm in the round, n = 5–10, gives the same verdict on every
+  claimed cell, its ratios within 0.03):**
+
+  | cell | `shared` | window | `per-frame` | asks first | asks first ÷ the better of 1–2 |
+  | --- | --- | --- | --- | --- | --- |
+  | 18 Mbit/s, 46 ms, FIFO 20 ms | 3 118 | 1 025 | 3 115 | **314** | ×0.31 |
+  | 18, FIFO 360 | 3 081 | 1 026 | 3 076 | **542** | ×0.53 |
+  | 18, FIFO 800 | 2 268 | **925** | 2 187 | 1 818 | **×1.97, worse beyond** |
+  | 103, 46 ms, FIFO 20 | 537 | 223 | 536 | **97** | ×0.43 |
+  | 103, FIFO 360 | **537** | 537 | 561 | 561 | **×1.05, worse beyond** ([535–537]) |
+  | 103, FIFO 800 | 537 | 536 | 536 | 536 | ×1.00 |
+  | 18, 1 % loss | 20 954 | 5 315 | 21 353 | **1 792** | ×0.34 |
+  | 103, 1 % loss | 20 099 | 5 246 | 20 471 | **1 707** | ×0.33 |
+  | 309, 46 ms, 1 % loss | 20 258 | 5 233 | 19 870 | **1 728** | ×0.33 |
+  | 309, 92 ms, 1 % loss | 39 587 | 11 006 | 40 846 | **3 060** | ×0.28 |
+
+* **The fill** (issue → last frame) is within `shared`'s spread for asks first in every 20 ms and loss cell, and
+  outside it by +0.1 % (18/360), +2.5 % (18/800) and +1.7 % (103/360), medians against `shared`'s; window +5.0 % at
+  103/20 (1 455 against 1 379–1 450 ms), +0.8 % at 18/360 and 18/800, +0.1 % at 103/800; `per-frame` +2.4 % (18/800),
+  +1.9 % (103/360), +0.1 % (103/800).
+* **Rule:** asks first beats arms 1–2 by ≥ 15 % in every claimed short-queue cell (×0.28–0.43), but not behind deep
+  FIFOs and is worse beyond the spread at 18/800 and 103/360, and its fill is worse beyond `shared`'s in three deep
+  cells: **a trade-off for the owner**, with those cells as its cost. Both readings agree on it (strict leaves 309/92
+  FIFO 20 with no round, a cell not claimed).
+* **Predictions:** arm 4 the fastest ask in every 20 ms-queue cell — held in all six claimed. Arm 4 slower than arms
+  1–2 behind 800 ms at 103 and 309 — did not hold at 103 (a tie, 536 against 536–537); it was slower than window, not
+  `shared`, at 18 (1 818 against 925 and 2 268). Arm 3 the slowest everywhere — did not hold: it tied `shared`
+  (×0.96–1.03) in every claimed cell but 103/360 (×1.05); unclaimed, it was ×0.74–0.90 of `shared` at 309/92. By the
+  rule's last line arm 3 neither confirms nor refutes §9.4 on the claimed cells. Fill within its spread in every arm
+  and clean cell — did not hold (above). Under 1 % loss at 309, arm 4's largest in-order gap below arms 1–2's — did
+  not hold: 3 234 and 6 135 ms against `shared`'s 2 358 and 4 710 (below window's 3 612 and 6 729); the same holds at
+  18 and 103. Arm 4's RSS above arm 2's — held everywhere: 12.5–13.5 MB a session against 4.1–9.4.
+* **Checks:** `asks_first_rank_every_ask_above_every_fill` failed under each of three mutations of the rank; a server
+  whose pipeline never marks an ask (`false && …`) put the ask behind all 11 written-ahead frames (536 ms, `ahead`
+  frames 12–22) where the build did not (95 ms, frame 12); `streams.py` turns to "default" and to "`shared` stays"
+  on rows with arm 4's asks scaled ×0.01 and ×100. One campaign stopped in round 8 on a relay's port taken between
+  probe and bind; that round's 56 runs were dropped whole and rounds 8–10 rerun (`FIRST_ROUND`, one retry on a start
+  that fails).
+* One container, 4 vCPU, server, relay and Chromium on one host; the cwnd at the ask (`cwnd_at_ask`) and the gap are
+  in the rows.
+
 **Further rows the theory points to:**
 * whether a phone session meets another flow's queue (§9.3's only throughput case for several streams) is a field
   measurement, with the open items of link-conditions.md;
@@ -948,6 +1005,9 @@ Kept apart from the theory above; each names its row.
   §4):** quinn patched from 10 to 45 segments cut CPU per ask by 16–21 %.
 * **Controllers (rows 75, 119, 121, same file §1):** in a browser under 1–3 % random loss BBR filled 12–19× faster
   than Cubic.
+* **Stream designs (row 180, §9.5 *Measured*):** ranking each ask's per-frame stream above every fill stream cut an
+  ask during a fill to ×0.28–0.43 of the better of `shared` and row 171's window behind 20 ms queues and under 1 %
+  loss, and cost behind deep FIFOs: a trade-off.
 * **Chromium's ACK_FREQUENCY:** Chromium 141 does not advertise it ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency).
 
 ## 11. Sources

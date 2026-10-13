@@ -18,7 +18,8 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   when it wrote the ask (`cwnd_at_ask`), its peak RSS over its idle RSS, its `session path` line, the relay's p99
   and `VOID`. A `CELL` of `RATE/RTT/QUEUE/lossP` adds `P` % iid loss. `ARMS` names any set of arms, a bare name
   being today's server: STREAMSMEASURE (row 180) ran `ARMS="shared,window=--send-window-follows-cwnd,perframe=--stream-mode
-  per-frame,asksfirst=--stream-mode per-frame-asks-first"`, read by `streams.py`.
+  per-frame,asksfirst=--stream-mode per-frame-asks-first"`, read by `streams.py`; `FIRST_ROUND=k` resumes a campaign at
+  round k.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
 * The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once half has
   landed, asks for the last frame.

@@ -158,11 +158,16 @@ def main():
                           "series": str(series.name), "relay_chrt": os.environ.get("RELAY_CHRT"), "frames": t.frames, "bytes": sum(t.sizes)}), flush=True)
         time.sleep(0.5)
         try:
-            for rnd in range(rounds):
+            for rnd in range(int(os.environ.get("FIRST_ROUND", 0)), rounds):
                 for cell in cells:
                     prev = None
                     for arm in order(arms, rnd):
-                        print(json.dumps(run(t, visit, http, cell, arm, rnd, prev)), flush=True)
+                        try:
+                            row = run(t, visit, http, cell, arm, rnd, prev)
+                        except RuntimeError:
+                            # A server or relay that failed to start (a port taken between probe and bind) measured nothing.
+                            row = run(t, visit, http, cell, arm, rnd, prev)
+                        print(json.dumps(row), flush=True)
                         prev = arm
         finally:
             visit.stdin.close()
