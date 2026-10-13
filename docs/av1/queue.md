@@ -3732,6 +3732,17 @@ defaults. **Deliverable:** the doc that owns the lever (the codec's doc under `d
 
 ## Blocked
 
+* **2026-10-13: owner calls named only in their docs (row 166's audit, added by row DOCFIX)**, each on
+  `claude/av1-unified-mainbase`: (1) the **GSO segment cap**, 24 or 45 behind the product's buffer
+  (`docs/transport/transport-conclusions.md` §9 item 6; FASTCLOCK prices it); (2) the **32-packet initial window**
+  (same, §9 item 3; IWDEEP decides it); (3) **`MALLOC_MMAP_THRESHOLD_=1048576`** in the unit, rest RSS −46 to −57 %
+  against CPU a tie to +5 % (`docs/adr/disk-access.md` §8); (4) the **keep-alive ADR**, proposed and off until accepted
+  (`docs/adr/transport-idle-sessions.md`); (5) **P0**, ring against pool on the production host, with no row
+  (`docs/adr/disk-access.md` §9 #1); (6) row 139's 100 ms initial-RTT arm left to "the review's call" with no review row
+  (`docs/transport/transport-conclusions.md` §Measured: IRTTMEASURE). And on row 123 (2) below: the coded-bytes digest
+  is agreed in the draft target (`docs/disk-layout/target.md` §The two hashes, 2026-10-12, not built); whether the server
+  checks it on every read stays open.
+
 * **2026-10-13 UTC: row 175 TILESTORE — row 143's five choices, now each with a recommendation** ([`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §8.8 on `claude/av1-unified-mainbase`): (1) tiles as independent codestreams, banded and band-major, the map arithmetic in a v2 entry; (2) no wire change; (3) per viewport; (4) 12-bit large frames keep the plain fill until a level-first fill is shown net; (5) k = 3 strips for frames ≥ 1 MP, a 2D grid after TILEGRID. Whether to accept them, and whether to queue BANDS and TILEGRID, is the owner's.
 
 * *Owner rulings, 2026-10-13 (later):* theory may lead to empirical tests beyond the owner's proposals, which are
