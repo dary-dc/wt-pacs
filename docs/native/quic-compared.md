@@ -1,8 +1,9 @@
 # The QUIC implementations, compared
 
-*Queue rows 156, QUICCOMPARE, and 157, QUICREWRITE, 2026-10-12. Theory and writing: nothing built or timed. How each
-stack works, lever by lever, and how the stacks compare when each is at its best. Every choice stays the owner's
-([`quic.md`](quic.md) §5, §7.7).*
+*Queue rows 156, QUICCOMPARE, and 157, QUICREWRITE, 2026-10-12, and 158, QUICLATENCY, 2026-10-13. Theory and
+writing: nothing built or timed. How each stack works, lever by lever, how the stacks compare when each is at its
+best, and what each does to a frame's latency (§8). Every choice stays the owner's ([`quic.md`](quic.md) §5,
+§7.7).*
 
 **What row 157 changed, and why (corrected in place).** Row 156 read each stack at its defaults and showed its best
 only as a footnote, so a stack with a small default window looked worse for a reason the owner had ruled out:
@@ -24,11 +25,11 @@ point of use. Re-reading the code at the same pins also corrected row 156's fact
   off by default.
 
 **How a number is sourced.** At its point of use, each number carries one of:
-* a file and line at the stack's pinned tag (§9), written `path:line` beside the stack's name;
+* a file and line at the stack's pinned tag (§10), written `path:line` beside the stack's name;
 * an RFC, draft or paper with its section, table or figure;
 * its derivation, written out (D), every input sourced; [`quic_grid.py`](quic_grid.py) prints the tables.
 
-Measured results (this repository) are kept apart, in §8, and named with their row.
+Measured results (this repository) are kept apart, in §9, and named with their row.
 
 **Two framings kept from row 156.**
 * **"Our client" is a native client on raw QUIC with an ALPN of our own** (the owner, 2026-10-10). WebTransport
@@ -46,8 +47,9 @@ Measured results (this repository) are kept apart, in §8, and named with their 
 5. [Each stack at its best](#5-each-stack-at-its-best)
 6. [Defaults: what you would change, and how](#6-defaults-what-you-would-change-and-how)
 7. [Raw QUIC for the native client: what it changes](#7-raw-quic-for-the-native-client-what-it-changes)
-8. [Measured here](#8-measured-here)
-9. [Sources](#9-sources)
+8. [Latency, at each stack's best](#8-latency-at-each-stacks-best)
+9. [Measured here](#9-measured-here)
+10. [Sources](#10-sources)
 
 ## 1. What the comparison shows
 
@@ -67,7 +69,14 @@ Measured results (this repository) are kept apart, in §8, and named with their 
   * whether the sender paces Cubic: all do but Cloudflare quiche (§4.3);
   * whether the client probes a new path before it moves, can resume in 0-RTT, and runs multipath (§4.5–§4.7);
   * whether the server side has WebTransport for browsers and a controller hook (§4.8).
-* **The latency these levers set is row 158's subject**, not this row's.
+* **On latency, the server's stack sets nearly every term** (§8): slow start from its initial window dominates a
+  first frame (an ask's 0.5 MB takes 2.1 s at 300 ms on a fresh connection whatever the link above 50 Mbit/s, D), and
+  its loss recovery and controller set an ask under loss. The client's stack sets four things: how long a lost first
+  flight waits (3 × its initial RTT, 150–999 ms across the stacks), whether a lost last packet waits its 25 ms ack
+  delay or 1 ms (quinn, msquic and picoquic obey the server's ACK_FREQUENCY), 0-RTT (which saves its RTT only with an
+  address token), and how it notices and survives a network change.
+* **Throughput's best window and latency's part.** A client window far above the BDP lets a fill queue more ahead of
+  an ask on the shared stream (§8.2); an auto-tuned window that grows with the reader approximates the BDP by itself.
 
 ## 2. Glossary
 
@@ -368,7 +377,7 @@ Only **picoquic** at its pin, at draft-20's transport parameter `0x3e` (`picoqui
 | Google QUICHE | a client (`WebTransportOnlyClient`) and server code, unreleased | `quiche/quic/tools/web_transport_only_client.h:40` |
 | lsquic | server only, behind a build flag, off by default | `include/lsquic.h:1197`, `:1203` |
 | quic-go | through webtransport-go v0.13.0, client and server | [`quic.md`](quic.md) §8 |
-| msquic, Cloudflare quiche, ngtcp2, s2n-quic, mvfst | none at the pins (§9) | ngtcp2's is on unreleased branches ([`quic.md`](quic.md) §8) |
+| msquic, Cloudflare quiche, ngtcp2, s2n-quic, mvfst | none at the pins (§10) | ngtcp2's is on unreleased branches ([`quic.md`](quic.md) §8) |
 
 ## 5. Each stack at its best
 
@@ -376,7 +385,7 @@ What each is, its best configuration, and what still separates it. "Fork" means 
 
 * **quinn** — a pure-Rust QUIC on tokio, community-maintained; today's server. **Best:** windows set to the BDP;
   `AckFrequencyConfig` on, to tune its peer; BBR or this repository's controllers through the public hook; GRO on Linux.
-  **Still separating:** pacing always on; the GSO constant (10 segments, patched here, §8); a rebind without a probe;
+  **Still separating:** pacing always on; the GSO constant (10 segments, patched here, §9); a rebind without a probe;
   no multipath outside the noq fork. **As our client:** the server's own crate; obeys ACK_FREQUENCY. **As our
   server:** the only stack with a released WebTransport server, a public hook and raw QUIC on one endpoint today.
 * **msquic** — Microsoft's C library with its own worker threads. **Best:** `StreamRecvWindowUnidiDefault` and
@@ -455,7 +464,7 @@ Rows 124 and 127 assumed a WebTransport native client and quinn on the server; e
   our ALPN to a raw handler (read from the API, not built; a wire change, proposed not built). After it every stack but
   Cronet can be our client ([`quic.md`](quic.md) §2).
 * **What quinn keeps as a client:** the server's own crate, so the wire's framing and exactness code is one Rust
-  crate on both ends; the only measured native receive cost (§8); ACK_FREQUENCY at the current codepoint — shared
+  crate on both ends; the only measured native receive cost (§9); ACK_FREQUENCY at the current codepoint — shared
   with msquic and picoquic (§4.1); 0-RTT on raw QUIC without patching wtransport, which exposes none
   ([`quic.md`](quic.md) §7.1).
 * **What raw QUIC opens.** Apple's Network.framework becomes a possible iOS client ([`quic.md`](quic.md) §2), and
@@ -477,7 +486,232 @@ Rows 124 and 127 assumed a WebTransport native client and quinn on the server; e
   assumed band. §3 says why it can at every rate and RTT in the grid once the window is set; it stops being true only
   where the server's controller meets random loss (§3.2), which no client stack changes.
 
-## 8. Measured here
+## 8. Latency, at each stack's best
+
+*Row 158, QUICLATENCY, 2026-10-13. Theory only. Each term as a formula over RTT, loss and rate, with its mechanism and
+which end's stack owns it; [`quic_latency.py`](quic_latency.py) prints every table (D). The frame is one 512² 16-bit
+slice, F = 524 288 B (D: 512 × 512 × 2), uncompressed, so an upper bound for a coded frame of that size.*
+
+**Who owns each term.** The server sends the frames, so it owns the sender's terms: the initial window and slow start,
+pacing, loss detection and the probe timeout, and the controller under loss. The client's stack owns only what a
+receiver decides: how quickly it acknowledges (which enters the server's probe timeout), whether it resumes in 0-RTT,
+its own handshake timer, how it delivers stream bytes to the application, its receive CPU, and how it migrates. No
+client stack can shorten a server-side term.
+
+### 8.1 Time to the first frame
+
+```
+T_first = H × RTT + RTT + T_xfer(F)        H = 1 on a fresh connection, 0 with 0-RTT and an address token
+T_xfer  = one RTT per slow-start round while the window is below both the rest of F and the BDP, then rest ÷ rate
+```
+
+* **H = 1**: QUIC carries the TLS 1.3 handshake in its first round trip (RFC 9001 §4), so the ask leaves after one
+  RTT. **H = 0 with 0-RTT**: the ask rides the first flight (RFC 9001 §4.6). But a server may send only three times
+  what it received to an address it has not validated (RFC 9000 §8.1), so beyond that the response waits for the
+  handshake anyway; only an address token from an earlier connection (`NEW_TOKEN`, RFC 9000 §8.1.3) lifts the limit at
+  once. **0-RTT saves the whole RTT only with a token** (D).
+* **On our raw-QUIC ALPN** 0-RTT needs a ticket from an earlier connection on the same ALPN: a server rejects early
+  data under another (RFC 8446 §4.2.10). The ask is a read, so replaying it is harmless (RFC 9001 §4.6's condition).
+  On the server, quinn accepts 0-RTT ([`quic.md`](quic.md) §7.1) and sends tokens only when `ValidationTokenConfig::sent`
+  is set: 0 by default without the `bloom` feature (`quinn-proto/src/config/mod.rs:518`, `:533`). Clients with a
+  token store: quinn (`ClientConfig::token_store`, `quinn-proto/src/config/mod.rs:609`) and quic-go (`TokenStore`,
+  `interface.go:42`); the others' were not read. 0-RTT per stack is §4.6.
+* **T_xfer** doubles the window per RTT in slow start (RFC 9002 §7.3.1) from the server's initial window (§4.4).
+  With quinn's 12 000 B (`quinn-proto/src/congestion/cubic.rs:266`), in ms (D):
+
+| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
+| --- | --: | --: | --: | --: | --: |
+| 1 Mbit/s | 4 214 | 4 254 | 4 354 | 4 548 | 5 106 |
+| 5 Mbit/s | 859 | 910 | 1 104 | 1 454 | 2 351 |
+| 10 Mbit/s | 440 | 511 | 755 | 1 175 | 2 222 |
+| 50 Mbit/s | 120 | 235 | 584 | 1 074 | 2 124 |
+| 100 Mbit/s | 87.5 | 222 | 572 | 1 062 | 2 112 |
+| 500 Mbit/s | 72.4 | 212 | 562 | 1 052 | 2 102 |
+| 1000 Mbit/s | 71.2 | 211 | 561 | 1 051 | 2 101 |
+
+  0-RTT with a token takes one RTT off every cell (D). Above about 50 Mbit/s the cells are almost flat in rate: slow
+  start, not the link, sets the time, so the server's initial window is the lever (§4.4), not the client's stack.
+* **A lost first flight** waits the handshake's probe timeout, `smoothed_rtt + 4 × rttvar` with `smoothed_rtt` = the
+  initial RTT, `rttvar` = half of it and no ack delay (RFC 9002 §5.3, §6.2.1): **3 × the initial RTT**, "a PTO of 1
+  second" at the RFC's 333 ms (§6.2.2). The client's initial RTT therefore sets how long its lost Initial waits:
+  * 50 ms → 150 ms: mvfst (`quic/QuicConstants.h:472`), settable;
+  * 100 ms → 300 ms: Google QUICHE (`quic_constants.h:284`), settable within 10 ms–1 s (`quic_sent_packet_manager.cc:1574–1580`); neqo (`neqo-transport/src/rtt.rs:26`), settable; quic-go (`internal/utils/rtt_stats.go:18`), not settable;
+  * 250 ms → 750 ms: picoquic (`picoquic/picoquic_internal.h:57`), a constant;
+  * 333 ms → 999 ms: quinn (`quinn-proto/src/config/transport.rs:384`), msquic (`src/core/quicdef.h:30`), Cloudflare
+    quiche (`quiche/src/lib.rs:446`), ngtcp2 (`ngtcp2.h:439`), s2n-quic (`quic/s2n-quic-core/src/recovery/rtt_estimator.rs:17`), all
+    settable; lsquic (`src/liblsquic/lsquic_send_ctl.c:71`), a constant.
+
+  At its best a client resumes with the previous connection's smoothed RTT (RFC 9002 §6.2.2 allows it); which stacks
+  do was not read. A lower initial RTT on a long path fires spurious probes: it is a bet on the path.
+
+### 8.2 An ask
+
+**On a warm connection, clean link** (the window already covers F):
+
+```
+T_ask = RTT + F ÷ rate
+```
+
+| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
+| --- | --: | --: | --: | --: | --: |
+| 1 Mbit/s | 4 204 | 4 224 | 4 274 | 4 344 | 4 494 |
+| 5 Mbit/s | 849 | 869 | 919 | 989 | 1 139 |
+| 10 Mbit/s | 429 | 449 | 499 | 569 | 719 |
+| 50 Mbit/s | 93.9 | 114 | 164 | 234 | 384 |
+| 100 Mbit/s | 51.9 | 71.9 | 122 | 192 | 342 |
+| 500 Mbit/s | 18.4 | 38.4 | 88.4 | 158 | 308 |
+| 1000 Mbit/s | 14.2 | 34.2 | 84.2 | 154 | 304 |
+
+**During a fill on the shared stream** the ask waits behind what of the fill is already written and undelivered
+(measured, [`../WIRE.md`](../WIRE.md) §The send path: "the ask waits for the send window to drain"):
+
+```
+ΔT_fill ≈ min(the client's stream window, the server's send window, its congestion window) ÷ rate
+```
+
+* This is where **the window's best for throughput and its best for latency part**. A window far above the BDP lets
+  the fill queue more ahead of the ask. quinn's server-side send window defaults to 10 MB (8 × 1.25 MB,
+  `quinn-proto/src/config/transport.rs:379`): 1.68 s at 50 Mbit/s (D: 10 000 000 × 8 ÷ 50 × 10⁶). A client window
+  of about one BDP keeps the queue to about one RTT (D). An auto-tuned window that grows only while the reader keeps
+  pace (§3.1) approximates that by itself; a fixed window set to the grid's 37.5 MB does not.
+* Which of the three binds is a server setting and the client's window together; the client's stack only sets its own
+  window.
+
+**Under random loss p**, a lost packet is detected when three later packets are acknowledged (RFC 9002 §6.1.1) or
+9/8 × max(smoothed RTT, latest RTT) after it was sent (§6.1.2); the receiver acknowledges at once when it sees a gap
+(RFC 9000 §13.2.1). A loss early in the frame is repaired before the frame ends. What delays the frame:
+
+```
+the last packet lost:                 + PTO = srtt + max(4 × rttvar, 1 ms) + max_ack_delay     (RFC 9002 §6.2.1)
+a loss among the last RTT's packets:  + 9/8 × RTT
+E[ΔT_loss] ≈ p × PTO + (1 − p) × (1 − (1 − p)^m) × 9/8 × RTT,   m = min(packets in F − 1, rate × RTT ÷ 1 452 B)
+```
+
+At p = 1e-3, ms (D; max_ack_delay 25 ms):
+
+| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
+| --- | --: | --: | --: | --: | --: |
+| 1 Mbit/s | 0.036 | 0.123 | 0.644 | 2.19 | 8.65 |
+| 5 Mbit/s | 0.0809 | 0.458 | 3.11 | 10.6 | 41.2 |
+| 10 Mbit/s | 0.126 | 0.889 | 6.02 | 20.6 | 77 |
+| 50 Mbit/s | 0.509 | 4.14 | 26.3 | 51.3 | 103 |
+| 100 Mbit/s | 0.963 | 7.73 | 27.4 | 51.3 | 103 |
+| 500 Mbit/s | 3.44 | 10.3 | 27.4 | 51.3 | 103 |
+| 1000 Mbit/s | 3.44 | 10.3 | 27.4 | 51.3 | 103 |
+
+At p = 1e-2:
+
+| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
+| --- | --: | --: | --: | --: | --: |
+| 1 Mbit/s | 0.36 | 1.22 | 6.27 | 20.7 | 77.5 |
+| 5 Mbit/s | 0.799 | 4.36 | 26.8 | 81 | 246 |
+| 10 Mbit/s | 1.22 | 7.98 | 45.2 | 123 | 312 |
+| 50 Mbit/s | 4.27 | 24.8 | 87.4 | 164 | 329 |
+| 100 Mbit/s | 6.8 | 31.5 | 87.8 | 164 | 329 |
+| 500 Mbit/s | 11.2 | 33.1 | 87.8 | 164 | 329 |
+| 1000 Mbit/s | 11.2 | 33.1 | 87.8 | 164 | 329 |
+
+* **The client's only lever here is the `max_ack_delay` inside PTO**, and only for a lost last packet. The server can
+  lower it with ACK_FREQUENCY down to the client's `min_ack_delay`, where the client obeys (§4.1): quinn advertises
+  1 ms (`quinn-proto/src/transport_parameters.rs:174–176`, `lib.rs:334`), picoquic 1 ms
+  (`picoquic/picoquic_internal.h:66`), msquic its timer resolution (`src/core/connection.c:2361–2364`). PTO after the
+  handshake (rttvar → 0 on a steady path), ms (D):
+
+| max_ack_delay \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
+| --- | --: | --: | --: | --: | --: |
+| 26 ms | 37 | 57 | 107 | 177 | 327 |
+| 25 ms | 36 | 56 | 106 | 176 | 326 |
+| 20 ms | 31 | 51 | 101 | 171 | 321 |
+| 10 ms | 21 | 41 | 91 | 161 | 311 |
+| 1 ms | 12 | 32 | 82 | 152 | 302 |
+
+  So a lost last packet costs 24 ms less with ACK_FREQUENCY (25 → 1 ms, D); averaged over asks that is p × 24 ms,
+  0.24 ms at 1 % (D). Its value is in the tail, not the mean.
+* **The server's levers dominate.** quinn's packet and time thresholds are settings (`packet_threshold`,
+  `time_threshold`, `quinn-proto/src/config/transport.rs:164`, `:171`). Under loss, a CUBIC sender's rate falls to
+  §3.2's bound, and that sets the ask (D: RTT + F ÷ min(link, CUBIC's rate) + E[ΔT_loss], at p = 1e-2):
+
+| link \ RTT | 10 ms | 30 ms | 80 ms | 150 ms | 300 ms |
+| --- | --: | --: | --: | --: | --: |
+| 1 Mbit/s | 4 205 | 4 226 | 4 281 | 4 684 | 8 395 |
+| 5 Mbit/s | 850 | 937 | 2 514 | 4 745 | 8 564 |
+| 10 Mbit/s | 431 | 941 | 2 532 | 4 787 | 8 630 |
+| 50 Mbit/s | 315 | 958 | 2 575 | 4 828 | 8 646 |
+| 100 Mbit/s | 318 | 964 | 2 575 | 4 828 | 8 646 |
+| 500 Mbit/s | 322 | 966 | 2 575 | 4 828 | 8 646 |
+| 1000 Mbit/s | 322 | 966 | 2 575 | 4 828 | 8 646 |
+
+  A sender not bound by the loss formula (BBR under 2 % per round trip, §2) stays near the clean table plus
+  E[ΔT_loss]; that is the server's controller, §3.2.
+
+### 8.3 Head-of-line blocking
+
+* **Between streams: none.** Each stream is ordered on its own (RFC 9000 §2.2), so a loss on one stream holds no other.
+* **Within one stream:** a lost packet holds every later byte of that stream until it is repaired, about 9/8 × RTT
+  after the loss, or a PTO for a lost last packet (§8.2, D). In the default `shared` mode every frame behind the gap
+  waits; in `per-frame` mode only the frame with the gap does ([`../WIRE.md`](../WIRE.md), the stream modes;
+  [`../adr/stream-shape.md`](../adr/stream-shape.md) prices it). That choice is the server's.
+* **The client's lever: out-of-order delivery** (RFC 9000 §2.2 allows it). quinn's `read_chunk(…, ordered: false)`
+  (`quinn/src/recv_stream.rs:172–176`) and picoquic's direct receive (`picoquic/picoquic.h:1450–1470`) hand bytes
+  over as they arrive; a search of the other public APIs found none. On the `shared` stream it helps only if the
+  client can find envelope boundaries past a gap, which the wire's length-prefixed envelopes do not allow
+  ([`../WIRE.md`](../WIRE.md)); with `per-frame` streams it is not needed (D).
+
+### 8.4 Receive CPU per frame
+
+**Measured here (row 135):** quinn 2.05–2.16 ms of CPU per MB with GRO. For F that is 1.1 ms of CPU per frame (D:
+0.524 MB × 2.1 ms). It reaches latency two ways:
+* **after the last byte**, only the last datagram's share: 2.16 ms/MB × 1 452 B ≈ 3 µs (D);
+* **as queueing**, when receive work approaches a whole core: 1 ÷ 2.16 ms per MB = 463 MB/s, about 3.7 Gbit/s on that
+  host (D), far above the grid. At 50 Mbit/s it is 6.25 MB/s × 2.16 ms = 1.35 % of a core (D), as measured (≤ 0.05
+  cores, §9).
+
+No other stack's receive cost was measured here; on a phone it is unknown for every stack, and §3.3's published
+rates are whole-connection, both-ends costs, not a client's per frame.
+
+### 8.5 Migration
+
+```
+probe, then switch:   ΔT ≈ T_detect + RTT_new (PATH_CHALLENGE → PATH_RESPONSE, RFC 9000 §8.2) + T_xfer from the initial window
+rebind:               ΔT ≈ T_detect + RTT_new (the server validates the new address, sending ≤ 3× what it received until then, RFC 9000 §9.3.1, §8) + T_xfer from the initial window
+re-dial:              ΔT ≈ T_detect + 2 × RTT_new + T_xfer   (1 × RTT_new with 0-RTT and a token, §8.1)
+```
+
+* Both migrations restart the congestion controller and RTT estimator unless only the port changed (RFC 9000 §9.4),
+  so both pay slow start again (D). **They cost about the same time**; probing first protects against moving onto a
+  path that does not work, which a rebind discovers only through a probe timeout (D).
+* **Migration saves one RTT over a plain re-dial and about nothing over a 0-RTT re-dial with a token** (D, from the
+  three lines above).
+* **T_detect** is the client's: an OS signal where the stack takes one (Google QUICHE's migration manager is driven by
+  the embedder's network events, `quiche/quic/core/http/quic_connection_migration_manager.h:189`, `:193`; mvfst's
+  `onNetworkSwitch`, `quic/client/QuicClientTransportLite.h:191`), otherwise the application's call, or failing that a
+  train of probe timeouts. Which stacks probe and which rebind is §4.5.
+
+### 8.6 Per stack, the client's terms at its best
+
+| stack | its `max_ack_delay`, at best | 0-RTT | its initial RTT | out-of-order reads | migration |
+| --- | --- | --- | --- | --- | --- |
+| quinn | 25 ms; 1 ms when the server asks (ACK_FREQUENCY) | yes; token store | 333 ms, settable | yes | rebind |
+| msquic | `MaxAckDelayMs`; its timer resolution when asked | OpenSSL builds | 333 ms, settable | not found | rebind |
+| Cloudflare quiche | acknowledges every packet at once; advertises 25 ms, settable | yes | 333 ms, settable | not found | probe |
+| ngtcp2 | min(setting, srtt ÷ 8) | yes | 333 ms, settable | not found | probe or immediate |
+| picoquic | ≤ 10 ms; 1 ms when asked | on | 250 ms, constant | yes (direct receive) | probe |
+| Google QUICHE | 25 ms, ¼ min RTT after 100 packets; 5 ms when asked, behind a flag | yes | 100 ms, settable | not found | probe; OS-driven manager |
+| neqo | 20 ms, constant; old ACK_FREQUENCY codepoint | yes | 100 ms, settable | not found | probe |
+| s2n-quic | 25 ms, settable, but every 10th packet | **no** (dropped) | 333 ms, settable | not found | none |
+| quic-go | 26 ms advertised, constant | yes; token store | 100 ms, constant | not found | probe |
+| lsquic | ≤ 25 ms, srtt ÷ 4; old codepoint | yes | 333 ms, constant | not found | none |
+| mvfst | settable count and factor; its codepoint matches no other | when set | 50 ms, settable | not found | probe |
+
+Sources: §4.1 (ACK), §4.5 (migration), §4.6 (0-RTT), §8.1 (initial RTT, token stores), §8.3 (reads).
+
+**What separates the stacks on latency, at their best** (D, from §8.1–§8.5): every term that dominates an ask's time
+— slow start, loss recovery, the controller under loss, the stream mode — is the server's. Of the client's terms, the
+ones that differ between stacks are a lost first flight's wait (150–999 ms, set by the initial RTT, a setting in eight
+stacks), a lost last packet's 24 ms (only where the client obeys the server's ACK_FREQUENCY: quinn, msquic, picoquic),
+0-RTT (missing in s2n-quic and on msquic's Schannel), and how a network change is noticed and survived (§8.5).
+
+## 9. Measured here
 
 Kept apart from the theory above; each names its row.
 
@@ -489,7 +723,7 @@ Kept apart from the theory above; each names its row.
   than Cubic.
 * **Chromium's ACK_FREQUENCY:** Chromium 141 does not advertise it ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency).
 
-## 9. Sources
+## 10. Sources
 
 **Code, at the pins of [`quic.md`](quic.md) §8**, re-fetched 2026-10-12 for row 157. Each archive or file hash
 matched the pin listed there: quinn `quinn-proto-0.11.19` (archive `3ad67a0cb40f`; quinn 0.11.12 and quinn-udp

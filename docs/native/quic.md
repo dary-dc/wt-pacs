@@ -27,7 +27,8 @@ WebTransport session (§Resumption and 0-RTT). A native client chooses all three
 
 *Each stack explained lever by lever and compared at its best, every number sourced at its point of use, with its
 throughput ceiling from 1 Mbit/s to 1 Gbit/s and 10 to 300 ms and a native client on raw QUIC:
-[`quic-compared.md`](quic-compared.md) (rows 156, 157). Row 157 corrects several of §7.2's facts there.*
+[`quic-compared.md`](quic-compared.md) (rows 156, 157), and what each does to a frame's latency, §8 there (row 158).
+Row 157 corrects several of §7.2's facts there.*
 
 * **The client's library matters through throughput and latency, the product's purpose.** It cannot raise either above
   what the server's controller and the link allow; it can only lose them — through its receive cost, its flow-control
