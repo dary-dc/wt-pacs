@@ -2,6 +2,8 @@
  * One decoder instance. Pixels are written once, into a SharedArrayBuffer, and go straight to the
  * consumer over the port the downloader handed out. docs/ARCHITECTURE.md §The decoders
  */
+import { hasher } from "./xxh3.js";
+
 let codec = null;
 let toConsumer = null;
 let queue = Promise.resolve();
@@ -17,14 +19,7 @@ async function init(m) {
   codec = await import(m.decoder?.codec === "av1" ? "./av1.js" : "./htj2k.js");
   await codec.init({ ...m.decoder, groupLength: m.groupLength });
   digests = m.digests ?? null;
-  if (digests) xxh3 = await hasher();
-}
-
-/** hash-wasm's XXH3, fetched by wasm/fetch_xxh3.sh; its UMD sets `hashwasm` on the global. */
-async function hasher() {
-  const src = await (await fetch(new URL("./wasm/vendor/hash-wasm/xxhash3.umd.min.js", import.meta.url))).text();
-  new Function(src).call(globalThis);
-  return globalThis.hashwasm.createXXHash3();
+  if (digests) xxh3 = await hasher(m.hasher);
 }
 
 const hash = (sab) => xxh3.init().update(new Uint8Array(sab)).digest("hex");

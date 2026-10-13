@@ -26,7 +26,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `ingest/coded-frames/make_golden.py`) |
 | `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike |
 | `htj2k.test.mjs`, `av1.test.mjs` | node: the range pass; the AV1 payload reader |
-| `wasm/` | `dav1d/` builds dav1d-WASM, `fetch_openjph.sh` fetches OpenJPH's and `fetch_xxh3.sh` hash-wasm's XXH3 into `vendor/` |
+| `wasm/` | `dav1d/` builds dav1d-WASM, `fetch_openjph.sh` fetches OpenJPH's and `fetch_xxh3.sh` hash-wasm's XXH3 into `vendor/`; `xxh3/` the frame check's XXH3, built by `build/` |
 
 The rest: [`viewer/`](viewer/) the product's page (§The viewer), [`contract/`](contract/) the transport's clauses
 and the rigs, [`paint/`](paint/README.md) the painter, [`record/`](record/) telemetry, [`harness/`](harness/) the
@@ -152,8 +152,9 @@ A mismatch is decoded once more on another path (`info.path`: `htj2k` in a decod
 `av1-webcodecs` ⇄ `av1-dav1d`, `av1-mixed` → `av1-dav1d`; inside a group there is none) and is `true`
 only if that matches, with `info.mismatchOn` naming the path that missed; otherwise `false`, its
 `info.reason` naming both decodes. A frame is never asked again for it: the same bytes would come back.
-`stats().exact` counts frames per path as `{ true, false, unchecked }`. The hasher is hash-wasm's XXH3
-(`decode/wasm/fetch_xxh3.sh`); a worker given digests that cannot load it fails its start. What it costs
+`stats().exact` counts frames per path as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
+(`decode/xxh3.js`, built by `decode/wasm/build`; hash-wasm's, `decode/wasm/fetch_xxh3.sh`, on `hasher: "hash-wasm"`); a
+worker given digests that cannot load it fails its start. What it costs
 and why it is on: [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md).
 
 **A session that dies is resumed.** A path that goes away takes no byte with it that the records do

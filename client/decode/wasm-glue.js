@@ -15,14 +15,28 @@ async function pinned(url, bytes, want) {
   if (got !== want) throw new Error(`${url} is not the pinned build: sha256 ${got}, not ${want}`);
 }
 
-/** The product's build of `name` (`openjph`, `dav1d`) with the digests its manifest pins: wasm/build/README.md */
-export async function built(name) {
-  const manifest = await (await fetch(new URL("./wasm/build/manifest.sha256", import.meta.url))).text();
-  const sum = (file) => {
-    const line = manifest.split("\n").find((l) => l.endsWith(`  ${name}/${file}`));
-    if (!line) throw new Error(`no ${name}/${file} in the decoder manifest`);
+/** The manifest's digest of a built file, by its path under wasm/built; a file it does not name is refused. */
+async function manifest() {
+  const text = await (await fetch(new URL("./wasm/build/manifest.sha256", import.meta.url))).text();
+  return (path) => {
+    const line = text.split("\n").find((l) => l.endsWith(`  ${path}`));
+    if (!line) throw new Error(`no ${path} in the decoder manifest`);
     return line.slice(0, 64);
   };
+}
+
+/** The product's build of `name` (`openjph`, `dav1d`) with the digests its manifest pins: wasm/build/README.md */
+export async function built(name) {
+  const sum = await manifest();
   const dir = new URL(`./wasm/built/${name}`, import.meta.url).pathname;
-  return { glue: `${dir}/${name}.js`, wasm: `${dir}/${name}.wasm`, dir, sha256: { glue: sum(`${name}.js`), wasm: sum(`${name}.wasm`) } };
+  return { glue: `${dir}/${name}.js`, wasm: `${dir}/${name}.wasm`, dir, sha256: { glue: sum(`${name}/${name}.js`), wasm: sum(`${name}/${name}.wasm`) } };
+}
+
+/** The bytes of a build with no glue (`xxh3`), refused unless the manifest pins them. */
+export async function builtWasm(name) {
+  const sum = await manifest();
+  const url = new URL(`./wasm/built/${name}/${name}.wasm`, import.meta.url).pathname;
+  const bytes = await (await fetch(url)).arrayBuffer();
+  await pinned(url, bytes, sum(`${name}/${name}.wasm`));
+  return bytes;
 }

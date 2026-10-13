@@ -475,7 +475,8 @@ owner's choices below are made.
 * `ingest/coded-frames/ingest.py` writes `digests` into `metadata.json`
   ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), from the samples its `.sha256` was written from.
 * The decoder worker loads hash-wasm 4.12.0's XXH3 build (`client/decode/wasm/fetch_xxh3.sh`) when `connect` is given
-  `digests`, and checks every frame before it is posted.
+  `digests`, and checks every frame before it is posted. *Since row 179 (§10, Measured) it loads xxHash v0.8.4's
+  SIMD128 build instead, the same digest; hash-wasm's is behind `hasher: "hash-wasm"`.*
 * A mismatch is decoded once more: an AV1 payload by the other AV1 decoder, an HTJ2K codestream by a fresh decoder
   object, since the reused one is the suspect.
 * The frame carries `exact` (`true`, `false` or `"unchecked"`), `path`, `mismatchOn` when a second decode
@@ -683,3 +684,50 @@ checked with XXH3 read ×1.00–1.15 (§3), so C would take at most half of that
   * C0 slower than A beyond its spread means hash-wasm's port is the better scalar code, and the row says so.
   * B is reported for the owner whatever it reads, since it narrows coverage.
   * Nothing is claimed for a phone: x86 is the only host, and ARM is predicted ×1.0 at worst.
+
+### Measured (row 179, HASHMEASURE) · 2026-10-13
+
+By the protocol above, in a session given only it ([`lab/av1/exact/hashfast`](../../lab/av1/exact/hashfast/README.md)):
+row 151's three sets, 4 frames each, decoded once by the product's `decoder.js` and held to the encoder input's
+SHA-256, then hashed by the four arms in a Williams order per pass, 5 timed passes after one untimed; 12 rounds, a
+fresh browser a round and engine, the engines in a Williams order. Headless Chromium 141 and Firefox 157.0.1 in a
+4-core x86 container. **Every digest equals the ingest's: 1 440 of 1 440 per arm, 5 760 in all; every frame exact.**
+`--mutate` failed every cell (0 of 12 frames, 0 digests matched, exit 1).
+
+ms a frame, the median over rounds of each round's median, and × A paired by round [range over the 12 rounds]:
+
+| engine | set | A, today | B, before the copy | C, xxHash SIMD128 | C0, xxHash scalar |
+| --- | --- | --: | --: | --: | --: |
+| Chromium | MR 512² | 0.12 | ×0.84 [0.75–0.98] | ×0.59 [0.54–0.73] | ×0.76 [0.73–1.02] |
+| | projections 1914×2572 | 2.10 | ×1.03 [0.98–1.12] | **×0.65** [0.60–0.70] | ×0.81 [0.75–0.92] |
+| | mammogram 3328×4096 | 5.99 | ×1.04 [0.94–1.14] | **×0.65** [0.60–0.72] | ×0.80 [0.77–0.93] |
+| Firefox | MR 512² | 0.12 | ×1.00 [0.80–1.17] | ×0.60 [0.50–0.83] | ×0.81 [0.73–1.00] |
+| | projections 1914×2572 | 2.11 | ×1.03 [0.96–1.16] | **×0.66** [0.60–0.72] | ×0.84 [0.75–0.99] |
+| | mammogram 3328×4096 | 6.28 | ×1.04 [0.89–1.15] | **×0.72** [0.63–0.77] | ×0.86 [0.82–0.93] |
+
+The MR's times sit a few timer ticks above zero; its ratios are coarse.
+
+**The rule adopts C.** Its digest is the ingest's on every frame in both engines; no round of any cell is slower than A
+(its worst, ×0.83, is the MR in Firefox); and it is 28–35 % faster on both large frames in both engines, every round
+at least 23 %. The mammogram's check goes from 6.0–6.3 ms to 4.0–4.7 ms.
+
+**Each prediction against the data:**
+
+* C at ×0.48–0.72 on the two large frames: **held**, ×0.65–0.72, at the slow end of the range.
+* C0 within ±10 % of A: **did not hold.** xxHash's scalar build is ×0.80–0.86 of hash-wasm's on the large frames,
+  so of C's cut about half comes from the build and version and half from the SIMD path (C against C0, ×0.78–0.84).
+  The rule's clause on C0 (slower than A) does not apply: hash-wasm's port is not the better scalar code.
+* B at ×0.75–0.80: **did not hold.** Hashing an unshared copy is no faster, ×1.00–1.04 on the large frames. B is
+  reported for the owner as asked; it would also narrow coverage (the copy unchecked), so nothing argues for it.
+* Every digest identical in every arm: **held.**
+
+**Built.** xxHash v0.8.4's XXH3 is the decoder's hasher by default (`client/decode/xxh3.js`), built by the product's
+pinned decoder build (`client/decode/wasm/build`, `xxh3/xxh3.wasm`) with the bytes the C arm measured (sha256
+`4e140a2e…`); hash-wasm's stays one init flag away (`hasher: "hash-wasm"`). The digest is unchanged, so nothing
+else changes. `client/decode/xxh3.test.mjs`, in the gate, fails if the default is not that build on its SIMD path or
+if its digest differs from hash-wasm's on any of 36 lengths and offsets round XXH3's paths and the 16 KiB chunk.
+Through the product's `decoder.js` with it, row 151's bench (one round, both engines, every path) held every frame to
+the encoder's input with the check on, and caught every flipped sample of its `fault` arm: decoded again on the other
+path where there is one, marked not exact where there is none, as before.
+
+Containers, not phones: nothing is claimed for ARM, where the prediction was ×1.0 at worst.

@@ -28,9 +28,11 @@ v="$CACHE/openjph/src/core/openjph/ojph_version.h"
 [[ "$(grep -oE 'OPENJPH_VERSION_(MAJOR|MINOR|PATCH) [0-9]+' "$v" | awk '{print $2}' | paste -sd.)" == "$OPENJPH_TAG" ]] \
   || refuse "OpenJPH is not $OPENJPH_TAG"
 grep -qF "version: '$DAV1D_TAG'" "$CACHE/dav1d/meson.build" || refuse "dav1d is not $DAV1D_TAG"
+[[ "v$(grep -oE 'define XXH_VERSION_(MAJOR|MINOR|RELEASE) +[0-9]+' "$CACHE/xxhash/xxhash.h" | awk '{print $3}' | paste -sd.)" == "$XXHASH_TAG" ]] \
+  || refuse "xxHash is not $XXHASH_TAG"
 
-rm -rf "$WORK" "$OUT/openjph" "$OUT/dav1d" "$OUT/THIRD_PARTY_NOTICES"
-mkdir -p "$WORK" "$OUT/openjph" "$OUT/dav1d"
+rm -rf "$WORK" "$OUT/openjph" "$OUT/dav1d" "$OUT/xxh3" "$OUT/THIRD_PARTY_NOTICES"
+mkdir -p "$WORK" "$OUT/openjph" "$OUT/dav1d" "$OUT/xxh3"
 MAP="-ffile-prefix-map=$WORK=/build -ffile-prefix-map=$ROOT=/wt-pacs -ffile-prefix-map=$CACHE=/src"
 
 # OpenJPH single-threaded at a 4 MB heap: docs/decode/README.md §The build, as delivered.
@@ -72,6 +74,13 @@ emcc -O3 -msimd128 $MAP "$ROOT/client/decode/wasm/dav1d/dav1d_wrap.c" -I"$CACHE/
 cp "$CACHE/dav1d/COPYING" "$OUT/dav1d/COPYING"
 cp "$CACHE/dav1d/doc/PATENTS" "$OUT/dav1d/PATENTS"
 
+# The frame check's XXH3-64 with SIMD128, a bare module: docs/adr/exactness-in-production.md §10.
+# shellcheck disable=SC2086
+emcc -O3 -msimd128 $MAP -I"$CACHE/xxhash" "$ROOT/client/decode/wasm/xxh3/xxh3.c" --no-entry -sSTANDALONE_WASM \
+  -sINITIAL_MEMORY=131072 -sSTACK_SIZE=16384 -sEXPORTED_FUNCTIONS=_buffer,_vector,_init,_update,_digest \
+  -o "$OUT/xxh3/xxh3.wasm"
+cp "$CACHE/xxhash/LICENSE" "$OUT/xxh3/LICENSE"
+
 # Everything the page loads, with the licence it ships under: docs/av1/licensing.md.
 E="$EM/install/emscripten"
 {
@@ -85,7 +94,8 @@ E="$EM/install/emscripten"
   notice "libc++, as Emscripten $EMSCRIPTEN_VERSION carries it (Apache-2.0 WITH LLVM-exception)" "$E/system/lib/libcxx/LICENSE.TXT"
   notice "libc++abi, as Emscripten $EMSCRIPTEN_VERSION carries it (Apache-2.0 WITH LLVM-exception)" "$E/system/lib/libcxxabi/LICENSE.TXT"
   notice "compiler-rt, as Emscripten $EMSCRIPTEN_VERSION carries it (Apache-2.0 WITH LLVM-exception)" "$E/system/lib/compiler-rt/LICENSE.TXT"
-  notice "hash-wasm's XXH3, the frame check's hasher (MIT)" "$ROOT/client/decode/wasm/vendor/hash-wasm/LICENSE"
+  notice "xxHash $XXHASH_TAG, the frame check's hasher (BSD-2-Clause)" "$CACHE/xxhash/LICENSE"
+  notice "hash-wasm's XXH3, the frame check's other hasher (MIT)" "$ROOT/client/decode/wasm/vendor/hash-wasm/LICENSE"
 } >"$OUT/THIRD_PARTY_NOTICES"
 
 rm -rf "$WORK"

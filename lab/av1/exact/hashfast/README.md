@@ -19,7 +19,7 @@ input into the module's memory 16 KiB at a time:
 * `A` — today: hash-wasm 4.12.0's XXH3 over the frame's shared samples, as `client/decode/decoder.js` runs it;
 * `B` — `A`'s hasher over an unshared copy of the samples, standing for the decoder's own output before it is copied
   to the shared buffer (the copy is made outside the timing);
-* `C` — xxHash v0.8.4's XXH3 (`xxh3.c` around `xxhash.h`), `-O3 -msimd128`: its NEON path through emscripten's
+* `C` — xxHash v0.8.4's XXH3 (the product's `client/decode/wasm/xxh3/xxh3.c` around `xxhash.h`), `-O3 -msimd128`: its NEON path through emscripten's
   SIMD128 `arm_neon.h` (`XXH_VECTOR` 4, which each row records);
 * `C0` — the same source and build without `-msimd128` (`XXH_VECTOR` 0, scalar).
 

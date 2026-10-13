@@ -1,5 +1,5 @@
 // xxHash's XXH3-64 behind hash-wasm's shape: the caller copies each chunk into `chunk`, then calls update.
-// lab/av1/exact/hashfast/README.md
+// docs/adr/exactness-in-production.md §10
 #define XXH_INLINE_ALL
 #include "xxhash.h"
 

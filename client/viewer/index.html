@@ -28,10 +28,10 @@
       const av1 = m.codec === "av1";
       const name = av1 ? "dav1d" : "openjph";
       const modules = av1 ? ["av1.js", "av1-payload.js", "av1-frame.js", "av1-dav1d.js", "av1-webcodecs.js", "av1-probe.js"] : ["htj2k.js"];
-      for (const f of [...modules, "wasm-glue.js"]) link("preload", `${dec}/${f}`, "script");
+      for (const f of [...modules, "wasm-glue.js", ...(m.digests ? ["xxh3.js"] : [])]) link("preload", `${dec}/${f}`, "script");
       link("preload", `${dec}/wasm/built/${name}/${name}.js`, "fetch");
       link("preload", `${dec}/wasm/built/${name}/${name}.wasm`, "fetch");
-      if (m.digests) link("preload", `${dec}/wasm/vendor/hash-wasm/xxhash3.umd.min.js`, "fetch");
+      if (m.digests) link("preload", `${dec}/wasm/built/xxh3/xxh3.wasm`, "fetch");
     }, () => {});
   }
 </script>

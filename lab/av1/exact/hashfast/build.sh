@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# xxHash v0.8.4's XXH3-64 for the hash bench, two builds: C with SIMD128, C0 without. lab/av1/exact/hashfast/README.md
+# The product's XXH3-64 source (client/decode/wasm/xxh3) built twice for the hash bench: C with SIMD128, C0 without.
+# lab/av1/exact/hashfast/README.md
 # Needs client/decode/wasm/build/build.sh run first: its image and its checked emscripten are reused.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 CACHE="$ROOT/client/decode/wasm/build/.cache"
 OUT="${OUT:-$ROOT/lab/.av1-work/hashfast-wasm}"
-XXHASH_TAG=v0.8.4
-XXHASH_COMMIT=c87183a77d67f7d37e3d2d1b7eaac5e7c695e4f0
 # shellcheck source=../../../../client/decode/wasm/build/pins.sh
 source "$ROOT/client/decode/wasm/build/pins.sh"
 
@@ -17,7 +16,7 @@ SRC="$CACHE/xxhash"
 echo "$EMSCRIPTEN_SHA256  $CACHE/emscripten-$EMSCRIPTEN_VERSION.tar.xz" | sha256sum -c --quiet
 mkdir -p "$OUT"
 
-docker run --rm --network none -v "$HERE:/in:ro" -v "$SRC:/xxhash:ro" -v "$CACHE:/cache:ro" -v "$OUT:/out" \
+docker run --rm --network none -v "$ROOT/client/decode/wasm/xxh3:/in:ro" -v "$SRC:/xxhash:ro" -v "$CACHE:/cache:ro" -v "$OUT:/out" \
   wt-pacs-decoder-build bash -euc "
     mkdir -p /opt/emsdk && tar -xJf /cache/emscripten-$EMSCRIPTEN_VERSION.tar.xz -C /opt/emsdk
     tar -xJf /cache/node-v$NODE_VERSION-linux-x64.tar.xz -C /opt/emsdk

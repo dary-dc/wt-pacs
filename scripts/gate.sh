@@ -43,7 +43,7 @@ source client/contract/browser_env.sh
 require_transport_wasm
 built=client/decode/wasm/built
 if [[ -f "$built/THIRD_PARTY_NOTICES" ]]; then
-  stale="$(find client/decode/wasm/build client/decode/wasm/openjph client/decode/wasm/dav1d/dav1d_wrap.c -newer "$built/THIRD_PARTY_NOTICES" \
+  stale="$(find client/decode/wasm/build client/decode/wasm/openjph client/decode/wasm/dav1d/dav1d_wrap.c client/decode/wasm/xxh3 -newer "$built/THIRD_PARTY_NOTICES" \
     -type f ! -path '*/.cache/*' ! -name manifest.sha256 ! -name README.md -print -quit)"
   [[ -z "$stale" ]] || { echo "stale $built: $stale is newer; client/decode/wasm/build/build.sh" >&2; exit 2; }
   (cd "$built" && sha256sum -c --quiet ../build/manifest.sha256) \
@@ -79,6 +79,7 @@ run 1 node client/record/test/run.mjs
 run 1 node client/transport/ts/test/run.mjs
 run 1 node client/decode/htj2k.test.mjs
 run 1 node client/decode/wasm-glue.test.mjs
+run 1 node client/decode/xxh3.test.mjs
 run 1 node client/transport/downloader.test.mjs
 run 1 node client/transport/consumer.test.mjs
 run 2 node client/decode/av1.test.mjs

@@ -1,7 +1,7 @@
 # The client's decoder builds
 
 The two WASM decoders the page loads, built by the product from pinned sources: OpenJPH for HTJ2K and dav1d for
-AV1. Queue row 91 (DECODERBUILD) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); what each build is for and
+AV1; and since row 179 the frame check's XXH3-64, from xxHash. Queue row 91 (DECODERBUILD) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); what each build is for and
 what it measured is [`docs/decode/README.md`](../../../../docs/decode/README.md) §The build, as delivered.
 
 ```bash
@@ -27,6 +27,7 @@ Every pin is in [`pins.sh`](pins.sh) and [`requirements.txt`](requirements.txt);
 | cmake, meson, ninja | 3.31.6, 1.5.2, 1.11.1.4, wheels | `pip --require-hashes`, and `cmake --version` |
 | OpenJPH | 0.31.0, commit `c68064d0…` | commit, and `ojph_version.h` in the container |
 | dav1d | 1.5.4, commit `54706fc6…` | commit, and `meson.build`'s version in the container |
+| xxHash | v0.8.4, commit `c87183a7…` | commit, and `xxhash.h`'s version in the container |
 | hash-wasm (its `LICENSE`, for the notices) | 4.12.0 | `client/decode/wasm/fetch_xxh3.sh`'s tarball sha256 |
 
 ## The builds
@@ -35,6 +36,7 @@ Every pin is in [`pins.sh`](pins.sh) and [`requirements.txt`](requirements.txt);
 | --- | --- | --- |
 | `openjph/openjph.{js,wasm}` | [`../openjph/htj2k_decoder.cpp`](../openjph/htj2k_decoder.cpp) over OpenJPH | `-O3 -msimd128 -fexceptions -sINITIAL_MEMORY=4MB -sALLOW_MEMORY_GROWTH=1`, one thread |
 | `dav1d/dav1d.{js,wasm}` | [`../dav1d/dav1d_wrap.c`](../dav1d/dav1d_wrap.c) over dav1d | the lab's `simd` arm: `-O3 -msimd128`, `-Dbitdepths=8,16 -Denable_asm=false` |
+| `xxh3/xxh3.wasm` | [`../xxh3/xxh3.c`](../xxh3/xxh3.c) over xxHash's `xxhash.h`: the frame check's XXH3-64 | `-O3 -msimd128`, a bare module (`-sSTANDALONE_WASM`), 128 KiB fixed |
 | `THIRD_PARTY_NOTICES` | every licence the page's code ships under | [`docs/av1/licensing.md`](../../../../docs/av1/licensing.md) §What it obliges |
 
 The OpenJPH build is single-threaded: row HTJ2KMT's code-block pool lost a cold ask at 4× here and won no fill

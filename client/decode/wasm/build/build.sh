@@ -29,6 +29,7 @@ fetch_file() {
 mkdir -p "$CACHE" "$OUT"
 fetch_git https://github.com/aous72/OpenJPH.git "$OPENJPH_TAG" "$OPENJPH_COMMIT" "$CACHE/openjph"
 fetch_git https://github.com/videolan/dav1d.git "$DAV1D_TAG" "$DAV1D_COMMIT" "$CACHE/dav1d"
+fetch_git https://github.com/Cyan4973/xxHash.git "$XXHASH_TAG" "$XXHASH_COMMIT" "$CACHE/xxhash"
 fetch_file "https://storage.googleapis.com/webassembly/emscripten-releases-builds/linux/$EMSCRIPTEN_RELEASE/wasm-binaries.tar.xz" \
   "$EMSCRIPTEN_SHA256" "$CACHE/emscripten-$EMSCRIPTEN_VERSION.tar.xz"
 fetch_file "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.xz" "$NODE_SHA256" \
