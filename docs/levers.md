@@ -2,7 +2,7 @@
 
 *Queue row 166, AUDITPATH, 2026-10-13. An audit: nothing here was built or timed. Each line points to the doc that
 owns the lever; the numbers are that doc's. The codecs' own levers are row 165's, in
-[`codecs/README.md`](codecs/README.md) (§Tried and open, when it lands).*
+[`codecs/README.md`](codecs/README.md#tried-and-open) §Tried and open.*
 
 **The question.** Outside the codecs, is every lever tried, and what is left that would be net?
 
@@ -179,7 +179,7 @@ Owner: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`decode/README.md`](decode/README.
 | dav1d fetched at decoder start | row 79: −1.0 / −3.0 round trips | owner (§Blocked, row 79: the ≤ 10-bit skip) | [`page-open`](../lab/page-open/README.md) §Cold round trips by codec |
 | The paint route, gl against 2d | paint-floor: 0.34 against 7.55 ms | held | ARCHITECTURE.md §Paint |
 | The painter on a real GPU | row 87: SwiftShader only | never | [`client/paint`](../client/paint/README.md) §What it costs |
-| What reaches the screen | — | queued: row 169 | client/paint |
+| What reaches the screen after the window | row 169 (theory): 8 bits after the window, no presentation LUT or ICC handling; gaps G1–G6 | never (its protocol proposed) | [`display.md`](display.md) §The gaps, each change, and whether it is net |
 
 ## Ingest
 
