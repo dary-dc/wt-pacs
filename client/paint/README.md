@@ -132,3 +132,8 @@ synchronous cost of `paint()` on the main thread.
   §Paint). These milliseconds are not a phone's.
 * **The check in `scripts/gate.sh`** (`--zoom1`, every 1:1 cell at DPR 1 and 2) takes 2.4 s here, browser
   start included. It runs when Python has numpy, and prints SKIPPED otherwise.
+
+## What reaches the screen
+
+After the painter: 8 bits a sample after the window, an sRGB-tagged buffer, no presentation LUT, no ICC handling,
+and what a browser, the OS and the panel do next — [`docs/display.md`](../../docs/display.md) (row 169, theory).
