@@ -41,7 +41,8 @@ SETTINGS = {
 # name: (mkfs, mount options); "host" is the directory WORK/fs/host on the host's own filesystem.
 FILESYSTEMS = {"host": None, "ext4": (["mkfs.ext4", "-q", "-F"], "defaults"),
                "ext4j": (["mkfs.ext4", "-q", "-F"], "data=journal"), "xfs": (["mkfs.xfs", "-q", "-f"], "defaults")}
-IMAGE_BYTES = 6 << 30
+IMAGE_BYTES = 2 << 30
+ASKS = 4000
 
 
 def fsdir(work, fs):
@@ -177,13 +178,13 @@ def time_rounds(work, rounds):
                 prev = None
                 for arm in run.order(ARMS, r):
                     cmd = [BENCH, "measure", "--container", "sbnd1", "--file", arm_path(work, fs, name, codec, arm),
-                           "--frames", work / "coded" / name / codec, "--round", str(r)]
+                           "--frames", work / "coded" / name / codec, "--round", str(r), "--asks", str(ASKS)]
                     res = subprocess.run([str(c) for c in cmd], capture_output=True, text=True)
                     if res.returncode:
                         sys.exit(f"{fs} {name} {codec} {arm} round {r}: {res.stderr[-800:]}")
                     row = json.loads(res.stdout)
                     row.update(round=r, fs=fs, set=name, codec=codec, arm=arm, prev=prev, settings=SETTINGS[arm],
-                               reader="shipped TileReader/FillReader, ReadMode::Auto", mount=mounts[fs])
+                               reader="shipped TileReader/FillReader, ReadMode::Auto", asks_set=ASKS, mount=mounts[fs])
                     out.write(json.dumps(row) + "\n")
                     out.flush()
                     prev = arm
