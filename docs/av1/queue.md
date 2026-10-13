@@ -240,7 +240,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 160 | **CONTAINERBENCH** — row 159's containers measured against the `.sbnd` on the same frames and the same read path: open, bytes, per-frame read latency, fill throughput, server CPU per GB, ingest packing time | after 159 |
 | 161 | **HWDECODE** — every hardware decode path, browser and native: codecs and bit depths in hardware, lossless, whether the exact samples come back, and which radiology functions survive; theory | claimed 2026-10-13 (night, 67a728) |
 | 162 | **LINKREAL** — real link conditions from published measurements: mobile 4G/5G, hospital Wi-Fi, home broadband, hospital uplinks — rates, RTT, loss and their spread; research | claimed 2026-10-13 (night, d0e7b1) |
-| 163 | **STREAMPACK** — sending a series while it is still being parsed and coded: the formats and protocols that allow it, what overlap saves, and what it costs in safety and checks; theory | ready |
+| 163 | **STREAMPACK** — sending a series while it is still being parsed and coded: the formats and protocols that allow it, what overlap saves, and what it costs in safety and checks; theory | claimed 2026-10-13 (night, 26a651) |
 | 164 | **DISKLAYOUTDOCS** — `docs/disk-layout/`: the current `.sbnd` layout exactly, and the draft target agreed 2026-10-12; writing | ready |
 
 ## Briefs
