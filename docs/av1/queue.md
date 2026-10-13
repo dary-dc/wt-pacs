@@ -242,6 +242,12 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 162 | **LINKREAL** — real link conditions from published measurements: mobile 4G/5G, hospital Wi-Fi, home broadband, hospital uplinks — rates, RTT, loss and their spread; research | done `d00e53fa` on `claude/av1-unified-mainbase`: **the 5–50 Mbit/s band is the slow tail, replaced** — a phone reaches a near server at 103 Mbit/s median on cellular (p10 18, p90 309; Ookla open tiles 2026 Q3) and 218 on Wi-Fi, one stream to an off-net server 27–85 by country (M-Lab NDT 2024); idle RTT 16–55 ms (p10–p90) but 0.7–0.8 s median under load on cellular, 0.2–0.3 s on Wi-Fi; loss mostly ≤ 0.1 % (5G p99 1.2 %), handovers 24–50 ms; eight verdicts that rest on the band listed, not re-run; a hospital's uplink and Wi-Fi have no measurement found — [`../transport/link-conditions.md`](../transport/link-conditions.md), The target corrected in place |
 | 163 | **STREAMPACK** — sending a series while it is still being parsed and coded: the formats and protocols that allow it, what overlap saves, and what it costs in safety and checks; theory | done `561d341d`, `2c488b53` on `claude/av1-unified-mainbase` — **overlap saves at most min(coding, sending), ≤ half of code-then-send; for HTJ2K it pays only under a quiet-period completeness rule**: 300 frames on 4 cores at 10 Mbit/s–1 Gbit/s (assumed band, ojph 174–335 Mbit/s of coded output a core, row ENC), streaming HTJ2K saves 0.3–0.9 s if the association's end is the signal, AV1 (4.9–12.3 Mbit/s a core) 0.3–25.9 s; under a 30 s quiet period it hides the send in the wait, 3.9–30 s; proposed: code on arrival first (no format, wire or store change, saves min(Q, coding)), frames as records with a final "series complete" only under a quiet period, no index at the end (a format change that leaves arrival order); costs: late-failing series' frames discarded at the PACS, partials held until expiry, crash resume relies on re-coding the same bytes (HTJ2K shown, AV1 not); AV1's series-wide offset must become fixed to stream — arithmetic, nothing timed — [`../ingest/design.md`](../ingest/design.md) §11 on `claude/av1-unified-mainbase` |
 | 164 | **DISKLAYOUTDOCS** — `docs/disk-layout/`: the current `.sbnd` layout exactly, and the draft target agreed 2026-10-12; writing | done `2b59df27`, `a8f23aa7` — **written: today's `.sbnd` exactly, from the code with line references, and the draft target**: 16 B header, 12 B fixed-stride index, metadata embedded and in a sidecar (the server reads neither — `FrameStore::open` keeps the index only; the page reads the sidecar; `ingest/from-parser` writes no sidecar), frames back to back in display order and unaligned, the writer lengths-first to the final name with a flush and no fsync or rename, the fill's 4 MiB advice valid only because of display order; target 148 B header and 28/36 B entries checked against the field sizes; payload-format.md's codec field fixed; the brief's tag `read-path-evidence-2026-09-09` does not exist and the study is cited as `git show b55b68db:docs/disk-layout/ACCESS-PATTERNS.md` with its 17.6× / 1.50× conditionality; link check mutated (a broken link caught 1/1); gate green — [`docs/disk-layout/README.md`](../disk-layout/README.md), [`target.md`](../disk-layout/target.md) |
+| 165 | **AUDITCODEC** — is every codec lever tried or closed? HTJ2K, AV1, JPEG XL, JPEG-LS, AV2, LCEVC, SVC, colour transforms and the bit split: closed by evidence, closed by a premise since changed, never tried, or waiting on the owner; ranked by net gain; audit | ready |
+| 166 | **AUDITPATH** — the same audit outside the codecs: disk reads and the writer, the server's send path, transport, the client's downloader, decoders, paint and memory, ingest, the gate; audit | ready |
+| 167 | **BANDRECHECK** — row 162's eight verdicts that rest on the old 5–50 Mbit/s band, each re-derived at the measured link profiles: holds, flips or open, and the measurement that would decide; theory | ready |
+| 168 | **PACKWRITE** — why a `.sbnd` written through an 8 KiB `BufWriter` reads 24–31 % slower than the same bytes written in 1 MiB writes (row 160): the mechanism, whether production would see it, and the protocol for the fix; theory | ready |
+| 169 | **DISPLAY** — what reaches the radiologist's screen: bits per sample after the window, the grayscale standard display function, colour management for RGB, in the browser and natively; theory | ready |
+| 170 | **FETCHPIN** — `lab/av1/fetch_data.sh` runs as written: the hash-pinned `typing-extensions` that `blake3` needs (row 160's side finding) | ready |
 
 ## Briefs
 
@@ -3466,7 +3472,135 @@ diagram first, essential, for humans.
 
 **Deliverable:** the two files and the fixes. **Branch:** `claude/av1-unified-mainbase`.
 
+## The net-improvement round (rows 165–170), 2026-10-13
+
+**The owner, 2026-10-13:** every earlier investigation is finished; use the time and the unused usage windows while
+the owner is away. First find out whether what we have is all tried or analysed — HTJ2K and AV1 decoding
+optimizations or enhancements, complementary approaches such as LCEVC and SVC, colours, and areas outside the codecs,
+from general improvements to settled ones such as disk reading. Focus on almost completely net improvements; for
+instance, a longer fill time is not interesting for now. Spread the work over several usage windows.
+
+**Net, as this round reads it** (the orchestrator's reading of the owner's words, for the owner to correct): a change
+is net when it makes something measurably better and nothing on the target worse beyond its measured spread — fill,
+ask, exactness, bytes, a phone's memory, a server's CPU — at the cost of code alone. A change that trades one of these
+for another is a trade-off: it is listed and goes to the owner, not adopted. The target's links are row 162's
+measured profiles ([`../transport/link-conditions.md`](../transport/link-conditions.md)), not the old 5–50 Mbit/s
+band.
+
+Rows 165–167 are audits and theory, read-only but for their deliverable; they **propose** rows (a name and one question
+each, theory first) and the orchestrator queues them in the next usage window ([`ORCHESTRATE.md`](ORCHESTRATE.md) §2).
+
+### 165 AUDITCODEC
+
+**One question: is every codec lever tried, and what is left that would be net?** Audit, nothing built or timed.
+
+* **Scope:** HTJ2K (OpenJPH encode and decode, block size, progression, resolution levels, tiles, the code-block pool,
+  WebGPU), AV1 (libaom, SVT-AV1, dav1d-WASM, WebCodecs, groups, the bit split, REMAP, `cpu-used`, threads), JPEG XL,
+  JPEG-LS (listed in `docs/decode/README.md` §Not yet tried, never explored), AV2, LCEVC (row 19), scalable AV1 (rows
+  15, 18, 24–26, 31, 40), embedded lossy-to-lossless (rows 17, 22), colour transforms (rows 80, 97), the learned
+  coders of row 58.
+* **Each lever, one line:** the rows that touched it with their verdict; then one class — *closed by evidence that
+  still holds*; *closed by a premise since changed* (the link band, row 162; a newer release than the pin; data
+  provenance, row 121; a rule the owner has since changed); *never tried*; *waiting on the owner* (§Blocked).
+* **Releases since the pins:** OpenJPH, dav1d, libaom, SVT-AV1, libjxl and jxl-rs, CharLS, emscripten, Chromium's and
+  Firefox's WebCodecs, and whether an open LCEVC encoder now exists — each with its tag, date and what its changelog
+  says that bears on a lever.
+* **Close with a ranked list** of the *reopened* and *never tried* levers by expected net gain on the target, each a
+  proposed theory row (a name and one question), and the trade-offs apart, for the owner.
+
+**Deliverable:** `docs/codecs/README.md` §Tried and open (a table, each line pointing to the doc that owns the lever).
+**Branch:** `claude/av1-unified-mainbase`.
+
+### 166 AUDITPATH
+
+**One question: outside the codecs, is every lever tried, and what is left that would be net?** Row 165's audit,
+same classes and same close, for everything else.
+
+* **Scope:** the disk read path and the writer (`docs/adr/disk-access.md`, `docs/disk-layout/`, row 160's `BufWriter`
+  finding, which row 168 takes); the server's send path (rows 51, 81; per-frame cost, which row 162 says weighs ~5×
+  more at the measured rates); the transport (congestion control, initial, flow-control and send windows, GSO,
+  pacing, tail copies, 0-RTT; rows 75, 103–107, 119, 130–132, 139–141, 146, 152, 158); the client (downloader, decoder
+  workers and their start, zero-copy hand-off, frame loss, the exactness checks, the frame path and the OPFS cache,
+  paint, memory; rows 49, 50, 108–113, 142, 144, 147, 148, 151); the ingest (rows 52, 71, 89, 126, 136, 153, 163); the
+  gate and the tooling (rows 54, 86, 118).
+* **Name a lever as tried only with the row that measured it;** a lever argued but never measured is *never tried*.
+
+**Deliverable:** `docs/levers.md` — one index of every lever outside the codecs, linking to row 165's §Tried and open
+and to each owning doc; linked from `README.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 167 BANDRECHECK
+
+**One question: which of the verdicts that rest on the old band change at the measured links?** Theory only.
+
+* **The eight verdicts** are [`../transport/link-conditions.md`](../transport/link-conditions.md) §Verdicts that rest
+  on the band. For each: re-derive it at row 162's profiles (cellular p10, median and p90; Wi-Fi; loaded RTT), with
+  the formula, every input sourced and the derivation labelled (D); then one of *holds*, *flips* or *open*.
+* **For each that flips or is open:** the change that would follow and whether it would be net or a trade-off, and
+  the measurement that would decide — its arms, cells (rates, RTTs, loss and loaded queues from row 162), predictions
+  and a decision rule — written as a protocol for a separate session.
+* **An ask behind the session's own fill:** row 162 found a loaded RTT of 0.7–0.8 s median on cellular. Derive what an
+  ask waits behind the fill's own queue under today's controller, and what in the product (priorities, a cap on bytes
+  in flight during an ask, pacing) would cut it with no cost to the fill — a ninth item.
+
+**Deliverable:** `docs/transport/link-conditions.md` §Verdicts that rest on the band, each item extended in place, and
+the protocols in a §Re-measured, proposed. **Branch:** `claude/av1-unified-mainbase`.
+
+### 168 PACKWRITE
+
+**One question: why does a `.sbnd` written in 8 KiB writes read slower than the same bytes written in 1 MiB writes, and
+would production see it?** Theory first; the measurement is a later row given only this row's protocol.
+
+* **The finding:** row 160, `docs/disk-layout/containers.md` §Measured — warm hits 24–31 % slower and fill 24–32 %
+  slower on 32–41 kB frames, 16 rounds; rewriting v2 in 8 KiB writes undoes it, so it is the writer, not the layout;
+  mechanism unmeasured. `pack-series` writes through an 8 KiB `BufWriter`
+  (`common/series-bundle/src/writer.rs`).
+* **Candidate mechanisms,** each with the evidence that would tell it apart and its source (kernel file:line at a pinned
+  version, filesystem documentation): extent fragmentation (`filefrag -v`), the page cache's folio sizes and readahead
+  on a file built by small appends, the container's overlay or the backing filesystem, delayed allocation; and which
+  of them the production store's filesystem (ext4 or XFS on a cloud volume) shares.
+* **The fixes,** each as small as possible: a larger buffer, one `write` per frame, `fallocate` to the final size
+  before writing, a copy at publish; whether row 164's draft target (`.partial` → fsync → rename) changes any of them.
+* **Close with the protocol:** arms that differ in the writer alone, the read path unchanged, interleaved, hit and
+  forced miss through the store's levers (not page-cache eviction), on the container's filesystem and on a plain
+  ext4 or XFS image; predictions per mechanism and a decision rule (what adopts which fix).
+
+**Deliverable:** `docs/disk-layout/README.md` §The writer. **Branch:** `claude/av1-unified-mainbase`.
+
+### 169 DISPLAY
+
+**One question: what reaches the radiologist's screen, and does the product lose anything between the exact frame and
+the display?** Theory only. No row has asked it: the frames are proved exact, and `client/paint` windows them to an
+8-bit WebGL2 drawing buffer.
+
+* **Grey:** bits per sample after the window today (`client/paint/paint-worker.js`, `voi.js`); what DICOM asks
+  (PS3.14 grayscale standard display function, PS3.3 presentation LUT); what diagnostic displays offer (10- and 12-bit
+  grey panels, their calibration) and what the browser can send them — WebGL2 and WebGPU canvases with a float16 or
+  10-bit buffer, `colorSpace`, `toneMapping`, `dynamic-range` media query — per engine and OS, with sources; and the
+  same for a native client (Metal, Vulkan, DXGI 10-bit output).
+* **Colour:** RGB ultrasound and other colour series: ICC profiles in the DICOM header, the canvas's colour space, sRGB
+  against Display P3; what is lost today, if anything.
+* **Net or not:** for each gap, the change, its cost (a frame's paint time, memory) and whether it is net; what cannot
+  be known without a calibrated display, stated as such.
+* **Close with a protocol** for whatever a container can measure (e.g. a float16 canvas's read-back against the
+  reference painter), and what needs a device, for the owner.
+
+**Deliverable:** `client/paint/README.md` §What reaches the screen, or `docs/display.md` linked from it if it outgrows a
+section. **Branch:** `claude/av1-unified-mainbase`.
+
+### 170 FETCHPIN
+
+`lab/av1/fetch_data.sh` fails as written: `lab/av1/requirements.txt` lacks a hash-pinned `typing-extensions`, which
+`blake3` needs (row 160 installed with `--no-deps`). Pin it with its hash, run the script from a clean virtual
+environment to its end (or to the first fetch the network refuses, said so), and check nothing else in the file is
+unpinned.
+
+**Deliverable:** `lab/av1/requirements.txt`. **Branch:** `claude/av1-unified-mainbase`.
+
 ## Blocked
+
+* *Owner rulings, 2026-10-13:* the next work aims at **net improvements** (rows 165–170, the round's brief); a longer
+  fill time is not of interest for now. The orchestrator's reading of "net" is in the round's brief, for the owner to
+  correct.
 
 * **2026-10-13, row 160 (for the owner):** (1) `pack-series` writes through an 8 KiB `BufWriter`, and a `.sbnd` so written read 24–31 % slower on warm hits and filled 24–32 % slower than the same bytes rewritten in 1 MiB writes; rewriting v2 in 8 KiB writes undoes it, so it is the writer, not the layout (`containers.md` §Measured, mechanism unmeasured). Whether to queue a row for it is the owner's call. (2) `lab/av1/fetch_data.sh` fails as written: `lab/av1/requirements.txt` lacks a hash-pinned `typing-extensions`, which `blake3` needs (row 160 installed with `--no-deps`); the pin is left to the owner. (3) DICOM export through pydicom 3.0.1's `encapsulate_extended` is not exact for odd-length frames (padded EOT lengths).
 
