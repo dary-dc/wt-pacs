@@ -232,6 +232,8 @@ indexes entries; what it lacks is the map from (frame, tile, band) to entry, the
 the encoder's input (the 5/3 analysis and clamp that `ll.py` witnesses), beside today's per-frame digests: a
 store-content change ([`exactness-in-production.md`](exactness-in-production.md)).
 
+*Recommended in §8.8 (row 175): tiles as independent codestreams, the map in a version 2 table and arithmetic.*
+
 ### 8.4 · The wire
 
 * **No wire change** (proposed first): entries are asked as frames are today. The fitted view is
@@ -241,6 +243,8 @@ store-content change ([`exactness-in-production.md`](exactness-in-production.md)
   downloader re-asks the rest, as it does today; and the envelope's index is an entry's, which the client maps back.
 * **A region ask** (`{"op":"request_region","frame":N,"level":L,"tiles":[…]}`, or a level on `stream_frames`): the
   server maps (frame, tile, band) to entries; clients stop carrying the map. A wire change, versioned.
+
+*Recommended in §8.8 (row 175): no wire change.*
 
 ### 8.5 · The client
 
@@ -271,6 +275,74 @@ first (no tiles) is the owner's.
    downloader, on row 23's links, every level picture against its digest from the encoder's input.
 3. **CRDX**: a sound CR or DX set over 12 bits in the lab (none today), so the rule's main case outside the breast
    has data.
+
+### 8.8 · The open choices, recommended (row TILESTORE, 2026-10-13)
+
+*A proposal, nothing built. The format these recommendations add up to is
+[`../disk-layout/target.md`](../disk-layout/target.md) §Layout 1. Each choice stays the owner's.*
+
+1. **The store: tiles as independent codestreams, banded and band-major, with the map in the file.**
+   * *Why tiles:* they are measured: every ask exact, +0.12 % bytes at k = 3, an ask ×0.39–0.45 at 4× (row 133).
+     They need today's decoder build and no server change.
+   * *Why not precincts:* precincts need a region decoder the served build does not have, and a JPIP-like server.
+     Neither is measured.
+   * *Where the map lives:* the version 2 `.sbnd`'s 36 B entry, with the map arithmetic
+     (e = b · N · T + f · T + t). The target puts no metadata in the file and keeps the database as metadata's only
+     copy, so the map is not metadata. The arithmetic needs only N, which the client has, and the entry's fields
+     let a reader check the file at open.
+   * *Digests:* the digest per tile and level is the entry's samples hash, taken from the tiled analysis of the
+     encoder's input (§7.3).
+2. **The wire: unchanged.** Because the map is arithmetic, a region ask would only move that formula from the
+   client to the server, at the price of a versioned wire change. The RESLEVEL lab already carried prefixes this
+   way. What it costs is that a zoom ends the fitted fill, which the downloader re-asks; BANDS below prices that.
+3. **Per viewport, in device pixels** (device pixels decided, §8.2).
+   * The viewport is what is drawn. Two viewports side by side need a level one coarser on wide frames, about a
+     quarter of the bytes for the same sharpness, and per screen would send bytes no pixel shows.
+   * Bands are cumulative, so a viewport that grows costs only the next band.
+4. **12-bit large frames keep the plain fill and layout 0, as the rule says**, until a measurement shows a
+   level-first fill is net.
+   * The owner's 2026-10-13 ruling asks for net improvements. Level first put the first exact picture on screen at
+     ×0.06–0.50 of today, but the whole fill read ×0.98–1.04: a tie that includes slower (§7).
+   * A band-only store would be layout 1 with T = 1, a new version value and no new format.
+5. **Three horizontal strips, k = 3, for every frame of at least 1 MP under the rule; a 2D grid only after
+   TILEGRID.**
+   * *Why k = 3:* strips are the only grid measured, and three tiles use the three idle decoders the dispatch has.
+     k = 3 beat k = 2 on every size measured, ×0.30–0.48 at 4× from 0.26 to 13.6 MP (row 133). Every frame the rule
+     covers in the lab is 3.4–13.6 MP (§8.1).
+   * *Why not below 1 MP:* the XA/RF class (512²–1024²) fits most screens whole, and its decode is 5–19 ms (row 133,
+     1×). There tiles would buy only an ask's decode.
+   * *Nothing past k = 3:* the container had 4 cores.
+   * *What strips cost on a zoom:* a zoom at 1:1 on a 1080 × 2400 phone viewport fetches the level-0 band of every
+     tile it touches, as a multiple of the visible area, over every position on the frame (D, strip edges on
+     32-row multiples):
+
+| frame | 3 strips | 2 × 2 | 3 × 3 |
+| --- | --- | --- | --- |
+| 3328×4096 | 3.49–5.26, mean 4.54 | 2.63–5.26, mean 3.88 | 1.14–3.54, mean 2.96 |
+| 2560×3328 | 3.29 everywhere | 1.64–3.29, mean 2.83 | 2.18–3.29, mean 2.35 |
+
+A 3 × 3 grid saves about a third of a zoom's bytes. Its ask is nine decoder calls on three workers, not measured: k
+calls on one worker cost ×0.97–1.24 (row 133). A grid would be a new version value.
+
+**Below the threshold, HTJ2K is unchanged.**
+* The file is layout 0: the same codestreams, byte-identical, asked by frame index as today.
+* The server is unchanged for both layouts: it serves entries by index and never reads the tile fields.
+* The client's tile path runs only on a layout-1 series. Today's path does not change.
+
+**What the proposal still needs measured** (each in the container first, every picture against the encoder's input,
+interleaved, n ≥ 10):
+* **BANDS** (§8.7, 2): a layout-1 store in the lab, no server change.
+  * *Arms:* a fitted fill at L1 and L2, an ask (6 entries at L1), and a zoom during the fill, through the downloader
+    on row 23's links, each level picture checked against its per-tile digest.
+  * *Predictions:* the first exact picture as §7's level-first fill (×0.09–0.69); the whole fill a tie; a zoom's
+    re-ask under one RTT of extra wait.
+* **TILEGRID** (§8.7, 1), with the table's bytes as its prediction. It decides choice 5.
+* **Level pictures of signed and colour frames.** Only grey unsigned is measured (§7.3); the rule's CR/DX case
+  needs the others, and CRDX's data (§8.7, 3).
+* **k on a phone:** the container had 4 cores; a phone's count and speed differ. Nothing past k = 3 holds until a
+  device run.
+* **Choice 4's net test**, if the owner reopens it: the level-first fill against the plain fill on the 12-bit
+  four-view exams. It is net if the whole fill is not worse beyond its spread.
 
 ## References
 
