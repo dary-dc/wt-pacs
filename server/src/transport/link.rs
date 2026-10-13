@@ -22,6 +22,8 @@ pub(crate) enum Link {
         connection: Connection,
         /// Lab only: envelope bytes left before the session stalls. `--stall-after-bytes`.
         stall_left: Option<u64>,
+        /// Lab only: the send window is set to cwnd + this before each frame. `--send-window-follows-cwnd`.
+        cwnd_ahead: Option<u64>,
     },
     /// One ordered TCP stream carries frames and refusals alike.
     WebSocket(WsWriter),
@@ -48,6 +50,7 @@ impl Link {
         connection: Connection,
         control: ControlStream,
         stall_left: Option<u64>,
+        cwnd_ahead: Option<u64>,
     ) -> Result<Self> {
         let media = match mode {
             StreamMode::Shared => Media::Shared(
@@ -60,7 +63,7 @@ impl Link {
             ),
             StreamMode::PerFrame => Media::PerFrame { acks: JoinSet::new(), seq: 0 },
         };
-        Ok(Self::Quic { media, control, connection, stall_left })
+        Ok(Self::Quic { media, control, connection, stall_left, cwnd_ahead })
     }
 
     /// `body` is the whole codestream in the reader's own buffer; quinn keeps it until the
@@ -68,7 +71,11 @@ impl Link {
     pub(crate) async fn send_frame(&mut self, idx: u32, body: Bytes) -> Result<()> {
         let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
         match self {
-            Self::Quic { media, connection, stall_left, .. } => {
+            Self::Quic { media, connection, stall_left, cwnd_ahead, .. } => {
+                if let Some(ahead) = cwnd_ahead {
+                    let quic = connection.quic_connection();
+                    quic.set_send_window(quic.stats().path.cwnd + *ahead);
+                }
                 let whole = (FRAME_HEAD_LEN + body.len()) as u64;
                 match stall_left {
                     Some(left) if whole > *left => {

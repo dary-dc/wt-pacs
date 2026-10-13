@@ -51,6 +51,8 @@ pub struct ServeConfig {
     /// Lab only: each WebTransport session sends this many media bytes and then nothing, its
     /// stream left open — WebKit bug 319818's stall, made on purpose. `docs/ARCHITECTURE.md`.
     pub stall_after_bytes: Option<u64>,
+    /// Lab only: what an ask waits behind, cut to cwnd + two frames. `docs/transport/link-conditions.md` §ASKAHEAD.
+    pub send_window_follows_cwnd: bool,
     /// Off by default: also serve the same envelopes over a WebSocket, TCP on `wt_port`.
     /// `docs/WIRE.md` §The WebSocket mapping.
     pub websocket: bool,
@@ -109,6 +111,13 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     if let Some(bytes) = config.stall_after_bytes {
         warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
     }
+    let cwnd_ahead = config.send_window_follows_cwnd.then(|| {
+        let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
+        2 * u64::from(largest)
+    });
+    if let Some(bytes) = cwnd_ahead {
+        warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
+    }
     let read_mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref())
         .unwrap_or_else(|err| {
             warn!("{err}; using auto");
@@ -120,6 +129,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         mode: config.mode,
         opening_ask: config.opening_ask,
         stall: config.stall_after_bytes,
+        cwnd_ahead,
         #[cfg(feature = "telemetry")]
         taps: Arc::new(Tap::for_session),
     };
@@ -149,6 +159,7 @@ pub(super) struct Sessions {
     mode: StreamMode,
     pub(super) opening_ask: bool,
     stall: Option<u64>,
+    cwnd_ahead: Option<u64>,
     #[cfg(feature = "telemetry")]
     taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
 }
@@ -284,7 +295,7 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall);
+    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall, sessions.cwnd_ahead);
     let result = async {
         match opening {
             Some(ask) => {
@@ -618,6 +629,7 @@ mod tests {
             mode: StreamMode::Shared,
             opening_ask: false,
             stall: None,
+            cwnd_ahead: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(|| None),
         }
@@ -897,6 +909,7 @@ mod tests {
             opening_ask: false,
             hold_sessions: false,
             stall_after_bytes: None,
+            send_window_follows_cwnd: false,
             websocket: false,
         }
     }
@@ -1217,6 +1230,7 @@ mod tests {
             mode: StreamMode::Shared,
             opening_ask: true,
             stall: None,
+            cwnd_ahead: None,
             taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
         };
         rt.block_on(async move {

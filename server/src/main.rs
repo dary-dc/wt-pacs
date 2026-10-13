@@ -35,6 +35,9 @@ struct Args {
     /// Lab only: each session sends this many media bytes, then nothing, with no FIN.
     #[arg(long, value_name = "BYTES")]
     stall_after_bytes: Option<u64>,
+    /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
+    #[arg(long, default_value_t = false)]
+    send_window_follows_cwnd: bool,
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/ARCHITECTURE.md
     #[arg(long, default_value_t = false)]
     websocket: bool,
@@ -67,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
         opening_ask: args.opening_ask,
         hold_sessions: args.hold_sessions,
         stall_after_bytes: args.stall_after_bytes,
+        send_window_follows_cwnd: args.send_window_follows_cwnd,
         websocket: args.websocket,
     });
 
