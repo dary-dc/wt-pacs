@@ -34,7 +34,8 @@ reports the numbers, then whether each prediction held. A short review closes th
 conclusive or not, and why. Rows already queued keep their briefs.
 
 **`held until <UTC time>` rows** wait for the owner's next usage window: a session treats one as `ready` once
-`date -u` is at or past that time, and leaves it before. An `after …` clause on the same row still applies.
+`date -u` is at or past that time, and leaves it before. An `after …` clause on the same row still applies. When a row is both `held until` and `after`, clearing its `after` makes it `held until <the same time>`,
+not `ready`.
 
 **`after env` rows** wait for the owner to switch the cloud environment's network access to full; the owner sets them to
 `ready`, and no session claims one before.
@@ -248,6 +249,24 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 168 | **PACKWRITE** — why a `.sbnd` written through an 8 KiB `BufWriter` reads 24–31 % slower than the same bytes written in 1 MiB writes (row 160): the mechanism, whether production would see it, and the protocol for the fix; theory | done `3e3b49ca` on `claude/av1-unified-mainbase` — **theory: the writer sizes the page-cache folios a hit walks, and a 1 MiB buffer is the one-line fix, worth ~1 µs of server CPU a small frame**: `pack-series`' 8 KiB `BufWriter` already writes every frame ≥ 8 KiB in one `write` (Rust 1.97 `bufwriter.rs:420–429`), but Linux v6.18.44 sizes a new folio by the write's remaining length and its page index's alignment (`mm/filemap.c:2006–2010`, ext4 large folios since v6.16, XFS since v6.6); a model of those rules (`folio_model.py`, (D)) gives 5.1 folios per 32–41 kB frame for `pack-series`, 5.4 for `dd bs=8K`, 1.3 for a 1 MiB `BufWriter`, 1.0 for `dd bs=1M`, 9.9 for 4 KiB folios — fitting row 160's three readings (~150–300 ns a folio, (D)); fragmentation, delayed allocation and `fallocate` touch no hit; production sees it only from pack to reclaim on ext4 ≥ 6.16 or XFS ≥ 6.6, and after reclaim the fill's own `WILLNEED` builds 4 KiB folios (`mm/readahead.c:275–276`), about twice `pack-series`' count; fixes F1–F5 ranked; protocol of 8 arms (A/A, `O_DIRECT`-written arms for after reclaim, a `data=journal` control that turns large folios off), 4 frame sizes, 16 interleaved rounds, folios counted through `kpageflags`, and a decision rule (a)–(e) for a separate measuring row, not queued — `docs/disk-layout/README.md` §The writer (on `claude/av1-unified-mainbase`) |
 | 169 | **DISPLAY** — what reaches the radiologist's screen: bits per sample after the window, the grayscale standard display function, colour management for RGB, in the browser and natively; theory | done `6238171a` on `claude/av1-unified-mainbase` — **theory: the exact frame reaches the screen as 8 bits after the window, sRGB-tagged, with no presentation LUT and no ICC handling; going past 8 bits is a trade-off, reading the colour and LUT tags is net where present**: a window W wide shows W/256 units a code (CT soft tissue 1.6 HU, lung 5.9, full 13-bit 22.6, (D)); 256 codes over the ~720 JNDs of a 0.8–600 cd/m² medical display is ~2.8 JNDs a step against 10 bits' ~0.7 (Kimpe and Tuytschaever 2007; 10 bits enough); Windows composes windowed apps at 8 bits a channel unless Advanced Color is on, WebGL's `drawingBufferStorage(RGBA16F)` is Chrome/Edge 122+ only and needs `alpha: true`; Chromium colour-manages the canvas to the monitor's profile unless `--force-color-profile=srgb`, a device question for GSDF panels; the ingest drops ICC Profile, Color Space, VOI LUT Sequence and Presentation LUT Shape; gaps G1–G6 (G1 half-float painter: picture memory ×2 and the 8-bit proof lost — trade-off, owner's; G4, G6 net where present), a container protocol with predictions, mutations and decision rule, a device protocol for the owner, rows DISPLAY10, COLORTAGS, VOILUT proposed — `docs/display.md`, `client/paint/README.md` §What reaches the screen (on `claude/av1-unified-mainbase`) |
 | 170 | **FETCHPIN** — `lab/av1/fetch_data.sh` runs as written: the hash-pinned `typing-extensions` that `blake3` needs (row 160's side finding) | done `e117cd1f`, `07f17f85` on `claude/av1-unified-mainbase` — **`typing-extensions==4.16.0` pinned with its wheel's hash; from a clean 3.11 venv the script installs under `--require-hashes` and 88 of 91 sets fetch and match their pinned digests**; the three breast-ultrasound sets' Zenodo archive was refused (TLS resets, 0–130 kB/s, stalled at 50 MB of 1.49 GB). A flipped hash failed the install. Also: the venv is now built with `python3.11` (`PYTHON` overrides), since a host whose `python3` is 3.13 failed on xxhash's 3.11-only hash. Every other line was already pinned with `==` and hashes. Side findings: the proxy cut 5 large IDC files short (0.1–0.6 % missing), which the script refuses and a retry fetched, and `urlretrieve` has no timeout, so a stalled fetch hangs — `lab/av1/requirements.txt`, `lab/av1/fetch_data.sh` |
+| 171 | **ASKAHEAD** — row 167's protocol: a send window that follows the congestion window, so an ask during a fill stops waiting behind 6 MiB written ahead | ready |
+| 172 | **WRITERMEASURE** — row 168's protocol: `.sbnd` files written in 8 KiB against 1 MiB writes, folios counted, hit and fill timed | ready |
+| 173 | **NETRULES** — rows 134 and 142's three refused levers (OpenJPH under emscripten 6.0.x, the shared-heap copy, decoders started on first need) given protocols judged by an A/A arm's spread under the net reading; theory | ready |
+| 174 | **QUICSTREAMS** — how each QUIC stack handles many streams (scheduling, priority, flow control, limits, retransmission order) and which stream design serves a fill and an ask best at the measured links; theory | ready |
+| 175 | **TILESTORE** — tiles for large frames: the store-format proposal rows 133 and 143 left for the owner; writing, nothing built | ready |
+| 176 | **HASHFAST** — the frame check's XXH3-64 in the decoder worker: where its ~3.3 GB/s goes, and whether a SIMD128 build over the decoder's own heap is faster with the digest unchanged; theory | ready |
+| 177 | **DOCFIX** — row 166's found-on-the-way list: docs not corrected for row 162's band, dangling owners, stale lines, owner calls missing from §Blocked | ready |
+| 178 | **NETMEASURE** — row 173's protocols run by a session given only them | held until 2026-10-13 18:30 UTC; after 173 |
+| 179 | **HASHMEASURE** — row 176's protocol run by a session given only it | held until 2026-10-13 18:30 UTC; after 176 |
+| 180 | **STREAMSMEASURE** — row 174's protocol run by a session given only it | held until 2026-10-13 18:30 UTC; after 174 |
+| 181 | **IWDEEP** — row 167's protocol: the 32-packet initial window behind the buffers phones have | held until 2026-10-13 18:30 UTC |
+| 182 | **FASTCLOCK** — row 167's protocol: where each codec's fill turns decode-bound at the measured rates, and the GSO cap of 24 as the build default | held until 2026-10-13 18:30 UTC |
+| 183 | **ASKBEHIND** — an ask behind a decoder's queue at the measured rates, and whether ask-aware dispatch cuts it with the fill unchanged; theory | held until 2026-10-13 18:30 UTC |
+| 184 | **READERPAUSE** — the coded queue's growth on large series at 100–300 Mbit/s, and whether a reader pause bounds it with fill and ask unchanged; theory | held until 2026-10-13 18:30 UTC |
+| 185 | **HTJ2KPACK** — sparse histograms in target series, and a value map before HTJ2K that cuts their bytes with decode unchanged beyond a lookup; theory | held until 2026-10-13 18:30 UTC |
+| 186 | **JXLRS** — jxl-rs in WASM with a sample API: is any JPEG XL setting as fast as OpenJPH and smaller; theory | held until 2026-10-13 18:30 UTC |
+| 187 | **INITIALREPLY** — answering a repeated Initial with the unacknowledged server flight: a lost first flight's 700 ms cut, nothing sent on clean links; theory | held until 2026-10-13 18:30 UTC |
+| 188 | **JPEGLS** — CharLS in WASM on the target series: bytes and decode against OpenJPH, exact; theory | held until 2026-10-13 18:30 UTC |
 
 ## Briefs
 
@@ -3596,7 +3615,125 @@ unpinned.
 
 **Deliverable:** `lab/av1/requirements.txt`. **Branch:** `claude/av1-unified-mainbase`.
 
+## The net-improvement round, windows 1 and 2 (rows 171–188), 2026-10-13
+
+**The owner, 2026-10-13:** theoretical investigation can lead to empirical testing outside the ideas the owner
+proposed — those are simply proposals. The orchestrator may plan up to two usage windows. Tiles for large frames are
+interesting (row 175). Several streams should be investigated for the QUIC implementation research (row 174).
+
+Rows 171–177 run in the usage window that opened 2026-10-13 ~13:20 UTC; rows 178–188 are held for the next. Each row's
+proposals for further measurement are welcome beyond its brief: name them (a name and one question) in the
+deliverable for the orchestrator to queue. The round's reading of *net* is row 165's round brief.
+
+### 171 ASKAHEAD
+
+**Measurement, by row 167's protocol** ([`../transport/link-conditions.md`](../transport/link-conditions.md)
+§Re-measured, proposed, *ASKAHEAD*): read that item and its decision rule, nothing else of row 167, before the numbers
+are in. The arm is lab-only (a server flag, off by default). Also run the arm `levers.md` adds to it (HyStart's queue
+cut, cq W4b) if the server can take it as a flag; otherwise say so. **Deliverable:** that item's §Measured, in place.
+**Branch:** `claude/av1-unified-mainbase`.
+
+### 172 WRITERMEASURE
+
+**Measurement, by row 168's protocol** ([`../disk-layout/README.md`](../disk-layout/README.md) §The writer, *Protocol
+for the measuring row*): read the protocol and its rule (a)–(e) only, not §Why its files read slower, before the
+numbers are in. Hit and forced miss through the store's levers, never page-cache eviction. If the rule adopts a fix,
+make it in `pack-series` (and `from-parser` if it shares the writer) with a test that fails without it.
+**Deliverable:** that section's §Measured. **Branch:** `claude/av1-unified-mainbase`.
+
+### 173 NETRULES
+
+**One question: judged by an A/A arm's spread instead of a fixed bar, do rows 134 and 142's three refused levers have
+a fair protocol?** Theory. The levers: P-EMSDK (OpenJPH under emscripten 6.0.x with `wasmBinary` restored; row 134's
+×0.886–0.931 on projections and its ×1.061 cell), P-COPY (the shared-heap copy; RGB ×0.866 on a synthetic set only,
+memory −5 to −25 MB; add a sound RGB set), and `startOnNeed` (row 142: decoder CPU −4 to −14 %, wake-ups −56 to −82 %,
+misses against a fixed bar). Sources: `docs/codecs/README.md` §Tried and open (EMSDKNET, COPYRGB), `docs/levers.md`
+(COPYNET, STARTAA), `docs/decode/README.md` §Not yet tried. For each: the A/A arm, cells at row 162's rates (100 and
+300 Mbit/s, a 0.7 s loaded RTT), predictions and a rule that adopts it only if no cell is worse beyond the A/A spread.
+**Deliverable:** `docs/decode/README.md` §Not yet tried, a *Net protocols* part. **Branch:**
+`claude/av1-unified-mainbase`.
+
+### 174 QUICSTREAMS
+
+**The owner, 2026-10-13:** several streams should be investigated for the QUIC implementation research. Read here as
+QUIC streams: how many, how scheduled, and what each stack does with them (the owner corrects this reading if it meant
+something else). **One question: how does each QUIC stack treat many streams, and which stream design serves a fill and
+an ask best at the measured links?** Theory, at each stack's best configuration (row 157's rule).
+
+* **The product today:** `docs/WIRE.md` §Stream modes (`shared` default, `per-frame` with ask-order priority, `pool:k`
+  retired), [`../adr/stream-shape.md`](../adr/stream-shape.md),
+  [`../adr/frame-framing-and-loop-shape.md`](../adr/frame-framing-and-loop-shape.md) (`set_priority`), row 167's
+  ask behind the written-ahead fill, row 171's arm.
+* **Each stack of `docs/native/quic-compared.md`, and the browsers' clients:** the send scheduler (round robin,
+  priority, incremental; RFC 9218), retransmission order across streams, per-stream and connection flow control and
+  their auto-tuning, `MAX_STREAMS` and a stream's open cost, head-of-line blocking under loss, how much the
+  application can bound what is written ahead per stream; WebTransport's `sendOrder` / `sendGroup` and what each
+  engine implements. File:line at a pinned tag.
+* **Several streams against one**, and several connections: what each buys at 18, 103 and 309 Mbit/s and 0.2–0.8 s
+  loaded RTT (row 162), with the derivation; net or a trade-off.
+* **Close with a protocol** for a separate session (the arms a container can run through the product), predictions and
+  a decision rule, and further rows if the theory points elsewhere.
+
+**Deliverable:** `docs/native/quic-compared.md` §Streams. **Branch:** `claude/av1-unified-mainbase`.
+
+### 175 TILESTORE
+
+**The owner, 2026-10-13:** tiles for large frames are interesting. **One question: what exactly would the store, the
+wire and the client carry for tiles?** A proposal, nothing built (a store-format change is structural). Start from row
+133's measurement (`docs/decode/README.md` §Not yet tried, P-TILE: ask ×0.388–0.448 at 4× on the three large series,
+bytes +0.01–0.59 %), row 143's ADR ([`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md)
+§8, its five choices and the owner's ruling on device pixels), and the draft target's layout 1
+([`../disk-layout/target.md`](../disk-layout/target.md)). Give each open choice a recommendation and its reason; the
+frame sizes from which tiles are used and k by size (nothing past k = 3 is measured); the per-tile digests; how a fill
+and an ask ask for tiles; what HTJ2K-unchanged means for series below the threshold; the migration of stored series.
+Close with the measurement the proposal still needs. **Deliverable:** `docs/disk-layout/target.md` §Layout 1, tiled,
+and the ADR's §8 updated. **Branch:** `claude/av1-unified-mainbase`.
+
+### 176 HASHFAST
+
+**One question: can the frame check's XXH3-64 run faster in the decoder worker, digest unchanged?** Theory. Row 151:
+~3.3 GB/s in both engines, 4–12 % of an HTJ2K frame (8 ms on a 69 ms mammogram). Read the shipped hasher (which
+library, which build, whether it copies the samples into its own heap), XXH3's SIMD128 paths and what a WASM build
+reaches in published or derivable numbers, and hashing in the decoder's heap before the hand-off. Predictions and a
+protocol with a rule (net only if the digest is bit-identical on every frame and no cell is slower). **Deliverable:**
+`docs/adr/exactness-in-production.md`, a section on the check's speed, or the doc that owns row 151's numbers.
+**Branch:** `claude/av1-unified-mainbase`.
+
+### 177 DOCFIX
+
+Row 166's *Found on the way* (`docs/levers.md`), each corrected in place in the doc that owns it, no new claim: the
+docs still stating the old band (`docs/rig-limits.md` §1's 768 KB "never binds", `docs/native/quic.md` §7's
+5–50 Mbit/s and "0.4–0.7 % of a core"), pointing to `docs/transport/link-conditions.md`; the dangling owners (rows 49,
+54, 86; `CLAUDE.md`'s `docs/disk-access/adr.md` → `docs/adr/disk-access.md`); `docs/ARCHITECTURE.md` §Open's stale
+lines; the coded-bytes digest open in one doc and agreed in another; and the owner calls row 166 found missing from
+§Blocked, added there. Gate green. **Deliverable:** the corrected docs. **Branch:** `claude/av1-unified-mainbase`.
+
+### 178 NETMEASURE, 179 HASHMEASURE, 180 STREAMSMEASURE
+
+**Measurement, each by its theory row's protocol** (173, 176, 174), in a session given only the protocol and its rule.
+If the theory row proposed no protocol a container can run, the row is done with that line. A lever adopted by its rule
+is built beside today's path, off by default where it changes behaviour, with a test that fails without it.
+**Deliverable:** the protocol's §Measured, in place. **Branch:** `claude/av1-unified-mainbase`.
+
+### 181 IWDEEP, 182 FASTCLOCK
+
+**Measurement, each by row 167's protocol** of that name ([`../transport/link-conditions.md`](../transport/link-conditions.md)
+§Re-measured, proposed); read only that item and its rule before the numbers. **Deliverable:** that item's §Measured.
+**Branch:** `claude/av1-unified-mainbase`.
+
+### 183 ASKBEHIND, 184 READERPAUSE, 185 HTJ2KPACK, 186 JXLRS, 187 INITIALREPLY, 188 JPEGLS
+
+**Theory, each by its one question** as row 165 (`docs/codecs/README.md` §Left, ranked: HTJ2KPACK, JXLRS, JPEGLS) or
+row 166 (`docs/levers.md` §Proposed rows: ASKBEHIND, READERPAUSE, INITIALREPLY) states it, with its basis there. Each
+writes the mechanism, predictions, a protocol and a decision rule for a separate measuring session, and says whether
+the lever can be net at all or is a trade-off for the owner. JPEGLS and JXLRS at each codec's tuned best, never its
+defaults. **Deliverable:** the doc that owns the lever (the codec's doc under `docs/codecs/`, `docs/decode/README.md`,
+`docs/transport/transport-conclusions.md`). **Branch:** `claude/av1-unified-mainbase`.
+
 ## Blocked
+
+* *Owner rulings, 2026-10-13 (later):* theory may lead to empirical tests beyond the owner's proposals, which are
+  simply proposals; the orchestrator plans up to two usage windows; tiles for large frames are of interest (row 175).
 
 * *Owner rulings, 2026-10-13:* the next work aims at **net improvements** (rows 165–170, the round's brief); a longer
   fill time is not of interest for now. The orchestrator's reading of "net" is in the round's brief, for the owner to
