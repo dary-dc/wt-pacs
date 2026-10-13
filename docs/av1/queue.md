@@ -7,7 +7,7 @@ and its branch belong to other work.
 
 ## Protocol
 
-**This queue lives on `claude/av1-mainbase`, and the work on `claude/av1-unified-mainbase`** (since row 150,
+**This queue lives on `claude/av1-mainbase`, and the work on `claude/av1-unified-mainbase`** ([`ORCHESTRATE.md`](ORCHESTRATE.md) for the session that dispatches it; since row 150,
 2026-10-12): wherever a row names `claude/av1` or `claude/av1-unified`, read these; the old branches are unused.
 **Push only to `claude/av1-mainbase`** — never to
 `claude/unified-2026-09-23`, `main` or any other branch, and never edit `docs/cloud-queue.md`.
