@@ -236,6 +236,12 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 156 | **QUICCOMPARE** — the QUIC implementations compared one by one, for learning: what each is, its design, how it handles every lever, its throughput ceiling as a function of bandwidth and RTT at defaults and at its best, and what it would mean as our client and as our server; theory and writing, from rows 124 and 152's sources | done `b9b23abc`, `dcb8c5be` on `claude/av1-unified-mainbase` — **every stack obeys one ceiling, min(link, window ÷ RTT, the sender's controller under loss, CPU); at defaults three bind at ordinary rates, at their best only neqo's constant 10 MiB binds in the grid, and under loss the controller binds first**: theory and writing, eleven stacks deep and four brief, every claim labelled source, derived or measured; window ÷ RTT at 80 ms: Google QUICHE's bare 16 KB 1.6 Mbit/s, mvfst's 65 KiB 6.55, msquic's 64 KiB start 6.55 then 1 678, quinn's 1.25 MB 125 (33 at 300 ms), neqo 280 at 300 ms at its best; CUBIC's own response function (RFC 9438 §5) gives 1.74 Mbit/s at 1 % loss and 80 ms for every stack; CPU binds nowhere in the grid on server CPUs (quinn 11.8–12.4, msquic 14.8–16.4 Gbit/s one connection), phones unknown; on raw QUIC every stack but Cronet can be our client once the server takes our ALPN, so quinn's lead narrows to the shared crate, the measured 2.1 ms/MB receive and ACK_FREQUENCY (also msquic, picoquic); as a server only quinn has a released WebTransport server and a public controller hook (Google QUICHE and picoquic unreleased); `quic_grid.py` checked against RFC 9438's tables (5 mutations caught); gate `--quick --no-browser` green, the page check not run here (decoder build refused by Docker Hub, 429) — [`../native/quic-compared.md`](../native/quic-compared.md) on `claude/av1-unified-mainbase` |
 | 157 | **QUICREWRITE** — row 156's comparison rewritten with each stack at its best configuration as the reading, defaults only as what must be changed, every number traceable to its exact source or derivation; theory and writing | done `26c5c1dd` on `claude/av1-unified-mainbase` — **at their best the window stops separating the stacks: every client window is a setting reaching the grid's 37.5 MB BDP except neqo's 10 MiB constant (binds above 280 Mbit/s at 300 ms) and Google QUICHE's 16 MiB limit (447), each one constant to patch; under loss the server's controller binds first (CUBIC 1.74 Mbit/s at 1 % and 80 ms, RFC 9438 §5.1) and four stacks take our own controller without a fork (quinn, picoquic, Google QUICHE, mvfst); what still separates them is ACK_FREQUENCY (quinn, msquic, picoquic at the current codepoint), Cubic pacing (all but Cloudflare quiche), probed migration, 0-RTT, multipath and the server's WebTransport**: theory and writing, every number at its point of use with file:line at the re-fetched pins (hashes matched) or RFC/paper section, table or figure; re-reading corrected row 156 — the window that matters is the client's for the server's uni streams (lsquic client 32 KiB, picoquic 65 535 B), Google QUICHE's client never auto-tunes, msquic sends ACK_FREQUENCY, Google QUICHE never does, mvfst's codepoint matches no other, quiche's caps are settings, quic-go defaults to Reno; `quic_grid.py` 6/6 mutations caught; gate `--quick --no-browser` green — [`../native/quic-compared.md`](../native/quic-compared.md) on `claude/av1-unified-mainbase` |
 | 158 | **QUICLATENCY** — what each QUIC stack, at its best, does to latency: time to the first frame, an ask on a clean and a lossy link, head-of-line blocking, receive CPU per frame, migration; theory, formulas over RTT and loss | done `956a310b` on `claude/av1-unified-mainbase` — **the server's stack sets nearly every latency term; the client's sets four**: theory only, each term a formula over RTT, loss and rate with its RFC section and each stack's file:line; a 0.5 MB frame on a fresh connection takes 2.1 s at 300 ms above 50 Mbit/s (slow start from quinn's 12 000 B initial window, not the link); 0-RTT saves its RTT only with an address token (RFC 9000 §8.1; quinn's server sends none by default); a lost first flight waits 3 × the client's initial RTT, 150 ms (mvfst) to 999 ms (six stacks at 333 ms); a lost last packet waits PTO = RTT + 1 ms + the client's max_ack_delay, 24 ms less where the client obeys ACK_FREQUENCY (quinn, msquic, picoquic), p × 24 ms on average; expected loss delay of an ask 87–88 ms at 1 %, 80 ms and ≥ 50 Mbit/s, and behind a CUBIC sender the ask takes 2.6 s there; a client window far above the BDP lengthens an ask during a fill (quinn's 10 MB send window: 1.68 s at 50 Mbit/s); out-of-order reads only in quinn and picoquic, of no use on the shared stream; migration costs about one new RTT plus slow start either way, one RTT less than a plain re-dial and about none less than a 0-RTT re-dial with a token; receive CPU (row 135) adds ≈ 3 µs per frame; `quic_latency.py` 8/8 mutations caught; gate `--quick --no-browser` green — [`../native/quic-compared.md`](../native/quic-compared.md) §8 on `claude/av1-unified-mainbase` |
+| 159 | **CONTAINERS** — the standard containers characterized against the `.sbnd`: what each is, how it indexes frames, its codec mappings, what maximizes throughput or minimizes latency in it, its tooling, playback and browser support; theory, with row 160's protocol and decision rule | ready |
+| 160 | **CONTAINERBENCH** — row 159's containers measured against the `.sbnd` on the same frames and the same read path: open, bytes, per-frame read latency, fill throughput, server CPU per GB, ingest packing time | after 159 |
+| 161 | **HWDECODE** — every hardware decode path, browser and native: codecs and bit depths in hardware, lossless, whether the exact samples come back, and which radiology functions survive; theory | ready |
+| 162 | **LINKREAL** — real link conditions from published measurements: mobile 4G/5G, hospital Wi-Fi, home broadband, hospital uplinks — rates, RTT, loss and their spread; research | ready |
+| 163 | **STREAMPACK** — sending a series while it is still being parsed and coded: the formats and protocols that allow it, what overlap saves, and what it costs in safety and checks; theory | ready |
+| 164 | **DISKLAYOUTDOCS** — `docs/disk-layout/`: the current `.sbnd` layout exactly, and the draft target agreed 2026-10-12; writing | ready |
 
 ## Briefs
 
@@ -3322,6 +3328,143 @@ question: **what does each QUIC stack, at its best, do to the latency of a frame
 
 **Deliverable:** a §Latency in `docs/native/quic-compared.md` (after row 157's rewrite), summarised in its §1.
 **Branch:** `claude/av1-unified-mainbase`.
+
+### 159 CONTAINERS
+
+**The owner, 2026-10-12:** the team proposed standard video containers (Matroska, MP4 and others, with ffmpeg) as
+packing alternatives: standardized, battle-tested, nothing to implement. The owner doubts any matches the custom
+layout plus this server's read path on throughput and latency, especially in the cloud where every resource is
+money, and wants the comparison fair. One question: **what is each container, and what can it do for us?** Theory
+only; the measurement is row 160.
+
+* **Candidates:** MP4 / ISO BMFF (progressive and fragmented, CMAF), Matroska / WebM, DICOM multi-frame encapsulated
+  (Basic and Extended Offset Table; the HTJ2K transfer syntaxes), MXF (JPEG 2000 in MXF), Motion JPEG 2000
+  (ISO/IEC 15444-3), raw AV1 streams (OBU / Annex B / IVF), and any other a source shows in use for frame sequences.
+  The reference is the `.sbnd`, today's and row 164's draft target.
+* **Each, characterized simply first:** its structure (a diagram), how it indexes frames (granularity, where the
+  index sits, what loading it costs), where metadata goes, which codecs have a standard mapping (AV1, JPEG 2000 /
+  HTJ2K, 16-bit grey, 12-bit), its per-frame overhead.
+* **What maximizes throughput or minimizes latency in it:** index placement (e.g. MP4 `moov` first), fragment size,
+  Matroska Cues placement, alignment, interleaving; what a server must parse at open and per request, and whether the
+  read path can stay one lookup and one `pread` per frame (`docs/adr/disk-access.md`).
+* **Everything else that counts:** tooling (ffprobe, MediaInfo, MP4Box, mkvtoolnix, dcmtk), hardware playback in
+  players (a property of the codec, which the container only feeds — say so where it applies), browser support (MSE
+  takes fragmented MP4 and WebM; WebCodecs takes no container, so a demuxer is needed), how the draft target's
+  features would be carried (Study/Series UIDs, a coded and a samples hash per frame, the tiled band-major layout) and
+  what that costs in standardness, licences and patents, maturity.
+* **Close with row 160's protocol:** predictions per arm, the arms worth measuring, the metrics, interleaving, and a
+  decision rule (what result adopts a standard container, what keeps the `.sbnd`), marked *proposed* for the owner
+  and the team.
+* **Rules:** every number at its point of use with its exact source (spec section, file:line at a pin) or its
+  derivation; (S) / (D) / (M) labels as row 156; no claim restricted to the assumed link band.
+
+**Deliverable:** `docs/disk-layout/containers.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 160 CONTAINERBENCH
+
+**Measurement, in a session given only row 159's §Protocol** (theory first, measured apart). Read nothing else of row
+159 before the numbers are in.
+
+* **Arms:** the `.sbnd` and the containers row 159 names, each implemented with equal care: one index loaded at open,
+  then the same read path (`pread`, `RWF_NOWAIT`, the pool) — a fair arm, not a strawman. Packing by the standard
+  tools where they exist (ffmpeg, MP4Box, mkvmerge, dcmtk) and by ours.
+* **Data:** sound sets only (`lab/av1/data.json` provenance `sound`); others only labelled, deciding nothing.
+* **Metrics:** time to open, bytes on disk, per-frame read latency (hit and forced miss through the store's levers),
+  fill throughput, server CPU per GB served, ingest packing time. CLAUDE.md §Measurement: interleaved arms, mutate
+  every new check, latency or throughput not both, say where the host saturates.
+* **Verdict** by row 159's rule, stated as proposed until the owner and the team accept it.
+
+**Deliverable:** `docs/disk-layout/containers.md` §Measured. **Branch:** `claude/av1-unified-mainbase`.
+
+### 161 HWDECODE
+
+**The owner, 2026-10-12:** hardware playback is a strength the team sees in video containers; it belongs to the
+codec, and could serve our own frame sequence — a native video viewer for the native version, video decode in the
+browser — if it keeps what a radiologist needs. One question: **which hardware decode paths can serve the diagnostic
+viewer?** Theory only.
+
+* **Paths:** the browser's `<video>` / MSE, WebCodecs (Chromium, Firefox, Safari), VideoToolbox, MediaCodec, VA-API,
+  NVDEC, Media Foundation / D3D12 Video, Vulkan Video.
+* **For each:** codecs and profiles in hardware (AV1 Main / High / Professional, HEVC RExt, VVC, any JPEG 2000 / HTJ2K),
+  bit depths, whether AV1's lossless mode decodes, whether the exact samples come back to the application (and how:
+  `VideoFrame.copyTo`, `CVPixelBuffer`, `Image`) or only a colour-converted picture, published per-frame latency and
+  throughput, device coverage (the share of phones and desktops with each), and which radiology functions survive:
+  window/level on > 8 bits, zoom, measurement, the exactness check, cine.
+* **Relate it to the AV1 design:** the bit split into 8/10-bit planes (`docs/codecs/`), the measured WebCodecs and
+  dav1d results (rows 8, 37, 49), Chromium's 12-bit refusal.
+* **Rules:** row 159's.
+
+**Deliverable:** a §Hardware decode in `docs/decode/README.md`, or `docs/decode/hardware.md` linked from it if it
+outgrows a section. **Branch:** `claude/av1-unified-mainbase`.
+
+### 162 LINKREAL
+
+**The owner, 2026-10-11/12:** the repository's 5–50 Mbit/s and 30–150 ms
+([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md), The target) were set as an
+assumption and must not be treated as fact. One question: **what do real links measure?** Research only.
+
+* **Links:** mobile 4G and 5G (down and up), hospital and enterprise Wi-Fi, home broadband, and a hospital site's
+  internet uplink to a cloud PACS.
+* **Per source:** who measured, where, when, how, and the distribution (median, p10, p90 where given) of rate, RTT,
+  loss and their variation over time (bursts, handovers, delay spikes, bufferbloat); pinned like every other source.
+  Prefer large independent datasets (regulators, M-Lab, peer-reviewed measurement studies) over vendor claims; name
+  each source's bias.
+* **Output:** a table of link profiles with ranges and sources; then what it means for the assumed band — confirmed,
+  widened or replaced — corrected in place in `transport-conclusions.md` The target, with a pointer here; and which
+  earlier verdicts rest on the band (list them, do not re-run them).
+
+**Deliverable:** `docs/transport/link-conditions.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 163 STREAMPACK
+
+**The owner, 2026-10-12:** the hospital packs a series into one file and publishes it by `.partial` → fsync → rename;
+can it start sending while it is still parsing and coding, and with what protocol? One question: **what would
+streaming the pack take, and what would it save?** Theory only.
+
+* **Why it does not stream today:** the index sits at the front and needs every frame's length first
+  (`common/series-bundle/src/writer.rs`).
+* **Options:** an index at the end (a trailer); frames as independent records with a final "series complete"
+  message, the PACS assembling and publishing; chunked resumable upload (draft-ietf-httpbis-resumable-upload, tus, S3
+  multipart) — each with its framing, how a crash or a cut link resumes, when and how each frame's coded hash is
+  checked on arrival, and how the PACS publishes only a complete series.
+* **What overlap saves,** as a formula over coding rate, link rate and series size, at the hospital uplink rates row
+  162 finds (or a stated range until then); and its interplay with the open "when is a series complete" decision
+  (`docs/ingest/design.md`).
+
+**Deliverable:** a section in `docs/ingest/design.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 164 DISKLAYOUTDOCS
+
+**The owner, 2026-10-12:** wt-pacs needs a document for the current disk layout and one for the target. Writing only;
+diagram first, essential, for humans.
+
+* **`docs/disk-layout/README.md` — the current layout, exactly,** from the code with line references: the `.sbnd`
+  header (16 B: "SBND", version, metadata length, frame count), the index (12 B a frame: offset u64, length u32, fixed
+  stride, read once at open), the embedded metadata JSON and the sidecar (two copies; the server reads neither; the
+  page reads the sidecar), frames back to back in display order, unaligned; the writer (lengths up front, no
+  temporary name, no fsync, no rename); one series per server process; the read path's dependence on display order
+  (`FILL_WINDOW`). Fix `docs/av1/payload-format.md`'s "the bundle's codec field" (there is none; the codec is in the
+  metadata).
+* **`docs/disk-layout/target.md` — the draft target agreed with the owner 2026-10-12**, marked draft until rows 159–160
+  report:
+  * one file per series, `<StudyUID>/<SeriesUID>.sbnd`; metadata only in the per-study database (Turso), none in or
+    beside the file;
+  * header 148 B: "SBND" | version u32 = 2 | codec 4 ASCII ("HTJ2", "AV01") | layout u32 (0 sequential, 1 tiled) |
+    entry count u32 | Study Instance UID 64 B | Series Instance UID 64 B (NUL-padded) — the file says what it is;
+  * layout 0, sequential (the one built now): entry 28 B = offset u64 | length u32 | XXH3-64 of the coded bytes |
+    XXH3-64 of the samples; the frame number is the entry's position;
+  * layout 1, tiled (later, its own format): entry 36 B, adding frame u32 | tile u16 | band u8 | spare u8, stored
+    band-major so a screen-fitted read is one contiguous range (the 17.6× of the 2026-09-06 study, tag
+    `read-path-evidence-2026-09-09` `docs/disk-layout/ACCESS-PATTERNS.md`);
+  * the coded hash is kept for life: checked on receipt, by scrub and optionally on read; the samples hash is the
+    client's exactness check;
+  * packed at the hospital; published by `.partial` → fsync → rename → fsync of the directory, at both ends;
+  * a version the reader does not know is refused;
+  * open: streaming the pack (row 163), standard containers (rows 159–160), series completeness.
+* Link both from `docs/FIXTURES.md` §SBND series bundle and `docs/adr/disk-access.md`; keep the gate's link check
+  green.
+
+**Deliverable:** the two files and the fixes. **Branch:** `claude/av1-unified-mainbase`.
 
 ## Blocked
 
