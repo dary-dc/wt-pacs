@@ -80,6 +80,7 @@ The client's checks stay on by default.
 | Site host tuning, the server's kernel, the site's congestion controller | open | [`link.md`](link.md) §4, §9 |
 | How the parser ships with the ingest | open | [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site |
 | The parser hashes the bytes it writes | open | §5 below |
+| Streaming the pack: code on arrival; frames as records only under a quiet period | recommended | [`design.md`](design.md) §11 |
 | The catalog's engine | deferred | — |
 
 ## 5. Parser findings

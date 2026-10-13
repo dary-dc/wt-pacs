@@ -1,6 +1,6 @@
 # Ingest design — from the parser to the PACS
 
-*Queue row 153 INGESTDESIGN, 2026-10-11. Theory only: read from sources (§10), nothing built, nothing timed. It
+*Queue row 153 INGESTDESIGN, 2026-10-11. Theory only: read from sources (§12), nothing built, nothing timed. It
 compares options and recommends; every choice is the owner's (§10).*
 
 **The question.** Today's proposal — the owner's C parser writes a directory per instance; a Rust ingest at the site
@@ -26,7 +26,8 @@ output and an HTJ2K output on the grok encoder is from this row's brief, not rea
 8. [(g) Recovery](#8-g-recovery)
 9. [(h) Prior art](#9-h-prior-art)
 10. [The owner's decisions](#10-the-owners-decisions)
-11. [Sources](#11-sources)
+11. [Streaming the pack](#11-streaming-the-pack)
+12. [Sources](#12-sources)
 
 ## 1. The answer in plain words
 
@@ -70,7 +71,7 @@ output and an HTJ2K output on the grok encoder is from this row's brief, not rea
 
 | | at the site, by the Rust ingest (proposed) | inside the parser, in C | in the cloud |
 | --- | --- | --- | --- |
-| encoder | OpenJPH, pinned, the bytes today's ingest writes (row 155's parity) | grok, AGPL v3 (§11); a second HTJ2K encoder | any, paid per CPU-second |
+| encoder | OpenJPH, pinned, the bytes today's ingest writes (row 155's parity) | grok, AGPL v3 (§12); a second HTJ2K encoder | any, paid per CPU-second |
 | bytes on the link | HTJ2K's | HTJ2K's | raw + zstd: 1.0–1.8× HTJ2K's (below) |
 | CPU | the site's (the owner: free) | the site's | the PACS operator's |
 | exactness check | decode-back at the site, before anything leaves | needs a decoder in the parser, or the ingest re-decodes | decode-back in the cloud; end to end only if the site hashed the raw samples first |
@@ -308,12 +309,198 @@ Listed, not taken; under the queue's §Blocked.
 8. **The parser's group hashes** (§6): whether the parser hashes the bytes it writes, so the PACS can check every group
    (row 155's open point 2).
 9. **Metadata compression** (§7): per series (recommended), or per group with a shipped dictionary.
+10. **Streaming the pack** (§11): code on arrival first; stream frames as records only under a quiet-period rule for
+    completeness; no index at the end (recommended).
 
 Gaps theory cannot close, one line each: HTJ2K against zstd on the lab's own sets (no published side-by-side beyond
 seven images); DICOM header sizes per modality (no source); P-STAGE's share (proposed in
 [`../FIXTURES.md`](../FIXTURES.md)).
 
-## 11. Sources
+## 11. Streaming the pack
+
+*Queue row 163 STREAMPACK, 2026-10-13. Theory only: nothing built, nothing timed. (S) a source in §12, (D) derived
+here, (M) measured in this repository, with its row. The uplink rates are the assumed 10 Mbit/s–1 Gbit/s of
+[`link.md`](link.md) until row 162 (LINKREAL) replaces them.*
+
+**The question.** The site packs a series into one `.sbnd` and publishes it once complete. Could frames cross the link
+while the series is still being parsed and coded, and what would that take and save?
+
+**The answer in plain words.**
+
+* **Overlap saves at most the smaller of coding and sending, so never more than half of code-then-send** (D, §11.3).
+  The site codes HTJ2K faster than any assumed uplink, so streaming saves the coding: under a second for 300 frames on
+  4 cores. AV1 coding is the clock, so streaming hides the link: up to 26 s on the same series.
+* **The larger gain is against the wait for completeness.** If a series is called complete after a quiet period, the
+  streamed frames cross the link during it, and what is left after it is one round trip and the PACS's publish. A long,
+  safe quiet period then costs little. If the association's end is the signal, streaming HTJ2K buys almost nothing.
+* **Coding on arrival takes the coding part without streaming**: the ingest codes frames as instances arrive and writes
+  the bundle, index first, at completion. No format, wire or store change.
+* **If streaming is wanted, frames as records with a final "series complete" message** keep the `.sbnd` unchanged,
+  check each frame on arrival and resume frame by frame. An index at the end changes the format and still leaves the
+  frames in arrival order. A chunked resumable upload is the transport under either, not a third design.
+* **Per frame, no safety is lost**: a frame leaves only after its own decode-back check. What changes: the earlier frames
+  of a series that fails late have already crossed and are discarded, the PACS holds partial series until they expire,
+  and resuming after a site crash relies on the ingest coding the same bytes again (shown for HTJ2K, row INGESTRS1; not
+  measured for AV1).
+
+### 11.1 Why it does not stream today
+
+* **The format is front-loaded.** The 16 B header holds the frame count and the metadata's length; the index, 12 B a
+  frame (offset, length), follows; then the metadata; then the frames
+  (`common/series-bundle/src/format.rs:8–12`). `BundleWriter::create` takes every frame's length and writes the header,
+  index and metadata before the first frame's byte (`common/series-bundle/src/writer.rs:16–43`). The metadata needs
+  the whole series too: its minimum, maximum and every frame's digest (`ingest/from-parser/src/main.rs:97–111`).
+* **The ingest runs on a complete series.** It starts after the wait for the series ([`README.md`](README.md) §1, step
+  3), codes every frame into memory, then writes the bundle (`ingest/from-parser/src/main.rs:84–114`).
+* **The parser hands over whole instances**, one directory each ([`README.md`](README.md) §1, step 2). A multi-frame
+  instance (a cine, a tomosynthesis volume) gives no frame until all of it is received and parsed. Streaming inside one
+  instance needs the parser's stream output (§3).
+* **The draft target is front-loaded as well.** Row 164's header carries the entry count, and its index (offset,
+  length, a coded and a samples XXH3-64, 28 B a frame) precedes the frames. It drops only the metadata, which moves to
+  the study database.
+* **Display order.** Frames lie back to back in display order, and a fill asks the kernel for
+  `FILL_WINDOW` = 4 MiB past the frame it reads (`server/src/media/read_path.rs:26`, `181–193`). A file written in
+  arrival order serves fills in display order only if the instances arrived in it.
+* **AV1's offset.** The bit split codes samples offset by the series' minimum, which takes one pass over every frame
+  before the first is coded ([`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site, *Streaming memory*).
+  A streamed AV1 series needs an offset fixed before the series is read: per frame, or from the bits stored, as HTJ2K's
+  is (2^(bits − 1), `ingest/from-parser/src/htj2k.rs:47`). That changes the stored coding, so it is row DEPTH's
+  decision, not this row's.
+
+### 11.2 The options
+
+| | (A) an index at the end | (B) frames as records, then "series complete" | (C) chunked resumable upload |
+| --- | --- | --- | --- |
+| what it is | frames written as coded, then the index and a fixed footer pointing at it: ZIP's layout, file data first and its central directory last (APPNOTE 6.3.10 §4.3.6; its data descriptor exists "to facilitate ZIP file streaming", §4.3.5) (S) | each frame a record (series UID, generation, instance UID, frame in the instance, length, coded and samples XXH3-64, bytes); a last record gives the count and a hash over the ordered coded hashes | the transport for (A) or (B), not a layout |
+| the `.sbnd` | a new version: the reader reads the footer, then the index (one more read at open); structural, so proposed only | unchanged: the PACS writes today's or the target's bundle from the records | unchanged |
+| a frame's coded hash checked | when the index arrives, last; earlier only if each frame carries its own header, which is (B) | as its record lands; a bad frame is asked again alone | per chunk, if the protocol has it (below) |
+| a cut link resumes | from the byte offset the PACS confirms (C) | the PACS lists the frames it holds; the site sends the rest; a record is idempotent by its key and coded hash | tus: HEAD returns the offset; draft-13: the offset "MUST NOT decrease"; S3: ListParts (§8) (S) |
+| a site crash resumes | from the site's growing file, `fsync`ed a chunk at a time | the ingest re-codes from the parser's directory; held frames stay valid if the new bytes hash the same: HTJ2K writes identical bytes at 1, 2 and 4 jobs (M, row INGESTRS1); AV1 not measured, so its series is sent again | — |
+| publish only complete | when the upload ends and the index checks | on the last record only; a partial is dropped on an abort record or when it expires | completion is explicit: draft-13 `Upload-Complete: ?1`, S3 CompleteMultipartUpload, tus the final length reached (S) |
+| display order | arrival order, unless the PACS rewrites the file | any arrival order; the PACS orders by instance and frame at completion | — |
+| the PACS's extra work | none if served as written | one sequential copy of the series: 0.3 s for a 152 MB series at an assumed 500 MB/s (D) | — |
+| precedent | ZIP | tus concatenation: partial uploads, then a final upload naming them in order (tus 1.0 §Concatenation) (S); S3 multipart: parts in any order, assembled in ascending part number at completion (S); DICOM storage commitment: instances sent, then one request listing them, answered by a notification (PS3.4 2026d J.1.2) (S) | — |
+
+**The uploads, for a series of unknown length.**
+
+* **tus 1.0** creates an upload with `Upload-Defer-Length: 1` and sets `Upload-Length` in a later PATCH once known
+  (its Creation extension). Its Checksum extension checks each PATCH ([`link.md`](link.md) §7) (S).
+* **draft-ietf-httpbis-resumable-upload-13** names this case: "the client does not know the final size … originates
+  from a streaming source" (§3.2). Parts go with `Upload-Complete: ?0`, the last with `?1` (§4.1.2–4.1.3). It has no
+  integrity of its own since draft -12 removed its section on digests (Appendix A) (S).
+* **S3-style multipart** needs no length up front, holds at most 10 000 parts, and each part but the last is
+  5 MiB–5 GiB; parts can be uploaded over time (S). Frames under 5 MiB are batched: 33 CT frames of 164 kB a part, coded in 0.06 s on 4 cores; 10 AV1
+  fluoroscopy frames of 529 kB, coded in 0.9 s (D, inputs in §11.3). So a part leaves at most that late.
+* **HTTP/1.1 chunked transfer** sends an unknown length in one request (RFC 9112 §7.1) (S). A cut loses the request
+  unless the server keeps what arrived, which is what the draft adds.
+
+### 11.3 What overlap saves
+
+**The formula** (D). For one series: *a* = its coding time at the site (frames × time a frame ÷ cores), *b* = its
+sending time (coded bytes × 8 ÷ link rate), *Q* = the wait from the last instance to "complete" (≈ 0 if the
+association's end is the signal, a quiet period otherwise). With the series arriving at once (one multi-frame
+instance), and round trips and the publish left out, the time from its last instance to its publication at the PACS:
+
+| design | time | saves |
+| --- | --- | --- |
+| today: wait, code, then send | *Q* + *a* + *b* | — |
+| code on arrival, today's format | max(*Q*, *a*) + *b* | min(*Q*, *a*) |
+| streamed | max(*Q*, *a*, *b*) | min(*b*, max(*Q*, *a*)) more |
+
+At *Q* = 0 streaming saves min(*a*, *b*), at most half of *a* + *b*. As rates, with *K* the site's coded bytes a
+second and *L* the link's, the share saved is min(*K*, *L*) ÷ (*K* + *L*). A series that arrives over a span *W*
+lets both overlapping designs start earlier, by up to *W*.
+
+**The inputs.** Coded bytes and coding time a frame, one core (M, row ENC, [`../../lab/av1/bytes`](../../lab/av1/bytes/README.md)
+§ENC and §AV2):
+
+* HTJ2K, `ojph_compress`, process start included, encode only: 7.4–17.2 ms a frame on 164–571 kB frames of the six sound sets, so
+  174–335 Mbit/s of coded output a core (D). The whole Python ingest on the fluoroscopy, hash and check included:
+  32.6 ms a frame, 124 Mbit/s a core (M, row INGESTPROFILE, [`../FIXTURES.md`](../FIXTURES.md)). The Rust ingest's
+  rate is not measured.
+* AV1 at the fastest preset within 2 % of the slowest's bytes: fluoroscopy `--allintra` 7, 345 ms a frame, 12.3 Mbit/s
+  a core; 10-bit tomosynthesis `--good` 6, 936 ms, 4.9 Mbit/s (D). INGESTPROFILE measured the ingest's own AV1 path at
+  8.6 s a frame on that tomosynthesis at `good:6`, about 9× the encode alone; the gap is not explained here, and it
+  would only make coding more the clock.
+* 4 cores at the site, as INGESTPROFILE's container had (assumed).
+
+**The result** (D, printed by [`overlap.py`](overlap.py)): seconds from the last instance to publication, today ·
+code on arrival · streamed.
+
+*Q* = 0 (the association's end):
+
+| set | frames | MB | coding s | 10 Mbit/s | 50 Mbit/s | 100 Mbit/s | 1 Gbit/s |
+| --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| CT 512², HTJ2K, ojph | 300 | 49 | 0.6 | 39.8 · 39.8 · 39.3 | 8.4 · 8.4 · 7.9 | 4.5 · 4.5 · 3.9 | 0.9 · 0.9 · 0.6 |
+| fluoroscopy 768², HTJ2K, ojph | 300 | 152 | 0.9 | 122.5 · 122.5 · 121.6 | 25.2 · 25.2 · 24.3 | 13.1 · 13.1 · 12.2 | 2.1 · 2.1 · 1.2 |
+| fluoroscopy 768², HTJ2K, Python ingest | 300 | 152 | 2.4 | 124.1 · 124.1 · 121.6 | 26.8 · 26.8 · 24.3 | 14.6 · 14.6 · 12.2 | 3.7 · 3.7 · 2.4 |
+| fluoroscopy 768², AV1 allintra 7 | 300 | 159 | 25.9 | 152.9 · 152.9 · 127.0 | 51.3 · 51.3 · 25.9 | 38.6 · 38.6 · 25.9 | 27.1 · 27.1 · 25.9 |
+| tomosynthesis 678×1727, HTJ2K, ojph | 60 | 34 | 0.3 | 27.7 · 27.7 · 27.4 | 5.7 · 5.7 · 5.5 | 3.0 · 3.0 · 2.7 | 0.5 · 0.5 · 0.3 |
+| tomosynthesis 678×1727, AV1 good 6 | 60 | 34 | 14.0 | 41.3 · 41.3 · 27.3 | 19.5 · 19.5 · 14.0 | 16.8 · 16.8 · 14.0 | 14.3 · 14.3 · 14.0 |
+
+*Q* = 30 s (a quiet period, an example value):
+
+| set | frames | MB | coding s | 10 Mbit/s | 50 Mbit/s | 100 Mbit/s | 1 Gbit/s |
+| --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| CT 512², HTJ2K, ojph | 300 | 49 | 0.6 | 69.8 · 69.3 · 39.3 | 38.4 · 37.9 · 30.0 | 34.5 · 33.9 · 30.0 | 30.9 · 30.4 · 30.0 |
+| fluoroscopy 768², HTJ2K, ojph | 300 | 152 | 0.9 | 152.5 · 151.6 · 121.6 | 55.2 · 54.3 · 30.0 | 43.1 · 42.2 · 30.0 | 32.1 · 31.2 · 30.0 |
+| fluoroscopy 768², HTJ2K, Python ingest | 300 | 152 | 2.4 | 154.1 · 151.6 · 121.6 | 56.8 · 54.3 · 30.0 | 44.6 · 42.2 · 30.0 | 33.7 · 31.2 · 30.0 |
+| fluoroscopy 768², AV1 allintra 7 | 300 | 159 | 25.9 | 182.9 · 157.0 · 127.0 | 81.3 · 55.4 · 30.0 | 68.6 · 42.7 · 30.0 | 57.1 · 31.3 · 30.0 |
+| tomosynthesis 678×1727, HTJ2K, ojph | 60 | 34 | 0.3 | 57.7 · 57.4 · 30.0 | 35.7 · 35.5 · 30.0 | 33.0 · 32.7 · 30.0 | 30.5 · 30.3 · 30.0 |
+| tomosynthesis 678×1727, AV1 good 6 | 60 | 34 | 14.0 | 71.3 · 57.3 · 30.0 | 49.5 · 35.5 · 30.0 | 46.8 · 32.7 · 30.0 | 44.3 · 30.3 · 30.0 |
+
+**What it says.**
+
+* **HTJ2K, association's end:** streaming saves 0.3–0.9 s, the coding (2.4 s on the Python path). The link is the
+  clock at every assumed rate.
+* **AV1, association's end:** streaming saves the smaller of coding and sending: 25.9 s on the fluoroscopy up to
+  100 Mbit/s, 1.2 s at 1 Gbit/s; on the tomosynthesis 14.0 s at 10 Mbit/s, 0.3 s at 1 Gbit/s.
+* **A quiet period:** coding on arrival saves the coding, up to *Q* of it (0.3–26 s here). Streaming then hides the send
+  under the wait as well, all of it while *b* ≤ *Q*: 3.9–30 s on the HTJ2K CT and the fluoroscopy at 10–100 Mbit/s.
+  Publication follows the wait by one round trip, so a longer, safer quiet period costs little.
+
+### 11.4 Its interplay with completeness
+
+The open decision of when a series is complete (§4, §10, 1) decides whether streaming pays.
+
+* **The association's end:** *Q* ≈ 0, and for HTJ2K streaming saves under a second here. Code on arrival is enough.
+* **A quiet period:** streaming makes *Q* nearly free. That favours a long *Q*, which calls fewer series complete too
+  early, so fewer late instances make a new generation.
+* **A late instance** is the same in every design: one arriving after "complete" makes a new generation (§8). Before
+  "complete", (B)'s records only accumulate.
+* **The frame's key.** In a series of several instances, a frame's position is known only once every instance's number
+  is, so a record is keyed by its instance UID and its frame within the instance, and the PACS orders at completion.
+  The Rust ingest does not yet take a series of several instances ([`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest
+  at the site, phase 1).
+
+### 11.5 What it costs in safety and checks
+
+* **Exactness, unchanged per frame.** The site's decode-back check runs before a frame's record leaves.
+* **"Nothing is written unless every frame is equal" becomes "nothing is published unless".** A frame that fails late
+  leaves its earlier frames at the PACS, dropped by an abort record or on expiry. That wastes uplink bytes only, and
+  rarely: no bundle was refused in 528 (M, row INGESTRS1).
+* **The archive's digest (§8) becomes a hash over the ordered coded hashes**, checked with the count at completion; it
+  is the series' idempotency key in the same way. It rests on the frames' 64-bit hashes: enough against accidental
+  damage, with TLS covering the wire, and not an identity ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md)
+  §7).
+* **Partial series at the PACS** take storage until they complete or expire: tus `Upload-Expires`, the draft's
+  `max-age`, an S3 lifecycle rule (S, [`link.md`](link.md) §7). The operator pays for abandoned ones.
+* **Publication is unchanged:** the PACS writes the bundle as `.partial`, `fsync`s it, renames it and `fsync`s the
+  directory (§8).
+
+### 11.6 Recommended
+
+Proposed; the owner decides (§10, 10).
+
+1. **Code on arrival.** No format, wire or store change. It saves min(*Q*, *a*): the whole coding under a quiet period.
+2. **Stream only under a quiet-period rule, and only where *b* is large** (AV1, or a slow uplink). Then use (B), carried
+   by whichever upload [`link.md`](link.md) §9 picks; the `.sbnd` stays as it is.
+3. **No index at the end.** It changes the format for what (B) gives without, and does not restore display order.
+
+Gaps theory cannot close: the Rust ingest's coding rate; real site uplinks (row 162); how long real series take to
+arrive (*W*); whether libaom codes the same bytes on a re-run.
+
+## 12. Sources
 
 Fetched 2026-10-11, pinned by tag or commit and the first 12 hex of the fetched file's sha256. Raw copies are not
 committed.
@@ -356,3 +543,6 @@ committed.
 * **Publication**: POSIX 2024 `rename` (`06671610134b`), `fsync` (`5c2975abbb2d`); Linux `fsync(2)` man-pages
   `ae6b221882ce` (`01522de115da`); Dan Luu, "Files are hard" (`3fdda83b367e`); PostgreSQL wiki, Fsync Errors
   (`22b894afe50d`).
+* **Streaming the pack** (§11), fetched 2026-10-13: PKWARE APPNOTE.TXT 6.3.10 (`0b993022a7d3`); RFC 9112
+  (`e4f426bac620`); DICOM PS3.4 2026d Annex J (`41c056d20052`); S3 multipart overview (`69c3cbba7a97`); tus 1.0,
+  draft-13 and S3 limits as above, re-fetched to the same hashes.
