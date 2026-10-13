@@ -37,6 +37,8 @@ conclusive or not, and why. Rows already queued keep their briefs.
 `date -u` is at or past that time, and leaves it before. An `after …` clause on the same row still applies. When a row is both `held until` and `after`, clearing its `after` makes it `held until <the same time>`,
 not `ready`.
 
+**`local` rows** are for a session on the owner's machine; a cloud session never claims one.
+
 **`after env` rows** wait for the owner to switch the cloud environment's network access to full; the owner sets them to
 `ready`, and no session claims one before.
 
@@ -268,6 +270,12 @@ not `ready`.
 | 187 | **INITIALREPLY** — answering a repeated Initial with the unacknowledged server flight: a lost first flight's 700 ms cut, nothing sent on clean links; theory | done `77dfcfe7` on `claude/av1-unified-mainbase` — theory: quinn-proto 0.11.18 only ACKs a repeated client Initial (`process_early_payload`) and waits for its 999 ms PTO; a once-per-connection reply is predicted **net against today** — the browsers' lost first flight **+699 ± 50 ms** (the repeat at +300 ms lifts the amplification budget, so the ECDSA chain fits), `cold_open` ±0, nothing sent under ~400 ms, one spurious 1.3–2.8 KB flight at 600–1 000 ms where Chromium already repeats — and **equal to the 100 ms initial-RTT arm for browsers**, so the owner's fallback if that arm is declined. Four-arm protocol (today, A′, reply, 100 ms) and rule — `docs/transport/transport-conclusions.md` §Answering a repeated Initial |
 | 188 | **JPEGLS** — CharLS in WASM on the target series: bytes and decode against OpenJPH, exact; theory | done `f2b591d6` on `claude/av1-unified-mainbase` — theory, CharLS read at 2.4.5: its decode loop is serial by construction (each pixel's context and prediction need the one before, `src/scan.h:360–381`), so no SIMD; by the sources JPEG-LS is **0.80–1.03 of HTJ2K's bytes** (0.92–0.95 on tomosynthesis) at **×2.7–3.4 OpenJPH's decode** — JPEG XL e2's corner, **a trade-off at best, never net**. Protocol (CharLS 2.4.5 to WASM under the pinned emscripten, a T1–T3 and reset grid for each set's best, row JXL's timing) and rule — `docs/decode/README.md` §Not yet tried, JPEG-LS through CharLS |
 | 189 | **INITIALMEASURE** — row 187's protocol: answering a client's repeated Initial with the unacknowledged server flight, against today, A′ and the 100 ms initial RTT | claimed 2026-10-13 (night, fd940f) |
+| 190 | **DEVICEPLAN** — the plan for testing on real devices: the owner's phone, local machine and Oracle cloud machine — what each test settles, the rig, the links, the order; writing | ready |
+| 191 | **IWOPTIN** — the 38 400-byte initial window back to opt-in (a flag, default 12 000), kept as an experimental proposal | ready |
+| 192 | **GSODEFAULT** — the GSO cap of 24 in the default server build (row 182) | ready |
+| 193 | **STREAMSWIDE** — one stream against several under head-of-line blocking across a wide range of rates and losses, random and bursty: where several must win in theory, and why the measurements so far did not show it; theory | ready |
+| 194 | **COMPLEMENT** — complementary approaches to lossless bytes and decode beside the codec: the bit split for HTJ2K and JPEG XL, inter-slice decorrelation, value maps, the noise floor that bounds every codec; theory | ready |
+| 195 | **DOCKERREAD** — the server's file reading inside a Docker container, the likely deployment: storage driver and mounts, the page cache and folios, `WILLNEED`, `RWF_NOWAIT`, io_uring under the default seccomp profile; measured on the owner's machine | local |
 
 ## Briefs
 
@@ -3739,7 +3747,91 @@ read its four arms (today, A′, reply, the 100 ms initial RTT), predictions and
 numbers are in. The reply is built beside today's path, a server flag off by default, with a test that fails without it.
 **Deliverable:** that section's *Measured*. **Branch:** `claude/av1-unified-mainbase`.
 
+## The owner's evening rows (190–195), 2026-10-13
+
+**The owner, 2026-10-13 (night):** stop speculating and test with a phone — the owner's phone, local machine and the
+Oracle cloud machine are available, and it is time to plan that. Row 174's link analysis is too narrow; a wider range
+of bandwidth and loss is needed, and in theory several streams should beat one under head-of-line blocking — the
+phone tests will settle it, or give a first view. Row 181 is promising: kept as an experimental proposal (a pull
+request), not merged. Row 182's GSO cap: yes. Complementary approaches to the codecs should be researched, especially in
+theory (the bit split, as AV1 has). The target conditions should decide trades such as row 180's. File reading in
+Docker, the likely deployment, is for a local agent.
+
+### 190 DEVICEPLAN
+
+**One question: what is the smallest set of real-device runs that settles the questions the lab cannot?** A plan, nothing
+run. Devices: the owner's phone (model, OS and browsers asked of the owner and written in), the owner's local machine,
+the owner's Oracle cloud machine as the server on the public internet. Start from what the container could not settle:
+one stream against several under real loss (rows 174, 180, 193), the initial window (181), the ask during a fill (171,
+180), the repeated Initial (187, 189), decode and paint time on a phone for HTJ2K, dav1d-WASM and WebCodecs (rows 9,
+44, 161), the phone's memory, energy if measurable. For each: the arms, the links (the phone on cellular and Wi-Fi as
+they come, and the local machine's `netem` for controlled rate, RTT, loss — random and bursty — across a wide range),
+how a run is driven and recorded on a phone (a page that runs the arms and posts its results), interleaving, n, what
+decides. Also the server side: deploying the image on the Oracle machine (`deploy/`), TLS, the ports to open, the
+rig-limits that apply (`docs/rig-limits.md`), what the public repository must not carry (an address, a key). Order the
+runs so the first gives a view in one evening. **Deliverable:** `docs/devices.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 191 IWOPTIN
+
+Row 181 made 38 400 bytes the server's default initial window. The owner keeps it as an experimental, promising
+proposal, not merged: put the default back to quinn's 12 000, keep 38 400 behind a server flag (off by default), its
+test failing without the flag's effect, and mark row 181's verdict in `docs/transport/link-conditions.md` and
+`transport-conclusions.md` as *proposed, opt-in*. The orchestrator opens the proposal as a draft pull request that flips
+the default. Gate green. **Deliverable:** the server change and the docs. **Branch:** `claude/av1-unified-mainbase`.
+
+### 192 GSODEFAULT
+
+The owner, 2026-10-13: yes to row 182. The default server build applies `patches/quinn-0.11.11-mtu-gso.patch` with the
+segments per `sendmsg` capped at 24 (today the patch is opt-in and caps at 45): the build, the deploy image, the gate's
+`--check`, and `transport-conclusions.md` §4 and its §9 call updated in place. A test that fails if the cap is not 24 in
+the default build. Name what still carries the patch (quinn-rs/quinn#2189). Gate green. **Deliverable:** the build change
+and the docs. **Branch:** `claude/av1-unified-mainbase`.
+
+### 193 STREAMSWIDE
+
+**One question: under head-of-line blocking, where must several streams beat one, and why have the measurements not
+shown it?** Theory. The owner, 2026-10-13: it does not make sense that several streams do not beat one under
+head-of-line blocking; row 174's analysis is too narrow in link conditions. Range: 1–1 000 Mbit/s, idle RTT 5–300 ms,
+queues 10 packets to 1 s, loss 0.01–10 %, random and bursty (Gilbert–Elliott, with published parameters for cellular and
+Wi-Fi where they exist). Separate the costs a loss imposes: the held bytes behind a gap (head-of-line, per stream), the
+controller's cut (per connection, shared by every stream), the repair's place in the send queue (quinn's retransmit
+order, `adr/stream-shape.md`), the receive credit. Derive, per cell, one stream, k streams (k = 2–8 and one a frame),
+and k connections: time to each frame, a fill's end, an ask's wait. Reconcile with every measurement so far (rows 75,
+171, 174, 180, the stream-shape campaigns): where the model says several streams win and the data did not, say which
+cost hid it. Predictions and a protocol for row 190's device runs. **Deliverable:** `docs/native/quic-compared.md`
+§Streams, a *Wide range* part. **Branch:** `claude/av1-unified-mainbase`.
+
+### 194 COMPLEMENT
+
+**One question: beside the codec, what could cut lossless bytes or decode time, and how much can any lossless coder
+gain at all?** Theory. The owner, 2026-10-13: JPEG XL's small gain was a surprise; complementary approaches should be
+researched, especially in theory — the bit split as AV1 has. Candidates: the bit split for HTJ2K (row 36: 0.9–1.6 %
+with the low bits deflated) and for JPEG XL (never tried); inter-slice decorrelation for volumes (JPEG 2000 Part 2 across
+slices, +3 % by Clunie 2012 in `lossless-literature.md`; a reversible slice difference before HTJ2K); value maps (row
+185); background and collimation masks; per-region coding. **The bound first:** estimate each target series' noise
+entropy (from the sensor's noise model or flat regions) to bound what any lossless coder can save over HTJ2K, so a
+candidate's ceiling is known before it is tried. Each candidate: mechanism, predicted bytes and decode against HTJ2K,
+net or a trade-off, a protocol. **Deliverable:** `docs/codecs/README.md`, a *Beside the codec* section. **Branch:**
+`claude/av1-unified-mainbase`.
+
+### 195 DOCKERREAD
+
+**For a local session on the owner's machine** (`local`: no cloud session claims it). **One question: does the server's
+read path keep its measured costs inside a Docker container, the likely deployment?** Measure, after a short theory
+section with predictions and a rule. Arms: the store on the container's overlay filesystem, on a bind mount, on a named
+volume; the host without Docker as the reference. Per arm: hit and forced-miss latency through the store's levers (never
+page-cache eviction), fill throughput, CPU per GB; folios per frame (row 172's `kpageflags` method) after a pack and after
+the fill's `WILLNEED` (row 172's (d): 41–123 folios a 160–500 kB frame against 7–9, hits ×2.0, fill ×0.64–0.68, CPU per
+GB ×1.5); whether `RWF_NOWAIT` and io_uring work under Docker's default seccomp profile, and the fall to the pool if not
+(`adr/disk-access.md`: 132.5 against 48.4 µs a frame); `memlock` and `nofile` limits (row 166's DEPLOYLIMITS). The
+deploy image as `deploy/` builds it. **Deliverable:** `docs/adr/disk-access.md`, a *In a container* section.
+**Branch:** `claude/av1-unified-mainbase`.
+
 ## Blocked
+
+* *Owner rulings, 2026-10-13 (late):* real-device tests on the owner's phone, local machine and Oracle cloud machine
+  are planned (row 190); row 181's window is an experimental proposal, not the default (row 191); row 182's GSO cap of
+  24 is adopted (row 192); trades between link conditions are decided by the target conditions, measured on devices.
 
 * *Owner rulings, 2026-10-13 (night):* row 183's ask-aware dispatch **needs a design first and is not pursued now**;
   row 187 is **measured** (row 189). Rows 181 (the 38 400-byte initial window, adopted by its rule) and 182 (the GSO
