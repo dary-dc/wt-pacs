@@ -259,7 +259,7 @@ not `ready`.
 | 178 | **NETMEASURE** — row 173's protocols run by a session given only them | claimed 2026-10-13 (night, d37425) |
 | 179 | **HASHMEASURE** — row 176's protocol run by a session given only it | claimed 2026-10-13 (night, 1ef115) |
 | 180 | **STREAMSMEASURE** — row 174's protocol run by a session given only it | claimed 2026-10-13 (night, fb1cd2) |
-| 181 | **IWDEEP** — row 167's protocol: the 32-packet initial window behind the buffers phones have | claimed 2026-10-13 (night, 927c7c) |
+| 181 | **IWDEEP** — row 167's protocol: the 32-packet initial window behind the buffers phones have | claimed 2026-10-13 (night, 927c7c); provisional `70fbf784`: 18 Mbit/s · 46 ms — fresh ask −26 % (250 KB) and −36 % (50 KB) behind 20 and 360 ms FIFOs, push-opened a tie, 250 KB behind 10 pkts +12 %; 309 Mbit/s past the relay's ceiling (~180 delivered) |
 | 182 | **FASTCLOCK** — row 167's protocol: where each codec's fill turns decode-bound at the measured rates, and the GSO cap of 24 as the build default | claimed 2026-10-13 (night, 641c95) |
 | 183 | **ASKBEHIND** — an ask behind a decoder's queue at the measured rates, and whether ask-aware dispatch cuts it with the fill unchanged; theory | held until 2026-10-13 18:30 UTC |
 | 184 | **READERPAUSE** — the coded queue's growth on large series at 100–300 Mbit/s, and whether a reader pause bounds it with fill and ask unchanged; theory | held until 2026-10-13 18:30 UTC |
