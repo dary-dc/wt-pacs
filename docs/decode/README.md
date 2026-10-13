@@ -1778,7 +1778,9 @@ for OpenJPH (it skips them).
   of Cornerstone's codecs show ~16–20 ms for a 512² CT frame (simulated instruction counts, not wall time; search
   excerpts only) [7]. A DICOM transfer syntax; no resolution prefix.
 * **Tomoz**: no published codec under that name was found (searched 2026-10-10); a codebook-based tomosynthesis
-  patent exists [8]. Listed as not found.
+  patent exists [8]. Listed as not found. *Corrected (row AUDITCODEC, 2026-10-13):* row LITERATURE had found it on
+  2026-10-06 — an unreviewed Apache-2.0 codec with a WASM build on npm, self-reported 0.73–0.85 of HTJ2K on volumes
+  ([`../av1/lossless-literature.md`](../av1/lossless-literature.md)); this search missed it.
 * **TCT** (tri-plane context trees, Bai et al., arXiv 2608.13897, 2026-08-14): lossless volumetric coding learned per
   input, no network weights, "on par with recent DNN-based methods", "fast coding speeds" (abstract read) [9]; its
   per-slice decode of 0.05–0.06 s against JPEG-LS's 0.02–0.03 s is from a search excerpt of its Table VI, not read.
