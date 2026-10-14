@@ -157,7 +157,7 @@ run 1 cargo test -p series-server --quiet -- --nocapture
 step "server: tests, telemetry feature"
 run 1 cargo test -p series-server --features telemetry --quiet -- --nocapture
 step "server: compiles without io_uring (the pool path alone)"
-run 1 cargo check -p series-server --no-default-features --features crypto-ring --all-targets --quiet
+run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"
 run 1 cargo check -p series-server --features cert-compression --all-targets --quiet
 step "common, ingest and tools: wire, envelope, series bundle, pack-series and check-fastpath"
@@ -180,6 +180,15 @@ run 1 cargo check -p series-server --features lab-frame-cache --all-targets --qu
 if [[ $browser -eq 1 ]]; then
   step "client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)"
   run 8 bash client/contract/run_wire.sh
+fi
+
+step "deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone"
+if ! command -v nginx >/dev/null; then
+  skip "the web host's check (deploy/check_equivalence.sh --local) — no nginx"
+elif [[ ! -f "$built/THIRD_PARTY_NOTICES" || ! -f client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js ]]; then
+  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds or hasher (deploy/README.md §Run it)"
+else
+  run 1 bash deploy/check_equivalence.sh --local
 fi
 
 if [[ $quick -eq 0 ]]; then

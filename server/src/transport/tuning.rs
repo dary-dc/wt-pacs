@@ -126,7 +126,10 @@ impl TransportTuning {
         tc.reply_repeated_initial(self.reply_repeated_initial);
         tc.enable_segmentation_offload(self.segmentation_offload);
 
-        tc.congestion_controller_factory(crate::transport::cc_trace::traced(self.congestion.factory(self.initial_window)));
+        let factory = self.congestion.factory(self.initial_window);
+        #[cfg(feature = "telemetry")]
+        let factory = crate::transport::cc_trace::traced(factory);
+        tc.congestion_controller_factory(factory);
         Ok(tc)
     }
 

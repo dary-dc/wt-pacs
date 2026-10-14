@@ -30,6 +30,7 @@ check does not run. The two ingests' comparison, and a synthetic DICOM series to
 native coders: `lab/av1/tools/tools.sh`, OpenJPH
 (`FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160`) and `ingest/coded-frames/build.sh`
 ([`ingest/from-parser/README.md`](ingest/from-parser/README.md)).
+Without nginx on PATH, the web host's check (`deploy/check_equivalence.sh --local`) does not run.
 Without Go 1.24 or newer on PATH, the lab's two Go clients are not compiled (Go fetches the toolchain each `go.mod` names and checks it against its checksum database).
 
 ## Quick start
@@ -102,8 +103,9 @@ own server, bundle and certificate, so it needs neither terminal nor step 2; the
 `scripts/wtcompat.py --fetch DIR` fetches the newest Chrome and Firefox builds and fails if any no longer dials the
 server, gets frame 0 exact, or offers a different WebTransport draft or `reset_stream_at` than `scripts/wtcompat.json`
 expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) §3); the gate does not run it.
-`deploy/check_equivalence.sh` checks that the web image answers every path the harness uses exactly as
-`server/dev-server.py` does; it needs podman or docker, or nginx with `--local` ([`deploy/README.md`](deploy/README.md)).
+`deploy/check_equivalence.sh` checks that the web image answers every path the viewer loads exactly as
+`server/dev-server.py` does, and nothing else; it needs podman or docker, or nginx with `--local`, which the gate runs
+([`deploy/README.md`](deploy/README.md)).
 
 ## The viewer on a DICOM series
 
