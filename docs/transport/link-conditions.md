@@ -370,6 +370,56 @@ frame checked against the encoder's input, each arm's full settings printed and 
     fill is worse only where RTT > S ÷ rate, by about that gap, it is a trade-off for the owner at the smaller price
     measured. Each prediction is reported held or failed, and a failed 5 or 6 is named as the cause of the excess.
 
+  **Measured (row 210, 2026-10-14): the window is not adopted; B is not conclusive on this host** (strict and
+  round-paired disagree on one cell). Run in a session given only the protocol, the rule and the head trigger's needs
+  (it saw row 202's one-line queue verdict, and a grep's glimpse of the predictions' first words, before any number).
+  Built beside today's path: the downloader's lab flag `refill` (`head`: the remainder issued on the asked frame's
+  8-byte envelope head, which both envelope readers now report before the body; `ask`: right behind the ask), off by
+  default; the ask's own landing does not re-issue (a remainder released once); two tests, 8/8 mutations caught.
+  Rig: [`../../lab/ask-ahead/`](../../lab/ask-ahead/README.md), Chromium 141.0.7390.37, the product's downloader,
+  decoding off, `dbt10_ea1141` HTJ2K (24 frames, 13 637 860 B), `cubic-restart`, quinn's defaults, shared stream,
+  one server build (`9240bc85`), relay under `chrt -f 50`. **Deviation:** the ask is for the last frame (23,
+  560 018 B) as row 171's was, not the largest (14, 571 632 B): every frame is 0.56–0.57 MB, and at 50 % a deep queue
+  has frame 14 written ahead before the ask arrives. Arms T, T + B, W, W + B per the protocol's cells, plus W + A,
+  the no-ask fills and `cubic` (W, W + B at 103/92 FIFO 20 and CoDel, at 50 % only); 18/300 run (relay p99
+  0.3–0.5 ms there). 10 Williams rounds, 30 cells, **1 100 runs, every frame of every run SHA-256-exact**, 105 `VOID`.
+  An arm's spread is its min–max over rounds; strict keeps the rounds no arm of the cell voided (n = 4–9).
+  Rows: `rows-askthenfill.jsonl`; reading: `askthenfill.py`.
+
+  | strict, median against T's | ask, W + B | fill, W + B | fill, T + B at 10 % |
+  |---|---|---|---|
+  | 18/46 FIFO 20 · CoDel | ×0.33–0.40 | −102 to +1 ms, tie or better | −67 · −28 ms, ties |
+  | 18/92 FIFO 20 · CoDel | ×0.32–0.42 | −111 to +8 ms, tie or better | −92 · −104 ms, better |
+  | 18/46, 18/92 FIFO 360 · 800 (50 %) | ×0.31–0.56 | −1 to +2 ms (+2 beyond a 2 ms spread at 18/46/800) | – |
+  | 103/46 FIFO 20 · CoDel | ×0.41–0.72 | +6, +79 ms worse at 50 %; better at 10 % | −60 · −33 ms, better |
+  | 103/92 FIFO 20 · CoDel | ×0.59–0.88 | +97, +99 ms worse at 50 %; +100 (tie), −73 at 10 % | +9 (tie) · −46 ms, better |
+  | 103 FIFO 360 · 800 (50 %) | ×1.00 | ties | – |
+  | 18/300 FIFO 20 | ×0.34–0.60 | −176, −71 ms, better | −273 ms, better |
+
+  The idle wire between the asked frame and the next fill frame (its landing less its time on the wire): T 53–142 ms
+  at 18 Mbit/s, 370 at 18/300, 64–108 at 103; T + B 4–73 ms, 63 at 18/300, 4–62 at 103. At 50 % neither T nor T + B
+  ever had a fill frame after the ask: today's send buffer had written all of the remainder ahead.
+
+  * *Rule, B:* round-paired, no cell worse and six 10 % cells' fills better beyond the spread (−33 to −282 ms):
+    **adopted**. Strict: the same six better, but 103/46 CoDel at 50 % +4 ms (×1.003) beyond T's 9 ms spread, a cell
+    where B never fires: **not adopted**. The readings disagree, so B is not conclusive on this host and returns
+    for one that passes (§Rules every row keeps); only the T and T + B cells need re-running.
+  * *Rule, the window:* W + B's ask is ≥ 20 % better in 9 of 10 short-queue cells strict (103/92 FIFO 20 at 10 %
+    ×0.82), 10 of 10 round-paired; its fill is worse beyond T's spread at 103/46 CoDel (+79, +82 ms) and 103/92
+    FIFO 20 and CoDel (+97 to +101 ms) at 50 %, where RTT − S ÷ rate is 3 and 49 ms: worse by more than that gap,
+    and at 18/46/800 (+1–2 ms) where it is negative. **Not adopted**, both readings; not the trade-off the rule
+    allows. Its fill cost is the window's own (prediction 5).
+  * *Predictions.* 1 **failed at 103/46 CoDel** (+79 ms against ≤ 25), held elsewhere: ties at 18 (one +2 ms against
+    a 2 ms spread), +6 at 103/46 FIFO 20, +97 and +99 at 103/92, ties behind 360 and 800 ms. 2 **held** but for 3 of
+    26 cells beyond W's spread (+1 ms at 18/46 FIFO 20, +52 ms at 103/92 CoDel, +153 ms at 18/300 at 10 %). 3 **held**
+    at 50 % (ties but the +4 ms above) and on the ask; at 10 % −92, −104, −60, −33, −46, −273 ms against −46 to
+    −260, but 103/92 FIFO 20 +9 ms (a tie) and 18/46 −67 and −28 (ties). 4 **held at 18/46** (+723 ms, 777 ± 20 %),
+    **failed at 103/46** (+111 ms against 148–222). 5 **failed**: with no ask W's fill is +15 ms at 103/46 CoDel
+    and +46 ms at 103/92 FIFO 20 beyond T's spread (ties in the other two) — the window's own cost, which B
+    cannot remove, and W + B's excess at 103 is that plus the gap. 6 **held** for the fills behind FIFO 20 and for
+    W behind CoDel (ties); W + B under `cubic` behind CoDel was 69 ms better than under `cubic-restart`, beyond
+    W + B's spread, its ask ×0.78.
+
 * **IWDEEP (item 3) — is the 32-packet initial window net behind the buffers phones have?** Arms: quinn's 12 000
   bytes; 38 400. Cells: 18, 103, 309 Mbit/s; idle RTT 46 and 92 ms; FIFO 10 packets (the old losing depth), 20 ms, 360 ms. A fresh ask-only
   session asks one 250 KB and one 50 KB frame; a control session opens with the push. *Predictions:* −25 to −33 % at
