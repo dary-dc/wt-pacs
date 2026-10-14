@@ -6,7 +6,7 @@ index read at open into the server's (offset, length) table (`FrameStore::with_i
 [`docs/disk-layout/containers.md`](../../docs/disk-layout/containers.md) §Measured.
 
 ```bash
-lab/av1/tools/tools.sh && ingest/coded-frames/build.sh            # aomenc, dav1d, OpenJPH (lab/scripts/gen_htj2k_fixtures.sh)
+lab/av1/tools/tools.sh            # aomenc, dav1d, OpenJPH, the check's decoders (ingest/tools.sh)
 lab/av1/fetch_data.sh mr9_ispy2 pt15_cptac ct_lidc dbt12_ea1141 ffdm_b
 P=lab/av1/.venv/bin/python W=/some/work
 for s in mr9_ispy2 pt15_cptac ct_lidc dbt12_ea1141 ffdm_b; do      # pt15_cptac's AV1 adds --split 3

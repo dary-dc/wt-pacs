@@ -7,7 +7,7 @@ fill or ask worse? The protocol and its rule are [`../../docs/transport/link-con
 ```bash
 lab/av1/fetch_data.sh dbt10_ea1141 ffdms_c1
 PATH=$PWD/lab/.av1-build/venv/bin:$PATH lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh
-client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh && ingest/coded-frames/build.sh
+client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh && BUILD=lab/.av1-build ingest/coded-frames/build.sh
 PATH=$PWD/lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160
 cargo build --release -p series-server -p pack-series -p window-harness && cargo build -p pack-series
 # cap24: the quinn patch with its ceiling at 24 (as measured, 45 then; 24 and the default build since row 192)

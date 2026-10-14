@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """The Rust ingest against the Python one on synthetic sets, and the mirror's names against the contract.
 
-usage: same_test.py   — needs lab/.av1-build (ingest/coded-frames/README.md), OpenJPH, and
+usage: [INGEST_BUILD=...] same_test.py   — needs ingest/tools.sh's build (default ingest/.build) and
                         `cargo build --release -p from-parser -p pack-series`
 """
 import hashlib
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -17,7 +18,7 @@ sys.path.insert(0, str(HERE))
 import mirror  # noqa: E402
 import same  # noqa: E402
 
-BUILD = same.ROOT / "lab/.av1-build"
+BUILD = Path(os.environ.get("INGEST_BUILD", same.ROOT / "ingest/.build"))
 
 # name: channels, bits stored, min, max — each a layout the HTJ2K path codes apart
 SETS = {
@@ -68,6 +69,26 @@ def test_both_ingests_write_the_same_bundles():
         for name, spec in SETS.items():
             ok, line = same.same(BUILD, fetched(tmp, name, *spec), tmp / "work")
             assert ok and "byte-identical" in line, line
+
+
+def test_htj2k_needs_no_aomenc():
+    """A build without libaom codes HTJ2K and refuses AV1 by name: aomenc is asked for only when coding AV1."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        build = tmp / "build"
+        build.mkdir()
+        for part in ("openjph", "payload"):
+            (build / part).symlink_to(BUILD.resolve() / part)
+        s = same.size.Set(fetched(tmp, "g12", *SETS["g12"]))
+        try:
+            assert len(same.ingest.coded(build, s, s.n, "htj2k", 1)) == s.n
+        except same.ingest.Refused as e:
+            raise AssertionError(f"HTJ2K refused: {e}")
+        try:
+            same.ingest.coded(build, s, s.n, "av1", 1)
+            raise AssertionError("AV1 coded without aomenc")
+        except same.ingest.Refused as e:
+            assert "aomenc" in str(e), e
 
 
 if __name__ == "__main__":

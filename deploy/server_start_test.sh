@@ -2,7 +2,7 @@
 # deploy/server-start.sh's two starts, its paths moved under a temp root and the server a stub that prints its
 # arguments: with no certificate supplied it mints one and names its hash; with one, it pins nothing and uses it.
 set -eu
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/certs" "$T/run" "$T/bin"

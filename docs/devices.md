@@ -192,7 +192,7 @@ row's tree, the four arms in Docker, the collector over TLS; `dry_run.mjs` drove
 * **Each check fails when it should.** `?mutate` voids all 9 D1 visits and stops D2 at its proof (24 of 24 frames not
   exact); one byte flipped in the bundle the arms serve voids all 9 D2 visits; the collector's token, path and
   bundle-name guards, the plan's pairing and order, the bundle reader and `server-start.sh` each fail under their
-  mutations (`plan.test.mjs`, `collector_test.py`, `server_start_test.sh`, in the gate). `up` stops on a taken UDP
+  mutations (`plan.test.mjs`, `collector_test.py`, `deploy/server_start_test.sh`, in the gate). `up` stops on a taken UDP
   port and on a host firewall that rejects a port — an `ACCEPT` after the catch-all `REJECT` included — and passes
   Oracle's shape (`ACCEPT`s first); `fetch` replaces the host's names and refuses, writing nothing, if one is left.
 * **The CA-verified arms, up to the handshake.** With `SUPPLY_CERT=1` the arms present the page's certificate and the

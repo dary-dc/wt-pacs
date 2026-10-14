@@ -103,21 +103,16 @@ jobs:
           npm i -g "playwright@$PLAYWRIGHT_VERSION"
           npx -y "playwright@$PLAYWRIGHT_VERSION" install --with-deps chromium firefox
       - run: pip install --require-hashes -r lab/av1/requirements.txt
-      # The gate's two-ingest step needs aomenc 3.15.1, dav1d and OpenJPH; both scripts refuse a source not at its pin.
+      # The gate's ingest steps need ingest/tools.sh's coders: aomenc 3.15.1, dav1d and OpenJPH, each refused off its pin.
       - id: coders
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            lab/.av1-build/aom-3.8.2
-            lab/.av1-build/aom-3.15.1
-            lab/.av1-build/dav1d
-            lab/.openjph-build/install
-          key: coders-${{ hashFiles('lab/av1/tools/tools.sh', 'lab/scripts/gen_htj2k_fixtures.sh') }}
-      - if: steps.coders.outputs.cache-hit != 'true'
-        run: |
-          lab/av1/tools/tools.sh aom dav1d
-          FRAMES=1 OUT_ROOT="$RUNNER_TEMP/htj2k" lab/scripts/gen_htj2k_fixtures.sh g160
-      - run: bash ingest/coded-frames/build.sh
+            ingest/.build/aom-3.15.1
+            ingest/.build/dav1d
+            ingest/.build/openjph
+          key: coders-${{ hashFiles('ingest/tools.sh') }}
+      - run: ingest/tools.sh
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: client/decode/wasm/built

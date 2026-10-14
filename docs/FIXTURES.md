@@ -48,13 +48,14 @@ arrive `unchecked` ([`../client/README.md`](../client/README.md) §A frame says 
 The product's ingest: one series to a served bundle, and nothing at all unless every frame decodes back exactly.
 
 ```bash
-cargo build --release -p pack-series && bash ingest/coded-frames/build.sh   # the bundler and the in-process decoders
+cargo build --release -p pack-series && ingest/tools.sh   # the bundler; the coders and the in-process decoders
 python3 ingest/from-dicom/from_dicom.py BUILD INPUT OUT.sbnd [--codec htj2k|av1|auto] [--preset P] [--jobs N]
 ```
 
-It writes `OUT.sbnd` and `OUT.metadata.json`, the metadata the bundle carries. `BUILD` holds libaom and dav1d
-(`lab/av1/tools/tools.sh`) and `payload/libdecode.so`. Python needs `pydicom`, `numpy` and `xxhash`, hash-pinned
-in `lab/av1/requirements.txt`.
+It writes `OUT.sbnd` and `OUT.metadata.json`, the metadata the bundle carries. `BUILD` is what `ingest/tools.sh`
+built (`ingest/.build` by default): libaom 3.15.1, dav1d, OpenJPH and `payload/libdecode.so`; libaom is asked for
+only when a series is coded as AV1. Python needs `pydicom`, `numpy` and `xxhash`, hash-pinned in
+`ingest/requirements.txt` for CPython 3.11–3.13.
 
 **Input.** `INPUT` is one object or a folder of single-frame objects of one series, ordered by InstanceNumber.
 Each frame's samples are read as `decodeFrame` hands them on: little-endian, colour interleaved, PlanarConfiguration

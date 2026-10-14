@@ -163,7 +163,7 @@ is written), one series per class the split rule tells apart:
 
 ```bash
 D=lab/av1/data
-ingest/coded-frames/build.sh                      # ingest's in-process decoders, after tools.sh and gen_htj2k_fixtures.sh
+BUILD=lab/.av1-build ingest/coded-frames/build.sh                      # ingest's in-process decoders, after tools.sh and gen_htj2k_fixtures.sh
 lab/av1/delivery/total-time/payload_frames.sh lab/.av1-build lab/.av1-work/total4 $D/mr9_ispy2:34 $D/rf_fluoro:18 \
   $D/dbt10_ea1141:16 $D/ffdm_c:4 $D/dbtproj_holo:5 $D/us_liver:40 $D/ct_lidc:60       # ~25 min
 export FIREFOX_PATH=...                    # Firefox 157.0.1, below

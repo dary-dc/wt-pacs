@@ -43,6 +43,8 @@ lab/fixtures/frames_16k_seq/*.sbnd
 lab/fixtures/frames_250k_big/*.sbnd
 lab/fixtures/frames_tiny/*.sbnd
 lab/fixtures/frames_32k_big/*.sbnd
+# The ingest's coders (ingest/tools.sh)
+ingest/.build/
 # AV1 tools, builds and streams (lab/av1)
 lab/.av1-build/
 # Generated decode fixtures (regenerate with lab/scripts/gen_htj2k_fixtures.sh)

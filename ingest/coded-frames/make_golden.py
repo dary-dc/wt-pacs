@@ -95,9 +95,8 @@ def payloads(build, work):
 
 
 def matrix(build, work):
-    """32×24 grey of b = 8…16 bits after the offset, unsigned and signed, at every split k of lab/av1/splitok."""
-    sys.path.insert(0, str(ROOT / "lab/av1/exact/split"))
-    from make_sets import splits
+    """32×24 grey of b = 8…16 bits after the offset, unsigned and signed, at every split k a rule could pick: the
+    smallest whose top fits a 12-bit stream, up to a top of 8 bits."""
     dst = PAYLOADS / "matrix"
     dst.mkdir(parents=True, exist_ok=True)
     for b in range(8, 17):
@@ -106,7 +105,7 @@ def matrix(build, work):
             name = f"b{b}{'s' if signed else 'u'}"
             src = work / name
             write_set(src, 1, lo, lo + (1 << b) - 1, signed, b, 32, 24)
-            for k in splits(b):
+            for k in range(max(0, b - 12), max(b - 8, 4) + 1):
                 out = work / f"{name}.k{k}"
                 subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, src, out, "--split", str(k),
                                 "--jobs", "1"], check=True)

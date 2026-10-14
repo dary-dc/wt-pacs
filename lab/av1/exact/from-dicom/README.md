@@ -6,7 +6,7 @@ independent paths on the lab's pinned sets. Queue row 89 (INGEST) of
 
 ```bash
 lab/av1/fetch_data.sh ct_nlst us_liver dbt12_ea1141 ffdm_a      # the DICOM, cached under lab/av1/data/dicom, and NNN.raw
-cargo build --release -p pack-series && bash ingest/coded-frames/build.sh
+cargo build --release -p pack-series && BUILD=lab/.av1-build bash ingest/coded-frames/build.sh
 export DCMDUMP=.../bin/dcmdump                                  # DCMTK 3.6.9, below
 lab/av1/.venv/bin/python lab/av1/exact/from-dicom/check.py lab/.av1-build WORK \
   ct_nlst us_liver dbt12_ea1141 ffdm_a@0 ffdm_a@1 ffdm_a@2 ffdm_a@3 --rounds 6

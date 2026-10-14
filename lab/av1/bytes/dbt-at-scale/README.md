@@ -7,7 +7,7 @@ SPLITTIME's harness ([`../../delivery/split-rule`](../../delivery/split-rule/REA
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Samples over 12 bits.
 
 ```bash
-lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh
 client/decode/wasm/fetch_openjph.sh
 lab/av1/fetch_data.sh dbts_a1 dbts_a2 dbts_a3 dbts_a4 dbts_a5 dbts_b1 dbts_b2 dbts_b3 dbts_b4 dbts_b5 \
   dbts_c1 dbts_c2 dbts_c3 dbts_c4 dbts_c5                                # ~6 GB fetched, ~6 GB of frames

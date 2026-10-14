@@ -6,7 +6,7 @@ Where today's ingest CPU goes, by stage, for HTJ2K and AV1. Queue row 136 (INGES
 
 ```bash
 lab/av1/fetch_data.sh rf_fluoro dbt10_ea1141 dbtproj_ge ffdm_d
-lab/av1/tools/tools.sh && ingest/coded-frames/build.sh            # aomenc 3.15.1, dav1d 1.5.4 (meson 1.3.2), decode.cpp
+lab/av1/tools/tools.sh            # aomenc 3.15.1, dav1d 1.5.4 (meson 1.3.2), decode.cpp
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160    # OpenJPH 0.31.0, built once
 for r in 0 1 2 3 4; do FIRST_ROUND=$r lab/av1/.venv/bin/python lab/av1/exact/ingest-profile/profile.py lab/.av1-build \
   lab/av1/exact/ingest-profile/raw/profile.jsonl 1 rf_fluoro:htj2k:cpu0 dbt10_ea1141:htj2k:cpu0 dbtproj_ge:htj2k:cpu0 \

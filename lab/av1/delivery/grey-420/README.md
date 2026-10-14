@@ -6,7 +6,7 @@ exactly (row XENGINE: Firefox refuses monochrome, and expands limited-range grey
 [`docs/av1/payload-format.md`](../../../../docs/av1/payload-format.md) §8-bit grey as 4:2:0.
 
 ```bash
-lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh
 client/decode/wasm/fetch_openjph.sh
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160      # builds ojph_compress once
 client/transport/ts/build.sh

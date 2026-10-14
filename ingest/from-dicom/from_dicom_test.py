@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The DICOM reader on synthetic objects: what it reads, in which order, and what it refuses by name.
 
-usage: PYTHON=... $PYTHON ingest/from-dicom/from_dicom_test.py   (pydicom and numpy, lab/av1/requirements.txt)
+usage: PYTHON=... $PYTHON ingest/from-dicom/from_dicom_test.py   (pydicom and numpy, ingest/requirements.txt)
 """
 import json
 import sys
