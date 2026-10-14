@@ -932,6 +932,71 @@ mod tests {
         }
     }
 
+    /// A port free for UDP and TCP alike, for a server that also binds its WebSocket on it.
+    fn free_port_for_both() -> u16 {
+        loop {
+            let port = free_port();
+            if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                return port;
+            }
+        }
+    }
+
+    /// `client` raced against `server`: a server that ends first fails the test with its own error.
+    async fn against(mut server: tokio::task::JoinHandle<Result<()>>, client: impl Future<Output = ()>) {
+        tokio::select! {
+            ended = &mut server => panic!("the server ended: {ended:?}"),
+            () = client => server.abort(),
+        }
+    }
+
+    /// The first TCP connection the server's WebSocket listener takes, within five seconds.
+    async fn connect_tcp(port: u16) -> tokio::net::TcpStream {
+        for _ in 0..50 {
+            if let Ok(tcp) = tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
+                return tcp;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        panic!("server never listened on TCP port {port}");
+    }
+
+    /// A WebSocket server whose TCP port is taken fails the test with its own bind error, not a
+    /// timeout of the client's.
+    #[test]
+    fn a_server_that_cannot_listen_fails_with_its_own_error() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-ws-held-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let series = write_series(&dir, 1);
+        let (cert_pem, key_pem, _) = write_dev_cert(&dir);
+        let port = free_port_for_both();
+        let held = std::net::TcpListener::bind(("127.0.0.1", port)).expect("hold the TCP port");
+        assert!(std::net::TcpListener::bind(("127.0.0.1", port)).is_err(), "the hold took nothing");
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let ended = rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                websocket: true,
+                ..serve_config(series, cert_pem, key_pem, port)
+            }));
+            let client = async move {
+                let _tcp = connect_tcp(port).await;
+                std::future::pending::<()>().await;
+            };
+            let raced = tokio::spawn(against(server, client));
+            tokio::time::timeout(Duration::from_secs(5), raced).await
+        });
+        drop(held);
+        std::fs::remove_dir_all(&dir).ok();
+        let panic = ended.expect("the race outlived the server's end").expect_err("the server's end passed");
+        let why = panic.into_panic();
+        let why = why.downcast_ref::<String>().cloned().unwrap_or_default();
+        assert!(why.contains(&format!("WebSocket listener on TCP port {port}")), "the test failed with {why:?}");
+    }
+
     /// The wait for the server's port has a deadline: on a port nobody binds it panics, it does not spin.
     #[test]
     fn the_wait_for_a_port_fails_rather_than_hangs() {
@@ -1091,7 +1156,7 @@ mod tests {
             std::fs::create_dir_all(&dir).expect("tmpdir");
             let series = write_series(&dir, 6);
             let (cert_pem, key_pem, _) = write_dev_cert(&dir);
-            let port = free_port();
+            let port = free_port_for_both();
             let rt = tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(2)
                 .enable_all()
@@ -1113,47 +1178,39 @@ mod tests {
                     websocket: true,
                     ..serve_config(series, cert_pem, key_pem, port)
                 }));
-                let mut tcp = None;
-                for _ in 0..50 {
-                    match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
-                        Ok(t) => {
-                            tcp = Some(t);
-                            break;
-                        }
-                        Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-                    }
-                }
-                let tcp = tcp.expect("server never listened");
-                let name = ServerName::try_from("localhost").expect("name");
-                let stream = tls.connect(name, tcp).await.expect("TLS");
-                let url = format!("wss://localhost:{port}/{query}");
-                let (mut socket, _) =
-                    tokio_tungstenite::client_async(url, stream).await.expect("upgrade");
+                against(server, async move {
+                    let tcp = connect_tcp(port).await;
+                    let name = ServerName::try_from("localhost").expect("name");
+                    let stream = tls.connect(name, tcp).await.expect("TLS");
+                    let url = format!("wss://localhost:{port}/{query}");
+                    let (mut socket, _) =
+                        tokio_tungstenite::client_async(url, stream).await.expect("upgrade");
 
-                // Nothing is sent: the frame must arrive on the URL ask alone.
-                let mut bytes = Vec::new();
-                let whole = |b: &[u8]| {
-                    b.len() >= 4 && b.len() >= 4 + u32::from_be_bytes(b[..4].try_into().unwrap()) as usize
-                };
-                let read = tokio::time::timeout(Duration::from_secs(3), async {
-                    while let Some(Ok(Message::Binary(chunk))) = socket.next().await {
-                        bytes.extend_from_slice(&chunk);
-                        if whole(&bytes) {
-                            return;
+                    // Nothing is sent: the frame must arrive on the URL ask alone.
+                    let mut bytes = Vec::new();
+                    let whole = |b: &[u8]| {
+                        b.len() >= 4 && b.len() >= 4 + u32::from_be_bytes(b[..4].try_into().unwrap()) as usize
+                    };
+                    let read = tokio::time::timeout(Duration::from_secs(3), async {
+                        while let Some(Ok(Message::Binary(chunk))) = socket.next().await {
+                            bytes.extend_from_slice(&chunk);
+                            if whole(&bytes) {
+                                return;
+                            }
                         }
+                    })
+                    .await;
+                    match want {
+                        Some(frame) => {
+                            read.expect("no frame on the URL ask");
+                            let index = u32::from_be_bytes(bytes[4..8].try_into().unwrap());
+                            assert_eq!(index, frame, "the URL ask served the wrong frame");
+                            assert_eq!(bytes[8..], pattern(frame), "frame {frame} came back wrong");
+                        }
+                        None => assert!(bytes.is_empty(), "an out-of-range opening ask was served"),
                     }
                 })
                 .await;
-                match want {
-                    Some(frame) => {
-                        read.expect("no frame on the URL ask");
-                        let index = u32::from_be_bytes(bytes[4..8].try_into().unwrap());
-                        assert_eq!(index, frame, "the URL ask served the wrong frame");
-                        assert_eq!(bytes[8..], pattern(frame), "frame {frame} came back wrong");
-                    }
-                    None => assert!(bytes.is_empty(), "an out-of-range opening ask was served"),
-                }
-                server.abort();
             });
             std::fs::remove_dir_all(&dir).ok();
         }
@@ -1168,7 +1225,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let series = write_series(&dir, 1);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
-        let port = free_port();
+        let port = free_port_for_both();
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -1180,28 +1237,20 @@ mod tests {
                 websocket: true,
                 ..serve_config(series, cert_pem, key_pem, port)
             }));
-            let mut tcp = None;
-            for _ in 0..50 {
-                match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
-                    Ok(t) => {
-                        tcp = Some(t);
-                        break;
-                    }
-                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-                }
-            }
-            let mut tcp = tcp.expect("server never listened");
-            let mut byte = [0u8; 1];
-            let closed = tokio::time::timeout(
-                websocket::HANDSHAKE + Duration::from_secs(3),
-                tcp.read(&mut byte),
-            )
+            against(server, async move {
+                let mut tcp = connect_tcp(port).await;
+                let mut byte = [0u8; 1];
+                let closed = tokio::time::timeout(
+                    websocket::HANDSHAKE + Duration::from_secs(3),
+                    tcp.read(&mut byte),
+                )
+                .await;
+                assert!(
+                    matches!(closed, Ok(Ok(0) | Err(_))),
+                    "the silent peer was still held past the handshake deadline: {closed:?}"
+                );
+            })
             .await;
-            assert!(
-                matches!(closed, Ok(Ok(0) | Err(_))),
-                "the silent peer was still held past the handshake deadline: {closed:?}"
-            );
-            server.abort();
         });
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -2150,7 +2199,7 @@ mod tests {
         let series = write_series(&dir, frames);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
         let cert = std::fs::read(&cert_pem).expect("cert");
-        let port = free_port();
+        let port = free_port_for_both();
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -2162,73 +2211,65 @@ mod tests {
                 websocket: true,
                 ..serve_config(series, cert_pem, key_pem, port)
             }));
-            let mut roots = rustls::RootCertStore::empty();
-            for der in rustls::pki_types::CertificateDer::pem_slice_iter(&cert) {
-                roots.add(der.expect("pem")).expect("trust the test cert");
-            }
-            let tls = tokio_rustls::TlsConnector::from(Arc::new(
-                rustls::ClientConfig::builder()
-                    .with_root_certificates(roots)
-                    .with_no_client_auth(),
-            ));
-            let mut tcp = None;
-            for _ in 0..50 {
-                match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
-                    Ok(t) => {
-                        tcp = Some(t);
-                        break;
-                    }
-                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+            against(server, async move {
+                let mut roots = rustls::RootCertStore::empty();
+                for der in rustls::pki_types::CertificateDer::pem_slice_iter(&cert) {
+                    roots.add(der.expect("pem")).expect("trust the test cert");
                 }
-            }
-            let tcp = tcp.expect("the WebSocket listener never came up");
-            let name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
-            let tls = tls.connect(name, tcp).await.expect("TLS with the QUIC certificate");
-            let (mut ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
-                .await
-                .expect("WebSocket upgrade");
-
-            let ask = |msg: FodMsg| Message::text(serde_json::to_string(&msg).unwrap());
-            ws.send(ask(FodMsg::StreamFrames { from: Some(0), to: Some(frames - 1) }))
-                .await
-                .expect("fill");
-            let (mut wire, mut messages) = (Vec::new(), 0);
-            let want: usize = (0..frames).map(|f| 8 + pattern(f).len()).sum();
-            while wire.len() < want {
-                let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                let tls = tokio_rustls::TlsConnector::from(Arc::new(
+                    rustls::ClientConfig::builder()
+                        .with_root_certificates(roots)
+                        .with_no_client_auth(),
+                ));
+                let tcp = connect_tcp(port).await;
+                let name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
+                let tls = tls.connect(name, tcp).await.expect("TLS with the QUIC certificate");
+                let (mut ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
                     .await
-                    .expect("the fill stalled")
+                    .expect("WebSocket upgrade");
+
+                let ask = |msg: FodMsg| Message::text(serde_json::to_string(&msg).unwrap());
+                ws.send(ask(FodMsg::StreamFrames { from: Some(0), to: Some(frames - 1) }))
+                    .await
+                    .expect("fill");
+                let (mut wire, mut messages) = (Vec::new(), 0);
+                let want: usize = (0..frames).map(|f| 8 + pattern(f).len()).sum();
+                while wire.len() < want {
+                    let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                        .await
+                        .expect("the fill stalled")
+                        .expect("socket ended")
+                        .expect("read");
+                    let Message::Binary(bytes) = msg else { panic!("a fill frame came as {msg:?}") };
+                    wire.extend_from_slice(&bytes);
+                    messages += 1;
+                }
+                let mut at = 0;
+                for f in 0..frames {
+                    let len = u32::from_be_bytes(wire[at..at + 4].try_into().unwrap()) as usize;
+                    let (idx, codestream) = unwrap(&wire[at + 4..at + 4 + len]).expect("envelope");
+                    assert_eq!(idx, f, "frames arrived out of fill order");
+                    assert_eq!(codestream, &pattern(f)[..], "frame {f} came back wrong");
+                    at += 4 + len;
+                }
+                assert!(
+                    messages > 2 * frames as usize,
+                    "{messages} messages for {frames} frames: a codestream was not split"
+                );
+
+                ws.send(ask(FodMsg::RequestFrame { frame: 99 })).await.expect("ask out of range");
+                let refusal = tokio::time::timeout(Duration::from_secs(5), ws.next())
+                    .await
+                    .expect("no refusal")
                     .expect("socket ended")
                     .expect("read");
-                let Message::Binary(bytes) = msg else { panic!("a fill frame came as {msg:?}") };
-                wire.extend_from_slice(&bytes);
-                messages += 1;
-            }
-            let mut at = 0;
-            for f in 0..frames {
-                let len = u32::from_be_bytes(wire[at..at + 4].try_into().unwrap()) as usize;
-                let (idx, codestream) = unwrap(&wire[at + 4..at + 4 + len]).expect("envelope");
-                assert_eq!(idx, f, "frames arrived out of fill order");
-                assert_eq!(codestream, &pattern(f)[..], "frame {f} came back wrong");
-                at += 4 + len;
-            }
-            assert!(
-                messages > 2 * frames as usize,
-                "{messages} messages for {frames} frames: a codestream was not split"
-            );
-
-            ws.send(ask(FodMsg::RequestFrame { frame: 99 })).await.expect("ask out of range");
-            let refusal = tokio::time::timeout(Duration::from_secs(5), ws.next())
-                .await
-                .expect("no refusal")
-                .expect("socket ended")
-                .expect("read");
-            let Message::Text(json) = refusal else { panic!("the refusal came as {refusal:?}") };
-            assert!(
-                matches!(fod::decode_fod_body(json.as_bytes()), Ok(FodMsg::FrameError { frame_index: 99, .. })),
-                "the refusal was {json}, not a frame_error for 99"
-            );
-            server.abort();
+                let Message::Text(json) = refusal else { panic!("the refusal came as {refusal:?}") };
+                assert!(
+                    matches!(fod::decode_fod_body(json.as_bytes()), Ok(FodMsg::FrameError { frame_index: 99, .. })),
+                    "the refusal was {json}, not a frame_error for 99"
+                );
+            })
+            .await;
         });
         std::fs::remove_dir_all(&dir).ok();
     }
