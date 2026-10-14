@@ -16,11 +16,18 @@ and its branch belong to other work.
 2. Read `CLAUDE.md`, then [`README.md`](README.md) (this phase), then the table below.
 3. Take the **topmost `ready` row**. Set it to `claimed` with the date and a 6-hex id you draw once per session (`openssl rand -hex 3`), e.g. `claimed 2026-10-07 (night, a3f91c)`, commit that alone, push; a row whose claim does not carry your id is not yours. The
    push is the lock: if it is rejected, rebase and take the next `ready` row.
-4. Do the lane. Push your work (rebase first).
+4. Do the lane on its own branch, `claude/wip-<row>-<NAME>` (e.g. `claude/wip-209-READMEASURE`), made from
+   `claude/av1-unified-mainbase`; push there early and often. When the row is finished — every check passed, the gate
+   green — rebase the branch onto `claude/av1-unified-mainbase` and push it there as a fast-forward. A row cut short
+   leaves its branch and a provisional line naming it; the next session continues from that branch.
 5. Set the row to `done` with the commit hash after the rebase that pushed it, a one-line verdict
    with its numbers, and where the finding lives. Flip any `after …` row whose prerequisites are now
    all done to `ready` in the same commit. Push.
 6. Back to 1. Stop when no row is `ready` and say so; do not invent work.
+
+**The work branch holds finished work only (the owner, 2026-10-14).** `claude/av1-unified-mainbase` is the branch
+that will merge into `main`: clean, optimized, completely functional. Work in progress lives on `claude/wip-*`
+branches and reaches the work branch only finished, through step 4.
 
 **`night` rows** are held for the night routine (the owner, 2026-10-03: cloud work runs while the workstation
 sleeps, so the two never share a usage window). A session started by the night routine treats `night` exactly as
@@ -295,6 +302,7 @@ not `ready`.
 | 212 | **CCMEASURE** — row 200's protocol, the arms a container and the relay can run | held until 2026-10-14 03:00 UTC |
 | 213 | **INTERSLICE** — row 194's protocol: a slice predicted from its neighbour, JPEG 2000 Part 2 across slices, on the volumes | held until 2026-10-14 03:00 UTC |
 | 214 | **DISPLAYTAGS** — row 169's net gaps built: the ingest keeps the ICC Profile, VOI LUT Sequence and Presentation LUT Shape, and the painter applies them where a series carries them (COLORTAGS, VOILUT) | held until 2026-10-14 03:00 UTC |
+| 215 | **CLEANAUDIT** — `claude/av1-unified-mainbase` against merge readiness: what is unfinished, untested, broken, dead, duplicated or lab-only in the product, each with keep, finish, simplify, move or remove and the capability it would cost (none allowed); and the simplification rules, drafted for the owner; audit | held until 2026-10-14 03:00 UTC |
 
 ## Briefs
 
@@ -3983,7 +3991,35 @@ Presentation LUT Shape per PS3.3 (and an ICC profile's colour space where the ca
 without the tags. **Deliverable:** the ingest and paint changes, `docs/display.md` updated. **Branch:**
 `claude/av1-unified-mainbase`.
 
+### 215 CLEANAUDIT
+
+**The owner, 2026-10-14:** the work branch, the main branch of work for merging, must be clean, optimized, completely
+functional and improved, simplifications included — with rules for them, such as not losing capabilities and the
+benefits of a simpler system. **One question: what stands between `claude/av1-unified-mainbase` and that?** An audit;
+nothing removed or changed but its deliverable.
+
+* **Every item on the branch that is not finished product:** half-finished rows' code, provisional numbers, lab-only
+  flags and code paths compiled into the product (row 83's list: `server/src/main.rs` lab flags, `readMin`, the
+  rejected read shapes, product dependencies under `lab/`), dead code, duplicated logic, tests that do not run in the
+  gate, docs that contradict the code. Each with its evidence (file:line), and one of *keep*, *finish*, *simplify*,
+  *move to lab*, *remove*, with the capability it would cost — a change that loses a capability the product has is not
+  proposed — and its size.
+* **What "completely functional" means here:** the gate green with nothing skipped that could run, the deploy image
+  building and serving, the viewer filling and asking end to end in Chromium and Firefox; each checked, and what fails.
+* **The simplification rules, drafted** for the owner to put in `CLAUDE.md`: what a simplification may remove (code
+  with no caller, a flag whose measurement is recorded in `docs/`, a path a measurement rejected) and what it may not (a
+  capability, a measured gain, a check), how the benefit is stated (lines, dependencies, concepts a reader must hold),
+  and how one is proved (the gate, the same measurement before and after).
+* **Close with rows** for the orchestrator to queue, ranked by what merging needs first.
+
+**Deliverable:** `docs/merge-readiness.md`. **Branch:** `claude/wip-215-CLEANAUDIT`, then `claude/av1-unified-mainbase`.
+
 ## Blocked
+
+* *Owner rulings, 2026-10-14 (night):* `claude/av1-unified-mainbase` holds finished work only, clean and completely
+  functional, for merging into `main`; work in progress lives on `claude/wip-*` branches (§Protocol, step 4). Row 215
+  audits the branch and drafts the simplification rules. The stored routine's prompt still names only the two branches:
+  the owner updates it, or the orchestrator does with the owner's yes ([`ORCHESTRATE.md`](ORCHESTRATE.md) §3).
 
 * *Owner rulings, 2026-10-14:* row 172's read-ahead finding is investigated (rows 196–197); faster reads and a tuned
   container are worth it (rows 198, 199, 195); device runs in fast rounds (rows 201, 204–206); the phone is a Samsung on
