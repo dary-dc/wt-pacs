@@ -26,7 +26,7 @@ whether rows 180 and 181 hold on a real link. D3–D5 need the rig of §3 and th
 
 | device | what it is | role |
 | --- | --- | --- |
-| **the phone** | *asked of the owner, written here before D0:* model, SoC, RAM, OS and version, each browser and version, carrier and plan (data cap) | the client |
+| **the phone** | **a Samsung on Android 16, Chrome and Firefox** (the owner, 2026-10-14); model, browser versions, `deviceMemory` and cores as D0 reads them (its first row); carrier and plan (data cap) asked of the owner | the client |
 | **the local machine** | the workstation of [`rig-limits.md`](rig-limits.md) (8 cores, Linux, root) unless the owner says otherwise | D3's server and shaper, D4's relay, `adb` host, D2's desktop control client |
 | **the Oracle machine** | *asked of the owner:* whether it is §9's cloud rig (2 vCPU EPYC 7551, burstable, 954 MB, Ubuntu 24.04) | the server on the public internet (D0, D1's page, D2, D4) |
 
@@ -126,11 +126,12 @@ idle blocks' own spread is a tie. An iPhone without Xcode records nothing here, 
 ## 3. Running a run on a phone
 
 **The page drives, nothing else does.** A DevTools session changes what a browser does ([`rig-limits.md`](rig-limits.md)
-§8), so no driver is attached during a timed run. A runner page (not built yet: the first item of each
-run's row) holds the arms and the Williams order, opens each visit as the viewer with `?post=` (its result shape
-already carries per-frame arrival, last byte, `exact` and digests: [`../client/viewer/viewer.js`](../client/viewer/viewer.js),
-`report`), keeps every result in IndexedDB as it lands, and posts the lot to a collector on the server's host at the
-end and after every round; a "save" button writes the JSON if the post fails. The owner taps start and leaves the
+§8), so no driver is attached during a timed run. The runner page ([`../lab/devices`](../lab/devices/README.md), row
+DEVICEKIT) holds the arms and the Williams order, runs each visit in the page through the product's downloader
+(D2) or decoders (D1), keeps every result in IndexedDB as it lands, and posts it to a collector on the server's host
+after every round; a "save" button writes the JSON if a post fails. **Quick mode** — 3 rounds, D1 on `dbt10_ea1141`
+alone, D2's `shared`, `asksfirst` and `iw38400` — prints a provisional reading on the phone's screen in about 15
+minutes, before the full n = 10; the owner's taps are [`../lab/devices/evening.md`](../lab/devices/evening.md). The owner taps start and leaves the
 phone screen-on, on a stand, with nothing else running but what the cell asks for.
 
 **Recorded with every round:** the page's build and every arm's settings; user agent; D0's capability line; link class
@@ -144,13 +145,16 @@ state; the idle RTT and rate of the pre-flight; wall-clock start.
   its arm's flags through `server-start.sh`'s `"$@"`.
 * **TLS.** The page needs a secure context, so it is served over HTTPS with a certificate the phone trusts: a domain
   name the owner controls and a Let's Encrypt certificate by DNS-01 (no port 80 to open), mounted as `TLS_DIR`. The
-  WebTransport endpoint uses the same certificate if D0 finds WebKit refuses `serverCertificateHashes`; that needs
-  `server-start.sh` to take a supplied certificate instead of minting its own (a small deploy change, D0's row). For
+  WebTransport endpoint uses the same certificate if D0 finds WebKit refuses `serverCertificateHashes`; `server-start.sh`
+  takes one mounted at `/supplied` instead of minting its own, and the transport file then carries no hash, so the
+  client dials unpinned (row DEVICEKIT; the TypeScript session, the default — the WASM one still pins). For
   D3 on the LAN: on Android, `adb reverse tcp:8765 tcp:8765` makes the page `localhost` (a secure context) and the
   hash-pinned dial goes to the local machine's LAN address; on an iPhone, a name under the same domain pointing at the
   LAN address, with the same certificate.
-* **Ports.** In the cloud's security list *and* the host firewall: TCP 443 (the page and the collector), UDP 4435 and
-  three more for D2's arms. §9 found 4436 and 4437 pass the host firewall but no session arrives — the security list is
+* **Ports.** In the cloud's security list *and* the host firewall: TCP 8443 (the page and the collector, `COLLECT_PORT`;
+  unprivileged, so the collector runs as the login user), UDP 4435, 4436, 4438 and 4439 for D2's arms
+  ([`../lab/devices/arms.json`](../lab/devices/arms.json)); `deploy.sh up` checks each is free and let in by the host
+  firewall before it starts anything. §9 found 4436 and 4437 pass the host firewall but no session arrives — the security list is
   the first suspect; D0 dials each port before anything else. 4437 belongs to the field server and stays off.
 * **Rig-limits that apply.** §9: two burstable cores with stolen CPU, so no server-CPU claim and nothing past a median
   is read from the Oracle machine, and its 954 MB holds one volume in page cache (warm it before a block; §4's misses
@@ -174,3 +178,26 @@ Every run here is a `local` row: built and driven by the owner or a local agent,
 their own commit, the reading in the document that owns the subject (decode in [`decode/README.md`](decode/README.md),
 transport in [`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, capabilities in
 [`CLIENTS.md`](CLIENTS.md)).
+
+## 6. The kit, tested in the container
+
+*Row DEVICEKIT, 2026-10-14: plumbing, not a measurement — loopback, a desktop CPU, headless Chromium 141.* The
+container stood in for the Oracle machine: `deploy.sh up` over SSH to itself, the `deploy/` image built from this
+row's tree, the four arms in Docker, the collector over TLS; `dry_run.mjs` drove the runner page in quick mode. Bundles:
+`make_bundles.sh dbt10_ea1141 mr_ispy1` at `PRESET=good:6` (the evening uses `cpu0`), every payload exact at ingest.
+
+* **The quick evening ran whole in 16 s** — D0, D1's 9 visits, D2's proof and 9 visits — with every frame exact
+  (D1 9/9, D2 9/9) and all 22 rows posted. On a phone it is decode- and link-bound; the ~15 minutes is a target, not
+  measured.
+* **Each check fails when it should.** `?mutate` voids all 9 D1 visits and stops D2 at its proof (24 of 24 frames not
+  exact); one byte flipped in the bundle the arms serve voids all 9 D2 visits; the collector's token, path and
+  bundle-name guards, the plan's pairing and order, the bundle reader and `server-start.sh` each fail under their
+  mutations (`plan.test.mjs`, `collector_test.py`, `server_start_test.sh`, in the gate). `up` stops on a taken UDP
+  port and on a host firewall that rejects a port — an `ACCEPT` after the catch-all `REJECT` included — and passes
+  Oracle's shape (`ACCEPT`s first); `fetch` replaces the host's names and refuses, writing nothing, if one is left.
+* **The CA-verified arms, up to the handshake.** With `SUPPLY_CERT=1` the arms present the page's certificate and the
+  client dials with no hash; Chromium 141 trusted the stand-in's local CA for the page but refused it for
+  WebTransport (`certificate unknown` in the server's log), so the path past the handshake needs the real Let's
+  Encrypt certificate and is D0's to confirm.
+* **Not tested:** a phone, Firefox, WebKit, the Oracle machine and its security list.
+

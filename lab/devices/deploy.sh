@@ -17,7 +17,7 @@ D2_SET="${D2_SET:-dbt10_ea1141}"
 REMOTE_DIR="${REMOTE_DIR:-wt-pacs-devices}"
 KNOWN="${SSH_KNOWN_HOSTS:-$ROOT/.local/r2/known_hosts}"
 SSH=(ssh -i "$SSH_KEY" -o BatchMode=yes -o IdentitiesOnly=yes -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes "$CLOUD_USER@$CLOUD_HOST")
-RSYNC=(rsync -a --delete -e "ssh -i $SSH_KEY -o BatchMode=yes -o IdentitiesOnly=yes -o UserKnownHostsFile=$KNOWN")
+RSYNC=(rsync -a -e "ssh -i $SSH_KEY -o BatchMode=yes -o IdentitiesOnly=yes -o UserKnownHostsFile=$KNOWN")
 # name port flags…, one arm a line
 ARMS="$(python3 -c 'import json,sys; [print(a["name"], a["port"], *a["flags"]) for a in json.load(open(sys.argv[1]))]' "$ROOT/lab/devices/arms.json")"
 
@@ -29,8 +29,9 @@ ports_free() {
   # checked by D0's dials and the smoke fetch below: docs/rig-limits.md §9.
   "${SSH[@]}" "bad=0
     rules=\$(sudo -n iptables -S INPUT 2>/dev/null) || { echo 'cannot read the host firewall (sudo -n iptables)'; exit 1; }
-    open() { ! printf '%s\n' \"\$rules\" | grep -Eq -- '-P INPUT DROP|-j (REJECT|DROP)' \
-      || printf '%s\n' \"\$rules\" | grep -Eq -- \"-p \$1 .*--dport \$2 .*-j ACCEPT\"; }
+    # In order: the port's ACCEPT, or a REJECT or DROP with no port of its own, whichever comes first; else the policy.
+    open() { printf '%s\n' \"\$rules\" | awk -v p=\"-p \$1 .*--dport \$2 \" '
+      /^-P INPUT DROP/ { r = 1 } \$0 ~ p && / -j ACCEPT/ { r = 0; exit } / -j (REJECT|DROP)/ && !/--dport/ { r = 1; exit } END { exit r }'; }
     for p in $ports; do
       ss -Hlun \"sport = :\$p\" | grep -q . && { echo \"UDP \$p is taken\"; bad=1; }
       open udp \$p || { echo \"UDP \$p: the host firewall rejects it\"; bad=1; }
@@ -59,8 +60,8 @@ up() {
   "${SSH[@]}" "docker image inspect -f '{{.Id}}' wt-pacs-server 2>/dev/null | grep -q $image" \
     || docker save wt-pacs-server | gzip -1 | "${SSH[@]}" 'gunzip | docker load -q'
   "${SSH[@]}" "mkdir -p $REMOTE_DIR/kit/lab $REMOTE_DIR/studies $REMOTE_DIR/rows && install -d -m 0700 $REMOTE_DIR/tls"
-  "${RSYNC[@]}" --exclude node_modules --exclude .cache --exclude '*.rs' "$ROOT/client" "$CLOUD_USER@$CLOUD_HOST:$REMOTE_DIR/kit/"
-  "${RSYNC[@]}" "$ROOT/lab/order.mjs" "$ROOT/lab/devices" "$CLOUD_USER@$CLOUD_HOST:$REMOTE_DIR/kit/lab/"
+  "${RSYNC[@]}" --delete --exclude node_modules --exclude .cache --exclude '*.rs' "$ROOT/client" "$CLOUD_USER@$CLOUD_HOST:$REMOTE_DIR/kit/"
+  "${RSYNC[@]}" --delete "$ROOT/lab/order.mjs" "$ROOT/lab/devices" "$CLOUD_USER@$CLOUD_HOST:$REMOTE_DIR/kit/lab/"
   "${RSYNC[@]}" --include '*.sbnd' --exclude '*' "$STUDIES/" "$CLOUD_USER@$CLOUD_HOST:$REMOTE_DIR/studies/"
   "${RSYNC[@]}" "$TLS_DIR/cert.pem" "$TLS_DIR/key.pem" "$CLOUD_USER@$CLOUD_HOST:$REMOTE_DIR/tls/"
   local name port flags
@@ -78,40 +79,49 @@ up() {
         wt-pacs-server --port $port $flags >/dev/null
       for i in \$(seq 50); do [ -s wt/$name/dev-transport.json ] && docker logs wtp-$name 2>/dev/null | grep -q '^transport=' && break; sleep 0.2; done
       docker logs wtp-$name > wt/$name/banner.txt 2>&1
-      grep -q '^transport=' wt/$name/banner.txt || { cat wt/$name/banner.txt; exit 1; }"
+      grep -q '^transport=' wt/$name/banner.txt || { cat wt/$name/banner.txt; exit 1; }" </dev/null
     echo "arm $name: UDP $port, flags: ${flags:-none}"
   done <<<"$ARMS"
-  "${SSH[@]}" "cd $REMOTE_DIR; pkill -f lab/devices/collector.py || true; read -r DEVICES_TOKEN; export DEVICES_TOKEN
+  "${SSH[@]}" "cd $REMOTE_DIR; read -r DEVICES_TOKEN; export DEVICES_TOKEN
     nohup python3 kit/lab/devices/collector.py --root kit --studies studies --wt wt --out rows --tls tls \
       --port $COLLECT_PORT --d2-set $D2_SET --build '$build' > collector.log 2>&1 < /dev/null &
-    sleep 1; pgrep -f lab/devices/collector.py >/dev/null || { cat collector.log; exit 1; }" <<<"$DEVICES_TOKEN"
+    echo \$! > collector.pid; sleep 1; kill -0 \$(cat collector.pid) || { cat collector.log; exit 1; }" <<<"$DEVICES_TOKEN"
   local url="https://$PUBLIC_NAME:$COLLECT_PORT"
-  curl -fsS "$url/kit.json?t=$DEVICES_TOKEN" | python3 -c 'import json,sys; [print(f"  {a[\"name\"]}: {a[\"wt_url\"]} {\"hash\" if a[\"cert_sha256\"] else \"CA\"}") for a in json.load(sys.stdin)["arms"]]' \
+  # CURL_OPTS: e.g. --cacert for a stand-in host whose certificate no CA signed.
+  mkdir -p "$ROOT/.local"
+  curl -fsS ${CURL_OPTS:-} "$url/kit.json?t=$DEVICES_TOKEN" > "$ROOT/.local/kit.json" \
     || { echo "the collector does not answer at $url: the cloud's security list?" >&2; exit 1; }
+  python3 - "$ROOT/.local/kit.json" <<'PY'
+import json, sys
+for a in json.load(open(sys.argv[1]))["arms"]:
+    print(f"  {a['name']}: {a['wt_url']}, {'pinned by hash' if a['cert_sha256'] else 'CA-verified'}")
+PY
   echo "build $build"
   echo "on the phone: $url/?t=\$DEVICES_TOKEN"
 }
 
 fetch() {
-  local out=${1:?fetch DIR}
-  mkdir -p "$out"
-  "${RSYNC[@]/--delete/}" "$CLOUD_USER@$CLOUD_HOST:$REMOTE_DIR/rows/" "$out/"
+  local out=${1:?fetch DIR} raw
+  raw="$(mktemp -d)"
+  trap 'rm -rf "$raw"' RETURN
+  "${RSYNC[@]}" "$CLOUD_USER@$CLOUD_HOST:$REMOTE_DIR/rows/" "$raw/"
   # docs/devices.md §4: nothing identifying is committed. The arms' URLs and banners name the host.
-  python3 - "$out" "$PUBLIC_NAME" "$CLOUD_HOST" <<'PY'
+  python3 - "$raw" "$out" "$PUBLIC_NAME" "$CLOUD_HOST" <<'PY'
 import pathlib, sys
-out, *names = sys.argv[1:]
-for f in pathlib.Path(out).glob("*.jsonl"):
+raw, out, *names = sys.argv[1:]
+pathlib.Path(out).mkdir(parents=True, exist_ok=True)
+for f in pathlib.Path(raw).glob("*.jsonl"):
     t = f.read_text()
     for n in names:
         t = t.replace(n, "<host>")
-    f.write_text(t)
     assert not any(n in t for n in names), f
+    (pathlib.Path(out) / f.name).write_text(t)
 PY
   echo "rows in $out, the host's names replaced"
 }
 
 down() {
-  "${SSH[@]}" "pkill -f lab/devices/collector.py || true; for n in $(awk '{print $1}' <<<"$ARMS" | tr '\n' ' '); do docker rm -f wtp-\$n >/dev/null 2>&1 || true; done"
+  "${SSH[@]}" "cd $REMOTE_DIR 2>/dev/null && [ -f collector.pid ] && kill \$(cat collector.pid) 2>/dev/null; rm -f collector.pid; for n in $(awk '{print $1}' <<<"$ARMS" | tr '\n' ' '); do docker rm -f wtp-\$n >/dev/null 2>&1 || true; done"
   echo "arms and collector stopped"
 }
 

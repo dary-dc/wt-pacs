@@ -145,7 +145,7 @@ async function visitDial(arm) {
   try {
     const opts = arm.cert_sha256 ? { serverCertificateHashes: [{ algorithm: "sha-256", value: Uint8Array.from(arm.cert_sha256.match(/../g), (h) => parseInt(h, 16)) }] } : {};
     const wt = new WebTransport(arm.wt_url, opts);
-    await wt.ready;
+    await Promise.race([wt.ready, new Promise((_, no) => setTimeout(() => no(new Error("no ready in 10 s")), 10000))]);
     const ms = performance.now() - t0;
     wt.close();
     return ms;
