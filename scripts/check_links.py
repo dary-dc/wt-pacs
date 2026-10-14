@@ -13,9 +13,9 @@ LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
 HTML_ANCHOR = re.compile(r'<a (?:name|id)="([^"]+)"')
 # A path that no longer exists may be named beside the commit, tag or word that says so.
-# Another queue's record, which this repository's later moves do not rewrite: its links resolve or name a file git
+# A queue's record, which this repository's later moves do not rewrite: its links resolve or name a file git
 # history holds, and its paths are its own.
-PATHS_AS_WRITTEN = {"docs/cloud-queue.md"}
+PATHS_AS_WRITTEN = {"docs/cloud-queue.md", "docs/av1/queue.md"}
 HISTORICAL = re.compile(r"\b[0-9a-f]{7,40}\b|archive/|removed|retired|history|in git", re.I)
 CITED_TAG = re.compile(r"(?:`|git show )(archive/[\w.-]*\w)")
 
@@ -96,7 +96,7 @@ def missing_tags():
         print("SKIPPED: cited archive tags — origin unreachable")
         return []
     tags = {ref.split("refs/tags/")[1] for ref in remote.stdout.split() if ref.startswith("refs/tags/")}
-    records = [f":!{f}" for f in PATHS_AS_WRITTEN | {"docs/av1/queue.md"}]
+    records = [f":!{f}" for f in PATHS_AS_WRITTEN]
     cited = subprocess.run(["git", "grep", "-n", "archive/", "--", ".", *records], capture_output=True, text=True)
     return [f"TAG {':'.join(line.split(':', 2)[:2])}: {tag}"
             for line in cited.stdout.splitlines() for tag in CITED_TAG.findall(line) if tag not in tags]
