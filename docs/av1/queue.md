@@ -3961,7 +3961,7 @@ seccomp on). Build the deploy image (`deploy/`) and run the server's read-path b
 as arms: the store on overlay, a bind mount, a named volume; the default seccomp profile against row 199's; `memlock` and
 `nofile` as set and as raised; the host without Docker as the reference. Whether io_uring and `RWF_NOWAIT` work, and the
 pool's cost where not; hits and forced misses through the store's levers; folios after a pack and after `WILLNEED`.
-Every number is a cloud VM's, labelled so; row 195 still runs on the owner's machine. If an image cannot be pulled, say
+Every number is a cloud VM's, labelled so. **Start from row 195's partial work** (the owner, 2026-10-14: the local session pushes whatever it has to `claude/av1-unified-mainbase` before the machine goes off; find it by `git log --grep '195'` there and in row 195's cell): reuse its harness and arms, keep its numbers labelled as the owner's machine, and finish the arms it left. If an image cannot be pulled, say
 which and stop. **Deliverable:** `docs/adr/disk-access.md`, *In a container*. **Branch:** `claude/av1-unified-mainbase`.
 
 ### 209 READMEASURE, 210 ASKTHENFILLMEASURE, 211 ASKFIRSTCAPMEASURE, 212 CCMEASURE, 213 INTERSLICE
