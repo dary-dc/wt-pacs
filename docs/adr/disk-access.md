@@ -200,8 +200,8 @@ correct, safe, and **132.5 µs per frame against 48.4 µs** on the validation ho
 | Filesystem | `RWF_NOWAIT` | Note |
 | --- | --- | --- |
 | ext4, btrfs | **honoured** | measured (ext4 on Linux 6.18; btrfs on the workstation) |
-| overlayfs | **refused** (`EOPNOTSUPP`) | measured — **a container's own filesystem** |
-| tmpfs | **refused** (`EOPNOTSUPP`) | measured — RAM disks, `emptyDir: {medium: Memory}` |
+| overlayfs | **refused** (`EOPNOTSUPP`) | measured — **a container's own filesystem**; Linux 7.2.8 by source and probe (*In a container*) |
+| tmpfs | **refused** (`EOPNOTSUPP`) | measured — RAM disks, `emptyDir: {medium: Memory}`; Linux 7.2.8 too |
 | XFS | *expected to work* | **not measured** |
 | NFS / EFS / Filestore | *unknown* | **not measured** — run the tool; do not assume |
 
@@ -455,6 +455,196 @@ series volume and `ulimit -l` recorded. The rule is fixed in advance: a tie dele
 ships the pool; a resolved margin keeps it and folds in the ring-fd change. It can go either
 way, because a cloud miss is device-bound and the ring's remaining claim is threads and CPU per
 miss. Status in §9.
+
+### In a container (row 195 DOCKERREAD: theory; measured by a separate session)
+
+`deploy/compose.yml` runs the server as uid 10001 with `/studies` a read-only bind mount, under the runtime's default
+seccomp profile and limits: no `security_opt`, `ulimits`, `cap_add` or memory limit. The likely target is rootful
+Docker Engine; this host has rootless Podman only. **Sources**, fetched 2026-10-13 from their tags (SHA-256, first 16
+hex): Linux **v7.2.8** (`gregkh/linux`, the host's kernel) `fs/overlayfs/file.c` f44fb8dc3f099529,
+`fs/backing-file.c` 3814af08154928f9, `include/linux/fs.h` e34b28c8e6d244f2, `mm/fadvise.c` 62fe92eebc825195,
+`mm/readahead.c` 72ecaa59e05aa4be, `io_uring/io_uring.c` 7e4540b9a3d457fa, `io_uring/memmap.c` 10aa1a29313d1d28,
+`io_uring/rsrc.c` 64fec9b3f6bc2acf, `kernel/seccomp.c` faadf7f5f2b9fe3e, `fs/btrfs/fs.h` 455977432542d999,
+`fs/btrfs/disk-io.c` d757b615b068c266; moby **docker-v29.8.2** (commit `8af9fe3a`)
+`vendor/github.com/moby/profiles/seccomp/default.json` 536529b665dd0972, `daemon/oci_linux.go` 30a611fa5457950f,
+`contrib/init/systemd/docker.service` a12d90fd03761bf7; containerd **v2.3.6**, the one that moby vendors,
+`containerd.service` 1941362cbaa89dd5 and `contrib/seccomp/seccomp_default.go` 8b012c0982cf367e; containers-common
+**0.67.0**'s `seccomp.json` as installed, byte-equal to `containers/container-libs` tag `common/v0.67.0`
+(2598b3b98e6970f3).
+
+**Probed here** (functional, untimed, 2026-10-13): Fedora 43, kernel 7.2.8-100.fc43, Podman 5.8.4, crun 1.28, native
+overlay (no `fuse-overlayfs`) on btrfs on LUKS, cgroup v2. The calls were `os.preadv(…, RWF_NOWAIT)`,
+`posix_fadvise(WILLNEED)`, `readahead(2)` and a raw `io_uring_setup`. They ran from `python:3.11-slim` as uid 10001,
+and on the host through an overlay mounted in an unprivileged user namespace. Residency was read with `mincore`.
+
+```text
+ series-server, uid 10001
+  │ preadv2(RWF_NOWAIT): refused unless the open file has FMODE_NOWAIT (fs.h:3442–3444)
+  ├─ O  overlay, image layer or upper ─▶ ovl_open sets none (file.c:198–235) ─▶ EOPNOTSUPP ─▶ every frame to the pool
+  │       read, mmap, fadvise, write ─▶ the real file in the layer dir (file.c:323–341, 343–370, 468–476, 509–519)
+  ├─ B  bind mount ─────────────────▶ the host's own file (btrfs here; ext4 or XFS on a server) ─▶ honoured
+  └─ V  named volume ───────────────▶ a bind of <storage>/volumes/<name>/_data ─▶ as B
+ a tile miss ─▶ io_uring_setup ─▶ not in the default profile ─▶ refused ─▶ WARN, the session reads through the pool
+ page cache: the real inode's — the host, B, V, O and every container on the same file share one
+```
+
+| | rootful Docker Engine (source, **not measured**) | rootless Podman, this host (**probed**) |
+| --- | --- | --- |
+| O, the container's own `/studies` | overlay2, or containerd's overlayfs snapshotter: kernel overlayfs, so refused as on the right | **refused**, `EOPNOTSUPP`, on an image-layer file and an upper file alike; tmpfs refused too |
+| B, bind mount | the host directory itself | the host's btrfs, **honoured** |
+| V, named volume (`local`, no options) | a bind of `/var/lib/docker/volumes/<name>/_data` | a bind of `~/.local/share/containers/storage/volumes/<name>/_data`, **honoured** |
+| `WILLNEED`, `readahead(2)` | allowed (`default.json:110`, `:281`). Overlay hands them to the real file (`file.c:509–519`); `readahead(2)` is `vfs_fadvise` (`mm/readahead.c:753`) | allowed (`seccomp.json:152`, `:327`); advised through an overlay, **resident in the lower file** |
+| page cache | the real inode's (the diagram) | **shared**: read through the overlay, resident at the host path |
+| io_uring | absent → `EPERM` (`default.json:2–3`); listed up to v24.0.9, absent from v25.0.0. containerd's RuntimeDefault (Kubernetes) lists none either | absent → **`ENOSYS`** (`seccomp.json:3`); allowed on the host |
+| `preadv2` | allowed (`default.json:272`). An unconditionally allowed call skips the filter through the kernel's allow cache (`kernel/seccomp.c:416`) | allowed (`seccomp.json:315`) |
+| `nofile` | no `--ulimit`, so no rlimit in the spec (`oci_linux.go:37–58`). The container inherits containerd's, and neither unit sets one (`docker.service:21–24`, `containerd.service:30–33`), so it is systemd's default, 1024 soft and 524288 hard (systemd's, not pinned here) | **524288 : 524288** |
+| `memlock` | the same inheritance, 8 MiB | **8 MiB** |
+| memory limit | none unless set | `memory.max` **max** |
+| uid 10001 is, on the host | uid 10001 | a subuid, 665360 |
+
+**Limits only bind if a ring can be built.** On 7.2.8 a ring's SQ and CQ are still charged against `RLIMIT_MEMLOCK`
+(`io_uring.c:2745`, `:2759` → `memmap.c:210–214` → `rsrc.c:84–102`). The exception is `CAP_IPC_LOCK` in the
+initial user namespace (`io_uring.c:3022–3023`). Rootless Podman never has it, and uid 10001 holds no effective
+capability under either runtime (`CapEff` 0, probed). The counter is the user's `locked_vm`. Under rootful Docker,
+every container running as uid 10001 on one host therefore draws on one ~940-ring budget, each checked against its
+own limit (source, not measured). A refused `io_uring_setup` comes before the eventfd (`uring_reader.rs:31–40`), so
+under a default profile a session holds no ring, no ring fds and no locked memory.
+
+**Folios belong to the real inode.** Overlay reads, maps and advises the real file, and its writes reach the upper
+file at their own lengths (`file.c:343–370`). So an arm's folio count is its writer's and its filesystem's, not the
+runtime's. `WILLNEED` allocates at the mapping's minimum order (`readahead.c:289`), which is 4 KiB on ext4 and on this
+host's btrfs (`disk-io.c:3492`). This btrfs caps a large folio at 64 blocks, 256 KiB (`fs/btrfs/fs.h:67–71`,
+`disk-io.c:3362–3369`; `CONFIG_BTRFS_EXPERIMENTAL` is off). ext4 caps it at 2 MiB. Counts after a pack here are
+therefore comparable between arms, not with row 172's ext4.
+
+**What a rootless run here says about rootful Docker Engine.**
+
+* **It transfers.** All of this is kernel code, the same under both runtimes:
+  * overlay refusing `RWF_NOWAIT`, and what the fall costs;
+  * bind mounts and volumes being the host's filesystem;
+  * the shared cache;
+  * `WILLNEED` and its folios;
+  * the filter's cost on allowed calls.
+* **It needs a Docker Engine run**, untimed: the seccomp errno and the server's fall on it, the default limits, and
+  the uid-wide `locked_vm`.
+* **Neither runtime here answers** absolute µs on a server's ext4 or XFS, a container memory limit (page cache is
+  charged to the cgroup that reads it first), or Docker Desktop, whose bind mounts cross a VM.
+
+#### Protocol for the measuring row (row 195)
+
+Given to a separate session with nothing above this heading.
+
+* **Image.** The deploy's server image, built as `deploy/` builds it:
+  `podman build -f deploy/Containerfile --target server -t wt-pacs-server --secret id=build_ca,src=/dev/null .`
+  * A rig image `FROM wt-pacs-server` adds `container_bench`, `writer_bench`, `pack-series`, `check-fastpath` and
+    `server_ab`. They are built in a stage on the Containerfile's pinned `rust:1.97-bookworm`.
+  * Only the entrypoint is overridden (`--entrypoint sleep … infinity`), so the container stays up.
+  * Pass no `--ulimit`, `--security-opt`, `--cap-add` or `--privileged`.
+  * The host arm runs the same binaries, copied out with `podman cp`.
+* **Arms.** One series file each, all on the owner's `/home`, which also holds Podman's storage, so the arms differ
+  in the layer alone. One long-lived container per arm; every timed run is a `podman exec`.
+
+  | arm | where the series is | placed by |
+  | --- | --- | --- |
+  | **H** | the host, no container | `pack-series` on the host |
+  | **H′** | a second copy on the host: the A/A control | `pack-series` on the host |
+  | **B** | a bind mount, `-v DIR:/studies:ro,z`, as compose writes it | `pack-series` on the host, into `DIR` |
+  | **V** | a named volume, `-v NAME:/studies:ro` | `pack-series` in a container running as uid 10001 |
+  | **O** | `/srv/series` in the bench container: its upper layer | `pack-series` inside that container |
+* **Cells.** Row 172's HTJ2K cells, from ingest's coded frames as in `lab/container-bench/README.md`: `pt15_cptac`
+  (32 kB), `ct_lidc` (163 kB) and `dbt12_ea1141` (503 kB).
+  * Each is timed **after a pack**.
+  * `dbt12_ea1141` is also timed **after `WILLNEED`**. Write it with `writer_bench direct` from the host side, into
+    the arm's real directory (`podman unshare` for V and O, whose files belong to subuids). Then warm it with
+    `writer_bench warm --how willneed` through the arm's own path.
+* **Metrics.** From `container_bench measure`, 4 000 asks and a 256 MiB fill, every frame XXH3-checked:
+  * hit p50 and p99, through `RWF_NOWAIT`;
+  * forced-miss p50, through the store's `force_pool_reads`, never by eviction;
+  * fill hit and fill forced miss, in frames/s;
+  * CPU per GB on both fills.
+* **Order and n.**
+  * Five units (H, H′, B, V, O), in each round's order from `lab/scripts/order.py row 5 ROUND`.
+  * 20 rounds, two Williams periods, every cell inside each visit.
+  * Resolution, per metric and cell: the p90 of |H′/H − 1| over the rounds. A difference counts beyond it, with
+    ≥ 80 % sign agreement (§11).
+* **Folios.** `writer_bench folios` reads `/proc/kpageflags`, which needs root in the initial namespace, so it runs
+  as root on the host against each arm's real file:
+  * H's file and B's directory;
+  * the volume's `_data`;
+  * O's upper dir (`podman inspect -f '{{.GraphDriver.Data.UpperDir}}'`).
+
+  Count once after placing and again after the last round. The two counts must match.
+* **Which reader runs (untimed), per arm.**
+  1. Run `check-fastpath` on the arm's `.sbnd`.
+  2. Start the image's server on a fresh copy written by `writer_bench direct`, as above: cold without eviction.
+  3. Run one tile session at depth 4 with `server_ab` in the same container.
+  4. Record `read_fast_path=`, the session's `ring=`, and any `io_uring unavailable` WARN with its error.
+* **Printed per arm:**
+  * `podman inspect`'s User, SecurityOpt, Ulimits, CapAdd, Mounts and cgroup;
+  * inside the container, `/proc/self/limits` and the `Seccomp:` and `CapEff:` lines;
+  * `findmnt -T` of the series and its bdi's `read_ahead_kb`;
+  * the kernel, Podman, crun and containers-common versions;
+  * each file's SHA-256, which must equal H's or the arm is void.
+* **Throttling.**
+  * Everything runs under `nice -n 19 ionice -c3`.
+  * Timed visits are pinned to two cores with `taskset -c 2,3`, inside `podman exec` too. Rootless cgroups here
+    delegate no `cpuset`, so `--cpuset-cpus` fails.
+  * Builds take `--cpu-period 100000 --cpu-quota 200000`, which holds cargo to two cores.
+* **Time, and a quiet machine.**
+  * Preparation runs niced while the owner works, about 1–2 h, mostly the release build: images, data, ingest,
+    placement.
+  * The 400 timed visits need **a quiet machine for about 30 min**. Ask the owner for the window.
+  * The folio counts take ~5 min as root, which the owner authorizes.
+* **VOID.** A visit is `VOID` if either holds:
+  * the pinned cores were busy outside the bench for more than 5 % of its wall time (per-CPU `/proc/stat` less the
+    visit's own CPU);
+  * its hit pass reports a miss.
+
+  The bar is 10 % of visits. Past it, give the strict and the round-paired readings (the queue's rule).
+* **Docker Engine (untimed).** Under 15 min plus a build, on a Linux host with Docker ≥ 25 (`deploy/README.md`
+  §Verified ran 29.8.2).
+  * Use the same image. Run the reader check and print the settings for B, V and O. Time nothing.
+  * Docker Engine is not installed on the owner's machine, and installing it is not part of this row.
+
+**Predictions.** A tie means within the resolution against H in the same round.
+
+| | B, bind | V, volume | O, overlay |
+| --- | --- | --- | --- |
+| hit p50 and p99 | tie | tie | ties H's forced miss. Slower than B past the resolution in every cell, by about 1 + (a 24–34 µs pool hop ÷ H's hit): largest at 32 kB, about ×1.5–2 at 503 kB (derived) |
+| forced-miss p50 | tie | tie | tie |
+| fill hit, and its CPU per GB | tie | tie | ties H's fill forced miss |
+| fill forced miss, and its CPU per GB | tie | tie | tie |
+| folios a frame, after a pack | within 20 % of H | within 20 % of H | within 20 % of H |
+| folios a frame, after `WILLNEED` | 4 KiB folios, ≈ 123 at 503 kB (row 172 A6: 122.86) | the same | the same |
+| `dbt12` hit after `WILLNEED` ÷ after a pack | H's ratio. Row 172 (d) found ×2.0 on ext4; the magnitude on btrfs is not predicted | H's ratio | none: every read is pooled |
+| `read_fast_path=` | `preadv2` | `preadv2` | `pooled_pread`, with its WARN |
+| tile session that misses | `ring=false`, WARN `io_uring unavailable`: ENOSYS here, EPERM on Docker. H: `ring=true` | the same | `ring=false`, and no ring tried |
+| limits | Podman 524288:524288 `nofile`, 8 MiB `memlock`; Docker 1024:524288 and 8 MiB | the same | the same |
+
+**Decision rule.**
+
+* **(a) Placement keeps today's deploy** if B and V tie H on every metric in every cell. `/studies` stays a bind
+  mount and compose is unchanged; §6 records a named volume as its equal. If B or V is beyond the resolution on any
+  metric, the mechanism is wrong for that arm. §6 then advises against that arm until it is explained, and compose
+  does not change in this row.
+* **(b) Overlay.** If O's hits sit at H's forced miss and are beyond the resolution against B in every cell, *Serve
+  series from a mounted volume* stands with this kernel's number. If O ties B, the fall's cost (132.5 against
+  48.4 µs) is retracted for this kernel.
+* **(c) io_uring.** `ring=false` with the WARN under both default profiles means a deployed tile miss runs on the
+  pool. This row adds no seccomp allowance; whether the ring is worth one is P0's question (§9 item 1).
+  * If P0 keeps the ring, the deploy gets a profile: the runtime default plus `io_uring_setup`, `io_uring_enter` and
+    `io_uring_register`. It also gets `nofile` and `memlock` in compose: at Docker's soft 1 024, descriptors run out
+    first, at ~500 tile sessions that miss (2 fds each), before `memlock`'s ~940 rings. B is then re-run to show
+    `ring=true`.
+  * If P0 deletes the ring, this question closes.
+* **(d) Limits** (row 166, DEPLOYLIMITS) stay unchanged while (c) refuses the ring, since nothing ring-related can
+  bind.
+* **(e) Folios.** If every arm's count is within 20 % of H's in both states, the cache is the real inode's. Row 172's
+  (d) and its WILLNEEDFOLIO follow-up then apply to containers unchanged. Otherwise report the mechanism as wrong.
+* **(f) Not conclusive on this host:**
+  * a VOID-bar failure whose two readings disagree;
+  * Docker Engine's errno and limits, until its run prints them;
+  * absolute µs on a server's ext4 or XFS. Ratios to H transfer; magnitudes do not.
 
 ## 7 · Invariants
 
