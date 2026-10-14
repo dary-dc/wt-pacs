@@ -23,7 +23,8 @@ Five groups, one folder a subject (row LAYOUT, 2026-10-09; each folder's queue r
 | [`delivery/`](delivery/) | [`fill/`](delivery/fill/README.md), [`total-time/`](delivery/total-time/README.md), [`split-rule/`](delivery/split-rule/README.md), [`grey-420/`](delivery/grey-420/README.md), [`preview/`](delivery/preview/README.md), [`residual/`](delivery/residual/README.md), [`bases-first/`](delivery/bases-first/README.md); `scalable/` [`encoder/`](delivery/scalable/encoder/README.md), [`two-layer/`](delivery/scalable/two-layer/README.md), [`shape/`](delivery/scalable/shape/README.md), [`client/`](delivery/scalable/client/README.md), [`webcodecs-base/`](delivery/scalable/webcodecs-base/README.md) |
 
 Here, beside the series every group reads (`fetch_data.*`, `provenance*.py`, `data.json`, `requirements.txt`):
-the modules other groups import — `size.py`, `depth.py`, `roundtrip.py`. What the product runs is not here: the
+the modules other groups import — `size.py`, `depth.py`, `roundtrip.py` — and `display_tags.py`, which sets carry
+which display attributes ([`docs/display.md`](../../docs/display.md) §Which series carry them). What the product runs is not here: the
 dav1d-WASM build is [`client/decode/wasm/dav1d`](../../client/decode/wasm/dav1d/README.md), the ingest
 [`ingest/coded-frames`](../../ingest/coded-frames/README.md).
 

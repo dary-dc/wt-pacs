@@ -29,7 +29,9 @@ itself, as a calibrated medical display does. On a consumer sRGB panel the same 
 instead; correcting that in software needs the panel's luminance range, which only a photometer gives. The ingest
 reads Window Center/Width and the VOI LUT Function (`ingest/from-dicom/dicom_series.py` `frame_display`) but neither a
 VOI LUT Sequence (0028,3010) nor Presentation LUT Shape (2050,0020); a series that windows by an explicit LUT is shown
-through its decoded range instead. Whether any of our sets carry one is unchecked.
+through its decoded range instead. *Corrected by row 214:* none of our sets reaches that fallback — every object that
+carries a VOI LUT also carries the window pair it tabulates, and its Presentation LUT Shape only restates its photometric
+interpretation (§Which series carry them).
 
 **What can be seen.** Kimpe and Tuytschaever (2007) put a medical display of 0.8–600 cd/m² at about 720 JNDs and
 conclude that more than 10 bits (1 024 shades) shown at once is of no use, and that GSDF calibration needs about 11
@@ -67,8 +69,8 @@ photometric interpretation but MONOCHROME1, MONOCHROME2 and RGB, so no YBR conve
 neither ICC Profile (0028,2000) nor Color Space (0028,2002). PS3.3 C.11.15 defines the profile as the transformation
 of the stored values into the profile connection space, and Color Space as a label naming a well-known space (sRGB, Display-P3, …) consistent
 with it. A series whose profile is not sRGB is therefore shown with sRGB's meaning: wrong saturation and hue on that
-series, by an amount set by its profile. Whether any of our colour sets carry one is unchecked; the RGB ultrasound
-sets are lossy-sourced anyway (row DATAGUARD).
+series, by an amount set by its profile. None of our colour sets carries either, the six sound RGB ultrasound sets
+included (§Which series carry them).
 
 ## The gaps, each change, and whether it is net
 
@@ -77,9 +79,9 @@ sets are lossy-sourced anyway (row DATAGUARD).
 | G1 · 8 bits after the window | 16-bit table, `RGBA16F` picture and drawing buffer, `alpha: true` | picture memory ×2 (100 against 50 MB for 4096×3072, (D)); paint time unmeasured; reaches the panel only on Chrome/Edge with an OS path of > 8 bits; on an 8-bit path the compositor, not the painter, rounds to the byte, so the proof "equal to the reference to the code" would no longer hold for what is shown | **trade-off**: memory, and the 8-bit proof, against up to 4× finer steps where a 10-bit path exists |
 | G2 · no GSDF in software | none without a photometer: the panel's luminance range is the input | — | not decidable here |
 | G3 · colour management before a GSDF panel | deployment: `--force-color-profile=srgb` on reading stations, if a device shows the ramp bent | none in code | device question |
-| G4 · ICC Profile and Color Space ignored | ingest records Color Space (and the profile); the painter sets `drawingBufferColorSpace` for Display-P3, or converts in the window pass | small, and only where a series carries one | **net where present**, by construction (D): series without one are untouched |
+| G4 · ICC Profile and Color Space ignored | ingest records Color Space (and the profile); the painter sets `drawingBufferColorSpace` for Display-P3, or converts in the window pass | small, and only where a series carries one | ~~net where present~~ — *none present* on our sets (row 214): nothing built |
 | G5 · bilinear on bytes | part of G1: filtering the `RGBA16F` picture | as G1 | with G1 |
-| G6 · VOI LUT Sequence and Presentation LUT Shape dropped | ingest records them; the table is already per stored code, so an explicit LUT fills it directly | small | **net where present** |
+| G6 · VOI LUT Sequence and Presentation LUT Shape dropped | ingest records them; the table is already per stored code, so an explicit LUT fills it directly | small | ~~net where present~~ — *present but redundant* on our sets (row 214): each LUT is its window pair to 1 code, and the shape restates the photometric interpretation the painter already applies; nothing built |
 
 ## Protocol (*proposed*)
 
@@ -103,12 +105,53 @@ decides G1's worth and G3.
 **Proposed rows** (theory first, one question each): *DISPLAY10* — does a half-float painter equal the reference at
 10 bits, and at what paint time? *COLORTAGS* — do any of our sound colour series carry an ICC Profile or a Color Space
 other than sRGB? *VOILUT* — do any of our series carry a VOI LUT Sequence or a Presentation LUT Shape the ingest
-drops?
+drops? (Both answered by row 214, below.)
+
+## Which series carry them
+
+Row 214, 2026-10-14: every DICOM file pinned in `lab/av1/data.json` — 1 044 in the 83 sound sets, and the two that are
+not — streamed, checked against its SHA-256 and read whole by `lab/av1/display_tags.py`; the attributes are searched
+anywhere in the object, nested functional groups included. Counts are of the sound sets.
+
+| attribute | sets | files | what they hold |
+| --- | --- | --- | --- |
+| ICC Profile (0028,2000), Color Space (0028,2002) | 0 | 0 | the 6 sound RGB ultrasound sets (48 files) carry neither |
+| Modality LUT Sequence (0028,3000), Presentation LUT Sequence (2050,0010) | 0 | 0 | |
+| Presentation LUT Shape (2050,0020) | 70 | 222 | every mammography and tomosynthesis set, and `rf_fluoro`: `IDENTITY` on all 52 MONOCHROME2 sets, `INVERSE` on all 18 MONOCHROME1 sets (79 files), none the other way round |
+| VOI LUT Sequence (0028,3010) | 12 | 46 | `ffdm_b`, `ffdm_c`, `ffdms_a1`–`a5`, `ffdms_c1`–`c5`: three items an object, `NORMAL`, `HARDER`, `SOFTER`, 12-bit; every one of the 46 also carries three window pairs of the same names, SIGMOID |
+
+**The Presentation LUT Shape adds nothing to paint.** In the DX Image Module, which the digital mammography images
+include, it is defined to account for the photometric interpretation, not to apply after it: `IDENTITY` *shall be
+used* with MONOCHROME2 and `INVERSE` with MONOCHROME1 (PS3.3 C.8.11.3 and its C.8.11.3.1.2). Inverting on `INVERSE` as
+well as on MONOCHROME1 would show every raw mammogram and tomosynthesis projection the wrong way round. On our sets the
+two always agree, so the painter's MONOCHROME1 inversion already is the shape. 17 of the 18 MONOCHROME1 sets are
+digital mammography *for processing*; the 18th (`dbtproj_holo`) is a Breast Projection X-Ray image, whose module was
+not read here.
+
+**Each VOI LUT is its window pair, tabulated.** Every sample of the 46 objects through each LUT item (output scaled
+from 0–4095 to the byte, rounded as `voi.js` rounds) against through the window pair of the same explanation
+(the SIGMOID of `voi.js`): **at most 1 code apart, on at most 1.5 % of samples** (0.17–1.5 % per object and item; each of
+the 138 items differs by 1 somewhere). Pairing each LUT with the next pair instead moves it to 21–43 codes on 36 % of `ffdm_b`'s samples: the
+comparison's own mutation. The viewer shows the first pair, `NORMAL`, so these series already look as their LUT `NORMAL` would, to
+one code — less than the painter's own bilinear difference on a fractional zoom (1–5 codes, `client/paint/README.md`).
+
+**So nothing is built.** Reading the LUTs would add an ingest field (2 352–4 020 entries an item, three items a
+frame, in the metadata), a table path in the painter and a choice in the viewer, to move 1.5 % of samples by one code.
+What the sets do show is that `HARDER` and `SOFTER` — alternatives the standard expects a viewer to offer
+(PS3.3 C.11.2.1.2.2) — are reachable today only by dragging the window, whether they come as pairs or LUTs; offering
+the series' own window pairs is a viewer change, proposed as row *VOIPRESETS*. A series that carries a VOI LUT and no
+window pair, or a colour profile other than sRGB, would reopen G6 or G4; none of ours does.
+
+```bash
+python3.11 -m venv lab/av1/.venv && lab/av1/.venv/bin/pip install --require-hashes -r lab/av1/requirements.txt
+lab/av1/.venv/bin/python lab/av1/display_tags.py lab/av1/data.json [SET ...]   # 7 min 20 s for all 85 sets here
+```
 
 ## Sources
 
 * DICOM PS3.14, ch. 7 (Grayscale Standard Display Function), and PS3.3 2026d C.11.15 (ICC Profile Module),
-  dicom.nema.org, read 2026-10-13.
+  dicom.nema.org, read 2026-10-13; PS3.3 2026d C.11.2.1 (VOI LUT Module), C.11.6.1 (Softcopy Presentation LUT) and
+  C.8.11.3 (DX Image Module), read 2026-10-14.
 * WebGL 1.0 specification (shared by 2.0 for these members), `KhronosGroup/WebGL` `main` at `714857a2`:
   `drawingBufferStorage`, `drawingBufferFormat`, `drawingBufferColorSpace`.
 * caniuse, `mdn-api_webgl2renderingcontext_drawingbufferstorage`, read 2026-10-13; Chrome 122 release notes.
