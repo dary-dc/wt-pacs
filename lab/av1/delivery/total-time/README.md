@@ -224,7 +224,7 @@ as the product's HTJ2K (`ingest/coded-frames/ingest.py BUILD lab/av1/data/dbt10_
 --frames 8`, linked as `NNN.htj2k`). `variants.json` names four variants: `htj2k` (`cubic-restart`, quinn's 12 000 B),
 `cr240k` (`"initialWindow": 240000`), `bbr` (`"congestion": "bbr"`, quinn's 240 000 B) and `bbr12k` (both). A
 variant's `initialWindow` goes to `--initial-window-bytes`, and a visit stops unless the server's `transport=` line
-names that window. `--cc-trace DIR` sets `WTPACS_CC_TRACE` for each visit's server
+names that window. `--cc-trace DIR` builds the server with `--features telemetry` and sets `WTPACS_CC_TRACE` for each visit's server
 (`server/src/transport/cc_trace.rs`), which writes the controller's window, pacing rate, in-flight bytes, bytes
 delivered and lost, srtt and BBR's mode once per batch of acknowledgements. Each round runs two invocations, in an
 order that alternates from round to round:
@@ -310,7 +310,8 @@ same decoders (`?opts=`), and `--origin navigation` times both pages from naviga
 
 
 **Row DECODEPACE** sets the downloader's `followQueue` lab flag against today's pool on the delivered OpenJPH
-build, whole series (`variants.json`'s `"openjph": "delivered"`, and `"followQueue": true` on `pace`):
+build, whole series (`variants.json`'s `"openjph": "delivered"`, and `"followQueue": true` on `pace`). *The flag was
+removed by row 224 (REJECTEDPATHS), not adopted; the recipe below runs at `ba408823`.*
 
 ```bash
 client/decode/wasm/build/build.sh && lab/av1/fetch_data.sh dbt12_ea1141 ffdm_d

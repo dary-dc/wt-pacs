@@ -46,7 +46,6 @@ Each change with the measurement that adopted it; HTJ2K codestreams are byte-for
 | The downloader resumes an ask its transport timed out (`FrameTimeoutError`) instead of failing it; two re-dial defects fixed | no client timer failed an ask under loss; the fill's time unchanged | `client/README.md` |
 | The server opens the HTTP/3 control stream once the ClientHello is whole | Firefox's dial settles 30/30 on 5, 10, 20, 50 Mbit/s, against 0, 4, 12, 21 of 30 before | `docs/transport/transport-conclusions.md` §Firefox's dial on a slow link |
 | `--congestion bbr-bound`, opt-in; the default stays `cubic-restart` | failed its rule; not recommended | `transport-conclusions.md` §1, The bound |
-| `followQueue` on the downloader, a lab flag, off by default | fills ×0.998–1.002; one cell under its rule | `docs/ARCHITECTURE.md` §How many |
 | Ingest encodes HTJ2K in-process and in parallel | 69/69 cells byte-identical; HTJ2K CPU −21 to −27 % | `ingest/coded-frames/README.md` |
 
 **Renamed, which breaks a caller that uses the old names** (no behaviour change): the server binary `exact-server` →

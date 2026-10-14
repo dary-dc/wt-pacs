@@ -6,7 +6,7 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
 with `rustup`, Node 22 (`.nvmrc`), Python 3.11 to 3.13, and on PATH: git, curl, tar, patch, sha256sum,
-openssl, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
+openssl, jq, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
 
 ```bash
 rustup target add wasm32-unknown-unknown
@@ -31,6 +31,7 @@ OpenJPH 0.31.0, built from source at their pins into `ingest/.build` — need cm
 a C++ compiler: `ingest/tools.sh`. The DICOM ingest needs them, and the gate's comparison of the two ingests and its
 synthetic DICOM series to `.sbnd` end to end run on them
 ([`ingest/from-parser/README.md`](ingest/from-parser/README.md)).
+Without nginx on PATH, the web host's check (`deploy/check_equivalence.sh --local`) does not run.
 Without Go 1.24 or newer on PATH, the lab's two Go clients are not compiled (Go fetches the toolchain each `go.mod` names and checks it against its checksum database).
 
 ## Quick start
@@ -103,8 +104,9 @@ own server, bundle and certificate, so it needs neither terminal nor step 2; the
 `scripts/wtcompat.py --fetch DIR` fetches the newest Chrome and Firefox builds and fails if any no longer dials the
 server, gets frame 0 exact, or offers a different WebTransport draft or `reset_stream_at` than `scripts/wtcompat.json`
 expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) §3); the gate does not run it.
-`deploy/check_equivalence.sh` checks that the web image answers every path the harness uses exactly as
-`server/dev-server.py` does; it needs podman or docker, or nginx with `--local` ([`deploy/README.md`](deploy/README.md)).
+`deploy/check_equivalence.sh` checks that the web image answers every path the viewer loads exactly as
+`server/dev-server.py` does, and nothing else; it needs podman or docker, or nginx with `--local`, which the gate runs
+([`deploy/README.md`](deploy/README.md)).
 
 ## The viewer on a DICOM series
 
