@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Which sets carry the display attributes the ingest drops (rows COLORTAGS and VOILUT): docs/display.md §Which series carry them.
 
-Each pinned DICOM file is streamed, checked against its SHA-256 and read; nothing is kept on disk. Prints one JSON
+Each pinned DICOM file is streamed, checked against its SHA-256 and read up to its pixel data, whole where its samples
+are compared; nothing is kept on disk. Prints one JSON
 line per set: the files carrying each attribute, anywhere in the object, nested included; and where an object carries
 both a VOI LUT and a window pair, the 8-bit codes of its samples through each LUT against through the paired window.
 
@@ -13,11 +14,12 @@ import json
 import sys
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import numpy as np
 import pydicom
 
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[2] / "ingest/from-dicom"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "ingest/from-dicom"))
 import dicom_series  # noqa: E402
 
 BUCKET = "https://idc-open-data.s3.amazonaws.com/"
@@ -32,16 +34,19 @@ TAGS = {
 }
 
 
-def head(key: str, sha: str, tries: int = 3) -> bytes:
+def head(key: str, sha: str, tries: int = 3) -> tuple[bytes, bool]:
+    """The file's first HEAD bytes or more, and whether they are the whole file."""
     for _ in range(tries):
-        h, kept = hashlib.sha256(), bytearray()
+        h, kept, whole = hashlib.sha256(), bytearray(), True
         with urllib.request.urlopen(BUCKET + key) as r:
             for block in iter(lambda: r.read(1 << 20), b""):
                 h.update(block)
                 if len(kept) < HEAD:
                     kept += block
+                else:
+                    whole = False
         if h.hexdigest() == sha:
-            return bytes(kept)
+            return bytes(kept), whole
         print(f"{key}: sha256 {h.hexdigest()}, pinned {sha}", file=sys.stderr)
     raise SystemExit(f"{key}: no transfer matched its pin in {tries}")
 
@@ -107,10 +112,13 @@ def lut_against_window(ds) -> dict:
 
 
 def one(f: dict) -> dict:
-    ds = pydicom.dcmread(io.BytesIO(head(f["key"], f["sha256"])))
+    data, whole = head(f["key"], f["sha256"])
+    ds = pydicom.dcmread(io.BytesIO(data), stop_before_pixels=True)
     out = found(ds)
     if "VOILUTSequence" in ds and "WindowCenter" in ds:
-        out["lutAgainstWindow"] = lut_against_window(ds)
+        if not whole:
+            raise SystemExit(f"{f['key']}: over {HEAD} B, its samples are not compared")
+        out["lutAgainstWindow"] = lut_against_window(pydicom.dcmread(io.BytesIO(data)))
     return out
 
 
