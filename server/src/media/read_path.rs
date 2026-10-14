@@ -968,13 +968,21 @@ mod tests {
         store.force_short_reads(SHORT);
         let store = Arc::new(store);
         let rt = rt();
+        let ring_available = {
+            let _guard = rt.enter();
+            UringReader::new(store.file(), TILE_SLOTS as u32).is_ok()
+        };
         let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
         for idx in 0..3u32 {
             let span = store.frame_span(idx);
             let out = rt.block_on(tile.read(span, &[])).expect("read");
             assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx} did not compose");
         }
-        assert!(tile.ring_built(), "the miss path never reached the ring");
+        if ring_available {
+            assert!(tile.ring_built(), "the miss path never reached the ring");
+        } else {
+            eprintln!("SKIPPED (the ring assert): io_uring is unavailable on this host");
+        }
         std::fs::remove_dir_all(&dir).ok();
     }
 
