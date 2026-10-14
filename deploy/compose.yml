@@ -25,7 +25,7 @@ services:
     image: wt-pacs-web
     build: { <<: *build, target: web }
     restart: unless-stopped
-    environment: { SERIES: "${SERIES:-us_cine_smoke}" }
+    environment: { SERIES: "${SERIES:-us_cine_smoke}", WT_URL: "${WT_URL:-https://127.0.0.1:4433/}" }
     volumes:
       - "${STUDIES:-../fixtures/us_cine_smoke}:/studies:ro,z"
       - "transport:/srv/wt-pacs/wt:ro,z"

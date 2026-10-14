@@ -7,7 +7,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -19,17 +18,6 @@ const children = [];
 process.on("exit", () => { for (const c of children) c.kill("SIGKILL"); rmSync(T, { recursive: true, force: true }); });
 const failures = [];
 const fail = (why) => failures.push(why);
-
-const collector = createServer((req, res) => {
-  let body = "";
-  req.on("data", (c) => (body += c));
-  req.on("end", () => {
-    res.writeHead(200, { "Access-Control-Allow-Origin": "*" }).end();
-    if (req.url === "/result") collector.result?.(JSON.parse(body));
-  });
-});
-await new Promise((r) => collector.listen(0, "127.0.0.1", r));
-const POST = `http://127.0.0.1:${collector.address().port}/`;
 
 const started = (child, re) => new Promise((resolve, reject) => {
   let out = "";
@@ -67,25 +55,32 @@ async function host(sbnd, name) {
   return { url: `http://127.0.0.1:${p}/`, requests };
 }
 
-/** The page's own result, from headless Chromium through playwright or a stock headless Firefox. */
+/** The page's own result, read off it in headless Chromium through playwright, or off a stock Firefox's stdout. */
 async function open(url) {
-  const result = new Promise((resolve) => {
-    collector.result = resolve;
-    setTimeout(() => resolve({ error: "no result in 300 s" }), 300000).unref();
-  });
-  const q = new URLSearchParams({ check: "1", post: POST, ...(process.argv.includes("--cine") && { cine: "1" }), ...(arg("--fill") && { fill: arg("--fill") }) });
+  const timeout = new Promise((resolve) => setTimeout(() => resolve({ error: "no result in 300 s" }), 300000).unref());
+  const q = new URLSearchParams({ check: "1", ...(process.argv.includes("--cine") && { cine: "1" }), ...(arg("--fill") && { fill: arg("--fill") }) });
   const page = `${url}?${q}`;
   if (ENGINE === "firefox") {
     const profile = mkdtempSync(path.join(T, "ff-"));
     // No GPU in a container: WebGL forced on, through the software rasterizer Firefox finds.
     writeFileSync(path.join(profile, "user.js"), ['user_pref("browser.shell.checkDefaultBrowser", false);',
-      'user_pref("webgl.force-enabled", true);', 'user_pref("webgl.disabled", false);'].join("\n") + "\n");
+      'user_pref("webgl.force-enabled", true);', 'user_pref("webgl.disabled", false);',
+      'user_pref("devtools.console.stdout.content", true);'].join("\n") + "\n");
     // Headless Firefox has no WebGL: given a display (xvfb-run on a host without one), it runs windowed.
     const mode = process.env.DISPLAY ? ["-width", "1024", "-height", "768"] : ["--headless", "--window-size=1024,768"];
     const ff = spawn(process.env.FIREFOX_PATH, [...mode, "--no-remote", "--profile", profile, page],
-      { stdio: "ignore", detached: true });
+      { stdio: ["ignore", "pipe", "ignore"], detached: true });
+    // Firefox prints each console.log as `console.log: "<the string, JSON-quoted>"`.
+    const read = new Promise((resolve) => {
+      let out = "";
+      ff.stdout.on("data", (d) => {
+        out += d;
+        const m = /^console\.log: (".*viewer-result .*")\n/m.exec(out);
+        if (m) resolve(JSON.parse(JSON.parse(m[1]).slice("viewer-result ".length)));
+      });
+    });
     try {
-      return await result;
+      return await Promise.race([read, timeout]);
     } finally {
       process.kill(-ff.pid, "SIGKILL");
     }
@@ -96,9 +91,8 @@ async function open(url) {
   tab.on("pageerror", (e) => fail(`page error: ${e.message}`));
   await tab.goto(page);
   try {
-    // Read off the page too: a page off loopback may not reach the collector (Chrome's Local Network Access).
     const read = tab.waitForFunction(() => globalThis.__viewerResult, null, { timeout: 0 }).then((h) => h.jsonValue());
-    return await Promise.race([result, read]);
+    return await Promise.race([read, timeout]);
   } finally {
     await browser.close();
   }
