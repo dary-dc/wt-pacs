@@ -2,7 +2,7 @@
 # The AV1 encoders and the native decoder, pinned and built from source into a gitignored
 # directory — lab/av1/README.md says what each is for and which settings code losslessly.
 #
-#   BUILD=... lab/av1/tools/tools.sh
+#   BUILD=... lab/av1/tools/tools.sh [aom svt dav1d avm]     default: all four
 #
 # libaom ships as release tarballs (checksummed below); SVT-AV1, dav1d and AVM (AV2) as git tags whose
 # commit is checked. Two libaom versions, because lossless correctness changed between them.
@@ -10,6 +10,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD="${BUILD:-$ROOT/lab/.av1-build}"
 JOBS="$(nproc)"
+WANT=" ${*:-aom svt dav1d avm} "
+want() { [[ "$WANT" == *" $1 "* ]]; }
 
 AOM_VERSIONS=(3.8.2 3.15.1)
 declare -A AOM_SHA256=(
@@ -34,6 +36,7 @@ clone_pinned() {
 }
 
 for v in "${AOM_VERSIONS[@]}"; do
+  want aom || break
   prefix="$BUILD/aom-$v"
   [[ -x "$prefix/bin/aomenc" ]] && continue
   tarball="$BUILD/libaom-$v.tar.gz"
@@ -47,7 +50,7 @@ for v in "${AOM_VERSIONS[@]}"; do
   cmake --install "$BUILD/aom-$v-b" >/dev/null
 done
 
-if [[ ! -x "$BUILD/svt/bin/SvtAv1EncApp" ]]; then
+if want svt && [[ ! -x "$BUILD/svt/bin/SvtAv1EncApp" ]]; then
   clone_pinned https://gitlab.com/AOMediaCodec/SVT-AV1.git "$SVT_TAG" "$SVT_COMMIT" "$BUILD/svt-src"
   cmake -S "$BUILD/svt-src" -B "$BUILD/svt-b" -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$BUILD/svt" -DBUILD_DEC=OFF -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF >/dev/null
@@ -55,14 +58,14 @@ if [[ ! -x "$BUILD/svt/bin/SvtAv1EncApp" ]]; then
   cmake --install "$BUILD/svt-b" >/dev/null
 fi
 
-if [[ ! -x "$BUILD/dav1d/bin/dav1d" ]]; then
+if want dav1d && [[ ! -x "$BUILD/dav1d/bin/dav1d" ]]; then
   clone_pinned https://github.com/videolan/dav1d.git "$DAV1D_TAG" "$DAV1D_COMMIT" "$BUILD/dav1d-src"
   meson setup "$BUILD/dav1d-b" "$BUILD/dav1d-src" --buildtype=release --prefix="$BUILD/dav1d" \
     --libdir=lib -Dbitdepths=8,16 -Denable_tests=false >/dev/null
   meson install -C "$BUILD/dav1d-b" >/dev/null
 fi
 
-if [[ ! -x "$BUILD/avm/bin/avmenc" ]]; then
+if want avm && [[ ! -x "$BUILD/avm/bin/avmenc" ]]; then
   clone_pinned https://github.com/AOMediaCodec/avm.git "$AVM_TAG" "$AVM_COMMIT" "$BUILD/avm-src"
   cmake -S "$BUILD/avm-src" -B "$BUILD/avm-b" -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$BUILD/avm" -DENABLE_TESTS=0 -DENABLE_DOCS=0 -DENABLE_TOOLS=0 >/dev/null
@@ -70,7 +73,7 @@ if [[ ! -x "$BUILD/avm/bin/avmenc" ]]; then
   cmake --install "$BUILD/avm-b" >/dev/null
 fi
 
-for v in "${AOM_VERSIONS[@]}"; do "$BUILD/aom-$v/bin/aomenc" --help 2>&1 | grep "AV1 Encoder"; done
-"$BUILD/svt/bin/SvtAv1EncApp" --version
-LD_LIBRARY_PATH="$BUILD/dav1d/lib" "$BUILD/dav1d/bin/dav1d" --version
-"$BUILD/avm/bin/avmenc" --help 2>&1 | grep -m1 "AV2 Encoder"
+if want aom; then for v in "${AOM_VERSIONS[@]}"; do "$BUILD/aom-$v/bin/aomenc" --help 2>&1 | grep "AV1 Encoder"; done; fi
+if want svt; then "$BUILD/svt/bin/SvtAv1EncApp" --version; fi
+if want dav1d; then LD_LIBRARY_PATH="$BUILD/dav1d/lib" "$BUILD/dav1d/bin/dav1d" --version; fi
+if want avm; then "$BUILD/avm/bin/avmenc" --help 2>&1 | grep -m1 "AV2 Encoder"; fi
