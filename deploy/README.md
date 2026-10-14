@@ -141,7 +141,8 @@ and the same transport file. It checks five things:
 * `Server` carries no version.
 
 Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out of `gzip_types`, a `location /`
-that serves and lists, and a page cached otherwise than `dev-server.py`. `--local` runs a host nginx on the
+that serves and lists, and a page cached otherwise than `dev-server.py`; and for the policy (row VIEWERLOCK), nginx's
+`connect-src` without the transport (both paths `MISS`) and the dev host's `script-src` allowing inline (`DIFF`). `--local` runs a host nginx on the
 template instead of the image.
 
 **A stale image is refused** (exit 2) before anything is compared: every file the Containerfile copies from
@@ -179,6 +180,12 @@ refuses a page on a public address a request to `127.0.0.1`, where the check's c
 
 **Restart.** `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
 and the next page open connected and passed.
+
+**Row VIEWERLOCK (2026-10-14), the policy in place.** The web image built from that tree passed
+`check_equivalence.sh`, and `client/viewer/check.mjs --url` through it on the gate's three-frame grey series passed
+in headless Chromium 141 and in Firefox 157.0.1 under `xvfb-run` (archive.mozilla.org's
+`firefox-157.0.1.tar.xz`, SHA-256 `0d92bf39cdd174f5f361008509310bdefbce72a57ca10523a43b32d62dc699b6`; the host's llvmpipe): 3/3 exact, the three readbacks equal
+to the CPU reference, Firefox's result read off its stdout. `/lab/viewer/levers.js` answered 404.
 
 ## Container settings
 
