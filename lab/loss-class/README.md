@@ -6,7 +6,7 @@ classed as congestion or radio from the round trip at the loss, measured where t
 The predictions and rule are R2's, quoted below; the terms here were fixed before any data.
 
 ```bash
-cargo build --release -p series-server -p pack-series -p window-harness
+cargo build --release -p series-server --features series-server/telemetry -p pack-series -p window-harness
 mkdir -p lab/.traces && for f in TMobile-LTE-short Verizon-LTE-short TMobile-LTE-driving; do
   curl -sSfL -o lab/.traces/$f.down https://raw.githubusercontent.com/ravinet/mahimahi/f1346c38/traces/$f.down; done
 for r in $(seq 0 5); do python3 lab/loss-class/run.py --first-round $r --out rows.jsonl; done

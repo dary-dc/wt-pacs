@@ -68,6 +68,7 @@ impl FrameStore {
         self.nowait
     }
 
+    #[cfg(feature = "uring")]
     pub fn file(&self) -> &File {
         &self.file
     }
