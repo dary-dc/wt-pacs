@@ -62,3 +62,29 @@ python3 lab/container-bench/readahead_summary.py $W
 ```
 
 `cargo test -p container-bench --bin readahead_bench` checks W1's 2 MiB blocks against the fill's own advice.
+
+## In a container (row 195)
+
+The shipped read path on the host (H, and H′ as its A/A control), in a bind mount (B), a named volume (V) and the
+container's own layer (O), on rootless Podman: [`docs/adr/disk-access.md`](../../docs/adr/disk-access.md) §6 In a
+container has the protocol, the predictions and the decision rule. Everything runs niced; builds take two cores;
+timed visits are pinned to cores 2 and 3, inside `podman exec` too. The arms are [`dockerread-arms.json`](dockerread-arms.json), one entry each:
+how the series is placed, the container's `podman run` options and where the reader finds it.
+
+```bash
+W=~/.cache/wt-pacs-dockerread-data P="nice -n 19 ionice -c3" Q="--cpu-period 100000 --cpu-quota 200000"
+$P podman build $Q -f deploy/Containerfile --target server -t wt-pacs-server --secret id=build_ca,src=/dev/null .
+$P podman build $Q -f lab/container-bench/Containerfile.dockerread --target rig -t wt-pacs-dockerread-rig .
+$P podman build $Q -f lab/container-bench/Containerfile.dockerread --target data -t wt-pacs-dockerread-data .
+D=lab/container-bench/dockerread.py
+python3 $D data $W      # tools, fetch and HTJ2K ingest of pt15_cptac, ct_lidc, dbt12_ea1141, in the data image
+python3 $D place $W     # the arms; containers wtpacs-dr-{B,V,O}, volume wtpacs-dr-V; every file's SHA-256 against H's
+python3 $D check $W     # untimed: read_fast_path=, ring=, the io_uring WARN, settings and limits, into W/check.txt
+sudo nice -n 19 ionice -c3 python3 -I $D folios $W before
+python3 $D time $W 20   # a quiet machine: 20 rounds × 5 arms × 4 cells, into W/time.jsonl
+sudo nice -n 19 ionice -c3 python3 -I $D folios $W after    # each file's folios must equal before's
+```
+
+A visit is VOID when its pinned cores were busy outside the bench for over 5 % of their time (`measure`'s
+`others_busy_frac`: `/proc/stat` less the process's own CPU) or when a store that has `RWF_NOWAIT` missed in its hit
+pass. `measure --pooled-ok` runs where the flag is refused (O), whose every read then goes through the pool.

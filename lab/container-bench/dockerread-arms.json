@@ -1,0 +1,7 @@
+[
+ {"name": "H", "place": "host"},
+ {"name": "Hp", "place": "host"},
+ {"name": "B", "place": "bind", "run": ["-v", "{work}/arms/B:/studies:ro,z"], "series": "/studies"},
+ {"name": "V", "place": "volume", "volume": "wtpacs-dr-V", "run": ["-v", "wtpacs-dr-V:/studies:ro"], "series": "/studies"},
+ {"name": "O", "place": "layer", "run": [], "series": "/srv/series"}
+]

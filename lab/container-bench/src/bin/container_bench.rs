@@ -56,6 +56,9 @@ enum Cmd {
         /// Break the index on purpose: `shift` moves every offset one byte back, `short` drops a frame's last byte.
         #[arg(long)]
         mutate: Option<String>,
+        /// Measure where `RWF_NOWAIT` is refused: the hit pass then reads through the pool.
+        #[arg(long)]
+        pooled_ok: bool,
     },
     /// Every frame as the shipped fill reader hands it on, to `OUT/NNN.bin`, for the decode check.
     Dump {
@@ -170,6 +173,31 @@ fn cpu_ns() -> u64 {
     ts.tv_sec as u64 * 1_000_000_000 + ts.tv_nsec as u64
 }
 
+/// Busy clock ticks of the CPUs this process may run on, from `/proc/stat`, and how many CPUs.
+fn allowed_cpus_busy() -> Result<(u64, u32)> {
+    // SAFETY: a zeroed cpu_set_t is a valid empty set; the kernel fills it.
+    let mut set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
+    // SAFETY: `set` is a live cpu_set_t of the size passed.
+    let rc = unsafe { libc::sched_getaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &mut set) };
+    ensure!(rc == 0, "sched_getaffinity: {}", std::io::Error::last_os_error());
+    let (mut busy, mut cpus) = (0u64, 0u32);
+    for line in std::fs::read_to_string("/proc/stat")?.lines() {
+        let mut f = line.split_whitespace();
+        let Some(cpu) = f.next().and_then(|c| c.strip_prefix("cpu")).and_then(|n| n.parse::<usize>().ok()) else {
+            continue;
+        };
+        // SAFETY: `set` is initialised and `cpu` is below CPU_SETSIZE for any /proc/stat line.
+        if !unsafe { libc::CPU_ISSET(cpu, &set) } {
+            continue;
+        }
+        let t: Vec<u64> = f.map(|x| x.parse().unwrap_or(0)).collect();
+        // user nice system idle iowait irq softirq steal: idle and iowait are not busy.
+        busy += t[0] + t[1] + t[2] + t[5] + t[6] + t[7];
+        cpus += 1;
+    }
+    Ok((busy, cpus))
+}
+
 fn median(v: &mut [u64]) -> u64 {
     v.sort_unstable();
     v[v.len() / 2]
@@ -254,7 +282,8 @@ async fn fill(store: Arc<FrameStore>, min_bytes: u64, exact: &mut Exact) -> Resu
 }
 
 #[allow(clippy::too_many_arguments)]
-fn measure(kind: Container, file: &Path, dir: &Path, round: u64, asks: usize, fill_bytes: u64, mutate: Option<&str>) -> Result<serde_json::Value> {
+fn measure(kind: Container, file: &Path, dir: &Path, round: u64, asks: usize, fill_bytes: u64, mutate: Option<&str>, pooled_ok: bool) -> Result<serde_json::Value> {
+    let (wall0, cpu0, (busy0, cpus)) = (Instant::now(), cpu_ns(), allowed_cpus_busy()?);
     let c = load(dir)?;
     let mut exact = Exact { want: c.frames.iter().map(|f| xxh3_64(f)).collect(), bad: 0, checked: 0 };
     drop(c);
@@ -275,7 +304,7 @@ fn measure(kind: Container, file: &Path, dir: &Path, round: u64, asks: usize, fi
     ensure!(index.len() == exact.want.len(), "{} frames indexed, {} coded", index.len(), exact.want.len());
     let probe_at = index.first().map_or(0, |e| e.0);
     let hit = Arc::new(FrameStore::with_index(src.into_file(), index.clone(), probe_at));
-    ensure!(hit.nowait_supported(), "RWF_NOWAIT refused here: every read would miss");
+    ensure!(pooled_ok || hit.nowait_supported(), "RWF_NOWAIT refused here: every read would miss");
     let mut miss_store = FrameStore::with_index(std::fs::File::open(file)?, index, probe_at);
     miss_store.force_pool_reads();
     let miss = Arc::new(miss_store);
@@ -292,7 +321,12 @@ fn measure(kind: Container, file: &Path, dir: &Path, round: u64, asks: usize, fi
     })?;
     let ((th50, th99, th_miss), (tm50, tm99, tm_miss)) = tiles;
     let ((fh_fps, fh_cpu, fh_miss), (fm_fps, fm_cpu, fm_miss)) = fills;
+    let (wall, own) = (wall0.elapsed().as_nanos() as f64, (cpu_ns() - cpu0) as f64);
+    // SAFETY: sysconf reads a constant.
+    let tick_ns = 1e9 / unsafe { libc::sysconf(libc::_SC_CLK_TCK) } as f64;
+    let others = (allowed_cpus_busy()?.0 - busy0) as f64 * tick_ns - own;
     Ok(serde_json::json!({
+        "nowait": hit.nowait_supported(), "cpus": cpus, "others_busy_frac": others / (wall * f64::from(cpus)),
         "open_warm_ns": median(&mut warm), "open_cold_ns": median(&mut cold),
         "open_reads": reads, "open_bytes": read_bytes,
         "tile_hit_p50_ns": th50, "tile_hit_p99_ns": th99, "tile_hit_misses": th_miss,
@@ -307,8 +341,8 @@ fn measure(kind: Container, file: &Path, dir: &Path, round: u64, asks: usize, fi
 fn main() -> Result<()> {
     match Args::parse().cmd {
         Cmd::Pack { arm, frames, out, study, series, per } => pack_one(&arm, &frames, &out, study, series, per),
-        Cmd::Measure { container, file, frames, round, asks, fill_bytes, mutate } => {
-            let v = measure(Container::parse(&container)?, &file, &frames, round, asks, fill_bytes, mutate.as_deref())?;
+        Cmd::Measure { container, file, frames, round, asks, fill_bytes, mutate, pooled_ok } => {
+            let v = measure(Container::parse(&container)?, &file, &frames, round, asks, fill_bytes, mutate.as_deref(), pooled_ok)?;
             println!("{v}");
             ensure!(v["inexact"] == 0, "{} of {} frames read were not the encoder's bytes", v["inexact"], v["checked"]);
             Ok(())
