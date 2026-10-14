@@ -1,7 +1,7 @@
 # Ingest — from the hospital to the PACS
 
 The target shape of everything between a hospital's image sources and the PACS, and the one place every decision about
-it is listed. The reasoning lives in the files linked from §5; this file says what the system does and where each
+it is listed. The reasoning lives in the files linked from §6; this file says what the system does and where each
 choice stands.
 
 ![The hospital ↔ PACS pipeline: decided, recommended, open and deferred parts](pipeline.svg)
@@ -102,3 +102,27 @@ parser's author.
 * [`contract.md`](contract.md) — the parser's directory output as the ingest reads it, and what phase 1 reads of it.
 * [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site — today's Python ingest and the plan for the
   compiled one.
+
+## 7. What is built, in order
+
+Each step is in the product unless it says otherwise; its numbers are in its queue row (`docs/av1/queue.md` on
+`claude/av1-mainbase`).
+
+1. **One Python ingest for both codecs** (row 52, 2026-10-07): `ingest/coded-frames/ingest.py` codes HTJ2K or AV1,
+   decodes each frame back in-process and refuses any frame not equal to its source.
+2. **One command from DICOM to a served bundle** (row 89, 2026-10-09): `ingest/from-dicom/from_dicom.py`, with the
+   display attributes, a digest per frame and the codec chosen per series. This is the ingest the product runs today.
+3. **The compiled ingest planned** (rows 126 and 136, 2026-10-10 and 11): Rust, the parser integrated in stages; the
+   profile showed HTJ2K's ingest CPU is mostly not the encoder, so CPU is a reason to compile it
+   ([`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site).
+4. **The pipeline designed** (rows 153 and 154, 2026-10-11): [`design.md`](design.md) and [`link.md`](link.md), theory
+   only. What was decided from them is in §4.
+5. **The Rust ingest, phase 1** (row 155, 2026-10-12): `ingest/from-parser` reads the parser's directory output (a
+   Python mirror stands in for the parser) and writes `.sbnd` files byte-identical to the Python ingest's on all 88
+   lab sets, HTJ2K only. The gate keeps the two equal. The raw-frame check moved to XXH3-64.
+6. **DICOM to `.sbnd` in the gate** (row 226, 2026-10-14): a synthetic CT and RGB series through `from_dicom.py`, every
+   frame read back out of the bundle and compared with the samples it was written from.
+
+**Not built.** Phase 2 of the Rust ingest (AV1, several instances a series, the parser's own output instead of the
+mirror), and everything after the ingest in §1: the outbox, the upload, the PACS's receiver, the study databases and
+the catalog. None of it is queued yet; when a series is complete (§4) has to be decided before the outbox can be.
