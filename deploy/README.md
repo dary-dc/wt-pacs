@@ -46,7 +46,7 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `STUDIES` | `../fixtures/us_cine_smoke` | the host directory mounted read-only at `/studies` in both containers |
 | `SERIES` | `us_cine_smoke` | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
 | `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443 and 4433 (UDP and TCP) are published on |
-| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial |
+| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to |
 | `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
@@ -112,16 +112,32 @@ than failing, since the downloader refuses to start without it. Pages and the me
 (`Cache-Control: no-cache` on `text/html` and `application/json`); modules and WASM keep heuristic caching. The
 `types` block is there because nginx's `mime.types` answers `.js` as `application/javascript` and has no `.mjs`.
 
+**A Content-Security-Policy on every response**, so the workers carry it as well as the page:
+
+```
+default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;
+connect-src 'self' ${WT_ORIGIN}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
+```
+
+`WT_ORIGIN` is `WT_URL`'s scheme, host and port; an `https:` source also covers the WebSocket fallback's `wss:`.
+`'unsafe-eval'` is the decoders' glue, evaluated through `new Function` (`client/decode/wasm-glue.js`), and lets
+WebAssembly compile; the inline `<style>` is the page's. `dev-server.py` sends the same policy on the viewer's page
+alone, connecting anywhere on loopback, where the lab's relays and collectors listen; the lab's pages, which share
+the viewer's workers and run inline scripts, carry none. The page's lab parameters are not served here at all:
+`client/README.md` §The viewer.
+
 ## The checks
 
 `check_equivalence.sh [STUDIES SERIES]` runs `dev-server.py` and the web image side by side, given the same studies
-and the same transport file. It checks four things:
+and the same transport file. It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
   viewer loads (10);
-* 8 paths that must not be served are 404: the lab, the fixtures, the checkout, a study's bundle, the transport
+* 9 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's bundle, the transport
   directory, the tests;
 * gzip on a module, the WASM and the metadata;
+* the policy on the page and on the downloader's script, connecting to the transport, and the dev host's on the page
+  equal to it but for `connect-src`;
 * `Server` carries no version.
 
 Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out of `gzip_types`, a `location /`
