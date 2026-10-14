@@ -2,7 +2,7 @@
 //! `docs/adr/reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
-use crate::media::read_path::ReadMode;
+use crate::media::read_path::{ring_probe, ReadMode};
 use crate::transport::link::{ControlStream, Link};
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::planner::{fill_range, frame_in_range, Command, Planner, Step, ASKS_AHEAD};
@@ -94,6 +94,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("series={}", config.series_path.display());
     println!("frames={}", store.frame_count());
     println!("read_fast_path={}", read_fast_path(&store));
+    println!("read_ring={}", ring_probe(&store));
     println!("stream_mode={}", config.mode);
     println!("bind={bound}");
     println!("transport={}", config.tuning.describe());
