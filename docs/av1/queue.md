@@ -305,7 +305,7 @@ not `ready`.
 | 209 | **READMEASURE** — row 198's protocol: large folios after reclaim and a user-space frame cache, against today | claimed 2026-10-14 (night, 9965c2) |
 | 210 | **ASKTHENFILLMEASURE** — row 202's protocol | claimed 2026-10-14 (night, eef595) |
 | 211 | **ASKFIRSTCAPMEASURE** — row 207's protocol | claimed 2026-10-14 (night, 8396ee) |
-| 212 | **CCMEASURE** — row 200's protocol, the arms a container and the relay can run | held until 2026-10-14 03:00 UTC |
+| 212 | **CCMEASURE** — row 200's protocol, the arms a container and the relay can run | claimed 2026-10-14 (night, dc7a02) |
 | 213 | **INTERSLICE** — row 194's protocol: a slice predicted from its neighbour, JPEG 2000 Part 2 across slices, on the volumes | held until 2026-10-14 03:00 UTC |
 | 214 | **DISPLAYTAGS** — row 169's net gaps built: the ingest keeps the ICC Profile, VOI LUT Sequence and Presentation LUT Shape, and the painter applies them where a series carries them (COLORTAGS, VOILUT) | held until 2026-10-14 03:00 UTC |
 | 215 | **CLEANAUDIT** — `claude/av1-unified-mainbase` against merge readiness: what is unfinished, untested, broken, dead, duplicated or lab-only in the product, each with keep, finish, simplify, move or remove and the capability it would cost (none allowed); and the simplification rules, drafted for the owner; audit | held until 2026-10-14 03:00 UTC |
