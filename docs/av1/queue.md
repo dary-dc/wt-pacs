@@ -276,6 +276,17 @@ not `ready`.
 | 193 | **STREAMSWIDE** — one stream against several under head-of-line blocking across a wide range of rates and losses, random and bursty: where several must win in theory, and why the measurements so far did not show it; theory | done `e6de9663` on `claude/av1-unified-mainbase` — **under CUBIC several streams cannot beat one by more than a few ms a frame anywhere in 1–1 000 Mbit/s, 5–300 ms, 0.01–10 %: the cut keeps the window at ~1.2 ÷ √p packets, so a loss holds 17 kB at 1 % and 55 kB at 0.1 %, under one frame, and one stream a frame gains 0 ms; they win only under a loss-blind controller** (25–39 ms a frame at 103 Mbit/s, 92 ms, 0.1 %; a fill ×2.3 at 309/92 where one stream's 6 MiB runs out during repairs), and **several connections** win under random loss by their number (1 %, 103 Mbit/s: 35.9 → 18 → 9.0 → 4.5 s for 1–8). Row 180's loss cells are the controller: the model's ask 18.1/4.4/1.54 s against 20.1–21.0/5.2–5.3/1.71–1.79 measured. No published Gilbert–Elliott fit for phones found. Predictions and a rule for row 190's D3. `docs/native/quic-compared.md` §9.6, `quic_streams_wide.py` |
 | 194 | **COMPLEMENT** — complementary approaches to lossless bytes and decode beside the codec: the bit split for HTJ2K and JPEG XL, inter-slice decorrelation, value maps, the noise floor that bounds every codec; theory | done `cfa93e20` on `claude/av1-unified-mainbase` — **little is left beside the codec, and JPEG XL already takes most of it**: the sensor noise's entropy, estimated on seven sound series (`lab/av1/floor`, every check mutated), is 0.80–0.91 of HTJ2K's bytes by the high estimate (0.59–0.85 by the low), so no coder can save more than 9–20 % over HTJ2K (15–41 % at the most generous), and JPEG XL e7 saves 7–17 %; the projections have the least room (≤ 9 %). Inter-slice is the only candidate above 3 % — a linear term cuts a predictor's bits ×0.943 on rotational XA and ×0.962 on 10-bit DBT, ×0.988–0.998 elsewhere — at the cost of an ask needing two frames; a reversible slice difference loses (+0.41–0.46 bits a sample); the split stays row 36's 1–2 %, JPEG XL's split not worth a row; value maps only on sparse series (row 185); masks and per-region coding have nothing lossless to remove; none cuts decode. INTERSLICE protocol written, not queued. `docs/codecs/README.md` §Beside the codec |
 | 195 | **DOCKERREAD** — the server's file reading inside a Docker container, the likely deployment: storage driver and mounts, the page cache and folios, `WILLNEED`, `RWF_NOWAIT`, io_uring under the default seccomp profile; measured on the owner's machine | local |
+| 196 | **WILLNEEDFOLIO** — the fill's `POSIX_FADV_WILLNEED` rebuilds frames in 4 KiB folios after reclaim (row 172: hits ×2.0, fill ×0.64–0.68, CPU per GB ×1.5 on 160–500 kB frames): a read-ahead that keeps large folios, with the fill's wait unchanged; theory | ready |
+| 197 | **WILLNEEDMEASURE** — row 196's protocol run by a session given only it | after 196 |
+| 198 | **READFASTER** — anything faster than today's read path for hits and misses: io_uring's registered buffers, fixed files, polling modes, `O_DIRECT`, NVMe passthrough, huge pages, `mmap`; where each frame's µs go today; theory | ready |
+| 199 | **DOCKERTUNE** — what a Docker deployment must set to keep the full read path (io_uring under seccomp, `memlock`, `nofile`, storage), what each costs in security, and what to do where it cannot; theory | ready |
+| 200 | **CCNEXT** — congestion control beyond Cubic against BBR: what else exists and fits a loss-prone phone link with a deep queue, at row 193's wide range; theory | ready |
+| 201 | **DEVICEKIT** — row 190's runner page, collector and Oracle deploy script built, with a quick round that reads a provisional answer in ~15 minutes, so the owner's device evenings give fast feedback | ready |
+| 202 | **ASKTHENFILL** — row 171's proposal: the ask first, then the fill re-asked at once, so the cap on bytes ahead costs the fill nothing; theory | ready |
+| 203 | **FFSTALL** — Firefox stalled ~6 s before the last byte in 9 of 240 visits (row 182): the cause, and a fix if it is ours | ready |
+| 204 | **DEVICE1** — row 190's D0, D1 and D2 on the owner's phone, in one evening, through row 201's kit | local, after 201 |
+| 205 | **DEVICE2** — row 190's D3 (the controlled grid under `netem`, one stream against several) | local, after 204 |
+| 206 | **DEVICE3** — row 190's D4 and D5 (the repeated Initial; memory and energy) | local, after 204 |
 
 ## Briefs
 
@@ -3824,10 +3835,107 @@ page-cache eviction), fill throughput, CPU per GB; folios per frame (row 172's `
 the fill's `WILLNEED` (row 172's (d): 41–123 folios a 160–500 kB frame against 7–9, hits ×2.0, fill ×0.64–0.68, CPU per
 GB ×1.5); whether `RWF_NOWAIT` and io_uring work under Docker's default seccomp profile, and the fall to the pool if not
 (`adr/disk-access.md`: 132.5 against 48.4 µs a frame); `memlock` and `nofile` limits (row 166's DEPLOYLIMITS). The
-deploy image as `deploy/` builds it. **Deliverable:** `docs/adr/disk-access.md`, a *In a container* section.
+deploy image as `deploy/` builds it. Measure row 199's settings as arms and row 198's candidates that a container changes. **Deliverable:** `docs/adr/disk-access.md`, a *In a container* section.
 **Branch:** `claude/av1-unified-mainbase`.
 
+## The owner's night rows (196–206), 2026-10-14
+
+**The owner, 2026-10-14:** row 172's read-ahead finding is approved for investigation. Look for something faster
+than today's io_uring path; if Docker's defaults do not allow it, find how to tune the container to — very worth it.
+Row 190's device plan needs more aggressive, fast feedback rounds: it is late, and quick rounds to adjust are more
+efficient. The phone: a Samsung, Android 16, Chrome and Firefox (or whatever is needed). The congestion controller
+needs attention: Cubic does not fit loss, BBR does with a trade — what else should be considered?
+
+### 196 WILLNEEDFOLIO, 197 WILLNEEDMEASURE
+
+**One question: can the fill's read-ahead build large folios, with the fill's wait unchanged?** Theory (196), then
+measurement by its protocol in a session given only it (197). Row 172 (`docs/disk-layout/README.md` §The writer, (d)):
+after reclaim the fill's `POSIX_FADV_WILLNEED` builds 4 KiB folios (`mm/readahead.c:275–276`), 41–123 a 160–500 kB
+frame against `pack-series`' 7–9: hits ×2.02 and ×1.99, fill ×0.68 and ×0.64, fill CPU per GB ×1.49 and ×1.56 on the
+host's ext4. Candidates: a blocking `readahead(2)`, `MADV_POPULATE_READ` on a mapping, larger `WILLNEED` ranges,
+`read_ahead_kb`, reading ahead through the ring; each with its kernel source at v6.18, its effect on the fill's wait
+and on concurrent sessions, and the filesystems that differ (XFS tied in row 172). **Deliverable:** `docs/adr/disk-access.md`,
+a *Read-ahead and folios* section. **Branch:** `claude/av1-unified-mainbase`.
+
+### 198 READFASTER
+
+**One question: is anything faster than today's read path, on a hit and on a miss?** Theory. Start from
+`docs/adr/disk-access.md` (the shipped reader: `RWF_NOWAIT` inline, io_uring on a miss; its measured µs a frame, and what
+was rejected and why). Candidates, each at its tuned best: io_uring with registered buffers and fixed files, `SQPOLL`,
+`IOPOLL` with `O_DIRECT`, multishot and linked reads, NVMe passthrough (`uring_cmd`), huge pages, `mmap` with
+`MAP_POPULATE` or `MADV_POPULATE_READ`, a frame cache in user space, and where QUIC's encryption forces a copy anyway
+(so `sendfile`/`splice` cannot help). Per candidate: the mechanism, where today's µs go and which it removes, predicted
+µs a frame on a hit and a miss at 32 kB–3 MB, what it needs from the kernel and a container (row 199), net or a trade-off,
+a protocol. **Deliverable:** `docs/adr/disk-access.md`, a *Faster than today* section. **Branch:** `claude/av1-unified-mainbase`.
+
+### 199 DOCKERTUNE
+
+**One question: what must a Docker deployment set so the server keeps its full read path, and at what security cost?**
+Theory, for row 195 to measure on the owner's machine. Docker's default seccomp profile and io_uring (which syscalls,
+since which Docker and moby versions, and why: the io_uring CVE record, the platforms that disable it); a custom seccomp
+profile that allows `io_uring_setup`, `io_uring_enter`, `io_uring_register` and nothing more; `--ulimit memlock` and
+`nofile` (row 166's DEPLOYLIMITS: ~940 rings at the 8 MB default); the storage choices (overlay, bind mount, volume) for
+the page cache and folios; `--security-opt`, capabilities, user namespaces, rootless Docker, Podman, and Kubernetes'
+equivalents; what the server must do where io_uring stays off (the pool's 132.5 against 48.4 µs a frame), and a health
+check that says which path is live. **Deliverable:** `deploy/README.md`, a *Container settings* section, with the
+seccomp profile as a file beside it. **Branch:** `claude/av1-unified-mainbase`.
+
+### 200 CCNEXT
+
+**One question: beyond Cubic and BBR, what congestion control fits the target, and what else must be considered?**
+Theory. Row 193: under Cubic several streams cannot help, since the cut keeps the window at ~1.2 ÷ √p packets; they win
+only under a loss-blind controller, and several connections win by their number. Row 180: asks-first loses behind a deep
+queue because a loss-based controller fills it. Read rows 75, 103–107, 119, 132, 140, 141, 146 and
+`transport/transport-conclusions.md` §1 first; do not redo them. Candidates: BBRv3 (and what quinn's BBR lacks of it),
+Cubic with a loss classifier (row 141's option 1, reopened Cubic-only), Copa, Vegas- and LEDBAT-like delay control,
+HyStart++, L4S and ECN on cellular and Wi-Fi today, pacing, forward error correction for tail loss, choosing the
+controller per session from what the session measures, several connections and their fairness. Each against row 162's
+links and row 193's range: the fill, an ask's wait (with asks-first), the standing queue, the share left to a neighbour;
+net or a trade-off; what a phone run (row 190) must measure to decide. **Deliverable:**
+`docs/transport/transport-conclusions.md` §1, a *Beyond Cubic and BBR* part. **Branch:** `claude/av1-unified-mainbase`.
+
+### 201 DEVICEKIT
+
+**Build what row 190 (`docs/devices.md`) needs so a device evening is setup-free and fast.** The owner wants quick
+feedback rounds. The phone is a **Samsung, Android 16, Chrome and Firefox** (write it into §1; model and versions read
+by D0). Build, tested in the container as far as it can be:
+* the **runner page** (§3): the arms and Williams order for D0, D1 and D2, results kept in IndexedDB, posted after every
+  round, a save button; a **quick mode** — n = 3 rounds, the arms that answer the evening's questions first — that
+  prints a provisional reading on the phone's screen in about 15 minutes, before the full n ≥ 10;
+* the **collector** on the server's host (behind a token from the environment);
+* the **deploy script** for the Oracle machine (§4): copy the image built on the local machine, the four D2 arms on four
+  ports, `server-start.sh` taking a supplied certificate, the ports checked first; nothing identifying in the repository;
+* a **one-page checklist** for the evening, the owner's taps in order, with the commands for the local machine.
+**Deliverable:** the kit under `lab/devices/`, `docs/devices.md` updated. **Branch:** `claude/av1-unified-mainbase`.
+
+### 202 ASKTHENFILL
+
+**One question: if the fill is re-asked at once after an ask, does row 171's cap on bytes ahead keep its faster ask with
+the fill unchanged?** Theory, from row 171's measurement and its proposal (`docs/transport/link-conditions.md`
+§Re-measured, *ASKAHEAD*, Measured): row 171 found the ask −39 to −67 % and the fill +5–11 % at 103 Mbit/s, the remainder
+re-asked a round trip after the ask. Mechanism, predictions across row 193's range, and a protocol and rule.
+**Deliverable:** that section, an *ASKTHENFILL* part. **Branch:** `claude/av1-unified-mainbase`.
+
+### 203 FFSTALL
+
+Row 182 saw Firefox 157 stall ~6 s before the last byte in 9 of 240 visits (`docs/transport/link-conditions.md`
+§Re-measured, *FASTCLOCK*, Measured). **One question: what stalls, and is it ours?** Reproduce it, find the cause from
+logs and the server's and Firefox's (neqo's) source at their pins, and fix it if it is the server's or the client's,
+with a test that fails without the fix; if it is Firefox's, write the report upstream would need. **Deliverable:**
+`docs/transport/transport-conclusions.md`, a section of its own. **Branch:** `claude/av1-unified-mainbase`.
+
+### 204 DEVICE1, 205 DEVICE2, 206 DEVICE3
+
+**For a local session with the owner** (`local`), each by its run's protocol in `docs/devices.md` and row 201's kit:
+204 is D0, D1 and D2 in one evening, quick mode first; 205 is D3; 206 is D4 and D5. Raw rows stripped of anything
+identifying (§4), the reading in the doc that owns the subject. **Branch:** `claude/av1-unified-mainbase`.
+
 ## Blocked
+
+* *Owner rulings, 2026-10-14:* row 172's read-ahead finding is investigated (rows 196–197); faster reads and a tuned
+  container are worth it (rows 198, 199, 195); device runs in fast rounds (rows 201, 204–206); the phone is a Samsung on
+  Android 16 with Chrome and Firefox; the congestion controller is studied beyond Cubic and BBR (row 200); row 181 is
+  draft pull request #37, experimental, not merged.
 
 * **2026-10-14, row 190 DEVICEPLAN (for the owner):** `docs/devices.md` §1 needs, before its first run: the phone's model,
   SoC, RAM, OS and browsers with versions, carrier and data cap; whether the Oracle machine is `rig-limits.md` §9's cloud
