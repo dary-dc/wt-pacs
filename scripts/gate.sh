@@ -135,6 +135,11 @@ fi
 step "lab: the variant order and its predecessor split"
 run 1 node lab/order.test.mjs
 
+step "lab: the device kit's plan, bundle reader, collector and server start"
+run 1 node lab/devices/plan.test.mjs
+run 1 python3 lab/devices/collector_test.py
+run 1 sh lab/devices/server_start_test.sh
+
 step "lab: the AV1 fetch refuses a lossy source its set does not mark"
 run 1 python3 lab/av1/provenance_test.py
 

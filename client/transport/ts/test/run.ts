@@ -138,7 +138,19 @@ async function telemetryOpensRowsForAnOpeningFill() {
   uninstall();
 }
 
-for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, aFailedAskWriteDisarmsItsWaiter, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
+/** A transport file with no hash dials with no `serverCertificateHashes`, so a CA-signed certificate is verified as
+ *  any page's is; with one, the hash is pinned as before. */
+async function anEmptyHashDialsUnpinned() {
+  StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 16 };
+  (await TransportSession.connect("https://stub/", "")).close();
+  const unpinned = StubTransport.last!.options as { serverCertificateHashes?: unknown[] };
+  (await TransportSession.connect("https://stub/", HASH)).close();
+  const pinned = StubTransport.last!.options as { serverCertificateHashes?: unknown[] };
+  assert(unpinned.serverCertificateHashes === undefined, "empty hash: no serverCertificateHashes");
+  assert(pinned.serverCertificateHashes?.length === 1, "a hash: pinned");
+}
+
+for (const t of [everyAskGoesOutAtOnce, anEmptyHashDialsUnpinned, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, aFailedAskWriteDisarmsItsWaiter, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

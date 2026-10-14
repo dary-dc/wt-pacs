@@ -13,6 +13,7 @@ export type StubLink = {
 export class StubTransport {
   static link: StubLink = { rttMs: 0, tfMs: 0, bytes: 16 };
   static last: StubTransport | null = null;
+  options: unknown;
 
   readonly ready = Promise.resolve();
   /** The session watches this to notice a closure; a stub session never closes on its own. */
@@ -25,7 +26,8 @@ export class StubTransport {
   private media!: ReadableByteStreamController;
   private readonly link: StubLink;
 
-  constructor(url: string, _opts: unknown) {
+  constructor(url: string, opts: unknown) {
+    this.options = opts;
     this.link = StubTransport.link;
     StubTransport.last = this;
     const mediaStream = this.link.plain

@@ -36,11 +36,10 @@ export class TransportSession extends FrameSession {
     certSha256: string,
     options: ConnectOptions = {},
   ): Promise<TransportSession> {
-    const hash = hexToBytes(certSha256);
     const fill = options.fill;
-    const transport = new WebTransport(fill ? openingAskUrl(wtUrl, fill) : wtUrl, {
-      serverCertificateHashes: [{ algorithm: "sha-256", value: hash }],
-    });
+    // No hash: a CA-signed certificate, verified as any page's is. docs/devices.md §4
+    const pinned = certSha256 ? { serverCertificateHashes: [{ algorithm: "sha-256", value: hexToBytes(certSha256) }] } : {};
+    const transport = new WebTransport(fill ? openingAskUrl(wtUrl, fill) : wtUrl, pinned);
     await (options.dialMs
       ? settleWithin(transport.ready, () => transport.close(), options.dialMs)
       : transport.ready);

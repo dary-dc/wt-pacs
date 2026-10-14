@@ -1,0 +1,6 @@
+[
+  { "name": "shared", "port": 4435, "flags": [] },
+  { "name": "asksfirst", "port": 4436, "flags": ["--stream-mode", "per-frame-asks-first"] },
+  { "name": "iw12000", "port": 4438, "flags": ["--initial-window-bytes", "12000"] },
+  { "name": "iw38400", "port": 4439, "flags": ["--initial-window-bytes", "38400"] }
+]
