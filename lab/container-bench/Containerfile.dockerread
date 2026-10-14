@@ -33,7 +33,7 @@ COPY --from=benches /usr/local/bin/container_bench /usr/local/bin/writer_bench /
 USER 10001
 
 FROM ${RUST} AS data
-RUN --mount=type=secret,id=build_ca rm -f /etc/apt/sources.list.d/* \
+RUN --mount=type=secret,id=build_ca,mode=0444 rm -f /etc/apt/sources.list.d/* \
  && if [ -s /run/secrets/build_ca ]; then echo 'Acquire::https::CAInfo "/run/secrets/build_ca";' > /etc/apt/apt.conf.d/99ca; fi \
  && echo "deb https://snapshot.debian.org/archive/debian/20261001T000000Z bookworm main" > /etc/apt/sources.list \
  && apt-get -o Acquire::Check-Valid-Until=false update \
