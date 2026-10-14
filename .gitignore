@@ -61,3 +61,4 @@ lab/page-open/boot/
 # Python bytecode from lab analysis scripts
 __pycache__/
 *.pyc
+lab/containers/out/
