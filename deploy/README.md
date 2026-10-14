@@ -253,6 +253,15 @@ built. **One uid per server:** the `memlock` counter is the uid's, host-wide, so
 64 MiB unless one is built with another uid. `no-new-privileges:true` and `cap_drop: [ALL]` cost the read path nothing
 with the profile (the probe above), and are not set: untried with the server itself.
 
+**Verified through the image** (row 231, on the host above). `compose up` from the repository's root, so the profile's
+path resolves against `compose.yml`: the banner says `read_ring=available`, and the server's `/proc/<pid>/limits` hold
+the limits given, under `Seccomp: 2`. Mutated, the same `up` with `security_opt: !reset []` says
+`read_ring=refused (io_uring setup: Operation not permitted (os error 1))`. The server's 30 store and read-path tests
+(`media::`), built on the image's Debian and run in it as uid 10001 with `/tmp` on ext4: **30 of 30 run under the
+profile; under Docker's default, 7 skip** for io_uring. This host's daemon holds hard limits of 8 MiB and 20 000 and
+cannot raise them, so the defaults were refused at start; it ran with `MEMLOCK=8388608 NOFILE=20000`. **Not run here:**
+64 MiB and 65 535 themselves.
+
 Kubernetes (not run here): copy the profile to each node's `/var/lib/kubelet/seccomp/`, and set
 `securityContext.seccompProfile: {type: Localhost, localhostProfile: seccomp-uring.json}`. Kubernetes has no
 per-pod `ulimit`, so `memlock` is the node runtime's. Podman: `--security-opt seccomp=deploy/seccomp-uring.json`;
@@ -264,8 +273,8 @@ current (a changed entry and a wrong checksum each failed it). Regenerate it whe
 **Which path is live.** The startup banner says `read_fast_path=preadv2` or `pooled_pread`, and `read_ring=available`
 or `read_ring=refused (<why>)` from one ring built and dropped at start (15.6 µs; row 231). A tile session still tries
 `io_uring_setup` once on its first miss and warns `io_uring unavailable; this session reads through the pool`: a ring
-the probe got can still be refused later, past the `memlock` budget. `ulimit -l` and `ulimit -n` inside the container
-are the daemon's, so read `/proc/1/limits` there. **Proposed, not built:**
+the probe got can still be refused later, past the `memlock` budget. `/proc/1/limits` inside the container is the
+server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 
 * the `memlock` limit beside `read_ring=`, and sessions that start with the pool when the probe was refused, so the
   per-session warning goes.
@@ -280,6 +289,7 @@ are the daemon's, so read `/proc/1/limits` there. **Proposed, not built:**
 | --- | --- | --- |
 | rootless podman | the brief's first runtime is unchecked | a host with it: build, `up`, the page check |
 | io_uring on an SELinux-enforcing host | the profile is not enough there: `EACCES` (§Container settings) | the owner's call: `label=disable` or a policy module granting `io_uring { allowed }`; neither ships |
+| a stale server binary | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | a cache mount `id` per checkout, or a check that the image's binary names this tree's commit |
 | studies by name | one server serves one series (`SERIES`) | a study index, proposed in `docs/FIXTURES.md` §From DICOM |
 | HTTP/3 for the page, and a `dns-prefetch` to the transport's origin | each takes a round trip off a cold open ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §What production adds) | nginx's QUIC listener; one `<link>` in the viewer |
 | the decoders are built on the host | the image checks them against the manifest but does not make them | row DECODERBUILD's container as a stage, once its build runs inside BuildKit |
