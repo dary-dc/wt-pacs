@@ -219,9 +219,13 @@ it. A series `COPY`'d into the image works, passes tests, and has silently lost 
 as the 2026-08-31 campaign's overlayfs host had, which is part of why it concluded wrongly.
 
 ```bash
-docker run -v /srv/series:/srv/series:ro \
+docker run -v /srv/series:/srv/series:ro --security-opt seccomp=deploy/seccomp-uring.json \
   --ulimit nofile=65535:65535 --ulimit memlock=-1 myserver
 ```
+
+Docker ≥ 25, Podman and containerd ≥ 2.0 refuse io_uring under their default seccomp profiles, so without the
+profile every tile miss takes the pool. What the profile reopens, and the runtimes' defaults:
+[`../../deploy/README.md`](../../deploy/README.md) §Container settings (row 199).
 
 In Kubernetes, a read-only PVC on a block device (EBS, PD, Azure Disk, Ceph RBD: ext4 or XFS).
 Not `emptyDir: {medium: Memory}` (tmpfs); plain `emptyDir` is node disk that does not survive
@@ -233,7 +237,7 @@ A tile session that misses keeps one io_uring and one eventfd for its life: **2 
 of locked memory, 15.6 µs to build** (`lab/disk-access-bench/src/bin/ring_scale.rs`); more
 slots are more entries in the same ring.
 Ring memory is charged against **`RLIMIT_MEMLOCK`** unless the process holds `CAP_IPC_LOCK`
-(kernel 6.18, `io_uring/memmap.c`, verified). The 8 MB default is **~940 rings**, and it bit
+(kernel 6.18, `io_uring/memmap.c`, verified). The counter is the uid's, host-wide, and the exemption counts only in the initial user namespace: `--cap-add IPC_LOCK` does nothing for a non-root `USER` (row 199, measured in Docker) or a rootless runtime (read from the source). The 8 MB default is **~940 rings**, and it bit
 first on a real host: two cells of a scale run were refused by it. The failure is silent — the
 ring is refused, the session falls back to the pool and gets slower. The descriptor budget is `2
 × sessions that miss + sockets + 1 per series`.
