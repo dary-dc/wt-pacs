@@ -126,8 +126,9 @@ sourced numbers. The measurements that would decide are §Re-measured, proposed.
    burst is under 3 ms at 103 Mbit/s (D), and the loaded RTTs imply buffers of hundreds of ms on both cellular and
    Wi-Fi, so that cell is far from the measured common case — but no measured buffer distribution says how far. The
    evidence now leans toward the wider window, and the call stays the owner's; decided by IWDEEP. *Decided since
-   (row 181, §Re-measured, proposed: IWDEEP): 38 400 is the default — the ask −26 to −38 % at 18 and 103 Mbit/s, worse
-   only behind a 10-packet buffer.*
+   (row 181, §Re-measured, proposed: IWDEEP): 38 400 is the better start — the ask −26 to −38 % at 18 and 103 Mbit/s,
+   worse only behind a 10-packet buffer; *proposed, opt-in* since row 191 (the owner, 2026-10-13): the default is quinn's
+   12 000.*
 4. **Flow-control windows** (quinn's defaults; [`../native/quic.md`](../native/quic.md) §7: "no candidate is
    flow-control-bound at 5–50 Mbit/s"): quinn's 1.25 MB stream window caps one stream at 1.25 MB ÷ RTT, so at the
    cellular median of 103 Mbit/s it binds above 97 ms, and at the p90 of 309 above 32 ms (D). The loaded RTTs above
@@ -306,8 +307,9 @@ frame checked against the encoder's input, each arm's full settings printed and 
   no cell but the 10-packet ones is worse beyond its spread and those are disclosed as the shallow-buffer price; otherwise it stays
   the owner's call with these numbers.
 
-  **Measured (row 181, 2026-10-13): adopted — `series-server` starts at 38 400 bytes by default** (`TransportTuning`'s
-  `INITIAL_WINDOW`; `--initial-window-bytes 12000` restores quinn's). The fresh ask is **−26 to −38 %** in every cell
+  **Measured (row 181, 2026-10-13): the rule adopts 38 400 — *proposed, opt-in* since row 191** (the owner, 2026-10-13:
+  promising, kept as an experimental proposal, not merged). Row 181 made it `series-server`'s default; row 191 put the
+  default back to quinn's 12 000, and `--initial-window-bytes 38400` runs the proposal. The fresh ask is **−26 to −38 %** in every cell
   outside the 10-packet queue, and nothing there is worse; behind 10 packets the 250 KB ask is worse, which is the
   shallow-buffer price. Rig: `lab/scripts/first_ask_cells.sh iwdeep` ([`../../lab/iwdeep/`](../../lab/iwdeep/README.md),
   `rows.jsonl`, `summary.py`), `first_ask` through `link_impair.py` under `chrt -f 50`, server `b54cb37a` (debug
@@ -337,9 +339,10 @@ frame checked against the encoder's input, each arm's full settings printed and 
   * *A loss only behind 10 packets, at every rate:* **held for 250 KB** (+12 to +25 %, a tie at 103/92), **failed for
     50 KB**, which still gains −30 to −46 % there.
   * *The push-opened control a tie:* **held**, −5.6 to +1.0 % outside the 10-packet queue.
-  * *Rule:* no cell but the 10-packet ones is worse beyond its spread, so 38 400 is the default; the price is a
-    250 KB first ask 12–25 % slower behind a 10-packet buffer. *Since this default, a lab arm with no
-    `--initial-window-bytes` runs 38 400; rows before it ran 12 000, and pass `--initial-window-bytes 12000` to repeat them.*
+  * *Rule:* no cell but the 10-packet ones is worse beyond its spread, so 38 400 would be the default; the price is a
+    250 KB first ask 12–25 % slower behind a 10-packet buffer. *Proposed, opt-in (row 191): a lab arm with no
+    `--initial-window-bytes` ran 38 400 from row 181's commit `52b902c6` to row 191's, and runs 12 000 before and after;
+    each row's `transport=` banner says which (`initial_window=38400`).*
 * **FASTCLOCK (items 1, 6) — above what rate is each codec's fill the decoders', not the wire's?** Arms: HTJ2K and
   AV1 (the optimized payload), Chromium 141 and Firefox, 1× and 4× CPU. Cells: 50, 103, 218 Mbit/s at 46 ms, the
   10-bit DBT volume and a four-view FFDM exam. Measure the fill's time and the decode left after the last byte, and

@@ -2243,8 +2243,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    `bbr-bound` stays as an opt-in nobody should pick or is retired, and whether a per-packet bound is worth
    proposing upstream or porting (§1 *The bound, reviewed*).
 3. **The first ask's defaults**: the push at session open is on by default since 2026-10-02; the
-   32-packet initial window is the default since 2026-10-13, by IWDEEP's rule ([`link-conditions.md`](link-conditions.md)
-   §Re-measured, proposed). A port-only rebind keeps quinn's window,
+   32-packet initial window is *proposed, opt-in* (`--initial-window-bytes 38400`): IWDEEP's rule adopts it
+   ([`link-conditions.md`](link-conditions.md) §Re-measured, proposed), and the owner keeps it as an experimental
+   proposal, not merged (row 191, 2026-10-13); the default is quinn's 12 000. A port-only rebind keeps quinn's window,
    and a new address resets it, which re-applies the window lever but not the push (§3 *The first ask on an idle session*). Not
    tested: whether a real mobile NAT keeps the address.
 4. **Hold or drop**: which a radio does through an outage, from a device trace — it decides whether the
