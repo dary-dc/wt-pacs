@@ -325,6 +325,11 @@ not `ready`.
 | 229 | **REFILLMEASURE** — row 210's head re-issue (`refill=head`, B) on today's path, re-run for a verdict: its two readings split over one 50 % cell (+4 ms, ×1.003) where B never fires, so the split is noise judged as harm. Row 210's T and T + B cells only, from `claude/wip-210-ASKTHENFILLMEASURE` (rig and flag as built), plus **T′, today again**, so "worse" means beyond the A/A spread (row 173's rule) and a cell where B never fires reads as A/A; ≥ 20 Williams rounds, both readings. Rule, set before the data: B becomes the downloader's default if no cell's fill or ask under T + B is worse than T's beyond the T/T′ spread in either reading, and at least one 10 % cell's fill is better beyond it; the 18/300 cell (−273 ms in row 210) is where its gain is largest, so a phone link (row 190's D2) is where it matters | night |
 | 230 | **CIGATE** — a GitHub Actions workflow that runs every check `scripts/gate.sh` runs, with no skip but those that need a device, plus the deploy image's build and `check_equivalence.sh`, on pull requests into `claude/av1-unified-mainbase` and `main` | review — `claude/wip-230-CIGATE` `2334d9fc`: **the gate runs green in CI with one skip, and a broken test turns it red**. What changed: `.github/workflows/gate.yml` (new) and README's step 5 naming it; nothing removed, no product file touched (the branch's broken test, `0c9d90e2`, is reverted in `0c458f3d`). Three jobs on `pull_request` into and `push` to `claude/av1-unified-mainbase` and `main`, `permissions: contents: read`, five actions pinned by commit SHA: `decoders` (`build.sh` in Docker, cached on the gate's staleness inputs; it matched `manifest.sha256` on the runner, 2 m 49 s cold); `gate` (`scripts/gate.sh` in full with Rust 1.97.0, Node 22.22.0, CPython 3.11.17 with `lab/av1/requirements.txt`, Go 1.26.0, wasm-pack 0.15.0, Playwright 1.56.1's Chromium and Firefox, `tools.sh aom dav1d` and OpenJPH cached on their scripts, nasm and meson from Ubuntu 24.04's apt — not version-pinned; `GATE OK in 296 s` cold, job 12 m 21 s cold and 4 m 14 s – 4 m 50 s warm; io_uring and `RWF_NOWAIT` ran, nothing skipped for them); the one skip left is listed in the workflow — the viewer's cross-codec arm and Firefox (row INGEST's fetched studies, a GL display) — and any other `SKIPPED` line fails the job (mutated on a log with an extra skip: exit 1); `deploy` (`docker compose build`, `check_equivalence.sh` 10 paths equal, 8 refused, gzip, `Server` with no version; the viewer's page check through the deployment on the gate's grey series: 3/3 exact, drawn; 3 m 06 s – 3 m 33 s). Proof: run 38602429774 at `0c9d90e2` red (`fod`'s `stream_frames_empty_is_the_whole_series`, `GATE FAILED`), run 38603228161 at `0c458f3d` green. Found on the runner: compose's bake asks leave to read the build secret's file (`COMPOSE_BAKE=false`), and the runner's podman, which `check_equivalence.sh` prefers, cannot see docker's images (`RUNTIME=docker`). For whoever lands rows 218, 223 and 226: a gate step that needs a new tool (223's `--local` needs nginx) shows up here as an unlisted skip and turns the job red until the workflow installs it. Capability kept: everything; the gate itself unchanged |
 | 231 | **SECCOMPURING** — row 208's rule (c) adopted: the deploy's server runs under `deploy/seccomp-uring.json`, with `memlock` and `nofile` sized as deploy/README's table says, so a container keeps io_uring on a tile miss | review — claude/wip-231-SECCOMPURING 75b0c47d: `deploy/compose.yml` runs the server under `seccomp-uring.json` with `memlock` 64 MiB and `nofile` 65 535 (`MEMLOCK`, `NOFILE` lower them where the daemon cannot raise its limits, as here: the defaults are refused at start); the banner gains `read_ring=available | refused (<why>)`; `seccomp-uring.sh --check` is a gate step (jq a prerequisite); deploy/README corrected in place where it called the profile optional. Removes Docker's default filter for the server; keeps every path (pool fallback unchanged, SELinux half still the owner's). Through the image: `read_ring=available` under the profile, `refused (… Operation not permitted …)` without it (mutation); the 30 `media::` tests 30 of 30 run under it, 7 skip under Docker's default; gate green, run locked with sources touched. Found: the build stage's shared `target` cache mount can ship another checkout's binary (deploy/README §Open) |
+| 232 | **PERFCOUNTS** — performance regressions caught by counts, not clocks, on every pull request: disk reads per frame, bytes on the wire per series, asks per frame, each against a committed baseline | ready |
+| 233 | **PERFNIGHTLY** — a scheduled CI job timing the base against the head, interleaved, on the total-time harness; it flags only a difference that repeats, and claims no number beyond that runner | ready |
+| 234 | **TARGETDIR** — `client/viewer/run_check.sh`, `client/viewer/check.mjs` and `scripts/wtcompat.py` honour `CARGO_TARGET_DIR`, and `check.mjs` takes a port it knows is free | ready |
+| 235 | **BUILDCACHE** — the deploy image's build stage shares one cargo `target` cache across checkouts and shipped a stale server twice (row 231); one checkout's image always carries that checkout's binary | ready |
+| 236 | **NOWAITPROBE** — a test of what the `RWF_NOWAIT` probe answers: today a probe that always says unsupported passes every test (row 227) | ready |
 
 ## Briefs
 
@@ -4198,6 +4203,53 @@ the profile is not enough (`EACCES`); that stays a deploy/README note, and neith
 is shipped by default (the owner's, if wanted). Add `deploy/seccomp-uring.sh --check` beside row 230's checks, and
 correct deploy/README in place where it calls the profile optional. **Deliverable:** the change. **Branch:**
 `claude/wip-231-SECCOMPURING`, then a draft PR into `claude/av1-unified-mainbase`.
+
+## After the merge (rows 232–236), 2026-10-14
+
+The owner, 2026-10-14, asked about performance tests ("shouldn't we have performance tests?") and, on the
+answer, "proceed to queue then … queue also the other pending rows": 232 and 233 are that answer; 234–236 are what
+the merge cleanup's workers found and did not fix.
+
+### 232 PERFCOUNTS
+
+*Additive.* Shared runners swing too much to time (`CLAUDE.md` §Measurement), so the gate guards performance by
+counts that do not depend on the machine: for the gate's synthetic series, the server's disk reads per frame on a
+fill and on an ask, the bytes on the wire per series, and the client's asks per frame on a fill, a cine and on
+demand. Each count is read from what the product or its existing rigs already report, compared with a baseline
+committed beside the check, and fails on any change; changing the baseline is a reviewed line in the diff. Mutate:
+a doubled read, an extra ask, a padded frame each turn the check red. **Deliverable:** the check in `scripts/gate.sh`
+and its baseline. **Branch:** `claude/wip-232-PERFCOUNTS`.
+
+### 233 PERFNIGHTLY
+
+*Additive.* A scheduled workflow (nightly, and on a `perf` label) builds the base and the head and times them on
+`lab/av1/delivery/total-time` with a synthetic series, the arms interleaved by `lab/order.mjs`. It reports each
+arm's median and spread and flags a difference only when every round agrees in sign and the medians differ by more
+than the base's own round-to-round spread; it never fails a pull request and claims nothing past that runner (say
+where it saturates). Prove it: a deliberate 20 % slowdown is flagged, and the base against itself is not.
+**Deliverable:** the workflow and a README line. **Branch:** `claude/wip-233-PERFNIGHTLY`.
+
+### 234 TARGETDIR
+
+*Fix.* `client/viewer/run_check.sh:22`, `client/viewer/check.mjs:55` and `scripts/wtcompat.py` run
+`target/release/…` directly, so with `CARGO_TARGET_DIR` set the gate fails at the viewer check (rows 218, 219, 221,
+226, 227 each worked around it). Resolve the directory from `CARGO_TARGET_DIR` as `from_dicom.py` does (row 226).
+`check.mjs` draws its server's port at random without checking it is free, the fault row 219 fixed for the WebSocket
+tests (B7): take a free port the same way. **Branch:** `claude/wip-234-TARGETDIR`.
+
+### 235 BUILDCACHE
+
+*Fix.* `deploy/Containerfile`'s build stage mounts one cargo `target` cache shared by every build on a daemon;
+row 231 shipped another checkout's stale `series-server` twice, and only `--no-cache-filter build,server` after
+touching the sources fixed it (deploy/README §Open). Make the image's binary always the checkout's own: key the cache
+to the checkout or build the release outside it. Prove it with two checkouts that differ in one string, built one
+after the other on one daemon. **Branch:** `claude/wip-235-BUILDCACHE`.
+
+### 236 NOWAITPROBE
+
+*Additive.* No test checks what `frame_store.rs`'s `RWF_NOWAIT` probe answers: a probe that always says unsupported
+passes every test (row 227). Add one that runs where the kernel supports it and fails when the probe is forced to
+answer no. **Branch:** `claude/wip-236-NOWAITPROBE`.
 
 ## Blocked
 
