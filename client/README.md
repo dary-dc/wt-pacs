@@ -1,7 +1,8 @@
 # client
 
 One worker owns the session, every frame's record and the queue; decoders hand pixels straight to
-the consumer over a port the downloader hands out. It is the lab's only client.
+the consumer over a port the downloader hands out. The product's page, the viewer, runs it, and so does every lab
+harness in a browser; the WASM transport and the clients in `lab/other-clients/` are the others.
 Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 
 **[`transport/`](transport/)** — the page side, the download worker and the transports:
@@ -24,9 +25,10 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `av1-dav1d.js`, `av1-webcodecs.js` | one stream unit through dav1d-WASM or through WebCodecs, as a picture |
 | `av1-frame.js` | a picture checked against the header and merged to the contract: planes interleaved, split, colour transform and offset undone |
 | `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `ingest/coded-frames/make_golden.py`) |
-| `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike |
-| `htj2k.test.mjs`, `av1.test.mjs` | node: the range pass; the AV1 payload reader |
-| `wasm/` | `dav1d/` builds dav1d-WASM, `fetch_openjph.sh` fetches OpenJPH's and `fetch_xxh3.sh` hash-wasm's XXH3 into `vendor/`; `xxh3/` the frame check's XXH3, built by `build/` |
+| `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike; a build under `wasm/built/` with its manifest digests |
+| `xxh3.js` | the frame check's XXH3-64, over the built xxHash |
+| `htj2k.test.mjs`, `av1.test.mjs`, `wasm-glue.test.mjs`, `xxh3.test.mjs` | node: the range pass; the AV1 payload reader; a build refused unless the manifest pins it; the hash against a reference |
+| `wasm/` | `build/` builds the three decoders the page loads (OpenJPH from `openjph/`, dav1d, xxHash from `xxh3/`) into `built/`, checked against `build/manifest.sha256`, with every licence in `built/THIRD_PARTY_NOTICES`; `dav1d/` the lab's dav1d-WASM tooling and its exactness check; `fetch_openjph.sh` fetches OpenJPH's npm build and `fetch_xxh3.sh` hash-wasm's XXH3 into `vendor/` |
 
 The rest: [`viewer/`](viewer/) the product's page (§The viewer), [`contract/`](contract/) the transport's clauses
 and the rigs, [`paint/`](paint/README.md) the painter, [`record/`](record/) telemetry, [`harness/`](harness/) the
@@ -34,8 +36,8 @@ lab's pages.
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
 path untouched, `"av1"` loads `av1.js` and, at the decoder's start, both decoders it may need — dav1d-WASM
-from [`client/decode/wasm/dav1d`](./decode/wasm/dav1d/README.md) (`glue`, `wasm`, `dir` as for
-OpenJPH, `THIRD_PARTY.txt` served beside them) or WebCodecs; anything else makes `connect` reject
+from `decode/wasm/built/dav1d/` (`glue`, `wasm`, `dir` as for OpenJPH; its notices in
+`decode/wasm/built/THIRD_PARTY_NOTICES`) or WebCodecs; anything else makes `connect` reject
 with `unknown codec "…"` before a worker starts. Every entry is a payload of
 [`docs/av1/payload-format.md`](../docs/av1/payload-format.md): a 16-byte header that says the source's
 bits, the coded depth, the low bits split apart, signed and offset, the colour transform, then one
@@ -180,8 +182,9 @@ act on bytes already in hand). The waiter was the one that could fail an open se
 once three silences had doubled `stallMs` past 15 s, it fired first and the ask failed with re-dials
 left. **It is now silence like the stall's**: both WebTransport clients reject it as `FrameTimeoutError`
 and the downloader resumes the ask on a new session, failing it only when `tries` runs out
-(`downloader.test.mjs`; the contract clause names it; each mutation caught). Measured on row
-LOSSLINK's harness ([`lab/av1/delivery/total-time`](../lab/av1/delivery/total-time/README.md) §Row ASKDEADLINE): the 10-bit
+(`downloader.test.mjs`; the contract clause names it; each mutation caught). Measured by the ask-deadline
+measurement on the lossy-link total-time harness ([`lab/av1/delivery/total-time`](../lab/av1/delivery/total-time/README.md),
+queue row ASKDEADLINE): the 10-bit
 volume as HTJ2K, 4 frames filled then 8 asked one at a time, 20 Mbit and `lte-good` clean, 2 % and 5 %
 loss, 1×, this downloader against the one before it and against `stallMs` 15 s, 10 rounds interleaved,
 155 of 180 visits kept, **2 160/2 160 frames exact and 0 asks failed in every variant, before as after**. On
@@ -299,5 +302,5 @@ Headless Firefox has no WebGL: on a host without a display, run the check under 
 (Mesa's llvmpipe), and it runs Firefox windowed. The run here used conda-forge's `firefox-157.0.1-hee9eb32_0` and
 `mesalib-26.2.3-he59ec28_0` (SHA-256 `e94b9a63c490809eb615d0c18d1ae4e7d60a6f7756c7ec7b2a6b6a2032a26b53`), with
 `LD_LIBRARY_PATH`, `__EGL_VENDOR_LIBRARY_DIRS` and `LIBGL_DRIVERS_PATH` pointing into that environment. The gate runs `viewer/run_check.sh`: a three-frame HTJ2K series of
-the contract's frame, in Chromium. It names as skipped the cross-codec arm and Firefox, which need row INGEST's
+the contract's frame, in Chromium. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
 bundles and a GL display. What it measured: `docs/ARCHITECTURE.md` §The viewer.

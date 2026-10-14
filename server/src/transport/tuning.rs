@@ -73,7 +73,7 @@ pub struct TransportTuning {
     #[arg(long, value_enum, default_value_t)]
     pub congestion: Congestion,
     /// Bytes the controller may send before the first ACK; quinn's own is 12 000. 38 400 is proposed,
-    /// opt-in: docs/transport/link-conditions.md §Re-measured, proposed (IWDEEP).
+    /// opt-in: docs/transport/link-conditions.md §Re-measured, proposed, the window behind deep buffers.
     #[arg(long = "initial-window-bytes")]
     pub initial_window: Option<u64>,
     /// The RTT assumed before the first sample, which sets the first probe timeout.
@@ -173,7 +173,7 @@ mod tests {
     }
 
     /// The default controller starts at quinn's 12 000 bytes, and the flag's 38 400 reaches every
-    /// controller: row 181's window is opt-in (row 191).
+    /// controller: the wider window measured behind deep buffers is opt-in.
     #[test]
     fn the_wider_initial_window_is_opt_in() {
         let start = |t: TransportTuning| t.congestion.factory(t.initial_window).build(std::time::Instant::now(), 1200).initial_window();

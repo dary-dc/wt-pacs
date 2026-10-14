@@ -3,7 +3,7 @@
 //
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
 //     [--engine chromium|firefox] [--cine] [--fill 0]
-//   ... --url http://host/ --decoder htj2k   (a host already running: row DEPLOY; no request log, so no code check)
+//   ... --url http://host/ --decoder htj2k   (a host already running, such as the deploy image; no request log, so no code check)
 import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";

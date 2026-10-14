@@ -69,10 +69,12 @@ are identical.
 ## The envelope
 
 ```text
-[4B BE envelope_len][4B BE display_index][HTJ2K codestream …]
-envelope_len = 4 + codestream bytes
+[4B BE envelope_len][4B BE display_index][coded frame …]
+envelope_len = 4 + coded frame bytes
 ```
 
+The coded frame is the bundle's entry as stored, whatever its codec: an HTJ2K codestream or an AV1 payload
+([`av1/payload-format.md`](av1/payload-format.md)); the series' metadata names the codec, not the envelope.
 Every frame is length-prefixed in every stream mode. `common/frame-envelope` is the one definition:
 the server streams its `frame_head` before the codestream, clients `unwrap`, and
 `the_head_is_the_envelope_length_then_the_index_big_endian` pins the bytes. A frame is

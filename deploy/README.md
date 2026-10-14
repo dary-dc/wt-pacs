@@ -19,7 +19,8 @@ there), so the headers and the paths are tested in the thing that ships.
 
 **nginx is not in the transport's path and cannot be.** The server speaks WebTransport over QUIC on UDP 4433
 and nginx has no QUIC upstream, so the browser dials it directly, as in development. No data-path number can
-move because of anything here.
+move because of anything here. TCP 4433 is published for the WebSocket fallback, but `server-start.sh` passes no
+`--websocket`, so nothing answers there unless the `server` service is given `command: ["--websocket"]`.
 
 ## Run it
 
@@ -32,9 +33,10 @@ docker compose -f deploy/compose.yml build
 STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
 ```
 
-`STUDIES` holds what row INGEST writes, `$SERIES.sbnd` and `$SERIES.metadata.json`
-([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); without it, the 32 KB smoke series baked into both
-images is served. Open `http://127.0.0.1:8765/`. Off this host, the page needs TLS:
+`STUDIES` holds what the DICOM ingest writes, `$SERIES.sbnd` and `$SERIES.metadata.json`
+([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); without it, the 151-byte smoke series baked into both
+images is served, whose frames are placeholders that do not decode. Open `http://127.0.0.1:8765/`. Off this host,
+the page needs TLS:
 
 ```bash
 PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/tls \
@@ -55,7 +57,7 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 
 ## The ten fixes, and why
 
-A container test of a deployment of this shape found each one (queue row 92).
+A container test of a deployment of this shape found each one (the deployment test, queue row 92).
 
 1. **SELinux.** Every bind mount is `:z` (shared, a label both containers may read), never `:Z` (private to one).
 2. **Stop.** `stop` measured 0.45–0.49 s on the server and 0.51–0.54 s on web (three and two runs): under a
@@ -150,7 +152,7 @@ run is unchecked.
 **Images and build.** `wt-pacs-server` is 132 MB and `wt-pacs-web` 95.8 MB (33.6 and 26.7 MB of content). A cold
 build, the builder's cache pruned, takes 114 s; a rebuild after a doc edit takes 1 s.
 
-**The page check against the deployment.** `client/viewer/check.mjs --url`, on row INGEST's CT bundle (76 frames,
+**The page check against the deployment.** `client/viewer/check.mjs --url`, on the DICOM ingest's CT bundle (76 frames,
 HTJ2K): 76/76 exact, and the first, middle and last readback equal the CPU reference.
 
 * **On loopback:** `http://127.0.0.1:8765/`, headless Chromium 141, no certificate flag.
@@ -166,9 +168,11 @@ and the next page open connected and passed.
 
 ## Container settings
 
-**Queue row 199 (theory, 2026-10-14); row 195 measures it on the owner's machine.** The server's read path has two fast
-paths ([`../docs/adr/disk-access.md`](../docs/adr/disk-access.md) §1): `RWF_NOWAIT` serves a page-cache hit inline,
-and io_uring serves a tile's miss. A container can take either away without an error. The fall is correct and slower:
+**The container settings theory (queue row 199, 2026-10-14), measured in a cloud container by row 208
+([`../docs/adr/disk-access.md`](../docs/adr/disk-access.md) §6, *Measured in a cloud container*; the owner's rig is row
+216).** The server's read path has two fast paths ([`../docs/adr/disk-access.md`](../docs/adr/disk-access.md) §1):
+`RWF_NOWAIT` serves a page-cache hit inline, and io_uring serves a tile's miss. A container can take either away
+without an error. The fall is correct and slower:
 the pool instead of the inline read costs **132.5 against 48.4 µs a frame**, every frame. The pool instead of the ring
 costs **+106 to +138 % CPU per tile miss** in the agent container, and **ties** on the workstation (the ADR's §5). A fill
 never builds a ring, so io_uring matters only to tile misses. In order of cost:
@@ -179,7 +183,7 @@ never builds a ring, so io_uring matters only to tile misses. In order of cost:
 | `seccomp=./seccomp-uring.json` | io_uring on a tile miss | Docker ≥ 25, Podman, containerd ≥ 2.0 refuse it by default | the kernel's io_uring surface, below |
 | `memlock` sized to the rings, one uid per server | io_uring past ~1 000 rings | a uid's ~1 000th concurrent ring, host-wide | locked memory up to the limit |
 | `nofile` ≥ 2 × sessions that miss + sockets | the ring's two fds | the daemon's default, whatever it is | none |
-| on an SELinux-enforcing host, `io_uring { allowed }` for the container's domain | io_uring on a tile miss | container-selinux grants it to no container domain: `EACCES` even under the profile (row 195, probed on Fedora 43) | `label=disable` drops the container's SELinux confinement; a module granting that one permission to `container_t` (untried) reaches every container on the host |
+| on an SELinux-enforcing host, `io_uring { allowed }` for the container's domain | io_uring on a tile miss | container-selinux grants it to no container domain: `EACCES` even under the profile (probed on Fedora 43, disk-access.md §6 *In a container*) | `label=disable` drops the container's SELinux confinement; a module granting that one permission to `container_t` (untried) reaches every container on the host |
 
 **Verified on this host** (Docker 29.8.2, containerd 2.3.6, runc 1.5.1, Linux 6.18, cgroup v1, ext4). A static probe
 (`io_uring_setup`, `_register`, `_enter`, then rings until refused, then `preadv2(RWF_NOWAIT)`), run as uid 10001 with
@@ -188,8 +192,9 @@ each setting alone. The server's own read-path tests ran under each profile too.
 * **Storage.** A bind mount and a named volume (`/var/lib/docker/volumes`, ext4 here) honour `RWF_NOWAIT`. The
   container's layer (overlayfs) and `--tmpfs` refuse it (`EOPNOTSUPP`). This Containerfile `COPY`s the smoke series
   into `/studies` in the image's layer, where the fast path is lost; compose mounts `STUDIES` over it, which keeps it.
-  The page cache is the host's, per inode, so folios are the underlying filesystem's (row 172's findings hold as on
-  the host; row 195 counts them). The pages are charged to the container's memory cgroup: a tight `mem_limit` evicts
+  The page cache is the host's, per inode, so folios are the underlying filesystem's (the folio count's findings,
+  disk-access.md §6, hold as on the host, and held in a cloud container's bind mount and volume). The pages are
+  charged to the container's memory cgroup: a tight `mem_limit` evicts
   the series inside it.
 * **seccomp.** Under Docker's default profile `io_uring_setup` fails with `EPERM`. The server's read-path tests then
   pass with 6 of 29 skipped for io_uring, and 4 more where `/tmp` is the overlay layer. One failed: its ring assert
@@ -230,7 +235,9 @@ operations a ring runs: open, socket and connect run without a system call the f
 `io_uring_setup` gives code that already runs in the container the whole io_uring interface and its kernel bugs. It
 narrows nothing about the server's own ring. **Adopting the profile is the owner's call.** The trade is that exposure
 against tile misses through the pool, which are free on the workstation and up to +138 % CPU in the agent container.
-Row 195 measures what it buys on the owner's machine. Until then `compose.yml` does not load it.
+In a cloud container it restored the ring on every cold pass and the profile is recommended (disk-access.md §6,
+*Measured in a cloud container*); the owner's machine is measured apart (row 216). Until the owner adopts it,
+`compose.yml` does not load it.
 
 **The settings, for a deployment that takes the trade** (compose; `docker run` takes the same as `--security-opt`
 and `--ulimit`):
@@ -255,7 +262,7 @@ current (a changed entry and a wrong checksum each failed it). Regenerate it whe
 **Which path is live.** The startup banner says `read_fast_path=preadv2` or `pooled_pread`. Nothing reports the ring
 until a tile session misses; then each such session tries `io_uring_setup` once and warns
 `io_uring unavailable; this session reads through the pool`. `ulimit -l` and `ulimit -n` inside the container are the
-daemon's, so read `/proc/1/limits` there. **Proposed, not built** (a row to take after 195):
+daemon's, so read `/proc/1/limits` there. **Proposed, not built** (a row to take after the container measurement):
 
 * a `read_ring=available` or `read_ring=refused (<errno>)` line in the banner, from one ring built and dropped at start
   (15.6 µs), with the `memlock` limit beside it. On a refusal, sessions start with the pool, and the per-session warning
@@ -270,10 +277,10 @@ daemon's, so read `/proc/1/limits` there. **Proposed, not built** (a row to take
 | what | why it matters | what would close it |
 | --- | --- | --- |
 | rootless podman | the brief's first runtime is unchecked | a host with it: build, `up`, the page check |
-| io_uring and `memlock` in the deployment | Docker ≥ 25 refuses the tile ring by default; the fix reopens io_uring (§Container settings) | row 195's measurement, then the owner's call on `seccomp-uring.json`; the `read_ring=` probe |
+| io_uring and `memlock` in the deployment | Docker ≥ 25 refuses the tile ring by default; the fix reopens io_uring (§Container settings) | the owner's call on `seccomp-uring.json`, recommended by the cloud-container measurement (disk-access.md §6); the `read_ring=` probe |
 | studies by name | one server serves one series (`SERIES`) | a study index, proposed in `docs/FIXTURES.md` §From DICOM |
 | HTTP/3 for the page, and a `dns-prefetch` to the transport's origin | each takes a round trip off a cold open ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §What production adds) | nginx's QUIC listener; one `<link>` in the viewer |
-| the decoders are built on the host | the image checks them against the manifest but does not make them | row DECODERBUILD's container as a stage, once its build runs inside BuildKit |
+| the decoders are built on the host | the image checks them against the manifest but does not make them | the decoder build's container (`client/decode/wasm/build/`) as a stage, once it runs inside BuildKit |
 
 **A measurement flag.** Page-load timing is part of the page clock. A comparison spanning a switch from one host
 to the other is not comparable across it: take a before and after in one interleaved run.

@@ -136,4 +136,4 @@ synchronous cost of `paint()` on the main thread.
 ## What reaches the screen
 
 After the painter: 8 bits a sample after the window, an sRGB-tagged buffer, no presentation LUT, no ICC handling,
-and what a browser, the OS and the panel do next — [`docs/display.md`](../../docs/display.md) (row 169, theory).
+and what a browser, the OS and the panel do next — [`docs/display.md`](../../docs/display.md) (theory, queue row 169).
