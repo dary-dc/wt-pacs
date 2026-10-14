@@ -377,6 +377,69 @@ The two that bite without a device are the hung dial, which now has its deadline
 `navigator.connection`, whose absence moves a network change from the radio's event to the byte
 silence: `stallMs`, 3 s.
 
+## Proposed: the WASM client and the dav1d tooling to `lab/`
+
+*Proposed 2026-10-14 (queue row 228, WASMTOLAB; [`merge-readiness.md`](merge-readiness.md) D9 and P6). Nothing moves
+before the owner's yes.*
+
+**Why.** The product never loads the WASM client: the downloader imports `client/transport/ts/dist/session.js` unless
+told otherwise, and the only page that names the WASM one is the lab's harness (`client/harness/shell.js`,
+`transport=wasm`). Yet it is a member of the root workspace, the gate refuses to start without its `pkg/`
+(`require_transport_wasm`), and README §Prerequisites asks every developer for the `wasm32-unknown-unknown` target,
+`wasm-pack` 0.15.0 built by `cargo install`, and the binaryen `wasm-opt` its build fetches. `client/decode/wasm/dav1d/`
+is the lab's dav1d build: its `build.sh` writes to `lab/.av1-build`, 45 lab files name it, and the decoder
+the page loads is built by `client/decode/wasm/build/` from one file of it, `dav1d_wrap.c`.
+
+**What moves where.**
+
+| today | to | lines |
+| --- | --- | --: |
+| `client/transport/wasm/`: the crate, `build.sh`, `session-adapter.js` | lab/other-clients/wasm/, outside the root workspace with its own `Cargo.lock`, as `lab/other-clients/h3/` is; its path dependencies on `common/fod` and `common/frame-envelope` kept | 832 |
+| `client/decode/wasm/dav1d/` but the wrapper: `build.sh`, `make_streams.sh`, `make_client_frames.sh`, `exact.mjs`, `dav1d.mjs`, the three plane scripts, `README.md` | lab/av1/dav1d-wasm/, still building into `lab/.av1-build` | 556 |
+| `client/decode/wasm/dav1d/dav1d_wrap.c` | stays: the page's decoder build compiles it and the gate's staleness check names it | 77 |
+
+`make_client_frames.sh` writes product fixtures (`client/contract/av1/`) from the lab's build and venv, as
+`lab/av1/delivery/scalable/client/make_frames.sh` already writes `scalable/`; [`FIXTURES.md`](FIXTURES.md) names its
+new place.
+
+**What the product and the gate stop needing.**
+
+* README §Prerequisites: the `wasm32-unknown-unknown` target, `wasm-pack`, and Quick start's
+  `client/transport/wasm/build.sh` with its binaryen `version_117` fetch.
+* The gate: `require_transport_wasm` (also in `scripts/cellcheck.sh`), `run.mjs`'s exit 2 without `pkg/`, the WASM
+  halves of `client/scripts/check_worker_safe.sh` and `client/scripts/check_telemetry_absent.sh`, and
+  `run_wire.sh`'s `refusals.html?client=wasm` cell.
+* The root workspace: the member and 10 of `Cargo.lock`'s 240 packages (`transport-wasm`, `web-sys`,
+  `wasm-bindgen-futures`, `gloo-timers`, `console_error_panic_hook`, `futures` and four of its parts; measured with
+  `cargo update -w --offline` at `ba408823`), and the two `COPY` lines that put the crate in `deploy/Containerfile` and
+  `lab/container-bench/Containerfile.dockerread` only because a workspace member must be present.
+* Row CIGATE's workflow: wasm-pack and its build.
+
+**What stays.**
+
+* The seam: `config.transport` takes any module exporting `TransportSession`, and the harness's `transport=wasm`
+  loads the adapter from its new place.
+* The contract suite's WASM adapter (`adapters.ts`): `WTPACS_WASM_PKG=<pkg> node client/contract/run.mjs` runs every
+  clause on the moved client, as it runs a feature build today. Without the variable, `run.mjs` runs the TypeScript
+  sessions and the race and says the WASM client was not run. `refusals.html?client=wasm` stays for a lab wire run.
+* Every lab harness that dials it (`lab/page-open`, `lab/dial-deadline`, `lab/scripts/downloader_both_clients.sh`,
+  `lab/scripts/verify_e2e.py`, `lab/telemetry-cost`) and every dav1d-WASM run, their paths rewritten; the recorder's
+  `transport-wasm` label; `lab/av1/delivery/scalable/two-layer/dav1d_wrap_op.c` including the wrapper where it is.
+
+**What it costs, for the owner to weigh.** It reverses the 2026-09-18 decision in §The contract suite ("The WASM
+client is required"). Today the gate holds two independently written WebTransport clients to the clauses. After the
+move it holds the TypeScript sessions, and `session.ts` and `ws-session.ts` share `frame-session.ts`, so no clause is
+checked against a second reading of the wire. The worker-safe clause came from that second reading (§The seam). A
+change to the wire or the suite that breaks the WASM client would be seen only when the lab runs it.
+
+**The move, once agreed:** a review row on its own branch. Both trees `git mv`ed. The files that name either path rewritten (`git grep -l`
+at `ba408823`: for the client, 3 at the root, 7 in `client/`, 1 in `deploy/`, 10 in `lab/` and 6 in `docs/`; for the
+dav1d tooling, 4 in `client/`, 1 in `ingest/`, 45 in `lab/` and 6 in `docs/`, those naming only the wrapper
+unchanged). This document's WASM paragraphs cut to a pointer. Proven by the gate
+green with the same skips or fewer, and one suite run through `WTPACS_WASM_PKG` showing every clause still passing on
+the moved client. Rows 222 and 223 change the workspace's members and the image's `COPY` lines; the move starts from
+whatever of theirs has landed.
+
 ## Open
 
 The owner decides these; they are tracked in [`cloud-queue.md`](cloud-queue.md) §Open owner decisions.
