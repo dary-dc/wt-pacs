@@ -280,7 +280,7 @@ not `ready`.
 | 197 | **WILLNEEDMEASURE** — row 196's protocol run by a session given only it | after 196 |
 | 198 | **READFASTER** — anything faster than today's read path for hits and misses: io_uring's registered buffers, fixed files, polling modes, `O_DIRECT`, NVMe passthrough, huge pages, `mmap`; where each frame's µs go today; theory | claimed 2026-10-14 (night, 1f1fce) |
 | 199 | **DOCKERTUNE** — what a Docker deployment must set to keep the full read path (io_uring under seccomp, `memlock`, `nofile`, storage), what each costs in security, and what to do where it cannot; theory | claimed 2026-10-14 (night, c10575) |
-| 200 | **CCNEXT** — congestion control beyond Cubic against BBR: what else exists and fits a loss-prone phone link with a deep queue, at row 193's wide range; theory | ready |
+| 200 | **CCNEXT** — congestion control beyond Cubic against BBR: what else exists and fits a loss-prone phone link with a deep queue, at row 193's wide range; theory | claimed 2026-10-14 (night, 3f73af) |
 | 201 | **DEVICEKIT** — row 190's runner page, collector and Oracle deploy script built, with a quick round that reads a provisional answer in ~15 minutes, so the owner's device evenings give fast feedback | ready |
 | 202 | **ASKTHENFILL** — row 171's proposal: the ask first, then the fill re-asked at once, so the cap on bytes ahead costs the fill nothing; theory | ready |
 | 203 | **FFSTALL** — Firefox stalled ~6 s before the last byte in 9 of 240 visits (row 182): the cause, and a fix if it is ours | ready |
