@@ -15,11 +15,11 @@ pub enum Congestion {
     Cubic,
     Bbr,
     /// Cubic that restarts slow start after a silence instead of halving. `restart.rs`.
-    #[default]
     CubicRestart,
     /// BBR under BBRv3's loss bound. `loss_bound.rs`.
     BbrBound,
-    /// Lab only: `cubic-restart` that skips the cut on a loss that met no queue. `classify.rs`.
+    /// `cubic-restart` that skips the cut on a loss that met no queue. `classify.rs`.
+    #[default]
     CubicClassify,
 }
 
@@ -229,13 +229,13 @@ mod tests {
         assert!(t.to_transport_config().is_err());
     }
 
-    /// The default controller is the restart after a silence, which quinn's stock stack lacks, and
-    /// a run must say it carries it.
+    /// The default controller skips the cut on a loss that met no queue, which quinn's stock stack
+    /// lacks, and a run must say it carries it.
     #[test]
-    fn the_default_controller_is_cubic_restart() {
+    fn the_default_controller_is_cubic_classify() {
         let t = TransportTuning::default();
-        assert_eq!(t.congestion, Congestion::CubicRestart);
-        assert!(t.describe().contains("congestion=cubic-restart"));
+        assert_eq!(t.congestion, Congestion::CubicClassify);
+        assert!(t.describe().contains("congestion=cubic-classify"));
     }
 
     /// The loss bound is opt-in under its own name, a run on it says so, and the name builds it.

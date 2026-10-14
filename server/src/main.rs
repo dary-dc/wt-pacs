@@ -113,11 +113,12 @@ mod tests {
         Args::try_parse_from([&["series-server", "--series", "s.sbnd"], flags].concat()).expect("parses")
     }
 
-    /// The restart after a silence is the default controller: it won every dropped blink and tied
-    /// everywhere else. docs/transport/transport-conclusions.md §3.
+    /// The default controller skips the cut on random loss: 0.08–0.30 of `cubic-restart`'s fill at
+    /// 1–2 % loss. docs/transport/transport-conclusions.md §1, Measured: CLASSIFY.
     #[test]
-    fn the_default_controller_is_cubic_restart() {
-        assert_eq!(parse(&[]).tuning.congestion, Congestion::CubicRestart);
+    fn the_default_controller_is_cubic_classify() {
+        assert_eq!(parse(&[]).tuning.congestion, Congestion::CubicClassify);
+        assert_eq!(parse(&["--congestion", "cubic-restart"]).tuning.congestion, Congestion::CubicRestart);
         assert_eq!(parse(&["--congestion", "cubic"]).tuning.congestion, Congestion::Cubic);
         assert_eq!(parse(&["--congestion", "bbr-bound"]).tuning.congestion, Congestion::BbrBound);
         assert_eq!(parse(&["--congestion", "cubic-classify"]).tuning.congestion, Congestion::CubicClassify);

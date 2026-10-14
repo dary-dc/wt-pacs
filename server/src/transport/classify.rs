@@ -1,4 +1,4 @@
-//! Lab only: `cubic-restart` that skips the cut on a loss that met no queue — option 1 of
+//! `cubic-restart` that skips the cut on a loss that met no queue — option 1 of
 //! `docs/transport/transport-conclusions.md` §1, *Beyond Cubic and BBR* (CLASSIFY).
 
 use crate::transport::restart::SlowStartRestartConfig;
