@@ -139,7 +139,9 @@ out of the list (its path differs and loses gzip); each fails it.
 missing or is extra is named. It compares content, not time: a cached rebuild keeps the image's
 creation time, so a touched file would otherwise be refused after every rebuild. Mutated: a changed module, template
 and decoder build, a file added and one removed (each named, exit 2); a touched file, a changed `*.md` and
-`*.test.mjs` (passed, as the image leaves them out); no image (exit 2).
+`*.test.mjs` (passed, as the image leaves them out); no image (exit 2). Re-run on `web-files.sh`'s list (row
+IMAGESLIM): a changed module, a file added to the list and one taken off it (each named, exit 2); a changed
+`*.test.mjs` (passed).
 
 **The transport's PEM.** The same script checks `${CERT_PEM:-server/dev-cert/cert.pem}` before it compares any
 path. One self-signed certificate passes; two or more is a chain and passes; one certificate issued by something
@@ -155,6 +157,12 @@ run is unchecked.
 
 **Images and build.** `wt-pacs-server` is 132 MB and `wt-pacs-web` 95.8 MB (33.6 and 26.7 MB of content). A cold
 build, the builder's cache pruned, takes 114 s; a rebuild after a doc edit takes 1 s.
+
+**Row IMAGESLIM (2026-10-14).** The web image carries 34 files of `client/` (1.3 MB) where it carried all 85 the
+ignore file let through; `wt-pacs-web` is 94.4 MB (26.4 MB of content). Both images built, and on the gate's grey
+series (`client/viewer/run_check.sh`'s, packed into `STUDIES`) `check.mjs --url` passed through them in Chromium 141:
+3/3 exact, readbacks equal to the CPU reference; `check_equivalence.sh` passed against the image and with `--local`
+(nginx 1.24.0).
 
 **The page check against the deployment.** `client/viewer/check.mjs --url`, on row INGEST's CT bundle (76 frames,
 HTJ2K): 76/76 exact, and the first, middle and last readback equal the CPU reference.
