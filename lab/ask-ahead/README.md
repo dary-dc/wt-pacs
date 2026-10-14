@@ -23,7 +23,7 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   left at the ask (`fill_left_at_ask`) and the server's smoothed RTT when it wrote the ask (`rtt_at_ask_ms`).
 * `askcap.py ROWS.jsonl ...` — ASKFIRSTCAPMEASURE (row 211), asks first under a cap on bytes in flight, read by
   [`../../docs/native/quic-compared.md`](../../docs/native/quic-compared.md) §9.7's rule; its arms are
-  `rows-askcap.jsonl`'s header.
+  `rows-askcap.jsonl`'s header; `rows-askcap-side.jsonl` is its check outside the protocol (`shared` under the same 6 MiB).
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
 * The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once half has
   landed, asks for the last frame.
