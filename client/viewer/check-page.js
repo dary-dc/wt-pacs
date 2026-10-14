@@ -4,8 +4,24 @@ import { paintReference } from "/client/paint/reference.js";
 const hex = async (bytes) =>
   Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
 
-export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, setView, current, toggleCine }) {
-  const out = { n, received: frames.size, exact: seen.exact, inexact: seen.inexact, unchecked: seen.unchecked, paths: seen.paths,
+/** On demand, the page's own steps: three quick ones keep the newest ask alone, and a frame stepped to twice is asked once. */
+async function stepsOnDemand(n, frames, show, client) {
+  if (n < 3) return { raced: `a series of ${n} frames, under the 3 this needs` };
+  const [a, b] = [n >> 1, n - 1];
+  await Promise.all([show(a), show(b), show(a)]);
+  const raced = frames.has(a) && !frames.has(b) ? "newest alone" : `held ${[...frames.keys()].join(", ")}`;
+  const sent = [];
+  client.requestExactFrame = (i) => (sent.push(i), Object.getPrototypeOf(client).requestExactFrame.call(client, i));
+  client.cancel = () => (sent.push("cancel"), Object.getPrototypeOf(client).cancel.call(client));
+  await Promise.all([show(b), show(b)]);
+  delete client.requestExactFrame;
+  delete client.cancel;
+  return { raced, twice: sent.join(", "), asked: new Set([0, a, b]).size };
+}
+
+export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, setView, current, toggleCine, show }) {
+  const onDemand = q.get("fill") === "0" ? await stepsOnDemand(n, frames, show, client) : {};
+  const out = { n, ...onDemand, received: frames.size, exact: seen.exact, inexact: seen.inexact, unchecked: seen.unchecked, paths: seen.paths,
     errors: [...errors], fillMs, firstShownMs, renderer: rendererName };
   const step = async (name, fn) => {
     try {
