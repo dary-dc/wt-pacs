@@ -49,4 +49,4 @@ moves decode time).
 * `classify.rs`'s seven tests, each failing under a mutation of the clause it states (never skip, persistent or CE
   allowed to skip, a fixed 10 ms q*, a skip before any sample, `≤` at the bar).
 * `run.mjs --mutate sample` and `--mutate truth` turn all three arms to 0 of 8 exact (r50000, clean, 1×).
-* `summary.py --mutate swap` (the two Cubic arms' labels exchanged) must change the verdict.
+* `summary_test.py`: made-up rows the rule passes, and one cell or share past each bar that fails it; each bar loosened in `summary.py` (1.01 → 1.03, 0.75 → 0.8, 5 → 10 points) fails its case.
