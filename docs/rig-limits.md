@@ -504,7 +504,7 @@ over loopback. The per-datagram receive cost of §1 runs on slower cores there a
 measured**; neither is per-frame decode cost on a phone. No mobile trade-off — decoder choice,
 decoder width, cache format — is settled by a number taken here.
 
-**What lifts it:** a real device. Nothing in `lab/` addresses it.
+**What lifts it:** a real device. Nothing in `lab/` addresses it; the runs that would are planned in [`devices.md`](devices.md).
 
 ## 8. A driven Chromium does not prerender — lifted 2026-09-19
 
