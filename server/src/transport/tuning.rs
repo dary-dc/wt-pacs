@@ -1,5 +1,6 @@
 //! QUIC transport knobs. Cubic with nothing else set is quinn's stock configuration byte for byte.
 
+use crate::transport::classify::LossClassifyConfig;
 use crate::transport::loss_bound::LossBoundConfig;
 use crate::transport::restart::SlowStartRestartConfig;
 use anyhow::{anyhow, Result};
@@ -18,6 +19,8 @@ pub enum Congestion {
     CubicRestart,
     /// BBR under BBRv3's loss bound. `loss_bound.rs`.
     BbrBound,
+    /// Lab only: `cubic-restart` that skips the cut on a loss that met no queue. `classify.rs`.
+    CubicClassify,
 }
 
 impl Congestion {
@@ -39,6 +42,7 @@ impl Congestion {
             }
             Self::CubicRestart => Arc::new(SlowStartRestartConfig::new(initial_window)),
             Self::BbrBound => Arc::new(LossBoundConfig::new(initial_window)),
+            Self::CubicClassify => Arc::new(LossClassifyConfig::new(initial_window)),
         }
     }
 
@@ -48,6 +52,7 @@ impl Congestion {
             Self::Bbr => "bbr",
             Self::CubicRestart => "cubic-restart",
             Self::BbrBound => "bbr-bound",
+            Self::CubicClassify => "cubic-classify",
         }
     }
 }
@@ -173,7 +178,7 @@ mod tests {
     fn the_wider_initial_window_is_opt_in() {
         let start = |t: TransportTuning| t.congestion.factory(t.initial_window).build(std::time::Instant::now(), 1200).initial_window();
         assert_eq!(start(TransportTuning::default()), 12_000);
-        for congestion in [Congestion::Cubic, Congestion::Bbr, Congestion::CubicRestart, Congestion::BbrBound] {
+        for congestion in [Congestion::Cubic, Congestion::Bbr, Congestion::CubicRestart, Congestion::BbrBound, Congestion::CubicClassify] {
             assert_eq!(start(TransportTuning { congestion, initial_window: Some(38_400), ..TransportTuning::default() }), 38_400);
         }
     }
