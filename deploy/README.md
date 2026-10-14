@@ -71,7 +71,8 @@ A container test of a deployment of this shape found each one (queue row 92).
 5. **The build cache.**
    * The server's stage copies each workspace member's manifest and sources alone, with cache mounts on the
      cargo registry and `target/`. The bundles stage runs `npm ci` on the lock file before it copies `client/`.
-   * The ignore files keep out `docs/`, every `*.md`, the lab's results and the decoders' build cache.
+   * The ignore files keep out `docs/`, every `*.md`, the lab but its four crates' manifests and sources, and the
+     decoders' build cache.
    * After an edit to `docs/glossary.md` and `lab/av1/README.md`, 23 of 23 steps were cached and the build took
      1 s.
 6. **`restart: unless-stopped`** on both services.
@@ -91,13 +92,14 @@ A container test of a deployment of this shape found each one (queue row 92).
     nothing used are gone: the content-hashed asset rule, since nothing emits a hashed name, and `/harness/`,
     which the lab runs against `dev-server.py`.
 
-**What the web image carries.** `client/` whole except its tests (`client/contract/`, `*.test.mjs`) and dev files,
-and the TS bundles (`build.sh --product`). It carries row DECODERBUILD's decoder builds with their notices
-(`client/decode/wasm/built/`), checked against `build/manifest.sha256` at build time, and the hasher. Of the
-studies, only the smoke series.
+**What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies:
+the page and its modules, the page check's two (`?check=`), row DECODERBUILD's decoder builds with their notices
+(`client/decode/wasm/built/`, checked against `build/manifest.sha256` at build time) and the hasher; and the TS
+bundles (`build.sh --product`). No harness page, test, TypeScript source or build script. Of the studies, only the
+smoke series.
 
-**Only what the page loads is reachable**: `/`, `/client/**`, `/series/metadata` and `/wt/dev-transport.json`.
-Everything else is a 404, the studies' bundles included.
+**Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
+`/wt/dev-transport.json`. Everything else is a 404, the studies' bundles included.
 
 **What must be preserved exactly.** Three headers on every response, error pages included:
 
@@ -119,18 +121,22 @@ and the same transport file. It checks four things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
   viewer loads (10);
-* 8 paths that must not be served are 404: the lab, the fixtures, the checkout, a study's bundle, the transport
-  directory, the tests;
+* 17 paths that must not be served are 404: the lab, the fixtures, the checkout, a study's bundle, the transport
+  directory, and the files of `client/` the page does not load (a harness page, the check pages, a test, a
+  TypeScript and a Rust source, a build script, a README);
 * gzip on a module, the WASM and the metadata;
 * `Server` carries no version.
 
 Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out of `gzip_types`, a `location /`
 that serves and lists, and a page cached otherwise than `dev-server.py`. `--local` runs a host nginx on the
-template instead of the image.
+template instead of the image, its root the files `web-files.sh` copies; `scripts/gate.sh` runs it where nginx is on
+PATH and the decoder builds and the hasher are present, and names it SKIPPED otherwise. Mutated: a root of all of
+`client/`, as the image carried before row IMAGESLIM (the nine `client/` paths answer 200), and `viewer.js` left
+out of the list (its path differs and loses gzip); each fails it.
 
-**A stale image is refused** (exit 2) before anything is compared: every file the Containerfile copies from
-`client/` and `deploy/nginx/`, less what its ignore file keeps out, is hashed in the image and in the tree, and any
-that differs, is missing or is extra is named. It compares content, not time: a cached rebuild keeps the image's
+**A stale image is refused** (exit 2) before anything is compared: every file the image carries from `client/`
+(what `web-files.sh` copies) and `deploy/nginx/` is hashed in the image and in the tree, and any that differs, is
+missing or is extra is named. It compares content, not time: a cached rebuild keeps the image's
 creation time, so a touched file would otherwise be refused after every rebuild. Mutated: a changed module, template
 and decoder build, a file added and one removed (each named, exit 2); a touched file, a changed `*.md` and
 `*.test.mjs` (passed, as the image leaves them out); no image (exit 2).
