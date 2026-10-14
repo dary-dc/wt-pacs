@@ -11,6 +11,9 @@ RATES = [18, 103, 309]  # Mbit/s: cellular p10 · p50 · p90 (link-conditions.md
 RTTS = [46, 92]  # ms, idle: the ASKAHEAD cells
 QUEUES = [20, 360, 800]  # ms of FIFO at the bottleneck
 LOADED = [200, 400, 800]  # ms of RTT when another flow holds the queue
+BBR_CWND_GAIN = 2.0  # quinn's BBR in ProbeBW, quinn-proto/src/congestion/bbr/mod.rs:113, :640
+WIDE_RATES = [1, 18, 103, 309, 1000]  # Mbit/s, row 193's range
+WIDE_PATHS = [(26, 20), (26, 800), (92, 20), (92, 800), (300, 20), (300, 1000)]  # (idle RTT, FIFO) ms
 
 
 def bps(mbps):
@@ -27,15 +30,24 @@ def ask_ms(ahead, rate, rtt_ms):
     return rtt_ms + (ahead + F) / bps(rate) * 1e3
 
 
-def designs(rate, rtt, queue):
-    """Bytes ahead of the ask, per design. Shared: the stream credit binds; per-frame: quinn's send window."""
+def bbr_flight(rate, rtt_ms, cap):
+    """BBR keeps its gain times the path's own BDP in flight, whatever the queue."""
+    return min(cap, BBR_CWND_GAIN * bps(rate) * rtt_ms / 1e3)
+
+
+def designs(rate, rtt, queue, flight=None):
+    """Bytes ahead of the ask, per design. Shared: the stream credit binds; per-frame: quinn's send window.
+    `flight(cap)` is what the controller keeps in flight under a cap; a loss-based one by default."""
+    flight = flight or (lambda cap: cwnd(rate, rtt, queue, cap))
     shared_cap = min(CREDIT_STREAM, SEND_WINDOW)
     per_frame_cap = min(CREDIT_CONN, SEND_WINDOW)
     return {
         "shared, today": shared_cap,
-        "shared, send window = cwnd + M": min(shared_cap, cwnd(rate, rtt, queue, shared_cap) + M),
+        "shared, send window = cwnd + M": min(shared_cap, flight(shared_cap) + M),
         "per-frame, ask-order priority (today's flag)": per_frame_cap,
-        "per-frame, an ask above the fill": cwnd(rate, rtt, queue, per_frame_cap),
+        "per-frame, an ask above the fill": flight(per_frame_cap),
+        "asks first, send window = cwnd + M": flight(per_frame_cap),
+        "asks first, send window 6 MiB": flight(min(CREDIT_STREAM, per_frame_cap)),
     }
 
 
@@ -61,6 +73,16 @@ def check():
     d = designs(103, 46, 800)
     assert d["shared, send window = cwnd + M"] == d["shared, today"]  # a deep FIFO: the credit binds either way
     assert d["per-frame, an ask above the fill"] == SEND_WINDOW
+    assert d["asks first, send window = cwnd + M"] == SEND_WINDOW  # cwnd grows into whatever is written
+    assert d["asks first, send window 6 MiB"] == d["shared, today"]
+    assert designs(18, 46, 20)["asks first, send window 6 MiB"] == cwnd(18, 46, 20, 1e12)
+    assert designs(18, 46, 20)["asks first, send window = cwnd + M"] == cwnd(18, 46, 20, 1e12)  # M stays unsent
+    assert bbr_flight(8, 50, 1e12) == 100_000 and bbr_flight(8, 50, 7) == 7
+    for r in WIDE_RATES:
+        for rtt, q in WIDE_PATHS:
+            for ctl in (None, lambda cap: bbr_flight(r, rtt, cap)):
+                e = designs(r, rtt, q, ctl)
+                assert e["asks first, send window 6 MiB"] <= e["shared, today"]
     assert held_frames(8, 500, 500, 1000) == 1000
     assert credit_covers_repair(8, 50, 0, 100_000) and not credit_covers_repair(8, 50, 1, 100_000)
 
@@ -83,6 +105,18 @@ def main():
         print(f"| {rtt} ms | " + " | ".join(
             f"{held_frames(r, rtt, 20, 250_000):.1f}; {'yes' if credit_covers_repair(r, rtt, 20, CREDIT_STREAM) else 'no'}"
             for r in RATES) + " |")
+    print("\n### Asks first across row 193's range: the ask ÷ shared's, uncapped · send window 6 MiB\n")
+    print("| controller, idle RTT · FIFO | " + " | ".join(f"{r} Mbit/s" for r in WIDE_RATES) + " |")
+    print("| --- |" + " --: |" * len(WIDE_RATES))
+    for name in ("Cubic", "BBR"):
+        for rtt, q in WIDE_PATHS:
+            cells = []
+            for r in WIDE_RATES:
+                e = designs(r, rtt, q, None if name == "Cubic" else lambda cap: bbr_flight(r, rtt, cap))
+                base = ask_ms(e["shared, today"], r, rtt)
+                cells.append(" · ".join(f"{ask_ms(e[k], r, rtt) / base:.2f}" for k in
+                                        ("asks first, send window = cwnd + M", "asks first, send window 6 MiB")))
+            print(f"| {name}, {rtt} · {q} ms | " + " | ".join(cells) + " |")
     print("\n### Window ÷ RTT, Mbit/s, when another flow holds the queue\n")
     print("| window | " + " | ".join(f"{t} ms" for t in RTTS + LOADED) + " |")
     print("| --- |" + " --: |" * (len(RTTS) + len(LOADED)))

@@ -1140,6 +1140,92 @@ controller: `per-frame` becomes worth a row the day a loss-blind controller is a
 2 and 3 fail under BBR, independent delivery has nothing to rescue on a phone either, and `per-frame` is kept only
 for progressive delivery ([`../adr/stream-shape.md`](../adr/stream-shape.md) §What would reopen it).
 
+### 9.7 Asks first, capped (row 207, ASKFIRSTCAP)
+
+*Row 207, 2026-10-14. Theory: nothing built or timed. The question: does asks-first stop losing behind a deep queue if
+the bytes in flight stay capped? quinn-proto 0.11.18 as pinned (`a9746dbde176`); [`quic_streams.py`](quic_streams.py)
+prints the tables (D), and its `check()` failed under each of five mutations of the new terms.*
+
+**The mechanism.** quinn accepts a write while min(connection credit left, send window − buffered) > 0, where
+*buffered* is every byte written and not yet acknowledged, in flight or not (`quinn-proto/src/connection/streams/state.rs:832–835`).
+When that bound stops the writer while the congestion window would allow more, the packet builder finds nothing to
+send and marks the connection app-limited (`quinn-proto/src/connection/mod.rs:950`), and Cubic then does not grow
+its window (`quinn-proto/src/congestion/cubic.rs:102–109`). So a cap C on buffered bytes caps what a loss-based
+controller keeps in flight at C, as `shared`'s 6 MiB stream credit does today. Asks-first removed that cap: its
+streams draw on the connection's 15 MiB and quinn's 10 MB send window, so Cubic fills a deep queue further.
+
+With asks-first, the ask waits behind the bytes in flight only; with `shared`, behind every byte written to the
+stream. Under a cap C, in flight ≤ min(the controller's flight, C) ≤ C, which is `shared`'s bound, so **asks-first with
+a 6 MiB send window is never behind `shared`, and ties it where the controller would keep more than 6 MiB in flight**
+(the ask's frame waits behind the fill frame being written in both). That holds for any controller: one that keeps its
+flight near the path's own BDP (quinn's BBR in ProbeBW holds 2 × BDP, `quinn-proto/src/congestion/bbr/mod.rs:113`,
+`:640`) meets the cap only on fast long paths. **Row 171's send window, cwnd + M, is no cap**: the M written beyond
+cwnd keeps the sender from ever being app-limited, so Cubic grows into the queue as before (§9.4).
+
+**Across row 193's range** (D; the ask during a fill ÷ `shared`'s; idle RTT · FIFO; uncapped asks-first · asks-first
+with a 6 MiB send window; row 171's cwnd + M reads as uncapped):
+
+| controller, idle RTT · FIFO | 1 Mbit/s | 18 Mbit/s | 103 Mbit/s | 309 Mbit/s | 1000 Mbit/s |
+| --- | --: | --: | --: | --: | --: |
+| Cubic, 26 · 20 ms | 0.08 · 0.08 | 0.10 · 0.10 | 0.21 · 0.21 | 0.42 · 0.42 | 0.95 · 0.95 |
+| Cubic, 26 · 800 ms | 0.10 · 0.10 | 0.36 · 0.36 | 1.52 · 1.00 | 1.47 · 1.00 | 1.37 · 1.00 |
+| Cubic, 92 · 20 ms | 0.08 · 0.08 | 0.14 · 0.14 | 0.40 · 0.40 | 0.81 · 0.81 | 1.20 · 1.00 |
+| Cubic, 92 · 800 ms | 0.10 · 0.10 | 0.39 · 0.39 | 1.46 · 1.00 | 1.36 · 1.00 | 1.20 · 1.00 |
+| Cubic, 300 · 20 ms | 0.09 · 0.09 | 0.26 · 0.26 | 0.80 · 0.80 | 1.20 · 1.00 | 1.08 · 1.00 |
+| Cubic, 300 · 1000 ms | 0.11 · 0.11 | 0.55 · 0.55 | 1.35 · 1.00 | 1.20 · 1.00 | 1.08 · 1.00 |
+| BBR, 26 · any FIFO | 0.08 · 0.08 | 0.11 · 0.11 | 0.22 · 0.22 | 0.45 · 0.45 | 1.02 · 1.00 |
+| BBR, 92 · any FIFO | 0.09 · 0.09 | 0.17 · 0.17 | 0.51 · 0.51 | 1.08 · 1.00 | 1.20 · 1.00 |
+| BBR, 300 · any FIFO | 0.10 · 0.10 | 0.34 · 0.34 | 1.13 · 1.00 | 1.20 · 1.00 | 1.08 · 1.00 |
+
+Under random loss Cubic's window is ~1.2 ÷ √p packets (§9.6), far under 6 MiB, so the cap never binds and the ask
+keeps row 180's ×0.28–0.34. The fill: where the cap binds, in flight is `shared`'s, so is the fill; where it does
+not, the fill is asks-first's. The cap also holds a fill below the link where 6 MiB is under the BDP (above 547 Mbit/s
+at 92 ms, §9.3), as `shared` does; asks-first's 10 MB would not. Memory: buffered bytes ≤ 6 MiB, `shared`'s, against
+asks-first's 12.5–13.5 MB a session (row 180).
+
+**Against row 180's numbers.** At 103 Mbit/s behind 360 ms asks-first lost ×1.05 (562 against 537 ms): its cwnd at
+the ask was 6.96 MB against `shared`'s 6.42, and the 0.5 MB above the credit is ~40 ms at 103 Mbit/s, the cap's to
+remove. At 18 Mbit/s behind 800 ms its cwnd at the ask was 1.99 MB, under any 6 MiB cap: the cap changes nothing
+there, and asks-first already beat `shared` (1 817 against 2 268 ms). Row 180's ×1.97 in that cell was against the
+`window` arm (925 ms, cwnd 1.96 MB at the ask), which this model does not explain: equal windows should put asks-first
+ahead. The fill's +2.5 % there is `per-frame`'s too (+2.4 %), so it is no cap's to remove either. Rows:
+[`lab/ask-ahead/rows-streams.jsonl`](../../lab/ask-ahead/rows-streams.jsonl).
+
+**Controllers.** Row 200 (which controllers fit) is not done; this part covers Cubic and quinn's BBR. Another
+controller enters only through what it keeps in flight: one that holds near the BDP makes the cap moot and asks-first
+net without it.
+
+**Protocol, for a separate session.**
+
+* **Arms (5), all flags that exist:** `shared`; `window` (`--send-window-follows-cwnd`, the reference); asks first
+  (`--stream-mode per-frame-asks-first`); asks first + `--send-window-bytes 6291456`; asks first +
+  `--send-window-follows-cwnd`. All `cubic-restart`; and `shared`, asks first and asks first + 6 MiB again under
+  `--congestion bbr` in the 18 and 103 Mbit/s cells. Every other setting equal and printed (row 180's).
+* **Cells:** 18 and 103 Mbit/s, idle 46 ms, FIFO 20, 360 and 800 ms, 1 % random loss behind 20 ms; 103 Mbit/s, idle
+  92 ms, FIFO 800 ms; 309 Mbit/s only on a host that sustains it (row 180's voided).
+* **Client and data:** row 180's (Chromium through the product's downloader, the 10-bit DBT volume, every frame
+  exact by SHA-256 against the packed codestreams), but the ask once **a quarter** has landed, so more than 6 MiB plus
+  a window remains; a cell where the fill's remaining bytes at the ask are under the asks-first arm's cwnd at the ask
+  is reported, not claimed.
+* **Measured:** ask → last byte; the fill's issue → last frame; cwnd and smoothed RTT at the ask (the RTT added to the
+  server's `ask written` debug line); server RSS a session. ≥ 10 rounds Williams-ordered (`lab/scripts/order.py`),
+  `VOID` read strict and round-paired.
+* **Definitions** (row 180's `streams.py`): an arm's spread is its [min, max]; "beats" is a median ≤ 0.85 of
+  `shared`'s; "worse beyond the spread" is a median above `shared`'s max.
+* **Predictions:** (1) asks first + 6 MiB's ask equals asks first's (±15 %) wherever asks first's cwnd at the ask is
+  under 6 MiB (every 18 Mbit/s cell, 103 behind 20 ms, the loss cells), and `shared`'s (±5 %) where it is above (103
+  behind 360 and 800 ms, idle 46 and 92): the ×1.05 goes. (2) Asks first + cwnd + M equals asks first (±15 %)
+  everywhere, the ×1.05 included. (3) The fill of asks first + 6 MiB is within `shared`'s spread where the cap binds,
+  and asks first's elsewhere (+2.5 % at 18/800 may stay). (4) Its RSS at most `shared`'s + 10 %. (5) Under BBR, asks
+  first and asks first + 6 MiB tie and beat `shared` in every cell (the table's 0.11–0.51).
+* **Rule.** Asks first + 6 MiB is **net** if its ask and its fill are worse beyond `shared`'s spread in no claimed cell
+  and its ask beats `shared` in every 20 ms and loss cell: then it is proposed as the default stream mode with that
+  send window, the owner's to adopt. Worse beyond the spread only where the cap does not bind (cwnd at the ask
+  under 6 MiB) is a **trade-off** for the owner, with those cells as its cost: no cap removes it. Worse beyond the
+  spread where the cap binds **refutes** the model (bytes ahead ≤ C), and the row says so. Asks first + cwnd + M is
+  judged by the same test and is predicted to fail at 103/360. If `window` again beats asks first by ≥ 15 % at
+  18/800 with equal cwnd at the ask, the RTT at the ask is reported against both; the model has no term for it.
+
 ## 10. Measured here
 
 Kept apart from the theory above; each names its row.
