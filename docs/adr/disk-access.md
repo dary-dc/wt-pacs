@@ -6,7 +6,7 @@ decision (provenance at the end)
 The one document for the read path. §1 the decision; §2 what shaped it, with the numbers safe
 to quote and the claims retracted; §3 its history; §4 consequences; §5 every candidate; §6
 deployment; §7–9 invariants, levers outside it, what is open; §10 the code as built; §11 the
-evidence; §12 how to re-run it. The file it reads is laid out in [`../disk-layout/README.md`](../disk-layout/README.md),
+evidence; §12 how to re-run it; §13 what could be faster, in theory (row 198). The file it reads is laid out in [`../disk-layout/README.md`](../disk-layout/README.md),
 and its draft successor in [`../disk-layout/target.md`](../disk-layout/target.md).
 
 ## 1 · The decision, as it ships
@@ -746,6 +746,95 @@ every read must miss, use `--force-pool-reads`, not eviction ([`CLAUDE.md`](../.
 then the fill shape, `--stride` = `--size`, adding `tokio_fs`. Verdicts on wall and CPU per ask.
 Three columns carry the claims: `rings` stays 0 for `product_fill`, `peak_named` follows
 `--depths` past 4, and the 128 KiB / 250 kB penalty stays gone.
+
+## 13 · Faster than today (theory, AV1 queue row 198)
+
+*2026-10-14. Reasoned, not measured: every µs below not cited to a measurement is derived (D). The protocol for the row
+that measures it is at the end.* Sources: Linux **v6.18.44** from `gregkh/linux` (SHA-256, first 16 hex:
+`io_uring/rw.c` bf8afad1c04c59a9, `io_uring/rsrc.c` 0ec50bf732c7c720, `io_uring/io_uring.c` 75d549fe1bc34442,
+`mm/filemap.c` 2bd1223972411197, `include/uapi/linux/fs.h` bf3363a0a2afe616, `include/linux/fs.h` afa1e1e76569a2e9,
+`fs/ext4/file.c` 5ab2ac4b304b0db2, `drivers/nvme/host/pci.c` 2c5d6ecdfb6a6f21, `drivers/nvme/host/ioctl.c`
+2394894321f58f76); quinn-proto **0.11.18**, the crate `scripts/patch_crate.sh` pins (a9746dbde176634f).
+
+### Where today's µs go
+
+**A hit** is one `preadv2(RWF_NOWAIT)`: a syscall, a walk of the cached folios, one copy into a pooled buffer.
+Row 172 measured it on the host's ext4 (`../disk-layout/README.md` §Measured): **4.1 µs at 32 kB, 16 µs at 163 kB,
+52 µs at 503 kB**, a file from `pack-series`. Its arms split it: the copy is ~0.095 µs a kB (the ~1-folio arm, 2.4 →
+47 µs from 32 to 503 kB) and each extra 4 KiB folio ~0.46 µs (the 4 KiB-folio arm, ×1.41–2.02 of today). At 3 MB that
+is ~290 µs with large folios and ~640 µs with 4 KiB ones (D). The send path costs **1.5–2.6 µs a kB of server CPU**
+(§11, *Frames past 250 kB*), so **a hit is 4–9 % of a frame's CPU at 32–500 kB, and 4–7 % at 3 MB, 8–14 % on 4 KiB
+folios** (D). That is the most any hit lever can remove.
+
+**A miss** is the device's: latency plus bytes over bandwidth — ~1 ms at p50 on the cloud rig (§11, *A series past
+RAM*), 27.5 µs for 4 KiB `O_DIRECT` on a lab host's virtio-blk (§Provenance), 0.84–1.6 GB/s on the workstation's NVMe (§2,
+§9). On that NVMe a miss is ~0.1 ms at 32 kB, ~0.3 ms at 250 kB, 2–4 ms at 3 MB (D). Around it the server spends the hop (24–34 µs,
+pool) or a ring round trip, a page-cache insert per folio and the same copy. The fill rarely pays any of it:
+`FILL_WINDOW` holds its misses at ~1 % (§2). **What a read-path change can take from a miss is CPU, not wait**,
+except where the device's own latency is a few µs.
+
+**The copy QUIC forces.** quinn copies a stream's bytes into the datagram (`connection/streams/state.rs:667`) and
+seals the datagram in place (`crypto/rustls.rs:616–620`, called at `packet.rs:492`); v6.18.44 has no in-kernel QUIC
+(no `net/quic`). So the plaintext must be in user memory, and `sendfile`, `splice` and any zero-copy read-to-socket
+path cannot reach the wire. The read's copy is the one that buys the process-private guarantee (§1); only a cache
+that keeps the bytes in user memory between asks removes it.
+
+### Each candidate at its best
+
+Predicted change against today, per frame, 32 kB–3 MB. *Needs* is what the kernel and a container must allow (row 199
+owns the container side).
+
+| Candidate | Mechanism, and what it removes | Hit | Miss | Needs | Verdict (D) |
+| --- | --- | --- | --- | --- | --- |
+| **Large folios after reclaim** | the fill's `WILLNEED` builds 4 KiB folios; keeping them large removes ~0.46 µs a folio | ×0.5 at 160 kB–3 MB on a cache the fill warmed (row 172's ×2.0, inverted) | fill CPU per GB ×0.65 | ext4 ≥ v6.16 or XFS | **Row 196's** — the largest hit lever here, and no structural change |
+| **User-space frame cache** (`lab/disk-access-bench/src/frame_cache.rs`) | a repeated frame is a refcount handed to quinn: no syscall, no folio walk, no copy (~0.6 µs measured, 2026-09-05) | **4–640 µs → ~0.6 µs**: frame CPU ×0.91–0.96 at 32–500 kB, ×0.86–0.96 at 3 MB | first ask unchanged; a no-repeat sweep +4 % (2026-09-05) | RAM: duplicates the page cache unless filled past it; a lock across sessions | **Net only where frames repeat in one process** (cine loops, viewers of one series); a trade in RAM. Its −20.2 % (§5) predates the pooled hand-off and the whole-frame probe, which took the second copy and three of four syscalls: re-predicted −4 to −14 %. Structural: a proposal, measured first |
+| `O_DIRECT` for misses | DMA into the buffer: no page-cache insert, no copy; frames are unaligned, so a 4 KiB-aligned superset (≤ 8 KiB more) sliced as `Bytes` | **every repeat is a device read**: 4–640 µs → 0.1–2.5 ms local, ~1 ms+ cloud | CPU per miss ×0.25–0.5 at ≥ 250 kB; wait a tie (the device); the fill loses `WILLNEED` and needs its own depth | filesystem support (ext4, XFS) | **Rejected alone** — gives up the shared page cache (§2). Only as the fill side of a frame cache |
+| `IOPOLL` (`HYBRID_IOPOLL`) | the ring polls the device instead of an interrupt and a wake-up | — (`O_DIRECT` only, `rw.c:891–893`) | −2 to −10 µs a miss on local NVMe (≤ 10 % at 32 kB, ≤ 1 % at 3 MB); a core spins the device's latency, ~80 µs local and ~1 ms cloud, per miss in flight | `O_DIRECT`, plus poll queues: `nvme.poll_queues` at module load, 0 by default (`pci.c:127–129`), not settable in a container; this container's virtio-blk reports `io_poll` 0 | **Rejected** — `O_DIRECT`'s trade, CPU worse, nothing on cloud block storage |
+| NVMe passthrough (`uring_cmd` on `/dev/ngXnY`) | NVMe read commands from user space: no filesystem, no block-layer per-I/O work | as `O_DIRECT` | a few µs of block-layer CPU per I/O; wait the device's | the char device in the container, and `CAP_SYS_ADMIN` unless the controller's effects log marks the read supported (`ioctl.c:17–86`); the file's block map; NVMe only | **Rejected** — `O_DIRECT`'s trade with the filesystem gone too; the per-I/O saving is µs against a 32 kB–3 MB transfer |
+| Registered buffers | a buffered read copies with `copy_to_user` either way; fixed buffers skip only the iovec import | not on the ring (§7) | tie — measured "no change" (§5); a 4 KiB `ReadFixed` 852 against 561 ns (§Provenance) | every pinned page charged to `RLIMIT_MEMLOCK` (`rsrc.c:661–687`, `:47`): 4 slots × 3 MB is 12 MB a session against the 8 MB default | **Closed** — measured |
+| Registered files | — | — | — | — | **Already shipped** (§1.3) |
+| `SQPOLL` | a kernel thread polls the submission queue: no `io_uring_enter` | worse | tie | a kernel thread per ring, so per session | **Closed** — measured 2.8× CPU (§5) |
+| Multishot reads | one submission, repeated completions | — | — | a pollable file: `io_read_mshot` refuses a regular file with `-EBADFD` (`rw.c:1063–1067`) | **Not applicable** |
+| Linked reads (`IOSQE_IO_LINK`) | orders one read after another | — | tie at best: frames are independent, and the link worth having (read → send) cannot exist with QUIC in user space | — | **Rejected** |
+| A ring for the fill | the hop (24–34 µs) on a fill miss | — | ≤ 0.3 µs a frame on average, at ~1 % misses | the ring's memlock and fds | **Rejected** — a tie by arithmetic; §1 keeps the fill off the ring |
+| Transparent huge pages for frame buffers | fewer dTLB misses on the copy's destination | ≤ 3 % of the copy at frames ≥ 2 MiB, ≤ 0.5 % of frame CPU; nothing below 2 MiB | the same | `GLIBC_TUNABLES=glibc.malloc.hugetlb=1` (glibc ≥ 2.35; this container's 2.39 lists it) where THP is `madvise` or `always` (this container: `madvise`); no code | **Predicted tie**; one cheap arm below because it costs no code |
+| `mmap` + `MAP_POPULATE` / `MADV_POPULATE_READ` | the bytes handed to quinn straight from the page cache: removes the read's copy | measured within noise of the touch loop, always-touch 103 against 48 µs (§5) | a refault on the executor after reclaim, 1.5–7.7 ms measured; `mlock` would hold every unacknowledged frame against `RLIMIT_MEMLOCK` | — | **Closed** — not safe (§5); reopens only if a frame cache is rejected *and* the hit's copy binds |
+| `RWF_DONTCACHE` | the read's folios are dropped once copied (`include/uapi/linux/fs.h:431`; `mm/filemap.c:2563`, `:2610`, `:2642`; ext4 opts in, `fs/ext4/file.c:980–982`) | no faster: the same copy, then the drop | the same | v6.18.44 has it | **Not a speed lever** — a cache policy for one fill sweeping a series past RAM, and it discards the sharing §2 relies on |
+| `sendfile` / `splice` / zero-copy send | — | — | — | — | **Closed** — QUIC copies and seals in user space (above) |
+
+**The verdict, predicted.** On a miss nothing here shortens the wait on any device the target can have; the levers
+move CPU per miss and each one gives up the shared page cache. On a hit the ceiling is the 4–14 % of a frame's CPU the
+read costs, and two levers reach into it: **large folios after reclaim** (row 196, no structural change, ×0.5 on the
+hit at 160 kB–3 MB) and **a user-space frame cache** (structural, −4 to −14 % of frame CPU where frames repeat, a cost
+in RAM). Today's path is otherwise at its floor: one syscall and the one copy the guarantee needs.
+
+### Protocol for the measuring row
+
+Given to a separate session with nothing above this heading.
+
+* **Arms, differing in the lever alone**, every arm's settings printed: **B0** the server as it ships; **B0′** the same
+  build, a second process (A/A: the p90 of \|B0′/B0 − 1\| over the rounds is the resolution); **B1** a lab build with
+  `lab/disk-access-bench`'s `FrameCache` in front of the reader, budget larger than the series (code beside today's
+  path; the server's default build unchanged); **B2** B0 under `GLIBC_TUNABLES=glibc.malloc.hugetlb=1`, the 3 MB cell
+  only, with THP `enabled` recorded.
+* **Cells:** `pt15_cptac` (32 kB), `ct_lidc` (163 kB), `dbt12_ea1141` (503 kB), HTJ2K, and a synthetic 3 MB series
+  (`lab/scripts/runtime_ab.sh`'s generator). Each cell a whole fill by 1 and by 16 sessions on loopback,
+  **twice in a session** (the second pass is the repeated case), as §11 *Frames past 250 kB* ran it: server and client
+  on separate cores; `rss_after_kib` after each run.
+* **Metrics:** server CPU per frame (rusage), split by pass; asks/s; RSS at peak and at rest. **16 rounds**, the arms'
+  order by `lab/scripts/order.py`. Host: kernel, filesystem, `read_ahead_kb`, THP mode, glibc. Where the 16-session
+  cells saturate the server's cores, nothing is claimed past them.
+* **Exactness:** every frame received checked against its coded bytes' XXH3-64; one fill per arm decoded against
+  ingest's sample digests; a mutation that hands back a stale cache entry must fail it.
+* **Predictions:** B1 against B0, second pass: CPU per frame ×0.91–0.96 at 32–503 kB, ×0.86–0.96 at 3 MB; first pass
+  ×1.00–1.04; RSS at peak higher by the series' size. B2 at 3 MB: a tie (within ±3 %).
+* **Decision rule.** *(a)* B1 goes to the owner as a proposal (this section) if its second-pass CPU per frame beats
+  B0 beyond the resolution with ≥ 80 % sign agreement in at least two of the four cells, and its first pass is worse
+  by no more than 5 % in any; otherwise the frame cache is closed for this workload. *(b)* B2 becomes a deployment
+  note in §6 only if it beats B0 beyond the resolution at 3 MB and is worse on no metric; otherwise closed. *(c)* Every
+  other row of the table stays as its verdict says unless the measurement contradicts a premise it rests on (the hit's
+  share of a frame's CPU above all: if B1's second pass gains more than the read's 4–14 %, this section's model is
+  wrong and is corrected in place).
 
 ## Provenance
 
