@@ -125,7 +125,7 @@ flags only L2 and X3, plus `nowait_supported_at`, which `tools/check-fastpath` u
 | F5 | the gate's real-decode rigs run npm's OpenJPH 2.4.11, not the product's manifest-pinned build | `client/contract/dispatch-rig.ts:654-661,678-803` | finish: also run them on `builtDecoder` | ~10 |
 | F6 | the telemetry-absence check reads `session.js` only; `ws-session.js` and `race-session.js` also ship | `client/scripts/check_telemetry_absent.sh:7` | finish | ~3 |
 | F7 | DICOM to `.sbnd` end to end (`from_dicom.py main()`); pack-series' "writes the same bytes" (true: re-packing gives identical bytes, 151 B) | `ingest/from-dicom/from_dicom.py:32-60`; `README.md:43` | finish: a synthetic object through the ingest, and a `cmp` | ~25 |
-| — | Firefox, the cross-codec arm, the full painter cells, `cellcheck.sh`, `wtcompat.py`, `seccomp-uring.sh --check` | `README.md:92-99` | keep: each is named, and each needs a browser, a display, fixtures or the network | — |
+| — | Firefox, the cross-codec arm, the full painter cells, `cellcheck.sh`, `wtcompat.py`, `seccomp-uring.sh --check` (*corrected 2026-10-14:* in the gate since row 231, the deploy loading the profile) | `README.md:92-99` | keep: each is named, and each needs a browser, a display, fixtures or the network | — |
 
 ### 8. Docs that contradict the code, or are stale
 

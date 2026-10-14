@@ -707,8 +707,11 @@ Medians, µs or frames/s (hit through `RWF_NOWAIT`, miss through `force_pool_rea
   * on SELinux-enforcing hosts the domain also needs `io_uring { allowed }`; `label=disable` drops the container's
     whole confinement, and a module granting only that permission to `container_t` is narrower but untried. This host
     has no SELinux, so it measured neither.
-  The owner adopts these or not; P0 still decides whether the ring earns its keep on the target.
-* **(d) Limits:** unchanged until (c) is adopted.
+  The owner adopts these or not; P0 still decides whether the ring earns its keep on the target. **Adopted
+  2026-10-14** (queue row 231): `deploy/compose.yml` loads the profile; the SELinux half stays the owner's.
+* **(d) Limits:** unchanged until (c) is adopted. *Since row 231:* compose sizes `memlock` (64 MiB) and `nofile`
+  (65 535), and the banner's `read_ring=` reports the ring ([`../../deploy/README.md`](../../deploy/README.md)
+  §Container settings).
 * **(e) Folios:** every arm within 20 % of H in both states: the cache is the real inode's, and row 197's verdict
   (W0 stays) holds in containers on this host.
 * **(f) Not conclusive here:** Docker under SELinux enforcing (B+U's `EACCES`), and absolute µs.
@@ -767,7 +770,7 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 | 1 | **P0 — ring vs pool on the production target** | §6. Sandbox, workstation and agent container gave three answers. **The cloud rig cannot answer it** (L7, 2026-09-18): burstable, stolen CPU, every p99 60–100 ms (§11, *A series past RAM*). A non-burstable host is needed |
 | 2 | **`server_ab.sh` on the workstation** | **Done 2026-09-09**: cold depth 4 −42.1 %, 16/16, RESOLVED, where the sandbox missed the bar (§11, *Serving depth*). Still one bare-metal host and untested on the production instance type — that is P0's run |
 | 3 | **Throttled link** (20 Mbps, 50 ms, 1 % loss, cold tiles, client depth 4) | Predicted tie: the wire hides the 0.2 ms depth 2 → 4 saving. Unmeasured |
-| 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the series volume (§6). Not in a unit file yet |
+| 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the series volume (§6). Not in a unit file yet; `deploy/compose.yml` sets `memlock` and `nofile` since row 231 |
 | 6 | **`read_ahead_kb` and series layout for tiles, per target** | on-demand missed 14–69 % at the stock value in the fill cells; on the cloud rig 128 against 2 048 was no clean result in any cell. A large value hurts only the fill's tail, which `FILL_WINDOW` fixed |
 | 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, measured tie. The *only* way to cut the eventfd's per-hit cost (§11, *Short io_uring completions*). Only after P0 keeps the ring |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0 |

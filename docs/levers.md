@@ -55,7 +55,7 @@ Owner: [`adr/disk-access.md`](adr/disk-access.md) (§5 · Every candidate, one t
 | `MALLOC_MMAP_THRESHOLD_` 1 MiB | row 51: RSS at rest −46 to −57 %, CPU a tie to +5 % | owner (row 51's cell; not in §Blocked) | §8 |
 | Whole-frame inline probe on large frames | RP: a 250 kB inline copy `gap_max` 4.0 ms; row 160: a 2.8 MB hit 216–220 µs; 16 MB unmeasured | never (since whole-frame probes shipped) | §5 |
 | `io-uring` 0.7.14 → 0.7.15 | — | never (a newer release) | §9 #8 |
-| Deploy limits: `LimitMEMLOCK`, `nofile`, `check-fastpath` in the image | — (`deploy/compose.yml` sets none; ~940 rings, then a silent fall to the pool) | never | §Limits: `ulimit -n` and `ulimit -l`, §9 #5 |
+| Deploy limits: `LimitMEMLOCK`, `nofile`, `check-fastpath` in the image | — (`deploy/compose.yml` sets `memlock` 64 MiB and `nofile` 65 535 since row 231, with the io_uring profile; `check-fastpath` in the image never tried) | held (row 231, the owner's ruling) | §Limits: `ulimit -n` and `ulimit -l`, §9 #5 |
 | Release LTO, one codegen unit | RP: −4 to −8 % CPU | held (landed) | §8 |
 | Container format (MP4, fMP4, MKV, MXF, DICOM EOT, IVF) against `.sbnd` | rows 159, 160: reads, fill, CPU tie; the open loses 13–26 ms; none round-trips | held (verdict proposed to the owner) | [`disk-layout/containers.md`](disk-layout/containers.md) §Verdict |
 | `.sbnd` v2 (148 B header, 28 B entries) | row 160: ties v1, 0.006–0.07 % smaller | held; the build not queued | [`disk-layout/target.md`](disk-layout/target.md) §Layout 0 |
