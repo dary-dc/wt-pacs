@@ -1004,6 +1004,9 @@ move CPU per miss and each one gives up the shared page cache. On a hit the ceil
 read costs, and two levers reach into it: **large folios after reclaim** (row 196, no structural change, ×0.5 on the
 hit at 160 kB–3 MB) and **a user-space frame cache** (structural, −4 to −14 % of frame CPU where frames repeat, a cost
 in RAM). Today's path is otherwise at its floor: one syscall and the one copy the guarantee needs.
+*Corrected by row 209 (§Measured, below): where sixteen sessions share a series the cache saved 17–22 % of a frame's
+CPU and halved peak RSS, beyond the 4–14 % this section allowed a hit — the read is not a hit's whole cost; on a lone
+session's repeat the admitting pass cost +25–36 %.*
 
 ### Protocol for the measuring row
 
@@ -1032,6 +1035,55 @@ Given to a separate session with nothing above this heading.
   other row of the table stays as its verdict says unless the measurement contradicts a premise it rests on (the hit's
   share of a frame's CPU above all: if B1's second pass gains more than the read's 4–14 %, this section's model is
   wrong and is corrected in place).
+
+### Measured (row 209, 2026-10-14): B1 goes to the owner as a trade-off; B2 is closed; the hit model is corrected
+
+*Run from the protocol alone.* `lab/disk-access-bench/frame_cache_ab.py` (README there); 16 rounds, arms in
+`lab/scripts/order.py`'s order, each arm a fresh server process per cell and round, two whole fills in it; 832 runs, none
+failed. Host: this cloud container, kernel 6.18.44, ext4, `read_ahead_kb` 128, THP `madvise`, glibc 2.39, 4 vCPUs,
+server on cores 0–1 and `server_ab` on 2–3, loopback, page cache warm. Arms as the protocol, settings in the rows'
+first line: B1 is B0's source built with `--features lab-frame-cache`, a 4 GiB budget, the cache's own admission on a
+frame's second ask; nothing else differs. The 3 MB cell is 32 frames of seeded random bytes (`make`), so its exactness
+is XXH3-64 only. Rows: `lab/disk-access-bench/rows-framecache.jsonl`.
+
+**Exact.** Every frame of every run checked against its coded file's XXH3-64 by `server_ab --coded`. A third fill per
+arm, decoded against ingest's digests: 335 + 100 + 29 frames per arm, 0 inexact. `LAB_FRAME_CACHE_MUTATE=stale` (a hit
+hands back the previous frame) fails every pass in which the cache holds an entry, 20 of 24 (the four it passes are a
+lone session's first fill, where nothing is resident yet).
+
+**CPU per frame, B1 ÷ B0, median of the paired rounds (rounds lower of 16; the A/A resolution):**
+
+| cell | 1 session, pass 1 | 1 session, pass 2 | 16 sessions, pass 1 | 16 sessions, pass 2 |
+| --- | --- | --- | --- | --- |
+| `pt15_cptac` 31 kB | 1.047 (7; 41 %) | **1.355** (0; 25 %) | 0.794 (15; 19 %) | 0.780 (15; 22.5 %) |
+| `ct_lidc` 164 kB | 0.972 (9; 22 %) | **1.328** (0; 29 %) | 0.932 (11; 19.5 %) | 0.826 (16; 24 %) |
+| `dbt12_ea1141` 499 kB | 1.011 (8; 25 %) | **1.253** (2; 24 %) | 0.820 (16; 17 %) | **0.812** (16; 18 %) |
+| synthetic 3 MB | 0.979 (11; 12 %) | **1.304** (0; 12 %) | 0.870 (16; 9 %) | **0.831** (16; 9 %) |
+
+Bold: beyond the resolution. B0 spends 83 / 283 / 945 / 5 340 µs a frame at one session and 53 / 234 / 797 / 4 246 µs
+at sixteen. One session holds one server thread busy (~1.0 core); sixteen hold 1.5–1.8 of the two server cores, every
+arm, so no cell saturates them, and asks/s is not claimed (it is the same CPU seen through the core count). Peak RSS,
+pass 2: one session +8.6 / +13.5 / +10.0 / +80 MiB over B0 (the series is 9.9 / 15.6 / 13.8 / 91.6 MiB); sixteen
+sessions **−26 / −11 / −39 / −84 MiB** (23.8 against 50.3 MiB at 31 kB; 106 against 191 MiB at 3 MB), and at rest
+the same.
+
+**Each prediction.** B1's second pass ×0.91–0.96 (×0.86–0.96 at 3 MB): **did not hold either way** — ×0.78–0.83 at
+sixteen sessions, ×1.25–1.36 at one. A lone session's second fill is the frame's second ask, so it is the pass that
+admits, not the one that hits; it costs more than either pass of B0 (the admitted frame keeps its pooled buffer, so
+each read takes a fresh one: §11's byte-capped pool cost the same way — a likely mechanism, not measured here). First
+pass ×1.00–1.04: held at one session (0.97–1.05), not at sixteen (0.79–0.93), where the second session to ask a frame
+admits it and the rest hit. RSS higher by the series: held at one session (0.6–0.9 of it), not at sixteen, where one
+shared entry replaces sixteen sessions' buffers and peak RSS falls by about half. B2 a tie within ±3 %: 1.013–1.091
+(5–7 rounds lower of 16), inside the resolution in every cell, never better.
+
+**The rule.** *(a)* At sixteen sessions B1's second pass beats B0 beyond the resolution in two of the four cells
+(499 kB, 3 MB; 16 of 16 rounds each; 31 kB is −22.0 % against 22.5 %) and its first pass is better, not worse, so
+**B1 goes to the owner as a proposal** — and it is a trade-off, not a net: −17 to −22 % CPU a frame and half the
+peak RSS where sessions share a series, **+25 to +36 % CPU a frame and the series' size in RAM on a lone session's
+repeat**. What a third pass of one session costs (all hits) was not run. *(b)* B2 does not beat B0 anywhere: closed,
+no deployment note. *(c)* The premise is contradicted: a hit saves 17–22 % of a frame's CPU at sixteen sessions, above
+the 4–14 % the read was modelled to cost. The model priced the read alone; a shared entry also removes each session's
+buffer, its fill and the RSS it holds — corrected in place above, after *The verdict, predicted*.
 
 ## Provenance
 
