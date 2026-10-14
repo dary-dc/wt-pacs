@@ -298,17 +298,28 @@ def time_rounds(work, rounds, asks, fill_mib, out_name):
         print(f"round {r} done {time.strftime('%H:%M:%S')}, {voids} of {total} visits void", flush=True)
 
 
+def folio_count(wb, real, mutate=False):
+    res = subprocess.run([*NICE, wb, "folios", "--file", real, *(["--mutate"] if mutate else [])],
+                         capture_output=True, text=True)
+    return res.returncode, res.stdout, res.stderr.strip()
+
+
 def folios(work, label):
     """Every arm's file through writer_bench folios, which needs root in the initial namespace for /proc/kpageflags."""
     wb = work / "bin/writer_bench"
     lines = [ln.split("\t") for ln in (work / "folio-paths.txt").read_text().splitlines()]
-    probe = subprocess.run([wb, "folios", "--mutate", "--file", lines[0][2]], capture_output=True, text=True)
-    if probe.returncode == 0:
-        sys.exit("writer_bench folios --mutate passed its layout check: the instrument is broken")
     path = work / f"folios-{label}.jsonl"
     rows = []
     for arm, f, real in lines:
-        rows.append(dict(arm=arm, file=f, real=real, label=label, **json.loads(sh([*NICE, wb, "folios", "--file", real]))))
+        code, out, err = folio_count(wb, real)
+        if code:
+            sys.exit(f"{arm} {f}: {err}")
+        rows.append(dict(arm=arm, file=f, real=real, label=label, **json.loads(out)))
+    large = next((r for r in rows if any(r["orders"][1:])), None)
+    if large is None:
+        print("every folio is one page: the --mutate probe has no compound head to break")
+    elif folio_count(wb, large["real"], mutate=True)[0] == 0:
+        sys.exit("writer_bench folios --mutate passed its layout check: the instrument is broken")
     path.write_text("".join(json.dumps(r) + "\n" for r in rows))
     if "SUDO_UID" in os.environ:
         os.chown(path, int(os.environ["SUDO_UID"]), int(os.environ["SUDO_GID"]))
