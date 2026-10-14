@@ -232,7 +232,7 @@ def versions():
     if DOCKER:
         return "".join(run_text(c) for c in (["uname", "-r"], ["docker", "version"], ["runc", "--version"],
                                              ["docker", "info", "-f", "{{.Driver}} {{json .DriverStatus}} {{json .SecurityOptions}}"],
-                                             ["getenforce"], ["nproc"], ["sh", "-c", "grep -m1 'model name' /proc/cpuinfo"]))
+                                             ["sh", "-c", "cat /sys/fs/selinux/enforce 2>/dev/null || echo SELinux absent"], ["nproc"], ["sh", "-c", "grep -m1 'model name' /proc/cpuinfo"]))
     return "".join(run_text(c) for c in (["uname", "-r"], ["podman", "--version"], ["crun", "--version"],
                                          ["rpm", "-q", "containers-common", "container-selinux", "crun", "podman"],
                                          ["podman", "info", "-f", "seccomp {{.Host.Security.SECCOMPProfilePath}}"]))
