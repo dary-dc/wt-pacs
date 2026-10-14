@@ -24,6 +24,13 @@ server ends the session and logs `session path`. The (client, arm) units of a (c
 Williams order every round (`lab/scripts/order.py`); the relay's seed is the round, so both arms of a pair meet the same
 loss draws. The first line of every output file prints each arm's settings and every pin.
 
+**Row INITIALMEASURE** (`--row reply`): four arms on the same binary, today, today again, `--reply-repeated-initial` and
+`--initial-rtt-ms 100`; results in the same document, §3 *Measured: INITIALMEASURE*. The tap also marks each client
+datagram that holds only Initial packets, so a repeated Initial is counted from the packets, not from its timing, with
+the server's datagrams and bytes from it to the client's reply. Its check: four synthetic datagrams (an Initial padded,
+two Initials, an Initial with a Handshake or a short-header packet after it) classified right, and wrong under each of
+two mutations (a short header taken for an Initial, padding not skipped).
+
 **Checked.** Both arms set to 333 ms (a mutated copy): the swallow lead goes from +700 ms to +3 ms and the probe round
 before the first ACK disappears. The tap's server datagrams equal the server's own `datagrams_tx` on every visit tried.
 

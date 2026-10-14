@@ -1771,7 +1771,9 @@ than the PTO expiry, subject to the address validation limits").
 * **Random loss, 1 % each way** (cell B). The opens that today wait for a server PTO (0.8 % of `cold_open`'s, none of
   Chromium's in row 139) gain only where the client repeats first: Chromium and Firefox. Medians ± 1 ms.
 * **Slow and clean** (cell C). Nothing is sent unless the client repeats. Chromium repeated in 0 of 40 opens at 300
-  and 400 ms and in 38–40 of 40 at 600 and 1 000 ms. So no extra server datagram at ≤ 400 ms. At 600 and 1 000 ms,
+  and 400 ms and in 38–40 of 40 at 600 and 1 000 ms. So no extra server datagram at ≤ 400 ms. *Corrected by
+  INITIALMEASURE: read from the packets, Chromium repeats in nearly every open at 300 and 400 ms too; row 139's count
+  took those repeats for ACKs.* At 600 and 1 000 ms,
   one spurious flight of 1.3–2.8 KB an open, answering a repeat that was itself spurious; `cold_open` at 1 000 ms
   only. No time change, no congestion event (a probe is not one in quinn, above), `cwnd` equal.
 * **With the 100 ms arm** (alternative 1). The server's PTO (300 ms after its send) and the client's repeat (300 ms
@@ -1805,6 +1807,79 @@ owner declines the 100 ms default (an open owner call: row 139 left it to a revi
   * Then **R against H** goes to the owner with both readings. If R ties H on the browsers (± 50 ms in A), the choice
     is a setting against a carried patch, and this row recommends H unless the owner refuses H's slow-link probes.
   * If R misses cell A on a browser, the repeat is not the clock: say which client and close it.
+
+#### Measured: INITIALMEASURE, 2026-10-14
+
+*Queue row 189*, run from the protocol and rule above only: [`lab/irtt`](../../lab/irtt/README.md) `--row reply`, raw rows
+in `lab/irtt/raw/reply-{a,b,c}.jsonl.gz`. The build is `5b5d68c3`: `patches/quinn-proto-0.11.18-reply-repeated-initial.patch`
+behind `--reply-repeated-initial`, off by default, and two tests in `server/src/transport/server.rs` that fail with the
+flag off, with the once-a-connection guard removed and with every CRYPTO frame counted as new. One `series-server`
+binary (sha256 `336cb2c8…`) for all four arms, today (T), today again (A′), the reply (R) and `--initial-rtt-ms 100`
+(H), each printing `initial_window=38400,congestion=cubic-restart` and its own lever alone; quinn 0.11.11, quinn-proto
+0.11.18, wtransport 0.7.2; the same clients, certificates and pins as IRTTMEASURE. 20 000 visits, 1 843 `VOID`
+(A 238 of 2 400, C 138 of 1 600, B 1 467 of 16 000), 703 dials with no result. A repeated Initial is now read from the
+packets: the tap counts a client datagram holding only Initial packets, before the client's first datagram that holds
+anything else (its reply to the server's flight), as a repeat. Leads are T − R, the median of round-paired differences,
+*strict* · *round-paired*.
+
+**A, the first flight lost** (n = 9–19 pairs strict, 16–20 round-paired), ms R is ready sooner than T:
+
+| client | certificate | 40 ms | 80 ms | 150 ms |
+| --- | --- | ---: | ---: | ---: |
+| Chromium | dev | +699.5 · +699.7 | +700.9 · +701.0 | +700.5 · +700.4 |
+| Chromium | chain | +700.3 · +700.3 | +700.7 · +700.7 | +700.5 · +700.4 |
+| Firefox | dev | +691.0 · +695.0 | +678.0 · +673.0 | +699.5 · +692.5 |
+| Firefox | chain | +670.0 · +664.0 | **+639.0 · +641.5** | +687.0 · +688.5 |
+| `cold_open` | dev | +0.1 · −0.0 | +0.1 · +0.1 | +0.1 · +0.4 |
+| `cold_open` | chain | +80.8 · +42.1 | +1.1 · +3.0 | +1.8 · +1.0 |
+
+A/A (T − A′) medians are within ±0.7 ms on Chromium and `cold_open` and −9.0 to +7.5 on Firefox, whose single pairs
+spread −83 to +59. H against R (H's ready − R's): Chromium −0.2 to +1.0 ms, Firefox −27.0 to +13.5, `cold_open`
+−695 to −849 (H's own probe at 300 ms; R waits for `cold_open`'s repeat at 999 ms, beside today's PTO). From the repeat
+to the client's reply the server sent a browser, median per open, 8–10 datagrams and 2.8–3.8 KB in T (an ACK per repeat, then
+the PTO's flight) and 3–4 datagrams, 1.3–2.6 KB in R. Firefox's chain cell at 80 ms, traced in 5 more rounds with the
+tap's log kept: its repeat reaches the server at 296–333 ms and its reply leaves at 379–418 ms under R, 1 082–1 087 ms
+under T, so the wire gains 697 ms there too; Firefox then takes 350–480 ms more to `ready` under R and H, against
+300–320 under T.
+
+**B, 1 % each way at 80 ms** (1 000 rounds; complete quadruples 489–687 strict, 711–1 000 round-paired). Medians
+164.7–167.1 ms in all four arms, T − R and T − A′ within ±0.1 ms in both readings; congestion events T · A′ · R
+round-paired 39 · 38 · 36 (Chromium, chain), 24 · 23 · 26 (Chromium, dev), 124 · 129 · 130 and 73 · 74 · 73
+(`cold_open`), `cwnd` 38 400 in all. The relay's seed is the round, so the same 8 rounds a certificate lose part of the
+server's first flight in every arm: Chromium then repeats at once, and those opens were ready at **248–252 ms in R**,
+1 166–1 174 in T and 467–471 in H; `cold_open` repeats at 999 ms in those rounds and ties T (1 245–1 414 ms) but in 2 of
+8 chain rounds, while H probes first (548–636). Chromium's p99, round-paired, T · R · H: 532 · 414 · 468 (chain), 467 ·
+415 · 467 (dev).
+
+**C, slow clean links and LTE-loaded** (n = 8–18 strict, 16–20 round-paired). Every R median within the A/A pair's
+spread in both readings (R leads −12.2 to +2.6 ms, A/A −10.5 to +6.4), 0 congestion events in every visit of every arm,
+LTE-loaded included, `cwnd` 38 400 and `rtt_us` alike. In the 163 visits whose client sent no repeat (nearly all `cold_open`'s below
+1 000 ms) R sent one server round before the client's reply in all 163, the same 2–5 datagrams as T and A′; H sent a
+second round in 135 of them. **Chromium repeated in 18–20 of 20 visits of every C cell, 300 and 400 ms included**, and R
+answered each with one flight, median 1.3 KB (chain) to 2.0 KB (dev) an open, which T and A′ do not send; H's probes
+sent 1.9–6.6 KB.
+
+**Predictions.**
+
+* **Cell A: held on Chromium** (+699.5 to +701.0, both certificates, both readings); **on Firefox but one cell**: the
+  chain at 80 ms, +639.0 · +641.5, outside 699 ± 50 by 8–10 ms in both readings, where H reads +651.5 · +635.0. The
+  trace puts the shortfall after the handshake, in Firefox's own time to `ready`, not on the wire. `cold_open` +0 ± 50:
+  held on dev, refuted on the chain at 40 ms (+80.8 strict, +42.1 round-paired).
+* **Cell B: held.** Medians ±0.1 ms; the gain lands where the client repeats first, Chromium: 0.8 % of its opens,
+  1 166 → 250 ms.
+* **Cell C: "no extra server datagram at ≤ 400 ms": refuted** for Chromium, which repeats at 300 and 400 ms as at 600
+  and 1 000 (its 300 ms probe fires as the flight lands; row 139's timing cut-off read those repeats as ACKs), so R
+  sends one spurious flight a Chromium open on every slow link. No time change, no congestion event, `cwnd` equal:
+  held.
+* **R against H on the browsers: held**, ± 50 ms in every A cell.
+
+**The rule does not pass**: its first clause asks 699 ± 50 on Firefox on both certificates, and the chain at 80 ms is
++639 · +641.5 in both readings. B's and C's clauses hold: medians within the A/A spread, no congestion event beyond
+today's, no server datagram beyond today's where the client sent no repeat. By the rule's last line the row closes on
+Firefox. The trace says the repeat *is* Firefox's clock (on the wire it gains 697 ms, as Chromium's does); the miss is
+Firefox's variable time from its reply to `ready`, which H's arm meets alike. The flag stays in the build, off by
+default. Two readings are for the owner: against H, R ties the browsers in A and loses `cold_open` by 0.7–0.85 s; in
+B it is 220 ms ahead of H on the 0.8 % of Chromium opens that lose part of the first flight.
 
 ### After a blink, 2026-09-19
 
