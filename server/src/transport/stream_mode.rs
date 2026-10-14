@@ -10,7 +10,7 @@ pub enum StreamMode {
     Shared,
     /// Independent delivery per frame; allows `set_priority` and `reset`.
     PerFrame,
-    /// Lab only: per-frame, every ask's stream ranked above every fill stream. `docs/native/quic-compared.md` §9.5.
+    /// Per-frame, every ask's stream ranked above every fill stream. `docs/native/quic-compared.md` §9.5.
     PerFrameAsksFirst,
 }
 
