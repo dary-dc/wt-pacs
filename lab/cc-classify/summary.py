@@ -5,7 +5,8 @@
 
 GRID.jsonl: run.mjs rows; a cell's ratio is each round's fill (every frame on the page) over `cubic-restart`'s in the
 same round. Strict pairs neither visit VOID; round-paired keeps VOID. A visit owes every frame exact to pair at all.
-NEIGHBOUR.tsv: fq_neighbour_cells.sh rows; the share is ours over ours and the neighbour's, median of rounds kept.
+NEIGHBOUR.tsv: fq_neighbour_cells.sh rows; the share is ours over ours and the neighbour's, median of rounds, strict
+without VOID and round-paired with it.
 """
 import csv
 import statistics
@@ -62,8 +63,8 @@ def grid(path, mutate):
     return verdicts
 
 
-def neighbour(path):
-    rows = [r for r in csv.DictReader(open(path), delimiter="\t") if r["void"] == "0" and r["qdisc"] == "fifo"]
+def neighbour(path, strict):
+    rows = [r for r in csv.DictReader(open(path), delimiter="\t") if (r["void"] == "0" or not strict) and r["qdisc"] == "fifo"]
     share = {}
     for r in rows:
         ours, nb = float(r["mbps"]), float(r["neighbour_mbps"])
@@ -77,16 +78,16 @@ def neighbour(path):
         lever = cells.get(LEVER)
         ok = ref is not None and lever is not None and abs(lever - ref) <= 5
         held &= ok
-        print("neighbour %s: %s — %s within 5 points: %s" % (profile, line, LEVER, ok))
+        print("neighbour %s %s: %s — %s within 5 points: %s" % ("strict" if strict else "all", profile, line, LEVER, ok))
     return held
 
 
 def main():
     mutate = sys.argv[sys.argv.index("--mutate") + 1] if "--mutate" in sys.argv else None
     verdicts = grid(sys.argv[1], mutate)
-    share = neighbour(sys.argv[2])
     passes = {}
     for reading, cells in verdicts.items():
+        share = neighbour(sys.argv[2], reading == "strict")
         judged = [c for c in cells if c[2] is not None]
         clean = all(v <= 1.01 for _, k, v, _ in judged if k == "clean/jitter")
         lossy = all(v <= 0.75 for _, k, v, _ in judged if k == "1-2% fixed")
