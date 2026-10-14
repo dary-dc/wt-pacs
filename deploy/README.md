@@ -185,7 +185,9 @@ and the next page open connected and passed.
 `check_equivalence.sh`, and `client/viewer/check.mjs --url` through it on the gate's three-frame grey series passed
 in headless Chromium 141 and in Firefox 157.0.1 under `xvfb-run` (archive.mozilla.org's
 `firefox-157.0.1.tar.xz`, SHA-256 `0d92bf39cdd174f5f361008509310bdefbce72a57ca10523a43b32d62dc699b6`; the host's llvmpipe): 3/3 exact, the three readbacks equal
-to the CPU reference, Firefox's result read off its stdout. `/lab/viewer/levers.js` answered 404.
+to the CPU reference, Firefox's result read off its stdout. `/lab/viewer/levers.js` answered 404. The policy governs the dial: an image
+whose `connect-src` left out the transport failed the same check in Chromium, "Refused to connect to
+'https://127.0.0.1:…/?ask=fill:0-2' because it violates the document's Content Security Policy".
 
 ## Container settings
 
