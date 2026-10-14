@@ -21,8 +21,17 @@ NODE_PATH=$(npm root -g) node lab/decode-bench/netrules/wasm_fetches.mjs --arms 
 export FIREFOX_PATH=.../FirefoxApp/firefox     # Firefox 157.0.1, below
 R=lab/decode-bench/netrules/run.sh             # each round after /proc/stat's steal reads ≤ 2 % over 10 s
 $R emsdk-frame 12; $R emsdk-net 12; $R start-net 12; $R copy-frame 12; $R copy-memory 3; $R copy-net 12
-python3 lab/decode-bench/netrules/cells.py emsdk-net [--confirm emsdk-net-confirm]    # a line a cell, the rule's verdict
+# the confirming runs: 12 fresh rounds each, the fill and ask campaigns at 100 Mbit/s only (300 voided over 20 %)
+$R emsdk-frame 12 12 emsdk-frame-confirm; LINKS=n100000 $R emsdk-net 12 12 emsdk-net-confirm
+LINKS=n100000 $R start-net 12 12 start-net-confirm; $R copy-frame 12 12 copy-frame-confirm
+$R copy-memory 9 3 copy-memory-more; LINKS=n100000 $R copy-net 12 12 copy-net-confirm
+C=lab/decode-bench/netrules/cells.py           # a line a cell, the rule's verdict
+python3 $C emsdk-net --confirm emsdk-net-confirm   # the first run, its flags confirmed or not
+python3 $C emsdk-net --with emsdk-net-confirm      # both runs pooled, n up to 24
 ```
+
+`cells.py` was checked by mutation: with the A/A arm and the lever swapped, the projections' "better" cells read
+"worse".
 
 **Arms.** `del` is the delivered build. The A/A arm is the same build under a second name: `delcopy` its `.js` and
 `.wasm` copied (sha256 equal) for EMSDKNET and COPYRGB, `delname` the same `variants.json` entry under another key for

@@ -2301,6 +2301,60 @@ decode time first exceeds the next frame's wire time keep `startOnNeed`'s CPU sa
 worse? **AARULE** — should every net row's timing use `aa_rule.py` (rows 160 and 168's resolution bar among them),
 and does its lognormal model fit the spread the lab's raw rounds show?
 
+#### Measured
+
+*Queue row NETMEASURE, 2026-10-13/14, run from the protocols and rule above alone
+([`lab/decode-bench/netrules`](../../lab/decode-bench/netrules/README.md), `raw/` its rounds). Container times, a
+4-core VM, steal ≤ 2 % before every round; n = 12, flagged cells confirmed on 12 fresh rounds, not-conclusive cells
+read again at n = 24 (the two runs pooled). Every frame exact: 124 560 timed frames and 20 952 through the relay,
+every arm; `--mutate sample` and `truth` failed every frame of every harness. The arms' settings were equal but for
+the lever (the delivered build, `cubic-restart`, quinn's window, Chromium 141.0.7390.37, Firefox 157.0.1).*
+
+**No lever is adopted on this host.** EMSDKNET and COPYRGB lose no cell and win sound cells, but each keeps cells the
+rule cannot resolve: a frame's A/A spread here (sd 2.4–11 %) catches a loss of 5–12 % at n = 24, above the 5 % bar.
+STARTAA is the predicted trade-off. **The 300 Mbit/s link is dropped:** the relay voided 30–50 % of its visits in
+every campaign (EMSDKNET 215 of 432, STARTAA 203 of 432, COPYRGB 43 of 144) and delivered ~170 Mbit/s; its
+round-paired cells are quoted below as provisional and decide nothing. 100 Mbit/s voided 8.6–11.5 %; strict and
+round-paired agree there unless said.
+
+**EMSDKNET.** The `em6` glue requests one `.wasm`, the checked one; the mutant without `wasmBinary` requests four and
+decodes nothing. *A frame* (× of `del`, A′ beside it): better and confirmed on the projections, ×0.850 at 1× and
+×0.903–0.929 at 4× (predicted ×0.89–0.93); tie on `dbt12_ea1141` 1× and `dbt12_c` 4×; **not conclusive** on `dbt12_c`
+1×, `dbt12_ea1141` 4× (×1.010, A′ ×1.058, sd 10 %: row 134's ×1.061 inside A/A, as predicted), `ffdm_d` 1× and 4×
+(×0.972–0.990) and `syn2d_d` 1× and 4× (×0.955 at 4× flagged once, not confirmed); `g512` (synthetic) flagged once at
+n = 24 with an A/A sd of 39 %. *At 100 Mbit/s, n = 24:* no fill or cold ask worse; the fill better on `dbtproj_ge`,
+×0.997 at 1× and ×0.987 at 4×, a tie elsewhere; every cold ask a tie, ×0.984–1.007 (predicted ×0.91–0.96 on `ffdm_d`
+and `dbtproj_ge` at 4×: not held). Provisional at 300: the fill ×0.918 on `dbtproj_ge` 4× and ×0.977 on `ffdm_d` 4×.
+**Verdict by the rule: the cells, for the owner** — nothing worse, sound cells better, six frame cells not conclusive
+on this host.
+
+**COPYRGB.** *An RGB frame* better in both engines, confirmed: Chromium ×0.81–0.93 and Firefox ×0.80–0.92 on the six
+sound sets at n = 24 (predicted ×0.85–0.95 at 4× and ×0.92–0.98 at 1×: larger at 1×), `c512` ×0.89–0.95. *A grey
+frame:* no cell worse in Chromium (`dbt12_c` 1× and `syn2d_d` 1× better, confirmed, ×0.95–0.97); in Firefox
+`dbtproj_ge` 4× flagged worse once in the pooled 24 (×1.013 against A′ ×0.963), and seven grey cells not conclusive.
+`pt` (reported) is worse in Firefox on `dbt12_c` 1×, `syn2d_d` 4× and `usrgb_mel` 1× in the first run. *Memory*
+(`VmHWM` summed, n = 12): Chromium lower on every set, −26 MB on `ffdm_d`, −13 on `syn2d_d`, −9 on `dbtproj_ge`, −1.4
+to −3.8 on RGB (about a frame, as predicted); Firefox lower on `ffdm_d`, `syn2d_d`, `dbtproj_ge` and `usrgb_crc`, a
+tie or not conclusive elsewhere — and on `dbt12_c` its peak is bimodal in every arm (~1.35 or ~1.62 GB), `copy` in the
+high mode in 8 of 12 rounds and `del` in 4: the rule reads a tie (×1.049), the A/A arm cannot tell a mode shift from
+spread. *At 100 Mbit/s and 4×, confirmed:* the cold ask better, ×0.932 `ffdm_d` and ×0.922 `usrgb_mel` (predicted
+×0.93–0.98 on `usrgb_mel`); the fill better on `usrgb_mel`, ×0.880 (predicted a tie), a tie on `ffdm_d`. **Verdict:
+not adopted on this host** — Firefox's grey cells are not conclusive and one flagged once; a host that resolves them
+decides whether Firefox loses alone (the owner's per-engine trade).
+
+**STARTAA.** *At 100 Mbit/s:* decoder wake-ups ×0.20–0.43 in every cell, decoders used ½–⅔ at 4×, decoder CPU
+×0.89–0.96 at 4× (at 1× ×0.93 on `dbt12_ea1141`, the others not conclusive, sd 5–7 %); fill and cold ask a tie at 1×
+(predicted). At 4× the first run read the `ffdm_d` fill worse, ×1.042–1.051, and the confirming run did not (×1.010),
+so the rule calls it a tie; the pooled 24 read it worse, ×1.023, with `dbtproj_ge`'s fill ×1.008 and `ffdm_d`'s cold
+ask ×1.011 (the cold ask flagged in the confirming run only). Provisional at 300, round-paired: the fill ×1.188 on
+`ffdm_d` 4× and ×1.083 on `dbt12_ea1141` 4× (predicted ×1.03–1.08). **Verdict: a trade-off, for the owner** — the
+decode-bound fills lose by up to a few percent where measurable, the decoders' work falls by a third to four fifths;
+STARTAHEAD above is the row that would remove the loss.
+
+**Proposed rows** (none queued): **QUIETHOST** — on a host whose A/A frame spread is under 2 % (a dedicated core, no
+steal), do EMSDKNET's and COPYRGB's not-conclusive cells resolve? **FFPEAK** — is Firefox's bimodal peak a GC timing
+that a memory protocol must pin (a forced GC before the read, or the mode reported per round)?
+
 ## What these numbers are not
 
 * **Every millisecond is container-measured** and reported, not decided on. Heap, byte-exactness and
