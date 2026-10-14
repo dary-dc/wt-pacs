@@ -7,7 +7,8 @@ use container_bench::pack::{self, Codec, Series};
 use container_bench::parse::{self, Container, Index};
 use container_bench::source::Source;
 use series_server::media::frame_store::{FrameSpan, FrameStore};
-use series_server::media::read_path::{FillReader, ReadMode, TileReader};
+use series_server::media::read_path::{FillReader, ReadMode, TileReader, TILE_SLOTS};
+use series_server::media::uring_reader::UringReader;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -75,6 +76,18 @@ enum Cmd {
         container: String,
         #[arg(long)]
         file: PathBuf,
+    },
+    /// A `.sbnd` nothing has read, opened as the server opens it and read once by a tile session at
+    /// depth `TILE_SLOTS` in a random order: the only timing of the ring, as one JSON line. Whether it
+    /// was cold is the caller's to check, as the file's owner: `mincore` reports any other caller's
+    /// pages all resident.
+    Cold {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        frames: PathBuf,
+        #[arg(long, default_value_t = 0)]
+        round: u64,
     },
 }
 
@@ -326,7 +339,7 @@ fn measure(kind: Container, file: &Path, dir: &Path, round: u64, asks: usize, fi
     let tick_ns = 1e9 / unsafe { libc::sysconf(libc::_SC_CLK_TCK) } as f64;
     let others = (allowed_cpus_busy()?.0 - busy0) as f64 * tick_ns - own;
     Ok(serde_json::json!({
-        "nowait": hit.nowait_supported(), "cpus": cpus, "others_busy_frac": others / (wall * f64::from(cpus)),
+        "nowait": hit.nowait_supported(), "cpus": cpus, "wall_ns": wall, "others_busy_frac": others / (wall * f64::from(cpus)),
         "open_warm_ns": median(&mut warm), "open_cold_ns": median(&mut cold),
         "open_reads": reads, "open_bytes": read_bytes,
         "tile_hit_p50_ns": th50, "tile_hit_p99_ns": th99, "tile_hit_misses": th_miss,
@@ -335,6 +348,46 @@ fn measure(kind: Container, file: &Path, dir: &Path, round: u64, asks: usize, fi
         "fill_miss_fps": fm_fps, "fill_miss_cpu_ns_per_gb": fm_cpu, "fill_miss_misses": fm_miss,
         "asks": order.len(), "frames": exact.want.len(), "file_bytes": std::fs::metadata(file)?.len(),
         "checked": exact.checked, "inexact": exact.bad,
+    }))
+}
+
+fn cold(file: &Path, dir: &Path, round: u64) -> Result<serde_json::Value> {
+    let (wall0, cpu0, (busy0, cpus)) = (Instant::now(), cpu_ns(), allowed_cpus_busy()?);
+    let c = load(dir)?;
+    let mut exact = Exact { want: c.frames.iter().map(|f| xxh3_64(f)).collect(), bad: 0, checked: 0 };
+    drop(c);
+    let store = Arc::new(FrameStore::open(file)?);
+    ensure!(store.frame_count() as usize == exact.want.len(), "{} frames stored, {} coded", store.frame_count(), exact.want.len());
+    let index = plan(exact.want.len(), 0, round);
+    let order: Vec<FrameSpan> = index.iter().map(|&i| store.frame_span(i as u32)).collect();
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let (mut lat, cpu, ring, misses, ring_error) = rt.block_on(async {
+        let mut reader = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
+        let mut lat = Vec::with_capacity(order.len());
+        let c = cpu_ns();
+        for (k, span) in order.iter().enumerate() {
+            let upcoming = &order[k + 1..order.len().min(k + TILE_SLOTS)];
+            let t = Instant::now();
+            let bytes = reader.read(*span, upcoming).await?;
+            lat.push(t.elapsed().as_nanos() as u64);
+            exact.check(index[k], &bytes);
+        }
+        let cpu = cpu_ns() - c;
+        let ring = reader.ring_built();
+        let wanted = store.nowait_supported() && !ring;
+        let ring_error = wanted.then(|| UringReader::new(store.file(), TILE_SLOTS as u32).err().map(|e| format!("{e:#}"))).flatten();
+        anyhow::Ok((lat, cpu, ring, reader.stats().misses, ring_error))
+    })?;
+    let n = lat.len() as f64;
+    let (wall, own) = (wall0.elapsed().as_nanos() as f64, (cpu_ns() - cpu0) as f64);
+    // SAFETY: sysconf reads a constant.
+    let tick_ns = 1e9 / unsafe { libc::sysconf(libc::_SC_CLK_TCK) } as f64;
+    let others = (allowed_cpus_busy()?.0 - busy0) as f64 * tick_ns - own;
+    Ok(serde_json::json!({
+        "cold_p50_ns": quantile(&mut lat, 0.5), "cold_p99_ns": quantile(&mut lat, 0.99),
+        "cold_cpu_ns_per_frame": cpu as f64 / n, "cold_misses": misses, "ring": ring, "ring_error": ring_error,
+        "nowait": store.nowait_supported(), "frames": n, "checked": exact.checked, "inexact": exact.bad,
+        "cpus": cpus, "wall_ns": wall, "others_busy_frac": others / (wall * f64::from(cpus)),
     }))
 }
 
@@ -361,6 +414,12 @@ fn main() -> Result<()> {
                 }
                 anyhow::Ok(())
             })
+        }
+        Cmd::Cold { file, frames, round } => {
+            let v = cold(&file, &frames, round)?;
+            println!("{v}");
+            ensure!(v["inexact"] == 0, "{} of {} frames read were not the encoder's bytes", v["inexact"], v["checked"]);
+            Ok(())
         }
         Cmd::Index { container, file } => {
             let src = Source::open(&file, false)?;
