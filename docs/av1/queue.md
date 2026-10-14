@@ -287,6 +287,7 @@ not `ready`.
 | 204 | **DEVICE1** — row 190's D0, D1 and D2 on the owner's phone, in one evening, through row 201's kit | local, after 201 |
 | 205 | **DEVICE2** — row 190's D3 (the controlled grid under `netem`, one stream against several) | local, after 204 |
 | 206 | **DEVICE3** — row 190's D4 and D5 (the repeated Initial; memory and energy) | local, after 204 |
+| 207 | **ASKFIRSTCAP** — asks-first with the bytes in flight still capped (row 171's send window, or 6 MiB across all streams): an ask that jumps the server's queue without a deeper network queue behind it; theory | ready |
 
 ## Briefs
 
@@ -3929,6 +3930,16 @@ with a test that fails without the fix; if it is Firefox's, write the report ups
 **For a local session with the owner** (`local`), each by its run's protocol in `docs/devices.md` and row 201's kit:
 204 is D0, D1 and D2 in one evening, quick mode first; 205 is D3; 206 is D4 and D5. Raw rows stripped of anything
 identifying (§4), the reading in the doc that owns the subject. **Branch:** `claude/av1-unified-mainbase`.
+
+### 207 ASKFIRSTCAP
+
+**One question: does asks-first stop losing behind a deep queue if the bytes in flight stay capped?** Theory. Row 180's
+asks-first (`docs/native/quic-compared.md` §9.5, Measured) cut an ask ×0.28–0.43 behind short queues but was ×1.97 behind
+800 ms at 18 Mbit/s: one stream a frame lifts the shared stream's 6 MiB receive credit as the cap on bytes in flight, so
+Cubic fills the deep queue further, and no priority reaches bytes already in the network. Derive asks-first with a cap —
+row 171's send window (cwnd + M), and a fixed cap of 6 MiB across all streams — across row 193's range; with each
+controller row 200 ranks; predictions, a protocol and a rule (net only if never worse than `shared` in any cell).
+**Deliverable:** `docs/native/quic-compared.md` §9, an *Asks first, capped* part. **Branch:** `claude/av1-unified-mainbase`.
 
 ## Blocked
 
