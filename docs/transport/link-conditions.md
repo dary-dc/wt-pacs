@@ -406,7 +406,8 @@ frame checked against the encoder's input, each arm's full settings printed and 
   * *No fill worse:* **held**: native fills a tie at the read pace, and the browser fills and asks inside today's
     spread in both cells, both readings (strict and `VOID` kept agree).
   * *Rule:* the CPU saving holds and no fill or ask is worse beyond its spread, so **the cap of 24 qualifies as the build
-    default**. It is not flipped here: it replaces today's build rather than sitting beside it, and the owner's call on
+    default**. *Flipped since, 2026-10-14 (queue row 192, the owner's yes): the default build carries it
+    ([`transport-conclusions.md`](transport-conclusions.md) §4).* It was not flipped here: it replaces today's build rather than sitting beside it, and the owner's call on
     24 or 45 is open in [`../av1/queue.md`](../av1/queue.md) §Blocked. The change is two lines: the patch's ceiling
     64 → 24 and `quinn = { path = "patched/quinn" }` under `[patch.crates-io]`. Not covered: a client without a large
     receive buffer at depth 1 (§5 of [`transport-conclusions.md`](transport-conclusions.md)); these clients had

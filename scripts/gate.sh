@@ -70,7 +70,7 @@ run 1 python3 scripts/check_links.py
 step "repo: no personal path in a tracked file"
 run 1 scripts/check_personal_paths.sh
 
-step "quinn: the opt-in GSO patch still applies to crates.io quinn"
+step "quinn: the GSO patch of the default build still applies to crates.io quinn"
 run 1 scripts/patch_crate.sh quinn --check
 
 step "client: build bundles + unit tests"

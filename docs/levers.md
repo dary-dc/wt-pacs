@@ -113,7 +113,7 @@ the session's own fill (theory, (D)); each line gives its result and the protoco
 | Flow-control windows | window harness: a stalled client costs 180 kB; row 152 | held for Chromium (6 MiB); flips for a quinn client (row 167 item 4) | TC §Flow-control windows |
 | Send window 768 KB against 10 MB | cq T12: drops 1 348 → 0, +17.8 % CPU/MB at depth 4; row 81: 3.7–4.8 MB per session | held (row 167 item 5) | [`rig-limits.md`](rig-limits.md) §What a browser receives |
 | A send window tracking cwnd + 2 frames, so an ask does not wait behind the written-ahead fill | row 167's ninth item (theory): an ask waits behind 6 MiB written ahead, 0.49 s at 103 Mbit/s and 2.8 s at 18 (D), ~0.1 s with the cap | **trade-off** (row 171: ask −34 to −67 % where the credit does not bind, fill +0.7–11 %, RSS −1.5 to −4.5 MB; ASKTHENFILL proposed) | [`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, proposed |
-| GSO segment cap 45 or 24 | TC §4: −16 to −21 % CPU, p99 1.9 → 27.5 ms; cq GS1: `cap24` −16 % with no tail | owner (TC §9 #6); holds (row 167 item 6; FASTCLOCK proposed to price it) | TC §4 |
+| GSO segment cap 45 or 24 | TC §4: −16 to −21 % CPU, p99 1.9 → 27.5 ms; cq GS1: `cap24` −16 % with no tail; FASTCLOCK: 24 −14 to −21 % CPU a MB, fills and asks a tie | **adopted, 24** (the default build since 2026-10-14, row 192) | TC §4 |
 | Pacing (quinn's, always on) | — (cq TAX inferred it) | never | native/quic.md §7.1, §7.6 |
 | A frame's tail sent twice | row 131: dropped (one PTO, 2–8 % of p95) | held (row 167 item 8) | TC §A frame's tail sent twice |
 | A PING after an isolated frame | — (row 131's third arm, never run) | **never** | TC §9 #7 |
@@ -286,7 +286,7 @@ Not proposed as net; each trades one measure for another.
 | lever | gains | costs |
 | --- | --- | --- |
 | BBR as the default | 0.04–0.76 of the fill under loss | +2–13 % clean; queue; a neighbour's share |
-| GSO cap 45 or 24 | −16 to −21 % server CPU | the depth-1 tail on clients without a large receive buffer |
+| GSO cap 45 or 24 (*24 adopted, 2026-10-14*) | −16 to −21 % server CPU | the depth-1 tail on clients without a large receive buffer |
 | 32-packet initial window | −28 to −33 % first ask | +11.8 % on a 10-packet queue |
 | Send window 768 KB | 0 drops, less memory | +17.8 % CPU per MB |
 | `MALLOC_MMAP_THRESHOLD_` 1 MiB | −46 to −57 % RSS at rest | up to +5 % CPU |
@@ -328,7 +328,7 @@ Not corrected here (an audit edits only its deliverable); each for the session t
   close relative).
 * **A coded-bytes digest** is open in [`ingest/README.md`](ingest/README.md) §4 and §Blocked (row 123 (2)), but in
   the agreed draft of [`disk-layout/target.md`](disk-layout/target.md) §The two hashes.
-* **The owner's calls not in §Blocked:** the GSO cap, the initial window, `MALLOC_MMAP_THRESHOLD_` and the keep-alive
+* **The owner's calls not in §Blocked:** the GSO cap (*decided since: 24, row 192*), the initial window, `MALLOC_MMAP_THRESHOLD_` and the keep-alive
   ADR are each named the owner's call in their docs only. **P0** (ring against pool on the production host,
   [`adr/disk-access.md`](adr/disk-access.md) §9 #1) has no row and no §Blocked line.
 * **cq 78 against row 78:** [`adr/stream-shape.md`](adr/stream-shape.md) cites HOL1 as "queue row 78", the closed

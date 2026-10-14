@@ -8,11 +8,11 @@ reason.
 slow start restarted after a silence (`cubic-restart`, §3), the opening ask to on (§3 *The bytes the viewer needs anyway, pushed at session open*), and
 every flow-control window to quinn's default. A frame goes to quinn as the reader's own buffer
 (`media/frame_pool.rs`), the only send path. The release profile is `lto = "fat"`, one codegen unit.
-Two crate patches are on by default through `[patch.crates-io]` — wtransport's SETTINGS in the
-handshake flight and quinn-proto's probe of every space — and why they exist is
-[`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Early SETTINGS. Two levers are **build-time opt-ins**: the
-MTU-derived GSO cap (`patches/quinn-0.11.11-mtu-gso.patch`, §4) and a profile-guided build
-(`scripts/pgo_build.sh`, §4). Every other lever below is a flag at quinn's default.
+Three crate patches are on by default through `[patch.crates-io]` — wtransport's SETTINGS in the
+handshake flight and quinn-proto's probe of every space, whose reasons are
+[`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Early SETTINGS, and quinn's GSO cap of 24 segments a `sendmsg`
+(`patches/quinn-0.11.11-mtu-gso.patch`, §4, the default since 2026-10-14). A profile-guided build
+(`scripts/pgo_build.sh`, §4) is a **build-time opt-in**. Every other lever below is a flag at quinn's default.
 
 **The target**, set with the owner 2026-09-14: a browser on a mobile, lossy wireless link, thousands
 of sessions per server. In numbers: at 20 Mbit a 250 KB frame is 100 ms on the wire, so bytes and
@@ -1734,13 +1734,18 @@ mechanisms.
 
 - **The GSO cap** — `patches/quinn-0.11.11-mtu-gso.patch`, applied at build time to the crates.io
   tarball (`scripts/patch_crate.sh quinn`, `patched/quinn`): segments per `sendmsg` are
-  `min(platform, 65527 / mtu)` — **45 at 1 452 bytes, 44 at 1 472** (an earlier write-up said 44 at
-  1 452) — and the driver may emit 64 datagrams per poll instead of 20. quinn 0.11.11 and upstream
+  `min(platform, 65527 / mtu, 24)` — the MTU term alone is **45 at 1 452 bytes, 44 at 1 472** (an earlier
+  write-up said 44 at 1 452), the ceiling it was measured with below — and the driver may emit 64 datagrams per
+  poll instead of 20. quinn 0.11.11 and upstream
   `main` hard-code 10 with no `TransportConfig` knob (quinn-rs/quinn#2189, the shape that would
   remove the patch). Never raise the cap from `max_gso_segments()` alone: over 65 527 bytes returns
-  `EINVAL` and `quinn-udp` disables offload for that socket permanently. **Opt-in**:
-  `cargo build --release -p series-server --config 'patch.crates-io.quinn.path="patched/quinn"'`;
-  the gate runs `scripts/patch_crate.sh quinn --check`. Refresh: bump the version in
+  `EINVAL` and `quinn-udp` disables offload for that socket permanently. **The default build since 2026-10-14**
+  (queue row 192, the owner's yes to FASTCLOCK's rule): `quinn = { path = "patched/quinn" }` under
+  `[patch.crates-io]`, the ceiling 24 — 45 cost the depth-1 tail below, 24 none in FASTCLOCK's cells
+  ([`link-conditions.md`](link-conditions.md) §Re-measured, *FASTCLOCK*). `server/tests/gso_cap.rs` fails unless
+  the default build batches exactly 24 (stock quinn: 10; the ceiling at 64: 45); the gate runs
+  `scripts/patch_crate.sh quinn --check`. A stock-quinn arm is this tree with that `quinn` line removed. What
+  still carries the patch: quinn has no knob for it (quinn-rs/quinn#2189). Refresh: bump the version in
   `scripts/patch_crate.sh` and `patched/quinn/Cargo.toml`, retarget the hunks, `--check`.
 - **PGO** — `scripts/pgo_build.sh` instruments, trains on the cells this section measures, and
   rebuilds. A profile is bound to its source, so the script runs per release build and
@@ -1780,7 +1785,8 @@ paired against `base`:
 | 250 KB fill, 80 frames — asks/s | +7.9 % (6/6) | +27.5 % (6/6) | +34.2 % (5/6) | −6.5 · −25.8 · −33.0 % (6/6) |
 
 The pooled hand-off holds in every cell with nothing against it, so it is the send path. The GSO cap
-holds its win **and its regression reproduces**, to within 1 % of 2026-09-18, so it is an opt-in.
+holds its win **and its regression reproduces**, to within 1 % of 2026-09-18, so it was an opt-in (*since
+2026-10-14 the default at a ceiling of 24, which FASTCLOCK measured without the regression; above*).
 PGO re-run **without** the cap (`base` · `pool` · `pgo`, same rig, n = 6): CPU per ask against
 `base`, the hand-off included, −13.4 to −19.6 % in every cell and the four-session depth-1 p99
 **−11.8 % (5/6)** — no cell against. The host saturates at the two server cores in the depth-4 and
@@ -2251,9 +2257,9 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    and a keep-alive at ≤ S keeps it off the ask (§3 *The idle radio*); S, P, the gesture's lead and the
    energy are a device's.
 5. **`--initial-rtt-ms`**, at the target's real round trip (§3): proposed row IRTTMEASURE (§3 *A 100 ms initial RTT*).
-6. **The GSO cap: 24, or 45 behind the product's buffer** — the owner's call (§5). 24 meets FASTCLOCK's rule as the
-   build default (row 182: −14 to −21 % server CPU a MB, fills and asks a tie; [`link-conditions.md`](link-conditions.md)
-   §Re-measured). Owed: 44 against
+6. **The GSO cap: 24, the default build since 2026-10-14** — the owner's yes to FASTCLOCK's rule (row 182: −14 to −21 %
+   server CPU a MB, fills and asks a tie; [`link-conditions.md`](link-conditions.md) §Re-measured; built by row 192,
+   §4). 45 behind the product's buffer is not pursued. Owed: 44 against
    10 on CPU per ask at 20 Mbit / 50 ms and 100 Mbit / 30 ms, with a 1 Gbit / 1 ms control that must
    separate; within 5 % means inert on the target, kept only for a LAN deployment. **The packet
    size**: where a browser advertises `max_udp_payload_size` ≥ 1 472, raise

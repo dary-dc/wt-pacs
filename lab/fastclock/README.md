@@ -10,7 +10,7 @@ PATH=$PWD/lab/.av1-build/venv/bin:$PATH lab/av1/tools/tools.sh && VARIANTS=simd 
 client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh && ingest/coded-frames/build.sh
 PATH=$PWD/lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160
 cargo build --release -p series-server -p pack-series -p window-harness && cargo build -p pack-series
-# cap24: the opt-in quinn patch with its ceiling at 24 (45 as committed), into its own target
+# cap24: the quinn patch with its ceiling at 24 (as measured, 45 then; 24 and the default build since row 192)
 sed -i 's/^+const MAX_TRANSMIT_SEGMENTS: usize = 64;/+const MAX_TRANSMIT_SEGMENTS: usize = 24;/' patches/quinn-0.11.11-mtu-gso.patch
 CARGO_TARGET_DIR=target/cap24 cargo build --release -p series-server --config 'patch.crates-io.quinn.path="patched/quinn"'
 git checkout patches Cargo.lock

@@ -34,3 +34,5 @@ codegen-units = 1
 wtransport = { path = "patched/wtransport" }
 # A server's handshake probe repeats its whole flight: docs/ARCHITECTURE.md §What early SETTINGS cost.
 quinn-proto = { path = "patched/quinn-proto" }
+# Segments per `sendmsg` capped at 24: docs/transport/transport-conclusions.md §4.
+quinn = { path = "patched/quinn" }

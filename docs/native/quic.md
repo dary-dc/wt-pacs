@@ -434,8 +434,9 @@ back to back unless it is patched.
   Turning quiche's GSO off, or pacing it with a kernel patch, did not lower drops (6.35 → 160–166), which the authors
   put on HyStart++ leaving slow start later. **Pacing quality is the one lever in the target's range with published
   loss numbers, and none of them includes quinn.**
-* quinn hard-codes 10 GSO segments per `sendmsg`. This repository's patch raises that to 45, which cut CPU per ask by
-  16–21 % ([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §4). That is sessions per
+* quinn hard-codes 10 GSO segments per `sendmsg`. This repository's patch raised that to 45, which cut CPU per ask by
+  16–21 % ([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §4); the default
+  build caps it at 24 since 2026-10-14, −14 to −21 % CPU a MB with no fill or ask worse. That is sessions per
   core, not throughput.
 
 **Initial window, controller, send window: the server's, and already this repository's subject.**
