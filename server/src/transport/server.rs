@@ -1817,6 +1817,128 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// The server's half-RTT flight is at most two datagrams, its NEW_CONNECTION_IDs and the
+    /// control stream in one packet, inside the four Firefox keeps before it can decrypt them
+    /// (neqo's `SavedDatagrams::CAPACITY`). Written in pieces, the control stream left in up to
+    /// four packets whenever quinn's driver ran beside the writer; Firefox dropped the fifth, and
+    /// its loss held the fill near the initial window for seconds.
+    /// docs/transport/transport-conclusions.md §3, Firefox's 6 s stall.
+    #[test]
+    fn the_half_rtt_flight_fits_what_a_client_keeps_undecrypted() {
+        const DIALS: usize = 40;
+        let dir = std::env::temp_dir().join(format!("wtpacs-half-rtt-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let series = write_series(&dir, 1);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let flights = rt.block_on(async move {
+            let server = tokio::spawn(run_server(serve_config(series, cert_pem, key_pem, port)));
+            until_bound(port, Duration::from_secs(5)).await;
+            let mut flights = Vec::new();
+            for _ in 0..DIALS {
+                flights.push(half_rtt_datagrams(port, cert_hash).await);
+            }
+            server.abort();
+            flights
+        });
+        std::fs::remove_dir_all(&dir).ok();
+        let worst = flights.iter().max().copied().unwrap_or(0);
+        assert!(flights.iter().all(|&n| n > 0), "a dial saw no 1-RTT datagram in the first flight: {flights:?}");
+        assert!(worst <= 2, "a half-RTT flight of {worst} datagrams carrying 1-RTT packets: {flights:?}");
+    }
+
+    /// One dial through a relay that holds the server's datagrams 50 ms, so nothing the server
+    /// sends in that span answers the client: the datagrams of its first flight that carry a
+    /// 1-RTT packet.
+    async fn half_rtt_datagrams(port: u16, cert_hash: [u8; 32]) -> usize {
+        const HOLD: Duration = Duration::from_millis(50);
+        // Firefox's ClientHello spans two datagrams, the second 3.4 ms behind the first here.
+        const HELLO_GAP: Duration = Duration::from_micros(3400);
+        let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+        let relay = front.local_addr().expect("relay addr");
+        let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+        back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let log = seen.clone();
+        let relaying = tokio::spawn(async move {
+            let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+            let (mut client, mut sent) = (None, 0);
+            loop {
+                tokio::select! {
+                    Ok((n, from)) = front.recv_from(&mut up) => {
+                        client = Some(from);
+                        sent += 1;
+                        if sent == 2 {
+                            tokio::time::sleep(HELLO_GAP).await;
+                        }
+                        back.send(&up[..n]).await.ok();
+                    }
+                    Ok(n) = back.recv(&mut down) => {
+                        log.lock().unwrap().push((tokio::time::Instant::now(), carries_one_rtt(&down[..n])));
+                        let (front, d, to) = (front.clone(), down[..n].to_vec(), client);
+                        tokio::spawn(async move {
+                            tokio::time::sleep(HOLD).await;
+                            if let Some(to) = to {
+                                front.send_to(&d, to).await.ok();
+                            }
+                        });
+                    }
+                }
+            }
+        });
+        // ALPN entries the server ignores push the ClientHello past one datagram, as Firefox's is.
+        let mut tls = wtransport::tls::client::build_default_tls_config(
+            Arc::new(rustls::RootCertStore::empty()),
+            Some(Arc::new(wtransport::tls::client::ServerHashVerification::new([
+                wtransport::tls::Sha256Digest::new(cert_hash),
+            ]))),
+        );
+        tls.alpn_protocols.extend((0..6u8).map(|i| vec![b'x' + i; 250]));
+        let config = ClientConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4).with_custom_tls(tls).build();
+        let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).expect("quinn client");
+        endpoint.set_default_client_config(config.quic_config().clone());
+        let connection = tokio::time::timeout(Duration::from_secs(5), endpoint.connect(relay, "localhost").expect("connect"))
+            .await
+            .expect("no handshake in 5 s")
+            .expect("client side of the handshake");
+        tokio::time::sleep(HOLD).await;
+        connection.close(0u32.into(), b"");
+        relaying.abort();
+        let seen = seen.lock().unwrap().clone();
+        let first = seen.first().map(|(at, _)| *at).expect("the server answered nothing");
+        seen.iter().filter(|(at, one_rtt)| *at < first + HOLD && *one_rtt).count()
+    }
+
+    /// RFC 9000 §17: a datagram's packets in turn, long headers skipped by their Length, until a
+    /// short header — always the last.
+    fn carries_one_rtt(mut datagram: &[u8]) -> bool {
+        fn varint(b: &[u8]) -> (usize, usize) {
+            let len = 1 << (b[0] >> 6);
+            (b[1..len].iter().fold(usize::from(b[0] & 0x3f), |v, &x| v << 8 | usize::from(x)), len)
+        }
+        while let Some(&first) = datagram.first() {
+            if first & 0x80 == 0 {
+                return true;
+            }
+            let mut at = 5;
+            at += 1 + usize::from(datagram[at]);
+            at += 1 + usize::from(datagram[at]);
+            if first & 0x30 == 0 {
+                let (token, n) = varint(&datagram[at..]);
+                at += n + token;
+            }
+            let (length, n) = varint(&datagram[at..]);
+            datagram = &datagram[(at + n + length).min(datagram.len())..];
+        }
+        false
+    }
+
     async fn connect_session(
         series: PathBuf,
         cert_pem: PathBuf,

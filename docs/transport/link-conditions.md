@@ -458,7 +458,7 @@ frame checked against the encoder's input, each arm's full settings printed and 
     this rig times (309 Mbit/s voids it).
   * *AV1 decode-bound at 4× from 50:* **held**, in both engines on both series; at 1× it turns at 103→218.
   * *Unpredicted:* Firefox's last byte came 7.4–8.4 s after the fill's issue in 9 of its 240 visits (either codec,
-    50 and 103 Mbit/s, 1× and 4×, 7 not `VOID`), a ~6 s stall Chromium never showed. It sets those cells' maxima.
+    50 and 103 Mbit/s, 1× and 4×, 7 not `VOID`), a ~6 s stall Chromium never showed. It sets those cells' maxima. *The server's, fixed (row 203): below.*
 
   *GSO cells.* Today's build (crates.io quinn 0.11.11: 10 segments a `sendmsg`, 20 datagrams a poll) against `cap24`
   (`patches/quinn-0.11.11-mtu-gso.patch` with its ceiling at 24, so also 64 datagrams a poll, as row GS1's `cap24`);
@@ -487,7 +487,9 @@ frame checked against the encoder's input, each arm's full settings printed and 
     receive buffer at depth 1 (§5 of [`transport-conclusions.md`](transport-conclusions.md)); these clients had
     Chromium's 1 MiB and the rig's 4 MB.
   * *Proposed:* **FFSTALL** — what holds Firefox 157's receive for ~6 s in 4 % of fills, and is it ours (the dial, flow
-    control) or the engine's? **HTJ2KTURN** — at what rate does HTJ2K's fill at 4× turn decode-bound, on a relay that
+    control) or the engine's? *Answered (row 203): ours — the server's half-RTT flight outgrew the four undecryptable
+    datagrams Firefox keeps, and the lost fifth cut the initial window; fixed
+    ([`transport-conclusions.md`](transport-conclusions.md) §3, *Firefox's 6 s stall*).* **HTJ2KTURN** — at what rate does HTJ2K's fill at 4× turn decode-bound, on a relay that
     holds 309 Mbit/s?
 * **B4FAST (item 7) — what does serving `dbts_b4` as AV1 cost across the measured distribution?** The crossover
   protocol ([`../av1/crossover-protocol.md`](../av1/crossover-protocol.md)) on the whole volume, both codecs, at 18,

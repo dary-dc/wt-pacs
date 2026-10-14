@@ -1865,6 +1865,57 @@ wake is quinn-proto's and is not reported upstream from here; the product no lon
 Firefox visits that never dialled in [`../../lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md)
 and [`../../lab/av1/delivery/grey-420`](../../lab/av1/delivery/grey-420/README.md) were this.
 
+### Firefox's 6 s stall: the half-RTT flight, 2026-10-14
+
+**Ours, and fixed: Firefox dropped the fifth datagram of the server's half-RTT flight, and its loss held the fill
+near the initial window for seconds** (AV1 queue row 203). Row 182 saw Firefox 157's last byte come 7.4–8.4 s after
+the fill's issue in 9 of 240 visits, against 1.2–2.5 s otherwise ([`link-conditions.md`](link-conditions.md)
+§Re-measured, *FASTCLOCK*). Reproduced on the same rig (Firefox 157.0.1, `dbt10_ea1141` HTJ2K, 50 and 103 Mbit/s,
+23 ms each way, 1×): 2 of 17 visits, then 3 of 23 with quinn's packet trace on.
+
+**What the server saw.** Its controller trace (`--cc-trace`) shows one congestion event ~95 ms in: 47 bytes lost,
+the window cut from its initial 12 000 B to 8 400 and slow start over. Cubic then grows from there, ~1 packet a round
+trip at first: the window was 175 kB after 8.5 s, against a 600 kB bandwidth-delay product at 103 Mbit/s, and the
+13.6 MB fill took 8.4 s instead of 1.4. The first frame is already ~1 s late, so it is a crawl from the start, not a
+pause before the last byte. No other packet was lost, and the relay forwarded every one.
+
+**The lost packet.** quinn's trace (`RUST_LOG=quinn_proto=trace`) shows the half-RTT flight that follows the
+handshake: packet 0 with seven NEW_CONNECTION_IDs, then the HTTP/3 control stream in four packets of 1, 1, 1 and 22
+bytes: its stream type, the SETTINGS frame's type and length, its payload. Firefox acknowledged 0–3 and never 4.
+neqo v0.31.1 (`965bea0`, Firefox 157's) keeps at most four datagrams it cannot decrypt yet and drops the rest
+(`SavedDatagrams::CAPACITY`, `neqo-transport/src/saved.rs:30`, "not saving" from `:52`); these arrive before
+Firefox can decrypt 1-RTT packets. The fifth is gone, and quinn declares it lost by its time threshold, a congestion
+event at a window nothing can have overflowed.
+
+**Why only sometimes, and why ours.** `patches/wtransport-0.7.2-settings-in-handshake.patch` sends the control
+stream in the half-RTT ([§ Firefox's dial on a slow link](#firefoxs-dial-on-a-slow-link-2026-10-09)), and wtransport
+0.7.2 writes it in four pieces. They leave as one packet when the writes finish before quinn's connection driver runs,
+and as four when the driver runs beside the writer. In the traced run 20 visits sent the flight in one or two
+datagrams and none stalled; 3 sent five, and all 3 stalled. Chromium 141 never showed it in row 182. Not measured:
+whether Chromium keeps more undecryptable datagrams, and why Firefox cannot decrypt them on arrival.
+
+**Fix.** The patch writes the control stream's header and SETTINGS in one write (`upgrade_with_frame`, wtransport's
+`driver/streams/mod.rs`), so the half-RTT flight is at most two datagrams. Same bytes, same order, one STREAM frame.
+`the_half_rtt_flight_fits_what_a_client_keeps_undecrypted` dials 40 times through a relay that holds the client's
+second ClientHello datagram 3.4 ms, as Firefox's arrived here, and fails if any first flight carries 1-RTT packets in
+more than two datagrams. Mutated: the unfixed patch fails it 5 of 5 runs (flights of 3 to 5), and a yield between the
+header and SETTINGS 3 of 3; with the fix it passed 15 of 15. Without the 3.4 ms gap the unfixed patch passed 10 of 10,
+so the gap is what lets the driver run beside the writer here.
+
+**Measured after.** Firefox 157.0.1, the same cells, 20 rounds, the two builds and the two links in `lab/scripts/order.py`'s
+order each round, nothing else running; the builds differ in the patch alone. **Stalls (the first congestion event at
+the initial window): unfixed 1 of 40, fixed 0 of 40**; with the earlier runs, unfixed 6 of 80 (17 untraced, 23 traced,
+40 here) and fixed 0 of 80 (40 traced, 40 here; Fisher's exact p ≈ 0.03). Last byte, median: 2 471 and 2 468 ms at
+50 Mbit/s, 1 426 and 1 420 at 103, unfixed and fixed; the unfixed stall took 8 418. 1 920 / 1 920 frames exact, 16
+visits `VOID`. In every fixed visit the control stream left as one 25-byte STREAM frame, and no fixed visit lost a
+packet before the slow-start exit (its first loss at packet 256 or later). Not claimed: the A/B's other early
+cuts (a first congestion event before 400 ms at a window of 365–394 kB, 12 unfixed and 4 fixed visits) are not this
+mechanism, and their difference is untested.
+
+**Seen and not explained.** Firefox opens two QUIC connections per visit; one carries ~7 kB and no session. Both
+browsers' fills lose packets at the slow-start exit (120–460 a visit by quinn's count) that the relay's counters never
+show, with no UDP receive or backlog drop counted by the kernel; they come in every visit and both arms alike.
+
 ### Will a browser update break the server? Drafts and `reset_stream_at`, 2026-10-11
 
 **Not the next releases: every shipping and preview Chromium and Firefox build dials today's server on draft-02, and

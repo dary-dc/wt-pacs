@@ -789,7 +789,9 @@ malformed ask leaves the session serving). A re-dial puts the fill's remainder i
 **The server's SETTINGS at 0.5 RTT.** Chromium holds its CONNECT until the server's SETTINGS arrive,
 and `wtransport` 0.7.2 opened the server's control stream only after the handshake completed.
 [`../patches/wtransport-0.7.2-settings-in-handshake.patch`](../patches/wtransport-0.7.2-settings-in-handshake.patch)
-(30 lines in `endpoint.rs`) takes the server's `Connecting` to 0.5-RTT with `into_0rtt` and starts the
+(30 lines in `endpoint.rs`; since 2026-10-14 also the control stream's header and SETTINGS in one write, so the
+half-RTT flight is at most two datagrams: [`transport/transport-conclusions.md`](transport/transport-conclusions.md)
+§3, *Firefox's 6 s stall*) takes the server's `Connecting` to 0.5-RTT with `into_0rtt` and starts the
 driver on it once the ClientHello is whole — on both of the library's server entry points, `Endpoint::accept` and
 `IncomingSessionFuture::with_quic_connecting` — so SETTINGS ride the handshake flight (RFC 9114
 §6.2.1 allows it). It still waits for the handshake before reading the client's SETTINGS and CONNECT,

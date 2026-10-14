@@ -40,3 +40,101 @@
          let _settings = driver.accept_settings().await.map_err(|driver_error| {
              ConnectionError::with_driver_error(driver_error, &quic_connection)
          })?;
+--- a/src/driver/mod.rs
++++ b/src/driver/mod.rs
+@@ -395,7 +395,10 @@
+             let stream = match Stream::open_uni(&self.quic_connection)
+                 .await
+                 .ok_or(DriverError::NotConnected)?
+-                .upgrade(StreamHeader::new_control())
++                .upgrade_with_frame(
++                    StreamHeader::new_control(),
++                    self.local_settings_stream.settings_frame(),
++                )
+                 .await
+             {
+                 Ok(h3_stream) => h3_stream,
+@@ -406,7 +409,7 @@
+             };
+ 
+             self.local_settings_stream.set_stream(stream);
+-            self.local_settings_stream.send_settings().await
++            Ok(())
+         }
+ 
+         async fn accept_uni(
+--- a/src/driver/streams/mod.rs
++++ b/src/driver/streams/mod.rs
+@@ -485,13 +485,26 @@
+                 proto,
+             })
+         }
+-    }
+ 
+-    impl StreamUniLocalH3 {
+-        pub async fn write_frame(&mut self, frame: Frame<'_>) -> Result<(), ProtoWriteError> {
+-            self.proto.write_frame_async(frame, &mut self.stream).await
++        /// Header and frame in one write, one packet: docs/transport/transport-conclusions.md §3, Firefox's 6 s stall.
++        pub async fn upgrade_with_frame(
++            mut self,
++            stream_header: StreamHeader,
++            frame: Frame<'_>,
++        ) -> Result<StreamUniLocalH3, ProtoWriteError> {
++            let mut bytes = Vec::new();
++            let mut proto = self.proto.upgrade_async(stream_header, &mut bytes).await?;
++            proto.write_frame_async(frame, &mut bytes).await?;
++            wtransport_proto::bytes::BytesWriterAsync::put_buffer(&mut self.stream, &bytes).await?;
++
++            Ok(StreamUniLocalH3 {
++                stream: self.stream,
++                proto,
++            })
+         }
++    }
+ 
++    impl StreamUniLocalH3 {
+         pub fn kind(&self) -> StreamKind {
+             self.proto.kind()
+         }
+--- a/src/driver/streams/settings.rs
++++ b/src/driver/streams/settings.rs
+@@ -1,7 +1,6 @@
+ use crate::driver::streams::unilocal::StreamUniLocalH3;
+ use crate::driver::streams::uniremote::StreamUniRemoteH3;
+ use crate::driver::streams::ProtoReadError;
+-use crate::driver::streams::ProtoWriteError;
+ use crate::driver::DriverError;
+ use crate::error::StreamWriteError;
+ use crate::VarInt;
+@@ -40,27 +39,15 @@
+         self.stream.is_none()
+     }
+ 
++    pub fn settings_frame(&self) -> Frame<'_> {
++        self.settings.generate_frame()
++    }
++
+     pub fn set_stream(&mut self, stream: StreamUniLocalH3) {
+         assert!(matches!(stream.kind(), StreamKind::Control));
+         self.stream = Some(stream);
+     }
+ 
+-    pub async fn send_settings(&mut self) -> Result<(), DriverError> {
+-        match self
+-            .stream
+-            .as_mut()
+-            .expect("Cannot send settings on empty stream")
+-            .write_frame(self.settings.generate_frame())
+-            .await
+-        {
+-            Ok(()) => Ok(()),
+-            Err(ProtoWriteError::NotConnected) => Err(DriverError::NotConnected),
+-            Err(ProtoWriteError::Stopped) => {
+-                Err(DriverError::Proto(ErrorCode::ClosedCriticalStream))
+-            }
+-        }
+-    }
+-
+     pub async fn run(&mut self) -> DriverError {
+         match self.stream.as_mut() {
+             Some(stream) => match stream.stopped().await {
