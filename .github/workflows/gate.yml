@@ -148,6 +148,8 @@ jobs:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
       # Bake asks, and a runner cannot answer, for leave to read the build secret's file.
       COMPOSE_BAKE: "false"
+      # The runner has podman too, which check_equivalence.sh would prefer and which cannot see docker's images.
+      RUNTIME: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
