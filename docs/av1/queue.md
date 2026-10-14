@@ -324,6 +324,7 @@ not `ready`.
 | 228 | **WASMTOLAB** — D9 and P6: the WASM transport and `client/decode/wasm/dav1d/` tooling moved to `lab/`, `dav1d_wrap.c` kept; structural, proposed first | claimed 2026-10-14 (day, b7eb09) |
 | 229 | **REFILLMEASURE** — row 210's head re-issue (`refill=head`, B) on today's path, re-run for a verdict: its two readings split over one 50 % cell (+4 ms, ×1.003) where B never fires, so the split is noise judged as harm. Row 210's T and T + B cells only, from `claude/wip-210-ASKTHENFILLMEASURE` (rig and flag as built), plus **T′, today again**, so "worse" means beyond the A/A spread (row 173's rule) and a cell where B never fires reads as A/A; ≥ 20 Williams rounds, both readings. Rule, set before the data: B becomes the downloader's default if no cell's fill or ask under T + B is worse than T's beyond the T/T′ spread in either reading, and at least one 10 % cell's fill is better beyond it; the 18/300 cell (−273 ms in row 210) is where its gain is largest, so a phone link (row 190's D2) is where it matters | night |
 | 230 | **CIGATE** — a GitHub Actions workflow that runs every check `scripts/gate.sh` runs, with no skip but those that need a device, plus the deploy image's build and `check_equivalence.sh`, on pull requests into `claude/av1-unified-mainbase` and `main` | claimed 2026-10-14 (day, 346716) |
+| 231 | **SECCOMPURING** — row 208's rule (c) adopted: the deploy's server runs under `deploy/seccomp-uring.json`, with `memlock` and `nofile` sized as deploy/README's table says, so a container keeps io_uring on a tile miss | ready |
 
 ## Briefs
 
@@ -4186,6 +4187,18 @@ test broken on purpose turns the job red, and the next restores it. **Deliverabl
 §Before pushing naming it beside the gate. **Branch:** `claude/wip-230-CIGATE`, then a draft PR into
 `claude/av1-unified-mainbase`.
 
+### 231 SECCOMPURING
+
+*Review.* The owner, 2026-10-14: "yes to docker decision" (row 208's rule (c), §Blocked). Give `deploy/compose.yml`'s
+`server` `security_opt: ["seccomp=./seccomp-uring.json"]` and the `memlock` and `nofile` limits deploy/README's
+settings table sizes for the rings (one uid per server). Prove it through the image: the server's startup line names
+the ring, and the read-path tests run 29 of 29 under the profile where Docker's default skips 6; mutate by starting
+without the profile and watching the ring line go. `seccomp=unconfined` stays forbidden. On an SELinux-enforcing host
+the profile is not enough (`EACCES`); that stays a deploy/README note, and neither `label=disable` nor a policy module
+is shipped by default (the owner's, if wanted). Add `deploy/seccomp-uring.sh --check` beside row 230's checks, and
+correct deploy/README in place where it calls the profile optional. **Deliverable:** the change. **Branch:**
+`claude/wip-231-SECCOMPURING`, then a draft PR into `claude/av1-unified-mainbase`.
+
 ## Blocked
 
 * **2026-10-14, row 220 INITIALPATCH (for the owner):** adopt row 189's reply or not. Its rule did not pass on one
@@ -4195,11 +4208,12 @@ test broken on purpose turns the job red, and the next restores it. **Deliverabl
   and C re-run at 12 000 first.
   *Answered 2026-10-14:* neither as asked — the 100 ms initial RTT instead, with the reply removed; kept as draft PR #41.
 
-* *Owner rulings, 2026-10-14:* every cleanup row starts now ("all fixes should start", 16:04 UTC), and a CI with all the checks and tests is row 230. Before the merge into `main` (the owner, 16:15 UTC): every cleanup row but 220, 227 and 228, and row 230; the owner may add more.
+* *Owner rulings, 2026-10-14:* every cleanup row starts now ("all fixes should start", 16:04 UTC), and a CI with all the checks and tests is row 230. Before the merge into `main` (the owner, 16:15 UTC): every cleanup row but 220, 227 and 228, and row 230; the owner may add more; row 231 joins them (16:33 UTC: "yes to docker decision").
 
 * *Owner rulings, 2026-10-14:* decision 2, the cleanup, approved (rows 217–228). Row 209's frame cache stays **off by
   default** for now (`lab-frame-cache`); row 224 leaves it alone.
 
+* *Answered 2026-10-14, 16:33 UTC:* rule (c) adopted, row 231 ("yes to docker decision. It seems like something we should try to achieve our goals."); the SELinux half stays open.
 * **2026-10-14, row 208 DOCKERCLOUD (for the owner):** rule (c) recommends `deploy/seccomp-uring.json` for the container: on Docker it restores the ring (84/84 cold passes) at no cost the row could attribute to it, and buys 28.8 → 19.1 µs and ×0.67 CPU a cold 32 kB tile, a tie at 163–503 kB; its cost is io_uring's kernel surface, which seccomp cannot judge, and on SELinux-enforcing hosts `label=disable` or an untried `io_uring { allowed }` module (`docs/adr/disk-access.md` §6 *Measured in a cloud container*). Adopt or not; P0 still decides whether the ring earns its keep on the target.
 
 * **2026-10-14 UTC: the gate's browser frame checks need the Docker-built `xxh3.wasm` (found by row 209).** On `claude/av1-unified-mainbase` (`d3d3e521` and since), in a container without `client/decode/wasm/built/`, the dispatch rig fails 7 `exact:` checks and the viewer check 8: the frame check's default hasher is the product build (`client/decode/xxh3.js:6`), which 404s there, so the decode worker never starts; `require_vendor` gates on the vendor hasher, and the downloader does not forward a `hasher` option to its decoder worker (`client/transport/downloader.js:418`), so the rig cannot ask for it. With `client/decode/wasm/build/build.sh` run it likely passes (not tried). A fix — forward `hasher`, the rig asks for `hash-wasm` (162/162 in a scratch copy) — changes product behaviour, so it is the owner's: fix that way, or make the two checks skip by name without `built/`.
