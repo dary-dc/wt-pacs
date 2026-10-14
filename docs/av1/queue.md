@@ -1517,7 +1517,7 @@ with examples where one pattern repeats.
   W4b, LOAD, GS1, ASKL in headings :123–:1039), `docs/rig-limits.md:43,240,256,258,261,398,517`,
   `docs/av1/payload-format.md:41,94,115,137,154`, `docs/av1/adr-unit.md:3,83,101`, `docs/av1/licensing.md:73`,
   `docs/adr/exactness-in-production.md:3`, `docs/ARCHITECTURE.md:161,241`, `docs/FIXTURES.md:93,161,176,205`; 85 in lab
-  code comments (e.g. `lab/av1/exact/codec-string/check.mjs:4`, `lab/av1/exact/split/merge_test.py:3`), 52 campaign labels in 31 lab
+  code comments (e.g. `lab/av1/exact/codec-string/check.mjs:4`, `lab/av1/exact/split/merge_test.py:3`, its lab path removed by row 222), 52 campaign labels in 31 lab
   files (e.g. `lab/disk-access-bench/src/bin/read_campaign.rs:34`, `lab/page-open/downloader.html:35`). Fix: name what
   was measured. The working branch named as where something lives: `docs/av1/README.md:8`, `docs/av1/payload-format.md:94`,
   `docs/adr/disk-access.md:679` — a commit.
@@ -1599,7 +1599,7 @@ with examples where one pattern repeats.
   `cellcheck.sh` and `deploy/check_equivalence.sh` never run; `| tail -N` hides failures (`gate.sh:42-48,54,84`); no
   per-step time; `nm` not checked up front.
 * Not run or not compiled: `pack-study`, `check-fastpath` (`gate.sh:70-80`); `lab/other-clients/h3`, the Go modules
-  `lab/other-clients/go`, `lab/page-open/h3-host`; `lab/av1/exact/split/merge_test.py` (pure numpy, tests ingest's split);
+  `lab/other-clients/go`, `lab/page-open/h3-host`; `lab/av1/exact/split/merge_test.py` (pure numpy, tests ingest's split; its lab path removed by row 222);
   `ingest/coded-frames/check.mjs`, `lab/av1/exact/codec-string/check.mjs` (SKIPPED without the AV1 build); the record tests are never
   type-checked (`client/record/tsconfig.json:13`).
 * Formatting: no `cargo fmt --check`, clippy, JS/TS formatter, shellcheck or config; 29 product lines over 120 characters
