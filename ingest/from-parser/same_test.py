@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """The Rust ingest against the Python one on synthetic sets, and the mirror's names against the contract.
 
-usage: same_test.py   — needs lab/.av1-build (ingest/coded-frames/README.md), OpenJPH, and
+usage: [INGEST_BUILD=...] same_test.py   — needs ingest/tools.sh's build (default ingest/.build) and
                         `cargo build --release -p from-parser -p pack-series`
 """
 import hashlib
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -17,7 +18,7 @@ sys.path.insert(0, str(HERE))
 import mirror  # noqa: E402
 import same  # noqa: E402
 
-BUILD = same.ROOT / "lab/.av1-build"
+BUILD = Path(os.environ.get("INGEST_BUILD", same.ROOT / "ingest/.build"))
 
 # name: channels, bits stored, min, max — each a layout the HTJ2K path codes apart
 SETS = {

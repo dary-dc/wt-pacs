@@ -110,7 +110,7 @@ run 1 bash -c "cd client/transport/ts && npx tsc -p tsconfig.check.json && npx t
 
 step "ingest: the split and its merge, every depth, sign and k"
 if [[ $numpy -eq 1 ]]; then
-  run 1 "$PYTHON" lab/av1/exact/split/merge_test.py
+  run 1 "$PYTHON" ingest/coded-frames/merge_test.py
 else
   skip "the split's merge test needs numpy (PYTHON=... with numpy, README.md §Prerequisites)"
 fi
@@ -119,17 +119,18 @@ step "ingest: the DICOM reader — order, planes, sign, functional groups, refus
 if "$PYTHON" -c "import pydicom, numpy" 2>/dev/null; then
   run 1 "$PYTHON" ingest/from-dicom/from_dicom_test.py
 else
-  skip "the DICOM reader's tests need pydicom and numpy (PYTHON=... with lab/av1/requirements.txt)"
+  skip "the DICOM reader's tests need pydicom and numpy (PYTHON=... with ingest/requirements.txt)"
 fi
 
 step "ingest: the Rust ingest against the Python one — every layout byte-identical at --jobs 1, 2 and 4"
-if [[ -f lab/.av1-build/payload/libdecode.so && -x lab/.av1-build/aom-3.15.1/bin/aomenc && -d lab/.openjph-build/install ]] \
+export INGEST_BUILD="${INGEST_BUILD:-$ROOT/ingest/.build}"
+if [[ -f "$INGEST_BUILD/payload/libdecode.so" && -d "$INGEST_BUILD/openjph" ]] \
   && "$PYTHON" -c "import numpy, xxhash, blake3" 2>/dev/null; then
   run 1 cargo build --release --quiet -p from-parser -p pack-series
   run 2 cargo test -p from-parser --quiet
   run 1 "$PYTHON" ingest/from-parser/same_test.py
 else
-  skip "the two ingests compared need lab/.av1-build and OpenJPH (ingest/coded-frames/README.md) and PYTHON=... with lab/av1/requirements.txt"
+  skip "the two ingests compared need ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
 step "lab: the variant order and its predecessor split"
@@ -138,7 +139,7 @@ run 1 node lab/order.test.mjs
 step "lab: the device kit's plan, bundle reader, collector and server start"
 run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
-run 1 sh lab/devices/server_start_test.sh
+run 1 sh deploy/server_start_test.sh
 
 step "lab: the AV1 fetch refuses a lossy source its set does not mark"
 run 1 python3 lab/av1/provenance_test.py

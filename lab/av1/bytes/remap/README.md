@@ -8,7 +8,7 @@ Queue row 64 (REMAP) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md): wh
 ```bash
 lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh   # libaom 3.15.1, dav1d, dav1d-WASM
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # ojph_compress 0.31.0
-ingest/coded-frames/build.sh && client/decode/wasm/fetch_openjph.sh  # ingest's check; OpenJPH-WASM
+BUILD=lab/.av1-build ingest/coded-frames/build.sh && client/decode/wasm/fetch_openjph.sh  # ingest's check; OpenJPH-WASM
 lab/av1/fetch_data.sh dbtproj_ge dbtproj_holo dbtproj_c ct_lidc ct_nlst ct_crc xa_dynact16 pt15_cptac mg16_cbis
 P=lab/av1/.venv/bin/python D=lab/av1/data W=lab/.av1-work/remap
 $P lab/av1/bytes/remap/levels.py $D/{dbtproj_ge,dbtproj_holo,dbtproj_c,ct_lidc,ct_nlst,ct_crc,xa_dynact16,pt15_cptac,mg16_cbis}

@@ -6,7 +6,7 @@ our pin gain or break for lossless, high bit depth, monochrome, decode speed or 
 read and the cells.
 
 ```bash
-lab/av1/tools/tools.sh && ingest/coded-frames/build.sh            # libaom 3.15.1, native dav1d, ingest's in-process check
+lab/av1/tools/tools.sh            # libaom 3.15.1, native dav1d, ingest's in-process check
 client/decode/wasm/fetch_openjph.sh                    # the shipped OpenJPH package (variant htj2k)
 lab/av1/tools/newer/build.sh                            # everything below "built", ~40 min on 4 cores
 lab/av1/fetch_data.sh ffdm_a ffdm_b syn2d_a syn2d_b dbt12_ea1141 dbt10_ea1141 dbtproj_ge dbtproj_holo \

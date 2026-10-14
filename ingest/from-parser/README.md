@@ -6,15 +6,15 @@ with the calls `ojph_compress` makes (`encode.cpp`), each frame decoded back thr
 `decode.cpp` and checked by XXH3-64, nothing written unless every frame is exact.
 
 ```bash
-lab/av1/tools/tools.sh && FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160 && ingest/coded-frames/build.sh
-cargo build --release -p from-parser -p pack-series                       # links lab/.openjph-build and lab/.av1-build
-P=lab/av1/.venv/bin/python                                                # numpy, xxhash, blake3: lab/av1/requirements.txt
+ingest/tools.sh                                                           # OpenJPH 0.31.0 and the check's decoders
+cargo build --release -p from-parser -p pack-series                       # links ingest/.build
+P=.venv/bin/python                                                        # numpy, xxhash, blake3: ingest/requirements.txt
 $P ingest/from-parser/mirror.py lab/av1/data/rf_fluoro OUT                 # prints the series directory it wrote
 target/release/from-parser OUT/PbPb/<E>/<S> rf_fluoro.sbnd --jobs 4
-$P ingest/from-parser/same.py lab/.av1-build lab/av1/data/rf_fluoro WORK   # both ingests, --jobs 1, 2, 4: identical
+$P ingest/from-parser/same.py ingest/.build lab/av1/data/rf_fluoro WORK   # both ingests, --jobs 1, 2, 4: identical
 $P ingest/from-parser/same_test.py                                        # the same on synthetic sets: the gate's step
-for s in lab/av1/data/*/; do $P ingest/from-parser/same.py lab/.av1-build "$s" WORK; done   # every fetched set
+for s in lab/av1/data/*/; do $P ingest/from-parser/same.py ingest/.build "$s" WORK; done   # every fetched set
 ```
 
-`mirror.py` is the parser's stand-in until phase 2, deleted then. `OPENJPH` and `INGEST_BUILD` move the libraries the
-build links from `lab/.openjph-build/install` and `lab/.av1-build`.
+`mirror.py` is the parser's stand-in until phase 2, deleted then. `INGEST_BUILD` moves the libraries the build and
+`same_test.py` link from `ingest/.build` (`INGEST_BUILD=lab/.av1-build` where `lab/av1/tools/tools.sh` built them).

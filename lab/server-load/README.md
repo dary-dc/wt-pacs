@@ -5,7 +5,7 @@ How many concurrent fills one server core carries before it, not the links, is t
 [`docs/transport/transport-conclusions.md`](../../docs/transport/transport-conclusions.md) §4, *Many fills at once*.
 
 ```bash
-lab/av1/tools/tools.sh && ingest/coded-frames/build.sh                       # aomenc 3.15.1, dav1d 1.5.4, the check's decoders
+lab/av1/tools/tools.sh                       # aomenc 3.15.1, dav1d 1.5.4, the check's decoders
 PATH=$PWD/lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160   # OpenJPH
 lab/av1/fetch_data.sh dbt10_ea1141
 cargo build --release -p series-server -p pack-series -p window-harness

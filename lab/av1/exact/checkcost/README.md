@@ -6,7 +6,7 @@ check after decode, the second decode a failed check triggers, and the cache rea
 [`docs/adr/exactness-in-production.md`](../../../../docs/adr/exactness-in-production.md) §9.
 
 ```bash
-lab/av1/tools/tools.sh && FRAMES=1 lab/scripts/gen_htj2k_fixtures.sh g160 && ingest/coded-frames/build.sh
+lab/av1/tools/tools.sh && FRAMES=1 lab/scripts/gen_htj2k_fixtures.sh g160
 client/decode/wasm/build/build.sh                       # the product's OpenJPH and dav1d builds, and hash-wasm's XXH3
 lab/av1/fetch_data.sh mr_ispy1 dbtproj_ge ffdm_d
 D=lab/av1/data

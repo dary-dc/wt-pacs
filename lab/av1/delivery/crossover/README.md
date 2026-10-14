@@ -22,7 +22,7 @@ Row CROSSMEASURE (106) ran the protocol on 2026-10-09; the reading is in
 ```bash
 lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh   # tools.sh's dav1d wants meson: the build's venv has it
 client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh
-PATH=lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160 && ingest/coded-frames/build.sh
+PATH=lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160 && BUILD=lab/.av1-build ingest/coded-frames/build.sh
 lab/av1/fetch_data.sh dbts_a5 dbts_b2 dbts_b4 ffdms_c1 syn2ds_a3 syn2ds_b3
 W=lab/.av1-work
 for s in dbts_a5 dbts_b2 dbts_b4; do python3 lab/av1/delivery/crossover/every_nth.py lab/av1/data/$s $W/cross-data/$s 8; done

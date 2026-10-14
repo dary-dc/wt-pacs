@@ -7,7 +7,7 @@ run by a session given only it. The reading is there, under *Measured: CLASSIFY*
 ```bash
 cargo build --release -p series-server -p pack-series -p window-harness
 cargo build -p series-server -p pack-series -p window-harness   # fq_neighbour_cells.sh builds offline, inside its namespace
-lab/av1/tools/tools.sh && ingest/coded-frames/build.sh && client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh
+lab/av1/tools/tools.sh && client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh
 lab/av1/fetch_data.sh dbt10_ea1141
 W=lab/.av1-work/ccmeasure/dbt10_ea1141
 lab/av1/.venv/bin/python ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/htj2k --codec htj2k --frames 8

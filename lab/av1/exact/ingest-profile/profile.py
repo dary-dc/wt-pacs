@@ -110,8 +110,8 @@ def wrap():
 def start_cost(build, codec):
     """CPU of one no-op run of the encoder binary: its process start and exit."""
     cmd = ([build / f"aom-{ingest.AOM}/bin/aomenc", "--help"] if codec == "av1"
-           else [ingest.OJPH / "bin/ojph_compress"])
-    env = {"LD_LIBRARY_PATH": str(ingest.OJPH / "lib")}
+           else [build / "openjph/bin/ojph_compress"])
+    env = {"LD_LIBRARY_PATH": str(build / "openjph/lib")}
     c0 = children()
     for _ in range(20):
         RUN(cmd, capture_output=True, env=env)
@@ -151,7 +151,8 @@ def main():
     units = [(c, arm) for c in cells for arm in ("stages", "cli")]
     data = ROOT / "lab/av1/data"
     starts = {c: start_cost(build, c) for c in {cell[1] for cell in cells}}
-    ingest.pinned(build)
+    for codec in {cell[1] for cell in cells}:
+        ingest.pinned(build, codec)
     ingest.native(build)
     wrap()
     for rnd in range(FIRST, FIRST + rounds):

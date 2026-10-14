@@ -27,7 +27,6 @@ import xxhash
 
 ROOT = Path(__file__).resolve().parents[2]
 AOM = "3.15.1"
-OJPH = ROOT / "lab/.openjph-build/install"
 DECODERS = "dav1d 1.5.4-0-g54706fc, openjph 0.31.0"
 FLAG_SIGNED, FLAG_RCT = 1, 2
 MAX_BITS, MAX_SPLIT = 16, 8
@@ -108,13 +107,14 @@ def matches(s, raw, samples):
 
 
 @functools.cache
-def pinned(build):
-    """The encoders and decoders as pinned, or Refused naming the one that is not."""
-    aom = subprocess.run([build / f"aom-{AOM}/bin/aomenc", "--help"], capture_output=True, text=True).stdout
-    if f"AV1 Encoder v{AOM}" not in aom:
-        raise Refused(f"aomenc in {build} is not libaom {AOM}")
-    if not (OJPH / "lib/libopenjph.so.0.31.0").exists():
-        raise Refused(f"ojph_compress in {OJPH} is not OpenJPH 0.31.0")
+def pinned(build, codec):
+    """The codec's encoder and both decoders as ingest/tools.sh pins them, or Refused naming the one that is not."""
+    if codec == "av1":
+        aom = subprocess.run([build / f"aom-{AOM}/bin/aomenc", "--help"], capture_output=True, text=True).stdout
+        if f"AV1 Encoder v{AOM}" not in aom:
+            raise Refused(f"aomenc in {build} is not libaom {AOM}")
+    if not (build / "openjph/lib/libopenjph.so.0.31.0").exists():
+        raise Refused(f"ojph_compress in {build / 'openjph'} is not OpenJPH 0.31.0")
     lib = native(build)
     lib.decoder_versions.restype = ctypes.c_char_p
     if (got := lib.decoder_versions().decode()) != DECODERS:
@@ -245,8 +245,8 @@ def htj2k(build, s, work, a, b, *_):
         with open(src, "wb") as fh:
             fh.write(b"%s\n%d %d\n%d\n" % (b"P5" if s.ch == 1 else b"P6", s.w, s.h, maxval))
             fh.write((px.astype(np.int32) + shift).astype(">u2" if maxval > 255 else "u1").tobytes())
-        subprocess.run([OJPH / "bin/ojph_compress", "-i", src, "-o", cs, *HTJ2K_ARGS], check=True,
-                       capture_output=True, env={"LD_LIBRARY_PATH": str(OJPH / "lib")})
+        subprocess.run([build / "openjph/bin/ojph_compress", "-i", src, "-o", cs, *HTJ2K_ARGS], check=True,
+                       capture_output=True, env={"LD_LIBRARY_PATH": str(build / "openjph/lib")})
         data = bytearray(cs.read_bytes())
         if s.signed:
             for c in range(struct.unpack(">H", data[40:42])[0]):
@@ -264,7 +264,7 @@ CODECS = {"av1": av1, "htj2k": htj2k}
 def chunk(job):
     """Frames [a, b) through the codec; the coded frames, or why not."""
     build, s, codec, *rest = job
-    pinned(build)
+    pinned(build, codec)
     with tempfile.TemporaryDirectory() as tmp:
         return CODECS[codec](build, s, Path(tmp), *rest)
 
@@ -275,7 +275,7 @@ def coded(build, s, n, codec, jobs, representation="optimized", split=None, pres
     piece = s.part if hasattr(s, "part") else lambda a, b: s
     work = [(build.resolve(), piece(i, min(i + per, n)), codec, i, min(i + per, n), representation, split, preset, grey8)
             for i in range(0, n, per)]
-    pinned(build.resolve())
+    pinned(build.resolve(), codec)
     if codec == "av1":
         plan(s, representation, split, grey8)
     with ProcessPoolExecutor(jobs) as pool:

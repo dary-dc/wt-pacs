@@ -5,6 +5,7 @@ target/
 .local
 docs/
 **/*.md
+ingest/.build
 lab/
 !lab/container-bench
 !lab/disk-access-bench

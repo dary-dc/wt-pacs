@@ -5,7 +5,7 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 ## Prerequisites
 
 Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
-with `rustup`, Node 22 (`.nvmrc`), Python 3.11 or newer, and on PATH: git, curl, tar, patch, sha256sum,
+with `rustup`, Node 22 (`.nvmrc`), Python 3.11 to 3.13, and on PATH: git, curl, tar, patch, sha256sum,
 openssl, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
 
 ```bash
@@ -20,13 +20,14 @@ Two more open what the gate otherwise skips, by name, in its log:
 
 ```bash
 client/decode/wasm/build/build.sh                  # the decoder builds the page loads: docker; fetches emscripten (~5 min)
-python3 -m venv lab/av1/.venv && lab/av1/.venv/bin/pip install --require-hashes -r lab/av1/requirements.txt
-                                                    # numpy for the painter check: PYTHON=lab/av1/.venv/bin/python
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requirements.txt
+                                                    # numpy, pydicom, xxhash, blake3 (CPython 3.11–3.13): PYTHON=.venv/bin/python
 ```
 
-Without the first, the dispatch rig runs 152 of its 750 checks; without the second, the painter check does not run.
-The two ingests' comparison also needs the native coders: `lab/av1/tools/tools.sh`, OpenJPH
-(`FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160`) and `ingest/coded-frames/build.sh`
+Without the first, the dispatch rig runs 152 of its 750 checks; without the second, the painter check, the split's
+merge and the DICOM reader do not run. The ingest's coders — libaom 3.15.1, dav1d 1.5.4 and OpenJPH 0.31.0, built
+from source at their pins into `ingest/.build` — need cmake, ninja, meson (1.9.1 here), nasm and a C++ compiler:
+`ingest/tools.sh`. The DICOM ingest needs them, and the gate's comparison of the two ingests runs on them
 ([`ingest/from-parser/README.md`](ingest/from-parser/README.md)).
 Without Go 1.24 or newer on PATH, the lab's two Go clients are not compiled (Go fetches the toolchain each `go.mod` names and checks it against its checksum database).
 
@@ -103,8 +104,8 @@ expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-co
 One series, ingested once, then one terminal per server:
 
 ```bash
-cargo build --release -p series-server -p pack-series && bash ingest/coded-frames/build.sh   # once
-lab/av1/.venv/bin/python ingest/from-dicom/from_dicom.py lab/.av1-build path/to/series target/my.sbnd
+cargo build --release -p series-server -p pack-series && ingest/tools.sh   # once, with the venv of §Prerequisites
+.venv/bin/python ingest/from-dicom/from_dicom.py ingest/.build path/to/series target/my.sbnd
 #   (a folder of one series' single-frame objects, or one multi-frame object; docs/FIXTURES.md §From DICOM)
 
 # Terminal 1 — the WebTransport server, on the dev certificate

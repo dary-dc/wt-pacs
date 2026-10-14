@@ -9,7 +9,7 @@ optional field written, and reconfigures only when that string changes. The rule
 ```bash
 lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # OpenJPH, for ingest's check
-ingest/coded-frames/build.sh && lab/av1/fetch_data.sh                 # ingest's in-process check; all 28 series
+BUILD=lab/.av1-build ingest/coded-frames/build.sh && lab/av1/fetch_data.sh                 # ingest's in-process check; all 28 series
 W=lab/.av1-work/codecstr
 lab/av1/exact/codec-string/series.sh lab/.av1-build lab/av1/data $W/real # 2 frames a series, every layout, ~10 min
 node lab/av1/exact/codec-string/check.mjs client/contract/av1 $W/real --out $W/strings.json

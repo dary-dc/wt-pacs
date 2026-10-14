@@ -1,15 +1,15 @@
-//! The encoder shim against the pinned OpenJPH, and `ingest/coded-frames/build.sh`'s libdecode for the check.
+//! The encoder shim against the pinned OpenJPH, and libdecode for the check: both from `ingest/tools.sh`'s `INGEST_BUILD`.
 use std::path::PathBuf;
 
 fn main() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let dir = |var: &str, default: &str| std::env::var(var).map(PathBuf::from).unwrap_or_else(|_| root.join(default));
-    let ojph = dir("OPENJPH", "lab/.openjph-build/install");
-    let payload = dir("INGEST_BUILD", "lab/.av1-build").join("payload");
-    for (lib, path) in [("openjph", ojph.join("lib")), ("decode", payload.clone())] {
+    let build = std::env::var("INGEST_BUILD")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.build"));
+    let ojph = build.join("openjph");
+    for (lib, path) in [("openjph", ojph.join("lib")), ("decode", build.join("payload"))] {
         assert!(
             path.join(format!("lib{lib}.so")).exists(),
-            "no lib{lib}.so in {} — README.md §Prerequisites, ingest/coded-frames/build.sh",
+            "no lib{lib}.so in {} — ingest/tools.sh",
             path.display()
         );
         println!("cargo:rustc-link-search=native={}", path.display());
@@ -24,6 +24,5 @@ fn main() {
         .include(ojph.join("include"))
         .compile("encode");
     println!("cargo:rerun-if-changed=encode.cpp");
-    println!("cargo:rerun-if-env-changed=OPENJPH");
     println!("cargo:rerun-if-env-changed=INGEST_BUILD");
 }

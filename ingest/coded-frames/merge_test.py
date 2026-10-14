@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "ingest/coded-frames"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ingest  # noqa: E402
 
 

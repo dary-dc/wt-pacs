@@ -13,6 +13,15 @@ members = [
     "lab/window-harness",
     "lab/telemetry-bench",
 ]
+# A bare `cargo build` or `cargo test`: from-parser links ingest/tools.sh's build, the WASM client is wasm-pack's.
+default-members = [
+    "common/fod",
+    "common/frame-envelope",
+    "common/series-bundle",
+    "server",
+    "tools/pack-series",
+    "tools/check-fastpath",
+]
 resolver = "2"
 
 [workspace.dependencies]

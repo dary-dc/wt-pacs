@@ -11,7 +11,7 @@ decodes the top. The bytes do not change; only decode can. The verdict is in
 lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
-ingest/coded-frames/build.sh                                          # ingest's in-process check
+BUILD=lab/.av1-build ingest/coded-frames/build.sh                                          # ingest's in-process check
 lab/av1/fetch_data.sh ct_lidc xa_dynact16 ct_nlst ct_crc dbtproj_ge dbtproj_holo
 P=lab/av1/.venv/bin/python W=lab/.av1-work/mixdec
 $P lab/av1/decode/mixed/make_frames.py lab/.av1-build $W lab/av1/data   # each k at its shipped preset, ~30 min

@@ -11,7 +11,7 @@ rule is adopted. Correctness only, nothing timed. The format it widened is
 ```bash
 lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh      # libaom 3.15.1, native dav1d, dav1d-WASM
 P=lab/av1/.venv/bin/python W=lab/.av1-work/splitok
-$P lab/av1/exact/split/merge_test.py                                # the writer's split and merge, every v
+$P ingest/coded-frames/merge_test.py                                 # the writer's split and merge, every v
 node client/decode/av1.test.mjs                             # the reader's, every v; the golden matrix
 $P lab/av1/exact/split/make_sets.py $W/sets                         # the synthetic sources, ~1 s
 $P lab/av1/exact/split/run.py lab/.av1-build $W/sets $W/payloads       # cpu0 and allintra 7, native check; ~25 min
@@ -46,7 +46,7 @@ bits, dav1d-WASM otherwise and in the two others.
 ## Checked (2026-10-05)
 
 * **The split and merge, every value.** Every v of 0…2^b − 1 for b = 8…16, unsigned and signed, at
-  every k of 0…8: the writer's plan and merge (`merge_test.py`) 142/142 cells exact, the 20 whose top
+  every k of 0…8: the writer's plan and merge (`ingest/coded-frames/merge_test.py`) 142/142 cells exact, the 20 whose top
   would be over 12 bits refused by name; the reader's `av1-frame.js` (`av1.test.mjs`) 162/162, its
   reported range included. **The reader's old mask fails once the format is widened:** 2^(depth +
   split) − 1 lets a signed container's sign extension through, so 8-bit signed at k = 1…7 and 16-bit
