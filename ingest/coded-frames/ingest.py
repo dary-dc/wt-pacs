@@ -110,7 +110,8 @@ def matches(s, raw, samples):
 def pinned(build, codec):
     """The codec's encoder and both decoders as ingest/tools.sh pins them, or Refused naming the one that is not."""
     if codec == "av1":
-        aom = subprocess.run([build / f"aom-{AOM}/bin/aomenc", "--help"], capture_output=True, text=True).stdout
+        aomenc = build / f"aom-{AOM}/bin/aomenc"
+        aom = subprocess.run([aomenc, "--help"], capture_output=True, text=True).stdout if aomenc.exists() else ""
         if f"AV1 Encoder v{AOM}" not in aom:
             raise Refused(f"aomenc in {build} is not libaom {AOM}")
     if not (build / "openjph/lib/libopenjph.so.0.31.0").exists():
