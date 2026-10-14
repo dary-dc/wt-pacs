@@ -19,7 +19,11 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   and `VOID`. A `CELL` of `RATE/RTT/QUEUE/lossP` adds `P` % iid loss. `ARMS` names any set of arms, a bare name
   being today's server: STREAMSMEASURE (row 180) ran `ARMS="shared,window=--send-window-follows-cwnd,perframe=--stream-mode
   per-frame,asksfirst=--stream-mode per-frame-asks-first"`, read by `streams.py`; `FIRST_ROUND=k` resumes a campaign at
-  round k.
+  round k. `ASK_AT=0.25` asks once a quarter has landed (default half); each row then also holds the fill's bytes
+  left at the ask (`fill_left_at_ask`) and the server's smoothed RTT when it wrote the ask (`rtt_at_ask_ms`).
+* `askcap.py ROWS.jsonl ...` — ASKFIRSTCAPMEASURE (row 211), asks first under a cap on bytes in flight, read by
+  [`../../docs/native/quic-compared.md`](../../docs/native/quic-compared.md) §9.7's rule; its arms are
+  `rows-askcap.jsonl`'s header.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
 * The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once half has
   landed, asks for the last frame.
