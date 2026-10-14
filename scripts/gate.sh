@@ -162,6 +162,7 @@ fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
 step "lab: disk-access-bench and telemetry-bench compile (the variants are part of the API)"
 run 1 cargo check -p disk-access-bench -p telemetry-bench --all-targets --quiet
+run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
 
 if [[ $browser -eq 1 ]]; then
   step "client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)"
