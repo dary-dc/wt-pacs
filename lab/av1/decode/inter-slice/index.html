@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>INTERSLICE</title>
+<script type="module">
+  import { order } from "/lab/order.mjs";
+  import { built } from "/client/decode/wasm-glue.js";
+
+  const hex = (d) => Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
+  const get = (u) => fetch(u).then((r) => r.arrayBuffer()).then((b) => new Uint8Array(b));
+
+  function worker(decoder) {
+    const w = new Worker("/lab/av1/decode/inter-slice/pair-worker.js", { type: "module" });
+    let waiting = null;
+    w.onmessage = (e) => (e.data.kind === "failed" ? waiting.reject(new Error(e.data.reason)) : waiting.resolve(e.data));
+    const next = () => new Promise((resolve, reject) => (waiting = { resolve, reject }));
+    const call = (m, transfer = []) => { const p = next(); w.postMessage(m, transfer); return p; };
+    return { ready: call({ kind: "init", decoder }), call, close: () => w.terminate() };
+  }
+
+  /** Whether a decoded frame is the fetched one: its samples' SHA-256, and the range it reports. */
+  async function exact(f, truth, mutate) {
+    const copy = new Uint8Array(f.sab.byteLength);
+    copy.set(new Uint8Array(f.sab));
+    if (mutate.includes("sample")) copy[copy.length >> 1] ^= 1;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const v of f.signed ? new Int16Array(copy.buffer) : new Uint16Array(copy.buffer)) { if (v < min) min = v; if (v > max) max = v; }
+    const want = mutate.includes("truth") ? truth.replace(/^./, (c) => (c === "0" ? "1" : "0")) : truth;
+    return hex(await crypto.subtle.digest("SHA-256", copy)) === want && min === f.min && max === f.max;
+  }
+
+  /** rows: { set, variant, ms[] a pair, exact pairs, pairs }. One warm-up pair per worker, then pairs one at a time. */
+  globalThis.run = async ({ frames, round, mutate = [], variants = ["two", "lift"] }) => {
+    const decoder = await built("openjph");
+    const manifest = await (await fetch(`/${frames}/manifest.json`)).json();
+    const rows = [];
+    for (const set of order(manifest, round)) {
+      const at = (k, ext) => `/${frames}/${set.name}/${String(k).padStart(3, "0")}.${ext}`;
+      for (const variant of order(variants, round)) {
+        const files = await Promise.all(set.pairs.map((_, k) => Promise.all(variant === "two"
+          ? [get(at(2 * k, "htj2k")), get(at(2 * k + 1, "htj2k"))]
+          : [get(at(k, "low")), get(at(k, "high"))])));
+        const row = { set: set.name, variant, ms: [], exact: 0, pairs: files.length };
+        const w = worker(decoder);
+        try {
+          await w.ready;
+          const ask = ([a, b]) => { const first = a.slice(); const second = b.slice(); return w.call({ kind: "pair", mode: variant, first, second }, [first.buffer, second.buffer]); };
+          await ask(files[0]);
+          for (let k = 0; k < files.length; k++) {
+            const got = await ask(files[k]);
+            row.ms.push(got.ms);
+            const ok = await Promise.all(got.frames.map((f, j) => exact({ ...f, signed: set.signed }, set.pairs[k].truth[j], mutate)));
+            if (ok.every(Boolean)) row.exact++;
+          }
+        } catch (e) {
+          row.error = String(e?.message ?? e);
+        }
+        w.close();
+        rows.push(row);
+      }
+    }
+    return rows;
+  };
+  globalThis.ready = crossOriginIsolated;
+</script>
