@@ -26,8 +26,7 @@ move because of anything here.
 From a fresh clone, with docker (or podman; every `docker` below reads `podman` as well):
 
 ```bash
-bash client/decode/wasm/build/build.sh        # the decoders the page loads, checked against their manifest
-bash client/decode/wasm/fetch_xxh3.sh         # the frame check's hasher
+bash client/decode/wasm/build/build.sh        # the decoders and the frame check's hasher, checked against their manifest
 docker compose -f deploy/compose.yml build
 STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
 ```
@@ -94,11 +93,11 @@ A container test of a deployment of this shape found each one (queue row 92).
     nothing used are gone: the content-hashed asset rule, since nothing emits a hashed name, and `/harness/`,
     which the lab runs against `dev-server.py`.
 
-**What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies:
-the page and its modules, the page check's two (`?check=`), row DECODERBUILD's decoder builds with their notices
-(`client/decode/wasm/built/`, checked against `build/manifest.sha256` at build time) and the hasher; and the TS
-bundles (`build.sh --product`). No harness page, test, TypeScript source or build script. Of the studies, only the
-smoke series.
+**What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
+page and its modules, the page check's two (`?check=`), and row DECODERBUILD's decoder builds with their notices
+(`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
+time; and the TS bundles (`build.sh --product`). No harness page, test, TypeScript source or build script. Of the
+studies, only the smoke series.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
 `/wt/dev-transport.json`. Everything else is a 404, the studies' bundles included.

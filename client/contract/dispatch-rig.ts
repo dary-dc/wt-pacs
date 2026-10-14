@@ -1112,7 +1112,7 @@ async function anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure(DownloaderCl
   }
 }
 
-const HASHER = "/client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js";
+const HASHER = "/client/decode/wasm/built/xxh3/xxh3.wasm";
 const digestOf = async (base: string) => (await (await fetch(`${base}.xxh3`)).text()).trim();
 const verdicts = (got: Frame[]) => [...got].sort((a, b) => a.frameIndex - b.frameIndex).map((f) => `${f.info.path}:${f.info.exact}`).join() || "none";
 
@@ -1124,7 +1124,7 @@ const verdicts = (got: Frame[]) => [...got].sort((a, b) => a.frameIndex - b.fram
  */
 async function anAv1FrameIsCheckedAgainstItsDigest(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 frame check — no ${AV1_DIR} (client/decode/wasm/dav1d/build.sh)`);
-  if (!(await served(HASHER))) return void log(`  SKIPPED: AV1 frame check — no ${HASHER} (bash client/decode/wasm/fetch_xxh3.sh)`);
+  if (!(await served(HASHER))) return void log(`  SKIPPED: AV1 frame check — no ${HASHER} (client/decode/wasm/build/build.sh)`);
   const shallow = ["g8", "g10", "s11", "s13", "c8"].map((n) => golden("optimized", n));
   const deep = ["g12", "g14"].map((n) => golden("plain", n));
   const bases = [...shallow, ...deep];

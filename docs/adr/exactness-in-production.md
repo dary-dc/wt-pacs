@@ -476,7 +476,7 @@ owner's choices below are made.
   ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), from the samples its `.sha256` was written from.
 * The decoder worker loads hash-wasm 4.12.0's XXH3 build (`client/decode/wasm/fetch_xxh3.sh`) when `connect` is given
   `digests`, and checks every frame before it is posted. *Since row 179 (§10, Measured) it loads xxHash v0.8.4's
-  SIMD128 build instead, the same digest; hash-wasm's is behind `hasher: "hash-wasm"`.*
+  SIMD128 build instead, the same digest; hash-wasm's is `xxh3.test.mjs`'s reference alone (row 218).*
 * A mismatch is decoded once more: an AV1 payload by the other AV1 decoder, an HTJ2K codestream by a fresh decoder
   object, since the reused one is the suspect.
 * The frame carries `exact` (`true`, `false` or `"unchecked"`), `path`, `mismatchOn` when a second decode
@@ -723,8 +723,9 @@ at least 23 %. The mammogram's check goes from 6.0–6.3 ms to 4.0–4.7 ms.
 
 **Built.** xxHash v0.8.4's XXH3 is the decoder's hasher by default (`client/decode/xxh3.js`), built by the product's
 pinned decoder build (`client/decode/wasm/build`, `xxh3/xxh3.wasm`) with the bytes the C arm measured (sha256
-`4e140a2e…`); hash-wasm's stays one init flag away (`hasher: "hash-wasm"`). The digest is unchanged, so nothing
-else changes. `client/decode/xxh3.test.mjs`, in the gate, fails if the default is not that build on its SIMD path or
+`4e140a2e…`). The digest is unchanged, so nothing else changes. *Corrected 2026-10-14 (row 218):* this said
+hash-wasm's stayed one init flag away (`hasher: "hash-wasm"`), but the downloader never passed the flag to its
+decoder worker, so it never worked; the flag is removed and hash-wasm is the test's reference alone. `client/decode/xxh3.test.mjs`, in the gate, fails if the default is not that build on its SIMD path or
 if its digest differs from hash-wasm's on any of 36 lengths and offsets round XXH3's paths and the 16 KiB chunk.
 Through the product's `decoder.js` with it, row 151's bench (one round, both engines, every path) held every frame to
 the encoder's input with the check on, and caught every flipped sample of its `fault` arm: decoded again on the other
