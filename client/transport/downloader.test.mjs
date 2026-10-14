@@ -272,6 +272,48 @@ async function lostTwiceFailsLoudly() {
 await lostTwiceFailsLoudly();
 
 /**
+ * After an ask during a fill, the remainder is re-issued exactly once: when the ask lands by default, on the asked
+ * frame's head under `refill: "head"`, right behind the ask under `refill: "ask"`.
+ */
+async function theRemainderIsReissuedOnce() {
+  const want = { landed: ["", "", "3-6"], head: ["", "3-6", "3-6"], ask: ["3-6", "3-6", "3-6"] };
+  for (const [refill, expected] of Object.entries(want)) {
+    const fills = [];
+    const asks = new Map();
+    let onFrame;
+    globalThis.fakeTransport = {
+      connect: async () => ({
+        requestExactFrame: (i, onHead) => new Promise((resolve) => asks.set(i, { resolve, onHead })),
+        stats: () => ({ closed: null, lastByteAt: performance.now() }),
+        fillFrames: (from, to, f) => {
+          fills.push(`${from}-${to}`);
+          onFrame = f;
+        },
+        endStream: async () => {},
+        close() {},
+      }),
+    };
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${refill}`;
+    await import(`./downloader.js?refill-${refill}`);
+    const config = { decode: false, decoders: 0, transport, survival: false, refill: refill === "landed" ? undefined : refill };
+    await onmessage({ data: { kind: "start", config } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    await onmessage({ data: { kind: "fill", indices: [...Array(8).keys()] } });
+    for (const i of [0, 1, 2]) onFrame(frame(i));
+    await onmessage({ data: { kind: "ask", index: 7 } });
+    await settle();
+    const seen = [fills.slice(1).join()];
+    asks.get(7).onHead?.();
+    seen.push(fills.slice(1).join());
+    asks.get(7).resolve(frame(7));
+    await settle();
+    seen.push(fills.slice(1).join());
+    check(seen.join("|") === expected.join("|"), `refill ${refill}: remainders after the ask, its head, its landing: ${seen.join(" | ")}, not ${expected.join(" | ")}`);
+  }
+}
+await theRemainderIsReissuedOnce();
+
+/**
  * The downloader keeps each decoder's end of its pixel channel reachable for the decoder's life: Firefox deletes
  * the frames in flight through a transferred port once the sender's object is collected.
  */
@@ -303,5 +345,5 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue, start on need, lost decodes, ports held: ok");
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue, start on need, lost decodes, refill points, ports held: ok");
 process.exit(failed ? 1 : 0);
