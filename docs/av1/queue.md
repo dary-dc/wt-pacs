@@ -317,7 +317,7 @@ not `ready`.
 | 221 | **LABTRACES** — L1, X1, X2, X3: the congestion traces behind `telemetry`, the absence check widened to them, `crypto-ring` a plain dependency feature, the transport modules `pub(crate)`, `FrameStore::file` behind its `cfg` | claimed 2026-10-14 (night, 96d08d) |
 | 222 | **INGESTTOOLS** — B6, P1–P5: `default-members`, `ingest/tools.sh` and `ingest/requirements.txt` (3.11–3.13), README's DICOM path working from a fresh clone, `aomenc` for AV1 only, the product tests moved out of `lab/` | claimed 2026-10-14 (day, c09f06) |
 | 223 | **IMAGESLIM** — L4, L5, F1: the image serves the page's allow-list only, copies lab crates' `Cargo.toml` and `src/` only, and `check_equivalence.sh --local` runs in the gate | claimed 2026-10-14 (day, 220884) |
-| 224 | **REJECTEDPATHS** — L2, L3: row 197's rejected read-ahead hook and `followQueue` removed; row 209's `FrameCache` (L8) stays, off by default | ready |
+| 224 | **REJECTEDPATHS** — L2, L3: row 197's rejected read-ahead hook and `followQueue` removed; row 209's `FrameCache` (L8) stays, off by default | claimed 2026-10-14 (day, 204d84) |
 | 225 | **DOCSTRUE** — C1–C10 and H2: every contradiction the audit found corrected in place, `MERGE.md`, `handoff-2026-10-04.md` and `server-design-proposal.md` removed, the final queue brought in at merge | ready |
 | 226 | **GATEGAPS** — F2, F3, F5, F6, F7: `cert-compression` checked, the four lab crates compiled and tested, the rigs on the product's decoder, the other session bundles in the absence check, DICOM to `.sbnd` end to end | ready |
 | 227 | **DEDUP** — D1–D8: the duplicated logic the audit lists, each kept in one place | ready |
