@@ -559,7 +559,7 @@ async function startWithAFillDialsOnce(_DownloaderClient: DownloaderCtor, check:
 }
 
 /**
- * R3: only the dial needs the session URL, so the worker graph comes up while it is still being
+ * Un-gated: only the dial needs the session URL, so the worker graph comes up while it is still being
  * fetched: a decoder answers `ready` while the URL is withheld, and the first frame is decoded
  * once it is given. lab/page-open/README.md
  */
@@ -581,8 +581,8 @@ async function theDecodersComeUpWhileTheUrlIsUnknown(DownloaderClient: Downloade
 }
 
 /**
- * R1: the fill the consumer opens with rides the session URL, so the server serves it behind its
- * accept, and the control stream is never asked for it a second time. On unless turned off, as
+ * The opening ask: the fill the consumer opens with rides the session URL, so the server serves it
+ * behind its accept, and the control stream is never asked for it a second time. On unless turned off, as
  * the server's `--opening-ask` is. docs/ARCHITECTURE.md
  */
 async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor, check: Check) {
@@ -871,7 +871,7 @@ const GOLDEN_SHAPE: Record<string, string> = {
   g8: "1x8-bit", g9: "1x9-bit", g10: "1x10-bit", g12: "1x12-bit", s11: "1x11-bit signed", s13: "1x13-bit signed", g14: "1x14-bit", c8: "3x8-bit",
 };
 const golden = (rep: string, name: string) => `${PAYLOADS}/${rep}/${name}`;
-/** Row 43's payloads: b = 8…16 bits, every split k from the smallest whose top fits 12 bits to a top of 8, unsigned and signed. */
+/** The split-exactness check's payloads: b = 8…16 bits, every split k from the smallest whose top fits 12 bits to a top of 8, unsigned and signed. */
 const MATRIX = Array.from({ length: 9 }, (_, i) => i + 8).flatMap((b) =>
   Array.from({ length: Math.max(b - 8, 4) - Math.max(0, b - 12) + 1 }, (_, j) => Math.max(0, b - 12) + j)
     .flatMap((k) => (["u", "s"] as const).map((sign) => [b, k, sign] as const)));

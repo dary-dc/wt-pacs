@@ -407,7 +407,7 @@ identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 
 ## Capabilities
 
 Every row passed on the downloader before the harness's path was removed (2026-10-03); its column is the record. **contract** is
-`client/contract/run.mjs`, every clause against every transport; **dispatch** is `run_browser.sh dispatch`,
+`client/contract/run.ts` (bundled to `run.mjs`), every clause against every transport; **dispatch** is `run_browser.sh dispatch`,
 the downloader against a stalling fake decoder so contention is forced; both are in `scripts/gate.sh`.
 
 | capability | the harness's path | the downloader |
@@ -864,7 +864,9 @@ first written that test raced its client's own Initial repeat under load (1 run 
 waits 3 s. **Untraced**: a client whose repeat reaches the server just before its probe may not get
 the round trip back. Tried and not built: probing only the 1-RTT space (no more than early SETTINGS alone);
 re-queueing the SETTINGS as data (the session stalled, cause not found). `--initial-rtt-ms 100` is a
-larger, different lever here (−700 ms on every server) whose default waits on the target's round trip.
+larger, different lever here (−700 ms on every server), but not a default: its measurement's rule did not pass, so
+quinn's 333 ms stays ([`transport/transport-conclusions.md`](transport/transport-conclusions.md) §3, *Measured:
+IRTTMEASURE*; *corrected in place, row DOCSTRUE, 2026-10-14*: this line read as settled).
 
 #### Other clients
 
@@ -1176,7 +1178,7 @@ drops UDP, the race's time to ready against the four seconds.
 
 ## Open
 
-The owner decisions here are tracked in [`cloud-queue.md`](cloud-queue.md) §Open owner decisions.
+Each item below is the owner's to decide, and is tracked here.
 
 * **The decoder count**: `min(3, hardwareConcurrency)` is the default; a pool that follows the queue
   was built as two lab flags, off by default — `followQueue` (row 112; removed by row 224, at `ba408823`) and
@@ -1184,6 +1186,9 @@ The owner decisions here are tracked in [`cloud-queue.md`](cloud-queue.md) §Ope
   [`decode/README.md`](decode/README.md) §Not yet tried (P-START), neither adopted (*corrected, queue row DOCFIX,
   2026-10-13*: this line said "not built"); a phone's scheduler (efficiency cores) and decode speed.
 * **The reader pause** that bounds the compressed queue (§The downloader) — not built.
+* **The server's module layout, R4** — `session/` beside `transport/`, with `SessionConfig`, `SessionPipeline` and
+  `run_session`: written out, moves and renames only, not built and not approved
+  (`git show ba408823:docs/server-design-proposal.md`, §R4).
 * **Coalescing decoded frames across decoders** — a merge point for ~10 ms of a throttled fill's main
   thread: design it or drop it, the owner's call (§The hand-off).
 * **An out-of-band cancel** that drops work already queued to a decoder — only if a phone shows a

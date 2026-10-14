@@ -442,7 +442,7 @@ whatever of theirs has landed.
 
 ## Open
 
-The owner decides these; they are tracked in [`cloud-queue.md`](cloud-queue.md) §Open owner decisions.
+Each item below is the owner's to decide, and is tracked here.
 
 * **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s, and the `readMin` path's
   defect is fixed first (§Reading a frame whole).

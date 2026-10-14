@@ -20,9 +20,9 @@ import dicom_series  # noqa: E402
 import ingest  # noqa: E402
 
 PACK = Path(os.environ.get("CARGO_TARGET_DIR", ingest.ROOT / "target")) / "release/pack-series"
-# Row TOTAL4 adopted AV1 for no series (docs/av1/README.md §Total time): auto is HTJ2K until a rule is adopted.
+# The whole-round total time adopted AV1 for no series (docs/av1/README.md §Total time): auto is HTJ2K until then.
 AUTO = "htj2k"
-# Row ENC's fastest preset within 2 % of the slowest's bytes, by content (docs/av1/queue.md row 14).
+# The fastest preset within 2 % of the slowest's bytes, by content (docs/av1/README.md §Encoding).
 PRESET = {"MR": "good:6", "CT": "allintra:6", "RF": "allintra:7", "XA": "allintra:7", "MG": "good:6"}
 
 

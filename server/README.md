@@ -15,7 +15,7 @@ run_server         load the TLS identity, print its SHA-256 for the client to pi
    │               FrameStore::open — once per process: the bundle's index, the RWF_NOWAIT probe
    │               bind QUIC (dual-stack, IPv4 fallback); with --websocket, TCP on the same port
    │               print the banner (wt_url=, cert_sha256=, frames=, read_fast_path=, transport=, …)
-   │               Sessions { Arc<FrameStore>, read mode, stream mode, open_ask, stall }
+   │               Sessions { store, read_mode, mode, opening_ask, stall, cwnd_ahead }
    ├─▶ WebSocket accept loop (its own task)   one task per TCP connection
    └─▶ QUIC accept loop                       one task per session
 ```
@@ -124,6 +124,9 @@ No task ever waits on the disk: a read that is not already cached leaves the wor
 | `Link`, `Media`, `ControlStream` | `server/src/transport/link.rs` | the session's streams | the one writer of frames and refusals |
 | `WsWriter` | `server/src/transport/websocket.rs` | the socket's sink | the same, over TCP |
 | `SlowStartRestart` | `server/src/transport/restart.rs` | a Cubic controller | after a silence, slow start again instead of halving |
+| `LossBound` | `server/src/transport/loss_bound.rs` | a BBR controller | `--congestion bbr-bound`: BBR under BBRv3's loss bound, opt-in |
+| `LossClassify` | `server/src/transport/classify.rs` | a `cubic-restart` controller | lab only, `--congestion cubic-classify`: no cut on a loss that met no queue |
+| `Traced` | `server/src/transport/cc_trace.rs` | any controller | lab only: its metrics and congestion events to `$WTPACS_CC_TRACE` and `$WTPACS_LOSS_TRACE` |
 | `TransportTuning` | `server/src/transport/tuning.rs` | QUIC knobs | flags → quinn's transport config |
 
 `server/src/transport/wire.rs` reads and writes the length-prefixed FoD messages on QUIC streams, and
@@ -132,9 +135,12 @@ No task ever waits on the disk: a read that is not already cached leaves the wor
 ## Lab only
 
 Off in a deployment, and documented where they are measured: `--force-pool-reads` (every read a miss),
-`--hold-sessions` (a dial that never settles), `--stall-after-bytes` (a session that stops sending).
-The `telemetry` feature compiles in `server/src/record/`, `RecordedPipeline` and the controller traces
-(`transport/cc_trace.rs`, `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`); the default build carries none of it,
-and `scripts/gate.sh` checks that by symbol and literal. One switch is for a deployment, not the lab:
+`--hold-sessions` (a dial that never settles), `--stall-after-bytes` (a session that stops sending),
+`--send-window-follows-cwnd`, `--stream-mode per-frame-asks-first`, `--congestion cubic-classify`,
+`--reply-repeated-initial`, `--segmentation-offload false` (netem drops datagrams, not GSO batches), and the
+`lab-frame-cache` feature (`LAB_FRAME_CACHE_BYTES`). The `telemetry` feature compiles in `server/src/record/`,
+`RecordedPipeline` and the controller traces (`transport/cc_trace.rs`, `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`);
+the default build carries none of it, and `scripts/gate.sh` checks that by symbol and literal. One switch is for a
+deployment, not the lab:
 `WTPACS_READ_PATH=pool` takes the tile reader off its ring
 ([`docs/adr/disk-access.md`](../docs/adr/disk-access.md) §Flags).

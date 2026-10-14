@@ -29,7 +29,7 @@ copied) and `metadata.json` (`"codec": "av1"` and the representation for AV1, an
 unless every frame decodes back in-process (`decode.cpp`: dav1d and OpenJPH, no subprocess, no file):
 each AV1 stream unit alone, at the depth it was coded at, merged as the client merges, and each HTJ2K
 codestream as written, at its depth and signedness, by XXH3-64 against the samples as read (SHA-256 against the
-checksum written when the source was fetched until row INGESTRS1, 2026-10-12). Each frame is offset once. Refused before coding: RGB over 8 bits, grey over 14
+checksum written when the source was fetched until the Rust ingest's phase 1, queue row INGESTRS1, 2026-10-12). Each frame is offset once. Refused before coding: RGB over 8 bits, grey over 14
 bits after the offset unless `--split K` names the low bits coded apart (k ≤ 8, up to 16 bits, a top of
 at most 12 — the matrix of `make_golden.py --matrix`). Without it, optimized takes k by depth (`optimized_split`: 0 up to 9 bits, 3 at
 13, 2 otherwise) and plain k = max(0, b − 12). `--preset` is `cpu0`, `good:N` or `allintra:N` (`lab/av1/bytes/README.md` §ENC names the fastest

@@ -24,7 +24,7 @@ const xxh3 = await hasher();
 new Function(readFileSync(HASH_WASM, "utf8")).call(globalThis);
 const reference = await globalThis.hashwasm.createXXHash3();
 
-/** The decoder's default hasher is the manifest's xxHash build on its SIMD path, the one row 179 adopted. */
+/** The decoder's default hasher is the manifest's xxHash build on its SIMD path, the one adopted for speed (exactness-in-production.md §10). */
 check(xxh3.vector === 4, `XXH_VECTOR is ${xxh3.vector}, not 4 (SIMD128)`);
 
 /** Its digest is hash-wasm's on every length round XXH3's paths and the 16 KiB chunk, and on an empty input. */

@@ -40,7 +40,7 @@ function log(...a) {
   logEl.textContent += a.join(" ") + "\n";
 }
 
-/** Milestones since navigation, in ms. What R2 counts round trips from — lab/page-open/. */
+/** Milestones since navigation, in ms. What the page-open count measures round trips from — lab/page-open/. */
 const open = (globalThis.__wtpacsOpen = {});
 const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
 

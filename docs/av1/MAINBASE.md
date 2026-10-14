@@ -131,8 +131,8 @@ removed it), and that commit's subject as the reason.
 | `docs/adr/stream-shape.md` | same path | changed by the branch, 26 hunks |
 | `docs/adr/telemetry-server-pipeline.md` | same path | changed by the branch, 13 hunks |
 | `docs/cloud-queue.md` | same path | as `main` has it |
-| `docs/handoff-2026-10-04.md` | same path | as `main` has it |
-| `docs/server-design-proposal.md` | same path | changed by the branch, 2 hunks |
+| `docs/handoff-2026-10-04.md` | same path | as `main` has it; removed since (row DOCSTRUE) |
+| `docs/server-design-proposal.md` | same path | changed by the branch, 2 hunks; removed since (row DOCSTRUE) |
 | `docs/transport/transport-conclusions.md` | same path | changed by the branch, 120 hunks |
 | `c7230a9:ingest/study-bundle/Cargo.toml` | `common/series-bundle/Cargo.toml` | changed by the branch, 2 hunks |
 | `c7230a9:ingest/study-bundle/src/format.rs` | `common/series-bundle/src/format.rs` | changed by the branch, 5 hunks |
