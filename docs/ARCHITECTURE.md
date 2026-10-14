@@ -141,7 +141,9 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   spares it.
 * **Cancel** ends the stream, drops queued work by generation, fails outstanding asks with an
   `AbortError`, **resets the count of asks in flight** (it gates the fill; one left over stalled the
-  next fill) and answers `cancelled`.
+  next fill) and answers `cancelled`. An ask already on the wire stays owed: the server still sends its frame, and
+  the session refuses a second ask of it, so the same frame asked again after the cancel takes that ask over
+  rather than asking twice (row 219, VIEWERASKS; `downloader.test.mjs` *anAskAgainAfterACancelIsServed*).
 * **Closure**: a session that dies is resumed (§Session survival); a command after a closure re-dials.
 * **Memory.** The wire buffer is a ring of `decoders × perDecoder + 2`: **−19.2 MB of renderer peak on
   an 87-frame 16-bit fill, 8 of 8 rounds**, the fill's clock unmoved ([`decode/README.md`](decode/README.md)

@@ -108,8 +108,13 @@ async function open(url) {
 function judge(name, r, requests, codec, decoder) {
   if (r.error) return fail(`${name}: ${r.error}`);
   const say = (ok, why) => ok || fail(`${name}: ${why}`);
-  say(r.received === r.n && !r.errors.length, `the fill did not complete: ${r.received} of ${r.n} frames, errors ${JSON.stringify(r.errors)}`);
-  say(r.exact === r.n, `not every frame exact: ${r.exact} exact, ${r.inexact} not, ${r.unchecked} unchecked of ${r.n}`);
+  const onDemand = arg("--fill") === "0";
+  // On demand the page holds what it asked, not the series.
+  const want = onDemand ? r.asked : r.n;
+  say(r.received === want && !r.errors.length, `the ${onDemand ? "asks" : "fill"} did not complete: ${r.received} of ${want} frames, errors ${JSON.stringify(r.errors)}`);
+  say(r.exact === want, `not every frame exact: ${r.exact} exact, ${r.inexact} not, ${r.unchecked} unchecked of ${want}`);
+  if (onDemand) say(r.raced === "newest alone", `three quick steps did not keep the newest ask alone: ${r.raced}`);
+  if (onDemand) say(r.twice === String(r.n - 1), `two steps to frame ${r.n - 1} sent ${r.twice}, not its one ask`);
   say(r.askDelivered === true, `an ask of a delivered frame: ${JSON.stringify(r.askDelivered)}`);
   say(r.cancelledFill === "cancelled", `a fill cancelled at once: ${JSON.stringify(r.cancelledFill)}`);
   say(r.askAfterCancel === true, `an ask after the cancel: ${JSON.stringify(r.askAfterCancel)}`);
@@ -125,7 +130,7 @@ function judge(name, r, requests, codec, decoder) {
 }
 
 const summary = (name, r) => `${name}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
-  `fill ${Math.round(r.fillMs)} ms, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
+  `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
   `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}`;
 
 const runs = [];

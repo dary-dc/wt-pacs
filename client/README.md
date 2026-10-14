@@ -277,8 +277,9 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   when the series has digests. The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
 * **Frames.** Frames are kept in memory by index; the cache seam stays open ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
-  §Open). A step to a frame not yet here asks it ahead of the fill. With `?fill=0` there is no fill, and each step
-  asks its frame, the newest ask alone kept.
+  §Open). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
+  there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
+  its cancel asks nothing.
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
 * **The status line.** It shows the frame, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
@@ -287,10 +288,13 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 **Its check**, `viewer/check.mjs`, takes a bundle (or `--url`, a host already running). It serves the bundle, opens
 the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
 page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
-after the cancel. It fails:
+after the cancel. With `--fill 0` it first steps the page itself: to the middle frame, the last and the middle again
+at once, then to the last twice. It fails:
 
-* a fill that did not complete, or a frame lost or refused;
+* a fill that did not complete, or a frame lost or refused; on demand, a frame the page asked;
 * any frame not exact;
+* on demand, three quick steps that kept any ask but the newest, or two steps to one frame that sent more than its
+  one ask;
 * a decoder other than `--decoder`;
 * an HTJ2K page whose requests include AV1 code, from the static host's log;
 * an AV1 page whose frames were not decoded as AV1;
@@ -302,5 +306,5 @@ Headless Firefox has no WebGL: on a host without a display, run the check under 
 (Mesa's llvmpipe), and it runs Firefox windowed. The run here used conda-forge's `firefox-157.0.1-hee9eb32_0` and
 `mesalib-26.2.3-he59ec28_0` (SHA-256 `e94b9a63c490809eb615d0c18d1ae4e7d60a6f7756c7ec7b2a6b6a2032a26b53`), with
 `LD_LIBRARY_PATH`, `__EGL_VENDOR_LIBRARY_DIRS` and `LIBGL_DRIVERS_PATH` pointing into that environment. The gate runs `viewer/run_check.sh`: a three-frame HTJ2K series of
-the contract's frame, in Chromium. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
+the contract's frame, in Chromium, once filled with `--cine` and once with `--fill 0`. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
 bundles and a GL display. What it measured: `docs/ARCHITECTURE.md` §The viewer.
