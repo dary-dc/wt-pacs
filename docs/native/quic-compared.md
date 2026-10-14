@@ -1226,6 +1226,67 @@ net without it.
   judged by the same test and is predicted to fail at 103/360. If `window` again beats asks first by ≥ 15 % at
   18/800 with equal cwnd at the ask, the RTT at the ask is reported against both; the model has no term for it.
 
+**Measured (row 211, ASKFIRSTCAPMEASURE, 2026-10-14): a trade-off for the owner; `shared` stays the default.** Run in a
+session given only the protocol and its rule; `lab/ask-ahead` (`cells.py` with `ASK_AT=0.25`, read by `askcap.py`;
+rows `rows-askcap.jsonl`). The five Cubic arms as the protocol names them (`cubic-restart`, quinn's initial window, the
+10 MB send window unless the arm sets one) and `shared`, asks first and asks first + 6 MiB under `--congestion bbr` in
+the 18 and 103 Mbit/s cells; the same release build, Chromium 141.0.7390.37 through the product's downloader with
+decoding off, the 10-bit DBT volume (`dbt10_ea1141`, 24 frames, 13.6 MB HTJ2K), the ask for the last frame once a
+quarter has landed (9.68 MB of the fill left in every run, above every arm's cwnd at the ask, so every cell is
+claimed). 10 rounds, arms Williams-ordered per cell, relay under `chrt -f 50`: **690/690 exact** by SHA-256 against
+the packed codestreams, 92 `VOID`. 309 Mbit/s not run (row 180 found it not sustained on this host). Strict keeps
+1–9 rounds a cell (eight arms in a round), round-paired 10; the two give the same verdict for both capped arms.
+
+* **The cap never binds.** Asks first's cwnd at the ask is 0.02–4.1 MB in every cell (4.1 MB at 103 Mbit/s behind
+  360 and 800 ms, where `shared`'s is 4.8 MB), so no cell tests the cap against a cwnd above 6 MiB.
+* **Ask and fill, medians of 10 (round-paired), ms; ratios to `shared`; † fill above `shared`'s max:**
+
+  | cell | `shared` ask · fill | asks first | + 6 MiB | + cwnd + M | window |
+  | --- | --- | --- | --- | --- | --- |
+  | 18 Mbit/s, 46 ms, FIFO 20 | 3 091 · 6 531 | ×0.20 · 6 493 | ×0.27 · 9 208 † | ×0.19 · 6 989 † | ×0.33 · 6 530 |
+  | 18, FIFO 360 | 2 713 · 6 384 | ×0.32 · 6 348 | ×0.36 · 8 663 † | ×0.36 · 6 741 † | ×0.43 · 6 383 |
+  | 18, FIFO 800 | 3 091 · 6 386 | ×0.92 · 6 493 † | ×0.98 · 7 114 † | ×0.73 · 7 630 † | ×0.83 · 6 386 |
+  | 18, 1 % loss | 21 225 · 41 372 | ×0.11 · 41 032 | ×0.19 · 57 832 † | ×0.11 · 43 656 | ×0.25 · 41 233 |
+  | 103, 46 ms, FIFO 20 | 483 · 1 457 | ×0.27 · 1 389 | ×0.31 · 1 838 † | ×0.40 · 1 478 † | ×0.44 · 1 462 |
+  | 103, FIFO 360 | 536 · 1 432 | ×0.87 · 1 589 † | ×0.92 · 1 477 † | ×0.75 · 1 438 † | ×0.83 · 1 432 |
+  | 103, FIFO 800 | 537 · 1 434 | ×0.87 · 1 387 | ×0.92 · 1 476 † | ×0.75 · 1 434 | ×0.83 · 1 432 |
+  | 103, 1 % loss | 20 357 · 38 982 | ×0.10 · 40 114 | ×0.18 · 55 968 † | ×0.11 · 41 582 | ×0.28 · 38 198 |
+  | 103, 92 ms, FIFO 800 | 536 · 1 879 | ×0.87 · 1 777 | ×0.91 · 1 912 † | ×0.75 · 1 877 | ×0.83 · 1 878 |
+
+* **Rule:** asks first + 6 MiB's ask beats `shared` in every 20 ms and loss cell (×0.18–0.31) and is worse beyond the
+  spread nowhere, but **its fill is worse beyond `shared`'s spread in all nine cells**: +41 % (18/20), +36 % (18/360),
+  +11 % (18/800), +40 % and +44 % under 1 % loss, +26 % (103/20), +2 to +3 % behind the deep FIFOs at 103. The cap
+  binds in none of them, so by the rule this is **a trade-off for the owner**, not a refutation. Asks first + cwnd + M
+  is a trade-off too: ask ×0.11–0.75, never worse beyond the spread, its fill above `shared`'s max at 18/20 (+7 %),
+  18/360 (+6 %), 18/800 (+19 %), 103/20 (+1 %) and 103/360 (+0.4 %); it did not fail at 103/360 on the ask, as
+  predicted. With the ask at a quarter, uncapped asks first is no longer worse beyond the spread anywhere (row 180's
+  ×1.05 at 103/360 is ×0.87 here), but its fill is above `shared`'s at 103/360 (+11 %) and 18/800 (+1.7 %).
+* **Predictions:** (1) + 6 MiB's ask within 15 % of asks first's where the cap does not bind — held in 5 of 9 cells,
+  not at 18/20 (+31 %), 103/20 (+15 %) and the loss cells (+70 %, +89 %); its other half, cells where the cap binds,
+  had none. (2) cwnd + M's ask within 15 % of asks first's — held in 7 of 9 round-paired (5 of 9 strict), not at
+  18/800 (×0.79) and 103/20 (×1.48). (3) + 6 MiB's fill within asks first's spread where the cap does not bind — did
+  not hold in any cell. (4) Its RSS at most `shared`'s + 10 % — held everywhere (9.1–9.9 MB against 9.1–9.7). (5) Under
+  BBR, asks first and + 6 MiB tie and beat `shared` — held in 6 of 8 round-paired (5 of 8 strict), not at 103/20
+  (asks first ×1.37) and 103 under 1 % loss (×1.21, + 6 MiB ×0.96); + 6 MiB's fill under BBR was +35 to +40 % at
+  18 Mbit/s too. `window` did not beat asks first by 15 % at 18/800 (×0.90), so the RTT clause did not apply (668
+  against 667 ms at the ask).
+* **What the fill cost is, outside the protocol** (5 rounds, 18/20, 103/20 and 103 under 1 % loss, `shared`, `shared` +
+  6 MiB, asks first, asks first + 6 MiB; 60/60 exact, 7 `VOID`): **the 6 MiB send window costs `shared` nothing** (fill
+  6 462 against 6 556 ms, 1 460 against 1 453, 38 363 against 38 346) and **costs asks first 31–42 %**. Asks first + 6
+  MiB sends 13 724 packets for the fill at 18/20 where the other three send 9 713–9 840, with the same losses (146–164),
+  and its longest wait between in-order frames is 2.9 s against 0.5–0.6 s (0.50 against 0.09–0.15 s at 103/20). Many
+  per-frame streams under a connection send window that is full send more, smaller packets and stall; the model's
+  "bytes ahead ≤ C" has no term for it, and which part of quinn's send path does it is not isolated here.
+* **Checks:** `askcap.py` turned to "net" on rows with + 6 MiB's asks ×0.01 and its fills set to `shared`'s, to
+  "refutes" with asks first's cwnd at the ask set to 7 MiB, and to "not conclusive" with no cell claimed (a mutation
+  that first read as "net", fixed). The page asking at half regardless of `ASK_AT` left 6.26 MB at the ask instead of
+  9.68 MB; a server without the RTT field gave `rtt_at_ask_ms` none.
+* One container, 4 vCPU, server, relay and Chromium on one host.
+
+**Further rows the measurement points to:** where asks first's extra packets under a send window come from (packet
+sizes and the streams written per packet, with the window full); a cap that does not cost the fill — the theory's
+"bytes ahead ≤ C" still untested, since no cell here had a cwnd above 6 MiB at the ask.
+
 ## 10. Measured here
 
 Kept apart from the theory above; each names its row.
@@ -1239,6 +1300,9 @@ Kept apart from the theory above; each names its row.
 * **Stream designs (row 180, §9.5 *Measured*):** ranking each ask's per-frame stream above every fill stream cut an
   ask during a fill to ×0.28–0.43 of the better of `shared` and row 171's window behind 20 ms queues and under 1 %
   loss, and cost behind deep FIFOs: a trade-off.
+* **Asks first, capped (row 211, §9.7 *Measured*):** a 6 MiB send window keeps asks first's ask at ×0.18–0.31 of
+  `shared`'s behind 20 ms and under 1 % loss but costs its fill +2 to +44 % in every cell, though it bound in none;
+  `shared` under the same window loses nothing: a trade-off.
 * **Chromium's ACK_FREQUENCY:** Chromium 141 does not advertise it ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency).
 
 ## 11. Sources
