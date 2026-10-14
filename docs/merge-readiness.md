@@ -24,6 +24,7 @@ The checks were run in a cloud container (4 cores, 15 GB, Docker 29.8.2). Nothin
 | check | result |
 | --- | --- |
 | `scripts/gate.sh`, full | **green, 352 s.** It skipped five steps by name: numpy and pydicom were missing (the first venv failed, see below); the two ingests' comparison needs `lab/.av1-build`; the viewer's cross-codec arm and Firefox were not run. |
+| `scripts/gate.sh` again, with numpy and pydicom (a CPython 3.11 venv) and the lab's coders built | **red once.** Every previously skipped step but the viewer's cross-codec arm and Firefox ran and passed (the painter at 1:1, the split's merge 142/142, the DICOM reader, both ingests identical). But `an_opening_ask_rides_the_websocket_upgrade` failed with "server never listened" (B7). The suite then passed 10 of 10 times, and the test alone 30 of 30. A third full run was **green in 118 s**, skipping only the cross-codec arm and Firefox, which the viewer check covers below. |
 | the decoder builds (`client/decode/wasm/build/build.sh`) | **built, and they match `manifest.sha256`** |
 | `lab/av1/requirements.txt` on CPython 3.13 | **fails.** xxhash 3.6.0's cp313 wheel is not among the pinned hashes. The file pins CPython 3.11 wheels only (its line 1), but README §Prerequisites says "Python 3.11 or newer". It installs on 3.11. |
 | the viewer check in Chromium 141 (the gate's grey series, `client/viewer/check.mjs`) | passes |
@@ -47,6 +48,7 @@ within each group, and the groups are ranked by what merging needs first.
 | B3 | **The viewer shows a false error when a frame is asked twice.** In fill mode, stepping 5→6→5 before frame 5 arrives asks frame 5 again. The consumer then refuses with "already requested", and the page counts that in `errors`. | `client/viewer/viewer.js:141-149`; `client/transport/consumer.js:149` | **finish**: do not ask a frame whose ask is pending, and add a test. | none | ~3 + test |
 | B4 | **On-demand steps race.** Two quick steps both await `cancel()`, then both ask, so "the newest ask alone kept" (`client/README.md:277`) does not hold. A cine faster than the link cancels every ask; not measured. | `client/viewer/viewer.js:143-146,161` | **finish**, with a working `--fill 0` check (F4) | none | ~6 |
 | B5 | **The banner's `wt_url` ignores `--bind`.** It always prints `127.0.0.1`, and the harness reads it. | `server/src/transport/server.rs:88,91` | **finish** | none | ~4 |
+| B7 | **A gate test fails about 1 run in 12.** `an_opening_ask_rides_the_websocket_upgrade` takes a port that `free_port()` found free for UDP only, and then the server also binds TCP on it. A taken TCP port ends the server with an error, but the test discards that error and fails 5 s later with "server never listened". That is the suspected cause; it is not reproduced. | `server/src/transport/server.rs:919-924,1110-1126`; `websocket.rs:63-75` | **finish**: the test reports the server's own error, and its port is free for both protocols. Mutate it by holding the TCP port. | none | ~10 |
 | B6 | **A bare `cargo build` fails on a fresh clone.** `ingest/from-parser/build.rs` panics without `lib*.so` under `lab/`, and the workspace has no `default-members`. | `ingest/from-parser/build.rs:7-14`; `Cargo.toml:2-15` | **simplify**: add `default-members`, the product crates | none | ~10 |
 
 ### 2. Half-finished work on the branch
@@ -73,8 +75,8 @@ within each group, and the groups are ranked by what merging needs first.
 
 | # | item | evidence | verdict | cost | size |
 | --- | --- | --- | --- | --- | --- |
-| P1 | **The ingest's native coders (aom 3.15.1, dav1d, OpenJPH 0.31.0) are built by lab scripts into lab directories.** OpenJPH's "installer" is a fixture generator. | `ingest/coded-frames/ingest.py:30`; `build.sh:8-9`; `ingest/from-parser/build.rs:7-8`; `README.md:28-29`; `lab/av1/tools/tools.sh` | **finish**: an `ingest/tools.sh` builds the three pinned coders into a product directory, and lab's `tools.sh` calls it | none | ~60 moved |
-| P2 | **The ingest's Python dependencies are pinned in `lab/av1/requirements.txt`**, for CPython 3.11 only (see §Completely functional). | `README.md:23,107`; `scripts/gate.sh:115,122,132` | **finish**: an `ingest/requirements.txt` that lab's includes, pinned for 3.11–3.13 or with the README saying 3.11 | none | ~10 |
+| P1 | **The ingest's native coders (aom 3.15.1, dav1d, OpenJPH 0.31.0) are built by lab scripts into lab directories.** OpenJPH's "installer" is a fixture generator, and it needs numpy on the default `python3`. dav1d's build needs `meson`, which README §Prerequisites does not list (meson 1.9.1 was used here). | `ingest/coded-frames/ingest.py:30`; `build.sh:8-9`; `ingest/from-parser/build.rs:7-8`; `README.md:28-29`; `lab/av1/tools/tools.sh` | **finish**: an ingest/tools.sh builds the three pinned coders into a product directory, and lab's `tools.sh` calls it | none | ~60 moved |
+| P2 | **The ingest's Python dependencies are pinned in `lab/av1/requirements.txt`**, for CPython 3.11 only (see §Completely functional). | `README.md:23,107`; `scripts/gate.sh:115,122,132` | **finish**: an ingest/requirements.txt that lab's includes, pinned for 3.11–3.13 or with the README saying 3.11 | none | ~10 |
 | P3 | **README §The viewer on a DICOM series fails from a fresh clone.** `ingest/coded-frames/build.sh` needs builds that only the comparison's prerequisites make. | `README.md:28-29,106-107`; `docs/FIXTURES.md:55-56` | **finish**, with P1 | none | ~8 |
 | P4 | **An HTJ2K-only ingest still needs `aomenc`.** | `ingest/coded-frames/ingest.py:111-115,267,278` | **simplify**: check it for AV1 only | none | ~3 |
 | P5 | **Product tests that live in lab.** The split's merge test tests `ingest.py`, and `server_start_test.sh` tests `deploy/server-start.sh`. `make_golden.py` imports a 3-line `splits()` from lab. | `lab/av1/exact/split/merge_test.py:14`; `lab/devices/server_start_test.sh:2,10`; `ingest/coded-frames/make_golden.py:98-100` | **move** them beside what they test, and inline `splits()` | none | ~95 moved |
@@ -182,13 +184,13 @@ something, so it finishes on its branch for the owner.
 1. **VIEWERLOCK** (*review*) — B1: the product page ignores the lab levers outside the dev host, the image sends a
    CSP, and a test shows a crafted link being refused. This blocks any deployment.
 2. **DEADHASHER** (*review*) — B2: the hasher option and the image's vendor requirement go.
-3. **VIEWERASKS** — B3, B4 and F4, each fix with a failing test: no repeated ask, the newest on-demand ask kept, and
-   a `--fill 0` check that judges what was asked, run by the gate with `--cine`.
+3. **VIEWERASKS** — B3, B4, B7 and F4, each fix with a failing test: no repeated ask, the newest on-demand ask kept,
+   a `--fill 0` check that judges what was asked, run by the gate with `--cine`, and the WebSocket test's port.
 4. **INITIALMEASURE** (row 189, already claimed) — H1: the 38 400-byte confound stated, then the decision, then the
    patch kept or removed. This is a note to its session, not a new row.
 5. **LABTRACES** (*review*) — L1, X1, X2 and X3: the traces behind `telemetry`, the absence check widened, and
    `crypto-ring` and the module visibility fixed.
-6. **INGESTTOOLS** (*review*) — B6, P1–P5: `default-members`, `ingest/tools.sh`, `ingest/requirements.txt` (3.11–3.13),
+6. **INGESTTOOLS** (*review*) — B6, P1–P5: `default-members`, ingest/tools.sh, ingest/requirements.txt (3.11–3.13),
    the README's DICOM path from a fresh clone, and the product tests moved out of lab.
 7. **IMAGESLIM** (*review*) — L4, L5 and F1: the image serves the page's allow-list, copies lab crates' sources only,
    and `check_equivalence.sh --local` runs in the gate.
