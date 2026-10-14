@@ -1,0 +1,18 @@
+[package]
+name = "container-bench"
+version = "0.1.0"
+edition = "2021"
+description = "The .sbnd against the standard containers, packed and opened, on the shipped read path"
+
+[dependencies]
+anyhow = { workspace = true }
+bytes = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+libc = "0.2"
+serde_json = { workspace = true }
+series-server = { path = "../../server" }
+tokio = { workspace = true }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+[dev-dependencies]
+series-bundle = { path = "../../common/series-bundle" }

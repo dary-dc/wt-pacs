@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# FQC: our steady asks, then our fill, against a kernel-TCP Cubic neighbour through the packet-layer
+# Our steady asks, then our fill, against a kernel-TCP Cubic neighbour through the packet-layer
 # relay, behind a FIFO or fq_codel of the same depth, under Cubic and BBR.
 # Per run: the neighbour starts; 3 s on, ASKS 64 KB asks one at a time on a fresh session; then a
 # DWELL_MS saturating fill beside it. Results: docs/transport/transport-conclusions.md §1 (FQC).
 #
-#   lab/scripts/fq_neighbour_cells.sh OUT.tsv [ROUNDS]   PROFILES= CCS= ASKS= DWELL_MS= FIRST= TRACES= KEEP=
+#   lab/scripts/fq_neighbour_cells.sh OUT.tsv [ROUNDS]   PROFILES= CCS= QDISCS= ASKS= DWELL_MS= FIRST= TRACES= KEEP=
 #   (re-runs itself inside `unshare -rn`)
 set -euo pipefail
 if [[ -z ${FQC_INSIDE:-} ]]; then
@@ -21,16 +21,18 @@ DWELL_MS="${DWELL_MS:-30000}"
 ASKS="${ASKS:-20}"
 read -ra PROFILES <<<"${PROFILES:-shallow deep lte-loaded}"
 read -ra CCS <<<"${CCS:-cubic bbr}"
-TRACES="${TRACES:-$HOME/.cache/wtpacs-traces}"
+read -ra QDISCS <<<"${QDISCS:-fifo fq}"
+TRACES="${TRACES:-$ROOT/lab/.traces}"
 T="$(mktemp -d)"
 PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }
 trap cleanup EXIT
 
 [ -s "$TRACES/Verizon-LTE-short.down" ] || { mkdir -p "$TRACES"; curl -sSfL -o "$TRACES/Verizon-LTE-short.down" \
-  https://raw.githubusercontent.com/ravinet/mahimahi/master/traces/Verizon-LTE-short.down; }
+  https://raw.githubusercontent.com/ravinet/mahimahi/f1346c38/traces/Verizon-LTE-short.down; }
+echo "c918436fbd6246af134c76585d9395881fdd27203c59a8902b9a7c675b8a8e3e  $TRACES/Verizon-LTE-short.down" | sha256sum -c --quiet
 
-# name -> one-way delay ms | relay args: row 99's shallow and deep 5 Mbit, row 86's LTE-loaded.
+# name -> one-way delay ms | relay args: the neighbour cells' shallow and deep 5 Mbit, the phone profiles' LTE-loaded.
 profile() {
   case "$1" in
     shallow)    echo "28|--rate-kbit 5000 --queue-pkts 20" ;;
@@ -40,7 +42,7 @@ profile() {
   esac
 }
 
-nice -n 19 cargo build -q -j 4 -p exact-server -p pack-study -p window-harness
+nice -n 19 cargo build -q -j 4 -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -49,7 +51,7 @@ FRAMES=100
 mkdir -p "$T/frames"
 for i in $(seq 0 $((FRAMES - 1))); do head -c 65536 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo "{\"frameCount\": $FRAMES}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 cat > "$T/bulk.py" <<'PY'
 """send PORT: one connection's worth of zeros, as fast as Cubic lets it, until killed.
@@ -89,8 +91,8 @@ run() {  # round prev profile cc qdisc: one row of $OUT
   local relay=$!
   for _ in $(seq 50); do grep -q READY "$T/relay.log" && break; sleep 0.1; done
   ns=(nsenter "--net=$(grep -o 'server_netns=[^ ]*' "$T/relay.log" | cut -d= -f2)")
-  RUST_LOG=exact_server=info "${ns[@]}" "$BIN/exact-server" --port "$srv" --bind 10.77.0.2 \
-    --study "$T/study.sbnd" --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "$cc" \
+  RUST_LOG=series_server=info "${ns[@]}" "$BIN/series-server" --port "$srv" --bind 10.77.0.2 \
+    --series "$T/series.sbnd" --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" --congestion "$cc" \
     > "$T/server.log" 2>&1 & PIDS+=("$!")
   "${ns[@]}" python3 "$T/bulk.py" send "$nport" & PIDS+=("$!")
   for _ in $(seq 100); do grep -q "wt_url=" "$T/server.log" && break; sleep 0.1; done
@@ -137,17 +139,17 @@ PY
   tail -1 "$OUT"
 }
 
-ARMS=()
-for cc in "${CCS[@]}"; do for qd in fifo fq; do ARMS+=("$cc/$qd"); done; done
+VARIANTS=()
+for cc in "${CCS[@]}"; do for qd in "${QDISCS[@]}"; do VARIANTS+=("$cc/$qd"); done; done
 
 one_round() {  # round
-  local name k prev arm
+  local name k prev variant
   for name in "${PROFILES[@]}"; do
     prev=-
-    for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$1"); do
-      arm="${ARMS[k]}"
-      run "$1" "$prev" "$name" "${arm%/*}" "${arm#*/}"
-      prev="$arm"
+    for k in $(python3 lab/scripts/order.py row "${#VARIANTS[@]}" "$1"); do
+      variant="${VARIANTS[k]}"
+      run "$1" "$prev" "$name" "${variant%/*}" "${variant#*/}"
+      prev="$variant"
     done
   done
 }

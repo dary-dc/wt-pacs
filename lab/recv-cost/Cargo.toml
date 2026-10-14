@@ -1,0 +1,26 @@
+# Outside the workspace on purpose: web-transport-quinn turns on quinn features (`bloom`, `platform-verifier`)
+# that a workspace build would unify into the server's quinn. lab/recv-cost/README.md
+[package]
+name = "recv-cost"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+fod = { path = "../../common/fod" }
+frame-envelope = { path = "../../common/frame-envelope" }
+libc = "0.2"
+ring = "0.17"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tokio = { version = "1.53", features = ["full"] }
+url = "2"
+web-transport-quinn = { version = "=0.13.2", default-features = false, features = ["ring"] }
+wtransport = { version = "=0.7.2", default-features = false, features = ["quinn", "ring", "dangerous-configuration"] }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

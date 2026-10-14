@@ -21,7 +21,7 @@ pub struct StallConfig {
 /// One stalled-client run. Zero `bytes_read` or a dead connection voids the row.
 #[derive(Debug, Serialize)]
 pub struct StallOutcome {
-    pub arm: String,
+    pub variant: String,
     pub stream_mode: String,
     pub stall_after_ms: u64,
     pub hold_ms: u64,
@@ -38,7 +38,7 @@ pub struct StallOutcome {
 pub async fn run_stall_client(
     cfg: &RunConfig,
     stall: &StallConfig,
-    arm_label: &str,
+    variant_label: &str,
 ) -> Result<StallOutcome> {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
@@ -100,7 +100,7 @@ pub async fn run_stall_client(
     let _ = reader.await;
 
     let outcome = StallOutcome {
-        arm: arm_label.to_string(),
+        variant: variant_label.to_string(),
         stream_mode: cfg.stream_mode.to_string(),
         stall_after_ms: stall.stall_after_ms,
         hold_ms: stall.hold_ms,

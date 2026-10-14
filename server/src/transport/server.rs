@@ -2,10 +2,10 @@
 //! `docs/adr/reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
-use crate::media::read_path::ReadMode;
+use crate::media::read_path::{ring_probe, ReadMode};
 use crate::transport::link::{ControlStream, Link};
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
-use crate::transport::planner::{fill_range, frame_in_range, Ask, Planner, Step, ASKS_AHEAD};
+use crate::transport::planner::{fill_range, frame_in_range, Command, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::websocket;
@@ -31,7 +31,7 @@ use crate::transport::pipeline::RecordedPipeline;
 
 pub struct ServeConfig {
     pub wt_port: u16,
-    pub study_path: PathBuf,
+    pub series_path: PathBuf,
     pub cert_pem: PathBuf,
     pub key_pem: PathBuf,
     pub mode: StreamMode,
@@ -39,18 +39,20 @@ pub struct ServeConfig {
     pub bind: Option<IpAddr>,
     /// QUIC transport knobs. Unset fields keep the library default.
     pub tuning: TransportTuning,
-    /// Lab only: serve every frame as a miss, so a cold study can be measured without
+    /// Lab only: serve every frame as a miss, so a cold series can be measured without
     /// relying on page-cache eviction. `docs/adr/disk-access.md`.
     pub force_pool_reads: bool,
     /// Honour `?ask=` in the session URL, so the first frame moves behind the accept instead of
     /// behind the control stream. `docs/ARCHITECTURE.md`.
-    pub open_ask: bool,
+    pub opening_ask: bool,
     /// Lab only: every session request is taken and never answered — WebKit bug 319879's dial
     /// that never settles, made on purpose. `docs/ARCHITECTURE.md` §A dial that never settles.
     pub hold_sessions: bool,
     /// Lab only: each WebTransport session sends this many media bytes and then nothing, its
     /// stream left open — WebKit bug 319818's stall, made on purpose. `docs/ARCHITECTURE.md`.
     pub stall_after_bytes: Option<u64>,
+    /// Lab only: what an ask waits behind, cut to cwnd + two frames. `docs/transport/link-conditions.md` §ASKAHEAD.
+    pub send_window_follows_cwnd: bool,
     /// Off by default: also serve the same envelopes over a WebSocket, TCP on `wt_port`.
     /// `docs/WIRE.md` §The WebSocket mapping.
     pub websocket: bool,
@@ -69,7 +71,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         None
     };
 
-    let mut store = FrameStore::open(&config.study_path).context("open study")?;
+    let mut store = FrameStore::open(&config.series_path).context("open series")?;
     if config.force_pool_reads {
         warn!("--force-pool-reads: every read reports a miss; this is a lab flag, not a deployment one");
         store.force_pool_reads();
@@ -79,8 +81,8 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     #[cfg(feature = "telemetry")]
     crate::record::set_run_meta(crate::record::RunMeta {
         stream_mode: config.mode.to_string(),
-        study: config.study_path.display().to_string(),
-        study_frames: store.frame_count(),
+        series: config.series_path.display().to_string(),
+        series_frames: store.frame_count(),
     });
 
     let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
@@ -89,9 +91,10 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         println!("ws_url=wss://127.0.0.1:{}/", config.wt_port);
     }
     println!("cert_sha256={cert_sha256}");
-    println!("study={}", config.study_path.display());
+    println!("series={}", config.series_path.display());
     println!("frames={}", store.frame_count());
     println!("read_fast_path={}", read_fast_path(&store));
+    println!("read_ring={}", ring_probe(&store));
     println!("stream_mode={}", config.mode);
     println!("bind={bound}");
     println!("transport={}", config.tuning.describe());
@@ -101,13 +104,20 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
     println!("telemetry=absent");
     info!(
         %wt_url,
-        study = %config.study_path.display(),
+        series = %config.series_path.display(),
         stream_mode = %config.mode,
-        "exact-server ready (Media-complete)"
+        "series-server ready (Media-complete)"
     );
 
     if let Some(bytes) = config.stall_after_bytes {
         warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
+    }
+    let cwnd_ahead = config.send_window_follows_cwnd.then(|| {
+        let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
+        2 * u64::from(largest)
+    });
+    if let Some(bytes) = cwnd_ahead {
+        warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
     }
     let read_mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref())
         .unwrap_or_else(|err| {
@@ -118,8 +128,9 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         store,
         read_mode,
         mode: config.mode,
-        open_ask: config.open_ask,
+        opening_ask: config.opening_ask,
         stall: config.stall_after_bytes,
+        cwnd_ahead,
         #[cfg(feature = "telemetry")]
         taps: Arc::new(Tap::for_session),
     };
@@ -147,8 +158,9 @@ pub(super) struct Sessions {
     pub(super) store: Arc<FrameStore>,
     read_mode: ReadMode,
     mode: StreamMode,
-    pub(super) open_ask: bool,
+    pub(super) opening_ask: bool,
     stall: Option<u64>,
+    cwnd_ahead: Option<u64>,
     #[cfg(feature = "telemetry")]
     taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
 }
@@ -163,8 +175,8 @@ impl Sessions {
     pub(super) async fn serve<F>(
         &self,
         mut product: ProductPipeline,
-        opening: Option<Ask>,
-        read: impl FnOnce(mpsc::Sender<Ask>) -> F,
+        opening: Option<Command>,
+        read: impl FnOnce(mpsc::Sender<Command>) -> F,
     ) -> Result<()>
     where
         F: Future<Output = ()> + Send + 'static,
@@ -203,8 +215,7 @@ fn cert_sha256_hex(identity: &Identity) -> Result<String> {
         .collect())
 }
 
-/// Warns where the fast path is absent: the fallback is correct and ~2.5x slower per frame.
-/// `docs/adr/disk-access.md`.
+/// Warns where the fast path is absent: the fallback is correct and slower, `docs/adr/disk-access.md`.
 fn read_fast_path(store: &FrameStore) -> &'static str {
     if store.nowait_supported() {
         return "preadv2";
@@ -277,15 +288,15 @@ async fn handle_incoming(
     // Read before accepting: the whole point of an opening ask is to serve behind the accept
     // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
     let opening = sessions
-        .open_ask
-        .then(|| parse_open_ask(session_request.path(), sessions.store.frame_count()))
+        .opening_ask
+        .then(|| parse_opening_ask(session_request.path(), sessions.store.frame_count()))
         .flatten();
     let connection = session_request.accept().await.context("accept session")?;
 
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall);
+    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall, sessions.cwnd_ahead);
     let result = async {
         match opening {
             Some(ask) => {
@@ -342,7 +353,7 @@ fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> b
 
 /// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
 /// session then proceeds as without it.
-pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
+pub(super) fn parse_opening_ask(path: &str, frames: u32) -> Option<Command> {
     let value = path
         .split_once('?')?
         .1
@@ -352,13 +363,13 @@ pub(super) fn parse_open_ask(path: &str, frames: u32) -> Option<Ask> {
         ("frame", n) => {
             let frame = n.parse().ok()?;
             frame_in_range(frame, frames).ok()?;
-            Some(Ask::Frame(frame))
+            Some(Command::Frame(frame))
         }
         ("fill", range) => {
             let (from, to) = range.split_once('-')?;
             let (from, to) = (Some(from.parse().ok()?), Some(to.parse().ok()?));
             fill_range(from, to, frames).ok()?;
-            Some(Ask::Fill { from, to })
+            Some(Command::Fill { from, to })
         }
         _ => None,
     }
@@ -380,15 +391,15 @@ fn report_path(connection: &wtransport::Connection) {
     );
 }
 
-/// The loop over `Ask`, with no stream in it, so a test can drive it without QUIC. However it
+/// The loop over `Command`, with no stream in it, so a test can drive it without QUIC. However it
 /// ends, outstanding finishes get their grace.
-pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
+pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
     let result = steps(pipeline, asks).await;
     pipeline.finish().await;
     result
 }
 
-async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask>) -> Result<()> {
+async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
     let mut plan = Planner::new(pipeline.store().frame_count());
     loop {
         match plan.next(|| asks.try_recv().ok())? {
@@ -403,23 +414,23 @@ async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Ask
     }
 }
 
-async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Ask>) -> ControlFlow<()> {
+async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Command>) -> ControlFlow<()> {
     forward(read_fod_msg(control_recv).await, tx).await
 }
 
 /// One FoD message as the loop's asks; `Break` once the reader should stop. `None`, the peer's
 /// goodbye, stops it with no ask, so the loop ends when it next waits.
-pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Ask>) -> ControlFlow<()> {
+pub(super) async fn forward(msg: Result<Option<FodMsg>>, tx: &mpsc::Sender<Command>) -> ControlFlow<()> {
     let ask = match msg {
-        Ok(Some(FodMsg::RequestFrame { frame })) => Ask::Frame(frame),
-        Ok(Some(FodMsg::StreamFrames { from, to })) => Ask::Fill { from, to },
-        Ok(Some(FodMsg::EndStream)) => Ask::EndStream,
-        Ok(Some(FodMsg::EndSession)) => Ask::EndSession,
+        Ok(Some(FodMsg::RequestFrame { frame })) => Command::Frame(frame),
+        Ok(Some(FodMsg::StreamFrames { from, to })) => Command::Fill { from, to },
+        Ok(Some(FodMsg::EndStream)) => Command::EndStream,
+        Ok(Some(FodMsg::EndSession)) => Command::EndSession,
         Ok(Some(FodMsg::FrameError { .. })) => return ControlFlow::Continue(()),
         Ok(None) => return ControlFlow::Break(()),
-        Err(err) => Ask::Failed(err),
+        Err(err) => Command::Failed(err),
     };
-    let failed = matches!(ask, Ask::Failed(_));
+    let failed = matches!(ask, Command::Failed(_));
     if tx.send(ask).await.is_err() || failed {
         return ControlFlow::Break(());
     }
@@ -456,7 +467,7 @@ mod tests {
             self.seen.push((frame, next.clone()));
             Ok(bytes::Bytes::new())
         }
-        async fn write(&mut self, _frame: u32, _body: bytes::Bytes) -> Result<()> {
+        async fn write(&mut self, _frame: u32, _body: bytes::Bytes, _ask: bool) -> Result<()> {
             Ok(())
         }
         async fn refuse(&mut self, _frame: u32, _reason: String) -> Result<()> {
@@ -474,8 +485,8 @@ mod tests {
     fn the_loop_hands_serve_the_frames_the_planner_named() {
         let dir = std::env::temp_dir().join(format!("wtpacs-drive-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 4);
-        let store = Arc::new(FrameStore::open(&study).expect("open store"));
+        let series = write_series(&dir, 4);
+        let store = Arc::new(FrameStore::open(&series).expect("open store"));
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .expect("rt");
@@ -487,7 +498,7 @@ mod tests {
             drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        for ask in [Ask::Frame(0), Ask::Frame(2), Ask::Frame(3), Ask::EndSession] {
+        for ask in [Command::Frame(0), Command::Frame(2), Command::Frame(3), Command::EndSession] {
             tx.try_send(ask).expect("queue ask");
         }
         rt.block_on(drive(&mut rec, &mut rx)).expect("drive");
@@ -505,12 +516,12 @@ mod tests {
             drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        tx.try_send(Ask::Fill {
+        tx.try_send(Command::Fill {
             from: Some(1),
             to: Some(3),
         })
         .expect("queue fill");
-        tx.try_send(Ask::EndSession).expect("queue end");
+        tx.try_send(Command::EndSession).expect("queue end");
         drop(tx);
         rt.block_on(drive(&mut rec, &mut rx)).expect("drive fill");
         assert_eq!(rec.fills, 0, "a fill cancelled by EndSession was counted");
@@ -522,7 +533,7 @@ mod tests {
             drained: false,
         };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        tx.try_send(Ask::Fill {
+        tx.try_send(Command::Fill {
             from: Some(1),
             to: Some(3),
         })
@@ -545,12 +556,12 @@ mod tests {
     fn the_loop_drains_its_finishes_however_the_asks_end() {
         let dir = std::env::temp_dir().join(format!("wtpacs-drain-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let store = Arc::new(FrameStore::open(&write_study(&dir, 2)).expect("open store"));
+        let store = Arc::new(FrameStore::open(&write_series(&dir, 2)).expect("open store"));
         let rt = tokio::runtime::Builder::new_current_thread().build().expect("rt");
         let mut rec = LoopRecorder { store, seen: Vec::new(), fills: 0, drained: false };
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
-        tx.try_send(Ask::Frame(0)).expect("queue ask");
-        tx.try_send(Ask::Failed(anyhow!("a malformed message"))).expect("queue failure");
+        tx.try_send(Command::Frame(0)).expect("queue ask");
+        tx.try_send(Command::Failed(anyhow!("a malformed message"))).expect("queue failure");
         assert!(rt.block_on(drive(&mut rec, &mut rx)).is_err(), "the failure was swallowed");
         assert!(rec.drained, "a session that ended in error skipped the finishes' grace");
         std::fs::remove_dir_all(&dir).ok();
@@ -566,7 +577,7 @@ mod tests {
     {
         let dir = std::env::temp_dir().join(format!("wtpacs-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 4);
+        let series = write_series(&dir, 4);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -575,9 +586,9 @@ mod tests {
             .build()
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let sessions = plain_sessions(&study);
+        let sessions = plain_sessions(&series);
         let ended = rt.block_on(async move {
-            let config = ServeConfig { tuning, ..serve_config(study, cert_pem, key_pem, port) };
+            let config = ServeConfig { tuning, ..serve_config(series, cert_pem, key_pem, port) };
             let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
                 .await
                 .expect("identity");
@@ -612,13 +623,14 @@ mod tests {
     }
 
     /// Shared streams, no opening ask, nothing recorded.
-    fn plain_sessions(study: &std::path::Path) -> Sessions {
+    fn plain_sessions(series: &std::path::Path) -> Sessions {
         Sessions {
-            store: Arc::new(FrameStore::open(study).expect("open store")),
+            store: Arc::new(FrameStore::open(series).expect("open store")),
             read_mode: ReadMode::Auto,
             mode: StreamMode::Shared,
-            open_ask: false,
+            opening_ask: false,
             stall: None,
+            cwnd_ahead: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(|| None),
         }
@@ -757,7 +769,7 @@ mod tests {
         assert!(ended.is_ok(), "end_session ended the session as {ended:?}");
     }
 
-    /// One WebSocket session served by `websocket::session` on a two-frame study; `client`
+    /// One WebSocket session served by `websocket::session` on a two-frame series; `client`
     /// gets the upgraded socket, and the result is what the session ended with.
     fn ws_session<F, Fut>(tag: &str, client: F) -> Result<()>
     where
@@ -768,7 +780,7 @@ mod tests {
 
         let dir = std::env::temp_dir().join(format!("wtpacs-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 2);
+        let series = write_series(&dir, 2);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
         let cert = std::fs::read(&cert_pem).expect("cert");
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -777,7 +789,7 @@ mod tests {
             .build()
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let sessions = plain_sessions(&study);
+        let sessions = plain_sessions(&series);
         let ended = rt.block_on(async move {
             let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
             let (listener, tls) =
@@ -829,23 +841,23 @@ mod tests {
             ("/?ask=frame:x", None),
             ("/", None),
         ] {
-            let got = parse_open_ask(path, 6).map(|ask| format!("{ask:?}"));
+            let got = parse_opening_ask(path, 6).map(|ask| format!("{ask:?}"));
             assert_eq!(got.as_deref(), want, "{path}");
         }
     }
 
-    /// A study of `frames` frames, each a different length and pattern, so a batch served
+    /// A series of `frames` frames, each a different length and pattern, so a batch served
     /// out of the wrong window or the wrong order cannot pass.
-    fn write_study(dir: &std::path::Path, frames: u32) -> std::path::PathBuf {
+    fn write_series(dir: &std::path::Path, frames: u32) -> std::path::PathBuf {
         let bodies: Vec<Vec<u8>> = (0..frames).map(pattern).collect();
         let refs: Vec<&[u8]> = bodies.iter().map(|b| b.as_slice()).collect();
         let path = dir.join("batch.sbnd");
-        study_bundle::write_bundle(
+        series_bundle::write_bundle(
             &path,
             format!("{{\"frameCount\":{frames}}}").as_bytes(),
             &refs,
         )
-        .expect("write study");
+        .expect("write series");
         path
     }
 
@@ -885,19 +897,20 @@ mod tests {
     }
 
     /// A server on loopback `port`: shared streams, every lab flag off, no opening ask.
-    fn serve_config(study: PathBuf, cert_pem: PathBuf, key_pem: PathBuf, port: u16) -> ServeConfig {
+    fn serve_config(series: PathBuf, cert_pem: PathBuf, key_pem: PathBuf, port: u16) -> ServeConfig {
         ServeConfig {
             wt_port: port,
-            study_path: study,
+            series_path: series,
             cert_pem,
             key_pem,
             mode: StreamMode::Shared,
             bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             tuning: TransportTuning::default(),
             force_pool_reads: false,
-            open_ask: false,
+            opening_ask: false,
             hold_sessions: false,
             stall_after_bytes: None,
+            send_window_follows_cwnd: false,
             websocket: false,
         }
     }
@@ -918,6 +931,71 @@ mod tests {
             assert!(tokio::time::Instant::now() < give_up, "the server never bound port {port}");
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
+    }
+
+    /// A port free for UDP and TCP alike, for a server that also binds its WebSocket on it.
+    fn free_port_for_both() -> u16 {
+        loop {
+            let port = free_port();
+            if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                return port;
+            }
+        }
+    }
+
+    /// `client` raced against `server`: a server that ends first fails the test with its own error.
+    async fn against(mut server: tokio::task::JoinHandle<Result<()>>, client: impl Future<Output = ()>) {
+        tokio::select! {
+            ended = &mut server => panic!("the server ended: {ended:?}"),
+            () = client => server.abort(),
+        }
+    }
+
+    /// The first TCP connection the server's WebSocket listener takes, within five seconds.
+    async fn connect_tcp(port: u16) -> tokio::net::TcpStream {
+        for _ in 0..50 {
+            if let Ok(tcp) = tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
+                return tcp;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        panic!("server never listened on TCP port {port}");
+    }
+
+    /// A WebSocket server whose TCP port is taken fails the test with its own bind error, not a
+    /// timeout of the client's.
+    #[test]
+    fn a_server_that_cannot_listen_fails_with_its_own_error() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-ws-held-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let series = write_series(&dir, 1);
+        let (cert_pem, key_pem, _) = write_dev_cert(&dir);
+        let port = free_port_for_both();
+        let held = std::net::TcpListener::bind(("127.0.0.1", port)).expect("hold the TCP port");
+        assert!(std::net::TcpListener::bind(("127.0.0.1", port)).is_err(), "the hold took nothing");
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let ended = rt.block_on(async move {
+            let server = tokio::spawn(run_server(ServeConfig {
+                websocket: true,
+                ..serve_config(series, cert_pem, key_pem, port)
+            }));
+            let client = async move {
+                let _tcp = connect_tcp(port).await;
+                std::future::pending::<()>().await;
+            };
+            let raced = tokio::spawn(against(server, client));
+            tokio::time::timeout(Duration::from_secs(5), raced).await
+        });
+        drop(held);
+        std::fs::remove_dir_all(&dir).ok();
+        let panic = ended.expect("the race outlived the server's end").expect_err("the server's end passed");
+        let why = panic.into_panic();
+        let why = why.downcast_ref::<String>().cloned().unwrap_or_default();
+        assert!(why.contains(&format!("WebSocket listener on TCP port {port}")), "the test failed with {why:?}");
     }
 
     /// The wait for the server's port has a deadline: on a port nobody binds it panics, it does not spin.
@@ -988,7 +1066,7 @@ mod tests {
             let dir = std::env::temp_dir()
                 .join(format!("wtpacs-open-{}-{}", std::process::id(), want.unwrap_or(99)));
             std::fs::create_dir_all(&dir).expect("tmpdir");
-            let study = write_study(&dir, frames);
+            let series = write_series(&dir, frames);
             let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
             let port = free_port();
             let rt = tokio::runtime::Builder::new_multi_thread()
@@ -999,8 +1077,8 @@ mod tests {
             let _ = rustls::crypto::ring::default_provider().install_default();
             rt.block_on(async move {
                 let server = tokio::spawn(run_server(ServeConfig {
-                    open_ask: true,
-                    ..serve_config(study, cert_pem, key_pem, port)
+                    opening_ask: true,
+                    ..serve_config(series, cert_pem, key_pem, port)
                 }));
                 let endpoint = wtransport::Endpoint::client(
                     ClientConfig::builder()
@@ -1077,9 +1155,9 @@ mod tests {
             let dir = std::env::temp_dir()
                 .join(format!("wtpacs-ws-open-{}-{}", std::process::id(), want.unwrap_or(99)));
             std::fs::create_dir_all(&dir).expect("tmpdir");
-            let study = write_study(&dir, 6);
+            let series = write_series(&dir, 6);
             let (cert_pem, key_pem, _) = write_dev_cert(&dir);
-            let port = free_port();
+            let port = free_port_for_both();
             let rt = tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(2)
                 .enable_all()
@@ -1097,51 +1175,43 @@ mod tests {
             ));
             rt.block_on(async move {
                 let server = tokio::spawn(run_server(ServeConfig {
-                    open_ask: true,
+                    opening_ask: true,
                     websocket: true,
-                    ..serve_config(study, cert_pem, key_pem, port)
+                    ..serve_config(series, cert_pem, key_pem, port)
                 }));
-                let mut tcp = None;
-                for _ in 0..50 {
-                    match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
-                        Ok(t) => {
-                            tcp = Some(t);
-                            break;
-                        }
-                        Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-                    }
-                }
-                let tcp = tcp.expect("server never listened");
-                let name = ServerName::try_from("localhost").expect("name");
-                let stream = tls.connect(name, tcp).await.expect("TLS");
-                let url = format!("wss://localhost:{port}/{query}");
-                let (mut socket, _) =
-                    tokio_tungstenite::client_async(url, stream).await.expect("upgrade");
+                against(server, async move {
+                    let tcp = connect_tcp(port).await;
+                    let name = ServerName::try_from("localhost").expect("name");
+                    let stream = tls.connect(name, tcp).await.expect("TLS");
+                    let url = format!("wss://localhost:{port}/{query}");
+                    let (mut socket, _) =
+                        tokio_tungstenite::client_async(url, stream).await.expect("upgrade");
 
-                // Nothing is sent: the frame must arrive on the URL ask alone.
-                let mut bytes = Vec::new();
-                let whole = |b: &[u8]| {
-                    b.len() >= 4 && b.len() >= 4 + u32::from_be_bytes(b[..4].try_into().unwrap()) as usize
-                };
-                let read = tokio::time::timeout(Duration::from_secs(3), async {
-                    while let Some(Ok(Message::Binary(chunk))) = socket.next().await {
-                        bytes.extend_from_slice(&chunk);
-                        if whole(&bytes) {
-                            return;
+                    // Nothing is sent: the frame must arrive on the URL ask alone.
+                    let mut bytes = Vec::new();
+                    let whole = |b: &[u8]| {
+                        b.len() >= 4 && b.len() >= 4 + u32::from_be_bytes(b[..4].try_into().unwrap()) as usize
+                    };
+                    let read = tokio::time::timeout(Duration::from_secs(3), async {
+                        while let Some(Ok(Message::Binary(chunk))) = socket.next().await {
+                            bytes.extend_from_slice(&chunk);
+                            if whole(&bytes) {
+                                return;
+                            }
                         }
+                    })
+                    .await;
+                    match want {
+                        Some(frame) => {
+                            read.expect("no frame on the URL ask");
+                            let index = u32::from_be_bytes(bytes[4..8].try_into().unwrap());
+                            assert_eq!(index, frame, "the URL ask served the wrong frame");
+                            assert_eq!(bytes[8..], pattern(frame), "frame {frame} came back wrong");
+                        }
+                        None => assert!(bytes.is_empty(), "an out-of-range opening ask was served"),
                     }
                 })
                 .await;
-                match want {
-                    Some(frame) => {
-                        read.expect("no frame on the URL ask");
-                        let index = u32::from_be_bytes(bytes[4..8].try_into().unwrap());
-                        assert_eq!(index, frame, "the URL ask served the wrong frame");
-                        assert_eq!(bytes[8..], pattern(frame), "frame {frame} came back wrong");
-                    }
-                    None => assert!(bytes.is_empty(), "an out-of-range opening ask was served"),
-                }
-                server.abort();
             });
             std::fs::remove_dir_all(&dir).ok();
         }
@@ -1154,9 +1224,9 @@ mod tests {
         use tokio::io::AsyncReadExt;
         let dir = std::env::temp_dir().join(format!("wtpacs-ws-silent-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 1);
+        let series = write_series(&dir, 1);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
-        let port = free_port();
+        let port = free_port_for_both();
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -1166,30 +1236,22 @@ mod tests {
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
                 websocket: true,
-                ..serve_config(study, cert_pem, key_pem, port)
+                ..serve_config(series, cert_pem, key_pem, port)
             }));
-            let mut tcp = None;
-            for _ in 0..50 {
-                match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
-                    Ok(t) => {
-                        tcp = Some(t);
-                        break;
-                    }
-                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-                }
-            }
-            let mut tcp = tcp.expect("server never listened");
-            let mut byte = [0u8; 1];
-            let closed = tokio::time::timeout(
-                websocket::HANDSHAKE + Duration::from_secs(3),
-                tcp.read(&mut byte),
-            )
+            against(server, async move {
+                let mut tcp = connect_tcp(port).await;
+                let mut byte = [0u8; 1];
+                let closed = tokio::time::timeout(
+                    websocket::HANDSHAKE + Duration::from_secs(3),
+                    tcp.read(&mut byte),
+                )
+                .await;
+                assert!(
+                    matches!(closed, Ok(Ok(0) | Err(_))),
+                    "the silent peer was still held past the handshake deadline: {closed:?}"
+                );
+            })
             .await;
-            assert!(
-                matches!(closed, Ok(Ok(0) | Err(_))),
-                "the silent peer was still held past the handshake deadline: {closed:?}"
-            );
-            server.abort();
         });
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -1202,7 +1264,7 @@ mod tests {
         use crate::record::tap::{Live, Record, Tap};
         let dir = std::env::temp_dir().join(format!("wtpacs-open-tap-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 4);
+        let series = write_series(&dir, 4);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1213,15 +1275,16 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let (tx, rows) = std::sync::mpsc::sync_channel(64);
         let sessions = Sessions {
-            store: Arc::new(FrameStore::open(&study).expect("open store")),
+            store: Arc::new(FrameStore::open(&series).expect("open store")),
             read_mode: ReadMode::Auto,
             mode: StreamMode::Shared,
-            open_ask: true,
+            opening_ask: true,
             stall: None,
+            cwnd_ahead: None,
             taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
         };
         rt.block_on(async move {
-            let config = serve_config(study, cert_pem, key_pem, port);
+            let config = serve_config(series, cert_pem, key_pem, port);
             let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
                 .await
                 .expect("identity");
@@ -1277,7 +1340,7 @@ mod tests {
     fn a_held_dial_neither_connects_nor_fails() {
         let dir = std::env::temp_dir().join(format!("wtpacs-hold-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 1);
+        let series = write_series(&dir, 1);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1289,7 +1352,7 @@ mod tests {
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
                 hold_sessions: true,
-                ..serve_config(study, cert_pem, key_pem, port)
+                ..serve_config(series, cert_pem, key_pem, port)
             }));
             let endpoint = wtransport::Endpoint::client(
                 ClientConfig::builder()
@@ -1325,7 +1388,7 @@ mod tests {
         let frames = 4u32;
         let dir = std::env::temp_dir().join(format!("wtpacs-stall-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, frames);
+        let series = write_series(&dir, frames);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let budget = (8 + pattern(0).len() + 8 + pattern(1).len() / 2) as u64;
@@ -1338,7 +1401,7 @@ mod tests {
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
                 stall_after_bytes: Some(budget),
-                ..serve_config(study, cert_pem, key_pem, port)
+                ..serve_config(series, cert_pem, key_pem, port)
             }));
             let endpoint = wtransport::Endpoint::client(
                 ClientConfig::builder()
@@ -1388,13 +1451,13 @@ mod tests {
     /// The server's SETTINGS leave with its handshake flight: a client that loses everything it
     /// sends after its first flight — so the server's handshake can never complete — still
     /// receives the HTTP/3 control stream, opening with SETTINGS. Without
-    /// `patches/wtransport-0.7.2-settings-early.patch` it never does.
-    /// `docs/ARCHITECTURE.md` §Lever 2.
+    /// `patches/wtransport-0.7.2-settings-in-handshake.patch` it never does.
+    /// `docs/ARCHITECTURE.md` §Early SETTINGS.
     #[test]
     fn settings_ride_the_handshake_flight() {
         let dir = std::env::temp_dir().join(format!("wtpacs-settings-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 1);
+        let series = write_series(&dir, 1);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1404,7 +1467,7 @@ mod tests {
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
-            let server = tokio::spawn(run_server(serve_config(study, cert_pem, key_pem, port)));
+            let server = tokio::spawn(run_server(serve_config(series, cert_pem, key_pem, port)));
             until_bound(port, Duration::from_secs(5)).await;
             assert_settings_before_the_handshake(port, cert_hash).await;
             server.abort();
@@ -1415,7 +1478,7 @@ mod tests {
     /// The same holds for a server that accepts its own QUIC connections and hands each to the
     /// library through `IncomingSessionFuture::with_quic_connecting`: its SETTINGS leave with its
     /// handshake flight too. Without the patch's `with_quic_connecting` change they never do.
-    /// `docs/ARCHITECTURE.md` §Lever 2.
+    /// `docs/ARCHITECTURE.md` §Early SETTINGS.
     #[test]
     fn settings_ride_the_handshake_flight_from_a_quic_connecting() {
         let dir = std::env::temp_dir().join(format!("wtpacs-connecting-{}", std::process::id()));
@@ -1504,13 +1567,13 @@ mod tests {
     /// flight rides the ServerHello's probe and its 0.5-RTT SETTINGS reach the client one round
     /// trip after the client's handshake completes — when an unpatched server's would. Without
     /// `patches/quinn-proto-0.11.18-probe-every-space.patch` they wait for the ACK of
-    /// HANDSHAKE_DONE to be declared lost: two round trips. `docs/ARCHITECTURE.md` §What lever 2 costs.
+    /// HANDSHAKE_DONE to be declared lost: two round trips. `docs/ARCHITECTURE.md` §What early SETTINGS cost.
     #[test]
     fn a_lost_first_flight_is_repeated_whole() {
         const ONE_WAY: Duration = Duration::from_millis(50);
         let dir = std::env::temp_dir().join(format!("wtpacs-first-flight-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, 1);
+        let series = write_series(&dir, 1);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1520,7 +1583,7 @@ mod tests {
             .expect("rt");
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
-            let server = tokio::spawn(run_server(serve_config(study, cert_pem, key_pem, port)));
+            let server = tokio::spawn(run_server(serve_config(series, cert_pem, key_pem, port)));
             until_bound(port, Duration::from_secs(5)).await;
 
             // Every datagram is delayed ONE_WAY; the server's burst in the first ONE_WAY after its
@@ -1600,8 +1663,334 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// Dials a server whose datagrams are dropped for `swallow` after its first, every datagram
+    /// delayed `one_way`, with a client whose first probe comes at 300 ms, as Chromium's and
+    /// Firefox's do. Returns the time to the client's handshake and, per round of client datagrams
+    /// the server received, the server's bytes in the `one_way` after the round's first.
+    fn dial_with_first_answers_swallowed(
+        tuning: TransportTuning,
+        one_way: Duration,
+        swallow: Duration,
+    ) -> (Duration, Vec<usize>) {
+        let dir = std::env::temp_dir().join(format!("wtpacs-repeat-{}-{}", std::process::id(), swallow.as_millis()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let series = write_series(&dir, 1);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let result = rt.block_on(async move {
+            let config = ServeConfig { tuning, ..serve_config(series, cert_pem, key_pem, port) };
+            let server = tokio::spawn(run_server(config));
+            until_bound(port, Duration::from_secs(5)).await;
+
+            let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            let relay = front.local_addr().expect("relay addr");
+            let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+            let delivered = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let answered = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let (to_server, from_server) = (delivered.clone(), answered.clone());
+            tokio::spawn(async move {
+                let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+                let mut client = None;
+                let mut first_answer: Option<tokio::time::Instant> = None;
+                loop {
+                    tokio::select! {
+                        Ok((n, from)) = front.recv_from(&mut up) => {
+                            client = Some(from);
+                            let (back, d, log) = (back.clone(), up[..n].to_vec(), to_server.clone());
+                            tokio::spawn(async move {
+                                tokio::time::sleep(one_way).await;
+                                log.lock().unwrap().push(tokio::time::Instant::now());
+                                back.send(&d).await.ok();
+                            });
+                        }
+                        Ok(n) = back.recv(&mut down) => {
+                            let now = tokio::time::Instant::now();
+                            from_server.lock().unwrap().push((now, n));
+                            if now - *first_answer.get_or_insert(now) < swallow {
+                                continue;
+                            }
+                            let (front, d, to) = (front.clone(), down[..n].to_vec(), client);
+                            tokio::spawn(async move {
+                                tokio::time::sleep(one_way).await;
+                                if let Some(to) = to {
+                                    front.send_to(&d, to).await.ok();
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+
+            let config = ClientConfig::builder()
+                .with_bind_config(IpBindConfig::InAddrAnyV4)
+                .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+                .build();
+            let mut quic = config.quic_config().clone();
+            let mut transport = wtransport::quinn::TransportConfig::default();
+            transport.initial_rtt(Duration::from_millis(100));
+            quic.transport_config(Arc::new(transport));
+            let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap())
+                .expect("quinn client");
+            endpoint.set_default_client_config(quic);
+            let start = std::time::Instant::now();
+            let _connection = tokio::time::timeout(
+                Duration::from_secs(5),
+                endpoint.connect(relay, "localhost").expect("connect"),
+            )
+            .await
+            .expect("no handshake in 5 s")
+            .expect("client side of the handshake");
+            let handshake = start.elapsed();
+            server.abort();
+            let answered = answered.lock().unwrap().clone();
+            let mut rounds: Vec<tokio::time::Instant> = Vec::new();
+            for &at in delivered.lock().unwrap().iter() {
+                if rounds.last().is_none_or(|&last| at - last > one_way) {
+                    rounds.push(at);
+                }
+            }
+            let bytes_after = rounds
+                .iter()
+                .map(|&at| answered.iter().filter(|(t, _)| *t >= at && *t < at + one_way).map(|(_, n)| n).sum())
+                .collect();
+            (handshake, bytes_after)
+        });
+        std::fs::remove_dir_all(&dir).ok();
+        result
+    }
+
+    /// A server whose first flight is lost resends it when the client repeats its Initial, at
+    /// 300 ms, not at its own probe timeout near 1 s. Without `--reply-repeated-initial` the
+    /// handshake takes over a second. docs/transport/transport-conclusions.md §3, Answering a
+    /// repeated Initial.
+    #[test]
+    fn a_repeated_initial_draws_the_lost_flight_at_once() {
+        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
+        let one_way = Duration::from_millis(25);
+        let (handshake, bytes_after) = dial_with_first_answers_swallowed(tuning, one_way, one_way);
+        assert!(bytes_after.len() >= 2, "the client never repeated its Initial: {bytes_after:?}");
+        assert!(bytes_after[1] >= 1200, "the repeat drew {} bytes, not the flight", bytes_after[1]);
+        assert!(handshake < Duration::from_millis(700), "handshake took {handshake:?}: the flight waited for the server's PTO");
+    }
+
+    /// The reply is once a connection: with the first flight and its resend both lost, the
+    /// client's second repeat draws only an ACK, and the flight waits for the server's PTO.
+    #[test]
+    fn a_second_repeated_initial_draws_only_an_ack() {
+        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
+        let (_, bytes_after) =
+            dial_with_first_answers_swallowed(tuning, Duration::from_millis(25), Duration::from_millis(500));
+        assert!(bytes_after.len() >= 3, "the client repeated its Initial fewer than twice: {bytes_after:?}");
+        assert!(bytes_after[1] >= 1200, "the first repeat drew {} bytes, not the flight", bytes_after[1]);
+        assert!(bytes_after[2] < 1200, "the second repeat drew {} bytes, more than an ACK", bytes_after[2]);
+    }
+
+    /// A client whose ClientHello spans two datagrams, the second arriving after the server has
+    /// answered the first, still gets a session: the stream budget the client's transport
+    /// parameters grant is there when it opens. Opened from the first datagram, as
+    /// `patches/wtransport-0.7.2-settings-in-handshake.patch` did until it waited for the whole
+    /// ClientHello, the server never sends SETTINGS. `docs/ARCHITECTURE.md` §Early SETTINGS.
+    #[test]
+    fn a_client_hello_in_two_datagrams_still_gets_its_session() {
+        let dir = std::env::temp_dir().join(format!("wtpacs-split-hello-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let series = write_series(&dir, 1);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        rt.block_on(async move {
+            let server = tokio::spawn(run_server(serve_config(series, cert_pem, key_pem, port)));
+            until_bound(port, Duration::from_secs(5)).await;
+
+            // The client's second datagram is held 100 ms; every other passes at once.
+            let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            let relay = front.local_addr().expect("relay addr");
+            let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+            back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+            tokio::spawn(async move {
+                let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+                let (mut client, mut sent) = (None, 0);
+                loop {
+                    tokio::select! {
+                        Ok((n, from)) = front.recv_from(&mut up) => {
+                            client = Some(from);
+                            sent += 1;
+                            let (back, d) = (back.clone(), up[..n].to_vec());
+                            let hold = if sent == 2 { Duration::from_millis(100) } else { Duration::ZERO };
+                            tokio::spawn(async move {
+                                tokio::time::sleep(hold).await;
+                                back.send(&d).await.ok();
+                            });
+                        }
+                        Ok(n) = back.recv(&mut down) => {
+                            if let Some(to) = client {
+                                front.send_to(&down[..n], to).await.ok();
+                            }
+                        }
+                    }
+                }
+            });
+
+            // ALPN entries the server ignores push the ClientHello past one datagram.
+            let mut tls = wtransport::tls::client::build_default_tls_config(
+                Arc::new(rustls::RootCertStore::empty()),
+                Some(Arc::new(wtransport::tls::client::ServerHashVerification::new([
+                    wtransport::tls::Sha256Digest::new(cert_hash),
+                ]))),
+            );
+            tls.alpn_protocols.extend((0..6u8).map(|i| vec![b'x' + i; 250]));
+            let endpoint = wtransport::Endpoint::client(
+                ClientConfig::builder()
+                    .with_bind_config(IpBindConfig::InAddrAnyV4)
+                    .with_custom_tls(tls)
+                    .build(),
+            )
+            .expect("client endpoint");
+            tokio::time::timeout(Duration::from_secs(3), endpoint.connect(format!("https://{relay}/")))
+                .await
+                .expect("no session in 3 s: the server's SETTINGS never left")
+                .expect("session");
+            server.abort();
+        });
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The server's half-RTT flight is at most two datagrams, its NEW_CONNECTION_IDs and the
+    /// control stream in one packet, inside the four Firefox keeps before it can decrypt them
+    /// (neqo's `SavedDatagrams::CAPACITY`). Written in pieces, the control stream left in up to
+    /// four packets whenever quinn's driver ran beside the writer; Firefox dropped the fifth, and
+    /// its loss held the fill near the initial window for seconds.
+    /// docs/transport/transport-conclusions.md §3, Firefox's 6 s stall.
+    #[test]
+    fn the_half_rtt_flight_fits_what_a_client_keeps_undecrypted() {
+        const DIALS: usize = 40;
+        let dir = std::env::temp_dir().join(format!("wtpacs-half-rtt-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let series = write_series(&dir, 1);
+        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+        let port = free_port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("rt");
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let flights = rt.block_on(async move {
+            let server = tokio::spawn(run_server(serve_config(series, cert_pem, key_pem, port)));
+            until_bound(port, Duration::from_secs(5)).await;
+            let mut flights = Vec::new();
+            for _ in 0..DIALS {
+                flights.push(half_rtt_datagrams(port, cert_hash).await);
+            }
+            server.abort();
+            flights
+        });
+        std::fs::remove_dir_all(&dir).ok();
+        let worst = flights.iter().max().copied().unwrap_or(0);
+        assert!(flights.iter().all(|&n| n > 0), "a dial saw no 1-RTT datagram in the first flight: {flights:?}");
+        assert!(worst <= 2, "a half-RTT flight of {worst} datagrams carrying 1-RTT packets: {flights:?}");
+    }
+
+    /// One dial through a relay that holds the server's datagrams 50 ms, so nothing the server
+    /// sends in that span answers the client: the datagrams of its first flight that carry a
+    /// 1-RTT packet.
+    async fn half_rtt_datagrams(port: u16, cert_hash: [u8; 32]) -> usize {
+        const HOLD: Duration = Duration::from_millis(50);
+        // Firefox's ClientHello spans two datagrams, the second 3.4 ms behind the first here.
+        const HELLO_GAP: Duration = Duration::from_micros(3400);
+        let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+        let relay = front.local_addr().expect("relay addr");
+        let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+        back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let log = seen.clone();
+        let relaying = tokio::spawn(async move {
+            let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+            let (mut client, mut sent) = (None, 0);
+            loop {
+                tokio::select! {
+                    Ok((n, from)) = front.recv_from(&mut up) => {
+                        client = Some(from);
+                        sent += 1;
+                        if sent == 2 {
+                            tokio::time::sleep(HELLO_GAP).await;
+                        }
+                        back.send(&up[..n]).await.ok();
+                    }
+                    Ok(n) = back.recv(&mut down) => {
+                        log.lock().unwrap().push((tokio::time::Instant::now(), carries_one_rtt(&down[..n])));
+                        let (front, d, to) = (front.clone(), down[..n].to_vec(), client);
+                        tokio::spawn(async move {
+                            tokio::time::sleep(HOLD).await;
+                            if let Some(to) = to {
+                                front.send_to(&d, to).await.ok();
+                            }
+                        });
+                    }
+                }
+            }
+        });
+        // ALPN entries the server ignores push the ClientHello past one datagram, as Firefox's is.
+        let mut tls = wtransport::tls::client::build_default_tls_config(
+            Arc::new(rustls::RootCertStore::empty()),
+            Some(Arc::new(wtransport::tls::client::ServerHashVerification::new([
+                wtransport::tls::Sha256Digest::new(cert_hash),
+            ]))),
+        );
+        tls.alpn_protocols.extend((0..6u8).map(|i| vec![b'x' + i; 250]));
+        let config = ClientConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4).with_custom_tls(tls).build();
+        let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).expect("quinn client");
+        endpoint.set_default_client_config(config.quic_config().clone());
+        let connection = tokio::time::timeout(Duration::from_secs(5), endpoint.connect(relay, "localhost").expect("connect"))
+            .await
+            .expect("no handshake in 5 s")
+            .expect("client side of the handshake");
+        tokio::time::sleep(HOLD).await;
+        connection.close(0u32.into(), b"");
+        relaying.abort();
+        let seen = seen.lock().unwrap().clone();
+        let first = seen.first().map(|(at, _)| *at).expect("the server answered nothing");
+        seen.iter().filter(|(at, one_rtt)| *at < first + HOLD && *one_rtt).count()
+    }
+
+    /// RFC 9000 §17: a datagram's packets in turn, long headers skipped by their Length, until a
+    /// short header — always the last.
+    fn carries_one_rtt(mut datagram: &[u8]) -> bool {
+        fn varint(b: &[u8]) -> (usize, usize) {
+            let len = 1 << (b[0] >> 6);
+            (b[1..len].iter().fold(usize::from(b[0] & 0x3f), |v, &x| v << 8 | usize::from(x)), len)
+        }
+        while let Some(&first) = datagram.first() {
+            if first & 0x80 == 0 {
+                return true;
+            }
+            let mut at = 5;
+            at += 1 + usize::from(datagram[at]);
+            at += 1 + usize::from(datagram[at]);
+            if first & 0x30 == 0 {
+                let (token, n) = varint(&datagram[at..]);
+                at += n + token;
+            }
+            let (length, n) = varint(&datagram[at..]);
+            datagram = &datagram[(at + n + length).min(datagram.len())..];
+        }
+        false
+    }
+
     async fn connect_session(
-        study: PathBuf,
+        series: PathBuf,
         cert_pem: PathBuf,
         key_pem: PathBuf,
         cert_hash: [u8; 32],
@@ -1610,7 +1999,7 @@ mod tests {
     ) -> (tokio::task::JoinHandle<Result<()>>, wtransport::Connection, SendStream) {
         let server = tokio::spawn(run_server(ServeConfig {
             mode,
-            ..serve_config(study, cert_pem, key_pem, port)
+            ..serve_config(series, cert_pem, key_pem, port)
         }));
         let endpoint = wtransport::Endpoint::client(
             ClientConfig::builder()
@@ -1649,7 +2038,7 @@ mod tests {
         let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!("wtpacs-wire-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, frames);
+        let series = write_series(&dir, frames);
         let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
         let port = free_port();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -1660,7 +2049,7 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         rt.block_on(async move {
             let (server, conn, control) =
-                connect_session(study, cert_pem, key_pem, cert_hash, port, StreamMode::Shared).await;
+                connect_session(series, cert_pem, key_pem, cert_hash, port, StreamMode::Shared).await;
             let media = conn.accept_uni().await.expect("accept media uni");
             body(control, media).await;
             server.abort();
@@ -1696,10 +2085,10 @@ mod tests {
         });
     }
 
-    /// `StreamFrames {}` recites the whole study, in order, and nothing past it.
+    /// `StreamFrames {}` recites the whole series, in order, and nothing past it.
     /// `docs/adr/disk-access.md`.
     #[test]
-    fn empty_stream_frames_is_the_whole_study() {
+    fn empty_stream_frames_is_the_whole_series() {
         let frames = 4u32;
         wire_test(frames, |mut control, mut media| async move {
             control
@@ -1722,11 +2111,11 @@ mod tests {
             }
             let extra =
                 tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
-            assert!(extra.is_err(), "fill sent a frame past the study");
+            assert!(extra.is_err(), "fill sent a frame past the series");
         });
     }
 
-    /// `EndStream` after the fill has started stops it before the study ends.
+    /// `EndStream` after the fill has started stops it before the series ends.
     /// Does not pin the last frame delivered — QUIC may already hold one.
     #[test]
     fn end_stream_stops_a_fill_on_the_wire() {
@@ -1808,10 +2197,10 @@ mod tests {
         let frames = 3u32;
         let dir = std::env::temp_dir().join(format!("wtpacs-ws-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let study = write_study(&dir, frames);
+        let series = write_series(&dir, frames);
         let (cert_pem, key_pem, _) = write_dev_cert(&dir);
         let cert = std::fs::read(&cert_pem).expect("cert");
-        let port = free_port();
+        let port = free_port_for_both();
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -1821,75 +2210,67 @@ mod tests {
         rt.block_on(async move {
             let server = tokio::spawn(run_server(ServeConfig {
                 websocket: true,
-                ..serve_config(study, cert_pem, key_pem, port)
+                ..serve_config(series, cert_pem, key_pem, port)
             }));
-            let mut roots = rustls::RootCertStore::empty();
-            for der in rustls::pki_types::CertificateDer::pem_slice_iter(&cert) {
-                roots.add(der.expect("pem")).expect("trust the test cert");
-            }
-            let tls = tokio_rustls::TlsConnector::from(Arc::new(
-                rustls::ClientConfig::builder()
-                    .with_root_certificates(roots)
-                    .with_no_client_auth(),
-            ));
-            let mut tcp = None;
-            for _ in 0..50 {
-                match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
-                    Ok(t) => {
-                        tcp = Some(t);
-                        break;
-                    }
-                    Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+            against(server, async move {
+                let mut roots = rustls::RootCertStore::empty();
+                for der in rustls::pki_types::CertificateDer::pem_slice_iter(&cert) {
+                    roots.add(der.expect("pem")).expect("trust the test cert");
                 }
-            }
-            let tcp = tcp.expect("the WebSocket listener never came up");
-            let name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
-            let tls = tls.connect(name, tcp).await.expect("TLS with the QUIC certificate");
-            let (mut ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
-                .await
-                .expect("WebSocket upgrade");
-
-            let ask = |msg: FodMsg| Message::text(serde_json::to_string(&msg).unwrap());
-            ws.send(ask(FodMsg::StreamFrames { from: Some(0), to: Some(frames - 1) }))
-                .await
-                .expect("fill");
-            let (mut wire, mut messages) = (Vec::new(), 0);
-            let want: usize = (0..frames).map(|f| 8 + pattern(f).len()).sum();
-            while wire.len() < want {
-                let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                let tls = tokio_rustls::TlsConnector::from(Arc::new(
+                    rustls::ClientConfig::builder()
+                        .with_root_certificates(roots)
+                        .with_no_client_auth(),
+                ));
+                let tcp = connect_tcp(port).await;
+                let name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
+                let tls = tls.connect(name, tcp).await.expect("TLS with the QUIC certificate");
+                let (mut ws, _) = tokio_tungstenite::client_async(format!("wss://localhost:{port}/"), tls)
                     .await
-                    .expect("the fill stalled")
+                    .expect("WebSocket upgrade");
+
+                let ask = |msg: FodMsg| Message::text(serde_json::to_string(&msg).unwrap());
+                ws.send(ask(FodMsg::StreamFrames { from: Some(0), to: Some(frames - 1) }))
+                    .await
+                    .expect("fill");
+                let (mut wire, mut messages) = (Vec::new(), 0);
+                let want: usize = (0..frames).map(|f| 8 + pattern(f).len()).sum();
+                while wire.len() < want {
+                    let msg = tokio::time::timeout(Duration::from_secs(10), ws.next())
+                        .await
+                        .expect("the fill stalled")
+                        .expect("socket ended")
+                        .expect("read");
+                    let Message::Binary(bytes) = msg else { panic!("a fill frame came as {msg:?}") };
+                    wire.extend_from_slice(&bytes);
+                    messages += 1;
+                }
+                let mut at = 0;
+                for f in 0..frames {
+                    let len = u32::from_be_bytes(wire[at..at + 4].try_into().unwrap()) as usize;
+                    let (idx, codestream) = unwrap(&wire[at + 4..at + 4 + len]).expect("envelope");
+                    assert_eq!(idx, f, "frames arrived out of fill order");
+                    assert_eq!(codestream, &pattern(f)[..], "frame {f} came back wrong");
+                    at += 4 + len;
+                }
+                assert!(
+                    messages > 2 * frames as usize,
+                    "{messages} messages for {frames} frames: a codestream was not split"
+                );
+
+                ws.send(ask(FodMsg::RequestFrame { frame: 99 })).await.expect("ask out of range");
+                let refusal = tokio::time::timeout(Duration::from_secs(5), ws.next())
+                    .await
+                    .expect("no refusal")
                     .expect("socket ended")
                     .expect("read");
-                let Message::Binary(bytes) = msg else { panic!("a fill frame came as {msg:?}") };
-                wire.extend_from_slice(&bytes);
-                messages += 1;
-            }
-            let mut at = 0;
-            for f in 0..frames {
-                let len = u32::from_be_bytes(wire[at..at + 4].try_into().unwrap()) as usize;
-                let (idx, codestream) = unwrap(&wire[at + 4..at + 4 + len]).expect("envelope");
-                assert_eq!(idx, f, "frames arrived out of fill order");
-                assert_eq!(codestream, &pattern(f)[..], "frame {f} came back wrong");
-                at += 4 + len;
-            }
-            assert!(
-                messages > 2 * frames as usize,
-                "{messages} messages for {frames} frames: a codestream was not split"
-            );
-
-            ws.send(ask(FodMsg::RequestFrame { frame: 99 })).await.expect("ask out of range");
-            let refusal = tokio::time::timeout(Duration::from_secs(5), ws.next())
-                .await
-                .expect("no refusal")
-                .expect("socket ended")
-                .expect("read");
-            let Message::Text(json) = refusal else { panic!("the refusal came as {refusal:?}") };
-            assert!(
-                matches!(fod::decode_fod_body(json.as_bytes()), Ok(FodMsg::FrameError { frame_index: 99, .. })),
-                "the refusal was {json}, not a frame_error for 99"
-            );
-            server.abort();
+                let Message::Text(json) = refusal else { panic!("the refusal came as {refusal:?}") };
+                assert!(
+                    matches!(fod::decode_fod_body(json.as_bytes()), Ok(FodMsg::FrameError { frame_index: 99, .. })),
+                    "the refusal was {json}, not a frame_error for 99"
+                );
+            })
+            .await;
         });
         std::fs::remove_dir_all(&dir).ok();
     }

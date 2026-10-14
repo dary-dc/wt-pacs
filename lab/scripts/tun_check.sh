@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Row 107: does `link_impair.py --tun` tell the truth about kernel TCP? Delay through the tun, a TCP
+# Does `link_impair.py --tun` tell the truth about kernel TCP? Delay through the tun, a TCP
 # bulk flow's goodput under a trace against the UDP plane's, Gilbert-Elliott loss counted per packet,
 # retransmissions only when the relay drops; then the relay's CPU per packet and its ceiling.
 # Reads every number out loud and exits non-zero on the first one outside tolerance.

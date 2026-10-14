@@ -125,7 +125,7 @@ the cost was waiting for the acknowledgement, and nothing the client did could f
 
 > **Corrected — this section used to call it a live defect of the product default.** It is neither
 > now. `finish()` is awaited off the session loop (`server/src/transport/link.rs`): the per-frame
-> arm then reached 8.0 Mbps against the old ~7.0 ceiling (250 KB, `D`=4, 10 Mbit, 60 ms). And the
+> variant then reached 8.0 Mbps against the old ~7.0 ceiling (250 KB, `D`=4, 10 Mbit, 60 ms). And the
 > binary's default has been `--stream-mode shared` since 2026-09-11
 > ([`stream-shape.md`](stream-shape.md)). With the fix in, per-frame still needed more
 > depth than `shared` to saturate — `D_min` 3–8 against 2–5 on the same grid, the gap widest at
@@ -144,7 +144,7 @@ RTT inert on the shared stream:
 | - | ------ | ------ |
 | 1 | `ask_frame` slept `RTT/2` inline, and every caller awaited it in a loop | asks were never simultaneously in flight; `D` was a counter with no wire meaning |
 | 2 | `LinkPacer::consume_bytes` held its mutex across the sleep | one uni stream read at a time; concurrent delivery impossible by construction |
-| 3 | `e1_saturation_sweep.sh` discarded the server's output | a failed bind was silent, and the 250 KB cells were served by another fixture's server (51 004 bytes per frame) |
+| 3 | `saturation_sweep.sh` discarded the server's output | a failed bind was silent, and the 250 KB cells were served by another fixture's server (51 004 bytes per frame) |
 | 4 | `--rtt-ms` has no effect on the shared stream until RTT exceeds `Tf` (`D`=1, 250 KB, 10 Mbit: util 1.000 at RTT 60 and 150, where 0.77 and 0.57 are correct; exact at 400) | depth cannot be measured there with it; mechanism **not established** |
 
 Defects 1 and 2 pinned utilisation at the `D`=1 value for every depth — the flat 0.408 of the old
@@ -152,13 +152,13 @@ tables (`Tf/(Tf+RTT)` = 40.8/100.8). The netem grid above replaces that run.
 
 ## How it is built
 
-`client/transport-ts` carried the window as an opt-in until 2026-10-03 (`connect(url, hash, { window })`: fixed
+`client/transport/ts` carried the window as an opt-in until 2026-10-03 (`connect(url, hash, { window })`: fixed
 `{ depth: N }`, or `{ depth: "auto", initial }`, `initial` 2 by default); only the TypeScript client had it, and
 nothing set it by default.
 
 ### The estimator, as built
 
-`client/transport-ts/ask-window.ts` (removed; `git show 7bda871:client/transport-ts/ask-window.ts`):
+`client/transport/ts/ask-window.ts` (removed; `git show 7bda871:client/transport/ts/ask-window.ts`):
 
 - **`Tf`** — the median time between the last 8 arrivals: the link's per-frame time once the depth
   saturates it, the delivered pace below that
@@ -177,7 +177,7 @@ path is the only RTT source.
 > includes the ask's own queue, so the estimate ratcheted `D` to the clamp — as did a later min-RTT
 > probe. The first shaped ask-policy campaign (control fire-all, fixed, dynamic; 32 KB; RTT
 > 20/60/150; 0 and 0.5 % loss) was withdrawn on four blockers and **its rankings are not quoted**:
-> a primary metric (p95 ask → displayable after depth-gated asks) that rewarded late asks; arms
+> a primary metric (p95 ask → displayable after depth-gated asks) that rewarded late asks; variants
 > whose byte and ask counts differed by an order of magnitude; that queue-contaminated RTT; and an
 > RTT axis mislabelled (netem on egress only, delay N/2, the WAN base unrecorded). The review and
 > its rows: `git show aabc46a:docs/measurements/r2/l2_ask_policy_METHODOLOGY_REVIEW.md`.
@@ -188,17 +188,17 @@ Whether `auto` earns its estimator over a fixed constant was never measured. The
 before any run (T1):
 
 - On every cell `auto` must reach a depth within ±1 of the formula's, and its p95 wait must be
-  within 10 % of the fixed arm run at the formula's depth. Then `auto` is the harness default and
+  within 10 % of the fixed variant run at the formula's depth. Then `auto` is the harness default and
   the recommended viewer setting.
 - If `auto` fails any cell, the product setting is a fixed `D` per link class from the formula,
   and `auto` stays an opt-in.
 - Void: `auto` oscillating between two depths on consecutive evaluations despite the damping; a
-  cell whose fixed arm at the formula's depth does not beat `d=1` (the formula is wrong there, and
+  cell whose fixed variant at the formula's depth does not beat `d=1` (the formula is wrong there, and
   the grid is extended until the curve turns over); a dead cell (§Live cells).
 
-The campaign: a browser on the workstation against `exact-server` on the rig
+The campaign: a browser on the workstation against `series-server` on the rig
 ([`rig-limits.md`](../rig-limits.md) §9), `lab/scripts/cloud_netem.sh` at 20, 60 and 150 ms (and
-0.5 % loss) on the server's egress, 10 Mbit; `frames_32k` and `frames_250k`; arms interleaved, six
+0.5 % loss) on the server's egress, 10 Mbit; `frames_32k` and `frames_250k`; variants interleaved, six
 repeats: `d=1` (control), `w:<formula D>` (fixed), `w:auto:2` and `w:auto:16` (which must descend).
 `lab/scripts/browser_getstats.py` first says whether the browser build exposes `smoothedRtt`;
 `lab/scripts/browser_cell.py` needs a `SERVER_URL` and `CERT_SHA256` to drive a remote server. The
@@ -242,7 +242,7 @@ Guards every run carries:
 | **`peak_outstanding`** | the highest concurrent ask count observed. **Below `D`, the run is void** |
 | **Frame size** | observed bytes per frame against the fixture's declared size (a tolerance for variable-size fixtures) |
 | **Server output kept** | a silently failing server is indistinguishable from a slow one |
-| **A fresh port per cell** | never rebind one across studies |
+| **A fresh port per cell** | never rebind one across series |
 | **netem, not `--rtt-ms`, on the shared stream** | defect 4 above; `--read-bps 0` whenever `tc` shapes, or the pacer fights netem |
 
 ### E1 — does `D_min` saturate the link?
@@ -255,8 +255,8 @@ other than pipelining limits the run. Metric: delivered throughput as a fraction
 **Pass, fixed in advance:** measured `D_min`, the smallest depth reaching 95 % of the ceiling
 control, within ±1 of predicted at every point. Consistently higher would mean sizing depth from a
 measured curve; consistently lower, that the transport buffers more than a frame. Result: six of six
-on the shared stream (§Validated). Drivers `lab/scripts/e1_saturation_sweep.sh`,
-`e1_saturation_cloud.sh`.
+on the shared stream (§Validated). Drivers `lab/scripts/saturation_sweep.sh`,
+`saturation_cloud.sh`.
 
 ### E2 — what a cache miss costs
 
@@ -267,14 +267,14 @@ latency), and **warm cache**, which must read ≈ 0 — a non-zero warm control 
 not the design. Metric: **`recovered_ms`, reversal → the wanted frame displayable**, not first
 byte: per-frame streams interleave, so a first byte can arrive while earlier frames still drain,
 and a partial frame cannot be shown. **Pass:** treatment within 20 % of `(D − 1) · Tf`. Result:
-**inconclusive** — rows outside the 20 % band. Drivers `lab/scripts/e2_miss_cost_sweep.sh`,
-`e2_miss_cost_cloud.sh` (the mild cell, reversal at 60 %).
+**inconclusive** — rows outside the 20 % band. Drivers `lab/scripts/miss_cost_sweep.sh`,
+`miss_cost_cloud.sh` (the mild cell, reversal at 60 %).
 
 ### E4 — does the formula pick the right `D`?
 
 E1 and E2 measure the two halves; the formula is the trade between them, and sweeping `D` to pick
 the best is fitting, not testing. Objective: **`mean_wait_ms`**, reader wants frame N → frame N
-displayable, hits counting 0, reported with p95 so the choice of objective stays visible. Arms: the
+displayable, hits counting 0, reported with p95 so the choice of objective stays visible. Variants: the
 formula, recomputed live; **oracle**, the best `D` in hindsight (the ceiling); `D` = 1; `D` = 8; and
 **random** `D` from 1–8 per session, which **tests the premise** — random ≈ formula ≈ oracle means
 `D` does not matter and this ADR is over-engineering. Run it first. Gate: the oracle must beat
@@ -282,7 +282,7 @@ random by **≥ 100 ms at p95**. Choose any parameter on `fly_and_settle` and re
 `reversal_storm` and `dense_scrub` without re-tuning.
 
 **`U` is measurable once the objective is fixed**, by sweeping 0.80, 0.90, 0.95 and 1.00 on the
-formula arm — but `D` is an integer, so `U` moves it only where `x = 1 + RTT/Tf` sits **just above**
+formula variant — but `D` is an integer, so `U` moves it only where `x = 1 + RTT/Tf` sits **just above**
 an integer. At `x = 1.3` (250 KB, 60 ms, 10 Mbps) every `U` gives `D = 2` and the sweep is a null by
 construction — the error that produced the 0-of-100 cancel result. Place `(RTT, Tf)` at
 `x ≈ 1.02, 2.05, 3.05`. If `mean_wait_ms` is flat across `U` where `U` changes `D`, remove `U`; if
@@ -303,15 +303,21 @@ together. Run the harness over the rig's **real path, unshaped**, recording RTT 
 the same trace locally under netem set to those values; compare `mean_wait_ms`, mean and p95.
 Within ~15 %: the emulated grid is trustworthy. Diverges: stop and re-read every emulated result.
 `mean_wait_ms` is measured client-side end to end, so no clock is compared across machines.
-Driver `lab/scripts/e0_netem_validation.sh`. **Not run**, and listed as open in
-[`cloud-queue.md`](../cloud-queue.md) §Open owner decisions (2026-10-03). What was calibrated instead is the
-container's userspace relay against netem on the rig, on delay only
+Driver `lab/scripts/netem_validation.sh`. **Not run**, and listed as open since 2026-10-03 (§Open). What was
+calibrated instead is the container's userspace relay against netem on the rig, on delay only
 ([`rig-limits.md`](../rig-limits.md) §3).
 
 ### What invalidates a run
 
 A null control that is not flat; a warm control that is not ≈ 0; a `D` sweep without the ceiling
 control; a dead cell; `peak_outstanding` below `D`.
+
+## Open
+
+* **Which depth ships** — `auto` or a fixed `D` per link class; T1 decides it (§Which depth ships — open).
+* **E0, the emulated link against a real path** — not run; it needs the rig's real path, unshaped, or a device on a
+  real network, which no container has (§E0). The owner tracks it in [`cloud-queue.md`](../cloud-queue.md) §Open
+  owner decisions.
 
 ## Pros and Cons of the Options
 

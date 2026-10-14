@@ -2,14 +2,25 @@
 members = [
     "common/fod",
     "common/frame-envelope",
-    "ingest/study-bundle",
+    "common/series-bundle",
     "server",
-    "client/transport-wasm",
-    "tools/pack-study",
+    "client/transport/wasm",
+    "tools/pack-series",
+    "ingest/from-parser",
     "tools/check-fastpath",
     "lab/disk-access-bench",
+    "lab/container-bench",
     "lab/window-harness",
     "lab/telemetry-bench",
+]
+# A bare `cargo build` or `cargo test`: from-parser links ingest/tools.sh's build, the WASM client is wasm-pack's.
+default-members = [
+    "common/fod",
+    "common/frame-envelope",
+    "common/series-bundle",
+    "server",
+    "tools/pack-series",
+    "tools/check-fastpath",
 ]
 resolver = "2"
 
@@ -27,8 +38,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 lto = "fat"
 codegen-units = 1
 
-# The server's SETTINGS in its handshake flight: docs/ARCHITECTURE.md §Lever 2.
+# The server's SETTINGS in its handshake flight: docs/ARCHITECTURE.md §Early SETTINGS.
 [patch.crates-io]
 wtransport = { path = "patched/wtransport" }
-# A server's handshake probe repeats its whole flight: docs/ARCHITECTURE.md §What lever 2 costs.
+# A server's handshake probe repeats its whole flight: docs/ARCHITECTURE.md §What early SETTINGS cost.
 quinn-proto = { path = "patched/quinn-proto" }
+# Segments per `sendmsg` capped at 24: docs/transport/transport-conclusions.md §4.
+quinn = { path = "patched/quinn" }

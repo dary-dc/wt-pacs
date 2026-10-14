@@ -9,14 +9,14 @@ acknowledgement message. The server's banner prints what a client dials: `wt_url
 `cert_sha256=` (the hash a browser pins through `serverCertificateHashes`), `stream_mode=`, and
 `ws_url=` with `--websocket`.
 
-The study on disk is SBND, [`FIXTURES.md`](FIXTURES.md). What each client does with these bytes is
+The series on disk is SBND, [`FIXTURES.md`](FIXTURES.md). What each client does with these bytes is
 [`CLIENTS.md`](CLIENTS.md).
 
 ## FoD messages
 
 FoD names the control messages: the client's asks and the server's refusals. On the control stream
 each message is `[4B LE len][JSON]` — little-endian, unlike the envelope — tagged by `op`
-(`common/fod`, `client/transport-ts/wire.ts`). The server refuses a length of 0 or over 4 MiB
+(`common/fod`, `client/transport/ts/wire.ts`). The server refuses a length of 0 or over 4 MiB
 (`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
 
 **A goodbye is not an error.** No client sends `end_session`: a session ends with the client closing
@@ -37,15 +37,15 @@ stream's stop reached the server before its close, so the write failed as stoppe
 
 | Message | Direction | What the server does |
 | --- | --- | --- |
-| `{"op":"request_frame","frame":N}` | client → server | one `Ask::Frame`; served with any asks already in hand named as upcoming |
-| `{"op":"stream_frames","from":A,"to":B}` | client → server | a fill of `A..=B`; either end may be omitted (`from` → 0, `to` → the last frame), `{}` is the whole study. Recited until done, until `end_stream`, or until any other message arrives (§An ask during a fill) |
+| `{"op":"request_frame","frame":N}` | client → server | one `Command::Frame`; served with any asks already in hand named as upcoming |
+| `{"op":"stream_frames","from":A,"to":B}` | client → server | a fill of `A..=B`; either end may be omitted (`from` → 0, `to` → the last frame), `{}` is the whole series. Recited until done, until `end_stream`, or until any other message arrives (§An ask during a fill) |
 | `{"op":"end_stream"}` | client → server | ends a running fill at the next frame boundary; the session goes on. Without a fill, nothing |
 | `{"op":"end_session"}` | client → server | ends the session |
 | `{"op":"frame_error","frame_index":N,"reason":"…"}` | server → client | a refusal. Ignored if a client sends one |
 
 **Refusals.** A frame out of range is refused with `frame index N out of range (count)`; a fill
-range outside the study with one `frame_error` at `from` (0 when omitted), reason `StreamFrames
-A..=B outside 0..=last`; an empty study with `study is empty`. A refusal takes no media stream.
+range outside the series with one `frame_error` at `from` (0 when omitted), reason `StreamFrames
+A..=B outside 0..=last`; an empty series with `series is empty`. A refusal takes no media stream.
 
 **Depth is the client's.** The real-time path is one `request_frame` per message, and the client's
 window ([`adr/client-window-depth.md`](adr/client-window-depth.md)) is how many it keeps
@@ -56,7 +56,7 @@ start up to `TILE_SLOTS` (4) reads at once
 start to end without naming every index is `stream_frames`, not a large batch (§6c there).
 
 **A group ask is G pipelined `request_frame`s.** `request_frames` left the wire on 2026-10-03
-(`202644d`); the server had already turned it into one `Ask::Frame` per index, so G
+(`202644d`); the server had already turned it into one `Command::Frame` per index, so G
 `request_frame`s in a row give the planner the same input, order and per-index refusals. A fill of
 whole groups is `stream_frames {from: k, …}`. Not measured: with pipelined asks the first frame may
 be planned before the rest are parsed, so its read-ahead can name fewer upcoming frames; the bytes
@@ -69,22 +69,24 @@ are identical.
 ## The envelope
 
 ```text
-[4B BE envelope_len][4B BE display_index][HTJ2K codestream …]
-envelope_len = 4 + codestream bytes
+[4B BE envelope_len][4B BE display_index][coded frame …]
+envelope_len = 4 + coded frame bytes
 ```
 
+The coded frame is the bundle's entry as stored, whatever its codec: an HTJ2K codestream or an AV1 payload
+([`av1/payload-format.md`](av1/payload-format.md)); the series' metadata names the codec, not the envelope.
 Every frame is length-prefixed in every stream mode. `common/frame-envelope` is the one definition:
 the server streams its `frame_head` before the codestream, clients `unwrap`, and
 `the_head_is_the_envelope_length_then_the_index_big_endian` pins the bytes. A frame is
 identified by its index, never by the stream it came on. Clients stop reading a stream whose
 `envelope_len` is under 4 or over 64 MiB (`MAX_FRAME_LEN`, checked by the crate's `envelope_len` in the
-Rust clients and the harness; `wire.ts` holds the TypeScript copy), and a study holding a larger frame
-fails to open ([`FIXTURES.md`](FIXTURES.md#sbnd-study-bundle)). Clients name a frame whose stream ends
+Rust clients and the harness; `wire.ts` holds the TypeScript copy), and a series holding a larger frame
+fails to open ([`FIXTURES.md`](FIXTURES.md#sbnd-series-bundle)). Clients name a frame whose stream ends
 before `envelope_len` bytes ([`CLIENTS.md`](CLIENTS.md#a-truncated-frame-is-a-failure)).
 
 ## Stream modes
 
-`exact-server --stream-mode`, process-wide, never told to the client — nothing in the handshake or
+`series-server --stream-mode`, process-wide, never told to the client — nothing in the handshake or
 the envelope says which is in force. Clients read every uni stream the server opens as a sequence
 of envelopes, so both are read by the same code.
 
@@ -92,6 +94,7 @@ of envelopes, so both are read by the same code.
 | --- | --- | --- |
 | `shared` (default) | one uni, opened at session start, for the whole session; frames arrive strictly in ask order | none set |
 | `per-frame` | one uni per frame, finished after it; the session waits up to 2 s for outstanding finishes when it ends, however it ends | each stream ranks by ask order: an earlier ask outranks a later one, so a lost frame's retransmit goes before newer frames' data |
+| `per-frame-asks-first` (lab only) | as `per-frame` | every frame asked by name ranks above every frame a fill recites, each kind in ask order: [`native/quic-compared.md`](native/quic-compared.md) §9.5 |
 
 Why `shared` is the default, and what `per-frame` (and the retired `pool:k`, in history at `6e9c126`)
 cost under loss: [`adr/stream-shape.md`](adr/stream-shape.md).
@@ -122,6 +125,15 @@ for it again; the downloader does so by itself. Tests: `a_data_request_during_a_
 (`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
 reciting after the mode switch").
 
+```
+client                                   server: planner                   media stream
+  │ stream_frames 0..199  ───────────────►  fill 0, 1, 2, …   ───────────►  0 1 2 … 40 41 42 43 44
+  │ request_frame 120     ───────────────►  between two frames: a message
+  │                                          in hand ends the fill
+  │                                          serve 120 next    ───────────►  … 45 (in flight) 120
+  │ stream_frames 46..199 ───────────────►  a new fill, if the client still wants the rest
+```
+
 So a fill and an ask never share the connection, and there is nothing for a stream priority to
 order: the fill's stream has stopped being fed. What the ask waits behind is **what of the fill is
 already in flight** — written into the send window and not yet delivered. Ask-order priority
@@ -129,7 +141,7 @@ already in flight** — written into the send window and not yet delivered. Ask-
 so they outrank the ask's frame.
 
 **What it costs.** `lab/window-harness/src/bin/ask_during_fill.rs`, browser-free, against
-`exact-server` in `shared` mode over a synthetic 200-frame series of 250 KB frames, measured in
+`series-server` in `shared` mode over a synthetic 200-frame series of 250 KB frames, measured in
 the container, one client, no shaping. Each round a fresh session: start the fill, send
 `request_frame` for a frame the fill has not reached, stop the clock on that frame's last byte.
 Nine rounds per position, positions interleaved and their order rotated:
@@ -150,12 +162,12 @@ CPU-bound where a link is congestion-bound: on a link with a large bandwidth-del
 window holds more, and the ask waits behind more of it. Over the WebSocket the same holds with the
 TCP socket buffer in place of the send window; the two are not the same size, and neither link
 case is measured. Seen from the client, against the real server with a 2 MB send window:
-[`CLIENTS.md`](CLIENTS.md) §The conformance suite. A client's `endStream()` is a different thing
+[`CLIENTS.md`](CLIENTS.md) §The contract suite. A client's `endStream()` is a different thing
 and is not measured here.
 
 ## The opening ask
 
-On by default; `exact-server --open-ask false` turns it off. The session URL may carry
+On by default; `series-server --opening-ask false` turns it off. The session URL may carry
 `?ask=frame:N` or `?ask=fill:A-B`, which the server reads before accepting the session and serves
 at once, behind the accept rather than behind the control stream. A malformed or out-of-range
 value is ignored and the session proceeds as without it, so an opening ask is never refused (this
@@ -166,7 +178,7 @@ The TypeScript client sends it for
 
 ## The WebSocket mapping
 
-Off by default; `exact-server --websocket` also serves one WebSocket per session beside QUIC. The
+Off by default; `series-server --websocket` also serves one WebSocket per session beside QUIC. The
 frame path, the store and the planner are the QUIC path's; one process serves both.
 
 | | QUIC | WebSocket |
@@ -178,7 +190,7 @@ frame path, the store and the planner are the QUIC path's; one process serves bo
 | media | uni streams, one envelope per frame | binary messages whose bytes, joined, are the `shared` uni stream's: the 8-byte head, then the codestream split every 64 KiB — the grain at which a browser, which hands a message over only whole, sees a frame's bytes move |
 | refusals | the control stream | a text message, through the same writer as the frames |
 | stream mode | `--stream-mode` | always one ordered stream |
-| opening ask | `?ask=` with `--open-ask` | the same `?ask=` on the upgrade's URL, with the same flag: served right behind the 101 |
+| opening ask | `?ask=` with `--opening-ask` | the same `?ask=` on the upgrade's URL, with the same flag: served right behind the 101 |
 
 A binary message from the client, or any message over 4 MiB, ends the session. The library
 answers pings. Not on this path: the QUIC knobs (`--congestion`, the windows — TCP's are the
@@ -187,6 +199,6 @@ kernel's), the per-session `session path` line, and telemetry rows. The idle-ses
 transfer; nothing here measures TCP's.
 
 One ordered byte stream gives up what QUIC's streams give: a slow or lost frame holds every frame
-behind it, and a retransmit stalls everything. The conformance suite reports the independent-
+behind it, and a retransmit stalls everything. The contract suite reports the independent-
 delivery clauses as not applicable rather than passing
-([`CLIENTS.md`](CLIENTS.md#the-conformance-suite)).
+([`CLIENTS.md`](CLIENTS.md#the-contract-suite)).

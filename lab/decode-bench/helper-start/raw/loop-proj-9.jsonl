@@ -1,0 +1,12 @@
+{"round":9,"unit":"lab:cb2late ask 4x","prev":null,"arm":"lab:cb2late","scenario":"ask","throttle":4,"ms":522.195000000298,"frames":1,"exact":1,"rendererMb":154.658203125,"jsMb":107.0157117843628}
+{"round":9,"unit":"lab:cb2late warm 1x","prev":"lab:cb2late ask 4x","arm":"lab:cb2late","scenario":"warm","throttle":1,"ms":156.1399999987334,"frames":9,"exact":9,"rendererMb":373.4990234375,"jsMb":121.93407344818115}
+{"round":9,"unit":"lab:cb2late ask 1x","prev":"lab:cb2late warm 1x","arm":"lab:cb2late","scenario":"ask","throttle":1,"ms":118.01500000059605,"frames":1,"exact":1,"rendererMb":145.82421875,"jsMb":107.02764225006104}
+{"round":9,"unit":"lab:cb2late warm 4x","prev":"lab:cb2late ask 1x","arm":"lab:cb2late","scenario":"warm","throttle":4,"ms":480.8449999988079,"frames":9,"exact":9,"rendererMb":381.349609375,"jsMb":118.05831527709961}
+{"round":9,"unit":"lab:cb2 warm 4x","prev":"lab:cb2late warm 4x","arm":"lab:cb2","scenario":"warm","throttle":4,"ms":383.2800000011921,"frames":9,"exact":9,"rendererMb":377.3369140625,"jsMb":118.0110092163086}
+{"round":9,"unit":"built ask 1x","prev":"lab:cb2 warm 4x","arm":"built","scenario":"ask","throttle":1,"ms":118.91000000014901,"frames":1,"exact":1,"rendererMb":138.9453125,"jsMb":45.695340156555176}
+{"round":9,"unit":"lab:cb2 warm 1x","prev":"built ask 1x","arm":"lab:cb2","scenario":"warm","throttle":1,"ms":109.42999999970198,"frames":9,"exact":9,"rendererMb":378.744140625,"jsMb":125.84310340881348}
+{"round":9,"unit":"built ask 4x","prev":"lab:cb2 warm 1x","arm":"built","scenario":"ask","throttle":4,"ms":455.5,"frames":1,"exact":1,"rendererMb":146.3046875,"jsMb":45.6792688369751}
+{"round":9,"unit":"lab:cb2 ask 4x","prev":"built ask 4x","arm":"lab:cb2","scenario":"ask","throttle":4,"ms":434.46000000089407,"frames":1,"exact":1,"rendererMb":154.37109375,"jsMb":107.01052379608154}
+{"round":9,"unit":"built warm 1x","prev":"lab:cb2 ask 4x","arm":"built","scenario":"warm","throttle":1,"ms":99.00499999895692,"frames":9,"exact":9,"rendererMb":364.6953125,"jsMb":109.95739841461182}
+{"round":9,"unit":"lab:cb2 ask 1x","prev":"built warm 1x","arm":"lab:cb2","scenario":"ask","throttle":1,"ms":124.61500000022352,"frames":1,"exact":1,"rendererMb":145.9326171875,"jsMb":107.0277624130249}
+{"round":9,"unit":"built warm 4x","prev":"lab:cb2 ask 1x","arm":"built","scenario":"warm","throttle":4,"ms":557.6850000005215,"frames":9,"exact":9,"rendererMb":369.455078125,"jsMb":113.85809898376465}

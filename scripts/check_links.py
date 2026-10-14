@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""scripts/check_links.py — in every tracked .md file, each link, anchor and backticked repo path resolves."""
+"""scripts/check_links.py — in every tracked .md file, each link, anchor and backticked repo path resolves; every cited archive tag exists on origin."""
 
 import os
 import re
@@ -8,12 +8,16 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO_DIRS = ("client/", "deploy/", "docs/", "lab/", "scripts/", "server/")
+REPO_DIRS = ("client/", "common/", "deploy/", "docs/", "fixtures/", "ingest/", "lab/", "patched/", "patches/", "scripts/", "server/", "tools/")
 LINK = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
 HTML_ANCHOR = re.compile(r'<a (?:name|id)="([^"]+)"')
 # A path that no longer exists may be named beside the commit, tag or word that says so.
+# A queue's record, which this repository's later moves do not rewrite: its links resolve or name a file git
+# history holds, and its paths are its own.
+PATHS_AS_WRITTEN = {"docs/cloud-queue.md", "docs/av1/queue.md"}
 HISTORICAL = re.compile(r"\b[0-9a-f]{7,40}\b|archive/|removed|retired|history|in git", re.I)
+CITED_TAG = re.compile(r"(?:`|git show )(archive/[\w.-]*\w)")
 
 
 def unfenced_lines(path):
@@ -53,12 +57,17 @@ def local_links(line):
     return [t for t in LINK.findall(line) if not re.match(r"[a-z]+:", t)]
 
 
+def in_history(path):
+    return subprocess.run(["git", "log", "-1", "--format=%h", "--", path], capture_output=True, text=True).stdout != ""
+
+
 def link_errors(md, n, line):
     for target in local_links(line):
         path, _, fragment = target.partition("#")
         dest = os.path.normpath(os.path.join(os.path.dirname(md), path)) if path else md
         if not os.path.exists(dest):
-            yield f"LINK {md}:{n}: {target} -> missing {dest}"
+            if not (md in PATHS_AS_WRITTEN and in_history(dest)):
+                yield f"LINK {md}:{n}: {target} -> missing {dest}"
         elif fragment and dest.endswith(".md") and fragment not in anchors(dest):
             yield f"ANCHOR {md}:{n}: {target}"
 
@@ -80,6 +89,19 @@ def resolves(md, path):
     return ignored.returncode == 0
 
 
+def missing_tags():
+    """Every archive tag a tracked file cites outside the queues' records exists on origin."""
+    remote = subprocess.run(["git", "ls-remote", "--tags", "origin"], capture_output=True, text=True)
+    if remote.returncode != 0:
+        print("SKIPPED: cited archive tags — origin unreachable")
+        return []
+    tags = {ref.split("refs/tags/")[1] for ref in remote.stdout.split() if ref.startswith("refs/tags/")}
+    records = [f":!{f}" for f in PATHS_AS_WRITTEN]
+    cited = subprocess.run(["git", "grep", "-n", "archive/", "--", ".", *records], capture_output=True, text=True)
+    return [f"TAG {':'.join(line.split(':', 2)[:2])}: {tag}"
+            for line in cited.stdout.splitlines() for tag in CITED_TAG.findall(line) if tag not in tags]
+
+
 def main():
     os.chdir(ROOT)
     files = subprocess.check_output(["git", "ls-files", "*.md"], text=True).split()
@@ -89,7 +111,7 @@ def main():
         for i, line in enumerate(lines):
             links += len(local_links(line))
             bad += link_errors(md, i + 1, line)
-            for path in backticked_paths(line):
+            for path in [] if md in PATHS_AS_WRITTEN else backticked_paths(line):
                 paths += 1
                 if resolves(md, path):
                     continue
@@ -97,6 +119,7 @@ def main():
                     historical += 1
                 else:
                     bad.append(f"PATH {md}:{i + 1}: `{path}`")
+    bad += missing_tags()
     for error in bad:
         print(error)
     print(f"checked {len(files)} files, {links} links, {paths} backticked paths "

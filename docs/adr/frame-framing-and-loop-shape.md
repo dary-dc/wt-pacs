@@ -1,6 +1,6 @@
 # ADR: frame framing and session-loop shape
 
-**Status:** open — analysis recorded, decision deferred · **Date:** 2026-08-27 ·
+**Status:** built — §6b–6d on 2026-09-09, §6 closed by [`stream-shape.md`](stream-shape.md) · **Date:** 2026-08-27 ·
 **Corrects:** the architecture comparison quoted in
 [`client-window-depth.md`](client-window-depth.md) and §4b of the August cleanup plan
 (retired, in history) ·
@@ -148,8 +148,8 @@ measuring.
 ## 6b · Serving depth: the loop was depth 1, and the protocol said otherwise
 
 **Status: built 2026-09-09.** Option B shipped: an ask-reader task owns `control_recv` and
-feeds a planner; `RequestFrame` and `RequestFrames` are the same `Ask::Frame` to the loop.
-The read path split on 2026-09-10 (`SeqReader` / `TileReader`). Historical cost of depth 1
+feeds a planner; `RequestFrame` and `RequestFrames` are the same `Command::Frame` to the loop.
+The read path split on 2026-09-10 (`FillReader` / `TileReader`). Historical cost of depth 1
 is the table below. [`disk-access.md`](disk-access.md).
 
 Until then, `FodMsg::RequestFrame` was documented as "one frame per message (**depth =
@@ -203,7 +203,7 @@ What stood in the way was state, in two places:
    ask-reader task plus planner.
 2. **The reader held one window and its ring one in-flight slot**, so even a concurrent
    loop would have serialised on the buffer. **Fixed**: `TileReader` holds `TILE_SLOTS`
-   frames; `SeqReader` is the double buffer.
+   frames; `FillReader` is the double buffer.
 
 ### The shape to build, when it is built
 
@@ -219,10 +219,10 @@ none of the table above — that number is device queueing, not wire time.
 
 **A page-cache hit still never touches the ring.** The read ahead probes with
 `RWF_NOWAIT` first, exactly as an on-demand read does, and only a shortfall is submitted.
-Anything else would rebuild the `uring` arm's +131% on hits
+Anything else would rebuild the `uring` variant's +131% on hits
 ([`disk-access.md`](disk-access.md) §The trap).
 
-**This does not change the read arm.** At depth 1 `hybrid_lazyring` and `uring` tie; the
+**This does not change the read variant.** At depth 1 `hybrid_lazyring` and `uring` tie; the
 choice between them only becomes interesting once this is built
 (depth × readers, evidence tag `v33_cross.tsv`) — and now that a batch runs at
 depth 2, that question is open again on a host bigger than 4 vCPU.
@@ -239,7 +239,7 @@ uses. 16 missing tiles: 1.14 ms → 0.62 ms.
 
 **Status: built 2026-09-09.** Messages and the loop: [`disk-access.md`](disk-access.md).
 
-This is the **fill** app mode. The client sends `StreamFrames` (empty = the whole study;
+This is the **fill** app mode. The client sends `StreamFrames` (empty = the whole series;
 optional `from` / `to` default to 0 and the last frame). Current use is start-to-end; `from`
 / `to` stay on the type so a later range does not need a new message. The server recites its
 own index. `RequestFrames` is not it — it still names every index.
@@ -260,13 +260,13 @@ indexes. A data request during a fill ends the fill and is then served: a second
 **Status: built 2026-09-09; readers split 2026-09-10.** `TileReader::read` starts upcoming
 frames that fit before waiting on this one. A batch supplies that from `frames[i + 1]`. A
 stream of single `RequestFrame` asks supplies it from the ask-reader channel — the planner
-peeks what is already in hand. `SeqReader` names one frame ahead (`Next::Fill`'s `after`).
+peeks what is already in hand. `FillReader` names one frame ahead (`Next::Fill`'s `after`).
 
 ### Why the loop change is not optional
 
 The two app modes are **fill** (`StreamFrames`) and **on-demand** (`RequestFrame` /
 `RequestFrames`). Fill needs the reader task so `EndStream` can arrive while the loop is
-reciting the study. On-demand that pipelines `RequestFrame` needs it so those asks become
+reciting the series. On-demand that pipelines `RequestFrame` needs it so those asks become
 `upcoming`. An interactive viewer that asks as the user moves still has depth 1 by nature —
 there is no next ask to name.
 
@@ -318,7 +318,7 @@ Invariants an implementation has to keep, each of which is a way to get this wro
 2. **`EndSession` must not overtake queued asks** — it is a message in the same stream, so it
    must be handled where it arrives in the sequence, not when it is read. **`EndStream` is
    different:** it stops a fill. Generated indexes are not in the channel, so the loop must
-   `try_recv` between stream frames or `EndStream` waits until the study ends.
+   `try_recv` between stream frames or `EndStream` waits until the series ends.
 3. **A closed channel ends the session**, and the reader task's error is the session's error —
    losing it turns a broken control stream into a silent hang.
 4. **Capacity `ASKS_AHEAD` in the channel and `ASKS_AHEAD` more in `in_hand`**, so up to 16 asks
@@ -334,7 +334,7 @@ Invariants an implementation has to keep, each of which is a way to get this wro
 
 ### How to know it worked
 
-`window-harness --mode saturate --depth 4` against the same study, before and after,
+`window-harness --mode saturate --depth 4` against the same series, before and after,
 interleaved. Expect the miss-dominated cells to move by something like the batch path's
 **+73.8% asks/s** and warm
 cells to tie. A warm regression means the look-ahead is reaching the ring on a hit, which is

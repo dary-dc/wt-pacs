@@ -81,8 +81,8 @@ reads on the happy path (four before 2026-10-04); integer µs.
 ## Turning it on
 
 ```bash
-cargo build --release -p exact-server --features telemetry
-WTPACS_TELEMETRY=1 target/release/exact-server …
+cargo build --release -p series-server --features telemetry
+WTPACS_TELEMETRY=1 target/release/series-server …
 ```
 
 | Variable | Default | Effect |
@@ -143,7 +143,7 @@ taken: it puts a telemetry token in the product's `Ask`, the cost `ack_us` was r
 `batch_position` and `batch_size` were removed on 2026-10-03: nothing set them past `0` of `1`, and
 `request_frames`, the batch they described, left the wire the same day.
 
-The summary carries `stream_mode`, `study` and `study_frames` (what was served). One
+The summary carries `stream_mode`, `series` and `series_frames` (what was served). One
 `server_session` row per session: `t_open_us`, `t_close_us`, `frames`, `bytes`, `refused`, and the
 session's own `rows_opened` / `rows_closed` / `rows_dropped`. `summary.integrity` carries the
 process-wide counters.
@@ -171,14 +171,14 @@ and a file of any other version is refused by its header: v2 has the same record
   and inlines `server_frames`. Above it, percentiles come from the histograms
   (`"histogram-loglinear-1024"`: counts, totals, min and max exact; percentiles at most 0.1 % low,
   exact below 2 048 µs) and `server_frames` is empty.
-* **Rebuild offline** was `exact-server --telemetry-report telemetry-server.rows`, for runs past the
+* **Rebuild offline** was `series-server --telemetry-report telemetry-server.rows`, for runs past the
   inline cap. It reproduced the inline report on the 2026-09-06 smoke run (distributions, frame
   count and rows identical) and had no caller since; removed 2026-10-03, code:
   `git show archive/arms-2026-10-03:server/src/record/report.rs`.
 
 ## The tail at SIGTERM
 
-`exact-server` handles SIGTERM and SIGINT by calling `record::flush_on_exit`, which writes the
+`series-server` handles SIGTERM and SIGINT by calling `record::flush_on_exit`, which writes the
 report and waits for the drain. A harvest stops the server this way after every run.
 
 A batch of 64 means a session holds up to 63 rows that have not reached the drain. `Drop for Tap`
@@ -222,13 +222,13 @@ lab/scripts/verify_e2e.py --telemetry --cell fill --wt-url wss://… --cert-sha2
 ```
 
 Flags: `--cell {ondemand,fill}`, `--depth D` (on-demand asks in flight; `1` is the control),
-`--n N` (steps; default one pass over the study), `--trace URL` (a `lab/traces/*.json`: its
+`--n N` (steps; default one pass over the series), `--trace URL` (a `lab/traces/*.json`: its
 `steps[].frame` and `step_interval_ms`), `--interval-ms`, `--harness ts` (the default and the only
-arm `--telemetry` records; another is refused), `--stream-mode {shared,per-frame}` (default
+variant `--telemetry` records; another is refused), `--stream-mode {shared,per-frame}` (default
 `per-frame`), `--repeats N`, `--allow-void`. `--wt-url` skips the local server: a client-only harvest.
 
-Output goes to `.local/measurements/<stamp>-…/`. Each run folder holds `run.json` (arm, stream
-mode, cell, depth, schedule, study, git sha, Chromium version, the shell's JS-heap and WASM-memory
+Output goes to `.local/measurements/<stamp>-…/`. Each run folder holds `run.json` (variant, stream
+mode, cell, depth, schedule, series, git sha, Chromium version, the shell's JS-heap and WASM-memory
 samples, the server banner) beside the reports. A client report that is not `integrity.valid` is
 written as `telemetry-client.VOID.json` and fails the harvest unless `--allow-void`; on a local run a
 missing server report always fails it. The harvest restarts the server for every run, so each run
@@ -277,7 +277,7 @@ recorded session's recorder ≈ 3 KB. The SIGTERM lock adds ~11 ns per row (§Th
 
 **Row v3 against v2** (2026-10-04, a 4-core cloud container, not the workstation: a tie on that
 host, nothing more). `lab/scripts/telemetry_e2e_baseline.sh` with `DEFAULT_TELEMETRY=1`, so both
-arms record: the build before the change against it, per-frame streams, depth 4, six interleaved
+variants record: the build before the change against it, per-frame streams, depth 4, six interleaved
 pairs at 1, 4 and 16 sessions. Server CPU per frame, paired median: −2.2 %, −1.0 %, −0.4 %, with the
 new build lower in 5, 4 and 4 of 6 pairs; no harness failed.
 In the default build: nothing, by §Absence.
@@ -285,22 +285,22 @@ In the default build: nothing, by §Absence.
 ## Pipeline baseline, 2026-09-06
 
 The scale review behind the pipeline above. Target: thousands of concurrent viewers on one server
-and multi-gigabyte studies, with the product path knowing nothing of telemetry and the output
+and multi-gigabyte series, with the product path knowing nothing of telemetry and the output
 exact (rows are streamed, never sampled away; a summary may be approximate when it says so and
 the rows allow the exact one). All numbers are container-measured on a 4 vCPU / 16 GB VM,
-localhost, unshaped, CPU shared between server and harnesses: relative comparisons between arms
-measured the same way, nothing absolute. Trees: *pre-S2* (`64e2c0a`, a process-wide lock per
+localhost, unshaped, CPU shared between server and harnesses: relative comparisons between variants
+measured the same way, nothing absolute. Trees: *locked* (`64e2c0a`, a process-wide lock per
 row), *head* (`78537c5`, an owned sender, one `try_send` per row) and *batched* (the shape above).
 
 ```bash
 lab/scripts/telemetry_bench_matrix.sh     # emit seams and drain shapes, no network (lab/telemetry-bench)
-lab/scripts/telemetry_e2e_baseline.sh     # exact-server off vs on, N window-harness sessions
+lab/scripts/telemetry_e2e_baseline.sh     # series-server off vs on, N window-harness sessions
 lab/scripts/telemetry_kill_test.sh        # SIGKILL mid-run: rows and timer summary survive
 ```
 
 **Emit, per row on the emitting thread** (microbench, ring 4 096, batch 64):
 
-| Load | pre-S2 | head | batched |
+| Load | locked | head | batched |
 | --- | --- | --- | --- |
 | busy, 4 / 16 / 64 producers | 7.1 / 10.2 / 11.6 µs | 358 / 125 / 149 ns | 17 / 23 / 33 ns |
 | paced, 16 sessions, 150 k rows/s (≈ 5 000 viewers at 30 fps) | 67–78 µs | 33.7 µs | 0.24–0.5 µs |
@@ -319,7 +319,7 @@ Histogram and exact percentiles were identical on the synthetic distribution.
 **End to end, telemetry off → on** (per-frame mode, N `window-harness` sessions saturating at
 depth 4, `queue_large` fixture ≈ 50 KB frames, medians of 3):
 
-| N | ΔCPU pre-S2 | ΔCPU head | ΔCPU batched | batched `overhead_us` p50 |
+| N | ΔCPU locked | ΔCPU head | ΔCPU batched | batched `overhead_us` p50 |
 | --- | --- | --- | --- | --- |
 | 1 | +14 % | +6 % | **+0.3 %** | 1 µs (head ≈ 27) |
 | 4 | +11 % | +5 % | **+1.5 %** | 1 µs (head ≈ 33) |

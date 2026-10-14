@@ -1,0 +1,12 @@
+{"round":4,"unit":"lab:cb2 ask 1x","prev":null,"arm":"lab:cb2","scenario":"ask","throttle":1,"ms":100.6499999994412,"frames":1,"exact":1,"rendererMb":145.38671875,"jsMb":107.01115703582764}
+{"round":4,"unit":"lab:cb2 ask 4x","prev":"lab:cb2 ask 1x","arm":"lab:cb2","scenario":"ask","throttle":4,"ms":410.59500000067055,"frames":1,"exact":1,"rendererMb":149.087890625,"jsMb":107.01309871673584}
+{"round":4,"unit":"built warm 4x","prev":"lab:cb2 ask 4x","arm":"built","scenario":"warm","throttle":4,"ms":418.26999999955297,"frames":9,"exact":9,"rendererMb":373.99609375,"jsMb":117.75970554351807}
+{"round":4,"unit":"lab:cb2 warm 1x","prev":"built warm 4x","arm":"lab:cb2","scenario":"warm","throttle":1,"ms":101.5,"frames":9,"exact":9,"rendererMb":371.861328125,"jsMb":125.84181594848633}
+{"round":4,"unit":"built warm 1x","prev":"lab:cb2 warm 1x","arm":"built","scenario":"warm","throttle":1,"ms":129.7050000000745,"frames":9,"exact":9,"rendererMb":346.87109375,"jsMb":113.83943748474121}
+{"round":4,"unit":"lab:cb2 warm 4x","prev":"built warm 1x","arm":"lab:cb2","scenario":"warm","throttle":4,"ms":315.99499999918044,"frames":9,"exact":9,"rendererMb":379.7421875,"jsMb":118.05061149597168}
+{"round":4,"unit":"built ask 4x","prev":"lab:cb2 warm 4x","arm":"built","scenario":"ask","throttle":4,"ms":458.4199999999255,"frames":1,"exact":1,"rendererMb":148.3662109375,"jsMb":45.695618629455566}
+{"round":4,"unit":"lab:cb2late ask 1x","prev":"built ask 4x","arm":"lab:cb2late","scenario":"ask","throttle":1,"ms":108.49000000022352,"frames":1,"exact":1,"rendererMb":145.189453125,"jsMb":107.0090913772583}
+{"round":4,"unit":"built ask 1x","prev":"lab:cb2late ask 1x","arm":"built","scenario":"ask","throttle":1,"ms":129.20999999996275,"frames":1,"exact":1,"rendererMb":138.3984375,"jsMb":45.686766624450684}
+{"round":4,"unit":"lab:cb2late ask 4x","prev":"built ask 1x","arm":"lab:cb2late","scenario":"ask","throttle":4,"ms":410.75,"frames":1,"exact":1,"rendererMb":148.7216796875,"jsMb":107.02430820465088}
+{"round":4,"unit":"lab:cb2late warm 4x","prev":"lab:cb2late ask 4x","arm":"lab:cb2late","scenario":"warm","throttle":4,"ms":256.2400000002235,"frames":9,"exact":9,"rendererMb":375.9423828125,"jsMb":118.04568099975586}
+{"round":4,"unit":"lab:cb2late warm 1x","prev":"lab:cb2late warm 4x","arm":"lab:cb2late","scenario":"warm","throttle":1,"ms":62.60999999940395,"frames":9,"exact":9,"rendererMb":375.3564453125,"jsMb":117.00877285003662}

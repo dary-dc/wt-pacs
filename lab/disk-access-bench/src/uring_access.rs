@@ -53,7 +53,7 @@ pub struct UringReader {
     in_flight: Vec<bool>,
     owed: Vec<Owed>,
     short_reads: usize,
-    /// `false` when the file/buffers are not registered (the naive arm).
+    /// `false` when the file/buffers are not registered (the naive variant).
     fixed: bool,
 }
 
@@ -145,7 +145,7 @@ impl UringReader {
         })
     }
 
-    /// Sized once for the study's longest frame, so a depth from the frame in hand can
+    /// Sized once for the series's longest frame, so a depth from the frame in hand can
     /// index past it.
     pub fn slots(&self) -> usize {
         self.bufs.len()
@@ -173,7 +173,7 @@ impl UringReader {
         self.push_at(slot, 0, file, offset, len)
     }
 
-    /// How the hybrid arm finishes a window `RWF_NOWAIT` could only partly fill.
+    /// How the hybrid variant finishes a window `RWF_NOWAIT` could only partly fill.
     pub fn push_at(
         &mut self,
         slot: usize,
@@ -240,7 +240,7 @@ impl UringReader {
     }
 
     /// Reaps the whole CQ, recording which slots came back **whole**. A short completion is
-    /// resubmitted for its tail: freeing the slot would credit an arm for bytes the kernel
+    /// resubmitted for its tail: freeing the slot would credit a variant for bytes the kernel
     /// never delivered.
     fn drain(&mut self, freed: &mut Vec<usize>) -> Result<usize> {
         self.ring.completion().sync();
@@ -338,7 +338,7 @@ impl UringReader {
     }
 }
 
-/// Buffers are registered once, so they must cover the study's **longest** frame, not the
+/// Buffers are registered once, so they must cover the series's **longest** frame, not the
 /// first one asked for. Upholds `win <= buf_len` and `windows <= slots` for every frame.
 pub fn ring_geometry(read_chunk: usize, max_len: usize) -> (usize, usize) {
     let buf_len = read_chunk.min(max_len).max(1);
@@ -353,7 +353,7 @@ mod tests {
     /// **A short completion is not a finished read.** The writer delivers the 64 bytes in
     /// two halves, so the kernel completes the first 32 and the tail has to be resubmitted.
     /// Before `drain` compared bytes landed against bytes asked, the slot was freed on the
-    /// first CQE and the arm was credited a whole ask for half a buffer.
+    /// first CQE and the variant was credited a whole ask for half a buffer.
     #[test]
     fn a_short_completion_is_resubmitted_for_its_tail() {
         let mut fds = [0i32; 2];
@@ -404,7 +404,7 @@ mod tests {
         });
     }
 
-    /// The `x14` arms rest on one kernel fact: a reader parked on the ring's **own** fd is
+    /// The `x14` variants rest on one kernel fact: a reader parked on the ring's **own** fd is
     /// woken when a CQE lands, exactly as one parked on a registered eventfd is. This pins
     /// it down deterministically — the read is from a pipe nobody has written to yet, so it
     /// cannot complete inline, and the writer only writes after the reader has parked.
@@ -494,8 +494,8 @@ mod tests {
         );
     }
 
-    /// The geometry must hold for *every* frame in the study, not the first one served: a
-    /// ring built from frame 0 panicked on a study of variable-length frames.
+    /// The geometry must hold for *every* frame in the series, not the first one served: a
+    /// ring built from frame 0 panicked on a series of variable-length frames.
     #[test]
     fn ring_geometry_covers_every_frame_not_just_the_first() {
         for &read_chunk in &[1usize, 4096, 65536, 1 << 20] {

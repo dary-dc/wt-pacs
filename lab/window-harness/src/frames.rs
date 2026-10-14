@@ -14,6 +14,11 @@ pub struct Frames {
 
 impl Frames {
     pub async fn next(&mut self, timeout_ms: u64) -> Result<(u32, usize)> {
+        let (index, body) = self.next_body(timeout_ms).await?;
+        Ok((index, body.len()))
+    }
+
+    pub async fn next_body(&mut self, timeout_ms: u64) -> Result<(u32, Vec<u8>)> {
         loop {
             if self.current.is_none() {
                 self.current = Some(
@@ -38,7 +43,7 @@ impl Frames {
                 bail!("stream ended mid-envelope");
             }
             let (index, body) = unwrap(&payload).map_err(|e| anyhow::anyhow!("envelope: {e}"))?;
-            return Ok((index, body.len()));
+            return Ok((index, body.to_vec()));
         }
     }
 }

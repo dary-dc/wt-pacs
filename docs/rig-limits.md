@@ -10,7 +10,7 @@ Every number in this repository was taken on one of three hosts:
   unless its section says why it can (§1's browser campaign, §3's relay);
 * **the cloud rig** (§9) — a 2-vCPU VM, where `sch_netem` loads, for shaped links.
 
-Eight limits (§1–§8) bound what they can decide. Each is stated with the evidence that established
+Seven limits (§1–§7) bound what they can decide; §8's was lifted. Each is stated with the evidence that established
 it and with what would lift it — written for an agent working somewhere else. §9 is the cloud rig
 and how a campaign runs there; §10 is where the raw rows went.
 
@@ -18,9 +18,9 @@ and how a campaign runs there; §10 is where the raw rows went.
 
 Measured 2026-09-11, sampling the browser's threads per run: Chromium's network-service IO thread
 costs **~9.8 ms of CPU per MB received** — ~14 µs per 1 452-byte datagram, inferred from that rate
-— which caps a fill near 100 MB/s on this box whatever the server does. A 61 MB study fills at
-94.5 MB/s with that thread at a full core (107 % in its busiest 100 ms); a 4.4 MB study reaches
-73.6 MB/s with it at 61 %, so something else holds the small study back first — start-up, loss
+— which caps a fill near 100 MB/s on this box whatever the server does. A 61 MB series fills at
+94.5 MB/s with that thread at a full core (107 % in its busiest 100 ms); a 4.4 MB series reaches
+73.6 MB/s with it at 61 %, so something else holds the small series back first — start-up, loss
 recovery, and the 5× higher frame count per MB are all candidates, **not separated**.
 
 The consequence is that **no sender-side lever shortens a browser fill here**. Measured against
@@ -40,16 +40,18 @@ Pixel 5 over 5G (WWW '24).
 **What lifts it:** a link slower than the receiver, so the wire binds before the receive path does
 (§3). The native drivers in `lab/` avoid it entirely, at the cost of no longer measuring a browser.
 
-### What a browser receives, with the browser on the wire (T12)
+### What a browser receives, with the browser on the wire
+
+*Queue row T12.*
 
 Measured 2026-09-19 in an agent container: 4 vCPU Xeon 2.8 GHz, headless Chromium 141, loopback,
 `rmem_max` 4 MB. Fills of 800 frames at 250 KB and 32 KB; on-demand at depth 1 and 4, 250 KB,
-320 asks. Six repeats, arms interleaved with the order reversed, paired against `shared` per
+320 asks. Six repeats, variants interleaved with the order reversed, paired against `shared` per
 repeat. `lab/scripts/browser_receive.py` reads per-thread CPU from `/proc/*/task/*/schedstat`
 around each run and drops from `Udp: RcvbufErrors`; `lab/scripts/browser_reads.py` reads what each
-`read()` returns. The client is `client/transport-ts` on the main thread with the default reader
+`read()` returns. The client is `client/transport/ts` on the main thread with the default reader
 and no window. Every run delivered every frame, and the box spent 2.0–2.2 of its 4 cores, so it
-did not saturate. The server arms were built from the transport branch's per-core-endpoint tree
+did not saturate. The server variants were built from the transport branch's per-core-endpoint tree
 (`8b903cd`), since parked: the browser's side of every number is independent of that, the
 server's own CPU per MB is not.
 
@@ -96,9 +98,11 @@ a full core, falls behind; the buffer overflows and Cubic backs off. A smaller b
 *fewer*, because the overflow comes at a smaller window; a 768 KB send window never lets the bytes
 in flight reach the buffer. The 45-segment batch is not the cause: 10 segments drop the same.
 Throughput does not follow the drops — the 768 KB window is +4.7 % and +0.3 % (3/6 each), a tie.
-On the target link 768 KB is five times the bandwidth-delay product and never binds, but at depth
-4 it cost the server +17.8 % CPU per MB (6/6). **Recorded as the drop lever for a fast-link
-deployment, not adopted.** Nor is a client-host `rmem_max`: the Linux-default buffer costs no
+On the old 5–50 Mbit/s target 768 KB was five times the bandwidth-delay product and never bound, and at
+depth 4 it cost the server +17.8 % CPU per MB (6/6). **Not adopted.** *Corrected (queue row DOCFIX,
+2026-10-13):* at the measured links it binds above ~60 ms at 103 Mbit/s and ~20 ms at 309, inside the idle
+RTTs, so it would cost fills and is no longer "the drop lever for a fast-link deployment"
+([`transport/link-conditions.md`](transport/link-conditions.md) §Verdicts that rest on the band, item 5). Nor is a client-host `rmem_max`: the Linux-default buffer costs no
 resolved throughput (−5.9 %, 3/6). The workstation saw the same event earlier: 403–559 drops per 3.6 MB
 fill from this server and from a comparison server alike, quinn's `lost_packets` matching the kernel's
 count one for one, and the 768 KB window removing them in 4/4 without moving the ask or the page
@@ -106,7 +110,7 @@ clock (n = 4, interleaved).
 
 **Send shapes, paired against `shared`:**
 
-| arm | fill 250 KB, MB/s | fill 32 KB, MB/s | on-demand d1, per ask | on-demand d4, per ask | network service ms/MB | renderer main ms/MB |
+| variant | fill 250 KB, MB/s | fill 32 KB, MB/s | on-demand d1, per ask | on-demand d4, per ask | network service ms/MB | renderer main ms/MB |
 | --- | --: | --: | --: | --: | --: | --: |
 | per-frame | **−26.0 % (6/6)** | **−62.2 % (6/6)** | **+31.9 % (6/6)** | **+35.3 % (6/6)** | +35 % at 250 KB, +177 % at 32 KB (6/6) | +35 % / +159 % (6/6) |
 | `pool:2`, retired | −1.0 % (4/6) | +14.7 % (4/6) | — | — | tie | +9 % (6/6) at 250 KB |
@@ -116,7 +120,7 @@ clock (n = 4, interleaved).
 | `rmem_max` 212 992 | −5.9 % (3/6) | −3.0 % (3/6) | — | — | +7.5 % (3/6) | +6 % (4/6) |
 
 The rule, fixed before the run, was +10 % MB/s at 5/6 with neither thread's CPU per MB up by more
-than 5 % and no more drops. **No arm clears it, so `shared` and quinn's windows stay the defaults.**
+than 5 % and no more drops. **No variant clears it, so `shared` and quinn's windows stay the defaults.**
 What is established: **a stream per frame costs a browser receiver a quarter of its throughput at
 250 KB and three fifths at 32 KB, and a third more latency at depth 1** — the network service pays
 per stream what it pays per packet, and the renderer opens a reader per stream; the 42 ms over 87
@@ -173,14 +177,14 @@ Shaping the loopback interface needs root, which this box's agent context does n
 
 **What lifts it:** the cloud rig (§9). `lab/scripts/cloud_netem.sh` shapes rate, one-way delay and
 loss on the server's egress, with an iid and a Gilbert-Elliott burst model;
-`lab/scripts/e0_netem_validation.sh` compares the real path with an emulated one of the same RTT
+`lab/scripts/netem_validation.sh` compares the real path with an emulated one of the same RTT
 and rate ([`adr/client-window-depth.md`](adr/client-window-depth.md) §E0).
 
-**Measured there, 2026-09-18 (lane L3):** `lab/scripts/l3_lossy_link.sh`, summarised by
-`lab/scripts/l3_summary.py`. The native driver runs on the workstation, and the server runs on the rig
+**Measured there, 2026-09-18 (queue row L3):** `lab/scripts/lossy_link_levers.sh`, summarised by
+`lab/scripts/lossy_link_summary.py`. The native driver runs on the workstation, and the server runs on the rig
 across the real WAN (~28 ms RTT, 27–58 Mbit unshaped, varying run to run). netem adds one-way delay,
 20 Mbit, iid loss and a 500-packet queue, on the server's egress only. Each run is a 5.12 MB fill
-(160 × 32 kB frames, wall time including connect) and 32 asks at depth 1. Three arms, interleaved,
+(160 × 32 kB frames, wall time including connect) and 32 asks at depth 1. Three variants, interleaved,
 n = 5 per cell, median [range] and rounds better than the default:
 
 | delay · rate · loss | fill, default | 768 KB send window | BBR | ask p50, default | ask p50, BBR |
@@ -202,9 +206,7 @@ n = 5 per cell, median [range] and rounds better than the default:
   against 1.4–2.9 % for cubic. Unshaped, its fill is 0/5. In a browser on loopback it was 8.5×
   slower (§1). **So this is a lever to price in a browser on a shaped link, not one to take**: a
   browser's receive path (§1) and a phone's buffer depth are exactly what this cell does not model.
-  *Priced 2026-09-24 (CC1):* in Chromium BBR fills 12–19× faster under 1–3 % loss, and pays for it
-  with ~45 % of its datagrams dropped at a 120 ms queue or 294 ms of standing queue at a 900 ms one;
-  the default stays Cubic — `transport/transport-conclusions.md` §1.
+  *Priced in a browser since, and the default stays Cubic:* `transport/transport-conclusions.md` §1 *Priced in a browser, on a lossy link*.
 * **One ask under loss**, 32 kB, p50: cubic 105 ms at 1 % and 195 at 3 %, against a floor of ~61
   (round trip plus transfer). BBR: 62 and 103.
 * **Where the host saturates:** unshaped, a 5 MB fill reaches 58 Mbit (a 32 MB fill reached 27; the
@@ -215,18 +217,18 @@ Instrument notes, each of which would have produced a wrong number:
 
 * **netem on the sending host drops whole GSO batches.** quinn hands the kernel up to 64 datagrams
   per send; netem sees each batch as one packet, so "1 %" was 1 % of batches (0.2 % by its own
-  count, bursty by construction). Every arm here runs with `--segmentation-offload false`, a lab
+  count, bursty by construction). Every variant here runs with `--segmentation-offload false`, a lab
   flag added for this. The server's own loss count then matches the configured rate: 1.41 %,
   2.87 %, 1.45 %.
 * **Only UDP 4435 reaches the rig from outside**; 4436 and 4437 pass its host firewall, but no
-  session arrives. The arms share one port, and the server restarts per run.
-* `e0_netem_validation.sh` was not run: it compares the real path with a locally *simulated* RTT,
+  session arrives. The variants share one port, and the server restarts per run.
+* `netem_validation.sh` was not run: it compares the real path with a locally *simulated* RTT,
   not netem on the rig. Instead the shaping was checked directly: goodput caps at the netem rate,
   and the loss counts match.
 * Not modelled: jitter (netem reorders), loss on the client → server path, a browser receiver, a
   phone's buffer.
 
-**Partly lifted in a container, 2026-09-19 (N1), and extended since.** `lab/scripts/link_impair.py`
+**Partly lifted in a container, 2026-09-19 (queue row N1), and extended since.** `lab/scripts/link_impair.py`
 is a userspace relay in front of both planes — the UDP session (`--udp`) and the static host's TCP
 (`--tcp`) — or, with `--tun`, in front of every IPv4 packet. No root, no `netem`.
 `lab/scripts/link_impair_check.sh` (`tun_check.sh` for `--tun`) reads every lever back against
@@ -235,9 +237,9 @@ Each lever is off by default, and each mode's default is the model the earlier n
 A blackout, `cut`, `rebind` and `swallow` are commands on `--control-port`; `cut`, `rebind` and
 `swallow` act on the first UDP pair only, a blackout on all.
 
-| Lever (row) | What it models | Read back | What it cannot model, its ceiling |
+| Lever (queue rows) | What it models | Read back | What it cannot model, its ceiling |
 | --- | --- | --- | --- |
-| the relay itself (N1, 92) | its own floor | 0.40 ms of round trip. A delayed packet leaves p99 0.13–0.26 ms late on `select()`; *corrected 2026-10-01 (row 92):* the loop first waited on epoll, which rounds a wait up to a whole millisecond, so delivery was quantised to 1 ms, not the 0.5 first written (p99 0.74–1.03 ms) | one thread: a delay under ~1 ms decides nothing, and a rate far above this table's is re-checked against the relay first |
+| the relay itself (N1, 92) | its own floor | 0.40 ms of round trip. A delayed packet leaves p99 0.13–0.26 ms late on `select()`; *corrected 2026-10-01 (the relay as a phone link, queue row 92):* the loop first waited on epoll, which rounds a wait up to a whole millisecond, so delivery was quantised to 1 ms, not the 0.5 first written (p99 0.74–1.03 ms) | one thread: a delay under ~1 ms decides nothing, and a rate far above this table's is re-checked against the relay first |
 | `--delay-ms` (N1) | one-way delay, each direction | 20 / 40 ms: 41.0 / 81.7 ms round trip | — |
 | `--rate-kbit`, `--rate-up-kbit` (N1, 92) | a bottleneck rate draining a tail-drop queue; the uplink defaults to the downlink's | 10 000 kbit/s: 9 948, nothing dropped. 2 Mbit up and 10 down, then the reverse, 200 × 1 000 B up and 64 B back: 0.80 s, then 0.16 s — the uplink alone sets it | — |
 | `--queue-pkts` (N1) | tail drop in packets, as `netem`'s limit | 10: 10 of a 500-packet burst | a packet count changes meaning as the rate steps |
@@ -247,19 +249,19 @@ A blackout, `cut`, `rebind` and `swallow` are commands on `--control-port`; `cut
 | `--jitter-mode ordered` (N2) | the same wobble clamped to non-decreasing in each direction: one leg, nothing overtaken | ±5 ms: 9.8 ms of spread; none out of order, none later than delay + jitter | neither mode has real jitter's *shape* — both draw it per packet, where a radio's comes from grants and retransmissions and is correlated over milliseconds — and neither is a scheduler |
 | blackout, `--blackout-mode drop` (N1, N2) | a path that throws the outage away, both directions | 600 ms: 59 of a 200-packet, 2 s stream gone | **which a radio does is unverified**: no primary source was found for the discard timer that decides it, and the two give a transport very different sessions (`transport/transport-conclusions.md` §3) |
 | `--blackout-mode hold` (N2) | a link layer that buffers: each direction's rate clock frozen, the queue limit deciding what survives, the rest leaving in order when it ends | 600 ms: none gone, the first held packet 602 ms late; 40 of 60 gone with a 20-packet queue | as above |
-| `rebind`, `--rebind-ip` (N1, 104) | a NAT rebind: by default the relay's server-side port only, which quinn treats as the same path; with `--rebind-ip 127.0.0.2` a new address, which quinn treats as a new path and resets (`transport/transport-conclusions.md` §3, PUSH) | mid-stream: none lost; the session survives it (`rebind-probe`). `REBOUND` prints `address:port` on both sides | UDP plane only |
+| `rebind`, `--rebind-ip` (N1, 104) | a NAT rebind: by default the relay's server-side port only, which quinn treats as the same path; with `--rebind-ip 127.0.0.2` a new address, which quinn treats as a new path and resets (`transport/transport-conclusions.md` §3 *The first ask on an idle session*) | mid-stream: none lost; the session survives it (`rebind-probe`). `REBOUND` prints `address:port` on both sides | UDP plane only |
 | `swallow` (61) | the server's next flight lost, wherever it falls | 300 ms, armed idle: opens on the next server datagram, not on the command — 30 of a 10 ms-paced echo taken, 0 client→server | UDP plane only |
 | `--tcp-rate per-connection\|shared` (N1) | a rate per TCP connection, or one bottleneck for all, as HTTP/1.1's six sockets share on a real link | two 1 MB fetches at once at 8 000 kbit/s: 1.04 s per connection, 2.03 s shared, all byte-exact | the TCP plane is relayed *above* TCP, where a dropped chunk is data gone: it shapes only — no loss, no blackout, no TCP loss-recovery number (`--tun` gives one), no window to compete with. The kernel completes its handshake locally, so the relay charges the setup round trip rather than observing it (`--tcp-no-handshake` turns that off). TLS is not modelled. *Until 2026-09-27 a rate there could drop bytes* (its queue took the UDP plane's packet limit); no published cell set one |
 | `--self-timing` (92) | the guard: every send timed against its due time, p50, p99 and worst printed with the tally (and on `stats`), `VOID` when the p99 is over 1 ms | 20 Mbit, a queue standing: p99 0.14–0.26 ms late, all 4 000 sends timed. The relay stopped for 100 ms at 50 ms delay: worst 98.8 ms late, `VOID`. The check wants 0.5 ms or less; the epoll loop fails it | a late relay reads as link jitter: see the traps below |
 | `--trace` (92) | a recorded or stepped link: mahimahi's format, replacing the server→client rate on both planes | a 12 / 3 / 0 / 12 Mbit step trace (1 s, 1 s, 300 ms, 700 ms), open loop at twice its 7.8 Mbit mean: every 100 ms bin exactly the trace's count, 29 bins, 1 850 of 1 850 delivered. One opportunity a millisecond after 1 s idle: 100 × 1 500 B in 0.101 s (an opportunity nothing used is gone), 300 × 500 B in 0.101 s (three packets share one) | sizes are UDP payloads, so a full-size QUIC datagram takes ~2 % less of a trace than on the link it was recorded on (IP packets under `--tun`); what a trace stands in for is the trace's own claim |
 | `--idle-promote S:P` (95, IDL) | one radio's idle state: after S s with no UDP packet either way, the next one holds both directions for P ms — the blackout's hold, once; active from the relay's start | 20 ms one way, `5:300`: a probe after 6 s of quiet takes 340.6 ms, the next, 4 s later, 40.5. `1:300` with an echo that answers 1.5 s late: the reply ends the quiet and a client packet inside the promotion waits it out, worst 2 060.9 ms (a radio holding only the server's direction reads 1 840) | **not a carrier's state machine** — no DRX cycle, no intermediate state, no tail that differs by direction; S and P are the cell's to name (by report 5–10.5 s and 190–1 907 ms, `transport/transport-conclusions.md` §9). One pair only; the TCP plane neither wakes it nor waits for it |
-| `--udp`, more than once (99 NBR, 105) | one phone's apps sharing its radio: each pair its own client and server, every pair crossing one queue and one rate clock each way; each client port on a pair has its own upstream port, as a NAT gives it | two echoes at once, 250 kB each way through each pair at 4 Mbit: 0.98–1.00 s, not 0.5, all 500 delivered; two bursts of 100 into a 10-packet queue leave 10 between them, not 20. Two client ports through one pair, interleaved: 100 of their own replies each, none of the other's (the relay before row 105: 0 and 20, and 20 crossed) | the neighbour is another QUIC flow, not TCP. Against the rig's `netem` neighbour table it agrees within ±10 points except a deep buffer's BBR against TCP (`transport/transport-conclusions.md` §1, NBR) |
+| `--udp`, more than once (99 NBR, 105) | one phone's apps sharing its radio: each pair its own client and server, every pair crossing one queue and one rate clock each way; each client port on a pair has its own upstream port, as a NAT gives it | two echoes at once, 250 kB each way through each pair at 4 Mbit: 0.98–1.00 s, not 0.5, all 500 delivered; two bursts of 100 into a 10-packet queue leave 10 between them, not 20. Two client ports through one pair, interleaved: 100 of their own replies each, none of the other's (the relay before the session-recycling fix, queue row 105: 0 and 20, and 20 crossed) | the neighbour is another QUIC flow, not TCP. Against the rig's `netem` neighbour table it agrees within ±10 points except a deep buffer's BBR against TCP (`transport/transport-conclusions.md` §1, through the relay) |
 | `--codel TARGET:INTERVAL` (100, CDL) | RFC 8289's dequeue on each direction's UDP queue, on top of its tail drop (RFC 8289's are `5:100`, in ms). In one FIFO a packet's dequeue time is known at the offer, so the control law runs then, with now := that dequeue time; a dropped packet takes no link time | 1 000 B open loop at 1.5× a 1 Mbit link, 12 s, on a virtual clock: the first ten drop gaps within 4 ms of 100/√count; 62.4 drops a second after 4 s against an excess of 62.5; sojourn 40 ms. A native Cubic fill and a 20 ms probe on a 5 Mbit, 56 ms link, 200-packet queue: the probe's extra round trip 4.7–5.1 ms with `5:100` (16–18 drops in 10–12 s), 389–395 ms tail drop only | approximated: the one-packet guard reads the bytes ahead of the packet, not behind, and `drop_next` advances on a drop rather than after the next look. The TCP plane is not managed. **Against a sender that does not back off it holds ~40 ms, not 5** — the RFC's algorithm, not the relay's |
 | `--fq-codel` (110, FQC) | RFC 8290 on each direction of the UDP and TUN planes: a queue per flow, deficit round robin with a 1 514-byte quantum, new flows first, CoDel per queue at its dequeue (`--codel`'s parameters), the fattest queue losing its head over the limit; each departure decided at its dequeue in virtual time. Every link, FIFO or not, tallies each flow (`flow <side> <proto> <src> <dst> …`) | 1 500 B at 1.2 Mbit against 300 B at 0.6 on 1 Mbit: the first flow's share 0.501 (one FIFO: 0.704). 100 B every 200 ms beside four 1 500 B flows at 0.5 Mbit, 10-packet limit: the sparse flow's p99 10.1 ms, under one packet's 12, none lost (FIFO: 107.7 ms, 27 lost). Two 500 B flows at 0.75 Mbit: each queue's first ten drop gaps within 12.6 ms of 100/√count, 62.0 and 62.4 drops a second against 62.5. Live, a 100 B probe every 30 ms beside a 2× blast on another pair, 1 Mbit, 40 ms: 46.6 ms, 100 of 100 (FIFO: 1 499 ms, 42 of 100). Live, five datagrams into a 275 ms hold: worst 309.6 ms | flows are exact 5-tuples, so none collide (Linux hashes into 1 024 buckets); an overflow drops one packet, not up to half the fat queue |
 | `--tun` (107, TUN) | the packet layer: two TUN devices, `wtc` (10.77.0.1) in the relay's namespace and `wts` (10.77.0.2) in a server namespace it starts (`server_netns=` on `READY`, entered with `nsenter --net=`); every IPv4 packet crosses the UDP plane's `Pipe`s, so QUIC and kernel TCP share one queue and one clock each way, and a dropped TCP segment is one the sender's kernel retransmits. Run inside `unshare -rn` (`iproute2` installed) | `tun_check.sh`, three runs on a 4-core container: delay 0, then 20 ms one way: 0.57–0.64 ms round trip, then 40.9. TCP bulk under a 12 / 3 Mbit step trace, 20 ms, 100-packet queue: 0.965–0.982 of the UDP plane's 7 500 kbit/s (1 448 / 1 500 is 0.965). GE 2 %, 150 000 × 200 B one way: 1.000 of the mean, sink plus relay counts 150 000. 20 Mbit TCP, 1 000-packet queue: 0 dropped, 0 retransmitted (`RetransSegs`); at 1 % iid, 81–87 dropped, retransmitted 1.00× that | **ceiling 100 Mbit:** a single TCP flow at 20 ms costs 33–106 µs of relay CPU a packet, the guard's p99 is 0.24–0.81 ms up to 100 Mbit (~12 000 packets a second both ways) and 0.94–2.36 ms at 200 Mbit, `VOID` in three of four runs. Claim nothing through the TUN above 100 Mbit on this host. `cut`, `rebind`, `swallow` stay on the UDP plane |
 
-**Phone profiles (row 86, PROF).** `profile_cells.sh` composes these levers into eight profiles
-(`transport/transport-conclusions.md` §1, PROF), with three public mahimahi LTE traces fetched into
+**Phone profiles (queue row 86, PROF).** `profile_cells.sh` composes these levers into eight profiles
+(`transport/transport-conclusions.md` §1 *Link profiles close to a phone*), with three public mahimahi LTE traces fetched into
 `$TRACES` and never committed.
 
 **The two counts it was made to check**, fitted over round trips of 40, 80 and 160 ms so that the
@@ -267,12 +269,12 @@ relay's floor and the crypto fall out as the intercept, on the native client:
 
 * **A cold open reaches its first byte in 4.01 round trips + 17.7 ms**, the session ready at **3.00**
   ([`ARCHITECTURE.md`](ARCHITECTURE.md) states the count, with its attribution corrected there).
-  *Since lever 2 (2026-09-23) it is one fewer:* 2.99 round trips + 17.8 ms to first byte and
+  *Since early SETTINGS (2026-09-23) it is one fewer:* 2.99 round trips + 17.8 ms to first byte and
   1.99 + 12.0 ms to the session on 2026-09-24; the check that still wanted 4 failed until it wanted 3.
-* **One 250 KB ask on a fresh session is 5.59 round trips + 12.5 ms** — S7's ~5 flights out of a
+* **One 250 KB ask on a fresh session is 5.59 round trips + 12.5 ms** — ~5 slow-start flights (queue row S7) out of a
   12 KB initial window, on a link with no rate limit, so it is slow start and not the link.
 
-**Calibrated against `netem`, 2026-09-19** (`lab/scripts/n1_netem_calibration.sh`), on delay only:
+**Calibrated against `netem`, 2026-09-19** (`lab/scripts/netem_calibration.sh`), on delay only:
 on the cloud rig, server and `cold_open` on its loopback, each round and delay either this relay or
 `netem` on `lo`, interleaved, 5 rounds, the same fit:
 
@@ -285,7 +287,7 @@ on the cloud rig, server and `cold_open` on its loopback, each round and delay e
 **They agree to 0.01 round trips in every phase, so a round-trip count taken through the relay can be
 read on its own.** The relay's fixed cost (5–10 ms here, on a burstable host) cannot, and rate, queue
 depth, loss and blackouts were calibrated only against arithmetic (the table), not against `netem`;
-the lossy cells on the rig itself are L3, above.
+the lossy cells on the rig itself are the native lossy-link run, above.
 
 Instrument notes, each a trap:
 
@@ -293,15 +295,15 @@ Instrument notes, each a trap:
   datagram by datagram, destroying any batching the kernel would have done. Loopback's MTU is
   unchanged, and the server still sees a loopback socket.
 * **Any earlier cell with two sessions open at once on one pair is suspect** (not re-checked). Until
-  row 105 (2026-10-02) a pair carried one client at a time, forwarding to whichever it heard from
+  the session-recycling fix (2026-10-02, queue row 105) a pair carried one client at a time, forwarding to whichever it heard from
   last, so a replacement dialled before its predecessor closed swapped packets with it: a 40 ms
   cell's replacements took 0.16–2.1 s to dial, one sent 53 packets in 3 s at the minimum window, and
-  RS1 (2026-09-24) saw the ~1 s handshake probe timeout. A cell that dialled only after a silence or
+  a 2026-09-24 campaign (queue row RS1) saw the ~1 s handshake probe timeout. A cell that dialled only after a silence or
   a cut was not affected, save a closed session's queued packets delivered to its successor's port,
   which Chromium drops.
 * **A late relay reads as link jitter.** On this box, with other builds and browsers running, the
   p99 crossed 1 ms in several of the runs above; run a cell with `--self-timing` and drop `VOID`
-  runs. A grant cycle is hard on the guard: `0:9 220000:1` voided 41 % of W4b's runs, a flat
+  runs. A grant cycle is hard on the guard: `0:9 220000:1` voided 41 % of the deep-buffer fill's runs, a flat
   22 Mbit 7 % (more in §6's traps).
 * **A trace is anchored at the relay's start.** `READY` prints that start (`epoch=`) and the trace's
   sha256: record both with the cell, and never commit a trace whose licence is unstated. A driver
@@ -312,8 +314,8 @@ Instrument notes, each a trap:
   is an outage, and `0:9 400000:1` is a grant cycle, 39.6 Mbit delivered once every 10 ms.
 * **Name the TCP controller.** This container's kernel defaults to **BBR**, and inside `unshare -rn`
   the sysctl cannot be changed; a socket's `TCP_CONGESTION` can, and an accepted socket inherits its
-  listener's (`lab/stream-shape/tcp_cc.c`, row 108). The TUN checks ran on BBR. A cell whose TCP arm
-  takes the host's default compares controllers, not transports: row 108's first campaign did.
+  listener's (`lab/stream-shape/tcp_cc.c`, from the ask's loss-sensitivity run, queue row 108). The TUN checks ran on BBR. A cell whose TCP variant
+  takes the host's default compares controllers, not transports: that run's first campaign did.
 * **Under `--tun`, set a rate.** With none, the sender outruns the loop and the TUN's own queue drops
   what was not read in time (7 110 segments retransmitted at ~760 Mbit, none dropped by the model).
   The tally reports those as `unread client->server server->client`; a cell that reads them nonzero
@@ -321,8 +323,8 @@ Instrument notes, each a trap:
   the exact sum can fail on a host drop.
 * **CoDel against BBR is one run, not a campaign:** quinn's BBR under `--codel 5:100` on the CoDel
   check's link lost 2 219 of 4 273 packets to CoDel and stood 53 ms of queue against 71 under tail
-  drop only, the probe losing a third — its model does not read loss. Row 86's cells measure it.
-* **Three checks fail on a 4-core container, from the host** (2026-10-02, with and without row 100's change): the
+  drop only, the probe losing a third — its model does not read loss. The phone profiles' CoDel cells measure it.
+* **Three checks fail on a 4-core container, from the host** (2026-10-02, with and without CoDel in the relay, queue row 100): the
   neighbour check, whose probe started first and finished in 0.51–0.83 s (it reads the two probes'
   start skew as well as the shared clock); the Gilbert–Elliott blast, 6 650–7 050 of 8 000 because the
   echo's socket overflows (the relay's own tally lost 84); and the 1 200 kbit trace's 100 ms queue,
@@ -330,7 +332,7 @@ Instrument notes, each a trap:
 
 ## 4. The reader never misses
 
-A fully evicted 61 MB study still reports `fill_hits=237 fill_misses=0`. On this NVMe the
+A fully evicted 61 MB series still reports `fill_hits=237 fill_misses=0`. On this NVMe the
 one-frame look-ahead completes before the reader needs it, so eviction moves the read earlier
 without ever blocking — eviction is real (residency 1.0 → 0 → 1.0, verified per run), it simply
 has nothing to bite on. Page-cache eviction is not the lever; force a miss through the store's own
@@ -342,11 +344,10 @@ that escalates to a blocking pool ([`adr/disk-access.md`](adr/disk-access.md)). 
 a major fault costs milliseconds the first should lose badly, but this box never produces one.
 **A rig that cannot make the reader miss cannot price either design.**
 
-**What lifts it:** slower storage, a study far past the 15 GB of RAM, or a reduced
-`read_ahead_kb` — already recorded as moving miss rate 2–15× ([`adr/disk-access.md`](adr/disk-access.md)
-§8). Drivers: `lab/scripts/e2_miss_cost_cloud.sh`, `lab/scripts/read_path_ab.sh`.
+**What lifts it:** slower storage, a series far past the 15 GB of RAM, or a reduced
+`read_ahead_kb` ([`adr/disk-access.md`](adr/disk-access.md) §6 *Read-ahead*). Drivers: `lab/scripts/miss_cost_cloud.sh`, `lab/scripts/read_path_ab.sh`.
 
-**On the cloud rig it does** (2026-09-18, L7, `lab/scripts/l7_read_path.sh`). A 4 GB study on its
+**On the cloud rig it does** (2026-09-18, queue row L7, `lab/scripts/read_path_cloud.sh`). A 4 GB series on its
 954 MB host misses 76–97 % of spread asks, and each is ~1 ms slower at p50 than warm, 6/6 with
 disjoint ranges. The fill still does not miss: 1 % cold, as warm. That host's stolen CPU caps what
 it can price at a median — every cell, warm included, has a p99 of 60–100 ms
@@ -355,21 +356,21 @@ it can price at a median — every cell, warm included, has a p99 of 60–100 ms
 ## 5. Natively, the send path is already at its ceiling
 
 Browser-free, with native drivers on both sides (connect, ask, drain, end, no decode) on a 61.18 MB
-study of 237 frames of ~259 KB, evicted before every run: this server and a comparison server of
+series of 237 frames of ~259 KB, evicted before every run: this server and a comparison server of
 the same protocol shape both land at 225–284 MB/s with **99 %+ of `serve_us` inside `send`**;
-`locate` and `prepare` are ~0. Cold, n = 5 per arm, all three arms sat inside one arm's own
+`locate` and `prepare` are ~0. Cold, n = 5 per variant, all three variants sat inside one variant's own
 run-to-run range, so the workstation could not separate them. A server-side change that does not touch
 `send` has nowhere to show.
 
-**Warm, n = 20, with a 3 s settle gap after each run, fill separates.** On the 61 MB study this
+**Warm, n = 20, with a 3 s settle gap after each run, fill separates.** On the 61 MB series this
 server fills **6.2 % faster** than the comparison server (median paired Δ, 95 % CI −12.3 … −2.2 %,
 17/20 pairs) and spends **10.9 % less server CPU** (−13.8 … −3.6 %, 16/20). On-demand at depth 1
-ties (+0.9 %, 8/20). A 3.6 MB study stays undecided: its 25–50 ms runs move 22–33 % with their
+ties (+0.9 %, 8/20). A 3.6 MB series stays undecided: its 25–50 ms runs move 22–33 % with their
 place in the pair. Cold was not re-run at n = 20. Each side drives its server with its own native
 client, so this compares server plus protocol stack.
 
 **What lifts it:** a regime where `send` is not the ceiling — a shaped link (§3), several sessions
-at once, or a study that makes the reader work (§4).
+at once, or a series that makes the reader work (§4).
 
 ## 6. One box, and only one statistic survives it
 
@@ -379,7 +380,7 @@ page-cached: `miss_rate=0.0` in all 240 runs): the same binary on the same cell 
 in one batch and 25 083 µs in another — **1.86× apart with no code change**. Spread of each
 statistic across four batches: min 1.10×, **p10 1.05×**, p25 1.28×, median 1.86×.
 
-* **Interleave the arms, in a balanced order.** Sequential before/after measured +8.1 % on code that
+* **Interleave the variants, in a balanced order.** Sequential before/after measured +8.1 % on code that
   was a tie, and a median from one batch against a median from another produced a false
   30 %-against-43 % "improvement". Interleaving is not enough on its own: see below.
 * **Quote p10 or the whole distribution**, never one batch's median against another's. The
@@ -395,35 +396,35 @@ statistic across four batches: min 1.10×, **p10 1.05×**, p25 1.28×, median 1.
 * Browser page-clock values drift ~300 ms between sessions, so only ratios taken inside one
   interleaved campaign hold.
 
-**A balanced arm order** (row 90, ORD, 2026-09-28). On the workstation a fixed arm cycle tilted
-loopback rows: the same arm always followed the same predecessor, and a run that started after an
+**A balanced variant order** (queue row 90, ORD, 2026-09-28). On the workstation a fixed variant cycle tilted
+loopback rows: the same variant always followed the same predecessor, and a run that started after an
 idle gap paid a one-off cost (there a laptop GPU waking from runtime suspend, ~0.3 s at browser
-start; not reproducible in a container). A rotation by one a round does not cure it — every arm sits
+start; not reproducible in a container). A rotation by one a round does not cure it — every variant sits
 at every position, but still after the same one. **A Williams square does:** over a period of N
-rounds (2N for odd N) every arm sits at every position, and runs right after every other arm, equally
+rounds (2N for odd N) every variant sits at every position, and runs right after every other variant, equally
 often. [`../lab/order.mjs`](../lab/order.mjs) and [`../lab/scripts/order.py`](../lab/scripts/order.py)
 (`order.py row N ROUND` for a shell loop) build it; for odd N each row alternates with its mirror, so
 a campaign cut short stays within one visit of balance at every length but exactly N rounds. For two
-arms it is the order reversed every other round, which the two-arm drivers already had.
+variants it is the order reversed every other round, which the two-variant drivers already had.
 
-Each converted driver's summary also prints **every paired lead split by the arm's predecessor**
+Each converted driver's summary also prints **every paired lead split by the variant's predecessor**
 inside the round (`first` when it opened the round, which folds in both the idle-gap start and the
 previous round's last visit — the square does not balance that boundary), with the rounds in
-brackets. It appends `UNBALANCED predecessors` when the arm's or the reference's predecessor counts
+brackets. It appends `UNBALANCED predecessors` when the variant's or the reference's predecessor counts
 differ by more than one. `node lab/order.test.mjs` holds the square, the split and the flag, and the
 Python module against the JS one (run by `scripts/gate.sh`). It fails when `order` returns the fixed
 cycle, when a Python square is a plain rotation, when either flag never rises, and when the mirrors
 come in a block after the rows. Against a driver: `first_ask_cells.sh together`, 50 KB, 40 ms, five
-arms, six rounds, flags nothing. With `order.py` forced to the fixed cycle it prints each lead under a
+variants, six rounds, flags nothing. With `order.py` forced to the fixed cycle it prints each lead under a
 single predecessor, every one flagged (container, loopback relay; the leads themselves are not a
 finding).
 
-Figures taken before row 90 (`abc55e6`) used each driver's former order (a fixed cycle, a rotation,
-or two arms reversed every other round) and are left as written; a cell re-run now takes the square. Which driver had which order, and where each doc quotes it, is
+Figures taken before the balanced order (`abc55e6`) used each driver's former order (a fixed cycle, a rotation,
+or two variants reversed every other round) and are left as written; a cell re-run now takes the square. Which driver had which order, and where each doc quotes it, is
 in `git show 6e9c126:docs/rig-limits.md` §6. **Not converted**, outside the row's three groups
-(page-open, the link campaigns, the decode benches): `lab/downloader-campaign/`, `decoder-memory/`,
+(page-open, the link campaigns, the decode benches): `lab/downloader-cost/`, `decoder-memory/`,
 `session-survival/`, `early-messages/`, `stream-shape/`, `tcp-fallback/`,
-`worker-leak/`, `telemetry-cost/`, `other-clients/cells.sh`, and the two-arm scripts
+`worker-leak/`, `telemetry-cost/`, `other-clients/cells.sh`, and the two-variant scripts
 that reverse every other round (already the square, with no split printed).
 
 **`serve_us` is not a speed, and it is not the server's alone.** It covers the read plus
@@ -433,13 +434,13 @@ only on flow control — the peer's. At depth 1 the serve spans are a ninth of t
 is always full and they are 0.94 of it (`serve_total ≤ wall` in 80/80 runs). On one interleaved
 depth ladder `serve_us` p50 climbs 15.0 → 156.5 µs from depth 1 to 87 while wall per frame falls
 276.6 → 221.1 µs. And the driver moves it: the same server measured **147.7 µs per frame under a
-native driver and 67.6 µs under a browser** on the same fill (p10), because the 3.59 MB study fits
+native driver and 67.6 µs under a browser** on the same fill (p10), because the 3.59 MB series fits
 the send window a browser advertises — inferred from the two numbers and the source, not isolated.
 A 61 MB fill the server completes in 184 ms natively was credited 677 ms of `serve_us` under the
 browser, which sat inside `send` while the page decoded. **Compare wall time, and name the client.**
 
 To re-run the cells: `server_ab --mode fill --asks 87` and `server_ab --mode on-demand --depth 1
---asks 10` against `exact-server --stream-mode shared` built with `--features telemetry`
+--asks 10` against `series-server --stream-mode shared` built with `--features telemetry`
 (`WTPACS_TELEMETRY=1`), one server and one session per run; in a browser,
 `/harness/cell.html?autorun=1&stream_mode=shared&frames=87&cell=fill` (or `&cell=ondemand&d=1&n=10`) on
 `server/dev-server.py`, after `server/scripts/gen_dev_cert.sh` — Chromium refuses a dev certificate
@@ -450,14 +451,14 @@ across runs.
 
 * **The rig client's stream credit as the bottleneck.** On one shared stream `first_ask` and
   `window-harness` hold at most quinn's 1.25 MB in flight, so a deep-buffer cell taken with them
-  measures that credit — W3's "a megabyte of standing queue" did. A browser grants more (W4b,
-  `transport/transport-conclusions.md` §3); pass `--stream-recv-window` above buffer + BDP.
+  measures that credit — the blink run's "a megabyte of standing queue" did. A browser grants more
+  (`transport/transport-conclusions.md` §3 *A fill ten times the buffer*); pass `--stream-recv-window` above buffer + BDP.
 
 * **A baseline of your own making.** LTO first measured −17.8 % against a build the lane had
   rebuilt with a newer, slower compiler; against the pinned toolchain it is worth nothing. Record
   the toolchain of anything rebuilt.
 * **A background process moving the ground.** Check the running process's flags before and after
-  each arm, and keep a control that is *expected* to fail, so a rig that cannot observe the failure
+  each variant, and keep a control that is *expected* to fail, so a rig that cannot observe the failure
   is caught rather than believed.
 * **The clock floor.** `performance.now()` is 5 µs under cross-origin isolation (headless Chromium,
   2026-08-30, `lab/clock-resolution/measure_clock_resolution.py`; the row is
@@ -473,8 +474,8 @@ across runs.
   Drain the socket to `EWOULDBLOCK` and raise `SO_RCVBUF`.
 * **A relay late on a busy host reads as jitter on the link**, and a loop that waits on epoll is up
   to 1 ms late on a quiet one. Run a cell with `--self-timing` and discard it when it prints `VOID`
-  (§3, row 92).
-* **A container's timing is the VM it lands on, not the image.** RMD ran the same 40 Mbit trace
+  (§3, `--self-timing`).
+* **A container's timing is the VM it lands on, not the image.** The `readMin` run (queue row RMD) ran the same 40 Mbit trace
   cell at 21 of 120 visits `VOID`; after a restart onto a new VM, 23 of 24, every one at p99
   1.3–1.8 ms with the host otherwise idle. Pairs across a restart are not comparable either (the
   default reader's CPU 640 → 940 ms). Probe a round before a campaign; `reads.mjs` prints each
@@ -483,11 +484,11 @@ across runs.
   instant and leaves one packet at a time, so a browser fill on loopback reads p99 1.4–4 ms late:
   5–6 of 8 page-open visits `VOID`, and still 5 of 8 with the relay at `chrt -f 50`. A 100 Mbit
   rate spaces the flight and none was (p99 0.36–0.67 ms). Shape the link before reading the guard
-  (DL0, `../lab/page-open/README.md` §The dial before the config).
+  (queue row DL0, `../lab/page-open/README.md` §The dial before the config).
 * **A file written just before a run is stale to the browser.** Without `Cache-Control`, Chromium's
   freshness for a response is a fraction of its `Last-Modified` age. A file seconds old is therefore
-  revalidated on every later read, as a 304 on the wire, while an older file in the other arm is read
-  from the cache. ENC's first two batches carried this against every precompressed arm
+  revalidated on every later read, as a 304 on the wire, while an older file in the other variant is read
+  from the cache. ENC's first two batches carried this against every precompressed variant
   ([`../lab/page-open/README.md`](../lab/page-open/README.md) §What an encoding costs on loopback).
   `run.mjs` rewrites the transport config before every visit, and that is the round trip PO1 read
   as the config fetched twice (corrected there). Give a generated file its source's age, or a
@@ -503,7 +504,7 @@ over loopback. The per-datagram receive cost of §1 runs on slower cores there a
 measured**; neither is per-frame decode cost on a phone. No mobile trade-off — decoder choice,
 decoder width, cache format — is settled by a number taken here.
 
-**What lifts it:** a real device. Nothing in `lab/` addresses it.
+**What lifts it:** a real device. Nothing in `lab/` addresses it; the runs that would are planned in [`devices.md`](devices.md).
 
 ## 8. A driven Chromium does not prerender — lifted 2026-09-19
 
@@ -514,7 +515,7 @@ read from the DevTools `Preload` domain, is `PrerenderingDisabledByDevTools`, an
 Launched with no driver, Chromium 141 prerenders in this container, headless included, three runs
 of three.
 
-**What it answered (S20).** While `document.prerendering` the target page loads, fetches its
+**What it answered (queue row S20).** While `document.prerendering` the target page loads, fetches its
 config, imports the transport module and *calls* the dial at 44–85 ms; the WebTransport session
 and the worker's first message both land ~20 ms after activation, never before. A prerender from
 the worklist can therefore hide the page's fetches and script — the 3.6 round trips before the
@@ -586,11 +587,11 @@ rotated on exposure, not on evidence of use:
   there instead of on the rig.
 * **A VOID cell is a design error, never a cell to re-run with more repeats** — raising repeats on
   it manufactures a result. The first stream-shape campaign found six such faults, every one in
-  the cell rather than the rig or the arms: the client pacer left at its default (`window-harness
+  the cell rather than the rig or the variants: the client pacer left at its default (`window-harness
   --read-bps` is 2 Mbit/s unless set to 0, which is required whenever `tc` shapes), a reader
   stepping faster than the link delivers, a cold page cache pooled with warm repeats, a step
   interval taken from the link's label rather than its measured rate, a void check on a misread
-  field, and an estimator that flattered the arm that missed most. One claim was published and
+  field, and an estimator that flattered the variant that missed most. One claim was published and
   retracted within the hour (a 3.5× throughput gap that was one 4-second sample), and a prediction
   called falsified at six repeats was un-falsified at eighteen.
 * **`on_time_rate` and `late_*` are closed-reader metrics**: under `--reader-mode open` they are
@@ -604,9 +605,9 @@ rotated on exposure, not on evidence of use:
 ### What comes back
 
 Raw rows and an execution log, in their own commit, **with no interpretation in the same commit**:
-the commit the binaries were built from and the arms' binary names; `uname -r`, core count and the
+the commit the binaries were built from and the variants' binary names; `uname -r`, core count and the
 `tc qdisc show` line the cell actually installed; every deviation and retry; the pooler's or
-`lab/scripts/runtime_ab_pair.py`'s output verbatim, VOID included. Whether an arm passed is
+`lab/scripts/runtime_ab_pair.py`'s output verbatim, VOID included. Whether a variant passed is
 decided against a rule written before the run. The reading goes into the document that owns the
 subject.
 

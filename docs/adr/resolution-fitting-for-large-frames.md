@@ -120,6 +120,8 @@ source build returns a full-size image with detail missing, and only past a floo
 colour frame ([`decode/README.md`](../decode/README.md) §A prefix draws a smaller image). Handing a
 decoder a frame's first bytes is not built into the clients: it waits on how a smaller first image
 is displayed.
+*Corrected (row RESLEVEL, 2026-10-07):* the package's level output is exact only once clamped to the declared depth;
+"byte-identical" was to its own whole-codestream decode (§7).
 
 **The rule, fixed before the cell runs:** at 20 Mbit / 50 ms on the rig
 ([`rig-limits.md`](../rig-limits.md) §9), 250 KB frames, time from ask to a viewable image with a 25 %
@@ -137,8 +139,214 @@ quinn nor wtransport carries yet, and whose support in Chromium is unchecked.
 
 ---
 
+## 7 · The level a phone screen needs, measured (row RESLEVEL, 2026-10-07)
+
+**Proposed, not built.** Measured in the lab on the breast series ([`decode/README.md`](../decode/README.md) §A frame at
+the level the screen needs, [`lab/av1/decode/resolution-level`](../../lab/av1/decode/resolution-level/README.md)): a fill that sends every frame's
+prefix first and every rest after puts the first exact picture on screen at ×0.09–0.69 of today's time and every frame
+of a four-view study at ×0.06–0.50, on every link of row 23 at 1× and 4×, and finishes every whole frame at a tie
+(×0.98–1.04). §6's rule — 2× to first viewable — holds at 5 and 20 Mbit on every series (×0.09–0.45), and at 50 Mbit
+on the mammograms only (DBT slices ×0.65–0.69).
+
+**What it would take, each piece structural:**
+
+1. **The store**: today's codestreams unchanged (RPCL, one layer, one tile already put the level first); each frame
+   indexed at its level's byte offset — the smallest exact prefix, 26–29 % of a frame at level 1, 7 % at level 2. Ingest
+   finds it with the decoder (as the lab does) or from packet lengths (PLT); the level is the store's or the ask's.
+2. **The wire**: §6's prefix ask — the prefix first, the rest on zoom or behind every prefix. The lab carried it with
+   no wire change, the prefix and the rest as two store entries a frame (2F entries, prefixes first), which is the
+   same bytes in the same order; the downloader's own window then decides when the rests go.
+3. **The decoder**: `decodeSubResolution(level)` on the prefix, then **a clamp to 2^B − 1** — without it 15 of 35 frames
+   are not exact — and the prefix kept until its rest arrives, joined, decoded whole. Grey unsigned measured; signed
+   and colour not.
+4. **The render path** accepting a picture a quarter or a sixteenth the size, scaled up until the whole arrives — §4's
+   blocker, unchanged.
+
+The owner decides 1, 2 and 4; until the render path takes a smaller picture, none of it reaches a screen.
+
+## 8 · The owner's rule for large frames, and what it needs (row TILEDESIGN, 2026-10-11)
+
+**The rule (the owner, 2026-10-10):** "every series over 12 bits that is not a volume or 3D view — breast or not; the
+product serves whatever a radiologist reads, breast is only the next phase — is served at the resolution that fits the
+client's screen, plus tiles for zoomed regions; volumes and 3D views keep their own path, HTJ2K only for now; series
+at 12 bits or less are filled." It is §2's decision made for a class of series; what follows is **a proposal, theory
+only: nothing here is built or timed**.
+
+### 8.1 · What it covers
+
+| series | b | not a volume? | under the rule | frame |
+| --- | --- | --- | --- | --- |
+| FFDM For Processing (raw) | 13–14 ([`../av1/series.md`](../av1/series.md) §1d) | yes | fitted + tiles | 2560×3328, 3328×4096 |
+| DBT projections, raw | 14 | yes: 15–26 views by angle | fitted + tiles | 1664–3328 × 2048–4096 |
+| CR / DX over 12 bits | DX allows 6–16 (PS3.3 C.8.11.3); none in the lab | yes | fitted + tiles | not measured here |
+| XA / RF at 16 bits | allowed (C.8.7.1, C.8.19.2); none seen | yes, cine | fitted; fits most screens whole | 512²–1024² class |
+| CT | 13 on three vendors | a stack is a volume | its own path, HTJ2K | 512² |
+| MR | 9–11 | volume | filled | small |
+| FFDM For Presentation, synthesized 2D, DBT slices, processed projections, US | 8–12 | — | **filled**, whole frames as today | up to 3328×4096 |
+
+**In the breast family the rule reaches only For Processing images**, and whether those are AV1 targets at all is
+already the owner's (§Blocked, row 121 DATAAUDIT). Outside it, CR/DX is the case it was written for; no CR or DX
+series is in the lab. A frame no larger than the screen fits at level 0, so for small frames the rule is today's fill.
+
+### 8.2 · "Fits the screen", counted two ways
+
+The level is the most reduced one whose size still covers the displayed size, the frame fitted whole into the
+viewport. One viewport filling the screen; two side by side (a left–right hanging) is one level coarser on the wide
+frames:
+
+| screen | device px · CSS px | 3328×4096 | 2560×3328 | 2394×2850 | 1914×2572 |
+| --- | --- | --- | --- | --- | --- |
+| phone 1080×2400, DPR 2.625 | device · CSS | L1 · L3 | L1 · L2 | L1 · L2 | L0 · L2 |
+| tablet 2048×2732, DPR 2 | device · CSS | L0 · L1 | L0 · L1 | L0 · L1 | L0 · L0 |
+| laptop 2560×1600, DPR 2 | device · CSS | L1 · L2 | L1 · L2 | L0 · L1 | L0 · L1 |
+| 5 MP diagnostic 2048×2560, DPR 1 | both | L0 | L0 | L0 | L0 |
+
+**The cost per level** is the smallest exact prefix ([`../decode/README.md`](../decode/README.md) §A frame at the
+level the screen needs): L1 25.8–29.0 % of the frame, L2 7.0–7.5 % (measured, breast, ~2:1); L3 ~2 % and L4 ~0.7 %
+from §2's ladder (not measured on breast). So device pixels cost **4× to 13× the bytes of CSS pixels** on a phone
+(L1 against L2–L3), and give the radiologist the sharpness the panel has; CSS pixels upscale by the DPR. **On a 5 MP
+diagnostic display both counts are L0**: the rule there sends every pixel, and tiles never apply until a zoom past 1:1.
+**Decided (the owner, 2026-10-11): device pixels.** CSS pixels would be an upscaled preview on phones, which the
+rule rules out. The viewport, not the screen, is what the client measures (§1); per viewport or per screen is still
+the owner's.
+
+### 8.3 · The store
+
+Two layouts reach a region:
+
+| | tiles as independent codestreams | precincts with PLT in one codestream |
+| --- | --- | --- |
+| decoder | today's OpenJPH build, one call a tile | one that decodes by region: OpenJPH does not (skips PLT, no region decode, rows 109, 113); OpenHTJ2K decodes every block of each row a region reaches and is ×1.13–1.41 slower whole |
+| server | serves stored entries as today | parses packet offsets and serves a partial codestream a decoder must accept (a JPIP-like server, ISO/IEC 15444-9) |
+| bytes | +0.01–0.59 % at k = 2–3 (row 133) | precinct overhead, not measured |
+| an ask's decode | k = 3 tiles on 3 idle workers ×0.388–0.448 of the whole frame at 4× (row 133) | not measured with a region decoder that skips columns |
+| grid | horizontal strips measured; a 2D grid not | any precinct grid |
+
+**Proposed: tiles as independent codestreams**, each in the served profile (RPCL, one layer, five levels), so each
+tile's level-L picture is an exact prefix of it, as for whole frames today. In the store, a tile's codestream is cut at
+its level boundaries into **bands** (the coarsest level's prefix, then each finer level's increment), and the bands are
+laid out **band-major**: every frame's and tile's coarsest band first, then every next band. A fitted series at level
+L is then one contiguous range of entries, and a zoom is the finer bands of the tiles in view. The SBND table already
+indexes entries; what it lacks is the map from (frame, tile, band) to entry, the tile grid and the level of each band
+— in the metadata, or a version 2 table. A level picture's exactness needs **a digest per tile and level** taken from
+the encoder's input (the 5/3 analysis and clamp that `ll.py` witnesses), beside today's per-frame digests: a
+store-content change ([`exactness-in-production.md`](exactness-in-production.md)).
+
+*Recommended in §8.8 (row 175): tiles as independent codestreams, the map in a version 2 table and arithmetic.*
+
+### 8.4 · The wire
+
+* **No wire change** (proposed first): entries are asked as frames are today. The fitted view is
+  `stream_frames {from: 0, to: last entry of band L}`; a zoom is `request_frame` per band of each tile in view. The
+  RESLEVEL lab carried prefixes and rests this way, two entries a frame, with no server change. The cost: an ask ends a
+  running fill ([`../WIRE.md`](../WIRE.md) §An ask during a fill), so a zoom during the fitted fill stops it and the
+  downloader re-asks the rest, as it does today; and the envelope's index is an entry's, which the client maps back.
+* **A region ask** (`{"op":"request_region","frame":N,"level":L,"tiles":[…]}`, or a level on `stream_frames`): the
+  server maps (frame, tile, band) to entries; clients stop carrying the map. A wire change, versioned.
+
+*Recommended in §8.8 (row 175): no wire change.*
+
+### 8.5 · The client
+
+**The same decoder build with more of its workers.** Each tile is a whole codestream OpenJPH decodes as it is; the k
+tiles of one ask go to k idle decoders and are written at their rows into the frame's `SharedArrayBuffer`, which the
+client already decodes into and is cross-origin isolated for ([`../../client/README.md`](../../client/README.md)).
+What changes is the dispatch: one ask becomes k jobs, and the decoders it wants idle are the ones row 113 L5 and P-START
+find unused today; decoders started on first need (P-START) would start them on the first tiled ask. The level picture
+is `decodeSubResolution(L)` on the joined bands, then the clamp to 2^B − 1 (§7.3); a zoom joins the finer bands and
+decodes those tiles whole. A fill of a tiled series decodes k pieces a frame on whatever decoders are free, so its time
+is predicted unchanged (row 133's one-worker arm, ×0.99–1.08 at 4× on the large series). **Nothing past k = 3 is claimed**:
+three workers and the page filled the container's 4 cores. The render path must take a picture smaller than the frame
+— §4's blocker, unchanged.
+
+### 8.6 · A case for the owner: large frames at 12 bits and under
+
+The rule fills them whole. A four-view 12-bit FFDM exam fills in 10.9–20.0 s at 5 Mbit, 2.89–5.19 s at 20 and
+1.33–2.30 s at 50 (HTJ2K, 1×; rows 95–96, `lab/av1/bytes/mammography-at-scale`); synthesized 2D 20.6 · 5.36 · 2.35 s.
+§7's level-first fill on the same links put the first exact picture on screen at ×0.09–0.49 of that and every view at
+×0.06–0.50, the whole a tie. Whether the 12-bit large frames keep the plain fill, as the rule says, or take §7's level
+first (no tiles) is the owner's.
+
+### 8.7 · Proposed rows, none queued
+
+1. **TILEGRID**: P-TILE's harness on a 2×2 and 3×3 grid of the large series: bytes, the ask on k idle workers, and the
+   bytes a 1080×2400 zoom at 1:1 fetches, against horizontal strips.
+2. **BANDS**: the band-major store in the lab, no server change: a fitted fill at L1 and L2 and a zoom, through the
+   downloader, on row 23's links, every level picture against its digest from the encoder's input.
+3. **CRDX**: a sound CR or DX set over 12 bits in the lab (none today), so the rule's main case outside the breast
+   has data.
+
+### 8.8 · The open choices, recommended (row TILESTORE, 2026-10-13)
+
+*A proposal, nothing built. The format these recommendations add up to is
+[`../disk-layout/target.md`](../disk-layout/target.md) §Layout 1. Each choice stays the owner's.*
+
+1. **The store: tiles as independent codestreams, banded and band-major, with the map in the file.**
+   * *Why tiles:* they are measured: every ask exact, +0.12 % bytes at k = 3, an ask ×0.39–0.45 at 4× (row 133).
+     They need today's decoder build and no server change.
+   * *Why not precincts:* precincts need a region decoder the served build does not have, and a JPIP-like server.
+     Neither is measured.
+   * *Where the map lives:* the version 2 `.sbnd`'s 36 B entry, with the map arithmetic
+     (e = b · N · T + f · T + t). The target puts no metadata in the file and keeps the database as metadata's only
+     copy, so the map is not metadata. The arithmetic needs only N, which the client has, and the entry's fields
+     let a reader check the file at open.
+   * *Digests:* the digest per tile and level is the entry's samples hash, taken from the tiled analysis of the
+     encoder's input (§7.3).
+2. **The wire: unchanged.** Because the map is arithmetic, a region ask would only move that formula from the
+   client to the server, at the price of a versioned wire change. The RESLEVEL lab already carried prefixes this
+   way. What it costs is that a zoom ends the fitted fill, which the downloader re-asks; BANDS below prices that.
+3. **Per viewport, in device pixels** (device pixels decided, §8.2).
+   * The viewport is what is drawn. Two viewports side by side need a level one coarser on wide frames, about a
+     quarter of the bytes for the same sharpness, and per screen would send bytes no pixel shows.
+   * Bands are cumulative, so a viewport that grows costs only the next band.
+4. **12-bit large frames keep the plain fill and layout 0, as the rule says**, until a measurement shows a
+   level-first fill is net.
+   * The owner's 2026-10-13 ruling asks for net improvements. Level first put the first exact picture on screen at
+     ×0.06–0.50 of today, but the whole fill read ×0.98–1.04: a tie that includes slower (§7).
+   * A band-only store would be layout 1 with T = 1, a new version value and no new format.
+5. **Three horizontal strips, k = 3, for every frame of at least 1 MP under the rule; a 2D grid only after
+   TILEGRID.**
+   * *Why k = 3:* strips are the only grid measured, and three tiles use the three idle decoders the dispatch has.
+     k = 3 beat k = 2 on every size measured, ×0.30–0.48 at 4× from 0.26 to 13.6 MP (row 133). Every frame the rule
+     covers in the lab is 3.4–13.6 MP (§8.1).
+   * *Why not below 1 MP:* the XA/RF class (512²–1024²) fits most screens whole, and its decode is 5–19 ms (row 133,
+     1×). There tiles would buy only an ask's decode.
+   * *Nothing past k = 3:* the container had 4 cores.
+   * *What strips cost on a zoom:* a zoom at 1:1 on a 1080 × 2400 phone viewport fetches the level-0 band of every
+     tile it touches, as a multiple of the visible area, over every position on the frame (D, strip edges on
+     32-row multiples):
+
+| frame | 3 strips | 2 × 2 | 3 × 3 |
+| --- | --- | --- | --- |
+| 3328×4096 | 3.49–5.26, mean 4.54 | 2.63–5.26, mean 3.88 | 1.14–3.54, mean 2.96 |
+| 2560×3328 | 3.29 everywhere | 1.64–3.29, mean 2.83 | 2.18–3.29, mean 2.35 |
+
+A 3 × 3 grid saves about a third of a zoom's bytes. Its ask is nine decoder calls on three workers, not measured: k
+calls on one worker cost ×0.97–1.24 (row 133). A grid would be a new version value.
+
+**Below the threshold, HTJ2K is unchanged.**
+* The file is layout 0: the same codestreams, byte-identical, asked by frame index as today.
+* The server is unchanged for both layouts: it serves entries by index and never reads the tile fields.
+* The client's tile path runs only on a layout-1 series. Today's path does not change.
+
+**What the proposal still needs measured** (each in the container first, every picture against the encoder's input,
+interleaved, n ≥ 10):
+* **BANDS** (§8.7, 2): a layout-1 store in the lab, no server change.
+  * *Arms:* a fitted fill at L1 and L2, an ask (6 entries at L1), and a zoom during the fill, through the downloader
+    on row 23's links, each level picture checked against its per-tile digest.
+  * *Predictions:* the first exact picture as §7's level-first fill (×0.09–0.69); the whole fill a tie; a zoom's
+    re-ask under one RTT of extra wait.
+* **TILEGRID** (§8.7, 1), with the table's bytes as its prediction. It decides choice 5.
+* **Level pictures of signed and colour frames.** Only grey unsigned is measured (§7.3); the rule's CR/DX case
+  needs the others, and CRDX's data (§8.7, 3).
+* **k on a phone:** the container had 4 cores; a phone's count and speed differ. Nothing past k = 3 holds until a
+  device run.
+* **Choice 4's net test**, if the owner reopens it: the level-first fill against the plain fill on the 12-bit
+  four-view exams. It is net if the whole fill is not worse beyond its spread.
+
 ## References
 
 - [`client-window-depth.md`](client-window-depth.md) — `D`, `Tf`, and `U`
 - [`stride-is-bandwidth-conservation.md`](stride-is-bandwidth-conservation.md) — the other motion lever
 - [`decode/README.md`](../decode/README.md) §A prefix draws a smaller image — the measured prefix curve
+- [`decode/README.md`](../decode/README.md) §A frame at the level the screen needs — §7's numbers

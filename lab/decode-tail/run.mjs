@@ -3,10 +3,10 @@
  * have avoided (throughput), or work it left waiting while a decoder sat idle (scheduling)? Each set
  * is served by its own server on loopback; pages are driverless, the cells in a Williams order
  * every round (lab/order.mjs).
- * docs/decode/README.md §The decode tail; with `direct:` arms, docs/ARCHITECTURE.md (HP1).
+ * docs/decode/README.md §The decode tail; with `direct:` variants, docs/ARCHITECTURE.md (HP1).
  *
  *   NODE_PATH=$(npm root -g) node lab/decode-tail/run.mjs --rounds 7 --sets c512,g512
- *     [--arms name=decoderDir,...]    another decoder build, same page
+ *     [--variants name=decoderDir,...]    another decoder build, same page
  *     [--throttles 1,4,6]             every browser thread slowed — lab/scripts/cpu_throttle.mjs
  *     [--asks 20,43,66]               after the fill, these frames asked one at a time
  */
@@ -25,7 +25,7 @@ const ROUNDS = Number(arg("--rounds", 7));
 const SETS = arg("--sets", "c512,g512").split(",");
 /** `name=[direct:]decoderDir[/glue.js][@decoderWorker]`: another decoder build, another worker around
  *  it, or `direct:` for the page that drives the decoders itself (direct.html). */
-const ARMS = arg("--arms", "package=/lab/decode-bench/vendor/openjph").split(",").map((a) => a.split("="));
+const VARIANTS = arg("--variants", "package=/client/decode/wasm/vendor/openjph").split(",").map((a) => a.split("="));
 const DECODERS = Number(arg("--decoders", 3));
 const THROTTLES = arg("--throttles", "1").split(",").map(Number);
 const ASKS = arg("--asks", "");
@@ -35,12 +35,12 @@ const T = fs.mkdtempSync(path.join(os.tmpdir(), "tail-"));
 const kids = [];
 process.on("exit", () => { for (const k of kids) k.kill(); fs.rmSync(T, { recursive: true, force: true }); });
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server", "-p", "pack-study"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem \
   -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null`]);
 const HASH = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`]).toString().trim();
 
-/** A fixture set as a study: its `NNN.j2c` frames under the names pack-study wants. */
+/** A fixture set as a series: its `NNN.j2c` frames under the names pack-series wants. */
 const servers = {};
 let port = 30000 + ((Math.random() * 10000) | 0);
 for (const set of SETS) {
@@ -50,11 +50,11 @@ for (const set of SETS) {
   fs.mkdirSync(d);
   frames.forEach((f, i) => fs.copyFileSync(path.join(src, f), path.join(d, `${String(i).padStart(3, "0")}.htj2k`)));
   fs.writeFileSync(path.join(T, `${set}.json`), JSON.stringify({ frameCount: frames.length }));
-  execFileSync(path.join(ROOT, "target/release/pack-study"), ["--metadata", path.join(T, `${set}.json`),
+  execFileSync(path.join(ROOT, "target/release/pack-series"), ["--metadata", path.join(T, `${set}.json`),
     "--frames", d, "--output", path.join(T, `${set}.sbnd`)]);
   const p = port++;
-  kids.push(spawn(path.join(ROOT, "target/release/exact-server"), ["--port", String(p), "--bind", "127.0.0.1",
-    "--study", path.join(T, `${set}.sbnd`), "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem")],
+  kids.push(spawn(path.join(ROOT, "target/release/series-server"), ["--port", String(p), "--bind", "127.0.0.1",
+    "--series", path.join(T, `${set}.sbnd`), "--cert-pem", path.join(T, "cert.pem"), "--key-pem", path.join(T, "key.pem")],
     { stdio: "ignore" }));
   servers[set] = { url: `https://127.0.0.1:${p}/`, frames: frames.length };
 }
@@ -70,13 +70,13 @@ const sink = http.createServer((req, res) => {
 await new Promise((r) => sink.listen(0, "127.0.0.1", r));
 await new Promise((r) => setTimeout(r, 1500));
 
-async function page(set, [arm, spec], rate) {
+async function page(set, [variant, spec], rate) {
   const direct = spec.startsWith("direct:");
   const [where, worker] = spec.replace(/^direct:/, "").split("@");
   const [dir, glue] = where.endsWith(".js") ? [path.dirname(where), path.basename(where)] : [where, undefined];
   const profile = fs.mkdtempSync(path.join(T, "p-"));
   const got = new Promise((r) => (report = r));
-  const u = new URLSearchParams({ set, arm, fill: servers[set].frames, decoders: DECODERS, decoderDir: dir,
+  const u = new URLSearchParams({ set, variant, fill: servers[set].frames, decoders: DECODERS, decoderDir: dir,
     wt: servers[set].url, hash: HASH, report: sink.address().port, slow: rate, asks: ASKS, ...(worker ? { decoderWorker: worker } : {}),
     ...(glue ? { glue, wasm: glue.replace(/\.js$/, ".wasm") } : {}) });
   // CHROME_FLAGS passes flags through; CHROME_LOG keeps what the browser prints.
@@ -158,15 +158,15 @@ function split(r) {
 }
 
 const rows = [];
-const cells = THROTTLES.flatMap((t) => SETS.flatMap((s) => ARMS.map((a) => [s, a, t])));
-const unit = (set, arm, throttle) => `${arm}/${set}@${throttle}x`;
+const cells = THROTTLES.flatMap((t) => SETS.flatMap((s) => VARIANTS.map((a) => [s, a, t])));
+const unit = (set, variant, throttle) => `${variant}/${set}@${throttle}x`;
 for (let round = 0; round < ROUNDS; round++) {
   let prev = null;
-  for (const [set, arm, throttle] of order(cells, round)) {
-    const r = await page(set, arm, throttle);
+  for (const [set, variant, throttle] of order(cells, round)) {
+    const r = await page(set, variant, throttle);
     if (r && process.env.DUMP) fs.appendFileSync(process.env.DUMP, JSON.stringify({ throttle, ...r }) + "\n");
-    const row = r ? { round, set, arm: arm[0], throttle, prev, ...split(r) } : { round, set, arm: arm[0], throttle, prev, lost: true };
-    prev = unit(set, arm[0], throttle);
+    const row = r ? { round, set, variant: variant[0], throttle, prev, ...split(r) } : { round, set, variant: variant[0], throttle, prev, lost: true };
+    prev = unit(set, variant[0], throttle);
     rows.push(row);
     console.log(JSON.stringify(row, (k2, v) => (typeof v === "number" ? Math.round(v * 100) / 100 : v)));
   }
@@ -174,12 +174,12 @@ for (let round = 0; round < ROUNDS; round++) {
 const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
 console.log("\nmedians over rounds, ms from the fill's ask");
 const f2 = (v) => (v === undefined ? "-" : v.toFixed(2));
-for (const throttle of THROTTLES) for (const set of SETS) for (const [arm] of ARMS) {
-  const rs = rows.filter((r) => r.set === set && r.arm === arm && r.throttle === throttle && !r.lost);
+for (const throttle of THROTTLES) for (const set of SETS) for (const [variant] of VARIANTS) {
+  const rs = rows.filter((r) => r.set === set && r.variant === variant && r.throttle === throttle && !r.lost);
   const m = (k) => med(rs.map((r) => r[k]));
-  const base = (r) => rows.find((b) => b.round === r.round && b.set === set && b.throttle === throttle && b.arm === ARMS[0][0]);
+  const base = (r) => rows.find((b) => b.round === r.round && b.set === set && b.throttle === throttle && b.variant === VARIANTS[0][0]);
   const sooner = (k) => `${rs.filter((r) => r[k] < base(r)?.[k]).length}/${rs.length}`;
-  console.log(`${throttle}x ${set} ${arm}: wire ${m("wireMs").toFixed(0)}  decoded ${m("doneMs").toFixed(0)}  tail ${m("tailMs").toFixed(0)}` +
+  console.log(`${throttle}x ${set} ${variant}: wire ${m("wireMs").toFixed(0)}  decoded ${m("doneMs").toFixed(0)}  tail ${m("tailMs").toFixed(0)}` +
     `  decode/frame ${m("decodeMs").toFixed(2)}  work/decoder ${m("workPerDecoderMs").toFixed(0)}` +
     `  busy in wire ${(100 * m("busyShareInWire")).toFixed(0)} %  idle-with-work ${m("idleWithWorkMs").toFixed(0)} decoder-ms` +
     ` (own inbox ${m("idleOwnInboxMs").toFixed(0)}, queue ${m("idleQueueMs").toFixed(0)}, a busy one's inbox ${m("idleOtherInboxMs").toFixed(0)})` +
@@ -190,10 +190,10 @@ for (const throttle of THROTTLES) for (const set of SETS) for (const [arm] of AR
     `  | in decoder: bytes in ${f2(m("bytesInMs"))}  header ${f2(m("headerMs"))}  wasm ${f2(m("wasmMs"))}` +
     `  pixels out ${f2(m("pixelsOutMs"))}  range ${f2(m("rangeMs"))}` +
     `  | ask ${f2(m("askMs"))} (wire ${f2(m("askWireMs"))}, decode ${f2(m("askDecodeMs"))}, to page ${f2(m("askToPageMs"))})  n=${rs.length}` +
-    (arm === ARMS[0][0] ? "" : `  vs ${ARMS[0][0]}: decoded sooner ${sooner("doneMs")}, wasm faster ${sooner("wasmMs")}, ask sooner ${sooner("askMs")}`));
+    (variant === VARIANTS[0][0] ? "" : `  vs ${VARIANTS[0][0]}: decoded sooner ${sooner("doneMs")}, wasm faster ${sooner("wasmMs")}, ask sooner ${sooner("askMs")}`));
 }
 console.log("\ndecoded, ms: each lead by the predecessor it ran after, rounds in brackets");
-const byUnit = rows.map((r) => ({ round: r.round, unit: unit(r.set, r.arm, r.throttle), prev: r.prev, v: r.doneMs }));
-const pairs = THROTTLES.flatMap((t) => SETS.flatMap((s) => ARMS.slice(1).map(([a]) => [unit(s, a, t), unit(s, ARMS[0][0], t)])));
+const byUnit = rows.map((r) => ({ round: r.round, unit: unit(r.set, r.variant, r.throttle), prev: r.prev, v: r.doneMs }));
+const pairs = THROTTLES.flatMap((t) => SETS.flatMap((s) => VARIANTS.slice(1).map(([a]) => [unit(s, a, t), unit(s, VARIANTS[0][0], t)])));
 for (const line of leadsByPredecessor(byUnit, cells.map(([s, [a], t]) => unit(s, a, t)), pairs)) console.log(line);
 process.exit(0);

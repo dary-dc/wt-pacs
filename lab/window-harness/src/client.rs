@@ -117,7 +117,7 @@ pub async fn run_depth_sweep(
     trace: &TraceSpec,
     cfg: &RunConfig,
     depths: &[u32],
-    arm_prefix: &str,
+    variant_prefix: &str,
 ) -> Result<Vec<HarnessMetrics>> {
     let mut out = Vec::with_capacity(depths.len());
     for &depth in depths {
@@ -125,7 +125,7 @@ pub async fn run_depth_sweep(
         reset_ask_join();
         let mut run_cfg = cfg.clone();
         run_cfg.depth = depth;
-        let label = format!("{arm_prefix}_d{depth}");
+        let label = format!("{variant_prefix}_d{depth}");
         out.push(run_harness(Some(trace), &run_cfg, &label).await?);
     }
     Ok(out)
@@ -134,7 +134,7 @@ pub async fn run_depth_sweep(
 pub async fn run_harness(
     trace: Option<&TraceSpec>,
     cfg: &RunConfig,
-    arm_label: &str,
+    variant_label: &str,
 ) -> Result<HarnessMetrics> {
     reset_peak_outstanding();
     reset_ask_join();
@@ -167,7 +167,7 @@ pub async fn run_harness(
         HarnessMode::Trace => {
             let t = trace_ref.context("trace required")?;
             let schedule = t.frame_schedule();
-            // Wrap as `window_frames` does, or a cursor past the study waits out the timeout.
+            // Wrap as `window_frames` does, or a cursor past the series waits out the timeout.
             let wanted = *schedule.last().context("empty trace")? % cfg.frame_count.max(1);
             (schedule, wanted, t.name.clone())
         }
@@ -244,7 +244,7 @@ pub async fn run_harness(
         mode,
         cfg.read_bps,
         cfg.depth,
-        arm_label,
+        variant_label,
         asks_sent,
         cfg.fill_dwell_ms,
         cfg.warm_cache,
@@ -408,7 +408,7 @@ async fn run_windowed(
     let step_interval_ms = cfg.step_interval_ms.unwrap_or(trace.step_interval_ms);
     let step_loop_start = std::time::Instant::now();
     match cfg.reader_mode {
-        // L1's reader: keeps an absolute schedule but still blocks, so it cannot fall behind.
+        // The closed reader: keeps an absolute schedule but still blocks, so it cannot fall behind.
         ReaderMode::Closed => {
             for (i, &cursor) in schedule.iter().enumerate() {
                 // Advance on the trace clock (absolute schedule). Miss waits that overrun
@@ -436,7 +436,7 @@ async fn run_windowed(
                 wait_displayable(metrics, cursor % n, cfg.timeout_ms, Some(target)).await?;
             }
         }
-        // R6's reader: never blocks, which is the only mode where head-of-line blocking exists.
+        // The open reader: never blocks, which is the only mode where head-of-line blocking exists.
         ReaderMode::Open => {
             asks_sent +=
                 run_reader_open_loop(control_send, trace, cfg, schedule, metrics, outstanding)
@@ -516,13 +516,13 @@ async fn run_reader_open_loop(
     let mut pending: Vec<Want> = Vec::new();
 
     let t0 = tokio::time::Instant::now();
-    // Both knobs apply: L1's absolute override picks the cadence, R6's multiplier moves
+    // Both knobs apply: the absolute override picks the cadence, the multiplier moves
     // the operating point relative to it.
     let base_ms = cfg.step_interval_ms.unwrap_or(trace.step_interval_ms);
     let step = Duration::from_secs_f64((base_ms as f64 * cfg.step_scale.max(0.001)) / 1000.0);
 
     for (i, &cursor) in schedule.iter().enumerate() {
-        // ABSOLUTE deadline: a per-iteration sleep would give a slower arm a slower reader.
+        // ABSOLUTE deadline: a per-iteration sleep would give a slower variant a slower reader.
         tokio::time::sleep_until(t0 + step * i as u32).await;
 
         let frame = cursor % n;
@@ -825,7 +825,7 @@ async fn on_frame_arrived(
 
 /// Every uni the server opens, each carrying `[4B BE envelope_len][envelope]` frames until it
 /// ends: one stream for `shared`, one per frame for `per-frame`. One reader
-/// for both, so an arm's numbers never carry a reader difference. Post-processing is
+/// for both, so a variant's numbers never carry a reader difference. Post-processing is
 /// spawned so no read loop is blocked by it.
 async fn accept_and_read_loop(
     connection: Connection,

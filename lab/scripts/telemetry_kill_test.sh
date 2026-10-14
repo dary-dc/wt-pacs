@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# P3: a hard kill (SIGKILL — no handler can run) leaves the row file and a timer summary.
+# A hard kill (P3; SIGKILL — no handler can run) leaves the row file and a timer summary.
 #
 # Usage: SERVER_TELEMETRY=path BIND=127.0.0.1 HARNESS_IPV4=1 lab/scripts/telemetry_kill_test.sh
 # Prints one JSON line: rows_in_file, frames in the last timer summary, and pass/fail.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="${WORK:-$ROOT/.local/telemetry-kill-test}"
-STUDY="${STUDY:-$ROOT/lab/fixtures/queue_large/queue_large.sbnd}"
+SERIES="${SERIES:-$ROOT/lab/fixtures/queue_large/queue_large.sbnd}"
 CERT="$ROOT/server/dev-cert/cert.pem"; KEY="$ROOT/server/dev-cert/key.pem"
 PORT="${PORT:-4434}"
 BIND="${BIND:-}"; HARNESS_IPV4="${HARNESS_IPV4:-0}"
@@ -23,7 +23,7 @@ bind_args=(); [[ -n "$BIND" ]] && bind_args=(--bind "$BIND")
 harness_args=(); [[ "$HARNESS_IPV4" == "1" ]] && harness_args=(--ipv4)
 
 WTPACS_TELEMETRY=1 WTPACS_TELEMETRY_PATH="$report" WTPACS_TELEMETRY_SUMMARY_MS="$SUMMARY_MS" \
-  "$SERVER_TELEMETRY" --port "$PORT" --study "$STUDY" --cert-pem "$CERT" --key-pem "$KEY" \
+  "$SERVER_TELEMETRY" --port "$PORT" --series "$SERIES" --cert-pem "$CERT" --key-pem "$KEY" \
     "${bind_args[@]}" > "$WORK/server.out" 2> "$WORK/server.err" &
 spid=$!
 sleep 1

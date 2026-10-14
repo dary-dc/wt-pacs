@@ -1,5 +1,5 @@
 /**
- * client/downloader/decoder.js with one change, for docs/decode/README.md §The decode tail on a slow
+ * client/decode/decoder.js with one change, for docs/decode/README.md §The decode tail on a slow
  * CPU: `decodeFrame` stamps where its time goes — bytes in, header, the WASM decode, pixels out, range.
  */
 let M = null;

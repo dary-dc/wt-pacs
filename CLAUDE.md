@@ -14,6 +14,12 @@ and no more of it.
 
 **Propose before implementing when the change is structural.** Designs are reviewed.
 
+## Names
+
+**A name states its role in the domain's words.** No word from the project's history — a queue row, a campaign
+label, a numbered lever — and none that a standard the code touches uses for something else (DICOM's Item; ARM).
+One concept, one name, defined once in [`docs/glossary.md`](docs/glossary.md).
+
 ## Comments
 
 **Write none, then add back only what a reader needs at that line to avoid writing a bug:**
@@ -34,7 +40,7 @@ be a paragraph here is a clause and a `docs/` pointer.
 **Tests are the exception.** A test's doc comment states the claim the test makes, which is
 worth more than its name alone — those are not counted and should not be cut.
 
-`scripts/comment_budget.sh` enforces **0.18 comment lines per code line** per file, floor 10,
+`scripts/comment_budget.sh` enforces **0.18 comment lines per code line** per file (Rust, TypeScript, JavaScript, shell and Python), floor 10,
 counting neither `SAFETY` blocks nor anything from `mod tests {` down. It runs in
 `scripts/gate.sh`. The product sits at 0.10–0.18; going over is a signal about the code, not
 a reason to raise the budget.
@@ -49,7 +55,7 @@ place, not quietly dropped: `docs/adr/disk-access.md` §2 is the model.
 
 The rules below have each already produced a wrong answer here when broken.
 
-* **Interleave the arms.** Sequential before/after measured +8.1% on code that was a tie.
+* **Interleave the variants.** Sequential before/after measured +8.1% on code that was a tie.
 * **Mutate every new test** — break the code on purpose and watch the test fail.
 * **Page-cache eviction is not a test lever.** Force the miss through the store's test levers.
 * **Quote latency or throughput, not both** — one is the other divided by depth.
@@ -60,4 +66,5 @@ The rules below have each already produced a wrong answer here when broken.
 ```bash
 scripts/gate.sh          # client bundles, type-check, server tests, absence checks
 scripts/gate.sh --quick  # skip the two absence checks
+scripts/gate.sh --no-browser  # skip the browser steps, and say so
 ```

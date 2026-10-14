@@ -21,7 +21,7 @@ impl ReaderMode {
     }
 }
 
-/// The server's arm, as the run should be labelled. The reader accepts every uni the server
+/// The server's variant, as the run should be labelled. The reader accepts every uni the server
 /// opens regardless, so this names the cell rather than selecting a code path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StreamMode {
@@ -60,9 +60,9 @@ pub enum WindowShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HarnessMode {
-    /// Trace-driven fly / settle (E2).
+    /// Trace-driven fly / settle (the cache-miss cost).
     Trace,
-    /// Stationary pipeline fill only (E1).
+    /// Stationary pipeline fill only (the saturation sweep).
     Saturate,
 }
 
@@ -75,10 +75,10 @@ pub struct RunConfig {
     pub depth: u32,
     /// After settle + wanted, dwell this many ms to measure fill_rate.
     pub fill_dwell_ms: u64,
-    /// Study frame count for window construction.
+    /// Series frame count for window construction.
     pub frame_count: u32,
     pub mode: HarnessMode,
-    /// Pre-fetch all schedule frames before settle (E2 warm-cache control).
+    /// Pre-fetch all schedule frames before settle (the cache-miss cost's warm control).
     pub warm_cache: bool,
     /// Simulated RTT (ms), applied once on the return path.
     pub rtt_ms: u64,
@@ -100,7 +100,7 @@ pub struct RunConfig {
     /// long before declaring the remainder censored.
     pub drain_ms: u64,
     /// Multiplier on the trace's `step_interval_ms`. Calibrate ONCE per cell on one
-    /// reference arm and freeze it, or the operating point is tuned per-arm.
+    /// reference variant and freeze it, or the operating point is tuned per-variant.
     pub step_scale: f64,
 }
 
@@ -116,7 +116,7 @@ pub struct HarnessMetrics {
     /// the harness did not produce the concurrency it claims and the run is void.
     #[serde(default)]
     pub peak_outstanding: u32,
-    pub arm_label: String,
+    pub variant_label: String,
     pub wanted_frame: u32,
     pub asks_sent: u32,
     pub recovered_ms: f64,
@@ -134,7 +134,7 @@ pub struct HarnessMetrics {
     pub cache_misses: u32,
     /// cache_hits / wait_samples.
     pub cache_hit_rate: f64,
-    /// Raw per-step waits (ms); cache hits are 0. For derived random arm offline.
+    /// Raw per-step waits (ms); cache hits are 0. For derived random variant offline.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub wait_ms: Vec<f64>,
     pub wait_samples: u32,
@@ -143,7 +143,7 @@ pub struct HarnessMetrics {
     pub fill_frames: u32,
     pub fill_bytes: u64,
     pub fill_dwell_ms: u64,
-    /// fill_bytes*8/dwell_s as fraction of read_bps (E1 util).
+    /// fill_bytes*8/dwell_s as fraction of read_bps (the saturation sweep's utilisation).
     pub link_util: f64,
     pub wasted_bytes: u64,
     pub commitment_depth: u32,
@@ -194,10 +194,10 @@ pub struct HarnessMetrics {
     #[serde(default)]
     pub reader_mode: String,
     /// Unsatisfied wants, at the censoring bound. MUST be reported with every p95, or an
-    /// arm that fails to deliver loses its slowest samples and wins by delivering less.
+    /// variant that fails to deliver loses its slowest samples and wins by delivering less.
     #[serde(default)]
     pub censored_waits: u32,
-    /// `censored_waits / wait_samples`. Above the campaign's void threshold the arm
+    /// `censored_waits / wait_samples`. Above the campaign's void threshold the variant
     /// collapsed and its p95 means nothing.
     #[serde(default)]
     pub censored_frac: f64,
@@ -245,7 +245,7 @@ pub struct MetricsState {
     pub cache: HashSet<u32>,
     /// LRU order for `cache`, most-recently-used last. Empty when the cache is unbounded.
     pub cache_lru: Vec<u32>,
-    /// Max frames held, 0 = unbounded. Unbounded, the client holds the whole study within
+    /// Max frames held, 0 = unbounded. Unbounded, the client holds the whole series within
     /// seconds, no jump can miss, and head-of-line blocking becomes unmeasurable.
     pub cache_cap: usize,
     /// Per want: ms until displayable (0 on cache hit).
@@ -384,7 +384,7 @@ impl MetricsState {
         mode: &str,
         read_bps: u64,
         depth: u32,
-        arm_label: &str,
+        variant_label: &str,
         asks_sent: u32,
         fill_dwell_ms: u64,
         warm_cache: bool,
@@ -455,7 +455,7 @@ impl MetricsState {
             depth,
             stream_mode: stream_mode.to_string(),
             peak_outstanding: crate::client::peak_outstanding(),
-            arm_label: arm_label.to_string(),
+            variant_label: variant_label.to_string(),
             wanted_frame: self.wanted_frame,
             asks_sent,
             recovered_ms,

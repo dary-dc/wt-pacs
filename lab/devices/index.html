@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:," />
+  <title>wt-pacs — device runner</title>
+  <style>
+    body { font: 16px/1.4 system-ui, sans-serif; margin: 12px; background: #111; color: #eee; }
+    button { font: inherit; padding: 10px 14px; margin: 4px 4px 4px 0; border-radius: 8px; border: 1px solid #555; background: #222; color: #eee; }
+    button.on { background: #2a5d9f; border-color: #2a5d9f; }
+    button:disabled { opacity: 0.4; }
+    fieldset { border: 1px solid #333; border-radius: 8px; margin: 8px 0; }
+    #status { color: #9cf; white-space: pre-wrap; }
+    #reading { font-family: ui-monospace, monospace; font-size: 14px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <fieldset id="link"><legend>Link, as it is now</legend>
+    <button data-link="wifi">Wi-Fi</button><button data-link="cellular">Cellular</button><button data-link="cellular+video">Cellular + video</button>
+  </fieldset>
+  <fieldset id="mode"><legend>Mode</legend>
+    <button data-mode="quick" class="on">Quick (3 rounds)</button><button data-mode="full">Full (10 rounds)</button>
+  </fieldset>
+  <fieldset><legend>Run</legend>
+    <button data-run="evening">Evening: D0 → D1 → D2</button><br />
+    <button data-run="D0">D0 capability</button><button data-run="D1">D1 decode</button><button data-run="D2">D2 field</button>
+  </fieldset>
+  <p id="status">Pick the link, then a run.</p>
+  <div id="reading"></div>
+  <p><button id="save">Save results (JSON)</button> <span id="posted"></span></p>
+  <p><small>Fixtures CC BY, decoders under their own licences: docs/av1/licensing.md. lab/devices/README.md</small></p>
+  <script type="module" src="/lab/devices/runner.js"></script>
+</body>
+</html>

@@ -3,12 +3,12 @@
  * landed, when it was handed to a decoder, when decoding started and ended. run.mjs reads the split
  * from them. docs/decode/README.md §The decode tail
  */
-import { DownloaderClient } from "/client/downloader/consumer.js";
+import { DownloaderClient } from "/client/transport/consumer.js";
 
 const q = new URLSearchParams(location.search);
 const FILL = Number(q.get("fill"));
 const DECODERS = Number(q.get("decoders") || 3);
-const dir = q.get("decoderDir") || "/lab/decode-bench/vendor/openjph";
+const dir = q.get("decoderDir") || "/client/decode/wasm/vendor/openjph";
 const decoder = { glue: `${dir}/${q.get("glue") || "openjphjs.js"}`, wasm: `${dir}/${q.get("wasm") || "openjphjs.wasm"}`, dir };
 
 const frames = [];
@@ -31,7 +31,7 @@ await settle(1500);
 const askAt = performance.timeOrigin + performance.now();
 client.fill([...Array(FILL).keys()]);
 await Promise.race([all, new Promise((r) => setTimeout(r, 60000))]);
-// One frame asked on an idle, warm session, spread over the study: one frame's latency.
+// One frame asked on an idle, warm session, spread over the series: one frame's latency.
 const asks = [];
 for (const i of (q.get("asks") || "").split(",").filter(Boolean).map(Number)) {
   await settle(300);
@@ -42,6 +42,6 @@ for (const i of (q.get("asks") || "").split(",").filter(Boolean).map(Number)) {
 client.close();
 fetch(`http://127.0.0.1:${q.get("report")}/`, {
   method: "POST",
-  body: JSON.stringify({ set: q.get("set"), arm: q.get("arm"), askAt, frames, asks }),
+  body: JSON.stringify({ set: q.get("set"), variant: q.get("variant"), askAt, frames, asks }),
   keepalive: true,
 });

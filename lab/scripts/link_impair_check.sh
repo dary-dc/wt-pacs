@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# N1: does lab/scripts/link_impair.py tell the truth? Arithmetic first — delay, rate, queue,
+# Does lab/scripts/link_impair.py tell the truth? Arithmetic first — delay, rate, queue,
 # loss, and the floor the relay itself adds — then the two counts the lane owes: a cold open
-# against docs/ARCHITECTURE.md, and a 250 KB ask against S7's slow start.
+# against docs/ARCHITECTURE.md, and a 250 KB ask against its slow-start bound.
 # Reads every number out loud and exits non-zero on the first one outside tolerance.
 # Results and what this harness cannot do: docs/rig-limits.md §3.
 #
@@ -619,17 +619,17 @@ stop_relay
 echo
 echo "== the static host's plane"
 python3 server/dev-server.py --port "$TCP_OUT" > "$T/static.log" 2>&1 & PIDS+=("$!")
-for _ in $(seq 50); do curl -sf "http://127.0.0.1:$TCP_OUT/client/downloader/README.md" >/dev/null && break; sleep 0.1; done
+for _ in $(seq 50); do curl -sf "http://127.0.0.1:$TCP_OUT/client/README.md" >/dev/null && break; sleep 0.1; done
 python3 "$RELAY" --tcp "$TCP_IN:$TCP_OUT" --delay-ms 40 > "$T/tcp.log" 2>&1 & TCP_PID=$!; PIDS+=("$TCP_PID")
 for _ in $(seq 50); do grep -q READY "$T/tcp.log" && break; sleep 0.1; done
-curl -s "http://127.0.0.1:$TCP_IN/client/downloader/README.md" > "$T/got.md"
-if cmp -s "$T/got.md" client/downloader/README.md; then
+curl -s "http://127.0.0.1:$TCP_IN/client/README.md" > "$T/got.md"
+if cmp -s "$T/got.md" client/README.md; then
   say "a relayed fetch is byte-exact" "ok"
 else
   say "a relayed fetch is byte-exact" "FAIL"
   fails=$((fails + 1))
 fi
-tot=$(curl -s -o /dev/null -w '%{time_total}' "http://127.0.0.1:$TCP_IN/client/downloader/README.md")
+tot=$(curl -s -o /dev/null -w '%{time_total}' "http://127.0.0.1:$TCP_IN/client/README.md")
 want "fetch at one-way 40 ms (s): setup + exchange" "$tot" 0.155 0.185
 kill -TERM "$TCP_PID" 2>/dev/null || true
 
@@ -664,7 +664,7 @@ echo
 echo "== the counts this lane owes"
 kill "$ECHO_PID" 2>/dev/null || true   # the real server takes the echo's port
 sleep 0.3
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -673,8 +673,8 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/k
 mkdir -p "$T/frames"
 for i in $(seq 0 9); do head -c 256000 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo '{"frameCount": 10}' > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
-RUST_LOG=exact_server=warn "$BIN/exact-server" --port "$UDP_OUT" --study "$T/study.sbnd" \
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
+RUST_LOG=series_server=warn "$BIN/series-server" --port "$UDP_OUT" --series "$T/series.sbnd" \
   --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" > "$T/server.log" 2>&1 & PIDS+=("$!")
 for _ in $(seq 100); do grep -q "wt_url=" "$T/server.log" && break; sleep 0.1; done
 grep -q "wt_url=" "$T/server.log" || { echo "server did not start:"; cat "$T/server.log"; exit 1; }
@@ -724,8 +724,8 @@ read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" session)
 say "session ready: round trips + fixed ms" "$rt + $fixed"
 read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" first_byte)
 say "first byte: fixed cost (ms)" "$fixed"
-# R1 counted 4; lever 2's SETTINGS in the first flight took one. docs/ARCHITECTURE.md §Lever 2
-want "first byte: round trips (lever 2 counts 3)" "$rt" 2.6 3.4
+# R1 counted 4; the early SETTINGS took one. docs/ARCHITECTURE.md §Early SETTINGS
+want "first byte: round trips (early SETTINGS count 3)" "$rt" 2.6 3.4
 read -r rt fixed < <(python3 "$T/fit.py" "$T/fit.tsv" ask_to_last_byte)
 say "250 KB ask: fixed cost (ms)" "$fixed"
 want "250 KB ask: flights (S7 predicts ~5)" "$rt" 4.5 6.0

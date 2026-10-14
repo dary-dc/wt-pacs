@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# W2: the controller questions, through lab/scripts/link_impair.py.
+# The controller questions (W2), through lab/scripts/link_impair.py.
 #   S8  an early slow-start exit — Cubic against BBR (the exit itself is retired); shallow and deep buffer,
 #       with and without jitter.
 #   S9  retired with its flag; code: `git show archive/arms-2026-10-03:lab/scripts/controller_cells.sh`.
-#       Where in the transfer a blink lands, and the controller arms through it: blink_cells.sh.
+#       Where in the transfer a blink lands, and the controller variants through it: blink_cells.sh.
 #   S10 `initial_rtt` against the cold-connect tail at 1 % loss.
 # Results: docs/transport/transport-conclusions.md §3.
 #
@@ -22,7 +22,7 @@ PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }
 trap cleanup EXIT
 
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -33,7 +33,7 @@ for i in $(seq 0 "$FILL"); do
   head -c $((KB * 1024)) /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"
 done
 echo "{\"frameCount\": $((FILL + 1))}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 SRV=$((36000 + RANDOM % 2000))
 IN=$((34000 + RANDOM % 2000))
@@ -41,7 +41,7 @@ CTRL=$((38000 + RANDOM % 2000))
 
 start_server() {  # extra server args...
   : > "$T/server.log"
-  RUST_LOG=exact_server=info "$BIN/exact-server" --port "$SRV" --study "$T/study.sbnd" \
+  RUST_LOG=series_server=info "$BIN/series-server" --port "$SRV" --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "$@" > "$T/server.log" 2>&1 &
   SERVER_PID=$!
   PIDS+=("$SERVER_PID")
@@ -61,7 +61,7 @@ start_relay() {  # extra relay args...
 stop_relay() { kill -TERM "$RELAY_PID" 2>/dev/null || true; sleep 0.3; }
 
 # Per session: datagrams sent, lost, congestion events, and the smoothed RTT the session ended
-# on — on a deep buffer that last one is the standing queue, which is what S8 is about.
+# on — on a deep buffer that last one is the standing queue, which is what the slow-start-exit cell is about.
 link_cost() {
   python3 - "$T/server.log" <<'PY'
 import re, sys
@@ -102,7 +102,7 @@ run() {  # label state [probe args...]
 
 head_row() {
   printf '\n== %s\n%-26s %9s %9s %8s %7s %8s\n' "$1" \
-    "arm" "fill ms" "sent" "lost" "cong" "end rtt"
+    "variant" "fill ms" "sent" "lost" "cong" "end rtt"
 }
 
 echo "link: ${RTT} ms round trip, ${RATE} kbit, fill $((FILL * KB)) KB"
@@ -111,14 +111,14 @@ for buffer in "shallow:20" "deep:1500"; do
   for jitter in 0 2 10; do
     head_row "S8 · ${buffer%%:*} buffer (${buffer##*:} packets), jitter ${jitter} ms"
     RELAY_ARGS=(--rate-kbit "$RATE" --queue-pkts "${buffer##*:}" --jitter-ms "$jitter")
-    for arm in cubic bbr; do
-      SERVER_ARGS=(--congestion "$arm")
-      run "$arm" filled
+    for variant in cubic bbr; do
+      SERVER_ARGS=(--congestion "$variant")
+      run "$variant" filled
     done
   done
 done
 
-printf '\n== S10 · the cold-connect tail at 1 %% loss\n%-26s %s\n' "arm" "cold open, $((ROUNDS * 8)) connects"
+printf '\n== S10 · the cold-connect tail at 1 %% loss\n%-26s %s\n' "variant" "cold open, $((ROUNDS * 8)) connects"
 RELAY_ARGS=(--loss 1)
 for rtt_ms in 333 100 50; do
   if [[ $rtt_ms -eq 333 ]]; then SERVER_ARGS=(); else

@@ -76,7 +76,7 @@ export class OpenRowIndex {
 }
 
 /**
- * Closed preload rows that have not yet seen `delivered`. Fill rows close at `last_byte`
+ * Closed fill rows that have not yet seen `delivered`. Fill rows close at `last_byte`
  * (paint has no site), but the app still receives the bytes later; that mark fills
  * `deliver_us` on the closed row instead of being discarded as a mark after close.
  */
@@ -89,7 +89,7 @@ export class DeliveredLater {
     else this.byFrame.set(row.frame_index, [row]);
   }
 
-  /** Oldest closed preload row for this frame still awaiting `delivered`, removed. */
+  /** Oldest closed fill row for this frame still awaiting `delivered`, removed. */
   take(frame_index: number): OpenRow | undefined {
     const q = this.byFrame.get(frame_index);
     if (!q || q.length === 0) return undefined;
@@ -132,21 +132,21 @@ export function toClientFrame(row: OpenRow): ClientFrameRow {
 
   let total_us: number | null = null;
   let total_spans: string | null = null;
-  if (row.kind === "preload" && row.gesture_us != null && row.last_byte_us != null) {
+  if (row.kind === "fill" && row.gesture_us != null && row.last_byte_us != null) {
     total_us = row.last_byte_us - row.gesture_us;
     total_spans = "gesture_to_last_byte";
   } else if (
-    row.kind === "interaction" &&
+    row.kind === "ask" &&
     row.gesture_us != null &&
     row.delivered_us != null
   ) {
     total_us = row.delivered_us - row.gesture_us;
     total_spans = "gesture_to_delivered";
-  } else if (row.kind === "preload" && row.ask_us != null && row.last_byte_us != null) {
+  } else if (row.kind === "fill" && row.ask_us != null && row.last_byte_us != null) {
     total_us = row.last_byte_us - row.ask_us;
     total_spans = "ask_to_last_byte";
   } else if (
-    row.kind === "interaction" &&
+    row.kind === "ask" &&
     row.ask_us != null &&
     row.delivered_us != null
   ) {
@@ -188,7 +188,7 @@ export function toClientFrame(row: OpenRow): ClientFrameRow {
 }
 
 function defaultClosedAt(kind: RowKind): ClosedAt {
-  return kind === "preload" ? "last_byte" : "delivered";
+  return kind === "fill" ? "last_byte" : "delivered";
 }
 
 /** Match transfer distribution filter: only multi-chunk rows bind on transfer. */
@@ -213,7 +213,7 @@ export function pickBinding(s: {
 
 export function askToCompleteUs(f: ClientFrameRow): number | null {
   const parts = [f.serve_plus_path_us, f.transfer_us];
-  if (f.kind === "interaction") parts.push(f.deliver_us);
+  if (f.kind === "ask") parts.push(f.deliver_us);
   if (parts.some((p) => p == null)) return null;
   return parts.reduce<number>((s, v) => s + (v as number), 0);
 }

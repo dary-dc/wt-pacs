@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 SVCSHAPE</title>
+<script src="/lab/.av1-build/out/simd-op.js"></script>
+<script type="module">
+  import { prepare, round } from "./bench.mjs";
+  const get = async (p) => {
+    const res = await fetch(`/${p}`);
+    if (!res.ok) throw new Error(`${p}: ${res.status}`);
+    return new Uint8Array(await res.arrayBuffer());
+  };
+  globalThis.run = async ({ sets, r, mutate }) => round({ dav1d: globalThis.Dav1dModule }, await prepare(get, sets), r, mutate);
+  globalThis.ready = true;
+</script>

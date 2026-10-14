@@ -5,14 +5,14 @@ use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
-use study_bundle::read_layout;
+use series_bundle::read_layout;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(test)]
 use std::sync::Mutex;
 
-/// The retired 64 KiB read chunk: tests size frames across several. `docs/adr/disk-access.md`.
+/// 64 KiB, a size tests make frames span several of. `docs/adr/disk-access.md`.
 #[cfg(test)]
 pub(crate) const READ_WINDOW: usize = 64 * 1024;
 
@@ -23,7 +23,7 @@ pub struct FrameSpan {
     pub len: u32,
 }
 
-/// **Open once per study, never per session.** `docs/adr/disk-access.md` §Invariants.
+/// **Open once per series, never per session.** `docs/adr/disk-access.md` §Invariants.
 pub struct FrameStore {
     file: File,
     index: Vec<(u64, u32)>,
@@ -38,22 +38,28 @@ pub struct FrameStore {
 }
 
 impl FrameStore {
-    pub fn open(study_path: &Path) -> Result<Self> {
-        let file = File::open(study_path)
-            .with_context(|| format!("open study bundle {}", study_path.display()))?;
+    pub fn open(series_path: &Path) -> Result<Self> {
+        let file = File::open(series_path)
+            .with_context(|| format!("open series bundle {}", series_path.display()))?;
         let layout = read_layout(&file)
-            .with_context(|| format!("read layout of {}", study_path.display()))?;
-        Ok(Self {
-            nowait: probe_nowait(&file, layout.data_base as u64),
+            .with_context(|| format!("read layout of {}", series_path.display()))?;
+        Ok(Self::with_index(file, layout.index, layout.data_base as u64))
+    }
+
+    /// A series whose table another container's parser read: `lab/container-bench`.
+    /// Every entry must lie inside `file`; nothing here checks it.
+    pub fn with_index(file: File, index: Vec<(u64, u32)>, probe_at: u64) -> Self {
+        Self {
+            nowait: probe_nowait(&file, probe_at),
             file,
-            index: layout.index,
+            index,
             #[cfg(test)]
             nowait_cap: None,
             #[cfg(test)]
             pool_starts: AtomicUsize::new(0),
             #[cfg(test)]
             advised: Mutex::new(Vec::new()),
-        })
+        }
     }
 
     /// Where this is false every read reports a miss, cached or not, so a caller that
@@ -62,6 +68,7 @@ impl FrameStore {
         self.nowait
     }
 
+    #[cfg(feature = "uring")]
     pub fn file(&self) -> &File {
         &self.file
     }
@@ -230,7 +237,7 @@ pub fn nowait_supported_at(path: &Path) -> Result<bool> {
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use study_bundle::write_bundle;
+    use series_bundle::write_bundle;
 
     fn scratch(name: &str) -> std::path::PathBuf {
         let stamp = SystemTime::now()
@@ -265,7 +272,7 @@ mod tests {
         Ok(())
     }
 
-    /// A study holding a frame no client would read stops the server at startup, naming the
+    /// A series holding a frame no client would read stops the server at startup, naming the
     /// frame. Laid out by hand, since the writer refuses it too; sparse, so nothing is written.
     #[test]
     fn a_study_with_an_oversized_frame_fails_to_open_naming_it() -> Result<()> {
@@ -282,7 +289,7 @@ mod tests {
         File::options().write(true).open(&path)?.set_len(data_base + u64::from(too_big))?;
         let opened = FrameStore::open(&path);
         let _ = std::fs::remove_file(&path);
-        let err = format!("{:#}", opened.err().expect("the oversized study opened"));
+        let err = format!("{:#}", opened.err().expect("the oversized series opened"));
         assert!(err.contains("frame 0 "), "the refusal does not name the frame: {err}");
         Ok(())
     }
@@ -300,7 +307,7 @@ mod tests {
             store.nowait_supported(),
             "check-fastpath would report a different answer than the server acts on"
         );
-        // A directory too: that is how the tool is used, before any study is in place.
+        // A directory too: that is how the tool is used, before any series is in place.
         let dir = path.parent().expect("scratch dir");
         assert_eq!(
             nowait_supported_at(dir)?,

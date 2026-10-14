@@ -1,10 +1,10 @@
 /**
  * WSA: the opening ask in the WebSocket upgrade's URL against the same fill asked on the socket,
- * through the relay's TCP plane, arms Williams-ordered, a self-timed relay per visit.
+ * through the relay's TCP plane, variants Williams-ordered, a self-timed relay per visit.
  * lab/tcp-fallback/README.md §The opening ask in the upgrade's URL
  *
  *   NODE_PATH=$(npm root -g) node lab/tcp-fallback/wsa.mjs [--rounds 12] [--rtts "40 80 160"]
- *     [--rate 20000] [--frame-bytes 250000] [--frames 4] [--server target/release/exact-server]
+ *     [--rate 20000] [--frame-bytes 250000] [--frames 4] [--server target/release/series-server]
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -22,8 +22,8 @@ const RTTS = arg("--rtts", "40 80 160").split(" ").map(Number);
 const RATE = Number(arg("--rate", 20000));
 const FRAME = Number(arg("--frame-bytes", 250000));
 const FRAMES = Number(arg("--frames", 4));
-const SERVER = arg("--server", "target/release/exact-server");
-const ARMS = ["ws", "ask"];
+const SERVER = arg("--server", "target/release/series-server");
+const VARIANTS = ["ws", "ask"];
 
 const T = fs.mkdtempSync(path.join(os.tmpdir(), "wsa-"));
 const kids = new Set();
@@ -55,9 +55,9 @@ async function until(file, text, ms = 10000) {
   throw new Error(`${path.basename(file)} never said ${text}`);
 }
 
-if (SERVER === "target/release/exact-server") execFileSync("cargo", ["build", "-q", "--release", "-p", "exact-server"], { cwd: ROOT });
-execFileSync("cargo", ["build", "-q", "-p", "pack-study"], { cwd: ROOT });
-execFileSync("bash", ["client/transport-ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
+if (SERVER === "target/release/series-server") execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "-p", "pack-series"], { cwd: ROOT });
+execFileSync("bash", ["client/transport/ts/build.sh"], { cwd: ROOT, stdio: "ignore" });
 fs.mkdirSync(`${T}/frames`);
 const expected = [];
 for (let i = 0; i < FRAMES; i++) {
@@ -66,7 +66,7 @@ for (let i = 0; i < FRAMES; i++) {
   expected.push(crypto.createHash("sha256").update(bytes).digest("hex"));
 }
 fs.writeFileSync(`${T}/m.json`, JSON.stringify({ frameCount: FRAMES }));
-sh(`target/debug/pack-study --metadata ${T}/m.json --frames ${T}/frames --output ${T}/study.sbnd`);
+sh(`target/debug/pack-series --metadata ${T}/m.json --frames ${T}/frames --output ${T}/series.sbnd`);
 sh(`openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem -out ${T}/cert.pem \
   -days 2 -nodes -subj '/CN=localhost' -addext 'extendedKeyUsage=serverAuth' \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null`);
@@ -84,20 +84,20 @@ const browser = await chromium.launch({
 });
 
 /** A random port can be taken: a server or relay that never comes up is retried on fresh ports. */
-async function one(round, rtt, arm) {
+async function one(round, rtt, variant) {
   for (let tries = 1; ; tries++) {
     try {
-      return await visit(round, rtt, arm);
+      return await visit(round, rtt, variant);
     } catch (e) {
       if (tries === 3 || !/never said/.test(e.message)) throw e;
     }
   }
 }
 
-async function visit(round, rtt, arm) {
+async function visit(round, rtt, variant) {
   const [srv, relayPort] = [port(), port()];
-  const server = start(SERVER, ["--port", String(srv), "--bind", "127.0.0.1", "--websocket", "--open-ask",
-    "--study", `${T}/study.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], `${T}/server.log`);
+  const server = start(SERVER, ["--port", String(srv), "--bind", "127.0.0.1", "--websocket", "--opening-ask",
+    "--series", `${T}/series.sbnd`, "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`], `${T}/server.log`);
   const relay = start("python3", ["lab/scripts/link_impair.py", "--tcp", `${relayPort}:${srv}`, "--seed", String(round),
     "--delay-ms", String(rtt / 2), "--rate-kbit", String(RATE), "--queue-pkts", "200", "--self-timing"], `${T}/relay.log`);
   let r;
@@ -107,8 +107,8 @@ async function visit(round, rtt, arm) {
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${http}/lab/tcp-fallback/wsa.html`);
     await page.waitForFunction(() => globalThis.__ready);
-    r = await page.evaluate((a) => globalThis.runArm(a), {
-      arm, url: `https://127.0.0.1:${relayPort}/`, from: 0, to: FRAMES - 1, expected, limitMs: 10000,
+    r = await page.evaluate((a) => globalThis.runVariant(a), {
+      variant, url: `https://127.0.0.1:${relayPort}/`, from: 0, to: FRAMES - 1, expected, limitMs: 10000,
     });
     await page.close();
   } finally {
@@ -130,16 +130,16 @@ for (const rtt of RTTS) {
   const runs = [];
   for (let round = 0; round < ROUNDS; round++) {
     let prev = null;
-    for (const arm of order(ARMS, round)) {
-      const r = await one(round, rtt, arm);
+    for (const variant of order(VARIANTS, round)) {
+      const r = await one(round, rtt, variant);
       if (r.exact !== FRAMES) wrong += 1;
-      console.log(`${rtt} ms round ${round} ${arm.padEnd(4)} first ${f1(r.first)} fill ${f1(r.fill)} ms, ` +
+      console.log(`${rtt} ms round ${round} ${variant.padEnd(4)} first ${f1(r.first)} fill ${f1(r.fill)} ms, ` +
         `${r.exact}/${FRAMES} bit-exact${r.void ? "  VOID" : ""}`);
-      if (!r.void && r.fill !== null) runs.push({ round, unit: arm, prev, v: r.first, fill: r.fill });
-      prev = arm;
+      if (!r.void && r.fill !== null) runs.push({ round, unit: variant, prev, v: r.first, fill: r.fill });
+      prev = variant;
     }
   }
-  const of = (arm, k) => runs.filter((x) => x.unit === arm).map((x) => x[k]);
+  const of = (variant, k) => runs.filter((x) => x.unit === variant).map((x) => x[k]);
   const pairs = (k) => runs.filter((x) => x.unit === "ask")
     .flatMap((x) => runs.filter((b) => b.unit === "ws" && b.round === x.round).map((b) => x[k] - b[k]));
   const lead = (k) => {
@@ -148,7 +148,7 @@ for (const rtt of RTTS) {
   };
   summary.push(`${rtt} ms: first frame ws ${f1(median(of("ws", "v")))} (${of("ws", "v").length}), ask ${f1(median(of("ask", "v")))} ` +
     `(${of("ask", "v").length}); ask − ws ${lead("v")}; fill ${lead("fill")}`);
-  for (const line of leadsByPredecessor(runs, ARMS, [["ask", "ws"]], 1)) summary.push(line);
+  for (const line of leadsByPredecessor(runs, VARIANTS, [["ask", "ws"]], 1)) summary.push(line);
 }
 console.log(`\n${FRAMES} × ${FRAME} B, ${RATE} kbit, the relay's TCP plane, ${ROUNDS} rounds; VOID and missing runs dropped`);
 for (const line of summary) console.log(line);

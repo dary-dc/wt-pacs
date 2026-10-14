@@ -2,7 +2,7 @@
 //! override steps, never the story. `docs/adr/telemetry-server-pipeline.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
-use crate::media::read_path::{ReadMode, SeqReader, TileReader, TILE_SLOTS};
+use crate::media::read_path::{ReadMode, FillReader, TileReader, TILE_SLOTS};
 use crate::transport::link::Link;
 use crate::transport::planner::Next;
 use anyhow::Result;
@@ -13,7 +13,7 @@ use tracing::info;
 #[cfg(feature = "telemetry")]
 use crate::record::tap::Tap;
 #[cfg(feature = "telemetry")]
-use frame_envelope::ENVELOPE_LEN;
+use frame_envelope::INDEX_LEN;
 
 /// Implementors override **steps**, never [`serve`](Self::serve).
 pub(crate) trait FramePipeline: Send {
@@ -22,13 +22,14 @@ pub(crate) trait FramePipeline: Send {
     /// `frame` and `next` come from the planner, which has already refused anything out of range.
     async fn serve(&mut self, frame: u32, next: &Next) -> Result<()> {
         let body = self.read(frame, next).await?;
-        self.write(frame, body).await
+        self.write(frame, body, matches!(next, Next::Tiles(_))).await
     }
 
     /// The frame's bytes, by the reader `next` names, with `next`'s reads started underneath.
     async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes>;
 
-    async fn write(&mut self, frame: u32, body: Bytes) -> Result<()>;
+    /// `ask` is a frame asked by name, not one a fill recites.
+    async fn write(&mut self, frame: u32, body: Bytes, ask: bool) -> Result<()>;
 
     async fn refuse(&mut self, frame: u32, reason: String) -> Result<()>;
 
@@ -41,7 +42,7 @@ pub(crate) struct ProductPipeline {
     link: Link,
     /// Built on the first frame of its kind, so a session pays for neither reader it
     /// does not use. `docs/adr/disk-access.md`.
-    seq: Option<SeqReader>,
+    seq: Option<FillReader>,
     tile: Option<TileReader>,
     mode: ReadMode,
     fills: u64,
@@ -60,7 +61,7 @@ impl ProductPipeline {
     }
 }
 
-/// The spans the read path starts on: the planner's names, through the study's index.
+/// The spans the read path starts on: the planner's names, through the series' index.
 fn ahead(store: &FrameStore, next: &Next) -> Vec<FrameSpan> {
     match next {
         Next::Fill { after, .. } => after.iter().map(|&f| store.frame_span(f)).collect(),
@@ -73,27 +74,31 @@ impl FramePipeline for ProductPipeline {
         &self.store
     }
 
+    #[cfg(feature = "lab-frame-cache")]
     async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
-        let Self { store, seq, tile, mode: read_mode, fills, .. } = self;
-        let span = store.frame_span(frame);
-        let ahead = ahead(store, next);
-        match next {
-            Next::Fill { first, .. } => {
-                *fills += u64::from(*first);
-                seq.get_or_insert_with(|| SeqReader::new(Arc::clone(store)))
-                    .read(span, ahead.first().copied())
-                    .await
-            }
-            Next::Tiles(_) => {
-                tile.get_or_insert_with(|| TileReader::new(*read_mode, Arc::clone(store), TILE_SLOTS))
-                    .read(span, &ahead)
-                    .await
-            }
+        use crate::media::lab_frame_cache as cache;
+        if let Some(bytes) = cache::get(frame) {
+            return Ok(bytes);
         }
+        let len = self.store.frame_span(frame).len as usize;
+        if !cache::claim_fill(frame, len) {
+            return self.read_store(frame, next).await;
+        }
+        let read = self.read_store(frame, next).await;
+        match &read {
+            Ok(bytes) => cache::admit(frame, bytes.clone()),
+            Err(_) => cache::abandon_fill(frame),
+        }
+        read
     }
 
-    async fn write(&mut self, frame: u32, body: Bytes) -> Result<()> {
-        self.link.send_frame(frame, body).await
+    #[cfg(not(feature = "lab-frame-cache"))]
+    async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
+        self.read_store(frame, next).await
+    }
+
+    async fn write(&mut self, frame: u32, body: Bytes, ask: bool) -> Result<()> {
+        self.link.send_frame(frame, body, ask).await
     }
 
     async fn refuse(&mut self, frame: u32, reason: String) -> Result<()> {
@@ -105,11 +110,32 @@ impl FramePipeline for ProductPipeline {
     }
 }
 
+impl ProductPipeline {
+    async fn read_store(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
+        let Self { store, seq, tile, mode: read_mode, fills, .. } = self;
+        let span = store.frame_span(frame);
+        let ahead = ahead(store, next);
+        match next {
+            Next::Fill { first, .. } => {
+                *fills += u64::from(*first);
+                seq.get_or_insert_with(|| FillReader::new(Arc::clone(store)))
+                    .read(span, ahead.first().copied())
+                    .await
+            }
+            Next::Tiles(_) => {
+                tile.get_or_insert_with(|| TileReader::new(*read_mode, Arc::clone(store), TILE_SLOTS))
+                    .read(span, &ahead)
+                    .await
+            }
+        }
+    }
+}
+
 impl Drop for ProductPipeline {
     /// In `Drop` because a session ends several ways, and a miss rate only some of them
     /// report is worse than none. `docs/adr/disk-access.md` §Reporting.
     fn drop(&mut self) {
-        let seq = self.seq.as_ref().map(SeqReader::stats).unwrap_or_default();
+        let seq = self.seq.as_ref().map(FillReader::stats).unwrap_or_default();
         let tile = self
             .tile
             .as_ref()
@@ -166,9 +192,9 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
         read
     }
 
-    async fn write(&mut self, frame: u32, body: Bytes) -> Result<()> {
-        let envelope_len = ENVELOPE_LEN + body.len();
-        let written = self.inner.write(frame, body).await;
+    async fn write(&mut self, frame: u32, body: Bytes, ask: bool) -> Result<()> {
+        let envelope_len = INDEX_LEN + body.len();
+        let written = self.inner.write(frame, body, ask).await;
         match &written {
             Ok(()) => self.tap.emit_sent(envelope_len),
             Err(_) => self.tap.emit_failed(),
@@ -191,7 +217,7 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    fn one_frame_study(path: &std::path::Path) {
+    fn one_frame_series(path: &std::path::Path) {
         let meta = br#"{"frameCount":1}"#;
         let mut f = std::fs::File::create(path).expect("create bundle");
         f.write_all(b"SBND").unwrap();
@@ -206,16 +232,16 @@ mod tests {
         f.sync_all().unwrap();
     }
 
-    /// A study of `frames` frames, each a different length, so a span cannot match by luck.
-    fn study(path: &std::path::Path, frames: u32) {
+    /// A series of `frames` frames, each a different length, so a span cannot match by luck.
+    fn series(path: &std::path::Path, frames: u32) {
         let bodies: Vec<Vec<u8>> = (0..frames).map(|i| vec![i as u8; 4 + i as usize]).collect();
         let refs: Vec<&[u8]> = bodies.iter().map(|b| b.as_slice()).collect();
-        study_bundle::write_bundle(
+        series_bundle::write_bundle(
             path,
             format!("{{\"frameCount\":{frames}}}").as_bytes(),
             &refs,
         )
-        .expect("write study");
+        .expect("write series");
     }
 
     /// Serves nothing from disk: `read` hands back an empty frame, and `write` takes
@@ -234,7 +260,7 @@ mod tests {
             Ok(Bytes::new())
         }
 
-        async fn write(&mut self, _frame: u32, _body: Bytes) -> Result<()> {
+        async fn write(&mut self, _frame: u32, _body: Bytes, _ask: bool) -> Result<()> {
             if !self.write_delay.is_zero() {
                 tokio::time::sleep(self.write_delay).await;
             }
@@ -250,7 +276,7 @@ mod tests {
 
     fn recorder(tag: &str, frames: u32) -> (std::path::PathBuf, StubPipeline) {
         let path = std::env::temp_dir().join(format!("wtpacs-{tag}-{}.sbnd", std::process::id()));
-        study(&path, frames);
+        series(&path, frames);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         (path, StubPipeline { store, write_delay: std::time::Duration::ZERO })
     }
@@ -298,20 +324,20 @@ mod tests {
     }
 
     /// **A refusal is its own row.** The planner refuses a `stream_frames` range and a frame
-    /// outside the study before any frame opens; each row carries the refused frame, not the
+    /// outside the series before any frame opens; each row carries the refused frame, not the
     /// last one served, and every row opened is closed. `docs/adr/telemetry-server-pipeline.md`.
     #[cfg(feature = "telemetry")]
     #[test]
     fn a_refused_range_records_a_row_of_its_own() {
         use crate::record::tap::{Live, Record};
-        use crate::transport::planner::{Ask, ASKS_AHEAD};
+        use crate::transport::planner::{Command, ASKS_AHEAD};
         let (path, rec) = recorder("refused-row", 4);
         let (tx, rows) = std::sync::mpsc::sync_channel(64);
         let mut recorded = RecordedPipeline::new(rec, Tap::new(1, Some(tx), &Live::default()));
         let (asks_tx, mut asks) = tokio::sync::mpsc::channel(ASKS_AHEAD);
-        asks_tx.try_send(Ask::Frame(1)).expect("queue ask");
-        asks_tx.try_send(Ask::Fill { from: Some(6), to: Some(9) }).expect("queue fill");
-        asks_tx.try_send(Ask::Frame(99)).expect("queue ask");
+        asks_tx.try_send(Command::Frame(1)).expect("queue ask");
+        asks_tx.try_send(Command::Fill { from: Some(6), to: Some(9) }).expect("queue fill");
+        asks_tx.try_send(Command::Frame(99)).expect("queue ask");
         drop(asks_tx);
         let rt = tokio::runtime::Builder::new_current_thread().build().expect("rt");
         rt.block_on(crate::transport::server::drive(&mut recorded, &mut asks)).expect("drive");
@@ -335,13 +361,13 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// **One index per study, never per session** — nothing in the type system prevents a
+    /// **One index per series, never per session** — nothing in the type system prevents a
     /// session opening its own store, so this pins the shape it actually gets.
     /// `docs/adr/disk-access.md` §Invariants.
     #[test]
     fn sessions_share_one_store_rather_than_opening_their_own() {
         let path = std::env::temp_dir().join(format!("wtpacs-share-{}.sbnd", std::process::id()));
-        one_frame_study(&path);
+        one_frame_series(&path);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
 
         let sessions = 8;

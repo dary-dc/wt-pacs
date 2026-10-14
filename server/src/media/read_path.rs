@@ -1,9 +1,5 @@
-//! Two readers, chosen by what the session is doing.
-//!
-//! A fill knows the frame after this one and starts it underneath; a tile ask does not, and
-//! is a miss by nature. That difference picks the escalation — the blocking pool for a fill,
-//! whose misses are rare, and a ring for tiles, whose queue would otherwise be OS threads.
-//! `docs/adr/disk-access.md`.
+//! Two readers, chosen by what the session is doing: a fill on the blocking pool, a tile on a
+//! ring. `docs/adr/disk-access.md` §1.
 
 use crate::media::frame_pool;
 use crate::media::frame_store::{FrameSpan, FrameStore};
@@ -113,9 +109,8 @@ enum Ahead {
 }
 
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
-/// and no ring: a sequential walk is read-ahead's best case and misses about one read in
-/// sixty. `docs/adr/disk-access.md` §Fill at scale.
-pub struct SeqReader {
+/// and no ring: a sequential walk is read-ahead's best case. `docs/adr/disk-access.md` §Fill at scale.
+pub struct FillReader {
     store: Arc<FrameStore>,
     cur: Vec<u8>,
     ahead: Ahead,
@@ -124,7 +119,7 @@ pub struct SeqReader {
     stats: ReadStats,
 }
 
-impl SeqReader {
+impl FillReader {
     pub fn new(store: Arc<FrameStore>) -> Self {
         Self {
             store,
@@ -208,6 +203,20 @@ impl SeqReader {
     pub fn stats(&self) -> ReadStats {
         self.stats
     }
+}
+
+/// One ring built and dropped, so the banner says whether a tile miss will get one.
+#[cfg(feature = "uring")]
+pub fn ring_probe(store: &FrameStore) -> String {
+    match UringReader::new(store.file(), TILE_SLOTS as u32) {
+        Ok(_) => "available".into(),
+        Err(err) => format!("refused ({err:#})"),
+    }
+}
+
+#[cfg(not(feature = "uring"))]
+pub fn ring_probe(_: &FrameStore) -> String {
+    "not built".into()
 }
 
 /// The session's ring, built on its first miss and never rebuilt.
@@ -497,7 +506,7 @@ mod tests {
     use crate::media::frame_store::READ_WINDOW;
     use std::io::Write;
 
-    /// A study of `frames` frames of `len` bytes, each filled with a per-frame pattern so a
+    /// A series of `frames` frames of `len` bytes, each filled with a per-frame pattern so a
     /// mis-assembled frame cannot pass by accident.
     fn write_bundle(dir: &std::path::Path, frames: u32, len: u32) -> std::path::PathBuf {
         let meta = format!("{{\"frameCount\":{frames}}}");
@@ -568,7 +577,7 @@ mod tests {
         for (name, got) in [
             ("fill", {
                 store.reset_pool_starts();
-                let mut seq = SeqReader::new(Arc::clone(&store));
+                let mut seq = FillReader::new(Arc::clone(&store));
                 let out = rt
                     .block_on(seq.read(span, None))
                     .expect("read")
@@ -603,7 +612,7 @@ mod tests {
                 store.force_pool_reads();
             }
             let store = Arc::new(store);
-            let mut seq = SeqReader::new(Arc::clone(&store));
+            let mut seq = FillReader::new(Arc::clone(&store));
             let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
             for idx in 0..4u32 {
                 let span = store.frame_span(idx);
@@ -631,7 +640,7 @@ mod tests {
             unreachable!("two frames")
         };
 
-        let mut seq = SeqReader::new(Arc::clone(&store));
+        let mut seq = FillReader::new(Arc::clone(&store));
         rt.block_on(seq.read(first, Some(second)))
             .expect("first");
         store.reset_pool_starts();
@@ -659,7 +668,7 @@ mod tests {
         store.force_pool_reads();
         let store = Arc::new(store);
         let rt = rt();
-        let mut seq = SeqReader::new(Arc::clone(&store));
+        let mut seq = FillReader::new(Arc::clone(&store));
         for idx in 0..8u32 {
             let span = store.frame_span(idx);
             let next = (idx + 1 < 8).then(|| store.frame_span(idx + 1));
@@ -687,7 +696,7 @@ mod tests {
         let all = spans(&store, &(0..24u32).collect::<Vec<_>>());
         let end = |s: FrameSpan| s.offset + u64::from(s.len);
 
-        let mut seq = SeqReader::new(Arc::clone(&store));
+        let mut seq = FillReader::new(Arc::clone(&store));
         rt.block_on(seq.read(all[0], Some(all[1]))).expect("read");
         assert_eq!(
             store.take_advice(),
@@ -741,7 +750,7 @@ mod tests {
             unreachable!("three frames")
         };
 
-        let mut seq = SeqReader::new(Arc::clone(&store));
+        let mut seq = FillReader::new(Arc::clone(&store));
         rt.block_on(seq.read(first, Some(second)))
             .expect("first");
         // Frame 1 was named and is in flight; the session asks for 2 instead.
@@ -822,7 +831,7 @@ mod tests {
     }
 
     /// Slots are a constructor argument, so the depth a tile session runs at is a number the
-    /// campaign can sweep rather than a constant. `docs/adr/disk-access.md` §1.
+    /// lab run can sweep rather than a constant. `docs/adr/disk-access.md` §1.
     #[test]
     fn a_tile_reader_holds_as_many_frames_as_it_was_given_slots() {
         let dir = scratch("slots");
@@ -864,7 +873,7 @@ mod tests {
             assert_eq!(ReadMode::parse(value), want, "WTPACS_READ_PATH={value:?}");
         }
         assert!(ReadMode::parse(Some("nonsense")).is_err(), "an unknown value was taken");
-        assert!(ReadMode::parse(Some("uring")).is_err(), "the retired lab lever was taken");
+        assert!(ReadMode::parse(Some("uring")).is_err(), "a value that is not a mode was taken");
     }
 
     #[test]
@@ -895,7 +904,7 @@ mod tests {
 
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         if store.nowait_supported() {
-            let mut seq = SeqReader::new(Arc::clone(&store));
+            let mut seq = FillReader::new(Arc::clone(&store));
             for idx in 0..3u32 {
                 let span = store.frame_span(idx);
                 rt.block_on(seq.read(span, None)).expect("read");
@@ -906,7 +915,7 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// **The arm's whole point**: a session that never misses never builds a ring, so on a
+    /// **The variant's whole point**: a session that never misses never builds a ring, so on a
     /// hit-dominated workload the change is inert by design rather than by configuration.
     #[test]
     #[cfg(feature = "uring")]
@@ -915,7 +924,7 @@ mod tests {
         let path = write_bundle(&dir, 3, LEN);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
         if !store.nowait_supported() {
-            eprintln!("skipped: this filesystem refuses RWF_NOWAIT, so every read reports a miss");
+            eprintln!("SKIPPED: this filesystem refuses RWF_NOWAIT, so every read reports a miss");
             std::fs::remove_dir_all(&dir).ok();
             return;
         }
@@ -966,20 +975,28 @@ mod tests {
         let path = write_bundle(&dir, 3, LEN);
         let mut store = FrameStore::open(&path).expect("open store");
         if !store.nowait_supported() {
-            eprintln!("skipped: this filesystem refuses RWF_NOWAIT");
+            eprintln!("SKIPPED: this filesystem refuses RWF_NOWAIT");
             std::fs::remove_dir_all(&dir).ok();
             return;
         }
         store.force_short_reads(SHORT);
         let store = Arc::new(store);
         let rt = rt();
+        let ring_available = {
+            let _guard = rt.enter();
+            UringReader::new(store.file(), TILE_SLOTS as u32).is_ok()
+        };
         let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
         for idx in 0..3u32 {
             let span = store.frame_span(idx);
             let out = rt.block_on(tile.read(span, &[])).expect("read");
             assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx} did not compose");
         }
-        assert!(tile.ring_built(), "the miss path never reached the ring");
+        if ring_available {
+            assert!(tile.ring_built(), "the miss path never reached the ring");
+        } else {
+            eprintln!("SKIPPED (the ring assert): io_uring is unavailable on this host");
+        }
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -1004,7 +1021,7 @@ mod tests {
                 .await
         });
         if !tile.ring_built() {
-            eprintln!("skipped: io_uring or RWF_NOWAIT is unavailable on this host");
+            eprintln!("SKIPPED: io_uring or RWF_NOWAIT is unavailable on this host");
         } else {
             let read = read.expect("the ring read hung on the end of the file");
             assert!(read.is_err(), "a frame past the end of the file was served");
@@ -1031,7 +1048,7 @@ mod tests {
         let (rd, wr) =
             unsafe { (std::fs::File::from_raw_fd(fds[0]), std::fs::File::from_raw_fd(fds[1])) };
         let Ok(ring) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-            eprintln!("skipped: io_uring is unavailable on this host");
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
             std::fs::remove_dir_all(&dir).ok();
             return;
         };

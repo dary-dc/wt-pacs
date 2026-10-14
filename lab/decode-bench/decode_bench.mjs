@@ -16,7 +16,7 @@ if (!fixtureDir) {
 const { frames, truth, meta, name } = loadFixture(fixtureDir);
 
 /** `width` instances, frames dealt round-robin. Serial by design — the claim is memory. */
-async function arm(width) {
+async function variant(width) {
   const pool = [];
   for (let i = 0; i < width; i++) pool.push(await instance());
   const floor = pool.map((p) => p.heap());
@@ -43,7 +43,7 @@ const idle = first.heap();
 const results = new Map(WIDTHS.map((w) => [w, []]));
 for (let round = 0; round < ROUNDS; round++) {
   for (const width of order(WIDTHS, round)) {
-    const r = await arm(width);
+    const r = await variant(width);
     if (r.mismatch) {
       console.error(`width ${width}: ${r.mismatch}/${frames.length} frames differ from the encoder's input`);
       process.exit(1);

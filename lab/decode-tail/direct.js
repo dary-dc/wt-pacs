@@ -1,15 +1,15 @@
 /**
  * page.js without the downloader: the same transport on the page, the same decoder workers fed from
  * the page by the same rule (fewest outstanding, two at most), so what differs from page.js is the
- * downloader worker and nothing else. docs/ARCHITECTURE.md §The downloader arm during a fill, against direct
+ * downloader worker and nothing else. docs/ARCHITECTURE.md §The downloader variant during a fill, against direct
  */
-import { TransportSession } from "/client/transport-ts/dist/session.js";
+import { TransportSession } from "/client/transport/ts/dist/session.js";
 
 const q = new URLSearchParams(location.search);
 const FILL = Number(q.get("fill"));
 const DECODERS = Number(q.get("decoders") || 3);
 const PER_DECODER = 2;
-const dir = q.get("decoderDir") || "/lab/decode-bench/vendor/openjph";
+const dir = q.get("decoderDir") || "/client/decode/wasm/vendor/openjph";
 const decoder = { glue: `${dir}/${q.get("glue") || "openjphjs.js"}`, wasm: `${dir}/${q.get("wasm") || "openjphjs.wasm"}`, dir };
 const abs = () => performance.timeOrigin + performance.now();
 
@@ -20,7 +20,7 @@ const all = new Promise((r) => (resolveAll = r));
 const workers = [];
 const queue = [];
 for (let i = 0; i < DECODERS; i++) {
-  const worker = new Worker("/client/downloader/decoder.js", { type: "module" });
+  const worker = new Worker("/client/decode/decoder.js", { type: "module" });
   const ch = new MessageChannel();
   const d = { worker, outstanding: 0, i };
   ch.port2.onmessage = (e) => {
@@ -61,6 +61,6 @@ await Promise.race([all, new Promise((r) => setTimeout(r, 60000))]);
 session.close();
 fetch(`http://127.0.0.1:${q.get("report")}/`, {
   method: "POST",
-  body: JSON.stringify({ set: q.get("set"), arm: q.get("arm"), askAt, frames }),
+  body: JSON.stringify({ set: q.get("set"), variant: q.get("variant"), askAt, frames }),
   keepalive: true,
 });

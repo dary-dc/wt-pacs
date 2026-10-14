@@ -1,4 +1,4 @@
-/** A study's per-frame metadata, synthetic: its size and its mix of numbers and UIDs, not a real series'. */
+/** A series's per-frame metadata, synthetic: its size and its mix of numbers and UIDs, not a real series'. */
 export function metadata(frames = 300) {
   let seed = 1;
   const rand = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);

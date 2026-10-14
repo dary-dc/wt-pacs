@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<title>the AV1 payloads through the product's dav1d build</title>
+<script type="module">
+  // The worker decodes; this page only relays its rows to the driver. run.mjs
+  const post = (path, body) => fetch(path, { method: "POST", body: JSON.stringify(body) });
+  const cfg = await (await post("/av1e/hello", { sab: typeof SharedArrayBuffer === "function", isolated: globalThis.crossOriginIsolated })).json();
+  const w = new Worker("./worker.js", { type: "module" });
+  w.onmessage = (e) => post("/av1e/done", e.data);
+  w.onerror = (e) => post("/av1e/done", { error: `worker: ${e.message}` });
+  w.postMessage(cfg);
+</script>

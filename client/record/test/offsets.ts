@@ -3,7 +3,7 @@
  * and the frames' footprints, by arithmetic, as ADR Decision A defines them.
  */
 
-import { MAX_FRAME_LEN } from "../../transport-ts/wire.ts";
+import { MAX_FRAME_LEN } from "../../transport/ts/wire.ts";
 import type { ChunkMark, FrameFootprint, FrameTiming } from "../types.ts";
 
 /** Parse consecutive `[4B BE len][4B BE index][codestream]` frames from a byte buffer. */

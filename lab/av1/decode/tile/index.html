@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>TILEMEASURE</title>
+<script>
+  // REGIONDECODE's worker: OpenJPH decodes a whole codestream, OpenHTJ2K a rectangle, either into the shared frame.
+  const workers = {};
+  const call = (w, m) => new Promise((ok) => { w.onmessage = ({ data }) => ok(data); w.postMessage(m); });
+  const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+
+  globalThis.setup = async (glues) => {
+    for (const [name, glue] of Object.entries(glues)) {
+      workers[name] = new Worker("../region/worker.js");
+      const r = await call(workers[name], { glue });
+      if (r.error) return r.error;
+    }
+    return null;
+  };
+  globalThis.load = (urls) => Promise.all(Object.values(workers).map((w) => call(w, { urls })));
+
+  // An ask: each worker's pieces in turn, the workers at once; the time runs from the first post to the last reply.
+  let shared;
+  globalThis.ask = async (asks, samples, check, mutate) => {
+    if (!shared || shared.byteLength < samples * 2) shared = new SharedArrayBuffer(samples * 2);
+    if (check) new Uint16Array(shared).fill(0);
+    const by = {};
+    asks.forEach((a, j) => (by[a.worker] ??= []).push([a, j]));
+    const rs = [];
+    const t0 = performance.now();
+    await Promise.all(Object.entries(by).map(async ([name, list]) => {
+      for (const [a, j] of list) rs[j] = await call(workers[name], { ...a, shared, check, mutate });
+    }));
+    const ms = performance.now() - t0;
+    const out = { ms, hashes: rs.map((r) => r.hash), error: rs.find((r) => r.error)?.error };
+    if (check) out.whole = hex(await crypto.subtle.digest("SHA-256", new Uint16Array(shared, 0, samples).slice()));
+    return out;
+  };
+  globalThis.ready = crossOriginIsolated;
+</script>

@@ -27,7 +27,7 @@ reader settles on a frame, the client sends `CancelFrames` for indexes it no lon
 would drop matching entries from the deque before sending the next frame — undoing stale commitment
 instead of draining it FIFO.
 
-Arm A (cancel off) vs arm B (cancel on) was measured with the layer-2 harness at paced read rates.
+Variant A (cancel off) vs variant B (cancel on) was measured with the layer-2 harness at paced read rates.
 
 ---
 
@@ -38,7 +38,7 @@ Fixture: `lab/fixtures/queue_large` (~51 KB mean frame). Trace: `fly_and_settle`
 
 ### Layer 2 — real harness (`lab/scripts/harness_sweep_mbps.sh`, 1–300 Mbps)
 
-| Read pace | Arm A | Arm B | Cancel saves |
+| Read pace | Variant A | Variant B | Cancel saves |
 | --------- | ----- | ----- | ------------ |
 | 1 Mbps | 110 ms | 112 ms | −2 ms (noise) |
 | 2 Mbps | 0 ms | 0 ms | **0 ms** |

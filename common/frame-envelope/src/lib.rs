@@ -1,17 +1,17 @@
 //! Exact-tier wire framing, one frame: `[4B BE envelope_len][4B BE display_index][codestream…]`,
-//! where `envelope_len` counts the index and the codestream. Study bundles store raw codestream;
+//! where `envelope_len` counts the index and the codestream. Series bundles store raw codestream;
 //! the server streams [`frame_head`] before it, and a client unwraps what follows the length.
 
-pub const ENVELOPE_LEN: usize = 4;
-pub const FRAME_HEAD_LEN: usize = 4 + ENVELOPE_LEN;
+pub const INDEX_LEN: usize = 4;
+pub const FRAME_HEAD_LEN: usize = 4 + INDEX_LEN;
 /// The largest `envelope_len` a client reads. docs/WIRE.md §The envelope.
 pub const MAX_FRAME_LEN: usize = 64 * 1024 * 1024;
-pub const MAX_CODESTREAM_LEN: usize = MAX_FRAME_LEN - ENVELOPE_LEN;
+pub const MAX_CODESTREAM_LEN: usize = MAX_FRAME_LEN - INDEX_LEN;
 
 /// The `envelope_len` a stream's 4-byte prefix declares, refused outside what a client reads.
 pub fn envelope_len(prefix: [u8; 4]) -> Result<usize, String> {
     let len = u32::from_be_bytes(prefix) as usize;
-    if len < ENVELOPE_LEN || len > MAX_FRAME_LEN {
+    if len < INDEX_LEN || len > MAX_FRAME_LEN {
         return Err(format!("invalid frame length {len}"));
     }
     Ok(len)
@@ -19,7 +19,7 @@ pub fn envelope_len(prefix: [u8; 4]) -> Result<usize, String> {
 
 /// The bytes that precede a codestream of `codestream_len` bytes on the wire.
 pub fn frame_head(display_index: u32, codestream_len: u32) -> [u8; FRAME_HEAD_LEN] {
-    let envelope_len = (ENVELOPE_LEN as u32).saturating_add(codestream_len);
+    let envelope_len = (INDEX_LEN as u32).saturating_add(codestream_len);
     let mut head = [0u8; FRAME_HEAD_LEN];
     head[..4].copy_from_slice(&envelope_len.to_be_bytes());
     head[4..].copy_from_slice(&display_index.to_be_bytes());
@@ -27,19 +27,19 @@ pub fn frame_head(display_index: u32, codestream_len: u32) -> [u8; FRAME_HEAD_LE
 }
 
 pub fn unwrap(payload: &[u8]) -> Result<(u32, &[u8]), String> {
-    if payload.len() < ENVELOPE_LEN {
+    if payload.len() < INDEX_LEN {
         return Err(format!(
             "frame envelope too short ({} bytes, need {})",
             payload.len(),
-            ENVELOPE_LEN
+            INDEX_LEN
         ));
     }
     let index = u32::from_be_bytes(
-        payload[0..ENVELOPE_LEN]
+        payload[0..INDEX_LEN]
             .try_into()
             .map_err(|_| "frame envelope header")?,
     );
-    Ok((index, &payload[ENVELOPE_LEN..]))
+    Ok((index, &payload[INDEX_LEN..]))
 }
 
 #[cfg(test)]
@@ -58,9 +58,9 @@ mod tests {
     #[test]
     fn an_envelope_length_is_read_only_within_its_bounds() {
         let prefix = |len: usize| (len as u32).to_be_bytes();
-        assert_eq!(envelope_len(prefix(ENVELOPE_LEN)), Ok(ENVELOPE_LEN));
+        assert_eq!(envelope_len(prefix(INDEX_LEN)), Ok(INDEX_LEN));
         assert_eq!(envelope_len(prefix(MAX_FRAME_LEN)), Ok(MAX_FRAME_LEN));
-        assert!(envelope_len(prefix(ENVELOPE_LEN - 1)).is_err(), "an envelope shorter than its index");
+        assert!(envelope_len(prefix(INDEX_LEN - 1)).is_err(), "an envelope shorter than its index");
         assert!(envelope_len(prefix(MAX_FRAME_LEN + 1)).is_err(), "an envelope over 64 MiB");
     }
 

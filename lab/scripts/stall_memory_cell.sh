@@ -12,7 +12,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-STUDY="${STUDY:-lab/fixtures/frames_250k/frames_250k.sbnd}"
+SERIES="${SERIES:-lab/fixtures/frames_250k/frames_250k.sbnd}"
 FRAMES="${FRAMES:-80}"
 ASKS="${ASKS:-300}"
 AFTER_MS="${AFTER_MS:-1500}"
@@ -25,7 +25,7 @@ while [[ $# -gt 0 ]]; do
   label=$1; bin=$2; shift 2
   port=$(python3 -c 'import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(("127.0.0.1",0));print(s.getsockname()[1])')
   log=$(mktemp)
-  NO_COLOR=1 RUST_LOG=exact_server=warn "$bin" --port "$port" --study "$STUDY" \
+  NO_COLOR=1 RUST_LOG=series_server=warn "$bin" --port "$port" --series "$SERIES" \
     --bind 127.0.0.1 --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem \
     >"$log" 2>&1 &
   pid=$!

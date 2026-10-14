@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# O1 / S21: the sequential fill against a coarse-to-fine one, each frame asked exactly once.
+# The sequential fill against a coarse-to-fine one (O1 / S21), each frame asked exactly once.
 # Two questions: when is every 8th frame in hand, and what does the permuted order cost the
 # read path when every frame is a miss (`--force-pool-reads`).
 # Results: docs/transport/transport-conclusions.md §3, the fill's order.
@@ -20,7 +20,7 @@ PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }
 trap cleanup EXIT
 
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
@@ -31,7 +31,7 @@ for i in $(seq 0 $((FRAMES - 1))); do
   head -c $((KB * 1024)) /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"
 done
 echo "{\"frameCount\": $FRAMES}" > "$T/metadata.json"
-"$BIN/pack-study" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+"$BIN/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 SRV=$((36000 + RANDOM % 2000))
 IN=$((34000 + RANDOM % 2000))
@@ -44,7 +44,7 @@ ab() {  # label [server args...]; RELAY_ARGS picks the link
   local label="$1"
   shift
   : > "$T/server.log"
-  RUST_LOG=exact_server=warn "$BIN/exact-server" --port "$SRV" --study "$T/study.sbnd" \
+  RUST_LOG=series_server=warn "$BIN/series-server" --port "$SRV" --series "$T/series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "$@" > "$T/server.log" 2>&1 &
   local srv=$!
   PIDS+=("$srv")
@@ -58,13 +58,13 @@ ab() {  # label [server args...]; RELAY_ARGS picks the link
     port=$IN
   fi
   : > "$T/ab.tsv"
-  local r arms arm line
+  local r variants variant line
   for r in $(seq 1 "${AB_ROUNDS:-$((ROUNDS * 4))}"); do
-    if (( r % 2 )); then arms=(sequential coarse); else arms=(coarse sequential); fi
-    for arm in "${arms[@]}"; do
+    if (( r % 2 )); then variants=(sequential coarse); else variants=(coarse sequential); fi
+    for variant in "${variants[@]}"; do
       line=$(RUST_BACKTRACE=0 "$BIN/fill_order" --url "https://127.0.0.1:$port/" \
-        --frames "$FRAMES" --depth "$DEPTH" --order "$arm" --rounds 1 2>&1) || continue
-      printf '%s\t%s\t%s\n' "$arm" \
+        --frames "$FRAMES" --depth "$DEPTH" --order "$variant" --rounds 1 2>&1) || continue
+      printf '%s\t%s\t%s\n' "$variant" \
         "$(sed -n 's/.*fill_ms=\([0-9]*\).*/\1/p' <<<"$line")" \
         "$(sed -n 's/.*every_8th_ms=\([0-9]*\).*/\1/p' <<<"$line")" >> "$T/ab.tsv"
     done
@@ -76,8 +76,8 @@ ab() {  # label [server args...]; RELAY_ARGS picks the link
 import statistics as st, sys
 rows = [l.split("\t") for l in open(sys.argv[1]).read().splitlines() if l]
 by = {}
-for arm, fill, coarse in rows:
-    by.setdefault(arm, []).append((float(fill), float(coarse)))
+for variant, fill, coarse in rows:
+    by.setdefault(variant, []).append((float(fill), float(coarse)))
 seq = st.median(v[0] for v in by.get("sequential", [(float('nan'),)*2]))
 crs = st.median(v[0] for v in by.get("coarse", [(float('nan'),)*2]))
 crs8 = st.median(v[1] for v in by.get("coarse", [(float('nan'),)*2]))
@@ -89,7 +89,7 @@ print("%-28s %10.0f %14.0f   %+.1f %% on the fill" % (sys.argv[2] + ", coarse", 
 PY
 }
 
-echo "study $((FRAMES * KB / 1024)) MB in $FRAMES frames of ${KB} KB, depth $DEPTH"
+echo "series $((FRAMES * KB / 1024)) MB in $FRAMES frames of ${KB} KB, depth $DEPTH"
 
 RELAY_ARGS=(--delay-ms $((RTT / 2)) --rate-kbit "$RATE")
 head_row "on the link: ${RTT} ms round trip, ${RATE} kbit"

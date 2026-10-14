@@ -4,50 +4,77 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 ## Prerequisites
 
-A Rust toolchain, Python 3 and Node. `scripts/gate.sh` requires everything below and exits 2,
-with the install command, when any is missing: the WASM client is part of the product, not an
-optional arm (the conformance and worker-safe steps cover both clients or neither), and the
-browser steps need playwright, Chromium and the decoder vendor. `scripts/gate.sh --no-browser`
-skips the browser steps and says so in its last line.
+Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
+with `rustup`, Node 22 (`.nvmrc`), Python 3.11 to 3.13, and on PATH: git, curl, tar, patch, sha256sum,
+openssl, jq, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
 
 ```bash
 rustup target add wasm32-unknown-unknown
-npm i -g wasm-pack                    # or: cargo install wasm-pack
-npm i -g playwright && npx playwright install chromium
-bash lab/decode-bench/fetch_decoder.sh   # the decoder vendor
+cargo install wasm-pack --version 0.15.0 --locked
+npm i -g playwright@1.56.1 && npx playwright install chromium
+bash client/decode/wasm/fetch_openjph.sh            # the HTJ2K decoder the page runs
+bash client/decode/wasm/fetch_xxh3.sh               # the reference the frame check's hash is tested against
 ```
 
-## Quick start (harness)
+Two more open what the gate otherwise skips, by name, in its log:
+
+```bash
+client/decode/wasm/build/build.sh                  # the decoder builds the page loads: docker; fetches emscripten (~5 min)
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requirements.txt
+                                                    # numpy, pydicom, xxhash, blake3 (CPython 3.11–3.13): PYTHON=.venv/bin/python
+```
+
+With the first, the dispatch rig runs all 780 of its checks, the real-decode ones on npm's OpenJPH and on the
+product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
+check, the split's merge and the DICOM reader do not run. The ingest's coders — libaom 3.15.1, dav1d 1.5.4 and
+OpenJPH 0.31.0, built from source at their pins into `ingest/.build` — need cmake, ninja, meson (1.9.1 here), nasm and
+a C++ compiler: `ingest/tools.sh`. The DICOM ingest needs them, and the gate's comparison of the two ingests and its
+synthetic DICOM series to `.sbnd` end to end run on them
+([`ingest/from-parser/README.md`](ingest/from-parser/README.md)).
+Without nginx on PATH, the web host's check (`deploy/check_equivalence.sh --local`) does not run.
+Without Go 1.24 or newer on PATH, the lab's two Go clients are not compiled (Go fetches the toolchain each `go.mod` names and checks it against its checksum database).
+
+## Quick start
 
 ```bash
 # 1. Build the clients (once, and after changes; dist/ and pkg/ are not tracked)
-bash client/transport-wasm/build.sh   # web_sys WASM client; fetches wasm-opt on first run
-bash client/transport-ts/build.sh     # TypeScript client → dist/
+bash client/transport/wasm/build.sh   # the WASM client; fetches binaryen's wasm-opt, pinned by checksum, on first run
+bash client/transport/ts/build.sh     # the TypeScript client and the test bundles; npm install on first run
 
-# 2. Dev TLS + dev-transport.json
+# 2. A dev certificate, valid 10 days, and client/dev-transport.json pointing at port 4433
 ./server/scripts/gen_dev_cert.sh
 
-# 3. Pack the smoke bundle, or use the tracked one
-cargo run -p pack-study -- \
+# 3. The smoke bundle is tracked; packing it again writes the same bytes
+cargo run -p pack-series -- \
   --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames \
   --output fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
-# Terminal 1 — WebTransport server
-cargo run --release -p exact-server -- \
+# 4. Terminal 1 — the WebTransport server
+cargo run --release -p series-server -- \
   --port 4433 \
-  --study fixtures/us_cine_smoke/us_cine_smoke.sbnd
+  --series fixtures/us_cine_smoke/us_cine_smoke.sbnd
 
-# Terminal 2 — static host
-python3 server/dev-server.py --port 8765 --study us_cine_smoke
+#    Terminal 2 — the static host
+python3 server/dev-server.py --port 8765 --series us_cine_smoke
+
+# 5. Before pushing: the gate (about 100 s on 4 cores, warm builds); --no-browser skips the browser steps, --quick two absence checks
+scripts/gate.sh
 ```
 
-Open in Chrome:
+The same gate runs in CI, `.github/workflows/gate.yml`, on every pull request into `claude/av1-unified-mainbase` and
+`main` and every push to them: every prerequisite above present, so a skip not on the workflow's list fails it, and
+the deploy image built with `deploy/check_equivalence.sh` and the viewer's page check run through it. No timing runs
+there: a shared runner is not a measurement host.
 
-- A cell over the downloader, on any study: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the
-  URL the static host prints. `&transport=wasm` runs the WASM client. `&transport=ws` runs the
-  WebSocket fallback, which needs the server started with `--websocket` (add it to Terminal 1's
-  command) and a Chrome that trusts the dev certificate, since a WebSocket cannot pin it by hash
+Then open in Chrome:
+
+- The viewer, the product's page: `http://127.0.0.1:8765/`. The smoke series' frames are placeholders and do not
+  decode, so give it a series of your own (§The viewer on a DICOM series).
+- A cell over the downloader: `http://127.0.0.1:8765/harness/cell.html?autorun=1`, the URL the static host
+  prints; its last line is `run_end` with `delivered` equal to `asked`. `&transport=wasm` runs the WASM client.
+  `&transport=ws` runs the WebSocket fallback, which needs the server started with `--websocket` and a Chrome
+  that trusts the dev certificate, since a WebSocket cannot pin it by hash
   ([`docs/WIRE.md`](docs/WIRE.md) §The WebSocket mapping):
 
   ```bash
@@ -58,36 +85,63 @@ Open in Chrome:
   ```
 
   The query parameters are listed in `client/harness/shell.js`.
-- The downloader's self-check (decoded frames against `.sha256`): `http://127.0.0.1:8765/harness/`.
-  It needs the decoder vendor (§Prerequisites) and the server running the `decode_c512` study in
-  place of the smoke one ([`docs/FIXTURES.md`](docs/FIXTURES.md), `client/downloader/README.md`):
+- The downloader's self-check, every decoded frame against its `.sha256`: `http://127.0.0.1:8765/harness/`.
+  It needs the decoder (§Prerequisites) and the server on the `decode_c512` series in place of the smoke one
+  ([`docs/FIXTURES.md`](docs/FIXTURES.md)); the frames need cmake and a C++ compiler for OpenJPH's encoder:
+
+  ```bash
+  lab/scripts/gen_htj2k_fixtures.sh c512   # 87 frames and their .sha256
+  mkdir -p target/c512
+  for f in lab/fixtures/decode_c512/*.j2c; do cp "$f" "target/c512/$(basename "$f" .j2c).htj2k"; done
+  cargo run -p pack-series -- --metadata lab/fixtures/decode_c512/metadata.json --frames target/c512 \
+    --output target/c512.sbnd
+  cargo run --release -p series-server -- --port 4433 --series target/c512.sbnd   # Terminal 1, in place of the smoke series
+  ```
+
+`scripts/cellcheck.sh` runs both pages headless in one go, after the c512 frames above: the cells over both
+clients must each deliver what they asked, the refuse cell none of it, and the self-check must pass. It makes its
+own server, bundle and certificate, so it needs neither terminal nor step 2; the gate does not run it.
+`scripts/wtcompat.py --fetch DIR` fetches the newest Chrome and Firefox builds and fails if any no longer dials the
+server, gets frame 0 exact, or offers a different WebTransport draft or `reset_stream_at` than `scripts/wtcompat.json`
+expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) §3); the gate does not run it.
+`deploy/check_equivalence.sh` checks that the web image answers every path the viewer loads exactly as
+`server/dev-server.py` does, and nothing else; it needs podman or docker, or nginx with `--local`, which the gate runs
+([`deploy/README.md`](deploy/README.md)). `--local` wants nginx on PATH (`/usr/sbin` on Debian),
+`server/scripts/gen_dev_cert.sh` run first, and a checkout nginx's worker can read (not under a `0700` directory).
+`lab/scripts/server_ab.sh` runs the binaries under `target/release`, so it wants `CARGO_TARGET_DIR` unset, and a
+`LOGDIR` given to it must exist.
+
+## The viewer on a DICOM series
+
+One series, ingested once, then one terminal per server:
 
 ```bash
-lab/scripts/gen_htj2k_fixtures.sh c512   # 87 frames and their .sha256; builds OpenJPH's encoder once (cmake, a C++ compiler)
-mkdir -p target/c512
-for f in lab/fixtures/decode_c512/*.j2c; do cp "$f" "target/c512/$(basename "$f" .j2c).htj2k"; done
-cargo run -p pack-study -- \
-  --metadata lab/fixtures/decode_c512/metadata.json \
-  --frames target/c512 \
-  --output target/c512.sbnd
+cargo build --release -p series-server -p pack-series && ingest/tools.sh   # once, with the venv of §Prerequisites
+.venv/bin/python ingest/from-dicom/from_dicom.py ingest/.build path/to/series target/my.sbnd
+#   (a folder of one series' single-frame objects, or one multi-frame object; docs/FIXTURES.md §From DICOM)
 
-# Terminal 1, in place of the smoke study
-cargo run --release -p exact-server -- --port 4433 --study target/c512.sbnd
+# Terminal 1 — the WebTransport server, on the dev certificate
+target/release/series-server --port 4433 --series target/my.sbnd \
+  --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem
+
+# Terminal 2 — the static host: the viewer at /, the series' metadata at /series/metadata;
+#   it makes the dev certificate when it is missing or ends within a day
+python3 server/dev-server.py --port 8765 --metadata target/my.metadata.json
 ```
 
-`scripts/cellcheck.sh` runs both pages headless in one go: the cells over both clients (on-demand at
-depth 1 and 4, fill, refuse, a fill on a busy main thread, telemetry) must each deliver what they asked,
-the refuse cell none of it, and the self-check must pass. It builds a release server, packs the c512
-study and makes its own cert under a temp dir, so it needs the c512 frames above, the WASM `pkg/` and
-the browser prerequisites, but not the two terminals or `gen_dev_cert.sh`. `scripts/gate.sh` does not run
-it, since the gate does not require the c512 frames.
+Open `http://127.0.0.1:8765/`. The wheel and the arrow keys step; space or the button runs the cine; a drag moves
+window and level, a shift or right drag pans, ctrl-wheel and `+`/`-` zoom; `r` turns, `h` and `v` flip, `i`
+inverts, `0` resets; `?fill=0` asks each frame as it is stepped to instead of filling the series. Its check is
+`client/viewer/check.mjs` ([`client/README.md`](client/README.md) §The viewer).
 
-The TypeScript and WASM transports speak the same wire (FoD on bidi control + envelope on server uni
-streams); the WASM client uses `web_sys::WebTransport` (no hand-rolled JS glue module).
+Both clients and the TCP fallback are [`docs/CLIENTS.md`](docs/CLIENTS.md); the bytes they speak, [`docs/WIRE.md`](docs/WIRE.md).
 
-A TCP fallback serves the same envelopes over a WebSocket: `--websocket` on the server, and
-`client/transport-ts/dist/ws-session.js` or `race-session.js` on the page
-([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §Race it).
+**What the gate costs and what it catches** — mutants made by hand at each decision, run by the step that owns the code: the
+downloader's in [`client/README.md`](client/README.md) §Every decision is held by a test; the decoder modules
+45 of 45; the send path (`planner.rs`, `pipeline.rs`, and `frame_out.rs`, now `link.rs`) 20 of 24, the four alive being log lines
+and a lab-only stall's equivalent sends; the series bundle's reader and writer 10 of 10. Its time, the gate-time measurement
+(queue row GATE, 2026-10-07, 4 cores, warm builds): `--quick` 161 → 106 s once the two timer-bound steps ran side by side; the
+before-and-after table is at `git show 0d293c89^:README.md`, and each step's time is in the gate's own log.
 
 ## Docs
 
@@ -95,8 +149,9 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 
 | doc | owns |
 | --- | --- |
+| [`docs/glossary.md`](docs/glossary.md) | every project term, defined once |
 | [`docs/WIRE.md`](docs/WIRE.md) | the wire: FoD messages, the envelope, stream modes, an ask during a fill, the WebSocket mapping |
-| [`docs/CLIENTS.md`](docs/CLIENTS.md) | the client contract: the transport seam, its implementations, the conformance suite |
+| [`docs/CLIENTS.md`](docs/CLIENTS.md) | the client contract: the transport seam, its implementations, the contract suite |
 | [`docs/FIXTURES.md`](docs/FIXTURES.md) | the fixtures and how each is made |
 | [`server/README.md`](server/README.md) | the server's map: how a session's data flows, which object does what, what runs where |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | the client above the transport: downloader, decoders, consumer; the session's open, survival and fallback |
@@ -104,14 +159,22 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 | [`docs/decode/README.md`](docs/decode/README.md) | the decoder: builds, dispatch, warm-up, the range, the decode tail |
 | [`docs/adr/disk-access.md`](docs/adr/disk-access.md) | how the server reads frame bytes, and its deployment |
 | [`docs/rig-limits.md`](docs/rig-limits.md) | what the measurement hosts can and cannot claim |
+| [`docs/levers.md`](docs/levers.md) | every lever outside the codecs: tried, closed or open, and the rows proposed next |
 | [`lab/README.md`](lab/README.md) | which lab directory reproduces which claim; each lab README runs its cells — [`lab/page-open/README.md`](lab/page-open/README.md) the page open |
 | [`docs/adr/`](docs/adr/README.md) | the decisions, one per record, indexed with their status: stream shape, the session loop, ask window, stride, resolution fitting, what the server refuses to do, the read path, idle sessions, receive windows, telemetry |
 | [`docs/transport/upstream-*.md`](docs/transport/) | upstream drafts, not filed |
-| [`docs/cloud-queue.md`](docs/cloud-queue.md) | the work queue, closed: its protocol, where each row's verdict lives, and the open owner decisions |
+| [`docs/cloud-queue.md`](docs/cloud-queue.md) | the work queue, closed: its protocol and where each row's verdict lives; an open decision is in its owning doc's §Open |
+| [`docs/codecs/`](docs/codecs/README.md) | the codecs side by side — HTJ2K, AV1, JPEG XL, JPEG 2000, AV2 — which carries which series, and why |
+| [`docs/av1/`](docs/av1/README.md) | AV1, a second lossless codec: what is open and what decides it; its own queue |
 
 Older campaign evidence and `lab/transport/` are on tag `archive/transport-lab-2026-09`; every
 retired doc is in the history before the commit that folded it.
 
+
+## Names
+
+Every project term is defined once, in [`docs/glossary.md`](docs/glossary.md); the rule names follow is
+`CLAUDE.md` §Names.
 
 ## Provenance
 

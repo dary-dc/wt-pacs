@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>FASTHTJ2K</title>
+<script>
+  // One set at a time on this thread: decode every frame, check it, then time `passes` more.
+  globalThis.load = async ({ glue, dir, set, n }) => {
+    if (!globalThis.M) {
+      await new Promise((ok, no) => { const s = document.createElement("script"); s.src = glue; s.onload = ok; s.onerror = no; document.head.append(s); });
+      globalThis.M = await OpenJPHModule({ locateFile: (f) => glue.replace(/[^/]*$/, f) });
+      globalThis.d = new M.HTJ2KDecoder();
+    }
+    globalThis.frames = await Promise.all([...Array(n).keys()].map(async (i) =>
+      new Uint8Array(await (await fetch(`${dir}/${set}/${String(i).padStart(3, "0")}.htj2k`)).arrayBuffer())));
+  };
+  const decode = (bytes) => { d.getEncodedBuffer(bytes.length).set(bytes); d.readHeader(); d.decode(); };
+  const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+  globalThis.check = async (truth, mutate) => {
+    let exact = 0;
+    for (let i = 0; i < frames.length; i++) {
+      decode(frames[i]);
+      const out = d.getDecodedBuffer().slice();
+      if (mutate) out[out.length >> 1] ^= 1;
+      if (hex(await crypto.subtle.digest("SHA-256", out)) === truth[i]) exact++;
+    }
+    return exact;
+  };
+  /** ms a frame for the decode (header and pixels into the heap) and for the copy out of it. */
+  globalThis.time = (passes) => {
+    let dec = 0, copy = 0;
+    for (let p = 0; p < passes; p++) for (const f of frames) {
+      const t0 = performance.now(); decode(f);
+      const t1 = performance.now(); d.getDecodedBuffer().slice();
+      copy += performance.now() - t1; dec += t1 - t0;
+    }
+    const k = passes * frames.length;
+    return { dec: dec / k, copy: copy / k };
+  };
+</script>

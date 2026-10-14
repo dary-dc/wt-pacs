@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate fixed-size synthetic SBND fixtures for E1 (Tf axis).
+# Generate fixed-size synthetic SBND fixtures for the saturation sweep (Tf axis).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT_ROOT="${OUT_ROOT:-$ROOT/lab/fixtures}"

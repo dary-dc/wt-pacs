@@ -5,16 +5,16 @@
  *   transport=…        ts (default) | ws | wasm | a module URL exporting TransportSession
  *   telemetry=1        record in the downloader's worker; harvest via window.__wtpacsTelemetry (transport=ts only)
  *   stream_mode=…      shared | per-frame (must match the server; recorded in the report)
- *   cell=…             ondemand (one ask per step, `d` in flight) | fill (one pushed fill) | refuse (ondemand past the study: no media)
+ *   cell=…             ondemand (one ask per step, `d` in flight) | fill (one pushed fill) | refuse (ondemand past the series: no media)
  *   d=…                outstanding asks for on-demand (default 1 — the control)
- *   n=…                steps to run (default: one pass over the study)
- *   frames=…           study frame count (default: /study/metadata frameCount)
+ *   n=…                steps to run (default: one pass over the series)
+ *   frames=…           series frame count (default: /series/metadata frameCount)
  *   trace=…            URL of a lab trace (steps[].frame, step_interval_ms) instead of n/frames
  *   interval_ms=…      pacing between steps becoming due (default: the trace's, else 0)
  *   autorun=1          run the cell on load, then close the session and set window.__wtpacsDone
  */
 
-import { DownloaderClient } from "/client/downloader/consumer.js";
+import { DownloaderClient } from "/client/transport/consumer.js";
 
 const params = new URLSearchParams(location.search);
 const telemetry = params.get("telemetry") === "1";
@@ -25,14 +25,14 @@ const depth = Math.max(1, Number(params.get("d") || 1));
 const transportName = params.get("transport") || "ts";
 const TRANSPORTS = {
   ts: undefined,
-  ws: "/client/transport-ts/dist/ws-session.js",
-  wasm: "/client/transport-wasm/session-adapter.js",
+  ws: "/client/transport/ts/dist/ws-session.js",
+  wasm: "/client/transport/wasm/session-adapter.js",
 };
 
 function transportModule() {
   if (!telemetry) return transportName in TRANSPORTS ? TRANSPORTS[transportName] : transportName;
   if (transportName !== "ts") throw new Error(`telemetry=1 records the TS transport only, not transport=${transportName}`);
-  return `/client/transport-ts/dist/session.telemetry.js?stream_mode=${streamMode}`;
+  return `/client/transport/ts/dist/session-telemetry.js?stream_mode=${streamMode}`;
 }
 
 const logEl = document.getElementById("log");
@@ -40,7 +40,7 @@ function log(...a) {
   logEl.textContent += a.join(" ") + "\n";
 }
 
-/** Milestones since navigation, in ms. What R2 counts round trips from — lab/page-open/. */
+/** Milestones since navigation, in ms. What the page-open count measures round trips from — lab/page-open/. */
 const open = (globalThis.__wtpacsOpen = {});
 const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
 
@@ -70,17 +70,17 @@ function heapPeakSampler(stats) {
   };
 }
 
-async function studyFrameCount() {
+async function seriesFrameCount() {
   const p = params.get("frames");
   if (p) return Number(p);
-  const meta = await fetch("/study/metadata").then((r) => r.json());
+  const meta = await fetch("/series/metadata").then((r) => r.json());
   return Number(meta.frameCount);
 }
 
-/** Step list and pacing: a lab trace, or `n` steps cycling over the study. */
+/** Step list and pacing: a lab trace, or `n` steps cycling over the series. */
 async function schedule() {
   const traceUrl = params.get("trace");
-  const frames = await studyFrameCount();
+  const frames = await seriesFrameCount();
   let steps;
   let interval = 0;
   let name;
@@ -223,7 +223,7 @@ async function boot() {
       const wallMs = performance.now() - t0;
       stopHeapSampler();
       const summary = {
-        arm: `downloader/${transportName}`,
+        client: `downloader/${transportName}`,
         cell,
         depth: cell === "fill" ? asked : depth,
         interval_ms: interval,
@@ -232,7 +232,7 @@ async function boot() {
         asked,
         delivered: stats.delivered,
         failed: stats.failed,
-        study_frames: frames,
+        series_frames: frames,
         wall_ms: Math.round(wallMs),
         checksum,
         js_heap_bytes: { start: heapStart, end: heapBytes(), peak: stats.heap_peak },

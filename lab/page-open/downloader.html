@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <link rel="icon" href="data:," />
   <!-- ?dns=ORIGIN resolves the transport's host while the page loads; ?transport=wasm takes the
-       WASM client, preloaded as cut 3 preloads the rest; ?meta=URL fetches a study's metadata beside
+       WASM client, preloaded as cut 3 preloads the rest; ?meta=URL fetches a series's metadata beside
        the config. lab/page-open/README.md -->
   <script>
     const q = new URLSearchParams(location.search);
@@ -12,31 +12,31 @@
     if (q.get("dns")) link({ rel: "dns-prefetch", href: q.get("dns") });
     if (q.get("meta")) link({ rel: "preload", as: "fetch", href: q.get("meta"), crossOrigin: "anonymous" });
     if (q.get("transport") === "wasm") {
-      link({ rel: "preload", as: "script", href: "/client/transport-wasm/session-adapter.js" });
-      link({ rel: "preload", as: "script", href: "/client/transport-wasm/pkg/transport_wasm.js" });
-      link({ rel: "preload", as: "fetch", href: "/client/transport-wasm/pkg/transport_wasm_bg.wasm", crossOrigin: "anonymous" });
+      link({ rel: "preload", as: "script", href: "/client/transport/wasm/session-adapter.js" });
+      link({ rel: "preload", as: "script", href: "/client/transport/wasm/pkg/transport_wasm.js" });
+      link({ rel: "preload", as: "fetch", href: "/client/transport/wasm/pkg/transport_wasm_bg.wasm", crossOrigin: "anonymous" });
     }
   </script>
   <!-- The open is serial without these: each is otherwise discovered one round trip
        later than it could be. lab/page-open/README.md -->
   <link rel="preload" as="fetch" href="/wt/dev-transport.json" />
-  <link rel="modulepreload" href="/client/downloader/consumer.js" />
-  <link rel="preload" as="script" href="/client/downloader/downloader.js" />
-  <link rel="preload" as="script" href="/client/downloader/decoder.js" />
-  <link rel="preload" as="script" href="/client/transport-ts/dist/session.js" />
-  <link rel="preload" as="script" href="/lab/decode-bench/vendor/openjph/openjphjs.js" />
-  <link rel="preload" as="fetch" href="/lab/decode-bench/vendor/openjph/openjphjs.wasm" />
+  <link rel="modulepreload" href="/client/transport/consumer.js" />
+  <link rel="preload" as="script" href="/client/transport/downloader.js" />
+  <link rel="preload" as="script" href="/client/decode/decoder.js" />
+  <link rel="preload" as="script" href="/client/transport/ts/dist/session.js" />
+  <link rel="preload" as="script" href="/client/decode/wasm/vendor/openjph/openjphjs.js" />
+  <link rel="preload" as="fetch" href="/client/decode/wasm/vendor/openjph/openjphjs.wasm" />
   <title>page open — the downloader</title>
 </head>
 <body>
   <div id="log"></div>
   <script type="module">
     /**
-     * R2's downloader arm: the product's own load path — consumer, downloader worker, decoder
-     * pool — and nothing else, so the milestones are the open and not a conformance run.
+     * The cold-open downloader variant: the product's own load path — consumer, downloader worker, decoder
+     * pool — and nothing else, so the milestones are the open and not a contract run.
      * lab/page-open/README.md
      */
-    import { DownloaderClient } from "/client/downloader/consumer.js";
+    import { DownloaderClient } from "/client/transport/consumer.js";
 
     const open = (globalThis.__wtpacsOpen = {});
     const mark = (name) => (open[name] ??= Math.round(performance.now() * 10) / 10);
@@ -49,12 +49,12 @@
       const cfg = await (await fetch("/wt/dev-transport.json")).json();
       mark("config");
       const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
-        transport: q.get("transport") === "wasm" ? "/client/transport-wasm/session-adapter.js" : undefined,
+        transport: q.get("transport") === "wasm" ? "/client/transport/wasm/session-adapter.js" : undefined,
         decoders: 3,
         decoder: {
-          glue: "/lab/decode-bench/vendor/openjph/openjphjs.js",
-          wasm: "/lab/decode-bench/vendor/openjph/openjphjs.wasm",
-          dir: "/lab/decode-bench/vendor/openjph",
+          glue: "/client/decode/wasm/vendor/openjph/openjphjs.js",
+          wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm",
+          dir: "/client/decode/wasm/vendor/openjph",
         },
       });
       mark("session");

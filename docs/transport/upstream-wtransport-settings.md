@@ -2,7 +2,7 @@
 
 **A draft, not posted.** The owner posts it, or does not. Below are an issue and a pull-request
 description for [BiagioFesta/wtransport](https://github.com/BiagioFesta/wtransport), written from
-[`ARCHITECTURE.md`](../ARCHITECTURE.md) §Lever 2, whose numbers they quote.
+[`ARCHITECTURE.md`](../ARCHITECTURE.md) §Early SETTINGS, whose numbers they quote.
 Before posting: check for an open issue or PR again (none on 2026-09-23, §Upstream there), and
 rebase the patch onto the release current then. [#324](https://github.com/BiagioFesta/wtransport/pull/324)
 touches `open_and_send_settings`, which this patch starts earlier.
@@ -34,7 +34,7 @@ round trips from the first packet to a ready session):
 
 | client | today | SETTINGS in the first flight |
 | --- | --: | --: |
-| Chrome, page arms, 8 rounds at 40 and 80 ms | 3.15–3.55 | **2.14–2.49**, 8/8 rounds won |
+| Chrome, page variants, 8 rounds at 40 and 80 ms | 3.15–3.55 | **2.14–2.49**, 8/8 rounds won |
 | wtransport client, 6 rounds | 3.10 | **2.10**, 6/6 |
 | webtransport-go v0.9.0, 5 rounds at 40 ms | 3.21 | **2.17** |
 | aioquic 1.3.0, 5 rounds at 40 ms | 3.48 | **2.45** |

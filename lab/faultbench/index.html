@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>faultbench — one fault for one frame, and what reaches the page</title>
+<script type="module">
+  // Fills a series through the product's downloader with lab/faultbench/decode/ as its decoder worker and posts
+  // what the page received for each frame to `post`. lab/faultbench/README.md
+  import { DownloaderClient } from "/client/transport/consumer.js";
+  import { built } from "/client/decode/wasm-glue.js";
+
+  const q = new URLSearchParams(location.search);
+  const post = (r) => fetch(q.get("post"), { method: "POST", body: JSON.stringify(r) });
+  try {
+    if (!globalThis.crossOriginIsolated) throw new Error("not cross-origin isolated");
+    const meta = await (await fetch(`${q.get("dir")}/metadata.json`)).json();
+    const n = meta.frameCount;
+    const av1 = meta.codec === "av1";
+    const decoderWorker = `/lab/faultbench/decode/decoder.js?fault=${q.get("fault")}&at=${q.get("at")}` +
+      `&webcodecs=${q.get("webcodecs") ?? "on"}`;
+    const frames = {};
+    const failed = {};
+    let last = performance.now();
+    const c = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
+      decoder: av1 ? { codec: "av1", ...(await built("dav1d")) } : await built("openjph"),
+      digests: meta.digests.frames,
+      decoderWorker,
+      onFrame: (f) => {
+        frames[f.frameIndex] = { exact: f.info.exact, path: f.info.path, mismatchOn: f.info.mismatchOn ?? null,
+                                 reason: f.info.reason ?? null };
+        last = performance.now();
+      },
+      onError: (e) => { failed[e.frameIndex] = String(e.reason); last = performance.now(); },
+    });
+    c.fill([...Array(n).keys()]);
+    const quietMs = Number(q.get("quiet") ?? 10000);
+    while (Object.keys(frames).length + Object.keys(failed).length < n && performance.now() - last < quietMs) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const missing = [...Array(n).keys()].filter((i) => !(i in frames) && !(i in failed));
+    c.close();
+    await post({ ok: true, frames, failed, missing, ua: navigator.userAgent });
+  } catch (e) {
+    await post({ ok: false, error: String(e?.stack || e) });
+  }
+</script>

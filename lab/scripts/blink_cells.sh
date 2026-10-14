@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# W3: what a blink costs, where in the transfer it lands, and whether restarting slow start
-# after the silence is worth it. Arms interleaved within every round, in a Williams order
+# What a blink costs (W3), where in the transfer it lands, and whether restarting slow start
+# after the silence is worth it. Variants interleaved within every round, in a Williams order
 # (lab/scripts/order.py).
 # Results: docs/transport/transport-conclusions.md §3, after a blink.
 #
@@ -15,8 +15,8 @@ MODE=w3
 ROUNDS="${1:-5}"
 RTT="${RTT:-80}"
 RATE="${RATE:-20000}"
-ARMS=(cubic cubic-restart bbr)
-[[ $MODE == w5b ]] && ARMS=(cubic cubic-restart)
+VARIANTS=(cubic cubic-restart bbr)
+[[ $MODE == w5b ]] && VARIANTS=(cubic cubic-restart)
 FILL=40          # frames the fill takes
 KB=64            # frame size
 ASK_KB=250       # the one-ask cell's frame size
@@ -26,33 +26,33 @@ PIDS=()
 cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm -rf "$T"; }
 trap cleanup EXIT
 
-cargo build -q -p exact-server -p pack-study -p window-harness
+cargo build -q -p series-server -p pack-series -p window-harness
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
   -addext 'basicConstraints=critical,CA:FALSE' -addext 'keyUsage=critical,digitalSignature' \
   -addext 'extendedKeyUsage=serverAuth' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
 
-study() {  # frames kb out
+series() {  # frames kb out
   local n="$1" kb="$2" out="$3" d="$T/f$3"
   mkdir -p "$d"
   for i in $(seq 0 "$n"); do
     head -c $((kb * 1024)) /dev/urandom > "$d/$(printf '%03d' "$i").htj2k"
   done
   echo "{\"frameCount\": $((n + 1))}" > "$T/m$3.json"
-  "$BIN/pack-study" --metadata "$T/m$3.json" --frames "$d" --output "$T/$out.sbnd" >/dev/null
+  "$BIN/pack-series" --metadata "$T/m$3.json" --frames "$d" --output "$T/$out.sbnd" >/dev/null
 }
-study "$FILL" "$KB" fill
-study "$ASK_WARM" "$ASK_KB" ask
+series "$FILL" "$KB" fill
+series "$ASK_WARM" "$ASK_KB" ask
 
 SRV=$((36000 + RANDOM % 2000))
 IN=$((34000 + RANDOM % 2000))
 CTRL=$((38000 + RANDOM % 2000))
 
-start_server() {  # study extra args...
-  local study="$1"; shift
+start_server() {  # series extra args...
+  local series="$1"; shift
   : > "$T/server.log"
-  RUST_LOG=exact_server=info "$BIN/exact-server" --port "$SRV" --study "$T/$study.sbnd" \
+  RUST_LOG=series_server=info "$BIN/series-server" --port "$SRV" --series "$T/$series.sbnd" \
     --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" "$@" > "$T/server.log" 2>&1 &
   SERVER_PID=$!
   PIDS+=("$SERVER_PID")
@@ -78,17 +78,17 @@ print("%s %s %s" % rows[-1] if rows else "- - -")
 PY
 }
 
-# One round of one arm. Appends "<metric ms> <sent> <lost> <cong> <round> <predecessor> <next ask ms>"
-# to the arm's file; a run the relay timed late (`VOID`) is dropped.
-one() {  # cell arm study warm target [harness args...]
-  local cell="$1" arm="$2" study="$3" warm="$4" target="$5"
+# One round of one variant. Appends "<metric ms> <sent> <lost> <cong> <round> <predecessor> <next ask ms>"
+# to the variant's file; a run the relay timed late (`VOID`) is dropped.
+one() {  # cell variant series warm target [harness args...]
+  local cell="$1" variant="$2" series="$3" warm="$4" target="$5"
   shift 5
-  start_server "$study" --congestion "$arm"
+  start_server "$series" --congestion "$variant"
   start_relay
   local line
   line=$(RUST_BACKTRACE=0 "$BIN/first_ask" --url "https://127.0.0.1:$IN/" --warm "$warm" \
     --target "$target" --control-port "$CTRL" --rounds 1 --timeout-ms 60000 "$@" 2>&1) || {
-      echo "FAILED $cell $arm: $(head -2 <<<"$line" | tr '\n' ' ')" >&2
+      echo "FAILED $cell $variant: $(head -2 <<<"$line" | tr '\n' ' ')" >&2
       kill "$RELAY_PID" "$SERVER_PID" 2>/dev/null || true; sleep 0.3; return; }
   # The close is still in the relay's delay queue and the server writes its `session path` line
   # when it arrives, so wait for it with the relay still up. A client that exited before
@@ -99,33 +99,33 @@ one() {  # cell arm study warm target [harness args...]
   v=$(sed -n "s/.*${METRIC} median=\([0-9.]*\).*/\1/p" <<<"$line")
   next=$(sed -n "s/.*ask_to_last_byte_ms median=\([0-9.]*\).*/\1/p" <<<"$line")
   if grep -q VOID "$T/relay.log"; then
-    echo "VOID $cell $arm round $ROUND" >&2
+    echo "VOID $cell $variant round $ROUND" >&2
   else
-    echo "$v $(link_cost) $ROUND $PREV $next" >> "$T/$cell.$arm"
+    echo "$v $(link_cost) $ROUND $PREV $next" >> "$T/$cell.$variant"
   fi
   kill "$SERVER_PID" 2>/dev/null || true; sleep 0.3
 }
 
 report() {  # cell
-  python3 - "$T" "$1" "${ARMS[@]}" <<'PY'
+  python3 - "$T" "$1" "${VARIANTS[@]}" <<'PY'
 import sys
 sys.path.insert(0, "lab/scripts")
 from order import leads_by_predecessor
-t, cell, arms = sys.argv[1], sys.argv[2], sys.argv[3:]
-def rows(arm):
+t, cell, variants = sys.argv[1], sys.argv[2], sys.argv[3:]
+def rows(variant):
     try:
-        return [l.split() for l in open(f"{t}/{cell}.{arm}") if l.strip()]
+        return [l.split() for l in open(f"{t}/{cell}.{variant}") if l.strip()]
     except FileNotFoundError:
         return []
-base = {int(r[4]): float(r[0]) for r in rows(arms[0])}
-base_next = {int(r[4]): float(r[6]) for r in rows(arms[0])}
+base = {int(r[4]): float(r[0]) for r in rows(variants[0])}
+base_next = {int(r[4]): float(r[6]) for r in rows(variants[0])}
 def med(v):
     v = sorted(v)
     return float("nan") if not v else v[len(v) // 2] if len(v) % 2 else (v[len(v) // 2 - 1] + v[len(v) // 2]) / 2
-for arm in arms:
-    r = rows(arm)
+for variant in variants:
+    r = rows(variant)
     if not r:
-        print("%-19s %s" % (arm, "no rounds")); continue
+        print("%-19s %s" % (variant, "no rounds")); continue
     mine = [float(x[0]) for x in r]
     ms = sorted(mine)
     paired = [float(x[0]) - base[int(x[4])] for x in r if int(x[4]) in base]
@@ -134,38 +134,38 @@ for arm in arms:
     counted = [x for x in r if x[1] != "-"]
     mean = lambda i: sum(int(x[i]) for x in counted) / len(counted)
     print("%-19s %9.1f %9.1f %9.1f %9s %8s %9.0f %7.1f %6.1f %6s %9.1f %9s" % (
-        arm, med(mine), ms[0], ms[-1], "%+.1f" % med(paired) if arm != arms[0] else "",
+        variant, med(mine), ms[0], ms[-1], "%+.1f" % med(paired) if variant != variants[0] else "",
         f"{wins}/{len(paired)}", mean(1), mean(2), mean(3), f"{len(counted)}/{len(r)}",
-        med([float(x[6]) for x in r]), "%+.1f" % med(nexts) if arm != arms[0] else ""))
-split = [{"round": int(x[4]), "unit": arm, "prev": None if x[5] == "first" else x[5], "v": float(x[0])}
-         for arm in arms for x in rows(arm)]
-for line in leads_by_predecessor(split, arms, [(a, arms[0]) for a in arms[1:]], 1):
+        med([float(x[6]) for x in r]), "%+.1f" % med(nexts) if variant != variants[0] else ""))
+split = [{"round": int(x[4]), "unit": variant, "prev": None if x[5] == "first" else x[5], "v": float(x[0])}
+         for variant in variants for x in rows(variant)]
+for line in leads_by_predecessor(split, variants, [(a, variants[0]) for a in variants[1:]], 1):
     print(line)
 PY
 }
 
 head_row() {
   printf '\n== %s\n%-19s %9s %9s %9s %9s %8s %9s %7s %6s %6s %9s %9s\n' "$1" \
-    "arm" "median" "min" "max" "paired" "wins" "sent" "lost" "cong" "rows" "next ask" "paired"
+    "variant" "median" "min" "max" "paired" "wins" "sent" "lost" "cong" "rows" "next ask" "paired"
 }
 
-cell() {  # label study warm target [harness args...]
+cell() {  # label series warm target [harness args...]
   local label="$1"; shift
-  local study="$1" warm="$2" target="$3"; shift 3
+  local series="$1" warm="$2" target="$3"; shift 3
   local key="${label// /_}"
   rm -f "$T/$key".*
   for ROUND in $(seq 0 $((ROUNDS - 1))); do
     PREV=first
-    for k in $(python3 lab/scripts/order.py row "${#ARMS[@]}" "$ROUND"); do
-      one "$key" "${ARMS[$k]}" "$study" "$warm" "$target" "$@"
-      PREV="${ARMS[$k]}"
+    for k in $(python3 lab/scripts/order.py row "${#VARIANTS[@]}" "$ROUND"); do
+      one "$key" "${VARIANTS[$k]}" "$series" "$warm" "$target" "$@"
+      PREV="${VARIANTS[$k]}"
     done
   done
   head_row "$label"
   report "$key"
 }
 
-echo "link: ${RTT} ms round trip, ${RATE} kbit, fill $((FILL * KB)) KB, $ROUNDS rounds, arms in a Williams order"
+echo "link: ${RTT} ms round trip, ${RATE} kbit, fill $((FILL * KB)) KB, $ROUNDS rounds, variants in a Williams order"
 
 # Gilbert–Elliott in percent: bursts of 3.5 packets on average, the mean loss asked (profile_cells.sh).
 ge() { python3 -c "r = 100 / 3.5; m = $1 / 100; print('--loss-model ge --ge-p %.5f --ge-r %.4f' % (m * r / (1 - m), r))"; }

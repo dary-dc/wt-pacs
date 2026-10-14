@@ -11,7 +11,7 @@ use frame_envelope::{frame_head, FRAME_HEAD_LEN};
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
-use tracing::warn;
+use tracing::{debug, warn};
 use wtransport::stream::SendStream;
 use wtransport::Connection;
 
@@ -22,6 +22,8 @@ pub(crate) enum Link {
         connection: Connection,
         /// Lab only: envelope bytes left before the session stalls. `--stall-after-bytes`.
         stall_left: Option<u64>,
+        /// Lab only: the send window is set to cwnd + this before each frame. `--send-window-follows-cwnd`.
+        cwnd_ahead: Option<u64>,
     },
     /// One ordered TCP stream carries frames and refusals alike.
     WebSocket(WsWriter),
@@ -32,7 +34,8 @@ pub(crate) enum Link {
 
 pub(crate) enum Media {
     Shared(SendStream),
-    PerFrame { acks: JoinSet<()>, seq: u32 },
+    /// `asks` counts the asks served when they rank above every fill (`per-frame-asks-first`).
+    PerFrame { acks: JoinSet<()>, seq: u32, asks: Option<u32> },
 }
 
 /// The opening ask is served before the client opens control, so its stream may still be coming.
@@ -48,6 +51,7 @@ impl Link {
         connection: Connection,
         control: ControlStream,
         stall_left: Option<u64>,
+        cwnd_ahead: Option<u64>,
     ) -> Result<Self> {
         let media = match mode {
             StreamMode::Shared => Media::Shared(
@@ -58,24 +62,31 @@ impl Link {
                     .await
                     .context("shared uni ready")?,
             ),
-            StreamMode::PerFrame => Media::PerFrame { acks: JoinSet::new(), seq: 0 },
+            StreamMode::PerFrame => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: None },
+            StreamMode::PerFrameAsksFirst => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: Some(0) },
         };
-        Ok(Self::Quic { media, control, connection, stall_left })
+        Ok(Self::Quic { media, control, connection, stall_left, cwnd_ahead })
     }
 
     /// `body` is the whole codestream in the reader's own buffer; quinn keeps it until the
     /// peer acknowledges it and the pool gets it back. `media/frame_pool.rs`.
-    pub(crate) async fn send_frame(&mut self, idx: u32, body: Bytes) -> Result<()> {
+    pub(crate) async fn send_frame(&mut self, idx: u32, body: Bytes, ask: bool) -> Result<()> {
         let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
         match self {
-            Self::Quic { media, connection, stall_left, .. } => {
+            Self::Quic { media, connection, stall_left, cwnd_ahead, .. } => {
+                if ask {
+                    let path = connection.quic_connection().stats().path;
+                    debug!(frame = idx, cwnd = path.cwnd, rtt_us = path.rtt.as_micros() as u64, "ask written");
+                }
+                if let Some(ahead) = cwnd_ahead {
+                    let quic = connection.quic_connection();
+                    quic.set_send_window(quic.stats().path.cwnd + *ahead);
+                }
                 let whole = (FRAME_HEAD_LEN + body.len()) as u64;
                 match stall_left {
                     Some(left) if whole > *left => {
-                        let budget = *left as usize;
-                        let body = body.slice(..budget.saturating_sub(head.len()).min(body.len()));
-                        let head = head.slice(..budget.min(head.len()));
-                        media.send(connection, head, body, false).await?;
+                        let (head, body, whole) = within(head, body, *left as usize);
+                        media.send(connection, head, body, whole, ask).await?;
                         connection.closed().await;
                         Err(anyhow!("the session stalled after its byte budget"))
                     }
@@ -83,7 +94,7 @@ impl Link {
                         if let Some(left) = stall_left {
                             *left -= whole;
                         }
-                        media.send(connection, head, body, true).await
+                        media.send(connection, head, body, true, ask).await
                     }
                 }
             }
@@ -121,18 +132,21 @@ impl Link {
 
 impl Media {
     /// `whole` false is the lab stall's cut frame, whose stream must never finish.
-    async fn send(&mut self, connection: &Connection, head: Bytes, body: Bytes, whole: bool) -> Result<()> {
+    async fn send(&mut self, connection: &Connection, head: Bytes, body: Bytes, whole: bool, ask: bool) -> Result<()> {
         match self {
             Self::Shared(uni) => write_frame(uni, head, body).await,
-            Self::PerFrame { acks, seq } => {
+            Self::PerFrame { acks, seq, asks } => {
                 let mut uni = connection
                     .open_uni()
                     .await
                     .context("open uni")?
                     .await
                     .context("open uni ready")?;
-                let _ = uni.set_priority(ask_priority(*seq));
-                *seq = seq.saturating_add(1);
+                let priority = match asks {
+                    Some(asks) if ask => take_ask_priority(asks),
+                    _ => take_priority(seq),
+                };
+                let _ = uni.set_priority(priority);
                 write_frame(&mut uni, head, body).await?;
                 // A dropped stream is finished, so a cut one is held open instead.
                 acks.spawn(async move {
@@ -162,10 +176,31 @@ impl ControlStream {
     }
 }
 
+/// The envelope's first `budget` bytes as head and body, and whether that is all of it.
+fn within(head: Bytes, body: Bytes, budget: usize) -> (Bytes, Bytes, bool) {
+    let whole = budget >= head.len() + body.len();
+    let body = body.slice(..budget.saturating_sub(head.len()).min(body.len()));
+    (head.slice(..budget.min(head.len())), body, whole)
+}
+
 /// Earlier asks outrank later ones, so quinn sends a lost frame's retransmit before newer
 /// frames' data instead of behind every stream already queued. `docs/adr/stream-shape.md`.
 fn ask_priority(seq: u32) -> i32 {
     i32::try_from(seq).map_or(i32::MIN, |s| -s)
+}
+
+/// The next stream's priority, one rank below the last.
+fn take_priority(seq: &mut u32) -> i32 {
+    let p = ask_priority(*seq);
+    *seq = seq.saturating_add(1);
+    p
+}
+
+/// Above every fill's rank (≤ 0), earlier asks above later ones.
+fn take_ask_priority(asks: &mut u32) -> i32 {
+    let p = i32::MAX - i32::try_from(*asks).unwrap_or(i32::MAX).min(i32::MAX - 1);
+    *asks = asks.saturating_add(1);
+    p
 }
 
 async fn write_frame(uni: &mut SendStream, head: Bytes, body: Bytes) -> Result<()> {
@@ -207,5 +242,41 @@ mod tests {
             assert!(p < last, "ask {seq} ranks at {p}, not below {last}");
             last = p;
         }
+    }
+
+    /// Each per-frame stream takes a rank below the one before it, not the same one.
+    #[test]
+    fn each_stream_takes_the_next_rank_down() {
+        let mut seq = 0;
+        let ranks: Vec<i32> = (0..3).map(|_| take_priority(&mut seq)).collect();
+        assert_eq!(ranks, [0, -1, -2]);
+    }
+
+    /// With asks first, every ask ranks above every fill frame, however many of either came
+    /// before, and earlier asks above later ones.
+    #[test]
+    fn asks_first_rank_every_ask_above_every_fill() {
+        let (mut seq, mut asks) = (0, 0);
+        let fill: Vec<i32> = (0..3).map(|_| take_priority(&mut seq)).collect();
+        let ask: Vec<i32> = (0..3).map(|_| take_ask_priority(&mut asks)).collect();
+        assert!(ask.windows(2).all(|w| w[0] > w[1]), "later asks not ranked below earlier ones: {ask:?}");
+        assert!(ask.iter().all(|a| fill.iter().all(|f| a > f)), "an ask ranks at or below a fill: {ask:?} {fill:?}");
+        let (mut seq, mut asks) = (0, u32::MAX);
+        assert!(take_ask_priority(&mut asks) > take_priority(&mut seq), "the last ask ranks at or below the first fill");
+    }
+
+    /// A budget cuts the envelope where it ends, head first, and only a budget that covers the
+    /// head and the body leaves the frame whole.
+    #[test]
+    fn a_budget_cuts_the_envelope_head_first() {
+        let (head, body) = (Bytes::from_static(b"HEADHEAD"), Bytes::from_static(b"body"));
+        let cut = |budget| {
+            let (h, b, whole) = within(head.clone(), body.clone(), budget);
+            (h.len(), b.len(), whole)
+        };
+        assert_eq!(cut(usize::MAX), (8, 4, true));
+        assert_eq!(cut(12), (8, 4, true));
+        assert_eq!(cut(11), (8, 3, false));
+        assert_eq!(cut(5), (5, 0, false));
     }
 }

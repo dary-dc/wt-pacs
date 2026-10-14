@@ -237,8 +237,8 @@ name = "check-fastpath"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "exact-server",
  "libc",
+ "series-server",
 ]
 
 [[package]]
@@ -302,6 +302,21 @@ name = "const-oid"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
+
+[[package]]
+name = "container-bench"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "clap",
+ "libc",
+ "serde_json",
+ "series-bundle",
+ "series-server",
+ "tokio",
+ "xxhash-rust",
+]
 
 [[package]]
 name = "core-foundation"
@@ -410,7 +425,6 @@ dependencies = [
  "anyhow",
  "bytes",
  "clap",
- "exact-server",
  "fod",
  "frame-envelope",
  "io-uring",
@@ -421,8 +435,10 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "series-server",
  "tokio",
  "wtransport",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -444,34 +460,6 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "exact-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytes",
- "clap",
- "fod",
- "frame-envelope",
- "futures-util",
- "io-uring",
- "libc",
- "quinn-proto",
- "rcgen 0.13.2",
- "rustls",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "study-bundle",
- "time",
- "tokio",
- "tokio-rustls",
- "tokio-tungstenite",
- "tracing",
- "tracing-subscriber",
- "wtransport",
 ]
 
 [[package]]
@@ -501,6 +489,19 @@ dependencies = [
 [[package]]
 name = "frame-envelope"
 version = "0.1.0"
+
+[[package]]
+name = "from-parser"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cc",
+ "clap",
+ "serde",
+ "serde_json",
+ "series-bundle",
+ "xxhash-rust",
+]
 
 [[package]]
 name = "futures"
@@ -993,13 +994,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
-name = "pack-study"
+name = "pack-series"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "serde_json",
- "study-bundle",
+ "series-bundle",
 ]
 
 [[package]]
@@ -1083,8 +1084,6 @@ dependencies = [
 [[package]]
 name = "quinn"
 version = "0.11.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c1a41e437b6bbd489372cd4971de128e85c855f56c57f283d20ff016cf7c0a8"
 dependencies = [
  "bytes",
  "cfg_aliases",
@@ -1430,6 +1429,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "series-bundle"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "frame-envelope",
+]
+
+[[package]]
+name = "series-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "clap",
+ "fod",
+ "frame-envelope",
+ "futures-util",
+ "io-uring",
+ "libc",
+ "quinn-proto",
+ "rcgen 0.13.2",
+ "rustls",
+ "serde",
+ "serde_json",
+ "series-bundle",
+ "sha2 0.10.9",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-tungstenite",
+ "tracing",
+ "tracing-subscriber",
+ "wtransport",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1520,14 +1555,6 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
-
-[[package]]
-name = "study-bundle"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "frame-envelope",
-]
 
 [[package]]
 name = "subtle"
@@ -2123,6 +2150,12 @@ dependencies = [
  "thiserror",
  "time",
 ]
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "550a2b930b62486a393c52d5c3b84bff264b28aa437ed64694d31e93b1757af7"
 
 [[package]]
 name = "yasna"

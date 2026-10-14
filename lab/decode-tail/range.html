@@ -33,7 +33,7 @@ function ints(view, bits, signed) {
   return { min, max };
 }
 const FNS = { product, ints };
-onmessage = ({ data: { arm, shape, n } }) => {
+onmessage = ({ data: { variant, shape, n } }) => {
   const [Kind, len, bits, signed] = shape === "c512" ? [Uint8Array, 512 * 512 * 3, 8, false]
     : shape === "g512" ? [Uint16Array, 512 * 512, 16, false] : [Int16Array, 512 * 512, 12, true];
   const out = [];
@@ -44,12 +44,12 @@ onmessage = ({ data: { arm, shape, n } }) => {
     const top = (1 << bits) - 1;
     for (let i = 0; i < len; i++) v[i] = (((i % 512) * 7 + ((i / 512) | 0) * 3 + (i * 2654435761 >>> 27)) % top) & top;
     const t = performance.now();
-    result = FNS[arm](v, bits, signed);
+    result = FNS[variant](v, bits, signed);
     out.push(performance.now() - t);
   }
   postMessage({ out, result });
 };`;
 const w = new Worker(URL.createObjectURL(new Blob([worker], { type: "text/javascript" })));
-globalThis.run = (arm, shape, n) => new Promise((r) => { w.onmessage = (e) => r(e.data); w.postMessage({ arm, shape, n }); });
+globalThis.run = (variant, shape, n) => new Promise((r) => { w.onmessage = (e) => r(e.data); w.postMessage({ variant, shape, n }); });
 globalThis.ready = true;
 </script>

@@ -1,6 +1,6 @@
 /** Streaming frame attributor — O(chunk) work, O(1) memory per stream. Its oracle is test/offsets.ts. */
 
-import { MAX_FRAME_LEN } from "../transport-ts/wire.ts";
+import { MAX_FRAME_LEN } from "../transport/ts/wire.ts";
 import type { FrameTiming } from "./types.ts";
 
 type OpenFrame = {

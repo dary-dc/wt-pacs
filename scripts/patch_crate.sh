@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A crates.io crate with its patch from patches/ applied, into DIR. Run by patched/CRATE/build.rs;
-# why each patch exists: docs/ARCHITECTURE.md §Lever 2 and §What lever 2 costs, and for quinn
+# why each patch exists: docs/ARCHITECTURE.md §Early SETTINGS and §What early SETTINGS cost, and for quinn
 # docs/transport/transport-conclusions.md §4.
 #
 #   scripts/patch_crate.sh CRATE DIR [--copy-src SRC]   SRC receives the patched modules
@@ -11,15 +11,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 usage="usage: $0 CRATE DIR [--copy-src SRC] | CRATE --check"
 CRATE="${1:?$usage}"
 case "$CRATE" in
-  wtransport) VERSION=0.7.2 WHAT=settings-early
+  wtransport) VERSION=0.7.2 WHAT=settings-in-handshake
     CHECKSUM=b4273ce3157a3262a68665f8d3f20a0ac0c5b8a69ffd67f05ae986832ebec036 ;;
-  quinn-proto) VERSION=0.11.18 WHAT=probe-every-space
+  quinn-proto) VERSION=0.11.18 WHAT="probe-every-space reply-repeated-initial"
     CHECKSUM=a9746dbde176634f4f2f1faf2404e30a31b2bc1e9cafb5329c95d8177a18c9fc ;;
   quinn) VERSION=0.11.11 WHAT=mtu-gso
     CHECKSUM=0c1a41e437b6bbd489372cd4971de128e85c855f56c57f283d20ff016cf7c0a8 ;;
   *) echo "no patch for $CRATE" >&2; exit 2 ;;
 esac
-PATCH="$ROOT/patches/${CRATE}-${VERSION}-${WHAT}.patch"
 
 COPY_SRC=""
 case "${2:?$usage}" in
@@ -46,7 +45,9 @@ fi
 src="$OUT/${CRATE}-${VERSION}"
 rm -rf "$src"
 tar -xzf "$crate" -C "$OUT"
-patch -p1 --forward --batch --fuzz=0 --quiet -d "$src" < "$PATCH"
+for what in $WHAT; do
+  patch -p1 --forward --batch --fuzz=0 --quiet -d "$src" < "$ROOT/patches/${CRATE}-${VERSION}-${what}.patch"
+done
 
 # include! makes a crate's inner `//!` and `#![..]` outer, so the body goes without them.
 sed -e '/^\s*\/\/!/d' -e '/^#!\[/d' "$src/src/lib.rs" > "$src/src/lib_body.rs"

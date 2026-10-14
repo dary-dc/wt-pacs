@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WebGPU HT decode</title>
+<script type="module">
+// Frames through ht.mjs, each checked against the checksum written when its input was made.
+import { decoder } from "./ht.mjs";
+
+const hex = async (b) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].map((x) => x.toString(16).padStart(2, "0")).join("");
+const get = async (u) => new Uint8Array(await (await fetch(u)).arrayBuffer());
+let device, wgsl, tables;
+
+globalThis.setup = async ({ subgroups }) => {
+  const adapter = await navigator.gpu.requestAdapter();
+  device = await adapter.requestDevice({
+    requiredFeatures: subgroups ? ["subgroups"] : [],
+    requiredLimits: { maxBufferSize: adapter.limits.maxBufferSize, maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize },
+  });
+  wgsl = await (await fetch("ht.wgsl")).text();
+  tables = new Uint32Array(await (await fetch("tables.bin")).arrayBuffer());
+  return `${adapter.info.vendor} ${adapter.info.architecture}`;
+};
+
+/** Each batch a list of {url, truth}; returns per batch the frames exact, dispatches, read-backs and faults. */
+globalThis.run = async ({ batches, subgroups, flip }) => {
+  const d = await decoder(device, wgsl, tables, { subgroups });
+  const out = [];
+  for (const batch of batches) {
+    const r = await d.decode(await Promise.all(batch.map((f) => get(f.url))));
+    let exact = 0;
+    for (const [i, samples] of r.out.entries()) {
+      if (flip) samples[samples.length >> 1] ^= 1;
+      if ((await hex(samples)) === batch[i].truth) exact++;
+    }
+    out.push({ frames: batch.length, exact, dispatches: r.dispatches, readbacks: r.readbacks, faults: r.faults });
+  }
+  return out;
+};
+globalThis.ready = true;
+</script>

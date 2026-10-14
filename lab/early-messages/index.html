@@ -3,14 +3,14 @@
 <head><meta charset="utf-8" /><link rel="icon" href="data:," /><title>early messages</title></head>
 <body>
 <script type="module">
-  import { DownloaderClient } from "/client/downloader/consumer.js";
+  import { DownloaderClient } from "/client/transport/consumer.js";
   const q = new URLSearchParams(location.search);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const within = (p, ms) => Promise.race([p.then(() => true, () => false), sleep(ms).then(() => false)]);
   let world = 0;
 
   /** Each trial resolves true when the message posted before the other side listened arrived. */
-  const arms = {
+  const variants = {
     async bc() {
       const ch = `early-bc-${++world}`;
       const page = new BroadcastChannel(ch);
@@ -26,8 +26,8 @@
       const fake = fakeOn(ch);
       const connect = DownloaderClient.connect("https://early.invalid/", "ab".repeat(32), {
         decoders: 3,
-        transport: `/client/conformance/dist/fake-session.js?ch=${ch}`,
-        decoderWorker: "/client/conformance/fake-decoder.js",
+        transport: `/client/contract/dist/fake-session.js?ch=${ch}`,
+        decoderWorker: "/client/contract/fake-decoder.js",
         decoder: { delayMs: 0 },
       });
       const frame = connect.then(async (client) => {
@@ -42,7 +42,7 @@
     },
   };
 
-  /** The fake's own channel, behind its `listening` handshake: this arm tests the product, not it. */
+  /** The fake's own channel, behind its `listening` handshake: this variant tests the product, not it. */
   function fakeOn(ch) {
     const bc = new BroadcastChannel(ch);
     let heard;
@@ -57,12 +57,12 @@
     };
   }
 
-  const arm = q.get("arm");
+  const variant = q.get("variant");
   const n = Number(q.get("n"));
   const t0 = performance.now();
   let lost = 0;
-  for (let i = 0; i < n; i++) if (!(await arms[arm]())) lost += 1;
-  const out = { arm, n, lost, ms: Math.round(performance.now() - t0) };
+  for (let i = 0; i < n; i++) if (!(await variants[variant]())) lost += 1;
+  const out = { variant, n, lost, ms: Math.round(performance.now() - t0) };
   fetch(`http://127.0.0.1:${q.get("report")}/`, { method: "POST", body: JSON.stringify(out), keepalive: true });
 </script>
 </body>

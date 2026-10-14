@@ -7,16 +7,19 @@ is [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 | Path | What |
 | --- | --- |
-| `client/transport-ts/` | TypeScript, browser ESM (`build.sh` → gitignored `dist/`). `frame-session.ts` is everything a session does whatever carries its bytes; `session.ts` carries it over WebTransport, `ws-session.ts` over a WebSocket, `race-session.ts` dials both |
-| `client/transport-wasm/` | Rust → WASM over `web_sys::WebTransport` (`build.sh` → gitignored `pkg/`; needs `wasm-pack`, `README.md` §Prerequisites) |
-| `client/conformance/` | the suite, §The conformance suite |
+| `client/transport/ts/` | TypeScript, browser ESM (`build.sh` → gitignored `dist/`). `frame-session.ts` is everything a session does whatever carries its bytes; `session.ts` carries it over WebTransport, `ws-session.ts` over a WebSocket, `race-session.ts` dials both |
+| `client/transport/wasm/` | Rust → WASM over `web_sys::WebTransport` (`build.sh` → gitignored `pkg/`; needs `wasm-pack`, `README.md` §Prerequisites) |
+| `client/contract/` | the suite, §The contract suite |
+| `client/transport/` | beside the transports, the page side (`consumer.js`) and the download worker (`downloader.js`): [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| `client/decode/` | the decode worker, its codec modules and the decoders' WASM builds: [`decode/README.md`](decode/README.md) |
+| `client/paint/`, `client/record/`, `client/harness/`, `client/scripts/` | the painter, the telemetry recorder (Tap), the lab's pages, the worker-safe and absence checks: [`../client/README.md`](../client/README.md) |
 
 ## The seam
 
 `TransportSession` is one surface with independent implementations behind it. That is what makes
 it a seam rather than a coincidence: another transport plugs in without anything above it knowing,
 and the downloader takes any module exporting `TransportSession` as `config.transport`
-(`client/downloader/README.md`).
+(`client/README.md`).
 
 | | |
 | --- | --- |
@@ -33,7 +36,7 @@ A `FrameResult` is `{ frameIndex, bytes, timing: { askMs, lastChunkMs } }`, time
 `stats()` its `droppedEarlyMedia` and `frameErrors` counters, which nothing read (code:
 `git show archive/arms-2026-10-03:client/transport-ts/frame-session.ts`).
 
-**Where the implementations differ**, and the conformance adapters are the only code that knows:
+**Where the implementations differ**, and the contract adapters are the only code that knows:
 `endStream` is a promise in TypeScript and synchronous in WASM; the WASM handle is exported as
 `TransportSessionHandle`. `connect`'s options are TypeScript's alone except `wireBuffers`, which
 the WASM `connect` takes as its third argument:
@@ -81,13 +84,10 @@ as truncated rather than merely owed.
 first; the other is closed when its own dial settles. An opening fill rides the WebSocket's URL
 alone, since in both URLs both servers would push it: if QUIC wins it is asked there as
 `stream_frames`, and the losing socket's close fails none of its frames. If both dials fail, one
-error names both,
-a `DialTimeoutError` if either timed out. Why race rather than detect: ARCHITECTURE.md, TCP
-fallback. On loopback the WebSocket wins 57–58 of 60 dials (headless Chromium, debug and release
-server, 200 ms apart), where the handshakes' CPU decides; on a link TCP + TLS + upgrade is three
-round trips against the QUIC dial's 2.1. **Not measured on a link.**
+error names both, a `DialTimeoutError` if either timed out. Why race rather than detect, and which
+wins on loopback and on a link: [`ARCHITECTURE.md`](ARCHITECTURE.md) §The TCP fallback.
 
-## The conformance suite
+## The contract suite
 
 The surface's clauses as tests, run against every implementation. It proves the client half
 against a fake: a contract test, not an integration test, and an implementation passing it is
@@ -99,16 +99,16 @@ emits the same global lookup. A fake installed on `globalThis` therefore drives 
 plain Node, with no browser and no server. The fake speaks the wire of `WIRE.md` and belongs to the
 suite, not to an implementation. Its media streams are byte streams, as a WebTransport receive
 stream is, so a TypeScript BYOB reader (`readMin`) runs on it too. `WTPACS_WASM_PKG=<pkg> node
-client/conformance/run.mjs` runs the suite on another build of the WASM client.
+client/contract/run.mjs` runs the suite on another build of the WASM client.
 
 | File | What |
 | --- | --- |
 | `fake-transport.ts`, `fake-websocket.ts` | the global stand-ins, and the frame pushers |
-| `clauses.ts` | the clauses, written against a rig any arm can supply |
+| `clauses.ts` | the clauses, written against a rig any client can supply |
 | `adapters.ts` | one surface; the only place that knows how the implementations differ |
 | `ring.ts`, `race.ts` | the wire buffer ring against every session; the race's outcomes |
 | `run.ts` → `run.mjs` | Node entry: every implementation, then the race |
-| `fake-session.ts`, `worker-fake.ts`, `downloader-rig.ts` | the downloader arm: the fake installed inside the downloader's worker |
+| `fake-session.ts`, `worker-fake.ts`, `downloader-rig.ts` | the downloader rig: the fake installed inside the downloader's worker |
 | `dispatch-rig.ts` | the downloader's own behaviours against a stalling decoder ([`ARCHITECTURE.md`](ARCHITECTURE.md)) |
 | `ask-during-fill.html`, `run_wire.sh` | against the real server |
 
@@ -144,10 +144,10 @@ per outcome — QUIC first, TCP first, QUIC refused (and both refused) — and t
 counted: the per-frame halves of `bothStreamModes` and `pushedFill`, and `aSlowFrameHoldsNoOther`.
 A truncated frame does apply — on TCP it is the connection ending inside one.
 
-**The downloader arm.** The downloader dials inside its own worker, out of the test's reach, so
+**The downloader rig.** The downloader dials inside its own worker, out of the test's reach, so
 `fake-session.ts` is the module `config.transport` names during a run: it installs the fake inside
 that worker and answers the page over a `BroadcastChannel` named in its URL. `run_browser.sh`
-drives the same clauses in headless Chromium. Two read what the arm does from the rig: an ask after
+drives the same clauses in headless Chromium. Two read what the client does from the rig: an ask after
 a closure **re-dials and is served** rather than failing, and the dead-session clause runs with
 resumption off, since its claim is the transport's. One thing the page cannot see is whether the
 worker moved or copied a buffer — a frame posted without a transfer list arrives as a clone that
@@ -159,18 +159,18 @@ that. Chromium can drop a message posted to a channel a worker has already const
 interleaved); on Chromium 141 in this container 103 of 5 000 (`lab/early-messages/run.mjs`). No
 product code uses a `BroadcastChannel`.
 
-**Against the real server** (`run_wire.sh`). It builds a debug `exact-server` and `pack-study`,
+**Against the real server** (`run_wire.sh`). It builds a debug `series-server` and `pack-series`,
 packs 200 random 256 KB frames, makes its own certificate under a temp dir, and serves with a 2 MB
 send window and `--websocket`, so a fill is still running when an ask lands and few enough frames
 are in flight that its end is observable. Nothing in the tree is touched.
 
-* `client/conformance/refusals.html`: 64 out-of-range asks in flight at once, every waiter
+* `client/contract/refusals.html`: 64 out-of-range asks in flight at once, every waiter
   rejected promptly with **the server's own reason** — TS and WASM over WebTransport, TS over the
   WebSocket. Mutant: the TS control pump dropping one `frame_error` reports 63 of 64, 1 timed out.
   *Corrected 2026-09-25:* the page counted any `unavailable` rejection, and a session that died
-  makes every waiter `unavailable`, so the WebSocket arm passed 64 of 64 with its refusals sent as
-  the wrong message type. It now requires the reason's words; every arm still passes 64 of 64.
-* `client/conformance/ask-during-fill.html`: WIRE.md §An ask during a fill, seen from the client,
+  makes every waiter `unavailable`, so the WebSocket client passed 64 of 64 with its refusals sent as
+  the wrong message type. It now requires the reason's words; every client still passes 64 of 64.
+* `client/contract/ask-during-fill.html`: WIRE.md §An ask during a fill, seen from the client,
   raw and through the downloader, over both transports. Raw: the ask is served mid-fill, the fill
   ends — 28 of 120 arrive, then nothing — and the rest arrive only once asked again. Downloader: the
   fill completes without being asked again, no frame twice. Mutants: a planner that keeps the fill
@@ -179,13 +179,13 @@ are in flight that its end is observable. Nothing in the tree is touched.
 
 **In the gate** (`scripts/gate.sh`): `run.mjs`, the worker-safe static check
 (`client/scripts/check_worker_safe.sh`: no built artifact may contain a `window.` reference), the
-downloader and dispatch arms, and `run_wire.sh`. **The WASM arm is required**: `run.mjs` exits 2
-without `client/transport-wasm/pkg/` (decided 2026-09-18, over the proposal's "skip the arm
+downloader and dispatch rigs, and `run_wire.sh`. **The WASM client is required**: `run.mjs` exits 2
+without `client/transport/wasm/pkg/` (decided 2026-09-18, over the proposal's "skip the variant
 loudly"). The headless steps are required too: the gate exits 2 with the install command when
 playwright, Chromium or the decoder vendor is missing (decided 2026-10-03; it was "skip loudly"
 until then, and a gate without a browser passed none of the browser checks);
 `scripts/gate.sh --no-browser` skips them and says so in its last line. The suite and the
-transport-ts tests are type-checked (`client/conformance/tsconfig.json`).
+transport-ts tests are type-checked (`client/contract/tsconfig.json`).
 
 Every clause was mutated — the implementation broken on purpose, the check watched failing.
 
@@ -205,7 +205,7 @@ that reason, and a request arriving afterwards fails without arming one.
 counted **from the last byte the session delivered, not from the ask** (since 2026-09-24), so the
 tail of a burst longer than 15 s is not failed while its bytes still arrive.
 
-Measured on the conformance fake — wall-clock gaps of milliseconds against seconds, not a timing
+Measured on the contract fake — wall-clock gaps of milliseconds against seconds, not a timing
 claim; both implementations, same numbers:
 
 | | before | after |
@@ -244,7 +244,7 @@ still owed once, through `onError`, with the closure's reason, after the waiters
 **What the consumer owns.** A pushed fill cannot time out a frame that never comes; the consumer
 keeps its own record of what it wants. The downloader does, and re-issues the undelivered remainder
 as a new fill once an ask has settled, and resumes on a dead session's report rather than failing
-(`client/downloader/README.md`).
+(`client/README.md`).
 
 ## A truncated frame is a failure
 
@@ -270,7 +270,7 @@ records the run.
 short length and passes; only its pixels would say, and the per-frame hash is what says that. A
 stream cut inside the 4 bytes of the index cannot name a frame and is not reported.
 
-Conformance: `aTruncatedFrameIsAFailure` — every implementation and the downloader arm — and
+Contract: `aTruncatedFrameIsAFailure` — every implementation and the downloader rig — and
 `aTruncatedFrameIsAFailureNotAFrame` in `dispatch-rig.ts`, which adds the generation the consumer
 sees.
 
@@ -300,7 +300,7 @@ its count (`aCutFrameIsNamedWithItsBytes`).
 **Bound on K.** Each read moves `lastByteAt`, which the downloader's stall watch reads, so a read
 must resolve inside `stallMs` (3 s) at the slowest rate a session should survive, and across an
 outage inside what the outage leaves: **K ≤ rate × (`stallMs` − outage − QUIC's recovery after
-it).** Measured (RMD, 2026-10-02, `lab/downloader-campaign/reads.mjs`, 2 s outages every 8 s, 6
+it).** Measured (RMD, 2026-10-02, `lab/downloader-cost/reads.mjs`, 2 s outages every 8 s, 6
 rounds, self-timed): at 0.5 Mbit/s while up, 16 KB kept every session the default reader keeps; 32 KB
 (0.52 s a read) was re-dialled in 1 of 6 visits, 64 KB and a whole frame in all of them, each re-dial
 costing the fill seconds. **16 KB is the largest K inside the bound.** At 1 Mbit/s only the whole
@@ -313,8 +313,7 @@ not moving because the link binds — but a whole frame is outside the bound. At
 downloader's CPU **−105 ms at 1× and −90 at 4×** a fill and the renderer's peak **−37 MB**, every
 round; the fill ties (−5 / +3 ms).
 
-**Off by default, and an open owner decision** ([`cloud-queue.md`](cloud-queue.md) §Open owner
-decisions). Frame 0 does not lean: on the workstation (RMD4, 2026-10-03; Chrome 148, `KS=0,16384,32768
+**Off by default, and an open owner decision** (§Open). Frame 0 does not lean: on the workstation (RMD4, 2026-10-03; Chrome 148, `KS=0,16384,32768
 DECODE=1`, 24 rounds at 4× and 12 at 1×, Williams-ordered, self-timed, 3 of 108 visits `VOID`, every
 frame bit-exact), paired leads on the default reader, wins/rounds:
 
@@ -330,8 +329,8 @@ two dispatch clauses fail. A session whose bytes come slower than 16 KB per `sta
 is re-dialled, since a read with `min` resolves only at `min` bytes (the bound above, made a default) — the
 owner's trade against −97 ms and −38 MB a fill. And a cut whose end is already queued when the read is
 made errors the stream (a pull-into it cannot fill), which is taken for a stream end, so the frame is
-not named — **a defect of the `readMin` path, to fix before any default**. Row 5's ~12 ms BYOB frame 0
-is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The BYOB read path).
+not named — **a defect of the `readMin` path, to fix before any default**. The BYOB read's ~12 ms frame 0 (cloud
+queue row 5) is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The BYOB read path).
 
 ## ACK frequency, by browser
 
@@ -370,10 +369,80 @@ the code does, read from the code.
 | `navigator.deviceMemory` | nothing today | declined | — |
 | `freeze` / `resume` (Page Lifecycle) | survival triggers the consumer forwards | not checked; a Chromium API | they never fire; `visibilitychange` and `pageshow` still do |
 | Speculation Rules (prerender) | nothing built ([`rig-limits.md`](rig-limits.md) §8) | absent | prerender's saving is Chromium-only |
-| OPFS | a planned cache, not built | present; script-written storage deleted after 7 days without interaction, `persist()` no exemption | when built, an OPFS cache must be evictable on WebKit, not a store |
+| OPFS | a planned cache, not built | present; script-written storage deleted after 7 days without interaction, `persist()` no exemption (*qualified 2026-10-11:* the source's default window is 30 operating days, 7 for a domain flagged by link decoration; shipping Safari not traced, [`adr/frame-path.md`](adr/frame-path.md) §4) | when built, an OPFS cache must be evictable on WebKit, not a store |
 | 2D canvas `alpha: false` | `lab/paint-floor/` only | no effect | the lab's 2D route measures something different on WebKit |
 | WebAssembly under Lockdown Mode | the decoder, the WASM client | disabled when introduced; not verified for current iOS | a blank viewer, not a slow one. Needs a device |
 
 The two that bite without a device are the hung dial, which now has its deadline, and
 `navigator.connection`, whose absence moves a network change from the radio's event to the byte
 silence: `stallMs`, 3 s.
+
+## Proposed: the WASM client and the dav1d tooling to `lab/`
+
+*Proposed 2026-10-14 (queue row 228, WASMTOLAB; [`merge-readiness.md`](merge-readiness.md) D9 and P6). Nothing moves
+before the owner's yes.*
+
+**Why.** The product never loads the WASM client: the downloader imports `client/transport/ts/dist/session.js` unless
+told otherwise, and the only page that names the WASM one is the lab's harness (`client/harness/shell.js`,
+`transport=wasm`). Yet it is a member of the root workspace, the gate refuses to start without its `pkg/`
+(`require_transport_wasm`), and README §Prerequisites asks every developer for the `wasm32-unknown-unknown` target,
+`wasm-pack` 0.15.0 built by `cargo install`, and the binaryen `wasm-opt` its build fetches. `client/decode/wasm/dav1d/`
+is the lab's dav1d build: its `build.sh` writes to `lab/.av1-build`, 45 lab files name it, and the decoder
+the page loads is built by `client/decode/wasm/build/` from one file of it, `dav1d_wrap.c`.
+
+**What moves where.**
+
+| today | to | lines |
+| --- | --- | --: |
+| `client/transport/wasm/`: the crate, `build.sh`, `session-adapter.js` | lab/other-clients/wasm/, outside the root workspace with its own `Cargo.lock`, as `lab/other-clients/h3/` is; its path dependencies on `common/fod` and `common/frame-envelope` kept | 832 |
+| `client/decode/wasm/dav1d/` but the wrapper: `build.sh`, `make_streams.sh`, `make_client_frames.sh`, `exact.mjs`, `dav1d.mjs`, the three plane scripts, `README.md` | lab/av1/dav1d-wasm/, still building into `lab/.av1-build` | 556 |
+| `client/decode/wasm/dav1d/dav1d_wrap.c` | stays: the page's decoder build compiles it and the gate's staleness check names it | 77 |
+
+`make_client_frames.sh` writes product fixtures (`client/contract/av1/`) from the lab's build and venv, as
+`lab/av1/delivery/scalable/client/make_frames.sh` already writes `scalable/`; [`FIXTURES.md`](FIXTURES.md) names its
+new place.
+
+**What the product and the gate stop needing.**
+
+* README §Prerequisites: the `wasm32-unknown-unknown` target, `wasm-pack`, and Quick start's
+  `client/transport/wasm/build.sh` with its binaryen `version_117` fetch.
+* The gate: `require_transport_wasm` (also in `scripts/cellcheck.sh`), `run.mjs`'s exit 2 without `pkg/`, the WASM
+  halves of `client/scripts/check_worker_safe.sh` and `client/scripts/check_telemetry_absent.sh`, and
+  `run_wire.sh`'s `refusals.html?client=wasm` cell.
+* The root workspace: the member and 10 of `Cargo.lock`'s 240 packages (`transport-wasm`, `web-sys`,
+  `wasm-bindgen-futures`, `gloo-timers`, `console_error_panic_hook`, `futures` and four of its parts; measured with
+  `cargo update -w --offline` at `ba408823`), and the two `COPY` lines that put the crate in `deploy/Containerfile` and
+  `lab/container-bench/Containerfile.dockerread` only because a workspace member must be present.
+* Row CIGATE's workflow: wasm-pack and its build.
+
+**What stays.**
+
+* The seam: `config.transport` takes any module exporting `TransportSession`, and the harness's `transport=wasm`
+  loads the adapter from its new place.
+* The contract suite's WASM adapter (`adapters.ts`): `WTPACS_WASM_PKG=<pkg> node client/contract/run.mjs` runs every
+  clause on the moved client, as it runs a feature build today. Without the variable, `run.mjs` runs the TypeScript
+  sessions and the race and says the WASM client was not run. `refusals.html?client=wasm` stays for a lab wire run.
+* Every lab harness that dials it (`lab/page-open`, `lab/dial-deadline`, `lab/scripts/downloader_both_clients.sh`,
+  `lab/scripts/verify_e2e.py`, `lab/telemetry-cost`) and every dav1d-WASM run, their paths rewritten; the recorder's
+  `transport-wasm` label; `lab/av1/delivery/scalable/two-layer/dav1d_wrap_op.c` including the wrapper where it is.
+
+**What it costs, for the owner to weigh.** It reverses the 2026-09-18 decision in §The contract suite ("The WASM
+client is required"). Today the gate holds two independently written WebTransport clients to the clauses. After the
+move it holds the TypeScript sessions, and `session.ts` and `ws-session.ts` share `frame-session.ts`, so no clause is
+checked against a second reading of the wire. The worker-safe clause came from that second reading (§The seam). A
+change to the wire or the suite that breaks the WASM client would be seen only when the lab runs it.
+
+**The move, once agreed:** a review row on its own branch. Both trees `git mv`ed. The files that name either path rewritten (`git grep -l`
+at `ba408823`: for the client, 3 at the root, 7 in `client/`, 1 in `deploy/`, 10 in `lab/` and 6 in `docs/`; for the
+dav1d tooling, 4 in `client/`, 1 in `ingest/`, 45 in `lab/` and 6 in `docs/`, those naming only the wrapper
+unchanged). This document's WASM paragraphs cut to a pointer. Proven by the gate
+green with the same skips or fewer, and one suite run through `WTPACS_WASM_PKG` showing every clause still passing on
+the moved client. Rows 222 and 223 change the workspace's members and the image's `COPY` lines; the move starts from
+whatever of theirs has landed.
+
+## Open
+
+Each item below is the owner's to decide, and is tracked here.
+
+* **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s, and the `readMin` path's
+  defect is fixed first (§Reading a frame whole).

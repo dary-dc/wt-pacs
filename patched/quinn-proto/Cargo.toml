@@ -1,6 +1,7 @@
 # crates.io quinn-proto 0.11.18's manifest without dev-dependencies and metadata; the source is
-# that crate with patches/quinn-proto-0.11.18-probe-every-space.patch — docs/ARCHITECTURE.md
-# §What lever 2 costs
+# that crate with patches/quinn-proto-0.11.18-probe-every-space.patch (docs/ARCHITECTURE.md
+# §What early SETTINGS cost) and -reply-repeated-initial.patch, off by default (docs/transport/
+# transport-conclusions.md §3, Answering a repeated Initial)
 
 [package]
 edition = "2021"

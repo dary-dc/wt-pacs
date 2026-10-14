@@ -6,7 +6,8 @@ decision (provenance at the end)
 The one document for the read path. §1 the decision; §2 what shaped it, with the numbers safe
 to quote and the claims retracted; §3 its history; §4 consequences; §5 every candidate; §6
 deployment; §7–9 invariants, levers outside it, what is open; §10 the code as built; §11 the
-evidence; §12 how to re-run it.
+evidence; §12 how to re-run it; §13 what could be faster, in theory (row 198). The file it reads is laid out in [`../disk-layout/README.md`](../disk-layout/README.md),
+and its draft successor in [`../disk-layout/target.md`](../disk-layout/target.md).
 
 ## 1 · The decision, as it ships
 
@@ -16,7 +17,7 @@ ask does not. That difference picks the escalation.
 1. **A page-cache hit is served inline.** The whole frame is probed with
    `preadv2(RWF_NOWAIT)` on the executor thread. It returns short instead of waiting on the
    disk, so a cold frame can never park a worker, and a warm ask takes no thread hop at all.
-2. **A fill (`SeqReader`) stays on the pool, and tells the kernel what comes next.** Two
+2. **A fill (`FillReader`) stays on the pool, and tells the kernel what comes next.** Two
    buffers, the next frame named (`Next::Fill`'s `after`), one `spawn_blocking` + `pread` for a
    miss. No ring, no extra fd. `peak_in_flight` is 1. The device's queue depth comes from
    `posix_fadvise(WILLNEED)` over `FILL_WINDOW` (4 MiB) past the named frame, issued a
@@ -34,7 +35,7 @@ ask does not. That difference picks the escalation.
 
 **And the read path is told what is coming.** On-demand names up to `slots − 1` upcoming
 frames; a fill names one. The tile read-ahead probes `RWF_NOWAIT` first and submits only the
-shortfall. Each `RequestFrame` is one `Ask::Frame`, fed by an ask-reader task into a planner
+shortfall. Each `RequestFrame` is one `Command::Frame`, fed by an ask-reader task into a planner
 (`RequestFrames`, which the server split into one per index, left the wire on 2026-10-03). The reader returns a whole
 frame, and **the frame goes to quinn whole**: its buffer comes from `media/frame_pool.rs`, is
 handed off as `Bytes`, and returns to the pool when quinn drops it after acknowledgement
@@ -45,9 +46,9 @@ no registered buffers, no cursor reads.
 
 | | |
 | --- | --- |
-| Where | `server/src/media/read_path.rs` (`SeqReader`, `TileReader`), `uring_reader.rs` (thin ring), `frame_pool.rs` (the hand-off), `transport/planner.rs` (the loop), `transport/link.rs` (the write) |
+| Where | `server/src/media/read_path.rs` (`FillReader`, `TileReader`), `uring_reader.rs` (thin ring), `frame_pool.rs` (the hand-off), `transport/planner.rs` (the loop), `transport/link.rs` (the write) |
 | Flag | `WTPACS_READ_PATH` = `auto` (default) · `pool` (kill switch, tiles). The `uring` lab lever (every tile through the ring) was removed 2026-10-03; code: `git show archive/arms-2026-10-03:server/src/media/read_path.rs` |
-| Feature | `uring`, on by default; the pool path is `--no-default-features --features crypto-ring` |
+| Feature | `uring`, on by default; the pool path is `--no-default-features` |
 | Reports | `read_fast_path=` in the startup banner, WARN when it is the pool; `session reads hits=… misses=… miss_rate=… named=… in_flight=… ring=…` per session, default build, with fill/tile hits split (§10) |
 
 **Guarantee.** The bytes quinn puts on the wire are process-private — copied once into a
@@ -59,10 +60,10 @@ ADR's escape hatch; here it is the default and costs no extra hop.
 ### The workload and the weights
 
 Set with the owners on 2026-09-08. **Latency first; simplicity and clean code valued;
-thousands of sessions at depth 4 or more; studies far larger than RAM**, so misses are the
+thousands of sessions at depth 4 or more; series far larger than RAM**, so misses are the
 common case, not the exception; **cloud for sure, Docker possibly, not decided**. Two use
 cases with opposite access shapes: a tile viewport asks for scattered frames out of order;
-streaming pushes a study start to end.
+streaming pushes a series start to end.
 
 ### The constraints that ruled options out before any measurement
 
@@ -70,9 +71,9 @@ streaming pushes a study start to end.
   brings its own runtime is a transport rewrite, not a read-path change.
 * **Never block a worker.** A major page fault is not an `.await`; it freezes every task on
   that OS thread. Measured on mmap: `gap_max` 1.5–4.2 ms cold, 7.7 ms under pressure.
-* **Positional reads, one fd per study.** Tiles read `(offset, len)` out of order. A cursor
+* **Positional reads, one fd per series.** Tiles read `(offset, len)` out of order. A cursor
   API needs one open file per session and cannot express reads in flight.
-* **The page cache is shared** across every session on one study. `O_DIRECT` would throw
+* **The page cache is shared** across every session on one series. `O_DIRECT` would throw
   that away.
 * **`RWF_NOWAIT` is filesystem-conditional.** Honoured on ext4, xfs, btrfs; refused on
   overlayfs and tmpfs. Measured, not assumed — §6.
@@ -85,7 +86,7 @@ a **tie**, which is a real answer.
 
 | Comparison | Result |
 | --- | --- |
-| Shipped reader vs the lab arm it implements (`product` vs `hybrid_lazyring`) | **tie** on p50, p99 and CPU at every depth and reader count, two hosts |
+| Shipped reader vs the lab variant it implements (`product` vs `hybrid_lazyring`) | **tie** on p50, p99 and CPU at every depth and reader count, two hosts |
 | Shipped reader vs the pool it replaced, 16 KiB misses | **−45.4 % CPU per ask, RESOLVED** |
 | Ring-on-the-miss vs pool, misses, depth 1 / 4 / 16 | **−56 / −70 / −75 %**, RESOLVED |
 | Every-read-through-the-ring vs ring-on-the-miss | misses tie; hits **+164.8 % CPU per ask at depth 1, RESOLVED** (`--monitors 0`) — why a hit must never touch a ring. The depth-scaled latency figures this row used to carry are retracted: §11, *Correction* |
@@ -95,7 +96,7 @@ a **tie**, which is a real answer.
 | Per session that misses | 2 fds, 8.7 KiB, 15.6 µs to build the ring; the second slot did not change the cost |
 | Read ahead by one, cold 16 KiB at 99.6 % misses, one session (`v36`) | **+73.8 % asks/s, 12/12, RESOLVED**, p50 −53.4 %; **warm a tie** — the load-bearing row; 16 missing tiles 1.14 → 0.62 ms |
 | The depth ladder on the shipped path (`v35`) | 1 → 2 is **+67.4 %** and collects 62 % of what depth 16 offers; from the medians 2 → 4 adds +37 %, 4 → 16 +28 % |
-| Where the hosts stop separating the arms | ~64 reads in flight: the sandbox on CPU, the workstation on the device (~840 MB/s at 0.42 of 8 cores). **Past it every arm ties by construction** |
+| Where the hosts stop separating the variants | ~64 reads in flight: the sandbox on CPU, the workstation on the device (~840 MB/s at 0.42 of 8 cores). **Past it every variant ties by construction** |
 | Sequential streaming, 16 KiB, 8–64 sessions (`x15`) | shipped reader, pool and ring-on-miss **tie at ~3 µs per read**; `tokio::fs::File` 48–223 µs; the same on tokio's io_uring driver 141 µs–2.1 ms |
 | A cold 250 kB fill at the stock 128 KiB `read_ahead_kb` (2026-09-10) | **59–66 % misses at one read in flight** before `FILL_WINDOW`; **0.7–1.1 %** after, 3/3; where read-ahead is 8 MB the 3.8 ms p99 bursts go (−62 %, +5.6 % 3/3); warm a tie at both frame sizes. §11, *Fill against on-demand* |
 
@@ -120,7 +121,7 @@ a **tie**, which is a real answer.
 | 2026-08-31 | mmap, pages pre-touched on the blocking pool every ask | overturned: its harness ran a current-thread runtime while the product is multi-thread (a hop costs 40 µs there, 103 µs here); its neighbour cell never let neighbours pay the hop; `RWF_NOWAIT` was never in its table |
 | 2026-09-04 | `RWF_NOWAIT` inline, `spawn_blocking` for the shortfall | 2.5× warm against always-touch; io_uring a tie — at the ~0 % miss rate those cells fixed |
 | 2026-09-06 | the ring on the miss, built on the first miss | the read-path campaign, four hosts, six runs: **−42 to −73 % CPU per miss, RESOLVED everywhere**. Inert on warm workloads by construction, so it did not wait on the layout that decides the miss rate |
-| 2026-09-07 | a miss reads the rest of the frame | on a fixture where a miss is a real device read, windowing the escalation cost 2–3 round trips per 250 KB frame and stopped scaling at ~1 600 f/s where whole-frame arms reach ~5 000 |
+| 2026-09-07 | a miss reads the rest of the frame | on a fixture where a miss is a real device read, windowing the escalation cost 2–3 round trips per 250 KB frame and stopped scaling at ~1 600 f/s where whole-frame variants reach ~5 000 |
 | 2026-09-08 | keep driving `io-uring` directly; **validate on the production target before any further backend change**; **read ahead by one built** for batches; **the server reports its own miss rate** | backend research found no standard alternative (§5); the owners' weights and the container traps (§6) mean the ring's margin has to be shown on the target, not a laptop (`x14`, `x15`); read-ahead measured +73.8 % on missing tiles and a tie warm (`v36`); every threshold in this file is a miss rate, and the server could not report one |
 | 2026-09-10 | **two readers**: a fill on the pool, tiles on the ring; the probe is the whole frame; look-ahead is depth | the capped 64 KiB probe was the whole of a +37–97 % penalty at frames past 64 KiB (§11, *Line 221*); a fill built a ring to serve one miss in sixty (§11, *Fill at scale*) |
 | 2026-09-10 | **the fill advises the kernel `FILL_WINDOW` past the named frame**, a quarter window at a time | a fill reported slower than on-demand; measured cold at the stock read-ahead: 60 % misses at one read in flight, against depth 4 on demand. `WILLNEED` takes it to ~1 % with no thread and no ring and removes the 8 MB read-ahead's burst tail; per frame the syscall cost −8.7 % at 16 KiB, per quarter window nothing |
@@ -156,8 +157,8 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | --- | --- | --- | --- | --- | --- |
 | **`RWF_NOWAIT` inline for hits** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit (measured with 64 KiB windows; the whole frame since 2026-09-10) | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
 | **Ring per session, built on the first miss, whole rest of the frame** | T | **host-dependent, and P0's question.** Sandbox: misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16. Workstation: a **tie at depth 1**, where the pool was the cheaper of the two (311 vs 326 µs CPU/ask). Agent container: the pool is **+106 to +138 % CPU, 6/6 RESOLVED**. Three hosts, three answers | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted for tiles** — conditional on P0 |
-| **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool arm **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring arm, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | one slot table, no mode machine | **Accepted** |
-| **`SeqReader` — probe, pool on the miss, one frame named** | S | ties every serious arm on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
+| **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool variant **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring variant, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | one slot table, no mode machine | **Accepted** |
+| **`FillReader` — probe, pool on the miss, one frame named** | S | ties every serious variant on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
 | **Read ahead (`TILE_SLOTS` / a fill's one ahead)** | B | tiles name up to `slots − 1`, a fill names one; look-ahead **is** depth 2, not a separate effect (§11) | four tile slots / two fill buffers | `slots` is a constructor argument, so a campaign sweeps depth | **Accepted** |
 | **`WILLNEED` window ahead of a fill (`FILL_WINDOW`)** | S | misses **60 % → ~1 %** at the stock read-ahead, 3/3; p99 −62 % where read-ahead is 8 MB; warm a tie once per quarter window (per frame it cost −8.7 % at 16 KiB) | one syscall per MiB walked; no thread, no fd, no buffer | ~15 lines, one test | **Accepted** 2026-09-10 |
 | **Whole frame handed to quinn over pooled buffers** (`media/frame_pool.rs`) | B | **−3 to −8 % CPU per ask in every cell, 5–6/6** | no allocation per frame once the pool is warm | one module, no `unsafe` | **Accepted** 2026-09-23 — [`transport-conclusions.md`](../transport/transport-conclusions.md) |
@@ -165,7 +166,7 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | `spawn_blocking` + `pread` for the miss | B | identical on hits; on 16 KiB misses the shipped reader is −45.4 % CPU against it, and its tail widens with depth | **125–135 threads at 64 readers, 512 cap** (517 seen at 64 × 16); 0 fds | the simplest correct reader; zero `unsafe` beyond `preadv2` | **Kept as fallback**; ships if P0 ties |
 | Probe capped at 64 KiB, then escalate | B | **+37 to +97 % wall at 128 KiB and 250 kB, RESOLVED**; a tie where the probe covers the frame | — | — | **Removed 2026-09-10** — §11, *Line 221* |
 | Escalate only the rest of the window | B | 2–3 device round trips per 250 KB frame: 1 404–1 573 f/s vs 4 539–4 777 | flat at ~1 600 f/s from 8 to 32 readers | — | Superseded 2026-09-07 |
-| Every read through the ring (`uring`) | B | hits **+165 % CPU at depth 1, RESOLVED** (§11, *Correction*); above depth 1 a 16 KiB tie on throughput, ~+30 % at 250 kB; streams +143–190 % at 8–64 sessions; misses tie | 5 threads; lowest CPU per miss | one path, but a hit must never touch a ring | Rejected as default; kept as a lab flag |
+| Every read through the ring (`uring`) | B | hits **+165 % CPU at depth 1, RESOLVED** (§11, *Correction*); above depth 1 a 16 KiB tie on throughput, ~+30 % at 250 kB; streams +143–190 % at 8–64 sessions; misses tie | 5 threads; lowest CPU per miss | one path, but a hit must never touch a ring | Rejected as default; kept as a lab flag, then removed 2026-10-03 (§1, *Flag*) (*corrected in place, row DOCSTRUE, 2026-10-14*: this cell still said "kept") |
 | Ring pipelining (read *n+1* during write *n*) | T | ~6 % on a 100 %-miss trace, −25 % warm | 2× session memory | — | Rejected |
 | Fill: start the named read inside the current miss's wait, sliding `WILLNEED` | S | 250 kB cold p50 −68.9 % (12/12) but **wall a tie and p99 worse**; 16 KiB cold wall a resolved loss. A 2026-09-10 branch, never merged, not re-measured | — | — | Not taken: `FILL_WINDOW` had landed |
 | `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural |
@@ -173,18 +174,18 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | Ahead-N `POSIX_FADV_WILLNEED` for tiles | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
 | Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 (§9) |
 | One shared ring per runtime (tokio's shape) | B | **1.36–1.45× slower** than a ring per thread on concurrent positional reads (tokio #8367); reproduced on streams | 0 per-session fds; one lock across every session | a dispatcher and a waker slab | Not now |
-| Whole-frame `RWF_NOWAIT`, one read (2026-09-06) | B | best miss throughput of any arm | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected then. **Corrected 2026-09-10:** the shipped readers probe the whole frame (§3); its co-tenant gap has **not been re-measured** since |
+| Whole-frame `RWF_NOWAIT`, one read (2026-09-06) | B | best miss throughput of any variant | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected then. **Corrected 2026-09-10:** the shipped readers probe the whole frame (§3); its co-tenant gap has **not been re-measured** since |
 | Larger window (128 / 256 KiB) | B | −12–25 % warm throughput | — | wider executor copy | Rejected; moot since the whole-frame probe |
 | mmap, any variant | B | naive: faults freeze co-tenants, `gap_max` 1.5–4.2 ms, 7.7 ms under pressure. `mincore` gate: unsafe under pressure 5/5 — residency is not a lease. Always-touch on the pool (2026-08-31): 103 µs/frame, 702 µs neighbour p99. Touch via `block_in_place`: 38 µs, worst neighbour p99 (2.1 ms). `madvise(POPULATE_READ)`: within noise of the touch loop | a thread per ask where the fault is made safe | no copy, no safety — or safe and slow | Rejected (§11) |
 | `tokio-uring` 0.5.0 · `glommio` · `monoio` · `compio` | T | — | — | own current-thread or thread-per-core runtime | Rejected — transport rewrite |
-| tokio's own io_uring driver | S (no positional read) | one session 6 µs; **2.1 ms per 16 KiB at 64 sessions**, ⅓ of the device; executor gaps 10× any other arm | one locked ring per runtime; one fd per session | `--cfg tokio_unstable` in a medical build | Rejected — measured |
-| `tokio::fs::File`, plain | S | **48–223 µs per 16 KiB** vs 3 (a thread hop and a copy per read); +514 % wall, +1872 % CPU against `SeqReader` | threads grow like the pool's, 517 at 64 × 16 | the standard answer, and 15× slower | Rejected — measured, not reopened |
+| tokio's own io_uring driver | S (no positional read) | one session 6 µs; **2.1 ms per 16 KiB at 64 sessions**, ⅓ of the device; executor gaps 10× any other variant | one locked ring per runtime; one fd per session | `--cfg tokio_unstable` in a medical build | Rejected — measured |
+| `tokio::fs::File`, plain | S | **48–223 µs per 16 KiB** vs 3 (a thread hop and a copy per read); +514 % wall, +1872 % CPU against `FillReader` | threads grow like the pool's, 517 at 64 × 16 | the standard answer, and 15× slower | Rejected — measured, not reopened |
 | `rio` · `ringbahn` · `nuclei` · `uring-fs` · `luring` and 90 other dependents | T | — | — | soundness hole, dead, own runtime, cursor + thread, `LocalSet`-only | Rejected — none drives a ring on multi-thread tokio with positional reads |
 | `sendfile` / `splice` | B | — | — | userspace QUIC copies anyway | Rejected |
-| `O_DIRECT` + SPDK, whole-study preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
+| `O_DIRECT` + SPDK, whole-series preload | B | — | loses the page cache shared across sessions | wrong scale | Rejected |
 | Bounded process-private frame cache | T | **−20.2 % CPU** at a 0.92 hit rate; +4.2 % where nothing repeats | duplicates RAM the page cache holds | needs a real ask trace to size | Lab only, not ported |
 | Sequential: wider windows | S | 20–30 % less CPU per byte | escalations climb 1 % → 13.5 % | — | Rejected |
-| Sequential: depth above 2 per stream | S | at 64 sessions × 16 every arm queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
+| Sequential: depth above 2 per stream | S | at 64 sessions × 16 every variant queues on the device, p99 100–190 ms | — | the wire is 200× slower than a warm read | Rejected as a rule |
 
 ## 6 · Deployment
 
@@ -199,28 +200,32 @@ correct, safe, and **132.5 µs per frame against 48.4 µs** on the validation ho
 | Filesystem | `RWF_NOWAIT` | Note |
 | --- | --- | --- |
 | ext4, btrfs | **honoured** | measured (ext4 on Linux 6.18; btrfs on the workstation) |
-| overlayfs | **refused** (`EOPNOTSUPP`) | measured — **a container's own filesystem** |
-| tmpfs | **refused** (`EOPNOTSUPP`) | measured — RAM disks, `emptyDir: {medium: Memory}` |
+| overlayfs | **refused** (`EOPNOTSUPP`) | measured — **a container's own filesystem**; Linux 7.2.8 by source and probe (*In a container*) |
+| tmpfs | **refused** (`EOPNOTSUPP`) | measured — RAM disks, `emptyDir: {medium: Memory}`; Linux 7.2.8 too |
 | XFS | *expected to work* | **not measured** |
 | NFS / EFS / Filestore | *unknown* | **not measured** — run the tool; do not assume |
 
 **Check before shipping, from where the server reads.** `cargo build -p check-fastpath
---release`, then `check-fastpath /srv/studies` — the directory, not a file; it creates and
-removes a probe file, so it works before any study is in place, and prints the filesystem,
+--release`, then `check-fastpath /srv/series` — the directory, not a file; it creates and
+removes a probe file, so it works before any series is in place, and prints the filesystem,
 `read_ahead_kb` and the verdict. Exit **0** fast path, **1** fallback, **2** could not
 determine, so it can gate a rollout. Ship it in the image and run it inside the container
 (`docker exec` / `kubectl exec`): the host's answer is not the container's.
 
-**Serve studies from a mounted volume, never from the container's own layer.** A bind mount
+**Serve series from a mounted volume, never from the container's own layer.** A bind mount
 carries the underlying filesystem through — verified: the same directory reports `overlayfs /
 REFUSED` inside an overlayfs tree and `ext2/ext3/ext4 / honoured` with an ext4 bind mount over
-it. A study `COPY`'d into the image works, passes tests, and has silently lost the fast path —
+it. A series `COPY`'d into the image works, passes tests, and has silently lost the fast path —
 as the 2026-08-31 campaign's overlayfs host had, which is part of why it concluded wrongly.
 
 ```bash
-docker run -v /srv/studies:/srv/studies:ro \
+docker run -v /srv/series:/srv/series:ro --security-opt seccomp=deploy/seccomp-uring.json \
   --ulimit nofile=65535:65535 --ulimit memlock=-1 myserver
 ```
+
+Docker ≥ 25, Podman and containerd ≥ 2.0 refuse io_uring under their default seccomp profiles, so without the
+profile every tile miss takes the pool. What the profile reopens, and the runtimes' defaults:
+[`../../deploy/README.md`](../../deploy/README.md) §Container settings (row 199).
 
 In Kubernetes, a read-only PVC on a block device (EBS, PD, Azure Disk, Ceph RBD: ext4 or XFS).
 Not `emptyDir: {medium: Memory}` (tmpfs); plain `emptyDir` is node disk that does not survive
@@ -232,10 +237,10 @@ A tile session that misses keeps one io_uring and one eventfd for its life: **2 
 of locked memory, 15.6 µs to build** (`lab/disk-access-bench/src/bin/ring_scale.rs`); more
 slots are more entries in the same ring.
 Ring memory is charged against **`RLIMIT_MEMLOCK`** unless the process holds `CAP_IPC_LOCK`
-(kernel 6.18, `io_uring/memmap.c`, verified). The 8 MB default is **~940 rings**, and it bit
+(kernel 6.18, `io_uring/memmap.c`, verified). The counter is the uid's, host-wide, and the exemption counts only in the initial user namespace: `--cap-add IPC_LOCK` does nothing for a non-root `USER` (row 199, measured in Docker) or a rootless runtime (read from the source). The 8 MB default is **~940 rings**, and it bit
 first on a real host: two cells of a scale run were refused by it. The failure is silent — the
 ring is refused, the session falls back to the pool and gets slower. The descriptor budget is `2
-× sessions that miss + sockets + 1 per study`.
+× sessions that miss + sockets + 1 per series`.
 
 In a unit file, `LimitNOFILE=65535` and `LimitMEMLOCK=infinity` (or at least 16 KiB × the
 sessions expected to miss at once). Kubernetes has no per-pod ulimit — the node runtime's apply;
@@ -249,35 +254,490 @@ btrfs bdi (not the 128 its block device reports), the cloud rig 2 048. The fill 
 depends on it (`FILL_WINDOW`); tiles still do. Record it with any published number
 (`/sys/block/<dev>/queue/read_ahead_kb`; `blockdev --setra 16384` sets 8 MiB, not persistently).
 
+### Read-ahead and folios (row 196: theory; measured by row 197, §Measured below)
+
+Row 172 ([`../disk-layout/README.md`](../disk-layout/README.md) §Measured, rule (d)): after reclaim, a cache warmed
+by the fill's `POSIX_FADV_WILLNEED` holds 4 KiB folios only, 41 and 123 a 160 and 500 kB frame against
+`pack-series`' 7 and 9, and on the host's ext4 a hit costs ×2.02 and ×1.99, the fill's hit rate ×0.68 and ×0.64, its
+CPU per GB ×1.49 and ×1.56. On XFS the same counts separated nothing. The question: can the fill's read-ahead build
+large folios with its wait unchanged?
+
+Sources: Linux **v6.18.44** from `gregkh/linux`, SHA-256 first 16 hex `mm/readahead.c` 25f3c0da49787109,
+`mm/fadvise.c` f05ef1386bb5d24b, `mm/filemap.c` 2bd1223972411197 (the files row 168 read), `mm/madvise.c`
+f56dddf47e81ceb6, `mm/khugepaged.c` 0334087a87a281c3, `mm/huge_memory.c` 26ab392300cbaa97,
+`fs/xfs/libxfs/xfs_ialloc.c` 70dd9daed7294dd5; mainline at **v7.3-rc7** from `torvalds/linux` for what has
+changed since: `mm/readahead.c` 6ee106a2f671e354, `mm/filemap.c` 98c5d6444d210a8c. Fetched 2026-10-14.
+
+**The mechanism.** The kernel sizes a folio where it allocates it, and its paths differ:
+
+* *Forced read-ahead* — `POSIX_FADV_WILLNEED` (`mm/fadvise.c:106`) → `force_page_cache_ra` → `page_cache_ra_unbounded`,
+  which allocates every folio at the mapping's **minimum** order (`mm/readahead.c:275–276`): 4 KiB on ext4 and on
+  XFS with 4 KiB blocks. Unchanged at v7.3-rc7. One call reads at most `max(io_pages, ra_pages)` (`:354`).
+* *The read path's own read-ahead* — a `pread` that misses, `RWF_NOWAIT` included (`mm/filemap.c:2644`), goes
+  through `page_cache_sync_ra`, which **resets the order to 0** (`mm/readahead.c:624`); each asynchronous window
+  that a sequential reader then triggers adds 2 (`:689`), up to `ilog2` of the window (`:487`): 128 KiB folios at
+  the stock `read_ahead_kb`. That state lives in the `struct file` (`f_ra`), which all of a series' sessions share
+  (`FrameStore` opens it once, §7), so concurrent fills reset each other's order.
+* *A fault on a mapping marked `MADV_HUGEPAGE`* — `do_sync_mmap_readahead` sets the order to PMD's, 2 MiB, aligns the
+  start down to 2 MiB of file offset and calls `page_cache_ra_order` (`mm/filemap.c:3266–3279`), whatever
+  `read_ahead_kb` says; 2 × 2 MiB unless the mapping is also `MADV_RANDOM` (`:3274`). Kept at v7.3-rc7, now for
+  any mapping with large folios and capped at 2 MiB (`mm/filemap.c:3350`). `MADV_HUGEPAGE` sets the VMA flag and
+  nothing else (`mm/khugepaged.c:340–362`); it is refused only without `CONFIG_TRANSPARENT_HUGEPAGE` (`mm/madvise.c:1539–1542`). The sysfs
+  `enabled` setting is not read on this path at v6.18.44 (read, not run).
+
+`page_cache_ra_order` stops at the first index already cached and **finishes the rest at the minimum order**
+(`mm/readahead.c:512–534`), and an order the allocator cannot meet is the same `-ENOMEM` stop: large folios degrade
+to today's, never to a failed read. A mapping without large folios (ext4 `data=journal`, ext4 before v6.16) goes
+straight to that fallback (`:479`).
+
+**The candidates.**
+
+| candidate | folios it builds after reclaim (source) | the fill's wait | verdict |
+| --- | --- | --- | --- |
+| `readahead(2)` | 4 KiB: it **is** `vfs_fadvise(…, WILLNEED)` (`mm/readahead.c:730`), and does not block | as today | no lever |
+| larger `WILLNEED` ranges | 4 KiB; the per-call cap and nothing else move | as today | no lever |
+| `madvise(MADV_WILLNEED)` on a mapping | 4 KiB: `vfs_fadvise` again (`mm/madvise.c:325`) | as today | no lever |
+| `read_ahead_kb` | none for `WILLNEED`; raises the sync path's ceiling | as today | no lever here (tiles: §Read-ahead) |
+| `MADV_POPULATE_READ` on a plain mapping | read-around at order 0 (`mm/filemap.c:3335–3341`), then +2 a window to 128 KiB | blocks a pool thread per call | weaker than **P** |
+| **P**: `MADV_HUGEPAGE` + `MADV_RANDOM` + `MADV_POPULATE_READ`, one aligned 2 MiB block a call | **2 MiB**, one folio a block; the block's tail at the file's end in smaller aligned orders | the same bytes in flight; a block is readable when all of it lands | **the candidate** |
+| **B**: sequential `pread` of the window into a scratch buffer (pool, or the ring) | order 0, then +2 a window up to `ilog2(window)`; row 172's A5 is this at 128 KiB: 1.35–6.24 a frame | one more copy a byte, a buffer, the shared `f_ra` | second candidate |
+| `MADV_COLLAPSE` after `WILLNEED` | 2 MiB, by copying every byte into a new folio; needs `CONFIG_READ_ONLY_THP_FOR_FS` (`mm/huge_memory.c:89`), off on this host's kernel | a second pass | rejected |
+| no advice (the kernel's read-ahead alone) | as **B** | the 2026-09-10 "before": 59–66 % misses at 128 KiB (§11) | rejected by the brief |
+| XFS with blocks above the page (`mkfs.xfs -b size=64k`) | the block size as the minimum order (`xfs_ialloc.c:3081–3084`), so `WILLNEED` builds 64 KiB folios | as today | a deployment option, no code; ext4 has it in mainline (`s_min_folio_order`), not at v6.18 |
+
+**P, as it would be built** (nothing is built here; the lab builds it for row 197). At open, the store opens the
+series a second time, so P's faults write a read-ahead state no `pread` shares, and maps it read-only once with
+`MADV_HUGEPAGE` and `MADV_RANDOM`. `FillReader::advise` keeps its window, but extends it in whole 2 MiB blocks that
+start at or past the named frame's end, each one `MADV_POPULATE_READ` call in its own `spawn_blocking`, so two
+blocks are on the device at once as `WILLNEED`'s 4 MiB is today. The block holding the named frame is left to the
+fill's own reads, which have touched it already; populating it would stop at their folios. P never reads through the
+mapping, so §7's reason for having none (bytes handed to quinn must be process-private) holds, but the invariant's
+wording would change. `MADV_HUGEPAGE` refused (`EINVAL`) or the mapping failing falls back to `WILLNEED`.
+
+**Predictions** (P against today's `WILLNEED`, both after reclaim, the fill alone on the file):
+
+* **Folios a frame:** 160 kB 1.1–1.6, 500 kB 1.2–2.2, MB-scale `ffdm_d` 1.5–3.5, 32 kB 1.0–1.4 (the walk's first
+  2 MiB, read by the fill itself, holds A5-like folios; the rest one folio a block); `WILLNEED` as row 172's A6.
+  ext4 `data=journal`: P = `WILLNEED` = 4 KiB. With four fills on one file at staggered starts: between the two.
+* **Hits on ext4:** at 160–500 kB P at 0.40–0.55 of `WILLNEED`'s hit p50 (row 172's A2 against A6: 0.41 and 0.45);
+  fill hit frames/s ×1.4–1.6, fill-hit CPU per GB ×0.6–0.75; at 32 kB within row 172's resolution. **On XFS a tie**
+  on every metric (row 172), so P helps ext4 only, on this evidence.
+* **The cold fill (the wait):** frames/s and misses a tie (P keeps the same bytes in flight), fill CPU per GB a tie
+  or lower (one folio a block to allocate instead of 512); the first frame after a walk starts unchanged.
+* **Costs:** a `spawn_blocking` (24–34 µs, §11 *Hosts*), four syscalls and one fault a 2 MiB block — ~30 ms per GB
+  filled at most; an order-9 allocation that fails under fragmentation falls back (`compact_stall` would show it).
+
+**What would make P wrong:** the hit cost being something other than the folio count after reclaim (row 172 counted
+folios and timed hits on the same files, so it is the folios or something they carry); `MADV_HUGEPAGE` refused in a
+container (`madvise` is in Docker's default seccomp allow-list; row 199 owns the container); 2 MiB reads landing
+later than `WILLNEED`'s at the walk's start, which the cold fill would show.
+
+### Protocol for row 197
+
+Given to a separate session with nothing above this heading.
+
+* **Arms, differing in the fill's read-ahead alone**, all through the shipped `FillReader` and `TileReader` but for
+  its `advise`, built in the lab: **W0** today's `WILLNEED`, quarter-window; **W0′** W0 on another copy of the file
+  (A/A); **W1 (P)** a second descriptor mapped read-only with `MADV_HUGEPAGE` and `MADV_RANDOM`, the window
+  extended in whole 2 MiB file-aligned blocks starting at or past the named frame's end, each block one
+  `MADV_POPULATE_READ` in its own `spawn_blocking`, a refused `madvise` falling back to W0 and counted; **W2 (B)**
+  a second descriptor with `POSIX_FADV_SEQUENTIAL`, the window `pread` into a scratch buffer in 1 MiB reads on the
+  pool; **W3** no advice. Every arm's settings printed.
+* **Cold without eviction:** each round, each arm's file is a fresh copy written with `O_DIRECT` (row 172's `direct`),
+  so nothing of it is cached; one fill walks it from frame 0 (the **cold fill**). Then, on the cache that fill left:
+  folios a frame (row 172's `/proc/kpageflags` counter), the **hit** p50 and p99 through `TileReader` with
+  `RWF_NOWAIT`, a second fill (**fill hit**), and the forced miss through `force_pool_reads`. A cell where four fills
+  walk one cold copy, starting a quarter of the file apart, is timed the same way.
+* **Cells:** `ct_lidc` (163 kB), `dbt12_ea1141` (503 kB), `ffdm_d` (record its frame sizes), and `pt15_cptac` (32 kB)
+  as the check that small frames lose nothing; HTJ2K, ingest's coded frames. **16 rounds**, arms in
+  `lab/scripts/order.py`'s order inside each cell.
+* **Filesystems:** the host's (kernel, filesystem, mount options, `read_ahead_kb`, `max_sectors_kb`, THP `enabled`),
+  a loop ext4, the same image `-o data=journal`, a loop XFS; a loop XFS made with `-b size=65536`, W0 and W0′ only, if
+  the pinned `mkfs.xfs` makes one and the kernel mounts it.
+* **Metrics:** cold fill frames/s, its misses (`ReadStats`), its CPU per GB, and the time to its first frame; hit p50
+  and p99; fill-hit frames/s and CPU per GB; forced-miss p50; folios a frame, with the share of W1's blocks that are
+  one 2 MiB folio; `/proc/vmstat` `compact_stall` and `pgmajfault` deltas a round.
+* **Exactness:** every frame read checked against its coded bytes' XXH3-64 and every arm's frames decoded once
+  against ingest's sample digests; `--mutate shift|short` must fail it. W1's block arithmetic gets a unit test that
+  fails when a block straddles the named frame's end or leaves a gap (mutate it).
+* **Predictions:** folios a frame W1 160 kB 1.1–1.6, 500 kB 1.2–2.2, `ffdm_d` 1.5–3.5, 32 kB 1.0–1.4, W0 as row
+  172's A6, W2 between; on `data=journal` every arm at 4 KiB folios. On ext4 at 160–500 kB, W1's hit p50 0.40–0.55
+  of W0's, fill hit ×1.4–1.6, fill-hit CPU per GB ×0.6–0.75; cold fill frames/s and misses a tie, CPU a tie or
+  lower; at 32 kB, on XFS and on `data=journal`, a tie on every metric. Four fills: W1's folios between its alone and
+  W0's, its hits still better. W3's cold fill misses most.
+* **Decision rule.** The resolution is row 172's: the p90 over rounds of \|W0′/W0 − 1\|, per cell and metric; a
+  difference counts beyond it with ≥ 80 % of rounds agreeing in sign. *(a) Mechanism:* confirmed if W1's folio
+  counts fall in the predicted ranges (within 20 % of their bounds) and the hit ranking follows the counts on ext4;
+  rejected if W1 builds 2 MiB folios and its hits do not part from W0's on ext4 at 160–500 kB. *(b) P adopted*
+  as the fill's read-ahead if, on host and loop ext4, W1 beats W0 beyond the resolution on hit p50 or fill-hit CPU
+  per GB at 160–500 kB **and** is worse beyond it on no metric in any cell or filesystem, the cold fill's frames/s,
+  misses and first frame included. *(c) B instead* only if P fails (b) and W2 passes it. *(d)* Better hits with a
+  slower cold fill beyond the resolution is a trade-off for the owner, not adopted. *(e)* Neither better beyond the
+  resolution closes the fill's read-ahead as it is; the XFS 64 KiB reading, if made, is recorded for the deployment
+  either way.
+
+### Measured (row 197, 2026-10-14): neither read-ahead is adopted; W0 stays
+
+Run by a session given only the protocol above. Rig, commands and rows: [`../../lab/container-bench/`](../../lab/container-bench/README.md)
+§The fill's read-ahead (`readahead.py`, `readahead_bench`, `rows-readahead.jsonl`, `readahead_summary.py`). The arms are
+the shipped `FillReader` with its advice replaced through `FillReader::with_read_ahead` (a test pins that the hook is
+handed exactly the ranges `WILLNEED` would be, and fails when it is not), every other line of both readers shipped.
+*Since removed (row 224, REJECTEDPATHS): the hook, its test and the arms W1–W3, none adopted; they are at `ba408823`,
+and the rig runs W0 and W0aa.*
+Kernel 6.18.44, 4 cores, 15 GB, THP `madvise`. The host's filesystem is ext4 on `/dev/vda` (`read_ahead_kb` 128,
+`relatime,discard`); the loop images (2 GiB, ext4, ext4 `data=journal`, XFS and XFS `-b size=65536` from xfsprogs
+6.6.0-1ubuntu2.1) sit on it with `read_ahead_kb` 2560 and `max_sectors_kb` 1280, so **the host's and the loops'
+ext4 differ in their read-ahead window by 20×**. Sets as ingest coded them: `ct_lidc` 164 kB a frame (100),
+`dbt12_ea1141` 499 kB (29), `ffdm_d` 4 808 kB (4), `pt15_cptac` 31 kB (335). 16 rounds, the arms in `order.py`'s order
+in each cell; one fill on every filesystem, four fills on the host and loop ext4; 2 048 rows, **5 238 656 frames
+checked by XXH3-64, none inexact**; every arm's frames decoded once against ingest's digests, 0 inexact; `--mutate
+shift` and `short` failed every arm (870 of 870 frames). W1's block test failed under each of four mutations of its
+arithmetic. No `madvise` was refused; `compact_stall` 0 and `pgmajfault` 0 in every cell's median.
+
+**Not cold on `data=journal`.** ext4 with `data=journal` serves `O_DIRECT` through the page cache: every copy there was
+wholly cached after it (the XFS copies kept one page, the truncated last one). Its cold fill is a fill on the cache, its
+folios the copy's; nothing below claims a cold fill there.
+
+Folios a frame (W0, then each arm ×W0), and the hit p50 ×W0 (**bold**: beyond the resolution, ≥ 80 % of rounds
+agreeing; resolution = p90 of |W0aa/W0 − 1| per cell and metric):
+
+| filesystem, set | W0 folios | W1 folios · hit | W2 folios · hit | W3 folios · hit | W1 2 MiB blocks whole |
+| --- | --: | --- | --- | --- | --: |
+| host ext4, 164 kB | 41 | ×0.057 · **×0.72** | ×0.58 · **×0.68** | ×0.11 · **×0.62** | 86 % |
+| host ext4, 499 kB | 113 | ×0.024 · **×0.62** | ×0.42 · **×0.79** | ×0.058 · **×0.65** | 82 % |
+| host ext4, 4.8 MB | 204 | ×0.91 · ×0.90 | ×1.37 · ×0.97 | ×0.11 · ×0.87 | 50 % |
+| host ext4, 31 kB | 8.58 | ×0.14 · **×0.76** | ×0.86 · **×0.65** | ×0.16 · **×0.63** | 75 % |
+| loop ext4, 164 kB | 41 | ×0.31 · ×0.77 | ×0.13 · **×0.64** | ×0.095 · ×0.75 | 43 % |
+| loop ext4, 499 kB | 97 | ×0.11 · ×0.67 | ×0.14 · ×0.72 | ×0.023 · ×0.66 | 60 % |
+| loop ext4, 4.8 MB | 191 | ×1.90 · ×0.97 | ×0.65 · ×0.97 | ×0.063 · ×0.89 | 61 % |
+| loop ext4, 31 kB | 8.58 | ×0.28 · **×0.77** | ×0.75 · **×0.69** | ×0.15 · **×0.72** | 75 % |
+| loop XFS, 499 kB | 97 | ×0.11 · **×0.61** | ×0.14 · **×0.63** | ×0.023 · **×0.60** | 65 % |
+| `data=journal`, every set | 8.6–1 170 | ×1.000 · ×0.94–1.02 | ×1.000 · ×0.68–1.11 | ×1.000 · ×0.94–1.06 | 0 % |
+
+What each arm costs where it is worse beyond the resolution: **W1** a cold fill's CPU per GB ×1.146 on XFS at 4.8 MB,
+and its first frame ×2.13 on `data=journal` at 31 kB; its cold fill's frames/s is ×0.74–1.02 at 164–499 kB on the host
+and loop ext4 but within the A/A spread. **W2** a cold fill's CPU per GB ×1.11–1.92 in every cell but two, a fill's on
+the cache ×1.72–2.03 at 499 kB, and +4 to +8 cold misses with four fills on the host. **W3** +7 to +71 cold misses in
+five of the host's eight cells, each beyond the resolution; on the loops, whose window is 2.5 MiB, +0 to +6.
+
+* *Folios a frame W1 160 kB 1.1–1.6, 500 kB 1.2–2.2, `ffdm_d` 1.5–3.5, 32 kB 1.0–1.4:* **failed** outside the host's
+  32 kB (1.17): 2.34 and 2.7 on the host, 12.5 and 10.9 on loop ext4, and at 4.8 MB 186 and 363 — as many as W0's or
+  more. 43–86 % of W1's blocks became one 2 MiB folio alone, 0–19 % with four fills.
+* *W0 as row 172's A6 (41, 123):* **held** at 164 kB (41); 97–113 at 499 kB.
+* *W2 between:* **held on the host** at 164–499 kB (24 and 47, between W1's 2.3–2.7 and W0's 41–113); **failed** on loop
+  ext4 (5.5 and 13.5 against W1's 12.5 and 10.9) and at 4.8 MB.
+* *Every arm 4 KiB on `data=journal`:* **held** (×1.000 in every cell).
+* *W1's hit p50 0.40–0.55 of W0's on ext4 at 160–500 kB:* **failed**, 0.62–0.77. *Fill hit ×1.4–1.6:* **failed**,
+  ×1.00–1.22. *Fill-hit CPU per GB ×0.6–0.75:* **failed**, ×0.77–1.02 (host 164 kB to loop 499 kB).
+* *Cold fill frames/s and misses a tie, CPU a tie or lower:* **held** within the resolution, frames/s ×0.74–1.02.
+* *At 32 kB, on XFS and on `data=journal`, a tie on every metric:* **held on `data=journal` only**; at 32 kB and on XFS
+  W1's hits are ×0.61–0.77, beyond the resolution.
+* *Four fills: W1's folios between its alone and W0's, its hits still better:* **held** for the folios (164 kB: 12.5 →
+  26.4 → 36.5 on loop ext4, 2.3 → 28 → 41 on the host; 499 kB 10.9 → 82 → 96, 2.7 → 73 → 113), hits ×0.84–0.95, none
+  beyond the resolution.
+* *W3's cold fill misses most:* **held** on the host (+7 to +71 against W0's 3–17), barely on the loops.
+* *Unpredicted:* **no advice at all (W3) builds the fewest folios** (×0.02–0.16 of W0's) and hits as fast as W1 or W2
+  (×0.60–0.75), at the price of the misses above where the device's own read-ahead window is small. What `WILLNEED`
+  costs is its folios, not its reads.
+* **Rule.** *(a) Mechanism:* **not confirmed**: W1's counts miss their ranges, and the hits follow the folio counts only
+  roughly (W2's hit beats W1's at 164 kB with twice its folios). Not rejected either: W1's hits part from W0's on ext4
+  at 160–500 kB. *(b) P:* **not adopted**: beyond the resolution on hit p50 on the host's ext4 (×0.72, ×0.62) but not on
+  loop ext4 (×0.77, ×0.67 inside the spread), and worse beyond it on XFS's cold-fill CPU at 4.8 MB and
+  `data=journal`'s first frame at 31 kB. *(c) B:* **not adopted**: its cold fill's CPU is worse beyond the resolution
+  almost everywhere. *(d)* does not arise. *(e)* **The fill's read-ahead stays W0.** Recorded for the deployment: XFS
+  with 64 KiB blocks builds 3.5, 7.3, 18 and 1.5 folios a frame under W0, and its W0 hits are 13.5 and 25.2 µs at 164 and
+  499 kB against the 4 KiB XFS's 19.0 and 40.9 (different images, not paired; a filesystem choice for row 195 to
+  measure, not a reader change).
+
 ### P0 — validate on the production target before touching anything
 
 One campaign run on the cloud instance, volume class and container image: `product_tile`
 against `pool`, cold, both frame sizes, 64–256 sessions at depth 4, `check-fastpath` on the
-study volume and `ulimit -l` recorded. The rule is fixed in advance: a tie deletes the ring and
+series volume and `ulimit -l` recorded. The rule is fixed in advance: a tie deletes the ring and
 ships the pool; a resolved margin keeps it and folds in the ring-fd change. It can go either
 way, because a cloud miss is device-bound and the ring's remaining claim is threads and CPU per
 miss. Status in §9.
+
+### In a container (row 195 DOCKERREAD: theory; measured by a separate session)
+
+This section owns two things: what each place a series can live does to the read path, and the measuring protocol.
+The settings, the runtimes' defaults and what reopening each one costs in security belong to
+[`../../deploy/README.md`](../../deploy/README.md) §Container settings (row 199). The folios belong to §Read-ahead and
+folios above (rows 196–197).
+
+**Sources** (fetched 2026-10-13, SHA-256 first 16 hex):
+
+* Linux **v7.2.8**, the host's kernel, from `gregkh/linux`: `fs/overlayfs/file.c` f44fb8dc3f099529, `fs/backing-file.c`
+  3814af08154928f9, `include/linux/fs.h` e34b28c8e6d244f2, `io_uring/io_uring.c` 7e4540b9a3d457fa, `kernel/seccomp.c`
+  faadf7f5f2b9fe3e, `security/selinux/hooks.c` 738dc14dee815159, `fs/btrfs/fs.h` 455977432542d999 and
+  `fs/btrfs/disk-io.c` d757b615b068c266.
+* container-selinux **v2.251.0** `container.te` caa9ff6a6f3b29c8, as installed.
+* containers-common **0.67.0** `seccomp.json` as installed, byte-equal to `container-libs` tag `common/v0.67.0`
+  (2598b3b98e6970f3).
+
+**Probed here** (functional, untimed, 2026-10-13/14):
+
+* The host: Fedora 43 with SELinux enforcing, rootless Podman 5.8.4 with crun 1.28, native overlay on btrfs on LUKS.
+  cgroup v2 delegates no `cpuset`.
+* `preadv2(RWF_NOWAIT)`, `WILLNEED`, `readahead(2)` and the ring's setup with the server's flags and registrations,
+  from `python:3.11-slim` as uid 10001 and through an overlay in a host user namespace; `mincore` for residency.
+
+```text
+ series-server, uid 10001
+  │ preadv2(RWF_NOWAIT): refused unless the open file has FMODE_NOWAIT (fs.h:3442–3444)
+  ├─ O  the container's own layer ─▶ ovl_open sets none (file.c:198–235) ─▶ EOPNOTSUPP ─▶ every frame to the pool
+  │       read, mmap, fadvise, write ─▶ the real file in the layer dir (file.c:323–370, 468–476, 509–519)
+  ├─ B  bind mount ─────────▶ the host's own file ─▶ honoured
+  └─ V  named volume ───────▶ a bind of <storage>/volumes/<name>/_data ─▶ as B
+ a tile miss ─▶ io_uring_setup ─▶ seccomp: absent from the default ─▶ ENOSYS (Podman) / EPERM (Docker)
+                             └─▶ allowed by seccomp-uring.json ─▶ SELinux io_uring { allowed } (io_uring.c:3142,
+                                 hooks.c:7621–7626): container_t has none ─▶ EACCES ─▶ WARN, the session on the pool
+ page cache: the real inode's, one shared by the host, B, V, O and every container on that file
+```
+
+| | `RWF_NOWAIT` | ring, default profile | ring, `seccomp-uring.json` |
+| --- | --- | --- | --- |
+| H, the host | honoured on btrfs | — | works |
+| B, bind mount; V, named volume | honoured (Docker: row 199) | `ENOSYS` (`seccomp.json:3`); Docker `EPERM` (row 199) | **`EACCES` here**; works with `--security-opt label=disable`, flags and registrations included. Docker: works (row 199) |
+| O, own layer; tmpfs | **refused**, on image-layer and upper files alike (Docker: row 199) | never tried: gated on the flag (§10 *The trap*) | never tried |
+
+**The SELinux gate is the host's, not the runtime's.**
+
+* **Why `EACCES`.** `io_uring_allowed` asks the LSM (`io_uring.c:3123–3143`), and SELinux checks
+  `io_uring { allowed }` on the caller's own domain (`hooks.c:7621–7626`). container-selinux 2.251.0 grants it
+  nowhere: no `io_uring` appears in `container.te`. The host's unconfined domain has it.
+* **What follows.** On an SELinux-enforcing host the profile alone does not restore the ring, under either runtime.
+* **Podman 5.8.4 accepts the Docker-format profile.** With it the container reports `Seccomp: 2`, and
+  `io_uring_setup` gets past the filter, to `EACCES`.
+
+**Limits here** (rootless, probed): `nofile` 524288 : 524288, `memlock` 8 MiB, no `memory.max`.
+
+* The 8 MiB is the host's hard limit too, so rootless cannot raise it. Row 199 measured `memlock` per uid,
+  host-wide (1 024 rings at 8 MiB); rootless, uid 10001 is the subuid 665360.
+* Nothing binds while the ring is refused. `io_uring_setup` runs before the eventfd (`uring_reader.rs:31–40`), so a
+  refused session holds no ring, fd or locked memory.
+
+**Allowed calls skip the filter.** `preadv2`, `fadvise64`, `readahead` and, under the profile, `io_uring_enter` are
+unconditional allows. For those the kernel's per-syscall cache skips the BPF program (`kernel/seccomp.c:416`).
+
+**Folios** are the real file's, so they are set by its writer and its filesystem, as on the host. This btrfs caps a
+folio at 256 KiB (`fs/btrfs/fs.h:67–71`, `disk-io.c:3362–3369`), against ext4's 2 MiB. Counts here compare between
+arms, not with rows 172 and 197.
+
+**What transfers to rootful Docker Engine.**
+
+* **Transfers:** all of the kernel's part. That covers overlay's refusal and its cost, the shared cache, the folios,
+  the filter's cost, and what the ring buys over the pool once it is allowed.
+* **Does not transfer:** the SELinux gate, which applies only where SELinux enforces (row 199's host let the ring
+  through); absolute µs on a server's ext4 or XFS; a container memory limit; Docker Desktop.
+
+#### Protocol for the measuring row (row 195)
+
+Given to a separate session with nothing above this heading. The rig is `lab/container-bench/dockerread.py`, with the
+arms as data in `dockerread-arms.json` ([`../../lab/container-bench/README.md`](../../lab/container-bench/README.md)
+§In a container).
+
+* **Image.** The deploy's server image as `deploy/` builds it, and the rig image `Containerfile.dockerread` on the same
+  pinned `rust:1.97-bookworm`. Only the entrypoint is overridden; an arm passes its own options and no others (no
+  `--ulimit`, `--cap-add` or `--privileged`); the host arm runs the same binaries.
+* **Arms.** One series file each, all on the owner's `/home`, which also holds Podman's storage. One long-lived
+  container per arm; timed runs are `podman exec`.
+
+  | arm | place and setting | placed by |
+  | --- | --- | --- |
+  | H, H′ (A/A) | the host, no container | `pack-series` on the host |
+  | B | bind mount, `-v DIR:/studies:ro,z` as in compose | `pack-series` on the host |
+  | V | named volume, `-v NAME:/studies:ro` | `pack-series` in a uid-10001 container |
+  | O | `/srv/series`, the container's upper layer (`measure --pooled-ok`) | `pack-series` inside it |
+  | **B+U** | B with `--security-opt seccomp=deploy/seccomp-uring.json` | as B, its own directory |
+  | **B+UL** | B+U with `--security-opt label=disable`, which lets the ring through here | as B, its own directory |
+
+* **Left out, and why:**
+  * P: row 197 did not adopt it.
+  * `no-new-privileges` and `cap_drop: [ALL]`: they touch no call the read path makes. Row 199 found io_uring,
+    `RWF_NOWAIT` and 1 024 rings unchanged under them.
+  * A raised `memlock` or `nofile`: they change nothing per session and bind only past ~1 000 sessions that miss, at
+    P0's scale. Rootless, `memlock` cannot be raised here at all.
+  * tmpfs: it refuses as O does.
+  * XFS with 64 KiB blocks (row 197): a container does not change a filesystem a bind mount carries.
+  * Row 198's frame cache and huge-page buffers: they live in user memory and the host's THP setting, which a
+    container does not change. Row 198 rejected or closed the rest.
+* **Cells.** Row 172's HTJ2K cells, ingest's coded frames: `pt15_cptac` (32 kB), `ct_lidc` (163 kB) and `dbt12_ea1141`
+  (503 kB), each after a pack.
+  * `dbt12_ea1141` also runs after `WILLNEED`: `writer_bench direct` into the arm's real directory, then
+    `writer_bench warm --how willneed` through the arm's path.
+* **Metrics.** Every frame is XXH3-checked. `container_bench measure` (4 000 asks, 256 MiB fill) gives:
+  * hit p50 and p99, through `RWF_NOWAIT`;
+  * forced-miss p50, through `force_pool_reads`, never eviction;
+  * fill hit and fill forced miss in frames/s, with CPU per GB.
+* **New: a cold tile pass, for the ring.** The forced miss never builds a ring, so this is the only timing of it.
+  1. Write a fresh copy with `writer_bench direct` and check it is not resident: cold, with nothing evicted.
+  2. Read it once with `TileReader` at depth 4, in a random order.
+  3. Record p50, p99, CPU per frame and `ring=`.
+* **Order and n.** Seven units, each round in the order `lab/scripts/order.py row 7 ROUND` gives, for 28 rounds (two
+  Williams periods). The resolution is the p90 of |H′/H − 1| per metric and cell. A difference counts beyond it with
+  ≥ 80 % sign agreement (§11).
+* **Folios.** `writer_bench folios` as root on the host against each arm's real file, after placing and after the last
+  round. The two counts must match.
+* **Reader check (untimed), per arm.**
+  1. Run `check-fastpath`.
+  2. Start the image's server on a cold copy and run one depth-4 tile session through `server_ab` in the same
+     container.
+  3. Record `read_fast_path=`, `ring=`, and the `io_uring unavailable` WARN with its errno.
+* **Printed per arm:** `podman inspect`'s User, SecurityOpt, Ulimits, CapAdd and Mounts; in the container
+  `/proc/self/limits`, `Seccomp:`, `CapEff:` and `/proc/self/attr/current`; `findmnt -T` and `read_ahead_kb`; the
+  kernel, Podman, crun, container-selinux and containers-common versions; each file's SHA-256 (H's, or the arm is void).
+* **Throttling.** Everything under `nice -n 19 ionice -c3`; timed visits under `taskset -c 2,3`, inside `podman exec`
+  too; builds with `--cpu-period 100000 --cpu-quota 200000`.
+* **Time.** 784 visits (7 × 4 cells × 28 rounds) at a measured ~0.5–0.75 s each, plus the cold copies: **about 10–15
+  min on a quiet machine.** Preparation runs niced while the owner works. The folio counts take ~5 min as root.
+* **VOID.** A visit is `VOID` if any of these holds:
+  * its pinned cores were busy outside the bench over 5 % of its wall time;
+  * a store with `RWF_NOWAIT` missed in its hit pass;
+  * a cold copy was resident.
+
+  The bar is 10 % of visits. Past it, report the strict and the round-paired readings.
+
+**Predictions.** A tie means within the resolution against H in the same round.
+
+| | B, V | O | B+U | B+UL |
+| --- | --- | --- | --- | --- |
+| hit p50, p99 | tie | ties H's forced miss: 1 + (24–34 µs ÷ H's hit), ~×1.5–2 at 503 kB, more at 32 kB (derived) | tie | tie (the filter's cache) |
+| forced miss; fill forced miss and its CPU per GB | tie | tie | tie | tie |
+| fill hit and its CPU per GB | tie | ties H's fill forced miss | tie | tie |
+| cold tile | the pool: against H, the ring's margin on this host. Wall a tie at 163–503 kB; 32 kB not predicted (§5: three hosts, three answers) | the pool | as B | **ties H** |
+| `ring=` on a tile miss | `false`, `ENOSYS` | `false`, none tried | `false`, **`EACCES`** | **`true`** |
+| `read_fast_path=` | `preadv2` | `pooled_pread` | `preadv2` | `preadv2` |
+| folios, both states | within 20 % of H | the same | the same | the same |
+
+**Decision rule.** The owner ruled on 2026-10-14 that a faster read path and a tuned container are worth it.
+
+* **(a) Placement.** If B and V tie H on every timed metric, `/studies` stays a bind mount, with a named volume as its
+  equal. If either is beyond the resolution, §6 advises against it until it is explained.
+* **(b) Overlay.** If O sits at H's forced miss and is beyond the resolution against B, *Serve series from a mounted
+  volume* stands, with this kernel's number. If O ties B, the 132.5 against 48.4 µs cost is retracted here.
+* **(c) io_uring.**
+  * **The row recommends the profile** when B+UL restores H's miss path at no measurable cost: `ring=true`, cold
+    tiles tie H, and every other metric ties B.
+  * **What it states with the recommendation:**
+    * the security cost from §Container settings (row 199): io_uring's surface, which seccomp cannot judge;
+    * the margin it buys here, B against B+UL on cold tiles, even if that margin is a tie;
+    * that on SELinux-enforcing hosts the domain also needs `io_uring { allowed }`. `label=disable`, the arm
+      measured, drops the container's whole SELinux confinement. A policy module granting only that permission to
+      `container_t` is narrower, but it is untried and reaches every container on the host.
+  * The owner adopts these or not; P0 (§9 item 1) still decides whether the ring earns its keep on the target.
+  * **If B+UL does not restore H's path,** report where it parts, and recommend nothing.
+  * **If the profile is adopted,** compose sizes `memlock` and `nofile` (§Container settings), and the `read_ring=`
+    probe proposed there reports it.
+* **(d) Limits** (row 166, DEPLOYLIMITS) change only with (c)'s adoption.
+* **(e) Folios.** Every arm within 20 % of H in both states means the cache is the real inode's, and row 197's verdict
+  (W0 stays) holds in containers. Otherwise the mechanism is wrong; report it.
+* **(f) Not conclusive on this host:** a VOID-bar failure whose two readings disagree; absolute µs on a server's ext4
+  or XFS (ratios to H transfer); Docker Engine on an SELinux-enforcing host, the one Docker question row 199 left
+  open (predicted `EACCES` under the profile; untimed, elsewhere).
+
+#### Measured in a cloud container (row 208, 2026-10-14): placement and folios hold; the profile is recommended
+
+Run by a session given only the protocol above, on rootful Docker in a cloud VM; rig and how-to:
+[`../../lab/container-bench/README.md`](../../lab/container-bench/README.md) §In a container, *On rootful Docker*; rows
+`rows-dockercloud.jsonl`. **What differs from the rig the protocol was written on:** Docker Engine 29.8.2, containerd
+2.3.6 (its overlayfs snapshotter), runc 1.5.1, the builtin seccomp profile, cgroup v1 with cgroupfs, rootful, so
+`as_owner` is the identity and V is packed under `/srv/series`; **no SELinux**, so B+U and B+UL are the same arm
+twice; ext4 on virtio `/dev/vda` (`read_ahead_kb` 128) under every arm and under Docker's storage; a Firecracker VM,
+4 vCPU Xeon at 2.1 GHz, 15 GB, kernel 6.18.44, THP `madvise`, cores 2–3 pinned with nothing else on the machine. The
+"host" is itself the VM's Ubuntu 24.04 container, so H runs the rig's binaries on **glibc 2.39**, every container on
+the image's Debian **glibc 2.36**. Ratios to H transfer; absolute µs do not.
+
+784 visits, 28 rounds, **2 VOID (0.3 %)**, so the strict reading alone; 0 frames inexact (XXH3) in every visit; every
+arm's files equal H's SHA-256. Reader check: H and H′ `preadv2` with `ring=true`; **B and V `preadv2`, `ring=false`,
+`io_uring setup: EPERM`** (Docker's default profile returns `EPERM`, not the `ENOSYS` predicted from Podman's); O
+`pooled_pread`, no ring tried; BU and BUL `preadv2`, `ring=true`. The cold passes agree: ring on 84 of 84 for H, H′,
+BU and BUL, 0 of 84 for B, V and O.
+
+**Two differences are not the container's, and were taken apart before the rule was read.**
+
+* *pt15's fill is the glibc.* B, V, BU and BUL filled pt15 hits ×2.11–2.56 of H at ×0.39–0.47 the CPU a GB (fill
+  forced miss ×1.14–1.20). With `dockerread_why.py libc` (12 rounds interleaved), the same binary chrooted into the
+  image on the host, Debian's glibc in the host's cgroup and namespaces, matched B: fill hit **×2.10** of H (1.73–2.23,
+  12 of 12 rounds), B ×2.10; hit p50, miss p50 and ct_lidc a tie for both. Which glibc routine does it is not measured.
+* *The WILLNEED cell is the copy.* Each arm has its own WILLNEED copy, all of order-0 folios, 122.86 a frame. Read
+  from the host through `dockerread_why.py copies` (14 rounds), each copy gave its in-container hit p50: H 66.8 µs,
+  H′ 63.9, **B 32.7, V 33.8**, BU 48.7, BUL 43.0, O 49.9 (in its container 102.1, through the pool). Two fresh copies,
+  one warmed on the host and one in a throwaway container, both read 53–62 µs. So copies with identical folio counts
+  serve a hit at 33–67 µs; that spread is a property of a copy's page cache that the folio count does not show, and
+  is unexplained. It is not the mount, and it caps what this cell can resolve between arms.
+
+Medians, µs or frames/s (hit through `RWF_NOWAIT`, miss through `force_pool_reads`):
+
+| cell | H hit p50 | B · V · BUL hit p50 | O hit p50 | H miss p50 | H cold p50 | B · BUL cold p50 | O cold p50 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `pt15_cptac` 32 kB | 3.6 | 3.5 · 3.4 · 3.2 | 35.7 | 35.0 | 16.9 | 28.8 · 19.1 | 10.1 |
+| `ct_lidc` 163 kB | 11.0 | 11.0 · 11.1 · 10.1 | 50.6 | 50.6 | 50.6 | 53.5 · 54.3 | 12.7 |
+| `dbt12_ea1141` 503 kB | 30.4 | 31.4 · 29.7 · 30.7 | 84.1 | 84.3 | 203.0 | 171.2 · 231.6 | 58.1 |
+
+**The predictions** (a tie: within the resolution against H in the same round):
+
+* B, V hit, forced miss, fills: **held** on `ct_lidc` and `dbt12_ea1141` packed, and on pt15's hit and miss; pt15's
+  fill and the WILLNEED cell are beyond, both explained above as not the mount.
+* O's hit ties H's forced miss: **held** on every packed cell (p50 ×1.005, ×0.992, ×1.011; p99 ×0.99–1.05); fill hit
+  ties H's fill forced miss, except its CPU a GB at 503 kB, ×1.21 (beyond; frames/s ×0.83, a tie). On the WILLNEED cell ×0.84, the copy.
+* Cold tile, B against H: at 32 kB the pool is ×1.66 the wall and ×1.55 the CPU a frame of the ring; at 163–503 kB a
+  tie, **as predicted**. **O's cold pass did not match "the pool":** ×0.56, ×0.28 and ×0.27 of H's wall (beyond at
+  32–163 kB), so a cold read through the overlay's own path is faster here than either reader on a bind mount;
+  unexplained, and no rule reads it.
+* B+UL ties H on cold tiles in every cell (×1.08–1.10): **held**. Against B, ×0.67 the CPU a frame at 32 kB (beyond),
+  a tie elsewhere. B+U, the same settings here, ties too, but its pt15 hit p50 is ×0.81 of H (beyond; B+UL's ×0.90).
+* `ring=`: B and V `false` with **`EPERM`** (predicted `ENOSYS`); O `false`, none tried; B+U **`true`** where `EACCES`
+  was predicted: no SELinux here, so this host cannot test that prediction. B+UL `true`. `read_fast_path=` as
+  predicted for every arm.
+* Folios: **held**, 28 of 28 files within 20 % of H (all ×1.00), the same after the last round as after placing.
+
+**The rule.**
+
+* **(a) Placement:** by the letter, B and V are beyond H. Both cells that part them part H from *every* container
+  through the glibc and the copy, not through the mount, and B and V tie H wherever the reader and the copy are the
+  same. Nothing here advises against either: `/studies` stays a bind mount, a named volume its equal.
+* **(b) Overlay:** O's hit sits at H's forced miss and is beyond B in every cell, ×10.1 at 32 kB, ×4.6 at 163 kB and
+  ×2.7 at 503 kB (35.7, 50.6 and 84.1 µs against 3.5, 11.0 and 31.4). *Serve series from a mounted volume* stands,
+  with this kernel's number.
+* **(c) io_uring:** B+UL gets `ring=true` on all 84 cold passes and ties H on cold tiles. Against B, its other metrics
+  differ only on the WILLNEED cell, ×1.32 hit p50 and ×1.13 miss p50, which is the copy (each copy read from the host:
+  B's 32.7 µs, BUL's 43.0). By that explanation **the row recommends the profile**, with:
+  * the security cost (§Container settings, row 199): io_uring's surface, which seccomp cannot judge;
+  * the margin it buys here, B against B+UL on cold tiles: at 32 kB 28.8 against 19.1 µs p50 and ×0.67 the CPU a
+    frame (the wall within the resolution, 96 % of rounds on its side); at 163–503 kB a tie;
+  * on SELinux-enforcing hosts the domain also needs `io_uring { allowed }`; `label=disable` drops the container's
+    whole confinement, and a module granting only that permission to `container_t` is narrower but untried. This host
+    has no SELinux, so it measured neither.
+  The owner adopts these or not; P0 still decides whether the ring earns its keep on the target. **Adopted
+  2026-10-14** (queue row 231): `deploy/compose.yml` loads the profile; the SELinux half stays the owner's.
+* **(d) Limits:** unchanged until (c) is adopted. *Since row 231:* compose sizes `memlock` (64 MiB) and `nofile`
+  (65 535), and the banner's `read_ring=` reports the ring ([`../../deploy/README.md`](../../deploy/README.md)
+  §Container settings).
+* **(e) Folios:** every arm within 20 % of H in both states: the cache is the real inode's, and row 197's verdict
+  (W0 stays) holds in containers on this host.
+* **(f) Not conclusive here:** Docker under SELinux enforcing (B+U's `EACCES`), and absolute µs.
 
 ## 7 · Invariants
 
 What the code depends on and the types do not enforce, each pinned by a named test.
 
-* **One index per study, never per session.** `FrameStore` is opened once and shared by
+* **One index per series, never per session.** `FrameStore` is opened once and shared by
   `Arc`; 12 B per frame, immutable after open. A per-session store would cost 384 MB instead
   of 384 KB at a thousand readers. `sessions_share_one_store_rather_than_opening_their_own`.
 * **The bytes quinn sends are process-private.** The read path copies into a buffer from
   `media/frame_pool.rs`, hands that buffer to quinn and gets it back on acknowledgement; it
-  never hands quinn a mapping — which is why `server/` has no mapping at all; the mmap arms
+  never hands quinn a mapping — which is why `server/` has no mapping at all; the mmap variants
   live in `lab/`. `a_handed_off_frame_is_the_buffer_itself_and_comes_back_when_dropped`.
 * **A ring is never built where `RWF_NOWAIT` is refused.** Otherwise every warm tile would
-  go through it, the `uring` arm's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
+  go through it, the `uring` variant's +131–142 % CPU on hits. `lazy_ring_is_never_built_without_nowait`.
 * **A buffer is never grown or reused while the kernel owns it.** Dropping a ring drains its
   reads first, retrying an interrupted wait; a ring that fails with reads in flight leaks the
   slots' buffers with a WARN rather than free them. An abandoned fill read is settled before its
   buffer is reused. *Corrected 2026-10-03:* the drain gave up on any failed wait and the slots were
   then freed under a live read.
   `dropping_a_reader_mid_read_waits_for_the_kernel`, `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused`.
-* **A fill never builds a ring.** `SeqReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
+* **A fill never builds a ring.** `FillReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
 * **A fill keeps `FILL_WINDOW` advised past the named frame.** Otherwise its depth on the device is one blocking read. `a_fill_tells_the_kernel_what_follows_the_named_frame`.
 * **Tile depth is `slots`, default `TILE_SLOTS`.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`.
 * **A jump does not wait on the read-ahead it abandons.** A tile takes a slot with no read in flight first; before 2026-09-23 the wanted frame's read queued behind the dead one. Unpriced on a rig that misses. `an_abandoned_tile_prefetch_does_not_delay_the_frame_that_replaces_it`.
@@ -292,8 +752,9 @@ path does not become the whole plan.
 | --- | --- | --- |
 | **`max_udp_payload_size` 1472 → 4000 B** | **−35 % CPU, +55 % throughput** with a quinn peer — the largest effect measured anywhere in this investigation | **Closed for browser clients**: Chromium 141 advertises 1 472 and quinn takes the smaller bound; no datagram above 1 472 in 85 k with the server's bound at 4 000 and 8 972. Reopen only for a native peer |
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on the sandbox | **Built**; unmeasured on a throttled link (§9) |
-| `read_ahead_kb` and layout | miss rates moved **2–15×** by that one knob; the layout study measured **17.6×** on the same reads, against 2–4× for the read path (`git show read-path-evidence-2026-09-09:docs/disk-layout/`) | Not tuned; layout undecided |
+| `read_ahead_kb` and layout | miss rates moved by that one knob (§6 *Read-ahead*); the layout study measured **17.6×** on the same reads, against 2–4× for the read path (`git show read-path-evidence-2026-09-09:docs/disk-layout/`) | Not tuned; layout undecided |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | Lab only — needs a real ask trace |
+| `MALLOC_MMAP_THRESHOLD_=1048576` in the unit | memory at rest after large-frame fills **−46 to −57 %**, CPU a tie to +5 % (§11, *Frames past 250 kB*) | Measured 2026-10-06, not taken: the owner's, if large frames ship |
 | AEAD provider (`aws-lc-rs` for `ring`) | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | **Measured 2026-09-10, not taken**; the feature was removed 2026-10-03 (`c9fce63`) |
 | Release profile: `lto = "fat"`, `codegen-units = 1` | −4 to −8 % CPU per frame, every cell | **Landed 2026-09-10**; 4× longer release rebuild |
 
@@ -308,20 +769,21 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 
 | # | Item | Why it is still open |
 | --- | --- | --- |
-| 1 | **P0 — ring vs pool on the production target** | §6. Sandbox, workstation and agent container gave three answers. **The cloud rig cannot answer it** (L7, 2026-09-18): burstable, stolen CPU, every p99 60–100 ms (§11, *A study past RAM*). A non-burstable host is needed |
+| 1 | **P0 — ring vs pool on the production target** | §6. Sandbox, workstation and agent container gave three answers. **The cloud rig cannot answer it** (L7, 2026-09-18): burstable, stolen CPU, every p99 60–100 ms (§11, *A series past RAM*). A non-burstable host is needed |
 | 2 | **`server_ab.sh` on the workstation** | **Done 2026-09-09**: cold depth 4 −42.1 %, 16/16, RESOLVED, where the sandbox missed the bar (§11, *Serving depth*). Still one bare-metal host and untested on the production instance type — that is P0's run |
 | 3 | **Throttled link** (20 Mbps, 50 ms, 1 % loss, cold tiles, client depth 4) | Predicted tie: the wire hides the 0.2 ms depth 2 → 4 saving. Unmeasured |
-| 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the study volume (§6). Not in a unit file yet |
-| 6 | **`read_ahead_kb` and study layout for tiles, per target** | on-demand missed 14–69 % at the stock value in the fill cells; on the cloud rig 128 against 2 048 was no clean result in any cell. A large value hurts only the fill's tail, which `FILL_WINDOW` fixed |
+| 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the series volume (§6). Not in a unit file yet; `deploy/compose.yml` sets `memlock` and `nofile` since row 231 |
+| 6 | **`read_ahead_kb` and series layout for tiles, per target** | on-demand missed 14–69 % at the stock value in the fill cells; on the cloud rig 128 against 2 048 was no clean result in any cell. A large value hurts only the fill's tail, which `FILL_WINDOW` fixed |
 | 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, measured tie. The *only* way to cut the eventfd's per-hit cost (§11, *Short io_uring completions*). Only after P0 keeps the ring |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
-| 10 | **The two readers on the workstation** | the only full-arm measurement of `SeqReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
+| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
 | 13 | **Short io_uring completions on a regular file** | the lab now resubmits the tail and counts them; 0 in 1 032 workstation rows. Incidence on other hosts and sizes past 250 kB is unmeasured |
 
 Numbers are kept because older records cite them; 4 is closed (§8), the missing ones closed or
 built. **Not established anywhere**, named so they are not quoted as measured:
-frames past 250 kB (native DBT is ~3 MB); storage faster than ~1.25 GB/s, where io_uring's 5
+frames past 250 kB on a device or a real link (corrected 2026-10-06: CPU per byte and memory at
+rest measured on loopback up to 16 MB, §11, *Frames past 250 kB*); storage faster than ~1.25 GB/s, where io_uring's 5
 threads against the pool's hundreds might start converting (the workstation's 1.5–1.6 GB/s
 semi-sequential ceiling was device-bound and may be the NVMe's own cache); `hybrid_lazyring`
 on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
@@ -331,10 +793,10 @@ on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 ### How a read works
 
 The planner's `Next` picks the reader; each is built on the first frame of its kind, and keeps
-the study's `FrameStore` it was built with: the ring registers that store's file and the slots key
+the series' `FrameStore` it was built with: the ring registers that store's file and the slots key
 on its offsets, so a reader can serve no other store.
 
-**Fill — `SeqReader`.** Two buffers. `next` is the frame the planner will ask for after this
+**Fill — `FillReader`.** Two buffers. `next` is the frame the planner will ask for after this
 one, and its pooled read is running by the time `read` returns; only it may still be with the
 pool. Then the reader advises `FILL_WINDOW` past `next`, extended a quarter window at a time (one
 syscall per megabyte walked) and restarted on a seek. Frames sit in index order in the bundle,
@@ -353,20 +815,21 @@ ask, so `Off` means both "never wanted" and "refused".
 because tokio migrates a task between workers, and blocking in `io_uring_enter` would be the
 stall this exists to prevent, so the reader parks on an eventfd (plain `register_eventfd`). A
 short completion is resubmitted for its tail. Buffers are **not** registered: that pins pages
-against `RLIMIT_MEMLOCK`, and the lab arm that registered them tied on misses.
+against `RLIMIT_MEMLOCK`, and the lab variant that registered them tied on misses.
 
 Also: the pool path reads ahead too (the `JoinHandle` is held, not awaited); delivery stays in
 ask order — reading *n+1* early is pipelining, not reordering; the planner bounds `in_hand` at
 `ASKS_AHEAD` and stops upcoming at the first `Fill` or `EndSession` (it also streamed a
 `RequestFrames` batch rather than collecting it, until that message left the wire on 2026-10-03). `READ_WINDOW` (64 KiB) is off the product path: a test-only constant in
-`frame_store.rs`, and `read_campaign.rs`'s own for the arm that reproduces the capped probe. `--no-default-features` alone has no
-rustls provider and does not link; add `--features crypto-ring`.
+`frame_store.rs`, and `read_campaign.rs`'s own for the variant that reproduces the capped probe. `--no-default-features` alone builds
+it: ring is a plain dependency feature (*corrected 2026-10-14:* this said to add `--features crypto-ring`, a feature
+that could not be turned off and is gone).
 
 ### The trap
 
 On overlayfs or tmpfs, `RWF_NOWAIT` returns 0 for every read, hit or miss. A ring keyed only on
 "the inline read came up short" would then serve every warm ask through the ring — the `uring`
-arm, **+131 to +142 % on hits, RESOLVED**. The ring is gated on
+variant, **+131 to +142 % on hits, RESOLVED**. The ring is gated on
 `FrameStore::nowait_supported()`, not on the shortfall alone.
 
 | `RWF_NOWAIT` | io_uring | Path |
@@ -377,7 +840,7 @@ arm, **+131 to +142 % on hits, RESOLVED**. The ring is gated on
 
 ### Flags
 
-No performance toggle: `TileReader` already chooses per session, and the arm a "miss-optimised"
+No performance toggle: `TileReader` already chooses per session, and the variant a "miss-optimised"
 flag would pick is the trap above. `WTPACS_READ_PATH=pool` is the **kill switch** (the pre-ring
 path on tiles); an unrecognised value, `uring` included since its lever was removed, warns and
 uses `auto`; a fill ignores it. `--force-pool-reads` (lab) clears the store's `nowait` at open, so every frame
@@ -430,10 +893,10 @@ INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_event
 | A parked reader is woken (the `_async` eventfd hangs it) | `a_read_that_cannot_complete_inline_wakes_the_parked_reader` |
 | The session line reports the miss rate | `read_stats_report_the_session_miss_rate` |
 | The frame quinn sends is the pooled buffer, and it comes back | `a_handed_off_frame_is_the_buffer_itself_and_comes_back_when_dropped` |
-| One store per study | `sessions_share_one_store_rather_than_opening_their_own` |
+| One store per series | `sessions_share_one_store_rather_than_opening_their_own` |
 | `in_hand` cannot grow with ask rate | `the_loop_holds_no_more_than_asks_ahead` |
 | Upcoming stops at Fill | `upcoming_stops_at_the_first_ask_that_is_not_a_frame` |
-| Fill and EndStream on the wire | `empty_stream_frames_is_the_whole_study`, `end_stream_stops_a_fill_on_the_wire` |
+| Fill and EndStream on the wire | `empty_stream_frames_is_the_whole_series`, `end_stream_stops_a_fill_on_the_wire` |
 
 Mutate every new test ([`CLAUDE.md`](../../CLAUDE.md)). The suite reads page-cached files, where
 a completion lands before anything awaits it; only the park test covers the parked path.
@@ -451,12 +914,12 @@ across campaigns on these hosts. So:
 > A difference counts only if **|median| ≥ 28.5 %** (the measured p90 drift) **and** sign
 > agreement **≥ 0.8n**, **and** it keeps its sign across independent runs.
 
-Everything else is a **tie** — not a small effect. `lab/scripts/s5_split.py` applies it. The
-rule is defined on **paired** per-cell deltas, not pooled medians per arm, and the two disagree
+Everything else is a **tie** — not a small effect. `lab/scripts/read_path_split.py` applies it. The
+rule is defined on **paired** per-cell deltas, not pooled medians per variant, and the two disagree
 by about 2× on the comparison most wanted: `uring` against `hybrid_lazyring` on misses is
 −41.9 % as a ratio of medians and −24.0 % (a tie) as the median of per-cell ratios, on the same
-84 cells. It has been misread as a 42 % win twice; run `lab/scripts/pair_arms.py` first. Never
-compare p50 across arms whose `peak_in_flight` differs.
+84 cells. It has been misread as a 42 % win twice; run `lab/scripts/pair_variants.py` first. Never
+compare p50 across variants whose `peak_in_flight` differs.
 
 ### The ring on the miss, and where its margin comes from (2026-09-06)
 
@@ -465,7 +928,7 @@ miss — what ships for tiles) is **tied for cheapest CPU per read at every miss
 **−61.8 / −64.4 % RESOLVED** against `pool` on misses. `pool_ringloop` holds the loop fixed to
 split the two: the **ring** is **−42 to −73 % RESOLVED on misses on every host and run**; the
 **loop** is a smaller, core-dependent term (nothing on 4 vCPU, −48 to −53 % on mixed cells at
-8 CPU). Ring arms stay at **5 OS threads** to 128 readers where `pool` reaches 381. Re-measured
+8 CPU). Ring variants stay at **5 OS threads** to 128 readers where `pool` reaches 381. Re-measured
 2026-09-08, `uring` against `hybrid_lazyring` on 16 KiB misses ties at depth 1 / 4 / 16, and its
 hit penalty exceeds its miss saving everywhere: breakeven at 53 % misses at depth 4, 64 % at 16.
 
@@ -478,14 +941,14 @@ warm. On that ~1.25 GB/s device a blocking pool capped at four threads lost noth
 
 ### Re-measured on the code that ships (2026-09-09)
 
-`read_campaign`'s `product` arm drives the shipped reader; 4 vCPU sandbox, depth 4, cold misses
+`read_campaign`'s `product` variant drives the shipped reader; 4 vCPU sandbox, depth 4, cold misses
 98.8–100 %. At 16 KiB it ties `hybrid_lazyring` warm and cold; at 250 kB cold **`pool` was ahead**
-(514 against 623 µs p50) — the size-dependence above. That arm modelled depth as session count,
-a defect corrected under *Line 221*; the corrected arm trailed `pool` by more.
+(514 against 623 µs p50) — the size-dependence above. That variant modelled depth as session count,
+a defect corrected under *Line 221*; the corrected variant trailed `pool` by more.
 
 **mmap: cheaper, and not safe.** In the harness that also times a quinn-shaped copy, `mmap_naive`
 spends a third to a half less CPU than a windowed `pread` — exactly the bytes it never copies.
-But at 250 kB cold every mmap arm has a **p99 of 3 276–3 914 µs** against 1 036, and
+But at 250 kB cold every mmap variant has a **p99 of 3 276–3 914 µs** against 1 036, and
 `mmap_naive` holds a worker for **3 991 µs**; the variants that make the fault safe are 2–3×
 slower at 1.5–2× the CPU. Its cold median flatters it (cold ÷ warm 1.1× against 5.3× for
 `pread`): fault-around pulls in neighbours, so **it is not doing the same I/O faster, it is doing
@@ -495,8 +958,8 @@ less of it.** The workstation reproduced the freeze: 2 187–3 699 µs against 2
 read; 12 interleaved repeats; desktop up, governor unpinned, so absolute µs carry drift),
 250 kB cold `product` against `pool` is **+38.5 % p50, +36.5 % CPU, RESOLVED at depth 1**,
 while `hybrid_lazyring` **ties** `pool` at every depth. **That retracted "the shipped path *is*
-the arm" at 250 kB**: the penalty was the old `ReadCtx`'s, not the ring's; *Line 221* found it.
-At 16 KiB they tie. 250 kB at depth 16 is past saturation there (×1.09 for 4× depth, every arm
+the variant" at 250 kB**: the penalty was the old `ReadCtx`'s, not the ring's; *Line 221* found it.
+At 16 KiB they tie. 250 kB at depth 16 is past saturation there (×1.09 for 4× depth, every variant
 within 5.3 %), so no claim is made in it.
 
 ### Correction — `uring`'s depth-scaled hit penalty was queue depth
@@ -521,16 +984,16 @@ Against `pool` it is +154.1 % at depth 1 and a tie above.
 The depth-1 CPU figure first published as +224.3 % came from an **instrument defect**:
 `--monitors 1` counts the co-tenant monitor's own CPU, a large intermittent addend on warm cells.
 It also faked a 1.9× gap in the 2026-09-09 warm 250 kB column (`product` 54.4 µs, a median
-between two modes); at `--monitors 0` the three arms read 34.4 / 34.6 / 34.8 µs. Every warm CPU
-figure in the `w1_*_arms.tsv` dumps carries it; the cold cells do not.
+between two modes); at `--monitors 0` the three variants read 34.4 / 34.6 / 34.8 µs. Every warm CPU
+figure in the `w1_*_variants.tsv` dumps carries it; the cold cells do not.
 
 ### Short io_uring completions
 
-The lab's ring arms were credited for bytes the kernel did not deliver: `drain` freed a slot on
+The lab's ring variants were credited for bytes the kernel did not deliver: `drain` freed a slot on
 any non-negative result, while the product and `pool` always completed the tail. `drain` now
 resubmits the tail, `UringReader::short_reads()` counts it, and
 `a_short_completion_is_resubmitted_for_its_tail` pins it on a pipe delivering 64 bytes in two
-halves. On the workstation: 0 short reads on every ring arm at 250 kB cold, and **0 in all
+halves. On the workstation: 0 short reads on every ring variant at 250 kB cold, and **0 in all
 1 032 rows** of the five w3 campaigns, so no published ring number needs re-running.
 
 **`IORING_REGISTER_EVENTFD_ASYNC` is unavailable to this design.** It signals only for
@@ -572,7 +1035,7 @@ depth 2 ties at every size (+2.6 to +7.6 %, 7–9/12); depth 2 is worth −48 to
 RESOLVED, to `product`, `pool` and `hybrid_lazyring` alike. A published "−33.3 % win over `pool`
 at 250 kB" compared depth 2 against depth 1 and is retracted; at equal depth the probe penalty
 was still there (+106.1 % at 128 KiB, +63.2 % at 250 kB). A harness defect is corrected with
-it: the old `product` arm modelled depth as *session count* (a `ReadCtx` per task); it survives
+it: the old `product` variant modelled depth as *session count* (a `ReadCtx` per task); it survives
 as `product_sessions`, and its depth-4 and 16 rows were withdrawn.
 
 ### Fill at scale
@@ -583,18 +1046,18 @@ threads** from 1 to 64 readers; `pooled_pread` loses (+69 to +501 % RESOLVED) an
 151–206 threads. **What separates them is the ring, paid by sessions that barely miss**: the old
 reader built **1.00 ring per session** at every reader count, including a 16 KiB fill missing
 1.6 % — two fds and ~8.7 KiB for the session's life to serve one read in sixty, against an 8 192
-KiB memlock ceiling of **~941 sessions**. That is why a fill has its own reader. (A lab ring arm
+KiB memlock ceiling of **~941 sessions**. That is why a fill has its own reader. (A lab ring variant
 that registers buffers fails outright at 64 readers × 250 kB; the shipped reader registers none
 and falls back to the pool on refusal.)
 
-### The two readers, every arm (2026-09-10, agent container)
+### The two readers, every variant (2026-09-10, agent container)
 
-Twelve arms, cold, depth 1, one reader, `--monitors 0`, six repeats; `product_tile` and
+Twelve variants, cold, depth 1, one reader, `--monitors 0`, six repeats; `product_tile` and
 `product_fill` are the shipped readers. **Direction and shape only**: `pool` and
 `pool_capped_probe` are the same code at 16 KiB and read 6.0–23.5 % apart here. Wall · CPU per
 ask against the shape's own reader:
 
-| arm | tile 16 KiB (~99 % miss) | tile 250 kB | fill 16 KiB (0.4 % miss) | rings |
+| variant | tile 16 KiB (~99 % miss) | tile 250 kB | fill 16 KiB (0.4 % miss) | rings |
 | --- | --- | --- | --- | ---: |
 | `product_tile` | — | — (1st) | −2.8 · −4.3 % tie | 1 |
 | `product_fill` | **+62.0 · +133.0 % RES** | **+45.3 · +110.2 % RES** | — | **0** |
@@ -605,7 +1068,7 @@ ask against the shape's own reader:
 | `tokio_fs` | — | — | **+513.9 · +1871.7 % RES** | 0 |
 
 **Each reader is first-or-tied on its own shape and RESOLVED worse on the other** — the case for
-the split — and `product_fill` builds no ring. Ring arms held 5 OS threads, pool arms 6. The
+the split — and `product_fill` builds no ring. Ring variants held 5 OS threads, pool variants 6. The
 250 kB fill cell resolves nothing (every p99 3.3–4.3 ms). Not covered: depth above 1, more than
 one reader, RSS, warm cells, the co-tenant gap.
 
@@ -615,7 +1078,7 @@ one reader, RSS, warm cells, the co-tenant gap.
 `server_ab`, before/after interleaved and reversed, three rounds, misses from `session reads`.
 **A miss here is served from the hypervisor (~12 µs)**: rate, tail and direction, not magnitude.
 
-| `read_ahead_kb` | arm | asks/s | p50 | p99 | fill miss rate |
+| `read_ahead_kb` | variant | asks/s | p50 | p99 | fill miss rate |
 | --- | --- | ---: | ---: | ---: | ---: |
 | 128 (stock) | fill, before | 1 617 | 583 µs | 1 613 µs | **59–66 %** at `in_flight=1` |
 | 128 | **fill, after** | 1 582 (tie) | 585 | 1 599 | **0.7–1.1 %** |
@@ -646,30 +1109,61 @@ warm and fill tie on both hosts. `read_path_ab.sh` ties every cell, so the win b
 serving shape. The workstation's ladder on HEAD: 2 831 → 4 813 → 7 710 asks/s. Per-session RSS
 **+39 to +49 KiB**.
 
-### A study nobody has read (2026-09-18)
+### A series nobody has read (2026-09-18)
 
-L20, headless Chromium through the harness's page path, before 2026-10-03 (`lab/scripts/cold_study.sh`, 8 rounds,
+*Queue row L20.* Headless Chromium through the harness's page path, before 2026-10-03 (`lab/scripts/cold_series.sh`, 8 rounds,
 120 × 256 KB), cold forced by `--force-pool-reads`, the server's `misses` read back per run.
 One ask on an idle session: 6.5 ms warm, 7.0 cold (1 miss). A whole fill: 318.5 ms warm, 320.5
 cold (120 misses). **A tie in both** (3/8 and 5/8 slower). The forced miss still reads from the
 container's page cache, so this prices the executor-to-pool hop alone — ~0.5 ms on one ask,
-nothing measurable across a fill. What a cold study costs is the device's. A coarse-to-fine fill
+nothing measurable across a fill. What a cold series costs is the device's. A coarse-to-fine fill
 order, measured the same way, cost the read path 0.3 % (`lab/scripts/fill_order_cells.sh`).
 
-### A study past RAM (2026-09-18, cloud rig)
+### A series past RAM (2026-09-18, cloud rig)
 
-L7. A 4 GB study on a 954 MB host, so reads reach the block volume with no eviction; native
+*Queue row L7.* A 4 GB series on a 954 MB host, so reads reach the block volume with no eviction; native
 driver on loopback; every run starts at a frame no earlier run read; asks 997 frames apart; six
-interleaved rounds (`lab/scripts/l7_read_path.sh`). The device (`O_DIRECT`) is a throttled network
+interleaved rounds (`lab/scripts/read_path_cloud.sh`). The device (`O_DIRECT`) is a throttled network
 volume: random 256 KiB at depth 1 p50 1.3 ms in burst, 4.9 ms after; 51–53 MB/s sequential.
 
 * **A spread ask misses (76–92 %), and a miss costs ~1 ms at p50**: 2.5–2.7 ms cold against
-  1.5 ms warm, 6/6 on both read-ahead arms, disjoint ranges — L20's hop, and as much again.
+  1.5 ms warm, 6/6 on both read-ahead variants, disjoint ranges — L20's hop, and as much again.
 * **The fill does not miss past RAM**: 1 %, as warm. `FILL_WINDOW` holds on a real device.
 * **`read_ahead_kb` 128 against 2 048: no clean result in any cell.**
 * **The host saturates on CPU; claim nothing past a median.** A burstable 2-vCPU instance losing
   ~2.6 s to steal over a 2.1 s fill; every p99, warm included, is 60–100 ms. P0 cannot be asked
   here.
+
+### Frames past 250 kB, and memory at rest
+
+*2026-10-06, AV1 queue row 51.*
+
+Synthetic SBND of 80 × 250 kB, 40 × 4 MB and 20 × 16 MB (a mammogram's order); `lab/scripts/runtime_ab.sh`,
+server on cores 0–1 and `server_ab` on 2–3 of the agent container, loopback, warm, a whole fill per session, six
+repeats reversed every repeat, `rss_after_kib` read once a run's sessions have all ended. Release build of
+`9b0ccb7`. No hardware counters in this VM (`perf_event_open` refuses cycles and
+instructions), so CPU is rusage. The 16-session cells saturate the two server cores; nothing is claimed past them.
+
+* **CPU per byte does not grow with the frame.** One session: 2.3 µs/kB at 250 kB, 2.6 at 4 MB and 16 MB; sixteen:
+  1.5–1.7 µs/kB at all three. The send path has no per-frame cost a large frame exposes.
+* **What a peak leaves resident does.** After a fill by sixteen sessions the server holds **~800 MB at 16 MB, ~230 MB
+  at 4 MB, ~40 MB at 250 kB** with no session open. The pool's count cap (64) allows 1 GB of 16 MB buffers, but
+  capping it by bytes is not the fix: a 16 MiB cap cut rest RSS 797 → 523 MB (−32 %, 6/6) and cost **+8.4 % CPU per
+  frame (0/6 lower)**, −7.1 % asks/s (6/6) — every large frame then faults in a fresh buffer; at 64 MiB rest RSS was
+  a tie (+1.8 %) and CPU +3.5 % (3/6). Neither is adopted.
+* **Most of it is the allocator's.** With the pool holding at most one buffer, 523 MB stayed: glibc's dynamic mmap
+  threshold rises to the frame's size, so freed frames return to an arena rather than to the kernel.
+  `MALLOC_MMAP_THRESHOLD_=1048576` (no code change) cut rest RSS **−57 % at 16 MB × 16 (812 → 347 MB), −46 % at
+  4 MB × 16, −49 % at 16 MB × 1, 6/6 each**, at a CPU tie (+0.0 to +2.4 %, 2–3/6) except +5.0 % (2/6) and −5.2 %
+  asks/s (4/6) at 16 MB × 16; at 250 kB it is +2.8 MB (0/6 lower). A deployment setting, not taken: whether large
+  frames ship, and whether memory at rest or CPU at peak binds the target host, are the owner's.
+
+What the brief's other levers would buy was already measured and is not repeated: the per-send copy is gone since
+2026-09-23 (§5, the pooled hand-off; the one copy left, page cache → buffer, is what makes the bytes
+process-private, §1 *Guarantee*); mmap and `sendfile` stay rejected (§5). The per-frame allocations left — the
+envelope's 8-byte head, the planner's and the pipeline's upcoming lists — are three small allocations against
+0.4–43 ms of CPU a frame, below any noise floor here. Fill time on the five-link total-time measurement's 50 Mbit link (AV1 queue row TOTAL) was not run, since nothing
+changed the send path (`RELAY=` in `runtime_ab.sh` runs it).
 
 ### Hosts and closed risks
 
@@ -679,25 +1173,25 @@ workstation (the only bare-metal host) and the agent sandbox — ext4, btrfs, re
 (R3); force- rather than pressure-evicted (R4, cgroup cap verified by `failcnt`); ring count at
 scale (R5, 128 rings at 53–79 % miss spawn no io-wq workers; `pool` reaches 265 threads);
 filesystem support (R6, `check-fastpath`); loop against ring (R8). Open, not worth closing:
-guest-cold understates the ring (R2); one read per ask affects every arm alike (R7).
+guest-cold understates the ring (R2); one read per ask affects every variant alike (R7).
 
 ## 12 · Re-running the evidence
 
 `lab/disk-access-bench` stays a workspace member on the tip (the 2026-08-31 decision went wrong
-partly because its harness had to be restored from a commit), mmap arms included.
+partly because its harness had to be restored from a commit), mmap variants included.
 
 ```bash
 NAME=frames_16k_big  BYTES=16384  FRAMES=5120  ./lab/scripts/gen_live_cell_fixture.sh
 NAME=frames_250k_big BYTES=250000 FRAMES=2048  ./lab/scripts/gen_live_cell_fixture.sh
 NAME=frames_250k_deep BYTES=250000 FRAMES=32000 ./lab/scripts/gen_live_cell_fixture.sh   # 8 GB, the miss fixture
 cargo build -p disk-access-bench -p check-fastpath --release
-lab/scripts/read_path_ab.sh <base-commit>   # SeqReader / TileReader: every cell must tie
+lab/scripts/read_path_ab.sh <base-commit>   # FillReader / TileReader: every cell must tie
 lab/scripts/server_ab.sh <base-commit>      # product server: cold depth 4 is the claim; fill and depth 2 tie
 ```
 
-`read_campaign --arms product_fill,product_tile` drives the shipped readers themselves; the base
-of `read_path_ab.sh` must know both arms. A sandbox number is a direction, not a magnitude.
-**Make the miss real.** Use a fixture larger than the host cache: an 80 MB study fits in the
+`read_campaign --variants product_fill,product_tile` drives the shipped readers themselves; the base
+of `read_path_ab.sh` must know both variants. A sandbox number is a direction, not a magnitude.
+**Make the miss real.** Use a fixture larger than the host cache: an 80 MB series fits in the
 hypervisor, where a "miss" is ~12 µs and hides every miss-path effect. Consecutive asks must
 stride past `read_ahead_kb` — of the filesystem's bdi, not the block device — or a cold cell is
 a hit cell wearing a cold label, and **a stride calibrated on one host is not portable**: 16 KiB
@@ -708,10 +1202,151 @@ every read must miss, use `--force-pool-reads`, not eviction ([`CLAUDE.md`](../.
 
 **The two readers on the workstation** (§9 item 10): the tile shape per `--size` in 16384, 65536,
 131072, 250000, stride re-derived on the day —
-`read_campaign --arms pool,uring,hybrid,pooled_pread,pool_capped_probe,pool_ringloop,hybrid_lazyring,uring_ringfd,hybrid_lazyring_ringfd,product_fill,product_tile --temps cold --depths 1,2,4,8,16 --readers 1,16,64 --monitors 0 --repeats 12`;
+`read_campaign --variants pool,uring,hybrid,pooled_pread,pool_capped_probe,pool_ringloop,hybrid_lazyring,uring_ringfd,hybrid_lazyring_ringfd,product_fill,product_tile --temps cold --depths 1,2,4,8,16 --readers 1,16,64 --monitors 0 --repeats 12`;
 then the fill shape, `--stride` = `--size`, adding `tokio_fs`. Verdicts on wall and CPU per ask.
 Three columns carry the claims: `rings` stays 0 for `product_fill`, `peak_named` follows
 `--depths` past 4, and the 128 KiB / 250 kB penalty stays gone.
+
+## 13 · Faster than today (theory, AV1 queue row 198)
+
+*2026-10-14. Reasoned, not measured: every µs below not cited to a measurement is derived (D). The protocol for the row
+that measures it is at the end.* Sources: Linux **v6.18.44** from `gregkh/linux` (SHA-256, first 16 hex:
+`io_uring/rw.c` bf8afad1c04c59a9, `io_uring/rsrc.c` 0ec50bf732c7c720, `io_uring/io_uring.c` 75d549fe1bc34442,
+`mm/filemap.c` 2bd1223972411197, `include/uapi/linux/fs.h` bf3363a0a2afe616, `include/linux/fs.h` afa1e1e76569a2e9,
+`fs/ext4/file.c` 5ab2ac4b304b0db2, `drivers/nvme/host/pci.c` 2c5d6ecdfb6a6f21, `drivers/nvme/host/ioctl.c`
+2394894321f58f76); quinn-proto **0.11.18**, the crate `scripts/patch_crate.sh` pins (a9746dbde176634f).
+
+### Where today's µs go
+
+**A hit** is one `preadv2(RWF_NOWAIT)`: a syscall, a walk of the cached folios, one copy into a pooled buffer.
+Row 172 measured it on the host's ext4 (`../disk-layout/README.md` §Measured): **4.1 µs at 32 kB, 16 µs at 163 kB,
+52 µs at 503 kB**, a file from `pack-series`. Its arms split it: the copy is ~0.095 µs a kB (the ~1-folio arm, 2.4 →
+47 µs from 32 to 503 kB) and each extra 4 KiB folio ~0.46 µs (the 4 KiB-folio arm, ×1.41–2.02 of today). At 3 MB that
+is ~290 µs with large folios and ~640 µs with 4 KiB ones (D). The send path costs **1.5–2.6 µs a kB of server CPU**
+(§11, *Frames past 250 kB*), so **a hit is 4–9 % of a frame's CPU at 32–500 kB, and 4–7 % at 3 MB, 8–14 % on 4 KiB
+folios** (D). That is the most any hit lever can remove.
+
+**A miss** is the device's: latency plus bytes over bandwidth — ~1 ms at p50 on the cloud rig (§11, *A series past
+RAM*), 27.5 µs for 4 KiB `O_DIRECT` on a lab host's virtio-blk (§Provenance), 0.84–1.6 GB/s on the workstation's NVMe (§2,
+§9). On that NVMe a miss is ~0.1 ms at 32 kB, ~0.3 ms at 250 kB, 2–4 ms at 3 MB (D). Around it the server spends the hop (24–34 µs,
+pool) or a ring round trip, a page-cache insert per folio and the same copy. The fill rarely pays any of it:
+`FILL_WINDOW` holds its misses at ~1 % (§2). **What a read-path change can take from a miss is CPU, not wait**,
+except where the device's own latency is a few µs.
+
+**The copy QUIC forces.** quinn copies a stream's bytes into the datagram (`connection/streams/state.rs:667`) and
+seals the datagram in place (`crypto/rustls.rs:616–620`, called at `packet.rs:492`); v6.18.44 has no in-kernel QUIC
+(no `net/quic`). So the plaintext must be in user memory, and `sendfile`, `splice` and any zero-copy read-to-socket
+path cannot reach the wire. The read's copy is the one that buys the process-private guarantee (§1); only a cache
+that keeps the bytes in user memory between asks removes it.
+
+### Each candidate at its best
+
+Predicted change against today, per frame, 32 kB–3 MB. *Needs* is what the kernel and a container must allow (row 199
+owns the container side).
+
+| Candidate | Mechanism, and what it removes | Hit | Miss | Needs | Verdict (D) |
+| --- | --- | --- | --- | --- | --- |
+| **Large folios after reclaim** | the fill's `WILLNEED` builds 4 KiB folios; keeping them large removes ~0.46 µs a folio | ×0.5 at 160 kB–3 MB on a cache the fill warmed (row 172's ×2.0, inverted) | fill CPU per GB ×0.65 | ext4 ≥ v6.16 or XFS | **Row 196's** — the largest hit lever here, and no structural change |
+| **User-space frame cache** (`lab/disk-access-bench/src/frame_cache.rs`) | a repeated frame is a refcount handed to quinn: no syscall, no folio walk, no copy (~0.6 µs measured, 2026-09-05) | **4–640 µs → ~0.6 µs**: frame CPU ×0.91–0.96 at 32–500 kB, ×0.86–0.96 at 3 MB | first ask unchanged; a no-repeat sweep +4 % (2026-09-05) | RAM: duplicates the page cache unless filled past it; a lock across sessions | **Net only where frames repeat in one process** (cine loops, viewers of one series); a trade in RAM. Its −20.2 % (§5) predates the pooled hand-off and the whole-frame probe, which took the second copy and three of four syscalls: re-predicted −4 to −14 %. Structural: a proposal, measured first |
+| `O_DIRECT` for misses | DMA into the buffer: no page-cache insert, no copy; frames are unaligned, so a 4 KiB-aligned superset (≤ 8 KiB more) sliced as `Bytes` | **every repeat is a device read**: 4–640 µs → 0.1–2.5 ms local, ~1 ms+ cloud | CPU per miss ×0.25–0.5 at ≥ 250 kB; wait a tie (the device); the fill loses `WILLNEED` and needs its own depth | filesystem support (ext4, XFS) | **Rejected alone** — gives up the shared page cache (§2). Only as the fill side of a frame cache |
+| `IOPOLL` (`HYBRID_IOPOLL`) | the ring polls the device instead of an interrupt and a wake-up | — (`O_DIRECT` only, `rw.c:891–893`) | −2 to −10 µs a miss on local NVMe (≤ 10 % at 32 kB, ≤ 1 % at 3 MB); a core spins the device's latency, ~80 µs local and ~1 ms cloud, per miss in flight | `O_DIRECT`, plus poll queues: `nvme.poll_queues` at module load, 0 by default (`pci.c:127–129`), not settable in a container; this container's virtio-blk reports `io_poll` 0 | **Rejected** — `O_DIRECT`'s trade, CPU worse, nothing on cloud block storage |
+| NVMe passthrough (`uring_cmd` on `/dev/ngXnY`) | NVMe read commands from user space: no filesystem, no block-layer per-I/O work | as `O_DIRECT` | a few µs of block-layer CPU per I/O; wait the device's | the char device in the container, and `CAP_SYS_ADMIN` unless the controller's effects log marks the read supported (`ioctl.c:17–86`); the file's block map; NVMe only | **Rejected** — `O_DIRECT`'s trade with the filesystem gone too; the per-I/O saving is µs against a 32 kB–3 MB transfer |
+| Registered buffers | a buffered read copies with `copy_to_user` either way; fixed buffers skip only the iovec import | not on the ring (§7) | tie — measured "no change" (§5); a 4 KiB `ReadFixed` 852 against 561 ns (§Provenance) | every pinned page charged to `RLIMIT_MEMLOCK` (`rsrc.c:661–687`, `:47`): 4 slots × 3 MB is 12 MB a session against the 8 MB default | **Closed** — measured |
+| Registered files | — | — | — | — | **Already shipped** (§1.3) |
+| `SQPOLL` | a kernel thread polls the submission queue: no `io_uring_enter` | worse | tie | a kernel thread per ring, so per session | **Closed** — measured 2.8× CPU (§5) |
+| Multishot reads | one submission, repeated completions | — | — | a pollable file: `io_read_mshot` refuses a regular file with `-EBADFD` (`rw.c:1063–1067`) | **Not applicable** |
+| Linked reads (`IOSQE_IO_LINK`) | orders one read after another | — | tie at best: frames are independent, and the link worth having (read → send) cannot exist with QUIC in user space | — | **Rejected** |
+| A ring for the fill | the hop (24–34 µs) on a fill miss | — | ≤ 0.3 µs a frame on average, at ~1 % misses | the ring's memlock and fds | **Rejected** — a tie by arithmetic; §1 keeps the fill off the ring |
+| Transparent huge pages for frame buffers | fewer dTLB misses on the copy's destination | ≤ 3 % of the copy at frames ≥ 2 MiB, ≤ 0.5 % of frame CPU; nothing below 2 MiB | the same | `GLIBC_TUNABLES=glibc.malloc.hugetlb=1` (glibc ≥ 2.35; this container's 2.39 lists it) where THP is `madvise` or `always` (this container: `madvise`); no code | **Predicted tie**; one cheap arm below because it costs no code |
+| `mmap` + `MAP_POPULATE` / `MADV_POPULATE_READ` | the bytes handed to quinn straight from the page cache: removes the read's copy | measured within noise of the touch loop, always-touch 103 against 48 µs (§5) | a refault on the executor after reclaim, 1.5–7.7 ms measured; `mlock` would hold every unacknowledged frame against `RLIMIT_MEMLOCK` | — | **Closed** — not safe (§5); reopens only if a frame cache is rejected *and* the hit's copy binds |
+| `RWF_DONTCACHE` | the read's folios are dropped once copied (`include/uapi/linux/fs.h:431`; `mm/filemap.c:2563`, `:2610`, `:2642`; ext4 opts in, `fs/ext4/file.c:980–982`) | no faster: the same copy, then the drop | the same | v6.18.44 has it | **Not a speed lever** — a cache policy for one fill sweeping a series past RAM, and it discards the sharing §2 relies on |
+| `sendfile` / `splice` / zero-copy send | — | — | — | — | **Closed** — QUIC copies and seals in user space (above) |
+
+**The verdict, predicted.** On a miss nothing here shortens the wait on any device the target can have; the levers
+move CPU per miss and each one gives up the shared page cache. On a hit the ceiling is the 4–14 % of a frame's CPU the
+read costs, and two levers reach into it: **large folios after reclaim** (row 196, no structural change, ×0.5 on the
+hit at 160 kB–3 MB) and **a user-space frame cache** (structural, −4 to −14 % of frame CPU where frames repeat, a cost
+in RAM). Today's path is otherwise at its floor: one syscall and the one copy the guarantee needs.
+*Corrected by row 209 (§Measured, below): where sixteen sessions share a series the cache saved 17–22 % of a frame's
+CPU and halved peak RSS, beyond the 4–14 % this section allowed a hit — the read is not a hit's whole cost; on a lone
+session's repeat the admitting pass cost +25–36 %.*
+
+### Protocol for the measuring row
+
+Given to a separate session with nothing above this heading.
+
+* **Arms, differing in the lever alone**, every arm's settings printed: **B0** the server as it ships; **B0′** the same
+  build, a second process (A/A: the p90 of \|B0′/B0 − 1\| over the rounds is the resolution); **B1** a lab build with
+  `lab/disk-access-bench`'s `FrameCache` in front of the reader, budget larger than the series (code beside today's
+  path; the server's default build unchanged); **B2** B0 under `GLIBC_TUNABLES=glibc.malloc.hugetlb=1`, the 3 MB cell
+  only, with THP `enabled` recorded.
+* **Cells:** `pt15_cptac` (32 kB), `ct_lidc` (163 kB), `dbt12_ea1141` (503 kB), HTJ2K, and a synthetic 3 MB series
+  (`lab/scripts/runtime_ab.sh`'s generator). Each cell a whole fill by 1 and by 16 sessions on loopback,
+  **twice in a session** (the second pass is the repeated case), as §11 *Frames past 250 kB* ran it: server and client
+  on separate cores; `rss_after_kib` after each run.
+* **Metrics:** server CPU per frame (rusage), split by pass; asks/s; RSS at peak and at rest. **16 rounds**, the arms'
+  order by `lab/scripts/order.py`. Host: kernel, filesystem, `read_ahead_kb`, THP mode, glibc. Where the 16-session
+  cells saturate the server's cores, nothing is claimed past them.
+* **Exactness:** every frame received checked against its coded bytes' XXH3-64; one fill per arm decoded against
+  ingest's sample digests; a mutation that hands back a stale cache entry must fail it.
+* **Predictions:** B1 against B0, second pass: CPU per frame ×0.91–0.96 at 32–503 kB, ×0.86–0.96 at 3 MB; first pass
+  ×1.00–1.04; RSS at peak higher by the series' size. B2 at 3 MB: a tie (within ±3 %).
+* **Decision rule.** *(a)* B1 goes to the owner as a proposal (this section) if its second-pass CPU per frame beats
+  B0 beyond the resolution with ≥ 80 % sign agreement in at least two of the four cells, and its first pass is worse
+  by no more than 5 % in any; otherwise the frame cache is closed for this workload. *(b)* B2 becomes a deployment
+  note in §6 only if it beats B0 beyond the resolution at 3 MB and is worse on no metric; otherwise closed. *(c)* Every
+  other row of the table stays as its verdict says unless the measurement contradicts a premise it rests on (the hit's
+  share of a frame's CPU above all: if B1's second pass gains more than the read's 4–14 %, this section's model is
+  wrong and is corrected in place).
+
+### Measured (row 209, 2026-10-14): B1 goes to the owner as a trade-off; B2 is closed; the hit model is corrected
+
+*Run from the protocol alone.* `lab/disk-access-bench/frame_cache_ab.py` (README there); 16 rounds, arms in
+`lab/scripts/order.py`'s order, each arm a fresh server process per cell and round, two whole fills in it; 832 runs, none
+failed. Host: this cloud container, kernel 6.18.44, ext4, `read_ahead_kb` 128, THP `madvise`, glibc 2.39, 4 vCPUs,
+server on cores 0–1 and `server_ab` on 2–3, loopback, page cache warm. Arms as the protocol, settings in the rows'
+first line: B1 is B0's source built with `--features lab-frame-cache`, a 4 GiB budget, the cache's own admission on a
+frame's second ask; nothing else differs. The 3 MB cell is 32 frames of seeded random bytes (`make`), so its exactness
+is XXH3-64 only. Rows: `lab/disk-access-bench/rows-framecache.jsonl`.
+
+**Exact.** Every frame of every run checked against its coded file's XXH3-64 by `server_ab --coded`. A third fill per
+arm, decoded against ingest's digests: 335 + 100 + 29 frames per arm, 0 inexact. `LAB_FRAME_CACHE_MUTATE=stale` (a hit
+hands back the previous frame) fails every pass in which the cache holds an entry, 20 of 24 (the four it passes are a
+lone session's first fill, where nothing is resident yet).
+
+**CPU per frame, B1 ÷ B0, median of the paired rounds (rounds lower of 16; the A/A resolution):**
+
+| cell | 1 session, pass 1 | 1 session, pass 2 | 16 sessions, pass 1 | 16 sessions, pass 2 |
+| --- | --- | --- | --- | --- |
+| `pt15_cptac` 31 kB | 1.047 (7; 41 %) | **1.355** (0; 25 %) | 0.794 (15; 19 %) | 0.780 (15; 22.5 %) |
+| `ct_lidc` 164 kB | 0.972 (9; 22 %) | **1.328** (0; 29 %) | 0.932 (11; 19.5 %) | 0.826 (16; 24 %) |
+| `dbt12_ea1141` 499 kB | 1.011 (8; 25 %) | **1.253** (2; 24 %) | 0.820 (16; 17 %) | **0.812** (16; 18 %) |
+| synthetic 3 MB | 0.979 (11; 12 %) | **1.304** (0; 12 %) | 0.870 (16; 9 %) | **0.831** (16; 9 %) |
+
+Bold: beyond the resolution. B0 spends 83 / 283 / 945 / 5 340 µs a frame at one session and 53 / 234 / 797 / 4 246 µs
+at sixteen. One session holds one server thread busy (~1.0 core); sixteen hold 1.5–1.8 of the two server cores, every
+arm, so no cell saturates them, and asks/s is not claimed (it is the same CPU seen through the core count). Peak RSS,
+pass 2: one session +8.6 / +13.5 / +10.0 / +80 MiB over B0 (the series is 9.9 / 15.6 / 13.8 / 91.6 MiB); sixteen
+sessions **−26 / −11 / −39 / −84 MiB** (23.8 against 50.3 MiB at 31 kB; 106 against 191 MiB at 3 MB), and at rest
+the same.
+
+**Each prediction.** B1's second pass ×0.91–0.96 (×0.86–0.96 at 3 MB): **did not hold either way** — ×0.78–0.83 at
+sixteen sessions, ×1.25–1.36 at one. A lone session's second fill is the frame's second ask, so it is the pass that
+admits, not the one that hits; it costs more than either pass of B0 (the admitted frame keeps its pooled buffer, so
+each read takes a fresh one: §11's byte-capped pool cost the same way — a likely mechanism, not measured here). First
+pass ×1.00–1.04: held at one session (0.97–1.05), not at sixteen (0.79–0.93), where the second session to ask a frame
+admits it and the rest hit. RSS higher by the series: held at one session (0.6–0.9 of it), not at sixteen, where one
+shared entry replaces sixteen sessions' buffers and peak RSS falls by about half. B2 a tie within ±3 %: 1.013–1.091
+(5–7 rounds lower of 16), inside the resolution in every cell, never better.
+
+**The rule.** *(a)* At sixteen sessions B1's second pass beats B0 beyond the resolution in two of the four cells
+(499 kB, 3 MB; 16 of 16 rounds each; 31 kB is −22.0 % against 22.5 %) and its first pass is better, not worse, so
+**B1 goes to the owner as a proposal** — and it is a trade-off, not a net: −17 to −22 % CPU a frame and half the
+peak RSS where sessions share a series, **+25 to +36 % CPU a frame and the series' size in RAM on a lone session's
+repeat**. What a third pass of one session costs (all hits) was not run. *(b)* B2 does not beat B0 anywhere: closed,
+no deployment note. *(c)* The premise is contradicted: a hit saves 17–22 % of a frame's CPU at sixteen sessions, above
+the 4–14 % the read was modelled to cost. The model priced the read alone; a shared entry also removes each session's
+buffer, its fill and the RSS it holds — corrected in place above, after *The verdict, predicted*.
 
 ## Provenance
 

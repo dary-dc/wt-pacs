@@ -1,5 +1,5 @@
 /**
- * client/downloader/decoder.js with one change, for docs/decode/README.md §The decode tail: the pixel
+ * client/decode/decoder.js with one change, for docs/decode/README.md §The decode tail: the pixel
  * buffer is reused, so decoding a frame allocates nothing. Pixels the consumer holds are overwritten.
  */
 let M = null;
@@ -41,7 +41,7 @@ function decodeFrame(bytes) {
     throw new Error(`undecodable: ${out.length} bytes for a header declaring ${declared}`);
   }
 
-  // Lab arm: one pixel buffer for the life of the decoder, so a frame allocates nothing.
+  // Lab variant: one pixel buffer for the life of the decoder, so a frame allocates nothing.
   if (reused?.byteLength !== out.length) reused = new SharedArrayBuffer(out.length);
   const sab = reused;
   new Uint8Array(sab).set(out);

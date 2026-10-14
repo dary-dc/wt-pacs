@@ -1,9 +1,12 @@
 //! QUIC transport knobs. Cubic with nothing else set is quinn's stock configuration byte for byte.
 
+use crate::transport::classify::LossClassifyConfig;
+use crate::transport::loss_bound::LossBoundConfig;
 use crate::transport::restart::SlowStartRestartConfig;
 use anyhow::{anyhow, Result};
 use std::sync::Arc;
 use std::time::Duration;
+use wtransport::quinn::congestion::{BbrConfig, ControllerFactory, CubicConfig};
 use wtransport::quinn::{IdleTimeout, TransportConfig};
 
 /// Congestion controller. quinn's BBR is a port of quiche's BBRv1, not BBRv3.
@@ -14,14 +17,42 @@ pub enum Congestion {
     /// Cubic that restarts slow start after a silence instead of halving. `restart.rs`.
     #[default]
     CubicRestart,
+    /// BBR under BBRv3's loss bound. `loss_bound.rs`.
+    BbrBound,
+    /// Lab only: `cubic-restart` that skips the cut on a loss that met no queue. `classify.rs`.
+    CubicClassify,
 }
 
 impl Congestion {
+    fn factory(self, initial_window: Option<u64>) -> Arc<dyn ControllerFactory + Send + Sync> {
+        match self {
+            Self::Cubic => {
+                let mut c = CubicConfig::default();
+                if let Some(v) = initial_window {
+                    c.initial_window(v);
+                }
+                Arc::new(c)
+            }
+            Self::Bbr => {
+                let mut c = BbrConfig::default();
+                if let Some(v) = initial_window {
+                    c.initial_window(v);
+                }
+                Arc::new(c)
+            }
+            Self::CubicRestart => Arc::new(SlowStartRestartConfig::new(initial_window)),
+            Self::BbrBound => Arc::new(LossBoundConfig::new(initial_window)),
+            Self::CubicClassify => Arc::new(LossClassifyConfig::new(initial_window)),
+        }
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Cubic => "cubic",
             Self::Bbr => "bbr",
             Self::CubicRestart => "cubic-restart",
+            Self::BbrBound => "bbr-bound",
+            Self::CubicClassify => "cubic-classify",
         }
     }
 }
@@ -29,10 +60,10 @@ impl Congestion {
 #[derive(Clone, Debug, PartialEq, clap::Args)]
 pub struct TransportTuning {
     /// QUIC send window per connection in bytes: unacknowledged data held, so N sessions × this
-    /// bounds memory under slow clients. quinn default: 10_000_000.
+    /// bounds memory under slow clients.
     #[arg(long = "send-window-bytes")]
     pub send_window: Option<u64>,
-    /// QUIC idle timeout. quinn default: 30 000.
+    /// QUIC idle timeout.
     #[arg(long)]
     pub max_idle_timeout_ms: Option<u64>,
     /// Server-sent keep-alive, off by default; below both peers' idle timeouts to work. A browser
@@ -41,14 +72,18 @@ pub struct TransportTuning {
     pub keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t)]
     pub congestion: Congestion,
-    /// Bytes the controller may send before the first ACK. quinn default: 12 000.
-    /// docs/transport/transport-conclusions.md §3.
+    /// Bytes the controller may send before the first ACK; quinn's own is 12 000. 38 400 is proposed,
+    /// opt-in: docs/transport/link-conditions.md §Re-measured, proposed, the window behind deep buffers.
     #[arg(long = "initial-window-bytes")]
     pub initial_window: Option<u64>,
     /// The RTT assumed before the first sample, which sets the first probe timeout.
     /// quinn default: 333 ms.
     #[arg(long)]
     pub initial_rtt_ms: Option<u64>,
+    /// Lab only: answer a client's repeated Initial with the unacknowledged handshake flight,
+    /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
+    #[arg(long)]
+    pub reply_repeated_initial: bool,
     /// Lab only: `false` sends each datagram alone, so netem on the sending host drops datagrams,
     /// not whole GSO batches (docs/rig-limits.md §3).
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
@@ -64,6 +99,7 @@ impl Default for TransportTuning {
             congestion: Congestion::default(),
             initial_window: None,
             initial_rtt_ms: None,
+            reply_repeated_initial: false,
             segmentation_offload: true,
         }
     }
@@ -71,8 +107,6 @@ impl Default for TransportTuning {
 
 impl TransportTuning {
     pub fn to_transport_config(&self) -> Result<TransportConfig> {
-        use wtransport::quinn::congestion;
-
         let mut tc = TransportConfig::default();
 
         if let Some(v) = self.send_window {
@@ -89,28 +123,13 @@ impl TransportTuning {
         if let Some(ms) = self.initial_rtt_ms {
             tc.initial_rtt(Duration::from_millis(ms));
         }
+        tc.reply_repeated_initial(self.reply_repeated_initial);
         tc.enable_segmentation_offload(self.segmentation_offload);
 
-        let iw = self.initial_window;
-        match self.congestion {
-            Congestion::Cubic => {
-                let mut c = congestion::CubicConfig::default();
-                if let Some(v) = iw {
-                    c.initial_window(v);
-                }
-                tc.congestion_controller_factory(Arc::new(c))
-            }
-            Congestion::Bbr => {
-                let mut c = congestion::BbrConfig::default();
-                if let Some(v) = iw {
-                    c.initial_window(v);
-                }
-                tc.congestion_controller_factory(Arc::new(c))
-            }
-            Congestion::CubicRestart => {
-                tc.congestion_controller_factory(Arc::new(SlowStartRestartConfig::new(iw)))
-            }
-        };
+        let factory = self.congestion.factory(self.initial_window);
+        #[cfg(feature = "telemetry")]
+        let factory = crate::transport::cc_trace::traced(factory);
+        tc.congestion_controller_factory(factory);
         Ok(tc)
     }
 
@@ -130,6 +149,9 @@ impl TransportTuning {
         }
         if let Some(v) = self.initial_rtt_ms {
             parts.push(format!("initial_rtt_ms={v}"));
+        }
+        if self.reply_repeated_initial {
+            parts.push("reply_repeated_initial".to_string());
         }
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
@@ -153,6 +175,17 @@ mod tests {
         TransportTuning { congestion: Congestion::Cubic, ..TransportTuning::default() }
     }
 
+    /// The default controller starts at quinn's 12 000 bytes, and the flag's 38 400 reaches every
+    /// controller: the wider window measured behind deep buffers is opt-in.
+    #[test]
+    fn the_wider_initial_window_is_opt_in() {
+        let start = |t: TransportTuning| t.congestion.factory(t.initial_window).build(std::time::Instant::now(), 1200).initial_window();
+        assert_eq!(start(TransportTuning::default()), 12_000);
+        for congestion in [Congestion::Cubic, Congestion::Bbr, Congestion::CubicRestart, Congestion::BbrBound, Congestion::CubicClassify] {
+            assert_eq!(start(TransportTuning { congestion, initial_window: Some(38_400), ..TransportTuning::default() }), 38_400);
+        }
+    }
+
     #[test]
     fn default_tuning_builds() {
         TransportTuning::default().to_transport_config().expect("builds");
@@ -167,12 +200,13 @@ mod tests {
             congestion: Congestion::Bbr,
             initial_window: Some(32 * 1200),
             initial_rtt_ms: Some(100),
+            reply_repeated_initial: true,
             segmentation_offload: false,
         };
         t.to_transport_config().expect("builds");
     }
 
-    /// Every departure from quinn's stock stack is named in the banner, so a campaign row cannot
+    /// Every departure from quinn's stock stack is named in the banner, so a measured row cannot
     /// be mislabelled, and the stock stack names none. docs/transport/transport-conclusions.md §3.
     #[test]
     fn each_knob_set_is_named_in_the_banner() {
@@ -183,6 +217,7 @@ mod tests {
             (TransportTuning { keep_alive_interval_ms: Some(20_000), ..stock() }, "keep_alive_interval_ms=20000"),
             (TransportTuning { initial_window: Some(38_400), ..stock() }, "initial_window=38400"),
             (TransportTuning { initial_rtt_ms: Some(100), ..stock() }, "initial_rtt_ms=100"),
+            (TransportTuning { reply_repeated_initial: true, ..stock() }, "reply_repeated_initial"),
             (TransportTuning { segmentation_offload: false, ..stock() }, "segmentation_offload=false"),
         ] {
             assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
@@ -204,5 +239,15 @@ mod tests {
         let t = TransportTuning::default();
         assert_eq!(t.congestion, Congestion::CubicRestart);
         assert!(t.describe().contains("congestion=cubic-restart"));
+    }
+
+    /// The loss bound is opt-in under its own name, a run on it says so, and the name builds it.
+    #[test]
+    fn the_loss_bound_is_named_and_builds() {
+        let t = TransportTuning { congestion: Congestion::BbrBound, initial_window: Some(38_400), ..stock() };
+        assert!(t.describe().contains("congestion=bbr-bound"));
+        t.to_transport_config().expect("builds");
+        let built = Congestion::BbrBound.factory(None).build(std::time::Instant::now(), 1200);
+        assert!(built.into_any().downcast::<crate::transport::loss_bound::LossBound>().is_ok());
     }
 }

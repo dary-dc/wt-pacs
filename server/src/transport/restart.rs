@@ -255,8 +255,7 @@ mod tests {
         assert_eq!(r.silence_end, Some(now + 5 * RTT));
     }
 
-    /// The cell that found this: quinn declares the loss an acknowledgement or two after the one
-    /// that closed the outage, and a detector that reads only the newest gap misses it.
+    /// quinn declares the loss an acknowledgement or two after the one that closed the outage, and a detector that reads only the newest gap misses it.
     #[test]
     fn a_silence_survives_the_acks_that_follow_it() {
         let mut r = restart();

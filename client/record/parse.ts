@@ -4,7 +4,7 @@ import type { RowKind } from "./types.ts";
 
 export type FodAsk = { kind: RowKind; frames: number[] };
 
-/** One FoD message decoded from the control stream (either direction). */
+/** One FoD message, either direction: docs/WIRE.md §FoD messages; also decoded by `client/transport/ts/wire.ts`. */
 export type FodMessage =
   | { op: "request_frame"; frame: number }
   | { op: "stream_frames"; from?: number; to?: number }
@@ -14,7 +14,7 @@ export type FodMessage =
 
 /** LE length + JSON, possibly several back to back. Returns the messages and the bytes they
  * consumed; a trailing partial message is left for the next read. */
-export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; consumed: number } {
+function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; consumed: number } {
   const messages: FodMessage[] = [];
   const decoder = new TextDecoder();
   let off = 0;
@@ -58,11 +58,11 @@ export function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; con
 export function parseFodAsks(chunk: Uint8Array): FodAsk[] {
   const asks: FodAsk[] = [];
   for (const m of parseFodMessages(chunk).messages) {
-    if (m.op === "request_frame") asks.push({ kind: "interaction", frames: [m.frame] });
+    if (m.op === "request_frame") asks.push({ kind: "ask", frames: [m.frame] });
     else if (m.op === "stream_frames") {
       const from = m.from ?? 0;
       asks.push({
-        kind: "preload",
+        kind: "fill",
         frames: typeof m.to === "number" ? Array.from({ length: m.to - from + 1 }, (_, i) => from + i) : [],
       });
     }

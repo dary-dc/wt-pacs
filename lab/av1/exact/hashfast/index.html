@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>hashfast — the frame check's XXH3-64, four ways</title>
+<script type="module">
+  // One round: each set's frames decoded once by the product's decoder.js, then hashed by every arm in hasher.js.
+  // lab/av1/exact/hashfast/README.md
+  import { order } from "/lab/order.mjs";
+  import { built } from "/client/decode/wasm-glue.js";
+
+  const q = new URLSearchParams(location.search);
+  const round = Number(q.get("round"));
+  const passes = Number(q.get("passes") ?? 5);
+  const mutate = q.get("mutate") === "1";
+  const rows = [];
+  const post = (r) => fetch(q.get("post"), { method: "POST", body: JSON.stringify(r) });
+  const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const wrong = (h) => (mutate ? h.replace(/^./, (c) => (c === "0" ? "1" : "0")) : h);
+
+  function decoder(cfg) {
+    const w = new Worker("/lab/av1/exact/checkcost/decode/decoder.js", { type: "module" });
+    const ch = new MessageChannel();
+    let waiting = null;
+    ch.port2.onmessage = (e) => !e.data.preview && waiting?.(e.data);
+    const ready = new Promise((ok, no) => {
+      w.onmessage = (e) => {
+        if (e.data.kind === "ready") ok();
+        else if (e.data.kind === "init-failed") no(new Error(e.data.reason));
+        else if (e.data.kind === "failed") waiting?.({ failed: e.data.reason });
+      };
+    });
+    w.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg, groupLength: 1, digests: null }, [ch.port1]);
+    const decode = (index, bytes) => new Promise((ok) => {
+      waiting = ok;
+      w.postMessage({ kind: "decode", index, gen: 0, key: true, bytes: bytes.slice(), stamps: {} });
+    });
+    return { ready, decode, close: () => w.terminate() };
+  }
+
+  try {
+    if (!globalThis.crossOriginIsolated) throw new Error("not cross-origin isolated");
+    const hasher = new Worker("/lab/av1/exact/hashfast/hasher.js", { type: "module" });
+    const reply = () => new Promise((ok, no) => {
+      hasher.onmessage = (e) => ok(e.data);
+      hasher.onerror = (e) => no(new Error(e.message));
+    });
+    const { vector } = await reply();
+    const dec = decoder(await built("openjph"));
+    await dec.ready;
+    let k = 0;
+    for (const set of order(q.get("sets").split(","), round)) {
+      const dir = `/${q.get("dir")}/${set}`;
+      const meta = await (await fetch(`${dir}/variants.json`)).json();
+      const digests = meta.variants.chk.digests.map(wrong);
+      const truth = meta.truth.map(wrong);
+      for (let i = 0; i < meta.frames; i++) {
+        const coded = new Uint8Array(await (await fetch(`${dir}/${String(i).padStart(3, "0")}.htj2k`)).arrayBuffer());
+        const f = await dec.decode(i, coded);
+        if (f.failed) { rows.push({ round, set, frame: i, failed: f.failed }); continue; }
+        const copy = new Uint8Array(f.pixels.byteLength);
+        copy.set(new Uint8Array(f.pixels));
+        const exact = hex(await crypto.subtle.digest("SHA-256", copy)) === truth[i];
+        const pending = reply();
+        hasher.postMessage({ sab: f.pixels, want: digests[i], passes, seed: round * 64 + k++ });
+        const h = await pending;
+        rows.push({ round, set, frame: i, exact, ms: h.ms, ok: h.ok, of: h.of, vector,
+                    width: f.width, height: f.height, bits: f.bits, bytes: f.pixels.byteLength });
+      }
+    }
+    dec.close();
+    await post({ ok: true, rows, ua: navigator.userAgent });
+  } catch (e) {
+    await post({ ok: false, error: String(e?.stack || e), rows });
+  }
+</script>

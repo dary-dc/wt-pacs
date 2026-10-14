@@ -10,10 +10,10 @@ SWEEP="${SWEEP:-$ROOT/lab/.openjph-build/sweep}"
 
 [[ $# -gt 0 ]] || { echo "usage: heap_curve.sh FIXTURE_DIR [FIXTURE_DIR ...]" >&2; exit 2; }
 
-arms=()
+variants=()
 for mb in $MBS; do
   out="$SWEEP/$mb"
-  [[ -f "$out/plain.js" ]] || INITIAL_MB="$mb" ARMS=plain OUT="$out" "$(dirname "$0")/build.sh" >/dev/null
-  arms+=("${mb}MB=$out")
+  [[ -f "$out/plain.js" ]] || INITIAL_MB="$mb" VARIANTS=plain OUT="$out" "$(dirname "$0")/build.sh" >/dev/null
+  variants+=("${mb}MB=$out")
 done
-node "$ROOT/lab/decode-bench/heap_curve.mjs" "$@" --arms "${arms[@]}"
+node "$ROOT/lab/decode-bench/heap_curve.mjs" "$@" --variants "${variants[@]}"

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # LV1: how the client decides a session is dead, on a cut and on links that only look dead —
-# a radio, a slow link, a standing queue, blinks, a burst of asks. Arms interleaved, order rotated
+# a radio, a slow link, a standing queue, blinks, a burst of asks. Variants interleaved, order rotated
 # each round. docs/ARCHITECTURE.md §Detection by the bytes
 #
-#   lab/session-survival/cells.sh cut|radio|slow|deep|blinks|asks [rounds]   [ARMS=built,quick]
+#   lab/session-survival/cells.sh cut|radio|slow|deep|blinks|asks [rounds]   [VARIANTS=built,quick]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -35,8 +35,8 @@ case "$CELL" in
   *) echo "unknown cell $CELL" >&2; exit 2 ;;
 esac
 
-cargo build -q --release -p exact-server
-cargo build -q -p pack-study
+cargo build -q --release -p series-server
+cargo build -q -p pack-series
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
@@ -44,11 +44,11 @@ HASH=$(openssl x509 -in "$T/cert.pem" -outform DER | openssl dgst -sha256 | awk 
 mkdir -p "$T/frames"
 for i in $(seq 0 86); do head -c 438272 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo '{"frameCount": 87}' > "$T/m.json"
-target/debug/pack-study --metadata "$T/m.json" --frames "$T/frames" --output "$T/study.sbnd" >/dev/null
+target/debug/pack-series --metadata "$T/m.json" --frames "$T/frames" --output "$T/series.sbnd" >/dev/null
 
 SRV=$((30000 + RANDOM % 5000)) IN=$((35000 + RANDOM % 5000)) CTRL=$((40000 + RANDOM % 5000))
 HTTP=$((45000 + RANDOM % 5000))
-target/release/exact-server --port "$SRV" --bind 127.0.0.1 --study "$T/study.sbnd" \
+target/release/series-server --port "$SRV" --bind 127.0.0.1 --series "$T/series.sbnd" \
   --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" \
   --max-idle-timeout-ms 60000 --keep-alive-interval-ms 20000 > "$T/server.log" 2>&1 &
 PIDS+=("$!")
@@ -61,6 +61,6 @@ sleep 2
 
 echo "cell $CELL: relay ${RELAY[*]}"
 NODE_PATH="${NODE_PATH:-$(npm root -g)}" node lab/session-survival/run.mjs --rounds "$ROUNDS" \
-  --base "http://127.0.0.1:$HTTP" --control "$CTRL" --arms "${ARMS:-built}" "${RUN[@]}" ${RUN_ARGS:-}
+  --base "http://127.0.0.1:$HTTP" --control "$CTRL" --variants "${VARIANTS:-built}" "${RUN[@]}" ${RUN_ARGS:-}
 [[ -n "${KEEP_SERVER_LOG:-}" ]] && cp "$T/server.log" "$KEEP_SERVER_LOG"
 exit 0
