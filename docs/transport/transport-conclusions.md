@@ -1101,6 +1101,75 @@ reopened only by a Cubic-only rule with a deep-overflow cell; these are that rul
 It names a candidate with both, at ~200 lines over quinn's public trait, beside a v3 that needs ~2 000 and a pacer
 patch. And it says which five device measurements decide it.
 
+#### Measured: CLASSIFY, 2026-10-14
+
+*Queue row CCMEASURE, run by a session given only the protocol and rule above;*
+[`lab/cc-classify`](../../lab/cc-classify/README.md) *has the commands, the rows and the checks.*
+`--congestion cubic-classify` (`server/src/transport/classify.rs`, lab only) wraps `cubic-restart` and skips the cut
+when the last acknowledged packet's round trip was under min RTT + max(4 ms, min RTT/8); CE marks and persistent
+congestion always cut. Both Cubic arms start at 12 000 B and differ in nothing else; `bbr` rides along at its 240 000 B.
+Ten rounds, 03:35–07:09 UTC, each running three rigs in an order that rotates by round, each Williams-ordered inside:
+
+* **the browser grid** — row LOSSCC's rule cells, headless Chromium 141 at 1× and 4×, the 10-bit tomosynthesis
+  volume's first 8 frames as HTJ2K, a fill of 4 then 4 single asks. Its 5 % cells, `lte-good`'s lossy cells and its
+  AV1 variant were not run: no prediction or rule term names them;
+* **deep overflow** — row LOSSCLASS's rig at 2 MiB asked ahead (its 512 KB never overflowed a 500-packet FIFO);
+* **the neighbour's FIFO cells** — *A neighbour behind fq_codel*'s, the neighbour kernel TCP Cubic.
+
+**Every frame exact**: 6 720 of 6 720. **This host voids most visits**: 605 of 840 grid visits, 56 of 60 overflow
+visits and 84 of 90 neighbour visits had the relay's p99 lateness over 1 ms. So strict pairs are 0–7 a cell and
+most cells are judged round-paired only; the readings are both given and agree. Fill time (every frame on the page),
+`cubic-classify` ÷ `cubic-restart`, median of rounds paired, **bold** past the rule's bar:
+
+| link | impairment | 1×: round-paired [range] · strict (n) · `bbr` | 4×: the same |
+| --- | --- | --- | --- |
+| r5000 | clean | 0.998 [1.00–1.00] · 0.996 (1) · 1.010 | 1.000 [0.99–1.01] · 0.992 (1) · 1.005 |
+| r5000 | ±20 ms | 1.000 [0.99–1.01] · — (0) · 1.026 | 1.003 [0.99–1.01] · — (0) · 1.011 |
+| r5000 | 1 % | **0.838** [0.62–1.00] · **1.005** (1) · 0.624 | **0.855** [0.66–0.95] · — (0) · 0.672 |
+| r5000 | 2 % | **0.765** [0.71–0.87] · — (0) · 0.424 | 0.684 [0.54–0.94] · 0.638 (2) · 0.443 |
+| r20000 | clean | 0.993 [0.93–1.12] · — (0) · 0.899 | **1.030** [0.97–1.06] · 0.980 (1) · 0.943 |
+| r20000 | ±20 ms | 1.000 [0.98–1.02] · 0.984 (1) · 0.976 | **1.016** [0.96–1.10] · **1.013** (2) · 1.037 |
+| r20000 | 1 % | 0.303 [0.20–0.52] · 0.256 (1) · 0.241 | 0.294 [0.18–0.67] · 0.434 (2) · 0.230 |
+| r20000 | 2 % | 0.165 [0.14–0.33] · — (0) · 0.123 | 0.278 [0.15–0.48] · 0.407 (1) · 0.148 |
+| r50000 | clean | 1.009 [0.95–1.04] · 1.002 (7) · 0.860 | 0.991 [0.88–1.05] · 1.007 (3) · 0.911 |
+| r50000 | ±20 ms | 0.989 [0.78–1.08] · — (0) · 1.131 | 1.007 [0.94–1.03] · **1.019** (2) · 1.102 |
+| r50000 | 1 % | 0.145 [0.10–1.62] · 0.137 (3) · 0.117 | 0.151 [0.10–0.37] · — (0) · 0.141 |
+| r50000 | 2 % | 0.082 [0.07–0.13] · 0.076 (4) · 0.071 | 0.117 [0.09–0.35] · — (0) · 0.093 |
+| lte-good | clean | 0.988 [0.87–1.10] · — (0) · 0.885 | 0.980 [0.89–1.14] · — (0) · 0.888 |
+| lte-good | ±20 ms | 0.979 [0.89–1.07] · — (0) · 0.940 | 0.993 [0.92–1.04] · 0.920 (1) · 0.995 |
+
+In milliseconds at 1×: 2 % at 50 Mbit fills in 651 against 7 908 (clean 646), at 20 Mbit 1 323 against 8 172 (clean
+1 112), at 5 Mbit 6 617 against 9 006 (clean 3 788; `bbr` 3 878). The ask after the fill follows: p50 223 against
+2 121 ms at 50 Mbit, 1 662 against 2 401 at 5 Mbit.
+
+**The neighbour's share** (ours ÷ ours and the neighbour's, median of 10, all visits; strict has 0–1 a cell): shallow
+77.1 against `cubic-restart`'s 75.5 %, deep 17.6 against 16.0, **LTE-loaded 43.4 against 50.5** (`bbr` 98.6, 54.6,
+68.9). **Deep overflow** at 2 MiB in flight: 30 of 30 congestion events under `cubic-classify` on `of-q500` met a
+queue at RFC 9406's q\* (0 % classed radio; 67 on `of-q20`, 1 %); every drop log matched the relay's tally; the fill
+is the link's in both Cubic arms (19.27 Mbit).
+
+**The predictions:**
+
+* *Clean and jitter cells equal `cubic-restart`*: **held within the rig's spread, not to 1 %** — 0.979–1.030
+  round-paired, two of sixteen over 1.01 (r20000 at 4×, clean and ±20 ms), each cell's own range ±5–14 %.
+* *1 % and 2 % fixed-rate fills ≤ 0.2 × `cubic-restart`'s*: **held at 50 Mbit** (0.08–0.15) and on 20 Mbit's 2 % at
+  1× (0.165); **failed elsewhere**: 0.28–0.30 at 20 Mbit, 0.68–0.86 at 5 Mbit.
+* *The neighbour's share within 5 points*: **held behind the shallow and the deep FIFO, failed on LTE-loaded** (−7.1).
+* *`of-q500`'s congestive losses classed congestive ≥ 95 %*: **held**, 100 % (30, all visits; 3 strict).
+
+**Rule: not default, in both readings.** It fails three ways: 5 Mbit's lossy cells (three of four over 0.75), two
+clean or jitter cells over 1.01, and LTE-loaded's share. `cubic-classify` stays a lab flag; DELAYCUT, which waited on
+this verdict, does not start.
+
+*Review.* Conclusive for the rule — every term fails in the round-paired reading at n = 10, and the strict reading,
+thin as it is, fails the same terms where it judges. The theory's mechanism held where it said it would: a loss behind
+no queue is radio, and skipping its cut gives back the clean fill at 20–50 Mbit, within 1.16–1.29× `bbr`'s time and without `bbr`'s
+starvation of a shallow-FIFO neighbour (77 % against 99 %). Where it failed is the deep-buffer case the classifier
+cannot see through: at 5 Mbit the relay's 200-packet FIFO holds ~0.4–0.5 s, Cubic fills it, so a random loss meets a queue,
+is classed congestion and cuts — row LOSSCLASS's untested worst case, now measured, and the same reason LTE-loaded's
+share moved. The two clean cells over 1.01 are within each cell's own spread, and say only that the bar is tighter
+than this host's noise.
+
 ## 2 · One shared stream
 
 **The binary defaults to `shared`; `per-frame` is a product flag.** The decision, the

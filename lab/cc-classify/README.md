@@ -12,12 +12,13 @@ lab/av1/fetch_data.sh dbt10_ea1141
 W=lab/.av1-work/ccmeasure/dbt10_ea1141
 lab/av1/.venv/bin/python ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/htj2k --codec htj2k --frames 8
 # link $W/NNN.htj2k to htj2k/NNN.htj2k; variants.json names cubic-restart, cubic-classify and bbr, each {"codec": "htj2k", "congestion": …}
-lab/cc-classify/run.sh lab/cc-classify/raw 0 9
-python3 lab/cc-classify/summary.py lab/cc-classify/raw/grid.jsonl lab/cc-classify/raw/neighbour.tsv
-python3 lab/loss-class/run.py --summary --out lab/cc-classify/raw/overflow.jsonl
+lab/cc-classify/run.sh lab/.av1-work/ccmeasure/raw 0 9
+python3 lab/cc-classify/summary.py lab/.av1-work/ccmeasure/raw/grid.jsonl lab/.av1-work/ccmeasure/raw/neighbour.tsv
+python3 lab/loss-class/run.py --summary --out lab/.av1-work/ccmeasure/raw/overflow.jsonl
 ```
 
-The rows are committed gzipped under `rows/`.
+The grid's and the neighbour's rows of the run, 2026-10-14, are under `rows/`, gzipped; the overflow rows (34 MB of drop
+logs) are not committed, as row LOSSCLASS's were not, and their summary is quoted in the reading.
 
 ## The arms
 
@@ -40,9 +41,8 @@ Each round runs three rigs in an order that rotates by round, each Williams-orde
   10-bit tomosynthesis volume's first 8 frames as the product's HTJ2K. Links r5000, r20000, r50000 × clean, ±20 ms,
   1 %, 2 %; `lte-good` × clean, ±20 ms.
 
-**Not run, and why:** row LOSSCC's 5 % cells and `lte-good`'s lossy cells (no prediction or rule term names them, and
-a round of the full grid takes ~80 min on this host), and its AV1 variant (the lever is the server's; the codec only
-moves decode time).
+**Not run, and why:** row LOSSCC's 5 % cells and `lte-good`'s lossy cells (no prediction or rule term names them), and
+its AV1 variant (the lever is the server's; the codec only moves decode time). A round of what was run took ~22 min.
 
 ## Checks
 
