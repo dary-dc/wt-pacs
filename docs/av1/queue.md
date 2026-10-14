@@ -313,7 +313,7 @@ not `ready`.
 | 217 | **VIEWERLOCK** — B1: the product page honours only `/wt/dev-transport.json` and `/series/metadata`, the lab levers (`?opts=`, `?wt=`, `?hash=`, `?metadata=`) on the dev host or a lab build alone, and the image sends a CSP; a test shows a crafted link refused | ready |
 | 218 | **DEADHASHER** — B2: the `hasher` option that never reaches the decoder, and the image's hash-wasm `test -f`, removed; the docs corrected in place | ready |
 | 219 | **VIEWERASKS** — B3, B4, B7, F4: no repeated ask, the newest on-demand ask kept, a `--fill 0` check that judges what was asked (run by the gate with `--cine`), and the WebSocket test's port; each fix with a failing test | ready |
-| 220 | **INITIALPATCH** — H1: row 189 measured every arm at a 38 400-byte initial window, not today's 12 000; that stated in its cell, and the reply's flag, 117-line quinn-proto patch and tests removed if the owner does not adopt the reply | held for the owner (§Blocked) |
+| 220 | **INITIALPATCH** — H1: row 189 measured every arm at a 38 400-byte initial window, not today's 12 000; that stated in its cell, and the reply's flag, 117-line quinn-proto patch and tests removed if the owner does not adopt the reply | review — draft PR #41, `claude/project-thread-9jumbi-189` `3054d01b`: **the owner chose the 100 ms initial RTT over the reply, kept as a PR, not merged (2026-10-14)**. What changed: `--initial-rtt-ms` defaults to 100; removes the reply's flag, its 117-line quinn-proto patch and its two tests; capability kept: a lost first flight resent at ~300 ms, by the server's own probe; the new test (a swallowed flight, handshake < 700 ms) failed at 333; the 38 400-byte confound stated in §3 *Measured: INITIALMEASURE* |
 | 221 | **LABTRACES** — L1, X1, X2, X3: the congestion traces behind `telemetry`, the absence check widened to them, `crypto-ring` a plain dependency feature, the transport modules `pub(crate)`, `FrameStore::file` behind its `cfg` | ready |
 | 222 | **INGESTTOOLS** — B6, P1–P5: `default-members`, `ingest/tools.sh` and `ingest/requirements.txt` (3.11–3.13), README's DICOM path working from a fresh clone, `aomenc` for AV1 only, the product tests moved out of `lab/` | ready |
 | 223 | **IMAGESLIM** — L4, L5, F1: the image serves the page's allow-list only, copies lab crates' `Cargo.toml` and `src/` only, and `check_equivalence.sh --local` runs in the gate | ready |
@@ -4174,6 +4174,7 @@ what stays); the move is made only on the owner's yes. **Deliverable:** the prop
   `cold_open` +0 to +81 ms; the 0.7–0.85 s it loses on `cold_open` is against the 100 ms initial-RTT arm); every arm of A and C ran at a
   38 400-byte initial window, not today's 12 000. Not adopted: the flag, patch and tests go for review. Adopted: A
   and C re-run at 12 000 first.
+  *Answered 2026-10-14:* neither as asked — the 100 ms initial RTT instead, with the reply removed; kept as draft PR #41.
 
 * *Owner rulings, 2026-10-14:* decision 2, the cleanup, approved (rows 217–228). Row 209's frame cache stays **off by
   default** for now (`lab-frame-cache`); row 224 leaves it alone.
