@@ -56,7 +56,7 @@ struct Args {
     /// one 4-tuple, which a server of `SO_REUSEPORT` endpoints hashes onto one thread.
     #[arg(long)]
     one_socket: bool,
-    /// The coded frames the series was packed from (`NNN.*`, in index order): every frame received
+    /// The coded frames the series was packed from (`NNN.htj2k` or `NNN.av1`, in index order): every frame received
     /// is checked against its file's XXH3-64, and a mismatch fails the run.
     #[arg(long)]
     coded: Option<std::path::PathBuf>,
@@ -70,7 +70,10 @@ static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new(
 /// XXH3-64 per frame index, from the files the bundle was packed from.
 fn coded_digests(dir: &std::path::Path) -> Result<Vec<u64>> {
     let mut paths: Vec<_> = std::fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
-    paths.retain(|p| p.file_stem().and_then(|s| s.to_str()).is_some_and(|s| s.parse::<u32>().is_ok()));
+    paths.retain(|p| {
+        p.file_stem().and_then(|s| s.to_str()).is_some_and(|s| s.parse::<u32>().is_ok())
+            && p.extension().is_some_and(|e| e == "htj2k" || e == "av1")
+    });
     paths.sort();
     paths.iter().map(|p| Ok(xxh3_64(&std::fs::read(p)?))).collect()
 }
