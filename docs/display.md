@@ -111,7 +111,7 @@ drops? (Both answered by row 214, below.)
 
 Row 214, 2026-10-14: every DICOM file pinned in `lab/av1/data.json` — 1 044 in the 83 sound sets, and the two that are
 not — streamed, checked against its SHA-256 and read by `lab/av1/display_tags.py`; the attributes are searched
-anywhere in the object, nested functional groups included; a transfer this container's proxy corrupted (9 of them) was
+anywhere in the object, nested functional groups included; a transfer that arrived corrupted (11 of the second run's) was
 fetched again until it matched. Two runs gave the same output. Counts are of the sound sets.
 
 | attribute | sets | files | what they hold |
