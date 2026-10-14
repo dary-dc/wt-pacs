@@ -42,8 +42,9 @@ From the merge note (queue row MERGEPREP, 2026-10-10), what still holds.
   → `--series`, `/study/metadata` → `/series/metadata`, `pack-study` → `pack-series`, `ingest/study-bundle` →
   `common/series-bundle`; the client as `client/transport/`, `client/decode/` and `client/contract/` (retired:
   `client/conformance/`).
-* **Not code**: 483 kB of synthetic AV1 golden payloads under `client/contract/av1/`, each with its `.sha256`, made by
-  `ingest/coded-frames/make_golden.py`; raw measurement rows under `lab/`. No fetched data, no built binary, no secret.
+* **Not code**: synthetic AV1 golden payloads under `client/contract/av1/` (483 kB of content, the 2.2 MB above on
+  disk), each with its `.sha256`, made by `ingest/coded-frames/make_golden.py`; raw measurement rows under `lab/`. No
+  fetched data, no built binary, no secret, as the merge note checked them on 2026-10-10; not re-checked here.
 
 ## Completely functional: what was run
 
