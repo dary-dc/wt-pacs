@@ -3,5 +3,10 @@
  {"name": "Hp", "place": "host"},
  {"name": "B", "place": "bind", "run": ["-v", "{work}/arms/B:/studies:ro,z"], "series": "/studies"},
  {"name": "V", "place": "volume", "volume": "wtpacs-dr-V", "run": ["-v", "wtpacs-dr-V:/studies:ro"], "series": "/studies"},
- {"name": "O", "place": "layer", "run": [], "series": "/srv/series"}
+ {"name": "O", "place": "layer", "run": [], "series": "/srv/series"},
+ {"name": "BU", "place": "bind", "series": "/studies",
+  "run": ["-v", "{work}/arms/BU:/studies:ro,z", "--security-opt", "seccomp={root}/deploy/seccomp-uring.json"]},
+ {"name": "BUL", "place": "bind", "series": "/studies",
+  "run": ["-v", "{work}/arms/BUL:/studies:ro,z", "--security-opt", "seccomp={root}/deploy/seccomp-uring.json",
+          "--security-opt", "label=disable"]}
 ]
