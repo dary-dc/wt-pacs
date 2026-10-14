@@ -6,6 +6,7 @@ target/
 docs/
 **/*.md
 lab/
+!lab/container-bench
 !lab/disk-access-bench
 !lab/window-harness
 !lab/telemetry-bench
