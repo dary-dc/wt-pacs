@@ -4,7 +4,7 @@
 # Per run: the neighbour starts; 3 s on, ASKS 64 KB asks one at a time on a fresh session; then a
 # DWELL_MS saturating fill beside it. Results: docs/transport/transport-conclusions.md §1 (FQC).
 #
-#   lab/scripts/fq_neighbour_cells.sh OUT.tsv [ROUNDS]   PROFILES= CCS= ASKS= DWELL_MS= FIRST= TRACES= KEEP=
+#   lab/scripts/fq_neighbour_cells.sh OUT.tsv [ROUNDS]   PROFILES= CCS= QDISCS= ASKS= DWELL_MS= FIRST= TRACES= KEEP=
 #   (re-runs itself inside `unshare -rn`)
 set -euo pipefail
 if [[ -z ${FQC_INSIDE:-} ]]; then
@@ -21,6 +21,7 @@ DWELL_MS="${DWELL_MS:-30000}"
 ASKS="${ASKS:-20}"
 read -ra PROFILES <<<"${PROFILES:-shallow deep lte-loaded}"
 read -ra CCS <<<"${CCS:-cubic bbr}"
+read -ra QDISCS <<<"${QDISCS:-fifo fq}"
 TRACES="${TRACES:-$ROOT/lab/.traces}"
 T="$(mktemp -d)"
 PIDS=()
@@ -28,7 +29,8 @@ cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; rm 
 trap cleanup EXIT
 
 [ -s "$TRACES/Verizon-LTE-short.down" ] || { mkdir -p "$TRACES"; curl -sSfL -o "$TRACES/Verizon-LTE-short.down" \
-  https://raw.githubusercontent.com/ravinet/mahimahi/master/traces/Verizon-LTE-short.down; }
+  https://raw.githubusercontent.com/ravinet/mahimahi/f1346c38/traces/Verizon-LTE-short.down; }
+echo "c918436fbd6246af134c76585d9395881fdd27203c59a8902b9a7c675b8a8e3e  $TRACES/Verizon-LTE-short.down" | sha256sum -c --quiet
 
 # name -> one-way delay ms | relay args: the neighbour cells' shallow and deep 5 Mbit, the phone profiles' LTE-loaded.
 profile() {
@@ -138,7 +140,7 @@ PY
 }
 
 VARIANTS=()
-for cc in "${CCS[@]}"; do for qd in fifo fq; do VARIANTS+=("$cc/$qd"); done; done
+for cc in "${CCS[@]}"; do for qd in "${QDISCS[@]}"; do VARIANTS+=("$cc/$qd"); done; done
 
 one_round() {  # round
   local name k prev variant
