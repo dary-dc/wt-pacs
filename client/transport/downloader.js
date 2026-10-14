@@ -253,6 +253,18 @@ async function ask(index, promise) {
   }
 }
 
+/** Asks a session has on the wire, whatever generation made them: a cancel leaves them owed, and the session refuses a second. */
+const onWire = new Map();
+function requestOnce(s, index) {
+  const held = onWire.get(index);
+  if (held?.session === s) return held.promise;
+  const promise = s.requestExactFrame(index);
+  onWire.set(index, { session: s, promise });
+  const forget = () => onWire.get(index)?.promise === promise && onWire.delete(index);
+  promise.then(forget, forget);
+  return promise;
+}
+
 function askFor(s, index) {
   const rec = records.get(index);
   if (rec?.priority === "ask") return;
@@ -261,7 +273,7 @@ function askFor(s, index) {
   wanted.delete(index);
   if (rec) rec.priority = "ask";
   else record(index, "ask", abs());
-  ask(index, s.requestExactFrame(index));
+  ask(index, requestOnce(s, index));
 }
 
 /** The wire carries one contiguous run of what is wanted at a time. docs/ARCHITECTURE.md §The downloader */

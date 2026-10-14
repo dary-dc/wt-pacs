@@ -7,6 +7,7 @@ usage: from_dicom.py BUILD INPUT OUT.sbnd [--codec htj2k|av1|auto] [--preset P] 
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -18,7 +19,7 @@ sys.path.insert(0, str(HERE.parent / "coded-frames"))
 import dicom_series  # noqa: E402
 import ingest  # noqa: E402
 
-PACK = ingest.ROOT / "target/release/pack-series"
+PACK = Path(os.environ.get("CARGO_TARGET_DIR", ingest.ROOT / "target")) / "release/pack-series"
 # Row TOTAL4 adopted AV1 for no series (docs/av1/README.md §Total time): auto is HTJ2K until a rule is adopted.
 AUTO = "htj2k"
 # Row ENC's fastest preset within 2 % of the slowest's bytes, by content (docs/av1/queue.md row 14).
