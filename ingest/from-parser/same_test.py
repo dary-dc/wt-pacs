@@ -71,6 +71,26 @@ def test_both_ingests_write_the_same_bundles():
             assert ok and "byte-identical" in line, line
 
 
+def test_htj2k_needs_no_aomenc():
+    """A build without libaom codes HTJ2K and refuses AV1 by name: aomenc is asked for only when coding AV1."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        build = tmp / "build"
+        build.mkdir()
+        for part in ("openjph", "payload"):
+            (build / part).symlink_to(BUILD.resolve() / part)
+        s = same.size.Set(fetched(tmp, "g12", *SETS["g12"]))
+        try:
+            assert len(same.ingest.coded(build, s, s.n, "htj2k", 1)) == s.n
+        except same.ingest.Refused as e:
+            raise AssertionError(f"HTJ2K refused: {e}")
+        try:
+            same.ingest.coded(build, s, s.n, "av1", 1)
+            raise AssertionError("AV1 coded without aomenc")
+        except same.ingest.Refused as e:
+            assert "aomenc" in str(e), e
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in [(k, v) for k, v in globals().items() if k.startswith("test_")]:
