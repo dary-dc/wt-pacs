@@ -71,6 +71,8 @@ within each group, and the groups are ranked by what merging needs first.
 | L6 | **The client's build makes a lab artifact.** | `client/transport/ts/build.sh:23` (`lab/telemetry-cost/cost.ts`) | **move to lab** | none | 1 |
 | L7 | **Lab levers that stay, as levers:** `--force-pool-reads` (the documented forced miss), `--hold-sessions` and `--stall-after-bytes` (WebKit bugs 319879 and 319818, both tested), `--segmentation-offload false` (netem), `--send-window-follows-cwnd` (a trade-off, with no test of its own), `per-frame-asks-first` (theory only), `--congestion cubic\|bbr\|bbr-bound` (bbr-bound failed its rule; whether to retire it is the owner's call), WebSocket, race and `recycleAtBytes` (the TCP fallback and the iOS recycle). | `server/src/main.rs:27-40`; `tuning.rs:15-21,82-85`; `stream_mode.rs:14`; `docs/levers.md:101,115` | **keep**. Add a test for `--send-window-follows-cwnd` (~30 lines). The five loose lab fields threaded through `ServeConfig`, `Sessions` and `Link::quic` could become one struct, but that is structural: propose it first. | removing any of them loses a lever an open measurement uses, or a fallback | — |
 
+| L8 | **Row 209's lab `FrameCache`** landed after this audit's base (`33a47a54`). It sits behind the `lab-frame-cache` feature, off by default, and the gate compiles it. The server crate takes its source from `lab/` by `#[path]`, under `#[allow(dead_code)]`. | `server/src/media/lab_frame_cache.rs:1-7`; `server/src/media/mod.rs:3-4`; `server/src/transport/pipeline.rs:77-95`; `server/Cargo.toml:19` | **keep** while row 209 measures. Then **remove** it, or move the cache into `server/` if it is adopted. | none | ~−100 if removed |
+
 ### 4. Product steps that need `lab/`
 
 | # | item | evidence | verdict | cost | size |
@@ -89,7 +91,7 @@ within each group, and the groups are ranked by what merging needs first.
 | D1 | `CubicConfig`/`BbrConfig` built with the initial window in four places | `server/src/transport/tuning.rs:27-38`; `restart.rs:151-155`; `loss_bound.rs:167-171` | simplify: one build in `Congestion::factory` | ~−12 |
 | D2 | two `unsafe preadv2(RWF_NOWAIT)` blocks | `server/src/media/frame_store.rs:98-111,192-205` | simplify: one helper | ~−10 |
 | D3 | hit/miss counting written twice | `server/src/media/read_path.rs:212-218,335-339` | simplify | ~−6 |
-| D4 | tests that hand-write SBND bundles instead of using `series_bundle::write_bundle` | `server/src/transport/pipeline.rs:195-208`; `read_path.rs:514-540`; `server.rs:865-870` | simplify (`frame_store.rs:277` must hand-write its bundle) | ~−35 |
+| D4 | tests that hand-write SBND bundles instead of using `series_bundle::write_bundle` | `server/src/transport/pipeline.rs:220-233`; `read_path.rs:514-540`; `server.rs:865-870` | simplify (`frame_store.rs:277` must hand-write its bundle) | ~−35 |
 | D5 | `StreamMode` hand-writes `Display`/`FromStr`; `Congestion` derives `ValueEnum` | `server/src/transport/stream_mode.rs:262-283` | simplify | ~−20 |
 | D6 | the FoD message union defined twice | `client/transport/ts/wire.ts:3-30`; `client/record/parse.ts:8-55` | simplify: `record` imports it | ~−10 |
 | D7 | SHA-256-to-hex written three times | `client/viewer/viewer.js:246-250`; `check-page.js:4-5`; `client/decode/wasm-glue.js:14` | simplify | ~−6 |
@@ -102,14 +104,14 @@ within each group, and the groups are ranked by what merging needs first.
 
 | # | item | evidence | verdict | size |
 | --- | --- | --- | --- | --- |
-| X1 | `crypto-ring` is a feature that cannot be turned off: `main.rs` calls ring unconditionally, and `--no-default-features` alone fails to compile. | `server/Cargo.toml:16,21`; `server/src/main.rs:47` | simplify: plain dependency features | ~6 |
+| X1 | `crypto-ring` is a feature that cannot be turned off: `main.rs` calls ring unconditionally, and `--no-default-features` alone fails to compile. | `server/Cargo.toml:16,23`; `server/src/main.rs:47` | simplify: plain dependency features | ~6 |
 | X2 | `pub mod` exposes seven transport modules that no other crate uses, which hides dead code from rustc | `server/src/transport/mod.rs:1-11` | simplify: `pub(crate)` | ~8 |
 | X3 | `FrameStore::file` is unused without `uring`, and the gate prints the warning | `server/src/media/frame_store.rs:71-73` | simplify: `#[cfg]` | 1 |
 | X4 | the painter's `workerUrl` and `placement`'s export | `client/paint/painter.js:11`; `paint-worker.js:142` | remove | 2 |
 | X5 | `client/dev-transport.json.example`, which nothing references | — | remove | 4 |
 | X6 | `series-bundle`'s format constants are `pub` but have no user outside the crate | `common/series-bundle/src/format.rs:8-12` | simplify | 4 |
 
-No `TODO`, `FIXME`, `#[allow(dead_code)]` or `#[ignore]` was found in the product. With the modules private, rustc
+No `TODO`, `FIXME` or `#[ignore]` was found in the product, and only one `#[allow(dead_code)]`: L8's, behind its feature. With the modules private, rustc
 flags only L2 and X3, plus `nowait_supported_at`, which `tools/check-fastpath` uses.
 
 ### 7. Tests and checks the gate does not run
@@ -117,7 +119,7 @@ flags only L2 and X3, plus `nowait_supported_at`, which `tools/check-fastpath` u
 | # | item | evidence | verdict | size |
 | --- | --- | --- | --- | --- |
 | F1 | `deploy/check_equivalence.sh`: dev host against nginx (headers, bodies, hidden paths, gzip) | — | **finish**: a gate step with `--local` where nginx is on PATH, named as SKIPPED otherwise | ~5 |
-| F2 | `cert-compression` is never built by the gate or the image (ARCHITECTURE §What production adds: −32.3 %) | `server/Cargo.toml:22-24` | finish: `cargo check --features cert-compression` | 1 |
+| F2 | `cert-compression` is never built by the gate or the image (ARCHITECTURE §What production adds: −32.3 %) | `server/Cargo.toml:26` | finish: `cargo check --features cert-compression` | 1 |
 | F3 | `lab/container-bench` is never compiled. `disk-access-bench` (12 tests) and `telemetry-bench` (3) are compiled but not run. | `scripts/gate.sh:164` | finish: compile all four and run their tests | 1 |
 | F4 | the viewer's on-demand mode: `--fill 0` fails (§Completely functional), and the gate does not name it | `client/viewer/check-page.js:20-26`; `check.mjs:111`; `run_check.sh` | **finish**: in on-demand mode the check judges what was asked, then runs `--fill 0` and `--cine` in the gate | ~15 |
 | F5 | the gate's real-decode rigs run npm's OpenJPH 2.4.11, not the product's manifest-pinned build | `client/contract/dispatch-rig.ts:654-661,678-803` | finish: also run them on `builtDecoder` | ~10 |
@@ -194,7 +196,7 @@ something, so it finishes on its branch for the owner.
    the README's DICOM path from a fresh clone, and the product tests moved out of lab.
 7. **IMAGESLIM** (*review*) — L4, L5 and F1: the image serves the page's allow-list, copies lab crates' sources only,
    and `check_equivalence.sh --local` runs in the gate.
-8. **REJECTEDPATHS** (*review*) — L2 and L3: the rejected read-ahead hook and `followQueue` removed.
+8. **REJECTEDPATHS** (*review*) — L2 and L3: the rejected read-ahead hook and `followQueue` removed; L8 once row 209 decides.
 9. **DOCSTRUE** — C1–C10 and H2: every contradiction above corrected in place, the stale docs removed, and the final
    queue brought in at merge.
 10. **GATEGAPS** — F2, F3, F5, F6, F7: the image's features, the lab crates and their tests, the product decoder in
