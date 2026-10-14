@@ -89,6 +89,8 @@ def rule(out, arm):
     if any(v is None for v in out.values()):
         return "not conclusive: a cell has no rounds left"
     claimed = {c: v for c, v in out.items() if v["claimed"]}
+    if not claimed:
+        return "not conclusive: no cell is claimed"
     worse = {c: v for c, v in claimed.items() if v[arm]["ask_worse"] or v[arm]["fill_worse"]}
     if not worse and all(v[arm]["beats"] for v in claimed.values() if v["short"]):
         return "net: proposed as the default stream mode with that send window"
