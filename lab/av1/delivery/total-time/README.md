@@ -310,7 +310,8 @@ same decoders (`?opts=`), and `--origin navigation` times both pages from naviga
 
 
 **Row DECODEPACE** sets the downloader's `followQueue` lab flag against today's pool on the delivered OpenJPH
-build, whole series (`variants.json`'s `"openjph": "delivered"`, and `"followQueue": true` on `pace`):
+build, whole series (`variants.json`'s `"openjph": "delivered"`, and `"followQueue": true` on `pace`). *The flag was
+removed by row 224 (REJECTEDPATHS), not adopted; the recipe below runs at `ba408823`.*
 
 ```bash
 client/decode/wasm/build/build.sh && lab/av1/fetch_data.sh dbt12_ea1141 ffdm_d

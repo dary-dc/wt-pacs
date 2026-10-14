@@ -108,10 +108,6 @@ enum Ahead {
     Named(FrameSpan, Fetch),
 }
 
-/// A fill's read-ahead in place of the kernel's `WILLNEED`: called with each byte range the fill
-/// would advise. Lab arms only (`lab/container-bench`, `docs/adr/disk-access.md` §Protocol for row 197).
-pub type ReadAhead = Box<dyn FnMut(u64, u64) + Send>;
-
 /// **The fill reader.** Two buffers, because the next frame is known rather than guessed,
 /// and no ring: a sequential walk is read-ahead's best case. `docs/adr/disk-access.md` §Fill at scale.
 pub struct FillReader {
@@ -120,7 +116,6 @@ pub struct FillReader {
     ahead: Ahead,
     /// End of what the kernel has been asked for; a walk extends it, a seek restarts it.
     advised_to: u64,
-    read_ahead: Option<ReadAhead>,
     stats: ReadStats,
 }
 
@@ -131,13 +126,8 @@ impl FillReader {
             cur: Vec::new(),
             ahead: Ahead::Idle(Vec::new()),
             advised_to: 0,
-            read_ahead: None,
             stats: ReadStats::default(),
         }
-    }
-
-    pub fn with_read_ahead(store: Arc<FrameStore>, read_ahead: ReadAhead) -> Self {
-        Self { read_ahead: Some(read_ahead), ..Self::new(store) }
     }
 
     /// The whole of `span`, handed off to the wire. `next` is the frame the planner will ask
@@ -195,18 +185,11 @@ impl FillReader {
             if want - self.advised_to < FILL_WINDOW / 4 {
                 return;
             }
-            self.ask_ahead(self.advised_to, want - self.advised_to);
+            self.store.advise_ahead(self.advised_to, want - self.advised_to);
         } else {
-            self.ask_ahead(end, FILL_WINDOW);
+            self.store.advise_ahead(end, FILL_WINDOW);
         }
         self.advised_to = want;
-    }
-
-    fn ask_ahead(&mut self, offset: u64, len: u64) {
-        match &mut self.read_ahead {
-            Some(read_ahead) => read_ahead(offset, len),
-            None => self.store.advise_ahead(offset, len),
-        }
     }
 
     fn count(&mut self, missed: bool) {
@@ -750,36 +733,6 @@ mod tests {
             vec![(end(all[4]), FILL_WINDOW)],
             "a seek back before the window restarts it"
         );
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// A lab read-ahead is handed exactly the ranges the shipped fill advises, and the kernel
-    /// is then advised nothing.
-    #[test]
-    fn a_read_ahead_in_place_of_willneed_gets_the_same_ranges() {
-        let dir = scratch("read-ahead");
-        let path = write_bundle(&dir, 24, LEN);
-        let store = Arc::new(FrameStore::open(&path).expect("open store"));
-        let rt = rt();
-        let all = spans(&store, &(0..24u32).collect::<Vec<_>>());
-        let walk = [0usize, 1, 2, 3, 4, 5, 6, 7, 20, 21, 3, 4];
-        let mut shipped = FillReader::new(Arc::clone(&store));
-        for w in walk.windows(2) {
-            rt.block_on(shipped.read(all[w[0]], Some(all[w[1]]))).expect("read");
-        }
-        let advised = store.take_advice();
-        let got = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let sink = Arc::clone(&got);
-        let mut lab = FillReader::with_read_ahead(
-            Arc::clone(&store),
-            Box::new(move |offset, len| sink.lock().unwrap().push((offset, len))),
-        );
-        for w in walk.windows(2) {
-            rt.block_on(lab.read(all[w[0]], Some(all[w[1]]))).expect("read");
-        }
-        assert!(advised.len() >= 4, "the walk should advise, extend and restart: {advised:?}");
-        assert_eq!(*got.lock().unwrap(), advised);
-        assert!(store.take_advice().is_empty(), "the kernel was advised beside the lab read-ahead");
         std::fs::remove_dir_all(&dir).ok();
     }
 

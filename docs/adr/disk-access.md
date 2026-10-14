@@ -382,6 +382,8 @@ Run by a session given only the protocol above. Rig, commands and rows: [`../../
 §The fill's read-ahead (`readahead.py`, `readahead_bench`, `rows-readahead.jsonl`, `readahead_summary.py`). The arms are
 the shipped `FillReader` with its advice replaced through `FillReader::with_read_ahead` (a test pins that the hook is
 handed exactly the ranges `WILLNEED` would be, and fails when it is not), every other line of both readers shipped.
+*Since removed (row 224, REJECTEDPATHS): the hook, its test and the arms W1–W3, none adopted; they are at `ba408823`,
+and the rig runs W0 and W0aa.*
 Kernel 6.18.44, 4 cores, 15 GB, THP `madvise`. The host's filesystem is ext4 on `/dev/vda` (`read_ahead_kb` 128,
 `relatime,discard`); the loop images (2 GiB, ext4, ext4 `data=journal`, XFS and XFS `-b size=65536` from xfsprogs
 6.6.0-1ubuntu2.1) sit on it with `read_ahead_kb` 2560 and `max_sectors_kb` 1280, so **the host's and the loops'
