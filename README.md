@@ -24,8 +24,10 @@ python3 -m venv lab/av1/.venv && lab/av1/.venv/bin/pip install --require-hashes 
                                                     # numpy for the painter check: PYTHON=lab/av1/.venv/bin/python
 ```
 
-Without the first, the dispatch rig runs 152 of its 750 checks; without the second, the painter check does not run.
-The two ingests' comparison also needs the native coders: `lab/av1/tools/tools.sh`, OpenJPH
+With the first, the dispatch rig runs all 780 of its checks, the real-decode ones on npm's OpenJPH and on the
+product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
+check does not run. The two ingests' comparison, and a synthetic DICOM series to `.sbnd` end to end, also need the
+native coders: `lab/av1/tools/tools.sh`, OpenJPH
 (`FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160`) and `ingest/coded-frames/build.sh`
 ([`ingest/from-parser/README.md`](ingest/from-parser/README.md)).
 Without Go 1.24 or newer on PATH, the lab's two Go clients are not compiled (Go fetches the toolchain each `go.mod` names and checks it against its checksum database).

@@ -156,6 +156,9 @@ flags only L2 and X3, plus `nowait_supported_at`, which `tools/check-fastpath` u
 | F7 | DICOM to `.sbnd` end to end (`from_dicom.py main()`); pack-series' "writes the same bytes" (true: re-packing gives identical bytes, 151 B) | `ingest/from-dicom/from_dicom.py:32-60`; `README.md:43` | finish: a synthetic object through the ingest, and a `cmp` | ~25 |
 | — | Firefox, the cross-codec arm, the full painter cells, `cellcheck.sh`, `wtcompat.py`, `seccomp-uring.sh --check` | `README.md:92-99` | keep: each is named, and each needs a browser, a display, fixtures or the network | — |
 
+F2, F3, F5, F6 and F7 are gate steps since row 226 (GATEGAPS); `from_dicom.py` now finds `pack-series` under
+`CARGO_TARGET_DIR`, which F7's test found it did not.
+
 ### 8. Docs that contradict the code, or are stale
 
 | # | item | evidence | verdict | size |
