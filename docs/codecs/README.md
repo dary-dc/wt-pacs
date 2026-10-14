@@ -255,7 +255,7 @@ the sensor noise's entropy; on the seven sound series measured here that floor i
 high estimate (0.59–0.85 by the low one), so no coder, beside the codec or instead of it, can save more than 9–20 %
 over HTJ2K (15–41 % at the most generous), and JPEG XL at effort 7 already saves 7–17 %. Of the candidates, only an
 inter-slice term on rotational angiography and the 10-bit tomosynthesis has a ceiling above 3 % (5.7 % and 3.8 % of a
-predictor's bits), and it costs random access; the bit split's ceiling is the 1–2 % row 36 measured; value maps pay only
+predictor's bits), and it costs random access (*measured, row 213: a 5/3 pair before HTJ2K saves 3.5 % on rotational angiography and 4.0 % on CT, the control, 2.2 % and 0.6 % on tomosynthesis, decoding 19–39 % slower a pair*); the bit split's ceiling is the 1–2 % row 36 measured; value maps pay only
 on sparse series, which the target is not (row 185); masks and per-region coding have nothing lossless to remove.
 None of them cuts decode time.
 
@@ -303,7 +303,7 @@ its ratio):
 | --- | --- | --- | --- | --- | --- |
 | **bit split, HTJ2K** (row 36) | the low k bits, near-uniform under noise, sent raw or deflated beside an HTJ2K top | HTJ2K's own overhead on near-raw planes: HT's MagSgn bits are already raw past the coded exponent | 0.984–0.991, measured | ×1.02–1.69, measured | a trade-off (§Trade-offs), unchanged |
 | **bit split, JPEG XL** (never tried) | the same split before JPEG XL's modular mode | JPEG XL's context modelling is expected to price near-uniform planes near their width already (not measured), so the split has less overhead to remove than HTJ2K's | ≥ 0.99 of JPEG XL's own bytes (D, by the HTJ2K case) | a second stream and a merge on JPEG XL's 1.03–2.45× | not worth a row |
-| **inter-slice, a linear term** (JPEG 2000 Part 2 across slices: Clunie 2012, +3 % on DBT) | predict each sample also from the previous slice | the 10-tap predictor's residual with five taps from the previous frame, (M): **×0.943** `xa_dynact16`, **×0.962** `dbt10_ea1141`, ×0.988 CT, DBT 12-bit and projections, ×0.996 fluoroscopy, ×0.998 MR | 0.94–1.00 at best | every frame then decodes after its neighbour: an ask costs two frames, and the fill's parallelism halves at G = 2 (as A1's groups, [`../av1/README.md`](../av1/README.md) §Open) | a trade-off on two series at most; a protocol below |
+| **inter-slice, a linear term** (JPEG 2000 Part 2 across slices: Clunie 2012, +3 % on DBT) | predict each sample also from the previous slice | the 10-tap predictor's residual with five taps from the previous frame, (M): **×0.943** `xa_dynact16`, **×0.962** `dbt10_ea1141`, ×0.988 CT, DBT 12-bit and projections, ×0.996 fluoroscopy, ×0.998 MR | 0.94–1.00 at best (*measured, row 213: 0.960–0.994 as a 5/3 pair before HTJ2K, CT the most*) | every frame then decodes after its neighbour: an ask costs two frames, and the fill's parallelism halves at G = 2 (as A1's groups, [`../av1/README.md`](../av1/README.md) §Open); *measured +19–39 % a pair* | a trade-off on two series at most (*measured: `xa_dynact16` and CT, not `dbt10_ea1141`*); below |
 | **inter-slice, a reversible difference before HTJ2K** | code slice n − slice n−1 | independent noise doubles: the difference's noise variance is 2σ²(1 − ρ), ρ 0.06–0.12 measured ([`../av1/gop-theory.md`](../av1/gop-theory.md) §2) | **> 1**: +0.41–0.46 bits a sample where noise dominates (D: ½ log2 1.76–1.88) | as above | **loses**; not worth a row |
 | **value map** (row 185) | renumber the used values, code the dense index | the share of levels a series uses | 0.576 on the film; 0.97–1.00 on CT, cone-beam and PET; 0.90–0.99 predicted on `dbtproj_holo` | +5–15 % for the lookup | net only on sparse series; the target is dense (row 185) |
 | **background and collimation masks** | skip regions outside the anatomy | lossless allows skipping only samples already constant (CT's pad at −2048, a saturated background); HTJ2K codes an all-zero code-block in a few bytes, and air and collimated regions carry noise, which is not removable losslessly | ≈ 1.00 (D) | a constant fill, ~0 | nothing to remove; not worth a row |
@@ -321,6 +321,21 @@ decode per pair against two HTJ2K frames at 1× and 4×, interleaved (`lab/order
 0.95–0.99 on the first two, 0.99–1.01 on the control; decode +5–15 % per pair for the inverse lifting. **Rule:** a
 trade-off if bytes ≤ 0.97 on a set (an ask then costs a pair); not worth building if bytes > 0.97 everywhere; net on
 no set, since an ask that needs two frames is worse on any link (A1).
+
+**Measured: INTERSLICE** (row 213, 2026-10-14, [`../../lab/av1/decode/inter-slice/`](../../lab/av1/decode/inter-slice/README.md)).
+**A trade-off on `xa_dynact16` and CT, net on none.** Bytes of the low and high band over the two served frames, every
+pair: `xa_dynact16` **×0.965** (32 pairs, 0.964–0.969 by pair), `dbt10_ea1141` ×0.978 (12, 0.976–0.982),
+`dbt12_ea1141` ×0.994 (14, 0.992–0.997), CT **×0.960** (50, 0.954–0.966); every pair exact against the fetched
+checksums. Decode a pair, the product's OpenJPH-WASM build in Chromium 141 with the inverse in JS, 9 pairs a set,
+12 interleaved rounds a throttle, 1 728/1 728 pairs exact: lift over two, the median of paired round ratios, ×1.19–1.39
+at 1× (two 9.7–31.0 ms a pair) and ×1.29–1.34 at 4× (38–134 ms), slower in 89 of 96 paired rounds; round medians span up to
+2.1× their lowest on this 4-core container, one decode at a time, nothing claimed past it. Against the predictions: bytes held on
+the first two (0.95–0.99); **the control did not** — CT gains the most, where its predictor ceiling (×0.988) said
+least: the pair's L and H keep the noise budget (σ²/2 and 2σ²), so what they remove is the slices' shared structure,
+which HTJ2K, farther from the floor on CT (room ≤ 20–41 %) than a 10-tap predictor, leaves more of. **Decode missed
+too**: +19–39 %, not +5–15 %, the JS inverse and range over two bands (~11 ms a 1.17 M-sample pair in Node) being the
+cost; an inverse inside the decoder's WASM would cut it, not measured. By the rule, a trade-off on the two sets at
+≤ 0.97, at the price of an ask costing a pair; whether to build it is the owner's.
 
 ## Specifications
 
