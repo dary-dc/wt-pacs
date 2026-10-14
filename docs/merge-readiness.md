@@ -12,10 +12,38 @@ and stale docs. All of them can be fixed without losing a capability. The rows t
 ## Where it stands
 
 * **A fast-forward.** `origin/main` (`c7230a98`, PR #34) is an ancestor: 987 commits, 1 573 files, +102 524 / −5 519.
-  [`av1/MERGE.md`](av1/MERGE.md)'s 24 conflicts are history: the MAINBASE rebuild removed them
-  ([`av1/MAINBASE.md`](av1/MAINBASE.md)).
+  The trial merge's 24 conflicts are history: the MAINBASE rebuild removed them
+  ([`av1/MAINBASE.md`](av1/MAINBASE.md)). The note that described them, `docs/av1/MERGE.md`, is removed (row
+  DOCSTRUE); what of it still holds is §What the branch changes for `main` below.
 * **What it adds, by files:** `lab/` 664, `client/` 565 (481 of them golden AV1 frames under `client/contract/av1`,
   2.2 MB), `docs/` 68, `server/` 25, `ingest/` 20, `deploy/` 11, `scripts/` 10.
+
+## What the branch changes for `main`
+
+From the merge note (queue row MERGEPREP, 2026-10-10), what still holds.
+
+* **AV1 beside HTJ2K, not served by default**: its payload format, ingest and decode through WebCodecs or
+  dav1d-WASM behind the decoder worker's one contract ([`av1/README.md`](av1/README.md),
+  [`av1/payload-format.md`](av1/payload-format.md)). Ingest keeps HTJ2K for every series.
+* **A product ingest from DICOM** to a served bundle with per-frame digests (`ingest/from-dicom/`); **the viewer**,
+  the product's page at `/`, painted by a WebGL2 painter in a worker; **an unattended deployment** (`deploy/`).
+* **The HTJ2K path**, its codestreams byte for byte as before; each change with the measurement that adopted it:
+
+| change | measured | where |
+| --- | --- | --- |
+| OpenJPH built from pinned sources (0.31.0, single-threaded, 4 MB heap) and checked against a manifest before it is instantiated | fill ×0.927 (1×) and ×0.941 (4×), cold ask ×0.715 and ×0.732, JS+WASM 157 → 22 MB, every frame exact | `decode/README.md` §The build, as delivered |
+| `decoder.js` loads one codec module; HTJ2K's range pass in two loops | ×0.79–0.88 a frame on every 10–14-bit grey series | `decode/README.md` §The range pass |
+| every decoded frame hashed (XXH3-64) against ingest's digest before it is handed on | 0–15 % of a decode-bound fill; nothing measurable where the wire is the clock | `adr/exactness-in-production.md` §3 |
+| an ask its transport timed out is resumed, not failed | no client timer failed an ask under loss; the fill's time unchanged | `client/README.md` |
+| the HTTP/3 control stream opened once the ClientHello is whole | Firefox's dial settles 30/30 at 5–50 Mbit/s, against 0–21 of 30 before | `transport/transport-conclusions.md` §Firefox's dial on a slow link |
+| HTJ2K encoded in-process and in parallel at ingest | 69/69 cells byte-identical; CPU −21 to −27 % | `ingest/coded-frames/README.md` |
+
+* **Renamed, breaking a caller of the old names, each retired** (no behaviour change): `exact-server` → `series-server`, `--study`
+  → `--series`, `/study/metadata` → `/series/metadata`, `pack-study` → `pack-series`, `ingest/study-bundle` →
+  `common/series-bundle`; the client as `client/transport/`, `client/decode/` and `client/contract/` (retired:
+  `client/conformance/`).
+* **Not code**: 483 kB of synthetic AV1 golden payloads under `client/contract/av1/`, each with its `.sha256`, made by
+  `ingest/coded-frames/make_golden.py`; raw measurement rows under `lab/`. No fetched data, no built binary, no secret.
 
 ## Completely functional: what was run
 

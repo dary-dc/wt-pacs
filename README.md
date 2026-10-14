@@ -95,8 +95,12 @@ own server, bundle and certificate, so it needs neither terminal nor step 2; the
 `scripts/wtcompat.py --fetch DIR` fetches the newest Chrome and Firefox builds and fails if any no longer dials the
 server, gets frame 0 exact, or offers a different WebTransport draft or `reset_stream_at` than `scripts/wtcompat.json`
 expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) §3); the gate does not run it.
-`deploy/check_equivalence.sh` checks that the web image answers every path the harness uses exactly as
-`server/dev-server.py` does; it needs podman or docker, or nginx with `--local` ([`deploy/README.md`](deploy/README.md)).
+`deploy/check_equivalence.sh` checks that the web image answers the viewer's paths exactly as `server/dev-server.py`
+does and hides the dev host's lab routes; it needs podman or docker, or nginx with `--local`
+([`deploy/README.md`](deploy/README.md)). `--local` wants nginx on PATH (`/usr/sbin` on Debian),
+`server/scripts/gen_dev_cert.sh` run first, and a checkout nginx's worker can read (not under a `0700` directory).
+`lab/scripts/server_ab.sh` runs the binaries under `target/release`, so it wants `CARGO_TARGET_DIR` unset, and a
+`LOGDIR` given to it must exist.
 
 ## The viewer on a DICOM series
 
@@ -125,9 +129,9 @@ Both clients and the TCP fallback are [`docs/CLIENTS.md`](docs/CLIENTS.md); the 
 
 **What the gate costs and what it catches** — mutants made by hand at each decision, run by the step that owns the code: the
 downloader's in [`client/README.md`](client/README.md) §Every decision is held by a test; the decoder modules
-45 of 45; the send path (`planner.rs`, `frame_out.rs`, `pipeline.rs`) 20 of 24, the four alive being log lines
-and a lab-only stall's equivalent sends; the series bundle's reader and writer 10 of 10. Its time, row GATE
-(2026-10-07, 4 cores, warm builds): `--quick` 161 → 106 s once the two timer-bound steps ran side by side; the
+45 of 45; the send path (`planner.rs`, `pipeline.rs`, and `frame_out.rs`, now `link.rs`) 20 of 24, the four alive being log lines
+and a lab-only stall's equivalent sends; the series bundle's reader and writer 10 of 10. Its time, the gate-time measurement
+(queue row GATE, 2026-10-07, 4 cores, warm builds): `--quick` 161 → 106 s once the two timer-bound steps ran side by side; the
 before-and-after table is at `git show 0d293c89^:README.md`, and each step's time is in the gate's own log.
 
 ## Docs
