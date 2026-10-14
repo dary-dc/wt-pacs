@@ -6,7 +6,7 @@ use quinn_proto::RttEstimator;
 use std::any::Any;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use wtransport::quinn::congestion::{Controller, ControllerFactory, ControllerMetrics};
+use wtransport::quinn::congestion::{Controller, ControllerFactory, ControllerMetrics, CubicConfig};
 
 /// RFC 9406's queue threshold: an eighth of the minimum RTT, at least 4 ms.
 fn queue_threshold(min_rtt: Duration) -> Duration {
@@ -84,8 +84,8 @@ pub struct LossClassifyConfig {
 }
 
 impl LossClassifyConfig {
-    pub fn new(initial_window: Option<u64>) -> Self {
-        Self { restart: Arc::new(SlowStartRestartConfig::new(initial_window)) }
+    pub fn new(cubic: Arc<CubicConfig>) -> Self {
+        Self { restart: Arc::new(SlowStartRestartConfig::new(cubic)) }
     }
 }
 
@@ -107,7 +107,7 @@ mod tests {
     const MIN_RTT: Duration = Duration::from_millis(80);
 
     fn classify() -> LossClassify {
-        let c = Arc::new(LossClassifyConfig::new(None));
+        let c = Arc::new(LossClassifyConfig::new(Arc::new(CubicConfig::default())));
         let built = c.build(Instant::now(), 1200).into_any().downcast::<LossClassify>().expect("a LossClassify");
         *built
     }

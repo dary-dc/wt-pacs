@@ -48,9 +48,7 @@ def main():
         coded = ingest.coded(a.build, s, s.n, codec, a.jobs, preset=preset)
     except (dicom_series.Refused, ingest.Refused) as e:
         sys.exit(f"{a.input.name}: nothing written — {e}")
-    meta = {"frameCount": s.n, **meta, "min": s.lo, "max": s.hi, "codec": codec,
-            **({"representation": "optimized", "preset": preset} if codec == "av1" else {}),
-            "digests": ingest.digests(s, s.n, codec)}
+    meta = ingest.metadata(s, meta, codec, preset)
     with tempfile.TemporaryDirectory() as tmp:
         for i, data in coded:
             (Path(tmp) / f"{i:03d}.{codec}").write_bytes(data)

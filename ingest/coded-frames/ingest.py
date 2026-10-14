@@ -288,6 +288,13 @@ def digests(s, n, codec, representation="optimized", split=None, grey8="400"):
     return dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), wide) for i in range(n)])
 
 
+def metadata(s, display, codec, preset=None):
+    """A bundle's `metadata.json`: the series' `display` keys, then what its coded frames decide."""
+    return {"frameCount": s.n, **display, "min": s.lo, "max": s.hi, "codec": codec,
+            **({"representation": "optimized", "preset": preset} if codec == "av1" else {}),
+            "digests": digests(s, s.n, codec)}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("build", type=Path)

@@ -164,12 +164,8 @@ pub struct LossBoundConfig {
 }
 
 impl LossBoundConfig {
-    pub fn new(initial_window: Option<u64>) -> Self {
-        let mut bbr = BbrConfig::default();
-        if let Some(v) = initial_window {
-            bbr.initial_window(v);
-        }
-        Self { bbr: Arc::new(bbr) }
+    pub fn new(bbr: Arc<BbrConfig>) -> Self {
+        Self { bbr }
     }
 }
 

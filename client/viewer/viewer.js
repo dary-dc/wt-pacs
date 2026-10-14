@@ -1,6 +1,6 @@
 /** The product's page: metadata → fill → exactness → paint, with step, cine and a status line. client/README.md §The viewer */
 import { DownloaderClient } from "/client/transport/consumer.js";
-import { built } from "/client/decode/wasm-glue.js";
+import { built, sha256Hex } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
 
 const q = new URLSearchParams(location.search);
@@ -238,13 +238,7 @@ if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, f
 else if (q.get("post")) {
   // total-time's result shape (lab/av1/delivery/total-time/page.js): every frame's arrival, and the first exact on screen.
   const sha = {};
-  for (const [i, f] of frames) sha[i] = await digest(f.info.pixels);
+  for (const [i, f] of frames) sha[i] = await sha256Hex(new Uint8Array(f.info.pixels).slice());
   report({ issuedAt: q.get("origin") === "navigation" ? performance.timeOrigin : issuedAt, firstShown: issuedAt + firstShownMs, frames: [...frames].map(([i, f]) => ({ i, page: f.arrived, lastByte: f.info.stamps.lastByte, exact: f.info.exact })),
     failures: errors.map((reason) => ({ reason })), sha, previews: [], previewSha: {}, after: [], resumes: client.stats().resumedAt.length, checked: client.stats().exact });
-}
-
-async function digest(sab) {
-  const copy = new Uint8Array(sab.byteLength);
-  copy.set(new Uint8Array(sab));
-  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", copy)), (b) => b.toString(16).padStart(2, "0")).join("");
 }
