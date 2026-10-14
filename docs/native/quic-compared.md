@@ -1,7 +1,7 @@
 # The QUIC implementations, compared
 
 *Queue rows 156, QUICCOMPARE, and 157, QUICREWRITE, 2026-10-12, 158, QUICLATENCY, and 174, QUICSTREAMS,
-2026-10-13. Theory and writing: nothing built or timed. How each stack works, lever by lever, how the stacks compare
+2026-10-13, and 193, STREAMSWIDE, 2026-10-14. Theory and writing: nothing built or timed. How each stack works, lever by lever, how the stacks compare
 when each is at its best, what each does to a frame's latency (§8), and how each treats many streams (§9). Every
 choice stays the owner's ([`quic.md`](quic.md) §5, §7.7).*
 
@@ -994,6 +994,151 @@ its median is above `shared`'s max.
   measurement, with the open items of link-conditions.md;
 * lsquic's priority direction and its iterator collapsing non-HTTP priorities are worth an upstream issue, should
   lsquic ever be a candidate.
+
+### 9.6 Wide range: where several streams must beat one (row 193, STREAMSWIDE)
+
+*Row 193, 2026-10-14. Theory: nothing built or timed. The owner, 2026-10-13: "it does not make sense that several
+streams do not beat one under head-of-line blocking"; §9.3–9.5 looked at three rates and two RTTs. Here: 1–1 000 Mbit/s,
+idle RTT 5–300 ms, queues of 10 packets to 1 s, loss 0.01–10 %, random and in bursts. [`quic_streams_wide.py`](quic_streams_wide.py)
+prints every table (D); its `check()` failed under each of ten mutations of its terms.*
+
+**The answer, short.** **Under a loss-based controller, several streams cannot beat one by more than a few
+milliseconds a frame, anywhere in the range, because the controller's cut keeps the window too small for a loss to
+hold much behind it.** CUBIC's average window under random loss p is about 1.2 ÷ √p packets (§3.2), so a loss holds at
+most that many packets: 17 kB at 1 %, 55 kB at 0.1 %, under one 250 kB frame. Each stream is held ~1.2√p of the time
+(D). Several streams win only where the controller does not cut on random loss (BBR, or the CUBIC that skips the cut
+on loss classed random, row 119), and there they win big: up to a loaded RTT a frame on time to a frame, and the
+whole fill where one stream's 6 MiB of credit cannot cover a repair. **Several connections** beat one under random
+loss by their number at once, at a fairness cost, because each brings its own controller. Every measurement so far ran
+CUBIC (or BBR on one stream), which is why none showed it.
+
+**The four costs a loss imposes, separated.**
+
+| cost | per | what it is | who pays |
+| --- | --- | --- | --- |
+| **head-of-line hold** | stream | bytes after a gap wait for its repair: three later packets to declare it (RFC 9002 §6.1.1), then a loaded RTT | one stream: every frame behind it; one stream a frame: only the frame hit |
+| **the controller's cut** | connection | CUBIC multiplies its window by 0.7 at each congestion event (RFC 9438 §4.6); under random loss it settles at §3.2's average | every stream alike; k connections pay k separate cuts |
+| **the repair's place in the queue** | sender | quinn sends a stream's retransmission first within the stream and across streams by priority (§9.1); FIFO per-frame put it behind other frames' backlogs ([`../adr/stream-shape.md`](../adr/stream-shape.md) §1) | the design's scheduler |
+| **the receive credit** | stream, connection | held bytes count against the credit (6 MiB a stream, 15 MiB the connection in Chromium, §9.2); when a repair outlasts it, the sender stops | one stream when credit ÷ (hold + RTT) is under the rate |
+
+**The model (D).** Losses are a Poisson stream of events at λ = (p ÷ b) × rate ÷ 1 452 B, b the mean burst
+(a burst is one event: one gap, one cut). A gap holds its stream for T = loaded RTT + 3 × 1 452 B ÷ rate. A frame on
+one stream waits for the latest event within T before its last byte: mean T − (1 − e^(−λT)) ÷ λ. On one stream a frame,
+sent in order (quinn's priority, today's `per-frame`), only events within the frame's own transfer F ÷ rate count.
+k equal-priority streams interleave k frames, so each frame finishes (k − 1) × F ÷ (2 × rate) later on average. A
+CUBIC fill's rate is min(link, §3.2's loss bound at the idle RTT); when the link binds, CUBIC fills the queue and the
+loaded RTT is idle + queue. The loss-blind arm models a BBR that ignores random loss, as BBRv1 does: the link's rate, a
+queue of at most one idle RTT (quinn ships a BBR, §3.2). Not modelled: tail loss (a PTO at the fill's end), the cut's sawtooth, link-layer
+retransmission turning loss into delay, and handover outages (24–100 ms, every stream alike,
+[`../transport/link-conditions.md`](../transport/link-conditions.md) §Link profiles).
+
+**1 · CUBIC is loss-limited almost everywhere in the range** (Mbit/s; "link" where the link binds first; iid loss):
+
+| loss | 26 ms: 18 · 103 · 309 · 1 000 Mbit/s | 92 ms | 300 ms |
+| --- | --- | --- | --- |
+| 0.01 % | link · 53.6 · 53.6 · 53.6 | link · 22.2 · 22.2 · 22.2 | 16.5 at every rate from 18 |
+| 0.1 % | 17 at every rate from 18 | 4.79 from 5 Mbit/s | 2.94 from 5 |
+| 1 % | 5.36 from 18 | 1.52 from 5 | 0.52 from 1 |
+| 10 % | 1.7 from 5 | 0.48 from 1 | 0.15 from 1 |
+
+At the cellular median (103 Mbit/s) and its idle RTTs, one random loss in 10 000 packets already holds CUBIC to half
+the link or less. At 10 % RFC 9438's formula is an order of magnitude at best: timeouts dominate.
+
+**2 · What a loss holds on one stream, 250 kB frames, idle RTT 46 ms, FIFO 20 ms** — frames held per event · share of
+time the stream is held · mean hold a frame on one stream → on one stream a frame, ms:
+
+| loss | CUBIC, 18 Mbit/s | CUBIC, 103 | CUBIC, 1 000 | loss-blind, 18 | loss-blind, 103 | loss-blind, 309 | loss-blind, 1 000 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.01 % | 0.61 · 1 % · 0 → 0 | 0.71 · 1 % · 0 → 0 | 0.71 · 1 % · 0 → 0 | 0.61 · 1 % · 0 → 0 | 3.4 · 6 % · 2 → 1 | 10 · 16 % · 5 → 1 | 33 · 43 % · 16 → 1 |
+| 0.1 % | 0.24 · 4 % · 1 → 1 | 0.24 · 4 % · 1 → 1 | 0.24 · 4 % · 1 → 1 | 0.61 · 10 % · 3 → 3 | 3.4 · 44 % · 16 → 9 | 10 · 83 % · 35 → 10 | 33 · 100 % · 54 → 10 |
+| 1 % | 0.087 · 14 % · 4 → 4 | 0.087 · 14 % · 4 → 4 | 0.087 · 14 % · 4 → 4 | 0.61 · 65 % · 26 → 26 | 3.4 · 100 % · 55 → 49 | 10 · 100 % · 62 → 52 | 33 · 100 % · 65 → 54 |
+
+Under CUBIC a loss holds under a frame at every rate, so one stream a frame has nothing to confine: its gain is 0 ms
+in every cell. Under the loss-blind arm the hold spans 3–33 frames above 100 Mbit/s and one stream a frame saves up to
+~45 ms a frame (at 0.1 %, 1 000 Mbit/s), but only while a frame's own transfer is shorter than the hold; at 1 % most
+frames are hit themselves, and the gain shrinks to 6–11 ms.
+
+**3 · One stream a frame's gain in mean time to a frame, ms, at 0.1 % loss, FIFO 20 ms** (rate · idle RTT; b = 1 iid, 7 the
+relay's bursts):
+
+| controller | frame | b | 103 · 26 | 1 000 · 26 | 103 · 92 | 1 000 · 92 | 18 · 300 | 103 · 300 | 1 000 · 300 |
+| --- | --- | --- | --: | --: | --: | --: | --: | --: | --: |
+| CUBIC | 32 kB | 1 | 0 | 0 | 0 | 0 | 6 | 6 | 6 |
+| CUBIC | 250 kB | 7 | 0 | 0 | 0 | 0 | 2 | 2 | 2 |
+| loss-blind | 32 kB | 1 | 7 | 34 | 39 | 98 | 62 | 207 | 301 |
+| loss-blind | 250 kB | 1 | 2 | 28 | 25 | 83 | 26 | 165 | 258 |
+| loss-blind | 250 kB | 7 | 0 | 10 | 5 | 48 | 5 | 49 | 232 |
+| loss-blind | 1 000 kB | 1 | 0 | 13 | 2 | 46 | 0 | 72 | 151 |
+
+Bursts reduce the gain: b packets lost together are one hold, so the same mean loss holds the stream 1 ÷ b as often.
+CUBIC gains from bursts in the other direction: one cut per burst, so its loss bound rises ~√b.
+
+**4 · k equal-priority streams cost every frame its interleaving**, ms a frame (CUBIC, 46 ms, 250 kB): k = 2 · 4 · 8 is
+56 · 167 · 389 at 18 Mbit/s lossless, and 330 · 990 · 2 310 at 1 % loss, where CUBIC's 3 Mbit/s makes every frame slow.
+Against §3's gain of 0, that is HOL1's `pool:4` at +141 % lossless and +475 % at 1 %
+([`../adr/stream-shape.md`](../adr/stream-shape.md) §HOL1). One stream a frame in ask order pays none of it.
+
+**5 · A fill's end: what the credit costs** — extra time, one stream's 6 MiB → one stream a frame's 15 MiB, of the
+13.6 MB volume's fill, s, FIFO 360 ms:
+
+| controller | idle RTT | 103 Mbit/s | 309 Mbit/s | 1 000 Mbit/s |
+| --- | --- | --- | --- | --- |
+| CUBIC, 0.1 % or 1 % | any | 0 → 0 of 11–210 | 0 → 0 | 0 → 0 |
+| loss-blind, 0.1 % or 1 % | 46 ms | 0 → 0 of 1.1 | 0.04 → 0 of 0.35 | 0.29 → 0.05 of 0.11 |
+| loss-blind | 92 ms | 0 → 0 | **0.44 → 0** of 0.35 | 0.69 → 0.21 of 0.11 |
+| loss-blind | 300 ms | **1.5 → 0** of 1.1 | 2.2 → 0.69 of 0.35 | 2.5 → 0.93 of 0.11 |
+
+The only place a fill's end moves with the stream design: a loss-blind controller where rate × (hold + loaded RTT)
+exceeds 6 MiB, so one stream's credit runs out during repairs — ×2.3 at 309 Mbit/s and 92 ms. 1 000 Mbit/s is above
+any browser's receive path ([`../rig-limits.md`](../rig-limits.md) §1); it is printed, not claimed.
+
+**6 · Several connections are the "several" that wins under random loss** (13.6 MB, 46 ms, s): at 1 % and 103 Mbit/s,
+1 · 2 · 4 · 8 CUBIC connections fill in 35.9 · 18 · 9.0 · 4.5, the loss-blind arm in 1.07; at 0.1 %, 11.4 · 5.7 · 2.8
+· 1.4 against 1.06. k connections take k shares of whatever else crosses the bottleneck, pay k handshakes and k slow
+starts, and need a second session on the wire, a structural change (§9.4). A loss-blind controller gets the same
+without them.
+
+**Reconciled with every measurement so far.**
+
+* **Row 180's loss cells are the controller, not the stream design.** At 1 % the model gives CUBIC 3.08 Mbit/s at 46 ms
+  whatever the link (1.54 at 92), and the ask during a fill as (bytes ahead + F) ÷ that rate: `shared` 18.1 s, window
+  4.4, asks first 1.54, against 20.1–21.0, 5.2–5.3 and 1.71–1.79 measured (×1.11–1.19; at 309/92 ×1.09, ×1.24,
+  ×0.99). The model's rate is ~10 % high, consistent with a payload under 1 452 B and with holds it does not count.
+  The same three rates at 1 % gave the same ask (20.1–21.0 s): the link never bound. Asks-first's larger in-order gap
+  (3.2 against 2.4 s at 309/46) is not explained here: open.
+* **HOL1 (20 Mbit/s, 80 ms, 1 %, 3 %, bursts) measured `per-frame` level with `shared`** and named the mechanism
+  this generalises: CUBIC's window is the limit. By §2's terms a loss there holds 0.08 (3 %) to 0.5 (the bursts) of a 128 KB frame.
+* **The native stream-shape campaigns** (10 Mbit/s, CUBIC): per-frame FIFO lost to retransmit deferral, a scheduler
+  cost (the third row of the table above); per-frame in ask order tied, as §3 predicts for CUBIC.
+* **Row 174 (§9.3)** said several streams buy nothing under random loss and lift a bound only when another flow
+  holds the queue: consistent; this adds that the controller is why, and where a loss-blind one changes it.
+* **Row 171's send window and §9.4's ask** are the scheduler term, untouched by loss.
+* **Row 75 (BBR against CUBIC, one stream):** BBR filled in 0.04–0.76 of CUBIC's time under 1–5 % loss — §6's
+  column, measured. It never ran per-frame, so it could not see §3 or §5.
+* **Lossless cells** (rig-limits §1: per-frame 42 ms worse over 87 frames; HOL1's control): §2's holds are zero, so
+  only §4's interleaving or scheduling can differ.
+
+**Bursty loss: no published fit.** The brief asked for Gilbert–Elliott parameters from published cellular and Wi-Fi
+measurements. None was found in the sources [`../transport/link-conditions.md`](../transport/link-conditions.md) pins,
+which says no large dataset publishes loss distributions for phones and that the radio's link layer turns loss into
+delay. The model uses this repository's profiles instead: b = 3.5 (`lte-good`) and 7 (the relay's default).
+
+**Predictions, for row 190's D3 ([`../devices.md`](../devices.md)).** Arms `shared` and `per-frame` (ask order), each
+under `cubic-restart` and `bbr`; the 10-bit DBT volume and a 32 kB-frame series; cells 103 Mbit/s × idle 26 and 92 ms ×
+FIFO 20 ms × 0.1 % and 1 % iid and b = 7, plus 309 Mbit/s × 92 ms × FIFO 360 ms × 0.1 % where the Wi-Fi holds it.
+Measured: each frame's arrival, the fill's end, the ask during the fill. ±30 % on the gains:
+
+1. Under CUBIC, `per-frame` and `shared` tie on mean time to a frame within their spread in every cell (§3: 0 ms).
+2. Under BBR, `per-frame`'s mean time to a frame is lower by §3's figure: 25 ms (250 kB) and 39 ms (32 kB) at
+   103 Mbit/s, 92 ms, 0.1 % iid; under 10 ms at b = 7 or at 26 ms.
+3. Under BBR at 309 Mbit/s, 92 ms, 0.1 %, `per-frame`'s fill ends at ~0.35 s against ~0.8 s for `shared` (§5).
+4. BBR fills in ×0.01–0.03 of CUBIC's time at 1 % and 103–309 Mbit/s (§6), whatever the stream design.
+
+**Rule.** If prediction 1 fails — `per-frame` beats `shared` under CUBIC by ≥ 15 % on time to a frame in a cell — the
+model is wrong and the stream question reopens as the owner put it. If 2 or 3 hold, the stream design is bound to the
+controller: `per-frame` becomes worth a row the day a loss-blind controller is adopted (row 75's call), not before. If
+2 and 3 fail under BBR, independent delivery has nothing to rescue on a phone either, and `per-frame` is kept only
+for progressive delivery ([`../adr/stream-shape.md`](../adr/stream-shape.md) §What would reopen it).
 
 ## 10. Measured here
 

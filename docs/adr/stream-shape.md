@@ -266,7 +266,10 @@ What the corrections above cost to learn, and what the cell drivers enforced (re
   is kept for this.
 * **BBR, or any controller that is not the limit under loss.** Independent delivery may then have
   something to rescue. HOL1's cells under BBR; `lab/stream-shape/run.mjs` would take `--congestion`
-  in one line. Not run.
+  in one line. Not run. *Derived since (row 193, [`../native/quic-compared.md`](../native/quic-compared.md) §9.6):*
+  under CUBIC a loss holds under one frame at every rate from 1 to 1 000 Mbit/s, so per-frame cannot gain; under a
+  loss-blind controller it gains up to a loaded RTT a frame above ~100 Mbit/s, and a whole fill where one stream's
+  credit runs out during repairs. Predictions for a phone: [`../devices.md`](../devices.md) D3.
 * **A cell with `D_min > 1` where `per-frame` beats `shared` by more than 15 % (native rule) or 20 %
   (browser rule)** with an interval excluding zero and a passing control. None has, on either rig.
 

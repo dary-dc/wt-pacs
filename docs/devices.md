@@ -90,14 +90,15 @@ whichever class the target conditions put first decides the trade (the owner, 20
 **Rig:** the phone on the local machine's Wi-Fi (or a hotspot it runs); the server on the local machine; shaping by
 `tc` on the local machine's interface toward the phone only (a filter on the phone's address): `netem` rate, delay,
 `limit` (the queue), `loss` iid and `loss gemodel` (Gilbert–Elliott; the cellular and Wi-Fi parameters row 193 cites),
-`fq_codel` for the AQM cells. **Cells:** row 193's (§Wide range in [`native/quic-compared.md`](native/quic-compared.md),
-written by that row), trimmed to where its model says the arms part. **Arms:** one stream (`shared`), one a frame
-(`per-frame`, `per-frame-asks-first`), and k connections if row 193 predicts they part from k streams. **Pre-flight,
+`fq_codel` for the AQM cells. **Cells and arms:** row 193's, where its model says the arms part ([`native/quic-compared.md`](native/quic-compared.md)
+§9.6, *Predictions*): `shared` and `per-frame` each under `cubic-restart` and `bbr`, 103 Mbit/s at 26 and 92 ms behind
+20 ms of FIFO at 0.1 % and 1 %, iid and in bursts, and 309 Mbit/s at 92 ms behind 360 ms where the Wi-Fi holds it;
+plus `per-frame-asks-first` for row 180's trade. Several connections, which §9.6 finds the "several" that wins under
+random loss, need a second session on the wire and are not an arm until the owner asks for one. **Pre-flight,
 every evening:** the unshaped Wi-Fi's rate and RTT, read the same way; a cell whose rate the unshaped link cannot hold
 is not run (*say where the host saturates*), and the shaping is proven before a number is read through it (goodput
 caps at the rate, the server's loss count matches the configured loss; [`rig-limits.md`](rig-limits.md) §9). A LAN
-control cell (unshaped, 1 ms) runs with every block. **Decides:** each of row 193's predictions held or not, by the
-rule that row writes.
+control cell (unshaped, 1 ms) runs with every block. **Decides:** each of row 193's predictions held or not, by its rule.
 
 ### D4 — opening: the repeated Initial
 
