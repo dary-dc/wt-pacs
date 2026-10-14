@@ -120,6 +120,7 @@ mod tests {
         assert_eq!(parse(&[]).tuning.congestion, Congestion::CubicRestart);
         assert_eq!(parse(&["--congestion", "cubic"]).tuning.congestion, Congestion::Cubic);
         assert_eq!(parse(&["--congestion", "bbr-bound"]).tuning.congestion, Congestion::BbrBound);
+        assert_eq!(parse(&["--congestion", "cubic-classify"]).tuning.congestion, Congestion::CubicClassify);
     }
 
     /// The opening ask is on unless turned off, and the bare flag the lab scripts pass still parses.

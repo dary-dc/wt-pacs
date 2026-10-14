@@ -1,4 +1,5 @@
 pub mod cc_trace;
+pub mod classify;
 pub mod link;
 pub mod loss_bound;
 pub mod restart;
