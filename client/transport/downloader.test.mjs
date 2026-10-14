@@ -228,6 +228,36 @@ async function lostTwiceFailsLoudly() {
 }
 await lostTwiceFailsLoudly();
 
+/** A frame asked, cancelled before it arrives and asked again reaches the new ask: the session still owes the first, and refuses a second. */
+async function anAskAgainAfterACancelIsServed() {
+  const owed = new Map();
+  globalThis.fakeTransport = {
+    connect: async () => ({
+      requestExactFrame: async (i) => {
+        if (owed.has(i)) throw new Error(`frame ${i} already requested`);
+        return new Promise((resolve) => owed.set(i, (f) => (owed.delete(i), resolve(f))));
+      },
+      stats: () => ({ closed: null, lastByteAt: performance.now() }),
+      fillFrames() {},
+      endStream: async () => {},
+      close() {},
+    }),
+  };
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // again`;
+  await import("./downloader.js?again");
+  await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport, survival: false } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  posted.length = 0;
+  await onmessage({ data: { kind: "ask", index: 5 } });
+  await onmessage({ data: { kind: "cancel" } });
+  await onmessage({ data: { kind: "ask", index: 5 } });
+  owed.get(5)?.(frame(5));
+  await settle();
+  check(!posted.some((m) => m.kind === "failed"), `asked again after a cancel, it is not refused (${posted.find((m) => m.kind === "failed")?.reason})`);
+  check(posted.some((m) => m.kind === "frame" && m.index === 5 && m.gen === 1), `the new generation gets frame 5 (${posted.map((m) => `${m.kind} ${m.index ?? ""} ${m.gen}`).join(", ")})`);
+}
+await anAskAgainAfterACancelIsServed();
+
 /**
  * The downloader keeps each decoder's end of its pixel channel reachable for the decoder's life: Firefox deletes
  * the frames in flight through a transferred port once the sender's object is collected.
@@ -260,5 +290,5 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, ports held: ok");
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, ports held: ok");
 process.exit(failed ? 1 : 0);
