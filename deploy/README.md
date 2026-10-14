@@ -64,7 +64,7 @@ A container test of a deployment of this shape found each one (queue row 92).
 3. **The certificate's lifetime.** A certificate pinned by hash (`serverCertificateHashes`) must be valid for at
    most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
    under `timeout $RESTART_AFTER` (9 days). The exit restarts the container, with a new certificate, before
-   the browser refuses the old one.
+   the browser refuses the old one. `server_start_test.sh`, in the gate, runs its two starts against a stub server.
 4. **gzip** on every compressible type the page fetches, the series' metadata included: `check_equivalence.sh`
    asserts it on a module, on the WASM, and on metadata over nginx's 1 KiB floor. Nothing is proxied, so there is
    no `gzip_proxied`.
