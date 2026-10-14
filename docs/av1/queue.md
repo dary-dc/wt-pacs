@@ -279,7 +279,7 @@ not `ready`.
 | 196 | **WILLNEEDFOLIO** — the fill's `POSIX_FADV_WILLNEED` rebuilds frames in 4 KiB folios after reclaim (row 172: hits ×2.0, fill ×0.64–0.68, CPU per GB ×1.5 on 160–500 kB frames): a read-ahead that keeps large folios, with the fill's wait unchanged; theory | claimed 2026-10-14 (night, ca4133) |
 | 197 | **WILLNEEDMEASURE** — row 196's protocol run by a session given only it | after 196 |
 | 198 | **READFASTER** — anything faster than today's read path for hits and misses: io_uring's registered buffers, fixed files, polling modes, `O_DIRECT`, NVMe passthrough, huge pages, `mmap`; where each frame's µs go today; theory | claimed 2026-10-14 (night, 1f1fce) |
-| 199 | **DOCKERTUNE** — what a Docker deployment must set to keep the full read path (io_uring under seccomp, `memlock`, `nofile`, storage), what each costs in security, and what to do where it cannot; theory | ready |
+| 199 | **DOCKERTUNE** — what a Docker deployment must set to keep the full read path (io_uring under seccomp, `memlock`, `nofile`, storage), what each costs in security, and what to do where it cannot; theory | claimed 2026-10-14 (night, c10575) |
 | 200 | **CCNEXT** — congestion control beyond Cubic against BBR: what else exists and fits a loss-prone phone link with a deep queue, at row 193's wide range; theory | ready |
 | 201 | **DEVICEKIT** — row 190's runner page, collector and Oracle deploy script built, with a quick round that reads a provisional answer in ~15 minutes, so the owner's device evenings give fast feedback | ready |
 | 202 | **ASKTHENFILL** — row 171's proposal: the ask first, then the fill re-asked at once, so the cap on bytes ahead costs the fill nothing; theory | ready |
