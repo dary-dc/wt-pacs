@@ -177,7 +177,7 @@ the page were deleted: the page got a `messageerror` it has no handler for, the 
 the frame never arrived, with no failure. The record now holds `port1` for the decoder's life;
 `downloader.test.mjs` collects garbage and finds 0 of 3 ports alive without the line, 3 of 3 with it. In Firefox
 157.0.1 headless ([`../lab/ffportgc`](../lab/ffportgc/README.md), a 1024² 16-bit HTJ2K series through the real server
-and decoders, visits alternating): with the decoders spawned as the queue grows (`followQueue`), **2 of 17 fills lost
+and decoders, visits alternating): with the decoders spawned as the queue grows (`followQueue`, since removed), **2 of 17 fills lost
 one frame each before (frames 24 and 28, of 240 and 1 200), 0 of 14 after**; with the whole pool spawned at the start,
 0 of 11 before, 0 of 8 after, since its ports are collected before any frame is in flight. Every delivered frame was
 exact. Rare here, but silent; the reference implementation lost 5–31 of 237 frames in 7/7 Firefox fills.
@@ -293,12 +293,14 @@ retire one left idle — because at 20 Mbit a cine frame needs 0.34 of a desktop
 phone's (arithmetic), so one decoder keeps up on every fixture; a pool that resizes must keep both
 dispatch clauses (asks first, at most `perDecoder` a decoder) while it resizes. The
 default is measured at two and four cores only. *Built since as a lab flag and measured
-(*Follow the queue, measured*, below); the default is unchanged.*
+(*Follow the queue, measured*, below); the default is unchanged. Removed since (row 224, REJECTEDPATHS), not
+adopted; it is at `ba408823`.*
 
 **Follow the queue, measured** (queue row DECODEPACE, protocol L5 of the decode levers' protocol on
 `claude/av1`). `followQueue` on the downloader, off by default: one decoder at the start, one more when frames
 stay queued after a dispatch, up to `decoders`; a decoder that finishes with nothing queued leaves the pool
-alive and is taken back before another is made. `downloader.test.mjs` holds both clauses through the resizing.
+alive and is taken back before another is made. `downloader.test.mjs` held both clauses through the resizing; since
+the flag's removal (row 224) its `startOnNeed` test does.
 The total-time measurement's harness (queue row TOTAL), the delivered OpenJPH build in both arms, whole sound series — tomosynthesis 29 × 614×1359
 and full-field 4 × 3328×4096 — on 20 and 50 Mbit and `lte-good`, 1× and 4×, headless Chromium 141 on 3 of 4
 cores, 16 rounds with the arms Williams-ordered, 6 336/6 336 frames exact, 41 of 384 visits `VOID`. Each
@@ -1177,7 +1179,8 @@ drops UDP, the race's time to ready against the four seconds.
 The owner decisions here are tracked in [`cloud-queue.md`](cloud-queue.md) §Open owner decisions.
 
 * **The decoder count**: `min(3, hardwareConcurrency)` is the default; a pool that follows the queue
-  is built as two lab flags, off by default — `followQueue` (row 112) and `startOnNeed` (row 142), measured in
+  was built as two lab flags, off by default — `followQueue` (row 112; removed by row 224, at `ba408823`) and
+  `startOnNeed` (row 142, kept), measured in
   [`decode/README.md`](decode/README.md) §Not yet tried (P-START), neither adopted (*corrected, queue row DOCFIX,
   2026-10-13*: this line said "not built"); a phone's scheduler (efficiency cores) and decode speed.
 * **The reader pause** that bounds the compressed queue (§The downloader) — not built.

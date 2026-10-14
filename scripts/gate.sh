@@ -73,6 +73,9 @@ run 1 scripts/check_personal_paths.sh
 step "quinn: the GSO patch of the default build still applies to crates.io quinn"
 run 1 scripts/patch_crate.sh quinn --check
 
+step "deploy: the server's seccomp profile is Docker's pinned default plus io_uring, nothing else"
+run 1 bash deploy/seccomp-uring.sh --check
+
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
 run 1 node client/record/test/run.mjs
