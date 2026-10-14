@@ -1228,7 +1228,7 @@ net without it.
 
 **Measured (row 211, ASKFIRSTCAPMEASURE, 2026-10-14): a trade-off for the owner; `shared` stays the default.** Run in a
 session given only the protocol and its rule; `lab/ask-ahead` (`cells.py` with `ASK_AT=0.25`, read by `askcap.py`;
-rows `rows-askcap.jsonl`). The five Cubic arms as the protocol names them (`cubic-restart`, quinn's initial window, the
+rows `rows-askcap.jsonl`, the check outside the protocol `rows-askcap-side.jsonl`). The five Cubic arms as the protocol names them (`cubic-restart`, quinn's initial window, the
 10 MB send window unless the arm sets one) and `shared`, asks first and asks first + 6 MiB under `--congestion bbr` in
 the 18 and 103 Mbit/s cells; the same release build, Chromium 141.0.7390.37 through the product's downloader with
 decoding off, the 10-bit DBT volume (`dbt10_ea1141`, 24 frames, 13.6 MB HTJ2K), the ask for the last frame once a
