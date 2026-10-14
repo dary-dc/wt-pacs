@@ -94,6 +94,15 @@ class DevServer(unittest.TestCase):
                 self.assertEqual(headers.get("Cache-Control"), want)
                 self.assertIsNotNone(headers.get("Last-Modified"))
 
+    def test_the_viewer_alone_carries_the_policy(self):
+        """The viewer's page runs no inline script and connects on loopback alone; a lab page is left without a policy."""
+        for path in ["/", "/client/viewer/index.html?wt=x"]:
+            with self.subTest(path=path):
+                csp = self.get(path)[1].get("Content-Security-Policy", "")
+                self.assertIn("script-src 'self' 'unsafe-eval';", csp)
+                self.assertIn("connect-src 'self' http://127.0.0.1:* https://127.0.0.1:*;", csp)
+        self.assertIsNone(self.get("/lab/bench.html")[1].get("Content-Security-Policy"))
+
 
 if __name__ == "__main__":
     unittest.main()

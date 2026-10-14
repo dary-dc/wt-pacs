@@ -14,6 +14,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVED = {"client", "fixtures", "lab"}
 # A re-packed catalog or an edited page must not be read stale from a heuristic cache.
 REVALIDATED = {"text/html", "application/json"}
+# The viewer's policy as deploy/nginx sends it, but connecting anywhere on loopback, where the lab's relays listen.
+CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    "connect-src 'self' http://127.0.0.1:* https://127.0.0.1:*; object-src 'none'; base-uri 'none'; "
+    "frame-ancestors 'none'; form-action 'none'"
+)
+VIEWER = {"/", "/client/viewer/index.html"}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -60,6 +67,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+        # The viewer's page alone: the lab's pages share its workers and run inline scripts.
+        if unquote(self.path.split("?", 1)[0]) in VIEWER:
+            self.send_header("Content-Security-Policy", CSP)
         super().end_headers()
 
     def log_message(self, fmt, *args):
