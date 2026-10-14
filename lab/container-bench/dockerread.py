@@ -51,11 +51,13 @@ def container(arm):
     return f"wtpacs-dr-{arm}" if "run" in SPEC[arm] else None
 
 
-def in_arm(arm, cmd, pin=False):
+def in_arm(arm, cmd, pin=False, owner=False):
     """`cmd` as the arm runs it: on the host, or `podman exec` in the arm's container; niced, and pinned if asked,
-    on both sides."""
+    on both sides. `owner` runs it as the container's root, the host side's user, who owns the copies written from
+    the host: `mincore` answers only a file's owner truthfully."""
     wrap = [*NICE, *(PIN if pin else [])]
-    return [*wrap, "podman", "exec", container(arm), *wrap, *cmd] if container(arm) else [*wrap, *cmd]
+    user = ["--user", "0"] if owner else []
+    return [*wrap, "podman", "exec", *user, container(arm), *wrap, *cmd] if container(arm) else [*wrap, *cmd]
 
 
 def as_owner(arm, cmd):
@@ -106,7 +108,7 @@ def data(work):
 
 def start_container(work, arm):
     """Only the entrypoint is overridden, so the container stays up; the coded frames go to its own layer."""
-    run = [o.format(work=work) for o in SPEC[arm]["run"]]
+    run = [o.format(work=work, root=ROOT) for o in SPEC[arm]["run"]]
     sh(["podman", "run", "-d", "--name", container(arm), *run, "--entrypoint", "sleep", RIG, "infinity"])
     for s in SETS:
         sh(["podman", "cp", work / "coded" / s / "htj2k", f"{container(arm)}:/srv/coded/{s}"])
@@ -116,9 +118,19 @@ def pack_cmd(binary, frames, out):
     return [binary, "--metadata", f"{frames}/metadata.json", "--frames", frames, "--output", out]
 
 
+def clear(work):
+    """What an earlier `place` made, so placing starts from nothing."""
+    sh(["podman", "rm", "-f", "-i", "wtpacs-dr-copy", *filter(None, map(container, SPEC))])
+    for a in ARMS:
+        if a["place"] == "volume":
+            subprocess.run(["podman", "volume", "rm", "-f", a["volume"]], capture_output=True)
+    subprocess.run(["rm", "-rf", str(work / "arms")], check=True)
+
+
 def place(work):
     """Every arm packed as its entry says; then its WILLNEED copy, written past the page cache from the host side and
     warmed through the arm's own path."""
+    clear(work)
     (work / "bin").mkdir(exist_ok=True)
     sh(["podman", "create", "--name", "wtpacs-dr-copy", RIG])
     for b in BINARIES:
@@ -149,13 +161,16 @@ def place(work):
         cached = json.loads(sh(as_owner(arm, [work / "bin/writer_bench", "resident", "--file", out])))["resident"]
         inside = f"{series_dir(work, arm)}/{out.name}"
         warm = subprocess.run([str(c) for c in in_arm(arm, [bench(work, arm, "writer_bench"), "warm", "--how", "willneed",
-                                                            "--file", inside])], check=True, capture_output=True, text=True)
+                                                            "--file", inside], owner=True)],
+                              check=True, capture_output=True, text=True)
+        warmed = json.loads(sh(as_owner(arm, [work / "bin/writer_bench", "resident", "--file", out])))
         for s, state in CELLS:
             f = name(s, state)
             digest = sh(in_arm(arm, ["sha256sum", f"{series_dir(work, arm)}/{f}"])).split()[0]
             rows.append(dict(arm=arm, file=f, real=str(real / f), inside=f"{series_dir(work, arm)}/{f}", sha256=digest,
                              cached_after_direct=cached if state == "willneed" else None,
-                             warm=warm.stderr.strip() if state == "willneed" else None))
+                             warm=warm.stderr.strip() if state == "willneed" else None,
+                             resident_after_warm=warmed["resident"] / warmed["pages"] if state == "willneed" else None))
     void = sha_guard(rows)
     with (work / "place.jsonl").open("w") as out:
         for r in rows:
@@ -163,7 +178,8 @@ def place(work):
     (work / "folio-paths.txt").write_text("".join(f"{r['arm']}\t{r['file']}\t{r['real']}\n" for r in rows))
     for r in rows:
         print(r["arm"], r["file"], r["sha256"][:16], "VOID" if (r["arm"], r["file"]) in void else "",
-              "" if r["cached_after_direct"] is None else f"cached after direct {r['cached_after_direct']}")
+              "" if r["cached_after_direct"] is None else
+              f"cached after direct {r['cached_after_direct']}, resident after warm {r['resident_after_warm']:.0%}, {r['warm']}")
     if void:
         sys.exit(f"{len(void)} file(s) differ from {REF}'s: those arms are void")
 
@@ -176,7 +192,8 @@ def sha_guard(rows):
 
 def run_text(cmd):
     res = subprocess.run([str(c) for c in cmd], capture_output=True, text=True)
-    return f"$ {' '.join(map(str, cmd))}  (exit {res.returncode})\n{res.stdout}{res.stderr}"
+    text = f"{res.stdout}{res.stderr}"
+    return f"$ {' '.join(map(str, cmd))}  (exit {res.returncode})\n{text}{'' if text.endswith(chr(10)) else chr(10)}"
 
 
 def settings(work, arm):
@@ -190,7 +207,7 @@ def settings(work, arm):
                  "CgroupMode={{json .HostConfig.CgroupMode}} CgroupManager={{json .HostConfig.CgroupManager}} Mounts={{json .Mounts}}"
         out.append(run_text(["podman", "inspect", "-f", fields, container(arm)]))
     for cmd in (["cat", "/proc/self/limits"], ["grep", "-E", "^(Seccomp|CapEff):", "/proc/self/status"],
-                ["cat", "/proc/self/cgroup"], ["findmnt", "-T", series_dir(work, arm)], ["ls", "-ln", series_dir(work, arm)]):
+                ["cat", "/proc/self/attr/current"], ["cat", "/proc/self/cgroup"], ["findmnt", "-T", series_dir(work, arm)], ["ls", "-ln", series_dir(work, arm)]):
         out.append(run_text(in_arm(arm, cmd)))
     out.append(run_text(["findmnt", "-T", real]))
     out.append(run_text(["sh", "-c", "for f in /sys/class/bdi/*/read_ahead_kb; do echo \"$f $(cat $f)\"; done"]))
@@ -199,7 +216,7 @@ def settings(work, arm):
 
 def versions():
     return "".join(run_text(c) for c in (["uname", "-r"], ["podman", "--version"], ["crun", "--version"],
-                                         ["rpm", "-q", "containers-common", "crun", "podman"],
+                                         ["rpm", "-q", "containers-common", "container-selinux", "crun", "podman"],
                                          ["podman", "info", "-f", "seccomp {{.Host.Security.SECCOMPProfilePath}}"]))
 
 
@@ -234,6 +251,27 @@ def serve_once(work, arm, series):
     return session, sh(in_arm(arm, ["cat", log]))
 
 
+def cold_pass(work, arm, set_, round_, pin):
+    """A fresh copy written past the page cache from the host side, its residency counted there as its owner, read
+    once cold by `container_bench cold` through the arm's path, then removed. Its JSON, or exit without `ring`."""
+    real = real_dir(work, arm)
+    copy = f"cold-{name(set_, 'pack')}"
+    sh([*NICE, *as_owner(arm, [work / "bin/writer_bench", "direct", "--src", real / name(set_, "pack"), "--out", real / copy])])
+    resident = json.loads(sh(as_owner(arm, [work / "bin/writer_bench", "resident", "--file", real / copy])))["resident"]
+    try:
+        res = subprocess.run([str(c) for c in in_arm(arm, [bench(work, arm, "container_bench"), "cold", "--file",
+                                                           f"{series_dir(work, arm)}/{copy}", "--frames", coded(work, arm, set_),
+                                                           "--round", round_], pin=pin)], capture_output=True, text=True)
+    finally:
+        sh(as_owner(arm, ["rm", "-f", real / copy]))
+    if res.returncode:
+        sys.exit(f"{arm} {set_} cold, round {round_}: {res.stderr[-800:]}")
+    row = dict(json.loads(res.stdout), cold_resident=resident)
+    if not isinstance(row.get("ring"), bool):
+        sys.exit(f"{arm} {set_} cold, round {round_}: no ring= recorded: {res.stdout[:300]}")
+    return row
+
+
 def reader(log):
     """`read_fast_path=`, the session's `ring=` and tile misses, and any io_uring WARN, from the server's log."""
     log = re.sub(r"\x1b\[[0-9;]*m", "", log)
@@ -257,7 +295,9 @@ def check(work):
         cached = json.loads(sh(as_owner(arm, [work / "bin/writer_bench", "resident", "--file", fresh])))["resident"]
         session, log = serve_once(work, arm, f"{series_dir(work, arm)}/fresh.sbnd")
         sh(as_owner(arm, ["rm", "-f", fresh]))
-        row = dict(arm=arm, fastpath_exit=fastpath.split("(exit ")[1].split(")")[0], fresh_cached=cached, **reader(log))
+        probe = cold_pass(work, arm, "dbt12_ea1141", 0, pin=False)
+        row = dict(arm=arm, fastpath_exit=fastpath.split("(exit ")[1].split(")")[0], fresh_cached=cached, **reader(log),
+                   cold_ring=probe["ring"], cold_ring_error=probe["ring_error"], cold_resident=probe["cold_resident"])
         rows.append(row)
         report += [f"\n===== {arm} =====\n", settings(work, arm), fastpath, session, log, json.dumps(row) + "\n"]
     (work / "check.txt").write_text("".join(report))
@@ -267,11 +307,15 @@ def check(work):
 
 
 def void(row):
-    """The protocol's VOID: the pinned cores busy outside the bench, or a hit pass that missed. A store whose
-    `RWF_NOWAIT` is refused pools every read by construction, so only a store that has the flag can miss."""
-    busy = row["others_busy_frac"] > OTHERS_BUSY_BAR
+    """The protocol's VOID: the pinned cores busy outside the bench over the visit's measure and cold pass together
+    (a cold pass alone is a few 10 ms ticks long), a hit pass that missed, or a cold copy that was resident. A store whose `RWF_NOWAIT` is refused pools every read by construction, so only one that has it can miss."""
+    parts = [row] + ([row["cold"]] if row.get("cold") else [])
+    others = sum(p["others_busy_frac"] * p["wall_ns"] for p in parts) / sum(p["wall_ns"] for p in parts)
+    cold = row.get("cold") or {}
+    busy = others > OTHERS_BUSY_BAR
     missed = row["nowait"] and (row["tile_hit_misses"] > 0 or row["fill_hit_misses"] > 0)
-    return [w for w, bad in (("busy", busy), ("miss", missed)) if bad]
+    warm = cold.get("cold_resident", 0) > 0
+    return [w for w, bad in (("busy", busy), ("miss", missed), ("resident", warm)) if bad]
 
 
 def time_rounds(work, rounds, asks, fill_mib, out_name):
@@ -288,6 +332,8 @@ def time_rounds(work, rounds, asks, fill_mib, out_name):
                 if res.returncode:
                     sys.exit(f"{arm} {s} {state} round {r}: {res.stderr[-800:]}")
                 row = json.loads(res.stdout)
+                if state == "pack":
+                    row["cold"] = cold_pass(work, arm, s, r, pin=True)
                 row.update(round=r, arm=arm, set=s, state=state, prev=prev, asks_set=asks, fill_mib=fill_mib,
                            void=void(row), at=time.time(), file=name(s, state), out=out_name)
                 out.write(json.dumps(row) + "\n")
