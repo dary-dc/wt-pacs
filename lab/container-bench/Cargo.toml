@@ -6,6 +6,7 @@ description = "The .sbnd against the standard containers, packed and opened, on 
 
 [dependencies]
 anyhow = { workspace = true }
+bytes = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 libc = "0.2"
 serde_json = { workspace = true }
