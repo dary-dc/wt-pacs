@@ -61,6 +61,11 @@ python3 server/dev-server.py --port 8765 --series us_cine_smoke
 scripts/gate.sh
 ```
 
+The same gate runs in CI, `.github/workflows/gate.yml`, on every pull request into `claude/av1-unified-mainbase` and
+`main` and every push to them: every prerequisite above present, so a skip not on the workflow's list fails it, and
+the deploy image built with `deploy/check_equivalence.sh` and the viewer's page check run through it. No timing runs
+there: a shared runner is not a measurement host.
+
 Then open in Chrome:
 
 - The viewer, the product's page: `http://127.0.0.1:8765/`. The smoke series' frames are placeholders and do not
