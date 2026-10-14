@@ -298,7 +298,78 @@ frame checked against the encoder's input, each arm's full settings printed and 
     stays lab-only and off.
   * *Proposed:* **ASKTHENFILL** — does re-issuing the fill's remainder right behind the ask, rather than once it
     settles (client only, no wire change), remove the window's fill cost? Arms: today, the window, the window with the
-    re-issue, and the same three under `cubic` to separate the idle restart.
+    re-issue, and the same three under `cubic` to separate the idle restart. Theory below (row 202).
+
+  **ASKTHENFILL (row 202, 2026-10-14): theory, nothing built or timed.** *One question: if the fill is re-asked at
+  once after an ask, does the window keep its faster ask with the fill unchanged?* [`../native/ask_then_fill.py`](../native/ask_then_fill.py)
+  prints every number marked (D); its `check()` failed under each of seven mutations of its terms.
+  * **The mechanism: one idle round trip, and only where something is left to re-ask.** The planner ends a fill on
+    any message in hand and serves a `request_frame` before a `stream_frames` queued behind it
+    (`server/src/transport/planner.rs`, `Planner::next`). The downloader re-asks the remainder from `ask()`'s
+    `finally`, and `issueFill` waits while any ask is in flight (`client/transport/downloader.js`), so the
+    `stream_frames` leaves when the asked frame's last byte lands. The server has written nothing behind it, so the
+    link idles one idle round trip before the remainder's first byte (D: `gap, settled`). Row 171's today paid none
+    of it: its 6 MiB ahead had reached the end of the 13.6 MB volume, and 0 MB was left to re-ask at 50 % (D); the
+    window left 4.5 MB (D). At 18 Mbit/s the window's measured fill cost is that round trip: +32 to +97 ms against 46
+    and 92 ms. At 103 Mbit/s behind 20 ms and CoDel it is 24–116 ms more than the round trip, an excess no term
+    here explains; behind 360 and 800 ms the window did not bind and the cost is 0. **So today pays the same gap
+    whenever a remainder is left**: at 10 % of the same fill, 5.4 MB (D), or in any series longer than the credit.
+  * **Three ways to re-issue, client only, no wire change.**
+    *With the ask*, `stream_frames` right behind `request_frame`: no gap, but the client cannot know where the server
+    cut, so the fill restarts at the first frame it has not received and everything already written ahead of the ask
+    comes twice: 185–2 073 ms of duplicates in row 171's cells (D: `with the ask`), 2–34× the gap. **Rejected.** A
+    guessed start instead leaves a hole whose own re-issue pays the gap again.
+    *On the asked frame's head*, its 8-byte envelope head: on the shared stream every fill frame written before the
+    ask has landed by then, so what is still wanted is exact, and the asked frame's own bytes, S ÷ rate, drain while
+    the re-issue travels. The gap left is max(0, RTT − S ÷ rate) (D): **0 at 18 Mbit/s and at 103/46 ms for the
+    0.57 MB asked frame, 46 ms at 103/92**. A frame of 250 kB covers the gap up to 18 Mbit/s at 92 ms, a 32 kB one
+    almost nowhere above 5 Mbit/s; at 300 ms most of it stays, 46–286 ms at 18 Mbit/s and 222–300 above; under 1 % loss Cubic's own rate
+    leaves 0 ms everywhere in row 193's range (D, the tables). Exact on the shared stream and the WebSocket; on
+    `per-frame` streams fill frames can land after the ask's head, so there it keeps today's trigger.
+    *On the frame before it*: the client cannot tell which fill frame is the last before the ask without the server
+    saying so, which is a wire change.
+  * **What the head trigger needs** (for the measuring row, beside today's path behind a downloader flag): the
+    carriers' envelope reader to report a head before the body (`client/transport/ts/frame-session.ts`
+    `readEnvelopeInto` has it at 8 bytes; `readEnvelope` takes the index only after the whole envelope), and the
+    downloader to issue the remainder once every ask in flight has shown its head. *An invariant the code must keep*:
+    the ask's `finally` must not issue the same remainder again, or the second `stream_frames` ends the first and
+    re-sends what it had written.
+  * **Structural, for the owner, not built:** the server resuming the fill after the ask, or saying where it cut,
+    removes the gap at every frame size and RTT; both change what the wire promises (§An ask during a fill in
+    [`../WIRE.md`](../WIRE.md): "There is no saved position").
+  * **Predictions** (fill and ask against today, T; the window W; the head re-issue B):
+    1. *W + B's fill against T's at 50 %:* within T's spread at 18 Mbit/s in all eight cells, and at 103/46 behind
+       20 ms and CoDel (|Δ| ≤ 25 ms); +46 to +120 ms at 103/92 behind 20 ms and CoDel (the gap left, plus row 171's
+       excess unless the idle causes it); a tie behind 360 and 800 ms at 103 (the window does not bind).
+    2. *W + B's ask equals W's* within its spread everywhere (the re-issue leaves after the ask was written).
+    3. *T + B against T:* a tie at 50 % (nothing left to re-ask); at 10 % the fill shorter by min(RTT, S ÷ rate):
+       −46 / −92 ms at 18, −46 ms at 103 (more if the excess is the idle's), −260 ms at 18/300; the ask a tie.
+    4. *With the ask (A):* W + A's fill worse than W's by 777 ms at 18/46/FIFO 20 and 185 ms at 103/46/FIFO 20, ±20 %.
+    5. *The window alone costs the fill nothing:* a fill with no ask, T against W, ties at 103 behind 20 ms and CoDel.
+       If it does not, row 171's excess is the window's own and B cannot remove it.
+    6. *`cubic` against `cubic-restart`:* the same W and W + B fills at 103/92 (quinn has no window restart after idle,
+       and `cubic-restart` does not count an idle spell as an outage: [`transport-conclusions.md`](transport-conclusions.md)
+       §Which default for which session shape).
+  * **Protocol.** Row 171's rig ([`../../lab/ask-ahead/`](../../lab/ask-ahead/README.md)): Chromium 141 through
+    the product's downloader, decoding off, `dbt10_ea1141` HTJ2K, every frame's codestream checked against the
+    fetch's checksums; `cubic-restart`, quinn's defaults, shared stream, one server build; the ask for the volume's
+    largest frame (571 632 B), unreached, at 10 % and at 50 % of the fill. Arms T, T + B, W, W + B, each printing
+    its full settings and differing in its lever alone. Cells: 18 and 103 Mbit/s × idle 46 and 92 ms × FIFO 20 ms
+    and CoDel 5:100, both positions, all four arms; FIFO 360 and 800 ms at 50 %, T, W and W + B; 18 Mbit/s / 300 ms /
+    FIFO 20 ms, both positions, all four arms, if the relay holds it (its ceiling measured first). Added: W + A at
+    18/46 and 103/46 FIFO 20 at 50 %; the fill with no ask under T and W at 103/46 and 103/92, FIFO 20 and CoDel;
+    W and W + B under `cubic` at 103/92 FIFO 20 and CoDel. ≥ 10 rounds Williams-ordered (`lab/scripts/order.py`),
+    ~1 000 runs; measure ask → last byte, the fill's issue → last frame, the gap between the asked frame's last byte
+    and the next fill frame's first, and server RSS. 309 Mbit/s and loss cells are not run: the first is past this
+    host (row 171), and in the second the gap is under a loss event's spread. A provisional line after each pushed
+    round; strict and round-paired readings where the host voids.
+  * **Rule.** *B on today's path* becomes the downloader's default if no cell's fill or ask under T + B is worse than
+    T's beyond its spread and at least one 10 % cell's fill is better beyond it; with no gain beyond spread it is not
+    adopted (code for nothing). *The window* (row 171's lever, with B) becomes the default if W + B's ask is ≥ 20 %
+    better than T's in every short-queue cell and no cell's fill or ask is worse than T's beyond its spread; if the
+    fill is worse only where RTT > S ÷ rate, by about that gap, it is a trade-off for the owner at the smaller price
+    measured. Each prediction is reported held or failed, and a failed 5 or 6 is named as the cause of the excess.
+
 * **IWDEEP (item 3) — is the 32-packet initial window net behind the buffers phones have?** Arms: quinn's 12 000
   bytes; 38 400. Cells: 18, 103, 309 Mbit/s; idle RTT 46 and 92 ms; FIFO 10 packets (the old losing depth), 20 ms, 360 ms. A fresh ask-only
   session asks one 250 KB and one 50 KB frame; a control session opens with the push. *Predictions:* −25 to −33 % at
