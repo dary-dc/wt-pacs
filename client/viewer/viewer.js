@@ -133,19 +133,29 @@ const client = await DownloaderClient.connect(transport.then((c) => c.wt_url), t
   throw e;
 });
 
-let asking = null;
+/** Each pending ask's frame and the step that made it; a cancel empties it. */
+const asks = new Map();
+let steps = 0;
 /** A step: its frame painted from memory, or asked — ahead of the fill, and in on-demand mode the newest ask alone. */
 async function show(i) {
   current = (i + n) % n;
   status();
   if (frames.has(current)) return repaint();
   const want = current;
-  if (!fillMode && asking !== null && asking !== want) await client.cancel();
-  asking = want;
+  if (asks.has(want)) return;
+  const step = ++steps;
+  if (!fillMode && asks.size) {
+    asks.clear();
+    await client.cancel();
+    if (step !== steps) return;
+  }
+  asks.set(want, step);
   try {
     take(await client.requestExactFrame(want));
   } catch (e) {
-    if (asking === want) fail(`frame ${want}: ${e.message}`);
+    if (asks.get(want) === step) fail(`frame ${want}: ${e.message}`);
+  } finally {
+    if (asks.get(want) === step) asks.delete(want);
   }
 }
 if (!fillMode) show(0);
@@ -234,7 +244,7 @@ const filled = new Promise((resolve) => {
 });
 await filled;
 await repaint();
-if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine });
+if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show });
 else if (q.get("post")) {
   // total-time's result shape (lab/av1/delivery/total-time/page.js): every frame's arrival, and the first exact on screen.
   const sha = {};
