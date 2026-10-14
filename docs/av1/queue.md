@@ -4169,7 +4169,8 @@ what stays); the move is made only on the owner's yes. **Deliverable:** the prop
 ## Blocked
 
 * **2026-10-14, row 220 INITIALPATCH (for the owner):** adopt row 189's reply or not. Its rule did not pass on one
-  Firefox cell (8–10 ms under the band) and it loses `cold_open` by 0.7–0.85 s in cell A; every arm of A and C ran at a
+  Firefox cell (8–10 ms under the band); against today it is never slower (cell A: browsers 639–701 ms sooner,
+  `cold_open` +0 to +81 ms; the 0.7–0.85 s it loses on `cold_open` is against the 100 ms initial-RTT arm); every arm of A and C ran at a
   38 400-byte initial window, not today's 12 000. Not adopted: the flag, patch and tests go for review. Adopted: A
   and C re-run at 12 000 first.
 
