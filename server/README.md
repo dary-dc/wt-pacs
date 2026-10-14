@@ -133,7 +133,8 @@ No task ever waits on the disk: a read that is not already cached leaves the wor
 
 Off in a deployment, and documented where they are measured: `--force-pool-reads` (every read a miss),
 `--hold-sessions` (a dial that never settles), `--stall-after-bytes` (a session that stops sending).
-The `telemetry` feature compiles in `server/src/record/` and `RecordedPipeline`; the default build carries
-none of it, and `scripts/gate.sh` checks that. One switch is for a deployment, not the lab:
+The `telemetry` feature compiles in `server/src/record/`, `RecordedPipeline` and the controller traces
+(`transport/cc_trace.rs`, `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`); the default build carries none of it,
+and `scripts/gate.sh` checks that by symbol and literal. One switch is for a deployment, not the lab:
 `WTPACS_READ_PATH=pool` takes the tile reader off its ring
 ([`docs/adr/disk-access.md`](../docs/adr/disk-access.md) §Flags).

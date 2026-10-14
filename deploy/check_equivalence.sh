@@ -39,13 +39,13 @@ SERIES="${2:-us_cine_smoke}"
 if [ "$LOCAL" -eq 0 ]; then
   RUNTIME="${RUNTIME:-$(command -v podman || command -v docker)}"
   IMAGE="${IMAGE:-wt-pacs-web:latest}"
-  # The page and nginx files the image carries, against this tree's: Containerfile's COPYs less its ignore file.
+  # The page and nginx files the image carries, against this tree's: deploy/web-files.sh's and the Containerfile's.
   in_image='cd /srv/wt-pacs && find client -type f ! -path "client/transport/ts/dist/*" -exec sha256sum {} + &&
     sha256sum /etc/nginx/templates/wt-pacs.conf.template /usr/local/bin/entrypoint.sh | sed "s#  /.*/#  deploy/nginx/#"'
   in_tree() {
-    find client -type f ! -name '*.md' ! -name '*.test.mjs' ! -name dev-transport.json ! -path '*/node_modules/*' \
-      ! -path 'client/contract/*' ! -path 'client/transport/ts/dist/*' ! -path 'client/decode/wasm/build/.cache/*' \
-      ! -path 'client/decode/wasm/vendor/openjph/*' ! -path 'client/decode/wasm/dav1d/*' -exec sha256sum {} +
+    local t; t=$(mktemp -d)
+    "$ROOT/deploy/web-files.sh" "$t" && (cd "$t" && find client -type f -exec sha256sum {} +)
+    rm -rf "$t"
     sha256sum deploy/nginx/wt-pacs.conf.template deploy/nginx/entrypoint.sh
   }
   image=$("$RUNTIME" run --rm --entrypoint sh "$IMAGE" -c "$in_image" 2>/dev/null | LC_ALL=C sort -k2) && [ -n "$image" ] \
@@ -64,19 +64,22 @@ PATHS=(/ /client/viewer/index.html /client/viewer/viewer.js /client/transport/do
        /wt/dev-transport.json /series/metadata /nope-404)
 # What the image must not answer: the dev server's lab routes, the checkout, the studies themselves.
 HIDDEN=(/harness/ /lab/order.mjs /lab/viewer/levers.js /fixtures/us_cine_smoke/metadata.json /server/dev-cert/key.pem /deploy/compose.yml
-        "/studies/$SERIES.sbnd" /wt/ /client/contract/run.mjs)
+        "/studies/$SERIES.sbnd" /wt/ /client/contract/run.mjs /client/harness/cell.html /client/paint/check.html
+        /client/viewer/check.mjs /client/record/tap.ts /client/transport/ts/session.ts /client/decode/av1.test.mjs
+        /client/decode/wasm/build/build.sh /client/transport/wasm/src/session.rs /client/README.md)
 
 python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --metadata "$STUDIES/$SERIES.metadata.json" \
   --transport "$WT/dev-transport.json" >/dev/null 2>&1 &
 PY=$!
 if [ "$LOCAL" -eq 1 ]; then
   NG=$(mktemp -d)
+  chmod 0755 "$NG"  # nginx started as root reads as nobody
   mkdir -p "$NG/tmp" "$NG/root"
-  ln -s "$ROOT/client" "$NG/root/client"
+  "$ROOT/deploy/web-files.sh" "$NG/root" || { kill $PY; exit 2; }
   ln -s "$WT" "$NG/root/wt"
   sed -e 's#\${SERIES}#'"$SERIES"'#g' -e 's#\${TLS_LISTEN}##' -e 's#\${WT_ORIGIN}#https://127.0.0.1:4433#' -e "s#/srv/wt-pacs#$NG/root#g" -e "s#/studies/#$STUDIES/#g" \
     -e "s/listen  *8765;/listen 127.0.0.1:$NG_PORT;/" "$ROOT/deploy/nginx/wt-pacs.conf.template" > "$NG/server.conf"
-  printf 'pid %s/nginx.pid;\nerror_log %s/error.log error;\nevents {}\nhttp {\n  access_log off;\n' "$NG" "$NG" > "$NG/nginx.conf"
+  printf 'pid %s/nginx.pid;\nerror_log %s/error.log error;\nevents {}\nhttp {\n  access_log off;\n  default_type application/octet-stream;\n' "$NG" "$NG" > "$NG/nginx.conf"
   for d in client_body proxy fastcgi uwsgi scgi; do printf '  %s_temp_path %s/tmp;\n' "$d" "$NG"; done >> "$NG/nginx.conf"
   printf '  include %s/server.conf;\n}\n' "$NG" >> "$NG/nginx.conf"
   nginx -c "$NG/nginx.conf" || { kill $PY; exit 2; }
