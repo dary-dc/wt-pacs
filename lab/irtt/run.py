@@ -41,8 +41,8 @@ sys.path.insert(0, SCRIPTS)
 from order import order  # noqa: E402
 
 ROWS = {
-    "irtt": {"irtt333": [], "irtt100": ["--initial-rtt-ms", "100"]},
-    "reply": {"today": [], "today2": [], "reply": ["--reply-repeated-initial"], "irtt100": ["--initial-rtt-ms", "100"]},
+    "irtt": {"irtt333": ["--initial-rtt-ms", "333"], "irtt100": ["--initial-rtt-ms", "100"]},
+    "reply": {"today": ["--initial-rtt-ms", "333"], "today2": ["--initial-rtt-ms", "333"], "reply": ["--reply-repeated-initial"], "irtt100": ["--initial-rtt-ms", "100"]},
 }
 SWALLOW_MS = 50
 LTE_LOADED_ONE_WAY_MS = 30

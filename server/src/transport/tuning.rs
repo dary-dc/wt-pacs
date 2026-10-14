@@ -76,19 +76,18 @@ pub struct TransportTuning {
     /// opt-in: docs/transport/link-conditions.md §Re-measured, proposed (IWDEEP).
     #[arg(long = "initial-window-bytes")]
     pub initial_window: Option<u64>,
-    /// The RTT assumed before the first sample, which sets the first probe timeout.
-    /// quinn default: 333 ms.
-    #[arg(long)]
+    /// The RTT assumed before the first sample, which sets the first probe timeout; quinn's own is
+    /// 333 ms. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
+    #[arg(long, default_value = "100")]
     pub initial_rtt_ms: Option<u64>,
-    /// Lab only: answer a client's repeated Initial with the unacknowledged handshake flight,
-    /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
-    #[arg(long)]
-    pub reply_repeated_initial: bool,
     /// Lab only: `false` sends each datagram alone, so netem on the sending host drops datagrams,
     /// not whole GSO batches (docs/rig-limits.md §3).
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     pub segmentation_offload: bool,
 }
+
+/// A lost first flight is resent at 300 ms, when Chromium and Firefox repeat their Initial.
+const INITIAL_RTT_MS: u64 = 100;
 
 impl Default for TransportTuning {
     fn default() -> Self {
@@ -98,8 +97,7 @@ impl Default for TransportTuning {
             keep_alive_interval_ms: None,
             congestion: Congestion::default(),
             initial_window: None,
-            initial_rtt_ms: None,
-            reply_repeated_initial: false,
+            initial_rtt_ms: Some(INITIAL_RTT_MS),
             segmentation_offload: true,
         }
     }
@@ -123,7 +121,6 @@ impl TransportTuning {
         if let Some(ms) = self.initial_rtt_ms {
             tc.initial_rtt(Duration::from_millis(ms));
         }
-        tc.reply_repeated_initial(self.reply_repeated_initial);
         tc.enable_segmentation_offload(self.segmentation_offload);
 
         tc.congestion_controller_factory(crate::transport::cc_trace::traced(self.congestion.factory(self.initial_window)));
@@ -147,9 +144,6 @@ impl TransportTuning {
         if let Some(v) = self.initial_rtt_ms {
             parts.push(format!("initial_rtt_ms={v}"));
         }
-        if self.reply_repeated_initial {
-            parts.push("reply_repeated_initial".to_string());
-        }
         if !matches!(self.congestion, Congestion::Cubic) {
             parts.push(format!("congestion={}", self.congestion.as_str()));
         }
@@ -169,7 +163,7 @@ mod tests {
 
     /// quinn's stock stack: the knob under test is then the only departure from it.
     fn stock() -> TransportTuning {
-        TransportTuning { congestion: Congestion::Cubic, ..TransportTuning::default() }
+        TransportTuning { congestion: Congestion::Cubic, initial_rtt_ms: None, ..TransportTuning::default() }
     }
 
     /// The default controller starts at quinn's 12 000 bytes, and the flag's 38 400 reaches every
@@ -197,7 +191,6 @@ mod tests {
             congestion: Congestion::Bbr,
             initial_window: Some(32 * 1200),
             initial_rtt_ms: Some(100),
-            reply_repeated_initial: true,
             segmentation_offload: false,
         };
         t.to_transport_config().expect("builds");
@@ -214,7 +207,6 @@ mod tests {
             (TransportTuning { keep_alive_interval_ms: Some(20_000), ..stock() }, "keep_alive_interval_ms=20000"),
             (TransportTuning { initial_window: Some(38_400), ..stock() }, "initial_window=38400"),
             (TransportTuning { initial_rtt_ms: Some(100), ..stock() }, "initial_rtt_ms=100"),
-            (TransportTuning { reply_repeated_initial: true, ..stock() }, "reply_repeated_initial"),
             (TransportTuning { segmentation_offload: false, ..stock() }, "segmentation_offload=false"),
         ] {
             assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
