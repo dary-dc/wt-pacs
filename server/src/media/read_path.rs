@@ -222,6 +222,20 @@ impl FillReader {
     }
 }
 
+/// One ring built and dropped, so the banner says whether a tile miss will get one.
+#[cfg(feature = "uring")]
+pub fn ring_probe(store: &FrameStore) -> String {
+    match UringReader::new(store.file(), TILE_SLOTS as u32) {
+        Ok(_) => "available".into(),
+        Err(err) => format!("refused ({err:#})"),
+    }
+}
+
+#[cfg(not(feature = "uring"))]
+pub fn ring_probe(_: &FrameStore) -> String {
+    "not built".into()
+}
+
 /// The session's ring, built on its first miss and never rebuilt.
 #[cfg(feature = "uring")]
 enum Ring {
