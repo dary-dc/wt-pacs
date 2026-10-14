@@ -40,4 +40,5 @@ libc = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring", "dangerous-configuration"] }

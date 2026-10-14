@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use wtransport::config::IpBindConfig;
 use wtransport::stream::{RecvStream, SendStream};
 use wtransport::{ClientConfig, Connection, Endpoint};
+use xxhash_rust::xxh3::xxh3_64;
 
 #[derive(Clone, Copy, ValueEnum)]
 enum Mode {
@@ -55,6 +56,34 @@ struct Args {
     /// one 4-tuple, which a server of `SO_REUSEPORT` endpoints hashes onto one thread.
     #[arg(long)]
     one_socket: bool,
+    /// The coded frames the series was packed from (`NNN.*`, in index order): every frame received
+    /// is checked against its file's XXH3-64, and a mismatch fails the run.
+    #[arg(long)]
+    coded: Option<std::path::PathBuf>,
+    /// Writes each frame received as `NNN.bin` here, for a decode against ingest's digests.
+    #[arg(long)]
+    dump: Option<std::path::PathBuf>,
+}
+
+static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// XXH3-64 per frame index, from the files the bundle was packed from.
+fn coded_digests(dir: &std::path::Path) -> Result<Vec<u64>> {
+    let mut paths: Vec<_> = std::fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
+    paths.retain(|p| p.file_stem().and_then(|s| s.to_str()).is_some_and(|s| s.parse::<u32>().is_ok()));
+    paths.sort();
+    paths.iter().map(|p| Ok(xxh3_64(&std::fs::read(p)?))).collect()
+}
+
+fn check(digests: &Option<Arc<Vec<u64>>>, idx: u32, data: &[u8]) -> Result<()> {
+    if let Some(dir) = DUMP.get() {
+        std::fs::write(dir.join(format!("{idx:03}.bin")), data)?;
+    }
+    if let Some(d) = digests {
+        let want = *d.get(idx as usize).context("frame index past the coded files")?;
+        anyhow::ensure!(xxh3_64(data) == want, "frame {idx}: XXH3-64 differs from its coded bytes");
+    }
+    Ok(())
 }
 
 fn main() -> Result<()> {
@@ -67,6 +96,11 @@ fn main() -> Result<()> {
 }
 
 async fn run(args: Args) -> Result<()> {
+    if let Some(dir) = &args.dump {
+        std::fs::create_dir_all(dir)?;
+        let _ = DUMP.set(dir.clone());
+    }
+    let digests = args.coded.as_deref().map(coded_digests).transpose()?.map(Arc::new);
     let mut endpoints = vec![client_endpoint()?];
     let server = match args.server_pid {
         Some(pid) => Some((pid, proc_cpu(pid)?, proc_rss_kib(pid)?)),
@@ -85,8 +119,8 @@ async fn run(args: Args) -> Result<()> {
     let mut set = tokio::task::JoinSet::new();
     for conn in conns {
         let (mode, depth, asks, frames) = (args.mode, args.depth, args.asks, args.frames.max(1));
-        let (step, start) = (args.step.max(1), args.start);
-        set.spawn(async move { session(conn, mode, depth, asks, frames, step, start).await });
+        let (step, start, digests) = (args.step.max(1), args.start, digests.clone());
+        set.spawn(async move { session(conn, mode, depth, asks, frames, step, start, digests).await });
     }
     let mut lats = Vec::new();
     while let Some(joined) = set.join_next().await {
@@ -177,6 +211,7 @@ async fn session(
     frames: u32,
     step: u32,
     start: Option<u32>,
+    digests: Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
     let (mut control, _recv) = connection
         .open_bi()
@@ -188,9 +223,9 @@ async fn session(
     match mode {
         Mode::OnDemand => {
             let start = start.unwrap_or(0);
-            on_demand(&mut control, &mut media, depth.max(1), asks, frames, step, start).await
+            on_demand(&mut control, &mut media, depth.max(1), asks, frames, step, start, &digests).await
         }
-        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize), start).await,
+        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize), start, &digests).await,
     }
 }
 
@@ -202,6 +237,7 @@ async fn on_demand(
     frames: u32,
     step: u32,
     start: u32,
+    digests: &Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
     let plan = |i: usize| start.wrapping_add((i as u32).wrapping_mul(step)) % frames;
     let mut sent = Vec::with_capacity(asks);
@@ -219,7 +255,8 @@ async fn on_demand(
             next_send += 1;
         }
         // Pairing envelope n with ask n is the whole timing model; check it rather than assume.
-        let (idx, _) = read_envelope(media).await?;
+        let (idx, data) = read_envelope(media).await?;
+        check(digests, idx, &data)?;
         anyhow::ensure!(
             idx == plan(next_recv),
             "envelope {idx} answered ask {} ({})",
@@ -237,6 +274,7 @@ async fn fill(
     media: &mut RecvStream,
     asks: usize,
     start: Option<u32>,
+    digests: &Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
     let mut lats = Vec::with_capacity(asks);
     let (from, to) = match start {
@@ -248,7 +286,8 @@ async fn fill(
         .await?;
     let mut prev = Instant::now();
     for _ in 0..asks {
-        read_envelope(media).await?;
+        let (idx, data) = read_envelope(media).await?;
+        check(digests, idx, &data)?;
         let now = Instant::now();
         lats.push(now.duration_since(prev).as_nanos() as u64);
         prev = now;

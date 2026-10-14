@@ -74,7 +74,44 @@ impl FramePipeline for ProductPipeline {
         &self.store
     }
 
+    #[cfg(feature = "lab-frame-cache")]
     async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
+        use crate::media::lab_frame_cache as cache;
+        if let Some(bytes) = cache::get(frame) {
+            return Ok(bytes);
+        }
+        let len = self.store.frame_span(frame).len as usize;
+        if !cache::claim_fill(frame, len) {
+            return self.read_store(frame, next).await;
+        }
+        let read = self.read_store(frame, next).await;
+        match &read {
+            Ok(bytes) => cache::admit(frame, bytes.clone()),
+            Err(_) => cache::abandon_fill(frame),
+        }
+        read
+    }
+
+    #[cfg(not(feature = "lab-frame-cache"))]
+    async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
+        self.read_store(frame, next).await
+    }
+
+    async fn write(&mut self, frame: u32, body: Bytes, ask: bool) -> Result<()> {
+        self.link.send_frame(frame, body, ask).await
+    }
+
+    async fn refuse(&mut self, frame: u32, reason: String) -> Result<()> {
+        self.link.refuse(frame, reason).await
+    }
+
+    async fn finish(&mut self) {
+        self.link.finish().await;
+    }
+}
+
+impl ProductPipeline {
+    async fn read_store(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
         let Self { store, seq, tile, mode: read_mode, fills, .. } = self;
         let span = store.frame_span(frame);
         let ahead = ahead(store, next);
@@ -91,18 +128,6 @@ impl FramePipeline for ProductPipeline {
                     .await
             }
         }
-    }
-
-    async fn write(&mut self, frame: u32, body: Bytes, ask: bool) -> Result<()> {
-        self.link.send_frame(frame, body, ask).await
-    }
-
-    async fn refuse(&mut self, frame: u32, reason: String) -> Result<()> {
-        self.link.refuse(frame, reason).await
-    }
-
-    async fn finish(&mut self) {
-        self.link.finish().await;
     }
 }
 
