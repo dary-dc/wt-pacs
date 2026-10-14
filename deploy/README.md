@@ -119,7 +119,7 @@ default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-in
 connect-src 'self' ${WT_ORIGIN}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
 ```
 
-`WT_ORIGIN` is `WT_URL`'s scheme, host and port; an `https:` source also covers the WebSocket fallback's `wss:`.
+`WT_ORIGIN` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport.
 `'unsafe-eval'` is the decoders' glue, evaluated through `new Function` (`client/decode/wasm-glue.js`), and lets
 WebAssembly compile; the inline `<style>` is the page's. `dev-server.py` sends the same policy on the viewer's page
 alone, connecting anywhere on loopback, where the lab's relays and collectors listen; the lab's pages, which share
