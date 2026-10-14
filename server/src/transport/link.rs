@@ -75,7 +75,8 @@ impl Link {
         match self {
             Self::Quic { media, connection, stall_left, cwnd_ahead, .. } => {
                 if ask {
-                    debug!(frame = idx, cwnd = connection.quic_connection().stats().path.cwnd, "ask written");
+                    let path = connection.quic_connection().stats().path;
+                    debug!(frame = idx, cwnd = path.cwnd, rtt_us = path.rtt.as_micros() as u64, "ask written");
                 }
                 if let Some(ahead) = cwnd_ahead {
                     let quic = connection.quic_connection();
