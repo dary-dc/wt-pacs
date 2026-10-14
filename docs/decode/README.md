@@ -2157,7 +2157,7 @@ interleaved, n ≥ 10, `g512` and the five sound breast series):
   ≤ ×1.00; energy is a phone's (§L5's phone rule).
 
   *Measured (row STARTMEASURE, 2026-10-11; [`lab/av1/delivery/total-time`](../../lab/av1/delivery/total-time/README.md)
-  §Row STARTMEASURE).* `startOnNeed` on the downloader (a lab flag beside `followQueue`, off by default) against
+  §Row STARTMEASURE).* `startOnNeed` on the downloader (a lab flag beside `followQueue`, off by default; `followQueue` removed since, row 224) against
   today's, the delivered OpenJPH build, row DECODEPACE's cells (whole tomosynthesis 29 × 614×1359 and full-field
   4 × 3328×4096; r20000, r50000, `lte-good`; 1× and 4×) and a cold ask in each (a fresh browser, frame 0 the session's
   first work, timed from the ask). Headless Chromium 141 in a 4-core container; the arms differ in the flag alone

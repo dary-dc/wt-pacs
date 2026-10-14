@@ -50,6 +50,8 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
 | `REGISTRY` | `docker.io/library` | where the pinned base images are pulled from: a mirror serves the same digests |
+| `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
+| `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds two |
 | `BUILD_CA` | `/dev/null` (none) | the CA of a TLS-inspecting proxy the build must go through, a build secret |
 
 ## The ten fixes, and why
@@ -241,21 +243,37 @@ on ChromeOS and on its production servers, and Android's seccomp filter keeps it
 the three calls and nothing else (`seccomp-uring.sh` diffs it against the pinned default). But seccomp cannot see the
 operations a ring runs: open, socket and connect run without a system call the filter could judge. So allowing
 `io_uring_setup` gives code that already runs in the container the whole io_uring interface and its kernel bugs. It
-narrows nothing about the server's own ring. **Adopting the profile is the owner's call.** The trade is that exposure
-against tile misses through the pool, which are free on the workstation and up to +138 % CPU in the agent container.
-Row 195 measures what it buys on the owner's machine. Until then `compose.yml` does not load it.
+narrows nothing about the server's own ring. The trade is that exposure against tile misses through the pool, which
+are free on the workstation and up to +138 % CPU in the agent container. **The owner took it on 2026-10-14** (queue
+row 231), on row 208's reading in a cloud container: the ring on 84 of 84 cold passes, a cold 32 kB tile 28.8 against
+19.1 µs and ×0.67 the CPU, a tie at 163–503 kB ([`../docs/adr/disk-access.md`](../docs/adr/disk-access.md) §6). P0
+still decides whether the ring earns its keep on the target. *Corrected 2026-10-14:* this paragraph called the profile
+the owner's call and said `compose.yml` does not load it; it does since row 231.
 
-**The settings, for a deployment that takes the trade** (compose; `docker run` takes the same as `--security-opt`
-and `--ulimit`):
+**What `compose.yml` gives the server** (`docker run` takes the same as `--security-opt` and `--ulimit`):
 
 ```yaml
   server:
-    security_opt: ["seccomp=./seccomp-uring.json", "no-new-privileges:true"]   # relative to this file: verified
-    cap_drop: [ALL]
+    security_opt: ["seccomp=./seccomp-uring.json"]   # relative to compose.yml
     ulimits:
-      memlock: { soft: 67108864, hard: 67108864 }   # 64 MiB, ~7 500 rings for this uid; not run here
-      nofile: { soft: 65535, hard: 65535 }
+      memlock: "${MEMLOCK:-67108864}"   # 64 MiB: ~7 500 rings at 8.7 KiB, for this uid
+      nofile: "${NOFILE:-65535}"        # ≥ 2 × sessions that miss + sockets
 ```
+
+A daemon that cannot raise a limit refuses the container at start (`error setting rlimit type 8: operation not
+permitted`): set `MEMLOCK` and `NOFILE` to what it allows, and the banner's `read_ring=` still says whether a ring is
+built. **One uid per server:** the `memlock` counter is the uid's, host-wide, so two of these servers on one host share
+64 MiB unless one is built with another uid. `no-new-privileges:true` and `cap_drop: [ALL]` cost the read path nothing
+with the profile (the probe above), and are not set: untried with the server itself.
+
+**Verified through the image** (row 231, on the host above). `compose up` from the repository's root, so the profile's
+path resolves against `compose.yml`: the banner says `read_ring=available`, and the server's `/proc/<pid>/limits` hold
+the limits given, under `Seccomp: 2`. Mutated, the same `up` with `security_opt: !reset []` says
+`read_ring=refused (io_uring setup: Operation not permitted (os error 1))`. The server's 30 store and read-path tests
+(`media::`), built on the image's Debian and run in it as uid 10001 with `/tmp` on ext4: **30 of 30 run under the
+profile; under Docker's default, 7 skip** for io_uring. This host's daemon holds hard limits of 8 MiB and 20 000 and
+cannot raise them, so the defaults were refused at start; it ran with `MEMLOCK=8388608 NOFILE=20000`. **Not run here:**
+64 MiB and 65 535 themselves.
 
 Kubernetes (not run here): copy the profile to each node's `/var/lib/kubelet/seccomp/`, and set
 `securityContext.seccompProfile: {type: Localhost, localhostProfile: seccomp-uring.json}`. Kubernetes has no
@@ -265,14 +283,14 @@ rootless Podman 5.8.4 accepts it, and on its SELinux-enforcing host the ring the
 entry added. `seccomp-uring.sh` writes it from the pinned, checksummed fetch, and `--check` says whether it is
 current (a changed entry and a wrong checksum each failed it). Regenerate it when the pinned Docker moves.
 
-**Which path is live.** The startup banner says `read_fast_path=preadv2` or `pooled_pread`. Nothing reports the ring
-until a tile session misses; then each such session tries `io_uring_setup` once and warns
-`io_uring unavailable; this session reads through the pool`. `ulimit -l` and `ulimit -n` inside the container are the
-daemon's, so read `/proc/1/limits` there. **Proposed, not built** (a row to take after 195):
+**Which path is live.** The startup banner says `read_fast_path=preadv2` or `pooled_pread`, and `read_ring=available`
+or `read_ring=refused (<why>)` from one ring built and dropped at start (15.6 µs; row 231). A tile session still tries
+`io_uring_setup` once on its first miss and warns `io_uring unavailable; this session reads through the pool`: a ring
+the probe got can still be refused later, past the `memlock` budget. `/proc/1/limits` inside the container is the
+server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 
-* a `read_ring=available` or `read_ring=refused (<errno>)` line in the banner, from one ring built and dropped at start
-  (15.6 µs), with the `memlock` limit beside it. On a refusal, sessions start with the pool, and the per-session warning
-  goes.
+* the `memlock` limit beside `read_ring=`, and sessions that start with the pool when the probe was refused, so the
+  per-session warning goes.
 * the same probe in `check-fastpath`, shipped in the server image, so `docker compose exec server check-fastpath
   /studies` gates a rollout: 0 with both fast paths, 1 with either lost.
 * compose's health check stays the transport file. A slow path is not an unhealthy one, and failing it would hold
@@ -283,7 +301,8 @@ daemon's, so read `/proc/1/limits` there. **Proposed, not built** (a row to take
 | what | why it matters | what would close it |
 | --- | --- | --- |
 | rootless podman | the brief's first runtime is unchecked | a host with it: build, `up`, the page check |
-| io_uring and `memlock` in the deployment | Docker ≥ 25 refuses the tile ring by default; the fix reopens io_uring (§Container settings) | row 195's measurement, then the owner's call on `seccomp-uring.json`; the `read_ring=` probe |
+| io_uring on an SELinux-enforcing host | the profile is not enough there: `EACCES` (§Container settings) | the owner's call: `label=disable` or a policy module granting `io_uring { allowed }`; neither ships |
+| a stale server binary | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | a cache mount `id` per checkout, or a check that the image's binary names this tree's commit |
 | studies by name | one server serves one series (`SERIES`) | a study index, proposed in `docs/FIXTURES.md` §From DICOM |
 | HTTP/3 for the page, and a `dns-prefetch` to the transport's origin | each takes a round trip off a cold open ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §What production adds) | nginx's QUIC listener; one `<link>` in the viewer |
 | the decoders are built on the host | the image checks them against the manifest but does not make them | row DECODERBUILD's container as a stage, once its build runs inside BuildKit |

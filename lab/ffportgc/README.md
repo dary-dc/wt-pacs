@@ -14,8 +14,10 @@ cp $W/decode_g1024/metadata.json $W/series/
 FIREFOX_PATH=.../firefox FOLLOW=1 lab/ffportgc/run.sh $PWD/$W/series 7
 ```
 
-`FOLLOW=1` spawns decoders as the queue grows (the lab flag `followQueue`), which is when a neutered port can be
-collected with frames in flight; the before arm is `client/transport/downloader.js` at the parent of the commit that adds this directory
-(`git log --format=%h -- lab/ffportgc | tail -1`), swapped in between visits. Firefox 157.0.1 is the build
+`FOLLOW=1` spawns decoders as the queue grows (the lab flag `startOnNeed`), which is when a neutered port can be
+collected with frames in flight. The reading was taken with `followQueue`, which also retired idle decoders; that flag
+was removed by row 224 (REJECTEDPATHS) and is at `ba408823`, and the rig has not been run on `startOnNeed`. The
+before arm is `client/transport/downloader.js` at the parent of the commit that adds this directory (`git log
+--format=%h -- lab/ffportgc | tail -1`; it honours `startOnNeed` too), swapped in between visits. Firefox 157.0.1 is the build
 `scripts/wtcompat.py --fetch` fetches and checks against Mozilla's `SHA256SUMS`. The 1 200-frame arm is the 240 frames
 cycled five times, each with its own `.sha256`.
