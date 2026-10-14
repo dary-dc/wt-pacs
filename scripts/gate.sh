@@ -122,14 +122,23 @@ else
   skip "the DICOM reader's tests need pydicom and numpy (PYTHON=... with lab/av1/requirements.txt)"
 fi
 
+coders=0
+[[ -f lab/.av1-build/payload/libdecode.so && -x lab/.av1-build/aom-3.15.1/bin/aomenc && -d lab/.openjph-build/install ]] && coders=1
 step "ingest: the Rust ingest against the Python one — every layout byte-identical at --jobs 1, 2 and 4"
-if [[ -f lab/.av1-build/payload/libdecode.so && -x lab/.av1-build/aom-3.15.1/bin/aomenc && -d lab/.openjph-build/install ]] \
-  && "$PYTHON" -c "import numpy, xxhash, blake3" 2>/dev/null; then
+if [[ $coders -eq 1 ]] && "$PYTHON" -c "import numpy, xxhash, blake3" 2>/dev/null; then
   run 1 cargo build --release --quiet -p from-parser -p pack-series
   run 2 cargo test -p from-parser --quiet
   run 1 "$PYTHON" ingest/from-parser/same_test.py
 else
   skip "the two ingests compared need lab/.av1-build and OpenJPH (ingest/coded-frames/README.md) and PYTHON=... with lab/av1/requirements.txt"
+fi
+
+step "ingest: a synthetic DICOM series to .sbnd, every frame out of the bundle as written, HTJ2K and AV1"
+if [[ $coders -eq 1 ]] && "$PYTHON" -c "import numpy, pydicom, xxhash" 2>/dev/null; then
+  run 1 cargo build --release --quiet -p pack-series
+  run 1 "$PYTHON" ingest/from-dicom/end_to_end_test.py lab/.av1-build
+else
+  skip "DICOM to .sbnd needs lab/.av1-build and OpenJPH (ingest/coded-frames/README.md) and PYTHON=... with lab/av1/requirements.txt"
 fi
 
 step "lab: the variant order and its predecessor split"
@@ -149,10 +158,15 @@ step "server: tests, telemetry feature"
 run 1 cargo test -p series-server --features telemetry --quiet -- --nocapture
 step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --features crypto-ring --all-targets --quiet
+step "server: compiles with cert-compression"
+run 1 cargo check -p series-server --features cert-compression --all-targets --quiet
 step "common, ingest and tools: wire, envelope, series bundle, pack-series and check-fastpath"
 run 1 cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p check-fastpath --quiet
-step "lab: window-harness tests"
-run 1 cargo test -p window-harness --quiet
+step "tools: pack-series packs the smoke bundle again to the same bytes"
+run 1 bash -c 'd="$(mktemp -d)" && trap "rm -rf $d" EXIT && cargo run --quiet -p pack-series -- --metadata fixtures/us_cine_smoke/metadata.json \
+  --frames fixtures/us_cine_smoke/frames --output "$d/x.sbnd" >/dev/null && cmp "$d/x.sbnd" fixtures/us_cine_smoke/us_cine_smoke.sbnd && echo "same bytes"'
+step "lab: the four lab crates' tests (their variants are part of the API)"
+run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench --quiet
 step "lab: the Go and h3 clients compile"
 if command -v go >/dev/null; then
   run 1 bash -c "(cd lab/other-clients/go && go build -o /dev/null .) && (cd lab/page-open/h3-host && go build -o /dev/null .)"
@@ -160,8 +174,7 @@ else
   skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
 fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
-step "lab: disk-access-bench and telemetry-bench compile (the variants are part of the API)"
-run 1 cargo check -p disk-access-bench -p telemetry-bench --all-targets --quiet
+step "lab: the frame cache compiles"
 run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
 
 if [[ $browser -eq 1 ]]; then

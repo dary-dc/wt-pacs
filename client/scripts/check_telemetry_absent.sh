@@ -4,23 +4,21 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-TS_DIST="$ROOT/client/transport/ts/dist/session.js"
+DIST="$ROOT/client/transport/ts/dist"
+BUNDLES=(session.js ws-session.js race-session.js)
 WASM_JS="$ROOT/client/transport/wasm/pkg/transport_wasm.js"
 WASM_BG="$ROOT/client/transport/wasm/pkg/transport_wasm_bg.wasm"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-# dist/ is gitignored — build the default product bundle when missing.
-if [[ ! -f "$TS_DIST" ]]; then
-  bash "$ROOT/client/transport/ts/build.sh"
-fi
-if [[ ! -f "$TS_DIST" ]]; then
-  fail "missing $TS_DIST after build"
-fi
-
-if grep -qE 'record/install|__wtpacsTelemetry|binding_term|serve_plus_path|client_frames|invalid_reasons|mean_frame_bytes|clock_probe_us|StreamAttributor|first_ask_row|tap_read_cost_us|copies_per_frame_declared|ring_evictions' "$TS_DIST"; then
-  fail "telemetry strings found in default dist/session.js"
-fi
+# dist/ is gitignored — build the default product bundles when missing.
+for b in "${BUNDLES[@]}"; do
+  [[ -f "$DIST/$b" ]] || bash "$ROOT/client/transport/ts/build.sh"
+  [[ -f "$DIST/$b" ]] || fail "missing $DIST/$b after build"
+  if grep -qE 'record/install|__wtpacsTelemetry|binding_term|serve_plus_path|client_frames|invalid_reasons|mean_frame_bytes|clock_probe_us|StreamAttributor|first_ask_row|tap_read_cost_us|copies_per_frame_declared|ring_evictions' "$DIST/$b"; then
+    fail "telemetry strings found in default dist/$b"
+  fi
+done
 
 [[ -f "$WASM_JS" && -f "$WASM_BG" ]] || fail "missing the WASM client: client/transport/wasm/build.sh"
 if grep -qiE 'telemetry|Tap|report' "$WASM_JS"; then
@@ -30,16 +28,18 @@ if grep -a -qE 'serve_plus_path|binding_term|client_frames|__wtpacsTelemetry' "$
   fail "telemetry field-name literals in default transport_wasm_bg.wasm"
 fi
 
-# Default bundle must not patch WebTransport when loaded alone.
-node --input-type=module -e "
-  globalThis.WebTransport = function WebTransport() {};
-  const before = globalThis.WebTransport;
-  await import('file://$TS_DIST');
-  if (globalThis.WebTransport !== before) {
-    console.error('FAIL: default session.js patched WebTransport');
-    process.exit(1);
-  }
-  console.log('OK: default session.js does not patch WebTransport');
-"
+# Default bundles must not patch WebTransport when loaded alone.
+for b in "${BUNDLES[@]}"; do
+  node --input-type=module -e "
+    globalThis.WebTransport = function WebTransport() {};
+    const before = globalThis.WebTransport;
+    await import('file://$DIST/$b');
+    if (globalThis.WebTransport !== before) {
+      console.error('FAIL: default $b patched WebTransport');
+      process.exit(1);
+    }
+    console.log('OK: default $b does not patch WebTransport');
+  "
+done
 
 echo "OK: no telemetry surface in default client artifacts"

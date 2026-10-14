@@ -24,8 +24,10 @@ python3 -m venv lab/av1/.venv && lab/av1/.venv/bin/pip install --require-hashes 
                                                     # numpy for the painter check: PYTHON=lab/av1/.venv/bin/python
 ```
 
-Without the first, the dispatch rig runs 152 of its 750 checks; without the second, the painter check does not run.
-The two ingests' comparison also needs the native coders: `lab/av1/tools/tools.sh`, OpenJPH
+With the first, the dispatch rig runs all 780 of its checks, the real-decode ones on npm's OpenJPH and on the
+product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
+check does not run. The two ingests' comparison, and a synthetic DICOM series to `.sbnd` end to end, also need the
+native coders: `lab/av1/tools/tools.sh`, OpenJPH
 (`FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160`) and `ingest/coded-frames/build.sh`
 ([`ingest/from-parser/README.md`](ingest/from-parser/README.md)).
 Without nginx on PATH, the web host's check (`deploy/check_equivalence.sh --local`) does not run.
@@ -58,6 +60,11 @@ python3 server/dev-server.py --port 8765 --series us_cine_smoke
 # 5. Before pushing: the gate (about 100 s on 4 cores, warm builds); --no-browser skips the browser steps, --quick two absence checks
 scripts/gate.sh
 ```
+
+The same gate runs in CI, `.github/workflows/gate.yml`, on every pull request into `claude/av1-unified-mainbase` and
+`main` and every push to them: every prerequisite above present, so a skip not on the workflow's list fails it, and
+the deploy image built with `deploy/check_equivalence.sh` and the viewer's page check run through it. No timing runs
+there: a shared runner is not a measurement host.
 
 Then open in Chrome:
 
