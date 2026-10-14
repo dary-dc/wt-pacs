@@ -1,6 +1,5 @@
 fn main() {
     println!("cargo:rerun-if-changed=../../patches/quinn-proto-0.11.18-probe-every-space.patch");
-    println!("cargo:rerun-if-changed=../../patches/quinn-proto-0.11.18-reply-repeated-initial.patch");
     println!("cargo:rerun-if-changed=../../scripts/patch_crate.sh");
     let manifest = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     let status = std::process::Command::new("bash")

@@ -148,7 +148,6 @@ mod tests {
             "--congestion", "bbr",
             "--initial-window-bytes", "4",
             "--initial-rtt-ms", "5",
-            "--reply-repeated-initial",
             "--segmentation-offload", "false",
         ];
         let tuning = TransportTuning {
@@ -158,7 +157,6 @@ mod tests {
             congestion: Congestion::Bbr,
             initial_window: Some(4),
             initial_rtt_ms: Some(5),
-            reply_repeated_initial: true,
             segmentation_offload: false,
         };
         assert_eq!(parse(&flags).tuning, tuning);

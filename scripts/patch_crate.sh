@@ -13,7 +13,7 @@ CRATE="${1:?$usage}"
 case "$CRATE" in
   wtransport) VERSION=0.7.2 WHAT=settings-in-handshake
     CHECKSUM=b4273ce3157a3262a68665f8d3f20a0ac0c5b8a69ffd67f05ae986832ebec036 ;;
-  quinn-proto) VERSION=0.11.18 WHAT="probe-every-space reply-repeated-initial"
+  quinn-proto) VERSION=0.11.18 WHAT=probe-every-space
     CHECKSUM=a9746dbde176634f4f2f1faf2404e30a31b2bc1e9cafb5329c95d8177a18c9fc ;;
   quinn) VERSION=0.11.11 WHAT=mtu-gso
     CHECKSUM=0c1a41e437b6bbd489372cd4971de128e85c855f56c57f283d20ff016cf7c0a8 ;;

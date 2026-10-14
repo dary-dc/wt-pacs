@@ -2,7 +2,8 @@
 """IRTTMEASURE: the server's initial RTT, unset (333 ms) against `--initial-rtt-ms 100`, one binary and one
 certificate per pair, on the dev certificate and on an ECDSA chain. Protocol and rule:
 docs/transport/transport-conclusions.md §3 *Proposed row: IRTTMEASURE*. `--row reply` runs INITIALMEASURE's four arms
-instead: today, today again, `--reply-repeated-initial` and `--initial-rtt-ms 100` (§3 *Answering a repeated Initial*).
+instead: today, today again, `--reply-repeated-initial` and `--initial-rtt-ms 100` (§3 *Answering a repeated Initial*);
+its reply arm needs a build up to `ba408823`, where the flag still exists.
 
     lab/irtt/run.py [--row irtt|reply] --phase abc|b [--rounds N] [--first-round K] --out rows.jsonl
     lab/irtt/run.py --summary --out rows.jsonl [--out more.jsonl]
@@ -41,8 +42,8 @@ sys.path.insert(0, SCRIPTS)
 from order import order  # noqa: E402
 
 ROWS = {
-    "irtt": {"irtt333": [], "irtt100": ["--initial-rtt-ms", "100"]},
-    "reply": {"today": [], "today2": [], "reply": ["--reply-repeated-initial"], "irtt100": ["--initial-rtt-ms", "100"]},
+    "irtt": {"irtt333": ["--initial-rtt-ms", "333"], "irtt100": ["--initial-rtt-ms", "100"]},
+    "reply": {"today": ["--initial-rtt-ms", "333"], "today2": ["--initial-rtt-ms", "333"], "reply": ["--reply-repeated-initial"], "irtt100": ["--initial-rtt-ms", "100"]},
 }
 SWALLOW_MS = 50
 LTE_LOADED_ONE_WAY_MS = 30

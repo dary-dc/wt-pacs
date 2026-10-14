@@ -1881,6 +1881,11 @@ Firefox's variable time from its reply to `ready`, which H's arm meets alike. Th
 default. Two readings are for the owner: against H, R ties the browsers in A and loses `cold_open` by 0.7–0.85 s; in
 B it is 220 ms ahead of H on the 0.8 % of Chromium opens that lose part of the first flight.
 
+*The owner's reading, 2026-10-14:* H over R — the same browser gain from a setting, not a carried quinn-proto patch.
+Proposed, not merged: a draft pull request makes 100 ms the default and removes R's flag, patch and tests; its test
+dials with the first flight swallowed and fails at quinn's 333 ms. The A/A caveat stands: R's cells A and C ran every
+arm at a 38 400-byte initial window, against today's 12 000; IRTTMEASURE's H ran at 12 000.
+
 ### After a blink, 2026-09-19
 
 *Queue row W3.* [`../../lab/scripts/blink_cells.sh`](../../lab/scripts/blink_cells.sh), five rounds a cell,

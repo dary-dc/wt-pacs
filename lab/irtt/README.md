@@ -25,7 +25,8 @@ Williams order every round (`lab/scripts/order.py`); the relay's seed is the rou
 loss draws. The first line of every output file prints each arm's settings and every pin.
 
 **Row INITIALMEASURE** (`--row reply`): four arms on the same binary, today, today again, `--reply-repeated-initial` and
-`--initial-rtt-ms 100`; results in the same document, §3 *Measured: INITIALMEASURE*. The tap also marks each client
+`--initial-rtt-ms 100`; results in the same document, §3 *Measured: INITIALMEASURE*. The reply arm needs a build up
+to `ba408823`: the 100 ms proposal removes the flag. The tap also marks each client
 datagram that holds only Initial packets, so a repeated Initial is counted from the packets, not from its timing, with
 the server's datagrams and bytes from it to the client's reply. Its check: four synthetic datagrams (an Initial padded,
 two Initials, an Initial with a Handshake or a short-header packet after it) classified right, and wrong under each of

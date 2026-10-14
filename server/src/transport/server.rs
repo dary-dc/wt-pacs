@@ -1615,13 +1615,8 @@ mod tests {
 
     /// Dials a server whose datagrams are dropped for `swallow` after its first, every datagram
     /// delayed `one_way`, with a client whose first probe comes at 300 ms, as Chromium's and
-    /// Firefox's do. Returns the time to the client's handshake and, per round of client datagrams
-    /// the server received, the server's bytes in the `one_way` after the round's first.
-    fn dial_with_first_answers_swallowed(
-        tuning: TransportTuning,
-        one_way: Duration,
-        swallow: Duration,
-    ) -> (Duration, Vec<usize>) {
+    /// Firefox's do. Returns the time to the client's handshake.
+    fn dial_with_first_answers_swallowed(tuning: TransportTuning, one_way: Duration, swallow: Duration) -> Duration {
         let dir = std::env::temp_dir().join(format!("wtpacs-repeat-{}-{}", std::process::id(), swallow.as_millis()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let series = write_series(&dir, 1);
@@ -1642,9 +1637,6 @@ mod tests {
             let relay = front.local_addr().expect("relay addr");
             let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
             back.connect(("127.0.0.1", port)).await.expect("relay upstream");
-            let delivered = Arc::new(std::sync::Mutex::new(Vec::new()));
-            let answered = Arc::new(std::sync::Mutex::new(Vec::new()));
-            let (to_server, from_server) = (delivered.clone(), answered.clone());
             tokio::spawn(async move {
                 let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
                 let mut client = None;
@@ -1653,16 +1645,14 @@ mod tests {
                     tokio::select! {
                         Ok((n, from)) = front.recv_from(&mut up) => {
                             client = Some(from);
-                            let (back, d, log) = (back.clone(), up[..n].to_vec(), to_server.clone());
+                            let (back, d) = (back.clone(), up[..n].to_vec());
                             tokio::spawn(async move {
                                 tokio::time::sleep(one_way).await;
-                                log.lock().unwrap().push(tokio::time::Instant::now());
                                 back.send(&d).await.ok();
                             });
                         }
                         Ok(n) = back.recv(&mut down) => {
                             let now = tokio::time::Instant::now();
-                            from_server.lock().unwrap().push((now, n));
                             if now - *first_answer.get_or_insert(now) < swallow {
                                 continue;
                             }
@@ -1699,47 +1689,20 @@ mod tests {
             .expect("client side of the handshake");
             let handshake = start.elapsed();
             server.abort();
-            let answered = answered.lock().unwrap().clone();
-            let mut rounds: Vec<tokio::time::Instant> = Vec::new();
-            for &at in delivered.lock().unwrap().iter() {
-                if rounds.last().is_none_or(|&last| at - last > one_way) {
-                    rounds.push(at);
-                }
-            }
-            let bytes_after = rounds
-                .iter()
-                .map(|&at| answered.iter().filter(|(t, _)| *t >= at && *t < at + one_way).map(|(_, n)| n).sum())
-                .collect();
-            (handshake, bytes_after)
+            handshake
         });
         std::fs::remove_dir_all(&dir).ok();
         result
     }
 
-    /// A server whose first flight is lost resends it when the client repeats its Initial, at
-    /// 300 ms, not at its own probe timeout near 1 s. Without `--reply-repeated-initial` the
-    /// handshake takes over a second. docs/transport/transport-conclusions.md §3, Answering a
-    /// repeated Initial.
+    /// By default a server whose first flight is lost resends it on its own probe timeout at
+    /// 300 ms, not near 1 s as at quinn's 333 ms initial RTT. docs/transport/transport-conclusions.md
+    /// §3, Answering a repeated Initial.
     #[test]
-    fn a_repeated_initial_draws_the_lost_flight_at_once() {
-        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
+    fn a_lost_first_flight_is_resent_at_300_ms_by_default() {
         let one_way = Duration::from_millis(25);
-        let (handshake, bytes_after) = dial_with_first_answers_swallowed(tuning, one_way, one_way);
-        assert!(bytes_after.len() >= 2, "the client never repeated its Initial: {bytes_after:?}");
-        assert!(bytes_after[1] >= 1200, "the repeat drew {} bytes, not the flight", bytes_after[1]);
-        assert!(handshake < Duration::from_millis(700), "handshake took {handshake:?}: the flight waited for the server's PTO");
-    }
-
-    /// The reply is once a connection: with the first flight and its resend both lost, the
-    /// client's second repeat draws only an ACK, and the flight waits for the server's PTO.
-    #[test]
-    fn a_second_repeated_initial_draws_only_an_ack() {
-        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
-        let (_, bytes_after) =
-            dial_with_first_answers_swallowed(tuning, Duration::from_millis(25), Duration::from_millis(500));
-        assert!(bytes_after.len() >= 3, "the client repeated its Initial fewer than twice: {bytes_after:?}");
-        assert!(bytes_after[1] >= 1200, "the first repeat drew {} bytes, not the flight", bytes_after[1]);
-        assert!(bytes_after[2] < 1200, "the second repeat drew {} bytes, more than an ACK", bytes_after[2]);
+        let handshake = dial_with_first_answers_swallowed(TransportTuning::default(), one_way, one_way);
+        assert!(handshake < Duration::from_millis(700), "handshake took {handshake:?}: the flight waited ~1 s");
     }
 
     /// A client whose ClientHello spans two datagrams, the second arriving after the server has
