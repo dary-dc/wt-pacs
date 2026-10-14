@@ -81,7 +81,7 @@ mod tests {
         };
         let enc = encode_fod_msg(&msg).unwrap();
         let body = &enc[4..];
-        assert_eq!(body, br#"{"op":"stream_frame"}"#);
+        assert_eq!(body, br#"{"op":"stream_frames"}"#);
         assert_eq!(decode_fod_msg(&enc).unwrap(), msg);
     }
 
