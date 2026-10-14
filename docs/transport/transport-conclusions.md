@@ -48,7 +48,7 @@ at `6e9c126`.
 
 | decision | verdict |
 | -------- | ------- |
-| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 *After a blink*). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). Through the whole product on lossy links, BBR fills in 0.04–0.76 of `cubic-restart`'s time on both codecs but costs +2–13 % on some clean and jitter cells, so it is not adopted (§1 *Through the whole product, on a lossy link*; the owner's call, §9 item 2). In a browser under 1–3 % random loss BBR fills 12–19× faster (§1 *Priced in a browser*); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (§1 *Link profiles close to a phone*). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (§1 *A neighbour behind fq_codel*). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 *The ask's loss sensitivity*). Through the product's client, 1–5 % loss: BBR 0.04–0.74 of the fill, Cubic with or without the restart the same; not adopted, 1.01–1.04 on clean 5 Mbit (§1 *Under 1–5 % loss, the product's client*). A bounded BBR was built and retired (§1 *A bounded BBR, retired*); v3's loss bound is built opt-in as `bbr-bound` and fails its pre-registered rule: 2.3–3.2 % of its packets meet CoDel against a 2 % bar, +375 ms on an ask at 4 % loss against +73 (§1 *The bound, measured*); it stays opt-in |
+| **Congestion controller** | **Cubic, restarting slow start after a silence (`cubic-restart`, the default since 2026-10-02: −4.6 to −6.6 s a fill after a dropped blink, a tie otherwise, §3 *After a blink*). BBR stays opt-in.** Congestive loss → Cubic, random loss → BBR, both by large margins (§1). Through the whole product on lossy links, BBR fills in 0.04–0.76 of `cubic-restart`'s time on both codecs but costs +2–13 % on some clean and jitter cells, so it is not adopted (§1 *Through the whole product, on a lossy link*; the owner's call, §9 item 2). In a browser under 1–3 % random loss BBR fills 12–19× faster (§1 *Priced in a browser*); on phone-like profiles it ties or beats Cubic by 1.0–2.3× (§1 *Link profiles close to a phone*). Its price is the queue: ~45 % of its datagrams overflow a 120 ms buffer, it stands 27–294 ms of queue, and it takes 99 % from TCP Cubic behind a shallow FIFO — a neighbour cost fq_codel removes, though not its own queue (§1 *A neighbour behind fq_codel*). An ask's loss slope is the controller's on QUIC and kernel TCP alike (§5 *The ask's loss sensitivity*). Through the product's client, 1–5 % loss: BBR 0.04–0.74 of the fill, Cubic with or without the restart the same; not adopted, 1.01–1.04 on clean 5 Mbit (§1 *Under 1–5 % loss, the product's client*). A bounded BBR was built and retired (§1 *A bounded BBR, retired*); v3's loss bound is built opt-in as `bbr-bound` and fails its pre-registered rule: 2.3–3.2 % of its packets meet CoDel against a 2 % bar, +375 ms on an ask at 4 % loss against +73 (§1 *The bound, measured*); it stays opt-in. Beyond both, a Cubic that skips the cut on loss met by no queue is the candidate with loss tolerance and a short queue, unmeasured (§1 *Beyond Cubic and BBR*) |
 | **Stream shape** | **One shared stream.** Per-frame + FIFO lost 5.76× at 250 KB on a real path; with ask-order priority it is level, and a fixed pool is closed and retired (§2, [`../adr/stream-shape.md`](../adr/stream-shape.md)) |
 | **Initial congestion window** | **quinn's default — but the "≤ 7 %" that used to be the reason is corrected (2026-09-19).** That cell averaged many asks on one session and never measured the first ask, the only place the window matters. On the first ask of an idle session 32 packets is **−28 to −33 %**, and flat at −16…−33 % behind any queue of 20 packets or more; it loses in one cell (+11.8 %, 250 KB / 80 ms / 10-packet queue) and buys nothing on top of the push at session open, which is the larger lever and the default (§3) |
 | **Send path** | **The reader's buffer handed to quinn** as `Bytes`, one copy of four gone: −3 to −8 % CPU per ask in every cell, nothing against (§4). It also bounds what a stalled client costs (§3) |
@@ -886,6 +886,217 @@ rule.
 **What this decides now:** nothing changes in the product. What it changes is how the earlier BBR-against-Cubic clean
 cells read: as two controllers *and* two initial windows. The way out most likely to keep the gain without the clean
 cost is a classifier in front of Cubic's cut (option 1), and R2 decides first whether one can be trusted on this rig.
+
+### Beyond Cubic and BBR
+
+*2026-10-14, queue row CCNEXT. Theory: nothing built or timed. A figure marked (D) is printed by
+[`../native/cc_next.py`](../native/cc_next.py), a fluid Cubic of RFC 9438 on row LINKREAL's links, whose `check()`
+fails under each of twelve mutations of its terms.*
+
+**The question.** Beyond Cubic and BBR, what congestion control fits a phone's lossy link with a deep queue, across
+row STREAMSWIDE's range, and what else must be weighed? For each candidate: the fill, an ask's wait (asked first,
+row STREAMSMEASURE's arm), the standing queue, the share left to a neighbour, and what a phone run must measure.
+
+**The answer, short.** The target asks two things of a controller, and neither incumbent gives both:
+
+* **No cut on random loss.** Cubic's cut holds the fill to its loss bound: 17.6 Mbit/s of the cellular median's 103 at
+  0.1 %, 5.7 at 1 % (D).
+* **No deep standing queue.** A phone's cellular queue is its own, so the queue a fill stands is what its own asks
+  wait behind: Cubic stands 379 ms at 103 Mbit/s with nothing lost (Chromium's 6 MiB stream credit binds before the
+  725 ms buffer), and an ask asked first waits 474 ms (D).
+
+BBR has the first and not the second (27–294 ms measured, *Priced in a browser*). **The candidate with both, from
+sources and the model, is Cubic with a loss classifier, plus a delay cut where the queue is the user's own.**
+
+* **The classifier alone** (row CCTHEORY's option 1, Cubic only) fills 99–101 Mbit/s of 103 at 0.01–1 % with 2–3 ms
+  of queue (D). It is Cubic, buffer and all, when nothing is lost.
+* **Adding a delay cut** (Linux's CDG shape) holds the queue at 2 ms clean too. The ask falls 474 → 98 ms. The cost is
+  3–4 % of a clean fill, and it yields to any loss-based flow sharing its queue.
+* **BBRv3** tolerates the target's common loss (a probe round overshoots its 2 % bound with probability 0.000–0.003 at
+  0.1 %, 0.03–0.19 at 1 %; D), but its queue needs a pacer quinn lacks, and it is ~2 000 lines.
+* **Copa** has both properties on paper and has never run against a phone's link noise here.
+* **Ruled out as controllers:** Vegas, LEDBAT, HyStart++, L4S, pacing, FEC and several connections. Each fails on one
+  property or is dominated.
+* **Nothing changes in the product.** Two rows are proposed, unqueued, and the phone run's five measurements decide
+  between them (below).
+
+**Read.** Each fetched 2026-10-14 and pinned by sha256 (first 12 hex); those already pinned by row CCTHEORY match
+their pins:
+
+* draft-ietf-ccwg-bbr-06 (`ba4f90e93d83`, still the latest);
+* RFC 9406 (`43e3ddc1d344`), RFC 6817 LEDBAT (`6092aa1a98af`) and draft-irtf-iccrg-ledbat-plus-plus-01
+  (`6092f6c39020`);
+* RFC 9438 (`baa4dd77295e`), RFC 9002 (`3a8a54eea1ad`);
+* RFC 9330 (`31ebe0cc2b40`) and RFC 9331 (`92de982f553f`), draft-briscoe-iccrg-prague-congestion-control-04
+  (`d888115efb55`);
+* RFC 9332 (`4412ad8d1196`), RFC 8290 (`2cff1a614876`), RFC 2914 (`9fcf305067fd`);
+* Copa, NSDI 2018 (`95de571ee90a`); Sprout, NSDI 2013 (`8369c0ab1587`);
+* Høiland-Jørgensen et al., "Ending the Anomaly", USENIX ATC 2017 (`a05c497a41cd`);
+* Sander et al., "ECN with QUIC: Challenges in the Wild", IMC 2023, arXiv 2309.14273v1 (`40dcd66f82cc`);
+* Pan et al., "The Role of L4S" in 5G-Advanced, arXiv 2407.20852v1 (`8b6ebf610ffc`);
+* Apple's "Testing and Debugging L4S in Your App" (`e114481e80f7`);
+* Linux v6.12 `net/ipv4/tcp_cdg.c` (`5e9382786db0`), after Hayes and Armitage, IFIP Networking 2011;
+* the QUIC WG list's "Update for ECN feedback over QUIC", 2024-05-08 (`57e787028a60`);
+* Chromium 141.0.7390.54's `net/socket/udp_socket_posix.cc` (`ff5bac8e1529`) and `net/quic/quic_session_pool.cc`
+  (`48daa34881fd`);
+* the W3C WebTransport Editor's Draft (`60b3f0bd378f`), the WICG Network Information draft (`0e287090317b`);
+* quinn-proto 0.11.18 from the crate the build pins (`a9746dbde176`).
+
+**Not read**, so not cited: Hayes and Armitage's paper itself (the IFIP link served HTML), 3GPP TS 23.501 §5.37.3, any
+carrier's L4S deployment beyond a blog's mention, and Firefox's release notes for its ECN fix.
+
+#### The two properties, on the target's links
+
+The model runs four of row LINKREAL's links. The buffer is the loaded RTT less the idle one:
+
+* the cellular median: 103 Mbit/s, 26 ms, 725 ms of buffer;
+* the cellular p10: 18 Mbit/s, 52 ms, 725 ms;
+* the Wi-Fi median: 218 Mbit/s, 10 ms, 240 ms;
+* a far server behind a shallow queue: 46 Mbit/s, 92 ms, 20 ms.
+
+What is in flight is capped by Chromium's 6 MiB stream credit. The classifier skips the cut when the queue at the loss
+(srtt less the minimum) is under RFC 9406's threshold, max(4 ms, min(min RTT ÷ 8, 16 ms)). The delay cut also cuts
+by 0.7 once the queue reaches it.
+
+The model's limits:
+
+* the link's rate is constant, and the classifier reads the queue exactly;
+* loss is iid, which bursts change by ~√b in Cubic's favour (§9.6 of quic-compared);
+* quinn's BBRv1 column is its window cap only; measured, it overflows and stands more (*Priced in a browser*).
+
+Fill Mbit/s · standing queue ms (D):
+
+| link | loss | Cubic | Cubic + classifier | + delay cut | quinn's BBRv1 (cap) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| cellular p50 | 0 | 103 · **379** | 103 · **379** | 100.0 · 2 | 103 · 26 |
+| | 0.1 % | **17.6** · 0 | 100.1 · 2 | 99.9 · 2 | 102.9 · 26 |
+| | 1 % | **5.7** · 0 | 99.0 · 2 | 99.0 · 2 | 102.0 · 26 |
+| cellular p10 | 0 | 18.0 · **587** | 18.0 · **587** | 17.3 · 2 | 18.0 · 52 |
+| | 0.1 % | **8.9** · 0 | 17.5 · 4 | 17.3 · 2 | 18.0 · 52 |
+| | 1 % | **2.8** · 0 | 17.2 · 2 | 17.1 · 2 | 17.8 · 52 |
+| Wi-Fi p50 | 0 | 218 · 175 | 218 · 175 | 217.9 · 2 | 218 · 10 |
+| | 0.1 % | **46.2** · 0 | 217.7 · 2 | 217.7 · 2 | 217.8 · 10 |
+| far, shallow | 0 | 45.5 · 12 | 45.5 · 12 | 44.8 · 6 | 46.0 · 20 |
+| | 0.1 % | **5.8** · 0 | 44.8 · 6 | 44.8 · 6 | 46.0 · 20 |
+
+Plain Cubic reproduces §9.6 of quic-compared, which used RFC 9438's response function: 50.7, 17.6 and 5.7 Mbit/s at
+0.01, 0.1 and 1 % against 53.6, 17 and 5.4.
+
+An ask asked first during the fill, ms (D):
+
+| link | loss | Cubic | classifier | + delay cut | BBRv1 (cap) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| cellular p50 | 0 | 474 | 474 | 98 | 121 |
+| | 1 % | 824 | 98 | 98 | 121 |
+| cellular p10 | 0 | 936 | 936 | 360 | 400 |
+| | 1 % | 1 673 | 363 | 363 | 403 |
+| Wi-Fi p50 | 0 | 215 | 215 | 42 | 50 |
+
+**Why the classifier settles at q\*, derived.** Each loss is judged by the queue it meets:
+
+1. While the queue is under q\*, every random loss is skipped, so the window grows.
+2. Once the queue reaches q\*, the next random loss cuts it by 0.7.
+3. At 0.01 % and 103 Mbit/s a loss arrives about once a second (D), so the queue hovers near q\*. The sawtooth's dip
+   below one BDP is what costs the last 1–4 %.
+
+**The classifier's errors are bounded where it fails.** A loss classed congestive wrongly is today's behaviour. A
+congestive loss classed random costs at most q\* of queue before the next loss cuts. Only a link that loses nothing
+lets it stand a deep queue, and there it is Cubic.
+
+**Against a loss-based neighbour in a FIFO it is Cubic.** The neighbour holds the queue over q\*, so every loss is
+classed congestive and the share is Cubic's, 44.8–51.7 % measured (*A neighbour behind fq_codel*).
+
+**The delay cut trades a clean fill for the ask.**
+
+* It is −3 % at the cellular median, −4 % at p10 and −1.5 % on the far server (D). A 0.7 cut from one BDP plus 4 ms
+  falls under the BDP.
+* For that, the ask falls 376–576 ms on cellular and 173 ms on Wi-Fi.
+* Behind a shared FIFO it yields: it cuts on a queue the neighbour builds. That is Vegas's known failure;
+  `tcp_cdg.c`'s shadow window and ineffective-backoff test exist to counter it.
+* **On cellular the neighbour is the phone itself.** "Most (in fact, all, to our knowledge) deployed cellular
+  wireless networks enqueue each user's traffic in a separate queue" (Sprout §2), so what it yields goes to the
+  user's own other flows.
+* On Wi-Fi, Linux access points share airtime per station and run fq_codel per flow on drivers that use mac80211's
+  queues ("Ending the Anomaly", accepted into mainline Linux), so a neighbour's queue is not ours there either. A
+  plain FIFO home router's is.
+* RFC 9330 §6.3: on radio links it is "desirable to hold a standing queue that can utilize sudden increases of
+  capacity". A 2 ms queue cannot, and the model's constant link does not price that: not derived.
+
+#### Each candidate
+
+| candidate | mechanism (source) | fill under loss | ask, asked first | standing queue | neighbour | net? | size in quinn | a phone run must measure |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **BBRv3** | a lossy round outside probing cuts the rate by the loss rate ("reduce the sending rate by X%", draft-06 §5.5.10, Beta 0.7 floor); only a probe round losing > 2 % cuts `inflight_longterm`; CE is congestion (§3.7) | link-bound to ~1 %: a probe overshoots with probability 0.000–0.003 at 0.1 %, 0.03–0.19 at 1 %, 0.92–1.00 at 5 % (D); above 2 % gives the gain up by design, as `bbr-bound` did (×1.2–8.3, *The bound, measured*) | ~1 RTT and a probe's ¼ BDP with a pacer at BBR's rate, 1 BDP without (cwnd gain 2): not derived | CRUISE paces at the estimate, UP at 1.25 for a round each 2–3 s, but only if the pacer reads the rate: quinn's does not | the ICCRG study: "struggles to co-exist with loss-based CCAs" (row CCTHEORY's sources) | net against v1 on the queue if paced; a trade-off against the classifier above 1 % | ~2 000 lines, a per-packet sampler quinn does not hand over, and a pacer patch (*quinn's BBR against BBRv3*) | the loss rate per round on the phone's links: ≤ 1 % keeps v3 whole |
+| **Cubic + classifier** (row CCTHEORY's option 1, Cubic only) | skip the cut on a loss that met under q\* of queue (RFC 9406's q\*); CE and persistent congestion always cut | 99.0–101.1 of 103 Mbit/s at 0.01–1 %, ×2–17 Cubic's (D) | 98 ms at 1 % against 824 (D) | q\*, ~2–4 ms, when anything is lost; Cubic's when nothing is | Cubic's in a shared FIFO | **net by construction on clean links**; row LOSSCLASS met both bars under Cubic (C→R 0 %, R→C 1–2 %) | ~150 lines, a wrapper like `restart.rs` | the queue at each loss against the link's own RTT noise: noise over q\* classes random loss congestive, which is today's Cubic |
+| **+ delay cut** (Linux `tcp_cdg`: probabilistic back-off by 0.7071 on a rising delay gradient, a loss tolerance option off by default) | cut by 0.7 at q\* with no loss | as the classifier (D) | **98 ms clean, against 474** (D) | ~2 ms always | **yields** in a shared FIFO; on cellular only to the user's own flows | **a trade-off**: −1.5 to −4 % clean fill for −173 to −576 ms an ask (D) | +~50 lines over the classifier (not derived) | whether the phone's bottleneck queue is its own (a concurrent download on the phone during a fill), and how fast its rate swings |
+| **Copa** | target rate 1/(δ·d_q); queue 1.25/δ̂ = 2.5 packets for one flow at δ = 0.5 (§2); "a 5% non-congestive packet loss rate should decrease the throughput by 5%, not by 5×" (§5.4) | loss-insensitive | ~1 RTT | ~2.5 packets; "slightly less throughput than BBR" (Copa, on BBR) | a competitive mode, which needs the queue to empty every 5 RTTs to leave; mis-switches under churn (row CCTHEORY) | unknown on a phone's link noise | a new controller, several hundred lines; no Rust one read | as the delay cut, plus whether the queue empties every 5 RTTs on a cellular link |
+| **Vegas, LEDBAT, LEDBAT++** | a queue target (Vegas a few packets; LEDBAT ≤ 100 ms, RFC 6817 §2.5; LEDBAT++ 60 ms); halve on loss (RFC 6817 §2.4.2) | Reno's bound: 17.0 Mbit/s at 0.1 %, 5.4 at 1 % on the cellular median (D), Cubic's problem kept | — | LEDBAT stands its 60–100 ms target | LEDBAT yields by design, a scavenger | **excluded**: fails the first property | — | — |
+| **HyStart++** (RFC 9406) | ends slow start when a round's RTT rises by q\* | — | — | slow start's overshoot only; congestion avoidance still fills the buffer | — | **dominated**: retired here as a tie (§3; behind 1 000 ms it stood 239–454 ms less queue in four cells). The 6 MiB credit binds before the 725 ms buffer above ~69 Mbit/s (D), so on the cellular median slow start never overflows it | — | — |
+| **L4S and ECN** | a marking bottleneck, a receiver that echoes, a sender with a scalable response (RFC 9330, Prague draft-04) | does not help random loss: on radio links "an L4S response to loss has to be as drastic as a Classic response" (RFC 9330 §6.4.3) | low where a bottleneck marks | ~1 ms where L4S marks | DualQ isolates Classic flows (RFC 9332) | **not reachable today**, see below | ECT(1) and a scalable response: a quinn patch (it sends ECT(0) only, `connection/mod.rs`) | CE marks and ECN validation per session, on the carrier and on home Wi-Fi |
+| **Pacing** | quinn paces every controller at 1.25 × window ÷ srtt | — | — | Cubic is already paced; BBR's rate is not read (*Priced in a browser*) | — | **nothing to gain alone**; a pacer patch matters only for v3 | — | — |
+| **FEC, or the tail sent twice** | repair symbols (no browser's QUIC decodes them, row CCTHEORY option 6); or a duplicate of an ask's last packet, which QUIC permits | — | a lone ask whose last packet is lost waits a PTO, not 9/8 RTT: mean 0.07 / 0.68 / 6.8 ms at 0.01 / 0.1 / 1 % on a 751 ms srtt (D); the p-th of asks pays ~PTO − RTT | — | — | **a trade-off of the tail only**: one packet an ask (0.26 % of 550 kB) against p of asks' PTO | a quinn patch (no API) | the loss rate (as the classifier) |
+| **Per-session choice** | the server's own min RTT, loss at a flat RTT, CE; the client's `navigator.connection.type`, `effectiveType`, `rtt`, `downlink` (WICG Network Information; in Chrome on Android; not checked for Firefox) in the session URL, a round trip after the controller is built (*Switching inside quinn*) | as the chosen one | as the chosen one | as the chosen one | the choice can keep the delay cut off where a neighbour shares the queue | **the way to field the delay cut**: on where `type` is `cellular`, off elsewhere | the switch table above, ~250–350 lines | how often `type` is right about whose queue it is |
+| **Several connections** | k controllers; WebTransport's `allowPooling` defaults to false, so k sessions are k connections (Editor's Draft §6.9) | §9.6 of quic-compared: 1 · 2 · 4 · 8 Cubic connections at 1 % and 103 Mbit/s fill 13.6 MB in 35.9 · 18 · 9.0 · 4.5 s; the classifier's one connection 1.1 s (D) | the ask's connection still waits behind its own queue | k × each | on cellular, from the user's own flows (per-user queues); on a shared FIFO, k shares, against RFC 2914 §4.2's old two-connection guidance | **dominated** by one loss-tolerant connection | the fill split across sessions: structural (§9.4 of quic-compared) | — |
+
+**L4S and ECN, what is in place.** Every party needs it, and only parts are known:
+
+* **The bottleneck.** 3GPP Release 18 makes L4S marking available at the gNB or the UPF (Pan et al.); whether the
+  owner's carrier marks is unknown. fq_codel marks ECN-capable packets rather than dropping them (RFC 8290 §5.2.6),
+  so a home router running it gives Classic ECN. No Wi-Fi L4S deployment was found.
+* **The receiver.** Chromium 141 turns on reading the TOS byte for every QUIC socket and fails the session if it
+  cannot (`quic_session_pool.cc`, `SetRecvTos`). So it reports ECN counts unless a recv path without `recvmsg` is in
+  use (`udp_socket_posix.cc`'s TODO). This is read from source, not observed; in 2024 it was rolling out behind a flag
+  (the QUIC WG list). Firefox's bug 1902065 is fixed, release not found. Apple's QUIC always echoes, but it is not the
+  target's phone.
+* **The sender.** quinn sends ECT(0) and hands a CE to the controller as a congestion event with no bytes lost
+  (`process_ecn`); its stats count no CE.
+* **Measured in the wild:** under 2 % of QUIC hosts pass ECN validation (Sander et al.).
+
+**What ECN would buy here is a classifier input, not a controller.** On a path that marks, a congestive loss is "very
+likely to have been preceded by a period of ECN marking". Prague's authors name "a downward trend in ECN marking and/or
+delay as a heuristic to temper the response to loss" (draft-04 §3.2). A loss with no CE in the round before it, on a
+path that has marked, is then random by a second witness.
+
+#### What the phone run must measure
+
+For `docs/devices.md` D2 and D3. The recording wrapper of row CCTHEORY's R5 sees all but the fourth from the server:
+
+1. **The queue at each loss** (srtt less min RTT), and its trend over the second before. This decides whether RFC
+   9406's q\* clears the link's own RTT noise. If it does not, the classifier is today's Cubic and gains nothing.
+2. **The standing queue a Cubic fill builds** on cellular and on Wi-Fi, and whether the credit or the buffer binds.
+   This decides the delay cut's worth: 474 → 98 ms predicted at the cellular median (D).
+3. **Whether another flow shares that queue.** A download on the same phone during a fill, then on another device on
+   the same Wi-Fi. This decides what the delay cut yields.
+4. **The delivery rate per 100 ms during a fill.** This decides what a 2 ms queue leaves unused on a link whose rate
+   swings, which the model does not price.
+5. **CE marks and ECN validation per session.** A congestion event with no bytes lost is a CE in the wrapper's log.
+   This decides whether ECN can witness for the classifier.
+
+#### Proposed rows (not queued)
+
+Each fixes its predictions before data, as row CCTHEORY's did. Rows LOSSCLASS's review asked that option 1 be
+reopened only by a Cubic-only rule with a deep-overflow cell; these are that rule.
+
+* **CLASSIFY — option 1, Cubic only.** `--congestion cubic-classify`, a wrapper over `cubic-restart` at RFC 9406's q\*.
+  * Cells: row LOSSCLASS's `of-q500` with the browser's credit (≥ 1 MB in flight), so a deep overflow finally happens;
+    row LOSSCC's grid; *A neighbour behind fq_codel*'s FIFO cells.
+  * Predictions (D): clean and jitter cells equal `cubic-restart` (no code path differs); 1 % and 2 % fixed-rate fills
+    ≤ 0.2 × `cubic-restart`'s; the neighbour's share within 5 points of `cubic-restart`'s; `of-q500`'s congestive
+    losses classed congestive ≥ 95 %.
+  * Rule: default if no clean or jitter cell is over 1.01, every 1–2 % fixed-rate cell is ≤ 0.75, and the share holds,
+    in both readings.
+* **DELAYCUT — the delay cut over CLASSIFY, opt-in, only after CLASSIFY passes.**
+  * Cells: deep FIFO alone and with a kernel-TCP neighbour; the deep-buffer fill's `step` and `step40` links (a rate
+    that swings).
+  * Predictions (D): clean fill −1.5 to −4 %; the ask during a fill −376 ms at 103 Mbit/s behind 725 ms; the
+    neighbour's share over 70 % (it yields; not derived); on `step40`, a fill slower than CLASSIFY's by more than
+    4 % (not derived).
+  * Rule: no default. It is fielded per session where the device run shows the queue is the phone's own (measurement
+    3); that is the owner's call on the trade.
+
+**What this decides now:** nothing changes in the product. It restates the controller question as two properties.
+It names a candidate with both, at ~200 lines over quinn's public trait, beside a v3 that needs ~2 000 and a pacer
+patch. And it says which five device measurements decide it.
 
 ## 2 · One shared stream
 
