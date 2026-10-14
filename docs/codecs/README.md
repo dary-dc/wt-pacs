@@ -243,6 +243,85 @@ less likely on the faster links): dav1d's entropy decoder in WASM SIMD, REMAP bu
 * **The HTJ2K bit split** — 0.9–1.6 % fewer bytes at 1.02–1.69× the decode (row 36).
 * **JPEG XL at effort 1** — 0.94–1.03 of HTJ2K's bytes at 1.03–1.91× its decode (row 63).
 
+## Beside the codec
+
+*Queue row 194, COMPLEMENT, 2026-10-14. Theory, with one estimate computed on sound data
+([`../../lab/av1/floor/`](../../lab/av1/floor/README.md), (M)); nothing timed. The owner, 2026-10-13: JPEG XL's small
+gain was a surprise; what beside the codec could cut lossless bytes or decode time, and how much can any lossless
+coder gain at all?*
+
+**The answer, short.** **Little is left, and JPEG XL already takes most of it.** Every lossless coder pays at least
+the sensor noise's entropy; on the seven sound series measured here that floor is 0.80–0.91 of HTJ2K's bytes by the
+high estimate (0.59–0.85 by the low one), so no coder, beside the codec or instead of it, can save more than 9–20 %
+over HTJ2K (15–41 % at the most generous), and JPEG XL at effort 7 already saves 7–17 %. Of the candidates, only an
+inter-slice term on rotational angiography and the 10-bit tomosynthesis has a ceiling above 3 % (5.7 % and 3.8 % of a
+predictor's bits), and it costs random access; the bit split's ceiling is the 1–2 % row 36 measured; value maps pay only
+on sparse series, which the target is not (row 185); masks and per-region coding have nothing lossless to remove.
+None of them cuts decode time.
+
+### The bound: what noise costs any coder
+
+A frame is signal plus sensor noise. A coder that knew the signal exactly would still spend the noise's entropy:
+for a Gaussian of σ rounded to integers, log2(σ√(2πe)) ≈ log2 σ + 2.05 bits a sample when σ ≫ 1
+([`../av1/split-prior-art.md`](../av1/split-prior-art.md) gives Pence et al.'s log2 σ + 1.79, the uniform-equivalent
+figure). Noise in X-ray and MR images depends on intensity, so σ is read per intensity, from the flattest quarter of
+each intensity's 16×16 blocks, and the floor is averaged over every block. Two estimates bracket it:
+
+* **low** — Immerkær's high-pass σ (CVIU 64(2), 1996): exact for white noise, low for correlated noise such as CT's
+  reconstruction-filtered noise;
+* **high** — the residual of one 10-tap causal least-squares predictor fitted on those blocks: a finite predictor
+  never fully separates a smooth signal from noise, so it reads high (a synthetic σ 6 field read 7.8).
+
+The floor ignores what edges and texture cost, so a real coder's bytes sit above it: the room a better coder has is at
+most HTJ2K's bytes minus the floor. Bits a sample (M); HTJ2K and JPEG XL from row SIZE
+([`../../lab/av1/README.md`](../../lab/av1/README.md) §SIZE: HTJ2K's served bytes ÷ raw × 16, JPEG XL `cjxl -e7` as
+its ratio):
+
+| series | HTJ2K | JPEG XL e7 | floor, low – high | floor ÷ HTJ2K | room for any coder | taken by JPEG XL | σ at the median intensity, low – high |
+| --- | --: | --: | --: | --: | --: | --: | --: |
+| `ct_lidc` (CT, 13-bit) | 4.99 | 4.15 | 2.95 – 4.01 | 0.59 – 0.80 | ≤ 20–41 % | 17 % | 2.9 – 6.7 HU |
+| `mr_ispy1` (MR, 11-bit) | 5.70 | 5.23 | 3.50 – 4.78 | 0.61 – 0.84 | ≤ 16–39 % | 8 % | 3.0 – 6.9 |
+| `rf_fluoro` (fluoroscopy, 12-bit) | 6.98 | 6.52 | 5.48 – 5.99 | 0.78 – 0.86 | ≤ 14–22 % | 7 % | 12 – 17 |
+| `xa_dynact16` (rotational angiography, 13-bit) | 7.06 | 6.45 | 5.44 – 6.31 | 0.77 – 0.89 | ≤ 11–23 % | 9 % | 22 – 45 |
+| `dbt12_ea1141` (DBT slices, 12-bit) | 4.78 | 4.38 | 3.51 – 4.20 | 0.73 – 0.88 | ≤ 12–27 % | 8 % | 8.8 – 18 |
+| `dbt10_ea1141` (DBT slices, 10-bit) | 3.89 | 3.31 | 2.67 – 3.33 | 0.69 – 0.85 | ≤ 15–31 % | 15 % | 3.9 – 7.6 |
+| `dbtproj_holo` (DBT projections, 14-bit) | 5.97 | 5.55 | 5.09 – 5.46 | 0.85 – 0.91 | ≤ 9–15 % | 7 % | 10 – 13 |
+
+* **JPEG XL is near the high floor already.** On `dbt10_ea1141` it equals it (0.851 against 0.85), which says the high
+  estimate is above the true floor there; on the fluoroscopy it takes half the room the high estimate leaves, on the
+  projections 7 of at most 9 points. So "JPEG XL's gain is small" is mostly the noise's doing, not a weak coder: the projections, the
+  breast family's rawest images, have the least room of all (≤ 9 % by the high estimate).
+* **Where the bracket is wide** (CT, MR) the noise is correlated or the image smooth. A learned volumetric coder's
+  self-reported 0.82 (CT) and 0.85 (MR) of HTJ2K ([`../av1/lossless-literature.md`](../av1/lossless-literature.md),
+  Tomoz) sit just above the high estimate (0.80, 0.84): consistent with it, on other data.
+* **Not covered:** the breast family's FFDM and synthesized 2D, ultrasound (no sound cine), PET. The script runs on any
+  set `fetch_data.sh` fetches.
+
+### Each candidate against the bound
+
+| candidate | mechanism | ceiling | bytes predicted, ÷ HTJ2K | decode | verdict |
+| --- | --- | --- | --- | --- | --- |
+| **bit split, HTJ2K** (row 36) | the low k bits, near-uniform under noise, sent raw or deflated beside an HTJ2K top | HTJ2K's own overhead on near-raw planes: HT's MagSgn bits are already raw past the coded exponent | 0.984–0.991, measured | ×1.02–1.69, measured | a trade-off (§Trade-offs), unchanged |
+| **bit split, JPEG XL** (never tried) | the same split before JPEG XL's modular mode | JPEG XL's context modelling is expected to price near-uniform planes near their width already (not measured), so the split has less overhead to remove than HTJ2K's | ≥ 0.99 of JPEG XL's own bytes (D, by the HTJ2K case) | a second stream and a merge on JPEG XL's 1.03–2.45× | not worth a row |
+| **inter-slice, a linear term** (JPEG 2000 Part 2 across slices: Clunie 2012, +3 % on DBT) | predict each sample also from the previous slice | the 10-tap predictor's residual with five taps from the previous frame, (M): **×0.943** `xa_dynact16`, **×0.962** `dbt10_ea1141`, ×0.988 CT, DBT 12-bit and projections, ×0.996 fluoroscopy, ×0.998 MR | 0.94–1.00 at best | every frame then decodes after its neighbour: an ask costs two frames, and the fill's parallelism halves at G = 2 (as A1's groups, [`../av1/README.md`](../av1/README.md) §Open) | a trade-off on two series at most; a protocol below |
+| **inter-slice, a reversible difference before HTJ2K** | code slice n − slice n−1 | independent noise doubles: the difference's noise variance is 2σ²(1 − ρ), ρ 0.06–0.12 measured ([`../av1/gop-theory.md`](../av1/gop-theory.md) §2) | **> 1**: +0.41–0.46 bits a sample where noise dominates (D: ½ log2 1.76–1.88) | as above | **loses**; not worth a row |
+| **value map** (row 185) | renumber the used values, code the dense index | the share of levels a series uses | 0.576 on the film; 0.97–1.00 on CT, cone-beam and PET; 0.90–0.99 predicted on `dbtproj_holo` | +5–15 % for the lookup | net only on sparse series; the target is dense (row 185) |
+| **background and collimation masks** | skip regions outside the anatomy | lossless allows skipping only samples already constant (CT's pad at −2048, a saturated background); HTJ2K codes an all-zero code-block in a few bytes, and air and collimated regions carry noise, which is not removable losslessly | ≈ 1.00 (D) | a constant fill, ~0 | nothing to remove; not worth a row |
+| **per-region coding** | a coder or parameters per region | inside the room above; HTJ2K's code-blocks and JPEG XL's MA tree already adapt per region | ≥ the codec's own bytes less a fraction of the room | none saved | not worth a row |
+
+**Decode.** None of the candidates makes decode faster: the split and the value map add a pass, inter-slice adds a
+dependency, a mask saves only what HTJ2K's empty code-blocks already skip. Decode time is the codec's
+([`../decode/README.md`](../decode/README.md)).
+
+**Protocol, should the owner want the one candidate with a ceiling above 3 %** (INTERSLICE, not queued): JPEG 2000
+Part 2's reversible 5/3 across slice pairs is not in any browser decoder here, so the arm is a reversible integer
+lifting across each pair of slices (a low and a high band per pair) before HTJ2K, exact against the encoder's input
+checksum. Sets: `xa_dynact16`, `dbt10_ea1141`, `dbt12_ea1141`, with CT as a control. Measured: bytes against HTJ2K,
+decode per pair against two HTJ2K frames at 1× and 4×, interleaved (`lab/order.mjs`), n ≥ 10. **Predicted:** bytes
+0.95–0.99 on the first two, 0.99–1.01 on the control; decode +5–15 % per pair for the inverse lifting. **Rule:** a
+trade-off if bytes ≤ 0.97 on a set (an ask then costs a pair); not worth building if bytes > 0.97 everywhere; net on
+no set, since an ask that needs two frames is worse on any link (A1).
+
 ## Specifications
 
 | specification | edition | where | read | what for |
