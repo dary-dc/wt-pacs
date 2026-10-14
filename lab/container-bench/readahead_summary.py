@@ -56,7 +56,7 @@ def main():
         cells[(r["fs"], r["set"], r["fills"])].append(r)
     bad = sum(r["inexact"] for r in rows)
     print(f"{len(rows)} rows, {sum(r['checked'] for r in rows)} frames checked, {bad} inexact; "
-          f"refused madvise {sum(r['refused'] for r in rows)}; cached after the O_DIRECT copy "
+          f"refused madvise {sum(r.get('refused', 0) for r in rows)}; cached after the O_DIRECT copy "
           f"{sum(r['cached_after_copy'] for r in rows)} pages\n")
     for (fs, name, fills), cr in sorted(cells.items()):
         arms = sorted({r["arm"] for r in cr})

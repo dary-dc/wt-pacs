@@ -138,9 +138,9 @@ Off in a deployment, and documented where they are measured: `--force-pool-reads
 `--hold-sessions` (a dial that never settles), `--stall-after-bytes` (a session that stops sending),
 `--send-window-follows-cwnd`, `--stream-mode per-frame-asks-first`, `--congestion cubic-classify`,
 `--reply-repeated-initial`, `--segmentation-offload false` (netem drops datagrams, not GSO batches), and the
-`lab-frame-cache` feature (`LAB_FRAME_CACHE_BYTES`). The `telemetry` feature compiles in `server/src/record/` and
-`RecordedPipeline`; the default build carries none of it, and `scripts/gate.sh` checks that. The congestion traces
-(`Traced`) are the exception today: every build carries them, and the check does not look for them
-([`docs/merge-readiness.md`](../docs/merge-readiness.md) L1). One switch is for a deployment, not the lab:
+`lab-frame-cache` feature (`LAB_FRAME_CACHE_BYTES`). The `telemetry` feature compiles in `server/src/record/`,
+`RecordedPipeline` and the controller traces (`transport/cc_trace.rs`, `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`);
+the default build carries none of it, and `scripts/gate.sh` checks that by symbol and literal. One switch is for a
+deployment, not the lab:
 `WTPACS_READ_PATH=pool` takes the tile reader off its ring
 ([`docs/adr/disk-access.md`](../docs/adr/disk-access.md) §Flags).

@@ -6,7 +6,7 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
 with `rustup`, Node 22 (`.nvmrc`), Python 3.11 or newer, and on PATH: git, curl, tar, patch, sha256sum,
-openssl, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
+openssl, jq, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
 
 ```bash
 rustup target add wasm32-unknown-unknown
@@ -30,6 +30,7 @@ check does not run. The two ingests' comparison, and a synthetic DICOM series to
 native coders: `lab/av1/tools/tools.sh`, OpenJPH
 (`FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160`) and `ingest/coded-frames/build.sh`
 ([`ingest/from-parser/README.md`](ingest/from-parser/README.md)).
+Without nginx on PATH, the web host's check (`deploy/check_equivalence.sh --local`) does not run.
 Without Go 1.24 or newer on PATH, the lab's two Go clients are not compiled (Go fetches the toolchain each `go.mod` names and checks it against its checksum database).
 
 ## Quick start
@@ -102,8 +103,8 @@ own server, bundle and certificate, so it needs neither terminal nor step 2; the
 `scripts/wtcompat.py --fetch DIR` fetches the newest Chrome and Firefox builds and fails if any no longer dials the
 server, gets frame 0 exact, or offers a different WebTransport draft or `reset_stream_at` than `scripts/wtcompat.json`
 expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) §3); the gate does not run it.
-`deploy/check_equivalence.sh` checks that the web image answers the viewer's paths exactly as `server/dev-server.py`
-does and hides the dev host's lab routes; it needs podman or docker, or nginx with `--local`
+`deploy/check_equivalence.sh` checks that the web image answers every path the viewer loads exactly as
+`server/dev-server.py` does, and nothing else; it needs podman or docker, or nginx with `--local`, which the gate runs
 ([`deploy/README.md`](deploy/README.md)). `--local` wants nginx on PATH (`/usr/sbin` on Debian),
 `server/scripts/gen_dev_cert.sh` run first, and a checkout nginx's worker can read (not under a `0700` directory).
 `lab/scripts/server_ab.sh` runs the binaries under `target/release`, so it wants `CARGO_TARGET_DIR` unset, and a

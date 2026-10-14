@@ -102,6 +102,8 @@ def visit(t, rnd, prev, cell, cc, depth=DEPTH):
     try:
         if not wait_for(t + "/server.log", "wt_url=", 10) or not wait_for(t + "/relay.log", "READY", 10):
             raise SystemExit("server or relay did not start")
+        if not os.path.exists(losses):
+            raise SystemExit("no loss trace: build series-server with --features series-server/telemetry")
         fill = subprocess.run([BIN + "/window-harness", "--url", "https://127.0.0.1:%d/" % front, "--bind", "0.0.0.0",
                                "--mode", "saturate", "--fill-dwell-ms", str(DWELL_MS), "--frame-count", str(FRAMES),
                                "--depth", str(depth), "--read-bps", "0", "--stream-mode", "shared",
@@ -122,7 +124,7 @@ def visit(t, rnd, prev, cell, cc, depth=DEPTH):
             "settings": {"server": ["--congestion", cc], "relay": relay_cmd[2:], "fill": ["saturate", DWELL_MS, depth]},
             "mbps": mbps, "void": "VOID" in log, "relay_late_p99_ms": float(late.group(1)) if late else None,
             "relay_tally": [l for l in log.splitlines() if "server->client" in l],
-            "losses": [json.loads(l) for l in open(losses)] if os.path.exists(losses) else [],
+            "losses": [json.loads(l) for l in open(losses)],
             "drops": [l.split() for l in open(drops)] if os.path.exists(drops) else []}
 
 

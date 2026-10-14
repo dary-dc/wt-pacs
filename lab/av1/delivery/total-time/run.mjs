@@ -99,7 +99,6 @@ function variantOf(set, name) {
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer,
       opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Decode pacing: the downloader's lab flag.
-        ...(a.followQueue && { followQueue: true }),
         ...(a.startOnNeed && { startOnNeed: true }),
         // Ask deadlines: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),
@@ -123,7 +122,7 @@ const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.
 const VARIANTS = arg("--variants", null)?.split(",");
 for (const s of sets) s.variantNames = Object.keys(s.variants).filter((a) => !VARIANTS || VARIANTS.includes(a));
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT, stdio: "inherit" });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series", ...(CC_TRACE ? ["--features", "series-server/telemetry"] : [])], { cwd: ROOT, stdio: "inherit" });
 execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
   "-keyout", `${T}/key.pem`, "-out", `${T}/cert.pem`, "-days", "2", "-nodes", "-subj", "/CN=localhost",
   "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
@@ -270,6 +269,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   let serverOut = "";
   server.stdout.on("data", (d) => (serverOut += d));
   await started(server, /transport=.*\n/);
+  if (ccTrace && !existsSync(ccTrace)) throw new Error(`no ${ccTrace}: the server was built without --features telemetry`);
   // The controller the server says it runs, not the one asked for: Cubic is the one it leaves unprinted.
   const ran = /congestion=([\w-]+)/.exec(serverOut)?.[1] ?? "cubic";
   if (ran !== (a.congestion ?? "cubic-restart")) throw new Error(`${variantName}: the server runs ${ran}, not ${a.congestion}`);
