@@ -17,10 +17,14 @@ COPY client/transport/wasm/Cargo.toml ./client/transport/wasm/Cargo.toml
 COPY client/transport/wasm/src ./client/transport/wasm/src
 COPY tools ./tools
 COPY ingest/from-parser ./ingest/from-parser
-COPY lab/container-bench ./lab/container-bench
-COPY lab/disk-access-bench ./lab/disk-access-bench
-COPY lab/window-harness ./lab/window-harness
-COPY lab/telemetry-bench ./lab/telemetry-bench
+COPY lab/container-bench/Cargo.toml ./lab/container-bench/
+COPY lab/container-bench/src ./lab/container-bench/src
+COPY lab/disk-access-bench/Cargo.toml ./lab/disk-access-bench/
+COPY lab/disk-access-bench/src ./lab/disk-access-bench/src
+COPY lab/window-harness/Cargo.toml ./lab/window-harness/
+COPY lab/window-harness/src ./lab/window-harness/src
+COPY lab/telemetry-bench/Cargo.toml ./lab/telemetry-bench/
+COPY lab/telemetry-bench/src ./lab/telemetry-bench/src
 COPY patched ./patched
 COPY patches ./patches
 COPY scripts/patch_crate.sh ./scripts/
@@ -49,13 +53,14 @@ RUN --mount=type=secret,id=build_ca if [ -s /run/secrets/build_ca ]; then export
     npm ci --no-audit --no-fund
 WORKDIR /src
 COPY client ./client
-RUN client/transport/ts/build.sh --product
+COPY deploy/web-files.sh ./deploy/
+RUN client/transport/ts/build.sh --product && deploy/web-files.sh /web
 
 # ---------------------------------------------------------------- web
 FROM ${REGISTRY}/nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de AS web
 COPY deploy/nginx/wt-pacs.conf.template /etc/nginx/templates/
 COPY deploy/nginx/entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY client /srv/wt-pacs/client
+COPY --from=bundles /web/client /srv/wt-pacs/client
 COPY --from=bundles /src/client/transport/ts/dist /srv/wt-pacs/client/transport/ts/dist
 COPY fixtures/us_cine_smoke /studies
 # The decoders the page loads are built on the host from this tree (client/decode/wasm/build/build.sh) and must be

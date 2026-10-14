@@ -169,6 +169,15 @@ if [[ $browser -eq 1 ]]; then
   run 8 bash client/contract/run_wire.sh
 fi
 
+step "deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone"
+if ! command -v nginx >/dev/null; then
+  skip "the web host's check (deploy/check_equivalence.sh --local) — no nginx"
+elif [[ ! -f "$built/THIRD_PARTY_NOTICES" || ! -f client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js ]]; then
+  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds or hasher (deploy/README.md §Run it)"
+else
+  run 1 bash deploy/check_equivalence.sh --local
+fi
+
 if [[ $quick -eq 0 ]]; then
   step "client: absence check (default bundle carries no telemetry)"
   run 1 bash client/scripts/check_telemetry_absent.sh
