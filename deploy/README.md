@@ -26,8 +26,7 @@ move because of anything here.
 From a fresh clone, with docker (or podman; every `docker` below reads `podman` as well):
 
 ```bash
-bash client/decode/wasm/build/build.sh        # the decoders the page loads, checked against their manifest
-bash client/decode/wasm/fetch_xxh3.sh         # the frame check's hasher
+bash client/decode/wasm/build/build.sh        # the decoders and the frame check's hasher, checked against their manifest
 docker compose -f deploy/compose.yml build
 STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
 ```
@@ -93,7 +92,7 @@ A container test of a deployment of this shape found each one (queue row 92).
 
 **What the web image carries.** `client/` whole except its tests (`client/contract/`, `*.test.mjs`) and dev files,
 and the TS bundles (`build.sh --product`). It carries row DECODERBUILD's decoder builds with their notices
-(`client/decode/wasm/built/`), checked against `build/manifest.sha256` at build time, and the hasher. Of the
+(`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build time. Of the
 studies, only the smoke series.
 
 **Only what the page loads is reachable**: `/`, `/client/**`, `/series/metadata` and `/wt/dev-transport.json`.
