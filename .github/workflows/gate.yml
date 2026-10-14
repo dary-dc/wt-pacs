@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [claude/av1-unified-mainbase, main]
   push:
-    branches: [claude/av1-unified-mainbase, main, claude/wip-230-CIGATE]
+    branches: [claude/av1-unified-mainbase, main]
 
 permissions:
   contents: read
