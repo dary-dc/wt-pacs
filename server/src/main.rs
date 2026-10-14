@@ -15,8 +15,8 @@ struct Args {
     cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     key_pem: PathBuf,
-    /// How frames reach the client: `shared` or `per-frame` (lab only: `per-frame-asks-first`).
-    #[arg(long, default_value = "shared")]
+    /// How frames reach the client: `per-frame-asks-first`, `shared` or `per-frame`.
+    #[arg(long, default_value = "per-frame-asks-first")]
     stream_mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to
     /// `0.0.0.0` when the host has no IPv6.
@@ -121,6 +121,15 @@ mod tests {
         assert_eq!(parse(&["--congestion", "cubic"]).tuning.congestion, Congestion::Cubic);
         assert_eq!(parse(&["--congestion", "bbr-bound"]).tuning.congestion, Congestion::BbrBound);
         assert_eq!(parse(&["--congestion", "cubic-classify"]).tuning.congestion, Congestion::CubicClassify);
+    }
+
+    /// Asks first under a 6 MiB send window is the default: an ask jumps the fill while the bytes in
+    /// flight stay capped at `shared`'s credit. docs/native/quic-compared.md §9.7.
+    #[test]
+    fn the_default_is_asks_first_under_a_6_mib_send_window() {
+        assert_eq!(parse(&[]).stream_mode, StreamMode::PerFrameAsksFirst);
+        assert_eq!(parse(&[]).tuning.send_window, Some(6 << 20));
+        assert_eq!(parse(&["--stream-mode", "shared"]).stream_mode, StreamMode::Shared);
     }
 
     /// The opening ask is on unless turned off, and the bare flag the lab scripts pass still parses.

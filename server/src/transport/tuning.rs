@@ -60,8 +60,8 @@ impl Congestion {
 #[derive(Clone, Debug, PartialEq, clap::Args)]
 pub struct TransportTuning {
     /// QUIC send window per connection in bytes: unacknowledged data held, so N sessions × this
-    /// bounds memory under slow clients.
-    #[arg(long = "send-window-bytes")]
+    /// bounds memory under slow clients. docs/native/quic-compared.md §9.7 (asks first, capped).
+    #[arg(long = "send-window-bytes", default_value = "6291456")]
     pub send_window: Option<u64>,
     /// QUIC idle timeout.
     #[arg(long)]
@@ -90,10 +90,13 @@ pub struct TransportTuning {
     pub segmentation_offload: bool,
 }
 
+/// 6 MiB: `shared`'s stream credit, so asks first keeps no more in flight than `shared` does.
+const SEND_WINDOW: u64 = 6 << 20;
+
 impl Default for TransportTuning {
     fn default() -> Self {
         Self {
-            send_window: None,
+            send_window: Some(SEND_WINDOW),
             max_idle_timeout_ms: None,
             keep_alive_interval_ms: None,
             congestion: Congestion::default(),
@@ -169,7 +172,7 @@ mod tests {
 
     /// quinn's stock stack: the knob under test is then the only departure from it.
     fn stock() -> TransportTuning {
-        TransportTuning { congestion: Congestion::Cubic, ..TransportTuning::default() }
+        TransportTuning { congestion: Congestion::Cubic, send_window: None, ..TransportTuning::default() }
     }
 
     /// The default controller starts at quinn's 12 000 bytes, and the flag's 38 400 reaches every
