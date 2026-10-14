@@ -302,7 +302,7 @@ not `ready`.
 | 206 | **DEVICE3** — row 190's D4 and D5 (the repeated Initial; memory and energy) | local, after 204 |
 | 207 | **ASKFIRSTCAP** — asks-first with the bytes in flight still capped (row 171's send window, or 6 MiB across all streams): an ask that jumps the server's queue without a deeper network queue behind it; theory | done `b2e5b3a4` on `claude/av1-unified-mainbase` — theory, quinn-proto 0.11.18: **a fixed 6 MiB send window caps what Cubic keeps in flight** (a writer stopped by the send window leaves the connection app-limited, `connection/mod.rs:950`, and Cubic stops growing, `cubic.rs:102–109`), **so asks-first behind it is never behind `shared` and ties it where the controller would hold more than 6 MiB**: across row 193's range uncapped asks-first is ×1.20–1.52 of `shared` on fast deep paths, capped ×1.00, and ×0.08–0.95 elsewhere as before; row 180's ×1.05 at 103/360 is the 0.5 MB its cwnd held above the credit. **Row 171's cwnd + M is no cap** (M keeps the sender busy, Cubic grows into the queue). Not removable by any cap: the fill's +2.5 % at 18/800 (per-frame's too) and row 180's `window` arm beating asks-first there with equal cwnd, which the model does not explain. BBR (2 × BDP) meets the cap only on fast long paths. Protocol (5 arms, existing flags, the ask at a quarter) and rule: `docs/native/quic-compared.md` §9.7 |
 | 208 | **DOCKERCLOUD** — row 195 run in a cloud container where it can be: Docker 29 starts there (`sudo dockerd`, overlayfs, default seccomp), so the read path inside a container on overlay, a bind mount and a volume, io_uring under the default and row 199's profile, folios after `WILLNEED`; a cloud VM's numbers, not the owner's machine | done `c21149a6` on `claude/av1-unified-mainbase` — **placement and folios hold, O sits at H's forced miss, and B+UL restores the ring: the profile is recommended for the owner** (row 195's protocol on rootful Docker 29.8.2 in this cloud VM, no SELinux so B+U = B+UL; 784 visits, 28 rounds, 2 VOID, 0 frames inexact): B and V tie H on every metric where reader and copy are the same; the two cells that part them part H from every container and were taken apart — pt15's fill ×2.1 is the host's glibc 2.39 against the image's 2.36 (H chrooted on the image's glibc ×2.10, 12/12 rounds), the WILLNEED cell is each arm's copy (read from the host: B's 32.7 µs, H's 66.8, identical folios); O's hit ×10.1 / ×4.6 / ×2.7 of B at 32 / 163 / 503 kB; B and V refuse the ring with `EPERM` (predicted `ENOSYS`), B+UL `ring=true` on 84/84 cold passes and ties H, buying 28.8 → 19.1 µs and ×0.67 CPU at 32 kB, a tie above; folios 28/28 ×1.00 of H before and after; O's cold pass ×0.27–0.56 of H, unexplained. Gate: green to the browser dispatch rig, which fails its 7 `exact:` checks without `client/decode/wasm/built` (Blocked, row 209), as on the base; the decoder build's apt needs plain HTTP, which this container's proxy refuses — [`../adr/disk-access.md`](../adr/disk-access.md) §6 *Measured in a cloud container* on `claude/av1-unified-mainbase` |
-| 209 | **READMEASURE** — row 198's protocol: large folios after reclaim and a user-space frame cache, against today | done `33a47a54` — **the frame cache is a trade-off for the owner; glibc's hugetlb is closed** (row 198's protocol, 16 rounds, 832 runs, every frame XXH3-64-checked and one fill per arm decoded exact, the stale-entry mutation caught in 20 of 24 passes): B1 (`--features lab-frame-cache`, off by default) at 16 sessions ×0.78–0.83 CPU a frame on its second fill (16/16 rounds lower at 499 kB and 3 MB, beyond the 18 % and 9 % A/A resolution; 31 kB and 164 kB inside it) and half the peak RSS (106 against 191 MiB at 3 MB); at one session its second fill is the admitting pass, ×1.25–1.36 CPU and the series' size in RAM; first fills 0.97–1.05 alone, 0.79–0.93 shared; B2 ×1.01–1.09, never better; the hit model (4–14 % of a frame) corrected in place — a shared entry saves 17–22 %; a container's numbers, A/A resolution 9–41 % — [`docs/adr/disk-access.md`](../adr/disk-access.md) §13 *Measured (row 209)* on `claude/av1-unified-mainbase` |
+| 209 | **READMEASURE** — row 198's protocol: large folios after reclaim and a user-space frame cache, against today | done `33a47a54` — **the frame cache is a trade-off for the owner; glibc's hugetlb is closed** (row 198's protocol, 16 rounds, 832 runs, every frame XXH3-64-checked and one fill per arm decoded exact, the stale-entry mutation caught in 20 of 24 passes): B1 (`--features lab-frame-cache`, off by default) at 16 sessions ×0.78–0.83 CPU a frame on its second fill (16/16 rounds lower at 499 kB and 3 MB, beyond the 18 % and 9 % A/A resolution; 31 kB and 164 kB inside it) and half the peak RSS (106 against 191 MiB at 3 MB); at one session its second fill is the admitting pass, ×1.25–1.36 CPU and the series' size in RAM; first fills 0.97–1.05 alone, 0.79–0.93 shared; B2 ×1.01–1.09, never better; the hit model (4–14 % of a frame) corrected in place — a shared entry saves 17–22 %; a container's numbers, A/A resolution 9–41 % — [`docs/adr/disk-access.md`](../adr/disk-access.md) §13 *Measured (row 209)* on `claude/av1-unified-mainbase`; the owner, 2026-10-14: the frame cache stays off by default for now |
 | 210 | **ASKTHENFILLMEASURE** — row 202's protocol | review — `claude/wip-210-ASKTHENFILLMEASURE` `c09ecf54`: **the window not adopted (both readings); the head re-issue B not conclusive on this host**. What changed: the downloader's lab flag `refill` (`head`, `ask`; off by default) and the envelope readers reporting a frame's 8-byte head before its body — today's default reader restructured to read the head first, the downloader's `ask` taking the session rather than a promise (behaviour unchanged, gate green); removes nothing; capability kept: today's re-issue when the ask lands. Measured blind to row 202's reasoning (its queue verdict seen first): 10 Williams rounds, 30 cells, 1 100 runs, every frame SHA-256-exact, 105 `VOID`; the last frame asked (560 018 B, as row 171), not the largest, which a deep queue writes ahead at 50 %. W + B's ask ×0.32–0.42 of T's at 18 Mbit/s, ×0.41–0.88 at 103 short queues, ×1.00 behind 360/800 ms at 103; its fill +79 to +101 ms worse at 103/46 CoDel and 103/92 at 50 %, more than RTT − S ÷ rate (3, 49 ms), and the window alone costs +15 to +46 ms with no ask (prediction 5 failed: the excess is the window's own). T + B: the ask a tie everywhere, the 10 % fill −33 to −273 ms in six cells beyond the spread; round-paired adopts it, strict does not over one 50 % cell (+4 ms, ×1.003) where B never fires — so it returns for a host that passes, T and T + B cells only. W + A +723 / +111 ms of fill. Predictions: 1 failed at 103/46 CoDel, 2 and 3 held (3 of 26 and 1 of 18 cells outside), 4 held at 18/46 and failed at 103/46, 5 failed, 6 held but for W + B under `cubic` behind CoDel (69 ms better). Gate `--quick` green — [`docs/transport/link-conditions.md`](../transport/link-conditions.md) §Re-measured, *ASKTHENFILL*, *Measured* on that branch |
 | 211 | **ASKFIRSTCAPMEASURE** — row 207's protocol | done `626cd6a1` on `claude/av1-unified-mainbase` — **a trade-off for the owner; `shared` stays**: asks first + a 6 MiB send window keeps its ask at ×0.18–0.31 of `shared`'s behind 20 ms and under 1 % loss (×0.36–0.98 behind deep FIFOs, never worse beyond the spread) but **costs its fill +2 to +44 % in all nine cells, though the cap bound in none** (asks first's cwnd at the ask ≤ 4.1 MB): +41 % at 18/20, +40–44 % under loss; outside the protocol, `shared` under the same 6 MiB loses nothing (6 462 against 6 556 ms) while asks first + 6 MiB sends 13 724 packets to the others' 9 713–9 840 with equal losses and stalls 2.9 s between frames — the model has no term for it. Asks first + cwnd + M a trade-off too (ask ×0.11–0.75, fill +0.4 to +19 % in five cells). Predictions: (3) failed everywhere, (1) 5/9, (2) 7/9, (4) held, (5) BBR 6/8. 690/690 exact, 92 `VOID`, ask at a quarter, 10 rounds; strict and round-paired agree. Proposed: where asks first's extra packets under a send window come from, and a cell with cwnd above 6 MiB to test the cap — [`../native/quic-compared.md`](../native/quic-compared.md) §9.7 *Measured* on `claude/av1-unified-mainbase` |
 | 212 | **CCMEASURE** — row 200's protocol, the arms a container and the relay can run | done `ba6609ad` on `claude/av1-unified-mainbase` (lever `f5fc049d`, rig `e4ad885b`) — **`cubic-classify` not default, in both readings; it stays a lab flag and DELAYCUT does not start**: 10 rounds, 6 720 of 6 720 frames exact. Fill ÷ `cubic-restart`, round-paired n = 10: 1–2 % loss at 50 Mbit 0.08–0.15 and at 20 Mbit 0.17–0.30 (651 against 7 908 ms at 2 %, the clean fill back), but 0.68–0.86 at 5 Mbit, three of four over the rule's 0.75 — a 0.4–0.5 s FIFO that Cubic fills makes every random loss meet a queue; clean and ±20 ms 0.98–1.03, two of sixteen over 1.01 within each cell's own spread; the neighbour's share 77 against 76 % shallow, 18 against 16 deep, 43 against 51 LTE-loaded (out by 7). Deep overflow at 2 MiB in flight: 30 of 30 congestion events met a queue at RFC 9406's q\*. 72 % of visits `VOID` on this host: strict n 0–7 a cell, judging the same failures where it judges. `docs/transport/transport-conclusions.md` §1 *Measured: CLASSIFY*. |
@@ -310,6 +310,18 @@ not `ready`.
 | 214 | **DISPLAYTAGS** — row 169's net gaps built: the ingest keeps the ICC Profile, VOI LUT Sequence and Presentation LUT Shape, and the painter applies them where a series carries them (COLORTAGS, VOILUT) | done `5e5fa60b` on `claude/av1-unified-mainbase` — counted, then **nothing built: on our sets each tag is absent or redundant**. All 1 044 files of the 83 sound sets streamed, checked against their pins and searched (nested groups included, two identical runs): **ICC Profile and Color Space on none** (the 6 sound RGB sets, 48 files, included); **Presentation LUT Shape on 70 sets (222 files), always `IDENTITY` with MONOCHROME2 and `INVERSE` with MONOCHROME1** — in the DX Image Module it accounts for the photometric interpretation (PS3.3 C.8.11.3.1.2), so the painter's MONOCHROME1 inversion already is it, and applying it again would invert 18 sets; **VOI LUT Sequence on 12 mammography sets (46 objects, 138 items `NORMAL`/`HARDER`/`SOFTER`)**, each object also carrying the same-named SIGMOID window pairs, and each LUT equal to its pair **to 1 code on 0.17–1.5 % of samples** (mispaired: 21–43 codes on 36 %) — below the painter's own fractional-zoom bilinear difference; row 169's "net where present" for G4 and G6 corrected in place. Proposed: *VOIPRESETS*, the viewer offering a series' own window pairs (`HARDER`/`SOFTER` are reachable today only by dragging). Seen on the way: without `client/decode/wasm/built` the dispatch rig's seven `exact:` checks fail instead of skipping (the default hasher is the built `xxh3`); with it, the gate green in 469 s — [`docs/display.md`](../display.md) §Which series carry them, `lab/av1/display_tags.py` |
 | 215 | **CLEANAUDIT** — `claude/av1-unified-mainbase` against merge readiness: what is unfinished, untested, broken, dead, duplicated or lab-only in the product, each with keep, finish, simplify, move or remove and the capability it would cost (none allowed); and the simplification rules, drafted for the owner; audit | done `abff875c` on `claude/av1-unified-mainbase` (`0e78cb29`, `7f820b8d`) — audit, nothing changed but its document: **the branch fast-forwards `main` (997 commits) and is functional, but one hole blocks any deployment: the product viewer honours `?opts=`, `?wt=` and `?metadata=` from any link (a module imported, decoder glue run through `new Function` with its pin optional, frames shown exact from another server), and no CSP is sent**. Run here: the gate green (352 s, then 118 s with every prerequisite, one named skip), but a WebSocket test failed 1 run in 12 (a TCP port never checked free, suspected); the decoder builds match their manifest; the deploy images build and serve, and the viewer fills, asks and draws 3/3 exact through them in Chromium 141 and Firefox 157.0.1, `check_equivalence.sh` passing; the viewer check's `--fill 0` fails in both engines (the check, not the page); `lab/av1/requirements.txt` refuses CPython 3.13 and `meson` is an unlisted prerequisite. About 70 items with file:line, a verdict and its cost, none losing a capability: two broken options (`hasher`, a repeated ask), row 189's build in every binary with its arms all at a 38 400-byte window (its build predates `f57700d3`), lab traces in the default binary past the absence check, a rejected read-ahead hook, product steps that need `lab/`, stale docs; the simplification rules drafted for `CLAUDE.md`; 12 rows ranked, VIEWERLOCK first — [`docs/merge-readiness.md`](../merge-readiness.md) |
 | 216 | **DOCKERORACLE** — row 195's protocol on the Oracle cloud rig, which only the owner's machine reaches | local |
+| 217 | **VIEWERLOCK** — B1: the product page honours only `/wt/dev-transport.json` and `/series/metadata`, the lab levers (`?opts=`, `?wt=`, `?hash=`, `?metadata=`) on the dev host or a lab build alone, and the image sends a CSP; a test shows a crafted link refused | ready |
+| 218 | **DEADHASHER** — B2: the `hasher` option that never reaches the decoder, and the image's hash-wasm `test -f`, removed; the docs corrected in place | ready |
+| 219 | **VIEWERASKS** — B3, B4, B7, F4: no repeated ask, the newest on-demand ask kept, a `--fill 0` check that judges what was asked (run by the gate with `--cine`), and the WebSocket test's port; each fix with a failing test | ready |
+| 220 | **INITIALPATCH** — H1: row 189 measured every arm at a 38 400-byte initial window, not today's 12 000; that stated in its cell, and the reply's flag, 117-line quinn-proto patch and tests removed if the owner does not adopt the reply | held for the owner (§Blocked) |
+| 221 | **LABTRACES** — L1, X1, X2, X3: the congestion traces behind `telemetry`, the absence check widened to them, `crypto-ring` a plain dependency feature, the transport modules `pub(crate)`, `FrameStore::file` behind its `cfg` | ready |
+| 222 | **INGESTTOOLS** — B6, P1–P5: `default-members`, `ingest/tools.sh` and `ingest/requirements.txt` (3.11–3.13), README's DICOM path working from a fresh clone, `aomenc` for AV1 only, the product tests moved out of `lab/` | ready |
+| 223 | **IMAGESLIM** — L4, L5, F1: the image serves the page's allow-list only, copies lab crates' `Cargo.toml` and `src/` only, and `check_equivalence.sh --local` runs in the gate | ready |
+| 224 | **REJECTEDPATHS** — L2, L3: row 197's rejected read-ahead hook and `followQueue` removed; row 209's `FrameCache` (L8) stays, off by default | ready |
+| 225 | **DOCSTRUE** — C1–C10 and H2: every contradiction the audit found corrected in place, `MERGE.md`, `handoff-2026-10-04.md` and `server-design-proposal.md` removed, the final queue brought in at merge | ready |
+| 226 | **GATEGAPS** — F2, F3, F5, F6, F7: `cert-compression` checked, the four lab crates compiled and tested, the rigs on the product's decoder, the other session bundles in the absence check, DICOM to `.sbnd` end to end | ready |
+| 227 | **DEDUP** — D1–D8: the duplicated logic the audit lists, each kept in one place | ready |
+| 228 | **WASMTOLAB** — D9 and P6: the WASM transport and `client/decode/wasm/dav1d/` tooling moved to `lab/`, `dav1d_wrap.c` kept; structural, proposed first | ready |
 
 ## Briefs
 
@@ -4032,7 +4044,137 @@ nothing removed or changed but its deliverable.
 
 **Deliverable:** `docs/merge-readiness.md`. **Branch:** `claude/wip-215-CLEANAUDIT`, then `claude/av1-unified-mainbase`.
 
+## The merge cleanup (rows 217–228), 2026-10-14
+
+**The owner, 2026-10-14:** decision 2, the cleanup, approved: "I think we should do it". The rows are row 215's
+[`docs/merge-readiness.md`](../merge-readiness.md) §Rows to queue, in its order; each item's evidence (file:line), verdict, cost and size are there, and a row reads
+its items before anything else. No row loses a capability the product has. A row marked *review* below removes or
+alters what exists, so it finishes on its wip branch with the gate green and stops at a draft pull request for the
+owner (§The work branch holds finished work only); it never lands itself. The draft simplification rules in that
+document's §The simplification rules are **not adopted** (the owner has not ruled on them); until then a row proves
+itself as `CLAUDE.md` and §Protocol already ask: the gate green with the same skips or fewer, every test it touches
+mutated once, and its benefit stated as counts (lines, dependencies, concepts). Rows 219, 223 and 227 touch files an
+earlier row of this round changes (`client/viewer/viewer.js`; the Containerfile and nginx; `tuning.rs`, `read_path.rs`):
+while that row waits in review, the later one starts from its wip branch and says so in its cell.
+
+### 217 VIEWERLOCK
+
+*Review.* B1, which blocks any deployment: `?opts=` is spread into `connect` unchecked (a `transport` module imported,
+`decoder.glue` run through `new Function` with its pin optional), `?wt=`, `?hash=` and `?metadata=` replace the server
+and the digests with frames still shown exact, and no Content-Security-Policy is sent. The product page reads only
+`/wt/dev-transport.json` and `/series/metadata`; the levers stay, honoured on the dev host or by a lab build alone, so
+the total-time and check harnesses keep them; nginx and the dev host send a CSP limiting scripts and connections to
+the page's origin and the transport. A test loads the page with each crafted parameter and shows it refused, and fails
+on today's page. **Deliverable:** the change, `client/README.md` and `deploy/README.md` updated. **Branch:**
+`claude/wip-217-VIEWERLOCK`, then a draft PR into `claude/av1-unified-mainbase`.
+
+### 218 DEADHASHER
+
+*Review.* B2: `hasher: "hash-wasm"` never reaches the decoder (the downloader's init message carries none), yet the
+docs call it "one init flag away" and the web image refuses to build without the vendor file it never loads. Remove the
+option and the image's `test -f`; hash-wasm stays as `xxh3.test.mjs`'s reference; correct `client/README.md` and
+`docs/adr/exactness-in-production.md` in place. §Blocked's 2026-10-14 entry on the gate's browser frame
+checks proposes the opposite (forward `hasher`); the pull request names that entry, and the owner picks one.
+**Deliverable:** the change and the docs. **Branch:** `claude/wip-218-DEADHASHER`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
+### 219 VIEWERASKS
+
+Fixes, each with a test that fails without it: B3 (a frame whose ask is pending is not asked again, so no false
+"already requested" error), B4 (two quick on-demand steps keep the newest ask alone), B7 (the WebSocket test takes a
+port free for UDP and TCP and reports the server's own error; mutate by holding the TCP port), F4 (in on-demand mode
+the viewer check judges what was asked; the gate runs `--fill 0` and `--cine`). **Deliverable:** the fixes and their
+tests. **Branch:** `claude/wip-219-VIEWERASKS`, then `claude/av1-unified-mainbase`.
+
+### 220 INITIALPATCH
+
+*Review; held for the owner.* H1: row 189's build (`5b5d68c3`) predates `f57700d3`, so cells A and C ran every arm at a
+38 400-byte initial window, and its "today" arm is not today's 12 000 default; row 189 is done (the rule does not pass,
+the flag stays off) and its cell does not name this. The owner asked on 2026-10-14 whether row 189 is a net win to
+adopt; that ruling decides this row. If the reply is not adopted: state the confound in row 189's cell and in
+`docs/transport/transport-conclusions.md` §3 *Measured: INITIALMEASURE*, then remove the flag, the patch
+(`patches/quinn-proto-0.11.18-reply-repeated-initial.patch`) and its tests (~−270 lines). If it is adopted, this row
+re-runs cells A and C at 12 000 first. **Deliverable:** the change, or the re-run. **Branch:**
+`claude/wip-220-INITIALPATCH`, then a draft PR into `claude/av1-unified-mainbase`.
+
+### 221 LABTRACES
+
+*Review.* L1: `cc_trace` wraps every controller in the default binary and an unopenable `WTPACS_CC_TRACE` panics the
+server; put it behind `telemetry`, build its two lab users with that feature, and widen
+`server/scripts/check_telemetry_absent.sh` to its variables and `record::path` (mutate: the check fails on today's
+binary). X1: `crypto-ring` as plain dependency features. X2: the seven transport modules `pub(crate)`. X3:
+`FrameStore::file` behind `#[cfg]`. **Deliverable:** the change, `server/README.md`'s lab list in step. **Branch:**
+`claude/wip-221-LABTRACES`, then a draft PR into `claude/av1-unified-mainbase`.
+
+### 222 INGESTTOOLS
+
+*Review.* The product's steps stop needing `lab/`: B6 (`default-members`, so a bare `cargo build` works on a fresh
+clone), P1 (`ingest/tools.sh` builds aom 3.15.1, dav1d and OpenJPH 0.31.0 at their pins into a product directory;
+`lab/av1/tools/tools.sh` calls it; README lists `meson`), P2 (`ingest/requirements.txt`, which lab's includes, pinned
+for CPython 3.11–3.13, or the README says 3.11), P3 (README §The viewer on a DICOM series works from a fresh clone,
+run once to show it), P4 (`aomenc` checked for AV1 only), P5 (the split's merge test and `server_start_test.sh` beside
+what they test, `splits()` inlined). **Deliverable:** the change and README. **Branch:** `claude/wip-222-INGESTTOOLS`,
+then a draft PR into `claude/av1-unified-mainbase`.
+
+### 223 IMAGESLIM
+
+*Review.* L4: the web image copies the page's allow-list only (the audit lists it), not all of `client/`. L5: the build
+copies each lab crate's `Cargo.toml` and `src/`, not 2.5 MB of results, and the dead `!lab/telemetry-cost` line goes.
+F1: `deploy/check_equivalence.sh --local` is a gate step where nginx is on PATH, named as skipped otherwise, and it
+checks that the harness pages answer 404. The image built and the viewer check passed through it, as row 215 did.
+**Deliverable:** the change, `deploy/README.md` in step. **Branch:** `claude/wip-223-IMAGESLIM`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
+### 224 REJECTEDPATHS
+
+*Review.* L2: the read-ahead hook row 197 rejected (`read_path.rs`), its test and the bench's hook arms removed. L3:
+`followQueue` ("neither adopted"), its tests and its lines in `docs/ARCHITECTURE.md` removed; a tag keeps both. L8, row
+209's `FrameCache`, **stays as it is, off by default** (the owner, 2026-10-14: "off by default for now"); it is not
+this row's. **Deliverable:** the change. **Branch:** `claude/wip-224-REJECTEDPATHS`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
+### 225 DOCSTRUE
+
+*Review* (it removes documents). C1–C10 corrected in place as the audit lists them, the queue and campaign labels in
+product code named by their measurement (anchors renamed with their headings); C3 `docs/av1/MERGE.md` and C4
+`docs/handoff-2026-10-04.md` and `docs/server-design-proposal.md` removed, what is still true folded in (R4 one line in
+ARCHITECTURE §Open). H2: the branch's queue copy replaced by this one when the branch merges. `docs/cloud-queue.md`
+is not edited. Corrects what rows 217–224 have changed only once they have landed. **Deliverable:** the docs.
+**Branch:** `claude/wip-225-DOCSTRUE`, then a draft PR into `claude/av1-unified-mainbase`.
+
+### 226 GATEGAPS
+
+Additive. The gate also runs: F2 `cargo check --features cert-compression`; F3 all four lab crates compiled and their
+tests run; F5 the real-decode rigs on `builtDecoder` as well as npm's OpenJPH; F6 the telemetry-absence check over
+`ws-session.js` and `race-session.js`; F7 a synthetic DICOM object through `from_dicom.py` to `.sbnd`, and pack-series'
+re-pack `cmp`ed. Each new step mutated once. **Deliverable:** `scripts/gate.sh` and the steps. **Branch:**
+`claude/wip-226-GATEGAPS`, then `claude/av1-unified-mainbase`.
+
+### 227 DEDUP
+
+*Review.* D1–D8 as the audit lists them: the controller config built once in `Congestion::factory`, one
+`preadv2(RWF_NOWAIT)` helper, hit/miss counting once, tests using `series_bundle::write_bundle` (not
+`frame_store.rs:277`), `StreamMode` deriving `ValueEnum`, `record` importing the FoD union, one SHA-256-to-hex, one
+`metadata()`. **Deliverable:** the change. **Branch:** `claude/wip-227-DEDUP`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
+### 228 WASMTOLAB
+
+*Review; structural, so proposed first.* D9: the WASM transport (`client/transport/wasm/`, ~780 lines) is a second
+client the product never loads, and the gate needs wasm-pack for it; P6: `client/decode/wasm/dav1d/` is lab tooling
+apart from `dav1d_wrap.c`. Write the proposal in `docs/CLIENTS.md` (what moves where, what the gate stops needing,
+what stays); the move is made only on the owner's yes. **Deliverable:** the proposal. **Branch:**
+`claude/wip-228-WASMTOLAB`, then `claude/av1-unified-mainbase` for the proposal.
+
 ## Blocked
+
+* **2026-10-14, row 220 INITIALPATCH (for the owner):** adopt row 189's reply or not. Its rule did not pass on one
+  Firefox cell (8–10 ms under the band) and it loses `cold_open` by 0.7–0.85 s in cell A; every arm of A and C ran at a
+  38 400-byte initial window, not today's 12 000. Not adopted: the flag, patch and tests go for review. Adopted: A
+  and C re-run at 12 000 first.
+
+* *Owner rulings, 2026-10-14:* decision 2, the cleanup, approved (rows 217–228). Row 209's frame cache stays **off by
+  default** for now (`lab-frame-cache`); row 224 leaves it alone.
 
 * **2026-10-14, row 208 DOCKERCLOUD (for the owner):** rule (c) recommends `deploy/seccomp-uring.json` for the container: on Docker it restores the ring (84/84 cold passes) at no cost the row could attribute to it, and buys 28.8 → 19.1 µs and ×0.67 CPU a cold 32 kB tile, a tie at 163–503 kB; its cost is io_uring's kernel surface, which seccomp cannot judge, and on SELinux-enforcing hosts `label=disable` or an untried `io_uring { allowed }` module (`docs/adr/disk-access.md` §6 *Measured in a cloud container*). Adopt or not; P0 still decides whether the ring earns its keep on the target.
 
