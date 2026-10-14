@@ -27,7 +27,13 @@ and its branch belong to other work.
 
 **The work branch holds finished work only (the owner, 2026-10-14).** `claude/av1-unified-mainbase` is the branch
 that will merge into `main`: clean, optimized, completely functional. Work in progress lives on `claude/wip-*`
-branches and reaches the work branch only finished, through step 4.
+branches and reaches the work branch only finished, through step 4. **A change that removes or alters what exists does
+not land on its own** (the owner, 2026-10-14: review first): a simplification, a removal, a rename or move, a refactor,
+a changed default or behaviour, a format, wire or store change, a deleted or weakened test. Such a row finishes on its
+wip branch, gate green, and its cell reads `review — claude/wip-<row>-<NAME> <hash>: <what changed, what it removes,
+the capability kept>`; the orchestrator opens a draft pull request for it, and it lands only when the owner says so.
+Additive work — a new lab harness, a doc section, a lever behind a flag off by default, a fix with its failing test —
+lands as step 4 says.
 
 **`night` rows** are held for the night routine (the owner, 2026-10-03: cloud work runs while the workstation
 sleeps, so the two never share a usage window). A session started by the night routine treats `night` exactly as
