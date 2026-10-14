@@ -4034,6 +4034,11 @@ nothing removed or changed but its deliverable.
 
 ## Blocked
 
+* **2026-10-14, row 213 INTERSLICE (for the owner):** a 5/3 step across slice pairs before HTJ2K saves 3.5 % on
+  rotational angiography and 4.0 % on CT, decoding 19–39 % slower a pair and making every ask cost two frames — a
+  trade-off by row 194's rule (`docs/codecs/README.md` §Beside the codec). Whether to build it (a store and wire change,
+  structural) is yours.
+
 * **2026-10-14 UTC: row 178 NETMEASURE — a quieter host.** EMSDKNET's and COPYRGB's rules adopt nothing while a cell is not conclusive, and this container's A/A frame spread (sd 2.4–11 %) leaves six and seven such cells at n = 24; its relay voids 30–50 % at 300 Mbit/s. Re-running on the same container repeats that, so the row is done rather than set back to `night`: whether a host with a dedicated core is provided (row QUIETHOST, proposed), or the cells are decided as they stand (`em6`: nothing worse, the projections better; `copy`: RGB better in both engines, Firefox's grey cells unresolved), is the owner's. `startOnNeed` is a trade-off for the owner.
 
 * *Owner rulings, 2026-10-14 (night):* `claude/av1-unified-mainbase` holds finished work only, clean and completely
