@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Row 197's tables and its decision rule's inputs from WORK/readahead.jsonl (readahead.py time).
 
-    readahead_summary.py WORK
+    readahead_summary.py WORK | ROWS.jsonl     (lab/container-bench/rows-readahead.jsonl holds row 197's)
 
 Per filesystem, set and fill count: each arm's median, its median ratio to W0 paired by round, the share of rounds
 agreeing in sign, and the resolution (the p90 over rounds of |W0aa/W0 − 1|); misses are compared as differences.
@@ -48,8 +48,9 @@ def compare(rows, arm, key):
 
 
 def main():
-    work = Path(sys.argv[1])
-    rows = [json.loads(line) for line in (work / "readahead.jsonl").read_text().splitlines()]
+    src = Path(sys.argv[1])
+    src = src / "readahead.jsonl" if src.is_dir() else src
+    rows = [json.loads(line) for line in src.read_text().splitlines()]
     cells = defaultdict(list)
     for r in rows:
         cells[(r["fs"], r["set"], r["fills"])].append(r)

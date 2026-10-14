@@ -254,7 +254,7 @@ btrfs bdi (not the 128 its block device reports), the cloud rig 2 048. The fill 
 depends on it (`FILL_WINDOW`); tiles still do. Record it with any published number
 (`/sys/block/<dev>/queue/read_ahead_kb`; `blockdev --setra 16384` sets 8 MiB, not persistently).
 
-### Read-ahead and folios (row 196: theory; measured by row 197, §Protocol below)
+### Read-ahead and folios (row 196: theory; measured by row 197, §Measured below)
 
 Row 172 ([`../disk-layout/README.md`](../disk-layout/README.md) §Measured, rule (d)): after reclaim, a cache warmed
 by the fill's `POSIX_FADV_WILLNEED` holds 4 KiB folios only, 41 and 123 a 160 and 500 kB frame against
@@ -375,6 +375,77 @@ Given to a separate session with nothing above this heading.
   slower cold fill beyond the resolution is a trade-off for the owner, not adopted. *(e)* Neither better beyond the
   resolution closes the fill's read-ahead as it is; the XFS 64 KiB reading, if made, is recorded for the deployment
   either way.
+
+### Measured (row 197, 2026-10-14): neither read-ahead is adopted; W0 stays
+
+Run by a session given only the protocol above. Rig, commands and rows: [`../../lab/container-bench/`](../../lab/container-bench/README.md)
+§The fill's read-ahead (`readahead.py`, `readahead_bench`, `rows-readahead.jsonl`, `readahead_summary.py`). The arms are
+the shipped `FillReader` with its advice replaced through `FillReader::with_read_ahead` (a test pins that the hook is
+handed exactly the ranges `WILLNEED` would be, and fails when it is not), every other line of both readers shipped.
+Kernel 6.18.44, 4 cores, 15 GB, THP `madvise`. The host's filesystem is ext4 on `/dev/vda` (`read_ahead_kb` 128,
+`relatime,discard`); the loop images (2 GiB, ext4, ext4 `data=journal`, XFS and XFS `-b size=65536` from xfsprogs
+6.6.0-1ubuntu2.1) sit on it with `read_ahead_kb` 2560 and `max_sectors_kb` 1280, so **the host's and the loops'
+ext4 differ in their read-ahead window by 20×**. Sets as ingest coded them: `ct_lidc` 164 kB a frame (100),
+`dbt12_ea1141` 499 kB (29), `ffdm_d` 4 808 kB (4), `pt15_cptac` 31 kB (335). 16 rounds, the arms in `order.py`'s order
+in each cell; one fill on every filesystem, four fills on the host and loop ext4; 2 048 rows, **5 238 656 frames
+checked by XXH3-64, none inexact**; every arm's frames decoded once against ingest's digests, 0 inexact; `--mutate
+shift` and `short` failed every arm (870 of 870 frames). W1's block test failed under each of four mutations of its
+arithmetic. No `madvise` was refused; `compact_stall` 0 and `pgmajfault` 0 in every cell's median.
+
+**Not cold on `data=journal`.** ext4 with `data=journal` serves `O_DIRECT` through the page cache: every copy there was
+wholly cached after it (the XFS copies kept one page, the truncated last one). Its cold fill is a fill on the cache, its
+folios the copy's; nothing below claims a cold fill there.
+
+Folios a frame (W0, then each arm ×W0), and the hit p50 ×W0 (**bold**: beyond the resolution, ≥ 80 % of rounds
+agreeing; resolution = p90 of |W0aa/W0 − 1| per cell and metric):
+
+| filesystem, set | W0 folios | W1 folios · hit | W2 folios · hit | W3 folios · hit | W1 2 MiB blocks whole |
+| --- | --: | --- | --- | --- | --: |
+| host ext4, 164 kB | 41 | ×0.057 · **×0.72** | ×0.58 · **×0.68** | ×0.11 · **×0.62** | 86 % |
+| host ext4, 499 kB | 113 | ×0.024 · **×0.62** | ×0.42 · **×0.79** | ×0.058 · **×0.65** | 82 % |
+| host ext4, 4.8 MB | 204 | ×0.91 · ×0.90 | ×1.37 · ×0.97 | ×0.11 · ×0.87 | 50 % |
+| host ext4, 31 kB | 8.58 | ×0.14 · **×0.76** | ×0.86 · **×0.65** | ×0.16 · **×0.63** | 75 % |
+| loop ext4, 164 kB | 41 | ×0.31 · ×0.77 | ×0.13 · **×0.64** | ×0.095 · ×0.75 | 43 % |
+| loop ext4, 499 kB | 97 | ×0.11 · ×0.67 | ×0.14 · ×0.72 | ×0.023 · ×0.66 | 60 % |
+| loop ext4, 4.8 MB | 191 | ×1.90 · ×0.97 | ×0.65 · ×0.97 | ×0.063 · ×0.89 | 61 % |
+| loop ext4, 31 kB | 8.58 | ×0.28 · **×0.77** | ×0.75 · **×0.69** | ×0.15 · **×0.72** | 75 % |
+| loop XFS, 499 kB | 97 | ×0.11 · **×0.61** | ×0.14 · **×0.63** | ×0.023 · **×0.60** | 65 % |
+| `data=journal`, every set | 8.6–1 170 | ×1.000 · ×0.94–1.02 | ×1.000 · ×0.68–1.11 | ×1.000 · ×0.94–1.06 | 0 % |
+
+What each arm costs where it is worse beyond the resolution: **W1** a cold fill's CPU per GB ×1.146 on XFS at 4.8 MB,
+and its first frame ×2.13 on `data=journal` at 31 kB; its cold fill's frames/s is ×0.74–1.02 at 164–499 kB on the host
+and loop ext4 but within the A/A spread. **W2** a cold fill's CPU per GB ×1.11–1.92 in every cell but two, a fill's on
+the cache ×1.72–2.03 at 499 kB, and +4 to +8 cold misses with four fills on the host. **W3** +7 to +71 cold misses in
+five of the host's eight cells, each beyond the resolution; on the loops, whose window is 2.5 MiB, +0 to +6.
+
+* *Folios a frame W1 160 kB 1.1–1.6, 500 kB 1.2–2.2, `ffdm_d` 1.5–3.5, 32 kB 1.0–1.4:* **failed** outside the host's
+  32 kB (1.17): 2.34 and 2.7 on the host, 12.5 and 10.9 on loop ext4, and at 4.8 MB 186 and 363 — as many as W0's or
+  more. 43–86 % of W1's blocks became one 2 MiB folio alone, 0–19 % with four fills.
+* *W0 as row 172's A6 (41, 123):* **held** at 164 kB (41); 97–113 at 499 kB.
+* *W2 between:* **held on the host** at 164–499 kB (24 and 47, between W1's 2.3–2.7 and W0's 41–113); **failed** on loop
+  ext4 (5.5 and 13.5 against W1's 12.5 and 10.9) and at 4.8 MB.
+* *Every arm 4 KiB on `data=journal`:* **held** (×1.000 in every cell).
+* *W1's hit p50 0.40–0.55 of W0's on ext4 at 160–500 kB:* **failed**, 0.62–0.77. *Fill hit ×1.4–1.6:* **failed**,
+  ×1.00–1.22. *Fill-hit CPU per GB ×0.6–0.75:* **failed**, ×0.77–1.02 (host 164 kB to loop 499 kB).
+* *Cold fill frames/s and misses a tie, CPU a tie or lower:* **held** within the resolution, frames/s ×0.74–1.02.
+* *At 32 kB, on XFS and on `data=journal`, a tie on every metric:* **held on `data=journal` only**; at 32 kB and on XFS
+  W1's hits are ×0.61–0.77, beyond the resolution.
+* *Four fills: W1's folios between its alone and W0's, its hits still better:* **held** for the folios (164 kB: 12.5 →
+  26.4 → 36.5 on loop ext4, 2.3 → 28 → 41 on the host; 499 kB 10.9 → 82 → 96, 2.7 → 73 → 113), hits ×0.84–0.95, none
+  beyond the resolution.
+* *W3's cold fill misses most:* **held** on the host (+7 to +71 against W0's 3–17), barely on the loops.
+* *Unpredicted:* **no advice at all (W3) builds the fewest folios** (×0.02–0.16 of W0's) and hits as fast as W1 or W2
+  (×0.60–0.75), at the price of the misses above where the device's own read-ahead window is small. What `WILLNEED`
+  costs is its folios, not its reads.
+* **Rule.** *(a) Mechanism:* **not confirmed**: W1's counts miss their ranges, and the hits follow the folio counts only
+  roughly (W2's hit beats W1's at 164 kB with twice its folios). Not rejected either: W1's hits part from W0's on ext4
+  at 160–500 kB. *(b) P:* **not adopted**: beyond the resolution on hit p50 on the host's ext4 (×0.72, ×0.62) but not on
+  loop ext4 (×0.77, ×0.67 inside the spread), and worse beyond it on XFS's cold-fill CPU at 4.8 MB and
+  `data=journal`'s first frame at 31 kB. *(c) B:* **not adopted**: its cold fill's CPU is worse beyond the resolution
+  almost everywhere. *(d)* does not arise. *(e)* **The fill's read-ahead stays W0.** Recorded for the deployment: XFS
+  with 64 KiB blocks builds 3.5, 7.3, 18 and 1.5 folios a frame under W0, and its W0 hits are 13.5 and 25.2 µs at 164 and
+  499 kB against the 4 KiB XFS's 19.0 and 40.9 (different images, not paired; a filesystem choice for row 195 to
+  measure, not a reader change).
 
 ### P0 — validate on the production target before touching anything
 
