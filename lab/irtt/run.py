@@ -2,7 +2,8 @@
 """IRTTMEASURE: the server's initial RTT, unset (333 ms) against `--initial-rtt-ms 100`, one binary and one
 certificate per pair, on the dev certificate and on an ECDSA chain. Protocol and rule:
 docs/transport/transport-conclusions.md §3 *Proposed row: IRTTMEASURE*. `--row reply` runs INITIALMEASURE's four arms
-instead: today, today again, `--reply-repeated-initial` and `--initial-rtt-ms 100` (§3 *Answering a repeated Initial*).
+instead: today, today again, `--reply-repeated-initial` and `--initial-rtt-ms 100` (§3 *Answering a repeated Initial*);
+its reply arm needs a build up to `ba408823`, where the flag still exists.
 
     lab/irtt/run.py [--row irtt|reply] --phase abc|b [--rounds N] [--first-round K] --out rows.jsonl
     lab/irtt/run.py --summary --out rows.jsonl [--out more.jsonl]
