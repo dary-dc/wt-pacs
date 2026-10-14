@@ -179,6 +179,7 @@ never builds a ring, so io_uring matters only to tile misses. In order of cost:
 | `seccomp=./seccomp-uring.json` | io_uring on a tile miss | Docker ≥ 25, Podman, containerd ≥ 2.0 refuse it by default | the kernel's io_uring surface, below |
 | `memlock` sized to the rings, one uid per server | io_uring past ~1 000 rings | a uid's ~1 000th concurrent ring, host-wide | locked memory up to the limit |
 | `nofile` ≥ 2 × sessions that miss + sockets | the ring's two fds | the daemon's default, whatever it is | none |
+| on an SELinux-enforcing host, `io_uring { allowed }` for the container's domain | io_uring on a tile miss | container-selinux grants it to no container domain: `EACCES` even under the profile (row 195, probed on Fedora 43) | `label=disable` drops the container's SELinux confinement; a module granting that one permission to `container_t` (untried) reaches every container on the host |
 
 **Verified on this host** (Docker 29.8.2, containerd 2.3.6, runc 1.5.1, Linux 6.18, cgroup v1, ext4). A static probe
 (`io_uring_setup`, `_register`, `_enter`, then rings until refused, then `preadv2(RWF_NOWAIT)`), run as uid 10001 with
@@ -245,8 +246,9 @@ and `--ulimit`):
 
 Kubernetes (not run here): copy the profile to each node's `/var/lib/kubelet/seccomp/`, and set
 `securityContext.seccompProfile: {type: Localhost, localhostProfile: seccomp-uring.json}`. Kubernetes has no
-per-pod `ulimit`, so `memlock` is the node runtime's. Podman: `--security-opt seccomp=deploy/seccomp-uring.json`,
-unchecked here like the rest of rootless podman (§Open). `seccomp-uring.json` is Docker's Apache-2.0 profile with one
+per-pod `ulimit`, so `memlock` is the node runtime's. Podman: `--security-opt seccomp=deploy/seccomp-uring.json`;
+rootless Podman 5.8.4 accepts it, and on its SELinux-enforcing host the ring then needs the row above
+(`docs/adr/disk-access.md` §In a container). The rest of rootless podman is unchecked (§Open). `seccomp-uring.json` is Docker's Apache-2.0 profile with one
 entry added. `seccomp-uring.sh` writes it from the pinned, checksummed fetch, and `--check` says whether it is
 current (a changed entry and a wrong checksum each failed it). Regenerate it when the pinned Docker moves.
 
