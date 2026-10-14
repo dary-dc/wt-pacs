@@ -62,8 +62,8 @@ it as a separate program, links nothing against it and ships nothing built from 
   bytes with the binaries'. Nothing is copied by hand, so a tag bump carries its own text. The lab's
   `client/decode/wasm/dav1d/build.sh` still writes its `THIRD_PARTY.txt` beside its variants.
 * **The frame check's hasher** is xxHash's (row 179), whose BSD-2-Clause `LICENSE` sits beside its build. hash-wasm's,
-  still loadable behind `hasher: "hash-wasm"`, carries its MIT `LICENSE`, fetched beside its script from the pinned
-  tarball by `client/decode/wasm/fetch_xxh3.sh` and served with it.
+  `client/decode/xxh3.test.mjs`'s reference and loaded by no page since row 218, carries its MIT `LICENSE`, fetched
+  beside its script from the pinned tarball by `client/decode/wasm/fetch_xxh3.sh`.
 * **Defensive termination** (§1.3): the patent licence ends for whoever starts patent litigation
   alleging an AV1 implementation infringes.
 * **No endorsement**: VideoLAN's, AOM's or SVT-AV1's names are not used to promote this project

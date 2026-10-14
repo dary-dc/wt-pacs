@@ -27,8 +27,7 @@ move because of anything here. TCP 4433 is published for the WebSocket fallback,
 From a fresh clone, with docker (or podman; every `docker` below reads `podman` as well):
 
 ```bash
-bash client/decode/wasm/build/build.sh        # the decoders the page loads, checked against their manifest
-bash client/decode/wasm/fetch_xxh3.sh         # the frame check's hasher
+bash client/decode/wasm/build/build.sh        # the decoders and the frame check's hasher, checked against their manifest
 docker compose -f deploy/compose.yml build
 STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
 ```
@@ -48,7 +47,7 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `STUDIES` | `../fixtures/us_cine_smoke` | the host directory mounted read-only at `/studies` in both containers |
 | `SERIES` | `us_cine_smoke` | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
 | `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443 and 4433 (UDP and TCP) are published on |
-| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial |
+| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to |
 | `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
@@ -96,11 +95,11 @@ A container test of a deployment of this shape found each one (the deployment te
     nothing used are gone: the content-hashed asset rule, since nothing emits a hashed name, and `/harness/`,
     which the lab runs against `dev-server.py`.
 
-**What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies:
-the page and its modules, the page check's two (`?check=`), row DECODERBUILD's decoder builds with their notices
-(`client/decode/wasm/built/`, checked against `build/manifest.sha256` at build time) and the hasher; and the TS
-bundles (`build.sh --product`). No harness page, test, TypeScript source or build script. Of the studies, only the
-smoke series.
+**What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
+page and its modules, the page check's two (`?check=`), and row DECODERBUILD's decoder builds with their notices
+(`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
+time; and the TS bundles (`build.sh --product`). No harness page, test, TypeScript source or build script. Of the
+studies, only the smoke series.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
 `/wt/dev-transport.json`. Everything else is a 404, the studies' bundles included.
@@ -118,25 +117,42 @@ than failing, since the downloader refuses to start without it. Pages and the me
 (`Cache-Control: no-cache` on `text/html` and `application/json`); modules and WASM keep heuristic caching. The
 `types` block is there because nginx's `mime.types` answers `.js` as `application/javascript` and has no `.mjs`.
 
+**A Content-Security-Policy on every response**, so the workers carry it as well as the page:
+
+```
+default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;
+connect-src 'self' ${WT_ORIGIN}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
+```
+
+`WT_ORIGIN` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport.
+`'unsafe-eval'` is the decoders' glue, evaluated through `new Function` (`client/decode/wasm-glue.js`), and lets
+WebAssembly compile; the inline `<style>` is the page's. `dev-server.py` sends the same policy on the viewer's page
+alone, connecting anywhere on loopback, where the lab's relays and collectors listen; the lab's pages, which share
+the viewer's workers and run inline scripts, carry none. The page's lab parameters are not served here at all:
+`client/README.md` §The viewer.
+
 ## The checks
 
 `check_equivalence.sh [STUDIES SERIES]` runs `dev-server.py` and the web image side by side, given the same studies
-and the same transport file. It checks four things:
+and the same transport file. It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
   viewer loads (10);
-* 17 paths that must not be served are 404: the lab, the fixtures, the checkout, a study's bundle, the transport
-  directory, and the files of `client/` the page does not load (a harness page, the check pages, a test, a
-  TypeScript and a Rust source, a build script, a README);
+* 18 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
+  bundle, the transport directory, and the files of `client/` the page does not load (a harness page, the check pages,
+  a test, a TypeScript and a Rust source, a build script, a README);
 * gzip on a module, the WASM and the metadata;
+* the policy on the page and on the downloader's script, connecting to the transport, and the dev host's on the page
+  equal to it but for `connect-src`;
 * `Server` carries no version.
 
 Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out of `gzip_types`, a `location /`
-that serves and lists, and a page cached otherwise than `dev-server.py`. `--local` runs a host nginx on the
-template instead of the image, its root the files `web-files.sh` copies; `scripts/gate.sh` runs it where nginx is on
-PATH and the decoder builds and the hasher are present, and names it SKIPPED otherwise. Mutated: a root of all of
-`client/`, as the image carried before row IMAGESLIM (the nine `client/` paths answer 200), and `viewer.js` left
-out of the list (its path differs and loses gzip); each fails it.
+that serves and lists, and a page cached otherwise than `dev-server.py`; and for the policy (row VIEWERLOCK), nginx's
+`connect-src` without the transport (both paths `MISS`) and the dev host's `script-src` allowing inline (`DIFF`).
+`--local` runs a host nginx on the template instead of the image, its root the files `web-files.sh` copies;
+`scripts/gate.sh` runs it where nginx is on PATH and the decoder builds and the hasher are present, and names it
+SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried before row IMAGESLIM (the nine
+`client/` paths answer 200), and `viewer.js` left out of the list (its path differs and loses gzip); each fails it.
 
 **A stale image is refused** (exit 2) before anything is compared: every file the image carries from `client/`
 (what `web-files.sh` copies) and `deploy/nginx/` is hashed in the image and in the tree, and any that differs, is
@@ -181,6 +197,14 @@ refuses a page on a public address a request to `127.0.0.1`, where the check's c
 
 **Restart.** `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
 and the next page open connected and passed.
+
+**Row VIEWERLOCK (2026-10-14), the policy in place.** The web image built from that tree passed
+`check_equivalence.sh`, and `client/viewer/check.mjs --url` through it on the gate's three-frame grey series passed
+in headless Chromium 141 and in Firefox 157.0.1 under `xvfb-run` (archive.mozilla.org's
+`firefox-157.0.1.tar.xz`, SHA-256 `0d92bf39cdd174f5f361008509310bdefbce72a57ca10523a43b32d62dc699b6`; the host's llvmpipe): 3/3 exact, the three readbacks equal
+to the CPU reference, Firefox's result read off its stdout. `/lab/viewer/levers.js` answered 404. The policy governs the dial: an image
+whose `connect-src` left out the transport failed the same check in Chromium, "Refused to connect to
+'https://127.0.0.1:…/?ask=fill:0-2' because it violates the document's Content Security Policy".
 
 ## Container settings
 

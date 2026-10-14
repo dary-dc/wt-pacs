@@ -2,15 +2,8 @@ import { builtWasm } from "./wasm-glue.js";
 
 const CHUNK = 16384;
 
-/** The frame check's XXH3-64: xxHash's SIMD128 build (row 179), or hash-wasm's on `"hash-wasm"`. docs/adr/exactness-in-production.md §10 */
-export const hasher = async (which) => (which === "hash-wasm" ? hashWasm() : xxhash(await builtWasm("xxh3")));
-
-/** hash-wasm's XXH3, fetched by wasm/fetch_xxh3.sh; its UMD sets `hashwasm` on the global. */
-async function hashWasm() {
-  const src = await (await fetch(new URL("./wasm/vendor/hash-wasm/xxhash3.umd.min.js", import.meta.url))).text();
-  new Function(src).call(globalThis);
-  return globalThis.hashwasm.createXXHash3();
-}
+/** The frame check's XXH3-64: xxHash's SIMD128 build (row 179). docs/adr/exactness-in-production.md §10 */
+export const hasher = async () => xxhash(await builtWasm("xxh3"));
 
 /** wasm/xxh3 in hash-wasm's `init().update(bytes).digest("hex")` shape. */
 async function xxhash(wasm) {

@@ -100,6 +100,8 @@ if [[ $browser -eq 1 ]]; then
   run 4 bash client/contract/run_browser.sh
   step "client: the viewer's page check — a complete, exact, drawn page (headless Chromium)"
   run 3 bash client/viewer/run_check.sh
+  step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
+  run 1 node client/viewer/crafted.mjs
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
   if [[ $numpy -eq 1 ]]; then
     run 1 env PYTHON="$PYTHON" node client/paint/check.mjs --zoom1

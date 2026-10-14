@@ -21,7 +21,8 @@ const check = (ok, what) => {
 };
 
 const xxh3 = await hasher();
-const today = await hasher("hash-wasm");
+new Function(readFileSync(HASH_WASM, "utf8")).call(globalThis);
+const reference = await globalThis.hashwasm.createXXHash3();
 
 /** The decoder's default hasher is the manifest's xxHash build on its SIMD path, the one adopted for speed (exactness-in-production.md §10). */
 check(xxh3.vector === 4, `XXH_VECTOR is ${xxh3.vector}, not 4 (SIMD128)`);
@@ -32,7 +33,7 @@ for (let i = 0; i < data.length; i++) data[i] = (Math.imul(i, 2654435761) >>> 13
 for (const n of [0, 1, 3, 4, 8, 9, 16, 17, 128, 129, 240, 241, 1024, 16383, 16384, 16385, 2 * 16384 + 1, data.length]) {
   for (const at of [0, 1]) {
     const bytes = data.subarray(at, at + n);
-    const want = today.init().update(bytes).digest("hex");
+    const want = reference.init().update(bytes).digest("hex");
     check(xxh3.init().update(bytes).digest("hex") === want, `${n} bytes at ${at}: not hash-wasm's ${want}`);
   }
 }

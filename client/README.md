@@ -28,7 +28,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike; a build under `wasm/built/` with its manifest digests |
 | `xxh3.js` | the frame check's XXH3-64, over the built xxHash |
 | `htj2k.test.mjs`, `av1.test.mjs`, `wasm-glue.test.mjs`, `xxh3.test.mjs` | node: the range pass; the AV1 payload reader; a build refused unless the manifest pins it; the hash against a reference |
-| `wasm/` | `build/` builds the three decoders the page loads (OpenJPH from `openjph/`, dav1d, xxHash from `xxh3/`) into `built/`, checked against `build/manifest.sha256`, with every licence in `built/THIRD_PARTY_NOTICES`; `dav1d/` the lab's dav1d-WASM tooling and its exactness check; `fetch_openjph.sh` fetches OpenJPH's npm build and `fetch_xxh3.sh` hash-wasm's XXH3 into `vendor/` |
+| `wasm/` | `build/` builds the three decoders the page loads (OpenJPH from `openjph/`, dav1d, xxHash from `xxh3/`) into `built/`, checked against `build/manifest.sha256`, with every licence in `built/THIRD_PARTY_NOTICES`; `dav1d/` the lab's dav1d-WASM tooling and its exactness check; `fetch_openjph.sh` fetches OpenJPH's npm build and `fetch_xxh3.sh` hash-wasm's XXH3, `xxh3.test.mjs`'s reference, into `vendor/` |
 
 The rest: [`viewer/`](viewer/) the product's page (§The viewer), [`contract/`](contract/) the transport's clauses
 and the rigs, [`paint/`](paint/README.md) the painter, [`record/`](record/) telemetry, [`harness/`](harness/) the
@@ -155,7 +155,7 @@ A mismatch is decoded once more on another path (`info.path`: `htj2k` in a decod
 only if that matches, with `info.mismatchOn` naming the path that missed; otherwise `false`, its
 `info.reason` naming both decodes. A frame is never asked again for it: the same bytes would come back.
 `stats().exact` counts frames per path as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
-(`decode/xxh3.js`, built by `decode/wasm/build`; hash-wasm's, `decode/wasm/fetch_xxh3.sh`, on `hasher: "hash-wasm"`); a
+(`decode/xxh3.js`, built by `decode/wasm/build`), held to hash-wasm's digests by `decode/xxh3.test.mjs`; a
 worker given digests that cannot load it fails its start. What it costs
 and why it is on: [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md).
 
@@ -273,8 +273,9 @@ run; a decode path whose ground-truth check does not fire is worth nothing.
 `viewer/index.html` and `viewer/viewer.js`, served at `/` by `server/dev-server.py` and by the web image. How to run
 it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM series.
 
-* **Opening.** The page head fetches `/series/metadata` and preloads the codec's modules and WASM, and the hasher
-  when the series has digests. The module dials at once, with the whole series as the opening fill, while the
+* **Opening.** The head's one script, `viewer/head.js` (the policy allows no inline script), fetches
+  `/series/metadata`, preloaded by the page, and preloads the codec's modules and WASM, and the hasher when the series
+  has digests. The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
 * **Frames.** Frames are kept in memory by index; the cache seam stays open ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
   §Open). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
@@ -283,13 +284,21 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
 * **The status line.** It shows the frame, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
-* **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=` and `?post=` let a lab harness drive the same page.
+* **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=` and `?origin=` let a lab harness drive the
+  same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
+  any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
+  `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
+  dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured. `?check=`, `?cine=`, `?fill=` and
+  `?deadline=` are the page's own.
+* **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
+  §What must be preserved exactly): scripts from the page's origin alone, connections to it and the transport.
 
 **Its check**, `viewer/check.mjs`, takes a bundle (or `--url`, a host already running). It serves the bundle, opens
 the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
 page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
 after the cancel. With `--fill 0` it first steps the page itself: to the middle frame, the last and the middle again
-at once, then to the last twice. It fails:
+at once, then to the last twice. It passes no lab parameter, so it runs the same against the web image: the result is
+read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout.content`). It fails:
 
 * a fill that did not complete, or a frame lost or refused; on demand, a frame the page asked;
 * any frame not exact;
