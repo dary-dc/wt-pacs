@@ -287,7 +287,7 @@ not `ready`.
 | 204 | **DEVICE1** — row 190's D0, D1 and D2 on the owner's phone, in one evening, through row 201's kit | local, after 201 |
 | 205 | **DEVICE2** — row 190's D3 (the controlled grid under `netem`, one stream against several) | local, after 204 |
 | 206 | **DEVICE3** — row 190's D4 and D5 (the repeated Initial; memory and energy) | local, after 204 |
-| 207 | **ASKFIRSTCAP** — asks-first with the bytes in flight still capped (row 171's send window, or 6 MiB across all streams): an ask that jumps the server's queue without a deeper network queue behind it; theory | ready |
+| 207 | **ASKFIRSTCAP** — asks-first with the bytes in flight still capped (row 171's send window, or 6 MiB across all streams): an ask that jumps the server's queue without a deeper network queue behind it; theory | claimed 2026-10-14 (night, ca4133) |
 
 ## Briefs
 
