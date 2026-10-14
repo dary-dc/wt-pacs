@@ -6,7 +6,7 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 
 Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
 with `rustup`, Node 22 (`.nvmrc`), Python 3.11 or newer, and on PATH: git, curl, tar, patch, sha256sum,
-openssl, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
+openssl, jq, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
 
 ```bash
 rustup target add wasm32-unknown-unknown
