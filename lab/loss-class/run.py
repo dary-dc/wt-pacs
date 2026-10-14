@@ -2,7 +2,7 @@
 """LOSSCLASS: how often a round-trip loss classifier is wrong when the relay knows each drop's cause.
 Protocol and rule: docs/transport/transport-conclusions.md §1, R2; the terms fixed before the data: README.md.
 
-    lab/loss-class/run.py [--rounds N] [--first-round K] [--cells a,b] [--ccs cubic-restart,bbr] --out rows.jsonl
+    lab/loss-class/run.py [--rounds N] [--first-round K] [--cells a,b] [--ccs cubic-restart,bbr] [--depth 8] --out rows.jsonl
     lab/loss-class/run.py --summary --out rows.jsonl [--mutate truth]
 
 A visit is a fresh server (`WTPACS_LOSS_TRACE`: one row per congestion event), a fresh relay
@@ -85,7 +85,7 @@ def setup(t):
                     "--output", t + "/series.sbnd"], check=True, capture_output=True)
 
 
-def visit(t, rnd, prev, cell, cc):
+def visit(t, rnd, prev, cell, cc, depth=DEPTH):
     one_way, relay_args, kind = cells()[cell]
     srv, front = 30000 + os.getpid() % 5000, 36000 + os.getpid() % 5000
     losses, drops = t + "/losses.jsonl", t + "/drops.log"
@@ -104,7 +104,7 @@ def visit(t, rnd, prev, cell, cc):
             raise SystemExit("server or relay did not start")
         fill = subprocess.run([BIN + "/window-harness", "--url", "https://127.0.0.1:%d/" % front, "--bind", "0.0.0.0",
                                "--mode", "saturate", "--fill-dwell-ms", str(DWELL_MS), "--frame-count", str(FRAMES),
-                               "--depth", str(DEPTH), "--read-bps", "0", "--stream-mode", "shared",
+                               "--depth", str(depth), "--read-bps", "0", "--stream-mode", "shared",
                                "--timeout-ms", "60000", "--json"], capture_output=True, text=True, timeout=120)
     finally:
         relay.terminate()
@@ -119,7 +119,7 @@ def visit(t, rnd, prev, cell, cc):
     log = open(t + "/relay.log").read()
     late = re.search(r"late p50 \S+ p99 (\S+)", log)
     return {"round": rnd, "prev": prev, "cell": cell, "kind": kind, "cc": cc, "one_way_ms": one_way,
-            "settings": {"server": ["--congestion", cc], "relay": relay_cmd[2:], "fill": ["saturate", DWELL_MS, DEPTH]},
+            "settings": {"server": ["--congestion", cc], "relay": relay_cmd[2:], "fill": ["saturate", DWELL_MS, depth]},
             "mbps": mbps, "void": "VOID" in log, "relay_late_p99_ms": float(late.group(1)) if late else None,
             "relay_tally": [l for l in log.splitlines() if "server->client" in l],
             "losses": [json.loads(l) for l in open(losses)] if os.path.exists(losses) else [],
@@ -257,6 +257,7 @@ def main():
     ap.add_argument("--first-round", type=int, default=0)
     ap.add_argument("--cells", default=",".join(cells()))
     ap.add_argument("--ccs", default="cubic-restart,bbr")
+    ap.add_argument("--depth", type=int, default=DEPTH, help="frames of 64 KB asked ahead: the bytes in flight's cap")
     ap.add_argument("--out", required=True)
     ap.add_argument("--summary", action="store_true")
     ap.add_argument("--mutate", choices=("truth",))
@@ -275,7 +276,7 @@ def main():
         for rnd in range(args.first_round, args.first_round + args.rounds):
             prev = None
             for cell, cc in order(units, rnd):
-                row = visit(t, rnd, prev, cell, cc)
+                row = visit(t, rnd, prev, cell, cc, args.depth)
                 prev = "%s/%s" % (cell, cc)
                 with open(args.out, "a") as f:
                     f.write(json.dumps(row) + "\n")
