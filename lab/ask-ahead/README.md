@@ -21,5 +21,9 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   per-frame,asksfirst=--stream-mode per-frame-asks-first"`, read by `streams.py`; `FIRST_ROUND=k` resumes a campaign at
   round k.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
-* The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once half has
-  landed, asks for the last frame.
+  A `CELL` of `…@AT:ARM,…` asks once `AT` % has landed (`none`: no ask) and runs only the arms named; an arm's
+  `?key=value` token goes to the page's query, as the downloader flag `refill` does. ASKTHENFILLMEASURE (row 210) ran
+  `askthenfill.py`'s arms (`T`, `TB=?refill=head`, `W=--send-window-follows-cwnd`, `WB`, `WA=… ?refill=ask`, and
+  `Wc`, `WBc` under `--congestion cubic`) on 30 cells into `rows-askthenfill.jsonl`, read by `askthenfill.py`.
+* The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once `at` (half
+  unless set) has landed, asks for the last frame.
