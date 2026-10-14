@@ -323,7 +323,7 @@ not `ready`.
 | 227 | **DEDUP** — D1–D8: the duplicated logic the audit lists, each kept in one place | claimed 2026-10-14 (day, bb168e) |
 | 228 | **WASMTOLAB** — D9 and P6: the WASM transport and `client/decode/wasm/dav1d/` tooling moved to `lab/`, `dav1d_wrap.c` kept; structural, proposed first | claimed 2026-10-14 (day, b7eb09) |
 | 229 | **REFILLMEASURE** — row 210's head re-issue (`refill=head`, B) on today's path, re-run for a verdict: its two readings split over one 50 % cell (+4 ms, ×1.003) where B never fires, so the split is noise judged as harm. Row 210's T and T + B cells only, from `claude/wip-210-ASKTHENFILLMEASURE` (rig and flag as built), plus **T′, today again**, so "worse" means beyond the A/A spread (row 173's rule) and a cell where B never fires reads as A/A; ≥ 20 Williams rounds, both readings. Rule, set before the data: B becomes the downloader's default if no cell's fill or ask under T + B is worse than T's beyond the T/T′ spread in either reading, and at least one 10 % cell's fill is better beyond it; the 18/300 cell (−273 ms in row 210) is where its gain is largest, so a phone link (row 190's D2) is where it matters | night |
-| 230 | **CIGATE** — a GitHub Actions workflow that runs every check `scripts/gate.sh` runs, with no skip but those that need a device, plus the deploy image's build and `check_equivalence.sh`, on pull requests into `claude/av1-unified-mainbase` and `main` | ready |
+| 230 | **CIGATE** — a GitHub Actions workflow that runs every check `scripts/gate.sh` runs, with no skip but those that need a device, plus the deploy image's build and `check_equivalence.sh`, on pull requests into `claude/av1-unified-mainbase` and `main` | claimed 2026-10-14 (day, 346716) |
 
 ## Briefs
 
