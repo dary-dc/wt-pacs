@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn no_transport_flag_parses_to_the_default_tuning() {
         assert_eq!(parse(&[]).tuning, TransportTuning::default());
-        assert_eq!(parse(&[]).tuning.initial_window, None);
+        assert_eq!(parse(&[]).tuning.initial_window, Some(38_400));
     }
 
     /// Every transport flag `lab/` passes still parses, under its old name, into its field.
