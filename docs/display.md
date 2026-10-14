@@ -110,7 +110,7 @@ drops? (Both answered by row 214, below.)
 ## Which series carry them
 
 Row 214, 2026-10-14: every DICOM file pinned in `lab/av1/data.json` — 1 044 in the 83 sound sets, and the two that are
-not — streamed, checked against its SHA-256 and read whole by `lab/av1/display_tags.py`; the attributes are searched
+not — streamed, checked against its SHA-256 and read by `lab/av1/display_tags.py`; the attributes are searched
 anywhere in the object, nested functional groups included. Counts are of the sound sets.
 
 | attribute | sets | files | what they hold |
