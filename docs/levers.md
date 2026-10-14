@@ -141,7 +141,7 @@ Owner: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`decode/README.md`](decode/README.
 | The range in the pack | cq 83–85: one ask −8 to −58 % | held | decode/README.md §The range in the pack |
 | Dispatch: first free + 1, `perDecoder` 2 | lab dispatch bench: a short queue ends 20 % sooner | held; **never** for the value 2 and what an ask waits behind | decode/README.md §Dispatch |
 | Decoder count `min(3, cores)` | downloader-cost: a third decoder wins 7/7 on 4 cores, loses on 2 | held (phones unmeasured) | ARCHITECTURE.md §Resources |
-| Decode paced to the wire (`followQueue`) | row 112: fill ×0.998–1.002, CPU ×0.85–0.98, wake-ups ×0.18–0.47; one cell 12/16 | owner (row 113, the phone stage) | ARCHITECTURE.md §The decoders |
+| Decode paced to the wire (`followQueue`) | row 112: fill ×0.998–1.002, CPU ×0.85–0.98, wake-ups ×0.18–0.47; one cell 12/16 | held (the flag removed by row 224; at `ba408823`) | ARCHITECTURE.md §The decoders |
 | Decoders started on first need (`startOnNeed`) | row 142: fill ×0.994–1.004, CPU ×0.86–0.96, wake-ups ×0.18–0.44; two fill cells and one cold ask miss a fixed bar, no A/A arm | **premise** (net ruling) | decode/README.md §Not yet tried (P-START) |
 | Zero-copy hand-off: frames packed into a heap the page keeps (P-COPY) | row 134: grey ×0.95–1.05, RGB ×0.866 at 4×, peak memory −5 to −25 MB | **premise** (net ruling: refused by a ≤ ×0.95-everywhere bar, not by a loss) | decode/README.md §Not yet tried (P-COPY) |
 | Helper started after `ready` | rows 108, 113: cold ask ×1.06, ×1.19 | held | [`decode/levers-protocol.md`](decode/levers-protocol.md) §Review |

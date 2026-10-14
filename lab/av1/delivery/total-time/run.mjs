@@ -99,7 +99,6 @@ function variantOf(set, name) {
     return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer,
       opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Decode pacing: the downloader's lab flag.
-        ...(a.followQueue && { followQueue: true }),
         ...(a.startOnNeed && { startOnNeed: true }),
         // Ask deadlines: the downloader's survival deadlines, and a transport that reports its silences.
         ...(a.survival !== undefined && { survival: a.survival }), ...(a.transport && { transport: a.transport }),

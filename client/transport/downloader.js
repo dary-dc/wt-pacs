@@ -41,8 +41,7 @@ let recycling = null;
 let closed = false;
 
 const decoders = [];
-/** Lab flag `followQueue`: decoders retired idle, kept to be taken back, and the one coming up. */
-const parked = [];
+/** Lab flag `startOnNeed`: the decoder coming up. */
 let growing = null;
 /** index → { state, priority, stamps, bytes, decoder, attempts }. State: wire | queued | decoding, the last until the page acknowledges it. */
 const records = new Map();
@@ -129,17 +128,9 @@ function pump() {
   grow();
 }
 
-/** Lab flags `followQueue` and `startOnNeed` (which never retires): one decoder at the start. docs/ARCHITECTURE.md §How many */
-const growsOnNeed = () => cfg.followQueue || cfg.startOnNeed;
-
-/** Frames still queued after a dispatch add a decoder, up to `cfg.decoders`. */
+/** Lab flag `startOnNeed`: one decoder at the start, and frames still queued after a dispatch add one, up to `cfg.decoders`. docs/ARCHITECTURE.md §How many */
 function grow() {
-  if (!growsOnNeed() || growing || queue.ask.length + queue.fill.length === 0 || decoders.length >= cfg.decoders) return;
-  const back = parked.pop();
-  if (back) {
-    decoders.push(back);
-    return pump();
-  }
+  if (!cfg.startOnNeed || growing || queue.ask.length + queue.fill.length === 0 || decoders.length >= cfg.decoders) return;
   const d = spawn();
   growing = d;
   d.up.then(() => {
@@ -148,16 +139,7 @@ function grow() {
     growing = null;
     decoders.push(d);
     pump();
-    retire(d);
   });
-}
-
-/** `followQueue`: a decoder left idle with nothing queued leaves the pool, alive, for `grow` to take back. */
-function retire(d) {
-  if (!cfg.followQueue || d.outstanding > 0 || decoders.length < 2 || holdsAGroup(d) || !decoders.includes(d)) return;
-  decoders.splice(decoders.indexOf(d), 1);
-  d.next = null;
-  parked.push(d);
 }
 
 function dispatch(d, index, rec) {
@@ -370,7 +352,6 @@ function onDone(d) {
   d.outstanding -= 1;
   arm(d);
   pump();
-  retire(d);
 }
 
 /** A decoder that owes a frame and answers nothing for `decodeMs` is replaced: the clock restarts at each answer. */
@@ -388,7 +369,6 @@ function replace(d, reason) {
   d.worker.terminate();
   const at = decoders.indexOf(d);
   if (at >= 0) decoders[at] = spawn();
-  if (parked.includes(d)) parked.splice(parked.indexOf(d), 1);
   for (const [index, rec] of records) if (rec.decoder === d) again(index, rec, reason);
 }
 
@@ -435,7 +415,6 @@ function spawn() {
       arm(d);
       if (e.data.gen === generation) fail(e.data.index, e.data.reason);
       pump();
-      retire(d);
     }
   };
   postMessage({ kind: "pixel-port", port: ch.port2, decoder: d.id }, [ch.port2]);
@@ -445,7 +424,7 @@ function spawn() {
 async function start(m) {
   // A config field the consumer left out must not clobber the default with `undefined`.
   for (const [k, v] of Object.entries(m.config ?? {})) if (v !== undefined) cfg[k] = v;
-  const count = !cfg.decode ? 0 : growsOnNeed() ? Math.min(1, cfg.decoders) : cfg.decoders;
+  const count = !cfg.decode ? 0 : cfg.startOnNeed ? Math.min(1, cfg.decoders) : cfg.decoders;
   for (let i = 0; i < count; i++) decoders.push(spawn());
   const ready = decoders.map((d) => d.up);
   if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
@@ -551,7 +530,7 @@ onmessage = async (e) => {
     // A decoded frame is forgotten only once the page has it. docs/ARCHITECTURE.md §The downloader
     if (m.kind === "ack") return void (m.gen === generation && records.delete(m.index));
     if (m.kind === "undelivered") {
-      const d = decoders.concat(parked).find((x) => x.id === m.decoder);
+      const d = decoders.find((x) => x.id === m.decoder);
       return void (d && replace(d, `a frame from decoder ${d.id} could not be read on the page`));
     }
     if (m.kind === "cancel") {
