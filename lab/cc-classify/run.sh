@@ -29,8 +29,9 @@ neighbour() {
 grid() {
   local g=(--frames lab/.av1-work/ccmeasure --fill 4 --asks-after 4 --throttles 1,4 --rounds 1 --first-round "$1"
     --out "$OUT/grid.jsonl")
-  node lab/av1/delivery/total-time/run.mjs "${g[@]}" --links r5000,r20000,r50000 --impairs clean,j20,l1,l2 | grep -c '^round'
-  node lab/av1/delivery/total-time/run.mjs "${g[@]}" --links lte-good --impairs clean,j20 | grep -c '^round'
+  node lab/av1/delivery/total-time/run.mjs "${g[@]}" --links r5000,r20000,r50000 --impairs clean,j20,l1,l2 \
+    >> "$OUT/grid.log" 2>&1
+  node lab/av1/delivery/total-time/run.mjs "${g[@]}" --links lte-good --impairs clean,j20 >> "$OUT/grid.log" 2>&1
 }
 
 RIGS=(overflow neighbour grid)
