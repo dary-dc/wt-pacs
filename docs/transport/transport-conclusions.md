@@ -1083,8 +1083,11 @@ reopened only by a Cubic-only rule with a deep-overflow cell; these are that rul
   * Predictions (D): clean and jitter cells equal `cubic-restart` (no code path differs); 1 % and 2 % fixed-rate fills
     ≤ 0.2 × `cubic-restart`'s; the neighbour's share within 5 points of `cubic-restart`'s; `of-q500`'s congestive
     losses classed congestive ≥ 95 %.
+  * Arms `cubic-restart` and `cubic-classify` differ in the classifier alone (both at Cubic's 12 kB initial window);
+    `bbr` rides along as a reference, its 240 kB window named in every cell. ≥ 10 Williams-ordered rounds by
+    `order.py`, `--self-timing`, strict and round-paired readings per the queue's protocol; every frame exact.
   * Rule: default if no clean or jitter cell is over 1.01, every 1–2 % fixed-rate cell is ≤ 0.75, and the share holds,
-    in both readings.
+    in both readings. This is the protocol row CCMEASURE runs; DELAYCUT waits on its verdict.
 * **DELAYCUT — the delay cut over CLASSIFY, opt-in, only after CLASSIFY passes.**
   * Cells: deep FIFO alone and with a kernel-TCP neighbour; the deep-buffer fill's `step` and `step40` links (a rate
     that swings).
