@@ -96,3 +96,17 @@ bench for over 5 % of its time (`others_busy_frac`: `/proc/stat` less the proces
 cold pass together), when a store that has `RWF_NOWAIT` missed in its hit pass, or when a cold copy was resident.
 `measure --pooled-ok` runs where the flag is refused (O), whose every read then goes through the pool. The WILLNEED
 warm in a container runs as its root, the host side's user, who owns the copy: only then does its wait see residency.
+
+**On rootful Docker (row 208).** `RUNTIME=docker` before each `dockerread.py` step, as root throughout; `sudo dockerd`
+first. Docker names the images `localhost/wt-pacs-dockerread-rig` and `-data`; behind a TLS-inspecting proxy, its CA
+bundle goes in as `build_ca` (`--secret id=build_ca,src=CA --network host --build-arg HTTPS_PROXY --build-arg
+NO_PROXY`) and to `data` as `BUILD_CA=CA`. Then, for a host arm that parts from the containers:
+
+```bash
+R=$(mktemp -d); docker export $(docker create localhost/wt-pacs-dockerread-rig) | tar -x -C $R
+mkdir -p $R/w $R/proc && mount --bind $W $R/w && mount -t proc proc $R/proc
+python3 lab/container-bench/dockerread_why.py libc $W $R 12   # H, H chrooted on the image's glibc, B
+python3 lab/container-bench/dockerread_why.py copies $W 14    # every arm's WILLNEED copy, read from the host
+```
+
+Row 208's rows, every step's output tagged by `part`: [`rows-dockercloud.jsonl`](rows-dockercloud.jsonl).

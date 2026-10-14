@@ -634,6 +634,85 @@ arms as data in `dockerread-arms.json` ([`../../lab/container-bench/README.md`](
   or XFS (ratios to H transfer); Docker Engine on an SELinux-enforcing host, the one Docker question row 199 left
   open (predicted `EACCES` under the profile; untimed, elsewhere).
 
+#### Measured in a cloud container (row 208, 2026-10-14): placement and folios hold; the profile is recommended
+
+Run by a session given only the protocol above, on rootful Docker in a cloud VM; rig and how-to:
+[`../../lab/container-bench/README.md`](../../lab/container-bench/README.md) §In a container, *On rootful Docker*; rows
+`rows-dockercloud.jsonl`. **What differs from the rig the protocol was written on:** Docker Engine 29.8.2, containerd
+2.3.6 (its overlayfs snapshotter), runc 1.5.1, the builtin seccomp profile, cgroup v1 with cgroupfs, rootful, so
+`as_owner` is the identity and V is packed under `/srv/series`; **no SELinux**, so B+U and B+UL are the same arm
+twice; ext4 on virtio `/dev/vda` (`read_ahead_kb` 128) under every arm and under Docker's storage; a Firecracker VM,
+4 vCPU Xeon at 2.1 GHz, 15 GB, kernel 6.18.44, THP `madvise`, cores 2–3 pinned with nothing else on the machine. The
+"host" is itself the VM's Ubuntu 24.04 container, so H runs the rig's binaries on **glibc 2.39**, every container on
+the image's Debian **glibc 2.36**. Ratios to H transfer; absolute µs do not.
+
+784 visits, 28 rounds, **2 VOID (0.3 %)**, so the strict reading alone; 0 frames inexact (XXH3) in every visit; every
+arm's files equal H's SHA-256. Reader check: H and H′ `preadv2` with `ring=true`; **B and V `preadv2`, `ring=false`,
+`io_uring setup: EPERM`** (Docker's default profile returns `EPERM`, not the `ENOSYS` predicted from Podman's); O
+`pooled_pread`, no ring tried; BU and BUL `preadv2`, `ring=true`. The cold passes agree: ring on 84 of 84 for H, H′,
+BU and BUL, 0 of 84 for B, V and O.
+
+**Two differences are not the container's, and were taken apart before the rule was read.**
+
+* *pt15's fill is the glibc.* B, V, BU and BUL filled pt15 hits ×2.11–2.56 of H at ×0.39–0.47 the CPU a GB (fill
+  forced miss ×1.14–1.20). With `dockerread_why.py libc` (12 rounds interleaved), the same binary chrooted into the
+  image on the host, Debian's glibc in the host's cgroup and namespaces, matched B: fill hit **×2.10** of H (1.73–2.23,
+  12 of 12 rounds), B ×2.10; hit p50, miss p50 and ct_lidc a tie for both. Which glibc routine does it is not measured.
+* *The WILLNEED cell is the copy.* Each arm has its own WILLNEED copy, all of order-0 folios, 122.86 a frame. Read
+  from the host through `dockerread_why.py copies` (14 rounds), each copy gave its in-container hit p50: H 66.8 µs,
+  H′ 63.9, **B 32.7, V 33.8**, BU 48.7, BUL 43.0, O 49.9 (in its container 102.1, through the pool). Two fresh copies,
+  one warmed on the host and one in a throwaway container, both read 53–62 µs. So copies with identical folio counts
+  serve a hit at 33–67 µs; that spread is a property of a copy's page cache that the folio count does not show, and
+  is unexplained. It is not the mount, and it caps what this cell can resolve between arms.
+
+Medians, µs or frames/s (hit through `RWF_NOWAIT`, miss through `force_pool_reads`):
+
+| cell | H hit p50 | B · V · BUL hit p50 | O hit p50 | H miss p50 | H cold p50 | B · BUL cold p50 | O cold p50 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `pt15_cptac` 32 kB | 3.6 | 3.5 · 3.4 · 3.2 | 35.7 | 35.0 | 16.9 | 28.8 · 19.1 | 10.1 |
+| `ct_lidc` 163 kB | 11.0 | 11.0 · 11.1 · 10.1 | 50.6 | 50.6 | 50.6 | 53.5 · 54.3 | 12.7 |
+| `dbt12_ea1141` 503 kB | 30.4 | 31.4 · 29.7 · 30.7 | 84.1 | 84.3 | 203.0 | 171.2 · 231.6 | 58.1 |
+
+**The predictions** (a tie: within the resolution against H in the same round):
+
+* B, V hit, forced miss, fills: **held** on `ct_lidc` and `dbt12_ea1141` packed, and on pt15's hit and miss; pt15's
+  fill and the WILLNEED cell are beyond, both explained above as not the mount.
+* O's hit ties H's forced miss: **held** on every packed cell (p50 ×1.005, ×0.992, ×1.011; p99 ×0.99–1.05); fill hit
+  ties H's fill forced miss, except its CPU a GB at 503 kB, ×1.21 (beyond; frames/s ×0.83, a tie). On the WILLNEED cell ×0.84, the copy.
+* Cold tile, B against H: at 32 kB the pool is ×1.66 the wall and ×1.55 the CPU a frame of the ring; at 163–503 kB a
+  tie, **as predicted**. **O's cold pass did not match "the pool":** ×0.56, ×0.28 and ×0.27 of H's wall (beyond at
+  32–163 kB), so a cold read through the overlay's own path is faster here than either reader on a bind mount;
+  unexplained, and no rule reads it.
+* B+UL ties H on cold tiles in every cell (×1.08–1.10): **held**. Against B, ×0.67 the CPU a frame at 32 kB (beyond),
+  a tie elsewhere. B+U, the same settings here, ties too, but its pt15 hit p50 is ×0.81 of H (beyond; B+UL's ×0.90).
+* `ring=`: B and V `false` with **`EPERM`** (predicted `ENOSYS`); O `false`, none tried; B+U **`true`** where `EACCES`
+  was predicted: no SELinux here, so this host cannot test that prediction. B+UL `true`. `read_fast_path=` as
+  predicted for every arm.
+* Folios: **held**, 28 of 28 files within 20 % of H (all ×1.00), the same after the last round as after placing.
+
+**The rule.**
+
+* **(a) Placement:** by the letter, B and V are beyond H. Both cells that part them part H from *every* container
+  through the glibc and the copy, not through the mount, and B and V tie H wherever the reader and the copy are the
+  same. Nothing here advises against either: `/studies` stays a bind mount, a named volume its equal.
+* **(b) Overlay:** O's hit sits at H's forced miss and is beyond B in every cell, ×10.1 at 32 kB, ×4.6 at 163 kB and
+  ×2.7 at 503 kB (35.7, 50.6 and 84.1 µs against 3.5, 11.0 and 31.4). *Serve series from a mounted volume* stands,
+  with this kernel's number.
+* **(c) io_uring:** B+UL gets `ring=true` on all 84 cold passes and ties H on cold tiles. Against B, its other metrics
+  differ only on the WILLNEED cell, ×1.32 hit p50 and ×1.13 miss p50, which is the copy (each copy read from the host:
+  B's 32.7 µs, BUL's 43.0). By that explanation **the row recommends the profile**, with:
+  * the security cost (§Container settings, row 199): io_uring's surface, which seccomp cannot judge;
+  * the margin it buys here, B against B+UL on cold tiles: at 32 kB 28.8 against 19.1 µs p50 and ×0.67 the CPU a
+    frame (the wall within the resolution, 96 % of rounds on its side); at 163–503 kB a tie;
+  * on SELinux-enforcing hosts the domain also needs `io_uring { allowed }`; `label=disable` drops the container's
+    whole confinement, and a module granting only that permission to `container_t` is narrower but untried. This host
+    has no SELinux, so it measured neither.
+  The owner adopts these or not; P0 still decides whether the ring earns its keep on the target.
+* **(d) Limits:** unchanged until (c) is adopted.
+* **(e) Folios:** every arm within 20 % of H in both states: the cache is the real inode's, and row 197's verdict
+  (W0 stays) holds in containers on this host.
+* **(f) Not conclusive here:** Docker under SELinux enforcing (B+U's `EACCES`), and absolute µs.
+
 ## 7 · Invariants
 
 What the code depends on and the types do not enforce, each pinned by a named test.
