@@ -43,3 +43,22 @@ python3 lab/container-bench/writer_summary.py $W
 ```
 
 `writer_bench folios --mutate` reads compound heads as plain pages and must fail the folio layout check.
+
+## The fill's read-ahead (row 197)
+
+Five read-aheads on the shipped `FillReader` (its `with_read_ahead`) and `TileReader`, each round on fresh `O_DIRECT`
+copies, one fill or four: [`docs/adr/disk-access.md`](../../docs/adr/disk-access.md) §Protocol for row 197 and its
+measurement. Root is needed as for row 172; `mkfs.xfs` is xfsprogs 6.6.0-1ubuntu2.1.
+
+```bash
+lab/av1/fetch_data.sh ct_lidc dbt12_ea1141 ffdm_d pt15_cptac   # then ingest each set's htj2k as above
+cargo build --release -p container-bench -p pack-series
+$P lab/container-bench/readahead.py mount $W     # loop ext4, ext4 data=journal, XFS, XFS -b size=65536
+$P lab/container-bench/readahead.py make $W
+$P lab/container-bench/readahead.py verify $W    # every arm's frames decoded against ingest's digests
+$P lab/container-bench/readahead.py mutate $W    # --mutate shift|short must fail every arm
+$P lab/container-bench/readahead.py time $W 16
+python3 lab/container-bench/readahead_summary.py $W
+```
+
+`cargo test -p container-bench --bin readahead_bench` checks W1's 2 MiB blocks against the fill's own advice.
