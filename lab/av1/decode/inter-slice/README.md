@@ -41,6 +41,8 @@ range are checked: `--mutate sample` and `--mutate truth` turned every cell to 0
 rounding dropped in the worker turned every `lift` cell to 0/9 and left `two` at 9/9; a maximum
 reported one too high turned `lift` to 0–1/9.
 
-**Pins.** Node 22.22.0, playwright's Chromium (version in the run's output), OpenJPH 0.31.0 for the
+**The run.** `summary.txt` is the printed bytes and timing of the run the reading quotes, `rows.json` its rows.
+
+**Pins.** Node 22.22.0, playwright 1.56.1's Chromium 141.0.7390.37 (`CHROME_PATH` overrides), OpenJPH 0.31.0 for the
 encoder, the product's decoder build as `client/decode/wasm/build/pins.sh` pins it, numpy from
 `lab/av1/requirements.txt`. Nothing fetched, built or generated is committed.
