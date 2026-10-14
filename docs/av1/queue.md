@@ -288,6 +288,13 @@ not `ready`.
 | 205 | **DEVICE2** — row 190's D3 (the controlled grid under `netem`, one stream against several) | local, after 204 |
 | 206 | **DEVICE3** — row 190's D4 and D5 (the repeated Initial; memory and energy) | local, after 204 |
 | 207 | **ASKFIRSTCAP** — asks-first with the bytes in flight still capped (row 171's send window, or 6 MiB across all streams): an ask that jumps the server's queue without a deeper network queue behind it; theory | claimed 2026-10-14 (night, ca4133) |
+| 208 | **DOCKERCLOUD** — row 195 run in a cloud container where it can be: Docker 29 starts there (`sudo dockerd`, overlayfs, default seccomp), so the read path inside a container on overlay, a bind mount and a volume, io_uring under the default and row 199's profile, folios after `WILLNEED`; a cloud VM's numbers, not the owner's machine | held until 2026-10-14 03:00 UTC; after 199 |
+| 209 | **READMEASURE** — row 198's protocol: large folios after reclaim and a user-space frame cache, against today | held until 2026-10-14 03:00 UTC |
+| 210 | **ASKTHENFILLMEASURE** — row 202's protocol | held until 2026-10-14 03:00 UTC |
+| 211 | **ASKFIRSTCAPMEASURE** — row 207's protocol | held until 2026-10-14 03:00 UTC; after 207 |
+| 212 | **CCMEASURE** — row 200's protocol, the arms a container and the relay can run | held until 2026-10-14 03:00 UTC; after 200 |
+| 213 | **INTERSLICE** — row 194's protocol: a slice predicted from its neighbour, JPEG 2000 Part 2 across slices, on the volumes | held until 2026-10-14 03:00 UTC |
+| 214 | **DISPLAYTAGS** — row 169's net gaps built: the ingest keeps the ICC Profile, VOI LUT Sequence and Presentation LUT Shape, and the painter applies them where a series carries them (COLORTAGS, VOILUT) | held until 2026-10-14 03:00 UTC |
 
 ## Briefs
 
@@ -3940,6 +3947,41 @@ Cubic fills the deep queue further, and no priority reaches bytes already in the
 row 171's send window (cwnd + M), and a fixed cap of 6 MiB across all streams — across row 193's range; with each
 controller row 200 ranks; predictions, a protocol and a rule (net only if never worse than `shared` in any cell).
 **Deliverable:** `docs/native/quic-compared.md` §9, an *Asks first, capped* part. **Branch:** `claude/av1-unified-mainbase`.
+
+## The night of 2026-10-14 (rows 208–214)
+
+**The owner, 2026-10-14:** going to bed; the local machine and the Wi-Fi are off for the night, and the night should be
+used. The Oracle machine is §9's cloud rig; a domain for its certificate is possibly a good idea. These rows need
+neither the owner's machine nor the phone; held for the usage window that opens at 03:00 UTC.
+
+### 208 DOCKERCLOUD
+
+Row 195's measurement, run where a cloud session can: `sudo dockerd` starts in the container (Docker 29.8.2, overlayfs,
+seccomp on). Build the deploy image (`deploy/`) and run the server's read-path bench inside it, with row 199's settings
+as arms: the store on overlay, a bind mount, a named volume; the default seccomp profile against row 199's; `memlock` and
+`nofile` as set and as raised; the host without Docker as the reference. Whether io_uring and `RWF_NOWAIT` work, and the
+pool's cost where not; hits and forced misses through the store's levers; folios after a pack and after `WILLNEED`.
+Every number is a cloud VM's, labelled so; row 195 still runs on the owner's machine. If an image cannot be pulled, say
+which and stop. **Deliverable:** `docs/adr/disk-access.md`, *In a container*. **Branch:** `claude/av1-unified-mainbase`.
+
+### 209 READMEASURE, 210 ASKTHENFILLMEASURE, 211 ASKFIRSTCAPMEASURE, 212 CCMEASURE, 213 INTERSLICE
+
+**Measurement, each by its theory row's protocol** (198 in `docs/adr/disk-access.md` §13; 202 in
+`docs/transport/link-conditions.md` §Re-measured, *ASKTHENFILL*; 207 and 200 in their deliverables; 194's INTERSLICE in
+`docs/codecs/README.md` §Beside the codec), in a session given only the protocol and its rule. A lever its rule adopts
+is built beside today's path, off by default where it changes behaviour, with a test that fails without it. Where a
+protocol needs a phone or the owner's machine, run what the container can, say what is left for row 204–206's device
+runs, and do not claim it. **Deliverable:** each protocol's *Measured*. **Branch:** `claude/av1-unified-mainbase`.
+
+### 214 DISPLAYTAGS
+
+Row 169 (`docs/display.md` §The gaps): the ingest drops ICC Profile, VOI LUT Sequence and Presentation LUT Shape;
+reading them is net where a series carries them. First count which sound series carry each (COLORTAGS, VOILUT). Then,
+for what exists: the ingest keeps them in the series' metadata, and the painter applies a VOI LUT Sequence and the
+Presentation LUT Shape per PS3.3 (and an ICC profile's colour space where the canvas allows), with the reference painter
+(`client/paint/reference.js`) checking each and a test per tag that fails without it. Nothing changes for a series
+without the tags. **Deliverable:** the ingest and paint changes, `docs/display.md` updated. **Branch:**
+`claude/av1-unified-mainbase`.
 
 ## Blocked
 
