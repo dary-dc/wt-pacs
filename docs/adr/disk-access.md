@@ -250,6 +250,128 @@ btrfs bdi (not the 128 its block device reports), the cloud rig 2 048. The fill 
 depends on it (`FILL_WINDOW`); tiles still do. Record it with any published number
 (`/sys/block/<dev>/queue/read_ahead_kb`; `blockdev --setra 16384` sets 8 MiB, not persistently).
 
+### Read-ahead and folios (row 196: theory; measured by row 197, §Protocol below)
+
+Row 172 ([`../disk-layout/README.md`](../disk-layout/README.md) §Measured, rule (d)): after reclaim, a cache warmed
+by the fill's `POSIX_FADV_WILLNEED` holds 4 KiB folios only, 41 and 123 a 160 and 500 kB frame against
+`pack-series`' 7 and 9, and on the host's ext4 a hit costs ×2.02 and ×1.99, the fill's hit rate ×0.68 and ×0.64, its
+CPU per GB ×1.49 and ×1.56. On XFS the same counts separated nothing. The question: can the fill's read-ahead build
+large folios with its wait unchanged?
+
+Sources: Linux **v6.18.44** from `gregkh/linux`, SHA-256 first 16 hex `mm/readahead.c` 25f3c0da49787109,
+`mm/fadvise.c` f05ef1386bb5d24b, `mm/filemap.c` 2bd1223972411197 (the files row 168 read), `mm/madvise.c`
+f56dddf47e81ceb6, `mm/khugepaged.c` 0334087a87a281c3, `mm/huge_memory.c` 26ab392300cbaa97,
+`fs/xfs/libxfs/xfs_ialloc.c` 70dd9daed7294dd5; mainline at **v7.3-rc7** from `torvalds/linux` for what has
+changed since: `mm/readahead.c` 6ee106a2f671e354, `mm/filemap.c` 98c5d6444d210a8c. Fetched 2026-10-14.
+
+**The mechanism.** The kernel sizes a folio where it allocates it, and its paths differ:
+
+* *Forced read-ahead* — `POSIX_FADV_WILLNEED` (`mm/fadvise.c:106`) → `force_page_cache_ra` → `page_cache_ra_unbounded`,
+  which allocates every folio at the mapping's **minimum** order (`mm/readahead.c:275–276`): 4 KiB on ext4 and on
+  XFS with 4 KiB blocks. Unchanged at v7.3-rc7. One call reads at most `max(io_pages, ra_pages)` (`:354`).
+* *The read path's own read-ahead* — a `pread` that misses, `RWF_NOWAIT` included (`mm/filemap.c:2644`), goes
+  through `page_cache_sync_ra`, which **resets the order to 0** (`mm/readahead.c:624`); each asynchronous window
+  that a sequential reader then triggers adds 2 (`:689`), up to `ilog2` of the window (`:487`): 128 KiB folios at
+  the stock `read_ahead_kb`. That state lives in the `struct file` (`f_ra`), which all of a series' sessions share
+  (`FrameStore` opens it once, §7), so concurrent fills reset each other's order.
+* *A fault on a mapping marked `MADV_HUGEPAGE`* — `do_sync_mmap_readahead` sets the order to PMD's, 2 MiB, aligns the
+  start down to 2 MiB of file offset and calls `page_cache_ra_order` (`mm/filemap.c:3266–3279`), whatever
+  `read_ahead_kb` says; 2 × 2 MiB unless the mapping is also `MADV_RANDOM` (`:3274`). Kept at v7.3-rc7, now for
+  any mapping with large folios and capped at 2 MiB (`mm/filemap.c:3350`). `MADV_HUGEPAGE` sets the VMA flag and
+  nothing else (`mm/khugepaged.c:340–362`); it is refused only without `CONFIG_TRANSPARENT_HUGEPAGE` (`mm/madvise.c:1539–1542`). The sysfs
+  `enabled` setting is not read on this path at v6.18.44 (read, not run).
+
+`page_cache_ra_order` stops at the first index already cached and **finishes the rest at the minimum order**
+(`mm/readahead.c:512–534`), and an order the allocator cannot meet is the same `-ENOMEM` stop: large folios degrade
+to today's, never to a failed read. A mapping without large folios (ext4 `data=journal`, ext4 before v6.16) goes
+straight to that fallback (`:479`).
+
+**The candidates.**
+
+| candidate | folios it builds after reclaim (source) | the fill's wait | verdict |
+| --- | --- | --- | --- |
+| `readahead(2)` | 4 KiB: it **is** `vfs_fadvise(…, WILLNEED)` (`mm/readahead.c:730`), and does not block | as today | no lever |
+| larger `WILLNEED` ranges | 4 KiB; the per-call cap and nothing else move | as today | no lever |
+| `madvise(MADV_WILLNEED)` on a mapping | 4 KiB: `vfs_fadvise` again (`mm/madvise.c:325`) | as today | no lever |
+| `read_ahead_kb` | none for `WILLNEED`; raises the sync path's ceiling | as today | no lever here (tiles: §Read-ahead) |
+| `MADV_POPULATE_READ` on a plain mapping | read-around at order 0 (`mm/filemap.c:3335–3341`), then +2 a window to 128 KiB | blocks a pool thread per call | weaker than **P** |
+| **P**: `MADV_HUGEPAGE` + `MADV_RANDOM` + `MADV_POPULATE_READ`, one aligned 2 MiB block a call | **2 MiB**, one folio a block; the block's tail at the file's end in smaller aligned orders | the same bytes in flight; a block is readable when all of it lands | **the candidate** |
+| **B**: sequential `pread` of the window into a scratch buffer (pool, or the ring) | order 0, then +2 a window up to `ilog2(window)`; row 172's A5 is this at 128 KiB: 1.35–6.24 a frame | one more copy a byte, a buffer, the shared `f_ra` | second candidate |
+| `MADV_COLLAPSE` after `WILLNEED` | 2 MiB, by copying every byte into a new folio; needs `CONFIG_READ_ONLY_THP_FOR_FS` (`mm/huge_memory.c:89`), off on this host's kernel | a second pass | rejected |
+| no advice (the kernel's read-ahead alone) | as **B** | the 2026-09-10 "before": 59–66 % misses at 128 KiB (§11) | rejected by the brief |
+| XFS with blocks above the page (`mkfs.xfs -b size=64k`) | the block size as the minimum order (`xfs_ialloc.c:3081–3084`), so `WILLNEED` builds 64 KiB folios | as today | a deployment option, no code; ext4 has it in mainline (`s_min_folio_order`), not at v6.18 |
+
+**P, as it would be built** (nothing is built here; the lab builds it for row 197). At open, the store opens the
+series a second time, so P's faults write a read-ahead state no `pread` shares, and maps it read-only once with
+`MADV_HUGEPAGE` and `MADV_RANDOM`. `FillReader::advise` keeps its window, but extends it in whole 2 MiB blocks that
+start at or past the named frame's end, each one `MADV_POPULATE_READ` call in its own `spawn_blocking`, so two
+blocks are on the device at once as `WILLNEED`'s 4 MiB is today. The block holding the named frame is left to the
+fill's own reads, which have touched it already; populating it would stop at their folios. P never reads through the
+mapping, so §7's reason for having none (bytes handed to quinn must be process-private) holds, but the invariant's
+wording would change. `MADV_HUGEPAGE` refused (`EINVAL`) or the mapping failing falls back to `WILLNEED`.
+
+**Predictions** (P against today's `WILLNEED`, both after reclaim, the fill alone on the file):
+
+* **Folios a frame:** 160 kB 1.1–1.6, 500 kB 1.2–2.2, MB-scale `ffdm_d` 1.5–3.5, 32 kB 1.0–1.4 (the walk's first
+  2 MiB, read by the fill itself, holds A5-like folios; the rest one folio a block); `WILLNEED` as row 172's A6.
+  ext4 `data=journal`: P = `WILLNEED` = 4 KiB. With four fills on one file at staggered starts: between the two.
+* **Hits on ext4:** at 160–500 kB P at 0.40–0.55 of `WILLNEED`'s hit p50 (row 172's A2 against A6: 0.41 and 0.45);
+  fill hit frames/s ×1.4–1.6, fill-hit CPU per GB ×0.6–0.75; at 32 kB within row 172's resolution. **On XFS a tie**
+  on every metric (row 172), so P helps ext4 only, on this evidence.
+* **The cold fill (the wait):** frames/s and misses a tie (P keeps the same bytes in flight), fill CPU per GB a tie
+  or lower (one folio a block to allocate instead of 512); the first frame after a walk starts unchanged.
+* **Costs:** a `spawn_blocking` (24–34 µs, §11 *Hosts*), four syscalls and one fault a 2 MiB block — ~30 ms per GB
+  filled at most; an order-9 allocation that fails under fragmentation falls back (`compact_stall` would show it).
+
+**What would make P wrong:** the hit cost being something other than the folio count after reclaim (row 172 counted
+folios and timed hits on the same files, so it is the folios or something they carry); `MADV_HUGEPAGE` refused in a
+container (`madvise` is in Docker's default seccomp allow-list; row 199 owns the container); 2 MiB reads landing
+later than `WILLNEED`'s at the walk's start, which the cold fill would show.
+
+### Protocol for row 197
+
+Given to a separate session with nothing above this heading.
+
+* **Arms, differing in the fill's read-ahead alone**, all through the shipped `FillReader` and `TileReader` but for
+  its `advise`, built in the lab: **W0** today's `WILLNEED`, quarter-window; **W0′** W0 on another copy of the file
+  (A/A); **W1 (P)** a second descriptor mapped read-only with `MADV_HUGEPAGE` and `MADV_RANDOM`, the window
+  extended in whole 2 MiB file-aligned blocks starting at or past the named frame's end, each block one
+  `MADV_POPULATE_READ` in its own `spawn_blocking`, a refused `madvise` falling back to W0 and counted; **W2 (B)**
+  a second descriptor with `POSIX_FADV_SEQUENTIAL`, the window `pread` into a scratch buffer in 1 MiB reads on the
+  pool; **W3** no advice. Every arm's settings printed.
+* **Cold without eviction:** each round, each arm's file is a fresh copy written with `O_DIRECT` (row 172's `direct`),
+  so nothing of it is cached; one fill walks it from frame 0 (the **cold fill**). Then, on the cache that fill left:
+  folios a frame (row 172's `/proc/kpageflags` counter), the **hit** p50 and p99 through `TileReader` with
+  `RWF_NOWAIT`, a second fill (**fill hit**), and the forced miss through `force_pool_reads`. A cell where four fills
+  walk one cold copy, starting a quarter of the file apart, is timed the same way.
+* **Cells:** `ct_lidc` (163 kB), `dbt12_ea1141` (503 kB), `ffdm_d` (record its frame sizes), and `pt15_cptac` (32 kB)
+  as the check that small frames lose nothing; HTJ2K, ingest's coded frames. **16 rounds**, arms in
+  `lab/scripts/order.py`'s order inside each cell.
+* **Filesystems:** the host's (kernel, filesystem, mount options, `read_ahead_kb`, `max_sectors_kb`, THP `enabled`),
+  a loop ext4, the same image `-o data=journal`, a loop XFS; a loop XFS made with `-b size=65536`, W0 and W0′ only, if
+  the pinned `mkfs.xfs` makes one and the kernel mounts it.
+* **Metrics:** cold fill frames/s, its misses (`ReadStats`), its CPU per GB, and the time to its first frame; hit p50
+  and p99; fill-hit frames/s and CPU per GB; forced-miss p50; folios a frame, with the share of W1's blocks that are
+  one 2 MiB folio; `/proc/vmstat` `compact_stall` and `pgmajfault` deltas a round.
+* **Exactness:** every frame read checked against its coded bytes' XXH3-64 and every arm's frames decoded once
+  against ingest's sample digests; `--mutate shift|short` must fail it. W1's block arithmetic gets a unit test that
+  fails when a block straddles the named frame's end or leaves a gap (mutate it).
+* **Predictions:** folios a frame W1 160 kB 1.1–1.6, 500 kB 1.2–2.2, `ffdm_d` 1.5–3.5, 32 kB 1.0–1.4, W0 as row
+  172's A6, W2 between; on `data=journal` every arm at 4 KiB folios. On ext4 at 160–500 kB, W1's hit p50 0.40–0.55
+  of W0's, fill hit ×1.4–1.6, fill-hit CPU per GB ×0.6–0.75; cold fill frames/s and misses a tie, CPU a tie or
+  lower; at 32 kB, on XFS and on `data=journal`, a tie on every metric. Four fills: W1's folios between its alone and
+  W0's, its hits still better. W3's cold fill misses most.
+* **Decision rule.** The resolution is row 172's: the p90 over rounds of \|W0′/W0 − 1\|, per cell and metric; a
+  difference counts beyond it with ≥ 80 % of rounds agreeing in sign. *(a) Mechanism:* confirmed if W1's folio
+  counts fall in the predicted ranges (within 20 % of their bounds) and the hit ranking follows the counts on ext4;
+  rejected if W1 builds 2 MiB folios and its hits do not part from W0's on ext4 at 160–500 kB. *(b) P adopted*
+  as the fill's read-ahead if, on host and loop ext4, W1 beats W0 beyond the resolution on hit p50 or fill-hit CPU
+  per GB at 160–500 kB **and** is worse beyond it on no metric in any cell or filesystem, the cold fill's frames/s,
+  misses and first frame included. *(c) B instead* only if P fails (b) and W2 passes it. *(d)* Better hits with a
+  slower cold fill beyond the resolution is a trade-off for the owner, not adopted. *(e)* Neither better beyond the
+  resolution closes the fill's read-ahead as it is; the XFS 64 KiB reading, if made, is recorded for the deployment
+  either way.
+
 ### P0 — validate on the production target before touching anything
 
 One campaign run on the cloud instance, volume class and container image: `product_tile`
