@@ -10,8 +10,10 @@ The protocol is docs/adr/disk-access.md §6; README.md §In a container (row 195
 
 The arms are dockerread-arms.json, one entry an arm: its name; how its series is placed (`host` and `bind` by
 pack-series on the host into WORK/arms/NAME, `volume` by a container of uid 10001, `layer` inside its own container);
-its container's `podman run` options, none for the host; and where its reader finds the series. The first arm is the
+its container's `run` options, none for the host; and where its reader finds the series. The first arm is the
 reference every file's SHA-256 must equal, and each round's order is the Williams row for the arms' count.
+RUNTIME=docker runs it on rootful Docker instead of rootless Podman; BUILD_CA, a proxy's CA bundle, lets `data` fetch
+through HTTPS_PROXY.
 """
 import argparse
 import json
@@ -37,6 +39,8 @@ NICE = ["nice", "-n", "19", "ionice", "-c3"]
 PIN = ["taskset", "-c", "2,3"]
 BUILD_CPUS = ["--cpu-period", "100000", "--cpu-quota", "200000"]
 OTHERS_BUSY_BAR = 0.05
+RUNTIME = os.environ.get("RUNTIME", "podman")
+DOCKER = RUNTIME == "docker"
 
 
 def sh(cmd, **kw):
@@ -52,17 +56,17 @@ def container(arm):
 
 
 def in_arm(arm, cmd, pin=False, owner=False):
-    """`cmd` as the arm runs it: on the host, or `podman exec` in the arm's container; niced, and pinned if asked,
+    """`cmd` as the arm runs it: on the host, or `RUNTIME exec` in the arm's container; niced, and pinned if asked,
     on both sides. `owner` runs it as the container's root, the host side's user, who owns the copies written from
     the host: `mincore` answers only a file's owner truthfully."""
     wrap = [*NICE, *(PIN if pin else [])]
     user = ["--user", "0"] if owner else []
-    return [*wrap, "podman", "exec", *user, container(arm), *wrap, *cmd] if container(arm) else [*wrap, *cmd]
+    return [*wrap, RUNTIME, "exec", *user, container(arm), *wrap, *cmd] if container(arm) else [*wrap, *cmd]
 
 
 def as_owner(arm, cmd):
-    """`cmd` with the rights of the arm's files' owner: a volume's and a layer's belong to subuids."""
-    return ["podman", "unshare", *cmd] if SPEC[arm]["place"] in ("volume", "layer") else cmd
+    """`cmd` with the rights of the arm's files' owner: a volume's and a layer's belong to subuids, rootless."""
+    return [RUNTIME, "unshare", *cmd] if not DOCKER and SPEC[arm]["place"] in ("volume", "layer") else cmd
 
 
 def series_dir(work, arm):
@@ -74,9 +78,13 @@ def real_dir(work, arm):
     """The same directory on the host: the volume's `_data`, O's upper dir."""
     spec = SPEC[arm]
     if spec["place"] == "volume":
-        return Path(sh(["podman", "volume", "inspect", "-f", "{{.Mountpoint}}", spec["volume"]]).strip())
+        return Path(sh([RUNTIME, "volume", "inspect", "-f", "{{.Mountpoint}}", spec["volume"]]).strip())
+    if spec["place"] == "layer" and DOCKER:
+        pid = sh([RUNTIME, "inspect", "-f", "{{.State.Pid}}", container(arm)]).strip()
+        root = next(ln for ln in Path(f"/proc/{pid}/mountinfo").read_text().splitlines() if ln.split()[4] == "/")
+        return Path(re.search(r"upperdir=([^,\s]+)", root).group(1) + spec["series"])
     if spec["place"] == "layer":
-        upper = sh(["podman", "inspect", "-f", "{{.GraphDriver.Data.UpperDir}}", container(arm)]).strip()
+        upper = sh([RUNTIME, "inspect", "-f", "{{.GraphDriver.Data.UpperDir}}", container(arm)]).strip()
         return Path(upper + spec["series"])
     return work / "arms" / arm
 
@@ -101,7 +109,11 @@ def data(work):
         *(f"/data/venv/bin/python ingest/coded-frames/ingest.py /data/av1-build /data/av1-data/{s} /data/coded/{s}/htj2k"
           " --codec htj2k --jobs 2" for s in SETS),
     ]
-    subprocess.run([*NICE, "podman", "run", "--rm", *BUILD_CPUS, "--security-opt", "label=disable",
+    ca = os.environ.get("BUILD_CA")
+    fetch = ["--network", "host", "-e", "HTTPS_PROXY", "-e", "NO_PROXY", "-v", f"{ca}:/etc/build_ca.pem:ro",
+             *(x for v in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "PIP_CERT", "GIT_SSL_CAINFO", "CURL_CA_BUNDLE")
+               for x in ("-e", f"{v}=/etc/build_ca.pem"))] if ca else []
+    subprocess.run([*NICE, RUNTIME, "run", "--rm", *BUILD_CPUS, *fetch, "--security-opt", "label=disable",
                     "-v", f"{ROOT}:/src:ro", "-v", f"{work}:/data", "-v", f"{work}/openjph-build:/src/lab/.openjph-build",
                     "-w", "/src", DATA, "bash", "-euxc", " && ".join(steps)], check=True)
 
@@ -109,9 +121,9 @@ def data(work):
 def start_container(work, arm):
     """Only the entrypoint is overridden, so the container stays up; the coded frames go to its own layer."""
     run = [o.format(work=work, root=ROOT) for o in SPEC[arm]["run"]]
-    sh(["podman", "run", "-d", "--name", container(arm), *run, "--entrypoint", "sleep", RIG, "infinity"])
+    sh([RUNTIME, "run", "-d", "--name", container(arm), *run, "--entrypoint", "sleep", RIG, "infinity"])
     for s in SETS:
-        sh(["podman", "cp", work / "coded" / s / "htj2k", f"{container(arm)}:/srv/coded/{s}"])
+        sh([RUNTIME, "cp", work / "coded" / s / "htj2k", f"{container(arm)}:/srv/coded/{s}"])
 
 
 def pack_cmd(binary, frames, out):
@@ -120,10 +132,10 @@ def pack_cmd(binary, frames, out):
 
 def clear(work):
     """What an earlier `place` made, so placing starts from nothing."""
-    sh(["podman", "rm", "-f", "-i", "wtpacs-dr-copy", *filter(None, map(container, SPEC))])
+    subprocess.run([RUNTIME, "rm", "-f", "wtpacs-dr-copy", *filter(None, map(container, SPEC))], capture_output=True)
     for a in ARMS:
         if a["place"] == "volume":
-            subprocess.run(["podman", "volume", "rm", "-f", a["volume"]], capture_output=True)
+            subprocess.run([RUNTIME, "volume", "rm", "-f", a["volume"]], capture_output=True)
     subprocess.run(["rm", "-rf", str(work / "arms")], check=True)
 
 
@@ -132,10 +144,10 @@ def place(work):
     warmed through the arm's own path."""
     clear(work)
     (work / "bin").mkdir(exist_ok=True)
-    sh(["podman", "create", "--name", "wtpacs-dr-copy", RIG])
+    sh([RUNTIME, "create", "--name", "wtpacs-dr-copy", RIG])
     for b in BINARIES:
-        sh(["podman", "cp", f"wtpacs-dr-copy:/usr/local/bin/{b}", work / "bin" / b])
-    sh(["podman", "rm", "wtpacs-dr-copy"])
+        sh([RUNTIME, "cp", f"wtpacs-dr-copy:/usr/local/bin/{b}", work / "bin" / b])
+    sh([RUNTIME, "rm", "wtpacs-dr-copy"])
     for a in ARMS:
         arm, how = a["name"], a["place"]
         if how in ("host", "bind"):
@@ -143,9 +155,9 @@ def place(work):
             for s in SETS:
                 sh([*NICE, *pack_cmd(work / "bin/pack-series", work / "coded" / s / "htj2k", work / "arms" / arm / name(s, "pack"))])
         if how == "volume":
-            sh(["podman", "volume", "create", a["volume"]])
-            packs = " && ".join(" ".join(pack_cmd("pack-series", f"/coded/{s}/htj2k", f"/out/{name(s, 'pack')}")) for s in SETS)
-            sh([*NICE, "podman", "run", "--rm", "-v", f"{a['volume']}:/out", "-v", f"{work}/coded:/coded:ro,z",
+            sh([RUNTIME, "volume", "create", a["volume"]])
+            packs = " && ".join(" ".join(pack_cmd("pack-series", f"/coded/{s}/htj2k", f"/srv/series/{name(s, 'pack')}")) for s in SETS)
+            sh([*NICE, RUNTIME, "run", "--rm", "-v", f"{a['volume']}:/srv/series", "-v", f"{work}/coded:/coded:ro,z",
                 "--entrypoint", "sh", RIG, "-c", packs])
         if container(arm):
             start_container(work, arm)
@@ -201,11 +213,13 @@ def settings(work, arm):
     real = real_dir(work, arm)
     out = []
     if container(arm):
+        cgroup = "CgroupnsMode={{json .HostConfig.CgroupnsMode}}" if DOCKER else \
+            "CgroupMode={{json .HostConfig.CgroupMode}} CgroupManager={{json .HostConfig.CgroupManager}}"
         fields = "User={{json .Config.User}} SecurityOpt={{json .HostConfig.SecurityOpt}} " \
                  "Ulimits={{json .HostConfig.Ulimits}} CapAdd={{json .HostConfig.CapAdd}} " \
-                 "Cgroup={{json .HostConfig.Cgroup}} CgroupParent={{json .HostConfig.CgroupParent}} " \
-                 "CgroupMode={{json .HostConfig.CgroupMode}} CgroupManager={{json .HostConfig.CgroupManager}} Mounts={{json .Mounts}}"
-        out.append(run_text(["podman", "inspect", "-f", fields, container(arm)]))
+                 f"Cgroup={{{{json .HostConfig.Cgroup}}}} CgroupParent={{{{json .HostConfig.CgroupParent}}}} {cgroup} " \
+                 "Mounts={{json .Mounts}}"
+        out.append(run_text([RUNTIME, "inspect", "-f", fields, container(arm)]))
     for cmd in (["cat", "/proc/self/limits"], ["grep", "-E", "^(Seccomp|CapEff):", "/proc/self/status"],
                 ["cat", "/proc/self/attr/current"], ["cat", "/proc/self/cgroup"], ["findmnt", "-T", series_dir(work, arm)], ["ls", "-ln", series_dir(work, arm)]):
         out.append(run_text(in_arm(arm, cmd)))
@@ -215,6 +229,10 @@ def settings(work, arm):
 
 
 def versions():
+    if DOCKER:
+        return "".join(run_text(c) for c in (["uname", "-r"], ["docker", "version"], ["runc", "--version"],
+                                             ["docker", "info", "-f", "{{.Driver}} {{json .DriverStatus}} {{json .SecurityOptions}}"],
+                                             ["getenforce"], ["nproc"], ["sh", "-c", "grep -m1 'model name' /proc/cpuinfo"]))
     return "".join(run_text(c) for c in (["uname", "-r"], ["podman", "--version"], ["crun", "--version"],
                                          ["rpm", "-q", "containers-common", "container-selinux", "crun", "podman"],
                                          ["podman", "info", "-f", "seccomp {{.Host.Security.SECCOMPProfilePath}}"]))
@@ -234,7 +252,7 @@ def serve_once(work, arm, series):
                     "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"]))
     server = f"echo $$ > {pid}; exec {bench(work, arm, 'series-server')} --series {series} " \
              f"--cert-pem {certs}/cert.pem --key-pem {certs}/key.pem > {log} 2>&1"
-    detach = [*NICE, "podman", "exec", "-d", inside, "sh", "-c", server] if inside else None
+    detach = [*NICE, RUNTIME, "exec", "-d", inside, "sh", "-c", server] if inside else None
     proc = subprocess.Popen(detach or [*NICE, "sh", "-c", server])
     for _ in range(100):
         time.sleep(0.1)

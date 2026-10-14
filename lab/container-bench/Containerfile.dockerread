@@ -19,7 +19,8 @@ COPY lab/telemetry-bench ./lab/telemetry-bench
 COPY patched ./patched
 COPY patches ./patches
 COPY scripts/patch_crate.sh ./scripts/
-RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/src/target \
+RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/src/target --mount=type=secret,id=build_ca \
+    if [ -s /run/secrets/build_ca ]; then export CARGO_HTTP_CAINFO=/run/secrets/build_ca; fi && \
     cargo build --release --locked --bin container_bench --bin writer_bench --bin pack-series --bin check-fastpath \
       --bin server_ab && \
     cd target/release && cp container_bench writer_bench pack-series check-fastpath server_ab /usr/local/bin/
@@ -32,9 +33,10 @@ COPY --from=benches /usr/local/bin/container_bench /usr/local/bin/writer_bench /
 USER 10001
 
 FROM ${RUST} AS data
-RUN rm -f /etc/apt/sources.list.d/* \
- && echo "deb http://snapshot.debian.org/archive/debian/20261001T000000Z bookworm main" > /etc/apt/sources.list \
+RUN --mount=type=secret,id=build_ca rm -f /etc/apt/sources.list.d/* \
+ && if [ -s /run/secrets/build_ca ]; then echo 'Acquire::https::CAInfo "/run/secrets/build_ca";' > /etc/apt/apt.conf.d/99ca; fi \
+ && echo "deb https://snapshot.debian.org/archive/debian/20261001T000000Z bookworm main" > /etc/apt/sources.list \
  && apt-get -o Acquire::Check-Valid-Until=false update \
  && apt-get install -y --no-install-recommends cmake=3.25.1-1 ninja-build=1.11.1-2~deb12u1 meson=1.0.1-5 \
     nasm=2.16.01-1 python3-venv=3.11.2-1+b1 \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* /etc/apt/apt.conf.d/99ca
