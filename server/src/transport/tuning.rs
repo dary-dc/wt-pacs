@@ -67,9 +67,9 @@ pub struct TransportTuning {
     pub keep_alive_interval_ms: Option<u64>,
     #[arg(long, value_enum, default_value_t)]
     pub congestion: Congestion,
-    /// Bytes the controller may send before the first ACK; quinn's own is 12 000. 38 400 is proposed,
-    /// opt-in: docs/transport/link-conditions.md §Re-measured, proposed (IWDEEP).
-    #[arg(long = "initial-window-bytes")]
+    /// Bytes the controller may send before the first ACK; quinn's own is 12 000.
+    /// docs/transport/link-conditions.md §Re-measured, proposed (IWDEEP).
+    #[arg(long = "initial-window-bytes", default_value = "38400")]
     pub initial_window: Option<u64>,
     /// The RTT assumed before the first sample, which sets the first probe timeout.
     /// quinn default: 333 ms.
@@ -85,6 +85,9 @@ pub struct TransportTuning {
     pub segmentation_offload: bool,
 }
 
+/// 32 datagrams of 1 200 bytes.
+pub const INITIAL_WINDOW: u64 = 38_400;
+
 impl Default for TransportTuning {
     fn default() -> Self {
         Self {
@@ -92,7 +95,7 @@ impl Default for TransportTuning {
             max_idle_timeout_ms: None,
             keep_alive_interval_ms: None,
             congestion: Congestion::default(),
-            initial_window: None,
+            initial_window: Some(INITIAL_WINDOW),
             initial_rtt_ms: None,
             reply_repeated_initial: false,
             segmentation_offload: true,
@@ -164,18 +167,15 @@ mod tests {
 
     /// quinn's stock stack: the knob under test is then the only departure from it.
     fn stock() -> TransportTuning {
-        TransportTuning { congestion: Congestion::Cubic, ..TransportTuning::default() }
+        TransportTuning { congestion: Congestion::Cubic, initial_window: None, ..TransportTuning::default() }
     }
 
-    /// The default controller starts at quinn's 12 000 bytes, and the flag's 38 400 reaches every
-    /// controller: row 181's window is opt-in (row 191).
+    /// The default controller starts at 32 datagrams, not quinn's 12 000 bytes: IWDEEP's rule adopted it.
     #[test]
-    fn the_wider_initial_window_is_opt_in() {
-        let start = |t: TransportTuning| t.congestion.factory(t.initial_window).build(std::time::Instant::now(), 1200).initial_window();
-        assert_eq!(start(TransportTuning::default()), 12_000);
-        for congestion in [Congestion::Cubic, Congestion::Bbr, Congestion::CubicRestart, Congestion::BbrBound] {
-            assert_eq!(start(TransportTuning { congestion, initial_window: Some(38_400), ..TransportTuning::default() }), 38_400);
-        }
+    fn the_default_controller_starts_at_32_datagrams() {
+        let t = TransportTuning::default();
+        let controller = t.congestion.factory(t.initial_window).build(std::time::Instant::now(), 1200);
+        assert_eq!(controller.initial_window(), 38_400);
     }
 
     #[test]
