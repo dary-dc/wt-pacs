@@ -304,7 +304,7 @@ not `ready`.
 | 208 | **DOCKERCLOUD** — row 195 run in a cloud container where it can be: Docker 29 starts there (`sudo dockerd`, overlayfs, default seccomp), so the read path inside a container on overlay, a bind mount and a volume, io_uring under the default and row 199's profile, folios after `WILLNEED`; a cloud VM's numbers, not the owner's machine | claimed 2026-10-14 (night, 356721) |
 | 209 | **READMEASURE** — row 198's protocol: large folios after reclaim and a user-space frame cache, against today | claimed 2026-10-14 (night, 9965c2) |
 | 210 | **ASKTHENFILLMEASURE** — row 202's protocol | claimed 2026-10-14 (night, eef595) |
-| 211 | **ASKFIRSTCAPMEASURE** — row 207's protocol | held until 2026-10-14 03:00 UTC |
+| 211 | **ASKFIRSTCAPMEASURE** — row 207's protocol | claimed 2026-10-14 (night, 8396ee) |
 | 212 | **CCMEASURE** — row 200's protocol, the arms a container and the relay can run | held until 2026-10-14 03:00 UTC |
 | 213 | **INTERSLICE** — row 194's protocol: a slice predicted from its neighbour, JPEG 2000 Part 2 across slices, on the volumes | held until 2026-10-14 03:00 UTC |
 | 214 | **DISPLAYTAGS** — row 169's net gaps built: the ingest keeps the ICC Profile, VOI LUT Sequence and Presentation LUT Shape, and the painter applies them where a series carries them (COLORTAGS, VOILUT) | held until 2026-10-14 03:00 UTC |
