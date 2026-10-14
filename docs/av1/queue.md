@@ -323,6 +323,7 @@ not `ready`.
 | 227 | **DEDUP** — D1–D8: the duplicated logic the audit lists, each kept in one place | ready |
 | 228 | **WASMTOLAB** — D9 and P6: the WASM transport and `client/decode/wasm/dav1d/` tooling moved to `lab/`, `dav1d_wrap.c` kept; structural, proposed first | ready |
 | 229 | **REFILLMEASURE** — row 210's head re-issue (`refill=head`, B) on today's path, re-run for a verdict: its two readings split over one 50 % cell (+4 ms, ×1.003) where B never fires, so the split is noise judged as harm. Row 210's T and T + B cells only, from `claude/wip-210-ASKTHENFILLMEASURE` (rig and flag as built), plus **T′, today again**, so "worse" means beyond the A/A spread (row 173's rule) and a cell where B never fires reads as A/A; ≥ 20 Williams rounds, both readings. Rule, set before the data: B becomes the downloader's default if no cell's fill or ask under T + B is worse than T's beyond the T/T′ spread in either reading, and at least one 10 % cell's fill is better beyond it; the 18/300 cell (−273 ms in row 210) is where its gain is largest, so a phone link (row 190's D2) is where it matters | night |
+| 230 | **CIGATE** — a GitHub Actions workflow that runs every check `scripts/gate.sh` runs, with no skip but those that need a device, plus the deploy image's build and `check_equivalence.sh`, on pull requests into `claude/av1-unified-mainbase` and `main` | ready |
 
 ## Briefs
 
@@ -4167,6 +4168,24 @@ apart from `dav1d_wrap.c`. Write the proposal in `docs/CLIENTS.md` (what moves w
 what stays); the move is made only on the owner's yes. **Deliverable:** the proposal. **Branch:**
 `claude/wip-228-WASMTOLAB`, then `claude/av1-unified-mainbase` for the proposal.
 
+### 230 CIGATE
+
+*Review.* The repository has no CI (no `.github/workflows/`), so pull request #36 and every row's draft PR report no
+checks; the owner, 2026-10-14: "create a CI with all the checks and tests". Add `.github/workflows/gate.yml`, on
+`pull_request` into `claude/av1-unified-mainbase` and `main` and on push to both, that runs `scripts/gate.sh` in full
+with every prerequisite README §Prerequisites names present, so that its recap shows no `SKIPPED` line but those
+that need a device, a display the runner lacks, or the network beyond pinned fetches; list the skips that remain,
+each with why, and fail the job on any skip not on that list. Among them: CPython 3.11 with
+`lab/av1/requirements.txt`, Chromium and Firefox pinned, Go, wasm-pack, meson, the lab's coders
+(`lab/av1/tools/tools.sh`) cached by their pins, and `client/decode/wasm/build/build.sh` (Docker) so that
+`client/decode/wasm/built/` exists (§Blocked, 2026-10-14, the gate's browser frame checks). A second job builds the
+deploy image (`deploy/compose.yml`) and runs the viewer check and `deploy/check_equivalence.sh` through it. Actions
+pinned by commit SHA; least `permissions:`; caches keyed on lockfiles and tool pins. No timed measurement runs in CI:
+shared runners are not a measurement host (`CLAUDE.md` §Measurement). Prove it: one push on the wip branch with a
+test broken on purpose turns the job red, and the next restores it. **Deliverable:** the workflow, and README
+§Before pushing naming it beside the gate. **Branch:** `claude/wip-230-CIGATE`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
 ## Blocked
 
 * **2026-10-14, row 220 INITIALPATCH (for the owner):** adopt row 189's reply or not. Its rule did not pass on one
@@ -4175,6 +4194,8 @@ what stays); the move is made only on the owner's yes. **Deliverable:** the prop
   38 400-byte initial window, not today's 12 000. Not adopted: the flag, patch and tests go for review. Adopted: A
   and C re-run at 12 000 first.
   *Answered 2026-10-14:* neither as asked — the 100 ms initial RTT instead, with the reply removed; kept as draft PR #41.
+
+* *Owner rulings, 2026-10-14:* every cleanup row starts now ("all fixes should start", 16:04 UTC), and a CI with all the checks and tests is row 230. Before the merge into `main` (the owner, 16:15 UTC): every cleanup row but 220, 227 and 228, and row 230; the owner may add more.
 
 * *Owner rulings, 2026-10-14:* decision 2, the cleanup, approved (rows 217–228). Row 209's frame cache stays **off by
   default** for now (`lab-frame-cache`); row 224 leaves it alone.
