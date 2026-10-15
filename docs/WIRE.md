@@ -166,6 +166,63 @@ case is measured. Seen from the client, against the real server with a 2 MB send
 [`CLIENTS.md`](CLIENTS.md) §The contract suite. A client's `endStream()` is a different thing
 and is not measured here.
 
+### Proposed: one queue, an ask moves its frame to the front (row 249)
+
+*Proposed 2026-10-15 (queue row 249, the owner's idea). Nothing changes before the owner's yes.*
+
+**The problem.** An ask and a fill compete: the ask ends the fill (above) and the client rebuilds it. Two costs
+follow, each measured on its own:
+
+* **The fill pays for the re-ask.** The wire idles from the ask until the client's new `stream_frames` arrives. Row
+  229 moved the re-ask to the asked frame's envelope head, and the 10 % fill gained up to 256 ms
+  ([`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, *ASKTHENFILL*). That is a measure of
+  the gap, which stays.
+* **The ask waits behind the fill already written to quinn**, up to the receiver's 6 MiB of credit in Chromium
+  (link-conditions.md item 9): 3.1 s at 18 Mbit/s in row 211's `shared` arm
+  ([`native/quic-compared.md`](native/quic-compared.md) §9.7).
+
+The client carries the rebuild: with row 229 in, `asksInFlight` and its gate on the fill, the hold-and-release in
+`ask()`, three `refill` modes, and a head callback through `requestExactFrame`.
+
+**Candidate 1, one queue (the owner's).** The server holds what the client wants as one ordered queue. A fill
+appends its run, and an ask moves its frame to the front, or puts it there if the fill did not hold it. An ask never
+ends the fill, so nothing is asked again. The order stays the client's: asks before fill frames, the rule the
+downloader already uses for its decoders ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The downloader). So
+[`adr/reject-server-ordering.md`](adr/reject-server-ordering.md), which rejected a server ordering asks by a rule of
+its own, does not apply.
+
+* **On the wire:** a `request_frame` during a fill is served next and the fill resumes behind it, skipping a frame
+  already sent. `stream_frames` still replaces a fill and `end_stream` still ends one. A client that re-asks the
+  remainder still works: its `stream_frames` replaces the fill with the same frames.
+* **What it removes** (read from the code, not built): the client code listed above, and in the planner the end of
+  the fill on a data request.
+* **What it adds:** the planner keeps the fill's position across the asks it serves, and the frames served ahead of
+  it. After each ask the fill's reader starts its read-ahead again; that cost is not measured.
+* **Its limit:** the queue reorders only what the server still holds. Fill already written to quinn goes first, so
+  on its own the ask still waits as above. Paired with `--send-window-follows-cwnd` (cwnd + M written ahead,
+  link-conditions.md item 9), most of the fill stays in the queue. That lever alone, in row 211: the ask ×0.25–0.83
+  of `shared` in all nine cells, the fill within `shared`'s spread in each (§9.7). In row 180 its fill was +5.0 % at
+  103 Mbit/s behind 20 ms (§9.5).
+
+**Candidate 2, asks ranked above fill at the transport** (`--stream-mode per-frame-asks-first`, lab only). Row 211:
+the ask ×0.10–0.92 of `shared` (row 180: ×1.05 at 103 Mbit/s behind 360 ms), but the fill above `shared`'s spread at
+103/360 (+11 %) and 18/800, and +2–44 % under a 6 MiB send window (§9.5, §9.7). It keeps the end of the fill on an ask, so the re-ask and its client
+code stay.
+
+**Candidate 3, today with row 229's head re-issue.** The baseline.
+
+**What decides** (a protocol for a separate session; the rule is fixed before the data):
+
+* **Arms:** 3; 3 again (the A/A arm); 1; 1 with `--send-window-follows-cwnd`; 3 with `--send-window-follows-cwnd`,
+  which separates the window's share from the queue's.
+* **Cells:** row 229's (18 and 103 Mbit/s, 46 and 92 ms, FIFO 20 and CoDel, 18 Mbit/s at 300 ms), and row 211's
+  deep FIFOs; the ask at 10 % and at 50 % of the fill.
+* **Measured:** ask → last byte and the fill's issue → last frame, every frame exact by SHA-256; rounds
+  Williams-ordered.
+* **Rule:** the better of the two arms of candidate 1 becomes the default if neither its asks nor its fills are worse
+  than 3's beyond the A/A spread in any cell. A tie adopts it, because it removes code. Worse in any cell makes it a
+  trade-off for the owner, with those cells as its cost.
+
 ## The opening ask
 
 On by default; `series-server --opening-ask false` turns it off. The session URL may carry
