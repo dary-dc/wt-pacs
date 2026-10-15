@@ -150,7 +150,7 @@ fi
 step "lab: the variant order and its predecessor split"
 run 1 node lab/order.test.mjs
 
-step "lab: the device kit's plan, bundle reader, collector and server start"
+step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
 run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
