@@ -2,13 +2,13 @@
 //! `docs/adr/reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
-use crate::media::read_path::{ring_probe, ReadMode};
+use crate::media::read_path::ReadMode;
 use crate::transport::link::{ControlStream, Link};
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::planner::{fill_range, frame_in_range, Command, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
-use crate::transport::websocket;
+use crate::transport::{banner, websocket};
 use crate::transport::wire::read_fod_msg;
 use anyhow::{Context, Result};
 use fod::FodMsg;
@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
-use wtransport::config::{states, IpBindConfig, ServerConfigBuilder};
+use wtransport::config::IpBindConfig;
 use wtransport::endpoint::endpoint_side;
 use wtransport::stream::RecvStream;
 use wtransport::{Endpoint, Identity, ServerConfig};
@@ -29,32 +29,43 @@ use crate::record::tap::Tap;
 #[cfg(feature = "telemetry")]
 use crate::transport::pipeline::RecordedPipeline;
 
+#[derive(clap::Args)]
 pub struct ServeConfig {
+    #[arg(long = "port", value_name = "PORT", default_value = "4433")]
     pub wt_port: u16,
+    #[arg(long = "series", value_name = "SERIES")]
     pub series_path: PathBuf,
+    #[arg(long, default_value = "server/dev-cert/cert.pem")]
     pub cert_pem: PathBuf,
+    #[arg(long, default_value = "server/dev-cert/key.pem")]
     pub key_pem: PathBuf,
+    /// How frames reach the client: `shared` or `per-frame` (lab only: `per-frame-asks-first`).
+    #[arg(long = "stream-mode", value_name = "STREAM_MODE", default_value = "shared")]
     pub mode: StreamMode,
-    /// `None` binds dual-stack `[::]`, falling back to `0.0.0.0` where there is no IPv6.
+    /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to `0.0.0.0`
+    /// when the host has no IPv6.
+    #[arg(long)]
     pub bind: Option<IpAddr>,
-    /// QUIC transport knobs. Unset fields keep the library default.
+    #[command(flatten)]
     pub tuning: TransportTuning,
-    /// Lab only: serve every frame as a miss, so a cold series can be measured without
-    /// relying on page-cache eviction. `docs/adr/disk-access.md`.
+    /// Lab only: serve every frame as a miss, for measuring a series nobody has read. docs/adr/disk-access.md
+    #[arg(long, default_value_t = false)]
     pub force_pool_reads: bool,
-    /// Honour `?ask=` in the session URL, so the first frame moves behind the accept instead of
-    /// behind the control stream. `docs/ARCHITECTURE.md`.
+    /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--opening-ask false` turns it off. docs/ARCHITECTURE.md
+    #[arg(long, default_value_t = true, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set)]
     pub opening_ask: bool,
-    /// Lab only: every session request is taken and never answered — WebKit bug 319879's dial
-    /// that never settles, made on purpose. `docs/ARCHITECTURE.md` §A dial that never settles.
+    /// Lab only: take each CONNECT and never answer it. docs/ARCHITECTURE.md §A dial that never settles
+    #[arg(long, default_value_t = false)]
     pub hold_sessions: bool,
-    /// Lab only: each WebTransport session sends this many media bytes and then nothing, its
-    /// stream left open — WebKit bug 319818's stall, made on purpose. `docs/ARCHITECTURE.md`.
+    /// Lab only: each session sends this many media bytes, then nothing, with no FIN. docs/ARCHITECTURE.md
+    #[arg(long, value_name = "BYTES")]
     pub stall_after_bytes: Option<u64>,
-    /// Lab only: what an ask waits behind, cut to cwnd + two frames. `docs/transport/link-conditions.md` §ASKAHEAD.
+    /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
+    /// docs/transport/link-conditions.md §ASKAHEAD
+    #[arg(long, default_value_t = false)]
     pub send_window_follows_cwnd: bool,
-    /// Off by default: also serve the same envelopes over a WebSocket, TCP on `wt_port`.
-    /// `docs/WIRE.md` §The WebSocket mapping.
+    /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/WIRE.md §The WebSocket mapping
+    #[arg(long, default_value_t = false)]
     pub websocket: bool,
 }
 
@@ -85,55 +96,8 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         series_frames: store.frame_count(),
     });
 
-    let wt_url = format!("https://127.0.0.1:{}/", config.wt_port);
-    println!("wt_url={wt_url}");
-    if websocket.is_some() {
-        println!("ws_url=wss://127.0.0.1:{}/", config.wt_port);
-    }
-    println!("cert_sha256={cert_sha256}");
-    println!("series={}", config.series_path.display());
-    println!("frames={}", store.frame_count());
-    println!("read_fast_path={}", read_fast_path(&store));
-    println!("read_ring={}", ring_probe(&store));
-    println!("stream_mode={}", config.mode);
-    println!("bind={bound}");
-    println!("transport={}", config.tuning.describe());
-    #[cfg(feature = "telemetry")]
-    println!("telemetry=compile-time");
-    #[cfg(not(feature = "telemetry"))]
-    println!("telemetry=absent");
-    info!(
-        %wt_url,
-        series = %config.series_path.display(),
-        stream_mode = %config.mode,
-        "series-server ready (Media-complete)"
-    );
-
-    if let Some(bytes) = config.stall_after_bytes {
-        warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
-    }
-    let cwnd_ahead = config.send_window_follows_cwnd.then(|| {
-        let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
-        2 * u64::from(largest)
-    });
-    if let Some(bytes) = cwnd_ahead {
-        warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
-    }
-    let read_mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref())
-        .unwrap_or_else(|err| {
-            warn!("{err}; using auto");
-            ReadMode::Auto
-        });
-    let sessions = Sessions {
-        store,
-        read_mode,
-        mode: config.mode,
-        opening_ask: config.opening_ask,
-        stall: config.stall_after_bytes,
-        cwnd_ahead,
-        #[cfg(feature = "telemetry")]
-        taps: Arc::new(Tap::for_session),
-    };
+    banner::print(&config, &store, &bound, &cert_sha256);
+    let sessions = Sessions::new(&config, store);
     if let Some((listener, tls)) = websocket {
         tokio::spawn(websocket::serve(listener, tls, sessions.clone()));
     }
@@ -166,6 +130,35 @@ pub(super) struct Sessions {
 }
 
 impl Sessions {
+    /// Warns for each lab lever that is on, so a lab flag is never mistaken for a deployment.
+    fn new(config: &ServeConfig, store: Arc<FrameStore>) -> Self {
+        if let Some(bytes) = config.stall_after_bytes {
+            warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
+        }
+        let cwnd_ahead = config.send_window_follows_cwnd.then(|| {
+            let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
+            2 * u64::from(largest)
+        });
+        if let Some(bytes) = cwnd_ahead {
+            warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
+        }
+        let read_mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref())
+            .unwrap_or_else(|err| {
+                warn!("{err}; using auto");
+                ReadMode::Auto
+            });
+        Sessions {
+            store,
+            read_mode,
+            mode: config.mode,
+            opening_ask: config.opening_ask,
+            stall: config.stall_after_bytes,
+            cwnd_ahead,
+            #[cfg(feature = "telemetry")]
+            taps: Arc::new(Tap::for_session),
+        }
+    }
+
     pub(super) fn pipeline(&self, link: Link) -> ProductPipeline {
         ProductPipeline::new(Arc::clone(&self.store), link, self.read_mode)
     }
@@ -215,63 +208,34 @@ fn cert_sha256_hex(identity: &Identity) -> Result<String> {
         .collect())
 }
 
-/// Warns where the fast path is absent: the fallback is correct and slower, `docs/adr/disk-access.md`.
-fn read_fast_path(store: &FrameStore) -> &'static str {
-    if store.nowait_supported() {
-        return "preadv2";
-    }
-    warn!(
-        "RWF_NOWAIT is refused here (overlayfs or tmpfs?); every frame costs a blocking-pool \
-         round trip. See docs/adr/disk-access.md"
-    );
-    "pooled_pread"
-}
-
-/// A host without an IPv6 stack refuses the dual-stack socket, so fall back to IPv4 any.
+/// Tried in order: a host without an IPv6 stack refuses the dual-stack socket, so IPv4 any follows it.
 fn build_endpoint(
     config: &ServeConfig,
     identity: &Identity,
 ) -> Result<(Endpoint<endpoint_side::Server>, String)> {
-    fn finish(
-        builder: ServerConfigBuilder<states::WantsIdentity>,
-        identity: Identity,
-        tuning: &TransportTuning,
-    ) -> Result<ServerConfig> {
-        Ok(builder.with_custom_transport(identity, tuning.to_transport_config()?).build())
-    }
-
-    if let Some(ip) = config.bind {
-        let server_config = finish(
-            ServerConfig::builder().with_bind_address(SocketAddr::new(ip, config.wt_port)),
-            identity.clone_identity(),
-            &config.tuning,
-        )?;
-        let endpoint = Endpoint::server(server_config)
-            .with_context(|| format!("wtransport endpoint on {ip}:{}", config.wt_port))?;
-        return Ok((endpoint, ip.to_string()));
-    }
-
-    let dual = finish(
-        ServerConfig::builder().with_bind_default(config.wt_port),
-        identity.clone_identity(),
-        &config.tuning,
-    )?;
-    match Endpoint::server(dual) {
-        Ok(endpoint) => Ok((endpoint, "[::] dual-stack".to_string())),
-        Err(err) => {
-            warn!(%err, "dual-stack bind failed; falling back to IPv4 any");
-            let v4 = finish(
-                ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, config.wt_port),
-                identity.clone_identity(),
-                &config.tuning,
-            )?;
-            let endpoint = Endpoint::server(v4).context("wtransport endpoint (IPv4 fallback)")?;
-            Ok((
-                endpoint,
+    let port = config.wt_port;
+    let binds = match config.bind {
+        Some(ip) => vec![(ServerConfig::builder().with_bind_address(SocketAddr::new(ip, port)), ip.to_string())],
+        None => vec![
+            (ServerConfig::builder().with_bind_default(port), "[::] dual-stack".to_string()),
+            (
+                ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, port),
                 "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
-            ))
+            ),
+        ],
+    };
+    let mut binds = binds.into_iter().peekable();
+    while let Some((bind, label)) = binds.next() {
+        let server_config = bind
+            .with_custom_transport(identity.clone_identity(), config.tuning.to_transport_config()?)
+            .build();
+        match Endpoint::server(server_config) {
+            Ok(endpoint) => return Ok((endpoint, label)),
+            Err(err) if binds.peek().is_some() => warn!(%err, "{label} bind failed; trying the next"),
+            Err(err) => return Err(err).with_context(|| format!("wtransport endpoint on {label}, port {port}")),
         }
     }
+    unreachable!("the last bind returns its own error")
 }
 
 async fn hold_session(incoming: wtransport::endpoint::IncomingSession) {
