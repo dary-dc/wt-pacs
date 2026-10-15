@@ -253,11 +253,12 @@ Out of scope, as the brief says: rows 232–236 (queued), and the owner's open d
 row 228 (D9, P6), row 220 (#41) and the SELinux choice. What those decisions hold is counted in
 [§What the open decisions hold](#what-the-open-decisions-hold) so the owner sees it, and no row below touches it.
 
-**The answer, in one line.** The product code is already close to its essentials: rows 217–226 took out what the
+**The answer, in short.** The product code is already close to its essentials: rows 217–226 took out what the
 first round found, and what is left is small. The largest saving is in the server's tests (about 200 lines of
-repeated set-up); the product's own code gives about 100 lines across five low-risk rows; two removals and one
-move are proposals for the owner. Round 1 left six items that no row took (B5, X4, X5, L6, L7's test, and one gate
-condition B2 made stale); they are in rows 239–241.
+repeated set-up); the product's own code gives about 100 lines across four low-risk rows. One removal
+(`cubic-classify`, ~185 lines) waits on the owner's word, and two changes are structural proposals. Round 1 left
+six items that no row took (B5, X4, X5, L6, L7's test, and a gate condition that B2 made stale); they are in rows
+239, 241 and 243.
 
 ### Findings
 
@@ -277,14 +278,14 @@ change the gate's tests already cover, 2 needs a check the gate does not run, 3 
 | S8 | **Two structs for one configuration.** `main.rs`'s `Args` repeats `ServeConfig` field for field, with a second set of doc comments, and copies one into the other. | `server/src/main.rs:7-44,61-75`; `server/src/transport/server.rs:32-59` | merge: `ServeConfig` derives `clap::Args` (its two renamed flags as `#[arg(long = "port")]`, `long = "series"`), `main` flattens it; `install_crypto_provider` inlined. The flags stay byte-identical: `--help` before and after, diffed | none | ~−40 | 1 |
 | S9 | **`run_server` is 93 lines**: identity, endpoint, store, banner, lab warnings, sessions, accept loop. | `server/src/transport/server.rs:61-153` | split: the banner (`88-110`) and the lab levers' warnings and derived values (`112-121`) into two functions | none | ~0, a 93-line function into three of ≤ 40 | 1 |
 | S10 | **`build_endpoint` builds the same config three times** (`--bind`, dual-stack, IPv4 fallback). | `server/src/transport/server.rs:231-275` | simplify: try an ordered list of (bind config, label) | none | ~−12 | 1 |
-| S11 | **The server's tests build their world by hand, 18 times.** Each makes a temp dir, a series, a dev certificate and a port, builds a multi-thread runtime in 5 lines, installs the crypto provider and removes the dir (16–20 copies of each); the QUIC client endpoint is built 14 times; the dial-and-retry loop is written three times beside `connect_session`'s. | `server/src/transport/server.rs:440-2277` (e.g. `1340-1380`, `1387-1456`, `1992-2030`); `uring_reader.rs` tests (5 runtimes) | simplify: a `Fixture` (dir, series, cert, port; removes its dir on drop), `#[tokio::test(flavor = "multi_thread", worker_threads = 2)]` where a test needs no runtime of its own, and one `dial(port, hash)` | none: the same claims, each test's doc comment kept | ~−200 test | 1 |
-| S12 | **The re-ask of owed frames written three times**, by `recycle`, `resume` and `again`, while `askFor` goes through `requestOnce`. | `client/transport/downloader.js:333,351,398` | merge: one `reaskOwed()`; keep `again`'s single-frame call | none | ~−3 | 1 |
+| S11 | **The server's tests build their world by hand, 17 times.** Each makes a temp dir, a series, a dev certificate and a port, builds a runtime in 3–5 lines, installs the crypto provider and removes the dir (16–20 copies of each); the QUIC client endpoint is built 14 times; the dial-and-retry loop is written three times beside `connect_session`'s. | `server/src/transport/server.rs:440-2277` (e.g. `1340-1380`, `1387-1456`, `1992-2030`); `uring_reader.rs` tests (5 runtimes) | simplify: a `Fixture` (dir, series, cert, port; removes its dir on drop), `#[tokio::test(flavor = "multi_thread", worker_threads = 2)]` where a test needs no runtime of its own, and one `dial(port, hash)` | none: the same claims, each test's doc comment kept | ~−200 test | 1 |
+| S12 | **`recycle` and `resume` retire a session in the same lines** (a new epoch, no asks in flight, the old session closed) and re-ask what is owed in the same loop. | `client/transport/downloader.js:329-333,340-351` | merge: one `retire()` and one `reaskOwed()` | none | ~−3 | 1 |
 | S13 | **A decoder's `failed` answer repeats `onDone`.** | `client/transport/downloader.js:425-430` against `363-367` | simplify: fail the frame, then `onDone(d)` | none | ~−3 | 1 |
 | S14 | **"Reject every waiter" written twice** in the consumer. | `client/transport/consumer.js:137-143,165-170` | merge | none | ~−3 | 1 |
 | S15 | **"Take a waiter" (clear its timer, delete it) written three times** in the session. | `client/transport/ts/frame-session.ts:148-151,166-168,221-224` | merge: `#takeWaiter(index)` | none | ~−6 | 1 |
 | S16 | **The WebTransport carrier declares its fields by hand**, where the WebSocket carrier uses parameter properties; both test `dialMs` before `settleWithin`. | `client/transport/ts/session.ts:21-32,43-45`; `ws-session.ts:35` | simplify: parameter properties; `settleWithin` passes `ready` through when `ms` is unset | none | ~−8 | 1 |
 | S17 | **The total-time harness's protocol sits in the product page**: its `hello` POST, its result's shape and a SHA-256 of every frame. | `client/viewer/viewer.js:124-125,238,254-266` | move to lab: `lab/viewer/levers.js` returns `started()` and `finished(result)` hooks, which the page calls when `lab` has them, as `check-page.js` is loaded on `?check=` | none: the harness keeps its protocol; it must be run once to show it (the gate does not run it) | ~−14 product | 2 |
-| S18 | **`cubic-classify` was measured and not adopted**, "in both readings"; DELAYCUT, the only row waiting on it, does not start. No open measurement and no device plan names it. | `server/src/transport/classify.rs` (174 lines, 71 tests); `tuning.rs:22-23,45,55`; `server/README.md:128,139`; `docs/transport/transport-conclusions.md` §1 *Measured: CLASSIFY* ("stays a lab flag") | **remove**, a tag keeping it, `lab/cc-classify` retired with it. The measurement's own text keeps it as a flag, so this is the owner's word first | a lab lever with a recorded verdict; no product capability | ~−185 server, a `Congestion` variant | 2 |
+| S18 | **`cubic-classify` was measured and not adopted**, "in both readings"; DELAYCUT, the only row waiting on it, does not start. No open measurement and no device plan names it. | `server/src/transport/classify.rs` (174 lines, ~70 of them tests); `tuning.rs:22-23,45,55`; `server/README.md:128,139`; `docs/transport/transport-conclusions.md` §1 *Measured: CLASSIFY* ("stays a lab flag") | **remove**, a tag keeping it, `lab/cc-classify` retired with it. The measurement's own text keeps it as a flag, so this is the owner's word first | a lab lever with a recorded verdict; no product capability | ~−185 server, a `Congestion` variant | 2 |
 | S19 | **The ring parks on an eventfd**, which costs an fd a session, three `unsafe` blocks and a read per park. Parking on the ring's own fd measured a tie on CPU and latency everywhere (`x14`); the ADR counts ~30 lines and 2 `unsafe` fewer. | `server/src/media/uring_reader.rs:39-57,90-109`; `docs/adr/disk-access.md` §5 row `x14`, §9 #7 | simplify, as the ADR proposes; it orders it after P0 (the ring validated on the target), which has no row. Since row 231 the deploy image runs the ring, so the owner may take it now | none | ~−30, −2 `unsafe`, −1 fd a session | 3 |
 | S20 | **`impl UringReader` split in two** for one test seam. | `server/src/media/uring_reader.rs:134-142` | merge into the first block (with S19) | none | −3 | 1 |
 | S21 | **The lab's harness pages live in `client/`.** `client/harness/` (`cell.html`, `index.html`, `shell.js`, ~400 lines) is served by the dev host at `/harness/`, never by the image. | `server/dev-server.py:43-45`; `deploy/web-files.sh:9-14`; `deploy/check_equivalence.sh:66-67` | move to a new lab/harness/, the dev host's route repointed; `client/` then holds the product and its checks alone | none | ~0 saved, ~400 moved | 3 |
@@ -293,9 +294,12 @@ change the gate's tests already cover, 2 needs a check the gate does not run, 3 
 | — | the read path's two readers in one 1 073-line file | `server/src/media/read_path.rs` | keep: 503 product lines, each reader under 300, the ADR names them together | — | — | — |
 | — | the server's workspace build copies the WASM client and four lab crates into the image's build stage | `deploy/Containerfile:16-27` | keep: the root workspace lists them; a lab workspace of its own would need a second lockfile and a copy of `[patch.crates-io]`. Row 228 removes the WASM lines if the owner moves it | — | — | — |
 
-No new `TODO`, `FIXME`, `#[ignore]` or `#[allow(dead_code)]` was found in the product; no client export but S2's is
+No `TODO`, `FIXME` or `#[ignore]` is in the product, and one `#[allow(dead_code)]`, row 209's cache behind its feature; no client export but S2's is
 imported by nothing (a search over `client/`, `lab/`, `scripts/`, `ingest/` and `deploy/`). The docs agree with the
-code wherever this round checked them: rows 218, 224 and 225 corrected what their changes touched.
+code wherever this round checked them: rows 218, 224 and 225 corrected what their changes touched. One pointer
+does not resolve, in a file that is the owner's: `CLAUDE.md` §Docs names "docs/disk-access/adr.md §2" as the model of
+a retraction; the file is [`adr/disk-access.md`](adr/disk-access.md) (`docs/levers.md` §Found on the way says so
+too). For the owner, not a row.
 
 ### What the open decisions hold
 
@@ -350,46 +354,47 @@ of them gains must displace one.
 
 ### Rows to queue (239 on)
 
-Ranked by lines saved per risk. Each ends as a draft pull request into `claude/av1-unified-mainbase`, gate and CI
-green, every test it adds or rewrites mutated once; none touches what #48, row 228 or row 220 holds. 239, 240,
-241 and 242 can run at once: 240 and 241 both edit `server.rs`, 240 below its `mod tests {` and 241 above it.
+Ranked by lines saved per risk (the findings' risk column; a row that waits on the owner counts as risk 2). Each ends
+as a draft pull request into `claude/av1-unified-mainbase`, gate and CI green, every test it adds or rewrites mutated
+once; none touches what #48, row 228 or row 220 holds. **Buildable today without the owner:** 239, 241, 242 and 243,
+which can run at once — 239 and 241 both edit `server.rs`, 239 below its `mod tests {` and 241 above it, so whichever
+lands second merges — and 245 once its lab run fits the day. 240 waits on the owner's word; 244 and 246 are proposals.
 
-| row | name | findings | lines | structural |
-| --- | --- | --- | --- | --- |
-| 239 | LEFTOVERS | S2–S6 | ~−15 | no |
-| 240 | SERVERTESTKIT | S11, S7 | ~−200 test, +30 test | no |
-| 241 | SERVERSTART | S8, S9, S10, S1 | ~−50 | no |
-| 242 | CLIENTDEDUP | S12–S16 | ~−23 | no |
-| 243 | VIEWERLABOUT | S17 | ~−14 product | no |
-| 244 | CLASSIFYOUT | S18 | ~−185 | no; the owner's word first |
-| 245 | RINGPARK | S19, S20 | ~−33 | **yes: proposal** |
-| 246 | HARNESSTOLAB | S21 | 0 (~400 moved) | **yes: proposal** |
+| row | name | findings | lines | lines ÷ risk | structural | starts |
+| --- | --- | --- | --- | --- | --- | --- |
+| 239 | SERVERTESTKIT | S11, S7 | ~−200, +30 (tests) | 170 | no | today |
+| 240 | CLASSIFYOUT | S18 | ~−185 | 92 | no | on the owner's word |
+| 241 | SERVERSTART | S8, S9, S10, S1 | ~−50 | 50 | no | today |
+| 242 | CLIENTDEDUP | S12–S16 | ~−23 | 23 | no | today |
+| 243 | LEFTOVERS | S2–S6 | ~−15 | 15 | no | today |
+| 244 | RINGPARK | S19, S20 | ~−33 | 11 | **yes: proposal** | the proposal today |
+| 245 | VIEWERLABOUT | S17 | ~−14 (product) | 7 | no | today, with one lab run |
+| 246 | HARNESSTOLAB | S21 | 0 (~400 moved) | 0 | **yes: proposal** | the proposal today |
 
 S22 waits on #48 and joins whichever row next touches `tuning.rs` after it.
 
-#### 239 LEFTOVERS
-
-*Review.* What round 1 found and no row took, client and gate side: S2 (the painter's unused `workerUrl`, and the
-`export` on `placement`, `FUNCTIONS` and `PHOTOMETRIC`), S3 (`client/dev-transport.json.example` removed), S4
-(`lab/telemetry-cost/cost.mjs` built by the lab, not by `client/transport/ts/build.sh`; its README's run line says
-how), S5 (`build.sh`'s ten `npx esbuild` lines through one function, the `--product` early exit kept) and S6
-(`scripts/gate.sh:194` requires the decoder builds alone for `check_equivalence.sh --local`; say in the pull request
-which hosts now run the step). No capability is lost: each removed name has no reader, which the pull request shows
-with the search. Proof: the gate green with the same skips or fewer. **Branch:** `claude/wip-239-LEFTOVERS`, then a
-draft PR.
-
-#### 240 SERVERTESTKIT
+#### 239 SERVERTESTKIT
 
 *Review; tests only.* S11: `server/src/transport/server.rs`'s tests share one `Fixture` (temp dir, series, dev
-certificate, a port free for both protocols as row 219 takes it; the dir removed on drop), `#[tokio::test(flavor =
-"multi_thread", worker_threads = 2)]` wherever a test needs no runtime of its own (those racing a server's panic keep
-theirs), one client-endpoint builder and one `dial(port, hash)` in place of the three retry loops beside
-`connect_session`'s; `uring_reader.rs`'s five runtimes likewise. Every test keeps its name, its doc comment and its
-assertions; the count of tests run is the same before and after (say both). S7: add the test round 1's L7 asked for —
-under `--send-window-follows-cwnd` a client that reads nothing is sent no more than the send window allows (quinn has
-no getter for it, so the test observes the bytes) — and mutate it by dropping `link.rs:83`'s `set_send_window`; if no
-observation is reliable on loopback, the pull request says so rather than adding a flaky test. Mutate three rewritten tests too
-(break the code each covers, watch it fail, restore). **Branch:** `claude/wip-240-SERVERTESTKIT`, then a draft PR.
+certificate, a port free for both protocols as row 219 takes it; the dir removed on drop),
+`#[tokio::test(flavor = "multi_thread", worker_threads = 2)]` wherever a test needs no runtime of its own (those
+racing a server's panic keep theirs), one client-endpoint builder and one `dial(port, hash)` in place of the three
+retry loops beside `connect_session`'s; `uring_reader.rs`'s five runtimes likewise. Every test keeps its name, its doc
+comment and its assertions; the count of tests run is the same before and after (say both). S7: add the test round
+1's L7 asked for — under `--send-window-follows-cwnd` a client that reads nothing is sent no more than the send
+window allows (quinn has no getter for it, so the test observes the bytes) — and mutate it by dropping
+`link.rs:83`'s `set_send_window`; if no observation is reliable on loopback, the pull request says so rather than
+adding a flaky test. Mutate three rewritten tests too (break the code each covers, watch it fail, restore).
+**Branch:** `claude/wip-239-SERVERTESTKIT`, then a draft PR.
+
+#### 240 CLASSIFYOUT
+
+*Review; the owner's word first.* S18: `--congestion cubic-classify` was measured (row 212) and is not the default
+"in both readings"; DELAYCUT, the only row that waited on it, does not start, and no device plan names it. Remove
+`classify.rs`, its `Congestion` variant, its lines in `server/README.md`, and retire `lab/cc-classify/` (a tag
+keeps all of it; TC §1 *Measured: CLASSIFY* says where). ~−185 server lines and one controller fewer. Ask before
+building: the measurement's own text kept it "a lab flag", and the draft simplification rules (above) are not
+adopted. **Branch:** `claude/wip-240-CLASSIFYOUT`, then a draft PR.
 
 #### 241 SERVERSTART
 
@@ -397,52 +402,55 @@ observation is reliable on loopback, the pull request says so rather than adding
 help live once; `install_crypto_provider` inlined. `series-server --help` before and after, diffed in the pull
 request, shows the command line unchanged (help text may move, no flag may). S9: `run_server` split so the banner and
 the lab levers' warnings are functions of their own. S10: `build_endpoint` tries an ordered list of bind configs.
-S1 (round 1's B5): the banner's `wt_url` and `ws_url` name the address `--bind` gives when it is a specific one,
-`127.0.0.1` otherwise, with a test (mutate: print `127.0.0.1` again). Touches the lines #48 edits in `main.rs` (two):
-whichever lands second merges. **Branch:** `claude/wip-241-SERVERSTART`, then a draft PR.
+`server/README.md` §Start-up in step (`ServeConfig` is what is flattened now). S1 (round 1's B5): the banner's
+`wt_url` and `ws_url` name the address `--bind` gives when it is a specific one, `127.0.0.1` otherwise, with a test
+(mutate: print `127.0.0.1` again). Touches the two lines #48 edits in `main.rs`: whichever lands second merges.
+**Branch:** `claude/wip-241-SERVERSTART`, then a draft PR.
 
 #### 242 CLIENTDEDUP
 
-*Review.* S12–S16, each a merge of logic written twice or thrice, no behaviour changed: `reaskOwed()` in the
-downloader; a decoder's `failed` answer through `onDone`; one reject-every-waiter in the consumer; `#takeWaiter` in
-`FrameSession`; parameter properties in `session.ts` and an optional `ms` in `settleWithin`. The contract clauses,
-`downloader.test.mjs`, the dispatch rig and the viewer check cover each path; the pull request names the test that
-fails for each when the merged helper is broken on purpose (one mutation each). **Branch:**
-`claude/wip-242-CLIENTDEDUP`, then a draft PR.
+*Review.* S12–S16, each a merge of logic written twice or thrice, no behaviour changed: `recycle` and `resume`'s
+common retirement and re-ask in the downloader; a decoder's `failed` answer through `onDone`; one
+reject-every-waiter in the consumer; `#takeWaiter` in `FrameSession`; parameter properties in `session.ts` and an
+optional `ms` in `settleWithin`. The contract clauses, `downloader.test.mjs`, the dispatch rig and the viewer check
+cover each path; the pull request names the test that fails for each when the merged helper is broken on purpose (one
+mutation each). **Branch:** `claude/wip-242-CLIENTDEDUP`, then a draft PR.
 
-#### 243 VIEWERLABOUT
+#### 243 LEFTOVERS
 
-*Review.* S17: the total-time harness's `hello`, result shape and per-frame SHA-256 leave `client/viewer/viewer.js`
-for `lab/viewer/levers.js`, which hands the page `started()` and `finished(result)` when `?post=` is given; the page
-calls them only when present. The product page loses ~14 lines and a SHA-256 path it never uses. The gate does not
-run the harness: run `lab/av1/delivery/total-time/run.mjs` once on the gate's grey series, before and after, and show
-the same result fields; the viewer check and `crafted.mjs` stay green. **Branch:** `claude/wip-243-VIEWERLABOUT`,
-then a draft PR.
+*Review.* What round 1 found and no row took, client and gate side: S2 (the painter's unused `workerUrl`, and the
+`export` on `placement`, `FUNCTIONS` and `PHOTOMETRIC`), S3 (`client/dev-transport.json.example` removed), S4
+(`lab/telemetry-cost/cost.mjs` built by the lab, not by `client/transport/ts/build.sh`;
+`lab/telemetry-cost/README.md`'s run lines say how), S5 (`build.sh`'s ten `npx esbuild` lines through one function,
+the `--product` early exit kept) and S6 (`scripts/gate.sh:194` requires the decoder builds alone for
+`check_equivalence.sh --local`; say in the pull request which hosts now run the step). No capability is lost: each
+removed name has no reader, which the pull request shows with the search. Proof: the gate green with the same skips
+or fewer. **Branch:** `claude/wip-243-LEFTOVERS`, then a draft PR.
 
-#### 244 CLASSIFYOUT
-
-*Review; the owner's word first.* S18: `--congestion cubic-classify` was measured (row 212) and is not the default
-"in both readings"; DELAYCUT, the only row that waited on it, does not start, and no device plan names it. Remove
-`classify.rs`, its `Congestion` variant, its lines in `server/README.md`, and retire `lab/cc-classify/` (a tag
-keeps all of it; TC §1 *Measured: CLASSIFY* says where). ~−185 server lines and one controller fewer. Ask before
-building: the measurement's own text kept it "a lab flag", and the draft simplification rules (above) are not
-adopted. **Branch:** `claude/wip-244-CLASSIFYOUT`, then a draft PR.
-
-#### 245 RINGPARK
+#### 244 RINGPARK
 
 *Proposal (structural): written first, built on the owner's yes.* S19: the tile reader's ring parks on its own fd,
 the eventfd and its `unsafe` blocks removed, as `docs/adr/disk-access.md` §9 #7 proposes on a measured tie
 (`x14`: CPU and latency, 1 fd a session instead of 2); S20 folded in. The ADR orders it after P0 (the ring
 validated on the target), which has no row; since row 231 the deploy image runs the ring. The proposal says which
 of the ADR's invariants the change touches (`COOP_TASKRUN`, the non-`_async` registration, `drain_in_flight`), which
-read-path tests cover each, and the measurement that would show the tie still holds (row 209's read harness, arms
-interleaved). **Deliverable:** the proposal in `docs/adr/disk-access.md` §9 #7. **Branch:**
-`claude/wip-245-RINGPARK`, then a draft PR.
+read-path tests cover each, and how `x14`'s tie would be re-shown (`lab/disk-access-bench`, arms interleaved).
+**Deliverable:** the proposal in `docs/adr/disk-access.md` §9 #7. **Branch:** `claude/wip-244-RINGPARK`, then a
+draft PR.
+
+#### 245 VIEWERLABOUT
+
+*Review.* S17: the total-time harness's `hello`, result shape and per-frame SHA-256 leave `client/viewer/viewer.js`
+for `lab/viewer/levers.js`, which hands the page `started()` and `finished(result)` when `?post=` is given; the page
+calls them only when present. The product page loses ~14 lines and a SHA-256 path it never uses. The gate does not
+run the harness: run `lab/av1/delivery/total-time/run.mjs` once on the gate's grey series, before and after, and show
+the same result fields; the viewer check and `crafted.mjs` stay green. **Branch:** `claude/wip-245-VIEWERLABOUT`,
+then a draft PR.
 
 #### 246 HARNESSTOLAB
 
-*Proposal (structural): written first, moved on the owner's yes.* S21: `client/harness/` to a new lab/harness/, the dev
-host's `/harness/` route repointed, the paths in `docs/` and `lab/` with it; `client/` then holds the product and its
-checks alone, and `check_equivalence.sh`'s hidden-path list shrinks. Nothing is saved; a reader of `client/` holds
-three files fewer. **Deliverable:** the proposal in `docs/CLIENTS.md` beside row 228's. **Branch:**
+*Proposal (structural): written first, moved on the owner's yes.* S21: `client/harness/` to a new lab/harness/, the
+dev host's `/harness/` route repointed, the paths in `docs/` and `lab/` with it; `client/` then holds the product and
+its checks alone, and `check_equivalence.sh`'s hidden-path list shrinks. Nothing is saved; a reader of `client/`
+holds three files fewer. **Deliverable:** the proposal in `docs/CLIENTS.md` beside row 228's. **Branch:**
 `claude/wip-246-HARNESSTOLAB`, then a draft PR.
