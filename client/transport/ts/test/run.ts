@@ -81,6 +81,18 @@ async function aCutFrameIsNamedWithItsBytes() {
   }
 }
 
+/** An asked frame's `onHead` runs once, with its envelope head read and its body not yet, whichever reader. */
+async function onHeadRunsBeforeTheBody() {
+  for (const readMin of [undefined, 4096]) {
+    StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 };
+    const session = await TransportSession.connect("https://stub/", HASH, { readMin });
+    const heads: number[] = [];
+    const r = await session.requestExactFrame(0, () => heads.push(session.stats().mediaReads));
+    const reads = session.stats().mediaReads;
+    assert(heads.length === 1 && heads[0] < reads / 4 && intact(r), `readMin ${readMin}: one head at read ${heads}, of ${reads}`);
+  }
+}
+
 const within = <T>(p: Promise<T>, ms: number) =>
   Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 
@@ -150,7 +162,7 @@ async function anEmptyHashDialsUnpinned() {
   assert(pinned.serverCertificateHashes?.length === 1, "a hash: pinned");
 }
 
-for (const t of [everyAskGoesOutAtOnce, anEmptyHashDialsUnpinned, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, aFailedAskWriteDisarmsItsWaiter, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
+for (const t of [everyAskGoesOutAtOnce, anEmptyHashDialsUnpinned, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, onHeadRunsBeforeTheBody, aFailedAskWriteDisarmsItsWaiter, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

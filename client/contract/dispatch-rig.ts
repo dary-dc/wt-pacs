@@ -220,8 +220,8 @@ async function boundHoldsPerDecoder(DownloaderClient: DownloaderCtor, check: Che
   c.close();
 }
 
-/** An ask ends the fill on the server, so once the ask settles the downloader re-issues exactly the frames
- *  still owed as a new run — and the fill completes with every frame once. */
+/** An ask ends the fill on the server, so once the asked frame's head lands the downloader re-issues exactly the
+ *  frames still owed as a new run — and the fill completes with every frame once. */
 async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) {
   const captured: Frame[] = [];
   const { c, fake } = await open(DownloaderClient, { decode: false, onFrame: (f) => captured.push(f) });
@@ -240,7 +240,7 @@ async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) 
   const at = wire.indexOf("request_frame 50");
   check(wire[0] === "stream_frames 0-7", `reissue: the fill goes out as one stream_frames run (${wire[0]})`);
   check(at > 0, `reissue: the ask goes to the wire`);
-  check(wire[at + 1] === "stream_frames 4-7", `reissue: once the ask settles, exactly the remainder is re-issued (${wire[at + 1]})`);
+  check(wire[at + 1] === "stream_frames 4-7", `reissue: once the asked frame's head lands, exactly the remainder is re-issued (${wire[at + 1]})`);
   check(asked.frameIndex === 50, `reissue: the ask was served`);
 
   for (const i of [4, 5, 6, 7]) await fake.pushFrame(i, enc.encode(`fill-${i}`));

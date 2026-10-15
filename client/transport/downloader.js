@@ -11,7 +11,7 @@ const abs = () => performance.timeOrigin + performance.now();
 
 let session = null;
 /** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
-let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true };
+let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head" };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
 const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
 /** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
@@ -211,13 +211,27 @@ function arrived(index, frame) {
   pump();
 }
 
-/** The server ends a running fill for an ask, so the remainder is re-issued once the ask settles. docs/WIRE.md §An ask during a fill */
-async function ask(index, promise) {
+/**
+ * The server ends a running fill for an ask, so the remainder is re-issued on the asked frame's envelope head
+ * (`refill: "head"`), right behind the ask (`"ask"`) or once it settles (any other). docs/WIRE.md §An ask during a
+ * fill, docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*
+ */
+async function ask(index, s) {
   const gen = generation;
   const ep = epoch;
-  asksInFlight += 1;
+  // Released once: a second `stream_frames` for the same remainder ends the first and re-sends what it wrote.
+  let holding = cfg.refill !== "ask";
+  const release = () => {
+    if (!holding || gen !== generation || ep !== epoch) return;
+    holding = false;
+    asksInFlight -= 1;
+    issueFill();
+  };
+  if (holding) asksInFlight += 1;
   issuedAt = performance.now();
   watch();
+  const promise = requestOnce(s, index, cfg.refill === "head" ? release : undefined);
+  if (!holding) issueFill();
   try {
     const frame = await promise;
     if (gen === generation && ep === epoch) arrived(index, frame);
@@ -228,19 +242,16 @@ async function ask(index, promise) {
     }
   } finally {
     // A cancelled ask's count was already dropped with the rest of its generation's work.
-    if (gen === generation && ep === epoch) {
-      asksInFlight -= 1;
-      issueFill();
-    }
+    release();
   }
 }
 
 /** Asks a session has on the wire, whatever generation made them: a cancel leaves them owed, and the session refuses a second. */
 const onWire = new Map();
-function requestOnce(s, index) {
+function requestOnce(s, index, onHead) {
   const held = onWire.get(index);
   if (held?.session === s) return held.promise;
-  const promise = s.requestExactFrame(index);
+  const promise = s.requestExactFrame(index, onHead);
   onWire.set(index, { session: s, promise });
   const forget = () => onWire.get(index)?.promise === promise && onWire.delete(index);
   promise.then(forget, forget);
@@ -255,7 +266,7 @@ function askFor(s, index) {
   wanted.delete(index);
   if (rec) rec.priority = "ask";
   else record(index, "ask", abs());
-  ask(index, requestOnce(s, index));
+  ask(index, s);
 }
 
 /** The wire carries one contiguous run of what is wanted at a time. docs/ARCHITECTURE.md §The downloader */
@@ -320,7 +331,7 @@ function lost(proved) {
 const owedAsks = () =>
   [...records].filter(([, r]) => r.state === "wire" && r.priority === "ask").map(([i]) => i);
 
-const reaskOwed = () => { for (const i of owedAsks()) ask(i, session.requestExactFrame(i)); };
+const reaskOwed = () => { for (const i of owedAsks()) ask(i, session); };
 
 function retire() {
   epoch += 1;
@@ -399,7 +410,7 @@ async function again(index, rec, reason) {
   rec.state = "wire";
   rec.priority = "ask";
   rec.decoder = null;
-  ask(index, s.requestExactFrame(index));
+  ask(index, s);
 }
 
 /** A decoder worker, up once `d.up` settles; `start` puts it in the pool at once, `grow` once it is up. */
