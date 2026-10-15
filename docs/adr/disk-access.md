@@ -172,7 +172,7 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural |
 | Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |
 | Ahead-N `POSIX_FADV_WILLNEED` for tiles | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
-| Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~30 lines fewer, 2 `unsafe` fewer; same mechanism tokio uses | Proposed, after P0 (§9) |
+| Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~26 lines fewer, 3 `unsafe` blocks fewer; same mechanism tokio uses (*corrected 2026-10-15, row 244*: this said ~30 and 2; a sketch of the product file counts 26 and 3) | Proposed, after P0 (§9 #7) |
 | One shared ring per runtime (tokio's shape) | B | **1.36–1.45× slower** than a ring per thread on concurrent positional reads (tokio #8367); reproduced on streams | 0 per-session fds; one lock across every session | a dispatcher and a waker slab | Not now |
 | Whole-frame `RWF_NOWAIT`, one read (2026-09-06) | B | best miss throughput of any variant | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected then. **Corrected 2026-09-10:** the shipped readers probe the whole frame (§3); its co-tenant gap has **not been re-measured** since |
 | Larger window (128 / 256 KiB) | B | −12–25 % warm throughput | — | wider executor copy | Rejected; moot since the whole-frame probe |
@@ -774,7 +774,7 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 | 3 | **Throttled link** (20 Mbps, 50 ms, 1 % loss, cold tiles, client depth 4) | Predicted tie: the wire hides the 0.2 ms depth 2 → 4 saving. Unmeasured |
 | 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the series volume (§6). Not in a unit file yet; `deploy/compose.yml` sets `memlock` and `nofile` since row 231 |
 | 6 | **`read_ahead_kb` and series layout for tiles, per target** | on-demand missed 14–69 % at the stock value in the fill cells; on the cloud rig 128 against 2 048 was no clean result in any cell. A large value hurts only the fill's tail, which `FILL_WINDOW` fixed |
-| 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~30 lines fewer, measured tie. The *only* way to cut the eventfd's per-hit cost (§11, *Short io_uring completions*). Only after P0 keeps the ring |
+| 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~26 lines fewer, measured tie. The *only* way to cut the eventfd's per-hit cost (§11, *Short io_uring completions*). Ordered after P0 keeps the ring; proposed for the owner as row 244, [below](#7-proposed-park-on-the-rings-own-fd-row-244) |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
 | 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
@@ -787,6 +787,54 @@ rest measured on loopback up to 16 MB, §11, *Frames past 250 kB*); storage fast
 threads against the pool's hundreds might start converting (the workstation's 1.5–1.6 GB/s
 semi-sequential ceiling was device-bound and may be the NVMe's own cache); `hybrid_lazyring`
 on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
+
+### #7, proposed: park on the ring's own fd (row 244)
+
+*Proposed 2026-10-15 (queue row 244, RINGPARK; [`merge-readiness.md`](../merge-readiness.md) §Second round, S19
+and S20). Nothing changes before the owner's yes.*
+
+**What changes.** `UringReader` (`server/src/media/uring_reader.rs`) parks on the ring's own fd —
+`AsyncFd::with_interest(ring.as_raw_fd(), Interest::READABLE)` — and a wake clears readiness (`clear_ready`)
+instead of reading the eventfd's counter. The eventfd, its registration and that read go; `submit_and_wait`, the
+drain's test seam, joins the first `impl` block (S20). `TileReader`'s wait in `read_path.rs` (reap, then park while
+the slot is out) is unchanged, and is the loop `uring_ringfd` and `hybrid_lazyring_ringfd` measured (`x14`).
+
+**What it removes.** By a sketch of the file, not built: 26 of its 149 product lines (23 for S19, 3 for S20); three
+`unsafe` blocks and their `SAFETY` lines (`eventfd`, `OwnedFd::from_raw_fd`, the `read`); one fd per tile session
+that misses; the eventfd's signal on every completion. The reads, the wake and the drain are kept.
+
+**What it costs.** One invariant the types do not enforce, which the lab's reader already carries in one comment
+line: the `AsyncFd` is declared before the ring, so it leaves the reactor before the ring's fd closes; the other
+order deregisters a number the process may by then have given to another session. No test can force that race.
+A missing `clear_ready` would not hang the reader but spin it, and the park test as it stands passes a spin, so it
+gains one assertion (below). If P0 ties, the ring is deleted and this work with it.
+
+| invariant (§10, *The ring*) | after the change | covered by |
+| --- | --- | --- |
+| `COOP_TASKRUN`, no `SINGLE_ISSUER` or `DEFER_TASKRUN` | kept. A reader parked on a `COOP_TASKRUN` ring's own fd is woken by a read that could not complete inline: the lab's `ring_fd_completion_wakes_a_parked_reader` | `a_read_that_cannot_complete_inline_wakes_the_parked_reader` |
+| the eventfd registered without `_async` | gone with the eventfd; §11's `_async` paragraph becomes history | — |
+| `drain_in_flight` blocks, retries `EINTR`/`EBUSY`, reports a failed ring | untouched: it waits in `submit_and_wait`, never on the eventfd, and `Drop` drains before any field drops | `dropping_a_reader_mid_read_waits_for_the_kernel`, `an_interrupted_drain_still_waits_for_the_kernel`, `a_failed_drain_reports_the_read_still_in_flight`, `a_tile_reader_whose_ring_fails_mid_read_leaks_its_slots` |
+| each completion credited to its own slot | the loop is unchanged | `two_reads_in_flight_land_in_their_own_slots`, `both_readers_reassemble_every_frame`, `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
+
+**How it would be proven.**
+
+1. The server's suite green. The park test counts its wakes and asserts a handful, not thousands. Two mutations,
+   each made and seen to fail: park on an fd nothing signals (the 10 s timeout), and drop `clear_ready` (the count).
+2. `lab/scripts/read_path_ab.sh <the commit before>`, which interleaves the arms by round. The ring parks only in
+   `cold16_d1` and `cold16_dW`; there `miss_pct` must be near 100 and `rings_built` above 0 in both arms, or the
+   cell measured hits (the stride re-derived on the day, §12). The claim is `x14`'s: a tie on p50 (the script's
+   verdict) and a tie on `cpu_ns_per_ask` from the same rows, paired the same way. `warm16` and `seq1g` build no
+   ring and are controls. The cells are single-session, far below where the host saturates; nothing is claimed
+   at scale but the fd.
+3. The fd holds by construction; shown once by counting `/proc/<pid>/fd` with N tile sessions that missed, before
+   and after.
+
+With it, this section shrinks to the §5 row's verdict, and §10 *The ring*, the Test plan's park row, the §5 ring
+rows' "2 fds" and [`levers.md`](../levers.md)'s row are rewritten.
+
+**The owner's choice.** *Now*: the deploy image runs the ring since row 231, so the code that ships loses three
+`unsafe` blocks and a fd per missing session today, at the price of work thrown away if P0 later ties. *After P0*,
+as §9 ordered: nothing is spent until the ring is known to stay. Nothing else waits on it; #8 is independent.
 
 ## 10 · How it is built
 
