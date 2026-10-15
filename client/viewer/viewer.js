@@ -121,8 +121,8 @@ const options = lab.opts;
 const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", ...(await built("dav1d")) } : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const all = [...Array(n).keys()];
-// A lab harness slows the CPU from here (lab/av1/delivery/total-time/run.mjs).
-if (lab.post && !q.get("check")) await fetch(`${lab.post}hello`, { method: "POST" });
+// A lab harness slows the CPU from here: lab/viewer/levers.js.
+await lab.started?.();
 issuedAt = at();
 const client = await DownloaderClient.connect(transport.then((c) => c.wt_url), transport.then((c) => c.cert_sha256), {
   ...(fillMode && { fill: all }),
@@ -134,6 +134,7 @@ const client = await DownloaderClient.connect(transport.then((c) => c.wt_url), t
 }).catch((e) => {
   fail(`connect: ${e.message}`);
   report({ error: String(e.message) });
+  lab.finished?.({ error: String(e.message) });
   throw e;
 });
 
@@ -235,7 +236,6 @@ function report(result) {
   globalThis.__viewerResult = result;
   // Read off the page in Chromium and off stdout in Firefox: client/viewer/check.mjs.
   if (q.get("check")) console.log(`viewer-result ${JSON.stringify(result)}`);
-  if (lab.post) fetch(`${lab.post}result`, { method: "POST", body: JSON.stringify(result) }).catch(() => {});
 }
 
 const giveUp = q.get("check") ? performance.now() + 60000 : Infinity;
@@ -251,16 +251,4 @@ const filled = new Promise((resolve) => {
 await filled;
 await repaint();
 if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show });
-else if (lab.post) {
-  // total-time's result shape (lab/av1/delivery/total-time/page.js): every frame's arrival, and the first exact on screen.
-  const sha = {};
-  for (const [i, f] of frames) sha[i] = await digest(f.info.pixels);
-  report({ issuedAt: lab.origin === "navigation" ? performance.timeOrigin : issuedAt, firstShown: issuedAt + firstShownMs, frames: [...frames].map(([i, f]) => ({ i, page: f.arrived, lastByte: f.info.stamps.lastByte, exact: f.info.exact })),
-    failures: errors.map((reason) => ({ reason })), sha, previews: [], previewSha: {}, after: [], resumes: client.stats().resumedAt.length, checked: client.stats().exact });
-}
-
-async function digest(sab) {
-  const copy = new Uint8Array(sab.byteLength);
-  copy.set(new Uint8Array(sab));
-  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", copy)), (b) => b.toString(16).padStart(2, "0")).join("");
-}
+else lab.finished?.({ issuedAt, firstShownMs, frames, errors, stats: client.stats() });
