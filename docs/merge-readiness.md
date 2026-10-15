@@ -401,7 +401,8 @@ adopted. **Branch:** `claude/wip-240-CLASSIFYOUT`, then a draft PR.
 *Review.* S8: `ServeConfig` derives `clap::Args` and `main.rs` flattens it, so the flags, their defaults and their
 help live once; `install_crypto_provider` inlined. `series-server --help` before and after, diffed in the pull
 request, shows the command line unchanged (help text may move, no flag may). S9: `run_server` split so the banner and
-the lab levers' warnings are functions of their own. S10: `build_endpoint` tries an ordered list of bind configs.
+the lab levers' warnings are functions of their own, every banner line unchanged (the harnesses, `run_wire.sh` and
+row 232's counts read them). S10: `build_endpoint` tries an ordered list of bind configs.
 `server/README.md` §Start-up in step (`ServeConfig` is what is flattened now). S1 (round 1's B5): the banner's
 `wt_url` and `ws_url` name the address `--bind` gives when it is a specific one, `127.0.0.1` otherwise, with a test
 (mutate: print `127.0.0.1` again). Touches the two lines #48 edits in `main.rs`: whichever lands second merges.
@@ -425,7 +426,7 @@ mutation each). **Branch:** `claude/wip-242-CLIENTDEDUP`, then a draft PR.
 the `--product` early exit kept) and S6 (`scripts/gate.sh:194` requires the decoder builds alone for
 `check_equivalence.sh --local`; say in the pull request which hosts now run the step). No capability is lost: each
 removed name has no reader, which the pull request shows with the search. Proof: the gate green with the same skips
-or fewer. **Branch:** `claude/wip-243-LEFTOVERS`, then a draft PR.
+or fewer. Row 232 also edits `scripts/gate.sh`: whichever lands second merges. **Branch:** `claude/wip-243-LEFTOVERS`, then a draft PR.
 
 #### 244 RINGPARK
 
