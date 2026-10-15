@@ -4284,7 +4284,11 @@ SELinux choice (deploy/README §Open); the drafts #37–#41 kept or closed.
 
 ### 247 TOGETHER
 
-Every draft of the day merged onto `claude/av1-unified-mainbase` in one branch, `claude/wip-247-TOGETHER` (#67), to show they compose: three fixes beyond the merges (#60 × #66 in `downloader.js`, #59 × #62 and #55 × #59 in `docs/merge-readiness.md`), CI green. Merging it is the same as merging every draft; merging some instead needs only those three fixes.
+Every draft of the day merged onto `claude/av1-unified-mainbase` in one branch, `claude/wip-247-TOGETHER` (#67), to show they compose: three fixes beyond the merges (#60 × #66 in `downloader.js`, #59 × #62 and #55 × #59 in `docs/merge-readiness.md`), CI green. Merging it is the same as merging every draft; merging some instead needs only those fixes (five, once 248 joined).
+
+### 248 HARNESSTIDY
+
+Draft #69 (`2fcc46b7`): `total-time/run.mjs` waits for its static server to answer instead of a fixed 1 s (the refused visit row 233 met), and refuses a viewer variant that names no codec at parse time; `docs/merge-readiness.md` B5 marked fixed by row 241.
 
 ### 239–246
 
