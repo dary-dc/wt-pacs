@@ -302,7 +302,8 @@ reading is in [`docs/adr/exactness-in-production.md`](../../../../docs/adr/exact
 
 **Row VIEWER** times the product's page against this one, which has no paint, on row INGEST's CT series
 (`ct_nlst`: its HTJ2K and AV1 bundles' frames, from `lab/av1/exact/from-dicom/check.py`'s `fill/`). The variants
-`viewer` and `av1viewer` (`"viewer": "<metadata file>"` in `variants.json`) load `client/viewer/index.html` on the
+`viewer` and `av1viewer` (`"viewer": "<metadata file>"` and `"codec": "htj2k"` or `"av1"` in `variants.json`; `run.mjs`
+refuses a viewer variant that names no codec) load `client/viewer/index.html` on the
 same decoders (`?opts=`), and `--origin navigation` times both pages from navigation. The viewer speaks this
 harness's protocol (`hello`, the result's shape, each frame's SHA-256) through `lab/viewer/levers.js`, not its own code:
 `run.mjs --frames lab/.av1-work/from-dicom --sets ct_nlst --variants htj2k,viewer,av1,av1viewer --rounds 12
