@@ -150,6 +150,20 @@ and a lab-only stall's equivalent sends; the series bundle's reader and writer 1
 (queue row GATE, 2026-10-07, 4 cores, warm builds): `--quick` 161 → 106 s once the two timer-bound steps ran side by side; the
 before-and-after table is at `git show 0d293c89^:README.md`, and each step's time is in the gate's own log.
 
+**What the nightly times and what it claims** — `.github/workflows/perf-nightly.yml` runs `scripts/perf_nightly.mjs`
+nightly on `claude/av1-unified-mainbase` against itself 24 hours earlier, and on a pull request labelled `perf` against
+its base: both trees built, the gate's grey codestream 48 times filled through the downloader on the total-time
+harness (`r50000`, 1×, Chromium; [`lab/av1/delivery/total-time/README.md`](lab/av1/delivery/total-time/README.md)),
+the base, the head and the base again in `lab/order.mjs`'s order, 12 rounds and 12 confirming, the fill and the first
+frame judged by row NETRULES' A/A rule ([`lab/scripts/aa_rule.py`](lab/scripts/aa_rule.py)). A cell is flagged only
+when both campaigns flag it; *worse* turns the nightly red, never a pull request. On this repository's 4-core
+container (row PERFNIGHTLY, 2026-10-15): the base against itself a tie (fill A/A sd 0.3 %, a loss of 0.6 % caught);
+a 10 ms sleep a frame in the server's send path worse on both cells (fill ×1.155); a 2 ms one flagged too (first
+frame ×1.015 worse, fill ×0.988 better). The fill there follows the link to 200 Mbit/s (0.51, 0.45, 0.38 s at 50,
+100, 200) and no further (0.37 at 400 and 800), so the host is not what bounds `r50000`. It claims a difference
+between two trees that repeats on that runner, that series and that link: no number for another host, a series that
+decodes longer, a slower CPU or another engine; a schedule fires from the default branch's copy of the workflow only.
+
 ## Docs
 
 Each subject has one owner; a claim lives there, corrected in place when it is wrong (`CLAUDE.md` §Docs).
