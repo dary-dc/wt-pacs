@@ -183,6 +183,13 @@ run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.to
 step "lab: the frame cache compiles"
 run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
 
+step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
+if command -v strace >/dev/null; then
+  run 1 node scripts/perf_counts.mjs
+else
+  skip "the performance counts read the server's disk reads through strace — no strace"
+fi
+
 if [[ $browser -eq 1 ]]; then
   step "client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)"
   run 8 bash client/contract/run_wire.sh

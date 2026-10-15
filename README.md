@@ -65,7 +65,14 @@ scripts/gate.sh
 The same gate runs in CI, `.github/workflows/gate.yml`, on every pull request into `claude/av1-unified-mainbase` and
 `main` and every push to them: every prerequisite above present, so a skip not on the workflow's list fails it, and
 the deploy image built with `deploy/check_equivalence.sh` and the viewer's page check run through it. No timing runs
-there: a shared runner is not a measurement host.
+there: a shared runner is not a measurement host. Performance is guarded by counts instead, which no runner moves:
+`scripts/perf_counts.mjs` drives the product's downloader against the release server, over its WebSocket (the same asks
+and envelopes as QUIC's shared stream), on a 24-frame synthetic series filled, stepped through as a cine and asked on
+demand, and fails on any change from `scripts/perf_counts.baseline` in the client's asks, the server's reads of the
+bundle (through strace, every read forced to a miss) or the envelope bytes; a changed count is a reviewed line there.
+A doubled read on either reader, a fill asked twice and a padded frame each turn it red. Not counted: the io_uring
+path a forced miss bypasses, QUIC's own framing, and the viewer's choice of what to ask, since the downloader is
+driven directly.
 
 Then open in Chrome:
 
