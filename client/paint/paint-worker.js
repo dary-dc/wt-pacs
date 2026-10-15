@@ -139,7 +139,7 @@ function windowPass(frame, display, f) {
  * The image's box on the canvas, in device pixels, and the source coordinate at each corner:
  * centred, rounded down to a whole pixel, then panned; the display is the image turned clockwise, then flipped.
  */
-export function placement(frame, view, width, height, dpr) {
+function placement(frame, view, width, height, dpr) {
   const v = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false, ...view };
   const q = ((v.rotate / 90) % 4 + 4) % 4;
   if (!Number.isInteger(q)) throw new Error(`rotation ${v.rotate} is not a quarter turn`);

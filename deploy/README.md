@@ -150,7 +150,7 @@ Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out
 that serves and lists, and a page cached otherwise than `dev-server.py`; and for the policy (row VIEWERLOCK), nginx's
 `connect-src` without the transport (both paths `MISS`) and the dev host's `script-src` allowing inline (`DIFF`).
 `--local` runs a host nginx on the template instead of the image, its root the files `web-files.sh` copies;
-`scripts/gate.sh` runs it where nginx is on PATH and the decoder builds and the hasher are present, and names it
+`scripts/gate.sh` runs it where nginx is on PATH and the decoder builds are present, and names it
 SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried before row IMAGESLIM (the nine
 `client/` paths answer 200), and `viewer.js` left out of the list (its path differs and loses gzip); each fails it.
 

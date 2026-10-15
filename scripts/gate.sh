@@ -191,8 +191,8 @@ fi
 step "deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone"
 if ! command -v nginx >/dev/null; then
   skip "the web host's check (deploy/check_equivalence.sh --local) — no nginx"
-elif [[ ! -f "$built/THIRD_PARTY_NOTICES" || ! -f client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js ]]; then
-  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds or hasher (deploy/README.md §Run it)"
+elif [[ ! -f "$built/THIRD_PARTY_NOTICES" ]]; then
+  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds (deploy/README.md §Run it)"
 else
   run 1 bash deploy/check_equivalence.sh --local
 fi
