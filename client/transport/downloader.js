@@ -320,27 +320,31 @@ function lost(proved) {
 const owedAsks = () =>
   [...records].filter(([, r]) => r.state === "wire" && r.priority === "ask").map(([i]) => i);
 
+const reaskOwed = () => { for (const i of owedAsks()) ask(i, session.requestExactFrame(i)); };
+
+function retire() {
+  epoch += 1;
+  asksInFlight = 0;
+  session.close();
+}
+
 /** A session swapped for its replacement before a byte budget runs out, the replacement dialled
  *  while the old one still delivers. docs/ARCHITECTURE.md §Recycling before the stall */
 async function recycle() {
   const ep = epoch;
   const next = await openSession(null).catch(() => null);
   if (!next || ep !== epoch || resuming || !session) return void next?.close();
-  epoch += 1;
-  asksInFlight = 0;
-  session.close();
+  retire();
   adopt(next);
-  for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
+  reaskOwed();
   issueFill();
   postMessage({ kind: "recycled" });
 }
 
 /** A new session, then exactly what the records still owe: nothing that arrived is asked twice. */
 async function resume() {
-  epoch += 1;
-  asksInFlight = 0;
   clearTimeout(stall);
-  session.close();
+  retire();
   session = null;
   dialling = null;
   while (redials < deadlines.tries) {
@@ -348,7 +352,7 @@ async function resume() {
     redials += 1;
     try {
       await connect();
-      for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
+      reaskOwed();
       return void postMessage({ kind: "resumed" });
     } catch {
       await sleep(deadlines.redialMs);
@@ -423,10 +427,8 @@ function spawn() {
     }
     else if (e.data.kind === "init-failed") lose(d, e.data.reason);
     else if (e.data.kind === "failed") {
-      d.outstanding -= 1;
-      arm(d);
       if (e.data.gen === generation) fail(e.data.index, e.data.reason);
-      pump();
+      onDone(d);
     }
   };
   postMessage({ kind: "pixel-port", port: ch.port2, decoder: d.id }, [ch.port2]);
