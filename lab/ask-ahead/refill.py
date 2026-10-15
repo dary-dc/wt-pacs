@@ -5,7 +5,7 @@ by lab/scripts/aa_rule.py, strict (rounds a `VOID` visit touched dropped from th
 Per cell, reading and measure (ask, fill): rounds 0–11 are the run and 12–23 its confirmation, so worse or better
 is a flag in both; any other cell is a tie when the loss the rule catches at the pooled rounds' A/A spread is
 ≤ 5 %, else not conclusive. B becomes the default when, in both readings, no cell is worse or not conclusive and
-a 10 % cell's fill is better — docs/transport/link-conditions.md §Re-measured, *REFILL*.
+a 10 % cell's fill is better — docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*.
 
 usage: refill.py ROWS.jsonl   — lab/ask-ahead/README.md
 """
