@@ -330,6 +330,7 @@ not `ready`.
 | 234 | **TARGETDIR** — `client/viewer/run_check.sh`, `client/viewer/check.mjs` and `scripts/wtcompat.py` honour `CARGO_TARGET_DIR`, and `check.mjs` takes a port it knows is free | ready |
 | 235 | **BUILDCACHE** — the deploy image's build stage shares one cargo `target` cache across checkouts and shipped a stale server twice (row 231); one checkout's image always carries that checkout's binary | ready |
 | 236 | **NOWAITPROBE** — a test of what the `RWF_NOWAIT` probe answers: today a probe that always says unsupported passes every test (row 227) | ready |
+| 238 | **SIMPLIFYAUDIT** — `main` after the merge, read for simplification and improvement: code and docs that can be shorter, plainer or gone without losing a capability, files past the comment budget, duplicated or dead paths, and improvements the measurements already back; each with file:line, a verdict and its cost, then rows 239 on for the non-structural ones and proposals for the structural ones; audit | ready |
 
 ## Briefs
 
@@ -4250,6 +4251,40 @@ after the other on one daemon. **Branch:** `claude/wip-235-BUILDCACHE`.
 *Additive.* No test checks what `frame_store.rs`'s `RWF_NOWAIT` probe answers: a probe that always says unsupported
 passes every test (row 227). Add one that runs where the kernel supports it and fails when the probe is forced to
 answer no. **Branch:** `claude/wip-236-NOWAITPROBE`.
+
+## The day of 2026-10-15 (00:00–17:00, rows 238 on)
+
+The owner, 2026-10-15 00:00: "we need also a simplification and improvement round and to plan the work for the
+tomorrow, from 00 to 17 (school day and we need to take advantage of the time)". The owner is away until 17:00, so
+**every row today ends as a draft pull request into `claude/av1-unified-mainbase`, gate and CI green, and nothing
+merges until the owner reviews it at 17:00** (the owner, 2026-10-14: review before a row reaches the work branch).
+`claude/av1-unified-mainbase` stays the merge candidate for `main` (merged as #36, `27df9dca`); no push to `main`.
+The host has 4 cores: builds, tests and gates run one at a time under `flock /tmp/wt-pacs-heavy.lock`, so at most
+three rows run at once, and the measurement window runs alone.
+
+| window | rows | why then |
+| --- | --- | --- |
+| 00–02 | 238 SIMPLIFYAUDIT (reads only), 234 TARGETDIR, 236 NOWAITPROBE | the audit needs the most time; 234 removes the workaround every later row needs |
+| 02–06 | 235 BUILDCACHE, 232 PERFCOUNTS; the audit's rows queued as 239 on | 235 needs the docker daemon to itself; 232 is the largest additive row |
+| 06–12 | rows 239 on, three at a time, the non-structural ones only | structural findings stay proposals (`CLAUDE.md`: propose first) |
+| 12–14 | 229 REFILLMEASURE alone; 233 PERFNIGHTLY written | a measurement needs a quiet host; 233 is CI configuration, a pull request only |
+| 14–16:30 | every pull request driven green and merged into the others where they conflict | the owner reviews a green set |
+| 16:30–17 | one list for the owner: each pull request, what to look at, the decisions open | |
+
+**Open for the owner** (none blocks the day): #48 (row 227) into the work branch or not; row 228's proposal; the
+SELinux choice (deploy/README §Open); the drafts #37–#41 kept or closed.
+
+### 238 SIMPLIFYAUDIT
+
+*Audit; nothing changes but its document.* Row 215's method on `main` as merged (`27df9dca`): every product file
+(`server/`, `client/`, `ingest/`, `common/`, `deploy/`, `scripts/`) and the docs that describe them, read for what can
+be removed, simplified, merged or made plainer without losing a capability, and for improvements a measurement in
+`docs/` already backs but the code does not use. Run `scripts/comment_budget.sh` and list every file near or past
+the budget; list the longest functions and files with what would split them. Each finding: file:line, the verdict
+(remove, simplify, merge, move, keep), the capability it costs (none allowed), the lines it saves, and whether it is
+structural (`CLAUDE.md`: a structural change is proposed, not built). Rank them by lines saved per risk. Rows already
+queued (232–236) and the owner's open decisions are out of scope. **Deliverable:** `docs/merge-readiness.md`
+§Second round, with rows 239 on drafted for the orchestrator. **Branch:** `claude/wip-238-SIMPLIFYAUDIT`.
 
 ## Blocked
 
