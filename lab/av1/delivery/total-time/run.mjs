@@ -121,6 +121,10 @@ const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.
   .filter((s) => arg("--sets", s.name).split(",").includes(s.name));
 const VARIANTS = arg("--variants", null)?.split(",");
 for (const s of sets) s.variantNames = Object.keys(s.variants).filter((a) => !VARIANTS || VARIANTS.includes(a));
+for (const s of sets) for (const name of s.variantNames) {
+  const { viewer, codec } = s.variants[name];
+  if (viewer && !["htj2k", "av1"].includes(codec)) throw new Error(`${s.name} ${name}: a viewer variant needs "codec": "htj2k" or "av1", not ${JSON.stringify(codec) ?? "none"}`);
+}
 
 execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series", ...(CC_TRACE ? ["--features", "series-server/telemetry"] : [])], { cwd: ROOT, stdio: "inherit" });
 execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
@@ -238,10 +242,27 @@ function workerThreads(root) {
   return out;
 }
 
+/** Resolves once `url` answers; throws if `child` exits first or nothing answers within `ms`. */
+async function listening(url, child, ms) {
+  let exited = null;
+  child.once("exit", (code, signal) => (exited = code ?? signal));
+  const deadline = Date.now() + ms;
+  while (exited === null) {
+    try {
+      await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())) });
+      return;
+    } catch {
+      if (Date.now() >= deadline) throw new Error(`${url}: not answering after ${ms} ms`);
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`${url}: its server exited (${exited}) before answering`);
+}
+
 const HTTP = port();
 const http = spawn("python3", ["server/dev-server.py", "--port", String(HTTP)], { cwd: ROOT, stdio: "ignore" });
 process.on("exit", () => http.kill());
-await new Promise((r) => setTimeout(r, 1000));
+await listening(`http://127.0.0.1:${HTTP}/`, http, 30000);
 
 const started = (child, re) => new Promise((resolve, reject) => {
   let out = "";
