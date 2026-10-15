@@ -121,8 +121,9 @@ fill; it replaces it. While a fill runs, the planner checks for new messages bet
 any message in hand ends the fill — a `request_frame`, a batch, a new `stream_frames`, an
 `end_stream` (which is then consumed), an `end_session`. There is no saved position: the fill does
 not resume. The asked frame is served next, and a client that still wants the rest of the run asks
-for it again; the downloader does so by itself. Tests: `a_data_request_during_a_fill_ends_it_and_is_served_next`
-(`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
+for it again; the downloader does so by itself. That re-ask is this shape's cost, which row 229 only
+shortens; queue row 249 proposes a server that keeps the fill and moves the asked frame to its front.
+Tests: `a_data_request_during_a_fill_ends_it_and_is_served_next` (`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
 reciting after the mode switch").
 
 ```
