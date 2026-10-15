@@ -35,8 +35,9 @@ export type FrameResult = {
   timing: { askMs: number; lastChunkMs: number };
 };
 
-/** Closes a dial whose `ready` outlives `ms`, so an abandoned dial leaves nothing open. */
-export function settleWithin(ready: Promise<unknown>, close: () => void, ms: number): Promise<void> {
+/** Closes a dial whose `ready` outlives `ms`, so an abandoned dial leaves nothing open; no `ms`, no deadline. */
+export function settleWithin(ready: Promise<unknown>, close: () => void, ms?: number): Promise<void> {
+  if (!ms) return ready.then(() => {});
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -144,28 +145,27 @@ export abstract class FrameSession {
   private deliver(frameIndex: number, bytes: Uint8Array, receivedMs: number) {
     const fill = this.fill;
     const owed = fill?.pending.delete(frameIndex) ?? false;
-    const w = this.waiters.get(frameIndex);
-    if (w) {
-      clearTimeout(w.timer);
-      this.waiters.delete(frameIndex);
-      w.resolve({ bytes, receivedMs });
-      return;
-    }
+    const w = this.takeWaiter(frameIndex);
+    if (w) return void w.resolve({ bytes, receivedMs });
     if (fill && owed) {
       fill.onFrame(toResult(frameIndex, fill.askMs, bytes, receivedMs));
     }
   }
 
   protected failWaiter(frameIndex: number, reason: string) {
-    const w = this.waiters.get(frameIndex);
+    const w = this.takeWaiter(frameIndex);
     const owed = this.fill?.pending.delete(frameIndex) ?? false;
-    if (!w) {
-      if (owed) this.fill?.onError(frameIndex, reason);
-      return;
+    if (w) w.reject(new Error(`frame ${frameIndex} unavailable: ${reason}`));
+    else if (owed) this.fill?.onError(frameIndex, reason);
+  }
+
+  private takeWaiter(frameIndex: number): Waiter | undefined {
+    const w = this.waiters.get(frameIndex);
+    if (w) {
+      clearTimeout(w.timer);
+      this.waiters.delete(frameIndex);
     }
-    clearTimeout(w.timer);
-    this.waiters.delete(frameIndex);
-    w.reject(new Error(`frame ${frameIndex} unavailable: ${reason}`));
+    return w;
   }
 
   protected onControl(msg: FodMsg) {
@@ -218,10 +218,7 @@ export abstract class FrameSession {
       await this.sendFod({ op: "request_frame", frame: frameIndex });
     } catch (e) {
       pending.catch(() => {});
-      if (this.waiters.get(frameIndex) === armed) {
-        clearTimeout(armed.timer);
-        this.waiters.delete(frameIndex);
-      }
+      if (this.waiters.get(frameIndex) === armed) this.takeWaiter(frameIndex);
       throw e;
     }
     const { bytes, receivedMs } = await pending;
