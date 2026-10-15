@@ -440,6 +440,45 @@ green with the same skips or fewer, and one suite run through `WTPACS_WASM_PKG` 
 the moved client. Rows 222 and 223 change the workspace's members and the image's `COPY` lines; the move starts from
 whatever of theirs has landed.
 
+## Proposed: the harness pages to `lab/`
+
+*Proposed 2026-10-15 (queue row 246, HARNESSTOLAB; [`merge-readiness.md`](merge-readiness.md) §Second round, S21).
+Nothing moves before the owner's yes.*
+
+**Why.** `client/harness/` (`index.html`, `cell.html`, `shell.js`; 428 lines) is the lab's. The dev host serves it at
+`/harness/`; the image never does — `deploy/web-files.sh` copies the viewer's files alone, and
+`deploy/check_equivalence.sh` requires `/harness/` and `/client/harness/cell.html` to be 404. A reader of `client/`
+meets it among the product.
+
+**What moves.** `git mv client/harness lab/harness`, and the dev host's `/harness/` route pointed at lab/harness/
+(one line of `server/dev-server.py`; `lab/` is already among what it serves). The pages name everything by absolute
+URL (`/harness/shell.js`, `/client/transport/consumer.js`, `/lab/fixtures/decode_c512/…`), so no line in them
+changes, and every URL that `scripts/cellcheck.mjs` and the lab's drivers open stays as it is. Not taken: serving
+the pages at `/lab/harness/` with no route, which rewrites the pages' own links and every driver's URL for nothing.
+
+**What changes with it.** `check_equivalence.sh` drops `/client/harness/cell.html` from its hidden paths (18 → 17;
+`/harness/` stays, and `/lab/` is hidden already), and `deploy/README.md` its count and "a harness page". The path is
+rewritten in README.md, `client/README.md` (and its list of directories), `lab/page-open/README.md`, ARCHITECTURE (6
+lines), this file (2, one in row 228's proposal above) and the two telemetry ADRs; `lab/README.md`'s table gains the
+row. Eleven files, about 20 lines. `docs/av1/queue.md` and `merge-readiness.md`'s L4 finding are records and keep
+the path they had.
+
+**What it costs.** Nothing is saved: 428 lines move. The self-check `index.html` checks the product, not a
+measurement — ARCHITECTURE's table cites it for every decoded frame byte-identical to its `.sha256` — and it would
+sit in `lab/`, whose README says "measurement only"; `lab/scripts/downloader_both_clients.sh` already sits there in
+that same table, and the README's sentence gains a clause. lab/harness/ sits beside `lab/window-harness/`, the
+Rust client: two things with near names. Row 228 edits `shell.js`'s `wasm` entry and this row moves the file;
+whichever lands second merges.
+
+**How it would be proven.** `git grep client/harness` finds only the two records; `scripts/check_links.py` green;
+the gate green with the same skips, its `check_equivalence.sh` on the shorter list; and `scripts/cellcheck.sh` once
+before and once after, every cell and the self-check passing — the gate does not run it, and it is the one check
+that loads the pages.
+
+**The owner's choice.** Move the three files, as proposed; or move `cell.html` and `shell.js` and keep the
+self-check in `client/`, which splits the route across two trees for one page; or leave them, which costs a reader
+of `client/` three files and nothing else.
+
 ## Open
 
 Each item below is the owner's to decide, and is tracked here.
