@@ -74,6 +74,9 @@ A container test of a deployment of this shape found each one (the deployment te
 5. **The build cache.**
    * The server's stage copies each workspace member's manifest and sources alone, with cache mounts on the
      cargo registry and `target/`. The bundles stage runs `npm ci` on the lock file before it copies `client/`.
+   * The `target/` mount is the daemon's, shared by every checkout built there, and cargo judges a path crate
+     fresh by mtime. So the build touches every source it copied before `cargo build`: this tree's are always
+     newer than anything in the cache (row BUILDCACHE, §Open).
    * The ignore files keep out `docs/`, every `*.md`, the lab but its four crates' manifests and sources, and the
      decoders' build cache.
    * After an edit to `docs/glossary.md` and `lab/av1/README.md`, 23 of 23 steps were cached and the build took
@@ -183,6 +186,16 @@ ignore file let through; `wt-pacs-web` is 94.4 MB (26.4 MB of content). Both ima
 series (`client/viewer/run_check.sh`'s, packed into `STUDIES`) `check.mjs --url` passed through them in Chromium 141:
 3/3 exact, readbacks equal to the CPU reference; `check_equivalence.sh` passed against the image and with `--local`
 (nginx 1.24.0).
+
+**Row BUILDCACHE (2026-10-15), each image its own checkout's binary.** Two worktrees of one commit, the second's
+banner reading `buildcache235_mode=` for `stream_mode=`, edited before the first was built; `--target server` built
+from the first, then the second, on one daemon, the string read off each image's `series-server`. Before the touch,
+the second image carried the first's string: cargo found it fresh in 1.1 s. With it, each carried its own (57 and
+58 s). Mutated, the touch replaced by `true`: the first checkout's image then carried the second's string, from a
+build of the second left in the cache. **Cost, the server image alone, interleaved, three rounds:** after a doc edit,
+0.4–1.0 s with and without (every step cached, as before); after a one-line edit of `server/`, 59.5–61.2 s with
+against 53.5–56.9 s without, since every path crate is rebuilt where one was: fat LTO's link dominates both. The web
+stages are unchanged.
 
 **The page check against the deployment.** `client/viewer/check.mjs --url`, on the DICOM ingest's CT bundle (76 frames,
 HTJ2K): 76/76 exact, and the first, middle and last readback equal the CPU reference.
@@ -332,7 +345,7 @@ server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 | --- | --- | --- |
 | rootless podman | the brief's first runtime is unchecked | a host with it: build, `up`, the page check |
 | io_uring on an SELinux-enforcing host | the profile is not enough there: `EACCES` (§Container settings) | the owner's call: `label=disable` or a policy module granting `io_uring { allowed }`; neither ships |
-| a stale server binary | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | a cache mount `id` per checkout, or a check that the image's binary names this tree's commit |
+| ~~a stale server binary~~ *closed by row BUILDCACHE, 2026-10-15* | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | closed: the build touches every source it copied before `cargo build` (§5), proved in §Verified *Row BUILDCACHE* |
 | studies by name | one server serves one series (`SERIES`) | a study index, proposed in `docs/FIXTURES.md` §From DICOM |
 | HTTP/3 for the page, and a `dns-prefetch` to the transport's origin | each takes a round trip off a cold open ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §What production adds) | nginx's QUIC listener; one `<link>` in the viewer |
 | the decoders are built on the host | the image checks them against the manifest but does not make them | the decoder build's container (`client/decode/wasm/build/`) as a stage, once it runs inside BuildKit |
