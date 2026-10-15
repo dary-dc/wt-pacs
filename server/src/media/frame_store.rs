@@ -318,6 +318,39 @@ mod tests {
         Ok(())
     }
 
+    /// Where the mount serves a warm byte under `RWF_NOWAIT`, the store's probe says yes: a
+    /// probe stuck at no passes every other test while sending every read to the pool. The
+    /// oracle is its own `preadv2`, not `probe_nowait`, so the two cannot be wrong together.
+    #[test]
+    fn the_probe_finds_nowait_where_the_mount_has_it() -> Result<()> {
+        let path = scratch("frame-store-probe-yes");
+        write_bundle(&path, br#"{"frameCount":1}"#, &[b"warm".as_slice()])?;
+        let file = File::open(&path)?;
+        let mut byte = [0u8; 1];
+        let iov = libc::iovec {
+            iov_base: byte.as_mut_ptr() as *mut libc::c_void,
+            iov_len: 1,
+        };
+        // SAFETY: `iov` describes a live, exclusively borrowed one-byte buffer.
+        let n = unsafe { libc::preadv2(file.as_raw_fd(), &iov, 1, 0, libc::RWF_NOWAIT) };
+        let refused = (n < 0).then(std::io::Error::last_os_error);
+        let store = FrameStore::open(&path)?;
+        let _ = std::fs::remove_file(&path);
+
+        if let Some(err) = refused {
+            eprintln!(
+                "SKIPPED: the_probe_finds_nowait_where_the_mount_has_it: \
+                 a warm RWF_NOWAIT read is refused on this mount ({err})"
+            );
+            return Ok(());
+        }
+        assert!(
+            store.nowait_supported(),
+            "this mount served a warm byte under RWF_NOWAIT, yet the probe says unsupported"
+        );
+        Ok(())
+    }
+
     /// The serving path is only correct if `read_at_blocking` can complete a short
     /// `read_at_nowait` at the offset it stopped at.
     #[test]
