@@ -19,7 +19,7 @@ cat >"$T/metadata.json" <<JSON
  "window": {"center": [30000], "width": [60000], "function": "LINEAR"},
  "digests": {"algorithm": "xxh3-64", "frames": ["$d", "$d", "$d"]}}
 JSON
-target/release/pack-series --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/grey.sbnd" >/dev/null
+"${CARGO_TARGET_DIR:-target}/release/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/grey.sbnd" >/dev/null
 node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --cine
 node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --fill 0
 echo "SKIPPED: the viewer's cross-codec arm and Firefox — they need the DICOM ingest's bundles and a GL display (client/README.md §The viewer)"
