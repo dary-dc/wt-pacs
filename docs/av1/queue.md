@@ -4282,6 +4282,10 @@ three rows run at once, and the measurement window runs alone.
 **Open for the owner** (none blocks the day): #48 (row 227) into the work branch or not; row 228's proposal; the
 SELinux choice (deploy/README §Open); the drafts #37–#41 kept or closed.
 
+### 249 ONEQUEUE
+
+Proposal, draft #71 (`af447f38`), the owner's idea (2026-10-15): the server holds what the client wants as one ordered queue, a fill appends its run and an ask moves its frame to the front, so an ask never ends the fill and the client re-asks nothing. Row 229's head re-issue is kept as the improvement it measured and marked a patch on the protocol (#66, `310a2a0e`). The candidates, what each removes and the protocol that decides: [`docs/WIRE.md`](../WIRE.md) §An ask during a fill, *Proposed: one queue*, once #71 lands. Nothing is built before the owner's yes.
+
 ### 247 TOGETHER
 
 Every draft of the day merged onto `claude/av1-unified-mainbase` in one branch, `claude/wip-247-TOGETHER` (#67), to show they compose: three fixes beyond the merges (#60 × #66 in `downloader.js`, #59 × #62 and #55 × #59 in `docs/merge-readiness.md`), CI green. Merging it is the same as merging every draft; merging some instead needs only those fixes (five, once 248 joined).
