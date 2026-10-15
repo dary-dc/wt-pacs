@@ -112,10 +112,13 @@ function cells(name, s, st) {
   return out;
 }
 
-const port = 30000 + ((Math.random() * 20000) | 0);
-const server = spawn("python3", ["server/dev-server.py", "--port", String(port)], { cwd: ROOT, stdio: "ignore" });
+const server = spawn("python3", ["server/dev-server.py", "--port", "0"], { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"] });
 process.on("exit", () => server.kill());
-await new Promise((r) => setTimeout(r, 700));
+const port = await new Promise((resolve, reject) => {
+  let out = "";
+  server.stdout.on("data", (d) => { out += d; const m = /port=(\d+)/.exec(out); if (m) resolve(m[1]); });
+  server.once("exit", (c) => reject(new Error(`dev-server.py exited ${c}`)));
+});
 const browser = await chromium.launch({
   headless: true, executablePath: process.env.CHROME_PATH,
   args: ["--no-sandbox", "--ignore-gpu-blocklist", ...RENDERERS[flag("renderer", "swiftshader")]],

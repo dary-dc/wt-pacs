@@ -28,7 +28,7 @@ train() {
     --stream-mode shared --bind 127.0.0.1 --cert-pem server/dev-cert/cert.pem --key-pem server/dev-cert/key.pem >"$log" 2>&1 &
   local pid=$!
   for _ in $(seq 1 200); do grep -q '^telemetry=' "$log" && break; sleep 0.05; done
-  local url="https://127.0.0.1:$port/" d=target/release/server_ab
+  local url="https://127.0.0.1:$port/" d="${CARGO_TARGET_DIR:-target}/release/server_ab"
   for _ in 1 2 3; do "$d" --url "$url" --server-pid "$pid" --mode fill --asks 80 --frames 80 --no-header >/dev/null; done
   "$d" --url "$url" --server-pid "$pid" --mode on-demand --depth 4 --asks 200 --sessions 4 --frames 80 --no-header >/dev/null
   "$d" --url "$url" --server-pid "$pid" --mode on-demand --depth 4 --asks 100 --sessions 16 --frames 80 --no-header >/dev/null

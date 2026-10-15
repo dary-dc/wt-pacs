@@ -157,7 +157,8 @@ flags only L2 and X3, plus `nowait_supported_at`, which `tools/check-fastpath` u
 | — | Firefox, the cross-codec arm, the full painter cells, `cellcheck.sh`, `wtcompat.py`, `seccomp-uring.sh --check` (*corrected 2026-10-14:* in the gate since row 231, the deploy loading the profile) | `README.md:92-99` | keep: each is named, and each needs a browser, a display, fixtures or the network | — |
 
 F2, F3, F5, F6 and F7 are gate steps since row 226 (GATEGAPS); `from_dicom.py` now finds `pack-series` under
-`CARGO_TARGET_DIR`, which F7's test found it did not.
+`CARGO_TARGET_DIR`, which F7's test found it did not. Since row 234 the viewer check, `wtcompat.py` and `pgo_build.sh` do too;
+the viewer check takes a UDP port it found free, as B7's tests do, and the painter check the port `dev-server.py` reports.
 
 ### 8. Docs that contradict the code, or are stale
 
