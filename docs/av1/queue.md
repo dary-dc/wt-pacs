@@ -330,7 +330,15 @@ not `ready`.
 | 234 | **TARGETDIR** — `client/viewer/run_check.sh`, `client/viewer/check.mjs` and `scripts/wtcompat.py` honour `CARGO_TARGET_DIR`, and `check.mjs` takes a port it knows is free | ready |
 | 235 | **BUILDCACHE** — the deploy image's build stage shares one cargo `target` cache across checkouts and shipped a stale server twice (row 231); one checkout's image always carries that checkout's binary | ready |
 | 236 | **NOWAITPROBE** — a test of what the `RWF_NOWAIT` probe answers: today a probe that always says unsupported passes every test (row 227) | ready |
-| 238 | **SIMPLIFYAUDIT** — `main` after the merge, read for simplification and improvement: code and docs that can be shorter, plainer or gone without losing a capability, files past the comment budget, duplicated or dead paths, and improvements the measurements already back; each with file:line, a verdict and its cost, then rows 239 on for the non-structural ones and proposals for the structural ones; audit | ready |
+| 238 | **SIMPLIFYAUDIT** — `main` after the merge, read for simplification and improvement: code and docs that can be shorter, plainer or gone without losing a capability, files past the comment budget, duplicated or dead paths, and improvements the measurements already back; each with file:line, a verdict and its cost, then rows 239 on for the non-structural ones and proposals for the structural ones; audit | done `21873964` on `claude/wip-238-SIMPLIFYAUDIT` — audit, its document only: 22 findings, none costing a capability; rows 239–246 drafted, ranked by lines saved per risk; CLAUDE.md names `docs/disk-access/adr.md`, which is `docs/adr/disk-access.md` (folded into 243) — [`docs/merge-readiness.md`](../merge-readiness.md) §Second round, draft PR |
+| 239 | **SERVERTESTKIT** — `server.rs`'s and `uring_reader.rs`'s tests on one fixture, runtime and `dial`; the missing `--send-window-follows-cwnd` test (S11, S7); ~−200 test lines; brief in [`docs/merge-readiness.md`](../merge-readiness.md) §Second round | ready |
+| 240 | **CLASSIFYOUT** — `--congestion cubic-classify` removed and `lab/cc-classify` retired (S18); ~−185; brief in [`docs/merge-readiness.md`](../merge-readiness.md) §Second round | for the owner |
+| 241 | **SERVERSTART** — `ServeConfig` derives `clap::Args`, `run_server` and `build_endpoint` simplified, the banner's URLs follow `--bind` (S8–S10, S1); ~−50; brief in [`docs/merge-readiness.md`](../merge-readiness.md) §Second round | ready |
+| 242 | **CLIENTDEDUP** — logic written twice in the downloader, consumer, `FrameSession` and `session.ts` merged (S12–S16); ~−23; brief in [`docs/merge-readiness.md`](../merge-readiness.md) §Second round | ready |
+| 243 | **LEFTOVERS** — dead exports, `dev-transport.json.example`, a lab artifact out of `build.sh`, its esbuild lines, a stale gate skip (S2–S6), and `CLAUDE.md`'s pointer to `docs/adr/disk-access.md`; ~−15; brief in [`docs/merge-readiness.md`](../merge-readiness.md) §Second round | ready |
+| 244 | **RINGPARK** — the tile reader's ring parks on its own fd, the eventfd gone (S19, S20); structural, the proposal first; brief in [`docs/merge-readiness.md`](../merge-readiness.md) §Second round | ready (proposal) |
+| 245 | **VIEWERLABOUT** — the total-time harness's hello and result code out of `viewer.js` into `lab/viewer/levers.js` (S17); ~−14 product lines; brief in [`docs/merge-readiness.md`](../merge-readiness.md) §Second round | ready |
+| 246 | **HARNESSTOLAB** — `client/harness/` to `lab/` (S21); structural, the proposal first; brief in [`docs/merge-readiness.md`](../merge-readiness.md) §Second round | ready (proposal) |
 
 ## Briefs
 
@@ -4273,6 +4281,11 @@ three rows run at once, and the measurement window runs alone.
 
 **Open for the owner** (none blocks the day): #48 (row 227) into the work branch or not; row 228's proposal; the
 SELinux choice (deploy/README §Open); the drafts #37–#41 kept or closed.
+
+### 239–246
+
+Drafted by row 238; each brief is in [`docs/merge-readiness.md`](../merge-readiness.md) §Second round, each ends as a draft pull request. 243 also corrects
+`CLAUDE.md`'s pointer (`docs/disk-access/adr.md` → `docs/adr/disk-access.md`).
 
 ### 238 SIMPLIFYAUDIT
 
