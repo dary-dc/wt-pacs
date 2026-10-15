@@ -259,11 +259,11 @@ async function anAskAgainAfterACancelIsServed() {
 await anAskAgainAfterACancelIsServed();
 
 /**
- * After an ask during a fill, the remainder is re-issued exactly once: when the ask lands by default, on the asked
- * frame's head under `refill: "head"`, right behind the ask under `refill: "ask"`.
+ * After an ask during a fill, the remainder is re-issued exactly once: on the asked frame's head under `refill: "head"`,
+ * the default, right behind the ask under `refill: "ask"`, when the ask lands under `refill: "landed"`.
  */
 async function theRemainderIsReissuedOnce() {
-  const want = { landed: ["", "", "3-6"], head: ["", "3-6", "3-6"], ask: ["3-6", "3-6", "3-6"] };
+  const want = { landed: ["", "", "3-6"], head: ["", "3-6", "3-6"], ask: ["3-6", "3-6", "3-6"], default: ["", "3-6", "3-6"] };
   for (const [refill, expected] of Object.entries(want)) {
     const fills = [];
     const asks = new Map();
@@ -282,7 +282,7 @@ async function theRemainderIsReissuedOnce() {
     };
     const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${refill}`;
     await import(`./downloader.js?refill-${refill}`);
-    const config = { decode: false, decoders: 0, transport, survival: false, refill: refill === "landed" ? undefined : refill };
+    const config = { decode: false, decoders: 0, transport, survival: false, refill: refill === "default" ? undefined : refill };
     await onmessage({ data: { kind: "start", config } });
     await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
     await onmessage({ data: { kind: "fill", indices: [...Array(8).keys()] } });

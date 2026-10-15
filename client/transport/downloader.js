@@ -11,7 +11,7 @@ const abs = () => performance.timeOrigin + performance.now();
 
 let session = null;
 /** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
-let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true };
+let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head" };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
 const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
 /** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
@@ -212,9 +212,9 @@ function arrived(index, frame) {
 }
 
 /**
- * The server ends a running fill for an ask, so the remainder is re-issued once the ask settles, or, under the
- * lab flag `refill`, on its envelope head (`"head"`) or right behind it (`"ask"`). docs/WIRE.md §An ask during a fill,
- * docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*
+ * The server ends a running fill for an ask, so the remainder is re-issued on the asked frame's envelope head
+ * (`refill: "head"`), right behind the ask (`"ask"`) or once it settles (any other). docs/WIRE.md §An ask during a
+ * fill, docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*
  */
 async function ask(index, s) {
   const gen = generation;
