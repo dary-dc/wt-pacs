@@ -288,8 +288,9 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
   `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
-  dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured. `?check=`, `?cine=`, `?fill=` and
-  `?deadline=` are the page's own.
+  dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured. `?post=` (with `?origin=`) gives the
+  page the total-time harness's protocol as two hooks, `started()` and `finished(result)`, which it calls only when
+  present. `?check=`, `?cine=`, `?fill=` and `?deadline=` are the page's own.
 * **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
   §What must be preserved exactly): scripts from the page's origin alone, connections to it and the transport.
 
