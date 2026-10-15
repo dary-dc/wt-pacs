@@ -181,16 +181,10 @@ mod tests {
     /// cannot reach it: a ring read that completes inline never yields for the abort to land
     /// on. Without a sanitiser the wait itself is the only observable, hence
     /// [`DRAINED_ON_DROP`]. `docs/adr/disk-access.md` §Test plan.
-    #[test]
-    fn dropping_a_reader_mid_read_waits_for_the_kernel() {
+    #[tokio::test]
+    async fn dropping_a_reader_mid_read_waits_for_the_kernel() {
         let dir = std::env::temp_dir().join(format!("wtpacs-ring-drop-{}", std::process::id()));
         let (file, body) = blob(&dir, 64 * 1024);
-
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _guard = rt.enter();
 
         let Ok(mut reader) = UringReader::new(&file, TILE_SLOTS as u32) else {
             eprintln!("SKIPPED: io_uring is unavailable on this host");
@@ -219,14 +213,9 @@ mod tests {
     /// A wait the kernel interrupts (EINTR) is retried, not taken as the drain: the reader still
     /// returns only once the read it holds has landed. The buffer is leaked so the kernel's write
     /// can never reach freed memory, whatever the outcome.
-    #[test]
-    fn an_interrupted_drain_still_waits_for_the_kernel() {
+    #[tokio::test]
+    async fn an_interrupted_drain_still_waits_for_the_kernel() {
         let (rd, wr) = pipe();
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _guard = rt.enter();
         let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
             eprintln!("SKIPPED: io_uring is unavailable on this host");
             return;
@@ -253,14 +242,9 @@ mod tests {
 
     /// A ring that fails with a read still in flight says so rather than reporting itself
     /// drained, so its owner leaks the buffer instead of freeing memory the kernel may yet write.
-    #[test]
-    fn a_failed_drain_reports_the_read_still_in_flight() {
+    #[tokio::test]
+    async fn a_failed_drain_reports_the_read_still_in_flight() {
         let (rd, wr) = pipe();
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _guard = rt.enter();
         let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
             eprintln!("SKIPPED: io_uring is unavailable on this host");
             return;
@@ -279,57 +263,45 @@ mod tests {
     /// completion lands before anything awaits it, so `park` is never entered — a reader
     /// that could never be woken passed the whole suite. The read is from a pipe nobody has
     /// written to yet, so it cannot complete inline.
-    #[test]
-    fn a_read_that_cannot_complete_inline_wakes_the_parked_reader() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_read_that_cannot_complete_inline_wakes_the_parked_reader() {
         let (rd, wr) = pipe();
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .expect("rt");
-        rt.block_on(async move {
-            let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-                eprintln!("SKIPPED: io_uring is unavailable on this host");
-                return;
-            };
-            let mut buf = vec![0u8; 64];
-            // SAFETY: `buf` outlives `reader` and is untouched until reaped.
-            unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
-            assert!(
-                reader.reap().expect("reap").is_empty(),
-                "the pipe was not empty"
-            );
-            let writer = std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(50));
-                (&wr).write_all(&[0x5A; 64]).expect("write");
-            });
-            tokio::time::timeout(std::time::Duration::from_secs(10), async {
-                loop {
-                    reader.park().await.expect("park");
-                    if !reader.reap().expect("reap").is_empty() {
-                        break;
-                    }
-                }
-            })
-            .await
-            .expect("the parked reader was never woken");
-            writer.join().unwrap();
-            assert!(buf.iter().all(|&b| b == 0x5A), "the wake carried no bytes");
+        let Ok(mut reader) = UringReader::new(&rd, TILE_SLOTS as u32) else {
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
+            return;
+        };
+        let mut buf = vec![0u8; 64];
+        // SAFETY: `buf` outlives `reader` and is untouched until reaped.
+        unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
+        assert!(
+            reader.reap().expect("reap").is_empty(),
+            "the pipe was not empty"
+        );
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            (&wr).write_all(&[0x5A; 64]).expect("write");
         });
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                reader.park().await.expect("park");
+                if !reader.reap().expect("reap").is_empty() {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("the parked reader was never woken");
+        writer.join().unwrap();
+        assert!(buf.iter().all(|&b| b == 0x5A), "the wake carried no bytes");
     }
 
     /// **The read-ahead invariant.** Two reads are submitted before either is awaited, and
     /// each has to come back into its own buffer — a completion credited to the wrong slot
     /// would serve one frame's bytes as another's.
-    #[test]
-    fn two_reads_in_flight_land_in_their_own_slots() {
+    #[tokio::test]
+    async fn two_reads_in_flight_land_in_their_own_slots() {
         let dir = std::env::temp_dir().join(format!("wtpacs-ring-two-{}", std::process::id()));
         let (file, body) = blob(&dir, 128 * 1024);
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("rt");
-        let _guard = rt.enter();
 
         let Ok(mut reader) = UringReader::new(&file, TILE_SLOTS as u32) else {
             eprintln!("SKIPPED: io_uring is unavailable on this host");
@@ -340,35 +312,33 @@ mod tests {
         let mut a = vec![0u8; 64 * 1024];
         let mut b = vec![0u8; 64 * 1024];
         let mut filled = [0usize; 2];
-        rt.block_on(async {
-            // SAFETY: both buffers outlive the reader and are not touched until reaped.
-            unsafe { reader.submit(0, &mut a, first) }.expect("start a");
-            unsafe { reader.submit(1, &mut b, second) }.expect("start b");
-            tokio::time::timeout(std::time::Duration::from_secs(10), async {
-                while filled[0] < a.len() || filled[1] < b.len() {
-                    for (slot, n) in reader.reap().expect("reap") {
-                        filled[slot] += n;
-                        if slot == 0 && filled[0] < a.len() {
-                            unsafe {
-                                reader.submit(0, &mut a[filled[0]..], first + filled[0] as u64)
-                            }
-                            .expect("resubmit a");
+        // SAFETY: both buffers outlive the reader and are not touched until reaped.
+        unsafe { reader.submit(0, &mut a, first) }.expect("start a");
+        unsafe { reader.submit(1, &mut b, second) }.expect("start b");
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while filled[0] < a.len() || filled[1] < b.len() {
+                for (slot, n) in reader.reap().expect("reap") {
+                    filled[slot] += n;
+                    if slot == 0 && filled[0] < a.len() {
+                        unsafe {
+                            reader.submit(0, &mut a[filled[0]..], first + filled[0] as u64)
                         }
-                        if slot == 1 && filled[1] < b.len() {
-                            unsafe {
-                                reader.submit(1, &mut b[filled[1]..], second + filled[1] as u64)
-                            }
-                            .expect("resubmit b");
-                        }
+                        .expect("resubmit a");
                     }
-                    if filled[0] < a.len() || filled[1] < b.len() {
-                        reader.park().await.expect("park");
+                    if slot == 1 && filled[1] < b.len() {
+                        unsafe {
+                            reader.submit(1, &mut b[filled[1]..], second + filled[1] as u64)
+                        }
+                        .expect("resubmit b");
                     }
                 }
-            })
-            .await
-            .expect("a completion never arrived at the slot that was waiting for it");
-        });
+                if filled[0] < a.len() || filled[1] < b.len() {
+                    reader.park().await.expect("park");
+                }
+            }
+        })
+        .await
+        .expect("a completion never arrived at the slot that was waiting for it");
         assert_eq!(a, body[..64 * 1024], "slot 0 got the wrong bytes");
         assert_eq!(b, body[64 * 1024..], "slot 1 got the wrong bytes");
         std::fs::remove_dir_all(&dir).ok();
