@@ -564,6 +564,8 @@ into the image. No capability test, no fallback, no WASM race.
    image built once and `check.mjs --url` run on it with `client: "wasm"` (the gate builds no image). ~+20.
 5. **WASMLOAD** — W10, W11 measured: the product page cold and warm, `ts` against `wasm` interleaved, page-open's
    round trips at 1× and 4×, the product build with and without `console_error`. Run when the host is free.
+   *Protocol and rule committed before the run, 2026-10-16, row 279*: [`../lab/page-open/README.md`](../lab/page-open/README.md)
+   §The WASM client's load.
 6. **By hand** — W12: the rigs in Firefox with `client=wasm`, and the devices' D0 with `client: "wasm"`.
 
 Rows 1 and 2 add no product path and can land before the owner rules on 3 and 4. Row 249's one queue
