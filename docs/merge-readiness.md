@@ -125,7 +125,7 @@ within each group, and the groups are ranked by what merging needs first.
 | D6 | the FoD message union defined twice | `client/transport/ts/wire.ts:3-30`; `client/record/parse.ts:8-55` | simplify: `record` imports it | ~−10 |
 | D7 | SHA-256-to-hex written three times | `client/viewer/viewer.js:246-250`; `check-page.js:4-5`; `client/decode/wasm-glue.js:14` | simplify | ~−6 |
 | D8 | `ingest/from-parser/same.py` rebuilds by hand the metadata `from_dicom.py` writes | `same.py:35-37`; `from_dicom.py:51-53` | simplify: one `metadata()` | ~10 |
-| D9 | **the WASM transport**, a second full client in Rust that the product never loads. It duplicates `frame-session.ts` and the gate needs wasm-pack for it. | `client/transport/wasm/` (~780 lines) | **move to lab**, beside `lab/other-clients`. This is structural: propose it first. | ~780 moved |
+| D9 | **the WASM transport**, a second full client in Rust that the product never loads. It duplicates `frame-session.ts` and the gate needs wasm-pack for it. | `client/transport/wasm/` (~780 lines) | **move to lab**, beside `lab/other-clients`. This is structural: propose it first. *Rejected 2026-10-16 by the owner: two product clients ([`CLIENTS.md`](CLIENTS.md) §Proposed: the WASM client as a second product client, row 263).* | ~780 moved |
 | — | the two ingests (`from-dicom`, Python; `from-parser`, Rust) | `docs/ingest/README.md` §4 | **keep**: one reads DICOM, the other is the compiled ingest, and it is phase 1 | — |
 | — | dual-stack bind written twice (QUIC, TCP) | `server.rs:242-273`; `websocket.rs:63-75` | keep: two libraries | — |
 
@@ -235,7 +235,9 @@ something, so it finishes on its branch for the owner.
 10. **GATEGAPS** — F2, F3, F5, F6, F7: the image's features, the lab crates and their tests, the product decoder in
     the rigs, the other bundles' absence check, DICOM end to end and the pack's `cmp`.
 11. **DEDUP** (*review*) — D1–D8.
-12. **WASMTOLAB** (*review*, propose first) — D9 and P6's `dav1d/` tooling moved to lab.
+12. **WASMTOLAB** (*review*, propose first) — D9 and P6's `dav1d/` tooling moved to lab. *Corrected 2026-10-16:* D9's
+    half rejected; row 263 proposes the client as a product client. P6's half rejected too: the client, its decoders and
+    build tools are a product path.
 
 **For the owner, not a row:** H3's three open decisions (`startOnNeed`, `mixed`, `readMin`'s default), whether to
 retire `bbr-bound`, and whether to fold the lab levers into one struct (L7). Draft PR #37 (row 181) stays open, as
@@ -293,7 +295,7 @@ change the gate's tests already cover, 2 needs a check the gate does not run, 3 
 | S22 | **`Congestion::as_str` repeats clap's value names.** | `server/src/transport/tuning.rs:49-57` | simplify: `to_possible_value()`; after #48, which rewrites `tuning.rs` | none | ~−8 | 1 |
 | — | four congestion-controller wrappers forward the same nine methods to `inner` | `restart.rs:64-145`; `loss_bound.rs:102-160`; `classify.rs:36-79`; `cc_trace.rs:125-195` | keep: a delegating macro saves ~60 lines but is one more thing a reader must expand; three wrappers after S18 | — | — | — |
 | — | the read path's two readers in one 1 073-line file | `server/src/media/read_path.rs` | keep: 503 product lines, each reader under 300, the ADR names them together | — | — | — |
-| — | the server's workspace build copies the WASM client and four lab crates into the image's build stage | `deploy/Containerfile:16-27` | keep: the root workspace lists them; a lab workspace of its own would need a second lockfile and a copy of `[patch.crates-io]`. Row 228 removes the WASM lines if the owner moves it | — | — | — |
+| — | the server's workspace build copies the WASM client and four lab crates into the image's build stage | `deploy/Containerfile:16-27` | keep: the root workspace lists them; a lab workspace of its own would need a second lockfile and a copy of `[patch.crates-io]`. Row 228 removes the WASM lines if the owner moves it (*corrected 2026-10-16:* he keeps it, so they stay) | — | — | — |
 
 No `TODO`, `FIXME` or `#[ignore]` is in the product, and one `#[allow(dead_code)]`, row 209's cache behind its feature; no client export but S2's is
 imported by nothing (a search over `client/`, `lab/`, `scripts/`, `ingest/` and `deploy/`). The docs agree with the
@@ -309,7 +311,7 @@ Not proposed here; counted so the owner sees what each ruling frees.
 | decision | what it holds | lines |
 | --- | --- | --- |
 | #48 (row 227, D1–D8) | the duplication round 1 found, already written | −84 net |
-| row 228 (D9, P6) | the WASM transport and the dav1d-WASM tooling; the gate's wasm-pack, wasm32 target and binaryen | ~780 and ~550 moved |
+| row 228 (D9, P6) | the WASM transport and the dav1d-WASM tooling; the gate's wasm-pack, wasm32 target and binaryen. *Corrected 2026-10-16:* both stay, a product path (row 263) | ~780 and ~550 moved |
 | row 220 (#41) | the repeated-Initial reply: its flag, patch and tests | ~−270 |
 | `bbr-bound` (§Blocked, row 107) | `loss_bound.rs` | ~−265 |
 | row 209's `FrameCache` (off by default, "for now") | `lab_frame_cache.rs`, its feature and `pipeline.rs:77-98` | ~−100 |
@@ -334,7 +336,7 @@ of them gains must displace one.
 | `client/contract/dispatch-rig.ts` | 2 362, ~60 clauses | by subject (dispatch, survival, exactness, AV1) into four files; nothing saved, so no row unless the owner wants it |
 | `server/src/media/read_path.rs` | 1 073 (503 product) | keep (above) |
 | `client/transport/downloader.js` | 577 | keep: one worker's state; S12, S13 trim it |
-| `client/transport/wasm/src/session.rs` `connect` | 109 | row 228 |
+| `client/transport/wasm/src/session.rs` `connect` | 109 | *split by row 265 (WASMSURFACE)* into `dial` and three readers, 58 lines |
 | `server/src/transport/server.rs` `run_server` | 93 | S9 |
 | `client/decode/av1-payload.js` `sequence` | 75 | keep: an OBU header parser, field by field as the spec reads |
 | `client/decode/av1-webcodecs.js` `decoder` | 70 | keep: one closure's state machine |
