@@ -36,6 +36,11 @@ def flags(aa, arm):
     return mw_greater_p(arm, aa) < ALPHA, mw_greater_p(aa, arm) < ALPHA
 
 
+def can_flag(n):
+    """Whether n rounds a side reach ALPHA at all, every arm round past every A/A round."""
+    return n > 0 and mw_greater_p([1] * n, [0] * n) < ALPHA
+
+
 def arm_sd(aa):
     """One arm's spread in log units, from the A/A ratios' MAD."""
     logs = [math.log(r) for r in aa]
@@ -69,12 +74,15 @@ def judge(cells, confirm, bar):
     for name, cell in cells.items():
         aa, arm = ratios(cell)
         worse, better = flags(aa, arm)
+        sizes = [len(aa)]
         if confirm is not None:
             aa2, arm2 = ratios(confirm[name]) if name in confirm else ([], [])
             again = flags(aa2, arm2) if aa2 else (False, False)
             worse, better = worse and again[0], better and again[1]
+            sizes.append(len(aa2))
         loss = mdl(len(aa), arm_sd(aa))
-        verdict = "worse" if worse else "better" if better else "tie" if loss <= bar else "not conclusive"
+        verdict = ("worse" if worse else "better" if better else "undecided at n = " + " + ".join(map(str, sizes))
+                   if not can_flag(min(sizes)) else "tie" if loss <= bar else "not conclusive")
         out[name] = {"n": len(aa), "arm": round(statistics.median(arm), 4), "aa": round(statistics.median(aa), 4),
                      "sd": round(arm_sd(aa), 4), "mdl": round(loss, 4), "verdict": verdict}
     return out
