@@ -40,7 +40,7 @@ pub struct ServeConfig {
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     pub key_pem: PathBuf,
     /// How frames reach the client: `shared` or `per-frame` (lab only: `per-frame-asks-first`).
-    #[arg(long = "stream-mode", value_name = "STREAM_MODE", default_value = "shared")]
+    #[arg(long = "stream-mode", value_name = "STREAM_MODE", value_enum, default_value_t = StreamMode::Shared)]
     pub mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to `0.0.0.0`
     /// when the host has no IPv6.
