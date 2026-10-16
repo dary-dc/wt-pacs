@@ -238,7 +238,8 @@ async fn idle(args: &Args, digests: &Option<Arc<Vec<u64>>>) -> Result<()> {
         let mut media = connection.accept_uni().await.context("accept media uni")?;
         let (depth, step, start) = (args.depth.max(1), args.step.max(1), args.start.unwrap_or(0));
         served += on_demand(&mut control, &mut media, depth, args.asks, frames, step, start, digests).await?.len();
-        served += fill(&mut control, &mut media, args.fill.min(frames as usize), Some(0), digests).await?.len();
+        let gap = Duration::from_micros(args.gap_us);
+        served += fill(&mut control, &mut media, args.fill.min(frames as usize), Some(0), gap, digests).await?.len();
         held.push((endpoint, connection, control, recv, media));
     }
     let cpu_ns_per_frame = proc_cpu(pid)?.saturating_sub(cpu0) / served.max(1) as u128;
