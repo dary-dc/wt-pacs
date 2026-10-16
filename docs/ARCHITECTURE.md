@@ -388,7 +388,8 @@ behind it — is proposed, theory only, in [`adr/frame-path.md`](adr/frame-path.
 carries its `generation`; `cancel()` resolves once the downloader has ended the stream and dropped
 that request's work. A refused **fill** frame has no waiter, so it reaches the consumer through
 `onError({ frameIndex, reason, generation })`; a refused *asked* frame rejects its own promise. The
-consumer keeps no timer: the downloader settles every ask. `url` and `certHash` may be promises;
+consumer keeps no timer: the downloader settles every ask. A downloader whose script does not load (a 404, a policy
+refusal, a syntax error) fires only its worker's `error`, which fails `connect` by name rather than leaving it waiting. `url` and `certHash` may be promises;
 the opening fill rides the session URL unless `openingAsk` is `false` (§The opening ask). The page forwards the triggers a
 worker cannot see — `visibilitychange`, `pageshow`, `freeze`, `resume` — as one message.
 
@@ -787,8 +788,8 @@ rounds a variant at 40, 80 and 160 ms, interleaved, against a ±0.2 spread on mi
 4×**, and −1.9 / −1.8 with the URL inlined ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The push in a browser, at 4×). **On by default** since 2026-10-02 (a measured win with no cell against it):
 `--opening-ask false` on the server and `openingAsk: false` on the client turn it off, together — a client
 that sends it to a server that ignores it gets no frame. The URL carries one contiguous run, and no
-host but this box's relay has served it. The WASM client has no opening ask; its downloader adapter
-asks the opening fill on the control stream. Two clauses hold it (honoured and optional; a
+host but this box's relay has served it. Both clients carry it, the WASM one since row 265
+(2026-10-16; until then its downloader adapter asked the opening fill on the control stream). Two clauses hold it (honoured and optional; a
 malformed ask leaves the session serving). A re-dial puts the fill's remainder in the new URL too.
 
 ### Early SETTINGS
