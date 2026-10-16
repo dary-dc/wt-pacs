@@ -345,7 +345,8 @@ the harness processes saturate the four cores, not the server; nothing is claime
   from the link's BDP.
 
 The same review capped a wire-supplied FoD length at 4 MiB (`MAX_FOD_LEN`), which had let any
-client make the server allocate 4 GB. **Not measured:** `write_us` (v2's `send_us`) under real flow
+client make the server allocate 4 GB. *2026-10-16:* the cap is now 64 KiB, and the WebSocket's frame cap with it
+([`../WIRE.md`](../WIRE.md) §FoD messages). **Not measured:** `write_us` (v2's `send_us`) under real flow
 control on a shaped link.
 
 ## Consequences
