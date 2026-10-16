@@ -60,6 +60,17 @@ def through(build, work, name, px, codec, **tags):
     return f"{same}/{n} frames as written"
 
 
+def failed_pack(build, work, px):
+    """A pack refused at its last step, the rename (a directory holds the name): what it left beside the name."""
+    src = t.save(t.obj(px), work / "refused.dcm")
+    out = work / "refused.sbnd"
+    out.mkdir()
+    run = subprocess.run([sys.executable, HERE / "from_dicom.py", build, src, out, "--codec", "htj2k"],
+                         capture_output=True, text=True)
+    left = sorted(p.name for p in work.iterdir() if p.name.startswith("refused.") and p.suffix != ".dcm")
+    return run.returncode != 0 and "nothing written" in run.stderr, left
+
+
 def main():
     build = Path(sys.argv[1]).resolve()
     rng = np.random.default_rng(7)
@@ -73,6 +84,9 @@ def main():
             t.check(said == "3/3 frames as written", f"test_signed_ct_{codec}: 12-bit signed CT out of the bundle ({said})")
             said = through(build, work, "rgb", rgb, codec, bits=8, stored=8, photometric="RGB", modality="XC")
             t.check(said == "2/2 frames as written", f"test_rgb_{codec}: 8-bit RGB out of the bundle ({said})")
+        said, left = failed_pack(build, work, ct & 0x7FF)
+        t.check(said and left == ["refused.sbnd"],
+                f"test_failed_pack: refused as nothing written, no sidecar, no partial ({said}, {left})")
     sys.exit(1 if t.failed else 0)
 
 

@@ -1,16 +1,12 @@
 /** The control stream's FoD messages, as the Tap reads them; pulls no session. */
 
+import type { FodMsg } from "../transport/ts/wire.ts";
 import type { RowKind } from "./types.ts";
 
 export type FodAsk = { kind: RowKind; frames: number[] };
 
-/** One FoD message, either direction: docs/WIRE.md §FoD messages; also decoded by `client/transport/ts/wire.ts`. */
-export type FodMessage =
-  | { op: "request_frame"; frame: number }
-  | { op: "stream_frames"; from?: number; to?: number }
-  | { op: "end_stream" }
-  | { op: "frame_error"; frame_index: number; reason: string }
-  | { op: "other"; raw: string };
+/** One FoD message, either direction, or what the Tap could not read as one. */
+export type FodMessage = FodMsg | { op: "other"; raw: string };
 
 /** LE length + JSON, possibly several back to back. Returns the messages and the bytes they
  * consumed; a trailing partial message is left for the next read. */
@@ -43,7 +39,7 @@ function parseFodMessages(buf: Uint8Array): { messages: FodMessage[]; consumed: 
       } else if (msg.op === "end_stream") {
         messages.push({ op: "end_stream" });
       } else if (msg.op === "frame_error" && typeof msg.frame_index === "number") {
-        messages.push({ op: "frame_error", frame_index: msg.frame_index, reason: msg.reason ?? "" });
+        messages.push({ op: "frame_error", frame_index: msg.frame_index, reason: msg.reason });
       } else {
         messages.push({ op: "other", raw: text });
       }

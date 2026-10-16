@@ -16,8 +16,9 @@ The series on disk is SBND, [`FIXTURES.md`](FIXTURES.md). What each client does 
 
 FoD names the control messages: the client's asks and the server's refusals. On the control stream
 each message is `[4B LE len][JSON]` — little-endian, unlike the envelope — tagged by `op`
-(`common/fod`, `client/transport/ts/wire.ts`). The server refuses a length of 0 or over 4 MiB
-(`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
+(`common/fod`, `client/transport/ts/wire.ts`). The server refuses a length of 0 or over 64 KiB
+(`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session. A client's longest message
+is 56 B, `stream_frames` with both ends at `u32::MAX`. *Corrected 2026-10-16:* the cap was 4 MiB.
 
 **A goodbye is not an error.** No client sends `end_session`: a session ends with the client closing
 it, stopping a stream the server is writing (`STOP_SENDING`, as dropping its receive half does), a FIN
@@ -250,11 +251,28 @@ frame path, the store and the planner are the QUIC path's; one process serves bo
 | stream mode | `--stream-mode` | always one ordered stream |
 | opening ask | `?ask=` with `--opening-ask` | the same `?ask=` on the upgrade's URL, with the same flag: served right behind the 101 |
 
-A binary message from the client, or any message over 4 MiB, ends the session. The library
+A binary message from the client, or any message or frame over 64 KiB (`MAX_FOD_LEN`), ends the
+session; an over-long frame ends it at its header, before its payload is buffered. *Corrected 2026-10-16:* this
+said 4 MiB a message, but the frame cap was tungstenite's 16 MiB default, so one unfragmented message could hold
+16 MiB before it was refused. The library
 answers pings. Not on this path: the QUIC knobs (`--congestion`, the windows — TCP's are the
 kernel's), the per-session `session path` line, and telemetry rows. The idle-session behaviour of
 [`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md) is QUIC's and does not
 transfer; nothing here measures TCP's.
+
+**A peer that vanishes ends its session.** Every accepted socket has TCP keep-alive: after 20 s
+with nothing received, four probes 5 s apart. A peer that answers none, a laptop asleep or a NAT
+that forgot it, fails the session's read at about 40 s, and the session ends as any failed read
+does, a WARN; a live tab's kernel answers the probes, so an idle page keeps its session, as on
+QUIC. A test reads the options back (`an_accepted_socket_probes_a_silent_peer`); the kernel's
+expiry is not observed. A peer that vanishes while the server is writing to it is not probed: the
+kernel's retransmissions end it, after `tcp_retries2` (about 15 minutes by default), not measured.
+An accept that fails, as when the process is out of descriptors, is retried after 100 ms, not at
+once (`a_failing_websocket_accept_is_retried_at_a_pace`). *Shown 2026-10-16, row 272:*
+`prlimit --nofile=64 series-server --websocket …`, 80 TCP connections held open, then the
+`WebSocket accept failed` WARNs (`Too many open files`) timestamped in one second: 10 with the
+pause, 462 816–475 514 without it (before this change), 457 474–533 246 with the pause removed;
+three interleaved rounds each, release builds, 4-core host.
 
 One ordered byte stream gives up what QUIC's streams give: a slow or lost frame holds every frame
 behind it, and a retransmit stalls everything. The contract suite reports the independent-

@@ -125,7 +125,7 @@ within each group, and the groups are ranked by what merging needs first.
 | D6 | the FoD message union defined twice | `client/transport/ts/wire.ts:3-30`; `client/record/parse.ts:8-55` | simplify: `record` imports it | ~−10 |
 | D7 | SHA-256-to-hex written three times | `client/viewer/viewer.js:246-250`; `check-page.js:4-5`; `client/decode/wasm-glue.js:14` | simplify | ~−6 |
 | D8 | `ingest/from-parser/same.py` rebuilds by hand the metadata `from_dicom.py` writes | `same.py:35-37`; `from_dicom.py:51-53` | simplify: one `metadata()` | ~10 |
-| D9 | **the WASM transport**, a second full client in Rust that the product never loads. It duplicates `frame-session.ts` and the gate needs wasm-pack for it. | `client/transport/wasm/` (~780 lines) | **move to lab**, beside `lab/other-clients`. This is structural: propose it first. | ~780 moved |
+| D9 | **the WASM transport**, a second full client in Rust that the product never loads. It duplicates `frame-session.ts` and the gate needs wasm-pack for it. | `client/transport/wasm/` (~780 lines) | **move to lab**, beside `lab/other-clients`. This is structural: propose it first. *Rejected 2026-10-16 by the owner: two product clients ([`CLIENTS.md`](CLIENTS.md) §Proposed: the WASM client as a second product client, row 263).* | ~780 moved |
 | — | the two ingests (`from-dicom`, Python; `from-parser`, Rust) | `docs/ingest/README.md` §4 | **keep**: one reads DICOM, the other is the compiled ingest, and it is phase 1 | — |
 | — | dual-stack bind written twice (QUIC, TCP) | `server.rs:242-273`; `websocket.rs:63-75` | keep: two libraries | — |
 
@@ -235,7 +235,9 @@ something, so it finishes on its branch for the owner.
 10. **GATEGAPS** — F2, F3, F5, F6, F7: the image's features, the lab crates and their tests, the product decoder in
     the rigs, the other bundles' absence check, DICOM end to end and the pack's `cmp`.
 11. **DEDUP** (*review*) — D1–D8.
-12. **WASMTOLAB** (*review*, propose first) — D9 and P6's `dav1d/` tooling moved to lab.
+12. **WASMTOLAB** (*review*, propose first) — D9 and P6's `dav1d/` tooling moved to lab. *Corrected 2026-10-16:* D9's
+    half rejected; row 263 proposes the client as a product client. P6's half rejected too: the client, its decoders and
+    build tools are a product path.
 
 **For the owner, not a row:** H3's three open decisions (`startOnNeed`, `mixed`, `readMin`'s default), whether to
 retire `bbr-bound`, and whether to fold the lab levers into one struct (L7). Draft PR #37 (row 181) stays open, as
@@ -293,7 +295,7 @@ change the gate's tests already cover, 2 needs a check the gate does not run, 3 
 | S22 | **`Congestion::as_str` repeats clap's value names.** | `server/src/transport/tuning.rs:49-57` | simplify: `to_possible_value()`; after #48, which rewrites `tuning.rs` | none | ~−8 | 1 |
 | — | four congestion-controller wrappers forward the same nine methods to `inner` | `restart.rs:64-145`; `loss_bound.rs:102-160`; `classify.rs:36-79`; `cc_trace.rs:125-195` | keep: a delegating macro saves ~60 lines but is one more thing a reader must expand; three wrappers after S18 | — | — | — |
 | — | the read path's two readers in one 1 073-line file | `server/src/media/read_path.rs` | keep: 503 product lines, each reader under 300, the ADR names them together | — | — | — |
-| — | the server's workspace build copies the WASM client and four lab crates into the image's build stage | `deploy/Containerfile:16-27` | keep: the root workspace lists them; a lab workspace of its own would need a second lockfile and a copy of `[patch.crates-io]`. Row 228 removes the WASM lines if the owner moves it | — | — | — |
+| — | the server's workspace build copies the WASM client and four lab crates into the image's build stage | `deploy/Containerfile:16-27` | keep: the root workspace lists them; a lab workspace of its own would need a second lockfile and a copy of `[patch.crates-io]`. Row 228 removes the WASM lines if the owner moves it (*corrected 2026-10-16:* he keeps it, so they stay) | — | — | — |
 
 No `TODO`, `FIXME` or `#[ignore]` is in the product, and one `#[allow(dead_code)]`, row 209's cache behind its feature; no client export but S2's is
 imported by nothing (a search over `client/`, `lab/`, `scripts/`, `ingest/` and `deploy/`). The docs agree with the
@@ -309,7 +311,7 @@ Not proposed here; counted so the owner sees what each ruling frees.
 | decision | what it holds | lines |
 | --- | --- | --- |
 | #48 (row 227, D1–D8) | the duplication round 1 found, already written | −84 net |
-| row 228 (D9, P6) | the WASM transport and the dav1d-WASM tooling; the gate's wasm-pack, wasm32 target and binaryen | ~780 and ~550 moved |
+| row 228 (D9, P6) | the WASM transport and the dav1d-WASM tooling; the gate's wasm-pack, wasm32 target and binaryen. *Corrected 2026-10-16:* both stay, a product path (row 263) | ~780 and ~550 moved |
 | row 220 (#41) | the repeated-Initial reply: its flag, patch and tests | ~−270 |
 | `bbr-bound` (§Blocked, row 107) | `loss_bound.rs` | ~−265 |
 | row 209's `FrameCache` (off by default, "for now") | `lab_frame_cache.rs`, its feature and `pipeline.rs:77-98` | ~−100 |
@@ -334,7 +336,7 @@ of them gains must displace one.
 | `client/contract/dispatch-rig.ts` | 2 362, ~60 clauses | by subject (dispatch, survival, exactness, AV1) into four files; nothing saved, so no row unless the owner wants it |
 | `server/src/media/read_path.rs` | 1 073 (503 product) | keep (above) |
 | `client/transport/downloader.js` | 577 | keep: one worker's state; S12, S13 trim it |
-| `client/transport/wasm/src/session.rs` `connect` | 109 | row 228 |
+| `client/transport/wasm/src/session.rs` `connect` | 109 | *split by row 265 (WASMSURFACE)* into `dial` and three readers, 58 lines |
 | `server/src/transport/server.rs` `run_server` | 93 | S9 |
 | `client/decode/av1-payload.js` `sequence` | 75 | keep: an OBU header parser, field by field as the spec reads |
 | `client/decode/av1-webcodecs.js` `decoder` | 70 | keep: one closure's state machine |
@@ -456,3 +458,339 @@ dev host's `/harness/` route repointed, the paths in `docs/` and `lab/` with it;
 its checks alone, and `check_equivalence.sh`'s hidden-path list shrinks. Nothing is saved; a reader of `client/`
 holds three files fewer. **Deliverable:** the proposal in `docs/CLIENTS.md` beside row 228's. **Branch:**
 `claude/wip-246-HARNESSTOLAB`, then a draft PR.
+
+## Third round
+
+*2026-10-16. Queue row 266, THIRDAUDIT, at `a9fd5bd6`: after #67 (rows 229–249), #73 (row 250) and #70. An audit:
+nothing was built, run or timed but `scripts/comment_budget.sh` and `scripts/check_links.py` (both pass) and searches.*
+The owner asked for the night to go to performance, resources, simplicity, robustness and readability. Row 251 read
+the disk readers ([`adr/disk-access.md`](adr/disk-access.md) §9 *Next round for the readers*, draft #72); this round
+reads the rest the same way: `server/src/transport/` (planner, pipeline, server, link, WebSocket, congestion),
+`server/src/main.rs`, the TypeScript transport and `client/transport/downloader.js`, the viewer's product path
+(`client/viewer/`, `consumer.js`, the decoder and painter as the page drives them), `common/`, `ingest/` and `deploy/`.
+Out of scope, as the brief says: the disk readers (row 251), the WASM client's gaps (row 263, #76), lab code's
+placement (row 264), and the owner's open decisions (#39, #40, #41, #48, row 252's lab flag in #75).
+
+**The answer, in short.** Rounds 1 and 2 left little to cut, and this round cuts little (two lines). What it finds is
+robustness, and none of it is reached by a test: a page whose downloader cannot load waits for ever; an open page
+cannot resume across a server restart, because the deploy mints a new pinned certificate at each start and the
+downloader re-dials with the old hash; SIGTERM drops every session without a close; a WebSocket peer that vanishes
+holds its session for ever, and the WebSocket accept loop spins when descriptors run out; a pack that fails
+mid-write leaves a bundle behind while both ingests say "nothing written". One documented behaviour, a client's
+`frame_error` being ignored, has no test. Three docs no longer matched the code and are corrected in place. Rows
+267–273 are drafted; five can start today.
+
+### Findings
+
+Each finding: where, the verdict (*do*, *measure*, *propose*, *keep*), the capability it costs (none, for every
+verdict but *keep*), product lines by a sketch (tests apart), and whether it is structural. Risk as in round 2: 1 is
+a change the gate's tests cover, 2 needs a check the gate does not run, 3 is structural. Ranked by gain per risk.
+
+| # | finding (where) | verdict · capability · lines | structural · risk |
+| --- | --- | --- | --- |
+| T1 | **A page whose downloader cannot start waits for ever.** `DownloaderClient` makes its worker with no `onerror` (`client/transport/consumer.js:38-39`). A worker script that fails to load (a 404 from a half-upgraded host, a policy refusal, a syntax error) fires `error` on the page's `Worker` and nothing else, so `connect` awaits `#ready` for ever (`:67`) and the viewer's status line stays at "loading…". The decoders' and the painter's workers handle theirs (`downloader.js:426`, `paint/painter.js:16`). `consumer.test.mjs` never fails a worker. | **do**: `onerror` rejects `#ready` while not `started`, and changes nothing after · none · +4, test +12 | no · 1 |
+| T2 | **The control-message cap is 4 MiB for messages under 60 bytes.** `MAX_FOD_LEN` (`server/src/transport/wire.rs:9`) bounds a FoD message on QUIC and, as tungstenite's `max_message_size`, on the WebSocket (`websocket.rs:121`). The longest message a client sends is `stream_frames` with two `u32`s, 56 B, so a session may make the server buffer 4 MiB a message for nothing, on either transport. | **do**: 64 KiB, [`WIRE.md`](WIRE.md) §FoD messages and §The WebSocket mapping with it · none · ±0 | no · 1 |
+| T3 | **A client's `frame_error` is ignored, and no test says so.** `forward` drops it (`server/src/transport/server.rs:393`) and [`WIRE.md`](WIRE.md) §FoD messages documents it; a mutation that ends the session on it, or forwards it as an ask that ends a fill, passes every test. | **do**: a test of `forward` (`Continue`, nothing sent), mutated both ways · none · test +10 | no · 1 |
+| T4 | **A failed pack leaves a bundle where both ingests say "nothing written".** `BundleWriter` writes to the final name (`common/series-bundle/src/writer.rs:28`), as [`disk-layout/README.md`](disk-layout/README.md) §The writer records. `from-parser` prints "nothing written" on any error, a failed write included (`ingest/from-parser/src/main.rs:75`); `from_dicom.py` writes the sidecar before it packs (`ingest/from-dicom/from_dicom.py:58-60`), so a failed pack leaves both files. A server that has the old bundle open also reads the rewrite in place under its index. | **do**: write `NAME.partial` and rename in `finish`; the sidecar written after the pack · none · +5; disk-layout §The writer corrected when it lands | no · 1 |
+| T5 | **SIGTERM drops every session without a close.** `main` returns from its `select!` (`server/src/main.rs:24-34`) and the runtime ends with the endpoint's driver, so no `CONNECTION_CLOSE` is sent. A client learns of it from silence: `stallMs` (3 s) when owed frames, the idle timeout when not. wtransport has `Endpoint::close` and `wait_idle`. Derived from the code, not traced. | **do**: `run_server` takes the shutdown future, closes the endpoint with an application code, waits ≤ 500 ms · none · ~+8 | no · 2: deploy/README's `stop` under a second must be shown again |
+| T6 | **An open page cannot resume across a server restart.** The deploy makes a new certificate at each start (`deploy/server-start.sh:13-17`), restarts every `RESTART_AFTER` (`:22`, 9 days) and on any `compose restart` or upgrade. The downloader keeps the hash it first dialled with (`downloader.js:538`) and every re-dial pins it (`:466-472`), so each of `tries` fails its handshake and every owed frame fails as "could not be re-dialled" (`:373-375`). A filled page keeps its frames; an on-demand page, or one mid-fill, loses the rest. [`deploy/README.md`](../deploy/README.md) §*Restart* checked only "the next page open". A certificate from `/supplied` (no hash) is not affected. Derived from the code, not observed. | **propose**: the downloader takes the transport file's URL (`transportFile`, a string, so it crosses `postMessage`) and re-reads it before each re-dial; the viewer passes `/wt/dev-transport.json` outside the lab · none · ~+8 | **yes**: a consumer option ([`CLIENTS.md`](CLIENTS.md)) · 3 |
+| T7 | **A WebSocket peer that vanishes holds its session for ever.** After the upgrade nothing bounds a silent peer: no read deadline (`websocket.rs:158-168`), no TCP keep-alive (`:111` sets only `TCP_NODELAY`). A laptop that sleeps or a NAT that forgets keeps the session's task, its readers, its ring and their buffers until the process ends. QUIC's idle timeout ends the same peer at 30 s; a live but idle browser tab keeps both (Chromium keeps QUIC alive, [`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md)). Off by default (`--websocket`). | **do**: TCP keep-alive on the accepted socket (`socket2`, already in `Cargo.lock`), 20 s idle, 5 s × 4 probes; the dead peer's read then fails and the session ends as any failed read does · none · +4 | no · 2: the test reads the options back; the kernel's expiry is not observed |
+| T8 | **The WebSocket accept loop spins when descriptors run out.** An accept error is logged and retried at once (`websocket.rs:94-99`); `EMFILE` leaves the connection in the backlog, so the next accept fails the same way: a core at 100 % and a WARN a microsecond until a descriptor frees. Off by default. | **do**: sleep 100 ms after an accept error · none · +1 | no · 2: shown under `prlimit --nofile`, outside the gate |
+| T9 | **Every ask takes the connection's lock for a debug line that is off.** `send_frame` reads `stats()` before `debug!` (`server/src/transport/link.rs:77-80`); tracing evaluates a field only when its level is on, so inside the macro the read costs nothing in a deployment. `lab/ask-ahead/cells.py:103` reads the line, unchanged. | **do** · none · −2; the cost is below any noise floor here, not measured | no · 1 |
+| T10 | **The product page polls at 50 Hz for a result nobody reads.** `filled` (`client/viewer/viewer.js:241-251`) checks every 20 ms until the fill ends, and for ever if it never does; what waits on it is `check-page.js`, loaded on `?check=` alone, and the lab's `finished` hook, which the web image refuses: a product open uses neither. | **do**: poll only with `?check=` or a lab hook · none · +1 | no · 1 |
+| T11 | **The page keeps every decoded frame, and where that fails is not known.** `frames` holds each frame's pixels for the page's life (`viewer.js:30`, `:97`): `ffdm_d`'s four 3328×4096 frames are 109 MB decoded, a 2 000-frame 512² CT 1 GB. The cache seam that would bound it is open ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Open); no doc says at what size the page fails. | **measure** (protocol under row 273; measured 2026-10-16: no page ceiling below the host's, §273) · none · 0 | no · — |
+
+**Kept**, with the reason:
+
+* `deploy/Containerfile.prebuilt:5-13` repeats the `server` stage (`deploy/Containerfile:39-48`): two build
+  contexts, and a shared base stage would need one. Six lines; the user and directory line is the one to keep equal.
+* A stream whose `envelope_len` is out of bounds stops being read silently (`client/transport/ts/frame-session.ts:210-212`):
+  the bytes are the server's, a bundle refuses such a frame at open, and the stall resumes the session in 3 s.
+  `ws-session.ts:48` parses the server's JSON unguarded for the same reason.
+* `nextRun`'s `Math.min(...wanted)` (`downloader.js:275`): `wanted` is at most the series' frame count, far below
+  an engine's argument limit, and the scan is once a run.
+* `ASKS_AHEAD` (`planner.rs:6`) counts what the planner holds; the server holds up to twice that and one, which
+  [`adr/frame-framing-and-loop-shape.md`](adr/frame-framing-and-loop-shape.md) §6d states.
+* Round 2's keeps hold: the four delegating controllers, the dual-stack bind written twice, `read_path.rs` whole.
+
+**Docs the code no longer matched**, corrected in place by this row, dated:
+
+* `server/README.md` §What runs where said no task ever waits on the disk. Two do, neither timed: a session ending
+  with ring reads in flight drains them on its worker (`TileReader::drop`, a `SAFETY` necessity), and a fill's
+  `WILLNEED` is issued there. Row 251's EXECGAP (its row 258) is drafted to time both.
+* [`disk-layout/README.md`](disk-layout/README.md) cited `main.rs:12–13` for `--series` and `server.rs:72` for the
+  open (row 241 moved both), and four lines of §The metadata, twice had drifted.
+* [`ingest/design.md`](ingest/design.md) §11.1's two `from-parser` ranges were one to three lines off.
+
+**Round 2, where it stands.** Rows 239, 241, 242, 243 and 245 merged with #67; 244's proposal was built by row 250
+(#73); 246's proposal merged and the move waits on the owner; 240 (CLASSIFYOUT) waits on the owner, beside #40,
+which proposes the opposite (`cubic-classify` as the default); S22 waits on #48. Round 2's counts are of `0ee0c1f2`:
+`server.rs` is now 1 984 lines, 404 above its tests. `CLAUDE.md` §Docs still names `docs/disk-access/adr.md` §2;
+the file is `adr/disk-access.md` (round 2, for the owner).
+
+**The comment budget** passes; every file in scope is inside it. The rows below touch `consumer.js` (27 comment
+lines of 29), `websocket.rs` (12 of 25) and `link.rs` (19 of 32); none needs a comment beyond a pointer.
+
+### Improvements a measurement backs that the code does not use
+
+Unchanged since round 2: PGO (−13 to −20 % server CPU per ask, PGOSHIP first), `MALLOC_MMAP_THRESHOLD_` at 1 MiB
+(RSS at rest −46 to −57 %, CPU a tie to +5 %) and the server keep-alive (the ADR, off until accepted): each the
+owner's ([`levers.md`](levers.md)). This round found none in its scope.
+
+### Rows to queue (267 on)
+
+Ranked by gain per risk. Each ends as a draft pull request into `claude/av1-unified-mainbase`, gate and CI green,
+every test it adds mutated once. **Buildable today:** 267, 268, 269, 270 (its `stop` timing once the host is free)
+and 272. 271 is a proposal and follows 270; 273 is a measurement for a free host. 268 and 270 edit `server.rs` and
+`main.rs`, which #75 (row 252) also edits: whichever lands second merges.
+
+| row | name | findings | lines | gain | structural | starts |
+| --- | --- | --- | --- | --- | --- | --- |
+| 267 | PAGESTART | T1, T10 | +5, test +12 | a page that cannot start says why; no idle timer | no | today |
+| 268 | WIREEDGES | T2, T3, T9 | −2, test +10 | ×64 less a hostile message can hold; a documented rule tested | no | today |
+| 269 | PACKATOMIC | T4 | +5, test +10 | "nothing written" true; a served bundle never rewritten in place | no | today |
+| 270 | SERVERSTOP | T5 | +8, test +25 | clients see a restart at once | no | today; the timing when the host is free |
+| 271 | RESTARTPIN | T6 | ~+8 | open pages survive a restart | **yes: proposal** | after 270 |
+| 272 | WSLIVENESS | T7, T8 | +5, test +15 | the fallback's dead peers and EMFILE bounded | no | today |
+| 273 | VIEWERCEILING | T11 | 0 | where the page fails, stated: not below 8 GiB decoded on the dev host; nothing built | no | measured 2026-10-16 |
+
+#### 267 PAGESTART
+
+*Review.* T1: `DownloaderClient`'s worker gets an `onerror` that, before `started`, rejects `connect` with "the
+downloader did not start: …" and ends the client as a failed start does; after `started` it does nothing new. A
+`consumer.test.mjs` case whose fake `Worker` fires `onerror` instead of answering `dial` expects the rejection within
+a second (the test races a timer, so the mutation fails rather than hangs); mutate by removing the handler. T10:
+`viewer.js`'s `filled` poll runs only under `?check=` or when the lab hands a `finished` hook; the viewer check,
+`crafted.mjs` and one total-time run (`lab/av1/delivery/total-time/run.mjs`, the gate's grey series) show both
+users unchanged. **Branch:** `claude/wip-267-PAGESTART`.
+
+#### 268 WIREEDGES
+
+*Review.* T2: `MAX_FOD_LEN` 64 KiB, `wire.rs`'s test unchanged in shape; `WIRE.md` §FoD messages and §The WebSocket
+mapping say 64 KiB, and `adr/telemetry-server-pipeline.md`'s "capped at 4 MiB" gets a dated note. Show that the
+longest real message, `stream_frames` with both ends at `u32::MAX`, still parses. T3: a test of `forward` with a
+client `FrameError`: `Continue`, nothing on the channel; mutate to `Break`, then to `Command::EndStream`, each must
+fail. T9: the `stats()` read moves into the `debug!` fields; `lab/ask-ahead/cells.py`'s pattern matches a server
+run with `RUST_LOG=series_server=debug` (untimed). **Branch:** `claude/wip-268-WIREEDGES`.
+
+#### 269 PACKATOMIC
+
+*Review.* T4: `BundleWriter::create` opens `NAME.partial`; `finish` flushes and renames over `NAME`; a writer dropped
+unfinished removes its partial. `from_dicom.py` writes the sidecar to its temporary directory and moves it beside
+the bundle after `pack-series` succeeds. Tests: a writer that fails (a frame of the wrong length) leaves no file at
+`NAME`, and one that finishes leaves no `.partial`; mutate by creating at `NAME`. `disk-layout/README.md` §The writer
+is corrected in the same pull request; the gate's `cmp` of the re-packed smoke bundle still passes. **Branch:**
+`claude/wip-269-PACKATOMIC`.
+
+#### 270 SERVERSTOP
+
+*Review.* T5: `run_server(config, shutdown)`; on `shutdown` the endpoint is closed with an application code and the
+server waits for `wait_idle` up to 500 ms; telemetry's flush keeps its place. Test: a server-test session open when
+shutdown fires sees `closed` with that code (mutate: skip the close; the session then sees only a timeout). The
+WebSocket needs nothing: process exit closes its sockets.
+
+*The protocol, fixed before the data* (deploy/README fix 2 says `stop` takes under a second, so there is no
+`init: true`): arms S0 (today's image), S0′ (a second build of it, the A/A arm) and S1; one Chromium page on the
+image filling a series of at least 200 frames under an 18 Mbit/s shape, so the fill outlasts the stop; then
+`docker compose stop server`, timed; 10 rounds, arms in `lab/scripts/order.py`'s order. *Rule:* S1 lands if every
+S1 stop is under 1 s and the page's session closed with the server's code in 10 of 10 (its `closed` reason); a stop
+of 1 s or more halves the bound and the row runs once more; still over, the owner chooses between the bound and
+`init: true`. **Branch:** `claude/wip-270-SERVERSTOP`.
+
+#### 271 RESTARTPIN
+
+*Proposal (structural): written first, built on the owner's yes, after 270.* T6: the consumer takes
+`transportFile`, a URL the downloader re-reads (`cache: "no-store"`) before each re-dial and adopts when its hash or
+URL changed; the viewer passes `/wt/dev-transport.json` unless the lab named `?wt=`. The proposal says what the
+contract suite adds (a re-dial after the hash changed connects), what `docs/CLIENTS.md` §The seam gains, why the
+transport file is the source and the page is not asked (a worker cannot call back into the page), and how it is
+shown on the image: the viewer check with `?fill=0`, `compose restart server` between two steps, the second step
+exact. **Deliverable:** the proposal in `docs/ARCHITECTURE.md` §The downloader. **Branch:**
+`claude/wip-271-RESTARTPIN`.
+
+#### 272 WSLIVENESS
+
+*Review.* T7: the accepted socket gets TCP keep-alive (idle 20 s, interval 5 s, 4 probes) through `socket2`; a test
+reads the three options back from an accepted socket (mutate: drop the call). That a vanished peer then ends at
+about 40 s is the kernel's and is said, not tested. T8: an accept error sleeps 100 ms; shown once by a script that
+runs the server with `--websocket` under `prlimit --nofile=64`, opens 80 connections and counts WARN lines in one
+second (today unbounded, after it ≤ 10); mutate by removing the sleep. `docs/WIRE.md` §The WebSocket mapping says
+how a dead peer ends. **Branch:** `claude/wip-272-WSLIVENESS`.
+
+#### 273 VIEWERCEILING
+
+*Measurement, for a free host.* T11. *Series:* synthetic 16-bit grey, 512², 2048² and 3328×4096, of 64 frames
+doubling until a fill fails or 4 096 frames. *Engines:* Chromium 141 and Firefox 157 headless, the dev host, fill
+mode. *Metric:* whether the fill completes (the status line's received count), and the page's memory
+(`performance.measureUserAgentSpecificMemory()`, which a cross-origin-isolated page has) at the end of the fill; 3
+rounds a cell. The host's RAM is printed, and nothing is claimed past it. *Rule:* the ceiling is the largest decoded
+series (frames × width × height × 2 B) that completes 3 of 3, per engine; if it is below the largest series
+[`FIXTURES.md`](FIXTURES.md) names, at its decoded size, the cache seam (ARCHITECTURE §Open) becomes a proposal with
+that series as its case; otherwise §Open records the ceiling and nothing is built. **Branch:**
+`claude/wip-273-VIEWERCEILING`.
+
+*Result, 2026-10-16* (`lab/viewer-ceiling/run.mjs`; raw rows in the session's scratchpad, not committed). **The
+host.** 4 cores, 16 093 MiB RAM, no swap. The run's processes sit in a memory cgroup that allows 13 679 MiB, which
+is the binding limit. The harness skips a cell whose decoded size is over that limit. It stops a round when the
+cgroup's headroom falls under 1.5 GiB, and that round's outcome is *host saturated*. **The ceiling** is
+8 192 MiB decoded (1 024 × 2048²) for both engines. Above it, every cell either did not fit the host or was
+stopped by the host. So it is the host's ceiling, and the page's lies somewhere above it.
+`dbts_b1` (50 × 2560×3328, 812.5 MiB decoded) is the largest series in [`FIXTURES.md`](FIXTURES.md). It is below
+the ceiling, so ARCHITECTURE §Open records the ceiling and nothing is built.
+
+| series | decoded MiB | Chromium 141: fills · UA memory (window · workers) · PSS | Firefox 157.0.1: fills · PSS |
+| --- | --- | --- | --- |
+| 4 096 × 512² | 2 048 | 3/3 · 2 067 (2 050 · 17) · 2 531 | **2/3** · 2 704 |
+| 512 × 2048² | 4 096 | 3/3 · 4 151 (4 096 · 54) · 4 513 | 3/3 · 4 931 |
+| 1 024 × 2048² | 8 192 | 3/3 · 8 247 (8 193 · 54) · 8 615 | 3/3 · 9 091 |
+| 2 048 × 2048² | 16 384 | not run: above the cgroup | not run |
+| 256 × 3328×4096 | 6 656 | 3/3 · 6 800 (6 656 · 144) · 7 207 | 3/3 · 7 576 |
+| 512 × 3328×4096 | 13 312 | host saturated 3/3, at 357–364 frames | host saturated 3/3, at 339–344 frames |
+
+Every smaller cell (64 frames on, doubling) filled 3 of 3 in both engines. Engines alternate inside each round.
+Medians, MiB. *UA memory* is `performance.measureUserAgentSpecificMemory()` at the end of the fill: the JS and DOM
+memory of the page's realms, array buffers included, shared by scope. Firefox 157 has no such API, although its
+page is cross-origin isolated. *PSS* is the whole browser's proportional set size at the end of the fill, from
+`/proc`, recorded for both engines in its place; at 32 MiB decoded it is 373 (Chromium) and 613 (Firefox). **Where the
+protocol bent**, each stated:
+
+* *The series.* 64 distinct frames are cycled, and the decoded size is the same as distinct frames would give.
+  The content is `gen_frame_pnm.py`'s field without its grain: about 11:1, so the largest bundle fits this disk.
+* *Firefox headless has no WebGL2*, so its page paints nothing: `paint: WebGL2 is not available`. Every frame is
+  still received and exact, and its memory leaves out the painter.
+* *Firefox's 2/3 at 4 096 × 512²*: one round received no frame in 120 s while its memory stayed at baseline.
+  That is not a memory failure, and its cause is not diagnosed. Under the rule it ends Firefox's 512² doubling,
+  and it does not move the engine's ceiling. A diagnostic run outside the protocol filled the same cell 8 of 8.
+* *512 × 3328×4096 was interrupted, then re-run whole.* The first harness guarded on `MemAvailable` alone, and the
+  cgroup's OOM killer took Chromium's renderer at 11.9 GiB anon RSS (435 frames) before the guard fired. Those two
+  rows are set aside. The cell was run again in full with the cgroup headroom guard, and that run is the one in
+  the table.
+
+## Lab-only code in product directories (row 264)
+
+The owner, 2026-10-16: "things only for lab should live in lab/. If also meant for product usage I would like to
+evaluate the results before deciding whether to keep it or not." Queue row 264 (LABONLY), on
+`claude/av1-unified-mainbase` at `a9fd5bd6`: every lab thing under `server/`, `client/`, `common/`, `ingest/`,
+`deploy/` and `scripts/`, and one pattern for moving the server's. An audit and a proposal. Nothing here is built
+except the pattern's first instance, row 264b (CLASSIFYTOLAB), which is on its own branch,
+`claude/wip-264b-CLASSIFYTOLAB`.
+
+The rule sorts each thing into one of two kinds:
+
+* **Lab only**: no measurement proposes it for the product, or one rejected it. It moves to `lab/`.
+* **A candidate**: a protocol or a measurement still proposes it. It stays where it is, off by default, until its
+  decision, and is then adopted or removed. It does not move.
+
+Row 266's audit ([§Third round](#third-round)) left lab code's placement to this row. Rounds 1 and 2 found part of this already (L1–L8, S17, S18, S21 above, and rows 228 and 246's proposals in
+[`CLIENTS.md`](CLIENTS.md)). Those are pointed to here, not repeated.
+
+**The answer, in short.**
+* **Lab only:** eight groups. The server's are cubic-classify (moved, row 264b), the telemetry (~2 400 lines,
+  self-contained, and the next to move) and four small levers.
+* **Already proposed:** the client's harness pages and the WASM client (rows 246 and 228). Row 246 omits the two
+  scripts that check those pages.
+* **Ingest:** one lab CLI.
+* **Candidates:** ten, each waiting on its named decision.
+* **Nothing lab-only** is in `common/` or `deploy/`.
+
+### Lab only
+
+Lines are at `a9fd5bd6`.
+
+| # | item | where | the verdict it rests on | how it moves |
+| --- | --- | --- | --- | --- |
+| O1 | `--congestion cubic-classify`, `LossClassify` | `server/src/transport/classify.rs` (174 lines, 70 of them tests); `tuning.rs:3,22-23,45,55,184`; `transport/mod.rs:4`; `main.rs:70` | not the default "in both readings", "stays a lab flag": [TC §1 *Measured: CLASSIFY*](transport/transport-conclusions.md#measured-classify-2026-10-14). S18 proposes removing it (row 240, on the owner's word). *Found after the move was built:* draft #40 proposes the opposite, `cubic-classify` as the default, a trade-off that waits on row 190's device runs. By the owner's rule, that makes it a candidate as well | **built, row 264b**: the crate `lab/cc-classify`, behind `lab-classify`. If row 240 is taken, the crate goes and nothing in `server/` is left to remove. If #40 is adopted, the crate comes back into `server/` as the default; until then, the flag is one feature away |
+| O2 | the telemetry: `server/src/record/` (2 083 lines), `transport/cc_trace.rs` (317), `RecordedPipeline` (`pipeline.rs:166-213`), and 23 `cfg` sites in 7 files; `client/record/` (1 545) | as cited | lab builds only ([`adr/telemetry-server-pipeline.md`](adr/telemetry-server-pipeline.md)). No default binary or bundle has it since row 221 (L1), and both absence checks hold | **by the pattern, as its own structural row.** `record/` names nothing of the server's outside itself, and `cc_trace.rs` names only quinn, so together they become one lab crate, and `telemetry = ["dep:…"]`. `RecordedPipeline` and the tap's call sites stay as the feature's wiring. `client/record/` goes to `lab/` with the bundle that `client/transport/ts/build.sh` makes from it |
+| O3 | `--hold-sessions` | `server/src/transport/server.rs:57-59,104-112,241-245` | lab only: a dial that never settles, for the client's dial deadline ([ARCHITECTURE §A dial that never settles](ARCHITECTURE.md#a-dial-that-never-settles)). L7 keeps it as a lever | wiring alone, with no code to hold: the pattern's gate without a crate (below). Its one user is `lab/dial-deadline/run.mjs` |
+| O4 | `--stall-after-bytes` | `server.rs:60-62,126,135-137,155`; `link.rs:23-24,85-98` | lab only: WebKit 319818's stall, emulated for `recycleAtBytes` ([ARCHITECTURE §Recycling before the stall](ARCHITECTURE.md#recycling-before-the-stall)) | as O3; one user, `lab/session-survival/recycle_cells.sh` |
+| O5 | `--force-pool-reads` | `server.rs:51-53,86-89`; `media/frame_store.rs:162-166` | lab only for the flag; the method is also the read path tests' forced miss (`CLAUDE.md` §Measurement) | the flag as O3; the method stays. Users: `lab/scripts/cold_series.sh`, `fill_order_cells.sh`, `window-harness`'s `fill_order`, and the product's `scripts/perf_counts.mjs`, which would build with the feature |
+| O6 | `--segmentation-offload false` | `server/src/transport/tuning.rs:87-90,103,127,159-161` | lab only: netem on the sending host ([`rig-limits.md`](rig-limits.md) §3) | as O3; one user, `lab/scripts/lossy_link_levers.sh` |
+| O7 | `scripts/cellcheck.sh`, `scripts/cellcheck.mjs` | as named | lab only: they drive `client/harness/`'s pages | **with row 246**, whose proposal ([CLIENTS §Proposed: the harness pages](CLIENTS.md#proposed-the-harness-pages-to-lab)) moves the pages but leaves these two in `scripts/` |
+| O8 | `ingest/coded-frames/ingest.py`'s `main()` | `ingest.py:292-331` | lab only: it codes a fetched set (`import size` from `lab/av1`), and the product's path is `from-dicom/from_dicom.py` → `ingest.coded()` | to a `lab/av1/tools/` script that imports `ingest`, with the lab files that run it repointed (34 name it, 22 of them scripts). `coded()`'s `representation`, `split` and `grey8` stay: they are the arms the lab drives through the product's code, and the product passes the defaults |
+| — | `client/harness/`; the WASM client and `client/decode/wasm/dav1d/` | — | rows 246 and 228, proposed | as proposed in [`CLIENTS.md`](CLIENTS.md) |
+| — | the viewer's lab parameters | `client/viewer/head.js:1-9` | done: rows 217 and 245 moved them to `lab/viewer/levers.js`, which only a host that serves `lab/` can load. That is the client's pattern, and it fits | — |
+
+### Candidates: they stay until their decision
+
+| # | item | where | the decision, and where it is recorded |
+| --- | --- | --- | --- |
+| C1 | `--fill-resumes-after-asks` | draft #75 (row 252, ONEQUEUEBUILD), not merged: +278 −52 in 7 files | candidate 1 of [WIRE §Proposed: one queue](WIRE.md#proposed-one-queue-an-ask-moves-its-frame-to-the-front-row-249), whose rule is fixed. Row 253 is measuring it. If it is adopted it becomes the behaviour and `refill`'s client code goes (C3). If not, it is not merged |
+| C2 | `--stream-mode per-frame-asks-first` | `server/src/transport/stream_mode.rs:13-14,22,34`; `link.rs:66` | candidate 2 of the same rule. Rows 180 and 211 found a trade-off for the owner |
+| C3 | `--send-window-follows-cwnd`; the client's `refill` arms other than `head` | `server.rs:63-66,127,138-144,156`; `link.rs:25-26,81-84`; `client/transport/downloader.js:214-233` | an arm of the same rule; a trade-off since row 171 ([link-conditions §Re-measured, proposed](transport/link-conditions.md#re-measured-proposed)). `refill: "head"` is the default (row 229) |
+| C4 | `--reply-repeated-initial` and its 117-line quinn-proto patch | `server/src/transport/tuning.rs:83-86,126,153-155`; `patches/quinn-proto-0.11.18-reply-repeated-initial.patch` | row 220, draft #41: the owner's (H1) |
+| C5 | `--congestion bbr-bound` | `server/src/transport/loss_bound.rs` (265) | failed its rule; retiring or keeping it is the owner's call (queue §Blocked, row 107) |
+| C6 | `lab-frame-cache` | `server/src/media/lab_frame_cache.rs` (45); `pipeline.rs:77-98`; `server/Cargo.toml:18-19` | row 209: a trade-off for the owner (L8). If adopted, it moves into `server/`. If not, it is removed |
+| C7 | `--congestion bbr` as the default; `--initial-window-bytes 38400` | quinn's own, one line each | the owner's: row 75 (§Blocked); row 181 put 38 400 first, opt-in ([link-conditions §Verdicts](transport/link-conditions.md#verdicts-that-rest-on-the-band) item 3) |
+| C8 | `startOnNeed`, AV1's `mixed`, `readMin` | `downloader.js:44-45,131-140,452`; `client/decode/av1.js:13,60-70`; `client/transport/ts/frame-session.ts:21,101-105,188-191` | H3: the owner's |
+| C9 | `recycleAtBytes` | `downloader.js:198,344-` | a fallback for iOS, off. The device measurement it owes is not run ([ARCHITECTURE §The measurement this owes](ARCHITECTURE.md#the-measurement-this-owes)) |
+| C10 | `scripts/pgo_build.sh` | as named | opt-in. Its measurement comes first: [`levers.md`](levers.md) §Proposed rows 3, PGOSHIP |
+
+**These are seams, not the lab's, and they stay:**
+* the client's `transport`, `decoderWorker`, `worker`, `survival` overrides and `decode: false`. The contract suite
+  drives the product through them (`client/contract/dispatch-rig.ts`, `ask-during-fill.html`).
+* `FrameStore::force_short_reads` and `Link::Detached` (`#[cfg(test)]`).
+* `pub mod media`, a visibility that the lab benches read.
+* `--opening-ask false` and `WTPACS_READ_PATH=pool`, the product's off switches.
+* In `deploy/`, the image's build stage copies each lab crate's manifest and sources (`Containerfile:20-27` and the
+  two ignore files) because the workspace lists them; round 2 keeps that.
+* In `scripts/`, `perf_nightly.mjs` drives the lab's total-time harness to time the product, and `quic_peek.py` and
+  `wtcompat.py` check the product's dial: product checks.
+
+### The pattern: a lab crate behind a server feature
+
+*Proposed. Its first instance is built by row 264b.*
+
+1. **The code is a crate in `lab/`**, beside its rig (`lab/<name>/Cargo.toml`, `src/lib.rs`), and depends on no
+   product crate. Anything it needs from the server is passed in. `cc-classify` takes the controller it wraps as an
+   `Arc<dyn ControllerFactory>`, and the server hands it `cubic-restart`'s.
+2. **The server declares `lab-<name> = ["dep:<crate>"]`**, with the crate as an optional path dependency. `server/`
+   keeps only the wiring, each line under `#[cfg(feature = "lab-<name>")]`: for O1, one `Congestion` variant and its
+   two match arms.
+3. **A default build carries none of it, and that is checked.** A unit test shows the flag is refused. The release
+   binary's absence check (`server/scripts/check_telemetry_absent.sh`, run by the gate) looks for the crate's symbols
+   and the flag's literal.
+4. **The gate tests both sides.** It runs the crate's own tests (`cargo test -p <crate>`) and the wiring's tests
+   under the feature. A rig builds its server with `--features series-server/lab-<name>`.
+5. **The workspace lists the crate** (not in `default-members`). The image's build stage copies its manifest and
+   sources, as it does the other lab crates, because Cargo reads an optional dependency's manifest even when the
+   feature is off.
+
+Some levers are only wiring, with no code worth a crate (O3–O6). They take the same gate without a crate: one
+`lab-levers` feature, and the four rigs that pass them build with it. Together they are about 60 lines that a
+deployment's binary would no longer carry. Each flag stays in `--help` only in a lab build. The other way is to keep
+them as L7 does. That is the owner's choice.
+
+**The precedent, checked: `lab-frame-cache` fits half.**
+* What fits: the feature, off by default; the gate's compile step; and the lab's source living in `lab/`.
+* What does not: `server/src/media/lab_frame_cache.rs:5-7` includes `lab/disk-access-bench/src/frame_cache.rs` by
+  `#[path]`, not as a crate. The reason is that `disk-access-bench` depends on `series-server`, and Cargo refuses a
+  cycle even through an optional dependency (checked: `cargo metadata` fails with "cyclic package dependency").
+  Because of the include:
+  * the lab's file compiles as a module of each crate, so it can name only what both crates hold;
+  * no test of it runs under the server's feature;
+  * an `#[allow(dead_code)]` hides what the server does not call.
+* So the pattern takes a crate. That costs a `Cargo.toml`, two image lines and two ignore-file lines.
+* Where lab code must share a crate that depends on the server, it is split into a crate of its own that both
+  depend on. For the frame cache that would be a frame-cache crate in `lab/`. Not proposed: row 209's decision either
+  adopts the cache or removes it.
+
+**Not taken:**
+* *A hook in the server that a lab binary plugs into*, for example a lab `main` that hands `run_server` its own
+  controllers. That gives the product an extension point with one user, and `CLAUDE.md` asks for no speculative
+  abstraction.
+* *A lab workspace of its own.* It needs a second lockfile and a copy of `[patch.crates-io]`, as round 2 found for
+  the image.
+* *`#[cfg]` around code left in `server/`.* That is the state today, which the owner's rule asks to end.
+
+### Rows
+
+| row | what | lines in `server/` | starts |
+| --- | --- | --- | --- |
+| 264b CLASSIFYTOLAB | O1 by the pattern, built at `d41a544d`: the gate green but for `check_equivalence.sh --local`'s known 403 here, both absence checks passing by hand, every new test mutated | `server/src` −179 +32: the product's code +7 −178, the tests +25 −1 | review |
+| TELEMETRYTOLAB | O2 by the pattern: the server crate and the client recorder | ~−2 400 moved | a proposal first (structural) |
+| LABLEVERS | O3–O6 behind one `lab-levers` feature, and the four rigs and `perf_counts.mjs` built with it | ~−60 out of a default build | on the owner's word, or kept |
+| INGESTCLI | O8 | 0 (~40 moved out of `ingest/`) | today |
+| with 246 | O7 | 0 | with row 246 |
+
+Each candidate C1–C10 leaves the product, or stays in it for good, when its own decision lands. None of them
+moves before that.

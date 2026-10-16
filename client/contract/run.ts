@@ -18,7 +18,7 @@ import {
   wasmImpl,
   websocketImpl,
 } from "./adapters.ts";
-import { type Rig, runClauses } from "./clauses.ts";
+import { runClauses, runSessionClauses, type SessionRig } from "./clauses.ts";
 import { type RingFake, runRing } from "./ring.ts";
 import { runRace } from "./race.ts";
 
@@ -41,31 +41,39 @@ function check(cond: boolean, what: string) {
 
 type Fake = Omit<RingFake, "last"> & {
   dials(): number;
+  hangNext(): void;
   last(): FakeTransport | FakeWebSocket;
 };
 
 const overWebTransport: Fake = {
   install: installFakeTransport,
   dials: () => FakeTransport.dials,
+  hangNext: () => void (FakeTransport.hangNext = 1),
   last: () => FakeTransport.last,
 };
 
 const overWebSocket: Fake = {
   install: installFakeWebSocket,
   dials: () => FakeWebSocket.dials,
+  hangNext: () => void (FakeWebSocket.hangNext = 1),
   last: () => FakeWebSocket.last,
 };
 
-function nodeRig(impl: Implementation, fake: Fake): Rig {
+function nodeRig(impl: Implementation, fake: Fake): SessionRig {
   let dialsAtOpen = 0;
+  const dial: SessionRig["dial"] = (certHash, options) => {
+    fake.install();
+    dialsAtOpen = fake.dials();
+    return impl.connect("https://contract.invalid/", certHash, options);
+  };
   return {
     name: impl.name,
     closure: "fail",
-    open() {
-      fake.install();
-      dialsAtOpen = fake.dials();
-      return impl.connect("https://contract.invalid/", CERT);
-    },
+    open: () => dial(CERT, {}),
+    dial,
+    hangNextDial: fake.hangNext,
+    dialUrl: () => fake.last().url,
+    dialOptions: () => (fake.last() as FakeTransport).options as { serverCertificateHashes?: unknown[] },
     fake: () => ({
       pushFrame: async (i, c) => fake.last().pushFrame(i, c),
       pushOnOneStream: async (frames) => fake.last().pushOnOneStream(frames),
@@ -78,6 +86,9 @@ function nodeRig(impl: Implementation, fake: Fake): Rig {
     dialsSinceOpen: async () => fake.dials() - dialsAtOpen,
     oneStream: impl.overWebSocket
       ? (what) => void inapplicable.push(`${what} — one ordered stream carries every frame`)
+      : undefined,
+    cannotPin: impl.overWebSocket
+      ? (what) => void inapplicable.push(`${what} — a WebSocket cannot pin; the browser's trust store decides`)
       : undefined,
   };
 }
@@ -142,7 +153,9 @@ if (only === "transport-race") {
 } else {
   const impl = await { "transport-ts": typescriptImpl, "transport-wasm": wasmImpl, "transport-ws": websocketImpl }[only]!();
   const fake = impl.overWebSocket ? overWebSocket : overWebTransport;
-  await runClauses(nodeRig(impl, fake), check);
+  const rig = nodeRig(impl, fake);
+  await runClauses(rig, check);
+  await runSessionClauses(rig, check);
   await runRing(impl, fake, check);
 }
 console.log(`RESULT ${JSON.stringify({ ran, failed, inapplicable, strays: strays.length })}`);

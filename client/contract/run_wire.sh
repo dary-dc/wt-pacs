@@ -49,4 +49,6 @@ drive "client/contract/ask-during-fill.html?client=ts&$WT" || failed=1
 drive "client/contract/ask-during-fill.html?client=downloader&$WT" || failed=1
 drive "client/contract/ask-during-fill.html?client=ws&$WT" || failed=1
 drive "client/contract/ask-during-fill.html?client=downloader-ws&$WT" || failed=1
+drive "client/contract/ask-during-fill.html?client=wasm&$WT" || failed=1
+drive "client/contract/ask-during-fill.html?client=downloader-wasm&$WT" || failed=1
 exit $failed
