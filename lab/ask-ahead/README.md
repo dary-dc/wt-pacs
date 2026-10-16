@@ -28,7 +28,7 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   trigger (`T`, now `?refill=landed`) and the same again (`Tp`), read by `lab/scripts/aa_rule.py`; a `CELL` of
   `…@AT:ARM,…` asks once `AT` % has landed (`none`: no ask) and runs only the arms named, and an arm's `?key=value`
   token goes to the page's query. Its rows are `rows-refill.jsonl`; `rows-refill-ceiling.jsonl` is the relay's
-  ceiling, fills with no ask at 2 ms.
+  ceiling, fills with no ask at 2 ms. `refill_test.py` holds its verdict's claims on drawn rows.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
 * The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once `at` (half
   unless set) has landed, asks for the last frame.
