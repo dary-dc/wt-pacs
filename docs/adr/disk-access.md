@@ -1037,8 +1037,9 @@ eviction; W0, W0aa and Wf in `order.py`'s order in each cell; 702 336 frames che
 16 GB, THP `madvise`, glibc 2.39, other rows' builds at nice 19 on CPU 3. **Deviation:** the protocol's loop XFS was
 not run — `mkfs.xfs` is not installed and the rules forbid installing it — and a loop ext4 (2 GiB image on the host
 disk, `read_ahead_kb` 2 560) stands in, a second read-ahead regime rather than a second filesystem; XFS stays
-unmeasured. A first run on the code before rows 256–257 merged was cut at round 13 by a container restart; its 13
-rounds showed the same ties and are not used. **Saturation**, not swept: four 16 MB fills on the host deliver ~2.3 GB/s, three
+unmeasured. The run is on unified with rows 256–257; row 255 merged after it and changes how `FillReader` holds
+its buffers, not `advise` or its window. A first run before rows 256–257 was cut at round 13 by a container restart;
+its 13 rounds showed the same ties and are not used. **Saturation**, not swept: four 16 MB fills on the host deliver ~2.3 GB/s, three
 quarters of it frames another fill had already read; nothing is claimed past these cells.
 
 The arm, `FillReader::windowing_two_frames` (lab), and its tests stay on `claude/wip-260-FILLWINDOW`, for the owner to
