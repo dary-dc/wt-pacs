@@ -106,7 +106,7 @@ export class Tap {
   /** Control downlink: the server refuses with `frame_error`; that closes the row. */
   onControlRead(bytes: Uint8Array) {
     for (const m of this.controlIn.push(bytes)) {
-      if (m.op === "frame_error") this.onRefused(m.frame_index, m.reason);
+      if (m.op === "frame_error") this.onRefused(m.frame_index, m.reason ?? "");
     }
   }
 
