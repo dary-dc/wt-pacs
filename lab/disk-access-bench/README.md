@@ -28,7 +28,7 @@ B0, B0′, B1 (`series-server --features lab-frame-cache`: `src/frame_cache.rs` 
 `LAB_FRAME_CACHE_BYTES`, admission on a second ask), B1s (B1's binary under `LAB_FRAME_CACHE_ADMIT=session`: admission on
 a second *session's* ask) and B1z (B1 with `--features lab-fit-zeroed`), a fresh server process per arm, cell and round,
 each session filling the series three times over its one connection (`server_ab --passes 3`):
-[`docs/adr/disk-access.md`](../../docs/adr/disk-access.md) §13, *Row 256*. Row 209 ran B2 and two passes, each its own
+[`docs/adr/disk-access.md`](../../docs/adr/disk-access.md) §13, *Measured (row 256)*. Row 209 ran B2 and two passes, each its own
 connection: the script at its commit. `server_ab --coded DIR` checks every frame received against its coded file's
 XXH3-64; `LAB_FRAME_CACHE_MUTATE=stale` must fail it wherever the cache holds an entry.
 
