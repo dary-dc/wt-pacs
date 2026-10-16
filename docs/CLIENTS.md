@@ -517,8 +517,8 @@ whatever of theirs has landed.
 | W7 | *Closed by row 265.* **No opening ask.** The adapter asks the opening fill on the control stream once the session is up: the round trip the URL saves TS, −1.06 to −1.52 round trips to a fill's first frame ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The opening ask) | `client/transport/wasm/session-adapter.js:14-17`; `client/transport/wasm/src/session.rs:376-395` | ~+20 | no |
 | W8 | *Closed by row 265.* **It always pins.** An empty `cert_sha256` becomes an empty hash, so it cannot dial a deployment with a CA-signed certificate (`server-start.sh`'s `/supplied`; [`devices.md`](devices.md) §4, "the WASM one still pins") | `client/transport/wasm/src/session.rs:381-389`, against `client/transport/ts/session.ts:36` | ~+3 | no |
 | W9 | *Closed by row 265.* **No `mediaReads` in `stats()`**: the downloader stamps it on each frame, a stamp, not a decision | `client/transport/downloader.js:202`; `client/transport/wasm/src/session.rs:591-598` | ~+3 | no |
-| W10 | **26.5× the transport's bytes:** `transport_wasm_bg.wasm` 240 066 B and `transport_wasm.js` 32 166 B, 103 499 and 6 464 gzipped (`gzip -6`), against `dist/session.js` 13 401 and 4 149. Counted 2026-10-16 on a build of sources unchanged since 2026-10-09; the default `console_error` panic hook is in it, its share not counted | `client/transport/wasm/Cargo.toml:33-37` | 0 | no |
-| W11 | **Its load on the product page is not measured.** R2 (2026-09-19) found the cold session a tie once each client was preloaded, 6.72 against 6.64 round trips, on the harness's page path, removed 2026-10-03; the compile of 240 KB and the linear memory's peak (the receive buffer holds a whole frame) are not measured | [`../lab/page-open/README.md`](../lab/page-open/README.md) §The count, before and after | — | no |
+| W10 | **26.5× the transport's bytes:** `transport_wasm_bg.wasm` 240 066 B and `transport_wasm.js` 32 166 B, 103 499 and 6 464 gzipped (`gzip -6`), against `dist/session.js` 13 401 and 4 149. Counted 2026-10-16 on a build of sources unchanged since 2026-10-09. *Row 279, on row 265's client:* 247 214 and 33 577 B (106 296 and 6 716 gzipped); the `console_error` default is 1.1 KB of it gzipped and 3 % of the compile, so it stays | `client/transport/wasm/Cargo.toml:33-37` | 0 | no |
+| W11 | *Measured by row 279.* **On the product page as it stands, +5.9 round trips to a cold first frame**, none warm; preloaded from the HTML, no round trip and a fixed +42 ms (1×, cold). The linear memory's peak (the receive buffer holds a whole frame) is not measured | [`../lab/page-open/README.md`](../lab/page-open/README.md) §The WASM client's load | — | no |
 | W12 | **Never run outside Chromium.** The Firefox runs (`run_firefox.sh`, the page check's `--engine firefox`) load TS alone; no WebKit runs here. Both dial the same global `WebTransport`, so what differs is the engine's WebAssembly | `client/contract/run_firefox.sh:14`; `client/viewer/check.mjs:5` | ~+2 | no |
 | W13 | *Closed by row 274, but the page check (row 3's).* **The rigs and the page check load TS alone**: `fake-session.ts` re-exports the TS session, `ask-during-fill.html` knows `ts`, `ws` and the downloader over each, the page check serves a transport file without `client` | `client/contract/fake-session.ts:9`; `client/contract/run_browser.sh:11`; `client/contract/ask-during-fill.html:17,57,84`; `client/viewer/check.mjs:59-60` | ~+45 | no |
 | W14 | *Closed by row 265.* **The surface's TS-only tests** — `onHead` before the body, the dial deadline, the opening fill in the URL, the unpinned dial — sit in the TS unit tests and the dispatch rig, not in `clauses.ts`, so nothing holds WASM to them | `client/transport/ts/test/run.ts:84-85`; `client/contract/dispatch-rig.ts:1730-1750` | ~+80 test | no |
@@ -566,16 +566,21 @@ into the image. No capability test, no fallback, no WASM race.
    round trips at 1× and 4×, the product build with and without `console_error`. Run when the host is free.
    *Protocol and rule committed before the run, 2026-10-16, row 279*: [`../lab/page-open/README.md`](../lab/page-open/README.md)
    §The WASM client's load.
+   *Measured 2026-10-16, row 279*: preloaded from the HTML, the WASM client costs the open no round trip and a fixed
+   +42 ms to the first frame (1×, cold, 9/9); on the product page today, with nothing preloaded or gzipped, 5.9 round
+   trips cold (over 80 and 160 ms: the 40 ms cells voided below the rule's 8 pairs), none warm. So row 3's preload is
+   what makes the WASM client affordable, and #98's, which starts at the transport file, is not yet measured.
+   `console_error` stays: 1.1 KB gzipped, 3 % of the compile.
 6. **By hand** — W12: the rigs in Firefox with `client=wasm`, and the devices' D0 with `client: "wasm"`.
 
 Rows 1 and 2 add no product path and can land before the owner rules on 3 and 4. Row 249's one queue
 ([`WIRE.md`](WIRE.md) §Proposed: one queue, an ask moves its frame to the front (row 249)) would take `onHead` out of
 both clients; if it is ruled first, W4 is not built.
 
-**Measured, and not.** Measured: the bytes (W10, today); R2's tie (W11); the fill's tie; N6, stale; both clients
+**Measured, and not.** Measured: the bytes (W10, today); R2's tie, and the page open on both clients (W11, row 279); the fill's tie; N6, stale; both clients
 pending past 180 s on a held dial ([`../lab/dial-deadline/`](../lab/dial-deadline/README.md)); the telemetry's cost;
-W6 through the downloader and the gate's added time (row 274, above). Not measured: anything of the WASM client on the
-product page; W4's cost on WASM, inferred from row 229's arms; the WASM client in Firefox or WebKit; the image's
+W6 through the downloader and the gate's added time (row 274, above). Not measured: the WASM client on the product page
+with #98's preload, or from the image; W4's cost on WASM, inferred from row 229's arms; the WASM client in Firefox or WebKit; the image's
 build time with a wasm32 stage.
 
 ## Proposed: the harness pages to `lab/`

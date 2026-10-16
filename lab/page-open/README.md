@@ -514,6 +514,39 @@ in at least 80 % of the rounds; otherwise it stays.
 for a cell left with fewer than 8 paired rounds. Nothing is claimed for a link faster than 100 Mbit, a delay
 under 40 ms, gzip, HTTP/2, the image, or a device.
 
+**Run 2026-10-16, `8a0ac2bd`**, 21:26–21:58 UTC, one pilot round per throttle dropped. 24 and 29 of 144 visits'
+relays `VOID` at 1× and 4×, 0 failed; all 144 kept product-page visits bit-exact, every frame. A build of another row
+ran on core 3 at nice 19 during the run. `frame` and `fill` round trips, and the paired wasm − ts in ms at 40 / 80 /
+160 with the rounds the WASM client was later in:
+
+| page | profile | × | `frame` ts → wasm | wasm − ts, `frame` | `fill` ts → wasm |
+| --- | --- | --- | --- | --- | --- |
+| product | cold | 1 | 16.94 → **23.01** | +286 6/6 · +513 9/9 · +982 9/9 | 19.91 → **25.81** |
+| | warm | 1 | 10.63 → 10.65 | +24 3/6 · +48 9/9 · +15 6/9 | 13.49 → 13.32 |
+| | cold | 4 | 16.94 → **22.81** | +226 5/5 · +501 9/9 · +959 11/11 | 19.89 → **25.06** |
+| | warm | 4 | 10.09 → 9.89 | +73 4/5 · +99 9/9 · +119 10/11 | 12.78 → 12.88 |
+| downloader, preloaded | cold | 1 | 14.18 → 14.13 | **+42 9/9** · +19 9/9 · +27 8/8 | — |
+| | warm | 1 | 12.97 → 13.07 | +45 7/9 · +31 9/9 · +54 8/8 | — |
+| | cold | 4 | 13.82 → 13.93 | +73 6/7 · +86 6/6 · +61 7/8 | — |
+| | warm | 4 | 12.75 → 12.20 | +68 6/7 · +164 6/6 · +59 7/8 | — |
+
+**Verdict by the rule.** Claimed: **on the downloader page, preloaded, cold at 1×, the WASM client costs a fixed
++42 ms to the first frame (9/9) and no round trip** (−0.05); +46 ms to the session. Warm at 1× it ties (7 of 9 rounds
+is under 80 %). Every other cell rests on a 40 ms delay left with 5–7 pairs, so the rule claims nothing there,
+including the product page's: the 40 ms visits voided most. **Outside the rule**, over 80 and 160 ms alone, where
+every cell holds 9–11 pairs: on the product page as it stands, with nothing preloaded and nothing gzipped, **the WASM
+client costs a cold open 5.9 round trips to the first frame at 1× and 5.7 at 4×**, later in all 38 pairs; the
+adapter, glue and `.wasm` are found one after another in the worker, and 247 KB leave in slow start. Warm, it costs
+no round trip, +15 to +119 ms. The preloaded page shows what is left once the fetches start at the HTML: no round
+trip, a fixed 20–160 ms. Row 277's selection (draft #98) preloads the chosen client once the transport file lands,
+about 4 round trips into the page rather than at the HTML: not measured, and between the two.
+
+**`console_error` stays.** Without it the `.wasm` is 244 662 B against 247 214 (105 209 against 106 296 with
+`gzip -6`) and the glue 32 682 against 33 577: 1.1 KB gzipped of a 12 KB flight. `WebAssembly.compile` takes 1.83 ms
+[1.48–4.50] with it and 1.77 [1.44–6.01] without, faster in 20 of 30 rounds: 3 %. Node's V8 compiles the functions
+lazily, so that is the decode and validation; the functions' compile on first call is inside the fixed cost above.
+**Not measured:** the linear memory's peak; the image (gzip, HTTP/2); #98's preload.
+
 ## What this rig does not decide
 
 The round trips are the container's userspace relay, not `netem` and not a real path; the
