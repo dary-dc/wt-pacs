@@ -56,6 +56,25 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |
 | `BUILD_CA` | `/dev/null` (none) | the CA of a TLS-inspecting proxy the build must go through, a build secret |
 
+## A server compiled outside the image
+
+`docker build` runs in the daemon, so the compile cannot be pinned to chosen cores there; `docker run --cpuset-cpus`
+can. A deploy host that must keep the compile off its other cores compiles in the pinned rust image of `Containerfile`
+and packages the binary with `Containerfile.prebuilt`, which cannot compile and yields the `server` target's image
+(`deploy/server_start_test.sh` fails if the two `server` stages part):
+
+```bash
+docker run --rm --cpuset-cpus 0 --memory 8g -v "$PWD":/src -v "$HOME/.cache/wt-pacs-cargo":/usr/local/cargo/registry -w /src \
+  docker.io/library/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 \
+  cargo build --release --locked -p series-server
+STAGE=$(mktemp -d)
+cp target/release/series-server deploy/server-start.sh "$STAGE"/ && cp -r fixtures/us_cine_smoke "$STAGE"/
+docker build -f deploy/Containerfile.prebuilt -t wt-pacs-server "$STAGE"   # the image `compose up` runs, given no `--build`
+```
+
+A flag on `Containerfile` to skip its compile stage would not do: only BuildKit skips an unused stage, and a daemon on
+the legacy builder would compile anyway, unpinned. The binary links glibc, so it must come from that bookworm image.
+
 ## The ten fixes, and why
 
 A container test of a deployment of this shape found each one (the deployment test, queue row 92).
