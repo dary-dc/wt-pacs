@@ -5,7 +5,7 @@
 #
 #   lab/scripts/read_path_ab.sh <base-commit>
 #
-# Prints tie / RESOLVED per cell under the campaign's 28.5 % rule on p50.
+# Prints tie / RESOLVED per reader and cell under the campaign's 28.5 % rule on p50.
 # A refactor of the read path is expected to tie every product cell; seq1g is P0.
 # The base must know `product_fill` and `product_tile`: the readers split at the commit that
 # separated fill from on-demand, and a base before it has neither variant.
@@ -56,7 +56,7 @@ emit() { # bin variant label extra args...
   "$bin" --variants product_fill,product_tile --label "$label" --repeats 1 --monitors 0 --asks "$ASKS" \
     "${hdr[@]}" "$@" | awk -v variant="$variant" 'BEGIN{FS=OFS="\t"}
       NR==1 && $1=="label" {print; next}
-      { $2=variant; print }' >> "$OUT"
+      { $1=$2":"$1; $2=variant; print }' >> "$OUT"
   first=0
 }
 
@@ -80,7 +80,7 @@ import csv, collections, math, statistics as st, sys
 DRIFT, path = 28.5, sys.argv[1]
 MIN_N = 5
 METRIC = "p50_ns"
-# One cell = one (kind, repeat). Kind is the label prefix before _rN.
+# One cell = one (kind, repeat). Kind is `reader:label` without its _rN.
 cells = collections.defaultdict(dict)
 with open(path, newline="") as fh:
     for r in csv.DictReader(fh, delimiter="\t"):
@@ -91,7 +91,7 @@ with open(path, newline="") as fh:
             continue
         cells[(kind, rnd)][r["variant"]] = int(r[METRIC])
 
-print(f"{'cell':<16} {'n':>3}  {'p50 Δ':>11}  {'signs':>7}  {'verdict':<9}  {'before':>9}  {'after':>9}")
+print(f"{'cell':<28} {'n':>3}  {'p50 Δ':>11}  {'signs':>7}  {'verdict':<9}  {'before':>9}  {'after':>9}")
 kinds = sorted({k for k, _ in cells})
 fail = 0
 for kind in kinds:
@@ -104,21 +104,21 @@ for kind in kinds:
             continue
         ds.append((y - x) / x * 100); b.append(x); a.append(y)
     if not ds:
-        print(f"{kind:<16}   0  {'n/a':>11}  {'—':>7}  {'empty':<9}")
-        if not kind.startswith("seq"):
+        print(f"{kind:<28}   0  {'n/a':>11}  {'—':>7}  {'empty':<9}")
+        if "seq1g" not in kind:
             fail += 1
         continue
     if len(ds) < MIN_N:
-        print(f"{kind:<16} {len(ds):>3}  {'n/a':>11}  {'—':>7}  {'n<5':<9}")
+        print(f"{kind:<28} {len(ds):>3}  {'n/a':>11}  {'—':>7}  {'n<5':<9}")
         continue
     med = st.median(ds)
     agree = max(sum(1 for d in ds if d < 0), sum(1 for d in ds if d > 0))
     ok = abs(med) >= DRIFT and agree >= math.ceil(0.8 * len(ds))
     verdict = "RESOLVED" if ok else "tie"
     # seq1g is a P0 I/O cell, not a product-refactor verdict.
-    if ok and not kind.startswith("seq"):
+    if ok and "seq1g" not in kind:
         fail += 1
-    print(f"{kind:<16} {len(ds):>3}  {med:>+10.1f}%  {agree:>3}/{len(ds):<3}  {verdict:<9}  {st.median(b):>9.0f}  {st.median(a):>9.0f}")
+    print(f"{kind:<28} {len(ds):>3}  {med:>+10.1f}%  {agree:>3}/{len(ds):<3}  {verdict:<9}  {st.median(b):>9.0f}  {st.median(a):>9.0f}")
 print(f"tsv: {path}")
 sys.exit(1 if fail else 0)
 PY
