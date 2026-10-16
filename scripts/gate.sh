@@ -171,8 +171,8 @@ run 1 cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p che
 step "tools: pack-series packs the smoke bundle again to the same bytes"
 run 1 bash -c 'd="$(mktemp -d)" && trap "rm -rf $d" EXIT && cargo run --quiet -p pack-series -- --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames --output "$d/x.sbnd" >/dev/null && cmp "$d/x.sbnd" fixtures/us_cine_smoke/us_cine_smoke.sbnd && echo "same bytes"'
-step "lab: the four lab crates' tests (their variants are part of the API)"
-run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench --quiet
+step "lab: the five lab crates' tests (their variants are part of the API)"
+run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify --quiet
 step "lab: the Go and h3 clients compile"
 if command -v go >/dev/null; then
   run 1 bash -c "(cd lab/other-clients/go && go build -o /dev/null .) && (cd lab/page-open/h3-host && go build -o /dev/null .)"
@@ -180,8 +180,9 @@ else
   skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
 fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
-step "lab: the frame cache compiles"
+step "lab: the server's lab features — the frame cache compiles, cubic-classify's wiring holds"
 run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
+run 1 cargo test -p series-server --features lab-classify --quiet -- classify
 
 step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
 if command -v strace >/dev/null; then
@@ -207,7 +208,7 @@ fi
 if [[ $quick -eq 0 ]]; then
   step "client: absence check (default bundle carries no telemetry)"
   run 1 bash client/scripts/check_telemetry_absent.sh
-  step "server: absence check (default release binary carries no Tap)"
+  step "server: absence check (default release binary carries no Tap and no lab controller)"
   run 1 bash server/scripts/check_telemetry_absent.sh
 else
   skip "the two absence checks (--quick)"

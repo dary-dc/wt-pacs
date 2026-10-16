@@ -5,8 +5,7 @@ Queue row 212 (CCMEASURE) of [`docs/av1/queue.md`](../../docs/av1/queue.md): the
 run by a session given only it. The reading is there, under *Measured: CLASSIFY*.
 
 ```bash
-cargo build --release -p series-server -p pack-series -p window-harness
-cargo build -p series-server -p pack-series -p window-harness   # fq_neighbour_cells.sh builds offline, inside its namespace
+cargo build -p series-server -p pack-series -p window-harness --features series-server/lab-classify   # fq_neighbour_cells.sh builds offline, inside its namespace
 lab/av1/tools/tools.sh && client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh
 lab/av1/fetch_data.sh dbt10_ea1141
 W=lab/.av1-work/ccmeasure/dbt10_ea1141
@@ -22,11 +21,14 @@ logs) are not committed, as row LOSSCLASS's were not, and their summary is quote
 
 ## The arms
 
-`--congestion cubic-restart` (today's default), `--congestion cubic-classify` (`server/src/transport/classify.rs`:
-the same controller behind a wrapper that skips the cut when the last acknowledged packet's round trip was under min
-RTT + max(4 ms, min RTT/8); CE marks and persistent congestion always cut) and `--congestion bbr` as a reference.
-Both Cubic arms start at quinn's 12 000 B; `bbr` at quinn's 240 000 B. Every row names its controller, read back from
-the server's banner.
+`--congestion cubic-restart` (today's default), `--congestion cubic-classify` (the same controller behind a wrapper
+that skips the cut when the last acknowledged packet's round trip was under min RTT + max(4 ms, min RTT/8); CE marks
+and persistent congestion always cut) and `--congestion bbr` as a reference. Both Cubic arms start at quinn's
+12 000 B; `bbr` at quinn's 240 000 B. Every row names its controller, read back from the server's banner.
+
+The wrapper is this directory's crate (`src/lib.rs`, since row 264; `server/src/transport/classify.rs` before it, in git history). Only
+a server built with `--features lab-classify` has the flag, so `run.sh` builds each rig's server with it, and the
+overflow's with `telemetry` too, for the loss trace it reads.
 
 ## The cells
 
@@ -46,7 +48,10 @@ its AV1 variant (the lever is the server's; the codec only moves decode time). A
 
 ## Checks
 
-* `classify.rs`'s seven tests, each failing under a mutation of the clause it states (never skip, persistent or CE
-  allowed to skip, a fixed 10 ms q*, a skip before any sample, `≤` at the bar).
+* The crate's seven tests (`cargo test -p cc-classify`), each failing under a mutation of the clause it states (never
+  skip, persistent or CE allowed to skip, a fixed 10 ms q*, a skip before any sample, `≤` at the bar), and the
+  server's under its feature (`cargo test -p series-server --features lab-classify -- classify`): the flag parses and
+  builds this wrapper around `cubic-restart`. A default build refuses the flag, and its binary carries neither
+  (`server/scripts/check_telemetry_absent.sh`).
 * `run.mjs --mutate sample` and `--mutate truth` turn all three arms to 0 of 8 exact (r50000, clean, 1×).
 * `summary_test.py`: made-up rows the rule passes, and one cell or share past each bar that fails it; each bar loosened in `summary.py` (1.01 → 1.03, 0.75 → 0.8, 5 → 10 points) fails its case.

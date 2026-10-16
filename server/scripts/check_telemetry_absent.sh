@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The default (non-telemetry) release binary carries no Tap, path sampler or controller trace, by symbol or literal.
+# The default (non-telemetry) release binary carries no Tap, path sampler or controller trace, by symbol or literal,
+# and no lab feature's controller (`lab-classify`).
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -32,4 +33,9 @@ if grep -a -qE 'percentile_method|server_session|histogram-loglinear|rows_in_fil
   exit 1
 fi
 
-echo "OK: no telemetry symbols in default build"
+if grep -q 'cc_classify' <(nm -C "$BIN") || grep -a -q 'cubic-classify' "$BIN"; then
+  echo "FAIL: lab-classify's controller or flag found in default build" >&2
+  exit 1
+fi
+
+echo "OK: no telemetry symbols and no lab controller in default build"
