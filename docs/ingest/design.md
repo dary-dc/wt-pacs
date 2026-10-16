@@ -360,7 +360,7 @@ while the series is still being parsed and coded, and what would that take and s
   length, a coded and a samples XXH3-64, 28 B a frame) precedes the frames. It drops only the metadata, which moves to
   the study database.
 * **Display order.** Frames lie back to back in display order, and a fill asks the kernel for
-  `FILL_WINDOW` = 4 MiB past the frame it reads (`server/src/media/read_path.rs:28`, `197–211`). A file written in
+  `FILL_WINDOW` = 4 MiB past the frame it reads (`server/src/media/read_path.rs:28`, `196–210`). A file written in
   arrival order serves fills in display order only if the instances arrived in it.
 * **AV1's offset.** The bit split codes samples offset by the series' minimum, which takes one pass over every frame
   before the first is coded ([`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site, *Streaming memory*).

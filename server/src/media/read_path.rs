@@ -292,8 +292,8 @@ impl Slot {
             return Ok(());
         }
         let at = span.offset + self.filled as u64;
-        // SAFETY: `buf` is neither grown, read nor dropped while `read` is `Some`, set below;
-        // `wait` clears it, and `Drop` drains the ring before the slots go.
+        // SAFETY: `buf` is neither grown, read nor dropped while `read` is `Some`, which is set
+        // below and cleared above only once the whole tail has landed; `Drop` drains the ring first.
         unsafe { ring.submit(w, &mut self.buf[self.filled..len], at) }?;
         self.read = Some(InFlight::Ring);
         Ok(())

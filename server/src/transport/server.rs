@@ -853,7 +853,7 @@ mod tests {
         path
     }
 
-    /// Longer than `TEST_CHUNK`, so a frame is wider than any one piece a reader might split it into.
+    /// Longer than `TEST_CHUNK`, so a frame assembled from misplaced chunks cannot match.
     fn pattern(idx: u32) -> Vec<u8> {
         let len = crate::media::frame_store::TEST_CHUNK as u32 + 1 + idx * 997;
         (0..len)
