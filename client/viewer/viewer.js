@@ -238,17 +238,19 @@ function report(result) {
   if (q.get("check")) console.log(`viewer-result ${JSON.stringify(result)}`);
 }
 
-const giveUp = q.get("check") ? performance.now() + 60000 : Infinity;
-const filled = new Promise((resolve) => {
-  const poll = setInterval(() => {
-    // The check judges a fill that stops short rather than waiting on it.
-    if (frames.size + errors.length >= n || (!fillMode && frames.size) || performance.now() > giveUp) {
-      clearInterval(poll);
-      resolve();
-    }
-  }, 20);
-});
-await filled;
-await repaint();
-if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show });
-else lab.finished?.({ issuedAt, firstShownMs, frames, errors, stats: client.stats() });
+// Only the check and a lab harness read the fill's end, so a product page does not poll for it.
+if (q.get("check") || lab.finished) {
+  const giveUp = q.get("check") ? performance.now() + 60000 : Infinity;
+  await new Promise((resolve) => {
+    const poll = setInterval(() => {
+      // The check judges a fill that stops short rather than waiting on it.
+      if (frames.size + errors.length >= n || (!fillMode && frames.size) || performance.now() > giveUp) {
+        clearInterval(poll);
+        resolve();
+      }
+    }, 20);
+  });
+  await repaint();
+  if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show });
+  else lab.finished({ issuedAt, firstShownMs, frames, errors, stats: client.stats() });
+}

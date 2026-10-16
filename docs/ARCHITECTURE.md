@@ -388,7 +388,8 @@ behind it — is proposed, theory only, in [`adr/frame-path.md`](adr/frame-path.
 carries its `generation`; `cancel()` resolves once the downloader has ended the stream and dropped
 that request's work. A refused **fill** frame has no waiter, so it reaches the consumer through
 `onError({ frameIndex, reason, generation })`; a refused *asked* frame rejects its own promise. The
-consumer keeps no timer: the downloader settles every ask. `url` and `certHash` may be promises;
+consumer keeps no timer: the downloader settles every ask. A downloader whose script does not load (a 404, a policy
+refusal, a syntax error) fires only its worker's `error`, which fails `connect` by name rather than leaving it waiting. `url` and `certHash` may be promises;
 the opening fill rides the session URL unless `openingAsk` is `false` (§The opening ask). The page forwards the triggers a
 worker cannot see — `visibilitychange`, `pageshow`, `freeze`, `resume` — as one message.
 
