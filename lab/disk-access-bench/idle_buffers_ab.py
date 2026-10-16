@@ -98,13 +98,16 @@ def time_rounds(work, rounds):
             print(f"round {r} done", time.strftime("%H:%M:%S"), flush=True)
 
 
+BASE = {"R0": "R0", "R0p": "R0", "R1": "R0", "R0m": "R0", "R1m": "R0m"}
+
+
 def verdict(rows, arm, metric):
-    """The arm's median ratio to R0, its rounds lower, and whether it lies beyond the A/A resolution: the p90 of
-    |R0′/R0 − 1|, with ≥ 80 % of rounds agreeing in sign."""
-    r0, aa, a = (rows.get(x, {}) for x in ("R0", "R0p", arm))
+    """The arm's median ratio to its base, its rounds lower, and whether it lies beyond the A/A resolution: the p90
+    of |R0′/R0 − 1|, with ≥ 80 % of rounds agreeing in sign."""
+    r0, aa, base, a = (rows.get(x, {}) for x in ("R0", "R0p", BASE[arm], arm))
     res = sorted(abs(aa[k][metric] / r0[k][metric] - 1) for k in aa if k in r0)
     res = res[min(len(res) - 1, int(0.9 * len(res)))] if res else math.nan
-    ratios = [a[k][metric] / r0[k][metric] for k in a if k in r0]
+    ratios = [a[k][metric] / base[k][metric] for k in a if k in base]
     if not ratios:
         return math.nan, 0, 0, res, False
     med, lower = statistics.median(ratios), sum(x < 1 for x in ratios)
@@ -121,7 +124,7 @@ def summary(path):
     for l in lines:
         if "arm" in l and not l.get("error"):
             by.setdefault(l["set"], {}).setdefault(l["arm"], {})[l["round"]] = l
-    print(f"{'set':14}{'metric':18}{'arm':>5}{'n':>4}{'median':>12}{'ratio':>8}{'lower':>7}{'res':>7}  beyond")
+    print(f"{'set':14}{'metric':18}{'arm':>5}{'n':>4}{'median':>12}{'/base':>8}{'lower':>7}{'res':>7}  beyond")
     lands = {"R1": [0, False], "R1m": [0, False]}
     for name in SETS:
         rows = by.get(name, {})
@@ -139,7 +142,7 @@ def summary(path):
                     if metric == "cpu_ns_per_frame" and med > 1:
                         lands[arm][1] = True
     for arm, (cells, worse) in lands.items():
-        print(f"{arm}: idle RSS below R0's beyond the resolution in {cells}/{len(SETS)} cells; "
+        print(f"{arm}: idle RSS below {BASE[arm]}'s beyond the resolution in {cells}/{len(SETS)} cells; "
               f"CPU worse beyond it in {'some cell' if worse else 'none'}")
 
 

@@ -41,3 +41,21 @@ $P lab/disk-access-bench/frame_cache_ab.py time W 16
 $P lab/disk-access-bench/frame_cache_ab.py summary W/frame_cache.jsonl
 ```
 
+
+## Idle sessions' buffers (row 255)
+
+R0 (the base), R0′, R1 (a reader holds a buffer only while it holds a frame), and R0m / R1m under
+`MALLOC_MMAP_THRESHOLD_=1048576`: two release builds of `series-server`, the base's `read_path.rs` and this
+branch's. `server_ab --mode idle` opens 64 sessions in turn, each a depth-4 batch of tiles and a fill, holds them
+all open asking nothing, then reads the server's RSS: [`docs/adr/disk-access.md`](../../docs/adr/disk-access.md)
+§9, *Idle sessions' buffers (row 255)*.
+
+```bash
+lab/av1/fetch_data.sh ct_lidc dbt12_ea1141 ffdm_d          # then ingest each set's htj2k into W/coded/SET/htj2k
+git show <base>:server/src/media/read_path.rs > server/src/media/read_path.rs
+cargo build --release -p series-server && cp target/release/series-server W/bin/r0 && git checkout server/src/media/read_path.rs
+cargo build --release -p series-server -p disk-access-bench -p pack-series && cp target/release/series-server W/bin/r1
+$P lab/disk-access-bench/idle_buffers_ab.py make W
+$P lab/disk-access-bench/idle_buffers_ab.py time W 16
+$P lab/disk-access-bench/idle_buffers_ab.py summary W/idle_buffers.jsonl
+```

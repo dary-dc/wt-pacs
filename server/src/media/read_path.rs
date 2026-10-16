@@ -886,7 +886,7 @@ mod tests {
 
     /// **An idle tile session holds no frame buffer**: once every frame it named is served, each
     /// slot's buffer has left with its frame and none has taken its place — on a hit, on the pool,
-    /// and on the ring where the host has one. `docs/adr/disk-access.md` §10.
+    /// and on the ring where the host has one. `docs/adr/disk-access.md` §9, *Idle sessions' buffers*.
     #[test]
     fn a_tile_reader_holds_no_buffer_once_its_named_frames_are_served() {
         let dir = scratch("tileidle");
@@ -918,7 +918,7 @@ mod tests {
     }
 
     /// **An idle fill holds no frame buffer**: once it names nothing, neither the frame it served
-    /// nor the read-ahead it abandoned stays with it. `docs/adr/disk-access.md` §10.
+    /// nor the read-ahead it abandoned stays with it. `docs/adr/disk-access.md` §9, *Idle sessions' buffers*.
     #[test]
     fn a_fill_that_names_nothing_holds_no_buffer() {
         let dir = scratch("fillidle");
