@@ -51,6 +51,7 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
+| `CLIENT` | `ts` | the client the page loads, `ts` or `wasm`, named in the transport file; a restart switches it ([`../docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client) |
 | `REGISTRY` | `docker.io/library` | where the pinned base images are pulled from: a mirror serves the same digests |
 | `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
 | `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |

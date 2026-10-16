@@ -87,6 +87,22 @@ alone, since in both URLs both servers would push it: if QUIC wins it is asked t
 error names both, a `DialTimeoutError` if either timed out. Why race rather than detect, and which
 wins on loopback and on a link: [`ARCHITECTURE.md`](ARCHITECTURE.md) §The TCP fallback.
 
+### Choosing the client
+
+The product's page loads one client, the one the transport file's `client` names: `"ts"`, which absent means, or
+`"wasm"` (row 277). A deployment sets it with `CLIENT` ([`../deploy/README.md`](../deploy/README.md)), the dev host
+in `client/dev-transport.json`, whose `client` `gen_dev_cert.sh` keeps when it renews the file. `viewer/head.js` maps
+the name to files on the page's own origin, so a link picks no code, and preloads them once the file arrives: TS's
+`dist/session.js`; WASM's adapter, glue and `.wasm`. A name it does not know stops the page, by name on the status
+line, before any client's code is fetched or anything dialled; a client that fails to load fails the start, with no
+fallback to the other. The status line names the client, and the page check runs on each (`--client`).
+
+*Not measured:* the TypeScript preload now starts once the transport file has arrived, not as the page is parsed
+(on page-open's page, the first frame came 1.16 round trips later without it), and the viewer reads the file before it starts the
+downloader (the head start that saves measured −0.06 round trips, inside the noise:
+[`../lab/page-open/README.md`](../lab/page-open/README.md) §The first byte on a fill). Row 5 below measures the page
+on each client.
+
 ## The contract suite
 
 The surface's clauses as tests, run against every implementation. It proves the client half

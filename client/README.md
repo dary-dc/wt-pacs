@@ -276,20 +276,22 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 
 * **Opening.** The head's one script, `viewer/head.js` (the policy allows no inline script), fetches
   `/series/metadata`, preloaded by the page, and preloads the codec's modules and WASM, and the hasher when the series
-  has digests. The module dials at once, with the whole series as the opening fill, while the
+  has digests. It reads `/wt/dev-transport.json`, also preloaded, and preloads the client it names: `"ts"`, which
+  absent means, or `"wasm"`, any other refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
 * **Frames.** Frames are kept in memory by index; the cache seam stays open ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
   §Open). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
-* **The status line.** It shows the frame, frames received, exact, not exact and unchecked, the decoder per path, the
+* **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the decoder per path, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name.
 * **Lab parameters.** `?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=` and `?origin=` let a lab harness drive the
   same page. They load from `lab/viewer/levers.js`, which only the dev host serves: on the web image a link carrying
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
   `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
-  dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured. `?post=` (with `?origin=`) gives the
+  dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured; it fails too if a transport file
+  naming an unknown client is not refused by name with no client's code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
   page the total-time harness's protocol as two hooks, `started()` and `finished(result)`, which it calls only when
   present; the page watches for the fill's end only for that hook or `?check=`. `?check=`, `?cine=`, `?fill=` and `?deadline=` are the page's own.
 * **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
@@ -299,7 +301,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
 page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
 after the cancel. With `--fill 0` it first steps the page itself: to the middle frame, the last and the middle again
-at once, then to the last twice. It passes no lab parameter, so it runs the same against the web image: the result is
+at once, then to the last twice. `--client wasm` names the WASM client in the transport file it serves; with `--url`, the one the host's file names. It passes no lab parameter, so it runs the same against the web image: the result is
 read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout.content`). It fails:
 
 * a fill that did not complete, or a frame lost or refused; on demand, a frame the page asked;
@@ -307,6 +309,8 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
 * on demand, three quick steps that kept any ask but the newest, or two steps to one frame that sent more than its
   one ask;
 * a decoder other than `--decoder`;
+* a status line not naming `--client`, or that client's files not preloaded; from the static host's log, its files
+  not fetched or the other client's fetched;
 * an HTJ2K page whose requests include AV1 code, from the static host's log;
 * an AV1 page whose frames were not decoded as AV1;
 * the first, middle and last frame's readback at zoom 1 differing from the painter's CPU reference by any byte;
@@ -317,5 +321,5 @@ Headless Firefox has no WebGL: on a host without a display, run the check under 
 (Mesa's llvmpipe), and it runs Firefox windowed. The run here used conda-forge's `firefox-157.0.1-hee9eb32_0` and
 `mesalib-26.2.3-he59ec28_0` (SHA-256 `e94b9a63c490809eb615d0c18d1ae4e7d60a6f7756c7ec7b2a6b6a2032a26b53`), with
 `LD_LIBRARY_PATH`, `__EGL_VENDOR_LIBRARY_DIRS` and `LIBGL_DRIVERS_PATH` pointing into that environment. The gate runs `viewer/run_check.sh`: a three-frame HTJ2K series of
-the contract's frame, in Chromium, once filled with `--cine` and once with `--fill 0`. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
+the contract's frame, in Chromium, on each client once filled with `--cine` and once with `--fill 0`. It names as skipped the cross-codec arm and Firefox, which need the DICOM ingest's
 bundles and a GL display. What it measured: `docs/ARCHITECTURE.md` §The viewer.

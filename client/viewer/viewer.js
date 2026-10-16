@@ -9,7 +9,8 @@ const statusEl = document.getElementById("status");
 const markEl = document.getElementById("mark");
 const at = () => performance.timeOrigin + performance.now();
 
-const lab = await globalThis.viewerLab.catch((e) => ({ refused: e.message }));
+const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
+  .then(([levers, transport]) => ({ ...levers, transport }), (e) => ({ refused: e.message }));
 if (lab.refused) {
   statusEl.textContent = `error: ${lab.refused}`;
   report({ error: lab.refused });
@@ -18,7 +19,7 @@ if (lab.refused) {
 const meta = await globalThis.viewerMetadata;
 const n = meta.frameCount;
 const fillMode = q.get("fill") !== "0";
-const transport = lab.transport ? Promise.resolve(lab.transport) : fetch("/wt/dev-transport.json").then((r) => r.json());
+const transport = lab.transport;
 
 if (q.get("check")) {
   // A page that stops short still says why, and when.
@@ -108,6 +109,7 @@ function status() {
   const paths = Object.entries(seen.paths).map(([p, k]) => `${p} ${k}`).join(", ") || "none yet";
   statusEl.textContent = [
     `frame ${current + 1} of ${n}`,
+    `client ${transport.client}`,
     `received ${frames.size}, exact ${seen.exact}, not exact ${seen.inexact}, unchecked ${seen.unchecked}`,
     `decoders: ${paths}`,
     `codec ${meta.codec ?? "htj2k"}`,
@@ -124,7 +126,8 @@ const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
 issuedAt = at();
-const client = await DownloaderClient.connect(transport.then((c) => c.wt_url), transport.then((c) => c.cert_sha256), {
+const client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
+  transport: transport.module,
   ...(fillMode && { fill: all }),
   digests,
   ...options,
