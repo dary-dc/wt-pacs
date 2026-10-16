@@ -6,7 +6,8 @@ keep, at no CPU cost? docs/adr/disk-access.md §9, *Idle sessions' buffers (row 
     idle_buffers_ab.py time    WORK ROUNDS   one JSON line a run into WORK/idle_buffers.jsonl
     idle_buffers_ab.py summary JSONL
 
-WORK/bin/r0 is the release build of series-server at the base commit, WORK/bin/r1 at row 255's.
+WORK/bin/r0 is the release build of series-server at the base commit, WORK/bin/r1 at row 255's, and WORK/bin/server_ab
+the client built with them: a target directory shared with other branches may hold a server_ab without `--mode idle`.
 """
 import json
 import math
@@ -18,7 +19,7 @@ import sys
 import time
 from pathlib import Path
 
-from frame_cache_ab import CLIENT_CPUS, PACK_SERIES, ROOT, SERVER_AB, SERVER_CPUS, coded, host, order, sbnd
+from frame_cache_ab import CLIENT_CPUS, PACK_SERIES, ROOT, SERVER_CPUS, coded, host, order, sbnd
 
 SETS = ["ct_lidc", "dbt12_ea1141", "ffdm_d"]
 SESSIONS, DEPTH, TILES, FILL = 64, 4, 16, 32
@@ -66,7 +67,7 @@ def run(work, name, arm, rnd):
                 raise RuntimeError(f"server did not start: {log_path.read_text()[-500:]}")
             frames = json.loads((coded(work, name) / "metadata.json").read_text())["frameCount"]
             r = subprocess.run(
-                ["taskset", "-c", CLIENT_CPUS, SERVER_AB, "--url", f"https://127.0.0.1:{port}/",
+                ["taskset", "-c", CLIENT_CPUS, work / "bin" / "server_ab", "--url", f"https://127.0.0.1:{port}/",
                  "--server-pid", str(proc.pid), "--mode", "idle", "--sessions", str(SESSIONS), "--depth", str(DEPTH),
                  "--asks", str(TILES), "--fill", str(FILL), "--frames", str(frames), "--coded", coded(work, name),
                  "--label", f"r{rnd}", "--variant", arm, "--no-header"],

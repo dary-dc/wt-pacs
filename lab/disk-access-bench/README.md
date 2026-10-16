@@ -54,7 +54,8 @@ all open asking nothing, then reads the server's RSS: [`docs/adr/disk-access.md`
 lab/av1/fetch_data.sh ct_lidc dbt12_ea1141 ffdm_d          # then ingest each set's htj2k into W/coded/SET/htj2k
 git show <base>:server/src/media/read_path.rs > server/src/media/read_path.rs
 cargo build --release -p series-server && cp target/release/series-server W/bin/r0 && git checkout server/src/media/read_path.rs
-cargo build --release -p series-server -p disk-access-bench -p pack-series && cp target/release/series-server W/bin/r1
+cargo build --release -p series-server && cp target/release/series-server W/bin/r1
+cargo build --release -p disk-access-bench -p pack-series && cp target/release/server_ab W/bin/
 $P lab/disk-access-bench/idle_buffers_ab.py make W
 $P lab/disk-access-bench/idle_buffers_ab.py time W 16
 $P lab/disk-access-bench/idle_buffers_ab.py summary W/idle_buffers.jsonl
