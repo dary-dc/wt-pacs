@@ -12,6 +12,8 @@ use tokio::task::JoinHandle;
 #[cfg(feature = "uring")]
 use crate::media::uring_reader::UringReader;
 #[cfg(feature = "uring")]
+use std::sync::Once;
+#[cfg(feature = "uring")]
 use tracing::warn;
 
 #[cfg(all(test, feature = "uring"))]
@@ -240,7 +242,10 @@ impl Ring {
             *self = match UringReader::new(store.file(), slots as u32) {
                 Ok(reader) => Self::Built(Box::new(reader)),
                 Err(err) => {
-                    warn!(%err, "io_uring unavailable; this session reads through the pool");
+                    static WARNED: Once = Once::new();
+                    WARNED.call_once(|| {
+                        warn!(%err, "io_uring refused; tile misses go to the pool (warned once)")
+                    });
                     Self::Off
                 }
             };
@@ -409,16 +414,18 @@ impl TileReader {
     }
 
     async fn wait(&mut self, w: usize) -> Result<()> {
-        match self.slots[w].read.take() {
+        match &mut self.slots[w].read {
             None => Ok(()),
             Some(InFlight::Pool(join)) => {
-                self.slots[w].buf = join.await.context("join frame read")??;
-                self.slots[w].filled = self.slots[w].len;
+                let landed = join.await;
+                let slot = &mut self.slots[w];
+                slot.read = None;
+                slot.buf = landed.context("join frame read")??;
+                slot.filled = slot.len;
                 Ok(())
             }
             #[cfg(feature = "uring")]
             Some(InFlight::Ring) => {
-                self.slots[w].read = Some(InFlight::Ring);
                 let Self {
                     ring: Ring::Built(ring),
                     slots,
@@ -827,6 +834,33 @@ mod tests {
             3,
             "the abandoned read-ahead was awaited before the jumped-to frames were started"
         );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A tile read dropped while its pooled read is still queued leaves that frame readable:
+    /// the next read of it waits on the same pooled read and serves the frame whole.
+    #[test]
+    fn a_tile_read_dropped_mid_way_leaves_its_frame_readable() {
+        use futures_util::FutureExt;
+        let dir = scratch("tilecancel");
+        let path = write_bundle(&dir, 1, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .build()
+            .expect("rt");
+        let span = store.frame_span(0);
+        let (release, held) = std::sync::mpsc::channel::<()>();
+        let _busy = rt.spawn_blocking(move || held.recv());
+
+        let mut tile = TileReader::new(ReadMode::Pool, Arc::clone(&store), TILE_SLOTS);
+        let polled_once = rt.block_on(async { tile.read(span, &[]).now_or_never() });
+        assert!(polled_once.is_none(), "precondition: the pooled read landed on a held pool");
+        release.send(()).expect("release the pool");
+        let out = rt.block_on(tile.read(span, &[])).expect("read again");
+        assert_eq!(&out[..], &frame_pattern(0, LEN)[..], "the frame came back wrong");
         std::fs::remove_dir_all(&dir).ok();
     }
 

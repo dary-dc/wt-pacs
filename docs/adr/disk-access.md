@@ -738,6 +738,9 @@ What the code depends on and the types do not enforce, each pinned by a named te
   buffer is reused. *Corrected 2026-10-03:* the drain gave up on any failed wait and the slots were
   then freed under a live read.
   `dropping_a_reader_mid_read_waits_for_the_kernel`, `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused`.
+* **A tile read dropped mid-way leaves its frame readable.** A slot's pooled read stays in the slot until it lands, as a
+  ring read does; before row 254 `wait` took it out first, and the next read of that frame sliced an empty buffer.
+  Latent while the session loop awaits every read. `a_tile_read_dropped_mid_way_leaves_its_frame_readable`.
 * **A fill never builds a ring.** `FillReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
 * **A fill keeps `FILL_WINDOW` advised past the named frame.** Otherwise its depth on the device is one blocking read. `a_fill_tells_the_kernel_what_follows_the_named_frame`.
 * **Tile depth is `slots`, default `TILE_SLOTS`.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`.
@@ -900,7 +903,8 @@ INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_event
   `in_flight=1`. A tile session at client depth 1 / 2 / 4 reports `named` 1 / 2 / 4;
   `in_flight` is how many of those actually missed (a hit is served inline).
 * `ring=false` on a tile session with misses means the ring was refused or the build has no
-  `uring` feature. A fill-only session is always `ring=false`.
+  `uring` feature. A fill-only session is always `ring=false`. The refusal's errno is WARNed once per
+  process, not per session: past the `memlock` ceiling every new session is refused.
 * `session path` is quinn's counters, the server's half of the loss-regime question in
   [`transport-conclusions.md`](../transport/transport-conclusions.md) §1. `mtu` tops out at 1 472
   against Chromium; `mtu=1200` after a long session was quinn's black-hole detection pinning the
@@ -919,6 +923,7 @@ INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_event
 | An abandoned read-ahead is settled before reuse | `an_abandoned_read_ahead_is_awaited_before_its_buffer_is_reused` |
 | Named tiles start before the current wait | `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
 | A jump does not wait on the prefetch it abandons | `an_abandoned_tile_prefetch_does_not_delay_the_frame_that_replaces_it` |
+| A tile read dropped mid-way leaves its frame readable | `a_tile_read_dropped_mid_way_leaves_its_frame_readable` |
 | Slot count is a constructor argument | `a_tile_reader_holds_as_many_frames_as_it_was_given_slots` |
 | A hit never builds a ring | `lazy_ring_is_not_built_when_every_read_hits` |
 | No ring where `RWF_NOWAIT` is refused | `lazy_ring_is_never_built_without_nowait` |
