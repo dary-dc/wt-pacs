@@ -4296,11 +4296,11 @@ Row 244's proposal built, on the owner's yes (2026-10-16): `UringReader` parks o
 
 ### 252 ONEQUEUEBUILD
 
-Row 249's candidate 1 built for measuring, on the owner's yes (2026-10-16): a server lab flag under which an ask no longer ends the fill (served next, the fill resuming behind it), a downloader option that never re-issues, tests for both, and the ask-ahead rig able to run every arm of row 249's protocol. **Branch:** `claude/wip-252-ONEQUEUEBUILD`.
+Row 249's candidate 1 built for measuring, on the owner's yes (2026-10-16): a server lab flag under which an ask no longer ends the fill (served next, the fill resuming behind it), a downloader option that never re-issues, tests for both, and the ask-ahead rig able to run every arm of row 249's protocol. Built 2026-10-16, draft #75 (`ade39ff5`): `--fill-resumes-after-asks` and `refill: "none"`, eight new tests each caught by its mutations, one smoke round of all five arms exact. **Branch:** `claude/wip-252-ONEQUEUEBUILD`.
 
 ### 253 ONEQUEUEMEASURE
 
-Row 249's protocol (`docs/WIRE.md` §An ask during a fill, *Proposed: one queue*) on row 252's build, run by a session given only the protocol and its rule. Starts when 252 is in review.
+Row 249's protocol (`docs/WIRE.md` §An ask during a fill, *Proposed: one queue*) on row 252's build, run by a session given only the protocol and its rule. Started 2026-10-16 on #75, branch `claude/wip-253-ONEQUEUEMEASURE`.
 
 ### 249 ONEQUEUE
 
