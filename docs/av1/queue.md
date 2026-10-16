@@ -4308,7 +4308,7 @@ The owner's ask (2026-10-16): use the night for improvements. Rows 215 and 238's
 
 ### 265 WASMSURFACE
 
-Row 263's first row: the TS-only surface tests into `clauses.ts`, then W4–W9 fixed in the WASM client; no product path added. Draft #80 (`cfb5bb78`, carries #76): 227/227 on both clients, W6's TypeError reproduced first, every fix mutated on both clients. Found: `client/record/wrap-session.ts` drops `onHead` under telemetry. **Branch:** `claude/wip-265-WASMSURFACE`.
+Row 263's first row: the TS-only surface tests into `clauses.ts`, then W4–W9 fixed in the WASM client; no product path added. Merged into `claude/av1-unified-mainbase` as #80 (`46384ab5`, 2026-10-16, carrying #76's proposal docs): 227/227 on both clients, W6's TypeError reproduced first, every fix mutated on both clients. Found: `client/record/wrap-session.ts` drops `onHead` under telemetry. **Branch:** `claude/wip-265-WASMSURFACE`.
 
 ### 264 LABONLY
 
