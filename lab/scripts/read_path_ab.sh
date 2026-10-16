@@ -38,11 +38,13 @@ trap cleanup EXIT
 
 echo "worktree $WT at $BASE" >&2
 git worktree add --detach "$WT" "$BASE"
+# Copied out after each build: under a shared CARGO_TARGET_DIR the second overwrites the first.
+BEFORE="$WT/read_campaign.before"
+AFTER="$WT/read_campaign.after"
 (cd "$WT" && cargo build -p disk-access-bench --bin read_campaign --release)
+cp "${CARGO_TARGET_DIR:-$WT/target}/release/read_campaign" "$BEFORE"
 cargo build -p disk-access-bench --bin read_campaign --release
-
-BEFORE="$WT/target/release/read_campaign"
-AFTER="$ROOT/target/release/read_campaign"
+cp "${CARGO_TARGET_DIR:-$ROOT/target}/release/read_campaign" "$AFTER"
 [[ -x "$BEFORE" && -x "$AFTER" ]] || { echo "read_campaign missing after build" >&2; exit 1; }
 
 : > "$OUT"

@@ -859,8 +859,9 @@ against `RLIMIT_MEMLOCK`, and the lab variant that registered them tied on misse
 Also: the pool path reads ahead too (the `JoinHandle` is held, not awaited); delivery stays in
 ask order — reading *n+1* early is pipelining, not reordering; the planner bounds `in_hand` at
 `ASKS_AHEAD` and stops upcoming at the first `Fill` or `EndSession` (it also streamed a
-`RequestFrames` batch rather than collecting it, until that message left the wire on 2026-10-03). `READ_WINDOW` (64 KiB) is off the product path: a test-only constant in
-`frame_store.rs`, and `read_campaign.rs`'s own for the variant that reproduces the capped probe. `--no-default-features` alone builds
+`RequestFrames` batch rather than collecting it, until that message left the wire on 2026-10-03). The retired 64 KiB `READ_WINDOW` lives on only
+as `read_campaign.rs`'s own, for the variant that reproduces the capped probe; the tests' 64 KiB is `frame_store.rs`'s
+`TEST_CHUNK` (renamed from it 2026-10-16, row 257). `--no-default-features` alone builds
 it: ring is a plain dependency feature (*corrected 2026-10-14:* this said to add `--features crypto-ring`, a feature
 that could not be turned off and is gone).
 
@@ -1091,6 +1092,11 @@ reader built **1.00 ring per session** at every reader count, including a 16 KiB
 KiB memlock ceiling of **~941 sessions**. That is why a fill has its own reader. (A lab ring variant
 that registers buffers fails outright at 64 readers × 250 kB; the shipped reader registers none
 and falls back to the pool on refusal.)
+
+**Corrected 2026-10-16 (row 257): why the fill has no ring.** One miss in sixty was a 16 KiB frame inside the
+kernel's read-ahead window, the regime §2 retracts; at 250 kB and the stock window a fill missed six frames in ten.
+What keeps the fill off a ring is its own advice: one read in flight under `FILL_WINDOW` misses ~1 % (§3,
+2026-09-10), which a ring would serve for ≤ 0.3 µs a frame on average (§13, *Each candidate at its best*).
 
 ### The two readers, every variant (2026-09-10, agent container)
 

@@ -72,7 +72,7 @@ Three properties, each from the shipped code:
 2. **An (offset, length) table in memory**, built once per series and shared by every session (`disk-access.md` §7,
    *One index per series*). Where it is on disk only changes the open.
 3. **Frames in display order, back to back**, so a fill's `posix_fadvise(WILLNEED)` over `FILL_WINDOW` (4 MiB,
-   `read_path.rs:26`) covers the next frames and little else (`read_path.rs:181-194`).
+   `read_path.rs:28`) covers the next frames and little else (`read_path.rs:197-211`).
 
 Every candidate below satisfies 1 for intra-only content and 3 when written in display order (D, §3). So the fair arm
 (row 160's brief) loads the container's index at open into the same table and serves through the same path; the
