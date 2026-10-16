@@ -63,6 +63,9 @@ struct Args {
     /// Writes each frame received as `NNN.bin` here, for a decode against ingest's digests.
     #[arg(long)]
     dump: Option<std::path::PathBuf>,
+    /// A fill's pause after each frame it receives, in µs: a lever to keep the server below saturation.
+    #[arg(long, default_value_t = 0)]
+    gap_us: u64,
 }
 
 static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
@@ -70,11 +73,9 @@ static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new(
 /// XXH3-64 per frame index, from the files the bundle was packed from.
 fn coded_digests(dir: &std::path::Path) -> Result<Vec<u64>> {
     let mut paths: Vec<_> = std::fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
-    paths.retain(|p| {
-        p.file_stem().and_then(|s| s.to_str()).is_some_and(|s| s.parse::<u32>().is_ok())
-            && p.extension().is_some_and(|e| e == "htj2k" || e == "av1")
-    });
-    paths.sort();
+    let index = |p: &std::path::Path| p.file_stem().and_then(|s| s.to_str()).and_then(|s| s.parse::<u32>().ok());
+    paths.retain(|p| index(p).is_some() && p.extension().is_some_and(|e| e == "htj2k" || e == "av1"));
+    paths.sort_by_key(|p| index(p));
     paths.iter().map(|p| Ok(xxh3_64(&std::fs::read(p)?))).collect()
 }
 
@@ -123,7 +124,8 @@ async fn run(args: Args) -> Result<()> {
     for conn in conns {
         let (mode, depth, asks, frames) = (args.mode, args.depth, args.asks, args.frames.max(1));
         let (step, start, digests) = (args.step.max(1), args.start, digests.clone());
-        set.spawn(async move { session(conn, mode, depth, asks, frames, step, start, digests).await });
+        let gap = Duration::from_micros(args.gap_us);
+        set.spawn(async move { session(conn, mode, depth, asks, frames, step, start, gap, digests).await });
     }
     let mut lats = Vec::new();
     while let Some(joined) = set.join_next().await {
@@ -214,6 +216,7 @@ async fn session(
     frames: u32,
     step: u32,
     start: Option<u32>,
+    gap: Duration,
     digests: Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
     let (mut control, _recv) = connection
@@ -228,7 +231,7 @@ async fn session(
             let start = start.unwrap_or(0);
             on_demand(&mut control, &mut media, depth.max(1), asks, frames, step, start, &digests).await
         }
-        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize), start, &digests).await,
+        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize), start, gap, &digests).await,
     }
 }
 
@@ -277,6 +280,7 @@ async fn fill(
     media: &mut RecvStream,
     asks: usize,
     start: Option<u32>,
+    gap: Duration,
     digests: &Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
     let mut lats = Vec::with_capacity(asks);
@@ -294,6 +298,9 @@ async fn fill(
         let now = Instant::now();
         lats.push(now.duration_since(prev).as_nanos() as u64);
         prev = now;
+        if !gap.is_zero() {
+            tokio::time::sleep(gap).await;
+        }
     }
     Ok(lats)
 }

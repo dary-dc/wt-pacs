@@ -30,10 +30,11 @@ pub struct UringReader {
 impl UringReader {
     /// Registers `file`, so a submission does not have to resolve it.
     pub fn new(file: &File, entries: u32) -> Result<Self> {
-        let ring = IoUring::builder()
-            .setup_coop_taskrun()
-            .build(entries)
-            .context("io_uring setup")?;
+        let mut builder = IoUring::builder();
+        if cfg!(not(feature = "lab-ring-no-coop")) {
+            builder.setup_coop_taskrun();
+        }
+        let ring = builder.build(entries).context("io_uring setup")?;
         ring.submitter()
             .register_files(&[file.as_raw_fd()])
             .context("register_files")?;
