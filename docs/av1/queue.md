@@ -4284,7 +4284,7 @@ SELinux choice (deploy/README §Open); the drafts #37–#41 kept or closed.
 
 ### 254–261, drafted by row 251
 
-Each brief and protocol is in row 251's subsection of `docs/adr/disk-access.md` §9 (draft #72). **254 TILECANCEL** (a latent panic after a cancelled pool-path tile read, and the ring-refusal warning once a process) built 2026-10-16, draft #74 (`69fc8f34`): the next read waits on the same pooled read, the refusal WARNs once a process; reproducing test plus two mutations caught. Measurement rows run one at a time after 253, so no two campaigns share the host: 255 IDLEBUFFERS, 256 CACHESHARED, 258 EXECGAP, 259 TILEWILLNEED, 260 FILLWINDOW, 261 RINGCOOP (after 250). 257 READERTIDY follows 250 and 254.
+Each brief and protocol is in row 251's subsection of `docs/adr/disk-access.md` §9 (draft #72). **254 TILECANCEL** (a latent panic after a cancelled pool-path tile read, and the ring-refusal warning once a process) built 2026-10-16, draft #74 (`69fc8f34`): the next read waits on the same pooled read, the refusal WARNs once a process; reproducing test plus two mutations caught. Measurement rows run one at a time after 253, so no two campaigns share the host: 255 IDLEBUFFERS, 256 CACHESHARED, 258 EXECGAP, 259 TILEWILLNEED, 260 FILLWINDOW, 261 RINGCOOP (after 250). 257 READERTIDY follows 250 and 254. *2026-10-16 02:15, on the owner's "parallelize":* the build halves of 255, 256, 259, 260 and 261, and 257 stacked on #74, started beside 253's campaign; builds pinned to CPU 3 at nice 19 under their own lock, nothing timed until the host is free. 258 waits for a device-bound host.
 
 ### 250 RINGPARKBUILD
 
