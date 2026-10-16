@@ -258,7 +258,8 @@ would measure the wrong thing. `dev-server.py` and `deploy/nginx` both send the 
 **The transport is a seam.** `config.transport` is a module URL exporting `TransportSession`,
 defaulting to `client/transport/ts/dist/session.js`. A third implementation plugs in there without
 the downloader knowing ([`CLIENTS.md`](../docs/CLIENTS.md) §The seam) — and it is
-how the contract suite drives the downloader: `client/contract/run_browser.sh downloader`, run by the gate.
+how the contract suite drives the downloader: `client/contract/run_browser.sh downloader` (and
+`downloader-wasm`, through the WASM client), run by the gate.
 `config.decoderWorker` is the same seam for the decoder: `client/contract/run_browser.sh dispatch`
 points it at a stalling stand-in to force the contention its ordering and dispatch-bound tests need.
 `opts.worker` is the downloader's own script: `lab/page-open/boot.mjs` boots it from a bundle or a
