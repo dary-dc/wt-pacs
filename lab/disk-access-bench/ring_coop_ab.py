@@ -95,6 +95,10 @@ def evict_tiles(work, name):
         os.close(fd)
 
 
+class NotCold(RuntimeError):
+    pass
+
+
 class Server:
     def __init__(self, work, name, arm):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -164,6 +168,8 @@ def driver(work, name, server, label, arm, mode, *extra):
 
 def run(work, name, server, cond, label, arm):
     evict_tiles(work, name)
+    time.sleep(0.1)
+    evict_tiles(work, name)
     since = server.log_path.stat().st_size
     cpu0 = server_cpu_ns(server.proc.pid)
     fills = None
@@ -199,7 +205,7 @@ def run(work, name, server, cond, label, arm):
     t = tiles[0]
     miss = float(t["miss_rate"])
     if miss < MIN_MISS or t["ring"] != "true":
-        raise RuntimeError(f"{label} {arm}: miss_rate={miss} ring={t['ring']}: the cell is not a cold ring cell; "
+        raise NotCold(f"{label} {arm}: miss_rate={miss} ring={t['ring']}: the cell is not a cold ring cell; "
                            "raise STRIDE")
     c = tile.stdout.split("\t")
     wall_ns, window_cpu_ns_per_ask = int(c[9]), int(c[11])
@@ -228,7 +234,12 @@ def time_rounds(work, rounds):
                     for cond in CONDS:
                         arms = list(ARMS)
                         for arm in order(arms, r):
-                            row = run(work, name, servers[name, arm], cond, f"{name}_{cond}_r{r}", arm)
+                            label = f"{name}_{cond}_r{r}"
+                            try:
+                                row = run(work, name, servers[name, arm], cond, label, arm)
+                            except NotCold as e:
+                                print(e, "-- run again once", flush=True)
+                                row = dict(run(work, name, servers[name, arm], cond, label, arm), retried=True)
                             f.write(json.dumps(dict(round=r, tile=name, cond=cond, arm=arm, order=order(arms, r),
                                                     **row)) + "\n")
                             f.flush()
