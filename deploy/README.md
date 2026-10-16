@@ -53,8 +53,27 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
 | `REGISTRY` | `docker.io/library` | where the pinned base images are pulled from: a mirror serves the same digests |
 | `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
-| `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds two |
+| `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |
 | `BUILD_CA` | `/dev/null` (none) | the CA of a TLS-inspecting proxy the build must go through, a build secret |
+
+## A server compiled outside the image
+
+`docker build` runs in the daemon, so the compile cannot be pinned to chosen cores there; `docker run --cpuset-cpus`
+can. A deploy host that must keep the compile off its other cores compiles in the pinned rust image of `Containerfile`
+and packages the binary with `Containerfile.prebuilt`, which cannot compile and yields the `server` target's image
+(`deploy/server_start_test.sh` fails if the two `server` stages part):
+
+```bash
+docker run --rm --cpuset-cpus 0 --memory 8g -v "$PWD":/src -v "$HOME/.cache/wt-pacs-cargo":/usr/local/cargo/registry -w /src \
+  docker.io/library/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 \
+  cargo build --release --locked -p series-server
+STAGE=$(mktemp -d)
+cp target/release/series-server deploy/server-start.sh "$STAGE"/ && cp -r fixtures/us_cine_smoke "$STAGE"/
+docker build -f deploy/Containerfile.prebuilt -t wt-pacs-server "$STAGE"   # the image `compose up` runs, given no `--build`
+```
+
+A flag on `Containerfile` to skip its compile stage would not do: only BuildKit skips an unused stage, and a daemon on
+the legacy builder would compile anyway, unpinned. The binary links glibc, so it must come from that bookworm image.
 
 ## The ten fixes, and why
 
@@ -235,7 +254,7 @@ never builds a ring, so io_uring matters only to tile misses. In order of cost:
 | series on a bind mount or named volume (ext4, XFS) | `RWF_NOWAIT`: every warm frame inline | the image's own layer (overlayfs) and tmpfs refuse it | none |
 | `seccomp=./seccomp-uring.json` | io_uring on a tile miss | Docker ≥ 25, Podman, containerd ≥ 2.0 refuse it by default | the kernel's io_uring surface, below |
 | `memlock` sized to the rings, one uid per server | io_uring past ~1 000 rings | a uid's ~1 000th concurrent ring, host-wide | locked memory up to the limit |
-| `nofile` ≥ 2 × sessions that miss + sockets | the ring's two fds | the daemon's default, whatever it is | none |
+| `nofile` ≥ sessions that miss + sockets | the ring's fd (two until row 250 dropped the eventfd) | the daemon's default, whatever it is | none |
 | on an SELinux-enforcing host, `io_uring { allowed }` for the container's domain | io_uring on a tile miss | container-selinux grants it to no container domain: `EACCES` even under the profile (probed on Fedora 43, disk-access.md §6 *In a container*) | `label=disable` drops the container's SELinux confinement; a module granting that one permission to `container_t` (untried) reaches every container on the host |
 
 **Verified on this host** (Docker 29.8.2, containerd 2.3.6, runc 1.5.1, Linux 6.18, cgroup v1, ext4). A static probe
@@ -300,7 +319,7 @@ the owner's call and said `compose.yml` does not load it; it does since row 231.
     security_opt: ["seccomp=./seccomp-uring.json"]   # relative to compose.yml
     ulimits:
       memlock: "${MEMLOCK:-67108864}"   # 64 MiB: ~7 500 rings at 8.7 KiB, for this uid
-      nofile: "${NOFILE:-65535}"        # ≥ 2 × sessions that miss + sockets
+      nofile: "${NOFILE:-65535}"        # ≥ sessions that miss + sockets
 ```
 
 A daemon that cannot raise a limit refuses the container at start (`error setting rlimit type 8: operation not
@@ -328,12 +347,14 @@ current (a changed entry and a wrong checksum each failed it). Regenerate it whe
 
 **Which path is live.** The startup banner says `read_fast_path=preadv2` or `pooled_pread`, and `read_ring=available`
 or `read_ring=refused (<why>)` from one ring built and dropped at start (15.6 µs; row 231). A tile session still tries
-`io_uring_setup` once on its first miss and warns `io_uring unavailable; this session reads through the pool`: a ring
-the probe got can still be refused later, past the `memlock` budget. `/proc/1/limits` inside the container is the
+`io_uring_setup` once on its first miss: a ring the probe got can still be refused later, past the `memlock` budget.
+The first refusal warns `io_uring refused; tile misses go to the pool (warned once)` with its errno, once per process;
+every refused session's line says `ring=false`. `/proc/1/limits` inside the container is the
 server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 
-* the `memlock` limit beside `read_ring=`, and sessions that start with the pool when the probe was refused, so the
-  per-session warning goes.
+* the `memlock` limit beside `read_ring=`, and sessions that start with the pool when the probe was refused, so none
+  of them tries `io_uring_setup`. *Corrected 2026-10-16:* this also promised the per-session warning would go; row 254
+  made it once per process instead.
 * the same probe in `check-fastpath`, shipped in the server image, so `docker compose exec server check-fastpath
   /studies` gates a rollout: 0 with both fast paths, 1 with either lost.
 * compose's health check stays the transport file. A slow path is not an unhealthy one, and failing it would hold
@@ -344,7 +365,7 @@ server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 | what | why it matters | what would close it |
 | --- | --- | --- |
 | rootless podman | the brief's first runtime is unchecked | a host with it: build, `up`, the page check |
-| io_uring on an SELinux-enforcing host | the profile is not enough there: `EACCES` (§Container settings) | the owner's call: `label=disable` or a policy module granting `io_uring { allowed }`; neither ships |
+| io_uring on an SELinux-enforcing host | the profile is not enough there: `EACCES` (§Container settings) | the owner's call: `label=disable` or a policy module granting `io_uring { allowed }`; neither ships. The module's source is [`wtpacs_io_uring.te`](wtpacs_io_uring.te) (row 262, untried); `lab/scripts/workstation_run.sh` tries `label=disable` on such a host and prints the root steps that load the module |
 | ~~a stale server binary~~ *closed by row BUILDCACHE, 2026-10-15* | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | closed: the build touches every source it copied before `cargo build` (§5), proved in §Verified *Row BUILDCACHE* |
 | studies by name | one server serves one series (`SERIES`) | a study index, proposed in `docs/FIXTURES.md` §From DICOM |
 | HTTP/3 for the page, and a `dns-prefetch` to the transport's origin | each takes a round trip off a cold open ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §What production adds) | nginx's QUIC listener; one `<link>` in the viewer |

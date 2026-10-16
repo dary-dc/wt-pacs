@@ -7,8 +7,9 @@
 use anyhow::{bail, Context, Result};
 use io_uring::{opcode, types, IoUring};
 use std::fs::File;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
+use std::os::fd::{AsRawFd, RawFd};
 use tokio::io::unix::AsyncFd;
+use tokio::io::Interest;
 
 #[cfg(test)]
 thread_local! {
@@ -20,8 +21,9 @@ thread_local! {
 }
 
 pub struct UringReader {
+    /// Declared before `ring`, so it leaves the reactor before the ring's fd closes.
+    ring_fd: AsyncFd<RawFd>,
     ring: IoUring,
-    eventfd: AsyncFd<OwnedFd>,
     in_flight: usize,
 }
 
@@ -35,23 +37,10 @@ impl UringReader {
         ring.submitter()
             .register_files(&[file.as_raw_fd()])
             .context("register_files")?;
-
-        // SAFETY: `eventfd` returns an owned fd or -1.
-        let raw: RawFd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
-        if raw < 0 {
-            return Err(std::io::Error::last_os_error()).context("eventfd");
-        }
-        // SAFETY: `raw` is a fresh fd owned by nobody else.
-        let owned = unsafe { OwnedFd::from_raw_fd(raw) };
-        // Not `_async`: it signals only from an io-wq worker, and a `COOP_TASKRUN` ring
-        // completes in the submitter's context, so the park would never wake.
-        ring.submitter()
-            .register_eventfd(owned.as_raw_fd())
-            .context("register_eventfd")?;
-
         Ok(Self {
+            ring_fd: AsyncFd::with_interest(ring.as_raw_fd(), Interest::READABLE)
+                .context("AsyncFd(ring)")?,
             ring,
-            eventfd: AsyncFd::new(owned).context("AsyncFd(eventfd)")?,
             in_flight: 0,
         })
     }
@@ -87,24 +76,10 @@ impl UringReader {
         Ok(landed)
     }
 
-    /// Park on the registered eventfd rather than blocking in `io_uring_enter`.
+    /// Park on the ring's own fd, never in `io_uring_enter`. A wake may carry nothing.
     pub(crate) async fn park(&mut self) -> Result<()> {
-        let mut guard = self
-            .eventfd
-            .readable_mut()
-            .await
-            .context("eventfd readable")?;
-        let _ = guard.try_io(|inner| {
-            let mut sink = [0u8; 8];
-            // SAFETY: an 8-byte read from an eventfd into a live local buffer.
-            let n =
-                unsafe { libc::read(inner.get_ref().as_raw_fd(), sink.as_mut_ptr() as *mut _, 8) };
-            if n < 0 {
-                Err(std::io::Error::last_os_error())
-            } else {
-                Ok(())
-            }
-        });
+        let mut guard = self.ring_fd.readable().await.context("ring fd readable")?;
+        guard.clear_ready();
         Ok(())
     }
 
@@ -129,9 +104,7 @@ impl UringReader {
         }
         true
     }
-}
 
-impl UringReader {
     fn submit_and_wait(&mut self, want: usize) -> std::io::Result<usize> {
         #[cfg(test)]
         if let Some(errno) = FAILED_WAITS.with(|f| f.borrow_mut().pop()) {
@@ -152,6 +125,7 @@ mod tests {
     use super::*;
     use crate::media::read_path::TILE_SLOTS;
     use std::io::Write;
+    use std::os::fd::FromRawFd;
 
     /// A pipe nobody has written to yet: a read from it cannot complete inline.
     fn pipe() -> (std::fs::File, std::fs::File) {
@@ -261,8 +235,9 @@ mod tests {
 
     /// **The park path.** Every other test here reads a page-cached file, where the
     /// completion lands before anything awaits it, so `park` is never entered — a reader
-    /// that could never be woken passed the whole suite. The read is from a pipe nobody has
-    /// written to yet, so it cannot complete inline.
+    /// that could never be woken passed the whole suite. Each read is from a pipe nobody has
+    /// written to yet, so it cannot complete inline. Two reads, a handful of wakes: a park that
+    /// left the first wake's readiness set would spin through the second.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_read_that_cannot_complete_inline_wakes_the_parked_reader() {
         let (rd, wr) = pipe();
@@ -270,29 +245,40 @@ mod tests {
             eprintln!("SKIPPED: io_uring is unavailable on this host");
             return;
         };
-        let mut buf = vec![0u8; 64];
-        // SAFETY: `buf` outlives `reader` and is untouched until reaped.
-        unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
-        assert!(
-            reader.reap().expect("reap").is_empty(),
-            "the pipe was not empty"
-        );
+        let (go, write_after_a_while) = std::sync::mpsc::channel::<()>();
         let writer = std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            (&wr).write_all(&[0x5A; 64]).expect("write");
-        });
-        tokio::time::timeout(std::time::Duration::from_secs(10), async {
-            loop {
-                reader.park().await.expect("park");
-                if !reader.reap().expect("reap").is_empty() {
-                    break;
-                }
+            for () in write_after_a_while {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                (&wr).write_all(&[0x5A; 64]).expect("write");
             }
-        })
-        .await
-        .expect("the parked reader was never woken");
+        });
+        let mut buf = vec![0u8; 64];
+        let mut wakes = 0;
+        for _ in 0..2 {
+            buf.fill(0);
+            // SAFETY: `buf` outlives `reader` and is untouched until reaped.
+            unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
+            assert!(
+                reader.reap().expect("reap").is_empty(),
+                "the pipe was not empty"
+            );
+            go.send(()).unwrap();
+            tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                loop {
+                    reader.park().await.expect("park");
+                    wakes += 1;
+                    if !reader.reap().expect("reap").is_empty() {
+                        break;
+                    }
+                }
+            })
+            .await
+            .expect("the parked reader was never woken");
+            assert!(buf.iter().all(|&b| b == 0x5A), "the wake carried no bytes");
+        }
+        drop(go);
         writer.join().unwrap();
-        assert!(buf.iter().all(|&b| b == 0x5A), "the wake carried no bytes");
+        assert!(wakes <= 4, "{wakes} wakes for two reads: the park spins");
     }
 
     /// **The read-ahead invariant.** Two reads are submitted before either is awaited, and

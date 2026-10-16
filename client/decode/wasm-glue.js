@@ -10,8 +10,11 @@ export async function instantiate(d, name, options = {}) {
   return factory({ locateFile: (f) => d.dir + "/" + f, wasmBinary, ...options });
 }
 
+export const sha256Hex = async (bytes) =>
+  Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+
 async function pinned(url, bytes, want) {
-  const got = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const got = await sha256Hex(bytes);
   if (got !== want) throw new Error(`${url} is not the pinned build: sha256 ${got}, not ${want}`);
 }
 

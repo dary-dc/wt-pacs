@@ -27,6 +27,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
 [dependencies]
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive"] }
+container-bench = { path = "../container-bench" }
 series-server = { path = "../../server" }
 fod = { path = "../../common/fod" }
 frame-envelope = { path = "../../common/frame-envelope" }
