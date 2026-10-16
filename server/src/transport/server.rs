@@ -863,10 +863,9 @@ mod tests {
         path
     }
 
-    /// Longer than one read window, so a frame takes several reads and the look-ahead has
-    /// to survive them.
+    /// Longer than `TEST_CHUNK`, so a frame assembled from misplaced chunks cannot match.
     fn pattern(idx: u32) -> Vec<u8> {
-        let len = crate::media::frame_store::READ_WINDOW as u32 + 1 + idx * 997;
+        let len = crate::media::frame_store::TEST_CHUNK as u32 + 1 + idx * 997;
         (0..len)
             .map(|b| (b.wrapping_mul(31).wrapping_add(idx.wrapping_mul(7)) % 251) as u8)
             .collect()

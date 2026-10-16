@@ -22,25 +22,30 @@ must miss, use the server's `--force-pool-reads`, not eviction (§12); a real mi
 past the cache, `read_campaign --fresh DIR` per cold cell. `tokio_fs` reads through tokio's io_uring driver
 (`tokio_fs_uring`) only with `--features tokio-uring` and `RUSTFLAGS="--cfg tokio_unstable"`. The gate compiles it (`scripts/gate.sh`).
 
-## The frame cache against the server as it ships (row 209)
+## The frame cache against the server as it ships (rows 209, 256)
 
 B0, B0′, B1 (`series-server --features lab-frame-cache`: `src/frame_cache.rs` in front of both readers, budget
-`LAB_FRAME_CACHE_BYTES`) and B2 (`GLIBC_TUNABLES=glibc.malloc.hugetlb=1`), two fills per fresh server process:
-[`docs/adr/disk-access.md`](../../docs/adr/disk-access.md) §13, *Measured (row 209)*. `server_ab --coded DIR` checks
-every frame received against its coded file's XXH3-64; `LAB_FRAME_CACHE_MUTATE=stale` must fail it.
+`LAB_FRAME_CACHE_BYTES`, admission on a second ask), B1s (B1's binary under `LAB_FRAME_CACHE_ADMIT=session`: admission on
+a second *session's* ask) and B1z (B1 with `--features lab-fit-zeroed`), a fresh server process per arm, cell and round,
+each session filling the series three times over its one connection (`server_ab --passes 3`):
+[`docs/adr/disk-access.md`](../../docs/adr/disk-access.md) §13, *Measured (row 256)*. Row 209 ran B2 and two passes, each its own
+connection: the script at its commit. `server_ab --coded DIR` checks every frame received against its coded file's
+XXH3-64; `LAB_FRAME_CACHE_MUTATE=stale` must fail it wherever the cache holds an entry.
 
 ```bash
-lab/av1/fetch_data.sh pt15_cptac ct_lidc dbt12_ea1141     # then ingest each set's htj2k into W/coded/SET/htj2k
+P=lab/av1/.venv/bin/python
+OUT=W/data lab/av1/fetch_data.sh pt15_cptac ct_lidc dbt12_ea1141
+for s in pt15_cptac ct_lidc dbt12_ea1141; do $P ingest/coded-frames/ingest.py lab/.av1-build W/data/$s W/coded/$s/htj2k --codec htj2k; done
+cargo build --release -p series-server --features lab-frame-cache,lab-fit-zeroed && cp target/release/series-server W/bin/b1z
 cargo build --release -p series-server --features lab-frame-cache && cp target/release/series-server W/bin/b1
 cargo build --release -p series-server -p disk-access-bench -p pack-series && cp target/release/series-server W/bin/b0
-P=lab/av1/.venv/bin/python
+cp target/release/{server_ab,pack-series} W/bin/
 $P lab/disk-access-bench/frame_cache_ab.py make W           # the .sbnd of each set, and the synthetic 3 MB series
 $P lab/disk-access-bench/frame_cache_ab.py verify W         # W/data/SET is the fetched set, for the decode
 $P lab/disk-access-bench/frame_cache_ab.py mutate W
 $P lab/disk-access-bench/frame_cache_ab.py time W 16
 $P lab/disk-access-bench/frame_cache_ab.py summary W/frame_cache.jsonl
 ```
-
 
 ## Tile names past the slots (row 259)
 
