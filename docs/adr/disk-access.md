@@ -1005,30 +1005,36 @@ claimed for concurrent sessions.
 
 *2026-10-16, on row 251's protocol (261 RINGCOOP above).*
 
-**Verdict: closed; `COOP_TASKRUN` stays.** Every cell and metric ties under the A/A resolution, so C1's p99 beats
-C0's beside the fills in neither cell and the rule does not adopt it. The prediction that C1's p99 would be lower
-beside the fills is not borne out at this resolution, which beside the fills is 78–97 % on p99.
+**Verdict: closed; `COOP_TASKRUN` stays.** C1's p99 beats C0's beside the fills in neither cell, so the rule does not
+adopt it; the one difference past the resolution goes the other way. The prediction that C1's p99 would be lower
+beside the fills is not borne out: there C1/C0 is 1.045 and 0.985, against resolutions of 67 and 160 %.
 
 | cell | p50 C1/C0 | p99 C1/C0 | CPU per ask C1/C0 | resolution p50 / p99 / CPU | server busy C0/C1 |
 | --- | --- | --- | --- | --- | --- |
-| 16 KiB alone | 1.143 (8/12) | 1.474 (8/12) | 1.078 (8/12) | 35.6 / 392 / 37.2 % | 41 / 37 % |
-| 16 KiB beside | 1.262 (9/12) | 0.854 (7/12) | 1.027 (8/12) | 54.0 / 77.8 / 19.3 % | 54 / 61 % |
-| 250 kB alone | 0.900 (8/12) | 0.838 (8/12) | 0.986 (7/12) | 39.8 / 63.5 / 28.8 % | 50 / 51 % |
-| 250 kB beside | 1.075 (8/12) | 1.068 (7/12) | 1.028 (7/12) | 32.9 / 96.9 / 21.9 % | 55 / 59 % |
+| 16 KiB alone | 1.185 (11/12) | **1.870 (10/12), worse** | 1.065 (10/12) | 26.7 / 66.6 / 32.9 % | 41 / 37 % |
+| 16 KiB beside | 1.147 (8/12) | 1.045 (7/12) | 1.010 (7/12) | 49.5 / 66.8 / 7.3 % | 75 / 79 % |
+| 250 kB alone | 1.118 (8/12) | 1.135 (9/12) | 1.088 (9/12) | 23.0 / 82.5 / 27.2 % | 53 / 52 % |
+| 250 kB beside | 0.922 (7/12) | 0.985 (7/12) | 0.993 (6/12) | 29.4 / 160 / 12.2 % | 77 / 79 % |
 
-At `8f15ebf0` (unified with rows 256 and 257 merged in). Medians of the 12 per-round ratios, rounds agreeing in sign
-in brackets. C0's medians: p50 0.45 / 0.68 / 2.89 / 9.19 ms, p99 1.20 / 9.50 / 6.73 / 48.1 ms, in table order. 144
-runs, none run again: `miss_rate` ≥ 0.984, `ring=true` and `in_flight` 4 in every one, the fills warm (0 misses) and
-still streaming at the end of every beside run. Raw rows: [`rows-ringcoop.jsonl`](../../lab/disk-access-bench/rows-ringcoop.jsonl).
-A first campaign at `85d557ea`, before row 257's reader tidy, gave the same verdict: a tie in all 12 cell-metrics, beside
-p99 C1/C0 1.119 and 0.980 against resolutions of 67.5 and 41.5 %.
+At `bd52df14`, unified with rows 255, 256 and 257 merged in: the code that would land. Medians of the 12 per-round
+ratios, rounds agreeing in sign in brackets. C0's medians: p50 0.42 / 0.62 / 2.42 / 3.32 ms, p99 0.88 / 5.93 / 4.56 /
+34.1 ms, in table order. 144 runs, none run again: `miss_rate` ≥ 0.965, `ring=true` and `in_flight` 4 in every one,
+the fills warm (0 misses) and still streaming at the end of every beside run. Raw rows:
+[`rows-ringcoop.jsonl`](../../lab/disk-access-bench/rows-ringcoop.jsonl).
 
-**Where the host saturates.** The server stayed at 37–58 % of its two CPUs. The clients did not: over the beside tile
-runs CPU 2 was 98 % busy and CPU 3 100 %, and CPU 3 read 100 % in the alone cells too, since other rows' builds ran
-there at nice 19 throughout. Beside the fills the tile client competes for its cores with eight fill clients hashing
-4.8 MB frames, so those p99s carry client delay common to both arms; that and the 4-vCPU guest are why the
-resolution is wide. An effect of `COOP_TASKRUN` smaller than ~40–80 % of p99 beside busy workers is not excluded; none
-larger was seen. Not measured: more than two workers, a server near saturation, a device slower than this virtio disk.
+**Two earlier campaigns, same rig and gap**, before rows 257 (`85d557ea`) and 255 (`8f15ebf0`) merged, tied in all 12
+cell-metrics each, with beside p99 C1/C0 at 1.119 / 0.980 and 0.854 / 1.068. The 16 KiB alone p99 that separates in the
+last run ran 1.102 (6/12) and 1.474 (8/12) there, inside resolutions of 65 and 392 %: the direction held three times
+and cleared the bar once, on the quietest host of the three (no other row building on CPU 3). Not established as an
+effect of the flag; it does not change the verdict, since C1 would not be adopted either way.
+
+**Where the host saturates.** The server stayed under the protocol's 80 %: 37–53 % alone, 75–79 % beside in the final
+run (54–61 % in the earlier two, when other rows' builds shared the host). The clients did not always: in the earlier
+two runs CPUs 2–3 sat at 98–100 % beside the fills, CPU 3 at 100 % throughout from those builds at nice 19; in the
+final run 83–88 %. Beside the fills the tile client shares its cores with eight fill clients hashing 4.8 MB frames,
+so those p99s carry client delay common to both arms; that and the 4-vCPU guest are why the resolution is wide. An
+effect of `COOP_TASKRUN` on p99 beside busy workers smaller than ~65 % is not excluded; none larger was seen. Not
+measured: more than two server workers, a server past 80 % busy, a device slower than this virtio disk.
 
 **The arms.** C0 is the default release build. C1 is the same source with `--features lab-ring-no-coop`
 (`server/Cargo.toml`): `UringReader::new` skips `setup_coop_taskrun`, and the banner prints `ring_coop=off`, which
