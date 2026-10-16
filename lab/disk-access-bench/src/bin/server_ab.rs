@@ -17,6 +17,9 @@ enum Mode {
     #[value(name = "on-demand")]
     OnDemand,
     Fill,
+    /// Each session in turn asks `asks` tiles at `depth`, then streams `--fill` frames from frame
+    /// 0, and stays open asking nothing: what the server keeps for sessions that have read.
+    Idle,
 }
 
 #[derive(Parser)]
@@ -63,6 +66,12 @@ struct Args {
     /// Writes each frame received as `NNN.bin` here, for a decode against ingest's digests.
     #[arg(long)]
     dump: Option<std::path::PathBuf>,
+    /// Frames each `--mode idle` session streams after its tiles.
+    #[arg(long, default_value_t = 32)]
+    fill: usize,
+    /// How long `--mode idle` holds every session open before it reads the server's RSS.
+    #[arg(long, default_value_t = 1000)]
+    hold_ms: u64,
 }
 
 static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
@@ -104,7 +113,10 @@ async fn run(args: Args) -> Result<()> {
         let _ = DUMP.set(dir.clone());
     }
     let digests = args.coded.as_deref().map(coded_digests).transpose()?.map(Arc::new);
-    let mut endpoints = vec![client_endpoint()?];
+    if let Mode::Idle = args.mode {
+        return idle(&args, &digests).await;
+    }
+    let mut endpoints = vec![client_endpoint(None)?];
     let server = match args.server_pid {
         Some(pid) => Some((pid, proc_cpu(pid)?, proc_rss_kib(pid)?)),
         None => None,
@@ -115,7 +127,7 @@ async fn run(args: Args) -> Result<()> {
     let mut conns = Vec::with_capacity(args.sessions.max(1));
     for i in 0..args.sessions.max(1) {
         if i > 0 && !args.one_socket {
-            endpoints.push(client_endpoint()?);
+            endpoints.push(client_endpoint(None)?);
         }
         conns.push(connect(endpoints.last().expect("one endpoint"), &args.url).await?);
     }
@@ -155,10 +167,7 @@ async fn run(args: Args) -> Result<()> {
         args.label,
         args.variant,
         args.temp,
-        match args.mode {
-            Mode::OnDemand => "on-demand",
-            Mode::Fill => "fill",
-        },
+        args.mode.to_possible_value().expect("no mode is skipped").get_name(),
         args.depth,
         lats.len(),
         pct(&lats, 0.50),
@@ -172,10 +181,51 @@ async fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn client_endpoint() -> Result<Endpoint<wtransport::endpoint::endpoint_side::Client>> {
+/// One row: CPU per frame over the sessions' reads, then the server's RSS once all are idle,
+/// and how many were still open when it was read.
+async fn idle(args: &Args, digests: &Option<Arc<Vec<u64>>>) -> Result<()> {
+    let pid = args.server_pid.context("--mode idle reads the server's RSS: give --server-pid")?;
+    let (cpu0, rss0) = (proc_cpu(pid)?, proc_rss_kib(pid)?);
+    let peak = Arc::new(AtomicU64::new(rss0));
+    let sampler = tokio::spawn(sample_rss(pid, Arc::clone(&peak)));
+    let frames = args.frames.max(1);
+    let mut held = Vec::with_capacity(args.sessions);
+    let mut served = 0;
+    for _ in 0..args.sessions.max(1) {
+        let endpoint = client_endpoint(Some(Duration::from_secs(3)))?;
+        let connection = connect(&endpoint, &args.url).await?;
+        let (mut control, recv) = connection.open_bi().await.context("open bi")?.await.context("bi ready")?;
+        let mut media = connection.accept_uni().await.context("accept media uni")?;
+        let (depth, step, start) = (args.depth.max(1), args.step.max(1), args.start.unwrap_or(0));
+        served += on_demand(&mut control, &mut media, depth, args.asks, frames, step, start, digests).await?.len();
+        served += fill(&mut control, &mut media, args.fill.min(frames as usize), Some(0), digests).await?.len();
+        held.push((endpoint, connection, control, recv, media));
+    }
+    let cpu_ns_per_frame = proc_cpu(pid)?.saturating_sub(cpu0) / served.max(1) as u128;
+    tokio::time::sleep(Duration::from_millis(args.hold_ms)).await;
+    let rss_idle = proc_rss_kib(pid)?;
+    sampler.abort();
+    let open = held.iter().filter(|(_, c, ..)| c.quic_connection().close_reason().is_none()).count();
+    if !args.no_header {
+        println!("label\tvariant\topen\tframes\tcpu_ns_per_frame\trss_start_kib\trss_peak_kib\trss_idle_kib");
+    }
+    println!(
+        "{}\t{}\t{open}\t{served}\t{cpu_ns_per_frame}\t{rss0}\t{}\t{rss_idle}",
+        args.label,
+        args.variant,
+        peak.load(Ordering::Relaxed),
+    );
+    Ok(())
+}
+
+/// `keep_alive` holds a session open past the idle timeout while it asks nothing.
+fn client_endpoint(
+    keep_alive: Option<Duration>,
+) -> Result<Endpoint<wtransport::endpoint::endpoint_side::Client>> {
     let dual = ClientConfig::builder()
         .with_bind_default()
         .with_no_cert_validation()
+        .keep_alive_interval(keep_alive)
         .build();
     match Endpoint::client(dual) {
         Ok(ep) => Ok(ep),
@@ -183,6 +233,7 @@ fn client_endpoint() -> Result<Endpoint<wtransport::endpoint::endpoint_side::Cli
             let v4 = ClientConfig::builder()
                 .with_bind_config(IpBindConfig::InAddrAnyV4)
                 .with_no_cert_validation()
+                .keep_alive_interval(keep_alive)
                 .build();
             Endpoint::client(v4).context("wtransport client (IPv4)")
         }
@@ -229,6 +280,7 @@ async fn session(
             on_demand(&mut control, &mut media, depth.max(1), asks, frames, step, start, &digests).await
         }
         Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize), start, &digests).await,
+        Mode::Idle => unreachable!("`idle` opens its own sessions"),
     }
 }
 

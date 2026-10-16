@@ -62,7 +62,11 @@ impl ReadStats {
     }
 }
 
+/// A reader holds no buffer between frames, so a read begins in one from the pool.
 fn fit(buf: &mut Vec<u8>, need: usize) {
+    if buf.is_empty() {
+        *buf = frame_pool::take();
+    }
     if buf.len() < need {
         buf.resize(need, 0);
     }
@@ -102,9 +106,9 @@ impl Fetch {
     }
 }
 
-/// The fill's next frame: its read, or the spare buffer when nothing is named.
+/// The fill's next frame, if one is named.
 enum Ahead {
-    Idle(Vec<u8>),
+    Idle,
     Named(FrameSpan, Fetch),
 }
 
@@ -124,7 +128,7 @@ impl FillReader {
         Self {
             store,
             cur: Vec::new(),
-            ahead: Ahead::Idle(Vec::new()),
+            ahead: Ahead::Idle,
             advised_to: 0,
             stats: ReadStats::default(),
         }
@@ -153,22 +157,21 @@ impl FillReader {
                 self.advise(next);
                 Ahead::Named(next, fetch)
             }
-            None => Ahead::Idle(spare),
+            None => Ahead::Idle,
         };
         self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
         self.stats.peak_in_flight = self
             .stats
             .peak_in_flight
             .max(u16::from(matches!(self.ahead, Ahead::Named(_, Fetch::Pooled(_)))));
-        let frame = mem::replace(&mut self.cur, frame_pool::take());
-        Ok(frame_pool::hand_off(frame, span.len as usize))
+        Ok(frame_pool::hand_off(mem::take(&mut self.cur), span.len as usize))
     }
 
     /// Awaits whatever the last call started, so its buffer can be reused whether or not
     /// this frame is the one it holds.
     async fn settle(&mut self) -> Result<(Option<(FrameSpan, bool)>, Vec<u8>)> {
-        match mem::replace(&mut self.ahead, Ahead::Idle(Vec::new())) {
-            Ahead::Idle(buf) => Ok((None, buf)),
+        match mem::replace(&mut self.ahead, Ahead::Idle) {
+            Ahead::Idle => Ok((None, Vec::new())),
             Ahead::Named(span, fetch) => {
                 let (buf, missed) = fetch.land().await?;
                 Ok((Some((span, missed)), buf))
@@ -335,8 +338,7 @@ impl TileReader {
             self.stats.hits += 1;
         }
         slot.key = None;
-        let frame = mem::replace(&mut slot.buf, frame_pool::take());
-        Ok(frame_pool::hand_off(frame, slot.len))
+        Ok(frame_pool::hand_off(mem::take(&mut slot.buf), slot.len))
     }
 
     fn holding(&self, span: FrameSpan) -> Option<usize> {
@@ -857,6 +859,73 @@ mod tests {
                 !tile.holds(all[slots]),
                 "held more frames than it has slots"
             );
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Puts spare buffers in the process pool, so a reader that took one for no frame is seen holding it.
+    fn stock_the_pool() {
+        drop((0..64).map(|_| frame_pool::hand_off(vec![0; 1], 1)).collect::<Vec<_>>());
+    }
+
+    /// **An idle tile session holds no frame buffer**: once every frame it named is served, each
+    /// slot's buffer has left with its frame and none has taken its place — on a hit, on the pool,
+    /// and on the ring where the host has one. `docs/adr/disk-access.md` §10.
+    #[test]
+    fn a_tile_reader_holds_no_buffer_once_its_named_frames_are_served() {
+        let dir = scratch("tileidle");
+        let path = write_bundle(&dir, 4, LEN);
+        let rt = rt();
+        let mut taken = vec!["hit", "pool"];
+        #[cfg(feature = "uring")]
+        taken.push("ring");
+        for path_taken in taken {
+            let mut store = FrameStore::open(&path).expect("open store");
+            match path_taken {
+                "pool" => store.force_pool_reads(),
+                #[cfg(feature = "uring")]
+                "ring" => store.force_short_reads(SHORT),
+                _ => {}
+            }
+            let store = Arc::new(store);
+            let all = spans(&store, &[0, 1, 2, 3]);
+            let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
+            stock_the_pool();
+            for (i, span) in all.iter().enumerate() {
+                let out = rt.block_on(tile.read(*span, &all[i + 1..])).expect("read");
+                assert_eq!(&out[..], &frame_pattern(i as u32, LEN)[..], "{path_taken}: frame {i}");
+            }
+            let held = tile.slots.iter().filter(|s| s.buf.capacity() > 0).count();
+            assert_eq!(held, 0, "{path_taken}: {held} slots kept a buffer with no frame in it");
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **An idle fill holds no frame buffer**: once it names nothing, neither the frame it served
+    /// nor the read-ahead it abandoned stays with it. `docs/adr/disk-access.md` §10.
+    #[test]
+    fn a_fill_that_names_nothing_holds_no_buffer() {
+        let dir = scratch("fillidle");
+        let path = write_bundle(&dir, 4, LEN);
+        let rt = rt();
+        for pooled in [false, true] {
+            let mut store = FrameStore::open(&path).expect("open store");
+            if pooled {
+                store.force_pool_reads();
+            }
+            let store = Arc::new(store);
+            let [f0, f1, f2, f3] = spans(&store, &[0, 1, 2, 3])[..] else {
+                unreachable!("four frames")
+            };
+            let mut seq = FillReader::new(Arc::clone(&store));
+            stock_the_pool();
+            // Frame 2 is named, then abandoned for 3, which names nothing.
+            for (idx, span, next) in [(0, f0, Some(f1)), (1, f1, Some(f2)), (3, f3, None)] {
+                let out = rt.block_on(seq.read(span, next)).expect("read");
+                assert_eq!(&out[..], &frame_pattern(idx, LEN)[..], "frame {idx}, pooled={pooled}");
+            }
+            assert_eq!(seq.cur.capacity(), 0, "the served frame's buffer was refilled, pooled={pooled}");
+            assert!(matches!(seq.ahead, Ahead::Idle), "a fill naming nothing kept a buffer, pooled={pooled}");
         }
         std::fs::remove_dir_all(&dir).ok();
     }
