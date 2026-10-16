@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wtransport::config::IpBindConfig;
 use wtransport::stream::{RecvStream, SendStream};
-use wtransport::{ClientConfig, Connection, Endpoint};
+use wtransport::{ClientConfig, Connection, Endpoint, VarInt};
 use xxhash_rust::xxh3::xxh3_64;
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -143,7 +143,11 @@ async fn run(args: Args) -> Result<()> {
     if let Some(sampler) = sampler {
         sampler.abort();
     }
-    drop(endpoints);
+    // Closed, not dropped: the server writes each `session reads` line now, not at its idle timeout.
+    for endpoint in &endpoints {
+        endpoint.close(VarInt::from_u32(0), b"");
+        endpoint.wait_idle().await;
+    }
     let asks_per_s = n as f64 * 1e9 / wall_ns.max(1) as f64;
     lats.sort_unstable();
     if !args.no_header {

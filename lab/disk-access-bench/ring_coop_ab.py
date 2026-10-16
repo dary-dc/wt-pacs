@@ -7,7 +7,9 @@ docs/adr/disk-access.md §9, *261 RINGCOOP*, has the arms, the cells and the rul
     ring_coop_ab.py time    WORK ROUNDS    one JSON line a run into WORK/ring_coop.jsonl
     ring_coop_ab.py summary JSONL
 
-WORK/bin/c0 is the default release build of series-server, WORK/bin/c1 the same with `--features lab-ring-no-coop`.
+WORK/bin/c0 is the default release build of series-server, WORK/bin/c1 the same with `--features lab-ring-no-coop`;
+WORK/bin/server_ab and WORK/bin/pack-series are copies of this tree's, so a shared target dir cannot swap them mid-run.
+CPU per ask is the server's CPU over the whole cell, fills included, over every frame it served.
 Environment: STRIDE (bytes between tile asks, past `read_ahead_kb` on the day), FILL_GAP_US (each fill's pause a
 frame, to hold the server below 80 % busy), FILL_FRAMES, FILL_LEAD_S, ASKS, SERVER_CPUS, CLIENT_CPUS.
 """
@@ -30,8 +32,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from order import order  # noqa: E402
 from frame_cache_ab import host  # noqa: E402
 
-SERVER_AB = ROOT / "target/release/server_ab"
-PACK_SERIES = ROOT / "target/release/pack-series"
 SERVER_CPUS = os.environ.get("SERVER_CPUS", "0-1")
 CLIENT_CPUS = os.environ.get("CLIENT_CPUS", "2-3")
 TILES = {"t16k": 16384, "t250k": 250000}
@@ -78,7 +78,7 @@ def make(work):
         (d / "metadata.json").write_text(json.dumps({"frameCount": len(sizes), "synthetic": "random bytes"}))
         out = sbnd(work, name)
         out.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run([PACK_SERIES, "--metadata", d / "metadata.json", "--frames", d, "--output", out], check=True)
+        subprocess.run([work / "bin/pack-series", "--metadata", d / "metadata.json", "--frames", d, "--output", out], check=True)
         print(name, len(sizes), "frames", out.stat().st_size, "B", flush=True)
     os.sync()
 
@@ -134,8 +134,19 @@ class Server:
         self.log.close()
 
 
+def server_cpu_ns(pid):
+    """On-CPU ns over the server's threads, as `server_ab --server-pid` counts it."""
+    total = 0
+    for task in Path(f"/proc/{pid}/task").iterdir():
+        try:
+            total += int((task / "schedstat").read_text().split()[0])
+        except FileNotFoundError:
+            pass
+    return total
+
+
 def driver(work, name, server, label, arm, mode, *extra):
-    return ["taskset", "-c", CLIENT_CPUS, SERVER_AB, "--url", f"https://127.0.0.1:{server.port}/",
+    return ["taskset", "-c", CLIENT_CPUS, work / "bin/server_ab", "--url", f"https://127.0.0.1:{server.port}/",
             "--server-pid", str(server.proc.pid), "--mode", mode, "--label", label, "--variant", arm,
             "--coded", coded(work, name), "--no-header", *map(str, extra)]
 
@@ -143,6 +154,7 @@ def driver(work, name, server, label, arm, mode, *extra):
 def run(work, name, server, cond, label, arm):
     evict_tiles(work, name)
     since = server.log_path.stat().st_size
+    cpu0 = server_cpu_ns(server.proc.pid)
     fills = None
     if cond == "beside":
         fills = subprocess.Popen(
@@ -159,6 +171,7 @@ def run(work, name, server, cond, label, arm):
         raise RuntimeError(f"{label} {arm}: fills failed: {fills.stderr.read()[-500:]}")
     if tile.returncode:
         raise RuntimeError(f"{label} {arm}: tiles failed: {tile.stderr[-500:]}")
+    cell_cpu_ns = server_cpu_ns(server.proc.pid) - cpu0
     want = 1 + (FILL_SESSIONS if fills else 0)
     for _ in range(200):
         lines = server.session_lines(since)
@@ -175,10 +188,11 @@ def run(work, name, server, cond, label, arm):
         raise RuntimeError(f"{label} {arm}: miss_rate={miss} ring={t['ring']}: the cell is not a cold ring cell; "
                            "raise STRIDE")
     c = tile.stdout.split("\t")
-    wall_ns, cpu_ns_per_ask = int(c[9]), int(c[11])
+    wall_ns, window_cpu_ns_per_ask = int(c[9]), int(c[11])
     fill_reads = sum(int(l["fill_hits"]) + int(l["fill_misses"]) for l in fill_lines)
-    return dict(p50_ns=int(c[6]), p99_ns=int(c[8]), wall_ns=wall_ns, cpu_ns_per_ask=cpu_ns_per_ask,
-                busy=cpu_ns_per_ask * ASKS / (wall_ns * server.cpus), miss_rate=miss, in_flight=int(t["in_flight"]),
+    return dict(p50_ns=int(c[6]), p99_ns=int(c[8]), wall_ns=wall_ns,
+                cpu_ns_per_ask=cell_cpu_ns // (ASKS + fill_reads),
+                busy=window_cpu_ns_per_ask * ASKS / (wall_ns * server.cpus), miss_rate=miss, in_flight=int(t["in_flight"]),
                 fills_overlapped=overlapped,
                 fill_miss_rate=sum(int(l["fill_misses"]) for l in fill_lines) / fill_reads if fill_reads else None)
 
