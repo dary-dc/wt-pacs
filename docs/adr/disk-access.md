@@ -844,7 +844,7 @@ first (CLAUDE.md); **M** needs a measurement first. Lines are product lines by a
 | 4 | **Row 209's frame cache pays where it gives nothing back.** Its cost (+25–36 % CPU a frame) is a lone session re-asking its own frames, which its client can hold; its gain (−17–22 %, half the peak RSS) is a second session asking. Admitting on a second *session's* ask instead of a second ask (`claim_fill` is keyed by frame alone, `lab/disk-access-bench/src/frame_cache.rs:65`) should keep the gain and drop the cost (D). Row 209's suspected mechanism is checkable alongside: a buffer grown by `fit` is zero-filled by `resize` (`read_path.rs:65–69`) | **measure** on row 209's rig · lab +10; the port is a proposal | M → S · 256 |
 | 5 | **The tile reader repeats itself.** `Slot.at` and `.len` copy its `key` (`read_path.rs:255–264`, set at `:366–368`); a `#[derive(Default)]` slot replaces the 9-line literal (`:297–306`). The unread tail is submitted at two `unsafe` sites (`:387–395`, `:437–444`): one `Slot` method that submits it *and* sets `read` establishes the invariant in one place, one `unsafe` block fewer. Two `spawn_blocking` tails (`:79–86`, `:399–408`) are one helper; hits and misses are counted twice (`:195–201`, `:332–336`). `ReadStats::miss_rate` is `#[cfg(test)]` (`:57–63`) while the session line computes its own (`pipeline.rs:144–151`), so `read_stats_report_the_session_miss_rate` pins arithmetic the product never runs: the line should call it. Names: the fill reader is `seq` (`pipeline.rs:45`, `:115`, `:121`, `:138`); `escalate` has `slots` the count beside `slots: s` the vector (`:383–384`); `if i == 0 { span } else { upcoming[i - 1] }` (`:319`) is `once(span).chain(upcoming)`. `:111–112` gives as the fill's reason for no ring "a sequential walk is read-ahead's best case", the claim §2 retracts; the reason is one read in flight under `FILL_WINDOW`. `READ_WINDOW` (`frame_store.rs:15–17`) is a test constant named for a product concept gone since 2026-09-23 | **do**, after row 250 · −30, one `unsafe` block fewer | R · 257 |
 | 6 | **Two waits on the executor, never timed where they bite.** The fill's `WILLNEED` runs inline (`read_path.rs:153` → `:181–193` → `frame_store.rs:135–147`); it copies nothing but allocates the folios and submits their reads in the caller (`force_page_cache_ra`, §*Read-ahead and folios*), so it can wait on reclaim and on the block layer's request tags (not traced at a pinned kernel) — the owners' regime of series past RAM and thousands of sessions. Its one timing is a 64 KiB hint on a guest-cold cache (224 against 178 µs co-tenant gap, 2026-09-05). `TileReader::drop` (`:487–500`) drains in `io_uring_enter` on the executor (`uring_reader.rs:114–131`): one device read, ~1–5 ms on cloud block storage (§11, L7), for each session that ends mid-batch (a closed tab). Candidates: the advice detached on the pool (+3; a 24–34 µs hop per MiB walked, awaited by no one); the drain moved to `spawn_blocking` inside a guard whose own `Drop` drains, so a pool that drops the task still never frees a live buffer (+15, one `SAFETY`). The third executor stall, the whole-frame inline copy at 2.8–16 MB, is levers.md's INLINECAP (#10): same rig | **measure** | M · 258 |
-| 7 | **Tile names past the slots wait for a slot.** The planner holds `ASKS_AHEAD` = 8 (`planner.rs:7`) and names every frame ask behind the served one (`:96–103`); `TileReader` starts `slots − 1` = 3 (`read_path.rs:316`). One `WILLNEED` per further name puts it on the device with no buffer, ring entry or thread. **Reopens §5's ahead-N row with new evidence:** its 4.6–4.9× (2026-09-05) was one read in flight against no look-ahead, which `TILE_SLOTS` has since delivered (look-ahead *is* depth, §11, *Line 221*), so within the slots it stays closed; past them it is untried. It bites only when a client keeps more than four asks out; its sweep loss (misses 7 → 56) and finding 6's executor cost carry over | **measure** · +6 | M · 259 |
+| 7 | **Tile names past the slots wait for a slot.** The planner holds `ASKS_AHEAD` = 8 (`planner.rs:7`) and names every frame ask behind the served one (`:96–103`); `TileReader` starts `slots − 1` = 3 (`read_path.rs:316`). One `WILLNEED` per further name puts it on the device with no buffer, ring entry or thread. **Reopens §5's ahead-N row with new evidence:** its 4.6–4.9× (2026-09-05) was one read in flight against no look-ahead, which `TILE_SLOTS` has since delivered (look-ahead *is* depth, §11, *Line 221*), so within the slots it stays closed; past them it is untried. It bites only when a client keeps more than four asks out; its sweep loss (misses 7 → 56) and finding 6's executor cost carry over | **measured 2026-10-16: not adopted** — misses fall, the wall ties ([below](#measured-row-259-tile-names-past-the-slots-are-not-advised)) · +6 | M · 259 |
 | 8 | **`FILL_WINDOW` is 4 MiB at every frame size** (`read_path.rs:26`). At `ffdm_d`'s 4.8 MB it covers less than the frame after the named one, at 16 MB a quarter of it, and the extension rule (`:184–190`) re-advises every frame. A window of `max(4 MiB, 2 × the named frame)` (D). Row 197 ran `ffdm_d` cold under W0 but varied the advice, not its size | **measure** · +1 | M · 260 |
 | 9 | **A ring completion waits for its submitter's thread.** `COOP_TASKRUN` (`uring_reader.rs:32`) posts a completion as task work on the submitting thread without an IPI: a sleeping thread is woken, a running one runs it at its next syscall or tick. A reader parked on another worker waits that long while the submitter seals a large frame in user space. From the kernel's task-work notification (`TWA_SIGNAL_NO_IPI`), not traced at a pinned kernel and not timed; without the flag, an IPI a completion | **measure**, after row 250 · ±1 | M · 261 |
 
@@ -930,9 +930,48 @@ which each row reports.
 | 256 | **CACHESHARED** — does admitting on a second session's ask turn row 209's trade-off into a net? (finding 4) | measure, then proposal | row 209's rig |
 | 257 | **READERTIDY** — finding 5's cuts, no behaviour change: the server's suite green, `read_path_ab.sh` ties every cell (§12), and the merged `Slot` submit mutated (drop the `read = Some`) fails a test | review row | rows 250, 254 |
 | 258 | **EXECGAP** — do the fill's inline `WILLNEED` and the tile drain stall co-tenants on a device-bound volume? (finding 6; INLINECAP joins it) | measure | a device-bound host |
-| 259 | **TILEWILLNEED** — does advising tile names past the slots buy depth without memory? (finding 7) | measure | — |
+| 259 | **TILEWILLNEED** — does advising tile names past the slots buy depth without memory? (finding 7) | measured: not adopted | — |
 | 260 | **FILLWINDOW** — does a window of two frames beat 4 MiB on frames past 1 MiB? (finding 8) | measure | — |
 | 261 | **RINGCOOP** — does `COOP_TASKRUN` delay ring completions beside busy workers? (finding 9) | measure | row 250 |
+
+### Measured (row 259): tile names past the slots are not advised
+
+*2026-10-16, on the protocol above, built and run by row 259.* **Verdict: not adopted.** The advice does what it
+says — a strided cell at client depth 8 misses ×0.63–0.90 as often, beyond the A/A resolution with every round agreeing —
+but no cell's burst wall parts from T0's, so the rule's first half fails at both sizes. Nothing is worse beyond the
+resolution, the sweep included, and the depth-4 control ties on every metric, so the run stands.
+
+| cell (16 KiB stride 8, 250 kB stride 2 and the sweep at stride 1) | T0 burst wall | T1 ×T0 wall · resolution | T1 ×T0 misses · resolution |
+| --- | --: | --- | --- |
+| 16 KiB, depth 8, 1 session | 1.95 ms | ×0.948 · 31 % | **×0.634** · 1.6 % |
+| 16 KiB, depth 8, 16 sessions | 9.8 ms | ×0.979 · 149 % | **×0.724** · 0.2 % |
+| 250 kB, depth 8, 1 session | 12.3 ms | ×1.030 · 23 % | **×0.898** · 0.8 % |
+| 250 kB, depth 8, 16 sessions | 131 ms | ×1.058 · 52 % | **×0.808** · 0.4 % |
+| sweep 250 kB, depth 8, 1 session | 12.0 ms | ×0.975 · 41 % | ×0.793 · 28 % (92 %) |
+| sweep 250 kB, depth 8, 16 sessions | 144 ms | ×0.987 · 33 % | **×0.852** · 13 % |
+| control: depth 4, both sizes, 1 and 16 sessions | 2.5–127 ms | ×0.965–1.059 | ×1.000 |
+
+**Bold**: beyond the resolution (the p90 over rounds of \|T0′/T0 − 1\|) with ≥ 80 % of rounds agreeing. CPU per ask
+ties in every cell (×0.93–1.10), and `in_flight` is 4 in every row of every arm.
+
+* *Depth 8 strided ×0.75–0.9 of T0's wall:* **failed**, ×0.95–1.06. The rig could not have seen the low end of the
+  prediction: the wall's resolution was 19–149 %, a 4-core guest's virtio disk with other rows' builds on CPU 3, one
+  of the client's two. What it shows is that a third to a tenth fewer misses did not shorten the wall here.
+* *Depth 4 a tie:* **held**, and by construction: a client at depth 4 names no frame past the slots (a test pins it).
+* *The sweep a tie or a loss:* **a tie**; the 2026-09-05 sweep loss did not recur, misses fell instead.
+
+The rig: [`lab/disk-access-bench/tile_advice_ab.py`](../../lab/disk-access-bench/README.md) §Tile names past the slots,
+rows in `rows-tileadvice.jsonl`. Random-byte series of 16 384 × 16 KiB and 2 048 × 250 kB; every run on its own
+fresh `writer_bench direct` copy (0 pages cached after any copy), so cold without eviction; strides re-derived on
+the day as the smallest that missed ≥ 95 % at depth 1 (16 KiB: 8, 97.7 %; 250 kB: 2, 100 %); sessions on disjoint
+frames; 128 asks a session alone, 32 each of 16, in bursts of 16; 12 rounds, T0, T0′ and T1 in `order.py`'s order
+in each cell; every frame checked by XXH3-64, 115 200 asks, none inexact. Server on CPUs 0–1, client on 2–3.
+Host: kernel 6.18.44, ext4 on `/dev/vda`, `read_ahead_kb` 128, THP `madvise`, glibc 2.39, 4 vCPU, 16 GB.
+**Saturation**, not swept: 16 sessions at 250 kB move ~0.5 GB/s against one session's ~0.33 GB/s, so the
+16-session 250 kB cells are taken as device-bound and claim nothing past their tie.
+
+The arm, `series-server --advise-tile-names` (lab), and its tests stay on `claude/wip-259-TILEWILLNEED`: the flag
+is the owner's to drop or keep for a re-run on a quieter host (P0's).
 
 ## 10 · How it is built
 
@@ -996,7 +1035,8 @@ uses `auto`; a fill ignores it. `--force-pool-reads` (lab) clears the store's `n
 misses and takes the pool — the state a refusing filesystem produces, so it trips the same
 warning. It exists because eviction is not a lever ([`CLAUDE.md`](../../CLAUDE.md)
 §Measurement). One saturate run over `queue_large`: 3 648 hits, 0 misses by default; 0 hits,
-3 627 misses, `read_fast_path=pooled_pread` forced.
+3 627 misses, `read_fast_path=pooled_pread` forced. `--advise-tile-names` (lab) is row 259's arm T1: one `WILLNEED`
+per tile name past the slots, warned at start; not adopted (§9, *Measured (row 259)*).
 
 ### Reporting
 
