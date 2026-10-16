@@ -28,17 +28,9 @@ impl TransportSessionHandle {
         Ok(Self { inner })
     }
 
-    /// `on_head` runs once the frame's envelope head is read, before its body.
     #[wasm_bindgen(js_name = requestExactFrame)]
-    pub async fn request_exact_frame(
-        &self,
-        frame_index: u32,
-        on_head: Option<js_sys::Function>,
-    ) -> Result<JsValue, JsValue> {
-        self.inner
-            .request_frame(frame_index, on_head)
-            .await
-            .map_err(named)
+    pub async fn request_exact_frame(&self, frame_index: u32) -> Result<JsValue, JsValue> {
+        self.inner.request_frame(frame_index).await.map_err(named)
     }
 
     #[wasm_bindgen(js_name = fillFrames)]

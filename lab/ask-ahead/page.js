@@ -49,7 +49,6 @@ const cfg = await (await fetch("/wt/dev-transport.json")).json();
 client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
   decode: false,
   decoders: 0,
-  refill: q.get("refill") ?? undefined,
   onFrame: (f) => {
     keep(f.frameIndex, f.bytes);
     if (ASK >= 0 && !askAt && landed.size >= N * Number(AT)) {

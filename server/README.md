@@ -142,7 +142,7 @@ task ever waits on the disk; queue row 258 (EXECGAP) is drafted to time both.
 
 Off in a deployment, and documented where they are measured: `--force-pool-reads` (every read a miss),
 `--hold-sessions` (a dial that never settles), `--stall-after-bytes` (a session that stops sending),
-`--send-window-follows-cwnd`, `--stream-mode per-frame-asks-first`, `--congestion cubic-classify`,
+`--stream-mode per-frame-asks-first`, `--congestion cubic-classify`,
 `--reply-repeated-initial`, `--segmentation-offload false` (netem drops datagrams, not GSO batches), and the
 `lab-frame-cache` feature (`LAB_FRAME_CACHE_BYTES`). The `telemetry` feature compiles in `server/src/record/`,
 `RecordedPipeline` and the controller traces (`transport/cc_trace.rs`, `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`);

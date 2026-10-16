@@ -12,8 +12,7 @@ export type ConformantFrame = {
 };
 
 export type ConformantSession = {
-  /** `onHead` runs once the frame's envelope head is read, before its body; the downloader's rig takes none. */
-  requestExactFrame(frameIndex: number, onHead?: () => void): Promise<ConformantFrame>;
+  requestExactFrame(frameIndex: number): Promise<ConformantFrame>;
   fillFrames(
     from: number,
     to: number,
@@ -513,27 +512,6 @@ async function aFrameIsLateOnlyWhenTheSessionGoesQuiet(rig: Rig, check: Check) {
   silent.close();
 }
 
-/** An asked frame's `onHead` runs once, with its envelope's head read and its body not yet. */
-async function onHeadRunsBeforeTheBody(rig: SessionRig, check: Check) {
-  const s = await rig.open();
-  let heads = 0;
-  let headAt = 0;
-  const asked = s.requestExactFrame(0, () => {
-    heads += 1;
-    headAt = performance.now();
-  });
-  await settle();
-  // Five chunks 100 ms apart: the head is in the first, the body ends 400 ms behind it.
-  await rig.fake().trickleFrame(0, enc.encode("slow".repeat(40)), 5, 100);
-  const f = await within(asked, 2000);
-  const lead = Math.round(performance.now() - headAt);
-  check(
-    f !== null && heads === 1 && lead >= 300,
-    `${rig.name}: onHead runs once, before the body (${heads} heads, ${heads ? lead : "-"} ms ahead of the frame)`,
-  );
-  s.close();
-}
-
 /** A dial whose `ready` never settles is closed at `dialMs` and rejected by name. docs/ARCHITECTURE.md §A dial that never settles */
 async function aDialThatNeverSettlesIsClosedAtItsDeadline(rig: SessionRig, check: Check) {
   rig.hangNextDial();
@@ -596,7 +574,6 @@ async function mediaReadsCountsTheMediaReads(rig: SessionRig, check: Check) {
 /** The surface a session's own `connect` and reader offer, which the downloader's rig cannot reach. */
 export async function runSessionClauses(rig: SessionRig, check: Check): Promise<void> {
   await runEach(rig, check, [
-    onHeadRunsBeforeTheBody,
     aDialThatNeverSettlesIsClosedAtItsDeadline,
     anOpeningFillRidesTheUrl,
     anEmptyHashDialsUnpinned,

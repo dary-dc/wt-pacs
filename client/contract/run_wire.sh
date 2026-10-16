@@ -20,8 +20,7 @@ make_test_cert "$T"
 export WTPACS_TRUST_SPKI="$(openssl x509 -in "$T/cert.pem" -pubkey -noout | openssl pkey -pubin -outform DER |
   openssl dgst -sha256 -binary | base64)"
 
-# 200 frames of 256 KB: enough that a fill is still running when an ask lands, and with the
-# 2 MB send window below, few enough in flight that the fill's end is observable.
+# 200 frames of 256 KB: enough that a fill is still running when an ask lands.
 mkdir -p "$T/frames"
 for i in $(seq 0 199); do head -c 262144 /dev/urandom > "$T/frames/$(printf '%03d' "$i").htj2k"; done
 echo '{"frameCount": 200}' > "$T/metadata.json"
@@ -31,7 +30,7 @@ serving() { grep -q "wt_url=" "$T/server.log"; }
 for _ in 1 2 3; do
   WT_PORT=$((30000 + RANDOM % 20000))
   "$BIN/series-server" --port "$WT_PORT" --series "$T/series.sbnd" --cert-pem "$T/cert.pem" --key-pem "$T/key.pem" \
-    --send-window-bytes 2000000 --websocket > "$T/server.log" 2>&1 &
+    --websocket > "$T/server.log" 2>&1 &
   SERVER=$!
   for _ in $(seq 50); do serving || ! kill -0 "$SERVER" 2>/dev/null && break; sleep 0.1; done
   serving && break

@@ -38,7 +38,7 @@ A `FrameResult` is `{ frameIndex, bytes, timing: { askMs, lastChunkMs } }`, time
 
 **Where the implementations differ:** the WASM handle is exported as `TransportSessionHandle`, and
 `session-adapter.js` re-exports it as `TransportSession` once wasm-bindgen's init has run; `readMin` is
-TypeScript's alone. Every other option, `onHead` and `stats().mediaReads` are both clients' (since row 265,
+TypeScript's alone. Every other option and `stats().mediaReads` are both clients' (since row 265,
 2026-10-16; until then `endStream` was synchronous on WASM and its `connect` took `wireBuffers` alone):
 
 | option | what it does |
@@ -136,13 +136,13 @@ by name while the rest still run.
 | `aFrameIsLateOnlyWhenTheSessionGoesQuiet` | a frame whose bytes keep coming for 16 s lands |
 | `aSlowFrameHoldsNoOther` | a frame slow on its own stream holds back no frame on another |
 
-**Five more are a session's own** (`runSessionClauses`), the surface its `connect` and reader offer, which the
-downloader's rig cannot reach: `onHeadRunsBeforeTheBody` (an asked frame's `onHead` runs once, ahead of its body),
-`aDialThatNeverSettlesIsClosedAtItsDeadline` (rejected at `dialMs` as a `DialTimeoutError`, the dial closed),
+**Four more are a session's own** (`runSessionClauses`), the surface its `connect` and reader offer, which the
+downloader's rig cannot reach: `aDialThatNeverSettlesIsClosedAtItsDeadline` (rejected at `dialMs` as a `DialTimeoutError`, the dial closed),
 `anOpeningFillRidesTheUrl` (`?ask=fill:a-b`, armed, every frame to `onFrame`, nothing asked on control),
 `anEmptyHashDialsUnpinned` (no `serverCertificateHashes` without a hash, one with) and
-`mediaReadsCountsTheMediaReads` (a read per media chunk). They were the TypeScript unit tests' until row 265;
-`onHead` under `readMin` stays there.
+`mediaReadsCountsTheMediaReads` (a read per media chunk). They were the TypeScript unit tests' until row 265.
+*Corrected for row 276:* `onHead` and its two tests went with the downloader's re-ask ([`WIRE.md`](WIRE.md) §An ask
+during a fill).
 
 `ring.ts` adds, per session implementation: a buffer handed back is read into again, one still
 held is not, the free list never exceeds its size, a frame in a larger buffer is a view of its own
@@ -193,11 +193,8 @@ are in flight that its end is observable. Nothing in the tree is touched.
   makes every waiter `unavailable`, so the WebSocket client passed 64 of 64 with its refusals sent as
   the wrong message type. It now requires the reason's words; every client still passes 64 of 64.
 * `client/contract/ask-during-fill.html`: WIRE.md §An ask during a fill, seen from the client,
-  raw and through the downloader, over both transports and both WebTransport clients. Raw: the ask is served mid-fill, the fill
-  ends — 28 of 120 arrive, then nothing — and the rest arrive only once asked again. Downloader: the
-  fill completes without being asked again, no frame twice. Mutants: a planner that keeps the fill
-  past an ask (the raw client reports 120 of 120; the downloader survives it) and a downloader that
-  never re-issues (28 of 120).
+  raw and through the downloader, over both transports and both WebTransport clients. Raw and downloader
+  alike: the ask is served mid-fill and the fill resumes, all 120 arriving, none twice, nothing asked again.
 
 **In the gate** (`scripts/gate.sh`): `run.mjs`, the worker-safe static check
 (`client/scripts/check_worker_safe.sh`: no built artifact may contain a `window.` reference), the
@@ -264,8 +261,7 @@ except a frame an ask carries, which settles on its own promise.
 still owed once, through `onError`, with the closure's reason, after the waiters are rejected.
 
 **What the consumer owns.** A pushed fill cannot time out a frame that never comes; the consumer
-keeps its own record of what it wants. The downloader does, and re-issues the undelivered remainder
-as a new fill once an ask has settled, and resumes on a dead session's report rather than failing
+keeps its own record of what it wants. The downloader does, and resumes on a dead session's report rather than failing
 (`client/README.md`).
 
 ## A truncated frame is a failure

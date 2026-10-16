@@ -133,18 +133,14 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   on the wire, one contiguous run of what is still wanted at a time. Not a `request_frames` batch,
   which left the wire on 2026-10-03 (`202644d`): the server served it as one ask per index in order,
   so an ask behind a 200-frame batch waited for all 200, where a `stream_frames` fill is dropped the
-  moment an ask is in hand. **An ask ends a
-  running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once the asked
-  frame's 8-byte envelope head lands the downloader re-issues what is not yet delivered as a new run
-  ([`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, *ASKTHENFILL*). That is a patch, not the
-  design: an ask and a fill compete for one stream, and the client rebuilds the fill the server dropped. The
-  candidate that removes the competition, one server queue where an ask moves its frame to the front, is queue
-  row 249. An ask for a frame the fill still owes goes to the wire, where the
+  moment an ask is in hand. **An ask goes before a
+  running fill, which then resumes** ([`WIRE.md`](WIRE.md) §An ask during a fill), so the downloader asks for
+  nothing again; the next run goes out once nothing of the current one is owed, which can be on an ask's landing
+  when the ask carried the run's last frame. An ask for a frame the fill still owes goes to the wire, where the
   server serves it next, and the ask then owns that frame: a refusal that fails the rest of the run
   spares it.
 * **Cancel** ends the stream, drops queued work by generation, fails outstanding asks with an
-  `AbortError`, **resets the count of asks in flight** (it gates the fill; one left over stalled the
-  next fill) and answers `cancelled`. An ask already on the wire stays owed: the server still sends its frame, and
+  `AbortError` and answers `cancelled`. An ask already on the wire stays owed: the server still sends its frame, and
   the session refuses a second ask of it, so the same frame asked again after the cancel takes that ask over
   rather than asking twice (row 219, VIEWERASKS; `downloader.test.mjs` *anAskAgainAfterACancelIsServed*).
 * **Closure**: a session that dies is resumed (§Session survival); a command after a closure re-dials.
@@ -426,7 +422,7 @@ the downloader against a stalling fake decoder so contention is forced; both are
 | a closed session noticed at once, waiters failed; a live one's frame owed its full wait | `noticesClose` | the same — an in-flight ask is woken at once; an ask after the closure re-dials and is served |
 | refusals delivered, none lost | `refusals.html` headless against a real server (`run_wire.sh`), both clients | a refused ask arrives with the server's reason; a refused fill through `onError` — dispatch `aRefusedFillReachesTheConsumer` |
 | worker-safe clocks; transferable results | `workerSafe`, `transferable`; `client/scripts/check_worker_safe.sh` | the same: stamps across two worker boundaries non-zero and ordered, a delivered buffer movable. **Move-not-copy across the boundary is not page-observable** — a dropped transfer list arrives as a clone that still detaches, found by a mutant that passed |
-| an ask during a fill, served before the fill's queue | `ask-during-fill.html` against a real server: the ask is served, the fill ends — 28 of 120 arrive, then nothing | the same page: the ask is served and the fill completes without being asked again, no frame twice; dispatch `askBeatsQueuedFill`, `promoteBeatsQueuedFill`, `asksTheWireForAnOwedFrame`, `reissuesAfterAsk` |
+| an ask during a fill, served before the fill's queue | `ask-during-fill.html` against a real server: the ask is served mid-fill and the fill resumes, all 120, none twice | the same page: the ask is served and the fill completes without being asked again, no frame twice; dispatch `askBeatsQueuedFill`, `promoteBeatsQueuedFill`, `asksTheWireForAnOwedFrame`, `anAskDuringAFillReissuesNothing` |
 | `stats`; one dial serves later asks; re-dial after closure | `reportsStats`, `oneDialServesLaterAsks`, `redialsAfterClosure` | the same; `stats` answered on the page |
 | 8-bit multi-component, 16-bit unsigned, 16-bit signed | `parity.mjs`, signed against ground truth an independent decoder confirmed ([`decode/README.md`](decode/README.md) §Signed) | 8-bit 3-component byte-identical in `client/harness/index.html`; the others rest on the package, which sign-extends itself. **Not yet run behind the downloader on a signed series** |
 | every decoded frame byte-identical to `.sha256` | `parity.mjs`, `lab/decode-bench/` | `client/harness/index.html`, mutation-checked both ways: one perturbed sample turns every line to `MISMATCH`, every fifth frame dropped reports 9/12 |

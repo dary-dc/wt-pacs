@@ -12,9 +12,8 @@
 <body>
   <h1>an ask during a fill — the server's semantics, seen from the client</h1>
   <p>
-    On the wire an ask ends a running fill and is served next (<code>docs/WIRE.md</code>).
-    The raw client sees exactly that, and the rest arrives only once asked again; the downloader asks
-    again by itself. <code>?client=ts|ws|wasm|downloader|downloader-ws|downloader-wasm</code> · <code>wt=</code>/<code>hash=</code> override
+    On the wire an ask is served ahead of a running fill, which then resumes (<code>docs/WIRE.md</code>).
+    The raw client and the downloader alike see the whole fill without asking for any of it again. <code>?client=ts|ws|wasm|downloader|downloader-ws|downloader-wasm</code> · <code>wt=</code>/<code>hash=</code> override
     <code>/wt/dev-transport.json</code>. <code>client/contract/run_wire.sh</code> drives this from the gate.
   </p>
   <div id="log"></div>
@@ -71,14 +70,10 @@
         });
         await until(() => askP, `${client}: ${AT} frames of the fill arrive`);
         const asked = await served(askP);
-        check(asked?.frameIndex === ASK, `${client}: the ask is served during the fill (${asked ? (performance.now() - askAt).toFixed(0) + " ms" : "not within 3 s"})`);
+        const atAsk = got.length;
+        check(asked?.frameIndex === ASK && atAsk < FILL, `${client}: the ask is served during the fill (${asked ? (performance.now() - askAt).toFixed(0) + " ms" : "not within 3 s"}, ${atAsk} of ${FILL} in)`);
         await quiet(() => got.length, 500);
-        const delivered = got.length;
-        check(delivered >= AT && delivered < FILL, `${client}: the server ended the fill — ${delivered} of ${FILL} arrived, then nothing`);
-        const rest = [];
-        if (delivered < FILL) s.fillFrames(delivered, FILL - 1, (f) => rest.push(f.frameIndex));
-        await quiet(() => rest.length, 500);
-        check(delivered < FILL && rest.length === FILL - delivered, `${client}: asked again, the remaining ${FILL - delivered} arrive (${rest.length} did)`);
+        check(got.length === FILL && new Set(got).size === FILL, `${client}: the fill resumes behind the ask — ${got.length} of ${FILL} arrive, none twice, none asked again`);
         s.close();
       } else {
         const { DownloaderClient } = await import("/client/transport/consumer.js");

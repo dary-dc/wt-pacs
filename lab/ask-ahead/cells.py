@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""ASKAHEAD's campaign: per round, per cell, today's server and `--send-window-follows-cwnd` in a Williams
+"""ASKAHEAD's campaign: per round, per cell, each of ARMS in a Williams
 order (lab/scripts/order.py), each run its own server and relay (`link_impair.py --self-timing`), one
 headless Chromium (visit.mjs) for the whole campaign. One JSON row per run on stdout.
 
 usage: cells.py SERIES_DIR ROUNDS CELL ...   CELL = RATE_MBIT/RTT_MS/QUEUE[@AT][:ARM,...], QUEUE = fifoMS or codel,
        AT the share landed before the ask (default ASK_AT) or `none`; the arms default to all of ARMS
-       ARMS=today,follow  (a further arm is name=--server-flag ..., or name=PATH/series-server [flag ...];
+       ARMS=today  (a further arm is name=--server-flag ..., or name=PATH/series-server [flag ...];
        a `?key=value` token goes to the page's query) — lab/ask-ahead/README.md
 """
 import json
@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lab/scripts"))
 from order import order  # noqa: E402
 
-ARMS = {"today": [], "follow": ["--send-window-follows-cwnd"]}
+ARMS = {"today": []}
 SERVER = ROOT / "target/release/series-server"
 # RELAY_CHRT=50 runs the relay under SCHED_FIFO: a late relay reads as link jitter (docs/rig-limits.md §3).
 PRIO = ["chrt", "-f", os.environ["RELAY_CHRT"]] if os.environ.get("RELAY_CHRT") else []
@@ -143,11 +143,11 @@ class Rig(type(Path())):
 
 def main():
     series, rounds, cells = Path(sys.argv[1]).resolve(), int(sys.argv[2]), sys.argv[3:]
-    for spec in os.environ.get("ARMS", "today,follow").split(","):
+    for spec in os.environ.get("ARMS", "today").split(","):
         name, _, flag = spec.partition("=")
         if flag or name not in ARMS:
             ARMS[name] = flag.split()
-    arms = os.environ.get("ARMS", "today,follow").split(",")
+    arms = os.environ.get("ARMS", "today").split(",")
     arms = [a.partition("=")[0] for a in arms]
     with tempfile.TemporaryDirectory() as d:
         t = Rig(d)
