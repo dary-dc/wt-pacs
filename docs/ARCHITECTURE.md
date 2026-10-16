@@ -242,6 +242,81 @@ and the 10-bit tomosynthesis (24 × 678×1727) at 20 and 50 Mbit, 1× and 4× (f
 and 1×, 1 722 [1 715–1 730] against 1 724 [1 715–1 733] ms), slower in 29 of 71 paired rounds;
 3 360/3 360 frames exact. The code moved is off the fill's steady path, so no gain was expected.
 
+### Proposed: an open page follows a server restart (row 271)
+
+*Proposed 2026-10-16 (queue row 271, RESTARTPIN; [`merge-readiness.md`](merge-readiness.md) §Third round, T6), read
+from the code at `eda3ba83`. Structural: a consumer option. Nothing is built before the owner's yes, and it follows
+row 270.*
+
+**What breaks.** The image mints a certificate at every start (`deploy/server-start.sh:13-17`): on `compose restart`,
+on an upgrade, and at the timed exit every `RESTART_AFTER` (`:22`). The downloader keeps the pair the page gave it
+(`downloader.js:537-538`), and every later dial pins that hash (`openSession`, `:465-477`): a resumption (`resume`,
+`:356-376`), a command after a closure (`live`, `:521-526`) and a recycle (`recycle`, `:344-354`). After a restart
+each of them fails its handshake, so a page mid-fill loses every frame it still wants ("could not be re-dialled",
+`:373-375`), and an on-demand page fails by name every step to a frame it does not hold. A filled page keeps what it holds. A `/supplied`
+certificate has no hash and is not affected. Derived from the code, not observed; the showing below observes it first.
+
+**The change, ~+8 lines.**
+
+* `DownloaderClient.connect` takes `transportFile`, the URL of the transport file. A string, so it survives the
+  structured clone every option goes through (`consumer.js:47,63`).
+* Every dial but the page's first reads it again, in `openSession` before `TransportSession.connect`:
+  `fetch(transportFile, { cache: "no-store", signal: AbortSignal.timeout(dialMs) })`. A `wt_url` or `cert_sha256`
+  that differs from `dial` replaces it. A file that cannot be read keeps the pair it had: the dial fails as it does
+  today and the next try reads again `redialMs` later. That is the restart window itself — the file is gone between
+  `server-start.sh:8` and `:21`, and before `:8` it still names the old certificate. `no-store`, though the image
+  already sends JSON `no-cache` (`deploy/nginx/wt-pacs.conf.template:6-9`), so the read is fresh on any host.
+* The viewer passes `new URL("/wt/dev-transport.json", location).href` unless the lab named `?wt=`
+  (`lab/viewer/levers.js:7` sets `lab.transport` then; `viewer.js:21,127`). Absolute, because a worker resolves a
+  relative URL against its own script. With `?wt=` the lab's pair stays pinned, as today.
+
+Nothing else moves: `tries`, `redialMs`, `dialMs` and the epoch are as §Re-dial and re-issue says. The cost is one
+same-origin GET per re-dial; the only re-dial a healthy session makes is a recycle, whose old session still delivers
+meanwhile. Not measured.
+
+**Each client.** The read is the downloader's, above the seam, so neither product client changes: both take the
+pair per `connect` and pin it on that dial alone — TypeScript at `client/transport/ts/session.ts:36-37`, WASM through
+`client/transport/wasm/src/lib.rs:20-27` into `session.rs:437-446`. The WebSocket ignores the hash and follows a
+changed URL. A `client` field in the file (row 263's WASMSELECT, not built) is not followed mid-page: the module is
+imported once per worker (`downloader.js:466`), so a changed client takes the next page open.
+
+**What the contract suite adds**, ~+40 test.
+
+* `aRedialAfterTheHashChangedConnects`, a dispatch-rig clause. The fake refuses a dial whose
+  `serverCertificateHashes` is not the hash it pins, as a browser's handshake does (`fake-transport.ts`, ~+4), and
+  `fake-session.ts` answers the worker's `fetch` of the transport file with what the page sets (~+8). With a fill
+  owed, the page swaps the pin and the file, and the server closes the session: the re-dial carries the new hash, the
+  fill finishes, nothing fails. Then once with the file answering 404 at the first read: connected at the second
+  try. Then on demand: a closed idle session, a step, served. Mutant: the read skipped, and every owed frame fails
+  by name, which is T6. `no-store` is out of the fake's reach and is said, not tested.
+* `anEmptyHashDialsUnpinned` gains a second `connect` with another hash, each dial pinned to its own. It is a session
+  clause, so it runs on both clients today. The dispatch rig loads the TypeScript session alone
+  (`client/contract/fake-session.ts:9`); the new rig clause reaches WASM with row 263's WASMRIGS.
+
+**What [`CLIENTS.md`](CLIENTS.md) §The seam gains**: a fourth clause, *a dial pins what it is given* — no
+implementation keeps a URL or hash across `connect`s, since the downloader chooses both per dial and `transportFile`
+is the consumer option that feeds them. The second `connect` above holds it.
+
+**Why the file, and not the page.** The downloader is a worker: it cannot call into the page, and a callback option
+does not survive the clone. Asking would be a new message pair answered by a main thread that may be frozen — the
+page forwards `freeze` for that reason (`consumer.js:200`) — and the page would answer by fetching this same file.
+The file is already the deployment's one statement of where the server is and what it pins, written whole after
+the certificate (`server-start.sh:19-21`), same-origin under `connect-src 'self'`, and trusted by the page to open.
+*Dropped:* keeping the certificate across `compose restart` in a volume. It covers the manual restart and the upgrade,
+not the timed exit, which must mint.
+
+**How it is shown on the image.** `client/viewer/check.mjs --url … --fill 0 --restart "<cmd>"`, Chromium, ~+20. It
+opens the image's page with `?fill=0` alone, whose first step loads frame 0, and waits for the status line's
+`received 1, exact 1`. It runs `docker compose -f deploy/compose.yml restart server` and waits for the new server's
+`transport=` line (`server/src/transport/banner.rs:23`, printed once bound). Then it presses `ArrowRight` and
+requires `received 2, exact 2` and no `error:` within 20 s: the second step exact. Run once on today's image first,
+where it must fail by name, then on the built one. Not `?check=1`, whose cancelled fill may already hold frame 1;
+the step is the page's own key, since the image refuses lab parameters (`client/viewer/head.js:5-7`). With row 270 the
+restart closes the session with `H3_NO_ERROR` (0x100), so the step's `live()` re-dials at once; without it, the step
+waits out `stallMs` on the dead session first. A fill across a restart rides `tries` × `redialMs`: about 5 s if
+each stale dial is refused at once, up to about 30 s if each waits out `dialMs`. Whether that outlasts a
+`compose restart` is not measured; row 270's rig, a fill outlasting a stop, can show it once.
+
 ### The first fill
 
 **It rides with `start`**: `connect(url, hash, { fill })` puts the indices in the `start` message, so
@@ -1209,6 +1284,9 @@ Each item below is the owner's to decide, and is tracked here.
   Detection of a dead *idle* session with a server idle timeout below 30 s is not measured.
 * **Which opt-in rows of §The session open to take** — the transport URL inlined, the page carrying the worker
   graph, HTTP/2 in nginx, the preloads on the downloader page: the owner's call.
+* **An open page across a server restart** (row 271): the proposal in §The downloader, *Proposed: an open page
+  follows a server restart*. Beside it, not in it: a command after a closure dials once (`live`), so a step inside
+  the restart window fails by name and the next step dials again; giving it `tries` is a separate change.
 * **The opening ask beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
   check before enabling, the recycling cost, the shaped A/B).
 

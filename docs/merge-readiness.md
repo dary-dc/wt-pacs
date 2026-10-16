@@ -607,6 +607,8 @@ transport file is the source and the page is not asked (a worker cannot call bac
 shown on the image: the viewer check with `?fill=0`, `compose restart server` between two steps, the second step
 exact. **Deliverable:** the proposal in `docs/ARCHITECTURE.md` §The downloader. **Branch:**
 `claude/wip-271-RESTARTPIN`.
+*Written 2026-10-16:* [`ARCHITECTURE.md`](ARCHITECTURE.md) §The downloader, *Proposed: an open page follows a
+server restart*; waiting on the owner.
 
 #### 272 WSLIVENESS
 
