@@ -1,13 +1,12 @@
 /**
  * One surface, three implementations behind it: TypeScript and WASM over WebTransport, TypeScript
- * over a WebSocket. The names mostly agree; what does not is `endStream`, which is a promise on the
- * TypeScript ones and synchronous on WASM. Another implementation writes one of these and
- * inherits every test.
+ * over a WebSocket. Each is handed to the clauses as it is; what differs is only how it is loaded.
+ * Another implementation writes one of these and inherits every test.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ConformantFrame, ConformantSession } from "./clauses.ts";
+import type { ConformantSession, ConnectOptions } from "./clauses.ts";
 
 export type { ConformantFrame, ConformantSession } from "./clauses.ts";
 
@@ -17,8 +16,6 @@ export type Implementation = {
   overWebSocket?: true;
   connect(url: string, certHash: string, options?: ConnectOptions): Promise<ConformantSession>;
 };
-
-export type ConnectOptions = { wireBuffers?: number };
 
 /** Resolved from the tree, not from import.meta.url, which moves when this file is bundled. */
 function repoRoot(): string {
@@ -51,25 +48,7 @@ export async function raceImpl(): Promise<Implementation> {
 
 async function sessionImpl(name: string, bundle: string): Promise<Implementation> {
   const { TransportSession } = await load(bundle);
-  return {
-    name,
-    async connect(url, certHash, options) {
-      const s = await TransportSession.connect(url, certHash, options ?? {});
-      return {
-        requestExactFrame: (i: number) => s.requestExactFrame(i),
-        fillFrames: (
-          from: number,
-          to: number,
-          onFrame: (f: ConformantFrame) => void,
-          onError?: (i: number, reason: string) => void,
-        ) => s.fillFrames(from, to, onFrame, onError),
-        endStream: () => s.endStream(),
-        releaseWireBuffer: (b: ArrayBuffer) => s.releaseWireBuffer(b),
-        stats: () => s.stats(),
-        close: () => s.close(),
-      };
-    },
-  };
+  return { name, connect: (url, certHash, options) => TransportSession.connect(url, certHash, options) };
 }
 
 /** The product's build, or another of the same client: `WTPACS_WASM_PKG` runs the suite on a
@@ -87,21 +66,6 @@ export async function wasmImpl(): Promise<Implementation> {
   });
   return {
     name: "transport-wasm",
-    async connect(url, certHash, options) {
-      const s = await mod.TransportSessionHandle.connect(url, certHash, options?.wireBuffers);
-      return {
-        requestExactFrame: (i: number) => s.requestExactFrame(i),
-        fillFrames: (
-          from: number,
-          to: number,
-          onFrame: (f: ConformantFrame) => void,
-          onError?: (i: number, reason: string) => void,
-        ) => s.fillFrames(from, to, onFrame, onError),
-        endStream: async () => s.endStream(),
-        releaseWireBuffer: (b: ArrayBuffer) => s.releaseWireBuffer(b),
-        stats: () => s.stats(),
-        close: () => s.close(),
-      };
-    },
+    connect: (url, certHash, options) => mod.TransportSessionHandle.connect(url, certHash, options?.wireBuffers),
   };
 }
