@@ -29,6 +29,10 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   `…@AT:ARM,…` asks once `AT` % has landed (`none`: no ask) and runs only the arms named, and an arm's `?key=value`
   token goes to the page's query. Its rows are `rows-refill.jsonl`; `rows-refill-ceiling.jsonl` is the relay's
   ceiling, fills with no ask at 2 ms.
+* `onequeue.py ROWS.jsonl` — ONEQUEUEMEASURE (row 253), the one queue (`Q=--fill-resumes-after-asks ?refill=none`,
+  `QW` the same with `--send-window-follows-cwnd`) and today with the window (`TW`) against today (`T`, `?refill=head`)
+  and the same again (`Tp`), each read as `refill.py` reads its arm, halves of the rounds for the confirmation.
+  Its rows are `rows-onequeue.jsonl`; `rows-onequeue-ceiling.jsonl` is the relay's ceiling on that build.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
 * The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once `at` (half
   unless set) has landed, asks for the last frame.
