@@ -1003,38 +1003,40 @@ claimed for concurrent sessions.
 
 ### Measured (row 259): tile names past the slots are not advised
 
-*2026-10-16, on the protocol above, built and run by row 259.* **Verdict: not adopted.** The advice does what it
-says — a strided cell at client depth 8 misses ×0.63–0.90 as often, beyond the A/A resolution with every round agreeing —
-but no cell's burst wall parts from T0's, so the rule's first half fails at both sizes. Nothing is worse beyond the
-resolution, the sweep included, and the depth-4 control ties on every metric, so the run stands.
+*2026-10-16, on the protocol above, built and run by row 259 on unified with rows 255–257 merged.* **Verdict: not
+adopted.** The advice does what it says — a strided cell at client depth 8 misses ×0.63–0.91 as often, beyond the A/A
+resolution with every round agreeing — but no cell's burst wall parts from T0's, so the rule's first half fails at
+both sizes. Nothing is worse beyond the resolution, the sweep included, and the depth-4 control ties on every metric,
+so the run stands.
 
 | cell (16 KiB stride 8, 250 kB stride 2 and the sweep at stride 1) | T0 burst wall | T1 ×T0 wall · resolution | T1 ×T0 misses · resolution |
 | --- | --: | --- | --- |
-| 16 KiB, depth 8, 1 session | 1.95 ms | ×0.948 · 31 % | **×0.634** · 1.6 % |
-| 16 KiB, depth 8, 16 sessions | 9.8 ms | ×0.979 · 149 % | **×0.724** · 0.2 % |
-| 250 kB, depth 8, 1 session | 12.3 ms | ×1.030 · 23 % | **×0.898** · 0.8 % |
-| 250 kB, depth 8, 16 sessions | 131 ms | ×1.058 · 52 % | **×0.808** · 0.4 % |
-| sweep 250 kB, depth 8, 1 session | 12.0 ms | ×0.975 · 41 % | ×0.793 · 28 % (92 %) |
-| sweep 250 kB, depth 8, 16 sessions | 144 ms | ×0.987 · 33 % | **×0.852** · 13 % |
-| control: depth 4, both sizes, 1 and 16 sessions | 2.5–127 ms | ×0.965–1.059 | ×1.000 |
+| 16 KiB, depth 8, 1 session | 1.74 ms | ×0.976 · 48 % | **×0.634** · 0.8 % |
+| 16 KiB, depth 8, 16 sessions | 9.6 ms | ×1.050 · 33 % | **×0.713** · 0.2 % |
+| 250 kB, depth 8, 1 session | 12.1 ms | ×0.994 · 19 % | **×0.910** · 0 % |
+| 250 kB, depth 8, 16 sessions | 117 ms | ×0.858 · 46 % | **×0.803** · 0 % |
+| sweep 250 kB, depth 8, 1 session | 10.8 ms | ×1.114 · 26 % | ×0.803 · 22 % (83 %) |
+| sweep 250 kB, depth 8, 16 sessions | 104 ms | ×1.031 · 30 % | **×0.861** · 8 % |
+| control: depth 4, both sizes, 1 and 16 sessions | 2.2–112 ms | ×0.894–1.014 | ×1.000 |
 
 **Bold**: beyond the resolution (the p90 over rounds of \|T0′/T0 − 1\|) with ≥ 80 % of rounds agreeing. CPU per ask
-ties in every cell (×0.93–1.10), and `in_flight` is 4 in every row of every arm.
+ties in every cell (×0.93–1.04), and `in_flight` is 4 in every row of every arm.
 
-* *Depth 8 strided ×0.75–0.9 of T0's wall:* **failed**, ×0.95–1.06. The rig could not have seen the low end of the
-  prediction: the wall's resolution was 19–149 %, a 4-core guest's virtio disk with other rows' builds on CPU 3, one
-  of the client's two. What it shows is that a third to a tenth fewer misses did not shorten the wall here.
+* *Depth 8 strided ×0.75–0.9 of T0's wall:* **failed**, ×0.86–1.05, none beyond a resolution of 19–48 %, which a
+  4-core guest's virtio disk sets with other rows' builds on CPU 3, one of the client's two. The rig could not have
+  seen the prediction's low end; what it shows is that up to a third fewer misses did not shorten the wall here.
 * *Depth 4 a tie:* **held**, and by construction: a client at depth 4 names no frame past the slots (a test pins it).
 * *The sweep a tie or a loss:* **a tie**; the 2026-09-05 sweep loss did not recur, misses fell instead.
 
 The rig: [`lab/disk-access-bench/tile_advice_ab.py`](../../lab/disk-access-bench/README.md) §Tile names past the slots,
 rows in `rows-tileadvice.jsonl`. Random-byte series of 16 384 × 16 KiB and 2 048 × 250 kB; every run on its own
 fresh `writer_bench direct` copy (0 pages cached after any copy), so cold without eviction; strides re-derived on
-the day as the smallest that missed ≥ 95 % at depth 1 (16 KiB: 8, 97.7 %; 250 kB: 2, 100 %); sessions on disjoint
-frames; 128 asks a session alone, 32 each of 16, in bursts of 16; 12 rounds, T0, T0′ and T1 in `order.py`'s order
-in each cell; every frame checked by XXH3-64, 115 200 asks, none inexact. Server on CPUs 0–1, client on 2–3.
-Host: kernel 6.18.44, ext4 on `/dev/vda`, `read_ahead_kb` 128, THP `madvise`, glibc 2.39, 4 vCPU, 16 GB.
-**Saturation**, not swept: 16 sessions at 250 kB move ~0.5 GB/s against one session's ~0.33 GB/s, so the
+the day as the smallest that missed ≥ 95 % at depth 1 (16 KiB: 8; 250 kB: 2); sessions on disjoint frames; 128 asks
+a session alone, 32 each of 16, in bursts of 16; 12 rounds, T0, T0′ and T1 in `order.py`'s order in each cell; every
+frame checked by XXH3-64, 115 200 asks, none inexact. Server on CPUs 0–1, client on 2–3. Host: kernel 6.18.44, ext4
+on `/dev/vda`, `read_ahead_kb` 128, THP `madvise`, glibc 2.39, 4 vCPU, 16 GB. An earlier full run on the code
+before rows 255–257 merged gave the same verdict (misses ×0.63–0.90, walls ×0.95–1.06) and is not used.
+**Saturation**, not swept: 16 sessions at 250 kB move ~0.55 GB/s against one session's ~0.33 GB/s, so the
 16-session 250 kB cells are taken as device-bound and claim nothing past their tie.
 
 The arm, `series-server --advise-tile-names` (lab), and its tests stay on `claude/wip-259-TILEWILLNEED`: the flag
