@@ -1,4 +1,4 @@
-// node client/transport/consumer.test.mjs — what `connect` refuses before it starts a worker; acks and unreadable deliveries.
+// node client/transport/consumer.test.mjs — what `connect` refuses before it starts a worker; acks and unreadable deliveries; a worker that does not load.
 import { DownloaderClient } from "./consumer.js";
 
 let failed = 0;
@@ -39,6 +39,7 @@ async function acksAndUnreadable() {
       sent.push(m);
       if (m.kind === "dial") queueMicrotask(() => this.onmessage({ data: { kind: "started" } }));
     }
+    terminate() {}
   };
   globalThis.crossOriginIsolated = true;
   const client = await DownloaderClient.connect("https://x.invalid/", "ab", {});
@@ -54,5 +55,21 @@ async function acksAndUnreadable() {
 }
 await acksAndUnreadable();
 
-console.log(failed ? `${failed} failed` : "consumer refusals, acks, unreadable deliveries: ok");
+/** A downloader whose script does not load ends `connect` with the reason, where it used to wait for ever. */
+async function scriptThatDoesNotLoad() {
+  globalThis.Worker = class {
+    constructor() {
+      setTimeout(() => this.onerror?.(new Event("error")));
+    }
+    postMessage() {}
+    terminate() {}
+  };
+  globalThis.crossOriginIsolated = true;
+  const waiting = new Promise((r) => setTimeout(() => r("still waiting after 1 s"), 1000));
+  const got = await Promise.race([refusal({}), waiting]);
+  check(/did not start: its script did not load/.test(got), `a worker that does not load ends connect (${got})`);
+}
+await scriptThatDoesNotLoad();
+
+console.log(failed ? `${failed} failed` : "consumer refusals, acks, unreadable deliveries, a worker that does not load: ok");
 process.exit(failed ? 1 : 0);

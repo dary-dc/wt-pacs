@@ -425,6 +425,7 @@ dependencies = [
  "anyhow",
  "bytes",
  "clap",
+ "container-bench",
  "fod",
  "frame-envelope",
  "io-uring",

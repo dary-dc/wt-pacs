@@ -135,7 +135,9 @@ pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions
     };
     let handshake = async {
         let tls = tls.accept(tcp).await.context("TLS handshake")?;
-        let config = WebSocketConfig::default().max_message_size(Some(MAX_FOD_LEN));
+        let config = WebSocketConfig::default()
+            .max_message_size(Some(MAX_FOD_LEN))
+            .max_frame_size(Some(MAX_FOD_LEN));
         tokio_tungstenite::accept_hdr_async_with_config(tls, read_ask, Some(config))
             .await
             .context("WebSocket upgrade")

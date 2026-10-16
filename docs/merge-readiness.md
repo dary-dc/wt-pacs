@@ -125,7 +125,7 @@ within each group, and the groups are ranked by what merging needs first.
 | D6 | the FoD message union defined twice | `client/transport/ts/wire.ts:3-30`; `client/record/parse.ts:8-55` | simplify: `record` imports it | ~−10 |
 | D7 | SHA-256-to-hex written three times | `client/viewer/viewer.js:246-250`; `check-page.js:4-5`; `client/decode/wasm-glue.js:14` | simplify | ~−6 |
 | D8 | `ingest/from-parser/same.py` rebuilds by hand the metadata `from_dicom.py` writes | `same.py:35-37`; `from_dicom.py:51-53` | simplify: one `metadata()` | ~10 |
-| D9 | **the WASM transport**, a second full client in Rust that the product never loads. It duplicates `frame-session.ts` and the gate needs wasm-pack for it. | `client/transport/wasm/` (~780 lines) | **move to lab**, beside `lab/other-clients`. This is structural: propose it first. | ~780 moved |
+| D9 | **the WASM transport**, a second full client in Rust that the product never loads. It duplicates `frame-session.ts` and the gate needs wasm-pack for it. | `client/transport/wasm/` (~780 lines) | **move to lab**, beside `lab/other-clients`. This is structural: propose it first. *Rejected 2026-10-16 by the owner: two product clients ([`CLIENTS.md`](CLIENTS.md) §Proposed: the WASM client as a second product client, row 263).* | ~780 moved |
 | — | the two ingests (`from-dicom`, Python; `from-parser`, Rust) | `docs/ingest/README.md` §4 | **keep**: one reads DICOM, the other is the compiled ingest, and it is phase 1 | — |
 | — | dual-stack bind written twice (QUIC, TCP) | `server.rs:242-273`; `websocket.rs:63-75` | keep: two libraries | — |
 
@@ -235,7 +235,9 @@ something, so it finishes on its branch for the owner.
 10. **GATEGAPS** — F2, F3, F5, F6, F7: the image's features, the lab crates and their tests, the product decoder in
     the rigs, the other bundles' absence check, DICOM end to end and the pack's `cmp`.
 11. **DEDUP** (*review*) — D1–D8.
-12. **WASMTOLAB** (*review*, propose first) — D9 and P6's `dav1d/` tooling moved to lab.
+12. **WASMTOLAB** (*review*, propose first) — D9 and P6's `dav1d/` tooling moved to lab. *Corrected 2026-10-16:* D9's
+    half rejected; row 263 proposes the client as a product client. P6's half rejected too: the client, its decoders and
+    build tools are a product path.
 
 **For the owner, not a row:** H3's three open decisions (`startOnNeed`, `mixed`, `readMin`'s default), whether to
 retire `bbr-bound`, and whether to fold the lab levers into one struct (L7). Draft PR #37 (row 181) stays open, as
@@ -293,7 +295,7 @@ change the gate's tests already cover, 2 needs a check the gate does not run, 3 
 | S22 | **`Congestion::as_str` repeats clap's value names.** | `server/src/transport/tuning.rs:49-57` | simplify: `to_possible_value()`; after #48, which rewrites `tuning.rs` | none | ~−8 | 1 |
 | — | four congestion-controller wrappers forward the same nine methods to `inner` | `restart.rs:64-145`; `loss_bound.rs:102-160`; `classify.rs:36-79`; `cc_trace.rs:125-195` | keep: a delegating macro saves ~60 lines but is one more thing a reader must expand; three wrappers after S18 | — | — | — |
 | — | the read path's two readers in one 1 073-line file | `server/src/media/read_path.rs` | keep: 503 product lines, each reader under 300, the ADR names them together | — | — | — |
-| — | the server's workspace build copies the WASM client and four lab crates into the image's build stage | `deploy/Containerfile:16-27` | keep: the root workspace lists them; a lab workspace of its own would need a second lockfile and a copy of `[patch.crates-io]`. Row 228 removes the WASM lines if the owner moves it | — | — | — |
+| — | the server's workspace build copies the WASM client and four lab crates into the image's build stage | `deploy/Containerfile:16-27` | keep: the root workspace lists them; a lab workspace of its own would need a second lockfile and a copy of `[patch.crates-io]`. Row 228 removes the WASM lines if the owner moves it (*corrected 2026-10-16:* he keeps it, so they stay) | — | — | — |
 
 No `TODO`, `FIXME` or `#[ignore]` is in the product, and one `#[allow(dead_code)]`, row 209's cache behind its feature; no client export but S2's is
 imported by nothing (a search over `client/`, `lab/`, `scripts/`, `ingest/` and `deploy/`). The docs agree with the
@@ -309,7 +311,7 @@ Not proposed here; counted so the owner sees what each ruling frees.
 | decision | what it holds | lines |
 | --- | --- | --- |
 | #48 (row 227, D1–D8) | the duplication round 1 found, already written | −84 net |
-| row 228 (D9, P6) | the WASM transport and the dav1d-WASM tooling; the gate's wasm-pack, wasm32 target and binaryen | ~780 and ~550 moved |
+| row 228 (D9, P6) | the WASM transport and the dav1d-WASM tooling; the gate's wasm-pack, wasm32 target and binaryen. *Corrected 2026-10-16:* both stay, a product path (row 263) | ~780 and ~550 moved |
 | row 220 (#41) | the repeated-Initial reply: its flag, patch and tests | ~−270 |
 | `bbr-bound` (§Blocked, row 107) | `loss_bound.rs` | ~−265 |
 | row 209's `FrameCache` (off by default, "for now") | `lab_frame_cache.rs`, its feature and `pipeline.rs:77-98` | ~−100 |
@@ -334,7 +336,7 @@ of them gains must displace one.
 | `client/contract/dispatch-rig.ts` | 2 362, ~60 clauses | by subject (dispatch, survival, exactness, AV1) into four files; nothing saved, so no row unless the owner wants it |
 | `server/src/media/read_path.rs` | 1 073 (503 product) | keep (above) |
 | `client/transport/downloader.js` | 577 | keep: one worker's state; S12, S13 trim it |
-| `client/transport/wasm/src/session.rs` `connect` | 109 | row 228 |
+| `client/transport/wasm/src/session.rs` `connect` | 109 | *split by row 265 (WASMSURFACE)* into `dial` and three readers, 58 lines |
 | `server/src/transport/server.rs` `run_server` | 93 | S9 |
 | `client/decode/av1-payload.js` `sequence` | 75 | keep: an OBU header parser, field by field as the spec reads |
 | `client/decode/av1-webcodecs.js` `decoder` | 70 | keep: one closure's state machine |
@@ -626,3 +628,132 @@ series (frames × width × height × 2 B) that completes 3 of 3, per engine; if 
 [`FIXTURES.md`](FIXTURES.md) names, at its decoded size, the cache seam (ARCHITECTURE §Open) becomes a proposal with
 that series as its case; otherwise §Open records the ceiling and nothing is built. **Branch:**
 `claude/wip-273-VIEWERCEILING`.
+
+## Lab-only code in product directories (row 264)
+
+The owner, 2026-10-16: "things only for lab should live in lab/. If also meant for product usage I would like to
+evaluate the results before deciding whether to keep it or not." Queue row 264 (LABONLY), on
+`claude/av1-unified-mainbase` at `a9fd5bd6`: every lab thing under `server/`, `client/`, `common/`, `ingest/`,
+`deploy/` and `scripts/`, and one pattern for moving the server's. An audit and a proposal. Nothing here is built
+except the pattern's first instance, row 264b (CLASSIFYTOLAB), which is on its own branch,
+`claude/wip-264b-CLASSIFYTOLAB`.
+
+The rule sorts each thing into one of two kinds:
+
+* **Lab only**: no measurement proposes it for the product, or one rejected it. It moves to `lab/`.
+* **A candidate**: a protocol or a measurement still proposes it. It stays where it is, off by default, until its
+  decision, and is then adopted or removed. It does not move.
+
+Row 266's audit ([§Third round](#third-round)) left lab code's placement to this row. Rounds 1 and 2 found part of this already (L1–L8, S17, S18, S21 above, and rows 228 and 246's proposals in
+[`CLIENTS.md`](CLIENTS.md)). Those are pointed to here, not repeated.
+
+**The answer, in short.**
+* **Lab only:** eight groups. The server's are cubic-classify (moved, row 264b), the telemetry (~2 400 lines,
+  self-contained, and the next to move) and four small levers.
+* **Already proposed:** the client's harness pages and the WASM client (rows 246 and 228). Row 246 omits the two
+  scripts that check those pages.
+* **Ingest:** one lab CLI.
+* **Candidates:** ten, each waiting on its named decision.
+* **Nothing lab-only** is in `common/` or `deploy/`.
+
+### Lab only
+
+Lines are at `a9fd5bd6`.
+
+| # | item | where | the verdict it rests on | how it moves |
+| --- | --- | --- | --- | --- |
+| O1 | `--congestion cubic-classify`, `LossClassify` | `server/src/transport/classify.rs` (174 lines, 70 of them tests); `tuning.rs:3,22-23,45,55,184`; `transport/mod.rs:4`; `main.rs:70` | not the default "in both readings", "stays a lab flag": [TC §1 *Measured: CLASSIFY*](transport/transport-conclusions.md#measured-classify-2026-10-14). S18 proposes removing it (row 240, on the owner's word). *Found after the move was built:* draft #40 proposes the opposite, `cubic-classify` as the default, a trade-off that waits on row 190's device runs. By the owner's rule, that makes it a candidate as well | **built, row 264b**: the crate `lab/cc-classify`, behind `lab-classify`. If row 240 is taken, the crate goes and nothing in `server/` is left to remove. If #40 is adopted, the crate comes back into `server/` as the default; until then, the flag is one feature away |
+| O2 | the telemetry: `server/src/record/` (2 083 lines), `transport/cc_trace.rs` (317), `RecordedPipeline` (`pipeline.rs:166-213`), and 23 `cfg` sites in 7 files; `client/record/` (1 545) | as cited | lab builds only ([`adr/telemetry-server-pipeline.md`](adr/telemetry-server-pipeline.md)). No default binary or bundle has it since row 221 (L1), and both absence checks hold | **by the pattern, as its own structural row.** `record/` names nothing of the server's outside itself, and `cc_trace.rs` names only quinn, so together they become one lab crate, and `telemetry = ["dep:…"]`. `RecordedPipeline` and the tap's call sites stay as the feature's wiring. `client/record/` goes to `lab/` with the bundle that `client/transport/ts/build.sh` makes from it |
+| O3 | `--hold-sessions` | `server/src/transport/server.rs:57-59,104-112,241-245` | lab only: a dial that never settles, for the client's dial deadline ([ARCHITECTURE §A dial that never settles](ARCHITECTURE.md#a-dial-that-never-settles)). L7 keeps it as a lever | wiring alone, with no code to hold: the pattern's gate without a crate (below). Its one user is `lab/dial-deadline/run.mjs` |
+| O4 | `--stall-after-bytes` | `server.rs:60-62,126,135-137,155`; `link.rs:23-24,85-98` | lab only: WebKit 319818's stall, emulated for `recycleAtBytes` ([ARCHITECTURE §Recycling before the stall](ARCHITECTURE.md#recycling-before-the-stall)) | as O3; one user, `lab/session-survival/recycle_cells.sh` |
+| O5 | `--force-pool-reads` | `server.rs:51-53,86-89`; `media/frame_store.rs:162-166` | lab only for the flag; the method is also the read path tests' forced miss (`CLAUDE.md` §Measurement) | the flag as O3; the method stays. Users: `lab/scripts/cold_series.sh`, `fill_order_cells.sh`, `window-harness`'s `fill_order`, and the product's `scripts/perf_counts.mjs`, which would build with the feature |
+| O6 | `--segmentation-offload false` | `server/src/transport/tuning.rs:87-90,103,127,159-161` | lab only: netem on the sending host ([`rig-limits.md`](rig-limits.md) §3) | as O3; one user, `lab/scripts/lossy_link_levers.sh` |
+| O7 | `scripts/cellcheck.sh`, `scripts/cellcheck.mjs` | as named | lab only: they drive `client/harness/`'s pages | **with row 246**, whose proposal ([CLIENTS §Proposed: the harness pages](CLIENTS.md#proposed-the-harness-pages-to-lab)) moves the pages but leaves these two in `scripts/` |
+| O8 | `ingest/coded-frames/ingest.py`'s `main()` | `ingest.py:292-331` | lab only: it codes a fetched set (`import size` from `lab/av1`), and the product's path is `from-dicom/from_dicom.py` → `ingest.coded()` | to a `lab/av1/tools/` script that imports `ingest`, with the lab files that run it repointed (34 name it, 22 of them scripts). `coded()`'s `representation`, `split` and `grey8` stay: they are the arms the lab drives through the product's code, and the product passes the defaults |
+| — | `client/harness/`; the WASM client and `client/decode/wasm/dav1d/` | — | rows 246 and 228, proposed | as proposed in [`CLIENTS.md`](CLIENTS.md) |
+| — | the viewer's lab parameters | `client/viewer/head.js:1-9` | done: rows 217 and 245 moved them to `lab/viewer/levers.js`, which only a host that serves `lab/` can load. That is the client's pattern, and it fits | — |
+
+### Candidates: they stay until their decision
+
+| # | item | where | the decision, and where it is recorded |
+| --- | --- | --- | --- |
+| C1 | `--fill-resumes-after-asks` | draft #75 (row 252, ONEQUEUEBUILD), not merged: +278 −52 in 7 files | candidate 1 of [WIRE §Proposed: one queue](WIRE.md#proposed-one-queue-an-ask-moves-its-frame-to-the-front-row-249), whose rule is fixed. Row 253 is measuring it. If it is adopted it becomes the behaviour and `refill`'s client code goes (C3). If not, it is not merged |
+| C2 | `--stream-mode per-frame-asks-first` | `server/src/transport/stream_mode.rs:13-14,22,34`; `link.rs:66` | candidate 2 of the same rule. Rows 180 and 211 found a trade-off for the owner |
+| C3 | `--send-window-follows-cwnd`; the client's `refill` arms other than `head` | `server.rs:63-66,127,138-144,156`; `link.rs:25-26,81-84`; `client/transport/downloader.js:214-233` | an arm of the same rule; a trade-off since row 171 ([link-conditions §Re-measured, proposed](transport/link-conditions.md#re-measured-proposed)). `refill: "head"` is the default (row 229) |
+| C4 | `--reply-repeated-initial` and its 117-line quinn-proto patch | `server/src/transport/tuning.rs:83-86,126,153-155`; `patches/quinn-proto-0.11.18-reply-repeated-initial.patch` | row 220, draft #41: the owner's (H1) |
+| C5 | `--congestion bbr-bound` | `server/src/transport/loss_bound.rs` (265) | failed its rule; retiring or keeping it is the owner's call (queue §Blocked, row 107) |
+| C6 | `lab-frame-cache` | `server/src/media/lab_frame_cache.rs` (45); `pipeline.rs:77-98`; `server/Cargo.toml:18-19` | row 209: a trade-off for the owner (L8). If adopted, it moves into `server/`. If not, it is removed |
+| C7 | `--congestion bbr` as the default; `--initial-window-bytes 38400` | quinn's own, one line each | the owner's: row 75 (§Blocked); row 181 put 38 400 first, opt-in ([link-conditions §Verdicts](transport/link-conditions.md#verdicts-that-rest-on-the-band) item 3) |
+| C8 | `startOnNeed`, AV1's `mixed`, `readMin` | `downloader.js:44-45,131-140,452`; `client/decode/av1.js:13,60-70`; `client/transport/ts/frame-session.ts:21,101-105,188-191` | H3: the owner's |
+| C9 | `recycleAtBytes` | `downloader.js:198,344-` | a fallback for iOS, off. The device measurement it owes is not run ([ARCHITECTURE §The measurement this owes](ARCHITECTURE.md#the-measurement-this-owes)) |
+| C10 | `scripts/pgo_build.sh` | as named | opt-in. Its measurement comes first: [`levers.md`](levers.md) §Proposed rows 3, PGOSHIP |
+
+**These are seams, not the lab's, and they stay:**
+* the client's `transport`, `decoderWorker`, `worker`, `survival` overrides and `decode: false`. The contract suite
+  drives the product through them (`client/contract/dispatch-rig.ts`, `ask-during-fill.html`).
+* `FrameStore::force_short_reads` and `Link::Detached` (`#[cfg(test)]`).
+* `pub mod media`, a visibility that the lab benches read.
+* `--opening-ask false` and `WTPACS_READ_PATH=pool`, the product's off switches.
+* In `deploy/`, the image's build stage copies each lab crate's manifest and sources (`Containerfile:20-27` and the
+  two ignore files) because the workspace lists them; round 2 keeps that.
+* In `scripts/`, `perf_nightly.mjs` drives the lab's total-time harness to time the product, and `quic_peek.py` and
+  `wtcompat.py` check the product's dial: product checks.
+
+### The pattern: a lab crate behind a server feature
+
+*Proposed. Its first instance is built by row 264b.*
+
+1. **The code is a crate in `lab/`**, beside its rig (`lab/<name>/Cargo.toml`, `src/lib.rs`), and depends on no
+   product crate. Anything it needs from the server is passed in. `cc-classify` takes the controller it wraps as an
+   `Arc<dyn ControllerFactory>`, and the server hands it `cubic-restart`'s.
+2. **The server declares `lab-<name> = ["dep:<crate>"]`**, with the crate as an optional path dependency. `server/`
+   keeps only the wiring, each line under `#[cfg(feature = "lab-<name>")]`: for O1, one `Congestion` variant and its
+   two match arms.
+3. **A default build carries none of it, and that is checked.** A unit test shows the flag is refused. The release
+   binary's absence check (`server/scripts/check_telemetry_absent.sh`, run by the gate) looks for the crate's symbols
+   and the flag's literal.
+4. **The gate tests both sides.** It runs the crate's own tests (`cargo test -p <crate>`) and the wiring's tests
+   under the feature. A rig builds its server with `--features series-server/lab-<name>`.
+5. **The workspace lists the crate** (not in `default-members`). The image's build stage copies its manifest and
+   sources, as it does the other lab crates, because Cargo reads an optional dependency's manifest even when the
+   feature is off.
+
+Some levers are only wiring, with no code worth a crate (O3–O6). They take the same gate without a crate: one
+`lab-levers` feature, and the four rigs that pass them build with it. Together they are about 60 lines that a
+deployment's binary would no longer carry. Each flag stays in `--help` only in a lab build. The other way is to keep
+them as L7 does. That is the owner's choice.
+
+**The precedent, checked: `lab-frame-cache` fits half.**
+* What fits: the feature, off by default; the gate's compile step; and the lab's source living in `lab/`.
+* What does not: `server/src/media/lab_frame_cache.rs:5-7` includes `lab/disk-access-bench/src/frame_cache.rs` by
+  `#[path]`, not as a crate. The reason is that `disk-access-bench` depends on `series-server`, and Cargo refuses a
+  cycle even through an optional dependency (checked: `cargo metadata` fails with "cyclic package dependency").
+  Because of the include:
+  * the lab's file compiles as a module of each crate, so it can name only what both crates hold;
+  * no test of it runs under the server's feature;
+  * an `#[allow(dead_code)]` hides what the server does not call.
+* So the pattern takes a crate. That costs a `Cargo.toml`, two image lines and two ignore-file lines.
+* Where lab code must share a crate that depends on the server, it is split into a crate of its own that both
+  depend on. For the frame cache that would be a frame-cache crate in `lab/`. Not proposed: row 209's decision either
+  adopts the cache or removes it.
+
+**Not taken:**
+* *A hook in the server that a lab binary plugs into*, for example a lab `main` that hands `run_server` its own
+  controllers. That gives the product an extension point with one user, and `CLAUDE.md` asks for no speculative
+  abstraction.
+* *A lab workspace of its own.* It needs a second lockfile and a copy of `[patch.crates-io]`, as round 2 found for
+  the image.
+* *`#[cfg]` around code left in `server/`.* That is the state today, which the owner's rule asks to end.
+
+### Rows
+
+| row | what | lines in `server/` | starts |
+| --- | --- | --- | --- |
+| 264b CLASSIFYTOLAB | O1 by the pattern, built at `d41a544d`: the gate green but for `check_equivalence.sh --local`'s known 403 here, both absence checks passing by hand, every new test mutated | `server/src` −179 +32: the product's code +7 −178, the tests +25 −1 | review |
+| TELEMETRYTOLAB | O2 by the pattern: the server crate and the client recorder | ~−2 400 moved | a proposal first (structural) |
+| LABLEVERS | O3–O6 behind one `lab-levers` feature, and the four rigs and `perf_counts.mjs` built with it | ~−60 out of a default build | on the owner's word, or kept |
+| INGESTCLI | O8 | 0 (~40 moved out of `ingest/`) | today |
+| with 246 | O7 | 0 | with row 246 |
+
+Each candidate C1–C10 leaves the product, or stays in it for good, when its own decision lands. None of them
+moves before that.

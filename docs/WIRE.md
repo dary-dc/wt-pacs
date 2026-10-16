@@ -16,8 +16,9 @@ The series on disk is SBND, [`FIXTURES.md`](FIXTURES.md). What each client does 
 
 FoD names the control messages: the client's asks and the server's refusals. On the control stream
 each message is `[4B LE len][JSON]` — little-endian, unlike the envelope — tagged by `op`
-(`common/fod`, `client/transport/ts/wire.ts`). The server refuses a length of 0 or over 4 MiB
-(`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
+(`common/fod`, `client/transport/ts/wire.ts`). The server refuses a length of 0 or over 64 KiB
+(`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session. A client's longest message
+is 56 B, `stream_frames` with both ends at `u32::MAX`. *Corrected 2026-10-16:* the cap was 4 MiB.
 
 **A goodbye is not an error.** No client sends `end_session`: a session ends with the client closing
 it, stopping a stream the server is writing (`STOP_SENDING`, as dropping its receive half does), a FIN
@@ -250,7 +251,10 @@ frame path, the store and the planner are the QUIC path's; one process serves bo
 | stream mode | `--stream-mode` | always one ordered stream |
 | opening ask | `?ask=` with `--opening-ask` | the same `?ask=` on the upgrade's URL, with the same flag: served right behind the 101 |
 
-A binary message from the client, or any message over 4 MiB, ends the session. The library
+A binary message from the client, or any message or frame over 64 KiB (`MAX_FOD_LEN`), ends the
+session; an over-long frame ends it at its header, before its payload is buffered. *Corrected 2026-10-16:* this
+said 4 MiB a message, but the frame cap was tungstenite's 16 MiB default, so one unfragmented message could hold
+16 MiB before it was refused. The library
 answers pings. Not on this path: the QUIC knobs (`--congestion`, the windows — TCP's are the
 kernel's), the per-session `session path` line, and telemetry rows. The idle-session behaviour of
 [`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md) is QUIC's and does not
