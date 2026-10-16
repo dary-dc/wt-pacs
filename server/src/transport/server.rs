@@ -51,6 +51,9 @@ pub struct ServeConfig {
     /// Lab only: serve every frame as a miss, for measuring a series nobody has read. docs/adr/disk-access.md
     #[arg(long, default_value_t = false)]
     pub force_pool_reads: bool,
+    /// Lab only: row 259's arm T1, one `WILLNEED` per tile name past the slots. docs/adr/disk-access.md §Flags
+    #[arg(long, default_value_t = false)]
+    pub advise_tile_names: bool,
     /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--opening-ask false` turns it off. docs/ARCHITECTURE.md
     #[arg(long, default_value_t = true, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set)]
     pub opening_ask: bool,
@@ -121,6 +124,7 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
 pub(super) struct Sessions {
     pub(super) store: Arc<FrameStore>,
     read_mode: ReadMode,
+    advise_tile_names: bool,
     mode: StreamMode,
     pub(super) opening_ask: bool,
     stall: Option<u64>,
@@ -147,9 +151,13 @@ impl Sessions {
                 warn!("{err}; using auto");
                 ReadMode::Auto
             });
+        if config.advise_tile_names {
+            warn!("--advise-tile-names: tile names past the slots are advised; a lab flag, not a deployment one");
+        }
         Sessions {
             store,
             read_mode,
+            advise_tile_names: config.advise_tile_names,
             mode: config.mode,
             opening_ask: config.opening_ask,
             stall: config.stall_after_bytes,
@@ -160,7 +168,7 @@ impl Sessions {
     }
 
     pub(super) fn pipeline(&self, link: Link) -> ProductPipeline {
-        ProductPipeline::new(Arc::clone(&self.store), link, self.read_mode)
+        ProductPipeline::new(Arc::clone(&self.store), link, self.read_mode, self.advise_tile_names)
     }
 
     /// One session, whatever carries it: `opening` first, then each ask `read` forwards, until
@@ -451,6 +459,7 @@ mod tests {
                 bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
                 tuning: TransportTuning::default(),
                 force_pool_reads: false,
+                advise_tile_names: false,
                 opening_ask: false,
                 hold_sessions: false,
                 stall_after_bytes: None,
@@ -610,6 +619,7 @@ mod tests {
         Sessions {
             store: Arc::new(FrameStore::open(series).expect("open store")),
             read_mode: ReadMode::Auto,
+            advise_tile_names: false,
             mode: StreamMode::Shared,
             opening_ask: false,
             stall: None,
@@ -1186,6 +1196,7 @@ mod tests {
         let sessions = Sessions {
             store: Arc::new(FrameStore::open(&fx.series).expect("open store")),
             read_mode: ReadMode::Auto,
+            advise_tile_names: false,
             mode: StreamMode::Shared,
             opening_ask: true,
             stall: None,

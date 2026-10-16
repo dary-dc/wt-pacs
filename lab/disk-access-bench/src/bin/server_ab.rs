@@ -44,6 +44,13 @@ struct Args {
     /// where no earlier run has read it. Unset: frame 0, and a fill streams the whole series.
     #[arg(long)]
     start: Option<u32>,
+    /// Session k starts `k × asks × step` frames past the first, so no two sessions ask one frame.
+    #[arg(long)]
+    disjoint: bool,
+    /// On demand, asks go out in bursts of this many, the next once the last of this one is in;
+    /// p50_ns to p99_ns are then each burst's wall, its first ask sent to its last frame received.
+    #[arg(long)]
+    burst: Option<usize>,
     #[arg(long, default_value = "")]
     label: String,
     #[arg(long, default_value = "")]
@@ -70,11 +77,9 @@ static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new(
 /// XXH3-64 per frame index, from the files the bundle was packed from.
 fn coded_digests(dir: &std::path::Path) -> Result<Vec<u64>> {
     let mut paths: Vec<_> = std::fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
-    paths.retain(|p| {
-        p.file_stem().and_then(|s| s.to_str()).is_some_and(|s| s.parse::<u32>().is_ok())
-            && p.extension().is_some_and(|e| e == "htj2k" || e == "av1")
-    });
-    paths.sort();
+    let index = |p: &std::path::PathBuf| p.file_stem().and_then(|s| s.to_str()).and_then(|s| s.parse::<u32>().ok());
+    paths.retain(|p| index(p).is_some() && p.extension().is_some_and(|e| e == "htj2k" || e == "av1"));
+    paths.sort_by_key(index);
     paths.iter().map(|p| Ok(xxh3_64(&std::fs::read(p)?))).collect()
 }
 
@@ -120,17 +125,24 @@ async fn run(args: Args) -> Result<()> {
         conns.push(connect(endpoints.last().expect("one endpoint"), &args.url).await?);
     }
     let mut set = tokio::task::JoinSet::new();
-    for conn in conns {
+    for (k, conn) in conns.into_iter().enumerate() {
         let (mode, depth, asks, frames) = (args.mode, args.depth, args.asks, args.frames.max(1));
-        let (step, start, digests) = (args.step.max(1), args.start, digests.clone());
-        set.spawn(async move { session(conn, mode, depth, asks, frames, step, start, digests).await });
+        let (step, digests) = (args.step.max(1), digests.clone());
+        let start = match args.disjoint {
+            true => Some(args.start.unwrap_or(0) + (k * asks) as u32 * step),
+            false => args.start,
+        };
+        let burst = args.burst.unwrap_or(asks).max(1);
+        set.spawn(async move { session(conn, mode, depth, asks, frames, step, start, burst, digests).await });
     }
-    let mut lats = Vec::new();
+    let (mut lats, mut asked) = (Vec::new(), 0);
     while let Some(joined) = set.join_next().await {
-        lats.extend(joined.context("session join")??);
+        let (session_lats, session_asks) = joined.context("session join")??;
+        lats.extend(session_lats);
+        asked += session_asks;
     }
     let wall_ns = wall.elapsed().as_nanos() as u64;
-    let n = lats.len().max(1) as u64;
+    let n = asked.max(1) as u64;
     let (cpu_ns_per_ask, rss_kib) = match server {
         Some((pid, cpu0, rss0)) => (
             (proc_cpu(pid)?.saturating_sub(cpu0) / u128::from(n)).to_string(),
@@ -160,7 +172,7 @@ async fn run(args: Args) -> Result<()> {
             Mode::Fill => "fill",
         },
         args.depth,
-        lats.len(),
+        asked,
         pct(&lats, 0.50),
         pct(&lats, 0.90),
         pct(&lats, 0.99),
@@ -214,8 +226,9 @@ async fn session(
     frames: u32,
     step: u32,
     start: Option<u32>,
+    burst: usize,
     digests: Option<Arc<Vec<u64>>>,
-) -> Result<Vec<u64>> {
+) -> Result<(Vec<u64>, usize)> {
     let (mut control, _recv) = connection
         .open_bi()
         .await
@@ -226,9 +239,14 @@ async fn session(
     match mode {
         Mode::OnDemand => {
             let start = start.unwrap_or(0);
-            on_demand(&mut control, &mut media, depth.max(1), asks, frames, step, start, &digests).await
+            let lats = on_demand(&mut control, &mut media, depth.max(1), asks, frames, step, start, burst, &digests).await?;
+            Ok((lats, asks))
         }
-        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize), start, &digests).await,
+        Mode::Fill => {
+            let lats = fill(&mut control, &mut media, asks.min(frames as usize), start, &digests).await?;
+            let asked = lats.len();
+            Ok((lats, asked))
+        }
     }
 }
 
@@ -240,15 +258,18 @@ async fn on_demand(
     frames: u32,
     step: u32,
     start: u32,
+    burst: usize,
     digests: &Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
     let plan = |i: usize| start.wrapping_add((i as u32).wrapping_mul(step)) % frames;
     let mut sent = Vec::with_capacity(asks);
     let mut lats = Vec::with_capacity(asks);
+    let mut walls = Vec::new();
     let mut next_send = 0usize;
     let mut next_recv = 0usize;
     while next_recv < asks {
-        while next_send < asks && (next_send - next_recv) < depth as usize {
+        let burst_end = (next_recv / burst + 1) * burst;
+        while next_send < asks.min(burst_end) && (next_send - next_recv) < depth as usize {
             control
                 .write_all(&encode_fod_msg(&FodMsg::RequestFrame {
                     frame: plan(next_send),
@@ -268,8 +289,11 @@ async fn on_demand(
         );
         lats.push(sent[next_recv].elapsed().as_nanos() as u64);
         next_recv += 1;
+        if burst < asks && (next_recv % burst == 0 || next_recv == asks) {
+            walls.push(sent[next_recv - 1 - (next_recv - 1) % burst].elapsed().as_nanos() as u64);
+        }
     }
-    Ok(lats)
+    Ok(if burst < asks { walls } else { lats })
 }
 
 async fn fill(

@@ -278,6 +278,8 @@ pub struct TileReader {
     slots: Vec<Slot>,
     last: usize,
     stats: ReadStats,
+    /// Row 259's lab arm T1: the names past the slots already advised; `None` advises none.
+    advised: Option<Vec<FrameSpan>>,
 }
 
 impl TileReader {
@@ -307,7 +309,14 @@ impl TileReader {
                 .collect(),
             last: 0,
             stats: ReadStats::default(),
+            advised: None,
         }
+    }
+
+    /// Lab arm T1 (row 259): one `WILLNEED` per name past the slots, once while it waits.
+    pub fn advising_past_slots(mut self) -> Self {
+        self.advised = Some(Vec::new());
+        self
     }
 
     /// The whole of `span`, handed off to the wire; reads of `upcoming` that fit are started
@@ -323,6 +332,7 @@ impl TileReader {
                 self.begin(w, want)?;
             }
         }
+        self.advise_past_slots(&upcoming[named - 1..]);
         let started = self.slots.iter().filter(|s| s.read.is_some()).count() as u16;
         self.stats.peak_in_flight = self.stats.peak_in_flight.max(started);
         let w = self.holding(span).expect("started above");
@@ -337,6 +347,17 @@ impl TileReader {
         slot.key = None;
         let frame = mem::replace(&mut slot.buf, frame_pool::take());
         Ok(frame_pool::hand_off(frame, slot.len))
+    }
+
+    fn advise_past_slots(&mut self, past: &[FrameSpan]) {
+        let Some(advised) = &mut self.advised else { return };
+        advised.retain(|a| past.contains(a));
+        for &name in past {
+            if !advised.contains(&name) {
+                self.store.advise_ahead(name.offset, u64::from(name.len));
+                advised.push(name);
+            }
+        }
     }
 
     fn holding(&self, span: FrameSpan) -> Option<usize> {
@@ -858,6 +879,75 @@ mod tests {
                 "held more frames than it has slots"
             );
         }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// What one tile reader did over a plan: its stats, and what it advised at each ask.
+    #[derive(Debug, PartialEq)]
+    struct Served {
+        stats: ReadStats,
+        advice: Vec<Vec<(u64, u64)>>,
+    }
+
+    /// `plan` served as a client keeping `depth` asks out names it, every frame checked.
+    fn serve_at_depth(store: &Arc<FrameStore>, mut tile: TileReader, plan: &[u32], depth: usize) -> Served {
+        let rt = rt();
+        store.take_advice();
+        let mut advice = Vec::new();
+        for (i, &frame) in plan.iter().enumerate() {
+            let upcoming = spans(store, &plan[i + 1..plan.len().min(i + depth)]);
+            let out = rt.block_on(tile.read(store.frame_span(frame), &upcoming)).expect("read");
+            assert_eq!(&out[..], &frame_pattern(frame, LEN)[..], "frame {frame} came back wrong");
+            advice.push(store.take_advice());
+        }
+        Served { stats: tile.stats(), advice }
+    }
+
+    fn forced_misses(tag: &str, frames: u32) -> (std::path::PathBuf, Arc<FrameStore>) {
+        let dir = scratch(tag);
+        let mut store = FrameStore::open(&write_bundle(&dir, frames, LEN)).expect("open store");
+        store.force_pool_reads();
+        (dir, Arc::new(store))
+    }
+
+    /// **Row 259's control.** A client at depth 4 names no frame past the slots, so arm T1
+    /// advises nothing and serves every ask exactly as T0 does.
+    #[test]
+    fn at_depth_four_the_tile_advice_arm_is_today_s_reader() {
+        let (dir, store) = forced_misses("t1-control", 16);
+        let plan: Vec<u32> = (0..16).map(|i| i * 5 % 16).collect();
+        let tile = || TileReader::new(ReadMode::Pool, Arc::clone(&store), TILE_SLOTS);
+        let t0 = serve_at_depth(&store, tile(), &plan, TILE_SLOTS);
+        let t1 = serve_at_depth(&store, tile().advising_past_slots(), &plan, TILE_SLOTS);
+        assert!(t1.advice.iter().all(Vec::is_empty), "T1 advised at depth 4: {:?}", t1.advice);
+        assert_eq!(t1, t0, "T1 served depth 4 differently from T0");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **Row 259's arm T1.** At depth 8 each name past the slots is advised once, whole, at the
+    /// ask that first names it; a name inside the slots never is, and T0 advises nothing.
+    #[test]
+    fn at_depth_eight_each_tile_name_past_the_slots_is_advised_once() {
+        const DEPTH: usize = 8;
+        let (dir, store) = forced_misses("t1-depth8", 16);
+        let plan: Vec<u32> = (0..16).map(|i| i * 5 % 16).collect();
+        let tile = || TileReader::new(ReadMode::Pool, Arc::clone(&store), TILE_SLOTS);
+        let t0 = serve_at_depth(&store, tile(), &plan, DEPTH);
+        assert!(t0.advice.iter().all(Vec::is_empty), "T0 advised a tile: {:?}", t0.advice);
+        let t1 = serve_at_depth(&store, tile().advising_past_slots(), &plan, DEPTH);
+        let whole = |k: usize| {
+            let s = store.frame_span(plan[k]);
+            (s.offset, u64::from(s.len))
+        };
+        let want: Vec<Vec<(u64, u64)>> = (0..plan.len())
+            .map(|i| match i {
+                0 => (TILE_SLOTS..DEPTH).map(whole).collect(),
+                _ if i + DEPTH - 1 < plan.len() => vec![whole(i + DEPTH - 1)],
+                _ => vec![],
+            })
+            .collect();
+        assert_eq!(t1.advice, want, "T1 did not advise each name past the slots exactly once");
+        assert_eq!(t1.stats, t0.stats, "the advice changed what T1 read");
         std::fs::remove_dir_all(&dir).ok();
     }
 
