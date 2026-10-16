@@ -235,6 +235,17 @@ refuses a page on a public address a request to `127.0.0.1`, where the check's c
 **Restart.** `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
 and the next page open connected and passed.
 
+**Row WASMIMAGE (2026-10-16), the WASM client in the image.** Both images built once from the branch, dockerd and
+its builds pinned to one core at the lowest priority (the build is not timed). `check_equivalence.sh` passed against
+the image: 11 paths, 21 hidden, the glue and `.wasm` answered as asserted. `check.mjs --url` on the gate's grey series
+passed in headless Chromium 141 with `CLIENT=ts` and with `CLIENT=wasm`, 3/3 exact, readbacks equal to the CPU
+reference, each client's files preloaded; told `--client wasm` against `CLIENT=ts`, it failed by name. `compose up`
+here needed `MEMLOCK=8192 NOFILE=20000`: the sandbox refuses higher limits. `--local` passed with the studies in a
+world-readable directory; under a 0700 one, nginx (reading as nobody) answers `/series/metadata` 403. Each new
+assertion was mutated and failed it: the adapter left out (`DIFF`), the build left out of the root, `.wasm` as
+`application/octet-stream` and a `pkg/` location dropping the inherited headers (`MISS`), the crate copied whole
+(four paths `OPEN`).
+
 **Row VIEWERLOCK (2026-10-14), the policy in place.** The web image built from that tree passed
 `check_equivalence.sh`, and `client/viewer/check.mjs --url` through it on the gate's three-frame grey series passed
 in headless Chromium 141 and in Firefox 157.0.1 under `xvfb-run` (archive.mozilla.org's
