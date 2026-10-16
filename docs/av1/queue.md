@@ -4284,7 +4284,7 @@ SELinux choice (deploy/README §Open); the drafts #37–#41 kept or closed.
 
 ### 254–261, drafted by row 251
 
-Each brief and protocol is in row 251's subsection of `docs/adr/disk-access.md` §9 (draft #72). **254 TILECANCEL** (a latent panic after a cancelled pool-path tile read, and the ring-refusal warning once a process) built 2026-10-16, draft #74 (`69fc8f34`): the next read waits on the same pooled read, the refusal WARNs once a process; reproducing test plus two mutations caught. Measurement rows run one at a time after 253, so no two campaigns share the host: 255 IDLEBUFFERS, 256 CACHESHARED, 258 EXECGAP, 259 TILEWILLNEED, 260 FILLWINDOW, 261 RINGCOOP (after 250). 257 READERTIDY follows 250 and 254. *2026-10-16 02:15, on the owner's "parallelize":* the build halves of 255, 256, 259, 260 and 261, and 257 stacked on #74, started beside 253's campaign; builds pinned to CPU 3 at nice 19 under their own lock, nothing timed until the host is free. 258's arms built beside them, measured on the owner's machine through row 262; #48 (row 227) refreshed onto unified.
+Each brief and protocol is in row 251's subsection of `docs/adr/disk-access.md` §9 (draft #72). **254 TILECANCEL** (a latent panic after a cancelled pool-path tile read, and the ring-refusal warning once a process) merged 2026-10-16 as #74 (`b51c0e4c`): the next read waits on the same pooled read, the refusal WARNs once a process; reproducing test plus two mutations caught. Measurement rows run one at a time after 253, so no two campaigns share the host: 255 IDLEBUFFERS, 256 CACHESHARED, 258 EXECGAP, 259 TILEWILLNEED, 260 FILLWINDOW, 261 RINGCOOP (after 250). 257 READERTIDY follows 250 and 254. *2026-10-16 02:15, on the owner's "parallelize":* the build halves of 255, 256, 259, 260 and 261, and 257 stacked on #74, started beside 253's campaign; builds pinned to CPU 3 at nice 19 under their own lock, nothing timed until the host is free. 258's arms built beside them, measured on the owner's machine through row 262; #48 (row 227) refreshed onto unified.
 
 ### 250 RINGPARKBUILD
 
@@ -4292,7 +4292,7 @@ Row 244's proposal built, on the owner's yes (2026-10-16): `UringReader` parks o
 
 ### 251 READERNEXT
 
-*Theory and audit, the owner's ask (2026-10-16).* The disk readers read again for performance, resources, simplicity, robustness and readability, with P0 no longer a gate: each finding with file:line, a verdict, its cost and, where it needs one, a protocol with its rule; follow-up rows drafted from 254; draft #72 (`c4e6c569`), nine findings, rows 254–261. **Deliverable:** `docs/adr/disk-access.md` §9, *Next round for the readers*. **Branch:** `claude/wip-251-READERNEXT`.
+*Theory and audit, the owner's ask (2026-10-16).* The disk readers read again for performance, resources, simplicity, robustness and readability, with P0 no longer a gate: each finding with file:line, a verdict, its cost and, where it needs one, a protocol with its rule; follow-up rows drafted from 254; merged 2026-10-16 as #72 (`13ac3c7c`), nine findings, rows 254–261. **Deliverable:** `docs/adr/disk-access.md` §9, *Next round for the readers*. **Branch:** `claude/wip-251-READERNEXT`.
 
 ### 263 WASMPRODUCT
 
