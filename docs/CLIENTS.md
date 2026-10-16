@@ -36,15 +36,15 @@ A `FrameResult` is `{ frameIndex, bytes, timing: { askMs, lastChunkMs } }`, time
 `stats()` its `droppedEarlyMedia` and `frameErrors` counters, which nothing read (code:
 `git show archive/arms-2026-10-03:client/transport-ts/frame-session.ts`).
 
-**Where the implementations differ**, and the contract adapters are the only code that knows:
-`endStream` is a promise in TypeScript and synchronous in WASM; the WASM handle is exported as
-`TransportSessionHandle`. `connect`'s options are TypeScript's alone except `wireBuffers`, which
-the WASM `connect` takes as its third argument:
+**Where the implementations differ:** the WASM handle is exported as `TransportSessionHandle`, and
+`session-adapter.js` re-exports it as `TransportSession` once wasm-bindgen's init has run; `readMin` is
+TypeScript's alone. Every other option, `onHead` and `stats().mediaReads` are both clients' (since row 265,
+2026-10-16; until then `endStream` was synchronous on WASM and its `connect` took `wireBuffers` alone):
 
 | option | what it does |
 | --- | --- |
 | `wireBuffers` | the size of the wire buffer ring; unset or 0 keeps none |
-| `dialMs` | a dial whose `ready` has not settled by then is closed and rejected with a `DialTimeoutError`. The WASM client has no deadline and waits for ever |
+| `dialMs` | a dial whose `ready` has not settled by then is closed and rejected with a `DialTimeoutError` |
 | `fill` | an opening fill carried in the session URL (WIRE.md §The opening ask); armed at once, never sent as `stream_frames` |
 | `readMin` | read the media stream through a BYOB reader, opt-in — §Reading a frame whole |
 
@@ -123,6 +123,7 @@ by name while the rest still run.
 | --- | --- |
 | `workerSafe` | every timestamp is a real reading, `lastChunkMs ≥ askMs` — asserted on the value, so silent zeros fail |
 | `cancellable` | `end_stream` goes out, the session is not closed, and a frame asked afterwards is served |
+| `endStreamIsAPromise` | `endStream()` returns a promise, so the downloader's `.catch` on it cannot throw |
 | `transferable` | transferring a frame's buffer detaches it, and does not detach a frame delivered beside it on the same stream |
 | `noticesClose` | §A closed session is noticed at once, driven by the stream ending and by `closed` alone |
 | `bothStreamModes` | every frame of a run arrives in the order asked, on one stream and on a stream per frame |
@@ -135,13 +136,22 @@ by name while the rest still run.
 | `aFrameIsLateOnlyWhenTheSessionGoesQuiet` | a frame whose bytes keep coming for 16 s lands |
 | `aSlowFrameHoldsNoOther` | a frame slow on its own stream holds back no frame on another |
 
+**Five more are a session's own** (`runSessionClauses`), the surface its `connect` and reader offer, which the
+downloader's rig cannot reach: `onHeadRunsBeforeTheBody` (an asked frame's `onHead` runs once, ahead of its body),
+`aDialThatNeverSettlesIsClosedAtItsDeadline` (rejected at `dialMs` as a `DialTimeoutError`, the dial closed),
+`anOpeningFillRidesTheUrl` (`?ask=fill:a-b`, armed, every frame to `onFrame`, nothing asked on control),
+`anEmptyHashDialsUnpinned` (no `serverCertificateHashes` without a hash, one with) and
+`mediaReadsCountsTheMediaReads` (a read per media chunk). They were the TypeScript unit tests' until row 265;
+`onHead` under `readMin` stays there.
+
 `ring.ts` adds, per session implementation: a buffer handed back is read into again, one still
 held is not, the free list never exceeds its size, a frame in a larger buffer is a view of its own
 length, and a buffer smaller than the frame is dropped rather than grown. `race.ts` has one clause
 per outcome — QUIC first, TCP first, QUIC refused (and both refused) — and the opening fill.
 
 **Over a WebSocket, independent delivery is not applicable**, and is reported by name rather than
-counted: the per-frame halves of `bothStreamModes` and `pushedFill`, and `aSlowFrameHoldsNoOther`.
+counted: the per-frame halves of `bothStreamModes` and `pushedFill`, and `aSlowFrameHoldsNoOther`; and
+`anEmptyHashDialsUnpinned`, since a WebSocket cannot pin.
 A truncated frame does apply — on TCP it is the connection ending inside one.
 
 **The downloader rig.** The downloader dials inside its own worker, out of the test's reach, so
@@ -360,7 +370,7 @@ the code does, read from the code.
 
 | API | relied on by | WebKit | without it |
 | --- | --- | --- | --- |
-| `WebTransport` | both WebTransport clients | shipped in Safari and iOS 26.4 (MDN browser-compat-data `api.WebTransport`, read 2026-10-02; *corrected from "26"*); a dial can hang with `ready` never settling (bug 319879); flow control never refills, so a session stalls after 16 MB (bug 319818, [`ARCHITECTURE.md`](ARCHITECTURE.md) §Recycling before the stall) | the downloader's `dialMs` ends a hung dial and retries; the TS client does so when given `dialMs`; the WASM client waits for ever |
+| `WebTransport` | both WebTransport clients | shipped in Safari and iOS 26.4 (MDN browser-compat-data `api.WebTransport`, read 2026-10-02; *corrected from "26"*); a dial can hang with `ready` never settling (bug 319879); flow control never refills, so a session stalls after 16 MB (bug 319818, [`ARCHITECTURE.md`](ARCHITECTURE.md) §Recycling before the stall) | the downloader's `dialMs` ends a hung dial and retries; both clients do so when given `dialMs` (the WASM one since row 265) |
 | `serverCertificateHashes` | both WebTransport clients, the dev setup | not checked | the dial fails; a deployment uses a CA-signed certificate, which the clients do not care about |
 | `SharedArrayBuffer`, `crossOriginIsolated` | the downloader's pixel path | not checked | `DownloaderClient.connect` throws *serve the page cross-origin isolated* unless `decode: false` |
 | module workers, a worker started from a worker | the downloader and its decoders | not checked | the downloader does not start, and `connect` rejects |
@@ -489,17 +499,17 @@ whatever of theirs has landed.
 | W1 | **The page cannot select it.** The transport file carries `wt_url` and `cert_sha256` alone; the downloader defaults to the TS module | `deploy/server-start.sh:19`; `server/scripts/gen_dev_cert.sh:35-40`; `client/viewer/viewer.js:21,127`; `client/transport/downloader.js:7,466` | ~+10 | **yes**: a product setting, and a second path the page loads |
 | W2 | **Nothing preloads it.** The page preloads `ts/dist/session.js`; the WASM client is three fetches in series inside the downloader's worker (adapter, glue, `.wasm`), each found only once the one before runs | `client/viewer/index.html:14`; `client/viewer/head.js:15-24`; `client/transport/wasm/session-adapter.js:6` | ~+5 | no |
 | W3 | **The image does not carry it.** `web-files.sh` copies no `transport/wasm/`, the bundles stage builds TS alone, and `check_equivalence.sh` asserts neither its files nor `application/wasm` | `deploy/web-files.sh:9-14`; `deploy/Containerfile:50-59,66`; `deploy/check_equivalence.sh:62-68` | ~+20 | **yes**: the image gains a wasm32 stage (the target, `wasm-pack` 0.15.0, binaryen `version_117` by checksum, as `build.sh` and CI fetch them) |
-| W4 | **`refill: "head"`, the default, never fires.** The downloader passes `onHead` as `requestExactFrame`'s second argument; the WASM binding takes one, and its reader reads a frame's head and body in one `read_exact`. The hold is released in `finally`, the trigger row 229 replaced; its 10 % fill gained up to 256 ms on the head ([`transport/link-conditions.md`](transport/link-conditions.md), *ASKTHENFILL*) | `client/transport/downloader.js:233,245,254`; `client/transport/wasm/src/lib.rs:51-52`; `client/transport/wasm/src/session.rs:192-197` | ~+20 | no |
-| W5 | **No dial deadline.** `dialMs` is ignored, so a dial that never settles (WebKit bug 319879, `--hold-sessions`) holds the downloader for ever: `firstDial` retries only a `DialTimeoutError`, `resume` awaits the dial. TS fails at 29.1 s, naming it ([`ARCHITECTURE.md`](ARCHITECTURE.md) §A dial that never settles) | `client/transport/downloader.js:365,469,514`; `client/transport/wasm/src/session.rs:376-395` | ~+15 | no |
-| W6 | **`endStream()` is synchronous**, and the downloader calls `.catch` on it after a cancel lands during a dial that carried an opening fill: on WASM a `TypeError` out of `connect()`, and on the first dial the start fails. Read from the code, not run; `dispatch-rig.ts`'s *cancel during a resume* drives that line | `client/transport/downloader.js:496`; `client/transport/wasm/src/lib.rs:82-85`; `client/contract/dispatch-rig.ts:1866-1885` | ~±2, an `async fn` | no |
-| W7 | **No opening ask.** The adapter asks the opening fill on the control stream once the session is up: the round trip the URL saves TS, −1.06 to −1.52 round trips to a fill's first frame ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The opening ask) | `client/transport/wasm/session-adapter.js:14-17`; `client/transport/wasm/src/session.rs:376-395` | ~+20 | no |
-| W8 | **It always pins.** An empty `cert_sha256` becomes an empty hash, so it cannot dial a deployment with a CA-signed certificate (`server-start.sh`'s `/supplied`; [`devices.md`](devices.md) §4, "the WASM one still pins") | `client/transport/wasm/src/session.rs:381-389`, against `client/transport/ts/session.ts:36` | ~+3 | no |
-| W9 | **No `mediaReads` in `stats()`**: the downloader stamps it on each frame, a stamp, not a decision | `client/transport/downloader.js:202`; `client/transport/wasm/src/session.rs:591-598` | ~+3 | no |
+| W4 | *Closed by row 265.* **`refill: "head"`, the default, never fires.** The downloader passes `onHead` as `requestExactFrame`'s second argument; the WASM binding takes one, and its reader reads a frame's head and body in one `read_exact`. The hold is released in `finally`, the trigger row 229 replaced; its 10 % fill gained up to 256 ms on the head ([`transport/link-conditions.md`](transport/link-conditions.md), *ASKTHENFILL*) | `client/transport/downloader.js:233,245,254`; `client/transport/wasm/src/lib.rs:51-52`; `client/transport/wasm/src/session.rs:192-197` | ~+20 | no |
+| W5 | *Closed by row 265.* **No dial deadline.** `dialMs` is ignored, so a dial that never settles (WebKit bug 319879, `--hold-sessions`) holds the downloader for ever: `firstDial` retries only a `DialTimeoutError`, `resume` awaits the dial. TS fails at 29.1 s, naming it ([`ARCHITECTURE.md`](ARCHITECTURE.md) §A dial that never settles) | `client/transport/downloader.js:365,469,514`; `client/transport/wasm/src/session.rs:376-395` | ~+15 | no |
+| W6 | *Closed by row 265.* **`endStream()` is synchronous**, and the downloader calls `.catch` on it after a cancel lands during a dial that carried an opening fill: on WASM a `TypeError` out of `connect()`, and on the first dial the start fails. Read from the code, not run; *corrected 2026-10-16:* run at the session — `endStreamIsAPromise` on the WASM build of `4406acd2` failed with `Cannot read properties of undefined (reading 'catch')`; through the downloader it is row 2's; `dispatch-rig.ts`'s *cancel during a resume* drives that line | `client/transport/downloader.js:496`; `client/transport/wasm/src/lib.rs:82-85`; `client/contract/dispatch-rig.ts:1866-1885` | ~±2, an `async fn` | no |
+| W7 | *Closed by row 265.* **No opening ask.** The adapter asks the opening fill on the control stream once the session is up: the round trip the URL saves TS, −1.06 to −1.52 round trips to a fill's first frame ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The opening ask) | `client/transport/wasm/session-adapter.js:14-17`; `client/transport/wasm/src/session.rs:376-395` | ~+20 | no |
+| W8 | *Closed by row 265.* **It always pins.** An empty `cert_sha256` becomes an empty hash, so it cannot dial a deployment with a CA-signed certificate (`server-start.sh`'s `/supplied`; [`devices.md`](devices.md) §4, "the WASM one still pins") | `client/transport/wasm/src/session.rs:381-389`, against `client/transport/ts/session.ts:36` | ~+3 | no |
+| W9 | *Closed by row 265.* **No `mediaReads` in `stats()`**: the downloader stamps it on each frame, a stamp, not a decision | `client/transport/downloader.js:202`; `client/transport/wasm/src/session.rs:591-598` | ~+3 | no |
 | W10 | **26.5× the transport's bytes:** `transport_wasm_bg.wasm` 240 066 B and `transport_wasm.js` 32 166 B, 103 499 and 6 464 gzipped (`gzip -6`), against `dist/session.js` 13 401 and 4 149. Counted 2026-10-16 on a build of sources unchanged since 2026-10-09; the default `console_error` panic hook is in it, its share not counted | `client/transport/wasm/Cargo.toml:33-37` | 0 | no |
 | W11 | **Its load on the product page is not measured.** R2 (2026-09-19) found the cold session a tie once each client was preloaded, 6.72 against 6.64 round trips, on the harness's page path, removed 2026-10-03; the compile of 240 KB and the linear memory's peak (the receive buffer holds a whole frame) are not measured | [`../lab/page-open/README.md`](../lab/page-open/README.md) §The count, before and after | — | no |
 | W12 | **Never run outside Chromium.** The Firefox runs (`run_firefox.sh`, the page check's `--engine firefox`) load TS alone; no WebKit runs here. Both dial the same global `WebTransport`, so what differs is the engine's WebAssembly | `client/contract/run_firefox.sh:14`; `client/viewer/check.mjs:5` | ~+2 | no |
 | W13 | **The rigs and the page check load TS alone**: `fake-session.ts` re-exports the TS session, `ask-during-fill.html` knows `ts`, `ws` and the downloader over each, the page check serves a transport file without `client` | `client/contract/fake-session.ts:9`; `client/contract/run_browser.sh:11`; `client/contract/ask-during-fill.html:17,57,84`; `client/viewer/check.mjs:59-60` | ~+45 | no |
-| W14 | **The surface's TS-only tests** — `onHead` before the body, the dial deadline, the opening fill in the URL, the unpinned dial — sit in the TS unit tests and the dispatch rig, not in `clauses.ts`, so nothing holds WASM to them | `client/transport/ts/test/run.ts:84-85`; `client/contract/dispatch-rig.ts:1730-1750` | ~+80 test | no |
+| W14 | *Closed by row 265.* **The surface's TS-only tests** — `onHead` before the body, the dial deadline, the opening fill in the URL, the unpinned dial — sit in the TS unit tests and the dispatch rig, not in `clauses.ts`, so nothing holds WASM to them | `client/transport/ts/test/run.ts:84-85`; `client/contract/dispatch-rig.ts:1730-1750` | ~+80 test | no |
 
 Out of scope: `readMin`, the WebSocket and the race are TS's alone and off by default, so with `client: "wasm"` the
 page is WebTransport only. A race whose QUIC arm is the WASM session is structural, and the fallback itself is open
@@ -515,6 +525,10 @@ into the image. No capability test, no fallback, no WASM race.
    the head callback, `dialMs`, the opening fill in the URL and armed (the adapter's control-stream ask removed), the
    unpinned dial, `endStream` async, so §The seam's differences lose a row. `connect` (109 lines) split as it grows.
    *Proves it:* `run.mjs` green on both, each new clause mutated on each client. ~+60 Rust, ~+80 test.
+   *Built 2026-10-16, row 265* (`claude/wip-265-WASMSURFACE`): six clauses, five of them `runSessionClauses`; on
+   the WASM build before it 8 of their checks failed by name, after it `run.mjs` 227/227 on every session. `connect`
+   split into `dial` (the pin and the deadline) and the three readers `session.ts` has, 109 lines to 58. The opening ask's URL is written by hand in
+   `session.rs` as in `frame-session.ts`: the server's parser is in `server/`, not a crate the client shares.
 2. **WASMRIGS** — W13 but the page check: the downloader and dispatch rigs per client (the dispatch rig's transport
    clauses only on WASM; the rest are the decoders'), `ask-during-fill.html` with `wasm` and `downloader-wasm`.
    *Proves it:* green on both; reverting row 1's `endStream` fails *cancel during a resume* on WASM, reverting the head
@@ -535,8 +549,8 @@ both clients; if it is ruled first, W4 is not built.
 
 **Measured, and not.** Measured: the bytes (W10, today); R2's tie (W11); the fill's tie; N6, stale; both clients
 pending past 180 s on a held dial ([`../lab/dial-deadline/`](../lab/dial-deadline/README.md)); the telemetry's cost.
-Not measured: anything of the WASM client on the product page; W4's cost on WASM, inferred from row 229's arms; W6,
-read and not run; the WASM client in Firefox or WebKit; the image's build time with a wasm32 stage; the gate's added time.
+Not measured: anything of the WASM client on the product page; W4's cost on WASM, inferred from row 229's arms; W6
+through the downloader (run at the session, row 265); the WASM client in Firefox or WebKit; the image's build time with a wasm32 stage; the gate's added time.
 
 ## Proposed: the harness pages to `lab/`
 

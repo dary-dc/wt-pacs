@@ -66,6 +66,6 @@ export async function wasmImpl(): Promise<Implementation> {
   });
   return {
     name: "transport-wasm",
-    connect: (url, certHash, options) => mod.TransportSessionHandle.connect(url, certHash, options?.wireBuffers),
+    connect: (url, certHash, options) => mod.TransportSessionHandle.connect(url, certHash, options),
   };
 }

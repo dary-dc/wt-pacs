@@ -336,7 +336,7 @@ of them gains must displace one.
 | `client/contract/dispatch-rig.ts` | 2 362, ~60 clauses | by subject (dispatch, survival, exactness, AV1) into four files; nothing saved, so no row unless the owner wants it |
 | `server/src/media/read_path.rs` | 1 073 (503 product) | keep (above) |
 | `client/transport/downloader.js` | 577 | keep: one worker's state; S12, S13 trim it |
-| `client/transport/wasm/src/session.rs` `connect` | 109 | row 263's WASMSURFACE, as it grows (*was* row 228) |
+| `client/transport/wasm/src/session.rs` `connect` | 109 | *split by row 265 (WASMSURFACE)* into `dial` and three readers, 58 lines |
 | `server/src/transport/server.rs` `run_server` | 93 | S9 |
 | `client/decode/av1-payload.js` `sequence` | 75 | keep: an OBU header parser, field by field as the spec reads |
 | `client/decode/av1-webcodecs.js` `decoder` | 70 | keep: one closure's state machine |
