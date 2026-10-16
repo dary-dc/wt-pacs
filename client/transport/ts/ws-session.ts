@@ -32,7 +32,7 @@ export class TransportSession extends FrameSession {
       socket.onopen = () => resolve();
       socket.onclose = (e) => reject(new Error(`the WebSocket dial failed (code ${e.code})`));
     });
-    await (options.dialMs ? settleWithin(open, () => socket.close(), options.dialMs) : open);
+    await settleWithin(open, () => socket.close(), options.dialMs);
 
     const session = new TransportSession(socket, options);
     session.pump();

@@ -35,8 +35,9 @@ export type FrameResult = {
   timing: { askMs: number; lastChunkMs: number };
 };
 
-/** Closes a dial whose `ready` outlives `ms`, so an abandoned dial leaves nothing open. */
-export function settleWithin(ready: Promise<unknown>, close: () => void, ms: number): Promise<void> {
+/** Closes a dial whose `ready` outlives `ms`, so an abandoned dial leaves nothing open; no `ms`, no deadline. */
+export function settleWithin(ready: Promise<unknown>, close: () => void, ms?: number): Promise<void> {
+  if (!ms) return ready.then(() => {});
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -58,6 +59,7 @@ type Waiter = {
   resolve: (v: { bytes: Uint8Array; receivedMs: number }) => void;
   reject: (e: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  onHead?: () => void;
 };
 
 /** A fill pushed as it lands: what is still owed, and where each frame goes. No timer per frame. */
@@ -122,7 +124,7 @@ export abstract class FrameSession {
   }
 
   /** Throws, rather than rejecting, so a refused ask never reaches the wire. */
-  private armWaiter(frameIndex: number): Promise<{ bytes: Uint8Array; receivedMs: number }> {
+  private armWaiter(frameIndex: number, onHead?: () => void): Promise<{ bytes: Uint8Array; receivedMs: number }> {
     if (this.closedReason) throw new Error(`frame ${frameIndex} unavailable: ${this.closedReason}`);
     if (this.waiters.has(frameIndex)) throw new Error(`frame ${frameIndex} already requested`);
     return new Promise((resolve, reject) => {
@@ -135,7 +137,7 @@ export abstract class FrameSession {
         const late = new Error(`timeout waiting for frame ${frameIndex}: no byte for ${FRAME_TIMEOUT_MS} ms`);
         reject(Object.assign(late, { name: "FrameTimeoutError" }));
       };
-      const w = { resolve, reject, timer: setTimeout(expire, FRAME_TIMEOUT_MS) };
+      const w = { resolve, reject, timer: setTimeout(expire, FRAME_TIMEOUT_MS), onHead };
       this.waiters.set(frameIndex, w);
     });
   }
@@ -144,28 +146,27 @@ export abstract class FrameSession {
   private deliver(frameIndex: number, bytes: Uint8Array, receivedMs: number) {
     const fill = this.fill;
     const owed = fill?.pending.delete(frameIndex) ?? false;
-    const w = this.waiters.get(frameIndex);
-    if (w) {
-      clearTimeout(w.timer);
-      this.waiters.delete(frameIndex);
-      w.resolve({ bytes, receivedMs });
-      return;
-    }
+    const w = this.takeWaiter(frameIndex);
+    if (w) return void w.resolve({ bytes, receivedMs });
     if (fill && owed) {
       fill.onFrame(toResult(frameIndex, fill.askMs, bytes, receivedMs));
     }
   }
 
   protected failWaiter(frameIndex: number, reason: string) {
-    const w = this.waiters.get(frameIndex);
+    const w = this.takeWaiter(frameIndex);
     const owed = this.fill?.pending.delete(frameIndex) ?? false;
-    if (!w) {
-      if (owed) this.fill?.onError(frameIndex, reason);
-      return;
+    if (w) w.reject(new Error(`frame ${frameIndex} unavailable: ${reason}`));
+    else if (owed) this.fill?.onError(frameIndex, reason);
+  }
+
+  private takeWaiter(frameIndex: number): Waiter | undefined {
+    const w = this.waiters.get(frameIndex);
+    if (w) {
+      clearTimeout(w.timer);
+      this.waiters.delete(frameIndex);
     }
-    clearTimeout(w.timer);
-    this.waiters.delete(frameIndex);
-    w.reject(new Error(`frame ${frameIndex} unavailable: ${reason}`));
+    return w;
   }
 
   protected onControl(msg: FodMsg) {
@@ -182,16 +183,17 @@ export abstract class FrameSession {
       this.lastByteAt = performance.now();
       this.reads += 1;
     };
+    const onHead = (index: number) => this.waiters.get(index)?.onHead?.();
     let next: (() => Promise<Envelope | null>) | null = null;
     if (this.readMin) {
       // A stream that is not a byte stream has no BYOB reader: it is read the default way.
       const reader = byobReader(stream);
-      if (reader) next = () => readEnvelopeInto(reader, this.wire, this.readMin, onRead);
+      if (reader) next = () => readEnvelopeInto(reader, this.wire, this.readMin, onRead, onHead);
     }
     if (!next) {
       const reader = stream.getReader();
       const buf = new ByteAccumulator(onRead);
-      next = () => readEnvelope(reader, buf, this.wire);
+      next = () => readEnvelope(reader, buf, this.wire, onHead);
     }
     try {
       for (;;) {
@@ -210,18 +212,16 @@ export abstract class FrameSession {
     }
   }
 
-  async requestExactFrame(frameIndex: number): Promise<FrameResult> {
+  /** `onHead` runs once the frame's envelope head is read, before its body. */
+  async requestExactFrame(frameIndex: number, onHead?: () => void): Promise<FrameResult> {
     const askMs = performance.now();
-    const pending = this.armWaiter(frameIndex);
+    const pending = this.armWaiter(frameIndex, onHead);
     const armed = this.waiters.get(frameIndex)!;
     try {
       await this.sendFod({ op: "request_frame", frame: frameIndex });
     } catch (e) {
       pending.catch(() => {});
-      if (this.waiters.get(frameIndex) === armed) {
-        clearTimeout(armed.timer);
-        this.waiters.delete(frameIndex);
-      }
+      if (this.waiters.get(frameIndex) === armed) this.takeWaiter(frameIndex);
       throw e;
     }
     const { bytes, receivedMs } = await pending;
@@ -310,16 +310,16 @@ async function readEnvelope(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   buf: ByteAccumulator,
   wire: WireBuffers,
+  onHead: (index: number) => void,
 ): Promise<Envelope | null> {
   if (!(await fillTo(reader, buf, 4))) return null;
   const len = be32(buf.take(4));
   if (len < 4 || len > MAX_FRAME_LEN) throw new Error(`invalid frame length ${len}`);
-  if (!(await fillTo(reader, buf, len))) {
-    if (buf.length < 4) return { ok: false, index: -1, lost: "truncated before its index" };
-    const index = be32(buf.take(4));
-    return { ok: false, index, lost: `truncated: ${buf.length} of ${len - 4} bytes` };
-  }
-  return { ok: true, index: be32(buf.take(4)), codestream: buf.take(len - 4, wire.take(len - 4)) };
+  if (!(await fillTo(reader, buf, 4))) return { ok: false, index: -1, lost: "truncated before its index" };
+  const index = be32(buf.take(4));
+  onHead(index);
+  if (!(await fillTo(reader, buf, len - 4))) return { ok: false, index, lost: `truncated: ${buf.length} of ${len - 4} bytes` };
+  return { ok: true, index, codestream: buf.take(len - 4, wire.take(len - 4)) };
 }
 
 /** A BYOB reader with `read(view, { min })`, which this TypeScript's DOM library does not have yet. */
@@ -341,6 +341,7 @@ async function readEnvelopeInto(
   wire: WireBuffers,
   min: number,
   onRead: () => void,
+  onHead: (index: number) => void,
 ): Promise<Envelope | null> {
   const head = await readInto(reader, new Uint8Array(8), min, onRead);
   if (head.filled === 0) return null;
@@ -349,6 +350,7 @@ async function readEnvelopeInto(
   if (len < 4 || len > MAX_FRAME_LEN) throw new Error(`invalid frame length ${len}`);
   if (head.filled < 8) return { ok: false, index: -1, lost: "truncated before its index" };
   const index = be32(head.bytes.subarray(4));
+  onHead(index);
   const body = await readInto(reader, wire.take(len - 4), min, onRead);
   if (body.filled < len - 4) return { ok: false, index, lost: `truncated: ${body.filled} of ${len - 4} bytes` };
   return { ok: true, index, codestream: body.bytes };

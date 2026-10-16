@@ -134,9 +134,12 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   which left the wire on 2026-10-03 (`202644d`): the server served it as one ask per index in order,
   so an ask behind a 200-frame batch waited for all 200, where a `stream_frames` fill is dropped the
   moment an ask is in hand. **An ask ends a
-  running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once an ask settles
-  the downloader re-issues what is not yet delivered as a new run — the client owns that decision,
-  the server stays as it is. An ask for a frame the fill still owes goes to the wire, where the
+  running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once the asked
+  frame's 8-byte envelope head lands the downloader re-issues what is not yet delivered as a new run
+  ([`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, *ASKTHENFILL*). That is a patch, not the
+  design: an ask and a fill compete for one stream, and the client rebuilds the fill the server dropped. The
+  candidate that removes the competition, one server queue where an ask moves its frame to the front, is queue
+  row 249. An ask for a frame the fill still owes goes to the wire, where the
   server serves it next, and the ask then owns that frame: a refusal that fails the rest of the run
   spares it.
 * **Cancel** ends the stream, drops queued work by generation, fails outstanding asks with an

@@ -18,17 +18,12 @@ import {
 export type { ConnectOptions, FrameResult, OpeningFill } from "./frame-session.ts";
 
 export class TransportSession extends FrameSession {
-  private transport: WebTransport;
-  private controlWriter: WritableStreamDefaultWriter<Uint8Array>;
-
   private constructor(
-    transport: WebTransport,
-    controlWriter: WritableStreamDefaultWriter<Uint8Array>,
+    private readonly transport: WebTransport,
+    private readonly controlWriter: WritableStreamDefaultWriter<Uint8Array>,
     options: ConnectOptions,
   ) {
     super(options);
-    this.transport = transport;
-    this.controlWriter = controlWriter;
   }
 
   static async connect(
@@ -40,9 +35,7 @@ export class TransportSession extends FrameSession {
     // No hash: a CA-signed certificate, verified as any page's is. docs/devices.md §4
     const pinned = certSha256 ? { serverCertificateHashes: [{ algorithm: "sha-256", value: hexToBytes(certSha256) }] } : {};
     const transport = new WebTransport(fill ? openingAskUrl(wtUrl, fill) : wtUrl, pinned);
-    await (options.dialMs
-      ? settleWithin(transport.ready, () => transport.close(), options.dialMs)
-      : transport.ready);
+    await settleWithin(transport.ready, () => transport.close(), options.dialMs);
 
     const bi = await transport.createBidirectionalStream();
     const controlWriter = bi.writable.getWriter();

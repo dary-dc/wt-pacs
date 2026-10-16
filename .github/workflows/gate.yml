@@ -73,11 +73,11 @@ jobs:
           cache-dependency-path: |
             lab/other-clients/go/go.sum
             lab/page-open/h3-host/go.sum
-      - name: Rust, nasm, meson and nginx
+      - name: Rust, nasm, meson, nginx and strace
         run: |
           rustup toolchain install "$RUST_VERSION" --profile minimal --target wasm32-unknown-unknown
           rustup default "$RUST_VERSION"
-          sudo apt-get update -q && sudo apt-get install -y -q nasm meson nginx
+          sudo apt-get update -q && sudo apt-get install -y -q nasm meson nginx strace
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |

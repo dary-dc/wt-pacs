@@ -5,6 +5,7 @@
 //     [--engine chromium|firefox] [--cine] [--fill 0]
 //   ... --url http://host/ --decoder htj2k   (a host already running, such as the deploy image; no request log, so no code check)
 import { execFileSync, spawn } from "node:child_process";
+import { createSocket } from "node:dgram";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -25,6 +26,15 @@ const started = (child, re) => new Promise((resolve, reject) => {
   child.once("exit", (c) => reject(new Error(`exited ${c}: ${out}`)));
 });
 
+/** A UDP port nothing holds, for the server's QUIC endpoint. */
+async function freeUdpPort() {
+  const s = createSocket("udp4");
+  await new Promise((r) => s.bind(0, "127.0.0.1", r));
+  const { port } = s.address();
+  await new Promise((r) => s.close(r));
+  return port;
+}
+
 /** The bundle's own metadata, which the page reads at /series/metadata. */
 function metadataOf(sbnd) {
   const b = readFileSync(sbnd);
@@ -39,8 +49,8 @@ async function host(sbnd, name) {
     "-days", "2", "-nodes", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
   const hash = execFileSync("openssl", ["dgst", "-sha256", "-r"], { input: execFileSync("openssl", ["x509", "-in", cert, "-outform", "DER"]) })
     .toString().split(" ")[0];
-  const port = 20000 + ((Math.random() * 25000) | 0);
-  const server = spawn(path.join(ROOT, "target/release/series-server"), ["--port", String(port), "--bind", "127.0.0.1", "--series", sbnd,
+  const port = await freeUdpPort();
+  const server = spawn(path.resolve(ROOT, process.env.CARGO_TARGET_DIR || "target", "release/series-server"), ["--port", String(port), "--bind", "127.0.0.1", "--series", sbnd,
     "--cert-pem", cert, "--key-pem", key], { stdio: ["ignore", "pipe", "inherit"] });
   children.push(server);
   await started(server, /transport=/);

@@ -9,13 +9,16 @@ the code is right and this file is corrected.
 ## Start-up
 
 ```
-main.rs            flags → ServeConfig                         (TransportTuning is flattened in)
-   │
+main.rs            flags: ServeConfig is flattened in, its flags and defaults declared on it
+   │                                                           (TransportTuning is flattened into it)
 run_server         load the TLS identity, print its SHA-256 for the client to pin
+   │               bind QUIC: --bind's address, else dual-stack then IPv4 any, tried in order;
+   │                 with --websocket, TCP on the same port
    │               FrameStore::open — once per process: the bundle's index, the RWF_NOWAIT probe
-   │               bind QUIC (dual-stack, IPv4 fallback); with --websocket, TCP on the same port
-   │               print the banner (wt_url=, cert_sha256=, frames=, read_fast_path=, transport=, …)
-   │               Sessions { store, read_mode, mode, opening_ask, stall, cwnd_ahead }
+   │               banner::print (wt_url=, cert_sha256=, frames=, read_fast_path=, transport=, …);
+   │                 wt_url and ws_url name --bind's address when it is a specific one, else 127.0.0.1
+   │               Sessions::new { store, read_mode, mode, opening_ask, stall, cwnd_ahead },
+   │                 warning for each lab lever that is on
    ├─▶ WebSocket accept loop (its own task)   one task per TCP connection
    └─▶ QUIC accept loop                       one task per session
 ```
@@ -109,7 +112,7 @@ No task ever waits on the disk: a read that is not already cached leaves the wor
 
 | object | file | owns | what it is for |
 | - | - | - | - |
-| `ServeConfig` | `server/src/transport/server.rs` | the settings | everything `run_server` needs |
+| `ServeConfig` | `server/src/transport/server.rs` | the settings | everything `run_server` needs, and the command line: each field is its flag |
 | `Sessions` | `server/src/transport/server.rs` | `Arc<FrameStore>`, modes | what every session is served with; `serve` runs one |
 | `Command`, `Step`, `Next` | `server/src/transport/planner.rs` | — | an ask in, a decision out, the reader it picks |
 | `Planner` | `server/src/transport/planner.rs` | asks in hand, the fill | the next step, decided without I/O |
