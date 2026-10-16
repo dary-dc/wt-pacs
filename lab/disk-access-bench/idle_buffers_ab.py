@@ -7,7 +7,7 @@ keep, at no CPU cost? docs/adr/disk-access.md §9, *Idle sessions' buffers (row 
     idle_buffers_ab.py summary JSONL
 
 WORK/bin/r0 is the release build of series-server at the base commit, WORK/bin/r1 at row 255's, and WORK/bin/server_ab and pack-series
-the client built with them: a target directory shared with other branches may hold a server_ab without `--mode idle`.
+the tools built with them: a target directory shared with other branches may hold a server_ab without `--mode idle`.
 """
 import json
 import math
