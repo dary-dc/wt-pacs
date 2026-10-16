@@ -817,7 +817,9 @@ The host: 4 vCPU, ext4 on a virtio disk, `read_ahead_kb` 128, so the 250 kB stri
 session at depth ≤ 4, far below where the host saturates, which was not measured; nothing is claimed at scale
 but the fd. The run used the script's own loop and verdict with both binaries built first, since its worktree
 build cannot run under a shared `CARGO_TARGET_DIR`. Its verdict keys on the label and the arm, so of the two
-variants each run prints it keeps the last, `product_tile`; `product_fill` was read apart, by `pos`.
+variants each run prints it keeps the last, `product_tile`; `product_fill` was read apart, by `pos`. *Fixed
+2026-10-16, row 257:* the script copies each binary out, rebuilds HEAD after the base under a shared target, refuses
+two identical arms, and gives each reader its own verdict.
 
 **Corrected 2026-10-16 (row 250), two claims of the proposal.** It said `seq1g` builds no ring: `product_tile`
 built one in every `seq1g` row of both arms, on 1.6–2 % misses. It ties (p50 −1.7 %, CPU −5.3 %) and stays a
@@ -934,6 +936,27 @@ which each row reports.
 | 260 | **FILLWINDOW** — does a window of two frames beat 4 MiB on frames past 1 MiB? (finding 8) | measure | — |
 | 261 | **RINGCOOP** — does `COOP_TASKRUN` delay ring completions beside busy workers? (finding 9) | measure | row 250 |
 
+**Row 257, built (2026-10-16): finding 5's cuts, no behaviour change.** `Slot` lost `at` and `len`, both read from its
+`key` now, and derives `Default`. `Slot::submit_tail` submits the unread tail *and* sets `read`, so the invariant the
+`SAFETY` line rests on is established at one site instead of two; the two `spawn_blocking` tails are
+`read_rest_on_pool`. Hits and misses were already counted once (row 227's D3). The session line calls
+`ReadStats::miss_rate`, no longer test-only; the fill reader is `fill` in `pipeline.rs`; the upcoming loop is
+`once(span).chain(upcoming)`; the fill's reason for no ring points to §11, *Fill at scale*, which now states it;
+`READ_WINDOW` is `TEST_CHUNK`. `read_path.rs` went from 506 to 484 product lines (the sketch said −30) and from 2
+`unsafe` blocks to 1. One field changes meaning without changing behaviour: `filled` no longer rises to the frame's
+length when a pool read lands, since nothing reads it there, and the field says so. No test had a pool read finish a
+partial probe (every pooled test probed nothing), so `the_pool_finishes_a_partial_hit_from_where_the_probe_stopped`
+now covers both readers.
+
+| check | result |
+| --- | --- |
+| the server's suite | 128 pass with default features, 118 without `uring`; `scripts/gate.sh` green except `check_equivalence.sh --local` (nginx 403 under a 0700 scratch directory, the known environment caveat) |
+| `submit_tail` without `read = Some` | `a_frame_cut_from_the_file_fails_the_ring_read_instead_of_hanging` fails. It is the only one: on a cached file the ring lands inside `submit`, so the byte tests cannot see a read nobody waits for |
+| the pool tail read from the frame's start, or landed at the buffer's front | the new test fails, and no other |
+| `miss_rate` over hits; `count` swapped; one name instead of `named`; the tile hand-off a byte short | `read_stats_report_the_session_miss_rate`; it and `a_fill_never_holds_more_than_one_read_at_once`; three look-ahead tests; eight byte tests |
+| a short ring completion that forgets what landed before | the short-read test hangs: it times out instead of passing |
+| [`read_path_ab.sh`](../../lab/scripts/read_path_ab.sh) | against unified's `d2535bd6`, 12 rounds, arms interleaved by round, 256 asks, each reader its own verdict | **a tie in all 8 cells**, p50 and CPU per ask. p50: fill `warm16` −4.6 % (7/12), `cold16_d1` +10.9 % (9/12), `cold16_dW` −4.4 % (8/12), `seq1g` −1.0 % (7/12); tile `warm16` −9.2 % (8/12), `cold16_d1` −6.9 % (7/12), `cold16_dW` +5.0 % (7/12), `seq1g` −1.3 % (6/12). CPU per ask within −10.5 to +8.3 %, no sign in more than 9/12. Tile cold `miss_pct` 98.4–99.6 with a ring built in every row of both arms. The host: 4 vCPU, ext4 on a virtio disk, `read_ahead_kb` 128, two other rows' builds at nice 19 on CPU 3; one session at depth ≤ 4, far below where it saturates (not measured). A first run is void: under the shared target HEAD's build counted as fresh and both arms ran the base, which the script now refuses |
+
 ### Finding 9, measured: `COOP_TASKRUN` (row 261)
 
 *2026-10-16, on row 251's protocol (261 RINGCOOP above).*
@@ -1024,8 +1047,9 @@ against `RLIMIT_MEMLOCK`, and the lab variant that registered them tied on misse
 Also: the pool path reads ahead too (the `JoinHandle` is held, not awaited); delivery stays in
 ask order — reading *n+1* early is pipelining, not reordering; the planner bounds `in_hand` at
 `ASKS_AHEAD` and stops upcoming at the first `Fill` or `EndSession` (it also streamed a
-`RequestFrames` batch rather than collecting it, until that message left the wire on 2026-10-03). `READ_WINDOW` (64 KiB) is off the product path: a test-only constant in
-`frame_store.rs`, and `read_campaign.rs`'s own for the variant that reproduces the capped probe. `--no-default-features` alone builds
+`RequestFrames` batch rather than collecting it, until that message left the wire on 2026-10-03). The retired 64 KiB `READ_WINDOW` lives on only
+as `read_campaign.rs`'s own, for the variant that reproduces the capped probe; the tests' 64 KiB is `frame_store.rs`'s
+`TEST_CHUNK` (renamed from it 2026-10-16, row 257). `--no-default-features` alone builds
 it: ring is a plain dependency feature (*corrected 2026-10-14:* this said to add `--features crypto-ring`, a feature
 that could not be turned off and is gone).
 
@@ -1256,6 +1280,11 @@ reader built **1.00 ring per session** at every reader count, including a 16 KiB
 KiB memlock ceiling of **~941 sessions**. That is why a fill has its own reader. (A lab ring variant
 that registers buffers fails outright at 64 readers × 250 kB; the shipped reader registers none
 and falls back to the pool on refusal.)
+
+**Corrected 2026-10-16 (row 257): why the fill has no ring.** One miss in sixty was a 16 KiB frame inside the
+kernel's read-ahead window, the regime §2 retracts; at 250 kB and the stock window a fill missed six frames in ten.
+What keeps the fill off a ring is its own advice: one read in flight under `FILL_WINDOW` misses ~1 % (§3,
+2026-09-10), which a ring would serve for ≤ 0.3 µs a frame on average (§13, *Each candidate at its best*).
 
 ### The two readers, every variant (2026-09-10, agent container)
 
