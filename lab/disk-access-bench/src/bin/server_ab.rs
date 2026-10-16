@@ -152,7 +152,11 @@ async fn run(args: Args) -> Result<()> {
         sampler.abort();
     }
     drop(sessions);
-    drop(endpoints);
+    // Closed, not dropped: an exit leaves the server's sessions, and their session lines, to its idle timeout.
+    for endpoint in &endpoints {
+        endpoint.close(wtransport::VarInt::from_u32(0), b"done");
+        endpoint.wait_idle().await;
+    }
     Ok(())
 }
 
