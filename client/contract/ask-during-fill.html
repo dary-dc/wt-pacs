@@ -14,13 +14,19 @@
   <p>
     On the wire an ask ends a running fill and is served next (<code>docs/WIRE.md</code>).
     The raw client sees exactly that, and the rest arrives only once asked again; the downloader asks
-    again by itself. <code>?client=ts|ws|downloader|downloader-ws</code> · <code>wt=</code>/<code>hash=</code> override
+    again by itself. <code>?client=ts|ws|wasm|downloader|downloader-ws|downloader-wasm</code> · <code>wt=</code>/<code>hash=</code> override
     <code>/wt/dev-transport.json</code>. <code>client/contract/run_wire.sh</code> drives this from the gate.
   </p>
   <div id="log"></div>
   <script type="module">
     const q = new URLSearchParams(location.search);
     const client = q.get("client") || "ts";
+    const SESSIONS = {
+      ts: "/client/transport/ts/dist/session.js",
+      ws: "/client/transport/ts/dist/ws-session.js",
+      wasm: "/client/transport/wasm/session-adapter.js",
+    };
+    const carrier = client.replace(/^downloader-?/, "") || "ts";
     const FILL = Number(q.get("fill") || 120);
     const ASK = Number(q.get("askFrame") || 190);
     const AT = Number(q.get("at") || 20);
@@ -53,8 +59,8 @@
 
     try {
       const cfg = q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : await (await fetch("/wt/dev-transport.json")).json();
-      if (client === "ts" || client === "ws") {
-        const { TransportSession } = await import(`/client/transport/ts/dist/${client === "ws" ? "ws-session" : "session"}.js`);
+      if (!client.startsWith("downloader")) {
+        const { TransportSession } = await import(SESSIONS[carrier]);
         const s = await TransportSession.connect(cfg.wt_url, cfg.cert_sha256);
         const got = [];
         let askP = null;
@@ -81,7 +87,7 @@
         const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
           decode: false,
           decoders: 0,
-          transport: client === "downloader-ws" ? "/client/transport/ts/dist/ws-session.js" : undefined,
+          transport: SESSIONS[carrier],
           onFrame: (f) => { got.push(f.frameIndex); if (got.length === AT && !askP) askP = c.requestExactFrame(ASK); },
         });
         c.fill(Array.from({ length: FILL }, (_, i) => i));

@@ -40,7 +40,7 @@ pub struct ServeConfig {
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     pub key_pem: PathBuf,
     /// How frames reach the client: `shared` or `per-frame` (lab only: `per-frame-asks-first`).
-    #[arg(long = "stream-mode", value_name = "STREAM_MODE", default_value = "shared")]
+    #[arg(long = "stream-mode", value_name = "STREAM_MODE", value_enum, default_value_t = StreamMode::Shared)]
     pub mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to `0.0.0.0`
     /// when the host has no IPv6.
@@ -503,6 +503,16 @@ mod tests {
         }
     }
 
+    /// A client's `frame_error` is ignored: the reader goes on and the loop is handed nothing.
+    /// `docs/WIRE.md` §FoD messages
+    #[tokio::test]
+    async fn a_clients_frame_error_is_ignored() {
+        let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
+        let msg = FodMsg::FrameError { frame_index: 3, reason: "sent by a client".into() };
+        assert!(forward(Ok(Some(msg)), &tx).await.is_continue(), "a client's frame_error stopped the reader");
+        assert!(rx.try_recv().is_err(), "a client's frame_error reached the loop as an ask");
+    }
+
     /// **The loop's own line.** `Step::Serve`'s `next` reaches `serve`; a fill names one frame
     /// ahead and is counted once. No QUIC — the seam below `serve` is `pipeline.rs`'s.
     /// `docs/adr/disk-access.md`.
@@ -768,6 +778,28 @@ mod tests {
         })
         .await;
         assert!(ended.is_ok(), "end_session ended the session as {ended:?}");
+    }
+
+    /// A WebSocket frame announcing more than `MAX_FOD_LEN` ends the session at its header, before
+    /// the server reserves room for its payload. `docs/WIRE.md` §The WebSocket mapping
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_websocket_frame_over_the_cap_is_refused_at_its_header() {
+        use crate::transport::wire::MAX_FOD_LEN;
+        use futures_util::StreamExt;
+        use tokio::io::AsyncWriteExt;
+
+        let ended = ws_session(|mut ws| async move {
+            // A masked text frame's header with a 64-bit length; its payload is never sent.
+            let mut head = vec![0x81, 0xFF];
+            head.extend_from_slice(&(MAX_FOD_LEN as u64 + 1).to_be_bytes());
+            head.extend_from_slice(&[0; 4]);
+            ws.get_mut().write_all(&head).await.expect("header");
+            ws.get_mut().flush().await.expect("flush");
+            let answer = tokio::time::timeout(Duration::from_secs(3), ws.next()).await;
+            assert!(answer.is_ok(), "the server waited for the payload of an over-long frame");
+        })
+        .await;
+        assert!(ended.is_err(), "an over-long frame ended the session as {ended:?}");
     }
 
     /// One WebSocket session served by `websocket::session` on a two-frame series; `client`
@@ -1183,6 +1215,40 @@ mod tests {
             );
         })
         .await;
+    }
+
+    /// **An accept that keeps failing is retried at a pace, not in a spin.** A listener shut for
+    /// reading fails every accept at once, as one out of descriptors does; each failure is a WARN.
+    #[tokio::test]
+    async fn a_failing_websocket_accept_is_retried_at_a_pace() {
+        let fx = Fixture::new(1);
+        let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+        let (listener, tls) = websocket::bind(localhost, 0, &fx.cert_pem, &fx.key_pem).await.expect("bind");
+        socket2::SockRef::from(&listener).shutdown(std::net::Shutdown::Read).expect("shut the listener");
+        let warned = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let lines = Arc::clone(&warned);
+        let log = tracing_subscriber::fmt().with_writer(move || LineCount(Arc::clone(&lines))).finish();
+        let _log = tracing::subscriber::set_default(log);
+        let serving = tokio::spawn(websocket::serve(listener, tls, plain_sessions(&fx.series)));
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        serving.abort();
+        let warned = warned.load(std::sync::atomic::Ordering::Relaxed);
+        assert!((1..=6).contains(&warned), "{warned} failed accepts in 500 ms");
+    }
+
+    /// Counts the lines a log subscriber writes.
+    struct LineCount(Arc<std::sync::atomic::AtomicUsize>);
+
+    impl std::io::Write for LineCount {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            let lines = buf.iter().filter(|&&b| b == b'\n').count();
+            self.0.fetch_add(lines, std::sync::atomic::Ordering::Relaxed);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
     }
 
     /// A session opened on its URL ask is recorded like any other: an opening fill of three

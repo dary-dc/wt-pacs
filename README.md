@@ -24,7 +24,7 @@ python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requir
                                                     # numpy, pydicom, xxhash, blake3 (CPython 3.11–3.13): PYTHON=.venv/bin/python
 ```
 
-With the first, the dispatch rig runs all 780 of its checks, the real-decode ones on npm's OpenJPH and on the
+With the first, the dispatch rig runs all 782 of its checks, the real-decode ones on npm's OpenJPH and on the
 product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
 check, the split's merge and the DICOM reader do not run. The ingest's coders — libaom 3.15.1, dav1d 1.5.4 and
 OpenJPH 0.31.0, built from source at their pins into `ingest/.build` — need cmake, ninja, meson (1.9.1 here), nasm and
@@ -117,6 +117,14 @@ expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-co
 `server/scripts/gen_dev_cert.sh` run first, and a checkout nginx's worker can read (not under a `0700` directory).
 `lab/scripts/server_ab.sh` runs the binaries under `target/release`, so it wants `CARGO_TARGET_DIR` unset, and a
 `LOGDIR` given to it must exist.
+
+## The read path on your machine
+
+`lab/scripts/workstation_run.sh` measures the server's read path on the machine it runs on and packs one report to
+send back: the host, whether io_uring works natively and in the deploy's container, the two readers against every
+variant, and the server with the ring against the pool, each with an A/A arm. `--plan` prints the time and disk it
+needs and exits; `--quick` runs one round as a first try. What each part answers, and how cold is made without
+eviction: [`docs/adr/disk-access.md`](docs/adr/disk-access.md) §12, *On the workstation, in one command*.
 
 ## The viewer on a DICOM series
 
