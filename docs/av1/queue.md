@@ -4300,7 +4300,7 @@ The owner's decision (2026-10-16): row 228 (the WASM client to `lab/`) is reject
 
 ### 266 THIRDAUDIT
 
-The owner's ask (2026-10-16): use the night for improvements. Rows 215 and 238's method on the product as merged after #67 and #73, the disk readers (251), the WASM client (263) and lab-only placement (264) excluded; findings ranked, rows drafted from 267. **Deliverable:** `docs/merge-readiness.md` §Third round. **Branch:** `claude/wip-266-THIRDAUDIT`.
+The owner's ask (2026-10-16): use the night for improvements. Rows 215 and 238's method on the product as merged after #67 and #73, the disk readers (251), the WASM client (263) and lab-only placement (264) excluded; findings ranked, rows drafted from 267. **Deliverable:** `docs/merge-readiness.md` §Third round. **Branch:** `claude/wip-266-THIRDAUDIT`. Draft #77 (`2b04c66e`): eleven findings T1–T11, none reached by a test; three stale docs corrected in place; rows 267 PAGESTART, 268 WIREEDGES, 269 PACKATOMIC, 270 SERVERSTOP, 272 WSLIVENESS started 2026-10-16 in parallel; 271 RESTARTPIN (proposal, after 270) and 273 VIEWERCEILING (needs a free host) wait. Not ours to fix: `CLAUDE.md` still points at `docs/disk-access/adr.md`.
 
 ### 265 WASMSURFACE
 
