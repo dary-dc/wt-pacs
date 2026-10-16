@@ -17,6 +17,8 @@ default = ["uring"]
 telemetry = []
 # Lab only: a process-wide frame cache in front of both readers. docs/adr/disk-access.md §13.
 lab-frame-cache = []
+# Lab only: `fit` takes a fresh zeroed buffer instead of growing one. docs/adr/disk-access.md §13.
+lab-fit-zeroed = []
 # io_uring for a tile miss. Optional so a build without it still compiles, to the
 # pool path -- see docs/adr/disk-access.md.
 uring = ["dep:io-uring"]

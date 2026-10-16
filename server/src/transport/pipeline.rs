@@ -46,6 +46,8 @@ pub(crate) struct ProductPipeline {
     tile: Option<TileReader>,
     mode: ReadMode,
     fills: u64,
+    #[cfg(feature = "lab-frame-cache")]
+    lab_session: u64,
 }
 
 impl ProductPipeline {
@@ -57,6 +59,8 @@ impl ProductPipeline {
             tile: None,
             mode,
             fills: 0,
+            #[cfg(feature = "lab-frame-cache")]
+            lab_session: crate::media::lab_frame_cache::session(),
         }
     }
 }
@@ -81,7 +85,7 @@ impl FramePipeline for ProductPipeline {
             return Ok(bytes);
         }
         let len = self.store.frame_span(frame).len as usize;
-        if !cache::claim_fill(frame, len) {
+        if !cache::claim_fill(frame, len, self.lab_session) {
             return self.read_store(frame, next).await;
         }
         let read = self.read_store(frame, next).await;

@@ -72,6 +72,10 @@ struct Args {
     /// How long `--mode idle` holds every session open before it reads the server's RSS.
     #[arg(long, default_value_t = 1000)]
     hold_ms: u64,
+    /// Runs each session's asks this many times over its one connection, a row a pass. A pass after
+    /// the first starts on a line (or the end) of stdin, so the caller can read the server between them.
+    #[arg(long, default_value_t = 1)]
+    passes: usize,
 }
 
 static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
@@ -117,46 +121,77 @@ async fn run(args: Args) -> Result<()> {
         return idle(&args, &digests).await;
     }
     let mut endpoints = vec![client_endpoint(None)?];
-    let server = match args.server_pid {
-        Some(pid) => Some((pid, proc_cpu(pid)?, proc_rss_kib(pid)?)),
-        None => None,
-    };
-    let peak = Arc::new(AtomicU64::new(server.map_or(0, |(_, _, rss0)| rss0)));
-    let sampler = server.map(|(pid, ..)| tokio::spawn(sample_rss(pid, Arc::clone(&peak))));
-    let wall = Instant::now();
-    let mut conns = Vec::with_capacity(args.sessions.max(1));
+    let peak = Arc::new(AtomicU64::new(0));
+    let sampler = args.server_pid.map(|pid| tokio::spawn(sample_rss(pid, Arc::clone(&peak))));
+    let mut mark = Mark::now(args.server_pid, &peak)?;
+    let mut opening = tokio::task::JoinSet::new();
     for i in 0..args.sessions.max(1) {
         if i > 0 && !args.one_socket {
             endpoints.push(client_endpoint(None)?);
         }
-        conns.push(connect(endpoints.last().expect("one endpoint"), &args.url).await?);
+        opening.spawn(Session::open(connect(endpoints.last().expect("one endpoint"), &args.url).await?));
     }
-    let mut set = tokio::task::JoinSet::new();
-    for conn in conns {
-        let (mode, depth, asks, frames) = (args.mode, args.depth, args.asks, args.frames.max(1));
-        let (step, start, digests) = (args.step.max(1), args.start, digests.clone());
-        set.spawn(async move { session(conn, mode, depth, asks, frames, step, start, digests).await });
+    let mut sessions = Vec::with_capacity(opening.len());
+    while let Some(opened) = opening.join_next().await {
+        sessions.push(opened.context("session join")??);
     }
-    let mut lats = Vec::new();
-    while let Some(joined) = set.join_next().await {
-        lats.extend(joined.context("session join")??);
+    let args = Arc::new(args);
+    for pass in 0..args.passes.max(1) {
+        if pass > 0 {
+            tokio::task::spawn_blocking(|| std::io::stdin().read_line(&mut String::new())).await??;
+            mark = Mark::now(args.server_pid, &peak)?;
+        }
+        let mut set = tokio::task::JoinSet::new();
+        for mut session in sessions.drain(..) {
+            let (args, digests) = (Arc::clone(&args), digests.clone());
+            set.spawn(async move { session.ask(&args, &digests).await.map(|lats| (session, lats)) });
+        }
+        let mut lats = Vec::new();
+        while let Some(joined) = set.join_next().await {
+            let (session, l) = joined.context("session join")??;
+            sessions.push(session);
+            lats.extend(l);
+        }
+        print_row(&args, pass == 0, &mark, &peak, lats)?;
     }
-    let wall_ns = wall.elapsed().as_nanos() as u64;
+    if let Some(sampler) = sampler {
+        sampler.abort();
+    }
+    drop(sessions);
+    drop(endpoints);
+    Ok(())
+}
+
+/// Where a pass starts: the clock, and the server's CPU and RSS.
+struct Mark {
+    wall: Instant,
+    server: Option<(u32, u128, u64)>,
+}
+
+impl Mark {
+    fn now(server_pid: Option<u32>, peak: &AtomicU64) -> Result<Self> {
+        let server = match server_pid {
+            Some(pid) => Some((pid, proc_cpu(pid)?, proc_rss_kib(pid)?)),
+            None => None,
+        };
+        peak.store(server.map_or(0, |(_, _, rss0)| rss0), Ordering::Relaxed);
+        Ok(Self { wall: Instant::now(), server })
+    }
+}
+
+fn print_row(args: &Args, header: bool, mark: &Mark, peak: &AtomicU64, mut lats: Vec<u64>) -> Result<()> {
+    let wall_ns = mark.wall.elapsed().as_nanos() as u64;
     let n = lats.len().max(1) as u64;
-    let (cpu_ns_per_ask, rss_kib) = match server {
+    let (cpu_ns_per_ask, rss_kib) = match mark.server {
         Some((pid, cpu0, rss0)) => (
             (proc_cpu(pid)?.saturating_sub(cpu0) / u128::from(n)).to_string(),
             peak.load(Ordering::Relaxed).saturating_sub(rss0).to_string(),
         ),
         None => ("-".to_string(), "-".to_string()),
     };
-    if let Some(sampler) = sampler {
-        sampler.abort();
-    }
-    drop(endpoints);
     let asks_per_s = n as f64 * 1e9 / wall_ns.max(1) as f64;
     lats.sort_unstable();
-    if !args.no_header {
+    if header && !args.no_header {
         println!(
             "label\tvariant\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\t\
              asks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed"
@@ -257,30 +292,35 @@ async fn connect(
     Err(last.context("connect")?.into())
 }
 
-async fn session(
-    connection: Connection,
-    mode: Mode,
-    depth: u32,
-    asks: usize,
-    frames: u32,
-    step: u32,
-    start: Option<u32>,
-    digests: Option<Arc<Vec<u64>>>,
-) -> Result<Vec<u64>> {
-    let (mut control, _recv) = connection
-        .open_bi()
-        .await
-        .context("open bi")?
-        .await
-        .context("bi ready")?;
-    let mut media = connection.accept_uni().await.context("accept media uni")?;
-    match mode {
-        Mode::OnDemand => {
-            let start = start.unwrap_or(0);
-            on_demand(&mut control, &mut media, depth.max(1), asks, frames, step, start, &digests).await
+struct Session {
+    _connection: Connection,
+    control: SendStream,
+    _reply: RecvStream,
+    media: RecvStream,
+}
+
+impl Session {
+    async fn open(connection: Connection) -> Result<Self> {
+        let (control, reply) = connection
+            .open_bi()
+            .await
+            .context("open bi")?
+            .await
+            .context("bi ready")?;
+        let media = connection.accept_uni().await.context("accept media uni")?;
+        Ok(Self { _connection: connection, control, _reply: reply, media })
+    }
+
+    async fn ask(&mut self, args: &Args, digests: &Option<Arc<Vec<u64>>>) -> Result<Vec<u64>> {
+        let (control, media, frames) = (&mut self.control, &mut self.media, args.frames.max(1));
+        match args.mode {
+            Mode::OnDemand => {
+                let (depth, step, start) = (args.depth.max(1), args.step.max(1), args.start.unwrap_or(0));
+                on_demand(control, media, depth, args.asks, frames, step, start, digests).await
+            }
+            Mode::Fill => fill(control, media, args.asks.min(frames as usize), args.start, digests).await,
+            Mode::Idle => unreachable!("`idle` opens its own sessions"),
         }
-        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize), start, &digests).await,
-        Mode::Idle => unreachable!("`idle` opens its own sessions"),
     }
 }
 

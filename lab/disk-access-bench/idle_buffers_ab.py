@@ -6,7 +6,7 @@ keep, at no CPU cost? docs/adr/disk-access.md §9, *Idle sessions' buffers (row 
     idle_buffers_ab.py time    WORK ROUNDS   one JSON line a run into WORK/idle_buffers.jsonl
     idle_buffers_ab.py summary JSONL
 
-WORK/bin/r0 is the release build of series-server at the base commit, WORK/bin/r1 at row 255's, and WORK/bin/server_ab
+WORK/bin/r0 is the release build of series-server at the base commit, WORK/bin/r1 at row 255's, and WORK/bin/server_ab and pack-series
 the client built with them: a target directory shared with other branches may hold a server_ab without `--mode idle`.
 """
 import json
@@ -19,7 +19,7 @@ import sys
 import time
 from pathlib import Path
 
-from frame_cache_ab import CLIENT_CPUS, PACK_SERIES, ROOT, SERVER_CPUS, coded, host, order, sbnd
+from frame_cache_ab import CLIENT_CPUS, ROOT, SERVER_CPUS, coded, host, order, sbnd
 
 SETS = ["ct_lidc", "dbt12_ea1141", "ffdm_d"]
 SESSIONS, DEPTH, TILES, FILL = 64, 4, 16, 32
@@ -40,7 +40,7 @@ def make(work):
         out = sbnd(work, name)
         out.parent.mkdir(parents=True, exist_ok=True)
         f = coded(work, name)
-        subprocess.run([PACK_SERIES, "--metadata", f / "metadata.json", "--frames", f, "--output", out], check=True)
+        subprocess.run([work / "bin" / "pack-series", "--metadata", f / "metadata.json", "--frames", f, "--output", out], check=True)
         print(name, out.stat().st_size, flush=True)
 
 
