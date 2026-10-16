@@ -93,7 +93,7 @@ a **tie**, which is a real answer.
 | Warm, vs the 2026-08-31 always-touch path | **60.9 µs vs 152.3 µs per frame (2.5×)**; neighbours' p99 166 vs 702 µs |
 | A miss reading the rest of the frame vs the rest of the window, 100 % misses | **2.1× at one reader, 3.0–3.2× at 8–32** |
 | OS threads | ring readers **5** (sandbox) / 9 (workstation), flat to 256 in flight; pool 125–135 at 64 readers, capped at 512 by tokio |
-| Per session that misses | 2 fds, 8.7 KiB, 15.6 µs to build the ring; the second slot did not change the cost |
+| Per session that misses | **1 fd** (2 until row 250 dropped the eventfd, 2026-10-16: §9 #7), 8.7 KiB, 15.6 µs to build the ring (timed with the eventfd); the second slot did not change the cost |
 | Read ahead by one, cold 16 KiB at 99.6 % misses, one session (`v36`) | **+73.8 % asks/s, 12/12, RESOLVED**, p50 −53.4 %; **warm a tie** — the load-bearing row; 16 missing tiles 1.14 → 0.62 ms |
 | The depth ladder on the shipped path (`v35`) | 1 → 2 is **+67.4 %** and collects 62 % of what depth 16 offers; from the medians 2 → 4 adds +37 %, 4 → 16 +28 % |
 | Where the hosts stop separating the variants | ~64 reads in flight: the sandbox on CPU, the workstation on the device (~840 MB/s at 0.42 of 8 cores). **Past it every variant ties by construction** |
@@ -133,8 +133,8 @@ a **tie**, which is a real answer.
 | --- | --- |
 | **Good** | Warm asks take no pool hop; a miss costs one round trip; OS threads stay flat at any session count; the reclaim guarantee holds; one copy per frame (page cache → buffer), the buffer handed to quinn and reused |
 | **Good** | The decision is per session and automatic: a session that never misses never pays for the ring, and the kill switch is a flag, not a rebuild |
-| **Cost** | ~800 lines of custom code with tests and 8 `unsafe` sites, on top of the `io-uring` crate — maintained, and tokio's own dependency. The glue is ours; the ring is not |
-| **Cost** | 2 fds and 8.7 KiB per session that misses, the latter charged against `RLIMIT_MEMLOCK` (§6) |
+| **Cost** | ~800 lines of custom code with tests and 8 `unsafe` sites (*corrected 2026-10-16, row 250*: counted then, 6 `unsafe` blocks and one `unsafe fn` in `media/`, after the eventfd's three went), on top of the `io-uring` crate — maintained, and tokio's own dependency. The glue is ours; the ring is not |
+| **Cost** | 1 fd (2 until row 250, §9 #7) and 8.7 KiB per session that misses, the latter charged against `RLIMIT_MEMLOCK` (§6) |
 | **Cost** | Buffers are frame-sized and live until quinn acknowledges the frame; the pool keeps at most 64 spare. Per-session RSS was +39 to +49 KiB against the double-buffer server (§11), measured before the pooled hand-off and not since |
 | **Conditional** | The win is on misses. On local NVMe the ring is 56–75 % of a miss; on cloud block storage a miss is device-bound and the ring's margin is threads and CPU per miss, not latency. That is the one thing P0 exists to measure |
 | **Conditional** | Where `RWF_NOWAIT` is refused or a ring is refused, the session runs the pool. The server says which path it took, in the startup banner and per session; deployment (§6) is still part of the decision |
@@ -156,8 +156,8 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | Candidate | Serves | Latency | Scale: threads · fds · CPU per miss | Simplicity · risk | Verdict |
 | --- | --- | --- | --- | --- | --- |
 | **`RWF_NOWAIT` inline for hits** | B | warm 48 µs/frame, 2.5× vs always-touch; no hop on a hit (measured with 64 KiB windows; the whole frame since 2026-09-10) | no thread per hit; 0 fds | one `preadv2` call; filesystem-conditional (§6) | **Accepted** |
-| **Ring per session, built on the first miss, whole rest of the frame** | T | **host-dependent, and P0's question.** Sandbox: misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16. Workstation: a **tie at depth 1**, where the pool was the cheaper of the two (311 vs 326 µs CPU/ask). Agent container: the pool is **+106 to +138 % CPU, 6/6 RESOLVED**. Three hosts, three answers | **5 threads flat** to 256 in flight; 2 fds + 8.7 KiB per missing session; 15.6 µs to build | ~800 lines with tests, 8 `unsafe`, on a maintained crate; container traps (§6) | **Accepted for tiles** — conditional on P0 |
-| **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool variant **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring variant, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 2 fds + 8.7 KiB per session that misses; `slots` defaults to 4 | one slot table, no mode machine | **Accepted** |
+| **Ring per session, built on the first miss, whole rest of the frame** | T | **host-dependent, and P0's question.** Sandbox: misses −56 / −70 / −75 % CPU vs pool at depth 1 / 4 / 16. Workstation: a **tie at depth 1**, where the pool was the cheaper of the two (311 vs 326 µs CPU/ask). Agent container: the pool is **+106 to +138 % CPU, 6/6 RESOLVED**. Three hosts, three answers | **5 threads flat** to 256 in flight; 1 fd + 8.7 KiB per missing session (2 fds until row 250, §9 #7); 15.6 µs to build | ~800 lines with tests, 8 `unsafe` (6 and an `unsafe fn` since row 250, §4), on a maintained crate; container traps (§6) | **Accepted for tiles** — conditional on P0 |
+| **`TileReader` — probe, ring on the first miss, `slots` frames named** | T | beats every pool variant **RESOLVED on wall *and* CPU** at 16 KiB cold, ties every ring variant, and is 1st of eleven at 250 kB; **+73.8 % asks/s** on missing tiles at depth 2, warm a tie; 16 tiles 1.14 → 0.62 ms | 5 threads; 1 fd + 8.7 KiB per session that misses (2 fds until row 250, §9 #7); `slots` defaults to 4 | one slot table, no mode machine | **Accepted** |
 | **`FillReader` — probe, pool on the miss, one frame named** | S | ties every serious variant on a cold sweep at both frame sizes; `peak_in_flight` is **1 by construction**, which is what bounds its threads | 6 threads; **0 rings, 0 fds, 0 memlock** — no ~941-session ceiling | two buffers, no slot table, no `unsafe` | **Accepted** |
 | **Read ahead (`TILE_SLOTS` / a fill's one ahead)** | B | tiles name up to `slots − 1`, a fill names one; look-ahead **is** depth 2, not a separate effect (§11) | four tile slots / two fill buffers | `slots` is a constructor argument, so a campaign sweeps depth | **Accepted** |
 | **`WILLNEED` window ahead of a fill (`FILL_WINDOW`)** | S | misses **60 % → ~1 %** at the stock read-ahead, 3/3; p99 −62 % where read-ahead is 8 MB; warm a tie once per quarter window (per frame it cost −8.7 % at 16 KiB) | one syscall per MiB walked; no thread, no fd, no buffer | ~15 lines, one test | **Accepted** 2026-09-10 |
@@ -172,7 +172,7 @@ depth- *and* size-dependent, which is why that row says *conditional* and P0 run
 | `SQPOLL` | B | worse warm on every column; cold tail unresolved | **2.8× CPU** | a kernel thread **per session**, and `COOP_TASKRUN` is refused alongside it | **Rejected, closed** — structural |
 | Registered buffers | B | no change | memlock per buffer | more `unsafe` | Rejected — measured unnecessary |
 | Ahead-N `POSIX_FADV_WILLNEED` for tiles | T | **4.6–4.9×** on a cold strided read; a loss on a sweep | one syscall | a routed choice waiting on a layout design | Measured, not landed |
-| Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~26 lines fewer, 3 `unsafe` blocks fewer; same mechanism tokio uses (*corrected 2026-10-15, row 244*: this said ~30 and 2; a sketch of the product file counts 26 and 3) | Proposed, after P0 (§9 #7) |
+| Park on the ring fd instead of an eventfd (`x14`) | B | tie on CPU and latency everywhere | **1 fd per session instead of 2**; one syscall fewer per park | ~26 lines fewer, 3 `unsafe` blocks fewer; same mechanism tokio uses (*corrected 2026-10-15, row 244*: this said ~30 and 2; a sketch of the product file counts 26 and 3; built, 27 and 3) | **Built 2026-10-16** (row 250): a tie on p50 and CPU in both cold cells, re-measured interleaved; 1 fd per missing session, counted (§9 #7). *Was:* proposed, after P0 |
 | One shared ring per runtime (tokio's shape) | B | **1.36–1.45× slower** than a ring per thread on concurrent positional reads (tokio #8367); reproduced on streams | 0 per-session fds; one lock across every session | a dispatcher and a waker slab | Not now |
 | Whole-frame `RWF_NOWAIT`, one read (2026-09-06) | B | best miss throughput of any variant | — | 250 KB uninterrupted executor copy: **4.0 ms** warm `gap_max` | Rejected then. **Corrected 2026-09-10:** the shipped readers probe the whole frame (§3); its co-tenant gap has **not been re-measured** since |
 | Larger window (128 / 256 KiB) | B | −12–25 % warm throughput | — | wider executor copy | Rejected; moot since the whole-frame probe |
@@ -233,14 +233,15 @@ rescheduling. A PVC on a network filesystem (EFS, Filestore, NFS) must be checke
 
 ### Limits: `ulimit -n` and `ulimit -l`
 
-A tile session that misses keeps one io_uring and one eventfd for its life: **2 fds, 8.7 KiB
-of locked memory, 15.6 µs to build** (`lab/disk-access-bench/src/bin/ring_scale.rs`); more
+A tile session that misses keeps one io_uring for its life: **1 fd, 8.7 KiB of locked memory,
+15.6 µs to build** (*corrected 2026-10-16, row 250*: 2 fds with the eventfd it parked on until then, §9 #7; the
+15.6 µs was timed with it) (`lab/disk-access-bench/src/bin/ring_scale.rs`); more
 slots are more entries in the same ring.
 Ring memory is charged against **`RLIMIT_MEMLOCK`** unless the process holds `CAP_IPC_LOCK`
 (kernel 6.18, `io_uring/memmap.c`, verified). The counter is the uid's, host-wide, and the exemption counts only in the initial user namespace: `--cap-add IPC_LOCK` does nothing for a non-root `USER` (row 199, measured in Docker) or a rootless runtime (read from the source). The 8 MB default is **~940 rings**, and it bit
 first on a real host: two cells of a scale run were refused by it. The failure is silent — the
-ring is refused, the session falls back to the pool and gets slower. The descriptor budget is `2
-× sessions that miss + sockets + 1 per series`.
+ring is refused, the session falls back to the pool and gets slower. The descriptor budget is
+`sessions that miss + sockets + 1 per series` (2 × sessions until row 250).
 
 In a unit file, `LimitNOFILE=65535` and `LimitMEMLOCK=infinity` (or at least 16 KiB × the
 sessions expected to miss at once). Kubernetes has no per-pod ulimit — the node runtime's apply;
@@ -514,8 +515,8 @@ folios above (rows 196–197).
 
 * The 8 MiB is the host's hard limit too, so rootless cannot raise it. Row 199 measured `memlock` per uid,
   host-wide (1 024 rings at 8 MiB); rootless, uid 10001 is the subuid 665360.
-* Nothing binds while the ring is refused. `io_uring_setup` runs before the eventfd (`uring_reader.rs:31–40`), so a
-  refused session holds no ring, fd or locked memory.
+* Nothing binds while the ring is refused. `io_uring_setup` is the first call `UringReader::new` makes (`uring_reader.rs:31–34`; before
+  the eventfd, until row 250 removed it), so a refused session holds no ring, fd or locked memory.
 
 **Allowed calls skip the filter.** `preadv2`, `fadvise64`, `readahead` and, under the profile, `io_uring_enter` are
 unconditional allows. For those the kernel's per-syscall cache skips the BPF program (`kernel/seccomp.c:416`).
@@ -769,12 +770,12 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 
 | # | Item | Why it is still open |
 | --- | --- | --- |
-| 1 | **P0 — ring vs pool on the production target** | §6. Sandbox, workstation and agent container gave three answers. **The cloud rig cannot answer it** (L7, 2026-09-18): burstable, stolen CPU, every p99 60–100 ms (§11, *A series past RAM*). A non-burstable host is needed |
+| 1 | **P0 — ring vs pool on the production target** | §6. Sandbox, workstation and agent container gave three answers. **The cloud rig cannot answer it** (L7, 2026-09-18): burstable, stolen CPU, every p99 60–100 ms (§11, *A series past RAM*). A non-burstable host is needed. **Owner, 2026-10-16:** the production target will not be tested soon, so the items ordered after P0 go ahead, built for the best case the project can reach |
 | 2 | **`server_ab.sh` on the workstation** | **Done 2026-09-09**: cold depth 4 −42.1 %, 16/16, RESOLVED, where the sandbox missed the bar (§11, *Serving depth*). Still one bare-metal host and untested on the production instance type — that is P0's run |
 | 3 | **Throttled link** (20 Mbps, 50 ms, 1 % loss, cold tiles, client depth 4) | Predicted tie: the wire hides the 0.2 ms depth 2 → 4 saving. Unmeasured |
 | 5 | **Deploy limits in the manifest** | `LimitMEMLOCK` / `LimitNOFILE` or `CAP_IPC_LOCK`, and `check-fastpath` on the series volume (§6). Not in a unit file yet; `deploy/compose.yml` sets `memlock` and `nofile` since row 231 |
 | 6 | **`read_ahead_kb` and series layout for tiles, per target** | on-demand missed 14–69 % at the stock value in the fill cells; on the cloud rig 128 against 2 048 was no clean result in any cell. A large value hurts only the fill's tail, which `FILL_WINDOW` fixed |
-| 7 | **Park on the ring fd, drop the eventfd** | 1 fd per session instead of 2, ~26 lines fewer, measured tie. The *only* way to cut the eventfd's per-hit cost (§11, *Short io_uring completions*). Ordered after P0 keeps the ring; proposed for the owner as row 244, [below](#7-proposed-park-on-the-rings-own-fd-row-244) |
+| 7 | **Park on the ring fd, drop the eventfd** | **Built 2026-10-16** (row 250), on the owner's decision in #1: a tie re-measured, 1 fd per missing session counted, [below](#7-built-park-on-the-rings-own-fd-rows-244-250). Was: ordered after P0; proposed as row 244 |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
 | 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
@@ -788,53 +789,37 @@ threads against the pool's hundreds might start converting (the workstation's 1.
 semi-sequential ceiling was device-bound and may be the NVMe's own cache); `hybrid_lazyring`
 on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 
-### #7, proposed: park on the ring's own fd (row 244)
+### #7, built: park on the ring's own fd (rows 244, 250)
 
-*Proposed 2026-10-15 (queue row 244, RINGPARK; [`merge-readiness.md`](../merge-readiness.md) §Second round, S19
-and S20). Nothing changes before the owner's yes.*
+*Proposed 2026-10-15 by row 244 (RINGPARK; [`merge-readiness.md`](../merge-readiness.md) §Second round, S19 and
+S20), taken on the owner's decision of 2026-10-16 (#1 above), built and measured by row 250.*
 
-**What changes.** `UringReader` (`server/src/media/uring_reader.rs`) parks on the ring's own fd —
-`AsyncFd::with_interest(ring.as_raw_fd(), Interest::READABLE)` — and a wake clears readiness (`clear_ready`)
-instead of reading the eventfd's counter. The eventfd, its registration and that read go; `submit_and_wait`, the
-drain's test seam, joins the first `impl` block (S20). `TileReader`'s wait in `read_path.rs` (reap, then park while
-the slot is out) is unchanged, and is the loop `uring_ringfd` and `hybrid_lazyring_ringfd` measured (`x14`).
+**Verdict: a tie on latency and CPU, and one fd per session that misses instead of two.** `UringReader` parks on
+`AsyncFd::with_interest(ring.as_raw_fd(), Interest::READABLE)` and clears readiness on each wake; the eventfd, its
+registration and its read went, with 27 of the file's 149 product lines (the sketch said 26) and three `unsafe`
+blocks with their `SAFETY` lines. `submit_and_wait` joined the first `impl` block. The reads, the wake and the
+drain are unchanged: `COOP_TASKRUN` stays, and `drain_in_flight` waits in `submit_and_wait`, never on the parked
+fd. What it costs is one invariant the types do not enforce, carried in one comment line: the `AsyncFd` is
+declared before the ring, so it leaves the reactor before the ring's fd closes. No test can force that race.
 
-**What it removes.** By a sketch of the file, not built: 26 of its 149 product lines (23 for S19, 3 for S20); three
-`unsafe` blocks and their `SAFETY` lines (`eventfd`, `OwnedFd::from_raw_fd`, the `read`); one fd per tile session
-that misses; the eventfd's signal on every completion. The reads, the wake and the drain are kept.
+| check | result |
+| --- | --- |
+| [`read_path_ab.sh`](../../lab/scripts/read_path_ab.sh) against `1d6cb6dc`, 12 rounds, arms interleaved by round, 256 asks, `product_tile` | `cold16_d1` p50 88.1 → 81.0 µs, −5.7 % (7/12), CPU per ask −8.8 % (8/12); `cold16_dW` p50 39.2 → 32.0 µs, −5.7 % (9/12), CPU −2.4 % (7/12): **a tie** on both under the 28.5 % rule. `miss_pct` 97.3–99.6 and a ring built in every cold row of both arms |
+| the controls | `warm16`: no ring, a tie. `product_fill` builds no ring in any cell, and ties in each |
+| `/proc/<pid>/fd` of the server, 16 and 64 tile sessions cold at depth 4 (`server_ab`), each arm twice | peak less idle is **2 × the sessions that built a ring** before (28 for 14, 24/12, 50/25, 48/24) and **1 ×** after (15/15, 16/16, 29/29, 25/25) |
+| the park test, two reads | 2 wakes in 30 of 30 runs. Parking on an fd nothing signals fails it on the 10 s timeout; dropping `clear_ready` fails it at 79 829 wakes |
 
-**What it costs.** One invariant the types do not enforce, which the lab's reader already carries in one comment
-line: the `AsyncFd` is declared before the ring, so it leaves the reactor before the ring's fd closes; the other
-order deregisters a number the process may by then have given to another session. No test can force that race.
-A missing `clear_ready` would not hang the reader but spin it, and the park test as it stands passes a spin, so it
-gains one assertion (below). If P0 ties, the ring is deleted and this work with it.
+The host: 4 vCPU, ext4 on a virtio disk, `read_ahead_kb` 128, so the 250 kB stride misses. The cells are one
+session at depth ≤ 4, far below where the host saturates, which was not measured; nothing is claimed at scale
+but the fd. The run used the script's own loop and verdict with both binaries built first, since its worktree
+build cannot run under a shared `CARGO_TARGET_DIR`. Its verdict keys on the label and the arm, so of the two
+variants each run prints it keeps the last, `product_tile`; `product_fill` was read apart, by `pos`.
 
-| invariant (§10, *The ring*) | after the change | covered by |
-| --- | --- | --- |
-| `COOP_TASKRUN`, no `SINGLE_ISSUER` or `DEFER_TASKRUN` | kept. A reader parked on a `COOP_TASKRUN` ring's own fd is woken by a read that could not complete inline: the lab's `ring_fd_completion_wakes_a_parked_reader` | `a_read_that_cannot_complete_inline_wakes_the_parked_reader` |
-| the eventfd registered without `_async` | gone with the eventfd; §11's `_async` paragraph becomes history | — |
-| `drain_in_flight` blocks, retries `EINTR`/`EBUSY`, reports a failed ring | untouched: it waits in `submit_and_wait`, never on the eventfd, and `Drop` drains before any field drops | `dropping_a_reader_mid_read_waits_for_the_kernel`, `an_interrupted_drain_still_waits_for_the_kernel`, `a_failed_drain_reports_the_read_still_in_flight`, `a_tile_reader_whose_ring_fails_mid_read_leaks_its_slots` |
-| each completion credited to its own slot | the loop is unchanged | `two_reads_in_flight_land_in_their_own_slots`, `both_readers_reassemble_every_frame`, `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes` |
-
-**How it would be proven.**
-
-1. The server's suite green. The park test counts its wakes and asserts a handful, not thousands. Two mutations,
-   each made and seen to fail: park on an fd nothing signals (the 10 s timeout), and drop `clear_ready` (the count).
-2. `lab/scripts/read_path_ab.sh <the commit before>`, which interleaves the arms by round. The ring parks only in
-   `cold16_d1` and `cold16_dW`; there `miss_pct` must be near 100 and `rings_built` above 0 in both arms, or the
-   cell measured hits (the stride re-derived on the day, §12). The claim is `x14`'s: a tie on p50 (the script's
-   verdict) and a tie on `cpu_ns_per_ask` from the same rows, paired the same way. `warm16` and `seq1g` build no
-   ring and are controls. The cells are single-session, far below where the host saturates; nothing is claimed
-   at scale but the fd.
-3. The fd holds by construction; shown once by counting `/proc/<pid>/fd` with N tile sessions that missed, before
-   and after.
-
-With it, this section shrinks to the §5 row's verdict, and §10 *The ring*, the Test plan's park row, the §5 ring
-rows' "2 fds" and [`levers.md`](../levers.md)'s row are rewritten.
-
-**The owner's choice.** *Now*: the deploy image runs the ring since row 231, so the code that ships loses three
-`unsafe` blocks and a fd per missing session today, at the price of work thrown away if P0 later ties. *After P0*,
-as §9 ordered: nothing is spent until the ring is known to stay. Nothing else waits on it; #8 is independent.
+**Corrected 2026-10-16 (row 250), two claims of the proposal.** It said `seq1g` builds no ring: `product_tile`
+built one in every `seq1g` row of both arms, on 1.6–2 % misses. It ties (p50 −1.7 %, CPU −5.3 %) and stays a
+control. It said the park test's wake count would catch a dropped `clear_ready`: with one read it does not, since
+the first wake is the one that carries the completion and readiness left set costs nothing until the next park.
+The test now makes two reads.
 
 ## 10 · How it is built
 
@@ -861,7 +846,10 @@ ask, so `Off` means both "never wanted" and "refused".
 
 **The ring** is set up with `COOP_TASKRUN`: `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable
 because tokio migrates a task between workers, and blocking in `io_uring_enter` would be the
-stall this exists to prevent, so the reader parks on an eventfd (plain `register_eventfd`). A
+stall this exists to prevent, so the reader parks on the ring's own fd, readable interest only, and
+clears readiness on each wake (*since row 250, 2026-10-16*: it parked on a registered eventfd, plain
+`register_eventfd`, never `_async`, §11). The `AsyncFd` is declared before the ring, so it leaves the reactor
+before the ring's fd closes; the other order deregisters a number the process may have given another session. A
 short completion is resubmitted for its tail. Buffers are **not** registered: that pins pages
 against `RLIMIT_MEMLOCK`, and the lab variant that registered them tied on misses.
 
@@ -938,7 +926,7 @@ INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_event
 | An interrupted wait does not end the drain | `an_interrupted_drain_still_waits_for_the_kernel` |
 | A failed drain reports the read still in flight | `a_failed_drain_reports_the_read_still_in_flight` |
 | A tile reader whose ring fails mid-read leaks its slots | `a_tile_reader_whose_ring_fails_mid_read_leaks_its_slots` |
-| A parked reader is woken (the `_async` eventfd hangs it) | `a_read_that_cannot_complete_inline_wakes_the_parked_reader` |
+| A parked reader is woken, a handful of times and not in a spin (an fd nothing signals hangs it; a park that never clears readiness spins; until row 250, the `_async` eventfd hung it) | `a_read_that_cannot_complete_inline_wakes_the_parked_reader` |
 | The session line reports the miss rate | `read_stats_report_the_session_miss_rate` |
 | The frame quinn sends is the pooled buffer, and it comes back | `a_handed_off_frame_is_the_buffer_itself_and_comes_back_when_dropped` |
 | One store per series | `sessions_share_one_store_rather_than_opening_their_own` |
@@ -1049,7 +1037,8 @@ completions posted from an io-wq worker, which on a `COOP_TASKRUN` ring is none 
 parked reader is never woken. Applied to the product it hung every escalated read while the
 server's suite passed. `a_read_that_cannot_complete_inline_wakes_the_parked_reader` closes that
 gap (10 s timeout against `_async`, 0.05 s against `register_eventfd`). The eventfd's per-hit
-cost is therefore not tunable; parking on the ring fd (§9 item 7) is the only way to remove it.
+cost is therefore not tunable; parking on the ring fd (§9 item 7) is the only way to remove it. *History since
+row 250 (2026-10-16):* the product parks on the ring fd and has no eventfd; the test still guards the wake.
 
 ### Line 221: the capped probe was the 250 kB penalty (2026-09-10)
 
