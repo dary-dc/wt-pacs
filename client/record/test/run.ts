@@ -11,6 +11,7 @@ import { judgeIntegrity, minOf, maxOf } from "../report.ts";
 import { pickBinding } from "../rows.ts";
 import { Tap } from "../tap.ts";
 import type { ChunkMark, FrameTiming, TapConfig } from "../types.ts";
+import { wrapSession } from "../wrap-session.ts";
 import { attributeFrames, parseFootprintsFromBytes } from "./offsets.ts";
 
 let failed = 0;
@@ -637,6 +638,16 @@ function sliceRiver(
   const report = tap.finish();
   const fields = [...Object.keys(report.summary.integrity), ...Object.keys(report.client_frames[0])];
   assertEq(fields.filter((k) => /long_task|busy/.test(k)), [], "no long-task field in the report");
+}
+
+// The wrapper hands an ask's `onHead` to the session it wraps: the downloader's `refill: "head"` waits on it
+{
+  let heads = 0;
+  const session = wrapSession({
+    requestExactFrame: (frameIndex: number, onHead?: () => void) => (onHead?.(), Promise.resolve({ frameIndex })),
+  });
+  void session.requestExactFrame(0, () => (heads += 1));
+  assertEq(heads, 1, "a wrapped ask's onHead runs");
 }
 
 // MessageAccumulator reassembles split control messages

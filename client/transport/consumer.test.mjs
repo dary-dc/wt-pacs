@@ -1,4 +1,4 @@
-// node client/transport/consumer.test.mjs — what `connect` refuses before it starts a worker; acks and unreadable deliveries; a worker that does not load.
+// node client/transport/consumer.test.mjs — what `connect` refuses before it starts a worker; acks and unreadable deliveries; a delivered frame not failed; a worker that does not load.
 import { DownloaderClient } from "./consumer.js";
 
 let failed = 0;
@@ -55,6 +55,33 @@ async function acksAndUnreadable() {
 }
 await acksAndUnreadable();
 
+/** A failure of a frame the page already has is dropped; once that frame is filled again, its failure is the page's. */
+async function aDeliveredFrameIsNotFailed() {
+  let worker;
+  globalThis.Worker = class {
+    constructor() {
+      worker = this;
+    }
+    postMessage(m) {
+      if (m.kind === "dial") queueMicrotask(() => this.onmessage({ data: { kind: "started" } }));
+    }
+    terminate() {}
+  };
+  globalThis.crossOriginIsolated = true;
+  const failures = [];
+  const client = await DownloaderClient.connect("https://x.invalid/", "ab", { onError: (f) => failures.push(f.frameIndex) });
+  const port = {};
+  worker.onmessage({ data: { kind: "pixel-port", port, decoder: 0 } });
+  port.onmessage({ data: { index: 3, gen: 0, pixels: new Uint8Array(1) } });
+  worker.onmessage({ data: { kind: "failed", index: 3, gen: 0, reason: "decoder 0 crashed (lost 2 times)" } });
+  check(failures.length === 0, `a delivered frame's late failure is dropped (failed ${failures})`);
+  client.fill([3]);
+  worker.onmessage({ data: { kind: "failed", index: 3, gen: 0, reason: "refused" } });
+  check(failures.join() === "3", `filled again, its failure reaches onError (failed ${failures})`);
+  client.close();
+}
+await aDeliveredFrameIsNotFailed();
+
 /** A downloader whose script does not load ends `connect` with the reason, where it used to wait for ever. */
 async function scriptThatDoesNotLoad() {
   globalThis.Worker = class {
@@ -71,5 +98,5 @@ async function scriptThatDoesNotLoad() {
 }
 await scriptThatDoesNotLoad();
 
-console.log(failed ? `${failed} failed` : "consumer refusals, acks, unreadable deliveries, a worker that does not load: ok");
+console.log(failed ? `${failed} failed` : "consumer refusals, acks, unreadable deliveries, a delivered frame not failed, a worker that does not load: ok");
 process.exit(failed ? 1 : 0);

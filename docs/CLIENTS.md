@@ -108,8 +108,8 @@ client/contract/run.mjs` runs the suite on another build of the WASM client.
 | `adapters.ts` | one surface; the only place that knows how the implementations differ |
 | `ring.ts`, `race.ts` | the wire buffer ring against every session; the race's outcomes |
 | `run.ts` → `run.mjs` | Node entry: every implementation, then the race |
-| `fake-session.ts`, `worker-fake.ts`, `downloader-rig.ts` | the downloader rig: the fake installed inside the downloader's worker |
-| `dispatch-rig.ts` | the downloader's own behaviours against a stalling decoder ([`ARCHITECTURE.md`](ARCHITECTURE.md)) |
+| `fake-session.ts`, `worker-fake.ts`, `downloader-rig.ts` | the downloader rig: the fake installed inside the downloader's worker, under either client |
+| `dispatch-rig.ts` | the downloader's own behaviours against a stalling decoder ([`ARCHITECTURE.md`](ARCHITECTURE.md)); its transport clauses under either client |
 | `ask-during-fill.html`, `run_wire.sh` | against the real server |
 
 TypeScript bundled by esbuild, run by `node`, asserting with a counter and a non-zero exit — no
@@ -156,12 +156,24 @@ A truncated frame does apply — on TCP it is the connection ending inside one.
 
 **The downloader rig.** The downloader dials inside its own worker, out of the test's reach, so
 `fake-session.ts` is the module `config.transport` names during a run: it installs the fake inside
-that worker and answers the page over a `BroadcastChannel` named in its URL. `run_browser.sh`
-drives the same clauses in headless Chromium. Two read what the client does from the rig: an ask after
+that worker and answers the page over a `BroadcastChannel` named in its URL, which also names the
+client it exports, TypeScript or, with `client=wasm`, WASM. `run_browser.sh` drives the same clauses in
+headless Chromium, through the downloader over each client (`downloader`, `downloader-wasm`). The dispatch
+rig runs whole on TypeScript and its 35 transport clauses — the wire, the dials, survival, cancel — on
+WASM too (`dispatch-wasm`); the other 45 are the decoders' and the downloader's own, whichever client
+carried the bytes. Two read what the client does from the rig: an ask after
 a closure **re-dials and is served** rather than failing, and the dead-session clause runs with
 resumption off, since its claim is the transport's. One thing the page cannot see is whether the
 worker moved or copied a buffer — a frame posted without a transfer list arrives as a clone that
 still detaches — so the clause holds delivered-buffer semantics only.
+
+`run_browser.sh` drives two pages at a time, the longest first, so the dispatch rig shares the host with one other
+page as it did before the WASM rigs. With all four at once on one core (2026-10-16), `aFrameLostTwiceFailsByName`
+failed in both runs: frame 2 reached the page and then failed with the decoder that crashed on frame 1, its ack not
+yet back, and frame 3 was neither within the clause's 4 s. Two at a time it passed in both runs. *Corrected
+2026-10-16 (row 275):* "not fixed here" — the page now drops a failure of a frame it has
+([`ARCHITECTURE.md`](ARCHITECTURE.md) §The downloader). Frame 3 was not lost: the clause waits for four answers, and
+frame 2's two met the count before frame 3's came.
 
 The fake says `listening` on its channel once it is up, and the page posts nothing before it hears
 that. Chromium can drop a message posted to a channel a worker has already constructed: on Chrome
@@ -181,7 +193,7 @@ are in flight that its end is observable. Nothing in the tree is touched.
   makes every waiter `unavailable`, so the WebSocket client passed 64 of 64 with its refusals sent as
   the wrong message type. It now requires the reason's words; every client still passes 64 of 64.
 * `client/contract/ask-during-fill.html`: WIRE.md §An ask during a fill, seen from the client,
-  raw and through the downloader, over both transports. Raw: the ask is served mid-fill, the fill
+  raw and through the downloader, over both transports and both WebTransport clients. Raw: the ask is served mid-fill, the fill
   ends — 28 of 120 arrive, then nothing — and the rest arrive only once asked again. Downloader: the
   fill completes without being asked again, no frame twice. Mutants: a planner that keeps the fill
   past an ask (the raw client reports 120 of 120; the downloader survives it) and a downloader that
@@ -189,7 +201,7 @@ are in flight that its end is observable. Nothing in the tree is touched.
 
 **In the gate** (`scripts/gate.sh`): `run.mjs`, the worker-safe static check
 (`client/scripts/check_worker_safe.sh`: no built artifact may contain a `window.` reference), the
-downloader and dispatch rigs, and `run_wire.sh`. **The WASM client is required**: `run.mjs` exits 2
+downloader and dispatch rigs on each client, and `run_wire.sh`. **The WASM client is required**: `run.mjs` exits 2
 without `client/transport/wasm/pkg/` (decided 2026-09-18, over the proposal's "skip the variant
 loudly"). The headless steps are required too: the gate exits 2 with the install command when
 playwright, Chromium or the decoder vendor is missing (decided 2026-10-03; it was "skip loudly"
@@ -508,7 +520,7 @@ whatever of theirs has landed.
 | W10 | **26.5× the transport's bytes:** `transport_wasm_bg.wasm` 240 066 B and `transport_wasm.js` 32 166 B, 103 499 and 6 464 gzipped (`gzip -6`), against `dist/session.js` 13 401 and 4 149. Counted 2026-10-16 on a build of sources unchanged since 2026-10-09; the default `console_error` panic hook is in it, its share not counted | `client/transport/wasm/Cargo.toml:33-37` | 0 | no |
 | W11 | **Its load on the product page is not measured.** R2 (2026-09-19) found the cold session a tie once each client was preloaded, 6.72 against 6.64 round trips, on the harness's page path, removed 2026-10-03; the compile of 240 KB and the linear memory's peak (the receive buffer holds a whole frame) are not measured | [`../lab/page-open/README.md`](../lab/page-open/README.md) §The count, before and after | — | no |
 | W12 | **Never run outside Chromium.** The Firefox runs (`run_firefox.sh`, the page check's `--engine firefox`) load TS alone; no WebKit runs here. Both dial the same global `WebTransport`, so what differs is the engine's WebAssembly | `client/contract/run_firefox.sh:14`; `client/viewer/check.mjs:5` | ~+2 | no |
-| W13 | **The rigs and the page check load TS alone**: `fake-session.ts` re-exports the TS session, `ask-during-fill.html` knows `ts`, `ws` and the downloader over each, the page check serves a transport file without `client` | `client/contract/fake-session.ts:9`; `client/contract/run_browser.sh:11`; `client/contract/ask-during-fill.html:17,57,84`; `client/viewer/check.mjs:59-60` | ~+45 | no |
+| W13 | *Closed by row 274, but the page check (row 3's).* **The rigs and the page check load TS alone**: `fake-session.ts` re-exports the TS session, `ask-during-fill.html` knows `ts`, `ws` and the downloader over each, the page check serves a transport file without `client` | `client/contract/fake-session.ts:9`; `client/contract/run_browser.sh:11`; `client/contract/ask-during-fill.html:17,57,84`; `client/viewer/check.mjs:59-60` | ~+45 | no |
 | W14 | *Closed by row 265.* **The surface's TS-only tests** — `onHead` before the body, the dial deadline, the opening fill in the URL, the unpinned dial — sit in the TS unit tests and the dispatch rig, not in `clauses.ts`, so nothing holds WASM to them | `client/transport/ts/test/run.ts:84-85`; `client/contract/dispatch-rig.ts:1730-1750` | ~+80 test | no |
 
 Out of scope: `readMin`, the WebSocket and the race are TS's alone and off by default, so with `client: "wasm"` the
@@ -533,6 +545,17 @@ into the image. No capability test, no fallback, no WASM race.
    clauses only on WASM; the rest are the decoders'), `ask-during-fill.html` with `wasm` and `downloader-wasm`.
    *Proves it:* green on both; reverting row 1's `endStream` fails *cancel during a resume* on WASM, reverting the head
    callback fails the refill clause. The gate's added wall time reported. ~+45.
+   *Built 2026-10-16, row 274* (`claude/wip-274-WASMRIGS`): `fake-session.ts` exports the WASM client under
+   `?client=wasm`; the gate runs `downloader-wasm` (58/58) and `dispatch-wasm` (35 clauses, 95/95) beside the TS
+   rigs, and `ask-during-fill.html` with `wasm` and `downloader-wasm` (3/3 each). Two clauses had to be sharpened
+   before the proof held. With `endStream` synchronous again, *cancel during a resume* passed all three of its checks:
+   the call sends `end_stream` before the `.catch` on its result throws, and the throw only fails a dial the resume
+   then abandons with nothing owed. Its new check, that the resumption completes (`resumedAt`), fails. With the head
+   callback dropped, `reissuesAfterAsk` passed too: the refill in `finally` went out once the asked frame landed,
+   before the page looked. It now trickles that frame's body for 2 s and requires the remainder on the wire first; it
+   fails on WASM without the callback and on either client with the downloader's `onHead` removed. The gate's
+   added time: +13 s on the rigs (67 s, against 54 s for the TS rigs in row 265's gate) and +6 s on `run_wire.sh`
+   (25 s, against 19 s): one run each, on one core pinned at the lowest priority beside row 253's campaign.
 3. **WASMSELECT** (*structural*) — W1, W2, the page check's `--client wasm` arm, and the status line naming the client.
    *Proves it:* the page check complete, exact and drawn on both; `crafted.mjs` sees an unknown `client` refused by name
    with nothing loaded; the preloads in the request log. ~+25.
@@ -548,9 +571,10 @@ Rows 1 and 2 add no product path and can land before the owner rules on 3 and 4.
 both clients; if it is ruled first, W4 is not built.
 
 **Measured, and not.** Measured: the bytes (W10, today); R2's tie (W11); the fill's tie; N6, stale; both clients
-pending past 180 s on a held dial ([`../lab/dial-deadline/`](../lab/dial-deadline/README.md)); the telemetry's cost.
-Not measured: anything of the WASM client on the product page; W4's cost on WASM, inferred from row 229's arms; W6
-through the downloader (run at the session, row 265); the WASM client in Firefox or WebKit; the image's build time with a wasm32 stage; the gate's added time.
+pending past 180 s on a held dial ([`../lab/dial-deadline/`](../lab/dial-deadline/README.md)); the telemetry's cost;
+W6 through the downloader and the gate's added time (row 274, above). Not measured: anything of the WASM client on the
+product page; W4's cost on WASM, inferred from row 229's arms; the WASM client in Firefox or WebKit; the image's
+build time with a wasm32 stage.
 
 ## Proposed: the harness pages to `lab/`
 
