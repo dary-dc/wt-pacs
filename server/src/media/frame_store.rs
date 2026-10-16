@@ -184,6 +184,12 @@ impl FrameStore {
     pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
         std::mem::take(&mut *self.advised.lock().unwrap())
     }
+
+    /// Every `advise_ahead` blocks until the guard is dropped.
+    #[cfg(test)]
+    pub(crate) fn hold_advice(&self) -> std::sync::MutexGuard<'_, Vec<(u64, u64)>> {
+        self.advised.lock().unwrap()
+    }
 }
 
 /// `EAGAIN` counts as support — the flag working on a cold byte. Anything unexpected reads

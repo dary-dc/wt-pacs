@@ -177,19 +177,22 @@ impl FillReader {
     }
 
     /// Extended a quarter window at a time, so the syscall is per megabyte of walk and not
-    /// per frame; a seek past the window restarts it.
+    /// per frame; a seek past the window restarts it. On the pool and not awaited: it can wait
+    /// on reclaim and the block layer. `docs/adr/disk-access.md` §9, finding 6.
     fn advise(&mut self, next: FrameSpan) {
         let end = next.offset + u64::from(next.len);
         let want = end + FILL_WINDOW;
-        if (end..=want).contains(&self.advised_to) {
+        let from = if (end..=want).contains(&self.advised_to) {
             if want - self.advised_to < FILL_WINDOW / 4 {
                 return;
             }
-            self.store.advise_ahead(self.advised_to, want - self.advised_to);
+            self.advised_to
         } else {
-            self.store.advise_ahead(end, FILL_WINDOW);
-        }
+            end
+        };
         self.advised_to = want;
+        let store = Arc::clone(&self.store);
+        tokio::task::spawn_blocking(move || store.advise_ahead(from, want - from));
     }
 
     fn count(&mut self, missed: bool) {
@@ -556,6 +559,17 @@ mod tests {
             .collect()
     }
 
+    /// What the pool has advised once `n` calls have landed; the advice is detached, so it lands late.
+    fn landed_advice(store: &FrameStore, n: usize) -> Vec<(u64, u64)> {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut got = store.take_advice();
+        while got.len() < n && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            got.extend(store.take_advice());
+        }
+        got
+    }
+
     /// Six windows long, so a frame that misses can be told from a window that does.
     const LEN: u32 = (READ_WINDOW * 5 + 17) as u32;
     #[cfg(feature = "uring")]
@@ -699,7 +713,7 @@ mod tests {
         let mut seq = FillReader::new(Arc::clone(&store));
         rt.block_on(seq.read(all[0], Some(all[1]))).expect("read");
         assert_eq!(
-            store.take_advice(),
+            landed_advice(&store, 1),
             vec![(end(all[1]), FILL_WINDOW)],
             "the first frame asks for one whole window past the named frame"
         );
@@ -708,12 +722,14 @@ mod tests {
             rt.block_on(seq.read(all[i as usize], Some(all[i as usize + 1])))
                 .expect("read");
             walked += u64::from(all[i as usize + 1].len);
-            let advice = store.take_advice();
             if walked < FILL_WINDOW / 4 {
-                assert!(advice.is_empty(), "frame {i}: advised again inside a quarter window");
+                assert!(
+                    store.take_advice().is_empty(),
+                    "frame {i}: advised again inside a quarter window"
+                );
             } else {
                 assert_eq!(
-                    advice,
+                    landed_advice(&store, 1),
                     vec![(end(all[1]) + FILL_WINDOW, walked)],
                     "frame {i}: the extension does not start where the window ended"
                 );
@@ -723,16 +739,47 @@ mod tests {
         assert!(walked >= FILL_WINDOW / 4, "the walk never extended the window");
         rt.block_on(seq.read(all[20], Some(all[21]))).expect("read");
         assert_eq!(
-            store.take_advice(),
+            landed_advice(&store, 1),
             vec![(end(all[21]), FILL_WINDOW)],
             "a seek past the window restarts it"
         );
         rt.block_on(seq.read(all[3], Some(all[4]))).expect("read");
         assert_eq!(
-            store.take_advice(),
+            landed_advice(&store, 1),
             vec![(end(all[4]), FILL_WINDOW)],
             "a seek back before the window restarts it"
         );
+        drop(rt);
+        assert!(store.take_advice().is_empty(), "advised more than the walk asked for");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **G1 of finding 6.** A fill's advice runs on the pool and nobody awaits it, so the read
+    /// returns while the advice is still blocked, as the kernel can block it on reclaim.
+    #[test]
+    fn a_fill_read_does_not_wait_for_its_advice() {
+        let dir = scratch("advise-detached");
+        let path = write_bundle(&dir, 2, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let [first, second] = spans(&store, &[0, 1])[..] else {
+            unreachable!("two frames")
+        };
+        let (done, served) = std::sync::mpsc::channel();
+        let held = store.hold_advice();
+        let reader = std::thread::spawn({
+            let store = Arc::clone(&store);
+            move || {
+                let (rt, mut seq) = (rt(), FillReader::new(store));
+                let out = rt.block_on(seq.read(first, Some(second)));
+                done.send(out.map(|b| b.to_vec())).ok();
+            }
+        });
+        let served = served.recv_timeout(std::time::Duration::from_secs(5));
+        drop(held);
+        reader.join().expect("reader thread");
+        let out = served.expect("the read waited for its advice").expect("read");
+        assert_eq!(out, frame_pattern(0, LEN), "the fill served wrong bytes");
+        assert_eq!(landed_advice(&store, 1).len(), 1, "the advice never ran");
         std::fs::remove_dir_all(&dir).ok();
     }
 
