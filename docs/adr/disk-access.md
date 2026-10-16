@@ -778,7 +778,7 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 | 7 | **Park on the ring fd, drop the eventfd** | **Built 2026-10-16** (row 250), on the owner's decision in #1: a tie re-measured, 1 fd per missing session counted, [below](#7-built-park-on-the-rings-own-fd-rows-244-250). Was: ordered after P0; proposed as row 244 |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
-| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
+| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells: `lab/scripts/workstation_run.sh`, built 2026-10-16 (row 262), not yet run (§12, *On the workstation, in one command*) |
 | 13 | **Short io_uring completions on a regular file** | the lab now resubmits the tail and counts them; 0 in 1 032 workstation rows. Incidence on other hosts and sizes past 250 kB is unmeasured |
 
 Numbers are kept because older records cite them; 4 is closed (§8), the missing ones closed or
@@ -1243,6 +1243,48 @@ every read must miss, use `--force-pool-reads`, not eviction ([`CLAUDE.md`](../.
 then the fill shape, `--stride` = `--size`, adding `tokio_fs`. Verdicts on wall and CPU per ask.
 Three columns carry the claims: `rings` stays 0 for `product_fill`, `peak_named` follows
 `--depths` past 4, and the 128 KiB / 250 kB penalty stays gone.
+
+### On the workstation, in one command (row 262: built, not yet run)
+
+*2026-10-16.* Item 10 of §9, and the ring against the pool on the server, on the owner's machine. The script was
+run here once with `--quick` on a cut matrix, untimed: it proves it runs, and no number in this section comes from it.
+
+```bash
+lab/scripts/workstation_run.sh --plan    # the estimate and the disk it needs, then exit
+lab/scripts/workstation_run.sh --quick   # one round of everything: a first try, nothing to conclude from
+lab/scripts/workstation_run.sh           # 12 rounds; prints the estimate and starts 10 s later
+```
+
+It refuses when a prerequisite of README §Prerequisites it uses is missing, or when the disk is short. It builds
+what it runs, works under `.local/workstation` (`--work DIR` elsewhere: the series volume is the one it records),
+and packs `report-<UTC>/` as `workstation-<UTC>.tar.gz`, the one file to send back. Nothing runs as root.
+
+| part | in the report | what it answers |
+| --- | --- | --- |
+| host | `host.txt` | kernel, distro, CPU and threads, governor, AC, RAM; the series volume's filesystem, mount options and device stack, `read_ahead_kb` of its bdi and of each device; THP, glibc, `ulimit -l` and `-n`, SELinux, `io_uring_disabled`; `check-fastpath` on the volume |
+| ring | `ring.txt` | does a tile miss build a ring: natively (the session line's `ring=true`); in the deploy image under the runtime's default profile (the control: refused) and under `seccomp-uring.json`. Where SELinux enforces and the profile alone is refused, `label=disable` is tried, and the policy module [`deploy/wtpacs_io_uring.te`](../../deploy/wtpacs_io_uring.te) (only `io_uring { allowed }`, for `container_t`) is left to the owner: `ROOT-STEPS.txt` says how to load it, then `--only ring` tests it |
+| readers | `readers.tsv`, `readers_summary.txt` | item 10: the cells of *The two readers, every variant* (§11) on this host. Cold tile 16 KiB (stride 250 000) and 250 kB (stride 500 000), cold fill 16 KiB; depths 1, 4, 16; 1 and 16 readers; 256 asks; `product_tile`, `product_fill`, `hybrid_lazyring`, `uring`, `pool`, `pool_capped_probe`, `pooled_pread`, and a second copy of each product reader as the A/A; 12 repeats in `read_campaign`'s rotation. Each variant against the shape's own reader, paired per repeat, on p50 and CPU per ask under §11's rule; the A/A's p90 \|Δ\| is this host's resolution; and the three claim columns above |
+| server | `server.tsv`, `server_summary.txt` | the product server, ring against pool (`WTPACS_READ_PATH=pool`) with a second ring arm as the A/A, on `server_ab.sh`'s cells (cold depth 1, 2, 4; warm depth 1, 4; a cold fill), 256 asks, 12 rounds, the three arms in `lab/scripts/order.py`'s order inside each cell. Checked: cold misses ≥ 0.95, `ring=true` in every cold ring row and `false` in every pool row |
+| execgap | `execgap/` | row 258's script (`lab/scripts/exec_gap.sh` on its branch, or `EXEC_GAP_SCRIPT`), given its binaries with `--exec-gap BIN_DIR`, on a series of 499 kB frames 1.25 × RAM; skipped when either is missing |
+
+**Cold is a copy, never an eviction.** Every cold cell reads a copy written past the page cache with `O_DIRECT`
+(`writer_bench direct`, and `read_campaign --fresh DIR` per cell) and counted non-resident by `mincore`: the server
+part reports a resident copy, `read_campaign` skips the cell and the summary counts the skips. `read_path_ab.sh` and
+`server_ab.sh` stay what they are, a commit against a commit with eviction; this asks one commit, ring against pool,
+so it drives their binaries on their cells, asks, strides and rule instead. Every server cell is a fresh process; a
+warm one follows a discarded pass by another.
+
+**Time and disk.** The estimate, a model whose rates are guesses for a laptop NVMe (`timing.txt` has the real ones):
+~5 min for the first build, ~17 min for the image build and the container checks where podman or docker is present,
+~26 min for the readers and ~5 min for the server at 12 rounds: **~53 min**. `--quick` takes ~25 min the first time,
+nearly all of it the two builds. It needs 1.1 GB under the work directory and ~4 GB of image and cache in the
+runtime's storage; the copies write ~450 GB to the series volume over a full run (~38 GB with `--quick`: the 250 kB
+series is 512 MB, rewritten per cell). `--exec-gap` adds a series of 1.25 × RAM unless `EXEC_GAP_SERIES` names one.
+
+**Left out, by choice:** the rest of §12's sweep above (64 and 128 KiB, depths 2 and 8, 64 readers, the `ringfd`
+and loop variants, and `tokio_fs`, which needs its own build). `R_VARIANTS`, `R_DEPTHS` and `R_READERS` take them,
+at the cost `--plan` prints. At 16 readers the readers share one series and wrap it, so those cells are mix, not
+miss: `pair_variants.py` buckets by regime for that reason. P0 is not this: one bare-metal host is not the target.
 
 ## 13 · Faster than today (theory, AV1 queue row 198)
 
