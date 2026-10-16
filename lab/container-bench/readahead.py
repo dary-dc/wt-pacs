@@ -35,8 +35,8 @@ FILESYSTEMS = {**writer.FILESYSTEMS, "xfs64k": (["mkfs.xfs", "-q", "-f", "-b", "
 GRIDS = {
     "197": dict(arms=["W0", "W0aa"], sets=["ct_lidc", "dbt12_ea1141", "ffdm_d", "pt15_cptac"], fs=list(FILESYSTEMS),
                 four=["host", "ext4"], out="readahead.jsonl", mutate="dbt12_ea1141"),
-    "260": dict(arms=["W0", "W0aa", "Wf"], sets=["ffdm_d", "syn16m", "ct_lidc"], fs=["host", "xfs"],
-                four=["host", "xfs"], out="window.jsonl", mutate="ffdm_d"),
+    "260": dict(arms=["W0", "W0aa", "Wf"], sets=["ffdm_d", "syn16m", "ct_lidc"], fs=["host", "ext4"],
+                four=["host", "ext4"], out="window.jsonl", mutate="ffdm_d"),
 }
 GRID = GRIDS[writer.os.environ.get("ROW", "197")]
 SYNTHETIC = {"syn16m": (20, 16_000_000)}  # frames, bytes a frame: §11 Frames past 250 kB's mammogram order
