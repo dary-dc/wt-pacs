@@ -4300,7 +4300,7 @@ The owner's decision (2026-10-16): row 228 (the WASM client to `lab/`) is reject
 
 ### 274 WASMRIGS
 
-Row 263's second row, on #80: the downloader and dispatch rigs, the ask-during-fill page and the viewer's page check run per client (W13); reverting #80's `endStream` fix fails *cancel during a resume* on WASM through the downloader; and `wrap-session.ts` passes `onHead` through under telemetry. Started 2026-10-16. **Branch:** `claude/wip-274-WASMRIGS`. Draft #89 (`967a410f`, on row 265's branch): `run_browser.sh` runs dispatch, downloader, downloader-wasm and dispatch-wasm; the dispatch rig's 35 transport clauses on both clients; `ask-during-fill.html` and `run_wire.sh` drive WASM; the wrapper passes `onHead`; two clauses sharpened because the reverted fixes passed them; six mutations; the gate about +19 s. Found: a frame can be delivered and then failed (row 275).
+Row 263's second row, on #80: the downloader and dispatch rigs, the ask-during-fill page and the viewer's page check run per client (W13); reverting #80's `endStream` fix fails *cancel during a resume* on WASM through the downloader; and `wrap-session.ts` passes `onHead` through under telemetry. Started 2026-10-16. **Branch:** `claude/wip-274-WASMRIGS`. Merged as #89 (`1123ae2a`, head `967a410f`), 2026-10-16: `run_browser.sh` runs dispatch, downloader, downloader-wasm and dispatch-wasm; the dispatch rig's 35 transport clauses on both clients; `ask-during-fill.html` and `run_wire.sh` drive WASM; the wrapper passes `onHead`; two clauses sharpened because the reverted fixes passed them; six mutations; the gate about +19 s. Found: a frame can be delivered and then failed (row 275).
 
 ### 275 DELIVEREDFAIL
 
