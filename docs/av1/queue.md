@@ -4296,7 +4296,11 @@ Row 244's proposal built, on the owner's yes (2026-10-16): `UringReader` parks o
 
 ### 263 WASMPRODUCT
 
-The owner's decision (2026-10-16): row 228 (the WASM client to `lab/`) is rejected, "We want two product clients." A proposal for what the WASM transport client needs to become a product client beside the TypeScript one, with the rows to get there; row 228's proposal in `docs/CLIENTS.md` corrected in place. Draft #76 (`8c165d0b`): selection by a `client` field in `/wt/dev-transport.json`, TS the default; gaps W1–W14, three of them defects on today's WASM path (W4 `refill:"head"` never fires, W5 no dial deadline, W6 `endStream` not a promise); rows WASMSURFACE, WASMRIGS, WASMSELECT and WASMIMAGE (structural), WASMLOAD, by hand. The dav1d tooling half of 228 (P6) not ruled on. **Branch:** `claude/wip-263-WASMPRODUCT`.
+The owner's decision (2026-10-16): row 228 (the WASM client to `lab/`) is rejected, "We want two product clients." A proposal for what the WASM transport client needs to become a product client beside the TypeScript one, with the rows to get there; row 228's proposal in `docs/CLIENTS.md` corrected in place. Draft #76 (`8c165d0b`): selection by a `client` field in `/wt/dev-transport.json`, TS the default; gaps W1–W14, three of them defects on today's WASM path (W4 `refill:"head"` never fires, W5 no dial deadline, W6 `endStream` not a promise); rows WASMSURFACE, WASMRIGS, WASMSELECT and WASMIMAGE (structural), WASMLOAD, by hand. The dav1d tooling half of 228 (P6) rejected too, the same day: the client, its decoders and build tools are a product path. **Branch:** `claude/wip-263-WASMPRODUCT`.
+
+### 266 THIRDAUDIT
+
+The owner's ask (2026-10-16): use the night for improvements. Rows 215 and 238's method on the product as merged after #67 and #73, the disk readers (251), the WASM client (263) and lab-only placement (264) excluded; findings ranked, rows drafted from 267. **Deliverable:** `docs/merge-readiness.md` §Third round. **Branch:** `claude/wip-266-THIRDAUDIT`.
 
 ### 265 WASMSURFACE
 
