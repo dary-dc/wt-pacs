@@ -4308,7 +4308,7 @@ Row 263's first row: the TS-only surface tests into `clauses.ts`, then W4–W9 f
 
 ### 264 LABONLY
 
-The owner's rule (2026-10-16): "things only for lab should live in lab/"; a product candidate is kept or not on its measured result. An audit of every lab-only thing in product directories with one pattern for moving it, and its first instance built: `cubic-classify` (row 212: not default) out of `server/` behind a lab feature. Started 2026-10-16. **Branches:** `claude/wip-264-LABONLY`, `claude/wip-264b-CLASSIFYTOLAB`. Replaces row 240 CLASSIFYOUT (remove).
+The owner's rule (2026-10-16): "things only for lab should live in lab/"; a product candidate is kept or not on its measured result. An audit of every lab-only thing in product directories with one pattern for moving it, and its first instance built: `cubic-classify` (row 212: not default) out of `server/` behind a lab feature. Drafts #78 (docs: O1–O8 lab-only, C1–C10 candidates each naming its decision, one pattern: a lab crate behind `lab-<name>`) and #79 (`cubic-classify` moved to `lab/cc-classify` behind `lab-classify`, `server/src` +30 −179, 12 mutations caught; structural, waits for the owner; #40 would bring it back as the default). **Branches:** `claude/wip-264-LABONLY`, `claude/wip-264b-CLASSIFYTOLAB`. Replaces row 240 CLASSIFYOUT (remove).
 
 ### 262 WORKSTATIONRUN
 
