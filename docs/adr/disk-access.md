@@ -846,7 +846,7 @@ first (CLAUDE.md); **M** needs a measurement first. Lines are product lines by a
 | 6 | **Two waits on the executor, never timed where they bite.** The fill's `WILLNEED` runs inline (`read_path.rs:153` → `:181–193` → `frame_store.rs:135–147`); it copies nothing but allocates the folios and submits their reads in the caller (`force_page_cache_ra`, §*Read-ahead and folios*), so it can wait on reclaim and on the block layer's request tags (not traced at a pinned kernel) — the owners' regime of series past RAM and thousands of sessions. Its one timing is a 64 KiB hint on a guest-cold cache (224 against 178 µs co-tenant gap, 2026-09-05). `TileReader::drop` (`:487–500`) drains in `io_uring_enter` on the executor (`uring_reader.rs:114–131`): one device read, ~1–5 ms on cloud block storage (§11, L7), for each session that ends mid-batch (a closed tab). Candidates: the advice detached on the pool (+3; a 24–34 µs hop per MiB walked, awaited by no one); the drain moved to `spawn_blocking` inside a guard whose own `Drop` drains, so a pool that drops the task still never frees a live buffer (+15, one `SAFETY`). The third executor stall, the whole-frame inline copy at 2.8–16 MB, is levers.md's INLINECAP (#10): same rig | **measure** | M · 258 |
 | 7 | **Tile names past the slots wait for a slot.** The planner holds `ASKS_AHEAD` = 8 (`planner.rs:7`) and names every frame ask behind the served one (`:96–103`); `TileReader` starts `slots − 1` = 3 (`read_path.rs:316`). One `WILLNEED` per further name puts it on the device with no buffer, ring entry or thread. **Reopens §5's ahead-N row with new evidence:** its 4.6–4.9× (2026-09-05) was one read in flight against no look-ahead, which `TILE_SLOTS` has since delivered (look-ahead *is* depth, §11, *Line 221*), so within the slots it stays closed; past them it is untried. It bites only when a client keeps more than four asks out; its sweep loss (misses 7 → 56) and finding 6's executor cost carry over | **measure** · +6 | M · 259 |
 | 8 | **`FILL_WINDOW` is 4 MiB at every frame size** (`read_path.rs:26`). At `ffdm_d`'s 4.8 MB it covers less than the frame after the named one, at 16 MB a quarter of it, and the extension rule (`:184–190`) re-advises every frame. A window of `max(4 MiB, 2 × the named frame)` (D). Row 197 ran `ffdm_d` cold under W0 but varied the advice, not its size | **measure** · +1 | M · 260 |
-| 9 | **A ring completion waits for its submitter's thread.** `COOP_TASKRUN` (`uring_reader.rs:32`) posts a completion as task work on the submitting thread without an IPI: a sleeping thread is woken, a running one runs it at its next syscall or tick. A reader parked on another worker waits that long while the submitter seals a large frame in user space. From the kernel's task-work notification (`TWA_SIGNAL_NO_IPI`), not traced at a pinned kernel and not timed; without the flag, an IPI a completion | **measure**, after row 250 · ±1 | M · 261 |
+| 9 | **A ring completion waits for its submitter's thread.** `COOP_TASKRUN` (`uring_reader.rs:32`) posts a completion as task work on the submitting thread without an IPI: a sleeping thread is woken, a running one runs it at its next syscall or tick. A reader parked on another worker waits that long while the submitter seals a large frame in user space. From the kernel's task-work notification (`TWA_SIGNAL_NO_IPI`), not traced at a pinned kernel and not timed; without the flag, an IPI a completion | **closed** by row 261: no setup flag ties it in every cell, [below](#finding-9-measured-coop_taskrun-row-261) | M · 261 |
 
 **Kept**, with the reason:
 
@@ -936,7 +936,30 @@ which each row reports.
 
 ### Finding 9, measured: `COOP_TASKRUN` (row 261)
 
-*2026-10-16, on row 251's protocol (261 RINGCOOP above).* RESULTS_PENDING
+*2026-10-16, on row 251's protocol (261 RINGCOOP above).*
+
+**Verdict: closed; `COOP_TASKRUN` stays.** Every cell and metric ties under the A/A resolution, so C1's p99 beats
+C0's beside the fills in neither cell and the rule does not adopt it. The prediction that C1's p99 would be lower
+beside the fills is not borne out at this resolution, which beside the fills is 41–68 % on p99.
+
+| cell | p50 C1/C0 | p99 C1/C0 | CPU per ask C1/C0 | resolution p50 / p99 / CPU | server busy C0/C1 |
+| --- | --- | --- | --- | --- | --- |
+| 16 KiB alone | 1.128 (10/12) | 1.102 (6/12) | 1.138 (10/12) | 35.8 / 64.5 / 27.3 % | 37 / 38 % |
+| 16 KiB beside | 1.172 (8/12) | 1.119 (9/12) | 1.035 (8/12) | 44.7 / 67.5 / 10.2 % | 55 / 58 % |
+| 250 kB alone | 0.984 (8/12) | 0.816 (8/12) | 0.977 (8/12) | 16.5 / 184 / 15.1 % | 49 / 52 % |
+| 250 kB beside | 1.034 (6/12) | 0.980 (6/12) | 0.986 (7/12) | 44.7 / 41.5 / 10.6 % | 55 / 56 % |
+
+Medians of the 12 per-round ratios, rounds agreeing in sign in brackets. C0's medians: p50 0.46 / 0.65 / 2.84 /
+9.37 ms, p99 1.38 / 8.79 / 8.09 / 51.1 ms, in table order. 144 runs, none run again: `miss_rate` ≥ 0.992,
+`ring=true` and `in_flight` 4 in every one, the fills warm (0 misses) and still streaming at the end of every beside run.
+Raw rows: [`rows-ringcoop.jsonl`](../../lab/disk-access-bench/rows-ringcoop.jsonl).
+
+**Where the host saturates.** The server stayed at 37–58 % of its two CPUs. The clients did not: over the beside tile
+runs CPU 2 was 98 % busy and CPU 3 100 %, and CPU 3 read 100 % in the alone cells too, since other rows' builds ran
+there at nice 19 throughout. Beside the fills the tile client competes for its cores with eight fill clients hashing
+4.8 MB frames, so those p99s carry client delay common to both arms; that and the 4-vCPU guest are why the
+resolution is wide. An effect of `COOP_TASKRUN` smaller than ~40 % of p99 beside busy workers is not excluded; none
+larger was seen. Not measured: more than two workers, a server near saturation, a device slower than this virtio disk.
 
 **The arms.** C0 is the default release build. C1 is the same source with `--features lab-ring-no-coop`
 (`server/Cargo.toml`): `UringReader::new` skips `setup_coop_taskrun`, and the banner prints `ring_coop=off`, which
@@ -989,7 +1012,7 @@ this said "once in `TileReader::new`"; it was read, and warned about, in every s
 `Ring` is not an `Option`: a refused ring must be neither retried on every miss nor fail the
 ask, so `Off` means both "never wanted" and "refused".
 
-**The ring** is set up with `COOP_TASKRUN`: `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable
+**The ring** is set up with `COOP_TASKRUN` (no setup flag tied it on latency and CPU, row 261, §9): `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable
 because tokio migrates a task between workers, and blocking in `io_uring_enter` would be the
 stall this exists to prevent, so the reader parks on the ring's own fd, readable interest only, and
 clears readiness on each wake (*since row 250, 2026-10-16*: it parked on a registered eventfd, plain

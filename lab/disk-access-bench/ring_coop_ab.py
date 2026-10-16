@@ -289,8 +289,8 @@ def summary(path):
         print("rule: void, a beside cell is missing or saturated the server; raise FILL_GAP_US")
     else:
         adopted = all(v == "better" for v in beside) and not harm
-        print("rule: C1", "adopted, if the park test passes on it" if adopted else "not adopted",
-              "(p99 better beyond the resolution in every beside cell; p50 and CPU worse nowhere)")
+        print("rule (C1's p99 better beyond the resolution in every beside cell; p50 and CPU worse nowhere): C1",
+              "adopted, if the park test passes on it" if adopted else "not adopted")
 
 
 def main():
