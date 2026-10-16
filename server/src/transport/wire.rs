@@ -4,9 +4,8 @@ use anyhow::{Context, Result};
 use fod::{decode_fod_body, encode_fod_msg, FodMsg};
 use wtransport::stream::{RecvStream, SendStream};
 
-/// Largest FoD message the server will read. Asks are small; anything larger is a broken or
-/// hostile peer.
-pub const MAX_FOD_LEN: usize = 4 * 1024 * 1024;
+/// Largest FoD message the server will read; a client's longest is 56 B. `docs/WIRE.md` §FoD messages
+pub const MAX_FOD_LEN: usize = 64 * 1024;
 
 /// The wire-supplied length is checked before a single byte is allocated for it.
 pub fn check_fod_len(len: usize) -> Result<()> {
@@ -67,5 +66,14 @@ mod tests {
             check_fod_len(u32::MAX as usize).is_err(),
             "a 4 GB length prefix is refused"
         );
+    }
+
+    /// The longest message a client sends, a fill with both ends at `u32::MAX`, fits under the cap.
+    #[test]
+    fn the_longest_client_message_fits() {
+        let longest = FodMsg::StreamFrames { from: Some(u32::MAX), to: Some(u32::MAX) };
+        let bytes = encode_fod_msg(&longest).unwrap();
+        check_fod_len(bytes.len() - 4).unwrap();
+        assert_eq!(decode_fod_body(&bytes[4..]).unwrap(), longest);
     }
 }

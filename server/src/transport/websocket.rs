@@ -12,6 +12,7 @@ use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use socket2::{SockRef, TcpKeepalive};
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -34,6 +35,15 @@ const CHUNK: usize = 64 * 1024;
 
 /// TLS and the upgrade together; a peer silent past this holds a task and a descriptor for nothing.
 pub(crate) const HANDSHAKE: Duration = Duration::from_secs(10);
+
+/// Probes after 20 s idle, 4 of them 5 s apart: a peer that vanished fails its session's read. docs/WIRE.md
+const KEEPALIVE: TcpKeepalive = TcpKeepalive::new()
+    .with_time(Duration::from_secs(20))
+    .with_interval(Duration::from_secs(5))
+    .with_retries(4);
+
+/// An accept that fails, as on `EMFILE`, fails again at once: this pause is what keeps the loop off a core.
+const ACCEPT_RETRY: Duration = Duration::from_millis(100);
 
 /// A session's one writer, for its frames and its refusals alike; every write is on the session task.
 pub(crate) struct WsWriter(SplitSink<Socket, Message>);
@@ -91,10 +101,11 @@ fn tls_acceptor(cert_pem: &Path, key_pem: &Path) -> Result<TlsAcceptor> {
 
 pub(super) async fn serve(listener: TcpListener, tls: TlsAcceptor, sessions: Sessions) {
     loop {
-        let tcp = match listener.accept().await {
-            Ok((tcp, _)) => tcp,
+        let tcp = match accept(&listener).await {
+            Ok(tcp) => tcp,
             Err(err) => {
                 warn!(%err, "WebSocket accept failed");
+                tokio::time::sleep(ACCEPT_RETRY).await;
                 continue;
             }
         };
@@ -107,8 +118,14 @@ pub(super) async fn serve(listener: TcpListener, tls: TlsAcceptor, sessions: Ses
     }
 }
 
+async fn accept(listener: &TcpListener) -> std::io::Result<TcpStream> {
+    let (tcp, _) = listener.accept().await?;
+    tcp.set_nodelay(true)?;
+    SockRef::from(&tcp).set_tcp_keepalive(&KEEPALIVE)?;
+    Ok(tcp)
+}
+
 pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions) -> Result<()> {
-    tcp.set_nodelay(true).context("TCP_NODELAY")?;
     let mut opening = None;
     let read_ask = |request: &Request, response: Response| {
         if sessions.opening_ask {
@@ -118,7 +135,9 @@ pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions
     };
     let handshake = async {
         let tls = tls.accept(tcp).await.context("TLS handshake")?;
-        let config = WebSocketConfig::default().max_message_size(Some(MAX_FOD_LEN));
+        let config = WebSocketConfig::default()
+            .max_message_size(Some(MAX_FOD_LEN))
+            .max_frame_size(Some(MAX_FOD_LEN));
         tokio_tungstenite::accept_hdr_async_with_config(tls, read_ask, Some(config))
             .await
             .context("WebSocket upgrade")
@@ -180,5 +199,19 @@ mod tests {
         let read = anyhow::anyhow!("io_uring read hit EOF").context("read frame 1");
         assert!(on_the_socket(&write), "a write to a closed socket was not the client's close");
         assert!(!on_the_socket(&read), "a failed read from disk was taken for the client's close");
+    }
+
+    /// Every accepted socket probes a silent peer on `KEEPALIVE`'s schedule, with Nagle off.
+    #[tokio::test]
+    async fn an_accepted_socket_probes_a_silent_peer() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let _client = TcpStream::connect(listener.local_addr().expect("addr")).await.expect("connect");
+        let tcp = accept(&listener).await.expect("accept");
+        let socket = SockRef::from(&tcp);
+        assert!(socket.keepalive().expect("SO_KEEPALIVE"), "keep-alive is off");
+        assert_eq!(socket.tcp_keepalive_time().expect("TCP_KEEPIDLE"), Duration::from_secs(20));
+        assert_eq!(socket.tcp_keepalive_interval().expect("TCP_KEEPINTVL"), Duration::from_secs(5));
+        assert_eq!(socket.tcp_keepalive_retries().expect("TCP_KEEPCNT"), 4);
+        assert!(tcp.nodelay().expect("TCP_NODELAY"), "Nagle is on");
     }
 }
