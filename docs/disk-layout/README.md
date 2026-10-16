@@ -303,6 +303,6 @@ image on a VM?
   and one read of its span ([`../adr/disk-access.md`](../adr/disk-access.md) §1).
 * **The fill's read-ahead depends on display order.** A fill serves frames in index order
   ([`../WIRE.md`](../WIRE.md) §FoD messages, `stream_frames`), and `FillReader` advises the kernel of `FILL_WINDOW`
-  (4 MiB) of **bytes** past the named frame (`server/src/media/read_path.rs:26`, `:181–193`). Those bytes are the
+  (4 MiB) of **bytes** past the named frame (`server/src/media/read_path.rs:28`, `:196–210`). Those bytes are the
   next frames only because the file stores frames in the order a fill walks them; any other order turns the
   advice into reads of frames nobody asked for.
