@@ -1380,7 +1380,7 @@ and packs `report-<UTC>/` as `workstation-<UTC>.tar.gz`, the one file to send ba
 | ring | `ring.txt` | does a tile miss build a ring: natively (the session line's `ring=true`); in the deploy image under the runtime's default profile (the control: refused) and under `seccomp-uring.json`. Where SELinux enforces and the profile alone is refused, `label=disable` is tried, and the policy module [`deploy/wtpacs_io_uring.te`](../../deploy/wtpacs_io_uring.te) (only `io_uring { allowed }`, for `container_t`) is left to the owner: `ROOT-STEPS.txt` says how to load it, then `--only ring` tests it |
 | readers | `readers.tsv`, `readers_summary.txt` | item 10: the cells of *The two readers, every variant* (§11) on this host. Cold tile 16 KiB (stride 250 000) and 250 kB (stride 500 000), cold fill 16 KiB; depths 1, 4, 16; 1 and 16 readers; 256 asks; `product_tile`, `product_fill`, `hybrid_lazyring`, `uring`, `pool`, `pool_capped_probe`, `pooled_pread`, and a second copy of each product reader as the A/A; 12 repeats in `read_campaign`'s rotation. Each variant against the shape's own reader, paired per repeat, on p50 and CPU per ask under §11's rule; the A/A's p90 \|Δ\| is this host's resolution; and the three claim columns above |
 | server | `server.tsv`, `server_summary.txt` | the product server, ring against pool (`WTPACS_READ_PATH=pool`) with a second ring arm as the A/A, on `server_ab.sh`'s cells (cold depth 1, 2, 4; warm depth 1, 4; a cold fill), 256 asks, 12 rounds, the three arms in `lab/scripts/order.py`'s order inside each cell. Checked: cold misses ≥ 0.95, `ring=true` in every cold ring row and `false` in every pool row |
-| execgap | `execgap/` | row 258's script (exec_gap.sh in `lab/scripts/` on its branch, or `EXEC_GAP_SCRIPT`), given its binaries with `--exec-gap BIN_DIR`, on a series of 499 kB frames 1.25 × RAM; skipped when either is missing |
+| execgap | `execgap/` | row 258's script (exec_gap.sh in `lab/scripts/` on its branch, or `EXEC_GAP_SCRIPT`), given its binaries with `--exec-gap BIN_DIR`, on a series of 499 kB frames past RAM and at least the unread frames its rounds need (1.25 × RAM, and ≥ 67 GB at 12 rounds); skipped when either is missing |
 
 **Cold is a copy, never an eviction.** Every cold cell reads a copy written past the page cache with `O_DIRECT`
 (`writer_bench direct`, and `read_campaign --fresh DIR` per cell) and counted non-resident by `mincore`: the server
@@ -1394,7 +1394,7 @@ warm one follows a discarded pass by another.
 ~26 min for the readers and ~5 min for the server at 12 rounds: **~53 min**. `--quick` takes ~25 min the first time,
 nearly all of it the two builds. It needs 1.1 GB under the work directory and ~4 GB of image and cache in the
 runtime's storage; the copies write ~450 GB to the series volume over a full run (~38 GB with `--quick`: the 250 kB
-series is 512 MB, rewritten per cell). `--exec-gap` adds a series of 1.25 × RAM unless `EXEC_GAP_SERIES` names one.
+series is 512 MB, rewritten per cell). `--exec-gap` adds a series of max(1.25 × RAM, 67 GB) unless `EXEC_GAP_SERIES` names one.
 
 **Left out, by choice:** the rest of §12's sweep above (64 and 128 KiB, depths 2 and 8, 64 readers, the `ringfd`
 and loop variants, and `tokio_fs`, which needs its own build). `R_VARIANTS`, `R_DEPTHS` and `R_READERS` take them,

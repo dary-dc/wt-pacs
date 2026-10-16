@@ -40,7 +40,10 @@ SHAPES=("t16 16384 250000 $F16" "t250 250000 500000 $F250" "f16 16384 16384 $F16
 FRESH="$WORK/fresh"
 CERT="$WORK/cert/cert.pem" KEY="$WORK/cert/key.pem"
 ram_kib=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+# Row 258's series: past RAM, and at least the unread frames its rounds need (586 for --quick, 133 706 for 12).
 PAST_RAM_FRAMES=$(( ram_kib * 1024 / 4 * 5 / 499000 + 1 ))
+GAP_MIN_FRAMES=$((quick ? 586 : 133706))
+PAST_RAM_FRAMES=$(( PAST_RAM_FRAMES > GAP_MIN_FRAMES ? PAST_RAM_FRAMES : GAP_MIN_FRAMES ))
 GAP_SERIES="${EXEC_GAP_SERIES:-$WORK/fixtures/frames_499k_past_ram/frames_499k_past_ram.sbnd}"
 
 if [[ -z "${RT+set}" ]]; then
