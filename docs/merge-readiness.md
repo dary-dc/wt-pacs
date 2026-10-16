@@ -456,3 +456,173 @@ dev host's `/harness/` route repointed, the paths in `docs/` and `lab/` with it;
 its checks alone, and `check_equivalence.sh`'s hidden-path list shrinks. Nothing is saved; a reader of `client/`
 holds three files fewer. **Deliverable:** the proposal in `docs/CLIENTS.md` beside row 228's. **Branch:**
 `claude/wip-246-HARNESSTOLAB`, then a draft PR.
+
+## Third round
+
+*2026-10-16. Queue row 266, THIRDAUDIT, at `a9fd5bd6`: after #67 (rows 229–249), #73 (row 250) and #70. An audit:
+nothing was built, run or timed but `scripts/comment_budget.sh` and `scripts/check_links.py` (both pass) and searches.*
+The owner asked for the night to go to performance, resources, simplicity, robustness and readability. Row 251 read
+the disk readers ([`adr/disk-access.md`](adr/disk-access.md) §9 *Next round for the readers*, draft #72); this round
+reads the rest the same way: `server/src/transport/` (planner, pipeline, server, link, WebSocket, congestion),
+`server/src/main.rs`, the TypeScript transport and `client/transport/downloader.js`, the viewer's product path
+(`client/viewer/`, `consumer.js`, the decoder and painter as the page drives them), `common/`, `ingest/` and `deploy/`.
+Out of scope, as the brief says: the disk readers (row 251), the WASM client's gaps (row 263, #76), lab code's
+placement (row 264), and the owner's open decisions (#39, #40, #41, #48, row 252's lab flag in #75).
+
+**The answer, in short.** Rounds 1 and 2 left little to cut, and this round cuts little (two lines). What it finds is
+robustness, and none of it is reached by a test: a page whose downloader cannot load waits for ever; an open page
+cannot resume across a server restart, because the deploy mints a new pinned certificate at each start and the
+downloader re-dials with the old hash; SIGTERM drops every session without a close; a WebSocket peer that vanishes
+holds its session for ever, and the WebSocket accept loop spins when descriptors run out; a pack that fails
+mid-write leaves a bundle behind while both ingests say "nothing written". One documented behaviour, a client's
+`frame_error` being ignored, has no test. Three docs no longer matched the code and are corrected in place. Rows
+267–273 are drafted; five can start today.
+
+### Findings
+
+Each finding: where, the verdict (*do*, *measure*, *propose*, *keep*), the capability it costs (none, for every
+verdict but *keep*), product lines by a sketch (tests apart), and whether it is structural. Risk as in round 2: 1 is
+a change the gate's tests cover, 2 needs a check the gate does not run, 3 is structural. Ranked by gain per risk.
+
+| # | finding (where) | verdict · capability · lines | structural · risk |
+| --- | --- | --- | --- |
+| T1 | **A page whose downloader cannot start waits for ever.** `DownloaderClient` makes its worker with no `onerror` (`client/transport/consumer.js:38-39`). A worker script that fails to load (a 404 from a half-upgraded host, a policy refusal, a syntax error) fires `error` on the page's `Worker` and nothing else, so `connect` awaits `#ready` for ever (`:67`) and the viewer's status line stays at "loading…". The decoders' and the painter's workers handle theirs (`downloader.js:426`, `paint/painter.js:16`). `consumer.test.mjs` never fails a worker. | **do**: `onerror` rejects `#ready` while not `started`, and changes nothing after · none · +4, test +12 | no · 1 |
+| T2 | **The control-message cap is 4 MiB for messages under 60 bytes.** `MAX_FOD_LEN` (`server/src/transport/wire.rs:9`) bounds a FoD message on QUIC and, as tungstenite's `max_message_size`, on the WebSocket (`websocket.rs:121`). The longest message a client sends is `stream_frames` with two `u32`s, 56 B, so a session may make the server buffer 4 MiB a message for nothing, on either transport. | **do**: 64 KiB, [`WIRE.md`](WIRE.md) §FoD messages and §The WebSocket mapping with it · none · ±0 | no · 1 |
+| T3 | **A client's `frame_error` is ignored, and no test says so.** `forward` drops it (`server/src/transport/server.rs:393`) and [`WIRE.md`](WIRE.md) §FoD messages documents it; a mutation that ends the session on it, or forwards it as an ask that ends a fill, passes every test. | **do**: a test of `forward` (`Continue`, nothing sent), mutated both ways · none · test +10 | no · 1 |
+| T4 | **A failed pack leaves a bundle where both ingests say "nothing written".** `BundleWriter` writes to the final name (`common/series-bundle/src/writer.rs:28`), as [`disk-layout/README.md`](disk-layout/README.md) §The writer records. `from-parser` prints "nothing written" on any error, a failed write included (`ingest/from-parser/src/main.rs:75`); `from_dicom.py` writes the sidecar before it packs (`ingest/from-dicom/from_dicom.py:58-60`), so a failed pack leaves both files. A server that has the old bundle open also reads the rewrite in place under its index. | **do**: write `NAME.partial` and rename in `finish`; the sidecar written after the pack · none · +5; disk-layout §The writer corrected when it lands | no · 1 |
+| T5 | **SIGTERM drops every session without a close.** `main` returns from its `select!` (`server/src/main.rs:24-34`) and the runtime ends with the endpoint's driver, so no `CONNECTION_CLOSE` is sent. A client learns of it from silence: `stallMs` (3 s) when owed frames, the idle timeout when not. wtransport has `Endpoint::close` and `wait_idle`. Derived from the code, not traced. | **do**: `run_server` takes the shutdown future, closes the endpoint with an application code, waits ≤ 500 ms · none · ~+8 | no · 2: deploy/README's `stop` under a second must be shown again |
+| T6 | **An open page cannot resume across a server restart.** The deploy makes a new certificate at each start (`deploy/server-start.sh:13-17`), restarts every `RESTART_AFTER` (`:22`, 9 days) and on any `compose restart` or upgrade. The downloader keeps the hash it first dialled with (`downloader.js:538`) and every re-dial pins it (`:466-472`), so each of `tries` fails its handshake and every owed frame fails as "could not be re-dialled" (`:373-375`). A filled page keeps its frames; an on-demand page, or one mid-fill, loses the rest. [`deploy/README.md`](../deploy/README.md) §*Restart* checked only "the next page open". A certificate from `/supplied` (no hash) is not affected. Derived from the code, not observed. | **propose**: the downloader takes the transport file's URL (`transportFile`, a string, so it crosses `postMessage`) and re-reads it before each re-dial; the viewer passes `/wt/dev-transport.json` outside the lab · none · ~+8 | **yes**: a consumer option ([`CLIENTS.md`](CLIENTS.md)) · 3 |
+| T7 | **A WebSocket peer that vanishes holds its session for ever.** After the upgrade nothing bounds a silent peer: no read deadline (`websocket.rs:158-168`), no TCP keep-alive (`:111` sets only `TCP_NODELAY`). A laptop that sleeps or a NAT that forgets keeps the session's task, its readers, its ring and their buffers until the process ends. QUIC's idle timeout ends the same peer at 30 s; a live but idle browser tab keeps both (Chromium keeps QUIC alive, [`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md)). Off by default (`--websocket`). | **do**: TCP keep-alive on the accepted socket (`socket2`, already in `Cargo.lock`), 20 s idle, 5 s × 4 probes; the dead peer's read then fails and the session ends as any failed read does · none · +4 | no · 2: the test reads the options back; the kernel's expiry is not observed |
+| T8 | **The WebSocket accept loop spins when descriptors run out.** An accept error is logged and retried at once (`websocket.rs:94-99`); `EMFILE` leaves the connection in the backlog, so the next accept fails the same way: a core at 100 % and a WARN a microsecond until a descriptor frees. Off by default. | **do**: sleep 100 ms after an accept error · none · +1 | no · 2: shown under `prlimit --nofile`, outside the gate |
+| T9 | **Every ask takes the connection's lock for a debug line that is off.** `send_frame` reads `stats()` before `debug!` (`server/src/transport/link.rs:77-80`); tracing evaluates a field only when its level is on, so inside the macro the read costs nothing in a deployment. `lab/ask-ahead/cells.py:103` reads the line, unchanged. | **do** · none · −2; the cost is below any noise floor here, not measured | no · 1 |
+| T10 | **The product page polls at 50 Hz for a result nobody reads.** `filled` (`client/viewer/viewer.js:241-251`) checks every 20 ms until the fill ends, and for ever if it never does; what waits on it is `check-page.js`, loaded on `?check=` alone, and the lab's `finished` hook, which the web image refuses: a product open uses neither. | **do**: poll only with `?check=` or a lab hook · none · +1 | no · 1 |
+| T11 | **The page keeps every decoded frame, and where that fails is not known.** `frames` holds each frame's pixels for the page's life (`viewer.js:30`, `:97`): `ffdm_d`'s four 3328×4096 frames are 109 MB decoded, a 2 000-frame 512² CT 1 GB. The cache seam that would bound it is open ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Open); no doc says at what size the page fails. | **measure** (protocol under row 273) · none · 0 | no · — |
+
+**Kept**, with the reason:
+
+* `deploy/Containerfile.prebuilt:5-13` repeats the `server` stage (`deploy/Containerfile:39-48`): two build
+  contexts, and a shared base stage would need one. Six lines; the user and directory line is the one to keep equal.
+* A stream whose `envelope_len` is out of bounds stops being read silently (`client/transport/ts/frame-session.ts:210-212`):
+  the bytes are the server's, a bundle refuses such a frame at open, and the stall resumes the session in 3 s.
+  `ws-session.ts:48` parses the server's JSON unguarded for the same reason.
+* `nextRun`'s `Math.min(...wanted)` (`downloader.js:275`): `wanted` is at most the series' frame count, far below
+  an engine's argument limit, and the scan is once a run.
+* `ASKS_AHEAD` (`planner.rs:6`) counts what the planner holds; the server holds up to twice that and one, which
+  [`adr/frame-framing-and-loop-shape.md`](adr/frame-framing-and-loop-shape.md) §6d states.
+* Round 2's keeps hold: the four delegating controllers, the dual-stack bind written twice, `read_path.rs` whole.
+
+**Docs the code no longer matched**, corrected in place by this row, dated:
+
+* `server/README.md` §What runs where said no task ever waits on the disk. Two do, neither timed: a session ending
+  with ring reads in flight drains them on its worker (`TileReader::drop`, a `SAFETY` necessity), and a fill's
+  `WILLNEED` is issued there. Row 251's EXECGAP (its row 258) is drafted to time both.
+* [`disk-layout/README.md`](disk-layout/README.md) cited `main.rs:12–13` for `--series` and `server.rs:72` for the
+  open (row 241 moved both), and four lines of §The metadata, twice had drifted.
+* [`ingest/design.md`](ingest/design.md) §11.1's two `from-parser` ranges were one to three lines off.
+
+**Round 2, where it stands.** Rows 239, 241, 242, 243 and 245 merged with #67; 244's proposal was built by row 250
+(#73); 246's proposal merged and the move waits on the owner; 240 (CLASSIFYOUT) waits on the owner, beside #40,
+which proposes the opposite (`cubic-classify` as the default); S22 waits on #48. Round 2's counts are of `0ee0c1f2`:
+`server.rs` is now 1 984 lines, 404 above its tests. `CLAUDE.md` §Docs still names `docs/disk-access/adr.md` §2;
+the file is `adr/disk-access.md` (round 2, for the owner).
+
+**The comment budget** passes; every file in scope is inside it. The rows below touch `consumer.js` (27 comment
+lines of 29), `websocket.rs` (12 of 25) and `link.rs` (19 of 32); none needs a comment beyond a pointer.
+
+### Improvements a measurement backs that the code does not use
+
+Unchanged since round 2: PGO (−13 to −20 % server CPU per ask, PGOSHIP first), `MALLOC_MMAP_THRESHOLD_` at 1 MiB
+(RSS at rest −46 to −57 %, CPU a tie to +5 %) and the server keep-alive (the ADR, off until accepted): each the
+owner's ([`levers.md`](levers.md)). This round found none in its scope.
+
+### Rows to queue (267 on)
+
+Ranked by gain per risk. Each ends as a draft pull request into `claude/av1-unified-mainbase`, gate and CI green,
+every test it adds mutated once. **Buildable today:** 267, 268, 269, 270 (its `stop` timing once the host is free)
+and 272. 271 is a proposal and follows 270; 273 is a measurement for a free host. 268 and 270 edit `server.rs` and
+`main.rs`, which #75 (row 252) also edits: whichever lands second merges.
+
+| row | name | findings | lines | gain | structural | starts |
+| --- | --- | --- | --- | --- | --- | --- |
+| 267 | PAGESTART | T1, T10 | +5, test +12 | a page that cannot start says why; no idle timer | no | today |
+| 268 | WIREEDGES | T2, T3, T9 | −2, test +10 | ×64 less a hostile message can hold; a documented rule tested | no | today |
+| 269 | PACKATOMIC | T4 | +5, test +10 | "nothing written" true; a served bundle never rewritten in place | no | today |
+| 270 | SERVERSTOP | T5 | +8, test +25 | clients see a restart at once | no | today; the timing when the host is free |
+| 271 | RESTARTPIN | T6 | ~+8 | open pages survive a restart | **yes: proposal** | after 270 |
+| 272 | WSLIVENESS | T7, T8 | +5, test +15 | the fallback's dead peers and EMFILE bounded | no | today |
+| 273 | VIEWERCEILING | T11 | 0 | where the page fails, stated | no | a free host |
+
+#### 267 PAGESTART
+
+*Review.* T1: `DownloaderClient`'s worker gets an `onerror` that, before `started`, rejects `connect` with "the
+downloader did not start: …" and ends the client as a failed start does; after `started` it does nothing new. A
+`consumer.test.mjs` case whose fake `Worker` fires `onerror` instead of answering `dial` expects the rejection within
+a second (the test races a timer, so the mutation fails rather than hangs); mutate by removing the handler. T10:
+`viewer.js`'s `filled` poll runs only under `?check=` or when the lab hands a `finished` hook; the viewer check,
+`crafted.mjs` and one total-time run (`lab/av1/delivery/total-time/run.mjs`, the gate's grey series) show both
+users unchanged. **Branch:** `claude/wip-267-PAGESTART`.
+
+#### 268 WIREEDGES
+
+*Review.* T2: `MAX_FOD_LEN` 64 KiB, `wire.rs`'s test unchanged in shape; `WIRE.md` §FoD messages and §The WebSocket
+mapping say 64 KiB, and `adr/telemetry-server-pipeline.md`'s "capped at 4 MiB" gets a dated note. Show that the
+longest real message, `stream_frames` with both ends at `u32::MAX`, still parses. T3: a test of `forward` with a
+client `FrameError`: `Continue`, nothing on the channel; mutate to `Break`, then to `Command::EndStream`, each must
+fail. T9: the `stats()` read moves into the `debug!` fields; `lab/ask-ahead/cells.py`'s pattern matches a server
+run with `RUST_LOG=series_server=debug` (untimed). **Branch:** `claude/wip-268-WIREEDGES`.
+
+#### 269 PACKATOMIC
+
+*Review.* T4: `BundleWriter::create` opens `NAME.partial`; `finish` flushes and renames over `NAME`; a writer dropped
+unfinished removes its partial. `from_dicom.py` writes the sidecar to its temporary directory and moves it beside
+the bundle after `pack-series` succeeds. Tests: a writer that fails (a frame of the wrong length) leaves no file at
+`NAME`, and one that finishes leaves no `.partial`; mutate by creating at `NAME`. `disk-layout/README.md` §The writer
+is corrected in the same pull request; the gate's `cmp` of the re-packed smoke bundle still passes. **Branch:**
+`claude/wip-269-PACKATOMIC`.
+
+#### 270 SERVERSTOP
+
+*Review.* T5: `run_server(config, shutdown)`; on `shutdown` the endpoint is closed with an application code and the
+server waits for `wait_idle` up to 500 ms; telemetry's flush keeps its place. Test: a server-test session open when
+shutdown fires sees `closed` with that code (mutate: skip the close; the session then sees only a timeout). The
+WebSocket needs nothing: process exit closes its sockets.
+
+*The protocol, fixed before the data* (deploy/README fix 2 says `stop` takes under a second, so there is no
+`init: true`): arms S0 (today's image), S0′ (a second build of it, the A/A arm) and S1; one Chromium page on the
+image filling a series of at least 200 frames under an 18 Mbit/s shape, so the fill outlasts the stop; then
+`docker compose stop server`, timed; 10 rounds, arms in `lab/scripts/order.py`'s order. *Rule:* S1 lands if every
+S1 stop is under 1 s and the page's session closed with the server's code in 10 of 10 (its `closed` reason); a stop
+of 1 s or more halves the bound and the row runs once more; still over, the owner chooses between the bound and
+`init: true`. **Branch:** `claude/wip-270-SERVERSTOP`.
+
+#### 271 RESTARTPIN
+
+*Proposal (structural): written first, built on the owner's yes, after 270.* T6: the consumer takes
+`transportFile`, a URL the downloader re-reads (`cache: "no-store"`) before each re-dial and adopts when its hash or
+URL changed; the viewer passes `/wt/dev-transport.json` unless the lab named `?wt=`. The proposal says what the
+contract suite adds (a re-dial after the hash changed connects), what `docs/CLIENTS.md` §The seam gains, why the
+transport file is the source and the page is not asked (a worker cannot call back into the page), and how it is
+shown on the image: the viewer check with `?fill=0`, `compose restart server` between two steps, the second step
+exact. **Deliverable:** the proposal in `docs/ARCHITECTURE.md` §The downloader. **Branch:**
+`claude/wip-271-RESTARTPIN`.
+
+#### 272 WSLIVENESS
+
+*Review.* T7: the accepted socket gets TCP keep-alive (idle 20 s, interval 5 s, 4 probes) through `socket2`; a test
+reads the three options back from an accepted socket (mutate: drop the call). That a vanished peer then ends at
+about 40 s is the kernel's and is said, not tested. T8: an accept error sleeps 100 ms; shown once by a script that
+runs the server with `--websocket` under `prlimit --nofile=64`, opens 80 connections and counts WARN lines in one
+second (today unbounded, after it ≤ 10); mutate by removing the sleep. `docs/WIRE.md` §The WebSocket mapping says
+how a dead peer ends. **Branch:** `claude/wip-272-WSLIVENESS`.
+
+#### 273 VIEWERCEILING
+
+*Measurement, for a free host.* T11. *Series:* synthetic 16-bit grey, 512², 2048² and 3328×4096, of 64 frames
+doubling until a fill fails or 4 096 frames. *Engines:* Chromium 141 and Firefox 157 headless, the dev host, fill
+mode. *Metric:* whether the fill completes (the status line's received count), and the page's memory
+(`performance.measureUserAgentSpecificMemory()`, which a cross-origin-isolated page has) at the end of the fill; 3
+rounds a cell. The host's RAM is printed, and nothing is claimed past it. *Rule:* the ceiling is the largest decoded
+series (frames × width × height × 2 B) that completes 3 of 3, per engine; if it is below the largest series
+[`FIXTURES.md`](FIXTURES.md) names, at its decoded size, the cache seam (ARCHITECTURE §Open) becomes a proposal with
+that series as its case; otherwise §Open records the ceiling and nothing is built. **Branch:**
+`claude/wip-273-VIEWERCEILING`.

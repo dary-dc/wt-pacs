@@ -32,9 +32,9 @@ def python_bundle(build, s, meta, jobs, out):
         coded = ingest.coded(build, s, s.n, "htj2k", jobs)
     except ingest.Refused as e:
         return f"refused: {e}"
-    m = {"frameCount": s.n, "width": s.w, "height": s.h, "channels": s.ch, "bitsAllocated": 8 if s.stored <= 8 else 16,
-         "bitsStored": s.stored, "highBit": s.stored - 1, "signed": s.signed, "photometric": meta["photometric"],
-         "min": s.lo, "max": s.hi, "codec": "htj2k", "digests": ingest.digests(s, s.n, "htj2k")}
+    display = {"width": s.w, "height": s.h, "channels": s.ch, "bitsAllocated": 8 if s.stored <= 8 else 16,
+               "bitsStored": s.stored, "highBit": s.stored - 1, "signed": s.signed, "photometric": meta["photometric"]}
+    m = ingest.metadata(s, display, "htj2k")
     frames = out.parent / "py-frames"
     shutil.rmtree(frames, ignore_errors=True)
     frames.mkdir()
