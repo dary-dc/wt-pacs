@@ -377,7 +377,7 @@ The two that bite without a device are the hung dial, which now has its deadline
 `navigator.connection`, whose absence moves a network change from the radio's event to the byte
 silence: `stallMs`, 3 s.
 
-## Proposed: the WASM client and the dav1d tooling to `lab/` (the client's half rejected)
+## Proposed: the WASM client and the dav1d tooling to `lab/` (rejected)
 
 *Proposed 2026-10-14 (queue row 228, WASMTOLAB; [`merge-readiness.md`](merge-readiness.md) D9 and P6). Nothing moves
 before the owner's yes.*
@@ -385,8 +385,8 @@ before the owner's yes.*
 **Rejected 2026-10-16 for the WASM client, by the owner:** "'the Rust-compiled WASM one is loaded only by the lab
 harness.' this is the problem. We want two product clients." The *Why* below is true of the tree and is now a gap to
 close, not a reason to move: [§Proposed: the WASM client as a second product client](#proposed-the-wasm-client-as-a-second-product-client).
-The ruling names the client; the dav1d tooling's move (P6, the table's last two rows) is not ruled on and stays
-proposed. The rest is kept as written.
+**The tooling's half rejected the same day:** "the wasm client along with everything it needs, including decoders and
+build tools, is considered another product path. We keep them." The rest is kept as written.
 
 **Why.** The product never loads the WASM client: the downloader imports `client/transport/ts/dist/session.js` unless
 told otherwise, and the only page that names the WASM one is the lab's harness (`client/harness/shell.js`,

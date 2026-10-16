@@ -236,7 +236,8 @@ something, so it finishes on its branch for the owner.
     the rigs, the other bundles' absence check, DICOM end to end and the pack's `cmp`.
 11. **DEDUP** (*review*) — D1–D8.
 12. **WASMTOLAB** (*review*, propose first) — D9 and P6's `dav1d/` tooling moved to lab. *Corrected 2026-10-16:* D9's
-    half rejected; row 263 proposes the client as a product client. P6's half is not ruled on.
+    half rejected; row 263 proposes the client as a product client. P6's half rejected too: the client, its decoders and
+    build tools are a product path.
 
 **For the owner, not a row:** H3's three open decisions (`startOnNeed`, `mixed`, `readMin`'s default), whether to
 retire `bbr-bound`, and whether to fold the lab levers into one struct (L7). Draft PR #37 (row 181) stays open, as
@@ -310,7 +311,7 @@ Not proposed here; counted so the owner sees what each ruling frees.
 | decision | what it holds | lines |
 | --- | --- | --- |
 | #48 (row 227, D1–D8) | the duplication round 1 found, already written | −84 net |
-| row 228 (D9, P6) | the WASM transport and the dav1d-WASM tooling; the gate's wasm-pack, wasm32 target and binaryen. *Corrected 2026-10-16:* the transport stays, a product client (row 263) | ~780 and ~550 moved |
+| row 228 (D9, P6) | the WASM transport and the dav1d-WASM tooling; the gate's wasm-pack, wasm32 target and binaryen. *Corrected 2026-10-16:* both stay, a product path (row 263) | ~780 and ~550 moved |
 | row 220 (#41) | the repeated-Initial reply: its flag, patch and tests | ~−270 |
 | `bbr-bound` (§Blocked, row 107) | `loss_bound.rs` | ~−265 |
 | row 209's `FrameCache` (off by default, "for now") | `lab_frame_cache.rs`, its feature and `pipeline.rs:77-98` | ~−100 |
