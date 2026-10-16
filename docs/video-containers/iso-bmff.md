@@ -200,9 +200,20 @@ Bytes are not the difference: 4–12 B per frame flat, about 130 B fragmented, a
   libheif for HEIF and `uncv`. Rust: `mp4` (no release since 2023), `mp4parse` (Firefox's, read-only), and the
   actively released `re_mp4` (Rerun's, built for WebCodecs players) and `mp4-atom` (typed box read and write).
   Reading a sample table needs a few hundred lines and no crate.
-* **Licence**: the ISO texts are paid (the 2012 edition of 14496-12 was on ISO's free list; whether the current one
-  is was not confirmed). No patent pool for the container itself was found; codec royalties are separate (AV1 is
-  AOM royalty-free; HEVC and AVC have pools).
+* **Licence: what is paid is the document, not the right to implement it.** ISO sells the text: 14496-12 is in its
+  8th edition (2026), and IEC sells the 7th (2022) at CHF 67. ISO's page for the 8th shows "CHF 0" beside its cart,
+  read 2026-10-16; whether that means free or is a display artefact was not confirmed. The 2005, 2008, 2012 and 2015 editions were
+  free on ISO's Publicly Available Standards list (the Library of Congress links them); whether any still are was not
+  confirmed, ISO's list being unreachable from here. 14496-14 (the `.mp4` brand) is paid; HEIF's 2017 edition was free.
+  The right to implement is a patent question, not a purchase: holders declare patents to ISO under the
+  ISO/IEC/ITU common patent policy. What an
+  AV1 writer needs beyond the boxes is free: the AOM binding (`av01`, `av1C`), the MP4RA registry and MPEG's
+  conformance files. ffmpeg, GPAC and mp4box.js are open implementations.
+* **Patents**: "No patent pool for the container itself was found" was wrong (corrected 2026-10-16). MPEG LA launched
+  an **MPEG-4 Systems** pool in 2003 whose announcement covered "the MP4 format for data packaging" (press report of
+  the announcement; the licence text was not read), now administered by Via LA per the Library of Congress. Whether
+  it still holds live patents was not found. Codec royalties are separate (AV1 is AOM royalty-free; HEVC and AVC have
+  pools).
 
 ## 9. For wt-pacs
 
@@ -220,6 +231,14 @@ Bytes are not the difference: 4–12 B per frame flat, about 130 B fragmented, a
   holds exactly only with one sample per chunk, and otherwise after a prefix sum at open.
 
 ## 10. Sources
+
+* ISO/IEC 14496-12:2026: https://www.iso.org/standard/85596.html; the 2022 edition at IEC:
+  https://webstore.iec.ch/en/publication/74007; the free editions, listed by the Library of Congress:
+  https://www.loc.gov/preservation/digital/formats/fdd/fdd000079.shtml; 14496-14 and the MPEG-4 Systems licence:
+  https://www.loc.gov/preservation/digital/formats/fdd/fdd000155.shtml
+* ISO and patents: https://www.iso.org/iso-standards-and-patents.html
+* MPEG LA's MPEG-4 Systems pool, 2003 (press): https://internetnews.com/it-management/mpeg-4-systems-license-released
+* MPEG file format conformance files: https://github.com/MPEGGroup/FileFormatConformance
 
 * ISO/IEC 14496-12:2026, preview (contents and foreword):
   https://webstore.ansi.org/preview-pages/ISO/preview_ISO+IEC+14496-12-2026.pdf

@@ -180,7 +180,9 @@ negotiates.
 * **dicom3tools** `dciodvfy` validates an object against its IOD (`-verbose` shows byte offsets).
 * **GDCM** `gdcmdump`, `gdcminfo`.
 * **dicom-rs** 0.10 exposes the Basic Offset Table only; `read_until(PIXEL_DATA)` reads a header without pixels.
-* **ffprobe does not read DICOM**; it misreads it as a raw JPEG 2000 stream ([`guide.md`](guide.md) §3).
+* **ffprobe does not read DICOM**: FFmpeg has no DICOM demuxer, and what it does depends on the bytes it finds. Our
+  JPEG 2000 multi-frame comes out as a raw JPEG 2000 stream ([`guide.md`](guide.md) §3); on pydicom's test files,
+  ffprobe 6.1.1 rejects JPEG 2000 DICOM, reads a baseline-JPEG one as MJPEG and an uncompressed CT as TIFF.
 
 ## 10. For wt-pacs
 

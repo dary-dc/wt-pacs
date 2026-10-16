@@ -44,7 +44,7 @@ so that serving is one lookup and one read. `.sbnd` keeps that as a table of 12 
 | 12-bit grey | yes | in the stream (AV1 Professional) | yes | yes | HTJ2K to 38 bits; **video syntaxes stop at 10-bit 4:2:0 YBR** | JPEG 2000 to 16 |
 | browser can demux it | — | video element | MSE | video element, MSE (WebM) | no | no |
 | tools | ours | ffprobe, MP4Box, Bento4 | the same | ffprobe, MKVToolNix | pydicom, DCMTK, dciodvfy | bmx, asdcplib, ffprobe |
-| standard text | ours | ISO, paid | ISO, paid | IETF RFC, free | NEMA, free | SMPTE, free since June 2026 |
+| standard text | ours | ISO, paid for the current text; older editions were free; the AV1 binding is free ([`iso-bmff.md`](iso-bmff.md) §8) | the same | IETF RFC, free | NEMA, free | SMPTE, free since June 2026 |
 
 ## What this map says
 
