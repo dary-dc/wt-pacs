@@ -123,7 +123,7 @@ process.on("exit", stop);
 
 // A real series: the downloader variant decodes what it gets, so random bytes would not do.
 execFileSync("cargo", ["build", "-q", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
-const BIN = path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug");
+const BIN = path.resolve(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug");
 const SERVERS = (process.env.SERVERS || `=${path.join(BIN, "series-server")}`).split(",").map((s) => {
   const [name, bin] = s.split("=");
   return { name, bin, srv: port(), inn: port() };

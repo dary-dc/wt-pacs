@@ -17,7 +17,7 @@ const COMPILE = "const b = require('fs').readFileSync(process.argv[1]); const t 
 for (const [name, dir] of ARMS) {
   const sizes = ["transport_wasm_bg.wasm", "transport_wasm.js"].map((f) => {
     const b = readFileSync(`${dir}/${f}`);
-    return `${f} ${b.length} (${gzipSync(b, { level: 6 }).length} gzip -6)`;
+    return `${f} ${b.length} (${gzipSync(b, { level: 6 }).length} gzipped, zlib level 6)`;
   });
   console.log(`${name}: ${sizes.join(", ")}`);
 }
