@@ -106,7 +106,10 @@ registered that store's file and its slots key on that store's offsets.
 | the kernel's io_uring | a tile miss; its completion wakes the session task, parked on the ring's own fd |
 | telemetry builds only | a drain thread writing rows; a path sampler task per QUIC session |
 
-No task ever waits on the disk: a read that is not already cached leaves the worker thread.
+A read that is not already cached leaves the worker thread. Two disk waits stay on it, neither timed: a session
+that ends with ring reads in flight drains them there (`TileReader::drop`, which must, so the kernel never writes
+into a freed buffer), and a fill's `WILLNEED` advice is issued there. *Corrected 2026-10-16 (row 266):* this said no
+task ever waits on the disk; queue row 258 (EXECGAP) is drafted to time both.
 
 ## The objects
 

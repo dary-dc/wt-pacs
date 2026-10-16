@@ -1,3 +1,5 @@
+import { sha256Hex } from "/client/decode/wasm-glue.js";
+
 /** The viewer's lab parameters, honoured only on a host that serves this file: client/README.md §The viewer */
 export function levers(q) {
   return {
@@ -16,16 +18,10 @@ function totalTime(post, origin) {
     async finished({ error, issuedAt, firstShownMs, frames, errors, stats }) {
       if (error) return send("result", { error }).catch(() => {});
       const sha = {};
-      for (const [i, f] of frames) sha[i] = await digest(f.info.pixels);
+      for (const [i, f] of frames) sha[i] = await sha256Hex(new Uint8Array(f.info.pixels).slice());
       send("result", { issuedAt: origin === "navigation" ? performance.timeOrigin : issuedAt, firstShown: issuedAt + firstShownMs,
         frames: [...frames].map(([i, f]) => ({ i, page: f.arrived, lastByte: f.info.stamps.lastByte, exact: f.info.exact })),
         failures: errors.map((reason) => ({ reason })), sha, previews: [], previewSha: {}, after: [], resumes: stats.resumedAt.length, checked: stats.exact }).catch(() => {});
     },
   };
-}
-
-async function digest(sab) {
-  const copy = new Uint8Array(sab.byteLength);
-  copy.set(new Uint8Array(sab));
-  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", copy)), (b) => b.toString(16).padStart(2, "0")).join("");
 }
