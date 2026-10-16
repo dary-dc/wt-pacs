@@ -132,7 +132,7 @@ async fn run(args: Args) -> Result<()> {
             true => Some(args.start.unwrap_or(0) + (k * asks) as u32 * step),
             false => args.start,
         };
-        let burst = args.burst.unwrap_or(asks).max(1);
+        let burst = args.burst;
         set.spawn(async move { session(conn, mode, depth, asks, frames, step, start, burst, digests).await });
     }
     let (mut lats, mut asked) = (Vec::new(), 0);
@@ -226,7 +226,7 @@ async fn session(
     frames: u32,
     step: u32,
     start: Option<u32>,
-    burst: usize,
+    burst: Option<usize>,
     digests: Option<Arc<Vec<u64>>>,
 ) -> Result<(Vec<u64>, usize)> {
     let (mut control, _recv) = connection
@@ -258,17 +258,18 @@ async fn on_demand(
     frames: u32,
     step: u32,
     start: u32,
-    burst: usize,
+    burst: Option<usize>,
     digests: &Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
     let plan = |i: usize| start.wrapping_add((i as u32).wrapping_mul(step)) % frames;
     let mut sent = Vec::with_capacity(asks);
     let mut lats = Vec::with_capacity(asks);
     let mut walls = Vec::new();
+    let size = burst.unwrap_or(asks).max(1);
     let mut next_send = 0usize;
     let mut next_recv = 0usize;
     while next_recv < asks {
-        let burst_end = (next_recv / burst + 1) * burst;
+        let burst_end = (next_recv / size + 1) * size;
         while next_send < asks.min(burst_end) && (next_send - next_recv) < depth as usize {
             control
                 .write_all(&encode_fod_msg(&FodMsg::RequestFrame {
@@ -289,11 +290,11 @@ async fn on_demand(
         );
         lats.push(sent[next_recv].elapsed().as_nanos() as u64);
         next_recv += 1;
-        if burst < asks && (next_recv % burst == 0 || next_recv == asks) {
-            walls.push(sent[next_recv - 1 - (next_recv - 1) % burst].elapsed().as_nanos() as u64);
+        if burst.is_some() && (next_recv % size == 0 || next_recv == asks) {
+            walls.push(sent[(next_recv - 1) / size * size].elapsed().as_nanos() as u64);
         }
     }
-    Ok(if burst < asks { walls } else { lats })
+    Ok(if burst.is_some() { walls } else { lats })
 }
 
 async fn fill(
