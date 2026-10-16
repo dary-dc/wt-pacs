@@ -99,8 +99,10 @@ KLV parser, a Primer, local sets, a partition map, at least three reads (tail, h
 * **Frame wrapping, KAG 1, no fill, picture only**: frame i's KLV is contiguous with the next, so one read of
   `StreamOffset[i+1] − StreamOffset[i]` returns the key, length and frame. A larger KAG (FFmpeg's OP1a writer uses
   512) pads every frame and puts fill into that read.
-* **Per frame**: 16 (key) + 4 (length) + 11 (index entry) ≈ **31 bytes**, against `.sbnd`'s 12; FFmpeg's OP1a output
-  adds a system item per frame and the 512-byte alignment, hundreds of bytes on average.
+* **Per frame**: 16 (key) + 4 (length) + 11 (index entry) ≈ **31 bytes** for frame wrapping at KAG 1, against
+  `.sbnd`'s 12. That figure is from the structure, and no writer we ran produces that layout. **Measured on FFmpeg's
+  output** ([`guide.md`](guide.md) §4, §7): OP-Atom, which FFmpeg clip-wraps, ≈ 23 B per frame (a 15 B index entry and
+  fill) and ≈ 6.6 KB fixed; OP1a ≈ 820 B per frame (two system items and fill to the 512 B grid).
 * **Clip wrapping** stores frames back to back inside one KLV, and the index points straight at each frame's first
   byte: fewer bytes, the same lookup.
 

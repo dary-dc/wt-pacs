@@ -38,7 +38,7 @@ so that serving is one lookup and one read. `.sbnd` keeps that as a table of 12 
 | frame i's length | table | `stsz` | `trun` | **in each block's header** | Extended Offset Table | next offset, or the KLV length |
 | frame bytes contiguous | yes | yes | yes | yes (no lacing) | yes (one fragment per frame) | yes |
 | work at open | one read | a box tree; a prefix sum unless one sample per chunk | a walk or `sidx` | Cues, then a read per block or a walk | **the whole header** (no pointer to the pixels) | tail, header, every partition, the index |
-| container bytes per frame (measured, [`guide.md`](guide.md) §4) | 12 | 4–12 | 131 | 36–42 | ≈ 24.5 | ≈ 31 (from the structure) |
+| container bytes per frame (measured, [`guide.md`](guide.md) §4) | 12 | 4–12 | 131 | 36–42 | ≈ 24.5 | ≈ 23 as FFmpeg writes OP-Atom (clip-wrapped); ≈ 820 for its OP1a (first estimated ≈ 31 from the structure, [`mxf.md`](mxf.md) §6) |
 | AV1 | ours | `av01`, the defining binding | the same | `V_AV1` | **no transfer syntax** | **no mapping** |
 | HTJ2K | ours | MJ2 or 15444-16, no HTJ2K brand, plays nowhere | — | `V_JPEG2000`, a draft, framing undefined | **native**, `.4.201`–`.4.203` | **ST 422:2022** |
 | 12-bit grey | yes | in the stream (AV1 Professional) | yes | yes | HTJ2K to 38 bits; **video syntaxes stop at 10-bit 4:2:0 YBR** | JPEG 2000 to 16 |

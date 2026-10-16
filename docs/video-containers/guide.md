@@ -16,7 +16,7 @@ six containers and answers that question for each with tools anyone can run.
 4. [What each container adds](#4-what-each-container-adds)
 5. [MP4 by hand](#5-mp4-by-hand)
 6. [Matroska by hand](#6-matroska-by-hand)
-7. [DICOM by hand](#7-dicom-by-hand)
+7. [DICOM and MXF by hand](#7-dicom-and-mxf-by-hand)
 8. [The same frames in a browser](#8-the-same-frames-in-a-browser)
 9. [Other tools](#9-other-tools)
 
@@ -74,7 +74,8 @@ Three things to know before trusting its output:
 
 ## 4. What each container adds
 
-From the two runs, 16 and 160 frames, the bytes a container adds split into a fixed part and a per-frame part:
+From the two runs, 16 and 160 frames (16 and 64 for MXF, JPEG 2000 frames of about 16 KB), the bytes a container
+adds split into a fixed part and a per-frame part:
 
 | file | per frame | fixed | where the index is | `pos` is the frame's first byte |
 | --- | --- | --- | --- | --- |
@@ -87,7 +88,28 @@ From the two runs, 16 and 160 frames, the bytes a container adds split into a fi
 | Matroska, `-cues_to_front 1` | 41.9 B | 501 B | `Cues`, before the frames | no, +4 |
 | WebM | 35.9 B | 438 B | `Cues`, after the frames | no, +4 |
 | multi-frame DICOM, Extended Offset Table | ≈ 24.5 B (8 item header, 16 table, ≤ 1 pad) | ≈ 850 B, this dataset only | the Extended Offset Table, in the header | no, +8 |
+| MXF OP-Atom (FFmpeg: one KLV holds every frame) | ≈ 23 B (a 15 B index entry, and fill) | ≈ 6.6 KB | the index table, in the footer | yes |
+| MXF OP1a (FFmpeg: a KLV per frame, 512 B alignment) | ≈ 820 B (system items, fill) | ≈ 5.6 KB | the index table, in the footer | no, the KLV key: +20 |
 | our `.sbnd` | 12 B (offset u64, length u32) | 16 B + the metadata JSON | the frame table, after the header | yes |
+
+Where each one keeps its index, from byte 0 to the end of the file (not to scale; `TABLE` marks what a reader
+turns into frame i's offset and length):
+
+```text
+.sbnd        [header 16 B][TABLE 12 B × N][metadata JSON][F0][F1] … [Fn]
+MP4 fast     [ftyp][moov ⊃ stsc, stsz, stco = TABLE][free][mdat: F0 F1 … Fn]
+MP4 default  [ftyp][free][mdat: F0 F1 … Fn][moov ⊃ TABLE]
+fMP4         [ftyp][moov, empty sample tables][moof·mdat F0][moof·mdat F1] … [mfra: a tfra entry per moof][mfro]
+MKV front    [EBML][Segment ⊃ SeekHead, Void, Info, Tracks, Tags][Cues = offsets][Cluster: hdr·F0] … [Cluster: hdr·Fn]
+MKV default  [EBML][Segment ⊃ SeekHead, Void, Info, Tracks, Tags][Cluster: hdr·F0] … [Cluster: hdr·Fn][Cues]
+DICOM        [128 B][DICM][meta][tags … EOT, EOT lengths = TABLE][Pixel Data: empty BOT][item·F0] … [item·Fn][end]
+MXF OP-Atom  [header partition: Primer, metadata][body partition: one KLV ⊃ F0 F1 … Fn][footer: index][RIP]
+MXF OP1a     [header partition][body partition: (system items, fill, KLV·Fi, fill) × N][footer: index][RIP]
+```
+
+Matroska's lengths are in each cluster's block header, not the Cues; MXF's index stores offsets only, the length
+being the next offset's difference or the frame's KLV length; an fMP4 reader finds frames through each `moof` (or `mfra`, which points at the
+`moof`, not the frame). Sections 5 to 7 open each one up.
 
 **In every container, each frame's bytes are contiguous.** That is the property the server needs, and all of
 them have it; what differs is how many reads it takes to learn the offset and the length (§5, §6, §7). Per frame,
@@ -120,7 +142,19 @@ opened, then one lookup and one read per frame, as with `.sbnd`. The 4 bytes per
 With the `moov` at the end (ffmpeg's default) a reader must find the end of the file first; `+faststart` rewrites
 the file with `moov` in front so one read from offset 0 gets the whole index. A fragment per frame costs 131 B per
 frame because each frame gets its own `moof` (104 B: `mfhd`, `traf` with `tfhd`, `tfdt`, `trun`), an 8-byte `mdat`
-header and a 19-byte `tfra` entry in the closing `mfra` index. [`iso-bmff.md`](iso-bmff.md) explains each box.
+header and a 19-byte `tfra` entry in the closing `mfra` index. `mp4_walk.py frag.mp4`:
+
+```text
+ftyp  moov ─ mvhd, trak (stsd, and stts, stsc, stsz, stco with 0 entries), mvex ─ trex
+moof ─ mfhd
+     └ traf ─ tfhd, tfdt, trun    trun: this fragment's sample count and the frame's size
+mdat  (one frame)
+… a moof and an mdat per frame …
+mfra ─ tfra                       one 19 B entry per fragment: time → the moof's offset
+     └ mfro                       mfra's own size, so a reader finds it from the end of the file
+```
+
+[`iso-bmff.md`](iso-bmff.md) explains each box.
 
 ## 6. Matroska by hand
 
@@ -140,7 +174,7 @@ new cluster at almost every frame and gave each a CRC-32 element; about 19 B of 
 entry, the rest the cluster and block headers. [`matroska.md`](matroska.md) explains each element and the muxer
 options that change this.
 
-## 7. DICOM by hand
+## 7. DICOM and MXF by hand
 
 `dicom_eot.py` wraps 16 lossless JPEG 2000 frames (ffmpeg's encoder; HTJ2K would be wrapped the same way) as a
 multi-frame grey DICOM with pydicom's `encapsulate_extended`, then reads every frame back through the Extended
@@ -160,6 +194,45 @@ What the run teaches:
 * **The header in front of the pixels is the cost at open.** Here it is about 850 B, because this dataset carries
   almost nothing; an enhanced multi-frame object with per-frame functional groups can carry kilobytes per frame
   ([`dicom.md`](dicom.md)).
+
+The file around the pixels, from the same run:
+
+```text
+@0     preamble (128 B) and "DICM"
+@132   file meta group (0002): transfer syntax 1.2.840.10008.1.2.4.90, JPEG 2000 lossless
+       dataset, in tag order: … (0028,0008) NumberOfFrames 16, Rows, Columns, BitsStored 12 …
+       (7FE0,0001) Extended Offset Table, OV, 16 × u64
+       (7FE0,0002) Extended Offset Table Lengths, OV, 16 × u64
+@842   (7FE0,0010) Pixel Data, OB, undefined length
+@854     item, length 0               the empty Basic Offset Table
+@862     item, length 15 312 · F0     offset 0 in the table counts from here
+         item · F1 … item · F15
+         sequence delimiter (FFFE,E0DD)
+```
+
+**MXF.** `klv_walk.py` lists the KLV triplets of 16 JPEG 2000 frames written by FFmpeg as OP-Atom and as OP1a:
+
+```text
+opatom.mxf                                     op1a.mxf
+@0       HeaderPartition, Fill                 @0       HeaderPartition, Fill
+@512     Primer (1 808 B), 19 metadata sets    @512     Primer, 19 metadata sets
+@5120    BodyPartition, Fill                   @5120    BodyPartition, Fill
+@5632    Essence: ONE KLV, 263 449 B,          @5632    SystemItem ×2, Fill
+         the 16 codestreams back to back       @6144    Essence: F0 (15 311 B), Fill
+                                               @21504   SystemItem ×2, Fill, Essence: F1 …
+                                                        each frame's package and its essence start on the 512 B grid
+@269312  FooterPartition, IndexTableSegment    @281088  FooterPartition, IndexTableSegment
+@270336  RandomIndexPack (last 4 B: its size)  @282112  RandomIndexPack
+```
+
+* **FFmpeg's OP-Atom writer clip-wraps**: one KLV holds every frame, back to back with no gap, and the index's
+  offsets point straight at each codestream. Frame-wrapped OP-Atom is what digital cinema writes
+  ([`mxf.md`](mxf.md) §3); FFmpeg does not.
+* **FFmpeg's OP1a writer frame-wraps** with a 512-byte KLV alignment grid (KAG): before each frame a system item
+  and fill, after it fill to the next boundary, 532 to 1 061 B between consecutive frames here. ffprobe's `pos`
+  then points at the KLV key, 20 B before the codestream.
+* **Both keep the index in the footer** and end with the Random Index Pack, whose last 4 bytes give its own size: a
+  reader starts at the end of the file. [`mxf.md`](mxf.md) explains each part.
 
 ## 8. The same frames in a browser
 

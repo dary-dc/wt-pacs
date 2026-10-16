@@ -37,3 +37,9 @@ echo; python3 -I "$here/ebml_walk.py" cuesfront.mkv | grep -v 'Cluster @'
 ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=256x256:rate=10,format=gray12le" -frames:v 16 \
   -c:v jpeg2000 -pred 1 -format j2k -pix_fmt gray12le j2k/f%03d.j2k
 echo; python3 -I "$here/dicom_eot.py" j2k multiframe.dcm
+
+mxf() { ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=256x256:rate=25,format=gray12le" -frames:v 16 \
+  -c:v jpeg2000 -pred 1 -format j2k -pix_fmt gray12le "$@"; }
+mxf -f mxf_opatom opatom.mxf
+mxf -f mxf op1a.mxf
+echo; python3 -I "$here/klv_walk.py" opatom.mxf op1a.mxf
