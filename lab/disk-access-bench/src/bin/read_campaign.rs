@@ -6,6 +6,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use disk_access_bench::candidate_access::hint_willneed;
+use container_bench::folio::{direct, resident};
 use disk_access_bench::residency::evict_retry;
 use disk_access_bench::uring_access::{Completion, UringReader};
 use series_server::media::frame_store::{FrameSpan, FrameStore};
@@ -125,6 +126,9 @@ struct Args {
     /// Comma-separated: cold,warm
     #[arg(long, default_value = "cold,warm")]
     temps: String,
+    /// Cold cells read a fresh `O_DIRECT` copy of `--series` written here, instead of the evicted series.
+    #[arg(long)]
+    fresh: Option<PathBuf>,
     /// Comma-separated: off,on — `POSIX_FADV_WILLNEED` one round ahead.
     #[arg(long, default_value = "off")]
     prefetch: String,
@@ -944,6 +948,14 @@ fn run_cell(
     })
 }
 
+/// Writes `src` to `copy` past the page cache and returns the fraction of `copy` resident after.
+fn fresh_copy(src: &std::path::Path, copy: &std::path::Path) -> Result<f64> {
+    direct(src, copy)?;
+    let file = std::fs::File::open(copy)?;
+    let (cached, pages) = resident(&file, file.metadata()?.len())?;
+    Ok(cached as f64 / pages.max(1) as f64)
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     let variants: Vec<Variant> = args
@@ -1029,7 +1041,13 @@ fn main() -> Result<()> {
                         let n = variants.len();
                         for pos in 0..n {
                             let variant = variants[(repeat + pos) % n];
-                            let resident = if warm { 0.0 } else { evict_retry(&args.series)? };
+                            let copy = args.fresh.as_ref().filter(|_| !warm).map(|dir| dir.join("fresh.sbnd"));
+                            let series = copy.clone().unwrap_or_else(|| args.series.clone());
+                            let resident = match (&copy, warm) {
+                                (_, true) => 0.0,
+                                (Some(copy), false) => fresh_copy(&args.series, copy)?,
+                                (None, false) => evict_retry(&args.series)?,
+                            };
                             if !warm && resident > 0.02 {
                                 // Skip rather than abort: one stubborn cell must not throw
                                 // away a campaign, and a silent warm cell labelled cold
@@ -1053,7 +1071,10 @@ fn main() -> Result<()> {
                                 warm,
                                 monitors: args.monitors,
                             };
-                            let o = run_cell(&args.series, &cell, workers, trace.as_deref())?;
+                            let o = run_cell(&series, &cell, workers, trace.as_deref())?;
+                            if let Some(copy) = &copy {
+                                std::fs::remove_file(copy)?;
+                            }
                             let n_asks = o.lat.len().max(1) as u64;
                             let total = (asks * readers_n) as u64;
                             println!(
