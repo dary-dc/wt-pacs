@@ -4288,7 +4288,7 @@ Each brief and protocol is in row 251's subsection of `docs/adr/disk-access.md` 
 
 ### 250 RINGPARKBUILD
 
-Row 244's proposal built, on the owner's yes (2026-10-16): `UringReader` parks on the ring's own fd, the eventfd gone, proven as `docs/adr/disk-access.md` §9 #7 says. The owner also lifted the wait on P0: the production target will not be tested soon, so what was ordered after it goes ahead, built for the best case. **Branch:** `claude/wip-250-RINGPARKBUILD`.
+Row 244's proposal built, on the owner's yes (2026-10-16): `UringReader` parks on the ring's own fd, the eventfd gone, proven as `docs/adr/disk-access.md` §9 #7 says. The owner also lifted the wait on P0: the production target will not be tested soon, so what was ordered after it goes ahead, built for the best case. **Done — merged into `claude/av1-unified-mainbase` as #73 (`a03016b6`), 2026-10-16:** a tie in `read_path_ab.sh` (12 interleaved rounds; `cold16_d1` p50 −5.7 %, CPU −8.8 %, inside the verdict's tie), one fd per missing session instead of two (counted at 16 and 64 sessions), 27 lines and three `unsafe` blocks fewer; the park test rewritten to catch a missing `clear_ready` (79 829 wakes when mutated).
 
 ### 251 READERNEXT
 
