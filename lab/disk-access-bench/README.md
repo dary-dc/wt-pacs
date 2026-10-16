@@ -39,6 +39,7 @@ for s in pt15_cptac ct_lidc dbt12_ea1141; do $P ingest/coded-frames/ingest.py la
 cargo build --release -p series-server --features lab-frame-cache,lab-fit-zeroed && cp target/release/series-server W/bin/b1z
 cargo build --release -p series-server --features lab-frame-cache && cp target/release/series-server W/bin/b1
 cargo build --release -p series-server -p disk-access-bench -p pack-series && cp target/release/series-server W/bin/b0
+cp target/release/{server_ab,pack-series} W/bin/
 $P lab/disk-access-bench/frame_cache_ab.py make W           # the .sbnd of each set, and the synthetic 3 MB series
 $P lab/disk-access-bench/frame_cache_ab.py verify W         # W/data/SET is the fetched set, for the decode
 $P lab/disk-access-bench/frame_cache_ab.py mutate W

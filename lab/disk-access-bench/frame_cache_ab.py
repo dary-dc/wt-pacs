@@ -12,7 +12,8 @@ its one connection; the server is read between the passes.
 
 WORK/coded/SET/htj2k is ingest's output (ingest/coded-frames/ingest.py); WORK/bin/b0 is the default release
 build of series-server, WORK/bin/b1 the same with `--features lab-frame-cache`, WORK/bin/b1z with
-`--features lab-frame-cache,lab-fit-zeroed`.
+`--features lab-frame-cache,lab-fit-zeroed`; WORK/bin also holds server_ab and pack-series, so no later build in a
+shared target directory swaps a binary under the campaign.
 """
 import json
 import os
@@ -30,8 +31,6 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lab/scripts"))
 from order import order  # noqa: E402
 
-SERVER_AB = ROOT / "target/release/server_ab"
-PACK_SERIES = ROOT / "target/release/pack-series"
 SETS = ["pt15_cptac", "ct_lidc", "dbt12_ea1141", "synth3mb"]
 SESSIONS = [1, 16]
 SERVER_CPUS, CLIENT_CPUS = "0-1", "2-3"
@@ -77,7 +76,7 @@ def make(work):
         out = sbnd(work, name)
         out.parent.mkdir(parents=True, exist_ok=True)
         f = coded(work, name)
-        subprocess.run([PACK_SERIES, "--metadata", f / "metadata.json", "--frames", f, "--output", out], check=True)
+        subprocess.run([work / "bin/pack-series", "--metadata", f / "metadata.json", "--frames", f, "--output", out], check=True)
         print(name, out.stat().st_size, flush=True)
 
 
@@ -122,7 +121,7 @@ class Server:
 def passes(work, name, server, sessions, label, arm, check=True, dump=None):
     """A (row, error) for each of PASSES whole fills, every session over its one connection; RSS read before and at rest."""
     n = frame_count(work, name)
-    cmd = ["taskset", "-c", CLIENT_CPUS, SERVER_AB, "--url", f"https://127.0.0.1:{server.port}/",
+    cmd = ["taskset", "-c", CLIENT_CPUS, work / "bin/server_ab", "--url", f"https://127.0.0.1:{server.port}/",
            "--server-pid", str(server.proc.pid), "--mode", "fill", "--asks", str(n), "--frames", str(n),
            "--sessions", str(sessions), "--label", label, "--variant", arm, "--temp", "warm", "--no-header",
            "--passes", str(PASSES)]
