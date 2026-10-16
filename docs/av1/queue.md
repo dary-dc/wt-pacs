@@ -4282,13 +4282,17 @@ three rows run at once, and the measurement window runs alone.
 **Open for the owner** (none blocks the day): #48 (row 227) into the work branch or not; row 228's proposal; the
 SELinux choice (deploy/README §Open); the drafts #37–#41 kept or closed.
 
+### 254–261, drafted by row 251
+
+Each brief and protocol is in row 251's subsection of `docs/adr/disk-access.md` §9 (draft #72). **254 TILECANCEL** (a latent panic after a cancelled pool-path tile read, and the ring-refusal warning once a process) started 2026-10-16 as a fix, branch `claude/wip-254-TILECANCEL`. Measurement rows run one at a time after 253, so no two campaigns share the host: 255 IDLEBUFFERS, 256 CACHESHARED, 258 EXECGAP, 259 TILEWILLNEED, 260 FILLWINDOW, 261 RINGCOOP (after 250). 257 READERTIDY follows 250 and 254.
+
 ### 250 RINGPARKBUILD
 
 Row 244's proposal built, on the owner's yes (2026-10-16): `UringReader` parks on the ring's own fd, the eventfd gone, proven as `docs/adr/disk-access.md` §9 #7 says. The owner also lifted the wait on P0: the production target will not be tested soon, so what was ordered after it goes ahead, built for the best case. **Branch:** `claude/wip-250-RINGPARKBUILD`.
 
 ### 251 READERNEXT
 
-*Theory and audit, the owner's ask (2026-10-16).* The disk readers read again for performance, resources, simplicity, robustness and readability, with P0 no longer a gate: each finding with file:line, a verdict, its cost and, where it needs one, a protocol with its rule; follow-up rows drafted from 254. **Deliverable:** `docs/adr/disk-access.md` §9, *Next round for the readers*. **Branch:** `claude/wip-251-READERNEXT`.
+*Theory and audit, the owner's ask (2026-10-16).* The disk readers read again for performance, resources, simplicity, robustness and readability, with P0 no longer a gate: each finding with file:line, a verdict, its cost and, where it needs one, a protocol with its rule; follow-up rows drafted from 254; draft #72 (`c4e6c569`), nine findings, rows 254–261. **Deliverable:** `docs/adr/disk-access.md` §9, *Next round for the readers*. **Branch:** `claude/wip-251-READERNEXT`.
 
 ### 252 ONEQUEUEBUILD
 
