@@ -934,6 +934,38 @@ which each row reports.
 | 260 | **FILLWINDOW** — does a window of two frames beat 4 MiB on frames past 1 MiB? (finding 8) | measure | — |
 | 261 | **RINGCOOP** — does `COOP_TASKRUN` delay ring completions beside busy workers? (finding 9) | measure | row 250 |
 
+### Finding 9, measured: `COOP_TASKRUN` (row 261)
+
+*2026-10-16, on row 251's protocol (261 RINGCOOP above).* RESULTS_PENDING
+
+**The arms.** C0 is the default release build. C1 is the same source with `--features lab-ring-no-coop`
+(`server/Cargo.toml`): `UringReader::new` skips `setup_coop_taskrun`, and the banner prints `ring_coop=off`, which
+the driver checks against the arm it starts. `strace -e io_uring_setup` on each binary: `flags=IORING_SETUP_COOP_TASKRUN`
+for C0, `flags=0` for C1. C0′ is a second process of C0's binary.
+
+**The park test on both arms.** `a_read_that_cannot_complete_inline_wakes_the_parked_reader` passes 30 of 30 runs on
+each. Mutated on C1 as row 250 did on C0: dropping `clear_ready` fails it at 130 826 wakes; parking on a pipe nothing
+writes fails it on the 10 s timeout. The other four `uring_reader` tests pass on both arms.
+
+**The rig**, since none had this cell: [`ring_coop_ab.py`](../../lab/disk-access-bench/ring_coop_ab.py). One synthetic
+series per tile size (random bytes, checked by XXH3-64 frame by frame): 256 tile frames' worth at the stride, then
+24 frames of 4.8 MB for the fills. One server process per arm and size (server on CPUs 0–1, its two tokio workers;
+clients on 2–3), arms in `order.py`'s order inside each cell. A tile run is one `server_ab` session, 256 cold asks at
+depth 4, stride 500 000 B (`read_ahead_kb` 128); the tile range is evicted (`POSIX_FADV_DONTNEED`, twice, 0.1 s apart,
+as `server_ab.sh` evicts) and the run must come back with `miss_rate` ≥ 0.95 and `ring=true` or it is run once more.
+*Beside*: eight fill sessions of the 24 warm 4.8 MB frames start 0.5 s first on the same server and must still be
+streaming when the tiles end. Each fill pauses `FILL_GAP_US` after each frame; the gap is the lowest of 0, 20, 50 ms
+whose calibration round kept every beside run under 80 % server busy (server CPU over the tile run ÷ wall ÷ 2 CPUs):
+0 ms reached 87 %, 20 ms 85 %, 50 ms 76 %, so 50 ms. CPU per ask is the server's CPU over the whole cell, fills
+included, ÷ every frame it served. `server_ab` now closes its endpoints rather than dropping them, so the server
+writes each `session reads` line at once instead of at its idle timeout.
+
+```bash
+python3 lab/disk-access-bench/ring_coop_ab.py make WORK      # WORK/bin: c0, c1, server_ab, pack-series
+FILL_GAP_US=50000 python3 lab/disk-access-bench/ring_coop_ab.py time WORK 12
+python3 lab/disk-access-bench/ring_coop_ab.py summary WORK/ring_coop.jsonl
+```
+
 ## 10 · How it is built
 
 ### How a read works
