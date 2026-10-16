@@ -7,7 +7,7 @@ colour ultrasound stored natively and uncompressed: six sets of eight stills, on
 (`usrgb_*`, [`docs/FIXTURES.md`](../../../../docs/FIXTURES.md) §AV1 data, every one `sound`).
 
 ```bash
-lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh
 client/decode/wasm/fetch_openjph.sh
 lab/av1/fetch_data.sh usrgb_apollo usrgb_crc usrgb_aml usrgb_mel usrgb_lca usrgb_stad
 P=lab/av1/.venv/bin/python W=lab/.av1-work/rgbnative

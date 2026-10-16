@@ -136,9 +136,11 @@ export class DownloaderClient {
 
   #failAll(reason) {
     this.#closedReason ??= reason;
-    for (const [index, w] of this.#waiters) {
-      w.reject(new Error(`frame ${index} unavailable: ${this.#closedReason}`));
-    }
+    this.#rejectAll(this.#closedReason);
+  }
+
+  #rejectAll(reason) {
+    for (const [index, w] of this.#waiters) w.reject(new Error(`frame ${index} unavailable: ${reason}`));
     this.#waiters.clear();
   }
 
@@ -164,10 +166,7 @@ export class DownloaderClient {
   /** Resolves once the downloader has ended the stream and dropped this request's work. */
   cancel() {
     this.#gen += 1;
-    for (const [index, w] of this.#waiters) {
-      w.reject(new Error(`frame ${index} unavailable: AbortError: the fill was cancelled`));
-    }
-    this.#waiters.clear();
+    this.#rejectAll("AbortError: the fill was cancelled");
     const done = new Promise((r) => this.#cancels.push(r));
     this.#worker.postMessage({ kind: "cancel" });
     return done;

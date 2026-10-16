@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Row 197's campaign: the fill's read-ahead five ways on the shipped readers, each round on fresh cold copies —
-docs/adr/disk-access.md §Protocol for row 197 has the arms, the rule and the numbers.
+"""Row 197's campaign, its W0 and W0aa arms on the shipped readers, each round on fresh cold copies —
+docs/adr/disk-access.md §Protocol for row 197 has the arms, the rule and the numbers; W1–W3 are at ba408823.
 
     readahead.py mount  WORK          loop ext4, ext4 data=journal, XFS and XFS with 64 KiB blocks under WORK/fs
     readahead.py make   WORK          each set's .sbnd by pack-series, on every filesystem
-    readahead.py verify WORK          every arm's frames through its fill, decoded, against ingest's digests
-    readahead.py mutate WORK          --mutate shift|short must fail every arm's exactness check
+    readahead.py verify WORK          every frame through the fill, decoded, against ingest's digests
+    readahead.py mutate WORK          --mutate shift|short must fail the exactness check
     readahead.py time   WORK ROUNDS   one JSON line a cell into WORK/readahead.jsonl
 
 WORK/coded/SET/htj2k is ingest's output (ingest/coded-frames/ingest.py), as for run.py.
@@ -26,17 +26,12 @@ ROOT = run.ROOT
 RB = ROOT / "target/release/readahead_bench"
 WB = writer.WB
 SETS = ["ct_lidc", "dbt12_ea1141", "ffdm_d", "pt15_cptac"]
-ARMS = ["W0", "W0aa", "W1", "W2", "W3"]
+ARMS = ["W0", "W0aa"]
 SETTINGS = {
     "W0": "shipped FillReader: POSIX_FADV_WILLNEED, 4 MiB past the named frame, extended a quarter window at a time",
     "W0aa": "W0 on another copy (A/A)",
-    "W1": "second fd mmap'd read-only, MADV_HUGEPAGE + MADV_RANDOM; W0's window in whole 2 MiB file-aligned blocks "
-          "from the named frame's end, each MADV_POPULATE_READ in its own spawn_blocking; a refusal falls back to W0",
-    "W2": "second fd with POSIX_FADV_SEQUENTIAL; W0's window pread into a scratch buffer in 1 MiB reads on the pool",
-    "W3": "no read-ahead advice",
 }
 FILESYSTEMS = {**writer.FILESYSTEMS, "xfs64k": (["mkfs.xfs", "-q", "-f", "-b", "size=65536"], "defaults")}
-ARMS_ON = {"xfs64k": ["W0", "W0aa"]}
 FOUR = ["host", "ext4"]
 ASKS = 400
 
@@ -91,17 +86,16 @@ def verify(work):
     for name in SETS:
         s = size.Set(run.DATA / name)
         want = json.loads((frames(work, name) / "metadata.json").read_text())["digests"]["frames"]
-        for arm in ARMS:
-            p, _ = fresh(work, "host", name, arm)
-            dump = work / "dump"
-            shutil.rmtree(dump, ignore_errors=True)
-            writer.sh([RB, "dump", "--arm", arm, "--file", p, "--out", dump])
-            got = sorted(dump.glob("*.bin"))
-            bad = 0
-            for i, g in enumerate(got):
-                px, _ = ingest.decoded(build, "htj2k", g.read_bytes(), s.h * s.w * s.ch)
-                bad += ingest.frame_digest(px.astype(s.dtype), s.stored > 8) != want[i]
-            print(json.dumps(dict(set=name, arm=arm, frames=len(got), inexact=bad + abs(len(got) - len(want)))), flush=True)
+        p, _ = fresh(work, "host", name, "W0")
+        dump = work / "dump"
+        shutil.rmtree(dump, ignore_errors=True)
+        writer.sh([RB, "dump", "--file", p, "--out", dump])
+        got = sorted(dump.glob("*.bin"))
+        bad = 0
+        for i, g in enumerate(got):
+            px, _ = ingest.decoded(build, "htj2k", g.read_bytes(), s.h * s.w * s.ch)
+            bad += ingest.frame_digest(px.astype(s.dtype), s.stored > 8) != want[i]
+        print(json.dumps(dict(set=name, frames=len(got), inexact=bad + abs(len(got) - len(want)))), flush=True)
 
 
 def mutate(work):
@@ -126,7 +120,7 @@ def time_rounds(work, rounds):
             for name in SETS:
                 for fills in [1, 4] if fs in FOUR else [1]:
                     prev = None
-                    for arm in run.order(ARMS_ON.get(fs, ARMS), r):
+                    for arm in run.order(ARMS, r):
                         p, cached = fresh(work, fs, name, arm)
                         cmd = [RB, "measure", "--arm", arm, "--file", p, "--frames", frames(work, name),
                                "--round", str(r), "--asks", str(ASKS), "--fills", str(fills)]

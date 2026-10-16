@@ -19,22 +19,23 @@ there), so the headers and the paths are tested in the thing that ships.
 
 **nginx is not in the transport's path and cannot be.** The server speaks WebTransport over QUIC on UDP 4433
 and nginx has no QUIC upstream, so the browser dials it directly, as in development. No data-path number can
-move because of anything here.
+move because of anything here. TCP 4433 is published for the WebSocket fallback, but `server-start.sh` passes no
+`--websocket`, so nothing answers there unless the `server` service is given `command: ["--websocket"]`.
 
 ## Run it
 
 From a fresh clone, with docker (or podman; every `docker` below reads `podman` as well):
 
 ```bash
-bash client/decode/wasm/build/build.sh        # the decoders the page loads, checked against their manifest
-bash client/decode/wasm/fetch_xxh3.sh         # the frame check's hasher
+bash client/decode/wasm/build/build.sh        # the decoders and the frame check's hasher, checked against their manifest
 docker compose -f deploy/compose.yml build
 STUDIES=/path/to/studies SERIES=ct docker compose -f deploy/compose.yml up -d
 ```
 
-`STUDIES` holds what row INGEST writes, `$SERIES.sbnd` and `$SERIES.metadata.json`
-([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); without it, the 32 KB smoke series baked into both
-images is served. Open `http://127.0.0.1:8765/`. Off this host, the page needs TLS:
+`STUDIES` holds what the DICOM ingest writes, `$SERIES.sbnd` and `$SERIES.metadata.json`
+([`../docs/FIXTURES.md`](../docs/FIXTURES.md) §From DICOM); without it, the 151-byte smoke series baked into both
+images is served, whose frames are placeholders that do not decode. Open `http://127.0.0.1:8765/`. Off this host,
+the page needs TLS:
 
 ```bash
 PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/tls \
@@ -46,16 +47,18 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `STUDIES` | `../fixtures/us_cine_smoke` | the host directory mounted read-only at `/studies` in both containers |
 | `SERIES` | `us_cine_smoke` | the series served: `$STUDIES/$SERIES.sbnd` and `$SERIES.metadata.json` |
 | `PUBLISH_ADDR` | `127.0.0.1` | the address 8765, 443 and 4433 (UDP and TCP) are published on |
-| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial |
+| `WT_URL` | `https://127.0.0.1:4433/` | the address the transport file tells the browser to dial, and the one origin besides the page's that web's policy lets it connect to |
 | `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
 | `REGISTRY` | `docker.io/library` | where the pinned base images are pulled from: a mirror serves the same digests |
+| `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
+| `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |
 | `BUILD_CA` | `/dev/null` (none) | the CA of a TLS-inspecting proxy the build must go through, a build secret |
 
 ## The ten fixes, and why
 
-A container test of a deployment of this shape found each one (queue row 92).
+A container test of a deployment of this shape found each one (the deployment test, queue row 92).
 
 1. **SELinux.** Every bind mount is `:z` (shared, a label both containers may read), never `:Z` (private to one).
 2. **Stop.** `stop` measured 0.45–0.49 s on the server and 0.51–0.54 s on web (three and two runs): under a
@@ -64,14 +67,18 @@ A container test of a deployment of this shape found each one (queue row 92).
 3. **The certificate's lifetime.** A certificate pinned by hash (`serverCertificateHashes`) must be valid for at
    most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
    under `timeout $RESTART_AFTER` (9 days). The exit restarts the container, with a new certificate, before
-   the browser refuses the old one.
+   the browser refuses the old one. `server_start_test.sh`, in the gate, runs its two starts against a stub server.
 4. **gzip** on every compressible type the page fetches, the series' metadata included: `check_equivalence.sh`
    asserts it on a module, on the WASM, and on metadata over nginx's 1 KiB floor. Nothing is proxied, so there is
    no `gzip_proxied`.
 5. **The build cache.**
    * The server's stage copies each workspace member's manifest and sources alone, with cache mounts on the
      cargo registry and `target/`. The bundles stage runs `npm ci` on the lock file before it copies `client/`.
-   * The ignore files keep out `docs/`, every `*.md`, the lab's results and the decoders' build cache.
+   * The `target/` mount is the daemon's, shared by every checkout built there, and cargo judges a path crate
+     fresh by mtime. So the build touches every source it copied before `cargo build`: this tree's are always
+     newer than anything in the cache (row BUILDCACHE, §Open).
+   * The ignore files keep out `docs/`, every `*.md`, the lab but its four crates' manifests and sources, and the
+     decoders' build cache.
    * After an edit to `docs/glossary.md` and `lab/av1/README.md`, 23 of 23 steps were cached and the build took
      1 s.
 6. **`restart: unless-stopped`** on both services.
@@ -91,13 +98,14 @@ A container test of a deployment of this shape found each one (queue row 92).
     nothing used are gone: the content-hashed asset rule, since nothing emits a hashed name, and `/harness/`,
     which the lab runs against `dev-server.py`.
 
-**What the web image carries.** `client/` whole except its tests (`client/contract/`, `*.test.mjs`) and dev files,
-and the TS bundles (`build.sh --product`). It carries row DECODERBUILD's decoder builds with their notices
-(`client/decode/wasm/built/`), checked against `build/manifest.sha256` at build time, and the hasher. Of the
+**What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
+page and its modules, the page check's two (`?check=`), and row DECODERBUILD's decoder builds with their notices
+(`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
+time; and the TS bundles (`build.sh --product`). No harness page, test, TypeScript source or build script. Of the
 studies, only the smoke series.
 
-**Only what the page loads is reachable**: `/`, `/client/**`, `/series/metadata` and `/wt/dev-transport.json`.
-Everything else is a 404, the studies' bundles included.
+**Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
+`/wt/dev-transport.json`. Everything else is a 404, the studies' bundles included.
 
 **What must be preserved exactly.** Three headers on every response, error pages included:
 
@@ -112,28 +120,51 @@ than failing, since the downloader refuses to start without it. Pages and the me
 (`Cache-Control: no-cache` on `text/html` and `application/json`); modules and WASM keep heuristic caching. The
 `types` block is there because nginx's `mime.types` answers `.js` as `application/javascript` and has no `.mjs`.
 
+**A Content-Security-Policy on every response**, so the workers carry it as well as the page:
+
+```
+default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;
+connect-src 'self' ${WT_ORIGIN}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
+```
+
+`WT_ORIGIN` is `WT_URL`'s scheme, host and port, which the page dials over WebTransport.
+`'unsafe-eval'` is the decoders' glue, evaluated through `new Function` (`client/decode/wasm-glue.js`), and lets
+WebAssembly compile; the inline `<style>` is the page's. `dev-server.py` sends the same policy on the viewer's page
+alone, connecting anywhere on loopback, where the lab's relays and collectors listen; the lab's pages, which share
+the viewer's workers and run inline scripts, carry none. The page's lab parameters are not served here at all:
+`client/README.md` §The viewer.
+
 ## The checks
 
 `check_equivalence.sh [STUDIES SERIES]` runs `dev-server.py` and the web image side by side, given the same studies
-and the same transport file. It checks four things:
+and the same transport file. It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
   viewer loads (10);
-* 8 paths that must not be served are 404: the lab, the fixtures, the checkout, a study's bundle, the transport
-  directory, the tests;
+* 18 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
+  bundle, the transport directory, and the files of `client/` the page does not load (a harness page, the check pages,
+  a test, a TypeScript and a Rust source, a build script, a README);
 * gzip on a module, the WASM and the metadata;
+* the policy on the page and on the downloader's script, connecting to the transport, and the dev host's on the page
+  equal to it but for `connect-src`;
 * `Server` carries no version.
 
 Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out of `gzip_types`, a `location /`
-that serves and lists, and a page cached otherwise than `dev-server.py`. `--local` runs a host nginx on the
-template instead of the image.
+that serves and lists, and a page cached otherwise than `dev-server.py`; and for the policy (row VIEWERLOCK), nginx's
+`connect-src` without the transport (both paths `MISS`) and the dev host's `script-src` allowing inline (`DIFF`).
+`--local` runs a host nginx on the template instead of the image, its root the files `web-files.sh` copies;
+`scripts/gate.sh` runs it where nginx is on PATH and the decoder builds are present, and names it
+SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried before row IMAGESLIM (the nine
+`client/` paths answer 200), and `viewer.js` left out of the list (its path differs and loses gzip); each fails it.
 
-**A stale image is refused** (exit 2) before anything is compared: every file the Containerfile copies from
-`client/` and `deploy/nginx/`, less what its ignore file keeps out, is hashed in the image and in the tree, and any
-that differs, is missing or is extra is named. It compares content, not time: a cached rebuild keeps the image's
+**A stale image is refused** (exit 2) before anything is compared: every file the image carries from `client/`
+(what `web-files.sh` copies) and `deploy/nginx/` is hashed in the image and in the tree, and any that differs, is
+missing or is extra is named. It compares content, not time: a cached rebuild keeps the image's
 creation time, so a touched file would otherwise be refused after every rebuild. Mutated: a changed module, template
 and decoder build, a file added and one removed (each named, exit 2); a touched file, a changed `*.md` and
-`*.test.mjs` (passed, as the image leaves them out); no image (exit 2).
+`*.test.mjs` (passed, as the image leaves them out); no image (exit 2). Re-run on `web-files.sh`'s list (row
+IMAGESLIM): a changed module, a file added to the list and one taken off it (each named, exit 2); a changed
+`*.test.mjs` (passed).
 
 **The transport's PEM.** The same script checks `${CERT_PEM:-server/dev-cert/cert.pem}` before it compares any
 path. One self-signed certificate passes; two or more is a chain and passes; one certificate issued by something
@@ -150,7 +181,23 @@ run is unchecked.
 **Images and build.** `wt-pacs-server` is 132 MB and `wt-pacs-web` 95.8 MB (33.6 and 26.7 MB of content). A cold
 build, the builder's cache pruned, takes 114 s; a rebuild after a doc edit takes 1 s.
 
-**The page check against the deployment.** `client/viewer/check.mjs --url`, on row INGEST's CT bundle (76 frames,
+**Row IMAGESLIM (2026-10-14).** The web image carries 34 files of `client/` (1.3 MB) where it carried all 85 the
+ignore file let through; `wt-pacs-web` is 94.4 MB (26.4 MB of content). Both images built, and on the gate's grey
+series (`client/viewer/run_check.sh`'s, packed into `STUDIES`) `check.mjs --url` passed through them in Chromium 141:
+3/3 exact, readbacks equal to the CPU reference; `check_equivalence.sh` passed against the image and with `--local`
+(nginx 1.24.0).
+
+**Row BUILDCACHE (2026-10-15), each image its own checkout's binary.** Two worktrees of one commit, the second's
+banner reading `buildcache235_mode=` for `stream_mode=`, edited before the first was built; `--target server` built
+from the first, then the second, on one daemon, the string read off each image's `series-server`. Before the touch,
+the second image carried the first's string: cargo found it fresh in 1.1 s. With it, each carried its own (57 and
+58 s). Mutated, the touch replaced by `true`: the first checkout's image then carried the second's string, from a
+build of the second left in the cache. **Cost, the server image alone, interleaved, three rounds:** after a doc edit,
+0.4–1.0 s with and without (every step cached, as before); after a one-line edit of `server/`, 59.5–61.2 s with
+against 53.5–56.9 s without, since every path crate is rebuilt where one was: fat LTO's link dominates both. The web
+stages are unchanged.
+
+**The page check against the deployment.** `client/viewer/check.mjs --url`, on the DICOM ingest's CT bundle (76 frames,
 HTJ2K): 76/76 exact, and the first, middle and last readback equal the CPU reference.
 
 * **On loopback:** `http://127.0.0.1:8765/`, headless Chromium 141, no certificate flag.
@@ -164,11 +211,21 @@ refuses a page on a public address a request to `127.0.0.1`, where the check's c
 **Restart.** `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
 and the next page open connected and passed.
 
+**Row VIEWERLOCK (2026-10-14), the policy in place.** The web image built from that tree passed
+`check_equivalence.sh`, and `client/viewer/check.mjs --url` through it on the gate's three-frame grey series passed
+in headless Chromium 141 and in Firefox 157.0.1 under `xvfb-run` (archive.mozilla.org's
+`firefox-157.0.1.tar.xz`, SHA-256 `0d92bf39cdd174f5f361008509310bdefbce72a57ca10523a43b32d62dc699b6`; the host's llvmpipe): 3/3 exact, the three readbacks equal
+to the CPU reference, Firefox's result read off its stdout. `/lab/viewer/levers.js` answered 404. The policy governs the dial: an image
+whose `connect-src` left out the transport failed the same check in Chromium, "Refused to connect to
+'https://127.0.0.1:…/?ask=fill:0-2' because it violates the document's Content Security Policy".
+
 ## Container settings
 
-**Queue row 199 (theory, 2026-10-14); row 195 measures it on the owner's machine.** The server's read path has two fast
-paths ([`../docs/adr/disk-access.md`](../docs/adr/disk-access.md) §1): `RWF_NOWAIT` serves a page-cache hit inline,
-and io_uring serves a tile's miss. A container can take either away without an error. The fall is correct and slower:
+**The container settings theory (queue row 199, 2026-10-14), measured in a cloud container by row 208
+([`../docs/adr/disk-access.md`](../docs/adr/disk-access.md) §6, *Measured in a cloud container*; the owner's rig is row
+216).** The server's read path has two fast paths ([`../docs/adr/disk-access.md`](../docs/adr/disk-access.md) §1):
+`RWF_NOWAIT` serves a page-cache hit inline, and io_uring serves a tile's miss. A container can take either away
+without an error. The fall is correct and slower:
 the pool instead of the inline read costs **132.5 against 48.4 µs a frame**, every frame. The pool instead of the ring
 costs **+106 to +138 % CPU per tile miss** in the agent container, and **ties** on the workstation (the ADR's §5). A fill
 never builds a ring, so io_uring matters only to tile misses. In order of cost:
@@ -178,8 +235,8 @@ never builds a ring, so io_uring matters only to tile misses. In order of cost:
 | series on a bind mount or named volume (ext4, XFS) | `RWF_NOWAIT`: every warm frame inline | the image's own layer (overlayfs) and tmpfs refuse it | none |
 | `seccomp=./seccomp-uring.json` | io_uring on a tile miss | Docker ≥ 25, Podman, containerd ≥ 2.0 refuse it by default | the kernel's io_uring surface, below |
 | `memlock` sized to the rings, one uid per server | io_uring past ~1 000 rings | a uid's ~1 000th concurrent ring, host-wide | locked memory up to the limit |
-| `nofile` ≥ 2 × sessions that miss + sockets | the ring's two fds | the daemon's default, whatever it is | none |
-| on an SELinux-enforcing host, `io_uring { allowed }` for the container's domain | io_uring on a tile miss | container-selinux grants it to no container domain: `EACCES` even under the profile (row 195, probed on Fedora 43) | `label=disable` drops the container's SELinux confinement; a module granting that one permission to `container_t` (untried) reaches every container on the host |
+| `nofile` ≥ sessions that miss + sockets | the ring's fd (two until row 250 dropped the eventfd) | the daemon's default, whatever it is | none |
+| on an SELinux-enforcing host, `io_uring { allowed }` for the container's domain | io_uring on a tile miss | container-selinux grants it to no container domain: `EACCES` even under the profile (probed on Fedora 43, disk-access.md §6 *In a container*) | `label=disable` drops the container's SELinux confinement; a module granting that one permission to `container_t` (untried) reaches every container on the host |
 
 **Verified on this host** (Docker 29.8.2, containerd 2.3.6, runc 1.5.1, Linux 6.18, cgroup v1, ext4). A static probe
 (`io_uring_setup`, `_register`, `_enter`, then rings until refused, then `preadv2(RWF_NOWAIT)`), run as uid 10001 with
@@ -188,8 +245,9 @@ each setting alone. The server's own read-path tests ran under each profile too.
 * **Storage.** A bind mount and a named volume (`/var/lib/docker/volumes`, ext4 here) honour `RWF_NOWAIT`. The
   container's layer (overlayfs) and `--tmpfs` refuse it (`EOPNOTSUPP`). This Containerfile `COPY`s the smoke series
   into `/studies` in the image's layer, where the fast path is lost; compose mounts `STUDIES` over it, which keeps it.
-  The page cache is the host's, per inode, so folios are the underlying filesystem's (row 172's findings hold as on
-  the host; row 195 counts them). The pages are charged to the container's memory cgroup: a tight `mem_limit` evicts
+  The page cache is the host's, per inode, so folios are the underlying filesystem's (the folio count's findings,
+  disk-access.md §6, hold as on the host, and held in a cloud container's bind mount and volume). The pages are
+  charged to the container's memory cgroup: a tight `mem_limit` evicts
   the series inside it.
 * **seccomp.** Under Docker's default profile `io_uring_setup` fails with `EPERM`. The server's read-path tests then
   pass with 6 of 29 skipped for io_uring, and 4 more where `/tmp` is the overlay layer. One failed: its ring assert
@@ -228,21 +286,37 @@ on ChromeOS and on its production servers, and Android's seccomp filter keeps it
 the three calls and nothing else (`seccomp-uring.sh` diffs it against the pinned default). But seccomp cannot see the
 operations a ring runs: open, socket and connect run without a system call the filter could judge. So allowing
 `io_uring_setup` gives code that already runs in the container the whole io_uring interface and its kernel bugs. It
-narrows nothing about the server's own ring. **Adopting the profile is the owner's call.** The trade is that exposure
-against tile misses through the pool, which are free on the workstation and up to +138 % CPU in the agent container.
-Row 195 measures what it buys on the owner's machine. Until then `compose.yml` does not load it.
+narrows nothing about the server's own ring. The trade is that exposure against tile misses through the pool, which
+are free on the workstation and up to +138 % CPU in the agent container. **The owner took it on 2026-10-14** (queue
+row 231), on row 208's reading in a cloud container: the ring on 84 of 84 cold passes, a cold 32 kB tile 28.8 against
+19.1 µs and ×0.67 the CPU, a tie at 163–503 kB ([`../docs/adr/disk-access.md`](../docs/adr/disk-access.md) §6). P0
+still decides whether the ring earns its keep on the target. *Corrected 2026-10-14:* this paragraph called the profile
+the owner's call and said `compose.yml` does not load it; it does since row 231.
 
-**The settings, for a deployment that takes the trade** (compose; `docker run` takes the same as `--security-opt`
-and `--ulimit`):
+**What `compose.yml` gives the server** (`docker run` takes the same as `--security-opt` and `--ulimit`):
 
 ```yaml
   server:
-    security_opt: ["seccomp=./seccomp-uring.json", "no-new-privileges:true"]   # relative to this file: verified
-    cap_drop: [ALL]
+    security_opt: ["seccomp=./seccomp-uring.json"]   # relative to compose.yml
     ulimits:
-      memlock: { soft: 67108864, hard: 67108864 }   # 64 MiB, ~7 500 rings for this uid; not run here
-      nofile: { soft: 65535, hard: 65535 }
+      memlock: "${MEMLOCK:-67108864}"   # 64 MiB: ~7 500 rings at 8.7 KiB, for this uid
+      nofile: "${NOFILE:-65535}"        # ≥ sessions that miss + sockets
 ```
+
+A daemon that cannot raise a limit refuses the container at start (`error setting rlimit type 8: operation not
+permitted`): set `MEMLOCK` and `NOFILE` to what it allows, and the banner's `read_ring=` still says whether a ring is
+built. **One uid per server:** the `memlock` counter is the uid's, host-wide, so two of these servers on one host share
+64 MiB unless one is built with another uid. `no-new-privileges:true` and `cap_drop: [ALL]` cost the read path nothing
+with the profile (the probe above), and are not set: untried with the server itself.
+
+**Verified through the image** (row 231, on the host above). `compose up` from the repository's root, so the profile's
+path resolves against `compose.yml`: the banner says `read_ring=available`, and the server's `/proc/<pid>/limits` hold
+the limits given, under `Seccomp: 2`. Mutated, the same `up` with `security_opt: !reset []` says
+`read_ring=refused (io_uring setup: Operation not permitted (os error 1))`. The server's 30 store and read-path tests
+(`media::`), built on the image's Debian and run in it as uid 10001 with `/tmp` on ext4: **30 of 30 run under the
+profile; under Docker's default, 7 skip** for io_uring. This host's daemon holds hard limits of 8 MiB and 20 000 and
+cannot raise them, so the defaults were refused at start; it ran with `MEMLOCK=8388608 NOFILE=20000`. **Not run here:**
+64 MiB and 65 535 themselves.
 
 Kubernetes (not run here): copy the profile to each node's `/var/lib/kubelet/seccomp/`, and set
 `securityContext.seccompProfile: {type: Localhost, localhostProfile: seccomp-uring.json}`. Kubernetes has no
@@ -252,14 +326,14 @@ rootless Podman 5.8.4 accepts it, and on its SELinux-enforcing host the ring the
 entry added. `seccomp-uring.sh` writes it from the pinned, checksummed fetch, and `--check` says whether it is
 current (a changed entry and a wrong checksum each failed it). Regenerate it when the pinned Docker moves.
 
-**Which path is live.** The startup banner says `read_fast_path=preadv2` or `pooled_pread`. Nothing reports the ring
-until a tile session misses; then each such session tries `io_uring_setup` once and warns
-`io_uring unavailable; this session reads through the pool`. `ulimit -l` and `ulimit -n` inside the container are the
-daemon's, so read `/proc/1/limits` there. **Proposed, not built** (a row to take after 195):
+**Which path is live.** The startup banner says `read_fast_path=preadv2` or `pooled_pread`, and `read_ring=available`
+or `read_ring=refused (<why>)` from one ring built and dropped at start (15.6 µs; row 231). A tile session still tries
+`io_uring_setup` once on its first miss and warns `io_uring unavailable; this session reads through the pool`: a ring
+the probe got can still be refused later, past the `memlock` budget. `/proc/1/limits` inside the container is the
+server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 
-* a `read_ring=available` or `read_ring=refused (<errno>)` line in the banner, from one ring built and dropped at start
-  (15.6 µs), with the `memlock` limit beside it. On a refusal, sessions start with the pool, and the per-session warning
-  goes.
+* the `memlock` limit beside `read_ring=`, and sessions that start with the pool when the probe was refused, so the
+  per-session warning goes.
 * the same probe in `check-fastpath`, shipped in the server image, so `docker compose exec server check-fastpath
   /studies` gates a rollout: 0 with both fast paths, 1 with either lost.
 * compose's health check stays the transport file. A slow path is not an unhealthy one, and failing it would hold
@@ -270,10 +344,11 @@ daemon's, so read `/proc/1/limits` there. **Proposed, not built** (a row to take
 | what | why it matters | what would close it |
 | --- | --- | --- |
 | rootless podman | the brief's first runtime is unchecked | a host with it: build, `up`, the page check |
-| io_uring and `memlock` in the deployment | Docker ≥ 25 refuses the tile ring by default; the fix reopens io_uring (§Container settings) | row 195's measurement, then the owner's call on `seccomp-uring.json`; the `read_ring=` probe |
+| io_uring on an SELinux-enforcing host | the profile is not enough there: `EACCES` (§Container settings) | the owner's call: `label=disable` or a policy module granting `io_uring { allowed }`; neither ships |
+| ~~a stale server binary~~ *closed by row BUILDCACHE, 2026-10-15* | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | closed: the build touches every source it copied before `cargo build` (§5), proved in §Verified *Row BUILDCACHE* |
 | studies by name | one server serves one series (`SERIES`) | a study index, proposed in `docs/FIXTURES.md` §From DICOM |
 | HTTP/3 for the page, and a `dns-prefetch` to the transport's origin | each takes a round trip off a cold open ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §What production adds) | nginx's QUIC listener; one `<link>` in the viewer |
-| the decoders are built on the host | the image checks them against the manifest but does not make them | row DECODERBUILD's container as a stage, once its build runs inside BuildKit |
+| the decoders are built on the host | the image checks them against the manifest but does not make them | the decoder build's container (`client/decode/wasm/build/`) as a stage, once it runs inside BuildKit |
 
 **A measurement flag.** Page-load timing is part of the page clock. A comparison spanning a switch from one host
 to the other is not comparable across it: take a before and after in one interleaved run.

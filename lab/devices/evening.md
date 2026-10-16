@@ -11,7 +11,7 @@ about 15 minutes, then full mode where the quick one asks for it. The kit: [`REA
 3. ```bash
    bash client/decode/wasm/build/build.sh && bash client/decode/wasm/fetch_xxh3.sh && client/transport/ts/build.sh
    docker compose -f deploy/compose.yml build server
-   lab/av1/tools/tools.sh && FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160 && ingest/coded-frames/build.sh
+   lab/av1/tools/tools.sh && FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160
    OUT=~/wt-pacs-bundles lab/devices/make_bundles.sh             # ~20 min at cpu0
    ```
 

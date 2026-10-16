@@ -1,6 +1,6 @@
 //! quinn's BBR under BBRv3's loss bound: a round losing over 2 % caps the window at 0.85 of
 //! `inflight_hi`, which clean rounds regrow 1, 2, 4… packets at a time. Over the public
-//! `Controller` trait, as `restart.rs` is. `docs/transport/transport-conclusions.md` §1, BB3.
+//! `Controller` trait, as `restart.rs` is. `docs/transport/transport-conclusions.md` §1, *quinn's BBR against BBRv3*.
 
 use quinn_proto::RttEstimator;
 use std::any::Any;

@@ -220,8 +220,8 @@ async function boundHoldsPerDecoder(DownloaderClient: DownloaderCtor, check: Che
   c.close();
 }
 
-/** An ask ends the fill on the server, so once the ask settles the downloader re-issues exactly the frames
- *  still owed as a new run — and the fill completes with every frame once. */
+/** An ask ends the fill on the server, so once the asked frame's head lands the downloader re-issues exactly the
+ *  frames still owed as a new run — and the fill completes with every frame once. */
 async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) {
   const captured: Frame[] = [];
   const { c, fake } = await open(DownloaderClient, { decode: false, onFrame: (f) => captured.push(f) });
@@ -240,7 +240,7 @@ async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) 
   const at = wire.indexOf("request_frame 50");
   check(wire[0] === "stream_frames 0-7", `reissue: the fill goes out as one stream_frames run (${wire[0]})`);
   check(at > 0, `reissue: the ask goes to the wire`);
-  check(wire[at + 1] === "stream_frames 4-7", `reissue: once the ask settles, exactly the remainder is re-issued (${wire[at + 1]})`);
+  check(wire[at + 1] === "stream_frames 4-7", `reissue: once the asked frame's head lands, exactly the remainder is re-issued (${wire[at + 1]})`);
   check(asked.frameIndex === 50, `reissue: the ask was served`);
 
   for (const i of [4, 5, 6, 7]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
@@ -559,7 +559,7 @@ async function startWithAFillDialsOnce(_DownloaderClient: DownloaderCtor, check:
 }
 
 /**
- * R3: only the dial needs the session URL, so the worker graph comes up while it is still being
+ * Un-gated: only the dial needs the session URL, so the worker graph comes up while it is still being
  * fetched: a decoder answers `ready` while the URL is withheld, and the first frame is decoded
  * once it is given. lab/page-open/README.md
  */
@@ -581,8 +581,8 @@ async function theDecodersComeUpWhileTheUrlIsUnknown(DownloaderClient: Downloade
 }
 
 /**
- * R1: the fill the consumer opens with rides the session URL, so the server serves it behind its
- * accept, and the control stream is never asked for it a second time. On unless turned off, as
+ * The opening ask: the fill the consumer opens with rides the session URL, so the server serves it
+ * behind its accept, and the control stream is never asked for it a second time. On unless turned off, as
  * the server's `--opening-ask` is. docs/ARCHITECTURE.md
  */
 async function anOpeningFillRidesTheSessionUrl(DownloaderClient: DownloaderCtor, check: Check) {
@@ -668,6 +668,15 @@ async function builtDecoder(log: Log, what: string): Promise<RealDecoder | null>
   return null;
 }
 
+/** npm's package and the product's build, by name, each that is present. */
+async function realDecoders(log: Log, what: string): Promise<[string, RealDecoder][]> {
+  const each: [string, RealDecoder | null][] = [
+    ["the package", await vendorDecoder(log, what)],
+    ["the product's build", await builtDecoder(log, `${what} through the product's build`)],
+  ];
+  return each.filter((d): d is [string, RealDecoder] => d[1] !== null);
+}
+
 /**
  * Only the decoder knows a codestream did not decode. An empty one and a file that is not one
  * reach the consumer as failures, each named and in the current generation, while a real frame
@@ -675,30 +684,30 @@ async function builtDecoder(log: Log, what: string): Promise<RealDecoder | null>
  * arrive as a frame carrying the previous frame's pixels. docs/decode/README.md §A frame that did not decode
  */
 async function anUndecodableFrameIsAFailureNotAFrame(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
-  const realDecoder = await vendorDecoder(log, "an undecodable frame");
-  if (!realDecoder) return;
   const bytesOf = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
   const good = await bytesOf("/client/contract/frames/colour-8.j2c");
   const wrong = await bytesOf("/client/README.md");
 
-  const frames: Frame[] = [];
-  const failures: Fail[] = [];
-  const { c, fake } = await open(DownloaderClient, {
-    realDecoder, onFrame: (f) => frames.push(f), onError: (f) => failures.push(f),
-  });
-  c.fill([0, 1, 2]);
-  await fake.pushFrame(0, good);
-  await until(() => frames.length >= 1);
-  await fake.pushFrame(1, new Uint8Array(0));
-  await fake.pushFrame(2, wrong);
+  for (const [name, realDecoder] of await realDecoders(log, "an undecodable frame")) {
+    const frames: Frame[] = [];
+    const failures: Fail[] = [];
+    const { c, fake } = await open(DownloaderClient, {
+      realDecoder, onFrame: (f) => frames.push(f), onError: (f) => failures.push(f),
+    });
+    c.fill([0, 1, 2]);
+    await fake.pushFrame(0, good);
+    await until(() => frames.length >= 1);
+    await fake.pushFrame(1, new Uint8Array(0));
+    await fake.pushFrame(2, wrong);
 
-  await until(() => failures.length >= 2);
-  const seen = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join();
-  check(seen === "1,2", `undecodable: the empty codestream and the wrong file are both reported (${seen || "none"})`);
-  check(failures.every((f) => f.generation === 0), `undecodable: each failure carries the request's generation (${failures.map((f) => f.generation).join() || "none"})`);
-  check(frames.length === 1 && frames[0].frameIndex === 0, `undecodable: neither arrives as a frame (${frames.map((f) => f.frameIndex).join() || "none"})`);
-  check(frames[0]?.info.byteCount === 160 * 160 * 3, `undecodable: the frame that did decode is whole (${frames[0]?.info.byteCount ?? "none"})`);
-  c.close();
+    await until(() => failures.length >= 2);
+    const seen = failures.map((f) => f.frameIndex).sort((a, b) => a - b).join();
+    check(seen === "1,2", `undecodable, ${name}: the empty codestream and the wrong file are both reported (${seen || "none"})`);
+    check(failures.every((f) => f.generation === 0), `undecodable, ${name}: each failure carries the request's generation (${failures.map((f) => f.generation).join() || "none"})`);
+    check(frames.length === 1 && frames[0].frameIndex === 0, `undecodable, ${name}: neither arrives as a frame (${frames.map((f) => f.frameIndex).join() || "none"})`);
+    check(frames[0]?.info.byteCount === 160 * 160 * 3, `undecodable, ${name}: the frame that did decode is whole (${frames[0]?.info.byteCount ?? "none"})`);
+    c.close();
+  }
 }
 
 /**
@@ -719,21 +728,20 @@ async function aFrameCarriesItsWireBytes(DownloaderClient: DownloaderCtor, check
   check(raw?.info.wireBytes === payload.length, `wire bytes: undecoded, the length the envelope declared (${raw?.info.wireBytes ?? "none"} of ${payload.length})`);
   c.close();
 
-  const realDecoder = await vendorDecoder(log, "wire bytes behind a decoder");
-  if (!realDecoder) return;
   const codestream = new Uint8Array(await (await fetch("/client/contract/frames/colour-8.j2c")).arrayBuffer());
-
-  const decoded: Frame[] = [];
-  const { c: c2, fake: fake2 } = await open(DownloaderClient, {
-    realDecoder, onFrame: (f) => decoded.push(f),
-  });
-  c2.fill([0]);
-  await fake2.pushFrame(0, codestream);
-  await until(() => decoded.length >= 1);
-  const f = decoded[0];
-  check(f?.info.wireBytes === codestream.length, `wire bytes: decoded, the length the envelope declared (${f?.info.wireBytes ?? "none"} of ${codestream.length})`);
-  check(f?.bytes.length === 160 * 160 * 3 && f.bytes.length !== f.info.wireBytes, `wire bytes: and the decoded plane is a separate, larger number (${f?.bytes.length ?? "none"} decoded)`);
-  c2.close();
+  for (const [name, realDecoder] of await realDecoders(log, "wire bytes behind a decoder")) {
+    const decoded: Frame[] = [];
+    const { c: c2, fake: fake2 } = await open(DownloaderClient, {
+      realDecoder, onFrame: (f) => decoded.push(f),
+    });
+    c2.fill([0]);
+    await fake2.pushFrame(0, codestream);
+    await until(() => decoded.length >= 1);
+    const f = decoded[0];
+    check(f?.info.wireBytes === codestream.length, `wire bytes, ${name}: decoded, the length the envelope declared (${f?.info.wireBytes ?? "none"} of ${codestream.length})`);
+    check(f?.bytes.length === 160 * 160 * 3 && f.bytes.length !== f.info.wireBytes, `wire bytes, ${name}: and the decoded plane is a separate, larger number (${f?.bytes.length ?? "none"} decoded)`);
+    c2.close();
+  }
 }
 
 
@@ -800,13 +808,11 @@ const COLOUR8_XXH3 = "5f99dd7c0b2fc5e9";
  * docs/adr/exactness-in-production.md §2
  */
 async function aFrameSaysWhetherItIsExact(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
-  const vendor = await vendorDecoder(log, "the frame check");
-  if (!vendor) return;
   const grey = await fetched("/client/contract/frames/grey-16.j2c");
   const colour = await fetched("/client/contract/frames/colour-8.j2c");
-  const run = async (glue: string, digests: (string | null)[], codestreams: Uint8Array[]) => {
+  const run = async (glue: string, digests: (string | null)[], codestreams: Uint8Array[], decoder: RealDecoder) => {
     const got: Frame[] = [];
-    const { c, fake } = await open(DownloaderClient, { realDecoder: { ...vendor, glue }, digests, onFrame: (f) => got.push(f) });
+    const { c, fake } = await open(DownloaderClient, { realDecoder: { ...decoder, glue }, digests, onFrame: (f) => got.push(f) });
     c.fill(codestreams.map((_, i) => i));
     for (const [i, b] of codestreams.entries()) await fake.pushFrame(i, b);
     await until(() => got.length >= codestreams.length);
@@ -815,20 +821,25 @@ async function aFrameSaysWhetherItIsExact(DownloaderClient: DownloaderCtor, chec
     return { info: (i: number) => got.find((f) => f.frameIndex === i)?.info, counts };
   };
   const wrong = "0123456789abcdef";
-  const r = await run(vendor.glue, [GREY16_XXH3, wrong, null, COLOUR8_XXH3], [grey, grey, grey, colour]);
-  const said = (i: number) => `${r.info(i)?.path} ${r.info(i)?.exact} ${r.info(i)?.reason ?? ""}`;
-  check(r.info(0)?.exact === true && r.info(0)?.path === "htj2k", `exact: a 16-bit grey frame matching its digest is true (${said(0)})`);
-  check(r.info(3)?.exact === true, `exact: an 8-bit colour frame matching its digest is true (${said(3)})`);
-  check(r.info(1)?.exact === false && /^htj2k gave 750932eabd34755e, not 0123456789abcdef; htj2k gave 750932eabd34755e$/.test(r.info(1)?.reason ?? ""),
-    `exact: a mismatch is decoded again, and still false names both decodes (${said(1)})`);
-  check(r.info(2)?.exact === "unchecked", `exact: a frame without a digest is unchecked (${said(2)})`);
-  const n = r.counts?.htj2k;
-  check(n?.true === 2 && n?.false === 1 && n?.unchecked === 1, `exact: stats() counts each per path (${JSON.stringify(r.counts)})`);
+  const decoders = await realDecoders(log, "the frame check");
+  for (const [name, decoder] of decoders) {
+    const r = await run(decoder.glue, [GREY16_XXH3, wrong, null, COLOUR8_XXH3], [grey, grey, grey, colour], decoder);
+    const said = (i: number) => `${r.info(i)?.path} ${r.info(i)?.exact} ${r.info(i)?.reason ?? ""}`;
+    check(r.info(0)?.exact === true && r.info(0)?.path === "htj2k", `exact, ${name}: a 16-bit grey frame matching its digest is true (${said(0)})`);
+    check(r.info(3)?.exact === true, `exact, ${name}: an 8-bit colour frame matching its digest is true (${said(3)})`);
+    check(r.info(1)?.exact === false && /^htj2k gave 750932eabd34755e, not 0123456789abcdef; htj2k gave 750932eabd34755e$/.test(r.info(1)?.reason ?? ""),
+      `exact, ${name}: a mismatch is decoded again, and still false names both decodes (${said(1)})`);
+    check(r.info(2)?.exact === "unchecked", `exact, ${name}: a frame without a digest is unchecked (${said(2)})`);
+    const n = r.counts?.htj2k;
+    check(n?.true === 2 && n?.false === 1 && n?.unchecked === 1, `exact, ${name}: stats() counts each per path (${JSON.stringify(r.counts)})`);
+  }
 
-  const first = await run("/client/contract/flip-glue.js?first", [GREY16_XXH3], [grey]);
+  const vendor = decoders.find(([name]) => name === "the package")?.[1];
+  if (!vendor) return;
+  const first = await run("/client/contract/flip-glue.js?first", [GREY16_XXH3], [grey], vendor);
   check(first.info(0)?.exact === true && first.info(0)?.mismatchOn === "htj2k",
     `exact: a sample flipped in the first decode alone is caught and the second decode is taken (${first.info(0)?.exact} ${first.info(0)?.mismatchOn})`);
-  const all = await run("/client/contract/flip-glue.js?all", [GREY16_XXH3], [grey]);
+  const all = await run("/client/contract/flip-glue.js?all", [GREY16_XXH3], [grey], vendor);
   check(all.info(0)?.exact === false && /; htj2k gave [0-9a-f]{16}$/.test(all.info(0)?.reason ?? ""),
     `exact: a sample flipped in every decode is false after a second decode (${all.info(0)?.exact} ${all.info(0)?.reason})`);
 }
@@ -860,7 +871,7 @@ const GOLDEN_SHAPE: Record<string, string> = {
   g8: "1x8-bit", g9: "1x9-bit", g10: "1x10-bit", g12: "1x12-bit", s11: "1x11-bit signed", s13: "1x13-bit signed", g14: "1x14-bit", c8: "3x8-bit",
 };
 const golden = (rep: string, name: string) => `${PAYLOADS}/${rep}/${name}`;
-/** Row 43's payloads: b = 8…16 bits, every split k from the smallest whose top fits 12 bits to a top of 8, unsigned and signed. */
+/** The split-exactness check's payloads: b = 8…16 bits, every split k from the smallest whose top fits 12 bits to a top of 8, unsigned and signed. */
 const MATRIX = Array.from({ length: 9 }, (_, i) => i + 8).flatMap((b) =>
   Array.from({ length: Math.max(b - 8, 4) - Math.max(0, b - 12) + 1 }, (_, j) => Math.max(0, b - 12) + j)
     .flatMap((k) => (["u", "s"] as const).map((sign) => [b, k, sign] as const)));
@@ -1101,7 +1112,7 @@ async function anAv1FrameEitherDecoderCannotReturnExactlyIsAFailure(DownloaderCl
   }
 }
 
-const HASHER = "/client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js";
+const HASHER = "/client/decode/wasm/built/xxh3/xxh3.wasm";
 const digestOf = async (base: string) => (await (await fetch(`${base}.xxh3`)).text()).trim();
 const verdicts = (got: Frame[]) => [...got].sort((a, b) => a.frameIndex - b.frameIndex).map((f) => `${f.info.path}:${f.info.exact}`).join() || "none";
 
@@ -1113,7 +1124,7 @@ const verdicts = (got: Frame[]) => [...got].sort((a, b) => a.frameIndex - b.fram
  */
 async function anAv1FrameIsCheckedAgainstItsDigest(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
   if (!(await served(AV1.glue))) return void log(`  SKIPPED: AV1 frame check — no ${AV1_DIR} (client/decode/wasm/dav1d/build.sh)`);
-  if (!(await served(HASHER))) return void log(`  SKIPPED: AV1 frame check — no ${HASHER} (bash client/decode/wasm/fetch_xxh3.sh)`);
+  if (!(await served(HASHER))) return void log(`  SKIPPED: AV1 frame check — no ${HASHER} (client/decode/wasm/build/build.sh)`);
   const shallow = ["g8", "g10", "s11", "s13", "c8"].map((n) => golden("optimized", n));
   const deep = ["g12", "g14"].map((n) => golden("plain", n));
   const bases = [...shallow, ...deep];

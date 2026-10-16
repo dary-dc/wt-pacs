@@ -115,59 +115,9 @@ const settle = () => new Promise((r) => setTimeout(r, 0));
 const frame = (i) => ({ frameIndex: i, bytes: new Uint8Array(4), timing: {} });
 
 /**
- * `followQueue` starts one decoder, adds one only while frames stay queued after a dispatch, never past
- * `decoders`, takes a retired decoder back before making another, and keeps both dispatch clauses: asks
- * first, at most `perDecoder` a decoder.
+ * `startOnNeed` starts one decoder, adds one only while frames stay queued after a dispatch, never past `decoders`,
+ * never retires one, and keeps both dispatch clauses while it grows: asks first, at most `perDecoder` a decoder.
  */
-async function followTheQueue() {
-  const fed = handFed();
-  const made = handDecoders();
-  // A source of its own: a module is cached by its URL, and the one above holds the other fake.
-  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // follow`;
-  await import("./downloader.js?follow");
-  await onmessage({ data: { kind: "start", config: { followQueue: true, decoders: 3, perDecoder: 2, transport, decoderWorker: "x", survival: false } } });
-  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
-  check(made.length === 1, `it starts ${made.length} decoders, not 1`);
-  await onmessage({ data: { kind: "fill", indices: [...Array(16).keys()] } });
-  const busy = () => made.map((w) => w.decoding.length);
-  const most = () => Math.max(...busy());
-
-  fed.fill(frame(0));
-  fed.fill(frame(1));
-  await settle();
-  check(made.length === 1, `two frames on one decoder add none (${made.length} decoders)`);
-  fed.fill(frame(2));
-  await settle();
-  check(made.length === 2 && busy()[1] === 1, `a frame left queued adds one, which takes it (${busy()})`);
-  for (let i = 3; i < 10; i++) fed.fill(frame(i));
-  await settle();
-  check(made.length === 3, `never past decoders: ${made.length}`);
-  check(most() <= 2, `at most perDecoder a decoder: ${busy()}`);
-
-  const ask = onmessage({ data: { kind: "ask", index: 11 } });
-  await settle();
-  fed.asks.get(11)(frame(11));
-  await ask;
-  await settle();
-  made[0].finish();
-  check(made[0].decoding.at(-1)?.index === 11, `a freed decoder takes the ask before queued fill frames (${made[0].decoding.map((m) => m.index)})`);
-
-  while (made.some((w) => w.decoding.length)) {
-    for (const w of made) if (w.decoding.length) w.finish();
-    await settle();
-  }
-  fed.fill(frame(10));
-  fed.fill(frame(12));
-  await settle();
-  const working = made.filter((w) => w.decoding.length).length;
-  check(working === 1, `idle decoders retire: two frames find ${working} decoders working, not 1`);
-  fed.fill(frame(13));
-  await settle();
-  check(made.length === 3 && busy().filter((n) => n).length === 2, `a retired decoder is taken back, none made (${made.length} made, ${busy()})`);
-}
-await followTheQueue();
-
-/** `startOnNeed` starts one decoder, adds one only while frames stay queued after a dispatch, never past `decoders`, and never retires one. */
 async function startOnNeed() {
   const fed = handFed();
   const made = handDecoders();
@@ -185,11 +135,18 @@ async function startOnNeed() {
   for (let i = 2; i < 10; i++) fed.fill(frame(i));
   await settle();
   check(made.length === 3 && Math.max(...busy()) <= 2, `a queue adds decoders up to decoders, perDecoder each (${busy()})`);
+  const ask = onmessage({ data: { kind: "ask", index: 11 } });
+  await settle();
+  fed.asks.get(11)(frame(11));
+  await ask;
+  await settle();
+  made[0].finish();
+  check(made[0].decoding.at(-1)?.index === 11, `a freed decoder takes the ask before queued fill frames (${made[0].decoding.map((m) => m.index)})`);
   while (made.some((w) => w.decoding.length)) {
     for (const w of made) if (w.decoding.length) w.finish();
     await settle();
   }
-  for (const i of [10, 11, 12]) fed.fill(frame(i));
+  for (const i of [10, 12, 13]) fed.fill(frame(i));
   await settle();
   check(made.length === 3 && busy().every((n) => n === 1), `idle decoders stay in the pool: three frames on three (${busy()})`);
 }
@@ -302,6 +259,48 @@ async function anAskAgainAfterACancelIsServed() {
 await anAskAgainAfterACancelIsServed();
 
 /**
+ * After an ask during a fill, the remainder is re-issued exactly once: on the asked frame's head under `refill: "head"`,
+ * the default, right behind the ask under `refill: "ask"`, when the ask lands under `refill: "landed"`.
+ */
+async function theRemainderIsReissuedOnce() {
+  const want = { landed: ["", "", "3-6"], head: ["", "3-6", "3-6"], ask: ["3-6", "3-6", "3-6"], default: ["", "3-6", "3-6"] };
+  for (const [refill, expected] of Object.entries(want)) {
+    const fills = [];
+    const asks = new Map();
+    let onFrame;
+    globalThis.fakeTransport = {
+      connect: async () => ({
+        requestExactFrame: (i, onHead) => new Promise((resolve) => asks.set(i, { resolve, onHead })),
+        stats: () => ({ closed: null, lastByteAt: performance.now() }),
+        fillFrames: (from, to, f) => {
+          fills.push(`${from}-${to}`);
+          onFrame = f;
+        },
+        endStream: async () => {},
+        close() {},
+      }),
+    };
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${refill}`;
+    await import(`./downloader.js?refill-${refill}`);
+    const config = { decode: false, decoders: 0, transport, survival: false, refill: refill === "default" ? undefined : refill };
+    await onmessage({ data: { kind: "start", config } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    await onmessage({ data: { kind: "fill", indices: [...Array(8).keys()] } });
+    for (const i of [0, 1, 2]) onFrame(frame(i));
+    await onmessage({ data: { kind: "ask", index: 7 } });
+    await settle();
+    const seen = [fills.slice(1).join()];
+    asks.get(7).onHead?.();
+    seen.push(fills.slice(1).join());
+    asks.get(7).resolve(frame(7));
+    await settle();
+    seen.push(fills.slice(1).join());
+    check(seen.join("|") === expected.join("|"), `refill ${refill}: remainders after the ask, its head, its landing: ${seen.join(" | ")}, not ${expected.join(" | ")}`);
+  }
+}
+await theRemainderIsReissuedOnce();
+
+/**
  * The downloader keeps each decoder's end of its pixel channel reachable for the decoder's life: Firefox deletes
  * the frames in flight through a transferred port once the sender's object is collected.
  */
@@ -333,5 +332,5 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, follow the queue, start on need, lost decodes, an ask again after a cancel, ports held: ok");
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held: ok");
 process.exit(failed ? 1 : 0);

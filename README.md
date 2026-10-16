@@ -5,29 +5,33 @@ WebTransport PACS — web-native medical imaging transport (MIT).
 ## Prerequisites
 
 Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
-with `rustup`, Node 22 (`.nvmrc`), Python 3.11 or newer, and on PATH: git, curl, tar, patch, sha256sum,
-openssl, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
+with `rustup`, Node 22 (`.nvmrc`), Python 3.11 to 3.13, and on PATH: git, curl, tar, patch, sha256sum,
+openssl, jq, and binutils' `nm` and `strings`. The first builds fetch from crates.io, npm and GitHub.
 
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0 --locked
 npm i -g playwright@1.56.1 && npx playwright install chromium
 bash client/decode/wasm/fetch_openjph.sh            # the HTJ2K decoder the page runs
-bash client/decode/wasm/fetch_xxh3.sh               # the hash that checks each decoded frame
+bash client/decode/wasm/fetch_xxh3.sh               # the reference the frame check's hash is tested against
 ```
 
 Two more open what the gate otherwise skips, by name, in its log:
 
 ```bash
 client/decode/wasm/build/build.sh                  # the decoder builds the page loads: docker; fetches emscripten (~5 min)
-python3 -m venv lab/av1/.venv && lab/av1/.venv/bin/pip install --require-hashes -r lab/av1/requirements.txt
-                                                    # numpy for the painter check: PYTHON=lab/av1/.venv/bin/python
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requirements.txt
+                                                    # numpy, pydicom, xxhash, blake3 (CPython 3.11–3.13): PYTHON=.venv/bin/python
 ```
 
-Without the first, the dispatch rig runs 152 of its 750 checks; without the second, the painter check does not run.
-The two ingests' comparison also needs the native coders: `lab/av1/tools/tools.sh`, OpenJPH
-(`FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160`) and `ingest/coded-frames/build.sh`
+With the first, the dispatch rig runs all 780 of its checks, the real-decode ones on npm's OpenJPH and on the
+product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
+check, the split's merge and the DICOM reader do not run. The ingest's coders — libaom 3.15.1, dav1d 1.5.4 and
+OpenJPH 0.31.0, built from source at their pins into `ingest/.build` — need cmake, ninja, meson (1.9.1 here), nasm and
+a C++ compiler: `ingest/tools.sh`. The DICOM ingest needs them, and the gate's comparison of the two ingests and its
+synthetic DICOM series to `.sbnd` end to end run on them
 ([`ingest/from-parser/README.md`](ingest/from-parser/README.md)).
+Without nginx on PATH, the web host's check (`deploy/check_equivalence.sh --local`) does not run.
 Without Go 1.24 or newer on PATH, the lab's two Go clients are not compiled (Go fetches the toolchain each `go.mod` names and checks it against its checksum database).
 
 ## Quick start
@@ -57,6 +61,18 @@ python3 server/dev-server.py --port 8765 --series us_cine_smoke
 # 5. Before pushing: the gate (about 100 s on 4 cores, warm builds); --no-browser skips the browser steps, --quick two absence checks
 scripts/gate.sh
 ```
+
+The same gate runs in CI, `.github/workflows/gate.yml`, on every pull request into `claude/av1-unified-mainbase` and
+`main` and every push to them: every prerequisite above present, so a skip not on the workflow's list fails it, and
+the deploy image built with `deploy/check_equivalence.sh` and the viewer's page check run through it. No timing runs
+there: a shared runner is not a measurement host. Performance is guarded by counts instead, which no runner moves:
+`scripts/perf_counts.mjs` drives the product's downloader against the release server, over its WebSocket (the same asks
+and envelopes as QUIC's shared stream), on a 24-frame synthetic series filled, stepped through as a cine and asked on
+demand, and fails on any change from `scripts/perf_counts.baseline` in the client's asks, the server's reads of the
+bundle (through strace, every read forced to a miss) or the envelope bytes; a changed count is a reviewed line there.
+A doubled read on either reader, a fill asked twice and a padded frame each turn it red. Not counted: the io_uring
+path a forced miss bypasses, QUIC's own framing, and the viewer's choice of what to ask, since the downloader is
+driven directly.
 
 Then open in Chrome:
 
@@ -95,16 +111,20 @@ own server, bundle and certificate, so it needs neither terminal nor step 2; the
 `scripts/wtcompat.py --fetch DIR` fetches the newest Chrome and Firefox builds and fails if any no longer dials the
 server, gets frame 0 exact, or offers a different WebTransport draft or `reset_stream_at` than `scripts/wtcompat.json`
 expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-conclusions.md) §3); the gate does not run it.
-`deploy/check_equivalence.sh` checks that the web image answers every path the harness uses exactly as
-`server/dev-server.py` does; it needs podman or docker, or nginx with `--local` ([`deploy/README.md`](deploy/README.md)).
+`deploy/check_equivalence.sh` checks that the web image answers every path the viewer loads exactly as
+`server/dev-server.py` does, and nothing else; it needs podman or docker, or nginx with `--local`, which the gate runs
+([`deploy/README.md`](deploy/README.md)). `--local` wants nginx on PATH (`/usr/sbin` on Debian),
+`server/scripts/gen_dev_cert.sh` run first, and a checkout nginx's worker can read (not under a `0700` directory).
+`lab/scripts/server_ab.sh` runs the binaries under `target/release`, so it wants `CARGO_TARGET_DIR` unset, and a
+`LOGDIR` given to it must exist.
 
 ## The viewer on a DICOM series
 
 One series, ingested once, then one terminal per server:
 
 ```bash
-cargo build --release -p series-server -p pack-series && bash ingest/coded-frames/build.sh   # once
-lab/av1/.venv/bin/python ingest/from-dicom/from_dicom.py lab/.av1-build path/to/series target/my.sbnd
+cargo build --release -p series-server -p pack-series && ingest/tools.sh   # once, with the venv of §Prerequisites
+.venv/bin/python ingest/from-dicom/from_dicom.py ingest/.build path/to/series target/my.sbnd
 #   (a folder of one series' single-frame objects, or one multi-frame object; docs/FIXTURES.md §From DICOM)
 
 # Terminal 1 — the WebTransport server, on the dev certificate
@@ -125,10 +145,24 @@ Both clients and the TCP fallback are [`docs/CLIENTS.md`](docs/CLIENTS.md); the 
 
 **What the gate costs and what it catches** — mutants made by hand at each decision, run by the step that owns the code: the
 downloader's in [`client/README.md`](client/README.md) §Every decision is held by a test; the decoder modules
-45 of 45; the send path (`planner.rs`, `frame_out.rs`, `pipeline.rs`) 20 of 24, the four alive being log lines
-and a lab-only stall's equivalent sends; the series bundle's reader and writer 10 of 10. Its time, row GATE
-(2026-10-07, 4 cores, warm builds): `--quick` 161 → 106 s once the two timer-bound steps ran side by side; the
+45 of 45; the send path (`planner.rs`, `pipeline.rs`, and `frame_out.rs`, now `link.rs`) 20 of 24, the four alive being log lines
+and a lab-only stall's equivalent sends; the series bundle's reader and writer 10 of 10. Its time, the gate-time measurement
+(queue row GATE, 2026-10-07, 4 cores, warm builds): `--quick` 161 → 106 s once the two timer-bound steps ran side by side; the
 before-and-after table is at `git show 0d293c89^:README.md`, and each step's time is in the gate's own log.
+
+**What the nightly times and what it claims** — `.github/workflows/perf-nightly.yml` runs `scripts/perf_nightly.mjs`
+nightly on `claude/av1-unified-mainbase` against itself 24 hours earlier, and on a pull request labelled `perf` against
+its base: both trees built, the gate's grey codestream 48 times filled through the downloader on the total-time
+harness (`r50000`, 1×, Chromium; [`lab/av1/delivery/total-time/README.md`](lab/av1/delivery/total-time/README.md)),
+the base, the head and the base again in `lab/order.mjs`'s order, 12 rounds and 12 confirming, the fill and the first
+frame judged by row NETRULES' A/A rule ([`lab/scripts/aa_rule.py`](lab/scripts/aa_rule.py)). A cell is flagged only
+when both campaigns flag it; *worse* turns the nightly red, never a pull request. On this repository's 4-core
+container (row PERFNIGHTLY, 2026-10-15): the base against itself a tie (fill A/A sd 0.3 %, a loss of 0.6 % caught);
+a 10 ms sleep a frame in the server's send path worse on both cells (fill ×1.155); a 2 ms one flagged too (first
+frame ×1.015 worse, fill ×0.988 better). The fill there follows the link to 200 Mbit/s (0.51, 0.45, 0.38 s at 50,
+100, 200) and no further (0.37 at 400 and 800), so the host is not what bounds `r50000`. It claims a difference
+between two trees that repeats on that runner, that series and that link: no number for another host, a series that
+decodes longer, a slower CPU or another engine; a schedule fires from the default branch's copy of the workflow only.
 
 ## Docs
 

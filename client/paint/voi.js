@@ -1,6 +1,6 @@
 /** The DICOM grayscale pipeline as a table by stored code (PS3.3 2026d C.11); client/paint/README.md §The contract. */
 
-export const FUNCTIONS = ["LINEAR", "LINEAR_EXACT", "SIGMOID"];
+const FUNCTIONS = ["LINEAR", "LINEAR_EXACT", "SIGMOID"];
 
 /** A missing, zero or non-finite slope is 1, a non-finite intercept 0 (C.11.1). */
 export function rescale({ slope, intercept } = {}) {
@@ -34,7 +34,7 @@ export function voi(fn, center, width) {
 /** The one rounding both renderers use: half up, then clamped to a byte. */
 export const toCode = (y) => Math.min(255, Math.max(0, Math.floor(y + 0.5)));
 
-export const PHOTOMETRIC = ["MONOCHROME1", "MONOCHROME2", "RGB"];
+const PHOTOMETRIC = ["MONOCHROME1", "MONOCHROME2", "RGB"];
 
 /** Where stored code `s` sits in a table: 256 entries up to 8 bits, else 65 536; signed codes offset by half. */
 export function tableShape({ bits, signed }) {

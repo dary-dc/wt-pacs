@@ -1,5 +1,5 @@
 # The static host for the viewer, answering as server/dev-server.py does in development: deploy/README.md.
-# SERIES and TLS_LISTEN are substituted at container start.
+# SERIES, TLS_LISTEN and WT_ORIGIN are substituted at container start.
 
 # A re-packed catalog or an edited page must not be read stale from a heuristic cache;
 # nginx's ETag and Last-Modified make each revalidation a 304.
@@ -24,6 +24,8 @@ server {
     add_header Cross-Origin-Embedder-Policy require-corp  always;
     add_header Cross-Origin-Resource-Policy same-origin   always;
     add_header Cache-Control                $revalidate   always;
+    # Scripts from this origin alone, connections to it and the transport; eval for the decoders' glue (wasm-glue.js).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${WT_ORIGIN}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'" always;
 
     # mime.types says application/javascript for .js and has no .mjs; dev-server.py says text/javascript.
     include      /etc/nginx/mime.types;

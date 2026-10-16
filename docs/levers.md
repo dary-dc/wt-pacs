@@ -47,7 +47,7 @@ Owner: [`adr/disk-access.md`](adr/disk-access.md) (§5 · Every candidate, one t
 | `read_ahead_kb` | L7: 128 against 2 048 KiB, no clean result | never | §Read-ahead, §9 #6 |
 | mmap | RP: `gap_max` 1.5–7.7 ms; row 51: not re-timed | held | §5 |
 | `O_DIRECT`, SPDK | — (argued: loses the shared page cache) | never | §5 |
-| Park on the ring fd, drop the eventfd | RP x14: a tie on CPU and latency, 1 fd and 2 `unsafe` fewer | held, deferred to P0 | §9 #7 |
+| Park on the ring fd, drop the eventfd | RP x14: a tie on CPU and latency, 1 fd and 3 `unsafe` blocks fewer (*corrected 2026-10-15*: said 2). Row 250 re-measured the tie on the product (`read_path_ab.sh`, 12 rounds) and counted the fd | **built 2026-10-16**, row 250, on the owner's word that P0 waits (*was:* held, deferred to P0; proposed as row 244) | §9 #7 |
 | tokio-uring, glommio, monoio, compio | — (a transport rewrite) | never | §2 |
 | `sendfile`, `splice` | — (userspace QUIC copies anyway) | never | §5 |
 | A process-private frame cache | RP: −20.2 % CPU at a 0.92 hit rate, +4.2 % with no repeats | trade-off; premise (link band: server CPU ×5) | §8 · Levers outside this decision |
@@ -55,7 +55,7 @@ Owner: [`adr/disk-access.md`](adr/disk-access.md) (§5 · Every candidate, one t
 | `MALLOC_MMAP_THRESHOLD_` 1 MiB | row 51: RSS at rest −46 to −57 %, CPU a tie to +5 % | owner (row 51's cell; not in §Blocked) | §8 |
 | Whole-frame inline probe on large frames | RP: a 250 kB inline copy `gap_max` 4.0 ms; row 160: a 2.8 MB hit 216–220 µs; 16 MB unmeasured | never (since whole-frame probes shipped) | §5 |
 | `io-uring` 0.7.14 → 0.7.15 | — | never (a newer release) | §9 #8 |
-| Deploy limits: `LimitMEMLOCK`, `nofile`, `check-fastpath` in the image | — (`deploy/compose.yml` sets none; ~940 rings, then a silent fall to the pool) | never | §Limits: `ulimit -n` and `ulimit -l`, §9 #5 |
+| Deploy limits: `LimitMEMLOCK`, `nofile`, `check-fastpath` in the image | — (`deploy/compose.yml` sets `memlock` 64 MiB and `nofile` 65 535 since row 231, with the io_uring profile; `check-fastpath` in the image never tried) | held (row 231, the owner's ruling) | §Limits: `ulimit -n` and `ulimit -l`, §9 #5 |
 | Release LTO, one codegen unit | RP: −4 to −8 % CPU | held (landed) | §8 |
 | Container format (MP4, fMP4, MKV, MXF, DICOM EOT, IVF) against `.sbnd` | rows 159, 160: reads, fill, CPU tie; the open loses 13–26 ms; none round-trips | held (verdict proposed to the owner) | [`disk-layout/containers.md`](disk-layout/containers.md) §Verdict |
 | `.sbnd` v2 (148 B header, 28 B entries) | row 160: ties v1, 0.006–0.07 % smaller | held; the build not queued | [`disk-layout/target.md`](disk-layout/target.md) §Layout 0 |
@@ -141,7 +141,7 @@ Owner: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`decode/README.md`](decode/README.
 | The range in the pack | cq 83–85: one ask −8 to −58 % | held | decode/README.md §The range in the pack |
 | Dispatch: first free + 1, `perDecoder` 2 | lab dispatch bench: a short queue ends 20 % sooner | held; **never** for the value 2 and what an ask waits behind | decode/README.md §Dispatch |
 | Decoder count `min(3, cores)` | downloader-cost: a third decoder wins 7/7 on 4 cores, loses on 2 | held (phones unmeasured) | ARCHITECTURE.md §Resources |
-| Decode paced to the wire (`followQueue`) | row 112: fill ×0.998–1.002, CPU ×0.85–0.98, wake-ups ×0.18–0.47; one cell 12/16 | owner (row 113, the phone stage) | ARCHITECTURE.md §The decoders |
+| Decode paced to the wire (`followQueue`) | row 112: fill ×0.998–1.002, CPU ×0.85–0.98, wake-ups ×0.18–0.47; one cell 12/16 | held (the flag removed by row 224; at `ba408823`) | ARCHITECTURE.md §The decoders |
 | Decoders started on first need (`startOnNeed`) | row 142: fill ×0.994–1.004, CPU ×0.86–0.96, wake-ups ×0.18–0.44; two fill cells and one cold ask miss a fixed bar, no A/A arm | **premise** (net ruling) | decode/README.md §Not yet tried (P-START) |
 | Zero-copy hand-off: frames packed into a heap the page keeps (P-COPY) | row 134: grey ×0.95–1.05, RGB ×0.866 at 4×, peak memory −5 to −25 MB | **premise** (net ruling: refused by a ≤ ×0.95-everywhere bar, not by a loss) | decode/README.md §Not yet tried (P-COPY) |
 | Helper started after `ready` | rows 108, 113: cold ask ×1.06, ×1.19 | held | [`decode/levers-protocol.md`](decode/levers-protocol.md) §Review |

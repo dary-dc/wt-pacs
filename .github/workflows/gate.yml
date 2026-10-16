@@ -1,0 +1,193 @@
+# scripts/gate.sh in full on a runner with every prerequisite of README.md §Prerequisites, and the deploy image
+# checked; no timed measurement runs here (CLAUDE.md §Measurement).
+name: gate
+
+on:
+  pull_request:
+    branches: [claude/av1-unified-mainbase, main]
+  push:
+    branches: [claude/av1-unified-mainbase, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  RUST_VERSION: 1.97.0
+  WASM_PACK_VERSION: 0.15.0
+  PLAYWRIGHT_VERSION: 1.56.1
+  CARGO_TERM_COLOR: never
+
+jobs:
+  decoders:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      key: ${{ steps.key.outputs.key }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The inputs the gate's staleness check names, by content.
+      - id: key
+        run: echo "key=decoders-${{ hashFiles('client/decode/wasm/build/**', 'client/decode/wasm/openjph/**', 'client/decode/wasm/dav1d/dav1d_wrap.c', 'client/decode/wasm/xxh3/**') }}" >>"$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: client/decode/wasm/built
+          key: ${{ steps.key.outputs.key }}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: bash client/decode/wasm/build/build.sh
+
+  gate:
+    needs: decoders
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # check_links.py resolves links into history
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: client/transport/ts/package-lock.json
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.11.17
+          cache: pip
+          cache-dependency-path: lab/av1/requirements.txt
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.0
+          cache-dependency-path: |
+            lab/other-clients/go/go.sum
+            lab/page-open/h3-host/go.sum
+      - name: Rust, nasm, meson, nginx and strace
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --target wasm32-unknown-unknown
+          rustup default "$RUST_VERSION"
+          sudo apt-get update -q && sudo apt-get install -y -q nasm meson nginx strace
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock', 'patches/**') }}
+          restore-keys: cargo-${{ env.RUST_VERSION }}-
+      - id: wasm-pack
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/wasm-pack
+          key: wasm-pack-${{ env.WASM_PACK_VERSION }}-${{ env.RUST_VERSION }}
+      - if: steps.wasm-pack.outputs.cache-hit != 'true'
+        run: cargo install wasm-pack --version "$WASM_PACK_VERSION" --locked
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ env.PLAYWRIGHT_VERSION }}
+      - name: Playwright with Chromium and Firefox
+        run: |
+          npm i -g "playwright@$PLAYWRIGHT_VERSION"
+          npx -y "playwright@$PLAYWRIGHT_VERSION" install --with-deps chromium firefox
+      - run: pip install --require-hashes -r lab/av1/requirements.txt
+      # The gate's ingest steps need ingest/tools.sh's coders: aomenc 3.15.1, dav1d and OpenJPH, each refused off its pin.
+      - id: coders
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ingest/.build/aom-3.15.1
+            ingest/.build/dav1d
+            ingest/.build/openjph
+          key: coders-${{ hashFiles('ingest/tools.sh') }}
+      - run: ingest/tools.sh
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: client/decode/wasm/built
+          key: ${{ needs.decoders.outputs.key }}
+          fail-on-cache-miss: true
+      # The key is the sources' content; the gate's staleness check reads time, which a checkout resets.
+      - run: find client/decode/wasm/built -type f -exec touch {} +
+      - name: Client builds and the fetched decoder and hasher
+        run: |
+          (cd client/transport/ts && npm ci --no-audit --no-fund)
+          bash client/transport/wasm/build.sh
+          bash client/decode/wasm/fetch_openjph.sh
+          bash client/decode/wasm/fetch_xxh3.sh
+      - run: scripts/gate.sh 2>&1 | tee "$RUNNER_TEMP/gate.log"
+      - name: No skip but those the runner cannot open
+        run: |
+          # Each skip the runner may print, and why it cannot open it; any other SKIPPED line fails the job.
+          allowed=(
+            "the viewer's cross-codec arm and Firefox"  # row INGEST's fetched studies, and a GL display the runner lacks
+          )
+          unlisted=$(sed -n '/^GATE OK/,$p' "$RUNNER_TEMP/gate.log" | grep SKIPPED | grep -vF -f <(printf '%s\n' "${allowed[@]}") || true)
+          [[ -z "$unlisted" ]] || { echo "::error::the gate skipped what this workflow does not allow:"; echo "$unlisted"; exit 1; }
+
+  deploy:
+    needs: decoders
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      # Bake asks, and a runner cannot answer, for leave to read the build secret's file.
+      COMPOSE_BAKE: "false"
+      # The runner has podman too, which check_equivalence.sh would prefer and which cannot see docker's images.
+      RUNTIME: docker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: client/decode/wasm/built
+          key: ${{ needs.decoders.outputs.key }}
+          fail-on-cache-miss: true
+      - run: bash client/decode/wasm/fetch_xxh3.sh
+      - run: docker compose -f deploy/compose.yml build
+      - run: bash deploy/check_equivalence.sh
+      - run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            target
+          key: cargo-deploy-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+      # A series the page decodes, as client/viewer/run_check.sh makes it: the smoke series' frames are placeholders.
+      - name: The viewer's page check through the deployment
+        run: |
+          cargo build -q --release -p pack-series
+          S="$RUNNER_TEMP/studies"
+          mkdir -p "$S/frames"
+          for i in 000 001 002; do cp client/contract/frames/grey-16.j2c "$S/frames/$i.htj2k"; done
+          d="$(cat client/contract/frames/grey-16.xxh3)"
+          cat >"$S/grey.metadata.json" <<JSON
+          {"frameCount": 3, "codec": "htj2k", "photometric": "MONOCHROME2", "modality": "OT",
+           "window": {"center": [30000], "width": [60000], "function": "LINEAR"},
+           "digests": {"algorithm": "xxh3-64", "frames": ["$d", "$d", "$d"]}}
+          JSON
+          "$CARGO_TARGET_DIR/release/pack-series" --metadata "$S/grey.metadata.json" --frames "$S/frames" --output "$S/grey.sbnd" >/dev/null
+          STUDIES="$S" SERIES=grey docker compose -f deploy/compose.yml up -d --wait
+          npm i -g "playwright@$PLAYWRIGHT_VERSION"
+          npx -y "playwright@$PLAYWRIGHT_VERSION" install --with-deps chromium
+          NODE_PATH="$(npm root -g)" node client/viewer/check.mjs --url http://127.0.0.1:8765/ --decoder htj2k
+      - if: always()
+        run: docker compose -f deploy/compose.yml logs --no-color && docker compose -f deploy/compose.yml down -v

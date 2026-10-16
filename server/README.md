@@ -9,13 +9,16 @@ the code is right and this file is corrected.
 ## Start-up
 
 ```
-main.rs            flags → ServeConfig                         (TransportTuning is flattened in)
-   │
+main.rs            flags: ServeConfig is flattened in, its flags and defaults declared on it
+   │                                                           (TransportTuning is flattened into it)
 run_server         load the TLS identity, print its SHA-256 for the client to pin
+   │               bind QUIC: --bind's address, else dual-stack then IPv4 any, tried in order;
+   │                 with --websocket, TCP on the same port
    │               FrameStore::open — once per process: the bundle's index, the RWF_NOWAIT probe
-   │               bind QUIC (dual-stack, IPv4 fallback); with --websocket, TCP on the same port
-   │               print the banner (wt_url=, cert_sha256=, frames=, read_fast_path=, transport=, …)
-   │               Sessions { Arc<FrameStore>, read mode, stream mode, open_ask, stall }
+   │               banner::print (wt_url=, cert_sha256=, frames=, read_fast_path=, transport=, …);
+   │                 wt_url and ws_url name --bind's address when it is a specific one, else 127.0.0.1
+   │               Sessions::new { store, read_mode, mode, opening_ask, stall, cwnd_ahead },
+   │                 warning for each lab lever that is on
    ├─▶ WebSocket accept loop (its own task)   one task per TCP connection
    └─▶ QUIC accept loop                       one task per session
 ```
@@ -100,7 +103,7 @@ registered that store's file and its slots key on that store's offsets.
 | - | - |
 | tokio workers | the accept loops, one task per session, one ask-reader task per session; every cached read |
 | tokio's blocking pool | a fill's miss; a tile miss where there is no ring |
-| the kernel's io_uring | a tile miss; its completion wakes the session task through an eventfd |
+| the kernel's io_uring | a tile miss; its completion wakes the session task, parked on the ring's own fd |
 | telemetry builds only | a drain thread writing rows; a path sampler task per QUIC session |
 
 No task ever waits on the disk: a read that is not already cached leaves the worker thread.
@@ -109,7 +112,7 @@ No task ever waits on the disk: a read that is not already cached leaves the wor
 
 | object | file | owns | what it is for |
 | - | - | - | - |
-| `ServeConfig` | `server/src/transport/server.rs` | the settings | everything `run_server` needs |
+| `ServeConfig` | `server/src/transport/server.rs` | the settings | everything `run_server` needs, and the command line: each field is its flag |
 | `Sessions` | `server/src/transport/server.rs` | `Arc<FrameStore>`, modes | what every session is served with; `serve` runs one |
 | `Command`, `Step`, `Next` | `server/src/transport/planner.rs` | — | an ask in, a decision out, the reader it picks |
 | `Planner` | `server/src/transport/planner.rs` | asks in hand, the fill | the next step, decided without I/O |
@@ -118,12 +121,15 @@ No task ever waits on the disk: a read that is not already cached leaves the wor
 | `RecordedPipeline` | `server/src/transport/pipeline.rs` | an inner pipeline, a `Tap` | telemetry builds: stamps each step, then delegates |
 | `FillReader` | `server/src/media/read_path.rs` | the store, two buffers | reads a fill |
 | `TileReader` | `server/src/media/read_path.rs` | the store, the ring, the slots | reads tile asks |
-| `UringReader` | `server/src/media/uring_reader.rs` | the ring, an eventfd | io_uring for misses only |
+| `UringReader` | `server/src/media/uring_reader.rs` | the ring | io_uring for misses only |
 | `FrameStore` | `server/src/media/frame_store.rs` | the bundle's file and index | where a frame is; reads that never wait, and reads that may |
 | frame pool | `server/src/media/frame_pool.rs` | spare buffers | a frame handed to quinn whole, its buffer reused |
 | `Link`, `Media`, `ControlStream` | `server/src/transport/link.rs` | the session's streams | the one writer of frames and refusals |
 | `WsWriter` | `server/src/transport/websocket.rs` | the socket's sink | the same, over TCP |
 | `SlowStartRestart` | `server/src/transport/restart.rs` | a Cubic controller | after a silence, slow start again instead of halving |
+| `LossBound` | `server/src/transport/loss_bound.rs` | a BBR controller | `--congestion bbr-bound`: BBR under BBRv3's loss bound, opt-in |
+| `LossClassify` | `server/src/transport/classify.rs` | a `cubic-restart` controller | lab only, `--congestion cubic-classify`: no cut on a loss that met no queue |
+| `Traced` | `server/src/transport/cc_trace.rs` | any controller | lab only: its metrics and congestion events to `$WTPACS_CC_TRACE` and `$WTPACS_LOSS_TRACE` |
 | `TransportTuning` | `server/src/transport/tuning.rs` | QUIC knobs | flags → quinn's transport config |
 
 `server/src/transport/wire.rs` reads and writes the length-prefixed FoD messages on QUIC streams, and
@@ -132,8 +138,12 @@ No task ever waits on the disk: a read that is not already cached leaves the wor
 ## Lab only
 
 Off in a deployment, and documented where they are measured: `--force-pool-reads` (every read a miss),
-`--hold-sessions` (a dial that never settles), `--stall-after-bytes` (a session that stops sending).
-The `telemetry` feature compiles in `server/src/record/` and `RecordedPipeline`; the default build carries
-none of it, and `scripts/gate.sh` checks that. One switch is for a deployment, not the lab:
+`--hold-sessions` (a dial that never settles), `--stall-after-bytes` (a session that stops sending),
+`--send-window-follows-cwnd`, `--stream-mode per-frame-asks-first`, `--congestion cubic-classify`,
+`--reply-repeated-initial`, `--segmentation-offload false` (netem drops datagrams, not GSO batches), and the
+`lab-frame-cache` feature (`LAB_FRAME_CACHE_BYTES`). The `telemetry` feature compiles in `server/src/record/`,
+`RecordedPipeline` and the controller traces (`transport/cc_trace.rs`, `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`);
+the default build carries none of it, and `scripts/gate.sh` checks that by symbol and literal. One switch is for a
+deployment, not the lab:
 `WTPACS_READ_PATH=pool` takes the tile reader off its ring
 ([`docs/adr/disk-access.md`](../docs/adr/disk-access.md) §Flags).

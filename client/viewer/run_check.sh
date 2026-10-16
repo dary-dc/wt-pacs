@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The viewer's page check in headless Chromium on a series the gate can make, filled with a cine and on demand: the
-# contract's 16-bit grey codestream three times, with its digest. The cross-codec arm and Firefox need row INGEST's bundles:
+# contract's 16-bit grey codestream three times, with its digest. The cross-codec arm and Firefox need the DICOM ingest's bundles:
 # client/README.md §The viewer.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -19,7 +19,7 @@ cat >"$T/metadata.json" <<JSON
  "window": {"center": [30000], "width": [60000], "function": "LINEAR"},
  "digests": {"algorithm": "xxh3-64", "frames": ["$d", "$d", "$d"]}}
 JSON
-target/release/pack-series --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/grey.sbnd" >/dev/null
+"${CARGO_TARGET_DIR:-target}/release/pack-series" --metadata "$T/metadata.json" --frames "$T/frames" --output "$T/grey.sbnd" >/dev/null
 node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --cine
 node client/viewer/check.mjs --series "$T/grey.sbnd" --decoder htj2k --fill 0
-echo "SKIPPED: the viewer's cross-codec arm and Firefox — they need row INGEST's bundles and a GL display (client/README.md §The viewer)"
+echo "SKIPPED: the viewer's cross-codec arm and Firefox — they need the DICOM ingest's bundles and a GL display (client/README.md §The viewer)"

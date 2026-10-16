@@ -46,7 +46,7 @@ The WASM session (`client/transport/wasm`) always pins; the kit uses the default
 token and the certificate come from the environment; `deploy.sh fetch` replaces the host's names in the rows and
 fails if one is left.
 
-**Tested in the container** (row DEVICEKIT): `plan.test.mjs`, `collector_test.py` and `server_start_test.sh` in
+**Tested in the container** (row DEVICEKIT): `plan.test.mjs`, `collector_test.py` and `deploy/server_start_test.sh` in
 the gate, each failing under its mutations; the whole loop — `deploy.sh up` over SSH to the container itself, the
 image, the four arms, the collector over TLS, `dry_run.mjs` in quick mode, `fetch`, `down` — as
 [`../../docs/devices.md`](../../docs/devices.md) §6 records. Not tested: a phone, the Oracle machine, its security

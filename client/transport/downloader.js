@@ -11,7 +11,7 @@ const abs = () => performance.timeOrigin + performance.now();
 
 let session = null;
 /** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
-let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true };
+let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head" };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
 const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
 /** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
@@ -41,8 +41,7 @@ let recycling = null;
 let closed = false;
 
 const decoders = [];
-/** Lab flag `followQueue`: decoders retired idle, kept to be taken back, and the one coming up. */
-const parked = [];
+/** Lab flag `startOnNeed`: the decoder coming up. */
 let growing = null;
 /** index → { state, priority, stamps, bytes, decoder, attempts }. State: wire | queued | decoding, the last until the page acknowledges it. */
 const records = new Map();
@@ -129,17 +128,9 @@ function pump() {
   grow();
 }
 
-/** Lab flags `followQueue` and `startOnNeed` (which never retires): one decoder at the start. docs/ARCHITECTURE.md §How many */
-const growsOnNeed = () => cfg.followQueue || cfg.startOnNeed;
-
-/** Frames still queued after a dispatch add a decoder, up to `cfg.decoders`. */
+/** Lab flag `startOnNeed`: one decoder at the start, and frames still queued after a dispatch add one, up to `cfg.decoders`. docs/ARCHITECTURE.md §How many */
 function grow() {
-  if (!growsOnNeed() || growing || queue.ask.length + queue.fill.length === 0 || decoders.length >= cfg.decoders) return;
-  const back = parked.pop();
-  if (back) {
-    decoders.push(back);
-    return pump();
-  }
+  if (!cfg.startOnNeed || growing || queue.ask.length + queue.fill.length === 0 || decoders.length >= cfg.decoders) return;
   const d = spawn();
   growing = d;
   d.up.then(() => {
@@ -148,16 +139,7 @@ function grow() {
     growing = null;
     decoders.push(d);
     pump();
-    retire(d);
   });
-}
-
-/** `followQueue`: a decoder left idle with nothing queued leaves the pool, alive, for `grow` to take back. */
-function retire(d) {
-  if (!cfg.followQueue || d.outstanding > 0 || decoders.length < 2 || holdsAGroup(d) || !decoders.includes(d)) return;
-  decoders.splice(decoders.indexOf(d), 1);
-  d.next = null;
-  parked.push(d);
 }
 
 function dispatch(d, index, rec) {
@@ -229,13 +211,27 @@ function arrived(index, frame) {
   pump();
 }
 
-/** The server ends a running fill for an ask, so the remainder is re-issued once the ask settles. docs/WIRE.md §An ask during a fill */
-async function ask(index, promise) {
+/**
+ * The server ends a running fill for an ask, so the remainder is re-issued on the asked frame's envelope head
+ * (`refill: "head"`), right behind the ask (`"ask"`) or once it settles (any other). docs/WIRE.md §An ask during a
+ * fill, docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*
+ */
+async function ask(index, s) {
   const gen = generation;
   const ep = epoch;
-  asksInFlight += 1;
+  // Released once: a second `stream_frames` for the same remainder ends the first and re-sends what it wrote.
+  let holding = cfg.refill !== "ask";
+  const release = () => {
+    if (!holding || gen !== generation || ep !== epoch) return;
+    holding = false;
+    asksInFlight -= 1;
+    issueFill();
+  };
+  if (holding) asksInFlight += 1;
   issuedAt = performance.now();
   watch();
+  const promise = requestOnce(s, index, cfg.refill === "head" ? release : undefined);
+  if (!holding) issueFill();
   try {
     const frame = await promise;
     if (gen === generation && ep === epoch) arrived(index, frame);
@@ -246,19 +242,16 @@ async function ask(index, promise) {
     }
   } finally {
     // A cancelled ask's count was already dropped with the rest of its generation's work.
-    if (gen === generation && ep === epoch) {
-      asksInFlight -= 1;
-      issueFill();
-    }
+    release();
   }
 }
 
 /** Asks a session has on the wire, whatever generation made them: a cancel leaves them owed, and the session refuses a second. */
 const onWire = new Map();
-function requestOnce(s, index) {
+function requestOnce(s, index, onHead) {
   const held = onWire.get(index);
   if (held?.session === s) return held.promise;
-  const promise = s.requestExactFrame(index);
+  const promise = s.requestExactFrame(index, onHead);
   onWire.set(index, { session: s, promise });
   const forget = () => onWire.get(index)?.promise === promise && onWire.delete(index);
   promise.then(forget, forget);
@@ -273,7 +266,7 @@ function askFor(s, index) {
   wanted.delete(index);
   if (rec) rec.priority = "ask";
   else record(index, "ask", abs());
-  ask(index, requestOnce(s, index));
+  ask(index, s);
 }
 
 /** The wire carries one contiguous run of what is wanted at a time. docs/ARCHITECTURE.md §The downloader */
@@ -338,27 +331,31 @@ function lost(proved) {
 const owedAsks = () =>
   [...records].filter(([, r]) => r.state === "wire" && r.priority === "ask").map(([i]) => i);
 
+const reaskOwed = () => { for (const i of owedAsks()) ask(i, session); };
+
+function retire() {
+  epoch += 1;
+  asksInFlight = 0;
+  session.close();
+}
+
 /** A session swapped for its replacement before a byte budget runs out, the replacement dialled
  *  while the old one still delivers. docs/ARCHITECTURE.md §Recycling before the stall */
 async function recycle() {
   const ep = epoch;
   const next = await openSession(null).catch(() => null);
   if (!next || ep !== epoch || resuming || !session) return void next?.close();
-  epoch += 1;
-  asksInFlight = 0;
-  session.close();
+  retire();
   adopt(next);
-  for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
+  reaskOwed();
   issueFill();
   postMessage({ kind: "recycled" });
 }
 
 /** A new session, then exactly what the records still owe: nothing that arrived is asked twice. */
 async function resume() {
-  epoch += 1;
-  asksInFlight = 0;
   clearTimeout(stall);
-  session.close();
+  retire();
   session = null;
   dialling = null;
   while (redials < deadlines.tries) {
@@ -366,7 +363,7 @@ async function resume() {
     redials += 1;
     try {
       await connect();
-      for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
+      reaskOwed();
       return void postMessage({ kind: "resumed" });
     } catch {
       await sleep(deadlines.redialMs);
@@ -382,7 +379,6 @@ function onDone(d) {
   d.outstanding -= 1;
   arm(d);
   pump();
-  retire(d);
 }
 
 /** A decoder that owes a frame and answers nothing for `decodeMs` is replaced: the clock restarts at each answer. */
@@ -400,7 +396,6 @@ function replace(d, reason) {
   d.worker.terminate();
   const at = decoders.indexOf(d);
   if (at >= 0) decoders[at] = spawn();
-  if (parked.includes(d)) parked.splice(parked.indexOf(d), 1);
   for (const [index, rec] of records) if (rec.decoder === d) again(index, rec, reason);
 }
 
@@ -415,7 +410,7 @@ async function again(index, rec, reason) {
   rec.state = "wire";
   rec.priority = "ask";
   rec.decoder = null;
-  ask(index, s.requestExactFrame(index));
+  ask(index, s);
 }
 
 /** A decoder worker, up once `d.up` settles; `start` puts it in the pool at once, `grow` once it is up. */
@@ -443,11 +438,8 @@ function spawn() {
     }
     else if (e.data.kind === "init-failed") lose(d, e.data.reason);
     else if (e.data.kind === "failed") {
-      d.outstanding -= 1;
-      arm(d);
       if (e.data.gen === generation) fail(e.data.index, e.data.reason);
-      pump();
-      retire(d);
+      onDone(d);
     }
   };
   postMessage({ kind: "pixel-port", port: ch.port2, decoder: d.id }, [ch.port2]);
@@ -457,7 +449,7 @@ function spawn() {
 async function start(m) {
   // A config field the consumer left out must not clobber the default with `undefined`.
   for (const [k, v] of Object.entries(m.config ?? {})) if (v !== undefined) cfg[k] = v;
-  const count = !cfg.decode ? 0 : growsOnNeed() ? Math.min(1, cfg.decoders) : cfg.decoders;
+  const count = !cfg.decode ? 0 : cfg.startOnNeed ? Math.min(1, cfg.decoders) : cfg.decoders;
   for (let i = 0; i < count; i++) decoders.push(spawn());
   const ready = decoders.map((d) => d.up);
   if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
@@ -563,7 +555,7 @@ onmessage = async (e) => {
     // A decoded frame is forgotten only once the page has it. docs/ARCHITECTURE.md §The downloader
     if (m.kind === "ack") return void (m.gen === generation && records.delete(m.index));
     if (m.kind === "undelivered") {
-      const d = decoders.concat(parked).find((x) => x.id === m.decoder);
+      const d = decoders.find((x) => x.id === m.decoder);
       return void (d && replace(d, `a frame from decoder ${d.id} could not be read on the page`));
     }
     if (m.kind === "cancel") {

@@ -5,7 +5,7 @@ and AV1, through the product's own `client/decode/decoder.js`. The reading is in
 [`docs/decode/README.md`](../../../../docs/decode/README.md) §The decoder worker's hand-off.
 
 ```bash
-lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh && ingest/coded-frames/build.sh   # libaom, dav1d, dav1d-WASM, ingest's check
+lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh   # libaom, dav1d, dav1d-WASM, ingest's check
 client/decode/wasm/fetch_openjph.sh                              # OpenJPH, the shipped package
 FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160  # builds ojph_compress once
 lab/av1/fetch_data.sh ffdm_a syn2d_a dbtproj_ge dbt12_ea1141 dbt10_ea1141 usb_cine usb_cine_rgb rf_fluoro

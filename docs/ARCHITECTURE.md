@@ -134,9 +134,12 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   which left the wire on 2026-10-03 (`202644d`): the server served it as one ask per index in order,
   so an ask behind a 200-frame batch waited for all 200, where a `stream_frames` fill is dropped the
   moment an ask is in hand. **An ask ends a
-  running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once an ask settles
-  the downloader re-issues what is not yet delivered as a new run — the client owns that decision,
-  the server stays as it is. An ask for a frame the fill still owes goes to the wire, where the
+  running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once the asked
+  frame's 8-byte envelope head lands the downloader re-issues what is not yet delivered as a new run
+  ([`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, *ASKTHENFILL*). That is a patch, not the
+  design: an ask and a fill compete for one stream, and the client rebuilds the fill the server dropped. The
+  candidate that removes the competition, one server queue where an ask moves its frame to the front, is queue
+  row 249. An ask for a frame the fill still owes goes to the wire, where the
   server serves it next, and the ask then owns that frame: a refusal that fails the rest of the run
   spares it.
 * **Cancel** ends the stream, drops queued work by generation, fails outstanding asks with an
@@ -177,7 +180,7 @@ the page were deleted: the page got a `messageerror` it has no handler for, the 
 the frame never arrived, with no failure. The record now holds `port1` for the decoder's life;
 `downloader.test.mjs` collects garbage and finds 0 of 3 ports alive without the line, 3 of 3 with it. In Firefox
 157.0.1 headless ([`../lab/ffportgc`](../lab/ffportgc/README.md), a 1024² 16-bit HTJ2K series through the real server
-and decoders, visits alternating): with the decoders spawned as the queue grows (`followQueue`), **2 of 17 fills lost
+and decoders, visits alternating): with the decoders spawned as the queue grows (`followQueue`, since removed), **2 of 17 fills lost
 one frame each before (frames 24 and 28, of 240 and 1 200), 0 of 14 after**; with the whole pool spawned at the start,
 0 of 11 before, 0 of 8 after, since its ports are collected before any frame is in flight. Every delivered frame was
 exact. Rare here, but silent; the reference implementation lost 5–31 of 237 frames in 7/7 Firefox fills.
@@ -293,12 +296,14 @@ retire one left idle — because at 20 Mbit a cine frame needs 0.34 of a desktop
 phone's (arithmetic), so one decoder keeps up on every fixture; a pool that resizes must keep both
 dispatch clauses (asks first, at most `perDecoder` a decoder) while it resizes. The
 default is measured at two and four cores only. *Built since as a lab flag and measured
-(*Follow the queue, measured*, below); the default is unchanged.*
+(*Follow the queue, measured*, below); the default is unchanged. Removed since (row 224, REJECTEDPATHS), not
+adopted; it is at `ba408823`.*
 
 **Follow the queue, measured** (queue row DECODEPACE, protocol L5 of the decode levers' protocol on
 `claude/av1`). `followQueue` on the downloader, off by default: one decoder at the start, one more when frames
 stay queued after a dispatch, up to `decoders`; a decoder that finishes with nothing queued leaves the pool
-alive and is taken back before another is made. `downloader.test.mjs` holds both clauses through the resizing.
+alive and is taken back before another is made. `downloader.test.mjs` held both clauses through the resizing; since
+the flag's removal (row 224) its `startOnNeed` test does.
 The total-time measurement's harness (queue row TOTAL), the delivered OpenJPH build in both arms, whole sound series — tomosynthesis 29 × 614×1359
 and full-field 4 × 3328×4096 — on 20 and 50 Mbit and `lte-good`, 1× and 4×, headless Chromium 141 on 3 of 4
 cores, 16 rounds with the arms Williams-ordered, 6 336/6 336 frames exact, 41 of 384 visits `VOID`. Each
@@ -405,7 +410,7 @@ identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 
 ## Capabilities
 
 Every row passed on the downloader before the harness's path was removed (2026-10-03); its column is the record. **contract** is
-`client/contract/run.mjs`, every clause against every transport; **dispatch** is `run_browser.sh dispatch`,
+`client/contract/run.ts` (bundled to `run.mjs`), every clause against every transport; **dispatch** is `run_browser.sh dispatch`,
 the downloader against a stalling fake decoder so contention is forced; both are in `scripts/gate.sh`.
 
 | capability | the harness's path | the downloader |
@@ -862,7 +867,9 @@ first written that test raced its client's own Initial repeat under load (1 run 
 waits 3 s. **Untraced**: a client whose repeat reaches the server just before its probe may not get
 the round trip back. Tried and not built: probing only the 1-RTT space (no more than early SETTINGS alone);
 re-queueing the SETTINGS as data (the session stalled, cause not found). `--initial-rtt-ms 100` is a
-larger, different lever here (−700 ms on every server) whose default waits on the target's round trip.
+larger, different lever here (−700 ms on every server), but not a default: its measurement's rule did not pass, so
+quinn's 333 ms stays ([`transport/transport-conclusions.md`](transport/transport-conclusions.md) §3, *Measured:
+IRTTMEASURE*; *corrected in place, row DOCSTRUE, 2026-10-14*: this line read as settled).
 
 #### Other clients
 
@@ -1174,13 +1181,17 @@ drops UDP, the race's time to ready against the four seconds.
 
 ## Open
 
-The owner decisions here are tracked in [`cloud-queue.md`](cloud-queue.md) §Open owner decisions.
+Each item below is the owner's to decide, and is tracked here.
 
 * **The decoder count**: `min(3, hardwareConcurrency)` is the default; a pool that follows the queue
-  is built as two lab flags, off by default — `followQueue` (row 112) and `startOnNeed` (row 142), measured in
+  was built as two lab flags, off by default — `followQueue` (row 112; removed by row 224, at `ba408823`) and
+  `startOnNeed` (row 142, kept), measured in
   [`decode/README.md`](decode/README.md) §Not yet tried (P-START), neither adopted (*corrected, queue row DOCFIX,
   2026-10-13*: this line said "not built"); a phone's scheduler (efficiency cores) and decode speed.
 * **The reader pause** that bounds the compressed queue (§The downloader) — not built.
+* **The server's module layout, R4** — `session/` beside `transport/`, with `SessionConfig`, `SessionPipeline` and
+  `run_session`: written out, moves and renames only, not built and not approved
+  (`git show ba408823:docs/server-design-proposal.md`, §R4).
 * **Coalescing decoded frames across decoders** — a merge point for ~10 ms of a throttled fill's main
   thread: design it or drop it, the owner's call (§The hand-off).
 * **An out-of-band cancel** that drops work already queued to a decoder — only if a phone shows a

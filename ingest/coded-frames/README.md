@@ -8,15 +8,18 @@ from here (`lab/av1/size.py` takes `exact` and `ivf_units`) and keeps no copy. T
 `client/decode/av1*.js` ([`client/README.md`](../../client/README.md)).
 
 ```bash
-lab/av1/tools/tools.sh && VARIANTS=simd client/decode/wasm/dav1d/build.sh   # aomenc 3.15.1, native dav1d, dav1d-WASM
-FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k_fixtures.sh g160 # OpenJPH 0.31.0, built once
-ingest/coded-frames/build.sh                                            # the check's in-process decoders (decode.cpp)
-P=lab/av1/.venv/bin/python                                              # numpy, from lab/av1/requirements.txt
-$P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/rf_fluoro OUT --representation optimized --preset good:6
+ingest/tools.sh                                                         # aomenc 3.15.1, dav1d 1.5.4, OpenJPH 0.31.0, the check's in-process decoders (decode.cpp)
+client/decode/wasm/build/build.sh                                       # the decoder builds check.mjs loads
+P=.venv/bin/python                                                      # numpy, xxhash: ingest/requirements.txt
+$P ingest/coded-frames/ingest.py ingest/.build lab/av1/data/rf_fluoro OUT --representation optimized --preset good:6
 target/release/pack-series --metadata OUT/metadata.json --frames OUT --output rf_fluoro.sbnd
 node ingest/coded-frames/check.mjs OUT                                  # every payload through the client's reader
-$P ingest/coded-frames/make_golden.py lab/.av1-build                    # the client's golden payloads and probes
+$P ingest/coded-frames/make_golden.py ingest/.build                     # the client's golden payloads and probes
+$P ingest/coded-frames/merge_test.py                                    # the split and its merge, every value: the gate's step
 ```
+
+`BUILD` (`ingest/.build` above, `lab/.av1-build` where `lab/av1/tools/tools.sh` built it) holds the coders and
+`payload/libdecode.so`; aomenc is asked for only when coding AV1.
 
 **`ingest.py`** reads a set as `lab/av1/fetch_data.py` writes it and writes `NNN.av1` payloads, or with
 `--codec htj2k` the served `NNN.htj2k` codestreams (OpenJPH, reversible, 5 decompositions, 64² blocks,
@@ -26,7 +29,7 @@ copied) and `metadata.json` (`"codec": "av1"` and the representation for AV1, an
 unless every frame decodes back in-process (`decode.cpp`: dav1d and OpenJPH, no subprocess, no file):
 each AV1 stream unit alone, at the depth it was coded at, merged as the client merges, and each HTJ2K
 codestream as written, at its depth and signedness, by XXH3-64 against the samples as read (SHA-256 against the
-checksum written when the source was fetched until row INGESTRS1, 2026-10-12). Each frame is offset once. Refused before coding: RGB over 8 bits, grey over 14
+checksum written when the source was fetched until the Rust ingest's phase 1, queue row INGESTRS1, 2026-10-12). Each frame is offset once. Refused before coding: RGB over 8 bits, grey over 14
 bits after the offset unless `--split K` names the low bits coded apart (k ≤ 8, up to 16 bits, a top of
 at most 12 — the matrix of `make_golden.py --matrix`). Without it, optimized takes k by depth (`optimized_split`: 0 up to 9 bits, 3 at
 13, 2 otherwise) and plain k = max(0, b − 12). `--preset` is `cpu0`, `good:N` or `allintra:N` (`lab/av1/bytes/README.md` §ENC names the fastest

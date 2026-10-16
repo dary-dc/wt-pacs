@@ -25,7 +25,7 @@
     let last = performance.now();
     const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
       decoders: 3,
-      followQueue: q.get("follow") === "1",
+      startOnNeed: q.get("follow") === "1",
       decoder: await built("openjph"),
       onFrame: (f) => { frames.set(f.frameIndex, f); last = performance.now(); },
       onError: (e) => errors.push(e),

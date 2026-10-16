@@ -19,7 +19,7 @@ async function init(m) {
   codec = await import(m.decoder?.codec === "av1" ? "./av1.js" : "./htj2k.js");
   await codec.init({ ...m.decoder, groupLength: m.groupLength });
   digests = m.digests ?? null;
-  if (digests) xxh3 = await hasher(m.hasher);
+  if (digests) xxh3 = await hasher();
 }
 
 const hash = (sab) => xxh3.init().update(new Uint8Array(sab)).digest("hex");

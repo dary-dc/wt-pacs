@@ -4,7 +4,8 @@
 #
 #   BUILD=... lab/av1/tools/tools.sh [aom svt dav1d avm]     default: all four
 #
-# libaom ships as release tarballs (checksummed below); SVT-AV1, dav1d and AVM (AV2) as git tags whose
+# aom or dav1d runs ingest/tools.sh into BUILD: libaom 3.15.1, dav1d, OpenJPH and the ingest's check.
+# libaom ships as release tarballs (checksummed below); SVT-AV1 and AVM (AV2) as git tags whose
 # commit is checked. Two libaom versions, because lossless correctness changed between them.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -13,19 +14,17 @@ JOBS="$(nproc)"
 WANT=" ${*:-aom svt dav1d avm} "
 want() { [[ "$WANT" == *" $1 "* ]]; }
 
-AOM_VERSIONS=(3.8.2 3.15.1)
+AOM_VERSIONS=(3.8.2)
 declare -A AOM_SHA256=(
   [3.8.2]=98f7d6d7ddbf06d088735f5e51782df053fd1b08c553882c2924bd0b2021a202
-  [3.15.1]=8ca0c52746174603500f0adb6f2a215d69c9ca2aab2acb3caa06fb791d8d01bf
 )
 SVT_TAG=v4.2.0
 SVT_COMMIT=9292ec8e32bce26f781f277ec8739b53426c4300
-DAV1D_TAG=1.5.4
-DAV1D_COMMIT=54706fc6bc0cdecab7e9593974a4039cc038fca7
 AVM_TAG=v1.0.0
 AVM_COMMIT=966a7d7cd6fcf60360caf5dc413b2aeeb65e144d
 
 mkdir -p "$BUILD"
+if want aom || want dav1d; then BUILD="$BUILD" "$ROOT/ingest/tools.sh"; fi
 
 clone_pinned() {
   local url=$1 tag=$2 commit=$3 dir=$4
@@ -58,13 +57,6 @@ if want svt && [[ ! -x "$BUILD/svt/bin/SvtAv1EncApp" ]]; then
   cmake --install "$BUILD/svt-b" >/dev/null
 fi
 
-if want dav1d && [[ ! -x "$BUILD/dav1d/bin/dav1d" ]]; then
-  clone_pinned https://github.com/videolan/dav1d.git "$DAV1D_TAG" "$DAV1D_COMMIT" "$BUILD/dav1d-src"
-  meson setup "$BUILD/dav1d-b" "$BUILD/dav1d-src" --buildtype=release --prefix="$BUILD/dav1d" \
-    --libdir=lib -Dbitdepths=8,16 -Denable_tests=false >/dev/null
-  meson install -C "$BUILD/dav1d-b" >/dev/null
-fi
-
 if want avm && [[ ! -x "$BUILD/avm/bin/avmenc" ]]; then
   clone_pinned https://github.com/AOMediaCodec/avm.git "$AVM_TAG" "$AVM_COMMIT" "$BUILD/avm-src"
   cmake -S "$BUILD/avm-src" -B "$BUILD/avm-b" -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -75,5 +67,4 @@ fi
 
 if want aom; then for v in "${AOM_VERSIONS[@]}"; do "$BUILD/aom-$v/bin/aomenc" --help 2>&1 | grep "AV1 Encoder"; done; fi
 if want svt; then "$BUILD/svt/bin/SvtAv1EncApp" --version; fi
-if want dav1d; then LD_LIBRARY_PATH="$BUILD/dav1d/lib" "$BUILD/dav1d/bin/dav1d" --version; fi
 if want avm; then "$BUILD/avm/bin/avmenc" --help 2>&1 | grep -m1 "AV2 Encoder"; fi

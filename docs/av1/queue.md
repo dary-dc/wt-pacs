@@ -5,20 +5,38 @@ the subject ([`README.md`](README.md) for the phase's decisions, `decode/README.
 `WIRE.md` for theirs). Separate from [`../cloud-queue.md`](../cloud-queue.md) on purpose: that queue
 and its branch belong to other work.
 
+*This copy on `main` is the queue as it stood at the merge, 2026-10-14 (row 225, H2). Rows after it, and the two
+orchestration notes it names (`ORCHESTRATE.md`, `mainbase/README.md`), are on `claude/av1-mainbase`.*
+
 ## Protocol
 
-**This queue lives on `claude/av1`. Push only to `claude/av1`** — never to
+**This queue lives on `claude/av1-mainbase`, and the work on `claude/av1-unified-mainbase`** (`ORCHESTRATE.md` for the session that dispatches it; since row 150,
+2026-10-12): wherever a row names `claude/av1` or `claude/av1-unified`, read these; the old branches are unused.
+**Push only to `claude/av1-mainbase`** — never to
 `claude/unified-2026-09-23`, `main` or any other branch, and never edit `docs/cloud-queue.md`.
 
-1. `git fetch origin && git checkout claude/av1 && git rebase origin/claude/av1`.
+1. `git fetch origin && git checkout claude/av1-mainbase && git rebase origin/claude/av1-mainbase`.
 2. Read `CLAUDE.md`, then [`README.md`](README.md) (this phase), then the table below.
 3. Take the **topmost `ready` row**. Set it to `claimed` with the date and a 6-hex id you draw once per session (`openssl rand -hex 3`), e.g. `claimed 2026-10-07 (night, a3f91c)`, commit that alone, push; a row whose claim does not carry your id is not yours. The
    push is the lock: if it is rejected, rebase and take the next `ready` row.
-4. Do the lane. Push your work (rebase first).
+4. Do the lane on its own branch, `claude/wip-<row>-<NAME>` (e.g. `claude/wip-209-READMEASURE`), made from
+   `claude/av1-unified-mainbase`; push there early and often. When the row is finished — every check passed, the gate
+   green — rebase the branch onto `claude/av1-unified-mainbase` and push it there as a fast-forward. A row cut short
+   leaves its branch and a provisional line naming it; the next session continues from that branch.
 5. Set the row to `done` with the commit hash after the rebase that pushed it, a one-line verdict
    with its numbers, and where the finding lives. Flip any `after …` row whose prerequisites are now
    all done to `ready` in the same commit. Push.
 6. Back to 1. Stop when no row is `ready` and say so; do not invent work.
+
+**The work branch holds finished work only (the owner, 2026-10-14).** `claude/av1-unified-mainbase` is the branch
+that will merge into `main`: clean, optimized, completely functional. Work in progress lives on `claude/wip-*`
+branches and reaches the work branch only finished, through step 4. **A change that removes or alters what exists does
+not land on its own** (the owner, 2026-10-14: review first): a simplification, a removal, a rename or move, a refactor,
+a changed default or behaviour, a format, wire or store change, a deleted or weakened test. Such a row finishes on its
+wip branch, gate green, and its cell reads `review — claude/wip-<row>-<NAME> <hash>: <what changed, what it removes,
+the capability kept>`; the orchestrator opens a draft pull request for it, and it lands only when the owner says so.
+Additive work — a new lab harness, a doc section, a lever behind a flag off by default, a fix with its failing test —
+lands as step 4 says.
 
 **`night` rows** are held for the night routine (the owner, 2026-10-03: cloud work runs while the workstation
 sleeps, so the two never share a usage window). A session started by the night routine treats `night` exactly as
@@ -32,7 +50,10 @@ reports the numbers, then whether each prediction held. A short review closes th
 conclusive or not, and why. Rows already queued keep their briefs.
 
 **`held until <UTC time>` rows** wait for the owner's next usage window: a session treats one as `ready` once
-`date -u` is at or past that time, and leaves it before. An `after …` clause on the same row still applies.
+`date -u` is at or past that time, and leaves it before. An `after …` clause on the same row still applies. When a row is both `held until` and `after`, clearing its `after` makes it `held until <the same time>`,
+not `ready`.
+
+**`local` rows** are for a session on the owner's machine; a cloud session never claims one.
 
 **`after env` rows** wait for the owner to switch the cloud environment's network access to full; the owner sets them to
 `ready`, and no session claims one before.
@@ -56,6 +77,10 @@ conclusive or not, and why. Rows already queued keep their briefs.
 * **Sound data only decides** (row DATAGUARD, 2026-10-08). A set classed `lossy-sourced` or `unknown` in
   `lab/av1/data.json` ([`../FIXTURES.md`](../FIXTURES.md) §Provenance, on `claude/av1-unified`) enters no bytes,
   time or inter verdict: its numbers are reported as measured and marked provisional. Exactness on it still counts.
+* **Arms differ in the lever alone (the owner, 2026-10-10).** A timing prints each arm's full settings — congestion
+  controller and its initial window, transport options, codec build, decoder path — and the cell names any difference
+  besides the lever. A comparison with another difference decides nothing (row 119 found a 20× initial window between
+  row 75's BBR and Cubic arms; row 121 lists what that left open).
 * **Pin every tool** (tag or version, and a checksum of anything fetched). Fetched data and built
   binaries are not committed; the script that makes them is.
 * **Code beside today's path, not instead of it.** HTJ2K keeps working unchanged; the gate
@@ -123,7 +148,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 49 | **DECODE** — the HTJ2K and AV1 decoder workers rethought: zero-copy hand-off, fewer allocations, one decode interface for both codecs | done `3927234` on `claude/av1-unified` (`fca7d59`, `93f3e8f`, `b6f1e39`, `a48400c`, `b5ef3f4`) — **one codec-module interface, and HTJ2K 12–21 % off a grey frame; no zero-copy hand-off, and AV1's one allocation saved costs more memory than it pays**: `decoder.js` loads `htj2k.js` or `av1.js` behind one `init`/`decodeFrame` and has no codec in it; the HTJ2K range pass in two loops (V8 does not hoist the per-sample branch) took decode through the product's worker ×0.79–0.88 on every 10–14-bit grey series at 1× and 4× (7/8–8/8 rounds; mammogram 91.5 → 75.7 ms, 389 → 313 at 4×), the RGB control a tie; headless Chromium 141, the first 4 frames of 7 breast series and the fluoroscopy, 8 rounds interleaved, 1 024/1 024 frames exact a throttle; WebCodecs copying into a reused buffer measured ×0.91–0.96 and **reverted**: it held 37 MB a worker on a mammogram (settled RSS slope 7.3 → 44.4 MB) for a gain the fill hides; the fill (row 23's harness, 20/50 Mbit, 1×/4×, 6 rounds, 20 544/20 544 exact) moves 0.5 % pooled, 1.5–3 % on the 2560×3328 frames at 4×; HTJ2K's memory unchanged; a hand-off with no copy needs the frame's storage in the decoder's heap and a release from the page — a contract change, proposed only if a phone shows the copy is the clock; 5 mutations caught — [`decode/README.md`](../decode/README.md) §The decoder worker's hand-off, `lab/av1/decode/worker` |
 | 50 | **CLIENT** — the downloader, worker and consumer state machines: the two re-dial defects fixed, the untested decisions tested, the states simplified | done `29aa31b` on `claude/av1-unified` (`92bb341`, `65b1d4b`, `8fc44e8`) — **both re-dial defects fixed and every decision held by a test; four dead checks removed, the fill's time unchanged**: (1) a cancel during a resume could not take back the run its dial's URL carried — `connect()` now ends that stream; (2) `close()` during a re-dial let `resume()` adopt the new session — a dial opening after close is closed; each a clause that failed before. A sweep of 76 mutants over `downloader.js` and `consumer.js` left 32 alive: the 21 untested decisions (least-busy dispatch, a fill skipping recorded frames, a lost decoder before the dial, recycling at ¾ of the budget and its owed asks, an ask alone on a closed or silent session, a resume with nothing owed, spent re-dials naming asks and being given back, `undefined` options, a refused first dial, a command during a resume, a cancel releasing a group's decoder, failures of a cancelled request from a dial or a decoder, a duplicate ask, `resumedAt`/`recycledAt`, `groupLength` and isolation refusals) each now killed by its test (17 dispatch clauses, `consumer.test.mjs`), 4 dead (promote's guard and pump, the record's generation, `lastChunkMs`'s fallback) removed, 7 left with reasons; `epoch`/`generation`, `resuming`/`dialling` and the three record states kept, each read; dispatch 695 → 719/719; fill after/before 0.99–1.00 in all 8 cells (fluoroscopy and 10-bit DBT, 20/50 Mbit, 1×/4×, 10 rounds interleaved, 3 360/3 360 frames exact); the gate's link check is red on that branch from row 61's `delivery-prior-art.md` (4 links), not this row — [`ARCHITECTURE.md`](../ARCHITECTURE.md) §The downloader, `client/README.md` |
 | 51 | **SERVER** — the send path rethought: the per-send copy, mmap against pread, what each layer does that it need not | done `eabb30b` on `claude/av1-unified` (`1d9a0f4`, `9b0ccb7`) — **nothing adopted: the send path has no per-frame cost left that large frames expose, and the memory they leave is the allocator's**: loopback, 2 server cores, n = 6 interleaved, no PMU (rusage); CPU per byte flat 250 kB → 16 MB (1.5–1.7 µs/kB at 16 sessions, 2.3–2.6 at one); after 16 sessions of 16 MB frames ~800 MB stays resident; a 16 MiB byte-capped pool cut it 32 % (6/6) for +8.4 % CPU (0/6 lower), `MALLOC_MMAP_THRESHOLD_` 1 MiB cut it 46–57 % (6/6) at a CPU tie to +5 % (2/6) — the owner's deployment call; 50 Mbit fill time not run, nothing changed; `docs/adr/disk-access.md` §11 *Frames past 250 kB* |
-| 52 | **INGEST** — the HTJ2K and AV1 ingest tools as one pipeline: fewer passes, the round-trip check's cost, parallel encode, bytes identical | done `8586973` on `claude/av1-unified` (`0f1da56`, `542bb5a`, `9574327`, `65b1de9`) — **one ingest for both codecs, every byte as before, HTJ2K's cheaper and AV1's a tie**: `ingest.py --codec htj2k` beside AV1, the check in-process (dav1d, OpenJPH); 69/69 cells byte-identical (23 sets × HTJ2K, AV1 plain, optimized, 2 088 files a side); the check 0.63–0.84 of the subprocess's time a frame on AV1, 0.37–0.46 on HTJ2K (n = 3, disjoint); a study's HTJ2K CPU −21 to −27 % and now parallel, AV1 within ±4 % (the encode is ~99 %), four workers 3.5–3.9×; 3 mutations caught; AV1 bytes depend on `--jobs` in both revisions (§Blocked); `ingest/coded-frames/README.md` §One pipeline |
+| 52 | **INGEST** — the HTJ2K and AV1 ingest tools as one pipeline: fewer passes, the round-trip check's cost, parallel encode, bytes identical | done `8586973` on `claude/av1-unified` (`0f1da56`, `542bb5a`, `9574327`, `65b1de9`) — **one ingest for both codecs, every byte as before, HTJ2K's cheaper and AV1's a tie**: `ingest.py --codec htj2k` beside AV1, the check in-process (dav1d, OpenJPH); 69/69 cells byte-identical (23 sets × HTJ2K, AV1 plain, optimized, 2 088 files a side); the check 0.63–0.84 of the subprocess's time a frame on AV1, 0.37–0.46 on HTJ2K (n = 3, disjoint); a study's HTJ2K CPU −21 to −27 % and now parallel, AV1 within ±4 % (the encode is 94–99 %; *"~99 %" corrected by row 136*), four workers 3.5–3.9×; 3 mutations caught; AV1 bytes depend on `--jobs` in both revisions (§Blocked); `ingest/coded-frames/README.md` §One pipeline |
 | 53 | **SEAM** — the seams between transport, downloader, decoders and page: duplicated logic, dead paths, codec dispatch | done `112eda0` on `claude/av1-unified` (`f0020e8`) — **two duplicates merged, no dead path found, the fill's time unchanged**: traced transport → `downloader.js` → `decoder.js` → `htj2k.js`/`av1.js` → `consumer.js`; the Emscripten glue loading (written out in `htj2k.js` and `av1-dav1d.js`) is `wasm-glue.js`, the unit-continuity refusal (written out in both AV1 decoder modules) is `continues()` in `av1-payload.js` — one place each, not fewer lines (+26, −16); its mutant fails 3 dispatch checks; the codec is decided once (`consumer.js` refuses, `decoder.js` routes, `av1.js` picks the AV1 decoder); kept with reasons: owed frames held by both transport and records (one owner is a transport API change, structural), `groupLength` beside `decoder` in `init` (four lab workers speak it), groups, the preview port, `mixed`, `recycleAtBytes`, `openAsk: false`, `decode: false` (built, each reached by a clause); dispatch 719/719, conformance 56/56; fill after/before 1.00 in all 8 cells (fluoroscopy and 10-bit DBT, 20/50 Mbit, 1×/4×, 10 rounds interleaved, 3 360/3 360 exact) — [`ARCHITECTURE.md`](../ARCHITECTURE.md) §The seams, traced |
 | 54 | **GATE** — the gate's run time, redundant tests and the gaps mutation finds | done `b62a19c` on `claude/av1-unified` (`9a3dd55`, `7f1ddb5`, `82ddc4f`) — **the gate 161 → 106 s, and 140 of 151 viable mutants killed against 108 before**: n = 3 interleaved a cell, `--quick` 161.4 [159.8–161.7] → 105.9 [104.9–106.1] s, full 160.7 → 107.0; two timer-bound steps now wait side by side — transport conformance one process an implementation (54.4 → 18.2 s, one clause trickles 16 s on each), the two browser rigs in parallel pages (57.0 → 38.3 s), every check as before, each runner mutated (a failing implementation, a child with no result, a failing rig) and caught; 156 hand-made mutants at each decision: client 44 → 65 of 72 (row 50), decoder modules 45/45, send path 16 → 20 of 24, study bundle 3 → 10/10 — 13 new tests (planner's asks held and look-ahead past an end_stream, per-frame stream rank, a byte budget's cut, the bundle's short file, magic, version, metadata bound, one-byte overrun, a mis-sized frame, a short finish), 5 dead branches removed, 11 left alive with reasons (log lines, timers only a frozen page shows, lab-only stall bytes); no test cut (overlaps are checks within one clause, or too few mutants); the dispatch rig skips its 591 AV1 checks without dav1d-WASM built, now said; the branch's 4 broken ADR links fixed (`82ddc4f`) — [`README.md`](../../README.md) §What the gate costs and what it catches |
 | 55 | **NAMING** — every name audited against the round's principles; the clear renames applied with every reference | done `7cdee44` on `claude/av1-unified` (`7a0cf20`, `c723292`) — **five things under three *lever* numbers renamed, the conformance suite's *arms* are clients and rigs, five renames proposed**: ARCHITECTURE's *Lever 1–3* and transport-conclusions' *Lever 1–2* are now the opening ask, early SETTINGS, hints in the session URL, the bytes pushed at session open and a 32-packet initial window, *S4* the container campaign — 21 files, every reference, 0 left by grep; `run.ts` `CLIENTS`, the wire pages' `?client=`, `consumer.js` `#arm` → `#waitFor`; gate green, links 0 unresolved; proposed, not applied: *item* → **coded frame** (DICOM's Item; the item format is structural), telemetry rows' `arm` → `client` (a row schema), the lab's *arm* → **variant** (≈1 900 lines; `CLAUDE.md`'s word), queue-row folder names (row 56 moves folders), campaign labels; principles and a 15-term glossary — [`README.md`](../../README.md) §Names; `CLAUDE.md` wording at the end of the brief |
@@ -140,7 +165,7 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 66 | **POCGAP** — an earlier private proof of concept's 31 % lossless AV1 gain on 10-bit data: two more 10-bit DBT series, paired medians, and the method notes recorded | done `00b99ec` (`7f46304`) — **not reproduced: paired, plain AV1 is 0.973–0.976 of HTJ2K on 10-bit DBT, optimized 0.940–0.943, not 31 % below**: the first 4 frames of `dbt10_ea1141` and `dbt10_d`, 20/20 codings exact (80/80 frames); one setting at a time, an 8-bit copy (v ≫ 2) favours AV1 by 3.1–3.5 points, keeping the background by 0.5–0.8, libaom 3.8.2 against 3.15.1 at cpu6 by 0.5–0.7, `--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned); the two series the brief named are not CC BY or CC0 (UPMC states no licence, BCS-DBT is CC BY-NC 4.0: Blocked); 4 mutations caught 4/4 — [`README.md`](README.md) §Prior evidence, [`lab/av1/bytes/prior-gap`](../../lab/av1/bytes/prior-gap/README.md), [`FIXTURES.md`](../FIXTURES.md) §AV1 data |
 | 67 | **CODECSTR** — the WebCodecs codec string derived from each stream's own sequence header, not one fixed `av01.0.04M.10` | done `a2e89bb` on `claude/av1-unified` (`1cc1c88`) — **the string is each stream's own, the frames and the decoder unchanged**: each keyframe's sequence header gives `av01.P.LLT.DD.M.CCC.cp.tc.mc.F`, reconfigured only when it changes; 91 distinct headers (419 units: every fixture, the probes, 59 items of all 28 taxonomy series, 8 full headers with timing, decoder model, frame ids, High tier, nine operating points) derive the string ffmpeg 6.1.1 reads; libaom writes levels 2.0–6.0 by picture size, never 31, and 31 changes no engine's answer; `isConfigSupported` true for every string in Chromium 141, every full string in Firefox 157.0, Main only in WebKitGTK 2.52.6; 115/115 frames exact in all three, Chromium's decoder per item the same as before (61 WebCodecs, 54 dav1d-WASM), none falling back; Chromium echoes the string's colour on the frame, so the 4:4:4 identity check now reads the header's matrix as dav1d's does — an untagged identity stream now decodes exact through WebCodecs; 13/13 derivation and 3/3 decoder mutations caught; gate green — `lab/av1/exact/codec-string`, `payload-format.md` §Decoder choice, `decode/README.md` §AV1 |
 | 68 | **AV1DOCS** — the AV1 docs made the complete, essential source of truth: one place per subject, the round's findings in, the terms fixed | done `946dedd`, `5706734`, `593a037` (the queue's paths `1c43fce`) — **the AV1 item is the AV1 payload everywhere, and the phase doc reads by subject**: defined once in README §Names; `payload-format.md`, `parsePayload`, the error text `av1 payload:`, the 214 golden payloads (regenerated byte-identical at their new path, `av1-probe.js` unchanged), every doc and lab script (478 lines, DICOM's Item, AVIF's items and DICOM's work items left alone); no DICOM frame called an AV1 frame (7 places); `docs/av1/README.md` opens with where the phase stands and what is decided, then one section a subject (bytes, frame groups, exactness and the decoders with a diagram of the decode path, decode time and memory, samples over 12 bits, content, preview, encoding, total time, options, prior evidence) — every old paragraph moved verbatim but its lead or cross-reference, the one dropped list a duplicate of §Preview; `lab/av1/README.md` 459 → 338 lines, its encode-cost and AV2 cells beside `enc.py` and `av2.py` in `bytes/README.md`; 33 references to the old section names follow; gate green (dispatch 750/750, payload reader 356/356, its renamed refusal mutated to fail); *not condensed:* `adr-unit.md`, `payload-format.md` and the lab READMEs beyond their terms and references — [`README.md`](README.md) |
-| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | claimed 2026-10-10 (night, 8f6e03) |
+| 69 | **MERGEPREP** — `claude/av1` folded into `claude/av1-unified`, the gate green, the merge into `main` described for the owner | done `e2a69bf` (the merge), `f64897c`, `c50de90` on `claude/av1-unified` — **ready to merge but for `main`'s 24 conflicts since PR #34; the gate green in full at `c50de90` (210 s, one skip by name)**: `claude/av1` folded in, its four lab scripts already removed on both branches kept removed; against `main` from PR #33's merge, 1 257 files, +61 397 / −5 369, no fetched data, built binary, secret or public address (480 kB of synthetic AV1 golden payloads and lab raw rows ship); HTJ2K codestreams byte-identical, the HTJ2K path changed by the delivered OpenJPH build (cold ask ×0.715–0.732), the range pass (×0.79–0.88), frame digests, the ask resume, the ClientHello fix (Firefox 30/30), two opt-in levers, and renames that break old callers (`--study`, `/study/metadata`, `exact-server`); a trial merge of `origin/main` stops on 24 files, mostly this branch's renames against PR #34's server refactor (§Blocked); the decoder build's Debian base came from `mirror.gcr.io` by digest (Docker Hub 429) — `docs/av1/MERGE.md` |
 | 70 | **HTJ2KENC** — HTJ2K encoder settings (block size, decompositions, progression) by bytes and decode time, exact | done `cad330e` on `claude/av1-unified` (`6fe1ac5`, `e7ac731`, `0fcb37d`) — **the served profile kept: no setting wins**: 35 settings on nine series, the best per series 0.990–1.000 of the served bytes (−0.9 % only on 256² PET); decode within the round spread everywhere (every paired range spans 1; 0.95–1.10 where decode is the clock); 6 decompositions, the fewest bytes overall, ties on total time ×0.99–1.02 on 5/20/50 Mbit at 1× and 4×; `imagecodecs`' defaults differ only in SIZ depth (container bits, 1.000–1.002 of the bytes); 315 × 35 codings and 12 400 + 339 visits' frames exact — [`docs/decode/README.md`](../decode/README.md) §Encoder settings | |
 | 71 | **INGEST1** — the AV1 ingest coded one encoder run per frame, so its bytes no longer depend on the worker count | done `d654553` on `claude/av1-unified` (`4c429c9`, `2caae72`, `35c3148`, `dc97ab2`) — **adopted: one aomenc run per frame makes every item byte-identical at 1, 2 and 4 workers, for +12–13 % encode CPU and no byte cost**: libaom 3.15.1 `good:6`, the first 16 frames of all 23 sets of rows 2, 45 and 46 (252 items), every set identical across worker counts (`ffdm_d` at 1 and 2: four exceed memory, as before), bytes 0.99987–1.00015 of the chunked ingest's, 0.999998 in total — a one-frame run writes the reduced still-picture header every golden item already carried (forcing video mode would rewrite 106 golden items, not taken; row 80's `grey420/g8`, written while it was on the branch, regenerated, exact through the gate); whole series, n = 5 interleaved, wall at 1 worker 54.1 → 61.0 s fluoroscopy, 92.2 → 103.4 s 10-bit volume, 147.8 → 165.7 s ultrasound, every range disjoint, +6–13 % at 4 workers; the chunked ingest gave three totals for the 10-bit volume at 1/2/4 workers, the new one the same every round; mutation (the chunked loop as the new arm) caught on both tomosynthesis volumes, the regenerated golden broken caught by the gate; gate green — [`ingest/coded-frames/README.md`](../../ingest/coded-frames/README.md) §One pipeline *Provisional (row DATAGUARD): its ultrasound numbers rest on lossy-sourced sets (`us_liver` flagged lossy at 12.4:1, the breast cine MPEG-4 clips) and enter no verdict.* |
 | 72 | **SPLITRULE** — row 44's per-depth split rule adopted: the payload format and ingest widened to every depth it picks | done `ab798b3` on `claude/av1-unified` — **adopted: ingest's optimized split is k = 0 up to 9 bits, 3 at 13, 2 at 10–12 and 14; 15–16 bits refused by name, served as HTJ2K**: the format did not change (row 43 already carries every k), only `ingest.py`'s `optimized_split`; its per-depth test held against three mutants (each caught), the writer's 142/142 split-and-merge cells still exact; a 9-bit golden item (`g9`, plain and optimized) and `optimized/s13` remade at k = 3 (10-bit top, WebCodecs), every other golden and matrix item and the probes byte-identical; the real 9- and 13-bit series (MR 9-bit, CT, cone-beam) ingested by the rule, 198/198 frames exact natively, in Node (dav1d-WASM) and in Chromium 141 (WebCodecs 198/198, as chosen); Firefox and WebKitGTK not installed here — row 43 ran these layouts there; gate green on every step but the link check, which fails only on row 69's brief (`docs/av1/MERGE.md` not yet written) — `payload-format.md` §Representation at ingest and §The split per depth, README §A3 |
@@ -190,9 +215,124 @@ conclusive or not, and why. Rows already queued keep their briefs.
 | 116 | **TAGCITE** — the 15 citations of `archive/variants-2026-10-03`, a tag that does not exist, point at the one that does | done `9e1edb6` on `claude/av1-unified` — **15 of 15 citations now name `archive/arms-2026-10-03`, 0 cite a missing tag**: 8 files; four cited paths had moved since the tag and now read as they were at it (`client/transport-ts/`, `client/downloader/decoder.js`, `tools/pack-study/`), all 11 `tag:path` citations `git cat-file -e` clean; `claude/av1` cites it only in the queue's record of the finding; `scripts/check_links.py` now fails on a backticked or `git show` archive tag `git ls-remote --tags origin` lacks (outside the two queues), SKIPPED offline, mutated twice to fail. The link step stays at 1 unresolved from row 108's lane (`lab/decode-bench/helper-start/README.md` names `docs/decode/levers-protocol.md`, which is on `claude/av1` only) |
 | 117 | **DOCLABELS** — rows 84 and 85's documentation leftovers that need no decision | done `f4c12e8`, `cfc776c`, `364e026`, `6dbe66f`, `2ea840b` — **the three product docs and the lab's code comments name the measurement, the label kept as a pointer; eight lab READMEs; each doc's open items in its own §Open**: queue and campaign labels named in `docs/av1/` (10 files), `docs/decode/README.md` (61 → 47 matches, all pointers), `transport-conclusions.md` (~133 bare labels → 0; 18 headings' labels and dates moved to a pointer line), `rig-limits.md`, `disk-access.md`, the codec docs, `FIXTURES.md`, `ARCHITECTURE.md`; 98 lab code files (109 → 23 `row X` hits, the rest pointers, output strings or CLI help); `docs/av1/README.md`, `decode/README.md`, `transport-conclusions.md` §9, `ARCHITECTURE.md`, `CLIENTS.md`, `FIXTURES.md`, `client-window-depth.md` point at their own §Open instead of a queue; READMEs for `clock-resolution`, `decode-tail`, `disk-access-bench`, `early-messages`, `idle-sessions`, `telemetry-bench`, `window-harness`, `worker-leak`; BBR's 12–19× kept in `transport-conclusions.md` §1, `read_ahead_kb` in `disk-access.md` §6, the race's measurement in `ARCHITECTURE.md` and its behaviour in `CLIENTS.md`, each pointed at elsewhere; FoD's two decoders (`parse.ts`, `wire.ts`) are duplicated code, not comments — each now points at `WIRE.md` and the other, not merged (a refactor); no anchor with an inbound link changed; link check 0 unresolved from this row (1 left: row 108's `lab/decode-bench/helper-start/README.md` names `docs/decode/levers-protocol.md`, which reaches this branch with the merge); `scripts/gate.sh --no-browser` OK in 123 s, the contract and downloader browser steps pass, the viewer check fails here only for want of the docker decoder builds (pinned-build refusal, environmental); *left:* labels used as a lab folder's own name (~150, lab READMEs' `§Row …` headings), a few undefined short labels (S14, C4, R1, L19) |
 | 118 | **GUARDS** — row 86's check leftovers that need no decision | done `ed1e3e8`, `0b1e52c` on `claude/av1-unified` — **two stale-build guards and the lab's Go and h3 clients compiled, each mutant caught; gate green in 345 s**: `cellcheck.sh` refuses a transport WASM build older than its sources (exit 2), one `require_transport_wasm` shared with the gate; `deploy/check_equivalence.sh` refuses a web image whose page or nginx files differ from the tree's, by content not time (an mtime guard was built first and failed: a cached rebuild keeps the image's creation time, so a touched file was refused after every rebuild), tested on a real `wt-pacs-web` build: equivalent on 10 paths fresh, refused (exit 2, each file named) on a changed module, template and decoder build, a file added, one removed and no image, passed on a touched file and changed `*.md`/`*.test.mjs`; new gate step `lab: the Go and h3 clients compile` (`go build` in `lab/other-clients/go` and `lab/page-open/h3-host`, `cargo check --locked` in `lab/other-clients/h3`): 2 s warm, about 75 s cold, a syntax error in each of the three caught, `SKIPPED` by name without `go`; cellcheck ALL OK on a fresh build. Gate steps: client unit tests 8 s, contract 19 s, downloader in Chromium 44 s, viewer page 78 s, server tests 77 + 30 + 22 s, the rest ≤ 22 s each. Note: the gate on `claude/av1-unified` fails its link check today on row 108's `lab/decode-bench/helper-start/README.md:5` → `docs/decode/levers-protocol.md`, which is on `claude/av1` only; green with that doc present. Finding: `deploy/README.md` §The checks, `README.md` §Prerequisites. |
-| 119 | **CCTHEORY** — congestion control for lossy mobile links without the clean-link cost: what others do and what exists, ranked for the target, measurement rows proposed with their rules; theory only | claimed 2026-10-10 (night, ab0bbd) |
-| 120 | **ORDERNEED** — whether readers need some frames first: reading behaviour per target series from primary sources, the expected gain of a reordered fill on row 65's numbers, a pre-registered verdict; theory only | night |
-| 121 | **DATAAUDIT** — every closed row's verdict against the provenance and sampling of the data it used; the critical ones, the sound data each needs and the rows to re-run; nothing queued | night |
+| 119 | **CCTHEORY** — congestion control for lossy mobile links without the clean-link cost: what others do and what exists, ranked for the target, measurement rows proposed with their rules; theory only | done `b8bb340` on `claude/av1-unified` — **nothing changes in the product; the earlier BBR-against-Cubic clean cells also compare a 20× initial window**: from 24 sources pinned by sha256 and quinn-proto 0.11.18's source, BBR's clean cost is no loss (row 104's cell 4: 0 relay drops on every fixed-rate clean and ±20 ms cell for every controller, BBR ≤ +1 % datagrams) but three departures missed before — a 240 000-byte initial window (Cubic's 12 000; derived ×0.99/0.92/0.78 of the clean fills at 5/20/50 Mbit against 1.01–1.04/0.90–0.95/0.82–0.94 measured), ProbeRtt at the first unlimited ACK (≈ +1.6 % derived at 5 Mbit against +2–3 %), and an all-time maximum of per-ACK bandwidth with the all-time minimum RTT (the ±20 ms condition); the clean ask's +70 ms not derived; ranked: 1 a Cubic that skips the cut on loss classed random (no clean cost by construction, ~150 lines), 2 a switch after the first round trips (per-peer choice at accept needs a wtransport patch and sees only an address; the state a switch must carry tabled), 3 quinn's BBR without the departures, 4 BBRv3 (gives up loss above ~1–2 % by design), 5 delay-based, 6 FEC (no browser decodes it); classifier accuracy read only from a 2002 simulation; the downlink's loss mix is read best by the server's own RTT samples in a field pilot (the owner's). Proposed, not queued: R1 CCATTRIB (the confound and ProbeRtt, arms with swapped initial windows), R2 LOSSCLASS (classifier errors on the relay's known causes: ≤ 5 % / ≤ 30 % to go on), R3 LOSSIGNORE (default if clean ≤ 1.01, fixed-rate 1–2 % ≤ 0.75, neighbour within 5 points), R4 CCSWITCH (only if R3 misses), R5 FIELD — `docs/transport/transport-conclusions.md` §1 *The way out, surveyed*, §9 item 2 |
+| 120 | **ORDERNEED** — whether readers need some frames first: reading behaviour per target series from primary sources, the expected gain of a reordered fill on row 65's numbers, a pre-registered verdict; theory only | done `ef1880b` on `claude/av1-unified` (the rule alone first, `82f6760`) — **dropped on every target type; no measurement row**: rule E = p·g − (1−p)·c ≥ 0.2 × T at the lower end of p; from IHE's DBT supplement, DICOM PS3.3 §C.23 and three eye-tracking studies (Drew 2013, Aizenman 2017, Wolfe 2022), no source supports a first view inside the series — DBT stacks are swept from an end and back (3.8 slices a fixation), the four-view mammogram is hung at once, cine plays from frame 1, ABUS is read in whole coronal passes; at 20 Mbit the centre-first fill would need p ≈ 0.4 (DBT) and ≈ 0.66 (an MLO-first hanging) against ≈ 0 supported; the order across series (2D before the DBT stacks) noted, not estimated; `docs/ARCHITECTURE.md` unchanged — `docs/av1/README.md` §The order frames are asked in |
+| 121 | **DATAAUDIT** — every closed row's verdict against the provenance and sampling of the data it used; the critical ones, the sound data each needs and the rows to re-run; nothing queued | done `e9f1339` on `claude/av1-unified` — **76 of the 116 closed rows depend on nothing weak; three critical questions stay open**: every result cell of rows 1–118 read against `data.json`'s classes and `series.md`'s targets (rows 69, 114 not closed); exactness, build, docs and content-free transport verdicts stand; the early frame-group, depth and decode verdicts on off-target or lossy data are settled since on sound target data (rows 45, 77, 95–97, 100); **open:** (1) lossless cine — frame groups for breast US, ABUS and angiography (46, 28), grey 4:2:0 for Firefox (80, wholly on `usb_cine`/`usb_still`) and 8-bit WebCodecs (9, 11, `us_liver` alone): no open sound source (CADICA CC BY 4.0 but frames, one source; Breast-Lesions-USG PNG stills; TDSC-ABUS on request), the owner's options under row 94's line; (2) the codec choice's time cells (95: 3 exams, 37 % `VOID`; 105–107: 44 % `VOID`, strict n ≥ 10 on 5 of 60 cells, Firefox 10 Mbit cells before row 115's dial fix); (3) the transport default's clean cells (75: 37 % `VOID`, and a 20× initial window between arms, row 119). Proposed, not queued: row 106's protocol re-run on a host within its bar with whole volumes and Firefox after row 115; row 119's R1 then row 75's clean cells; on sound cine, row 99's P8–P10, row 80, row 46's cine half, rows 9 and 11's 8-bit cells. Row 98's list kept but 15, with 7, 13, 17, 27, 31, 33, 40, 44, 47, 64, 80, 106 and 107 added — `docs/FIXTURES.md` §Provenance, *Every closed verdict against its data* |
+| 122 | **HASHWHY** — why the frame digest is XXH3-64 and not a cryptographic hash, backed by outside sources, with an abstract the owner can hand to a team; theory only | done `9ff8838` on `claude/av1-unified` — **XXH3-64 stands; the one rule added is that the digests are checks, never keys**: from 27 sources pinned by sha256 or commit, QUIC's per-packet AEAD (RFC 9001 §5) covers the wire and nothing before encryption or after decryption, where field faults are measured (Meta: hundreds of silently wrong CPUs; Google: a few mercurial cores per several thousand machines; consumer PCs without ECC); a damaged frame passes its own digest at 2⁻⁶⁴ with no birthday bound, so at a ceiling of 10¹⁴ frames a year worldwide (UNSCEAR: 4.2 × 10⁹ exams; 10⁴ frames each assumed) one miss in ~184 000 years even if every frame were damaged, against ~23 000 a year at 32 bits; XXH3-64's suite failures (SMHasher3 27 of 250) have full 64-bit collisions only with the seed varied and bias only on 3–38-byte keys, neither our use; Btrfs, ZFS, RocksDB (`kXXH3` default since 7.8.0), zstd and LZ4 use a fast checksum for damage and keep a cryptographic hash or a byte compare for dedup; CRC-32C, CRC-64, XXH3-128, BLAKE3, SHA-256 and rapidhash each lose on speed in WASM, bits or a build of our own; a hostile server needs signed digests and BLAKE3 (×1.15–1.51 a decode-bound fill), sketched only; [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §7. Proposed, not queued: XXH3-128 and CRC-64 timed in hash-wasm, only if a digest is ever wanted as an identity |
+| 123 | **MISMATCH** — the response to a digest mismatch, what row 73's ADR and row 88's build leave open: block or mark, a client cache, frame groups, reporting; theory only | done `a4c2227` on `claude/av1-unified` — **the ladder holds where a second path exists; four gaps, three choices for the owner**: from 13 sources pinned by sha256 or commit and the code as built, the viewer *marks* a `false` frame (pixels under a red banner) where §2.3 recommended *block*, and the three open viewers read (Cornerstone3D v5.11.7, OHIF v3.13.12, Orthanc 1.12.9) all block a failed decode (none checks samples, so a silent wrong decode is drawn there); the ACR's technical standard (2022) carries the FDA's rule that a lossy image is labelled on display and that lossy mammograms are not read, so the sources lean to block for diagnosis; without a cache re-fetching never helps, and a coded-bytes digest (hashed only after a mismatch: no client cost on the common path, 16 hex a frame) would name store against decoder, as Orthanc's MD5 and dcm4chee's `OBJECT_CHECKSUM` do on the server; a cache stores only `true` frames as coded bytes with their digest and the metadata version, keyed never by digest, and there re-fetching does help; G > 1 needs its group re-decoded (none ships, G = 1), and AV1 on WebKit or 12-bit has no second path (a fresh instance proposed, not measured); §5's series key, if a DICOM UID, is one PS3.15 Table E.1-1 replaces, so reports carry an opaque session key; [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8. Proposed, not queued: a fault-injection bench per path and engine, the server's coded-bytes check on read timed, the report endpoint |
+| 124 | **QUICSURVEY** — the native version's transport: every QUIC implementation that could run in a desktop and a phone client, in any language, read against the target; every finding listed, every decision left to the owner; theory only | done `27ab544` on `claude/av1-unified` — **quinn alone runs on every target, speaks to the server unchanged and is already ours; no stack publishes receive CPU per byte, so that is the first measurement**: fifteen stacks read from pinned sources (tags, commits, sha256) — for the fill the server sends, so the client's controller does not matter (row 119's options stay in quinn's `Controller`, which `bbr-bound` implements) and the client's stack decides receive cost, windows, migration and resumption; Chromium v102 spent 8.5 s per GB in packet processing, 2.97 s of it ACKs (≈ 8.4 ms/MB against this repo's 9.8), its `recvmmsg`/GRO code now in `main` but off by default; Firefox on quinn-udp < 1 → 4 Gbit/s (≈ 2 ms/MB derived); Apple has no GSO/GRO and msquic and quic-go read one datagram per call there; public controller hooks: quinn, Google QUICHE, picoquic (richest), mvfst, xquic, s2n-quic (unstable); Network.framework raw QUIC with our ALPN but no CC knob and no WebTransport, Cronet/HttpEngine HTTP only and Android only; multipath released only in noq 1.3.0 (draft-21, 0x3e) and picoquic (draft-20); native WT clients that should reach our draft-02 server: wtransport, web-transport-quinn, neqo, picowt, QUICHE's (read, not tested); wtransport 0.7.2 can take a session from a quinn connection, so one port could serve a raw-QUIC ALPN beside it (read from the API); interop-runner goodput 9 096–9 390 kbps on its 10 Mbit/s link ranks nothing and no run had a quinn server; five decisions under §Blocked; proposed, none queued: N1 RECVCOST, N2 NATIVEWT, N3 APPLERECV, N4 REBINDNEW, each with predictions and a rule — [`native/quic.md`](../native/quic.md) |
+| 125 | **DECODEOPT** — faster decoding with today's codecs, what rows 9–11 and 108–113 did not try: HTJ2K's decode time from the stored layout, SIMD and hardware in the browser and natively, decode matched to arrival; other codecs listed, not explored; theory only | done `6ae0ae0` on `claude/av1-unified` — **ten levers left, one structural: tiles stored as independent codestreams for large-frame asks; and OpenJPH has no ARM SIMD, so natively a phone runs its scalar decoder where the browser runs its WASM SIMD**: theory only, nothing built or timed; read from OpenJPH 0.31.0 and head (empty `OJPH_ARCH_ARM` dispatch in block decoder, wavelet and colour; PLT/TLM skipped on read; no threads), dav1d 1.5.4 (NEON/x86 assembly for msac and the 4×4 WHT, none for WASM), SIMDe 0.8.2 (WASM SIMD128 in C with NEON paths), WebAssembly's feature table (relaxed SIMD Chrome 114, Firefox 145, Safari flag; wider vectors phase 1); ranked: tiles ×0.45–0.60 of today's ask at 4× on large frames predicted (+0.2–1.5 % bytes), emscripten 6.0.11 ×0.94–0.97, the ARM SIMD port (native 1.3–2.0× the browser without it, predicted), copy and pack ×0.82–0.95, decoders started on first need, the reader pause (memory), wgpu running row 111's WGSL natively, hand-written relaxed SIMD ≤ 3 %, dav1d msac in WASM SIMD and phone AV1 hardware not proposed; JPEG-LS, TCT listed, Tomoz not found; the ~570 MB coded-queue figure has no source in any branch; proposed, none queued: P-TILE, P-EMSDK, P-ARM, P-COPY, P-START, each with predictions and a rule — [`decode/README.md`](../decode/README.md) §Not yet tried |
+| 126 | **INGESTPLAN** — the product's ingest at the site: language (Rust against C++), the C parser's integration in stages, the exactness check, the Python reference, the link to the server; a design for the owner; theory only | done `fe56074` on `claude/av1-unified` — **a plan, Rust recommended; and for HTJ2K the encoder is about a third of ingest CPU, not 99 %**: theory only; the parser not read (named only in this brief; licence unknown); row 52's numbers give AV1 3.3 s encode against a 30–40 ms check (~99 %) but HTJ2K ~39 ms of CPU a 768² frame with a 4.2 ms check and a 7–14 ms `ojph_compress`, so a compiled HTJ2K ingest is predicted at 0.4–0.6 of today's CPU; Rust keeps one bundle definition (`common/series-bundle`) and one QUIC stack (quinn) with the server, C++ only inside OpenJPH behind a shim like `decode.cpp`; the parser in three stages (files, a pipe if their share is over 5 %, a library), its explicit-LE-only coverage refusing DICOM's default implicit LE by name; the three checks ported, the Python ingest the reference until bundles are byte-identical at `--jobs` 1/2/4; link: a file copy, an upload ALPN beside WebTransport (structural), or Thruflux (C++, MIT, beta, lsquic, P2P; ideas, not code); proposed, none queued: P-PROFILE, P-STAGE, P-PARITY; five decisions under §Blocked — [`FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site — the plan |
+| 127 | **NATIVEPLAN** — the native version's plan beyond transport and decode: platforms (desktop first, phones the goal), paint and cache, app shape, costs, and the desktop-first measurement plan run in cloud containers; theory only | done `ba4821e` on `claude/av1-unified` — **one Rust core with a thin interface per platform; paint carries over as it is; the cache is the app's clearest gain and its new liability; speed is not yet a reason**: from pinned sources (wgpu 30.0.1, Vulkan-Docs 1.4.365, Apple, Android, freedesktop, FDA, EU, AAPM, the stores) — `R16Uint` needs no wgpu feature and no API filters integer textures, so the in-shader bilinear and the 1:1 proof port; 4096×3072 fits the default 8192 limit; GLES 3.0 has no compute for the WGSL decoder; ten grey bits to a panel unproven anywhere; cache places and eviction per OS (Android's cache dir is for small data, iOS class A closes it ~10 s after lock); only a Rust core with native UIs or a pure-Rust GUI keeps the wgpu painter on all five targets (Tauri's wgpu path has no Wayland, iOS or Android; Flutter has five texture paths; MAUI and React Native no Linux); UniFFI has no async cancellation; WebTransport is in every engine since Safari 26.4; FDA and MDR are platform-independent, the stores' medical rules (Apple 1.4.1, 5.1.1(ix), 5.1.3, 2.5.2; Play's declaration) apply to the app alone; five decisions under §Blocked; proposed, none queued: M1 PAINTPROOF, M2 NATIVEFILL (P2: fills tie at 20 and 50 Mbit), M3 CACHE, M4 PHONEFIRST, ordered containers → GPU desktop → phones after quic.md's N1, N2 and decode's P-ARM — [`native/README.md`](../native/README.md) |
+| 128 | **H3FETCH** — plain HTTP/3 `fetch()` as the simplest alternative to WebTransport for the fill and the ask: mechanism, what the browser does differently, predictions and a protocol; theory only | done `be46620` on `claude/av1-unified` — **the same QUIC stack and receive bound, a different connection: fetch rides the page's pooled HTTP/3 connection, which WebTransport never does**: theory only, Chromium 141.0.7390.37's source read; both paths build their config with `InitializeQuicConfig` (15 MB connection, 6 MB stream receive windows), so the receive bound is shared; pooled HTTP/3 brings what WebTransport lacks — no dial on a warm origin (today's 3.03 round trips to a ready session), TLS resumption and 0-RTT GETs, and Chromium's connection migration — and loses the opening ask's push and the server's own ordering (Chromium's RFC 9218 urgency is advisory); caching (a privacy question on shared devices), CORS and an HTTP/2 fallback come with it; the server would need a GET path beside wtransport (structural); predicted ×0.97–1.05 on warm asks and fills, ×1.0–2.0 on an ask behind a fill, ×0.5–0.7 on a cold first frame with the origin up; a protocol and rule proposed, not queued; Firefox's and Safari's stacks not read — [`delivery-prior-art.md`](../transport/delivery-prior-art.md) §8 |
+| 129 | **WTCOMPAT** — the browsers' WebTransport draft and `reset_stream_at` against the server: what each engine's stable, beta and nightly speak, what breaks when one moves, and a check that warns before a release does | done `3add8a9` on `claude/av1-unified` — **no browser update in view breaks the server: Chrome for Testing 155 (stable), 156 (beta), 157 (canary) and Firefox 157.0.1 and 160.0a1 (nightly) each negotiate draft-02 and get frame 0 exact, and Chromium's draft-07 path (`EnableWebTransportDraft07`, off by default in all three) negotiates draft-07 exact, 3/3 by net log**: read from each channel's quiche, `net/` and neqo at the shipped commits, then dialled through a recording relay and decrypted from the browser's key log; the server offers draft-02 and draft-07 and no `reset_stream_at` (quinn has none); Firefox offers `reset_stream_at` (`0x1d`) without requiring it, since neqo 0.31.0's requirement was backed out of Firefox (Bugzilla 2065405); neqo's unmerged draft-15 branch drops draft-02 and would fall back to the draft-07 the server already sends; Safari's draft is in closed Network.framework, unread and unmeasured. `scripts/wtcompat.py --fetch DIR` (about 3 min) fails on a failed dial or inexact frame, an undecryptable dial, or any change in either side's drafts, SETTINGS or `reset_stream_at`; four mutations each fail it. Draft-15 needs `reset_stream_at` in quinn-proto and the codepoint and `webtransport-h3` in wtransport, proposed. Gate green (numpy arms skipped by name). `docs/transport/transport-conclusions.md` §3 *Will a browser update break the server?* |
+| 130 | **INITRTT** — a 100 ms initial RTT on the server: the first open's tail under loss against spurious resends on slow links; theory only | done `c55f832` on `claude/av1-unified` — **the assumption sets one clock: the server's PTO on its first flight, 999 → 300 ms, the only recovery when that flight is lost since quinn ignores the client's repeated Initial (RFC 9002 §6.2.3 not implemented)**: from 15 sources pinned by sha256 or commit; the lab reading is S10 of `lab/scripts/controller_cells.sh` (`edd006f`, 200 connects an arm, arms in sequence, the client at quinn's 333 ms, so the server alone moved); Chromium's WebTransport client and neqo already assume 100 ms (a 300 ms PTO), quinn, ngtcp2, msquic, Cloudflare quiche, s2n-quic and lsquic 333, picoquic 250; Chromium's RTT hint (`0x3127`) is not sent on WebTransport and quinn ignores it; past ~300 ms a spurious probe costs at most one flight (1.3–2.8 KB) and, derived, no congestion event; 10 % of Google's 2017 connections had a minimum RTT over 300 ms; S10's p95 gap is not explained; row IRTTMEASURE proposed with three cells, predictions and a rule (adopt 100 ms if a lost flight is 699 ± 50 ms sooner and slow clean links cost ≤ 10 ms and no congestion event) — [`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §3 *A 100 ms initial RTT* on `claude/av1-unified` |
+| 131 | **TAILDUP** — a frame's last packets sent twice: where tail loss bites (the ask, a burst's end), how often on the target, its cost elsewhere; theory only | done `85ee9bde` on `claude/av1-unified` — **dropped for now: only a lost last packet waits a PTO, on p to 2p of asks (1–10 % at 1–5 % loss), worth one PTO (~85–145 ms, derived), 2–8 % of row LOSSLINK's Cubic ask p95 and inside its spread; a back-to-back copy dies with the original 71 % of the time on the relay's bursts, and a lost copy halves Cubic unless kept out of the loss signal (a quinn + quinn-proto patch); fails the owner's first criterion (the target's loss mix is unknown)**. Reopens when the field pilot shows ≥ 1 % random loss and the default controller is not loss's clock (under BBR a PTO is 25–75 % of a lossy ask); the protocol and rule, a PING neighbour (~40 B, saves 20–80 ms) and a detection gate are written; nothing queued — [`docs/transport/transport-conclusions.md`](../transport/transport-conclusions.md) §5 *A frame's tail sent twice* |
+| 132 | **CCATTRIB** — row 119's R1 run by a session given only its protocol and rule: BBR's clean-link cost with the initial windows swapped between arms, ProbeRtt apart | done `7db19138` on `claude/av1-unified` (`5e2d46a6`) — **by R1's rule option 3 is dropped and the clean cells need no restatement: P1 fails on one cell, P2 on its second half, P3 holds, in both readings**: HTJ2K, 4 filled then 4 asked, 12 Williams-ordered rounds, 384 visits, 106 `VOID`, 3 072/3 072 frames exact; the fill ÷ `cubic-restart`'s with Cubic at BBR's 240 kB is 0.72–0.91 on clean 20 and 50 Mbit (≤ 0.95 holds); BBR at Cubic's 12 kB is 1.02–1.16 there but 0.937 on r50000 1× (< 0.97); quinn's BBR enters ProbeRtt at its first acknowledgements in 96/96 visits, but its window stays ≤ 0.8 × needed for ≥ 150 ms in only 61/96; on r50000 ±20 ms BBR's window is short for 0.68 of the fill; r5000's cost (+3.3 % at 1×) is about ProbeRtt's idle share (3.7 %), and Cubic at 240 kB beats BBR on every clean 20/50 Mbit cell — for the review row — `transport-conclusions.md` §1 R1, `lab/av1/delivery/total-time` §Row CCATTRIB |
+| 133 | **TILEMEASURE** — row 125's P-TILE run by a session given only its protocol and rule: tiles stored as independent codestreams for large-frame asks, bytes and the ask, exact | done `82471151` on `claude/av1-unified` (`c2368705` the harness) — **P-TILE's rule passes: 2 640/2 640 asks exact, tiles +0.01–0.59 % bytes (bar +1.0 %), three tiles on three workers ×0.388–0.448 of the whole frame at 4× on the three large series in 10/10 rounds each, and under three stripes' ratio in every round (×0.63–0.68 of it)**; predictions: bytes lower than the +0.2–1.5 % predicted, k = 3 faster than ×0.45–0.60 (×0.300–0.476), k = 2 held on 5 of 6, one worker ×0.97–1.24 against ×1.00–1.03 (not held); container times, nothing past k = 3; the store-format proposal is the owner's (§Blocked) — [`docs/decode/README.md`](../decode/README.md) §Not yet tried |
+| 134 | **EMSDKMEASURE** — row 125's P-EMSDK and P-COPY run by a session given only their protocols and rules | done `44f4836` on `claude/av1-unified` (`2481bb1`, `645b4f1`, `3fc7306`, `b156aad`, `1645756`, `c969f91`) — **neither adopted**: headless Chromium 141 in the container, 10 rounds Williams-ordered, every frame exact (8 040 a frame, 480 cold asks, 16 080 filled; P-COPY 17 280), both mutations caught; **P-EMSDK** (the delivered recipe under emscripten 6.0.11): a frame ×0.89–0.93 on the projections in 9–10 of 10 rounds but ×0.96–1.06 on the other five sets, a cold ask ×0.96–1.02 (no cell ≤ ×0.97 in 8 of 10), a fill ×0.995–1.003 (the wire is the clock), strict and round-paired agreeing; 6.0.2 dropped `wasmBinary` from the default module API, so under 6.0.11 the recipe's glue would fetch an unchecked `.wasm` — one flag restores it, same `.wasm`; **P-COPY** (frames packed into buffers the page keeps in a shared heap, a shuffle for 8-bit RGB): grey ×0.95–1.05 (prediction ×0.88–0.95 refuted), RGB `c512` ×0.87 at 4× in 8 of 10 and ×0.95 at 1×, `-pthread` alone ties, peak memory no higher (−5 to −25 MB on large frames) — [`../decode/README.md`](../decode/README.md) §Not yet tried, `lab/decode-bench/emsdk` and `lab/decode-bench/copy` on `claude/av1-unified` |
+| 135 | **RECVCOST** — row 124's first measurement (receive CPU per byte per client stack, desktop, in a container) run by a session given only its protocol and rule | done `7881c0b` on `claude/av1-unified` (`96687db` the harness) — **P1 and P2 hold, P3 holds clean and fails under loss**: 7 rounds, five arms Williams-ordered, 210 fills, 168 000/168 000 frames exact by SHA-256; loopback client CPU per MB, wtransport and web-transport-quinn with GRO 2.05–2.16, without 3.07–3.14, Chromium 141 6.4 (32 KB frames) and 12.4 (250 KB) whole, 4.0–4.3 for its network service alone; at 20 and 50 Mbit/s clean every arm fills within 0.6 %; under 2 % loss Chromium takes 1.089 and 1.054 of the quinn arms' time, 7/7 rounds, at ≤ 0.05 cores, so not by CPU. The raw-QUIC arm not run (it needs a raw-QUIC server). Loopback saturates the server's one core (~0.9 at ~670 MB/s), so loopback fill times are not compared. Nothing changes in the product. `docs/native/quic.md` §6 N1 |
+| 136 | **INGESTPROFILE** — row 126's P-PROFILE run by a session given only its protocol and rule: where today's ingest CPU goes, per codec | done `6b7b2c5e` on `claude/av1-unified` (`45e56106` the profiler, rounds `7e70bec0`…`95840262`) — **the rule fires: 57–85 % of HTJ2K's ingest CPU is not the encoder (bar 30 %), so CPU is a reason for the compiled ingest**: the encoder 15–43 % by set, hashing 16–41 % (the SHA-256 check and the digests, each after a NumPy conversion), temporary files 11–24 %, the check 10–12 %, and the CLI adds 0.3–0.6 s a run; AV1's encoder 93.6–98.8 %. Predictions: HTJ2K encoder 25–45 % held on 3 of 4 (the mammogram 15.2 %), AV1 ≥ 98 % on 2 of 4 (fluoroscopy `allintra:7` 93.6 %, mammogram 97.3 %); 5 rounds Williams-ordered, one container; "~99 %" corrected in place (FIXTURES, coded-frame README, row 52) — [`docs/FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site |
+| 137 | **NETPROBE** — which data hosts the cloud environment reaches today, and what refuses the rest: rows 2 and 35's refusals are a week old | done `b892f99` on `claude/av1-unified` — **every refused host is reached now (12 of 12, CONNECT 200, 2026-10-11 02:33 UTC); no reachable source meets row 100's bar: CADICA (668 angiography runs, CC BY 4.0, PNG with its DICOM history unrecorded, so `unknown`) is the nearest and alone; ARCADE and the stenosis set are single frames, CoronaryDominance is resampled to float, TDSC-ABUS bars redistribution, the breast ultrasound sets are stills** — `docs/FIXTURES.md` §Provenance, The data hosts and the candidates |
+| 138 | **CROSSRERUN** — row 106's protocol re-run as row 121 proposes: whole volumes, Firefox after row 115's dial fix, both readings where the host voids | done `c4de1f97` on `claude/av1-unified` (rounds `91b72ac0`…`3246b119`) — **row 107's verdict stands on the per-link rule and falls on `dbts_b4`: whole, it is AV1's on every phone link in both engines at both CPUs, so a per-series choice**: 12 rounds, 1 416 visits, 60 140/60 140 delivered frames exact, all 192 Firefox 10 Mbit/s visits dialled; 23 % `VOID` (15 % fixed, 34 % `lte-good`) so strict and round-paired both, and they agree on every group and both decisions; `dbts_b4` 0.755–0.778 on 10–20 Mbit/s and `lte-good`, AV1 faster in all 12 paired visits of each (row 106's Firefox 4× 1.24–1.29 was 11 slices), its price 1.71–1.97 × at 4× on 50–100 Mbit/s where this host's AV1 decode is the clock; the model holds on 15 of 24 groups and fails on all 8 of `dbts_a5`/`dbts_b2` — whole, they are AV1-faster on their HTJ2K-side cells, 0.947–0.985 on 30–100 Mbit/s and 4× `lte-good` (1.02–1.10 predicted; HTJ2K wire-bound, 94 Mbit/s at 100) — and on `syn2ds_b3` Chromium 1× `lte-good` (0.999, a tie, as before); `syn2ds_a3` now holds (1.027, 1.024); whether ingest serves `dbts_b4`-like series as AV1 is the owner's (§Where AV1 fills first, reviewed) — `docs/av1/README.md` §Where AV1 fills first, whole volumes |
+| 139 | **IRTTMEASURE** — row 130's protocol run by a session given only its protocol and rule: the server's initial RTT at 100 ms against 333 | done `5415e903` on `claude/av1-unified` (`73bc5db0` the harness) — **the adoption rule does not pass**: 10 000 visits, 843 `VOID`, both readings agree; P1 held for Chromium (+698–701 ms on both certificates), `cold_open` on the dev certificate and Firefox but one cell, refuted for `cold_open` on the ECDSA chain (+739/+780/+850 at 40/80/150 ms, ≈ 699 + 1 RTT) and Firefox dev at 150 ms (+625 · +641); B held (medians ±0.1 ms; 0.8 % of `cold_open` opens waited for a server probe, 1 245–1 409 → 548–629 ms; none of Chromium's; `cold_open` p99 1 165 → 792–796); C held on 300–1 000 ms (±1 ms, 0 congestion events) and failed on LTE-loaded (events in both arms, 9 and 11 of 80 visits); default unchanged — `docs/transport/transport-conclusions.md` §3 *Measured: IRTTMEASURE* |
+| 140 | **CCREVIEW** — row 132's numbers against row 119's predictions: conclusive or not, and what it leaves for the default | done `7bf17db` on `claude/av1-unified` — **R1 conclusive for its rule in both readings (28 % `VOID`, strict n 3–12, every deciding number agreeing): option 3 dropped, `cubic-restart` stays the default**: P1's miss is one clear cell (`bbr` 12 kB r50000 1× 0.937 \| 0.937, 11/12 pairs), P2 fails by count (61/96), and the swap left BBR +3.3 % at r5000 (≤ 1 % needed); the confound itself is real (Cubic at 240 kB 0.68–0.91 on every 20/50 Mbit cell, 12/12 pairs), which leaves the initial window the owner's open §3 call, untested on shallow or lossy queues; a ProbeRtt-only patch not refuted, no row needs it; R3's `bbr` arm carries a 20× window to be named — `transport-conclusions.md` §1 R1, *Reviewed* |
+| 141 | **LOSSCLASS** — row 119's R2 run by a session given only its protocol and rule: how often a loss classifier is wrong on the relay's known causes | done `0fa17d90` on `claude/av1-unified` (harness `fc3d230f`) — **by the rule no q* passes, in both readings (252 visits, 8 `VOID`): options 1 and 2 close as written, and every miss is BBR's**: RFC 9406's q* misses on `bbr`'s shallow random cells (radio classed congestion 30–41 %, bar 30 %), 10 ms on `bbr`'s 20-packet overflow cell (congestion classed radio 25 %), 20 ms on both controllers' (100 %); under `cubic-restart` RFC 9406's q* meets both bars (0 % on `of-q20`, n 36; 1–2 % on the six shallow random cells, n 116–364). Prediction 2 held (0–2 %), 1 held at RFC 9406's q* only, 3 failed under Cubic (0–14 %, its window stays under any queue at 2.9 Mbit) and held under BBR (58–93 %); the 500-packet overflow cell never dropped (the fill's 512 KB in flight cannot fill it), so option 1's worst case is untested; drop logs matched the relay's tally in 252/252, lag p99 0.25 ms — `lab/loss-class/README.md`, [`transport-conclusions.md`](../transport/transport-conclusions.md) §1 R2 (on `claude/av1-unified`), [`## Blocked`](#blocked) |
+| 142 | **STARTMEASURE** — row 125's P-START run by a session given only its protocol and rule: decoders started on first need | done `8259b23` on `claude/av1-unified` (harness `ff836e9`, `25dcb6f`; rounds `6d0218d`, `ac66796`, `f399291`) — **the container stage fails its rule in both readings, narrowly: CPU passes everywhere, two fill cells and one cold ask miss**: `startOnNeed` (lab flag, off by default) against today on row DECODEPACE's cells plus a cold ask, 18 Williams-ordered rounds, 864 visits, 120 `VOID` (fills 9 %, asks 19 %), 7 560/7 560 frames exact; fills ×0.994–1.004 median a cell, decoder CPU ×0.86–0.96, wake-ups ×0.18–0.44 (all three predictions held); full-field 4× at 20 and 50 Mbit ≤ ×1.01 in only 11/15 and 12/17 strict rounds (13/18, 12/18 paired; spread ×0.92–1.06, no A/A arm to say whose); cold ask unchanged on 11 of 12 cells, tomosynthesis `lte-good` 4× ×1.026 \| ×1.028 — `docs/decode/README.md` §Not yet tried, P-START |
+| 143 | **TILEDESIGN** — the owner's rule for large frames written into the design, and the tiled store and decode it implies: a proposal; theory only | done `165047b5` on `claude/av1-unified` — **a proposal, theory only: tiles as independent codestreams cut into level bands, laid out band-major, asked on today's wire**: the rule reaches only For Processing images in the breast family (raw FFDM 13–14 bits, raw projections 14; row 121's open question) and CR/DX over 12 bits outside it; on a phone device pixels need L1 where CSS pixels need L2–L3 (4–13× the bytes), on a 5 MP display both L0; same OpenJPH build on k idle workers (row 133 ×0.39–0.45 at 4×), a digest per tile and level; five decisions under §Blocked, three rows proposed, none queued — [`docs/adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §8 |
+| 144 | **FFPORTGC** — Firefox loses decoded frames when the downloader drops its copy of each decoder's transferred `MessagePort`: fixed by holding it, a test that fails without, and a Firefox fill large enough to hit it | done `2cc8e53` on `claude/av1-unified` — **fixed: each decoder's `port1` is held on its record; Firefox 157.0.1 lost a frame silently in 2 of 17 fills before (`followQueue`, frames 24 and 28 of 240 and 1 200), 0 of 14 after**; with the whole pool spawned at start 0 of 11 before and 0 of 8 after, its ports collected before any frame is in flight; every delivered frame exact; the Node test finds 0 of 3 ports alive after a collection without the line, 3 of 3 with it. **Silent losses still open, not fixed:** (1) a `messageerror` — the page's pixel port has no `onmessageerror`, the event carries no index, and the downloader has already deleted the record on `done`: lost silently; (2) a decoder worker crash — no `onerror` on decoder workers, its frames stay `decoding` and its slots taken for good; (3) a decode that never returns — no decode or fill deadline, the stall watch reads the wire alone: the frame waits for ever. `docs/ARCHITECTURE.md` §The downloader |
+| 145 | **FAULTBENCH** — row 123's fault-injection bench: a wrong sample injected per decoder path and engine, the check and the second decode observed; measures today's code, changes nothing | done `4437f93` on `claude/av1-unified` — **the ladder holds where a second path exists and nowhere else, and a hung decode is invisible**: 30 visits, Chromium 141 and Firefox 157.0.1 × HTJ2K, dav1d-WASM, WebCodecs × five faults on frame 2, the product's `decoder.js` unchanged; control 6/6 exact everywhere. A transient wrong sample: HTJ2K rescued by a fresh object, WebCodecs by dav1d-WASM, dav1d-WASM not at all (no second AV1 path, so every AV1 frame in Firefox): shown marked *NOT EXACT*; a persistent one marked on every path; half the coded bytes: OpenJPH decodes it without error and the digest marks it, the AV1 payload is refused by name; a decode that never returns: no failure, and the frame queued behind it on that decoder never arrives either. WebKit not run. `docs/adr/exactness-in-production.md` §8 *The fault bench* |
+| 146 | **LOSSIGNORE** — row 119's R3 run by a session given only its protocol and rule, if R2's result (row 141) lets it go on | done — **closed unrun, as its brief says: row 141's R2 met no q* bar** (nothing measured; whether option 1 is reopened is under [`## Blocked`](#blocked)) |
+| 147 | **FRAMELOSS** — no frame lost silently: a decoder crash, a delivery the page cannot read and a decode that never returns each end in a re-decode or a loud failure, a test per path that fails without | done `2ab670c` on `claude/av1-unified` (`dc1524d`, `a1ad5fd`) — **no frame is lost silently now: a crashed, hung or unreadable decoder is replaced and its unacknowledged frames asked again; lost twice, a frame fails by name**. Records are forgotten on the page's ack, not on `done`; `decodeMs` 10 s (~28× the slowest decode measured, 355 ms). Tests per path in Node and three dispatch-rig clauses through real workers, 3/3 in Chromium 141 and Firefox 157.0.1; every mutant caught. Row 145's bench re-run, 30 visits: every *hang* cell now fails by name after two deadlines and frame 5 behind it arrives exact (both were silent); the other 24 cells as before. Cost: a tie — last frame of 240 at 2 671 against 2 605 ms in Chromium (paired 0.985 [0.898–1.159]) and 3 555 against 3 488 ms in Firefox (1.022 [0.958–1.080]), 10 rounds interleaved, 9 600/9 600 frames exact; decode-bound on 4 cores. `docs/ARCHITECTURE.md` §The downloader |
+| 148 | **FRAMEPATH** — where a decoded frame should go now that the client has a paint worker and will get an OPFS cache: the page in or out of the pixel path, who owns the frame store, what OPFS costs; theory only | done `050d4c64` on `claude/av1-unified` — theory only, nothing timed: **recommended B′**, decoder → paint worker (which owns the memory store and every viewport) → a store worker writing checked, decoded frames to OPFS (sync handles are dedicated-worker-only, exclusive per file, take shared memory); the page's measured 0.07–1.15 ms a frame is not the reason — a busy page is (predicted: < 1 ms on a quiet page, up to a long task's length per waited frame and cine kept under one); decoded samples kept (CT series 40 MB, mammogram 17 MB a frame; reopen = read + one XXH3, no decode), re-checked on every read; WebKit's OPFS deletion is 30 operating days in its source's default, not 7 (qualified in place); protocol and rule proposed, not queued ([`../adr/frame-path.md`](../adr/frame-path.md)); five decisions under [`## Blocked`](#blocked) |
+| 149 | **NATIVECINE** — a wider search for native, losslessly stored breast ultrasound cine, ABUS volumes and contrast angiography runs than row 137's hosts; search only, metadata alone fetched | done `36f15dd` on `claude/av1-unified` — **still nothing meets row 100's bar for any of the three types; one open set of native angiography runs exists, without a licence**: `MesserMMP/coronary-angiography-syntax` (Hugging Face, 87 626 XA files, 980 GB, Philips and Siemens, 14/14 headers read multi-frame, uncompressed, Lossy `00`) states no licence; IDC v25 and TCIA add nothing (39/39 XA single frames, multi-frame US cine flagged lossy 26–100:1); no breast ultrasound cine in DICOM and no ABUS volume in DICOM at any of ~25 hosts; nearest ABUS analogue IDC's prostate 3D TRUS (1 762 volumes, 280 frames, native, CC BY 4.0); DSCA's DSA runs are cut, MIDRC's fluoroscopy is not angiography and non-commercial — `docs/FIXTURES.md` §Provenance, The wider search |
+| 150 | **MAINBASE** — `claude/av1-unified` rebuilt on current `main` (PR #34's server refactor kept), every replayed commit re-authored to the developer, every hash reference following; no other row is fired until it is done, and all new work starts from its result | done — published as `claude/av1-unified-mainbase` `7cd9e97e` and `claude/av1-mainbase` (the replay's tip `77bafbe5`, this record on top); all work continues on these two, the old branches unused (the owner, 2026-10-12) — **992 commits re-authored** (the first run's 1 557 is not reproduced, `mainbase/`), 423 replayed onto `c7230a9`, 92 108 hash tokens carried, `rehash_check.py` silent on both tips and catching an old hash planted in a tree and in a message; (a) 16 paths outside PR #34 differ, each by hash replacements alone; gate green in 359 s (page check 3/3 exact in Chromium, Firefox skipped by name); a fast-forward of `main`, +77 621 −5 411 over 1 335 files; report `docs/av1/MAINBASE.md` on the unified branch; map `rehash-map.tsv` and `rehash_check.py` here |
+| 151 | **CHECKCOST** — what the exactness checks cost a frame in today's client: the XXH3-64 check after decode by path, the second decode on a mismatch, and a cache read's re-check; cost only, the checks stay on | done `da32bd6c` on `claude/av1-unified-mainbase` — **XXH3 costs ~3.3 GB/s in both engines: 0.15 ms a 512² frame, 2.8 ms at 1914×2572, 8 ms at 3328×4096, so 4–12 % of an HTJ2K decode and 0.5–2 % of an AV1 one; a cache re-check (a copy) 0.75–0.8 of that; a failed check costs its second path** — HTJ2K's fresh object ×2.1–2.3, WebCodecs→dav1d-WASM ×2.8–3.0 (774 ms on the mammogram), dav1d→WebCodecs ×1.5, and ≈ 0 where no second path exists (a 12-bit top; all of Firefox), the frame then marked false; Chromium 141 and Firefox 157.0.1, 6 rounds interleaved, 1 344/1 344 frames exact, mutation failed every cell; 1×, a container's times — [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §9 on `claude/av1-unified-mainbase` |
+| 152 | **QUICTUNED** — row 124's candidates at their best configuration for the target, not their defaults: what each lets be tuned or patched, each lever's mechanism and its effect on throughput and on latency, every published result on one table, the server's stack read as a candidate too; theory only || done `6626fbed`: at their best no candidate is flow-control-bound at 5–50 Mbit/s (quinn's fixed 1.25 MB covers 50 Mbit/s to 200 ms; msquic's 64 KiB doubles to 16 MiB, so 5.24 Mbit/s at 100 ms holds only for a fresh stream's first quarter-window); no published study compares tuned stacks at the target's rates with loss (one at 40 Mbit/s 40 ms, no quinn or msquic); the owner's paper confirmed as CPU efficiency at 4–5 Gbit/s with settings unstated; a server-stack change buys ~1.3× sessions per core on the one comparable reading against the WebTransport layer, 927 lines of controller work and the gate — [`../native/quic.md`](../native/quic.md) §7 on `claude/av1-unified` |
+| 153 | **INGESTDESIGN** — the best design of the pipeline from the owner's C parser to the PACS, compared against alternatives on every axis: where frames are encoded, how the parser hands over, what travels, where the layout, the per-study SQLite and the catalog are built, the integrity chain, metadata compression, recovery, prior art; theory only | done `0de61363` on `claude/av1-unified` — **the proposal holds on most axes; the gap is when a series is complete** (DICOM marks no last instance): theory only, ~60 sources pinned; (a) code at the site — raw + zstd costs 1.0–1.8× HTJ2K's bytes on the link (≈ 1.4×, seven images, one source; JPEG 2000 1.17–1.72× gzip over Clunie's 3 679), the parser's HTJ2K is grok, AGPL v3, not OpenJPH's bytes; (b) keep the directory: a checkpoint and a process boundary for C on untrusted files, an instance-complete marker owed; (c) one archive a series (`.sbnd` + its groups); (d) study database first, catalog derived by a generation upsert, PostgreSQL recommended (ATTACH caps cross-database SQL at 125); (e) a 10 KB group hashes in ≈ 1.5 µs, so compressed-byte hashes save ~1 µs — the parser's BLAKE3 after decompression proves parser → PACS, once 3 of its 4 group hashes cover the bytes written; SHA-256 without SHA-NI (53–91 ms a 27 MB frame) costs more than OpenJPH's encode (29 ms), XXH3 0.5–0.9 ms; (f) one zstd stream a series, a dictionary only per group (×1.5–4.7 on 300 B–6 KB); (g) idempotent by UID + digest, resumable by offset, published by rename + fsync; no prior art codes and checks at the edge (AWS checks in the cloud with CRC32); nine decisions under §Blocked — [`docs/ingest/design.md`](../ingest/design.md) on `claude/av1-unified` |
+| 154 | **LINKTCP** — the hospital→PACS link is TCP (decided): the reasons written with pinned sources, what QUIC would gain or cost there in numbers from research, the resumable-upload options over HTTPS, and what would have to be true for QUIC to win; theory only | done `ee9522df` on `claude/av1-unified` — **TCP's reasons hold on every axis read; QUIC's wins belong to other links**: QUIC in user space costs ~2–3× TCP's CPU per byte (3.5× → ~2× at Google; ~3× against TSO on 10G; 2.5× on a receiver, 744 K datagrams against 58 K a GB), noise at a few GB a day (100 GB ≈ 130–400 core-s) but on the server's receive side; 4.4 % of clients could not use QUIC in 2016, "commonly … corporate networks", and Palo Alto, Zscaler, Cisco, SonicWall and Defender advise blocking it — no hospital rate published, so a QUIC link needs the TCP path anyway (RFC 9308 §2); Linux's 4 MiB `tcp_wmem[2]` caps an upload at ~671/224 Mbit/s at 50/150 ms, the receiver's 6 MiB before 6.16 at ~503/168 — fine to 100 Mbit/s, a few sysctls for 1 Gbit/s; 0-RTT unusable for uploads (RFC 8470), migration worth nothing wired, one RTT a kept connection; no published comparison measured an upload, and those nearest the link (Kempf 40 Mbit/s 40 ms, Shreedhar > 20 MB, Yu–Benson ≥ 1 MB) show TCP equal or ahead; S3 multipart, tus, the IETF draft -13 (no integrity) and rsync compared; QUIC returns only if UDP/443 is open at the sites and quinn's receive cost does not cap the server, plus loss, multiplexing or short connections; five decisions listed — [`ingest/link.md`](../ingest/link.md) on `claude/av1-unified` |
+| 155 | **INGESTRS1** — the Rust ingest, phase 1: a Python mirror of the owner's C parser's directory output for frames, and a Rust ingest that reads it, hashes, codes with the pinned OpenJPH, checks, digests and writes the `.sbnd` byte-identical to the Python ingest's | done `800651d3` on `claude/av1-unified-mainbase` (`a7502b67`, `883c9934`, `7ac80584`) — **the Rust ingest writes `.sbnd` files byte-identical to the Python ingest's on all 88 lab sets at `--jobs` 1, 2 and 4**: `ingest/from-parser` reads the parser's directory output (`mirror.py` the stand-in: one multi-frame instance a set, UIDs made from the name, date `PbPb`), XXH3-64 of the samples as read, HTJ2K in-process through OpenJPH 0.31.0 with `ojph_compress`'s calls (`encode.cpp`), decode-back through `decode.cpp`, `common/series-bundle`; 528 bundles, 2 447 frames, 8–16 bits, 8 colour, 3 signed, 2.42 GB a side, none refused by either (no lab set is refused by HTJ2K; refusal checked by injected faults); the metadata compared is `from_dicom.py`'s frame-attribute keys, the rest phase 2's; 11 mutants, each caught (a perturbed encoder sample refused by the Rust check; digest width, signed SIZ, metadata, frame order in bundle and mirror, both new `ingest.py` checks, two group-file reader cases); the check removed alone is no fault, removed with the perturbed encoder the comparison catches it; `ingest.py` and `from_dicom` check by XXH3-64 now — SHA-256 left: `exact()` (the lab's check against the fetch's checksums, no longer called by the ingest), the copied `NNN.sha256`, the summary line's 12-hex fingerprint, `make_golden.py`'s `.sha256` (the client tests' truth), the fetch's pins; gate green with a step keeping the two equal (`same_test.py`, six synthetic layouts); *not done:* AV1, several instances a series, the from-DICOM cases (phase 2) — `docs/ingest/contract.md` on that branch, `FIXTURES.md` §A compiled ingest |
+| 156 | **QUICCOMPARE** — the QUIC implementations compared one by one, for learning: what each is, its design, how it handles every lever, its throughput ceiling as a function of bandwidth and RTT at defaults and at its best, and what it would mean as our client and as our server; theory and writing, from rows 124 and 152's sources | done `b9b23abc`, `dcb8c5be` on `claude/av1-unified-mainbase` — **every stack obeys one ceiling, min(link, window ÷ RTT, the sender's controller under loss, CPU); at defaults three bind at ordinary rates, at their best only neqo's constant 10 MiB binds in the grid, and under loss the controller binds first**: theory and writing, eleven stacks deep and four brief, every claim labelled source, derived or measured; window ÷ RTT at 80 ms: Google QUICHE's bare 16 KB 1.6 Mbit/s, mvfst's 65 KiB 6.55, msquic's 64 KiB start 6.55 then 1 678, quinn's 1.25 MB 125 (33 at 300 ms), neqo 280 at 300 ms at its best; CUBIC's own response function (RFC 9438 §5) gives 1.74 Mbit/s at 1 % loss and 80 ms for every stack; CPU binds nowhere in the grid on server CPUs (quinn 11.8–12.4, msquic 14.8–16.4 Gbit/s one connection), phones unknown; on raw QUIC every stack but Cronet can be our client once the server takes our ALPN, so quinn's lead narrows to the shared crate, the measured 2.1 ms/MB receive and ACK_FREQUENCY (also msquic, picoquic); as a server only quinn has a released WebTransport server and a public controller hook (Google QUICHE and picoquic unreleased); `quic_grid.py` checked against RFC 9438's tables (5 mutations caught); gate `--quick --no-browser` green, the page check not run here (decoder build refused by Docker Hub, 429) — [`../native/quic-compared.md`](../native/quic-compared.md) on `claude/av1-unified-mainbase` |
+| 157 | **QUICREWRITE** — row 156's comparison rewritten with each stack at its best configuration as the reading, defaults only as what must be changed, every number traceable to its exact source or derivation; theory and writing | done `26c5c1dd` on `claude/av1-unified-mainbase` — **at their best the window stops separating the stacks: every client window is a setting reaching the grid's 37.5 MB BDP except neqo's 10 MiB constant (binds above 280 Mbit/s at 300 ms) and Google QUICHE's 16 MiB limit (447), each one constant to patch; under loss the server's controller binds first (CUBIC 1.74 Mbit/s at 1 % and 80 ms, RFC 9438 §5.1) and four stacks take our own controller without a fork (quinn, picoquic, Google QUICHE, mvfst); what still separates them is ACK_FREQUENCY (quinn, msquic, picoquic at the current codepoint), Cubic pacing (all but Cloudflare quiche), probed migration, 0-RTT, multipath and the server's WebTransport**: theory and writing, every number at its point of use with file:line at the re-fetched pins (hashes matched) or RFC/paper section, table or figure; re-reading corrected row 156 — the window that matters is the client's for the server's uni streams (lsquic client 32 KiB, picoquic 65 535 B), Google QUICHE's client never auto-tunes, msquic sends ACK_FREQUENCY, Google QUICHE never does, mvfst's codepoint matches no other, quiche's caps are settings, quic-go defaults to Reno; `quic_grid.py` 6/6 mutations caught; gate `--quick --no-browser` green — [`../native/quic-compared.md`](../native/quic-compared.md) on `claude/av1-unified-mainbase` |
+| 158 | **QUICLATENCY** — what each QUIC stack, at its best, does to latency: time to the first frame, an ask on a clean and a lossy link, head-of-line blocking, receive CPU per frame, migration; theory, formulas over RTT and loss | done `956a310b` on `claude/av1-unified-mainbase` — **the server's stack sets nearly every latency term; the client's sets four**: theory only, each term a formula over RTT, loss and rate with its RFC section and each stack's file:line; a 0.5 MB frame on a fresh connection takes 2.1 s at 300 ms above 50 Mbit/s (slow start from quinn's 12 000 B initial window, not the link); 0-RTT saves its RTT only with an address token (RFC 9000 §8.1; quinn's server sends none by default); a lost first flight waits 3 × the client's initial RTT, 150 ms (mvfst) to 999 ms (six stacks at 333 ms); a lost last packet waits PTO = RTT + 1 ms + the client's max_ack_delay, 24 ms less where the client obeys ACK_FREQUENCY (quinn, msquic, picoquic), p × 24 ms on average; expected loss delay of an ask 87–88 ms at 1 %, 80 ms and ≥ 50 Mbit/s, and behind a CUBIC sender the ask takes 2.6 s there; a client window far above the BDP lengthens an ask during a fill (quinn's 10 MB send window: 1.68 s at 50 Mbit/s); out-of-order reads only in quinn and picoquic, of no use on the shared stream; migration costs about one new RTT plus slow start either way, one RTT less than a plain re-dial and about none less than a 0-RTT re-dial with a token; receive CPU (row 135) adds ≈ 3 µs per frame; `quic_latency.py` 8/8 mutations caught; gate `--quick --no-browser` green — [`../native/quic-compared.md`](../native/quic-compared.md) §8 on `claude/av1-unified-mainbase` |
+| 159 | **CONTAINERS** — the standard containers characterized against the `.sbnd`: what each is, how it indexes frames, its codec mappings, what maximizes throughput or minimizes latency in it, its tooling, playback and browser support; theory, with row 160's protocol and decision rule | done `d3da182a` on `claude/av1-unified-mainbase` — **the read path does not care which container; the open and the payload do, and no standard container carries our AV1 payload as a standard track**: theory only, nothing timed, ~40 sources pinned (FFmpeg n7.1 `b08d796` by file:line, RFC 9559/8794, AV1-ISOBMFF v1.3.0, DICOM 2026d, SMPTE ST 377-1/422/379-1/390); every candidate stores an intra frame as one contiguous range, so after an open that builds the same (offset, length) table each is one lookup and one `pread`: read latency, fill throughput and CPU per GB predicted to tie; bytes a frame (framing + index, D, `containers_overhead.py`, 15/15 mutations caught): `.sbnd` 12 (draft 28), MP4 one sample a chunk 12 (FFmpeg's chunks 4–12), DICOM Extended Offset Table 24, MXF minimal 31, Matroska by FFmpeg 44–48, fragmented MP4 one frame a fragment 183, FFmpeg's MXF OP1a 847–1 039 — all ≤ 0.3 % of a 16 KiB frame but FFmpeg's MXF (6.3 %); the open separates them: `.sbnd` 2 reads ≈ progressive MP4 < DICOM EOT (+ its per-frame metadata) < Matroska, MXF, fMP4 at one frame a fragment (no length in the index: N header reads) < IVF/raw AV1 (no index, N chained reads); AV1 stops at 12 bits and the 10–14-bit payload is two streams plus a header no mapping, player or decoder knows; HTJ2K is standard only in DICOM (.201, one fragment a frame) and MXF (ST 422:2022), a CELLAR draft in Matroska, unverified in MP4 (15444-16:2025); per-frame hashes and the band-major layout have no standard field anywhere, UIDs only in DICOM; prediction: the `.sbnd` stays, DICOM with an EOT is the candidate export (HTJ2K); row 160's arms, metrics and decision rule *proposed* — [`../disk-layout/containers.md`](../disk-layout/containers.md) §9 on `claude/av1-unified-mainbase` |
+| 160 | **CONTAINERBENCH** — row 159's containers measured against the `.sbnd` on the same frames and the same read path: open, bytes, per-frame read latency, fill throughput, server CPU per GB, ingest packing time | done `4d5b6b54`, `d2d5929b` on `claude/av1-unified-mainbase` — **the `.sbnd` stays (proposed): every container ties it on per-frame reads, fill and CPU per GB, and they part only on the open; none passes the round trip**: measured blind to §1–§8 (the session saw row 159's queue cell through a `grep` before any number, and says so); 13 arms (`.sbnd` v1, its A/A copy, v2; MP4 ours and FFmpeg 6.1.1 faststart; fMP4 F = 1, 30; Matroska ours and FFmpeg; DICOM EOT with and without per-frame groups via pydicom 3.0.1; MXF ours at KAG 1 and FFmpeg; IVF), each opened into the server's table (`FrameStore::with_index`) and read by the shipped readers; 5 sound series at median 32 kB–2.8 MB (none near 16 KiB), 26 interleaved rounds, 3 120 cells, 25.3 M frames XXH3-checked against the encoder's codestream and every arm's 12 000 frames decoded against the input digests: 0 inexact; (a) ratios to `sbnd1` 0.88–1.16 against an A/A resolution of 14–30 %: all ties; (b) cold open on `pt15_cptac` (335 frames) ~160–310 µs for `.sbnd` v1/v2, MP4, DICOM, 0.68 ms fMP4 F = 30, 13–26 ms fMP4 F = 1, Matroska, MXF, IVF — those fail; (c) FFmpeg's MXF +2.6 %, DICOM with per-frame groups +1.2 % fail; (d) fails everywhere: FFmpeg cannot pack the AV1 payload (its input must name a codec), pydicom's `encapsulate_extended` pads Extended Offset Table lengths to even against PS3.3 C.7.6.3.1.8 (241/500 HTJ2K frames back one byte long), hashes have no standard field, UIDs only in DICOM; nearest: DICOM EOT without per-frame groups, then progressive MP4 (pass (a)–(c)); side finding: `pack-series`' 8 KiB `BufWriter` makes the `.sbnd` it writes read 24–31 % slower on warm hits and fill 24–32 % slower than the same bytes written in 1 MiB writes (32–41 kB frames, 16 rounds, 81–100 % signs), mechanism not measured (under [`## Blocked`](#blocked)); one session on 4 vCPU, never saturated, nothing claimed for concurrency or a device-bound miss; mutations: `--mutate shift|short` 238/238 on 13 arm kinds, 17 source mutants, a flipped byte; gate `--quick --no-browser` green — [`../disk-layout/containers.md`](../disk-layout/containers.md) §Measured on `claude/av1-unified-mainbase` |
+| 161 | **HWDECODE** — every hardware decode path, browser and native: codecs and bit depths in hardware, lossless, whether the exact samples come back, and which radiology functions survive; theory | done `b13560cd` on `claude/av1-unified-mainbase` — **no hardware path changes a verdict today; no browser path can serve the viewer as the product codes AV1**: theory from pinned sources (Chromium 141.0.7390.37, FFmpeg n8.0, libva, Intel media-driver, Mesa, NVDEC 13.0, DirectX- and Vulkan-Headers, AV1 and H.265 specs, WebCodecs WD); Chromium's shared hardware AV1 front end refuses 4:0:0 and 4:2:2 (`av1_decoder.cc:304–307`), VA-API and VideoToolbox advertise Main only, and WebCodecs reads back no hardware 10-bit frame (`P010` has no `VideoPixelFormat`, `video_frame.cc:205–233`), Android frames only as RGB; native APIs return the decoder's planes exactly by construction but take AV1 Main 4:2:0 8/10-bit everywhere, 4:0:0 shown only on NVDEC, 4:4:4 and 12-bit only via D3D12/Vulkan per driver; lossless is in every profile, its hardware correctness unpublished; coverage 9.76 % of smartphone use (ScientiaMobile 2024 Q2), 69.6 % / 17.2 % / 13.2 % of Steam desktop GPUs yes / no / unknown (September 2026, derived); GREY420's 4:2:0 grey is the one layout every hardware decoder takes — worth revisiting for a native viewer; a three-machine native device run proposed — [`decode/hardware.md`](../decode/hardware.md), [`decode/README.md`](../decode/README.md) §Hardware decode |
+| 162 | **LINKREAL** — real link conditions from published measurements: mobile 4G/5G, hospital Wi-Fi, home broadband, hospital uplinks — rates, RTT, loss and their spread; research | done `d00e53fa` on `claude/av1-unified-mainbase`: **the 5–50 Mbit/s band is the slow tail, replaced** — a phone reaches a near server at 103 Mbit/s median on cellular (p10 18, p90 309; Ookla open tiles 2026 Q3) and 218 on Wi-Fi, one stream to an off-net server 27–85 by country (M-Lab NDT 2024); idle RTT 16–55 ms (p10–p90) but 0.7–0.8 s median under load on cellular, 0.2–0.3 s on Wi-Fi; loss mostly ≤ 0.1 % (5G p99 1.2 %), handovers 24–50 ms; eight verdicts that rest on the band listed, not re-run; a hospital's uplink and Wi-Fi have no measurement found — [`../transport/link-conditions.md`](../transport/link-conditions.md), The target corrected in place |
+| 163 | **STREAMPACK** — sending a series while it is still being parsed and coded: the formats and protocols that allow it, what overlap saves, and what it costs in safety and checks; theory | done `561d341d`, `2c488b53` on `claude/av1-unified-mainbase` — **overlap saves at most min(coding, sending), ≤ half of code-then-send; for HTJ2K it pays only under a quiet-period completeness rule**: 300 frames on 4 cores at 10 Mbit/s–1 Gbit/s (assumed band, ojph 174–335 Mbit/s of coded output a core, row ENC), streaming HTJ2K saves 0.3–0.9 s if the association's end is the signal, AV1 (4.9–12.3 Mbit/s a core) 0.3–25.9 s; under a 30 s quiet period it hides the send in the wait, 3.9–30 s; proposed: code on arrival first (no format, wire or store change, saves min(Q, coding)), frames as records with a final "series complete" only under a quiet period, no index at the end (a format change that leaves arrival order); costs: late-failing series' frames discarded at the PACS, partials held until expiry, crash resume relies on re-coding the same bytes (HTJ2K shown, AV1 not); AV1's series-wide offset must become fixed to stream — arithmetic, nothing timed — [`../ingest/design.md`](../ingest/design.md) §11 on `claude/av1-unified-mainbase` |
+| 164 | **DISKLAYOUTDOCS** — `docs/disk-layout/`: the current `.sbnd` layout exactly, and the draft target agreed 2026-10-12; writing | done `2b59df27`, `a8f23aa7` — **written: today's `.sbnd` exactly, from the code with line references, and the draft target**: 16 B header, 12 B fixed-stride index, metadata embedded and in a sidecar (the server reads neither — `FrameStore::open` keeps the index only; the page reads the sidecar; `ingest/from-parser` writes no sidecar), frames back to back in display order and unaligned, the writer lengths-first to the final name with a flush and no fsync or rename, the fill's 4 MiB advice valid only because of display order; target 148 B header and 28/36 B entries checked against the field sizes; payload-format.md's codec field fixed; the brief's tag `read-path-evidence-2026-09-09` does not exist and the study is cited as `git show b55b68db:docs/disk-layout/ACCESS-PATTERNS.md` with its 17.6× / 1.50× conditionality; link check mutated (a broken link caught 1/1); gate green — [`docs/disk-layout/README.md`](../disk-layout/README.md), [`target.md`](../disk-layout/target.md) |
+| 165 | **AUDITCODEC** — is every codec lever tried or closed? HTJ2K, AV1, JPEG XL, JPEG-LS, AV2, LCEVC, SVC, colour transforms and the bit split: closed by evidence, closed by a premise since changed, never tried, or waiting on the owner; ranked by net gain; audit | done `a75a6107` on `claude/av1-unified-mainbase` — **two measured levers reopen under the net reading, four were never tried, one release reopens a lever; the rest are closed by evidence or wait on the owner**: 34 levers in three tables (HTJ2K 16, AV1 12, other codecs 6), each with its rows and class; reopened by the net reading: OpenJPH under emscripten 6.0.x (projections ×0.886–0.931 a frame in 9–10/10, the rest within spread; row 134) and the shared-heap copy on RGB (×0.866 at 4×, memory 5–25 MB lower; synthetic only); never tried: HTJ2K histogram packing (the 16-bit film 0.576, row 64), JPEG-LS (CharLS-WASM 1.2.7), JPEG XL through jxl-rs in WASM (0.7.0 rewrote its 16-bit lossless path), Tomoz (`@zeroxshot/tomoz` 0.2.0), OpenJPH ARM SIMD natively; releases: only libaom 3.15.2 (fixes), jxl-rs 0.7.4, CharLS 2.4.5, emscripten 6.0.12 and dav2d 0.0.1 followed the pins; still no open LCEVC encoder, no Firefox high-bit WebCodecs, no 12-bit in Chromium's; the band moved against serving AV1; seven theory rows proposed (EMSDKNET, COPYRGB, HTJ2KPACK, JPEGLS, JXLRS, TOMOZ, ARMSIMD) and eight trade-offs listed for the owner; row 125's 'Tomoz not found' corrected in place — `docs/codecs/README.md` §Tried and open |
+| 166 | **AUDITPATH** — the same audit outside the codecs: disk reads and the writer, the server's send path, transport, the client's downloader, decoders, paint and memory, ingest, the gate; audit | done `6c9a8ee3`, `c0a33f95`, `5d473890`, `168c8a94` on `claude/av1-unified-mainbase` — **audit: most of the path is closed by measurement that still holds; what is left is reopened by row 162's links or the net ruling, or never tried**: 140 lines of levers outside the codecs classed held, premise, never, owner or queued, each with the row that measured it (disk 29, send path 13, transport 31, client 45, ingest 14, gate 8); reopened by the band: PGO (−13 to −20 % server CPU, ~31 fills a core at 103 Mbit/s), server-side ask ordering (its ADR flips above ~100 ms RTT; loaded 0.2–0.8 s), the warm-up; reopened by the net ruling: P-COPY (row 134: −5 to −25 MB, RGB ×0.866) and `startOnNeed` (row 142: decoder CPU −4 to −14 %), both refused by a fixed bar, not a loss; 20 theory rows proposed, ranked — HASHFAST (the check is 4–12 % of an HTJ2K frame), COPYNET, PGOSHIP, STARTAA, ASKBEHIND, READERPAUSE, INITIALREPLY (+700 ms on a lost first flight, row 139), ASKORDER, TAILPING, INLINECAP, DEPLOYLIMITS, MTU1472, RELEASEBUMP, SCALECORE and six smaller — behind row 167's ASKAHEAD and row 168's measuring row; 26 trade-offs for the owner; found on the way: dangling owners (rows 49, 54, 86), docs not corrected for the band (`rig-limits.md`, `native/quic.md` §7), four owner calls missing from §Blocked, P0 with no row — `docs/levers.md`, linked from `README.md` |
+| 167 | **BANDRECHECK** — row 162's eight verdicts that rest on the old 5–50 Mbit/s band, each re-derived at the measured link profiles: holds, flips or open, and the measurement that would decide; theory | done `0a67a42c` on `claude/av1-unified-mainbase` — **2 flip, 2 open or split, 4 hold, and a ninth**: the framing flips (a core carries ~31 fills at 103 Mbit/s, not ~160; AV1's 4× decode is the clock below the median link), `dbts_b4` as AV1 flips from a win on every phone link to a trade-off (1.97× at 4× on 100 Mbit/s, the cellular median), the 32-packet window is open (its losing cell is a 10-packet queue), flow control holds for Chromium (6 MiB) and flips for a quinn client (1.25 MB binds at far-region RTTs); controller, 768 KB window, GSO cap and asks first hold; **an ask during a fill waits behind 6 MiB of written-ahead fill in Chromium, 0.49 s at 103 Mbit/s and 2.8 s at 18 (D)**, which a send window tracking cwnd + 2 frames would cut to ~0.1 s on short queues at no fill cost in theory; protocols ASKAHEAD, IWDEEP, FASTCLOCK, B4FAST proposed — `docs/transport/link-conditions.md` §Verdicts that rest on the band, §Re-measured, proposed |
+| 168 | **PACKWRITE** — why a `.sbnd` written through an 8 KiB `BufWriter` reads 24–31 % slower than the same bytes written in 1 MiB writes (row 160): the mechanism, whether production would see it, and the protocol for the fix; theory | done `3e3b49ca` on `claude/av1-unified-mainbase` — **theory: the writer sizes the page-cache folios a hit walks, and a 1 MiB buffer is the one-line fix, worth ~1 µs of server CPU a small frame**: `pack-series`' 8 KiB `BufWriter` already writes every frame ≥ 8 KiB in one `write` (Rust 1.97 `bufwriter.rs:420–429`), but Linux v6.18.44 sizes a new folio by the write's remaining length and its page index's alignment (`mm/filemap.c:2006–2010`, ext4 large folios since v6.16, XFS since v6.6); a model of those rules (`folio_model.py`, (D)) gives 5.1 folios per 32–41 kB frame for `pack-series`, 5.4 for `dd bs=8K`, 1.3 for a 1 MiB `BufWriter`, 1.0 for `dd bs=1M`, 9.9 for 4 KiB folios — fitting row 160's three readings (~150–300 ns a folio, (D)); fragmentation, delayed allocation and `fallocate` touch no hit; production sees it only from pack to reclaim on ext4 ≥ 6.16 or XFS ≥ 6.6, and after reclaim the fill's own `WILLNEED` builds 4 KiB folios (`mm/readahead.c:275–276`), about twice `pack-series`' count; fixes F1–F5 ranked; protocol of 8 arms (A/A, `O_DIRECT`-written arms for after reclaim, a `data=journal` control that turns large folios off), 4 frame sizes, 16 interleaved rounds, folios counted through `kpageflags`, and a decision rule (a)–(e) for a separate measuring row, not queued — `docs/disk-layout/README.md` §The writer (on `claude/av1-unified-mainbase`) |
+| 169 | **DISPLAY** — what reaches the radiologist's screen: bits per sample after the window, the grayscale standard display function, colour management for RGB, in the browser and natively; theory | done `6238171a` on `claude/av1-unified-mainbase` — **theory: the exact frame reaches the screen as 8 bits after the window, sRGB-tagged, with no presentation LUT and no ICC handling; going past 8 bits is a trade-off, reading the colour and LUT tags is net where present**: a window W wide shows W/256 units a code (CT soft tissue 1.6 HU, lung 5.9, full 13-bit 22.6, (D)); 256 codes over the ~720 JNDs of a 0.8–600 cd/m² medical display is ~2.8 JNDs a step against 10 bits' ~0.7 (Kimpe and Tuytschaever 2007; 10 bits enough); Windows composes windowed apps at 8 bits a channel unless Advanced Color is on, WebGL's `drawingBufferStorage(RGBA16F)` is Chrome/Edge 122+ only and needs `alpha: true`; Chromium colour-manages the canvas to the monitor's profile unless `--force-color-profile=srgb`, a device question for GSDF panels; the ingest drops ICC Profile, Color Space, VOI LUT Sequence and Presentation LUT Shape; gaps G1–G6 (G1 half-float painter: picture memory ×2 and the 8-bit proof lost — trade-off, owner's; G4, G6 net where present), a container protocol with predictions, mutations and decision rule, a device protocol for the owner, rows DISPLAY10, COLORTAGS, VOILUT proposed — `docs/display.md`, `client/paint/README.md` §What reaches the screen (on `claude/av1-unified-mainbase`) |
+| 170 | **FETCHPIN** — `lab/av1/fetch_data.sh` runs as written: the hash-pinned `typing-extensions` that `blake3` needs (row 160's side finding) | done `e117cd1f`, `07f17f85` on `claude/av1-unified-mainbase` — **`typing-extensions==4.16.0` pinned with its wheel's hash; from a clean 3.11 venv the script installs under `--require-hashes` and 88 of 91 sets fetch and match their pinned digests**; the three breast-ultrasound sets' Zenodo archive was refused (TLS resets, 0–130 kB/s, stalled at 50 MB of 1.49 GB). A flipped hash failed the install. Also: the venv is now built with `python3.11` (`PYTHON` overrides), since a host whose `python3` is 3.13 failed on xxhash's 3.11-only hash. Every other line was already pinned with `==` and hashes. Side findings: the proxy cut 5 large IDC files short (0.1–0.6 % missing), which the script refuses and a retry fetched, and `urlretrieve` has no timeout, so a stalled fetch hangs — `lab/av1/requirements.txt`, `lab/av1/fetch_data.sh` |
+| 171 | **ASKAHEAD** — row 167's protocol: a send window that follows the congestion window, so an ask during a fill stops waiting behind 6 MiB written ahead | done `1c13d35f` on `claude/av1-unified-mainbase` (the flag and rig `aad95192`) — **a trade-off, not adopted**: the ask −59 to −67 % at 18 Mbit/s and −39 to −59 % at 103 behind 20 ms and CoDel (e.g. 537 → 223 ms, 3.12 → 1.03 s), unchanged behind 360/800 ms at 103 (the credit binds), but the fill +0.7–1.4 % at 18 and +5–11 % at 103 beyond its spread in 8 of 16 cells (the remainder re-asked a round trip after the ask, D); server RSS 9.1–9.8 → 4.6–7.9 MB; 320 runs exact, 174 `VOID`, strict and round-paired agree but on one cell's ask (103/92/20 ms, not conclusive); 309 Mbit/s past the host's ~140; HyStart's arm not run (retired, no flag); ASKTHENFILL proposed — [`../transport/link-conditions.md`](../transport/link-conditions.md) §Re-measured, proposed |
+| 172 | **WRITERMEASURE** — row 168's protocol: `.sbnd` files written in 8 KiB against 1 MiB writes, folios counted, hit and fill timed | done `fd1a483d`, `9c3163f1`, `b7d991ef` on `claude/av1-unified-mainbase` — **folios confirmed on ext4, F1 not adopted under the rule's resolution, the writer closed (e); (d) fires: the fill's `WILLNEED` is the larger lever**: run blind to row 168's §Why; 8 arms, SHA-256-equal (none void), on host ext4, loop ext4, ext4 `data=journal` and XFS (xfsprogs 6.6.0), 5 cells, 16 interleaved rounds, 47.3 M reads XXH3-checked and all 160 arms' 26 656 frames decoded against ingest's digests: 0 inexact; the lab writer's `write(2)`s equal `pack-series`' under `strace`; folios per 32–41 kB frame A0 4.86–5.26, A1 1.27–1.38, A2 1.04–1.15, A4 4.79–5.91, A6 8.58–10.79, the 160/500 kB model within 3 %, A5 missed on `mr9_ispy2` (2.53–4.15), every `data=journal` arm 4 KiB folios, unchanged after the last round; hit p50 A1/A0 at 32–41 kB 0.62–0.77 host, 0.70–0.83 loop ext4 (75–100 % of rounds), 0.86–0.93 XFS, ranking as predicted on ext4, not on XFS (all tie), but no cell beyond the A/A resolution 0.25–0.68, so (b) ties; A6 beyond it on host `ct_lidc`/`dbt12_ea1141` (hit ×2.02/×1.99, fill hit ×0.68/×0.64, CPU/GB ×1.49/×1.56); pack time has no A/A arm. Proposed: WILLNEEDFOLIO, WRITERAA (owner's: a median-based bar), XFSFOLIO — `docs/disk-layout/README.md` §The writer, §Measured; `lab/container-bench/writer.py` (on `claude/av1-unified-mainbase`) |
+| 173 | **NETRULES** — rows 134 and 142's three refused levers (OpenJPH under emscripten 6.0.x, the shared-heap copy, decoders started on first need) given protocols judged by an A/A arm's spread under the net reading; theory | done `0b3c1898` on `claude/av1-unified-mainbase` — **yes, all three have a fair protocol under one A/A rule** (a second copy of today's arm each round; worse or better only by a one-sided Mann–Whitney on round-paired ratios, p < 0.05, confirmed in a second run; not conclusive when the loss it would catch in 80 % of campaigns exceeds 5 %): by its simulation, false *worse* ≤ 0.05 % a cell, a loss caught at +1.7 / +3.2 / +4.8 / +8.2 % for a 1 / 2 / 3 / 5 % arm spread at n = 12, ~1.8× finer than the p90 resolution bar. Cells at 100 and 300 Mbit/s, 46 ms idle and a 650 ms FIFO (~0.7 s loaded), relay ceiling probed first. Predicted: P-EMSDK net (projections ×0.89–0.93, row 134's ×1.061 cell inside A/A); P-COPY net on the six sound `usrgb_*` sets (RGB ×0.85–0.95 at 4×, grey a tie, memory lower), in Chromium and Firefox; `startOnNeed` **worse ×1.03–1.08 on decode-bound fills at 300 Mbit/s 4×** (late starts on the critical path), so a trade-off; STARTAHEAD and AARULE proposed — `docs/decode/README.md` §Not yet tried, *Net protocols*; `lab/scripts/aa_rule.py` |
+| 174 | **QUICSTREAMS** — how each QUIC stack handles many streams (scheduling, priority, flow control, limits, retransmission order) and which stream design serves a fill and an ask best at the measured links; theory | done `8c50b902` on `claude/av1-unified-mainbase` — **one stream is enough for throughput; the ask during a fill decides, and today's `per-frame` flag is the worst design for it**: eleven stacks and two browsers read at their pins (scheduler, lost-data order, write bound, uni MAX_STREAMS; quic-go and lsquic contradict earlier readings: quic-go has RFC 9218 priorities, lsquic opens no application uni stream and its HTTP iterator collapses other priorities); `sendOrder`/`sendGroup` reach QUICHE in Chromium and neqo in Firefox but order only the browser's own sends; Chromium grants 100 uni streams, 6 MiB each, 15 MiB a connection, never auto-tuned. A self-induced queue never binds one stream's 6 MiB (it binds above 547 Mbit/s at 92 ms); another flow's 0.4–0.8 s queue binds it at 63–126 Mbit/s. An ask during a fill at 46 ms (D): shared today 3 087 / 577 / 223 ms at 18 / 103 / 309 Mbit/s; per-frame today 4 735 / 865 / 319 (10 MB ahead, not 6 MiB); send window = cwnd + M (row 171) 845 / 240 / 155 behind 20 ms and never worse; per-frame with the ask above the fill 356 / 155 / 126 behind 20 ms but 865 against 577 ms at 103 Mbit/s behind 800 ms, so a trade-off. The 4-arm protocol and rule are for row 180; `quic_streams.py` prints every table, 5 mutations caught 5/5. Finding: [`../native/quic-compared.md`](../native/quic-compared.md) §9 on `claude/av1-unified-mainbase` |
+| 175 | **TILESTORE** — tiles for large frames: the store-format proposal rows 133 and 143 left for the owner; writing, nothing built | done `6a6c9750` on `claude/av1-unified-mainbase` — **a proposal, nothing built: three horizontal strips, each its own HTJ2K codestream, cut into three level bands (L2 ~7 %, L1 ~20 %, L0 ~72 %), band-major, the entry map arithmetic (e = b·N·T + f·T + t) in a 36 B v2 entry whose samples hash is the tile's level picture from the encoder's input; no wire or server change (a fitted fill at L is one `stream_frames` run, an ask 6 `request_frame`s at L1)**; every frame of ≥ 1 MP under the owner's rule, k = 3 (row 133: ×0.39–0.45 at 4×, +0.12 % bytes; k = 3 beat k = 2 at every size); strip heights on 32-row multiples so level pictures stack seamless; per viewport in device pixels; 12-bit large frames keep layout 0 until a level-first fill is shown net (×0.98–1.04 today); a zoom at 1:1 on a phone fetches 3.3–5.3× the visible area with strips, 1.1–3.5× with 3 × 3 (D), so TILEGRID decides the grid; migration re-encodes from samples checked against the frame digest; still to measure: BANDS, TILEGRID, signed and colour level pictures, k on a phone — [`../disk-layout/target.md`](../disk-layout/target.md) §Layout 1, [`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §8.8 |
+| 176 | **HASHFAST** — the frame check's XXH3-64 in the decoder worker: where its ~3.3 GB/s goes, and whether a SIMD128 build over the decoder's own heap is faster with the digest unchanged; theory | done `f4f1e360` on `claude/av1-unified-mainbase` — **the shipped hasher is scalar, and only an upstream SIMD128 build is a candidate, ≤ 4.2 ms (≤ 6 %) of a 69 ms mammogram decode**: hash-wasm 4.12.0's XXH3 is its own scalar port (`-msimd128` commented out), copies every byte into a 128 KiB heap 16 KiB a call (1 666 calls on 27.3 MB) and reads the frame's SAB; by elimination (row 151's unshared copy 6.3 against 8.1 ms, hash-wasm's XXH64 ~16 GB/s through the same path) shared reads cost ~1.8 ms and the scalar core ~4.6–6.3 ms; xxHash v0.8.4's SIMD128 path (its NEON code via SIMDe, "x2/x3" by its changelog) predicts ×0.48–0.72 with the digest fixed by spec; hashing before the copy (×0.75–0.80) leaves the copy unchecked, a trade-off; a hasher-owned frame memory (×0.19–0.39) only grows, not proposed; ARM may gain nothing (one aarch64 report); protocol and rule for row 179 (arms A, C, C0, B) — [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §10 |
+| 177 | **DOCFIX** — row 166's found-on-the-way list: docs not corrected for row 162's band, dangling owners, stale lines, owner calls missing from §Blocked | done `3e995599` on `claude/av1-unified-mainbase` (§Blocked on this branch, `8e9f4c20`) — **row 166's list corrected in place, no new claim; 7 docs, 6 owner calls added to §Blocked**: `rig-limits.md` §1's 768 KB "never binds" and `native/quic.md` §1 and §7's 5–50 Mbit/s, flow-control and "0.4–0.7 % of a core" (now 2.6–4.0 % at 103 Mbit/s) each corrected to `transport/link-conditions.md`; the gate's cost (161 → 106 s) back in `README.md` under the name rows 54 and 86 cite; row 49's hand-off restored in short to `decode/README.md` (dropped by `3187b224`); `ARCHITECTURE.md` §Open's "not built" pool and unrun shared store corrected; the coded-bytes digest marked agreed in `ingest/README.md`; `stream-shape.md`'s row 78 named as cq 78; `CLAUDE.md`'s path was already right on the work branch and is right for its own tree here. §Blocked: GSO cap, 32-packet window, `MALLOC_MMAP_THRESHOLD_`, keep-alive ADR, P0, row 139's review call. Gate green |
+| 178 | **NETMEASURE** — row 173's protocols run by a session given only them | done `4c42d598` on `claude/av1-unified-mainbase` (harness `4ed0f9a5`, rounds `c1101ffa`…`2634a951`) — **no lever adopted on this host**: 3 024 relay visits and 6 624 frame rows, n = 12 confirmed on 12 fresh rounds, not-conclusive cells read at n = 24, 124 560 + 20 952 frames exact, mutations caught in every harness; 300 Mbit/s voided 30–50 % (the host delivers ~170), dropped. **EMSDKNET:** nothing worse; a frame ×0.850 (1×) and ×0.903–0.929 (4×) on the projections, the fill there ×0.987–0.997, cold asks a tie (predicted ×0.91–0.96: not held); six frame cells not conclusive (A/A sd 2.7–10 %) — the cells, for the owner. **COPYRGB:** an RGB frame ×0.80–0.93 in both engines, cold ask ×0.92–0.93, `usrgb_mel` fill ×0.88, Chromium memory −1.4 to −26 MB; Firefox's grey cells not conclusive (7) and `dbtproj_ge` 4× flagged worse once, its peak bimodal — not adopted here. **STARTAA:** a trade-off — wake-ups ×0.20–0.43, decoder CPU ×0.89–0.96 at 4×, the decode-bound fill ×1.042–1.051 in the first run, ×1.010 in the confirming one, ×1.023 pooled (×1.08–1.19 at the dropped 300) — [`../decode/README.md`](../decode/README.md) §Not yet tried, *Net protocols*, Measured; QUIETHOST and FFPEAK proposed |
+| 179 | **HASHMEASURE** — row 176's protocol run by a session given only it | done `ab0fc196` on `claude/av1-unified-mainbase` — **C adopted, built as the default hasher**: xxHash v0.8.4's XXH3 with SIMD128 is ×0.65 (Chromium) and ×0.66–0.72 (Firefox) of hash-wasm's on the two large frames (mammogram 6.0–6.3 → 4.0–4.7 ms), no round slower, every one of 5 760 digests the ingest's, 12 rounds; C0 (scalar) ×0.80–0.86, against ±10 % predicted; B (before the copy) ×1.00–1.04, against ×0.75–0.80 — `docs/adr/exactness-in-production.md` §10, *Measured*; `lab/av1/exact/hashfast` |
+| 180 | **STREAMSMEASURE** — row 174's protocol run by a session given only it | done `f639a233` on `claude/av1-unified-mainbase` (`f223e5b7`, rows `a8bcbc01`) — **a trade-off for the owner; `shared` stays**: `--stream-mode per-frame-asks-first` built beside today's path (lab only, its rank test failed under 3 of 3 mutations, a pipeline that never marks an ask put it behind all 11 written-ahead frames); run given only §9.5's protocol: 4 arms × 16 cells × 10 Williams rounds, Chromium 141, the 10-bit DBT volume, 640/640 exact, 111 `VOID`; 309 Mbit/s clean cells `VOID` in 10–18 of 40 visits, so not claimed; asks first's ask ×0.28–0.43 of the better of `shared` and row 171's window in every claimed 20 ms-queue and 1 % loss cell (18 Mbit/s FIFO 20: 314 ms against 1 025 and 3 118), but ×1.97 of window at 18 Mbit/s behind 800 ms (1 818 against 925) and ×1.05 of `shared` at 103 behind 360 ms, worse beyond the spread, and its fill +1.7–2.5 % outside `shared`'s spread in three deep cells; strict and round-paired agree; predictions: the fastest short-queue ask and the RSS above window's held, the other four did not (`per-frame` ties `shared`, ×0.96–1.03, so it neither confirms nor refutes §9.4 on claimed cells; arm 4's loss gap 3.2–6.1 s against `shared`'s 2.4–4.7) — [`docs/native/quic-compared.md`](../native/quic-compared.md) §9.5 *Measured* on that branch |
+| 181 | **IWDEEP** — row 167's protocol: the 32-packet initial window behind the buffers phones have | done `52b902c6` on `claude/av1-unified-mainbase` (rig `b54cb37a`) — **adopted: the server starts at 38 400 bytes by default**: a fresh ask −26 to −38 % in every cell outside the 10-packet queue (250 KB 287 → 210 ms at 18/46, 523 → 373 at 103/92; 50 KB −34 to −38 %), the push-opened control −5.6 to +1.0 %; behind 10 packets the 250 KB ask +12 to +25 % (a tie at 103/92), the disclosed price; 960 runs exact, 242 `VOID`, strict and round-paired within 5 points; 309 Mbit/s past the relay's ceiling (181.6 delivered), not run — [`../transport/link-conditions.md`](../transport/link-conditions.md) §Re-measured, proposed (IWDEEP) |
+| 182 | **FASTCLOCK** — row 167's protocol: where each codec's fill turns decode-bound at the measured rates, and the GSO cap of 24 as the build default | done `83cbf63e` on `claude/av1-unified-mainbase` (rigs `138b845d`, rows `c4166380`) — **HTJ2K's fill is the wire's through 218 Mbit/s even at 4×; AV1's is the decoders' from 50 at 4× and from 218 at 1×; the GSO cap of 24 meets its rule and waits on the owner's yes**: 10 interleaved rounds, 480 visits, 6 720/6 720 frames exact (63 `VOID`, both readings agree but one clock), `dbt10_ea1141` and `ffdms_c1`, HTJ2K against the k2 AV1 payload, Chromium 141 and Firefox 157.0.1, 1×/4×, 50/103/218 Mbit/s at 46 ms (the relay delivers 177–182 asked 218, 455–480 unshaped); HTJ2K's tail 13–80 ms at 1× and 52–389 ms at 4× with the fill still tracking the wire (prediction "decode-bound at 4× from ≤ 103" failed), AV1 at 4× flat at 2.84–2.87 s (Chromium DBT) across all three rates; AV1 ÷ HTJ2K 0.98 only at Chromium DBT 1× 50, else 1.02–4.72. GSO: server CPU a MB ×0.791 (AV1) and ×0.864 (HTJ2K) at 32 sessions × 103 Mbit/s, 10/10 rounds lower, fills a tie, a Chromium ask during a fill ×0.998–1.002 behind 20 and 360 ms FIFOs; not flipped (it replaces today's build; owner call (1) in §Blocked). Side finding: Firefox stalled ~6 s before the last byte in 9 of 240 visits. Proposed: FFSTALL, HTJ2KTURN — `docs/transport/link-conditions.md` §Re-measured, *FASTCLOCK*, Measured |
+| 183 | **ASKBEHIND** — an ask behind a decoder's queue at the measured rates, and whether ask-aware dispatch cuts it with the fill unchanged; theory | done `cac8539c` (claims `43a12256`) on `claude/av1-unified-mainbase` — theory: with every decoder full an ask waits R_min + 2T today (one fill frame's decode extra, 34–139 ms on `dbt12` at 4×, 395 on a mammogram); **jump** (the ask ahead of the queued frame on the decoder that ends first) is predicted **net**: a tie where the wire is the clock (every 1× cell), ×0.57–0.88 at the median where decode is (4× at 300 Mbit/s, AV1), fill unchanged; **hold** (a slot kept free) a trade-off, fill +1–6 %. A protocol for a measuring session (flag `askJump`, NETRULES' A/A rule) — `docs/decode/README.md` §An ask behind the decoders; `lab/ask-behind/sim.py` |
+| 184 | **READERPAUSE** — the coded queue's growth on large series at 100–300 Mbit/s, and whether a reader pause bounds it with fill and ask unchanged; theory | done `91366d65` on `claude/av1-unified-mainbase` — theory: the coded queue peaks at S(1 − D/W), **under 11 MB on every series measured** (`dbt12` AV1 at 4×: 2.0–10.4 MB; HTJ2K and every 1× cell: none), and never lifts the fill's peak past the retained pixels (≤ 1/r of it, garbage included); a pause bounds the device at H + Chromium's 6.25 MiB window, so it saves ≤ 4 MB on those cells — **net only on a long decode-bound series behind its own queue** (resume needs L + 6.25 MiB ≥ D × RTT: 1.7 MB at 46 ms), **a trade-off behind another flow's 0.7 s queue** (7.6–26 MB); worth queuing only if FASTCLOCK finds Q > ~20 MB. Protocol for a measuring session — `docs/decode/README.md` §A reader pause |
+| 185 | **HTJ2KPACK** — sparse histograms in target series, and a value map before HTJ2K that cuts their bytes with decode unchanged beyond a lookup; theory | done `8a9713ea` on `claude/av1-unified-mainbase` — theory: by row 64's counts only the film (unrepresentative; 0.576 measured) and, mildly, one projection system (0.41 of 12 bits used; predicted 0.90–0.99) are sparse; CT, cone-beam, PET dense (0.97–1.00); the breast family's processed images are uncounted and the likeliest combs (g = 4 → ~0.7–0.8 predicted). **Net only where bytes fall to ≤ ~0.8** (the block decoder's saving pays for a +5–15 % lookup); a trade-off at 0.9–0.99; a store-format change for the owner if adopted. Density-first protocol and rule — `docs/codecs/htj2k.md` §A value map for sparse series |
+| 186 | **JXLRS** — jxl-rs in WASM with a sample API: is any JPEG XL setting as fast as OpenJPH and smaller; theory | done `1365b749` on `claude/av1-unified-mainbase` — theory, jxl-rs read at v0.7.4: its 16-bit modular buffers apply only at ≤ 12 bits (libjxl's encoder clears the flag above), the per-pixel tree, predictor and entropy loop stays scalar in both decoders, its u16 output is exact through f32 (D); predicted ×0.8–1.2 of libjxl-WASM, so e1 at 0.85–2.3× OpenJPH for 1–5 % fewer bytes — **no setting predicted both smaller and as fast; a trade-off at best**. Protocol (a `wasm-bindgen` crate over `jxl` 0.7.4, three arms by row JXL's timing) and rule — `docs/codecs/jpeg-xl.md` §jxl-rs in WASM |
+| 187 | **INITIALREPLY** — answering a repeated Initial with the unacknowledged server flight: a lost first flight's 700 ms cut, nothing sent on clean links; theory | done `77dfcfe7` on `claude/av1-unified-mainbase` — theory: quinn-proto 0.11.18 only ACKs a repeated client Initial (`process_early_payload`) and waits for its 999 ms PTO; a once-per-connection reply is predicted **net against today** — the browsers' lost first flight **+699 ± 50 ms** (the repeat at +300 ms lifts the amplification budget, so the ECDSA chain fits), `cold_open` ±0, nothing sent under ~400 ms, one spurious 1.3–2.8 KB flight at 600–1 000 ms where Chromium already repeats — and **equal to the 100 ms initial-RTT arm for browsers**, so the owner's fallback if that arm is declined. Four-arm protocol (today, A′, reply, 100 ms) and rule — `docs/transport/transport-conclusions.md` §Answering a repeated Initial |
+| 188 | **JPEGLS** — CharLS in WASM on the target series: bytes and decode against OpenJPH, exact; theory | done `f2b591d6` on `claude/av1-unified-mainbase` — theory, CharLS read at 2.4.5: its decode loop is serial by construction (each pixel's context and prediction need the one before, `src/scan.h:360–381`), so no SIMD; by the sources JPEG-LS is **0.80–1.03 of HTJ2K's bytes** (0.92–0.95 on tomosynthesis) at **×2.7–3.4 OpenJPH's decode** — JPEG XL e2's corner, **a trade-off at best, never net**. Protocol (CharLS 2.4.5 to WASM under the pinned emscripten, a T1–T3 and reset grid for each set's best, row JXL's timing) and rule — `docs/decode/README.md` §Not yet tried, JPEG-LS through CharLS |
+| 189 | **INITIALMEASURE** — row 187's protocol: answering a client's repeated Initial with the unacknowledged server flight, against today, A′ and the 100 ms initial RTT | done `ba408823` on `claude/av1-unified-mainbase` (build `5b5d68c3`, rig `d11f0260`) — **the rule does not pass; the flag stays off by default**: the reply puts Chromium's lost first flight +699.5 to +701.0 ms sooner (both certificates, both readings) and Firefox's +639 to +699.5, its chain at 80 ms +639 · +641.5, 8–10 ms under 699 ± 50, where the 100 ms arm reads +651.5 · +635 (a trace: on the wire Firefox gains 697 ms too; its own time to `ready` varies after it); B (1 000 rounds) and C hold — medians ±0.1 ms, no congestion event or server datagram beyond today's without a repeat; R ties H on the browsers in A, loses `cold_open` by 0.7–0.85 s, and in B is ready at 248–252 ms where H is at 467–471 on the 0.8 % of Chromium opens that lose part of the flight; Chromium repeats on every slow link, 300 and 400 ms too (row 139's count corrected). `docs/transport/transport-conclusions.md` §3 *Measured: INITIALMEASURE*. |
+| 190 | **DEVICEPLAN** — the plan for testing on real devices: the owner's phone, local machine and Oracle cloud machine — what each test settles, the rig, the links, the order; writing | done `8f3981f8` on `claude/av1-unified-mainbase` — **six runs, the first three in one evening**: D0 the phone browsers' capabilities (decides the decoder each gets and whether WebKit needs a CA certificate), D1 decode and paint on the phone with frames in memory (whether the 4× stand-in of rows 9, 44, 182 predicts it), D2 rows 180 and 181's arms on the phone's own Wi-Fi and cellular against the Oracle server, with a desktop control on the same link; then D3 row 193's grid under `netem` on the local machine, D4 row 189's arms through the relay and in the field, D5 memory and (Android) energy. Each a `local` row, run by a session given only its protocol; nothing run. `docs/devices.md` |
+| 191 | **IWOPTIN** — the 38 400-byte initial window back to opt-in (a flag, default 12 000), kept as an experimental proposal | done `f57700d3` on `claude/av1-unified-mainbase` — **the default is quinn's 12 000 again; 38 400 is opt-in** (`--initial-window-bytes 38400`, no new flag: the existing one lost its default). The test (`tuning.rs`, `the_wider_initial_window_is_opt_in`) checks the default starts at 12 000 and the flag reaches all four controllers; it failed on both mutants (default 38 400; `cubic-restart` dropping the flag). Row 181's verdict marked *proposed, opt-in* in place in `docs/transport/link-conditions.md` (items 3, IWDEEP) and `transport-conclusions.md` §9 item 3, with the window of commits whose bare lab arm ran 38 400 (`52b902c6`–`f57700d3`). Gate green, 112/112 server tests after the rebase. A run still on `52b902c6`–`f57700d3` with no flag (rows 178, 189 if rebuilt) changes its window: the `transport=` banner shows it. The draft pull request flipping the default is the orchestrator's |
+| 192 | **GSODEFAULT** — the GSO cap of 24 in the default server build (row 182) | done `b8c780c0` on `claude/av1-unified-mainbase` (and `7667bda2`) — **the default build carries quinn's GSO cap of 24**: `quinn = { path = "patched/quinn" }` under `[patch.crates-io]`, the patch's ceiling 64 → 24; `server/tests/gso_cap.rs` reads the widest batch quinn hands a socket offering 64 segments: 24, and fails at 10 (stock quinn), 45 (ceiling 64) and 23 (ceiling 23). The deploy image builds it (it could not before: two workspace members were not copied in, `7667bda2`). Gate green, nothing skipped but the two optional ingest/viewer arms. Still carried by the patch: quinn-rs/quinn#2189. `docs/transport/transport-conclusions.md` §4, §9 item 6 |
+| 193 | **STREAMSWIDE** — one stream against several under head-of-line blocking across a wide range of rates and losses, random and bursty: where several must win in theory, and why the measurements so far did not show it; theory | done `e6de9663` on `claude/av1-unified-mainbase` — **under CUBIC several streams cannot beat one by more than a few ms a frame anywhere in 1–1 000 Mbit/s, 5–300 ms, 0.01–10 %: the cut keeps the window at ~1.2 ÷ √p packets, so a loss holds 17 kB at 1 % and 55 kB at 0.1 %, under one frame, and one stream a frame gains 0 ms; they win only under a loss-blind controller** (25–39 ms a frame at 103 Mbit/s, 92 ms, 0.1 %; a fill ×2.3 at 309/92 where one stream's 6 MiB runs out during repairs), and **several connections** win under random loss by their number (1 %, 103 Mbit/s: 35.9 → 18 → 9.0 → 4.5 s for 1–8). Row 180's loss cells are the controller: the model's ask 18.1/4.4/1.54 s against 20.1–21.0/5.2–5.3/1.71–1.79 measured. No published Gilbert–Elliott fit for phones found. Predictions and a rule for row 190's D3. `docs/native/quic-compared.md` §9.6, `quic_streams_wide.py` |
+| 194 | **COMPLEMENT** — complementary approaches to lossless bytes and decode beside the codec: the bit split for HTJ2K and JPEG XL, inter-slice decorrelation, value maps, the noise floor that bounds every codec; theory | done `cfa93e20` on `claude/av1-unified-mainbase` — **little is left beside the codec, and JPEG XL already takes most of it**: the sensor noise's entropy, estimated on seven sound series (`lab/av1/floor`, every check mutated), is 0.80–0.91 of HTJ2K's bytes by the high estimate (0.59–0.85 by the low), so no coder can save more than 9–20 % over HTJ2K (15–41 % at the most generous), and JPEG XL e7 saves 7–17 %; the projections have the least room (≤ 9 %). Inter-slice is the only candidate above 3 % — a linear term cuts a predictor's bits ×0.943 on rotational XA and ×0.962 on 10-bit DBT, ×0.988–0.998 elsewhere — at the cost of an ask needing two frames; a reversible slice difference loses (+0.41–0.46 bits a sample); the split stays row 36's 1–2 %, JPEG XL's split not worth a row; value maps only on sparse series (row 185); masks and per-region coding have nothing lossless to remove; none cuts decode. INTERSLICE protocol written, not queued. `docs/codecs/README.md` §Beside the codec |
+| 195 | **DOCKERREAD** — the server's file reading inside a Docker container, the likely deployment: storage driver and mounts, the page cache and folios, `WILLNEED`, `RWF_NOWAIT`, io_uring under the default seccomp profile; measured on the owner's machine | done `c21149a6` on `claude/av1-unified-mainbase` — theory, rig and protocol, measured by row 208 in a cloud container (its cell); row 216 measures it on the Oracle rig |
+| 196 | **WILLNEEDFOLIO** — the fill's `POSIX_FADV_WILLNEED` rebuilds frames in 4 KiB folios after reclaim (row 172: hits ×2.0, fill ×0.64–0.68, CPU per GB ×1.5 on 160–500 kB frames): a read-ahead that keeps large folios, with the fill's wait unchanged; theory | done `75b21671` on `claude/av1-unified-mainbase` — theory, Linux v6.18.44 and mainline v7.3-rc7: **`WILLNEED`, `readahead(2)` (the same call, `mm/readahead.c:730`), `MADV_WILLNEED`, larger ranges and `read_ahead_kb` all build 4 KiB folios** (`page_cache_ra_unbounded` allocates at the minimum order, unchanged upstream); a fill's own `pread` resets the order to 0 and ramps +2 a window to 128 KiB on a shared `f_ra`. **P — a second descriptor mapped `MADV_HUGEPAGE` + `MADV_RANDOM`, `MADV_POPULATE_READ` one aligned 2 MiB block a call, two in flight — builds one 2 MiB folio a block** (`mm/filemap.c:3266–3279`), falling back to today's on a cached page or a failed order-9 allocation; predicted folios 1.1–1.6 (160 kB) and 1.2–2.2 (500 kB) against 41 and 123, hit p50 0.40–0.55 of today's and fill-hit CPU ×0.6–0.75 on ext4, a tie on XFS and at 32 kB, the cold fill a tie; B (a scratch `pread`, a copy a byte) second; `MADV_COLLAPSE` rejected; XFS 64 KiB blocks a deployment option. Protocol and rule for row 197: `docs/adr/disk-access.md` §6 *Read-ahead and folios*, *Protocol for row 197* |
+| 197 | **WILLNEEDMEASURE** — row 196's protocol run by a session given only it | done `00b8981b` on `claude/av1-unified-mainbase` — measured blind to row 196's reasoning: **neither read-ahead adopted, W0 stays** (rule (e)). W1 (`MADV_POPULATE_READ` in 2 MiB blocks) cut folios a frame to 2.3–12.5 at 164–499 kB against 41–113 (predicted 1.1–2.2) and hits to ×0.62–0.77 (predicted 0.40–0.55), beyond the resolution on the host's ext4 only, worse beyond it on XFS's cold-fill CPU at 4.8 MB (×1.15); W2's preads cost ×1.1–1.9 cold-fill CPU; unpredicted, no advice builds the fewest folios (×0.02–0.16) and hits as fast, but misses +7 to +71 on the host (`read_ahead_kb` 128); `data=journal` serves `O_DIRECT` through the cache, so nothing cold is claimed there; 16 rounds, 2 048 rows, 5 238 656 frames exact; `docs/adr/disk-access.md` §Measured (row 197) |
+| 198 | **READFASTER** — anything faster than today's read path for hits and misses: io_uring's registered buffers, fixed files, polling modes, `O_DIRECT`, NVMe passthrough, huge pages, `mmap`; where each frame's µs go today; theory | done `3e13aac0` — **nothing is faster on a miss, and a hit is at its floor but for two levers** (theory, Linux v6.18.44, quinn-proto 0.11.18): a hit is 4.1–52 µs at 32–503 kB (row 172), 4–9 % of a frame's server CPU (1.5–2.6 µs a kB), 8–14 % at 3 MB on 4 KiB folios; a miss is the device's, so every lever moves CPU, not wait, and each gives up the shared page cache; large folios after reclaim (row 196, ×0.5 hit at 160 kB–3 MB) and a user-space frame cache (structural, predicted −4 to −14 % of frame CPU where frames repeat, RAM the cost) reach into it; `O_DIRECT`, `IOPOLL` (needs `O_DIRECT` and poll queues no container sets), NVMe passthrough, registered buffers, `SQPOLL`, multishot (`-EBADFD` on a regular file), links, a fill ring, `mmap` and `RWF_DONTCACHE` rejected or closed; QUIC copies and seals in user space and v6.18 has no in-kernel QUIC, so no zero-copy send; THP buffers a predicted tie; protocol and rule for a measuring row written, no such row queued (the owner's) — [`docs/adr/disk-access.md`](../adr/disk-access.md) §13 on `claude/av1-unified-mainbase` |
+| 199 | **DOCKERTUNE** — what a Docker deployment must set to keep the full read path (io_uring under seccomp, `memlock`, `nofile`, storage), what each costs in security, and what to do where it cannot; theory | done `f3689796`, `cdcee07f` on `claude/av1-unified-mainbase` — **Docker ≥ 25 (moby #46762), Podman (`containers/common` v0.40.1) and containerd ≥ 2.0 refuse io_uring under their default seccomp profiles (EPERM, ENOSYS, EPERM); `deploy/seccomp-uring.json` restores the three calls alone, at the cost of the kernel's whole io_uring surface (kCTF: 60 % of exploit submissions), so adopting it is the owner's call after row 195**. Verified in Docker 29.8.2: 1 024 four-entry rings at 8 MiB memlock, 512 at 4 MiB; the counter is per uid host-wide (a second uid-10001 container got ENOMEM on its first ring); `--cap-add IPC_LOCK` does nothing for `USER 10001`; bind mounts and named volumes honour `RWF_NOWAIT`, the layer and tmpfs refuse it. Under the default profile the gate's read-path tests skipped 10 of 29 and one failed (fixed). A `read_ring=` startup probe and `check-fastpath` in the image are proposed. Findings in `deploy/README.md` §Container settings |
+| 200 | **CCNEXT** — congestion control beyond Cubic against BBR: what else exists and fits a loss-prone phone link with a deep queue, at row 193's wide range; theory | done `90a42a16` on `claude/av1-unified-mainbase` (`f1db0608` the model, `ed50fcb7`) — theory, nothing built or timed: **the target asks two things, no cut on random loss and no deep standing queue, and neither Cubic nor BBR gives both; a Cubic that skips the cut on loss met by under RFC 9406's q\* of queue has both where anything is lost**: on row 162's links (D, `docs/native/cc_next.py`, `check()` failing under 12/12 mutations) it fills 99.0–101.1 of 103 Mbit/s at 0.01–1 % with 2–3 ms of queue against Cubic's 5.7–50.7, and is Cubic when nothing is lost (379 ms of queue, Chromium's 6 MiB credit binding before the 725 ms buffer); a delay cut over it (Linux `tcp_cdg`'s shape) holds 2 ms clean for −1.5 to −4 % of the fill, an asked-first ask 474 → 98 ms at the cellular median, 936 → 360 at p10, but yields in a shared FIFO — on cellular only to the phone's own flows (per-user queues, Sprout); BBRv3 tolerates ≤ ~1 % (a probe round over its 2 % bound with probability 0.000–0.003 at 0.1 %, 0.03–0.19 at 1 %) but needs a rate-reading pacer and ~2 000 lines; Copa unknown on phone link noise; Vegas/LEDBAT keep Reno's loss bound (17.0 Mbit/s at 0.1 %); HyStart++, pacing, FEC (a lone ask's tail 0.7 ms mean at 0.1 %) and several connections dominated; L4S: Chromium 141 reads ECN on every QUIC socket (source), quinn sends ECT(0) only, carriers unknown — a classifier input, not a controller; five device measurements named; CLASSIFY (row 212's protocol) and DELAYCUT proposed — [`transport-conclusions.md`](../transport/transport-conclusions.md) §1 *Beyond Cubic and BBR* |
+| 201 | **DEVICEKIT** — row 190's runner page, collector and Oracle deploy script built, with a quick round that reads a provisional answer in ~15 minutes, so the owner's device evenings give fast feedback | done `dd35094e` on `claude/av1-unified-mainbase` (and `ad3fead3`) — **the kit is built and ran whole against the container as host**: runner page (D0–D2, Williams order, IndexedDB, a post per round, save), quick mode (3 rounds, D1 on `dbt10_ea1141`, D2's `shared`/`asksfirst`/`iw38400`), token-gated collector, `deploy.sh up/fetch/down`, `make_bundles.sh`, `dry_run.mjs`, the evening's checklist; `server-start.sh` takes a supplied certificate and the session dials unpinned on an empty hash. Loopback, not a measurement: the quick evening in 16 s, D1 9/9 and D2 9/9 visits exact, 22/22 rows posted; `?mutate` voids 9/9 D1 visits and stops D2 at its proof, a flipped byte in the served bundle voids 9/9 D2 visits; three new tests in the gate, each failing under its mutations; the CA-verified arms reach the handshake only (Chromium 141 refuses a local CA for WebTransport). Not tested: a phone, Firefox, WebKit, the Oracle machine (`docs/devices.md` §6, `lab/devices/README.md`) |
+| 202 | **ASKTHENFILL** — row 171's proposal: the ask first, then the fill re-asked at once, so the cap on bytes ahead costs the fill nothing; theory | done `b66027fa` — theory: the window's fill cost is one idle round trip before the re-asked remainder (+32 to +97 ms at 18 Mbit/s against 46 and 92 ms; 24–116 ms more at 103, unexplained), which today pays too whenever a remainder is left (5.4 MB at 10 % of the volume); re-issuing with the ask duplicates 185–2 073 ms, rejected; on the asked frame's head the gap left is max(0, RTT − S ÷ rate): 0 at 18 and 103/46 for 0.57 MB, 46 ms at 103/92; six predictions, a ~1 000-run protocol and a rule in `docs/transport/link-conditions.md` §Re-measured, *ASKTHENFILL*; no measuring row is queued |
+| 203 | **FFSTALL** — Firefox stalled ~6 s before the last byte in 9 of 240 visits (row 182): the cause, and a fix if it is ours | done `e7b6509b` — **ours, and fixed**: the server's half-RTT flight (NEW_CONNECTION_IDs, then the HTTP/3 control stream written in four pieces by the early-SETTINGS patch) sometimes left as five datagrams; Firefox 157 (neqo v0.31.1) keeps four it cannot yet decrypt (`SavedDatagrams::CAPACITY`) and drops the fifth, quinn declares it lost ~95 ms in, Cubic cuts the 12 000 B initial window and leaves slow start, and the 13.6 MB fill crawls (8.4 s against 1.4 at 103 Mbit/s); 3 of 23 traced visits split five ways and all 3 stalled, none of the other 20; fix: the patch writes the control stream's header and SETTINGS in one write (≤ 2 datagrams); Firefox stalls unfixed 6 of 80 visits, fixed 0 of 80 (an interleaved A/B: 1 of 40 against 0 of 40, last-byte medians a tie, 1 920/1 920 frames exact); `the_half_rtt_flight_fits_what_a_client_keeps_undecrypted` fails on the unfixed patch 5/5 and a split write 3/3; not Firefox's bug, no upstream report — [`docs/transport/transport-conclusions.md`](../transport/transport-conclusions.md) §3, *Firefox's 6 s stall*, on `claude/av1-unified-mainbase` |
+| 204 | **DEVICE1** — row 190's D0, D1 and D2 on the owner's phone, in one evening, through row 201's kit | local |
+| 205 | **DEVICE2** — row 190's D3 (the controlled grid under `netem`, one stream against several) | local, after 204 |
+| 206 | **DEVICE3** — row 190's D4 and D5 (the repeated Initial; memory and energy) | local, after 204 |
+| 207 | **ASKFIRSTCAP** — asks-first with the bytes in flight still capped (row 171's send window, or 6 MiB across all streams): an ask that jumps the server's queue without a deeper network queue behind it; theory | done `b2e5b3a4` on `claude/av1-unified-mainbase` — theory, quinn-proto 0.11.18: **a fixed 6 MiB send window caps what Cubic keeps in flight** (a writer stopped by the send window leaves the connection app-limited, `connection/mod.rs:950`, and Cubic stops growing, `cubic.rs:102–109`), **so asks-first behind it is never behind `shared` and ties it where the controller would hold more than 6 MiB**: across row 193's range uncapped asks-first is ×1.20–1.52 of `shared` on fast deep paths, capped ×1.00, and ×0.08–0.95 elsewhere as before; row 180's ×1.05 at 103/360 is the 0.5 MB its cwnd held above the credit. **Row 171's cwnd + M is no cap** (M keeps the sender busy, Cubic grows into the queue). Not removable by any cap: the fill's +2.5 % at 18/800 (per-frame's too) and row 180's `window` arm beating asks-first there with equal cwnd, which the model does not explain. BBR (2 × BDP) meets the cap only on fast long paths. Protocol (5 arms, existing flags, the ask at a quarter) and rule: `docs/native/quic-compared.md` §9.7 |
+| 208 | **DOCKERCLOUD** — row 195 run in a cloud container where it can be: Docker 29 starts there (`sudo dockerd`, overlayfs, default seccomp), so the read path inside a container on overlay, a bind mount and a volume, io_uring under the default and row 199's profile, folios after `WILLNEED`; a cloud VM's numbers, not the owner's machine | done `c21149a6` on `claude/av1-unified-mainbase` — **placement and folios hold, O sits at H's forced miss, and B+UL restores the ring: the profile is recommended for the owner** (row 195's protocol on rootful Docker 29.8.2 in this cloud VM, no SELinux so B+U = B+UL; 784 visits, 28 rounds, 2 VOID, 0 frames inexact): B and V tie H on every metric where reader and copy are the same; the two cells that part them part H from every container and were taken apart — pt15's fill ×2.1 is the host's glibc 2.39 against the image's 2.36 (H chrooted on the image's glibc ×2.10, 12/12 rounds), the WILLNEED cell is each arm's copy (read from the host: B's 32.7 µs, H's 66.8, identical folios); O's hit ×10.1 / ×4.6 / ×2.7 of B at 32 / 163 / 503 kB; B and V refuse the ring with `EPERM` (predicted `ENOSYS`), B+UL `ring=true` on 84/84 cold passes and ties H, buying 28.8 → 19.1 µs and ×0.67 CPU at 32 kB, a tie above; folios 28/28 ×1.00 of H before and after; O's cold pass ×0.27–0.56 of H, unexplained. Gate: green to the browser dispatch rig, which fails its 7 `exact:` checks without `client/decode/wasm/built` (Blocked, row 209), as on the base; the decoder build's apt needs plain HTTP, which this container's proxy refuses — [`../adr/disk-access.md`](../adr/disk-access.md) §6 *Measured in a cloud container* on `claude/av1-unified-mainbase` |
+| 209 | **READMEASURE** — row 198's protocol: large folios after reclaim and a user-space frame cache, against today | done `33a47a54` — **the frame cache is a trade-off for the owner; glibc's hugetlb is closed** (row 198's protocol, 16 rounds, 832 runs, every frame XXH3-64-checked and one fill per arm decoded exact, the stale-entry mutation caught in 20 of 24 passes): B1 (`--features lab-frame-cache`, off by default) at 16 sessions ×0.78–0.83 CPU a frame on its second fill (16/16 rounds lower at 499 kB and 3 MB, beyond the 18 % and 9 % A/A resolution; 31 kB and 164 kB inside it) and half the peak RSS (106 against 191 MiB at 3 MB); at one session its second fill is the admitting pass, ×1.25–1.36 CPU and the series' size in RAM; first fills 0.97–1.05 alone, 0.79–0.93 shared; B2 ×1.01–1.09, never better; the hit model (4–14 % of a frame) corrected in place — a shared entry saves 17–22 %; a container's numbers, A/A resolution 9–41 % — [`docs/adr/disk-access.md`](../adr/disk-access.md) §13 *Measured (row 209)* on `claude/av1-unified-mainbase`; the owner, 2026-10-14: the frame cache stays off by default for now |
+| 210 | **ASKTHENFILLMEASURE** — row 202's protocol | review — `claude/wip-210-ASKTHENFILLMEASURE` `c09ecf54`: **the window not adopted (both readings); the head re-issue B not conclusive on this host**. What changed: the downloader's lab flag `refill` (`head`, `ask`; off by default) and the envelope readers reporting a frame's 8-byte head before its body — today's default reader restructured to read the head first, the downloader's `ask` taking the session rather than a promise (behaviour unchanged, gate green); removes nothing; capability kept: today's re-issue when the ask lands. Measured blind to row 202's reasoning (its queue verdict seen first): 10 Williams rounds, 30 cells, 1 100 runs, every frame SHA-256-exact, 105 `VOID`; the last frame asked (560 018 B, as row 171), not the largest, which a deep queue writes ahead at 50 %. W + B's ask ×0.32–0.42 of T's at 18 Mbit/s, ×0.41–0.88 at 103 short queues, ×1.00 behind 360/800 ms at 103; its fill +79 to +101 ms worse at 103/46 CoDel and 103/92 at 50 %, more than RTT − S ÷ rate (3, 49 ms), and the window alone costs +15 to +46 ms with no ask (prediction 5 failed: the excess is the window's own). T + B: the ask a tie everywhere, the 10 % fill −33 to −273 ms in six cells beyond the spread; round-paired adopts it, strict does not over one 50 % cell (+4 ms, ×1.003) where B never fires — so it returns for a host that passes, T and T + B cells only. W + A +723 / +111 ms of fill. Predictions: 1 failed at 103/46 CoDel, 2 and 3 held (3 of 26 and 1 of 18 cells outside), 4 held at 18/46 and failed at 103/46, 5 failed, 6 held but for W + B under `cubic` behind CoDel (69 ms better). Gate `--quick` green — [`docs/transport/link-conditions.md`](../transport/link-conditions.md) §Re-measured, *ASKTHENFILL*, *Measured* on that branch |
+| 211 | **ASKFIRSTCAPMEASURE** — row 207's protocol | done `626cd6a1` on `claude/av1-unified-mainbase` — **a trade-off for the owner; `shared` stays**: asks first + a 6 MiB send window keeps its ask at ×0.18–0.31 of `shared`'s behind 20 ms and under 1 % loss (×0.36–0.98 behind deep FIFOs, never worse beyond the spread) but **costs its fill +2 to +44 % in all nine cells, though the cap bound in none** (asks first's cwnd at the ask ≤ 4.1 MB): +41 % at 18/20, +40–44 % under loss; outside the protocol, `shared` under the same 6 MiB loses nothing (6 462 against 6 556 ms) while asks first + 6 MiB sends 13 724 packets to the others' 9 713–9 840 with equal losses and stalls 2.9 s between frames — the model has no term for it. Asks first + cwnd + M a trade-off too (ask ×0.11–0.75, fill +0.4 to +19 % in five cells). Predictions: (3) failed everywhere, (1) 5/9, (2) 7/9, (4) held, (5) BBR 6/8. 690/690 exact, 92 `VOID`, ask at a quarter, 10 rounds; strict and round-paired agree. Proposed: where asks first's extra packets under a send window come from, and a cell with cwnd above 6 MiB to test the cap — [`../native/quic-compared.md`](../native/quic-compared.md) §9.7 *Measured* on `claude/av1-unified-mainbase` |
+| 212 | **CCMEASURE** — row 200's protocol, the arms a container and the relay can run | done `ba6609ad` on `claude/av1-unified-mainbase` (lever `f5fc049d`, rig `e4ad885b`) — **`cubic-classify` not default, in both readings; it stays a lab flag and DELAYCUT does not start**: 10 rounds, 6 720 of 6 720 frames exact. Fill ÷ `cubic-restart`, round-paired n = 10: 1–2 % loss at 50 Mbit 0.08–0.15 and at 20 Mbit 0.17–0.30 (651 against 7 908 ms at 2 %, the clean fill back), but 0.68–0.86 at 5 Mbit, three of four over the rule's 0.75 — a 0.4–0.5 s FIFO that Cubic fills makes every random loss meet a queue; clean and ±20 ms 0.98–1.03, two of sixteen over 1.01 within each cell's own spread; the neighbour's share 77 against 76 % shallow, 18 against 16 deep, 43 against 51 LTE-loaded (out by 7). Deep overflow at 2 MiB in flight: 30 of 30 congestion events met a queue at RFC 9406's q\*. 72 % of visits `VOID` on this host: strict n 0–7 a cell, judging the same failures where it judges. `docs/transport/transport-conclusions.md` §1 *Measured: CLASSIFY*. |
+| 213 | **INTERSLICE** — row 194's protocol: a slice predicted from its neighbour, JPEG 2000 Part 2 across slices, on the volumes | done `d3d3e521` on `claude/av1-unified-mainbase` — **a trade-off on rotational angiography and CT, net on none**: a reversible 5/3 step across each slice pair, its low and high band each a served HTJ2K frame, bytes over the two served frames ×0.965 `xa_dynact16`, ×0.960 CT (the control, predicted 0.99–1.01: missed), ×0.978 `dbt10_ea1141`, ×0.994 `dbt12_ea1141`, every pair exact; decode a pair through the product's OpenJPH-WASM in Chromium 141, inverse in JS, 12 interleaved rounds at 1× and 4×, 1 728/1 728 pairs exact: ×1.19–1.39 at 1×, ×1.29–1.34 at 4× (predicted +5–15 %: missed), slower in 89/96 paired rounds; 8 mutations caught; by the rule a trade-off at ≤ 0.97 on two sets, an ask then costing a pair; building it is the owner's — `docs/codecs/README.md` §Beside the codec, `lab/av1/decode/inter-slice` |
+| 214 | **DISPLAYTAGS** — row 169's net gaps built: the ingest keeps the ICC Profile, VOI LUT Sequence and Presentation LUT Shape, and the painter applies them where a series carries them (COLORTAGS, VOILUT) | done `5e5fa60b` on `claude/av1-unified-mainbase` — counted, then **nothing built: on our sets each tag is absent or redundant**. All 1 044 files of the 83 sound sets streamed, checked against their pins and searched (nested groups included, two identical runs): **ICC Profile and Color Space on none** (the 6 sound RGB sets, 48 files, included); **Presentation LUT Shape on 70 sets (222 files), always `IDENTITY` with MONOCHROME2 and `INVERSE` with MONOCHROME1** — in the DX Image Module it accounts for the photometric interpretation (PS3.3 C.8.11.3.1.2), so the painter's MONOCHROME1 inversion already is it, and applying it again would invert 18 sets; **VOI LUT Sequence on 12 mammography sets (46 objects, 138 items `NORMAL`/`HARDER`/`SOFTER`)**, each object also carrying the same-named SIGMOID window pairs, and each LUT equal to its pair **to 1 code on 0.17–1.5 % of samples** (mispaired: 21–43 codes on 36 %) — below the painter's own fractional-zoom bilinear difference; row 169's "net where present" for G4 and G6 corrected in place. Proposed: *VOIPRESETS*, the viewer offering a series' own window pairs (`HARDER`/`SOFTER` are reachable today only by dragging). Seen on the way: without `client/decode/wasm/built` the dispatch rig's seven `exact:` checks fail instead of skipping (the default hasher is the built `xxh3`); with it, the gate green in 469 s — [`docs/display.md`](../display.md) §Which series carry them, `lab/av1/display_tags.py` |
+| 215 | **CLEANAUDIT** — `claude/av1-unified-mainbase` against merge readiness: what is unfinished, untested, broken, dead, duplicated or lab-only in the product, each with keep, finish, simplify, move or remove and the capability it would cost (none allowed); and the simplification rules, drafted for the owner; audit | done `abff875c` on `claude/av1-unified-mainbase` (`0e78cb29`, `7f820b8d`) — audit, nothing changed but its document: **the branch fast-forwards `main` (997 commits) and is functional, but one hole blocks any deployment: the product viewer honours `?opts=`, `?wt=` and `?metadata=` from any link (a module imported, decoder glue run through `new Function` with its pin optional, frames shown exact from another server), and no CSP is sent**. Run here: the gate green (352 s, then 118 s with every prerequisite, one named skip), but a WebSocket test failed 1 run in 12 (a TCP port never checked free, suspected); the decoder builds match their manifest; the deploy images build and serve, and the viewer fills, asks and draws 3/3 exact through them in Chromium 141 and Firefox 157.0.1, `check_equivalence.sh` passing; the viewer check's `--fill 0` fails in both engines (the check, not the page); `lab/av1/requirements.txt` refuses CPython 3.13 and `meson` is an unlisted prerequisite. About 70 items with file:line, a verdict and its cost, none losing a capability: two broken options (`hasher`, a repeated ask), row 189's build in every binary with its arms all at a 38 400-byte window (its build predates `f57700d3`), lab traces in the default binary past the absence check, a rejected read-ahead hook, product steps that need `lab/`, stale docs; the simplification rules drafted for `CLAUDE.md`; 12 rows ranked, VIEWERLOCK first — [`docs/merge-readiness.md`](../merge-readiness.md) |
+| 216 | **DOCKERORACLE** — row 195's protocol on the Oracle cloud rig, which only the owner's machine reaches | local |
+| 217 | **VIEWERLOCK** — B1: the product page honours only `/wt/dev-transport.json` and `/series/metadata`, the lab levers (`?opts=`, `?wt=`, `?hash=`, `?metadata=`) on the dev host or a lab build alone, and the image sends a CSP; a test shows a crafted link refused | done — merged into `claude/av1-unified-mainbase` as #47 (`48e8ba0e`), 2026-10-14; the review: `claude/wip-217-VIEWERLOCK` `1c6010d9`: **what changed:** the viewer's lab parameters (`?opts=`, `?wt=`/`?hash=`, `?metadata=`, `?post=`, `?origin=`) load from `lab/viewer/levers.js`, which only the dev host serves, so on the web image a link carrying any is refused on the status line before the page fetches, imports or dials anything; `client/viewer/crafted.mjs`, in the gate, refuses 6/6 on a host shaped like the image, honours `?wt=` and `?metadata=` where `lab/` is served, and a plain link dials the transport file's URL — 6/6 fail on today's page, 1/1 with `post` dropped from the guard; nginx sends a CSP on every response (scripts from the origin, `'unsafe-eval'` for the decoders' glue, `connect-src` the origin and `WT_URL`'s, which web now takes), `dev-server.py` the same on the viewer's page with `connect-src` on loopback (its test mutated 2/2); the head's inline script is `client/viewer/head.js`, `/series/metadata` preloaded; `check.mjs` passes no lab parameter and reads the result off the page (Chromium) or Firefox's stdout, its POST collector gone. **Removes:** the levers on any host but the dev host, and the page's inline script. **Capability kept:** every lab harness on the dev host; `check.mjs --url` through the image built from the branch passes in Chromium 141 and Firefox 157.0.1, 3/3 exact, readbacks equal; `check_equivalence.sh` passes, 9 paths hidden and the CSP checked (2 mutations caught); an image whose `connect-src` omits the transport refuses the dial. Gate green, full, its 2 skips not new; +258/−70 over 16 files. Not measured: page open with the head's script a file. `--fill 0` through the image delivers 1/3, as F4 says (row 219) — [`deploy/README.md`](../../deploy/README.md) §Verified, [`client/README.md`](../../client/README.md) §The viewer |
+| 218 | **DEADHASHER** — B2: the `hasher` option that never reaches the decoder, and the image's hash-wasm `test -f`, removed; the docs corrected in place | done — merged into `claude/av1-unified-mainbase` as #49 (`8943aca5`), 2026-10-14; the review: `claude/wip-218-DEADHASHER` `55e22272` (one docs-only commit behind the base; rebases clean, gated as rebased): **the `hasher` option and the image's hash-wasm requirement removed, the docs corrected in place**. What changed: `client/decode/xxh3.js`'s `hasher()` takes no argument and its hash-wasm loader is gone (−7 lines), `decoder.js` calls it bare; `deploy/Containerfile` drops `test -f ../vendor/hash-wasm/…`, and `deploy/README.md` the `fetch_xxh3.sh` step; `xxh3.test.mjs` loads hash-wasm itself as its reference; the dispatch rig's AV1 frame check skips on the built `xxh3/xxh3.wasm` the decoder loads, not on the vendor file; `README.md`, `client/README.md`, `deploy/README.md`, `docs/adr/exactness-in-production.md` §10 (*Corrected 2026-10-14*) and `docs/av1/licensing.md` corrected. Removes: `hasher: "hash-wasm"`, which the downloader never forwarded, so it never worked; the image's build-time need for a file no page loads. Capability kept: every frame checked by xxHash's SIMD128 XXH3, held to hash-wasm's digests on 36 lengths and offsets by `xxh3.test.mjs`. Gate green (265 s; two skips, both unrelated: the two ingests compared, the viewer's cross-codec arm and Firefox), with `client/decode/wasm/built/` built and the manifest checked: dispatch 769/769, the viewer check exact, the hasher test ok. Mutated: a chunk stride off by one (6 fail), `vector` 0 (1 fails), a reference the vendor build lacks (the test dies), the rig's predicate on a missing file (the AV1 frame check skips, 769 → 762). §Blocked's 2026-10-14 entry on the gate's browser frame checks proposes the opposite (forward `hasher`); the owner picks one — this row leaves its other half, the viewer check without `built/`, as it was. Not changed: `client/decode/wasm/build/inside.sh` still calls hash-wasm's notice "the frame check's other hasher" (its text is in the manifest; row 223's allow-list decides whether the image carries `vendor/`) |
+| 219 | **VIEWERASKS** — B3, B4, B7, F4: no repeated ask, the newest on-demand ask kept, a `--fill 0` check that judges what was asked (run by the gate with `--cine`), and the WebSocket test's port; each fix with a failing test | done `5f556846` on `claude/av1-unified-mainbase` (`390f683b`) — **all four fixed, each test failing without its fix, and a fifth bug found and fixed**: the viewer asks a frame once while its ask is pending (B3), and a step superseded during its cancel asks nothing (B4); the on-demand check, first run, showed the downloader refusing a frame asked again after a cancel ("frame 1 unavailable: frame 1 already requested": the session still owes the cancelled ask), so the downloader now takes that ask over, with a unit test (`anAskAgainAfterACancelIsServed`, 2 failures with the fix reverted); F4: with `--fill 0` the check steps the page itself, judges the frames it asked (3/3 exact, readbacks |Δ| 0) and counts what a repeated step sends, and the gate runs `--cine` and `--fill 0`; mutants caught: the pending-ask guard removed ("sent 2, cancel, 2"), the superseded-step return removed ("held 0, 1, 2"), the old viewer whole (3 failures); B7: the three WebSocket tests take a port free for UDP and TCP and race the server, so a held TCP port fails in 0.16 s with the server's own bind error, and a new test fails if the race ignores the server (5.2 s, "outlived"). Gate green, 267 s, its sources touched in the lock. Seen, not fixed: `check.mjs` picks its server's port at random, unchecked — [`docs/merge-readiness.md`](../merge-readiness.md) B3, B4, B7, F4; [`client/README.md`](../../client/README.md) §The viewer; [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) §The downloader |
+| 220 | **INITIALPATCH** — H1: row 189 measured every arm at a 38 400-byte initial window, not today's 12 000; that stated in its cell, and the reply's flag, 117-line quinn-proto patch and tests removed if the owner does not adopt the reply | review — draft PR #41, `claude/project-thread-9jumbi-189` `3054d01b`: **the owner chose the 100 ms initial RTT over the reply, kept as a PR, not merged (2026-10-14)**. What changed: `--initial-rtt-ms` defaults to 100; removes the reply's flag, its 117-line quinn-proto patch and its two tests; capability kept: a lost first flight resent at ~300 ms, by the server's own probe; the new test (a swallowed flight, handshake < 700 ms) failed at 333; the 38 400-byte confound stated in §3 *Measured: INITIALMEASURE* |
+| 221 | **LABTRACES** — L1, X1, X2, X3: the congestion traces behind `telemetry`, the absence check widened to them, `crypto-ring` a plain dependency feature, the transport modules `pub(crate)`, `FrameStore::file` behind its `cfg` | done — merged into `claude/av1-unified-mainbase` as #52 (`474068ab`), 2026-10-14; the review: `claude/wip-221-LABTRACES` `702c24b9`: **the congestion traces leave the default binary, and the absence check now sees them**. What changed: `cc_trace` (the `WTPACS_CC_TRACE` / `WTPACS_LOSS_TRACE` wrapper around every controller) compiles only with `telemetry`, so the default server no longer wraps its controller or panics on an unopenable trace path; `check_telemetry_absent.sh` also refuses `transport::cc_trace` and `record::path` symbols and the `WTPACS_CC_TRACE`, `WTPACS_LOSS_TRACE` and `WTPACS_PATH_TELEMETRY` literals (mutated: with the traces put back it fails on 17 `cc_trace` symbol lines, without them it passes); its two lab users build with `--features series-server/telemetry` and refuse a server that opened no trace file (default build: neither file opened, telemetry build: both); `crypto-ring` removed, ring a plain feature of `rustls` and `wtransport`, so `--no-default-features` alone builds the pool path (mutated: ring dropped from both, it fails); the twelve transport modules `pub(crate)` (rustc then flags nothing new); `FrameStore::file` behind `uring` (mutated: the cfg inverted, the default build fails). Removes: 11 `cc_trace` symbols and 2 literals from the default binary, one feature; +43/−34 lines in 14 files, docs corrected in place (`server/README.md` §Lab only, `disk-access.md` §2 and its pool-path note, `transport-conclusions.md`). Capability kept: both traces, unchanged, in a telemetry build. Gate green in full on `702c24b9` (235 s; four skips, each a missing prerequisite: pydicom, lab/.av1-build twice, a GL display), run as one locked unit with this worktree's sources touched first. Seen on the way: the audit's X3 warning does not appear at this tip (`media` is `pub`, so `file()` is never dead); `client/viewer/run_check.sh` runs `target/release/pack-series` whatever `CARGO_TARGET_DIR` says; the gate runs `merge_test.py` when numpy imports, but it also needs xxhash |
+| 222 | **INGESTTOOLS** — B6, P1–P5: `default-members`, `ingest/tools.sh` and `ingest/requirements.txt` (3.11–3.13), README's DICOM path working from a fresh clone, `aomenc` for AV1 only, the product tests moved out of `lab/` | done — merged into `claude/av1-unified-mainbase` as #46 (`79b26632`), 2026-10-14; the review: `claude/wip-222-INGESTTOOLS` `2102e1cf`: **the product's steps no longer need `lab/`; a fresh clone builds, ingests a DICOM series and draws it exact**. What changed: `default-members` (the six product crates), so a bare `cargo build` builds on a fresh clone (15.6 s; without it, fails on from-parser's `build.rs`); `ingest/tools.sh` builds libaom 3.15.1 (tarball sha256), dav1d 1.5.4 and OpenJPH 0.31.0 (tag + commit `c68064d`) and `libdecode.so` into `ingest/.build` (4 min 12 s on 4 cores; README lists cmake, ninja, meson 1.9.1, nasm), `lab/av1/tools/tools.sh` calls it into `lab/.av1-build`; the ingest takes OpenJPH from `BUILD/openjph`, `INGEST_BUILD` alone moves from-parser's libraries (`OPENJPH` gone); `ingest/requirements.txt` hash-pinned for CPython 3.11–3.13 (xxhash and blake3 cp312/cp313 wheels added), installed on 3.11.17, 3.12.3 and 3.13.16, the old file refused on 3.13; `lab/av1/requirements.txt` includes it; aomenc checked for AV1 only, and a missing one refused by name rather than a `FileNotFoundError`; `merge_test.py` to `ingest/coded-frames/`, `server_start_test.sh` to `deploy/`, `splits()` inlined; `from_dicom.py` honours `CARGO_TARGET_DIR`. New test (`same_test.py`): a build without libaom codes HTJ2K and refuses AV1 by name, failing under both mutants (aomenc for every codec; never); the moved tests fail under a mutation each. README §The viewer on a DICOM series run from a fresh clone of the branch: a synthetic 6-frame 12-bit CT object to HTJ2K (59 772 B) and AV1 (68 823 B), every frame exact; the viewer check 6/6 exact and drawn for each in Chromium 141. Removes: the lab paths of the two tests, lab's own dav1d and libaom 3.15.1 build (now ingest's), `OPENJPH`; the ingest no longer reads `lab/.openjph-build`. Capability kept: every lab recipe (`lab/.av1-build` gains `openjph/`; 19 lab READMEs drop or point their `build.sh` step). Gate green in 149 s on 3.13 with the ingest's build, one named skip. Pushed with `--force-with-lease` once after a rebase, against the protocol |
+| 223 | **IMAGESLIM** — L4, L5, F1: the image serves the page's allow-list only, copies lab crates' `Cargo.toml` and `src/` only, and `check_equivalence.sh --local` runs in the gate | done — merged into `claude/av1-unified-mainbase` as #45 (`c3443d1f`), 2026-10-14; the review: `claude/wip-223-IMAGESLIM` `fd558ae7`: **the web image carries the 34 files of `client/` the viewer loads (1.3 MB), not the 85 it carried; the build copies each lab crate's `Cargo.toml` and `src/`; `check_equivalence.sh --local` runs in the gate**. What changed: `deploy/web-files.sh` lists and copies the page, its modules, the `?check=` pair (`check-page.js`, `paint/reference.js`), the decoder builds with their manifest and hash-wasm (row 218 decides that one), and the Containerfile, `--local`'s root and the stale-image hash all read it; 17 hidden paths, 9 of them `client/` files the page never loads (harness, check pages, a test, `.ts`, `.rs`, `build.sh`, a README); `--local` fixed to run as root (a 0755 root, nginx's `default_type` as in the image); the dead `!lab/telemetry-cost` gone; a gate step, SKIPPED without nginx or the decoder builds. Removes: the harness pages, tests, sources and build scripts from the image (`wt-pacs-web` 95.8 → 94.4 MB). Capability kept: every path the viewer loads equal to `dev-server.py`'s. Verified: both images built; on the gate's grey series `check.mjs --url` through them 3/3 exact in Chromium 141, readbacks equal to the CPU reference; `check_equivalence.sh` passes on the image and with `--local` (nginx 1.24.0); mutated: a root of all of `client/` (9 `OPEN`), `viewer.js` off the list (`DIFF`, no gzip), a changed module, a file put on and one taken off the list (stale, exit 2) each fail; a changed `*.test.mjs` passes. Gate green, 140 s. Seen: `run_check.sh` and `check.mjs` use `target/release` and ignore `CARGO_TARGET_DIR`; the gate's split test needs `xxhash`, not only numpy; the smoke series' frames do not decode (0/3 through the image, as C7 says) — [`deploy/README.md`](../../deploy/README.md) §Verified on that branch |
+| 224 | **REJECTEDPATHS** — L2, L3: row 197's rejected read-ahead hook and `followQueue` removed; row 209's `FrameCache` (L8) stays, off by default | done — merged into `claude/av1-unified-mainbase` as #50 (`84de4f07`), 2026-10-14; the review: `claude/wip-224-REJECTEDPATHS` `158a92e5`: what changed — L2: `FillReader::with_read_ahead`, its `ReadAhead` type and test removed from `read_path.rs` (−47 lines), the read-ahead bench reduced to W0/W0aa on the shipped reader (W1–W3, their `Tally`/mmap/`Cursor` code and W1's block test, −225 lines; `readahead.py` and the summary in step, the summary still reads row 197's five-arm rows byte-identically); L3: `followQueue` (retire, park, take back) removed from the downloader (−21 lines) and its test (−43 net), its ask-first clause moved into the `startOnNeed` test (mutated: asks after fill fails it), the total-time harness's flag line gone and `lab/ffportgc`'s `FOLLOW=1` now sets `startOnNeed` (not re-run); docs corrected in place (`ARCHITECTURE.md`, `disk-access.md`, `decode/README.md`, `levers.md`, `MERGE.md`, two lab READMEs). Removes 410 lines, adds 74, and two concepts (a lab hook in the product reader; a pool that retires decoders). Capability kept: the product's fill advice and decoder pool unchanged, `startOnNeed` and row 209's `FrameCache` untouched; both removed paths are at `ba408823` (no tag pushed: the session may push no tag). Checks: gate green, same skips as the base (touched sources, one locked unit), downloader test and the trimmed bench's smoke run exact (360/360 frames, both `--mutate` arms fail, dump 40/40 byte-identical) |
+| 225 | **DOCSTRUE** — C1–C10 and H2: every contradiction the audit found corrected in place, `MERGE.md`, `handoff-2026-10-04.md` and `server-design-proposal.md` removed, the final queue brought in at merge | done — merged into `claude/av1-unified-mainbase` as #44 (`445fb167`), 2026-10-14; the review: `claude/wip-225-DOCSTRUE` `591483a3` (on `ba408823`, gate green in 229 s, its skips the host's RWF_NOWAIT, the two ingests' comparison and the viewer's cross-codec arm and Firefox): **C1–C10 corrected in place across 27 files, three docs removed (−797 lines)**. What changed: `docs/av1/MERGE.md`, `docs/handoff-2026-10-04.md` and `docs/server-design-proposal.md` removed — what still holds folded into `docs/merge-readiness.md` §What the branch changes for `main`, R4 one line in ARCHITECTURE §Open (the file at `git show ba408823:`), the handoff's container tips that still hold in README (`check_equivalence.sh --local`'s needs, `server_ab.sh` and `CARGO_TARGET_DIR`); C1 server/README's `Sessions` fields, `LossBound`/`LossClassify`/`Traced` and the full lab lever list, the traces stated as in every build today; C2 both Open sections own their decisions; C5 disk-access §5's `uring` cell; C6 `--initial-rtt-ms 100` not a default, its rule did not pass; C7 deploy/README's container measurement (row 208, on the branch now), the 151-byte smoke bundle that does not decode, TCP 4433 answered only with `--websocket`; C8 client/README's clients, decode table and dav1d notices; C9 `frame_out.rs`, `run.ts`, WIRE's codec-neutral envelope; C10 16 comment lines in 10 product files and the labels in 6 product READMEs named by their measurement. `scripts/check_links.py` now lets another queue's record (`cloud-queue.md`) link a file git history holds, since that file is not ours to edit and links both removed docs; mutated both ways (a never-existing link fails, the history rule off fails on the two links). Removes no capability; kept: every doc's still-true content, every check. **Left for their rows** (corrected only once they land): the viewer's parameter list (217), the hasher lines in client/README and `xxh3.js:5`'s label (218), the traces' telemetry sentence (221), deploy/README's image-contents paragraph (223), `read_path.rs:112`'s label (224). **H2 not done, a merge-time step**: the queue copy it brings must come with `ORCHESTRATE.md` and `mainbase/README.md`, and the link check treat `docs/av1/queue.md` as a record (16 unresolved on a trial copy). Found: the history rule needs full history, so a CI checkout must not be shallow (row 230); `client/viewer/run_check.sh` runs `target/release/pack-series` and ignores `CARGO_TARGET_DIR` |
+| 226 | **GATEGAPS** — F2, F3, F5, F6, F7: `cert-compression` checked, the four lab crates compiled and tested, the rigs on the product's decoder, the other session bundles in the absence check, DICOM to `.sbnd` end to end | done `6056e33a` on `claude/av1-unified-mainbase` (`0ae9ab7a`) — additive: **the gate now runs all five, each new step mutated and failing**, green in 289 s with one named skip (the viewer's cross-codec arm and Firefox, as before). F2 `cargo check --features cert-compression` (mutant: a `compile_error!` behind the feature fails it). F3 the four lab crates' tests, 29 in all, `container-bench` compiled for the first time (mutants: its `compile_error!`; `FrameCache::enabled` true at budget 0 fails `zero_budget_caches_nothing`). F5 the undecodable, wire-bytes and frame-check clauses run on the product's build as well as npm's OpenJPH, 11 more checks, the rig 780/780 with `built/` (mutants in `htj2k.js` that touch only a decoder taking its range as it packs: 7 of the build's checks fail, the package's all pass). F6 the absence check reads `ws-session.js` and `race-session.js` too (mutants: a telemetry string in one, a WebTransport patch in the other). F7 `ingest/from-dicom/end_to_end_test.py`: a signed 12-bit CT (3 frames, split k = 2) and an 8-bit RGB (2) through `from_dicom.py` to `.sbnd`, every frame read back out of the bundle and decoded equal to the samples the object was written from, HTJ2K and AV1, 4/4 in 2 s (mutant: frames packed in reverse, 1/3 and 0/2); it found `from_dicom.py` looking for `pack-series` under `target/` alone, now under `CARGO_TARGET_DIR`; and the smoke bundle re-packed and `cmp`ed (mutant: metadata re-serialized, differs at byte 9) — [`docs/merge-readiness.md`](../merge-readiness.md) §7 |
+| 227 | **DEDUP** — D1–D8: the duplicated logic the audit lists, each kept in one place | review — `claude/wip-227-DEDUP` `e03180ab`: **D1–D8 each in one place, 17 files +93 −177 (net −84 lines, one `unsafe` block fewer, no dependency or concept added)**. What changed: D1 the Cubic and BBR configs built once in `Congestion::factory`, the three wrapping configs taking a built one; D2 one `preadv2_nowait` for the read and the probe; D3 `ReadStats::count`; D4 the read-path and pipeline tests write through `series_bundle::write_bundle` (`frame_store.rs`'s oversized bundle stays by hand); D5 `StreamMode` derives `ValueEnum`, so a bad `--stream-mode` gets clap's message naming the three; D6 `client/record` imports `FodMsg`, the Tap defaulting a missing reason; D7 one `sha256Hex`, in `wasm-glue.js`; D8 one `ingest.metadata()` for `from_dicom.py` and `same.py`. Removes the duplicates and `StreamMode`'s hand-written `FromStr`; capability kept: all — every touched test mutated and failing (D1 1 of 7, D2 4 of 30, D3 2, D4 6 and 1, D5 1, D6 the refusal-reason test and `tsc`, D7 the manifest check), D8's metadata byte-identical old against new on 12 cases (6 lab layouts, 3 DICOM objects × 2 codecs; a key swap caught). Gate green, 280 s, built from this tree's sources alone, the audit's two skips (no `lab/.av1-build` here, so `same_test.py` did not run). No test pins the probe's answer, before or after (`probe_nowait` always false passes). Started before rows 217, 219 and 224 reached review: it conflicts with them in `viewer.js`, `check-page.js` and `read_path.rs` (221 merges clean); whichever lands second rebases. |
+| 228 | **WASMTOLAB** — D9 and P6: the WASM transport and `client/decode/wasm/dav1d/` tooling moved to `lab/`, `dav1d_wrap.c` kept; structural, proposed first | done `34f3f568` — the proposal only, nothing moved: [`CLIENTS.md`](../CLIENTS.md) §Proposed: the WASM client and the dav1d tooling to `lab/`. 832 lines of WASM client to lab/other-clients/wasm/ (own workspace) and 556 of dav1d tooling to lab/av1/dav1d-wasm/, `dav1d_wrap.c` kept; the gate stops needing wasm-pack, the wasm32 target and binaryen, and `Cargo.lock` drops 10 of 240 packages (measured); the cost: it reverses the 2026-09-18 "WASM client required" decision, so the gate no longer holds a second, independent WebTransport client to the clauses. The move awaits the owner's yes (§Blocked). Gate green, 130 s |
+| 229 | **REFILLMEASURE** — row 210's head re-issue (`refill=head`, B) on today's path, re-run for a verdict: its two readings split over one 50 % cell (+4 ms, ×1.003) where B never fires, so the split is noise judged as harm. Row 210's T and T + B cells only, from `claude/wip-210-ASKTHENFILLMEASURE` (rig and flag as built), plus **T′, today again**, so "worse" means beyond the A/A spread (row 173's rule) and a cell where B never fires reads as A/A; ≥ 20 Williams rounds, both readings. Rule, set before the data: B becomes the downloader's default if no cell's fill or ask under T + B is worse than T's beyond the T/T′ spread in either reading, and at least one 10 % cell's fill is better beyond it; the 18/300 cell (−273 ms in row 210) is where its gain is largest, so a phone link (row 190's D2) is where it matters | night |
+| 230 | **CIGATE** — a GitHub Actions workflow that runs every check `scripts/gate.sh` runs, with no skip but those that need a device, plus the deploy image's build and `check_equivalence.sh`, on pull requests into `claude/av1-unified-mainbase` and `main` | done — merged into `claude/av1-unified-mainbase` as #43 (`05eb28cf`), 2026-10-14; the review: `claude/wip-230-CIGATE` `2334d9fc`: **the gate runs green in CI with one skip, and a broken test turns it red**. What changed: `.github/workflows/gate.yml` (new) and README's step 5 naming it; nothing removed, no product file touched (the branch's broken test, `0c9d90e2`, is reverted in `0c458f3d`). Three jobs on `pull_request` into and `push` to `claude/av1-unified-mainbase` and `main`, `permissions: contents: read`, five actions pinned by commit SHA: `decoders` (`build.sh` in Docker, cached on the gate's staleness inputs; it matched `manifest.sha256` on the runner, 2 m 49 s cold); `gate` (`scripts/gate.sh` in full with Rust 1.97.0, Node 22.22.0, CPython 3.11.17 with `lab/av1/requirements.txt`, Go 1.26.0, wasm-pack 0.15.0, Playwright 1.56.1's Chromium and Firefox, `tools.sh aom dav1d` and OpenJPH cached on their scripts, nasm and meson from Ubuntu 24.04's apt — not version-pinned; `GATE OK in 296 s` cold, job 12 m 21 s cold and 4 m 14 s – 4 m 50 s warm; io_uring and `RWF_NOWAIT` ran, nothing skipped for them); the one skip left is listed in the workflow — the viewer's cross-codec arm and Firefox (row INGEST's fetched studies, a GL display) — and any other `SKIPPED` line fails the job (mutated on a log with an extra skip: exit 1); `deploy` (`docker compose build`, `check_equivalence.sh` 10 paths equal, 8 refused, gzip, `Server` with no version; the viewer's page check through the deployment on the gate's grey series: 3/3 exact, drawn; 3 m 06 s – 3 m 33 s). Proof: run 38602429774 at `0c9d90e2` red (`fod`'s `stream_frames_empty_is_the_whole_series`, `GATE FAILED`), run 38603228161 at `0c458f3d` green. Found on the runner: compose's bake asks leave to read the build secret's file (`COMPOSE_BAKE=false`), and the runner's podman, which `check_equivalence.sh` prefers, cannot see docker's images (`RUNTIME=docker`). For whoever lands rows 218, 223 and 226: a gate step that needs a new tool (223's `--local` needs nginx) shows up here as an unlisted skip and turns the job red until the workflow installs it. Capability kept: everything; the gate itself unchanged |
+| 231 | **SECCOMPURING** — row 208's rule (c) adopted: the deploy's server runs under `deploy/seccomp-uring.json`, with `memlock` and `nofile` sized as deploy/README's table says, so a container keeps io_uring on a tile miss | done — merged into `claude/av1-unified-mainbase` as #51 (`8bee0300`), 2026-10-14; the review: claude/wip-231-SECCOMPURING 75b0c47d: `deploy/compose.yml` runs the server under `seccomp-uring.json` with `memlock` 64 MiB and `nofile` 65 535 (`MEMLOCK`, `NOFILE` lower them where the daemon cannot raise its limits, as here: the defaults are refused at start); the banner gains `read_ring=available | refused (<why>)`; `seccomp-uring.sh --check` is a gate step (jq a prerequisite); deploy/README corrected in place where it called the profile optional. Removes Docker's default filter for the server; keeps every path (pool fallback unchanged, SELinux half still the owner's). Through the image: `read_ring=available` under the profile, `refused (… Operation not permitted …)` without it (mutation); the 30 `media::` tests 30 of 30 run under it, 7 skip under Docker's default; gate green, run locked with sources touched. Found: the build stage's shared `target` cache mount can ship another checkout's binary (deploy/README §Open) |
+| 232 | **PERFCOUNTS** — performance regressions caught by counts, not clocks, on every pull request: disk reads per frame, bytes on the wire per series, asks per frame, each against a committed baseline | ready |
+| 233 | **PERFNIGHTLY** — a scheduled CI job timing the base against the head, interleaved, on the total-time harness; it flags only a difference that repeats, and claims no number beyond that runner | ready |
+| 234 | **TARGETDIR** — `client/viewer/run_check.sh`, `client/viewer/check.mjs` and `scripts/wtcompat.py` honour `CARGO_TARGET_DIR`, and `check.mjs` takes a port it knows is free | ready |
+| 235 | **BUILDCACHE** — the deploy image's build stage shares one cargo `target` cache across checkouts and shipped a stale server twice (row 231); one checkout's image always carries that checkout's binary | ready |
+| 236 | **NOWAITPROBE** — a test of what the `RWF_NOWAIT` probe answers: today a probe that always says unsupported passes every test (row 227) | ready |
 
 ## Briefs
 
@@ -2546,7 +2686,1794 @@ independent sources of two series each). **Deliverable:** the verdict table in `
 (extended, not a new file), a pointer from `docs/av1/README.md` §Content; the result cell lists the re-run rows
 proposed, nothing queued. **Branch:** `claude/av1-unified`.
 
+## The owner's design rows (122–128), 2026-10-10
+
+The owner, 2026-10-10. Every row here is **theory first** and builds and times nothing, under the same rules as
+rows 119–121 (their preamble above): primary sources, every number keyed to its source, a source the container cannot
+reach listed as not read, measurements proposed in the result cell and not queued. **Read before writing:** what this
+repository already did on the subject (the rows each brief names, and `git log` / `git grep` on `claude/av1-unified`),
+so nothing measured or designed is proposed again; a brief that turns out to repeat closed work says so in its cell and
+narrows to what is left. Two of the owner's criteria apply to every proposal these rows make: an idea that helps only
+under some link conditions must show that the condition is common on the target, that it works there, and that it
+costs little elsewhere, or be switched on only where the condition is detected; and nothing is measured without its
+theory written first. Docs only, on `claude/av1-unified`; cells on `claude/av1`.
+
+### 122 HASHWHY
+
+**Question.** Is a 64-bit non-cryptographic hash enough to prove a shown frame exact, and is XXH3-64 the right one?
+**Why it matters:** the owner wants the decision formalized with outside evidence so a team understands it, not taken
+on this repository's word. [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §2 already gives
+the argument (a random fault is missed one time in 2⁶⁴; a hostile server sends a matching digest over the same
+authenticated session, so a cryptographic hash buys nothing there) and §3 the cost (row 73: XXH3 ≈ 4 000 MB/s, BLAKE3
+≈ 570, SHA-256 ≈ 250 in a browser worker; a checked fill ×1.00–1.15 with XXH3, ×1.15–1.51 with BLAKE3). **Do:** back
+or correct each step from sources:
+* *The threat model.* What the check guards against (decoder, build, engine and memory faults; storage and cache
+  damage) against what it cannot (a hostile server; that needs signatures over the digests from a key the client
+  trusts, a different design, sketched in a paragraph with its cost, not proposed). QUIC's per-packet AEAD (RFC 9001)
+  and what it already covers on the wire.
+* *The probability.* The chance a random change passes a 64-bit digest, assuming the hash's output behaves as random
+  for such inputs; why the birthday bound does not apply (each frame is compared with its own expected digest, not
+  with every other frame); the expected number of misses at a realistic national volume of frames per year, with the
+  volume's source.
+* *The hash's quality.* XXH3's results in SMHasher and its successors, its specification and maintainers' notes;
+  known weaknesses (seed-independent collisions, crafted inputs) and why they need an adversary.
+* *Precedent.* Systems that chose a fast non-cryptographic checksum for integrity and kept cryptographic hashes for
+  deduplication or tamper evidence: file systems (Btrfs's `xxhash`, ZFS's `fletcher4` beside `sha256`/`blake3`),
+  storage engines (RocksDB's checksum types), compression formats (zstd's and LZ4's frame checksums); each read from
+  its documentation, with what it says about the choice.
+* *Alternatives*, one line each with speed and guarantee: CRC-32C and CRC-64 (burst guarantees; no hardware CRC in
+  WASM), XXH3-128, BLAKE3, SHA-256 through WebCrypto (hardware SHA on the host, and the copy row 73 measured),
+  rapidhash/wyhash. Whether any beats XXH3-64 for this job, and what a 128-bit digest would cost in metadata.
+**Deliverable:** a section in the ADR, *Why XXH3-64: the sources* (extended, not a new file), opening with an
+abstract of at most ten lines in plain words that the owner can share with a team as it stands; §2's paragraph points
+at it. **Branch:** `claude/av1-unified`.
+
+### 123 MISMATCH
+
+**Question.** What exactly happens after a mismatch, and is it enough? **Why it matters:** row 73's ADR (§2.3, §4,
+§5) and row 88's build already decode a mismatch once more on the other path and deliver the frame marked `false`;
+the owner, 2026-10-10, wants the response checked as a whole. Left open by them: block against mark (§6, the owner's),
+the page's display of a failed frame, reporting (§5, not built), phones, and a frame inside a group (G > 1) that has no
+recovery. A client cache adds a case the ADR does not weigh: stored coded bytes damaged on the device, where asking the
+server again *does* help (§2.3's "asking again does not help" holds for the wire only). **Do:** from sources and the
+code:
+* *Locating the fault.* Whether a second digest over each frame's coded bytes (written at ingest beside the samples')
+  separates storage or cache damage (fetch again) from a decoder's fault (decode on the other path), what it costs at
+  ingest and in the client, and whether QUIC's AEAD and the server's own reads make it redundant without a cache.
+* *Never cache an unverified frame*, and what a cache must store to be re-checked on read.
+* *Block or mark.* What the practice parameters and standards say about showing an image whose integrity is not
+  verified: DICOM's Lossy Image Compression attribute and its display requirement, the ACR–AAPM–SIIM practice
+  parameters for electronic practice and display, IEC 62304 / IEC 82304-1 and ISO 14971 hazard framing, FDA guidance on
+  device software functions; what open viewers and PACS do on a decode failure (OHIF/Cornerstone3D, dcm4chee, Orthanc,
+  from their code or docs). The options for the owner with what each means for a reader.
+* *Reporting.* §5's design against privacy (no patient data), the denominator, and how a field failure rate turns a
+  decoder path off per engine.
+* *G > 1.* What a group's frame needs to recover (the group decoded again on the other path) and its cost.
+**Deliverable:** a section in the ADR, *After a mismatch* (extended), its open choices listed for the owner under
+§Blocked; proposed measurement or build rows in the result cell, none queued. **Branch:** `claude/av1-unified`.
+
+### 124 QUICSURVEY
+
+**Question.** Which QUIC implementation should a native client use, on desktop first and phones in the end? **Why it
+matters:** the owner, 2026-10-10, wants a native version of the viewer, not a web page and not WebTransport; the
+browser's QUIC stack bounds today's receive rate and its choices (row 104's receiver-bound cells,
+`docs/transport/transport-conclusions.md`), and a native client picks its own. The owner wants **every finding and to
+take every decision**: the row reports and compares, it does not choose. The same choice may serve the link from a
+site's ingest to the server (row 126), so read each candidate for that use too. **Do:** for every implementation that
+could run in a desktop client (Linux, macOS, Windows) and a phone client (Android, iOS), in any language — at least
+quinn, s2n-quic, Cloudflare quiche, Google's QUICHE (and Cronet as Android's packaged form), msquic, ngtcp2, lsquic,
+picoquic, mvfst, quic-go, neqo, tquic, xquic, Apple's Network.framework — record from sources:
+* *Speed:* published throughput and CPU per byte at the target's rates, receive-side cost (the papers measuring QUIC
+  stacks against each other and against TCP — for example Yu & Benson 2021, Jaeger et al. 2023, Zhang et al. 2024;
+  leads to verify), GSO/GRO, pacing, ECN, the interop runner's goodput and loss cases.
+* *Control:* congestion controllers shipped and whether one can be plugged in (row 119's options need a controller
+  of our own), loss recovery's knobs (initial RTT, PTO), flow-control windows, stream priorities, datagrams.
+* *Mobility:* connection migration, multipath QUIC (the IETF draft) and who ships it, 0-RTT, behaviour on network
+  change and in the background on each phone OS.
+* *Building and shipping:* language and FFI cost from Rust, Swift and Kotlin, threading model, binary size on a
+  phone, build on each platform, maturity (deployments, release cadence, security record), licence against this
+  repository's MIT.
+* *Talking to our server:* WebTransport over HTTP/3 from a native client, or raw QUIC with our own framing beside the
+  WebTransport endpoint (an ALPN of its own), and what each means for the server.
+A table of candidates by these columns, every cell sourced or marked unknown; the findings in plain words; the
+decisions the owner faces, each with its options and what decides it; for the owner's picks, proposed desktop
+measurement rows (cloud containers first, so they run unattended) with predictions and rules. **Deliverable:** a new
+`docs/native/quic.md` (the subject is new), the owner's decisions under §Blocked. **Branch:** `claude/av1-unified`.
+
+### 125 DECODEOPT
+
+**Question.** How much faster can today's codecs decode, in the browser and natively, before anything new is tried?
+**Why it matters:** decode is the client's other clock beside the wire; the owner, 2026-10-10, wants the codecs we
+have optimized before any new one is explored. Much is done — read first `docs/decode/README.md`,
+`docs/decode/levers-protocol.md` (L1–L5: the code-block pool, region decode and stripes, the coarse pool, the WebGPU
+HT block decoder, paced decode; rows 108–113 and row 113's review), rows 9, 11 and 78 — and propose none of it again.
+**Do:** from sources and the decoders' code, what is left:
+* *HTJ2K decode time from the stored layout:* what the encoder's choices cost the decoder — decomposition levels,
+  code-block size and shape, precincts and tiles (row 113's re-encode question), HT-only coding, markers that let a
+  decoder skip (PLT, TLM) — each with the bytes it costs.
+* *SIMD and hardware in the browser:* whether the shipped OpenJPH and dav1d WASM builds use SIMD128, what relaxed SIMD
+  and wider vectors would add, how much of each decoder's native SIMD path a WASM build can reuse; what hardware a page
+  can reach (WebGPU, row 111's decoder; WebCodecs' hardware AV1 and whether it is ever exact for our streams, rows 29
+  and 80).
+* *Natively:* the same decoders with their native SIMD and threads, the gap to WASM from published numbers, GPU
+  HTJ2K decoders (vendors' libraries, papers), phone AV1 hardware and exactness (row 29) — input to row 127.
+* *Decode matched to arrival, and arrival to decode:* after L5 (decode paced to the wire; its saving was the start of
+  two unused decoders), what is left — decoders started on first need and stopped when idle, and backpressure when the
+  coded queue grows (it reached ~570 MB on tomosynthesis in the lab's notes; find the source) so a slow decoder slows
+  the wire instead of filling memory.
+* *Other lossless codecs as options only*, one line each with the claim and its source, not explored: JPEG-LS in
+  WASM, Tomoz, TCT.
+Rank what is left by expected gain on the target (phones; the fill and the ask both count), each with its mechanism,
+sources and the measurement that decides it. **Deliverable:** a section in `docs/decode/README.md`, *Not yet tried*
+(extended, not a new file); proposed rows with predictions and rules in the result cell, none queued. **Branch:**
+`claude/av1-unified`.
+
+### 126 INGESTPLAN
+
+**Question.** How should the product's ingest be built? **Why it matters:** the owner, 2026-10-07 and 10-10: ingest
+runs at the site, not beside the server; it parses the DICOM with the C parser `DICMele2deck`
+(a public C repository; read it only if its name is in this repository already, else list it as not read; Part 10, explicit little endian only), encodes the frames itself exactly and
+checked, and sends the bundles to the server. The reasons for a compiled ingest are integration, one deployable
+binary, one definition of the store's format shared with the server, and streaming memory — not CPU: the encoders
+take ~99 % of ingest time. Today: read `ingest/` and the docs that own it on `claude/av1-unified`. **Do:**
+* *Language, weighed both ways:* Rust against C++ — calling the C parser, OpenJPH (C++: a C shim from Rust), libaom
+  and SVT-AV1 (C), the bundle format's single definition (Rust today, shared with the server), the link to the server
+  (quinn, the server's QUIC, against a C++ stack), the team's languages; the owner leans neither way yet.
+* *The parser's integration in stages:* first encode the files the parser writes (its extra write and read measured
+  against encode time, on tmpfs), then — only if that share matters — a pipe or the parser linked as a library; what
+  each needs from the parser's code and its licence (none shown in the repository: a blocker to settle).
+* *Exactness:* the check ported (digests over the encoder's input samples, as `ingest/coded-frames/ingest.py`
+  writes them), and the Python ingest kept as the reference until the new one reproduces its bundles byte for byte and
+  is stable, correct and optimized.
+* *The link from the site to the server:* bulk upload over QUIC (row 124's findings when they land; Thruflux,
+  github.com/samsungplay/Thruflux, C++ MIT, parallel QUIC streams, read for its ideas and whether its code is reusable),
+  against what the server already speaks.
+* *Deployment:* one binary at the site, what it needs there, updates.
+**Deliverable:** the plan in the doc that owns ingest on `claude/av1-unified` (a new `docs/ingest.md` only if none
+does), the owner's decisions under §Blocked. **Branch:** `claude/av1-unified`.
+
+### 127 NATIVEPLAN
+
+**Question.** What else does a native version need, and how is it measured? **Why it matters:** the owner,
+2026-10-10: desktop is the first target because it is easier to start there; phones are the goal. Rows 124 and 125
+cover transport and decode. **Do:** from sources:
+* *Paint and cache:* native GPU (Metal, Vulkan, Direct3D; wgpu across them) for 16-bit grey with window/level, and the
+  file system in place of the browser's storage.
+* *App shape:* one shared core (transport, decode, cache, exactness) with a thin interface per platform, or a
+  cross-platform framework; what each costs to build and to keep.
+* *Costs:* app stores and updates, the team's skills, medical-device rules where an app differs from a page.
+* *The measurement plan:* native against the browser on the same machine, for fill time and the ask's latency;
+  desktop first, in cloud containers first so the investigation runs unattended, then a desktop with a GPU, then
+  phones; predictions and rules for the first rows.
+**Deliverable:** `docs/native/README.md` (the plan, pointing at `quic.md`), decisions under §Blocked. **Branch:**
+`claude/av1-unified`.
+
+### 128 H3FETCH
+
+**Question.** How would plain HTTP/3 `fetch()` do against WebTransport for the fill and the ask? **Why it matters:**
+it is the simplest alternative and was never measured or reasoned through here. **Do:** read
+`docs/transport/delivery-prior-art.md` and `transport-conclusions.md` first. Then, from the browsers' network stacks
+and the specifications: what changes when frames come as HTTP/3 responses (one request per frame or a range of frames,
+the browser's connection and stream limits, priorities, flow-control windows, HTTP caching, cancellation of an ask
+that is no longer needed, CORS and preflight, Firefox and Safari), what stays the same (the same QUIC stack and its
+receive bound), and what the server would need. Predictions per link and series, and a protocol with its rule.
+**Deliverable:** a section in `docs/transport/delivery-prior-art.md` (extended); the proposed row in the result cell,
+not queued. **Branch:** `claude/av1-unified`.
+
+## The next rows (129–136), 2026-10-10 evening
+
+The owner, 2026-10-10: usage is plentiful, so the cloud keeps working. Rows 129–131 are **theory first** under the
+preamble of rows 119–121 and the criteria of rows 122–128 (an idea that helps only under some link conditions shows
+the condition is common on the target, that it works there and that it costs little elsewhere, or is switched on only
+where detected). Rows 132–136 are **measurements** of protocols already written: the session reads only the named
+protocol and its rule (not the reasoning around it), runs it with arms interleaved and differing in the lever alone
+(§Protocol), reports the numbers and whether each prediction held, and leaves the verdict's review to a later row.
+Nothing here changes a product default. Docs on `claude/av1-unified`, cells on `claude/av1`.
+
+### 129 WTCOMPAT
+
+**Question.** Will a browser update break the server? WebTransport over HTTP/3 is an IETF draft; each engine speaks
+one draft version and the server another (`docs/transport/upstream-wtransport-settings.md`; row 124 read the server as
+draft-02). Newer drafts lean on QUIC's `reset_stream_at` (draft-ietf-quic-reliable-stream-reset) so a cancelled
+stream still delivers its header. **Do:** from each engine's source and release notes: which draft and SETTINGS
+Chromium (stable, beta, canary), Firefox (release, nightly) and Safari speak, when each plans to move, whether
+`reset_stream_at` is negotiated or required, and what the server does with each today. Then build a check that dials
+the server from the newest available Chromium and Firefox builds in a container and fails loudly on a draft or
+`reset_stream_at` mismatch (mutated to prove it fails), runnable by hand or on a schedule. **Deliverable:** a section
+in `docs/transport/transport-conclusions.md` (extended), the check under `scripts/` with a line in its README; what
+the server would need to follow a newer draft, proposed, not built. **Branch:** `claude/av1-unified`.
+
+### 130 INITRTT
+
+**Question.** Should the server assume a 100 ms round trip before it has measured one? quinn's default initial RTT is
+333 ms (RFC 9002 §6.2.2), so a lost first flight waits ~1 s; Chromium's own QUIC assumes 100 ms. A lab reading puts
+the slowest 1 % of first opens from 1 335 to 638 ms at 1 % loss (find its source in the repository and cite it, or say
+it has none). **Do:** the mechanism (PTO before any sample, the server's Initial and Handshake flights, amplification
+limit), the cost on links slower than 100 ms (spurious resends of the first flight: bytes, and whether they disturb
+the controller), how often target links exceed 100 ms, what deployed stacks choose and why; predictions per link and
+a protocol with its rule. **Deliverable:** a section in `docs/transport/transport-conclusions.md` (extended); the
+proposed row in the result cell. **Branch:** `claude/av1-unified`.
+
+### 131 TAILDUP
+
+**Question.** Is sending a frame's last packets twice worth it? A lost tail packet can be detected only by a timer
+(PTO) unless later packets follow; during a fill the next frames' packets detect it within a packet threshold, so the
+tail matters most for an ask on an idle connection and for a burst's last frames. **Do:** from QUIC's loss detection
+(RFC 9002), quinn's code and the literature on tail loss (TCP's TLP and RACK, QUIC tail-loss studies, FEC on tails):
+the share of frames whose loss falls where only a timer recovers it, per loss rate and frame size; the gain on an ask's
+p95/p99 at the target links (row 60's loss numbers); the cost on a clean link (bytes, the controller seeing
+duplicates); a version switched on only where loss is detected. Apply the owner's criteria explicitly. **Deliverable:**
+a section in `docs/transport/transport-conclusions.md` (extended); drop or a proposed row with predictions and a rule.
+**Branch:** `claude/av1-unified`.
+
+### 132 CCATTRIB
+
+Row 119's R1, as written in `docs/transport/transport-conclusions.md` §1 *The way out, surveyed*. Read that protocol
+and rule only. **Deliverable:** the numbers and each prediction's outcome beside the protocol; whether row 75's clean
+cells must be re-read. **Branch:** `claude/av1-unified`.
+
+### 133 TILEMEASURE
+
+Row 125's P-TILE, as written in `docs/decode/README.md` §Not yet tried. Read that protocol and rule only; exactness
+against the encoder's input for every frame. **Deliverable:** numbers and predictions' outcomes beside the protocol.
+**Branch:** `claude/av1-unified`.
+
+### 134 EMSDKMEASURE
+
+Row 125's P-EMSDK and P-COPY, as written in `docs/decode/README.md` §Not yet tried; the delivered decoder build is not
+replaced. **Deliverable:** as row 133. **Branch:** `claude/av1-unified`.
+
+### 135 RECVCOST
+
+Row 124's first measurement (receive CPU per byte per client stack), as written in `docs/native/quic.md`; desktop, in
+this container; the host's saturation point stated and nothing claimed past it. **Deliverable:** as row 133.
+**Branch:** `claude/av1-unified`.
+
+### 136 INGESTPROFILE
+
+Row 126's P-PROFILE, as written in `docs/FIXTURES.md` §A compiled ingest at the site. **Deliverable:** as row 133; the
+"~99 % encode" claim corrected in place wherever it stands. **Branch:** `claude/av1-unified`.
+
+## The overnight rows (137–143), 2026-10-11
+
+The owner, 2026-10-10 night: schedule every row that needs no decision of theirs. Same rules as rows 129–136: theory
+rows build and time nothing; measurement rows read only the named protocol and its rule; one question per row; nothing
+changes a product default. Docs on `claude/av1-unified`, cells on `claude/av1`.
+
+### 137 NETPROBE
+
+**Question.** Are the data hosts still refused, and by what? Rows 2 and 35 (2026-10-03/04) found `zenodo.org`,
+`www.cancerimagingarchive.net`, `physionet.org`, `data.mendeley.com`, `grand-challenge.org` and others refused with
+CONNECT 403 ("organization policy"); the owner reports the environment now has full network access. **Do:** from this
+container, for every host listed under §Blocked rows 10, 21, 35 and 100 plus `figshare.com`, `huggingface.co`,
+`www.kaggle.com`, `osf.io`: DNS, a HEAD over HTTPS through whatever proxy the container uses, the status and the
+proxy's own message (verbatim), UTC time; the proxy's identity and environment variables (names only, no secrets).
+Then read, without downloading data, each candidate lossless dataset's landing page and licence (CADICA, ARCADE,
+TDSC-ABUS 2023, Breast-Lesions-USG, and any multi-frame breast ultrasound or XA set found): format, whether native
+frames are stored uncompressed or losslessly, size, licence verbatim, access terms (open, on request, data use
+agreement). Fetch nothing. **Deliverable:** a table in `docs/FIXTURES.md` §Provenance (extended); §Blocked rows 10,
+21, 35 and 100 updated in place with what is now reachable; the licence question is the owner's. **Branch:**
+`claude/av1-unified`.
+
+### 138 CROSSRERUN
+
+Row 106's protocol (row 105's model; `docs/av1/README.md` §Where AV1 fills first) re-run as row 121 proposed: whole
+volumes, Firefox included now that row 115 fixed its dial, strict and round-paired readings both where the host voids
+past its bar (§Protocol). Read the protocol and its rule only. **Deliverable:** numbers and each prediction's outcome
+beside the protocol; whether row 107's verdict stands. **Branch:** `claude/av1-unified`.
+
+### 139 IRTTMEASURE
+
+Row 130's IRTTMEASURE, as written in `docs/transport/transport-conclusions.md`. **Deliverable:** numbers and
+predictions' outcomes beside the protocol, and whether its adoption rule passes; the default is not changed by this
+row. **Branch:** `claude/av1-unified`.
+
+### 140 CCREVIEW
+
+The short review closing R1: row 132's numbers against row 119's predictions and R1's rule, conclusive or not, why,
+and what follows for the default (`cubic-restart`) and for R3's cells. **Deliverable:** a paragraph in
+`docs/transport/transport-conclusions.md` §1 R1. **Branch:** `claude/av1-unified`.
+
+### 141 LOSSCLASS
+
+Row 119's R2, as written in `docs/transport/transport-conclusions.md` §1 *The way out, surveyed*. **Deliverable:**
+numbers and predictions' outcomes beside the protocol. **Branch:** `claude/av1-unified`.
+
+### 142 STARTMEASURE
+
+Row 125's P-START, as written in `docs/decode/README.md` §Not yet tried. **Deliverable:** numbers and predictions'
+outcomes beside the protocol. **Branch:** `claude/av1-unified`.
+
+### 143 TILEDESIGN
+
+**The owner's rule (2026-10-10):** every series over 12 bits that is not a volume or 3D view — breast or not; the
+product serves whatever a radiologist reads, breast is only the next phase — is served at the resolution that fits the
+client's screen, plus tiles for zoomed regions; volumes and 3D views keep their own path, HTJ2K only for now; series
+at 12 bits or less are filled. **Question.** What store, wire and client does that rule need? Row 133 measured tiles
+stored as independent codestreams: +0.01–0.59 % bytes, three tiles on three idle workers ×0.388–0.448 of the whole
+frame's ask at 4×. **Do:** write the rule into `docs/adr/resolution-fitting-for-large-frames.md` (extended, the rule
+quoted with its date); then propose, without building: the store's layout for a tiled series (tiles as independent
+codestreams against precincts with PLT inside one codestream, which needs a decoder that decodes by region — OpenJPH
+does not, rows 109 and 113), how the fitting level and the tiles are asked on the wire, whether the client needs a
+different decoder build or the same one with more workers, how idle decoders are used (row 113's L2 and row 133), how
+"fits the screen" is counted (device or CSS pixels: the owner's choice, both costed), and the 12-bit-and-under series
+whose frames are still large (12-bit mammograms: fill time per link from rows 95–96) as a case for the owner. List the
+series types outside the breast family it covers (CT, MR, CR/DX, XA, from `docs/av1/series.md` and DICOM).
+**Deliverable:** the ADR extended; the owner's decisions under §Blocked; proposed rows, none queued. **Branch:**
+`claude/av1-unified`.
+
+### 144 FFPORTGC
+
+**A defect, found 2026-10-11 in the reference implementation's client, which shares this design.** Firefox does not
+copy a message that carries a `SharedArrayBuffer`: it stores it in a process-wide table under the *sending* port's
+uuid, a transferred port keeps that uuid, and when any `MessagePort` object with that uuid is destroyed Firefox deletes
+every message stored under it (`dom/ipc/RefMessageBodyService.cpp`, `dom/messagechannel/SharedMessageBody.cpp`,
+`dom/messagechannel/MessagePort.cpp`: `~MessagePort → CloseForced → ForgetPort(uuid)`). Here `spawn()` in
+`client/transport/downloader.js` creates a `MessageChannel`, transfers `ch.port1` to the decoder and keeps no reference
+to the neutered copy; when the downloader's garbage collector reclaims it during a fill, frames still in flight to the
+page are deleted and the page gets `messageerror` (no index), while the decoder has already posted `done` — the frame
+is lost silently. There it took 237-frame fills to 206–232 frames in Firefox 157 in 7/7 runs, and 237/237 in 9/9 once
+the downloader held `port1`. `followQueue`, which spawns and retires decoders, leaves more such ports. **Do:** hold each
+decoder's `port1` on its record for the decoder's life (one line and a pointer to the owning doc); a Node test that
+drops the stub decoders' copies, runs `gc()` and asserts the ports are still alive (fails without the fix, mutated);
+then a Firefox run through `client/contract/drive_firefox.mjs` on a fill large enough to hit it (a 200+ frame series),
+before and after. Also report, without fixing, whether this client can still lose a frame silently the other ways the
+reference found: a `messageerror` with no index and no handler, a decoder worker crash with no `onerror`, a decode that
+never returns (no fill deadline). **Deliverable:** the fix, the test, the Firefox before/after in the client doc that
+owns the downloader; the three silent-loss answers in the result cell. **Branch:** `claude/av1-unified`.
+
+### 145 FAULTBENCH
+
+Row 123's proposed fault-injection bench, as written in `docs/adr/exactness-in-production.md` §8: for each decoder path
+(HTJ2K, dav1d-WASM, WebCodecs) and engine available in the container (Chromium, Firefox), inject a wrong sample, a
+truncated frame and a decoder that never answers, and record what the check, the second decode and the page do — the
+evidence the owner's block-or-mark choice needs. Changes no product code; the injection lives in the test harness.
+**Deliverable:** the table beside §8. **Branch:** `claude/av1-unified`.
+
+### 146 LOSSIGNORE
+
+Row 119's R3, as written in `docs/transport/transport-conclusions.md` §1 *The way out, surveyed*, run only if row
+141's R2 result meets R2's go-on bar (≤ 5 % / ≤ 30 %); otherwise the row closes saying so. **Deliverable:** numbers
+and predictions' outcomes beside the protocol. **Branch:** `claude/av1-unified`.
+
+### 147 FRAMELOSS
+
+**The three silent losses rows 144 and 145 left open, closed (the owner, 2026-10-11).** Row 144 fixed the transferred
+port; its cell and row 145's bench found three more ways a frame vanishes with no error and no retry: (1) a decoder
+worker that crashes — no `onerror` on decoder workers, its frames stay `decoding` and its slots are taken for good;
+(2) a delivery the page cannot read — the pixel port has no `onmessageerror`, the event carries no index, and the
+downloader has already forgotten the frame on `done`; (3) a decode that never returns — no decode deadline, the stall
+watch reads the wire alone, so the frame waits for ever and so does every frame queued behind it on that decoder.
+**Do**, in `client/transport/downloader.js` and the page's consumer:
+
+* *Crash:* `onerror` and `onmessageerror` on every decoder worker; the worker is terminated, a fresh decoder spawned in
+  its place, and its in-flight frames re-queued with an attempt count.
+* *Delivery:* the downloader forgets a frame only when the page acknowledges its index (the ack rides the existing
+  control channel; it carries the index and generation). A `messageerror` on the pixel port, or a frame still
+  unacknowledged when its decoder is retired, re-decodes the unacknowledged frames.
+* *Hang:* a per-decode deadline, one named constant whose value and reason live in `docs/ARCHITECTURE.md`
+  §The downloader; on expiry the worker is terminated and replaced and its frames re-queued.
+* After **2 failed attempts** a frame fails loudly through the existing `failed` path (an asked frame's waiter rejects,
+  a fill frame reaches `onError`). No path waits for ever.
+
+**Checks:** one test per path that fails without its fix (mutate each and record the mutant and what caught it); the
+gate green; Chromium and Firefox fills exact (`client/contract/drive_firefox.mjs` for Firefox); row 145's fault bench
+re-run, showing the hung decode recovered or failed loudly where it was invisible. **Cost:** clean fills unchanged —
+the ack must not cost a fill: a few interleaved rounds (`lab/order.mjs`) with and without, on row 144's 200+ frame
+series, both arms' full settings printed. **Docs:** `docs/ARCHITECTURE.md` §The downloader's "silent losses still
+open" corrected in place. The reference implementation's client gets the same design locally, outside this queue.
+**Deliverable:** the fix, the tests, the bench re-run and the cost numbers in the doc that owns the downloader.
+**Branch:** `claude/av1-unified`.
+
+### 148 FRAMEPATH
+
+**One question: the best path for a decoded frame in this client.** It now has a paint worker (`client/paint/`:
+OffscreenCanvas, WebGL2, samples uploaded straight from shared memory) and will get an OPFS client cache (decided, the
+owner, 2026-10-10: OPFS for both web clients; no re-decoding; whether it stores decoded samples or coded bytes is open).
+Today: decoder → pixel port → the page's consumer (`client/transport/consumer.js`, a `SharedArrayBuffer` handle,
+~0.1 ms of page thread, `client/paint/README.md` §What it costs) → the painter → the paint worker, which shares the
+buffer. **The owner's idea, to evaluate against today:** decoder → paint worker directly, the frame also written to
+OPFS efficiently, the page out of the pixel path. Theory only: nothing built or timed. **Cover:**
+
+* what the page thread costs per frame today at fill rates, and what a busy page thread (layout, a long task) does to
+  delivery and paint in each design;
+* who owns the frame store — memory and OPFS — and its eviction, and how the paint worker gets a frame it does not hold
+  (scrolling back, a second viewport);
+* OPFS mechanics from the specs and engines' sources: sync access handles in dedicated workers only, quota and
+  eviction per engine, write cost per MB, decoded 16-bit samples against coded bytes, and what each costs on reopen
+  (read, re-check, upload; coded bytes mean a decode, against the no-re-decoding rule);
+* which worker writes, and whether the write sits on the fill's critical path;
+* the exactness digest's place (`docs/adr/exactness-in-production.md`): checked before paint today; whether a frame
+  read back from OPFS must be checked again, and against what;
+* memory on phones (decoded frames held in shared memory, the cache's working set);
+* what the reference implementation's client — decoded frames in a memory cache, painted from the page — could take
+  from the design chosen.
+
+Sources pinned (spec sections, engine source at a commit, sha256 of anything fetched). **Deliverable:** a design note
+beside `docs/ARCHITECTURE.md` §The consumer with the mechanism, predictions per design, a measurement protocol with a
+pre-stated rule (proposed, not queued), and the decisions listed for the owner under `## Blocked`. A change to the
+store's format or the wire is structural: proposed, not built. **Branch:** `claude/av1-unified`.
+
+**Owner input, 2026-10-11 (after dispatch; the result above reads against it):**
+
+* Taking the page out of the pixel path is likely unnecessary (today ~0.1 ms of page thread a frame, no copy): settled
+  as it is unless a measured cost says otherwise.
+* The owner leans to decoded frames in OPFS; weighed against coded bytes on quota, write cost and phones.
+* Eviction possibly link-dependent: to be weighed against plain LRU per study or series, noting that the link at reopen
+  may differ from the link now.
+* A cached frame is re-checked on read; the owner proposes checks off by default, switched on when needed, so they cost
+  the product nothing. What each default costs (check time a frame against decode and read, by size) and what it leaves
+  uncovered is a decision for the owner; the production ADR (rows 73, 88) has the decode check on today.
+
+### 149 NATIVECINE
+
+**A wider search for sound data, the three types row 100 could not decide.** Row 137 reached every host rows 2 and 35
+named and found nothing that meets row 100's bar (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates).
+This row searches wider, for breast ultrasound cine (B-mode, probe slow or still), ABUS volumes and contrast angiography
+runs as **native DICOM stored uncompressed or losslessly**, whole series in acquisition order. Search only: fetch
+metadata (landing pages, APIs, DICOM headers where a host serves them alone), no pixel data. **Where:** TCIA's whole
+collection list filtered by modality (US, XA, RF) and its multi-frame series; Imaging Data Commons (Google Cloud's
+DICOM stores and BigQuery index); MIDRC; RSNA, AAPM and MICCAI challenge data; Stanford AIMI; PhysioNet; dataset
+registries and repositories (Zenodo, Figshare, OSF, Mendeley searched by modality, not by name); the DICOM sample and
+conformance image libraries vendors and toolkits publish; scanner QA and phantom datasets; papers' supplementary data.
+**For each candidate:** content, series and frames per series, transfer syntax and Lossy Image Compression
+(0028,2110) read from metadata where reachable, licence verbatim, access (open, registration, agreement, on request).
+Licences are reported, not filtered: the owner decides on licence (2026-10-11). **Deliverable:** the candidates table
+extended in `docs/FIXTURES.md` §Provenance, The data hosts and the candidates: what meets row 100's bar, what comes
+closest and why it falls short. **Branch:** `claude/av1-unified`.
+
+### 150 MAINBASE
+
+*Amended 2026-10-11 (the owner): also after rows 152–154, so that tonight's theory rows land on the branch before
+the rebuild replays it; the owner takes the native transport decision tonight.*
+
+**The goal: the final PR to `main` merges with no conflict, and the owner can see that PR #34's work survived.**
+`claude/av1-unified` was cut before `main` took PR #34 (the server refactor, 48 files); a trial merge stops on 24 of
+them. This row rebuilds the branch on current `origin/main` and re-authors every replayed commit to
+`dary-dc <crespoydelgado@gmail.com>` (the owner, 2026-10-07). No other row is fired until it is done; all new work
+starts from its result (the owner, 2026-10-11).
+
+**Steps.**
+
+* Replay every commit of `claude/av1-unified` not on `origin/main`, in order, onto `origin/main`, author and committer
+  `dary-dc <crespoydelgado@gmail.com>`. Resolve each conflict in the commit that causes it: keep PR #34's structure and
+  re-apply the branch's change on top of it (the ClientHello fix, `bbr-bound`, the renames, …). 23 of the ~870 commits
+  touch the 24 conflicting files.
+* The same author rewrite for `claude/av1`'s commits not on `main`.
+* **Every hash reference follows.** Build the old→new map for both branches; every reference to a replaced commit — in
+  both branches' files (docs, queue, READMEs) and in the commit messages — names the new commit. A check script lists
+  every 7–40-hex token in both trees and in all replayed messages that resolves to an old commit and not a new one: it
+  must print none. Mutate it: plant one old hash and watch it caught. The map is committed as
+  `docs/av1/rehash-map.tsv` on `claude/av1` for the local follow-ups (the reference implementation's `SOURCE.txt`, the
+  owner's notes) and deleted after them.
+
+**Verification (the owner must be able to see that PR #34's work survived).**
+
+* (a) `git diff <old tip> <new tip>` outside the 48 files PR #34 changed is empty but for the hash replacements — shown
+  by the diff filtered through the map.
+* (b) `docs/av1/MAINBASE.md` on the new branch: each of PR #34's 48 files, kept as `main` has it or changed by the
+  branch, each changed hunk with its branch commit and why; and each of the 24 conflicts with how it was resolved.
+* (c) The full gate green on the new tip; Chromium and Firefox fills exact (the client's page check).
+* (d) The final PR diff (`origin/main...<new tip>`), summarized by area.
+
+**Publishing.** First push the old tips as `claude/av1-unified-pre-main` and `claude/av1-pre-main` (temporary, deleted
+after the owner's look); then force-push the new histories under the same names, `claude/av1-unified` and
+`claude/av1`, with `--force-with-lease` against the old tips. Never touch `main` or any other branch. Mark the row done
+with the new hashes and the report's path. **Stop** and leave it under `## Blocked` if a conflict cannot be resolved
+without choosing between PR #34's behaviour and the branch's.
+
+### 151 CHECKCOST
+
+**What the exactness checks cost, measured; their adoption is not the question.** The owner decided 2026-10-11 that the
+checks stay on by default — the decode check, and the re-check of a frame read from the OPFS cache (row 148) — and wants
+their time known. Measure, in today's client, ms a frame and its share of the frame's decode time: (1) the XXH3-64
+check after decode on each path — HTJ2K WASM, dav1d-WASM, WebCodecs; (2) the second decode a failed check triggers
+(row 145's injected fault reused); (3) the cache read's re-check, predicted as XXH3-64 over the decoded samples, timed
+on the same buffers. **Sets:** a small (512²), a medium (1914×2572) and a large (3328×4096) frame, 8- to 16-bit where
+the path takes them. **Engines:** Chromium and Firefox. Interleaved (`lab/order.mjs`), n ≥ 5 rounds, every frame exact;
+quote time a frame, not throughput. **Deliverable:** the table in `docs/adr/exactness-in-production.md` (a section of its
+own). **Branch:** `claude/av1-unified-mainbase`.
+
+### 152 QUICTUNED
+
+*Amended 2026-10-11 (the owner): this round gathers everything published before anything is measured, and reads
+the server's stack as a candidate too.*
+
+**The candidates at their best, not their defaults.** Row 124 read each QUIC stack at its default configuration. A
+default is not a limit when the setting can be changed or patched (the owner, 2026-10-11: msquic's 64 KiB default
+stream window caps one stream near 5 Mbit/s at 100 ms, but it is a setting). Throughput and latency are the product's
+purpose, and the owner is learning: **explain, don't list.** Theory only; nothing built or timed.
+
+* **Everything published, first, on one table.** Every published result per candidate and per lever, each with its
+  setup (link rate, RTT, loss, hardware, stacks' versions and settings): papers, the implementers' own benchmarks and
+  performance dashboards, the interop runner, issue trackers and talks. For every comparison, say whether its stacks
+  were tuned or ran at defaults.
+* **Per candidate, read from its source:** what can be tuned, to what, by a setting or by a small patch — stream and
+  connection flow-control windows and whether they auto-tune; ACK frequency and ACK delay
+  (draft-ietf-quic-ack-frequency); receive batching (`recvmmsg`, GRO, Windows URO, Apple's paths); socket buffer sizes;
+  pacing; 0-RTT; migration — and what cannot change without a fork.
+* **Each lever's mechanism and its effect on throughput and on latency,** in plain words with worked numbers (a window
+  must be at least bandwidth × RTT: 50 Mbit/s × 150 ms ≈ 0.94 MB, so a smaller one caps the link whatever the
+  controller does).
+* **The server's stack is a candidate too, not fixed at quinn.** The server is the sender: its controller, pacing, GSO
+  and send cost per byte decide throughput and latency on the link. Read every candidate as a server as well as a
+  client. A change of server stack has to be worth it: state what it would cost — the WebTransport layer (wtransport
+  today), `bbr-bound` and the controller work, [`../WIRE.md`](../WIRE.md)'s contract, and the gate.
+* **The owner's paper, read critically:** Bünstorf and Jaeger, "MsQuic – A High-speed QUIC Implementation", TUM seminar
+  IITM SS 23, doi 10.2313/NET-2023-11-1_01,
+  <https://www.net.in.tum.de/fileadmin/TUM/NET/NET-2023-11-1/NET-2023-11-1_01.pdf>. Read already, to be confirmed: a
+  student seminar paper on Jaeger et al.'s testbed — one 1 073 MB download over 10GBase-T back to back, no added RTT or
+  loss, 10 runs; four stacks (picoquic, Cloudflare quiche, LSQUIC, msquic), no quinn, settings not stated. msquic's
+  goodput is the highest on all three host pairs (5 443 Mbit/s on a Xeon E5-1650 v3, 4 845 on a Xeon Gold 6312U, 3 898
+  on an EPYC 7543). Its text calls 3 898 "the lowest" on the AMD pair while its figure shows it highest, and its
+  conclusion's "double the goodput of LSQUIC" holds on the older pair only (×1.09–1.10 on the newer two, from the
+  figures). It measures CPU-bound bulk goodput at 4–5 Gbit/s — CPU efficiency, which bears on a phone's CPU and
+  battery and on the server's cost, not on throughput or latency at the target's 5–50 Mbit/s with RTT and loss. Read
+  its source [13] (Jaeger et al., "QUIC on the Highway", IFIP Networking 2023) for the stacks' settings.
+* **The row ends with what theory settles,** and the specific gaps it cannot settle and why. No measurement protocol is
+  proposed: a gap that needs one is described in one line, for the owner to decide later.
+* The owner's decisions are listed, not taken.
+
+**Deliverable:** `docs/native/quic.md` (a section of its own, §1 kept consistent). **Branch:** `claude/av1-unified`.
+
+### 153 INGESTDESIGN
+
+**The question: the best design of the pipeline from the owner's C parser to the PACS.** Today's proposal (parser →
+directory → Rust ingest that hashes, codes exactly, checks and compresses → outbox → TCP → the PACS checks, writes the
+image layout and builds one SQLite per study, a catalog server indexing them) is the natural progression of what exists,
+not a design compared against alternatives. Theory only: sources pinned (sha256 or commit), nothing built or timed.
+Compare the options on each axis, with what each costs and gains:
+
+* **(a) Where frames are coded.** In the hospital by the Rust ingest; inside the parser in C before anything is written
+  (it already has an HTJ2K output, on the grok encoder); or in the cloud — raw frames sent zstd-compressed and coded
+  there, as AWS HealthImaging converts to HTJ2K on import. Weigh hospital CPU (free) against cloud CPU (money), the
+  bytes on the link (HTJ2K lossless against zstd on raw samples, from published ratios), and where the exactness check
+  runs and what it then proves.
+* **(b) How the parser hands over.** A directory (the start, decided), a stream (its key-value stream output), or a
+  library call; what each costs per frame and what it changes in failure handling.
+* **(c) What travels.** Frame files plus metadata groups as written, prebuilt series bundles, or one archive per study.
+* **(d) Where the image layout, each study's SQLite and the catalog are built.** The catalog server: Postgres, MySQL,
+  or a libSQL/Turso server keeping one SQL dialect with the study databases. Its schema scope (what a cross-study
+  search and a worklist need), and how it stays consistent with the study databases (who writes first, how a study
+  database rebuilt from its groups re-registers).
+* **(e) The integrity chain, and what each hash costs.** The raw frame (end to end, proved by the decode-back compare);
+  the coded frame (lets the PACS check without decoding); the metadata, original or compressed; reuse of the parser's
+  BLAKE3 group hashes, which it already writes in each group's file name; the client's XXH3-64. Check the owner's point
+  with numbers: a hash over compressed metadata saves only if the PACS keeps the metadata compressed, and it decompresses
+  to build the study database.
+* **(f) Metadata compression.** Plain zstd against zstd with a trained dictionary on small DICOM groups (published
+  ratios; the groups repeat across instances of a series).
+* **(g) Recovery.** Resumability and idempotence; dedupe (the parser's group hash lets a receiver skip a group it
+  already holds); a bad instance, series or study isolated without touching the rest.
+* **(h) Prior art.** DICOMweb STOW-RS; AWS HealthImaging, Google Cloud Healthcare API, Azure's DICOM service; Orthanc
+  and dcm4chee; edge gateways in front of cloud archives — what each does on each axis above.
+
+**The row ends with the options side by side and the owner's decisions listed, not taken.** **Deliverable:**
+`docs/ingest/design.md`. **Branch:** `claude/av1-unified`.
+
+### 154 LINKTCP
+
+**The hospital→PACS link is TCP — the owner's decision of 2026-10-11.** Write the reasons with pinned sources, and what
+QUIC would gain or cost there in numbers from research; the owner dropped a QUIC shipper for now and wants its gains
+proven before it returns. Theory only.
+
+* **CPU per byte:** QUIC in user space against kernel TCP with TSO/GSO/GRO and NIC offloads (Zhang et al., WWW '24;
+  Yang et al. on QUIC's CPU cycles against TCP+TLS; Jaeger et al.; others found).
+* **UDP on the way out:** how often outbound UDP is blocked or throttled in enterprise and hospital networks
+  (published fallback rates, operators' reports), and what a QUIC link would need as a fallback.
+* **Long fat paths:** BBR and window autotuning on Linux TCP, and what tuning a site host needs.
+* **What QUIC's advantages are worth here:** migration, 0-RTT and stream independence on a wired bulk upload.
+* **Published bulk-transfer comparisons** of QUIC and TCP over WAN at realistic RTT and loss, with their setups.
+* **Resumable upload over HTTPS:** tus, S3-style multipart, plain range PUT, rsync over SSH — each one's integrity and
+  resume semantics.
+
+**The row ends with what would have to be true for QUIC to win.** No measurement protocol. **Deliverable:**
+`docs/ingest/link.md`. **Branch:** `claude/av1-unified`.
+
+### 155 INGESTRS1
+
+*Amended 2026-10-12 (the owner): SHA-256 is replaced, and the raw-frame check is XXH3-64.* The Rust ingest hashes the
+raw samples with XXH3-64 and compares the decode-back's XXH3-64 — the digest it writes for the client anyway, so one
+hash family per frame. `ingest.py`'s raw-frame check moves from SHA-256 to XXH3-64 in this row, so both ingests check
+alike and stay byte-identical; any other SHA-256 left in the ingest is listed in the report with what it does.
+
+*Amended 2026-10-11 (the owner): no effort on what the parser accepts. The mirror is a simple first step that writes the
+parser's directory output shape — the contract — from the frames `ingest.py` already reads, so the parser can be swapped
+in later; no input-acceptance logic beyond `ingest.py`'s own. The parser's open points are notes for its author in
+`docs/ingest/README.md` §5, not this row's work. The contract goes to `docs/ingest/contract.md`.*
+
+**Phase 1 of the Rust ingest (the owner, 2026-10-11): production-shaped, with a Python stand-in for the parser's frame
+output only.** Phase 2 swaps the stand-in for the owner's C parser and passes its metadata through untouched; no other
+metadata logic is ever written in Python.
+
+* **The Python mirror** writes exactly what the parser's directory output writes for frames, per instance: the same
+  directory layout, frame file names and raw bytes, and the instance group holding only the attributes a frame needs
+  to be read — (0028,0002) samples per pixel, (0028,0004) photometric interpretation, (0028,0006) planar configuration,
+  (0028,0008) number of frames, (0028,0010) rows, (0028,0011) columns, (0028,0100) bits allocated, (0028,0101) bits
+  stored, (0028,0102) high bit, (0028,0103) pixel representation — plus the UIDs and study date the path needs. It
+  reads every set `ingest.py` takes today. It is a stand-in, deleted in phase 2.
+* **The Rust ingest** (a workspace crate) reads that directory as it will read the parser's: per instance, the frame
+  description from the instance group, then per frame: hash the raw
+  samples, code with the pinned OpenJPH exactly as `ingest.py` does today (byte identity), decode back in-process and
+  compare, write the XXH3-64 digests, and write the `.sbnd` with `common/series-bundle`.
+* **Done when** its `.sbnd` files are byte-identical to the Python ingest's for every lab set at `--jobs` 1, 2 and 4;
+  it refuses the same series by name; every new test is mutated and fails; the gate is green, with a gate step keeping
+  the two ingests equal while both exist.
+* **Not in this row:** AV1 (a later row); the outbox and the transport (after row 153).
+
+**The input contract, read from the parser's public source (2026-10-11).** Write it to `docs/ingest/contract.md`,
+linked from `docs/ingest/README.md`.
+
+* **One parser run per SOP instance**, writing under its working directory. Paths, with `/` separators:
+  * study date: `<D>/` — the study date (0008,0020) as `YYMMDD` (century dropped) coded as below, 4 characters; `PbPb`
+    when the date is not 8 characters long;
+  * exam: `<D>/<E>/`, E = the study instance UID (0020,000D) coded;
+  * series: `<D>/<E>/<S>/`, S = the series instance UID (0020,000E) coded;
+  * instance: `<D>/<E>/<S>/<I>/`, I = the SOP instance UID (0008,0018) coded.
+* **The UID coding.** Each character maps to a nibble: NUL (the UI padding) 0, `\` 1, `^` 2, `-` 3, `+` 4, `.` 5, `0`–`9`
+  6–15. Each three characters (12 bits) become two characters of the alphabet
+  `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~`, the first from the top 6 bits. A remainder of one
+  character becomes `alphabet[n0 << 2]` then `0`; of two, `alphabet[(n0 << 2) + (n1 >> 2)]` then `alphabet[(n1 & 3) << 4]`.
+  The UID's trailing NUL pad, when present, is coded with it.
+* **Group files**, named `<marker>.<64 lowercase hex of the group's BLAKE3-256>`: exam group `<D>/<E>/--.<h>`, series
+  group `<D>/<E>/<S>/---.<h>`, instance group `<D>/<E>/<S>/<I>/----.<h>`, private group `<D>/<E>/<S>/<I>/priv.<h>`
+  (only when the instance has private attributes, or group 0002). An existing exam or series group file is not
+  rewritten.
+* **A group file** is a sequence of records, no bytes between them: 1 byte key length KL (8 at the dataset's top level,
+  8 more per sequence item level), KL key bytes, 4 bytes value length VL little endian, VL value bytes. A top-level key
+  is the tag as big-endian group and element (4 bytes), the VR as two ASCII characters, and 2 bytes of the parser's
+  charset index (0 for anything not text in a specific character set). A value whose charset index is non-zero is
+  written converted to UTF-8, VL its converted length; any other value is written exactly as in the DICOM file. Group
+  lengths (gggg,0000) and (0008,0005) are dropped; sequence and item delimiters are not written.
+* **Frame files**, in the instance directory: `%05d` (1-based) plus `.OPC` for MONOCHROME1 and MONOCHROME2, `.RGB` for
+  RGB, `.PLT` for PALETTE COLOR; a frame's file is `rows × columns × samples per pixel × bits allocated / 8` bytes
+  copied from the pixel data (7FE0,0010) at offset `frame × that size`, so a 12-bit-in-16 frame is its 16-bit words as
+  stored, little endian. Number of frames absent or 0 writes one frame. YBR_FULL, YBR_FULL_422, YBR_PARTIAL_420,
+  YBR_ICT, YBR_RCT and XYB write no frame (the parser prints "not handled").
+* **Not this row's work:** what the parser accepts (explicit VR little endian only) and its open points (planar
+  configuration, three group hashes over a pre-conversion length, five-digit frame names). The mirror writes frames
+  as `ingest.py` holds them, and the ingest checks no group hash.
+
+**Deliverable:** the crate, the mirror, `docs/ingest/contract.md`, the gate step. **Branch:** `claude/av1-unified-mainbase`.
+
+### 156 QUICCOMPARE
+
+*Amended 2026-10-12 (the owner): the native version does not use WebTransport (2026-10-10).* "As our client" means a
+native client on raw QUIC with our own ALPN; WebTransport counts only for the server's browser side. Rows 124 and 127's
+conclusions that assume a WebTransport native client, the assumed band or quinn on the server are inputs to examine,
+not verdicts to repeat.
+
+**The QUIC implementations actually compared, for learning (the owner, 2026-10-11).** Rows 124 and 152 hold the facts,
+but they read as tables and verdicts; the owner wants to learn how each implementation works and what that means for
+throughput and latency. Theory and writing; nothing built or timed. One question: how do the candidates compare, lever
+by lever, and why.
+
+* **A short glossary first**, each term with its mechanism in plain words: receive windows (fixed, auto-tuned),
+  bandwidth-delay product, ACK policy and ACK frequency, socket buffer, batched I/O (`recvmmsg`, GRO, GSO), pacing,
+  congestion controller and its hook, migration, 0-RTT, multipath, WebTransport over HTTP/3.
+* **One section per implementation.** Deep on quinn, msquic, Cloudflare quiche, ngtcp2, picoquic, Google QUICHE, neqo,
+  s2n-quic, quic-go, lsquic and mvfst; brief on the rest of row 124's fifteen. Each section:
+  * what it is, who builds it and for what;
+  * its design: I/O model, threads, TLS;
+  * how it handles each lever — windows (fixed or auto-tuned, and the rule), ACK policy and ACK frequency, socket
+    buffer and batched I/O, pacing and GSO, controllers and hooks, migration, 0-RTT, multipath, WebTransport;
+  * **its throughput ceiling as a function of bandwidth and RTT**, at its defaults and at its best: the formula
+    (window ÷ RTT, and what else bounds it), plus a grid from 1 Mbit/s to 1 Gbit/s and from 10 to 300 ms;
+  * platforms, build, security record and licence;
+  * what it would mean as our client and as our server.
+* **A side-by-side summary** at the end.
+
+**Rules.** Label every claim **source** (pinned), **derived** (arithmetic on a source) or **measured** (this
+repository, with the row); theory first, measured results kept apart and named as such. **No claim restricted to a
+"target band"**: the repository's 5–50 Mbit/s and 30–150 ms are an assumption, not field data — wherever they are
+used, say so. Reuse rows 124 and 152's pinned sources (`docs/native/quic.md` §2, §7, §8); read new ones only to fill a
+gap, pinned the same way.
+
+**Deliverable:** `docs/native/quic-compared.md`, linked from `docs/native/quic.md` §1. **Branch:** `claude/av1-unified-mainbase`.
+
+### 157 QUICREWRITE
+
+**The owner, 2026-10-12, on row 156:** a reading led by defaults made one stack look like the winner for a reason the
+owner had ruled out (defaults are settings, not limits), and a theory round carried many numbers without visible
+backing. One question: **how do the stacks compare when each is at its best?**
+
+* **Rewrite [`../native/quic-compared.md`](../native/quic-compared.md) in place** (a retracted reading is corrected
+  in place, as CLAUDE.md §Docs says: say what changed and why, once, at the top).
+* **Each stack at its best is the reading.** For every lever (windows, ACK policy and ACK frequency, socket buffer and
+  batched I/O, pacing, controller and its hook, migration, 0-RTT, multipath), state the best setting the stack
+  allows or a small patch would allow, and the ceiling that results. Where a term stops separating the stacks once
+  tuned, say so plainly, and say what does separate them. Defaults shrink to one table: "what you would change, and
+  how" (setting, patch or fork).
+* **Every number traceable.** Each number carries its own source at the point of use: the file and line at the pinned
+  tag (for code), or the paper or RFC and its table, figure or section; or its derivation written out (the formula
+  and its inputs, each sourced). A section-level "(S)" is not enough. A number not needed to understand a point is
+  cut. Measured results (this repository) stay apart and named with their row.
+* **Keep:** theory only; the native client on raw QUIC with our own ALPN, WebTransport only for the server's browser
+  side; no claim restricted to the assumed 5–50 Mbit/s, 30–150 ms band; the 1 Mbit/s–1 Gbit/s × 10–300 ms grid where
+  a grid helps. Reuse rows 124, 152 and 156's pins; fetch new sources only to pin a number, pinned the same way.
+* **Not in this row:** latency (row 158).
+
+**Deliverable:** the rewritten `docs/native/quic-compared.md`, `quic.md` §1's pointer still true. **Branch:**
+`claude/av1-unified-mainbase`.
+
+### 158 QUICLATENCY
+
+**The owner, 2026-10-12:** row 156 has no latency investigation, and latency is half the product's purpose. One
+question: **what does each QUIC stack, at its best, do to the latency of a frame?** Theory only.
+
+* **The terms, each as a formula over RTT and loss, and each with its mechanism in plain words:**
+  * time to the first frame: handshake round trips, 0-RTT resumption (and what it needs on our raw-QUIC ALPN), the
+    initial window and initial RTT, pacing of the first flight;
+  * an ask's latency (one frame requested during or outside a fill) on a clean link and under loss: how fast a lost
+    packet is detected and repaired — ACK policy, `max_ack_delay` and ACK frequency, the probe timeout
+    (`PTO = srtt + max(4·rttvar, 1 ms) + max_ack_delay`), packet- and time-threshold loss detection, tail-loss probes;
+  * head-of-line blocking between streams, and within one stream (today's fill shares one stream, `docs/WIRE.md`);
+  * receive CPU per frame on the client, and when it reaches the latency at all;
+  * migration: how long a network change costs, probe-then-switch against rebind.
+* **Per stack, at its best** (row 157's settings): which of these each controls, what it allows, and the resulting
+  number on the grid (1 Mbit/s–1 Gbit/s × 10–300 ms × loss 0–1e-2). Where the server's stack sets the term (the sender's
+  loss recovery and pacing), say so: the client's stack cannot change it.
+* **Rules:** row 157's — every number at its point of use with its exact source or its derivation; measured results
+  (this repository's, e.g. row 135's receive CPU) apart and named; no claim restricted to the assumed band; the
+  native client on raw QUIC.
+
+**Deliverable:** a §Latency in `docs/native/quic-compared.md` (after row 157's rewrite), summarised in its §1.
+**Branch:** `claude/av1-unified-mainbase`.
+
+### 159 CONTAINERS
+
+**The owner, 2026-10-12:** the team proposed standard video containers (Matroska, MP4 and others, with ffmpeg) as
+packing alternatives: standardized, battle-tested, nothing to implement. The owner doubts any matches the custom
+layout plus this server's read path on throughput and latency, especially in the cloud where every resource is
+money, and wants the comparison fair. One question: **what is each container, and what can it do for us?** Theory
+only; the measurement is row 160.
+
+* **Candidates:** MP4 / ISO BMFF (progressive and fragmented, CMAF), Matroska / WebM, DICOM multi-frame encapsulated
+  (Basic and Extended Offset Table; the HTJ2K transfer syntaxes), MXF (JPEG 2000 in MXF), Motion JPEG 2000
+  (ISO/IEC 15444-3), raw AV1 streams (OBU / Annex B / IVF), and any other a source shows in use for frame sequences.
+  The reference is the `.sbnd`, today's and row 164's draft target.
+* **Each, characterized simply first:** its structure (a diagram), how it indexes frames (granularity, where the
+  index sits, what loading it costs), where metadata goes, which codecs have a standard mapping (AV1, JPEG 2000 /
+  HTJ2K, 16-bit grey, 12-bit), its per-frame overhead.
+* **What maximizes throughput or minimizes latency in it:** index placement (e.g. MP4 `moov` first), fragment size,
+  Matroska Cues placement, alignment, interleaving; what a server must parse at open and per request, and whether the
+  read path can stay one lookup and one `pread` per frame (`docs/adr/disk-access.md`).
+* **Everything else that counts:** tooling (ffprobe, MediaInfo, MP4Box, mkvtoolnix, dcmtk), hardware playback in
+  players (a property of the codec, which the container only feeds — say so where it applies), browser support (MSE
+  takes fragmented MP4 and WebM; WebCodecs takes no container, so a demuxer is needed), how the draft target's
+  features would be carried (Study/Series UIDs, a coded and a samples hash per frame, the tiled band-major layout) and
+  what that costs in standardness, licences and patents, maturity.
+* **Close with row 160's protocol:** predictions per arm, the arms worth measuring, the metrics, interleaving, and a
+  decision rule (what result adopts a standard container, what keeps the `.sbnd`), marked *proposed* for the owner
+  and the team.
+* **Rules:** every number at its point of use with its exact source (spec section, file:line at a pin) or its
+  derivation; (S) / (D) / (M) labels as row 156; no claim restricted to the assumed link band.
+
+**Deliverable:** `docs/disk-layout/containers.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 160 CONTAINERBENCH
+
+**Measurement, in a session given only row 159's §Protocol** (theory first, measured apart). Read nothing else of row
+159 before the numbers are in.
+
+* **Arms:** the `.sbnd` and the containers row 159 names, each implemented with equal care: one index loaded at open,
+  then the same read path (`pread`, `RWF_NOWAIT`, the pool) — a fair arm, not a strawman. Packing by the standard
+  tools where they exist (ffmpeg, MP4Box, mkvmerge, dcmtk) and by ours.
+* **Data:** sound sets only (`lab/av1/data.json` provenance `sound`); others only labelled, deciding nothing.
+* **Metrics:** time to open, bytes on disk, per-frame read latency (hit and forced miss through the store's levers),
+  fill throughput, server CPU per GB served, ingest packing time. CLAUDE.md §Measurement: interleaved arms, mutate
+  every new check, latency or throughput not both, say where the host saturates.
+* **Verdict** by row 159's rule, stated as proposed until the owner and the team accept it.
+
+**Deliverable:** `docs/disk-layout/containers.md` §Measured. **Branch:** `claude/av1-unified-mainbase`.
+
+### 161 HWDECODE
+
+**The owner, 2026-10-12:** hardware playback is a strength the team sees in video containers; it belongs to the
+codec, and could serve our own frame sequence — a native video viewer for the native version, video decode in the
+browser — if it keeps what a radiologist needs. One question: **which hardware decode paths can serve the diagnostic
+viewer?** Theory only.
+
+* **Paths:** the browser's `<video>` / MSE, WebCodecs (Chromium, Firefox, Safari), VideoToolbox, MediaCodec, VA-API,
+  NVDEC, Media Foundation / D3D12 Video, Vulkan Video.
+* **For each:** codecs and profiles in hardware (AV1 Main / High / Professional, HEVC RExt, VVC, any JPEG 2000 / HTJ2K),
+  bit depths, whether AV1's lossless mode decodes, whether the exact samples come back to the application (and how:
+  `VideoFrame.copyTo`, `CVPixelBuffer`, `Image`) or only a colour-converted picture, published per-frame latency and
+  throughput, device coverage (the share of phones and desktops with each), and which radiology functions survive:
+  window/level on > 8 bits, zoom, measurement, the exactness check, cine.
+* **Relate it to the AV1 design:** the bit split into 8/10-bit planes (`docs/codecs/`), the measured WebCodecs and
+  dav1d results (rows 8, 37, 49), Chromium's 12-bit refusal.
+* **Rules:** row 159's.
+
+**Deliverable:** a §Hardware decode in `docs/decode/README.md`, or `docs/decode/hardware.md` linked from it if it
+outgrows a section. **Branch:** `claude/av1-unified-mainbase`.
+
+### 162 LINKREAL
+
+**The owner, 2026-10-11/12:** the repository's 5–50 Mbit/s and 30–150 ms
+([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md), The target) were set as an
+assumption and must not be treated as fact. One question: **what do real links measure?** Research only.
+
+* **Links:** mobile 4G and 5G (down and up), hospital and enterprise Wi-Fi, home broadband, and a hospital site's
+  internet uplink to a cloud PACS.
+* **Per source:** who measured, where, when, how, and the distribution (median, p10, p90 where given) of rate, RTT,
+  loss and their variation over time (bursts, handovers, delay spikes, bufferbloat); pinned like every other source.
+  Prefer large independent datasets (regulators, M-Lab, peer-reviewed measurement studies) over vendor claims; name
+  each source's bias.
+* **Output:** a table of link profiles with ranges and sources; then what it means for the assumed band — confirmed,
+  widened or replaced — corrected in place in `transport-conclusions.md` The target, with a pointer here; and which
+  earlier verdicts rest on the band (list them, do not re-run them).
+
+**Deliverable:** `docs/transport/link-conditions.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 163 STREAMPACK
+
+**The owner, 2026-10-12:** the hospital packs a series into one file and publishes it by `.partial` → fsync → rename;
+can it start sending while it is still parsing and coding, and with what protocol? One question: **what would
+streaming the pack take, and what would it save?** Theory only.
+
+* **Why it does not stream today:** the index sits at the front and needs every frame's length first
+  (`common/series-bundle/src/writer.rs`).
+* **Options:** an index at the end (a trailer); frames as independent records with a final "series complete"
+  message, the PACS assembling and publishing; chunked resumable upload (draft-ietf-httpbis-resumable-upload, tus, S3
+  multipart) — each with its framing, how a crash or a cut link resumes, when and how each frame's coded hash is
+  checked on arrival, and how the PACS publishes only a complete series.
+* **What overlap saves,** as a formula over coding rate, link rate and series size, at the hospital uplink rates row
+  162 finds (or a stated range until then); and its interplay with the open "when is a series complete" decision
+  (`docs/ingest/design.md`).
+
+**Deliverable:** a section in `docs/ingest/design.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 164 DISKLAYOUTDOCS
+
+**The owner, 2026-10-12:** wt-pacs needs a document for the current disk layout and one for the target. Writing only;
+diagram first, essential, for humans.
+
+* **`docs/disk-layout/README.md` — the current layout, exactly,** from the code with line references: the `.sbnd`
+  header (16 B: "SBND", version, metadata length, frame count), the index (12 B a frame: offset u64, length u32, fixed
+  stride, read once at open), the embedded metadata JSON and the sidecar (two copies; the server reads neither; the
+  page reads the sidecar), frames back to back in display order, unaligned; the writer (lengths up front, no
+  temporary name, no fsync, no rename); one series per server process; the read path's dependence on display order
+  (`FILL_WINDOW`). Fix `docs/av1/payload-format.md`'s "the bundle's codec field" (there is none; the codec is in the
+  metadata).
+* **`docs/disk-layout/target.md` — the draft target agreed with the owner 2026-10-12**, marked draft until rows 159–160
+  report:
+  * one file per series, `<StudyUID>/<SeriesUID>.sbnd`; metadata only in the per-study database (Turso), none in or
+    beside the file;
+  * header 148 B: "SBND" | version u32 = 2 | codec 4 ASCII ("HTJ2", "AV01") | layout u32 (0 sequential, 1 tiled) |
+    entry count u32 | Study Instance UID 64 B | Series Instance UID 64 B (NUL-padded) — the file says what it is;
+  * layout 0, sequential (the one built now): entry 28 B = offset u64 | length u32 | XXH3-64 of the coded bytes |
+    XXH3-64 of the samples; the frame number is the entry's position;
+  * layout 1, tiled (later, its own format): entry 36 B, adding frame u32 | tile u16 | band u8 | spare u8, stored
+    band-major so a screen-fitted read is one contiguous range (the 17.6× of the 2026-09-06 study, tag
+    `read-path-evidence-2026-09-09` `docs/disk-layout/ACCESS-PATTERNS.md`);
+  * the coded hash is kept for life: checked on receipt, by scrub and optionally on read; the samples hash is the
+    client's exactness check;
+  * packed at the hospital; published by `.partial` → fsync → rename → fsync of the directory, at both ends;
+  * a version the reader does not know is refused;
+  * open: streaming the pack (row 163), standard containers (rows 159–160), series completeness.
+* Link both from `docs/FIXTURES.md` §SBND series bundle and `docs/adr/disk-access.md`; keep the gate's link check
+  green.
+
+**Deliverable:** the two files and the fixes. **Branch:** `claude/av1-unified-mainbase`.
+
+## The net-improvement round (rows 165–170), 2026-10-13
+
+**The owner, 2026-10-13:** every earlier investigation is finished; use the time and the unused usage windows while
+the owner is away. First find out whether what we have is all tried or analysed — HTJ2K and AV1 decoding
+optimizations or enhancements, complementary approaches such as LCEVC and SVC, colours, and areas outside the codecs,
+from general improvements to settled ones such as disk reading. Focus on almost completely net improvements; for
+instance, a longer fill time is not interesting for now. Spread the work over several usage windows.
+
+**Net, as this round reads it** (the orchestrator's reading of the owner's words, for the owner to correct): a change
+is net when it makes something measurably better and nothing on the target worse beyond its measured spread — fill,
+ask, exactness, bytes, a phone's memory, a server's CPU — at the cost of code alone. A change that trades one of these
+for another is a trade-off: it is listed and goes to the owner, not adopted. The target's links are row 162's
+measured profiles ([`../transport/link-conditions.md`](../transport/link-conditions.md)), not the old 5–50 Mbit/s
+band.
+
+Rows 165–167 are audits and theory, read-only but for their deliverable; they **propose** rows (a name and one question
+each, theory first) and the orchestrator queues them in the next usage window (`ORCHESTRATE.md` §2).
+
+### 165 AUDITCODEC
+
+**One question: is every codec lever tried, and what is left that would be net?** Audit, nothing built or timed.
+
+* **Scope:** HTJ2K (OpenJPH encode and decode, block size, progression, resolution levels, tiles, the code-block pool,
+  WebGPU), AV1 (libaom, SVT-AV1, dav1d-WASM, WebCodecs, groups, the bit split, REMAP, `cpu-used`, threads), JPEG XL,
+  JPEG-LS (listed in `docs/decode/README.md` §Not yet tried, never explored), AV2, LCEVC (row 19), scalable AV1 (rows
+  15, 18, 24–26, 31, 40), embedded lossy-to-lossless (rows 17, 22), colour transforms (rows 80, 97), the learned
+  coders of row 58.
+* **Each lever, one line:** the rows that touched it with their verdict; then one class — *closed by evidence that
+  still holds*; *closed by a premise since changed* (the link band, row 162; a newer release than the pin; data
+  provenance, row 121; a rule the owner has since changed); *never tried*; *waiting on the owner* (§Blocked).
+* **Releases since the pins:** OpenJPH, dav1d, libaom, SVT-AV1, libjxl and jxl-rs, CharLS, emscripten, Chromium's and
+  Firefox's WebCodecs, and whether an open LCEVC encoder now exists — each with its tag, date and what its changelog
+  says that bears on a lever.
+* **Close with a ranked list** of the *reopened* and *never tried* levers by expected net gain on the target, each a
+  proposed theory row (a name and one question), and the trade-offs apart, for the owner.
+
+**Deliverable:** `docs/codecs/README.md` §Tried and open (a table, each line pointing to the doc that owns the lever).
+**Branch:** `claude/av1-unified-mainbase`.
+
+### 166 AUDITPATH
+
+**One question: outside the codecs, is every lever tried, and what is left that would be net?** Row 165's audit,
+same classes and same close, for everything else.
+
+* **Scope:** the disk read path and the writer (`docs/adr/disk-access.md`, `docs/disk-layout/`, row 160's `BufWriter`
+  finding, which row 168 takes); the server's send path (rows 51, 81; per-frame cost, which row 162 says weighs ~5×
+  more at the measured rates); the transport (congestion control, initial, flow-control and send windows, GSO,
+  pacing, tail copies, 0-RTT; rows 75, 103–107, 119, 130–132, 139–141, 146, 152, 158); the client (downloader, decoder
+  workers and their start, zero-copy hand-off, frame loss, the exactness checks, the frame path and the OPFS cache,
+  paint, memory; rows 49, 50, 108–113, 142, 144, 147, 148, 151); the ingest (rows 52, 71, 89, 126, 136, 153, 163); the
+  gate and the tooling (rows 54, 86, 118).
+* **Name a lever as tried only with the row that measured it;** a lever argued but never measured is *never tried*.
+
+**Deliverable:** `docs/levers.md` — one index of every lever outside the codecs, linking to row 165's §Tried and open
+and to each owning doc; linked from `README.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 167 BANDRECHECK
+
+**One question: which of the verdicts that rest on the old band change at the measured links?** Theory only.
+
+* **The eight verdicts** are [`../transport/link-conditions.md`](../transport/link-conditions.md) §Verdicts that rest
+  on the band. For each: re-derive it at row 162's profiles (cellular p10, median and p90; Wi-Fi; loaded RTT), with
+  the formula, every input sourced and the derivation labelled (D); then one of *holds*, *flips* or *open*.
+* **For each that flips or is open:** the change that would follow and whether it would be net or a trade-off, and
+  the measurement that would decide — its arms, cells (rates, RTTs, loss and loaded queues from row 162), predictions
+  and a decision rule — written as a protocol for a separate session.
+* **An ask behind the session's own fill:** row 162 found a loaded RTT of 0.7–0.8 s median on cellular. Derive what an
+  ask waits behind the fill's own queue under today's controller, and what in the product (priorities, a cap on bytes
+  in flight during an ask, pacing) would cut it with no cost to the fill — a ninth item.
+
+**Deliverable:** `docs/transport/link-conditions.md` §Verdicts that rest on the band, each item extended in place, and
+the protocols in a §Re-measured, proposed. **Branch:** `claude/av1-unified-mainbase`.
+
+### 168 PACKWRITE
+
+**One question: why does a `.sbnd` written in 8 KiB writes read slower than the same bytes written in 1 MiB writes, and
+would production see it?** Theory first; the measurement is a later row given only this row's protocol.
+
+* **The finding:** row 160, `docs/disk-layout/containers.md` §Measured — warm hits 24–31 % slower and fill 24–32 %
+  slower on 32–41 kB frames, 16 rounds; rewriting v2 in 8 KiB writes undoes it, so it is the writer, not the layout;
+  mechanism unmeasured. `pack-series` writes through an 8 KiB `BufWriter`
+  (`common/series-bundle/src/writer.rs`).
+* **Candidate mechanisms,** each with the evidence that would tell it apart and its source (kernel file:line at a pinned
+  version, filesystem documentation): extent fragmentation (`filefrag -v`), the page cache's folio sizes and readahead
+  on a file built by small appends, the container's overlay or the backing filesystem, delayed allocation; and which
+  of them the production store's filesystem (ext4 or XFS on a cloud volume) shares.
+* **The fixes,** each as small as possible: a larger buffer, one `write` per frame, `fallocate` to the final size
+  before writing, a copy at publish; whether row 164's draft target (`.partial` → fsync → rename) changes any of them.
+* **Close with the protocol:** arms that differ in the writer alone, the read path unchanged, interleaved, hit and
+  forced miss through the store's levers (not page-cache eviction), on the container's filesystem and on a plain
+  ext4 or XFS image; predictions per mechanism and a decision rule (what adopts which fix).
+
+**Deliverable:** `docs/disk-layout/README.md` §The writer. **Branch:** `claude/av1-unified-mainbase`.
+
+### 169 DISPLAY
+
+**One question: what reaches the radiologist's screen, and does the product lose anything between the exact frame and
+the display?** Theory only. No row has asked it: the frames are proved exact, and `client/paint` windows them to an
+8-bit WebGL2 drawing buffer.
+
+* **Grey:** bits per sample after the window today (`client/paint/paint-worker.js`, `voi.js`); what DICOM asks
+  (PS3.14 grayscale standard display function, PS3.3 presentation LUT); what diagnostic displays offer (10- and 12-bit
+  grey panels, their calibration) and what the browser can send them — WebGL2 and WebGPU canvases with a float16 or
+  10-bit buffer, `colorSpace`, `toneMapping`, `dynamic-range` media query — per engine and OS, with sources; and the
+  same for a native client (Metal, Vulkan, DXGI 10-bit output).
+* **Colour:** RGB ultrasound and other colour series: ICC profiles in the DICOM header, the canvas's colour space, sRGB
+  against Display P3; what is lost today, if anything.
+* **Net or not:** for each gap, the change, its cost (a frame's paint time, memory) and whether it is net; what cannot
+  be known without a calibrated display, stated as such.
+* **Close with a protocol** for whatever a container can measure (e.g. a float16 canvas's read-back against the
+  reference painter), and what needs a device, for the owner.
+
+**Deliverable:** `client/paint/README.md` §What reaches the screen, or `docs/display.md` linked from it if it outgrows a
+section. **Branch:** `claude/av1-unified-mainbase`.
+
+### 170 FETCHPIN
+
+`lab/av1/fetch_data.sh` fails as written: `lab/av1/requirements.txt` lacks a hash-pinned `typing-extensions`, which
+`blake3` needs (row 160 installed with `--no-deps`). Pin it with its hash, run the script from a clean virtual
+environment to its end (or to the first fetch the network refuses, said so), and check nothing else in the file is
+unpinned.
+
+**Deliverable:** `lab/av1/requirements.txt`. **Branch:** `claude/av1-unified-mainbase`.
+
+## The net-improvement round, windows 1 and 2 (rows 171–188), 2026-10-13
+
+**The owner, 2026-10-13:** theoretical investigation can lead to empirical testing outside the ideas the owner
+proposed — those are simply proposals. The orchestrator may plan up to two usage windows. Tiles for large frames are
+interesting (row 175). Several streams should be investigated for the QUIC implementation research (row 174).
+
+Rows 171–177 run in the usage window that opened 2026-10-13 ~13:20 UTC; rows 178–188 are held for the next. Each row's
+proposals for further measurement are welcome beyond its brief: name them (a name and one question) in the
+deliverable for the orchestrator to queue. The round's reading of *net* is row 165's round brief.
+
+### 171 ASKAHEAD
+
+**Measurement, by row 167's protocol** ([`../transport/link-conditions.md`](../transport/link-conditions.md)
+§Re-measured, proposed, *ASKAHEAD*): read that item and its decision rule, nothing else of row 167, before the numbers
+are in. The arm is lab-only (a server flag, off by default). Also run the arm `levers.md` adds to it (HyStart's queue
+cut, cq W4b) if the server can take it as a flag; otherwise say so. **Deliverable:** that item's §Measured, in place.
+**Branch:** `claude/av1-unified-mainbase`.
+
+### 172 WRITERMEASURE
+
+**Measurement, by row 168's protocol** ([`../disk-layout/README.md`](../disk-layout/README.md) §The writer, *Protocol
+for the measuring row*): read the protocol and its rule (a)–(e) only, not §Why its files read slower, before the
+numbers are in. Hit and forced miss through the store's levers, never page-cache eviction. If the rule adopts a fix,
+make it in `pack-series` (and `from-parser` if it shares the writer) with a test that fails without it.
+**Deliverable:** that section's §Measured. **Branch:** `claude/av1-unified-mainbase`.
+
+### 173 NETRULES
+
+**One question: judged by an A/A arm's spread instead of a fixed bar, do rows 134 and 142's three refused levers have
+a fair protocol?** Theory. The levers: P-EMSDK (OpenJPH under emscripten 6.0.x with `wasmBinary` restored; row 134's
+×0.886–0.931 on projections and its ×1.061 cell), P-COPY (the shared-heap copy; RGB ×0.866 on a synthetic set only,
+memory −5 to −25 MB; add a sound RGB set), and `startOnNeed` (row 142: decoder CPU −4 to −14 %, wake-ups −56 to −82 %,
+misses against a fixed bar). Sources: `docs/codecs/README.md` §Tried and open (EMSDKNET, COPYRGB), `docs/levers.md`
+(COPYNET, STARTAA), `docs/decode/README.md` §Not yet tried. For each: the A/A arm, cells at row 162's rates (100 and
+300 Mbit/s, a 0.7 s loaded RTT), predictions and a rule that adopts it only if no cell is worse beyond the A/A spread.
+**Deliverable:** `docs/decode/README.md` §Not yet tried, a *Net protocols* part. **Branch:**
+`claude/av1-unified-mainbase`.
+
+### 174 QUICSTREAMS
+
+**The owner, 2026-10-13:** several streams should be investigated for the QUIC implementation research. Read here as
+QUIC streams: how many, how scheduled, and what each stack does with them (the owner corrects this reading if it meant
+something else). **One question: how does each QUIC stack treat many streams, and which stream design serves a fill and
+an ask best at the measured links?** Theory, at each stack's best configuration (row 157's rule).
+
+* **The product today:** `docs/WIRE.md` §Stream modes (`shared` default, `per-frame` with ask-order priority, `pool:k`
+  retired), [`../adr/stream-shape.md`](../adr/stream-shape.md),
+  [`../adr/frame-framing-and-loop-shape.md`](../adr/frame-framing-and-loop-shape.md) (`set_priority`), row 167's
+  ask behind the written-ahead fill, row 171's arm.
+* **Each stack of `docs/native/quic-compared.md`, and the browsers' clients:** the send scheduler (round robin,
+  priority, incremental; RFC 9218), retransmission order across streams, per-stream and connection flow control and
+  their auto-tuning, `MAX_STREAMS` and a stream's open cost, head-of-line blocking under loss, how much the
+  application can bound what is written ahead per stream; WebTransport's `sendOrder` / `sendGroup` and what each
+  engine implements. File:line at a pinned tag.
+* **Several streams against one**, and several connections: what each buys at 18, 103 and 309 Mbit/s and 0.2–0.8 s
+  loaded RTT (row 162), with the derivation; net or a trade-off.
+* **Close with a protocol** for a separate session (the arms a container can run through the product), predictions and
+  a decision rule, and further rows if the theory points elsewhere.
+
+**Deliverable:** `docs/native/quic-compared.md` §Streams. **Branch:** `claude/av1-unified-mainbase`.
+
+### 175 TILESTORE
+
+**The owner, 2026-10-13:** tiles for large frames are interesting. **One question: what exactly would the store, the
+wire and the client carry for tiles?** A proposal, nothing built (a store-format change is structural). Start from row
+133's measurement (`docs/decode/README.md` §Not yet tried, P-TILE: ask ×0.388–0.448 at 4× on the three large series,
+bytes +0.01–0.59 %), row 143's ADR ([`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md)
+§8, its five choices and the owner's ruling on device pixels), and the draft target's layout 1
+([`../disk-layout/target.md`](../disk-layout/target.md)). Give each open choice a recommendation and its reason; the
+frame sizes from which tiles are used and k by size (nothing past k = 3 is measured); the per-tile digests; how a fill
+and an ask ask for tiles; what HTJ2K-unchanged means for series below the threshold; the migration of stored series.
+Close with the measurement the proposal still needs. **Deliverable:** `docs/disk-layout/target.md` §Layout 1, tiled,
+and the ADR's §8 updated. **Branch:** `claude/av1-unified-mainbase`.
+
+### 176 HASHFAST
+
+**One question: can the frame check's XXH3-64 run faster in the decoder worker, digest unchanged?** Theory. Row 151:
+~3.3 GB/s in both engines, 4–12 % of an HTJ2K frame (8 ms on a 69 ms mammogram). Read the shipped hasher (which
+library, which build, whether it copies the samples into its own heap), XXH3's SIMD128 paths and what a WASM build
+reaches in published or derivable numbers, and hashing in the decoder's heap before the hand-off. Predictions and a
+protocol with a rule (net only if the digest is bit-identical on every frame and no cell is slower). **Deliverable:**
+`docs/adr/exactness-in-production.md`, a section on the check's speed, or the doc that owns row 151's numbers.
+**Branch:** `claude/av1-unified-mainbase`.
+
+### 177 DOCFIX
+
+Row 166's *Found on the way* (`docs/levers.md`), each corrected in place in the doc that owns it, no new claim: the
+docs still stating the old band (`docs/rig-limits.md` §1's 768 KB "never binds", `docs/native/quic.md` §7's
+5–50 Mbit/s and "0.4–0.7 % of a core"), pointing to `docs/transport/link-conditions.md`; the dangling owners (rows 49,
+54, 86; `CLAUDE.md`'s `docs/disk-access/adr.md` → `docs/adr/disk-access.md`); `docs/ARCHITECTURE.md` §Open's stale
+lines; the coded-bytes digest open in one doc and agreed in another; and the owner calls row 166 found missing from
+§Blocked, added there. Gate green. **Deliverable:** the corrected docs. **Branch:** `claude/av1-unified-mainbase`.
+
+### 178 NETMEASURE, 179 HASHMEASURE, 180 STREAMSMEASURE
+
+**Measurement, each by its theory row's protocol** (173, 176, 174), in a session given only the protocol and its rule.
+If the theory row proposed no protocol a container can run, the row is done with that line. A lever adopted by its rule
+is built beside today's path, off by default where it changes behaviour, with a test that fails without it.
+**Deliverable:** the protocol's §Measured, in place. **Branch:** `claude/av1-unified-mainbase`.
+
+### 181 IWDEEP, 182 FASTCLOCK
+
+**Measurement, each by row 167's protocol** of that name ([`../transport/link-conditions.md`](../transport/link-conditions.md)
+§Re-measured, proposed); read only that item and its rule before the numbers. **Deliverable:** that item's §Measured.
+**Branch:** `claude/av1-unified-mainbase`.
+
+### 183 ASKBEHIND, 184 READERPAUSE, 185 HTJ2KPACK, 186 JXLRS, 187 INITIALREPLY, 188 JPEGLS
+
+**Theory, each by its one question** as row 165 (`docs/codecs/README.md` §Left, ranked: HTJ2KPACK, JXLRS, JPEGLS) or
+row 166 (`docs/levers.md` §Proposed rows: ASKBEHIND, READERPAUSE, INITIALREPLY) states it, with its basis there. Each
+writes the mechanism, predictions, a protocol and a decision rule for a separate measuring session, and says whether
+the lever can be net at all or is a trade-off for the owner. JPEGLS and JXLRS at each codec's tuned best, never its
+defaults. **Deliverable:** the doc that owns the lever (the codec's doc under `docs/codecs/`, `docs/decode/README.md`,
+`docs/transport/transport-conclusions.md`). **Branch:** `claude/av1-unified-mainbase`.
+
+### 189 INITIALMEASURE
+
+**The owner, 2026-10-13:** investigate row 187. **Measurement, by row 187's protocol**
+([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §3, *Answering a repeated Initial*):
+read its four arms (today, A′, reply, the 100 ms initial RTT), predictions and rule, nothing else of row 187, before the
+numbers are in. The reply is built beside today's path, a server flag off by default, with a test that fails without it.
+**Deliverable:** that section's *Measured*. **Branch:** `claude/av1-unified-mainbase`.
+
+## The owner's evening rows (190–195), 2026-10-13
+
+**The owner, 2026-10-13 (night):** stop speculating and test with a phone — the owner's phone, local machine and the
+Oracle cloud machine are available, and it is time to plan that. Row 174's link analysis is too narrow; a wider range
+of bandwidth and loss is needed, and in theory several streams should beat one under head-of-line blocking — the
+phone tests will settle it, or give a first view. Row 181 is promising: kept as an experimental proposal (a pull
+request), not merged. Row 182's GSO cap: yes. Complementary approaches to the codecs should be researched, especially in
+theory (the bit split, as AV1 has). The target conditions should decide trades such as row 180's. File reading in
+Docker, the likely deployment, is for a local agent.
+
+### 190 DEVICEPLAN
+
+**One question: what is the smallest set of real-device runs that settles the questions the lab cannot?** A plan, nothing
+run. Devices: the owner's phone (model, OS and browsers asked of the owner and written in), the owner's local machine,
+the owner's Oracle cloud machine as the server on the public internet. Start from what the container could not settle:
+one stream against several under real loss (rows 174, 180, 193), the initial window (181), the ask during a fill (171,
+180), the repeated Initial (187, 189), decode and paint time on a phone for HTJ2K, dav1d-WASM and WebCodecs (rows 9,
+44, 161), the phone's memory, energy if measurable. For each: the arms, the links (the phone on cellular and Wi-Fi as
+they come, and the local machine's `netem` for controlled rate, RTT, loss — random and bursty — across a wide range),
+how a run is driven and recorded on a phone (a page that runs the arms and posts its results), interleaving, n, what
+decides. Also the server side: deploying the image on the Oracle machine (`deploy/`), TLS, the ports to open, the
+rig-limits that apply (`docs/rig-limits.md`), what the public repository must not carry (an address, a key). Order the
+runs so the first gives a view in one evening. **Deliverable:** `docs/devices.md`. **Branch:** `claude/av1-unified-mainbase`.
+
+### 191 IWOPTIN
+
+Row 181 made 38 400 bytes the server's default initial window. The owner keeps it as an experimental, promising
+proposal, not merged: put the default back to quinn's 12 000, keep 38 400 behind a server flag (off by default), its
+test failing without the flag's effect, and mark row 181's verdict in `docs/transport/link-conditions.md` and
+`transport-conclusions.md` as *proposed, opt-in*. The orchestrator opens the proposal as a draft pull request that flips
+the default. Gate green. **Deliverable:** the server change and the docs. **Branch:** `claude/av1-unified-mainbase`.
+
+### 192 GSODEFAULT
+
+The owner, 2026-10-13: yes to row 182. The default server build applies `patches/quinn-0.11.11-mtu-gso.patch` with the
+segments per `sendmsg` capped at 24 (today the patch is opt-in and caps at 45): the build, the deploy image, the gate's
+`--check`, and `transport-conclusions.md` §4 and its §9 call updated in place. A test that fails if the cap is not 24 in
+the default build. Name what still carries the patch (quinn-rs/quinn#2189). Gate green. **Deliverable:** the build change
+and the docs. **Branch:** `claude/av1-unified-mainbase`.
+
+### 193 STREAMSWIDE
+
+**One question: under head-of-line blocking, where must several streams beat one, and why have the measurements not
+shown it?** Theory. The owner, 2026-10-13: it does not make sense that several streams do not beat one under
+head-of-line blocking; row 174's analysis is too narrow in link conditions. Range: 1–1 000 Mbit/s, idle RTT 5–300 ms,
+queues 10 packets to 1 s, loss 0.01–10 %, random and bursty (Gilbert–Elliott, with published parameters for cellular and
+Wi-Fi where they exist). Separate the costs a loss imposes: the held bytes behind a gap (head-of-line, per stream), the
+controller's cut (per connection, shared by every stream), the repair's place in the send queue (quinn's retransmit
+order, `adr/stream-shape.md`), the receive credit. Derive, per cell, one stream, k streams (k = 2–8 and one a frame),
+and k connections: time to each frame, a fill's end, an ask's wait. Reconcile with every measurement so far (rows 75,
+171, 174, 180, the stream-shape campaigns): where the model says several streams win and the data did not, say which
+cost hid it. Predictions and a protocol for row 190's device runs. **Deliverable:** `docs/native/quic-compared.md`
+§Streams, a *Wide range* part. **Branch:** `claude/av1-unified-mainbase`.
+
+### 194 COMPLEMENT
+
+**One question: beside the codec, what could cut lossless bytes or decode time, and how much can any lossless coder
+gain at all?** Theory. The owner, 2026-10-13: JPEG XL's small gain was a surprise; complementary approaches should be
+researched, especially in theory — the bit split as AV1 has. Candidates: the bit split for HTJ2K (row 36: 0.9–1.6 %
+with the low bits deflated) and for JPEG XL (never tried); inter-slice decorrelation for volumes (JPEG 2000 Part 2 across
+slices, +3 % by Clunie 2012 in `lossless-literature.md`; a reversible slice difference before HTJ2K); value maps (row
+185); background and collimation masks; per-region coding. **The bound first:** estimate each target series' noise
+entropy (from the sensor's noise model or flat regions) to bound what any lossless coder can save over HTJ2K, so a
+candidate's ceiling is known before it is tried. Each candidate: mechanism, predicted bytes and decode against HTJ2K,
+net or a trade-off, a protocol. **Deliverable:** `docs/codecs/README.md`, a *Beside the codec* section. **Branch:**
+`claude/av1-unified-mainbase`.
+
+### 195 DOCKERREAD
+
+**For a local session on the owner's machine** (`local`: no cloud session claims it). **One question: does the server's
+read path keep its measured costs inside a Docker container, the likely deployment?** Measure, after a short theory
+section with predictions and a rule. Arms: the store on the container's overlay filesystem, on a bind mount, on a named
+volume; the host without Docker as the reference. Per arm: hit and forced-miss latency through the store's levers (never
+page-cache eviction), fill throughput, CPU per GB; folios per frame (row 172's `kpageflags` method) after a pack and after
+the fill's `WILLNEED` (row 172's (d): 41–123 folios a 160–500 kB frame against 7–9, hits ×2.0, fill ×0.64–0.68, CPU per
+GB ×1.5); whether `RWF_NOWAIT` and io_uring work under Docker's default seccomp profile, and the fall to the pool if not
+(`adr/disk-access.md`: 132.5 against 48.4 µs a frame); `memlock` and `nofile` limits (row 166's DEPLOYLIMITS). The
+deploy image as `deploy/` builds it. Measure row 199's settings as arms and row 198's candidates that a container changes. **Deliverable:** `docs/adr/disk-access.md`, a *In a container* section.
+**Branch:** `claude/av1-unified-mainbase`.
+
+## The owner's night rows (196–206), 2026-10-14
+
+**The owner, 2026-10-14:** row 172's read-ahead finding is approved for investigation. Look for something faster
+than today's io_uring path; if Docker's defaults do not allow it, find how to tune the container to — very worth it.
+Row 190's device plan needs more aggressive, fast feedback rounds: it is late, and quick rounds to adjust are more
+efficient. The phone: a Samsung, Android 16, Chrome and Firefox (or whatever is needed). The congestion controller
+needs attention: Cubic does not fit loss, BBR does with a trade — what else should be considered?
+
+### 196 WILLNEEDFOLIO, 197 WILLNEEDMEASURE
+
+**One question: can the fill's read-ahead build large folios, with the fill's wait unchanged?** Theory (196), then
+measurement by its protocol in a session given only it (197). Row 172 (`docs/disk-layout/README.md` §The writer, (d)):
+after reclaim the fill's `POSIX_FADV_WILLNEED` builds 4 KiB folios (`mm/readahead.c:275–276`), 41–123 a 160–500 kB
+frame against `pack-series`' 7–9: hits ×2.02 and ×1.99, fill ×0.68 and ×0.64, fill CPU per GB ×1.49 and ×1.56 on the
+host's ext4. Candidates: a blocking `readahead(2)`, `MADV_POPULATE_READ` on a mapping, larger `WILLNEED` ranges,
+`read_ahead_kb`, reading ahead through the ring; each with its kernel source at v6.18, its effect on the fill's wait
+and on concurrent sessions, and the filesystems that differ (XFS tied in row 172). **Deliverable:** `docs/adr/disk-access.md`,
+a *Read-ahead and folios* section. **Branch:** `claude/av1-unified-mainbase`.
+
+### 198 READFASTER
+
+**One question: is anything faster than today's read path, on a hit and on a miss?** Theory. Start from
+`docs/adr/disk-access.md` (the shipped reader: `RWF_NOWAIT` inline, io_uring on a miss; its measured µs a frame, and what
+was rejected and why). Candidates, each at its tuned best: io_uring with registered buffers and fixed files, `SQPOLL`,
+`IOPOLL` with `O_DIRECT`, multishot and linked reads, NVMe passthrough (`uring_cmd`), huge pages, `mmap` with
+`MAP_POPULATE` or `MADV_POPULATE_READ`, a frame cache in user space, and where QUIC's encryption forces a copy anyway
+(so `sendfile`/`splice` cannot help). Per candidate: the mechanism, where today's µs go and which it removes, predicted
+µs a frame on a hit and a miss at 32 kB–3 MB, what it needs from the kernel and a container (row 199), net or a trade-off,
+a protocol. **Deliverable:** `docs/adr/disk-access.md`, a *Faster than today* section. **Branch:** `claude/av1-unified-mainbase`.
+
+### 199 DOCKERTUNE
+
+**One question: what must a Docker deployment set so the server keeps its full read path, and at what security cost?**
+Theory, for row 195 to measure on the owner's machine. Docker's default seccomp profile and io_uring (which syscalls,
+since which Docker and moby versions, and why: the io_uring CVE record, the platforms that disable it); a custom seccomp
+profile that allows `io_uring_setup`, `io_uring_enter`, `io_uring_register` and nothing more; `--ulimit memlock` and
+`nofile` (row 166's DEPLOYLIMITS: ~940 rings at the 8 MB default); the storage choices (overlay, bind mount, volume) for
+the page cache and folios; `--security-opt`, capabilities, user namespaces, rootless Docker, Podman, and Kubernetes'
+equivalents; what the server must do where io_uring stays off (the pool's 132.5 against 48.4 µs a frame), and a health
+check that says which path is live. **Deliverable:** `deploy/README.md`, a *Container settings* section, with the
+seccomp profile as a file beside it. **Branch:** `claude/av1-unified-mainbase`.
+
+### 200 CCNEXT
+
+**One question: beyond Cubic and BBR, what congestion control fits the target, and what else must be considered?**
+Theory. Row 193: under Cubic several streams cannot help, since the cut keeps the window at ~1.2 ÷ √p packets; they win
+only under a loss-blind controller, and several connections win by their number. Row 180: asks-first loses behind a deep
+queue because a loss-based controller fills it. Read rows 75, 103–107, 119, 132, 140, 141, 146 and
+`transport/transport-conclusions.md` §1 first; do not redo them. Candidates: BBRv3 (and what quinn's BBR lacks of it),
+Cubic with a loss classifier (row 141's option 1, reopened Cubic-only), Copa, Vegas- and LEDBAT-like delay control,
+HyStart++, L4S and ECN on cellular and Wi-Fi today, pacing, forward error correction for tail loss, choosing the
+controller per session from what the session measures, several connections and their fairness. Each against row 162's
+links and row 193's range: the fill, an ask's wait (with asks-first), the standing queue, the share left to a neighbour;
+net or a trade-off; what a phone run (row 190) must measure to decide. **Deliverable:**
+`docs/transport/transport-conclusions.md` §1, a *Beyond Cubic and BBR* part. **Branch:** `claude/av1-unified-mainbase`.
+
+### 201 DEVICEKIT
+
+**Build what row 190 (`docs/devices.md`) needs so a device evening is setup-free and fast.** The owner wants quick
+feedback rounds. The phone is a **Samsung, Android 16, Chrome and Firefox** (write it into §1; model and versions read
+by D0). Build, tested in the container as far as it can be:
+* the **runner page** (§3): the arms and Williams order for D0, D1 and D2, results kept in IndexedDB, posted after every
+  round, a save button; a **quick mode** — n = 3 rounds, the arms that answer the evening's questions first — that
+  prints a provisional reading on the phone's screen in about 15 minutes, before the full n ≥ 10;
+* the **collector** on the server's host (behind a token from the environment);
+* the **deploy script** for the Oracle machine (§4): copy the image built on the local machine, the four D2 arms on four
+  ports, `server-start.sh` taking a supplied certificate, the ports checked first; nothing identifying in the repository;
+* a **one-page checklist** for the evening, the owner's taps in order, with the commands for the local machine.
+**Deliverable:** the kit under `lab/devices/`, `docs/devices.md` updated. **Branch:** `claude/av1-unified-mainbase`.
+
+### 202 ASKTHENFILL
+
+**One question: if the fill is re-asked at once after an ask, does row 171's cap on bytes ahead keep its faster ask with
+the fill unchanged?** Theory, from row 171's measurement and its proposal (`docs/transport/link-conditions.md`
+§Re-measured, *ASKAHEAD*, Measured): row 171 found the ask −39 to −67 % and the fill +5–11 % at 103 Mbit/s, the remainder
+re-asked a round trip after the ask. Mechanism, predictions across row 193's range, and a protocol and rule.
+**Deliverable:** that section, an *ASKTHENFILL* part. **Branch:** `claude/av1-unified-mainbase`.
+
+### 203 FFSTALL
+
+Row 182 saw Firefox 157 stall ~6 s before the last byte in 9 of 240 visits (`docs/transport/link-conditions.md`
+§Re-measured, *FASTCLOCK*, Measured). **One question: what stalls, and is it ours?** Reproduce it, find the cause from
+logs and the server's and Firefox's (neqo's) source at their pins, and fix it if it is the server's or the client's,
+with a test that fails without the fix; if it is Firefox's, write the report upstream would need. **Deliverable:**
+`docs/transport/transport-conclusions.md`, a section of its own. **Branch:** `claude/av1-unified-mainbase`.
+
+### 204 DEVICE1, 205 DEVICE2, 206 DEVICE3
+
+**For a local session with the owner** (`local`), each by its run's protocol in `docs/devices.md` and row 201's kit:
+204 is D0, D1 and D2 in one evening, quick mode first; 205 is D3; 206 is D4 and D5. Raw rows stripped of anything
+identifying (§4), the reading in the doc that owns the subject. **Branch:** `claude/av1-unified-mainbase`.
+
+### 207 ASKFIRSTCAP
+
+**One question: does asks-first stop losing behind a deep queue if the bytes in flight stay capped?** Theory. Row 180's
+asks-first (`docs/native/quic-compared.md` §9.5, Measured) cut an ask ×0.28–0.43 behind short queues but was ×1.97 behind
+800 ms at 18 Mbit/s: one stream a frame lifts the shared stream's 6 MiB receive credit as the cap on bytes in flight, so
+Cubic fills the deep queue further, and no priority reaches bytes already in the network. Derive asks-first with a cap —
+row 171's send window (cwnd + M), and a fixed cap of 6 MiB across all streams — across row 193's range; with each
+controller row 200 ranks; predictions, a protocol and a rule (net only if never worse than `shared` in any cell).
+**Deliverable:** `docs/native/quic-compared.md` §9, an *Asks first, capped* part. **Branch:** `claude/av1-unified-mainbase`.
+
+## The night of 2026-10-14 (rows 208–214)
+
+**The owner, 2026-10-14:** going to bed; the local machine and the Wi-Fi are off for the night, and the night should be
+used. The Oracle machine is §9's cloud rig; a domain for its certificate is possibly a good idea. These rows need
+neither the owner's machine nor the phone; held for the usage window that opens at 03:00 UTC.
+
+### 208 DOCKERCLOUD
+
+**Measurement, by row 195's protocol only:** `docs/adr/disk-access.md` §6 *In a container* on `claude/wip-dockerread`,
+from the heading *Protocol for the measuring row (row 195)* down — read nothing of that section above it before the
+numbers are in. Run it as `lab/container-bench/README.md` §*In a container (row 195)* says (`dockerread.py` data →
+place → check → folios before → time, 28 rounds → folios after → `dockerread_summary.py`), with every setup the
+protocol names, in this cloud container: `sudo dockerd` starts here (Docker 29.8.2, rootful, overlayfs, default
+seccomp; root for `/proc/kpageflags`). Say what differs from the rig the protocol was written on: the runtime, whether
+SELinux enforces (if not, B+UL equals B+U), the filesystem (ratios to H transfer, absolute µs do not), the cores free
+for pinning, and that this is a cloud VM. Work on `claude/wip-208-DOCKERCLOUD` made from `claude/wip-dockerread`; write
+the measured part into the same section, check each prediction, apply its rule (c). Adopting the io_uring profile, and
+`label=disable` against a narrow SELinux module, stay the owner's. The whole lands on `claude/av1-unified-mainbase` when
+finished (it is additive: a lab rig and a doc section); then set rows 195 and 208 done. If an image cannot be pulled,
+say which and stop. **Branch:** `claude/wip-208-DOCKERCLOUD`, then `claude/av1-unified-mainbase`.
+
+### 216 DOCKERORACLE
+
+**For a local session** (`local`): row 195's protocol on the Oracle cloud rig (`docs/rig-limits.md` §9), which the
+owner's machine reaches and cloud sessions do not, by the same how-to, after row 208 has landed the rig. Same reporting
+of what differs; the reading beside row 208's. **Branch:** `claude/wip-216-DOCKERORACLE`, then `claude/av1-unified-mainbase`.
+
+### 209 READMEASURE, 210 ASKTHENFILLMEASURE, 211 ASKFIRSTCAPMEASURE, 212 CCMEASURE, 213 INTERSLICE
+
+**Measurement, each by its theory row's protocol** (198 in `docs/adr/disk-access.md` §13; 202 in
+`docs/transport/link-conditions.md` §Re-measured, *ASKTHENFILL*; 207 and 200 in their deliverables; 194's INTERSLICE in
+`docs/codecs/README.md` §Beside the codec), in a session given only the protocol and its rule. A lever its rule adopts
+is built beside today's path, off by default where it changes behaviour, with a test that fails without it. Where a
+protocol needs a phone or the owner's machine, run what the container can, say what is left for row 204–206's device
+runs, and do not claim it. **Deliverable:** each protocol's *Measured*. **Branch:** `claude/av1-unified-mainbase`.
+
+### 214 DISPLAYTAGS
+
+Row 169 (`docs/display.md` §The gaps): the ingest drops ICC Profile, VOI LUT Sequence and Presentation LUT Shape;
+reading them is net where a series carries them. First count which sound series carry each (COLORTAGS, VOILUT). Then,
+for what exists: the ingest keeps them in the series' metadata, and the painter applies a VOI LUT Sequence and the
+Presentation LUT Shape per PS3.3 (and an ICC profile's colour space where the canvas allows), with the reference painter
+(`client/paint/reference.js`) checking each and a test per tag that fails without it. Nothing changes for a series
+without the tags. **Deliverable:** the ingest and paint changes, `docs/display.md` updated. **Branch:**
+`claude/av1-unified-mainbase`.
+
+### 215 CLEANAUDIT
+
+**The owner, 2026-10-14:** the work branch, the main branch of work for merging, must be clean, optimized, completely
+functional and improved, simplifications included — with rules for them, such as not losing capabilities and the
+benefits of a simpler system. **One question: what stands between `claude/av1-unified-mainbase` and that?** An audit;
+nothing removed or changed but its deliverable.
+
+* **Every item on the branch that is not finished product:** half-finished rows' code, provisional numbers, lab-only
+  flags and code paths compiled into the product (row 83's list: `server/src/main.rs` lab flags, `readMin`, the
+  rejected read shapes, product dependencies under `lab/`), dead code, duplicated logic, tests that do not run in the
+  gate, docs that contradict the code. Each with its evidence (file:line), and one of *keep*, *finish*, *simplify*,
+  *move to lab*, *remove*, with the capability it would cost — a change that loses a capability the product has is not
+  proposed — and its size.
+* **What "completely functional" means here:** the gate green with nothing skipped that could run, the deploy image
+  building and serving, the viewer filling and asking end to end in Chromium and Firefox; each checked, and what fails.
+* **The simplification rules, drafted** for the owner to put in `CLAUDE.md`: what a simplification may remove (code
+  with no caller, a flag whose measurement is recorded in `docs/`, a path a measurement rejected) and what it may not (a
+  capability, a measured gain, a check), how the benefit is stated (lines, dependencies, concepts a reader must hold),
+  and how one is proved (the gate, the same measurement before and after).
+* **Close with rows** for the orchestrator to queue, ranked by what merging needs first.
+
+**Deliverable:** `docs/merge-readiness.md`. **Branch:** `claude/wip-215-CLEANAUDIT`, then `claude/av1-unified-mainbase`.
+
+## The merge cleanup (rows 217–228), 2026-10-14
+
+**The owner, 2026-10-14:** decision 2, the cleanup, approved: "I think we should do it". The rows are row 215's
+[`docs/merge-readiness.md`](../merge-readiness.md) §Rows to queue, in its order; each item's evidence (file:line), verdict, cost and size are there, and a row reads
+its items before anything else. No row loses a capability the product has. A row marked *review* below removes or
+alters what exists, so it finishes on its wip branch with the gate green and stops at a draft pull request for the
+owner (§The work branch holds finished work only); it never lands itself. The draft simplification rules in that
+document's §The simplification rules are **not adopted** (the owner has not ruled on them); until then a row proves
+itself as `CLAUDE.md` and §Protocol already ask: the gate green with the same skips or fewer, every test it touches
+mutated once, and its benefit stated as counts (lines, dependencies, concepts). Rows 219, 223 and 227 touch files an
+earlier row of this round changes (`client/viewer/viewer.js`; the Containerfile and nginx; `tuning.rs`, `read_path.rs`):
+while that row waits in review, the later one starts from its wip branch and says so in its cell.
+
+### 217 VIEWERLOCK
+
+*Review.* B1, which blocks any deployment: `?opts=` is spread into `connect` unchecked (a `transport` module imported,
+`decoder.glue` run through `new Function` with its pin optional), `?wt=`, `?hash=` and `?metadata=` replace the server
+and the digests with frames still shown exact, and no Content-Security-Policy is sent. The product page reads only
+`/wt/dev-transport.json` and `/series/metadata`; the levers stay, honoured on the dev host or by a lab build alone, so
+the total-time and check harnesses keep them; nginx and the dev host send a CSP limiting scripts and connections to
+the page's origin and the transport. A test loads the page with each crafted parameter and shows it refused, and fails
+on today's page. **Deliverable:** the change, `client/README.md` and `deploy/README.md` updated. **Branch:**
+`claude/wip-217-VIEWERLOCK`, then a draft PR into `claude/av1-unified-mainbase`.
+
+### 218 DEADHASHER
+
+*Review.* B2: `hasher: "hash-wasm"` never reaches the decoder (the downloader's init message carries none), yet the
+docs call it "one init flag away" and the web image refuses to build without the vendor file it never loads. Remove the
+option and the image's `test -f`; hash-wasm stays as `xxh3.test.mjs`'s reference; correct `client/README.md` and
+`docs/adr/exactness-in-production.md` in place. §Blocked's 2026-10-14 entry on the gate's browser frame
+checks proposes the opposite (forward `hasher`); the pull request names that entry, and the owner picks one.
+**Deliverable:** the change and the docs. **Branch:** `claude/wip-218-DEADHASHER`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
+### 219 VIEWERASKS
+
+Fixes, each with a test that fails without it: B3 (a frame whose ask is pending is not asked again, so no false
+"already requested" error), B4 (two quick on-demand steps keep the newest ask alone), B7 (the WebSocket test takes a
+port free for UDP and TCP and reports the server's own error; mutate by holding the TCP port), F4 (in on-demand mode
+the viewer check judges what was asked; the gate runs `--fill 0` and `--cine`). **Deliverable:** the fixes and their
+tests. **Branch:** `claude/wip-219-VIEWERASKS`, then `claude/av1-unified-mainbase`.
+
+### 220 INITIALPATCH
+
+*Review; held for the owner.* H1: row 189's build (`5b5d68c3`) predates `f57700d3`, so cells A and C ran every arm at a
+38 400-byte initial window, and its "today" arm is not today's 12 000 default; row 189 is done (the rule does not pass,
+the flag stays off) and its cell does not name this. The owner asked on 2026-10-14 whether row 189 is a net win to
+adopt; that ruling decides this row. If the reply is not adopted: state the confound in row 189's cell and in
+`docs/transport/transport-conclusions.md` §3 *Measured: INITIALMEASURE*, then remove the flag, the patch
+(`patches/quinn-proto-0.11.18-reply-repeated-initial.patch`) and its tests (~−270 lines). If it is adopted, this row
+re-runs cells A and C at 12 000 first. **Deliverable:** the change, or the re-run. **Branch:**
+`claude/wip-220-INITIALPATCH`, then a draft PR into `claude/av1-unified-mainbase`.
+
+### 221 LABTRACES
+
+*Review.* L1: `cc_trace` wraps every controller in the default binary and an unopenable `WTPACS_CC_TRACE` panics the
+server; put it behind `telemetry`, build its two lab users with that feature, and widen
+`server/scripts/check_telemetry_absent.sh` to its variables and `record::path` (mutate: the check fails on today's
+binary). X1: `crypto-ring` as plain dependency features. X2: the seven transport modules `pub(crate)`. X3:
+`FrameStore::file` behind `#[cfg]`. **Deliverable:** the change, `server/README.md`'s lab list in step. **Branch:**
+`claude/wip-221-LABTRACES`, then a draft PR into `claude/av1-unified-mainbase`.
+
+### 222 INGESTTOOLS
+
+*Review.* The product's steps stop needing `lab/`: B6 (`default-members`, so a bare `cargo build` works on a fresh
+clone), P1 (`ingest/tools.sh` builds aom 3.15.1, dav1d and OpenJPH 0.31.0 at their pins into a product directory;
+`lab/av1/tools/tools.sh` calls it; README lists `meson`), P2 (`ingest/requirements.txt`, which lab's includes, pinned
+for CPython 3.11–3.13, or the README says 3.11), P3 (README §The viewer on a DICOM series works from a fresh clone,
+run once to show it), P4 (`aomenc` checked for AV1 only), P5 (the split's merge test and `server_start_test.sh` beside
+what they test, `splits()` inlined). **Deliverable:** the change and README. **Branch:** `claude/wip-222-INGESTTOOLS`,
+then a draft PR into `claude/av1-unified-mainbase`.
+
+### 223 IMAGESLIM
+
+*Review.* L4: the web image copies the page's allow-list only (the audit lists it), not all of `client/`. L5: the build
+copies each lab crate's `Cargo.toml` and `src/`, not 2.5 MB of results, and the dead `!lab/telemetry-cost` line goes.
+F1: `deploy/check_equivalence.sh --local` is a gate step where nginx is on PATH, named as skipped otherwise, and it
+checks that the harness pages answer 404. The image built and the viewer check passed through it, as row 215 did.
+**Deliverable:** the change, `deploy/README.md` in step. **Branch:** `claude/wip-223-IMAGESLIM`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
+### 224 REJECTEDPATHS
+
+*Review.* L2: the read-ahead hook row 197 rejected (`read_path.rs`), its test and the bench's hook arms removed. L3:
+`followQueue` ("neither adopted"), its tests and its lines in `docs/ARCHITECTURE.md` removed; a tag keeps both. L8, row
+209's `FrameCache`, **stays as it is, off by default** (the owner, 2026-10-14: "off by default for now"); it is not
+this row's. **Deliverable:** the change. **Branch:** `claude/wip-224-REJECTEDPATHS`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
+### 225 DOCSTRUE
+
+*Review* (it removes documents). C1–C10 corrected in place as the audit lists them, the queue and campaign labels in
+product code named by their measurement (anchors renamed with their headings); C3 `docs/av1/MERGE.md` and C4
+`docs/handoff-2026-10-04.md` and `docs/server-design-proposal.md` removed, what is still true folded in (R4 one line in
+ARCHITECTURE §Open). H2: the branch's queue copy replaced by this one when the branch merges. `docs/cloud-queue.md`
+is not edited. Corrects what rows 217–224 have changed only once they have landed. **Deliverable:** the docs.
+**Branch:** `claude/wip-225-DOCSTRUE`, then a draft PR into `claude/av1-unified-mainbase`.
+
+### 226 GATEGAPS
+
+Additive. The gate also runs: F2 `cargo check --features cert-compression`; F3 all four lab crates compiled and their
+tests run; F5 the real-decode rigs on `builtDecoder` as well as npm's OpenJPH; F6 the telemetry-absence check over
+`ws-session.js` and `race-session.js`; F7 a synthetic DICOM object through `from_dicom.py` to `.sbnd`, and pack-series'
+re-pack `cmp`ed. Each new step mutated once. **Deliverable:** `scripts/gate.sh` and the steps. **Branch:**
+`claude/wip-226-GATEGAPS`, then `claude/av1-unified-mainbase`.
+
+### 227 DEDUP
+
+*Review.* D1–D8 as the audit lists them: the controller config built once in `Congestion::factory`, one
+`preadv2(RWF_NOWAIT)` helper, hit/miss counting once, tests using `series_bundle::write_bundle` (not
+`frame_store.rs:277`), `StreamMode` deriving `ValueEnum`, `record` importing the FoD union, one SHA-256-to-hex, one
+`metadata()`. **Deliverable:** the change. **Branch:** `claude/wip-227-DEDUP`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
+### 228 WASMTOLAB
+
+*Review; structural, so proposed first.* D9: the WASM transport (`client/transport/wasm/`, ~780 lines) is a second
+client the product never loads, and the gate needs wasm-pack for it; P6: `client/decode/wasm/dav1d/` is lab tooling
+apart from `dav1d_wrap.c`. Write the proposal in `docs/CLIENTS.md` (what moves where, what the gate stops needing,
+what stays); the move is made only on the owner's yes. **Deliverable:** the proposal. **Branch:**
+`claude/wip-228-WASMTOLAB`, then `claude/av1-unified-mainbase` for the proposal.
+
+### 230 CIGATE
+
+*Review.* The repository has no CI (no `.github/workflows/`), so pull request #36 and every row's draft PR report no
+checks; the owner, 2026-10-14: "create a CI with all the checks and tests". Add `.github/workflows/gate.yml`, on
+`pull_request` into `claude/av1-unified-mainbase` and `main` and on push to both, that runs `scripts/gate.sh` in full
+with every prerequisite README §Prerequisites names present, so that its recap shows no `SKIPPED` line but those
+that need a device, a display the runner lacks, or the network beyond pinned fetches; list the skips that remain,
+each with why, and fail the job on any skip not on that list. Among them: CPython 3.11 with
+`lab/av1/requirements.txt`, Chromium and Firefox pinned, Go, wasm-pack, meson, the lab's coders
+(`lab/av1/tools/tools.sh`) cached by their pins, and `client/decode/wasm/build/build.sh` (Docker) so that
+`client/decode/wasm/built/` exists (§Blocked, 2026-10-14, the gate's browser frame checks). A second job builds the
+deploy image (`deploy/compose.yml`) and runs the viewer check and `deploy/check_equivalence.sh` through it. Actions
+pinned by commit SHA; least `permissions:`; caches keyed on lockfiles and tool pins. No timed measurement runs in CI:
+shared runners are not a measurement host (`CLAUDE.md` §Measurement). Prove it: one push on the wip branch with a
+test broken on purpose turns the job red, and the next restores it. **Deliverable:** the workflow, and README
+§Before pushing naming it beside the gate. **Branch:** `claude/wip-230-CIGATE`, then a draft PR into
+`claude/av1-unified-mainbase`.
+
+### 231 SECCOMPURING
+
+*Review.* The owner, 2026-10-14: "yes to docker decision" (row 208's rule (c), §Blocked). Give `deploy/compose.yml`'s
+`server` `security_opt: ["seccomp=./seccomp-uring.json"]` and the `memlock` and `nofile` limits deploy/README's
+settings table sizes for the rings (one uid per server). Prove it through the image: the server's startup line names
+the ring, and the read-path tests run 29 of 29 under the profile where Docker's default skips 6; mutate by starting
+without the profile and watching the ring line go. `seccomp=unconfined` stays forbidden. On an SELinux-enforcing host
+the profile is not enough (`EACCES`); that stays a deploy/README note, and neither `label=disable` nor a policy module
+is shipped by default (the owner's, if wanted). Add `deploy/seccomp-uring.sh --check` beside row 230's checks, and
+correct deploy/README in place where it calls the profile optional. **Deliverable:** the change. **Branch:**
+`claude/wip-231-SECCOMPURING`, then a draft PR into `claude/av1-unified-mainbase`.
+
+## After the merge (rows 232–236), 2026-10-14
+
+The owner, 2026-10-14, asked about performance tests ("shouldn't we have performance tests?") and, on the
+answer, "proceed to queue then … queue also the other pending rows": 232 and 233 are that answer; 234–236 are what
+the merge cleanup's workers found and did not fix.
+
+### 232 PERFCOUNTS
+
+*Additive.* Shared runners swing too much to time (`CLAUDE.md` §Measurement), so the gate guards performance by
+counts that do not depend on the machine: for the gate's synthetic series, the server's disk reads per frame on a
+fill and on an ask, the bytes on the wire per series, and the client's asks per frame on a fill, a cine and on
+demand. Each count is read from what the product or its existing rigs already report, compared with a baseline
+committed beside the check, and fails on any change; changing the baseline is a reviewed line in the diff. Mutate:
+a doubled read, an extra ask, a padded frame each turn the check red. **Deliverable:** the check in `scripts/gate.sh`
+and its baseline. **Branch:** `claude/wip-232-PERFCOUNTS`.
+
+### 233 PERFNIGHTLY
+
+*Additive.* A scheduled workflow (nightly, and on a `perf` label) builds the base and the head and times them on
+`lab/av1/delivery/total-time` with a synthetic series, the arms interleaved by `lab/order.mjs`. It reports each
+arm's median and spread and flags a difference only when every round agrees in sign and the medians differ by more
+than the base's own round-to-round spread; it never fails a pull request and claims nothing past that runner (say
+where it saturates). Prove it: a deliberate 20 % slowdown is flagged, and the base against itself is not.
+**Deliverable:** the workflow and a README line. **Branch:** `claude/wip-233-PERFNIGHTLY`.
+
+### 234 TARGETDIR
+
+*Fix.* `client/viewer/run_check.sh:22`, `client/viewer/check.mjs:55` and `scripts/wtcompat.py` run
+`target/release/…` directly, so with `CARGO_TARGET_DIR` set the gate fails at the viewer check (rows 218, 219, 221,
+226, 227 each worked around it). Resolve the directory from `CARGO_TARGET_DIR` as `from_dicom.py` does (row 226).
+`check.mjs` draws its server's port at random without checking it is free, the fault row 219 fixed for the WebSocket
+tests (B7): take a free port the same way. **Branch:** `claude/wip-234-TARGETDIR`.
+
+### 235 BUILDCACHE
+
+*Fix.* `deploy/Containerfile`'s build stage mounts one cargo `target` cache shared by every build on a daemon;
+row 231 shipped another checkout's stale `series-server` twice, and only `--no-cache-filter build,server` after
+touching the sources fixed it (deploy/README §Open). Make the image's binary always the checkout's own: key the cache
+to the checkout or build the release outside it. Prove it with two checkouts that differ in one string, built one
+after the other on one daemon. **Branch:** `claude/wip-235-BUILDCACHE`.
+
+### 236 NOWAITPROBE
+
+*Additive.* No test checks what `frame_store.rs`'s `RWF_NOWAIT` probe answers: a probe that always says unsupported
+passes every test (row 227). Add one that runs where the kernel supports it and fails when the probe is forced to
+answer no. **Branch:** `claude/wip-236-NOWAITPROBE`.
+
 ## Blocked
+
+* **2026-10-14, row 228 WASMTOLAB (for the owner):** move the WASM client and the dav1d-WASM tooling to `lab/`, or not ([`CLIENTS.md`](../CLIENTS.md) §Proposed: the WASM client and the dav1d tooling to `lab/`). Moved: README's prerequisites and the gate lose
+  wasm-pack, the wasm32 target and binaryen, and the root lockfile 10 packages; the WASM client still runs every clause through
+  `WTPACS_WASM_PKG`, but only when the lab runs it. Not moved: nothing changes, and the gate keeps a second, independent client.
+
+* **2026-10-14, row 220 INITIALPATCH (for the owner):** adopt row 189's reply or not. Its rule did not pass on one
+  Firefox cell (8–10 ms under the band); against today it is never slower (cell A: browsers 639–701 ms sooner,
+  `cold_open` +0 to +81 ms; the 0.7–0.85 s it loses on `cold_open` is against the 100 ms initial-RTT arm); every arm of A and C ran at a
+  38 400-byte initial window, not today's 12 000. Not adopted: the flag, patch and tests go for review. Adopted: A
+  and C re-run at 12 000 first.
+  *Answered 2026-10-14:* neither as asked — the 100 ms initial RTT instead, with the reply removed; kept as draft PR #41.
+
+* *Owner rulings, 2026-10-14:* every cleanup row starts now ("all fixes should start", 16:04 UTC), and a CI with all the checks and tests is row 230. Before the merge into `main` (the owner, 16:15 UTC): every cleanup row but 220, 227 and 228, and row 230; the owner may add more; row 231 joins them (16:33 UTC: "yes to docker decision").
+
+* *Owner rulings, 2026-10-14:* decision 2, the cleanup, approved (rows 217–228). Row 209's frame cache stays **off by
+  default** for now (`lab-frame-cache`); row 224 leaves it alone.
+
+* *Answered 2026-10-14, 16:33 UTC:* rule (c) adopted, row 231 ("yes to docker decision. It seems like something we should try to achieve our goals."); the SELinux half stays open.
+* **2026-10-14, row 208 DOCKERCLOUD (for the owner):** rule (c) recommends `deploy/seccomp-uring.json` for the container: on Docker it restores the ring (84/84 cold passes) at no cost the row could attribute to it, and buys 28.8 → 19.1 µs and ×0.67 CPU a cold 32 kB tile, a tie at 163–503 kB; its cost is io_uring's kernel surface, which seccomp cannot judge, and on SELinux-enforcing hosts `label=disable` or an untried `io_uring { allowed }` module (`docs/adr/disk-access.md` §6 *Measured in a cloud container*). Adopt or not; P0 still decides whether the ring earns its keep on the target.
+
+* **2026-10-14 UTC: the gate's browser frame checks need the Docker-built `xxh3.wasm` (found by row 209).** On `claude/av1-unified-mainbase` (`d3d3e521` and since), in a container without `client/decode/wasm/built/`, the dispatch rig fails 7 `exact:` checks and the viewer check 8: the frame check's default hasher is the product build (`client/decode/xxh3.js:6`), which 404s there, so the decode worker never starts; `require_vendor` gates on the vendor hasher, and the downloader does not forward a `hasher` option to its decoder worker (`client/transport/downloader.js:418`), so the rig cannot ask for it. With `client/decode/wasm/build/build.sh` run it likely passes (not tried). A fix — forward `hasher`, the rig asks for `hash-wasm` (162/162 in a scratch copy) — changes product behaviour, so it is the owner's: fix that way, or make the two checks skip by name without `built/`.
+
+* **2026-10-14, row 213 INTERSLICE (for the owner):** a 5/3 step across slice pairs before HTJ2K saves 3.5 % on
+  rotational angiography and 4.0 % on CT, decoding 19–39 % slower a pair and making every ask cost two frames — a
+  trade-off by row 194's rule (`docs/codecs/README.md` §Beside the codec). Whether to build it (a store and wire change,
+  structural) is yours.
+
+* **2026-10-14 UTC: row 178 NETMEASURE — a quieter host.** EMSDKNET's and COPYRGB's rules adopt nothing while a cell is not conclusive, and this container's A/A frame spread (sd 2.4–11 %) leaves six and seven such cells at n = 24; its relay voids 30–50 % at 300 Mbit/s. Re-running on the same container repeats that, so the row is done rather than set back to `night`: whether a host with a dedicated core is provided (row QUIETHOST, proposed), or the cells are decided as they stand (`em6`: nothing worse, the projections better; `copy`: RGB better in both engines, Firefox's grey cells unresolved), is the owner's. `startOnNeed` is a trade-off for the owner.
+
+* *Owner rulings, 2026-10-14 (night):* `claude/av1-unified-mainbase` holds finished work only, clean and completely
+  functional, for merging into `main`; work in progress lives on `claude/wip-*` branches (§Protocol, step 4). Row 215
+  audits the branch and drafts the simplification rules. The stored routine's prompt still names only the two branches:
+  the owner updates it, or the orchestrator does with the owner's yes (`ORCHESTRATE.md` §3).
+
+* *Owner rulings, 2026-10-14:* row 172's read-ahead finding is investigated (rows 196–197); faster reads and a tuned
+  container are worth it (rows 198, 199, 195); device runs in fast rounds (rows 201, 204–206); the phone is a Samsung on
+  Android 16 with Chrome and Firefox; the congestion controller is studied beyond Cubic and BBR (row 200); row 181 is
+  draft pull request #37, experimental, not merged.
+
+* **2026-10-14, row 190 DEVICEPLAN (for the owner):** `docs/devices.md` §1 needs, before its first run: the phone's model,
+  SoC, RAM, OS and browsers with versions, carrier and data cap; whether the Oracle machine is `rig-limits.md` §9's cloud
+  rig; a domain name for a Let's Encrypt certificate (kept out of the repository); and opening TCP 443 and three UDP
+  ports beside 4435 in the cloud security list. Its six runs (D0–D5) are not queued: each wants a `local` row.
+
+* *Owner rulings, 2026-10-13 (late):* real-device tests on the owner's phone, local machine and Oracle cloud machine
+  are planned (row 190); row 181's window is an experimental proposal, not the default (row 191); row 182's GSO cap of
+  24 is adopted (row 192); trades between link conditions are decided by the target conditions, measured on devices.
+
+* *Owner rulings, 2026-10-13 (night):* row 183's ask-aware dispatch **needs a design first and is not pursued now**;
+  row 187 is **measured** (row 189). Rows 181 (the 38 400-byte initial window, adopted by its rule) and 182 (the GSO
+  cap of 24) wait on the owner's answer to the orchestrator's explanation.
+
+* **2026-10-13, row 182 FASTCLOCK (for the owner):** the GSO cap of 24 meets its pre-stated rule — server CPU a MB
+  ×0.79–0.86 at 32 sessions × 103 Mbit/s, fills and asks a tie (`docs/transport/link-conditions.md` §Re-measured,
+  *FASTCLOCK*, on `claude/av1-unified-mainbase`). Making it the build default replaces today's build (the patch's
+  ceiling 64 → 24 and `quinn = { path = "patched/quinn" }` under `[patch.crates-io]`), so it waits on your yes to call
+  (1) below. *Built since, row 192 (2026-10-14).* Also for whoever runs the gate in a fresh container: since row 179's `ab0fc196` the contract's frame
+  check needs `client/decode/wasm/built` (`client/decode/wasm/build/build.sh`, docker) and `lab/av1/exact/split/merge_test.py`
+  needs Python's `xxhash` (the `lab/av1/.venv` on PATH); with both the gate is green.
+
+* *Owner rulings, 2026-10-13 (evening):* **tiles for large frames are shelved** — they make one frame's ask faster
+  (×0.39–0.45 at 4×) but not the series' total decode or a fill, and the owner finds the trade not interesting; row
+  175's proposal stays as the record, nothing is built on it. **GPU decoding is not pursued for now**: no device run of
+  row 111's WebGPU decoder is queued (row 113's L3 phone stage stays open, unscheduled).
+
+* **2026-10-13: owner calls named only in their docs (row 166's audit, added by row DOCFIX)**, each on
+  `claude/av1-unified-mainbase`: (1) the **GSO segment cap**, 24 or 45 behind the product's buffer
+  (`docs/transport/transport-conclusions.md` §9 item 6; FASTCLOCK prices it); (2) the **32-packet initial window**
+  (same, §9 item 3; IWDEEP decides it); (3) **`MALLOC_MMAP_THRESHOLD_=1048576`** in the unit, rest RSS −46 to −57 %
+  against CPU a tie to +5 % (`docs/adr/disk-access.md` §8); (4) the **keep-alive ADR**, proposed and off until accepted
+  (`docs/adr/transport-idle-sessions.md`); (5) **P0**, ring against pool on the production host, with no row
+  (`docs/adr/disk-access.md` §9 #1); (6) row 139's 100 ms initial-RTT arm left to "the review's call" with no review row
+  (`docs/transport/transport-conclusions.md` §Measured: IRTTMEASURE). And on row 123 (2) below: the coded-bytes digest
+  is agreed in the draft target (`docs/disk-layout/target.md` §The two hashes, 2026-10-12, not built); whether the server
+  checks it on every read stays open.
+
+* **2026-10-13 UTC: row 175 TILESTORE — row 143's five choices, now each with a recommendation** ([`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §8.8 on `claude/av1-unified-mainbase`): (1) tiles as independent codestreams, banded and band-major, the map arithmetic in a v2 entry; (2) no wire change; (3) per viewport; (4) 12-bit large frames keep the plain fill until a level-first fill is shown net; (5) k = 3 strips for frames ≥ 1 MP, a 2D grid after TILEGRID. Whether to accept them, and whether to queue BANDS and TILEGRID, is the owner's.
+
+* *Owner rulings, 2026-10-13 (later):* theory may lead to empirical tests beyond the owner's proposals, which are
+  simply proposals; the orchestrator plans up to two usage windows; tiles for large frames are of interest (row 175).
+
+* *Owner rulings, 2026-10-13:* the next work aims at **net improvements** (rows 165–170, the round's brief); a longer
+  fill time is not of interest for now. The orchestrator's reading of "net" is in the round's brief, for the owner to
+  correct.
+
+* **2026-10-13, row 160 (for the owner):** (1) `pack-series` writes through an 8 KiB `BufWriter`, and a `.sbnd` so written read 24–31 % slower on warm hits and filled 24–32 % slower than the same bytes rewritten in 1 MiB writes; rewriting v2 in 8 KiB writes undoes it, so it is the writer, not the layout (`containers.md` §Measured, mechanism unmeasured). Whether to queue a row for it is the owner's call. (2) `lab/av1/fetch_data.sh` fails as written: `lab/av1/requirements.txt` lacks a hash-pinned `typing-extensions`, which `blake3` needs (row 160 installed with `--no-deps`); the pin is left to the owner. (3) DICOM export through pydicom 3.0.1's `encapsulate_extended` is not exact for odd-length frames (padded EOT lengths).
+
+* *Resolved, 2026-10-12 (the owner): no swap.* Row 150 is done as two new branches, `claude/av1-unified-mainbase` (work)
+  and `claude/av1-mainbase` (this queue); all work continues there and the old `claude/av1`, `claude/av1-unified` and
+  `-pre-main` branches are unused until the owner deletes them. Rows 151, 155 and 156 are `ready`.
+
+* *Owner rulings, 2026-10-12:* **DBT slice stacks are cine-like and in AV1's immediate scope** (row 138's `dbts_b4`
+  per-series choice stands as an AV1 candidate); **SHA-256 is replaced by XXH3-64** as the raw-frame check (row 153's
+  choice 5; row 155 amended).
+
+* **2026-10-12 (the owner): row 150 is published under new names, with no force-push.** The session that takes it:
+  1. claims row 150 on `claude/av1` and pushes, then makes **no other commit to `claude/av1` or `claude/av1-unified`**
+     (anything committed there after the replay is lost when the branches are swapped);
+  2. runs `mainbase/README.md` §To publish on the current tips (`U` must be `claude/av1-unified-pre-main`'s tip; `A` is
+     `claude/av1`'s tip after the claim), the gate and `rehash_check.py` included, **except its last `git push`**;
+  3. pushes the two results as **new** branches, plain pushes only: `git push origin HEAD:refs/heads/claude/av1-unified-mainbase`
+     and `git push origin <the av1 tip>:refs/heads/claude/av1-mainbase`; if either branch already exists, it stops
+     and says so under `## Blocked`;
+  4. on `claude/av1-mainbase`: commits `/tmp/mainbase/map.tsv` as `docs/av1/rehash-map.tsv` with `rehash_check.py`
+     beside it, sets row 150 to `built — published as claude/av1-unified-mainbase <hash> and claude/av1-mainbase
+     <hash>; the swap is the owner's`, and pushes `claude/av1-mainbase`;
+  5. stops: rows 151, 155 and 156 stay `after 150` until the owner has moved `claude/av1-unified` and `claude/av1`
+     onto the new branches.
+  It never force-pushes and never deletes a branch.
+
+* **2026-10-12 UTC: row 150 MAINBASE — publishing needs the owner.** The rebuild is done and verified, but the night routine's force-push of `claude/av1-unified` and `claude/av1` was refused by the session's permission policy (a history rewrite of a pushed branch). The backups are pushed; `mainbase/README.md` reproduces the result exactly (same map, tips `7cb02d3f` and `cf04350b` from the backups) and lists the push. The owner's choice: run that push from a day session, or allow the force-push in the night routine's permissions and set row 150 back to `night`. Rows 151, 155 and 156 wait on it.
+
+* *Resolved, 2026-10-11 (the owner): the night routine's prompt now allows row 150's two backup branches; the owner
+  authorized pushing any wt-pacs branch except `main`. Row 150 is `ready` again.*
+  **2026-10-11 UTC: row 150 MAINBASE — not for the night routine.** Its publishing step pushes the old tips as
+  `claude/av1-unified-pre-main` and `claude/av1-pre-main` before the force-push; the night routine may push only
+  `claude/av1` and `claude/av1-unified`, so it cannot take the row's own safety step. The owner's choice: allow those two
+  backup branches in the night routine's prompt, name another backup it may push, or run the row from a day session.
+  Rows 151 and 155 wait on it.
+
+* **2026-10-11 UTC: row 152 QUICTUNED — the stacks at their best** ([`../native/quic.md`](../native/quic.md) §7.7 on
+  `claude/av1-unified`): (1) the native client's receive window and socket buffer at quinn's defaults (above the target)
+  or set explicitly; (2) restore the server's ACK-frequency request toward native quinn clients (up to 20 ms off a lost
+  tail's PTO, derived); (3) 0-RTT through a wtransport patch on both ends, only on a raw-QUIC ALPN, or not at all;
+  (4) quinn stays as the server's stack, or sessions per core and loss under pacing are measured first (§7.6).
+
+* *Resolved in part, 2026-10-11 (the owner): choice (4), the catalog's engine, is deferred — a far-away decision, no
+  energy on it yet. The others stay open; their status is in `docs/ingest/README.md` §4 on `claude/av1-unified`.*
+  **2026-10-11 UTC: row 153 INGESTDESIGN — nine choices for the pipeline** (`docs/ingest/design.md` §10 on
+  `claude/av1-unified`): (1) when a series is complete — the association's end, a quiet period, or another signal — and
+  whether a late instance makes a new generation; (2) the unit on the link: one archive a series (recommended), the
+  parser's files, or one a study; (3) where frames are coded: at the site (recommended), in the parser on grok (AGPL v3),
+  or in the cloud; (4) the catalog: PostgreSQL (recommended), MySQL or libSQL's server, and its schema scope; (5) the
+  raw-frame check's hash: SHA-256, BLAKE3 or the XXH3-64 already written; (6) a changed duplicate: replace, keep both
+  generations, or hold; (7) a bad instance: refuse its series (today) or store the rest marked incomplete; (8) whether
+  the parser hashes the bytes it writes, so every group can be checked; (9) metadata compressed a series at a time
+  (recommended) or a group at a time with a shipped dictionary.
+
+* **2026-10-11 UTC: row 149 NATIVECINE — whether to ask for a licence** (`docs/FIXTURES.md` §Provenance, The wider search,
+  on `claude/av1-unified`): the one open set of native, unflagged angiography runs (Hugging Face
+  `MesserMMP/coronary-angiography-syntax`, two vendors, one uploader) states no licence, so nothing grants its use. Whether
+  to ask its uploader for one, and whether one source of two vendors counts toward row 100's two sources. Breast
+  ultrasound cine and ABUS have no native candidate at all; whether to request data from a site is also the owner's.
+
+* *Resolved in part, 2026-10-11 (the owner): the exactness checks stay **on by default** — the decode check and the
+  re-check of a frame read from the OPFS cache; their time is measured by row 151 CHECKCOST. Choices (1)–(5) stay open.*
+  **2026-10-11 UTC: row 148 FRAMEPATH — where a decoded frame goes** ([`../adr/frame-path.md`](../adr/frame-path.md) §8 on
+  `claude/av1-unified`): (1) the page out of the pixel path (B′: decoder → paint worker, a store worker behind it) or
+  today's path with a store worker (A), decided by the note's §7 rule if its protocol is queued; (2) decoded samples in
+  OPFS (recommended, from the no-re-decoding rule) against coded bytes; (3) a file per frame or a packed file per series;
+  (4) the memory window's budget on a phone, `deviceMemory` being absent on WebKit; (5) whether the page asks `persist()`.
+
+* **2026-10-11 UTC: row 141 LOSSCLASS — whether option 1 (Cubic that skips the cut on a loss classed random) is reopened** ([`../transport/transport-conclusions.md`](../transport/transport-conclusions.md) §1 R2, on `claude/av1-unified`): R2's rule closed options 1 and 2 by its conjunction over controllers, but every miss was BBR's; under `cubic-restart` RFC 9406's q* met both bars on every judged cell. Reopening it would take a Cubic-only rule fixed before data, and the 500-packet overflow cell rerun with ≥ 1 MB in flight (it never overflowed at 512 KB). Option 2 stays closed on evidence.
+
+* *Resolved in part, 2026-10-11 (the owner): choice (3) — **device pixels** decide "fits the screen"; CSS pixels would
+  be an upscaled preview on phones, which the owner's rule rules out. Per viewport or per screen, and choices (1), (2),
+  (4) and (5), stay open.*
+  **2026-10-11 UTC: row 143 TILEDESIGN — the owner's rule for large frames, five choices** ([`../adr/resolution-fitting-for-large-frames.md`](../adr/resolution-fitting-for-large-frames.md) §8 on `claude/av1-unified`): (1) the store — tiles as independent codestreams in level bands, band-major (proposed), or precincts with PLT in one codestream, which needs a region decoder and a JPIP-like server; and the map from (frame, tile, band) to entry in the metadata or a version 2 SBND table, with a digest per tile and level; (2) the wire — entries asked as frames today (proposed first) or a region ask; (3) "fits the screen" in device or CSS pixels, and per viewport or per screen (a phone at 3328×4096: L1 ~27 % against L3 ~2 % of the bytes); (4) whether 12-bit large frames keep the plain fill or take §7's level first (four-view FFDM 10.9–20.0 s at 5 Mbit filled, ×0.06–0.50 level first); (5) the strip count and grid (k = 3 strips measured, a 2D grid not).
+
+* *Resolved in part, 2026-10-11 (the owner): a set that is not native lossless — CADICA (`unknown`), CoronaryDominance
+  (resampled), the MPEG cine — may be used only labelled as such; it enters no verdict and no decision rests on it. The
+  frame-group question for these types stays at G = 1 until sound data exists; row 149 searches wider. (2) and (3) stay
+  open.*
+  **2026-10-11 UTC: row 137 NETPROBE — which source, if any, for angiography and breast ultrasound cine** (`docs/FIXTURES.md` §Provenance,
+  The data hosts and the candidates, on `claude/av1-unified`): every host is reached now, and none of what they hold meets row 100's bar.
+  (1) whether CADICA (CC BY 4.0, whole runs as PNG, one source) is fetched as an `unknown` set for provisional numbers; (2) whether to ask
+  CADICA's or CoronaryDominance's authors for the runs' DICOM; (3) whether TDSC-ABUS's agreement (no redistribution, a challenge submission
+  owed) is acceptable for an internal measurement.
+
+* **2026-10-11 UTC: row 133 TILEMEASURE — tiles as independent codestreams** ([`../decode/README.md`](../decode/README.md) §Not yet
+  tried, P-TILE, on `claude/av1-unified`): P-TILE passed its rule (k = 3 ×0.39–0.45 of today's ask at 4× on large frames,
+  +0.12 % bytes). Its next step is a change to the store's format, which is structural: whether a store-format proposal for
+  large frames is written, and for which sizes.
+
+* **2026-10-11 UTC: row 127 NATIVEPLAN — the native client** ([`../native/README.md`](../native/README.md) §7 on
+  `claude/av1-unified`): (1) whether to build one before its fill and ask are measured against the browser (M2); (2) the
+  shape — Rust core + native UI per platform, a pure-Rust GUI (Slint the only one on all five), Qt, or Flutter; (3) the
+  cache — persistent on the device or none (AAPM 260), its budget, iOS protection class C or A; (4) the intended use,
+  diagnostic (21 CFR 892.2050, MDR Rule 11) or display only, for a regulatory specialist; (5) distribution — public
+  stores or hospital channels, and a desktop update channel per OS.
+
+* **2026-10-11 UTC: row 124 QUICSURVEY — the native client's transport** ([`../native/quic.md`](../native/quic.md) §5 on
+  `claude/av1-unified`): (1) one Rust core on quinn everywhere, the platform stacks on phones (Network.framework,
+  Cronet/HttpEngine: no CC knob, no WebTransport, Cronet HTTP only), or a C core (ngtcp2, picoquic); (2) WebTransport
+  from the native client (server unchanged) or raw QUIC with an ALPN of our own beside it (a wire change); (3) multipath
+  now through noq, a quinn fork at the final codepoint, or after an RFC lands in quinn; (4) quinn for the ingest link
+  too, or a second stack for the site host; (5) what security record a medical client accepts — every candidate had 2026
+  advisories. Rows N1–N4 there inform (1)–(3).
+
+* **2026-10-10 UTC: row 123 MISMATCH — three choices after a mismatch** ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md)
+  §8 on `claude/av1-unified`): (1) *block, mark, or block with an explicit reveal* for a frame that stays `false` — the
+  viewer marks today; the sources lean to block for diagnostic reading; (2) whether the ingest writes a second digest over
+  each frame's coded bytes (a store-content change, structural), and whether the server checks its store on read;
+  (3) the reporting rule — an opaque session key in place of the series key, and how many rescued mismatches turn a
+  decoder path off for an engine version.
+
+* *Amended 2026-10-11 (the owner): (4) the hospital→PACS link is **TCP**; the QUIC shipper is dropped for now, and the
+  gains it would bring are to be proven with numbers, from research first (row 154 LINKTCP). The parser's **directory
+  output** is the start: one directory per instance — exam, series and instance groups, one file per frame. Metadata
+  goes into **one SQLite per study**, built in the PACS, so that bad localized data never forces rebuilding a shared
+  database; a separate catalog server (MySQL or Postgres, not embedded) indexes every study database — row 153
+  INGESTDESIGN compares the options.*
+  *Resolved in part, 2026-10-11 (the owner): (1) the compiled ingest is **Rust**. (2) The parser is the owner's own, so
+  its licence is no concern; how it ships stays open, pending where its source lives. (4) The link from the site to the
+  server is a **QUIC experiment from the start**, behind an outbox seam — the ingest writes checked bundles to an
+  outbox, a shipper sends them, the server publishes a bundle when its hash matches — for learning and experimenting;
+  which QUIC stack follows row 124's decision (4). (3) and (5) stay open.*
+  **2026-10-10 UTC: row 126 INGESTPLAN — the compiled ingest's five decisions** (`docs/FIXTURES.md` §A compiled ingest at the site on `claude/av1-unified`): (1) Rust (recommended: the server's bundle crate and QUIC stack) or C++; (2) the C parser's licence and how it ships with the ingest — none is shown in this repository, and it was not read; (3) the transfer syntaxes it does not read (implicit VR little endian, DICOM's default, big endian, deflate, RLE, encapsulated lossless): refused, converted before it, or added to it; (4) the link to the server: a file copy, an upload endpoint beside WebTransport, or a third-party tool; (5) the site platforms and how updates reach them.
+
+* **2026-10-10 UTC: row 121 DATAAUDIT — whether raw `FOR PROCESSING` images (the DBT projections, raw mammograms, 14 bits)
+  are AV1 targets.** Row 98 scoped the projections out; `series.md` lists both in the breast family. The 13–16-bit rules (rows 33,
+  44, 47, 96's 14-bit clause) rest on them and on off-target content, and matter only if they are targets.
+
+* **2026-10-10 22:15 UTC: row 69 MERGEPREP — how `main`'s PR #34 meets this branch before the merge**: a trial merge of `origin/main` into
+  `claude/av1-unified` stops on 24 files (server transport, read path, tap, `main.rs`, the two common crates, the WASM
+  session, `WIRE.md` and four ADRs, three lab files, `Cargo.lock`), mostly this branch's renames meeting PR #34's
+  refactor of the same lines. Merge `main` into the branch first in a row of its own (PR #34's structure kept, this
+  branch's server changes re-applied: the ClientHello fix, `bbr-bound`, the renames), or merge as is and resolve in
+  the merge; and whether that waits on R4 (`docs/av1/MERGE.md` on `claude/av1-unified`).
 
 * **2026-10-10 20:50 UTC: row 113 LEVERREVIEW — whether to ship today's code-block pool for series from 1914×2572 up**, as a second OpenJPH build
   chosen per series: row 91's missing cold ask is now measured (row 108: projections ×0.89–0.94 cold, ×0.72–0.76 warm,
@@ -2606,6 +4533,7 @@ proposed, nothing queued. **Branch:** `claude/av1-unified`.
   absent or `00`), whole series in acquisition order, under a licence that allows commercial use (CC BY or alike, not
   CC BY-NC) — B-mode breast ultrasound cine with the probe slow or still, ABUS volumes, contrast angiography runs. The
   lab's breast cine are MPEG-4 Part 2 clips and enter no verdict. Until then these stay at G = 1 by default.
+  *Updated 2026-10-11 (row 137):* every host is reached now; still no source meets this bar (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates, on `claude/av1-unified`): CADICA (CC BY 4.0, 668 angiography runs as PNG, source compression unrecorded: `unknown`) is the nearest, one source; no open lossless breast cine; TDSC-ABUS bars redistribution.
 
 * **2026-10-08 15:20 UTC: row 77 TOTAL4 — whether to serve AV1 by link or client is the owner's.** By the brief's rule
   (AV1 only where it fills first in both engines on every cell) no series qualifies and ingest keeps HTJ2K. AV1 is the
@@ -2736,6 +4664,7 @@ proposed, nothing queued. **Branch:** `claude/av1-unified`.
     (hosts refused). IDC v24's 35 XA series are all single frames.
 
 * **2026-10-04 20:43 UTC: row 35 DATA2 stopped at its first step** — `zenodo.org` and `www.cancerimagingarchive.net` are still refused (CONNECT 403, organization policy), so breast ultrasound cine and angiography stay unmeasured; allowing a host is the owner's.
+  *Updated 2026-10-11 (row 137):* `zenodo.org` and `www.cancerimagingarchive.net` are reached now (CONNECT 200); the data that would have unblocked this is still missing (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates, on `claude/av1-unified`).
 
 * **2026-10-04 07:10 UTC: row 23 TOTAL is measured twice over, or about to be.** The session that claimed it at
   `a5ca00c` was mid-run when its claim was set stale (14 rounds × 160 visits take ~10 h, with no commit until the
@@ -2754,6 +4683,7 @@ proposed, nothing queued. **Branch:** `claude/av1-unified`.
   the container's network policy. The owner decides whether one is worth sourcing elsewhere (a host
   to allow, or a licence other than CC BY/CC0); until then no verdict covers angiography. A
   CC BY-NC 4.0 tomosynthesis collection exists in IDC and was not needed: two CC BY 4.0 volumes were.
+  *Updated 2026-10-11 (row 137):* TCIA, Zenodo and PhysioNet are reached now. Open angiography found: CADICA (whole runs, CC BY 4.0, PNG, `unknown`), CoronaryDominance (whole runs resampled to float, CC0), ARCADE and the stenosis set (single frames) (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates, on `claude/av1-unified`).
 * **Breast ultrasound cine, automated breast ultrasound and angiography (row 21).** None is open
   and reachable: IDC v24 holds no ultrasound of the breast but one series of 14 single-frame stills
   (CMB-BRCA, Ultrasound Image Storage), no automated breast ultrasound volume, and no multi-frame
@@ -2764,6 +4694,7 @@ proposed, nothing queued. **Branch:** `claude/av1-unified`.
   `drive.google.com`. The owner decides whether to allow one, and which dataset and licence to
   take. IDC also holds an in-silico tomosynthesis collection (VICTRE, CC BY 3.0, simulated
   projections and volumes); not used, since the question is about real content.
+  *Updated 2026-10-11 (row 137):* all eleven hosts are reached now (CONNECT 200). No open lossless breast cine found; TDSC-ABUS (200 ABUS volumes, NRRD) has no licence and its agreement bars redistribution; Breast-Lesions-USG and Jefferson's TCIA set are stills (`docs/FIXTURES.md` §Provenance, The data hosts and the candidates, on `claude/av1-unified`).
 * **Phone hardware decoders (row 29).** Whether a phone's AV1 decoder takes lossless frames and
   returns them exactly needs phones; a container has none. From source only: Android's public API
   names AV1 Main 8/10-bit only, and its performance class guarantees a hardware Main 10 decoder at

@@ -1,6 +1,6 @@
-//! Lab only: any controller, its `metrics()` written once per batch of acknowledgements as a JSON
+//! Telemetry builds only: any controller, its `metrics()` written once per batch of acknowledgements as a JSON
 //! line to `$WTPACS_CC_TRACE`, and each congestion event to `$WTPACS_LOSS_TRACE`.
-//! `docs/transport/transport-conclusions.md` §1, R1 and R2.
+//! `docs/transport/transport-conclusions.md` §1: what BBR's clean cost is, and whether loss can be classed here.
 
 use quinn_proto::RttEstimator;
 use serde::Serialize;

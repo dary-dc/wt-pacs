@@ -1,7 +1,8 @@
 # The client's decoder builds
 
 The two WASM decoders the page loads, built by the product from pinned sources: OpenJPH for HTJ2K and dav1d for
-AV1; and since row 179 the frame check's XXH3-64, from xxHash. Queue row 91 (DECODERBUILD) of [`docs/av1/queue.md`](../../../../docs/av1/queue.md); what each build is for and
+AV1; and, since the frame check's speed measurement, its XXH3-64 from xxHash. Built by the decoder-build row (queue
+row 91, DECODERBUILD, [`docs/av1/queue.md`](../../../../docs/av1/queue.md)); what each build is for and
 what it measured is [`docs/decode/README.md`](../../../../docs/decode/README.md) §The build, as delivered.
 
 ```bash
@@ -39,7 +40,7 @@ Every pin is in [`pins.sh`](pins.sh) and [`requirements.txt`](requirements.txt);
 | `xxh3/xxh3.wasm` | [`../xxh3/xxh3.c`](../xxh3/xxh3.c) over xxHash's `xxhash.h`: the frame check's XXH3-64 | `-O3 -msimd128`, a bare module (`-sSTANDALONE_WASM`), 128 KiB fixed |
 | `THIRD_PARTY_NOTICES` | every licence the page's code ships under | [`docs/av1/licensing.md`](../../../../docs/av1/licensing.md) §What it obliges |
 
-The OpenJPH build is single-threaded: row HTJ2KMT's code-block pool lost a cold ask at 4× here and won no fill
+The OpenJPH build is single-threaded: a code-block pool (queue row HTJ2KMT) lost a cold ask at 4× here and won no fill
 (docs/decode/README.md §The build, as delivered). Its range is taken as it packs, except for an 8-bit unsigned
 3-component frame, whose `getRange()` is empty (min > max) and whose window comes from the tags; the switch is the
 `pack<…, Ranged>` template argument, chosen per frame from the header.

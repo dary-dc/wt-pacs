@@ -163,7 +163,7 @@ is written), one series per class the split rule tells apart:
 
 ```bash
 D=lab/av1/data
-ingest/coded-frames/build.sh                      # ingest's in-process decoders, after tools.sh and gen_htj2k_fixtures.sh
+BUILD=lab/.av1-build ingest/coded-frames/build.sh                      # ingest's in-process decoders, after tools.sh and gen_htj2k_fixtures.sh
 lab/av1/delivery/total-time/payload_frames.sh lab/.av1-build lab/.av1-work/total4 $D/mr9_ispy2:34 $D/rf_fluoro:18 \
   $D/dbt10_ea1141:16 $D/ffdm_c:4 $D/dbtproj_holo:5 $D/us_liver:40 $D/ct_lidc:60       # ~25 min
 export FIREFOX_PATH=...                    # Firefox 157.0.1, below
@@ -224,7 +224,7 @@ as the product's HTJ2K (`ingest/coded-frames/ingest.py BUILD lab/av1/data/dbt10_
 --frames 8`, linked as `NNN.htj2k`). `variants.json` names four variants: `htj2k` (`cubic-restart`, quinn's 12 000 B),
 `cr240k` (`"initialWindow": 240000`), `bbr` (`"congestion": "bbr"`, quinn's 240 000 B) and `bbr12k` (both). A
 variant's `initialWindow` goes to `--initial-window-bytes`, and a visit stops unless the server's `transport=` line
-names that window. `--cc-trace DIR` sets `WTPACS_CC_TRACE` for each visit's server
+names that window. `--cc-trace DIR` builds the server with `--features telemetry` and sets `WTPACS_CC_TRACE` for each visit's server
 (`server/src/transport/cc_trace.rs`), which writes the controller's window, pacing rate, in-flight bytes, bytes
 delivered and lost, srtt and BBR's mode once per batch of acknowledgements. Each round runs two invocations, in an
 order that alternates from round to round:
@@ -302,15 +302,18 @@ reading is in [`docs/adr/exactness-in-production.md`](../../../../docs/adr/exact
 
 **Row VIEWER** times the product's page against this one, which has no paint, on row INGEST's CT series
 (`ct_nlst`: its HTJ2K and AV1 bundles' frames, from `lab/av1/exact/from-dicom/check.py`'s `fill/`). The variants
-`viewer` and `av1viewer` (`"viewer": "<metadata file>"` in `variants.json`) load `client/viewer/index.html` on the
-same decoders (`?opts=`), and `--origin navigation` times both pages from navigation:
+`viewer` and `av1viewer` (`"viewer": "<metadata file>"` and `"codec": "htj2k"` or `"av1"` in `variants.json`; `run.mjs`
+refuses a viewer variant that names no codec) load `client/viewer/index.html` on the
+same decoders (`?opts=`), and `--origin navigation` times both pages from navigation. The viewer speaks this
+harness's protocol (`hello`, the result's shape, each frame's SHA-256) through `lab/viewer/levers.js`, not its own code:
 `run.mjs --frames lab/.av1-work/from-dicom --sets ct_nlst --variants htj2k,viewer,av1,av1viewer --rounds 12
 --origin navigation`. A row's first frame is the viewer's first exact frame on screen. The reading is in
 [`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The viewer.
 
 
 **Row DECODEPACE** sets the downloader's `followQueue` lab flag against today's pool on the delivered OpenJPH
-build, whole series (`variants.json`'s `"openjph": "delivered"`, and `"followQueue": true` on `pace`):
+build, whole series (`variants.json`'s `"openjph": "delivered"`, and `"followQueue": true` on `pace`). *The flag was
+removed by row 224 (REJECTEDPATHS), not adopted; the recipe below runs at `ba408823`.*
 
 ```bash
 client/decode/wasm/build/build.sh && lab/av1/fetch_data.sh dbt12_ea1141 ffdm_d
