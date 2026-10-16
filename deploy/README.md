@@ -82,7 +82,15 @@ A container test of a deployment of this shape found each one (the deployment te
 1. **SELinux.** Every bind mount is `:z` (shared, a label both containers may read), never `:Z` (private to one).
 2. **Stop.** `stop` measured 0.45–0.49 s on the server and 0.51–0.54 s on web (three and two runs): under a
    second, so there is no `init: true`. PID 1 is `timeout`, which passes SIGTERM to the server, and the server
-   ends on it itself (`server/src/main.rs`).
+   ends on it itself (`server/src/main.rs`): it closes every session with `H3_NO_ERROR` (0x100), so a client
+   learns of the stop at once rather than from a stall or its idle timeout, waits up to 500 ms for the closes
+   to drain, and exits. Without the wait the process ends before the close is sent.
+   *2026-10-16, row 270:* before, the server exited without a close, which a test showed (its client saw only
+   its idle timeout); the times above are from then. The stop with the wait is not yet timed. The wait is
+   quinn's drain, three probe timeouts, so a client a long round trip away holds it to its bound (read from
+   quinn, not measured). A page sees a QUIC close, which a browser may not report with its code. The check,
+   for a free host, interleaved, with today's image, a second build of it and this one as arms:
+   `STUDIES=… SERIES=… lab/scripts/stop_timing.sh 10 S0 S0b S1`. It lands if every stop is under 1 s.
 3. **The certificate's lifetime.** A certificate pinned by hash (`serverCertificateHashes`) must be valid for at
    most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
    under `timeout $RESTART_AFTER` (9 days). The exit restarts the container, with a new certificate, before
