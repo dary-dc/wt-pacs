@@ -4326,6 +4326,10 @@ The owner's ask (2026-10-16): real-world testing of the tile reader on his machi
 
 Row 249's candidate 1 built for measuring, on the owner's yes (2026-10-16): a server lab flag under which an ask no longer ends the fill (served next, the fill resuming behind it), a downloader option that never re-issues, tests for both, and the ask-ahead rig able to run every arm of row 249's protocol. Built 2026-10-16, draft #75 (`ade39ff5`): `--fill-resumes-after-asks` and `refill: "none"`, eight new tests each caught by its mutations, one smoke round of all five arms exact. **Branch:** `claude/wip-252-ONEQUEUEBUILD`.
 
+### 277–280, started on the owner's "parallelize" (2026-10-16 15:51)
+
+The owner's word: "Remember to parallelize when possible"; the one queue stays out of unified, everything else keeps merging when green and proven. **277 WASMSELECT** and **278 WASMIMAGE**: row 263's structural rows (`docs/CLIENTS.md` rows list 3 and 4) built, each in its own draft PR for the owner's review, never merged without his word; branches `claude/wip-277-WASMSELECT`, `claude/wip-278-WASMIMAGE`. **279 WASMLOAD**: rows list 5 (W10, W11), the protocol and rule committed before data, timed under the heavy lock after the reader rows' campaigns; branch `claude/wip-279-WASMLOAD`. **280 VERDICTSMALLN**: row 253's finding that `refill.py`'s verdict calls a clear loss a tie when n is too small to test; reproduced, fixed to say undecided, past verdicts re-read and any change corrected in place; branch `claude/wip-280-VERDICTSMALLN`.
+
 ### 276 ONEQUEUEPRODUCT
 
 The owner's word on row 253's trade-off (2026-10-16 15:44): "leave a PR instead of putting it in unified. We want to iterate more before deciding for it. Also, I need to see independently how it changes the code." QW (`--fill-resumes-after-asks`, `--send-window-follows-cwnd`, `refill: "none"`) made the product behaviour in its own PR off unified, the switches and the code they leave dead removed, nothing measured; never merged into unified without the owner's word. #75 and #92 stay open PRs. Started 2026-10-16. **Branch:** `claude/wip-276-ONEQUEUEPRODUCT`.
