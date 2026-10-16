@@ -147,7 +147,7 @@ state; the idle RTT and rate of the pre-flight; wall-clock start.
   name the owner controls and a Let's Encrypt certificate by DNS-01 (no port 80 to open), mounted as `TLS_DIR`. The
   WebTransport endpoint uses the same certificate if D0 finds WebKit refuses `serverCertificateHashes`; `server-start.sh`
   takes one mounted at `/supplied` instead of minting its own, and the transport file then carries no hash, so the
-  client dials unpinned (row DEVICEKIT; the TypeScript session, the default — the WASM one still pins). For
+  client dials unpinned (row DEVICEKIT; both sessions, the WASM one since row 265). For
   D3 on the LAN: on Android, `adb reverse tcp:8765 tcp:8765` makes the page `localhost` (a secure context) and the
   hash-pinned dial goes to the local machine's LAN address; on an iPhone, a name under the same domain pointing at the
   LAN address, with the same certificate.
