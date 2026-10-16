@@ -4304,7 +4304,7 @@ Row 263's second row, on #80: the downloader and dispatch rigs, the ask-during-f
 
 ### 275 DELIVEREDFAIL
 
-Found by 274: a frame reaches the page through `onFrame`, then is failed through `onError` when its decoder crashes before the page's ack returns; under four rig pages on one core `aFrameLostTwiceFailsByName` failed 2 of 2, and one frame was neither delivered nor failed in 4 s. A deterministic reproduction, the minimal fix, a mutation. Started 2026-10-16 06:05. **Branch:** `claude/wip-275-DELIVEREDFAIL`. Draft #90 (`3d6cb031`): the page drops a failure with no waiter for a frame it delivered since its last `fill` (`consumer.js` +4/−1); reproduced deterministically with the acks held, three mutations. Its "frame 3" was frame 2 counted twice, not a second bug. Seen once, not fixed: "1 workers outlived their closed clients" in `run_browser.sh`, also on #89 before it; 0 of 8 runs since.
+Found by 274: a frame reaches the page through `onFrame`, then is failed through `onError` when its decoder crashes before the page's ack returns; under four rig pages on one core `aFrameLostTwiceFailsByName` failed 2 of 2, and one frame was neither delivered nor failed in 4 s. A deterministic reproduction, the minimal fix, a mutation. Started 2026-10-16 06:05. **Branch:** `claude/wip-275-DELIVEREDFAIL`. Merged as #90 (`9ac8d79b`, head `3d6cb031`), 2026-10-16: the page drops a failure with no waiter for a frame it delivered since its last `fill` (`consumer.js` +4/−1); reproduced deterministically with the acks held, three mutations. Its "frame 3" was frame 2 counted twice, not a second bug. Seen once, not fixed: "1 workers outlived their closed clients" in `run_browser.sh`, also on #89 before it; 0 of 8 runs since.
 
 ### 266 THIRDAUDIT
 
