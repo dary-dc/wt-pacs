@@ -4294,6 +4294,14 @@ Row 244's proposal built, on the owner's yes (2026-10-16): `UringReader` parks o
 
 *Theory and audit, the owner's ask (2026-10-16).* The disk readers read again for performance, resources, simplicity, robustness and readability, with P0 no longer a gate: each finding with file:line, a verdict, its cost and, where it needs one, a protocol with its rule; follow-up rows drafted from 254; draft #72 (`c4e6c569`), nine findings, rows 254–261. **Deliverable:** `docs/adr/disk-access.md` §9, *Next round for the readers*. **Branch:** `claude/wip-251-READERNEXT`.
 
+### 263 WASMPRODUCT
+
+The owner's decision (2026-10-16): row 228 (the WASM client to `lab/`) is rejected, "We want two product clients." A proposal for what the WASM transport client needs to become a product client beside the TypeScript one, with the rows to get there; row 228's proposal in `docs/CLIENTS.md` corrected in place. Started 2026-10-16. **Branch:** `claude/wip-263-WASMPRODUCT`.
+
+### 264 LABONLY
+
+The owner's rule (2026-10-16): "things only for lab should live in lab/"; a product candidate is kept or not on its measured result. An audit of every lab-only thing in product directories with one pattern for moving it, and its first instance built: `cubic-classify` (row 212: not default) out of `server/` behind a lab feature. Started 2026-10-16. **Branches:** `claude/wip-264-LABONLY`, `claude/wip-264b-CLASSIFYTOLAB`. Replaces row 240 CLASSIFYOUT (remove).
+
 ### 262 WORKSTATIONRUN
 
 The owner's ask (2026-10-16): real-world testing of the tile reader on his machine, since the production host is not coming soon. One script he runs that records the host, checks the ring natively and in the repo's container (SELinux: the policy module and `label=disable` from `deploy/README.md` §Open, root steps printed, never run), re-runs `read_path_ab.sh` and `server_ab.sh` as `docs/adr/disk-access.md` §9 item 10 asks, hooks row 258's arms, and writes one report to send back. Started 2026-10-16. **Branch:** `claude/wip-262-WORKSTATIONRUN`.
