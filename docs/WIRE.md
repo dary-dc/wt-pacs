@@ -204,6 +204,9 @@ its own, does not apply.
   of `shared` in all nine cells, the fill within `shared`'s spread in each (§9.7). In row 180 its fill was +5.0 % at
   103 Mbit/s behind 20 ms (§9.5).
 
+*Built 2026-10-16 for the measurement (row 252), off by default:* `series-server --fill-resumes-after-asks`, with the
+downloader's `refill: "none"`.
+
 **Candidate 2, asks ranked above fill at the transport** (`--stream-mode per-frame-asks-first`, lab only). Row 211:
 the ask ×0.10–0.92 of `shared` (row 180: ×1.05 at 103 Mbit/s behind 360 ms), but the fill above `shared`'s spread at
 103/360 (+11 %) and 18/800, and +2–44 % under a 6 MiB send window (§9.5, §9.7). It keeps the end of the fill on an ask, so the re-ask and its client

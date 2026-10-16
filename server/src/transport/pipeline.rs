@@ -340,7 +340,7 @@ mod tests {
         asks_tx.try_send(Command::Frame(99)).expect("queue ask");
         drop(asks_tx);
         let rt = tokio::runtime::Builder::new_current_thread().build().expect("rt");
-        rt.block_on(crate::transport::server::drive(&mut recorded, &mut asks)).expect("drive");
+        rt.block_on(crate::transport::server::drive(&mut recorded, &mut asks, false)).expect("drive");
         drop(recorded);
 
         let records: Vec<Record> = rows.try_iter().flatten().collect();

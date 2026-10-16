@@ -78,6 +78,13 @@ mod tests {
         assert!(!parse(&["--opening-ask", "false"]).opening_ask);
     }
 
+    /// A fill that resumes after asks is a lab lever: off unless the flag is given.
+    #[test]
+    fn a_fill_resumes_after_asks_only_when_the_flag_says_so() {
+        assert!(!parse(&[]).fill_resumes_after_asks);
+        assert!(parse(&["--fill-resumes-after-asks"]).fill_resumes_after_asks);
+    }
+
     /// `TransportTuning::default()` is what the server runs with when no transport flag is given.
     #[test]
     fn no_transport_flag_parses_to_the_default_tuning() {
