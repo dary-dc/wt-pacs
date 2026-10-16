@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Row 209's campaign: the lab frame cache (B1) and glibc's hugetlb tunable (B2) against the server as it ships
-(B0, B0′) — docs/adr/disk-access.md §Protocol for the measuring row has the arms, the rule and the numbers.
+"""Row 256's campaign on row 209's rig: the lab frame cache admitting on a second ask (B1) or on a second session's
+ask (B1s), and B1 with a zeroed fresh buffer in `fit` (B1z), against the server as it ships (B0, B0′) —
+docs/adr/disk-access.md §13 has the arms, the rule and the numbers. Each session fills the series three times over
+its one connection; the server is read between the passes.
 
     frame_cache_ab.py make   WORK          each set's .sbnd, and the synthetic 3 MB series
-    frame_cache_ab.py verify WORK          every arm's third fill checked by XXH3-64 and decoded against ingest's digests
-    frame_cache_ab.py mutate WORK          B1 handing back a stale entry must fail the XXH3-64 check
-    frame_cache_ab.py time   WORK ROUNDS   one JSON line a run into WORK/frame_cache.jsonl
+    frame_cache_ab.py verify WORK          every arm's passes checked by XXH3-64, the last decoded against ingest's digests
+    frame_cache_ab.py mutate WORK          B1 and B1s handing back a stale entry must fail the XXH3-64 check wherever they hold one
+    frame_cache_ab.py time   WORK ROUNDS   one JSON line a pass into WORK/frame_cache.jsonl
     frame_cache_ab.py summary JSONL
 
 WORK/coded/SET/htj2k is ingest's output (ingest/coded-frames/ingest.py); WORK/bin/b0 is the default release
-build of series-server, WORK/bin/b1 the same with `--features lab-frame-cache`.
+build of series-server, WORK/bin/b1 the same with `--features lab-frame-cache`, WORK/bin/b1z with
+`--features lab-frame-cache,lab-fit-zeroed`.
 """
 import json
 import os
@@ -33,24 +36,26 @@ SETS = ["pt15_cptac", "ct_lidc", "dbt12_ea1141", "synth3mb"]
 SESSIONS = [1, 16]
 SERVER_CPUS, CLIENT_CPUS = "0-1", "2-3"
 SYNTH_FRAMES, SYNTH_BYTES = 32, 3 * 1000 * 1000
+PASSES = 3
 CACHE_BYTES = 4 << 30
+CACHE = {"LAB_FRAME_CACHE_BYTES": str(CACHE_BYTES)}
 ARMS = {
     "B0": ("b0", {}),
     "B0p": ("b0", {}),
-    "B1": ("b1", {"LAB_FRAME_CACHE_BYTES": str(CACHE_BYTES)}),
-    "B2": ("b0", {"GLIBC_TUNABLES": "glibc.malloc.hugetlb=1"}),
+    "B1": ("b1", CACHE),
+    "B1s": ("b1", {**CACHE, "LAB_FRAME_CACHE_ADMIT": "session"}),
+    "B1z": ("b1z", CACHE),
 }
 SETTINGS = {
     "B0": "series-server default release build, default flags (Cubic with restart, shared stream, uring miss path)",
     "B0p": "B0's binary, a second process (A/A)",
     "B1": f"B0's source with --features lab-frame-cache: lab FrameCache in front of both readers, budget {CACHE_BYTES} B, "
           "admission on a frame's second ask; every other flag as B0",
-    "B2": "B0 under GLIBC_TUNABLES=glibc.malloc.hugetlb=1 (3 MB cell only)",
+    "B1s": "B1's binary under LAB_FRAME_CACHE_ADMIT=session: admission on an ask from a session other than the "
+           "frame's first asker; a session's own repeat admits nothing",
+    "B1z": "B1 built with --features lab-frame-cache,lab-fit-zeroed: fit replaces a short buffer by vec![0; n] "
+           "instead of growing and zero-filling it (the mechanism check, not a candidate)",
 }
-
-
-def arms_for(name):
-    return ["B0", "B0p", "B1", "B2"] if name == "synth3mb" else ["B0", "B0p", "B1"]
 
 
 def coded(work, name):
@@ -114,31 +119,47 @@ class Server:
         self.log.close()
 
 
-def fill(work, name, server, sessions, label, arm, check=True, dump=None):
+def passes(work, name, server, sessions, label, arm, check=True, dump=None):
+    """A (row, error) for each of PASSES whole fills, every session over its one connection; RSS read before and at rest."""
     n = frame_count(work, name)
     cmd = ["taskset", "-c", CLIENT_CPUS, SERVER_AB, "--url", f"https://127.0.0.1:{server.port}/",
            "--server-pid", str(server.proc.pid), "--mode", "fill", "--asks", str(n), "--frames", str(n),
-           "--sessions", str(sessions), "--label", label, "--variant", arm, "--temp", "warm", "--no-header"]
+           "--sessions", str(sessions), "--label", label, "--variant", arm, "--temp", "warm", "--no-header",
+           "--passes", str(PASSES)]
     if check:
         cmd += ["--coded", coded(work, name)]
     if dump:
         cmd += ["--dump", dump]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    if r.returncode:
-        return None, next((l for l in r.stderr.splitlines() if l.startswith("Error")), f"exit {r.returncode}")
-    c = r.stdout.split("\t")
-    return dict(p50_ns=int(c[6]), wall_ns=int(c[9]), asks_per_s=float(c[10]), cpu_ns_per_frame=int(c[11]),
-                rss_peak_delta_kib=int(c[12])), None
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    rows = []
+    for p in range(PASSES):
+        before = server.rss_kib()
+        try:
+            if p:
+                proc.stdin.write("\n")
+                proc.stdin.flush()
+        except BrokenPipeError:
+            break
+        line = proc.stdout.readline()
+        if not line:
+            break
+        time.sleep(0.5)
+        c = line.split("\t")
+        rows.append(dict(p50_ns=int(c[6]), wall_ns=int(c[9]), asks_per_s=float(c[10]), cpu_ns_per_frame=int(c[11]),
+                         rss_peak_delta_kib=int(c[12]), rss_before_kib=before, rss_rest_kib=server.rss_kib()))
+    try:
+        proc.stdin.close()
+    except BrokenPipeError:
+        pass
+    stderr, code = proc.stderr.read(), proc.wait()
+    err = next((l for l in stderr.splitlines() if l.startswith("Error")), f"exit {code}") if code else None
+    return [(r, None) for r in rows] + [(None, err or "no row")] * (PASSES - len(rows))
 
 
-def three_fills(work, name, arm, sessions, extra_env=None, dump=None):
+def exact_passes(work, name, arm, sessions, extra_env=None, dump=None):
     s = Server(work, name, arm, extra_env)
     try:
-        out = []
-        for p in range(3):
-            row, err = fill(work, name, s, sessions, f"pass{p + 1}", arm, dump=dump if p == 2 else None)
-            out.append(err or "exact")
-        return out
+        return [err or "exact" for _, err in passes(work, name, s, sessions, "exact", arm, dump=dump)]
     finally:
         s.stop()
 
@@ -150,10 +171,10 @@ def verify(work):
     import size
     build = (ROOT / "lab/.av1-build").resolve()
     for name in SETS:
-        for arm in arms_for(name):
+        for arm in ARMS:
             dump = work / "dump"
             shutil.rmtree(dump, ignore_errors=True)
-            xxh = three_fills(work, name, arm, 1, dump=dump)
+            xxh = exact_passes(work, name, arm, 1, dump=dump)
             got = sorted(dump.glob("*.bin"))
             inexact = abs(len(got) - frame_count(work, name))
             if name != "synth3mb":
@@ -169,8 +190,9 @@ def verify(work):
 def mutate(work):
     for name in SETS:
         for sessions in SESSIONS:
-            got = three_fills(work, name, "B1", sessions, {"LAB_FRAME_CACHE_MUTATE": "stale"})
-            print(json.dumps(dict(set=name, sessions=sessions, arm="B1 stale", passes=got)), flush=True)
+            for arm in ["B1", "B1s"]:
+                got = exact_passes(work, name, arm, sessions, {"LAB_FRAME_CACHE_MUTATE": "stale"})
+                print(json.dumps(dict(set=name, sessions=sessions, arm=f"{arm} stale", passes=got)), flush=True)
 
 
 def host(work):
@@ -193,19 +215,15 @@ def time_rounds(work, rounds):
         for r in range(rounds):
             for name in SETS:
                 for sessions in SESSIONS:
-                    arms = arms_for(name)
+                    arms = list(ARMS)
                     for arm in order(arms, r):
                         s = Server(work, name, arm)
                         try:
-                            for p in (1, 2):
-                                before = s.rss_kib()
-                                row, err = fill(work, name, s, sessions, f"r{r}", arm)
-                                time.sleep(0.5)
-                                rest = s.rss_kib()
+                            for p, (row, err) in enumerate(passes(work, name, s, sessions, f"r{r}", arm), 1):
                                 rec = dict(round=r, set=name, sessions=sessions, arm=arm, pass_=p, order=order(arms, r),
-                                           rss_before_kib=before, rss_rest_kib=rest, error=err, **(row or {}))
+                                           error=err, **(row or {}))
                                 if row:
-                                    rec["rss_peak_kib"] = before + row["rss_peak_delta_kib"]
+                                    rec["rss_peak_kib"] = row["rss_before_kib"] + row["rss_peak_delta_kib"]
                                 f.write(json.dumps(rec) + "\n")
                                 f.flush()
                         finally:
@@ -230,9 +248,7 @@ def summary(path):
         b0 = arms["B0"]
         aa = [abs(arms["B0p"][rd]["cpu_ns_per_frame"] / b0[rd]["cpu_ns_per_frame"] - 1) for rd in arms["B0p"] if rd in b0]
         res = sorted(aa)[min(len(aa) - 1, int(0.9 * len(aa)))] if aa else float("nan")
-        for arm in ["B0", "B0p", "B1", "B2"]:
-            if arm not in arms:
-                continue
+        for arm in [a for a in ARMS if a in arms]:
             a = arms[arm]
             common = [rd for rd in a if rd in b0]
             cpu = [a[rd]["cpu_ns_per_frame"] / b0[rd]["cpu_ns_per_frame"] for rd in common]

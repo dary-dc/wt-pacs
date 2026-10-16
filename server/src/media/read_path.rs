@@ -62,9 +62,18 @@ impl ReadStats {
     }
 }
 
+#[cfg(not(feature = "lab-fit-zeroed"))]
 fn fit(buf: &mut Vec<u8>, need: usize) {
     if buf.len() < need {
         buf.resize(need, 0);
+    }
+}
+
+/// Lab only, row 256's B1z: a fresh zeroed allocation where `resize` grows and zero-fills.
+#[cfg(feature = "lab-fit-zeroed")]
+fn fit(buf: &mut Vec<u8>, need: usize) {
+    if buf.len() < need {
+        *buf = vec![0; need];
     }
 }
 
