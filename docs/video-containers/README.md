@@ -30,7 +30,123 @@ Our server asks one thing of a store: **for frame i, an offset and a length, and
 so that serving is one lookup and one read. `.sbnd` keeps that as a table of 12 bytes per frame after a fixed header
 ([`../FIXTURES.md`](../FIXTURES.md) §SBND).
 
-## The candidates side by side
+## Goals
+
+What the comparison is for, in order; every row below answers one of them.
+
+1. **Understand the landscape**: what each container is, and what it would cost or buy us.
+2. **Decide whether a container would change serving.** The prediction is no ([What this map says](#what-this-map-says)).
+3. **Decide what to export for interoperability and tooling**: DICOM for HTJ2K, an MP4 view for AV1.
+4. **Decide whether hardware decode on the client is worth a device measurement**
+   ([`hardware-decode.md`](hardware-decode.md) §8).
+
+## The candidates by goal
+
+**Carries our data** comes first: a "no" ends the comparison for that codec. **Latency** and **throughput** are split
+into what differs (open time; bytes per frame) and what every candidate shares (one lookup and one read per frame,
+predicted). Numbers marked *measured* come from [`guide.md`](guide.md) §4.
+
+| goal | `.sbnd` | MP4 (faststart) | fragmented MP4 | Matroska / WebM | DICOM multi-frame | MXF |
+| --- | --- | --- | --- | --- | --- | --- |
+| **carries AV1** | yes | yes, `av01` | yes | yes, `V_AV1` | **no transfer syntax** | **no mapping** |
+| **carries HTJ2K** | yes | a mapping exists, nothing plays it | — | a draft, framing undefined | **yes, native** | **yes, ST 422:2022** |
+| **carries 12-bit grey** | yes | in AV1's Professional profile | yes | yes | HTJ2K yes; the video syntaxes no | JPEG 2000 to 16-bit |
+| **latency: open** | one read | one read of `moov` from byte 0 | a walk, or `mfra` from the end | the Cues, then each block's length: a read per frame or a walk | the whole header, in tag order | tail, footer index, header: three reads or more |
+| **latency: per frame** | one lookup, one read | the same, predicted | the same | the same | the same | the same |
+| **throughput: container bytes per frame** (measured) | 12 | 4 | 131 | 36–42 | ≈ 24.5 | ≈ 23 (OP-Atom), ≈ 820 (OP1a) |
+| **client: a browser demuxes it** | our code | the video element | MSE | WebM everywhere; `.mkv` new in Chrome and Firefox | a JS library | nothing |
+| **tools and interop** | ours only | ffprobe, MP4Box, every player | the same, DASH and HLS | ffprobe, MKVToolNix | **PACS, DICOMweb, OHIF**, validators | broadcast and cinema tools |
+| **cost to adopt** | — | the current ISO text is sold; open implementations; Rust crates young | the same | free text; one solid Rust demuxer | free text; no Rust reader uses its offset table | free text; no Rust or browser reader |
+
+Decoding is the codec's business, not the container's, so it has its own table:
+
+| decode in a browser | AV1 | HTJ2K |
+| --- | --- | --- |
+| WebCodecs | Chrome: 10-bit grey bit-exact through `copyTo` (measured, 160 of 160); 12-bit refused before decoding, measured on the AV1 branches. Firefox: the product's probes failed every grey layout. Safari: only with AV1 hardware, which is Main profile (8/10-bit, inferred) | not offered |
+| video element | Chrome decodes 10- and 12-bit grey in software, then hands back 8-bit RGB (measured: 483 grey levels to 187); Firefox skips monochrome pictures | not offered |
+| WASM | dav1d builds exist, little maintained | OpenJPH (`@cornerstonejs/codec-openjph`), what DICOM viewers use |
+| hardware | Chrome refuses monochrome; no 10-bit hardware read-back | none |
+
+Sources: [`hardware-decode.md`](hardware-decode.md) §4, §5, §7.
+
+## Tools by operation
+
+| operation | MP4 / fragmented MP4 | Matroska / WebM | DICOM | MXF |
+| --- | --- | --- | --- | --- |
+| **inspect** (dump the structure) | ffprobe (frames, not boxes); **MP4Box** `-info`, `-diso`; Bento4 `mp4dump`; ComplianceWarden, in the browser too | **mkvinfo** `-v -v`; ffprobe; MediaInfo | **dcmdump** (DCMTK); dciodvfy, dcdump; gdcmdump; pydicom | **mxf2raw**, bmxparse (bmx); MXFDump; asdcp-info; ffprobe |
+| **write** (pack frames) | ffmpeg `-c copy` (`+faststart`; fragments); MP4Box; Bento4; Mediabunny in the browser | **mkvmerge**; ffmpeg (`-cues_to_front 1`); libwebm; Mediabunny | **pydicom `encapsulate_extended`**; gdcmimg (codestreams as they are); highdicom, dcmqi for segmentations | raw2bmx (JPEG 2000); asdcp-wrap; ffmpeg (`mxf`, `mxf_opatom`) |
+| **read from Rust** | `mp4-atom`, `re_mp4` (active); `mp4` (no release since 2023); `mp4parse` (Firefox's) | **`matroska-demuxer`** (reads CueRelativePosition); `webm-iterable` | `dicom-rs` (does not look frames up through the Extended Offset Table) | **none mature**: C or C++ through FFI (bmx, asdcplib, libavformat) |
+| **read in a browser** (demuxers) | **mp4box.js** (GPAC); Mediabunny; web-demuxer (ffmpeg in WASM); hls.js, dash.js, shaka-player for MSE | Mediabunny; ts-ebml (an element parser); web-demuxer | **dcmjs**; dicom-parser (no release since 2023); Cornerstone's dicom-image-loader, which also decodes | none mature (mxf.js 0.1.0, 2026, untried) |
+| **validate** | ComplianceWarden (AV1 in ISOBMFF yes, CMAF no); MPEG's conformance files | mkvalidator (no release since 2021); MediaConch | **dciodvfy**; dicom-validator | bmx's tools; Netflix Photon for IMF |
+
+`.sbnd`: `pack-study` writes it, the server refuses a malformed one at open, and nothing outside wt-pacs reads it.
+Versions and licences, read 2026-10-16, are in each container's page.
+
+## The browser, per container
+
+| | MP4 | fragmented MP4 | Matroska | WebM | DICOM | MXF |
+| --- | --- | --- | --- | --- | --- | --- |
+| video element | Chrome, Firefox; Safari plays AV1 only with AV1 hardware | — | Chrome (Chromium commit of 2025-12-11, first release around 145, inferred); Firefox 145; Safari: none found | Chrome, Firefox, Safari (iOS since 17.4) | no | no |
+| Media Source Extensions | no: a flat MP4 cannot be appended | all three; on iPhone only through ManagedMediaSource (17.1) | Firefox: an open bug; the others not verified | all three | no | no |
+| several tracks switchable | Safari only; Chrome and Firefox behind flags | Safari only | Safari only | Safari only | — | — |
+| captions inside the file shown | Chrome: none; Safari's MSE: `wvtt` only | the same | Chrome: none | Chrome: none; Firefox: a bug open since 2015 | — | — |
+
+## Caveats
+
+**MP4**
+* ffmpeg writes the index (`moov`) at the end by default; `+faststart` moves it to the front in a second pass.
+* ffmpeg puts every frame in one chunk, so the frame table is a running sum computed at open ([`guide.md`](guide.md) §5).
+* 12-bit AV1 is the Professional profile, which almost no fixed-function decoder handles (AMD's VCN 4 and 5, 4:2:0
+  only, are the exceptions found; [`hardware-decode.md`](hardware-decode.md) §3, §6).
+* A flat MP4 plays in the video element but cannot be appended to MSE; that takes fragments.
+
+**Fragmented MP4**
+* No global frame table: a reader walks the `moof`s or reads `mfra`, which points at fragments, not frames.
+* 131 B per frame when every frame is its own fragment.
+
+**Matroska / WebM**
+* The Cues give a frame's position, never its length: the length is in each block's header.
+* FFmpeg writes the in-cluster position (CueRelativePosition) and its own demuxer ignores it ([`matroska.md`](matroska.md)).
+* `.mkv` in the video element is new and partial; WebM plays everywhere. AV1 with alpha is not specified.
+
+**DICOM**
+* No AV1 transfer syntax: AV1 frames would be non-standard DICOM.
+* No browser parses it or decodes JPEG 2000 natively (Safari dropped JPEG 2000 in 18.0): a JS parser and a WASM
+  HTJ2K decoder are needed, which is what OHIF and Cornerstone ship.
+* The offset table counts from the first item after the empty Basic Offset Table, not from byte 0, and pydicom
+  writes padded lengths against the standard ([`guide.md`](guide.md) §7).
+* FFmpeg has no DICOM demuxer; what ffprobe prints for a DICOM file depends on the bytes it happens to find.
+
+**MXF**
+* No AV1 mapping; HTJ2K is mapped (ST 422:2022).
+* FFmpeg's OP-Atom puts every frame in one KLV; its OP1a adds ≈ 820 B per frame of alignment and system items.
+* No mature Rust or browser reader.
+
+**The video element, whatever the container**
+* It decodes, and in Chrome even 12-bit grey, but hands back 8-bit RGB: fine for an 8-bit cine, never for
+  window/level ([`hardware-decode.md`](hardware-decode.md) §4).
+* Annotations drawn over it follow `requestVideoFrameCallback`, which can fire one display refresh late; drawn into
+  the canvas that receives a WebCodecs frame, they are locked to the frame.
+
+## What reading and implementing each costs
+
+What is sold is the official text, never the right to implement; patents are a separate question, declared by their
+holders under the ISO/IEC/ITU common patent policy (https://www.iso.org/iso-standards-and-patents.html).
+
+* **MP4**: ISO/IEC 14496-12, 8th edition, 2026 (https://www.iso.org/standard/85596.html); IEC sells the 2022
+  edition at CHF 67. Older editions were free, and what an AV1 writer needs beyond the boxes is free (the AOM binding,
+  MP4RA, MPEG's conformance files). A 2003 patent pool covered MP4 packaging; whether it still holds live patents was
+  not found. Details and sources: [`iso-bmff.md`](iso-bmff.md) §8.
+* **Matroska**: RFC 9559, free (https://www.rfc-editor.org/rfc/rfc9559.html); usable "without paying any license or
+  patents" (https://www.matroska.org/legal.html).
+* **DICOM**: "No license is required to download or implement the DICOM Standard"
+  (https://www.dicomstandard.org/patent).
+* **MXF**: every SMPTE standard free to read since 2026-06-17 ([`mxf.md`](mxf.md) §7).
+
+## Reference table: how each one finds frame i
+
+The first table of this page, kept as it was: the mechanism behind the rows above.
+
 
 | | `.sbnd` | MP4 (faststart) | fragmented MP4 | Matroska / WebM | DICOM multi-frame | MXF (OP-Atom) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -55,6 +171,24 @@ for a measurement: **a tie on serving, differences only at open** (Matroska's le
 map) **and at ingest**. Every format built for random access to independent units converges on this table (TIFF,
 Cloud Optimized GeoTIFF, Zarr's sharding, [`others.md`](others.md) §3); that `.sbnd` already looks like them is the
 strongest argument that it is not a home-made oddity.
+
+What the prediction rests on (none of it timed):
+
+1. **The server never reads the container while serving.** `FrameStore::open` loads the frame table once into a list
+   of (offset, length), and a frame is one lookup in that list and one read
+   (`server/src/media/frame_store.rs`, `server/src/media/read_path.rs`). Any container that yields that list at open
+   feeds the same code.
+2. **Every candidate stores a frame's bytes in one piece**: checked on every frame of every sample file
+   ([`guide.md`](guide.md) §4).
+3. **Every candidate can yield the list at open**: MP4 from `stco` and `stsz`, DICOM from its Extended Offset Table,
+   MXF from its index table, Matroska from its Cues plus a read of each block's length.
+4. **The container's bytes per frame are small**: 4 to 131 B on 4.5 KB frames, under 3 %; MXF's OP1a is the
+   exception at ≈ 820 B on 16 KB frames, about 5 %.
+5. **Formats built for random access converge on the same table** (above).
+
+Two doubts raised in review and withdrawn: frame alignment (no candidate aligns frames to the 4 KiB page, `.sbnd`
+included, so each touches the same pages on average; MXF's 512 B grid is not a page) and index memory (every
+container ends as the same 12 B per frame in the server's memory).
 
 **Where the standard formats win is everything around the server:**
 
