@@ -7,7 +7,7 @@
 ARG REGISTRY=docker.io/library
 
 # ---------------------------------------------------------------- server
-FROM ${REGISTRY}/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 AS build
+FROM ${REGISTRY}/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 AS workspace
 WORKDIR /src
 # The workspace's members, each its manifest and sources alone: a doc or a lab result changes none of them.
 COPY Cargo.toml Cargo.lock ./
@@ -28,6 +28,8 @@ COPY lab/telemetry-bench/src ./lab/telemetry-bench/src
 COPY patched ./patched
 COPY patches ./patches
 COPY scripts/patch_crate.sh ./scripts/
+
+FROM workspace AS build
 # build_ca: the CA of a TLS-inspecting proxy between this host and the registries, empty where there is none.
 # The touch: `target` is every checkout's on this daemon and cargo trusts mtimes, so this tree's sources must be newest.
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/src/target --mount=type=secret,id=build_ca \
@@ -47,6 +49,20 @@ USER 10001
 EXPOSE 4433/udp 4433/tcp
 ENTRYPOINT ["/usr/local/bin/server-start.sh"]
 
+# ---------------------------------------------------------------- the WASM client
+# Its tools as CI fetches them, then the workspace.
+FROM ${REGISTRY}/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 AS wasm
+RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=secret,id=build_ca \
+    if [ -s /run/secrets/build_ca ]; then export CARGO_HTTP_CAINFO=/run/secrets/build_ca CURL_CA_BUNDLE=/run/secrets/build_ca SSL_CERT_FILE=/run/secrets/build_ca; fi && \
+    rustup target add wasm32-unknown-unknown && cargo install wasm-pack --version 0.15.0 --locked
+WORKDIR /src
+COPY --from=workspace /src ./
+COPY client/transport/wasm/build.sh ./client/transport/wasm/
+RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/src/target \
+    --mount=type=cache,target=/root/.cache/.wasm-pack --mount=type=secret,id=build_ca \
+    if [ -s /run/secrets/build_ca ]; then export CARGO_HTTP_CAINFO=/run/secrets/build_ca CURL_CA_BUNDLE=/run/secrets/build_ca SSL_CERT_FILE=/run/secrets/build_ca; fi && \
+    find . -path ./target -prune -o -type f -exec touch {} + && bash client/transport/wasm/build.sh
+
 # ---------------------------------------------------------------- client bundles
 FROM ${REGISTRY}/node:22.22.0-bookworm-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94 AS bundles
 WORKDIR /src/client/transport/ts
@@ -64,6 +80,8 @@ COPY deploy/nginx/wt-pacs.conf.template /etc/nginx/templates/
 COPY deploy/nginx/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --from=bundles /web/client /srv/wt-pacs/client
 COPY --from=bundles /src/client/transport/ts/dist /srv/wt-pacs/client/transport/ts/dist
+COPY --from=wasm /src/client/transport/wasm/pkg/transport_wasm.js /src/client/transport/wasm/pkg/transport_wasm_bg.wasm \
+     /srv/wt-pacs/client/transport/wasm/pkg/
 COPY fixtures/us_cine_smoke /studies
 # The decoders and the frame check's hasher the page loads are built on the host from this tree
 # (client/decode/wasm/build/build.sh) and must be the ones its manifest pins.
