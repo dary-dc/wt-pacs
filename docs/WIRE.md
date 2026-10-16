@@ -268,7 +268,11 @@ QUIC. A test reads the options back (`an_accepted_socket_probes_a_silent_peer`);
 expiry is not observed. A peer that vanishes while the server is writing to it is not probed: the
 kernel's retransmissions end it, after `tcp_retries2` (about 15 minutes by default), not measured.
 An accept that fails, as when the process is out of descriptors, is retried after 100 ms, not at
-once (`a_failing_websocket_accept_is_retried_at_a_pace`).
+once (`a_failing_websocket_accept_is_retried_at_a_pace`). *Shown 2026-10-16, row 272:*
+`prlimit --nofile=64 series-server --websocket …`, 80 TCP connections held open, then the
+`WebSocket accept failed` WARNs (`Too many open files`) timestamped in one second: 10 with the
+pause, 462 816–475 514 without it (before this change), 457 474–533 246 with the pause removed;
+three interleaved rounds each, release builds, 4-core host.
 
 One ordered byte stream gives up what QUIC's streams give: a slow or lost frame holds every frame
 behind it, and a retransmit stalls everything. The contract suite reports the independent-
