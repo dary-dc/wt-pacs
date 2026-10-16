@@ -14,7 +14,7 @@ use std::sync::Mutex;
 
 /// 64 KiB, a size tests make frames span several of. `docs/adr/disk-access.md`.
 #[cfg(test)]
-pub(crate) const READ_WINDOW: usize = 64 * 1024;
+pub(crate) const TEST_CHUNK: usize = 64 * 1024;
 
 /// Where a frame's codestream lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -139,7 +139,7 @@ impl FrameStore {
     }
 
     /// Force a partial hit: real bytes at the front, a shortfall behind them.
-    #[cfg(all(test, feature = "uring"))]
+    #[cfg(test)]
     pub(crate) fn force_short_reads(&mut self, cap: usize) {
         self.nowait_cap = Some(cap);
     }
@@ -349,7 +349,7 @@ mod tests {
         let mut out = vec![0u8; span.len as usize];
         let mut pos = 0usize;
         while pos < out.len() {
-            let want = READ_WINDOW.min(out.len() - pos);
+            let want = TEST_CHUNK.min(out.len() - pos);
             let at = span.offset + pos as u64;
             let got = store.read_at_nowait(&mut out[pos..pos + want], at)?;
             assert!(got <= want, "nowait overran the window: {got} > {want}");

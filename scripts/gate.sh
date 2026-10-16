@@ -180,8 +180,8 @@ else
   skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
 fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
-step "lab: the frame cache compiles"
-run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
+step "lab: the frame cache and the zeroed fit compile"
+run 1 cargo check -p series-server --features lab-frame-cache,lab-fit-zeroed --all-targets --quiet
 
 step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
 if command -v strace >/dev/null; then
