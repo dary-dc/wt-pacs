@@ -498,7 +498,7 @@ a change the gate's tests cover, 2 needs a check the gate does not run, 3 is str
 | T8 | **The WebSocket accept loop spins when descriptors run out.** An accept error is logged and retried at once (`websocket.rs:94-99`); `EMFILE` leaves the connection in the backlog, so the next accept fails the same way: a core at 100 % and a WARN a microsecond until a descriptor frees. Off by default. | **do**: sleep 100 ms after an accept error · none · +1 | no · 2: shown under `prlimit --nofile`, outside the gate |
 | T9 | **Every ask takes the connection's lock for a debug line that is off.** `send_frame` reads `stats()` before `debug!` (`server/src/transport/link.rs:77-80`); tracing evaluates a field only when its level is on, so inside the macro the read costs nothing in a deployment. `lab/ask-ahead/cells.py:103` reads the line, unchanged. | **do** · none · −2; the cost is below any noise floor here, not measured | no · 1 |
 | T10 | **The product page polls at 50 Hz for a result nobody reads.** `filled` (`client/viewer/viewer.js:241-251`) checks every 20 ms until the fill ends, and for ever if it never does; what waits on it is `check-page.js`, loaded on `?check=` alone, and the lab's `finished` hook, which the web image refuses: a product open uses neither. | **do**: poll only with `?check=` or a lab hook · none · +1 | no · 1 |
-| T11 | **The page keeps every decoded frame, and where that fails is not known.** `frames` holds each frame's pixels for the page's life (`viewer.js:30`, `:97`): `ffdm_d`'s four 3328×4096 frames are 109 MB decoded, a 2 000-frame 512² CT 1 GB. The cache seam that would bound it is open ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Open); no doc says at what size the page fails. | **measure** (protocol under row 273) · none · 0 | no · — |
+| T11 | **The page keeps every decoded frame, and where that fails is not known.** `frames` holds each frame's pixels for the page's life (`viewer.js:30`, `:97`): `ffdm_d`'s four 3328×4096 frames are 109 MB decoded, a 2 000-frame 512² CT 1 GB. The cache seam that would bound it is open ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Open); no doc says at what size the page fails. | **measure** (protocol under row 273; measured 2026-10-16: no page ceiling below the host's, §273) · none · 0 | no · — |
 
 **Kept**, with the reason:
 
@@ -552,7 +552,7 @@ and 272. 271 is a proposal and follows 270; 273 is a measurement for a free host
 | 270 | SERVERSTOP | T5 | +8, test +25 | clients see a restart at once | no | today; the timing when the host is free |
 | 271 | RESTARTPIN | T6 | ~+8 | open pages survive a restart | **yes: proposal** | after 270 |
 | 272 | WSLIVENESS | T7, T8 | +5, test +15 | the fallback's dead peers and EMFILE bounded | no | today |
-| 273 | VIEWERCEILING | T11 | 0 | where the page fails, stated | no | a free host |
+| 273 | VIEWERCEILING | T11 | 0 | where the page fails, stated: not below 8 GiB decoded on the dev host; nothing built | no | measured 2026-10-16 |
 
 #### 267 PAGESTART
 
@@ -628,6 +628,43 @@ series (frames × width × height × 2 B) that completes 3 of 3, per engine; if 
 [`FIXTURES.md`](FIXTURES.md) names, at its decoded size, the cache seam (ARCHITECTURE §Open) becomes a proposal with
 that series as its case; otherwise §Open records the ceiling and nothing is built. **Branch:**
 `claude/wip-273-VIEWERCEILING`.
+
+*Result, 2026-10-16* (`lab/viewer-ceiling/run.mjs`; raw rows in the session's scratchpad, not committed). **The
+host.** 4 cores, 16 093 MiB RAM, no swap. The run's processes sit in a memory cgroup that allows 13 679 MiB, which
+is the binding limit. The harness skips a cell whose decoded size is over that limit. It stops a round when the
+cgroup's headroom falls under 1.5 GiB, and that round's outcome is *host saturated*. **The ceiling** is
+8 192 MiB decoded (1 024 × 2048²) for both engines. Above it, every cell either did not fit the host or was
+stopped by the host. So it is the host's ceiling, and the page's lies somewhere above it.
+`dbts_b1` (50 × 2560×3328, 812.5 MiB decoded) is the largest series in [`FIXTURES.md`](FIXTURES.md). It is below
+the ceiling, so ARCHITECTURE §Open records the ceiling and nothing is built.
+
+| series | decoded MiB | Chromium 141: fills · UA memory (window · workers) · PSS | Firefox 157.0.1: fills · PSS |
+| --- | --- | --- | --- |
+| 4 096 × 512² | 2 048 | 3/3 · 2 067 (2 050 · 17) · 2 531 | **2/3** · 2 704 |
+| 512 × 2048² | 4 096 | 3/3 · 4 151 (4 096 · 54) · 4 513 | 3/3 · 4 931 |
+| 1 024 × 2048² | 8 192 | 3/3 · 8 247 (8 193 · 54) · 8 615 | 3/3 · 9 091 |
+| 2 048 × 2048² | 16 384 | not run: above the cgroup | not run |
+| 256 × 3328×4096 | 6 656 | 3/3 · 6 800 (6 656 · 144) · 7 207 | 3/3 · 7 576 |
+| 512 × 3328×4096 | 13 312 | host saturated 3/3, at 357–364 frames | host saturated 3/3, at 339–344 frames |
+
+Every smaller cell (64 frames on, doubling) filled 3 of 3 in both engines. Engines alternate inside each round.
+Medians, MiB. *UA memory* is `performance.measureUserAgentSpecificMemory()` at the end of the fill: the JS and DOM
+memory of the page's realms, array buffers included, shared by scope. Firefox 157 has no such API, although its
+page is cross-origin isolated. *PSS* is the whole browser's proportional set size at the end of the fill, from
+`/proc`, recorded for both engines in its place; at 32 MiB decoded it is 373 (Chromium) and 613 (Firefox). **Where the
+protocol bent**, each stated:
+
+* *The series.* 64 distinct frames are cycled, and the decoded size is the same as distinct frames would give.
+  The content is `gen_frame_pnm.py`'s field without its grain: about 11:1, so the largest bundle fits this disk.
+* *Firefox headless has no WebGL2*, so its page paints nothing: `paint: WebGL2 is not available`. Every frame is
+  still received and exact, and its memory leaves out the painter.
+* *Firefox's 2/3 at 4 096 × 512²*: one round received no frame in 120 s while its memory stayed at baseline.
+  That is not a memory failure, and its cause is not diagnosed. Under the rule it ends Firefox's 512² doubling,
+  and it does not move the engine's ceiling. A diagnostic run outside the protocol filled the same cell 8 of 8.
+* *512 × 3328×4096 was interrupted, then re-run whole.* The first harness guarded on `MemAvailable` alone, and the
+  cgroup's OOM killer took Chromium's renderer at 11.9 GiB anon RSS (435 frames) before the guard fired. Those two
+  rows are set aside. The cell was run again in full with the cgroup headroom guard, and that run is the one in
+  the table.
 
 ## Lab-only code in product directories (row 264)
 

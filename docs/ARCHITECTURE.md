@@ -1210,6 +1210,14 @@ Each item below is the owner's to decide, and is tracked here.
   decoded frames is to be evaluated — and "all frames decoded" cannot mean all resident on a phone) and
   the paint sink — the sink is built (§Paint), the cache seam is not. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
   §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md).
+  *Where the page fails without it* (queue row 273, 2026-10-16): not on the dev host. Headless Chromium 141 and
+  Firefox 157.0.1 each filled 8 GiB of decoded frames (1 024 × 2048², 16-bit, 3 of 3), ten times `dbts_b1`, the
+  largest series [`FIXTURES.md`](FIXTURES.md) names (812.5 MiB decoded). So by the row's rule nothing is built.
+  Past that the host ended the run, not the page: the run's memory cgroup allows 13 679 MiB, and 512 × 3328×4096
+  (13 GiB) was stopped at 339–364 frames, about 9 GiB in. The page holds the decoded bytes and little else.
+  Chromium's `measureUserAgentSpecificMemory` puts its window at the decoded size + 1 MiB and its workers at
+  17–144 MiB. Firefox has no such API; its whole browser's PSS was 9.1 GiB at 8 GiB decoded. None of this says
+  anything about a phone. Protocol and rows: [`merge-readiness.md`](merge-readiness.md) §273 VIEWERCEILING.
 * **Survival on a device**: the Wi-Fi → cellular freeze and what the page sees; the triggers where a
   radio change and `freeze` are real; the screen-lock pair; whether 5 s suits a dial on a phone.
   Detection of a dead *idle* session with a server idle timeout below 30 s is not measured.
