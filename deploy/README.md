@@ -83,14 +83,21 @@ A container test of a deployment of this shape found each one (the deployment te
 2. **Stop.** `stop` measured 0.45–0.49 s on the server and 0.51–0.54 s on web (three and two runs): under a
    second, so there is no `init: true`. PID 1 is `timeout`, which passes SIGTERM to the server, and the server
    ends on it itself (`server/src/main.rs`): it closes every session with `H3_NO_ERROR` (0x100), so a client
-   learns of the stop at once rather than from a stall or its idle timeout, waits up to 500 ms for the closes
+   learns of the stop at once rather than from a stall or its idle timeout, waits up to 250 ms for the closes
    to drain, and exits. Without the wait the process ends before the close is sent.
-   *2026-10-16, row 270:* before, the server exited without a close, which a test showed (its client saw only
-   its idle timeout); the times above are from then. The stop with the wait is not yet timed. The wait is
-   quinn's drain, three probe timeouts, so a client a long round trip away holds it to its bound (read from
-   quinn, not measured). A page sees a QUIC close, which a browser may not report with its code. The check,
-   for a free host, interleaved, with today's image, a second build of it and this one as arms:
-   `STUDIES=… SERIES=… lab/scripts/stop_timing.sh 10 S0 S0b S1`. It lands if every stop is under 1 s.
+   *2026-10-16, row 270:* before, the server exited without a close, which a test showed (its client saw only its
+   idle timeout); the times above are from then. The wait is quinn's drain, three probe timeouts, so it runs to its
+   bound on a slow link. *Timed* by `lab/scripts/stop_timing.sh 10` (`MEMLOCK=8388608 NOFILE=20000`, this host's
+   limits), the wall time of `docker compose stop server` with a Chromium 141 page mid-fill of a 400-frame series
+   under an 18 Mbit/s shape, three arms interleaved, on a 4-core host never below 22 % idle. Today's image took
+   453–706 ms (medians 509 and 515 in two runs) and a second build of it 448–682 ms (536, 517). With the wait
+   bounded at 500 ms the stop took 961–1 560 ms (median 1 010, five of ten at 1 s or more), so by the row's rule the
+   bound was halved; at 250 ms, 693–1 367 ms (median 734, one of ten over 1 s). **The stop is not shown under a
+   second**: the bound or `init: true` is the owner's call. *What the page sees:* Chromium reports the close as
+   `WebTransportError: Connection lost.` with no code, since wtransport 0.7 sends QUIC's `CONNECTION_CLOSE` and no
+   `CLOSE_WEBTRANSPORT_SESSION` capsule, so the rule's "closed with the server's code" cannot be observed from a
+   page. The page does see the session end 195–299 ms after the stop began with the close (20 of 20; a session the
+   page opens beside the fill), against about 14.9 s without it (36 of 40; 4 at 217–289 ms).
 3. **The certificate's lifetime.** A certificate pinned by hash (`serverCertificateHashes`) must be valid for at
    most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
    under `timeout $RESTART_AFTER` (9 days). The exit restarts the container, with a new certificate, before

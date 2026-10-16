@@ -2,11 +2,10 @@
 # `docker compose stop server`, timed, with a page mid-fill, for each server image as an arm, in
 # lab/scripts/order.py's order; one JSON row per stop. Row 270's protocol: deploy/README.md §The ten fixes, 2.
 #
-#   STUDIES=dir SERIES=name lab/scripts/stop_timing.sh ROUNDS IMAGE...
+#   STUDIES=dir SERIES=name [MEMLOCK=… NOFILE=…] lab/scripts/stop_timing.sh ROUNDS IMAGE...
 #
 # SERIES of at least 200 frames, so the fill outlasts the stop. Needs root (tc in the server's
-# namespace), docker compose, and playwright's Chromium under `npm root -g`. Compose's variables pass through
-# (deploy/README.md): a host whose hard limits are lower needs `MEMLOCK` and `NOFILE` set to them.
+# namespace), docker compose, and playwright's Chromium under `npm root -g`.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 COMPOSE=(docker compose -f "$ROOT/deploy/compose.yml")
@@ -14,9 +13,7 @@ rounds=$1; shift
 arms=("$@")
 export NODE_PATH="$(npm root -g)"
 
-# Opens the viewer and, once its fill is under way, a session of the page's own beside it: the viewer's
-# downloader re-dials a closed session and keeps its `closed` reason in the worker. Prints that session's
-# `closed` outcome (or null after 15 s), how long after "stopping" it came, and the viewer's status line.
+# The page's own session beside the fill: the downloader keeps its sessions' `closed` in its worker.
 page='
 const { chromium } = require("playwright");
 (async () => {

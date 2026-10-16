@@ -73,7 +73,7 @@ pub struct ServeConfig {
 /// `H3_NO_ERROR`, HTTP/3's code for a graceful close.
 const STOPPING: VarInt = VarInt::from_u32(0x100);
 
-/// Serves until `stop`, then closes every session with `STOPPING` and waits up to 500 ms for the closes.
+/// Serves until `stop`, then closes every session with `STOPPING` and waits up to 250 ms for them. deploy/README.md
 pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> Result<()> {
     let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
         .await
@@ -124,7 +124,7 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
         });
     }
     endpoint.close(STOPPING, b"server stopping");
-    let _ = tokio::time::timeout(Duration::from_millis(500), endpoint.wait_idle()).await;
+    let _ = tokio::time::timeout(Duration::from_millis(250), endpoint.wait_idle()).await;
     Ok(())
 }
 
