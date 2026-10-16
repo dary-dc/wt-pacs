@@ -30,13 +30,14 @@ def reading(rows, cells, split, strict):
             out.update({(a, cell, key): v for a, v in vs.items()})
             v = vs["Q"]
             if "arm" not in v:
-                print(f"{cell:20} {key[:-3]:7} {v['n']:2} complete rounds: not conclusive")
+                print(f"{cell:20} {key[:-3]:7} {v['n']:2} complete rounds: {v['verdict']}")
                 continue
             print(f"{cell:20} {key[:-3]:7} {v['n']:2} {v['t_ms']:6.0f}  ×{v['aa']:.3f} {v['sd']:6.1%} {v['mdl']:5.1%}  "
                   + "  ".join(f"×{vs[a].get('arm', math.nan):.3f} {vs[a]['verdict']:14}" for a in ARMS))
     for a in ARMS:
         worse = [f"{c} {k[:-3]}" for (b, c, k), v in out.items() if b == a and v["verdict"] == "worse"]
-        unsure = [f"{c} {k[:-3]}" for (b, c, k), v in out.items() if b == a and v["verdict"] == "not conclusive"]
+        unsure = [f"{c} {k[:-3]}" for (b, c, k), v in out.items()
+                  if b == a and v["verdict"] not in ("worse", "better", "tie")]
         print(f"{a}: worse in {worse or 'none'}; not conclusive in {unsure or 'none'}")
     best = min(("Q", "QW"), key=lambda a: score(out, a))
     worse = [f"{c} {k[:-3]}" for (b, c, k), v in out.items() if b == best and v["verdict"] == "worse"]

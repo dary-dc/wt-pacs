@@ -453,11 +453,17 @@ frame checked against the encoder's input, each arm's full settings printed and 
 
   ↓ better, **↑** worse, ? not conclusive, unmarked a tie. *Strict, where it differs:* QW's fill at 103/46 CoDel at
   50 % a tie (×1.009, n = 10) and at 103/92 FIFO 20 at 10 % not conclusive; QW's worse fill at 103/92 FIFO 20 at 50 %
-  ×1.029; TW's fill at 103/92 CoDel 50 % a tie; eight better become ties at n = 5–10; 103/92 FIFO 800 at 10 % not
-  conclusive. Q's ask at 18/46 FIFO 800 at 10 % reads a tie there at ×1.266 although it is 3 243–3 276 ms in every
-  round against T's 2 554–2 574: n = 9 split in halves is too short for the test to flag, and the reader's *tie* falls
-  back on the A/A spread alone. The A/A spread: Tp/T ×0.980–1.008 (strict ×0.971–1.009), an arm's sd 0.0–5.1 % (strict
-  up to 11.3 %, 103/92 FIFO 20 at 10 %), the loss the rule would catch 0.1–6.3 % (strict up to 21 %).
+  ×1.029; TW's fill at 103/92 CoDel 50 % undecided; one better becomes a tie (TW's fill at 103/92 CoDel at 10 %,
+  n = 10); 103/92 FIFO 800 at 10 % undecided at n = 10 + 1. **Undecided** wherever a half kept 2 rounds or fewer, too
+  few for the test to flag any loss (row 280, `lab/scripts/aa_rule.py`'s `can_flag`): 18/46 FIFO 800 at 10 %
+  (n = 7 + 2), 103/92 CoDel at 50 % (7 + 2), 103/46 FIFO 360 at 10 % (2 + 3) and at 50 % (6 + 2), every arm and
+  measure. Among them Q's ask at 18/46 FIFO 800 at 10 %, ×1.266, 3 243–3 276 ms in every round against T's
+  2 554–2 574. *Corrected in place, row 280, 2026-10-16:* this read "TW's fill at 103/92 CoDel 50 % a tie; eight
+  better become ties at n = 5–10; 103/92 FIFO 800 at 10 % not conclusive", and called Q's ask a tie there, the
+  reader's *tie* falling back on the A/A spread alone; seven of the eight and that ask were the undecided cells
+  above. The verdict below is unchanged (re-read with the fix). The A/A spread: Tp/T ×0.980–1.008 (strict
+  ×0.971–1.009), an arm's sd 0.0–5.1 % (strict up to 11.3 %, 103/92 FIFO 20 at 10 %), the loss the rule would catch
+  0.1–6.3 % (strict up to 21 %).
   * *Q, the queue alone,* is T wherever T's fill is already written ahead of the ask, every 50 % cell (one ask not
     conclusive), as the build predicted. At 10 % its fill is better in four 103 cells (−49 to −107 ms), and its ask
     worse in four (+24 to +684 ms), with the same 5.1 MB written ahead of the ask as T's; that ask cost is not
