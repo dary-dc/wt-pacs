@@ -104,7 +104,7 @@ class Server:
             raise RuntimeError(f"{arm}: the server's lab flag is not the arm's")
 
     def session_lines(self, sessions):
-        for _ in range(200):
+        for _ in range(1200):
             lines = [l for l in self.log_path.read_text().splitlines() if "session reads" in l]
             if len(lines) >= sessions:
                 return [dict(kv.split("=", 1) for kv in l.split() if "=" in kv) for l in lines]
