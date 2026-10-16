@@ -2217,6 +2217,9 @@ mutated to fail).
 * **Not conclusive** when neither, and the loss the rule would catch in 80 % of campaigns at that cell's A/A spread
   (its MDL, printed per cell) is over 5 %. A lever is adopted on no not-conclusive cell; the row goes back to `night`
   for a host that passes, as the queue's `VOID` rule says.
+* **Undecided at n = a + b** when either run kept fewer than 3 complete rounds: at 2 a side the test's smallest p is
+  0.12, so no loss can be flagged however large, and an MDL computed at another n says nothing of it. Counted as not
+  conclusive. Added by row 280, after a strict half of 2 rounds read a ×1.27 loss in every round as a tie.
 * **The rule's reach**, by its simulation (`aa_rule.py --simulate`, a lognormal arm spread σ): false *worse* ≤ 0.05 %
   a cell; a loss caught in 80 % of campaigns at n = 12 of +1.7 % at σ = 1 %, +3.2 % at 2 %, +4.8 % at 3 %, +8.2 % at
   5 % (n = 24: +1.2, +2.3, +3.4, +5.6 %). The other bar in use here, a median past the A/A's p90 \|A′/A − 1\|
