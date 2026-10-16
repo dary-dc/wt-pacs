@@ -4328,7 +4328,7 @@ Row 249's candidate 1 built for measuring, on the owner's yes (2026-10-16): a se
 
 ### 253 ONEQUEUEMEASURE
 
-Row 249's protocol (`docs/WIRE.md` §An ask during a fill, *Proposed: one queue*) on row 252's build, run by a session given only the protocol and its rule. Started 2026-10-16 on #75, branch `claude/wip-253-ONEQUEUEMEASURE`.
+Row 249's protocol (`docs/WIRE.md` §An ask during a fill, *Proposed: one queue*) on row 252's build, run by a session given only the protocol and its rule. Started 2026-10-16 on #75, branch `claude/wip-253-ONEQUEUEMEASURE`. Analysed 2026-10-16 (restarted on the owner's "continue"), draft #92 (`dca3dbda`, stacked on #75): 20 Williams rounds × 5 arms × 28 cells, 01:23–05:17, every frame exact; 31 runs of the partial round 1 before the 01:39 restart discarded as superseded (the verdict unchanged with them in); 329 `VOID` runs kept by the round-paired reading, dropped by the strict one. **A trade-off, so not adopted by the rule; the owner decides.** QW is the better candidate-1 arm: asks ×0.32–0.90 of T in 25 of 28 cells, ties in 3; its fill worse at 103/92/fifo20@50 (×1.024, +45 ms, both readings) and 103/46/codel@50 (×1.010, +14 ms, round-paired only). Q equals T at 50 %, its ask worse in four cells (+24 to +684 ms); TW carries nearly all of QW's ask gain, its fill worse in six 103 cells (+13 to +108 ms). A/A Tp/T ×0.980–1.008. Saturates between 103 and 200 Mbit/s; nothing claimed past 103. Found, not fixed: `refill.py`'s verdict can call a clear loss a tie at small n (Q's ask at 18/46/fifo800@10, ×1.266); the `transport=` banner names neither flag; Q's slower 10 % ask unexplained.
 
 ### 249 ONEQUEUE
 
