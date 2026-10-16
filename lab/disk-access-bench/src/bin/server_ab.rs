@@ -4,12 +4,13 @@ use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use fod::{encode_fod_msg, FodMsg};
 use frame_envelope::unwrap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wtransport::config::IpBindConfig;
 use wtransport::stream::{RecvStream, SendStream};
-use wtransport::{ClientConfig, Connection, Endpoint};
+use wtransport::endpoint::endpoint_side::Client;
+use wtransport::{ClientConfig, Connection, Endpoint, VarInt};
 use xxhash_rust::xxh3::xxh3_64;
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -44,6 +45,20 @@ struct Args {
     /// where no earlier run has read it. Unset: frame 0, and a fill streams the whole series.
     #[arg(long)]
     start: Option<u32>,
+    /// Session `i` in its cycle `c` starts at `start + (c * sessions + i) * spread`: disjoint
+    /// ranges, each cold where no earlier run has read it.
+    #[arg(long, default_value_t = 0)]
+    spread: u32,
+    /// Connections each session opens in turn, one after the other ends.
+    #[arg(long, default_value_t = 1)]
+    cycles: usize,
+    /// On-demand: close the connection once this many frames are in, with the rest still asked.
+    #[arg(long)]
+    close_after: Option<usize>,
+    /// One more session, asking one frame at a time from FIRST through FIRST + COUNT - 1 and
+    /// round again while the others run; its ask latency is the gap a stalled server worker leaves.
+    #[arg(long, value_name = "FIRST:COUNT", value_parser = parse_range)]
+    cotenant: Option<(u32, u32)>,
     #[arg(long, default_value = "")]
     label: String,
     #[arg(long, default_value = "")]
@@ -66,6 +81,15 @@ struct Args {
 }
 
 static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+fn parse_range(s: &str) -> Result<(u32, u32), String> {
+    let (first, count) = s.split_once(':').ok_or("FIRST:COUNT")?;
+    let count: u32 = count.parse().map_err(|e| format!("{e}"))?;
+    if count == 0 {
+        return Err("COUNT is 0".into());
+    }
+    Ok((first.parse().map_err(|e| format!("{e}"))?, count))
+}
 
 /// XXH3-64 per frame index, from the files the bundle was packed from.
 fn coded_digests(dir: &std::path::Path) -> Result<Vec<u64>> {
@@ -104,7 +128,14 @@ async fn run(args: Args) -> Result<()> {
         let _ = DUMP.set(dir.clone());
     }
     let digests = args.coded.as_deref().map(coded_digests).transpose()?.map(Arc::new);
-    let mut endpoints = vec![client_endpoint()?];
+    let cot_endpoint = client_endpoint()?;
+    let cot = match args.cotenant {
+        Some(range) => {
+            let conn = connect(&cot_endpoint, &args.url).await?;
+            Some((open(&conn).await?, conn, range))
+        }
+        None => None,
+    };
     let server = match args.server_pid {
         Some(pid) => Some((pid, proc_cpu(pid)?, proc_rss_kib(pid)?)),
         None => None,
@@ -112,18 +143,44 @@ async fn run(args: Args) -> Result<()> {
     let peak = Arc::new(AtomicU64::new(server.map_or(0, |(_, _, rss0)| rss0)));
     let sampler = server.map(|(pid, ..)| tokio::spawn(sample_rss(pid, Arc::clone(&peak))));
     let wall = Instant::now();
-    let mut conns = Vec::with_capacity(args.sessions.max(1));
-    for i in 0..args.sessions.max(1) {
+    let sessions = args.sessions.max(1);
+    let mut endpoint = Arc::new(client_endpoint()?);
+    let mut conns = Vec::with_capacity(sessions);
+    for i in 0..sessions {
         if i > 0 && !args.one_socket {
-            endpoints.push(client_endpoint()?);
+            endpoint = Arc::new(client_endpoint()?);
         }
-        conns.push(connect(endpoints.last().expect("one endpoint"), &args.url).await?);
+        conns.push((Arc::clone(&endpoint), connect(&endpoint, &args.url).await?));
     }
+    let stop = Arc::new(AtomicBool::new(false));
+    let cot_task = cot.map(|(streams, conn, range)| {
+        let (stop, digests) = (Arc::clone(&stop), digests.clone());
+        tokio::spawn(async move {
+            let lats = cotenant(streams, range, &digests, &stop).await;
+            drop(conn);
+            lats
+        })
+    });
     let mut set = tokio::task::JoinSet::new();
-    for conn in conns {
+    for (i, (endpoint, mut conn)) in conns.into_iter().enumerate() {
         let (mode, depth, asks, frames) = (args.mode, args.depth, args.asks, args.frames.max(1));
-        let (step, start, digests) = (args.step.max(1), args.start, digests.clone());
-        set.spawn(async move { session(conn, mode, depth, asks, frames, step, start, digests).await });
+        let (step, digests, url) = (args.step.max(1), digests.clone(), args.url.clone());
+        let (cycles, spread, close_after, start) = (args.cycles.max(1), args.spread, args.close_after, args.start);
+        set.spawn(async move {
+            let mut lats = Vec::new();
+            for c in 0..cycles {
+                if c > 0 {
+                    conn = connect(&endpoint, &url).await?;
+                }
+                let start = start.map(|s| s + spread * (c * sessions + i) as u32);
+                let plan = Plan { mode, depth, asks, frames, step, start, close_after };
+                lats.extend(session(&conn, plan, &digests).await?);
+                if close_after.is_some() {
+                    conn.close(VarInt::from_u32(0), b"");
+                }
+            }
+            anyhow::Ok(lats)
+        });
     }
     let mut lats = Vec::new();
     while let Some(joined) = set.join_next().await {
@@ -138,20 +195,30 @@ async fn run(args: Args) -> Result<()> {
         ),
         None => ("-".to_string(), "-".to_string()),
     };
+    stop.store(true, Ordering::Relaxed);
+    let cot_columns = match cot_task {
+        Some(task) => {
+            let mut c = task.await.context("co-tenant join")??;
+            c.sort_unstable();
+            let max = c.last().copied().unwrap_or(0);
+            format!("\t{}\t{}\t{}\t{max}", c.len(), pct(&c, 0.50), pct(&c, 0.99))
+        }
+        None => String::new(),
+    };
     if let Some(sampler) = sampler {
         sampler.abort();
     }
-    drop(endpoints);
     let asks_per_s = n as f64 * 1e9 / wall_ns.max(1) as f64;
     lats.sort_unstable();
     if !args.no_header {
         println!(
             "label\tvariant\ttemp\tmode\tdepth\tasks\tp50_ns\tp90_ns\tp99_ns\twall_ns\t\
-             asks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed"
+             asks_per_s\tcpu_ns_per_ask\trss_kib\tmiss_pct\tnamed{}",
+            if args.cotenant.is_some() { "\tcot_asks\tcot_p50_ns\tcot_p99_ns\tcot_max_ns" } else { "" }
         );
     }
     println!(
-        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t-\t-",
+        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\t-\t-{}",
         args.label,
         args.variant,
         args.temp,
@@ -168,11 +235,12 @@ async fn run(args: Args) -> Result<()> {
         asks_per_s,
         cpu_ns_per_ask,
         rss_kib,
+        cot_columns,
     );
     Ok(())
 }
 
-fn client_endpoint() -> Result<Endpoint<wtransport::endpoint::endpoint_side::Client>> {
+fn client_endpoint() -> Result<Endpoint<Client>> {
     let dual = ClientConfig::builder()
         .with_bind_default()
         .with_no_cert_validation()
@@ -189,10 +257,7 @@ fn client_endpoint() -> Result<Endpoint<wtransport::endpoint::endpoint_side::Cli
     }
 }
 
-async fn connect(
-    endpoint: &Endpoint<wtransport::endpoint::endpoint_side::Client>,
-    url: &str,
-) -> Result<Connection> {
+async fn connect(endpoint: &Endpoint<Client>, url: &str) -> Result<Connection> {
     let mut last = None;
     for _ in 0..50 {
         match endpoint.connect(url).await {
@@ -206,48 +271,55 @@ async fn connect(
     Err(last.context("connect")?.into())
 }
 
-async fn session(
-    connection: Connection,
+#[derive(Clone, Copy)]
+struct Plan {
     mode: Mode,
     depth: u32,
     asks: usize,
     frames: u32,
     step: u32,
     start: Option<u32>,
-    digests: Option<Arc<Vec<u64>>>,
-) -> Result<Vec<u64>> {
-    let (mut control, _recv) = connection
+    close_after: Option<usize>,
+}
+
+async fn open(connection: &Connection) -> Result<(SendStream, RecvStream)> {
+    let (control, _recv) = connection
         .open_bi()
         .await
         .context("open bi")?
         .await
         .context("bi ready")?;
-    let mut media = connection.accept_uni().await.context("accept media uni")?;
-    match mode {
+    let media = connection.accept_uni().await.context("accept media uni")?;
+    Ok((control, media))
+}
+
+async fn session(connection: &Connection, p: Plan, digests: &Option<Arc<Vec<u64>>>) -> Result<Vec<u64>> {
+    let (mut control, mut media) = open(connection).await?;
+    match p.mode {
         Mode::OnDemand => {
-            let start = start.unwrap_or(0);
-            on_demand(&mut control, &mut media, depth.max(1), asks, frames, step, start, &digests).await
+            let asks = p.close_after.map_or(p.asks, |n| n.min(p.asks));
+            let plan = Plan { depth: p.depth.max(1), start: Some(p.start.unwrap_or(0)), ..p };
+            on_demand(&mut control, &mut media, plan, asks, digests).await
         }
-        Mode::Fill => fill(&mut control, &mut media, asks.min(frames as usize), start, &digests).await,
+        Mode::Fill => fill(&mut control, &mut media, p.asks.min(p.frames as usize), p.start, digests).await,
     }
 }
 
+/// Asks `p.asks` frames, `p.depth` at a time, and returns once `received` of them are in.
 async fn on_demand(
     control: &mut SendStream,
     media: &mut RecvStream,
-    depth: u32,
-    asks: usize,
-    frames: u32,
-    step: u32,
-    start: u32,
+    p: Plan,
+    received: usize,
     digests: &Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
-    let plan = |i: usize| start.wrapping_add((i as u32).wrapping_mul(step)) % frames;
+    let (asks, depth, start) = (p.asks, p.depth, p.start.unwrap_or(0));
+    let plan = |i: usize| start.wrapping_add((i as u32).wrapping_mul(p.step)) % p.frames;
     let mut sent = Vec::with_capacity(asks);
     let mut lats = Vec::with_capacity(asks);
     let mut next_send = 0usize;
     let mut next_recv = 0usize;
-    while next_recv < asks {
+    while next_recv < received {
         while next_send < asks && (next_send - next_recv) < depth as usize {
             control
                 .write_all(&encode_fod_msg(&FodMsg::RequestFrame {
@@ -294,6 +366,31 @@ async fn fill(
         let now = Instant::now();
         lats.push(now.duration_since(prev).as_nanos() as u64);
         prev = now;
+    }
+    Ok(lats)
+}
+
+/// One frame at a time until `stop`, so every ask meets the server alone.
+async fn cotenant(
+    (mut control, mut media): (SendStream, RecvStream),
+    (first, count): (u32, u32),
+    digests: &Option<Arc<Vec<u64>>>,
+    stop: &AtomicBool,
+) -> Result<Vec<u64>> {
+    let mut lats = Vec::new();
+    for i in 0.. {
+        if stop.load(Ordering::Relaxed) {
+            break;
+        }
+        let frame = first + i % count;
+        let sent = Instant::now();
+        control
+            .write_all(&encode_fod_msg(&FodMsg::RequestFrame { frame })?)
+            .await?;
+        let (idx, data) = read_envelope(&mut media).await?;
+        lats.push(sent.elapsed().as_nanos() as u64);
+        check(digests, idx, &data)?;
+        anyhow::ensure!(idx == frame, "co-tenant: envelope {idx} answered ask {frame}");
     }
     Ok(lats)
 }

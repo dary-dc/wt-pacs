@@ -187,19 +187,22 @@ impl FillReader {
     }
 
     /// Extended a quarter window at a time, so the syscall is per megabyte of walk and not
-    /// per frame; a seek past the window restarts it.
+    /// per frame; a seek past the window restarts it. On the pool and not awaited: it can wait
+    /// on reclaim and the block layer. `docs/adr/disk-access.md` §9, finding 6.
     fn advise(&mut self, next: FrameSpan) {
         let end = next.offset + u64::from(next.len);
         let want = end + FILL_WINDOW;
-        if (end..=want).contains(&self.advised_to) {
+        let from = if (end..=want).contains(&self.advised_to) {
             if want - self.advised_to < FILL_WINDOW / 4 {
                 return;
             }
-            self.store.advise_ahead(self.advised_to, want - self.advised_to);
+            self.advised_to
         } else {
-            self.store.advise_ahead(end, FILL_WINDOW);
-        }
+            end
+        };
         self.advised_to = want;
+        let store = Arc::clone(&self.store);
+        tokio::task::spawn_blocking(move || store.advise_ahead(from, want - from));
     }
 
     pub fn stats(&self) -> ReadStats {
@@ -485,19 +488,44 @@ impl TileReader {
 }
 
 impl Drop for TileReader {
-    /// Waits for the kernel before the slots are freed. Here rather than in the ring's own
-    /// `Drop` because `Drop::drop` runs before any field is, so field order cannot break it.
+    /// A ring with reads in flight is drained on the pool, not on this worker.
+    /// `docs/adr/disk-access.md` §9, finding 6.
     fn drop(&mut self) {
         #[cfg(feature = "uring")]
-        if let Ring::Built(ring) = &mut self.ring {
-            if !ring.drain_in_flight() {
-                warn!("io_uring failed with reads in flight; their buffers are leaked, not freed");
-                #[cfg(test)]
-                LEAKED_ON_DROP.set(LEAKED_ON_DROP.get() + 1);
-                // SAFETY: the kernel may still write into any slot's buffer, so none is freed.
-                for slot in &mut self.slots {
-                    mem::forget(mem::take(&mut slot.buf));
-                }
+        if let Ring::Built(ring) = mem::replace(&mut self.ring, Ring::Off) {
+            if ring.in_flight() == 0 {
+                return;
+            }
+            // SAFETY: moving a `Vec` leaves its heap block where the kernel writes; `Draining`
+            // frees it only after the drain, and leaks it if the drain fails.
+            let bufs = self.slots.iter_mut().map(|s| mem::take(&mut s.buf)).collect();
+            let draining = Draining { ring, bufs };
+            match tokio::runtime::Handle::try_current() {
+                Ok(rt) => drop(rt.spawn_blocking(move || drop(draining))),
+                Err(_) => drop(draining),
+            }
+        }
+    }
+}
+
+/// A ring with reads in flight and every buffer they may land in.
+#[cfg(feature = "uring")]
+struct Draining {
+    ring: Box<UringReader>,
+    bufs: Vec<Vec<u8>>,
+}
+
+#[cfg(feature = "uring")]
+impl Drop for Draining {
+    /// In `Drop`, so a pool that drops the task unrun still drains before `bufs` is freed.
+    fn drop(&mut self) {
+        if !self.ring.drain_in_flight() {
+            warn!("io_uring failed with reads in flight; their buffers are leaked, not freed");
+            #[cfg(test)]
+            LEAKED_ON_DROP.set(LEAKED_ON_DROP.get() + 1);
+            // SAFETY: the kernel may still write into any of them, so none is freed.
+            for buf in self.bufs.drain(..) {
+                mem::forget(buf);
             }
         }
     }
@@ -543,6 +571,17 @@ mod tests {
         idx.iter()
             .map(|&i| store.frame_span(i))
             .collect()
+    }
+
+    /// What the pool has advised once `n` calls have landed; the advice is detached, so it lands late.
+    fn landed_advice(store: &FrameStore, n: usize) -> Vec<(u64, u64)> {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut got = store.take_advice();
+        while got.len() < n && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            got.extend(store.take_advice());
+        }
+        got
     }
 
     /// Six windows long, so a frame that misses can be told from a window that does.
@@ -688,7 +727,7 @@ mod tests {
         let mut seq = FillReader::new(Arc::clone(&store));
         rt.block_on(seq.read(all[0], Some(all[1]))).expect("read");
         assert_eq!(
-            store.take_advice(),
+            landed_advice(&store, 1),
             vec![(end(all[1]), FILL_WINDOW)],
             "the first frame asks for one whole window past the named frame"
         );
@@ -697,12 +736,14 @@ mod tests {
             rt.block_on(seq.read(all[i as usize], Some(all[i as usize + 1])))
                 .expect("read");
             walked += u64::from(all[i as usize + 1].len);
-            let advice = store.take_advice();
             if walked < FILL_WINDOW / 4 {
-                assert!(advice.is_empty(), "frame {i}: advised again inside a quarter window");
+                assert!(
+                    store.take_advice().is_empty(),
+                    "frame {i}: advised again inside a quarter window"
+                );
             } else {
                 assert_eq!(
-                    advice,
+                    landed_advice(&store, 1),
                     vec![(end(all[1]) + FILL_WINDOW, walked)],
                     "frame {i}: the extension does not start where the window ended"
                 );
@@ -712,16 +753,47 @@ mod tests {
         assert!(walked >= FILL_WINDOW / 4, "the walk never extended the window");
         rt.block_on(seq.read(all[20], Some(all[21]))).expect("read");
         assert_eq!(
-            store.take_advice(),
+            landed_advice(&store, 1),
             vec![(end(all[21]), FILL_WINDOW)],
             "a seek past the window restarts it"
         );
         rt.block_on(seq.read(all[3], Some(all[4]))).expect("read");
         assert_eq!(
-            store.take_advice(),
+            landed_advice(&store, 1),
             vec![(end(all[4]), FILL_WINDOW)],
             "a seek back before the window restarts it"
         );
+        drop(rt);
+        assert!(store.take_advice().is_empty(), "advised more than the walk asked for");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **G1 of finding 6.** A fill's advice runs on the pool and nobody awaits it, so the read
+    /// returns while the advice is still blocked, as the kernel can block it on reclaim.
+    #[test]
+    fn a_fill_read_does_not_wait_for_its_advice() {
+        let dir = scratch("advise-detached");
+        let path = write_bundle(&dir, 2, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let [first, second] = spans(&store, &[0, 1])[..] else {
+            unreachable!("two frames")
+        };
+        let (done, served) = std::sync::mpsc::channel();
+        let held = store.hold_advice();
+        let reader = std::thread::spawn({
+            let store = Arc::clone(&store);
+            move || {
+                let (rt, mut seq) = (rt(), FillReader::new(store));
+                let out = rt.block_on(seq.read(first, Some(second)));
+                done.send(out.map(|b| b.to_vec())).ok();
+            }
+        });
+        let served = served.recv_timeout(std::time::Duration::from_secs(5));
+        drop(held);
+        reader.join().expect("reader thread");
+        let out = served.expect("the read waited for its advice").expect("read");
+        assert_eq!(out, frame_pattern(0, LEN), "the fill served wrong bytes");
+        assert_eq!(landed_advice(&store, 1).len(), 1, "the advice never ran");
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -1045,40 +1117,87 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// A tile reader whose ring fails with a read in flight leaks its slots instead of freeing
-    /// memory the kernel may still write. The read is on a pipe nobody writes, so it never lands.
-    #[test]
+    /// A tile reader whose ring holds a read from a pipe nobody has written, so the read lands
+    /// only once `.2` is written. `None` where io_uring is unavailable.
     #[cfg(feature = "uring")]
-    fn a_tile_reader_whose_ring_fails_mid_read_leaks_its_slots() {
-        use crate::media::uring_reader::FAILED_WAITS;
+    fn tile_mid_read(store: Arc<FrameStore>) -> Option<(TileReader, std::fs::File, std::fs::File)> {
         use std::os::fd::FromRawFd;
-        let dir = scratch("ringleak");
-        let path = write_bundle(&dir, 1, LEN);
-        let store = Arc::new(FrameStore::open(&path).expect("open store"));
-        let rt = rt();
-        let _guard = rt.enter();
         let mut fds = [0i32; 2];
         // SAFETY: `pipe` fills two fds or fails.
         assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "pipe");
         // SAFETY: fresh fds, owned here and nowhere else.
         let (rd, wr) =
             unsafe { (std::fs::File::from_raw_fd(fds[0]), std::fs::File::from_raw_fd(fds[1])) };
-        let Ok(ring) = UringReader::new(&rd, TILE_SLOTS as u32) else {
-            eprintln!("SKIPPED: io_uring is unavailable on this host");
-            std::fs::remove_dir_all(&dir).ok();
-            return;
-        };
+        let ring = UringReader::new(&rd, TILE_SLOTS as u32).ok()?;
         let mut tile = TileReader::new(ReadMode::Pool, store, TILE_SLOTS);
         tile.ring = Ring::Built(Box::new(ring));
         let TileReader { ring: Ring::Built(ring), slots, .. } = &mut tile else {
             unreachable!("built above")
         };
         slots[0].buf = vec![0u8; 64];
-        // SAFETY: the test's subject: the slot's buffer must outlive the read, leaked or drained.
+        // SAFETY: the tests' subject: the slot's buffer must outlive the read, leaked or drained.
         unsafe { ring.submit(0, &mut slots[0].buf, 0) }.expect("submit");
         slots[0].read = Some(InFlight::Ring);
+        Some((tile, rd, wr))
+    }
 
-        // One for the tile reader's drain, one for the ring's own on drop.
+    /// **G2 of finding 6.** A tile reader dropped with a ring read in flight returns at once,
+    /// leaving the drain, a device read long, to the pool rather than to the worker dropping it.
+    #[test]
+    #[cfg(feature = "uring")]
+    fn a_tile_reader_dropped_mid_read_drains_on_the_pool() {
+        use std::io::Write;
+        use std::time::{Duration, Instant};
+        let dir = scratch("ringpool");
+        let path = write_bundle(&dir, 1, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let rt = rt();
+        let entered = rt.enter();
+        let Some((tile, _rd, wr)) = tile_mid_read(store) else {
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        };
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(500));
+            (&wr).write_all(&[0x5A; 64]).expect("write");
+            wr
+        });
+        let dropping = Instant::now();
+        drop(tile);
+        let took = dropping.elapsed();
+        let _wr = writer.join().expect("writer");
+        drop(entered);
+        drop(rt);
+        assert!(took < Duration::from_millis(250), "the drop waited {took:?} for the kernel");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A drain the pool drops unrun, as a runtime shutting down does, still runs before the
+    /// buffers go: a ring that fails with a read in flight leaks its slots instead of freeing
+    /// memory the kernel may still write. The read is on a pipe nobody writes, so it never lands.
+    #[test]
+    #[cfg(feature = "uring")]
+    fn a_drain_the_pool_drops_unrun_still_leaks_rather_than_frees() {
+        use crate::media::uring_reader::FAILED_WAITS;
+        let dir = scratch("ringleak");
+        let path = write_bundle(&dir, 1, LEN);
+        let store = Arc::new(FrameStore::open(&path).expect("open store"));
+        let rt = rt();
+        let built = {
+            let _entered = rt.enter();
+            tile_mid_read(store)
+        };
+        let Some((tile, _rd, wr)) = built else {
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        };
+        let handle = rt.handle().clone();
+        rt.shutdown_background();
+        let _shut = handle.enter();
+
+        // One for the drain, one for the ring's own on drop.
         FAILED_WAITS.with(|f| f.borrow_mut().extend([libc::EBADF, libc::EBADF]));
         let before = LEAKED_ON_DROP.get();
         drop(tile);

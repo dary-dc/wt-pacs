@@ -76,6 +76,10 @@ impl UringReader {
         Ok(landed)
     }
 
+    pub(crate) fn in_flight(&self) -> usize {
+        self.in_flight
+    }
+
     /// Park on the ring's own fd, never in `io_uring_enter`. A wake may carry nothing.
     pub(crate) async fn park(&mut self) -> Result<()> {
         let mut guard = self.ring_fd.readable().await.context("ring fd readable")?;

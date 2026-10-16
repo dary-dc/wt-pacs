@@ -934,6 +934,42 @@ which each row reports.
 | 260 | **FILLWINDOW** — does a window of two frames beat 4 MiB on frames past 1 MiB? (finding 8) | measure | — |
 | 261 | **RINGCOOP** — does `COOP_TASKRUN` delay ring completions beside busy workers? (finding 9) | measure | row 250 |
 
+### Row 258 (EXECGAP): the arms and the rig, built, not measured
+
+*2026-10-16. Built and tested; nothing timed, because the measurement needs a device-bound host. The finding is #6
+and the protocol is 258's, both above.* **The branch carries both arms; an arm the run closes is reverted before it
+merges.**
+
+* **G1** (`0c0ba29e`): `FillReader::advise` hands its `WILLNEED` to `spawn_blocking` and awaits nothing. The
+  window arithmetic is unchanged.
+* **G2** (`31805718`): `TileReader::drop` moves a ring that still has reads in flight, together with every slot's
+  buffer, into `Draining`, and drops that on `spawn_blocking` (inline where no runtime is current).
+  `Draining`'s own `Drop` drains, or leaks the buffers if the drain fails. The guard is needed because tokio 1.53
+  drops a blocking task that has not started when its runtime shuts down (`blocking/pool.rs`,
+  `shutdown_or_run_if_mandatory`), and a drain written in the task's body would then never run. Only a session
+  that ends with ring reads in flight pays the hop.
+* **The rig**: no existing rig had either cell, so `server_ab` gains four options. `--cotenant FIRST:COUNT` adds
+  one more session that asks one frame at a time and prints its p50, p99 and max. `--spread` gives each session its
+  own range, `--cycles` makes each session reconnect, and `--close-after` closes a connection with asks still out.
+  [`exec_gap.sh`](../../lab/scripts/exec_gap.sh) runs the cells, and builds each arm as G0 (`a1333bce`) with its one
+  commit picked onto it.
+  * Cell (a): 16 and then 64 fills of 16 frames each.
+  * Cell (b): 16 tile sessions at depth 4 and a 2-frame stride. Each closes twice, each time once 2 frames have
+    arrived and 3 are still asked.
+  * Both cells run beside a co-tenant on frames 0–63, which are read warm before round 1. Every range starts past
+    what any earlier range or its 4 MiB window touched, so each cell is cold with nothing evicted.
+  * Each row records the server's hits, misses and ring-built sessions.
+* **The run.** `lab/scripts/exec_gap.sh <series.sbnd> <out-dir>`. The series must be larger than the host's page
+  cache and on the device under test, and needs 133 706 frames at 499 kB (~67 GB). Fewer frames are refused, with
+  the count named. The script writes the following to the output directory:
+  * `host.txt`: the kernel, filesystem, `read_ahead_kb`, `nr_requests`, THP mode and glibc.
+  * `exec_gap.tsv` and the four servers' logs.
+  * `summary.txt`, from [`exec_gap_summary.py`](../../lab/scripts/exec_gap_summary.py). It applies the protocol's
+    rule, and its test runs in the gate.
+
+  A cell where the server's CPU reaches 80 % of its cores counts for no arm. Cell (c), INLINECAP's large warm hits,
+  is not built because INLINECAP is not queued with this row.
+
 ## 10 · How it is built
 
 ### How a read works
@@ -1040,7 +1076,9 @@ INFO session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_event
 | Dropping a ring mid-read waits for the kernel | `dropping_a_reader_mid_read_waits_for_the_kernel` |
 | An interrupted wait does not end the drain | `an_interrupted_drain_still_waits_for_the_kernel` |
 | A failed drain reports the read still in flight | `a_failed_drain_reports_the_read_still_in_flight` |
-| A tile reader whose ring fails mid-read leaks its slots | `a_tile_reader_whose_ring_fails_mid_read_leaks_its_slots` |
+| A fill's read does not wait for its advice (row 258's G1) | `a_fill_read_does_not_wait_for_its_advice` |
+| A tile reader dropped mid-read drains on the pool, not the dropping worker (G2) | `a_tile_reader_dropped_mid_read_drains_on_the_pool` |
+| A drain the pool drops unrun still runs: a ring that fails mid-read leaks its slots (G2) | `a_drain_the_pool_drops_unrun_still_leaks_rather_than_frees` |
 | A parked reader is woken, a handful of times and not in a spin (an fd nothing signals hangs it; a park that never clears readiness spins; until row 250, the `_async` eventfd hung it) | `a_read_that_cannot_complete_inline_wakes_the_parked_reader` |
 | The session line reports the miss rate | `read_stats_report_the_session_miss_rate` |
 | The frame quinn sends is the pooled buffer, and it comes back | `a_handed_off_frame_is_the_buffer_itself_and_comes_back_when_dropped` |
@@ -1380,7 +1418,7 @@ and packs `report-<UTC>/` as `workstation-<UTC>.tar.gz`, the one file to send ba
 | ring | `ring.txt` | does a tile miss build a ring: natively (the session line's `ring=true`); in the deploy image under the runtime's default profile (the control: refused) and under `seccomp-uring.json`. Where SELinux enforces and the profile alone is refused, `label=disable` is tried, and the policy module [`deploy/wtpacs_io_uring.te`](../../deploy/wtpacs_io_uring.te) (only `io_uring { allowed }`, for `container_t`) is left to the owner: `ROOT-STEPS.txt` says how to load it, then `--only ring` tests it |
 | readers | `readers.tsv`, `readers_summary.txt` | item 10: the cells of *The two readers, every variant* (§11) on this host. Cold tile 16 KiB (stride 250 000) and 250 kB (stride 500 000), cold fill 16 KiB; depths 1, 4, 16; 1 and 16 readers; 256 asks; `product_tile`, `product_fill`, `hybrid_lazyring`, `uring`, `pool`, `pool_capped_probe`, `pooled_pread`, and a second copy of each product reader as the A/A; 12 repeats in `read_campaign`'s rotation. Each variant against the shape's own reader, paired per repeat, on p50 and CPU per ask under §11's rule; the A/A's p90 \|Δ\| is this host's resolution; and the three claim columns above |
 | server | `server.tsv`, `server_summary.txt` | the product server, ring against pool (`WTPACS_READ_PATH=pool`) with a second ring arm as the A/A, on `server_ab.sh`'s cells (cold depth 1, 2, 4; warm depth 1, 4; a cold fill), 256 asks, 12 rounds, the three arms in `lab/scripts/order.py`'s order inside each cell. Checked: cold misses ≥ 0.95, `ring=true` in every cold ring row and `false` in every pool row |
-| execgap | `execgap/` | row 258's script (exec_gap.sh in `lab/scripts/` on its branch, or `EXEC_GAP_SCRIPT`), given its binaries with `--exec-gap BIN_DIR`, on a series of 499 kB frames past RAM and at least the unread frames its rounds need (1.25 × RAM, and ≥ 67 GB at 12 rounds); skipped when either is missing |
+| execgap | `execgap/` | row 258's script (exec_gap.sh in `lab/scripts/` on its branch, or `EXEC_GAP_SCRIPT`), given its binaries with `--exec-gap BIN_DIR`, or building them itself with `--exec-gap build`, on a series of 499 kB frames past RAM and at least the unread frames its rounds need (1.25 × RAM, and ≥ 67 GB at 12 rounds); skipped when either is missing |
 
 **Cold is a copy, never an eviction.** Every cold cell reads a copy written past the page cache with `O_DIRECT`
 (`writer_bench direct`, and `read_campaign --fresh DIR` per cell) and counted non-resident by `mincore`: the server
