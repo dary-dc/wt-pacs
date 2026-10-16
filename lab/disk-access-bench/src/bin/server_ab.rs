@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wtransport::config::IpBindConfig;
 use wtransport::stream::{RecvStream, SendStream};
-use wtransport::{ClientConfig, Connection, Endpoint};
+use wtransport::{ClientConfig, Connection, Endpoint, VarInt};
 use xxhash_rust::xxh3::xxh3_64;
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -76,6 +76,9 @@ struct Args {
     /// the first starts on a line (or the end) of stdin, so the caller can read the server between them.
     #[arg(long, default_value_t = 1)]
     passes: usize,
+    /// A fill's pause after each frame it receives, in µs: a lever to keep the server below saturation.
+    #[arg(long, default_value_t = 0)]
+    gap_us: u64,
 }
 
 static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
@@ -83,11 +86,9 @@ static DUMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new(
 /// XXH3-64 per frame index, from the files the bundle was packed from.
 fn coded_digests(dir: &std::path::Path) -> Result<Vec<u64>> {
     let mut paths: Vec<_> = std::fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
-    paths.retain(|p| {
-        p.file_stem().and_then(|s| s.to_str()).is_some_and(|s| s.parse::<u32>().is_ok())
-            && p.extension().is_some_and(|e| e == "htj2k" || e == "av1")
-    });
-    paths.sort();
+    let index = |p: &std::path::Path| p.file_stem().and_then(|s| s.to_str()).and_then(|s| s.parse::<u32>().ok());
+    paths.retain(|p| index(p).is_some() && p.extension().is_some_and(|e| e == "htj2k" || e == "av1"));
+    paths.sort_by_key(|p| index(p));
     paths.iter().map(|p| Ok(xxh3_64(&std::fs::read(p)?))).collect()
 }
 
@@ -158,7 +159,11 @@ async fn run(args: Args) -> Result<()> {
         sampler.abort();
     }
     drop(sessions);
-    drop(endpoints);
+    // Closed, not dropped: the server writes each `session reads` line now, not at its idle timeout.
+    for endpoint in &endpoints {
+        endpoint.close(VarInt::from_u32(0), b"");
+        endpoint.wait_idle().await;
+    }
     Ok(())
 }
 
@@ -233,7 +238,8 @@ async fn idle(args: &Args, digests: &Option<Arc<Vec<u64>>>) -> Result<()> {
         let mut media = connection.accept_uni().await.context("accept media uni")?;
         let (depth, step, start) = (args.depth.max(1), args.step.max(1), args.start.unwrap_or(0));
         served += on_demand(&mut control, &mut media, depth, args.asks, frames, step, start, digests).await?.len();
-        served += fill(&mut control, &mut media, args.fill.min(frames as usize), Some(0), digests).await?.len();
+        let gap = Duration::from_micros(args.gap_us);
+        served += fill(&mut control, &mut media, args.fill.min(frames as usize), Some(0), gap, digests).await?.len();
         held.push((endpoint, connection, control, recv, media));
     }
     let cpu_ns_per_frame = proc_cpu(pid)?.saturating_sub(cpu0) / served.max(1) as u128;
@@ -318,7 +324,10 @@ impl Session {
                 let (depth, step, start) = (args.depth.max(1), args.step.max(1), args.start.unwrap_or(0));
                 on_demand(control, media, depth, args.asks, frames, step, start, digests).await
             }
-            Mode::Fill => fill(control, media, args.asks.min(frames as usize), args.start, digests).await,
+            Mode::Fill => {
+                let gap = Duration::from_micros(args.gap_us);
+                fill(control, media, args.asks.min(frames as usize), args.start, gap, digests).await
+            }
             Mode::Idle => unreachable!("`idle` opens its own sessions"),
         }
     }
@@ -369,6 +378,7 @@ async fn fill(
     media: &mut RecvStream,
     asks: usize,
     start: Option<u32>,
+    gap: Duration,
     digests: &Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
     let mut lats = Vec::with_capacity(asks);
@@ -386,6 +396,9 @@ async fn fill(
         let now = Instant::now();
         lats.push(now.duration_since(prev).as_nanos() as u64);
         prev = now;
+        if !gap.is_zero() {
+            tokio::time::sleep(gap).await;
+        }
     }
     Ok(lats)
 }
