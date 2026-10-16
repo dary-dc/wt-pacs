@@ -170,8 +170,10 @@ still detaches — so the clause holds delivered-buffer semantics only.
 `run_browser.sh` drives two pages at a time, the longest first, so the dispatch rig shares the host with one other
 page as it did before the WASM rigs. With all four at once on one core (2026-10-16), `aFrameLostTwiceFailsByName`
 failed in both runs: frame 2 reached the page and then failed with the decoder that crashed on frame 1, its ack not
-yet back, and frame 3 was neither within the clause's 4 s. Two at a time it passed in both runs. That a delivered
-frame can still be failed is the downloader's, and not fixed here.
+yet back, and frame 3 was neither within the clause's 4 s. Two at a time it passed in both runs. *Corrected
+2026-10-16 (row 275):* "not fixed here" — the page now drops a failure of a frame it has
+([`ARCHITECTURE.md`](ARCHITECTURE.md) §The downloader). Frame 3 was not lost: the clause waits for four answers, and
+frame 2's two met the count before frame 3's came.
 
 The fake says `listening` on its channel once it is up, and the page posts nothing before it hears
 that. Chromium can drop a message posted to a channel a worker has already constructed: on Chrome
