@@ -145,6 +145,17 @@ def server_cpu_ns(pid):
     return total
 
 
+def cpu_ticks():
+    """Per CPU (busy, total) jiffies from /proc/stat: softirq and every process included."""
+    out = {}
+    for line in Path("/proc/stat").read_text().splitlines():
+        name, *v = line.split()
+        if name.startswith("cpu") and name != "cpu":
+            v = list(map(int, v[:8]))
+            out[int(name[3:])] = (sum(v) - v[3] - v[4], sum(v))
+    return out
+
+
 def driver(work, name, server, label, arm, mode, *extra):
     return ["taskset", "-c", CLIENT_CPUS, work / "bin/server_ab", "--url", f"https://127.0.0.1:{server.port}/",
             "--server-pid", str(server.proc.pid), "--mode", mode, "--label", label, "--variant", arm,
@@ -162,11 +173,14 @@ def run(work, name, server, cond, label, arm):
                    "--asks", FILL_FRAMES, "--frames", tile_frames(name) + FILL_FRAMES, "--gap-us", FILL_GAP_US, "--temp", "warm"),
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         time.sleep(FILL_LEAD_S)
+    ticks0 = cpu_ticks()
     tile = subprocess.run(
         driver(work, name, server, label, arm, "on-demand", "--depth", DEPTH, "--asks", ASKS, "--sessions", 1,
                "--frames", tile_frames(name), "--step", step(name), "--temp", "cold"),
         capture_output=True, text=True)
     overlapped = fills is None or fills.poll() is None
+    ticks1 = cpu_ticks()
+    cpu_busy = {c: round((ticks1[c][0] - ticks0[c][0]) / max(1, ticks1[c][1] - ticks0[c][1]), 2) for c in ticks1}
     if fills and fills.wait():
         raise RuntimeError(f"{label} {arm}: fills failed: {fills.stderr.read()[-500:]}")
     if tile.returncode:
@@ -193,7 +207,7 @@ def run(work, name, server, cond, label, arm):
     return dict(p50_ns=int(c[6]), p99_ns=int(c[8]), wall_ns=wall_ns,
                 cpu_ns_per_ask=cell_cpu_ns // (ASKS + fill_reads),
                 busy=window_cpu_ns_per_ask * ASKS / (wall_ns * server.cpus), miss_rate=miss, in_flight=int(t["in_flight"]),
-                fills_overlapped=overlapped,
+                fills_overlapped=overlapped, cpu_busy=cpu_busy,
                 fill_miss_rate=sum(int(l["fill_misses"]) for l in fill_lines) / fill_reads if fill_reads else None)
 
 
@@ -241,6 +255,9 @@ def summary(path):
         busy = {a: statistics.median(arms[a][rd]["busy"] for rd in rounds) for a in ("C0", "C1")}
         saturated = max(busy.values()) >= BUSY_CAP
         overlap = sum(arms[a][rd]["fills_overlapped"] for a in arms for rd in rounds)
+        per_cpu = [arms[a][rd]["cpu_busy"] for a in arms for rd in rounds]
+        print(f"{tile + ' ' + cond:14} host CPUs busy over the tile run, median:",
+              {c: statistics.median(b[c] for b in per_cpu) for c in sorted(per_cpu[0])})
         for metric in ("p50_ns", "p99_ns", "cpu_ns_per_ask"):
             dev = sorted(abs(aa[rd][metric] / c0[rd][metric] - 1) for rd in rounds)
             res = dev[min(len(dev) - 1, int(0.9 * len(dev)))]
