@@ -205,7 +205,9 @@ its own, does not apply.
   103 Mbit/s behind 20 ms (§9.5).
 
 *Built 2026-10-16 for the measurement (row 252), off by default:* `series-server --fill-resumes-after-asks`, with the
-downloader's `refill: "none"`.
+downloader's `refill: "none"`. *Measured (row 253):* a **trade-off for the owner** by the rule below:
+with the window, asks ×0.32–0.90 of 3's or a tie, fills +14 to +54 ms worse in one or two cells at 103 Mbit/s
+([`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, *ONEQUEUE*).
 
 **Candidate 2, asks ranked above fill at the transport** (`--stream-mode per-frame-asks-first`, lab only). Row 211:
 the ask ×0.10–0.92 of `shared` (row 180: ×1.05 at 103 Mbit/s behind 360 ms), but the fill above `shared`'s spread at

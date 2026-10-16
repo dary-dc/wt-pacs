@@ -32,7 +32,8 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
 * `onequeue.py ROWS.jsonl` — ONEQUEUEMEASURE (row 253), the one queue (`Q=--fill-resumes-after-asks ?refill=none`,
   `QW` the same with `--send-window-follows-cwnd`) and today with the window (`TW`) against today (`T`, `?refill=head`)
   and the same again (`Tp`), each read as `refill.py` reads its arm, halves of the rounds for the confirmation.
-  Its rows are `rows-onequeue.jsonl`; `rows-onequeue-ceiling.jsonl` is the relay's ceiling on that build.
+  Its rows are `rows-onequeue.jsonl`, without `settings` (each run's was `transport=congestion=cubic-restart` and
+  its arm, in the header); `rows-onequeue-ceiling.jsonl` is the relay's ceiling on that build.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
 * The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once `at` (half
   unless set) has landed, asks for the last frame.

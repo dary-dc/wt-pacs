@@ -60,7 +60,8 @@ def main():
     print(f"runs {len(rows)}, rounds {len(rounds)}, VOID {sum(r['void'] for r in rows)}, "
           f"not exact or failed {sum(not r['exact'] or bool(r['error']) for r in rows)}")
     s, p = (reading(rows, cells, len(rounds) // 2, strict) for strict in (True, False))
-    print(f"\nverdict: {s if s == p else 'the readings disagree'} ({s} | {p})")
+    agree = s.split(":")[0] == p.split(":")[0]
+    print(f"\nverdict: {s.split(':')[0] if agree else 'the readings disagree'} (strict: {s} | round-paired: {p})")
 
 
 if __name__ == "__main__":

@@ -402,6 +402,78 @@ frame checked against the encoder's input, each arm's full settings printed and 
   368 at 18/300; T + B 4–79 ms, 64 at 18/300. **Verdict: B becomes the default**, both readings. Measured on the shared
   stream; the lab's `--stream-mode per-frame`, where fill frames can land after the ask's head, was not run.
 
+  **Re-measured (row 253, 2026-10-16): ONEQUEUE, the one queue, is a trade-off for the owner.** The protocol and
+  rule of [`../WIRE.md`](../WIRE.md) §Proposed: one queue (row 249), fixed before the data. Arms: T (candidate 3,
+  `?refill=head`), Tp (T again, the A/A arm), Q (candidate 1: `--fill-resumes-after-asks`, `?refill=none`), QW (Q
+  with `--send-window-follows-cwnd`), TW (T with the window). Each read as row 229 reads B, by
+  [`../../lab/ask-ahead/onequeue.py`](../../lab/ask-ahead/onequeue.py): rounds 0–9 flagged, 10–19 the confirmation,
+  strict and round-paired. Rig as row 229's (Chromium 141.0.7390.37, the last frame, 560 018 B, asked at 10 % and
+  50 %, `cubic-restart`, shared stream, relay under `chrt -f 50`); one frozen binary built from `ade39ff5`; 28 cells,
+  **20 Williams rounds** (five arms, period 10), **2 800 runs, every frame SHA-256-exact, none failed**, 329 `VOID`
+  (4–21 a cell, most at 103 Mbit/s; strict n = 5–17, and 103/92/FIFO 800 at 10 % too few in a half to read strict).
+  The server's `transport=` banner names neither flag; the arms show in their effect (QW and TW have 3.4 MB written
+  ahead of a 10 % ask, T and Q 5.1 MB). The host restarted in round 1: round 0 kept, the 31 runs of round 1 written
+  before the restart set aside, round 1 run again from its start on the same binary (with those 31 in place of the
+  re-run's, the verdict is the same). From round 3, other rows' builds ran on CPU 3 at nice 19; `VOID` rose from
+  3–6 % of a round's runs (rounds 0–2) to 6–21 %. **The relay's ceiling**, fills with no ask at 2 ms: 17.6–17.7
+  Mbit/s at 18, 100.1–100.3 at 103 (3 of 6 visits `VOID`); with row 229's 178–190 at 200, **the host saturates
+  between 103 and 200 Mbit/s**, and nothing is claimed past 103. Rows `rows-onequeue.jsonl` and
+  `rows-onequeue-ceiling.jsonl` in [`../../lab/ask-ahead/`](../../lab/ask-ahead/README.md).
+
+  | round-paired, × T's median | ask: T ms | Q | QW | TW | fill: T ms | Q | QW | TW |
+  |---|---|---|---|---|---|---|---|---|
+  | 18/46 FIFO 20 @10 % | 2 615 | ×1.001 | ×0.411 ↓ | ×0.408 ↓ | 6 458 | ×1.000 | ×1.000 | ×1.000 |
+  | 18/46 FIFO 20 @50 % | 3 119 | ×0.999 | ×0.328 ↓ | ×0.328 ↓ | 6 482 | ×1.000 | ×0.997 | ×1.002 |
+  | 18/46 CoDel @10 % | 2 661 | ×0.995 | ×0.397 ↓ | ×0.392 ↓ | 6 811 | ×1.002 | ×1.003 | ×1.001 |
+  | 18/46 CoDel @50 % | 3 467 | ×0.996 | ×0.358 ↓ | ×0.371 ↓ | 6 823 | ×1.002 | ×0.997 | ×1.002 |
+  | 18/92 FIFO 20 @10 % | 2 777 | ×1.000 | ×0.420 ↓ | ×0.426 ↓ | 6 847 | ×1.000 | ×0.996 | ×1.005 |
+  | 18/92 FIFO 20 @50 % | 3 082 | ×1.000 | ×0.333 ↓ | ×0.333 ↓ | 6 854 | ×1.001 | ×1.000 | ×1.002 |
+  | 18/92 CoDel @10 % | 2 914 | ×0.990 | ×0.320 ↓ | ×0.322 ↓ | 7 373 | ×0.998 | ×0.995 | ×0.998 |
+  | 18/92 CoDel @50 % | 3 463 | ×1.000 | ×0.348 ↓ | ×0.332 ↓ | 7 349 | ×1.000 | ×0.997 | ×1.001 |
+  | 103/46 FIFO 20 @10 % | 448 | ×1.002 | ×0.703 ↓ | ×0.699 ↓ | 1 397 | ×0.995 | ×0.993 | ×1.039 **↑** |
+  | 103/46 FIFO 20 @50 % | 539 | ×1.001 | ×0.411 ↓ | ×0.412 ↓ | 1 391 | ×1.001 | ×0.998 | ×1.004 |
+  | 103/46 CoDel @10 % | 480 | ×1.051 **↑** | ×0.732 ↓ | ×0.721 ↓ | 1 451 | ×0.956 ↓ | ×0.968 ↓ | ×1.009 **↑** |
+  | 103/46 CoDel @50 % | 469 | ×0.988 | ×0.605 ↓ | ×0.596 ↓ | 1 389 | ×1.001 | ×1.010 **↑** | ×1.057 **↑** |
+  | 103/92 FIFO 20 @10 % | 492 | ×1.215 **↑** | ×0.875 ↓ | ×0.813 ↓ | 1 951 | ×0.956 ↓ | ×0.980 | ×1.047 **↑** |
+  | 103/92 FIFO 20 @50 % | 437 | ×1.007 ? | ×0.610 ↓ | ×0.583 ↓ | 1 867 | ×1.002 | ×1.024 **↑** | ×1.058 **↑** |
+  | 103/92 CoDel @10 % | 538 | ×1.142 **↑** | ×0.900 ↓ | ×0.678 ↓ | 2 021 | ×0.947 ↓ | ×0.958 ↓ | ×0.986 ↓ |
+  | 103/92 CoDel @50 % | 464 | ×1.002 | ×0.856 ↓ | ×0.769 ↓ | 1 909 | ×0.998 | ×1.012 | ×1.045 **↑** |
+  | 18/300 FIFO 20 @10 % | 3 035 | ×1.000 | ×0.549 ↓ | ×0.586 ↓ | 9 306 | ×1.001 | ×1.004 | ×1.010 |
+  | 18/300 FIFO 20 @50 % | 3 655 | ×0.995 | ×0.343 ↓ | ×0.343 ↓ | 9 344 | ×0.997 | ×1.004 | ×1.004 |
+  | 103/46 FIFO 360 @10 % | 444 | ×1.002 | ×0.699 ↓ | ×0.698 ↓ | 1 390 | ×0.996 | ×0.996 ↓ | ×0.999 |
+  | 103/46 FIFO 360 @50 % | 536 | ×0.999 | ×0.999 | ×1.000 | 1 385 | ×1.000 | ×0.998 | ×0.999 |
+  | 103/46 FIFO 800 @10 % | 445 | ×1.002 | ×0.696 ↓ | ×0.698 ↓ | 1 389 | ×0.997 | ×0.997 | ×1.001 |
+  | 103/46 FIFO 800 @50 % | 535 | ×1.000 | ×1.001 | ×0.997 | 1 385 | ×0.999 | ×0.999 | ×1.000 |
+  | 103/92 FIFO 800 @10 % | 451 | ×1.002 | ×0.700 ↓ | ×0.699 ↓ | 1 832 | ×0.973 ↓ | ×0.972 ↓ | ×1.000 |
+  | 103/92 FIFO 800 @50 % | 536 | ×0.999 | ×1.000 | ×0.997 | 1 782 | ×0.999 | ×0.998 | ×1.000 |
+  | 18/46 FIFO 360 @10 % | 2 569 | ×1.000 | ×0.791 ↓ | ×0.745 ↓ | 6 335 | ×1.000 | ×1.000 | ×1.000 |
+  | 18/46 FIFO 360 @50 % | 3 079 | ×1.000 | ×0.416 ↓ | ×0.416 ↓ | 6 335 | ×1.000 | ×1.000 | ×1.000 |
+  | 18/46 FIFO 800 @10 % | 2 570 | ×1.267 **↑** | ×0.856 ↓ | ×0.699 ↓ | 6 340 | ×1.000 | ×1.000 | ×1.000 |
+  | 18/46 FIFO 800 @50 % | 2 269 | ×1.000 | ×0.407 ↓ | ×0.407 ↓ | 6 337 | ×1.000 | ×1.000 | ×1.000 |
+
+  ↓ better, **↑** worse, ? not conclusive, unmarked a tie. *Strict, where it differs:* QW's fill at 103/46 CoDel at
+  50 % a tie (×1.009, n = 10) and at 103/92 FIFO 20 at 10 % not conclusive; QW's worse fill at 103/92 FIFO 20 at 50 %
+  ×1.029; TW's fill at 103/92 CoDel 50 % a tie; eight better become ties at n = 5–10; 103/92 FIFO 800 at 10 % not
+  conclusive. Q's ask at 18/46 FIFO 800 at 10 % reads a tie there at ×1.266 although it is 3 243–3 276 ms in every
+  round against T's 2 554–2 574: n = 9 split in halves is too short for the test to flag, and the reader's *tie* falls
+  back on the A/A spread alone. The A/A spread: Tp/T ×0.980–1.008 (strict ×0.971–1.009), an arm's sd 0.0–5.1 % (strict
+  up to 11.3 %, 103/92 FIFO 20 at 10 %), the loss the rule would catch 0.1–6.3 % (strict up to 21 %).
+  * *Q, the queue alone,* is T wherever T's fill is already written ahead of the ask, every 50 % cell (one ask not
+    conclusive), as the build predicted. At 10 % its fill is better in four 103 cells (−49 to −107 ms), and its ask
+    worse in four (+24 to +684 ms), with the same 5.1 MB written ahead of the ask as T's; that ask cost is not
+    explained here.
+  * *QW, the better of the two* (worse in one or two cells, Q in three or four): every ask a tie or ×0.320–0.900 of
+    T's, better in 25 of 28 cells (the ties at 103 behind FIFO 360 and 800 at 50 %); the fill better in three or four
+    10 % cells at 103 (×0.958–0.996), worse at **103/92 FIFO 20 at 50 %, +45 ms** (strict +54) and **103/46 CoDel at
+    50 %, +14 ms** (round-paired only).
+  * *TW, the window alone,* has QW's asks within ±0.04, or better at 103/92 and at 18/46 FIFO 800 at 10 % (by up to
+    0.22): the ask's gain is the window's. Its fill is worse in six 103 cells, +13 to +108 ms (row 171's cost); QW's
+    in one or two and by less: the queue takes back most of the window's fill cost, not all.
+
+  **Verdict, by the rule: a trade-off for the owner**, both readings: QW, an ask ×0.32–0.90 of today's in 25 of 28
+  cells, against a fill +45 to +54 ms at 103/92 FIFO 20 at 50 % and, round-paired only, +14 ms at 103/46 CoDel at
+  50 %. Nothing is changed; the flag stays off. Not run: past 103 Mbit/s, loss, `--stream-mode per-frame`.
+
 * **IWDEEP (item 3) — is the 32-packet initial window net behind the buffers phones have?** Arms: quinn's 12 000
   bytes; 38 400. Cells: 18, 103, 309 Mbit/s; idle RTT 46 and 92 ms; FIFO 10 packets (the old losing depth), 20 ms, 360 ms. A fresh ask-only
   session asks one 250 KB and one 50 KB frame; a control session opens with the push. *Predictions:* −25 to −33 % at
