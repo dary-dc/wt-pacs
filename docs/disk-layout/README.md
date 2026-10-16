@@ -44,8 +44,8 @@ Ingest writes the same JSON in two places: inside the file, and as a sidecar bes
 
 | Copy | Written by | Read by |
 | --- | --- | --- |
-| embedded, after the index | `BundleWriter::create` (`writer.rs:58`) | **nobody**: the parser returns it (`format.rs:61`), `FrameStore::open` keeps only the index (`server/src/media/frame_store.rs:44–49`) |
-| sidecar `OUT.metadata.json` | `from_dicom.py`, once `pack-series` has written the bundle (`ingest/from-dicom/from_dicom.py:60–65`) | **the page**, as `/series/metadata`: nginx aliases it (`deploy/nginx/wt-pacs.conf.template:46–49`), `dev-server.py` serves it (`server/dev-server.py:32–33`) |
+| embedded, after the index | `BundleWriter::create` (`writer.rs:58`) | **nobody**: the parser returns it (`format.rs:61`), `FrameStore::open` keeps only the index (`server/src/media/frame_store.rs:41–47`) |
+| sidecar `OUT.metadata.json` | `from_dicom.py`, once `pack-series` has written the bundle (`ingest/from-dicom/from_dicom.py:57–62`) | **the page**, as `/series/metadata`: nginx aliases it (`deploy/nginx/wt-pacs.conf.template:48–51`), `dev-server.py` serves it (`server/dev-server.py:39–40`) |
 
 The server reads neither. The site's compiled ingest (`ingest/from-parser`) embeds the JSON and writes no sidecar
 (`ingest/from-parser/src/main.rs:114`), so its output needs one made before a page can open it.
@@ -61,8 +61,8 @@ It writes **`NAME.partial`** (`writer.rs:32–35`) and, in `finish`, flushes its
 `NAME` (`:87–89`); a writer dropped unfinished removes its partial (`:95–101`). So a failed pack leaves nothing at
 the name, and a server holding the old bundle open keeps reading the old file, never a rewrite under its index.
 `from_dicom.py` writes the sidecar only after the pack succeeds. *Corrected 2026-10-16 (row 269): until then it wrote
-to the final name, so a pack that failed left a short file there, and the sidecar, while both ingests said "nothing
-written".* A crash mid-pack leaves at most a `.partial`, which no server opens. There is still no `fsync`: a power
+to the final name, so a pack that failed left a short file there, and `from_dicom.py`'s sidecar, while `from-parser`
+said "nothing written".* A crash mid-pack leaves at most a `.partial`, which no server opens. There is still no `fsync`: a power
 loss after the pack can leave the full length with blocks never written, which nothing detects, as no hash covers
 the coded bytes.
 
@@ -295,8 +295,9 @@ image on a VM?
 
 ## The reader
 
-* **One series per server process**: `series-server --series PATH` (`server/src/main.rs:12–13`) opens one file
-  (`server/src/transport/server.rs:72`).
+* **One series per server process**: `series-server --series PATH` (`server/src/transport/server.rs:36–37`) opens one
+  file (`:85`). *Corrected 2026-10-16 (row 266):* the flag cited `main.rs:12–13` and the open `server.rs:72`, lines
+  row 241 moved; §The metadata, twice cited lines since moved too, and is corrected with it.
 * **At open, two `pread`s**: the 16-byte header, then the whole prefix up to `data_base`, whose length the header
   gives (`format.rs:87–110`). The index is then held in memory as `(offset, length)` pairs; a frame read is one lookup
   and one read of its span ([`../adr/disk-access.md`](../adr/disk-access.md) §1).

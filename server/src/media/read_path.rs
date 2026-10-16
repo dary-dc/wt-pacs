@@ -57,6 +57,14 @@ pub struct ReadStats {
 }
 
 impl ReadStats {
+    fn count(&mut self, missed: bool) {
+        if missed {
+            self.misses += 1;
+        } else {
+            self.hits += 1;
+        }
+    }
+
     #[cfg(test)]
     fn miss_rate(&self) -> Option<f64> {
         let total = self.hits + self.misses;
@@ -138,13 +146,13 @@ impl FillReader {
         let (held, spare) = self.settle().await?;
         let spare = match held {
             Some((s, missed)) if s == span => {
-                self.count(missed);
+                self.stats.count(missed);
                 mem::replace(&mut self.cur, spare)
             }
             _ => {
                 let buf = mem::take(&mut self.cur);
                 let (buf, missed) = start_pooled(&self.store, span, buf)?.land().await?;
-                self.count(missed);
+                self.stats.count(missed);
                 self.cur = buf;
                 spare
             }
@@ -192,14 +200,6 @@ impl FillReader {
             self.store.advise_ahead(end, FILL_WINDOW);
         }
         self.advised_to = want;
-    }
-
-    fn count(&mut self, missed: bool) {
-        if missed {
-            self.stats.misses += 1;
-        } else {
-            self.stats.hits += 1;
-        }
     }
 
     pub fn stats(&self) -> ReadStats {
@@ -334,11 +334,7 @@ impl TileReader {
         self.wait(w).await?;
         self.last = w;
         let slot = &mut self.slots[w];
-        if slot.miss {
-            self.stats.misses += 1;
-        } else {
-            self.stats.hits += 1;
-        }
+        self.stats.count(slot.miss);
         slot.key = None;
         let frame = mem::replace(&mut slot.buf, frame_pool::take());
         Ok(frame_pool::hand_off(frame, slot.len))
@@ -511,29 +507,15 @@ impl Drop for TileReader {
 mod tests {
     use super::*;
     use crate::media::frame_store::READ_WINDOW;
-    use std::io::Write;
 
     /// A series of `frames` frames of `len` bytes, each filled with a per-frame pattern so a
     /// mis-assembled frame cannot pass by accident.
     fn write_bundle(dir: &std::path::Path, frames: u32, len: u32) -> std::path::PathBuf {
-        let meta = format!("{{\"frameCount\":{frames}}}");
-        let data_base = 16 + 12 * frames as usize + meta.len();
+        let bodies: Vec<Vec<u8>> = (0..frames).map(|i| frame_pattern(i, len)).collect();
+        let refs: Vec<&[u8]> = bodies.iter().map(Vec::as_slice).collect();
         let path = dir.join("test.sbnd");
-        let mut f = std::fs::File::create(&path).expect("create bundle");
-        f.write_all(b"SBND").unwrap();
-        f.write_all(&1u32.to_le_bytes()).unwrap();
-        f.write_all(&(meta.len() as u32).to_le_bytes()).unwrap();
-        f.write_all(&frames.to_le_bytes()).unwrap();
-        for i in 0..frames {
-            f.write_all(&((data_base as u64) + u64::from(i) * u64::from(len)).to_le_bytes())
-                .unwrap();
-            f.write_all(&len.to_le_bytes()).unwrap();
-        }
-        f.write_all(meta.as_bytes()).unwrap();
-        for i in 0..frames {
-            f.write_all(&frame_pattern(i, len)).unwrap();
-        }
-        f.sync_all().unwrap();
+        series_bundle::write_bundle(&path, format!("{{\"frameCount\":{frames}}}").as_bytes(), &refs)
+            .expect("write bundle");
         path
     }
 

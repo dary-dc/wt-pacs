@@ -349,9 +349,10 @@ while the series is still being parsed and coded, and what would that take and s
   frame (offset, length), follows; then the metadata; then the frames
   (`common/series-bundle/src/format.rs:8–12`). `BundleWriter::create` takes every frame's length and writes the header,
   index and metadata before the first frame's byte (`common/series-bundle/src/writer.rs:20–60`). The metadata needs
-  the whole series too: its minimum, maximum and every frame's digest (`ingest/from-parser/src/main.rs:97–111`).
+  the whole series too: its minimum, maximum and every frame's digest (`ingest/from-parser/src/main.rs:98–112`).
 * **The ingest runs on a complete series.** It starts after the wait for the series ([`README.md`](README.md) §1, step
-  3), codes every frame into memory, then writes the bundle (`ingest/from-parser/src/main.rs:84–114`).
+  3), codes every frame into memory, then writes the bundle (`ingest/from-parser/src/main.rs:81–114`; *corrected
+  2026-10-16:* both line ranges were one to three lines off).
 * **The parser hands over whole instances**, one directory each ([`README.md`](README.md) §1, step 2). A multi-frame
   instance (a cine, a tomosynthesis volume) gives no frame until all of it is received and parsed. Streaming inside one
   instance needs the parser's stream output (§3).

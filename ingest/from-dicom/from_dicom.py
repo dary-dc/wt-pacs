@@ -49,10 +49,7 @@ def main():
         coded = ingest.coded(a.build, s, s.n, codec, a.jobs, preset=preset)
     except (dicom_series.Refused, ingest.Refused) as e:
         sys.exit(f"{a.input.name}: nothing written — {e}")
-    meta = {"frameCount": s.n, **meta, "min": s.lo, "max": s.hi, "codec": codec,
-            **({"representation": "optimized", "preset": preset} if codec == "av1" else {}),
-            "digests": ingest.digests(s, s.n, codec)}
-    text = json.dumps(meta, indent=1) + "\n"
+    text = json.dumps(ingest.metadata(s, meta, codec, preset), indent=1) + "\n"
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         for i, data in coded:
