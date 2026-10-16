@@ -817,7 +817,9 @@ The host: 4 vCPU, ext4 on a virtio disk, `read_ahead_kb` 128, so the 250 kB stri
 session at depth ≤ 4, far below where the host saturates, which was not measured; nothing is claimed at scale
 but the fd. The run used the script's own loop and verdict with both binaries built first, since its worktree
 build cannot run under a shared `CARGO_TARGET_DIR`. Its verdict keys on the label and the arm, so of the two
-variants each run prints it keeps the last, `product_tile`; `product_fill` was read apart, by `pos`.
+variants each run prints it keeps the last, `product_tile`; `product_fill` was read apart, by `pos`. *Fixed
+2026-10-16, row 257:* the script copies each binary out, rebuilds HEAD after the base under a shared target, refuses
+two identical arms, and gives each reader its own verdict.
 
 **Corrected 2026-10-16 (row 250), two claims of the proposal.** It said `seq1g` builds no ring: `product_tile`
 built one in every `seq1g` row of both arms, on 1.6–2 % misses. It ties (p50 −1.7 %, CPU −5.3 %) and stays a
@@ -933,6 +935,27 @@ which each row reports.
 | 259 | **TILEWILLNEED** — does advising tile names past the slots buy depth without memory? (finding 7) | measure | — |
 | 260 | **FILLWINDOW** — does a window of two frames beat 4 MiB on frames past 1 MiB? (finding 8) | measure | — |
 | 261 | **RINGCOOP** — does `COOP_TASKRUN` delay ring completions beside busy workers? (finding 9) | measure | row 250 |
+
+**Row 257, built (2026-10-16): finding 5's cuts, no behaviour change.** `Slot` lost `at` and `len`, both read from its
+`key` now, and derives `Default`. `Slot::submit_tail` submits the unread tail *and* sets `read`, so the invariant the
+`SAFETY` line rests on is established at one site instead of two; the two `spawn_blocking` tails are
+`read_rest_on_pool`. Hits and misses were already counted once (row 227's D3). The session line calls
+`ReadStats::miss_rate`, no longer test-only; the fill reader is `fill` in `pipeline.rs`; the upcoming loop is
+`once(span).chain(upcoming)`; the fill's reason for no ring points to §11, *Fill at scale*, which now states it;
+`READ_WINDOW` is `TEST_CHUNK`. `read_path.rs` went from 506 to 484 product lines (the sketch said −30) and from 2
+`unsafe` blocks to 1. One field changes meaning without changing behaviour: `filled` no longer rises to the frame's
+length when a pool read lands, since nothing reads it there, and the field says so. No test had a pool read finish a
+partial probe (every pooled test probed nothing), so `the_pool_finishes_a_partial_hit_from_where_the_probe_stopped`
+now covers both readers.
+
+| check | result |
+| --- | --- |
+| the server's suite | 128 pass with default features, 118 without `uring`; `scripts/gate.sh` green except `check_equivalence.sh --local` (nginx 403 under a 0700 scratch directory, the known environment caveat) |
+| `submit_tail` without `read = Some` | `a_frame_cut_from_the_file_fails_the_ring_read_instead_of_hanging` fails. It is the only one: on a cached file the ring lands inside `submit`, so the byte tests cannot see a read nobody waits for |
+| the pool tail read from the frame's start, or landed at the buffer's front | the new test fails, and no other |
+| `miss_rate` over hits; `count` swapped; one name instead of `named`; the tile hand-off a byte short | `read_stats_report_the_session_miss_rate`; it and `a_fill_never_holds_more_than_one_read_at_once`; three look-ahead tests; eight byte tests |
+| a short ring completion that forgets what landed before | the short-read test hangs: it times out instead of passing |
+| [`read_path_ab.sh`](../../lab/scripts/read_path_ab.sh) | RESULT_PENDING |
 
 ## 10 · How it is built
 
