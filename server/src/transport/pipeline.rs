@@ -219,22 +219,6 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-
-    fn one_frame_series(path: &std::path::Path) {
-        let meta = br#"{"frameCount":1}"#;
-        let mut f = std::fs::File::create(path).expect("create bundle");
-        f.write_all(b"SBND").unwrap();
-        f.write_all(&1u32.to_le_bytes()).unwrap();
-        f.write_all(&(meta.len() as u32).to_le_bytes()).unwrap();
-        f.write_all(&1u32.to_le_bytes()).unwrap();
-        f.write_all(&((16 + 12 + meta.len()) as u64).to_le_bytes())
-            .unwrap();
-        f.write_all(&4u32.to_le_bytes()).unwrap();
-        f.write_all(meta).unwrap();
-        f.write_all(b"abcd").unwrap();
-        f.sync_all().unwrap();
-    }
 
     /// A series of `frames` frames, each a different length, so a span cannot match by luck.
     fn series(path: &std::path::Path, frames: u32) {
@@ -371,7 +355,7 @@ mod tests {
     #[test]
     fn sessions_share_one_store_rather_than_opening_their_own() {
         let path = std::env::temp_dir().join(format!("wtpacs-share-{}.sbnd", std::process::id()));
-        one_frame_series(&path);
+        series(&path, 1);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
 
         let sessions = 8;

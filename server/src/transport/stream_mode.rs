@@ -1,10 +1,10 @@
 //! How media frames leave the server for a session (process-wide CLI choice).
 //! What separates the two shapes: `docs/adr/stream-shape.md`.
 
+use clap::ValueEnum;
 use std::fmt;
-use std::str::FromStr;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum StreamMode {
     /// One long-lived uni: frames arrive strictly in ask order.
     Shared,
@@ -16,24 +16,7 @@ pub enum StreamMode {
 
 impl fmt::Display for StreamMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Shared => f.write_str("shared"),
-            Self::PerFrame => f.write_str("per-frame"),
-            Self::PerFrameAsksFirst => f.write_str("per-frame-asks-first"),
-        }
-    }
-}
-
-impl FromStr for StreamMode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "shared" => Ok(Self::Shared),
-            "per-frame" => Ok(Self::PerFrame),
-            "per-frame-asks-first" => Ok(Self::PerFrameAsksFirst),
-            _ => Err(format!("expected `shared`, `per-frame` or `per-frame-asks-first`, got `{s}`")),
-        }
+        f.write_str(self.to_possible_value().expect("no mode is skipped").get_name())
     }
 }
 
@@ -45,7 +28,7 @@ mod tests {
     #[test]
     fn every_mode_round_trips_through_its_label() {
         for s in ["shared", "per-frame", "per-frame-asks-first"] {
-            let mode: StreamMode = s.parse().expect("parses");
+            let mode = StreamMode::from_str(s, false).expect("parses");
             assert_eq!(mode.to_string(), s, "`{s}` did not round-trip");
         }
     }
@@ -54,7 +37,7 @@ mod tests {
     #[test]
     fn an_unknown_mode_is_rejected() {
         for s in ["pool:2", "pool", "shared:2", ""] {
-            assert!(s.parse::<StreamMode>().is_err(), "`{s}` was accepted");
+            assert!(StreamMode::from_str(s, false).is_err(), "`{s}` was accepted");
         }
     }
 }

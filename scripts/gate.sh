@@ -96,8 +96,8 @@ step "client: transport contract (every implementation, and the race)"
 run 2 node client/contract/run.mjs
 
 if [[ $browser -eq 1 ]]; then
-  step "client: the downloader in headless Chromium — the clauses through it, and its dispatch order and per-decoder bound"
-  run 4 bash client/contract/run_browser.sh
+  step "client: the downloader in headless Chromium, over each client — the clauses through it, and its dispatch order and per-decoder bound"
+  run 12 bash client/contract/run_browser.sh
   step "client: the viewer's page check — a complete, exact, drawn page (headless Chromium)"
   run 3 bash client/viewer/run_check.sh
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
@@ -150,7 +150,7 @@ fi
 step "lab: the variant order and its predecessor split"
 run 1 node lab/order.test.mjs
 
-step "lab: the device kit's plan, bundle reader, collector and server start"
+step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
 run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
@@ -192,7 +192,7 @@ fi
 
 if [[ $browser -eq 1 ]]; then
   step "client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)"
-  run 8 bash client/contract/run_wire.sh
+  run 10 bash client/contract/run_wire.sh
 fi
 
 step "deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone"
