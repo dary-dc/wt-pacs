@@ -53,7 +53,7 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
 | `REGISTRY` | `docker.io/library` | where the pinned base images are pulled from: a mirror serves the same digests |
 | `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
-| `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds two |
+| `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |
 | `BUILD_CA` | `/dev/null` (none) | the CA of a TLS-inspecting proxy the build must go through, a build secret |
 
 ## The ten fixes, and why
@@ -235,7 +235,7 @@ never builds a ring, so io_uring matters only to tile misses. In order of cost:
 | series on a bind mount or named volume (ext4, XFS) | `RWF_NOWAIT`: every warm frame inline | the image's own layer (overlayfs) and tmpfs refuse it | none |
 | `seccomp=./seccomp-uring.json` | io_uring on a tile miss | Docker ≥ 25, Podman, containerd ≥ 2.0 refuse it by default | the kernel's io_uring surface, below |
 | `memlock` sized to the rings, one uid per server | io_uring past ~1 000 rings | a uid's ~1 000th concurrent ring, host-wide | locked memory up to the limit |
-| `nofile` ≥ 2 × sessions that miss + sockets | the ring's two fds | the daemon's default, whatever it is | none |
+| `nofile` ≥ sessions that miss + sockets | the ring's fd (two until row 250 dropped the eventfd) | the daemon's default, whatever it is | none |
 | on an SELinux-enforcing host, `io_uring { allowed }` for the container's domain | io_uring on a tile miss | container-selinux grants it to no container domain: `EACCES` even under the profile (probed on Fedora 43, disk-access.md §6 *In a container*) | `label=disable` drops the container's SELinux confinement; a module granting that one permission to `container_t` (untried) reaches every container on the host |
 
 **Verified on this host** (Docker 29.8.2, containerd 2.3.6, runc 1.5.1, Linux 6.18, cgroup v1, ext4). A static probe
@@ -300,7 +300,7 @@ the owner's call and said `compose.yml` does not load it; it does since row 231.
     security_opt: ["seccomp=./seccomp-uring.json"]   # relative to compose.yml
     ulimits:
       memlock: "${MEMLOCK:-67108864}"   # 64 MiB: ~7 500 rings at 8.7 KiB, for this uid
-      nofile: "${NOFILE:-65535}"        # ≥ 2 × sessions that miss + sockets
+      nofile: "${NOFILE:-65535}"        # ≥ sessions that miss + sockets
 ```
 
 A daemon that cannot raise a limit refuses the container at start (`error setting rlimit type 8: operation not

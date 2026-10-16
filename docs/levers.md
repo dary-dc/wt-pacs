@@ -47,7 +47,7 @@ Owner: [`adr/disk-access.md`](adr/disk-access.md) (§5 · Every candidate, one t
 | `read_ahead_kb` | L7: 128 against 2 048 KiB, no clean result | never | §Read-ahead, §9 #6 |
 | mmap | RP: `gap_max` 1.5–7.7 ms; row 51: not re-timed | held | §5 |
 | `O_DIRECT`, SPDK | — (argued: loses the shared page cache) | never | §5 |
-| Park on the ring fd, drop the eventfd | RP x14: a tie on CPU and latency, 1 fd and 3 `unsafe` blocks fewer (*corrected 2026-10-15*: said 2) | held, deferred to P0; proposed as row 244 | §9 #7 |
+| Park on the ring fd, drop the eventfd | RP x14: a tie on CPU and latency, 1 fd and 3 `unsafe` blocks fewer (*corrected 2026-10-15*: said 2). Row 250 re-measured the tie on the product (`read_path_ab.sh`, 12 rounds) and counted the fd | **built 2026-10-16**, row 250, on the owner's word that P0 waits (*was:* held, deferred to P0; proposed as row 244) | §9 #7 |
 | tokio-uring, glommio, monoio, compio | — (a transport rewrite) | never | §2 |
 | `sendfile`, `splice` | — (userspace QUIC copies anyway) | never | §5 |
 | A process-private frame cache | RP: −20.2 % CPU at a 0.92 hit rate, +4.2 % with no repeats | trade-off; premise (link band: server CPU ×5) | §8 · Levers outside this decision |
