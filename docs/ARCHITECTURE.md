@@ -205,6 +205,11 @@ held its frame, and the frame queued behind it on that decoder, for ever. Now:
 * **Lost twice, a frame fails by name** through `failed` (`ATTEMPTS`): an asked frame's waiter rejects, a fill frame
   reaches `onError`. A frame that shared the lost decoder both times fails with it. With `groupLength` above 1 a lost
   frame whose keyframe the page already has fails by name as orphaned; it is not recovered.
+  *Corrected 2026-10-16 (row 275):* one the page already had failed too — `onFrame`, then `onError` — when its decoder
+  was lost before the page's ack came back, so the downloader asked it again and lost it again. The downloader cannot
+  know, so the page drops a failure of a frame it was handed since it last filled it (`downloader.test.mjs` and
+  `consumer.test.mjs` *aDeliveredFrameIsNotFailed*; both fail without it). That rests on the frame reaching the page
+  before its failure, a wire round trip and a decoder's start later: not guaranteed by the platform, not measured.
 * **What it allows:** a frame whose first delivery arrives after its re-ask may reach the page twice, the same pixels.
 
 Each path has a test that fails without its fix: `downloader.test.mjs` (a crash, an unread delivery, a hang, lost
