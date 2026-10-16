@@ -955,7 +955,7 @@ now covers both readers.
 | the pool tail read from the frame's start, or landed at the buffer's front | the new test fails, and no other |
 | `miss_rate` over hits; `count` swapped; one name instead of `named`; the tile hand-off a byte short | `read_stats_report_the_session_miss_rate`; it and `a_fill_never_holds_more_than_one_read_at_once`; three look-ahead tests; eight byte tests |
 | a short ring completion that forgets what landed before | the short-read test hangs: it times out instead of passing |
-| [`read_path_ab.sh`](../../lab/scripts/read_path_ab.sh) | RESULT_PENDING |
+| [`read_path_ab.sh`](../../lab/scripts/read_path_ab.sh) | against unified's `d2535bd6`, 12 rounds, arms interleaved by round, 256 asks, each reader its own verdict | **a tie in all 8 cells**, p50 and CPU per ask. p50: fill `warm16` −4.6 % (7/12), `cold16_d1` +10.9 % (9/12), `cold16_dW` −4.4 % (8/12), `seq1g` −1.0 % (7/12); tile `warm16` −9.2 % (8/12), `cold16_d1` −6.9 % (7/12), `cold16_dW` +5.0 % (7/12), `seq1g` −1.3 % (6/12). CPU per ask within −10.5 to +8.3 %, no sign in more than 9/12. Tile cold `miss_pct` 98.4–99.6 with a ring built in every row of both arms. The host: 4 vCPU, ext4 on a virtio disk, `read_ahead_kb` 128, two other rows' builds at nice 19 on CPU 3; one session at depth ≤ 4, far below where it saturates (not measured). A first run is void: under the shared target HEAD's build counted as fresh and both arms ran the base, which the script now refuses |
 
 ## 10 · How it is built
 
