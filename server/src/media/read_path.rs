@@ -126,6 +126,8 @@ pub struct FillReader {
     ahead: Ahead,
     /// End of what the kernel has been asked for; a walk extends it, a seek restarts it.
     advised_to: u64,
+    /// Row 260's lab arm Wf: the window is `max(FILL_WINDOW, 2 × the named frame)`.
+    two_frames: bool,
     stats: ReadStats,
 }
 
@@ -136,8 +138,15 @@ impl FillReader {
             cur: Vec::new(),
             ahead: Ahead::Idle(Vec::new()),
             advised_to: 0,
+            two_frames: false,
             stats: ReadStats::default(),
         }
+    }
+
+    /// Lab arm Wf (row 260): a window of two named frames where that is wider than `FILL_WINDOW`.
+    pub fn windowing_two_frames(mut self) -> Self {
+        self.two_frames = true;
+        self
     }
 
     /// The whole of `span`, handed off to the wire. `next` is the frame the planner will ask
@@ -189,15 +198,19 @@ impl FillReader {
     /// Extended a quarter window at a time, so the syscall is per megabyte of walk and not
     /// per frame; a seek past the window restarts it.
     fn advise(&mut self, next: FrameSpan) {
+        let window = match self.two_frames {
+            true => FILL_WINDOW.max(2 * u64::from(next.len)),
+            false => FILL_WINDOW,
+        };
         let end = next.offset + u64::from(next.len);
-        let want = end + FILL_WINDOW;
+        let want = end + window;
         if (end..=want).contains(&self.advised_to) {
-            if want - self.advised_to < FILL_WINDOW / 4 {
+            if want - self.advised_to < window / 4 {
                 return;
             }
             self.store.advise_ahead(self.advised_to, want - self.advised_to);
         } else {
-            self.store.advise_ahead(end, FILL_WINDOW);
+            self.store.advise_ahead(end, window);
         }
         self.advised_to = want;
     }
@@ -722,6 +735,59 @@ mod tests {
             vec![(end(all[4]), FILL_WINDOW)],
             "a seek back before the window restarts it"
         );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// What a fill advised at each frame of `walk`, each named the next, every frame checked.
+    fn fill_advice(store: &Arc<FrameStore>, mut seq: FillReader, walk: &[u32], len: u32) -> Vec<Vec<(u64, u64)>> {
+        let rt = rt();
+        store.take_advice();
+        let mut advice = Vec::new();
+        for (i, &frame) in walk.iter().enumerate() {
+            let next = walk.get(i + 1).map(|&f| store.frame_span(f));
+            let out = rt.block_on(seq.read(store.frame_span(frame), next)).expect("read");
+            assert_eq!(&out[..], &frame_pattern(frame, len)[..], "frame {frame} came back wrong");
+            advice.push(store.take_advice());
+        }
+        advice
+    }
+
+    /// **Row 260's control.** At 164 kB two frames are well inside `FILL_WINDOW`, so arm Wf
+    /// advises exactly what W0 does, through a walk, its extensions and two seeks.
+    #[test]
+    fn at_164_kb_the_two_frame_window_is_today_s_window() {
+        const KB164: u32 = 164_000;
+        let dir = scratch("wf-control");
+        let store = Arc::new(FrameStore::open(&write_bundle(&dir, 48, KB164)).expect("open store"));
+        let walk: Vec<u32> = (0..40).chain(3..12).chain(44..48).collect();
+        let w0 = fill_advice(&store, FillReader::new(Arc::clone(&store)), &walk, KB164);
+        let wf = fill_advice(&store, FillReader::new(Arc::clone(&store)).windowing_two_frames(), &walk, KB164);
+        assert!(w0.iter().filter(|a| !a.is_empty()).count() > 3, "the walk exercised no extension: {w0:?}");
+        assert_eq!(wf, w0, "Wf advised differently from W0 at 164 kB");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// **Row 260's arm Wf.** At 4.5 MiB a frame the window is two named frames: the first
+    /// covers the two after the named one and each later frame extends it by one, where W0
+    /// restarts a 4 MiB window at every frame, short of the frame after the named one.
+    #[test]
+    fn past_2_mib_the_fill_window_is_two_named_frames() {
+        const FRAME: u32 = 9 << 19;
+        let dir = scratch("wf-large");
+        let store = Arc::new(FrameStore::open(&write_bundle(&dir, 5, FRAME)).expect("open store"));
+        let all = spans(&store, &(0..5u32).collect::<Vec<_>>());
+        let end = |s: FrameSpan| s.offset + u64::from(s.len);
+        let walk: Vec<u32> = (0..5).collect();
+        let w0 = fill_advice(&store, FillReader::new(Arc::clone(&store)), &walk, FRAME);
+        let wf = fill_advice(&store, FillReader::new(Arc::clone(&store)).windowing_two_frames(), &walk, FRAME);
+        let two = 2 * u64::from(FRAME);
+        let want_w0: Vec<_> = (1..5).map(|i| vec![(end(all[i]), FILL_WINDOW)]).chain([vec![]]).collect();
+        let want_wf: Vec<_> = std::iter::once(vec![(end(all[1]), two)])
+            .chain((2..5).map(|i| vec![(end(all[i - 1]) + two, end(all[i]) - end(all[i - 1]))]))
+            .chain([vec![]])
+            .collect();
+        assert_eq!(w0, want_w0, "W0 is not a 4 MiB window restarted every frame");
+        assert_eq!(wf, want_wf, "Wf's window is not two named frames, extended a frame at a time");
         std::fs::remove_dir_all(&dir).ok();
     }
 

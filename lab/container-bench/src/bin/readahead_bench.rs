@@ -1,5 +1,5 @@
-//! Row 197's W0 and W0aa arms on the shipped `FillReader` and `TileReader`: a cold fill, the folios it
-//! leaves, then hits, a fill on the cache and a forced miss. `docs/adr/disk-access.md` §Protocol for row 197.
+//! Row 197's W0 and W0aa arms on the shipped `FillReader` and `TileReader`, and row 260's Wf: a cold fill, the
+//! folios it leaves, then hits, a fill on the cache and a forced miss. `docs/adr/disk-access.md` §Protocol for row 197.
 
 use anyhow::{bail, ensure, Context, Result};
 use clap::{Parser, Subcommand};
@@ -25,7 +25,7 @@ struct Args {
 enum Cmd {
     /// One arm on one cold copy, as one JSON line.
     Measure {
-        /// The row's label: W0, or W0aa on another copy.
+        /// The row's label: W0, W0aa on another copy, or Wf (`FillReader::windowing_two_frames`).
         #[arg(long)]
         arm: String,
         #[arg(long)]
@@ -148,14 +148,16 @@ async fn walk(mut reader: FillReader, spans: Arc<Vec<FrameSpan>>, order: Vec<usi
 }
 
 /// `fills` fills at once, each over every frame from its own quarter: frames/s, CPU ns a GB, first frame, misses.
-async fn fill(store: &Arc<FrameStore>, fills: usize, exact: &mut Exact) -> Result<(f64, f64, u64, u64)> {
+async fn fill(store: &Arc<FrameStore>, fills: usize, two_frames: bool, exact: &mut Exact) -> Result<(f64, f64, u64, u64)> {
     let n = store.frame_count() as usize;
     let spans: Arc<Vec<FrameSpan>> = Arc::new((0..n).map(|i| store.frame_span(i as u32)).collect());
     let (start, cpu) = (Instant::now(), cpu_ns());
     let mut tasks = Vec::new();
     for f in 0..fills {
         let order: Vec<usize> = (0..n).map(|k| (k + f * n / fills) % n).collect();
-        tasks.push(tokio::spawn(walk(FillReader::new(Arc::clone(store)), Arc::clone(&spans), order, start)));
+        let reader = FillReader::new(Arc::clone(store));
+        let reader = if two_frames { reader.windowing_two_frames() } else { reader };
+        tasks.push(tokio::spawn(walk(reader, Arc::clone(&spans), order, start)));
     }
     let mut walks = Vec::new();
     for t in tasks {
@@ -216,6 +218,8 @@ fn folios(path: &Path, index: &Index) -> Result<serde_json::Value> {
 
 #[allow(clippy::too_many_arguments)]
 fn measure(name: &str, path: &Path, frames: &Path, round: u64, asks: usize, fills: usize, fill_bytes: u64, mutate: Option<&str>) -> Result<serde_json::Value> {
+    ensure!(["W0", "W0aa", "Wf"].contains(&name), "no arm {name}");
+    let two_frames = name == "Wf";
     let mut exact = Exact { want: coded(frames)?, bad: 0, checked: 0 };
     let index = cold_index(path, mutate)?;
     ensure!(index.len() == exact.want.len(), "{} frames indexed, {} coded", index.len(), exact.want.len());
@@ -231,13 +235,13 @@ fn measure(name: &str, path: &Path, frames: &Path, round: u64, asks: usize, fill
     let order = plan(exact.want.len(), asks, round);
     let total: u64 = index.iter().map(|e| u64::from(e.1)).sum();
     let (cold, folio, (h50, h99), (fh_fps, fh_cpu, _, fh_miss), (m50, _)) = rt.block_on(async {
-        let cold = fill(&store, fills, &mut exact).await?;
+        let cold = fill(&store, fills, two_frames, &mut exact).await?;
         let folio = folios(path, &index)?;
         let hits = tile(Arc::clone(&store), &order, &mut exact).await?;
         let walks = fill_bytes.div_ceil(total).max(1) as usize;
         let mut on_cache = (0.0, 0.0, 0, 0);
         for _ in 0..walks {
-            let w = fill(&store, 1, &mut exact).await?;
+            let w = fill(&store, 1, two_frames, &mut exact).await?;
             on_cache = (on_cache.0 + w.0 / walks as f64, on_cache.1 + w.1 / walks as f64, 0, on_cache.3 + w.3);
         }
         let forced = tile(Arc::clone(&miss), &order, &mut exact).await?;
