@@ -118,6 +118,14 @@ expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-co
 `lab/scripts/server_ab.sh` runs the binaries under `target/release`, so it wants `CARGO_TARGET_DIR` unset, and a
 `LOGDIR` given to it must exist.
 
+## The read path on your machine
+
+`lab/scripts/workstation_run.sh` measures the server's read path on the machine it runs on and packs one report to
+send back: the host, whether io_uring works natively and in the deploy's container, the two readers against every
+variant, and the server with the ring against the pool, each with an A/A arm. `--plan` prints the time and disk it
+needs and exits; `--quick` runs one round as a first try. What each part answers, and how cold is made without
+eviction: [`docs/adr/disk-access.md`](docs/adr/disk-access.md) §12, *On the workstation, in one command*.
+
 ## The viewer on a DICOM series
 
 One series, ingested once, then one terminal per server:
