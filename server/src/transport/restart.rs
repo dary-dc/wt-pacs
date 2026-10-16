@@ -148,12 +148,8 @@ pub struct SlowStartRestartConfig {
 }
 
 impl SlowStartRestartConfig {
-    pub fn new(initial_window: Option<u64>) -> Self {
-        let mut cubic = CubicConfig::default();
-        if let Some(v) = initial_window {
-            cubic.initial_window(v);
-        }
-        Self { cubic: Arc::new(cubic) }
+    pub fn new(cubic: Arc<CubicConfig>) -> Self {
+        Self { cubic }
     }
 }
 

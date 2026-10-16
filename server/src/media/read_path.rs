@@ -485,29 +485,15 @@ impl Drop for TileReader {
 mod tests {
     use super::*;
     use crate::media::frame_store::TEST_CHUNK;
-    use std::io::Write;
 
     /// A series of `frames` frames of `len` bytes, each filled with a per-frame pattern so a
     /// mis-assembled frame cannot pass by accident.
     fn write_bundle(dir: &std::path::Path, frames: u32, len: u32) -> std::path::PathBuf {
-        let meta = format!("{{\"frameCount\":{frames}}}");
-        let data_base = 16 + 12 * frames as usize + meta.len();
+        let bodies: Vec<Vec<u8>> = (0..frames).map(|i| frame_pattern(i, len)).collect();
+        let refs: Vec<&[u8]> = bodies.iter().map(Vec::as_slice).collect();
         let path = dir.join("test.sbnd");
-        let mut f = std::fs::File::create(&path).expect("create bundle");
-        f.write_all(b"SBND").unwrap();
-        f.write_all(&1u32.to_le_bytes()).unwrap();
-        f.write_all(&(meta.len() as u32).to_le_bytes()).unwrap();
-        f.write_all(&frames.to_le_bytes()).unwrap();
-        for i in 0..frames {
-            f.write_all(&((data_base as u64) + u64::from(i) * u64::from(len)).to_le_bytes())
-                .unwrap();
-            f.write_all(&len.to_le_bytes()).unwrap();
-        }
-        f.write_all(meta.as_bytes()).unwrap();
-        for i in 0..frames {
-            f.write_all(&frame_pattern(i, len)).unwrap();
-        }
-        f.sync_all().unwrap();
+        series_bundle::write_bundle(&path, format!("{{\"frameCount\":{frames}}}").as_bytes(), &refs)
+            .expect("write bundle");
         path
     }
 

@@ -30,5 +30,13 @@ check "$(field cert_sha256)" "" "a certificate supplied: no hash, so the browser
 check "$args" "--series /studies/us_cine_smoke.sbnd --cert-pem $T/supplied/cert.pem --key-pem $T/supplied/key.pem" \
   "the server takes the supplied certificate"
 check "$(ls "$T/certs")" "" "nothing minted"
+
+# REGISTRY's default and the `server` stage from its FROM down, comments dropped, each COPY's source cut to its last element.
+server_stage() {
+  awk '/^ARG REGISTRY=/ { print } /^FROM .* AS server$/ { on = 1 } on && /^$/ { exit } on && !/^#/' "$1" \
+    | sed -E 's#^COPY (--from=[^ ]+ )?([^ ]*/)?([^ /]+) #COPY \3 #'
+}
+check "$(server_stage "$ROOT/deploy/Containerfile.prebuilt")" "$(server_stage "$ROOT/deploy/Containerfile")" \
+  "Containerfile.prebuilt's server stage is Containerfile's, its binary staged rather than compiled"
 [ "$failed" = 0 ] && echo "all tests passed"
 exit "$failed"

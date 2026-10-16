@@ -96,36 +96,21 @@ impl FrameStore {
         };
         let mut done = 0usize;
         while done < buf.len() {
-            let iov = libc::iovec {
-                iov_base: buf[done..].as_mut_ptr() as *mut libc::c_void,
-                iov_len: buf.len() - done,
-            };
-            // SAFETY: `iov` describes a live, exclusively borrowed subrange of `buf`.
-            let n = unsafe {
-                libc::preadv2(
-                    self.file.as_raw_fd(),
-                    &iov,
-                    1,
-                    (offset + done as u64) as libc::off_t,
-                    libc::RWF_NOWAIT,
-                )
-            };
-            if n < 0 {
-                let err = std::io::Error::last_os_error();
-                return match err.raw_os_error() {
-                    Some(libc::EAGAIN) => Ok(done),
-                    Some(libc::EOPNOTSUPP) | Some(libc::ENOSYS) | Some(libc::EINVAL)
-                        if done == 0 =>
-                    {
-                        Ok(0)
-                    }
-                    _ => Err(err).context("preadv2 RWF_NOWAIT"),
-                };
+            match preadv2_nowait(&self.file, &mut buf[done..], offset + done as u64) {
+                Ok(0) => return Ok(done), // end of file, or nothing more available without waiting
+                Ok(n) => done += n,
+                Err(err) => {
+                    return match err.raw_os_error() {
+                        Some(libc::EAGAIN) => Ok(done),
+                        Some(libc::EOPNOTSUPP) | Some(libc::ENOSYS) | Some(libc::EINVAL)
+                            if done == 0 =>
+                        {
+                            Ok(0)
+                        }
+                        _ => Err(err).context("preadv2 RWF_NOWAIT"),
+                    };
+                }
             }
-            if n == 0 {
-                return Ok(done); // end of file, or nothing more available without waiting
-            }
-            done += n as usize;
         }
         Ok(done)
     }
@@ -189,25 +174,25 @@ impl FrameStore {
 /// `EAGAIN` counts as support — the flag working on a cold byte. Anything unexpected reads
 /// as no fast path, so the serving loop takes the conservative route.
 fn probe_nowait(file: &File, offset: u64) -> bool {
-    let mut byte = [0u8; 1];
-    let iov = libc::iovec {
-        iov_base: byte.as_mut_ptr() as *mut libc::c_void,
-        iov_len: 1,
-    };
-    // SAFETY: `iov` describes a live, exclusively borrowed one-byte buffer.
-    let n = unsafe {
-        libc::preadv2(
-            file.as_raw_fd(),
-            &iov,
-            1,
-            offset as libc::off_t,
-            libc::RWF_NOWAIT,
-        )
-    };
-    if n >= 0 {
-        return true;
+    match preadv2_nowait(file, &mut [0u8; 1], offset) {
+        Ok(_) => true,
+        Err(err) => err.raw_os_error() == Some(libc::EAGAIN),
     }
-    std::io::Error::last_os_error().raw_os_error() == Some(libc::EAGAIN)
+}
+
+fn preadv2_nowait(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<usize> {
+    let iov = libc::iovec {
+        iov_base: buf.as_mut_ptr() as *mut libc::c_void,
+        iov_len: buf.len(),
+    };
+    // SAFETY: `iov` describes `buf`, live and exclusively borrowed for the call.
+    let n = unsafe {
+        libc::preadv2(file.as_raw_fd(), &iov, 1, offset as libc::off_t, libc::RWF_NOWAIT)
+    };
+    if n < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(n as usize)
 }
 
 /// The same probe `FrameStore::open` runs, so `tools/check-fastpath` cannot answer
