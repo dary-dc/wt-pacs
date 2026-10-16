@@ -4,7 +4,7 @@
 # reads frames no earlier run read. Protocol and verdict: docs/adr/disk-access.md §9, finding 6.
 #   lab/scripts/exec_gap.sh <series.sbnd> <out-dir> [--quick]
 # The series must be larger than the host's page cache, on the device under test. BIN_DIR holds
-# series-server-G0, -G1, -G2 and server_ab; unset, they are built from G0_REF, G1_REF and G0_REF + G2_PICK.
+# series-server-G0, -G1, -G2 and server_ab; unset, they are built from G0_REF, and G0_REF + G1_PICK or G2_PICK.
 # ROUNDS (12), CODED (the series' NNN.htj2k, for XXH3), SERVER_CPUS / CLIENT_CPUS (taskset lists).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -12,8 +12,8 @@ SERIES=$(realpath "${1:?usage: exec_gap.sh <series.sbnd> <out-dir> [--quick]}")
 OUT=$(mkdir -p "${2:?usage: exec_gap.sh <series.sbnd> <out-dir> [--quick]}" && realpath "$2")
 QUICK=$([[ "${3:-}" == --quick ]] && echo 1 || echo 0)
 ROUNDS=${ROUNDS:-$( ((QUICK)) && echo 1 || echo 12)}
-G0_REF=${G0_REF:-a03016b6}
-G1_REF=${G1_REF:-0c0ba29e}
+G0_REF=${G0_REF:-a1333bce}
+G1_PICK=${G1_PICK:-0c0ba29e}
 G2_PICK=${G2_PICK:-31805718}
 COT=${COT:-64}                                    # the co-tenant's warm frames, from frame 0
 FILL_FRAMES=${FILL_FRAMES:-$( ((QUICK)) && echo 4 || echo 16)}
@@ -49,7 +49,7 @@ if [[ -z "${BIN_DIR:-}" ]]; then
     cp "$T/target/release/series-server" "$BIN_DIR/series-server-$1"
     git -C "$ROOT" worktree remove --force "$T/$1"
   }
-  build G0 "$G0_REF"; build G1 "$G1_REF"; build G2 "$G0_REF" "$G2_PICK"
+  build G0 "$G0_REF"; build G1 "$G0_REF" "$G1_PICK"; build G2 "$G0_REF" "$G2_PICK"
   (cd "$ROOT" && cargo build -q --release -p disk-access-bench --bin server_ab --target-dir "$T/target")
   cp "$T/target/release/server_ab" "$BIN_DIR/"
   rm -rf "$T"
@@ -67,7 +67,7 @@ dev=$(lsblk -no PKNAME "$(findmnt -no SOURCE -T "$SERIES")" 2>/dev/null | head -
   echo "glibc $(ldd --version | head -1)"
   echo "mem $(awk '/MemTotal/ {print $2, $3}' /proc/meminfo) · cpus $(nproc) · server ${SERVER_CPUS:-all} · client ${CLIENT_CPUS:-all}"
   echo "series $SERIES: $FRAMES frames of ~$FRAME_BYTES B, $(du -h "$SERIES" | cut -f1); needs $NEED"
-  echo "arms G0=$G0_REF G1=$G1_REF G2=$G0_REF+$G2_PICK bins $BIN_DIR · rounds $ROUNDS quick $QUICK"
+  echo "arms G0=$G0_REF G1=+$G1_PICK G2=+$G2_PICK bins $BIN_DIR · rounds $ROUNDS quick $QUICK"
 } | tee "$OUT/host.txt"
 
 pids=() ports=() logs=()

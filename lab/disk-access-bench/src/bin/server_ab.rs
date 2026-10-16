@@ -129,8 +129,11 @@ async fn run(args: Args) -> Result<()> {
     }
     let digests = args.coded.as_deref().map(coded_digests).transpose()?.map(Arc::new);
     let cot_endpoint = client_endpoint()?;
-    let cot_streams = match args.cotenant {
-        Some(_) => Some(open(connect(&cot_endpoint, &args.url).await?).await?),
+    let cot = match args.cotenant {
+        Some(range) => {
+            let conn = connect(&cot_endpoint, &args.url).await?;
+            Some((open(&conn).await?, conn, range))
+        }
         None => None,
     };
     let server = match args.server_pid {
@@ -150,9 +153,13 @@ async fn run(args: Args) -> Result<()> {
         conns.push((Arc::clone(&endpoint), connect(&endpoint, &args.url).await?));
     }
     let stop = Arc::new(AtomicBool::new(false));
-    let cot_task = cot_streams.zip(args.cotenant).map(|(streams, range)| {
+    let cot_task = cot.map(|(streams, conn, range)| {
         let (stop, digests) = (Arc::clone(&stop), digests.clone());
-        tokio::spawn(async move { cotenant(streams, range, &digests, &stop).await })
+        tokio::spawn(async move {
+            let lats = cotenant(streams, range, &digests, &stop).await;
+            drop(conn);
+            lats
+        })
     });
     let mut set = tokio::task::JoinSet::new();
     for (i, (endpoint, mut conn)) in conns.into_iter().enumerate() {
@@ -275,7 +282,7 @@ struct Plan {
     close_after: Option<usize>,
 }
 
-async fn open(connection: Connection) -> Result<(SendStream, RecvStream)> {
+async fn open(connection: &Connection) -> Result<(SendStream, RecvStream)> {
     let (control, _recv) = connection
         .open_bi()
         .await
@@ -287,7 +294,7 @@ async fn open(connection: Connection) -> Result<(SendStream, RecvStream)> {
 }
 
 async fn session(connection: &Connection, p: Plan, digests: &Option<Arc<Vec<u64>>>) -> Result<Vec<u64>> {
-    let (mut control, mut media) = open(connection.clone()).await?;
+    let (mut control, mut media) = open(connection).await?;
     match p.mode {
         Mode::OnDemand => {
             let asks = p.close_after.map_or(p.asks, |n| n.min(p.asks));
