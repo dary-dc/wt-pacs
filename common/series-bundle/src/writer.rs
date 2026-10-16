@@ -4,12 +4,16 @@ use crate::format::{check_frame_len, HEADER_SIZE, INDEX_ENTRY_SIZE, MAGIC, VERSI
 use anyhow::{bail, Context, Result};
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+/// Writes `NAME.partial` and renames it over `NAME` in `finish`; dropped unfinished, it removes the partial.
 pub struct BundleWriter {
     out: BufWriter<File>,
     lengths: Vec<u32>,
     written: usize,
+    partial: PathBuf,
+    path: PathBuf,
+    finished: bool,
 }
 
 impl BundleWriter {
@@ -25,8 +29,19 @@ impl BundleWriter {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).context("create bundle parent dir")?;
         }
-        let file = File::create(path).with_context(|| format!("create {}", path.display()))?;
-        let mut out = BufWriter::new(file);
+        let mut partial = path.as_os_str().to_owned();
+        partial.push(".partial");
+        let partial = PathBuf::from(partial);
+        let file = File::create(&partial).with_context(|| format!("create {}", partial.display()))?;
+        let mut writer = Self {
+            out: BufWriter::new(file),
+            lengths: frame_lengths.to_vec(),
+            written: 0,
+            partial,
+            path: path.to_path_buf(),
+            finished: false,
+        };
+        let out = &mut writer.out;
 
         out.write_all(MAGIC)?;
         out.write_all(&VERSION.to_le_bytes())?;
@@ -41,12 +56,7 @@ impl BundleWriter {
         }
 
         out.write_all(metadata)?;
-
-        Ok(Self {
-            out,
-            lengths: frame_lengths.to_vec(),
-            written: 0,
-        })
+        Ok(writer)
     }
 
     pub fn write_frame(&mut self, bytes: &[u8]) -> Result<()> {
@@ -75,7 +85,18 @@ impl BundleWriter {
             );
         }
         self.out.flush().context("flush bundle")?;
+        std::fs::rename(&self.partial, &self.path)
+            .with_context(|| format!("rename {} to {}", self.partial.display(), self.path.display()))?;
+        self.finished = true;
         Ok(())
+    }
+}
+
+impl Drop for BundleWriter {
+    fn drop(&mut self) {
+        if !self.finished {
+            let _ = std::fs::remove_file(&self.partial);
+        }
     }
 }
 
@@ -129,6 +150,29 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         assert!(longer.is_err(), "a 4-byte frame where 3 were declared was written");
         assert!(short.unwrap_err().to_string().contains("1 of 2"));
+        Ok(())
+    }
+
+    /// A pack that fails midway leaves nothing at its name and no partial; one that finishes
+    /// leaves the bundle at its name and no partial.
+    #[test]
+    fn only_a_finished_pack_is_published_and_no_partial_is_left() -> Result<()> {
+        let dir = std::env::temp_dir().join(format!("sbnd-partial-{}", std::process::id()));
+        let path = dir.join("s.sbnd");
+        let partial = dir.join("s.sbnd.partial");
+
+        let mut writer = BundleWriter::create(&path, b"{}", &[3, 4])?;
+        writer.write_frame(b"aaa")?;
+        assert!(writer.write_frame(b"bbb").is_err(), "a 3-byte frame where 4 were declared was written");
+        drop(writer);
+        let failed = (path.exists(), partial.exists());
+
+        write_bundle(&path, b"{}", &[b"aaa", b"bbbb"])?;
+        let finished = (path.exists(), partial.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert_eq!(failed, (false, false), "a failed pack left (bundle, partial)");
+        assert_eq!(finished, (true, false), "a finished pack left (bundle, partial)");
         Ok(())
     }
 }
