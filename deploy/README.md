@@ -328,12 +328,14 @@ current (a changed entry and a wrong checksum each failed it). Regenerate it whe
 
 **Which path is live.** The startup banner says `read_fast_path=preadv2` or `pooled_pread`, and `read_ring=available`
 or `read_ring=refused (<why>)` from one ring built and dropped at start (15.6 µs; row 231). A tile session still tries
-`io_uring_setup` once on its first miss and warns `io_uring unavailable; this session reads through the pool`: a ring
-the probe got can still be refused later, past the `memlock` budget. `/proc/1/limits` inside the container is the
+`io_uring_setup` once on its first miss: a ring the probe got can still be refused later, past the `memlock` budget.
+The first refusal warns `io_uring refused; tile misses go to the pool (warned once)` with its errno, once per process;
+every refused session's line says `ring=false`. `/proc/1/limits` inside the container is the
 server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 
-* the `memlock` limit beside `read_ring=`, and sessions that start with the pool when the probe was refused, so the
-  per-session warning goes.
+* the `memlock` limit beside `read_ring=`, and sessions that start with the pool when the probe was refused, so none
+  of them tries `io_uring_setup`. *Corrected 2026-10-16:* this also promised the per-session warning would go; row 254
+  made it once per process instead.
 * the same probe in `check-fastpath`, shipped in the server image, so `docker compose exec server check-fastpath
   /studies` gates a rollout: 0 with both fast paths, 1 with either lost.
 * compose's health check stays the transport file. A slow path is not an unhealthy one, and failing it would hold
