@@ -52,12 +52,17 @@ def main():
     meta = {"frameCount": s.n, **meta, "min": s.lo, "max": s.hi, "codec": codec,
             **({"representation": "optimized", "preset": preset} if codec == "av1" else {}),
             "digests": ingest.digests(s, s.n, codec)}
+    text = json.dumps(meta, indent=1) + "\n"
     with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
         for i, data in coded:
-            (Path(tmp) / f"{i:03d}.{codec}").write_bytes(data)
-        meta_path = a.out.with_suffix(".metadata.json")
-        meta_path.write_text(json.dumps(meta, indent=1) + "\n")
-        subprocess.run([PACK, "--metadata", meta_path, "--frames", tmp, "--output", a.out], check=True, capture_output=True)
+            (tmp / f"{i:03d}.{codec}").write_bytes(data)
+        (tmp / "metadata.json").write_text(text)
+        pack = subprocess.run([PACK, "--metadata", tmp / "metadata.json", "--frames", tmp, "--output", a.out],
+                              capture_output=True, text=True)
+    if pack.returncode:
+        sys.exit(f"{a.input.name}: nothing written — {pack.stderr.strip()}")
+    a.out.with_suffix(".metadata.json").write_text(text)
     print(f"{a.input.name}: {s.n} frames, {sum(len(d) for _, d in coded)} B {codec}, every one exact → {a.out}")
 
 

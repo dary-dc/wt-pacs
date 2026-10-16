@@ -348,7 +348,7 @@ while the series is still being parsed and coded, and what would that take and s
 * **The format is front-loaded.** The 16 B header holds the frame count and the metadata's length; the index, 12 B a
   frame (offset, length), follows; then the metadata; then the frames
   (`common/series-bundle/src/format.rs:8–12`). `BundleWriter::create` takes every frame's length and writes the header,
-  index and metadata before the first frame's byte (`common/series-bundle/src/writer.rs:16–43`). The metadata needs
+  index and metadata before the first frame's byte (`common/series-bundle/src/writer.rs:20–60`). The metadata needs
   the whole series too: its minimum, maximum and every frame's digest (`ingest/from-parser/src/main.rs:97–111`).
 * **The ingest runs on a complete series.** It starts after the wait for the series ([`README.md`](README.md) §1, step
   3), codes every frame into memory, then writes the bundle (`ingest/from-parser/src/main.rs:84–114`).
