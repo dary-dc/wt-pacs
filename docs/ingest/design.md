@@ -348,10 +348,11 @@ while the series is still being parsed and coded, and what would that take and s
 * **The format is front-loaded.** The 16 B header holds the frame count and the metadata's length; the index, 12 B a
   frame (offset, length), follows; then the metadata; then the frames
   (`common/series-bundle/src/format.rs:8–12`). `BundleWriter::create` takes every frame's length and writes the header,
-  index and metadata before the first frame's byte (`common/series-bundle/src/writer.rs:16–43`). The metadata needs
-  the whole series too: its minimum, maximum and every frame's digest (`ingest/from-parser/src/main.rs:97–111`).
+  index and metadata before the first frame's byte (`common/series-bundle/src/writer.rs:20–60`). The metadata needs
+  the whole series too: its minimum, maximum and every frame's digest (`ingest/from-parser/src/main.rs:98–112`).
 * **The ingest runs on a complete series.** It starts after the wait for the series ([`README.md`](README.md) §1, step
-  3), codes every frame into memory, then writes the bundle (`ingest/from-parser/src/main.rs:84–114`).
+  3), codes every frame into memory, then writes the bundle (`ingest/from-parser/src/main.rs:81–114`; *corrected
+  2026-10-16:* both line ranges were one to three lines off).
 * **The parser hands over whole instances**, one directory each ([`README.md`](README.md) §1, step 2). A multi-frame
   instance (a cine, a tomosynthesis volume) gives no frame until all of it is received and parsed. Streaming inside one
   instance needs the parser's stream output (§3).
@@ -359,7 +360,7 @@ while the series is still being parsed and coded, and what would that take and s
   length, a coded and a samples XXH3-64, 28 B a frame) precedes the frames. It drops only the metadata, which moves to
   the study database.
 * **Display order.** Frames lie back to back in display order, and a fill asks the kernel for
-  `FILL_WINDOW` = 4 MiB past the frame it reads (`server/src/media/read_path.rs:26`, `181–193`). A file written in
+  `FILL_WINDOW` = 4 MiB past the frame it reads (`server/src/media/read_path.rs:28`, `196–210`). A file written in
   arrival order serves fills in display order only if the instances arrived in it.
 * **AV1's offset.** The bit split codes samples offset by the series' minimum, which takes one pass over every frame
   before the first is coded ([`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site, *Streaming memory*).

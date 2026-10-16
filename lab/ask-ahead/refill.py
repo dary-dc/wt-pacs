@@ -3,9 +3,10 @@
 by lab/scripts/aa_rule.py, strict (rounds a `VOID` visit touched dropped from the cell) and round-paired.
 
 Per cell, reading and measure (ask, fill): rounds 0–11 are the run and 12–23 its confirmation, so worse or better
-is a flag in both; any other cell is a tie when the loss the rule catches at the pooled rounds' A/A spread is
-≤ 5 %, else not conclusive. B becomes the default when, in both readings, no cell is worse or not conclusive and
-a 10 % cell's fill is better — docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*.
+is a flag in both; a half too short to flag at all leaves the cell undecided; any other cell is a tie when the loss
+the rule catches at the pooled rounds' A/A spread is ≤ 5 %, else not conclusive. B becomes the default when, in
+both readings, every cell is a tie or better and a 10 % cell's fill is better — docs/transport/link-conditions.md
+§Re-measured, *ASKTHENFILL*.
 
 usage: refill.py ROWS.jsonl   — lab/ask-ahead/README.md
 """
@@ -15,7 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from aa_rule import judge  # noqa: E402
+from aa_rule import can_flag, judge  # noqa: E402
 
 BAR = 0.05
 SPLIT = 12
@@ -49,8 +50,9 @@ def verdict(rows, cell, key, strict, arm="TB", split=SPLIT):
     rounds, s = series(rows, cell, key, strict, arm)
     s["rounds"] = rounds
     first, again, both = cut(s, lambda n: n < split), cut(s, lambda n: n >= split), cut(s, lambda n: True)
-    if min(complete(first), complete(again)) < 2:
-        return {"n": complete(both), "verdict": "not conclusive"}
+    halves = complete(first), complete(again)
+    if not can_flag(min(halves)):
+        return {"n": sum(halves), "verdict": "undecided at n = %d + %d" % halves}
     flagged = judge({cell: first}, {cell: again}, BAR)[cell]
     pooled = judge({cell: both}, None, BAR)[cell]
     v = flagged["verdict"] if flagged["verdict"] in ("worse", "better") else (
@@ -68,12 +70,13 @@ def reading(rows, cells, strict):
             v = verdict(rows, cell, key, strict)
             out[(cell, key)] = v
             if "arm" not in v:
-                print(f"{cell.split(':')[0]:24} {key[:-3]:7} {v['n']:2} complete rounds: not conclusive")
+                print(f"{cell.split(':')[0]:24} {key[:-3]:7} {v['n']:2} complete rounds: {v['verdict']}")
                 continue
             print(f"{cell.split(':')[0]:24} {key[:-3]:7} {v['n']:2} {v['t_ms']:7.0f}  ×{v['arm']:.3f}  ×{v['aa']:.3f} "
                   f"{(v['arm'] - 1) * v['t_ms']:+6.0f}  {v['sd']:6.1%}  {v['mdl']:5.1%}  {v['verdict']}")
     worse = [f"{c.split(':')[0]} {k[:-3]}" for (c, k), v in out.items() if v["verdict"] == "worse"]
-    unsure = [f"{c.split(':')[0]} {k[:-3]}" for (c, k), v in out.items() if v["verdict"] == "not conclusive"]
+    unsure = [f"{c.split(':')[0]} {k[:-3]}" for (c, k), v in out.items()
+              if v["verdict"] not in ("worse", "better", "tie")]
     gain = [c.split(":")[0] for (c, k), v in out.items() if k == "fill_ms" and "@10" in c and v["verdict"] == "better"]
     rule = ("B becomes the default" if not worse and not unsure and gain else
             "B not adopted: worse in " + ", ".join(worse) if worse else

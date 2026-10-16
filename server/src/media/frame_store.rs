@@ -14,7 +14,7 @@ use std::sync::Mutex;
 
 /// 64 KiB, a size tests make frames span several of. `docs/adr/disk-access.md`.
 #[cfg(test)]
-pub(crate) const READ_WINDOW: usize = 64 * 1024;
+pub(crate) const TEST_CHUNK: usize = 64 * 1024;
 
 /// Where a frame's codestream lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,36 +96,21 @@ impl FrameStore {
         };
         let mut done = 0usize;
         while done < buf.len() {
-            let iov = libc::iovec {
-                iov_base: buf[done..].as_mut_ptr() as *mut libc::c_void,
-                iov_len: buf.len() - done,
-            };
-            // SAFETY: `iov` describes a live, exclusively borrowed subrange of `buf`.
-            let n = unsafe {
-                libc::preadv2(
-                    self.file.as_raw_fd(),
-                    &iov,
-                    1,
-                    (offset + done as u64) as libc::off_t,
-                    libc::RWF_NOWAIT,
-                )
-            };
-            if n < 0 {
-                let err = std::io::Error::last_os_error();
-                return match err.raw_os_error() {
-                    Some(libc::EAGAIN) => Ok(done),
-                    Some(libc::EOPNOTSUPP) | Some(libc::ENOSYS) | Some(libc::EINVAL)
-                        if done == 0 =>
-                    {
-                        Ok(0)
-                    }
-                    _ => Err(err).context("preadv2 RWF_NOWAIT"),
-                };
+            match preadv2_nowait(&self.file, &mut buf[done..], offset + done as u64) {
+                Ok(0) => return Ok(done), // end of file, or nothing more available without waiting
+                Ok(n) => done += n,
+                Err(err) => {
+                    return match err.raw_os_error() {
+                        Some(libc::EAGAIN) => Ok(done),
+                        Some(libc::EOPNOTSUPP) | Some(libc::ENOSYS) | Some(libc::EINVAL)
+                            if done == 0 =>
+                        {
+                            Ok(0)
+                        }
+                        _ => Err(err).context("preadv2 RWF_NOWAIT"),
+                    };
+                }
             }
-            if n == 0 {
-                return Ok(done); // end of file, or nothing more available without waiting
-            }
-            done += n as usize;
         }
         Ok(done)
     }
@@ -154,7 +139,7 @@ impl FrameStore {
     }
 
     /// Force a partial hit: real bytes at the front, a shortfall behind them.
-    #[cfg(all(test, feature = "uring"))]
+    #[cfg(test)]
     pub(crate) fn force_short_reads(&mut self, cap: usize) {
         self.nowait_cap = Some(cap);
     }
@@ -189,25 +174,25 @@ impl FrameStore {
 /// `EAGAIN` counts as support — the flag working on a cold byte. Anything unexpected reads
 /// as no fast path, so the serving loop takes the conservative route.
 fn probe_nowait(file: &File, offset: u64) -> bool {
-    let mut byte = [0u8; 1];
-    let iov = libc::iovec {
-        iov_base: byte.as_mut_ptr() as *mut libc::c_void,
-        iov_len: 1,
-    };
-    // SAFETY: `iov` describes a live, exclusively borrowed one-byte buffer.
-    let n = unsafe {
-        libc::preadv2(
-            file.as_raw_fd(),
-            &iov,
-            1,
-            offset as libc::off_t,
-            libc::RWF_NOWAIT,
-        )
-    };
-    if n >= 0 {
-        return true;
+    match preadv2_nowait(file, &mut [0u8; 1], offset) {
+        Ok(_) => true,
+        Err(err) => err.raw_os_error() == Some(libc::EAGAIN),
     }
-    std::io::Error::last_os_error().raw_os_error() == Some(libc::EAGAIN)
+}
+
+fn preadv2_nowait(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<usize> {
+    let iov = libc::iovec {
+        iov_base: buf.as_mut_ptr() as *mut libc::c_void,
+        iov_len: buf.len(),
+    };
+    // SAFETY: `iov` describes `buf`, live and exclusively borrowed for the call.
+    let n = unsafe {
+        libc::preadv2(file.as_raw_fd(), &iov, 1, offset as libc::off_t, libc::RWF_NOWAIT)
+    };
+    if n < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(n as usize)
 }
 
 /// The same probe `FrameStore::open` runs, so `tools/check-fastpath` cannot answer
@@ -364,7 +349,7 @@ mod tests {
         let mut out = vec![0u8; span.len as usize];
         let mut pos = 0usize;
         while pos < out.len() {
-            let want = READ_WINDOW.min(out.len() - pos);
+            let want = TEST_CHUNK.min(out.len() - pos);
             let at = span.offset + pos as u64;
             let got = store.read_at_nowait(&mut out[pos..pos + want], at)?;
             assert!(got <= want, "nowait overran the window: {got} > {want}");

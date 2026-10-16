@@ -28,7 +28,7 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   trigger (`T`, now `?refill=landed`) and the same again (`Tp`), read by `lab/scripts/aa_rule.py`; a `CELL` of
   `…@AT:ARM,…` asks once `AT` % has landed (`none`: no ask) and runs only the arms named, and an arm's `?key=value`
   token goes to the page's query. Its rows are `rows-refill.jsonl`; `rows-refill-ceiling.jsonl` is the relay's
-  ceiling, fills with no ask at 2 ms.
+  ceiling, fills with no ask at 2 ms. `refill_test.py` holds its verdict's claims on drawn rows.
 * `onequeue.py ROWS.jsonl` — ONEQUEUEMEASURE (row 253), the one queue (`Q=--fill-resumes-after-asks ?refill=none`,
   `QW` the same with `--send-window-follows-cwnd`) and today with the window (`TW`) against today (`T`, `?refill=head`)
   and the same again (`Tp`), each read as `refill.py` reads its arm, halves of the rounds for the confirmation.

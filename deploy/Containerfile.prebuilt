@@ -1,0 +1,13 @@
+# The `server` target of ./Containerfile around a series-server compiled elsewhere; it cannot compile. deploy/README.md
+# The binary must be built in that file's pinned rust bookworm image: it links that Debian release's glibc.
+ARG REGISTRY=docker.io/library
+
+FROM ${REGISTRY}/debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS server
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+RUN useradd -r -u 10001 wtpacs && install -d -o 10001 -g 10001 -m 0700 /certs && install -d -o 10001 -g 10001 -m 0755 /run/wt-pacs
+COPY series-server /usr/local/bin/series-server
+COPY server-start.sh /usr/local/bin/server-start.sh
+COPY us_cine_smoke /studies
+USER 10001
+EXPOSE 4433/udp 4433/tcp
+ENTRYPOINT ["/usr/local/bin/server-start.sh"]

@@ -2,7 +2,7 @@
 //! override steps, never the story. `docs/adr/telemetry-server-pipeline.md`.
 
 use crate::media::frame_store::{FrameSpan, FrameStore};
-use crate::media::read_path::{ReadMode, FillReader, TileReader, TILE_SLOTS};
+use crate::media::read_path::{FillReader, ReadMode, ReadStats, TileReader, TILE_SLOTS};
 use crate::transport::link::Link;
 use crate::transport::planner::Next;
 use anyhow::Result;
@@ -42,10 +42,12 @@ pub(crate) struct ProductPipeline {
     link: Link,
     /// Built on the first frame of its kind, so a session pays for neither reader it
     /// does not use. `docs/adr/disk-access.md`.
-    seq: Option<FillReader>,
+    fill: Option<FillReader>,
     tile: Option<TileReader>,
     mode: ReadMode,
     fills: u64,
+    #[cfg(feature = "lab-frame-cache")]
+    lab_session: u64,
 }
 
 impl ProductPipeline {
@@ -53,10 +55,12 @@ impl ProductPipeline {
         Self {
             store,
             link,
-            seq: None,
+            fill: None,
             tile: None,
             mode,
             fills: 0,
+            #[cfg(feature = "lab-frame-cache")]
+            lab_session: crate::media::lab_frame_cache::session(),
         }
     }
 }
@@ -81,7 +85,7 @@ impl FramePipeline for ProductPipeline {
             return Ok(bytes);
         }
         let len = self.store.frame_span(frame).len as usize;
-        if !cache::claim_fill(frame, len) {
+        if !cache::claim_fill(frame, len, self.lab_session) {
             return self.read_store(frame, next).await;
         }
         let read = self.read_store(frame, next).await;
@@ -112,13 +116,13 @@ impl FramePipeline for ProductPipeline {
 
 impl ProductPipeline {
     async fn read_store(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
-        let Self { store, seq, tile, mode: read_mode, fills, .. } = self;
+        let Self { store, fill, tile, mode: read_mode, fills, .. } = self;
         let span = store.frame_span(frame);
         let ahead = ahead(store, next);
         match next {
             Next::Fill { first, .. } => {
                 *fills += u64::from(*first);
-                seq.get_or_insert_with(|| FillReader::new(Arc::clone(store)))
+                fill.get_or_insert_with(|| FillReader::new(Arc::clone(store)))
                     .read(span, ahead.first().copied())
                     .await
             }
@@ -135,26 +139,26 @@ impl Drop for ProductPipeline {
     /// In `Drop` because a session ends several ways, and a miss rate only some of them
     /// report is worse than none. `docs/adr/disk-access.md` §Reporting.
     fn drop(&mut self) {
-        let seq = self.seq.as_ref().map(FillReader::stats).unwrap_or_default();
+        let fill = self.fill.as_ref().map(FillReader::stats).unwrap_or_default();
         let tile = self
             .tile
             .as_ref()
             .map(TileReader::stats)
             .unwrap_or_default();
-        let (hits, misses) = (seq.hits + tile.hits, seq.misses + tile.misses);
-        if hits + misses == 0 {
+        let (hits, misses) = (fill.hits + tile.hits, fill.misses + tile.misses);
+        let Some(miss_rate) = ReadStats { hits, misses, ..Default::default() }.miss_rate() else {
             return;
-        }
+        };
         info!(
             hits,
             misses,
-            miss_rate = misses as f64 / (hits + misses) as f64,
-            fill_hits = seq.hits,
-            fill_misses = seq.misses,
+            miss_rate,
+            fill_hits = fill.hits,
+            fill_misses = fill.misses,
             tile_hits = tile.hits,
             tile_misses = tile.misses,
-            named = tile.peak_named.max(seq.peak_named),
-            in_flight = tile.peak_in_flight.max(seq.peak_in_flight),
+            named = tile.peak_named.max(fill.peak_named),
+            in_flight = tile.peak_in_flight.max(fill.peak_in_flight),
             ring = self.tile.as_ref().is_some_and(TileReader::ring_built),
             fills = self.fills,
             "session reads"
@@ -215,22 +219,6 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-
-    fn one_frame_series(path: &std::path::Path) {
-        let meta = br#"{"frameCount":1}"#;
-        let mut f = std::fs::File::create(path).expect("create bundle");
-        f.write_all(b"SBND").unwrap();
-        f.write_all(&1u32.to_le_bytes()).unwrap();
-        f.write_all(&(meta.len() as u32).to_le_bytes()).unwrap();
-        f.write_all(&1u32.to_le_bytes()).unwrap();
-        f.write_all(&((16 + 12 + meta.len()) as u64).to_le_bytes())
-            .unwrap();
-        f.write_all(&4u32.to_le_bytes()).unwrap();
-        f.write_all(meta).unwrap();
-        f.write_all(b"abcd").unwrap();
-        f.sync_all().unwrap();
-    }
 
     /// A series of `frames` frames, each a different length, so a span cannot match by luck.
     fn series(path: &std::path::Path, frames: u32) {
@@ -367,7 +355,7 @@ mod tests {
     #[test]
     fn sessions_share_one_store_rather_than_opening_their_own() {
         let path = std::env::temp_dir().join(format!("wtpacs-share-{}.sbnd", std::process::id()));
-        one_frame_series(&path);
+        series(&path, 1);
         let store = Arc::new(FrameStore::open(&path).expect("open store"));
 
         let sessions = 8;
