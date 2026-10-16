@@ -11,7 +11,7 @@ const abs = () => performance.timeOrigin + performance.now();
 
 let session = null;
 /** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
-let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head" };
+let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
 const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
 /** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
@@ -20,7 +20,6 @@ let dial = null;
 let dialling = null;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
 let generation = 0;
-let asksInFlight = 0;
 // The dial and the decoders start together; dispatch waits on this, the dial does not.
 let decodersUp = false;
 let decoderLoss = "none is configured";
@@ -211,47 +210,31 @@ function arrived(index, frame) {
   pump();
 }
 
-/**
- * The server ends a running fill for an ask, so the remainder is re-issued on the asked frame's envelope head
- * (`refill: "head"`), right behind the ask (`"ask"`) or once it settles (any other). docs/WIRE.md §An ask during a
- * fill, docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*
- */
+/** The server serves an ask ahead of a running fill and keeps the fill, so nothing is asked again. docs/WIRE.md §An ask during a fill */
 async function ask(index, s) {
   const gen = generation;
   const ep = epoch;
-  // Released once: a second `stream_frames` for the same remainder ends the first and re-sends what it wrote.
-  let holding = cfg.refill !== "ask";
-  const release = () => {
-    if (!holding || gen !== generation || ep !== epoch) return;
-    holding = false;
-    asksInFlight -= 1;
-    issueFill();
-  };
-  if (holding) asksInFlight += 1;
   issuedAt = performance.now();
   watch();
-  const promise = requestOnce(s, index, cfg.refill === "head" ? release : undefined);
-  if (!holding) issueFill();
   try {
-    const frame = await promise;
-    if (gen === generation && ep === epoch) arrived(index, frame);
+    const frame = await requestOnce(s, index);
+    if (gen !== generation || ep !== epoch) return;
+    arrived(index, frame);
+    if (runOver()) issueFill();
   } catch (e) {
     if (gen === generation && ep === epoch && !lost(e?.name === "FrameTimeoutError")) {
       fail(index, String(e?.message ?? e));
       pump();
     }
-  } finally {
-    // A cancelled ask's count was already dropped with the rest of its generation's work.
-    release();
   }
 }
 
 /** Asks a session has on the wire, whatever generation made them: a cancel leaves them owed, and the session refuses a second. */
 const onWire = new Map();
-function requestOnce(s, index, onHead) {
+function requestOnce(s, index) {
   const held = onWire.get(index);
   if (held?.session === s) return held.promise;
-  const promise = s.requestExactFrame(index, onHead);
+  const promise = s.requestExactFrame(index);
   onWire.set(index, { session: s, promise });
   const forget = () => onWire.get(index)?.promise === promise && onWire.delete(index);
   promise.then(forget, forget);
@@ -267,6 +250,15 @@ function askFor(s, index) {
   if (rec) rec.priority = "ask";
   else record(index, "ask", abs());
   ask(index, s);
+}
+
+/** The run on the wire. An ask for one of its frames takes that frame out of it, so it can end before its `to` lands. */
+let run = null;
+
+function runOver() {
+  if (!run) return false;
+  while (run.from <= run.to && !wanted.has(run.from)) run.from += 1;
+  return run.from > run.to;
 }
 
 /** The wire carries one contiguous run of what is wanted at a time. docs/ARCHITECTURE.md §The downloader */
@@ -285,7 +277,7 @@ function fillHandlers(from, to) {
     onFrame: (frame) => {
       if (gen !== generation || ep !== epoch) return;
       arrived(frame.frameIndex, frame);
-      if (frame.frameIndex === to) issueFill();
+      if (runOver()) issueFill();
     },
     // A refused range is one frame_error at `from`, so the run fails whole.
     onError: (_index, reason) => {
@@ -297,8 +289,8 @@ function fillHandlers(from, to) {
 }
 
 function issueFill() {
-  if (asksInFlight > 0 || !session || session.stats().closed) return;
-  const run = nextRun();
+  if (!session || session.stats().closed) return;
+  run = nextRun();
   if (!run) return;
   const { onFrame, onError } = fillHandlers(run.from, run.to);
   session.fillFrames(run.from, run.to, onFrame, onError);
@@ -335,7 +327,6 @@ const reaskOwed = () => { for (const i of owedAsks()) ask(i, session); };
 
 function retire() {
   epoch += 1;
-  asksInFlight = 0;
   session.close();
 }
 
@@ -489,7 +480,7 @@ async function connect() {
     const gen = generation;
     // The range is known here, so it rides the session URL and is served behind the accept
     // rather than a round trip later. docs/ARCHITECTURE.md
-    const run = cfg.openingAsk !== false ? nextRun() : null;
+    run = cfg.openingAsk !== false ? nextRun() : null;
     const opening = run && { ...run, ...fillHandlers(run.from, run.to) };
     adopt(await openSession(opening));
     // A cancel during the dial cannot take back the run its URL carries.
@@ -566,7 +557,6 @@ onmessage = async (e) => {
       records.clear();
       wanted.clear();
       for (const d of decoders) d.next = null;
-      asksInFlight = 0;
       try {
         await session?.endStream();
       } catch {

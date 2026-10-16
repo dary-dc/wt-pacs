@@ -22,8 +22,8 @@ pub(crate) enum Link {
         connection: Connection,
         /// Lab only: envelope bytes left before the session stalls. `--stall-after-bytes`.
         stall_left: Option<u64>,
-        /// Lab only: the send window is set to cwnd + this before each frame. `--send-window-follows-cwnd`.
-        cwnd_ahead: Option<u64>,
+        /// The send window is set to cwnd + this before each frame.
+        cwnd_ahead: u64,
     },
     /// One ordered TCP stream carries frames and refusals alike.
     WebSocket(WsWriter),
@@ -51,7 +51,7 @@ impl Link {
         connection: Connection,
         control: ControlStream,
         stall_left: Option<u64>,
-        cwnd_ahead: Option<u64>,
+        cwnd_ahead: u64,
     ) -> Result<Self> {
         let media = match mode {
             StreamMode::Shared => Media::Shared(
@@ -78,10 +78,8 @@ impl Link {
                     let path = connection.quic_connection().stats().path;
                     debug!(frame = idx, cwnd = path.cwnd, rtt_us = path.rtt.as_micros() as u64, "ask written");
                 }
-                if let Some(ahead) = cwnd_ahead {
-                    let quic = connection.quic_connection();
-                    quic.set_send_window(quic.stats().path.cwnd + *ahead);
-                }
+                let quic = connection.quic_connection();
+                quic.set_send_window(quic.stats().path.cwnd + *cwnd_ahead);
                 let whole = (FRAME_HEAD_LEN + body.len()) as u64;
                 match stall_left {
                     Some(left) if whole > *left => {

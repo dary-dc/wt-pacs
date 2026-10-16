@@ -9,8 +9,8 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   holds each codestream's SHA-256. Needs OpenJPH (`lab/scripts/gen_htj2k_fixtures.sh` builds it), numpy and
   `target/debug/pack-series`.
 * `cells.py OUT ROUNDS CELL ...` — `CELL` is `RATE_MBIT/RTT_MS/QUEUE`, `QUEUE` `fifoMS` (a tail-drop FIFO of that many
-  ms at the rate) or `codel` (`--codel 5:100` over an 800 ms FIFO). Per round and cell, today's server and
-  `--send-window-follows-cwnd` in a Williams order; each run starts its own release server and relay
+  ms at the rate) or `codel` (`--codel 5:100` over an 800 ms FIFO). Per round and cell, each of `ARMS` in a Williams
+  order (`--send-window-follows-cwnd`, ASKAHEAD's other arm, is now the server's behaviour); each run starts its own release server and relay
   (`lab/scripts/link_impair.py --self-timing`, under `chrt -f $RELAY_CHRT` when set); one headless Chromium
   (`visit.mjs`) loads `index.html` for every run. One JSON row per run: the ask's time to its frame, the fill's issue
   to its last frame, the fill frames that landed between the ask and its frame (`ahead`), whether every frame's

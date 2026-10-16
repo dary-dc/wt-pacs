@@ -218,10 +218,6 @@ async fn read_length_prefixed_frame(
     }
     let len = frame_envelope::envelope_len(buf.as_slice()[0..4].try_into().unwrap())?;
     buf.reserve_for(4 + len);
-    if !read_exact(reader, buf, frame_envelope::FRAME_HEAD_LEN, on_read).await? {
-        return Ok(lost(buf.as_slice(), len - frame_envelope::INDEX_LEN));
-    }
-    head_read(st, u32::from_be_bytes(buf.as_slice()[4..8].try_into().unwrap()));
     if !read_exact(reader, buf, 4 + len, on_read).await? {
         return Ok(lost(buf.as_slice(), len - frame_envelope::INDEX_LEN));
     }
@@ -231,15 +227,6 @@ async fn read_length_prefixed_frame(
     let codestream = js_buffer_from(codestream, &mut st.borrow_mut().wire);
     buf.consume(4 + len);
     Ok(Envelope::Frame { index, codestream })
-}
-
-/// An asked frame's head is read and its body is not: its `on_head` runs, after the borrow is
-/// released — it is JS and may re-enter the session.
-fn head_read(st: &Rc<RefCell<SessionState>>, index: u32) {
-    let on_head = st.borrow().waiters.get(&index).and_then(|w| w.on_head.clone());
-    if let Some(on_head) = on_head {
-        let _ = on_head.call0(&JsValue::NULL);
-    }
 }
 
 /// `head` is what arrived of `[4B BE len][4B BE index][codestream]` before the stream ended.
@@ -298,8 +285,8 @@ fn deliver(st: &Rc<RefCell<SessionState>>, index: u32, view: Uint8Array, now: f6
     let push = {
         let mut s = st.borrow_mut();
         let owed = s.fill.as_mut().is_some_and(|f| f.pending.remove(&index));
-        if let Some(w) = s.waiters.remove(&index) {
-            let _ = w.tx.send((view, now));
+        if let Some(tx) = s.waiters.remove(&index) {
+            let _ = tx.send((view, now));
             return;
         }
         match s.fill.as_ref() {
@@ -396,14 +383,9 @@ struct Fill {
     on_error: Option<js_sys::Function>,
 }
 
-struct Waiter {
-    tx: oneshot::Sender<(Uint8Array, f64)>,
-    on_head: Option<js_sys::Function>,
-}
-
 #[derive(Default)]
 struct SessionState {
-    waiters: HashMap<u32, Waiter>,
+    waiters: HashMap<u32, oneshot::Sender<(Uint8Array, f64)>>,
     fill: Option<Fill>,
     /// Set once the session is gone; a waiter armed after this would only reach the timeout.
     closed: Option<String>,
@@ -574,11 +556,7 @@ impl TransportSession {
         })
     }
 
-    pub async fn request_frame(
-        &self,
-        frame_index: u32,
-        on_head: Option<js_sys::Function>,
-    ) -> Result<JsValue, String> {
+    pub async fn request_frame(&self, frame_index: u32) -> Result<JsValue, String> {
         let ask_ms = perf_now_ms();
         let (tx, rx) = oneshot::channel();
         {
@@ -589,7 +567,7 @@ impl TransportSession {
             if s.waiters.contains_key(&frame_index) {
                 return Err(format!("frame {frame_index} already requested"));
             }
-            s.waiters.insert(frame_index, Waiter { tx, on_head });
+            s.waiters.insert(frame_index, tx);
         }
 
         let payload = encode_fod_msg(&FodMsg::RequestFrame {

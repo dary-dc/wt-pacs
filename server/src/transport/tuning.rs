@@ -53,8 +53,7 @@ impl Congestion {
 
 #[derive(Clone, Debug, PartialEq, clap::Args)]
 pub struct TransportTuning {
-    /// QUIC send window per connection in bytes: unacknowledged data held, so N sessions × this
-    /// bounds memory under slow clients.
+    /// QUIC send window per connection in bytes, until a session's first frame sets it to cwnd + two frames (`link.rs`).
     #[arg(long = "send-window-bytes")]
     pub send_window: Option<u64>,
     /// QUIC idle timeout.

@@ -224,9 +224,8 @@ async function boundHoldsPerDecoder(DownloaderClient: DownloaderCtor, check: Che
   c.close();
 }
 
-/** An ask ends the fill on the server, so once the asked frame's head lands the downloader re-issues exactly the
- *  frames still owed as a new run — and the fill completes with every frame once. */
-async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) {
+/** An ask during a fill asks nothing again: the server keeps the fill, which completes with every frame once. */
+async function anAskDuringAFillReissuesNothing(DownloaderClient: DownloaderCtor, check: Check) {
   const captured: Frame[] = [];
   const { c, fake } = await open(DownloaderClient, { decode: false, onFrame: (f) => captured.push(f) });
   c.fill([0, 1, 2, 3, 4, 5, 6, 7]);
@@ -235,60 +234,51 @@ async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) 
   await until(() => captured.length >= 4);
 
   const askP = c.requestExactFrame(50);
-  let landed = false;
-  void askP.then(() => (landed = true), () => {});
-  await settle();
-  // Its body trickles for 2 s behind its head, so a remainder issued only once it lands comes late.
-  await fake.trickleFrame(50, enc.encode("ask-50".repeat(40)), 20, 100);
-  const onHead = (await onTheWire(fake, "stream_frames 4-7")) && !landed;
+  await onTheWire(fake, "request_frame 50");
+  await fake.pushFrame(50, enc.encode("ask-50"));
   const asked = await askP;
-  await settle();
-
-  const wire = wireOf((await fake.controlMessages()) as Wire[]);
-  const at = wire.indexOf("request_frame 50");
-  check(wire[0] === "stream_frames 0-7", `reissue: the fill goes out as one stream_frames run (${wire[0]})`);
-  check(at > 0, `reissue: the ask goes to the wire`);
-  check(onHead, "reissue: the remainder goes out on the asked frame's head, before its body lands");
-  check(wire[at + 1] === "stream_frames 4-7", `reissue: exactly the remainder is re-issued (${wire[at + 1]})`);
-  check(asked.frameIndex === 50, `reissue: the ask was served`);
-
   for (const i of [4, 5, 6, 7]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
   await until(() => captured.length >= 8);
+  await settle();
+
+  const wire = wireOf((await fake.controlMessages()) as Wire[]).join(", ");
+  check(wire === "stream_frames 0-7, request_frame 50", `one queue: the ask goes out and nothing is asked again (${wire})`);
+  check(asked.frameIndex === 50, `one queue: the ask was served`);
   const order = captured.map((f) => f.frameIndex).join();
-  check(order === "0,1,2,3,4,5,6,7", `reissue: the fill completes, every frame once (${order})`);
+  check(order === "0,1,2,3,4,5,6,7", `one queue: the fill completes, every frame once (${order})`);
   c.close();
 }
 
-/** A frame the fill still owes is asked on the wire — the server serves it next — and the runs re-issued after it skip it. */
+/** A frame the fill still owes is asked on the wire, where the server serves it first and the fill skips it; the
+ *  next run goes out once the rest of the run has landed, though the run's last frame came on the ask. */
 async function asksTheWireForAnOwedFrame(DownloaderClient: DownloaderCtor, check: Check) {
   const captured: Frame[] = [];
   const { c, fake } = await open(DownloaderClient, { decode: false, onFrame: (f) => captured.push(f) });
-  c.fill([0, 1, 2, 3, 4, 5, 6, 7]);
+  c.fill([0, 1, 2, 3, 4, 5, 6, 7, 10, 11]);
   await settle();
   for (const i of [0, 1]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
   await until(() => captured.length >= 2);
 
-  const askP = c.requestExactFrame(5);
+  const askP = c.requestExactFrame(7);
   await settle();
   let wire = wireOf((await fake.controlMessages()) as Wire[]);
-  check(wire.includes("request_frame 5"), `owed: an ask for a frame the fill still owes goes to the wire`);
-  await fake.pushFrame(5, enc.encode("fill-5"));
+  check(wire.includes("request_frame 7"), `owed: an ask for a frame the fill still owes goes to the wire`);
+  await fake.pushFrame(7, enc.encode("fill-7"));
   const asked = await askP;
-  await settle();
-  wire = wireOf((await fake.controlMessages()) as Wire[]);
-  const at = wire.indexOf("request_frame 5");
-  check(asked.frameIndex === 5, `owed: it is served on the ask's own promise`);
-  check(wire[at + 1] === "stream_frames 2-4", `owed: the re-issued run stops short of it (${wire[at + 1]})`);
+  check(asked.frameIndex === 7, `owed: it is served on the ask's own promise`);
 
-  for (const i of [2, 3, 4]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
-  await until(() => captured.length >= 5);
+  for (const i of [2, 3, 4, 5, 6]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+  await until(() => captured.length >= 7);
   await settle();
   wire = wireOf((await fake.controlMessages()) as Wire[]);
-  check(wire[at + 2] === "stream_frames 6-7", `owed: the run after it resumes past it (${wire[at + 2]})`);
-  for (const i of [6, 7]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
-  await until(() => captured.length >= 7);
+  check(
+    wire.join(", ") === "stream_frames 0-7, request_frame 7, stream_frames 10-11",
+    `owed: nothing is asked again, and the next run follows the run's last fill frame (${wire.join(", ")})`,
+  );
+  for (const i of [10, 11]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+  await until(() => captured.length >= 9);
   const order = captured.map((f) => f.frameIndex).join();
-  check(order === "0,1,2,3,4,6,7", `owed: the fill delivers everything else once, in order (${order})`);
+  check(order === "0,1,2,3,4,5,6,10,11", `owed: the fills deliver everything else once, in order (${order})`);
   c.close();
 }
 
@@ -2281,7 +2271,7 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: str
   addEventListener("unhandledrejection", (e) => e.preventDefault());
   /** What the session does on the wire, so per client. */
   const transport: Clause[] = [
-    reissuesAfterAsk,
+    anAskDuringAFillReissuesNothing,
     asksTheWireForAnOwedFrame,
     startWithAFillDialsOnce,
     cancelCompletesAndUnblocksTheNextFill,

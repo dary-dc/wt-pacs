@@ -10,7 +10,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | file | |
 | - | - |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
-| `downloader.js` | the worker: dial, per-frame records, the fill pushed one run at a time and re-issued after an ask, two-priority queue, dispatch, cancel |
+| `downloader.js` | the worker: dial, per-frame records, the fill pushed one run at a time, two-priority queue, dispatch, cancel |
 | `downloader.test.mjs`, `consumer.test.mjs` | node: how many decoders a start makes; what `connect` refuses before a worker starts |
 | `ts/`, `wasm/` | the TypeScript transports and the WASM transport's crate ([`docs/CLIENTS.md`](../docs/CLIENTS.md)) |
 

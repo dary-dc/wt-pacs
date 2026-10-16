@@ -117,32 +117,31 @@ WebSocket the codestream is still split, every 64 KiB (§The WebSocket mapping).
 
 ## An ask during a fill
 
-**An ask does not wait for the fill, because the fill stops.** It does not overtake a running
-fill; it replaces it. While a fill runs, the planner checks for new messages between frames, and
-any message in hand ends the fill — a `request_frame`, a batch, a new `stream_frames`, an
-`end_stream` (which is then consumed), an `end_session`. There is no saved position: the fill does
-not resume. The asked frame is served next, and a client that still wants the rest of the run asks
-for it again; the downloader does so by itself. That re-ask is this shape's cost, which row 229 only
-shortens; queue row 249 proposes a server that keeps the fill and moves the asked frame to its front.
-Tests: `a_data_request_during_a_fill_ends_it_and_is_served_next` (`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
-reciting after the mode switch").
+**An ask goes before the fill, and the fill resumes behind it** (row 249's one queue, §Proposed below).
+While a fill runs, the planner checks for new messages between frames. A `request_frame` in hand is
+served next, several in ask order, and the fill then resumes where it stopped, skipping any of its
+frames an ask already served. Any other message ends the fill: a new `stream_frames` replaces it, an
+`end_stream` is consumed, an `end_session` ends the session. The client asks for nothing again.
+Tests: `an_ask_during_a_fill_is_served_next_and_the_fill_resumes` and `a_fill_frame_an_ask_served_is_skipped`
+(`planner.rs`), `an_ask_during_a_fill_goes_first_and_the_fill_still_completes` (`server.rs`).
 
 ```
 client                                   server: planner                   media stream
   │ stream_frames 0..199  ───────────────►  fill 0, 1, 2, …   ───────────►  0 1 2 … 40 41 42 43 44
-  │ request_frame 120     ───────────────►  between two frames: a message
-  │                                          in hand ends the fill
+  │ request_frame 120     ───────────────►  between two frames: an ask
+  │                                          in hand goes first
   │                                          serve 120 next    ───────────►  … 45 (in flight) 120
-  │ stream_frames 46..199 ───────────────►  a new fill, if the client still wants the rest
+  │                                          the fill resumes  ───────────►  46 … 119 121 … 199
 ```
 
-So a fill and an ask never share the connection, and there is nothing for a stream priority to
-order: the fill's stream has stopped being fed. What the ask waits behind is **what of the fill is
-already in flight** — written into the send window and not yet delivered. Ask-order priority
-(`per-frame`) does not shorten that: the fill frames already written were asked first,
-so they outrank the ask's frame.
+What the ask waits behind is **what of the fill is already written** to quinn, in flight or not yet
+sent. Before each frame the server sets the send window to cwnd + two of the series' largest frames
+(`link.rs`), so that is about a congestion window, not the receiver's whole credit
+([`transport/link-conditions.md`](transport/link-conditions.md) item 9). Ask-order priority
+(`per-frame`) does not shorten it: the fill frames already written were asked first, so they outrank
+the ask's frame.
 
-**What it costs.** `lab/window-harness/src/bin/ask_during_fill.rs`, browser-free, against
+**What it cost when an ask ended the fill** (before the one queue). `lab/window-harness/src/bin/ask_during_fill.rs`, browser-free, against
 `series-server` in `shared` mode over a synthetic 200-frame series of 250 KB frames, measured in
 the container, one client, no shaping. Each round a fresh session: start the fill, send
 `request_frame` for a frame the fill has not reached, stop the clock on that frame's last byte.
@@ -163,13 +162,15 @@ The number to carry is **"the ask waits for the send window to drain"**, not "3 
 CPU-bound where a link is congestion-bound: on a link with a large bandwidth-delay product the
 window holds more, and the ask waits behind more of it. Over the WebSocket the same holds with the
 TCP socket buffer in place of the send window; the two are not the same size, and neither link
-case is measured. Seen from the client, against the real server with a 2 MB send window:
+case is measured. Seen from the client, against the real server:
 [`CLIENTS.md`](CLIENTS.md) §The contract suite. A client's `endStream()` is a different thing
 and is not measured here.
 
 ### Proposed: one queue, an ask moves its frame to the front (row 249)
 
-*Proposed 2026-10-15 (queue row 249, the owner's idea). Nothing changes before the owner's yes.*
+*Proposed 2026-10-15 (queue row 249, the owner's idea). Nothing changes before the owner's yes.* *A candidate
+in a pull request (row 276), not adopted:* row 253's QW arm, candidate 1 with the send window following cwnd, made
+the default, with both switches and the client's re-ask (`refill`, `onHead`) removed.
 
 **The problem.** An ask and a fill compete: the ask ends the fill (above) and the client rebuilds it. Two costs
 follow, each measured on its own:

@@ -60,10 +60,6 @@ pub struct ServeConfig {
     /// Lab only: each session sends this many media bytes, then nothing, with no FIN. docs/ARCHITECTURE.md
     #[arg(long, value_name = "BYTES")]
     pub stall_after_bytes: Option<u64>,
-    /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
-    /// docs/transport/link-conditions.md §ASKAHEAD
-    #[arg(long, default_value_t = false)]
-    pub send_window_follows_cwnd: bool,
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/WIRE.md §The WebSocket mapping
     #[arg(long, default_value_t = false)]
     pub websocket: bool,
@@ -124,7 +120,7 @@ pub(super) struct Sessions {
     mode: StreamMode,
     pub(super) opening_ask: bool,
     stall: Option<u64>,
-    cwnd_ahead: Option<u64>,
+    cwnd_ahead: u64,
     #[cfg(feature = "telemetry")]
     taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
 }
@@ -135,25 +131,18 @@ impl Sessions {
         if let Some(bytes) = config.stall_after_bytes {
             warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
         }
-        let cwnd_ahead = config.send_window_follows_cwnd.then(|| {
-            let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
-            2 * u64::from(largest)
-        });
-        if let Some(bytes) = cwnd_ahead {
-            warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
-        }
         let read_mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref())
             .unwrap_or_else(|err| {
                 warn!("{err}; using auto");
                 ReadMode::Auto
             });
         Sessions {
+            cwnd_ahead: cwnd_ahead(&store),
             store,
             read_mode,
             mode: config.mode,
             opening_ask: config.opening_ask,
             stall: config.stall_after_bytes,
-            cwnd_ahead,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(Tap::for_session),
         }
@@ -190,6 +179,13 @@ impl Sessions {
         let _ = reader.await;
         result
     }
+}
+
+/// Bytes the send window holds past cwnd: two of the series' largest frames, so the pacer never waits on
+/// the reader. docs/transport/link-conditions.md item 9
+fn cwnd_ahead(store: &FrameStore) -> u64 {
+    let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
+    2 * u64::from(largest)
 }
 
 /// Lower-case hex SHA-256 of the leaf certificate — the value a browser pins through
@@ -454,7 +450,6 @@ mod tests {
                 opening_ask: false,
                 hold_sessions: false,
                 stall_after_bytes: None,
-                send_window_follows_cwnd: false,
                 websocket: false,
             }
         }
@@ -617,13 +612,14 @@ mod tests {
 
     /// Shared streams, no opening ask, nothing recorded.
     fn plain_sessions(series: &Path) -> Sessions {
+        let store = Arc::new(FrameStore::open(series).expect("open store"));
         Sessions {
-            store: Arc::new(FrameStore::open(series).expect("open store")),
+            cwnd_ahead: cwnd_ahead(&store),
+            store,
             read_mode: ReadMode::Auto,
             mode: StreamMode::Shared,
             opening_ask: false,
             stall: None,
-            cwnd_ahead: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(|| None),
         }
@@ -1249,13 +1245,14 @@ mod tests {
         use crate::record::tap::{Live, Record, Tap};
         let fx = Fixture::new(4);
         let (tx, rows) = std::sync::mpsc::sync_channel(64);
+        let store = Arc::new(FrameStore::open(&fx.series).expect("open store"));
         let sessions = Sessions {
-            store: Arc::new(FrameStore::open(&fx.series).expect("open store")),
+            cwnd_ahead: cwnd_ahead(&store),
+            store,
             read_mode: ReadMode::Auto,
             mode: StreamMode::Shared,
             opening_ask: true,
             stall: None,
-            cwnd_ahead: None,
             taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
         };
         let config = fx.config();
@@ -1357,7 +1354,7 @@ mod tests {
         server.abort();
     }
 
-    /// With `send_window_follows_cwnd` an ask during a fill waits behind what the window allows —
+    /// An ask during a fill waits behind what the send window allows —
     /// cwnd, two frames, and the frame the window cut — not behind the 1.25 MB the client's
     /// credit lets the server queue. The server hears no ACK while the client asks, so nothing
     /// written leaves the window. `docs/transport/link-conditions.md` §ASKAHEAD.
@@ -1366,7 +1363,7 @@ mod tests {
         const CWND_ALLOWANCE: usize = 64 * 1024;
         let frames = 32u32;
         let fx = Fixture::new(frames);
-        let server = tokio::spawn(run_server(ServeConfig { send_window_follows_cwnd: true, ..fx.config() }));
+        let server = tokio::spawn(run_server(fx.config()));
         until_bound(fx.port, Duration::from_secs(5)).await;
 
         // The server's datagrams are dropped while `dark`; the client's always pass.
@@ -1956,36 +1953,32 @@ mod tests {
         .await;
     }
 
-    /// A data request during a fill ends the fill and is then served.
+    /// An ask during a fill goes before the fill's remainder, and the fill then delivers every other
+    /// frame in order, once: none lost to the ask, none sent twice.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn request_frame_during_fill_switches_to_on_demand() {
-        wire_test(6, |mut control, mut media| async move {
-            let mut bytes = fod::encode_fod_msg(&FodMsg::StreamFrames {
-                from: None,
-                to: None,
-            })
-            .unwrap();
-            bytes.extend(fod::encode_fod_msg(&FodMsg::RequestFrame { frame: 5 }).unwrap());
-            control.write_all(&bytes).await.expect("fill+switch");
+    async fn an_ask_during_a_fill_goes_first_and_the_fill_still_completes() {
+        let frames = 48u32;
+        let asked = frames - 1;
+        wire_test(frames, |mut control, mut media| async move {
+            write_fod_msg(&mut control, &FodMsg::StreamFrames { from: None, to: None }).await.expect("fill");
+            // Unread, the media stream's credit holds the fill well short of the asked frame.
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            write_fod_msg(&mut control, &FodMsg::RequestFrame { frame: asked }).await.expect("ask");
 
-            let (first, _) =
-                tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+            let mut order = Vec::new();
+            while order.len() < frames as usize {
+                let (idx, codestream) = tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
                     .await
-                    .expect("a frame");
-            assert!(
-                first == 0 || first == 5,
-                "first frame after a switch should be the fill head or the ask, not {first}"
-            );
-            if first == 0 {
-                let (second, body) =
-                    tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
-                        .await
-                        .expect("on-demand frame");
-                assert_eq!(second, 5, "fill kept reciting after the mode switch");
-                assert_eq!(body, pattern(5));
-            } else {
-                assert_eq!(first, 5);
+                    .expect("the fill never completed");
+                assert_eq!(codestream, pattern(idx), "frame {idx} came back wrong");
+                order.push(idx);
             }
+            let extra = tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
+            assert!(extra.is_err(), "a frame was sent twice: {order:?}");
+            let at = order.iter().position(|&f| f == asked).expect("the ask was never served");
+            assert!(at < asked as usize, "the ask waited for the whole fill: {order:?}");
+            let fill: Vec<u32> = order.into_iter().filter(|&f| f != asked).collect();
+            assert_eq!(fill, (0..asked).collect::<Vec<_>>(), "the fill did not resume in order");
         })
         .await;
     }
