@@ -1,9 +1,9 @@
 diff --git a/server/Cargo.toml b/server/Cargo.toml
-index 082f811..e1abcba 100644
+index cedbee5..5230eaf 100644
 --- a/server/Cargo.toml
 +++ b/server/Cargo.toml
-@@ -17,6 +17,8 @@ default = ["uring"]
- telemetry = []
+@@ -18,6 +18,8 @@ default = ["uring"]
+ telemetry = ["dep:server-telemetry"]
  # Lab only: a process-wide frame cache in front of both readers. docs/adr/disk-access.md §13.
  lab-frame-cache = []
 +# Lab only: the tile ring set up without COOP_TASKRUN, arm C1 of row 261 -- docs/adr/disk-access.md §9.

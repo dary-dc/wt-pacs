@@ -73,6 +73,9 @@ run 1 scripts/check_personal_paths.sh
 step "quinn: the GSO patch of the default build still applies to crates.io quinn"
 run 1 scripts/patch_crate.sh quinn --check
 
+step "lab: each closed arm's patch still applies to server/"
+run 1 bash -c 'for p in lab/disk-access-bench/arms/*.patch; do git apply --check "$p" || exit 1; done; echo "arms apply"'
+
 step "deploy: the server's seccomp profile is Docker's pinned default plus io_uring, nothing else"
 run 1 bash deploy/seccomp-uring.sh --check
 

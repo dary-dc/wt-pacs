@@ -1389,6 +1389,38 @@ mod tests {
         server.abort();
     }
 
+    /// `--segmentation-offload` reaches the transport tuning the endpoint is built from, either way.
+    #[cfg(feature = "lab-levers")]
+    #[test]
+    fn lab_lever_segmentation_offload_reaches_the_tuning() {
+        let fx = Fixture::new(1);
+        for segmentation_offload in [false, true] {
+            let lab = LabLevers { segmentation_offload, ..LabLevers::default() };
+            let applied = lab_levers::apply(ServeConfig { lab, ..fx.config() });
+            assert_eq!(applied.tuning.segmentation_offload, segmentation_offload);
+        }
+    }
+
+    /// `--force-pool-reads` makes the store the server serves read every frame as a miss, where the
+    /// same series unforced reads it from the page cache it was just written into.
+    #[cfg(feature = "lab-levers")]
+    #[test]
+    fn lab_lever_force_pool_reads_makes_every_read_a_miss() {
+        let fx = Fixture::new(1);
+        let open = || FrameStore::open(&fx.series).expect("open");
+        let span = open().frame_span(0);
+        let read = |store: FrameStore| store.read_at_nowait(&mut vec![0u8; span.len as usize], span.offset).expect("read");
+        let whole = span.len as usize;
+        if read(open()) != whole {
+            eprintln!("SKIPPED: lab_lever_force_pool_reads_makes_every_read_a_miss: no RWF_NOWAIT hit on this mount");
+            return;
+        }
+        for (force_pool_reads, want) in [(false, whole), (true, 0)] {
+            let lab = LabLevers { force_pool_reads, ..LabLevers::default() };
+            assert_eq!(read(lab.forcing_misses(open())), want, "force_pool_reads={force_pool_reads}");
+        }
+    }
+
     /// With `send_window_follows_cwnd` an ask during a fill waits behind what the window allows —
     /// cwnd, two frames, and the frame the window cut — not behind the 1.25 MB the client's
     /// credit lets the server queue. The server hears no ACK while the client asks, so nothing
