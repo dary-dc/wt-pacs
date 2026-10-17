@@ -321,8 +321,9 @@ Not corrected here (an audit edits only its deliverable); each for the session t
   re-derived both in link-conditions.md; neither doc is corrected in place.
 * **Dangling owners:** rows 54 and 86 cite `README.md` §What the gate costs and what it catches, which is not on this
   branch; row 49 cites [`decode/README.md`](decode/README.md) §The decoder worker's hand-off, also missing, and its
-  numbers (the WebCodecs buffer reuse, +37 MB a worker) are in no doc. Rows 52 and 71's owner, once in ingest's coded-frames README (removed), is now [`coded-frame`](../lab/av1/exact/coded-frame/README.md). `CLAUDE.md` names
-  docs/disk-access/adr.md; the file is [`adr/disk-access.md`](adr/disk-access.md).
+  numbers (the WebCodecs buffer reuse, +37 MB a worker) are in no doc. Rows 52 and 71's owner, once in ingest's coded-frames README (removed), is now [`coded-frame`](../lab/av1/exact/coded-frame/README.md). `CLAUDE.md`'s
+  pointer to [`adr/disk-access.md`](adr/disk-access.md) resolves (*corrected 2026-10-17*: this line said it named
+  docs/disk-access/adr.md).
 * **Stale in place:** [`ARCHITECTURE.md`](ARCHITECTURE.md) §Open says a pool that follows the queue "is not built"
   (rows 112, 142 built it as a lab flag) and lists one shared store per fill as not run (row 134's P-COPY measured a
   close relative).
