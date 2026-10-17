@@ -1105,7 +1105,7 @@ patch. And it says which five device measurements decide it.
 
 *Queue row CCMEASURE, run by a session given only the protocol and rule above;*
 [`lab/cc-classify`](../../lab/cc-classify/README.md) *has the commands, the rows and the checks.*
-`--congestion cubic-classify` (`server/src/transport/classify.rs`, lab only) wraps `cubic-restart` and skips the cut
+`--congestion cubic-classify` (lab only: `lab/cc-classify/src/lib.rs` since row 264, in a server built with `--features lab-classify`) wraps `cubic-restart` and skips the cut
 when the last acknowledged packet's round trip was under min RTT + max(4 ms, min RTT/8); CE marks and persistent
 congestion always cut. Both Cubic arms start at 12 000 B and differ in nothing else; `bbr` rides along at its 240 000 B.
 Ten rounds, 03:35–07:09 UTC, each running three rigs in an order that rotates by round, each Williams-ordered inside:

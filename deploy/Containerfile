@@ -25,6 +25,8 @@ COPY lab/window-harness/Cargo.toml ./lab/window-harness/
 COPY lab/window-harness/src ./lab/window-harness/src
 COPY lab/telemetry-bench/Cargo.toml ./lab/telemetry-bench/
 COPY lab/telemetry-bench/src ./lab/telemetry-bench/src
+COPY lab/cc-classify/Cargo.toml ./lab/cc-classify/
+COPY lab/cc-classify/src ./lab/cc-classify/src
 COPY patched ./patched
 COPY patches ./patches
 COPY scripts/patch_crate.sh ./scripts/

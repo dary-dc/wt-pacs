@@ -131,7 +131,6 @@ task ever waits on the disk; queue row 258 (EXECGAP) is drafted to time both.
 | `WsWriter` | `server/src/transport/websocket.rs` | the socket's sink | the same, over TCP |
 | `SlowStartRestart` | `server/src/transport/restart.rs` | a Cubic controller | after a silence, slow start again instead of halving |
 | `LossBound` | `server/src/transport/loss_bound.rs` | a BBR controller | `--congestion bbr-bound`: BBR under BBRv3's loss bound, opt-in |
-| `LossClassify` | `server/src/transport/classify.rs` | a `cubic-restart` controller | lab only, `--congestion cubic-classify`: no cut on a loss that met no queue |
 | `Traced` | `server/src/transport/cc_trace.rs` | any controller | lab only: its metrics and congestion events to `$WTPACS_CC_TRACE` and `$WTPACS_LOSS_TRACE` |
 | `TransportTuning` | `server/src/transport/tuning.rs` | QUIC knobs | flags → quinn's transport config |
 
@@ -142,9 +141,11 @@ task ever waits on the disk; queue row 258 (EXECGAP) is drafted to time both.
 
 Off in a deployment, and documented where they are measured: `--force-pool-reads` (every read a miss),
 `--hold-sessions` (a dial that never settles), `--stall-after-bytes` (a session that stops sending),
-`--send-window-follows-cwnd`, `--stream-mode per-frame-asks-first`, `--congestion cubic-classify`,
+`--send-window-follows-cwnd`, `--stream-mode per-frame-asks-first`,
 `--reply-repeated-initial`, `--segmentation-offload false` (netem drops datagrams, not GSO batches), and the
-`lab-frame-cache` feature (`LAB_FRAME_CACHE_BYTES`). The `telemetry` feature compiles in `server/src/record/`,
+`lab-frame-cache` feature (`LAB_FRAME_CACHE_BYTES`). `--congestion cubic-classify` is not in a default build at all:
+its controller is the lab's crate [`lab/cc-classify`](../lab/cc-classify/README.md), which the `lab-classify` feature
+compiles in, and the server holds only the flag's wiring. The `telemetry` feature compiles in `server/src/record/`,
 `RecordedPipeline` and the controller traces (`transport/cc_trace.rs`, `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`);
 the default build carries none of it, and `scripts/gate.sh` checks that by symbol and literal. One switch is for a
 deployment, not the lab:

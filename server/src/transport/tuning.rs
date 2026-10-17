@@ -1,6 +1,5 @@
 //! QUIC transport knobs. Cubic with nothing else set is quinn's stock configuration byte for byte.
 
-use crate::transport::classify::LossClassifyConfig;
 use crate::transport::loss_bound::LossBoundConfig;
 use crate::transport::restart::SlowStartRestartConfig;
 use anyhow::{anyhow, Result};
@@ -19,7 +18,8 @@ pub enum Congestion {
     CubicRestart,
     /// BBR under BBRv3's loss bound. `loss_bound.rs`.
     BbrBound,
-    /// Lab only: `cubic-restart` that skips the cut on a loss that met no queue. `classify.rs`.
+    /// Lab only: `cubic-restart` that skips the cut on a loss that met no queue. lab/cc-classify.
+    #[cfg(feature = "lab-classify")]
     CubicClassify,
 }
 
@@ -36,7 +36,8 @@ impl Congestion {
             Self::Bbr => bbr,
             Self::CubicRestart => Arc::new(SlowStartRestartConfig::new(cubic)),
             Self::BbrBound => Arc::new(LossBoundConfig::new(bbr)),
-            Self::CubicClassify => Arc::new(LossClassifyConfig::new(cubic)),
+            #[cfg(feature = "lab-classify")]
+            Self::CubicClassify => Arc::new(cc_classify::LossClassifyConfig::new(Arc::new(SlowStartRestartConfig::new(cubic)))),
         }
     }
 
@@ -46,6 +47,7 @@ impl Congestion {
             Self::Bbr => "bbr",
             Self::CubicRestart => "cubic-restart",
             Self::BbrBound => "bbr-bound",
+            #[cfg(feature = "lab-classify")]
             Self::CubicClassify => "cubic-classify",
         }
     }
@@ -175,7 +177,7 @@ mod tests {
     fn the_wider_initial_window_is_opt_in() {
         let start = |t: TransportTuning| t.congestion.factory(t.initial_window).build(std::time::Instant::now(), 1200).initial_window();
         assert_eq!(start(TransportTuning::default()), 12_000);
-        for congestion in [Congestion::Cubic, Congestion::Bbr, Congestion::CubicRestart, Congestion::BbrBound, Congestion::CubicClassify] {
+        for congestion in [Congestion::Cubic, Congestion::Bbr, Congestion::CubicRestart, Congestion::BbrBound] {
             assert_eq!(start(TransportTuning { congestion, initial_window: Some(38_400), ..TransportTuning::default() }), 38_400);
         }
     }
@@ -243,5 +245,16 @@ mod tests {
         t.to_transport_config().expect("builds");
         let built = Congestion::BbrBound.factory(None).build(std::time::Instant::now(), 1200);
         assert!(built.into_any().downcast::<crate::transport::loss_bound::LossBound>().is_ok());
+    }
+
+    /// `cubic-classify` wraps `cubic-restart`, so the two arms differ in the classifier alone, and the
+    /// initial window reaches it.
+    #[cfg(feature = "lab-classify")]
+    #[test]
+    fn cubic_classify_wraps_cubic_restart() {
+        let built = Congestion::CubicClassify.factory(Some(38_400)).build(std::time::Instant::now(), 1200);
+        assert_eq!(built.initial_window(), 38_400);
+        let classify = built.into_any().downcast::<cc_classify::LossClassify>().expect("a LossClassify");
+        assert!(classify.into_inner().into_any().downcast::<crate::transport::restart::SlowStartRestart>().is_ok());
     }
 }

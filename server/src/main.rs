@@ -67,6 +67,19 @@ mod tests {
         assert_eq!(parse(&[]).tuning.congestion, Congestion::CubicRestart);
         assert_eq!(parse(&["--congestion", "cubic"]).tuning.congestion, Congestion::Cubic);
         assert_eq!(parse(&["--congestion", "bbr-bound"]).tuning.congestion, Congestion::BbrBound);
+    }
+
+    /// `cubic-classify` is the lab's: a build without `lab-classify` refuses the flag.
+    #[cfg(not(feature = "lab-classify"))]
+    #[test]
+    fn the_default_build_has_no_cubic_classify() {
+        assert!(Args::try_parse_from(["series-server", "--series", "s.sbnd", "--congestion", "cubic-classify"]).is_err());
+    }
+
+    /// Under `lab-classify` the flag names the lab's controller.
+    #[cfg(feature = "lab-classify")]
+    #[test]
+    fn cubic_classify_parses_under_its_feature() {
         assert_eq!(parse(&["--congestion", "cubic-classify"]).tuning.congestion, Congestion::CubicClassify);
     }
 

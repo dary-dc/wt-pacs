@@ -21,6 +21,8 @@ lab-frame-cache = []
 lab-fit-zeroed = []
 # Lab only: the tile ring set up without COOP_TASKRUN, arm C1 of row 261 -- docs/adr/disk-access.md §9.
 lab-ring-no-coop = ["uring"]
+# Lab only: `--congestion cubic-classify`, from lab/cc-classify. lab/cc-classify/README.md.
+lab-classify = ["dep:cc-classify"]
 # io_uring for a tile miss. Optional so a build without it still compiles, to the
 # pool path -- see docs/adr/disk-access.md.
 uring = ["dep:io-uring"]
@@ -52,6 +54,7 @@ socket2 = "0.6"
 # `RttEstimator` reaches the congestion controller but quinn 0.11.11 does not re-export it;
 # the version is the one quinn itself resolves, so the types are the same.
 quinn-proto = { version = "0.11", default-features = false }
+cc-classify = { path = "../lab/cc-classify", optional = true }
 
 [dev-dependencies]
 # The keep-alive getters a test reads back.
