@@ -81,6 +81,17 @@ async function aCutFrameIsNamedWithItsBytes() {
   }
 }
 
+/** Under `readMin` too, an asked frame's `onHead` runs once, with its envelope head read and its body not yet;
+ *  the default reader's is client/contract/clauses.ts `onHeadRunsBeforeTheBody`. */
+async function onHeadRunsBeforeTheBodyUnderReadMin() {
+  StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 };
+  const session = await TransportSession.connect("https://stub/", HASH, { readMin: 4096 });
+  const heads: number[] = [];
+  const r = await session.requestExactFrame(0, () => heads.push(session.stats().mediaReads));
+  const reads = session.stats().mediaReads;
+  assert(heads.length === 1 && heads[0] < reads / 4 && intact(r), `readMin 4096: one head at read ${heads}, of ${reads}`);
+}
+
 const within = <T>(p: Promise<T>, ms: number) =>
   Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 
@@ -138,19 +149,7 @@ async function telemetryOpensRowsForAnOpeningFill() {
   uninstall();
 }
 
-/** A transport file with no hash dials with no `serverCertificateHashes`, so a CA-signed certificate is verified as
- *  any page's is; with one, the hash is pinned as before. */
-async function anEmptyHashDialsUnpinned() {
-  StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 16 };
-  (await TransportSession.connect("https://stub/", "")).close();
-  const unpinned = StubTransport.last!.options as { serverCertificateHashes?: unknown[] };
-  (await TransportSession.connect("https://stub/", HASH)).close();
-  const pinned = StubTransport.last!.options as { serverCertificateHashes?: unknown[] };
-  assert(unpinned.serverCertificateHashes === undefined, "empty hash: no serverCertificateHashes");
-  assert(pinned.serverCertificateHashes?.length === 1, "a hash: pinned");
-}
-
-for (const t of [everyAskGoesOutAtOnce, anEmptyHashDialsUnpinned, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, aFailedAskWriteDisarmsItsWaiter, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
+for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, onHeadRunsBeforeTheBodyUnderReadMin, aFailedAskWriteDisarmsItsWaiter, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

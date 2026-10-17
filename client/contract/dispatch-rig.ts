@@ -4,7 +4,7 @@
  * forced with the stand-in decoder (fake-decoder.js) and the fake session, not left to luck. docs/ARCHITECTURE.md §The downloader.
  */
 import type { Check } from "./clauses.ts";
-import { CERT, settle, started, tally, until } from "./rig-util.ts";
+import { CERT, RESTARTED, settle, started, tally, until } from "./rig-util.ts";
 import { type WorkerFake, workerFake } from "./worker-fake.ts";
 const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
@@ -28,6 +28,9 @@ type Clause = (DownloaderClient: DownloaderCtor, check: Check, log: Log) => Prom
 type RealDecoder = { glue: string; wasm: string; dir: string; codec?: string; depth?: number; split?: number; offset?: number; rct?: boolean };
 
 let world = 0;
+/** The client the downloader dials through, `ts` or `wasm`: `run`'s. */
+let client = "ts";
+const fakeSession = (query: string) => `/client/contract/dist/fake-session.js?${query}&client=${client}`;
 
 /** Unset: one decoder, two outstanding on it, no decode delay, frames dropped. */
 type OpenOpts = {
@@ -56,6 +59,7 @@ type OpenOpts = {
   /** The first `n` dials are refused. */
   refuseDials?: number;
   recycleAtBytes?: number;
+  transportFile?: string;
   /** One stand-in decoder fails its init when `hold.release()` is called. */
   failOneInit?: boolean;
   /** A frame whose bytes begin `lose` crashes its stand-in, or is never answered, `times` times in all. */
@@ -86,7 +90,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     perDecoder: opts.perDecoder ?? 2,
     fill: opts.fill,
     openingAsk: opts.openingAsk === "default" ? undefined : (opts.openingAsk ?? false),
-    transport: `/client/contract/dist/fake-session.js?ch=${ch}&hang=${opts.hangDials ?? 0}&refuse=${opts.refuseDials ?? 0}`,
+    transport: fakeSession(`ch=${ch}&hang=${opts.hangDials ?? 0}&refuse=${opts.refuseDials ?? 0}`),
     decoderWorker: opts.decoderWorker ?? (opts.realDecoder ? undefined : `/client/contract/fake-decoder.js?ch=${ch}`),
     decoder: opts.realDecoder ?? {
       delayMs: opts.delayMs ?? 0,
@@ -99,6 +103,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     digests: opts.digests,
     survival: opts.survival,
     recycleAtBytes: opts.recycleAtBytes,
+    transportFile: opts.transportFile,
     onFrame: opts.onFrame ?? (() => {}),
     onPreview: opts.onPreview,
     onError: opts.onError,
@@ -121,8 +126,9 @@ const wireOf = (msgs: Wire[]) =>
     m.op === "stream_frames" ? `stream_frames ${m.from}-${m.to}` : m.op === "request_frame" ? `request_frame ${m.frame}` : m.op,
   );
 
+/** Before the first dial the fake refuses `controlMessages`: nothing is on the wire yet. */
 const onTheWire = (fake: WorkerFake, needle: string) =>
-  until(async () => wireOf((await fake.controlMessages()) as Wire[]).includes(needle));
+  until(async () => wireOf((await fake.controlMessages().catch(() => [])) as Wire[]).includes(needle));
 
 /**
  * With one decoder holding `perDecoder` frames, an ask that lands mid-fill is dispatched the
@@ -220,8 +226,8 @@ async function boundHoldsPerDecoder(DownloaderClient: DownloaderCtor, check: Che
   c.close();
 }
 
-/** An ask ends the fill on the server, so once the ask settles the downloader re-issues exactly the frames
- *  still owed as a new run — and the fill completes with every frame once. */
+/** An ask ends the fill on the server, so once the asked frame's head lands the downloader re-issues exactly the
+ *  frames still owed as a new run — and the fill completes with every frame once. */
 async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) {
   const captured: Frame[] = [];
   const { c, fake } = await open(DownloaderClient, { decode: false, onFrame: (f) => captured.push(f) });
@@ -231,8 +237,12 @@ async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) 
   await until(() => captured.length >= 4);
 
   const askP = c.requestExactFrame(50);
+  let landed = false;
+  void askP.then(() => (landed = true), () => {});
   await settle();
-  await fake.pushFrame(50, enc.encode("ask-50"));
+  // Its body trickles for 2 s behind its head, so a remainder issued only once it lands comes late.
+  await fake.trickleFrame(50, enc.encode("ask-50".repeat(40)), 20, 100);
+  const onHead = (await onTheWire(fake, "stream_frames 4-7")) && !landed;
   const asked = await askP;
   await settle();
 
@@ -240,7 +250,8 @@ async function reissuesAfterAsk(DownloaderClient: DownloaderCtor, check: Check) 
   const at = wire.indexOf("request_frame 50");
   check(wire[0] === "stream_frames 0-7", `reissue: the fill goes out as one stream_frames run (${wire[0]})`);
   check(at > 0, `reissue: the ask goes to the wire`);
-  check(wire[at + 1] === "stream_frames 4-7", `reissue: once the ask settles, exactly the remainder is re-issued (${wire[at + 1]})`);
+  check(onHead, "reissue: the remainder goes out on the asked frame's head, before its body lands");
+  check(wire[at + 1] === "stream_frames 4-7", `reissue: exactly the remainder is re-issued (${wire[at + 1]})`);
   check(asked.frameIndex === 50, `reissue: the ask was served`);
 
   for (const i of [4, 5, 6, 7]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
@@ -538,7 +549,7 @@ async function startWithAFillDialsOnce(_DownloaderClient: DownloaderCtor, check:
   w.onmessage = () => {};
   w.postMessage({
     kind: "start",
-    config: { decode: false, decoders: 0, transport: `/client/contract/dist/fake-session.js?ch=${ch}`, fill: [0, 1, 2, 3] },
+    config: { decode: false, decoders: 0, transport: fakeSession(`ch=${ch}`), fill: [0, 1, 2, 3] },
   });
   w.postMessage({ kind: "dial", url: "https://contract.invalid/", certHash: CERT });
   w.postMessage({ kind: "ask", index: 50 });
@@ -1627,6 +1638,41 @@ async function aDeadSessionIsResumedNotReported(DownloaderClient: DownloaderCtor
   c.close();
 }
 
+const TRANSPORT_FILE = "https://contract.invalid/wt/dev-transport.json";
+const RESTARTED_FILE = { wt_url: "https://restarted.invalid/", cert_sha256: RESTARTED };
+
+/**
+ * A server restarted on a new certificate is followed: before each re-dial the downloader reads the transport file
+ * again and dials what it names — with a fill owed, again when the first read finds no file, and for a step on
+ * demand. docs/ARCHITECTURE.md §An open page follows a server restart
+ */
+async function aRedialAfterTheHashChangedConnects(DownloaderClient: DownloaderCtor, check: Check) {
+  for (const missing of [0, 1]) {
+    const when = missing ? "after a read that found no file" : "with a fill owed";
+    const { c, fake, got, failures } = await stalledFill(DownloaderClient, { transportFile: TRANSPORT_FILE, survival: { ...QUICK, stallMs: 30_000 } });
+    await fake.setTransportFile(TRANSPORT_FILE, RESTARTED_FILE, missing);
+    await fake.pin(RESTARTED);
+    await fake.serverClose(0, "the server restarted");
+    const followed = await until(async () => (await fake.dialHash()) === RESTARTED && (await fake.controlMessages()).length > 0);
+    if (followed) for (const i of [2, 3, 4, 5]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+    await until(() => got.length >= 6 || failures.length > 0);
+    check(followed && (await fake.dialUrl()) === RESTARTED_FILE.wt_url, `restart, ${when}: the re-dial takes the file's URL and hash (${await fake.dialUrl()}, ${(await fake.dialHash()).slice(0, 8)}…)`);
+    check(got.length === 6 && failures.length === 0, `restart, ${when}: the fill finishes (${got.length}/6; failed ${failures.map((f) => `${f.frameIndex}: ${f.reason}`).join("; ") || "none"})`);
+    check((await fake.dials()) === 2 + missing, `restart, ${when}: connected at re-dial ${1 + missing} (${await fake.dials()} dials in all)`);
+    c.close();
+  }
+  const { c, fake } = await open(DownloaderClient, { decode: false, transportFile: TRANSPORT_FILE, survival: { ...QUICK, stallMs: 30_000 } });
+  await fake.setTransportFile(TRANSPORT_FILE, RESTARTED_FILE);
+  await fake.pin(RESTARTED);
+  await fake.serverClose(0, "the server restarted");
+  await settle();
+  const asked = c.requestExactFrame(7).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
+  if (await onTheWire(fake, "request_frame 7")) await fake.pushFrame(7, enc.encode("step-7"));
+  const step = await Promise.race([asked, settle(2000).then(() => "never")]);
+  check(step === "step-7", `restart, on demand: a step after it is served (${step})`);
+  c.close();
+}
+
 /** An ask outstanding when the session dies is re-asked on the new one, on its own promise. */
 async function anOwedAskIsReaskedAfterAResume(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 } });
@@ -1884,6 +1930,7 @@ async function aCancelDuringAResumeEndsTheFillItsDialCarried(DownloaderClient: D
   const wire = wireOf((await fake.controlMessages()) as Wire[]);
   check(wire.includes("end_stream"), `cancel during a resume: the stream the dial opened is ended (${wire.join(", ") || "nothing"})`);
   check(got.length === 2, `cancel during a resume: and none of it reaches the consumer (${got.map((f) => f.frameIndex).join()})`);
+  check(c.stats().resumedAt.length === 1, `cancel during a resume: and the resumption completes on that session (${c.stats().resumedAt.length} resumed)`);
   c.close();
 }
 
@@ -1900,7 +1947,7 @@ async function aCloseDuringARedialAdoptsNoSession(_DownloaderClient: DownloaderC
     kind: "start",
     config: {
       decode: false, decoders: 0, openingAsk: false, survival: { ...QUICK, stallMs: 30_000 },
-      transport: `/client/contract/dist/fake-session.js?ch=${ch}`,
+      transport: fakeSession(`ch=${ch}`),
     },
   });
   w.postMessage({ kind: "dial", url: "https://contract.invalid/", certHash: CERT });
@@ -2266,26 +2313,58 @@ async function anOptionThatCannotBeClonedFailsConnect(DownloaderClient: Download
 }
 
 /** `only` names the clauses to run, all of them when absent. */
-export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: string[]): Promise<void> {
+export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: string[], over = "ts"): Promise<void> {
+  client = over;
   addEventListener("unhandledrejection", (e) => e.preventDefault());
-  const clauses: Clause[] = [
-    askBeatsQueuedFill,
-    promoteBeatsQueuedFill,
-    boundHoldsPerDecoder,
+  /** What the session does on the wire, so per client. */
+  const transport: Clause[] = [
     reissuesAfterAsk,
     asksTheWireForAnOwedFrame,
-    fillWithStartRunsAheadOfTheDecoders,
-    framesBeforeAnyDecoderAreHeld,
     startWithAFillDialsOnce,
-    lateFramesOfACancelledRequestAreDropped,
-    aLateDoneDoesNotDropTheNewRequestsFrame,
     cancelCompletesAndUnblocksTheNextFill,
     aRefusedFillReachesTheConsumer,
     aRefusalInTheRunSparesTheFrameAnAskCarries,
-    theDecodersComeUpWhileTheUrlIsUnknown,
     anOpeningFillRidesTheSessionUrl,
     aRefusedOpeningFillReachesTheConsumer,
     aTruncatedFrameIsAFailureNotAFrame,
+    aSessionWhoseBytesKeepComingIsKept,
+    aSilentSessionIsRedialled,
+    theWaitDoublesAfterEachRedialItCauses,
+    aDeadSessionIsResumedNotReported,
+    aRedialAfterTheHashChangedConnects,
+    anOwedAskIsReaskedAfterAResume,
+    whenTheRedialsRunOutWhatWasOwedIsNamed,
+    aSessionThatNeverDeliversSpendsTheRedials,
+    aFrameBetweenDeathsGivesTheRedialsBack,
+    aSessionNearItsBudgetIsReplaced,
+    aDialThatNeverSettlesIsDialledAgain,
+    aDialThatNeverSettlesAtAllIsNamed,
+    aFailedRedialNamesWhatItWasAskedFor,
+    aCancelOnADeadSessionResolves,
+    aCancelDuringARedialDropsWhatWasAsked,
+    aCancelDuringAResumeEndsTheFillItsDialCarried,
+    aCloseDuringARedialAdoptsNoSession,
+    anAskAloneOnAClosedSessionIsReasked,
+    aSilentSessionOwingAnAskIsRedialled,
+    aRecycledSessionTakesTheOwedAsk,
+    aCancelBetweenRedialsEndsThem,
+    whenTheRedialsRunOutAnOwedAskIsNamed,
+    theRedialsAreGivenBackOnceSpent,
+    anUndefinedOptionKeepsItsDefault,
+    aRefusedFirstDialFailsAtOnce,
+    aCommandDuringAResumeDialsNoSessionOfItsOwn,
+    aDialFailingAfterACancelNamesNothing,
+  ];
+  /** The decoders' and the downloader's own, whichever client carried the bytes. */
+  const rest: Clause[] = [
+    askBeatsQueuedFill,
+    promoteBeatsQueuedFill,
+    boundHoldsPerDecoder,
+    fillWithStartRunsAheadOfTheDecoders,
+    framesBeforeAnyDecoderAreHeld,
+    lateFramesOfACancelledRequestAreDropped,
+    aLateDoneDoesNotDropTheNewRequestsFrame,
+    theDecodersComeUpWhileTheUrlIsUnknown,
     anUndecodableFrameIsAFailureNotAFrame,
     aFrameCarriesItsWireBytes,
     aFrameCarriesItsDecodersRangeOrItsOwn,
@@ -2307,41 +2386,15 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: str
     aScalableFrameShowsItsBaseThenItsExactFrame,
     aScalableFrameWithoutItsTopFailsByName,
     aScalableFrameThroughWebCodecsIsExactWithoutAPreview,
-    aSessionWhoseBytesKeepComingIsKept,
-    aSilentSessionIsRedialled,
-    theWaitDoublesAfterEachRedialItCauses,
-    aDeadSessionIsResumedNotReported,
-    anOwedAskIsReaskedAfterAResume,
-    whenTheRedialsRunOutWhatWasOwedIsNamed,
-    aSessionThatNeverDeliversSpendsTheRedials,
-    aFrameBetweenDeathsGivesTheRedialsBack,
-    aSessionNearItsBudgetIsReplaced,
-    aDialThatNeverSettlesIsDialledAgain,
-    aDialThatNeverSettlesAtAllIsNamed,
     aClosedClientEndsEveryWorkerItStarted,
     aDownloaderThatNeverAnswersIsEndedAnyway,
-    aFailedRedialNamesWhatItWasAskedFor,
-    aCancelOnADeadSessionResolves,
     aCancelOnAnEndedClientResolves,
-    aCancelDuringARedialDropsWhatWasAsked,
-    aCancelDuringAResumeEndsTheFillItsDialCarried,
-    aCloseDuringARedialAdoptsNoSession,
     aFrameGoesToTheLeastBusyDecoder,
     aFillOfFramesInHandAsksOnlyTheRest,
     aDecoderLostBeforeTheDialDoesNotFailTheStart,
     aCrashedDecoderIsReplaced,
     aHungDecodeIsReplaced,
     aFrameLostTwiceFailsByName,
-    anAskAloneOnAClosedSessionIsReasked,
-    aSilentSessionOwingAnAskIsRedialled,
-    aRecycledSessionTakesTheOwedAsk,
-    aCancelBetweenRedialsEndsThem,
-    whenTheRedialsRunOutAnOwedAskIsNamed,
-    theRedialsAreGivenBackOnceSpent,
-    anUndefinedOptionKeepsItsDefault,
-    aRefusedFirstDialFailsAtOnce,
-    aCommandDuringAResumeDialsNoSessionOfItsOwn,
-    aDialFailingAfterACancelNamesNothing,
     aDecodeFailingAfterACancelNamesNothing,
     aCancelReleasesTheGroupADecoderHeld,
     aSecondAskForTheSameFrameIsRefused,
@@ -2350,7 +2403,9 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: str
     framesWithNoDecoderLeftAreNamed,
     anOptionThatCannotBeClonedFailsConnect,
   ];
-  await tally(log, "dispatch", "dispatch", async (check) => {
+  const clauses = client === "ts" ? [...transport, ...rest] : transport;
+  const name = client === "ts" ? "dispatch" : `dispatch-${client}`;
+  await tally(log, name, `dispatch over ${client}`, async (check) => {
     for (const clause of clauses.filter((c) => !only || only.includes(c.name))) {
       try {
         await clause(DownloaderClient, check, log);

@@ -3,7 +3,8 @@
  * both clients in Node (run.ts) and the downloader in a browser (downloader-rig.ts).
  * docs/CLIENTS.md says why; the rows are docs/ARCHITECTURE.md §Capabilities.
  */
-import { until } from "./rig-util.ts";
+import { pinnedHash } from "./fake-transport.ts";
+import { RESTARTED, until } from "./rig-util.ts";
 
 export type ConformantFrame = {
   frameIndex: number;
@@ -12,7 +13,8 @@ export type ConformantFrame = {
 };
 
 export type ConformantSession = {
-  requestExactFrame(frameIndex: number): Promise<ConformantFrame>;
+  /** `onHead` runs once the frame's envelope head is read, before its body; the downloader's rig takes none. */
+  requestExactFrame(frameIndex: number, onHead?: () => void): Promise<ConformantFrame>;
   fillFrames(
     from: number,
     to: number,
@@ -22,8 +24,20 @@ export type ConformantSession = {
   endStream(): Promise<void>;
   /** Only the sessions own a ring; the downloader's rig leaves it out. client/contract/ring.ts */
   releaseWireBuffer?(buffer: ArrayBuffer): void;
-  stats(): { inFlight: number };
+  stats(): { inFlight: number; mediaReads?: number };
   close(): void;
+};
+
+/** What a session's `connect` takes. docs/CLIENTS.md §The seam */
+export type ConnectOptions = {
+  wireBuffers?: number;
+  dialMs?: number;
+  fill?: {
+    from: number;
+    to: number;
+    onFrame: (f: ConformantFrame) => void;
+    onError: (frameIndex: number, reason: string) => void;
+  };
 };
 
 /** Drives the fake wire; async because the downloader's fake lives in another thread. */
@@ -50,9 +64,22 @@ export type Rig = {
   oneStream?: (what: string) => void;
 };
 
+/** A session's own rig: its `connect` options, and what the dial handed the global constructor. */
+export type SessionRig = Rig & {
+  dial(certHash: string, options: ConnectOptions): Promise<ConformantSession>;
+  /** The next dial's `ready` never settles. */
+  hangNextDial(): void;
+  dialUrl(): string;
+  /** The options the latest dial gave `new WebTransport`. */
+  dialOptions(): { serverCertificateHashes?: unknown[] } | undefined;
+  /** Set where the carrier cannot pin a certificate, as a WebSocket cannot: the pinning clause reports itself here. */
+  cannotPin?: (what: string) => void;
+};
+
 export type Check = (cond: boolean, what: string) => void;
 
 const enc = new TextEncoder();
+const CERT = "ab".repeat(32);
 const text = (f: ConformantFrame | null) => (f ? new TextDecoder().decode(f.bytes) : "");
 
 const settle = () => new Promise((r) => setTimeout(r, 30));
@@ -107,6 +134,21 @@ async function cancellable(rig: Rig, check: Check) {
   await t.pushFrame(9, enc.encode("after-cancel"));
   const f = await within(after);
   check(text(f) === "after-cancel", `${rig.name}: the session still serves a frame after a cancel`);
+  s.close();
+}
+
+/** `endStream()` is a promise, so the `.catch` the downloader chains on it cannot throw. */
+async function endStreamIsAPromise(rig: Rig, check: Check) {
+  const s = await rig.open();
+  s.fillFrames(0, 1, () => {});
+  await settle();
+  let threw = "";
+  try {
+    await s.endStream().catch(() => {});
+  } catch (e) {
+    threw = String((e as Error)?.message ?? e);
+  }
+  check(threw === "", `${rig.name}: endStream() returns a promise, so a .catch on it cannot throw (${threw || "it did not"})`);
   s.close();
 }
 
@@ -472,10 +514,106 @@ async function aFrameIsLateOnlyWhenTheSessionGoesQuiet(rig: Rig, check: Check) {
   silent.close();
 }
 
+/** An asked frame's `onHead` runs once, with its envelope's head read and its body not yet. */
+async function onHeadRunsBeforeTheBody(rig: SessionRig, check: Check) {
+  const s = await rig.open();
+  let heads = 0;
+  let headAt = 0;
+  const asked = s.requestExactFrame(0, () => {
+    heads += 1;
+    headAt = performance.now();
+  });
+  await settle();
+  // Five chunks 100 ms apart: the head is in the first, the body ends 400 ms behind it.
+  await rig.fake().trickleFrame(0, enc.encode("slow".repeat(40)), 5, 100);
+  const f = await within(asked, 2000);
+  const lead = Math.round(performance.now() - headAt);
+  check(
+    f !== null && heads === 1 && lead >= 300,
+    `${rig.name}: onHead runs once, before the body (${heads} heads, ${heads ? lead : "-"} ms ahead of the frame)`,
+  );
+  s.close();
+}
+
+/** A dial whose `ready` never settles is closed at `dialMs` and rejected by name. docs/ARCHITECTURE.md §A dial that never settles */
+async function aDialThatNeverSettlesIsClosedAtItsDeadline(rig: SessionRig, check: Check) {
+  rig.hangNextDial();
+  const t0 = performance.now();
+  const outcome = await within(
+    rig.dial(CERT, { dialMs: 100 }).then(
+      (s) => (s.close(), "connected"),
+      (e) => `${e?.name}: ${e?.message ?? e}`,
+    ),
+    2000,
+  );
+  const ms = Math.round(performance.now() - t0);
+  check(
+    outcome?.startsWith("DialTimeoutError: the dial did not settle in 100 ms") === true,
+    `${rig.name}: a dial that never settles is rejected at dialMs, by name (${outcome ?? "still pending at 2 s"}, ${ms} ms)`,
+  );
+  check(await rig.fake().didClose(), `${rig.name}: and the dial it abandoned is closed, not left open`);
+}
+
+/** An opening fill rides the dial's URL and is armed at once: served behind the accept, never asked on control. */
+async function anOpeningFillRidesTheUrl(rig: SessionRig, check: Check) {
+  const got: ConformantFrame[] = [];
+  const s = await rig.dial(CERT, { fill: { from: 0, to: 2, onFrame: (f) => got.push(f), onError: () => {} } });
+  const url = rig.dialUrl();
+  check(url.endsWith("?ask=fill:0-2"), `${rig.name}: an opening fill rides the dial's URL (${url})`);
+  await rig.fake().pushOnOneStream([0, 1, 2].map((i) => [i, enc.encode(`frame-${i}`)] as [number, Uint8Array]));
+  await until(() => got.length >= 3, 1000);
+  await settle();
+  const order = got.map((f) => f.frameIndex).join();
+  check(order === "0,1,2", `${rig.name}: and every frame of it reaches onFrame, once and in order (${order || "none"})`);
+  const ops = (await rig.fake().controlMessages()).map((m) => m.op);
+  check(!ops.includes("stream_frames"), `${rig.name}: without being asked on the control stream (${ops.join() || "nothing"})`);
+  s.close();
+}
+
+/** No hash dials with no `serverCertificateHashes`, so a CA-signed certificate is verified as any page's is; and a
+ *  dial pins the hash it is given, never an earlier one. docs/devices.md §4, docs/CLIENTS.md §The seam */
+async function anEmptyHashDialsUnpinned(rig: SessionRig, check: Check) {
+  if (rig.cannotPin) return rig.cannotPin(`${rig.name}: an empty hash dials unpinned, a hash pins`);
+  (await rig.dial("", {})).close();
+  const unpinned = rig.dialOptions()?.serverCertificateHashes;
+  (await rig.dial(CERT, {})).close();
+  const pinned = rig.dialOptions()?.serverCertificateHashes;
+  (await rig.dial(RESTARTED, {})).close();
+  const repinned = pinnedHash(rig.dialOptions());
+  check(unpinned === undefined, `${rig.name}: an empty hash dials with no serverCertificateHashes (${JSON.stringify(unpinned)})`);
+  check(pinned?.length === 1, `${rig.name}: a hash is pinned (${pinned?.length ?? "none"})`);
+  check(repinned === RESTARTED, `${rig.name}: a second connect pins its own hash, not the first's (${repinned.slice(0, 8) || "none"}…)`);
+}
+
+/** `mediaReads` counts the reads of the media streams, one per chunk: what the downloader stamps on each frame. */
+async function mediaReadsCountsTheMediaReads(rig: SessionRig, check: Check) {
+  const s = await rig.open();
+  const before = s.stats().mediaReads;
+  const asked = s.requestExactFrame(0);
+  await settle();
+  await rig.fake().trickleFrame(0, enc.encode("three-chunks".repeat(4)), 3, 20);
+  await within(asked, 1000);
+  const after = s.stats().mediaReads;
+  check(before === 0 && after === 3, `${rig.name}: mediaReads counts a read per media chunk (${before} before, ${after} after 3)`);
+  s.close();
+}
+
+/** The surface a session's own `connect` and reader offer, which the downloader's rig cannot reach. */
+export async function runSessionClauses(rig: SessionRig, check: Check): Promise<void> {
+  await runEach(rig, check, [
+    onHeadRunsBeforeTheBody,
+    aDialThatNeverSettlesIsClosedAtItsDeadline,
+    anOpeningFillRidesTheUrl,
+    anEmptyHashDialsUnpinned,
+    mediaReadsCountsTheMediaReads,
+  ]);
+}
+
 export async function runClauses(rig: Rig, check: Check): Promise<void> {
-  const clauses = [
+  await runEach(rig, check, [
     workerSafe,
     cancellable,
+    endStreamIsAPromise,
     transferable,
     noticesClose,
     bothStreamModes,
@@ -488,7 +626,10 @@ export async function runClauses(rig: Rig, check: Check): Promise<void> {
     aLaterFailureIsNotTheFillsOne,
     aFrameIsLateOnlyWhenTheSessionGoesQuiet,
     aSlowFrameHoldsNoOther,
-  ];
+  ]);
+}
+
+async function runEach<R extends Rig>(rig: R, check: Check, clauses: ((rig: R, check: Check) => Promise<void>)[]) {
   // A clause that throws fails by name and the rest still run — an abort counts nothing.
   for (const clause of clauses) {
     try {

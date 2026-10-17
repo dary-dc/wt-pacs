@@ -9,13 +9,16 @@ the code is right and this file is corrected.
 ## Start-up
 
 ```
-main.rs            flags → ServeConfig                         (TransportTuning is flattened in)
-   │
+main.rs            flags: ServeConfig is flattened in, its flags and defaults declared on it
+   │                                                           (TransportTuning is flattened into it)
 run_server         load the TLS identity, print its SHA-256 for the client to pin
+   │               bind QUIC: --bind's address, else dual-stack then IPv4 any, tried in order;
+   │                 with --websocket, TCP on the same port
    │               FrameStore::open — once per process: the bundle's index, the RWF_NOWAIT probe
-   │               bind QUIC (dual-stack, IPv4 fallback); with --websocket, TCP on the same port
-   │               print the banner (wt_url=, cert_sha256=, frames=, read_fast_path=, transport=, …)
-   │               Sessions { store, read_mode, mode, opening_ask, stall, cwnd_ahead }
+   │               banner::print (wt_url=, cert_sha256=, frames=, read_fast_path=, transport=, …);
+   │                 wt_url and ws_url name --bind's address when it is a specific one, else 127.0.0.1
+   │               Sessions::new { store, read_mode, mode, opening_ask, stall, cwnd_ahead },
+   │                 warning for each lab lever that is on
    ├─▶ WebSocket accept loop (its own task)   one task per TCP connection
    └─▶ QUIC accept loop                       one task per session
 ```
@@ -100,16 +103,19 @@ registered that store's file and its slots key on that store's offsets.
 | - | - |
 | tokio workers | the accept loops, one task per session, one ask-reader task per session; every cached read |
 | tokio's blocking pool | a fill's miss; a tile miss where there is no ring |
-| the kernel's io_uring | a tile miss; its completion wakes the session task through an eventfd |
+| the kernel's io_uring | a tile miss; its completion wakes the session task, parked on the ring's own fd |
 | telemetry builds only | a drain thread writing rows; a path sampler task per QUIC session |
 
-No task ever waits on the disk: a read that is not already cached leaves the worker thread.
+A read that is not already cached leaves the worker thread. Two disk waits stay on it, neither timed: a session
+that ends with ring reads in flight drains them there (`TileReader::drop`, which must, so the kernel never writes
+into a freed buffer), and a fill's `WILLNEED` advice is issued there. *Corrected 2026-10-16 (row 266):* this said no
+task ever waits on the disk; queue row 258 (EXECGAP) is drafted to time both.
 
 ## The objects
 
 | object | file | owns | what it is for |
 | - | - | - | - |
-| `ServeConfig` | `server/src/transport/server.rs` | the settings | everything `run_server` needs |
+| `ServeConfig` | `server/src/transport/server.rs` | the settings | everything `run_server` needs, and the command line: each field is its flag |
 | `Sessions` | `server/src/transport/server.rs` | `Arc<FrameStore>`, modes | what every session is served with; `serve` runs one |
 | `Command`, `Step`, `Next` | `server/src/transport/planner.rs` | — | an ask in, a decision out, the reader it picks |
 | `Planner` | `server/src/transport/planner.rs` | asks in hand, the fill | the next step, decided without I/O |
@@ -118,7 +124,7 @@ No task ever waits on the disk: a read that is not already cached leaves the wor
 | `RecordedPipeline` | `server/src/transport/pipeline.rs` | an inner pipeline, a `Tap` | telemetry builds: stamps each step, then delegates |
 | `FillReader` | `server/src/media/read_path.rs` | the store, two buffers | reads a fill |
 | `TileReader` | `server/src/media/read_path.rs` | the store, the ring, the slots | reads tile asks |
-| `UringReader` | `server/src/media/uring_reader.rs` | the ring, an eventfd | io_uring for misses only |
+| `UringReader` | `server/src/media/uring_reader.rs` | the ring | io_uring for misses only |
 | `FrameStore` | `server/src/media/frame_store.rs` | the bundle's file and index | where a frame is; reads that never wait, and reads that may |
 | frame pool | `server/src/media/frame_pool.rs` | spare buffers | a frame handed to quinn whole, its buffer reused |
 | `Link`, `Media`, `ControlStream` | `server/src/transport/link.rs` | the session's streams | the one writer of frames and refusals |

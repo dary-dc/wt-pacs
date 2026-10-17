@@ -96,8 +96,8 @@ step "client: transport contract (every implementation, and the race)"
 run 2 node client/contract/run.mjs
 
 if [[ $browser -eq 1 ]]; then
-  step "client: the downloader in headless Chromium — the clauses through it, and its dispatch order and per-decoder bound"
-  run 4 bash client/contract/run_browser.sh
+  step "client: the downloader in headless Chromium, over each client — the clauses through it, and its dispatch order and per-decoder bound"
+  run 12 bash client/contract/run_browser.sh
   step "client: the viewer's page check — a complete, exact, drawn page (headless Chromium)"
   run 3 bash client/viewer/run_check.sh
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
@@ -180,19 +180,26 @@ else
   skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
 fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
-step "lab: the frame cache compiles"
-run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
+step "lab: the frame cache and the zeroed fit compile"
+run 1 cargo check -p series-server --features lab-frame-cache,lab-fit-zeroed --all-targets --quiet
+
+step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
+if command -v strace >/dev/null; then
+  run 1 node scripts/perf_counts.mjs
+else
+  skip "the performance counts read the server's disk reads through strace — no strace"
+fi
 
 if [[ $browser -eq 1 ]]; then
   step "client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)"
-  run 8 bash client/contract/run_wire.sh
+  run 10 bash client/contract/run_wire.sh
 fi
 
 step "deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone"
 if ! command -v nginx >/dev/null; then
   skip "the web host's check (deploy/check_equivalence.sh --local) — no nginx"
-elif [[ ! -f "$built/THIRD_PARTY_NOTICES" || ! -f client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js ]]; then
-  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds or hasher (deploy/README.md §Run it)"
+elif [[ ! -f "$built/THIRD_PARTY_NOTICES" ]]; then
+  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds (deploy/README.md §Run it)"
 else
   run 1 bash deploy/check_equivalence.sh --local
 fi

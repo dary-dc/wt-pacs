@@ -6,7 +6,7 @@
  * The second `off` is a null control — whatever difference it shows against the first is this
  * rig's resolution, and a telemetry cost smaller than that is not a measurement.
  *
- *   bash client/transport/ts/build.sh && node lab/telemetry-cost/cost.mjs
+ *   lab/telemetry-cost/README.md builds and runs it.
  */
 import { FakeTransport, installFakeTransport } from "../../client/contract/fake-transport.ts";
 import { typescriptImpl, wasmBuilt, wasmImpl } from "../../client/contract/adapters.ts";

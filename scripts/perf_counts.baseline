@@ -1,0 +1,10 @@
+# scripts/perf_counts.mjs: each count over the whole 24-frame synthetic series. A change is reviewed here, never timed.
+fill: client asks	1
+fill: server reads	24
+fill: bytes on the wire	2676192
+cine: client asks	24
+cine: server reads	24
+cine: bytes on the wire	2676192
+on demand: client asks	24
+on demand: server reads	24
+on demand: bytes on the wire	2676192

@@ -25,24 +25,18 @@ pub enum Congestion {
 
 impl Congestion {
     fn factory(self, initial_window: Option<u64>) -> Arc<dyn ControllerFactory + Send + Sync> {
+        let (mut cubic, mut bbr) = (CubicConfig::default(), BbrConfig::default());
+        if let Some(v) = initial_window {
+            cubic.initial_window(v);
+            bbr.initial_window(v);
+        }
+        let (cubic, bbr) = (Arc::new(cubic), Arc::new(bbr));
         match self {
-            Self::Cubic => {
-                let mut c = CubicConfig::default();
-                if let Some(v) = initial_window {
-                    c.initial_window(v);
-                }
-                Arc::new(c)
-            }
-            Self::Bbr => {
-                let mut c = BbrConfig::default();
-                if let Some(v) = initial_window {
-                    c.initial_window(v);
-                }
-                Arc::new(c)
-            }
-            Self::CubicRestart => Arc::new(SlowStartRestartConfig::new(initial_window)),
-            Self::BbrBound => Arc::new(LossBoundConfig::new(initial_window)),
-            Self::CubicClassify => Arc::new(LossClassifyConfig::new(initial_window)),
+            Self::Cubic => cubic,
+            Self::Bbr => bbr,
+            Self::CubicRestart => Arc::new(SlowStartRestartConfig::new(cubic)),
+            Self::BbrBound => Arc::new(LossBoundConfig::new(bbr)),
+            Self::CubicClassify => Arc::new(LossClassifyConfig::new(cubic)),
         }
     }
 

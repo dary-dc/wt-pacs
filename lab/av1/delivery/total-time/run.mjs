@@ -10,7 +10,7 @@
  *   NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs [--rounds 10] [--first-round 0]
  *     [--links r5000,r20000,r50000,lte-good,wifi-home] [--impairs clean,l1,j5] [--throttles 1,4] [--engines chromium,firefox] [--sets a,b] [--variants a,b]
  *     [--fill N --asks-after K] [--frames lab/.av1-work/total] [--orders seq,prio] [--mutate sample|truth|digest] [--out rows.jsonl]
- *     [--cc-trace DIR] [--one-way-ms 20] [--summary [--ref htj2k]]
+ *     [--cc-trace DIR] [--one-way-ms 20] [--summary [--ref htj2k]] [--bin DIR --serve TREE]
  */
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -49,6 +49,9 @@ const TRACES = process.env.TRACES ?? path.join(ROOT, "lab/.traces");
 const CC_TRACE = arg("--cc-trace", null);
 /** A fixed-rate link's one-way delay in ms: half its round trip. */
 const ONE_WAY = Number(arg("--one-way-ms", 20));
+/** An arm built elsewhere (perf_nightly.mjs): its series-server and pack-series, and the tree whose client the page loads. */
+const BIN = arg("--bin", null);
+const SERVE = arg("--serve", ROOT);
 
 /** Mahimahi's trace, fetched for local use only (GPL-3.0); its hash as PROF recorded it. */
 const LTE = { file: "TMobile-LTE-short.down", sha256: "4f33dce8dd811b5702272af64aaf64d3913719919abd776edf1e0f7c0965da43" };
@@ -121,8 +124,13 @@ const sets = readdirSync(path.join(ROOT, FRAMES)).filter((d) => existsSync(path.
   .filter((s) => arg("--sets", s.name).split(",").includes(s.name));
 const VARIANTS = arg("--variants", null)?.split(",");
 for (const s of sets) s.variantNames = Object.keys(s.variants).filter((a) => !VARIANTS || VARIANTS.includes(a));
+for (const s of sets) for (const name of s.variantNames) {
+  const { viewer, codec } = s.variants[name];
+  if (viewer && !["htj2k", "av1"].includes(codec)) throw new Error(`${s.name} ${name}: a viewer variant needs "codec": "htj2k" or "av1", not ${JSON.stringify(codec) ?? "none"}`);
+}
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series", ...(CC_TRACE ? ["--features", "series-server/telemetry"] : [])], { cwd: ROOT, stdio: "inherit" });
+if (!BIN) execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series", ...(CC_TRACE ? ["--features", "series-server/telemetry"] : [])], { cwd: ROOT, stdio: "inherit" });
+const RELEASE = BIN ?? path.join(ROOT, "target/release");
 execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
   "-keyout", `${T}/key.pem`, "-out", `${T}/cert.pem`, "-days", "2", "-nodes", "-subj", "/CN=localhost",
   "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
@@ -139,7 +147,7 @@ function pack(set, ext, entries, codec = ext === "htj2k" ? "htj2k" : "av1") {
     symlinkSync(path.join(ROOT, FRAMES, set.name, `${n}.${ext}`), `${dir}/${n}.${codec}`);
   }
   writeFileSync(`${dir}.json`, JSON.stringify({ frameCount: entries, codec }));
-  execFileSync(path.join(ROOT, "target/release/pack-series"),
+  execFileSync(path.join(RELEASE, "pack-series"),
     ["--metadata", `${dir}.json`, "--frames", dir, "--output", `${dir}.sbnd`], { stdio: "ignore" });
   return `${dir}.sbnd`;
 }
@@ -238,10 +246,27 @@ function workerThreads(root) {
   return out;
 }
 
+/** Resolves once `url` answers; throws if `child` exits first or nothing answers within `ms`. */
+async function listening(url, child, ms) {
+  let exited = null;
+  child.once("exit", (code, signal) => (exited = code ?? signal));
+  const deadline = Date.now() + ms;
+  while (exited === null) {
+    try {
+      await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())) });
+      return;
+    } catch {
+      if (Date.now() >= deadline) throw new Error(`${url}: not answering after ${ms} ms`);
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`${url}: its server exited (${exited}) before answering`);
+}
+
 const HTTP = port();
-const http = spawn("python3", ["server/dev-server.py", "--port", String(HTTP)], { cwd: ROOT, stdio: "ignore" });
+const http = spawn("python3", ["server/dev-server.py", "--port", String(HTTP)], { cwd: SERVE, stdio: "ignore" });
 process.on("exit", () => http.kill());
-await new Promise((r) => setTimeout(r, 1000));
+await listening(`http://127.0.0.1:${HTTP}/`, http, 30000);
 
 const started = (child, re) => new Promise((resolve, reject) => {
   let out = "";
@@ -262,7 +287,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
   const relayPort = port();
   const ccTrace = CC_TRACE && path.resolve(CC_TRACE, `${round}-${linkName}-${impairment}-${throttle}x-${variant}.jsonl`);
   if (ccTrace) { mkdirSync(CC_TRACE, { recursive: true }); rmSync(ccTrace, { force: true }); }
-  const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(ROOT, "target/release/series-server"), "--port", String(srv), "--bind", "127.0.0.1",
+  const server = spawn("taskset", ["-c", BROWSER_CORES, path.join(RELEASE, "series-server"), "--port", String(srv), "--bind", "127.0.0.1",
     "--series", pack(set, a.ext, a.entries, a.codec), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
     ...(a.congestion ? ["--congestion", a.congestion] : []), ...(a.initialWindow ? ["--initial-window-bytes", String(a.initialWindow)] : [])],
     { stdio: ["ignore", "pipe", "ignore"], env: { ...process.env, ...(ccTrace && { WTPACS_CC_TRACE: ccTrace }) } });

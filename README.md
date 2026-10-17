@@ -24,7 +24,7 @@ python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ingest/requir
                                                     # numpy, pydicom, xxhash, blake3 (CPython 3.11–3.13): PYTHON=.venv/bin/python
 ```
 
-With the first, the dispatch rig runs all 780 of its checks, the real-decode ones on npm's OpenJPH and on the
+With the first, the dispatch rig runs all 782 of its checks, the real-decode ones on npm's OpenJPH and on the
 product's build alike; without it, those that need the build are skipped by name. Without the second, the painter
 check, the split's merge and the DICOM reader do not run. The ingest's coders — libaom 3.15.1, dav1d 1.5.4 and
 OpenJPH 0.31.0, built from source at their pins into `ingest/.build` — need cmake, ninja, meson (1.9.1 here), nasm and
@@ -65,7 +65,14 @@ scripts/gate.sh
 The same gate runs in CI, `.github/workflows/gate.yml`, on every pull request into `claude/av1-unified-mainbase` and
 `main` and every push to them: every prerequisite above present, so a skip not on the workflow's list fails it, and
 the deploy image built with `deploy/check_equivalence.sh` and the viewer's page check run through it. No timing runs
-there: a shared runner is not a measurement host.
+there: a shared runner is not a measurement host. Performance is guarded by counts instead, which no runner moves:
+`scripts/perf_counts.mjs` drives the product's downloader against the release server, over its WebSocket (the same asks
+and envelopes as QUIC's shared stream), on a 24-frame synthetic series filled, stepped through as a cine and asked on
+demand, and fails on any change from `scripts/perf_counts.baseline` in the client's asks, the server's reads of the
+bundle (through strace, every read forced to a miss) or the envelope bytes; a changed count is a reviewed line there.
+A doubled read on either reader, a fill asked twice and a padded frame each turn it red. Not counted: the io_uring
+path a forced miss bypasses, QUIC's own framing, and the viewer's choice of what to ask, since the downloader is
+driven directly.
 
 Then open in Chrome:
 
@@ -111,6 +118,14 @@ expects ([`docs/transport/transport-conclusions.md`](docs/transport/transport-co
 `lab/scripts/server_ab.sh` runs the binaries under `target/release`, so it wants `CARGO_TARGET_DIR` unset, and a
 `LOGDIR` given to it must exist.
 
+## The read path on your machine
+
+`lab/scripts/workstation_run.sh` measures the server's read path on the machine it runs on and packs one report to
+send back: the host, whether io_uring works natively and in the deploy's container, the two readers against every
+variant, and the server with the ring against the pool, each with an A/A arm. `--plan` prints the time and disk it
+needs and exits; `--quick` runs one round as a first try. What each part answers, and how cold is made without
+eviction: [`docs/adr/disk-access.md`](docs/adr/disk-access.md) §12, *On the workstation, in one command*.
+
 ## The viewer on a DICOM series
 
 One series, ingested once, then one terminal per server:
@@ -142,6 +157,20 @@ downloader's in [`client/README.md`](client/README.md) §Every decision is held 
 and a lab-only stall's equivalent sends; the series bundle's reader and writer 10 of 10. Its time, the gate-time measurement
 (queue row GATE, 2026-10-07, 4 cores, warm builds): `--quick` 161 → 106 s once the two timer-bound steps ran side by side; the
 before-and-after table is at `git show 0d293c89^:README.md`, and each step's time is in the gate's own log.
+
+**What the nightly times and what it claims** — `.github/workflows/perf-nightly.yml` runs `scripts/perf_nightly.mjs`
+nightly on `claude/av1-unified-mainbase` against itself 24 hours earlier, and on a pull request labelled `perf` against
+its base: both trees built, the gate's grey codestream 48 times filled through the downloader on the total-time
+harness (`r50000`, 1×, Chromium; [`lab/av1/delivery/total-time/README.md`](lab/av1/delivery/total-time/README.md)),
+the base, the head and the base again in `lab/order.mjs`'s order, 12 rounds and 12 confirming, the fill and the first
+frame judged by row NETRULES' A/A rule ([`lab/scripts/aa_rule.py`](lab/scripts/aa_rule.py)). A cell is flagged only
+when both campaigns flag it; *worse* turns the nightly red, never a pull request. On this repository's 4-core
+container (row PERFNIGHTLY, 2026-10-15): the base against itself a tie (fill A/A sd 0.3 %, a loss of 0.6 % caught);
+a 10 ms sleep a frame in the server's send path worse on both cells (fill ×1.155); a 2 ms one flagged too (first
+frame ×1.015 worse, fill ×0.988 better). The fill there follows the link to 200 Mbit/s (0.51, 0.45, 0.38 s at 50,
+100, 200) and no further (0.37 at 400 and 800), so the host is not what bounds `r50000`. It claims a difference
+between two trees that repeats on that runner, that series and that link: no number for another host, a series that
+decodes longer, a slower CPU or another engine; a schedule fires from the default branch's copy of the workflow only.
 
 ## Docs
 

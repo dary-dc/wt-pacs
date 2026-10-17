@@ -16,8 +16,9 @@ The series on disk is SBND, [`FIXTURES.md`](FIXTURES.md). What each client does 
 
 FoD names the control messages: the client's asks and the server's refusals. On the control stream
 each message is `[4B LE len][JSON]` — little-endian, unlike the envelope — tagged by `op`
-(`common/fod`, `client/transport/ts/wire.ts`). The server refuses a length of 0 or over 4 MiB
-(`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session.
+(`common/fod`, `client/transport/ts/wire.ts`). The server refuses a length of 0 or over 64 KiB
+(`MAX_FOD_LEN`) before allocating it; a message it cannot read ends the session. A client's longest message
+is 56 B, `stream_frames` with both ends at `u32::MAX`. *Corrected 2026-10-16:* the cap was 4 MiB.
 
 **A goodbye is not an error.** No client sends `end_session`: a session ends with the client closing
 it, stopping a stream the server is writing (`STOP_SENDING`, as dropping its receive half does), a FIN
@@ -121,8 +122,9 @@ fill; it replaces it. While a fill runs, the planner checks for new messages bet
 any message in hand ends the fill — a `request_frame`, a batch, a new `stream_frames`, an
 `end_stream` (which is then consumed), an `end_session`. There is no saved position: the fill does
 not resume. The asked frame is served next, and a client that still wants the rest of the run asks
-for it again; the downloader does so by itself. Tests: `a_data_request_during_a_fill_ends_it_and_is_served_next`
-(`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
+for it again; the downloader does so by itself. That re-ask is this shape's cost, which row 229 only
+shortens; queue row 249 proposes a server that keeps the fill and moves the asked frame to its front.
+Tests: `a_data_request_during_a_fill_ends_it_and_is_served_next` (`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
 reciting after the mode switch").
 
 ```
@@ -165,6 +167,63 @@ case is measured. Seen from the client, against the real server with a 2 MB send
 [`CLIENTS.md`](CLIENTS.md) §The contract suite. A client's `endStream()` is a different thing
 and is not measured here.
 
+### Proposed: one queue, an ask moves its frame to the front (row 249)
+
+*Proposed 2026-10-15 (queue row 249, the owner's idea). Nothing changes before the owner's yes.*
+
+**The problem.** An ask and a fill compete: the ask ends the fill (above) and the client rebuilds it. Two costs
+follow, each measured on its own:
+
+* **The fill pays for the re-ask.** The wire idles from the ask until the client's new `stream_frames` arrives. Row
+  229 moved the re-ask to the asked frame's envelope head, and the 10 % fill gained up to 256 ms
+  ([`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, *ASKTHENFILL*). That is a measure of
+  the gap, which stays.
+* **The ask waits behind the fill already written to quinn**, up to the receiver's 6 MiB of credit in Chromium
+  (link-conditions.md item 9): 3.1 s at 18 Mbit/s in row 211's `shared` arm
+  ([`native/quic-compared.md`](native/quic-compared.md) §9.7).
+
+The client carries the rebuild: with row 229 in, `asksInFlight` and its gate on the fill, the hold-and-release in
+`ask()`, three `refill` modes, and a head callback through `requestExactFrame`.
+
+**Candidate 1, one queue (the owner's).** The server holds what the client wants as one ordered queue. A fill
+appends its run, and an ask moves its frame to the front, or puts it there if the fill did not hold it. An ask never
+ends the fill, so nothing is asked again. The order stays the client's: asks before fill frames, the rule the
+downloader already uses for its decoders ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The downloader). So
+[`adr/reject-server-ordering.md`](adr/reject-server-ordering.md), which rejected a server ordering asks by a rule of
+its own, does not apply.
+
+* **On the wire:** a `request_frame` during a fill is served next and the fill resumes behind it, skipping a frame
+  already sent. `stream_frames` still replaces a fill and `end_stream` still ends one. A client that re-asks the
+  remainder still works: its `stream_frames` replaces the fill with the same frames.
+* **What it removes** (read from the code, not built): the client code listed above, and in the planner the end of
+  the fill on a data request.
+* **What it adds:** the planner keeps the fill's position across the asks it serves, and the frames served ahead of
+  it. After each ask the fill's reader starts its read-ahead again; that cost is not measured.
+* **Its limit:** the queue reorders only what the server still holds. Fill already written to quinn goes first, so
+  on its own the ask still waits as above. Paired with `--send-window-follows-cwnd` (cwnd + M written ahead,
+  link-conditions.md item 9), most of the fill stays in the queue. That lever alone, in row 211: the ask ×0.25–0.83
+  of `shared` in all nine cells, the fill within `shared`'s spread in each (§9.7). In row 180 its fill was +5.0 % at
+  103 Mbit/s behind 20 ms (§9.5).
+
+**Candidate 2, asks ranked above fill at the transport** (`--stream-mode per-frame-asks-first`, lab only). Row 211:
+the ask ×0.10–0.92 of `shared` (row 180: ×1.05 at 103 Mbit/s behind 360 ms), but the fill above `shared`'s spread at
+103/360 (+11 %) and 18/800, and +2–44 % under a 6 MiB send window (§9.5, §9.7). It keeps the end of the fill on an ask, so the re-ask and its client
+code stay.
+
+**Candidate 3, today with row 229's head re-issue.** The baseline.
+
+**What decides** (a protocol for a separate session; the rule is fixed before the data):
+
+* **Arms:** 3; 3 again (the A/A arm); 1; 1 with `--send-window-follows-cwnd`; 3 with `--send-window-follows-cwnd`,
+  which separates the window's share from the queue's.
+* **Cells:** row 229's (18 and 103 Mbit/s, 46 and 92 ms, FIFO 20 and CoDel, 18 Mbit/s at 300 ms), and row 211's
+  deep FIFOs; the ask at 10 % and at 50 % of the fill.
+* **Measured:** ask → last byte and the fill's issue → last frame, every frame exact by SHA-256; rounds
+  Williams-ordered.
+* **Rule:** the better of the two arms of candidate 1 becomes the default if neither its asks nor its fills are worse
+  than 3's beyond the A/A spread in any cell. A tie adopts it, because it removes code. Worse in any cell makes it a
+  trade-off for the owner, with those cells as its cost.
+
 ## The opening ask
 
 On by default; `series-server --opening-ask false` turns it off. The session URL may carry
@@ -192,11 +251,28 @@ frame path, the store and the planner are the QUIC path's; one process serves bo
 | stream mode | `--stream-mode` | always one ordered stream |
 | opening ask | `?ask=` with `--opening-ask` | the same `?ask=` on the upgrade's URL, with the same flag: served right behind the 101 |
 
-A binary message from the client, or any message over 4 MiB, ends the session. The library
+A binary message from the client, or any message or frame over 64 KiB (`MAX_FOD_LEN`), ends the
+session; an over-long frame ends it at its header, before its payload is buffered. *Corrected 2026-10-16:* this
+said 4 MiB a message, but the frame cap was tungstenite's 16 MiB default, so one unfragmented message could hold
+16 MiB before it was refused. The library
 answers pings. Not on this path: the QUIC knobs (`--congestion`, the windows — TCP's are the
 kernel's), the per-session `session path` line, and telemetry rows. The idle-session behaviour of
 [`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md) is QUIC's and does not
 transfer; nothing here measures TCP's.
+
+**A peer that vanishes ends its session.** Every accepted socket has TCP keep-alive: after 20 s
+with nothing received, four probes 5 s apart. A peer that answers none, a laptop asleep or a NAT
+that forgot it, fails the session's read at about 40 s, and the session ends as any failed read
+does, a WARN; a live tab's kernel answers the probes, so an idle page keeps its session, as on
+QUIC. A test reads the options back (`an_accepted_socket_probes_a_silent_peer`); the kernel's
+expiry is not observed. A peer that vanishes while the server is writing to it is not probed: the
+kernel's retransmissions end it, after `tcp_retries2` (about 15 minutes by default), not measured.
+An accept that fails, as when the process is out of descriptors, is retried after 100 ms, not at
+once (`a_failing_websocket_accept_is_retried_at_a_pace`). *Shown 2026-10-16, row 272:*
+`prlimit --nofile=64 series-server --websocket …`, 80 TCP connections held open, then the
+`WebSocket accept failed` WARNs (`Too many open files`) timestamped in one second: 10 with the
+pause, 462 816–475 514 without it (before this change), 457 474–533 246 with the pause removed;
+three interleaved rounds each, release builds, 4-core host.
 
 One ordered byte stream gives up what QUIC's streams give: a slow or lost frame holds every frame
 behind it, and a retransmit stalls everything. The contract suite reports the independent-

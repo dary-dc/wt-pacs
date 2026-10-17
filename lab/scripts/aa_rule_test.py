@@ -44,6 +44,17 @@ def test_a_loss_the_confirming_run_does_not_repeat_is_not_worse():
     assert "worse" not in {v["verdict"] for v in aa_rule.judge(first, again, 0.05).values()}
 
 
+def test_a_loss_the_confirming_run_is_too_short_to_flag_is_undecided_not_a_tie():
+    rng = random.Random(11)
+    first = {f"c{i}": cell(rng, 12, 0.01, 0.25) for i in range(5)}
+    again = {f"c{i}": cell(rng, 2, 0.01, 0.25) for i in range(5)}
+    assert {v["verdict"] for v in aa_rule.judge(first, again, 0.05).values()} == {"undecided at n = 12 + 2"}
+
+
+def test_three_rounds_a_side_can_flag_and_two_cannot():
+    assert [aa_rule.can_flag(n) for n in (0, 1, 2, 3)] == [False, False, False, True]
+
+
 def test_a_null_round_drops_from_all_three_arms():
     aa, arm = aa_rule.ratios({"ref": [1, 1, None], "aa": [2, 2, 2], "arm": [None, 3, 3]})
     assert (aa, arm) == ([2.0], [3.0])
