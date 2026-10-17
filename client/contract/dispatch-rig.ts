@@ -4,7 +4,7 @@
  * forced with the stand-in decoder (fake-decoder.js) and the fake session, not left to luck. docs/ARCHITECTURE.md §The downloader.
  */
 import type { Check } from "./clauses.ts";
-import { CERT, settle, started, tally, until } from "./rig-util.ts";
+import { CERT, RESTARTED, settle, started, tally, until } from "./rig-util.ts";
 import { type WorkerFake, workerFake } from "./worker-fake.ts";
 const enc = new TextEncoder();
 /** Decoded pixels arrive over a SharedArrayBuffer, which TextDecoder refuses: copy, then read. */
@@ -59,6 +59,7 @@ type OpenOpts = {
   /** The first `n` dials are refused. */
   refuseDials?: number;
   recycleAtBytes?: number;
+  transportFile?: string;
   /** One stand-in decoder fails its init when `hold.release()` is called. */
   failOneInit?: boolean;
   /** A frame whose bytes begin `lose` crashes its stand-in, or is never answered, `times` times in all. */
@@ -102,6 +103,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     digests: opts.digests,
     survival: opts.survival,
     recycleAtBytes: opts.recycleAtBytes,
+    transportFile: opts.transportFile,
     onFrame: opts.onFrame ?? (() => {}),
     onPreview: opts.onPreview,
     onError: opts.onError,
@@ -1636,6 +1638,41 @@ async function aDeadSessionIsResumedNotReported(DownloaderClient: DownloaderCtor
   c.close();
 }
 
+const TRANSPORT_FILE = "https://contract.invalid/wt/dev-transport.json";
+const RESTARTED_FILE = { wt_url: "https://restarted.invalid/", cert_sha256: RESTARTED };
+
+/**
+ * A server restarted on a new certificate is followed: before each re-dial the downloader reads the transport file
+ * again and dials what it names — with a fill owed, again when the first read finds no file, and for a step on
+ * demand. docs/ARCHITECTURE.md §An open page follows a server restart
+ */
+async function aRedialAfterTheHashChangedConnects(DownloaderClient: DownloaderCtor, check: Check) {
+  for (const missing of [0, 1]) {
+    const when = missing ? "after a read that found no file" : "with a fill owed";
+    const { c, fake, got, failures } = await stalledFill(DownloaderClient, { transportFile: TRANSPORT_FILE, survival: { ...QUICK, stallMs: 30_000 } });
+    await fake.setTransportFile(TRANSPORT_FILE, RESTARTED_FILE, missing);
+    await fake.pin(RESTARTED);
+    await fake.serverClose(0, "the server restarted");
+    const followed = await until(async () => (await fake.dialHash()) === RESTARTED && (await fake.controlMessages()).length > 0);
+    if (followed) for (const i of [2, 3, 4, 5]) await fake.pushFrame(i, enc.encode(`fill-${i}`));
+    await until(() => got.length >= 6 || failures.length > 0);
+    check(followed && (await fake.dialUrl()) === RESTARTED_FILE.wt_url, `restart, ${when}: the re-dial takes the file's URL and hash (${await fake.dialUrl()}, ${(await fake.dialHash()).slice(0, 8)}…)`);
+    check(got.length === 6 && failures.length === 0, `restart, ${when}: the fill finishes (${got.length}/6; failed ${failures.map((f) => `${f.frameIndex}: ${f.reason}`).join("; ") || "none"})`);
+    check((await fake.dials()) === 2 + missing, `restart, ${when}: connected at re-dial ${1 + missing} (${await fake.dials()} dials in all)`);
+    c.close();
+  }
+  const { c, fake } = await open(DownloaderClient, { decode: false, transportFile: TRANSPORT_FILE, survival: { ...QUICK, stallMs: 30_000 } });
+  await fake.setTransportFile(TRANSPORT_FILE, RESTARTED_FILE);
+  await fake.pin(RESTARTED);
+  await fake.serverClose(0, "the server restarted");
+  await settle();
+  const asked = c.requestExactFrame(7).then((f) => text(f.bytes), (e: Error) => `failed: ${e.message}`);
+  if (await onTheWire(fake, "request_frame 7")) await fake.pushFrame(7, enc.encode("step-7"));
+  const step = await Promise.race([asked, settle(2000).then(() => "never")]);
+  check(step === "step-7", `restart, on demand: a step after it is served (${step})`);
+  c.close();
+}
+
 /** An ask outstanding when the session dies is re-asked on the new one, on its own promise. */
 async function anOwedAskIsReaskedAfterAResume(DownloaderClient: DownloaderCtor, check: Check) {
   const { c, fake } = await stalledFill(DownloaderClient, { survival: { ...QUICK, stallMs: 30_000 } });
@@ -2294,6 +2331,7 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: str
     aSilentSessionIsRedialled,
     theWaitDoublesAfterEachRedialItCauses,
     aDeadSessionIsResumedNotReported,
+    aRedialAfterTheHashChangedConnects,
     anOwedAskIsReaskedAfterAResume,
     whenTheRedialsRunOutWhatWasOwedIsNamed,
     aSessionThatNeverDeliversSpendsTheRedials,
