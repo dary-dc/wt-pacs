@@ -1,0 +1,459 @@
+diff --git a/docs/devices.md b/docs/devices.md
+index 9ec6e350..75aa7d92 100644
+--- a/docs/devices.md
++++ b/docs/devices.md
+@@ -102,7 +102,8 @@ control cell (unshaped, 1 ms) runs with every block. **Decides:** each of row 19
+ 
+ ### D4 — opening: the repeated Initial
+ 
+-**Arms:** row 189's four — today, today again, `--reply-repeated-initial`, `--initial-rtt-ms 100`
++**Arms:** row 189's four — today, today again, `--reply-repeated-initial`, `--initial-rtt-ms 100`; the reply arm on a
++build up to `ba408823`, since row 237 removed the flag
+ ([`../lab/irtt/README.md`](../lab/irtt/README.md)). **Controlled:** the relay (`lab/scripts/link_impair.py`) on the
+ local machine between the phone and the Oracle server, swallowing the first flight at 40/80/150 ms as row 189 does;
+ the page dials, waits for `ready`, closes, repeats unattended (a dial a few seconds; n = 20 a cell needs minutes, not
+diff --git a/docs/merge-readiness.md b/docs/merge-readiness.md
+index ef6e0821..3544ce3f 100644
+--- a/docs/merge-readiness.md
++++ b/docs/merge-readiness.md
+@@ -55,7 +55,7 @@ within each group, and the groups are ranked by what merging needs first.
+ 
+ | # | item | evidence | verdict | cost | size |
+ | --- | --- | --- | --- | --- | --- |
+-| H1 | **Row 189 (INITIALMEASURE) is claimed and provisional, but its build is already in every default binary.** The flag is off, but the 117-line quinn-proto patch is carried in every build. Its cells A and C ran with every arm at a 38 400-byte initial window: all 8 servers' settings lines in `reply-a` and `reply-c` say so. That is because its build (`5b5d68c3`) predates `f57700d3`, which put the default back to 12 000. So its "today" arm is not today's default, and the cell does not say so. | `server/src/transport/tuning.rs:78-81,121`; `patches/quinn-proto-0.11.18-reply-repeated-initial.patch`; `patched/quinn-proto/build.rs:3`; `lab/irtt/raw/reply-{a,c}.jsonl.gz` | **finish**: row 189 states the confound, re-runs or discloses it, and decides. If the repeated Initial is not adopted, the flag, the patch and its tests go. | none until decided | ~−270 if removed |
++| H1 | **Row 189 (INITIALMEASURE) is claimed and provisional, but its build is already in every default binary.** The flag is off, but the 117-line quinn-proto patch is carried in every build. Its cells A and C ran with every arm at a 38 400-byte initial window: all 8 servers' settings lines in `reply-a` and `reply-c` say so. That is because its build (`5b5d68c3`) predates `f57700d3`, which put the default back to 12 000. So its "today" arm is not today's default, and the cell does not say so. | `server/src/transport/tuning.rs:78-81,121`; `patches/quinn-proto-0.11.18-reply-repeated-initial.patch`; `patched/quinn-proto/build.rs:3`; `lab/irtt/raw/reply-{a,c}.jsonl.gz` | **finish**: row 189 states the confound, re-runs or discloses it, and decides. If the repeated Initial is not adopted, the flag, the patch and its tests go. **Removed** by row 237: the flag, the patch and its two tests (−263 lines; last in `ba408823`), the initial RTT untouched; the confound is stated in transport-conclusions.md §3 *Measured: INITIALMEASURE*, where cell B ran at 38 400 too. | none until decided | ~−270 if removed |
+ | H2 | **The queue copy on the branch stops at row 121** and says the queue lives on `claude/av1`. Docs and code cite rows past it, and those citations cannot be followed from `main`. | `docs/av1/queue.md` (2 772 lines); `ingest/from-dicom/from_dicom.py:24`; `client/decode/wasm/build/README.md:4` | **finish**: bring in the final queue from `claude/av1-mainbase` at merge | none | 1 file |
+ | H3 | **Open decisions that keep lab code in the product.** Each was measured, but the decision is still open: `startOnNeed` is a trade-off, for the owner; the AV1 `mixed` decoder is open; `readMin` at 16 KB first needs its unnamed-cut defect fixed. | `client/transport/downloader.js:132-153,448`; `client/decode/av1.js:13,60-70`; `client/transport/ts/frame-session.ts:99-103,186-189` | **keep**, each off by default, until the owner rules (§Blocked) | — | — |
+ 
+diff --git a/docs/transport/transport-conclusions.md b/docs/transport/transport-conclusions.md
+index 6ff7d1a0..1a384dce 100644
+--- a/docs/transport/transport-conclusions.md
++++ b/docs/transport/transport-conclusions.md
+@@ -1822,6 +1822,11 @@ packets: the tap counts a client datagram holding only Initial packets, before t
+ anything else (its reply to the server's flight), as a repeat. Leads are T − R, the median of round-paired differences,
+ *strict* · *round-paired*.
+ 
++*Confound, stated 2026-10-14:* every arm of every cell, A, B and C, ran at a 38 400-byte initial window (the settings
++line of all 8 servers in each of `reply-{a,b,c}`). The build `5b5d68c3` predates `f57700d3`, which put the default back
++to quinn's 12 000, so T is not today's default; IRTTMEASURE's arms ran at 12 000. Not re-run: the comparisons below
++are within one window, not against today's.
++
+ **A, the first flight lost** (n = 9–19 pairs strict, 16–20 round-paired), ms R is ready sooner than T:
+ 
+ | client | certificate | 40 ms | 80 ms | 150 ms |
+@@ -1878,7 +1883,9 @@ sent 1.9–6.6 KB.
+ today's, no server datagram beyond today's where the client sent no repeat. By the rule's last line the row closes on
+ Firefox. The trace says the repeat *is* Firefox's clock (on the wire it gains 697 ms, as Chromium's does); the miss is
+ Firefox's variable time from its reply to `ready`, which H's arm meets alike. The flag stays in the build, off by
+-default. Two readings are for the owner: against H, R ties the browsers in A and loses `cold_open` by 0.7–0.85 s; in
++default. **Corrected 2026-10-14 (row 237):** the flag, its patch and its two tests are removed, by the owner's call to
++drop the dormant patch before the merge into main; `ba408823` is the last commit that has them, and the measurements
++above stand. Two readings are for the owner: against H, R ties the browsers in A and loses `cold_open` by 0.7–0.85 s; in
+ B it is 220 ms ahead of H on the 0.8 % of Chromium opens that lose part of the first flight.
+ 
+ ### After a blink, 2026-09-19
+diff --git a/lab/irtt/README.md b/lab/irtt/README.md
+index df16a6c0..64cee1b1 100644
+--- a/lab/irtt/README.md
++++ b/lab/irtt/README.md
+@@ -25,7 +25,8 @@ Williams order every round (`lab/scripts/order.py`); the relay's seed is the rou
+ loss draws. The first line of every output file prints each arm's settings and every pin.
+ 
+ **Row INITIALMEASURE** (`--row reply`): four arms on the same binary, today, today again, `--reply-repeated-initial` and
+-`--initial-rtt-ms 100`; results in the same document, §3 *Measured: INITIALMEASURE*. The tap also marks each client
++`--initial-rtt-ms 100`; results in the same document, §3 *Measured: INITIALMEASURE*. The reply arm needs a build up
++to `ba408823`: row 237 removed the flag. The tap also marks each client
+ datagram that holds only Initial packets, so a repeated Initial is counted from the packets, not from its timing, with
+ the server's datagrams and bytes from it to the client's reply. Its check: four synthetic datagrams (an Initial padded,
+ two Initials, an Initial with a Handshake or a short-header packet after it) classified right, and wrong under each of
+diff --git a/lab/irtt/run.py b/lab/irtt/run.py
+index 922502d8..45d55416 100755
+--- a/lab/irtt/run.py
++++ b/lab/irtt/run.py
+@@ -2,7 +2,8 @@
+ """IRTTMEASURE: the server's initial RTT, unset (333 ms) against `--initial-rtt-ms 100`, one binary and one
+ certificate per pair, on the dev certificate and on an ECDSA chain. Protocol and rule:
+ docs/transport/transport-conclusions.md §3 *Proposed row: IRTTMEASURE*. `--row reply` runs INITIALMEASURE's four arms
+-instead: today, today again, `--reply-repeated-initial` and `--initial-rtt-ms 100` (§3 *Answering a repeated Initial*).
++instead: today, today again, `--reply-repeated-initial` and `--initial-rtt-ms 100` (§3 *Answering a repeated Initial*);
++its reply arm needs a build up to `ba408823`, where the flag still exists.
+ 
+     lab/irtt/run.py [--row irtt|reply] --phase abc|b [--rounds N] [--first-round K] --out rows.jsonl
+     lab/irtt/run.py --summary --out rows.jsonl [--out more.jsonl]
+diff --git a/patched/quinn-proto/Cargo.toml b/patched/quinn-proto/Cargo.toml
+index fed5bc5a..f75f8d2d 100644
+--- a/patched/quinn-proto/Cargo.toml
++++ b/patched/quinn-proto/Cargo.toml
+@@ -1,7 +1,6 @@
+ # crates.io quinn-proto 0.11.18's manifest without dev-dependencies and metadata; the source is
+ # that crate with patches/quinn-proto-0.11.18-probe-every-space.patch (docs/ARCHITECTURE.md
+-# §What early SETTINGS cost) and -reply-repeated-initial.patch, off by default (docs/transport/
+-# transport-conclusions.md §3, Answering a repeated Initial)
++# §What early SETTINGS cost)
+ 
+ [package]
+ edition = "2021"
+diff --git a/patched/quinn-proto/build.rs b/patched/quinn-proto/build.rs
+index c5fd1cfc..6a1cd8f7 100644
+--- a/patched/quinn-proto/build.rs
++++ b/patched/quinn-proto/build.rs
+@@ -1,6 +1,5 @@
+ fn main() {
+     println!("cargo:rerun-if-changed=../../patches/quinn-proto-0.11.18-probe-every-space.patch");
+-    println!("cargo:rerun-if-changed=../../patches/quinn-proto-0.11.18-reply-repeated-initial.patch");
+     println!("cargo:rerun-if-changed=../../scripts/patch_crate.sh");
+     let manifest = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+     let status = std::process::Command::new("bash")
+diff --git a/patches/quinn-proto-0.11.18-reply-repeated-initial.patch b/patches/quinn-proto-0.11.18-reply-repeated-initial.patch
+deleted file mode 100644
+index 7f8563b3..00000000
+--- a/patches/quinn-proto-0.11.18-reply-repeated-initial.patch
++++ /dev/null
+@@ -1,117 +0,0 @@
+---- a/src/config/transport.rs
+-+++ b/src/config/transport.rs
+-@@ -36,6 +36,7 @@
+-     pub(crate) packet_threshold: u32,
+-     pub(crate) time_threshold: f32,
+-     pub(crate) initial_rtt: Duration,
+-+    pub(crate) reply_repeated_initial: bool,
+-     pub(crate) initial_mtu: u16,
+-     pub(crate) min_mtu: u16,
+-     pub(crate) mtu_discovery_config: Option<MtuDiscoveryConfig>,
+-@@ -179,6 +180,13 @@
+-         self
+-     }
+- 
+-+    /// Whether a server answers a client's repeated Initial, once a connection, with its
+-+    /// unacknowledged handshake flight instead of waiting for its probe timeout. Off by default.
+-+    pub fn reply_repeated_initial(&mut self, value: bool) -> &mut Self {
+-+        self.reply_repeated_initial = value;
+-+        self
+-+    }
+-+
+-     /// The initial value to be used as the maximum UDP payload size before running MTU discovery
+-     /// (see [`TransportConfig::mtu_discovery_config`]).
+-     ///
+-@@ -381,6 +389,7 @@
+-             packet_threshold: 3,
+-             time_threshold: 9.0 / 8.0,
+-             initial_rtt: Duration::from_millis(333), // per spec, intentionally distinct from EXPECTED_RTT
+-+            reply_repeated_initial: false,
+-             initial_mtu: INITIAL_MTU,
+-             min_mtu: INITIAL_MTU,
+-             mtu_discovery_config: Some(MtuDiscoveryConfig::default()),
+-@@ -418,6 +427,7 @@
+-             packet_threshold,
+-             time_threshold,
+-             initial_rtt,
+-+            reply_repeated_initial,
+-             initial_mtu,
+-             min_mtu,
+-             mtu_discovery_config,
+-@@ -447,6 +457,7 @@
+-             .field("packet_threshold", packet_threshold)
+-             .field("time_threshold", time_threshold)
+-             .field("initial_rtt", initial_rtt)
+-+            .field("reply_repeated_initial", reply_repeated_initial)
+-             .field("initial_mtu", initial_mtu)
+-             .field("min_mtu", min_mtu)
+-             .field("mtu_discovery_config", mtu_discovery_config)
+---- a/src/connection/mod.rs
+-+++ b/src/connection/mod.rs
+-@@ -222,6 +222,7 @@
+-     //
+-     /// The number of times a PTO has been sent without receiving an ack.
+-     pto_count: u32,
+-+    replied_repeated_initial: bool,
+- 
+-     //
+-     // Congestion Control
+-@@ -344,6 +345,7 @@
+-             next_bundled_ack_time: None,
+- 
+-             pto_count: 0,
+-+            replied_repeated_initial: false,
+- 
+-             app_limited: false,
+-             receiving_ecn: false,
+-@@ -2707,6 +2709,7 @@
+-         debug_assert_ne!(packet.header.space(), SpaceId::Data);
+-         let payload_len = packet.payload.len();
+-         let mut ack_eliciting = false;
+-+        let mut new_crypto = false;
+-         for result in frame::Iter::new(packet.payload.freeze())? {
+-             let frame = result?;
+-             let span = match frame {
+-@@ -2723,6 +2726,8 @@
+-             match frame {
+-                 Frame::Padding | Frame::Ping => {}
+-                 Frame::Crypto(frame) => {
+-+                    new_crypto |= frame.offset + frame.data.len() as u64
+-+                        > self.spaces[packet.header.space()].crypto_stream.bytes_read();
+-                     self.read_crypto(packet.header.space(), &frame, payload_len)?;
+-                 }
+-                 Frame::Ack(ack) => {
+-@@ -2748,11 +2753,33 @@
+-                 .pending_acks
+-                 .set_immediate_ack_required();
+-         }
+-+        if ack_eliciting && !new_crypto && packet.header.space() == SpaceId::Initial {
+-+            self.reply_to_repeated_initial();
+-+        }
+- 
+-         self.write_crypto();
+-         Ok(())
+-     }
+- 
+-+    /// A client repeats its Initial when it has heard nothing back, so the server's flight in
+-+    /// flight is likely lost: probe it now, once a connection (RFC 9002 §6.2.3), not at the PTO.
+-+    fn reply_to_repeated_initial(&mut self) {
+-+        if !self.config.reply_repeated_initial
+-+            || self.replied_repeated_initial
+-+            || !self.side.is_server()
+-+            || !self.is_handshaking()
+-+            || ![SpaceId::Initial, SpaceId::Handshake].iter().any(|&s| self.spaces[s].has_in_flight())
+-+        {
+-+            return;
+-+        }
+-+        self.replied_repeated_initial = true;
+-+        for space in [SpaceId::Initial, SpaceId::Handshake, SpaceId::Data] {
+-+            if self.spaces[space].has_in_flight() {
+-+                self.spaces[space].loss_probes = self.spaces[space].loss_probes.saturating_add(1);
+-+            }
+-+        }
+-+    }
+-+
+-     fn process_payload(
+-         &mut self,
+-         now: Instant,
+diff --git a/scripts/patch_crate.sh b/scripts/patch_crate.sh
+index 2265499f..e1fe26e3 100755
+--- a/scripts/patch_crate.sh
++++ b/scripts/patch_crate.sh
+@@ -13,7 +13,7 @@ CRATE="${1:?$usage}"
+ case "$CRATE" in
+   wtransport) VERSION=0.7.2 WHAT=settings-in-handshake
+     CHECKSUM=b4273ce3157a3262a68665f8d3f20a0ac0c5b8a69ffd67f05ae986832ebec036 ;;
+-  quinn-proto) VERSION=0.11.18 WHAT="probe-every-space reply-repeated-initial"
++  quinn-proto) VERSION=0.11.18 WHAT=probe-every-space
+     CHECKSUM=a9746dbde176634f4f2f1faf2404e30a31b2bc1e9cafb5329c95d8177a18c9fc ;;
+   quinn) VERSION=0.11.11 WHAT=mtu-gso
+     CHECKSUM=0c1a41e437b6bbd489372cd4971de128e85c855f56c57f283d20ff016cf7c0a8 ;;
+diff --git a/server/src/main.rs b/server/src/main.rs
+index 9a3dd6e0..72aabd2f 100644
+--- a/server/src/main.rs
++++ b/server/src/main.rs
+@@ -148,7 +148,6 @@ mod tests {
+             "--congestion", "bbr",
+             "--initial-window-bytes", "4",
+             "--initial-rtt-ms", "5",
+-            "--reply-repeated-initial",
+             "--segmentation-offload", "false",
+         ];
+         let tuning = TransportTuning {
+@@ -158,7 +157,6 @@ mod tests {
+             congestion: Congestion::Bbr,
+             initial_window: Some(4),
+             initial_rtt_ms: Some(5),
+-            reply_repeated_initial: true,
+             segmentation_offload: false,
+         };
+         assert_eq!(parse(&flags).tuning, tuning);
+diff --git a/server/src/transport/server.rs b/server/src/transport/server.rs
+index f48561ea..b76c7908 100644
+--- a/server/src/transport/server.rs
++++ b/server/src/transport/server.rs
+@@ -1662,135 +1662,6 @@ mod tests {
+         std::fs::remove_dir_all(&dir).ok();
+     }
+ 
+-    /// Dials a server whose datagrams are dropped for `swallow` after its first, every datagram
+-    /// delayed `one_way`, with a client whose first probe comes at 300 ms, as Chromium's and
+-    /// Firefox's do. Returns the time to the client's handshake and, per round of client datagrams
+-    /// the server received, the server's bytes in the `one_way` after the round's first.
+-    fn dial_with_first_answers_swallowed(
+-        tuning: TransportTuning,
+-        one_way: Duration,
+-        swallow: Duration,
+-    ) -> (Duration, Vec<usize>) {
+-        let dir = std::env::temp_dir().join(format!("wtpacs-repeat-{}-{}", std::process::id(), swallow.as_millis()));
+-        std::fs::create_dir_all(&dir).expect("tmpdir");
+-        let series = write_series(&dir, 1);
+-        let (cert_pem, key_pem, cert_hash) = write_dev_cert(&dir);
+-        let port = free_port();
+-        let rt = tokio::runtime::Builder::new_multi_thread()
+-            .worker_threads(2)
+-            .enable_all()
+-            .build()
+-            .expect("rt");
+-        let _ = rustls::crypto::ring::default_provider().install_default();
+-        let result = rt.block_on(async move {
+-            let config = ServeConfig { tuning, ..serve_config(series, cert_pem, key_pem, port) };
+-            let server = tokio::spawn(run_server(config));
+-            until_bound(port, Duration::from_secs(5)).await;
+-
+-            let front = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+-            let relay = front.local_addr().expect("relay addr");
+-            let back = Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("relay"));
+-            back.connect(("127.0.0.1", port)).await.expect("relay upstream");
+-            let delivered = Arc::new(std::sync::Mutex::new(Vec::new()));
+-            let answered = Arc::new(std::sync::Mutex::new(Vec::new()));
+-            let (to_server, from_server) = (delivered.clone(), answered.clone());
+-            tokio::spawn(async move {
+-                let (mut up, mut down) = (vec![0u8; 65536], vec![0u8; 65536]);
+-                let mut client = None;
+-                let mut first_answer: Option<tokio::time::Instant> = None;
+-                loop {
+-                    tokio::select! {
+-                        Ok((n, from)) = front.recv_from(&mut up) => {
+-                            client = Some(from);
+-                            let (back, d, log) = (back.clone(), up[..n].to_vec(), to_server.clone());
+-                            tokio::spawn(async move {
+-                                tokio::time::sleep(one_way).await;
+-                                log.lock().unwrap().push(tokio::time::Instant::now());
+-                                back.send(&d).await.ok();
+-                            });
+-                        }
+-                        Ok(n) = back.recv(&mut down) => {
+-                            let now = tokio::time::Instant::now();
+-                            from_server.lock().unwrap().push((now, n));
+-                            if now - *first_answer.get_or_insert(now) < swallow {
+-                                continue;
+-                            }
+-                            let (front, d, to) = (front.clone(), down[..n].to_vec(), client);
+-                            tokio::spawn(async move {
+-                                tokio::time::sleep(one_way).await;
+-                                if let Some(to) = to {
+-                                    front.send_to(&d, to).await.ok();
+-                                }
+-                            });
+-                        }
+-                    }
+-                }
+-            });
+-
+-            let config = ClientConfig::builder()
+-                .with_bind_config(IpBindConfig::InAddrAnyV4)
+-                .with_server_certificate_hashes([wtransport::tls::Sha256Digest::new(cert_hash)])
+-                .build();
+-            let mut quic = config.quic_config().clone();
+-            let mut transport = wtransport::quinn::TransportConfig::default();
+-            transport.initial_rtt(Duration::from_millis(100));
+-            quic.transport_config(Arc::new(transport));
+-            let mut endpoint = wtransport::quinn::Endpoint::client("127.0.0.1:0".parse().unwrap())
+-                .expect("quinn client");
+-            endpoint.set_default_client_config(quic);
+-            let start = std::time::Instant::now();
+-            let _connection = tokio::time::timeout(
+-                Duration::from_secs(5),
+-                endpoint.connect(relay, "localhost").expect("connect"),
+-            )
+-            .await
+-            .expect("no handshake in 5 s")
+-            .expect("client side of the handshake");
+-            let handshake = start.elapsed();
+-            server.abort();
+-            let answered = answered.lock().unwrap().clone();
+-            let mut rounds: Vec<tokio::time::Instant> = Vec::new();
+-            for &at in delivered.lock().unwrap().iter() {
+-                if rounds.last().is_none_or(|&last| at - last > one_way) {
+-                    rounds.push(at);
+-                }
+-            }
+-            let bytes_after = rounds
+-                .iter()
+-                .map(|&at| answered.iter().filter(|(t, _)| *t >= at && *t < at + one_way).map(|(_, n)| n).sum())
+-                .collect();
+-            (handshake, bytes_after)
+-        });
+-        std::fs::remove_dir_all(&dir).ok();
+-        result
+-    }
+-
+-    /// A server whose first flight is lost resends it when the client repeats its Initial, at
+-    /// 300 ms, not at its own probe timeout near 1 s. Without `--reply-repeated-initial` the
+-    /// handshake takes over a second. docs/transport/transport-conclusions.md §3, Answering a
+-    /// repeated Initial.
+-    #[test]
+-    fn a_repeated_initial_draws_the_lost_flight_at_once() {
+-        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
+-        let one_way = Duration::from_millis(25);
+-        let (handshake, bytes_after) = dial_with_first_answers_swallowed(tuning, one_way, one_way);
+-        assert!(bytes_after.len() >= 2, "the client never repeated its Initial: {bytes_after:?}");
+-        assert!(bytes_after[1] >= 1200, "the repeat drew {} bytes, not the flight", bytes_after[1]);
+-        assert!(handshake < Duration::from_millis(700), "handshake took {handshake:?}: the flight waited for the server's PTO");
+-    }
+-
+-    /// The reply is once a connection: with the first flight and its resend both lost, the
+-    /// client's second repeat draws only an ACK, and the flight waits for the server's PTO.
+-    #[test]
+-    fn a_second_repeated_initial_draws_only_an_ack() {
+-        let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
+-        let (_, bytes_after) =
+-            dial_with_first_answers_swallowed(tuning, Duration::from_millis(25), Duration::from_millis(500));
+-        assert!(bytes_after.len() >= 3, "the client repeated its Initial fewer than twice: {bytes_after:?}");
+-        assert!(bytes_after[1] >= 1200, "the first repeat drew {} bytes, not the flight", bytes_after[1]);
+-        assert!(bytes_after[2] < 1200, "the second repeat drew {} bytes, more than an ACK", bytes_after[2]);
+-    }
+-
+     /// A client whose ClientHello spans two datagrams, the second arriving after the server has
+     /// answered the first, still gets a session: the stream budget the client's transport
+     /// parameters grant is there when it opens. Opened from the first datagram, as
+diff --git a/server/src/transport/tuning.rs b/server/src/transport/tuning.rs
+index e34e6c67..f8a6f65b 100644
+--- a/server/src/transport/tuning.rs
++++ b/server/src/transport/tuning.rs
+@@ -80,10 +80,6 @@ pub struct TransportTuning {
+     /// quinn default: 333 ms.
+     #[arg(long)]
+     pub initial_rtt_ms: Option<u64>,
+-    /// Lab only: answer a client's repeated Initial with the unacknowledged handshake flight,
+-    /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
+-    #[arg(long)]
+-    pub reply_repeated_initial: bool,
+     /// Lab only: `false` sends each datagram alone, so netem on the sending host drops datagrams,
+     /// not whole GSO batches (docs/rig-limits.md §3).
+     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+@@ -99,7 +95,6 @@ impl Default for TransportTuning {
+             congestion: Congestion::default(),
+             initial_window: None,
+             initial_rtt_ms: None,
+-            reply_repeated_initial: false,
+             segmentation_offload: true,
+         }
+     }
+@@ -123,7 +118,6 @@ impl TransportTuning {
+         if let Some(ms) = self.initial_rtt_ms {
+             tc.initial_rtt(Duration::from_millis(ms));
+         }
+-        tc.reply_repeated_initial(self.reply_repeated_initial);
+         tc.enable_segmentation_offload(self.segmentation_offload);
+ 
+         tc.congestion_controller_factory(crate::transport::cc_trace::traced(self.congestion.factory(self.initial_window)));
+@@ -147,9 +141,6 @@ impl TransportTuning {
+         if let Some(v) = self.initial_rtt_ms {
+             parts.push(format!("initial_rtt_ms={v}"));
+         }
+-        if self.reply_repeated_initial {
+-            parts.push("reply_repeated_initial".to_string());
+-        }
+         if !matches!(self.congestion, Congestion::Cubic) {
+             parts.push(format!("congestion={}", self.congestion.as_str()));
+         }
+@@ -197,7 +188,6 @@ mod tests {
+             congestion: Congestion::Bbr,
+             initial_window: Some(32 * 1200),
+             initial_rtt_ms: Some(100),
+-            reply_repeated_initial: true,
+             segmentation_offload: false,
+         };
+         t.to_transport_config().expect("builds");
+@@ -214,7 +204,6 @@ mod tests {
+             (TransportTuning { keep_alive_interval_ms: Some(20_000), ..stock() }, "keep_alive_interval_ms=20000"),
+             (TransportTuning { initial_window: Some(38_400), ..stock() }, "initial_window=38400"),
+             (TransportTuning { initial_rtt_ms: Some(100), ..stock() }, "initial_rtt_ms=100"),
+-            (TransportTuning { reply_repeated_initial: true, ..stock() }, "reply_repeated_initial"),
+             (TransportTuning { segmentation_offload: false, ..stock() }, "segmentation_offload=false"),
+         ] {
+             assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
