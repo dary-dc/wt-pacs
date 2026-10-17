@@ -80,9 +80,8 @@ pub struct TransportTuning {
     /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
     #[arg(long)]
     pub reply_repeated_initial: bool,
-    /// Lab only: `false` sends each datagram alone, so netem on the sending host drops datagrams,
-    /// not whole GSO batches (docs/rig-limits.md §3).
-    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    /// Lab only: set by `--segmentation-offload`, a flag of the `lab-levers` build.
+    #[arg(skip = true)]
     pub segmentation_offload: bool,
 }
 

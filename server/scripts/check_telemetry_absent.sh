@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The default (non-telemetry) release binary carries no Tap, path sampler or controller trace, by symbol or literal,
-# and no lab feature's controller (`lab-classify`).
+# no lab feature's controller (`lab-classify`) and none of `lab-levers`' flags.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -38,4 +38,11 @@ if grep -q 'cc_classify' <(nm -C "$BIN") || grep -a -q 'cubic-classify' "$BIN"; 
   exit 1
 fi
 
-echo "OK: no telemetry symbols and no lab controller in default build"
+if grep -q 'transport::lab_levers' <(nm -C "$BIN") \
+  || grep -a -qE 'force-pool-reads|hold-sessions|stall-after-bytes|segmentation-offload' "$BIN"; then
+  echo "FAIL: a lab-levers flag found in default build" >&2
+  grep -a -oE 'force-pool-reads|hold-sessions|stall-after-bytes|segmentation-offload' "$BIN" | sort -u >&2 || true
+  exit 1
+fi
+
+echo "OK: no telemetry symbols, no lab controller and no lab lever in default build"

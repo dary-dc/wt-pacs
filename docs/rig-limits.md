@@ -218,7 +218,7 @@ Instrument notes, each of which would have produced a wrong number:
 * **netem on the sending host drops whole GSO batches.** quinn hands the kernel up to 64 datagrams
   per send; netem sees each batch as one packet, so "1 %" was 1 % of batches (0.2 % by its own
   count, bursty by construction). Every variant here runs with `--segmentation-offload false`, a lab
-  flag added for this. The server's own loss count then matches the configured rate: 1.41 %,
+  flag added for this (since row 264, in a `lab-levers` build only). The server's own loss count then matches the configured rate: 1.41 %,
   2.87 %, 1.45 %.
 * **Only UDP 4435 reaches the rig from outside**; 4436 and 4437 pass its host firewall, but no
   session arrives. The variants share one port, and the server restarts per run.
