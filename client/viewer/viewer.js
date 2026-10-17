@@ -10,7 +10,7 @@ const markEl = document.getElementById("mark");
 const at = () => performance.timeOrigin + performance.now();
 
 const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
-  .then(([levers, transport]) => ({ ...levers, transport }), (e) => ({ refused: e.message }));
+  .then(([levers, transport]) => ({ ...levers, pinned: Boolean(levers.transport), transport }), (e) => ({ refused: e.message }));
 if (lab.refused) {
   statusEl.textContent = `error: ${lab.refused}`;
   report({ error: lab.refused });
@@ -20,6 +20,8 @@ const meta = await globalThis.viewerMetadata;
 const n = meta.frameCount;
 const fillMode = q.get("fill") !== "0";
 const transport = lab.transport;
+// Absolute: the downloader's worker would resolve a relative URL against its own script.
+const transportFile = new URL("/wt/dev-transport.json", location).href;
 
 if (q.get("check")) {
   // A page that stops short still says why, and when.
@@ -129,6 +131,8 @@ issuedAt = at();
 const client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
   transport: transport.module,
   ...(fillMode && { fill: all }),
+  // The file follows a restarted server; a pair the lab named stays pinned.
+  transportFile: lab.pinned ? undefined : transportFile,
   digests,
   ...options,
   decoder,

@@ -6,7 +6,7 @@
  * TypeScript client's, or the WASM client's under `?client=wasm`.
  */
 import { TransportSession as OverTs } from "../transport/ts/session.ts";
-import { FakeTransport, installFakeTransport } from "./fake-transport.ts";
+import { FakeTransport, installFakeTransport, pinnedHash } from "./fake-transport.ts";
 
 const query = new URL(import.meta.url).searchParams;
 installFakeTransport();
@@ -22,6 +22,15 @@ const dialledAt: number[] = [];
 FakeTransport.hangNext = Number(query.get("hang") ?? 0);
 FakeTransport.failNext = Number(query.get("refuse") ?? 0);
 
+/** The transport file as the page last set it, its first `missing` reads answered 404; every other fetch goes out. */
+let transportFile: { url: string; body: unknown; missing: number } | null = null;
+const fetchOut = globalThis.fetch;
+globalThis.fetch = async (input, init) => {
+  if (!transportFile || String(input) !== transportFile.url) return fetchOut(input, init);
+  if (transportFile.missing-- > 0) return new Response("", { status: 404 });
+  return Response.json(transportFile.body);
+};
+
 const WASM = new URL("../../transport/wasm/session-adapter.js", import.meta.url).href;
 export const TransportSession =
   query.get("client") === "wasm" ? (await import(WASM)).TransportSession : OverTs;
@@ -36,6 +45,9 @@ function run(cmd: string, args: unknown[]): unknown {
   if (cmd === "failDials") return void (FakeTransport.failNext = args[0] as number);
   if (cmd === "hangDials") return void (FakeTransport.hangNext = args[0] as number);
   if (cmd === "openAfterMs") return void (FakeTransport.openAfterMs = args[0] as number);
+  if (cmd === "pin") return void (FakeTransport.pin = args[0] as string);
+  if (cmd === "setTransportFile")
+    return void (transportFile = { url: args[0] as string, body: args[1], missing: (args[2] as number) ?? 0 });
   if (!t) throw new Error(`${cmd}: nothing has dialled yet`);
   if (cmd === "pushFrame") return void t.pushFrame(args[0] as number, args[1] as Uint8Array);
   if (cmd === "pushOnOneStream") return void t.pushOnOneStream(args[0] as [number, Uint8Array][]);
@@ -53,6 +65,7 @@ function run(cmd: string, args: unknown[]): unknown {
     });
   if (cmd === "controlMessages") return t.controlMessages();
   if (cmd === "dialUrl") return t.url;
+  if (cmd === "dialHash") return pinnedHash(t.options);
   if (cmd === "didClose") return t.didClose;
   throw new Error(`unknown command ${cmd}`);
 }

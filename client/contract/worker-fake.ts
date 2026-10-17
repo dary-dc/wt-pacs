@@ -25,6 +25,12 @@ export type WorkerFake = {
   openAfterMs(ms: number): Promise<void>;
   /** Every control write on the latest transport rejects from now on. */
   failWrites(): Promise<void>;
+  /** From now on a dial pinning any other hash is refused. */
+  pin(hash: string): Promise<void>;
+  /** What the downloader's fetch of `url` answers, after `missing` reads answered 404. */
+  setTransportFile(url: string, body: unknown, missing?: number): Promise<void>;
+  /** The hash the latest transport pinned, `""` for none. */
+  dialHash(): Promise<string>;
   /** Resolves once the downloader's worker has started a busy loop of `ms` that answers nothing. */
   block(ms: number): Promise<void>;
   /** The fakes still running in this world's workers, by kind: a terminated worker cannot answer. */
@@ -72,6 +78,9 @@ export function workerFake(name: string): WorkerFake {
     hangDials: (n) => call("hangDials", n) as Promise<void>,
     openAfterMs: (ms) => call("openAfterMs", ms) as Promise<void>,
     failWrites: () => call("failWrites") as Promise<void>,
+    pin: (hash) => call("pin", hash) as Promise<void>,
+    setTransportFile: (url, body, missing) => call("setTransportFile", url, body, missing) as Promise<void>,
+    dialHash: () => call("dialHash") as Promise<string>,
     block: (ms) => call("block", ms) as Promise<void>,
     alive: () => alive(name),
   };

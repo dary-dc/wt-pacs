@@ -18,6 +18,8 @@ const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decod
 const ATTEMPTS = 2;
 let dial = null;
 let dialling = null;
+/** Set once the page's own pair has been dialled: every later dial reads `cfg.transportFile` first. */
+let dialled = false;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
 let generation = 0;
 let asksInFlight = 0;
@@ -462,7 +464,21 @@ async function start(m) {
   pump();
 }
 
+/** A restarted server pins a new certificate, which the transport file names. docs/ARCHITECTURE.md §An open page follows a server restart */
+async function followTransportFile() {
+  try {
+    const r = await fetch(cfg.transportFile, { cache: "no-store", signal: AbortSignal.timeout(deadlines.dialMs) });
+    if (!r.ok) return;
+    const { wt_url, cert_sha256 } = await r.json();
+    dial = { url: wt_url ?? dial.url, certHash: cert_sha256 ?? dial.certHash };
+  } catch {
+    /* unread, the pair stays: this dial fails as before and the next try reads again */
+  }
+}
+
 async function openSession(opening) {
+  if (dialled && cfg.transportFile) await followTransportFile();
+  dialled = true;
   TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
   // The ring is sized by what can be between the wire and a decoder. docs/decode/README.md §The wire buffer ring
   const options = { wireBuffers: cfg.wireBuffers ?? cfg.decoders * cfg.perDecoder + 2 };

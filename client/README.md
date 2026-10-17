@@ -171,7 +171,10 @@ a resume is the same request, so the page's waiters and records stay valid and t
 told is when each resume happened, as `stats().resumedAt`. `survival: false` turns it off; an object overrides
 `{ stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000 }`, where `tries` counts the re-dials since a
 frame last arrived, so sessions that are accepted and never deliver end in the owed frames named. A dial whose `ready` has not settled by
-`dialMs` is closed and counts as a failed try, the first dial included. Until 2026-09-24 a quiet fill started a probe ask
+`dialMs` is closed and counts as a failed try, the first dial included. Given `transportFile`, the transport file's
+absolute URL (the viewer's), every dial after the first reads it again and dials the URL and hash it names, so an open
+page follows a server restarted on a new certificate ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §An open page
+follows a server restart). Until 2026-09-24 a quiet fill started a probe ask
 instead, which livelocked on a slow link. An ask keeps no timer in the consumer: the downloader
 settles it, and the transports time a frame from the last byte, not from the ask.
 
@@ -301,7 +304,10 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 the page with `?check=1` in headless Chromium, or in a stock Firefox (`--engine firefox`, `FIREFOX_PATH`), and the
 page itself runs the protocol after the fill: an ask of a delivered frame, a fill cancelled at once, then an ask
 after the cancel. With `--fill 0` it first steps the page itself: to the middle frame, the last and the middle again
-at once, then to the last twice. `--client wasm` names the WASM client in the transport file it serves; with `--url`, the one the host's file names. It passes no lab parameter, so it runs the same against the web image: the result is
+at once, then to the last twice. `--client wasm` names the WASM client in the transport file it serves; with `--url`, the one the host's file names.
+With `--url … --fill 0 --restart CMD` it instead opens `?fill=0`, runs CMD (which
+restarts the host's server and prints its `transport=` line) after frame 0 is exact, and fails unless the next step
+arrives exact with no error within 20 s (docs/ARCHITECTURE.md §An open page follows a server restart). It passes no lab parameter, so it runs the same against the web image: the result is
 read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout.content`). It fails:
 
 * a fill that did not complete, or a frame lost or refused; on demand, a frame the page asked;

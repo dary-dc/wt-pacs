@@ -3,7 +3,8 @@
  * both clients in Node (run.ts) and the downloader in a browser (downloader-rig.ts).
  * docs/CLIENTS.md says why; the rows are docs/ARCHITECTURE.md §Capabilities.
  */
-import { until } from "./rig-util.ts";
+import { pinnedHash } from "./fake-transport.ts";
+import { RESTARTED, until } from "./rig-util.ts";
 
 export type ConformantFrame = {
   frameIndex: number;
@@ -569,15 +570,19 @@ async function anOpeningFillRidesTheUrl(rig: SessionRig, check: Check) {
   s.close();
 }
 
-/** No hash dials with no `serverCertificateHashes`, so a CA-signed certificate is verified as any page's is. docs/devices.md §4 */
+/** No hash dials with no `serverCertificateHashes`, so a CA-signed certificate is verified as any page's is; and a
+ *  dial pins the hash it is given, never an earlier one. docs/devices.md §4, docs/CLIENTS.md §The seam */
 async function anEmptyHashDialsUnpinned(rig: SessionRig, check: Check) {
   if (rig.cannotPin) return rig.cannotPin(`${rig.name}: an empty hash dials unpinned, a hash pins`);
   (await rig.dial("", {})).close();
   const unpinned = rig.dialOptions()?.serverCertificateHashes;
   (await rig.dial(CERT, {})).close();
   const pinned = rig.dialOptions()?.serverCertificateHashes;
+  (await rig.dial(RESTARTED, {})).close();
+  const repinned = pinnedHash(rig.dialOptions());
   check(unpinned === undefined, `${rig.name}: an empty hash dials with no serverCertificateHashes (${JSON.stringify(unpinned)})`);
   check(pinned?.length === 1, `${rig.name}: a hash is pinned (${pinned?.length ?? "none"})`);
+  check(repinned === RESTARTED, `${rig.name}: a second connect pins its own hash, not the first's (${repinned.slice(0, 8) || "none"}…)`);
 }
 
 /** `mediaReads` counts the reads of the media streams, one per chunk: what the downloader stamps on each frame. */

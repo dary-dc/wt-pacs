@@ -299,10 +299,9 @@ change the gate's tests already cover, 2 needs a check the gate does not run, 3 
 
 No `TODO`, `FIXME` or `#[ignore]` is in the product, and one `#[allow(dead_code)]`, row 209's cache behind its feature; no client export but S2's is
 imported by nothing (a search over `client/`, `lab/`, `scripts/`, `ingest/` and `deploy/`). The docs agree with the
-code wherever this round checked them: rows 218, 224 and 225 corrected what their changes touched. One pointer
-does not resolve, in a file that is the owner's: `CLAUDE.md` §Docs names "docs/disk-access/adr.md §2" as the model of
-a retraction; the file is [`adr/disk-access.md`](adr/disk-access.md) (`docs/levers.md` §Found on the way says so
-too). For the owner, not a row.
+code wherever this round checked them: rows 218, 224 and 225 corrected what their changes touched. *Corrected
+2026-10-17:* this round said `CLAUDE.md` §Docs names "docs/disk-access/adr.md §2"; it names
+[`adr/disk-access.md`](adr/disk-access.md), which resolves.
 
 ### What the open decisions hold
 
@@ -525,8 +524,8 @@ a change the gate's tests cover, 2 needs a check the gate does not run, 3 is str
 **Round 2, where it stands.** Rows 239, 241, 242, 243 and 245 merged with #67; 244's proposal was built by row 250
 (#73); 246's proposal merged and the move waits on the owner; 240 (CLASSIFYOUT) waits on the owner, beside #40,
 which proposes the opposite (`cubic-classify` as the default); S22 waits on #48. Round 2's counts are of `0ee0c1f2`:
-`server.rs` is now 1 984 lines, 404 above its tests. `CLAUDE.md` §Docs still names `docs/disk-access/adr.md` §2;
-the file is `adr/disk-access.md` (round 2, for the owner).
+`server.rs` is now 1 984 lines, 404 above its tests. *Corrected 2026-10-17:* round 2 said `CLAUDE.md` §Docs still
+names `docs/disk-access/adr.md` §2; it names `adr/disk-access.md`, which resolves.
 
 **The comment budget** passes; every file in scope is inside it. The rows below touch `consumer.js` (27 comment
 lines of 29), `websocket.rs` (12 of 25) and `link.rs` (19 of 32); none needs a comment beyond a pointer.
@@ -585,7 +584,7 @@ is corrected in the same pull request; the gate's `cmp` of the re-packed smoke b
 #### 270 SERVERSTOP
 
 *Review.* T5: `run_server(config, shutdown)`; on `shutdown` the endpoint is closed with an application code and the
-server waits for `wait_idle` up to 500 ms; telemetry's flush keeps its place. Test: a server-test session open when
+server waits for `wait_idle` up to 250 ms (500 ms halved by the rule below); telemetry's flush keeps its place. Test: a server-test session open when
 shutdown fires sees `closed` with that code (mutate: skip the close; the session then sees only a timeout). The
 WebSocket needs nothing: process exit closes its sockets.
 
@@ -595,7 +594,10 @@ image filling a series of at least 200 frames under an 18 Mbit/s shape, so the f
 `docker compose stop server`, timed; 10 rounds, arms in `lab/scripts/order.py`'s order. *Rule:* S1 lands if every
 S1 stop is under 1 s and the page's session closed with the server's code in 10 of 10 (its `closed` reason); a stop
 of 1 s or more halves the bound and the row runs once more; still over, the owner chooses between the bound and
-`init: true`. **Branch:** `claude/wip-270-SERVERSTOP`.
+`init: true`. *Result (2026-10-17):* at 250 ms every S1 stop is under 1 s on a free host, 20 of 20 (713–820 ms);
+the one stop over it before was docker's under the host's load, not the server's, whose share is 253–269 ms in 70
+stops (deploy/README fix 2). The close's code cannot be read from a page (same place). **Branch:**
+`claude/wip-270-SERVERSTOP`.
 
 #### 271 RESTARTPIN
 
@@ -607,6 +609,12 @@ transport file is the source and the page is not asked (a worker cannot call bac
 shown on the image: the viewer check with `?fill=0`, `compose restart server` between two steps, the second step
 exact. **Deliverable:** the proposal in `docs/ARCHITECTURE.md` §The downloader. **Branch:**
 `claude/wip-271-RESTARTPIN`.
+*Written 2026-10-16:* the proposal in [`ARCHITECTURE.md`](ARCHITECTURE.md) §The downloader. *Built 2026-10-17, on
+the owner's yes, ahead of 270:* §The downloader, *An open page follows a server restart*. The viewer check across
+`compose restart server` on the image **fails by name before** ("frame 1 unavailable: the session was lost and could
+not be re-dialled") and **passes after** (`received 2, exact 2`, no error), one run each; the new rig clause passes
+7/7 over each client and fails 0/7 with the read skipped; `anEmptyHashDialsUnpinned` fails on either client whose
+session keeps its first hash.
 
 #### 272 WSLIVENESS
 

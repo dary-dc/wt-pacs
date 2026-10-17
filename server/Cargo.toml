@@ -19,6 +19,8 @@ telemetry = []
 lab-frame-cache = []
 # Lab only: `fit` takes a fresh zeroed buffer instead of growing one. docs/adr/disk-access.md §13.
 lab-fit-zeroed = []
+# Lab only: the tile ring set up without COOP_TASKRUN, arm C1 of row 261 -- docs/adr/disk-access.md §9.
+lab-ring-no-coop = ["uring"]
 # io_uring for a tile miss. Optional so a build without it still compiles, to the
 # pool path -- see docs/adr/disk-access.md.
 uring = ["dep:io-uring"]
