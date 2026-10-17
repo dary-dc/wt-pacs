@@ -25,6 +25,8 @@ use wtransport::endpoint::endpoint_side;
 use wtransport::stream::RecvStream;
 use wtransport::{Endpoint, Identity, ServerConfig, VarInt};
 
+#[cfg(feature = "lab-levers")]
+use crate::transport::lab_levers::{self, LabLevers};
 #[cfg(feature = "telemetry")]
 use crate::record::tap::Tap;
 #[cfg(feature = "telemetry")]
@@ -49,18 +51,9 @@ pub struct ServeConfig {
     pub bind: Option<IpAddr>,
     #[command(flatten)]
     pub tuning: TransportTuning,
-    /// Lab only: serve every frame as a miss, for measuring a series nobody has read. docs/adr/disk-access.md
-    #[arg(long, default_value_t = false)]
-    pub force_pool_reads: bool,
     /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--opening-ask false` turns it off. docs/ARCHITECTURE.md
     #[arg(long, default_value_t = true, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set)]
     pub opening_ask: bool,
-    /// Lab only: take each CONNECT and never answer it. docs/ARCHITECTURE.md §A dial that never settles
-    #[arg(long, default_value_t = false)]
-    pub hold_sessions: bool,
-    /// Lab only: each session sends this many media bytes, then nothing, with no FIN. docs/ARCHITECTURE.md
-    #[arg(long, value_name = "BYTES")]
-    pub stall_after_bytes: Option<u64>,
     /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
     /// docs/transport/link-conditions.md §ASKAHEAD
     #[arg(long, default_value_t = false)]
@@ -68,6 +61,9 @@ pub struct ServeConfig {
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/WIRE.md §The WebSocket mapping
     #[arg(long, default_value_t = false)]
     pub websocket: bool,
+    #[cfg(feature = "lab-levers")]
+    #[command(flatten)]
+    pub lab: LabLevers,
 }
 
 /// `H3_NO_ERROR`, HTTP/3's code for a graceful close.
@@ -75,6 +71,8 @@ const STOPPING: VarInt = VarInt::from_u32(0x100);
 
 /// Serves until `stop`, then closes every session with `STOPPING` and waits up to 250 ms for them. deploy/README.md
 pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> Result<()> {
+    #[cfg(feature = "lab-levers")]
+    let config = lab_levers::apply(config);
     let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
         .await
         .with_context(|| format!("load TLS identity from {}", config.cert_pem.display()))?;
@@ -87,11 +85,9 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
         None
     };
 
-    let mut store = FrameStore::open(&config.series_path).context("open series")?;
-    if config.force_pool_reads {
-        warn!("--force-pool-reads: every read reports a miss; this is a lab flag, not a deployment one");
-        store.force_pool_reads();
-    }
+    let store = FrameStore::open(&config.series_path).context("open series")?;
+    #[cfg(feature = "lab-levers")]
+    let store = config.lab.forcing_misses(store);
     let store = Arc::new(store);
 
     #[cfg(feature = "telemetry")]
@@ -106,7 +102,8 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
     if let Some((listener, tls)) = websocket {
         tokio::spawn(websocket::serve(listener, tls, sessions.clone()));
     }
-    let hold = config.hold_sessions;
+    #[cfg(feature = "lab-levers")]
+    let hold = config.lab.hold_sessions;
     let mut stop = std::pin::pin!(stop);
     loop {
         let incoming = tokio::select! {
@@ -115,8 +112,9 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
         };
         let sessions = sessions.clone();
         tokio::spawn(async move {
+            #[cfg(feature = "lab-levers")]
             if hold {
-                return hold_session(incoming).await;
+                return lab_levers::hold_session(incoming).await;
             }
             if let Err(err) = handle_incoming(incoming, sessions).await {
                 warn!(err = %format_args!("{err:#}"), "session ended");
@@ -144,9 +142,6 @@ pub(super) struct Sessions {
 impl Sessions {
     /// Warns for each lab lever that is on, so a lab flag is never mistaken for a deployment.
     fn new(config: &ServeConfig, store: Arc<FrameStore>) -> Self {
-        if let Some(bytes) = config.stall_after_bytes {
-            warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
-        }
         let cwnd_ahead = config.send_window_follows_cwnd.then(|| {
             let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
             2 * u64::from(largest)
@@ -164,7 +159,10 @@ impl Sessions {
             read_mode,
             mode: config.mode,
             opening_ask: config.opening_ask,
-            stall: config.stall_after_bytes,
+            #[cfg(feature = "lab-levers")]
+            stall: config.lab.stall_after_bytes,
+            #[cfg(not(feature = "lab-levers"))]
+            stall: None,
             cwnd_ahead,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(Tap::for_session),
@@ -248,12 +246,6 @@ fn build_endpoint(
         }
     }
     unreachable!("the last bind returns its own error")
-}
-
-async fn hold_session(incoming: wtransport::endpoint::IncomingSession) {
-    if let Ok(_unanswered) = incoming.await {
-        std::future::pending::<()>().await;
-    }
 }
 
 async fn handle_incoming(
@@ -467,12 +459,11 @@ mod tests {
                 mode: StreamMode::Shared,
                 bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
                 tuning: TransportTuning::default(),
-                force_pool_reads: false,
                 opening_ask: false,
-                hold_sessions: false,
-                stall_after_bytes: None,
                 send_window_follows_cwnd: false,
                 websocket: false,
+                #[cfg(feature = "lab-levers")]
+                lab: LabLevers::default(),
             }
         }
     }
@@ -1338,10 +1329,12 @@ mod tests {
     /// With `hold_sessions` the client's dial neither completes nor fails: the handshake is done,
     /// the CONNECT is taken, and nothing answers it — the dial a client needs its own deadline
     /// for. `docs/ARCHITECTURE.md` §A dial that never settles.
+    #[cfg(feature = "lab-levers")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_held_dial_neither_connects_nor_fails() {
         let fx = Fixture::new(1);
-        let server = tokio::spawn(run_server(ServeConfig { hold_sessions: true, ..fx.config() }));
+        let lab = LabLevers { hold_sessions: true, ..LabLevers::default() };
+        let server = tokio::spawn(run_server(ServeConfig { lab, ..fx.config() }));
         let endpoint = client(pinned(fx.cert_hash));
         let url = format!("https://127.0.0.1:{}/", fx.port);
         // A dial that errors is a server not listening yet; one that hangs is the hold.
@@ -1363,15 +1356,14 @@ mod tests {
     /// With `stall_after_bytes` a session's media stream carries exactly that many bytes — the
     /// last frame cut inside its envelope — and then nothing, not even a FIN: WebKit bug 319818's
     /// stall. `docs/ARCHITECTURE.md` §Recycling before the stall.
+    #[cfg(feature = "lab-levers")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_stalled_session_sends_its_budget_and_then_nothing() {
         let frames = 4u32;
         let fx = Fixture::new(frames);
         let budget = (8 + pattern(0).len() + 8 + pattern(1).len() / 2) as u64;
-        let server = tokio::spawn(run_server(ServeConfig {
-            stall_after_bytes: Some(budget),
-            ..fx.config()
-        }));
+        let lab = LabLevers { stall_after_bytes: Some(budget), ..LabLevers::default() };
+        let server = tokio::spawn(run_server(ServeConfig { lab, ..fx.config() }));
         let connection = dial(fx.port, fx.cert_hash, "").await;
         let (mut send, _recv) =
             connection.open_bi().await.expect("open control").await.expect("control");

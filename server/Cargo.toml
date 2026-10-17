@@ -14,13 +14,14 @@ path = "src/main.rs"
 
 [features]
 default = ["uring"]
-telemetry = []
+# Lab only: per-frame rows, path samples and the controller trace, from lab/server-telemetry. docs/adr/telemetry-server-pipeline.md.
+telemetry = ["dep:server-telemetry"]
 # Lab only: a process-wide frame cache in front of both readers. docs/adr/disk-access.md §13.
 lab-frame-cache = []
-# Lab only: `fit` takes a fresh zeroed buffer instead of growing one. docs/adr/disk-access.md §13.
-lab-fit-zeroed = []
-# Lab only: the tile ring set up without COOP_TASKRUN, arm C1 of row 261 -- docs/adr/disk-access.md §9.
-lab-ring-no-coop = ["uring"]
+# Lab only: `--force-pool-reads`, `--hold-sessions`, `--stall-after-bytes`, `--segmentation-offload`. server/README.md.
+lab-levers = []
+# Lab only: `--congestion cubic-classify`, from lab/cc-classify. lab/cc-classify/README.md.
+lab-classify = ["dep:cc-classify"]
 # io_uring for a tile miss. Optional so a build without it still compiles, to the
 # pool path -- see docs/adr/disk-access.md.
 uring = ["dep:io-uring"]
@@ -52,6 +53,8 @@ socket2 = "0.6"
 # `RttEstimator` reaches the congestion controller but quinn 0.11.11 does not re-export it;
 # the version is the one quinn itself resolves, so the types are the same.
 quinn-proto = { version = "0.11", default-features = false }
+cc-classify = { path = "../lab/cc-classify", optional = true }
+server-telemetry = { path = "../lab/server-telemetry", optional = true }
 
 [dev-dependencies]
 # The keep-alive getters a test reads back.

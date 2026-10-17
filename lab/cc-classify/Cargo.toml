@@ -1,0 +1,8 @@
+[package]
+name = "cc-classify"
+version = "0.1.0"
+edition = "2021"
+description = "Lab only: a controller wrapper that skips the cut on a loss that met no queue. series-server's lab-classify feature"
+
+[dependencies]
+quinn-proto = { version = "0.11", default-features = false }

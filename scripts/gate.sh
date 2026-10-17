@@ -78,8 +78,10 @@ run 1 bash deploy/seccomp-uring.sh --check
 
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
-run 1 node client/record/test/run.mjs
 run 1 node client/transport/ts/test/run.mjs
+run 1 bash lab/client-telemetry/build.sh
+run 1 node lab/client-telemetry/test/run.mjs
+run 1 node lab/client-telemetry/test/session.mjs
 run 1 node client/decode/htj2k.test.mjs
 run 1 node client/decode/wasm-glue.test.mjs
 run 1 node client/decode/xxh3.test.mjs
@@ -110,8 +112,8 @@ if [[ $browser -eq 1 ]]; then
   fi
 fi
 
-step "client: type-check (product, shared record and its tests, contract and transport-ts tests)"
-run 1 bash -c "cd client/transport/ts && npx tsc -p tsconfig.check.json && npx tsc -p ../../record/tsconfig.json && npx tsc -p ../../record/test/tsconfig.json && npx tsc -p ../../contract/tsconfig.json && echo typed"
+step "client: type-check (product, the lab's recorder and its tests, contract and transport-ts tests)"
+run 1 bash -c "cd client/transport/ts && npx tsc -p tsconfig.check.json && npx tsc -p ../../../lab/client-telemetry/tsconfig.json && npx tsc -p ../../../lab/client-telemetry/test/tsconfig.json && npx tsc -p ../../contract/tsconfig.json && echo typed"
 
 step "ingest: the split and its merge, every depth, sign and k"
 if [[ $numpy -eq 1 ]]; then
@@ -171,8 +173,8 @@ run 1 cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p che
 step "tools: pack-series packs the smoke bundle again to the same bytes"
 run 1 bash -c 'd="$(mktemp -d)" && trap "rm -rf $d" EXIT && cargo run --quiet -p pack-series -- --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames --output "$d/x.sbnd" >/dev/null && cmp "$d/x.sbnd" fixtures/us_cine_smoke/us_cine_smoke.sbnd && echo "same bytes"'
-step "lab: the four lab crates' tests (their variants are part of the API)"
-run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench --quiet
+step "lab: the six lab crates' tests (their variants are part of the API)"
+run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry --quiet
 step "lab: the Go and h3 clients compile"
 if command -v go >/dev/null; then
   run 1 bash -c "(cd lab/other-clients/go && go build -o /dev/null .) && (cd lab/page-open/h3-host && go build -o /dev/null .)"
@@ -180,8 +182,10 @@ else
   skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
 fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
-step "lab: the frame cache and the zeroed fit compile"
-run 1 cargo check -p series-server --features lab-frame-cache,lab-fit-zeroed --all-targets --quiet
+step "lab: the server's lab features — the frame cache compiles, cubic-classify's and the lab levers' wiring holds"
+run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
+run 1 cargo test -p series-server --features lab-classify --quiet -- classify
+run 1 cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever
 
 step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
 if command -v strace >/dev/null; then
@@ -207,7 +211,7 @@ fi
 if [[ $quick -eq 0 ]]; then
   step "client: absence check (default bundle carries no telemetry)"
   run 1 bash client/scripts/check_telemetry_absent.sh
-  step "server: absence check (default release binary carries no Tap)"
+  step "server: absence check (default release binary carries no Tap and no lab controller)"
   run 1 bash server/scripts/check_telemetry_absent.sh
 else
   skip "the two absence checks (--quick)"

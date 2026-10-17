@@ -7,7 +7,7 @@
 //! 2. `report` — what does the drain cost in memory and shutdown time, per drain
 //!    shape, as rows grow?
 //!
-//! Seams mirror `server/src/record/tap.rs` (`global-lock`) and the proposed per-session
+//! Seams mirror `lab/server-telemetry/src/tap.rs` (`global-lock`) and the proposed per-session
 //! designs (`own-sender`, `own-batch`). Drain shapes mirror today's in-memory report
 //! (`current`) and the proposed streaming design (`streaming`). Rows share one fixed
 //! layout so the variants differ only in the thing being measured.
@@ -100,7 +100,7 @@ enum Shape {
     Streaming,
 }
 
-/// The width and field mix of the v2 `FrameRecord` this bench measured; v3 is `server/src/record/tap.rs`.
+/// The width and field mix of the v2 `FrameRecord` this bench measured; v3 is `lab/server-telemetry/src/tap.rs`.
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 struct Row {
@@ -558,7 +558,7 @@ struct Dist {
     p99: f64,
 }
 
-/// Nearest-rank, identical to `server/src/record/tap.rs`.
+/// Nearest-rank, identical to `lab/server-telemetry/src/tap.rs`.
 fn percentile(sorted: &[u32], p: f64) -> f64 {
     if sorted.is_empty() {
         return 0.0;

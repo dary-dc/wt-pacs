@@ -7,7 +7,8 @@ docs/adr/disk-access.md §9, *261 RINGCOOP*, has the arms, the cells and the rul
     ring_coop_ab.py time    WORK ROUNDS    one JSON line a run into WORK/ring_coop.jsonl
     ring_coop_ab.py summary JSONL
 
-WORK/bin/c0 is the default release build of series-server, WORK/bin/c1 the same with `--features lab-ring-no-coop`;
+WORK/bin/c0 is the default release build of series-server, WORK/bin/c1 the source with arms/ring-no-coop.patch
+applied, built with `--features lab-ring-no-coop`;
 WORK/bin/server_ab and WORK/bin/pack-series are copies of this tree's, so a shared target dir cannot swap them mid-run.
 CPU per ask is the server's CPU over the whole cell, fills included, over every frame it served.
 Environment: STRIDE (bytes between tile asks, past `read_ahead_kb` on the day), FILL_GAP_US (each fill's pause a
@@ -47,7 +48,7 @@ MIN_MISS, BUSY_CAP = 0.95, 0.80
 SETTINGS = {
     "C0": "series-server default release build: the tile ring with COOP_TASKRUN, as it ships",
     "C0p": "C0's binary, a second process (A/A)",
-    "C1": "C0's source with --features lab-ring-no-coop: the tile ring with no setup flag; the server prints ring_coop=off",
+    "C1": "C0's source with arms/ring-no-coop.patch and --features lab-ring-no-coop: the tile ring with no setup flag; the server prints ring_coop=off",
 }
 
 

@@ -4,7 +4,7 @@ variant, with variants.json (the total-time harness) and manifest.json (the deco
 
 Variants are named by k: d12 is k = max(0, b − 12), w10 k = max(0, b − 10), and k = 2 and k = 3, each run once
 however many names it has and only where its top fits a 12-bit stream. Payloads are written by
-ingest/coded-frames/ingest.py --split K, which writes nothing unless native dav1d decodes every one back to its
+lab/av1/tools/ingest_coded.py --split K, which writes nothing unless native dav1d decodes every one back to its
 source; `--reuse DIR` takes ingest's output from lab/av1/exact/split's run (DIR/SET/kK.PRESET) where it exists.
 
 usage: make_frames.py BUILD OUT SETDIR ... [--preset cpu0|good:N|allintra:N] [--reuse DIR] [--jobs 4] [--k 2]
@@ -46,7 +46,7 @@ def payloads(build, src, out, k, preset, reuse):
         return have
     dst = out / ".payloads" / src.name / tag
     if not (dst / "metadata.json").exists():
-        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, dst, "--split", str(k),
+        subprocess.run([sys.executable, HERE.parents[3] / "lab/av1/tools/ingest_coded.py", build, src, dst, "--split", str(k),
                         "--preset", preset, "--jobs", "1"], check=True, capture_output=True)
     return dst
 

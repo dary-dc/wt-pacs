@@ -37,7 +37,7 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 143" TERM INT
 
-cargo build -q --release -p series-server
+cargo build -q --release -p series-server --features lab-levers
 cargo build -q -p pack-series
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \

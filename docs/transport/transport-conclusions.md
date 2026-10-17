@@ -176,7 +176,7 @@ behind every BBR win below may describe an edge rather than the median. Wi-Fi wa
 
 **The server's half of the question is already logged.** Once per session, from quinn's counters:
 `session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…`
-(`server/src/record/path.rs`). `lost` against `congestion_events` and the round trip is the
+(`lab/server-telemetry/src/path.rs`). `lost` against `congestion_events` and the round trip is the
 server-side reading; the client half — the round-trip trend in the second before each loss — is
 not built.
 
@@ -1105,7 +1105,7 @@ patch. And it says which five device measurements decide it.
 
 *Queue row CCMEASURE, run by a session given only the protocol and rule above;*
 [`lab/cc-classify`](../../lab/cc-classify/README.md) *has the commands, the rows and the checks.*
-`--congestion cubic-classify` (`server/src/transport/classify.rs`, lab only) wraps `cubic-restart` and skips the cut
+`--congestion cubic-classify` (lab only: `lab/cc-classify/src/lib.rs` since row 264, in a server built with `--features lab-classify`) wraps `cubic-restart` and skips the cut
 when the last acknowledged packet's round trip was under min RTT + max(4 ms, min RTT/8); CE marks and persistent
 congestion always cut. Both Cubic arms start at 12 000 B and differ in nothing else; `bbr` rides along at its 240 000 B.
 Ten rounds, 03:35–07:09 UTC, each running three rigs in an order that rotates by round, each Williams-ordered inside:
@@ -2516,7 +2516,7 @@ loss at 0.1–8 % and 10–200 ms. On a real Starlink link it took a lossy 50 kB
 430 of 20 150 uploads lossy. It needs a receiver that decodes, which no browser has.
 
 **Switched on only where loss is seen.** The session's `lost_packets` and `sent` are already read once a session
-(`server/src/record/path.rs`). A per-connection flag, raised once the running loss exceeds 0.5 % over the last
+(`lab/server-telemetry/src/path.rs`). A per-connection flag, raised once the running loss exceeds 0.5 % over the last
 1 000 packets, would keep the copy off clean sessions. That is zero cost there, and the first loss takes ~1/*p*
 packets to show, one or two frames. This meets the owner's third criterion (costs little elsewhere). It does not meet
 the first or the second.

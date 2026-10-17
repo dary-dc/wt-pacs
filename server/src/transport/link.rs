@@ -20,7 +20,7 @@ pub(crate) enum Link {
         media: Media,
         control: ControlStream,
         connection: Connection,
-        /// Lab only: envelope bytes left before the session stalls. `--stall-after-bytes`.
+        /// Lab only: envelope bytes left before the session stalls. `--stall-after-bytes`, under `lab-levers`.
         stall_left: Option<u64>,
         /// Lab only: the send window is set to cwnd + this before each frame. `--send-window-follows-cwnd`.
         cwnd_ahead: Option<u64>,
