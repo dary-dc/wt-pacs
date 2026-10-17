@@ -152,10 +152,10 @@ removed it), and that commit's subject as the reason.
 | `server/src/main.rs` | same path | changed by the branch, 14 hunks |
 | `server/src/media/frame_store.rs` | same path | changed by the branch, 9 hunks |
 | `server/src/media/read_path.rs` | same path | changed by the branch, 18 hunks |
-| `server/src/record/report.rs` | same path | changed by the branch, 1 hunk |
-| `server/src/record/rows.rs` | same path | as `main` has it |
-| `server/src/record/sink.rs` | same path | changed by the branch, 1 hunk |
-| `server/src/record/tap.rs` | same path | changed by the branch, 2 hunks |
+| `c7230a9:server/src/record/report.rs` | same path | changed by the branch, 1 hunk |
+| `c7230a9:server/src/record/rows.rs` | same path | as `main` has it |
+| `c7230a9:server/src/record/sink.rs` | same path | changed by the branch, 1 hunk |
+| `c7230a9:server/src/record/tap.rs` | same path | changed by the branch, 2 hunks |
 | `c7230a9:server/src/transport/frame_out.rs` | — | deleted, as `main` has it |
 | `server/src/transport/link.rs` | same path | changed by the branch, 5 hunks |
 | `server/src/transport/mod.rs` | same path | changed by the branch, 2 hunks |

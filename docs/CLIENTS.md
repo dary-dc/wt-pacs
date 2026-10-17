@@ -12,7 +12,7 @@ is [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | `client/contract/` | the suite, §The contract suite |
 | `client/transport/` | beside the transports, the page side (`consumer.js`) and the download worker (`downloader.js`): [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | `client/decode/` | the decode worker, its codec modules and the decoders' WASM builds: [`decode/README.md`](decode/README.md) |
-| `client/paint/`, `client/record/`, `client/scripts/` | the painter, the telemetry recorder (Tap), the worker-safe and absence checks: [`../client/README.md`](../client/README.md) |
+| `client/paint/`, `client/scripts/` | the painter, the worker-safe and absence checks: [`../client/README.md`](../client/README.md) |
 
 ## The seam
 

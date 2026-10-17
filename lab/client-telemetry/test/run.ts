@@ -1,7 +1,7 @@
 /**
- * Unit tests for client/record/ — run with:
- *   bash client/transport/ts/build.sh && node client/record/test/run.mjs
- * or: node --experimental-strip-types client/record/test/run.ts
+ * Unit tests for lab/client-telemetry/ — run with:
+ *   bash lab/client-telemetry/build.sh && node lab/client-telemetry/test/run.mjs
+ * or: node --experimental-strip-types lab/client-telemetry/test/run.ts
  */
 
 import { StreamAttributor } from "../attribution.ts";

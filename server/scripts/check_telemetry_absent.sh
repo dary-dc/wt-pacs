@@ -20,9 +20,9 @@ if [[ ! -f "$BIN" ]]; then
   exit 1
 fi
 
-if grep -qE 'series_server::record::(tap|sink|report|rows|path)|series_server::transport::cc_trace|Tap::for_session|LiveSummary|flush_on_exit' <(nm -C "$BIN"); then
+if grep -qE 'server_telemetry::|Tap::for_session|LiveSummary|flush_on_exit' <(nm -C "$BIN"); then
   echo "FAIL: telemetry symbols found in default build" >&2
-  nm -C "$BIN" | grep -E 'record::(tap|sink|report|rows|path)|transport::cc_trace|Tap::|LiveSummary|flush_on_exit' || true
+  nm -C "$BIN" | grep -E 'server_telemetry::|Tap::|LiveSummary|flush_on_exit' || true
   exit 1
 fi
 

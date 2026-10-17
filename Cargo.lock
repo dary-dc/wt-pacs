@@ -1463,6 +1463,7 @@ dependencies = [
  "serde",
  "serde_json",
  "series-bundle",
+ "server-telemetry",
  "sha2 0.10.9",
  "socket2",
  "time",
@@ -1471,6 +1472,19 @@ dependencies = [
  "tokio-tungstenite",
  "tracing",
  "tracing-subscriber",
+ "wtransport",
+]
+
+[[package]]
+name = "server-telemetry"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "quinn-proto",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
  "wtransport",
 ]
 

@@ -1,6 +1,4 @@
 mod banner;
-#[cfg(feature = "telemetry")]
-pub(crate) mod cc_trace;
 pub(crate) mod link;
 pub(crate) mod loss_bound;
 pub(crate) mod restart;

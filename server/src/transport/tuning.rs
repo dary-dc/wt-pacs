@@ -124,7 +124,7 @@ impl TransportTuning {
 
         let factory = self.congestion.factory(self.initial_window);
         #[cfg(feature = "telemetry")]
-        let factory = crate::transport::cc_trace::traced(factory);
+        let factory = crate::record::cc_trace::traced(factory);
         tc.congestion_controller_factory(factory);
         Ok(tc)
     }

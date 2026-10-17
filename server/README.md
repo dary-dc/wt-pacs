@@ -131,7 +131,7 @@ task ever waits on the disk; queue row 258 (EXECGAP) is drafted to time both.
 | `WsWriter` | `server/src/transport/websocket.rs` | the socket's sink | the same, over TCP |
 | `SlowStartRestart` | `server/src/transport/restart.rs` | a Cubic controller | after a silence, slow start again instead of halving |
 | `LossBound` | `server/src/transport/loss_bound.rs` | a BBR controller | `--congestion bbr-bound`: BBR under BBRv3's loss bound, opt-in |
-| `Traced` | `server/src/transport/cc_trace.rs` | any controller | lab only: its metrics and congestion events to `$WTPACS_CC_TRACE` and `$WTPACS_LOSS_TRACE` |
+| `Traced` | `lab/server-telemetry/src/cc_trace.rs` | any controller | lab only: its metrics and congestion events to `$WTPACS_CC_TRACE` and `$WTPACS_LOSS_TRACE` |
 | `TransportTuning` | `server/src/transport/tuning.rs` | QUIC knobs | flags → quinn's transport config |
 
 `server/src/transport/wire.rs` reads and writes the length-prefixed FoD messages on QUIC streams, and
@@ -145,8 +145,8 @@ Off in a deployment, and documented where they are measured: `--force-pool-reads
 `--reply-repeated-initial`, `--segmentation-offload false` (netem drops datagrams, not GSO batches), and the
 `lab-frame-cache` feature (`LAB_FRAME_CACHE_BYTES`). `--congestion cubic-classify` is not in a default build at all:
 its controller is the lab's crate [`lab/cc-classify`](../lab/cc-classify/README.md), which the `lab-classify` feature
-compiles in, and the server holds only the flag's wiring. The `telemetry` feature compiles in `server/src/record/`,
-`RecordedPipeline` and the controller traces (`transport/cc_trace.rs`, `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`);
+compiles in, and the server holds only the flag's wiring. The `telemetry` feature compiles in the lab's crate `lab/server-telemetry` (the Tap and its report, path sampling,
+the controller traces `WTPACS_CC_TRACE` and `WTPACS_LOSS_TRACE`), and the server holds `RecordedPipeline` and the tap's call sites;
 the default build carries none of it, and `scripts/gate.sh` checks that by symbol and literal. One switch is for a
 deployment, not the lab:
 `WTPACS_READ_PATH=pool` takes the tile reader off its ring
