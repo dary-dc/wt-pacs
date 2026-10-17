@@ -93,14 +93,7 @@ merged as #72 ([`adr/disk-access.md`](../adr/disk-access.md) §9 *Next round for
 * **First step:** none until a deploy host is known to enforce SELinux; then try a policy module granting only
   `io_uring { allowed }` before `label=disable`.
 
-### 10. Lab-only code out of product directories
-
-* **What:** items O2–O8 in `merge-readiness.md` §Lab-only code (telemetry, `--hold-sessions`,
-  `--stall-after-bytes`, `--force-pool-reads`, `--segmentation-offload`, `cellcheck`, `ingest.py`'s `main()`).
-  [#79](https://github.com/dary-dc/wt-pacs/pull/79) moves O1, `cubic-classify`.
-* **First step:** take #79's pattern to O3–O6, the smallest; the telemetry (O2) is structural and needs a proposal.
-
-### 11. Video containers
+### 10. Video containers
 
 * **What:** the theory in [#42](https://github.com/dary-dc/wt-pacs/pull/42), into `main`, not from the review project.
 * **First step:** read it against [`av1/`](../av1/README.md) and decide whether it is still a question.
@@ -109,3 +102,6 @@ merged as #72 ([`adr/disk-access.md`](../adr/disk-access.md) §9 *Next round for
 
 #104 review 8: comments that name project history (`read_path.rs:85`, `server/Cargo.toml:22`,
 `lab_frame_cache.rs:3`), which `CLAUDE.md` forbids. A cleanup before unified goes to `main`.
+
+Lab-only code out of product directories: items O2–O8 in `merge-readiness.md` §Lab-only code, after
+[#79](https://github.com/dary-dc/wt-pacs/pull/79)'s move of O1. Under way in the review project.
