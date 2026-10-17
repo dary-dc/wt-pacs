@@ -2,6 +2,8 @@
 import type { Check } from "./clauses.ts";
 
 export const CERT = "ab".repeat(32);
+/** The certificate a restarted server pins in CERT's place. */
+export const RESTARTED = "cd".repeat(32);
 
 export const settle = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 

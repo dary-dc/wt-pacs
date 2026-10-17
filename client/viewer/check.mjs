@@ -4,6 +4,7 @@
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
 //     [--engine chromium|firefox] [--cine] [--fill 0]
 //   ... --url http://host/ --decoder htj2k   (a host already running, such as the deploy image; no request log, so no code check)
+//   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
 import { execFileSync, spawn } from "node:child_process";
 import { createSocket } from "node:dgram";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -137,8 +138,40 @@ const summary = (name, r) => `${name}: ${r.received}/${r.n} received, ${r.exact}
   `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
   `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}`;
 
+/** A page open on demand across a server restart: its step after the restart must arrive exact. docs/ARCHITECTURE.md §An open page follows a server restart */
+async function acrossARestart(url, cmd) {
+  const { chromium } = createRequire(import.meta.url)("playwright");
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+  const tab = await browser.newPage();
+  tab.on("pageerror", (e) => fail(`page error: ${e.message}`));
+  const line = () => tab.textContent("#status");
+  const reads = (text, ms) => tab.waitForFunction((t) => document.getElementById("status").textContent.includes(t), text, { timeout: ms })
+    .then(() => true, () => false);
+  try {
+    await tab.goto(`${url}?fill=0`);
+    if (!(await reads("received 1, exact 1", 60_000))) return fail(`before the restart: ${await line()}`);
+    const restart = spawn("sh", ["-c", cmd], { stdio: ["ignore", "pipe", "inherit"], detached: true });
+    const up = await started(restart, /transport=/).then(() => true, (e) => fail(`the restart: ${e.message}`));
+    try {
+      process.kill(-restart.pid, "SIGKILL");
+    } catch {
+      /* it ended on its own */
+    }
+    if (!up) return;
+    await tab.keyboard.press("ArrowRight");
+    const stepped = await reads("received 2, exact 2", 20_000);
+    const after = await line();
+    console.log(`after the restart: ${after}`);
+    if (!stepped || after.includes("error:")) fail(`the step after the restart: ${after}`);
+  } finally {
+    await browser.close();
+  }
+}
+
 const runs = [];
-if (arg("--url")) {
+if (arg("--restart")) {
+  await acrossARestart(arg("--url"), arg("--restart"));
+} else if (arg("--url")) {
   const r = await open(arg("--url"));
   judge("hosted", r, null, null, arg("--decoder"));
   runs.push(["hosted", r]);

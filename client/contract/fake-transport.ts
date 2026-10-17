@@ -25,6 +25,12 @@ export function frameBytes(index: number, codestream: Uint8Array): Uint8Array<Ar
   return out;
 }
 
+/** The hex of the one hash a dial pins, `""` when it pins none. */
+export function pinnedHash(options: unknown): string {
+  const value = (options as { serverCertificateHashes?: { value: Uint8Array }[] })?.serverCertificateHashes?.[0]?.value;
+  return value ? [...value].map((b) => b.toString(16).padStart(2, "0")).join("") : "";
+}
+
 export class FakeTransport {
   static last: FakeTransport;
   /** How many transports have been constructed: a dial the client did not need shows up here. */
@@ -35,6 +41,8 @@ export class FakeTransport {
   static hangNext = 0;
   /** ms before the next dials are ready: a slower path, for racing it against the other. */
   static openAfterMs = 0;
+  /** Set, a dial pinning another hash is refused, as a browser's handshake refuses a certificate it was not given. */
+  static pin = "";
   /** Every transport dialled, oldest first: a replaced one still open is a session left sending. */
   static all: FakeTransport[] = [];
   readonly ready: Promise<void>;
@@ -51,8 +59,9 @@ export class FakeTransport {
     readonly url: string,
     readonly options: unknown,
   ) {
-    const refuse = FakeTransport.failNext > 0;
-    if (refuse) FakeTransport.failNext -= 1;
+    const failed = FakeTransport.failNext > 0;
+    if (failed) FakeTransport.failNext -= 1;
+    const refuse = failed || (FakeTransport.pin !== "" && pinnedHash(options) !== FakeTransport.pin);
     const hang = !refuse && FakeTransport.hangNext > 0;
     if (hang) FakeTransport.hangNext -= 1;
     // As Chrome does, `close()` on a dial still connecting rejects its `ready` at once.
