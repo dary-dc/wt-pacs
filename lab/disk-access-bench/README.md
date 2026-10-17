@@ -35,7 +35,7 @@ XXH3-64; `LAB_FRAME_CACHE_MUTATE=stale` must fail it wherever the cache holds an
 ```bash
 P=lab/av1/.venv/bin/python
 OUT=W/data lab/av1/fetch_data.sh pt15_cptac ct_lidc dbt12_ea1141
-for s in pt15_cptac ct_lidc dbt12_ea1141; do $P ingest/coded-frames/ingest.py lab/.av1-build W/data/$s W/coded/$s/htj2k --codec htj2k; done
+for s in pt15_cptac ct_lidc dbt12_ea1141; do $P lab/av1/tools/ingest_coded.py lab/.av1-build W/data/$s W/coded/$s/htj2k --codec htj2k; done
 cargo build --release -p series-server --features lab-frame-cache,lab-fit-zeroed && cp target/release/series-server W/bin/b1z
 cargo build --release -p series-server --features lab-frame-cache && cp target/release/series-server W/bin/b1
 cargo build --release -p series-server -p disk-access-bench -p pack-series && cp target/release/series-server W/bin/b0

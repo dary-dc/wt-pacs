@@ -9,7 +9,7 @@ cargo build -p series-server -p pack-series -p window-harness --features series-
 lab/av1/tools/tools.sh && client/decode/wasm/fetch_openjph.sh && client/transport/ts/build.sh
 lab/av1/fetch_data.sh dbt10_ea1141
 W=lab/.av1-work/ccmeasure/dbt10_ea1141
-lab/av1/.venv/bin/python ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/htj2k --codec htj2k --frames 8
+lab/av1/.venv/bin/python lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/htj2k --codec htj2k --frames 8
 # link $W/NNN.htj2k to htj2k/NNN.htj2k; variants.json names cubic-restart, cubic-classify and bbr, each {"codec": "htj2k", "congestion": …}
 lab/cc-classify/run.sh lab/.av1-work/ccmeasure/raw 0 9
 python3 lab/cc-classify/summary.py lab/.av1-work/ccmeasure/raw/grid.jsonl lab/.av1-work/ccmeasure/raw/neighbour.tsv

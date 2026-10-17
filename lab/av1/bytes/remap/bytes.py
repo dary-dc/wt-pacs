@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-INGEST = HERE.parents[3] / "ingest/coded-frames/ingest.py"
+INGEST = HERE.parents[3] / "lab/av1/tools/ingest_coded.py"
 # The split-rule sweep's shipped preset for k = 2 (k = 6 on the 16-bit mammogram): every AV1 variant of a series at it.
 PRESETS = {"dbtproj": "allintra:7", "ct": "good:6", "xa": "good:6", "mg16": "allintra:6"}
 # k = 2, and w10 (every stream ≤ 10 bits, WebCodecs) where it differs: the split-rule sweep's variants.

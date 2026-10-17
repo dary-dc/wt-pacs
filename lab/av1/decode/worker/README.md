@@ -27,7 +27,7 @@ NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --summary --ou
 2D (`syn2d_a`, 10-bit), tomosynthesis projections (`dbtproj_ge`, 14-bit), two reconstructed volumes (`dbt12_ea1141`,
 `dbt10_ea1141`), the breast ultrasound cine in grey and RGB (`usb_cine`, `usb_cine_rgb`) — and the fluoroscopy
 (`rf_fluoro`) as the non-breast control. HTJ2K is the served profile; AV1 is the optimized payload
-(`ingest/coded-frames/ingest.py`) at libaom's `allintra` 7, every payload checked natively against the series' checksums before
+(`lab/av1/tools/ingest_coded.py`) at libaom's `allintra` 7, every payload checked natively against the series' checksums before
 it is kept. `frames/` holds each series' first 4 frames, `fill/` its first 64.
 
 **Variants.** `htj2k-T` is the shipped OpenJPH package and `payload-T` the payload's own decoder choice (WebCodecs where every

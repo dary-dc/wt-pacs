@@ -24,7 +24,7 @@ def payload(build, src, out, version, preset, frames):
     split = ["--split", str(max(0, s.stored - 12))] if s.stored > 12 else []
     dst = out / version / preset.replace(":", "") / src.name
     if not (dst / "metadata.json").exists():
-        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, dst, "--preset", preset,
+        subprocess.run([sys.executable, HERE.parents[3] / "lab/av1/tools/ingest_coded.py", build, src, dst, "--preset", preset,
                         "--frames", str(frames), "--jobs", "1", *split], check=True, capture_output=True,
                        env={**os.environ, "AOM_VERSION": version})
     n = json.loads((dst / "metadata.json").read_text())["frameCount"]

@@ -30,7 +30,7 @@ give ρ ≈ 0 and ρ = 1.
 
 ## 3 · Codings
 
-* **Representation.** The product's: `ingest/coded-frames/ingest.py --representation optimized`, i.e. the adopted per-depth split rule's k by
+* **Representation.** The product's: `ingest/coded-frames/ingest.py`'s `optimized` representation, i.e. the adopted per-depth split rule's k by
   depth (queue row SPLITRULE). Report the top and low streams apart, and their sum. Also code the plain representation (the samples
   direct) on one volume per system.
 * **libaom 3.15.1**, as `lab/av1/tools/tools.sh` pins it:
