@@ -635,3 +635,8 @@ Each item below is the owner's to decide, and is tracked here.
   defect is fixed first (§Reading a frame whole).
 * **The WASM client as a product client** — the shape (selected by configuration, no fallback) and rows 3–4 of
   §Proposed: the WASM client as a second product client; and whether row 228's dav1d half moves.
+* **Known defects, not fixed** — each found by reading the code (2026-10-16 review), not reproduced:
+  * The WASM opening fill is armed on `?ask=fill:` in the URL alone; against `--opening-ask false` nothing is asked
+    until the stall timer (`client/transport/wasm/src/session.rs:553`).
+  * TS: an `onHead` that throws ends that media stream's reads silently at the bare `catch {}`; the WASM client
+    ignores the same error (`client/transport/ts/frame-session.ts:186`, `:210`).
