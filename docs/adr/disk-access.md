@@ -742,6 +742,9 @@ What the code depends on and the types do not enforce, each pinned by a named te
 * **A tile read dropped mid-way leaves its frame readable.** A slot's pooled read stays in the slot until it lands, as a
   ring read does; before row 254 `wait` took it out first, and the next read of that frame sliced an empty buffer.
   Latent while the session loop awaits every read. `a_tile_read_dropped_mid_way_leaves_its_frame_readable`.
+* **A reader holds a buffer only while it holds a frame.** A hand-off takes the buffer rather than refilling it,
+  so a session asking nothing keeps no frame buffer (row 255: 1–29 MB a session before).
+  `a_tile_reader_holds_no_buffer_once_its_named_frames_are_served`, `a_fill_that_names_nothing_holds_no_buffer`.
 * **A fill never builds a ring.** `FillReader` has two buffers and the pool. `a_fill_never_holds_more_than_one_read_at_once`.
 * **A fill keeps `FILL_WINDOW` advised past the named frame.** Otherwise its depth on the device is one blocking read. `a_fill_tells_the_kernel_what_follows_the_named_frame`.
 * **Tile depth is `slots`, default `TILE_SLOTS`.** `naming_upcoming_tiles_starts_their_reads_before_the_current_one_finishes`.
@@ -759,7 +762,7 @@ path does not become the whole plan.
 | **Serving depth ≥ 4** — `TILE_SLOTS` = 4, fill names one ahead | **+73.8 % asks/s** on missing tiles at depth 2; 2 → 4 a further +37 % on the sandbox | **Built**; unmeasured on a throttled link (§9) |
 | `read_ahead_kb` and layout | miss rates moved by that one knob (§6 *Read-ahead*); the layout study measured **17.6×** on the same reads, against 2–4× for the read path (`git show read-path-evidence-2026-09-09:docs/disk-layout/`) | Not tuned; layout undecided |
 | Bounded frame cache | −20.2 % CPU at a 0.92 hit rate | Lab only — needs a real ask trace |
-| `MALLOC_MMAP_THRESHOLD_=1048576` in the unit | memory at rest after large-frame fills **−46 to −57 %**, CPU a tie to +5 % (§11, *Frames past 250 kB*) | Measured 2026-10-06, not taken: the owner's, if large frames ship |
+| `MALLOC_MMAP_THRESHOLD_=1048576` in the unit | memory at rest after large-frame fills **−46 to −57 %**, CPU a tie to +5 % (§11, *Frames past 250 kB*) | Measured 2026-10-06, not taken: the owner's, if large frames ship. Idle sessions: no saving once readers give their buffers back (row 255, §9) |
 | AEAD provider (`aws-lc-rs` for `ring`) | +3–5 % CPU at 32 KB, tie at 250 KB, +10–18 % RSS | **Measured 2026-09-10, not taken**; the feature was removed 2026-10-03 (`c9fce63`) |
 | Release profile: `lto = "fat"`, `codegen-units = 1` | −4 to −8 % CPU per frame, every cell | **Landed 2026-09-10**; 4× longer release rebuild |
 
@@ -782,7 +785,7 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 | 7 | **Park on the ring fd, drop the eventfd** | **Built 2026-10-16** (row 250), on the owner's decision in #1: a tie re-measured, 1 fd per missing session counted, [below](#7-built-park-on-the-rings-own-fd-rows-244-250). Was: ordered after P0; proposed as row 244 |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0. *Corrected 2026-10-16, row 251:* already in. `Cargo.lock` pins 0.7.15 since its first commit on this line (`427d3ce0`, 2026-10-03); the 2026-09 campaigns ran 0.7.14 (`b55b68db`'s lock), every row since on 0.7.15. Closed, never timed against 0.7.14 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
-| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells (§12) |
+| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells: `lab/scripts/workstation_run.sh`, built 2026-10-16 (row 262), not yet run (§12, *On the workstation, in one command*) |
 | 13 | **Short io_uring completions on a regular file** | the lab now resubmits the tail and counts them; 0 in 1 032 workstation rows. Incidence on other hosts and sizes past 250 kB is unmeasured |
 
 Numbers are kept because older records cite them; 4 is closed (§8), the missing ones closed or
@@ -817,7 +820,9 @@ The host: 4 vCPU, ext4 on a virtio disk, `read_ahead_kb` 128, so the 250 kB stri
 session at depth ≤ 4, far below where the host saturates, which was not measured; nothing is claimed at scale
 but the fd. The run used the script's own loop and verdict with both binaries built first, since its worktree
 build cannot run under a shared `CARGO_TARGET_DIR`. Its verdict keys on the label and the arm, so of the two
-variants each run prints it keeps the last, `product_tile`; `product_fill` was read apart, by `pos`.
+variants each run prints it keeps the last, `product_tile`; `product_fill` was read apart, by `pos`. *Fixed
+2026-10-16, row 257:* the script copies each binary out, rebuilds HEAD after the base under a shared target, refuses
+two identical arms, and gives each reader its own verdict.
 
 **Corrected 2026-10-16 (row 250), two claims of the proposal.** It said `seq1g` builds no ring: `product_tile`
 built one in every `seq1g` row of both arms, on 1.6–2 % misses. It ties (p50 −1.7 %, CPU −5.3 %) and stays a
@@ -840,13 +845,13 @@ first (CLAUDE.md); **M** needs a measurement first. Lines are product lines by a
 | --- | --- | --- | --- |
 | 1 | **A tile read cancelled on the pool path panics the next read of that frame.** `wait` takes the `JoinHandle` out of the slot before awaiting it (`read_path.rs:412–417`), and `escalate` has already moved the buffer into the blocking task (`:404`). Dropped there, the slot stays keyed to its frame with no read and an empty buffer; the next `read` finds it held (`:320`), waits on nothing and slices `..len` of an empty buffer (`:339`): a panic. The ring path puts its read back before awaiting (`:421`), so it is safe. Latent: `steps` awaits every `serve` to its end (`server.rs:370`); it goes live the day a `select!` races a read (row 249's one queue is a candidate) | **do** · await the handle in place, clear `read` once landed · ±1 | R · 254 |
 | 2 | **The ring's refusal WARNs once per session** (`read_path.rs:243`). Past the memlock ceiling (§6: ~940 rings at 8 MiB, ~7 500 at compose's 64 MiB) every new tile session that misses logs it, a flood at exactly the scale where it fires; the session line's `ring=false` already counts each one | **do** · once per process · +2 | R · 254 |
-| 3 | **An idle session keeps up to six frame buffers.** A tile hand-off refills its slot from the pool at once (`read_path.rs:338`), a fill hand-off likewise (`:163`), and a finished fill keeps its spare (`:156`): `slots` + 2 frame-sized buffers per session that has read, held while it asks nothing — ~1 / 3 / 29 MB a session at 164 kB / 499 kB / 4.8 MB (D), against the ~75 KB an idle session otherwise costs ([`transport-idle-sessions.md`](transport-idle-sessions.md)). `POOL_CAP` (`frame_pool.rs:356`) bounds the spares, not what readers hold. Fix: a reader holds a buffer only while it holds a frame — hand off with `mem::take`, take from the pool where a read begins, give an idle fill's spare back. The allocator may keep what is freed (§11, *Frames past 250 kB*), hence the measurement | **measure**, then land · +8 | M → R · 255 |
-| 4 | **Row 209's frame cache pays where it gives nothing back.** Its cost (+25–36 % CPU a frame) is a lone session re-asking its own frames, which its client can hold; its gain (−17–22 %, half the peak RSS) is a second session asking. Admitting on a second *session's* ask instead of a second ask (`claim_fill` is keyed by frame alone, `lab/disk-access-bench/src/frame_cache.rs:65`) should keep the gain and drop the cost (D). Row 209's suspected mechanism is checkable alongside: a buffer grown by `fit` is zero-filled by `resize` (`read_path.rs:65–69`) | **measure** on row 209's rig · lab +10; the port is a proposal | M → S · 256 |
+| 3 | **An idle session keeps up to six frame buffers.** A tile hand-off refills its slot from the pool at once (`read_path.rs:338`), a fill hand-off likewise (`:163`), and a finished fill keeps its spare (`:156`): `slots` + 2 frame-sized buffers per session that has read, held while it asks nothing — ~1 / 3 / 29 MB a session at 164 kB / 499 kB / 4.8 MB (D), against the ~75 KB an idle session otherwise costs ([`transport-idle-sessions.md`](transport-idle-sessions.md)). `POOL_CAP` (`frame_pool.rs:356`) bounds the spares, not what readers hold. Fix: a reader holds a buffer only while it holds a frame — hand off with `mem::take`, take from the pool where a read begins, give an idle fill's spare back. The allocator may keep what is freed (§11, *Frames past 250 kB*), hence the measurement | **landed** (row 255): idle RSS ×0.02–0.21, CPU a tie or lower · +3 | M → R · 255, *Idle sessions' buffers* below |
+| 4 | **Row 209's frame cache pays where it gives nothing back.** Its cost (+25–36 % CPU a frame) is a lone session re-asking its own frames, which its client can hold; its gain (−17–22 %, half the peak RSS) is a second session asking. Admitting on a second *session's* ask instead of a second ask (`claim_fill` is keyed by frame alone, `lab/disk-access-bench/src/frame_cache.rs:65`) should keep the gain and drop the cost (D). Row 209's suspected mechanism is checkable alongside: a buffer grown by `fit` is zero-filled by `resize` (`read_path.rs:65–69`). *Measured 2026-10-16 (§13, row 256): B1s matches B0's RSS on a lone session and B1's when shared, its CPU gain is inside the resolution, so row 209's trade-off stands; B1z keeps B1's lone cost, so the zero-fill is not it* | **measure** on row 209's rig · lab +10; the port is a proposal | M → S · 256 |
 | 5 | **The tile reader repeats itself.** `Slot.at` and `.len` copy its `key` (`read_path.rs:255–264`, set at `:366–368`); a `#[derive(Default)]` slot replaces the 9-line literal (`:297–306`). The unread tail is submitted at two `unsafe` sites (`:387–395`, `:437–444`): one `Slot` method that submits it *and* sets `read` establishes the invariant in one place, one `unsafe` block fewer. Two `spawn_blocking` tails (`:79–86`, `:399–408`) are one helper; hits and misses are counted twice (`:195–201`, `:332–336`). `ReadStats::miss_rate` is `#[cfg(test)]` (`:57–63`) while the session line computes its own (`pipeline.rs:144–151`), so `read_stats_report_the_session_miss_rate` pins arithmetic the product never runs: the line should call it. Names: the fill reader is `seq` (`pipeline.rs:45`, `:115`, `:121`, `:138`); `escalate` has `slots` the count beside `slots: s` the vector (`:383–384`); `if i == 0 { span } else { upcoming[i - 1] }` (`:319`) is `once(span).chain(upcoming)`. `:111–112` gives as the fill's reason for no ring "a sequential walk is read-ahead's best case", the claim §2 retracts; the reason is one read in flight under `FILL_WINDOW`. `READ_WINDOW` (`frame_store.rs:15–17`) is a test constant named for a product concept gone since 2026-09-23 | **do**, after row 250 · −30, one `unsafe` block fewer | R · 257 |
 | 6 | **Two waits on the executor, never timed where they bite.** The fill's `WILLNEED` runs inline (`read_path.rs:153` → `:181–193` → `frame_store.rs:135–147`); it copies nothing but allocates the folios and submits their reads in the caller (`force_page_cache_ra`, §*Read-ahead and folios*), so it can wait on reclaim and on the block layer's request tags (not traced at a pinned kernel) — the owners' regime of series past RAM and thousands of sessions. Its one timing is a 64 KiB hint on a guest-cold cache (224 against 178 µs co-tenant gap, 2026-09-05). `TileReader::drop` (`:487–500`) drains in `io_uring_enter` on the executor (`uring_reader.rs:114–131`): one device read, ~1–5 ms on cloud block storage (§11, L7), for each session that ends mid-batch (a closed tab). Candidates: the advice detached on the pool (+3; a 24–34 µs hop per MiB walked, awaited by no one); the drain moved to `spawn_blocking` inside a guard whose own `Drop` drains, so a pool that drops the task still never frees a live buffer (+15, one `SAFETY`). The third executor stall, the whole-frame inline copy at 2.8–16 MB, is levers.md's INLINECAP (#10): same rig | **measure** | M · 258 |
 | 7 | **Tile names past the slots wait for a slot.** The planner holds `ASKS_AHEAD` = 8 (`planner.rs:7`) and names every frame ask behind the served one (`:96–103`); `TileReader` starts `slots − 1` = 3 (`read_path.rs:316`). One `WILLNEED` per further name puts it on the device with no buffer, ring entry or thread. **Reopens §5's ahead-N row with new evidence:** its 4.6–4.9× (2026-09-05) was one read in flight against no look-ahead, which `TILE_SLOTS` has since delivered (look-ahead *is* depth, §11, *Line 221*), so within the slots it stays closed; past them it is untried. It bites only when a client keeps more than four asks out; its sweep loss (misses 7 → 56) and finding 6's executor cost carry over | **measure** · +6 | M · 259 |
 | 8 | **`FILL_WINDOW` is 4 MiB at every frame size** (`read_path.rs:26`). At `ffdm_d`'s 4.8 MB it covers less than the frame after the named one, at 16 MB a quarter of it, and the extension rule (`:184–190`) re-advises every frame. A window of `max(4 MiB, 2 × the named frame)` (D). Row 197 ran `ffdm_d` cold under W0 but varied the advice, not its size | **measure** · +1 | M · 260 |
-| 9 | **A ring completion waits for its submitter's thread.** `COOP_TASKRUN` (`uring_reader.rs:32`) posts a completion as task work on the submitting thread without an IPI: a sleeping thread is woken, a running one runs it at its next syscall or tick. A reader parked on another worker waits that long while the submitter seals a large frame in user space. From the kernel's task-work notification (`TWA_SIGNAL_NO_IPI`), not traced at a pinned kernel and not timed; without the flag, an IPI a completion | **measure**, after row 250 · ±1 | M · 261 |
+| 9 | **A ring completion waits for its submitter's thread.** `COOP_TASKRUN` (`uring_reader.rs:32`) posts a completion as task work on the submitting thread without an IPI: a sleeping thread is woken, a running one runs it at its next syscall or tick. A reader parked on another worker waits that long while the submitter seals a large frame in user space. From the kernel's task-work notification (`TWA_SIGNAL_NO_IPI`), not traced at a pinned kernel and not timed; without the flag, an IPI a completion | **closed** by row 261: without the flag the ring is faster in no cell, [below](#finding-9-measured-coop_taskrun-row-261) | M · 261 |
 
 **Kept**, with the reason:
 
@@ -934,6 +939,131 @@ which each row reports.
 | 260 | **FILLWINDOW** — does a window of two frames beat 4 MiB on frames past 1 MiB? (finding 8) | measure | — |
 | 261 | **RINGCOOP** — does `COOP_TASKRUN` delay ring completions beside busy workers? (finding 9) | measure | row 250 |
 
+**Row 257, built (2026-10-16): finding 5's cuts, no behaviour change.** `Slot` lost `at` and `len`, both read from its
+`key` now, and derives `Default`. `Slot::submit_tail` submits the unread tail *and* sets `read`, so the invariant the
+`SAFETY` line rests on is established at one site instead of two; the two `spawn_blocking` tails are
+`read_rest_on_pool`. Hits and misses were already counted once (row 227's D3). The session line calls
+`ReadStats::miss_rate`, no longer test-only; the fill reader is `fill` in `pipeline.rs`; the upcoming loop is
+`once(span).chain(upcoming)`; the fill's reason for no ring points to §11, *Fill at scale*, which now states it;
+`READ_WINDOW` is `TEST_CHUNK`. `read_path.rs` went from 506 to 484 product lines (the sketch said −30) and from 2
+`unsafe` blocks to 1. One field changes meaning without changing behaviour: `filled` no longer rises to the frame's
+length when a pool read lands, since nothing reads it there, and the field says so. No test had a pool read finish a
+partial probe (every pooled test probed nothing), so `the_pool_finishes_a_partial_hit_from_where_the_probe_stopped`
+now covers both readers.
+
+| check | result |
+| --- | --- |
+| the server's suite | 128 pass with default features, 118 without `uring`; `scripts/gate.sh` green except `check_equivalence.sh --local` (nginx 403 under a 0700 scratch directory, the known environment caveat) |
+| `submit_tail` without `read = Some` | `a_frame_cut_from_the_file_fails_the_ring_read_instead_of_hanging` fails. It is the only one: on a cached file the ring lands inside `submit`, so the byte tests cannot see a read nobody waits for |
+| the pool tail read from the frame's start, or landed at the buffer's front | the new test fails, and no other |
+| `miss_rate` over hits; `count` swapped; one name instead of `named`; the tile hand-off a byte short | `read_stats_report_the_session_miss_rate`; it and `a_fill_never_holds_more_than_one_read_at_once`; three look-ahead tests; eight byte tests |
+| a short ring completion that forgets what landed before | the short-read test hangs: it times out instead of passing |
+| [`read_path_ab.sh`](../../lab/scripts/read_path_ab.sh) | against unified's `d2535bd6`, 12 rounds, arms interleaved by round, 256 asks, each reader its own verdict | **a tie in all 8 cells**, p50 and CPU per ask. p50: fill `warm16` −4.6 % (7/12), `cold16_d1` +10.9 % (9/12), `cold16_dW` −4.4 % (8/12), `seq1g` −1.0 % (7/12); tile `warm16` −9.2 % (8/12), `cold16_d1` −6.9 % (7/12), `cold16_dW` +5.0 % (7/12), `seq1g` −1.3 % (6/12). CPU per ask within −10.5 to +8.3 %, no sign in more than 9/12. Tile cold `miss_pct` 98.4–99.6 with a ring built in every row of both arms. The host: 4 vCPU, ext4 on a virtio disk, `read_ahead_kb` 128, two other rows' builds at nice 19 on CPU 3; one session at depth ≤ 4, far below where it saturates (not measured). A first run is void: under the shared target HEAD's build counted as fresh and both arms ran the base, which the script now refuses |
+
+### Idle sessions' buffers (row 255)
+
+*2026-10-16, row 255: finding 3, built and measured by the 255 protocol above.*
+
+**Verdict: R1 lands.** A reader holds a buffer only while it holds a frame: a hand-off takes the buffer with
+`mem::take` instead of refilling it from the pool, `fit` takes one from the pool where a read begins, and
+`Ahead::Idle` carries no buffer, so a fill that names nothing drops its spare. +3 product lines in `read_path.rs`.
+Idle RSS with 64 sessions held is **×0.21 / ×0.086 / ×0.021** of R0's at 164 kB / 499 kB / 4.8 MB, 16/16 rounds
+each, every cell beyond the resolution; CPU per frame is worse beyond it in no cell. The rule's first clause holds,
+so R1m decides nothing: `MALLOC_MMAP_THRESHOLD_` adds no idle saving once readers give their buffers back (§8).
+
+| cell | R0 idle RSS | R1 | R1m | R0 − R1, a session | CPU per frame R1/R0 |
+| --- | --- | --- | --- | --- | --- |
+| `ct_lidc` 164 kB | 80.7 MB | 16.9 MB (×0.209, 16/16) | 17.1 MB | 1.0 MB | ×0.934 (11/16), tie |
+| `dbt12_ea1141` 499 kB | 205.7 MB | 17.7 MB (×0.086, 16/16) | 18.2 MB | 2.9 MB | ×0.967 (13/16), tie |
+| `ffdm_d` 4.8 MB | 1 868 MB | 39.9 MB (×0.021, 16/16) | 38.2 MB | 28.6 MB | **×0.926 (16/16)**, beyond |
+
+Resolution (p90 of |R0′/R0 − 1|): idle RSS 0.7–1.0 %, CPU 6.8–9.9 %. Peak RSS equals the idle reading in every run:
+memory freed by a session stays with the pool or the allocator, so RSS never falls. Finding 3's prediction, `slots`
++ 2 buffers a session (~1 / 3 / 29 MB), is what R0 − R1 measured. What R1 keeps idle, 160–520 KB a session over
+the server at start, is the pool's few buffers (sessions read one at a time, so a handful circulate) and the
+allocator's, divided by 64; that it stays flat at other session counts is derived, not measured. The ×0.93 CPU at
+4.8 MB is unexplained (D: R0 faults in up to six fresh 4.8 MB buffers per session while every earlier session holds
+its own, R1 reuses the pool's); it is not a claim.
+
+| check | result |
+| --- | --- |
+| `a_tile_reader_holds_no_buffer_once_its_named_frames_are_served` (hit, pool, ring) | mutated by refilling the slot on hand-off: fails |
+| `a_fill_that_names_nothing_holds_no_buffer` (hit, pool, an abandoned read-ahead) | mutated by refilling `cur` on hand-off: fails. A finished fill keeping its spare cannot be written: `Ahead::Idle` has no field |
+| exactness | every frame of 240 runs checked by XXH3-64 against ingest's coded files (`server_ab --coded`); 0 errors, all 64 sessions open at each RSS reading |
+
+The rig: two release builds of `series-server` from one tree, R0 with the base's `read_path.rs`
+(`d2535bd6`), R1 with this row's; `server_ab --mode idle` (64 sessions in turn, each 16 tiles at depth 4 then a fill
+of up to 32 frames from frame 0, 3 s keep-alives, RSS read after a 1 s hold), driven by
+[`idle_buffers_ab.py`](../../lab/disk-access-bench/idle_buffers_ab.py); 16 rounds plus a pilot round
+(`rows-idlebuffers.jsonl`, `rows-idlebuffers-pilot.jsonl`), arms in `order.py`'s order, 42 min. CPU is the server's
+over the active phase, handshakes included. Host: 4 vCPU agent container, kernel 6.18.44, ext4, `read_ahead_kb` 128,
+THP `madvise`, glibc 2.39, warm; server on cores 0–1, client on 2–3, where other rows' builds ran at nice 19 on
+core 3. One session reads at a time, far below where the server saturates, which was not measured; nothing is
+claimed for concurrent sessions.
+
+### Finding 9, measured: `COOP_TASKRUN` (row 261)
+
+*2026-10-16, on row 251's protocol (261 RINGCOOP above).*
+
+**Verdict: closed; `COOP_TASKRUN` stays.** C1's p99 beats C0's beside the fills in neither cell, so the rule does not
+adopt it; the one difference past the resolution goes the other way. The prediction that C1's p99 would be lower
+beside the fills is not borne out: there C1/C0 is 1.045 and 0.985, against resolutions of 67 and 160 %.
+
+| cell | p50 C1/C0 | p99 C1/C0 | CPU per ask C1/C0 | resolution p50 / p99 / CPU | server busy C0/C1 |
+| --- | --- | --- | --- | --- | --- |
+| 16 KiB alone | 1.185 (11/12) | **1.870 (10/12), worse** | 1.065 (10/12) | 26.7 / 66.6 / 32.9 % | 41 / 37 % |
+| 16 KiB beside | 1.147 (8/12) | 1.045 (7/12) | 1.010 (7/12) | 49.5 / 66.8 / 7.3 % | 75 / 79 % |
+| 250 kB alone | 1.118 (8/12) | 1.135 (9/12) | 1.088 (9/12) | 23.0 / 82.5 / 27.2 % | 53 / 52 % |
+| 250 kB beside | 0.922 (7/12) | 0.985 (7/12) | 0.993 (6/12) | 29.4 / 160 / 12.2 % | 77 / 79 % |
+
+At `bd52df14`, unified with rows 255, 256 and 257 merged in: the code that would land. Medians of the 12 per-round
+ratios, rounds agreeing in sign in brackets. C0's medians: p50 0.42 / 0.62 / 2.42 / 3.32 ms, p99 0.88 / 5.93 / 4.56 /
+34.1 ms, in table order. 144 runs, none run again: `miss_rate` ≥ 0.965, `ring=true` and `in_flight` 4 in every one,
+the fills warm (0 misses) and still streaming at the end of every beside run. Raw rows:
+[`rows-ringcoop.jsonl`](../../lab/disk-access-bench/rows-ringcoop.jsonl).
+
+**Two earlier campaigns, same rig and gap**, before rows 257 (`85d557ea`) and 255 (`8f15ebf0`) merged, tied in all 12
+cell-metrics each, with beside p99 C1/C0 at 1.119 / 0.980 and 0.854 / 1.068. The 16 KiB alone p99 that separates in the
+last run ran 1.102 (6/12) and 1.474 (8/12) there, inside resolutions of 65 and 392 %: the direction held three times
+and cleared the bar once, on the quietest host of the three (no other row building on CPU 3). Not established as an
+effect of the flag; it does not change the verdict, since C1 would not be adopted either way.
+
+**Where the host saturates.** The server stayed under the protocol's 80 %: 37–53 % alone, 75–79 % beside in the final
+run (54–61 % in the earlier two, when other rows' builds shared the host). The clients did not always: in the earlier
+two runs CPUs 2–3 sat at 98–100 % beside the fills, CPU 3 at 100 % throughout from those builds at nice 19; in the
+final run 83–88 %. Beside the fills the tile client shares its cores with eight fill clients hashing 4.8 MB frames,
+so those p99s carry client delay common to both arms; that and the 4-vCPU guest are why the resolution is wide. An
+effect of `COOP_TASKRUN` on p99 beside busy workers smaller than ~65 % is not excluded; none larger was seen. Not
+measured: more than two server workers, a server past 80 % busy, a device slower than this virtio disk.
+
+**The arms.** C0 is the default release build. C1 is the same source with `--features lab-ring-no-coop`
+(`server/Cargo.toml`): `UringReader::new` skips `setup_coop_taskrun`, and the banner prints `ring_coop=off`, which
+the driver checks against the arm it starts. `strace -e io_uring_setup` on each binary: `flags=IORING_SETUP_COOP_TASKRUN`
+for C0, `flags=0` for C1. C0′ is a second process of C0's binary.
+
+**The park test on both arms.** `a_read_that_cannot_complete_inline_wakes_the_parked_reader` passes 30 of 30 runs on
+each. Mutated on C1 as row 250 did on C0: dropping `clear_ready` fails it at 130 826 wakes; parking on a pipe nothing
+writes fails it on the 10 s timeout. The other four `uring_reader` tests pass on both arms.
+
+**The rig**, since none had this cell: [`ring_coop_ab.py`](../../lab/disk-access-bench/ring_coop_ab.py). One synthetic
+series per tile size (random bytes, checked by XXH3-64 frame by frame): 256 tile frames' worth at the stride, then
+24 frames of 4.8 MB for the fills. One server process per arm and size (server on CPUs 0–1, its two tokio workers;
+clients on 2–3), arms in `order.py`'s order inside each cell. A tile run is one `server_ab` session, 256 cold asks at
+depth 4, stride 500 000 B (`read_ahead_kb` 128); the tile range is evicted (`POSIX_FADV_DONTNEED`, twice, 0.1 s apart,
+as `server_ab.sh` evicts) and the run must come back with `miss_rate` ≥ 0.95 and `ring=true` or it is run once more.
+*Beside*: eight fill sessions of the 24 warm 4.8 MB frames start 0.5 s first on the same server and must still be
+streaming when the tiles end. Each fill pauses `FILL_GAP_US` after each frame; the gap is the lowest of 0, 20, 50 ms
+whose calibration round kept every beside run under 80 % server busy (server CPU over the tile run ÷ wall ÷ 2 CPUs):
+0 ms reached 87 %, 20 ms 85 %, 50 ms 76 %, so 50 ms. CPU per ask is the server's CPU over the whole cell, fills
+included, ÷ every frame it served. `server_ab` now closes its endpoints rather than dropping them, so the server
+writes each `session reads` line at once instead of at its idle timeout.
+
+```bash
+python3 lab/disk-access-bench/ring_coop_ab.py make WORK      # WORK/bin: c0, c1, server_ab, pack-series
+FILL_GAP_US=50000 python3 lab/disk-access-bench/ring_coop_ab.py time WORK 12
+python3 lab/disk-access-bench/ring_coop_ab.py summary WORK/ring_coop.jsonl
+```
+
 ## 10 · How it is built
 
 ### How a read works
@@ -957,7 +1087,7 @@ this said "once in `TileReader::new`"; it was read, and warned about, in every s
 `Ring` is not an `Option`: a refused ring must be neither retried on every miss nor fail the
 ask, so `Off` means both "never wanted" and "refused".
 
-**The ring** is set up with `COOP_TASKRUN`: `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable
+**The ring** is set up with `COOP_TASKRUN` (without it the ring was faster in no cell, row 261, §9): `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable
 because tokio migrates a task between workers, and blocking in `io_uring_enter` would be the
 stall this exists to prevent, so the reader parks on the ring's own fd, readable interest only, and
 clears readiness on each wake (*since row 250, 2026-10-16*: it parked on a registered eventfd, plain
@@ -969,8 +1099,9 @@ against `RLIMIT_MEMLOCK`, and the lab variant that registered them tied on misse
 Also: the pool path reads ahead too (the `JoinHandle` is held, not awaited); delivery stays in
 ask order — reading *n+1* early is pipelining, not reordering; the planner bounds `in_hand` at
 `ASKS_AHEAD` and stops upcoming at the first `Fill` or `EndSession` (it also streamed a
-`RequestFrames` batch rather than collecting it, until that message left the wire on 2026-10-03). `READ_WINDOW` (64 KiB) is off the product path: a test-only constant in
-`frame_store.rs`, and `read_campaign.rs`'s own for the variant that reproduces the capped probe. `--no-default-features` alone builds
+`RequestFrames` batch rather than collecting it, until that message left the wire on 2026-10-03). The retired 64 KiB `READ_WINDOW` lives on only
+as `read_campaign.rs`'s own, for the variant that reproduces the capped probe; the tests' 64 KiB is `frame_store.rs`'s
+`TEST_CHUNK` (renamed from it 2026-10-16, row 257). `--no-default-features` alone builds
 it: ring is a plain dependency feature (*corrected 2026-10-14:* this said to add `--features crypto-ring`, a feature
 that could not be turned off and is gone).
 
@@ -1202,6 +1333,11 @@ KiB memlock ceiling of **~941 sessions**. That is why a fill has its own reader.
 that registers buffers fails outright at 64 readers × 250 kB; the shipped reader registers none
 and falls back to the pool on refusal.)
 
+**Corrected 2026-10-16 (row 257): why the fill has no ring.** One miss in sixty was a 16 KiB frame inside the
+kernel's read-ahead window, the regime §2 retracts; at 250 kB and the stock window a fill missed six frames in ten.
+What keeps the fill off a ring is its own advice: one read in flight under `FILL_WINDOW` misses ~1 % (§3,
+2026-09-10), which a ring would serve for ≤ 0.3 µs a frame on average (§13, *Each candidate at its best*).
+
 ### The two readers, every variant (2026-09-10, agent container)
 
 Twelve variants, cold, depth 1, one reader, `--monitors 0`, six repeats; `product_tile` and
@@ -1359,6 +1495,48 @@ then the fill shape, `--stride` = `--size`, adding `tokio_fs`. Verdicts on wall 
 Three columns carry the claims: `rings` stays 0 for `product_fill`, `peak_named` follows
 `--depths` past 4, and the 128 KiB / 250 kB penalty stays gone.
 
+### On the workstation, in one command (row 262: built, not yet run)
+
+*2026-10-16.* Item 10 of §9, and the ring against the pool on the server, on the owner's machine. The script was
+run here once with `--quick` on a cut matrix, untimed: it proves it runs, and no number in this section comes from it.
+
+```bash
+lab/scripts/workstation_run.sh --plan    # the estimate and the disk it needs, then exit
+lab/scripts/workstation_run.sh --quick   # one round of everything: a first try, nothing to conclude from
+lab/scripts/workstation_run.sh           # 12 rounds; prints the estimate and starts 10 s later
+```
+
+It refuses when a prerequisite of README §Prerequisites it uses is missing, or when the disk is short. It builds
+what it runs, works under `.local/workstation` (`--work DIR` elsewhere: the series volume is the one it records),
+and packs `report-<UTC>/` as `workstation-<UTC>.tar.gz`, the one file to send back. Nothing runs as root.
+
+| part | in the report | what it answers |
+| --- | --- | --- |
+| host | `host.txt` | kernel, distro, CPU and threads, governor, AC, RAM; the series volume's filesystem, mount options and device stack, `read_ahead_kb` of its bdi and of each device; THP, glibc, `ulimit -l` and `-n`, SELinux, `io_uring_disabled`; `check-fastpath` on the volume |
+| ring | `ring.txt` | does a tile miss build a ring: natively (the session line's `ring=true`); in the deploy image under the runtime's default profile (the control: refused) and under `seccomp-uring.json`. Where SELinux enforces and the profile alone is refused, `label=disable` is tried, and the policy module [`deploy/wtpacs_io_uring.te`](../../deploy/wtpacs_io_uring.te) (only `io_uring { allowed }`, for `container_t`) is left to the owner: `ROOT-STEPS.txt` says how to load it, then `--only ring` tests it |
+| readers | `readers.tsv`, `readers_summary.txt` | item 10: the cells of *The two readers, every variant* (§11) on this host. Cold tile 16 KiB (stride 250 000) and 250 kB (stride 500 000), cold fill 16 KiB; depths 1, 4, 16; 1 and 16 readers; 256 asks; `product_tile`, `product_fill`, `hybrid_lazyring`, `uring`, `pool`, `pool_capped_probe`, `pooled_pread`, and a second copy of each product reader as the A/A; 12 repeats in `read_campaign`'s rotation. Each variant against the shape's own reader, paired per repeat, on p50 and CPU per ask under §11's rule; the A/A's p90 \|Δ\| is this host's resolution; and the three claim columns above |
+| server | `server.tsv`, `server_summary.txt` | the product server, ring against pool (`WTPACS_READ_PATH=pool`) with a second ring arm as the A/A, on `server_ab.sh`'s cells (cold depth 1, 2, 4; warm depth 1, 4; a cold fill), 256 asks, 12 rounds, the three arms in `lab/scripts/order.py`'s order inside each cell. Checked: cold misses ≥ 0.95, `ring=true` in every cold ring row and `false` in every pool row |
+| execgap | `execgap/` | row 258's script (exec_gap.sh in `lab/scripts/` on its branch, or `EXEC_GAP_SCRIPT`), given its binaries with `--exec-gap BIN_DIR`, on a series of 499 kB frames past RAM and at least the unread frames its rounds need (1.25 × RAM, and ≥ 67 GB at 12 rounds); skipped when either is missing |
+
+**Cold is a copy, never an eviction.** Every cold cell reads a copy written past the page cache with `O_DIRECT`
+(`writer_bench direct`, and `read_campaign --fresh DIR` per cell) and counted non-resident by `mincore`: the server
+part reports a resident copy, `read_campaign` skips the cell and the summary counts the skips. `read_path_ab.sh` and
+`server_ab.sh` stay what they are, a commit against a commit with eviction; this asks one commit, ring against pool,
+so it drives their binaries on their cells, asks, strides and rule instead. Every server cell is a fresh process; a
+warm one follows a discarded pass by another.
+
+**Time and disk.** The estimate, a model whose rates are guesses for a laptop NVMe (`timing.txt` has the real ones):
+~5 min for the first build, ~17 min for the image build and the container checks where podman or docker is present,
+~26 min for the readers and ~5 min for the server at 12 rounds: **~53 min**. `--quick` takes ~25 min the first time,
+nearly all of it the two builds. It needs 1.1 GB under the work directory and ~4 GB of image and cache in the
+runtime's storage; the copies write ~450 GB to the series volume over a full run (~38 GB with `--quick`: the 250 kB
+series is 512 MB, rewritten per cell). `--exec-gap` adds a series of max(1.25 × RAM, 67 GB) unless `EXEC_GAP_SERIES` names one.
+
+**Left out, by choice:** the rest of §12's sweep above (64 and 128 KiB, depths 2 and 8, 64 readers, the `ringfd`
+and loop variants, and `tokio_fs`, which needs its own build). `R_VARIANTS`, `R_DEPTHS` and `R_READERS` take them,
+at the cost `--plan` prints. At 16 readers the readers share one series and wrap it, so those cells are mix, not
+miss: `pair_variants.py` buckets by regime for that reason. P0 is not this: one bare-metal host is not the target.
+
 ## 13 · Faster than today (theory, AV1 queue row 198)
 
 *2026-10-14. Reasoned, not measured: every µs below not cited to a measurement is derived (D). The protocol for the row
@@ -1485,7 +1663,8 @@ the same.
 **Each prediction.** B1's second pass ×0.91–0.96 (×0.86–0.96 at 3 MB): **did not hold either way** — ×0.78–0.83 at
 sixteen sessions, ×1.25–1.36 at one. A lone session's second fill is the frame's second ask, so it is the pass that
 admits, not the one that hits; it costs more than either pass of B0 (the admitted frame keeps its pooled buffer, so
-each read takes a fresh one: §11's byte-capped pool cost the same way — a likely mechanism, not measured here). First
+each read takes a fresh one: §11's byte-capped pool cost the same way — a likely mechanism, not measured here;
+*corrected by row 256:* not the zero-fill — with `vec![0; n]` in `fit`, B1z keeps the cost, 1.20–1.34 of B0's). First
 pass ×1.00–1.04: held at one session (0.97–1.05), not at sixteen (0.79–0.93), where the second session to ask a frame
 admits it and the rest hit. RSS higher by the series: held at one session (0.6–0.9 of it), not at sixteen, where one
 shared entry replaces sixteen sessions' buffers and peak RSS falls by about half. B2 a tie within ±3 %: 1.013–1.091
@@ -1495,10 +1674,66 @@ shared entry replaces sixteen sessions' buffers and peak RSS falls by about half
 (499 kB, 3 MB; 16 of 16 rounds each; 31 kB is −22.0 % against 22.5 %) and its first pass is better, not worse, so
 **B1 goes to the owner as a proposal** — and it is a trade-off, not a net: −17 to −22 % CPU a frame and half the
 peak RSS where sessions share a series, **+25 to +36 % CPU a frame and the series' size in RAM on a lone session's
-repeat**. What a third pass of one session costs (all hits) was not run. *(b)* B2 does not beat B0 anywhere: closed,
+repeat**. What a third pass of one session costs (all hits) was not run (*row 256 ran it, below: inside the
+resolution*). *(b)* B2 does not beat B0 anywhere: closed,
 no deployment note. *(c)* The premise is contradicted: a hit saves 17–22 % of a frame's CPU at sixteen sessions, above
 the 4–14 % the read was modelled to cost. The model priced the read alone; a shared entry also removes each session's
 buffer, its fill and the RSS it holds — corrected in place above, after *The verdict, predicted*.
+
+### Measured (row 256, 2026-10-16): B1s does not clear the rule; row 209's trade-off stands
+
+*The protocol is §9's 256 CACHESHARED, on row 209's rig.* Arms B0, B0′, B1, **B1s** (B1's binary,
+`LAB_FRAME_CACHE_ADMIT=session`: a frame is admitted on an ask from a session other than its first asker, so a
+session's own repeat admits nothing) and **B1z** (B1 built with `lab-fit-zeroed`: `fit` replaces a short buffer by
+`vec![0; n]` instead of `resize`); 16 rounds in `lab/scripts/order.py`'s order, a fresh server per arm, cell and
+round. Each session now fills the series **three times over its one connection** (`server_ab --passes 3`): a pass
+per connection, as row 209 ran it, would make every repeat another session's. 1 920 rows, none failed:
+`lab/disk-access-bench/rows-cacheshared.jsonl`. Host as row 209's (kernel 6.18.44, ext4, `read_ahead_kb` 128, THP
+`madvise`, glibc 2.39, server on cores 0–1, client on 2–3), but **not quiet**: other rows' builds ran on core 3 at
+nice 19, one of the client's cores, and compilers or Python were running in 30 of the run's 38 minute samples. B0
+spent 1.4–1.8× row 209's CPU a frame (one session 119 / 425 / 1 612 / 9 106 µs, sixteen 86 / 421 / 1 419 / 7 443),
+and the A/A resolution was coarser: 17–42 % against row 209's 9–41 %. No cell saturates the two server cores
+(0.9–1.5 busy).
+
+**Exact.** Every frame of every timed pass XXH3-64 checked (`server_ab --coded`); per arm, a lone session's three
+passes checked the same way and its last decoded against ingest's digests: 335 + 100 + 29 frames, 0 inexact.
+`LAB_FRAME_CACHE_MUTATE=stale` fails B1 on a lone session's passes 2–3 and every pass at sixteen; it fails B1s at sixteen on every pass and **passes B1s on all three of a lone session's**, where it holds
+nothing. That is the admission rule end to end. In the cache, three mutations of its guard each fail the cache's
+tests: B1s admitting a session's own repeat, B1s admitting no other session, and B1 refusing one session's repeat.
+
+**CPU per frame, ÷ B0, median of the paired rounds (rounds lower of 16; the A/A resolution):**
+
+| cell | 1 session, pass 2: B1 · **B1s** | 1 session, pass 3: B1 · **B1s** | 16 sessions, pass 2: B1 · **B1s** |
+| --- | --- | --- | --- |
+| `pt15_cptac` 31 kB | 1.323 (2) · **1.005** (8); 36 % | 0.710 (15) · **0.957** (10); 38.5 % | 0.938 (12) · **0.840** (15); 24 % |
+| `ct_lidc` 164 kB | 1.142 (3) · **0.984** (8); 32 % | 0.880 (10) · **1.000** (8); 29 % | 0.904 (11) · **0.915** (10); 31.5 % |
+| `dbt12_ea1141` 499 kB | 1.296 (0) · **1.105** (6); 35 % | 0.996 (9) · **0.986** (9); 39 % | 0.860 (12) · **0.907** (13); 18 % |
+| synthetic 3 MB | 1.194 (0) · **1.088** (7); 21.5 % | 0.922 (12) · **0.976** (10); 24 % | 0.936 (14) · **0.918** (11); 23 % |
+
+Nothing in the table is beyond its resolution. B1s's pass 1 at one session is 0.90–1.05, its passes 1 and 3 at sixteen
+0.78–0.94 (`pt15_cptac` pass 3, 0.777 in 15 of 16 against 19.8 %, the one B1s cell beyond). B1z's lone pass 2 is
+1.20–1.34, beyond only at 3 MB.
+
+**Peak RSS** (resolution 0.7–18 %; each difference named here in 16 of 16 rounds). One session, passes 2 and 3: B1
+holds the series, ×1.8 / 2.5 / 2.1 / 5.2 of B0 (17.6 against 9.6 MiB at 31 kB, 99 against 19 MiB at 3 MB); **B1s is B0's**,
+0.95–1.01, and 0.19–0.53 of B1's. Sixteen sessions: B1s ×0.43–0.75 of B0, as B1 (B1s ÷ B1 0.96–1.01): 22.7 against
+49.2 MiB at 31 kB, 132 against 185 MiB at 3 MB, pass 2. At rest likewise, but for `ct_lidc` at sixteen: B0 gives
+12 MiB back after its first pass, so there every cache arm rests at ×1.11–1.13 of it after pass 1 and ×0.75–0.78
+after pass 3.
+
+**Each prediction.** B1s at one session ties B0 on every pass: **held** on CPU (0.90–1.11, none beyond) and on RSS.
+At sixteen, pass 2 within ×0.78–0.83: **did not hold** — 0.84–0.92, and not beyond the resolution. B1z narrows B1's
+lone pass 2: **did not hold** — 1.20–1.34 of B0's against B1's 1.14–1.32, B1z ÷ B1 0.94–1.04 with no sign
+agreement, so row 209's zero-fill reading is retracted above; whether a fresh
+buffer (allocation and first-touch faults) is the cost, B1z cannot say, since it still takes one.
+
+**The rule.** B1s's pass 2 at sixteen sessions beats B0 beyond the resolution in **none** of the four cells, so it does
+not go to the owner as a net, and **row 209's trade-off stands**. One session, no pass worse beyond it: held. The
+run resolves no CPU difference of B1 either — not even the lone session's pass 2, +14–32 % here and +25–36 % resolved
+by row 209 — so it shows this host lacked the resolution, not that the gain is absent: B1s's RSS is B0's alone and
+B1's shared, cleanly; its CPU is unproven. What
+would decide it: the same campaign where B0′ resolves B1's sixteen-session pass 2 as row 209's did (9–18 % at 499 kB
+and 3 MB).
 
 ## Provenance
 
