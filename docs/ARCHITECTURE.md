@@ -247,6 +247,74 @@ and the 10-bit tomosynthesis (24 × 678×1727) at 20 and 50 Mbit, 1× and 4× (f
 and 1×, 1 722 [1 715–1 730] against 1 724 [1 715–1 733] ms), slower in 29 of 71 paired rounds;
 3 360/3 360 frames exact. The code moved is off the fill's steady path, so no gain was expected.
 
+### An open page follows a server restart (row 271)
+
+*Built 2026-10-17 (queue row 271, RESTARTPIN; [`merge-readiness.md`](merge-readiness.md) §Third round, T6), on the
+owner's yes to the proposal written 2026-10-16 at `eda3ba83`; row 270 is not on this branch.*
+
+**What broke.** The image mints a certificate at every start (`deploy/server-start.sh`): on `compose restart`, on an
+upgrade, and at the timed exit every `RESTART_AFTER`. The downloader kept the pair the page gave it, and every later
+dial — a resumption, a command after a closure (`live`), a recycle — pinned that hash and failed its handshake. A
+page mid-fill lost every frame it still wanted ("could not be re-dialled"); an on-demand page failed by name every step
+to a frame it did not hold. A filled page keeps what it holds; a `/supplied` certificate has no hash and is not affected.
+
+**What changed.**
+
+* `DownloaderClient.connect` takes `transportFile`, the transport file's URL: a string, so it survives the structured
+  clone every option goes through.
+* Every dial but the page's first reads it again, in `openSession` before `TransportSession.connect`, with
+  `cache: "no-store"` (fresh on any host, though the image already sends JSON `no-cache`) and
+  `AbortSignal.timeout(dialMs)`. Its `wt_url` and `cert_sha256` replace the pair. A file that cannot be read, or
+  answers other than 2xx, keeps the pair: that dial fails as before and the next try, `redialMs` later, reads again.
+  That is the restart window itself — the file is gone while the new server mints, and before that it still names
+  the old certificate.
+* The viewer passes `new URL("/wt/dev-transport.json", location).href` — absolute, since a worker resolves a relative
+  URL against its own script — unless the lab named `?wt=`, whose pair stays pinned.
+
+Nothing else moved: `tries`, `redialMs`, `dialMs` and the epoch are as §Re-dial and re-issue says. The cost is one
+same-origin GET per re-dial; the only re-dial a healthy session makes is a recycle, whose old session still delivers
+meanwhile. Not measured.
+
+**Each client.** The read is the downloader's, above the seam, so neither product client changed: both take the pair
+per `connect` and pin it on that dial alone, which [`CLIENTS.md`](CLIENTS.md) §The seam now requires as its fourth
+clause, *a dial pins what it is given*. The WebSocket ignores the hash and follows a changed URL. A `client` field in
+the file (row 263's WASMSELECT, not built) would not be followed mid-page: the module is imported once per worker.
+
+**Why the file, and not the page.** The downloader is a worker: it cannot call into the page, and a callback option
+does not survive the clone. Asking would be a new message pair answered by a main thread that may be frozen, and the
+page would answer by fetching this same file — already the deployment's one statement of where the server is and what
+it pins, written whole after the certificate, same-origin under `connect-src 'self'`. *Dropped:* keeping the
+certificate across `compose restart` in a volume, which covers the manual restart and the upgrade but not the timed
+exit, which must mint.
+
+**Held by.** `aRedialAfterTheHashChangedConnects` (`dispatch-rig.ts`): the fake refuses a dial pinning any hash but
+the one it is told, as a browser's handshake does, and answers the worker's fetch of the transport file. A fill owed
+across a restart to a new URL and hash finishes on the first re-dial; with the file answering 404 at the first read,
+on the second; a step on demand after a closed idle session is served. It is a transport clause, so it runs over both
+clients (`dispatch` and `dispatch-wasm`, 7/7 each). `anEmptyHashDialsUnpinned` gains a second `connect` on another
+hash, pinned to its own (`node client/contract/run.mjs`, both clients). Mutants: the read skipped → every owed frame
+fails by name ("could not be re-dialled") and the step fails "dial refused", 0/7 over each client; the file read on
+alternate dials only → the 404 case connects a re-dial late; a session that keeps its first hash, TypeScript or WASM →
+the session clause fails on that client, and the rig clause 0/7. `no-store` and the read's deadline are out of the
+fake's reach and are said, not tested.
+
+**Shown on the image.** `client/viewer/check.mjs --url … --fill 0 --restart CMD`, Chromium: the page opened with
+`?fill=0` alone, `received 1, exact 1` awaited; then CMD (`compose restart server`, then the server's log followed
+until its `transport=` line); then `ArrowRight`, requiring `received 2, exact 2` and no `error:` within 20 s. On the
+same server image, a three-frame 16-bit HTJ2K series (the contract's frame, as `run_check.sh` makes it), the
+certificate's hash changed across each restart:
+
+| web image | after the restart |
+| --- | --- |
+| the branch before the change | **fails by name**: `received 1, exact 1 … error: frame 1: frame 1 unavailable: the session was lost and could not be re-dialled` |
+| built | `received 2, exact 2, not exact 0` and no error |
+
+One run each. The build needed this host's limits and proxy: `MEMLOCK` 8 MiB and `NOFILE` 20 000 (the sandbox's hard
+limits), the ports moved off 8765/4433, and apt pointed at HTTPS through the build CA in a scratch copy of the
+`Containerfile`; nothing in the images' contents differs. A fill across a restart rides `tries` × `redialMs`, about 5 s
+if each stale dial is refused at once, up to about 30 s if each waits out `dialMs`; whether that outlasts a `compose
+restart` is not measured.
+
 ### The first fill
 
 **It rides with `start`**: `connect(url, hash, { fill })` puts the indices in the `start` message, so
@@ -1223,6 +1291,10 @@ Each item below is the owner's to decide, and is tracked here.
   Detection of a dead *idle* session with a server idle timeout below 30 s is not measured.
 * **Which opt-in rows of §The session open to take** — the transport URL inlined, the page carrying the worker
   graph, HTTP/2 in nginx, the preloads on the downloader page: the owner's call.
+* **An open page across a server restart** (row 271, built): §The downloader, *An open page follows a server
+  restart*. Open beside it: a command after a closure dials once (`live`), so a step inside the restart window fails
+  by name and the next step dials again; giving it `tries` is a separate change. A fill across a `compose restart` is
+  not measured.
 * **The opening ask beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
   check before enabling, the recycling cost, the shaped A/B).
 

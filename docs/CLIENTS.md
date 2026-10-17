@@ -48,7 +48,7 @@ TypeScript's alone. Every other option, `onHead` and `stats().mediaReads` are bo
 | `fill` | an opening fill carried in the session URL (WIRE.md §The opening ask); armed at once, never sent as `stream_frames` |
 | `readMin` | read the media stream through a BYOB reader, opt-in — §Reading a frame whole |
 
-**Three clauses the surface requires.** Each cost real time before it was written down.
+**Four clauses the surface requires.** Each cost real time before it was written down.
 
 1. **Worker-safe.** No implementation may reach for `window`. The WASM client read its clock from
    `window.performance`, and every timestamp it produced inside a worker was `0` — zeros, not an
@@ -59,6 +59,10 @@ TypeScript's alone. Every other option, `onHead` and `stats().mediaReads` are bo
    boundary is a move, and no two delivered frames share a backing buffer. Priced 2026-09-16: at
    8 MB a copied frame costs the page's main thread 1.34 s per 237-frame burst, against 17 ms
    transferred.
+4. **A dial pins what it is given.** No implementation keeps a URL or a hash across `connect`s: the
+   downloader chooses both per dial, from the consumer's `transportFile` once the server has restarted
+   on a new certificate ([`ARCHITECTURE.md`](ARCHITECTURE.md) §An open page follows a server restart).
+   `anEmptyHashDialsUnpinned` holds it with a second `connect` on another hash.
 
 ## The implementations
 

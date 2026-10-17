@@ -18,7 +18,9 @@ if (lab.refused) {
 const meta = await globalThis.viewerMetadata;
 const n = meta.frameCount;
 const fillMode = q.get("fill") !== "0";
-const transport = lab.transport ? Promise.resolve(lab.transport) : fetch("/wt/dev-transport.json").then((r) => r.json());
+// Absolute: the downloader's worker would resolve a relative URL against its own script.
+const transportFile = new URL("/wt/dev-transport.json", location).href;
+const transport = lab.transport ? Promise.resolve(lab.transport) : fetch(transportFile).then((r) => r.json());
 
 if (q.get("check")) {
   // A page that stops short still says why, and when.
@@ -126,6 +128,8 @@ await lab.started?.();
 issuedAt = at();
 const client = await DownloaderClient.connect(transport.then((c) => c.wt_url), transport.then((c) => c.cert_sha256), {
   ...(fillMode && { fill: all }),
+  // The file follows a restarted server; a pair the lab named stays pinned.
+  transportFile: lab.transport ? undefined : transportFile,
   digests,
   ...options,
   decoder,

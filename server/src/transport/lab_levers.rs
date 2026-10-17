@@ -2,10 +2,8 @@
 
 use crate::media::frame_store::FrameStore;
 use crate::transport::server::ServeConfig;
-use anyhow::Result;
 use tracing::warn;
-use wtransport::endpoint::{endpoint_side, IncomingSession};
-use wtransport::Endpoint;
+use wtransport::endpoint::IncomingSession;
 
 #[derive(clap::Args, Clone, Debug, PartialEq)]
 pub struct LabLevers {
@@ -55,13 +53,7 @@ pub(super) fn apply(mut config: ServeConfig) -> ServeConfig {
     config
 }
 
-pub(super) async fn hold_every_session(endpoint: Endpoint<endpoint_side::Server>) -> Result<()> {
-    loop {
-        tokio::spawn(hold_session(endpoint.accept().await));
-    }
-}
-
-async fn hold_session(incoming: IncomingSession) {
+pub(super) async fn hold_session(incoming: IncomingSession) {
     if let Ok(_unanswered) = incoming.await {
         std::future::pending::<()>().await;
     }

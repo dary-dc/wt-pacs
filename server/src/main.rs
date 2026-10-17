@@ -19,19 +19,16 @@ async fn main() -> anyhow::Result<()> {
         .install_default()
         .map_err(|_| anyhow::anyhow!("rustls crypto provider already installed"))?;
 
-    let server = run_server(Args::parse().serve);
-
-    tokio::select! {
-        result = server => result,
-        () = shutdown_signal() => {
-            tracing::info!("shutdown signal received");
-            // Lab builds: write the telemetry report before the process goes away. The harvest
-            // sends SIGTERM between runs; without this the drain thread dies with its rows.
-            #[cfg(feature = "telemetry")]
-            series_server::record::flush_on_exit();
-            Ok(())
-        }
-    }
+    let stop = async {
+        shutdown_signal().await;
+        tracing::info!("shutdown signal received");
+    };
+    run_server(Args::parse().serve, stop).await?;
+    // Lab builds: write the telemetry report before the process goes away. The harvest
+    // sends SIGTERM between runs; without this the drain thread dies with its rows.
+    #[cfg(feature = "telemetry")]
+    series_server::record::flush_on_exit();
+    Ok(())
 }
 
 /// Resolves on SIGINT or SIGTERM.

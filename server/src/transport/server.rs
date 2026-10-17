@@ -17,12 +17,13 @@ use std::ops::ControlFlow;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 use wtransport::config::IpBindConfig;
 use wtransport::endpoint::endpoint_side;
 use wtransport::stream::RecvStream;
-use wtransport::{Endpoint, Identity, ServerConfig};
+use wtransport::{Endpoint, Identity, ServerConfig, VarInt};
 
 #[cfg(feature = "lab-levers")]
 use crate::transport::lab_levers::{self, LabLevers};
@@ -65,7 +66,11 @@ pub struct ServeConfig {
     pub lab: LabLevers,
 }
 
-pub async fn run_server(config: ServeConfig) -> Result<()> {
+/// `H3_NO_ERROR`, HTTP/3's code for a graceful close.
+const STOPPING: VarInt = VarInt::from_u32(0x100);
+
+/// Serves until `stop`, then closes every session with `STOPPING` and waits up to 250 ms for them. deploy/README.md
+pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> Result<()> {
     #[cfg(feature = "lab-levers")]
     let config = lab_levers::apply(config);
     let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem)
@@ -98,18 +103,27 @@ pub async fn run_server(config: ServeConfig) -> Result<()> {
         tokio::spawn(websocket::serve(listener, tls, sessions.clone()));
     }
     #[cfg(feature = "lab-levers")]
-    if config.lab.hold_sessions {
-        return lab_levers::hold_every_session(endpoint).await;
-    }
+    let hold = config.lab.hold_sessions;
+    let mut stop = std::pin::pin!(stop);
     loop {
-        let incoming = endpoint.accept().await;
+        let incoming = tokio::select! {
+            incoming = endpoint.accept() => incoming,
+            () = &mut stop => break,
+        };
         let sessions = sessions.clone();
         tokio::spawn(async move {
+            #[cfg(feature = "lab-levers")]
+            if hold {
+                return lab_levers::hold_session(incoming).await;
+            }
             if let Err(err) = handle_incoming(incoming, sessions).await {
                 warn!(err = %format_args!("{err:#}"), "session ended");
             }
         });
     }
+    endpoint.close(STOPPING, b"server stopping");
+    let _ = tokio::time::timeout(Duration::from_millis(250), endpoint.wait_idle()).await;
+    Ok(())
 }
 
 /// What every session is served with, fixed at start.
@@ -404,6 +418,11 @@ mod tests {
     use std::time::Duration;
     use wtransport::stream::SendStream;
     use wtransport::ClientConfig;
+
+    /// The server with no stop, for every test but the stop's own.
+    fn run_server(config: ServeConfig) -> impl Future<Output = Result<()>> {
+        super::run_server(config, std::future::pending())
+    }
 
     type Ws = tokio_tungstenite::WebSocketStream<tokio_rustls::client::TlsStream<tokio::net::TcpStream>>;
 
@@ -1019,6 +1038,30 @@ mod tests {
         let why = panic.into_panic();
         let why = why.downcast_ref::<String>().cloned().unwrap_or_default();
         assert!(why.contains(&format!("WebSocket listener on TCP port {port}")), "the test failed with {why:?}");
+    }
+
+    /// **A stop closes every session with the server's code.** The server's runtime ends when
+    /// `run_server` returns, as `main`'s does; the client learns of the stop from the close, not
+    /// from its idle timeout.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_stopped_server_closes_its_sessions_with_its_code() {
+        let fx = Fixture::new(1);
+        let idle = TransportTuning { max_idle_timeout_ms: Some(2_000), ..TransportTuning::default() };
+        let config = ServeConfig { tuning: idle, ..fx.config() };
+        let (stop, stopped) = oneshot::channel::<()>();
+        let server = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Runtime::new().expect("runtime");
+            runtime.block_on(super::run_server(config, async { stopped.await.ok(); }))
+        });
+        let connection = dial(fx.port, fx.cert_hash, "").await;
+        let _control = open_control(&connection).await;
+        stop.send(()).expect("stop");
+        let closed = tokio::time::timeout(Duration::from_secs(5), connection.closed()).await.expect("never closed");
+        assert!(
+            matches!(&closed, wtransport::error::ConnectionError::ApplicationClosed(close) if close.code() == STOPPING),
+            "the client saw {closed:?}, not the server's close"
+        );
+        server.join().expect("server thread").expect("server");
     }
 
     /// The wait for the server's port has a deadline: on a port nobody binds it panics, it does not spin.
