@@ -13,6 +13,7 @@ members = [
     "lab/window-harness",
     "lab/telemetry-bench",
     "lab/cc-classify",
+    "lab/server-telemetry",
 ]
 # A bare `cargo build` or `cargo test`: from-parser links ingest/tools.sh's build, the WASM client is wasm-pack's.
 default-members = [

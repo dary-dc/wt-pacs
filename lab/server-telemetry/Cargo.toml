@@ -1,0 +1,15 @@
+[package]
+name = "server-telemetry"
+version = "0.1.0"
+edition = "2021"
+description = "Lab only: the server's per-frame rows, path samples and controller trace. series-server's telemetry feature"
+
+[dependencies]
+libc = "0.2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring"] }
+# The version quinn itself resolves, so `RttEstimator` is the type a controller is handed.
+quinn-proto = { version = "0.11", default-features = false }

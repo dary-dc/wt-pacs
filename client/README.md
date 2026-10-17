@@ -31,8 +31,8 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `wasm/` | `build/` builds the three decoders the page loads (OpenJPH from `openjph/`, dav1d, xxHash from `xxh3/`) into `built/`, checked against `build/manifest.sha256`, with every licence in `built/THIRD_PARTY_NOTICES`; `dav1d/` the lab's dav1d-WASM tooling and its exactness check; `fetch_openjph.sh` fetches OpenJPH's npm build and `fetch_xxh3.sh` hash-wasm's XXH3, `xxh3.test.mjs`'s reference, into `vendor/` |
 
 The rest: [`viewer/`](viewer/) the product's page (§The viewer), [`contract/`](contract/) the transport's clauses
-and the rigs, [`paint/`](paint/README.md) the painter, [`record/`](record/) telemetry, [`harness/`](harness/) the
-lab's pages.
+and the rigs, [`paint/`](paint/README.md) the painter, [`harness/`](harness/) the
+lab's pages. The telemetry recorder is the lab's, [`lab/client-telemetry/`](../lab/client-telemetry/).
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
 path untouched, `"av1"` loads `av1.js` and, at the decoder's start, both decoders it may need — dav1d-WASM

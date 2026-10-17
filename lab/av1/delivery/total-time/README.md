@@ -225,7 +225,7 @@ as the product's HTJ2K (`ingest/coded-frames/ingest.py BUILD lab/av1/data/dbt10_
 `cr240k` (`"initialWindow": 240000`), `bbr` (`"congestion": "bbr"`, quinn's 240 000 B) and `bbr12k` (both). A
 variant's `initialWindow` goes to `--initial-window-bytes`, and a visit stops unless the server's `transport=` line
 names that window. `--cc-trace DIR` builds the server with `--features telemetry` and sets `WTPACS_CC_TRACE` for each visit's server
-(`server/src/transport/cc_trace.rs`), which writes the controller's window, pacing rate, in-flight bytes, bytes
+(`lab/server-telemetry/src/cc_trace.rs`), which writes the controller's window, pacing rate, in-flight bytes, bytes
 delivered and lost, srtt and BBR's mode once per batch of acknowledgements. Each round runs two invocations, in an
 order that alternates from round to round:
 

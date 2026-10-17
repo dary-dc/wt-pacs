@@ -4,11 +4,11 @@
  * carries the Tap's `stream_mode`.
  */
 
-import { install } from "../../record/install.ts";
-import { wrapSession } from "../../record/wrap-session.ts";
-import type { ConnectOptions } from "./frame-session.ts";
-import { TransportSession as Inner } from "./session.ts";
-import { encodeFodMsg } from "./wire.ts";
+import { install } from "./install.ts";
+import { wrapSession } from "./wrap-session.ts";
+import type { ConnectOptions } from "../../client/transport/ts/frame-session.ts";
+import { TransportSession as Inner } from "../../client/transport/ts/session.ts";
+import { encodeFodMsg } from "../../client/transport/ts/wire.ts";
 
 const query = new URL(import.meta.url).searchParams;
 const tap = install({
@@ -22,7 +22,7 @@ harvest.onmessage = (e) => {
   if (e.data === "harvest") harvest.postMessage({ report: tap.finish() });
 };
 
-export type { FrameResult } from "./session.ts";
+export type { FrameResult } from "../../client/transport/ts/session.ts";
 
 export class TransportSession {
   static async connect(wtUrl: string, certSha256: string, options: ConnectOptions = {}) {

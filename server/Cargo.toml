@@ -14,7 +14,8 @@ path = "src/main.rs"
 
 [features]
 default = ["uring"]
-telemetry = []
+# Lab only: per-frame rows, path samples and the controller trace, from lab/server-telemetry. docs/adr/telemetry-server-pipeline.md.
+telemetry = ["dep:server-telemetry"]
 # Lab only: a process-wide frame cache in front of both readers. docs/adr/disk-access.md §13.
 lab-frame-cache = []
 # Lab only: `fit` takes a fresh zeroed buffer instead of growing one. docs/adr/disk-access.md §13.
@@ -55,6 +56,7 @@ socket2 = "0.6"
 # the version is the one quinn itself resolves, so the types are the same.
 quinn-proto = { version = "0.11", default-features = false }
 cc-classify = { path = "../lab/cc-classify", optional = true }
+server-telemetry = { path = "../lab/server-telemetry", optional = true }
 
 [dev-dependencies]
 # The keep-alive getters a test reads back.

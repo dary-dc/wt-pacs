@@ -23,7 +23,7 @@ The LTE traces are mahimahi's (GPL-3.0, fetched, never committed) at `f1346c38`;
 * **The truth: the relay's.** `lab/scripts/link_impair.py --drop-log` writes one line per server→client datagram it
   drops — its arrival on CLOCK_MONOTONIC, the cause (`loss` from the iid or Gilbert–Elliott model, `overflow` from the
   FIFO) and its size. The summary checks every visit's log against the relay's own tally.
-* **The classifier's signal: the server's.** `WTPACS_LOSS_TRACE` (`server/src/transport/cc_trace.rs`) writes one row
+* **The classifier's signal: the server's.** `WTPACS_LOSS_TRACE` (`lab/server-telemetry/src/cc_trace.rs`) writes one row
   per quinn congestion event: when it was declared, when its largest lost packet was sent (both on CLOCK_MONOTONIC),
   the round trip at the loss, quinn's min RTT and smoothed RTT, persistent or not, and the window before and after.
 * **The round trip at the loss** is `now − sent` of the last packet acknowledged before the event, ack delay

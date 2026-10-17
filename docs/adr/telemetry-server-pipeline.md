@@ -22,6 +22,7 @@ it.
 | --- | --- | --- | --- |
 | App seam | `server/src/transport/pipeline.rs` | trait `FramePipeline` + `ProductPipeline` | read → write, or refuse |
 | Lab wrapper | same file | `RecordedPipeline<P>`, `#[cfg(feature = "telemetry")]` | stamp at each step's entry, delegate |
+| Recorder | `lab/server-telemetry/` (the crate the `telemetry` feature adds; `crate::record` in the server) | `Tap`, its sink and report, path sampling, `cc_trace` | the rows, the report, the controller trace |
 | Wire seam | `server/src/transport/link.rs` | `Link` | open the media path; write envelopes and refusals; `finish` the session |
 
 **The trait default `serve` owns the story**, written once; implementors override steps, never
@@ -93,7 +94,7 @@ WTPACS_TELEMETRY=1 target/release/series-server …
 
 The defaults were set on 2026-09-06 without a product answer; change them by env. Every session is
 recorded, and the final report is exact and inlines `server_frames` up to 1 000 000 rows
-(`INLINE_CAP`, `record/report.rs`). Both were env variables with no caller, `WTPACS_TELEMETRY_SAMPLE`
+(`INLINE_CAP`, `lab/server-telemetry/src/report.rs`). Both were env variables with no caller, `WTPACS_TELEMETRY_SAMPLE`
 and `WTPACS_TELEMETRY_INLINE_CAP`, until 2026-10-03; code:
 `git show archive/arms-2026-10-03:server/src/record/tap.rs`.
 

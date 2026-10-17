@@ -1,7 +1,7 @@
 # lab
 
-Measurement only: no product crate depends on anything here, but behind a server `lab-` feature that a default build
-leaves out (`cc-classify/`; the frame cache's `disk-access-bench/src/frame_cache.rs`). Each directory's README names what it needs past
+Measurement only: no product crate depends on anything here, but behind a server feature that a default build
+leaves out (`cc-classify/` by `lab-classify`, `server-telemetry/` by `telemetry`; the frame cache's `disk-access-bench/src/frame_cache.rs`). Each directory's README names what it needs past
 `README.md` §Prerequisites: most AV1 cells the venv of `av1/requirements.txt` and the AV1 build, the shaped-link
 cells `sudo` for netem or a TUN device. Each directory reproduces a claim a doc
 cites; the doc holds the number, the directory holds how to get it. Variants are interleaved with
@@ -17,6 +17,7 @@ cites; the doc holds the number, the directory holds how to get it. Variants are
 | `stream-shape/`, `tcp-fallback/` | the stream shape under loss, the WebSocket and the race — `docs/adr/stream-shape.md`, `docs/transport/transport-conclusions.md` |
 | `disk-access-bench/` | the server's read path — `docs/adr/disk-access.md` |
 | `cc-classify/` | `--congestion cubic-classify`'s controller (series-server `--features lab-classify`) and its rig — `docs/transport/transport-conclusions.md` §1, *Measured: CLASSIFY* |
+| `server-telemetry/`, `client-telemetry/` | the recorders: the server's crate (series-server `--features telemetry`) and the client's Tap and its bundle (`client-telemetry/build.sh`) — `docs/adr/telemetry-*.md` |
 | `telemetry-bench/`, `telemetry-cost/` | what telemetry costs — `docs/adr/telemetry-*.md` |
 | `server-load/` | how many concurrent fills one server core carries, HTJ2K and AV1 — `docs/transport/transport-conclusions.md` §4 |
 | `clock-resolution/`, `idle-sessions/` | the browser's clock floor and what an idle session survives — `docs/rig-limits.md` §6, `docs/adr/transport-idle-sessions.md` |

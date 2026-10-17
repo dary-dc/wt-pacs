@@ -176,7 +176,7 @@ behind every BBR win below may describe an edge rather than the median. Wi-Fi wa
 
 **The server's half of the question is already logged.** Once per session, from quinn's counters:
 `session path mtu=… rtt_us=… cwnd=… sent=… lost=… congestion_events=… datagrams_tx=…`
-(`server/src/record/path.rs`). `lost` against `congestion_events` and the round trip is the
+(`lab/server-telemetry/src/path.rs`). `lost` against `congestion_events` and the round trip is the
 server-side reading; the client half — the round-trip trend in the second before each loss — is
 not built.
 
@@ -2516,7 +2516,7 @@ loss at 0.1–8 % and 10–200 ms. On a real Starlink link it took a lossy 50 kB
 430 of 20 150 uploads lossy. It needs a receiver that decodes, which no browser has.
 
 **Switched on only where loss is seen.** The session's `lost_packets` and `sent` are already read once a session
-(`server/src/record/path.rs`). A per-connection flag, raised once the running loss exceeds 0.5 % over the last
+(`lab/server-telemetry/src/path.rs`). A per-connection flag, raised once the running loss exceeds 0.5 % over the last
 1 000 packets, would keep the copy off clean sessions. That is zero cost there, and the first loss takes ~1/*p*
 packets to show, one or two frames. This meets the owner's third criterion (costs little elsewhere). It does not meet
 the first or the second.
