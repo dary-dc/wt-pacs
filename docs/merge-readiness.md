@@ -607,8 +607,12 @@ transport file is the source and the page is not asked (a worker cannot call bac
 shown on the image: the viewer check with `?fill=0`, `compose restart server` between two steps, the second step
 exact. **Deliverable:** the proposal in `docs/ARCHITECTURE.md` §The downloader. **Branch:**
 `claude/wip-271-RESTARTPIN`.
-*Written 2026-10-16:* [`ARCHITECTURE.md`](ARCHITECTURE.md) §The downloader, *Proposed: an open page follows a
-server restart*; waiting on the owner.
+*Written 2026-10-16:* the proposal in [`ARCHITECTURE.md`](ARCHITECTURE.md) §The downloader. *Built 2026-10-17, on
+the owner's yes, ahead of 270:* §The downloader, *An open page follows a server restart*. The viewer check across
+`compose restart server` on the image **fails by name before** ("frame 1 unavailable: the session was lost and could
+not be re-dialled") and **passes after** (`received 2, exact 2`, no error), one run each; the new rig clause passes
+7/7 over each client and fails 0/7 with the read skipped; `anEmptyHashDialsUnpinned` fails on either client whose
+session keeps its first hash.
 
 #### 272 WSLIVENESS
 
