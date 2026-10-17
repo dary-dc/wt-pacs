@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# `docker compose stop server`, timed, with a page mid-fill, for each server image as an arm, in
-# lab/scripts/order.py's order; one JSON row per stop. Row 270's protocol: deploy/README.md §The ten fixes, 2.
+# `docker compose stop server` timed with a page mid-fill, each image an arm in lab/scripts/order.py's order; a JSON row
+# per stop, with the server's signal log and exit in ms from its start. Protocol: deploy/README.md §The ten fixes, 2.
 #
 #   STUDIES=dir SERIES=name [MEMLOCK=… NOFILE=…] lab/scripts/stop_timing.sh ROUNDS IMAGE...
 #
@@ -43,11 +43,14 @@ const { chromium } = require("playwright");
 })();
 '
 
+since() { echo $((($(date -d "$1" +%s%N) - t0) / 1000000)); }
+
 for ((r = 0; r < rounds; r++)); do
   for i in $(python3 "$ROOT/lab/scripts/order.py" row "${#arms[@]}" "$r"); do
     docker tag "${arms[$i]}" wt-pacs-server
     "${COMPOSE[@]}" up -d --no-build --wait
-    pid=$(docker inspect -f '{{.State.Pid}}' "$("${COMPOSE[@]}" ps -q server)")
+    cid=$("${COMPOSE[@]}" ps -q server)
+    pid=$(docker inspect -f '{{.State.Pid}}' "$cid")
     nsenter -t "$pid" -n tc qdisc replace dev eth0 root tbf rate 18mbit burst 32kb latency 200ms
     coproc PAGE { node -e "$page"; }
     # Bash unsets PAGE and PAGE_PID when the page exits, which it may do before its last line is read.
@@ -62,7 +65,9 @@ for ((r = 0; r < rounds; r++)); do
     read -r seen <&"$from_page"
     exec {from_page}<&- {to_page}>&-
     wait "$page_pid" || true
+    signal_ms=$(since "$(docker logs -t "$cid" 2>&1 | grep -m1 'shutdown signal received' | cut -d' ' -f1)")
+    exited_ms=$(since "$(docker inspect -f '{{.State.FinishedAt}}' "$cid")")
     "${COMPOSE[@]}" down >/dev/null 2>&1
-    echo "{\"round\": $r, \"arm\": \"${arms[$i]}\", \"stop_ms\": $stop_ms, \"page\": $seen}"
+    echo "{\"round\": $r, \"arm\": \"${arms[$i]}\", \"stop_ms\": $stop_ms, \"signal_ms\": $signal_ms, \"exited_ms\": $exited_ms, \"page\": $seen}"
   done
 done
