@@ -18,6 +18,7 @@ args="$(PATH="$T/bin:$PATH" WT_URL=https://h:4435/ sh "$T/start.sh" --port 4435)
 minted="$(openssl x509 -in "$T/certs/cert.pem" -outform DER | openssl dgst -sha256 | awk '{print $2}')"
 check "$(field cert_sha256)" "$minted" "no certificate supplied: the minted one's hash is named"
 check "$(field wt_url)" "https://h:4435/" "the transport file names the arm's URL"
+check "$(field client)" "ts" "no CLIENT: the transport file names the TypeScript client"
 check "$args" "--series /studies/us_cine_smoke.sbnd --cert-pem $T/certs/cert.pem --key-pem $T/certs/key.pem --port 4435" \
   "the server takes the minted certificate and the arm's flags"
 
@@ -25,8 +26,9 @@ rm -f "$T/certs/cert.pem" "$T/certs/key.pem"
 mkdir -p "$T/supplied"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/supplied/key.pem" \
   -out "$T/supplied/cert.pem" -days 1 -nodes -subj /CN=h 2>/dev/null
-args="$(PATH="$T/bin:$PATH" sh "$T/start.sh")"
+args="$(PATH="$T/bin:$PATH" CLIENT=wasm sh "$T/start.sh")"
 check "$(field cert_sha256)" "" "a certificate supplied: no hash, so the browser verifies its chain"
+check "$(field client)" "wasm" "CLIENT=wasm: the transport file names it"
 check "$args" "--series /studies/us_cine_smoke.sbnd --cert-pem $T/supplied/cert.pem --key-pem $T/supplied/key.pem" \
   "the server takes the supplied certificate"
 check "$(ls "$T/certs")" "" "nothing minted"

@@ -91,6 +91,22 @@ alone, since in both URLs both servers would push it: if QUIC wins it is asked t
 error names both, a `DialTimeoutError` if either timed out. Why race rather than detect, and which
 wins on loopback and on a link: [`ARCHITECTURE.md`](ARCHITECTURE.md) §The TCP fallback.
 
+### Choosing the client
+
+The product's page loads one client, the one the transport file's `client` names: `"ts"`, which absent means, or
+`"wasm"` (row 277). A deployment sets it with `CLIENT` ([`../deploy/README.md`](../deploy/README.md)), the dev host
+in `client/dev-transport.json`, whose `client` `gen_dev_cert.sh` keeps when it renews the file. `viewer/head.js` maps
+the name to files on the page's own origin, so a link picks no code, and preloads them once the file arrives: TS's
+`dist/session.js`; WASM's adapter, glue and `.wasm`. A name it does not know stops the page, by name on the status
+line, before any client's code is fetched or anything dialled; a client that fails to load fails the start, with no
+fallback to the other. The status line names the client, and the page check runs on each (`--client`).
+
+*Not measured:* the TypeScript preload now starts once the transport file has arrived, not as the page is parsed
+(on page-open's page, the first frame came 1.16 round trips later without it), and the viewer reads the file before it starts the
+downloader (the head start that saves measured −0.06 round trips, inside the noise:
+[`../lab/page-open/README.md`](../lab/page-open/README.md) §The first byte on a fill). Row 5 below measures the page
+on each client.
+
 ## The contract suite
 
 The surface's clauses as tests, run against every implementation. It proves the client half
@@ -512,9 +528,9 @@ whatever of theirs has landed.
 
 | # | gap | where | lines | structural |
 | --- | --- | --- | --: | --- |
-| W1 | **The page cannot select it.** The transport file carries `wt_url` and `cert_sha256` alone; the downloader defaults to the TS module | `deploy/server-start.sh:19`; `server/scripts/gen_dev_cert.sh:35-40`; `client/viewer/viewer.js:21,127`; `client/transport/downloader.js:7,466` | ~+10 | **yes**: a product setting, and a second path the page loads |
-| W2 | **Nothing preloads it.** The page preloads `ts/dist/session.js`; the WASM client is three fetches in series inside the downloader's worker (adapter, glue, `.wasm`), each found only once the one before runs | `client/viewer/index.html:14`; `client/viewer/head.js:15-24`; `client/transport/wasm/session-adapter.js:6` | ~+5 | no |
-| W3 | **The image does not carry it.** `web-files.sh` copies no `transport/wasm/`, the bundles stage builds TS alone, and `check_equivalence.sh` asserts neither its files nor `application/wasm` | `deploy/web-files.sh:9-14`; `deploy/Containerfile:50-59,66`; `deploy/check_equivalence.sh:62-68` | ~+20 | **yes**: the image gains a wasm32 stage (the target, `wasm-pack` 0.15.0, binaryen `version_117` by checksum, as `build.sh` and CI fetch them) |
+| W1 | *Closed by row 277.* **The page cannot select it.** The transport file carries `wt_url` and `cert_sha256` alone; the downloader defaults to the TS module | `deploy/server-start.sh:19`; `server/scripts/gen_dev_cert.sh:35-40`; `client/viewer/viewer.js:21,127`; `client/transport/downloader.js:7,466` | ~+10 | **yes**: a product setting, and a second path the page loads |
+| W2 | *Closed by row 277.* **Nothing preloads it.** The page preloads `ts/dist/session.js`; the WASM client is three fetches in series inside the downloader's worker (adapter, glue, `.wasm`), each found only once the one before runs | `client/viewer/index.html:14`; `client/viewer/head.js:15-24`; `client/transport/wasm/session-adapter.js:6` | ~+5 | no |
+| W3 | *Closed by row 278.* **The image does not carry it.** `web-files.sh` copies no `transport/wasm/`, the bundles stage builds TS alone, and `check_equivalence.sh` asserts neither its files nor `application/wasm` | `deploy/web-files.sh:9-14`; `deploy/Containerfile:50-59,66`; `deploy/check_equivalence.sh:62-68` | ~+20 | **yes**: the image gains a wasm32 stage (the target, `wasm-pack` 0.15.0, binaryen `version_117` by checksum, as `build.sh` and CI fetch them) |
 | W4 | *Closed by row 265.* **`refill: "head"`, the default, never fires.** The downloader passes `onHead` as `requestExactFrame`'s second argument; the WASM binding takes one, and its reader reads a frame's head and body in one `read_exact`. The hold is released in `finally`, the trigger row 229 replaced; its 10 % fill gained up to 256 ms on the head ([`transport/link-conditions.md`](transport/link-conditions.md), *ASKTHENFILL*) | `client/transport/downloader.js:233,245,254`; `client/transport/wasm/src/lib.rs:51-52`; `client/transport/wasm/src/session.rs:192-197` | ~+20 | no |
 | W5 | *Closed by row 265.* **No dial deadline.** `dialMs` is ignored, so a dial that never settles (WebKit bug 319879, `--hold-sessions`) holds the downloader for ever: `firstDial` retries only a `DialTimeoutError`, `resume` awaits the dial. TS fails at 29.1 s, naming it ([`ARCHITECTURE.md`](ARCHITECTURE.md) §A dial that never settles) | `client/transport/downloader.js:365,469,514`; `client/transport/wasm/src/session.rs:376-395` | ~+15 | no |
 | W6 | *Closed by row 265.* **`endStream()` is synchronous**, and the downloader calls `.catch` on it after a cancel lands during a dial that carried an opening fill: on WASM a `TypeError` out of `connect()`, and on the first dial the start fails. Read from the code, not run; *corrected 2026-10-16:* run at the session — `endStreamIsAPromise` on the WASM build of `4406acd2` failed with `Cannot read properties of undefined (reading 'catch')`; through the downloader it is row 2's; `dispatch-rig.ts`'s *cancel during a resume* drives that line | `client/transport/downloader.js:496`; `client/transport/wasm/src/lib.rs:82-85`; `client/contract/dispatch-rig.ts:1866-1885` | ~±2, an `async fn` | no |
@@ -524,7 +540,7 @@ whatever of theirs has landed.
 | W10 | **26.5× the transport's bytes:** `transport_wasm_bg.wasm` 240 066 B and `transport_wasm.js` 32 166 B, 103 499 and 6 464 gzipped (`gzip -6`), against `dist/session.js` 13 401 and 4 149. Counted 2026-10-16 on a build of sources unchanged since 2026-10-09. *Row 279, on row 265's client:* 247 214 and 33 577 B (106 296 and 6 716 gzipped); the `console_error` default is 1.1 KB of it gzipped and 3 % of the compile, so it stays | `client/transport/wasm/Cargo.toml:33-37` | 0 | no |
 | W11 | *Measured by row 279.* **On the product page as it stands, +5.9 round trips to a cold first frame**, none warm; preloaded from the HTML, no round trip and a fixed +42 ms (1×, cold). The linear memory's peak (the receive buffer holds a whole frame) is not measured | [`../lab/page-open/README.md`](../lab/page-open/README.md) §The WASM client's load | — | no |
 | W12 | **Never run outside Chromium.** The Firefox runs (`run_firefox.sh`, the page check's `--engine firefox`) load TS alone; no WebKit runs here. Both dial the same global `WebTransport`, so what differs is the engine's WebAssembly | `client/contract/run_firefox.sh:14`; `client/viewer/check.mjs:5` | ~+2 | no |
-| W13 | *Closed by row 274, but the page check (row 3's).* **The rigs and the page check load TS alone**: `fake-session.ts` re-exports the TS session, `ask-during-fill.html` knows `ts`, `ws` and the downloader over each, the page check serves a transport file without `client` | `client/contract/fake-session.ts:9`; `client/contract/run_browser.sh:11`; `client/contract/ask-during-fill.html:17,57,84`; `client/viewer/check.mjs:59-60` | ~+45 | no |
+| W13 | *Closed by rows 274 and 277.* **The rigs and the page check load TS alone**: `fake-session.ts` re-exports the TS session, `ask-during-fill.html` knows `ts`, `ws` and the downloader over each, the page check serves a transport file without `client` | `client/contract/fake-session.ts:9`; `client/contract/run_browser.sh:11`; `client/contract/ask-during-fill.html:17,57,84`; `client/viewer/check.mjs:59-60` | ~+45 | no |
 | W14 | *Closed by row 265.* **The surface's TS-only tests** — `onHead` before the body, the dial deadline, the opening fill in the URL, the unpinned dial — sit in the TS unit tests and the dispatch rig, not in `clauses.ts`, so nothing holds WASM to them | `client/transport/ts/test/run.ts:84-85`; `client/contract/dispatch-rig.ts:1730-1750` | ~+80 test | no |
 
 Out of scope: `readMin`, the WebSocket and the race are TS's alone and off by default, so with `client: "wasm"` the
@@ -563,9 +579,21 @@ into the image. No capability test, no fallback, no WASM race.
 3. **WASMSELECT** (*structural*) — W1, W2, the page check's `--client wasm` arm, and the status line naming the client.
    *Proves it:* the page check complete, exact and drawn on both; `crafted.mjs` sees an unknown `client` refused by name
    with nothing loaded; the preloads in the request log. ~+25.
+   *Built 2026-10-16, row 277* (`claude/wip-277-WASMSELECT`), as §Choosing the client says: +23 −6 product lines,
+   `gen_dev_cert.sh` keeping a hand-set `client` among them. The gate's page check runs four times, filled and on
+   demand on each client, 3/3 exact and drawn on both; it fails a status line not naming the client, its files not
+   preloaded (the page's resource timing) or not in the request log, or the other client's fetched. `crafted.mjs`
+   refuses `"rust"` and `"toString"` by name with no client's code fetched and nothing dialled. Eight mutants each
+   failed by name: the status line's client dropped; the preloads dropped; the module not passed, so the downloader
+   loaded TS; `session.js` preloaded statically again; `Object.hasOwn` dropped (`"toString"` fails, not by name); an
+   unknown name falling back to TS; `CLIENT` defaulting to `wasm`, and the transport file without `client`
+   (`server_start_test.sh`).
 4. **WASMIMAGE** (*structural*) — W3. *Proves it:* `check_equivalence.sh --local` asserts the adapter, glue and `.wasm`
    served (the `.wasm` as `application/wasm`, with the isolation headers) and the crate's sources still hidden; the
    image built once and `check.mjs --url` run on it with `client: "wasm"` (the gate builds no image). ~+20.
+   *Built 2026-10-16, row 278* (`claude/wip-278-WASMIMAGE`, on row 277's branch): +21 −3 product lines, the
+   Containerfile's `wasm` stage and the adapter in `web-files.sh`; the checks are [`../deploy/README.md`](../deploy/README.md)
+   §The checks and §Verified, *Row WASMIMAGE*.
 5. **WASMLOAD** — W10, W11 measured: the product page cold and warm, `ts` against `wasm` interleaved, page-open's
    round trips at 1× and 4×, the product build with and without `console_error`. Run when the host is free.
    *Protocol and rule committed before the run, 2026-10-16, row 279*: [`../lab/page-open/README.md`](../lab/page-open/README.md)

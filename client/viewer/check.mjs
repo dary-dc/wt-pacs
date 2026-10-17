@@ -2,8 +2,9 @@
 // exact, drawn page failed by name. client/README.md §The viewer
 //
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
-//     [--engine chromium|firefox] [--cine] [--fill 0]
-//   ... --url http://host/ --decoder htj2k   (a host already running, such as the deploy image; no request log, so no code check)
+//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm]
+//   ... --url http://host/ --decoder htj2k [--client C]   (a host already running, such as the deploy image, whose transport
+//     file names C; no request log, so no code check)
 //   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
 import { execFileSync, spawn } from "node:child_process";
 import { createSocket } from "node:dgram";
@@ -15,6 +16,11 @@ import path from "node:path";
 const ROOT = new URL("../..", import.meta.url).pathname;
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ENGINE = arg("--engine", "chromium");
+const CLIENT = arg("--client", "ts");
+const CLIENTS = {
+  ts: ["/client/transport/ts/dist/session.js"],
+  wasm: ["/client/transport/wasm/session-adapter.js", "/client/transport/wasm/pkg/transport_wasm.js", "/client/transport/wasm/pkg/transport_wasm_bg.wasm"],
+};
 const T = mkdtempSync(path.join(tmpdir(), "viewer-check-"));
 const children = [];
 process.on("exit", () => { for (const c of children) c.kill("SIGKILL"); rmSync(T, { recursive: true, force: true }); });
@@ -56,7 +62,7 @@ async function host(sbnd, name) {
   children.push(server);
   await started(server, /transport=/);
   writeFileSync(`${T}/${name}.json`, JSON.stringify(metadataOf(sbnd)));
-  writeFileSync(`${T}/${name}-transport.json`, JSON.stringify({ wt_url: `https://127.0.0.1:${port}/`, cert_sha256: hash }));
+  writeFileSync(`${T}/${name}-transport.json`, JSON.stringify({ wt_url: `https://127.0.0.1:${port}/`, cert_sha256: hash, client: CLIENT }));
   const http = spawn("python3", [path.join(ROOT, "server/dev-server.py"), "--port", "0", "--metadata", `${T}/${name}.json`,
     "--transport", `${T}/${name}-transport.json`, "--log-requests"], { stdio: ["ignore", "pipe", "inherit"] });
   children.push(http);
@@ -126,15 +132,20 @@ function judge(name, r, requests, codec, decoder) {
   const paths = Object.keys(r.paths);
   if (decoder) say(paths.length === 1 && paths[0] === decoder, `decoded by ${paths.join(", ") || "none"}, not ${decoder} alone`);
   if (codec === "av1") say(paths.length > 0 && paths.every((p) => p.startsWith("av1-")), `an AV1 page whose frames were decoded by ${paths.join(", ")}`);
+  say(r.status.includes(`client ${CLIENT}`), `the status line does not name client ${CLIENT}: ${r.status}`);
+  for (const f of CLIENTS[CLIENT]) say(r.preloaded.includes(f), `the ${CLIENT} client's ${f} was not preloaded`);
   if (requests) {
     const av1 = requests.filter((l) => /\/av1[^/]*\.js|dav1d/.test(l));
     if (codec !== "av1") say(av1.length === 0, `an HTJ2K page fetched AV1 code: ${av1.join(", ")}`);
+    for (const f of CLIENTS[CLIENT]) say(requests.includes(`GET ${f}`), `the ${CLIENT} client's ${f} is not in the request log`);
+    const other = Object.entries(CLIENTS).filter(([c]) => c !== CLIENT).flatMap(([, fs]) => fs).filter((f) => requests.includes(`GET ${f}`));
+    say(other.length === 0, `a ${CLIENT} page fetched the other client's code: ${other.join(", ")}`);
   }
   for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
   if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
 }
 
-const summary = (name, r) => `${name}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
+const summary = (name, r) => `${name}, client ${CLIENT}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
   `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
   `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}`;
 
@@ -190,5 +201,5 @@ if (arg("--restart")) {
 }
 for (const [name, r] of runs) if (!r.error) console.log(summary(name, r));
 for (const f of failures) console.log(`FAIL: ${f}`);
-console.log(failures.length ? `viewer check: ${failures.length} failing (${ENGINE})` : `viewer check: every frame complete, exact and drawn (${ENGINE})`);
+console.log(failures.length ? `viewer check: ${failures.length} failing (${ENGINE}, ${CLIENT})` : `viewer check: every frame complete, exact and drawn (${ENGINE}, ${CLIENT})`);
 process.exit(failures.length ? 1 : 0);
