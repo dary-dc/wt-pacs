@@ -1039,7 +1039,9 @@ measured: more than two server workers, a server past 80 % busy, a device slower
 **The arms.** C0 is the default release build. C1 is the same source with `--features lab-ring-no-coop`
 (`server/Cargo.toml`): `UringReader::new` skips `setup_coop_taskrun`, and the banner prints `ring_coop=off`, which
 the driver checks against the arm it starts. `strace -e io_uring_setup` on each binary: `flags=IORING_SETUP_COOP_TASKRUN`
-for C0, `flags=0` for C1. C0′ is a second process of C0's binary.
+for C0, `flags=0` for C1. C0′ is a second process of C0's binary. *Since row 264 (2026-10-17) the feature is out of
+`server/`: C1 is built from the source with
+[`arms/ring-no-coop.patch`](../../lab/disk-access-bench/arms/ring-no-coop.patch) applied.*
 
 **The park test on both arms.** `a_read_that_cannot_complete_inline_wakes_the_parked_reader` passes 30 of 30 runs on
 each. Mutated on C1 as row 250 did on C0: dropping `clear_ready` fails it at 130 826 wakes; parking on a pipe nothing
@@ -1686,7 +1688,8 @@ buffer, its fill and the RSS it holds — corrected in place above, after *The v
 `LAB_FRAME_CACHE_ADMIT=session`: a frame is admitted on an ask from a session other than its first asker, so a
 session's own repeat admits nothing) and **B1z** (B1 built with `lab-fit-zeroed`: `fit` replaces a short buffer by
 `vec![0; n]` instead of `resize`); 16 rounds in `lab/scripts/order.py`'s order, a fresh server per arm, cell and
-round. Each session now fills the series **three times over its one connection** (`server_ab --passes 3`): a pass
+round. (*Since row 264, 2026-10-17, `lab-fit-zeroed` is out of `server/`: B1z is built from the source with
+[`arms/fit-zeroed.patch`](../../lab/disk-access-bench/arms/fit-zeroed.patch) applied.*) Each session now fills the series **three times over its one connection** (`server_ab --passes 3`): a pass
 per connection, as row 209 ran it, would make every repeat another session's. 1 920 rows, none failed:
 `lab/disk-access-bench/rows-cacheshared.jsonl`. Host as row 209's (kernel 6.18.44, ext4, `read_ahead_kb` 128, THP
 `madvise`, glibc 2.39, server on cores 0–1, client on 2–3), but **not quiet**: other rows' builds ran on core 3 at

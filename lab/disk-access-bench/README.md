@@ -26,7 +26,8 @@ past the cache, `read_campaign --fresh DIR` per cold cell. `tokio_fs` reads thro
 
 B0, B0′, B1 (`series-server --features lab-frame-cache`: `src/frame_cache.rs` in front of both readers, budget
 `LAB_FRAME_CACHE_BYTES`, admission on a second ask), B1s (B1's binary under `LAB_FRAME_CACHE_ADMIT=session`: admission on
-a second *session's* ask) and B1z (B1 with `--features lab-fit-zeroed`), a fresh server process per arm, cell and round,
+a second *session's* ask) and B1z (B1 with `--features lab-fit-zeroed`, on the source with [`arms/fit-zeroed.patch`](arms/fit-zeroed.patch) applied:
+the arm is closed, so `server/` no longer carries it), a fresh server process per arm, cell and round,
 each session filling the series three times over its one connection (`server_ab --passes 3`):
 [`docs/adr/disk-access.md`](../../docs/adr/disk-access.md) §13, *Measured (row 256)*. Row 209 ran B2 and two passes, each its own
 connection: the script at its commit. `server_ab --coded DIR` checks every frame received against its coded file's
@@ -36,7 +37,9 @@ XXH3-64; `LAB_FRAME_CACHE_MUTATE=stale` must fail it wherever the cache holds an
 P=lab/av1/.venv/bin/python
 OUT=W/data lab/av1/fetch_data.sh pt15_cptac ct_lidc dbt12_ea1141
 for s in pt15_cptac ct_lidc dbt12_ea1141; do $P ingest/coded-frames/ingest.py lab/.av1-build W/data/$s W/coded/$s/htj2k --codec htj2k; done
+git apply lab/disk-access-bench/arms/fit-zeroed.patch
 cargo build --release -p series-server --features lab-frame-cache,lab-fit-zeroed && cp target/release/series-server W/bin/b1z
+git apply -R lab/disk-access-bench/arms/fit-zeroed.patch
 cargo build --release -p series-server --features lab-frame-cache && cp target/release/series-server W/bin/b1
 cargo build --release -p series-server -p disk-access-bench -p pack-series && cp target/release/series-server W/bin/b0
 cp target/release/{server_ab,pack-series} W/bin/
