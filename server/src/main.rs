@@ -109,7 +109,6 @@ mod tests {
             "--initial-window-bytes", "4",
             "--initial-rtt-ms", "5",
             "--reply-repeated-initial",
-            "--segmentation-offload", "false",
         ];
         let tuning = TransportTuning {
             send_window: Some(1),
@@ -119,8 +118,28 @@ mod tests {
             initial_window: Some(4),
             initial_rtt_ms: Some(5),
             reply_repeated_initial: true,
-            segmentation_offload: false,
+            segmentation_offload: true,
         };
         assert_eq!(parse(&flags).tuning, tuning);
+    }
+
+    /// A build without `lab-levers` refuses each of its flags.
+    #[cfg(not(feature = "lab-levers"))]
+    #[test]
+    fn the_default_build_refuses_every_lab_lever() {
+        for flag in [&["--force-pool-reads"][..], &["--hold-sessions"], &["--stall-after-bytes", "1"], &["--segmentation-offload", "false"]] {
+            assert!(Args::try_parse_from([&["series-server", "--series", "s.sbnd"], flag].concat()).is_err(), "{flag:?} parsed");
+        }
+    }
+
+    /// Under `lab-levers` every lever the lab passes parses into its field.
+    #[cfg(feature = "lab-levers")]
+    #[test]
+    fn every_lab_lever_parses_under_its_feature() {
+        use series_server::LabLevers;
+        assert_eq!(parse(&[]).lab, LabLevers::default());
+        let flags = ["--force-pool-reads", "--hold-sessions", "--stall-after-bytes", "7", "--segmentation-offload", "false"];
+        let lab = LabLevers { force_pool_reads: true, hold_sessions: true, stall_after_bytes: Some(7), segmentation_offload: false };
+        assert_eq!(parse(&flags).lab, lab);
     }
 }

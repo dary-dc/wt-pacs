@@ -12,7 +12,7 @@ its one connection; the server is read between the passes.
 
 WORK/coded/SET/htj2k is ingest's output (lab/av1/tools/ingest_coded.py); WORK/bin/b0 is the default release
 build of series-server, WORK/bin/b1 the same with `--features lab-frame-cache`, WORK/bin/b1z with
-`--features lab-frame-cache,lab-fit-zeroed`; WORK/bin also holds server_ab and pack-series, so no later build in a
+`--features lab-frame-cache,lab-fit-zeroed` on the source with arms/fit-zeroed.patch applied; WORK/bin also holds server_ab and pack-series, so no later build in a
 shared target directory swaps a binary under the campaign.
 """
 import json
@@ -52,7 +52,7 @@ SETTINGS = {
           "admission on a frame's second ask; every other flag as B0",
     "B1s": "B1's binary under LAB_FRAME_CACHE_ADMIT=session: admission on an ask from a session other than the "
            "frame's first asker; a session's own repeat admits nothing",
-    "B1z": "B1 built with --features lab-frame-cache,lab-fit-zeroed: fit replaces a short buffer by vec![0; n] "
+    "B1z": "B1 built with --features lab-frame-cache,lab-fit-zeroed, from the source with arms/fit-zeroed.patch: fit replaces a short buffer by vec![0; n] "
            "instead of growing and zero-filling it (the mechanism check, not a candidate)",
 }
 

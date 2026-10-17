@@ -1,4 +1,6 @@
 mod banner;
+#[cfg(feature = "lab-levers")]
+pub(crate) mod lab_levers;
 pub(crate) mod link;
 pub(crate) mod loss_bound;
 pub(crate) mod restart;
@@ -10,6 +12,8 @@ pub(crate) mod tuning;
 pub(crate) mod websocket;
 pub(crate) mod wire;
 
+#[cfg(feature = "lab-levers")]
+pub use lab_levers::LabLevers;
 pub use server::{run_server, ServeConfig};
 pub use stream_mode::StreamMode;
 pub use tuning::{Congestion, TransportTuning};

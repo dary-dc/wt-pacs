@@ -18,8 +18,6 @@ pub(super) fn print(config: &ServeConfig, store: &FrameStore, bound: &str, cert_
     println!("frames={}", store.frame_count());
     println!("read_fast_path={}", read_fast_path(store));
     println!("read_ring={}", ring_probe(store));
-    #[cfg(feature = "lab-ring-no-coop")]
-    println!("ring_coop=off");
     println!("stream_mode={}", config.mode);
     println!("bind={bound}");
     println!("transport={}", config.tuning.describe());
