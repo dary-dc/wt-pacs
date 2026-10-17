@@ -14,6 +14,7 @@ require_transport_wasm
 [[ -f lab/fixtures/decode_c512/086.sha256 ]] || { echo "no c512 frames: lab/scripts/gen_htj2k_fixtures.sh c512" >&2; exit 2; }
 
 bash client/transport/ts/build.sh >/dev/null
+bash lab/client-telemetry/build.sh >/dev/null
 cargo build --release -q -p series-server -p pack-series
 BIN="${CARGO_TARGET_DIR:-target}/release"
 T="$(mktemp -d -t cellcheck.XXXXXX)"
