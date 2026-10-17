@@ -138,8 +138,9 @@ function judge(name, r, requests, codec, decoder) {
     const av1 = requests.filter((l) => /\/av1[^/]*\.js|dav1d/.test(l));
     if (codec !== "av1") say(av1.length === 0, `an HTJ2K page fetched AV1 code: ${av1.join(", ")}`);
     for (const f of CLIENTS[CLIENT]) say(requests.includes(`GET ${f}`), `the ${CLIENT} client's ${f} is not in the request log`);
-    const other = Object.entries(CLIENTS).filter(([c]) => c !== CLIENT).flatMap(([, fs]) => fs).filter((f) => requests.includes(`GET ${f}`));
-    say(other.length === 0, `a ${CLIENT} page fetched the other client's code: ${other.join(", ")}`);
+    // Every page fetches TS's module: the HTML preloads it.
+    const wasm = CLIENTS.wasm.filter((f) => requests.includes(`GET ${f}`));
+    if (CLIENT === "ts") say(wasm.length === 0, `a ts page fetched the WASM client's code: ${wasm.join(", ")}`);
   }
   for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
   if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);

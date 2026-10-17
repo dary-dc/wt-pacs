@@ -279,8 +279,9 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
 
 * **Opening.** The head's one script, `viewer/head.js` (the policy allows no inline script), fetches
   `/series/metadata`, preloaded by the page, and preloads the codec's modules and WASM, and the hasher when the series
-  has digests. It reads `/wt/dev-transport.json`, also preloaded, and preloads the client it names: `"ts"`, which
-  absent means, or `"wasm"`, any other refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
+  has digests. The page preloads the TS client, `"ts"`, which a
+  `/wt/dev-transport.json` without `client` means; the script reads that file, also preloaded, and preloads the WASM
+  client's files when it names `"wasm"`, any other name refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
 * **Frames.** Frames are kept in memory by index; the cache seam stays open ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
   §Open). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
@@ -294,7 +295,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   any of them is refused, by name on the status line, before the page fetches, imports or dials anything.
   `viewer/crafted.mjs`, run by the gate, opens each on a host shaped like the image and fails if one is fetched or
   dialled, and on a host serving `lab/` shows `?wt=` and `?metadata=` honoured; it fails too if a transport file
-  naming an unknown client is not refused by name with no client's code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
+  naming an unknown client is not refused by name with no WASM code fetched and nothing dialled. `?post=` (with `?origin=`) gives the
   page the total-time harness's protocol as two hooks, `started()` and `finished(result)`, which it calls only when
   present; the page watches for the fill's end only for that hook or `?check=`. `?check=`, `?cine=`, `?fill=` and `?deadline=` are the page's own.
 * **Its policy.** The page and every script it loads carry a Content-Security-Policy ([`deploy/README.md`](../deploy/README.md)
@@ -316,7 +317,7 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
   one ask;
 * a decoder other than `--decoder`;
 * a status line not naming `--client`, or that client's files not preloaded; from the static host's log, its files
-  not fetched or the other client's fetched;
+  not fetched or, on a TS page, the WASM client's fetched (every page fetches TS's: the HTML preloads it);
 * an HTJ2K page whose requests include AV1 code, from the static host's log;
 * an AV1 page whose frames were not decoded as AV1;
 * the first, middle and last frame's readback at zoom 1 differing from the painter's CPU reference by any byte;

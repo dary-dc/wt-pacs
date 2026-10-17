@@ -96,14 +96,17 @@ wins on loopback and on a link: [`ARCHITECTURE.md`](ARCHITECTURE.md) §The TCP f
 The product's page loads one client, the one the transport file's `client` names: `"ts"`, which absent means, or
 `"wasm"` (row 277). A deployment sets it with `CLIENT` ([`../deploy/README.md`](../deploy/README.md)), the dev host
 in `client/dev-transport.json`, whose `client` `gen_dev_cert.sh` keeps when it renews the file. `viewer/head.js` maps
-the name to files on the page's own origin, so a link picks no code, and preloads them once the file arrives: TS's
-`dist/session.js`; WASM's adapter, glue and `.wasm`. A name it does not know stops the page, by name on the status
-line, before any client's code is fetched or anything dialled; a client that fails to load fails the start, with no
+the name to files on the page's own origin, so a link picks no code. TS, the default, keeps the HTML's preload of
+`dist/session.js`, which starts as the page is parsed, ahead of the transport file; WASM's adapter, glue and `.wasm`
+are preloaded once the file arrives, and only for `"wasm"` (*corrected 2026-10-17*: row 277 had moved TS's preload
+there too, a round trip later for every default page; the owner ruled it back). A name it does not know stops the
+page, by name on the status line, before the WASM client's code is fetched or anything dialled (TS's module, preloaded
+by the HTML, is fetched, and nothing dials); a client that fails to load fails the start, with no
 fallback to the other. The status line names the client, and the page check runs on each (`--client`).
 
-*Not measured:* the TypeScript preload now starts once the transport file has arrived, not as the page is parsed
-(on page-open's page, the first frame came 1.16 round trips later without it), and the viewer reads the file before it starts the
-downloader (the head start that saves measured −0.06 round trips, inside the noise:
+*Not measured:* the WASM preload, which starts once the transport file has arrived, not as the page is parsed (row
+279 measured the WASM client preloaded from the HTML, and with nothing preloaded, not this point between them); and
+the viewer reads the file before it starts the downloader (the head start that saves measured −0.06 round trips, inside the noise:
 [`../lab/page-open/README.md`](../lab/page-open/README.md) §The first byte on a fill). Row 5 below measures the page
 on each client.
 
@@ -583,9 +586,12 @@ into the image. No capability test, no fallback, no WASM race.
    `gen_dev_cert.sh` keeping a hand-set `client` among them. The gate's page check runs four times, filled and on
    demand on each client, 3/3 exact and drawn on both; it fails a status line not naming the client, its files not
    preloaded (the page's resource timing) or not in the request log, or the other client's fetched. `crafted.mjs`
-   refuses `"rust"` and `"toString"` by name with no client's code fetched and nothing dialled. Eight mutants each
+   refuses `"rust"` and `"toString"` by name with no client's code fetched and nothing dialled. (*Corrected
+   2026-10-17*, when the owner ruled TS's preload back into the HTML: every page now fetches `session.js`, so the
+   page check fails a TS page fetching WASM's code, and `crafted.mjs` an unknown name fetching WASM's; the gate fails
+   if the HTML's preload goes, which killed its mutant, the line deleted.) Eight mutants each
    failed by name: the status line's client dropped; the preloads dropped; the module not passed, so the downloader
-   loaded TS; `session.js` preloaded statically again; `Object.hasOwn` dropped (`"toString"` fails, not by name); an
+   loaded TS; `session.js` preloaded statically again (now the product's shape, above); `Object.hasOwn` dropped (`"toString"` fails, not by name); an
    unknown name falling back to TS; `CLIENT` defaulting to `wasm`, and the transport file without `client`
    (`server_start_test.sh`).
 4. **WASMIMAGE** (*structural*) — W3. *Proves it:* `check_equivalence.sh --local` asserts the adapter, glue and `.wasm`
@@ -601,7 +607,8 @@ into the image. No capability test, no fallback, no WASM race.
    *Measured 2026-10-16, row 279*: preloaded from the HTML, the WASM client costs the open no round trip and a fixed
    +42 ms to the first frame (1×, cold, 9/9); on the product page today, with nothing preloaded or gzipped, 5.9 round
    trips cold (over 80 and 160 ms: the 40 ms cells voided below the rule's 8 pairs), none warm. So row 3's preload is
-   what makes the WASM client affordable, and #98's, which starts at the transport file, is not yet measured.
+   what makes the WASM client affordable, and the product's WASM preload, which starts at the transport file, is not
+   yet measured (TS keeps the HTML's).
    `console_error` stays: 1.1 KB gzipped, 3 % of the compile.
 6. **By hand** — W12: the rigs in Firefox with `client=wasm`, and the devices' D0 with `client: "wasm"`.
 

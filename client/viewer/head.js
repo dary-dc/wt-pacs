@@ -12,7 +12,7 @@
     if (as) l.as = as;
     document.head.append(l);
   };
-  // The transport file names the client; its module is the first file. docs/CLIENTS.md §Choosing the client
+  // The transport file names the client; its module is the first file, TS's preloaded by the HTML. docs/CLIENTS.md §Choosing the client
   const CLIENTS = {
     ts: ["/client/transport/ts/dist/session.js"],
     wasm: ["/client/transport/wasm/session-adapter.js", "/client/transport/wasm/pkg/transport_wasm.js", "/client/transport/wasm/pkg/transport_wasm_bg.wasm"],
@@ -20,7 +20,7 @@
   globalThis.viewerTransport = globalThis.viewerLab.then((lab) => lab.transport ?? fetch("/wt/dev-transport.json").then((r) => r.json())).then((t) => {
     const client = t.client ?? "ts";
     if (!Object.hasOwn(CLIENTS, client)) throw new Error(`refused: client ${JSON.stringify(client)} — ts or wasm`);
-    for (const f of CLIENTS[client]) link("preload", f, f.endsWith(".wasm") ? "fetch" : "script");
+    if (client === "wasm") for (const f of CLIENTS.wasm) link("preload", f, f.endsWith(".wasm") ? "fetch" : "script");
     return { ...t, client, module: CLIENTS[client][0] };
   });
   globalThis.viewerMetadata.then((m) => {

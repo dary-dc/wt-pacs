@@ -2,7 +2,7 @@
  * A crafted link to the product's page is refused: each lab parameter, opened on a host that does not serve lab/
  * as the web image does not, stops the page before it fetches, imports or dials what the link names. On a host that
  * serves lab/ the same parameters are honoured, which shows the test would see them. A transport file naming a client
- * the page does not know is refused by name, before any client's code is fetched or anything dialled.
+ * the page does not know is refused by name, before the WASM client's code is fetched or anything dialled.
  * client/README.md §The viewer
  *
  *   NODE_PATH=$(npm root -g) node client/viewer/crafted.mjs
@@ -75,7 +75,7 @@ async function open(query) {
   // A dial, once the page has passed the point where it would refuse, follows within a few ms; a second is ample.
   await new Promise((r) => setTimeout(r, 1000));
   const seen = { status: await tab.textContent("#status"), fetched: requests.filter((r) => r.startsWith("/crafted/")), honest: honest.dialled, crafted: crafted.dialled,
-    clients: requests.filter((r) => r.startsWith("/client/transport/ts/") || r.startsWith("/client/transport/wasm/")) };
+    wasm: requests.filter((r) => r.startsWith("/client/transport/wasm/")) };
   await tab.close();
   return seen;
 }
@@ -93,7 +93,7 @@ for (const [name, query] of Object.entries(LINKS)) {
 for (const name of ["rust", "toString"]) {
   client = name;
   const r = await open({});
-  const ok = r.status.includes(`refused: client "${name}"`) && !r.clients.length && !r.honest && !r.crafted;
+  const ok = r.status.includes(`refused: client "${name}"`) && !r.wasm.length && !r.honest && !r.crafted;
   console.log(`${ok ? "ok  " : "FAIL"} a transport file naming client "${name}": ${JSON.stringify(r)}`);
   if (!ok) failures.push(`client "${name}" was not refused by name with nothing loaded`);
 }
