@@ -234,7 +234,7 @@ written as `telemetry-client.VOID.json` and fails the harvest unless `--allow-vo
 missing server report always fails it. The harvest restarts the server for every run, so each run
 has its own report.
 
-**The shell** (`client/harness/shell.js`, loaded by `cell.html`) runs every cell over the downloader;
+**The shell** (`lab/harness/shell.js`, loaded by `cell.html`) runs every cell over the downloader;
 with `telemetry=1` the recorder sits in the downloader's worker as its transport and the page harvests
 it over a `BroadcastChannel` before closing (the recorder's wrapper stamps `gesture` when an ask
 leaves). The shell keeps `D` asks in flight (never the same index twice), touches every 4 KiB of each

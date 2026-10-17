@@ -31,8 +31,8 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `wasm/` | `build/` builds the three decoders the page loads (OpenJPH from `openjph/`, dav1d, xxHash from `xxh3/`) into `built/`, checked against `build/manifest.sha256`, with every licence in `built/THIRD_PARTY_NOTICES`; `dav1d/` the lab's dav1d-WASM tooling and its exactness check; `fetch_openjph.sh` fetches OpenJPH's npm build and `fetch_xxh3.sh` hash-wasm's XXH3, `xxh3.test.mjs`'s reference, into `vendor/` |
 
 The rest: [`viewer/`](viewer/) the product's page (§The viewer), [`contract/`](contract/) the transport's clauses
-and the rigs, [`paint/`](paint/README.md) the painter, [`record/`](record/) telemetry, [`harness/`](harness/) the
-lab's pages.
+and the rigs, [`paint/`](paint/README.md) the painter, [`record/`](record/) telemetry.
+The lab's pages are in [`lab/harness/`](../lab/harness/).
 
 **An AV1 series.** `opts.decoder.codec` names the series' codec: `"htj2k"` (or absent) is today's
 path untouched, `"av1"` loads `av1.js` and, at the decoder's start, both decoders it may need — dav1d-WASM
@@ -241,8 +241,8 @@ fire late, which headless Chromium does not do; `close()` removing the page list
 (the stand-in decoder returns no buffer, and the ring allocates when empty); and recycling's guard
 against a resumption that finished first is a race the fake cannot order.
 
-Its self-check (`client/harness/index.html`) checks each decoded frame of the `decode_c512` series
-against the fixture's `.sha256`; `client/harness/cell.html` runs a lab cell over any series:
+Its self-check (`lab/harness/index.html`) checks each decoded frame of the `decode_c512` series
+against the fixture's `.sha256`; `lab/harness/cell.html` runs a lab cell over any series:
 
 ```bash
 ./server/scripts/gen_dev_cert.sh
