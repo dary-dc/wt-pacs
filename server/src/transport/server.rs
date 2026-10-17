@@ -870,10 +870,9 @@ mod tests {
         path
     }
 
-    /// Longer than one read window, so a frame takes several reads and the look-ahead has
-    /// to survive them.
+    /// Longer than `TEST_CHUNK`, so a frame assembled from misplaced chunks cannot match.
     fn pattern(idx: u32) -> Vec<u8> {
-        let len = crate::media::frame_store::READ_WINDOW as u32 + 1 + idx * 997;
+        let len = crate::media::frame_store::TEST_CHUNK as u32 + 1 + idx * 997;
         (0..len)
             .map(|b| (b.wrapping_mul(31).wrapping_add(idx.wrapping_mul(7)) % 251) as u8)
             .collect()
@@ -1246,6 +1245,40 @@ mod tests {
             );
         })
         .await;
+    }
+
+    /// **An accept that keeps failing is retried at a pace, not in a spin.** A listener shut for
+    /// reading fails every accept at once, as one out of descriptors does; each failure is a WARN.
+    #[tokio::test]
+    async fn a_failing_websocket_accept_is_retried_at_a_pace() {
+        let fx = Fixture::new(1);
+        let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+        let (listener, tls) = websocket::bind(localhost, 0, &fx.cert_pem, &fx.key_pem).await.expect("bind");
+        socket2::SockRef::from(&listener).shutdown(std::net::Shutdown::Read).expect("shut the listener");
+        let warned = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let lines = Arc::clone(&warned);
+        let log = tracing_subscriber::fmt().with_writer(move || LineCount(Arc::clone(&lines))).finish();
+        let _log = tracing::subscriber::set_default(log);
+        let serving = tokio::spawn(websocket::serve(listener, tls, plain_sessions(&fx.series)));
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        serving.abort();
+        let warned = warned.load(std::sync::atomic::Ordering::Relaxed);
+        assert!((1..=6).contains(&warned), "{warned} failed accepts in 500 ms");
+    }
+
+    /// Counts the lines a log subscriber writes.
+    struct LineCount(Arc<std::sync::atomic::AtomicUsize>);
+
+    impl std::io::Write for LineCount {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            let lines = buf.iter().filter(|&&b| b == b'\n').count();
+            self.0.fetch_add(lines, std::sync::atomic::Ordering::Relaxed);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
     }
 
     /// A session opened on its URL ask is recorded like any other: an opening fill of three

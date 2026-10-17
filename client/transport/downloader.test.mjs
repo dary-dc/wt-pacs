@@ -93,11 +93,15 @@ function handDecoders() {
       made.push(this);
     }
     postMessage(m) {
-      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "init") {
+        this.toConsumer = m.toConsumer;
+        queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      }
       if (m.kind === "decode") this.decoding.push(m);
     }
     finish() {
       const m = this.decoding.shift();
+      this.toConsumer.postMessage({ kind: "frame", index: m.index, gen: m.gen, pixels: new Uint8Array(1), stamps: m.stamps });
       this.onmessage({ data: { kind: "done", index: m.index, gen: m.gen } });
       return m;
     }
@@ -227,6 +231,64 @@ async function lostTwiceFailsLoudly() {
   check(fed.asks.size === asked, `and is not asked again (${fed.asks.size} asks, not ${asked})`);
 }
 await lostTwiceFailsLoudly();
+
+/**
+ * A frame the page has is never failed: handed to the page, its decoder lost before the page's ack is back and the
+ * next decoder lost too, it reaches `onFrame` alone, and the frame those decoders were lost on fails by name.
+ */
+async function aDeliveredFrameIsNotFailed() {
+  const fed = handFed();
+  const decoders = handDecoders();
+  const Decoder = globalThis.Worker;
+  const acks = [];
+  let page;
+  globalThis.Worker = class {
+    constructor(url) {
+      if (url !== "downloader") return new Decoder();
+      page = this;
+    }
+    postMessage(m) {
+      if (m.kind === "ack") acks.push(m);
+      else onmessage({ data: m });
+    }
+    terminate() {}
+  };
+  globalThis.MessageChannel = class {
+    port1 = { postMessage: (m) => this.port2.onmessage({ data: m }) };
+    port2 = {};
+  };
+  globalThis.postMessage = (m) => page.onmessage({ data: m });
+  globalThis.crossOriginIsolated = true;
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // delivered`;
+  await import("./downloader.js?delivered");
+  const { DownloaderClient } = await import("./consumer.js");
+  const got = [];
+  const failures = [];
+  const c = await DownloaderClient.connect("https://x.invalid/", "ab", {
+    worker: "downloader", decoders: 1, perDecoder: 2, transport, decoderWorker: "x", survival: false,
+    onFrame: (f) => got.push(f.frameIndex), onError: (f) => failures.push(f),
+  });
+  c.fill([0, 1]);
+  await settle();
+  fed.fill(frame(0));
+  fed.fill(frame(1));
+  await settle();
+  decoders[0].finish();
+  decoders[0].crash();
+  await settle();
+  fed.asks.get(0)?.(frame(0));
+  fed.asks.get(1)?.(frame(1));
+  await settle();
+  decoders[1].crash();
+  await settle();
+  for (const m of acks.splice(0)) await onmessage({ data: m });
+  const failed = failures.map((f) => `${f.frameIndex}: ${f.reason}`);
+  check(got.join() === "0" && failures.length === 1 && failures[0].frameIndex === 1 && /crashed/.test(failures[0].reason),
+    `frame 0 is delivered and not failed, frame 1 fails by name (delivered ${got}; failed ${failed})`);
+  c.close();
+  globalThis.postMessage = (m) => posted.push(m);
+}
+await aDeliveredFrameIsNotFailed();
 
 /** A frame asked, cancelled before it arrives and asked again reaches the new ask: the session still owes the first, and refuses a second. */
 async function anAskAgainAfterACancelIsServed() {

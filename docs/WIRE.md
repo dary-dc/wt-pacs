@@ -260,6 +260,20 @@ kernel's), the per-session `session path` line, and telemetry rows. The idle-ses
 [`adr/transport-idle-sessions.md`](adr/transport-idle-sessions.md) is QUIC's and does not
 transfer; nothing here measures TCP's.
 
+**A peer that vanishes ends its session.** Every accepted socket has TCP keep-alive: after 20 s
+with nothing received, four probes 5 s apart. A peer that answers none, a laptop asleep or a NAT
+that forgot it, fails the session's read at about 40 s, and the session ends as any failed read
+does, a WARN; a live tab's kernel answers the probes, so an idle page keeps its session, as on
+QUIC. A test reads the options back (`an_accepted_socket_probes_a_silent_peer`); the kernel's
+expiry is not observed. A peer that vanishes while the server is writing to it is not probed: the
+kernel's retransmissions end it, after `tcp_retries2` (about 15 minutes by default), not measured.
+An accept that fails, as when the process is out of descriptors, is retried after 100 ms, not at
+once (`a_failing_websocket_accept_is_retried_at_a_pace`). *Shown 2026-10-16, row 272:*
+`prlimit --nofile=64 series-server --websocket …`, 80 TCP connections held open, then the
+`WebSocket accept failed` WARNs (`Too many open files`) timestamped in one second: 10 with the
+pause, 462 816–475 514 without it (before this change), 457 474–533 246 with the pause removed;
+three interleaved rounds each, release builds, 4-core host.
+
 One ordered byte stream gives up what QUIC's streams give: a slow or lost frame holds every frame
 behind it, and a retransmit stalls everything. The contract suite reports the independent-
 delivery clauses as not applicable rather than passing
