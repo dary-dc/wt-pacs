@@ -535,6 +535,33 @@ async function onHeadRunsBeforeTheBody(rig: SessionRig, check: Check) {
   s.close();
 }
 
+/** An `onHead` that throws fails its own ask with that error, and the stream it was read from keeps reading. */
+async function anOnHeadThatThrowsFailsItsAsk(rig: SessionRig, check: Check) {
+  const s = await rig.open();
+  const thrower = s.requestExactFrame(0, () => {
+    throw new Error("boom");
+  }).then(() => "delivered", (e) => String(e?.message ?? e));
+  const behind = s.requestExactFrame(1);
+  await settle();
+  await rig.fake().pushOnOneStream([0, 1].map((i) => [i, enc.encode(`frame-${i}`)] as [number, Uint8Array]));
+  const outcome = (await within(thrower)) ?? "still waiting";
+  check(outcome === "frame 0 unavailable: onHead threw: boom", `${rig.name}: an onHead that throws fails its ask with the error (${outcome})`);
+  const next = text(await within(behind));
+  check(next === "frame-1", `${rig.name}: and the stream it was read from keeps reading (${next || "nothing"})`);
+  s.close();
+}
+
+/** Call order is wire order: a fill asked while an ask is unsettled reaches the control stream behind it. docs/WIRE.md §An ask during a fill */
+async function anAskIsOnTheWireBeforeItReturns(rig: SessionRig, check: Check) {
+  const s = await rig.open();
+  s.requestExactFrame(7).catch(() => {});
+  s.fillFrames(3, 6, () => {});
+  await settle();
+  const ops = (await rig.fake().controlMessages()).map((m) => m.op).join();
+  check(ops === "request_frame,stream_frames", `${rig.name}: an ask, then a fill, reach the wire in that order (${ops || "nothing"})`);
+  s.close();
+}
+
 /** A dial whose `ready` never settles is closed at `dialMs` and rejected by name. docs/ARCHITECTURE.md §A dial that never settles */
 async function aDialThatNeverSettlesIsClosedAtItsDeadline(rig: SessionRig, check: Check) {
   rig.hangNextDial();
@@ -602,6 +629,8 @@ async function mediaReadsCountsTheMediaReads(rig: SessionRig, check: Check) {
 export async function runSessionClauses(rig: SessionRig, check: Check): Promise<void> {
   await runEach(rig, check, [
     onHeadRunsBeforeTheBody,
+    anOnHeadThatThrowsFailsItsAsk,
+    anAskIsOnTheWireBeforeItReturns,
     aDialThatNeverSettlesIsClosedAtItsDeadline,
     anOpeningFillRidesTheUrl,
     anEmptyHashDialsUnpinned,
