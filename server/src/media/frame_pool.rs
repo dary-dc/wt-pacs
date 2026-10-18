@@ -14,12 +14,6 @@ struct Pool(Mutex<Vec<Vec<u8>>>);
 
 static POOL: Pool = Pool::new();
 
-#[cfg(test)]
-thread_local! {
-    /// Test-only: buffers given back to a pool on this thread.
-    pub(crate) static RETURNED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 /// A buffer to read the next frame into: one quinn gave back, or a new one.
 pub fn take() -> Vec<u8> {
     POOL.take()
@@ -64,11 +58,6 @@ impl Pool {
             pool.push(buf);
         }
     }
-
-    #[cfg(test)]
-    fn pooled(&self) -> usize {
-        self.buffers().len()
-    }
 }
 
 struct Pooled(Vec<u8>, &'static Pool);
@@ -82,6 +71,19 @@ impl AsRef<[u8]> for Pooled {
 impl Drop for Pooled {
     fn drop(&mut self) {
         self.1.put_back(mem::take(&mut self.0));
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Buffers given back to a pool on this thread.
+    pub(crate) static RETURNED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+impl Pool {
+    fn pooled(&self) -> usize {
+        self.buffers().len()
     }
 }
 

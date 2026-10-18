@@ -7,15 +7,6 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use series_bundle::read_layout;
 
-#[cfg(test)]
-use std::sync::atomic::{AtomicUsize, Ordering};
-#[cfg(test)]
-use std::sync::Mutex;
-
-/// 64 KiB, a size tests make frames span several of. `docs/adr/disk-access.md`.
-#[cfg(test)]
-pub(crate) const TEST_CHUNK: usize = 64 * 1024;
-
 /// Where a frame's codestream lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FrameSpan {
@@ -28,15 +19,8 @@ pub struct FrameStore {
     file: File,
     index: Vec<(u64, u32)>,
     nowait: bool,
-    /// Test-only ceiling on one `read_at_nowait`, for forcing a partial hit.
     #[cfg(test)]
-    nowait_cap: Option<usize>,
-    #[cfg(test)]
-    pool_starts: AtomicUsize,
-    #[cfg(test)]
-    advised: Mutex<Vec<(u64, u64)>>,
-    #[cfg(test)]
-    failing_reads: AtomicUsize,
+    hooks: TestHooks,
 }
 
 impl FrameStore {
@@ -56,13 +40,7 @@ impl FrameStore {
             file,
             index,
             #[cfg(test)]
-            nowait_cap: None,
-            #[cfg(test)]
-            pool_starts: AtomicUsize::new(0),
-            #[cfg(test)]
-            advised: Mutex::new(Vec::new()),
-            #[cfg(test)]
-            failing_reads: AtomicUsize::new(0),
+            hooks: TestHooks::default(),
         }
     }
 
@@ -94,10 +72,7 @@ impl FrameStore {
             return Ok(0);
         }
         #[cfg(test)]
-        let buf = {
-            let end = self.nowait_cap.unwrap_or(buf.len()).min(buf.len());
-            &mut buf[..end]
-        };
+        let buf = self.hooks.cap(buf);
         let mut done = 0usize;
         while done < buf.len() {
             match preadv2_nowait(&self.file, &mut buf[done..], offset + done as u64) {
@@ -123,7 +98,7 @@ impl FrameStore {
     /// copies nothing and never fails a read, so the result is not checked.
     pub fn advise_ahead(&self, offset: u64, len: u64) {
         #[cfg(test)]
-        self.advised.lock().unwrap().push((offset, len));
+        self.hooks.record_advice(offset, len);
         // SAFETY: `posix_fadvise` reads no user memory; a bad range is an errno, not UB.
         unsafe {
             libc::posix_fadvise(
@@ -138,53 +113,16 @@ impl FrameStore {
     /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
         #[cfg(test)]
-        {
-            let fail = |n: usize| n.checked_sub(1);
-            if self.failing_reads.fetch_update(Ordering::SeqCst, Ordering::SeqCst, fail).is_ok() {
-                anyhow::bail!("read {} bytes at {offset}: failed by the test lever", buf.len());
-            }
-        }
+        self.hooks.fail_read(buf.len(), offset)?;
         self.file
             .read_exact_at(buf, offset)
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
-    }
-
-    /// Force a partial hit: real bytes at the front, a shortfall behind them.
-    #[cfg(test)]
-    pub(crate) fn force_short_reads(&mut self, cap: usize) {
-        self.nowait_cap = Some(cap);
-    }
-
-    /// Fail the next `n` blocking reads, as a device error does.
-    #[cfg(test)]
-    pub(crate) fn fail_blocking_reads(&self, n: usize) {
-        self.failing_reads.store(n, Ordering::SeqCst);
     }
 
     /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test or
     /// a lab run can rely on — CLAUDE.md#measurement. Reachable in a build for `--force-pool-reads`.
     pub fn force_pool_reads(&mut self) {
         self.nowait = false;
-    }
-
-    #[cfg(test)]
-    pub(crate) fn account_pool_start(&self) {
-        self.pool_starts.fetch_add(1, Ordering::SeqCst);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn pool_starts(&self) -> usize {
-        self.pool_starts.load(Ordering::SeqCst)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn reset_pool_starts(&self) {
-        self.pool_starts.store(0, Ordering::SeqCst);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
-        std::mem::take(&mut *self.advised.lock().unwrap())
     }
 }
 
@@ -233,6 +171,72 @@ pub fn nowait_supported_at(path: &Path) -> Result<bool> {
     drop(file);
     let _ = std::fs::remove_file(&probe);
     answer.with_context(|| format!("write probe file in {}", path.display()))
+}
+
+#[cfg(test)]
+use std::sync::{atomic::{AtomicUsize, Ordering}, Mutex};
+
+/// 64 KiB, a size tests make frames span several of. `docs/adr/disk-access.md`.
+#[cfg(test)]
+pub(crate) const TEST_CHUNK: usize = 64 * 1024;
+
+#[cfg(test)]
+#[derive(Default)]
+struct TestHooks {
+    /// Ceiling on one `read_at_nowait`, for forcing a partial hit.
+    nowait_cap: Option<usize>,
+    pool_starts: AtomicUsize,
+    advised: Mutex<Vec<(u64, u64)>>,
+    failing_reads: AtomicUsize,
+}
+
+#[cfg(test)]
+impl TestHooks {
+    fn cap<'b>(&self, buf: &'b mut [u8]) -> &'b mut [u8] {
+        let end = self.nowait_cap.unwrap_or(buf.len()).min(buf.len());
+        &mut buf[..end]
+    }
+
+    fn record_advice(&self, offset: u64, len: u64) {
+        self.advised.lock().unwrap().push((offset, len));
+    }
+
+    fn fail_read(&self, len: usize, offset: u64) -> Result<()> {
+        let fail = |n: usize| n.checked_sub(1);
+        if self.failing_reads.fetch_update(Ordering::SeqCst, Ordering::SeqCst, fail).is_ok() {
+            anyhow::bail!("read {len} bytes at {offset}: failed by the test lever");
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+impl FrameStore {
+    /// Force a partial hit: real bytes at the front, a shortfall behind them.
+    pub(crate) fn force_short_reads(&mut self, cap: usize) {
+        self.hooks.nowait_cap = Some(cap);
+    }
+
+    /// Fail the next `n` blocking reads, as a device error does.
+    pub(crate) fn fail_blocking_reads(&self, n: usize) {
+        self.hooks.failing_reads.store(n, Ordering::SeqCst);
+    }
+
+    pub(crate) fn account_pool_start(&self) {
+        self.hooks.pool_starts.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub(crate) fn pool_starts(&self) -> usize {
+        self.hooks.pool_starts.load(Ordering::SeqCst)
+    }
+
+    pub(crate) fn reset_pool_starts(&self) {
+        self.hooks.pool_starts.store(0, Ordering::SeqCst);
+    }
+
+    pub(crate) fn take_advice(&self) -> Vec<(u64, u64)> {
+        std::mem::take(&mut *self.hooks.advised.lock().unwrap())
+    }
 }
 
 #[cfg(test)]

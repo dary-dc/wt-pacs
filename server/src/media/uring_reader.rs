@@ -11,15 +11,6 @@ use std::os::fd::{AsRawFd, RawFd};
 use tokio::io::unix::AsyncFd;
 use tokio::io::Interest;
 
-#[cfg(test)]
-thread_local! {
-    /// Test-only: the wait is otherwise unobservable, since a cached read lands before it.
-    pub(crate) static DRAINED_ON_DROP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-    /// Test-only: errnos the next submits and waits on this thread return instead of entering.
-    pub(crate) static FAILED_WAITS: std::cell::RefCell<Vec<i32>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-}
-
 pub struct UringReader {
     /// Declared before `ring`, so it leaves the reactor before the ring's fd closes.
     ring_fd: AsyncFd<RawFd>,
@@ -113,9 +104,7 @@ impl UringReader {
 
     fn submit_and_wait(&mut self, want: usize) -> std::io::Result<usize> {
         #[cfg(test)]
-        if let Some(errno) = FAILED_WAITS.with(|f| f.borrow_mut().pop()) {
-            return Err(std::io::Error::from_raw_os_error(errno));
-        }
+        injected_failure()?;
         self.ring.submitter().submit_and_wait(want)
     }
 }
@@ -123,6 +112,24 @@ impl UringReader {
 impl Drop for UringReader {
     fn drop(&mut self) {
         let _ = self.drain_in_flight();
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The wait is otherwise unobservable, since a cached read lands before it.
+    pub(crate) static DRAINED_ON_DROP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Errnos the next submits and waits on this thread return instead of entering.
+    pub(crate) static FAILED_WAITS: std::cell::RefCell<Vec<i32>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The next errno a test queued in `FAILED_WAITS`, as the kernel's own answer.
+#[cfg(test)]
+fn injected_failure() -> std::io::Result<()> {
+    match FAILED_WAITS.with(|f| f.borrow_mut().pop()) {
+        Some(errno) => Err(std::io::Error::from_raw_os_error(errno)),
+        None => Ok(()),
     }
 }
 

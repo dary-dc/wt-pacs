@@ -78,11 +78,6 @@ pub(crate) fn check_frame_len(index: usize, length: u32) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
-    parse_layout_checked(bytes, bytes.len() as u64)
-}
-
 /// Two preads: the fixed header, then the whole prefix. Index entries use the file length.
 pub fn read_layout(file: &File) -> Result<ParsedLayout> {
     let file_len = file.metadata().context("stat bundle")?.len();
@@ -107,6 +102,11 @@ fn prefix_len(header: &[u8]) -> Result<u64> {
     let frame_count = u32::from_le_bytes(header[12..16].try_into()?);
     let index_len = u64::from(frame_count) * INDEX_ENTRY_SIZE as u64;
     Ok(HEADER_SIZE as u64 + index_len + u64::from(metadata_len))
+}
+
+#[cfg(test)]
+fn parse_layout(bytes: &[u8]) -> Result<ParsedLayout> {
+    parse_layout_checked(bytes, bytes.len() as u64)
 }
 
 /// A bundle laid out by hand from the format, for the parser and the writer to be checked against.

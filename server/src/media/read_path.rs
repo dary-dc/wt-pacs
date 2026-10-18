@@ -16,12 +16,6 @@ use std::sync::Once;
 #[cfg(feature = "uring")]
 use tracing::warn;
 
-#[cfg(all(test, feature = "uring"))]
-thread_local! {
-    /// Test-only: tile readers dropped with their slots leaked.
-    static LEAKED_ON_DROP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 /// Frames a tile session holds at once, and its ring depth. `docs/adr/disk-access.md`.
 pub const TILE_SLOTS: usize = 4;
 /// Bytes past the named frame a fill asks the kernel to have ready. `docs/adr/disk-access.md`.
@@ -474,21 +468,6 @@ impl TileReader {
         #[cfg(not(feature = "uring"))]
         return false;
     }
-
-    #[cfg(test)]
-    pub(crate) fn holds(&self, span: FrameSpan) -> bool {
-        self.holding(span).is_some()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn pending_slots(&self) -> usize {
-        self.slots.iter().filter(|s| s.read.is_some()).count()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn serving_slot(&self) -> usize {
-        self.last
-    }
 }
 
 impl Drop for TileReader {
@@ -507,6 +486,27 @@ impl Drop for TileReader {
                 }
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "uring"))]
+thread_local! {
+    /// Tile readers dropped with their slots leaked.
+    static LEAKED_ON_DROP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+impl TileReader {
+    pub(crate) fn holds(&self, span: FrameSpan) -> bool {
+        self.holding(span).is_some()
+    }
+
+    pub(crate) fn pending_slots(&self) -> usize {
+        self.slots.iter().filter(|s| s.read.is_some()).count()
+    }
+
+    pub(crate) fn serving_slot(&self) -> usize {
+        self.last
     }
 }
 

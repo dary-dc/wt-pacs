@@ -61,11 +61,6 @@ impl Planner {
         self.in_hand.push_back(ask);
     }
 
-    #[cfg(test)]
-    fn in_hand_len(&self) -> usize {
-        self.in_hand.len()
-    }
-
     /// `poll` yields asks that arrived since the last step; a fill checks it between frames.
     pub fn next(&mut self, mut poll: impl FnMut() -> Option<Command>) -> Result<Step> {
         while self.in_hand.len() < ASKS_AHEAD {
@@ -128,6 +123,13 @@ pub fn fill_range(from: Option<u32>, to: Option<u32>, frames: u32) -> Result<(u3
         Err(format!("StreamFrames {from}..={to} outside 0..={last}"))
     } else {
         Ok((from, to))
+    }
+}
+
+#[cfg(test)]
+impl Planner {
+    fn in_hand_len(&self) -> usize {
+        self.in_hand.len()
     }
 }
 
