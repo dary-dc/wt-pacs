@@ -26,7 +26,7 @@ PR route of §5.
 
 ## 1. The goal
 
-Darian (owner, GitHub `dary-dc`): unified (`claude/av1-unified-mainbase`) ready for `main`, which he merges himself;
+Darian (owner, GitHub `dary-dc`): unified (`claude/av1-unified-mainbase`) went into `main` on 2026-10-18 (§6);
 one open PR per idea, each with a stated reason it is not merged. Since 2026-10-17 a design track: he iterates on
 proposals himself, in cloud sessions he can open and talk to.
 
@@ -34,7 +34,7 @@ proposals himself, in cloud sessions he can open and talk to.
 
 | What | Where | Head |
 |---|---|---|
-| `main` | never pushed by an agent | `b59bdf7b` |
+| `main` | never pushed by an agent; changes only through a PR on Darian's word | `bf6a5b86`: **unified merged in, 2026-10-18** (#104, on his "merge it") |
 | **Unified** | `claude/av1-unified-mainbase` | `5625dcf4`: everything below merged; final verification running (§3) |
 | Decision table, targets, helpers | `handoff/` on this branch (`claude/project-thread-9uugfm`) | |
 | Next-project ideas | `docs/next/ideas.md` on `claude/next-ideas-cdydy8` | `32d17bc9`, no PR |
@@ -145,5 +145,6 @@ conflicts goes in a worktree under `~/Desktop/projects/` (never `~/.cache`), rem
 
 ## 6. Path to `main`
 
-1. The final verification (§3): clean, one authorship finding for Darian.
-2. Darian merges #104 (unified into `main`), or says "merge #104".
+**Done 2026-10-18 ~20:10 UTC:** the final verification clean (§3); Darian accepted the one authorship finding and said
+"merge it"; #104 merged with a merge commit pinned to `5625dcf4` (`bf6a5b86`). From here, unified is the working base
+and `main` takes it again through a PR on his word.
