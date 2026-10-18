@@ -183,7 +183,13 @@ export abstract class FrameSession {
       this.lastByteAt = performance.now();
       this.reads += 1;
     };
-    const onHead = (index: number) => this.waiters.get(index)?.onHead?.();
+    const onHead = (index: number) => {
+      try {
+        this.waiters.get(index)?.onHead?.();
+      } catch (e) {
+        this.failWaiter(index, `onHead threw: ${(e as Error)?.message ?? e}`);
+      }
+    };
     let next: (() => Promise<Envelope | null>) | null = null;
     if (this.readMin) {
       // A stream that is not a byte stream has no BYOB reader: it is read the default way.
