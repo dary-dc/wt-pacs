@@ -1,6 +1,6 @@
 /** The control stream's FoD messages, as the Tap reads them; pulls no session. */
 
-import type { FodMsg } from "../transport/ts/wire.ts";
+import type { FodMsg } from "../../client/transport/ts/wire.ts";
 import type { RowKind } from "./types.ts";
 
 export type FodAsk = { kind: RowKind; frames: number[] };

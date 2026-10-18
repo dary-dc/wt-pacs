@@ -121,7 +121,7 @@ type Pending = Arc<Mutex<Batch>>;
 
 /// The live sessions' buffers. The process has one; a test that takes from it makes its own.
 #[derive(Default)]
-pub(crate) struct Live(Mutex<Vec<Weak<Mutex<Batch>>>>);
+pub struct Live(Mutex<Vec<Weak<Mutex<Batch>>>>);
 
 pub(crate) static LIVE: Live = Live(Mutex::new(Vec::new()));
 
@@ -227,7 +227,7 @@ impl Tap {
         Some(tap)
     }
 
-    pub(crate) fn new(session_id: u64, tx: Option<SyncSender<Batch>>, live: &Live) -> Self {
+    pub fn new(session_id: u64, tx: Option<SyncSender<Batch>>, live: &Live) -> Self {
         let batch: Pending = Arc::new(Mutex::new(Vec::with_capacity(BATCH)));
         live.register(&batch);
         Self {
@@ -261,7 +261,7 @@ impl Tap {
         n
     }
 
-    pub(crate) fn begin_frame(&mut self, frame_index: u32) {
+    pub fn begin_frame(&mut self, frame_index: u32) {
         ROWS_OPENED.fetch_add(1, Ordering::Relaxed);
         self.rows_opened = self.rows_opened.saturating_add(1);
         let t = Instant::now();
@@ -275,23 +275,23 @@ impl Tap {
     }
 
     /// The frame's bytes are in hand: close `read` against the mark and open `write`.
-    pub(crate) fn boundary_read_done(&mut self) {
+    pub fn boundary_read_done(&mut self) {
         let now = Instant::now();
         self.pending_read_us = self.stage_mark.replace(now).map(|mark| duration_us(mark, now));
     }
 
-    pub(crate) fn emit_sent(&mut self, envelope_len: usize) {
+    pub fn emit_sent(&mut self, envelope_len: usize) {
         self.pending_bytes = usize_to_u32(envelope_len);
         self.try_emit(WriteOutcome::Sent);
     }
 
     /// A failed read leaves both stages null.
-    pub(crate) fn emit_failed(&mut self) {
+    pub fn emit_failed(&mut self) {
         self.try_emit(WriteOutcome::Failed);
     }
 
     /// The planner's refusal: its own row, with no stage, since nothing was read or written.
-    pub(crate) fn emit_refused(&mut self, frame_index: u32) {
+    pub fn emit_refused(&mut self, frame_index: u32) {
         self.begin_frame(frame_index);
         self.stage_mark = None;
         self.try_emit(WriteOutcome::Refused);
@@ -440,7 +440,7 @@ pub(super) fn env_u64(name: &str, default: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::record::report::{distribution_stats, percentile, RunAccumulator};
+    use crate::report::{distribution_stats, percentile, RunAccumulator};
     use std::sync::mpsc::{sync_channel, Receiver};
 
     fn test_tap() -> Tap {

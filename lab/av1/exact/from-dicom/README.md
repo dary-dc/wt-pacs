@@ -33,7 +33,7 @@ native transfer syntaxes.
   client's codec modules (OpenJPH, and dav1d-WASM without WebCodecs), against the source's checksums. It also
   writes `WORK/fill` for total-time's fill, variants `htj2k` and `av1`, each with its digests.
 * **time** — per set, the one command on each of its series against today's two steps (`fetch_data.py`'s extraction
-  of the cached DICOM, `ingest/coded-frames/ingest.py --codec htj2k`, `pack-series`), each round interleaved by
+  of the cached DICOM, `lab/av1/tools/ingest_coded.py --codec htj2k`, `pack-series`), each round interleaved by
   `lab/scripts/order.py`, `--jobs 4` in both, seconds a frame.
 
 **Pins.** DCMTK 3.6.9, conda-forge `dcmtk-3.6.9-h43deee3_2.conda` (SHA-256

@@ -19,8 +19,8 @@ W=lab/.av1-work
 mkdir -p $W/fc-data && for s in dbt10_ea1141 ffdms_c1; do ln -sfn $PWD/lab/av1/data/$s $W/fc-data/$s; done
 lab/av1/.venv/bin/python lab/av1/delivery/split-rule/make_frames.py lab/.av1-build $W/fc $W/fc-data/* --preset allintra:7 --k 2
 P=lab/av1/.venv/bin/python; L=$W/load                                            # server-load's series, as its README
-$P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $L/htj2k --codec htj2k
-$P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $L/av1 --representation optimized --preset good:6
+$P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/dbt10_ea1141 $L/htj2k --codec htj2k
+$P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/dbt10_ea1141 $L/av1 --representation optimized --preset good:6
 for c in htj2k av1; do target/release/pack-series --metadata $L/$c/metadata.json --frames $L/$c --output $L/$c/$c.sbnd; done
 PATH=$PWD/lab/av1/.venv/bin:$PATH python lab/ask-ahead/make_series.py lab/av1/data/dbt10_ea1141 $W/ask-dbt10
 

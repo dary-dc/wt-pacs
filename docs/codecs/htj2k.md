@@ -14,7 +14,7 @@ block coder replaced by a faster one. The reversible 5/3 path is lossless.
 Every frame is one codestream in the served profile — reversible 5/3, five decompositions, 64² code-blocks, RPCL,
 one layer, one tile ([`../decode/README.md`](../decode/README.md) §The decoder), kept by the HTJ2K encoder-settings measurement (queue row HTJ2KENC) against 35
 other settings (§Encoder settings there). Ingest writes it with OpenJPH
-(`ingest/coded-frames/ingest.py --codec htj2k`); the client decodes it with OpenJPH in WASM, a build the product makes from pinned sources
+(`ingest/coded-frames/ingest.py`, codec `htj2k`); the client decodes it with OpenJPH in WASM, a build the product makes from pinned sources
 ([`client/decode/wasm/build`](../../client/decode/wasm/build/README.md)).
 
 ## Bytes

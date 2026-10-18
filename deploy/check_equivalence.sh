@@ -65,8 +65,8 @@ PATHS=(/ /client/viewer/index.html /client/viewer/viewer.js /client/transport/do
        /wt/dev-transport.json /series/metadata /nope-404)
 # What the image must not answer: the dev server's lab routes, the checkout, the studies themselves.
 HIDDEN=(/harness/ /lab/order.mjs /lab/viewer/levers.js /fixtures/us_cine_smoke/metadata.json /server/dev-cert/key.pem /deploy/compose.yml
-        "/studies/$SERIES.sbnd" /wt/ /client/contract/run.mjs /client/harness/cell.html /client/paint/check.html
-        /client/viewer/check.mjs /client/record/tap.ts /client/transport/ts/session.ts /client/decode/av1.test.mjs
+        "/studies/$SERIES.sbnd" /wt/ /client/contract/run.mjs /client/paint/check.html
+        /client/viewer/check.mjs /lab/client-telemetry/tap.ts /client/transport/ts/session.ts /client/decode/av1.test.mjs
         /client/decode/wasm/build/build.sh /client/transport/wasm/src/session.rs /client/transport/wasm/Cargo.toml
         /client/transport/wasm/build.sh /client/transport/wasm/pkg/package.json /client/README.md)
 

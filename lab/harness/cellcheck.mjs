@@ -1,4 +1,4 @@
-// The harness pages against a running server, headless. Run by scripts/cellcheck.sh.
+// The harness pages against a running server, headless. Run by cellcheck.sh.
 // env: BASE (the static host's origin), WT_URL, CERT_SHA256, CHROME_PATH
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");

@@ -12,7 +12,7 @@ is [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | `client/contract/` | the suite, §The contract suite |
 | `client/transport/` | beside the transports, the page side (`consumer.js`) and the download worker (`downloader.js`): [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | `client/decode/` | the decode worker, its codec modules and the decoders' WASM builds: [`decode/README.md`](decode/README.md) |
-| `client/paint/`, `client/record/`, `client/harness/`, `client/scripts/` | the painter, the telemetry recorder (Tap), the lab's pages, the worker-safe and absence checks: [`../client/README.md`](../client/README.md) |
+| `client/paint/`, `client/scripts/` | the painter, the worker-safe and absence checks: [`../client/README.md`](../client/README.md) |
 
 ## The seam
 
@@ -159,8 +159,10 @@ by name while the rest still run.
 | `aFrameIsLateOnlyWhenTheSessionGoesQuiet` | a frame whose bytes keep coming for 16 s lands |
 | `aSlowFrameHoldsNoOther` | a frame slow on its own stream holds back no frame on another |
 
-**Five more are a session's own** (`runSessionClauses`), the surface its `connect` and reader offer, which the
+**Seven more are a session's own** (`runSessionClauses`), the surface its `connect` and reader offer, which the
 downloader's rig cannot reach: `onHeadRunsBeforeTheBody` (an asked frame's `onHead` runs once, ahead of its body),
+`anOnHeadThatThrowsFailsItsAsk` (the ask rejects with `onHead threw: …` and the stream keeps reading),
+`anAskIsOnTheWireBeforeItReturns` (an ask, then a fill, reach the control stream in that order),
 `aDialThatNeverSettlesIsClosedAtItsDeadline` (rejected at `dialMs` as a `DialTimeoutError`, the dial closed),
 `anOpeningFillRidesTheUrl` (`?ask=fill:a-b`, armed, every frame to `onFrame`, nothing asked on control),
 `anEmptyHashDialsUnpinned` (no `serverCertificateHashes` without a hash, one with) and
@@ -434,7 +436,7 @@ close, not a reason to move: [§Proposed: the WASM client as a second product cl
 build tools, is considered another product path. We keep them." The rest is kept as written.
 
 **Why.** The product never loads the WASM client: the downloader imports `client/transport/ts/dist/session.js` unless
-told otherwise, and the only page that names the WASM one is the lab's harness (`client/harness/shell.js`,
+told otherwise, and the only page that names the WASM one is the lab's harness (`lab/harness/shell.js`,
 `transport=wasm`). Yet it is a member of the root workspace, the gate refuses to start without its `pkg/`
 (`require_transport_wasm`), and README §Prerequisites asks every developer for the `wasm32-unknown-unknown` target,
 `wasm-pack` 0.15.0 built by `cargo install`, and the binaryen `wasm-opt` its build fetches. `client/decode/wasm/dav1d/`
@@ -457,7 +459,7 @@ new place.
 
 * README §Prerequisites: the `wasm32-unknown-unknown` target, `wasm-pack`, and Quick start's
   `client/transport/wasm/build.sh` with its binaryen `version_117` fetch.
-* The gate: `require_transport_wasm` (also in `scripts/cellcheck.sh`), `run.mjs`'s exit 2 without `pkg/`, the WASM
+* The gate: `require_transport_wasm` (also in `lab/harness/cellcheck.sh`), `run.mjs`'s exit 2 without `pkg/`, the WASM
   halves of `client/scripts/check_worker_safe.sh` and `client/scripts/check_telemetry_absent.sh`, and
   `run_wire.sh`'s `refusals.html?client=wasm` cell.
 * The root workspace: the member and 10 of `Cargo.lock`'s 240 packages (`transport-wasm`, `web-sys`,
@@ -625,42 +627,17 @@ build time with a wasm32 stage.
 ## Proposed: the harness pages to `lab/`
 
 *Proposed 2026-10-15 (queue row 246, HARNESSTOLAB; [`merge-readiness.md`](merge-readiness.md) §Second round, S21).
-Nothing moves before the owner's yes.*
+Done 2026-10-17 (row 264), as proposed: all three files moved.*
 
-**Why.** `client/harness/` (`index.html`, `cell.html`, `shell.js`; 428 lines) is the lab's. The dev host serves it at
-`/harness/`; the image never does — `deploy/web-files.sh` copies the viewer's files alone, and
-`deploy/check_equivalence.sh` requires `/harness/` and `/client/harness/cell.html` to be 404. A reader of `client/`
-meets it among the product.
-
-**What moves.** `git mv client/harness lab/harness`, and the dev host's `/harness/` route pointed at lab/harness/
-(one line of `server/dev-server.py`; `lab/` is already among what it serves). The pages name everything by absolute
-URL (`/harness/shell.js`, `/client/transport/consumer.js`, `/lab/fixtures/decode_c512/…`), so no line in them
-changes, and every URL that `scripts/cellcheck.mjs` and the lab's drivers open stays as it is. Not taken: serving
-the pages at `/lab/harness/` with no route, which rewrites the pages' own links and every driver's URL for nothing.
-
-**What changes with it.** `check_equivalence.sh` drops `/client/harness/cell.html` from its hidden paths (18 → 17;
-`/harness/` stays, and `/lab/` is hidden already), and `deploy/README.md` its count and "a harness page". The path is
-rewritten in README.md, `client/README.md` (and its list of directories), `lab/page-open/README.md`, ARCHITECTURE (6
-lines), this file (2, one in row 228's proposal above) and the two telemetry ADRs; `lab/README.md`'s table gains the
-row. Eleven files, about 20 lines. `docs/av1/queue.md` and `merge-readiness.md`'s L4 finding are records and keep
-the path they had.
-
-**What it costs.** Nothing is saved: 428 lines move. The self-check `index.html` checks the product, not a
-measurement — ARCHITECTURE's table cites it for every decoded frame byte-identical to its `.sha256` — and it would
-sit in `lab/`, whose README says "measurement only"; `lab/scripts/downloader_both_clients.sh` already sits there in
-that same table, and the README's sentence gains a clause. lab/harness/ sits beside `lab/window-harness/`, the
-Rust client: two things with near names. Row 228 edits `shell.js`'s `wasm` entry and this row moves the file;
-whichever lands second merges. *Corrected 2026-10-16:* row 228's client half was rejected, so it edits nothing
-there.
-
-**How it would be proven.** `git grep client/harness` finds only the two records; `scripts/check_links.py` green;
-the gate green with the same skips, its `check_equivalence.sh` on the shorter list; and `scripts/cellcheck.sh` once
-before and once after, every cell and the self-check passing — the gate does not run it, and it is the one check
-that loads the pages.
-
-**The owner's choice.** Move the three files, as proposed; or move `cell.html` and `shell.js` and keep the
-self-check in `client/`, which splits the route across two trees for one page; or leave them, which costs a reader
-of `client/` three files and nothing else.
+`index.html`, `cell.html` and `shell.js` (428 lines) are the lab's, and the image never served them; a reader of
+`client/` met them among the product. They are now [`lab/harness/`](../lab/harness/), with `cellcheck.sh` and
+`cellcheck.mjs`, which drive them, beside them (from `scripts/`). The dev host's `/harness/` route points there, so
+every URL the pages, `cellcheck.mjs` and the lab's drivers open is unchanged. `deploy/check_equivalence.sh` dropped
+`/client/harness/cell.html` from its hidden paths (18 → 17; `/harness/` and `/lab/` stay hidden). The self-check
+checks the product rather than measuring it; `lab/README.md` says so. Not taken: serving the pages at
+`/lab/harness/` with no route, which would have rewritten their links and every driver's URL; and keeping the
+self-check in `client/`, which would have split one route across two trees. `docs/av1/queue.md` and
+`merge-readiness.md`'s L4 finding are records and keep the path they had.
 
 ## Open
 
@@ -670,3 +647,14 @@ Each item below is the owner's to decide, and is tracked here.
   defect is fixed first (§Reading a frame whole).
 * **The WASM client as a product client** — the shape (selected by configuration, no fallback) and rows 3–4 of
   §Proposed: the WASM client as a second product client; and whether row 228's dav1d half moves.
+* **Known defects** — each found by reading the code (2026-10-16 review); *corrected 2026-10-18:*
+  * *Not a defect.* The WASM opening fill is armed on `?ask=fill:` in the URL alone, so against `--opening-ask false`
+    nothing is asked until the stall timer. The TypeScript client does exactly the same (`session.ts`, `ws-session.ts`:
+    the fill is armed, never sent), and `anOpeningFillRidesTheUrl` and the dispatch rig's *open ask* hold both clients
+    to it. A server run with `--opening-ask false` needs `openingAsk: false` from the consumer, as
+    [`client/README.md`](../client/README.md) says. Shown by reading and by those checks, not against a real server.
+  * *Fixed 2026-10-18.* TS: an `onHead` that throws ended that media stream's reads silently at the bare `catch {}`,
+    the asked frame waiting out its timeout and every frame behind it on the stream lost (over a WebSocket the whole
+    session closed); the WASM client ignored the error and delivered the frame. Now both fail that ask with
+    `frame N unavailable: onHead threw: …` and read on: `anOnHeadThatThrowsFailsItsAsk`, which failed on TS, WASM and
+    the WebSocket before.

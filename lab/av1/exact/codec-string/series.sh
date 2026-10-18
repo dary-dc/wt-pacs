@@ -15,11 +15,11 @@ for set in "$DATA"/*/; do
   args=()
   (( bits > 14 )) && args=(--split $((bits - 12)))
   for rep in plain optimized; do
-    "$P" "$HERE/../../../../ingest/coded-frames/ingest.py" "$BUILD" "$set" "$OUT/$name/$rep" --representation "$rep" --frames "$FRAMES" \
+    "$P" "$HERE/../../../../lab/av1/tools/ingest_coded.py" "$BUILD" "$set" "$OUT/$name/$rep" --representation "$rep" --frames "$FRAMES" \
       --preset allintra:7 "${args[@]}" | tail -1
   done
   if (( bits > 12 )); then
-    "$P" "$HERE/../../../../ingest/coded-frames/ingest.py" "$BUILD" "$set" "$OUT/$name/top10" --split $((bits - 10)) --frames "$FRAMES" \
+    "$P" "$HERE/../../../../lab/av1/tools/ingest_coded.py" "$BUILD" "$set" "$OUT/$name/top10" --split $((bits - 10)) --frames "$FRAMES" \
       --preset allintra:7 | tail -1
   fi
 done

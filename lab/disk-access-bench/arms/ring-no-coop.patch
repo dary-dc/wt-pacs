@@ -1,0 +1,46 @@
+diff --git a/server/Cargo.toml b/server/Cargo.toml
+index cedbee5..5230eaf 100644
+--- a/server/Cargo.toml
++++ b/server/Cargo.toml
+@@ -18,6 +18,8 @@ default = ["uring"]
+ telemetry = ["dep:server-telemetry"]
+ # Lab only: a process-wide frame cache in front of both readers. docs/adr/disk-access.md §13.
+ lab-frame-cache = []
++# Lab only: the tile ring set up without COOP_TASKRUN, arm C1 of row 261 -- docs/adr/disk-access.md §9.
++lab-ring-no-coop = ["uring"]
+ # Lab only: `--force-pool-reads`, `--hold-sessions`, `--stall-after-bytes`, `--segmentation-offload`. server/README.md.
+ lab-levers = []
+ # Lab only: `--congestion cubic-classify`, from lab/cc-classify. lab/cc-classify/README.md.
+diff --git a/server/src/media/uring_reader.rs b/server/src/media/uring_reader.rs
+index c35208c..b469156 100644
+--- a/server/src/media/uring_reader.rs
++++ b/server/src/media/uring_reader.rs
+@@ -30,10 +30,11 @@ pub struct UringReader {
+ impl UringReader {
+     /// Registers `file`, so a submission does not have to resolve it.
+     pub fn new(file: &File, entries: u32) -> Result<Self> {
+-        let ring = IoUring::builder()
+-            .setup_coop_taskrun()
+-            .build(entries)
+-            .context("io_uring setup")?;
++        let mut builder = IoUring::builder();
++        if cfg!(not(feature = "lab-ring-no-coop")) {
++            builder.setup_coop_taskrun();
++        }
++        let ring = builder.build(entries).context("io_uring setup")?;
+         ring.submitter()
+             .register_files(&[file.as_raw_fd()])
+             .context("register_files")?;
+diff --git a/server/src/transport/banner.rs b/server/src/transport/banner.rs
+index 73aa730..bf71867 100644
+--- a/server/src/transport/banner.rs
++++ b/server/src/transport/banner.rs
+@@ -18,6 +18,8 @@ pub(super) fn print(config: &ServeConfig, store: &FrameStore, bound: &str, cert_
+     println!("frames={}", store.frame_count());
+     println!("read_fast_path={}", read_fast_path(store));
+     println!("read_ring={}", ring_probe(store));
++    #[cfg(feature = "lab-ring-no-coop")]
++    println!("ring_coop=off");
+     println!("stream_mode={}", config.mode);
+     println!("bind={bound}");
+     println!("transport={}", config.tuning.describe());

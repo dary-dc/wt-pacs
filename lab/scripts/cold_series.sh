@@ -24,7 +24,7 @@ export CHROME_PATH="$CHROME"
 
 ROUNDS="${ROUNDS:-6}"
 FRAMES="${FRAMES:-120}"
-cargo build -q -p series-server -p pack-series
+cargo build -q -p series-server -p pack-series --features series-server/lab-levers
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 T="$(mktemp -d)"
 SERVER=""

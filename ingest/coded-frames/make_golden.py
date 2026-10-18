@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The client's AV1 test payloads and WebCodecs probes, made by the writer from synthetic sources.
 
-  client/contract/av1/payloads/{plain,optimized}/NAME.av1   one payload each, through ingest.py
+  client/contract/av1/payloads/{plain,optimized}/NAME.av1   one payload each, through lab/av1/tools/ingest_coded.py
   client/contract/av1/payloads/{plain,optimized}/NAME.sha256 the source samples' checksum
   client/contract/av1/payloads/*/NAME.xxh3                  its frame digest (docs/FIXTURES.md §Frame digests)
   client/contract/av1/payloads/grey420/g8.av1                 8-bit grey coded 4:2:0 at full range
@@ -85,11 +85,11 @@ def payloads(build, work):
         write_set(src, ch, lo, hi, signed, seed)
         for rep in ("plain", "optimized"):
             out = work / f"{name}.{rep}"
-            subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, src, out,
+            subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, src, out,
                             "--representation", rep, "--jobs", "1"], check=True)
             keep(out, PAYLOADS / rep, name)
     out, dst = work / "g8.grey420", PAYLOADS / "grey420"
-    subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, work / "g8", out, "--grey8", "420", "--jobs", "1"],
+    subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, work / "g8", out, "--grey8", "420", "--jobs", "1"],
                    check=True)
     keep(out, dst, "g8")
 
@@ -107,7 +107,7 @@ def matrix(build, work):
             write_set(src, 1, lo, lo + (1 << b) - 1, signed, b, 32, 24)
             for k in range(max(0, b - 12), max(b - 8, 4) + 1):
                 out = work / f"{name}.k{k}"
-                subprocess.run([sys.executable, Path(__file__).parent / "ingest.py", build, src, out, "--split", str(k),
+                subprocess.run([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, src, out, "--split", str(k),
                                 "--jobs", "1"], check=True)
                 keep(out, dst, f"b{b}k{k}{name[-1]}")
 

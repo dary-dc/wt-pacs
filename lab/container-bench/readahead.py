@@ -8,7 +8,7 @@ docs/adr/disk-access.md §Protocol for row 197 has the arms, the rule and the nu
     readahead.py mutate WORK          --mutate shift|short must fail the exactness check
     readahead.py time   WORK ROUNDS   one JSON line a cell into WORK/readahead.jsonl
 
-WORK/coded/SET/htj2k is ingest's output (ingest/coded-frames/ingest.py), as for run.py.
+WORK/coded/SET/htj2k is ingest's output (lab/av1/tools/ingest_coded.py), as for run.py.
 """
 import json
 import shutil

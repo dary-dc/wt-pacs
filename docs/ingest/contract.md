@@ -59,7 +59,7 @@ frame.
   bits allocated other than 8 or 16; a high bit other than bits stored − 1; any photometric interpretation but
   MONOCHROME1 or MONOCHROME2 with one sample, or RGB with three; a frame file of the wrong size; any frame that does
   not decode back.
-* **Per frame**, as `ingest/coded-frames/ingest.py --codec htj2k`: XXH3-64 of the samples as read — the raw-frame
+* **Per frame**, as `ingest/coded-frames/ingest.py` writes it for HTJ2K: XXH3-64 of the samples as read — the raw-frame
   check and the client's frame digest at once ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests) — then HTJ2K with
   OpenJPH 0.31.0 in-process, the calls `ojph_compress` makes, a signed frame shifted and its SIZ marked signed; the
   codestream decoded back in-process and its samples' XXH3-64 compared.

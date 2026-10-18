@@ -150,7 +150,8 @@ page and its modules, the page check's two (`?check=`), and row DECODERBUILD's d
 (`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
 time; the TS bundles (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
 in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
-`cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No harness page, test, TypeScript source or build script. Of the
+`cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No test, TypeScript
+source or build script. Of the
 studies, only the smoke series.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
@@ -190,9 +191,9 @@ and the same transport file. It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
   viewer loads (11);
-* 21 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
-  bundle, the transport directory, and the files of `client/` the page does not load (a harness page, the check pages,
-  a test, a TypeScript and a Rust source, two build scripts, the WASM client's manifest and its package's, a README);
+* 20 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
+  bundle, the transport directory, and the files of `client/` the page does not load (the check pages, a test, a
+  TypeScript and a Rust source, two build scripts, the WASM client's manifest and its package's, a README);
 * the WASM client's glue and `.wasm`, built in the image and so not compared with the tree's, answer 200 with the
   isolation headers, as `text/javascript` and `application/wasm` (`--local` serves the tree's build);
 * gzip on a module, the WASM and the metadata;

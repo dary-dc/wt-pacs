@@ -20,7 +20,7 @@ for s in "${sets[@]}"; do
   for codec in htj2k av1; do
     work="$OUT/.work/$s.$codec"
     rm -rf "$work"
-    "$P" "$ROOT/ingest/coded-frames/ingest.py" "$BUILD" "$ROOT/lab/av1/data/$s" "$work" --codec "$codec" \
+    "$P" "$ROOT/lab/av1/tools/ingest_coded.py" "$BUILD" "$ROOT/lab/av1/data/$s" "$work" --codec "$codec" \
       --preset "$PRESET" --jobs "$(nproc)"
     "${CARGO_TARGET_DIR:-$ROOT/target}/release/pack-series" --metadata "$work/metadata.json" --frames "$work" \
       --output "$OUT/$s.$codec.sbnd"

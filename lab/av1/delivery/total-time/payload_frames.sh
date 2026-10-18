@@ -12,8 +12,8 @@ for spec; do
   dir=${spec%:*} n=${spec##*:}
   name=$(basename "$dir") dst="$out/$(basename "$dir")"
   mkdir -p "$dst"
-  "$PY" "$ROOT/ingest/coded-frames/ingest.py" "$build" "$dir" "$dst/htj2k" --codec htj2k --frames "$n"
-  "$PY" "$ROOT/ingest/coded-frames/ingest.py" "$build" "$dir" "$dst/opt" --frames "$n"
+  "$PY" "$ROOT/lab/av1/tools/ingest_coded.py" "$build" "$dir" "$dst/htj2k" --codec htj2k --frames "$n"
+  "$PY" "$ROOT/lab/av1/tools/ingest_coded.py" "$build" "$dir" "$dst/opt" --frames "$n"
   "$PY" - "$dst" "$name" <<'EOF'
 import json, sys
 from pathlib import Path

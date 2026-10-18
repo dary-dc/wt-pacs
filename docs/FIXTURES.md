@@ -775,3 +775,5 @@ The owner decides these; they are tracked in [`av1/queue.md`](av1/queue.md) §Bl
   matter only if they are targets (§Provenance, *Every closed verdict against its data*).
 * **The two 10-bit DBT series the proof-of-concept gap check named** — neither licence is CC BY or CC0; whether to
   use them is the owner's (§AV1 data, *Provenance*).
+* **Known defect, not fixed** — found by reading the code (2026-10-16 review), not reproduced: `pack-series` writes a fixed `NAME.partial`, so two packs to the same output
+  collide (`common/series-bundle/src/writer.rs:32–33`). Only parallel packs of one file.

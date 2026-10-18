@@ -66,7 +66,7 @@ cold `config` and `session` counts are high by one to two round trips.
 Cut 3 is the downloader's alone: its chain is page → consumer → downloader worker → decoder worker →
 decoder glue → decoder WASM, each link found only once the previous one ran. A module worker has its
 own module map, so a `modulepreload` there does nothing; the worker and decoder are `preload`ed as
-scripts, which warms the HTTP cache the worker reads. `client/harness/index.html` carries none
+scripts, which warms the HTTP cache the worker reads. `lab/harness/index.html` carries none
 of the three cuts; the lab's [`downloader.html`](downloader.html) does.
 
 ## The first byte on a fill

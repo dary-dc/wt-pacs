@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Build product + telemetry bundles (gitignored — do not commit).
-# Shared recorder lives in client/record/; this script builds the TS client's entries
-# and the shared install/test artifacts.
+# Build the TS client's bundles and its tests (gitignored — do not commit). The recorder's are lab/client-telemetry/build.sh.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
@@ -18,11 +16,9 @@ bundle ws-session.ts dist/ws-session.js browser
 bundle race-session.ts dist/race-session.js browser
 # --product: the transports a page loads, and nothing for the lab or the tests (deploy/Containerfile).
 [[ "${1:-}" == "--product" ]] && { echo "wrote dist/session.js dist/ws-session.js dist/race-session.js"; exit 0; }
-bundle session-telemetry.ts dist/session-telemetry.js browser
-bundle ../../record/test/run.ts ../../record/test/run.mjs node
 bundle ../../contract/run.ts ../../contract/run.mjs node
 bundle ../../contract/fake-session.ts ../../contract/dist/fake-session.js browser
 bundle ../../contract/downloader-rig.ts ../../contract/dist/downloader-rig.js browser
 bundle ../../contract/dispatch-rig.ts ../../contract/dist/dispatch-rig.js browser
 bundle test/run.ts test/run.mjs node
-echo "wrote dist/session.js dist/ws-session.js dist/race-session.js dist/session-telemetry.js ../../record/test/run.mjs ../../contract/run.mjs ../../contract/dist/{fake-session,downloader-rig,dispatch-rig}.js test/run.mjs"
+echo "wrote dist/session.js dist/ws-session.js dist/race-session.js ../../contract/run.mjs ../../contract/dist/{fake-session,downloader-rig,dispatch-rig}.js test/run.mjs"

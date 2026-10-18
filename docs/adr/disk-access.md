@@ -796,6 +796,52 @@ threads against the pool's hundreds might start converting (the workstation's 1.
 semi-sequential ceiling was device-bound and may be the NVMe's own cache); `hybrid_lazyring`
 on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 
+**Known defects, fixed 2026-10-18 (row 284).** Each was found by reading the code (2026-10-16 review) and, as first
+written here, not reproduced. *Corrected 2026-10-18:* all three were shown, each by a test that failed on the code as it
+was, and fixed at the reader, so they stay fixed if a session ever outlives a read error. *Corrected again 2026-10-18:*
+a second review by reading found that the second fix had made a panic reachable in the default build, and two more
+latent defects of the same class; all three were shown the same way and fixed, below.
+
+* A failed pool read in `TileReader` leaves its slot keyed to the span with an empty buffer; reading that span again
+  would panic in `Bytes::slice` (`server/src/media/read_path.rs:424`). Latent: a session ends on its first read error.
+  *Shown and fixed:* the second read panicked with `range end out of bounds: 327697 <= 0`. A failed pool read now
+  clears the slot's key, so the frame is read again; `a_failed_pooled_tile_read_leaves_its_frame_readable`, which
+  fails one read with the store's new `fail_blocking_reads` lever.
+* `ring.reap()?` drops completions already taken from the CQ when a later CQE in the batch errors, so a later wait on
+  that slot could park forever (`read_path.rs:438`). Latent for the same reason. *Shown and fixed:* with a frame whose
+  ring read landed and one past the end of the file in the same batch, the landed frame's read failed with the other's
+  EOF, and reading it again parked until the test's 5 s timeout. `UringReader::reap` now returns each completion's
+  result, and the wait applies the whole batch before it returns: a failed read ends its own slot, and fails the wait
+  only if that slot is the one waited on; `a_failed_ring_read_does_not_lose_another_slots_completion`.
+  *Corrected 2026-10-18 — a regression of this fix, reachable with `uring` on:* `TileReader::read` may wait on a slot
+  it recycles for an upcoming frame, and when that wait's batch held a failed read of the frame being served, its slot
+  was cleared and its error dropped, so `holding(span).expect("started above")` panicked; before the fix the session
+  ended with the error. *Shown:* the test panicked with `started above` (a hit served while the whole frame's ring read
+  stays unreaped in the other of two slots, then a frame past the end of the file named with the hit). *Fixed:* a frame
+  missing at that line is an error naming its span; the errno is not carried.
+  `a_failed_ring_read_reaped_by_another_slots_wait_fails_its_frame`.
+* `TileReader::begin` set the slot's key only after the probe succeeded, so a failed probe into a recycled slot left
+  the key of the frame it held before over bytes the probe may have overwritten, and a later read of that frame would
+  serve them. Latent. *Shown:* the slot still claimed its old frame after a probe failed with `EBADF`, the store's fd
+  swapped for a write-only one with `dup2`. That shows the stale key, not wrong bytes: a probe that fails after a
+  partial read has no lever. *Fixed:* `begin` clears the key first; `a_slot_whose_probe_fails_no_longer_holds_its_frame`.
+* A ring submit whose `io_uring_enter` failed left its entry queued and counted while `submit_tail` returned before
+  marking the read in flight, so the slot was served half-read and the next entry into the kernel wrote into a buffer
+  already handed off. Latent: the drain on drop keeps the buffer alive until a session ends. *Shown:* with `EAGAIN`
+  injected into the submit (`UringReader::submit` now enters through `submit_and_wait(0)`, the same syscall, so
+  `FAILED_WAITS` reaches it), reading the frame again served it before its read landed. *Fixed:* the read is marked
+  in flight before the submit; alone, that parked the reread until the test's 5 s timeout, since nothing entered the
+  kernel again, so `UringReader::park` first sends any entry still queued (a read of the SQ ring's head and tail, no
+  syscall when empty; not measured). `a_ring_read_whose_submit_fails_is_not_served_half_read`.
+* `FillReader`: a read-ahead abandoned with no next frame frees its buffer instead of returning it to the pool
+  (`read_path.rs:189`). Efficiency only. *Shown and fixed:* no buffer came back. It goes to the new
+  `frame_pool::put_back`; `an_abandoned_read_ahead_gives_its_buffer_back_to_the_pool`.
+* *Open, not changed:* an abandoned read's error is handled three ways. A ring batch drops it, but
+  `FillReader::settle` and the tile reader's wait on a slot it recycles (a pooled read, or the slot's own ring read)
+  fail the frame asked for with it, and a resubmit that fails in a batch fails the wait whichever slot it was for.
+  The readers should agree that an abandoned read's error is nobody's: the slot is cleared, and the frame, if asked
+  for again, is read again and fails on its own. Not built; a session ends on the first error either way.
+
 ### #7, built: park on the ring's own fd (rows 244, 250)
 
 *Proposed 2026-10-15 by row 244 (RINGPARK; [`merge-readiness.md`](../merge-readiness.md) §Second round, S19 and
@@ -1039,7 +1085,9 @@ measured: more than two server workers, a server past 80 % busy, a device slower
 **The arms.** C0 is the default release build. C1 is the same source with `--features lab-ring-no-coop`
 (`server/Cargo.toml`): `UringReader::new` skips `setup_coop_taskrun`, and the banner prints `ring_coop=off`, which
 the driver checks against the arm it starts. `strace -e io_uring_setup` on each binary: `flags=IORING_SETUP_COOP_TASKRUN`
-for C0, `flags=0` for C1. C0′ is a second process of C0's binary.
+for C0, `flags=0` for C1. C0′ is a second process of C0's binary. *Since row 264 (2026-10-17) the feature is out of
+`server/`: C1 is built from the source with
+[`arms/ring-no-coop.patch`](../../lab/disk-access-bench/arms/ring-no-coop.patch) applied.*
 
 **The park test on both arms.** `a_read_that_cannot_complete_inline_wakes_the_parked_reader` passes 30 of 30 runs on
 each. Mutated on C1 as row 250 did on C0: dropping `clear_ready` fails it at 130 826 wakes; parking on a pipe nothing
@@ -1686,7 +1734,8 @@ buffer, its fill and the RSS it holds — corrected in place above, after *The v
 `LAB_FRAME_CACHE_ADMIT=session`: a frame is admitted on an ask from a session other than its first asker, so a
 session's own repeat admits nothing) and **B1z** (B1 built with `lab-fit-zeroed`: `fit` replaces a short buffer by
 `vec![0; n]` instead of `resize`); 16 rounds in `lab/scripts/order.py`'s order, a fresh server per arm, cell and
-round. Each session now fills the series **three times over its one connection** (`server_ab --passes 3`): a pass
+round. (*Since row 264, 2026-10-17, `lab-fit-zeroed` is out of `server/`: B1z is built from the source with
+[`arms/fit-zeroed.patch`](../../lab/disk-access-bench/arms/fit-zeroed.patch) applied.*) Each session now fills the series **three times over its one connection** (`server_ab --passes 3`): a pass
 per connection, as row 209 ran it, would make every repeat another session's. 1 920 rows, none failed:
 `lab/disk-access-bench/rows-cacheshared.jsonl`. Host as row 209's (kernel 6.18.44, ext4, `read_ahead_kb` 128, THP
 `madvise`, glibc 2.39, server on cores 0–1, client on 2–3), but **not quiet**: other rows' builds ran on core 3 at

@@ -122,7 +122,7 @@ within each group, and the groups are ranked by what merging needs first.
 | D3 | hit/miss counting written twice | `server/src/media/read_path.rs:212-218,335-339` | simplify | ~−6 |
 | D4 | tests that hand-write SBND bundles instead of using `series_bundle::write_bundle` | `server/src/transport/pipeline.rs:220-233`; `read_path.rs:514-540`; `server.rs:865-870` | simplify (`frame_store.rs:277` must hand-write its bundle) | ~−35 |
 | D5 | `StreamMode` hand-writes `Display`/`FromStr`; `Congestion` derives `ValueEnum` | `server/src/transport/stream_mode.rs:262-283` | simplify | ~−20 |
-| D6 | the FoD message union defined twice | `client/transport/ts/wire.ts:3-30`; `client/record/parse.ts:8-55` | simplify: `record` imports it | ~−10 |
+| D6 | the FoD message union defined twice | `client/transport/ts/wire.ts:3-30`; `client/record/parse.ts:8-55` (at `0ee0c1f2`; `lab/client-telemetry/` since row 264) | simplify: `record` imports it | ~−10 |
 | D7 | SHA-256-to-hex written three times | `client/viewer/viewer.js:246-250`; `check-page.js:4-5`; `client/decode/wasm-glue.js:14` | simplify | ~−6 |
 | D8 | `ingest/from-parser/same.py` rebuilds by hand the metadata `from_dicom.py` writes | `same.py:35-37`; `from_dicom.py:51-53` | simplify: one `metadata()` | ~10 |
 | D9 | **the WASM transport**, a second full client in Rust that the product never loads. It duplicates `frame-session.ts` and the gate needs wasm-pack for it. | `client/transport/wasm/` (~780 lines) | **move to lab**, beside `lab/other-clients`. This is structural: propose it first. *Rejected 2026-10-16 by the owner: two product clients ([`CLIENTS.md`](CLIENTS.md) §Proposed: the WASM client as a second product client, row 263).* | ~780 moved |
@@ -291,7 +291,7 @@ change the gate's tests already cover, 2 needs a check the gate does not run, 3 
 | S18 | **`cubic-classify` was measured and not adopted**, "in both readings"; DELAYCUT, the only row waiting on it, does not start. No open measurement and no device plan names it. | `server/src/transport/classify.rs` (174 lines, ~70 of them tests); `tuning.rs:22-23,45,55`; `server/README.md:128,139`; `docs/transport/transport-conclusions.md` §1 *Measured: CLASSIFY* ("stays a lab flag") | **remove**, a tag keeping it, `lab/cc-classify` retired with it. The measurement's own text keeps it as a flag, so this is the owner's word first | a lab lever with a recorded verdict; no product capability | ~−185 server, a `Congestion` variant | 2 |
 | S19 | **The ring parks on an eventfd**, which costs an fd a session, three `unsafe` blocks and a read per park. Parking on the ring's own fd measured a tie on CPU and latency everywhere (`x14`); the ADR counts ~30 lines and 2 `unsafe` fewer. | `server/src/media/uring_reader.rs:39-57,90-109`; `docs/adr/disk-access.md` §5 row `x14`, §9 #7 | simplify, as the ADR proposes; it orders it after P0 (the ring validated on the target), which has no row. Since row 231 the deploy image runs the ring, so the owner may take it now | none | ~−30, −2 `unsafe`, −1 fd a session | 3 |
 | S20 | **`impl UringReader` split in two** for one test seam. | `server/src/media/uring_reader.rs:134-142` | merge into the first block (with S19) | none | −3 | 1 |
-| S21 | **The lab's harness pages live in `client/`.** `client/harness/` (`cell.html`, `index.html`, `shell.js`, ~400 lines) is served by the dev host at `/harness/`, never by the image. | `server/dev-server.py:43-45`; `deploy/web-files.sh:9-14`; `deploy/check_equivalence.sh:66-67` | move to a new lab/harness/, the dev host's route repointed; `client/` then holds the product and its checks alone | none | ~0 saved, ~400 moved | 3 |
+| S21 | **The lab's harness pages live in `client/`.** `client/harness/` (at `0ee0c1f2`; `lab/harness/` since row 264) (`cell.html`, `index.html`, `shell.js`, ~400 lines) is served by the dev host at `/harness/`, never by the image. | `server/dev-server.py:43-45`; `deploy/web-files.sh:9-14`; `deploy/check_equivalence.sh:66-67` | move to a new lab/harness/, the dev host's route repointed; `client/` then holds the product and its checks alone | none | ~0 saved, ~400 moved | 3 |
 | S22 | **`Congestion::as_str` repeats clap's value names.** | `server/src/transport/tuning.rs:49-57` | simplify: `to_possible_value()`; after #48, which rewrites `tuning.rs` | none | ~−8 | 1 |
 | — | four congestion-controller wrappers forward the same nine methods to `inner` | `restart.rs:64-145`; `loss_bound.rs:102-160`; `classify.rs:36-79`; `cc_trace.rs:125-195` | keep: a delegating macro saves ~60 lines but is one more thing a reader must expand; three wrappers after S18 | — | — | — |
 | — | the read path's two readers in one 1 073-line file | `server/src/media/read_path.rs` | keep: 503 product lines, each reader under 300, the ADR names them together | — | — | — |
@@ -322,8 +322,8 @@ Not proposed here; counted so the owner sees what each ruling frees.
 
 `scripts/comment_budget.sh` passes; no product file is over 0.18. Nearest the line (comment lines, and the file's
 budget used): `client/transport/ts/ws-session.ts` 10 (100 % of its floor), `client/decode/av1.js` 10 (99 %),
-`client/decode/av1-frame.js` 13 (96 %), `client/decode/htj2k.js` 10 (96 %), `server/src/record/path.rs` 27 (94 %),
-`client/record/types.ts` 26 (93 %), `server/src/media/frame_pool.rs` 9 (90 %), `client/transport/consumer.js` 27
+`client/decode/av1-frame.js` 13 (96 %), `client/decode/htj2k.js` 10 (96 %), `server/src/record/path.rs` 27 (94 %; at `0ee0c1f2`, now `lab/server-telemetry/`),
+`client/record/types.ts` 26 (93 %; at `0ee0c1f2`, now `lab/client-telemetry/`), `server/src/media/frame_pool.rs` 9 (90 %), `client/transport/consumer.js` 27
 (90 %). Each comment read there is a contract, a unit or a pointer; none is cut by this round. The next comment any
 of them gains must displace one.
 
@@ -452,7 +452,7 @@ then a draft PR.
 
 #### 246 HARNESSTOLAB
 
-*Proposal (structural): written first, moved on the owner's yes.* S21: `client/harness/` to a new lab/harness/, the
+*Proposal (structural): written first, moved on the owner's yes.* S21 (moved by row 264, after `2b4dc9b`): `client/harness/` to a new lab/harness/, the
 dev host's `/harness/` route repointed, the paths in `docs/` and `lab/` with it; `client/` then holds the product and
 its checks alone, and `check_equivalence.sh`'s hidden-path list shrinks. Nothing is saved; a reader of `client/`
 holds three files fewer. **Deliverable:** the proposal in `docs/CLIENTS.md` beside row 228's. **Branch:**
@@ -683,6 +683,9 @@ evaluate the results before deciding whether to keep it or not." Queue row 264 (
 except the pattern's first instance, row 264b (CLASSIFYTOLAB), which is on its own branch,
 `claude/wip-264b-CLASSIFYTOLAB`.
 
+*Built 2026-10-17, on the owner's word that lab-only code leaves the product path:* O1–O8 and the two closed arms,
+in one pull request into unified (§Rows). The candidates C1–C10 stay where they are, as below.
+
 The rule sorts each thing into one of two kinds:
 
 * **Lab only**: no measurement proposes it for the product, or one rejected it. It moves to `lab/`.
@@ -707,15 +710,15 @@ Lines are at `a9fd5bd6`.
 
 | # | item | where | the verdict it rests on | how it moves |
 | --- | --- | --- | --- | --- |
-| O1 | `--congestion cubic-classify`, `LossClassify` | `server/src/transport/classify.rs` (174 lines, 70 of them tests); `tuning.rs:3,22-23,45,55,184`; `transport/mod.rs:4`; `main.rs:70` | not the default "in both readings", "stays a lab flag": [TC §1 *Measured: CLASSIFY*](transport/transport-conclusions.md#measured-classify-2026-10-14). S18 proposes removing it (row 240, on the owner's word). *Found after the move was built:* draft #40 proposes the opposite, `cubic-classify` as the default, a trade-off that waits on row 190's device runs. By the owner's rule, that makes it a candidate as well | **built, row 264b**: the crate `lab/cc-classify`, behind `lab-classify`. If row 240 is taken, the crate goes and nothing in `server/` is left to remove. If #40 is adopted, the crate comes back into `server/` as the default; until then, the flag is one feature away |
-| O2 | the telemetry: `server/src/record/` (2 083 lines), `transport/cc_trace.rs` (317), `RecordedPipeline` (`pipeline.rs:166-213`), and 23 `cfg` sites in 7 files; `client/record/` (1 545) | as cited | lab builds only ([`adr/telemetry-server-pipeline.md`](adr/telemetry-server-pipeline.md)). No default binary or bundle has it since row 221 (L1), and both absence checks hold | **by the pattern, as its own structural row.** `record/` names nothing of the server's outside itself, and `cc_trace.rs` names only quinn, so together they become one lab crate, and `telemetry = ["dep:…"]`. `RecordedPipeline` and the tap's call sites stay as the feature's wiring. `client/record/` goes to `lab/` with the bundle that `client/transport/ts/build.sh` makes from it |
+| O1 | `--congestion cubic-classify`, `LossClassify` | `server/src/transport/classify.rs` at `a9fd5bd6` (174 lines, 70 of them tests); `tuning.rs:3,22-23,45,55,184`; `transport/mod.rs:4`; `main.rs:70` | not the default "in both readings", "stays a lab flag": [TC §1 *Measured: CLASSIFY*](transport/transport-conclusions.md#measured-classify-2026-10-14). S18 proposes removing it (row 240, on the owner's word). *Found after the move was built:* draft #40 proposes the opposite, `cubic-classify` as the default, a trade-off that waits on row 190's device runs. By the owner's rule, that makes it a candidate as well | **built, row 264b**: the crate `lab/cc-classify`, behind `lab-classify`. If row 240 is taken, the crate goes and nothing in `server/` is left to remove. If #40 is adopted, the crate comes back into `server/` as the default; until then, the flag is one feature away |
+| O2 | the telemetry: `server/src/record/` (2 083 lines), `transport/cc_trace.rs` (317), `RecordedPipeline` (`pipeline.rs:166-213`), and 23 `cfg` sites in 7 files; `client/record/` (1 545) | as cited, at `a9fd5bd6` | lab builds only ([`adr/telemetry-server-pipeline.md`](adr/telemetry-server-pipeline.md)). No default binary or bundle has it since row 221 (L1), and both absence checks hold | **by the pattern, as its own structural row.** `record/` names nothing of the server's outside itself, and `cc_trace.rs` names only quinn, so together they become one lab crate, and `telemetry = ["dep:…"]`. `RecordedPipeline` and the tap's call sites stay as the feature's wiring. `client/record/` goes to `lab/` with the bundle that `client/transport/ts/build.sh` makes from it |
 | O3 | `--hold-sessions` | `server/src/transport/server.rs:57-59,104-112,241-245` | lab only: a dial that never settles, for the client's dial deadline ([ARCHITECTURE §A dial that never settles](ARCHITECTURE.md#a-dial-that-never-settles)). L7 keeps it as a lever | wiring alone, with no code to hold: the pattern's gate without a crate (below). Its one user is `lab/dial-deadline/run.mjs` |
 | O4 | `--stall-after-bytes` | `server.rs:60-62,126,135-137,155`; `link.rs:23-24,85-98` | lab only: WebKit 319818's stall, emulated for `recycleAtBytes` ([ARCHITECTURE §Recycling before the stall](ARCHITECTURE.md#recycling-before-the-stall)) | as O3; one user, `lab/session-survival/recycle_cells.sh` |
 | O5 | `--force-pool-reads` | `server.rs:51-53,86-89`; `media/frame_store.rs:162-166` | lab only for the flag; the method is also the read path tests' forced miss (`CLAUDE.md` §Measurement) | the flag as O3; the method stays. Users: `lab/scripts/cold_series.sh`, `fill_order_cells.sh`, `window-harness`'s `fill_order`, and the product's `scripts/perf_counts.mjs`, which would build with the feature |
 | O6 | `--segmentation-offload false` | `server/src/transport/tuning.rs:87-90,103,127,159-161` | lab only: netem on the sending host ([`rig-limits.md`](rig-limits.md) §3) | as O3; one user, `lab/scripts/lossy_link_levers.sh` |
-| O7 | `scripts/cellcheck.sh`, `scripts/cellcheck.mjs` | as named | lab only: they drive `client/harness/`'s pages | **with row 246**, whose proposal ([CLIENTS §Proposed: the harness pages](CLIENTS.md#proposed-the-harness-pages-to-lab)) moves the pages but leaves these two in `scripts/` |
+| O7 | `scripts/cellcheck.sh`, `scripts/cellcheck.mjs` | as named, at `a9fd5bd6` | lab only: they drive `client/harness/`'s pages | **with row 246**, whose proposal ([CLIENTS §Proposed: the harness pages](CLIENTS.md#proposed-the-harness-pages-to-lab)) moves the pages but leaves these two in `scripts/` |
 | O8 | `ingest/coded-frames/ingest.py`'s `main()` | `ingest.py:292-331` | lab only: it codes a fetched set (`import size` from `lab/av1`), and the product's path is `from-dicom/from_dicom.py` → `ingest.coded()` | to a `lab/av1/tools/` script that imports `ingest`, with the lab files that run it repointed (34 name it, 22 of them scripts). `coded()`'s `representation`, `split` and `grey8` stay: they are the arms the lab drives through the product's code, and the product passes the defaults |
-| — | `client/harness/`; the WASM client and `client/decode/wasm/dav1d/` | — | rows 246 and 228, proposed | as proposed in [`CLIENTS.md`](CLIENTS.md) |
+| — | `client/harness/` (at `a9fd5bd6`); the WASM client and `client/decode/wasm/dav1d/` | — | rows 246 and 228, proposed | as proposed in [`CLIENTS.md`](CLIENTS.md) |
 | — | the viewer's lab parameters | `client/viewer/head.js:1-9` | done: rows 217 and 245 moved them to `lab/viewer/levers.js`, which only a host that serves `lab/` can load. That is the client's pattern, and it fits | — |
 
 ### Candidates: they stay until their decision
@@ -794,11 +797,12 @@ them as L7 does. That is the owner's choice.
 
 | row | what | lines in `server/` | starts |
 | --- | --- | --- | --- |
-| 264b CLASSIFYTOLAB | O1 by the pattern, built at `d41a544d`: the gate green but for `check_equivalence.sh --local`'s known 403 here, both absence checks passing by hand, every new test mutated | `server/src` −179 +32: the product's code +7 −178, the tests +25 −1 | review |
-| TELEMETRYTOLAB | O2 by the pattern: the server crate and the client recorder | ~−2 400 moved | a proposal first (structural) |
-| LABLEVERS | O3–O6 behind one `lab-levers` feature, and the four rigs and `perf_counts.mjs` built with it | ~−60 out of a default build | on the owner's word, or kept |
-| INGESTCLI | O8 | 0 (~40 moved out of `ingest/`) | today |
-| with 246 | O7 | 0 | with row 246 |
+| 264b CLASSIFYTOLAB | O1 by the pattern, built at `d41a544d` | `server/src` −179 +32: the product's code +7 −178, the tests +25 −1 | **built**, merged by row 264's pull request, which supersedes #79 |
+| TELEMETRYTOLAB | O2 by the pattern: `lab/server-telemetry` behind `telemetry`, the recorder in `lab/client-telemetry/` | ~−2 400 moved out of `server/`, ~−1 550 out of `client/` | **built** 2026-10-17, row 264's pull request; the owner's review is the proposal's |
+| LABLEVERS | O3–O6 behind one `lab-levers` feature, and the rigs and `perf_counts.mjs` built with it | the four flags out of a default build | **built** 2026-10-17, row 264's pull request, on the owner's word ("lab specific things in the product path. We don't want that") |
+| INGESTCLI | O8: `lab/av1/tools/ingest_coded.py` | 0 (~40 moved out of `ingest/`) | **built** 2026-10-17 |
+| with 246 | O7 and row 246: `lab/harness/`, its cellcheck beside it | 0 | **built** 2026-10-17 |
+| closed arms | `lab-fit-zeroed` (row 256's B1z) and `lab-ring-no-coop` (row 261's C1), found after this audit: both verdicts closed, so each arm is a patch in `lab/disk-access-bench/arms/` | −2 features, ~−20 lines | **built** 2026-10-17 |
 
 Each candidate C1–C10 leaves the product, or stays in it for good, when its own decision lands. None of them
 moves before that.
