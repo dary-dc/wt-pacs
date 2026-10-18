@@ -538,14 +538,15 @@ every cell holds 9–11 pairs: on the product page as it stands, with nothing pr
 client costs a cold open 5.9 round trips to the first frame at 1× and 5.7 at 4×**, later in all 38 pairs; the
 adapter, glue and `.wasm` are found one after another in the worker, and 247 KB leave in slow start. Warm, it costs
 no round trip, +15 to +119 ms. The preloaded page shows what is left once the fetches start at the HTML: no round
-trip, a fixed 20–160 ms. Row 277's selection (draft #98) preloads the chosen client once the transport file lands,
-about 4 round trips into the page rather than at the HTML: not measured, and between the two.
+trip, a fixed 20–160 ms. Row 277's selection (draft #98) preloads the WASM client once the transport file lands,
+about 4 round trips into the page rather than at the HTML: not measured, and between the two. The TS default keeps
+the HTML's preload (*corrected 2026-10-17*: #99 had moved it after the transport file too; the owner ruled it back).
 
 **`console_error` stays.** Without it the `.wasm` is 244 662 B against 247 214 (105 209 against 106 296 with
 `gzip -6`) and the glue 32 682 against 33 577: 1.1 KB gzipped of a 12 KB flight. `WebAssembly.compile` takes 1.83 ms
 [1.48–4.50] with it and 1.77 [1.44–6.01] without, faster in 20 of 30 rounds: 3 %. Node's V8 compiles the functions
 lazily, so that is the decode and validation; the functions' compile on first call is inside the fixed cost above.
-**Not measured:** the linear memory's peak; the image (gzip, HTTP/2); #98's preload.
+**Not measured:** the linear memory's peak; the image (gzip, HTTP/2); #98's WASM preload.
 
 ## What this rig does not decide
 
