@@ -796,14 +796,51 @@ threads against the pool's hundreds might start converting (the workstation's 1.
 semi-sequential ceiling was device-bound and may be the NVMe's own cache); `hybrid_lazyring`
 on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 
-**Known defects, not fixed**, each found by reading the code (2026-10-16 review), not reproduced:
+**Known defects, fixed 2026-10-18 (row 284).** Each was found by reading the code (2026-10-16 review) and, as first
+written here, not reproduced. *Corrected 2026-10-18:* all three were shown, each by a test that failed on the code as it
+was, and fixed at the reader, so they stay fixed if a session ever outlives a read error. *Corrected again 2026-10-18:*
+a second review by reading found that the second fix had made a panic reachable in the default build, and two more
+latent defects of the same class; all three were shown the same way and fixed, below.
 
 * A failed pool read in `TileReader` leaves its slot keyed to the span with an empty buffer; reading that span again
   would panic in `Bytes::slice` (`server/src/media/read_path.rs:424`). Latent: a session ends on its first read error.
+  *Shown and fixed:* the second read panicked with `range end out of bounds: 327697 <= 0`. A failed pool read now
+  clears the slot's key, so the frame is read again; `a_failed_pooled_tile_read_leaves_its_frame_readable`, which
+  fails one read with the store's new `fail_blocking_reads` lever.
 * `ring.reap()?` drops completions already taken from the CQ when a later CQE in the batch errors, so a later wait on
-  that slot could park forever (`read_path.rs:438`). Latent for the same reason.
+  that slot could park forever (`read_path.rs:438`). Latent for the same reason. *Shown and fixed:* with a frame whose
+  ring read landed and one past the end of the file in the same batch, the landed frame's read failed with the other's
+  EOF, and reading it again parked until the test's 5 s timeout. `UringReader::reap` now returns each completion's
+  result, and the wait applies the whole batch before it returns: a failed read ends its own slot, and fails the wait
+  only if that slot is the one waited on; `a_failed_ring_read_does_not_lose_another_slots_completion`.
+  *Corrected 2026-10-18 — a regression of this fix, reachable with `uring` on:* `TileReader::read` may wait on a slot
+  it recycles for an upcoming frame, and when that wait's batch held a failed read of the frame being served, its slot
+  was cleared and its error dropped, so `holding(span).expect("started above")` panicked; before the fix the session
+  ended with the error. *Shown:* the test panicked with `started above` (a hit served while the whole frame's ring read
+  stays unreaped in the other of two slots, then a frame past the end of the file named with the hit). *Fixed:* a frame
+  missing at that line is an error naming its span; the errno is not carried.
+  `a_failed_ring_read_reaped_by_another_slots_wait_fails_its_frame`.
+* `TileReader::begin` set the slot's key only after the probe succeeded, so a failed probe into a recycled slot left
+  the key of the frame it held before over bytes the probe may have overwritten, and a later read of that frame would
+  serve them. Latent. *Shown:* the slot still claimed its old frame after a probe failed with `EBADF`, the store's fd
+  swapped for a write-only one with `dup2`. That shows the stale key, not wrong bytes: a probe that fails after a
+  partial read has no lever. *Fixed:* `begin` clears the key first; `a_slot_whose_probe_fails_no_longer_holds_its_frame`.
+* A ring submit whose `io_uring_enter` failed left its entry queued and counted while `submit_tail` returned before
+  marking the read in flight, so the slot was served half-read and the next entry into the kernel wrote into a buffer
+  already handed off. Latent: the drain on drop keeps the buffer alive until a session ends. *Shown:* with `EAGAIN`
+  injected into the submit (`UringReader::submit` now enters through `submit_and_wait(0)`, the same syscall, so
+  `FAILED_WAITS` reaches it), reading the frame again served it before its read landed. *Fixed:* the read is marked
+  in flight before the submit; alone, that parked the reread until the test's 5 s timeout, since nothing entered the
+  kernel again, so `UringReader::park` first sends any entry still queued (a read of the SQ ring's head and tail, no
+  syscall when empty; not measured). `a_ring_read_whose_submit_fails_is_not_served_half_read`.
 * `FillReader`: a read-ahead abandoned with no next frame frees its buffer instead of returning it to the pool
-  (`read_path.rs:189`). Efficiency only.
+  (`read_path.rs:189`). Efficiency only. *Shown and fixed:* no buffer came back. It goes to the new
+  `frame_pool::put_back`; `an_abandoned_read_ahead_gives_its_buffer_back_to_the_pool`.
+* *Open, not changed:* an abandoned read's error is handled three ways. A ring batch drops it, but
+  `FillReader::settle` and the tile reader's wait on a slot it recycles (a pooled read, or the slot's own ring read)
+  fail the frame asked for with it, and a resubmit that fails in a batch fails the wait whichever slot it was for.
+  The readers should agree that an abandoned read's error is nobody's: the slot is cleared, and the frame, if asked
+  for again, is read again and fails on its own. Not built; a session ends on the first error either way.
 
 ### #7, built: park on the ring's own fd (rows 244, 250)
 
