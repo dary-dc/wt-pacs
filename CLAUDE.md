@@ -14,6 +14,12 @@ and no more of it.
 
 **Propose before implementing when the change is structural.** Designs are reviewed.
 
+**Product first in every file, so its data flow reads straight through.** Tests live in `foo/tests.rs`
+(`#[cfg(test)] mod tests;`). What only tests or the lab compile sits below the product: test-only methods in a
+`#[cfg(test)] impl` of their type, test-only state in one `hooks: TestHooks` field once there are two, lab state
+likewise in one field. Inside a product function, a test or the lab reaches in by one marked line and one named
+call, its body below. A lab flag lives under a lab feature, never in the default build.
+
 ## Names
 
 **A name states its role in the domain's words.** No word from the project's history — a queue row, a campaign
