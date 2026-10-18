@@ -1,7 +1,9 @@
 /**
  * A crafted link to the product's page is refused: each lab parameter, opened on a host that does not serve lab/
  * as the web image does not, stops the page before it fetches, imports or dials what the link names. On a host that
- * serves lab/ the same parameters are honoured, which shows the test would see them. client/README.md §The viewer
+ * serves lab/ the same parameters are honoured, which shows the test would see them. A transport file naming a client
+ * the page does not know is refused by name, before the WASM client's code is fetched or anything dialled.
+ * client/README.md §The viewer
  *
  *   NODE_PATH=$(npm root -g) node client/viewer/crafted.mjs
  */
@@ -28,13 +30,14 @@ const crafted = await listener();
 /** The image's shape: the page, client/, the metadata and the transport file; lab/ only when `serveLab`. */
 const requests = [];
 let serveLab = false;
+let client;
 const host = createServer(async (req, res) => {
   const url = new URL(req.url, "http://x").pathname;
   requests.push(url);
   const headers = { "Cross-Origin-Opener-Policy": "same-origin", "Cross-Origin-Embedder-Policy": "require-corp", "Cross-Origin-Resource-Policy": "same-origin" };
   let body = null;
   if (url === "/series/metadata") body = JSON.stringify({ frameCount: 2, codec: "htj2k" });
-  else if (url === "/wt/dev-transport.json") body = JSON.stringify({ wt_url: `https://127.0.0.1:${honest.address().port}/`, cert_sha256: "0".repeat(64) });
+  else if (url === "/wt/dev-transport.json") body = JSON.stringify({ wt_url: `https://127.0.0.1:${honest.address().port}/`, cert_sha256: "0".repeat(64), client });
   else if (url.startsWith("/client/") || (serveLab && url.startsWith("/lab/")) || url === "/") {
     body = await readFile(path.join(ROOT, url === "/" ? "client/viewer/index.html" : url)).catch(() => null);
   }
@@ -71,7 +74,8 @@ async function open(query) {
   }
   // A dial, once the page has passed the point where it would refuse, follows within a few ms; a second is ample.
   await new Promise((r) => setTimeout(r, 1000));
-  const seen = { status: await tab.textContent("#status"), fetched: requests.filter((r) => r.startsWith("/crafted/")), honest: honest.dialled, crafted: crafted.dialled };
+  const seen = { status: await tab.textContent("#status"), fetched: requests.filter((r) => r.startsWith("/crafted/")), honest: honest.dialled, crafted: crafted.dialled,
+    wasm: requests.filter((r) => r.startsWith("/client/transport/wasm/")) };
   await tab.close();
   return seen;
 }
@@ -86,6 +90,15 @@ for (const [name, query] of Object.entries(LINKS)) {
   if (!ok) failures.push(`?${name} was not refused`);
 }
 
+for (const name of ["rust", "toString"]) {
+  client = name;
+  const r = await open({});
+  const ok = r.status.includes(`refused: client "${name}"`) && !r.wasm.length && !r.honest && !r.crafted;
+  console.log(`${ok ? "ok  " : "FAIL"} a transport file naming client "${name}": ${JSON.stringify(r)}`);
+  if (!ok) failures.push(`client "${name}" was not refused by name with nothing loaded`);
+}
+client = undefined;
+
 serveLab = true;
 for (const name of ["wt", "metadata"]) {
   const r = await open(LINKS[name]);
@@ -99,5 +112,5 @@ host.close();
 honest.close();
 crafted.close();
 for (const f of failures) console.log(`FAIL: ${f}`);
-console.log(failures.length ? `crafted links: ${failures.length} failing` : `crafted links: ${Object.keys(LINKS).length} refused on the product's host, honoured where lab/ is served`);
+console.log(failures.length ? `crafted links: ${failures.length} failing` : `crafted links: ${Object.keys(LINKS).length} refused on the product's host, honoured where lab/ is served; 2 unknown clients refused`);
 process.exit(failures.length ? 1 : 0);

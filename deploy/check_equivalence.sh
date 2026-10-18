@@ -40,7 +40,7 @@ if [ "$LOCAL" -eq 0 ]; then
   RUNTIME="${RUNTIME:-$(command -v podman || command -v docker)}"
   IMAGE="${IMAGE:-wt-pacs-web:latest}"
   # The page and nginx files the image carries, against this tree's: deploy/web-files.sh's and the Containerfile's.
-  in_image='cd /srv/wt-pacs && find client -type f ! -path "client/transport/ts/dist/*" -exec sha256sum {} + &&
+  in_image='cd /srv/wt-pacs && find client -type f ! -path "client/transport/ts/dist/*" ! -path "client/transport/wasm/pkg/*" -exec sha256sum {} + &&
     sha256sum /etc/nginx/templates/wt-pacs.conf.template /usr/local/bin/entrypoint.sh | sed "s#  /.*/#  deploy/nginx/#"'
   in_tree() {
     local t; t=$(mktemp -d)
@@ -60,13 +60,15 @@ WT="$(mktemp -d)"
 printf '{"wt_url": "https://127.0.0.1:4433/", "cert_sha256": "%064d"}\n' 0 > "$WT/dev-transport.json"
 chmod 0755 "$WT"
 PATHS=(/ /client/viewer/index.html /client/viewer/viewer.js /client/transport/downloader.js /client/decode/decoder.js
+       /client/transport/wasm/session-adapter.js
        /client/decode/wasm/built/openjph/openjph.wasm /client/decode/wasm/build/manifest.sha256
        /wt/dev-transport.json /series/metadata /nope-404)
 # What the image must not answer: the dev server's lab routes, the checkout, the studies themselves.
 HIDDEN=(/harness/ /lab/order.mjs /lab/viewer/levers.js /fixtures/us_cine_smoke/metadata.json /server/dev-cert/key.pem /deploy/compose.yml
         "/studies/$SERIES.sbnd" /wt/ /client/contract/run.mjs /client/paint/check.html
         /client/viewer/check.mjs /lab/client-telemetry/tap.ts /client/transport/ts/session.ts /client/decode/av1.test.mjs
-        /client/decode/wasm/build/build.sh /client/transport/wasm/src/session.rs /client/README.md)
+        /client/decode/wasm/build/build.sh /client/transport/wasm/src/session.rs /client/transport/wasm/Cargo.toml
+        /client/transport/wasm/build.sh /client/transport/wasm/pkg/package.json /client/README.md)
 
 python3 "$ROOT/server/dev-server.py" --port "$PY_PORT" --metadata "$STUDIES/$SERIES.metadata.json" \
   --transport "$WT/dev-transport.json" >/dev/null 2>&1 &
@@ -76,6 +78,9 @@ if [ "$LOCAL" -eq 1 ]; then
   chmod 0755 "$NG"  # nginx started as root reads as nobody
   mkdir -p "$NG/tmp" "$NG/root"
   "$ROOT/deploy/web-files.sh" "$NG/root" || { kill $PY; exit 2; }
+  # The image's wasm stage builds these; here they are the tree's build.
+  install -D -m 0644 -t "$NG/root/client/transport/wasm/pkg" "$ROOT"/client/transport/wasm/pkg/transport_wasm{.js,_bg.wasm} \
+    || { kill $PY; exit 2; }
   ln -s "$WT" "$NG/root/wt"
   sed -e 's#\${SERIES}#'"$SERIES"'#g' -e 's#\${TLS_LISTEN}##' -e 's#\${WT_ORIGIN}#https://127.0.0.1:4433#' -e "s#/srv/wt-pacs#$NG/root#g" -e "s#/studies/#$STUDIES/#g" \
     -e "s/listen  *8765;/listen 127.0.0.1:$NG_PORT;/" "$ROOT/deploy/nginx/wt-pacs.conf.template" > "$NG/server.conf"
@@ -122,6 +127,12 @@ for p in "${HIDDEN[@]}"; do
   if [ "$s" = 404 ]; then printf '  ok   %-38s 404, not served\n' "$p"
   else printf '  OPEN %-38s %s\n' "$p" "$s"; fail=1; fi
 done
+# The WASM client's build, the image's own and so not compared: served, isolated, the module as WebAssembly.
+for p in transport_wasm.js:text/javascript transport_wasm_bg.wasm:application/wasm; do
+  got=$(probe "$NG_PORT" "/client/transport/wasm/pkg/${p%:*}" | cut -d'|' -f1-5)
+  if [ "$got" = "200|same-origin|require-corp|same-origin|${p#*:}" ]; then printf '  ok   %-38s %s\n' "pkg/${p%:*}" "$got"
+  else printf '  MISS %-38s 200, isolated, %s; got %s\n' "pkg/${p%:*}" "${p#*:}" "$got"; fail=1; fi
+done
 # Deliberate divergences from dev-server.py, so they are asserted rather than compared. lab/page-open/README.md
 gzipped() {  # path -> content-encoding
   curl -sS -H 'Accept-Encoding: gzip' -o /dev/null -D- "http://127.0.0.1:$NG_PORT$1" | grep -i '^content-encoding:' \
@@ -149,5 +160,5 @@ server=$(curl -sS -o /dev/null -D- "http://127.0.0.1:$NG_PORT/" | grep -i '^serv
 if [ "$server" = "nginx" ]; then printf '  ok   %-38s %s\n' "Server header" "$server"
 else printf '  MISS %-38s "%s", not "nginx"\n' "Server header" "$server"; fail=1; fi
 
-[ $fail -eq 0 ] && echo "equivalent on ${#PATHS[@]} paths, ${#HIDDEN[@]} hidden; gzip, the CSP, the Server header and the PEM's chain hold" || echo "NOT equivalent"
+[ $fail -eq 0 ] && echo "equivalent on ${#PATHS[@]} paths, ${#HIDDEN[@]} hidden; the WASM client's build served; gzip, the CSP, the Server header and the PEM's chain hold" || echo "NOT equivalent"
 exit $fail

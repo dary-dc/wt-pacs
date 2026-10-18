@@ -97,6 +97,9 @@ run 1 node client/paint/voi.test.mjs
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
 
+step "client: the page's HTML preloads the TS client, ahead of the transport file (docs/CLIENTS.md §Choosing the client)"
+run 1 grep -F '<link rel="preload" href="/client/transport/ts/dist/session.js" as="script" crossorigin>' client/viewer/index.html
+
 step "client: transport contract (every implementation, and the race)"
 run 2 node client/contract/run.mjs
 
@@ -104,7 +107,7 @@ if [[ $browser -eq 1 ]]; then
   step "client: the downloader in headless Chromium, over each client — the clauses through it, and its dispatch order and per-decoder bound"
   run 12 bash client/contract/run_browser.sh
   step "client: the viewer's page check — a complete, exact, drawn page (headless Chromium)"
-  run 3 bash client/viewer/run_check.sh
+  run 9 bash client/viewer/run_check.sh
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
   run 1 node client/viewer/crafted.mjs
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"

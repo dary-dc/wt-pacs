@@ -51,6 +51,7 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
+| `CLIENT` | `ts` | the client the page loads, `ts` or `wasm`, named in the transport file; a restart switches it ([`../docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client) |
 | `REGISTRY` | `docker.io/library` | where the pinned base images are pulled from: a mirror serves the same digests |
 | `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
 | `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |
@@ -147,7 +148,10 @@ A container test of a deployment of this shape found each one (the deployment te
 **What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
 page and its modules, the page check's two (`?check=`), and row DECODERBUILD's decoder builds with their notices
 (`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
-time; and the TS bundles (`build.sh --product`). No test, TypeScript source or build script. Of the
+time; the TS bundles (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
+in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
+`cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No test, TypeScript
+source or build script. Of the
 studies, only the smoke series.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
@@ -186,10 +190,12 @@ the viewer's workers and run inline scripts, carry none. The page's lab paramete
 and the same transport file. It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
-  viewer loads (10);
-* 17 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
-  bundle, the transport directory, and the files of `client/` the page does not load (the check pages,
-  a test, a TypeScript and a Rust source, a build script, a README);
+  viewer loads (11);
+* 20 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
+  bundle, the transport directory, and the files of `client/` the page does not load (the check pages, a test, a
+  TypeScript and a Rust source, two build scripts, the WASM client's manifest and its package's, a README);
+* the WASM client's glue and `.wasm`, built in the image and so not compared with the tree's, answer 200 with the
+  isolation headers, as `text/javascript` and `application/wasm` (`--local` serves the tree's build);
 * gzip on a module, the WASM and the metadata;
 * the policy on the page and on the downloader's script, connecting to the transport, and the dev host's on the page
   equal to it but for `connect-src`;
@@ -256,6 +262,17 @@ refuses a page on a public address a request to `127.0.0.1`, where the check's c
 
 **Restart.** `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
 and the next page open connected and passed.
+
+**Row WASMIMAGE (2026-10-16), the WASM client in the image.** Both images built once from the branch, dockerd and
+its builds pinned to one core at the lowest priority (the build is not timed). `check_equivalence.sh` passed against
+the image: 11 paths, 21 hidden, the glue and `.wasm` answered as asserted. `check.mjs --url` on the gate's grey series
+passed in headless Chromium 141 with `CLIENT=ts` and with `CLIENT=wasm`, 3/3 exact, readbacks equal to the CPU
+reference, each client's files preloaded; told `--client wasm` against `CLIENT=ts`, it failed by name. `compose up`
+here needed `MEMLOCK=8192 NOFILE=20000`: the sandbox refuses higher limits. `--local` passed with the studies in a
+world-readable directory; under a 0700 one, nginx (reading as nobody) answers `/series/metadata` 403. Each new
+assertion was mutated and failed it: the adapter left out (`DIFF`), the build left out of the root, `.wasm` as
+`application/octet-stream` and a `pkg/` location dropping the inherited headers (`MISS`), the crate copied whole
+(four paths `OPEN`).
 
 **Row VIEWERLOCK (2026-10-14), the policy in place.** The web image built from that tree passed
 `check_equivalence.sh`, and `client/viewer/check.mjs --url` through it on the gate's three-frame grey series passed

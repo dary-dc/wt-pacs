@@ -20,7 +20,8 @@ async function stepsOnDemand(n, frames, show, client) {
 export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, setView, current, toggleCine, show }) {
   const onDemand = q.get("fill") === "0" ? await stepsOnDemand(n, frames, show, client) : {};
   const out = { n, ...onDemand, received: frames.size, exact: seen.exact, inexact: seen.inexact, unchecked: seen.unchecked, paths: seen.paths,
-    errors: [...errors], fillMs, firstShownMs, renderer: rendererName };
+    errors: [...errors], fillMs, firstShownMs, renderer: rendererName, status: document.getElementById("status").textContent,
+    preloaded: performance.getEntriesByType("resource").filter((e) => e.initiatorType === "link").map((e) => new URL(e.name).pathname) };
   const step = async (name, fn) => {
     try {
       out[name] = await fn();

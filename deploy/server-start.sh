@@ -3,7 +3,7 @@
 # naming it, written whole, then the server — restarted by `timeout` before the certificate ages out. deploy/README.md
 # A certificate mounted at /supplied (cert.pem, key.pem) is used instead, with no hash: the browser verifies its chain.
 set -eu
-: "${SERIES:=us_cine_smoke}" "${WT_URL:=https://127.0.0.1:4433/}" "${RESTART_AFTER:=9d}"
+: "${SERIES:=us_cine_smoke}" "${WT_URL:=https://127.0.0.1:4433/}" "${RESTART_AFTER:=9d}" "${CLIENT:=ts}"
 umask 077
 rm -f /run/wt-pacs/dev-transport.json
 cert=/certs/cert.pem key=/certs/key.pem
@@ -16,7 +16,7 @@ else
     -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null
   hash=$(openssl x509 -in "$cert" -outform DER | openssl dgst -sha256 | awk '{print $2}')
 fi
-printf '{"wt_url": "%s", "cert_sha256": "%s"}\n' "$WT_URL" "$hash" > /run/wt-pacs/.dev-transport.json
+printf '{"wt_url": "%s", "cert_sha256": "%s", "client": "%s"}\n' "$WT_URL" "$hash" "$CLIENT" > /run/wt-pacs/.dev-transport.json
 chmod 0644 /run/wt-pacs/.dev-transport.json
 mv -f /run/wt-pacs/.dev-transport.json /run/wt-pacs/dev-transport.json
 exec timeout "$RESTART_AFTER" series-server --series "/studies/$SERIES.sbnd" --cert-pem "$cert" \
