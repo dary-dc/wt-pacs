@@ -796,9 +796,9 @@ threads against the pool's hundreds might start converting (the workstation's 1.
 semi-sequential ceiling was device-bound and may be the NVMe's own cache); `hybrid_lazyring`
 on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 
-**Known defects, not fixed**, each found by reading the code (2026-10-16 review), not reproduced. *Corrected
-2026-10-18 (row 284): all three were shown, each by a test that failed on the code as it was, and fixed at the reader,
-so they stay fixed if a session ever outlives a read error.*
+**Known defects, fixed 2026-10-18 (row 284).** Each was found by reading the code (2026-10-16 review) and, as first
+written here, not reproduced. *Corrected 2026-10-18:* all three were shown, each by a test that failed on the code as it
+was, and fixed at the reader, so they stay fixed if a session ever outlives a read error.
 
 * A failed pool read in `TileReader` leaves its slot keyed to the span with an empty buffer; reading that span again
   would panic in `Bytes::slice` (`server/src/media/read_path.rs:424`). Latent: a session ends on its first read error.
