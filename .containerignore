@@ -15,6 +15,10 @@ lab/
 !lab/window-harness/src
 !lab/telemetry-bench/Cargo.toml
 !lab/telemetry-bench/src
+!lab/cc-classify/Cargo.toml
+!lab/cc-classify/src
+!lab/server-telemetry/Cargo.toml
+!lab/server-telemetry/src
 server/dev-cert
 client/dev-transport.json
 client/contract/

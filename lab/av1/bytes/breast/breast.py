@@ -2,7 +2,7 @@
 """The breast family's bytes: each breast-family series as payloads in every layout, at cpu0 and its shipped preset,
 against HTJ2K on the same frames; then intra against inter by group on the slice series and the cine.
 
-Every payload is written by ingest/coded-frames/ingest.py, which writes nothing unless native dav1d decodes it back
+Every payload is written by lab/av1/tools/ingest_coded.py, which writes nothing unless native dav1d decodes it back
 to its source. Inter codes the optimized representation's streams a group at a time (--auto-alt-ref=0),
 decodes each group alone through native dav1d, merges as the client does and checks every frame.
 
@@ -53,7 +53,7 @@ def layouts(s):
 
 def payloads(build, s, items_dir, layout, preset, n):
     out = items_dir / s.name / f"{layout}.{preset.replace(':', '')}"
-    r = subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, s.path, out, *layouts(s)[layout],
+    r = subprocess.run([sys.executable, HERE.parents[3] / "lab/av1/tools/ingest_coded.py", build, s.path, out, *layouts(s)[layout],
                         "--preset", preset, "--frames", str(n), "--jobs", "1"], capture_output=True, text=True)
     if r.returncode:
         return dict(set=s.name, layout=layout, preset=preset, frames=n, exact=False, said=r.stderr.strip()[-300:])

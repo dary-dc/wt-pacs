@@ -10,8 +10,8 @@ PATH=$PWD/lab/av1/.venv/bin:$PATH FRAMES=1 OUT_ROOT=/tmp/x lab/scripts/gen_htj2k
 lab/av1/fetch_data.sh dbt10_ea1141
 cargo build --release -p series-server -p pack-series -p window-harness
 W=lab/.av1-work/load P=lab/av1/.venv/bin/python
-$P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/htj2k --codec htj2k
-$P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/av1 --representation optimized --preset good:6
+$P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/htj2k --codec htj2k
+$P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/dbt10_ea1141 $W/av1 --representation optimized --preset good:6
 for c in htj2k av1; do target/release/pack-series --metadata $W/$c/metadata.json --frames $W/$c --output $W/$c/$c.sbnd; done
 echo 4194304 > /proc/sys/net/core/rmem_default                 # the client's sockets, below
 python3 lab/server-load/run.py --series htj2k=$W/htj2k,htj2k --series av1=$W/av1,av1 --rounds 10 --out rows.jsonl

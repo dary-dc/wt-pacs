@@ -28,7 +28,7 @@ process.on("exit", () => {
   fs.rmSync(T, { recursive: true, force: true });
 });
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server"], { cwd: ROOT });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "--features", "lab-levers"], { cwd: ROOT });
 execFileSync("bash", ["-c", `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout ${T}/key.pem \
   -out ${T}/cert.pem -days 2 -nodes -subj '/CN=localhost' -addext 'subjectAltName=IP:127.0.0.1' 2>/dev/null`]);
 const hash = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`])

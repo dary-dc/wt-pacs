@@ -143,7 +143,7 @@ def two_step(build, name, work):
     subprocess.run([PY, ROOT / "lab/av1/fetch_data.py", ROOT / "lab/av1/data.json", out / "data", set_name], check=True,
                    capture_output=True)
     name = set_name
-    subprocess.run([PY, ROOT / "ingest/coded-frames/ingest.py", build, out / "data" / name, out / "f", "--codec", "htj2k",
+    subprocess.run([PY, ROOT / "lab/av1/tools/ingest_coded.py", build, out / "data" / name, out / "f", "--codec", "htj2k",
                     "--jobs", "4"], check=True, capture_output=True)
     subprocess.run([ROOT / "target/release/pack-series", "--metadata", out / "f/metadata.json", "--frames", out / "f",
                     "--output", out / "x.sbnd"], check=True, capture_output=True)

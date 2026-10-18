@@ -37,7 +37,7 @@ for p in out.glob("back.*"): p.unlink()
 def command(build, old, src, out, codec, impl, preset, jobs, rep="optimized", frames=None):
     if impl == "old" and codec == "htj2k":
         return [PY, "-c", OLD_HTJ2K, str(old / "lab/av1/speed"), str(src), str(out)]
-    script = old / "lab/av1/item/ingest.py" if impl == "old" else ROOT / "ingest/coded-frames/ingest.py"
+    script = old / "lab/av1/item/ingest.py" if impl == "old" else ROOT / "lab/av1/tools/ingest_coded.py"
     codec_args = [] if impl == "old" else ["--codec", codec]
     limit = ["--frames", str(frames)] if frames else []
     return [PY, script, build, src, out, *codec_args, "--representation", rep, "--preset", preset, "--jobs", str(jobs),

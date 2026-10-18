@@ -4,7 +4,7 @@
 # Per run: the neighbour starts; 3 s on, ASKS 64 KB asks one at a time on a fresh session; then a
 # DWELL_MS saturating fill beside it. Results: docs/transport/transport-conclusions.md §1 (FQC).
 #
-#   lab/scripts/fq_neighbour_cells.sh OUT.tsv [ROUNDS]   PROFILES= CCS= QDISCS= ASKS= DWELL_MS= FIRST= TRACES= KEEP=
+#   lab/scripts/fq_neighbour_cells.sh OUT.tsv [ROUNDS]   PROFILES= CCS= QDISCS= ASKS= DWELL_MS= FIRST= TRACES= KEEP= FEATURES=
 #   (re-runs itself inside `unshare -rn`)
 set -euo pipefail
 if [[ -z ${FQC_INSIDE:-} ]]; then
@@ -42,7 +42,7 @@ profile() {
   esac
 }
 
-nice -n 19 cargo build -q -j 4 -p series-server -p pack-series -p window-harness
+nice -n 19 cargo build -q -j 4 -p series-server -p pack-series -p window-harness ${FEATURES:+--features "$FEATURES"}
 BIN="${CARGO_TARGET_DIR:-target}/debug"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$T/key.pem" \
   -out "$T/cert.pem" -days 2 -nodes -subj '/CN=localhost' \

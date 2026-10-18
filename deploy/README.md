@@ -147,7 +147,7 @@ A container test of a deployment of this shape found each one (the deployment te
 **What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
 page and its modules, the page check's two (`?check=`), and row DECODERBUILD's decoder builds with their notices
 (`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
-time; and the TS bundles (`build.sh --product`). No harness page, test, TypeScript source or build script. Of the
+time; and the TS bundles (`build.sh --product`). No test, TypeScript source or build script. Of the
 studies, only the smoke series.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
@@ -187,8 +187,8 @@ and the same transport file. It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
   viewer loads (10);
-* 18 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
-  bundle, the transport directory, and the files of `client/` the page does not load (a harness page, the check pages,
+* 17 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
+  bundle, the transport directory, and the files of `client/` the page does not load (the check pages,
   a test, a TypeScript and a Rust source, a build script, a README);
 * gzip on a module, the WASM and the metadata;
 * the policy on the page and on the downloader's script, connecting to the transport, and the dev host's on the page

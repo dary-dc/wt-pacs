@@ -22,6 +22,7 @@ PORT=${CLOUD_PORT:-4435}
 VARIANTS=("default:" "sw768k:--send-window-bytes 786432" "bbr:--congestion bbr")
 # Every variant: with GSO on, netem here sees whole batches and drops them together.
 SERVER_ARGS=${SERVER_ARGS:---segmentation-offload false}
+if [[ -z "${BIN:-}" ]]; then (cd "$ROOT" && cargo build -q --release -p series-server --features lab-levers); fi
 BIN=${BIN:-$ROOT/target/release/series-server}
 DRIVER=${DRIVER:-$ROOT/target/release/server_ab}
 OUT=${OUT:-$ROOT/.local/measurements/l3-$(date +%Y%m%d-%H%M%S).tsv}

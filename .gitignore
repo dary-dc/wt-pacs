@@ -20,8 +20,9 @@ client/transport/wasm/pkg/
 
 # Generated TypeScript client bundles (build with client/transport/ts/build.sh)
 client/transport/ts/dist/
-# Shared client recorder tests (build via client/transport/ts/build.sh)
-client/record/test/run.mjs
+# The client recorder's bundle and tests (build with lab/client-telemetry/build.sh)
+lab/client-telemetry/dist/
+lab/client-telemetry/test/*.mjs
 # transport-ts unit tests (build via client/transport/ts/build.sh)
 client/transport/ts/test/run.mjs
 # Contract suite bundles (build via client/transport/ts/build.sh)

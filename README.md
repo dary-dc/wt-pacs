@@ -91,7 +91,7 @@ Then open in Chrome:
     'http://127.0.0.1:8765/harness/cell.html?autorun=1&transport=ws'
   ```
 
-  The query parameters are listed in `client/harness/shell.js`.
+  The query parameters are listed in `lab/harness/shell.js`.
 - The downloader's self-check, every decoded frame against its `.sha256`: `http://127.0.0.1:8765/harness/`.
   It needs the decoder (§Prerequisites) and the server on the `decode_c512` series in place of the smoke one
   ([`docs/FIXTURES.md`](docs/FIXTURES.md)); the frames need cmake and a C++ compiler for OpenJPH's encoder:
@@ -105,7 +105,7 @@ Then open in Chrome:
   cargo run --release -p series-server -- --port 4433 --series target/c512.sbnd   # Terminal 1, in place of the smoke series
   ```
 
-`scripts/cellcheck.sh` runs both pages headless in one go, after the c512 frames above: the cells over both
+`lab/harness/cellcheck.sh` runs both pages headless in one go, after the c512 frames above: the cells over both
 clients must each deliver what they asked, the refuse cell none of it, and the self-check must pass. It makes its
 own server, bundle and certificate, so it needs neither terminal nor step 2; the gate does not run it.
 `scripts/wtcompat.py --fetch DIR` fetches the newest Chrome and Firefox builds and fails if any no longer dials the
