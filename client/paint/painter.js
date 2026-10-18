@@ -8,9 +8,9 @@ export class Painter {
   #last = null;
 
   /** `renderer` resolves to the WebGL renderer string, or rejects with why nothing can be painted. */
-  constructor(canvas, { workerUrl = new URL("./paint-worker.js", import.meta.url), onLost = () => {} } = {}) {
+  constructor(canvas, { onLost = () => {} } = {}) {
     this.#canvas = canvas;
-    this.#worker = new Worker(workerUrl, { type: "module" });
+    this.#worker = new Worker(new URL("./paint-worker.js", import.meta.url), { type: "module" });
     const offscreen = canvas.transferControlToOffscreen();
     this.renderer = new Promise((resolve, reject) => {
       this.#worker.onerror = (e) => {

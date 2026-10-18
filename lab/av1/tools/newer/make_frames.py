@@ -61,7 +61,7 @@ def series(build, out, spec, frames):
     payloads = out / ".payloads" / s.name
     if not (payloads / "metadata.json").exists():
         split = ["--split", str(s.stored - 12)] if s.stored > 12 else []
-        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, payloads, "--preset", preset,
+        subprocess.run([sys.executable, HERE.parents[3] / "lab/av1/tools/ingest_coded.py", build, src, payloads, "--preset", preset,
                         "--frames", str(n), "--jobs", "1", *split], check=True, capture_output=True)
     for i in range(n):
         shutil.copyfile(payloads / f"{i:03d}.av1", dst / f"{i:03d}.av1")

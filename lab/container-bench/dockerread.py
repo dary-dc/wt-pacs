@@ -106,7 +106,7 @@ def data(work):
         "VENV=/data/venv OUT=/data/av1-data lab/av1/fetch_data.sh " + " ".join(SETS),
         "PATH=/data/venv/bin:$PATH BUILD=/src/lab/.openjph-build OUT_ROOT=/tmp/fx FRAMES=1 lab/scripts/gen_htj2k_fixtures.sh g160",
         "BUILD=/data/av1-build ingest/coded-frames/build.sh",
-        *(f"/data/venv/bin/python ingest/coded-frames/ingest.py /data/av1-build /data/av1-data/{s} /data/coded/{s}/htj2k"
+        *(f"/data/venv/bin/python lab/av1/tools/ingest_coded.py /data/av1-build /data/av1-data/{s} /data/coded/{s}/htj2k"
           " --codec htj2k --jobs 2" for s in SETS),
     ]
     ca = os.environ.get("BUILD_CA")

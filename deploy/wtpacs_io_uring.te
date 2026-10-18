@@ -1,0 +1,10 @@
+# io_uring for containers on an SELinux-enforcing host, and nothing else: deploy/README.md §Container settings.
+# It reaches every container_t on the host. Build and load as lab/scripts/workstation_run.sh prints.
+module wtpacs_io_uring 1.0;
+
+require {
+	type container_t;
+	class io_uring allowed;
+}
+
+allow container_t self:io_uring allowed;

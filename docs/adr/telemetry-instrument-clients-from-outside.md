@@ -11,7 +11,7 @@ The browser clients had no latency telemetry, and the WASM-against-TS comparison
 it. Its gate: **both variants must stamp at identical points, or the comparison is unmeasurable no
 matter how clean the shell is.**
 
-The obvious move is to copy `server/src/record/`: a write-only seam, compiled out when the
+The obvious move is to copy the server's recorder (`lab/server-telemetry/`): a write-only seam, compiled out when the
 `telemetry` feature is off, with an absence check. Copying it means `rec.ask()`,
 `rec.first_byte()`, `rec.last_byte()` threaded through both clients' framing loops and send paths,
 roughly eight sites per client: **measurement code living permanently in the product path of both
@@ -75,9 +75,9 @@ different points, because it is the same code stamping.
   `WebTransport` may not be the platform's. This ADR is the mitigation.
 - **Correctness depends on `Proxy`, not a look-alike.** `transport-wasm` does
   `dyn_into::<ReadableStreamDefaultReader>()`, an `instanceof` check a substitute object fails; a
-  `Proxy` forwards `getPrototypeOf`, and so does every handler in `client/record/proxy.ts`.
+  `Proxy` forwards `getPrototypeOf`, and so does every handler in `lab/client-telemetry/proxy.ts`.
   *Corrected 2026-09-26:* this said the trap "carries its own test". None exists in
-  `client/record/test/`; the WASM variant of `lab/telemetry-cost` exercises it.
+  `lab/client-telemetry/test/`; the WASM variant of `lab/telemetry-cost` exercises it.
 - **`gesture` is not covered**: it happens before the transport is called. The harness shell
   supplies it; without one, `queue` exports `null`.
 - The tap sees bytes, not frames, so frame boundaries are recovered arithmetically from byte
@@ -87,6 +87,9 @@ different points, because it is the same code stamping.
 - It does **not** fix the event-loop timing confound; only D would.
 - **What it cannot see.** A session over the WebSocket fallback (no `WebTransport` to patch). The
   downloader's pushed fill is seen since 2026-10-03: the wrapper wraps `fillFrames` and an opening fill.
+  *Corrected 2026-10-16 (row 274):* the wrapper dropped `requestExactFrame`'s second argument, `onHead`, so
+  under telemetry the downloader's `refill: "head"` never fired and a fill's remainder waited for the asked frame
+  to land, as `refill: "landed"` does. It is passed through; `lab/client-telemetry/test/run.ts` holds it.
 
 ## Decision A — frame boundaries stay in byte attribution (2026-09-06)
 
@@ -125,12 +128,12 @@ compression), or a stage that can only be stamped inside the session. Neither is
 
 | Variant | Build | Loaded by |
 | --- | --- | --- |
-| TS | `client/transport/ts/build.sh` → `dist/session-telemetry.js` (entry `session-telemetry.ts`), the downloader's transport | `client/harness/cell.html?telemetry=1` |
+| TS | `lab/client-telemetry/build.sh` → `lab/client-telemetry/dist/session-telemetry.js` (entry `session-telemetry.ts`), the downloader's transport | `lab/harness/cell.html?telemetry=1` |
 | WASM | none | not recorded since 2026-10-03: the harness refuses `telemetry=1` with `transport=wasm`, and `verify_e2e.py --telemetry` with a non-TS `--harness` |
 
 *Corrected 2026-10-03:* the WASM row named a `WTPACS_TELEMETRY_BUILD=1` build into `pkg-telemetry/`
 behind a vacant `telemetry` feature. It was the product wasm in another directory, nothing set it,
-and both are removed. The TS output is gitignored. The code is `client/record/` (`install.ts` patches the global;
+and both are removed. The TS output is gitignored. The code is `lab/client-telemetry/` (`install.ts` patches the global;
 `proxy.ts`, `wrap-session.ts`, `attribution.ts`, `clock.ts`, `rows.ts`, `report.ts`, `tap.ts`),
 which only the TS variant loads. The report is read from `window.__wtpacsTelemetry()`; the harvest writes it to
 `telemetry-client.json` ([server ADR §Harvest](telemetry-server-pipeline.md#harvest)).
@@ -191,10 +194,10 @@ client/scripts/check_telemetry_absent.sh
 ```
 
 Builds the default bundle if missing; fails if `dist/session.js` contains a recorder string
-(`record/install`, `__wtpacsTelemetry`, report field names), if the default WASM `pkg/` exports
+(`client-telemetry/`, `__wtpacsTelemetry`, report field names), if the default WASM `pkg/` exports
 telemetry or carries its field literals, or if importing `dist/session.js` alone patches
 `WebTransport`. `scripts/gate.sh` runs it with the server's check, and also runs
-`client/record/test` and type-checks `client/record/`.
+`lab/client-telemetry/test` and type-checks `lab/client-telemetry/`.
 
 ## What installing it costs
 

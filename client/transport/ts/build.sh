@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Build product + telemetry bundles (gitignored — do not commit).
-# Shared recorder lives in client/record/; this script builds the TS client's entries
-# and the shared install/test artifacts.
+# Build the TS client's bundles and its tests (gitignored — do not commit). The recorder's are lab/client-telemetry/build.sh.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
@@ -9,17 +7,18 @@ cd "$ROOT"
 if [[ ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules/.package-lock.json ]]; then
   npm install
 fi
-npx esbuild session.ts --bundle --format=esm --outfile=dist/session.js --platform=browser --target=es2022
-npx esbuild ws-session.ts --bundle --format=esm --outfile=dist/ws-session.js --platform=browser --target=es2022
-npx esbuild race-session.ts --bundle --format=esm --outfile=dist/race-session.js --platform=browser --target=es2022
+bundle() {
+  local target=es2022; [[ $3 == node ]] && target=node20
+  npx esbuild "$1" --bundle --format=esm --outfile="$2" --platform="$3" --target="$target"
+}
+bundle session.ts dist/session.js browser
+bundle ws-session.ts dist/ws-session.js browser
+bundle race-session.ts dist/race-session.js browser
 # --product: the transports a page loads, and nothing for the lab or the tests (deploy/Containerfile).
 [[ "${1:-}" == "--product" ]] && { echo "wrote dist/session.js dist/ws-session.js dist/race-session.js"; exit 0; }
-npx esbuild session-telemetry.ts --bundle --format=esm --outfile=dist/session-telemetry.js --platform=browser --target=es2022
-npx esbuild ../../record/test/run.ts --bundle --format=esm --outfile=../../record/test/run.mjs --platform=node --target=node20
-npx esbuild ../../contract/run.ts --bundle --format=esm --outfile=../../contract/run.mjs --platform=node --target=node20
-npx esbuild ../../contract/fake-session.ts --bundle --format=esm --outfile=../../contract/dist/fake-session.js --platform=browser --target=es2022
-npx esbuild ../../contract/downloader-rig.ts --bundle --format=esm --outfile=../../contract/dist/downloader-rig.js --platform=browser --target=es2022
-npx esbuild ../../contract/dispatch-rig.ts --bundle --format=esm --outfile=../../contract/dist/dispatch-rig.js --platform=browser --target=es2022
-npx esbuild ../../../lab/telemetry-cost/cost.ts --bundle --format=esm --outfile=../../../lab/telemetry-cost/cost.mjs --platform=node --target=node20
-npx esbuild test/run.ts --bundle --format=esm --outfile=test/run.mjs --platform=node --target=node20
-echo "wrote dist/session.js dist/ws-session.js dist/race-session.js dist/session-telemetry.js ../../record/test/run.mjs ../../contract/run.mjs ../../contract/dist/{fake-session,downloader-rig,dispatch-rig}.js ../../../lab/telemetry-cost/cost.mjs test/run.mjs"
+bundle ../../contract/run.ts ../../contract/run.mjs node
+bundle ../../contract/fake-session.ts ../../contract/dist/fake-session.js browser
+bundle ../../contract/downloader-rig.ts ../../contract/dist/downloader-rig.js browser
+bundle ../../contract/dispatch-rig.ts ../../contract/dist/dispatch-rig.js browser
+bundle test/run.ts test/run.mjs node
+echo "wrote dist/session.js dist/ws-session.js dist/race-session.js ../../contract/run.mjs ../../contract/dist/{fake-session,downloader-rig,dispatch-rig}.js test/run.mjs"

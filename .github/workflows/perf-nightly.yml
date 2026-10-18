@@ -1,0 +1,99 @@
+# The base against the head on the total-time harness, interleaved, flagging only a difference that repeats; it claims
+# nothing past this runner and never fails a pull request. README.md §Quick start, step 5.
+name: perf-nightly
+
+on:
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Base revision (default: the branch as it stood 24 hours ago)"
+        required: false
+      head:
+        description: "Head revision (default: the branch's tip)"
+        required: false
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BRANCH: claude/av1-unified-mainbase
+  RUST_VERSION: 1.97.0
+  PLAYWRIGHT_VERSION: 1.56.1
+  CARGO_TERM_COLOR: never
+
+jobs:
+  perf:
+    if: github.event_name != 'pull_request' || github.event.label.name == 'perf'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: revs
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          IN_BASE: ${{ inputs.base }}
+          IN_HEAD: ${{ inputs.head }}
+        run: |
+          if [[ -n "$PR_HEAD" ]]; then
+            base=$PR_BASE head=$PR_HEAD
+          else
+            head=$(git rev-parse "${IN_HEAD:-origin/$BRANCH}")
+            base=$(git rev-parse "${IN_BASE:-$(git rev-list -1 --first-parent --before='24 hours ago' "origin/$BRANCH")}")
+          fi
+          echo "base $base, head $head"
+          [[ "$base" != "$head" ]] || { echo "nothing landed: nothing timed" | tee -a "$GITHUB_STEP_SUMMARY"; exit 0; }
+          { echo "base=$base"; echo "head=$head"; } >>"$GITHUB_OUTPUT"
+      - if: steps.revs.outputs.head
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.0
+      - if: steps.revs.outputs.head
+        name: Rust, Playwright's Chromium, and both trees with their client's decoder and hasher
+        env:
+          BASE: ${{ steps.revs.outputs.base }}
+          HEAD: ${{ steps.revs.outputs.head }}
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          npm i -g "playwright@$PLAYWRIGHT_VERSION"
+          npx -y "playwright@$PLAYWRIGHT_VERSION" install --with-deps chromium
+          git worktree add --detach "$RUNNER_TEMP/base" "$BASE"
+          git worktree add --detach "$RUNNER_TEMP/head" "$HEAD"
+          for tree in "$RUNNER_TEMP/base" "$RUNNER_TEMP/head"; do
+            (cd "$tree/client/transport/ts" && npm ci --no-audit --no-fund)
+            bash "$tree/client/decode/wasm/fetch_openjph.sh"
+            bash "$tree/client/decode/wasm/fetch_xxh3.sh"
+          done
+      - if: steps.revs.outputs.head
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            target
+          key: cargo-perf-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-perf-${{ env.RUST_VERSION }}-
+      # The relay runs at chrt -f 50 (lab/av1/delivery/total-time/README.md §The rig); the runner's user may not, unraised.
+      - if: steps.revs.outputs.head
+        run: |
+          sudo prlimit --pid $$ --rtprio=50
+          NODE_PATH="$(npm root -g)" node scripts/perf_nightly.mjs "$RUNNER_TEMP/base" "$RUNNER_TEMP/head" | tee -a "$GITHUB_STEP_SUMMARY"

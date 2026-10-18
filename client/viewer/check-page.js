@@ -1,8 +1,6 @@
 /** The page check's in-page half: the protocol after the fill, and each readback against the CPU reference. client/viewer/check.mjs */
+import { sha256Hex } from "/client/decode/wasm-glue.js";
 import { paintReference } from "/client/paint/reference.js";
-
-const hex = async (bytes) =>
-  Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 /** On demand, the page's own steps: three quick ones keep the newest ask alone, and a frame stepped to twice is asked once. */
 async function stepsOnDemand(n, frames, show, client) {
@@ -22,7 +20,8 @@ async function stepsOnDemand(n, frames, show, client) {
 export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, setView, current, toggleCine, show }) {
   const onDemand = q.get("fill") === "0" ? await stepsOnDemand(n, frames, show, client) : {};
   const out = { n, ...onDemand, received: frames.size, exact: seen.exact, inexact: seen.inexact, unchecked: seen.unchecked, paths: seen.paths,
-    errors: [...errors], fillMs, firstShownMs, renderer: rendererName };
+    errors: [...errors], fillMs, firstShownMs, renderer: rendererName, status: document.getElementById("status").textContent,
+    preloaded: performance.getEntriesByType("resource").filter((e) => e.initiatorType === "link").map((e) => new URL(e.name).pathname) };
   const step = async (name, fn) => {
     try {
       out[name] = await fn();
@@ -70,7 +69,7 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
     const ref = paintReference({ ...asPainted(f.info), samples: new View(f.info.pixels) }, d, w, h, dpr);
     let worst = 0;
     for (let k = 0; k < ref.length; k++) worst = Math.max(worst, Math.abs(ref[k] - pixels[k]));
-    out.readbacks.push({ i, worst, size: `${w}x${h}`, sha256: await hex(pixels.slice()) });
+    out.readbacks.push({ i, worst, size: `${w}x${h}`, sha256: await sha256Hex(pixels.slice()) });
   }
   out.stats = client.stats().exact;
   client.close();

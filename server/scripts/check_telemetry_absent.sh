@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The default (non-telemetry) release binary carries no Tap, path sampler or controller trace, by symbol or literal.
+# The default (non-telemetry) release binary carries no Tap, path sampler or controller trace, by symbol or literal,
+# no lab feature's controller (`lab-classify`) and none of `lab-levers`' flags.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -19,9 +20,9 @@ if [[ ! -f "$BIN" ]]; then
   exit 1
 fi
 
-if grep -qE 'series_server::record::(tap|sink|report|rows|path)|series_server::transport::cc_trace|Tap::for_session|LiveSummary|flush_on_exit' <(nm -C "$BIN"); then
+if grep -qE 'server_telemetry::|Tap::for_session|LiveSummary|flush_on_exit' <(nm -C "$BIN"); then
   echo "FAIL: telemetry symbols found in default build" >&2
-  nm -C "$BIN" | grep -E 'record::(tap|sink|report|rows|path)|transport::cc_trace|Tap::|LiveSummary|flush_on_exit' || true
+  nm -C "$BIN" | grep -E 'server_telemetry::|Tap::|LiveSummary|flush_on_exit' || true
   exit 1
 fi
 
@@ -32,4 +33,16 @@ if grep -a -qE 'percentile_method|server_session|histogram-loglinear|rows_in_fil
   exit 1
 fi
 
-echo "OK: no telemetry symbols in default build"
+if grep -q 'cc_classify' <(nm -C "$BIN") || grep -a -q 'cubic-classify' "$BIN"; then
+  echo "FAIL: lab-classify's controller or flag found in default build" >&2
+  exit 1
+fi
+
+if grep -q 'transport::lab_levers' <(nm -C "$BIN") \
+  || grep -a -qE 'force-pool-reads|hold-sessions|stall-after-bytes|segmentation-offload' "$BIN"; then
+  echo "FAIL: a lab-levers flag found in default build" >&2
+  grep -a -oE 'force-pool-reads|hold-sessions|stall-after-bytes|segmentation-offload' "$BIN" | sort -u >&2 || true
+  exit 1
+fi
+
+echo "OK: no telemetry symbols, no lab controller and no lab lever in default build"

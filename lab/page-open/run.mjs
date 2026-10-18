@@ -1,6 +1,6 @@
 /**
- * Cold open (R2): navigation → config → session → first frame, on a real round trip, for the harness on both
- * clients and for the downloader. Cold and warm profile, through lab/scripts/link_impair.py.
+ * Cold open (R2): navigation → config → session → first frame, on a real round trip, for the downloader page
+ * and the product page, each on both clients. Cold and warm profile, through lab/scripts/link_impair.py.
  *
  * Each milestone is fitted against the link's round trip across 0 / 40 / 80 ms, so the slope is
  * the serial round trips the page spends and the intercept is everything that is not the network.
@@ -17,6 +17,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { leadsByPredecessor, order } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
@@ -69,9 +70,28 @@ const VARIANTS = STAGES
     }]))
   : {
       downloader: (base) => `${base}/lab/page-open/downloader.html`,
+      "downloader-wasm": (base) => `${base}/lab/page-open/downloader.html?transport=wasm`,
+      viewer: (base) => viewerAt(base, {}),
+      "viewer-wasm": (base) => viewerAt(base, { transport: "/client/transport/wasm/session-adapter.js" }),
     };
 for (const variant of Object.keys(VARIANTS)) if (process.env.ONLY && !process.env.ONLY.split(",").includes(variant)) delete VARIANTS[variant];
 const PROFILES = STAGES || HOST === "dns" ? ["cold"] : ["cold", "warm"];
+
+// The product page reports through its lab hook, lab/viewer/levers.js, which only the dev host serves.
+let viewerPosted = () => {};
+const collector = createServer((req, res) => {
+  let body = "";
+  req.on("data", (c) => (body += c));
+  req.on("end", () => {
+    if (req.url === "/result") viewerPosted(JSON.parse(body));
+    res.writeHead(200, { "Access-Control-Allow-Origin": "*" }).end();
+  });
+});
+await new Promise((r) => collector.listen(0, "127.0.0.1", r));
+function viewerAt(base, opts) {
+  const post = `http://127.0.0.1:${collector.address().port}/`;
+  return `${base}/?${new URLSearchParams({ opts: JSON.stringify(opts), post, origin: "navigation" })}`;
+}
 
 // HOST=dev (default) is server/dev-server.py, plaintext HTTP/1.1; h1 and h2 are nginx on the deploy
 // template over TLS, without and with HTTP/2 — the handshakes a real host charges the page half.
@@ -93,6 +113,7 @@ function start(cmd, args, out) {
 
 function stop() {
   for (const p of kids) p.kill();
+  collector.close();
   if (CFG_BAK) fs.writeFileSync(CFG, CFG_BAK);
   if (HOST === "dns") for (const f of [META, META_FIRST]) fs.rmSync(path.join(ROOT, f), { force: true });
   removeBoot();
@@ -102,7 +123,7 @@ process.on("exit", stop);
 
 // A real series: the downloader variant decodes what it gets, so random bytes would not do.
 execFileSync("cargo", ["build", "-q", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT });
-const BIN = path.join(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug");
+const BIN = path.resolve(ROOT, process.env.CARGO_TARGET_DIR || "target", "debug");
 const SERVERS = (process.env.SERVERS || `=${path.join(BIN, "series-server")}`).split(",").map((s) => {
   const [name, bin] = s.split("=");
   return { name, bin, srv: port(), inn: port() };
@@ -137,6 +158,8 @@ for (let i = 0; i < FRAMES; i++) {
   );
 }
 fs.writeFileSync(path.join(T, "metadata.json"), JSON.stringify({ frameCount: FRAMES }));
+const anHourAgo = new Date(Date.now() - 3600e3);
+fs.utimesSync(path.join(T, "metadata.json"), anHourAgo, anHourAgo);
 execFileSync(path.join(BIN, "pack-series"), [
   "--metadata", path.join(T, "metadata.json"),
   "--frames", path.join(T, "frames"),
@@ -154,7 +177,8 @@ for (const s of SERVERS) {
   ], fs.openSync(path.join(T, `server${s.name}.log`), "a"));
 }
 if (HOST === "dev") {
-  start("python3", ["server/dev-server.py", "--port", String(TCP_SRV)], fs.openSync(path.join(T, "static.log"), "a"));
+  start("python3", ["server/dev-server.py", "--port", String(TCP_SRV), "--metadata", path.join(T, "metadata.json")],
+    fs.openSync(path.join(T, "static.log"), "a"));
 } else if (HOST === "dns") {
   fs.writeFileSync(path.join(ROOT, META), metadata(2200));
   const page = fs.readFileSync(path.join(ROOT, "lab/page-open/downloader.html"), "utf8");
@@ -232,10 +256,12 @@ async function visit(ctx, variant, server) {
   ctx.on("request", (r) => asked.push(new URL(r.url()).pathname));
   let err = null;
   page.on("pageerror", (e) => (err = e.message));
+  const timeout = 120000 * THROTTLE;
+  const posted = variant.startsWith("viewer") && new Promise((resolve) => (viewerPosted = resolve));
   await page.goto(VARIANTS[variant](base, server), { waitUntil: "commit" });
-  await page.waitForFunction(() => globalThis.__wtpacsDone || globalThis.__wtpacsError, null, {
-    timeout: 120000 * THROTTLE,
-  });
+  const late = () => new Promise((_, no) => setTimeout(() => no(new Error(`no result in ${timeout} ms`)), timeout));
+  const viewer = posted && (await Promise.race([posted, late()]));
+  if (!posted) await page.waitForFunction(() => globalThis.__wtpacsDone || globalThis.__wtpacsError, null, { timeout });
   // The document's own fetch: `page` when its last byte landed, `tls` what its TLS handshake took.
   const out = await page.evaluate(() => {
     const n = performance.getEntriesByType("navigation")[0];
@@ -254,10 +280,21 @@ async function visit(ctx, variant, server) {
   });
   await page.close();
   if (out.error || err) throw new Error(out.error || err);
+  const usedWasm = asked.includes("/client/transport/wasm/pkg/transport_wasm_bg.wasm");
+  if (usedWasm !== variant.endsWith("-wasm")) throw new Error(`${variant} ${usedWasm ? "fetched" : "never fetched"} the WASM client`);
+  if (viewer) return { ...out.open, ...viewerOpen(variant, viewer, out.landed), landed: out.landed };
   holdPixels(variant, out.pixels);
   const wrong = (BOOT_SKIPS[variant] ?? []).filter((f) => asked.includes(f));
   if (wrong.length) throw new Error(`${variant} fetched ${wrong.join(", ")}, which it carries`);
   return { ...out.open, landed: out.landed };
+}
+
+/** The product page's milestones, ms from navigation: the config landed, frame 0 and the last frame in the page. */
+function viewerOpen(variant, r, landed) {
+  if (r.error || r.failures.length) throw new Error(r.error ?? r.failures[0].reason);
+  holdPixels(variant, Array.from({ length: FRAMES }, (_, i) => r.sha[i]));
+  const at = new Map(r.frames.map((f) => [f.i, f.page - r.issuedAt]));
+  return { config: landed.find(([p]) => p === "/wt/dev-transport.json")?.[2], frame: at.get(0), fill: Math.max(...at.values()) };
 }
 
 // A relay per visit: its self-timing tally is the visit's, and a visit it was late for is VOID.
@@ -332,7 +369,7 @@ for (const rtt of RTTS) {
 }
 
 const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
-const MILESTONES = ["tls", ...(HOST === "dns" ? ["dns"] : []), "page", "script", "config", "session", "frame"];
+const MILESTONES = ["tls", ...(HOST === "dns" ? ["dns"] : []), "page", "script", "config", "session", "frame", "fill"];
 function fit(variant, profile, key) {
   const xs = [];
   const ys = [];
@@ -403,6 +440,20 @@ if (SERVERS.length > 1) {
 }
 if (SERVERS.length > 1) {
   byPredecessor("frame", Object.keys(VARIANTS).flatMap((variant) => SERVERS.slice(1).map((s) => [label(variant, s), label(variant, SERVERS[0])])));
+}
+const CLIENT_PAIRS = LABELS.filter((l) => l.endsWith("-wasm") && LABELS.includes(l.slice(0, -5))).map((l) => [l, l.slice(0, -5)]);
+if (CLIENT_PAIRS.length) {
+  console.log(`\nwasm − ts in the same round, ms: median [min-max], and the rounds the WASM client was earlier in; ${voided} visits VOID, ${failed} failed`);
+  for (const [wasm, ts] of CLIENT_PAIRS) for (const profile of PROFILES) for (const key of ["config", "session", "frame", "fill"]) {
+    const cells = RTTS.map((rtt) => {
+      const of = (name) => rows.filter((r) => r.variant === name && r.profile === profile && r.rtt === rtt && r[key] != null);
+      const ref = new Map(of(ts).map((r) => [r.round, r[key]]));
+      const d = of(wasm).filter((r) => ref.has(r.round)).map((r) => r[key] - ref.get(r.round)).sort((x, y) => x - y);
+      return d.length ? `${median(d) >= 0 ? "+" : ""}${median(d).toFixed(0)} [${d[0].toFixed(0)}-${d.at(-1).toFixed(0)}] ${d.filter((x) => x < 0).length}/${d.length}` : "-";
+    });
+    if (cells.some((c) => c !== "-")) console.log(`${wasm.padEnd(W)} ${profile.padEnd(6)} ${key.padEnd(8)} ${cells.join("   ")}`);
+  }
+  byPredecessor("frame", CLIENT_PAIRS);
 }
 if (STAGES) {
   const first = LABELS[0];

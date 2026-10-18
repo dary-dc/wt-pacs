@@ -583,7 +583,7 @@ The server is the sender, so its stack decides four things. Each is set against 
   server on the new stack. Released: lsquic 4.10.0 (`es_webtransport_server`). Unreleased or branches: Google QUICHE,
   picoquic's picowt, ngtcp2/nghttp3. None for msquic, s2n-quic or quic-go's core (webtransport-go refuses this
   server's clients today, §4).
-* **The controllers.** `restart.rs`, `loss_bound.rs` and `cc_trace.rs` (927 lines, with their tests) implement quinn's
+* **The controllers.** `restart.rs`, `loss_bound.rs` and `cc_trace.rs` (the last in `lab/server-telemetry`; 927 lines, with their tests) implement quinn's
   `Controller` trait and read quinn-proto's `RttEstimator`. They would be ported to the new hook, or lost on a stack
   without one.
 * **The session code.** `server/src/transport/server.rs` (1 912 lines) and the stream code (`wire.rs`, `frame_out.rs`,

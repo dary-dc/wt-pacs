@@ -51,9 +51,10 @@ PUBLISH_ADDR=203.0.113.7 WT_URL=https://203.0.113.7:4433/ TLS_DIR=/etc/wt-pacs/t
 | `TLS_DIR` | `./no-tls` (none) | `cert.pem` (the chain) and `key.pem` for the page; absent, web speaks HTTP on 8765 alone |
 | `TLS_PORT` | `443` | the host port published for web's 443 |
 | `RESTART_AFTER` | `9d` | the server exits after this and is restarted with a new certificate |
+| `CLIENT` | `ts` | the client the page loads, `ts` or `wasm`, named in the transport file; a restart switches it ([`../docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client) |
 | `REGISTRY` | `docker.io/library` | where the pinned base images are pulled from: a mirror serves the same digests |
 | `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
-| `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds two |
+| `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |
 | `BUILD_CA` | `/dev/null` (none) | the CA of a TLS-inspecting proxy the build must go through, a build secret |
 
 ## A server compiled outside the image
@@ -82,7 +83,34 @@ A container test of a deployment of this shape found each one (the deployment te
 1. **SELinux.** Every bind mount is `:z` (shared, a label both containers may read), never `:Z` (private to one).
 2. **Stop.** `stop` measured 0.45–0.49 s on the server and 0.51–0.54 s on web (three and two runs): under a
    second, so there is no `init: true`. PID 1 is `timeout`, which passes SIGTERM to the server, and the server
-   ends on it itself (`server/src/main.rs`).
+   ends on it itself (`server/src/main.rs`): it closes every session with `H3_NO_ERROR` (0x100), so a client
+   learns of the stop at once rather than from a stall or its idle timeout, waits up to 250 ms for the closes
+   to drain, and exits. Without the wait the process ends before the close is sent.
+   *2026-10-16, row 270:* before, the server exited without a close, which a test showed (its client saw only its
+   idle timeout); the times above are from then. The wait is quinn's drain, three probe timeouts, so it runs to its
+   bound on a slow link. *Timed* by `lab/scripts/stop_timing.sh 10` (`MEMLOCK=8388608 NOFILE=20000`, this host's
+   limits), the wall time of `docker compose stop server` with a Chromium 141 page mid-fill of a 400-frame series
+   under an 18 Mbit/s shape, three arms interleaved, on a 4-core host never below 22 % idle. Today's image took
+   453–706 ms (medians 509 and 515 in two runs) and a second build of it 448–682 ms (536, 517). With the wait
+   bounded at 500 ms the stop took 961–1 560 ms (median 1 010, five of ten at 1 s or more), so by the row's rule the
+   bound was halved; at 250 ms, 693–1 367 ms (median 734, one of ten over 1 s). ~~The stop is not shown under a
+   second: the bound or `init: true` is the owner's call.~~ *Corrected 2026-10-17, row 270:* it is, and the
+   1 367 ms was not the server's. Timed by phase (the script now records when the server logged the signal and when
+   it exited; 30 more rounds on a build stamping each step inside the process), the server's share of every stop
+   at 250 ms, signal to exit, is the bound and 3–19 ms more: 253–269 ms in 70 stops, tokio's runtime drop 0–4 ms of
+   it. The rest is docker's and alike in every arm: from `compose stop` to the signal, and from the exit to
+   `compose stop` returning. Its tail is the host's. In a 20-round run that met a co-tenant's load (idle 0–20 % for
+   five minutes), every stop of 1 s or more fell in that window and in docker's phases: today's image's two builds up to 1 248 and
+   1 364 ms, the 250 ms build up to 1 240 ms (5 of 20), its server still 253–269 ms; the earlier run was not timed by phase,
+   so where its 1 367 ms went is not known. The run after it, on a 4-core host never below 44 % idle, a synthetic
+   400-frame HTJ2K series (410 kB a frame, `lab/scripts/gen_htj2k_fixtures.sh g512`): today's image 449–559 ms
+   (median 518), a second build 458–570 (488), the 250 ms build 713–820 (780), none at 1 s; docker's phases
+   129–216 ms before the signal and 293–398 ms after the exit. So no `init: true`, and the bound stays at 250 ms;
+   nothing is claimed for a saturated host. *What the page sees:* Chromium reports the close as
+   `WebTransportError: Connection lost.` with no code, since wtransport 0.7 sends QUIC's `CONNECTION_CLOSE` and no
+   `CLOSE_WEBTRANSPORT_SESSION` capsule, so the rule's "closed with the server's code" cannot be observed from a
+   page. The page does see the session end 195–299 ms after the stop began with the close (20 of 20; a session the
+   page opens beside the fill), against about 14.9 s without it (36 of 40; 4 at 217–289 ms).
 3. **The certificate's lifetime.** A certificate pinned by hash (`serverCertificateHashes`) must be valid for at
    most 14 days. So `server-start.sh` makes a new one (ECDSA P-256, 10 days) at every start, and runs the server
    under `timeout $RESTART_AFTER` (9 days). The exit restarts the container, with a new certificate, before
@@ -93,6 +121,9 @@ A container test of a deployment of this shape found each one (the deployment te
 5. **The build cache.**
    * The server's stage copies each workspace member's manifest and sources alone, with cache mounts on the
      cargo registry and `target/`. The bundles stage runs `npm ci` on the lock file before it copies `client/`.
+   * The `target/` mount is the daemon's, shared by every checkout built there, and cargo judges a path crate
+     fresh by mtime. So the build touches every source it copied before `cargo build`: this tree's are always
+     newer than anything in the cache (row BUILDCACHE, §Open).
    * The ignore files keep out `docs/`, every `*.md`, the lab but its four crates' manifests and sources, and the
      decoders' build cache.
    * After an edit to `docs/glossary.md` and `lab/av1/README.md`, 23 of 23 steps were cached and the build took
@@ -117,7 +148,10 @@ A container test of a deployment of this shape found each one (the deployment te
 **What the web image carries.** The files of `client/` the viewer loads, which `web-files.sh` lists and copies: the
 page and its modules, the page check's two (`?check=`), and row DECODERBUILD's decoder builds with their notices
 (`client/decode/wasm/built/`, the frame check's hasher among them), checked against `build/manifest.sha256` at build
-time; and the TS bundles (`build.sh --product`). No harness page, test, TypeScript source or build script. Of the
+time; the TS bundles (`build.sh --product`); and the WASM client, its adapter copied and its glue and `.wasm` built
+in the `wasm` stage (row 277's `CLIENT` picks it): the `wasm32-unknown-unknown` target, `wasm-pack` 0.15.0 by
+`cargo install --locked` as CI installs it, and `build.sh`'s binaryen `version_117` by checksum. No test, TypeScript
+source or build script. Of the
 studies, only the smoke series.
 
 **Only what the page loads is reachable**: `/`, those files under `/client/`, `/series/metadata` and
@@ -156,10 +190,12 @@ the viewer's workers and run inline scripts, carry none. The page's lab paramete
 and the same transport file. It checks five things:
 
 * status, the three isolation headers, content type, `Cache-Control` and body bytes are equal on every path the
-  viewer loads (10);
-* 18 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
-  bundle, the transport directory, and the files of `client/` the page does not load (a harness page, the check pages,
-  a test, a TypeScript and a Rust source, a build script, a README);
+  viewer loads (11);
+* 20 paths that must not be served are 404: the lab and its viewer parameters, the fixtures, the checkout, a study's
+  bundle, the transport directory, and the files of `client/` the page does not load (the check pages, a test, a
+  TypeScript and a Rust source, two build scripts, the WASM client's manifest and its package's, a README);
+* the WASM client's glue and `.wasm`, built in the image and so not compared with the tree's, answer 200 with the
+  isolation headers, as `text/javascript` and `application/wasm` (`--local` serves the tree's build);
 * gzip on a module, the WASM and the metadata;
 * the policy on the page and on the downloader's script, connecting to the transport, and the dev host's on the page
   equal to it but for `connect-src`;
@@ -169,7 +205,7 @@ Each new assertion was mutated and seen to fail it: `server_tokens on`, JSON out
 that serves and lists, and a page cached otherwise than `dev-server.py`; and for the policy (row VIEWERLOCK), nginx's
 `connect-src` without the transport (both paths `MISS`) and the dev host's `script-src` allowing inline (`DIFF`).
 `--local` runs a host nginx on the template instead of the image, its root the files `web-files.sh` copies;
-`scripts/gate.sh` runs it where nginx is on PATH and the decoder builds and the hasher are present, and names it
+`scripts/gate.sh` runs it where nginx is on PATH and the decoder builds are present, and names it
 SKIPPED otherwise. Mutated: a root of all of `client/`, as the image carried before row IMAGESLIM (the nine
 `client/` paths answer 200), and `viewer.js` left out of the list (its path differs and loses gzip); each fails it.
 
@@ -203,6 +239,16 @@ series (`client/viewer/run_check.sh`'s, packed into `STUDIES`) `check.mjs --url`
 3/3 exact, readbacks equal to the CPU reference; `check_equivalence.sh` passed against the image and with `--local`
 (nginx 1.24.0).
 
+**Row BUILDCACHE (2026-10-15), each image its own checkout's binary.** Two worktrees of one commit, the second's
+banner reading `buildcache235_mode=` for `stream_mode=`, edited before the first was built; `--target server` built
+from the first, then the second, on one daemon, the string read off each image's `series-server`. Before the touch,
+the second image carried the first's string: cargo found it fresh in 1.1 s. With it, each carried its own (57 and
+58 s). Mutated, the touch replaced by `true`: the first checkout's image then carried the second's string, from a
+build of the second left in the cache. **Cost, the server image alone, interleaved, three rounds:** after a doc edit,
+0.4–1.0 s with and without (every step cached, as before); after a one-line edit of `server/`, 59.5–61.2 s with
+against 53.5–56.9 s without, since every path crate is rebuilt where one was: fat LTO's link dominates both. The web
+stages are unchanged.
+
 **The page check against the deployment.** `client/viewer/check.mjs --url`, on the DICOM ingest's CT bundle (76 frames,
 HTJ2K): 76/76 exact, and the first, middle and last readback equal the CPU reference.
 
@@ -216,6 +262,17 @@ refuses a page on a public address a request to `127.0.0.1`, where the check's c
 
 **Restart.** `restart server` wrote a new certificate (hash `4ab2c24e…` became `8f39cd57…`) and transport file,
 and the next page open connected and passed.
+
+**Row WASMIMAGE (2026-10-16), the WASM client in the image.** Both images built once from the branch, dockerd and
+its builds pinned to one core at the lowest priority (the build is not timed). `check_equivalence.sh` passed against
+the image: 11 paths, 21 hidden, the glue and `.wasm` answered as asserted. `check.mjs --url` on the gate's grey series
+passed in headless Chromium 141 with `CLIENT=ts` and with `CLIENT=wasm`, 3/3 exact, readbacks equal to the CPU
+reference, each client's files preloaded; told `--client wasm` against `CLIENT=ts`, it failed by name. `compose up`
+here needed `MEMLOCK=8192 NOFILE=20000`: the sandbox refuses higher limits. `--local` passed with the studies in a
+world-readable directory; under a 0700 one, nginx (reading as nobody) answers `/series/metadata` 403. Each new
+assertion was mutated and failed it: the adapter left out (`DIFF`), the build left out of the root, `.wasm` as
+`application/octet-stream` and a `pkg/` location dropping the inherited headers (`MISS`), the crate copied whole
+(four paths `OPEN`).
 
 **Row VIEWERLOCK (2026-10-14), the policy in place.** The web image built from that tree passed
 `check_equivalence.sh`, and `client/viewer/check.mjs --url` through it on the gate's three-frame grey series passed
@@ -241,7 +298,7 @@ never builds a ring, so io_uring matters only to tile misses. In order of cost:
 | series on a bind mount or named volume (ext4, XFS) | `RWF_NOWAIT`: every warm frame inline | the image's own layer (overlayfs) and tmpfs refuse it | none |
 | `seccomp=./seccomp-uring.json` | io_uring on a tile miss | Docker ≥ 25, Podman, containerd ≥ 2.0 refuse it by default | the kernel's io_uring surface, below |
 | `memlock` sized to the rings, one uid per server | io_uring past ~1 000 rings | a uid's ~1 000th concurrent ring, host-wide | locked memory up to the limit |
-| `nofile` ≥ 2 × sessions that miss + sockets | the ring's two fds | the daemon's default, whatever it is | none |
+| `nofile` ≥ sessions that miss + sockets | the ring's fd (two until row 250 dropped the eventfd) | the daemon's default, whatever it is | none |
 | on an SELinux-enforcing host, `io_uring { allowed }` for the container's domain | io_uring on a tile miss | container-selinux grants it to no container domain: `EACCES` even under the profile (probed on Fedora 43, disk-access.md §6 *In a container*) | `label=disable` drops the container's SELinux confinement; a module granting that one permission to `container_t` (untried) reaches every container on the host |
 
 **Verified on this host** (Docker 29.8.2, containerd 2.3.6, runc 1.5.1, Linux 6.18, cgroup v1, ext4). A static probe
@@ -306,7 +363,7 @@ the owner's call and said `compose.yml` does not load it; it does since row 231.
     security_opt: ["seccomp=./seccomp-uring.json"]   # relative to compose.yml
     ulimits:
       memlock: "${MEMLOCK:-67108864}"   # 64 MiB: ~7 500 rings at 8.7 KiB, for this uid
-      nofile: "${NOFILE:-65535}"        # ≥ 2 × sessions that miss + sockets
+      nofile: "${NOFILE:-65535}"        # ≥ sessions that miss + sockets
 ```
 
 A daemon that cannot raise a limit refuses the container at start (`error setting rlimit type 8: operation not
@@ -334,12 +391,14 @@ current (a changed entry and a wrong checksum each failed it). Regenerate it whe
 
 **Which path is live.** The startup banner says `read_fast_path=preadv2` or `pooled_pread`, and `read_ring=available`
 or `read_ring=refused (<why>)` from one ring built and dropped at start (15.6 µs; row 231). A tile session still tries
-`io_uring_setup` once on its first miss and warns `io_uring unavailable; this session reads through the pool`: a ring
-the probe got can still be refused later, past the `memlock` budget. `/proc/1/limits` inside the container is the
+`io_uring_setup` once on its first miss: a ring the probe got can still be refused later, past the `memlock` budget.
+The first refusal warns `io_uring refused; tile misses go to the pool (warned once)` with its errno, once per process;
+every refused session's line says `ring=false`. `/proc/1/limits` inside the container is the
 server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 
-* the `memlock` limit beside `read_ring=`, and sessions that start with the pool when the probe was refused, so the
-  per-session warning goes.
+* the `memlock` limit beside `read_ring=`, and sessions that start with the pool when the probe was refused, so none
+  of them tries `io_uring_setup`. *Corrected 2026-10-16:* this also promised the per-session warning would go; row 254
+  made it once per process instead.
 * the same probe in `check-fastpath`, shipped in the server image, so `docker compose exec server check-fastpath
   /studies` gates a rollout: 0 with both fast paths, 1 with either lost.
 * compose's health check stays the transport file. A slow path is not an unhealthy one, and failing it would hold
@@ -350,8 +409,8 @@ server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 | what | why it matters | what would close it |
 | --- | --- | --- |
 | rootless podman | the brief's first runtime is unchecked | a host with it: build, `up`, the page check |
-| io_uring on an SELinux-enforcing host | the profile is not enough there: `EACCES` (§Container settings) | the owner's call: `label=disable` or a policy module granting `io_uring { allowed }`; neither ships |
-| a stale server binary | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | a cache mount `id` per checkout, or a check that the image's binary names this tree's commit |
+| io_uring on an SELinux-enforcing host | the profile is not enough there: `EACCES` (§Container settings) | the owner's call: `label=disable` or a policy module granting `io_uring { allowed }`; neither ships. The module's source is [`wtpacs_io_uring.te`](wtpacs_io_uring.te) (row 262, untried); `lab/scripts/workstation_run.sh` tries `label=disable` on such a host and prints the root steps that load the module |
+| ~~a stale server binary~~ *closed by row BUILDCACHE, 2026-10-15* | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | closed: the build touches every source it copied before `cargo build` (§5), proved in §Verified *Row BUILDCACHE* |
 | studies by name | one server serves one series (`SERIES`) | a study index, proposed in `docs/FIXTURES.md` §From DICOM |
 | HTTP/3 for the page, and a `dns-prefetch` to the transport's origin | each takes a round trip off a cold open ([`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §What production adds) | nginx's QUIC listener; one `<link>` in the viewer |
 | the decoders are built on the host | the image checks them against the manifest but does not make them | the decoder build's container (`client/decode/wasm/build/`) as a stage, once it runs inside BuildKit |

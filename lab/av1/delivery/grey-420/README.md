@@ -13,9 +13,9 @@ client/transport/ts/build.sh
 lab/av1/fetch_data.sh usb_cine usb_still
 P=lab/av1/.venv/bin/python W=lab/.av1-work/grey420
 for s in usb_still usb_cine; do
-  $P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/$s $W/ingest/$s.mono
-  $P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/$s $W/ingest/$s.420 --grey8 420
-  $P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/$s $W/ingest/$s.htj2k --codec htj2k
+  $P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/$s $W/ingest/$s.mono
+  $P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/$s $W/ingest/$s.420 --grey8 420
+  $P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/$s $W/ingest/$s.htj2k --codec htj2k
 done
 $P lab/av1/delivery/grey-420/make_frames.py $W/ingest $W/frames usb_cine usb_still
 export FIREFOX_PATH=.../FirefoxApp/firefox   # Firefox 157.0.1 as lab/av1/bytes/jpeg-xl/README.md installs it; the binary, not conda's launcher

@@ -1,0 +1,43 @@
+diff --git a/server/Cargo.toml b/server/Cargo.toml
+index cedbee5..24d64ba 100644
+--- a/server/Cargo.toml
++++ b/server/Cargo.toml
+@@ -18,6 +18,8 @@ default = ["uring"]
+ telemetry = ["dep:server-telemetry"]
+ # Lab only: a process-wide frame cache in front of both readers. docs/adr/disk-access.md §13.
+ lab-frame-cache = []
++# Lab only: `fit` takes a fresh zeroed buffer instead of growing one. docs/adr/disk-access.md §13.
++lab-fit-zeroed = []
+ # Lab only: `--force-pool-reads`, `--hold-sessions`, `--stall-after-bytes`, `--segmentation-offload`. server/README.md.
+ lab-levers = []
+ # Lab only: `--congestion cubic-classify`, from lab/cc-classify. lab/cc-classify/README.md.
+diff --git a/server/src/media/read_path.rs b/server/src/media/read_path.rs
+index caadfe8..28ec29c 100644
+--- a/server/src/media/read_path.rs
++++ b/server/src/media/read_path.rs
+@@ -72,6 +72,7 @@ impl ReadStats {
+ }
+ 
+ /// A reader holds no buffer between frames, so a read begins in one from the pool.
++#[cfg(not(feature = "lab-fit-zeroed"))]
+ fn fit(buf: &mut Vec<u8>, need: usize) {
+     if buf.is_empty() {
+         *buf = frame_pool::take();
+@@ -81,6 +82,17 @@ fn fit(buf: &mut Vec<u8>, need: usize) {
+     }
+ }
+ 
++/// Lab only, row 256's B1z: a fresh zeroed allocation where `resize` grows and zero-fills.
++#[cfg(feature = "lab-fit-zeroed")]
++fn fit(buf: &mut Vec<u8>, need: usize) {
++    if buf.is_empty() {
++        *buf = frame_pool::take();
++    }
++    if buf.len() < need {
++        *buf = vec![0; need];
++    }
++}
++
+ /// Probe the page cache for the whole frame; hand any shortfall to the blocking pool.
+ fn start_pooled(store: &Arc<FrameStore>, span: FrameSpan, mut buf: Vec<u8>) -> Result<Fetch> {
+     let len = span.len as usize;

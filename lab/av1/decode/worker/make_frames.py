@@ -32,7 +32,7 @@ def series(build, out, spec, frames):
                 htj2k(s, i, Path(tmp), dst / f"{i:03d}.htj2k")
     payloads = out / ".payloads" / s.name
     if not (payloads / "metadata.json").exists():
-        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, payloads, "--representation", "optimized",
+        subprocess.run([sys.executable, HERE.parents[3] / "lab/av1/tools/ingest_coded.py", build, src, payloads, "--representation", "optimized",
                         "--preset", preset or "cpu0", "--frames", str(n), "--jobs", "4"], check=True, capture_output=True)
     for i in range(n):
         shutil.copyfile(payloads / f"{i:03d}.av1", dst / f"{i:03d}.av1")

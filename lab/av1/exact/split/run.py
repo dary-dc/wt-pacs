@@ -35,7 +35,7 @@ def ks(b, which):
 def cell(job):
     build, src, out, k, preset, name = job
     shape = ["--representation", k] if k in ("plain", "optimized") else ["--split", str(k)]
-    r = subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, out, *shape,
+    r = subprocess.run([sys.executable, HERE.parents[3] / "lab/av1/tools/ingest_coded.py", build, src, out, *shape,
                         "--preset", preset, "--jobs", "1"], capture_output=True, text=True)
     meta = json.loads((src / "metadata.json").read_text())
     said = (r.stdout + r.stderr).strip().splitlines()

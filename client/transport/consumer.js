@@ -28,6 +28,8 @@ export class DownloaderClient {
   #ending = null;
   /** Per decoder path, frames delivered `exact` true, false and unchecked. docs/adr/exactness-in-production.md */
   #exact = {};
+  /** Frames delivered since last filled: a failure of one is a decoder lost before the ack, dropped. docs/ARCHITECTURE.md §The downloader */
+  #delivered = new Set();
 
   constructor(opts) {
     this.#onFrame = opts.onFrame ?? (() => {});
@@ -37,6 +39,8 @@ export class DownloaderClient {
     // The worker's script is a seam: a page may boot it from a bundle or a blob. lab/page-open/README.md
     this.#worker = new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = (e) => this.#fromDownloader(e.data);
+    // After `started` this rejects a settled promise, so a worker's later error changes nothing.
+    this.#worker.onerror = (e) => this.#rejectReady(new Error(`the downloader did not start: ${e.message || "its script did not load"}`));
     this.#watchPage();
     this.#ready = new Promise((resolve, reject) => {
       this.#resolveReady = resolve;
@@ -113,6 +117,7 @@ export class DownloaderClient {
     };
     if (m.preview) return void this.#onPreview(frame);
     this.#worker.postMessage({ kind: "ack", index: m.index, gen: m.gen });
+    this.#delivered.add(m.index);
     if (m.path) {
       const n = (this.#exact[m.path] ??= { true: 0, false: 0, unchecked: 0 });
       n[m.exact] += 1;
@@ -129,16 +134,18 @@ export class DownloaderClient {
   #failOne(index, reason) {
     const w = this.#waiters.get(index);
     // Nobody is waiting on it, so it is a fill frame: the refusal reaches the consumer here or nowhere.
-    if (!w) return void this.#onError({ frameIndex: index, reason, generation: this.#gen });
+    if (!w) return void (this.#delivered.has(index) || this.#onError({ frameIndex: index, reason, generation: this.#gen }));
     this.#waiters.delete(index);
     w.reject(new Error(`frame ${index} unavailable: ${reason}`));
   }
 
   #failAll(reason) {
     this.#closedReason ??= reason;
-    for (const [index, w] of this.#waiters) {
-      w.reject(new Error(`frame ${index} unavailable: ${this.#closedReason}`));
-    }
+    this.#rejectAll(this.#closedReason);
+  }
+
+  #rejectAll(reason) {
+    for (const [index, w] of this.#waiters) w.reject(new Error(`frame ${index} unavailable: ${reason}`));
     this.#waiters.clear();
   }
 
@@ -158,16 +165,14 @@ export class DownloaderClient {
   }
 
   fill(indices) {
+    for (const i of indices) this.#delivered.delete(i);
     this.#worker.postMessage({ kind: "fill", indices });
   }
 
   /** Resolves once the downloader has ended the stream and dropped this request's work. */
   cancel() {
     this.#gen += 1;
-    for (const [index, w] of this.#waiters) {
-      w.reject(new Error(`frame ${index} unavailable: AbortError: the fill was cancelled`));
-    }
-    this.#waiters.clear();
+    this.#rejectAll("AbortError: the fill was cancelled");
     const done = new Promise((r) => this.#cancels.push(r));
     this.#worker.postMessage({ kind: "cancel" });
     return done;

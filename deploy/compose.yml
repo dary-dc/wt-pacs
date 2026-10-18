@@ -15,6 +15,7 @@ services:
       SERIES: "${SERIES:-us_cine_smoke}"
       WT_URL: "${WT_URL:-https://127.0.0.1:4433/}"
       RESTART_AFTER: "${RESTART_AFTER:-9d}"
+      CLIENT: "${CLIENT:-ts}"
     volumes:
       - "${STUDIES:-../fixtures/us_cine_smoke}:/studies:ro,z"
       - "transport:/run/wt-pacs:z"

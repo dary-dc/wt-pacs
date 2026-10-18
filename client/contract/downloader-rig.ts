@@ -1,7 +1,8 @@
 /**
  * The downloader's rig: adapts DownloaderClient to the conformant surface and drives the
  * fake transport inside its worker over the BroadcastChannel fake-session.ts listens on.
- * The page passes DownloaderClient in, so its worker URLs resolve from its own module.
+ * The page passes DownloaderClient in, so its worker URLs resolve from its own module, and
+ * the client the downloader dials through, `ts` or `wasm`.
  */
 import { type ConformantFrame, type ConformantSession, type Rig, runClauses } from "./clauses.ts";
 import { CERT, started, tally } from "./rig-util.ts";
@@ -42,11 +43,11 @@ function adapt(c: Downloader, route: Route): ConformantSession {
   };
 }
 
-function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
+function downloaderRig(DownloaderClient: DownloaderCtor, name: string, client: string): Rig {
   let world = 0;
   let handle: ReturnType<typeof workerFake> | null = null;
   return {
-    name: "downloader",
+    name,
     closure: "redial",
     async open() {
       const ch = `wtpacs-contract-${++world}`;
@@ -58,7 +59,7 @@ function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
         // These clauses are the transport surface's; resumption is the downloader's own, and
         // dispatch-rig.ts owns it — with it on, a dead session is resumed instead of reported.
         survival: false,
-        transport: `/client/contract/dist/fake-session.js?ch=${ch}`,
+        transport: `/client/contract/dist/fake-session.js?ch=${ch}&client=${client}`,
         onFrame: (f: ConformantFrame) => route.onFrame(f),
         onError: (f: { frameIndex: number; reason: string }) => route.onError(f.frameIndex, f.reason),
       });
@@ -76,14 +77,15 @@ function downloaderRig(DownloaderClient: DownloaderCtor): Rig {
 }
 
 /** Entry for the page: run every clause against the downloader, report, and say done. */
-export async function run(DownloaderClient: DownloaderCtor, log: (line: string) => void): Promise<void> {
+export async function run(DownloaderClient: DownloaderCtor, log: (line: string) => void, _only?: string[], client = "ts"): Promise<void> {
+  const name = client === "ts" ? "downloader" : `downloader-${client}`;
   const strays: string[] = [];
   addEventListener("unhandledrejection", (e) => {
     e.preventDefault();
     strays.push(String(e.reason?.message ?? e.reason));
   });
-  await tally(log, "downloader", "contract", async (check) => {
-    await runClauses(downloaderRig(DownloaderClient), check);
+  await tally(log, name, `contract over ${client}`, async (check) => {
+    await runClauses(downloaderRig(DownloaderClient, name, client), check);
     if (strays.length) log(`\n  ${strays.length} abandoned waiter(s) rejected after their fill was cancelled`);
   });
 }

@@ -11,7 +11,7 @@ use frame_envelope::{frame_head, FRAME_HEAD_LEN};
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
-use tracing::{debug, warn};
+use tracing::{debug, warn, Level};
 use wtransport::stream::SendStream;
 use wtransport::Connection;
 
@@ -20,7 +20,7 @@ pub(crate) enum Link {
         media: Media,
         control: ControlStream,
         connection: Connection,
-        /// Lab only: envelope bytes left before the session stalls. `--stall-after-bytes`.
+        /// Lab only: envelope bytes left before the session stalls. `--stall-after-bytes`, under `lab-levers`.
         stall_left: Option<u64>,
         /// Lab only: the send window is set to cwnd + this before each frame. `--send-window-follows-cwnd`.
         cwnd_ahead: Option<u64>,
@@ -74,7 +74,7 @@ impl Link {
         let head = Bytes::copy_from_slice(&frame_head(idx, body.len() as u32));
         match self {
             Self::Quic { media, connection, stall_left, cwnd_ahead, .. } => {
-                if ask {
+                if ask && tracing::enabled!(Level::DEBUG) {
                     let path = connection.quic_connection().stats().path;
                     debug!(frame = idx, cwnd = path.cwnd, rtt_us = path.rtt.as_micros() as u64, "ask written");
                 }

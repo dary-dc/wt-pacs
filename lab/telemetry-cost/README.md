@@ -1,10 +1,12 @@
 # telemetry-cost
 
-What `client/record/` costs when it is installed, against the same client without it.
+What `lab/client-telemetry/` costs when it is installed, against the same client without it.
 `docs/adr/telemetry-instrument-clients-from-outside.md` §What installing it costs holds the numbers.
 
 ```bash
-bash client/transport/ts/build.sh
+bash client/transport/ts/build.sh --product
+client/transport/ts/node_modules/.bin/esbuild lab/telemetry-cost/cost.ts --bundle --format=esm \
+  --outfile=lab/telemetry-cost/cost.mjs --platform=node --target=node20
 node lab/telemetry-cost/cost.mjs                                  # transport-ts, both sweeps
 SWEEP=chunks IMPL=transport-wasm ROUNDS=17 node lab/telemetry-cost/cost.mjs
 ```

@@ -1,7 +1,7 @@
 # What a page open costs, in round trips
 
-Navigation → the transport config → the session → the first frame, for the harness on both clients
-and for the downloader, through [`../scripts/link_impair.py`](../scripts/link_impair.py), cold and
+Navigation → the transport config → the session → the first frame, for the lab's downloader page and
+the product page, each on both clients, through [`../scripts/link_impair.py`](../scripts/link_impair.py), cold and
 warm profile. Every figure is the **slope** of the milestone against the link's round trip, fitted
 over the delays, so the relay's floor, the crypto and the decode fall out as an intercept rather
 than inflating a ratio. What the harness itself cannot show is
@@ -16,7 +16,7 @@ HOST=h2 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3   # nginx over TLS
 ```
 
 `run.mjs` takes `RTTS=` (default `0,40,80`), `STAGES=` (the first-byte ladder's rungs in place of
-the downloader page, cold only; the TypeScript and WASM page variants were removed with the harness's own page path), `THROTTLE=N` (every browser thread N× slower,
+the default variants, cold only), `THROTTLE=N` (every browser thread N× slower,
 [`../scripts/cpu_throttle.mjs`](../scripts/cpu_throttle.mjs)), `RELAY_ARGS=` (shapes each relay
 beyond its delay), `ONLY=`, `SERVERS=`, `NETLOG=`, `ROWS=` and `PORT_BASE=`. `HOST=dns` runs as root.
 
@@ -66,7 +66,7 @@ cold `config` and `session` counts are high by one to two round trips.
 Cut 3 is the downloader's alone: its chain is page → consumer → downloader worker → decoder worker →
 decoder glue → decoder WASM, each link found only once the previous one ran. A module worker has its
 own module map, so a `modulepreload` there does nothing; the worker and decoder are `preload`ed as
-scripts, which warms the HTTP cache the worker reads. `client/harness/index.html` carries none
+scripts, which warms the HTTP cache the worker reads. `lab/harness/index.html` carries none
 of the three cuts; the lab's [`downloader.html`](downloader.html) does.
 
 ## The first byte on a fill
@@ -459,6 +459,94 @@ Config and session are unmoved at every delay. A variant that initialised dav1d 
 **Not built:** a depth hint in the decoder config that would skip dav1d's WASM on a ≤ 10-bit series;
 one bundle per worker, which the `-pre` preloads make unnecessary here (every hop already starts at
 the HTML). **Not measured:** a large first frame, 4× CPU, HTTP/3, a real phone.
+
+## The WASM client's load
+
+**WASMLOAD, queue row 279, [`../../docs/CLIENTS.md`](../../docs/CLIENTS.md) W10 and W11.** *Protocol and rule
+committed before any timed run.* Does the WASM client cost a page its open, and does its `console_error` default
+cost bytes or compile time worth dropping?
+
+**The page open.** `run.mjs`'s default variants, two pages on each client:
+
+* `downloader`, `downloader-wasm` — [`downloader.html`](downloader.html); `?transport=wasm` preloads the WASM
+  client's adapter, glue and `.wasm` beside cut 3's preloads, the shape row 277 (WASMSELECT) gives the product page;
+* `viewer`, `viewer-wasm` — the product page at `/`, a fill of the whole series. The page cannot yet select the
+  WASM client (W1, row 277 is building it), so `viewer-wasm` picks it through the page's lab hook,
+  `?opts={"transport":"/client/transport/wasm/session-adapter.js"}`, with nothing preloaded (W2 as it stands); the
+  TS arm carries `?opts={}`, so both pay the hook's import of `lab/viewer/levers.js` before the metadata.
+
+Every visit is checked, each check watched to fail: a `-wasm` variant fetched `transport_wasm_bg.wasm` and a TS one
+never did; on the product page all 12 frames arrived, none failed, and each hashes as the first visit's did.
+
+```bash
+RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 ROWS=r1.json \
+  NODE_PATH=$(npm root -g) taskset -c 0-2 node lab/page-open/run.mjs 12
+RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 ROWS=r4.json THROTTLE=4 \
+  NODE_PATH=$(npm root -g) taskset -c 0-2 node lab/page-open/run.mjs 12
+```
+
+12 rounds, the four variants Williams-ordered in each, at 1× and then at 4× (the throttles are two runs, not
+interleaved with each other; nothing is compared across them). The dev host: HTTP/1.1, plaintext, **no gzip**, so
+the WASM client crosses the link at 247 KB where the image's nginx would send 106 KB. 100 Mbit, as DL0, BOOT and
+PUSH ran. Cold and warm profile. Off core 3, where other rows' builds may run at nice 19.
+
+**What is quoted: latency.** `frame` is ms from navigation to frame 0 in the page; on the product page `fill` is to
+the last of the 12. Each as the slope over 40/80/160 ms (round trips) and as the paired wasm − ts at each delay.
+
+**The console_error default.** The product build (`client/transport/wasm/build.sh`) against the same with
+`-- --no-default-features`, both through wasm-pack 0.15.0 and binaryen `version_117`: bytes, and
+`WebAssembly.compile` in Node 22's V8, a fresh process a sample, 30 rounds interleaved. The bytes were counted at
+the build, before this rule; they are not timed.
+
+```bash
+node lab/page-open/wasm-compile.mjs 30 product=client/transport/wasm/pkg no-console-error=DIR
+```
+
+**The rule.** For each page, profile and throttle, on `frame` (and on `fill` on the product page), the WASM client
+**costs round trips** when its slope exceeds TS's by 0.5 or more (the fit's variant-to-variant noise was ±0.2,
+§The first byte on a fill), and **costs a fixed time** when its paired difference at 40 ms has one sign in at least
+80 % of the rounds kept and at least 8 of them; otherwise it **ties**. The same thresholds the other way are a saving.
+`console_error` is **worth dropping** if it saves a 12 KB flight gzipped or its compile time differs by 10 % or more
+in at least 80 % of the rounds; otherwise it stays.
+
+**Where the host saturates.** A relay that could not keep time voids its visit (§6 of
+[`../../docs/rig-limits.md`](../../docs/rig-limits.md)); the void count is reported per run and nothing is claimed
+for a cell left with fewer than 8 paired rounds. Nothing is claimed for a link faster than 100 Mbit, a delay
+under 40 ms, gzip, HTTP/2, the image, or a device.
+
+**Run 2026-10-16, `8a0ac2bd`**, 21:26–21:58 UTC, one pilot round per throttle dropped. 24 and 29 of 144 visits'
+relays `VOID` at 1× and 4×, 0 failed; all 144 kept product-page visits bit-exact, every frame. A build of another row
+ran on core 3 at nice 19 during the run. `frame` and `fill` round trips, and the paired wasm − ts in ms at 40 / 80 /
+160 with the rounds the WASM client was later in:
+
+| page | profile | × | `frame` ts → wasm | wasm − ts, `frame` | `fill` ts → wasm |
+| --- | --- | --- | --- | --- | --- |
+| product | cold | 1 | 16.94 → **23.01** | +286 6/6 · +513 9/9 · +982 9/9 | 19.91 → **25.81** |
+| | warm | 1 | 10.63 → 10.65 | +24 3/6 · +48 9/9 · +15 6/9 | 13.49 → 13.32 |
+| | cold | 4 | 16.94 → **22.81** | +226 5/5 · +501 9/9 · +959 11/11 | 19.89 → **25.06** |
+| | warm | 4 | 10.09 → 9.89 | +73 4/5 · +99 9/9 · +119 10/11 | 12.78 → 12.88 |
+| downloader, preloaded | cold | 1 | 14.18 → 14.13 | **+42 9/9** · +19 9/9 · +27 8/8 | — |
+| | warm | 1 | 12.97 → 13.07 | +45 7/9 · +31 9/9 · +54 8/8 | — |
+| | cold | 4 | 13.82 → 13.93 | +73 6/7 · +86 6/6 · +61 7/8 | — |
+| | warm | 4 | 12.75 → 12.20 | +68 6/7 · +164 6/6 · +59 7/8 | — |
+
+**Verdict by the rule.** Claimed: **on the downloader page, preloaded, cold at 1×, the WASM client costs a fixed
++42 ms to the first frame (9/9) and no round trip** (−0.05); +46 ms to the session. Warm at 1× it ties (7 of 9 rounds
+is under 80 %). Every other cell rests on a 40 ms delay left with 5–7 pairs, so the rule claims nothing there,
+including the product page's: the 40 ms visits voided most. **Outside the rule**, over 80 and 160 ms alone, where
+every cell holds 9–11 pairs: on the product page as it stands, with nothing preloaded and nothing gzipped, **the WASM
+client costs a cold open 5.9 round trips to the first frame at 1× and 5.7 at 4×**, later in all 38 pairs; the
+adapter, glue and `.wasm` are found one after another in the worker, and 247 KB leave in slow start. Warm, it costs
+no round trip, +15 to +119 ms. The preloaded page shows what is left once the fetches start at the HTML: no round
+trip, a fixed 20–160 ms. Row 277's selection (draft #98) preloads the WASM client once the transport file lands,
+about 4 round trips into the page rather than at the HTML: not measured, and between the two. The TS default keeps
+the HTML's preload (*corrected 2026-10-17*: #99 had moved it after the transport file too; the owner ruled it back).
+
+**`console_error` stays.** Without it the `.wasm` is 244 662 B against 247 214 (105 209 against 106 296 with
+`gzip -6`) and the glue 32 682 against 33 577: 1.1 KB gzipped of a 12 KB flight. `WebAssembly.compile` takes 1.83 ms
+[1.48–4.50] with it and 1.77 [1.44–6.01] without, faster in 20 of 30 rounds: 3 %. Node's V8 compiles the functions
+lazily, so that is the decode and validation; the functions' compile on first call is inside the fixed cost above.
+**Not measured:** the linear memory's peak; the image (gzip, HTTP/2); #98's WASM preload.
 
 ## What this rig does not decide
 

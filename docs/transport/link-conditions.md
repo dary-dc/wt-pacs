@@ -370,6 +370,38 @@ frame checked against the encoder's input, each arm's full settings printed and 
     fill is worse only where RTT > S ÷ rate, by about that gap, it is a trade-off for the owner at the smaller price
     measured. Each prediction is reported held or failed, and a failed 5 or 6 is named as the cause of the excess.
 
+  **Re-measured (row 229, 2026-10-15): B, the head re-issue, is the downloader's default** (`refill: "head"`;
+  `"landed"` keeps the old trigger, `"ask"` the rejected one). Row 210 (`claude/wip-210-ASKTHENFILLMEASURE`) built B
+  and read it not conclusive: its strict reading refused it over one 50 % cell, +4 ms (×1.003), where B never fires.
+  This row re-ran its T and T + B cells only, with a third arm, **T′, today again**, so worse means beyond the A/A
+  spread by [`../decode/README.md`](../decode/README.md) §Not yet tried, *Net protocols*' rule
+  ([`../../lab/scripts/aa_rule.py`](../../lab/scripts/aa_rule.py)): per cell and measure, B/T against T′/T paired by
+  round, one-sided Mann–Whitney p < 0.05 on rounds 0–11 and again on 12–23; otherwise a tie when the loss caught in
+  80 % of campaigns at the pooled A/A spread is ≤ 5 %, else not conclusive. *Rule, fixed before the data:* B becomes
+  the default if no cell's ask or fill is worse or not conclusive in either reading and a 10 % cell's fill is better.
+  Rig and arms as row 210's (Chromium 141.0.7390.37, `dbt10_ea1141`, the last frame, 560 018 B, asked at 10 % and
+  50 %, `cubic-restart`, shared stream, relay under `chrt -f 50`), one server build (`291acec6`); 18 cells, **24
+  Williams rounds** (three arms, period 6), **1 296 runs, every frame SHA-256-exact**, 96 `VOID` (2–9 a cell; strict
+  n = 15–22). The host restarted during round 13: rounds 0–12 kept, 13 run again from its start on the same binary.
+  **The relay's ceiling**, fills with no ask at 2 ms: 17.7 Mbit/s delivered at 18, 100.1–100.5 at 103, 178–190 at
+  200 with every visit `VOID`: **the host saturates between 103 and 200 Mbit/s**; nothing is claimed past 103.
+  Rows `rows-refill.jsonl` and `rows-refill-ceiling.jsonl`, reading `refill.py`, in
+  [`../../lab/ask-ahead/`](../../lab/ask-ahead/README.md).
+
+  | fill at 10 %, T + B against T (median ratio, as ms of T) | strict | round-paired |
+  |---|---|---|
+  | 18/46 FIFO 20 · CoDel | −34 better · −32 tie | −28 better · −32 tie |
+  | 18/92 FIFO 20 · CoDel | −108 better · −65 tie | −133 better · −72 better |
+  | 103/46 FIFO 20 · CoDel | −64 better (×0.956) · −36 better | −64 better · −35 better |
+  | 103/92 FIFO 20 · CoDel | −55 tie · −47 better | −55 tie · −47 better |
+  | 18/300 FIFO 20 | −256 better (×0.973) | −253 better |
+
+  Every ask, and every fill at 50 %, is a tie in both readings (B/T ×0.988–1.010); none worse, none not conclusive.
+  The A/A spread: T′/T ×0.988–1.016, an arm's sd 0.1–3.3 %, the loss the rule would catch 0.2–4.2 %. The idle wire
+  between the asked frame and the next fill frame at 10 % (median, its time on the wire taken off): T 53–141 ms,
+  368 at 18/300; T + B 4–79 ms, 64 at 18/300. **Verdict: B becomes the default**, both readings. Measured on the shared
+  stream; the lab's `--stream-mode per-frame`, where fill frames can land after the ask's head, was not run.
+
 * **IWDEEP (item 3) — is the 32-packet initial window net behind the buffers phones have?** Arms: quinn's 12 000
   bytes; 38 400. Cells: 18, 103, 309 Mbit/s; idle RTT 46 and 92 ms; FIFO 10 packets (the old losing depth), 20 ms, 360 ms. A fresh ask-only
   session asks one 250 KB and one 50 KB frame; a control session opens with the push. *Predictions:* −25 to −33 % at

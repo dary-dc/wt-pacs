@@ -3,9 +3,10 @@
 order (lab/scripts/order.py), each run its own server and relay (`link_impair.py --self-timing`), one
 headless Chromium (visit.mjs) for the whole campaign. One JSON row per run on stdout.
 
-usage: cells.py SERIES_DIR ROUNDS CELL ...   CELL = RATE_MBIT/RTT_MS/QUEUE, QUEUE = fifoMS or codel
-       ARMS=today,follow  (a further arm is name=--server-flag ..., or name=PATH/series-server [flag ...])
-       — lab/ask-ahead/README.md
+usage: cells.py SERIES_DIR ROUNDS CELL ...   CELL = RATE_MBIT/RTT_MS/QUEUE[@AT][:ARM,...], QUEUE = fifoMS or codel,
+       AT the share landed before the ask (default ASK_AT) or `none`; the arms default to all of ARMS
+       ARMS=today,follow  (a further arm is name=--server-flag ..., or name=PATH/series-server [flag ...];
+       a `?key=value` token goes to the page's query) — lab/ask-ahead/README.md
 """
 import json
 import os
@@ -34,8 +35,15 @@ def free_port(kind=socket.SOCK_DGRAM):
         return s.getsockname()[1]
 
 
+def parse(cell):
+    """`(link, at, arms or None)` of a CELL."""
+    cell, _, arms = cell.partition(":")
+    link, _, at = cell.partition("@")
+    return link, at, arms.split(",") if arms else None
+
+
 def link(cell):
-    rate, rtt, queue, *loss = cell.split("/")
+    rate, rtt, queue, *loss = parse(cell)[0].split("/")
     args = ["--delay-ms", str(int(rtt) / 2), "--rate-kbit", str(int(float(rate) * 1000)), "--self-timing"]
     if loss:
         args += ["--loss", loss[0].removeprefix("loss")]
@@ -69,7 +77,9 @@ def wait_for(log, pattern, proc, secs=10):
 def run(t, visit, http, cell, arm, rnd, prev):
     srv, inp, ctrl = free_port(), free_port(), free_port()
     slog, rlog = t / "server.log", t / "relay.log"
-    binary, flags = (ARMS[arm][0], ARMS[arm][1:]) if ARMS[arm][:1] and ARMS[arm][0].endswith("series-server") else (SERVER, ARMS[arm])
+    query = "".join(f"&{a[1:]}" for a in ARMS[arm] if a.startswith("?"))
+    server_args = [a for a in ARMS[arm] if not a.startswith("?")]
+    binary, flags = (server_args[0], server_args[1:]) if server_args[:1] and server_args[0].endswith("series-server") else (SERVER, server_args)
     with open(slog, "w") as f:
         server = subprocess.Popen(env={**os.environ, "RUST_LOG": "series_server::transport::link=debug"}, args=[binary, "--port", str(srv), "--bind", "127.0.0.1", "--series", t / "series.sbnd",
                                    "--cert-pem", t / "cert.pem", "--key-pem", t / "key.pem", *flags],
@@ -83,7 +93,9 @@ def run(t, visit, http, cell, arm, rnd, prev):
     settings = wait_for(slog, r"^transport=.*$", server).group(0)
     rss0 = status(server.pid, "VmRSS")
     (t / "transport.json").write_text(json.dumps({"wt_url": f"https://127.0.0.1:{inp}/", "cert_sha256": t.cert}))
-    visit.stdin.write(f"http://127.0.0.1:{http}/lab/ask-ahead/index.html?frames={t.frames}&askAt={ASK_AT}\n")
+    at = parse(cell)[1]
+    share = "none" if at == "none" else int(at) / 100 if at else ASK_AT
+    visit.stdin.write(f"http://127.0.0.1:{http}/lab/ask-ahead/index.html?frames={t.frames}&at={share}&ask={t.ask}{query}\n")
     visit.stdin.flush()
     r = json.loads(visit.stdout.readline())
     # The page's close is still in the relay's queue; the server logs the session once it lands.
@@ -99,11 +111,13 @@ def run(t, visit, http, cell, arm, rnd, prev):
     late = re.findall(r"self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)", tally)
     sha_ok = r.get("sha") and all(r["sha"].get(str(i)) == d for i, d in enumerate(t.digests))
     return {"round": rnd, "cell": cell, "arm": arm, "prev": prev, "settings": f"{settings} {' '.join(shown(ARMS[arm]))}".strip(),
-            "ask_ms": round(r["askMs"], 1) if "askMs" in r else None,
+            "ask_ms": round(r["askMs"], 1) if r.get("askMs") is not None else None,
             "fill_ms": round(r["fillMs"], 1) if "fillMs" in r else None,
             "ahead": r.get("ahead"), "ahead_bytes": sum(t.sizes[i] for i in r.get("ahead") or []),
             "exact": bool(sha_ok), "error": r.get("error") or (r.get("errors") or [None])[0],
-            "gap_ms": gap(r["landedMs"]) if "landedMs" in r else None,
+            "gap_ms": gap(r["landedMs"], t.ask if at != "none" else None) if "landedMs" in r else None,
+            "next_ms": round(r["next"]["ms"], 1) if r.get("next") else None,
+            "next_bytes": t.sizes[r["next"]["index"]] if r.get("next") else None,
             "cwnd_at_ask": int(asked.group(1)) if asked else None,
             "rtt_at_ask_ms": int(asked.group(2)) / 1000 if asked and asked.group(2) else None,
             "fill_left_at_ask": sum(t.sizes[:-1]) - sum(t.sizes[i] for i in r["before"]) if "before" in r else None,
@@ -114,10 +128,10 @@ def run(t, visit, http, cell, arm, rnd, prev):
             "relay_p99_ms": float(late[-1]) if late else None, "void": not late or "VOID" in tally}
 
 
-def gap(landed):
-    """The longest wait between two frames becoming usable in order, the asked (last) frame left out."""
+def gap(landed, asked):
+    """The longest wait between two frames becoming usable in order, the asked frame left out."""
     usable, last = [], 0.0
-    for t in landed[:-1]:
+    for t in (t for i, t in enumerate(landed) if i != asked):
         last = max(last, t)
         usable.append(last)
     return round(max(b - a for a, b in zip(usable, usable[1:])), 1)
@@ -147,6 +161,8 @@ def main():
         t.digests = json.loads((series / "digests.json").read_text())
         t.frames = len(t.digests)
         t.sizes = [(series / "frames" / f"{i:03d}.htj2k").stat().st_size for i in range(t.frames)]
+        # The last frame: what a deep queue has written ahead at half the fill never reaches it.
+        t.ask = t.frames - 1
         (t / "transport.json").write_text("{}")
         http = free_port(socket.SOCK_STREAM)
         web = subprocess.Popen([sys.executable, ROOT / "server/dev-server.py", "--port", str(http),
@@ -158,13 +174,14 @@ def main():
         print(json.dumps({"chromium": json.loads(visit.stdout.readline())["chromium"],
                           "server": subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"], capture_output=True,
                                                    text=True).stdout.strip(), "arms": {a: shown(ARMS[a]) for a in arms},
-                          "series": str(series.name), "relay_chrt": os.environ.get("RELAY_CHRT"), "ask_at": ASK_AT, "frames": t.frames, "bytes": sum(t.sizes)}), flush=True)
+                          "series": str(series.name), "relay_chrt": os.environ.get("RELAY_CHRT"), "frames": t.frames, "ask_at": ASK_AT, "bytes": sum(t.sizes),
+                          "ask": t.ask, "ask_bytes": t.sizes[t.ask]}), flush=True)
         time.sleep(0.5)
         try:
             for rnd in range(int(os.environ.get("FIRST_ROUND", 0)), rounds):
                 for cell in cells:
                     prev = None
-                    for arm in order(arms, rnd):
+                    for arm in order(parse(cell)[2] or arms, rnd):
                         try:
                             row = run(t, visit, http, cell, arm, rnd, prev)
                         except RuntimeError:

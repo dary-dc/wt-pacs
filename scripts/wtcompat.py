@@ -7,7 +7,7 @@ docs/transport/transport-conclusions.md §9 Draft compatibility.
 
     scripts/wtcompat.py --fetch DIR                      the newest Chrome for Testing and Firefox builds, each dialled
     scripts/wtcompat.py NAME=BROWSER [NAME=BROWSER ...]  dial from each; BROWSER is a chrome or firefox binary
-        [--server target/release/series-server] [--expect scripts/wtcompat.json]
+        [--server $CARGO_TARGET_DIR/release/series-server] [--expect scripts/wtcompat.json]
         [--flags NAME=ARGS]   extra command-line arguments for that browser, e.g. a Chromium feature
         [--json OUT]          every dial's readout
         [--keep DIR]          each dial's capture and key log, for scripts/quic_peek.py
@@ -337,7 +337,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("browsers", nargs="*")
     ap.add_argument("--fetch")
-    ap.add_argument("--server", default=os.path.join(ROOT, "target/release/series-server"))
+    ap.add_argument("--server", default=os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target")),
+                                                     "release/series-server"))
     ap.add_argument("--series", default=os.path.join(ROOT, "fixtures/us_cine_smoke/us_cine_smoke.sbnd"))
     ap.add_argument("--frame0", default=os.path.join(ROOT, "fixtures/us_cine_smoke/frames/000.htj2k"))
     ap.add_argument("--expect", default=os.path.join(HERE, "wtcompat.json"))

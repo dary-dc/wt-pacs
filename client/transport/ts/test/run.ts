@@ -3,9 +3,6 @@
  *   bash client/transport/ts/build.sh && node client/transport/ts/test/run.mjs
  */
 
-import { install, uninstall } from "../../../record/install.ts";
-import { getTap } from "../../../record/tap.ts";
-import { wrapSession } from "../../../record/wrap-session.ts";
 import { TransportSession } from "../session.ts";
 import { codestreamByte, StubTransport, type StubLink } from "./stub.ts";
 
@@ -81,25 +78,15 @@ async function aCutFrameIsNamedWithItsBytes() {
   }
 }
 
-const within = <T>(p: Promise<T>, ms: number) =>
-  Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]);
-
-/** Under the telemetry patch a `readMin` session still reads with its view and `{min}`: every
- *  frame arrives bit-exact, and the Tap closes a row for each. */
-async function telemetryKeepsTheReadersArguments() {
-  const tap = install({ client: "transport-ts" });
-  try {
-    StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 };
-    const session = wrapSession(await TransportSession.connect("https://stub/", HASH, { readMin: 16_384 }));
-    const results = await Promise.all([0, 1, 2].map((i) => within(session.requestExactFrame(i), 2000)));
-    assert(results.every((r) => r !== null && intact(r)), "telemetry + readMin: every frame delivered bit-exact");
-    const report = tap.finish();
-    const closed = report.client_frames.filter((r) => r.closed_at === "delivered").length;
-    assert(closed === 3 && report.summary.integrity.valid === true,
-      `telemetry + readMin: the Tap closes a row per frame (${closed} of 3, ${report.summary.integrity.invalid_reasons?.join("; ") || "valid"})`);
-  } finally {
-    uninstall();
-  }
+/** Under `readMin` too, an asked frame's `onHead` runs once, with its envelope head read and its body not yet;
+ *  the default reader's is client/contract/clauses.ts `onHeadRunsBeforeTheBody`. */
+async function onHeadRunsBeforeTheBodyUnderReadMin() {
+  StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 };
+  const session = await TransportSession.connect("https://stub/", HASH, { readMin: 4096 });
+  const heads: number[] = [];
+  const r = await session.requestExactFrame(0, () => heads.push(session.stats().mediaReads));
+  const reads = session.stats().mediaReads;
+  assert(heads.length === 1 && heads[0] < reads / 4 && intact(r), `readMin 4096: one head at read ${heads}, of ${reads}`);
 }
 
 /** A control write that fails takes its waiter with it: the same frame asked again is a fresh
@@ -122,35 +109,7 @@ async function aFailedAskWriteDisarmsItsWaiter() {
   assert(unobserved.length === 0, `failed ask write: no rejection goes unobserved (${unobserved.join("; ") || "none"})`);
 }
 
-/** An opening fill rides the session URL, yet the Tap opens a row per frame and drops none. */
-async function telemetryOpensRowsForAnOpeningFill() {
-  StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 1000 };
-  // Imported here: it patches WebTransport when it loads, and must find the stub there.
-  const { TransportSession: Telemetry } = await import("../session-telemetry.ts");
-  const got: number[] = [];
-  await Telemetry.connect("https://stub/", HASH, { fill: { from: 0, to: 2, onFrame: (f) => got.push(f.frameIndex), onError: () => {} } });
-  const t0 = Date.now();
-  while (got.length < 3 && Date.now() - t0 < 2000) await new Promise((r) => setTimeout(r, 10));
-  const report = getTap()!.finish();
-  assert(got.length === 3, `opening fill under telemetry: every frame delivered (${got.length}/3)`);
-  assert(report.client_frames.length === 3 && report.summary.integrity.rows_dropped === 0,
-    `opening fill under telemetry: a row per frame and none dropped (${report.client_frames.length} rows, ${report.summary.integrity.rows_dropped} dropped)`);
-  uninstall();
-}
-
-/** A transport file with no hash dials with no `serverCertificateHashes`, so a CA-signed certificate is verified as
- *  any page's is; with one, the hash is pinned as before. */
-async function anEmptyHashDialsUnpinned() {
-  StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 16 };
-  (await TransportSession.connect("https://stub/", "")).close();
-  const unpinned = StubTransport.last!.options as { serverCertificateHashes?: unknown[] };
-  (await TransportSession.connect("https://stub/", HASH)).close();
-  const pinned = StubTransport.last!.options as { serverCertificateHashes?: unknown[] };
-  assert(unpinned.serverCertificateHashes === undefined, "empty hash: no serverCertificateHashes");
-  assert(pinned.serverCertificateHashes?.length === 1, "a hash: pinned");
-}
-
-for (const t of [everyAskGoesOutAtOnce, anEmptyHashDialsUnpinned, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, aFailedAskWriteDisarmsItsWaiter, telemetryKeepsTheReadersArguments, telemetryOpensRowsForAnOpeningFill]) {
+for (const t of [everyAskGoesOutAtOnce, readWholeTakesTwoReadsAFrame, readMinBoundsEachRead, readMinWithoutByobFallsBack, aCutFrameIsNamedWithItsBytes, onHeadRunsBeforeTheBodyUnderReadMin, aFailedAskWriteDisarmsItsWaiter]) {
   await t();
 }
 console.log(failed === 0 ? "all tests passed" : `${failed} failed`);

@@ -10,8 +10,8 @@ lab/av1/tools/tools.sh            # aomenc, dav1d, OpenJPH, the check's decoders
 lab/av1/fetch_data.sh mr9_ispy2 pt15_cptac ct_lidc dbt12_ea1141 ffdm_b
 P=lab/av1/.venv/bin/python W=/some/work
 for s in mr9_ispy2 pt15_cptac ct_lidc dbt12_ea1141 ffdm_b; do      # pt15_cptac's AV1 adds --split 3
-  $P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/$s $W/coded/$s/htj2k --codec htj2k
-  $P ingest/coded-frames/ingest.py lab/.av1-build lab/av1/data/$s $W/coded/$s/av1 --preset good:6
+  $P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/$s $W/coded/$s/htj2k --codec htj2k
+  $P lab/av1/tools/ingest_coded.py lab/.av1-build lab/av1/data/$s $W/coded/$s/av1 --preset good:6
 done
 cargo build --release -p container-bench -p pack-series
 $P lab/container-bench/run.py pack $W <sets>       # every arm, both payloads

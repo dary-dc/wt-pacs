@@ -10,7 +10,7 @@ interleaved rounds — docs/disk-layout/README.md §The writer has the protocol,
     writer.py packtime WORK ROUNDS           each arm's writing, end to end, into WORK/writer-packtime.jsonl
     writer.py recount  WORK                  folios again: must equal make's
 
-WORK/coded/SET/{htj2k,av1} is ingest's output (ingest/coded-frames/ingest.py), as for run.py.
+WORK/coded/SET/{htj2k,av1} is ingest's output (lab/av1/tools/ingest_coded.py), as for run.py.
 """
 import hashlib
 import json

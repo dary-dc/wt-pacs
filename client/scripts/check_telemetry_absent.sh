@@ -15,7 +15,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 for b in "${BUNDLES[@]}"; do
   [[ -f "$DIST/$b" ]] || bash "$ROOT/client/transport/ts/build.sh"
   [[ -f "$DIST/$b" ]] || fail "missing $DIST/$b after build"
-  if grep -qE 'record/install|__wtpacsTelemetry|binding_term|serve_plus_path|client_frames|invalid_reasons|mean_frame_bytes|clock_probe_us|StreamAttributor|first_ask_row|tap_read_cost_us|copies_per_frame_declared|ring_evictions' "$DIST/$b"; then
+  if grep -qE 'client-telemetry/|__wtpacsTelemetry|binding_term|serve_plus_path|client_frames|invalid_reasons|mean_frame_bytes|clock_probe_us|StreamAttributor|first_ask_row|tap_read_cost_us|copies_per_frame_declared|ring_evictions' "$DIST/$b"; then
     fail "telemetry strings found in default dist/$b"
   fi
 done

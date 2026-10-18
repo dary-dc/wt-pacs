@@ -2,7 +2,7 @@
 """RGBNATIVE's frames: each colour set as HTJ2K and as AV1 payloads in GBR (plain) and the reversible colour transform
 (optimized), one file per frame and variant, with variants.json (the total-time harness) and manifest.json (the decode harness).
 
-Payloads are written by ingest/coded-frames/ingest.py, which writes nothing unless native dav1d decodes every one back to its
+Payloads are written by lab/av1/tools/ingest_coded.py, which writes nothing unless native dav1d decodes every one back to its
 source. RGB ships at cpu0 (payload-format.md).
 
 usage: make_frames.py BUILD OUT SETDIR ... [--preset cpu0] [--jobs 4]   — lab/av1/bytes/colour-transform/README.md
@@ -36,7 +36,7 @@ def htj2k_frames(src, dst):
 def payloads(build, src, out, variant, preset):
     dst = out / ".payloads" / src.name / f"{variant}.{preset.replace(':', '')}"
     if not (dst / "metadata.json").exists():
-        subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, dst, "--representation", VARIANTS[variant],
+        subprocess.run([sys.executable, HERE.parents[3] / "lab/av1/tools/ingest_coded.py", build, src, dst, "--representation", VARIANTS[variant],
                         "--preset", preset, "--jobs", "1"], check=True, capture_output=True)
     return dst
 

@@ -7,8 +7,8 @@ page. Below it the transport is a seam — TypeScript, WASM or WebSocket — who
 measured and chosen, and what is open.
 
 **Status.** Built in `client/transport/` and `client/decode/` ([`client/README.md`](../client/README.md)); the lab's only client since 2026-10-03, when the harness's
-own page path was removed after the container campaign's last run on it (§The container campaign). `client/harness/index.html` is its self-check,
-`client/harness/cell.html` runs lab cells over it. Since 2026-10-09 the product has a page on it: the viewer,
+own page path was removed after the container campaign's last run on it (§The container campaign). `lab/harness/index.html` is its self-check,
+`lab/harness/cell.html` runs lab cells over it. Since 2026-10-09 the product has a page on it: the viewer,
 `client/viewer/`, served at `/` (§The viewer). Figures are a container's unless they say otherwise; none is a phone
 ([`rig-limits.md`](rig-limits.md) §7).
 
@@ -134,9 +134,12 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   which left the wire on 2026-10-03 (`202644d`): the server served it as one ask per index in order,
   so an ask behind a 200-frame batch waited for all 200, where a `stream_frames` fill is dropped the
   moment an ask is in hand. **An ask ends a
-  running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once an ask settles
-  the downloader re-issues what is not yet delivered as a new run — the client owns that decision,
-  the server stays as it is. An ask for a frame the fill still owes goes to the wire, where the
+  running fill with no saved position** ([`WIRE.md`](WIRE.md) §An ask during a fill), so once the asked
+  frame's 8-byte envelope head lands the downloader re-issues what is not yet delivered as a new run
+  ([`transport/link-conditions.md`](transport/link-conditions.md) §Re-measured, *ASKTHENFILL*). That is a patch, not the
+  design: an ask and a fill compete for one stream, and the client rebuilds the fill the server dropped. The
+  candidate that removes the competition, one server queue where an ask moves its frame to the front, is queue
+  row 249. An ask for a frame the fill still owes goes to the wire, where the
   server serves it next, and the ask then owns that frame: a refusal that fails the rest of the run
   spares it.
 * **Cancel** ends the stream, drops queued work by generation, fails outstanding asks with an
@@ -202,6 +205,11 @@ held its frame, and the frame queued behind it on that decoder, for ever. Now:
 * **Lost twice, a frame fails by name** through `failed` (`ATTEMPTS`): an asked frame's waiter rejects, a fill frame
   reaches `onError`. A frame that shared the lost decoder both times fails with it. With `groupLength` above 1 a lost
   frame whose keyframe the page already has fails by name as orphaned; it is not recovered.
+  *Corrected 2026-10-16 (row 275):* one the page already had failed too — `onFrame`, then `onError` — when its decoder
+  was lost before the page's ack came back, so the downloader asked it again and lost it again. The downloader cannot
+  know, so the page drops a failure of a frame it was handed since it last filled it (`downloader.test.mjs` and
+  `consumer.test.mjs` *aDeliveredFrameIsNotFailed*; both fail without it). That rests on the frame reaching the page
+  before its failure, a wire round trip and a decoder's start later: not guaranteed by the platform, not measured.
 * **What it allows:** a frame whose first delivery arrives after its re-ask may reach the page twice, the same pixels.
 
 Each path has a test that fails without its fix: `downloader.test.mjs` (a crash, an unread delivery, a hang, lost
@@ -238,6 +246,74 @@ n = 7–10 a cell: every frame on the page after / before **0.99–1.00** on the
 and the 10-bit tomosynthesis (24 × 678×1727) at 20 and 50 Mbit, 1× and 4× (fluoroscopy at 50 Mbit
 and 1×, 1 722 [1 715–1 730] against 1 724 [1 715–1 733] ms), slower in 29 of 71 paired rounds;
 3 360/3 360 frames exact. The code moved is off the fill's steady path, so no gain was expected.
+
+### An open page follows a server restart (row 271)
+
+*Built 2026-10-17 (queue row 271, RESTARTPIN; [`merge-readiness.md`](merge-readiness.md) §Third round, T6), on the
+owner's yes to the proposal written 2026-10-16 at `eda3ba83`; row 270 is not on this branch.*
+
+**What broke.** The image mints a certificate at every start (`deploy/server-start.sh`): on `compose restart`, on an
+upgrade, and at the timed exit every `RESTART_AFTER`. The downloader kept the pair the page gave it, and every later
+dial — a resumption, a command after a closure (`live`), a recycle — pinned that hash and failed its handshake. A
+page mid-fill lost every frame it still wanted ("could not be re-dialled"); an on-demand page failed by name every step
+to a frame it did not hold. A filled page keeps what it holds; a `/supplied` certificate has no hash and is not affected.
+
+**What changed.**
+
+* `DownloaderClient.connect` takes `transportFile`, the transport file's URL: a string, so it survives the structured
+  clone every option goes through.
+* Every dial but the page's first reads it again, in `openSession` before `TransportSession.connect`, with
+  `cache: "no-store"` (fresh on any host, though the image already sends JSON `no-cache`) and
+  `AbortSignal.timeout(dialMs)`. Its `wt_url` and `cert_sha256` replace the pair. A file that cannot be read, or
+  answers other than 2xx, keeps the pair: that dial fails as before and the next try, `redialMs` later, reads again.
+  That is the restart window itself — the file is gone while the new server mints, and before that it still names
+  the old certificate.
+* The viewer passes `new URL("/wt/dev-transport.json", location).href` — absolute, since a worker resolves a relative
+  URL against its own script — unless the lab named `?wt=`, whose pair stays pinned.
+
+Nothing else moved: `tries`, `redialMs`, `dialMs` and the epoch are as §Re-dial and re-issue says. The cost is one
+same-origin GET per re-dial; the only re-dial a healthy session makes is a recycle, whose old session still delivers
+meanwhile. Not measured.
+
+**Each client.** The read is the downloader's, above the seam, so neither product client changed: both take the pair
+per `connect` and pin it on that dial alone, which [`CLIENTS.md`](CLIENTS.md) §The seam now requires as its fourth
+clause, *a dial pins what it is given*. The WebSocket ignores the hash and follows a changed URL. A `client` field in
+the file (row 263's WASMSELECT, not built) would not be followed mid-page: the module is imported once per worker.
+
+**Why the file, and not the page.** The downloader is a worker: it cannot call into the page, and a callback option
+does not survive the clone. Asking would be a new message pair answered by a main thread that may be frozen, and the
+page would answer by fetching this same file — already the deployment's one statement of where the server is and what
+it pins, written whole after the certificate, same-origin under `connect-src 'self'`. *Dropped:* keeping the
+certificate across `compose restart` in a volume, which covers the manual restart and the upgrade but not the timed
+exit, which must mint.
+
+**Held by.** `aRedialAfterTheHashChangedConnects` (`dispatch-rig.ts`): the fake refuses a dial pinning any hash but
+the one it is told, as a browser's handshake does, and answers the worker's fetch of the transport file. A fill owed
+across a restart to a new URL and hash finishes on the first re-dial; with the file answering 404 at the first read,
+on the second; a step on demand after a closed idle session is served. It is a transport clause, so it runs over both
+clients (`dispatch` and `dispatch-wasm`, 7/7 each). `anEmptyHashDialsUnpinned` gains a second `connect` on another
+hash, pinned to its own (`node client/contract/run.mjs`, both clients). Mutants: the read skipped → every owed frame
+fails by name ("could not be re-dialled") and the step fails "dial refused", 0/7 over each client; the file read on
+alternate dials only → the 404 case connects a re-dial late; a session that keeps its first hash, TypeScript or WASM →
+the session clause fails on that client, and the rig clause 0/7. `no-store` and the read's deadline are out of the
+fake's reach and are said, not tested.
+
+**Shown on the image.** `client/viewer/check.mjs --url … --fill 0 --restart CMD`, Chromium: the page opened with
+`?fill=0` alone, `received 1, exact 1` awaited; then CMD (`compose restart server`, then the server's log followed
+until its `transport=` line); then `ArrowRight`, requiring `received 2, exact 2` and no `error:` within 20 s. On the
+same server image, a three-frame 16-bit HTJ2K series (the contract's frame, as `run_check.sh` makes it), the
+certificate's hash changed across each restart:
+
+| web image | after the restart |
+| --- | --- |
+| the branch before the change | **fails by name**: `received 1, exact 1 … error: frame 1: frame 1 unavailable: the session was lost and could not be re-dialled` |
+| built | `received 2, exact 2, not exact 0` and no error |
+
+One run each. The build needed this host's limits and proxy: `MEMLOCK` 8 MiB and `NOFILE` 20 000 (the sandbox's hard
+limits), the ports moved off 8765/4433, and apt pointed at HTTPS through the build CA in a scratch copy of the
+`Containerfile`; nothing in the images' contents differs. A fill across a restart rides `tries` × `redialMs`, about 5 s
+if each stale dial is refused at once, up to about 30 s if each waits out `dialMs`; whether that outlasts a `compose
+restart` is not measured.
 
 ### The first fill
 
@@ -385,7 +461,8 @@ behind it — is proposed, theory only, in [`adr/frame-path.md`](adr/frame-path.
 carries its `generation`; `cancel()` resolves once the downloader has ended the stream and dropped
 that request's work. A refused **fill** frame has no waiter, so it reaches the consumer through
 `onError({ frameIndex, reason, generation })`; a refused *asked* frame rejects its own promise. The
-consumer keeps no timer: the downloader settles every ask. `url` and `certHash` may be promises;
+consumer keeps no timer: the downloader settles every ask. A downloader whose script does not load (a 404, a policy
+refusal, a syntax error) fires only its worker's `error`, which fails `connect` by name rather than leaving it waiting. `url` and `certHash` may be promises;
 the opening fill rides the session URL unless `openingAsk` is `false` (§The opening ask). The page forwards the triggers a
 worker cannot see — `visibilitychange`, `pageshow`, `freeze`, `resume` — as one message.
 
@@ -419,8 +496,8 @@ the downloader against a stalling fake decoder so contention is forced; both are
 | worker-safe clocks; transferable results | `workerSafe`, `transferable`; `client/scripts/check_worker_safe.sh` | the same: stamps across two worker boundaries non-zero and ordered, a delivered buffer movable. **Move-not-copy across the boundary is not page-observable** — a dropped transfer list arrives as a clone that still detaches, found by a mutant that passed |
 | an ask during a fill, served before the fill's queue | `ask-during-fill.html` against a real server: the ask is served, the fill ends — 28 of 120 arrive, then nothing | the same page: the ask is served and the fill completes without being asked again, no frame twice; dispatch `askBeatsQueuedFill`, `promoteBeatsQueuedFill`, `asksTheWireForAnOwedFrame`, `reissuesAfterAsk` |
 | `stats`; one dial serves later asks; re-dial after closure | `reportsStats`, `oneDialServesLaterAsks`, `redialsAfterClosure` | the same; `stats` answered on the page |
-| 8-bit multi-component, 16-bit unsigned, 16-bit signed | `parity.mjs`, signed against ground truth an independent decoder confirmed ([`decode/README.md`](decode/README.md) §Signed) | 8-bit 3-component byte-identical in `client/harness/index.html`; the others rest on the package, which sign-extends itself. **Not yet run behind the downloader on a signed series** |
-| every decoded frame byte-identical to `.sha256` | `parity.mjs`, `lab/decode-bench/` | `client/harness/index.html`, mutation-checked both ways: one perturbed sample turns every line to `MISMATCH`, every fifth frame dropped reports 9/12 |
+| 8-bit multi-component, 16-bit unsigned, 16-bit signed | `parity.mjs`, signed against ground truth an independent decoder confirmed ([`decode/README.md`](decode/README.md) §Signed) | 8-bit 3-component byte-identical in `lab/harness/index.html`; the others rest on the package, which sign-extends itself. **Not yet run behind the downloader on a signed series** |
+| every decoded frame byte-identical to `.sha256` | `parity.mjs`, `lab/decode-bench/` | `lab/harness/index.html`, mutation-checked both ways: one perturbed sample turns every line to `MISMATCH`, every fifth frame dropped reports 9/12 |
 | TS, WASM and WebSocket transports behind the same downloader | every clause against every transport; the gate requires the WASM package | `lab/scripts/downloader_both_clients.sh`: single ask byte-exact on TS and WASM, fill a tie (120 / 125 ms); WebSocket and the race in §What was built |
 
 Every clause was broken on purpose and seen to fail by name. A mutant that passes is a finding about
@@ -679,7 +756,7 @@ Five mutants each fail the check by name:
 * the paint placed one row low: worst |Δ| 220–242 against the reference.
 
 **It adds nothing to the fill.** Measured on the CT series: the viewer against total-time's page (the same
-downloader and decoders, no paint), both timed from navigation. The baseline is not `client/harness/cell.html`: it
+downloader and decoders, no paint), both timed from navigation. The baseline is not `lab/harness/cell.html`: it
 does not decode, so measured against it the viewer would be charged for decoding, not for itself. The
 total-time measurement's five links (queue row 23, TOTAL) at 1× and 4×, behind the relay, 12 rounds interleaved,
 headless Chromium 141 on 3 cores. All 36 480 delivered frames were exact and checked `true`.
@@ -712,7 +789,7 @@ through the relay. "po §" is a section of [`../lab/page-open/README.md`](../lab
 
 | lever | round trips | state | where |
 | --- | --- | --- | --- |
-| `preload` the config, `modulepreload` the shell and client, `preload` the worker graph | −3.1 / −5.1 / −6.2 to the session (TypeScript / WASM / downloader) | in `client/harness/cell.html` and the lab's `downloader.html`; not in `client/harness/index.html` (TypeScript and WASM figures: the harness pages, removed 2026-10-03) | po §The cuts, one at a time |
+| `preload` the config, `modulepreload` the shell and client, `preload` the worker graph | −3.1 / −5.1 / −6.2 to the session (TypeScript / WASM / downloader) | in `lab/harness/cell.html` and the lab's `downloader.html`; not in `lab/harness/index.html` (TypeScript and WASM figures: the harness pages, removed 2026-10-03) | po §The cuts, one at a time |
 | the server's SETTINGS at 0.5 RTT (early SETTINGS) | −1.0 off the dial, every cell | **on**, a build-time patch | §Early SETTINGS |
 | a handshake probe in every space | −1 when the server's first flight is lost | **on**, a build-time patch | §The losing phase, removed |
 | the opening ask in the session URL (the opening ask) | −1.06 to the first frame at 1×, −1.52 at 4× | **on** since 2026-10-02 | po §The push in a browser, at 4× |
@@ -784,8 +861,8 @@ rounds a variant at 40, 80 and 160 ms, interleaved, against a ±0.2 spread on mi
 4×**, and −1.9 / −1.8 with the URL inlined ([`../lab/page-open/README.md`](../lab/page-open/README.md) §The push in a browser, at 4×). **On by default** since 2026-10-02 (a measured win with no cell against it):
 `--opening-ask false` on the server and `openingAsk: false` on the client turn it off, together — a client
 that sends it to a server that ignores it gets no frame. The URL carries one contiguous run, and no
-host but this box's relay has served it. The WASM client has no opening ask; its downloader adapter
-asks the opening fill on the control stream. Two clauses hold it (honoured and optional; a
+host but this box's relay has served it. Both clients carry it, the WASM one since row 265
+(2026-10-16; until then its downloader adapter asked the opening fill on the control stream). Two clauses hold it (honoured and optional; a
 malformed ask leaves the session serving). A re-dial puts the fill's remainder in the new URL too.
 
 ### Early SETTINGS
@@ -1201,13 +1278,39 @@ Each item below is the owner's to decide, and is tracked here.
   decoded frames is to be evaluated — and "all frames decoded" cannot mean all resident on a phone) and
   the paint sink — the sink is built (§Paint), the cache seam is not. An OPFS cache must be evictable on WebKit ([`CLIENTS.md`](CLIENTS.md)
   §On WebKit). A design for both is proposed in [`adr/frame-path.md`](adr/frame-path.md).
+  *Where the page fails without it* (queue row 273, 2026-10-16): not on the dev host. Headless Chromium 141 and
+  Firefox 157.0.1 each filled 8 GiB of decoded frames (1 024 × 2048², 16-bit, 3 of 3), ten times `dbts_b1`, the
+  largest series [`FIXTURES.md`](FIXTURES.md) names (812.5 MiB decoded). So by the row's rule nothing is built.
+  Past that the host ended the run, not the page: the run's memory cgroup allows 13 679 MiB, and 512 × 3328×4096
+  (13 GiB) was stopped at 339–364 frames, about 9 GiB in. The page holds the decoded bytes and little else.
+  Chromium's `measureUserAgentSpecificMemory` puts its window at the decoded size + 1 MiB and its workers at
+  17–144 MiB. Firefox has no such API; its whole browser's PSS was 9.1 GiB at 8 GiB decoded. None of this says
+  anything about a phone. Protocol and rows: [`merge-readiness.md`](merge-readiness.md) §273 VIEWERCEILING.
 * **Survival on a device**: the Wi-Fi → cellular freeze and what the page sees; the triggers where a
   radio change and `freeze` are real; the screen-lock pair; whether 5 s suits a dial on a phone.
   Detection of a dead *idle* session with a server idle timeout below 30 s is not measured.
 * **Which opt-in rows of §The session open to take** — the transport URL inlined, the page carrying the worker
   graph, HTTP/2 in nginx, the preloads on the downloader page: the owner's call.
+* **An open page across a server restart** (row 271, built): §The downloader, *An open page follows a server
+  restart*. Open beside it: a command after a closure dials once (`live`), so a step inside the restart window fails
+  by name and the next step dials again; giving it `tries` is a separate change. A fill across a `compose restart` is
+  not measured.
 * **The opening ask beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
   check before enabling, the recycling cost, the shaped A/B).
+* **Known defects** — each found by reading the code (2026-10-16 review), not reproduced as first written here. *Corrected
+  2026-10-18:* one fixed, one shown not reachable:
+  * *Fixed 2026-10-18.* `refill: "ask"` on the WASM client: the async `requestExactFrame` reached the wire after the
+    sync `fillFrames`, so the server ended the fill it had just started and nothing re-asked the rest until the stall
+    timer (`client/transport/downloader.js:235–236`). The WASM ask is now on the wire before `requestExactFrame`
+    returns, as the TypeScript one is: `anAskIsOnTheWireBeforeItReturns` ([`CLIENTS.md`](CLIENTS.md) §The contract
+    suite), which read `stream_frames,request_frame` on WASM before. Seen at the session, not through the downloader.
+  * *Not reachable, 2026-10-18 (row 286).* A `set_nodelay` or keep-alive failure on one accepted socket counts as an
+    accept failure and sleeps the loop 100 ms, so repeated connect-and-reset could hold the WebSocket to ~10 accepts/s
+    (`server/src/transport/websocket.rs:123–124`). On Linux the options do not fail that way: 50 peers that reset with
+    `SO_LINGER` 0 before `accept()` were each still accepted, and both options then succeeded. A fix that drops such a
+    socket without the pause was built and passed its test (`7b3e9bdb`), but its only trigger was an injected failure,
+    so it was not kept: a test hook in the accept loop for a case Linux does not produce. The real accept failure still
+    paces: under `prlimit --nofile` 64 and 128, `EMFILE` held the loop at 10 failed accepts/s.
 
 ## Looked at and dropped
 

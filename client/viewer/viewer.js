@@ -9,7 +9,8 @@ const statusEl = document.getElementById("status");
 const markEl = document.getElementById("mark");
 const at = () => performance.timeOrigin + performance.now();
 
-const lab = await globalThis.viewerLab.catch((e) => ({ refused: e.message }));
+const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
+  .then(([levers, transport]) => ({ ...levers, pinned: Boolean(levers.transport), transport }), (e) => ({ refused: e.message }));
 if (lab.refused) {
   statusEl.textContent = `error: ${lab.refused}`;
   report({ error: lab.refused });
@@ -18,7 +19,9 @@ if (lab.refused) {
 const meta = await globalThis.viewerMetadata;
 const n = meta.frameCount;
 const fillMode = q.get("fill") !== "0";
-const transport = lab.transport ? Promise.resolve(lab.transport) : fetch("/wt/dev-transport.json").then((r) => r.json());
+const transport = lab.transport;
+// Absolute: the downloader's worker would resolve a relative URL against its own script.
+const transportFile = new URL("/wt/dev-transport.json", location).href;
 
 if (q.get("check")) {
   // A page that stops short still says why, and when.
@@ -108,6 +111,7 @@ function status() {
   const paths = Object.entries(seen.paths).map(([p, k]) => `${p} ${k}`).join(", ") || "none yet";
   statusEl.textContent = [
     `frame ${current + 1} of ${n}`,
+    `client ${transport.client}`,
     `received ${frames.size}, exact ${seen.exact}, not exact ${seen.inexact}, unchecked ${seen.unchecked}`,
     `decoders: ${paths}`,
     `codec ${meta.codec ?? "htj2k"}`,
@@ -121,11 +125,14 @@ const options = lab.opts;
 const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", ...(await built("dav1d")) } : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const all = [...Array(n).keys()];
-// A lab harness slows the CPU from here (lab/av1/delivery/total-time/run.mjs).
-if (lab.post && !q.get("check")) await fetch(`${lab.post}hello`, { method: "POST" });
+// A lab harness slows the CPU from here: lab/viewer/levers.js.
+await lab.started?.();
 issuedAt = at();
-const client = await DownloaderClient.connect(transport.then((c) => c.wt_url), transport.then((c) => c.cert_sha256), {
+const client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
+  transport: transport.module,
   ...(fillMode && { fill: all }),
+  // The file follows a restarted server; a pair the lab named stays pinned.
+  transportFile: lab.pinned ? undefined : transportFile,
   digests,
   ...options,
   decoder,
@@ -134,6 +141,7 @@ const client = await DownloaderClient.connect(transport.then((c) => c.wt_url), t
 }).catch((e) => {
   fail(`connect: ${e.message}`);
   report({ error: String(e.message) });
+  lab.finished?.({ error: String(e.message) });
   throw e;
 });
 
@@ -235,32 +243,21 @@ function report(result) {
   globalThis.__viewerResult = result;
   // Read off the page in Chromium and off stdout in Firefox: client/viewer/check.mjs.
   if (q.get("check")) console.log(`viewer-result ${JSON.stringify(result)}`);
-  if (lab.post) fetch(`${lab.post}result`, { method: "POST", body: JSON.stringify(result) }).catch(() => {});
 }
 
-const giveUp = q.get("check") ? performance.now() + 60000 : Infinity;
-const filled = new Promise((resolve) => {
-  const poll = setInterval(() => {
-    // The check judges a fill that stops short rather than waiting on it.
-    if (frames.size + errors.length >= n || (!fillMode && frames.size) || performance.now() > giveUp) {
-      clearInterval(poll);
-      resolve();
-    }
-  }, 20);
-});
-await filled;
-await repaint();
-if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show });
-else if (lab.post) {
-  // total-time's result shape (lab/av1/delivery/total-time/page.js): every frame's arrival, and the first exact on screen.
-  const sha = {};
-  for (const [i, f] of frames) sha[i] = await digest(f.info.pixels);
-  report({ issuedAt: lab.origin === "navigation" ? performance.timeOrigin : issuedAt, firstShown: issuedAt + firstShownMs, frames: [...frames].map(([i, f]) => ({ i, page: f.arrived, lastByte: f.info.stamps.lastByte, exact: f.info.exact })),
-    failures: errors.map((reason) => ({ reason })), sha, previews: [], previewSha: {}, after: [], resumes: client.stats().resumedAt.length, checked: client.stats().exact });
-}
-
-async function digest(sab) {
-  const copy = new Uint8Array(sab.byteLength);
-  copy.set(new Uint8Array(sab));
-  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", copy)), (b) => b.toString(16).padStart(2, "0")).join("");
+// Only the check and a lab harness read the fill's end, so a product page does not poll for it.
+if (q.get("check") || lab.finished) {
+  const giveUp = q.get("check") ? performance.now() + 60000 : Infinity;
+  await new Promise((resolve) => {
+    const poll = setInterval(() => {
+      // The check judges a fill that stops short rather than waiting on it.
+      if (frames.size + errors.length >= n || (!fillMode && frames.size) || performance.now() > giveUp) {
+        clearInterval(poll);
+        resolve();
+      }
+    }, 20);
+  });
+  await repaint();
+  if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show });
+  else lab.finished({ issuedAt, firstShownMs, frames, errors, stats: client.stats() });
 }

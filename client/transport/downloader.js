@@ -11,13 +11,15 @@ const abs = () => performance.timeOrigin + performance.now();
 
 let session = null;
 /** A third decoder helps on four cores, not on two: docs/ARCHITECTURE.md §Resources */
-let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true };
+let cfg = { decoders: Math.min(3, navigator.hardwareConcurrency || 3), decode: true, perDecoder: 2, survival: true, refill: "head" };
 /** ms, and how many re-dials. `cfg.survival` as an object overrides them; `false` turns all but `decodeMs` off. */
 const deadlines = { stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000, decodeMs: 10_000 };
 /** A frame lost with its decoder this many times fails by name. docs/ARCHITECTURE.md §The downloader */
 const ATTEMPTS = 2;
 let dial = null;
 let dialling = null;
+/** Set once the page's own pair has been dialled: every later dial reads `cfg.transportFile` first. */
+let dialled = false;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
 let generation = 0;
 let asksInFlight = 0;
@@ -211,13 +213,27 @@ function arrived(index, frame) {
   pump();
 }
 
-/** The server ends a running fill for an ask, so the remainder is re-issued once the ask settles. docs/WIRE.md §An ask during a fill */
-async function ask(index, promise) {
+/**
+ * The server ends a running fill for an ask, so the remainder is re-issued on the asked frame's envelope head
+ * (`refill: "head"`), right behind the ask (`"ask"`) or once it settles (any other). docs/WIRE.md §An ask during a
+ * fill, docs/transport/link-conditions.md §Re-measured, *ASKTHENFILL*
+ */
+async function ask(index, s) {
   const gen = generation;
   const ep = epoch;
-  asksInFlight += 1;
+  // Released once: a second `stream_frames` for the same remainder ends the first and re-sends what it wrote.
+  let holding = cfg.refill !== "ask";
+  const release = () => {
+    if (!holding || gen !== generation || ep !== epoch) return;
+    holding = false;
+    asksInFlight -= 1;
+    issueFill();
+  };
+  if (holding) asksInFlight += 1;
   issuedAt = performance.now();
   watch();
+  const promise = requestOnce(s, index, cfg.refill === "head" ? release : undefined);
+  if (!holding) issueFill();
   try {
     const frame = await promise;
     if (gen === generation && ep === epoch) arrived(index, frame);
@@ -228,19 +244,16 @@ async function ask(index, promise) {
     }
   } finally {
     // A cancelled ask's count was already dropped with the rest of its generation's work.
-    if (gen === generation && ep === epoch) {
-      asksInFlight -= 1;
-      issueFill();
-    }
+    release();
   }
 }
 
 /** Asks a session has on the wire, whatever generation made them: a cancel leaves them owed, and the session refuses a second. */
 const onWire = new Map();
-function requestOnce(s, index) {
+function requestOnce(s, index, onHead) {
   const held = onWire.get(index);
   if (held?.session === s) return held.promise;
-  const promise = s.requestExactFrame(index);
+  const promise = s.requestExactFrame(index, onHead);
   onWire.set(index, { session: s, promise });
   const forget = () => onWire.get(index)?.promise === promise && onWire.delete(index);
   promise.then(forget, forget);
@@ -255,7 +268,7 @@ function askFor(s, index) {
   wanted.delete(index);
   if (rec) rec.priority = "ask";
   else record(index, "ask", abs());
-  ask(index, requestOnce(s, index));
+  ask(index, s);
 }
 
 /** The wire carries one contiguous run of what is wanted at a time. docs/ARCHITECTURE.md §The downloader */
@@ -320,27 +333,31 @@ function lost(proved) {
 const owedAsks = () =>
   [...records].filter(([, r]) => r.state === "wire" && r.priority === "ask").map(([i]) => i);
 
+const reaskOwed = () => { for (const i of owedAsks()) ask(i, session); };
+
+function retire() {
+  epoch += 1;
+  asksInFlight = 0;
+  session.close();
+}
+
 /** A session swapped for its replacement before a byte budget runs out, the replacement dialled
  *  while the old one still delivers. docs/ARCHITECTURE.md §Recycling before the stall */
 async function recycle() {
   const ep = epoch;
   const next = await openSession(null).catch(() => null);
   if (!next || ep !== epoch || resuming || !session) return void next?.close();
-  epoch += 1;
-  asksInFlight = 0;
-  session.close();
+  retire();
   adopt(next);
-  for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
+  reaskOwed();
   issueFill();
   postMessage({ kind: "recycled" });
 }
 
 /** A new session, then exactly what the records still owe: nothing that arrived is asked twice. */
 async function resume() {
-  epoch += 1;
-  asksInFlight = 0;
   clearTimeout(stall);
-  session.close();
+  retire();
   session = null;
   dialling = null;
   while (redials < deadlines.tries) {
@@ -348,7 +365,7 @@ async function resume() {
     redials += 1;
     try {
       await connect();
-      for (const i of owedAsks()) ask(i, session.requestExactFrame(i));
+      reaskOwed();
       return void postMessage({ kind: "resumed" });
     } catch {
       await sleep(deadlines.redialMs);
@@ -395,7 +412,7 @@ async function again(index, rec, reason) {
   rec.state = "wire";
   rec.priority = "ask";
   rec.decoder = null;
-  ask(index, s.requestExactFrame(index));
+  ask(index, s);
 }
 
 /** A decoder worker, up once `d.up` settles; `start` puts it in the pool at once, `grow` once it is up. */
@@ -423,10 +440,8 @@ function spawn() {
     }
     else if (e.data.kind === "init-failed") lose(d, e.data.reason);
     else if (e.data.kind === "failed") {
-      d.outstanding -= 1;
-      arm(d);
       if (e.data.gen === generation) fail(e.data.index, e.data.reason);
-      pump();
+      onDone(d);
     }
   };
   postMessage({ kind: "pixel-port", port: ch.port2, decoder: d.id }, [ch.port2]);
@@ -449,7 +464,21 @@ async function start(m) {
   pump();
 }
 
+/** A restarted server pins a new certificate, which the transport file names. docs/ARCHITECTURE.md §An open page follows a server restart */
+async function followTransportFile() {
+  try {
+    const r = await fetch(cfg.transportFile, { cache: "no-store", signal: AbortSignal.timeout(deadlines.dialMs) });
+    if (!r.ok) return;
+    const { wt_url, cert_sha256 } = await r.json();
+    dial = { url: wt_url ?? dial.url, certHash: cert_sha256 ?? dial.certHash };
+  } catch {
+    /* unread, the pair stays: this dial fails as before and the next try reads again */
+  }
+}
+
 async function openSession(opening) {
+  if (dialled && cfg.transportFile) await followTransportFile();
+  dialled = true;
   TransportSession ??= (await import(cfg.transport ?? DEFAULT_TRANSPORT)).TransportSession;
   // The ring is sized by what can be between the wire and a decoder. docs/decode/README.md §The wire buffer ring
   const options = { wireBuffers: cfg.wireBuffers ?? cfg.decoders * cfg.perDecoder + 2 };

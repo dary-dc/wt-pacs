@@ -1,23 +1,13 @@
-#!/usr/bin/env python3
 """A series as AV1 payloads (docs/av1/payload-format.md), plain or optimized, or as the served HTJ2K, and
 nothing at all unless every frame decodes back, in-process, to the samples its checksum was written from.
 
-Reads a set as lab/av1/fetch_data.py writes it (NNN.raw, NNN.sha256, metadata.json); writes
-OUT/NNN.av1 or OUT/NNN.htj2k, OUT/NNN.sha256 and OUT/metadata.json ("codec": "av1" for AV1), which
-pack-series bundles.
-
-usage: ingest.py BUILD SET_DIR OUT [--codec av1|htj2k] [--representation plain|optimized] [--split K]
-                 [--grey8 400|420] [--preset cpu0|good:N|allintra:N] [--frames N] [--jobs N]   — ingest/coded-frames/README.md
+`coded()` is the entry: ingest/from-dicom codes through it; the lab's command is lab/av1/tools/ingest_coded.py.
 """
-import argparse
 import ctypes
 import functools
 import hashlib
-import json
-import shutil
 import struct
 import subprocess
-import sys
 import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -289,43 +279,9 @@ def digests(s, n, codec, representation="optimized", split=None, grey8="400"):
     return dict(algorithm="xxh3-64", frames=[frame_digest(s.frame(i), wide) for i in range(n)])
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("build", type=Path)
-    ap.add_argument("set_dir", type=Path)
-    ap.add_argument("out", type=Path)
-    ap.add_argument("--codec", choices=list(CODECS), default="av1")
-    ap.add_argument("--representation", choices=["plain", "optimized"], default="optimized")
-    ap.add_argument("--split", type=int)
-    ap.add_argument("--grey8", choices=["400", "420"], default="400")
-    ap.add_argument("--preset", default="cpu0")
-    ap.add_argument("--frames", type=int)
-    ap.add_argument("--jobs", type=int, default=4)
-    a = ap.parse_args()
-    sys.path.insert(0, str(ROOT / "lab/av1"))
-    import size  # a fetched set is the lab's: ingest/from-dicom reads DICOM
-    s = size.Set(a.set_dir)
-    n = min(a.frames or s.n, s.n)
-    try:
-        payloads = coded(a.build, s, n, a.codec, a.jobs, a.representation, a.split, a.preset, a.grey8)
-    except Refused as e:
-        sys.exit(f"{a.set_dir.name}: nothing written — {e}")
-    a.out.mkdir(parents=True, exist_ok=True)
-    for i, data in payloads:
-        (a.out / f"{i:03d}.{a.codec}").write_bytes(data)
-        shutil.copy(a.set_dir / f"{i:03d}.sha256", a.out / f"{i:03d}.sha256")
-    meta = json.loads((a.set_dir / "metadata.json").read_text())
-    meta.update(frameCount=n, digests=digests(s, n, a.codec, a.representation, a.split, a.grey8))
-    if a.codec == "av1":
-        meta.update(codec="av1", representation=a.representation)
-    if a.codec == "av1" and a.split is not None:
-        meta["split"] = a.split
-    (a.out / "metadata.json").write_text(json.dumps(meta, indent=1) + "\n")
-    total = sum(len(d) for _, d in payloads)
-    digest = hashlib.sha256(b"".join(d for _, d in payloads)).hexdigest()[:12]
-    kind = a.representation if a.codec == "av1" else "htj2k"
-    print(f"{a.set_dir.name}: {n} payloads, {total} B, {kind}, every one exact ({digest})")
+def metadata(s, display, codec, preset=None):
+    """A bundle's `metadata.json`: the series' `display` keys, then what its coded frames decide."""
+    return {"frameCount": s.n, **display, "min": s.lo, "max": s.hi, "codec": codec,
+            **({"representation": "optimized", "preset": preset} if codec == "av1" else {}),
+            "digests": digests(s, s.n, codec)}
 
-
-if __name__ == "__main__":
-    main()

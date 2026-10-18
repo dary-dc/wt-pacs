@@ -52,8 +52,8 @@ depends on a link band.
 * **Per frame:** `frame_span(i)` is an array lookup (`server/src/media/frame_store.rs:74-77`), then one `preadv2`
   (`RWF_NOWAIT`) on a hit, or the pool's `pread` / the ring on a miss (`disk-access.md` §1). The index is held once per
   series, 12 B a frame on disk (`disk-access.md` §7).
-* **Write:** lengths up front, one pass, no temporary name, no fsync (`writer.rs:16-48`, `:69-79`).
-* **No codec field:** the codec is in the metadata (`"codec": "av1"`, `ingest/coded-frames/ingest.py:6`). Row 164 fixes
+* **Write:** lengths up front, one pass, no fsync (`writer.rs:20-60`, `:79-92`); since row 269 (2026-10-16) to `NAME.partial`, renamed at `finish`, where this said no temporary name.
+* **No codec field:** the codec is in the metadata (`"codec": "av1"`, `ingest/coded-frames/ingest.py`'s `metadata()`). Row 164 fixes
   `payload-format.md`'s line that says otherwise.
 
 **The draft target** (row 164's brief, agreed 2026-10-12, a draft until rows 159–160 report): a 148-byte header —
@@ -72,7 +72,7 @@ Three properties, each from the shipped code:
 2. **An (offset, length) table in memory**, built once per series and shared by every session (`disk-access.md` §7,
    *One index per series*). Where it is on disk only changes the open.
 3. **Frames in display order, back to back**, so a fill's `posix_fadvise(WILLNEED)` over `FILL_WINDOW` (4 MiB,
-   `read_path.rs:26`) covers the next frames and little else (`read_path.rs:181-194`).
+   `read_path.rs:28`) covers the next frames and little else (`read_path.rs:196-210`).
 
 Every candidate below satisfies 1 for intra-only content and 3 when written in display order (D, §3). So the fair arm
 (row 160's brief) loads the container's index at open into the same table and serves through the same path; the

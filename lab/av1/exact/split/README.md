@@ -31,7 +31,7 @@ its minimum, so the offset is the series'. Every set spans its b bits. `--large`
 noise and the extremes at 1914×2572 (the 14-bit projections) and 4096×5120 (a mammogram's). Each
 frame's SHA-256 is written as it is made; a signed source of 8 bits is stored as 8-bit.
 
-**`run.py`** codes every set at every k of its depth through `ingest/coded-frames/ingest.py --split K`, which
+**`run.py`** codes every set at every k of its depth through `lab/av1/tools/ingest_coded.py --split K`, which
 writes nothing unless native dav1d decodes each payload back to its source; a colour set in its plain and
 optimized shapes. `shipped` is each real series' fastest preset within 2 % of cpu0 (rows 14 and 33).
 

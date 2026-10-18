@@ -73,13 +73,18 @@ run 1 scripts/check_personal_paths.sh
 step "quinn: the GSO patch of the default build still applies to crates.io quinn"
 run 1 scripts/patch_crate.sh quinn --check
 
+step "lab: each closed arm's patch still applies to server/"
+run 1 bash -c 'for p in lab/disk-access-bench/arms/*.patch; do git apply --check "$p" || exit 1; done; echo "arms apply"'
+
 step "deploy: the server's seccomp profile is Docker's pinned default plus io_uring, nothing else"
 run 1 bash deploy/seccomp-uring.sh --check
 
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
-run 1 node client/record/test/run.mjs
 run 1 node client/transport/ts/test/run.mjs
+run 1 bash lab/client-telemetry/build.sh
+run 1 node lab/client-telemetry/test/run.mjs
+run 1 node lab/client-telemetry/test/session.mjs
 run 1 node client/decode/htj2k.test.mjs
 run 1 node client/decode/wasm-glue.test.mjs
 run 1 node client/decode/xxh3.test.mjs
@@ -92,14 +97,17 @@ run 1 node client/paint/voi.test.mjs
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
 
+step "client: the page's HTML preloads the TS client, ahead of the transport file (docs/CLIENTS.md §Choosing the client)"
+run 1 grep -F '<link rel="preload" href="/client/transport/ts/dist/session.js" as="script" crossorigin>' client/viewer/index.html
+
 step "client: transport contract (every implementation, and the race)"
 run 2 node client/contract/run.mjs
 
 if [[ $browser -eq 1 ]]; then
-  step "client: the downloader in headless Chromium — the clauses through it, and its dispatch order and per-decoder bound"
-  run 4 bash client/contract/run_browser.sh
+  step "client: the downloader in headless Chromium, over each client — the clauses through it, and its dispatch order and per-decoder bound"
+  run 12 bash client/contract/run_browser.sh
   step "client: the viewer's page check — a complete, exact, drawn page (headless Chromium)"
-  run 3 bash client/viewer/run_check.sh
+  run 9 bash client/viewer/run_check.sh
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
   run 1 node client/viewer/crafted.mjs
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
@@ -110,8 +118,8 @@ if [[ $browser -eq 1 ]]; then
   fi
 fi
 
-step "client: type-check (product, shared record and its tests, contract and transport-ts tests)"
-run 1 bash -c "cd client/transport/ts && npx tsc -p tsconfig.check.json && npx tsc -p ../../record/tsconfig.json && npx tsc -p ../../record/test/tsconfig.json && npx tsc -p ../../contract/tsconfig.json && echo typed"
+step "client: type-check (product, the lab's recorder and its tests, contract and transport-ts tests)"
+run 1 bash -c "cd client/transport/ts && npx tsc -p tsconfig.check.json && npx tsc -p ../../../lab/client-telemetry/tsconfig.json && npx tsc -p ../../../lab/client-telemetry/test/tsconfig.json && npx tsc -p ../../contract/tsconfig.json && echo typed"
 
 step "ingest: the split and its merge, every depth, sign and k"
 if [[ $numpy -eq 1 ]]; then
@@ -171,8 +179,8 @@ run 1 cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p che
 step "tools: pack-series packs the smoke bundle again to the same bytes"
 run 1 bash -c 'd="$(mktemp -d)" && trap "rm -rf $d" EXIT && cargo run --quiet -p pack-series -- --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames --output "$d/x.sbnd" >/dev/null && cmp "$d/x.sbnd" fixtures/us_cine_smoke/us_cine_smoke.sbnd && echo "same bytes"'
-step "lab: the four lab crates' tests (their variants are part of the API)"
-run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench --quiet
+step "lab: the six lab crates' tests (their variants are part of the API)"
+run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry --quiet
 step "lab: the Go and h3 clients compile"
 if command -v go >/dev/null; then
   run 1 bash -c "(cd lab/other-clients/go && go build -o /dev/null .) && (cd lab/page-open/h3-host && go build -o /dev/null .)"
@@ -180,19 +188,28 @@ else
   skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
 fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
-step "lab: the frame cache compiles"
+step "lab: the server's lab features — the frame cache compiles, cubic-classify's and the lab levers' wiring holds"
 run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
+run 1 cargo test -p series-server --features lab-classify --quiet -- classify
+run 1 cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever
+
+step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
+if command -v strace >/dev/null; then
+  run 1 node scripts/perf_counts.mjs
+else
+  skip "the performance counts read the server's disk reads through strace — no strace"
+fi
 
 if [[ $browser -eq 1 ]]; then
   step "client: against the real server, over QUIC and the WebSocket — refusals, an ask during a fill (headless Chromium)"
-  run 8 bash client/contract/run_wire.sh
+  run 10 bash client/contract/run_wire.sh
 fi
 
 step "deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone"
 if ! command -v nginx >/dev/null; then
   skip "the web host's check (deploy/check_equivalence.sh --local) — no nginx"
-elif [[ ! -f "$built/THIRD_PARTY_NOTICES" || ! -f client/decode/wasm/vendor/hash-wasm/xxhash3.umd.min.js ]]; then
-  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds or hasher (deploy/README.md §Run it)"
+elif [[ ! -f "$built/THIRD_PARTY_NOTICES" ]]; then
+  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds (deploy/README.md §Run it)"
 else
   run 1 bash deploy/check_equivalence.sh --local
 fi
@@ -200,7 +217,7 @@ fi
 if [[ $quick -eq 0 ]]; then
   step "client: absence check (default bundle carries no telemetry)"
   run 1 bash client/scripts/check_telemetry_absent.sh
-  step "server: absence check (default release binary carries no Tap)"
+  step "server: absence check (default release binary carries no Tap and no lab controller)"
   run 1 bash server/scripts/check_telemetry_absent.sh
 else
   skip "the two absence checks (--quick)"

@@ -2,9 +2,12 @@
 // exact, drawn page failed by name. client/README.md §The viewer
 //
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
-//     [--engine chromium|firefox] [--cine] [--fill 0]
-//   ... --url http://host/ --decoder htj2k   (a host already running, such as the deploy image; no request log, so no code check)
+//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm]
+//   ... --url http://host/ --decoder htj2k [--client C]   (a host already running, such as the deploy image, whose transport
+//     file names C; no request log, so no code check)
+//   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
 import { execFileSync, spawn } from "node:child_process";
+import { createSocket } from "node:dgram";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -13,6 +16,11 @@ import path from "node:path";
 const ROOT = new URL("../..", import.meta.url).pathname;
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const ENGINE = arg("--engine", "chromium");
+const CLIENT = arg("--client", "ts");
+const CLIENTS = {
+  ts: ["/client/transport/ts/dist/session.js"],
+  wasm: ["/client/transport/wasm/session-adapter.js", "/client/transport/wasm/pkg/transport_wasm.js", "/client/transport/wasm/pkg/transport_wasm_bg.wasm"],
+};
 const T = mkdtempSync(path.join(tmpdir(), "viewer-check-"));
 const children = [];
 process.on("exit", () => { for (const c of children) c.kill("SIGKILL"); rmSync(T, { recursive: true, force: true }); });
@@ -24,6 +32,15 @@ const started = (child, re) => new Promise((resolve, reject) => {
   child.stdout.on("data", (d) => { out += d; const m = re.exec(out); if (m) resolve(m); });
   child.once("exit", (c) => reject(new Error(`exited ${c}: ${out}`)));
 });
+
+/** A UDP port nothing holds, for the server's QUIC endpoint. */
+async function freeUdpPort() {
+  const s = createSocket("udp4");
+  await new Promise((r) => s.bind(0, "127.0.0.1", r));
+  const { port } = s.address();
+  await new Promise((r) => s.close(r));
+  return port;
+}
 
 /** The bundle's own metadata, which the page reads at /series/metadata. */
 function metadataOf(sbnd) {
@@ -39,13 +56,13 @@ async function host(sbnd, name) {
     "-days", "2", "-nodes", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
   const hash = execFileSync("openssl", ["dgst", "-sha256", "-r"], { input: execFileSync("openssl", ["x509", "-in", cert, "-outform", "DER"]) })
     .toString().split(" ")[0];
-  const port = 20000 + ((Math.random() * 25000) | 0);
-  const server = spawn(path.join(ROOT, "target/release/series-server"), ["--port", String(port), "--bind", "127.0.0.1", "--series", sbnd,
+  const port = await freeUdpPort();
+  const server = spawn(path.resolve(ROOT, process.env.CARGO_TARGET_DIR || "target", "release/series-server"), ["--port", String(port), "--bind", "127.0.0.1", "--series", sbnd,
     "--cert-pem", cert, "--key-pem", key], { stdio: ["ignore", "pipe", "inherit"] });
   children.push(server);
   await started(server, /transport=/);
   writeFileSync(`${T}/${name}.json`, JSON.stringify(metadataOf(sbnd)));
-  writeFileSync(`${T}/${name}-transport.json`, JSON.stringify({ wt_url: `https://127.0.0.1:${port}/`, cert_sha256: hash }));
+  writeFileSync(`${T}/${name}-transport.json`, JSON.stringify({ wt_url: `https://127.0.0.1:${port}/`, cert_sha256: hash, client: CLIENT }));
   const http = spawn("python3", [path.join(ROOT, "server/dev-server.py"), "--port", "0", "--metadata", `${T}/${name}.json`,
     "--transport", `${T}/${name}-transport.json`, "--log-requests"], { stdio: ["ignore", "pipe", "inherit"] });
   children.push(http);
@@ -115,20 +132,58 @@ function judge(name, r, requests, codec, decoder) {
   const paths = Object.keys(r.paths);
   if (decoder) say(paths.length === 1 && paths[0] === decoder, `decoded by ${paths.join(", ") || "none"}, not ${decoder} alone`);
   if (codec === "av1") say(paths.length > 0 && paths.every((p) => p.startsWith("av1-")), `an AV1 page whose frames were decoded by ${paths.join(", ")}`);
+  say(r.status.includes(`client ${CLIENT}`), `the status line does not name client ${CLIENT}: ${r.status}`);
+  for (const f of CLIENTS[CLIENT]) say(r.preloaded.includes(f), `the ${CLIENT} client's ${f} was not preloaded`);
   if (requests) {
     const av1 = requests.filter((l) => /\/av1[^/]*\.js|dav1d/.test(l));
     if (codec !== "av1") say(av1.length === 0, `an HTJ2K page fetched AV1 code: ${av1.join(", ")}`);
+    for (const f of CLIENTS[CLIENT]) say(requests.includes(`GET ${f}`), `the ${CLIENT} client's ${f} is not in the request log`);
+    // Every page fetches TS's module: the HTML preloads it.
+    const wasm = CLIENTS.wasm.filter((f) => requests.includes(`GET ${f}`));
+    if (CLIENT === "ts") say(wasm.length === 0, `a ts page fetched the WASM client's code: ${wasm.join(", ")}`);
   }
   for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
   if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
 }
 
-const summary = (name, r) => `${name}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
+const summary = (name, r) => `${name}, client ${CLIENT}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
   `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
   `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}`;
 
+/** A page open on demand across a server restart: its step after the restart must arrive exact. docs/ARCHITECTURE.md §An open page follows a server restart */
+async function acrossARestart(url, cmd) {
+  const { chromium } = createRequire(import.meta.url)("playwright");
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+  const tab = await browser.newPage();
+  tab.on("pageerror", (e) => fail(`page error: ${e.message}`));
+  const line = () => tab.textContent("#status");
+  const reads = (text, ms) => tab.waitForFunction((t) => document.getElementById("status").textContent.includes(t), text, { timeout: ms })
+    .then(() => true, () => false);
+  try {
+    await tab.goto(`${url}?fill=0`);
+    if (!(await reads("received 1, exact 1", 60_000))) return fail(`before the restart: ${await line()}`);
+    const restart = spawn("sh", ["-c", cmd], { stdio: ["ignore", "pipe", "inherit"], detached: true });
+    const up = await started(restart, /transport=/).then(() => true, (e) => fail(`the restart: ${e.message}`));
+    try {
+      process.kill(-restart.pid, "SIGKILL");
+    } catch {
+      /* it ended on its own */
+    }
+    if (!up) return;
+    await tab.keyboard.press("ArrowRight");
+    const stepped = await reads("received 2, exact 2", 20_000);
+    const after = await line();
+    console.log(`after the restart: ${after}`);
+    if (!stepped || after.includes("error:")) fail(`the step after the restart: ${after}`);
+  } finally {
+    await browser.close();
+  }
+}
+
 const runs = [];
-if (arg("--url")) {
+if (arg("--restart")) {
+  await acrossARestart(arg("--url"), arg("--restart"));
+} else if (arg("--url")) {
   const r = await open(arg("--url"));
   judge("hosted", r, null, null, arg("--decoder"));
   runs.push(["hosted", r]);
@@ -147,5 +202,5 @@ if (arg("--url")) {
 }
 for (const [name, r] of runs) if (!r.error) console.log(summary(name, r));
 for (const f of failures) console.log(`FAIL: ${f}`);
-console.log(failures.length ? `viewer check: ${failures.length} failing (${ENGINE})` : `viewer check: every frame complete, exact and drawn (${ENGINE})`);
+console.log(failures.length ? `viewer check: ${failures.length} failing (${ENGINE}, ${CLIENT})` : `viewer check: every frame complete, exact and drawn (${ENGINE}, ${CLIENT})`);
 process.exit(failures.length ? 1 : 0);

@@ -1,16 +1,16 @@
 /**
- * What client/record costs when it is installed, against the same client without it.
+ * What lab/client-telemetry costs when it is installed, against the same client without it.
  *
  * The seam is a patched global `WebTransport`, which is exactly what client/contract's fake
  * occupies, so this runs in Node with no browser and no server. Three variants, not two: `off` twice.
  * The second `off` is a null control — whatever difference it shows against the first is this
  * rig's resolution, and a telemetry cost smaller than that is not a measurement.
  *
- *   bash client/transport/ts/build.sh && node lab/telemetry-cost/cost.mjs
+ *   lab/telemetry-cost/README.md builds and runs it.
  */
 import { FakeTransport, installFakeTransport } from "../../client/contract/fake-transport.ts";
 import { typescriptImpl, wasmBuilt, wasmImpl } from "../../client/contract/adapters.ts";
-import { install, uninstall } from "../../client/record/install.ts";
+import { install, uninstall } from "../client-telemetry/install.ts";
 
 const CERT = "ab".repeat(32);
 const ROUNDS = Number(process.env.ROUNDS ?? 7);

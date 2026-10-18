@@ -1,6 +1,6 @@
 mod session;
 
-use session::TransportSession;
+use session::{ConnectOptions, TransportSession};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(start)]
@@ -20,25 +20,19 @@ impl TransportSessionHandle {
     pub async fn connect(
         wt_url: String,
         cert_sha256: String,
-        wire_buffers: Option<u32>,
+        options: Option<ConnectOptions>,
     ) -> Result<TransportSessionHandle, JsValue> {
-        let inner = TransportSession::connect(wt_url, cert_sha256, wire_buffers)
+        let inner = TransportSession::connect(wt_url, cert_sha256, options)
             .await
-            .map_err(|e| JsValue::from_str(&e))?;
+            .map_err(named)?;
         Ok(Self { inner })
     }
 
+    /// `on_head` runs once the frame's envelope head is read, before its body.
     #[wasm_bindgen(js_name = requestExactFrame)]
-    pub async fn request_exact_frame(&self, frame_index: u32) -> Result<JsValue, JsValue> {
-        self.inner.request_frame(frame_index).await.map_err(|e| {
-            // As transport-ts names it: the downloader takes this one as silence and resumes.
-            if !e.starts_with("timeout waiting for frame") {
-                return JsValue::from_str(&e);
-            }
-            let late = js_sys::Error::new(&e);
-            late.set_name("FrameTimeoutError");
-            late.into()
-        })
+    pub fn request_exact_frame(&self, frame_index: u32, on_head: Option<js_sys::Function>) -> js_sys::Promise {
+        let asked = self.inner.request_frame(frame_index, on_head);
+        wasm_bindgen_futures::future_to_promise(async move { asked.map_err(named)?.await.map_err(named) })
     }
 
     #[wasm_bindgen(js_name = fillFrames)]
@@ -60,7 +54,7 @@ impl TransportSessionHandle {
     }
 
     #[wasm_bindgen(js_name = endStream)]
-    pub fn end_stream(&self) -> Result<(), JsValue> {
+    pub async fn end_stream(&self) -> Result<(), JsValue> {
         self.inner.end_stream().map_err(|e| JsValue::from_str(&e))
     }
 
@@ -73,4 +67,18 @@ impl TransportSessionHandle {
     pub fn close(&self) {
         self.inner.close();
     }
+}
+
+/// The two errors the downloader tells apart by name, named as transport-ts names them.
+fn named(e: String) -> JsValue {
+    let name = if e.starts_with("timeout waiting for frame") {
+        "FrameTimeoutError"
+    } else if e.starts_with("the dial did not settle") {
+        "DialTimeoutError"
+    } else {
+        return JsValue::from_str(&e);
+    };
+    let error = js_sys::Error::new(&e);
+    error.set_name(name);
+    error.into()
 }
