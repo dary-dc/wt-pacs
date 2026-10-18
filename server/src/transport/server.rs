@@ -1257,29 +1257,6 @@ mod tests {
         assert!((1..=6).contains(&warned), "{warned} failed accepts in 500 ms");
     }
 
-    /// **A socket whose options fail costs only itself.** It is dropped and the next connection is
-    /// served at once, not after the pause a failed accept waits out.
-    #[tokio::test]
-    async fn a_socket_whose_options_fail_does_not_pause_the_next_accept() {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        let fx = Fixture::new(1);
-        let localhost = Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
-        let (listener, tls) = websocket::bind(localhost, 0, &fx.cert_pem, &fx.key_pem).await.expect("bind");
-        let port = listener.local_addr().expect("addr").port();
-        websocket::FAILED_OPTIONS.with(|f| f.borrow_mut().push(libc::EINVAL));
-        let serving = tokio::spawn(websocket::serve(listener, tls, plain_sessions(&fx.series)));
-        let mut byte = [0u8; 1];
-        let deadline = tokio::time::Instant::now() + websocket::ACCEPT_RETRY / 2;
-        let mut dropped = connect_tcp(port).await;
-        let closed = tokio::time::timeout(Duration::from_secs(1), dropped.read(&mut byte)).await;
-        assert!(matches!(closed, Ok(Ok(0) | Err(_))), "the socket whose options failed was kept: {closed:?}");
-        let mut next = connect_tcp(port).await;
-        next.write_all(b"GET / HTTP/1.1\r\n\r\n").await.expect("write");
-        let refused = tokio::time::timeout_at(deadline, next.read(&mut byte)).await;
-        serving.abort();
-        assert!(refused.is_ok(), "the next connection waited out the accept pause");
-    }
-
     /// Counts the lines a log subscriber writes.
     struct LineCount(Arc<std::sync::atomic::AtomicUsize>);
 

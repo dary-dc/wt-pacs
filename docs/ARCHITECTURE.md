@@ -1297,19 +1297,20 @@ Each item below is the owner's to decide, and is tracked here.
   not measured.
 * **The opening ask beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
   check before enabling, the recycling cost, the shaped A/B).
-* **Known defects, not fixed** — each found by reading the code (2026-10-16 review), not reproduced:
+* **Known defects** — each found by reading the code (2026-10-16 review), not reproduced as first written here. *Corrected
+  2026-10-18:* one fixed, one shown not reachable:
   * *Fixed 2026-10-18.* `refill: "ask"` on the WASM client: the async `requestExactFrame` reached the wire after the
     sync `fillFrames`, so the server ended the fill it had just started and nothing re-asked the rest until the stall
     timer (`client/transport/downloader.js:235–236`). The WASM ask is now on the wire before `requestExactFrame`
     returns, as the TypeScript one is: `anAskIsOnTheWireBeforeItReturns` ([`CLIENTS.md`](CLIENTS.md) §The contract
     suite), which read `stream_frames,request_frame` on WASM before. Seen at the session, not through the downloader.
-  * A `set_nodelay` or keep-alive failure on one accepted socket counts as an accept failure and sleeps the loop
-    100 ms; repeated connect-and-reset could hold the WebSocket to ~10 accepts/s (`server/src/transport/websocket.rs:123–124`).
-    **Fixed** by row 286 (WSACCEPT): a socket whose options fail is dropped with a WARN and the loop accepts the next at
-    once; only a failed `accept()` waits 100 ms (`websocket.rs:109–139`). The connect-and-reset path is not reachable on
-    Linux — a peer reset with `SO_LINGER` 0 before `accept()` still accepts, and both options then succeed — so the test,
-    `a_socket_whose_options_fail_does_not_pause_the_next_accept`, injects the failure. Under `prlimit --nofile` (64, 128)
-    a real `EMFILE` still paces the loop at 10 failed accepts/s.
+  * *Not reachable, 2026-10-18 (row 286).* A `set_nodelay` or keep-alive failure on one accepted socket counts as an
+    accept failure and sleeps the loop 100 ms, so repeated connect-and-reset could hold the WebSocket to ~10 accepts/s
+    (`server/src/transport/websocket.rs:123–124`). On Linux the options do not fail that way: 50 peers that reset with
+    `SO_LINGER` 0 before `accept()` were each still accepted, and both options then succeeded. A fix that drops such a
+    socket without the pause was built and passed its test (`7b3e9bdb`), but its only trigger was an injected failure,
+    so it was not kept: a test hook in the accept loop for a case Linux does not produce. The real accept failure still
+    paces: under `prlimit --nofile` 64 and 128, `EMFILE` held the loop at 10 failed accepts/s.
 
 ## Looked at and dropped
 

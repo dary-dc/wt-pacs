@@ -43,14 +43,7 @@ const KEEPALIVE: TcpKeepalive = TcpKeepalive::new()
     .with_retries(4);
 
 /// An accept that fails, as on `EMFILE`, fails again at once: this pause is what keeps the loop off a core.
-pub(crate) const ACCEPT_RETRY: Duration = Duration::from_millis(100);
-
-#[cfg(test)]
-thread_local! {
-    /// Test-only: errnos the next accepted sockets' options on this thread fail with.
-    pub(crate) static FAILED_OPTIONS: std::cell::RefCell<Vec<i32>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-}
+const ACCEPT_RETRY: Duration = Duration::from_millis(100);
 
 /// A session's one writer, for its frames and its refusals alike; every write is on the session task.
 pub(crate) struct WsWriter(SplitSink<Socket, Message>);
@@ -108,18 +101,14 @@ fn tls_acceptor(cert_pem: &Path, key_pem: &Path) -> Result<TlsAcceptor> {
 
 pub(super) async fn serve(listener: TcpListener, tls: TlsAcceptor, sessions: Sessions) {
     loop {
-        let tcp = match listener.accept().await {
-            Ok((tcp, _)) => tcp,
+        let tcp = match accept(&listener).await {
+            Ok(tcp) => tcp,
             Err(err) => {
                 warn!(%err, "WebSocket accept failed");
                 tokio::time::sleep(ACCEPT_RETRY).await;
                 continue;
             }
         };
-        if let Err(err) = set_options(&tcp) {
-            warn!(%err, "WebSocket socket options failed; the connection is dropped");
-            continue;
-        }
         let (tls, sessions) = (tls.clone(), sessions.clone());
         tokio::spawn(async move {
             if let Err(err) = session(tcp, tls, sessions).await {
@@ -129,13 +118,11 @@ pub(super) async fn serve(listener: TcpListener, tls: TlsAcceptor, sessions: Ses
     }
 }
 
-fn set_options(tcp: &TcpStream) -> std::io::Result<()> {
-    #[cfg(test)]
-    if let Some(errno) = FAILED_OPTIONS.with(|f| f.borrow_mut().pop()) {
-        return Err(std::io::Error::from_raw_os_error(errno));
-    }
+async fn accept(listener: &TcpListener) -> std::io::Result<TcpStream> {
+    let (tcp, _) = listener.accept().await?;
     tcp.set_nodelay(true)?;
-    SockRef::from(tcp).set_tcp_keepalive(&KEEPALIVE)
+    SockRef::from(&tcp).set_tcp_keepalive(&KEEPALIVE)?;
+    Ok(tcp)
 }
 
 pub(super) async fn session(tcp: TcpStream, tls: TlsAcceptor, sessions: Sessions) -> Result<()> {
@@ -219,8 +206,7 @@ mod tests {
     async fn an_accepted_socket_probes_a_silent_peer() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let _client = TcpStream::connect(listener.local_addr().expect("addr")).await.expect("connect");
-        let (tcp, _) = listener.accept().await.expect("accept");
-        set_options(&tcp).expect("socket options");
+        let tcp = accept(&listener).await.expect("accept");
         let socket = SockRef::from(&tcp);
         assert!(socket.keepalive().expect("SO_KEEPALIVE"), "keep-alive is off");
         assert_eq!(socket.tcp_keepalive_time().expect("TCP_KEEPIDLE"), Duration::from_secs(20));
