@@ -46,15 +46,16 @@ fn no_transport_flag_parses_to_the_default_tuning() {
 /// Every transport flag `lab/` passes still parses, under its old name, into its field.
 #[test]
 fn every_transport_flag_the_lab_passes_parses() {
-    let flags = [
+    let flags = vec![
         "--send-window-bytes", "1",
         "--max-idle-timeout-ms", "2",
         "--keep-alive-interval-ms", "3",
         "--congestion", "bbr",
         "--initial-window-bytes", "4",
         "--initial-rtt-ms", "5",
-        "--reply-repeated-initial",
     ];
+    #[cfg(feature = "lab-levers")]
+    let flags = [flags, vec!["--reply-repeated-initial"]].concat();
     let tuning = TransportTuning {
         send_window: Some(1),
         max_idle_timeout_ms: Some(2),
@@ -62,6 +63,7 @@ fn every_transport_flag_the_lab_passes_parses() {
         congestion: Congestion::Bbr,
         initial_window: Some(4),
         initial_rtt_ms: Some(5),
+        #[cfg(feature = "lab-levers")]
         reply_repeated_initial: true,
         segmentation_offload: true,
     };
@@ -72,7 +74,16 @@ fn every_transport_flag_the_lab_passes_parses() {
 #[cfg(not(feature = "lab-levers"))]
 #[test]
 fn the_default_build_refuses_every_lab_lever() {
-    for flag in [&["--force-pool-reads"][..], &["--hold-sessions"], &["--stall-after-bytes", "1"], &["--segmentation-offload", "false"]] {
+    let flags = [
+        &["--force-pool-reads"][..],
+        &["--hold-sessions"],
+        &["--stall-after-bytes", "1"],
+        &["--segmentation-offload", "false"],
+        &["--send-window-follows-cwnd"],
+        &["--reply-repeated-initial"],
+        &["--stream-mode", "per-frame-asks-first"],
+    ];
+    for flag in flags {
         assert!(Args::try_parse_from([&["series-server", "--series", "s.sbnd"], flag].concat()).is_err(), "{flag:?} parsed");
     }
 }
@@ -83,7 +94,19 @@ fn the_default_build_refuses_every_lab_lever() {
 fn every_lab_lever_parses_under_its_feature() {
     use series_server::LabLevers;
     assert_eq!(parse(&[]).lab, LabLevers::default());
-    let flags = ["--force-pool-reads", "--hold-sessions", "--stall-after-bytes", "7", "--segmentation-offload", "false"];
-    let lab = LabLevers { force_pool_reads: true, hold_sessions: true, stall_after_bytes: Some(7), segmentation_offload: false };
+    let flags = [
+        "--force-pool-reads",
+        "--hold-sessions",
+        "--stall-after-bytes", "7",
+        "--segmentation-offload", "false",
+        "--send-window-follows-cwnd",
+    ];
+    let lab = LabLevers {
+        force_pool_reads: true,
+        hold_sessions: true,
+        stall_after_bytes: Some(7),
+        segmentation_offload: false,
+        send_window_follows_cwnd: true,
+    };
     assert_eq!(parse(&flags).lab, lab);
 }

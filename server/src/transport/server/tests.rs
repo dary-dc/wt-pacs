@@ -51,7 +51,6 @@ impl Fixture {
             bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             tuning: TransportTuning::default(),
             opening_ask: false,
-            send_window_follows_cwnd: false,
             websocket: false,
             #[cfg(feature = "lab-levers")]
             lab: LabLevers::default(),
@@ -221,8 +220,8 @@ fn plain_sessions(series: &Path) -> Sessions {
         read_mode: ReadMode::Auto,
         mode: StreamMode::Shared,
         opening_ask: false,
-        stall: None,
-        cwnd_ahead: None,
+        #[cfg(feature = "lab-levers")]
+        lab: SessionLevers::default(),
         #[cfg(feature = "telemetry")]
         taps: Arc::new(|| None),
     }
@@ -876,8 +875,8 @@ async fn an_opening_fill_is_recorded_like_any_other_session() {
         read_mode: ReadMode::Auto,
         mode: StreamMode::Shared,
         opening_ask: true,
-        stall: None,
-        cwnd_ahead: None,
+        #[cfg(feature = "lab-levers")]
+        lab: SessionLevers::default(),
         taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
     };
     let config = fx.config();
@@ -1016,12 +1015,13 @@ fn lab_lever_force_pool_reads_makes_every_read_a_miss() {
 /// cwnd, two frames, and the frame the window cut — not behind the 1.25 MB the client's
 /// credit lets the server queue. The server hears no ACK while the client asks, so nothing
 /// written leaves the window. `docs/transport/link-conditions.md` §ASKAHEAD.
+#[cfg(feature = "lab-levers")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_ask_during_a_fill_waits_behind_no_more_than_the_send_window() {
     const CWND_ALLOWANCE: usize = 64 * 1024;
     let frames = 32u32;
     let fx = Fixture::new(frames);
-    let server = tokio::spawn(run_server(ServeConfig { send_window_follows_cwnd: true, ..fx.config() }));
+    let server = tokio::spawn(run_server(ServeConfig { lab: LabLevers { send_window_follows_cwnd: true, ..LabLevers::default() }, ..fx.config() }));
     until_bound(fx.port, Duration::from_secs(5)).await;
 
     // The server's datagrams are dropped while `dark`; the client's always pass.
@@ -1249,6 +1249,7 @@ async fn a_lost_first_flight_is_repeated_whole() {
 /// delayed `one_way`, with a client whose first probe comes at 300 ms, as Chromium's and
 /// Firefox's do. Returns the time to the client's handshake and, per round of client datagrams
 /// the server received, the server's bytes in the `one_way` after the round's first.
+#[cfg(feature = "lab-levers")]
 async fn dial_with_first_answers_swallowed(
     tuning: TransportTuning,
     one_way: Duration,
@@ -1328,6 +1329,7 @@ async fn dial_with_first_answers_swallowed(
 /// 300 ms, not at its own probe timeout near 1 s. Without `--reply-repeated-initial` the
 /// handshake takes over a second. docs/transport/transport-conclusions.md §3, Answering a
 /// repeated Initial.
+#[cfg(feature = "lab-levers")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_repeated_initial_draws_the_lost_flight_at_once() {
     let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };
@@ -1340,6 +1342,7 @@ async fn a_repeated_initial_draws_the_lost_flight_at_once() {
 
 /// The reply is once a connection: with the first flight and its resend both lost, the
 /// client's second repeat draws only an ACK, and the flight waits for the server's PTO.
+#[cfg(feature = "lab-levers")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_second_repeated_initial_draws_only_an_ack() {
     let tuning = TransportTuning { reply_repeated_initial: true, ..TransportTuning::default() };

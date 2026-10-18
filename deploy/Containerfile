@@ -9,6 +9,8 @@ ARG REGISTRY=docker.io/library
 # ---------------------------------------------------------------- server
 FROM ${REGISTRY}/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 AS build
 WORKDIR /src
+# Empty in a deployment; `lab-levers` builds the lab image the device kit runs: lab/devices/deploy.sh.
+ARG FEATURES=
 # The workspace's members, each its manifest and sources alone: a doc or a lab result changes none of them.
 COPY Cargo.toml Cargo.lock ./
 COPY common ./common
@@ -37,7 +39,7 @@ COPY scripts/patch_crate.sh ./scripts/
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/src/target --mount=type=secret,id=build_ca \
     if [ -s /run/secrets/build_ca ]; then export CARGO_HTTP_CAINFO=/run/secrets/build_ca CURL_CA_BUNDLE=/run/secrets/build_ca SSL_CERT_FILE=/run/secrets/build_ca; fi && \
     find . -path ./target -prune -o -type f -exec touch {} + && \
-    cargo build --release --locked -p series-server && cp target/release/series-server /usr/local/bin/
+    cargo build --release --locked -p series-server ${FEATURES:+--features "$FEATURES"} && cp target/release/series-server /usr/local/bin/
 
 # Same Debian release as `build`: the binary links glibc and a mismatch fails only at start.
 FROM ${REGISTRY}/debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS server

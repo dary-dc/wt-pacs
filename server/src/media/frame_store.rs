@@ -118,12 +118,6 @@ impl FrameStore {
             .read_exact_at(buf, offset)
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
     }
-
-    /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test or
-    /// a lab run can rely on — CLAUDE.md#measurement. Reachable in a build for `--force-pool-reads`.
-    pub fn force_pool_reads(&mut self) {
-        self.nowait = false;
-    }
 }
 
 /// `EAGAIN` counts as support — the flag working on a cold byte. Anything unexpected reads
@@ -171,6 +165,15 @@ pub fn nowait_supported_at(path: &Path) -> Result<bool> {
     drop(file);
     let _ = std::fs::remove_file(&probe);
     answer.with_context(|| format!("write probe file in {}", path.display()))
+}
+
+#[cfg(any(test, feature = "lab-levers"))]
+impl FrameStore {
+    /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test or
+    /// a lab run can rely on — CLAUDE.md#measurement. `--force-pool-reads`.
+    pub fn force_pool_reads(&mut self) {
+        self.nowait = false;
+    }
 }
 
 #[cfg(test)]

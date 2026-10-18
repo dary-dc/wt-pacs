@@ -30,6 +30,7 @@ fn every_knob_builds() {
         congestion: Congestion::Bbr,
         initial_window: Some(32 * 1200),
         initial_rtt_ms: Some(100),
+        #[cfg(feature = "lab-levers")]
         reply_repeated_initial: true,
         segmentation_offload: false,
     };
@@ -41,15 +42,17 @@ fn every_knob_builds() {
 #[test]
 fn each_knob_set_is_named_in_the_banner() {
     assert_eq!(stock().describe(), "default");
-    for (t, want) in [
+    let cases = vec![
         (TransportTuning { send_window: Some(1 << 20), ..stock() }, "send_window=1048576"),
         (TransportTuning { max_idle_timeout_ms: Some(60_000), ..stock() }, "max_idle_timeout_ms=60000"),
         (TransportTuning { keep_alive_interval_ms: Some(20_000), ..stock() }, "keep_alive_interval_ms=20000"),
         (TransportTuning { initial_window: Some(38_400), ..stock() }, "initial_window=38400"),
         (TransportTuning { initial_rtt_ms: Some(100), ..stock() }, "initial_rtt_ms=100"),
-        (TransportTuning { reply_repeated_initial: true, ..stock() }, "reply_repeated_initial"),
         (TransportTuning { segmentation_offload: false, ..stock() }, "segmentation_offload=false"),
-    ] {
+    ];
+    #[cfg(feature = "lab-levers")]
+    let cases = [cases, vec![(TransportTuning { reply_repeated_initial: true, ..stock() }, "reply_repeated_initial")]].concat();
+    for (t, want) in cases {
         assert!(t.describe().contains(want), "{} lacks {want}", t.describe());
         t.to_transport_config().expect("builds");
     }

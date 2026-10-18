@@ -26,7 +26,7 @@ use wtransport::stream::RecvStream;
 use wtransport::{Endpoint, Identity, ServerConfig, VarInt};
 
 #[cfg(feature = "lab-levers")]
-use crate::transport::lab_levers::{self, LabLevers};
+use crate::transport::lab_levers::{self, LabLevers, SessionLevers};
 #[cfg(feature = "telemetry")]
 use crate::record::tap::Tap;
 #[cfg(feature = "telemetry")]
@@ -42,7 +42,7 @@ pub struct ServeConfig {
     pub cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     pub key_pem: PathBuf,
-    /// How frames reach the client: `shared` or `per-frame` (lab only: `per-frame-asks-first`).
+    /// How frames reach the client: `shared` or `per-frame`.
     #[arg(long = "stream-mode", value_name = "STREAM_MODE", value_enum, default_value_t = StreamMode::Shared)]
     pub mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to `0.0.0.0`
@@ -54,10 +54,6 @@ pub struct ServeConfig {
     /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--opening-ask false` turns it off. docs/ARCHITECTURE.md
     #[arg(long, default_value_t = true, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set)]
     pub opening_ask: bool,
-    /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
-    /// docs/transport/link-conditions.md §ASKAHEAD
-    #[arg(long, default_value_t = false)]
-    pub send_window_follows_cwnd: bool,
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/WIRE.md §The WebSocket mapping
     #[arg(long, default_value_t = false)]
     pub websocket: bool,
@@ -131,39 +127,28 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
 pub(super) struct Sessions {
     pub(super) store: Arc<FrameStore>,
     read_mode: ReadMode,
-    mode: StreamMode,
+    pub(super) mode: StreamMode,
     pub(super) opening_ask: bool,
-    stall: Option<u64>,
-    cwnd_ahead: Option<u64>,
+    #[cfg(feature = "lab-levers")]
+    pub(super) lab: SessionLevers,
     #[cfg(feature = "telemetry")]
     taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
 }
 
 impl Sessions {
-    /// Warns for each lab lever that is on, so a lab flag is never mistaken for a deployment.
     fn new(config: &ServeConfig, store: Arc<FrameStore>) -> Self {
-        let cwnd_ahead = config.send_window_follows_cwnd.then(|| {
-            let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
-            2 * u64::from(largest)
-        });
-        if let Some(bytes) = cwnd_ahead {
-            warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
-        }
         let read_mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref())
             .unwrap_or_else(|err| {
                 warn!("{err}; using auto");
                 ReadMode::Auto
             });
         Sessions {
+            #[cfg(feature = "lab-levers")]
+            lab: config.lab.session_levers(&store),
             store,
             read_mode,
             mode: config.mode,
             opening_ask: config.opening_ask,
-            #[cfg(feature = "lab-levers")]
-            stall: config.lab.stall_after_bytes,
-            #[cfg(not(feature = "lab-levers"))]
-            stall: None,
-            cwnd_ahead,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(Tap::for_session),
         }
@@ -264,7 +249,7 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall, sessions.cwnd_ahead);
+    let link = |control| Link::quic(&sessions, connection.clone(), control);
     let result = async {
         match opening {
             Some(ask) => {

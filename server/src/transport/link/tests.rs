@@ -38,8 +38,28 @@ fn each_stream_takes_the_next_rank_down() {
     assert_eq!(ranks, [0, -1, -2]);
 }
 
+/// A session's per-frame streams rank an ask where it arrives, as any frame: only
+/// `per-frame-asks-first` lifts it.
+#[test]
+fn a_sessions_streams_rank_an_ask_in_arrival_order() {
+    let mut streams = FrameStreams::default();
+    assert_eq!([streams.rank(false), streams.rank(true), streams.rank(false)], [0, -1, -2]);
+}
+
+/// Under `per-frame-asks-first` a session ranks an ask above the fills on either side of it,
+/// and the fill after it takes the rank it would have taken without the ask.
+#[cfg(feature = "lab-levers")]
+#[test]
+fn asks_first_streams_rank_an_ask_above_the_fills_around_it() {
+    let mut streams = FrameStreams { asks: Some(0), ..FrameStreams::default() };
+    let (before, ask, after) = (streams.rank(false), streams.rank(true), streams.rank(false));
+    assert!(ask > before && ask > after, "the ask ranks at {ask}, fills at {before} and {after}");
+    assert_eq!(after, before - 1);
+}
+
 /// With asks first, every ask ranks above every fill frame, however many of either came
 /// before, and earlier asks above later ones.
+#[cfg(feature = "lab-levers")]
 #[test]
 fn asks_first_rank_every_ask_above_every_fill() {
     let (mut seq, mut asks) = (0, 0);
@@ -53,6 +73,7 @@ fn asks_first_rank_every_ask_above_every_fill() {
 
 /// A budget cuts the envelope where it ends, head first, and only a budget that covers the
 /// head and the body leaves the frame whole.
+#[cfg(feature = "lab-levers")]
 #[test]
 fn a_budget_cuts_the_envelope_head_first() {
     let (head, body) = (Bytes::from_static(b"HEADHEAD"), Bytes::from_static(b"body"));

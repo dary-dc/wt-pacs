@@ -78,9 +78,10 @@ pub struct TransportTuning {
     pub initial_rtt_ms: Option<u64>,
     /// Lab only: answer a client's repeated Initial with the unacknowledged handshake flight,
     /// once a connection. docs/transport/transport-conclusions.md §3, Answering a repeated Initial.
+    #[cfg(feature = "lab-levers")]
     #[arg(long)]
     pub reply_repeated_initial: bool,
-    /// Lab only: set by `--segmentation-offload`, a flag of the `lab-levers` build.
+    /// GSO, on in a deployment; only `--segmentation-offload`, a `lab-levers` flag, turns it off.
     #[arg(skip = true)]
     pub segmentation_offload: bool,
 }
@@ -94,6 +95,7 @@ impl Default for TransportTuning {
             congestion: Congestion::default(),
             initial_window: None,
             initial_rtt_ms: None,
+            #[cfg(feature = "lab-levers")]
             reply_repeated_initial: false,
             segmentation_offload: true,
         }
@@ -118,6 +120,7 @@ impl TransportTuning {
         if let Some(ms) = self.initial_rtt_ms {
             tc.initial_rtt(Duration::from_millis(ms));
         }
+        #[cfg(feature = "lab-levers")]
         tc.reply_repeated_initial(self.reply_repeated_initial);
         tc.enable_segmentation_offload(self.segmentation_offload);
 
@@ -145,6 +148,7 @@ impl TransportTuning {
         if let Some(v) = self.initial_rtt_ms {
             parts.push(format!("initial_rtt_ms={v}"));
         }
+        #[cfg(feature = "lab-levers")]
         if self.reply_repeated_initial {
             parts.push("reply_repeated_initial".to_string());
         }
