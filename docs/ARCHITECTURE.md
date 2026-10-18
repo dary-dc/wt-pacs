@@ -1303,6 +1303,11 @@ Each item below is the owner's to decide, and is tracked here.
     (`client/transport/downloader.js:235–236`). Only the non-default `ask` refill.
   * A `set_nodelay` or keep-alive failure on one accepted socket counts as an accept failure and sleeps the loop
     100 ms; repeated connect-and-reset could hold the WebSocket to ~10 accepts/s (`server/src/transport/websocket.rs:123–124`).
+    **Fixed** by row 286 (WSACCEPT): a socket whose options fail is dropped with a WARN and the loop accepts the next at
+    once; only a failed `accept()` waits 100 ms (`websocket.rs:109–139`). The connect-and-reset path is not reachable on
+    Linux — a peer reset with `SO_LINGER` 0 before `accept()` still accepts, and both options then succeed — so the test,
+    `a_socket_whose_options_fail_does_not_pause_the_next_accept`, injects the failure. Under `prlimit --nofile` (64, 128)
+    a real `EMFILE` still paces the loop at 10 failed accepts/s.
 
 ## Looked at and dropped
 
