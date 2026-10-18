@@ -78,26 +78,11 @@ impl FramePipeline for ProductPipeline {
         &self.store
     }
 
-    #[cfg(feature = "lab-frame-cache")]
     async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
-        use crate::media::lab_frame_cache as cache;
-        if let Some(bytes) = cache::get(frame) {
-            return Ok(bytes);
+        #[cfg(feature = "lab-frame-cache")]
+        if let Some(read) = self.read_through_lab_cache(frame, next).await {
+            return read;
         }
-        let len = self.store.frame_span(frame).len as usize;
-        if !cache::claim_fill(frame, len, self.lab_session) {
-            return self.read_store(frame, next).await;
-        }
-        let read = self.read_store(frame, next).await;
-        match &read {
-            Ok(bytes) => cache::admit(frame, bytes.clone()),
-            Err(_) => cache::abandon_fill(frame),
-        }
-        read
-    }
-
-    #[cfg(not(feature = "lab-frame-cache"))]
-    async fn read(&mut self, frame: u32, next: &Next) -> Result<Bytes> {
         self.read_store(frame, next).await
     }
 
@@ -213,6 +198,27 @@ impl<P: FramePipeline> FramePipeline for RecordedPipeline<P> {
 
     async fn finish(&mut self) {
         self.inner.finish().await;
+    }
+}
+
+/// The lab frame cache's answer, or `None` where the store is read as the product reads it.
+#[cfg(feature = "lab-frame-cache")]
+impl ProductPipeline {
+    async fn read_through_lab_cache(&mut self, frame: u32, next: &Next) -> Option<Result<Bytes>> {
+        use crate::media::lab_frame_cache as cache;
+        if let Some(bytes) = cache::get(frame) {
+            return Some(Ok(bytes));
+        }
+        let len = self.store.frame_span(frame).len as usize;
+        if !cache::claim_fill(frame, len, self.lab_session) {
+            return None;
+        }
+        let read = self.read_store(frame, next).await;
+        match &read {
+            Ok(bytes) => cache::admit(frame, bytes.clone()),
+            Err(_) => cache::abandon_fill(frame),
+        }
+        Some(read)
     }
 }
 
