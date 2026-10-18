@@ -1298,9 +1298,11 @@ Each item below is the owner's to decide, and is tracked here.
 * **The opening ask beyond a contiguous first fill and this box's relay**, and **the TCP fallback** (the device
   check before enabling, the recycling cost, the shaped A/B).
 * **Known defects, not fixed** — each found by reading the code (2026-10-16 review), not reproduced:
-  * `refill: "ask"` on the WASM client: the async `requestExactFrame` reaches the wire after the sync `fillFrames`,
-    so the server ends the fill it just started and nothing re-asks the rest until the stall timer
-    (`client/transport/downloader.js:235–236`). Only the non-default `ask` refill.
+  * *Fixed 2026-10-18.* `refill: "ask"` on the WASM client: the async `requestExactFrame` reached the wire after the
+    sync `fillFrames`, so the server ended the fill it had just started and nothing re-asked the rest until the stall
+    timer (`client/transport/downloader.js:235–236`). The WASM ask is now on the wire before `requestExactFrame`
+    returns, as the TypeScript one is: `anAskIsOnTheWireBeforeItReturns` ([`CLIENTS.md`](CLIENTS.md) §The contract
+    suite), which read `stream_frames,request_frame` on WASM before. Seen at the session, not through the downloader.
   * A `set_nodelay` or keep-alive failure on one accepted socket counts as an accept failure and sleeps the loop
     100 ms; repeated connect-and-reset could hold the WebSocket to ~10 accepts/s (`server/src/transport/websocket.rs:123–124`).
 

@@ -2,6 +2,7 @@
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::rc::Rc;
 
 use fod::{decode_fod_msg, encode_fod_msg, FodMsg};
@@ -234,11 +235,12 @@ async fn read_length_prefixed_frame(
 }
 
 /// An asked frame's head is read and its body is not: its `on_head` runs, after the borrow is
-/// released — it is JS and may re-enter the session.
+/// released — it is JS and may re-enter the session. One that throws fails its ask.
 fn head_read(st: &Rc<RefCell<SessionState>>, index: u32) {
     let on_head = st.borrow().waiters.get(&index).and_then(|w| w.on_head.clone());
-    if let Some(on_head) = on_head {
-        let _ = on_head.call0(&JsValue::NULL);
+    if let Some(Err(e)) = on_head.map(|f| f.call0(&JsValue::NULL)) {
+        let why = e.dyn_ref::<js_sys::Error>().map_or_else(|| format!("{e:?}"), |e| String::from(e.message()));
+        fail_waiter(st, index, &format!("onHead threw: {why}"));
     }
 }
 
@@ -574,11 +576,13 @@ impl TransportSession {
         })
     }
 
-    pub async fn request_frame(
+    /// Armed and on the wire before it returns, as the TypeScript client's ask is: a fill asked
+    /// next goes out behind it. docs/WIRE.md §An ask during a fill
+    pub fn request_frame(
         &self,
         frame_index: u32,
         on_head: Option<js_sys::Function>,
-    ) -> Result<JsValue, String> {
+    ) -> Result<impl Future<Output = Result<JsValue, String>>, String> {
         let ask_ms = perf_now_ms();
         let (tx, rx) = oneshot::channel();
         {
@@ -601,7 +605,7 @@ impl TransportSession {
             return Err("FoD request channel closed".into());
         }
 
-        self.settle(rx, frame_index, ask_ms).await
+        Ok(settle(rx, frame_index, ask_ms, Rc::clone(&self.state)))
     }
 
     /// A fill pushed as it lands, on the wire as `StreamFrames`: no waiter and no timer per
@@ -648,26 +652,6 @@ impl TransportSession {
         Ok(())
     }
 
-    /// Await one armed waiter; a refusal the server sent for this frame wins over the raw error.
-    async fn settle(
-        &self,
-        rx: oneshot::Receiver<(Uint8Array, f64)>,
-        frame_index: u32,
-        ask_ms: f64,
-    ) -> Result<JsValue, String> {
-        match await_bytes(rx, frame_index, &self.state).await {
-            Ok((bytes, received_ms)) => result_to_js(frame_index, ask_ms, bytes, received_ms),
-            Err(e) => {
-                let mut s = self.state.borrow_mut();
-                s.waiters.remove(&frame_index);
-                match s.errors.remove(&frame_index) {
-                    Some(reason) => Err(format!("frame {frame_index} unavailable: {reason}")),
-                    None => Err(e),
-                }
-            }
-        }
-    }
-
     /// Close the WebTransport session now. Without this the server only notices the session is
     /// gone at the QUIC idle timeout (~30 s).
     pub fn close(&self) {
@@ -697,6 +681,26 @@ fn closed_reason_of(info: &JsValue) -> String {
         .map(|r| format!(": {r}"))
         .unwrap_or_default();
     format!("session closed (code {code}){why}")
+}
+
+/// Await one armed waiter; a refusal the server sent for this frame wins over the raw error.
+async fn settle(
+    rx: oneshot::Receiver<(Uint8Array, f64)>,
+    frame_index: u32,
+    ask_ms: f64,
+    st: Rc<RefCell<SessionState>>,
+) -> Result<JsValue, String> {
+    match await_bytes(rx, frame_index, &st).await {
+        Ok((bytes, received_ms)) => result_to_js(frame_index, ask_ms, bytes, received_ms),
+        Err(e) => {
+            let mut s = st.borrow_mut();
+            s.waiters.remove(&frame_index);
+            match s.errors.remove(&frame_index) {
+                Some(reason) => Err(format!("frame {frame_index} unavailable: {reason}")),
+                None => Err(e),
+            }
+        }
+    }
 }
 
 async fn await_bytes(
