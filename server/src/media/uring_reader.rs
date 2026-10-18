@@ -15,7 +15,7 @@ use tokio::io::Interest;
 thread_local! {
     /// Test-only: the wait is otherwise unobservable, since a cached read lands before it.
     pub(crate) static DRAINED_ON_DROP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-    /// Test-only: errnos the next waits on this thread return instead of entering the kernel.
+    /// Test-only: errnos the next submits and waits on this thread return instead of entering.
     pub(crate) static FAILED_WAITS: std::cell::RefCell<Vec<i32>> =
         const { std::cell::RefCell::new(Vec::new()) };
 }
@@ -57,7 +57,7 @@ impl UringReader {
             .map_err(|_| anyhow!("io_uring SQ full"))?;
         // Counted once queued: a failed `submit` leaves the entry for the next one to send.
         self.in_flight += 1;
-        self.ring.submit().context("io_uring submit")?;
+        self.submit_and_wait(0).context("io_uring submit")?;
         Ok(())
     }
 
@@ -78,8 +78,12 @@ impl UringReader {
         landed
     }
 
-    /// Park on the ring's own fd, never in `io_uring_enter`. A wake may carry nothing.
+    /// Park on the ring's own fd, never waiting in `io_uring_enter`. A wake may carry nothing.
     pub(crate) async fn park(&mut self) -> Result<()> {
+        // An entry a failed submit left queued reaches the kernel only on the next entry into it.
+        if !self.ring.submission().is_empty() {
+            self.submit_and_wait(0).context("io_uring resubmit")?;
+        }
         let mut guard = self.ring_fd.readable().await.context("ring fd readable")?;
         guard.clear_ready();
         Ok(())

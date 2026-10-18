@@ -299,10 +299,10 @@ impl Slot {
         }
         let at = span.offset + self.filled as u64;
         // SAFETY: `buf` is neither grown, read nor dropped while `read` is `Some`, which is set
-        // below and cleared above only once the whole tail has landed; `Drop` drains the ring first.
-        unsafe { ring.submit(w, &mut self.buf[self.filled..len], at) }?;
+        // first, as a failed submit may leave the entry queued, and cleared above only once the
+        // whole tail has landed; `Drop` drains the ring first.
         self.read = Some(InFlight::Ring);
-        Ok(())
+        unsafe { ring.submit(w, &mut self.buf[self.filled..len], at) }
     }
 }
 
@@ -1304,6 +1304,46 @@ mod tests {
         assert_eq!(tile.pending_slots(), 0, "a completion of the batch did not land");
         let out = rt.block_on(tile.read(whole, &[])).expect("read the whole frame");
         assert_eq!(&out[..], &frame_pattern(0, LEN)[..], "the whole frame came back wrong");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A ring read whose submit fails stays in flight, since its entry is still queued for the
+    /// kernel: the frame is not served half-read, and reading it again serves it whole.
+    #[test]
+    #[cfg(feature = "uring")]
+    fn a_ring_read_whose_submit_fails_is_not_served_half_read() {
+        use crate::media::uring_reader::FAILED_WAITS;
+        let dir = scratch("ringsubmit");
+        let path = write_bundle(&dir, 1, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        if !store.nowait_supported() {
+            eprintln!("SKIPPED: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        store.force_short_reads(SHORT);
+        let store = Arc::new(store);
+        let span = store.frame_span(0);
+        let rt = rt();
+        let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
+
+        FAILED_WAITS.with(|f| f.borrow_mut().push(libc::EAGAIN));
+        let failed = rt.block_on(tile.read(span, &[]));
+        if !tile.ring_built() {
+            FAILED_WAITS.with(|f| f.borrow_mut().clear());
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        assert!(failed.is_err(), "precondition: the failed submit was not an error");
+        let again = rt.block_on(async {
+            tokio::time::timeout(std::time::Duration::from_secs(5), tile.read(span, &[])).await
+        });
+        let out = again.expect("the read parked on an entry never sent").expect("read again");
+        let whole = out[..] == frame_pattern(0, LEN)[..];
+        // Before `out`: where the slot was served, the drain lands the queued entry in its buffer.
+        drop(tile);
+        assert!(whole, "a frame was served before its ring read landed");
         std::fs::remove_dir_all(&dir).ok();
     }
 
