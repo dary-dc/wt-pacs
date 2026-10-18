@@ -351,7 +351,8 @@ impl TileReader {
         }
         let started = self.slots.iter().filter(|s| s.read.is_some()).count() as u16;
         self.stats.peak_in_flight = self.stats.peak_in_flight.max(started);
-        let w = self.holding(span).expect("started above");
+        // Missing only when its ring read failed in a batch reaped by another slot's wait.
+        let w = self.holding(span).with_context(|| format!("ring read of {span:?} failed"))?;
         self.wait(w).await?;
         self.last = w;
         let slot = &mut self.slots[w];
@@ -1228,6 +1229,47 @@ mod tests {
             let out = bounded(&mut tile, span, &[]).expect("read again");
             assert_eq!(&out[..], &frame_pattern(0, LEN)[..], "the frame came back wrong again");
         }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A failed ring read of the frame being served, reaped by the wait that recycles another slot
+    /// for an upcoming frame, fails the read with an error rather than a panic, and the batch's
+    /// other completion still lands.
+    #[test]
+    #[cfg(feature = "uring")]
+    fn a_failed_ring_read_reaped_by_another_slots_wait_fails_its_frame() {
+        let dir = scratch("ringcurrent");
+        let path = write_bundle(&dir, 1, LEN);
+        let whole = FrameStore::open(&path).expect("open store").frame_span(0);
+        let head = FrameSpan { len: SHORT as u32, ..whole };
+        let cut = FrameSpan { offset: whole.offset + u64::from(LEN), len: LEN };
+        let file = std::fs::File::open(&path).expect("open file");
+        let mut store = FrameStore::with_index(file, vec![(whole.offset, LEN)], whole.offset);
+        if !store.nowait_supported() {
+            eprintln!("SKIPPED: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        store.force_short_reads(SHORT);
+        let rt = rt();
+        let mut tile = TileReader::new(ReadMode::Auto, Arc::new(store), 2);
+
+        // `head` is a hit; `whole` goes to the ring and is left unreaped in the other slot.
+        let out = rt.block_on(tile.read(head, &[whole])).expect("head");
+        assert_eq!(&out[..], &frame_pattern(0, LEN)[..SHORT], "the head came back wrong");
+        if !tile.ring_built() {
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        assert_eq!(tile.pending_slots(), 1, "precondition: the abandoned ring read was reaped");
+        let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            rt.block_on(tile.read(cut, &[head]))
+        }));
+        assert!(matches!(read, Ok(Err(_))), "a frame past the end of the file did not fail cleanly");
+        assert_eq!(tile.pending_slots(), 0, "a completion of the batch did not land");
+        let out = rt.block_on(tile.read(whole, &[])).expect("read the whole frame");
+        assert_eq!(&out[..], &frame_pattern(0, LEN)[..], "the whole frame came back wrong");
         std::fs::remove_dir_all(&dir).ok();
     }
 
