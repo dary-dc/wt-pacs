@@ -9,8 +9,6 @@ ARG REGISTRY=docker.io/library
 # ---------------------------------------------------------------- server
 FROM ${REGISTRY}/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 AS build
 WORKDIR /src
-# Empty in a deployment; `lab-levers` builds the lab image the device kit runs: lab/devices/deploy.sh.
-ARG FEATURES=
 # The workspace's members, each its manifest and sources alone: a doc or a lab result changes none of them.
 COPY Cargo.toml Cargo.lock ./
 COPY common ./common
@@ -36,6 +34,8 @@ COPY patches ./patches
 COPY scripts/patch_crate.sh ./scripts/
 # build_ca: the CA of a TLS-inspecting proxy between this host and the registries, empty where there is none.
 # The touch: `target` is every checkout's on this daemon and cargo trusts mtimes, so this tree's sources must be newest.
+# Empty in a deployment; `lab-levers` builds the lab image the device kit runs: lab/devices/deploy.sh.
+ARG FEATURES=
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/src/target --mount=type=secret,id=build_ca \
     if [ -s /run/secrets/build_ca ]; then export CARGO_HTTP_CAINFO=/run/secrets/build_ca CURL_CA_BUNDLE=/run/secrets/build_ca SSL_CERT_FILE=/run/secrets/build_ca; fi && \
     find . -path ./target -prune -o -type f -exec touch {} + && \
