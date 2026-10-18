@@ -383,6 +383,7 @@ impl TileReader {
     fn begin(&mut self, w: usize, span: FrameSpan) -> Result<()> {
         let len = span.len as usize;
         let slot = &mut self.slots[w];
+        slot.key = None;
         fit(&mut slot.buf, len);
         let hit = self.store.read_at_nowait(&mut slot.buf[..len], span.offset)?;
         slot.key = Some(span);
@@ -895,6 +896,39 @@ mod tests {
         assert!(rt.block_on(tile.read(span, &[])).is_err(), "precondition: the read did not fail");
         let out = rt.block_on(tile.read(span, &[])).expect("read again");
         assert_eq!(&out[..], &frame_pattern(0, LEN)[..], "the frame came back wrong");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A slot whose next probe fails no longer claims the frame it held, whose bytes the probe
+    /// may already have overwritten. The probe fails on a write-only fd put in the store's place.
+    #[test]
+    fn a_slot_whose_probe_fails_no_longer_holds_its_frame() {
+        use std::os::fd::AsRawFd;
+        let dir = scratch("probefail");
+        let path = write_bundle(&dir, 2, LEN);
+        let [held, next] = spans(&Arc::new(FrameStore::open(&path).expect("open")), &[0, 1])[..]
+        else {
+            unreachable!("two frames")
+        };
+        let file = std::fs::File::open(&path).expect("open file");
+        let fd = file.as_raw_fd();
+        let store = FrameStore::with_index(file, vec![(held.offset, LEN)], held.offset);
+        if !store.nowait_supported() {
+            eprintln!("SKIPPED: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        let rt = rt();
+        let mut tile = TileReader::new(ReadMode::Pool, Arc::new(store), 2);
+        rt.block_on(tile.read(next, &[held])).expect("read");
+        let w = tile.holding(held).expect("precondition: the named frame is held");
+        rt.block_on(tile.wait(w)).expect("precondition: the named frame landed");
+
+        let write_only = std::fs::OpenOptions::new().write(true).open(&path).expect("open");
+        // SAFETY: `fd` is the store's own, open for its whole life; `dup2` swaps what it names.
+        assert_eq!(unsafe { libc::dup2(write_only.as_raw_fd(), fd) }, fd, "dup2");
+        assert!(tile.begin(w, next).is_err(), "precondition: a probe on a write-only fd succeeded");
+        assert!(!tile.holds(held), "the slot still claims its frame after a failed probe");
         std::fs::remove_dir_all(&dir).ok();
     }
 
