@@ -54,11 +54,16 @@ proposals himself, in cloud sessions he can open and talk to.
 
 ## 3. In flight
 
-**Final verification of unified `5625dcf4`** (`trig_017Bxnf4cvndH7gNTefnQjou`, session `cse_01MDaUS1a7aL3byhgLdz5qix`):
-the full `scripts/gate.sh` with every prerequisite built, every crate's tests (default, `lab-levers`,
-`--no-default-features`), and hygiene (conflict markers, links, comment budget, personal paths, authors and committers
-`dary-dc`, no attribution trailers). Read-only. **Next:** `get_run_log`; if clean, tell Darian unified is ready
-(#104 is the diff; he merges); if not, one row per failure, test first.
+**Final verification of unified `5625dcf4`: done, clean** (2026-10-18 19:43 UTC, session
+`cse_01MDaUS1a7aL3byhgLdz5qix`). Full `scripts/gate.sh` exit 0 ("GATE OK in 545 s"; perf counts as in the baseline;
+refusals 64/64 on ts, wasm and ws; ask-during-fill 3/3 on all six variants); only skip left: the viewer's cross-codec
+arm and Firefox (no DICOM bundles, no GL display); `check_equivalence.sh --local` passed separately with nginx
+installed. `cargo test --workspace` 224/0, `lab-levers` 139/0, `--no-default-features` builds. No conflict markers,
+0 unresolved links, comment budget ok, no personal path, no attribution trailers. **One finding:** merge commit
+`31cb948` (2026-10-17, "Merge remote-tracking branch 'origin/claude/av1-unified-mainbase' into wip-270") is authored and
+committed by `Claude <noreply@anthropic.com>`; fixing it means rewriting unified's history (a force-push, against the
+rules), so it is Darian's call. The other 36 non-`dary-dc` commits are `darian` / `GitHub` web merges of PRs, his own.
+CI green on `5625dcf4` (push and PR runs); #104 mergeable, `main` an ancestor of unified (209 commits ahead).
 
 **D4, the workstation run, on Darian's machine** (`~/Desktop/projects/wt-pacs-d4`, unified `85666200` prebuilt). The
 2026-10-18 15:06 UTC run (`.local/workstation/report-20261018T150649Z`) finished host and ring, then stopped in the
@@ -140,5 +145,5 @@ conflicts goes in a worktree under `~/Desktop/projects/` (never `~/.cache`), rem
 
 ## 6. Path to `main`
 
-1. The final verification (§3) reports clean.
-2. Darian reads #104 and merges unified into `main`, or says to.
+1. The final verification (§3): clean, one authorship finding for Darian.
+2. Darian merges #104 (unified into `main`), or says "merge #104".
