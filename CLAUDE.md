@@ -14,6 +14,12 @@ and no more of it.
 
 **Propose before implementing when the change is structural.** Designs are reviewed.
 
+**Product first in every file, so its data flow reads straight through.** Tests live in `foo/tests.rs`
+(`#[cfg(test)] mod tests;`). What only tests or the lab compile sits below the product: test-only methods in a
+`#[cfg(test)] impl` of their type, test-only state in one `hooks: TestHooks` field once there are two, lab state
+likewise in one field. Inside a product function, a test or the lab reaches in by one marked line and one named
+call, its body below. A lab flag lives under a lab feature, never in the default build.
+
 ## Names
 
 **A name states its role in the domain's words.** No word from the project's history — a queue row, a campaign
@@ -41,7 +47,7 @@ be a paragraph here is a clause and a `docs/` pointer.
 worth more than its name alone — those are not counted and should not be cut.
 
 `scripts/comment_budget.sh` enforces **0.18 comment lines per code line** per file (Rust, TypeScript, JavaScript, shell and Python), floor 10,
-counting neither `SAFETY` blocks nor anything from `mod tests {` down. It runs in
+counting neither `SAFETY` blocks nor tests (`tests.rs`, or anything from `mod tests {` down). It runs in
 `scripts/gate.sh`. The product sits at 0.10–0.18; going over is a signal about the code, not
 a reason to raise the budget.
 
