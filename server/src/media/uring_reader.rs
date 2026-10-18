@@ -4,7 +4,7 @@
 //! `SINGLE_ISSUER` and `DEFER_TASKRUN` are unusable, and blocking in `io_uring_enter` would
 //! be the stall this exists to prevent. `docs/adr/disk-access.md`.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use io_uring::{opcode, types, IoUring};
 use std::fs::File;
 use std::os::fd::{AsRawFd, RawFd};
@@ -54,26 +54,28 @@ impl UringReader {
             .build()
             .user_data(slot as u64);
         unsafe { self.ring.submission().push(&entry) }
-            .map_err(|_| anyhow::anyhow!("io_uring SQ full"))?;
+            .map_err(|_| anyhow!("io_uring SQ full"))?;
         // Counted once queued: a failed `submit` leaves the entry for the next one to send.
         self.in_flight += 1;
         self.ring.submit().context("io_uring submit")?;
         Ok(())
     }
 
-    /// Every completion landed so far: `(slot, bytes)`. A short read is the caller's to resubmit.
-    pub(crate) fn reap(&mut self) -> Result<Vec<(usize, usize)>> {
+    /// Every completion landed so far: `(slot, bytes)`, a failed read among them. A short read is
+    /// the caller's to resubmit.
+    pub(crate) fn reap(&mut self) -> Vec<(usize, Result<usize>)> {
         self.ring.completion().sync();
         let mut landed = Vec::new();
         for cqe in self.ring.completion() {
             self.in_flight = self.in_flight.saturating_sub(1);
-            match cqe.result() {
-                n if n > 0 => landed.push((cqe.user_data() as usize, n as usize)),
-                0 => bail!("io_uring read hit EOF"),
-                e => return Err(std::io::Error::from_raw_os_error(-e)).context("io_uring read"),
-            }
+            let read = match cqe.result() {
+                n if n > 0 => Ok(n as usize),
+                0 => Err(anyhow!("io_uring read hit EOF")),
+                e => Err(std::io::Error::from_raw_os_error(-e)).context("io_uring read"),
+            };
+            landed.push((cqe.user_data() as usize, read));
         }
-        Ok(landed)
+        landed
     }
 
     /// Park on the ring's own fd, never in `io_uring_enter`. A wake may carry nothing.
@@ -258,16 +260,13 @@ mod tests {
             buf.fill(0);
             // SAFETY: `buf` outlives `reader` and is untouched until reaped.
             unsafe { reader.submit(0, &mut buf, 0) }.expect("submit");
-            assert!(
-                reader.reap().expect("reap").is_empty(),
-                "the pipe was not empty"
-            );
+            assert!(reader.reap().is_empty(), "the pipe was not empty");
             go.send(()).unwrap();
             tokio::time::timeout(std::time::Duration::from_secs(10), async {
                 loop {
                     reader.park().await.expect("park");
                     wakes += 1;
-                    if !reader.reap().expect("reap").is_empty() {
+                    if !reader.reap().is_empty() {
                         break;
                     }
                 }
@@ -303,8 +302,8 @@ mod tests {
         unsafe { reader.submit(1, &mut b, second) }.expect("start b");
         tokio::time::timeout(std::time::Duration::from_secs(10), async {
             while filled[0] < a.len() || filled[1] < b.len() {
-                for (slot, n) in reader.reap().expect("reap") {
-                    filled[slot] += n;
+                for (slot, n) in reader.reap() {
+                    filled[slot] += n.expect("read");
                     if slot == 0 && filled[0] < a.len() {
                         unsafe {
                             reader.submit(0, &mut a[filled[0]..], first + filled[0] as u64)

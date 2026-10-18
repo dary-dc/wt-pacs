@@ -796,14 +796,24 @@ threads against the pool's hundreds might start converting (the workstation's 1.
 semi-sequential ceiling was device-bound and may be the NVMe's own cache); `hybrid_lazyring`
 on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 
-**Known defects, not fixed**, each found by reading the code (2026-10-16 review), not reproduced:
+**Known defects, not fixed**, each found by reading the code (2026-10-16 review), not reproduced. *Corrected
+2026-10-18 (row 284): all three were shown, each by a test that failed on the code as it was, and fixed at the reader,
+so they stay fixed if a session ever outlives a read error.*
 
 * A failed pool read in `TileReader` leaves its slot keyed to the span with an empty buffer; reading that span again
   would panic in `Bytes::slice` (`server/src/media/read_path.rs:424`). Latent: a session ends on its first read error.
+  *Shown and fixed:* the second read panicked with `range end out of bounds: 327697 <= 0`. A failed pool read now
+  clears the slot's key, so the frame is read again; `a_failed_pooled_tile_read_leaves_its_frame_readable`, which
+  fails one read with the store's new `fail_blocking_reads` lever.
 * `ring.reap()?` drops completions already taken from the CQ when a later CQE in the batch errors, so a later wait on
-  that slot could park forever (`read_path.rs:438`). Latent for the same reason.
+  that slot could park forever (`read_path.rs:438`). Latent for the same reason. *Shown and fixed:* with a frame whose
+  ring read landed and one past the end of the file in the same batch, the landed frame's read failed with the other's
+  EOF, and reading it again parked until the test's 5 s timeout. `UringReader::reap` now returns each completion's
+  result, and the wait applies the whole batch before it returns: a failed read ends its own slot, and fails the wait
+  only if that slot is the one waited on; `a_failed_ring_read_does_not_lose_another_slots_completion`.
 * `FillReader`: a read-ahead abandoned with no next frame frees its buffer instead of returning it to the pool
-  (`read_path.rs:189`). Efficiency only.
+  (`read_path.rs:189`). Efficiency only. *Shown and fixed:* no buffer came back. It goes to the new
+  `frame_pool::put_back`; `an_abandoned_read_ahead_gives_its_buffer_back_to_the_pool`.
 
 ### #7, built: park on the ring's own fd (rows 244, 250)
 

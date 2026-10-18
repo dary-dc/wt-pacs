@@ -174,7 +174,10 @@ impl FillReader {
                 self.advise(next);
                 Ahead::Named(next, fetch)
             }
-            None => Ahead::Idle,
+            None => {
+                frame_pool::put_back(spare);
+                Ahead::Idle
+            }
         };
         self.stats.peak_named = self.stats.peak_named.max(1 + u16::from(next.is_some()));
         self.stats.peak_in_flight = self
@@ -406,11 +409,19 @@ impl TileReader {
         match &mut self.slots[w].read {
             None => Ok(()),
             Some(InFlight::Pool(join)) => {
-                let landed = join.await;
+                let landed = join.await.context("join frame read").and_then(|read| read);
                 let slot = &mut self.slots[w];
                 slot.read = None;
-                slot.buf = landed.context("join frame read")??;
-                Ok(())
+                match landed {
+                    Ok(buf) => {
+                        slot.buf = buf;
+                        Ok(())
+                    }
+                    Err(err) => {
+                        slot.key = None;
+                        Err(err)
+                    }
+                }
             }
             #[cfg(feature = "uring")]
             Some(InFlight::Ring) => {
@@ -423,10 +434,24 @@ impl TileReader {
                     unreachable!("a ring read outlived its ring")
                 };
                 while slots[w].read.is_some() {
-                    for (slot, landed) in ring.reap()? {
-                        slots[slot].filled += landed;
-                        slots[slot].submit_tail(ring, slot)?;
+                    // The whole batch lands before an error returns, or a slot's completion is lost.
+                    let mut failed = Ok(());
+                    for (s, landed) in ring.reap() {
+                        match landed {
+                            Ok(n) => {
+                                slots[s].filled += n;
+                                failed = failed.and(slots[s].submit_tail(ring, s));
+                            }
+                            Err(err) => {
+                                slots[s].key = None;
+                                slots[s].read = None;
+                                if s == w {
+                                    failed = failed.and(Err(err));
+                                }
+                            }
+                        }
                     }
+                    failed?;
                     if slots[w].read.is_some() {
                         ring.park().await?;
                     }
@@ -852,6 +877,53 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// A pooled tile read that fails leaves its frame readable: the next read of it reads it
+    /// again and serves it whole, rather than serving the empty buffer the failed read left.
+    #[test]
+    fn a_failed_pooled_tile_read_leaves_its_frame_readable() {
+        let dir = scratch("tilefail");
+        let path = write_bundle(&dir, 1, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = rt();
+        let span = store.frame_span(0);
+
+        let mut tile = TileReader::new(ReadMode::Pool, Arc::clone(&store), TILE_SLOTS);
+        store.fail_blocking_reads(1);
+        assert!(rt.block_on(tile.read(span, &[])).is_err(), "precondition: the read did not fail");
+        let out = rt.block_on(tile.read(span, &[])).expect("read again");
+        assert_eq!(&out[..], &frame_pattern(0, LEN)[..], "the frame came back wrong");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A read-ahead abandoned for a frame that names nothing after it gives its buffer back to
+    /// the pool rather than freeing it.
+    #[test]
+    fn an_abandoned_read_ahead_gives_its_buffer_back_to_the_pool() {
+        let dir = scratch("fillspare");
+        let path = write_bundle(&dir, 3, LEN);
+        let mut store = FrameStore::open(&path).expect("open store");
+        store.force_pool_reads();
+        let store = Arc::new(store);
+        let rt = rt();
+        let [first, second, third] = spans(&store, &[0, 1, 2])[..] else {
+            unreachable!("three frames")
+        };
+
+        let mut fill = FillReader::new(Arc::clone(&store));
+        let _first = rt.block_on(fill.read(first, Some(second))).expect("first");
+        let before = frame_pool::RETURNED.get();
+        // Frame 1 was named and is in flight; the session asks for 2, naming nothing after it.
+        let _third = rt.block_on(fill.read(third, None)).expect("third");
+        assert_eq!(
+            frame_pool::RETURNED.get() - before,
+            1,
+            "the abandoned read-ahead's buffer was not given back to the pool"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// Slots are a constructor argument, so the depth a tile session runs at is a number the
     /// lab run can sweep rather than a constant. `docs/adr/disk-access.md` §1.
     #[test]
@@ -1114,6 +1186,47 @@ mod tests {
         } else {
             let read = read.expect("the ring read hung on the end of the file");
             assert!(read.is_err(), "a frame past the end of the file was served");
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A ring read that fails in the same batch as another slot's completion does not lose that
+    /// completion: the frame waiting on it is served whole, and the failed frame fails cleanly.
+    #[test]
+    #[cfg(feature = "uring")]
+    fn a_failed_ring_read_does_not_lose_another_slots_completion() {
+        let dir = scratch("ringbatch");
+        let path = write_bundle(&dir, 1, LEN);
+        let span = FrameStore::open(&path).expect("open store").frame_span(0);
+        let cut = FrameSpan { offset: span.offset + u64::from(LEN), len: LEN };
+        let file = std::fs::File::open(&path).expect("open file");
+        let index = vec![(span.offset, LEN), (cut.offset, LEN)];
+        let mut store = FrameStore::with_index(file, index, span.offset);
+        if !store.nowait_supported() {
+            eprintln!("SKIPPED: this filesystem refuses RWF_NOWAIT");
+            std::fs::remove_dir_all(&dir).ok();
+            return;
+        }
+        store.force_short_reads(SHORT);
+        let store = Arc::new(store);
+        let rt = rt();
+        let mut tile = TileReader::new(ReadMode::Auto, Arc::clone(&store), TILE_SLOTS);
+        let bounded = |tile: &mut TileReader, span, upcoming: &[FrameSpan]| {
+            let read = tile.read(span, upcoming);
+            rt.block_on(async { tokio::time::timeout(std::time::Duration::from_secs(5), read).await })
+            .expect("a wait parked for ever on a completion already taken")
+        };
+
+        let out = bounded(&mut tile, span, &[cut]).expect("the frame whose read landed");
+        if !tile.ring_built() {
+            eprintln!("SKIPPED: io_uring is unavailable on this host");
+        } else {
+            assert_eq!(&out[..], &frame_pattern(0, LEN)[..], "the frame came back wrong");
+            assert_eq!(tile.pending_slots(), 0, "the failed read's slot still waits on the ring");
+            let past_the_end = bounded(&mut tile, cut, &[]);
+            assert!(past_the_end.is_err(), "a frame past the end of the file was served");
+            let out = bounded(&mut tile, span, &[]).expect("read again");
+            assert_eq!(&out[..], &frame_pattern(0, LEN)[..], "the frame came back wrong again");
         }
         std::fs::remove_dir_all(&dir).ok();
     }

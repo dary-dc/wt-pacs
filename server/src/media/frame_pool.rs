@@ -14,6 +14,12 @@ struct Pool(Mutex<Vec<Vec<u8>>>);
 
 static POOL: Pool = Pool::new();
 
+#[cfg(test)]
+thread_local! {
+    /// Test-only: buffers given back to a pool on this thread.
+    pub(crate) static RETURNED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// A buffer to read the next frame into: one quinn gave back, or a new one.
 pub fn take() -> Vec<u8> {
     POOL.take()
@@ -23,6 +29,10 @@ pub fn take() -> Vec<u8> {
 /// when quinn drops the last view of it.
 pub fn hand_off(buf: Vec<u8>, len: usize) -> Bytes {
     POOL.hand_off(buf, len)
+}
+
+pub fn put_back(buf: Vec<u8>) {
+    POOL.put_back(buf)
 }
 
 impl Pool {
@@ -43,6 +53,18 @@ impl Pool {
         Bytes::from_owner(Pooled(buf, self)).slice(..len)
     }
 
+    fn put_back(&self, buf: Vec<u8>) {
+        if buf.capacity() == 0 {
+            return;
+        }
+        #[cfg(test)]
+        RETURNED.set(RETURNED.get() + 1);
+        let mut pool = self.buffers();
+        if pool.len() < POOL_CAP {
+            pool.push(buf);
+        }
+    }
+
     #[cfg(test)]
     fn pooled(&self) -> usize {
         self.buffers().len()
@@ -59,11 +81,7 @@ impl AsRef<[u8]> for Pooled {
 
 impl Drop for Pooled {
     fn drop(&mut self) {
-        let buf = mem::take(&mut self.0);
-        let mut pool = self.1.buffers();
-        if pool.len() < POOL_CAP {
-            pool.push(buf);
-        }
+        self.1.put_back(mem::take(&mut self.0));
     }
 }
 

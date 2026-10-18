@@ -35,6 +35,8 @@ pub struct FrameStore {
     pool_starts: AtomicUsize,
     #[cfg(test)]
     advised: Mutex<Vec<(u64, u64)>>,
+    #[cfg(test)]
+    failing_reads: AtomicUsize,
 }
 
 impl FrameStore {
@@ -59,6 +61,8 @@ impl FrameStore {
             pool_starts: AtomicUsize::new(0),
             #[cfg(test)]
             advised: Mutex::new(Vec::new()),
+            #[cfg(test)]
+            failing_reads: AtomicUsize::new(0),
         }
     }
 
@@ -133,6 +137,13 @@ impl FrameStore {
 
     /// Call from a blocking pool, never the executor.
     pub fn read_at_blocking(&self, buf: &mut [u8], offset: u64) -> Result<()> {
+        #[cfg(test)]
+        {
+            let fail = |n: usize| n.checked_sub(1);
+            if self.failing_reads.fetch_update(Ordering::SeqCst, Ordering::SeqCst, fail).is_ok() {
+                anyhow::bail!("read {} bytes at {offset}: failed by the test lever", buf.len());
+            }
+        }
         self.file
             .read_exact_at(buf, offset)
             .with_context(|| format!("read {} bytes at {offset}", buf.len()))
@@ -142,6 +153,12 @@ impl FrameStore {
     #[cfg(test)]
     pub(crate) fn force_short_reads(&mut self, cap: usize) {
         self.nowait_cap = Some(cap);
+    }
+
+    /// Fail the next `n` blocking reads, as a device error does.
+    #[cfg(test)]
+    pub(crate) fn fail_blocking_reads(&self, n: usize) {
+        self.failing_reads.store(n, Ordering::SeqCst);
     }
 
     /// Force a miss, as a filesystem refusing the flag does. Eviction is not a lever a test or
