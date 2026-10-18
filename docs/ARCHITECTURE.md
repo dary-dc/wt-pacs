@@ -7,8 +7,8 @@ page. Below it the transport is a seam — TypeScript, WASM or WebSocket — who
 measured and chosen, and what is open.
 
 **Status.** Built in `client/transport/` and `client/decode/` ([`client/README.md`](../client/README.md)); the lab's only client since 2026-10-03, when the harness's
-own page path was removed after the container campaign's last run on it (§The container campaign). `client/harness/index.html` is its self-check,
-`client/harness/cell.html` runs lab cells over it. Since 2026-10-09 the product has a page on it: the viewer,
+own page path was removed after the container campaign's last run on it (§The container campaign). `lab/harness/index.html` is its self-check,
+`lab/harness/cell.html` runs lab cells over it. Since 2026-10-09 the product has a page on it: the viewer,
 `client/viewer/`, served at `/` (§The viewer). Figures are a container's unless they say otherwise; none is a phone
 ([`rig-limits.md`](rig-limits.md) §7).
 
@@ -496,8 +496,8 @@ the downloader against a stalling fake decoder so contention is forced; both are
 | worker-safe clocks; transferable results | `workerSafe`, `transferable`; `client/scripts/check_worker_safe.sh` | the same: stamps across two worker boundaries non-zero and ordered, a delivered buffer movable. **Move-not-copy across the boundary is not page-observable** — a dropped transfer list arrives as a clone that still detaches, found by a mutant that passed |
 | an ask during a fill, served before the fill's queue | `ask-during-fill.html` against a real server: the ask is served, the fill ends — 28 of 120 arrive, then nothing | the same page: the ask is served and the fill completes without being asked again, no frame twice; dispatch `askBeatsQueuedFill`, `promoteBeatsQueuedFill`, `asksTheWireForAnOwedFrame`, `reissuesAfterAsk` |
 | `stats`; one dial serves later asks; re-dial after closure | `reportsStats`, `oneDialServesLaterAsks`, `redialsAfterClosure` | the same; `stats` answered on the page |
-| 8-bit multi-component, 16-bit unsigned, 16-bit signed | `parity.mjs`, signed against ground truth an independent decoder confirmed ([`decode/README.md`](decode/README.md) §Signed) | 8-bit 3-component byte-identical in `client/harness/index.html`; the others rest on the package, which sign-extends itself. **Not yet run behind the downloader on a signed series** |
-| every decoded frame byte-identical to `.sha256` | `parity.mjs`, `lab/decode-bench/` | `client/harness/index.html`, mutation-checked both ways: one perturbed sample turns every line to `MISMATCH`, every fifth frame dropped reports 9/12 |
+| 8-bit multi-component, 16-bit unsigned, 16-bit signed | `parity.mjs`, signed against ground truth an independent decoder confirmed ([`decode/README.md`](decode/README.md) §Signed) | 8-bit 3-component byte-identical in `lab/harness/index.html`; the others rest on the package, which sign-extends itself. **Not yet run behind the downloader on a signed series** |
+| every decoded frame byte-identical to `.sha256` | `parity.mjs`, `lab/decode-bench/` | `lab/harness/index.html`, mutation-checked both ways: one perturbed sample turns every line to `MISMATCH`, every fifth frame dropped reports 9/12 |
 | TS, WASM and WebSocket transports behind the same downloader | every clause against every transport; the gate requires the WASM package | `lab/scripts/downloader_both_clients.sh`: single ask byte-exact on TS and WASM, fill a tie (120 / 125 ms); WebSocket and the race in §What was built |
 
 Every clause was broken on purpose and seen to fail by name. A mutant that passes is a finding about
@@ -756,7 +756,7 @@ Five mutants each fail the check by name:
 * the paint placed one row low: worst |Δ| 220–242 against the reference.
 
 **It adds nothing to the fill.** Measured on the CT series: the viewer against total-time's page (the same
-downloader and decoders, no paint), both timed from navigation. The baseline is not `client/harness/cell.html`: it
+downloader and decoders, no paint), both timed from navigation. The baseline is not `lab/harness/cell.html`: it
 does not decode, so measured against it the viewer would be charged for decoding, not for itself. The
 total-time measurement's five links (queue row 23, TOTAL) at 1× and 4×, behind the relay, 12 rounds interleaved,
 headless Chromium 141 on 3 cores. All 36 480 delivered frames were exact and checked `true`.
@@ -789,7 +789,7 @@ through the relay. "po §" is a section of [`../lab/page-open/README.md`](../lab
 
 | lever | round trips | state | where |
 | --- | --- | --- | --- |
-| `preload` the config, `modulepreload` the shell and client, `preload` the worker graph | −3.1 / −5.1 / −6.2 to the session (TypeScript / WASM / downloader) | in `client/harness/cell.html` and the lab's `downloader.html`; not in `client/harness/index.html` (TypeScript and WASM figures: the harness pages, removed 2026-10-03) | po §The cuts, one at a time |
+| `preload` the config, `modulepreload` the shell and client, `preload` the worker graph | −3.1 / −5.1 / −6.2 to the session (TypeScript / WASM / downloader) | in `lab/harness/cell.html` and the lab's `downloader.html`; not in `lab/harness/index.html` (TypeScript and WASM figures: the harness pages, removed 2026-10-03) | po §The cuts, one at a time |
 | the server's SETTINGS at 0.5 RTT (early SETTINGS) | −1.0 off the dial, every cell | **on**, a build-time patch | §Early SETTINGS |
 | a handshake probe in every space | −1 when the server's first flight is lost | **on**, a build-time patch | §The losing phase, removed |
 | the opening ask in the session URL (the opening ask) | −1.06 to the first frame at 1×, −1.52 at 4× | **on** since 2026-10-02 | po §The push in a browser, at 4× |

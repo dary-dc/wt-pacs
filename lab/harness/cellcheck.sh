@@ -2,9 +2,9 @@
 # The harness pages headless against a release server on the c512 series: every cell delivers what it
 # asked (the refuse cell fails all of it) and the self-check decodes every frame byte-identical.
 # Cert, series and logs go under a temp dir, kept only on failure; nothing in the tree is touched.
-#   scripts/cellcheck.sh [c512.sbnd]   what it needs: README.md §Quick start
+#   lab/harness/cellcheck.sh [c512.sbnd]   what it needs: README.md §Quick start
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 source client/contract/browser_env.sh
 NO_BROWSER_HINT="README.md §Prerequisites"
@@ -14,6 +14,7 @@ require_transport_wasm
 [[ -f lab/fixtures/decode_c512/086.sha256 ]] || { echo "no c512 frames: lab/scripts/gen_htj2k_fixtures.sh c512" >&2; exit 2; }
 
 bash client/transport/ts/build.sh >/dev/null
+bash lab/client-telemetry/build.sh >/dev/null
 cargo build --release -q -p series-server -p pack-series
 BIN="${CARGO_TARGET_DIR:-target}/release"
 T="$(mktemp -d -t cellcheck.XXXXXX)"
@@ -41,5 +42,5 @@ done
 serving || { echo "the server did not start:" >&2; cat "$T/server.log" >&2; exit 1; }
 start_static "$T/static.log"
 
-BASE="http://127.0.0.1:$PORT" WT_URL="https://127.0.0.1:$WT_PORT/" CERT_SHA256="$CERT_HASH" node scripts/cellcheck.mjs
+BASE="http://127.0.0.1:$PORT" WT_URL="https://127.0.0.1:$WT_PORT/" CERT_SHA256="$CERT_HASH" node lab/harness/cellcheck.mjs
 touch "$T/ok"

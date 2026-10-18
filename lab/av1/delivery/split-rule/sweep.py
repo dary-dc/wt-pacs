@@ -26,7 +26,7 @@ WITHIN = 1.02
 def encode(build, src, k, preset, frames, out):
     t0 = time.monotonic()
     args = ["--frames", str(frames)] if frames else []
-    subprocess.run([sys.executable, HERE.parents[3] / "ingest/coded-frames/ingest.py", build, src, out, "--split", str(k), "--preset", preset,
+    subprocess.run([sys.executable, HERE.parents[3] / "lab/av1/tools/ingest_coded.py", build, src, out, "--split", str(k), "--preset", preset,
                     "--jobs", "1", *args], check=True, capture_output=True)
     return sum(p.stat().st_size for p in out.glob("*.av1")), time.monotonic() - t0
 

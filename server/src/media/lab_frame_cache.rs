@@ -1,6 +1,6 @@
 //! Lab only: the lab's `FrameCache`, one per process, in front of both readers. Its budget is
 //! `LAB_FRAME_CACHE_BYTES`; `LAB_FRAME_CACHE_ADMIT=session` admits on a second session's ask
-//! (B1s) rather than a second ask; `LAB_FRAME_CACHE_MUTATE=stale` hands back the previous
+//! rather than a second ask; `LAB_FRAME_CACHE_MUTATE=stale` hands back the previous
 //! frame's entry, for the exactness check to catch. `docs/adr/disk-access.md` §13.
 
 #[allow(dead_code)]

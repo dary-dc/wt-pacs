@@ -22,7 +22,7 @@ NO_WEBCODECS = "/client/contract/webcodecs-spy.js?mode=none"
 def ingest(build, src, out, codec, frames):
     if (out / "metadata.json").exists():
         return json.loads((out / "metadata.json").read_text())
-    args = [sys.executable, ROOT / "ingest/coded-frames/ingest.py", build, src, out, "--codec", codec, "--jobs", "3"]
+    args = [sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, src, out, "--codec", codec, "--jobs", "3"]
     if codec == "av1":
         args += ["--representation", "optimized", "--preset", "good:6"]
     subprocess.run([*map(str, args), *(["--frames", str(frames)] if frames else [])], check=True)

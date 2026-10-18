@@ -42,7 +42,7 @@ class Handler(SimpleHTTPRequestHandler):
             return str(self.transport or ROOT / "client" / "dev-transport.json")
         if path == "/harness" or path.startswith("/harness/"):
             rel = path[len("/harness") :].lstrip("/") or "index.html"
-            return super().translate_path("/client/harness/" + rel)
+            return super().translate_path("/lab/harness/" + rel)
         return super().translate_path(path)
 
     def send_head(self):

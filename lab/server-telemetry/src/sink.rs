@@ -182,7 +182,7 @@ fn absorb(batch: &Batch, row_file: &mut Option<RowFile>, live: &mut LiveSummary)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::record::tap::{FrameRecord, Record, Tap, LIVE};
+    use crate::tap::{FrameRecord, Record, Tap, LIVE};
 
     fn a_frame(frame_index: u32) -> Record {
         Record::Frame(FrameRecord {

@@ -22,7 +22,7 @@ phone ── https://PUBLIC_NAME:8443/?t=TOKEN ── the runner page, D0 → D1
 | `collector.py` | the host: the page and the client's code, the bundles, each arm's transport file and printed settings, the rows; all behind `DEVICES_TOKEN` |
 | `arms.json` | D2's four arms: name, UDP port, the server's flags |
 | `deploy.sh` | `up`, `fetch DIR`, `down` on the Oracle machine, from the local machine |
-| `make_bundles.sh` | each set as `SET.htj2k.sbnd` and `SET.av1.sbnd` through `ingest/coded-frames/ingest.py` |
+| `make_bundles.sh` | each set as `SET.htj2k.sbnd` and `SET.av1.sbnd` through `lab/av1/tools/ingest_coded.py` |
 | `dry_run.mjs` | the page through a deployed kit in headless Chromium, quick mode: exits 0 when every visit is exact |
 
 **Quick and full.** Quick is 3 rounds of D1 on `dbt10_ea1141` alone (the largest frames, all three decoders) and

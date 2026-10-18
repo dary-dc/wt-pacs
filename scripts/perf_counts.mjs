@@ -15,7 +15,7 @@ let server = null;
 // The group, not strace alone: a tracer killed leaves its tracee serving.
 process.on("exit", () => { if (server) process.kill(-server.pid, "SIGKILL"); rmSync(T, { recursive: true, force: true }); });
 
-execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series"], { cwd: ROOT, stdio: "inherit" });
+execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "-p", "pack-series", "--features", "series-server/lab-levers"], { cwd: ROOT, stdio: "inherit" });
 mkdirSync(`${T}/frames`);
 for (let i = 0; i < N; i++) writeFileSync(`${T}/frames/${String(i).padStart(3, "0")}.htj2k`, Buffer.alloc(100_000 + 1_000 * i, i));
 writeFileSync(`${T}/metadata.json`, JSON.stringify({ frameCount: N }));

@@ -8,7 +8,7 @@ interleaved rounds — docs/disk-layout/containers.md §Measured has the arms, t
     run.py packtime WORK ROUNDS SET ...   ingest packing, each packer end to end, into WORK/packtime.jsonl
     run.py trip     WORK SET ...      the reference tools against our files, and ours against theirs
 
-WORK/coded/SET/{htj2k,av1} is ingest's output (ingest/coded-frames/ingest.py).
+WORK/coded/SET/{htj2k,av1} is ingest's output (lab/av1/tools/ingest_coded.py).
 """
 import json
 import os

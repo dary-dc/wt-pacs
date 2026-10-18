@@ -137,7 +137,7 @@ downloader as it was before the row, beside `htj2k` (the tree's), and (row SEAM,
 
 **Row LOSSLINK** puts loss or jitter on top of each link and times an ask apart from the fill. The
 10-bit volume as HTJ2K (`VARIANTS=l2 make_frames.py`, its `htj2k`) and as the adopted optimized payload
-(`ingest/coded-frames/ingest.py --representation optimized --preset cpu0`, each `NNN.av1` linked in as
+(`lab/av1/tools/ingest_coded.py --representation optimized --preset cpu0`, each `NNN.av1` linked in as
 `NNN.opt.av1` and `variants.json` set to `{"htj2k": {}, "opt": {"ext": "opt.av1"}}`), then rounds 0–12 of
 
 ```bash
@@ -220,12 +220,12 @@ and row CC1 measured the two side by side ([`docs/transport/transport-conclusion
 
 **Row CCATTRIB** runs R1 of [`docs/transport/transport-conclusions.md`](../../../../docs/transport/transport-conclusions.md)
 §1 *The way out, surveyed*: BBR's clean cost with the initial windows swapped. The 10-bit volume's first 8 frames
-as the product's HTJ2K (`ingest/coded-frames/ingest.py BUILD lab/av1/data/dbt10_ea1141 OUT/htj2k --codec htj2k
+as the product's HTJ2K (`lab/av1/tools/ingest_coded.py BUILD lab/av1/data/dbt10_ea1141 OUT/htj2k --codec htj2k
 --frames 8`, linked as `NNN.htj2k`). `variants.json` names four variants: `htj2k` (`cubic-restart`, quinn's 12 000 B),
 `cr240k` (`"initialWindow": 240000`), `bbr` (`"congestion": "bbr"`, quinn's 240 000 B) and `bbr12k` (both). A
 variant's `initialWindow` goes to `--initial-window-bytes`, and a visit stops unless the server's `transport=` line
 names that window. `--cc-trace DIR` builds the server with `--features telemetry` and sets `WTPACS_CC_TRACE` for each visit's server
-(`server/src/transport/cc_trace.rs`), which writes the controller's window, pacing rate, in-flight bytes, bytes
+(`lab/server-telemetry/src/cc_trace.rs`), which writes the controller's window, pacing rate, in-flight bytes, bytes
 delivered and lost, srtt and BBR's mode once per batch of acknowledgements. Each round runs two invocations, in an
 order that alternates from round to round:
 

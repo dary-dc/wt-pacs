@@ -1,4 +1,4 @@
-/** FoD control messages, LE u32 length + JSON: docs/WIRE.md §FoD messages; also decoded by `client/record/parse.ts`. */
+/** FoD control messages, LE u32 length + JSON: docs/WIRE.md §FoD messages; also decoded by `lab/client-telemetry/parse.ts`. */
 
 export type FodMsg =
   | { op: "request_frame"; frame: number }

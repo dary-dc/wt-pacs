@@ -108,19 +108,14 @@ def main() -> int:
     if want_wasm and not pkg_js.is_file():
         subprocess.run([str(ROOT / "client/transport/wasm/build.sh")], check=True, cwd=ROOT)
 
-    # transport-ts dist/ is gitignored — build product (and telemetry) bundles when needed.
+    # transport-ts dist/ and the recorder's are gitignored — build them when needed.
     ts_js = ROOT / "client/transport/ts/dist/session.js"
-    ts_tel = ROOT / "client/transport/ts/dist/session-telemetry.js"
+    ts_tel = ROOT / "lab/client-telemetry/dist/session-telemetry.js"
     want_ts = args.harness in ("ts", "both")
-    need_ts = want_ts and (
-        not ts_js.is_file() or (args.telemetry and not ts_tel.is_file())
-    )
-    if need_ts:
-        subprocess.run(
-            ["bash", str(ROOT / "client/transport/ts/build.sh")],
-            check=True,
-            cwd=ROOT,
-        )
+    if want_ts and not ts_js.is_file():
+        subprocess.run(["bash", str(ROOT / "client/transport/ts/build.sh")], check=True, cwd=ROOT)
+    if want_ts and args.telemetry and not ts_tel.is_file():
+        subprocess.run(["bash", str(ROOT / "lab/client-telemetry/build.sh")], check=True, cwd=ROOT)
 
     # Prefer a local target dir inside the repo for predictability.
     env = os.environ.copy()

@@ -32,7 +32,7 @@ its low to settle, so no low is left in flight for the next payload.
 
 **Series and variants.** The 13- and 14-bit series of rows 2, 21 and 45: the CT (`ct_lidc`), the cone-beam
 (`xa_dynact16`), the two signed CTs (`ct_nlst`, `ct_crc`) and both projection systems (`dbtproj_ge`,
-`dbtproj_holo`), every frame. Payloads are `ingest/coded-frames/ingest.py --split K` at each (series, k)'s shipped
+`dbtproj_holo`), every frame. Payloads are `lab/av1/tools/ingest_coded.py --split K` at each (series, k)'s shipped
 preset, as rows 44 and 45 found it (`make_frames.py`'s table). `kK` is the payload split at k as the client
 decodes it today; `kKm` the same file with the flag, only where its top is over 10 bits (13 bits: k = 1,
 2; 14 bits: k = 2, 3); w10 is k = b − 10, every stream through WebCodecs.

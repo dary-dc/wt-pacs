@@ -140,7 +140,7 @@ def profile(build, set_dir, codec, preset, out_dir):
 
 def end_to_end(build, set_dir, codec, preset, out_dir):
     c0 = children()
-    RUN([sys.executable, ROOT / "ingest/coded-frames/ingest.py", build, set_dir, out_dir, "--codec", codec,
+    RUN([sys.executable, ROOT / "lab/av1/tools/ingest_coded.py", build, set_dir, out_dir, "--codec", codec,
          "--preset", preset, "--frames", str(FRAMES), "--jobs", "1"], check=True, capture_output=True)
     return children() - c0
 

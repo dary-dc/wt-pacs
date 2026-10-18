@@ -1,12 +1,12 @@
-//! Lab only: `cubic-restart` that skips the cut on a loss that met no queue — option 1 of
-//! `docs/transport/transport-conclusions.md` §1, *Beyond Cubic and BBR*.
+//! A controller that skips the cut on a loss that met no queue — option 1 of
+//! `docs/transport/transport-conclusions.md` §1, *Beyond Cubic and BBR*. `series-server --features lab-classify`
+//! wraps `cubic-restart` in it as `--congestion cubic-classify`.
 
-use crate::transport::restart::SlowStartRestartConfig;
+use quinn_proto::congestion::{Controller, ControllerFactory, ControllerMetrics};
 use quinn_proto::RttEstimator;
 use std::any::Any;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use wtransport::quinn::congestion::{Controller, ControllerFactory, ControllerMetrics, CubicConfig};
 
 /// RFC 9406's queue threshold: an eighth of the minimum RTT, at least 4 ms.
 fn queue_threshold(min_rtt: Duration) -> Duration {
@@ -29,6 +29,10 @@ impl LossClassify {
 
     fn met_no_queue(&self) -> bool {
         !self.min_rtt.is_zero() && self.rtt_latest < self.min_rtt + queue_threshold(self.min_rtt)
+    }
+
+    pub fn into_inner(self) -> Box<dyn Controller> {
+        self.inner
     }
 }
 
@@ -80,19 +84,19 @@ impl Controller for LossClassify {
 }
 
 pub struct LossClassifyConfig {
-    restart: Arc<SlowStartRestartConfig>,
+    inner: Arc<dyn ControllerFactory + Send + Sync>,
 }
 
 impl LossClassifyConfig {
-    pub fn new(cubic: Arc<CubicConfig>) -> Self {
-        Self { restart: Arc::new(SlowStartRestartConfig::new(cubic)) }
+    pub fn new(inner: Arc<dyn ControllerFactory + Send + Sync>) -> Self {
+        Self { inner }
     }
 }
 
 impl ControllerFactory for LossClassifyConfig {
     fn build(self: Arc<Self>, now: Instant, current_mtu: u16) -> Box<dyn Controller> {
         Box::new(LossClassify {
-            inner: Arc::clone(&self.restart).build(now, current_mtu),
+            inner: Arc::clone(&self.inner).build(now, current_mtu),
             rtt_latest: Duration::ZERO,
             min_rtt: Duration::ZERO,
         })
@@ -102,10 +106,11 @@ impl ControllerFactory for LossClassifyConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transport::restart::SlowStartRestart;
+    use quinn_proto::congestion::{Cubic, CubicConfig};
 
     const MIN_RTT: Duration = Duration::from_millis(80);
 
+    /// Over quinn's Cubic, which cuts on every loss it is handed.
     fn classify() -> LossClassify {
         let c = Arc::new(LossClassifyConfig::new(Arc::new(CubicConfig::default())));
         let built = c.build(Instant::now(), 1200).into_any().downcast::<LossClassify>().expect("a LossClassify");
@@ -131,7 +136,7 @@ mod tests {
         assert_eq!(window_after_loss(MIN_RTT, MIN_RTT + Duration::from_millis(9), false, 1200), initial());
     }
 
-    /// A loss behind a queue of q* or more is congestion and is passed to `cubic-restart`, which cuts.
+    /// A loss behind a queue of q* or more is congestion and is passed to the controller it wraps, which cuts.
     #[test]
     fn a_loss_behind_a_queue_cuts() {
         assert!(window_after_loss(MIN_RTT, MIN_RTT + Duration::from_millis(10), false, 1200) < initial());
@@ -166,9 +171,9 @@ mod tests {
         assert!(window_after_loss(Duration::ZERO, Duration::ZERO, false, 1200) < initial());
     }
 
-    /// The controller it wraps is `cubic-restart`, so the two arms differ in the classifier alone.
+    /// It wraps the controller its factory is given, and hands that one back.
     #[test]
-    fn it_wraps_cubic_restart() {
-        assert!(classify().inner.into_any().downcast::<SlowStartRestart>().is_ok());
+    fn it_wraps_the_controller_it_is_given() {
+        assert!(classify().into_inner().into_any().downcast::<Cubic>().is_ok());
     }
 }
