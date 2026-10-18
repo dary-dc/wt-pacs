@@ -796,6 +796,15 @@ threads against the pool's hundreds might start converting (the workstation's 1.
 semi-sequential ceiling was device-bound and may be the NVMe's own cache); `hybrid_lazyring`
 on the 4 vCPU sandbox or the GitHub runner; a second bare-metal host.
 
+**Known defects, not fixed**, each found by reading the code (2026-10-16 review), not reproduced:
+
+* A failed pool read in `TileReader` leaves its slot keyed to the span with an empty buffer; reading that span again
+  would panic in `Bytes::slice` (`server/src/media/read_path.rs:424`). Latent: a session ends on its first read error.
+* `ring.reap()?` drops completions already taken from the CQ when a later CQE in the batch errors, so a later wait on
+  that slot could park forever (`read_path.rs:438`). Latent for the same reason.
+* `FillReader`: a read-ahead abandoned with no next frame frees its buffer instead of returning it to the pool
+  (`read_path.rs:189`). Efficiency only.
+
 ### #7, built: park on the ring's own fd (rows 244, 250)
 
 *Proposed 2026-10-15 by row 244 (RINGPARK; [`merge-readiness.md`](../merge-readiness.md) §Second round, S19 and
