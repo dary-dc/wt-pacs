@@ -5,6 +5,25 @@ For whoever orchestrates this work next. It supersedes [`2026-10-18-handoff.md`]
 table is [`review-2026-10-16.md`](review-2026-10-16.md), one row per open PR or decision. The owner's direction is
 [`targets-2026-10.md`](targets-2026-10.md). Re-check everything below live before acting: branches move.
 
+## 0. Tomorrow's focus (Darian, 2026-10-18): metadata and the Turso integration
+
+The next point, ahead of the rest. Today the page fetches one JSON file, `/series/metadata` (`client/viewer/head.js:9`),
+served by the web host (nginx in the deploy, `server/dev-server.py` in development); the server reads no metadata.
+What is already decided or drafted, to build on rather than reopen:
+- [`docs/disk-layout/target.md`](../docs/disk-layout/target.md) on unified: no metadata in or beside the `.sbnd`;
+  metadata only in the per-study database (Turso), one copy, where it is queried; files at `<StudyUID>/<SeriesUID>.sbnd`.
+- [`docs/ingest/design.md`](../docs/ingest/design.md) §5 (d) on unified: one SQLite database per study, built at the
+  PACS from the parser's groups (owner, 2026-10-11, so bad data in one study never forces a shared rebuild); the
+  catalog compared (PostgreSQL recommended there, MySQL, the libSQL server) with a schema scope.
+- `docs/av1/queue.md` (unified) ~line 3236: the catalog choice and its consistency with the study databases, open.
+
+Open, for the session to lay out with him (purpose first, then options with what decides each, per §4 rule 2): who
+serves metadata (the web host from the database, or the server); libSQL embedded, the libSQL server or Turso, and the
+Rust crate for each and its maturity; the schema for what the viewer needs; how a study database is built, published
+and replaced; the catalog and its consistency; what the client fetches and when; how fixtures and the gate move off
+the JSON file. Start it as an interactive cloud session for Darian (like T1) that owns its PR; its brief must carry the
+PR route of §5.
+
 ## 1. The goal
 
 Darian (owner, GitHub `dary-dc`): unified (`claude/av1-unified-mainbase`) ready for `main`, which he merges himself;
