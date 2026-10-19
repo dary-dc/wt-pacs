@@ -606,6 +606,18 @@ OWN_HOST=1 RELAY_CPU=3 RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40
   NODE_PATH=$(npm root -g) taskset -c 0-2 node lab/page-open/run.mjs 12
 ```
 
+**Run 2, 2026-10-19, `3522788e`**, 17:02–17:09 UTC, the same container. **Saturated again: 39 of 72 visits `VOID`**
+(8, 16 and 15 of 24), the relay late on a core nothing else ran on, so the lateness is this host's, not the page's
+threads'. 4, 0 and 1 rounds paired: **the rule claims nothing.** 0 failed; all 144 visits bit-exact. Outside the rule:
+cold, `frame` 17.07 round trips with the file and 17.26 without, `fill` 19.85 and 19.93; warm, `frame` 11.09 and
+9.89, `fill` 13.75 and 12.55.
+
+**Verdict: not measured.** On this host the relay keeps time in about four visits of ten at any delay, and the claim
+rests on none of them. What the kept visits show, below the rule, is no cold difference past 0.43 round trips either
+way in two runs, and a warm page without the file earlier by 0.8–1.2 round trips to its first frame in both — the
+direction the file's one revalidation would predict, unconfirmed. The protocol stands for a host whose relay keeps
+time.
+
 ## What this rig does not decide
 
 The round trips are the container's userspace relay, not `netem` and not a real path; the
