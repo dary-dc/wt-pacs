@@ -347,8 +347,8 @@ the page pins through the file (Chromium given no trust, so only the pin dials) 
 dials its own host (Chromium trusting the certificate by its key, as a CA's would be) and must not have.
 `crafted.mjs` fails a plain link that fetches the file or dials anywhere but the HTML's port; `server_start_test.sh` a
 server that writes a file beside a supplied certificate, or a web start that renders the wrong page for its TLS. The
-open with and without the file: [`../lab/page-open/README.md`](../lab/page-open/README.md) §The page without the
-transport file.
+open with and without the file is *not measured*: this host's relay voided most visits in two runs
+([`../lab/page-open/README.md`](../lab/page-open/README.md) §The page without the transport file).
 
 ### The first fill
 

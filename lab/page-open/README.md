@@ -614,9 +614,8 @@ cold, `frame` 17.07 round trips with the file and 17.26 without, `fill` 19.85 an
 
 **Verdict: not measured.** On this host the relay keeps time in about four visits of ten at any delay, and the claim
 rests on none of them. What the kept visits show, below the rule, is no cold difference past 0.43 round trips either
-way in two runs, and a warm page without the file earlier by 0.8–1.2 round trips to its first frame in both — the
-direction the file's one revalidation would predict, unconfirmed. The protocol stands for a host whose relay keeps
-time.
+way in two runs, and a warm page without the file earlier by 0.8–1.2 round trips to its first frame in both,
+unconfirmed and not explained here. The protocol stands for a host whose relay keeps time.
 
 ## What this rig does not decide
 
