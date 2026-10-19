@@ -40,8 +40,8 @@ PR route of §5.
   an unknown network, but a better separation. His message is cut off in the run log after (7); ask him for the rest.
 - The session's own goal for him: **educate**, plain words, mechanism kept (rule 4 below).
 
-**To continue locally:** stop the cloud session first, so two sessions never work `claude/metadata-turso` at once (it
-answered his 15:04 message and had a check-in queued, `trig_015JFR7Lw1R8HHgzwm1Dcmbo`, 15:06 UTC). Its full brief is
+**To continue locally:** stop the cloud session first, so two sessions never work `claude/metadata-turso` at once (at
+15:05 it was still working on his 15:04 message; it had a check-in queued, `trig_015JFR7Lw1R8HHgzwm1Dcmbo`, 15:06 UTC). Its full brief is
 the routine's prompt (`RemoteTrigger get trig_01DmFa5f5aN5bQcyjtUvJziA`); the same rules hold, except that PRs go
 through `handoff/tools/` (§5). Then: `git fetch`, check out `claude/metadata-turso`, read `CLAUDE.md`, the draft, the
 PR #113 thread and the cloud session's last reply (`RemoteTrigger get_run_log cse_018FHUo5T2MwfpS8kVRK23MW`), and answer
