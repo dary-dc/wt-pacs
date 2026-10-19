@@ -24,9 +24,31 @@ and replaced; the catalog and its consistency; what the client fetches and when;
 the JSON file. Start it as an interactive cloud session for Darian (like T1) that owns its PR; its brief must carry the
 PR route of §5.
 
-**Started 2026-10-19 14:08 UTC:** https://claude.ai/code/session_018FHUo5T2MwfpS8kVRK23MW (`trig_01DmFa5f5aN5bQcyjtUvJziA`,
-branch `claude/metadata-turso`, draft PR into unified via the MCP tool). Its first step is a purpose document posted in
-chat, then it waits for Darian; it owns the thread like T1, merging stays with him.
+**State on 2026-10-19 ~15:10 UTC** (the thread is moving to a fresh local session; this orchestrator session ends):
+- The cloud design session https://claude.ai/code/session_018FHUo5T2MwfpS8kVRK23MW (`trig_01DmFa5f5aN5bQcyjtUvJziA`)
+  wrote the purpose document `docs/ingest/metadata-draft.md` on `claude/metadata-turso` (`1c91704`) and opened **draft
+  PR #113** into unified (CI green). Its leanings, none measured: the Rust server serves metadata over HTTP through
+  nginx; the page names study and series by UID. The bar it quotes (PORD, measured): the transport file arrived first in
+  112/112 visits with 120 KB of metadata, which delayed the connection by 7 ms at 80 ms RTT, 29 ms at 160 ms.
+- **Darian's first feedback (15:04 UTC, in that session), to be answered, explaining as you go:** (1) nginx is not a
+  reverse proxy for the WebTransport server, so why proxy metadata through it; (2) the SQLite files and the pixels
+  should live on the same server so there is no network request: is that realistic, and does it rule out the networked
+  options; (3) he needs to understand the database's output (what the viewer gets out of it): a main goal, since that
+  is where he can contribute; (4)(5) he does not see the relevance of build/publish/replace and the catalog yet;
+  (6) the page fetches only what it needs, growing as client features grow; (7) the database is built on the parsing
+  and packing machine, in the PCS ("PACS without A", https://github.com/opendicom/DECK_WebTransport): more bytes over
+  an unknown network, but a better separation. His message is cut off in the run log after (7); ask him for the rest.
+- The session's own goal for him: **educate**, plain words, mechanism kept (rule 4 below).
+
+**To continue locally:** stop the cloud session first, so two sessions never work `claude/metadata-turso` at once (it
+answered his 15:04 message and had a check-in queued, `trig_015JFR7Lw1R8HHgzwm1Dcmbo`, 15:06 UTC). Its full brief is
+the routine's prompt (`RemoteTrigger get trig_01DmFa5f5aN5bQcyjtUvJziA`); the same rules hold, except that PRs go
+through `handoff/tools/` (§5). Then: `git fetch`, check out `claude/metadata-turso`, read `CLAUDE.md`, the draft, the
+PR #113 thread and the cloud session's last reply (`RemoteTrigger get_run_log cse_018FHUo5T2MwfpS8kVRK23MW`), and answer
+the seven points above.
+
+**Also open on 2026-10-19:** D4 not rerun yet (no new report in `wt-pacs-d4`, §3); S1 reviews fire Tuesday (§3).
+`claude/wip-278-WASMIMAGE` deleted (merged by #99).
 
 ## 1. The goal
 
