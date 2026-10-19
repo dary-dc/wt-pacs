@@ -76,7 +76,12 @@ async function host(sbnd, name) {
   children.push(http);
   const [, p] = await started(http, /port=(\d+)/);
   const requests = [];
-  http.stdout.on("data", (d) => requests.push(...String(d).split("\n").filter((l) => l.startsWith("GET "))));
+  let partial = "";
+  http.stdout.on("data", (d) => {
+    const lines = (partial + d).split("\n");
+    partial = lines.pop();
+    requests.push(...lines.filter((l) => l.startsWith("GET ")));
+  });
   return { url: `http://127.0.0.1:${p}/`, requests };
 }
 

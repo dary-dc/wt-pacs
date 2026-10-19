@@ -4,6 +4,7 @@
 import argparse
 import io
 import json
+import os
 import subprocess
 import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -51,7 +52,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def send_head(self):
         if self.log_requests:
-            print(f"GET {self.path}", flush=True)
+            # One write(2) a line, atomic on a pipe: print's two writes interleave across the server's threads.
+            os.write(sys.stdout.fileno(), f"GET {self.path}\n".encode())
         if unquote(self.path.split("?", 1)[0]) in VIEWER:
             return self.send_page()
         path = Path(self.translate_path(self.path))
