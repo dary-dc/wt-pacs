@@ -103,6 +103,10 @@ at the decoder's start, 1.0 and 3.0 of them go.
 | b. from the page's address, `?codec=` beside the UIDs | whoever links the page (a worklist) writes it | the linker must know the codec; the metadata can then come by either path |
 | c. from the server, after the connection | path B alone | the round trips measured above |
 | d. load every decoder | — | refused: the client loads only what it needs |
+| e. from the series file's header | the `.sbnd` header names the codec ([`../disk-layout/target.md`](../disk-layout/target.md) §The header); the server sends it first in the session | after the connection, as c, but the codec is written once |
+
+**Open, the owner (2026-10-19):** whether a worklist should know the codec at all, and whether the codec should be
+written in two places (the `.sbnd` header and the metadata) or read only from the file (e). Not decided.
 
 * **What decides it:** one program reading the study's files (B) against the metadata before the connection (A); with
   b, B no longer costs the decoder's round trips.
@@ -111,29 +115,99 @@ at the decoder's start, 1.0 and 3.0 of them go.
 
 ### 2. How the parser's groups are stored
 
-The parser writes each group (exam, series, instance, private) as one run of records
-([`contract.md`](contract.md) §Group files), named by its BLAKE3. A study's groups are kilobytes
-(§Sizes there). The question is the shape the PACS serves them from.
+The parser writes each group (exam, series, instance, private) as one run of records, `[1 B key length][key][4 B
+value length][value]` ([`contract.md`](contract.md) §Group files). A study's groups are kilobytes
+([`contract.md`](contract.md) §Sizes). The question is the shape the PACS reads them from.
 
-| | A. The group files as written | B. Groups as blobs in SQLite, with columns taken out | C. One row per attribute (DECK's key-value) | D. A pattern search over the blobs |
+**One example through every option:** the CT instance in the parser's `doc/PACS/db/deck.db`, whose instance group
+holds 45 attributes, among them (0020,0013) instance number `1 `, (0028,0004) `MONOCHROME2 ` and (0028,1052) rescale
+intercept `-1024 `. In that database the keys carry DECK's 8-byte prefix; here is the intercept's record as stored:
+
+```text
+10 | 20 80 01 00 80 01 00 00 | 00 28 10 52 | 44 53 | 00 00 | 06 00 00 00 | 2D 31 30 32 34 20
+KL   prefix sSSiIIFF          tag 0028,1052  "DS"    charset  VL = 6        "-1024 "
+```
+
+The page needs, per instance of the series: photometric, rescale and window, and the instance number for the order.
+
+**A. The group files as written.** The parser's directory, untouched:
+
+```text
+<D>/<E>/--.024fdf3e…                     the exam group, 15 records
+<D>/<E>/<S>/---.3b25bd8a…                the series group, 19 records, 599 B
+<D>/<E>/<S>/<I1>/----.0f2469da…          instance 1, 45 records
+<D>/<E>/<S>/<I2>/----.…                  instance 2, …
+```
+
+The read: open the series file and every instance file, walk each one's records, keep the tags the page needs. A
+2 000-instance CT is 2 001 files opened per page open.
+
+**B. Groups whole in SQLite, plus columns copied out of them.** The parser's `deck.db` shape, trimmed:
+
+```sql
+CREATE TABLE instance (iuid TEXT PRIMARY KEY, suid TEXT, number INTEGER, photometric TEXT,
+                       slope REAL, intercept REAL, grp BLOB, blake3 BLOB);
+-- one row:  'HB494Az5…', 'HB494Az5H3…', 1, 'MONOCHROME2', 1.0, -1024.0, <the 1 427 B group>, 0f2469da…
+SELECT number, photometric, slope, intercept FROM instance WHERE suid = ? ORDER BY number;
+```
+
+The columns hold values that are also inside `grp`, copied out at build time so the read needs no parsing. They are
+derived, like a book's index: the blob stays the truth, and the columns can be thrown away and rebuilt from it. A new
+client need is a new column, filled again from the blobs of every study.
+
+**C. One row per attribute.** DECK's key-value table (`doc/DECK/databases/README.md`):
+
+```sql
+CREATE TABLE kv (key BLOB PRIMARY KEY, value BLOB) WITHOUT ROWID;
+-- one row per record:  x'2080010080010000 0028105244530000', '-1024 '
+SELECT key, value FROM kv WHERE key >= :instance || x'00280000' AND key < :instance || x'00290000';
+```
+
+Keys sort by series, instance, then tag, so the page's tags of one instance (all in group 0028) are one contiguous
+range, read in one step through the table's B-tree; a series is one such range per instance. Every attribute is
+addressable, so a new client need is a new key list, with nothing rebuilt.
+
+**D. A key file searched directly, with the values apart.** No database engine: the PCS writes two files per study,
+the keys sorted with each value's offset and length, and the values back to back.
+
+```text
+keys.bin    [key 16 B][offset u32][length u32] …  sorted, fixed width
+values.bin  "1 " "MONOCHROME2 " "-1024 " …
+```
+
+The read: a binary search in `keys.bin` (memory-mapped) finds the instance's first key, the following entries are its
+attributes in tag order, and only the matching values are read from `values.bin`. The keys never mix with values or
+lengths, so a search touches keys alone. Because instance numbers and tags increase, the position of a key can even be
+estimated before searching (interpolation search). It is what C does inside SQLite — a sorted structure searched by
+key — without SQL, without the B-tree's pages, and without the engine.
+
+| | A | B | C | D |
 | --- | --- | --- | --- | --- |
-| what is stored | the parser's directory, untouched | each group whole, plus a column for each attribute that is queried or served | `(key BLOB PRIMARY KEY, value) WITHOUT ROWID`, DECK's ordered keys (`doc/DECK/databases`) | B's blobs, nothing taken out |
-| the viewer's read | open and parse every instance's group | read the columns | a key-range read per instance, picking the tags | scan the series' blobs for the tags |
-| a new client need | parse more | a new column, so a rebuild from the blobs | nothing: every attribute is already a row | a new pattern |
-| the BLAKE3 check | per file, as written | per blob, as written | lost unless the group is put back together | per blob |
-| the parser's own shape | its directory output | `doc/PACS/db/deck.db` | `memorysqlite` and its databases README | none |
+| a page open of a 2 000-instance series | 2 001 file opens and parses | one indexed query | 2 000 key ranges in one B-tree | 2 000 ranges by binary search |
+| a new client need | parse more | a new column, rebuilt everywhere | nothing | nothing |
+| what the PACS writes and maintains | nothing | SQL schema | SQL schema | the format, its writer, its reader, its checks |
+| inspect with standard tools | yes, files | `sqlite3` | `sqlite3` | our own tool |
+| the parser's own shape | its directory output | `deck.db` | `memorysqlite`, the databases README | none |
 
-* **What decides it:** what is read most. The page reads a dozen attributes for every instance of one series; a CT is
-  2 000 instances. A shape that reads those directly (B's columns) does the least work per page open. A shape that
-  stores every attribute addressably (C) makes the next client need free. SQLite has no regular expressions built in
-  (D would need a function from the server); a scan of a study's kilobytes is cheap, of 2 000 groups unknown.
-* **Leaning:** B, unmeasured. The blobs keep the parser's bytes and their BLAKE3 checkable, and the columns are an index
-  derived from them, rebuilt when a need is added. It is also the parser's own `deck.db` shape.
-* **What would decide it with numbers:** a 2 000-instance CT series from the parser's groups, stored as A, B and C:
-  the time to build the viewer's document and the database's size. SQLite's "35 % Faster Than The Filesystem" page measured
+* **Speed, reasoned, not measured:** for one study all four do microseconds of work once the data is in memory, against
+  milliseconds of network per page open. D does the least per lookup (no SQL to parse, no page structure); C and B pay
+  SQLite's statement and page overhead, which prepared statements reduce; A pays a file open per instance. Where the
+  difference would show is server CPU at many sessions, which is what a measurement would size.
+* **What decides it:** whether a custom format's speed is worth owning its writer, reader, checks and tools (D), against
+  SQLite doing that (C); and whether every attribute must be addressable (C, D) or only the page's (B).
+* **What would decide it with numbers:** a 2 000-instance CT series built from the parser's groups, stored as A–D: the
+  time to build the page's metadata and each store's size. SQLite's "35 % Faster Than The Filesystem" page measured
   100 000 blobs of ~10 KB read 35 % faster from one database than from files (about 5× on Windows 10); its numbers,
   not ours.
 * **Switching later:** every shape is rebuilt from the groups, so a switch is a rebuild at the PCS, not lost data.
+
+**Integrity under C and D.** The parser's BLAKE3 covers a whole group. C and D keep it checkable: the group's bytes are
+its records in key order, so the PACS writes them back to back and hashes them on arrival — the same bytes, the same
+BLAKE3 — then stores the rows. That proves the content equals what the parser wrote. A hash of the whole database
+file is cheap (BLAKE3 runs at gigabytes a second; design.md §6 puts a 10 KB group at ≈ 1.5 µs) but proves only that the
+file arrived as it left the PCS: the same rows can be stored as different file bytes (page layout, free pages, the
+SQLite version), so it cannot be compared with anything the parser computed. Both have a use: the file's hash for the
+transfer, the groups' for the content, and SQLite's `PRAGMA integrity_check` for the file's structure.
 
 ### 3. Which embedded engine
 
@@ -188,7 +262,7 @@ The principle is decided: only what the page needs now. What remains open:
 ## What the owner decides, in order
 
 1. How the page gets the metadata and the codec (§1).
-2. The groups' storage shape (§2), after its measurement if wanted.
+2. The groups' storage shape (§2), after its measurement if wanted; the codec's place (§1) is open with it.
 3. The engine (§3).
 4. The unit the page fetches (§4).
 5. Fixtures as JSON input or a committed `.db` (§5).
