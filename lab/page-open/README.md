@@ -18,8 +18,8 @@ HOST=h2 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3   # nginx over TLS
 `run.mjs` takes `RTTS=` (default `0,40,80`), `STAGES=` (the first-byte ladder's rungs in place of
 the default variants, cold only), `THROTTLE=N` (every browser thread N× slower,
 [`../scripts/cpu_throttle.mjs`](../scripts/cpu_throttle.mjs)), `RELAY_ARGS=` (shapes each relay
-beyond its delay), `ONLY=`, `SERVERS=`, `NETLOG=`, `ROWS=`, `PORT_BASE=` and `OWN_HOST=` (§The page without the
-transport file). `HOST=dns` runs as root.
+beyond its delay), `ONLY=`, `SERVERS=`, `NETLOG=`, `ROWS=`, `PORT_BASE=`, `OWN_HOST=` and `RELAY_CPU=` (§The page
+without the transport file). `HOST=dns` runs as root.
 
 A HOST run trusts its certificate through an NSS store of the browser's own (`certutil`, from
 libnss3-tools), not `--ignore-certificate-errors`. Chrome caches nothing whose certificate had
@@ -590,6 +590,21 @@ one sign in at least 80 % of the rounds kept and at least 8 of them; the same th
 left with fewer than 8 paired rounds. Nothing is claimed for a link faster than 100 Mbit, a delay under 40 ms, gzip,
 HTTP/2, the image, a device, or a CA-issued certificate, whose chain the browser verifies where this rig's trust by
 key does not.
+
+**Run 1, 2026-10-19, `cf75ba64`**, 16:54–17:01 UTC, a 4-core cloud container, nothing else running. **The host
+saturated: 45 of 72 visits' relays `VOID`** (16, 12 and 17 of 24 at 40, 80 and 160 ms), so 2, 3 and 0 rounds are
+paired and **the rule claims nothing**. 0 failed; all 144 visits bit-exact, every frame. Outside the rule, from the
+medians of the visits kept: cold, `frame` 17.08 round trips with the file and 16.95 without, `fill` 19.25 and 19.68;
+warm, `frame` 10.71 and 9.95, `fill` 13.71 and 12.55; the file itself landed 3.9 round trips in, cold and warm.
+
+**Run 2, registered after run 1 and before it ran.** The same, with `RELAY_CPU=3`: each relay alone on core 3, which
+the browser, the server and the static host (`taskset -c 0-2`) never take, so the decoders cannot preempt it. Same
+rule, same thresholds.
+
+```bash
+OWN_HOST=1 RELAY_CPU=3 RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 ROWS=own2.json \
+  NODE_PATH=$(npm root -g) taskset -c 0-2 node lab/page-open/run.mjs 12
+```
 
 ## What this rig does not decide
 

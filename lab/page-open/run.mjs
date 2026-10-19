@@ -12,6 +12,7 @@
  * and prints how often b beat a; ONLY=variant,… keeps those variants; PORT_BASE=N takes ports from N up;
  * NETLOG=DIR keeps Chrome's net log per visit; ROWS=FILE keeps every visit's milestones.
  * OWN_HOST=1 runs the product page reading the transport file against the same page dialling its own host.
+ * RELAY_CPU=N runs every relay on core N alone, out of the reach of the browser's threads.
  * HOST=dns runs as root: it binds 443 and 53 and gives the browser its own resolv.conf.
  */
 import fs from "node:fs";
@@ -325,7 +326,9 @@ async function relaysUp(rtt, tag) {
   // Real-time, so a fill's decoders on every core do not preempt the instrument.
   const relay = (args, name) => {
     logs.push(path.join(T, `${name}-${tag}.log`));
-    return start("chrt", ["-f", "50", "python3", ...args], fs.openSync(logs.at(-1), "a"));
+    const rt = ["chrt", "-f", "50", "python3", ...args];
+    const [cmd, ...rest] = process.env.RELAY_CPU ? ["taskset", "-c", process.env.RELAY_CPU, ...rt] : rt;
+    return start(cmd, rest, fs.openSync(logs.at(-1), "a"));
   };
   const procs = SERVERS.map((s, i) => relay([
     "lab/scripts/link_impair.py", "--self-timing",
