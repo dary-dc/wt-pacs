@@ -139,6 +139,43 @@ differ (design.md §10 lists that gap).
 
 A study's groups are kilobytes against megabytes of frames.
 
+### Its outputs, and which this repository reads
+
+The parser builds nine programs (its `CMakeLists.txt`). Those that bear on the metadata's store were built by hand and
+run; the rest are named with why they were not.
+
+| Program | What it writes | State at `f36230b` |
+| --- | --- | --- |
+| `ESIPFfiled` | the directory output above | builds and runs |
+| `KVserialized` | one key-value stream per instance (below) | builds and runs |
+| `ESIPFserialized` | the groups in sequence in one file, `ESIPF.bin` | does not link: `iconAttribute` undefined (`src/capi/uapi.c` calls it; only `ESIPFfiled` defines it) |
+| `dicm2decksqlite` | the SQLite output (below) | does not build |
+| `dicmhtj2k` | frames coded in HTJ2K | not run: frames are coded by the Rust ingest ([`design.md`](design.md) §2) |
+| `ESIPbasetags`, `canonical`, `utf8dump`, `dicm2cda` | the base tags; one canonical DICOM file; a text dump; an encapsulated CDA | not run: no metadata store reads them |
+
+### The key-value stream (`KVserialized`)
+
+One run per instance writes `KVserialized.bin` in the working directory: every attribute of the instance, from
+(0002,0002) on, as the records of §Group files, in ascending key order, with no group split and no DECK prefix — the
+instance is the file. Sequence and item delimiters are dropped; an attribute inside a sequence has a 16-byte key
+(dscd's CDA). The pixel data (7FE0,0010) is one record holding every frame. Measured on the test files:
+
+| File | Bytes | Records | Pixel data |
+| --- | ---: | ---: | ---: |
+| NM1 | 527 484 | 152 | 524 288 |
+| US1 | 922 787 | 53 | 921 600 |
+| VL1–VL6 | 1 103 253–1 103 265 | 45 | 1 102 248 |
+| XA | 2 098 062 | 40 | 2 097 152 |
+| arabic, french, greek, hebrew, russian | 263 005–263 015 | 39 | 262 144 |
+| dscd | 35 824 | 59 | — |
+
+* **Its RGB pixel data is whole** (US1 921 600 B), where `ESIPFfiled`'s frame file is short (§Findings).
+* **Its README says the list ends with one byte, 1 for complete**; no file written here ends with it: each parses to
+  its last record with nothing after.
+* **It is the raw material of a key-ordered store**: prefixing each record's key with the instance's DECK prefix and
+  merging the instances' streams gives a study's rows already sorted
+  ([`metadata-draft.md`](metadata-draft.md) §2, C and D).
+
 ### The SQLite output
 
 Three shapes, and none written by a build at `f36230b`:
@@ -168,5 +205,7 @@ directory output drops the prefix: its path plays that role, and its keys start 
 * **RGB frame files are short.** US1's pixel data is 921 600 B (640 × 480 × 3) and its frame file 258 048 B; VL1's is
   1 102 248 B and its frame file 345 000 B. MONOCHROME frames are full. The cause was not traced.
 * **The CDA name test reads the first byte plus `c`**, not byte `c`: `*data.Vp+c == 'c'` in `cdaAttribute`.
+* **`ESIPFserialized` does not link:** `iconAttribute` is undefined.
+* **`KVserialized` writes no end byte**, though its README says the list ends with one.
 * **`dicm2decksqlite` does not build:** its target links `dicmlib,` (with the comma) and `blake3lib`, which is not
   defined, and `memorysqlite/capi.c` includes `../../thirdparty/blake3/blake3.h`, a path that does not exist.
