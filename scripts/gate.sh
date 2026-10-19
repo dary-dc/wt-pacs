@@ -97,7 +97,7 @@ run 1 node client/paint/voi.test.mjs
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
 
-step "client: the page's HTML preloads the TS client, ahead of the transport file (docs/CLIENTS.md §Choosing the client)"
+step "client: the page's HTML names the TS client and preloads it (docs/CLIENTS.md §Choosing the client)"
 run 1 grep -F '<link rel="preload" href="/client/transport/ts/dist/session.js" as="script" crossorigin>' client/viewer/index.html
 
 step "client: transport contract (every implementation, and the race)"

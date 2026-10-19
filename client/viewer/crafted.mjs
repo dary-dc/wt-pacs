@@ -1,14 +1,17 @@
 /**
  * A crafted link to the product's page is refused: each lab parameter, opened on a host that does not serve lab/
  * as the web image does not, stops the page before it fetches, imports or dials what the link names. On a host that
- * serves lab/ the same parameters are honoured, which shows the test would see them. A transport file naming a client
- * the page does not know is refused by name, before the WASM client's code is fetched or anything dialled.
+ * serves lab/ the same parameters are honoured, which shows the test would see them. A plain link dials the page's own host
+ * on the port its HTML names and fetches no transport file. A page naming a client it does not know is refused by name,
+ * before the WASM client's code is fetched or anything dialled.
  * client/README.md §The viewer
  *
  *   NODE_PATH=$(npm root -g) node client/viewer/crafted.mjs
  */
+import { execFileSync } from "node:child_process";
 import { createSocket } from "node:dgram";
 import { createServer } from "node:http";
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -27,20 +30,21 @@ async function listener() {
 const honest = await listener();
 const crafted = await listener();
 
-/** The image's shape: the page, client/, the metadata and the transport file; lab/ only when `serveLab`. */
+/** The image's shape with a trusted certificate: the page, client/ and the metadata; lab/ only when `serveLab`. */
 const requests = [];
 let serveLab = false;
-let client;
+let client = "ts";
+// page.sh renders a known client alone, so an unknown one is written in by hand.
+const page = () => String(execFileSync(path.join(ROOT, "client/viewer/page.sh"), ["--wt-port", String(honest.address().port)],
+  { input: readFileSync(path.join(ROOT, "client/viewer/index.html")) })).replace('data-client="ts"', `data-client="${client}"`);
 const host = createServer(async (req, res) => {
   const url = new URL(req.url, "http://x").pathname;
   requests.push(url);
   const headers = { "Cross-Origin-Opener-Policy": "same-origin", "Cross-Origin-Embedder-Policy": "require-corp", "Cross-Origin-Resource-Policy": "same-origin" };
   let body = null;
   if (url === "/series/metadata") body = JSON.stringify({ frameCount: 2, codec: "htj2k" });
-  else if (url === "/wt/dev-transport.json") body = JSON.stringify({ wt_url: `https://127.0.0.1:${honest.address().port}/`, cert_sha256: "0".repeat(64), client });
-  else if (url.startsWith("/client/") || (serveLab && url.startsWith("/lab/")) || url === "/") {
-    body = await readFile(path.join(ROOT, url === "/" ? "client/viewer/index.html" : url)).catch(() => null);
-  }
+  else if (url === "/") body = page();
+  else if (url.startsWith("/client/") || (serveLab && url.startsWith("/lab/"))) body = await readFile(path.join(ROOT, url)).catch(() => null);
   if (body === null) return res.writeHead(404, headers).end();
   res.writeHead(200, { ...headers, "Content-Type": TYPES[path.extname(url)] ?? (url === "/" ? "text/html" : "application/json") }).end(body);
 });
@@ -75,13 +79,13 @@ async function open(query) {
   // A dial, once the page has passed the point where it would refuse, follows within a few ms; a second is ample.
   await new Promise((r) => setTimeout(r, 1000));
   const seen = { status: await tab.textContent("#status"), fetched: requests.filter((r) => r.startsWith("/crafted/")), honest: honest.dialled, crafted: crafted.dialled,
-    wasm: requests.filter((r) => r.startsWith("/client/transport/wasm/")) };
+    wasm: requests.filter((r) => r.startsWith("/client/transport/wasm/")), file: requests.includes("/wt/dev-transport.json") };
   await tab.close();
   return seen;
 }
 
 const plain = await open({});
-if (!plain.honest || plain.crafted) failures.push(`a plain link did not dial the transport file's URL alone: ${JSON.stringify(plain)}`);
+if (!plain.honest || plain.crafted || plain.file) failures.push(`a plain link did not dial its own host alone, with no transport file: ${JSON.stringify(plain)}`);
 
 for (const [name, query] of Object.entries(LINKS)) {
   const r = await open(query);
@@ -94,10 +98,10 @@ for (const name of ["rust", "toString"]) {
   client = name;
   const r = await open({});
   const ok = r.status.includes(`refused: client "${name}"`) && !r.wasm.length && !r.honest && !r.crafted;
-  console.log(`${ok ? "ok  " : "FAIL"} a transport file naming client "${name}": ${JSON.stringify(r)}`);
+  console.log(`${ok ? "ok  " : "FAIL"} a page naming client "${name}": ${JSON.stringify(r)}`);
   if (!ok) failures.push(`client "${name}" was not refused by name with nothing loaded`);
 }
-client = undefined;
+client = "ts";
 
 serveLab = true;
 for (const name of ["wt", "metadata"]) {
@@ -112,5 +116,5 @@ host.close();
 honest.close();
 crafted.close();
 for (const f of failures) console.log(`FAIL: ${f}`);
-console.log(failures.length ? `crafted links: ${failures.length} failing` : `crafted links: ${Object.keys(LINKS).length} refused on the product's host, honoured where lab/ is served; 2 unknown clients refused`);
+console.log(failures.length ? `crafted links: ${failures.length} failing` : `crafted links: a plain one dials its own host, reading no transport file; ${Object.keys(LINKS).length} refused on the product's host, honoured where lab/ is served; 2 unknown clients refused`);
 process.exit(failures.length ? 1 : 0);
