@@ -189,16 +189,47 @@ key — without SQL, without the B-tree's pages, and without the engine.
 | inspect with standard tools | yes, files | `sqlite3` | `sqlite3` | our own tool |
 | the parser's own shape | its directory output | `deck.db` | `memorysqlite`, the databases README | none |
 
-* **Speed, reasoned, not measured:** for one study all four do microseconds of work once the data is in memory, against
-  milliseconds of network per page open. D does the least per lookup (no SQL to parse, no page structure); C and B pay
-  SQLite's statement and page overhead, which prepared statements reduce; A pays a file open per instance. Where the
-  difference would show is server CPU at many sessions, which is what a measurement would size.
 * **What decides it:** whether a custom format's speed is worth owning its writer, reader, checks and tools (D), against
   SQLite doing that (C); and whether every attribute must be addressable (C, D) or only the page's (B).
-* **What would decide it with numbers:** a 2 000-instance CT series built from the parser's groups, stored as A–D: the
-  time to build the page's metadata and each store's size. SQLite's "35 % Faster Than The Filesystem" page measured
-  100 000 blobs of ~10 KB read 35 % faster from one database than from files (about 5× on Windows 10); its numbers,
-  not ours.
+
+**Measured, 2026-10-19** ([`../../lab/metadata-store`](../../lab/metadata-store)): the page's read from each store, built
+from the same groups, every read checked to hand back the same values first and C checked to give back every group
+byte for byte. A series of N instances repeats the parser's CT instance group (45 attributes, 1 067 B) with its own UID,
+number and position. Median µs over 300 rounds, the variants interleaved; a second run agreed within 5 %. One thread on
+a 4-vCPU Xeon at 2.80 GHz, every file in the page cache: nothing here says what a cold disk or many sessions at once
+cost.
+
+| store, read | 4 instances | 200 | 2 000 |
+| --- | ---: | ---: | ---: |
+| A files (opens every file) | 53 | 2 895 | 29 806 |
+| B columns, opened per read | 93 | 513 | 3 113 |
+| B columns, held open | 7.4 | 150 | 2 602 |
+| C rows, scan of the series, held | 24 | 1 208 | 12 550 |
+| C rows, SQLite filtering the tags, held | 36 | 1 650 | 17 005 |
+| C rows, seek per instance, held | 54 | 2 783 | 29 668 |
+| D keys, scan, opened per read | 25 | 176 | 899 |
+| D keys, scan, held | 0.9 | 51 | 646 |
+| D keys, seek per instance, held | 3.0 | 184 | 1 949 |
+
+| on disk | 4 instances | 2 000 |
+| --- | ---: | ---: |
+| A | 4 723 B in 5 files, 36 864 allocated | 2 151 799 B in 2 001 files, 16 388 096 allocated |
+| B | 24 576 | 2 912 256 |
+| C | 16 384 | 3 395 584 |
+| D | 6 912 | 3 142 008 |
+
+* **D's scan is the fastest read at every size:** 0.65 ms for 2 000 instances held, 4.0× B, 19× C, 46× A.
+* **Its speed comes from the layout, not from skipping.** Seeking to each instance's page tags lost to scanning in both
+  C (2.4×) and D (3.0×): a group is 45 attributes, so walking them costs less than three binary searches (D) or two
+  SQLite statements, about 15 µs per instance (C). Keys apart from values, fixed width and no engine is what wins. A
+  group much larger than 45 attributes (the 6 799 B private group of the same CT) could move that balance; not measured.
+* **Letting SQLite filter the tags was slower than handing every row to the reader** (17.0 against 12.6 ms at 2 000).
+* **Against the network:** at 2 000 instances A's 30 ms and C's 12.6 ms are a visible part of a 10–200 ms round trip;
+  B's 2.6 ms and D's 0.65 ms are not.
+* **Size:** B, C and D are within 17 % of each other. A's 2 001 small files take 7.6× their bytes on disk in 4 KB blocks.
+* **Not measured:** any read but the page's (one attribute across a study, the whole study for an AI pipeline); the
+  build at the PCS; a cold disk; CPU at many sessions.
+
 * **Switching later:** every shape is rebuilt from the groups, so a switch is a rebuild at the PCS, not lost data.
 
 **Integrity under C and D.** The parser's BLAKE3 covers a whole group. C and D keep it checkable: the group's bytes are
