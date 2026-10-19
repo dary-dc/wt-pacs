@@ -146,6 +146,12 @@ is the owner's (§10, 1).
 
 ## 5. (d) Where the layout, the study databases and the catalog are built
 
+*Amended 2026-10-19 (the owner): the study database is built at the site, on the machine that parses and packs (the
+PCS), not at the PACS. The PCS builds and sends; the PACS receives, checks everything that arrives, and serves. When a
+series or a study is complete is the PCS's question. The database is kilobytes against the frames' megabytes on the
+link ([`contract.md`](contract.md) §Sizes). The text below, which weighs building at the PACS, is the reasoning of
+2026-10-11. Whether SQLite is the store at all is open: [`metadata-draft.md`](metadata-draft.md).*
+
 **The image layout and the study database: at the PACS, from the groups** (the owner's decision of 2026-10-11, one
 SQLite file per study so that bad data in one study never forces a shared database to be rebuilt). Building at the
 site and shipping the database is the alternative. It moves CPU to the site, but the PACS would trust a database it

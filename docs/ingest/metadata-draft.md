@@ -13,7 +13,7 @@ as one JSON file. Two decisions already taken make that file go away:
 
 * [`../disk-layout/target.md`](../disk-layout/target.md): no metadata in or beside the `.sbnd`; it lives only in the
   per-study database, one copy, where it is queried.
-* [`design.md`](design.md) §5 (d): one SQLite database per study, built at the PACS from the parser's groups, so bad
+* [`design.md`](design.md) §5 (d): one database per study, built from the parser's groups (at the PCS since 2026-10-19), so bad
   data in one study never forces a shared rebuild.
 
 **The purpose of this work** is the path between those two: the page gets what it needs to paint from the study's
@@ -61,30 +61,84 @@ metadata costs the dial +7 ms at 80 ms RTT and +29 ms at 160 ms. That is the bar
 `<StudyUID>/<SeriesUID>.sbnd` means a page names its study and series, and whatever serves frames or metadata
 looks them up by those UIDs. Every option below assumes that step; it is shared, not a cost of one option.
 
+## Decided, 2026-10-19 (the owner)
+
+* **The metadata and the pixels live on the same host**, so no read of either crosses a network. That leaves the
+  embedded engines (§3) and drops the libSQL server, Turso Cloud and libSQL's remote and replica modes.
+* **The study database is built at the PCS**, the machine that parses and packs; the PACS checks everything that
+  arrives and serves it. When a series or a study is complete is the PCS's question ([`design.md`](design.md) §5).
+* **The client loads only what it needs**: the metadata the page uses now, and only the decoder of the series' codec.
+  More is sent as more client features need it.
+* **The parser's contract of 2026-10-11 stays** until a stable version is published
+  ([`contract.md`](contract.md) §The parser at `f36230b`).
+* **Whether SQLite is the store at all is open.** The parser's output comes first: [`contract.md`](contract.md)
+  §The parser at `f36230b` records it.
+* **Parked:** how a study database is replaced while it is read (it matters once studies change after they are first
+  published), and the catalog (deferred on 2026-10-11).
+
 ## The open points
 
-Each with its options, what decides between them, what each costs now, and what switching later costs.
+### 1. How the page gets the metadata, and the codec before the decoder
 
-### 1. Who serves the metadata
+**The two paths.** The page talks to two programs today: nginx serves its files over HTTPS (TCP), and the Rust server
+takes the WebTransport session directly over UDP. nginx is not in front of the server, so it is not made a proxy for
+the metadata.
 
-| | A. The web host reads the database | B. The server, over HTTP behind the web host | C. The server, inside the WebTransport session |
-| --- | --- | --- | --- |
-| how | a small reader beside nginx (nginx cannot read SQLite); dev-server.py with Python's `sqlite3` | a read endpoint in the Rust process; nginx proxies `/study/…/metadata` to it | a new message on the wire after the dial |
-| who opens the databases | a second process | the process that already opens the `.sbnd` | the same |
-| page-open path | unchanged: a fetch before the dial | unchanged | the codec is known only after the dial, so the decoder's preload waits a round trip or more |
-| cost now | a second program to deploy and secure | an HTTP listener in the server (whether wtransport can answer a plain HTTP/3 GET is not checked) | [`../WIRE.md`](../WIRE.md), both clients, the contract suite |
+| | A. The web host answers | B. The server answers, inside the session |
+| --- | --- | --- |
+| how | the page asks over HTTPS, as today; a small reader beside nginx opens the study's database and answers | the page connects first, then asks; the server opens the database beside the `.sbnd` |
+| when the page has it | before the connection is up | after it: the QUIC handshake and the session's `CONNECT` first |
+| who reads the study's files | two programs: the reader and the server | one: the server |
+| cost now | a reader to write, deploy and secure | a message in [`../WIRE.md`](../WIRE.md), in both clients and the contract suite |
+| switching later | A → B: the wire change; B → A: the reader | |
 
-* **What decides it:** whether one process should own every read of the study's files (B, C), and whether the decoder
-  must be chosen before the dial (A, B). Across the band of sessions per host it does not change: the read is one
-  small query per page open, against a fill of megabytes.
-* **Switching later:** A ↔ B is a proxy line, because the page's URL and the JSON stay the same. Either → C rewrites
-  the wire and both clients, and back again the same.
-* **Leaning:** B, for one owner of the study's files and no wire change. Unmeasured.
+**The codec, so that only its decoder loads.** The decoder must be chosen before the first frame can be shown, and
+**measured** (`lab/page-open/README.md` §Cold round trips by codec, COLDRTT `cc47988`, 100–300 ms links): the AV1
+decoder loaded after the first frame cost 2.0 serial round trips through WebCodecs and 3.9 through dav1d's WASM; loaded
+at the decoder's start, 1.0 and 3.0 of them go.
 
-### 2. Which engine reads the databases
+| | how the page knows the codec | what it costs |
+| --- | --- | --- |
+| a. from the metadata, before the connection | path A | nothing more |
+| b. from the page's address, `?codec=` beside the UIDs | whoever links the page (a worklist) writes it | the linker must know the codec; the metadata can then come by either path |
+| c. from the server, after the connection | path B alone | the round trips measured above |
+| d. load every decoder | — | refused: the client loads only what it needs |
 
-*Filled from primary sources below (§Sources); the file format is the same for all four, so a database built by one
-is read by the others.*
+* **What decides it:** one program reading the study's files (B) against the metadata before the connection (A); with
+  b, B no longer costs the decoder's round trips.
+* **Leaning:** B with b, unmeasured: one owner of the files, and only the needed decoder loads before the connection.
+  What it would cost is the time to the metadata after the connection, which is not measured.
+
+### 2. How the parser's groups are stored
+
+The parser writes each group (exam, series, instance, private) as one run of records
+([`contract.md`](contract.md) §Group files), named by its BLAKE3. A study's groups are kilobytes
+(§Sizes there). The question is the shape the PACS serves them from.
+
+| | A. The group files as written | B. Groups as blobs in SQLite, with columns taken out | C. One row per attribute (DECK's key-value) | D. A pattern search over the blobs |
+| --- | --- | --- | --- | --- |
+| what is stored | the parser's directory, untouched | each group whole, plus a column for each attribute that is queried or served | `(key BLOB PRIMARY KEY, value) WITHOUT ROWID`, DECK's ordered keys (`doc/DECK/databases`) | B's blobs, nothing taken out |
+| the viewer's read | open and parse every instance's group | read the columns | a key-range read per instance, picking the tags | scan the series' blobs for the tags |
+| a new client need | parse more | a new column, so a rebuild from the blobs | nothing: every attribute is already a row | a new pattern |
+| the BLAKE3 check | per file, as written | per blob, as written | lost unless the group is put back together | per blob |
+| the parser's own shape | its directory output | `doc/PACS/db/deck.db` | `memorysqlite` and its databases README | none |
+
+* **What decides it:** what is read most. The page reads a dozen attributes for every instance of one series; a CT is
+  2 000 instances. A shape that reads those directly (B's columns) does the least work per page open. A shape that
+  stores every attribute addressably (C) makes the next client need free. SQLite has no regular expressions built in
+  (D would need a function from the server); a scan of a study's kilobytes is cheap, of 2 000 groups unknown.
+* **Leaning:** B, unmeasured. The blobs keep the parser's bytes and their BLAKE3 checkable, and the columns are an index
+  derived from them, rebuilt when a need is added. It is also the parser's own `deck.db` shape.
+* **What would decide it with numbers:** a 2 000-instance CT series from the parser's groups, stored as A, B and C:
+  the time to build the viewer's document and the database's size. SQLite's "35 % Faster Than The Filesystem" page measured
+  100 000 blobs of ~10 KB read 35 % faster from one database than from files (about 5× on Windows 10); its numbers,
+  not ours.
+* **Switching later:** every shape is rebuilt from the groups, so a switch is a rebuild at the PCS, not lost data.
+
+### 3. Which embedded engine
+
+*Primary sources below (§Sources). All read the same file format, so a database built by one is read by the
+others. Only the embedded columns apply now (Decided, above).*
 
 | | rusqlite (plain SQLite) | libSQL embedded (`libsql`) | libSQL server (sqld) | Turso, the Rust rewrite (`turso`) |
 | --- | --- | --- | --- | --- |
@@ -101,103 +155,52 @@ The owner's word in target.md is "Turso". Turso also names a hosted service, Tur
 Turso databases (Turso's there in "early preview"); whether it can be self-hosted is **not confirmed**. A PACS's own
 disk holds the study databases under the target, so the hosted service is not on this path.
 
-* **What decides it:** whether the study databases are on the disk of the host that reads them (embedded is enough)
-  or must be reached by several hosts over the network (a server, or a hosted service); and how much a pre-1.0 engine
-  may cost us in a medical archive.
+* **What decides it:** how much a pre-1.0 engine may cost in a medical archive (Turso), against one that is SQLite's
+  own C (rusqlite) or a fork of it (libSQL).
 * **Switching later:** cheap while two rules hold — the file stays plain SQLite format, and the SQL stays in the
-  dialect all four share. Each engine's Rust API differs, so the reads sit behind one function that takes UIDs and
-  returns the viewer's document; switching is that function and the dependency.
+  dialect all of them share. The reads sit behind one function that takes UIDs and returns the viewer's document;
+  switching is that function and the dependency.
 
-### 3. The schema for what the viewer needs
+### 4. What the client fetches
 
-| | A. Columns for what the viewer reads | B. The parser's groups as stored, and a view that builds the viewer's document | C. One JSON column per series, the document as today |
-| --- | --- | --- | --- |
-| tables | `series` (codec, frame count, photometric, cine timing, default rescale and window), `frame` (rescale, window where they vary) | the groups, one row per instance and group, plus a view | `series(uid, document)` |
-| a new viewer key | a migration of every study database | a change to the view, no rebuild | a rebuild from the groups |
-| queryable | yes | yes, through SQLite's JSON functions | weakly |
+The principle is decided: only what the page needs now. What remains open:
 
-* **What decides it:** how often the viewer's needs change, and what must be queried in SQL rather than handed to the
-  page whole. A changes the stored shape each time; B keeps the stored shape the parser's and moves the change into
-  a view; C is today's file inside a database, and does not use the database.
-* **What is settled either way:** `digests` leave the metadata for the `.sbnd` entry (target.md §The two hashes).
-  Patient and study identifiers are not sent to the viewer today; sending them is a separate decision, not part of
-  this schema.
-* **Switching later:** A → B or B → A is a rebuild of every study database from its groups, which the design already
-  allows (§5: a rebuilt database re-registers by the same upsert). The page's document does not change.
-* **Leaning:** B. The cost of building the document at each read is unmeasured; it is one small query.
+* **The unit:** one series (today) or the whole study. It follows what the viewer opens; it opens one series today.
+* **Its size across the band:** with `digests` moved into the `.sbnd` entry ([`../disk-layout/target.md`](../disk-layout/target.md)
+  §The two hashes), a series whose display does not vary per frame is a few hundred bytes at any frame count; per-frame
+  rescale or window grows with frames. **Measured:** PORD's ~120 KB cost the connection +7 / +29 ms at 80 / 160 ms.
+* **Caching:** today it is `no-cache`; a generation number in the study database lets a reopened page check its copy
+  in one round trip.
 
-### 4. How a study database is built, published and replaced
-
-| | A. Rebuild whole, publish by rename | B. Update in place |
-| --- | --- | --- |
-| how | build `study.db.partial` with the journal off WAL, `fsync`, `rename`, `fsync` the directory — as the `.sbnd` | transactions on the published file, WAL mode |
-| readers during a replace | a reader that has the old file open keeps reading it whole; the next open sees the new one | snapshot reads; one writer at a time |
-| what readers must do | open read-only with `immutable=1`, which is true because a published file never changes | open normally, with the `-wal` and `-shm` files beside it |
-| copy to another host | copy one file | needs replication (the libSQL server's or Turso's) |
-| risk | none from SQLite's list if a published file is never written | renaming or deleting a database or its WAL while a writer holds it is on SQLite's list of ways to corrupt one (§2.5, §1.3) |
-
-* **What decides it:** how often a study changes after it is first published — late instances, corrections (design.md
-  §10, decisions 1 and 6, still open) — and whether the database is read on another host.
-* **Switching later:** A → B is a change in the writer and the readers' open flags; no stored data changes.
-* **Leaning:** A: one publishing rule for both the `.sbnd` and the database, and a reader never coordinates with a
-  writer. A server that keeps a database open notices a replace by the generation (point 5) or the file's inode.
-
-### 5. The catalog, and its consistency with the study databases
-
-**Already decided, not reopened:** the catalog's engine is deferred (the owner, 2026-10-11: a far-away decision); it
-is a separate server (MySQL or PostgreSQL, not embedded); the study database is the truth and the catalog is derived
-from it by a generation upsert (design.md §5).
-
-**What this work needs from it: nothing on the page-open path.** With files at `<StudyUID>/`, the server finds a
-study's database by its UID, with no catalog lookup. The one thing to build now so the catalog can come later
-unchanged: each study database carries its generation, which the upsert reads.
-
-* **Switching later:** none to pay; the catalog is added beside, not under, this path.
-
-### 6. What the client fetches, and when
-
-| | A. One series' document, at page open, as today | B. The whole study's document | C. Two steps: what to paint first, then the rest |
-| --- | --- | --- | --- |
-| when | before the dial, beside the transport file | the same | the first before the dial, the rest after |
-| size | grows with frames only where rescale or window vary per frame | every series of the study | the first is constant |
-
-* **What decides it:** whether the viewer opens a series or a study (it opens one series today), and how large a
-  per-frame document grows across the band — mammography's 4 frames to CT's 2 000. With `digests` gone, a series
-  whose display does not vary per frame is a few hundred bytes at any frame count.
-* **Caching:** today `/series/metadata` is `no-cache`; with a generation, an `ETag` of it lets a reopened page
-  revalidate in one round trip instead of fetching the document again.
-* **Switching later:** A → B or C is a change to head.js and the endpoint, not the database. Measure first: PORD's
-  +7 / +29 ms is for ~120 KB; a smaller document is expected to cost less, unmeasured.
-* **Leaning:** A, with the URL naming the study and the series.
-
-### 7. Moving fixtures, the dev host and the gate off the JSON file
+### 5. Moving fixtures, the dev host and the gate off the JSON file
 
 * **Fixtures.** Keep the committed JSON (text, reviewable in a diff) as the *input* the study database is built from,
   and build the database in the gate and at the dev host's start; or commit the built `.db` (binary, no build step).
   What decides it: whether a reviewer must read a fixture's metadata in a diff.
-* **The dev host.** Under 1A it reads the database with Python's `sqlite3`; under 1B it proxies to the server as nginx
-  does. `--metadata` goes either way.
+* **The dev host.** Under 1A it reads the database with Python's `sqlite3`; under 1B it serves no metadata.
+  `--metadata` goes either way.
 * **The gate.** The `pack-series` same-bytes check (`scripts/gate.sh:180`) packs `metadata.json` into the `.sbnd`;
   under the target it packs none, so that check changes with the target's format, not with this work.
-  `deploy/check_equivalence.sh` lists `/series/metadata` among what the image answers; the new URL replaces it.
+  `deploy/check_equivalence.sh` lists `/series/metadata` among what the image answers; it goes with the JSON.
 * **The lab.** `lab/container-bench` and `lab/viewer-ceiling` read the ingest's `metadata.json` as their input. It
   stays the ingest's output, so the lab keeps it.
 
 ## What the owner decides, in order
 
-1. Who serves the metadata (§1).
-2. The engine (§2), within the rule that the file stays SQLite format.
-3. The schema's shape (§3).
-4. Rebuild-and-rename or update in place (§4).
-5. What the page fetches (§6).
-6. Fixtures as JSON input or a committed `.db` (§7).
+1. How the page gets the metadata and the codec (§1).
+2. The groups' storage shape (§2), after its measurement if wanted.
+3. The engine (§3).
+4. The unit the page fetches (§4).
+5. Fixtures as JSON input or a committed `.db` (§5).
 
 ## Sources
 
 Fetched 2026-10-19, first 12 hex of the fetched file's sha256.
 
-* **SQLite**: "How To Corrupt An SQLite Database File" (`e00709e3f37e`), §1.3 and §2.5; URI filenames, `immutable`
+* **SQLite**: "35% Faster Than The Filesystem" (`2cba6be472d2`, the same as design.md §12); "How To Corrupt An SQLite Database File" (`e00709e3f37e`), §1.3 and §2.5; URI filenames, `immutable`
   and `mode=ro` (`9fba2ee18bc6`); WAL (`f3467b530b88`, the same as design.md §12).
+* **The parser**: `github.com/opendicom/DECK_WebTransport` at `f36230b3f46c` (2026-10-16), read and run as
+  [`contract.md`](contract.md) §The parser at `f36230b` records.
 * **rusqlite** 0.40.2 on crates.io (`43b0cec6bd46`), its bundled `sqlite3.h` (`9e69a1353a42`), LICENSE
   (`c10c1f273375`).
 * **libSQL** at `d8bc862d20be` (2026-10-13): README (`5a7d05bd5b34`, the same as design.md §12), `libsql/Cargo.toml`
