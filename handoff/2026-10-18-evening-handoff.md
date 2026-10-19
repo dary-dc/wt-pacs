@@ -24,6 +24,10 @@ and replaced; the catalog and its consistency; what the client fetches and when;
 the JSON file. Start it as an interactive cloud session for Darian (like T1) that owns its PR; its brief must carry the
 PR route of §5.
 
+**Started 2026-10-19 14:08 UTC:** https://claude.ai/code/session_018FHUo5T2MwfpS8kVRK23MW (`trig_01DmFa5f5aN5bQcyjtUvJziA`,
+branch `claude/metadata-turso`, draft PR into unified via the MCP tool). Its first step is a purpose document posted in
+chat, then it waits for Darian; it owns the thread like T1, merging stays with him.
+
 ## 1. The goal
 
 Darian (owner, GitHub `dary-dc`): unified (`claude/av1-unified-mainbase`) went into `main` on 2026-10-18 (§6);
