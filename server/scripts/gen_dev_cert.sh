@@ -33,12 +33,9 @@ from pathlib import Path
 client_dir = Path(sys.argv[1])
 cert_hash = sys.argv[2]
 path = client_dir / "dev-transport.json"
-# A client named by hand survives the renewal.
-old = json.loads(path.read_text()) if path.exists() else {}
 payload = {
     "wt_url": "https://127.0.0.1:4433/",
     "cert_sha256": cert_hash,
-    **{k: old[k] for k in ["client"] if k in old},
 }
 path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 print(f"wrote {path}")

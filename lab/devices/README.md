@@ -38,8 +38,9 @@ every frame is exact, then compares every frame a visit receives with the bundle
 in every D1 frame, so every D1 visit must read not exact.
 
 **Certificates.** The page needs a certificate the phone trusts: `TLS_DIR`'s, for `PUBLIC_NAME`. The arms mint
-their own and pin it by hash, unless `SUPPLY_CERT=1` hands them the same certificate; then the transport file
-carries no hash and the client dials unpinned (`client/transport/ts/session.ts`). D0 says which a browser needs.
+their own and pin it by hash, unless `SUPPLY_CERT=1` hands them the same certificate; then `deploy.sh` writes the
+arm's transport file with no hash, as the server writes none beside a supplied certificate (*corrected 2026-10-19*:
+the server wrote it until then), and the client dials unpinned (`client/transport/ts/session.ts`). D0 says which a browser needs.
 The WASM session (`client/transport/wasm`) always pins; the kit uses the default TypeScript one.
 
 **Nothing identifying is committed** ([`../../docs/devices.md`](../../docs/devices.md) §4): the host, the name, the

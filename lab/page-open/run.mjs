@@ -11,6 +11,7 @@
  * SERVERS=a=BIN,b=BIN runs every variant against each server binary, interleaved inside each round,
  * and prints how often b beat a; ONLY=variant,… keeps those variants; PORT_BASE=N takes ports from N up;
  * NETLOG=DIR keeps Chrome's net log per visit; ROWS=FILE keeps every visit's milestones.
+ * OWN_HOST=1 runs the product page reading the transport file against the same page dialling its own host.
  * HOST=dns runs as root: it binds 443 and 53 and gives the browser its own resolv.conf.
  */
 import fs from "node:fs";
@@ -37,6 +38,9 @@ const RELAY_ARGS = (process.env.RELAY_ARGS || "").split(" ").filter(Boolean);
 // STAGES swaps the three clients for the first-byte ladder: one rung of README.md per variant, on a
 // cold profile only, since a warm visit spends none of what the ladder cuts.
 const STAGES = process.env.STAGES?.split(",");
+// OWN_HOST: both pages rendered by client/viewer/page.sh, the certificate trusted for both, pinned by the file's alone.
+const OWN_HOST = Boolean(process.env.OWN_HOST);
+const RENDERED = ["viewer-file", "viewer-own-host"];
 // HOST=dns names each variant's page host and transport host; only h3.test has an HTTPS record.
 const PLANES = {
   h2: { page: "static.test", wt: "static.test" },
@@ -61,6 +65,8 @@ const VARIANTS = STAGES
         `?stage=${s}&frames=${FRAMES}` +
         `&wt=${encodeURIComponent(`https://127.0.0.1:${server.inn}/`)}&hash=${hash}`]),
     )
+  : OWN_HOST
+  ? Object.fromEntries(RENDERED.map((v) => [v, (base) => viewerAt(base, {}, `lab/page-open/${v}.html`)]))
   : HOST === "dns"
   ? Object.fromEntries(Object.entries(PLANES).map(([variant, p]) => [variant, (_, s) => {
       const q = new URLSearchParams();
@@ -88,9 +94,9 @@ const collector = createServer((req, res) => {
   });
 });
 await new Promise((r) => collector.listen(0, "127.0.0.1", r));
-function viewerAt(base, opts) {
+function viewerAt(base, opts, page = "") {
   const post = `http://127.0.0.1:${collector.address().port}/`;
-  return `${base}/?${new URLSearchParams({ opts: JSON.stringify(opts), post, origin: "navigation" })}`;
+  return `${base}/${page}?${new URLSearchParams({ opts: JSON.stringify(opts), post, origin: "navigation" })}`;
 }
 
 // HOST=dev (default) is server/dev-server.py, plaintext HTTP/1.1; h1 and h2 are nginx on the deploy
@@ -116,6 +122,7 @@ function stop() {
   collector.close();
   if (CFG_BAK) fs.writeFileSync(CFG, CFG_BAK);
   if (HOST === "dns") for (const f of [META, META_FIRST]) fs.rmSync(path.join(ROOT, f), { force: true });
+  for (const v of RENDERED) fs.rmSync(path.join(ROOT, `lab/page-open/${v}.html`), { force: true });
   removeBoot();
   fs.rmSync(T, { recursive: true, force: true });
 }
@@ -142,6 +149,8 @@ if (HOST !== "dev") {
   execFileSync("bash", ["-c", `mkdir -p ${T}/home/.pki/nssdb && certutil -N -d sql:${T}/home/.pki/nssdb --empty-password \
     && certutil -A -d sql:${T}/home/.pki/nssdb -n page -t P,, -i ${T}/cert.pem`]);
 }
+const spki = execFileSync("bash", ["-c", `openssl x509 -in ${T}/cert.pem -pubkey -noout | openssl pkey -pubin -outform DER \
+  | openssl dgst -sha256 -binary | base64`]).toString().trim();
 const hash = execFileSync("bash", [
   "-c",
   `openssl x509 -in ${T}/cert.pem -outform DER | openssl dgst -sha256 | awk '{print $2}'`,
@@ -167,6 +176,17 @@ execFileSync(path.join(BIN, "pack-series"), [
 ]);
 
 if (STAGES?.some((s) => BOOT_STAGES.includes(s))) console.error("boot bytes", buildBoot());
+if (OWN_HOST) {
+  if (SERVERS.length > 1) throw new Error("OWN_HOST renders one page for one server's port");
+  const index = fs.readFileSync(path.join(ROOT, "client/viewer/index.html"));
+  for (const [v, where] of [[RENDERED[0], ["--transport-file", "/wt/dev-transport.json"]], [RENDERED[1], ["--wt-port", String(SERVERS[0].inn)]]]) {
+    const out = path.join(ROOT, `lab/page-open/${v}.html`);
+    fs.writeFileSync(out, execFileSync(path.join(ROOT, "client/viewer/page.sh"), where, { input: index }));
+    fs.utimesSync(out, new Date(Date.now() - 3600e3), new Date(Date.now() - 3600e3));
+  }
+}
+// QUIC takes no root but a known one or a forced origin's; the file's page pins the hash besides.
+const TRUST_ARGS = OWN_HOST ? [`--ignore-certificate-errors-spki-list=${spki}`, `--origin-to-force-quic-on=127.0.0.1:${SERVERS[0].inn}`] : [];
 
 for (const s of SERVERS) {
   start(s.bin, [
@@ -282,6 +302,8 @@ async function visit(ctx, variant, server) {
   if (out.error || err) throw new Error(out.error || err);
   const usedWasm = asked.includes("/client/transport/wasm/pkg/transport_wasm_bg.wasm");
   if (usedWasm !== variant.endsWith("-wasm")) throw new Error(`${variant} ${usedWasm ? "fetched" : "never fetched"} the WASM client`);
+  const readFile = asked.includes("/wt/dev-transport.json");
+  if (OWN_HOST && readFile !== (variant === "viewer-file")) throw new Error(`${variant} ${readFile ? "read" : "never read"} the transport file`);
   if (viewer) return { ...out.open, ...viewerOpen(variant, viewer, out.landed), landed: out.landed };
   holdPixels(variant, out.pixels);
   const wrong = (BOOT_SKIPS[variant] ?? []).filter((f) => asked.includes(f));
@@ -344,7 +366,7 @@ for (const rtt of RTTS) {
       const ctx = await chromium.launchPersistentContext(dir, {
         headless: true,
         executablePath: HOST === "dns" ? path.join(T, "chrome") : process.env.CHROME_PATH || chromium.executablePath(),
-        args: ["--disable-background-networking", ...netlog, ...DNS_ARGS],
+        args: ["--disable-background-networking", ...netlog, ...DNS_ARGS, ...TRUST_ARGS],
         ...(HOST === "dev" ? {} : { env: { ...process.env, HOME: `${T}/home`, ...DNS_ENV } }),
       });
       const unthrottle = THROTTLE > 1 ? throttleTree(browserPid(dir), THROTTLE) : () => {};
@@ -441,9 +463,10 @@ if (SERVERS.length > 1) {
 if (SERVERS.length > 1) {
   byPredecessor("frame", Object.keys(VARIANTS).flatMap((variant) => SERVERS.slice(1).map((s) => [label(variant, s), label(variant, SERVERS[0])])));
 }
-const CLIENT_PAIRS = LABELS.filter((l) => l.endsWith("-wasm") && LABELS.includes(l.slice(0, -5))).map((l) => [l, l.slice(0, -5)]);
+const CLIENT_PAIRS = OWN_HOST ? [RENDERED.slice().reverse()]
+  : LABELS.filter((l) => l.endsWith("-wasm") && LABELS.includes(l.slice(0, -5))).map((l) => [l, l.slice(0, -5)]);
 if (CLIENT_PAIRS.length) {
-  console.log(`\nwasm − ts in the same round, ms: median [min-max], and the rounds the WASM client was earlier in; ${voided} visits VOID, ${failed} failed`);
+  console.log(`\nthe first − the second in the same round (wasm − ts, or own host − file), ms: median [min-max], and the rounds the first was earlier in; ${voided} visits VOID, ${failed} failed`);
   for (const [wasm, ts] of CLIENT_PAIRS) for (const profile of PROFILES) for (const key of ["config", "session", "frame", "fill"]) {
     const cells = RTTS.map((rtt) => {
       const of = (name) => rows.filter((r) => r.variant === name && r.profile === profile && r.rtt === rtt && r[key] != null);
