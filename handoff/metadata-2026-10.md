@@ -1,4 +1,4 @@
-# Handoff: metadata from the study store (2026-10-20)
+# Handoff: metadata from the study store (2026-10-20, 03:20 UTC)
 
 For a session continuing this design. Branch `claude/metadata-turso`, draft PR #113 into
 `claude/av1-unified-mainbase` (the owner merges; never merge). The owner, Darian, is learning: plain words, simple
@@ -48,16 +48,24 @@ Page read for 2 000 images, median: key file 0.65 ms, SQLite row per image with 
 attribute 12.6 ms, the parser's files 30 ms. Seeking within an image lost to scanning it (an image group has 45
 attributes). Updates were not measured.
 
-## Cloud work scheduled 2026-10-20 (one-shot, each in a fresh session; draft PRs into `claude/metadata-turso`)
+## The investigations (2026-10-20)
 
-| Scheduled task | Branch | Fires | Delivers |
-| --- | --- | --- | --- |
-| Metadata format survey | `claude/metadata-format-survey` | 01:40 UTC | `metadata-draft.md` §2: candidates from primary sources, a recommended truth + page-view pair, a runner-up, the confirming benchmark described |
-| PACS metadata builder design | `claude/pacs-receiver-design` | 01:41 UTC | a new section in `docs/ingest/design.md`: the receiver/builder as its own process |
-| Page-open metadata and codec path | `claude/page-open-metadata` | 01:42 UTC | `metadata-draft.md` §1: each path's round trips, a recommendation |
+Three were scheduled as one-shot cloud tasks (fresh sessions, 01:40–01:42 UTC). Each ran 5–13 minutes and delivered
+nothing to the repository: those sessions start with no repository attached and no GitHub tools, so they could not
+push a branch or open a PR. Their transcripts are in the owner's session list (titles "⚡ Metadata format survey",
+"⚡ PACS metadata builder design", "⚡ Page-open metadata and codec path"). **A scheduled task for this repository must
+be given the repository as a source, or its work has to run elsewhere.**
 
-Each sends a push notification with its result and PR link. Their PRs are the owner's to review; this branch merges
-nothing on its own. When they land, update this file: what each recommended, and what the owner decided.
+They were re-run at 03:20 UTC as background agents of the session that owns PR #113. Each works in its own worktree
+and commits; that session pushes the branch and opens a draft PR into `claude/metadata-turso`.
+
+| Investigation | Branch | Delivers |
+| --- | --- | --- |
+| Metadata format survey | `claude/metadata-format-survey` | `metadata-draft.md` §2: candidates from primary sources, a recommended truth + page-view pair, a runner-up, the confirming benchmark described |
+| PACS metadata builder design | `claude/pacs-receiver-design` | a new section in `docs/ingest/design.md`: the receiver/builder as its own process |
+| Page-open metadata and codec path | `claude/page-open-metadata` | `metadata-draft.md` §1: each path's round trips, a recommendation |
+
+Results: pending. When they land, record here what each recommended and what the owner decided.
 
 ## Next, once the runs report
 
