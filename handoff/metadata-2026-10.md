@@ -74,7 +74,13 @@ Results, as they land (what each recommended; the owner's decision when taken):
   address. Caution: A1 puts a derived file beside the `.sbnd`, which `target.md` ruled out for metadata; the owner's
   call. Undecided.
 * **Format survey:** running.
-* **PACS builder design:** running.
+* **PACS builder design:** draft PR #119 (`claude/pacs-receiver-design`), a new `design.md` §12 (its sources move to
+  §13). Recommended: one program beside the server that receives, checks (structure, every frame's coded hash, the
+  parser's BLAKE3 per group, UIDs and frame count) and builds; it keeps every accepted input in the study's
+  `inputs/`, rebuilds the store whole into a new directory, and swaps a `CURRENT` file by rename. New invariant: the
+  page sends its series' digest at session open and the server refuses a mismatch, so a late instance never mixes
+  display values. Thirteen decisions listed in §12.10. It renames "generation" to "revision" across the ingest docs
+  (the glossary already uses "generation" for a request). Undecided.
 
 ## Next, once the runs report
 
