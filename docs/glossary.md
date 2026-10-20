@@ -24,6 +24,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | ring | the io_uring ring a tile session builds on its first page-cache miss ([`adr/disk-access.md`](adr/disk-access.md) §1) |
 | record | the downloader's state of one frame: `wire`, `queued`, `decoding` |
 | generation | a request's identity, moved by `cancel`; **epoch**, a session's, moved by a resume |
+| revision | one published state of a study's store, numbered from 1 and named by its `CURRENT` file ([`ingest/design.md`](ingest/design.md) §12) |
 | resume, recycle | a dead session replaced, owing what the records owe; a live one replaced before a byte budget |
 | transport file | `dev-transport.json`, served at `/wt/`: the server's `wt_url` and the `cert_sha256` it pins, rewritten at each start; the consumer's `transportFile` ([`ARCHITECTURE.md`](ARCHITECTURE.md) §An open page follows a server restart) |
 | decoder | a worker that decodes; **codec module**, the code it loads per codec (`htj2k.js`, `av1.js`) |
