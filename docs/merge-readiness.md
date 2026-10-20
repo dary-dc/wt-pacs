@@ -821,7 +821,7 @@ other one held has to be shown to survive. A **build variant** is a binary that 
 loses a posture, not a feature, so it is the owner's call.
 
 **The answer, in short.** Little dissolves. About 85 product lines go with no decision (U1–U8), and about 130 more
-need one (U9–U12), out of the roughly 9 000 product lines in scope. Each large layer is held by a capability (the
+need one (U9–U12), against a product nobody has counted here. Each large layer is held by a capability (the
 two readers by the fill's one-read bound, the `FramePipeline` seam by telemetry, the WebSocket by the TCP fallback,
 which is open) or by an open decision. The largest single cut, `--congestion bbr-bound` (`loss_bound.rs`, 261 lines),
 belongs to the congestion-controller review (`claude/design-congestion-controller`, its option D), so it is not
