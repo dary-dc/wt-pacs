@@ -82,38 +82,212 @@ looks them up by those UIDs. Every option below assumes that step; it is shared,
 
 ### 1. How the page gets the metadata, and the codec before the decoder
 
-**The two paths.** The page talks to two programs today: nginx serves its files over HTTPS (TCP), and the Rust server
-takes the WebTransport session directly over UDP. nginx is not in front of the server, so it is not made a proxy for
-the metadata.
+*Extended 2026-10-20. Every number here is from [`../../lab/page-open/README.md`](../../lab/page-open/README.md) and
+named by its run; everything else says **not measured**. Round trips (rt) are the slope against the link's round trip,
+so 1 rt is 10 ms on the best link the owner names and 200 ms on the worst. Nothing in `lab/page-open` ran with loss,
+on a phone, or past 300 ms; nothing below is claimed there.*
 
-| | A. The web host answers | B. The server answers, inside the session |
+#### What the page needs, and by when
+
+Three things, each needed at a different moment:
+
+| what | needed before | today's source |
 | --- | --- | --- |
-| how | the page asks over HTTPS, as today; a small reader beside nginx opens the study's database and answers | the page connects first, then asks; the server opens the database beside the `.sbnd` |
-| when the page has it | before the connection is up | after it: the QUIC handshake and the session's `CONNECT` first |
-| who reads the study's files | two programs: the reader and the server | one: the server |
-| cost now | a reader to write, deploy and secure | a message in [`../WIRE.md`](../WIRE.md), in both clients and the contract suite |
-| switching later | A → B: the wire change; B → A: the reader | |
+| the codec | the decoder's files can be fetched, and the downloader started (`connect` takes the decoder) | `codec` in the metadata |
+| the frame count | the fill is asked (`fill: all`, and the opening ask's `fill:0-N`) | `frameCount` |
+| photometric, rescale, window, cine speed | the first frame is painted | the rest of the metadata |
 
-**The codec, so that only its decoder loads.** The decoder must be chosen before the first frame can be shown, and
-**measured** (`lab/page-open/README.md` §Cold round trips by codec, COLDRTT `cc47988`, 100–300 ms links): the AV1
-decoder loaded after the first frame cost 2.0 serial round trips through WebCodecs and 3.9 through dav1d's WASM; loaded
-at the decoder's start, 1.0 and 3.0 of them go.
+**Today's viewer waits for the whole metadata before it dials** (`client/viewer/viewer.js` lines 19 and 125): the
+dial needs the decoder and the fill's end. So the metadata's arrival is on the dial's path, not beside it.
 
-| | how the page knows the codec | what it costs |
+**Today's cold open, measured** (headless Chromium, nginx over TLS and HTTP/2, a first frame of one flight):
+
+```text
+round trips   0        1        2        3        4        5        6        7        8
+              ├────────┴────────┴────────┤        │                          │        │
+              TCP + TLS + the HTML (3.0) │        │                          │        │
+                                    the transport file (3.6–4.9)             │        │
+                                    the metadata, same flight when small     │        │
+                                             └── the dial: QUIC + CONNECT ───┘        │
+                                                                    session (7.0)     │
+                                                                  first exact frame (8.0)
+```
+
+HTML 2.94–3.01 (BOOT); transport file 3.60 (R2) to 4.92 (PORD, behind a resolver); session 7.00 and first exact
+frame 7.99 for HTJ2K (COLDRTT, `htj2k`). A large first frame adds its slow start: 6.4 rt from session to a 428 KB
+frame out of a 12 KB window (R2).
+
+#### The four paths for the metadata
+
+```text
+ A0 today    browser ──HTTPS──▶ nginx ──alias──▶ <series>.metadata.json     (the ingest wrote it)
+ A1 a file   browser ──HTTPS──▶ nginx ──alias──▶ the page view, a file      (the PACS builder wrote it)
+ A2 a reader browser ──HTTPS──▶ a reader process on its own origin ──▶ the study store
+ B  session  browser ══WebTransport══▶ series-server ──▶ the study store, beside the .sbnd
+```
+
+nginx and the server already run on one host and both mount the studies read-only
+([`../../deploy/README.md`](../../deploy/README.md)), so A1 keeps the decided rule (metadata and pixels on the PACS
+host) with nothing proxied. **A1 is new here**: the draft's A was a reader (A2). A1 is the owner's *page view*
+direction (the handoff, 2026-10-20) served as a file: the builder derives it from the truth and publishes it by
+rename beside the `.sbnd`, and nginx answers it as it answers today's JSON.
+
+**A0 and A1, the web host before the connection.** The page asks for the metadata as it asks for the transport file,
+from `client/viewer/head.js`, on the HTTPS connection the HTML came on.
+
+* **Round trips: none of its own, measured.** PORD: the transport file landed first in 112 of 112 visits whichever was
+  asked first, and ~120 KB of gzipped metadata cost the session +7 / +29 ms at 80 / 160 ms on HTTP/3, a constant.
+* **What that hides for the viewer.** PORD's page dialled without waiting for the metadata, which landed after the
+  transport file by +22 to +30 ms at 80 ms on HTTP/2 and +215 to +217 ms on HTTP/3. The viewer waits for it, so at
+  120 KB its dial would start that much later: inferred from those arrival times, **not measured** on the viewer.
+* **A page view of a few hundred bytes** (§4: no per-frame display, digests in the `.sbnd`) is one packet beside the
+  transport file and costs nothing visible: **not measured**, below one flight.
+* **Bytes:** the request's headers (a few hundred bytes) and the page view, gzipped by the template's `gzip_types`.
+* **Under loss:** the page view rides TCP. One lost segment holds it, and the dial behind it, for a retransmit:
+  **not measured**, and the relay's `--loss` reaches TCP only through `--tun` (`lab/scripts/link_impair.py`).
+* **A1 against A0:** the same bytes on the same path, from a different file: PORD's numbers carry over. The address
+  changes from `/series/metadata` to one naming the study and series (the shared prerequisite above).
+* **Caching for free:** nginx already sends `ETag` and `Last-Modified` with `no-cache`, so a reopened page
+  revalidates in one round trip and gets a 304 (§4's open caching point, without a generation number).
+
+**A2, a reader on its own origin.** Everything A1 costs, plus a second HTTPS connection: TCP and TLS cost each
+HTTP/1.1 preload 163 ms at 80 ms (H2), about 2 rt, before the first byte of the metadata. It runs beside the
+transport file's fetch, but the viewer's dial waits for it: up to ~2 rt more to the session, **not measured**. It
+also costs a process to deploy, a certificate, CORS headers, `Cross-Origin-Resource-Policy`, and the reader's origin
+in the page's `connect-src`. Kept only for completeness: A1 does its job without the process.
+
+**B, the server inside the session.** The page dials first and the series arrives with the frames.
+
+What the wire would carry (a sketch, not a proposal yet): the server opens its media stream behind the accept, as it
+does for the opening ask ([`../WIRE.md`](../WIRE.md) §The opening ask), and writes the series first, as an envelope
+whose index is a reserved value:
+
+```text
+media stream:  [len][FF FF FF FF][codec 4 B · frame count u32 · the page view]  [len][0][frame 0]  [len][1][frame 1] …
+               └─ the series, once a session ─────────────────────────────────┘  └─ as today ──────────────────────
+```
+
+* Why the media stream and not the control stream: the client opens the control stream, and with the opening ask it
+  writes nothing on it until a later ask, so the server has nowhere to answer before then. A server-opened stream
+  exists from the accept. Both clients already read every uni stream as envelopes, in every stream mode, and the
+  WebSocket mapping carries the same bytes, so one reserved index covers all of them.
+* **Round trips to the metadata: none after the session, inferred.** It leaves behind the accept in the opening ask's
+  flight, so it lands with frame 0, at ~7.0 rt (COLDRTT's session) instead of ~4 (A0's). **Not measured.**
+* **The first frame painted: ~8.0 rt, as today, if the codec is already known** (b, below) and the page view is a few
+  hundred bytes: the decoder is preloaded from the HTML and the display values arrive just ahead of the frame.
+  Inferred from COLDRTT `-pre`, **not measured**.
+* **A large page view delays frame 0 behind it**: on one stream, PORD's 120 KB is about three slow-start flights out
+  of a 12 KB window ahead of the frame, estimated, **not measured**. A1 sends the same bytes on the other connection,
+  beside the dial. A B page view would have to stay small, or send its per-frame part after frame 0.
+* **The fill's end:** the page no longer knows the frame count when it dials, and `parse_opening_ask` takes only a
+  closed range, both ends numbers (`parse_opening_ask`, `server/src/transport/server.rs`). B needs an open-ended opening ask, a
+  server and two-client change, or the count in the page's address.
+* **A re-dial** (a restart, [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §An open page follows a server restart) brings
+  the series again; the client must refuse a codec or count that changed under an open page.
+* **Under loss:** the series rides QUIC with frame 0, so a lost packet costs a QUIC retransmit on that stream, not a
+  TCP one in front of the dial. **Not measured.**
+* **Bytes:** 8 B of codec and count, the page view, and the 8 B envelope head; no HTTP request.
+* **The server's read** at each session accept: §2's page read, 0.65 ms (D) to 2.6 ms (B) for 2 000 instances,
+  warm, one thread: about 1 % of a 200 ms round trip, and at the larger figure a quarter of a 10 ms one.
+
+#### The codec, so that only its decoder loads
+
+| | when the page knows it | cost to the first frame, cold | where the codec is written |
+| --- | --- | --- | --- |
+| a. in the metadata, by A0 or A1 | with the transport file, ~3.6–4.9 rt | today's: the preloads start one fetch after the HTML; **not measured** against b | the `.sbnd` header and the page view, which the builder copies from it |
+| b. in the page's address, `?codec=` beside the UIDs | at the HTML, ~3.0 rt | **measured, none:** COLDRTT `-pre` (`codec.html` reads `?codec=`) put AV1 at 7.96–7.98 rt, HTJ2K's 7.99 | wherever the linker reads it from (a worklist), plus the header |
+| c. in the metadata, by B | at the session, ~7.0 rt | as e | the header and the page view |
+| d. load every decoder | — | refused: the client loads only what it needs | — |
+| e. the series envelope, first in the session | at the session, ~7.0 rt | between 1 and 4 rt, **not measured**; bounded by COLDRTT `-before`, AV1's files found one after another from the first payload: +2.0 rt through WebCodecs, +3.9 through dav1d | the `.sbnd` header alone |
+| f. the first frame's own bytes | at frame 0, ≥ 8.0 rt | COLDRTT `-before`: +2.0 / +3.9 rt for AV1, measured; HTJ2K's, **not measured** | nowhere: the page guesses from the bytes (an HTJ2K codestream starts `FF 4F`; an AV1 payload's first byte is its version, 1), which [`../WIRE.md`](../WIRE.md) §The envelope says the envelope does not name |
+
+* **e can be cheaper than `-before`.** The series arrives ahead of frame 0, and the page can preload every file of the
+  codec at once, as `head.js` does now, instead of one after another. One round trip and the decoder's bytes on the
+  open HTTPS connection is the floor; dav1d's WASM is 238 KB gzipped. With a large first frame the load overlaps the
+  frame's own slow start and may cost nothing. All **not measured**.
+* **f** needs no wire change but the downloader must start without a decoder, and a guess from bytes is not a
+  contract: a third codec could share a first byte.
+* **b is a hint, not a source.** A page that preloads from `?codec=` still checks the codec against its source (the
+  page view, or the series envelope) and fetches the right decoder on a mismatch, so a wrong or stale link costs
+  round trips, never a wrong decode. Adding b later is the head script's preload; dropping it is links that stop
+  writing it.
+
+#### What each costs both clients and the contract suite
+
+| | A1 a file | A2 a reader | B the series in the session | e the codec in the session, the rest by A1 | f the first frame | b the address hint |
+| --- | --- | --- | --- | --- | --- | --- |
+| [`../WIRE.md`](../WIRE.md) | nothing | nothing | the reserved index; an open-ended opening ask | the reserved index, 8 B | nothing | nothing |
+| TS client (`client/transport/ts/`) | nothing | nothing | read the series envelope, hand it up | the same | nothing | nothing |
+| WASM client (`client/transport/wasm/src/session.rs`) | nothing | nothing | the same, in Rust | the same | nothing | nothing |
+| downloader and consumer | nothing | nothing | a message carrying the series to the page; start without a decoder | start without a decoder | the same | nothing |
+| `client/viewer/` | the address by UIDs | the address and the origin | dial first, the metadata after | the decoder after the session | the decoder after frame 0 | preload from the address, check it |
+| contract suite (`client/contract/`) | nothing | nothing | a clause on every implementation (TS over WebTransport and WebSocket, WASM), both fakes pushing the series, a re-dial clause, `run_wire.sh` against the server | the same | dispatch-rig clauses for a late decoder | a page-check case for a wrong hint |
+| server | nothing | nothing | read the store at the accept; send the series | send the header's fields | nothing | nothing |
+| deploy, dev host | an nginx location and the `dev-server.py` path, by UIDs | a new service, certificate, CORS, CSP | `/series/metadata` goes | as A1 | as A1 | nothing |
+
+#### The measurements that would settle what is not measured
+
+Each in `lab/page-open`, the arms interleaved in Williams order inside every round (`CLAUDE.md` §Measurement), cold
+and warm profile, at 1× and 4× CPU, at 10, 40, 100 and 200 ms; the ±0.2 rt spread of §The first byte on a fill as
+the noise, and nothing claimed for a cell left with fewer than 8 paired rounds after the relay's `VOID`s.
+
+1. **B against A1, to the first painted frame.** The viewer with the page view served by nginx (A1) against a server
+   that sends the series envelope behind the accept (B), each at a page view of 0.5 KB and of PORD's 120 KB, the
+   codec from `?codec=` in both so the decoder is out of the comparison. Quoted: first exact frame, in rt. Settles
+   whether B's later metadata costs anything, and what a large page view costs on one stream.
+2. **e, the decoder loaded from the session.** COLDRTT's `-pre` against a variant that preloads the codec's files on
+   the series envelope, on HTJ2K, WebCodecs and dav1d, with COLDRTT's one-flight frame and a 428 KB one. Settles e's
+   1–4 rt and whether a large frame hides it.
+3. **a against b on today's viewer.** The viewer's head-script preload after the metadata against the same preload
+   from `?codec=` at the HTML. Settles whether a worklist knowing the codec is worth anything with A1.
+4. **Loss.** Arms 1 and 3 at 1 % and 5 % iid loss on both planes (`--loss` with `--tun`, so TCP loses too), and the
+   Gilbert–Elliott model for a mobile link. Settles whether A1's TCP fetch in front of the dial costs more under loss
+   than B's QUIC.
+5. **A2's second connection**, only if A1 is refused: the viewer with the page view from a second origin against A1.
+
+A real phone is outside this rig ([`../rig-limits.md`](../rig-limits.md)); 4× CPU is the nearest it reaches.
+
+#### Switching later
+
+| from → to | what changes | what is lost |
 | --- | --- | --- |
-| a. from the metadata, before the connection | path A | nothing more |
-| b. from the page's address, `?codec=` beside the UIDs | whoever links the page (a worklist) writes it | the linker must know the codec; the metadata can then come by either path |
-| c. from the server, after the connection | path B alone | the round trips measured above |
-| d. load every decoder | — | refused: the client loads only what it needs |
-| e. from the series file's header | the `.sbnd` header names the codec ([`../disk-layout/target.md`](../disk-layout/target.md) §The header); the server sends it first in the session | after the connection, as c, but the codec is written once |
+| A1 → B | the wire change, both clients, the suite and the server's read: the same work as B now | nothing; the page view is the same document on another carrier |
+| B → A1 | an nginx location and the page's fetch; the wire's reserved index retires | nothing |
+| a → e (the codec read only from the file) | the page view stops carrying it; the series envelope does | 1–4 rt to the first frame unless b is also taken (measurement 2) |
+| adding or dropping b | the head script's preload, and whoever writes links | nothing: it is a hint the page checks |
 
-**Open, the owner (2026-10-19):** whether a worklist should know the codec at all, and whether the codec should be
-written in two places (the `.sbnd` header and the metadata) or read only from the file (e). Not decided.
+**Keeping switches cheap:** the page view's format is the same whatever carries it, and the viewer takes it from one
+function that returns it, so a carrier change is that function and nothing above it.
 
-* **What decides it:** one program reading the study's files (B) against the metadata before the connection (A); with
-  b, B no longer costs the decoder's round trips.
-* **Leaning:** B with b, unmeasured: one owner of the files, and only the needed decoder loads before the connection.
-  What it would cost is the time to the metadata after the connection, which is not measured.
+#### Recommended: A1 with a, the page view as a file, the codec in it
+
+The PACS builder writes each series' page view, with its codec and frame count, as a file beside its `.sbnd`;
+nginx serves it as a static file under the study and series UIDs; the head script fetches it beside the transport
+file and preloads that codec's decoder alone, as `head.js` does today.
+
+* **It is the only path whose cost is measured:** PORD's, no round trip of its own and a constant +7 / +29 ms at
+  120 KB; with the codec known before the dial, AV1 reaches HTJ2K's first frame (COLDRTT).
+* **It changes neither client, nor the wire, nor the contract suite**; the work is the builder's file, an nginx
+  location and the address. It keeps every decided rule: no proxy, the metadata on the PACS host, one decoder.
+* **It is the page-view direction as a file**: derived from the truth, rebuilt with it, published by rename.
+* **It costs:** a second program (nginx) reading a file the builder derived; the codec copied into it from the
+  header, which is the owner's open question; and a TCP fetch in front of the dial, whose cost under loss is
+  measurement 4.
+
+**Runner-up: B with b,** the series in the session and the codec in the address. One program reads the study's
+files, the metadata rides QUIC, and with the codec at the HTML the first frame is inferred to land as today. It
+costs the wire change in both clients and the suite, an open-ended opening ask, and a worklist that knows the codec;
+and its timing is inferred, not measured (measurement 1). If measurement 4 shows A1's fetch costing round trips
+under loss, B is the path, and switching to it then costs what it costs now.
+
+**The owner's decisions, not taken here:**
+
+1. A1 (a file nginx serves) or B (the server, in the session) for the metadata. A2 needs a reason A1 cannot meet.
+2. Whether a worklist should know the codec (b). Under A1 it is optional; under B it is what keeps the decoder off
+   the first frame's path.
+3. Whether the codec is written twice (the header, and the page view the builder copies it into) or read only from
+   the file (e), at 1–4 rt until measurement 2 says otherwise.
+4. Which of the five measurements to run first, if any; 1 and 4 decide between A1 and B.
 
 ### 2. How the parser's groups are stored
 
@@ -284,7 +458,7 @@ The principle is decided: only what the page needs now. What remains open:
 * **Fixtures.** Keep the committed JSON (text, reviewable in a diff) as the *input* the study database is built from,
   and build the database in the gate and at the dev host's start; or commit the built `.db` (binary, no build step).
   What decides it: whether a reviewer must read a fixture's metadata in a diff.
-* **The dev host.** Under 1A it reads the database with Python's `sqlite3`; under 1B it serves no metadata.
+* **The dev host.** Under 1A1 it serves the builder's page-view file as nginx does; under 1B it serves no metadata.
   `--metadata` goes either way.
 * **The gate.** The `pack-series` same-bytes check (`scripts/gate.sh:180`) packs `metadata.json` into the `.sbnd`;
   under the target it packs none, so that check changes with the target's format, not with this work.
