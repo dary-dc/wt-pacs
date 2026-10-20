@@ -76,6 +76,31 @@ docker build -f deploy/Containerfile.prebuilt -t wt-pacs-server "$STAGE"   # the
 A flag on `Containerfile` to skip its compile stage would not do: only BuildKit skips an unused stage, and a daemon on
 the legacy builder would compile anyway, unpinned. The binary links glibc, so it must come from that bookworm image.
 
+### An aarch64 server, built on another machine
+
+An ARM deploy host then only packages and runs: it needs neither the rust image nor a compile on its own cores.
+`build-arm64.sh` cross-builds on any machine in that same pinned image, so the binary links the same glibc, and fails
+unless it needs no glibc past bookworm's 2.36 and prints its banner on the smoke series under user-mode emulation:
+
+```bash
+deploy/build-arm64.sh   # writes target/aarch64-unknown-linux-gnu/release/series-server
+STAGE=$(mktemp -d)
+cp target/aarch64-unknown-linux-gnu/release/series-server deploy/server-start.sh "$STAGE"/ && cp -r fixtures/us_cine_smoke "$STAGE"/
+# $STAGE copied to the ARM deploy host, and there:
+docker build -f deploy/Containerfile.prebuilt -t wt-pacs-server "$STAGE"
+```
+
+The image is built on the ARM host because `Containerfile.prebuilt` runs an arm64 `apt-get`: on an x86 machine that
+needs emulation (`--platform linux/arm64` and binfmt), which this recipe does not test. The `arm64` job of
+`.github/workflows/gate.yml` runs `build-arm64.sh` on each pull request and push to main.
+
+Measured 2026-10-20 in a 4-core x86-64 cloud container: the compile 1 min 40 s, the script 2 min from an empty cargo
+cache; ring is the one crate that compiles C, and finds `aarch64-linux-gnu-gcc` on its own; the patched crates need
+nothing. The binary needs `GLIBC_2.34` at most. Under qemu 7.2 it passed the nine pages of
+`client/contract/run_wire.sh`, driven by hand from the x86 side at the emulated server, every client over
+WebTransport and WebSocket. qemu does not emulate io_uring and the mount refused `RWF_NOWAIT`, so neither fast path
+ran; nothing ran on ARM hardware, and no timing under emulation says anything about it.
+
 ## The ten fixes, and why
 
 A container test of a deployment of this shape found each one (the deployment test, queue row 92).
