@@ -13,7 +13,7 @@ as one JSON file. Two decisions already taken make that file go away:
 
 * [`../disk-layout/target.md`](../disk-layout/target.md): no metadata in or beside the `.sbnd`; it lives only in the
   per-study database, one copy, where it is queried.
-* [`design.md`](design.md) §5 (d): one database per study, built from the parser's groups (at the PCS since 2026-10-19), so bad
+* [`design.md`](design.md) §5 (d): one database per study, built from the parser's groups at the PACS (confirmed 2026-10-20), so bad
   data in one study never forces a shared rebuild.
 
 **The purpose of this work** is the path between those two: the page gets what it needs to paint from the study's
@@ -65,16 +65,18 @@ looks them up by those UIDs. Every option below assumes that step; it is shared,
 
 * **The metadata and the pixels live on the same host**, so no read of either crosses a network. That leaves the
   embedded engines (§3) and drops the libSQL server, Turso Cloud and libSQL's remote and replica modes.
-* **The study database is built at the PCS**, the machine that parses and packs; the PACS checks everything that
-  arrives and serves it. When a series or a study is complete is the PCS's question ([`design.md`](design.md) §5).
+* **The study database is built and updated at the PACS** (2026-10-20, correcting 2026-10-19's move to the PCS): the
+  metadata will be updated after it arrives, so its creation, its updates, its table design and its files are ours.
+  The PCS sends the parser's groups and decides when a series or a study is complete; the PACS checks everything
+  that arrives ([`design.md`](design.md) §5).
 * **The client loads only what it needs**: the metadata the page uses now, and only the decoder of the series' codec.
   More is sent as more client features need it.
 * **The parser's contract of 2026-10-11 stays** until a stable version is published
   ([`contract.md`](contract.md) §The parser at `f36230b`).
 * **Whether SQLite is the store at all is open.** The parser's output comes first: [`contract.md`](contract.md)
   §The parser at `f36230b` records it.
-* **Parked:** how a study database is replaced while it is read (it matters once studies change after they are first
-  published), and the catalog (deferred on 2026-10-11).
+* **Parked:** the catalog (deferred on 2026-10-11). How a study database is changed while it is read is no longer
+  parked: updates are certain, so it returns with the storage shape (§2).
 
 ## The open points
 
@@ -167,7 +169,7 @@ Keys sort by series, instance, then tag, so the page's tags of one instance (all
 range, read in one step through the table's B-tree; a series is one such range per instance. Every attribute is
 addressable, so a new client need is a new key list, with nothing rebuilt.
 
-**D. A key file searched directly, with the values apart.** No database engine: the PCS writes two files per study,
+**D. A key file searched directly, with the values apart.** No database engine: the PACS writes two files per study,
 the keys sorted with each value's offset and length, and the values back to back.
 
 ```text
@@ -228,15 +230,15 @@ cost.
   B's 2.6 ms and D's 0.65 ms are not.
 * **Size:** B, C and D are within 17 % of each other. A's 2 001 small files take 7.6× their bytes on disk in 4 KB blocks.
 * **Not measured:** any read but the page's (one attribute across a study, the whole study for an AI pipeline); the
-  build at the PCS; a cold disk; CPU at many sessions.
+  build or an update at the PACS; a cold disk; CPU at many sessions.
 
-* **Switching later:** every shape is rebuilt from the groups, so a switch is a rebuild at the PCS, not lost data.
+* **Switching later:** every shape is rebuilt from the groups, so a switch is a rebuild at the PACS, not lost data.
 
 **Integrity under C and D.** The parser's BLAKE3 covers a whole group. C and D keep it checkable: the group's bytes are
 its records in key order, so the PACS writes them back to back and hashes them on arrival — the same bytes, the same
 BLAKE3 — then stores the rows. That proves the content equals what the parser wrote. A hash of the whole database
 file is cheap (BLAKE3 runs at gigabytes a second; design.md §6 puts a 10 KB group at ≈ 1.5 µs) but proves only that the
-file arrived as it left the PCS: the same rows can be stored as different file bytes (page layout, free pages, the
+file arrived as it was sent: the same rows can be stored as different file bytes (page layout, free pages, the
 SQLite version), so it cannot be compared with anything the parser computed. Both have a use: the file's hash for the
 transfer, the groups' for the content, and SQLite's `PRAGMA integrity_check` for the file's structure.
 
