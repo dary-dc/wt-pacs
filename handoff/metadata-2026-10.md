@@ -65,7 +65,16 @@ and commits; that session pushes the branch and opens a draft PR into `claude/me
 | PACS metadata builder design | `claude/pacs-receiver-design` | a new section in `docs/ingest/design.md`: the receiver/builder as its own process |
 | Page-open metadata and codec path | `claude/page-open-metadata` | `metadata-draft.md` §1: each path's round trips, a recommendation |
 
-Results: pending. When they land, record here what each recommended and what the owner decided.
+Results, as they land (what each recommended; the owner's decision when taken):
+
+* **Page-open path:** draft PR #118 (`claude/page-open-metadata`). Recommended: **A1**, the PACS builder writes each
+  series' page view (codec, frame count, display values) as a file nginx serves; the page preloads only that codec's
+  decoder. It is the only path whose cost is measured (PORD: no round trip of its own, +7 / +29 ms at 120 KB), and it
+  changes neither client nor the wire. Runner-up: **B**, the series sent inside the session, the codec in the page's
+  address. Caution: A1 puts a derived file beside the `.sbnd`, which `target.md` ruled out for metadata; the owner's
+  call. Undecided.
+* **Format survey:** running.
+* **PACS builder design:** running.
 
 ## Next, once the runs report
 
