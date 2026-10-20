@@ -1,6 +1,6 @@
 # ADR: where a decoded frame goes — the page in or out of the pixel path, and who owns the frame store
 
-**Status:** proposed 2026-10-11, **theory only: nothing built or timed** (queue row 148, FRAMEPATH, of
+**Status:** proposed 2026-10-11, **theory only: nothing built or timed**; the cache's design reviewed 2026-10-20 (§Proposed: the client cache in OPFS) (queue row 148, FRAMEPATH, of
 [`../av1/queue.md`](../av1/queue.md)). The decisions are the owner's; they are listed in §8 and under the queue's
 `## Blocked`. Sources are pinned in §9; every figure not marked *measured* is a prediction or a reading of source.
 
@@ -214,3 +214,199 @@ Every file was fetched on 2026-10-11 and is listed with its URL and sha256 in
 
 **Not verified:** nested-worker sync handles per engine; Gecko's `flush()` at the OS; how Chromium's `mode` values lock;
 shipping Safari's ITP window; any frame on screen while the page is blocked.
+
+## Proposed: the client cache in OPFS · 2026-10-20
+
+**Status:** a design review for the owner, **theory only: nothing built or timed**. It builds on §1–§8 and on what is
+already decided: the page stays in the pixel path (the owner, 2026-10-11, queue row 148: §8.1 settled as A unless a
+measured cost says otherwise); checks stay on, the cache read's re-check included (the owner, 2026-10-11, row 151); a
+frame is never decoded twice; the final image lossless and bit-exact. Sources fetched for this section are added to
+[`frame-path-sources.txt`](frame-path-sources.txt) under 2026-10-20; the rest are §9's.
+
+### Background: why the page has a ceiling
+
+The viewer keeps every decoded frame in a `Map` on the page (`client/viewer/viewer.js:33`, `take()` at :98), each a
+`SharedArrayBuffer` the decoder wrote once. Nothing ever leaves it. **Measured** (queue row 273,
+[`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open, *The cache seam*): Chromium's `measureUserAgentSpecificMemory` puts the
+page's window at the decoded size + 1 MiB, its workers at 17–144 MiB; both engines filled 8 GiB on the dev host; a
+13 GiB series (512 × 3328×4096) was stopped at 339–364 frames, about 9 GiB in, by the run's cgroup (13 679 MiB), not
+by the page. So the page's memory **is** the series' decoded size, and the ceiling is whatever the device allows. On a
+phone that limit is not measured ([`../devices.md`](../devices.md) D5). The largest named set, `dbts_b1`, is 812.5 MiB
+decoded (50 × 2560×3328, 16-bit; [`../FIXTURES.md`](../FIXTURES.md)).
+
+### The mechanism proposed
+
+```
+                        ┌──────────── page (the consumer, as today) ────────────┐
+decoder ── SAB handle ─►│ memory window: frames near the current index,         │── handle ──► paint worker
+ (checked: exact)       │ within a byte budget; drops the farthest first         │
+                        └───────────┬──────────────────────────▲─────────────────┘
+                          handle    │ (~0.1 KB, no copy)        │ handle of a frame read back, re-checked
+                                    ▼                           │
+                        store worker (dedicated, started by the page)
+                          one sync access handle per open series, held for the session
+                                    ▼
+                        OPFS  /series/<id>/frames   n × frameBytes, frame i at i × frameBytes
+                              /series/<id>/manifest  present bits, per-frame min/max, the digest list it was written for
+```
+
+* **Write.** Each frame the decoder checked `true` goes to the page as today; the page puts it in the window and posts
+  the same handle to the store worker, which writes it at `i × frameBytes`. The fill's clock does not see the write
+  (§6). A frame leaves the window only once the store worker says it is written; until then it stays.
+* **Read.** A frame outside the window is read by the store worker into a new `SharedArrayBuffer`, hashed (XXH3-64)
+  against the series' frame digest, and posted back; only then can it be painted. A miss, or a failed check, is an
+  ask to the downloader as today.
+* **Reopen.** The page reads the metadata (its digest list), opens the series in the store worker, gets back the set
+  already present, and starts the downloader with `fill` = the rest. The downloader already fills any index list as
+  contiguous runs (§The downloader, *Fills are pushed*), so **neither the downloader nor either transport client
+  changes**: TS and WASM clients only deliver coded bytes to it. A fully present series is decoded zero times.
+
+### The levers, and what decides each
+
+**1 · What is stored: decoded samples.** Not the focus; the trade-off in one table (§4 has it per entry):
+
+| | disk a frame | reopen a frame | decided by |
+| --- | --- | --- | --- |
+| decoded | full size: 0.52 MB (512², 16-bit), 17.0 MB (`dbts_b1`), 27.3 MB (3328×4096) | read + re-check: **0.10 / 2.3 / 6.3 ms measured** for 0.52 / 9.85 / 27.3 MB (the exactness ADR §9, Chromium and Firefox, a container, 1×); the read itself not measured | the no-re-decoding rule: only this keeps it |
+| coded | smaller by the lossless ratio (not stated in the repo for the product sets; a file-size count, not a timing, would give it) | a decode: 3.0 ms (MR 512², HTJ2K) to 69–72 ms (3328×4096, HTJ2K) and 776–804 ms (dav1d-WASM), same table | breaks the rule on every reopen |
+
+Across the band: a series that fits the quota is stored decoded. One that does not fit is the quota's case (lever 5),
+not a reason to store coded bytes for everything. Coded storage returns only if a phone reads slower than it decodes,
+which §7(4)'s protocol measures.
+
+**2 · The memory window: its budget, and what leaves first.** What leaves first is the frame farthest from the current
+index (§3: a reader scrolls a stack), not the least recently used. The budget is a constant (WebKit has no
+`deviceMemory`, [`../CLIENTS.md`](../CLIENTS.md) §On WebKit) until D5 measures what a phone kills a tab by. What a
+budget holds, from the frame sizes above:
+
+| budget | CT 512² 16-bit | `dbts_b1` slice | 3328×4096 mammogram |
+| --- | ---: | ---: | ---: |
+| 256 MiB | 512 frames | 15 | 9 |
+| 1 GiB | 2 048 | 63 | 39 |
+
+Page memory becomes the budget + frames written but not yet confirmed + the workers (17–144 MiB, row 273), whatever
+the series' size. **Not measured, and a risk:** a `SharedArrayBuffer` is freed only when no agent holds it and each
+has collected it (HTML, §9). Dropping it from the `Map` therefore lowers resident memory only after the collectors
+run, on the page and in the store and paint workers. If that lags under a fast fill, the fix is the preallocated
+store already open in [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open (*one preallocated shared store per fill*):
+a ring of budget-sized slots the decoders write into, which makes memory fixed by construction. That changes the
+decoder's hand-off, so it is built only if the measurement asks for it.
+
+**3 · The layout: one packed file per series, not a file per frame (revising §8.3).** New evidence since §8: every
+frame of a series has one size. The ingest refuses files of another Rows, Columns, BitsAllocated or photometric, and
+the metadata carries one `width`, `height` and `channels` ([`../FIXTURES.md`](../FIXTURES.md) §The metadata). So
+frame `i` lives at `i × frameBytes` and no index is needed. What each layout costs:
+
+| | packed per series (proposed) | file per frame (§8.3) |
+| --- | --- | --- |
+| handles | one, opened at series open, held | one per write and per read: `createSyncAccessHandle` is async and opens the file in the browser process (§4) |
+| quota failure | once, up front: `truncate(n × frameBytes)` at open throws `QuotaExceededError` if it does not fit (fs `index.bs` 1576–1590) | at any frame, mid-fill |
+| eviction unit | the series: delete one file | a frame, or the series by deleting a directory |
+| a second tab on the same series | the lock is exclusive (§4): the second tab runs without the cache, or reads with `getFile()`, which takes no lock (fs `index.bs` 485–500) | contends per frame, briefly |
+| torn write after a crash | the re-check catches it (lever 6) | the same |
+
+Pre-sizing costs the full series at open, not as frames land; that is what makes a quota failure a decision taken
+before the fill, not a surprise during it. A series whose rung and zoom regions are served instead (deeper than
+12 bits: the fit, [`resolution-fitting-for-large-frames.md`](resolution-fitting-for-large-frames.md) §2) gets one
+packed file per rung, whose frames again share one size; zoom regions are not cached in this design.
+
+**4 · Which worker holds the handles: a store worker started by the page.** Sync access handles exist only in
+dedicated workers (§4). Three candidates:
+
+* the decoder: puts up to ~17 ms a mammogram write on the decode clock, the fill's clock when decode-bound (§6). Rejected.
+* the downloader: one dedicated worker less, but its thread runs the receive loop, and a busy receive loop is the
+  stall the downloader exists to remove ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Why a downloader). Not proposed.
+* **a store worker the page starts**: one thread more, and not a nested worker, so it does not depend on nested
+  workers' sync handles, which §4 left unverified per engine. **Proposed.**
+
+**5 · Eviction across series, inside a budget of our own.** Every engine clears a whole origin, least recently used
+first, best-effort only (§4). So if the browser has to evict, it removes every cached series at once. The store keeps
+its own budget below the origin's quota and evicts whole series by last open, so that the browser never has to.
+What decides it is how often a series is reopened, which the owner's direction leaves open from never to daily:
+
+* **never reopened:** OPFS is the memory window's spill and nothing more; a series can be deleted when its page closes.
+  The budget only has to hold the largest series one page opens.
+* **reopened often:** a larger budget pays back in fills not repeated; plain LRU by series fits a reader returning to
+  recent studies.
+* **weighted by what a refetch costs** (the owner's idea, row 148: link-dependent): weighing by coded size alone is
+  stable; weighing by the link is not, because the link at reopen may differ from today's. Nothing measured favours
+  either over plain LRU.
+
+Plain LRU is a few lines, and a weight can be added later without changing the file layout, so it is the starting
+point. Quotas from the sources (§4 and the 2026-10-20 sources):
+
+| engine | per origin | private window | a cleared cache |
+| --- | --- | --- | --- |
+| Chromium | 60 % of disk (§4) | OPFS works **in memory**: a pool of 15–20 % of physical RAM, a third per origin, so 5–6.7 % of RAM, ~410–546 MiB on an 8 GiB phone (`quota_settings.cc` 32–46) | LRU of origins under pressure (§4) |
+| WebKit, Safari 17+ | up to 60 % of disk in a browser app, 15 % in other apps; 80 % / 20 % overall (WebKit blog 14403) | by source, `getDirectory()` fails: an ephemeral session has no storage path and an empty path is refused (`NetworkStorageManager.cpp` 123–126, 624–625; `FileSystemStorageManager.cpp` 81–82). Not run | LRU of origins, sparing one with an open page or in persistent mode (blog 14403); and ITP's deletion after 30 operating days by source, 7 when flagged (§4), which a Home Screen web app counts by its own use (WebKit blog 10218) |
+| Gecko | 10 % of disk, at most 10 GB (§4): ~12 `dbts_b1` series | OPFS is off: `dom.fs.privateBrowsing.enabled` defaults to `false` (`StaticPrefList.yaml` 5498–5501) | LRU of best-effort sites (§4) |
+
+On iOS every browser is WebKit, so the WebKit row is the iPhone's (outside the EU's alternative engines; not traced).
+
+**6 · Integrity: the frame digest, checked on every read.** Unchanged from §5 and the exactness ADR §8 *A client
+cache*: store only frames checked `true`; on read, XXH3-64 against the digest, measured at 0.10–6.5 ms a frame (above).
+The series has no identifier and no metadata version today ([`../FIXTURES.md`](../FIXTURES.md): no UID is copied).
+So the key is the bundle's name, and the manifest keeps the digest list it was written for. At open, a list that
+differs drops the series whole. That is a comparison, not a digest used as a key (exactness ADR §7). When the
+metadata comes from the per-study database (the next point, M1), its series identity and version become the key. The
+present bits are written after the frame and never flushed, so a crash can leave a bit set on a torn frame; the
+re-check is the guard, which is why it cannot be switched off for cache reads.
+
+**7 · Failure modes, and what the page does.**
+
+| failure | seen as | the page does |
+| --- | --- | --- |
+| no OPFS: Firefox private, Safari private (by source), an engine without it | `getDirectory()` rejects | no cache: the window alone (below) |
+| the series does not fit | `truncate` at open throws `QuotaExceededError`, or `estimate()` already says so | evict our own LRU series and try once; else no cache for this series |
+| Chromium private window | it fits, but the "disk" is RAM in the browser process | the same rule: it caches only what fits 5–6.7 % of RAM, which then lifts nothing; not detectable as such, and not worth special code |
+| storage pressure, or ITP, empties the origin between opens | the manifest is missing | a fresh fill |
+| the files vanish while open | a read throws | a miss: ask the downloader |
+| two tabs, one series | `NoModificationAllowedError` at open | the second tab: no cache, or reads with `getFile()` |
+| a damaged frame on disk | the re-check fails | evict that frame's bit, ask the downloader; report it |
+
+**Without a cache, the no-re-decoding rule cannot hold for a series bigger than the budget.** Something must give:
+either the window drops its farthest frames and asks for them again (a second decode, a refetch), or it keeps them
+all, which is today's ceiling and a risk of the tab being killed. That is a choice for the owner.
+
+**8 · `persist()`** (§8.5, still open). It is `[Exposed=Window]`, so the page asks for it. On WebKit it spares the
+origin from quota eviction (blog 14403) but not from ITP's deletion ([`../CLIENTS.md`](../CLIENTS.md) §On WebKit).
+How Chromium and Gecko grant it (an engagement rule, or a prompt) was not traced here.
+
+### Where it saturates, predicted
+
+The write rate the cache must keep up with is the decoded arrival rate: the link's coded rate × the lossless ratio.
+At 100 Mbit/s and any ratio up to 10, that is at most 125 MB/s, against ≥ 1 GB/s predicted for Chromium and WebKit
+writes (§4). On the target link the write does not bind, on that prediction. Gecko's write takes a synchronous quota
+round trip per call (§4), so its ceiling is unknown. Reads bind sooner: cine of `dbts_b1`-sized frames at 30 frames/s
+is 511 MB/s of read + check, and the check alone is ~5 ms a 17 MB frame on the container (its 3.3 GB/s, measured, exactness §9).
+A phone is not measured, so nothing is claimed for it.
+
+### Measurement owed (proposed, not queued)
+
+§7(4) stands (write, read + check, reopen against a fresh fill). Added: **(5)** the 13 GiB series of row 273 under a
+256 MiB window, Chromium and Firefox, with page memory read every second. It passes if the fill completes exact and
+memory stays within budget + 160 MiB. It is mutated by a window that never drops, which must fail. **(6)** each row of
+lever 7's table forced through the store's own lever (a quota it is told, a manifest it is told is gone), not through
+the browser, with each test mutated. **(7)** the lossless ratio of the product sets, by file size.
+
+### Options, and what each costs
+
+| option | changes | costs | switch later |
+| --- | --- | --- | --- |
+| **packed file per series** (lever 3) | one handle, quota failure up front, no index | eviction by series only; one tab per series writes | a format change inside OPFS: drop the cache, refill |
+| file per frame (§8.3) | per-frame eviction, several writers | a handle opened per access; quota failure mid-fill | the same |
+| window by distance, `Map` (lever 2) | memory bounded by a constant | depends on collection; one constant for every device | the constant is configuration |
+| slot ring (lever 2) | memory fixed by construction | the decoders' hand-off changes | structural |
+| own LRU budget by series (lever 5) | the browser never evicts us | a budget to choose | configuration |
+| without OPFS: drop and re-ask | the tab survives | a second decode of a dropped frame | configuration |
+| without OPFS: keep all | no frame decoded twice | today's ceiling, the tab at risk | configuration |
+
+### Questions for the owner
+
+1. **The packed file per series, revising §8.3?** It rests on one size per series, which the ingest enforces.
+2. **Without OPFS** (Firefox and Safari private windows, a quota too small): past the window's budget, drop the farthest
+   frame and ask for it again, or keep everything as today?
+3. **The window's starting budget:** 256 MiB until D5 says what a phone kills a tab by, or D5 first?
+4. **Eviction across series:** plain LRU inside a budget of ours (proposed), or the size- or link-weighted variant now?
+5. **`persist()`** (§8.5): ask for it on the first series opened, or never?
+6. **A series already whole in OPFS:** dial the session anyway (ready for asks, one handshake), or only on a miss?
