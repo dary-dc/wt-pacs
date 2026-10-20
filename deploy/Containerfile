@@ -48,7 +48,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -
 RUN useradd -r -u 10001 wtpacs && install -d -o 10001 -g 10001 -m 0700 /certs && install -d -o 10001 -g 10001 -m 0755 /run/wt-pacs
 COPY --from=build /usr/local/bin/series-server /usr/local/bin/series-server
 COPY deploy/server-start.sh /usr/local/bin/server-start.sh
-COPY fixtures/us_cine_smoke /studies
 USER 10001
 EXPOSE 4433/udp 4433/tcp
 ENTRYPOINT ["/usr/local/bin/server-start.sh"]
@@ -86,7 +85,6 @@ COPY --from=bundles /web/client /srv/wt-pacs/client
 COPY --from=bundles /src/client/transport/ts/dist /srv/wt-pacs/client/transport/ts/dist
 COPY --from=wasm /src/client/transport/wasm/pkg/transport_wasm.js /src/client/transport/wasm/pkg/transport_wasm_bg.wasm \
      /srv/wt-pacs/client/transport/wasm/pkg/
-COPY fixtures/us_cine_smoke /studies
 # The decoders and the frame check's hasher the page loads are built on the host from this tree
 # (client/decode/wasm/build/build.sh) and must be the ones its manifest pins.
 RUN cd /srv/wt-pacs/client/decode/wasm/built && sha256sum -c -s ../build/manifest.sha256 && \
