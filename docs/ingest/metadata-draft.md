@@ -242,6 +242,172 @@ file arrived as it was sent: the same rows can be stored as different file bytes
 SQLite version), so it cannot be compared with anything the parser computed. Both have a use: the file's hash for the
 transfer, the groups' for the content, and SQLite's `PRAGMA integrity_check` for the file's structure.
 
+#### The truth and the page view: a survey of formats (2026-10-20)
+
+*Read from primary sources (§Sources, 2026-10-20), nothing built and nothing timed here. A number marked
+**measured** is the table above; every other cost is reasoned from the sources and marked unmeasured.*
+
+**The two jobs** (the owner's direction, 2026-10-20). The *truth* is every attribute, kept once and addressable. The
+*page view* is small and derived from the truth: one entry per series with the page's values for every instance,
+rebuilt when the truth or the client's needs change.
+
+```text
+ PCS ── the parser's groups ──▶ PACS builder ──▶ the study's store
+                                                  ├─ truth      every group as received, with its BLAKE3
+                                                  └─ page view  one entry per series: the page's document
+ page open    server ── one lookup by series UID ──▶ page view ── its bytes ──▶ client
+ an update    builder: write the changed group, rebuild that series' page view, both at once
+ a new need   builder: rebuild every series' page view from the truth
+```
+
+**What the split changes.** The measured table is a page open that walks every instance of the series. With a page
+view, that walk happens once, when the builder writes the view, and a page open reads one entry whatever the series'
+size. So the truth is no longer judged on the page's read: it is judged on an update, on its integrity, on
+addressing any attribute, and on how fast the builder can walk it to rebuild a view. The page view is judged on one
+read and on its size on the wire.
+
+**The truth: shapes.** Each can sit in any engine of the next table; SQLite is assumed where it says so.
+
+| | T1. a row per group | T2. a row per attribute | T3. JSONB group, generated columns | T4. sorted key file | T5. the group files |
+| --- | --- | --- | --- | --- | --- |
+| what it is | B without its copied columns: the parser's bytes as received, its BLAKE3, keyed by series, instance and kind | C: DECK's key, `WITHOUT ROWID` | each group converted to SQLite's JSONB, a page value a `VIRTUAL` column over `json_extract` | D: keys apart from values, rewritten whole | A, untouched |
+| walk a series (the rebuild) | open the blobs, walk 45 records each; unmeasured | one key range per instance (**measured** 12.6 ms at 2 000 for the page's tags) | `json_extract` per value, per row; unmeasured | **measured** 0.65 ms at 2 000 | **measured** 30 ms at 2 000, 2 001 files |
+| one attribute across a study | parse every group | a key range per instance | one column | a binary search per instance | parse every file |
+| one rare update | write the corrected group as a new row | rewrite its rows | rewrite one JSONB blob | rewrite the file and rename it | write a new file (its name is its hash) |
+| a new client need | nothing (the view is rebuilt) | nothing | `ALTER TABLE ADD COLUMN … VIRTUAL`; a `STORED` one cannot be added by `ALTER` | nothing | nothing |
+| integrity | BLAKE3 of the stored blob; it *is* the hashed bytes | reassemble the records in key order, then hash (the lab checks it byte for byte) | **lost**: JSONB is not the parser's bytes, so they must be kept beside it | reassemble, as T2 | the file's name is its hash |
+| size, 2 000 instances | under B's 2 912 256 B (**measured**, with the columns) | 3 395 584 B (**measured**) | unmeasured; JSONB is 5–10 % under text JSON (SQLite) | 3 142 008 B (**measured**) | 2 151 799 B in 16 388 096 allocated (**measured**) |
+| crash, readers during an update | the engine's (next table) | the engine's | the engine's | rename publishes; a reader keeps the old file open | rename publishes; nothing ties the files of one update together |
+| what we own | the schema | the schema | the schema, and a conversion | the format, writer, reader, checks and tools | nothing |
+
+* **T2's key order is a lever.** DECK's order (series, instance, tag) keeps a group's records together, which is what
+  makes T2's integrity a reassembly. A tag-first order (series, tag, instance) would make the page's six tags six
+  ranges of 2 000 rows instead of 2 000 ranges, and scatter every group; unmeasured. Under the split it buys nothing,
+  because the page no longer reads the truth.
+* **T2 fits `WITHOUT ROWID`; T1 does not.** SQLite's rule of thumb is a row under 1/20 of a page (about 200 B at
+  4 KiB). A T2 row is a 16-byte key and a short value; a T1 row is the 1 067 B group, so T1 is an ordinary table with
+  its key as a unique index.
+* **T3's catch is twice over.** SQLite says JSONB is "for internal use by SQLite only", and a generated column may call
+  only deterministic functions in the same row: reading DECK's records directly would need our own function,
+  registered in every connection, which the `sqlite3` shell does not have. And a `VIRTUAL` column is computed on read,
+  so it is B's per-instance read again.
+* **An update and the parser's hash.** A corrected group is no longer what the parser wrote. T1 keeps the received row
+  as it came, so the parser's BLAKE3 stays checkable, and writes the correction as a new row with a generation number
+  and the PACS's own BLAKE3 over its bytes; a read takes the highest generation. AWS HealthImaging does the same at
+  its scale: an update makes a new version and old versions can be read back. Whether the PACS keeps history at all
+  is the owner's.
+
+**Not the truth, and why.** rkyv has no schema evolution (its own feature table); FlatBuffers and Cap'n Proto evolve
+only by declared fields added at the end. DICOM's attribute set is open, so none of them can hold it without becoming
+a key-value list inside a blob, which T1 already is. Arrow IPC and Parquet files are written once (a footer indexes
+the blocks); an update rewrites the file, and Parquet recommends row groups of 512 MB–1 GB, against a study's
+kilobytes. Both fit a later, separate export (one attribute across many studies, an AI pipeline), not the truth.
+
+**Engines that could hold T1 or T2.** The builder and the server are two processes, so whether a second process may
+read while one writes is a column of its own.
+
+| | SQLite (`rusqlite`) | redb | LMDB (`heed`) | fjall | sled |
+| --- | --- | --- | --- | --- | --- |
+| model | B-tree pages, SQL | copy-on-write B-trees, key-value, pure Rust | copy-on-write B-tree in one memory map, C | LSM tree (memtable, sorted tables, compaction), pure Rust | Bw-tree-like, pure Rust |
+| a commit across a crash | atomic, journal or WAL | 1 `fsync` with a checksummed commit (2 under 2PC) | copy-on-write: "no special recovery procedures" | a journal; by default flushed to the OS, not to disk | "sled is beta" |
+| a reader during an update | WAL: readers keep their snapshot; other processes on the same host | MVCC in one process; a read-only handle in another process excludes the writer, unless `experimental-multiprocess` (since 4.3.0) | readers lock-free, any process; a lock file to keep healthy | "may not be loaded in parallel from separate processes" | — |
+| built-in checks | `PRAGMA integrity_check`; per-page checksums only with `cksumvfs` | XXH3-128 Merkle tree over every page | none in 0.9.36; a checksum callback in the 1.0 branch (`heed3`) | not read | not read |
+| inspect with | the `sqlite3` shell, any language | our own tool | `mdb_dump`, `mdb_stat` | our own tool | our own tool |
+| latest (crates.io) | 0.40.2, 2026-08-08; SQLite 3.54.1 released 2026-10-16 | 4.4.0, 2026-10-13; also 2.6.4, 2026-10-02 | 0.22.1, 2026-04-07; LMDB 0.9.36 | 3.1.12, 2026-10-03 | 0.34.7, 2021-09-12; 1.0.0-alpha.124, 2024-10-11 |
+| licence | MIT | MIT or Apache-2.0 | MIT; the -sys crate Apache-2.0; LMDB OpenLDAP 2.8 | MIT or Apache-2.0 | MIT or Apache-2.0 |
+| state | — | "Stable and maintained", file format stable | mature C; the Rust wrapper maintained | stable disk format, major bumps migrate | on-disk format to change before 1.0; a rewrite in progress |
+
+* **Out:** sled (beta, no release in two years) and fjall (one process at a time, and an LSM's compaction is machinery
+  for many writes, where ours are rare). `sstable` (0.11.1, 2023-04-22) and `fst` (0.4.7, 2021-06-06) would make T4 a
+  library's format instead of ours, but neither has had a release in two years.
+* **redb's own benchmark** (its README, Ryzen 9950X3D) puts LMDB first on reads and SQLite last, at 4.3 s for random
+  reads where redb takes 1.1 s; that is millions of keys, not a series' one lookup, and says nothing at our sizes.
+
+**The page view: formats.**
+
+| | V1. a row per series, its bytes the document | V2. a file per series | V3. copied or generated columns per instance | V4. FlatBuffers or Cap'n Proto | V5. Arrow IPC | V6. rkyv |
+| --- | --- | --- | --- | --- | --- | --- |
+| a page open | one key lookup, then send the bytes; unmeasured, expected near B's 4-instance read (**measured** 7.4 µs held) at any size | open and read one file | B: **measured** 2.6 ms at 2 000 held, and the document still to build | one lookup; the client reads fields in place | one lookup; columns in place | one lookup; Rust only |
+| an update or a new need | rewrite the row(s) in the truth's own commit | rewrite and rename the file; a second step after the truth's commit | B: a new column, every study refilled; generated: `ALTER TABLE` | a field added at the end; old readers ignore it | a new column; the file rewritten | no schema evolution |
+| the client | reads it as it does today | as V1 | as V1 | a schema compiler and a library in the page | a library in the page | cannot read it |
+
+* **V1 and V2 are what the archives do** (below): a precomputed document per series, rebuilt from a truth kept whole.
+  V1 puts it in the same file as the truth, so one commit changes both and a reader sees both before or both after.
+  V2 needs a generation number in both places and a check that they agree.
+* **The view's encoding is the wire's**, so it is decided with §1 and §4, not here: JSON, as the viewer reads now,
+  until a measurement says otherwise. FlatBuffers would suit a growing set of fields (append-only evolution) if the
+  size on the wire ever calls for binary.
+
+**What existing archives and viewers do.**
+
+| | the truth | the page-like view | a new need |
+| --- | --- | --- | --- |
+| **Orthanc** | the DICOM files; a SQLite (default) index with `MainDicomTags`, one row per resource and tag | the DICOMweb plugin's series metadata, cached as a gzipped attachment (since 1.15) | `ExtraMainDicomTags` apply to new data; old data by `/reconstruct` or the Housekeeper plugin |
+| **dcm4chee-arc** | the objects on storage; each level's attributes as an encoded blob in table `dicomattrs` | "ZIP archives with aggregated Metadata of all instances of a Series", on storage | an attribute update schedules the series' metadata to be rebuilt (`dcmUpdateSeriesMetadata`, polled) |
+| **AWS HealthImaging** | the imported image set | the whole image set's metadata as one gzipped JSON | an update makes a new version, old ones readable; the image set is `LOCKED` while it updates |
+| **Google Cloud Healthcare** | not published | DICOMweb Retrieve Metadata | `updateMetadata` (v1beta1) on a study, series or instance: a JSON Patch, a long-running operation |
+| **Static DICOMweb** | the files | `series/<uid>/metadata.gz` | not stated; a `deduplicated/` tree "used for concurrent updates" |
+| **OHIF** | — (a viewer) | asks DICOMweb's series metadata, every instance's full JSON, into its metadata store; per series with `enableStudyLazyLoad` | — |
+| **DECK** (the parser's design) | one key-value row per attribute, keys ordered by series, instance, group, sequence and item, the same table proposed for SQLite, Turso and IndexedDB | none in `doc/DECK` | none needed: every attribute is addressable |
+
+**What decides across the band.** At 4 instances (mammography) every store read the page's values in under 0.1 ms
+(**measured**): nothing decides on speed, so the update, the integrity and the tools do. From 200 to 2 000 (CT)
+the per-instance stores grow with the series, 0.05–2.9 ms at 200 and 0.65–30 ms at 2 000 (**measured**), while a
+page view stays one lookup. So across the band it is not the truth's format that decides but whether the
+per-instance work is done at a page open or at a build. What remains is the view's size on the wire at CT sizes:
+**measured** (§Today), ~120 KB gzipped cost the connection +7 ms at 80 ms and +29 ms at 160 ms. Constant values once
+and per-instance values only where they vary, as `perFrame` does now, matter more there than any storage format.
+
+**Switching later.** The pair's two edges are the builder (groups in, truth and view out) and one read function (UIDs
+in, the view's bytes out); the client sees only the bytes. A truth shape (T1 ↔ T2) changes the builder and a
+rebuild from the groups, with the view untouched. An engine (SQLite ↔ redb) changes the builder and the read function.
+The view's encoding changes the client and a rebuild of every view from the truth.
+
+**Recommended pair: T1 truth and V1 page view, both in the study's one SQLite file** (unmeasured as a pair).
+
+```sql
+CREATE TABLE grp  (series TEXT, instance TEXT, kind INTEGER, generation INTEGER,
+                   bytes BLOB, blake3 BLOB, PRIMARY KEY (series, instance, kind, generation));
+CREATE TABLE page (series TEXT PRIMARY KEY, view_version INTEGER, truth_generation INTEGER, document BLOB);
+```
+
+* **The page open does no per-instance work:** one primary-key lookup, at 4 instances as at 2 000.
+* **Integrity is the simplest of all:** the stored bytes are the hashed bytes, so a check is BLAKE3 of a blob against
+  its column, and the received generation keeps the parser's own hash checkable after any update.
+* **An update is one transaction:** the new group row and that series' page row commit together; in WAL mode the
+  server's readers, in their own process, see before or after, never between.
+* **A new client need** raises `view_version` and the builder rebuilds every page row from the truth, lazily on first
+  read or in a sweep, as Orthanc's Housekeeper and dcm4chee's scheduled update do.
+* **It is what the archives converged on:** the truth kept whole, a per-series document derived from it. It keeps the
+  decided one file per study, inspectable with `sqlite3`, and the engine (§3) stays a choice within one file format.
+* **What it gives up:** D's 0.65 ms walk is the fastest truth, but the walk is no longer on the page's path, and D
+  would make us own a format, its writer, reader, checks and tools.
+
+**Runner-up: T2 truth (DECK's row per attribute) with the same V1 page view, in the same file.** Every attribute is
+addressable without parsing, which a read across studies (an AI pipeline) would use, and it is the parser's own
+design. It costs a reassembly for every integrity check, 45 rows per instance (90 000 for a 2 000-instance CT), and an
+update that rewrites rows and so needs the old rows kept for the parser's hash to stay checkable. Switching from T1 to
+T2 later is a rebuild of one table. Within either, redb is the engine runner-up, held back by multi-process writes
+being experimental.
+
+**The benchmark that would confirm the pair** (described only; the owner decides whether it runs). In
+[`../../lab/metadata-store`](../../lab/metadata-store), from the same groups, at 4, 200 and 2 000 instances, one
+thread, files in the page cache, T1 + V1 and T2 + V1 interleaved round by round with D's held scan as the reference,
+300 rounds, medians:
+
+1. **The page open:** read one series' page row, opened per read and held, and check its document equals the one
+   built from D's values.
+2. **One update:** change one instance's window centre: write its group (T1 a new generation, T2 its rows) and
+   rebuild that series' page row, committed with `fsync` in WAL at `synchronous=FULL`; time and bytes written.
+3. **A new need:** add one attribute (pixel spacing) to the document and rebuild every page row.
+4. **Integrity:** check every group's BLAKE3 (T1 the blob, T2 reassembled); mutate one byte and watch the check fail.
+5. **A reader during updates:** a second process reads page rows in a loop while the first commits updates; every
+   document read must be the before or the after; count the reads that waited.
+6. **Size on disk** of each store.
+
+It reports latency, not throughput, says where the host saturates, and claims nothing about a cold disk or many
+sessions at once.
+
 ### 3. Which embedded engine
 
 *Primary sources below (§Sources). All read the same file format, so a database built by one is read by the
@@ -317,3 +483,49 @@ Fetched 2026-10-19, first 12 hex of the fetched file's sha256.
   (`28a771b01162`), `docs/manual.md`, `bindings/rust/src/lib.rs` lines 284–342; `turso` (`99f8bf2b2551`),
   `turso_core` (`cc08a07a0f95`) and `limbo` (`b365420bb9c7`) on crates.io. Turso Cloud: `turso-cloud.md`
   (`6f75c718aecf`), usage and billing (`b975c2fcfd32`); the pricing page could not be fetched.
+
+Fetched 2026-10-20 for §2's survey, first 12 hex of the fetched file's sha256. Raw copies are not committed. A
+crates.io entry is its API's JSON (`https://crates.io/api/v1/crates/<name>`), whose download counts change, so its hash
+pins the read, not the crate.
+
+* **SQLite** pages: generated columns (`bfeda4cc84fe`), JSON (`bca8f665a03a`, the same as design.md §12), JSONB
+  (`7e4563721e62`), `WITHOUT ROWID` (`0e5e50ba91f7`), isolation (`23395653f049`), WAL (`f3467b530b88`, the same as
+  above), internal and external blobs (`7977fddc6682`), the checksum VFS (`39559263a54e`), release history
+  (`50e63c6da18d`). `rusqlite` on crates.io (`23de2c90d823`).
+* **redb** at `6b2d24eb9a02`: README (`23400cd94b12`), `design.md` (`944c21209038`), CHANGELOG (`a463cea1e1a0`);
+  crates.io (`15bc9c22e1e6`).
+* **LMDB**: `lmdb.h` at tag `LMDB_0.9.36` (`f5282169fed4`) and at the 1.0 branch's `f437e48ccf42` (`90d3c8818169`),
+  LICENSE at `LMDB_0.9.36` (`310fe25c858a`). **heed** at `d2252a0eed61`: README (`4e46e42f8c32`), `heed/Cargo.toml`
+  (`8fae5d077519`), `lmdb-master-sys/Cargo.toml` (`cee91d7df0e3`); crates.io `heed` (`7f250feb26bf`), `heed3`
+  (`9785f2fb1543`), `lmdb-master-sys` (`23ff03c86f4d`).
+* **fjall** at `2744f347420b`: README (`1c55025ba595`); `lsm-tree` at `72b344163073`: README (`fd588a4d7533`);
+  crates.io `fjall` (`aef07adde97e`), `lsm-tree` (`bf7a7705f290`).
+* **sled** at `e449d17111f4`: README (`bdb4a0c55bd3`); crates.io (`7729fe7e4f34`).
+* **Sorted tables**: LevelDB at `bb74ef739973`, `doc/table_format.md` (`16f96b651b8e`), `doc/impl.md`
+  (`340b4dd78186`), `doc/index.md` (`bd96bc81dacb`); crates.io `sstable` (`87427b816b9b`), `fst` (`24f85f3d6f9b`),
+  `memmap2` (`1ebccfe98eb8`).
+* **Zero-copy**: rkyv at `d963abc24301`, README (`296e729cb0ac`), `book_src/feature-comparison.md` (`6c9a09549541`),
+  `book_src/faq.md` (`f8d00444571b`), `book_src/validation.md` (`51a347be019a`), `book_src/format.md`
+  (`c78b649835ff`); FlatBuffers at `b8431fbcd7a5`, the schema evolution page `source/evolution.md` (`8ec4dfa0a1ab`)
+  and `source/internals.md` (`82e394484c02`) under its documentation directory; Cap'n Proto at `a7c37e11a6ab`,
+  `doc/language.md` (`e7c4b54bb1a5`), `doc/encoding.md` (`2384b3294298`); crates.io `rkyv` (`85623ec495b2`),
+  `flatbuffers` (`831aeec9c3a4`), `capnp` (`f2da8af9e1a8`).
+* **Columnar**: Arrow at `ee382216db4f`, the columnar format specification `Columnar.rst` (`f7291ce8562f`);
+  parquet-format at `53b8bd857682`, README (`692afb37e07e`); crates.io `arrow-ipc` (`4c494efc8386`), `parquet`
+  (`a7a501b0217c`).
+* **DECK** at `0b1169e98d09` (2026-10-20's `main`, after the `f36230b` read in [`contract.md`](contract.md)):
+  `doc/DECK/databases/README.md` (`23f367835d3b`), `doc/DECK/ordered contextual-keys format.md` (`b20e46ac4a7b`), the
+  top README (`42b5443f7f1a`). `doc/DECK/README.md` does not exist at that commit.
+* **Orthanc** book: main DICOM tags (`7042e11711b9`), the DICOMweb plugin (`6ce73c1ece9a`), storage FAQ
+  (`daccaab883ba`, the same as design.md §12); `OrthancServer/Sources/Database/PrepareDatabase.sql` from the
+  `default` branch, whose tip was `bb6c9baf347d` (`39ecf6249b6f`; a fetch by that revision was refused, so the pin is
+  the branch at the time).
+* **dcm4chee-arc-light** at `74e0c73c3312`: `AttributesBlob.java` (`08b01178af21`) and `Series.java`
+  (`4891aeacaaa1`) under `dcm4chee-arc-entity`; the archive device configuration (`33ecad8ae7b0`).
+* **AWS HealthImaging** developer guide: getting image set metadata (`b14720a1699e`, the same as design.md §12),
+  updating it (`52bbde235762`).
+* **Google Cloud Healthcare API**: `series.updateMetadata`, v1beta1 (`d4da53bad285`); the DICOM conformance statement
+  (`ad1667977db5`).
+* **OHIF** at `5a78dac37797`: `DicomWebDataSource/index.ts` (`4e2d993ec276`), `DicomMetadataStore.ts`
+  (`1bb16e52313d`). **Static DICOMweb** at `1a38951e2972`: README (`289e453d2106`), `file-structure.md`
+  (`a608aedf8d7b`).
