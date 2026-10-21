@@ -24,3 +24,14 @@ server holding no study open would; *held* reuses one open handle. A always open
 **What it does not say.** One thread on one host, every file in the page cache (written just before, never evicted):
 no claim about a cold disk or about many sessions at once. D's fixed 16-byte keys hold top-level attributes only; a
 group with a sequence makes the build refuse.
+
+**`--mode pair`** times the recommended pair and its runner-up, each one SQLite file in WAL at `synchronous=FULL`: T1, the
+truth as a row per received group, and T2, a row per attribute, each with V1, one page row per series holding the
+page's document. Pre-registered and recorded in the draft's §2: the page open (held and opened, D's held scan as the
+reference), one update (a new revision of one instance's rescale intercept, the page row rebuilt, one commit), the
+rebuild alone, every received group's BLAKE3, a reader in a second process during updates (`--reader`, started by the
+run), and size.
+
+```bash
+cargo run -p metadata-store --release -- --mode pair --instances 4,200,2000 --rounds 300 --updates 60 > pair.jsonl
+```

@@ -436,6 +436,43 @@ Interleaved round by round: the five page-open arms (T1 + V1 and T2 + V1, each h
 300 rounds, then the two update arms over 60 rounds, at 4, 200 and 2 000 instances. One thread; the files are in the
 page cache, never evicted. Medians, with p10 and p90.
 
+**Measured, 2026-10-21** ([`../../lab/metadata-store`](../../lab/metadata-store), `--mode pair`; two runs, and a range is the
+two runs' medians). One thread per arm on a 4-vCPU Xeon at 2.10 GHz, the files in the page
+cache; part 5 runs a second process beside it. ext4 on the VM's virtual disk: whether its `fsync` reaches durable
+storage is the VM's, not measured here. Medians; nothing is claimed for a cold disk or for many sessions at once.
+
+| Part | 4 instances | 200 | 2 000 | Against the pre-registration |
+| --- | ---: | ---: | ---: | --- |
+| 1, page open, T1 + V1, held | 1.9–2.9 µs | 4.1–5.4 µs | 27–29 µs | holds: ≤ 0.3 ms, below D |
+| 1, page open, T2 + V1, held | 1.9–3.0 µs | 3.9–4.0 µs | 18 µs | holds |
+| 1, page open, opened per read (T1; T2 within 30 µs) | 54–90 µs | 58–62 µs | 108–117 µs | holds: held + 52–88 µs |
+| 1, D's held scan, the reference | 1.2–1.9 µs | 45–46 µs | 440–456 µs | |
+| 2, one update, T1 + V1 | 0.52–0.55 ms | 1.45–1.51 ms | 9.4–9.5 ms | in 5–30 ms; **the `fsync` share is contradicted** (below) |
+| 2, one update, T2 + V1 | 0.45–0.46 ms | 1.45–1.66 ms | 10.2–10.4 ms | holds: above T1 + V1 at 2 000 |
+| 3, the rebuild alone, T1; T2 | 0.04–0.06; 0.03–0.04 ms | 0.85; 0.88 ms | 8.8–8.9; 9.7–9.9 ms | |
+| 4, every received group's BLAKE3, T1; T2 | 0.04; 0.18 ms | 0.29; 2.7 ms | 3.2; 29 ms | holds: all pass; one changed byte fails (the tests) |
+| 5, documents a second process read during 60 updates that were neither before nor after | 0 of 35 287; 0 of 28 026 | 0 of 41 374; 0 of 42 906 | 0 of 47 304; 0 of 59 052 | holds |
+| 5, its slowest read, T1; T2 | 0.14; 0.14 ms | 0.14; 2.9 ms | 1.0; 0.5 ms | **not shown**: see below |
+| 6, size as built, T1; T2 | 24 576; 24 576 B | 299 008; 405 504 B | 2 875 392; 3 981 312 B | holds: T1 within 1 % of B, T2 +17 % over C |
+
+* **The page open is one lookup.** Held, it reads a 95 803 B document for 2 000 instances in 18–29 µs, 15–24× below D's
+  scan of the same series, and 185 B for 4 instances in 2–3 µs. Opening the file per read adds 52–88 µs, which is the
+  larger cost at every size.
+* **An update costs its rebuild, not its commit.** At 2 000 instances the rebuild alone is 8.8–9.9 ms of a 9.4–10.4 ms
+  update, so the commit and its `fsync` are about 0.6 ms on this disk. The pre-registered "`fsync` a large share" was
+  wrong here; on a disk whose `fsync` waits for media it may hold. The rebuild reads every instance's truth to write
+  one value, so a rebuild that patches only the changed instance's entry would remove almost all of it (not built).
+* **T2 costs more where it reassembles.** Its update is 0.8–0.9 ms above T1's at 2 000, and its integrity check 9×
+  T1's (29 against 3.2 ms), because each group is put back together from its rows before it is hashed.
+* **A reader never saw a mixed document**, in 253 949 reads across the six arms while 60 updates committed beside it.
+  Its slowest read was 2.9 ms (T2, 200 instances) where the median is a few µs. Whether that read waited on a commit
+  or on the two processes sharing four vCPUs is not told apart by this run, so "no read waits on a commit" is not
+  shown.
+* **An update writes 12–16 KB**, not the whole 95 KB document: three or four 4 KiB pages, whatever the series size
+  (`/proc/self/io` wchar). That fits SQLite rewriting in place only the pages of a same-size blob that changed; the
+  mechanism is read from SQLite's behaviour, not checked in its source.
+* **Kept revisions are small:** 120 updates grew T1's 2 000-instance file by 163 840 B, about one 1.4 KB group each.
+
 ### 3. Which embedded engine
 
 *Primary sources below (§Sources). All read the same file format, so a database built by one is read by the

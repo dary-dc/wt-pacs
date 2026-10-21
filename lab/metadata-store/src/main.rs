@@ -1,6 +1,8 @@
 //! Times what a page open reads from each of four metadata stores: lab/metadata-store/README.md.
 
 mod group;
+mod pair;
+mod pair_run;
 mod stores;
 #[cfg(test)]
 mod tests;
@@ -15,6 +17,8 @@ struct Args {
     dir: PathBuf,
     instances: Vec<u16>,
     rounds: usize,
+    pair: bool,
+    updates: usize,
 }
 
 fn args() -> Result<Args> {
@@ -22,6 +26,8 @@ fn args() -> Result<Args> {
         dir: PathBuf::from("target/metadata-store"),
         instances: vec![4, 200, 2000],
         rounds: 200,
+        pair: false,
+        updates: 60,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -32,7 +38,9 @@ fn args() -> Result<Args> {
                 a.instances = value.split(',').map(str::parse).collect::<Result<_, _>>()?
             }
             "--rounds" => a.rounds = value.parse()?,
-            _ => anyhow::bail!("unknown flag {flag}: --dir, --instances, --rounds"),
+            "--updates" => a.updates = value.parse()?,
+            "--mode" => a.pair = value == "pair",
+            _ => anyhow::bail!("unknown flag {flag}: --dir, --instances, --rounds, --mode pair, --updates"),
         }
     }
     Ok(a)
@@ -98,10 +106,21 @@ fn quantile(sorted: &[f64], q: f64) -> f64 {
 }
 
 fn main() -> Result<()> {
+    let argv: Vec<String> = std::env::args().collect();
+    if let [_, flag, db, a, b, stop] = argv.as_slice() {
+        if flag == "--reader" {
+            let valid = [std::fs::read(a)?, std::fs::read(b)?];
+            println!("{}", pair::reader(db.as_ref(), &valid, stop.as_ref())?);
+            return Ok(());
+        }
+    }
     let a = args()?;
     let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
     let series = group::parse(&std::fs::read(fixtures.join("ct1-series.grp"))?)?;
     let template = group::parse(&std::fs::read(fixtures.join("ct1-instance.grp"))?)?;
+    if a.pair {
+        return pair_run::run(&a.dir, &series, &template, &a.instances, a.rounds, a.updates);
+    }
     for &n in &a.instances {
         let dir = a.dir.join(format!("n{n}"));
         let _ = std::fs::remove_dir_all(&dir);

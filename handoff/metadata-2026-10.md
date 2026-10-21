@@ -82,6 +82,16 @@ Results, as they land (what each recommended; the owner's decision when taken):
   display values. Thirteen decisions listed in §12.10. It renames "generation" to "revision" across the ingest docs
   (the glossary already uses "generation" for a request). Undecided.
 
+## The pair's benchmark (2026-10-21, asked by the owner through the orchestrator)
+
+Branch `claude/metadata-pair-bench`, stacked on #120 (draft PR into `claude/metadata-format-survey`). Pre-registered
+in `metadata-draft.md` §2 before it ran (`11e92db`), then measured, two runs. At 2 000 instances, one thread, warm:
+the page open is one lookup, 18–29 µs held (D's scan 440–456 µs), +52–88 µs if the file is opened per read; one update
+9.4–9.5 ms (T1) and 10.2–10.4 ms (T2), almost all of it the rebuild of the page row, the commit about 0.6 ms on this
+disk (the pre-registered "fsync a large share" was wrong); integrity holds in both, T2's check 9× T1's; a second
+process never read a mixed document (253 949 reads); "no read waits on a commit" is not shown (one 2.9 ms read).
+No decision is folded in.
+
 ## Next, once the runs report
 
 * Fold the owner's choices into the owning docs (`design.md`, `target.md`, `CLIENTS.md`) and remove
