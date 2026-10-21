@@ -122,8 +122,9 @@ ran; nothing ran on ARM hardware, and no timing under emulation says anything ab
 ## Serving the page from an nginx already on the host
 
 A host whose nginx already holds 443 cannot give the port to the web image, so the page is added to that nginx by
-hand, and the transport runs beside it as above. Below, the page's name is `www.example.org`, its root `/srv/wt-pacs`,
-the transport's folder `/var/lib/wt-pacs/transport`, and `$SERIES` the series served from `$STUDIES`.
+hand, and the transport runs beside it as above, serving the host's certificate: the page dials its own host on 4433
+and reads no transport file (§Run it). Below, the page's name is `www.example.org`, its root `/srv/wt-pacs`, and
+`$SERIES` the series served from `$STUDIES`.
 
 **1. The sources, one commit.** `git archive` packs that commit's tracked files and nothing else (no `.git`,
 `target/` or `node_modules/`), in one file:
@@ -142,15 +143,15 @@ mkdir wt-pacs && tar -xf wt-pacs.tar -C wt-pacs                           # on t
   toolchains are pinned for x86-64 today: elsewhere, build them on an x86-64 machine, copy `built/`, and check it
   with `sha256sum -c ../build/manifest.sha256` from inside `built/`, as the image does;
 * the series' `$SERIES.metadata.json`, from the DICOM ingest beside its `.sbnd`;
-* `/wt/dev-transport.json`, which the server writes at start (step 6). With the host's CA-signed certificate it reads
-  `{"wt_url": "https://www.example.org:4433/", "cert_sha256": "", "client": "ts"}`: no hash, so the browser
-  verifies the chain. PR #114 would drop the file for such a deployment.
+* the page, `client/viewer/index.html` as tracked: it loads the TS client and dials its own host on 4433.
 
-With `CLIENT=wasm`, the WASM client's `pkg/` too (`client/transport/wasm/build.sh`), which the image builds itself.
+With `CLIENT=wasm`, the WASM client's `pkg/` too (`client/transport/wasm/build.sh`), which the image builds itself,
+and the page rendered for it, as web's start does, over the copy step 3 made:
+`client/viewer/page.sh --client wasm < client/viewer/index.html > /srv/wt-pacs/client/viewer/index.html`.
 
 **3. A root the host's nginx can read.** Its workers run as the `user` in `nginx.conf`; a `0700` directory on the
-path answers 403. An nginx inside a container sees only its own mounts, so the root and the transport's folder must
-be mounted into it at the paths the site file names.
+path answers 403. An nginx inside a container sees only its own mounts, so the root must be mounted into it at the
+path the site file names.
 
 ```bash
 deploy/web-files.sh /srv/wt-pacs                                   # /srv/wt-pacs/client
@@ -170,7 +171,7 @@ chmod -R a+rX /srv/wt-pacs
 | `server_name _;` | `server_name www.example.org;` | `_` would claim the host's default; a name another 443 block holds draws `conflicting server name` and one is ignored |
 | `root /srv/wt-pacs;` | the root of step 3 | |
 | `alias /studies/${SERIES}.metadata.json;` | `alias /srv/wt-pacs/series/<series>.metadata.json;` | `${SERIES}` is the image's start-time substitution; nothing substitutes it here |
-| `alias /srv/wt-pacs/wt/dev-transport.json;` | `alias /var/lib/wt-pacs/transport/dev-transport.json;` | the file the server writes (step 6) |
+| `location = /wt/dev-transport.json { … }`, the block | removed | with a certificate supplied the server writes no transport file, and the page reads none |
 | `include /etc/nginx/mime.types;` | the host's `mime.types` (beside `nginx -V`'s `--conf-path`) | |
 | `connect-src 'self' ${WT_ORIGIN};`, in the policy's `add_header` | `connect-src 'self' https://www.example.org:4433;` | the policy must let the page dial the transport, scheme, host and port |
 
@@ -187,29 +188,25 @@ curl -sI https://www.example.org/client/transport/ts/dist/session.js   # 200: th
 ```
 
 **6. The transport.** The image of §A server compiled outside the image, run from the unpacked tree, with the
-host's certificate at `/supplied` and the transport's folder a host directory, both owned by uid 10001:
+host's certificate at `/supplied`, owned by uid 10001:
 
 ```bash
 install -d -o 10001 -g 10001 -m 0700 /etc/wt-pacs/supplied
 install -o 10001 -g 10001 -m 0600 /path/to/chain.pem /etc/wt-pacs/supplied/cert.pem
 install -o 10001 -g 10001 -m 0600 /path/to/key.pem   /etc/wt-pacs/supplied/key.pem
-install -d -o 10001 -g 10001 -m 0755 /var/lib/wt-pacs/transport
 docker run -d --name wt-pacs-server --restart unless-stopped \
   --security-opt seccomp=deploy/seccomp-uring.json --ulimit memlock=67108864 --ulimit nofile=65535 \
-  -e SERIES="$SERIES" -e WT_URL=https://www.example.org:4433/ -p 4433:4433/udp \
-  -v "$STUDIES":/studies:ro,z -v /etc/wt-pacs/supplied:/supplied:ro,z -v /var/lib/wt-pacs/transport:/run/wt-pacs:z \
-  wt-pacs-server
-curl -s https://www.example.org/wt/dev-transport.json  # the file of step 2
+  -e SERIES="$SERIES" -p 4433:4433/udp \
+  -v "$STUDIES":/studies:ro,z -v /etc/wt-pacs/supplied:/supplied:ro,z wt-pacs-server
+docker logs wt-pacs-server | grep 'series-server ready'
 ```
 
 The server reads the key as uid 10001, so a copy for that uid, not the root-only original; copy it again and
-restart the container when the host's certificate renews. The folder is a host directory because the host's nginx
-must read it, and because a tmpfs is mounted root-owned: Docker 29.9.1 here mounts `--tmpfs` at mode 1777 and the
-start writes, but at `mode=0755` the start fails `cannot create /run/wt-pacs/.dev-transport.json: Permission
-denied`. Which Docker versions mount it that way was not checked. The host's firewall must pass UDP 4433.
+restart the container when the host's certificate renews. A host that refuses those `--ulimit`s fails the start
+with `error setting rlimits`: §Container settings. The host's firewall must pass UDP 4433.
 
 **7. Undo.** `rm /etc/nginx/conf.d/wt-pacs.conf && nginx -t && nginx -s reload` gives the host back its nginx as it
-was; `docker rm -f wt-pacs-server` and removing `/srv/wt-pacs`, `/var/lib/wt-pacs` and `/etc/wt-pacs` remove the rest.
+was; `docker rm -f wt-pacs-server` and removing `/srv/wt-pacs` and `/etc/wt-pacs` remove the rest.
 
 ## The ten fixes, and why
 
