@@ -136,6 +136,16 @@ jobs:
           unlisted=$(sed -n '/^GATE OK/,$p' "$RUNNER_TEMP/gate.log" | grep SKIPPED | grep -vF -f <(printf '%s\n' "${allowed[@]}") || true)
           [[ -z "$unlisted" ]] || { echo "::error::the gate skipped what this workflow does not allow:"; echo "$unlisted"; exit 1; }
 
+  # deploy/README.md §An aarch64 server, built on another machine: about 2 minutes on 4 cores.
+  arm64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: deploy/build-arm64.sh
+
   deploy:
     needs: decoders
     runs-on: ubuntu-24.04
@@ -146,6 +156,9 @@ jobs:
       COMPOSE_BAKE: "false"
       # The runner has podman too, which check_equivalence.sh would prefer and which cannot see docker's images.
       RUNTIME: docker
+      # compose names no default study, so every compose command needs both.
+      STUDIES: ${{ github.workspace }}/studies
+      SERIES: grey
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -171,25 +184,14 @@ jobs:
             ~/.cargo/registry/cache
             target
           key: cargo-deploy-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
-      # A series the page decodes, as client/viewer/run_check.sh makes it: the smoke series' frames are placeholders.
       - name: The viewer's page check through the deployment
         run: |
-          cargo build -q --release -p pack-series
-          S="$RUNNER_TEMP/studies"
-          mkdir -p "$S/frames"
-          for i in 000 001 002; do cp client/contract/frames/grey-16.j2c "$S/frames/$i.htj2k"; done
-          d="$(cat client/contract/frames/grey-16.xxh3)"
-          cat >"$S/grey.metadata.json" <<JSON
-          {"frameCount": 3, "codec": "htj2k", "photometric": "MONOCHROME2", "modality": "OT",
-           "window": {"center": [30000], "width": [60000], "function": "LINEAR"},
-           "digests": {"algorithm": "xxh3-64", "frames": ["$d", "$d", "$d"]}}
-          JSON
-          "$CARGO_TARGET_DIR/release/pack-series" --metadata "$S/grey.metadata.json" --frames "$S/frames" --output "$S/grey.sbnd" >/dev/null
-          STUDIES="$S" SERIES=grey docker compose -f deploy/compose.yml up -d --wait
+          scripts/grey_series.sh "$STUDIES"
+          docker compose -f deploy/compose.yml up -d --wait
           npm i -g "playwright@$PLAYWRIGHT_VERSION"
           npx -y "playwright@$PLAYWRIGHT_VERSION" install --with-deps chromium
           NODE_PATH="$(npm root -g)" node client/viewer/check.mjs --url http://127.0.0.1:8765/ --decoder htj2k
-          STUDIES="$S" SERIES=grey CLIENT=wasm docker compose -f deploy/compose.yml up -d --wait
+          CLIENT=wasm docker compose -f deploy/compose.yml up -d --wait
           NODE_PATH="$(npm root -g)" node client/viewer/check.mjs --url http://127.0.0.1:8765/ --decoder htj2k --client wasm
       - if: always()
         run: docker compose -f deploy/compose.yml logs --no-color && docker compose -f deploy/compose.yml down -v
