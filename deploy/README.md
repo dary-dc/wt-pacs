@@ -167,7 +167,7 @@ chmod -R a+rX /srv/wt-pacs
 | --- | --- | --- |
 | `listen 8765;` | removed | the image's plain-HTTP port; the host serves on 443 |
 | `${TLS_LISTEN}` | `listen 443 ssl;` `ssl_certificate /path/to/chain.pem;` `ssl_certificate_key /path/to/key.pem;` | the host's certificate, its chain included (§The checks, *The transport's PEM*) |
-| (same place) | `http2 on;` only if `nginx -V` shows `--with-http_v2_module` | without the module the directive is unknown and `nginx -t` fails |
+| (same place) | `http2 on;` on nginx 1.25.1 or later; before it, `listen 443 ssl http2;` instead of `listen 443 ssl;` | either needs `--with-http_v2_module` in `nginx -V`; 1.24 has the module but not the directive, and `nginx -t` fails `unknown directive "http2"` |
 | `server_name _;` | `server_name www.example.org;` | `_` would claim the host's default; a name another 443 block holds draws `conflicting server name` and one is ignored |
 | `root /srv/wt-pacs;` | the root of step 3 | |
 | `alias /studies/${SERIES}.metadata.json;` | `alias /srv/wt-pacs/series/<series>.metadata.json;` | `${SERIES}` is the image's start-time substitution; nothing substitutes it here |
