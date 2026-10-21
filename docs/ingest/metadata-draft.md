@@ -408,6 +408,34 @@ thread, files in the page cache, T1 + V1 and T2 + V1 interleaved round by round 
 It reports latency, not throughput, says where the host saturates, and claims nothing about a cold disk or many
 sessions at once.
 
+**Pre-registered, 2026-10-21, before it ran** (asked for by the owner through the orchestrator, 2026-10-21; this text
+is committed before any number exists, and the result below is held to it). The run is the benchmark above, parts 1,
+2, 4, 5 and 6; part 3 (a new need) is the rebuild inside part 2, timed apart. Three departures, each fixed now:
+
+* **The update changes the rescale intercept**, (0028,1052), `-1024 ` ↔ `-1000 `, not the window centre: the fixture's
+  CT group has no window. Same length either way, so a store's size does not drift with the rounds.
+* **"Revision", not "generation"**, for a store's new version: the glossary already has "generation" for a request
+  (PR #119).
+* **The host is not the one of the four-store table** (a 4-vCPU Xeon at 2.10 GHz, not 2.80): D's held scan runs again
+  in the same rounds as the reference, and only numbers from this run are compared with each other.
+
+What is expected, and what would contradict it:
+
+| Part | Expected | Contradicted if |
+| --- | --- | --- |
+| 1, page open, 2 000 instances, held | median ≤ 0.3 ms, below D's held scan | above D's scan |
+| 1, page open, 4 instances, held | under 20 µs | over 20 µs |
+| 1, opened per read | held + 0.05–0.3 ms | the gap over 0.5 ms |
+| 2, one update, T1 + V1, 2 000 | 5–30 ms, the commit's `fsync` a large share | over 30 ms |
+| 2, one update, T2 + V1, 2 000 | above T1 + V1 by the rebuild's scan of 90 000 rows | below T1 + V1 |
+| 4, integrity | every group's BLAKE3 holds in both; one changed byte fails it | any other outcome |
+| 5, a reader during updates | every document read is the before or the after; no read waits on a commit | one mixed or failed read |
+| 6, size at 2 000 | T1 + V1 within 25 % of B; T2 + V1 within 25 % of C | outside |
+
+Interleaved round by round: the five page-open arms (T1 + V1 and T2 + V1, each held and opened; D's held scan) over
+300 rounds, then the two update arms over 60 rounds, at 4, 200 and 2 000 instances. One thread; the files are in the
+page cache, never evicted. Medians, with p10 and p90.
+
 ### 3. Which embedded engine
 
 *Primary sources below (§Sources). All read the same file format, so a database built by one is read by the
