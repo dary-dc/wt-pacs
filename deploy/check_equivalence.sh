@@ -54,6 +54,9 @@ if [ "$LOCAL" -eq 0 ]; then
   stale=$(cd "$ROOT" && diff <(echo "$image") <(in_tree | LC_ALL=C sort -k2) | grep '^[<>]' | awk '{print $3}' | sort -u)
   [ -z "$stale" ] || { printf 'stale image %s, these differ from the tree:\n%s\ndocker compose -f deploy/compose.yml build web\n' \
     "$IMAGE" "$stale" >&2; exit 2; }
+  # No study is a default, and none is in the image's layer: deploy/README.md §Run it.
+  baked=$("$RUNTIME" run --rm --entrypoint sh "$IMAGE" -c 'ls -A /studies 2>/dev/null')
+  [ -z "$baked" ] || { printf 'image %s carries studies, which are always a mount:\n%s\n' "$IMAGE" "$baked" >&2; exit 2; }
 fi
 PY_PORT=18765
 NG_PORT=18766

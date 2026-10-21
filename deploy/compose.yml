@@ -12,12 +12,12 @@ services:
       memlock: "${MEMLOCK:-67108864}"
       nofile: "${NOFILE:-65535}"
     environment:
-      SERIES: "${SERIES:-us_cine_smoke}"
+      SERIES: "${SERIES:?name the series served: deploy/README.md}"
       WT_URL: "${WT_URL:-https://127.0.0.1:4433/}"
       RESTART_AFTER: "${RESTART_AFTER:-9d}"
     # The page's certificate is the transport's too; without one the server mints its own and the transport file pins it.
     volumes:
-      - "${STUDIES:-../fixtures/us_cine_smoke}:/studies:ro,z"
+      - "${STUDIES:?name the studies directory: deploy/README.md}:/studies:ro,z"
       - "transport:/run/wt-pacs:z"
       - "${TLS_DIR:-./no-tls}:/supplied:ro,z"
     ports:
@@ -32,9 +32,9 @@ services:
     image: wt-pacs-web
     build: { <<: *build, target: web }
     restart: unless-stopped
-    environment: { SERIES: "${SERIES:-us_cine_smoke}", WT_URL: "${WT_URL:-https://127.0.0.1:4433/}", CLIENT: "${CLIENT:-ts}" }
+    environment: { SERIES: "${SERIES:?name the series served: deploy/README.md}", WT_URL: "${WT_URL:-https://127.0.0.1:4433/}", CLIENT: "${CLIENT:-ts}" }
     volumes:
-      - "${STUDIES:-../fixtures/us_cine_smoke}:/studies:ro,z"
+      - "${STUDIES:?name the studies directory: deploy/README.md}:/studies:ro,z"
       - "transport:/srv/wt-pacs/wt:ro,z"
       - "${TLS_DIR:-./no-tls}:/tls:ro,z"
     ports:

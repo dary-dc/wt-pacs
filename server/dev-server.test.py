@@ -28,11 +28,12 @@ class DevServer(unittest.TestCase):
             "client/viewer/index.html": '<script src="/client/viewer/head.js" data-client="ts" data-wt-port="4433"></script>',
             "client/module.js": "export {};",
             "lab/bench.html": "<p>bench",
-            "fixtures/us_cine_smoke/metadata.json": '{"frameCount": 1}',
+            "fixtures/a_series/metadata.json": '{"frameCount": 1}',
         }.items():
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             (root / rel).write_text(body)
         dev_server.ROOT = root
+        dev_server.Handler.series_name = "a_series"
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), dev_server.Handler)
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
@@ -98,6 +99,14 @@ class DevServer(unittest.TestCase):
                 self.assertEqual(self.get(f"/{other}/secret.txt")[0], 404)
             finally:
                 dev_server.Handler.metadata = dev_server.Handler.transport = None
+
+    def test_no_series_named_serves_none(self):
+        """With neither `--series` nor `--metadata`, `/series/metadata` is a 404: no series is a default."""
+        dev_server.Handler.series_name = None
+        try:
+            self.assertEqual(self.get("/series/metadata")[0], 404)
+        finally:
+            dev_server.Handler.series_name = "a_series"
 
     def test_a_catalog_and_a_page_are_revalidated(self):
         """Metadata and pages carry `no-cache` beside their validator; a module keeps heuristic caching."""
