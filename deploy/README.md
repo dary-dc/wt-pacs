@@ -145,6 +145,16 @@ mkdir wt-pacs && tar -xf wt-pacs.tar -C wt-pacs                           # on t
 * the series' `$SERIES.metadata.json`, from the DICOM ingest beside its `.sbnd`;
 * the page, `client/viewer/index.html` as tracked: it loads the TS client and dials its own host on 4433.
 
+No study is in the sources. Without one from the DICOM ingest, `scripts/grey_series.sh` writes `grey.sbnd` and
+`grey.metadata.json` (`SERIES=grey`) from tracked bytes; it compiles `pack-series`, so on a host without cargo it runs
+in the rust image of §A server compiled outside the image:
+
+```bash
+docker run --rm -v "$PWD":/src -v "$HOME/.cache/wt-pacs-cargo":/usr/local/cargo/registry -v "$STUDIES":/out -w /src \
+  docker.io/library/rust:1.97-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 \
+  scripts/grey_series.sh /out
+```
+
 With `CLIENT=wasm`, the WASM client's `pkg/` too (`client/transport/wasm/build.sh`), which the image builds itself,
 and the page rendered for it, as web's start does, over the copy step 3 made:
 `client/viewer/page.sh --client wasm < client/viewer/index.html > /srv/wt-pacs/client/viewer/index.html`.
