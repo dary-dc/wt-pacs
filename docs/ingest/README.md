@@ -52,7 +52,7 @@ The client's checks stay on by default.
 * **A bad frame** fails the series at the site: nothing is sent. Storing the good instances and marking the series
   incomplete is the alternative (open).
 * **A cut upload** resumes from its offset; a repeated one changes nothing. A known series UID with a new digest is a
-  new generation; what happens to the old one is open.
+  new revision; what happens to the old one is open.
 * **A publish** is a rename after `fsync`: readers see the whole series or none of it.
 * **A bad study database** is rebuilt from its groups without touching any other study; the catalog is rebuilt by
   scanning the study databases.
@@ -81,6 +81,7 @@ The client's checks stay on by default.
 | How the parser ships with the ingest | open | [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site |
 | The parser hashes the bytes it writes | open | §5 below |
 | Streaming the pack: code on arrival; frames as records only under a quiet period | recommended | [`design.md`](design.md) §11 |
+| The PACS receiver and builder: one program beside the server, the inputs kept, revisions named by `CURRENT` | recommended | [`design.md`](design.md) §12 |
 | The catalog's engine | deferred | — |
 
 ## 5. Parser findings
