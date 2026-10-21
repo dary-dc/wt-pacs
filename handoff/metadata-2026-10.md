@@ -87,6 +87,13 @@ Results, as they land (what each recommended; the owner's decision when taken):
   display values. Thirteen decisions listed in §12.10. It renames "generation" to "revision" across the ingest docs
   (the glossary already uses "generation" for a request). Undecided.
 
+## The pair's benchmark (2026-10-21)
+
+Run on the owner's request through the orchestrator: draft PR #126 (`claude/metadata-pair-bench`, stacked on #120).
+Pre-registered, then measured; its result and this handoff's full entry are on that branch. In short, at 2 000
+instances: page open 18–29 µs held, one update about 10 ms (mostly the page row's rebuild), no mixed read in 253 949.
+No decision is folded in.
+
 ## Next, once the runs report
 
 * Fold the owner's choices into the owning docs (`design.md`, `target.md`, `CLIENTS.md`) and remove
