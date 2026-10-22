@@ -6,7 +6,9 @@ import { hasher } from "./xxh3.js";
 
 let codec = null;
 let toConsumer = null;
-let queue = Promise.resolve();
+/** Lab flag `askJump`: a frame marked `priority: "ask"` runs before the fill frames queued ahead of it. */
+const waiting = { ask: [], fill: [] };
+let running = false;
 /** The series' XXH3-64 per frame, 16 hex digits, and the hasher; absent, every frame is unchecked. docs/FIXTURES.md §Frame digests */
 let digests = null;
 let xxh3 = null;
@@ -53,9 +55,19 @@ onmessage = async (e) => {
     }
     return;
   }
-  // A decoder that answers later still takes its frames one at a time, in order.
-  if (m.kind === "decode") queue = queue.then(() => decode(m));
+  // A decoder that answers later still takes its frames one at a time, in order within each priority.
+  if (m.kind === "decode") {
+    waiting[m.priority === "ask" ? "ask" : "fill"].push(m);
+    drain();
+  }
 };
+
+async function drain() {
+  if (running) return;
+  running = true;
+  for (let m; (m = waiting.ask.shift() ?? waiting.fill.shift()); ) await decode(m);
+  running = false;
+}
 
 async function decode(m) {
   const stamps = { ...m.stamps, decodeStart: abs() };

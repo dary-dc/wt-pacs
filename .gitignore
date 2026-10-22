@@ -70,6 +70,7 @@ __pycache__/
 lab/av1/data/
 # AV1 tools built by lab/av1/tools/tools.sh, and the frames lab/av1/roundtrip.py makes
 lab/.av1-work/
+lab/.askjump/
 # Link traces a lab run fetches (lab/av1/delivery/total-time/run.mjs, lab/scripts/*_cells.sh)
 lab/.traces/
 lab/recv-cost/target/

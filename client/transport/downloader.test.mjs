@@ -156,6 +156,40 @@ async function startOnNeed() {
 }
 await startOnNeed();
 
+/**
+ * `askJump`: with every decoder full and none finishing, an ask goes at once to the decoder whose current decode
+ * started first — not the first in the list — one past `perDecoder`, marked to run before its queued fill frame.
+ * Without the flag the same ask waits in the downloader.
+ */
+async function anAskJumps(askJump) {
+  const fed = handFed();
+  const made = handDecoders();
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // jump ${askJump}`;
+  await import(`./downloader.js?jump=${askJump}`);
+  await onmessage({ data: { kind: "start", config: { askJump, decoders: 3, perDecoder: 2, transport, decoderWorker: "x", survival: false } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  await onmessage({ data: { kind: "fill", indices: [...Array(8).keys()] } });
+  const pause = () => new Promise((r) => setTimeout(r, 3));
+  for (let i = 0; i < 6; i++) fed.fill(frame(i));
+  await settle();
+  await pause();
+  made[0].finish();
+  made[1].finish();
+  fed.fill(frame(6));
+  fed.fill(frame(7));
+  await settle();
+  const ask = onmessage({ data: { kind: "ask", index: 9 } });
+  await settle();
+  fed.asks.get(9)(frame(9));
+  await ask;
+  await settle();
+  const held = made.map((w) => w.decoding.map((m) => m.index + (m.priority ? `:${m.priority}` : "")).join(" "));
+  if (askJump) check(held[2] === "2 5 9:ask" && made[0].decoding.length === 2 && made[1].decoding.length === 2, `the ask jumps to decoder 2, started first (${held.join(" | ")})`);
+  else check(made.every((w) => w.decoding.length === 2 && w.decoding.every((m) => m.index !== 9 && !m.priority)), `without askJump the ask waits for a slot (${held.join(" | ")})`);
+}
+await anAskJumps(true);
+await anAskJumps(false);
+
 /** A downloader on hand-fed transport and decoders, filling frames 0–3, one decoder taking two frames at a time. */
 async function lossWorld(name, survival = false) {
   const fed = handFed();
@@ -394,5 +428,5 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held: ok");
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, an ask that jumps, lost decodes, an ask again after a cancel, refill points, ports held: ok");
 process.exit(failed ? 1 : 0);
