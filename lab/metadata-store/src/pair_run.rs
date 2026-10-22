@@ -79,7 +79,7 @@ pub fn run(dir: &Path, series: &[Record], template: &[Record], counts: &[u16], r
                 rebuild[a].push(t.elapsed().as_secs_f64() * 1e3);
                 let w = pair::written();
                 let t = Instant::now();
-                pair::update(arms[a].0, &mut writers[a], target, VALUES[round % 2])?;
+                pair::update(arms[a].0, &mut writers[a], target, VALUES[round % 2], false)?;
                 upd[a].push(t.elapsed().as_secs_f64() * 1e3);
                 bytes[a].push((pair::written() - w) as f64);
             }
@@ -114,18 +114,18 @@ pub fn run(dir: &Path, series: &[Record], template: &[Record], counts: &[u16], r
             std::fs::write(&va, &valid[0])?;
             std::fs::write(&vb, &valid[1])?;
             let _ = std::fs::remove_file(&stop);
-            let child = std::process::Command::new(std::env::current_exe()?)
-                .args(["--reader", &p.to_string_lossy(), &va.to_string_lossy(), &vb.to_string_lossy(), &stop.to_string_lossy()])
-                .stdout(std::process::Stdio::piped())
-                .spawn()?;
+            let iv = dir.join("intervals");
+            let child = spawn_reader(p, &va, &vb, &stop, &iv, None)?;
             std::thread::sleep(std::time::Duration::from_millis(50));
             for round in 0..updates {
-                pair::update(*t, &mut writers[a], target, VALUES[round % 2])?;
+                pair::update(*t, &mut writers[a], target, VALUES[round % 2], false)?;
             }
             std::fs::write(&stop, b"")?;
             let out = child.wait_with_output()?;
             ensure!(out.status.success(), "the reader failed");
-            let report: serde_json::Value = serde_json::from_slice(&out.stdout)?;
+            let mut report: serde_json::Value = serde_json::from_slice(&out.stdout)?;
+            let slowest = read_intervals(&iv)?.iter().map(|(s, e)| e - s).max().unwrap_or(0);
+            report["slowest_read_us"] = (slowest as f64 / 1e3).into();
             println!("{}", serde_json::json!({"instances": n, "part": 5, "arm": format!("{t:?} + V1"), "updates": updates, "reader": report}));
         }
 
@@ -137,5 +137,129 @@ pub fn run(dir: &Path, series: &[Record], template: &[Record], counts: &[u16], r
         }
         println!("{}", serde_json::json!({"instances": n, "part": 6, "four_stores": sizes, "page_document_bytes": doc.len()}));
     }
+    Ok(())
+}
+
+fn spawn_reader(db: &Path, a: &Path, b: &Path, stop: &Path, intervals: &Path, core: Option<usize>) -> Result<std::process::Child> {
+    let core = core.map_or("-".to_string(), |c| c.to_string());
+    let args = [db, a, b, stop, intervals].map(|p| p.to_string_lossy().into_owned());
+    Ok(std::process::Command::new(std::env::current_exe()?)
+        .arg("--reader")
+        .args(args)
+        .arg(core)
+        .stdout(std::process::Stdio::piped())
+        .spawn()?)
+}
+
+fn read_intervals(path: &Path) -> Result<Vec<(u64, u64)>> {
+    let bytes = std::fs::read(path)?;
+    Ok(bytes
+        .chunks_exact(16)
+        .map(|c| (u64::from_le_bytes(c[..8].try_into().unwrap()), u64::from_le_bytes(c[8..].try_into().unwrap())))
+        .collect())
+}
+
+fn tail(mut us: Vec<f64>) -> serde_json::Value {
+    if us.is_empty() {
+        return serde_json::json!({"reads": 0});
+    }
+    us.sort_by(f64::total_cmp);
+    let q = |p: f64| us[((us.len() - 1) as f64 * p).round() as usize];
+    serde_json::json!({"reads": us.len(), "p50": q(0.5), "p99": q(0.99), "p99_9": q(0.999), "max": us[us.len() - 1]})
+}
+
+/// The pair's two open items, pre-registered in docs/ingest/metadata-draft.md §2: (a) a patched page row against a
+/// rebuilt one; (b) the reader's tail alone, beside commits on another core, and on the same core.
+pub fn followup(dir: &Path, series: &[Record], template: &[Record], counts: &[u16], updates: usize) -> Result<()> {
+    for &n in counts {
+        let dir = dir.join(format!("followup-n{n}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir)?;
+        let instances = group::synthetic_series(template, n);
+        let target = (n as i64 + 1) / 2;
+        let arms = [(Truth::Groups, false), (Truth::Groups, true), (Truth::Attributes, false), (Truth::Attributes, true)];
+        let mut dbs = Vec::new();
+        for (i, (t, _)) in arms.iter().enumerate() {
+            dbs.push(pair::build(*t, &dir.join(format!("arm{i}.db")), series, &instances)?);
+        }
+        let mut times = vec![vec![]; arms.len()];
+        for round in 0..updates {
+            for k in 0..arms.len() {
+                let a = (round + k) % arms.len();
+                let (t, patch) = arms[a];
+                let start = Instant::now();
+                pair::update(t, &mut dbs[a], target, VALUES[round % 2], patch)?;
+                times[a].push(start.elapsed().as_secs_f64() * 1e3);
+                ensure!(pair::read_page(&dbs[a])? == pair::document(&pair::rebuild(t, &dbs[a])?), "{t:?} patch={patch}: the page row is not a full rebuild's");
+            }
+        }
+        for (a, (t, patch)) in arms.iter().enumerate() {
+            let way = if *patch { "patched" } else { "rebuilt" };
+            println!("{}", serde_json::json!({"instances": n, "item": "a", "arm": format!("{t:?} + V1, {way}"), "update_ms": stats(times[a].clone()), "equal_to_rebuild": true}));
+        }
+    }
+
+    // (b) at the largest count, T1 + V1, the rebuilt update as the writer.
+    let n = *counts.iter().max().unwrap_or(&2000);
+    let dir = dir.join(format!("followup-n{n}"));
+    let instances = group::synthetic_series(template, n);
+    let truth: Vec<_> = instances.iter().map(|r| group::page_values(r.iter().map(|r| (r.tag(), r.value.clone())))).collect();
+    let target = (n as i64 + 1) / 2;
+    let path = dir.join("reader.db");
+    let _ = std::fs::remove_file(&path);
+    let mut db = pair::build(Truth::Groups, &path, series, &instances)?;
+    let valid: Vec<Vec<u8>> = std::iter::once(pair::document(&truth))
+        .chain(VALUES.iter().map(|v| {
+            let mut p = truth.clone();
+            p[target as usize - 1][4] = Some(v.to_vec());
+            pair::document(&p)
+        }))
+        .collect();
+    let (va, vb) = (dir.join("valid-a"), dir.join("valid-b"));
+    std::fs::write(&va, &valid[1])?;
+    std::fs::write(&vb, &valid[2])?;
+    pair::update(Truth::Groups, &mut db, target, VALUES[0], false)?;
+    pair::pin(0)?;
+    let arm_names = ["reader alone, core 2", "beside commits, reader core 2, writer core 0", "beside commits, both core 0"];
+    let mut reads: Vec<Vec<f64>> = vec![vec![]; 3];
+    let (mut during, mut outside): (Vec<f64>, Vec<f64>) = (vec![], vec![]);
+    let mut mixed = 0u64;
+    for rep in 0..6 {
+        for k in 0..3 {
+            let arm = (rep + k) % 3;
+            let (stop, iv) = (dir.join("stop"), dir.join("intervals"));
+            let _ = std::fs::remove_file(&stop);
+            let child = spawn_reader(&path, &va, &vb, &stop, &iv, Some(if arm == 2 { 0 } else { 2 }))?;
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            let mut windows = Vec::new();
+            for round in 0..updates {
+                if arm == 0 {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    continue;
+                }
+                let s = pair::now_ns();
+                pair::update(Truth::Groups, &mut db, target, VALUES[round % 2], false)?;
+                windows.push((s, pair::now_ns()));
+            }
+            std::fs::write(&stop, b"")?;
+            let out = child.wait_with_output()?;
+            ensure!(out.status.success(), "the reader failed");
+            let report: serde_json::Value = serde_json::from_slice(&out.stdout)?;
+            mixed += report["neither_before_nor_after"].as_u64().unwrap_or(1);
+            for (s, e) in read_intervals(&iv)? {
+                let us = (e - s) as f64 / 1e3;
+                reads[arm].push(us);
+                if arm == 1 {
+                    if windows.iter().any(|(ws, we)| s < *we && e > *ws) { during.push(us) } else { outside.push(us) }
+                }
+            }
+        }
+    }
+    for (arm, name) in arm_names.iter().enumerate() {
+        println!("{}", serde_json::json!({"instances": n, "item": "b", "arm": name, "read_us": tail(reads[arm].clone())}));
+    }
+    println!("{}", serde_json::json!({"instances": n, "item": "b", "arm": "beside commits, apart: reads overlapping a commit window", "read_us": tail(during)}));
+    println!("{}", serde_json::json!({"instances": n, "item": "b", "arm": "beside commits, apart: reads outside every window", "read_us": tail(outside)}));
+    println!("{}", serde_json::json!({"instances": n, "item": "b", "neither_before_nor_after": mixed, "updates_per_arm_and_rep": updates, "reps": 6}));
     Ok(())
 }

@@ -17,11 +17,13 @@ pub enum Truth {
 
 /// The page's document, as it would be sent: each instance's page values in instance order.
 pub fn document(page: &[PageValues]) -> Vec<u8> {
-    let rows: Vec<Vec<Option<String>>> = page
-        .iter()
-        .map(|v| v.iter().map(|x| x.as_ref().map(|b| String::from_utf8_lossy(b).into_owned())).collect())
-        .collect();
-    serde_json::to_vec(&rows).unwrap()
+    serde_json::to_vec(&page.iter().map(entry).collect::<Vec<_>>()).unwrap()
+}
+
+type Entry = Vec<Option<String>>;
+
+fn entry(values: &PageValues) -> Entry {
+    values.iter().map(|x| x.as_ref().map(|b| String::from_utf8_lossy(b).into_owned())).collect()
 }
 
 fn tagged(records: &[Record]) -> PageValues {
@@ -125,11 +127,27 @@ pub fn read_page(db: &Connection) -> Result<Vec<u8>> {
     Ok(q.query_row([SERIES], |r| r.get(0))?)
 }
 
-/// One correction: `instance`'s rescale intercept becomes `value`, kept as a new revision beside the received one;
-/// the series' page row is rebuilt and committed with it.
-pub fn update(truth: Truth, db: &mut Connection, instance: i64, value: &[u8]) -> Result<()> {
+/// One correction: `instance`'s rescale intercept becomes `value`, kept as a new revision beside the received one,
+/// and the series' page row follows in the same commit: rebuilt from every instance, or with `patch` only this
+/// instance's entry rewritten.
+pub fn update(truth: Truth, db: &mut Connection, instance: i64, value: &[u8], patch: bool) -> Result<()> {
     let tx = db.transaction()?;
-    let revision: i64 = match truth {
+    let (revision, values) = new_revision(truth, &tx, instance, value)?;
+    let doc = if patch {
+        let mut entries: Vec<Entry> = serde_json::from_slice(&read_page(&tx)?)?;
+        entries[instance as usize - 1] = entry(&values);
+        serde_json::to_vec(&entries)?
+    } else {
+        document(&rebuild(truth, &tx)?)
+    };
+    tx.execute("UPDATE page SET revision = ?1, document = ?2 WHERE series = ?3", params![revision, doc, SERIES])?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// Writes the corrected value as a new revision; returns the revision and the instance's page values after it.
+fn new_revision(truth: Truth, tx: &Connection, instance: i64, value: &[u8]) -> Result<(i64, PageValues)> {
+    match truth {
         Truth::Groups => {
             let (revision, bytes): (i64, Vec<u8>) = tx.query_row(
                 "SELECT revision, bytes FROM grp WHERE instance = ?1 ORDER BY revision DESC LIMIT 1",
@@ -144,22 +162,30 @@ pub fn update(truth: Truth, db: &mut Connection, instance: i64, value: &[u8]) ->
                 "INSERT INTO grp VALUES (?1, ?2, ?3, ?4)",
                 params![instance, revision + 1, bytes, blake3::hash(&bytes).as_bytes()],
             )?;
-            revision + 1
+            Ok((revision + 1, tagged(&records)))
         }
         Truth::Attributes => {
-            let (key, _) = latest_attribute(&tx, instance, RESCALE_INTERCEPT)?;
+            let (key, _) = latest_attribute(tx, instance, RESCALE_INTERCEPT)?;
             let revision = u32::from_be_bytes(key[16..20].try_into()?) + 1;
             tx.execute(
                 "INSERT INTO kv VALUES (?1, ?2)",
                 params![attribute_key(instance, &key[8..16], revision), value],
             )?;
-            revision as i64
+            let p = &attribute_key(instance, &[], 0)[..8];
+            let mut q = tx.prepare_cached("SELECT key, value FROM kv WHERE key > ?1 AND key < ?2 ORDER BY key")?;
+            let rows = q.query_map(params![p, [p, &[0xFF; 16]].concat()], |r| {
+                Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, Vec<u8>>(1)?))
+            })?;
+            let mut tagged_rows = Vec::new();
+            for row in rows {
+                let (k, v) = row?;
+                if k.len() == 20 {
+                    tagged_rows.push((k[8..12].try_into().unwrap(), v));
+                }
+            }
+            Ok((revision as i64, group::page_values(tagged_rows)))
         }
-    };
-    let doc = document(&rebuild(truth, &tx)?);
-    tx.execute("UPDATE page SET revision = ?1, document = ?2 WHERE series = ?3", params![revision, doc, SERIES])?;
-    tx.commit()?;
-    Ok(())
+    }
 }
 
 fn latest_attribute(db: &Connection, instance: i64, tag: Tag) -> Result<(Vec<u8>, Vec<u8>)> {
@@ -213,16 +239,38 @@ pub fn written() -> u64 {
         .unwrap_or(0)
 }
 
-/// The second process of part 5: reads the page row until `stop` exists; every document must be one of `valid`.
-pub fn reader(db: &Path, valid: &[Vec<u8>], stop: &Path) -> Result<serde_json::Value> {
+/// `CLOCK_MONOTONIC` in ns, the one clock both processes share.
+pub fn now_ns() -> u64 {
+    let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    // SAFETY: `ts` is a valid, writable timespec for the duration of the call.
+    unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) };
+    ts.tv_sec as u64 * 1_000_000_000 + ts.tv_nsec as u64
+}
+
+/// Pins the calling process to one core.
+pub fn pin(core: usize) -> Result<()> {
+    // SAFETY: the set is zeroed, filled with one valid core index, and passed with its own size.
+    let ok = unsafe {
+        let mut set: libc::cpu_set_t = std::mem::zeroed();
+        libc::CPU_SET(core, &mut set);
+        libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &set)
+    };
+    ensure!(ok == 0, "sched_setaffinity to core {core} failed");
+    Ok(())
+}
+
+/// The second process: reads the page row until `stop` exists, every document one of `valid`; writes each read's
+/// start and end (ns, `now_ns`) to `intervals`.
+pub fn reader(db: &Path, valid: &[Vec<u8>], stop: &Path, intervals: &Path) -> Result<serde_json::Value> {
     let conn = open(db)?;
-    let (mut reads, mut mixed, mut slowest) = (0u64, 0u64, 0f64);
+    let (mut mixed, mut out) = (0u64, Vec::new());
     while !stop.exists() {
-        let t = std::time::Instant::now();
+        let start = now_ns();
         let doc = read_page(&conn)?;
-        slowest = slowest.max(t.elapsed().as_secs_f64() * 1e6);
-        reads += 1;
+        out.extend_from_slice(&start.to_le_bytes());
+        out.extend_from_slice(&now_ns().to_le_bytes());
         mixed += !valid.contains(&doc) as u64;
     }
-    Ok(serde_json::json!({"reads": reads, "neither_before_nor_after": mixed, "slowest_read_us": slowest}))
+    std::fs::write(intervals, &out)?;
+    Ok(serde_json::json!({"reads": out.len() / 16, "neither_before_nor_after": mixed}))
 }

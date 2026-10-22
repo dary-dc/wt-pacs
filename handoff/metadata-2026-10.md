@@ -92,6 +92,11 @@ disk (the pre-registered "fsync a large share" was wrong); integrity holds in bo
 process never read a mixed document (253 949 reads); "no read waits on a commit" is not shown (one 2.9 ms read).
 No decision is folded in.
 
+Follow-up, 2026-10-22 (same branch, pre-registered first): patching only the changed instance's entry makes an
+update at 2 000 instances 1.4–1.7 ms instead of 8.6–10.2 ms, the patched row equal to a rebuild every time. A reader on
+another core than the writer keeps its p99.9 (92–98 µs, alone 70–119 µs), but one read in about 220 000 took 22.8 ms
+during a commit; on one shared core the p99.9 is 3.7 ms, so part 5's 2.9 ms read was CPU sharing.
+
 ## Next, once the runs report
 
 * Fold the owner's choices into the owning docs (`design.md`, `target.md`, `CLIENTS.md`) and remove

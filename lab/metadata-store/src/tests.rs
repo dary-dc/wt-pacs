@@ -99,8 +99,8 @@ fn the_page_row_is_the_document() {
 fn an_update_changes_one_value_and_keeps_the_received_hashes() {
     for truth in [pair::Truth::Groups, pair::Truth::Attributes] {
         let (mut db, instances) = pair_built(truth, 7, "update");
-        pair::update(truth, &mut db, 3, b"-1000 ").unwrap();
-        pair::update(truth, &mut db, 3, b"-1012 ").unwrap();
+        pair::update(truth, &mut db, 3, b"-1000 ", false).unwrap();
+        pair::update(truth, &mut db, 3, b"-1012 ", false).unwrap();
         let mut want = page_of(&instances);
         want[2][4] = Some(b"-1012 ".to_vec());
         assert_eq!(pair::read_page(&db).unwrap(), pair::document(&want), "{truth:?}");
@@ -118,4 +118,19 @@ fn a_changed_byte_fails_the_received_check() {
     let (db, _) = pair_built(pair::Truth::Attributes, 3, "tamper");
     db.execute("UPDATE kv SET value = CAST('MONOCHROME1 ' AS BLOB) WHERE CAST(value AS TEXT) = 'MONOCHROME2 ' AND substr(key, 6, 1) = x'02'", []).unwrap();
     assert!(pair::check_received(pair::Truth::Attributes, &db).is_err());
+}
+
+/// A patched page row, rewriting only the changed instance's entry, is byte for byte the row a full rebuild gives.
+#[test]
+fn a_patched_page_row_equals_a_rebuilt_one() {
+    for truth in [pair::Truth::Groups, pair::Truth::Attributes] {
+        let (mut db, instances) = pair_built(truth, 7, "patch");
+        for value in [b"-1000 ", b"-1012 "] {
+            pair::update(truth, &mut db, 5, value, true).unwrap();
+        }
+        let mut want = page_of(&instances);
+        want[4][4] = Some(b"-1012 ".to_vec());
+        assert_eq!(pair::read_page(&db).unwrap(), pair::document(&want), "{truth:?}");
+        assert_eq!(pair::read_page(&db).unwrap(), pair::document(&pair::rebuild(truth, &db).unwrap()), "{truth:?}");
+    }
 }

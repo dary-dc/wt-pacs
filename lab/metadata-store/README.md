@@ -35,3 +35,8 @@ run), and size.
 ```bash
 cargo run -p metadata-store --release -- --mode pair --instances 4,200,2000 --rounds 300 --updates 60 > pair.jsonl
 ```
+
+**`--mode pair-followup`** measures the pair's two open items, pre-registered in the draft's §2: an update that patches
+only the changed instance's entry in the page row against one that rebuilds it (each patched row checked against a
+full rebuild), and a reader's tail alone, beside commits on another core, and on the same core (`sched_setaffinity`;
+each read's interval on `CLOCK_MONOTONIC`, classified against the writer's commit windows).

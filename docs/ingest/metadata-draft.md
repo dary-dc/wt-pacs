@@ -500,6 +500,46 @@ reported (p99, p99.9, max), not only the median.
 | on one core, the tail grows past the apart arm's: the 2.9 ms read of part 5 was CPU sharing | the same core's tail is no worse than apart |
 | no read in any arm sees a document that is neither before nor after | one does |
 
+**Measured, 2026-10-22** (`--mode pair-followup`, two runs, a range is the two runs' medians unless a column says
+otherwise; the same 4-vCPU Xeon at 2.10 GHz, files in the page cache; latency only).
+
+*(a) Patch against rebuild*, one update, 60 rounds interleaved:
+
+| Arm | 4 instances | 200 | 2 000 |
+| --- | ---: | ---: | ---: |
+| T1 + V1, rebuilt | 0.33–0.44 ms | 1.41–1.53 ms | 10.1–10.2 ms |
+| T1 + V1, patched | 0.32–0.44 ms | 0.62–0.65 ms | 1.61–1.67 ms |
+| T2 + V1, rebuilt | 0.32–0.48 ms | 1.35–1.37 ms | 8.6–8.9 ms |
+| T2 + V1, patched | 0.29–0.34 ms | 0.66–0.71 ms | 1.39–1.49 ms |
+
+* **Holds: a patched update at 2 000 is 1.4–1.7 ms**, a sixth of the rebuilt one, and the patched page row equalled a
+  full rebuild byte for byte after every one of the 360 patched updates per run (120 at each size).
+* **At 4 instances the two are within 0.1 ms in run 1 and not in run 2** for T2 (0.34 against 0.48 ms): contradicted
+  once; at this size both are a few hundred µs and their p10–p90 overlap.
+* What is left at 2 000 is the patch's parse and rewrite of the 95 803 B document and the commit; a document laid out
+  so one entry can be overwritten in place would remove the first (not built).
+
+*(b) The reader's tail*, 6 repetitions of three interleaved arms, 60 updates each (T1 + V1, 2 000 instances, rebuilt
+updates as the writer); per read, µs, run 1 | run 2:
+
+| Arm | Reads | p50 | p99 | p99.9 | max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| the reader alone, core 2 | 248 990 \| 262 183 | 10.6 \| 9.3 | 46 \| 35 | 119 \| 70 | 2 715 \| 2 521 |
+| beside commits, reader core 2, writer core 0 | 223 589 \| 221 440 | 8.6 \| 11.0 | 37 \| 37 | 92 \| 98 | 4 135 \| 22 844 |
+| beside commits, both on core 0 | 196 632 \| 188 744 | 10.5 \| 11.0 | 51 \| 54 | 3 709 \| 3 742 | 7 744 \| 8 959 |
+
+* **Holds to p99.9: apart, a read beside commits is no slower than a read alone** (p99 37 against 35–46 µs, p99.9
+  92–98 against 70–119 µs).
+* **The maximum does not hold:** one read of 22.8 ms in run 2, beside commits on another core, against 2.5–2.7 ms
+  alone; it overlapped a commit window. So a rare reader wait during a commit is seen, about once in 220 000 reads.
+  SQLite's WAL reader retries with a growing sleep when the WAL is being reset by a checkpoint, which would explain it;
+  that mechanism is read from SQLite's design, not checked in this run.
+* **Holds: on one core the tail is CPU sharing.** p99.9 grows from about 95 µs to 3.7 ms when reader and writer share a
+  core, so part 5's 2.9 ms read is consistent with two processes on four vCPUs, not with a commit.
+* **No read in any arm saw a mixed document** (0 in 1 341 578 reads over both runs).
+* Reads outside every commit window are few (7 055 and 6 487) because the writer commits back to back; their median
+  is higher (31 µs), not explained here.
+
 ### 3. Which embedded engine
 
 *Primary sources below (§Sources). All read the same file format, so a database built by one is read by the
