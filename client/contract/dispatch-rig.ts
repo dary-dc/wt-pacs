@@ -64,6 +64,7 @@ type OpenOpts = {
   failOneInit?: boolean;
   /** A frame whose bytes begin `lose` crashes its stand-in, or is never answered, `times` times in all. */
   lose?: { how: "crash" | "hang"; times: number };
+  readMin?: number;
 };
 
 /** The stand-ins' hold, seen from the page; only a stand-in already holding is sure to hear the release. */
@@ -104,6 +105,7 @@ function begin(DownloaderClient: DownloaderCtor, opts: OpenOpts) {
     survival: opts.survival,
     recycleAtBytes: opts.recycleAtBytes,
     transportFile: opts.transportFile,
+    readMin: opts.readMin,
     onFrame: opts.onFrame ?? (() => {}),
     onPreview: opts.onPreview,
     onError: opts.onError,
@@ -639,11 +641,11 @@ async function aRefusedOpeningFillReachesTheConsumer(DownloaderClient: Downloade
  * consumer is told which frame, in the generation it is living in, and is never handed the part
  * that did arrive as pixels. docs/CLIENTS.md#a-truncated-frame-is-a-failure
  */
-async function aTruncatedFrameIsAFailureNotAFrame(DownloaderClient: DownloaderCtor, check: Check) {
+async function aTruncatedFrameIsAFailureNotAFrame(DownloaderClient: DownloaderCtor, check: Check, _log?: Log, readMin?: number) {
   const frames: Frame[] = [];
   const failures: Fail[] = [];
   const { c, fake } = await open(DownloaderClient, {
-    decode: false, onFrame: (f) => frames.push(f), onError: (f) => failures.push(f),
+    decode: false, readMin, onFrame: (f) => frames.push(f), onError: (f) => failures.push(f),
   });
   // One cancel first, so the generation the failure carries is not the initial 0 by default.
   await cancelled(c);
@@ -659,6 +661,11 @@ async function aTruncatedFrameIsAFailureNotAFrame(DownloaderClient: DownloaderCt
   check(!frames.some((f) => f.frameIndex === 1), "truncated: the frame it cut short never arrives as pixels");
   check(frames.length === 1 && frames[0].frameIndex === 0, `truncated: the whole frame before it still arrives (${frames.map((f) => f.frameIndex).join() || "none"})`);
   c.close();
+}
+
+/** Under `readMin`, a cut whose end is queued before the frame's body is read is named as the default reader names it. */
+async function aTruncatedFrameIsAFailureUnderReadMin(DownloaderClient: DownloaderCtor, check: Check, log: Log) {
+  await aTruncatedFrameIsAFailureNotAFrame(DownloaderClient, (ok, what) => check(ok, `readMin 16 KB: ${what}`), log, 16_384);
 }
 
 /** The vendored decoder, or null with a SKIPPED line naming `what` and how to fetch it. */
@@ -2402,6 +2409,7 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: str
     aDecoderThatFailsItsInitLeavesThePool,
     framesWithNoDecoderLeftAreNamed,
     anOptionThatCannotBeClonedFailsConnect,
+    aTruncatedFrameIsAFailureUnderReadMin,
   ];
   const clauses = client === "ts" ? [...transport, ...rest] : transport;
   const name = client === "ts" ? "dispatch" : `dispatch-${client}`;
