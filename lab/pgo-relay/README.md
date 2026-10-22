@@ -23,8 +23,14 @@ per frame) × 4, as ms per MB. Throughput is not judged: the relay paces it.
 confirmed on 12–23.
 * **held** — the 103 cell is `better` and its median ratio is ≤ 0.90, and the 18 cell is not `worse`;
 * **contradicted** — either cell is `worse` or a `tie`, or the 103 cell is `better` with a median ratio > 0.95;
-* **not resolved** — anything else (not conclusive, or 0.90 < ratio ≤ 0.95), or the host saturated: the 103 cell
-  delivering under 95 Mbit/s median in any arm, or the server's CPU over the fill's wall near 2 cores.
+* **not resolved** — anything else (not conclusive, or 0.90 < ratio ≤ 0.95), or the host saturated: the relay's
+  core (2) or the client's (3) at ≥ 90 % busy at p90 of 1 s samples, or the server's CPU over the fill's wall
+  ≥ 1.8 cores.
+
+*Amended before the first recorded round, after one smoke round:* the saturation test was first "the 103 cell
+delivering under 95 Mbit/s". The smoke round delivered 76 Mbit/s (2.1 s for 20 MB, ~270 packets lost to the 20 ms
+queue): that bar reads Cubic's ramp and drops, not the host, so it is read from the cores instead. Delivered Mbit/s
+is reported, not judged. The CPU rule and the prediction are unchanged.
 
 **Prediction.** Held at 103: ratio 0.80–0.90. The loopback run's −13 to −20 % was at saturation; paced, a fill's
 CPU per byte is the same work, but idle wake-ups and timer work the profile does not train on weigh more, so the

@@ -21,7 +21,9 @@ for path in sys.argv[1:]:
     ms_per_mb = {a: [int(by[a][l][11]) / MB_PER_FRAME / 1e6 for l in rounds] for a in ARMS}
     mbit = {a: [80 * MB_PER_FRAME * 8e9 / int(by[a][l][9]) for l in rounds] for a in ARMS}
     cores = {a: [int(by[a][l][11]) * 80 / int(by[a][l][9]) for l in rounds] for a in ARMS}
-    print(f"{path}: n = {len(rounds)}")
+    busy = [list(map(float, l.split())) for l in open(path.replace(".tsv", ".cores")) if l.strip()]
+    p90 = [statistics.quantiles([b[c] for b in busy], n=10)[-1] for c in range(4)]
+    print(f"{path}: n = {len(rounds)}; cores 0-3 busy at p90 " + " ".join(f"{v:.2f}" for v in p90))
     for a in ARMS:
         print(f"  {a:7} {statistics.median(ms_per_mb[a]):7.3f} ms CPU/MB  {statistics.median(mbit[a]):6.1f} Mbit/s"
               f"  {statistics.median(cores[a]):.3f} cores busy")
