@@ -368,9 +368,55 @@ re-check is the guard, which is why it cannot be switched off for cache reads.
 either the window drops its farthest frames and asks for them again (a second decode, a refetch), or it keeps them
 all, which is today's ceiling and a risk of the tab being killed. That is a choice for the owner.
 
-**8 · `persist()`** (§8.5, still open). It is `[Exposed=Window]`, so the page asks for it. On WebKit it spares the
-origin from quota eviction (blog 14403) but not from ITP's deletion ([`../CLIENTS.md`](../CLIENTS.md) §On WebKit).
-How Chromium and Gecko grant it (an engagement rule, or a prompt) was not traced here.
+**8 · `persist()`** (§8.5, still open). It is `[Exposed=Window]`, so the page asks for it; Chromium and WebKit refuse
+it to a frame of another origin. *Corrected 2026-10-22:* this said that on WebKit it spares the origin from quota
+eviction but not from ITP's deletion, and that how Chromium and Gecko grant it was not traced. Traced from source
+(§Sources, 2026-10-22); nothing run:
+
+| engine | how it is granted | a persisted origin survives | it does not survive |
+| --- | --- | --- | --- |
+| Chromium, desktop and Android | **no prompt.** Granted at once if the site is an installed web app, or among the profile's 10 "important" sites (medium engagement, notifications allowed, a bookmark, home-screen launches); else `false`, also when cookies are blocked or session-only. A refusal is not stored, so a later ask can succeed | storage pressure: eviction takes only buckets not persisted | the user clearing site data (MDN) |
+| Gecko, desktop | **a doorhanger prompt**, Allow / Block, remembered; no user gesture needed; in a private window refused without one | storage pressure; and its quota rises from 10 % to 50 % of disk, free of the 10 GB group limit (MDN) | the user clearing data (MDN) |
+| Gecko, Firefox for Android | **a dialog prompt**, the default "ask", remembered | as desktop by the shared code; Android's quota not traced | as desktop |
+| WebKit: Safari, and every iOS browser | **no prompt.** Granted only to a domain ITP already exempts from deletion: a Home Screen web app's own domain, an app's app-bound domains, managed domains, a list the embedding app sets. Else `false`: in a Safari tab, an ephemeral session, or with ITP off | quota eviction, by the grant (blog 14403); ITP's deletion, by the exemption the grant requires, not by the grant | the user clearing all website data, which removes the grant too |
+
+So on WebKit the old line holds in effect: in a Safari tab `persist()` is refused and ITP's deletion applies (30
+operating days by source, 7 when flagged, §4); a Home Screen web app is exempt from that deletion whether it asks or
+not, and asking adds only the quota-eviction exemption. The WebKit blog's "counts by its own use" (above, 10218) and
+the source's exemption differ; the source is newer. **On phones:** Android Chrome runs the same rule, and which
+installs count there (a WebAPK or a shortcut) was not traced. On iOS a Safari tab is refused, a Home Screen web app
+granted, and an in-app browser (a `WKWebView`) granted only for its app's app-bound or listed domains; whether ITP
+runs in a third-party browser's or an app's data store, and `SFSafariViewController`, were not traced. A
+`WKWebsiteDataStore.nonPersistent()` view is an ephemeral session, so it has no OPFS by the source cited for Safari
+private above; not run.
+
+**What 124e (ask on the first series opened, or never) means per engine:**
+
+* **Chromium:** asking shows nothing. A first-time reader gets `false`; a regular, bookmarked or installed one gets
+  `true`, and the cache leaves eviction under pressure. Never: the origin stays best-effort, evicted whole, LRU.
+* **Firefox, desktop and Android:** asking shows a prompt as the series opens, not after an act the reader thinks
+  needs saving, which web.dev advises against; Allow lifts the quota from 10 % to 50 % of disk. Never: no prompt, the
+  10 % / 10 GB cap (~12 `dbts_b1` series, above) and LRU eviction.
+* **WebKit:** asking shows nothing and returns `false` in a Safari tab, so it changes nothing there; in a Home Screen
+  web app it adds the quota-eviction exemption. Never: the same in a tab; in a Home Screen web app, quota eviction may
+  take the cache.
+
+**What decides it:** whether a Firefox prompt at the first series is acceptable to a reader mid-study; whether the
+product is meant to be installed (a Chromium install or a Home Screen web app is where asking pays); and whether the
+refetch a cleared cache costs on a wireless link is worth protecting a cache that §7 already lets be emptied.
+
+**What 124b (past the window without a cache: drop and re-ask, or keep everything) means per engine.** It applies in
+Firefox and Safari private windows and a `nonPersistent` web view (no OPFS); in a Chromium Incognito window, whose
+OPFS is RAM in the browser process (5–6.7 % of RAM, above), so a cache there lifts nothing; and wherever a series
+exceeds the quota (Firefox's 10 % unpersisted, a web view's 15 %).
+
+* **Drop and re-ask:** the tab stays inside its budget on every engine; a frame scrolled back past the window is
+  fetched again over the link and decoded a second time, breaking the no-re-decoding rule for that frame.
+* **Keep everything:** no frame decoded twice; the page's memory grows with the series as today, and a phone that
+  kills the tab loses the whole series, not one frame. What iOS and Android kill a tab at is D5's to measure, not traced.
+
+**What decides it:** D5's kill threshold against the product's series sizes; how often a reader scrolls back past
+the window; the link's cost of a refetch. No engine's source changes the trade, only where it applies.
 
 ### Where it saturates, predicted
 
@@ -405,8 +451,28 @@ the browser, with each test mutated. **(7)** the lossless ratio of the product s
 
 1. **The packed file per series, revising §8.3?** It rests on one size per series, which the ingest enforces.
 2. **Without OPFS** (Firefox and Safari private windows, a quota too small): past the window's budget, drop the farthest
-   frame and ask for it again, or keep everything as today?
+   frame and ask for it again, or keep everything as today? Per engine: lever 8.
 3. **The window's starting budget:** 256 MiB until D5 says what a phone kills a tab by, or D5 first?
 4. **Eviction across series:** plain LRU inside a budget of ours (proposed), or the size- or link-weighted variant now?
-5. **`persist()`** (§8.5): ask for it on the first series opened, or never?
+5. **`persist()`** (§8.5): ask for it on the first series opened, or never? Per engine: lever 8.
 6. **A series already whole in OPFS:** dial the session anyway (ready for asks, one handshake), or only on a miss?
+
+### Sources, 2026-10-22
+
+Fetched 2026-10-22 for lever 8 and added to [`frame-path-sources.txt`](frame-path-sources.txt); source files at §9's
+pinned commits, MDN at mdn/content `468fcd1`.
+
+| claim | source |
+| --- | --- |
+| a grant is a permission; persistent buckets cleared only with the user | storage `storage.bs` 498–508, 573–579, 686–690 |
+| Chromium: top level only; cookies; installed; 10 important sites; a refusal not stored | `chrome/browser/storage/persistent_storage_permission_context.cc` 68–79, 88–105, 116–128, 130–156 |
+| Chromium: what makes a site important | `chrome/browser/engagement/important_sites_util.cc` 190–194, 341–352 |
+| Chromium: eviction skips the persisted default bucket | `storage/browser/quota/quota_database.cc` 642, 663–668 |
+| Gecko: private windows refused; the prompt; no gesture | `dom/quota/StorageManager.cpp` 318–329, 651–667; `browser/modules/PermissionUI.sys.mjs` 267–269, 1853–1925 |
+| Firefox for Android: the dialog, default ask | `…/feature/sitepermissions/SitePermissionsFeature.kt` 936–945; `mobile/android/fenix/…/utils/Settings.kt` 1873–1876, 1929 |
+| WebKit: the grant is ITP's exempt set | `NetworkProcess/storage/NetworkStorageManager.cpp` 914–944; `NetworkProcess/NetworkProcess.cpp` 837–846; `Classifier/ResourceLoadStatisticsStore.cpp` 791–800, 2895–2897; `Classifier/WebResourceLoadStatisticsStore.cpp` 775–781, 1590–1597; `UIProcess/WebsiteData/WebsiteDataStore.cpp` 2091–2101 |
+| WebKit: quota eviction spares persisted; clearing all data removes the grant | `NetworkStorageManager.cpp` 566–567, 607, 1474–1476; WebKit blog 14403 |
+| user clearing; Firefox's persisted quota; engines' prompting | MDN *Storage quotas and eviction criteria* (`index.md` 44, 50–52, 91, 164); web.dev *Persistent storage* (2020-05-12) |
+
+**Not traced:** Gecko's rule for a third-party frame; Firefox for Android's quota; which installs count on Android
+Chrome; ITP in third-party iOS browsers and in-app web views; `SFSafariViewController`.
