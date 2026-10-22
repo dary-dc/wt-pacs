@@ -408,6 +408,138 @@ thread, files in the page cache, T1 + V1 and T2 + V1 interleaved round by round 
 It reports latency, not throughput, says where the host saturates, and claims nothing about a cold disk or many
 sessions at once.
 
+**Pre-registered, 2026-10-21, before it ran** (asked for by the owner through the orchestrator, 2026-10-21; this text
+is committed before any number exists, and the result below is held to it). The run is the benchmark above, parts 1,
+2, 4, 5 and 6; part 3 (a new need) is the rebuild inside part 2, timed apart. Three departures, each fixed now:
+
+* **The update changes the rescale intercept**, (0028,1052), `-1024 ` ↔ `-1000 `, not the window centre: the fixture's
+  CT group has no window. Same length either way, so a store's size does not drift with the rounds.
+* **"Revision", not "generation"**, for a store's new version: the glossary already has "generation" for a request
+  (PR #119).
+* **The host is not the one of the four-store table** (a 4-vCPU Xeon at 2.10 GHz, not 2.80): D's held scan runs again
+  in the same rounds as the reference, and only numbers from this run are compared with each other.
+
+What is expected, and what would contradict it:
+
+| Part | Expected | Contradicted if |
+| --- | --- | --- |
+| 1, page open, 2 000 instances, held | median ≤ 0.3 ms, below D's held scan | above D's scan |
+| 1, page open, 4 instances, held | under 20 µs | over 20 µs |
+| 1, opened per read | held + 0.05–0.3 ms | the gap over 0.5 ms |
+| 2, one update, T1 + V1, 2 000 | 5–30 ms, the commit's `fsync` a large share | over 30 ms |
+| 2, one update, T2 + V1, 2 000 | above T1 + V1 by the rebuild's scan of 90 000 rows | below T1 + V1 |
+| 4, integrity | every group's BLAKE3 holds in both; one changed byte fails it | any other outcome |
+| 5, a reader during updates | every document read is the before or the after; no read waits on a commit | one mixed or failed read |
+| 6, size at 2 000 | T1 + V1 within 25 % of B; T2 + V1 within 25 % of C | outside |
+
+Interleaved round by round: the five page-open arms (T1 + V1 and T2 + V1, each held and opened; D's held scan) over
+300 rounds, then the two update arms over 60 rounds, at 4, 200 and 2 000 instances. One thread; the files are in the
+page cache, never evicted. Medians, with p10 and p90.
+
+**Measured, 2026-10-21** ([`../../lab/metadata-store`](../../lab/metadata-store), `--mode pair`; two runs, and a range is the
+two runs' medians). One thread per arm on a 4-vCPU Xeon at 2.10 GHz, the files in the page
+cache; part 5 runs a second process beside it. ext4 on the VM's virtual disk: whether its `fsync` reaches durable
+storage is the VM's, not measured here. Medians; nothing is claimed for a cold disk or for many sessions at once.
+
+| Part | 4 instances | 200 | 2 000 | Against the pre-registration |
+| --- | ---: | ---: | ---: | --- |
+| 1, page open, T1 + V1, held | 1.9–2.9 µs | 4.1–5.4 µs | 27–29 µs | holds: ≤ 0.3 ms, below D |
+| 1, page open, T2 + V1, held | 1.9–3.0 µs | 3.9–4.0 µs | 18 µs | holds |
+| 1, page open, opened per read (T1; T2 within 30 µs) | 54–90 µs | 58–62 µs | 108–117 µs | holds: held + 52–88 µs |
+| 1, D's held scan, the reference | 1.2–1.9 µs | 45–46 µs | 440–456 µs | |
+| 2, one update, T1 + V1 | 0.52–0.55 ms | 1.45–1.51 ms | 9.4–9.5 ms | in 5–30 ms; **the `fsync` share is contradicted** (below) |
+| 2, one update, T2 + V1 | 0.45–0.46 ms | 1.45–1.66 ms | 10.2–10.4 ms | holds: above T1 + V1 at 2 000 |
+| 3, the rebuild alone, T1; T2 | 0.04–0.06; 0.03–0.04 ms | 0.85; 0.88 ms | 8.8–8.9; 9.7–9.9 ms | |
+| 4, every received group's BLAKE3, T1; T2 | 0.04; 0.18 ms | 0.29; 2.7 ms | 3.2; 29 ms | holds: all pass; one changed byte fails (the tests) |
+| 5, documents a second process read during 60 updates that were neither before nor after | 0 of 35 287; 0 of 28 026 | 0 of 41 374; 0 of 42 906 | 0 of 47 304; 0 of 59 052 | holds |
+| 5, its slowest read, T1; T2 | 0.14; 0.14 ms | 0.14; 2.9 ms | 1.0; 0.5 ms | **not shown**: see below |
+| 6, size as built, T1; T2 | 24 576; 24 576 B | 299 008; 405 504 B | 2 875 392; 3 981 312 B | holds: T1 within 1 % of B, T2 +17 % over C |
+
+* **The page open is one lookup.** Held, it reads a 95 803 B document for 2 000 instances in 18–29 µs, 15–24× below D's
+  scan of the same series, and 185 B for 4 instances in 2–3 µs. Opening the file per read adds 52–88 µs, which is the
+  larger cost at every size.
+* **An update costs its rebuild, not its commit.** At 2 000 instances the rebuild alone is 8.8–9.9 ms of a 9.4–10.4 ms
+  update, so the commit and its `fsync` are about 0.6 ms on this disk. The pre-registered "`fsync` a large share" was
+  wrong here; on a disk whose `fsync` waits for media it may hold. The rebuild reads every instance's truth to write
+  one value, so a rebuild that patches only the changed instance's entry would remove almost all of it (not built).
+* **T2 costs more where it reassembles.** Its update is 0.8–0.9 ms above T1's at 2 000, and its integrity check 9×
+  T1's (29 against 3.2 ms), because each group is put back together from its rows before it is hashed.
+* **A reader never saw a mixed document**, in 253 949 reads across the six arms while 60 updates committed beside it.
+  Its slowest read was 2.9 ms (T2, 200 instances) where the median is a few µs. Whether that read waited on a commit
+  or on the two processes sharing four vCPUs is not told apart by this run, so "no read waits on a commit" is not
+  shown.
+* **An update writes 12–16 KB**, not the whole 95 KB document: three or four 4 KiB pages, whatever the series size
+  (`/proc/self/io` wchar). That fits SQLite rewriting in place only the pages of a same-size blob that changed; the
+  mechanism is read from SQLite's behaviour, not checked in its source.
+* **Kept revisions are small:** 120 updates grew T1's 2 000-instance file by 163 840 B, about one 1.4 KB group each.
+
+**The pair's two open items, pre-registered 2026-10-22, before they ran** (asked by the owner through the
+orchestrator, 2026-10-21).
+
+*(a) Patch instead of rebuild.* An update that rewrites only the changed instance's entry in the page row: it reads
+that instance's newest group (T1) or rows (T2), takes its page values, and replaces that one entry in the stored
+document; the rest of the update (the new revision, one commit) is unchanged. Four arms interleaved round by round —
+T1 and T2, each rebuilding and patching — over 60 rounds at 4, 200 and 2 000 instances; after every patched update the
+page row must equal, byte for byte, the document a full rebuild gives.
+
+| Expected | Contradicted if |
+| --- | --- |
+| at 2 000, a patched update is under 2 ms, against 9.4–10.4 ms rebuilt | over 2 ms |
+| at 4, patch and rebuild within 0.1 ms of each other | further apart |
+| the patched row equals the rebuilt one in every round | one differs |
+
+*(b) Does a reader wait on a commit?* The reader of part 5 again, with each read's start and end on the shared
+`CLOCK_MONOTONIC`, and the writer's commit windows on the same clock. Three arms, interleaved by repetition: the
+reader alone (no writer), the reader beside the writer on **another** core (pinned with `sched_setaffinity`), and both
+on the **same** core. A read is counted as overlapping a commit if its interval meets a commit window. The tail is
+reported (p99, p99.9, max), not only the median.
+
+| Expected | Contradicted if |
+| --- | --- |
+| apart, the read tail beside commits is within 2× the tail of the reader alone | over 2× |
+| on one core, the tail grows past the apart arm's: the 2.9 ms read of part 5 was CPU sharing | the same core's tail is no worse than apart |
+| no read in any arm sees a document that is neither before nor after | one does |
+
+**Measured, 2026-10-22** (`--mode pair-followup`, two runs, a range is the two runs' medians unless a column says
+otherwise; the same 4-vCPU Xeon at 2.10 GHz, files in the page cache; latency only).
+
+*(a) Patch against rebuild*, one update, 60 rounds interleaved:
+
+| Arm | 4 instances | 200 | 2 000 |
+| --- | ---: | ---: | ---: |
+| T1 + V1, rebuilt | 0.33–0.44 ms | 1.41–1.53 ms | 10.1–10.2 ms |
+| T1 + V1, patched | 0.32–0.44 ms | 0.62–0.65 ms | 1.61–1.67 ms |
+| T2 + V1, rebuilt | 0.32–0.48 ms | 1.35–1.37 ms | 8.6–8.9 ms |
+| T2 + V1, patched | 0.29–0.34 ms | 0.66–0.71 ms | 1.39–1.49 ms |
+
+* **Holds: a patched update at 2 000 is 1.4–1.7 ms**, a sixth of the rebuilt one, and the patched page row equalled a
+  full rebuild byte for byte after every one of the 360 patched updates per run (120 at each size).
+* **At 4 instances the two are within 0.1 ms in run 1 and not in run 2** for T2 (0.34 against 0.48 ms): contradicted
+  once; at this size both are a few hundred µs and their p10–p90 overlap.
+* What is left at 2 000 is the patch's parse and rewrite of the 95 803 B document and the commit; a document laid out
+  so one entry can be overwritten in place would remove the first (not built).
+
+*(b) The reader's tail*, 6 repetitions of three interleaved arms, 60 updates each (T1 + V1, 2 000 instances, rebuilt
+updates as the writer); per read, µs, run 1 | run 2:
+
+| Arm | Reads | p50 | p99 | p99.9 | max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| the reader alone, core 2 | 248 990 \| 262 183 | 10.6 \| 9.3 | 46 \| 35 | 119 \| 70 | 2 715 \| 2 521 |
+| beside commits, reader core 2, writer core 0 | 223 589 \| 221 440 | 8.6 \| 11.0 | 37 \| 37 | 92 \| 98 | 4 135 \| 22 844 |
+| beside commits, both on core 0 | 196 632 \| 188 744 | 10.5 \| 11.0 | 51 \| 54 | 3 709 \| 3 742 | 7 744 \| 8 959 |
+
+* **Holds to p99.9: apart, a read beside commits is no slower than a read alone** (p99 37 against 35–46 µs, p99.9
+  92–98 against 70–119 µs).
+* **The maximum does not hold:** one read of 22.8 ms in run 2, beside commits on another core, against 2.5–2.7 ms
+  alone; it overlapped a commit window. So a rare reader wait during a commit is seen, about once in 220 000 reads.
+  SQLite's WAL reader retries with a growing sleep when the WAL is being reset by a checkpoint, which would explain it;
+  that mechanism is read from SQLite's design, not checked in this run.
+* **Holds: on one core the tail is CPU sharing.** p99.9 grows from about 95 µs to 3.7 ms when reader and writer share a
+  core, so part 5's 2.9 ms read is consistent with two processes on four vCPUs, not with a commit.
+* **No read in any arm saw a mixed document** (0 in 1 341 578 reads over both runs).
+* Reads outside every commit window are few (7 055 and 6 487) because the writer commits back to back; their median
+  is higher (31 µs), not explained here.
+
 ### 3. Which embedded engine
 
 *Primary sources below (§Sources). All read the same file format, so a database built by one is read by the
