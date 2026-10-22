@@ -23,7 +23,7 @@ SPLIT = 12
 med = statistics.median
 
 
-def series(rows, cell, key, strict):
+def series(rows, cell, key, strict, arm="TB"):
     """{"ref", "aa", "arm"}, one value a round in round order, None where the round has no exact value."""
     rs = [r for r in rows if r["cell"] == cell]
     void = {r["round"] for r in rs if r["void"]} if strict else set()
@@ -35,7 +35,7 @@ def series(rows, cell, key, strict):
         ok = r and r["exact"] and not r["error"] and rnd not in void
         return r[key] if ok else None
 
-    return rounds, {k: [value(n, a) for n in rounds] for k, a in (("ref", "T"), ("aa", "Tp"), ("arm", "TB"))}
+    return rounds, {k: [value(n, a) for n in rounds] for k, a in (("ref", "T"), ("aa", "Tp"), ("arm", arm))}
 
 
 def cut(s, keep):
@@ -46,10 +46,10 @@ def complete(s):
     return sum(None not in r for r in zip(s["ref"], s["aa"], s["arm"]))
 
 
-def verdict(rows, cell, key, strict):
-    rounds, s = series(rows, cell, key, strict)
+def verdict(rows, cell, key, strict, arm="TB", split=SPLIT):
+    rounds, s = series(rows, cell, key, strict, arm)
     s["rounds"] = rounds
-    first, again, both = cut(s, lambda n: n < SPLIT), cut(s, lambda n: n >= SPLIT), cut(s, lambda n: True)
+    first, again, both = cut(s, lambda n: n < split), cut(s, lambda n: n >= split), cut(s, lambda n: True)
     halves = complete(first), complete(again)
     if not can_flag(min(halves)):
         return {"n": sum(halves), "verdict": "undecided at n = %d + %d" % halves}

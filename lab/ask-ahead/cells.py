@@ -3,8 +3,9 @@
 order (lab/scripts/order.py), each run its own server and relay (`link_impair.py --self-timing`), one
 headless Chromium (visit.mjs) for the whole campaign. One JSON row per run on stdout.
 
-usage: cells.py SERIES_DIR ROUNDS CELL ...   CELL = RATE_MBIT/RTT_MS/QUEUE[@AT][:ARM,...], QUEUE = fifoMS or codel,
-       AT the share landed before the ask (default ASK_AT) or `none`; the arms default to all of ARMS
+usage: cells.py SERIES_DIR ROUNDS CELL ...   CELL = RATE_MBIT/RTT_MS/QUEUE[~SERIES][@AT][#SHAPE][:ARM,...], QUEUE =
+       fifoMS or codel, AT the share landed before the ask (default ASK_AT) or `none`, SERIES a name in MORE_SERIES
+       (NAME=DIR,...), SHAPE one of SHAPES; the arms default to all of ARMS
        ARMS=today,follow  (a further arm is name=--server-flag ..., or name=PATH/series-server [flag ...];
        a `?key=value` token goes to the page's query) — lab/ask-ahead/README.md
 """
@@ -12,6 +13,7 @@ import json
 import os
 import re
 import socket
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -27,6 +29,10 @@ SERVER = ROOT / "target/release/series-server"
 # RELAY_CHRT=50 runs the relay under SCHED_FIFO: a late relay reads as link jitter (docs/rig-limits.md §3).
 PRIO = ["chrt", "-f", os.environ["RELAY_CHRT"]] if os.environ.get("RELAY_CHRT") else []
 ASK_AT = float(os.environ.get("ASK_AT", "0.5"))
+# docs/WIRE.md §Proposed: an ask during a fill. The page's query, and how a run's asks make its `ask_ms`.
+SHAPES = {"u2": ("", lambda r: r["askMs"]),
+          "u1": ("&asks=8&every=100", lambda r: statistics.median(r["asksMs"]) if r["asksMs"] else None),
+          "u3": ("&asks=4", lambda r: r["allMs"])}
 
 
 def free_port(kind=socket.SOCK_DGRAM):
@@ -38,8 +44,17 @@ def free_port(kind=socket.SOCK_DGRAM):
 def parse(cell):
     """`(link, at, arms or None)` of a CELL."""
     cell, _, arms = cell.partition(":")
+    cell = cell.partition("#")[0]
     link, _, at = cell.partition("@")
-    return link, at, arms.split(",") if arms else None
+    return link.partition("~")[0], at, arms.split(",") if arms else None
+
+
+def shape(cell):
+    return cell.partition(":")[0].partition("#")[2] or "u2"
+
+
+def series_of(cell):
+    return cell.partition(":")[0].partition("#")[0].partition("@")[0].partition("~")[2] or None
 
 
 def link(cell):
@@ -75,6 +90,7 @@ def wait_for(log, pattern, proc, secs=10):
 
 
 def run(t, visit, http, cell, arm, rnd, prev):
+    t = t.more[series_of(cell)] if series_of(cell) else t
     srv, inp, ctrl = free_port(), free_port(), free_port()
     slog, rlog = t / "server.log", t / "relay.log"
     query = "".join(f"&{a[1:]}" for a in ARMS[arm] if a.startswith("?"))
@@ -95,7 +111,8 @@ def run(t, visit, http, cell, arm, rnd, prev):
     (t / "transport.json").write_text(json.dumps({"wt_url": f"https://127.0.0.1:{inp}/", "cert_sha256": t.cert}))
     at = parse(cell)[1]
     share = "none" if at == "none" else int(at) / 100 if at else ASK_AT
-    visit.stdin.write(f"http://127.0.0.1:{http}/lab/ask-ahead/index.html?frames={t.frames}&at={share}&ask={t.ask}{query}\n")
+    visit.stdin.write(f"http://127.0.0.1:{http}/lab/ask-ahead/index.html?frames={t.frames}&at={share}&ask={t.ask}"
+                      f"{SHAPES[shape(cell)][0]}{query}\n")
     visit.stdin.flush()
     r = json.loads(visit.stdout.readline())
     # The page's close is still in the relay's queue; the server logs the session once it lands.
@@ -111,7 +128,8 @@ def run(t, visit, http, cell, arm, rnd, prev):
     late = re.findall(r"self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)", tally)
     sha_ok = r.get("sha") and all(r["sha"].get(str(i)) == d for i, d in enumerate(t.digests))
     return {"round": rnd, "cell": cell, "arm": arm, "prev": prev, "settings": f"{settings} {' '.join(shown(ARMS[arm]))}".strip(),
-            "ask_ms": round(r["askMs"], 1) if r.get("askMs") is not None else None,
+            "ask_ms": round(SHAPES[shape(cell)][1](r), 1) if r.get("askMs") is not None else None,
+            "asks_ms": [round(v, 1) for v in r.get("asksMs") or []],
             "fill_ms": round(r["fillMs"], 1) if "fillMs" in r else None,
             "ahead": r.get("ahead"), "ahead_bytes": sum(t.sizes[i] for i in r.get("ahead") or []),
             "exact": bool(sha_ok), "error": r.get("error") or (r.get("errors") or [None])[0],
@@ -138,7 +156,13 @@ def gap(landed, asked):
 
 
 class Rig(type(Path())):
-    pass
+    def load(self, series):
+        os.symlink(series / "series.sbnd", self / "series.sbnd")
+        self.digests = json.loads((series / "digests.json").read_text())
+        self.frames = len(self.digests)
+        self.sizes = [(series / "frames" / f"{i:03d}.htj2k").stat().st_size for i in range(self.frames)]
+        # The last frame: what a deep queue has written ahead at half the fill never reaches it.
+        self.ask = self.frames - 1
 
 
 def main():
@@ -157,13 +181,17 @@ def main():
         der = subprocess.run(["openssl", "x509", "-in", t / "cert.pem", "-outform", "DER"], check=True, capture_output=True).stdout
         import hashlib
         t.cert = hashlib.sha256(der).hexdigest()
-        os.symlink(series / "series.sbnd", t / "series.sbnd")
-        t.digests = json.loads((series / "digests.json").read_text())
-        t.frames = len(t.digests)
-        t.sizes = [(series / "frames" / f"{i:03d}.htj2k").stat().st_size for i in range(t.frames)]
-        # The last frame: what a deep queue has written ahead at half the fill never reaches it.
-        t.ask = t.frames - 1
+        t.load(series)
         (t / "transport.json").write_text("{}")
+        t.more = {}
+        for spec in filter(None, os.environ.get("MORE_SERIES", "").split(",")):
+            name, _, path = spec.partition("=")
+            m = t.more[name] = Rig(t / name)
+            m.mkdir()
+            for f in ("cert.pem", "key.pem", "transport.json"):
+                os.symlink(t / f, m / f)
+            m.cert = t.cert
+            m.load(Path(path).resolve())
         http = free_port(socket.SOCK_STREAM)
         web = subprocess.Popen([sys.executable, ROOT / "server/dev-server.py", "--port", str(http),
                                 "--transport", t / "transport.json"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -175,7 +203,10 @@ def main():
                           "server": subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"], capture_output=True,
                                                    text=True).stdout.strip(), "arms": {a: shown(ARMS[a]) for a in arms},
                           "series": str(series.name), "relay_chrt": os.environ.get("RELAY_CHRT"), "frames": t.frames, "ask_at": ASK_AT, "bytes": sum(t.sizes),
-                          "ask": t.ask, "ask_bytes": t.sizes[t.ask]}), flush=True)
+                          "ask": t.ask, "ask_bytes": t.sizes[t.ask],
+                          "more": {n: {"series": os.path.basename(os.environ["MORE_SERIES"].split(n + "=")[1].split(",")[0]),
+                                       "frames": m.frames, "bytes": sum(m.sizes), "ask": m.ask, "ask_bytes": m.sizes[m.ask]}
+                                   for n, m in t.more.items()}}), flush=True)
         time.sleep(0.5)
         try:
             for rnd in range(int(os.environ.get("FIRST_ROUND", 0)), rounds):

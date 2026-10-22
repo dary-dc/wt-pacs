@@ -135,6 +135,10 @@ pub(super) struct Sessions {
     pub(super) opening_ask: bool,
     stall: Option<u64>,
     cwnd_ahead: Option<u64>,
+    /// Lab only, `lab-levers`: `--fill-resumes-after-asks`.
+    fill_resumes: bool,
+    /// Lab only, `lab-levers`: `--ask-stream-priority`.
+    ask_stream: Option<i32>,
     #[cfg(feature = "telemetry")]
     taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
 }
@@ -164,6 +168,14 @@ impl Sessions {
             #[cfg(not(feature = "lab-levers"))]
             stall: None,
             cwnd_ahead,
+            #[cfg(feature = "lab-levers")]
+            fill_resumes: config.lab.fill_resumes_after_asks,
+            #[cfg(not(feature = "lab-levers"))]
+            fill_resumes: false,
+            #[cfg(feature = "lab-levers")]
+            ask_stream: config.lab.ask_stream_priority,
+            #[cfg(not(feature = "lab-levers"))]
+            ask_stream: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(Tap::for_session),
         }
@@ -191,11 +203,11 @@ impl Sessions {
         let reader = tokio::spawn(read(tx));
         #[cfg(feature = "telemetry")]
         let result = match (self.taps)() {
-            Some(tap) => drive(&mut RecordedPipeline::new(product, tap), &mut asks).await,
-            None => drive(&mut product, &mut asks).await,
+            Some(tap) => drive(&mut RecordedPipeline::new(product, tap), &mut asks, self.fill_resumes).await,
+            None => drive(&mut product, &mut asks, self.fill_resumes).await,
         };
         #[cfg(not(feature = "telemetry"))]
-        let result = drive(&mut product, &mut asks).await;
+        let result = drive(&mut product, &mut asks, self.fill_resumes).await;
         reader.abort();
         let _ = reader.await;
         result
@@ -264,7 +276,9 @@ async fn handle_incoming(
     #[cfg(feature = "telemetry")]
     tokio::spawn(crate::record::path::run(connection.clone()));
 
-    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall, sessions.cwnd_ahead);
+    let link = |control| {
+        Link::quic(sessions.mode, connection.clone(), control, sessions.stall, sessions.cwnd_ahead, sessions.ask_stream)
+    };
     let result = async {
         match opening {
             Some(ask) => {
@@ -361,14 +375,18 @@ fn report_path(connection: &wtransport::Connection) {
 
 /// The loop over `Command`, with no stream in it, so a test can drive it without QUIC. However it
 /// ends, outstanding finishes get their grace.
-pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
-    let result = steps(pipeline, asks).await;
+pub(super) async fn drive<P: FramePipeline>(
+    pipeline: &mut P,
+    asks: &mut mpsc::Receiver<Command>,
+    fill_resumes: bool,
+) -> Result<()> {
+    let result = steps(pipeline, asks, fill_resumes).await;
     pipeline.finish().await;
     result
 }
 
-async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
-    let mut plan = Planner::new(pipeline.store().frame_count());
+async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>, fill_resumes: bool) -> Result<()> {
+    let mut plan = Planner::new(pipeline.store().frame_count()).fill_resumes(fill_resumes);
     loop {
         match plan.next(|| asks.try_recv().ok())? {
             Step::Serve { frame, next } => pipeline.serve(frame, &next).await?,
@@ -530,7 +548,7 @@ mod tests {
         for ask in [Command::Frame(0), Command::Frame(2), Command::Frame(3), Command::EndSession] {
             tx.try_send(ask).expect("queue ask");
         }
-        drive(&mut rec, &mut rx).await.expect("drive");
+        drive(&mut rec, &mut rx, false).await.expect("drive");
         let tiles = |names: &[u32]| Next::Tiles(names.to_vec());
         assert_eq!(
             rec.seen,
@@ -552,7 +570,7 @@ mod tests {
         .expect("queue fill");
         tx.try_send(Command::EndSession).expect("queue end");
         drop(tx);
-        drive(&mut rec, &mut rx).await.expect("drive fill");
+        drive(&mut rec, &mut rx, false).await.expect("drive fill");
         assert_eq!(rec.fills, 0, "a fill cancelled by EndSession was counted");
 
         let mut rec = LoopRecorder {
@@ -568,7 +586,7 @@ mod tests {
         })
         .expect("queue fill");
         drop(tx);
-        drive(&mut rec, &mut rx).await.expect("drive fill");
+        drive(&mut rec, &mut rx, false).await.expect("drive fill");
         let fill = |after, first| Next::Fill { after, first };
         assert_eq!(
             rec.seen,
@@ -588,7 +606,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
         tx.try_send(Command::Frame(0)).expect("queue ask");
         tx.try_send(Command::Failed(anyhow!("a malformed message"))).expect("queue failure");
-        assert!(drive(&mut rec, &mut rx).await.is_err(), "the failure was swallowed");
+        assert!(drive(&mut rec, &mut rx, false).await.is_err(), "the failure was swallowed");
         assert!(rec.drained, "a session that ended in error skipped the finishes' grace");
     }
 
@@ -632,6 +650,8 @@ mod tests {
             opening_ask: false,
             stall: None,
             cwnd_ahead: None,
+            fill_resumes: false,
+            ask_stream: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(|| None),
         }
@@ -1287,6 +1307,8 @@ mod tests {
             opening_ask: true,
             stall: None,
             cwnd_ahead: None,
+            fill_resumes: false,
+            ask_stream: None,
             taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
         };
         let config = fx.config();
@@ -2052,6 +2074,74 @@ mod tests {
             }
         })
         .await;
+    }
+
+    /// With `--fill-resumes-after-asks`, an ask during a fill goes before the fill's remainder, and the
+    /// fill then delivers every other frame in order, once: none lost to the ask, none sent twice.
+    #[cfg(feature = "lab-levers")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn with_fill_resumes_an_ask_goes_first_and_the_fill_still_completes() {
+        let frames = 48u32;
+        let asked = frames - 1;
+        let fx = Fixture::new(frames);
+        let lab = LabLevers { fill_resumes_after_asks: true, ..LabLevers::default() };
+        let server = tokio::spawn(run_server(ServeConfig { lab, ..fx.config() }));
+        let connection = dial(fx.port, fx.cert_hash, "").await;
+        let (mut control, _control_recv) = open_control(&connection).await;
+        let mut media = connection.accept_uni().await.expect("accept media uni");
+        write_fod_msg(&mut control, &FodMsg::StreamFrames { from: None, to: None }).await.expect("fill");
+        // Unread, the media stream's credit holds the fill well short of the asked frame.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        write_fod_msg(&mut control, &FodMsg::RequestFrame { frame: asked }).await.expect("ask");
+
+        let mut order = Vec::new();
+        while order.len() < frames as usize {
+            let (idx, codestream) = tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                .await
+                .expect("the fill never completed");
+            assert_eq!(codestream, pattern(idx), "frame {idx} came back wrong");
+            order.push(idx);
+        }
+        let extra = tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
+        assert!(extra.is_err(), "a frame was sent twice: {order:?}");
+        let at = order.iter().position(|&f| f == asked).expect("the ask was never served");
+        assert!(at < asked as usize, "the ask waited for the whole fill: {order:?}");
+        let fill: Vec<u32> = order.into_iter().filter(|&f| f != asked).collect();
+        assert_eq!(fill, (0..asked).collect::<Vec<_>>(), "the fill did not resume in order");
+        server.abort();
+    }
+
+    /// With `--ask-stream-priority`, an ask comes on a second uni, readable while every fill byte
+    /// written before it lies unread on the first; later fill frames stay on the first.
+    #[cfg(feature = "lab-levers")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn with_an_ask_stream_an_ask_is_read_past_the_unread_fill() {
+        let (frames, asked) = (48u32, 47u32);
+        let fx = Fixture::new(frames);
+        let lab = LabLevers { ask_stream_priority: Some(1), ..LabLevers::default() };
+        let server = tokio::spawn(run_server(ServeConfig { lab, ..fx.config() }));
+        let connection = dial(fx.port, fx.cert_hash, "").await;
+        let (mut control, _control_recv) = open_control(&connection).await;
+        let mut fill = connection.accept_uni().await.expect("accept fill uni");
+        // Ten frames fit the client's stream credit, so the one writer is done with them when the ask comes.
+        write_fod_msg(&mut control, &FodMsg::StreamFrames { from: Some(0), to: Some(9) }).await.expect("fill");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        write_fod_msg(&mut control, &FodMsg::RequestFrame { frame: asked }).await.expect("ask");
+        let mut asks = tokio::time::timeout(Duration::from_secs(5), connection.accept_uni())
+            .await
+            .expect("no second stream: the ask is behind the fill")
+            .expect("accept ask uni");
+        let (idx, codestream) = read_envelope(&mut asks).await;
+        assert_eq!((idx, codestream == pattern(asked)), (asked, true), "the ask stream carried the wrong frame");
+
+        write_fod_msg(&mut control, &FodMsg::StreamFrames { from: Some(10), to: Some(12) }).await.expect("fill");
+        for want in 0..=12 {
+            let (idx, codestream) = tokio::time::timeout(Duration::from_secs(5), read_envelope(&mut fill))
+                .await
+                .expect("the fill stream ran dry");
+            assert_eq!((idx, codestream == pattern(want)), (want, true), "the fill stream carried the wrong frame");
+        }
+        server.abort();
     }
 
     /// **The WebSocket path.** Binary messages, joined, are the shared uni stream's bytes — each
