@@ -351,10 +351,9 @@ async function readEnvelopeInto(
 ): Promise<Envelope | null> {
   const head = await readInto(reader, new Uint8Array(8), min, onRead);
   if (head.filled === 0) return null;
-  if (head.filled < 4) return { ok: false, index: -1, lost: "truncated before its index" };
+  if (head.filled < 8) return { ok: false, index: -1, lost: "truncated before its index" };
   const len = be32(head.bytes);
   if (len < 4 || len > MAX_FRAME_LEN) throw new Error(`invalid frame length ${len}`);
-  if (head.filled < 8) return { ok: false, index: -1, lost: "truncated before its index" };
   const index = be32(head.bytes.subarray(4));
   onHead(index);
   const body = await readInto(reader, wire.take(len - 4), min, onRead);
@@ -362,7 +361,7 @@ async function readEnvelopeInto(
   return { ok: true, index, codestream: body.bytes };
 }
 
-/** Fill `view`, each read resolving at `min` bytes or the rest; a cut stream's last read is done with bytes. */
+/** Fill `view`, each read resolving at `min` bytes or the rest; `bytes` holds them only once `filled` is the whole view. */
 async function readInto(reader: MinReader, view: Uint8Array, min: number, onRead: () => void) {
   // Each read detaches the buffer it was given and hands back its successor, so `view` is read once.
   const { byteOffset, length } = view;
@@ -370,9 +369,14 @@ async function readInto(reader: MinReader, view: Uint8Array, min: number, onRead
   let filled = 0;
   while (filled < length) {
     const rest = length - filled;
-    const { value, done } = await reader.read(new Uint8Array(buffer, byteOffset + filled, rest), {
-      min: Math.min(rest, min),
-    });
+    let read: Awaited<ReturnType<MinReader["read"]>>;
+    try {
+      read = await reader.read(new Uint8Array(buffer, byteOffset + filled, rest), { min: Math.min(rest, min) });
+    } catch {
+      // A cut whose end is already queued errors a read it cannot fill to `min`, and keeps its buffer.
+      return { bytes: new Uint8Array(0), filled };
+    }
+    const { value, done } = read;
     if (value) {
       buffer = value.buffer as ArrayBuffer;
       filled += value.byteLength;
