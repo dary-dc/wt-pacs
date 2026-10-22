@@ -363,6 +363,53 @@ async function theRemainderIsReissuedOnce() {
 await theRemainderIsReissuedOnce();
 
 /**
+ * Under `refill: "none"` an ask during a fill re-issues nothing, since the server keeps the fill, and the next run goes
+ * out once nothing of the first is owed: after its last fill frame when the ask carried its `to`, or on the ask's
+ * landing when the asks carried all the rest of it.
+ */
+async function noneLeavesTheFillToTheServer() {
+  const runs = async (name, fillsBefore, asked, fillsAfter) => {
+    const fills = [];
+    const asks = new Map();
+    let onFrame;
+    globalThis.fakeTransport = {
+      connect: async () => ({
+        requestExactFrame: (i, onHead) => new Promise((resolve) => asks.set(i, { resolve, onHead })),
+        stats: () => ({ closed: null, lastByteAt: performance.now() }),
+        fillFrames: (from, to, f) => {
+          fills.push(`${from}-${to}`);
+          onFrame = f;
+        },
+        endStream: async () => {},
+        close() {},
+      }),
+    };
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // none ${name}`;
+    await import(`./downloader.js?refill-none-${name}`);
+    await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport, survival: false, refill: "none" } } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    await onmessage({ data: { kind: "fill", indices: [...Array(8).keys(), 10, 11] } });
+    for (const i of fillsBefore) onFrame(frame(i));
+    for (const i of asked) await onmessage({ data: { kind: "ask", index: i } });
+    await settle();
+    for (const i of asked) {
+      asks.get(i).onHead?.();
+      asks.get(i).resolve(frame(i));
+    }
+    await settle();
+    const afterAsks = fills.join(" ");
+    for (const i of fillsAfter) onFrame(frame(i));
+    await settle();
+    return `${afterAsks} | ${fills.join(" ")}`;
+  };
+  const tail = await runs("tail", [0, 1, 2], [7], [3, 4, 5, 6]);
+  check(tail === "0-7 | 0-7 10-11", `refill none, the run's last frame asked: runs after the asks | after the fill: ${tail}`);
+  const rest = await runs("rest", [0, 1, 2, 3, 4, 5], [6, 7], []);
+  check(rest === "0-7 10-11 | 0-7 10-11", `refill none, the rest of the run asked: runs after the asks | after: ${rest}`);
+}
+await noneLeavesTheFillToTheServer();
+
+/**
  * The downloader keeps each decoder's end of its pixel channel reachable for the decoder's life: Firefox deletes
  * the frames in flight through a transferred port once the sender's object is collected.
  */
@@ -394,5 +441,5 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held: ok");
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, refill none, ports held: ok");
 process.exit(failed ? 1 : 0);

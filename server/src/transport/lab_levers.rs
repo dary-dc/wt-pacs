@@ -20,11 +20,24 @@ pub struct LabLevers {
     /// not whole GSO batches (docs/rig-limits.md §3).
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     pub segmentation_offload: bool,
+    /// Lab only: an ask during a fill is served next and the fill resumes behind it. docs/WIRE.md §Proposed: an ask during a fill
+    #[arg(long, default_value_t = false)]
+    pub fill_resumes_after_asks: bool,
+    /// Lab only: under `shared`, asks go on a second uni of this priority, the fill's being 0. docs/WIRE.md §Proposed: an ask during a fill
+    #[arg(long, value_name = "PRIORITY", allow_negative_numbers = true)]
+    pub ask_stream_priority: Option<i32>,
 }
 
 impl Default for LabLevers {
     fn default() -> Self {
-        Self { force_pool_reads: false, hold_sessions: false, stall_after_bytes: None, segmentation_offload: true }
+        Self {
+            force_pool_reads: false,
+            hold_sessions: false,
+            stall_after_bytes: None,
+            segmentation_offload: true,
+            fill_resumes_after_asks: false,
+            ask_stream_priority: None,
+        }
     }
 }
 
@@ -48,6 +61,12 @@ pub(super) fn apply(mut config: ServeConfig) -> ServeConfig {
     }
     if let Some(bytes) = lab.stall_after_bytes {
         warn!(bytes, "--stall-after-bytes: every session stalls; this is a lab flag, not a deployment one");
+    }
+    if lab.fill_resumes_after_asks {
+        warn!("--fill-resumes-after-asks: an ask no longer ends a fill; a lab flag, not a deployment one");
+    }
+    if let Some(priority) = lab.ask_stream_priority {
+        warn!(priority, "--ask-stream-priority: asks on a stream of their own; a lab flag, not a deployment one");
     }
     config.tuning.segmentation_offload = lab.segmentation_offload;
     config

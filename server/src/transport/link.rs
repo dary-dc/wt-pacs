@@ -34,6 +34,8 @@ pub(crate) enum Link {
 
 pub(crate) enum Media {
     Shared(SendStream),
+    /// Lab only: `shared`, but asks go on a second uni of `priority`, opened on the first. `--ask-stream-priority`.
+    SharedAsksApart { fill: SendStream, asks: Option<SendStream>, priority: i32 },
     /// `asks` counts the asks served when they rank above every fill (`per-frame-asks-first`).
     PerFrame { acks: JoinSet<()>, seq: u32, asks: Option<u32> },
 }
@@ -52,16 +54,16 @@ impl Link {
         control: ControlStream,
         stall_left: Option<u64>,
         cwnd_ahead: Option<u64>,
+        ask_stream: Option<i32>,
     ) -> Result<Self> {
         let media = match mode {
-            StreamMode::Shared => Media::Shared(
-                connection
-                    .open_uni()
-                    .await
-                    .context("open shared uni")?
-                    .await
-                    .context("shared uni ready")?,
-            ),
+            StreamMode::Shared => {
+                let fill = open_uni(&connection).await?;
+                match ask_stream {
+                    Some(priority) => Media::SharedAsksApart { fill, asks: None, priority },
+                    None => Media::Shared(fill),
+                }
+            }
             StreamMode::PerFrame => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: None },
             StreamMode::PerFrameAsksFirst => Media::PerFrame { acks: JoinSet::new(), seq: 0, asks: Some(0) },
         };
@@ -135,13 +137,20 @@ impl Media {
     async fn send(&mut self, connection: &Connection, head: Bytes, body: Bytes, whole: bool, ask: bool) -> Result<()> {
         match self {
             Self::Shared(uni) => write_frame(uni, head, body).await,
+            Self::SharedAsksApart { fill, .. } if !ask => write_frame(fill, head, body).await,
+            Self::SharedAsksApart { asks, priority, .. } => {
+                let uni = match asks {
+                    Some(uni) => uni,
+                    None => {
+                        let uni = asks.insert(open_uni(connection).await?);
+                        let _ = uni.set_priority(*priority);
+                        uni
+                    }
+                };
+                write_frame(uni, head, body).await
+            }
             Self::PerFrame { acks, seq, asks } => {
-                let mut uni = connection
-                    .open_uni()
-                    .await
-                    .context("open uni")?
-                    .await
-                    .context("open uni ready")?;
+                let mut uni = open_uni(connection).await?;
                 let priority = match asks {
                     Some(asks) if ask => take_ask_priority(asks),
                     _ => take_priority(seq),
@@ -201,6 +210,10 @@ fn take_ask_priority(asks: &mut u32) -> i32 {
     let p = i32::MAX - i32::try_from(*asks).unwrap_or(i32::MAX).min(i32::MAX - 1);
     *asks = asks.saturating_add(1);
     p
+}
+
+async fn open_uni(connection: &Connection) -> Result<SendStream> {
+    connection.open_uni().await.context("open uni")?.await.context("uni ready")
 }
 
 async fn write_frame(uni: &mut SendStream, head: Bytes, body: Bytes) -> Result<()> {
