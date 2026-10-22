@@ -423,8 +423,10 @@ help the wire's part, which at 103 Mbit/s is the larger (0.49 s, row 167).
   path, `perDecoder` and the ring's size, which differs by one under B and nowhere else.
 * **Rig:** `lab/ask-ahead` (`cells.py`, `page.js`, `visit.mjs`) with decoding on, and Chromium's CPU throttle at 1×
   and 4× as `lab/av1/delivery/fill` sets it. The page fills the whole series and, once half has landed, asks for the last
-  frame. Per run it records the ask's decoder wait (`decodeEnd − lastByte` of the asked frame), its total, the
-  fill's issue to its last frame on the page, and how long the transport waited for a free wire buffer.
+  frame. Per run it records the ask's decoder wait (`decodeEnd − lastByte` of the asked frame; *corrected:* from the
+  later of `lastByte` and the ask, since at AV1 4× every asked frame was already in hand and promoted at the ask), its
+  total, the fill's issue to its last frame on the page, and how long the transport waited for a free wire buffer
+  (*not measurable:* the ring never waits, a miss allocates — `WireBuffers.take` — so there is no wait to compare).
 * **Cells:** `r100000` and `r300000`, 23 ms one way and a FIFO of `--queue-ms 650` (§Net protocols), 1× and 4×.
   Series: `dbt12_ea1141` as HTJ2K and as the product's AV1 (`ingest/coded-frames`, `--representation optimized`),
   both `sound`. Check the relay's ceiling at 300 Mbit/s first: it has never been run there. A link whose shaped visits
@@ -451,6 +453,38 @@ ARMS="A,Ap,B=?askJump" RELAY_CHRT=50 RELAY_CORE=3 NODE_PATH=$(npm root -g) tasks
   python3 lab/ask-ahead/cells.py OUT 12 100/46/fifo650 100/46/fifo650/cpu4 >> lab/ask-ahead/rows-askjump-SERIES.jsonl
 python3 lab/ask-ahead/askjump.py lab/ask-ahead/rows-askjump-SERIES.jsonl
 ```
+
+Each series had a cell not conclusive at 12, so both ran rounds 12–23 (`FIRST_ROUND=12`, `24`); the rows are
+[`lab/ask-ahead/rows-askjump-av1.jsonl`](../../lab/ask-ahead/rows-askjump-av1.jsonl) and
+[`lab/ask-ahead/rows-askjump-htj2k.jsonl`](../../lab/ask-ahead/rows-askjump-htj2k.jsonl).
+
+**Measured (ASKJUMP): not resolved on this host — the prediction holds in the round-paired reading, and the
+protocol's `VOID` rule drops the link.** Round-paired, n = 24 a cell; ms, A then B, median / p90; B/A and A′/A the
+medians of round-paired ratios:
+
+| `dbt12`, 100 Mbit/s | ask's decoder wait | B/A (A′/A) | ask's total, B/A | fill, ms | fill, B/A (A′/A) |
+| --- | --: | --: | --: | --: | --: |
+| AV1, 4× | 690 / 775 → **491 / 717** | **×0.76** (×0.96), better | ×0.76, better | 3 310 → 3 340 | ×1.005 (×0.994), tie |
+| AV1, 1× | 217 / 260 → 163 / 226 | ×0.75 (×1.05), better | ×0.90, better | 1 712 → 1 700 | ×1.001 (×1.005), tie |
+| HTJ2K, 4× | 46 / 64 → 47 / 62 | ×0.99 (×0.90), not conclusive | ×1.010, tie | 1 551 → 1 549 | ×0.998 (×1.001), tie |
+| HTJ2K, 1× | 12 / 17 → 12 / 17 | ×0.97 (×1.07), not conclusive | ×0.998, tie | 1 512 → 1 511 | ×0.998 (×0.998), tie |
+
+* **The prediction, AV1 at 4×:** ×0.76 at the median is inside ×0.57–0.88, the fill a tie (the rule's loss at its A/A
+  spread 3.6 %). The milliseconds are not the model's 259 → 185: this host's 4× AV1 decode is slower than its 4.1×.
+  The model's own forms at the host's T (fill 3.31 s × 3 decoders ÷ 29 frames ≈ 340 ms) give R_min + 2T ≈ 765 against
+  690 measured and R_min + T ≈ 425 against 491.
+* **AV1 at 1× contradicts its tie:** decode-bound here too (fill 1.71 s, HTJ2K's wire-bound 1.51), so the ask gains.
+* **HTJ2K is wire-bound at 1× and 4× on 100 Mbit/s**, as predicted: total and fill tie; its 12–46 ms decoder wait has
+  an A/A spread of 20–28 %, too wide to call.
+* **Exact:** 288 visits, every frame; `MUTATE=sample` and `truth` gave 0 of 29 on each series and arm.
+* **The rule:** no cell worse, a 4× cell better, every frame exact — but 65 of 144 AV1 visits and 74 of 144 HTJ2K were
+  `VOID` (p99 over 1 ms), over the 20 % that drops a link. The strict reading keeps 2–6 rounds a cell and decides
+  nothing; the `VOID` visits read as the clean ones (AV1 4×, clean only: 635 → 475 ms, fill 3 310 → 3 281). So the
+  flag stays off.
+* **Where the host saturates:** four cores, the relay alone on core 3 at `chrt -f 50`, browser, server and three
+  decoders on 0–2. At 300 Mbit/s every visit was `VOID` (p99 2.6–28 ms) and a fill averaged 144–148 Mbit/s, so no 300
+  cell was run and nothing is claimed there; at 100 Mbit/s half the visits were `VOID`. The throttle's own check read
+  3.1–3.4×, not 4×, on a busy loop.
 
 ## Retained-frame residency
 
