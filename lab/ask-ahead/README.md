@@ -30,5 +30,11 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   token goes to the page's query. Its rows are `rows-refill.jsonl`; `rows-refill-ceiling.jsonl` is the relay's
   ceiling, fills with no ask at 2 ms. `refill_test.py` holds its verdict's claims on drawn rows.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
-* The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once `at` (half
-  unless set) has landed, asks for the last frame.
+* `askjump.py ROWS.jsonl` — ASKJUMP, the lab flag `askJump` (A, A′ = `Ap`, B = `?askJump`) with decoding on, read by
+  [`../../docs/decode/README.md`](../../docs/decode/README.md) §An ask behind the decoders. A `SERIES_DIR` holding
+  `metadata.json` is one `lab/av1/tools/ingest_coded.py` wrote, `series.sbnd` packed beside it: the page decodes it with
+  the product's build and each frame's pixels are checked against the source's `NNN.sha256` (`MUTATE=sample` flips a
+  decoded bit, `MUTATE=truth` a checksum digit). A `CELL`'s `/cpuN` throttles the browser N× (`lab/scripts/cpu_throttle.mjs`);
+  `RELAY_CORE` pins the relay. Each row adds the ask's decoder wait (`ask_decoder_ms`) and the page's settings (`page`).
+* The page (`page.js`) fills the whole series through the product's downloader with decoding off (on with `codec`) and,
+  once `at` (half unless set) has landed, asks for the last frame.
