@@ -785,7 +785,7 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 | 7 | **Park on the ring fd, drop the eventfd** | **Built 2026-10-16** (row 250), on the owner's decision in #1: a tie re-measured, 1 fd per missing session counted, [below](#7-built-park-on-the-rings-own-fd-rows-244-250). Was: ordered after P0; proposed as row 244 |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0. *Corrected 2026-10-16, row 251:* already in. `Cargo.lock` pins 0.7.15 since its first commit on this line (`427d3ce0`, 2026-10-03); the 2026-09 campaigns ran 0.7.14 (`b55b68db`'s lock), every row since on 0.7.15. Closed, never timed against 0.7.14 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
-| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells: `lab/scripts/workstation_run.sh`, built 2026-10-16 (row 262), not yet run (§12, *On the workstation, in one command*) |
+| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells: `lab/scripts/workstation_run.sh`, built 2026-10-16 (row 262); one round run 2026-10-20, a direction on a fixture that compresses (§12, *Measured, one round*). The fixture is incompressible since 2026-10-22 and the run refuses to time without it; the 12 rounds are still owed |
 | 13 | **Short io_uring completions on a regular file** | the lab now resubmits the tail and counts them; 0 in 1 032 workstation rows. Incidence on other hosts and sizes past 250 kB is unmeasured |
 
 Numbers are kept because older records cite them; 4 is closed (§8), the missing ones closed or
@@ -1285,7 +1285,8 @@ slower at 1.5–2× the CPU. Its cold median flatters it (cold ÷ warm 1.1× aga
 less of it.** The workstation reproduced the freeze: 2 187–3 699 µs against 233–1 001.
 
 **On the workstation** (8-thread i5-8250U, btrfs-on-LUKS over NVMe, a miss is a real device
-read; 12 interleaved repeats; desktop up, governor unpinned, so absolute µs carry drift),
+read — *doubted 2026-10-21*: D4's fixture compressed on this mount, §12 *Measured, one round*;
+12 interleaved repeats; desktop up, governor unpinned, so absolute µs carry drift),
 250 kB cold `product` against `pool` is **+38.5 % p50, +36.5 % CPU, RESOLVED at depth 1**,
 while `hybrid_lazyring` **ties** `pool` at every depth. **That retracted "the shipped path *is*
 the variant" at 250 kB**: the penalty was the old `ReadCtx`'s, not the ring's; *Line 221* found it.
@@ -1543,10 +1544,11 @@ then the fill shape, `--stride` = `--size`, adding `tokio_fs`. Verdicts on wall 
 Three columns carry the claims: `rings` stays 0 for `product_fill`, `peak_named` follows
 `--depths` past 4, and the 128 KiB / 250 kB penalty stays gone.
 
-### On the workstation, in one command (row 262: built, not yet run)
+### On the workstation, in one command (row 262; one round run, D4)
 
 *2026-10-16.* Item 10 of §9, and the ring against the pool on the server, on the owner's machine. The script was
-run here once with `--quick` on a cut matrix, untimed: it proves it runs, and no number in this section comes from it.
+run here once with `--quick` on a cut matrix, untimed: it proves it runs. The owner's one round is *Measured, one
+round* below.
 
 ```bash
 lab/scripts/workstation_run.sh --plan    # the estimate and the disk it needs, then exit
@@ -1554,7 +1556,7 @@ lab/scripts/workstation_run.sh --quick   # one round of everything: a first try,
 lab/scripts/workstation_run.sh           # 12 rounds; prints the estimate and starts 10 s later
 ```
 
-It refuses when a prerequisite of README §Prerequisites it uses is missing, or when the disk is short. It builds
+It refuses when a prerequisite of README §Prerequisites it uses (or `zstd`) is missing, or when the disk is short. It builds
 what it runs, works under `.local/workstation` (`--work DIR` elsewhere: the series volume is the one it records),
 and packs `report-<UTC>/` as `workstation-<UTC>.tar.gz`, the one file to send back. Nothing runs as root.
 
@@ -1573,6 +1575,24 @@ part reports a resident copy, `read_campaign` skips the cell and the summary cou
 so it drives their binaries on their cells, asks, strides and rule instead. Every server cell is a fresh process; a
 warm one follows a discarded pass by another.
 
+**Cold is read off the device** (2026-10-22). `gen_live_cell_fixture.sh` writes every frame of a series from one
+`random.Random(NAME)` stream: the same bytes every run, no two frames alike (a 16 KiB frame repeated would compress
+inside one 128 KiB extent), and nothing a filesystem can compress. Frame sizes and the `.sbnd` layout are unchanged,
+and no check in the run compares byte values (`server_ab` checks each envelope answers its ask), so none changed.
+Before any timed part `lab/scripts/payload_guard.sh` runs, and the run stops when it refuses: 16 samples of 128 KiB
+(btrfs's compression unit) over the frames must each have a `zstd -1` ratio ≤ 1.02, and one copy written into the
+cold-copy directory as `writer_bench direct` writes them must equal the series byte for byte and show no `encoded`
+extent in `filefrag -v` (required on btrfs). The directories get `chattr +m` first, btrfs's *NOCOMPRESS* flag (the
+btrfs docs, [Compression](https://btrfs.readthedocs.io/en/latest/Compression.html), *Incompressible data*); that new
+copies inherit it is what the guard's copy checks, not assumed. Under `compress-force` btrfs tries every block (same
+section), so there the incompressible payload is what keeps the extents plain (derived: a block that does not shrink
+is stored as is). The page's *Compatibility* says direct IO writes fell back to buffered before kernel 7.3, which is
+how D4's `O_DIRECT` copies on 7.2.11 came out compressed. A fixture an earlier run left that fails the ratio is
+regenerated. Mutated 2026-10-22 on the agent's ext4 VM, untimed: the repeated byte back in the generator reads ratio
+5 699 and the run refuses before timing; a `filefrag` that reports `encoded` refuses at the copy; the fix passes both,
+and `--quick` then ran to its report with every check holding (no resident copy, cold misses ≥ 0.95, `ring` as armed,
+`check-fastpath` honoured). An ext4 VM says nothing of a device: no number is taken from that run.
+
 **Time and disk.** The estimate, a model whose rates are guesses for a laptop NVMe (`timing.txt` has the real ones):
 ~5 min for the first build, ~17 min for the image build and the container checks where podman or docker is present,
 ~26 min for the readers and ~5 min for the server at 12 rounds: **~53 min**. `--quick` takes ~25 min the first time,
@@ -1584,6 +1604,67 @@ series is 512 MB, rewritten per cell). `--exec-gap` adds a series of max(1.25 ×
 and loop variants, and `tokio_fs`, which needs its own build). `R_VARIANTS`, `R_DEPTHS` and `R_READERS` take them,
 at the cost `--plan` prints. At 16 readers the readers share one series and wrap it, so those cells are mix, not
 miss: `pair_variants.py` buckets by regime for that reason. P0 is not this: one bare-metal host is not the target.
+
+#### Measured, one round (D4, 2026-10-20)
+
+*The owner's laptop: i5-8250U (4 cores, 8 threads), NVMe under LUKS and btrfs (`compress=zstd:1`, bdi `read_ahead_kb`
+4 096), Fedora 43, kernel 7.2.11, SELinux enforcing, rootless Podman 5.8.8; unified `85666200`, `--quick`, `ulimit -l`
+at 128 MiB (the 2026-10-18 try stopped at 8 MiB: the lab's ring variants register buffers, and 16 readers' worth pass
+it; the product registers none). 56 s with the builds cached. **One round**: every paired verdict prints `n/a (n=1)`,
+so what follows is a direction bounded by each cell's single A/A pair, to be replaced by the 12-round run.*
+
+**Counts, which one round does settle.** The ring part is [`deploy/README.md`](../../deploy/README.md) §Open's SELinux
+row. `product_fill` built 0 rings; `product_tile`'s `peak_named` was 1 / 4 / 16 at depths 1 / 4 / 16; no short read,
+no cold copy found resident. Ring variants held 9 OS threads in every cell; pool-backed ones 10–104 at one reader, up
+to 271 at 16. The server's cold rows missed 98.8 %, with `ring=true` in 3 of 3 ring and A/A rows and `false` in 3 of 3
+pool rows.
+
+**Three traps for the full run.**
+
+* **The fixture compresses** (*fixed 2026-10-22*, *Cold is read off the device* above). `gen_live_cell_fixture.sh`
+  wrote one byte value; btrfs stored it compressed on this mount, and the `writer_bench direct` copies too
+  (`filefrag -v`: every extent `encoded`, checked 2026-10-21). A cold read is then mostly a zstd decompress, not
+  16–250 kB off the NVMe (derived): these cells time the kernel's miss path, not the device. The fixture is now a
+  seeded incompressible stream, the copies' directory gets `chattr +m`, and the run checks both before timing. The
+  12-round rerun is `lab/scripts/workstation_run.sh`; fixtures an earlier run left under `.local/workstation` are
+  regenerated. Whether the 2026-09 workstation rows (§2's ~840 MB/s, §11 *Re-measured*) read compressed extents too
+  is unchecked.
+* **A 500 kB stride is not a miss here.** At 250 kB, `product_tile`, `hybrid_lazyring` and `pool` missed 0.4–27 % at
+  depths 1 and 4; at depth 16 `pool` missed 99.6 % and `product_tile` 1.2 % against its A/A copy's 100 %, arms of one
+  cell in different regimes. Re-derive the stride on the day (*Make the miss real*, above).
+* **p50 above depth 1 compares two clocks.** `product_tile` and `product_fill` time the ask's wait, the lab variants
+  each read from issue to completion (`read_campaign.rs`). At depth 4 `product_tile`'s 46 µs p50 sits below depth ÷
+  throughput (235 µs), where the others' 189–208 µs sit on it: §11 *Correction*'s artefact. Above depth 1 the
+  summary's p50 verdicts against a product reader mean nothing; wall and CPU per ask do.
+
+**16 KiB tiles at one reader**, the only reader cells that missed (98.4–98.8 %). CPU per ask, µs:
+
+| depth | `product_tile` (A/A) | `hybrid_lazyring` | `uring` | `pool` | `pool_capped_probe` | `pooled_pread` |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 73.2 (73.1) | 177.8 | 51.4 | 118.8 | 51.5 | 50.2 |
+| 4 | 36.6 (37.5) | 34.7 | 37.5 | 60.5 | 60.3 | 59.2 |
+| 16 | 36.1 (35.1) | 33.4 | 32.5 | 78.4 | 73.1 | 74.7 |
+
+At depths 4 and 16 the variants split by family, ring 32–38 µs against pool 59–78 µs (×1.6–2.4), the direction of
+§2's ring-on-the-miss row. In wall, depth 4 is within −13 to +10 % of `product_tile` (A/A 4 %), and at depth 16
+the pool family is 10–41 % ahead at twice the CPU. Depth 1 says nothing: `pool` and `pool_capped_probe`, one code
+path at 16 KiB, read 118.8 against 51.5.
+
+**The other cells say nothing on ring against pool.** 250 kB at depths 1 and 4 and the fill shape were hit cells.
+Every 16-reader cell is mix (4–50 % misses), 16 readers on 8 hardware threads keeping 1.3–5.1 cores busy (asks/s ×
+CPU per ask): at or past the 4 cores in most, where this host saturates, so only counts are claimed there. The A/A's
+|Δ p50| over the 18 cells is 0–88 %, median 8 %.
+
+**Server, ring against pool**, p50 in µs as ring · pool · ring A/A: cold depth 1 536 · 605 · 320, depth 2 577 · 717
+· 785, depth 4 1 260 · 911 · 1 056. Each gap is inside its cell's A/A pair but depth 4's, where the pool was lower
+(−28 %, A/A 16 %); CPU per ask is inside at every depth. Warm depth 4's A/A is 162 %. The fill's three arms build no
+ring, so they are one code path, and read 123 · 44 · 158: nothing here resolves.
+
+**For 123e** (one `auto` default or a deploy table per storage; *Proposed: disk reading at scale*, question 5,
+branch `claude/design-disk-scaling`). `auto` chose right in every setting without a table: the ring where allowed,
+the pool where refused, served either way. What decided ring or pool was the host's security policy, not its
+storage. The storage-keyed values (`read_ahead_kb`, scheduler, the stride's regime) this run cannot speak to: its
+misses barely touched the device.
 
 ## 13 · Faster than today (theory, AV1 queue row 198)
 
