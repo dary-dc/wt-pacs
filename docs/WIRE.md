@@ -229,7 +229,8 @@ during a fill, from its use cases.
 
 ## Proposed: an ask during a fill, from its use cases
 
-*Proposed 2026-10-20, a design review: nothing built or timed here. Nothing changes before the owner's choices.
+*Proposed 2026-10-20, a design review. Nothing changes before the owner's choices. Corrected 2026-10-22: its
+measurement has run (ASKSTREAM, §The measurement below); QW and QS exist as lab levers only.
 It builds on §Proposed: one queue above, its measurement (row 253) and the two candidates still open, #96 and #39
 ([`handoff/review-2026-10-16.md`](https://github.com/dary-dc/wt-pacs/blob/claude/project-thread-9uugfm/handoff/review-2026-10-16.md)
 rows C1, C2: "no winner yet; design first"). (D) marks a number derived here, not measured.*
@@ -323,7 +324,7 @@ regime the product lives in; the direction counts the fill. **Not to pursue** un
 explained (§9.7, *Further rows*). Its result is what D builds on: the ask gain is the priority's, the fill cost is
 in per-frame streams.
 
-**D. One queue plus an ask stream** (new, theory only). The fill keeps the shared stream; the session opens a second
+**D. One queue plus an ask stream** (new; measured as QS, ASKSTREAM below). The fill keeps the shared stream; the session opens a second
 uni stream that carries only asks, ranked above it (`set_priority`, as `per-frame-asks-first` does). quinn builds
 packets from the higher-ranked stream first, so an ask jumps every fill byte not yet sent:
 
@@ -352,7 +353,7 @@ packets from the higher-ranked stream first, so an ask jumps every fill byte not
 * **Large frames:** the window does not bind, so B ≈ A ≈ today; D keeps its gain, less the S ÷ R term.
 * **Deep FIFOs:** cwnd fills the queue; all designs tie on the ask (rows 180, 253); C loses the fill, D predicted not.
 
-### The measurement that would settle it (pre-registered, not run)
+### The measurement that would settle it (pre-registered 2026-10-20 at `68232c9`, run 2026-10-22)
 
 * **Arms:** T (today, `refill: head`); T′ (T again, the A/A arm); QW (#96's build); QS (D on B's planner, one writer).
 * **Cells:** row 253's (18 and 103 Mbit/s × 46 and 92 ms × FIFO 20 and CoDel, the ask at 10 % and 50 %; FIFO 360 and
@@ -372,13 +373,93 @@ packets from the higher-ranked stream first, so an ask jumps every fill byte not
 * **Its check:** QS with the ask stream at the fill's rank brings its ask back within T's spread.
 * **Its limits:** the container rig, Chromium only, one session; nothing past 103 Mbit/s; a phone is not covered.
 
+**Measured (ASKSTREAM, 2026-10-22): the readings disagree, so by the rule nothing is decided; round-paired, QW stays
+the candidate, a trade-off; D (QS) loses to QW on the ask everywhere but `dbts_b1`.** The arms, cells, shapes and rule
+above, unchanged since `68232c9`; run by [`lab/ask-ahead/askstream.sh`](../lab/ask-ahead/askstream.sh) (committed
+before any timing, `4087e2d`), read by `askstream.py`. QW is `--fill-resumes-after-asks --send-window-follows-cwnd`,
+QS `--fill-resumes-after-asks --ask-stream-priority 1`, both with the client's `?refill=none`, T and T′
+`?refill=head`; the two server flags exist only under `lab-levers` (server/README.md §Lab only). Readings fixed with
+the run, before the data: U2 asks for the last frame (every frame is within 6 % of the largest; the last is the one no
+arm has written at the ask), every shape asks at 50 %, U1's ask is the median of its asks and a step whose frame has
+landed is not asked (the viewer's rule), U3's the last of its four to land; QS ÷ QW is read against T′/T; the check
+arm QS0 (`--ask-stream-priority 0`) ran at 18/46 FIFO 20, its loss cell and `dbts_b1` at 18. One frozen release build;
+Chromium 141.0.7390.37; relay under `chrt -f 50`; **10 Williams rounds, 1 150 runs, every frame SHA-256-exact, none
+failed**. The host restarted in round 1: its 11 runs before the restart set aside, round 1 rerun from its start on the
+same binary. **375 runs `VOID`** (7 in round 0, rising to 62 in round 9): the strict reading kept 1–7 rounds a cell and
+is *undecided* in every cell but `dbts_b1` at 103, so **the two readings disagree and the rule decides nothing**.
+**The relay's ceiling**, fills with no ask at 2 ms: 17.7 Mbit/s at 18, 100.0–101.0 at 103, 170–196 at 200 with 5 of
+6 visits `VOID`: **the host saturates between 103 and 200 Mbit/s**; nothing is claimed past 103. Rows
+`rows-askstream.jsonl`, `rows-askstream-ceiling.jsonl`.
+
+  | round-paired, × T | ask: T ms | QW | QS | QS ÷ QW | fill: T ms | QW | QS |
+  |---|---|---|---|---|---|---|---|
+  | 18/46 FIFO 20 @10 % | 2 637 | ×0.405 ↓ | ×0.387 ↓ | ×0.938 ↓ | 6 494 | ×0.997 | ×1.001 |
+  | 18/46 FIFO 20 @50 % | 3 118 | ×0.328 ↓ | ×0.481 ↓ | ×1.464 **↑** | 6 485 | ×0.997 | ×0.996 |
+  | 18/46 CoDel @10 % | 2 658 | ×0.395 ↓ | ×0.375 ↓ | ×0.957 | 6 810 | ×0.999 | ×1.006 |
+  | 18/46 CoDel @50 % | 3 480 | ×0.361 ↓ | ×0.521 ↓ | ×1.421 **↑** | 6 824 | ×1.002 | ×1.001 |
+  | 18/92 FIFO 20 @10 % | 2 804 | ×0.426 ↓ | ×0.408 ↓ | ×0.972 | 6 877 | ×1.003 | ×0.996 |
+  | 18/92 FIFO 20 @50 % | 3 097 | ×0.332 ↓ | ×0.496 ↓ | ×1.500 **↑** | 6 852 | ×0.995 | ×0.998 |
+  | 18/92 CoDel @10 % | 2 876 | ×0.319 ↓ | ×0.323 ↓ | ×1.005 ? | 7 344 | ×0.996 | ×0.999 |
+  | 18/92 CoDel @50 % | 3 461 | ×0.348 ↓ | ×0.508 ↓ | ×1.443 **↑** | 7 322 | ×0.997 | ×1.003 |
+  | 103/46 FIFO 20 @10 % | 448 | ×0.739 ↓ | ×0.662 ↓ | ×0.947 | 1 399 | ×0.993 | ×0.999 |
+  | 103/46 FIFO 20 @50 % | 537 | ×0.415 ↓ | ×0.557 ↓ | ×1.341 **↑** | 1 387 | ×1.004 | ×1.004 |
+  | 103/46 CoDel @10 % | 482 | ×0.733 ↓ | ×0.977 | ×1.338 **↑** | 1 452 | ×0.963 ↓ | ×0.958 ↓ |
+  | 103/46 CoDel @50 % | 468 | ×0.608 ↓ | ×0.519 ↓ | ×0.852 | 1 390 | ×1.010 | ×1.003 |
+  | 103/92 FIFO 20 @10 % | 489 | ×0.881 | ×1.215 | ×1.383 **↑** | 1 949 | ×0.987 | ×0.961 ↓ |
+  | 103/92 FIFO 20 @50 % | 451 | ×0.578 ↓ | ×0.486 ↓ | ×0.849 ? | 1 883 | ×1.018 | ×0.993 |
+  | 103/92 CoDel @10 % | 538 | ×0.909 ? | ×1.132 ? | ×1.237 ? | 2 028 | ×0.957 ↓ | ×0.922 ↓ |
+  | 103/92 CoDel @50 % | 463 | ×0.856 ↓ | ×0.512 ↓ | ×0.595 ↓ | 1 912 | ×1.016 **↑** | ×1.000 |
+  | 103/46 FIFO 360 @50 % | 536 | ×1.000 | ×0.924 ↓ | ×0.923 ↓ | 1 385 | ×1.000 | ×1.001 |
+  | 103/46 FIFO 800 @50 % | 534 | ×1.000 | ×0.931 ↓ | ×0.931 ↓ | 1 386 | ×1.000 | ×0.997 |
+  | 18/46 FIFO 20 1 % loss @50 % | 20 692 | ×0.311 ↓ | ×0.448 ↓ | ×1.478 **↑** | 40 096 | ×1.027 | ×1.004 |
+  | 103/46 FIFO 20 1 % loss @50 % | 20 486 | ×0.238 ↓ | ×0.451 ↓ | ×1.939 **↑** | 38 816 | ×0.998 | ×0.978 |
+  | 18/46 FIFO 20 `dbts_b1` @50 % | 4 006 | ×0.990 | ×0.562 ↓ | ×0.566 ↓ | 49 980 | ×1.002 | ×1.002 |
+  | 103/46 FIFO 20 `dbts_b1` @50 % | 669 | ×0.999 | ×0.633 ↓ | ×0.635 ↓ | 8 821 | ×1.001 | ×1.001 |
+  | 18/46 FIFO 20 @50 % U1 | 1 868 | ×0.850 ↓ | ×1.121 **↑** | ×1.312 **↑** | 8 330 | ×0.781 ↓ | ×0.805 ↓ |
+  | 18/46 FIFO 20 @50 % U3 | 3 881 | ×0.462 ↓ | ×0.592 ↓ | ×1.278 **↑** | 7 263 | ×0.894 ↓ | ×0.895 ↓ |
+  | 103/46 FIFO 20 @50 % U1 | 142 | ×1.012 | ×0.850 ↓ | ×0.847 | 1 801 | ×0.897 ↓ | ×0.920 ↓ |
+  | 103/46 FIFO 20 @50 % U3 | 680 | ×0.524 ↓ | ×0.635 ↓ | ×1.209 **↑** | 1 542 | ×0.910 ↓ | ×0.903 ↓ |
+  | 18/46 FIFO 20 1 % loss @50 % U1 | 14 360 | ×0.871 ↓ | ×1.072 ? | ×1.235 **↑** | 52 504 | ×0.773 ↓ | ×0.788 ↓ |
+  | 18/46 FIFO 20 1 % loss @50 % U3 | 25 923 | ×0.452 ↓ | ×0.570 ↓ | ×1.262 **↑** | 45 945 | ×0.902 ↓ | ×0.873 ↓ |
+
+  ↓ better, **↑** worse, ? not conclusive, unmarked a tie: the round-paired reading, rounds 0–4 flagged and 5–9 the
+  confirmation. The A/A spread: T′/T ×0.939–1.020, the loss the rule would catch 0.3–19.4 % (103/92 FIFO 20 at 50 %,
+  where T′/T is ×0.939).
+
+* **The rule, round-paired:** QS's asks are better than QW's in both `dbts_b1` cells (×0.57, ×0.64) but worse in 14
+  others, both loss cells among them (×1.48, ×1.94), and its U1 fill at 18 (×1.04): **QW stays the candidate. QW is a
+  trade-off for the owner**: every ask a tie or better than T's (×0.24–1.01), its one cost **a fill +31 ms (×1.016) at
+  103/92 CoDel at 50 %**, and its ask not conclusive at 103/92 CoDel at 10 %. Row 253's two worse QW fills (103/92
+  FIFO 20 and 103/46 CoDel at 50 %) are ties here (×1.018, ×1.010). Strict: undecided (above).
+* **The fill's cost per arm:** QW worse in one cell (above), better in all six U1/U3 cells (×0.77–0.91, no re-ask) and
+  in two 103 cells at 10 %; QS worse in none, better in the same six and three 103 cells at 10 %. Under 1 % loss both
+  ties (QW ×1.027 and ×0.998, QS ×1.004 and ×0.978). Session RSS, median: T 7.9 MB, QW 4.8, QS 8.1 (`dbts_b1`: T 12.0,
+  QW 12.0, QS 13.6).
+* **(1) contradicted:** QS's ask at 18/46 FIFO 20 at 50 % is 1 499 ms (T 3 118, QW 1 024), not 314 ± 30 %; under 1 %
+  loss ×0.448 and ×0.451 of T (9.7 and 9.5 s), not ≤ ×0.35. QW's is ×0.311 and ×0.238.
+* **(2) held** round-paired (no QS fill worse than T's; deep FIFOs ties); strict undecided.
+* **(3) contradicted** as written: U2 cells ×0.993–1.001 of T's packets, but U1 and U3 ×0.80–0.94, fewer: T's re-asks
+  resend frames. QW ×0.989–1.001 in U2 cells.
+* **(4) contradicted:** QW's ask a tie with T's in both `dbts_b1` cells (held), QS's ×0.562 and ×0.633, not ≤ ×0.5. The
+  misses, 248 ms at 18 and 89 at 103, are below S ÷ R (0.92 s and 0.16 s for its 2.1 MB frames, D), so the rule's
+  pointer at the one writer does not apply as stated.
+* **(5) contradicted** at 103 only: T's U1 fill exceeds QW's and QS's by 1 826 and 1 625 ms at 18 (8 asks × 46 ms =
+  368) and 11.8 and 11.6 s under loss, but by 186 and 143 ms at 103 against 6 asks × 46 = 276.
+* **Check contradicted:** QS0, the ask stream at the fill's rank, did not bring the ask back to T's: ×0.563, ×0.556
+  and ×0.805 of T. A stream of its own gains whatever its rank; the rank adds 0.08 of T's ask at 18/46 FIFO 20.
+* **Not explained here:** why QS's ask at 50 % waits ~1.2 s more than the flight it was predicted to wait behind, at 10 %
+  matching QW. A guess, not measured: the one writer blocks in the fill's write until the client's stream credit
+  reopens, and Chromium reopens it in large steps, so the ask waits for more than the frame being written.
+
 ### Questions for the owner
 
 1. **The use cases' order:** scroll ahead (U1) first, then the jump (U2), then tiles (U3), with the comparison (U5)
    left until a session carries several series. Is that the product's order?
 2. **The scroll's behaviour (L4):** while the reader scrolls past the fill, should the viewer ask every step, only the
    cursor's frame, or re-aim the fill at the cursor? It is product behaviour, and the measurement's U1 shape follows it.
-3. **Run the measurement above** (T, T′, QW, QS), or take B (#96) now at row 253's price and measure D after it?
+3. ~~Run the measurement above~~ Run 2026-10-22 (ASKSTREAM): round-paired, B (#96, QW) beats D (QS) on the ask in
+   every cell but `dbts_b1`, at one fill cost (+31 ms, 103/92 CoDel at 50 %); strict undecided. Take B at that price,
+   rerun the strict reading on a quieter host, or pursue D with a second writer first?
 4. **#39:** close it with its results recorded here, or keep it until row 211's extra packets are explained?
 5. **The WebSocket** keeps its TCP buffer ahead of an ask in every design: accept that for the fallback?
 

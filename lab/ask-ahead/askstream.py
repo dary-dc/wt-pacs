@@ -52,7 +52,8 @@ def medians(rows, cell, arm, key):
 def paired(rows, cell, x, y, key, f):
     """Per round with both arms exact, `f(x's value, y's value)`; their median."""
     by = {(r["round"], r["arm"]): r for r in rows if r["cell"] == cell and r["exact"] and not r["error"]}
-    vs = [f(by[(n, x)][key], by[(n, y)][key]) for n, a in by if a == x and (n, y) in by]
+    vs = [f(by[(n, x)][key], by[(n, y)][key]) for n, a in by
+          if a == x and (n, y) in by and None not in (by[(n, x)][key], by[(n, y)][key])]
     return med(vs) if vs else None
 
 
