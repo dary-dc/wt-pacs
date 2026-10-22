@@ -2508,7 +2508,7 @@ duplicated stream data (RFC 9000 §2.2). The controller pays more:
   carried transport patch.
 
 **Cheaper neighbours.** One ack-eliciting PING after a frame's last packet (§9 item 7) turns a lost tail into a
-loss the time threshold catches. It costs about 40 bytes a frame and saves PTO − 9/8 RTT ≈ 4·rttvar + 25 ms − RTT/8:
+loss the time threshold catches. It costs one packet of 21–41 bytes a frame and saves PTO − 9/8 RTT ≈ 4·rttvar + 25 ms − RTT/8:
 20–80 ms at the lab's links (derived). The duplicate saves the whole PTO at about 35× the bytes. Both fail when the
 burst that took the tail also takes what follows it. FEC over the tail, as FlEC does, recovers any one loss among k
 packets with one repair symbol. In FlEC's bulk evaluation that is "similar results as previous works", from simulated
@@ -2677,9 +2677,72 @@ Ranked for the target. *By report* marks a claim from specifications and public 
    the peer advertises.
 7. **The depth-1 tail.** Headless Chromium 141 does not advertise `min_ack_delay`
    ([`../CLIENTS.md`](../CLIENTS.md) §ACK frequency, by browser); one run on 148 closes that, with
-   the server's request restored from `archive/arms-2026-10-03`. An
-   ACK-eliciting packet after an isolated frame would turn a lost tail into a gap, if quinn's packet
-   builder can place it *after* the tail. Not before items 1–3. Sending the tail twice: dropped for now (§5 *A frame's tail sent twice*).
+   the server's request restored from `archive/arms-2026-10-03`. Sending the tail twice: dropped for now
+   (§5 *A frame's tail sent twice*). **A PING after the tail** (queue row TAILPING, 2026-10-22; theory only,
+   nothing built or timed, every number derived). *Corrected:* this item said the PING would work "if quinn's
+   packet builder can place it after the tail"; read in source, it cannot without a patch.
+   * *What quinn does.* quinn-proto's public `Connection::ping` sets `ping_pending` in the highest space
+     (`connection/mod.rs:1305`), and the next packet built writes the PING first, ahead of any stream data
+     (`populate_packet`, `:3181`). Called while a frame is still queued, it rides the frame's next packet,
+     not its last. Unlike a PTO probe, it is congestion-controlled and paced (`:604–:637`), so behind a full
+     window it waits for an ACK. quinn 0.11.11 does not expose it: `quinn::Connection` has no `ping`, and
+     quinn-proto's `is_pending` is crate-private, so nothing above quinn-proto knows when a frame's last
+     byte left. The shape that works is a quinn-proto patch: when the data space's stream queue drains, queue
+     one PING that bypasses the window as a loss probe does. Under `shared` stream mode the drain after an
+     isolated ask is the ask's end, so no frame boundary is needed. Not built.
+   * *What it saves.* If the tail is lost, the PING arrives to a gap, and a receiver SHOULD acknowledge it
+     at once (RFC 9000 §13.2.1); Chromium does when the gap is new (quiche `HasNewMissingPackets`). The
+     ACK then declares the tail lost by time threshold, 9/8 · max(srtt, latest RTT) after it was sent
+     (RFC 9002 §6.1.2, `mod.rs:1700`). Today it waits a PTO, srtt + max(4·rttvar, 1 ms) + 25 ms
+     (§5 *A frame's tail sent twice*). The saving is 4·rttvar + 25 ms − RTT/8 per lost tail, taking
+     rttvar at RTT/8–RTT/4 on a wireless link (an assumption; a loaded queue raises it):
+
+     | RTT | wait today (PTO) | with the PING | saved |
+     | --- | --- | --- | --- |
+     | 10 ms | 40–45 ms | 11 ms | 29–34 ms |
+     | 40 ms | 85–105 ms | 45 ms | 40–60 ms |
+     | 100 ms | 175–225 ms | 113 ms | 62–112 ms |
+     | 200 ms | 325–425 ms | 225 ms | 100–200 ms |
+
+     An isolated ask waits a timer with probability *p* to 2*p* (§5); with the PING, only when the PING is
+     lost too: *p*² on iid loss, 0.71 of lost tails on the relay's bursts (§5), so bursts keep 29 % of the
+     gain. At 5 % loss that is 5–10 % of asks, so p95 and p99 move; at 1 %, p99 only; at 10⁻⁵, nothing.
+     Under Cubic a lost tail also halves the window either way, and the ask's loss slope (+2.6 s at p99
+     per 1 %, §5) buries 40–60 ms; under BBR, at 190–349 ms a lossy ask, it is 11–32 %.
+   * *The cost.* One packet of 21–41 bytes (header, a 0–20-byte connection ID, PING, padding for header
+     protection, a 16-byte tag; 49–89 on the wire) each time the queue drains: 0.1–0.2 % of a 51 kB ask,
+     ≤ 0.02 % of 570 kB, and next to nothing in a fill, which seldom drains. No client change and no change
+     to the loss signal: the tail is declared lost by the same rule, earlier.
+   * *The owner's criteria.* (1) *Common:* not shown. It needs ≥ 1 % loss on idle asks, and the target's
+     loss mix is the field pilot's (item 2). (2) *Effective:* on iid loss, yes, all but *p*² of tails; on
+     packet-counted bursts 29 %; on a radio's bursts in time, an immediate PING likely shares the burst,
+     unknown. (3) *Cheap elsewhere:* in bytes yes, about 35× less than the duplicate; in code it is a
+     third carried quinn-proto patch. (4) *Switched on by detection:* yes, by the same per-connection flag
+     as the duplicate (§5), at zero cost on clean sessions.
+   * *Pre-registered protocol* (not queued; after items 1–3). Arms `off` and `tailping` (the patch, on for
+     every session), alternated ABBA in each round, the server's startup line naming the arm, every other
+     setting printed and equal. Controllers Cubic and BBR. Cells through `link_impair.py` at 20 Mbit: iid
+     0, 1 and 5 % at 40 and 200 ms; 5 % at 10 ms; `lte-good`'s 2 % bursts. The shape: one depth-1 ask of
+     51 kB or 570 kB on a session idle ≥ 1 s, nothing else in flight; ≥ 10 rounds of 200 asks a cell and
+     arm. Read from qlog: each lost tail's wait from send to retransmission, PTOs and congestion events per
+     ask.
+     * *Predictions*, each with what contradicts it: a lost tail's median wait falls to ≤ 9/8 RTT + 5 ms
+       (contradicted above PTO − half the saving); at 5 % iid under BBR, p99 falls 40–60 ms at 40 ms and
+       100–200 ms at 200 ms (contradicted under half that); under Cubic no cell moves outside its spread
+       (contradicted by a fall larger than the saving, which would mean something else changed); p50
+       within ±5 ms everywhere; clean cells' fill and ask within 1 % and bytes ≤ 0.2 %; on bursts ≤ 35 %
+       of the iid gain (contradicted above 50 %); congestion events per ask unchanged.
+     * *Rule:* adopt behind detection if at 5 % iid under BBR p99 falls by ≥ half the saving at both round
+       trips in ≥ 7 of 10 paired rounds, the wait prediction holds, and no clean cell worsens by > 1 %.
+       If it pays only under BBR, it waits on item 2. Otherwise drop for good.
+     * *Where this host saturates:* nothing is claimed above the cells' 20 Mbit ([`../rig-limits.md`](../rig-limits.md) §3);
+       a round whose relay p99 is over 1 ms is `VOID`, 1/29 of the smallest saving.
+
+   *Sources read 2026-10-22 (sha256 of each fetch):* RFC 9002 (`3a8a54ea…`) §6.1.2, §6.2.1, §6.2.4;
+   RFC 9000 (`f88aae47…`) §13.2.1, §19.2; quinn-proto 0.11.18 (`a9746dbd…`, the crate) `connection/mod.rs`,
+   `spaces.rs`, `config/transport.rs`, and its docs.rs page (`4b14f0c5…`); quinn 0.11.11 (`0c1a41e4…`) and
+   its docs.rs `Connection` page (`d9c3f1fb…`), no `ping`; quiche `quic_received_packet_manager.cc` at
+   `main` (`bf75062c…`) `MaybeUpdateAckTimeout`.
 8. **Two upstream quinn items, drafted, not posted**:
    [`upstream-quinn-ack.md`](upstream-quinn-ack.md) (the patch is carried, off; whether it removes
    the session-open probe in a browser is unmeasured) and the probe-every-space companion in
