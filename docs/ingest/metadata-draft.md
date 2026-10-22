@@ -247,6 +247,17 @@ the noise, and nothing claimed for a cell left with fewer than 8 paired rounds a
 
 A real phone is outside this rig ([`../rig-limits.md`](../rig-limits.md)); 4× CPU is the nearest it reaches.
 
+*Asked for on 2026-10-22 (the owner, through the orchestrator): measurement 1, B priced on this harness against A1.
+**Not run, and why.** Only A1 exists to measure: B needs a server that sends the series envelope behind the accept and
+a client that reads it, which is the wire change itself (`../WIRE.md`, both clients, the contract suite). `CLAUDE.md`
+asks for a structural change to be proposed before it is built, so none was. The smallest arm that would price B
+without touching the product's paths: the server's `lab-levers` build sends a series envelope of N bytes as the first
+message of the media stream, and a lab copy of `downloader.html` reads it before the first frame; the codec from
+`?codec=` in both arms; A1's arm the same page fetching the page view from nginx. It waits on the owner's go-ahead.
+A1 still carries its conflict: [`../disk-layout/target.md`](../disk-layout/target.md) rules out metadata in or beside
+the `.sbnd`, and A1's page view is a derived file beside it; serving it from the study's store instead needs a reader
+beside nginx (A2's cost) or a file kept elsewhere in the study's directory.*
+
 #### Switching later
 
 | from → to | what changes | what is lost |
