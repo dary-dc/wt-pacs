@@ -442,6 +442,16 @@ help the wire's part, which at 103 Mbit/s is the larger (0.49 s, row 167).
   If no 4× cell is decode-bound on the host (the decoder wait a tie at 4× on AV1), the row says so and is not
   conclusive on this host. Otherwise the flag stays off, and the row names the cell.
 
+**Run as** (ASKJUMP, 2026-10-22), each series its own campaign, the series coded by
+`lab/av1/tools/ingest_coded.py ingest/.build lab/av1/data/dbt12_ea1141 OUT` (`--codec htj2k`, or
+`--representation optimized --preset good:6` as the product's ingest takes a tomosynthesis) and packed into `OUT/series.sbnd`:
+
+```bash
+ARMS="A,Ap,B=?askJump" RELAY_CHRT=50 RELAY_CORE=3 NODE_PATH=$(npm root -g) taskset -c 0-2 \
+  python3 lab/ask-ahead/cells.py OUT 12 100/46/fifo650 100/46/fifo650/cpu4 >> lab/ask-ahead/rows-askjump-SERIES.jsonl
+python3 lab/ask-ahead/askjump.py lab/ask-ahead/rows-askjump-SERIES.jsonl
+```
+
 ## Retained-frame residency
 
 Every bench above releases each frame, so each prices a decoder. A viewer keeps what it decoded, and
