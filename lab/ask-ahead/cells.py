@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT / "lab/scripts"))
 from order import order  # noqa: E402
 
 ARMS = {"today": [], "follow": ["--send-window-follows-cwnd"]}
-SERVER = ROOT / "target/release/series-server"
+SERVER = Path(os.environ.get("SERVER", ROOT / "target/release/series-server"))
 # RELAY_CHRT=50 runs the relay under SCHED_FIFO: a late relay reads as link jitter (docs/rig-limits.md §3).
 PRIO = ["chrt", "-f", os.environ["RELAY_CHRT"]] if os.environ.get("RELAY_CHRT") else []
 ASK_AT = float(os.environ.get("ASK_AT", "0.5"))

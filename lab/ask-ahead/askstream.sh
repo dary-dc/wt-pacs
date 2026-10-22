@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ASKSTREAM's campaign, the run docs/WIRE.md §Proposed: an ask during a fill pre-registered; read by askstream.py.
 #   lab/ask-ahead/askstream.sh DBT10_DIR DBTS_B1_DIR > rows-askstream.jsonl   (FIRST_ROUND=k resumes at round k)
-# Needs a release `series-server` built with `--features lab-levers`, and cells.py's other needs.
+# Needs a release `series-server` built with `--features lab-levers` (SERVER=PATH, frozen), and cells.py's other needs.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 export RELAY_CHRT="${RELAY_CHRT:-50}" MORE_SERIES="dbts=$2"
