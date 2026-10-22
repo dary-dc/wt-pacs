@@ -473,6 +473,33 @@ storage is the VM's, not measured here. Medians; nothing is claimed for a cold d
   mechanism is read from SQLite's behaviour, not checked in its source.
 * **Kept revisions are small:** 120 updates grew T1's 2 000-instance file by 163 840 B, about one 1.4 KB group each.
 
+**The pair's two open items, pre-registered 2026-10-22, before they ran** (asked by the owner through the
+orchestrator, 2026-10-21).
+
+*(a) Patch instead of rebuild.* An update that rewrites only the changed instance's entry in the page row: it reads
+that instance's newest group (T1) or rows (T2), takes its page values, and replaces that one entry in the stored
+document; the rest of the update (the new revision, one commit) is unchanged. Four arms interleaved round by round —
+T1 and T2, each rebuilding and patching — over 60 rounds at 4, 200 and 2 000 instances; after every patched update the
+page row must equal, byte for byte, the document a full rebuild gives.
+
+| Expected | Contradicted if |
+| --- | --- |
+| at 2 000, a patched update is under 2 ms, against 9.4–10.4 ms rebuilt | over 2 ms |
+| at 4, patch and rebuild within 0.1 ms of each other | further apart |
+| the patched row equals the rebuilt one in every round | one differs |
+
+*(b) Does a reader wait on a commit?* The reader of part 5 again, with each read's start and end on the shared
+`CLOCK_MONOTONIC`, and the writer's commit windows on the same clock. Three arms, interleaved by repetition: the
+reader alone (no writer), the reader beside the writer on **another** core (pinned with `sched_setaffinity`), and both
+on the **same** core. A read is counted as overlapping a commit if its interval meets a commit window. The tail is
+reported (p99, p99.9, max), not only the median.
+
+| Expected | Contradicted if |
+| --- | --- |
+| apart, the read tail beside commits is within 2× the tail of the reader alone | over 2× |
+| on one core, the tail grows past the apart arm's: the 2.9 ms read of part 5 was CPU sharing | the same core's tail is no worse than apart |
+| no read in any arm sees a document that is neither before nor after | one does |
+
 ### 3. Which embedded engine
 
 *Primary sources below (§Sources). All read the same file format, so a database built by one is read by the
