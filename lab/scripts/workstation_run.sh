@@ -55,7 +55,7 @@ selinux_mode() { echo "${FAKE_SELINUX:-$(getenforce 2>/dev/null || echo absent)}
 
 preflight() {
   local missing=() c
-  for c in cargo git python3 openssl findmnt lsblk tar df awk; do command -v "$c" >/dev/null || missing+=("$c"); done
+  for c in cargo git python3 openssl findmnt lsblk tar df awk zstd; do command -v "$c" >/dev/null || missing+=("$c"); done
   [[ "$(uname -sm)" == "Linux x86_64" ]] || missing+=("Linux on x86-64")
   ((${#missing[@]} == 0)) || { echo "missing, README.md §Prerequisites: ${missing[*]}" >&2; exit 1; }
 }
@@ -132,12 +132,24 @@ build() {
     -pkeyopt ec_paramgen_curve:prime256v1 -keyout "$KEY" -out "$CERT" -days 10 -nodes -subj /CN=localhost \
     -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null
   local spec name bytes frames
+  mkdir -p "$WORK/fixtures" && chattr +m "$WORK/fixtures" 2>/dev/null || true
   for spec in "frames_16k_big 16384 5120" "frames_250k_big 250000 2048"; do
     read -r name bytes frames <<<"$spec"
-    [[ -f "$WORK/fixtures/$name/$name.sbnd" ]] ||
+    incompressible "$WORK/fixtures/$name/$name.sbnd" >/dev/null 2>&1 ||
       OUT_ROOT="$WORK/fixtures" NAME="$name" BYTES="$bytes" FRAMES="$frames" lab/scripts/gen_live_cell_fixture.sh
   done
   mark build
+}
+
+incompressible() { [[ -f "$1" ]] && lab/scripts/payload_guard.sh "$1"; }
+
+guard() {
+  echo "== payload guard"
+  lab/scripts/payload_guard.sh "$F16" "$FRESH" "$T/writer_bench" && lab/scripts/payload_guard.sh "$F250" || {
+    echo "not timing: a cold read here would not be a device read (above)" >&2
+    exit 1
+  }
+  mark guard
 }
 
 # A cold series is a copy written past the page cache, never an evicted one: CLAUDE.md §Measurement.
@@ -354,8 +366,9 @@ exec_gap_run() {
     echo "execgap: needs --exec-gap BIN_DIR and $script (row 258's branch, or EXEC_GAP_SCRIPT): skipped"
     return 0
   }
-  [[ -f "$series" ]] || OUT_ROOT="$WORK/fixtures" NAME=frames_499k_past_ram BYTES=499000 FRAMES="$PAST_RAM_FRAMES" \
-    lab/scripts/gen_live_cell_fixture.sh
+  incompressible "$series" >/dev/null 2>&1 || OUT_ROOT="$WORK/fixtures" NAME=frames_499k_past_ram BYTES=499000 \
+    FRAMES="$PAST_RAM_FRAMES" lab/scripts/gen_live_cell_fixture.sh
+  lab/scripts/payload_guard.sh "$series" || { echo "execgap: not timed, its series compresses" >&2; return 1; }
   BIN_DIR="$exec_gap" ROUNDS="$ROUNDS" "$script" "$series" "$REPORT/execgap" $( ((quick)) && echo --quick) ||
     echo "execgap: exit $? (its output is above and in $REPORT/execgap)"
   mark execgap
@@ -363,6 +376,7 @@ exec_gap_run() {
 
 build
 want host && host
+[[ " ${parts[*]} " == " host " ]] || guard
 want ring && ring
 want readers && readers
 want server && server_cells

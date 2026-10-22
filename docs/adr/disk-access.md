@@ -785,7 +785,7 @@ Nothing here blocks the code that ships. Order set with the owners (§2).
 | 7 | **Park on the ring fd, drop the eventfd** | **Built 2026-10-16** (row 250), on the owner's decision in #1: a tie re-measured, 1 fd per missing session counted, [below](#7-built-park-on-the-rings-own-fd-rows-244-250). Was: ordered after P0; proposed as row 244 |
 | 8 | **`io-uring` 0.7.14 → 0.7.15** | Drop-in. After P0. *Corrected 2026-10-16, row 251:* already in. `Cargo.lock` pins 0.7.15 since its first commit on this line (`427d3ce0`, 2026-10-03); the 2026-09 campaigns ran 0.7.14 (`b55b68db`'s lock), every row since on 0.7.15. Closed, never timed against 0.7.14 |
 | 9 | **Bounded frame cache** | §8. Needs a real ask trace to size |
-| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells: `lab/scripts/workstation_run.sh`, built 2026-10-16 (row 262); one round run 2026-10-20, a direction on a fixture that compresses (§12, *Measured, one round*): the 12 rounds, incompressible, are still owed |
+| 10 | **The two readers on the workstation** | the only full-variant measurement of `FillReader` and `TileReader` ran in the agent container (noise floor up to 24 %): direction and shape, not magnitude. Re-run there and replace those cells: `lab/scripts/workstation_run.sh`, built 2026-10-16 (row 262); one round run 2026-10-20, a direction on a fixture that compresses (§12, *Measured, one round*). The fixture is incompressible since 2026-10-22 and the run refuses to time without it; the 12 rounds are still owed |
 | 13 | **Short io_uring completions on a regular file** | the lab now resubmits the tail and counts them; 0 in 1 032 workstation rows. Incidence on other hosts and sizes past 250 kB is unmeasured |
 
 Numbers are kept because older records cite them; 4 is closed (§8), the missing ones closed or
@@ -1556,7 +1556,7 @@ lab/scripts/workstation_run.sh --quick   # one round of everything: a first try,
 lab/scripts/workstation_run.sh           # 12 rounds; prints the estimate and starts 10 s later
 ```
 
-It refuses when a prerequisite of README §Prerequisites it uses is missing, or when the disk is short. It builds
+It refuses when a prerequisite of README §Prerequisites it uses (or `zstd`) is missing, or when the disk is short. It builds
 what it runs, works under `.local/workstation` (`--work DIR` elsewhere: the series volume is the one it records),
 and packs `report-<UTC>/` as `workstation-<UTC>.tar.gz`, the one file to send back. Nothing runs as root.
 
@@ -1574,6 +1574,24 @@ part reports a resident copy, `read_campaign` skips the cell and the summary cou
 `server_ab.sh` stay what they are, a commit against a commit with eviction; this asks one commit, ring against pool,
 so it drives their binaries on their cells, asks, strides and rule instead. Every server cell is a fresh process; a
 warm one follows a discarded pass by another.
+
+**Cold is read off the device** (2026-10-22). `gen_live_cell_fixture.sh` writes every frame of a series from one
+`random.Random(NAME)` stream: the same bytes every run, no two frames alike (a 16 KiB frame repeated would compress
+inside one 128 KiB extent), and nothing a filesystem can compress. Frame sizes and the `.sbnd` layout are unchanged,
+and no check in the run compares byte values (`server_ab` checks each envelope answers its ask), so none changed.
+Before any timed part `lab/scripts/payload_guard.sh` runs, and the run stops when it refuses: 16 samples of 128 KiB
+(btrfs's compression unit) over the frames must each have a `zstd -1` ratio ≤ 1.02, and one copy written into the
+cold-copy directory as `writer_bench direct` writes them must equal the series byte for byte and show no `encoded`
+extent in `filefrag -v` (required on btrfs). The directories get `chattr +m` first, btrfs's *NOCOMPRESS* flag (the
+btrfs docs, [Compression](https://btrfs.readthedocs.io/en/latest/Compression.html), *Incompressible data*); that new
+copies inherit it is what the guard's copy checks, not assumed. Under `compress-force` btrfs tries every block (same
+section), so there the incompressible payload is what keeps the extents plain (derived: a block that does not shrink
+is stored as is). The page's *Compatibility* says direct IO writes fell back to buffered before kernel 7.3, which is
+how D4's `O_DIRECT` copies on 7.2.11 came out compressed. A fixture an earlier run left that fails the ratio is
+regenerated. Mutated 2026-10-22 on the agent's ext4 VM, untimed: the repeated byte back in the generator reads ratio
+5 699 and the run refuses before timing; a `filefrag` that reports `encoded` refuses at the copy; the fix passes both,
+and `--quick` then ran to its report with every check holding (no resident copy, cold misses ≥ 0.95, `ring` as armed,
+`check-fastpath` honoured). An ext4 VM says nothing of a device: no number is taken from that run.
 
 **Time and disk.** The estimate, a model whose rates are guesses for a laptop NVMe (`timing.txt` has the real ones):
 ~5 min for the first build, ~17 min for the image build and the container checks where podman or docker is present,
@@ -1603,11 +1621,14 @@ pool rows.
 
 **Three traps for the full run.**
 
-* **The fixture compresses.** `gen_live_cell_fixture.sh` writes one byte value; btrfs stores it compressed on this
-  mount, and the `writer_bench direct` copies too (`filefrag -v`: every extent `encoded`, checked 2026-10-21). A cold
-  read is then mostly a zstd decompress, not 16–250 kB off the NVMe (derived): these cells time the kernel's miss
-  path, not the device. Closed by an incompressible fixture, or `chattr +m` on the work directory before the copies.
-  Whether the 2026-09 workstation rows (§2's ~840 MB/s, §11 *Re-measured*) read compressed extents too is unchecked.
+* **The fixture compresses** (*fixed 2026-10-22*, *Cold is read off the device* above). `gen_live_cell_fixture.sh`
+  wrote one byte value; btrfs stored it compressed on this mount, and the `writer_bench direct` copies too
+  (`filefrag -v`: every extent `encoded`, checked 2026-10-21). A cold read is then mostly a zstd decompress, not
+  16–250 kB off the NVMe (derived): these cells time the kernel's miss path, not the device. The fixture is now a
+  seeded incompressible stream, the copies' directory gets `chattr +m`, and the run checks both before timing. The
+  12-round rerun is `lab/scripts/workstation_run.sh`; fixtures an earlier run left under `.local/workstation` are
+  regenerated. Whether the 2026-09 workstation rows (§2's ~840 MB/s, §11 *Re-measured*) read compressed extents too
+  is unchecked.
 * **A 500 kB stride is not a miss here.** At 250 kB, `product_tile`, `hybrid_lazyring` and `pool` missed 0.4–27 % at
   depths 1 and 4; at depth 16 `pool` missed 99.6 % and `product_tile` 1.2 % against its A/A copy's 100 %, arms of one
   cell in different regimes. Re-derive the stride on the day (*Make the miss real*, above).
