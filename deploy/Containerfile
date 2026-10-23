@@ -29,6 +29,8 @@ COPY lab/cc-classify/Cargo.toml ./lab/cc-classify/
 COPY lab/cc-classify/src ./lab/cc-classify/src
 COPY lab/server-telemetry/Cargo.toml ./lab/server-telemetry/
 COPY lab/server-telemetry/src ./lab/server-telemetry/src
+COPY lab/metadata-store/Cargo.toml ./lab/metadata-store/
+COPY lab/metadata-store/src ./lab/metadata-store/src
 COPY patched ./patched
 COPY patches ./patches
 COPY scripts/patch_crate.sh ./scripts/
