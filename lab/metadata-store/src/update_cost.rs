@@ -118,7 +118,7 @@ pub fn run(dir: &Path, series: &[Record], template: &[Record], counts: &[u16], u
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir)?;
         let instances = group::synthetic_series(template, n);
-        let target = (n as u32 + 1) / 2;
+        let target = (n as u32).div_ceil(2);
         let valid = documents(&instances, target);
 
         disk_reference(&dir, n)?;
