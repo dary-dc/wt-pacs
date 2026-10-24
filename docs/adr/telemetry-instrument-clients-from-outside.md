@@ -23,6 +23,8 @@ The question is not *whether* to gate telemetry. It is **where the seam belongs*
 
 - Both variants must stamp at identical points, or the experiment is void
 - Default builds must carry no measurement surface
+  (*Amended 2026-10-24:* this describes today's default build. The owner wants client telemetry in production,
+  sampled; the Tap stays out of it, and the proposal is [`telemetry-in-production.md`](telemetry-in-production.md).)
 - The clients are shipped product; the lab is not
 - Instrumentation must not perturb what it measures
 - The measurement environments are not controlled: browser flags cannot be assumed present
