@@ -4305,7 +4305,8 @@ answer no. **Branch:** `claude/wip-236-NOWAITPROBE`.
 
 * *Owner rulings, 2026-10-13 (night):* row 183's ask-aware dispatch **needs a design first and is not pursued now**;
   row 187 is **measured** (row 189). Rows 181 (the 38 400-byte initial window, adopted by its rule) and 182 (the GSO
-  cap of 24) wait on the owner's answer to the orchestrator's explanation.
+  cap of 24) wait on the owner's answer to the orchestrator's explanation. *Row 182's cap decided since: yes, built by
+  row 192, the default since 2026-10-14.*
 
 * **2026-10-13, row 182 FASTCLOCK (for the owner):** the GSO cap of 24 meets its pre-stated rule — server CPU a MB
   ×0.79–0.86 at 32 sessions × 103 Mbit/s, fills and asks a tie (`docs/transport/link-conditions.md` §Re-measured,
@@ -4317,12 +4318,14 @@ answer no. **Branch:** `claude/wip-236-NOWAITPROBE`.
 
 * *Owner rulings, 2026-10-13 (evening):* **tiles for large frames are shelved** — they make one frame's ask faster
   (×0.39–0.45 at 4×) but not the series' total decode or a fill, and the owner finds the trade not interesting; row
-  175's proposal stays as the record, nothing is built on it. **GPU decoding is not pursued for now**: no device run of
+  175's proposal stays as the record, nothing is built on it. *Amended by the owner, 2026-10-24: **delayed, not
+  closed** — not soon, but of interest, and some modalities will depend on it.* **GPU decoding is not pursued for now**: no device run of
   row 111's WebGPU decoder is queued (row 113's L3 phone stage stays open, unscheduled).
 
 * **2026-10-13: owner calls named only in their docs (row 166's audit, added by row DOCFIX)**, each on
   `claude/av1-unified-mainbase`: (1) the **GSO segment cap**, 24 or 45 behind the product's buffer
-  (`docs/transport/transport-conclusions.md` §9 item 6; FASTCLOCK prices it); (2) the **32-packet initial window**
+  (`docs/transport/transport-conclusions.md` §9 item 6; FASTCLOCK prices it) — *decided: 24, row 192, the default
+  since 2026-10-14*; (2) the **32-packet initial window**
   (same, §9 item 3; IWDEEP decides it); (3) **`MALLOC_MMAP_THRESHOLD_=1048576`** in the unit, rest RSS −46 to −57 %
   against CPU a tie to +5 % (`docs/adr/disk-access.md` §8); (4) the **keep-alive ADR**, proposed and off until accepted
   (`docs/adr/transport-idle-sessions.md`); (5) **P0**, ring against pool on the production host, with no row
