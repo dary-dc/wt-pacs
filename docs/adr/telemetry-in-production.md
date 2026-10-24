@@ -16,7 +16,7 @@ instruments. This one puts code in the product page and a receiver in the deploy
 ## 0 · What exists, read first
 
 *Corrected from the row's brief.* `client/record` moved to [`lab/client-telemetry/`](../../lab/client-telemetry/) in
-row 264 (R). That recorder, the Tap, does **not** hold dial, first exact frame, fill end or decode times: it patches
+row 264, `de81c89` (R). That recorder, the Tap, does **not** hold dial, first exact frame, fill end or decode times: it patches
 `WebTransport` and stamps each asked frame's wire stages (`queue`, `serve_plus_path`, `transfer`, `deliver`), with
 `decode_us` and `paint_us` always `null` (R, `lab/client-telemetry/types.ts`). The page-clock milestones are already
 **in the product**, kept for the status line and handed to a lab harness through `lab.finished` (R):
@@ -170,7 +170,7 @@ No number is claimed. The protocol, fixed before any run (`CLAUDE.md` §Measurem
 separate telemetry build served to a sampled share. **What decides it:** what a sampled session measures must be the
 product others run, and one artefact to deploy.
 
-**Recommendation: (a).** A module, `client/viewer/report.js` (name to the glossary when built), imported by the viewer
+**Recommendation: (a).** A new module, `report.js` beside `viewer.js` (name to the glossary when built), imported by the viewer
 only when sampled or on the first failure, and after the first exact paint, so it is never on the path it measures.
 (b) would measure a different artefact and double the deploy. The rate rides the transport file, already read by the
 page and written at server start (R, `deploy/server-start.sh`): `{"telemetry": {"rate": p, "url": "/telemetry"}}`
