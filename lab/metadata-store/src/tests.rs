@@ -1,5 +1,6 @@
 use crate::group::{self, Record};
 use crate::pair;
+use crate::revision;
 use crate::stores::{self, KeyFile, Paths};
 
 fn fixture(name: &str) -> Vec<Record> {
@@ -133,4 +134,46 @@ fn a_patched_page_row_equals_a_rebuilt_one() {
         assert_eq!(pair::read_page(&db).unwrap(), pair::document(&want), "{truth:?}");
         assert_eq!(pair::read_page(&db).unwrap(), pair::document(&pair::rebuild(truth, &db).unwrap()), "{truth:?}");
     }
+}
+
+fn study(n: u16, tag: &str) -> (std::path::PathBuf, Vec<Vec<Record>>) {
+    let dir = std::env::temp_dir().join(format!("metadata-revision-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let instances = group::synthetic_series(&fixture("ct1-instance.grp"), n);
+    revision::create(&dir, &fixture("ct1-series.grp"), &instances).unwrap();
+    (dir, instances)
+}
+
+/// A revision rebuilt from the kept inputs carries every correction, in order, in its page row, keeps every
+/// received group's BLAKE3, and is what a reader opened after the update reads.
+#[test]
+fn a_new_revision_is_built_from_every_input_and_seen_by_a_new_reader() {
+    let (dir, instances) = study(7, "update");
+    for (instance, value) in [(3, b"-1000 "), (5, b"-1000 "), (3, b"-1012 ")] {
+        revision::update(&dir, instance, value).unwrap();
+        revision::tidy(&dir).unwrap();
+    }
+    let mut want = page_of(&instances);
+    want[2][4] = Some(b"-1012 ".to_vec());
+    want[4][4] = Some(b"-1000 ".to_vec());
+    assert_eq!(revision::live(&dir).unwrap(), 4);
+    assert_eq!(revision::read_live(&dir).unwrap().0, pair::document(&want));
+    assert_eq!(pair::check_received(pair::Truth::Groups, &revision::open_live(&dir).unwrap()).unwrap(), 8);
+    assert_eq!(pair::rebuild(pair::Truth::Groups, &revision::open_live(&dir).unwrap()).unwrap(), want);
+}
+
+/// A reader holding a revision open keeps reading it whole after newer revisions are published and it is removed.
+#[test]
+fn a_held_reader_keeps_its_revision_after_it_is_removed() {
+    let (dir, instances) = study(7, "held");
+    let held = revision::open_live(&dir).unwrap();
+    let before = pair::read_page(&held).unwrap();
+    assert_eq!(before, pair::document(&page_of(&instances)));
+    for value in [b"-1000 ", b"-1012 ", b"-1000 "] {
+        revision::update(&dir, 4, value).unwrap();
+        revision::tidy(&dir).unwrap();
+    }
+    assert!(!dir.join("store/1").exists());
+    assert_eq!(pair::read_page(&held).unwrap(), before);
+    assert_ne!(revision::read_live(&dir).unwrap().0, before);
 }

@@ -3,9 +3,11 @@
 mod group;
 mod pair;
 mod pair_run;
+mod revision;
 mod stores;
 #[cfg(test)]
 mod tests;
+mod update_cost;
 
 use anyhow::{ensure, Context, Result};
 use group::PageValues;
@@ -40,7 +42,7 @@ fn args() -> Result<Args> {
             "--rounds" => a.rounds = value.parse()?,
             "--updates" => a.updates = value.parse()?,
             "--mode" => a.mode = value,
-            _ => anyhow::bail!("unknown flag {flag}: --dir, --instances, --rounds, --mode pair|pair-followup, --updates"),
+            _ => anyhow::bail!("unknown flag {flag}: --dir, --instances, --rounds, --mode pair|pair-followup|update-cost, --updates"),
         }
     }
     Ok(a)
@@ -117,6 +119,20 @@ fn main() -> Result<()> {
             return Ok(());
         }
     }
+    if let [_, flag, model, how, store, a, b, stop, intervals, core] = argv.as_slice() {
+        if flag == "--reader-of" {
+            pair::pin(core.parse()?)?;
+            let valid = [std::fs::read(a)?, std::fs::read(b)?];
+            let report = update_cost::reader(model, how, store.as_ref(), &valid, stop.as_ref(), intervals.as_ref())?;
+            println!("{report}");
+            return Ok(());
+        }
+    }
+    if let [_, flag, model, store, target, updates] = argv.as_slice() {
+        if flag == "--update-child" {
+            return update_cost::update_child(model, store.as_ref(), target.parse()?, updates.parse()?);
+        }
+    }
     let a = args()?;
     let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
     let series = group::parse(&std::fs::read(fixtures.join("ct1-series.grp"))?)?;
@@ -124,6 +140,7 @@ fn main() -> Result<()> {
     match a.mode.as_str() {
         "pair" => return pair_run::run(&a.dir, &series, &template, &a.instances, a.rounds, a.updates),
         "pair-followup" => return pair_run::followup(&a.dir, &series, &template, &a.instances, a.updates),
+        "update-cost" => return update_cost::run(&a.dir, &series, &template, &a.instances, a.updates),
         _ => {}
     }
     for &n in &a.instances {

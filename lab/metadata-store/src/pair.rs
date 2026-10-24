@@ -37,7 +37,7 @@ fn attribute_key(instance: i64, record_key: &[u8], revision: u32) -> Vec<u8> {
     [p.as_slice(), record_key, &revision.to_be_bytes()].concat()
 }
 
-fn writable(path: &Path) -> Result<Connection> {
+pub fn writable(path: &Path) -> Result<Connection> {
     let db = Connection::open(path)?;
     db.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;")?;
     Ok(db)
