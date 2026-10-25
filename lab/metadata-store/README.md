@@ -125,3 +125,73 @@ ext4 on the VM's virtual disk, files in the page cache. Latency to visible inclu
   rebuild.
   One update at a time on one study: nothing is claimed for concurrent updates, many studies, or a cold disk. The
   revision's inputs grow by one correction file per update (up to 101 here), and the patched file by one group row.
+
+## Repetition: how big the metadata is next to the pixels, and how much of it a series repeats
+
+[`repetition/`](repetition) asks, on real series: how many bytes each level's groups weigh against the pixels, what
+zstd makes of them, and how much of an instance group is the same in every instance of its series. It feeds two
+later decisions and makes neither: whether the PCS-to-PACS package should compress the metadata
+([`docs/ingest/design.md`](../../docs/ingest/design.md) §7), and how the per-study database keeps instance metadata —
+a row per instance group, one blob per series, or the shared values once plus each instance's differences (DICOM's
+Shared and Per-frame Functional Groups, PS3.3 C.7.6.16, which the Legacy Converted Enhanced classes of PS3.3 A.70ff
+carry for CT, MR and PET).
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r lab/metadata-store/repetition/requirements.txt
+.venv/bin/python -I lab/metadata-store/repetition/fetch.py DATA            # 1.1 GB, every file checked
+.venv/bin/python -I lab/metadata-store/repetition/measure.py DATA --ojph BUILD/openjph > repetition.jsonl
+```
+
+**The series**, from The Cancer Imaging Archive, each file's SHA-256 pinned in
+[`repetition/series.json`](repetition/series.json) with its collection, licence and DOI; the data is not committed.
+
+| Name | Modality | Collection, licence | Instances | Frame |
+| --- | --- | --- | ---: | --- |
+| ct | CT, "CT Spiral 5.0 B40s" | ACRIN-NSCLC-FDG-PET, CC BY 3.0, doi:10.7937/tcia.2019.30ilqfcl | 262 | 512 × 512, 12 in 16 bits |
+| pt | PT, "PET WB", the same study as ct | the same | 262 | 256 × 256, 16 bits signed |
+| mr | MR, "Breast NCI-dyn HR" | ACRIN-Contralateral-Breast-MR, CC BY 4.0, doi:10.7937/Q1EE-J082 | 145 | 512 × 512, 12 in 16 bits |
+| mg | MG | CMMD, CC BY 4.0, doi:10.7937/tcia.eqde-4b16 | 4 | 2294 × 1914, 8 bits |
+| us | US | B-mode-and-CEUS-Liver, CC BY 4.0, doi:10.7937/TCIA.2021.v4z7-tc39 | 12 | 720 × 960 RGB, 8 bits |
+
+Every pixel set is stored uncompressed. No DBT and no XA: none was fetched.
+
+**The split** follows the parser at `f36230b` (`DICMele2deck/src/capi/uapi.c`, `val`), not the stand-in
+`ingest/from-parser/mirror.py`, which writes ten attributes. Group 0002, odd (private) groups and any attribute of VR
+UN go to the private group; a top-level attribute in the parser's patient or study list goes to the exam group, in its
+series lists to the series group, every other to the instance group, and a sequence with its root. The parser's walk
+stops at index 234 of its 239-entry list, so its last four series tags (0054,1210), (0054,1220), (0080,0013) and
+(300A,0700) land in the instance group; kept so. Group lengths, (0008,0005), sequence and item delimiters and the pixel
+data are not written; a record is the contract's (§Group files), a sequence's attribute carrying 8 key bytes more per
+level (its sequence's tag and item number, DECK's design). **Approximations:** the charset index is written 0 and no
+text is converted to UTF-8 (the values as stored); the exam and series groups are weighed once per series, as the
+parser keeps the first it writes, and how many different ones the series' instances would have written is counted.
+
+**What is measured, per series.** Bytes per level; metadata against pixel bytes as stored, and against the frames
+coded HTJ2K-lossless by OpenJPH 0.31.0 with the ingest's arguments (`ingest/coded-frames/ingest.py`, each frame decoded
+back and compared); zstd (python-zstandard 0.25.0, libzstd 1.5.7) at levels 1, 3, 9 and 19 on the metadata alone,
+each group file compressed alone and every group in one tar stream, its ratio and its compress and decompress time;
+the package (metadata plus pixels, the pixels stored uncompressed by zstd) with and without its metadata compressed;
+per attribute of the instance and private groups, whether it is in every instance with one value (*constant*), in
+every instance with more than one (*varying*), or in some (*partial*), and the bytes each class weighs; and three
+layouts' raw bytes: a row per instance group (the groups as written), one blob per series (the same records in one
+value, raw and zstd-3), and shared + per-instance (each constant record once, then every instance's other records).
+
+*Pre-registered, 2026-10-25, before the metadata was read.* Times are medians of 15 rounds, levels and the two
+streams interleaved round by round with the order rotated, two runs; ratios and bytes are deterministic.
+
+| Prediction | Contradicted if |
+| --- | --- |
+| the metadata is under 2 % of the stored pixel bytes for ct, mr, mg and us; pt between 2 and 15 % | otherwise |
+| one stream at level 3 compresses ≥ 5× for ct, pt and mr; group files alone ≤ 2.5× | otherwise |
+| level 19's one stream is at most 30 % smaller than level 3's, and ≥ 10× slower to compress | otherwise |
+| one stream at level 3 compresses at ≥ 100 MB/s on one core | slower |
+| compressing the metadata saves under 2 % of the package with HTJ2K-coded pixels for ct, mr, mg and us; under 10 % for pt | more |
+| ≥ 70 % of the instance group's attributes are constant across the series, and constant records ≥ 50 % of its bytes, for ct, pt and mr | otherwise |
+| at most 15 of ct's instance-group attributes vary | more |
+| shared + per-instance weighs ≤ 40 % of a row per instance group for ct, pt and mr | more |
+| one blob per series at zstd-3 weighs less than shared + per-instance raw, every series | more |
+| every instance of a series would write the same exam group and the same series group | a series with two of either |
+| every instance has a private group, at least its group 0002 (≥ 150 B) | an instance without |
+
+The host: one thread, the files in the page cache; whether zstd saturates its core is its rate, nothing is claimed
+for parallel compression or any other host.
