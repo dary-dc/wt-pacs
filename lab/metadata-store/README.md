@@ -281,3 +281,90 @@ Against the pre-registration:
   a hospital's headers, and a vendor's private groups, may weigh more. One series per modality, one host, one thread;
   no SQLite page or index overhead is in the layouts' bytes. No DBT, XA or cine of hundreds of frames was measured; us's pixels are lossy-sourced, so its HTJ2K is
   exact to what is stored, not to an acquisition.
+
+## Updates on the link: whether a metadata-only package is worth compressing
+
+[`update-link/`](update-link) asks one question: a package that carries only metadata (a correction from the
+hospital-side PCS or from a client application, [`docs/adr/metadata-updates.md`](../../docs/adr/metadata-updates.md)
+on #148; [`docs/adr/pcs-transfer.md`](../../docs/adr/pcs-transfer.md) §5 and §8 on #149) is small, so zstd changes its
+size a lot in relative terms; does that shorten its transfer, or do round trips decide it either way? And if it is a
+gain, is compressing the metadata always, whatever the package, simpler and harmless? For series packages §Repetition
+above already answered: compressing saves at most 3.5 % of the package, so the owner's choice there is none.
+
+```bash
+.venv/bin/python -I lab/metadata-store/update-link/packages.py DATA OUT > packages.jsonl     # sizes and CPU
+.venv/bin/python -I lab/metadata-store/update-link/wire.py packages.jsonl                    # the arithmetic
+cargo build --release --locked --manifest-path lab/metadata-store/update-link/Cargo.toml
+sudo .venv/bin/python -I lab/metadata-store/update-link/link.py OUT > link.jsonl             # the emulated links
+```
+
+**The packages**, built from §Repetition's five series split as the parser splits them, in #149's container: a pax tar
+with a header member of about 100 bytes first, then the members, deterministic headers, the two end records. A
+*correction* is one of #149 §8's kinds or its #148 form as differences (`set` and `remove` by DECK key, one operations
+member with the group's level, the UID naming it and an 8-byte base hash per changed group):
+
+| Kind | Content |
+| --- | --- |
+| exam-diff | a patient correction as differences: `set` of patient name and birth date |
+| exam-group | the exam group replaced whole |
+| series-diff, series-group | `set` of the series description; the series group whole |
+| instance-diff, instance-group | `set` of one record in one instance; that instance's group whole (the median-sized one) |
+| fanout-diff, fanout-groups | one record set in every instance of the series; every instance group whole |
+| series-resend | every group file of the series: exam, series, every instance and private group |
+
+**The variants**: *raw*, every group file (or the operations) its own member; *zstd-1, 3, 9*, #149 §5's form, the
+metadata as one zstd stream in one member (a tar of the group files, compressed); and, sized only, the whole package
+compressed at level 1.
+
+**The wire** (*estimated*, [`update-link/wire.py`](update-link/wire.py)): the package as the body of #149 §3's
+creation request (a `POST` carrying `Upload-Complete`, draft-ietf-httpbis-resumable-upload-14 §6) on a fresh
+connection, mutual TLS 1.3 with a 1.5 KB client certificate flight. TCP: MSS 1 448, initial window 10 segments
+(RFC 6928 §2), slow start doubling each round trip (RFC 5681 §3.1), one round trip for TCP's handshake and one for
+TLS 1.3's (RFC 8446 §2), the request in the client's flight after its `Finished`. QUIC: 1 200-byte datagrams, the
+initial window min(10 × 1 200, max(14 720, 2 × 1 200)) = 12 000 bytes (RFC 9002 §7.2), one round trip for the combined
+handshake (RFC 9000 §7), no 0-RTT (#149 §3). A round's time is max(RTT, its flight's serialisation), plus a final RTT
+for the response; a lost packet costs 1.5 RTT on average, once per package with probability 1 − (1 − p)^packets.
+
+**The link classes**, assumptions labelled, the uplink being the PCS's or the client's:
+
+| Class | RTT | up / down | loss each way | from |
+| --- | ---: | --- | ---: | --- |
+| fiber | 10 ms | 100 / 100 Mbit/s | 0 | FCC MBA fiber idle RTT 7–14 ms ([link-conditions](../../docs/transport/link-conditions.md) §Link profiles) |
+| 4G/5G | 60 ms | 19 / 100 Mbit/s | 1 % | Ookla's world median uplink 19 Mbit/s; the owner's 40–80 ms; 1 % is 5G's p99 (same table) |
+| GEO satellite | 600 ms | 2 / 10 Mbit/s | 0.1 % | #149 §5's GEO uplink; the loss is an assumption |
+| rural ADSL | 50 ms | 1 / 8 Mbit/s | 0.1 % | DSL idle RTT 23–34 ms, more under load; #149 §5's 1 Mbit/s |
+
+**The measurement** (*measured*, [`update-link/link.py`](update-link/link.py)): the container has no `netem`
+(`CONFIG_NET_SCH_NETEM` is not set), so two network namespaces, the PCS's and the PACS's, are joined by two TUN
+devices and a forwarder that delays, rate-limits (a 100-packet FIFO) and drops each packet as the class says, both ways.
+The kernel's own TCP (Cubic, set in both namespaces; the host default is BBR) carries HTTP/1.1 over TLS 1.3 (rustls);
+quinn carries HTTP/3 (h3), its default Cubic. Both ends of both stacks present certificates. Every transfer is a fresh
+connection, timed from the client's first packet to the server's `201`; the PACS reads the whole body before replying.
+Per class, the variants raw and zstd-1, both protocols and the kinds exam-diff, exam-group, series-group,
+instance-group and fanout-diff of ct and series-resend of ct and mr are interleaved in each round, the order rotated
+round by round: 12 rounds, 8 on GEO. The forwarder's own cost is measured first with no delay, rate or loss, and nothing
+is claimed below ten times it.
+
+*Pre-registered, 2026-10-25, before any package was built or any transfer run.*
+
+| Prediction | Contradicted if |
+| --- | --- |
+| S1: every correction package (exam, series, instance; whole group or differences) weighs ≤ 8 KB raw, in every series | heavier |
+| S2: for those, zstd-1 saves at most 2 TCP segments (2 896 B) | more |
+| S3: a differences package of one or two records weighs ≤ 4 KB raw, and zstd saves it ≤ 512 B | otherwise |
+| S4: a series-resend weighs ≥ 2× its group bytes raw for ct and pt (tar's 512-byte headers and padding), and zstd-1 takes it to ≤ 1/10 of raw for ct, pt and mr | otherwise |
+| W1: no correction package (S1's) crosses a round-trip boundary when compressed, on TCP or QUIC | one does |
+| W2: compressing a series-resend saves ≥ 3 round trips for ct and mr, TCP and QUIC | fewer |
+| W3: compressing a fanout-diff saves at most one round trip | more |
+| T1: compressing a correction saves < 5 ms on every class but rural ADSL, < 30 ms there, and < 2 % of its time everywhere | more |
+| T2: compressing a series-resend saves ≥ 1.5 s on GEO, ≥ 5 s on rural ADSL, ≥ 150 ms on 4G/5G and < 60 ms on fiber | otherwise |
+| C1: zstd-1 compresses a correction's metadata in ≤ 50 µs and decompresses it in ≤ 20 µs; a series-resend in ≤ 2 ms | slower |
+| E1: measured, the corrections' compressed and raw medians tie, within max(3 %, 2 ms), every class and protocol | a gap outside it |
+| E2: measured, a compressed series-resend is faster by ≥ 2 RTT on 4G/5G and GEO, and by ≥ 5 s on rural ADSL, both protocols | otherwise |
+| E3: on the lossless or near-lossless classes (fiber, GEO, rural ADSL) the measured medians are within 25 % of the arithmetic | outside |
+| E4: a fresh QUIC transfer of a correction is faster than TCP's by 0.7–1.3 RTT (one handshake round trip fewer) | otherwise |
+
+**The decision rule, fixed now.** Compressing a kind is *worth it* on a class if it is faster there by ≥ 1 RTT or
+≥ 10 % (measured where measured, else estimated). It is *harmless* if on no kind and no class the compressed variant is
+slower outside E1's tie band, and its CPU is ≤ 1 ms a correction at either end. **Always on** is recommended if it is
+harmless everywhere and worth it for at least one kind a PCS sends; otherwise it is decided per kind.
