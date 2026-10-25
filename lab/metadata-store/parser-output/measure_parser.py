@@ -70,8 +70,18 @@ def tag(key: bytes) -> tuple:
 
 
 def masked(key: bytes) -> bytes:
-    """A nested key with the bytes the parser overwrites zeroed: from the inner tag's last byte on (contract §Findings)."""
-    return key if len(key) == 8 else key[:11] + bytes(len(key) - 11)
+    """A nested key with what the parser writes there from a pointer zeroed: every byte from the 16th on."""
+    return key if len(key) == 8 else key[:15] + bytes(len(key) - 15)
+
+
+def masked_group(group: list) -> list:
+    """The group's keys masked, a repeat of a masked key within the group numbered in its last byte to stay apart."""
+    seen, out = {}, []
+    for key, value in group:
+        m = masked(key)
+        seen[m] = seen.get(m, -1) + 1
+        out.append((m[:-1] + bytes([seen[m]]) if seen[m] else m, value))
+    return out
 
 
 def nest(path: list, key: bytes) -> bytes:
@@ -187,8 +197,10 @@ def expected_pixels(path: str) -> int:
 def run_parser(parser: str, files: list, tree: str) -> None:
     shutil.rmtree(tree, ignore_errors=True)
     os.makedirs(tree)
+    # glibc zero-fills malloc: the parser's first mkdir reads its path unterminated (../README.md §The parser's own output)
+    env = {**os.environ, "MALLOC_PERTURB_": "255"}
     for path in files:
-        done = subprocess.run([parser, path], cwd=tree, capture_output=True)
+        done = subprocess.run([parser, path], cwd=tree, capture_output=True, env=env)
         if done.returncode != 0:
             raise SystemExit(f"{path}: the parser exited {done.returncode}: {done.stderr[-300:]!r}")
 
@@ -242,12 +254,10 @@ def measure(series: dict, data: str, parser: str, out: str, rounds: int) -> dict
     pixels = seen["kinds"].get("frame", {}).get("bytes", 0)
     rows = sum(level_bytes["instance"]) + sum(level_bytes["private"])
     blob = b"".join(d for _, k, d, _ in sorted(seen["groups"]) if k in ("instance", "private"))
-    masked_instances = [{"groups": {lv: [(masked(k), v) for k, v in inst["groups"][lv]] for lv in ("instance", "private")}}
+    masked_instances = [{"groups": {lv: masked_group(inst["groups"][lv]) for lv in ("instance", "private")}}
                         for inst in instances]
     rep = {lv: split.repetition(instances, lv) for lv in ("instance", "private")}
     rep_masked = {lv: split.repetition(masked_instances, lv) for lv in ("instance", "private")}
-    for r in list(rep.values()) + list(rep_masked.values()):
-        r["not_constant"] = [[k.hex(), c] for k, c in r.pop("not_constant")]
     row = {
         "series": name, "modality": series["modality"], "instances": len(instances), "rewritten_explicit": rewritten,
         "kinds": seen["kinds"],

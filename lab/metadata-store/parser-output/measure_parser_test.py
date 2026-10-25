@@ -45,12 +45,20 @@ class Records(unittest.TestCase):
         with self.assertRaises(ValueError):
             mp.records(data + data[:-1])
 
-    def test_mask_zeroes_only_what_the_parser_overwrites_in_a_nested_key(self):
-        """A top-level key is kept; a nested key keeps its sequence, item and inner group, the rest zeroed."""
+    def test_mask_zeroes_only_the_address_bytes_of_a_nested_key(self):
+        """A top-level key is kept; a nested key keeps its sequence, item, inner tag's first bytes and the value
+        length the parser wrote over the rest, and loses the byte taken from the value's address."""
         top = key(0x0028, 0x1052, b"DS")
-        nested = struct.pack(">HHI", 0x0012, 0x0064, 1) + b"\x00\x08\x00\x1c\x00\x00\x00\x76"
+        nested = struct.pack(">HHI", 0x0012, 0x0064, 1) + b"\x00\x08\x00\x1c\x01\x00\x07\x76"
         self.assertEqual(mp.masked(top), top)
-        self.assertEqual(mp.masked(nested), nested[:11] + bytes(5))
+        self.assertEqual(mp.masked(nested), nested[:15] + b"\0")
+
+    def test_two_records_whose_masked_keys_meet_stay_apart(self):
+        """Two attributes of one item with values of one length mask to one key; the second is numbered, the first kept."""
+        item = struct.pack(">HHI", 0x0008, 0x1140, 1)
+        a, b = item + b"\x00\x08\x11\x1a\x00\x00\x00\x10", item + b"\x00\x08\x11\x1a\x00\x00\x00\x60"
+        group = mp.masked_group([(a, b"x"), (b, b"y")])
+        self.assertEqual([k for k, _ in group], [mp.masked(a), mp.masked(a)[:-1] + b"\x01"])
 
 
 class ConvertedEnhanced(unittest.TestCase):
