@@ -1,0 +1,21 @@
+# Outside the workspace on purpose: Turso must enter no product crate, no Cargo.lock of the workspace and no gate
+# build. lab/sqlite-engine/README.md
+[package]
+name = "sqlite-engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "rusqlite against Turso for the per-study metadata database: blocking, open files, two connections"
+
+[workspace]
+
+[dependencies]
+anyhow = "1"
+libc = "0.2"
+serde_json = "1"
+rusqlite = { version = "=0.41.0", features = ["bundled"] }
+tokio = { version = "1.53", features = ["full"] }
+turso = { version = "=0.8.3" }
+
+[profile.release]
+lto = "thin"

@@ -548,9 +548,9 @@ others. Only the embedded columns apply now (Decided, above).*
 | | rusqlite (plain SQLite) | libSQL embedded (`libsql`) | libSQL server (sqld) | Turso, the Rust rewrite (`turso`) |
 | --- | --- | --- | --- | --- |
 | what it is | the C library, bundled | a fork of SQLite's C library, in process | a server holding many databases (namespaces) behind an HTTP API | SQLite rewritten in Rust, in process |
-| latest | 0.40.2, 2026-08-08; bundles SQLite 3.53.2 | 0.10.0, 2026-10-13; bundles SQLite 3.47.0 | `libsql-server-v0.24.33`, 2025-12-19; since then one doc fix (2026-05-14) | 0.8.3 stable 2026-10-12, 0.9.0-pre.1 2026-10-15; tracks SQLite 3.50.4 |
+| latest | 0.40.2, 2026-08-08; bundles SQLite 3.53.2 (0.41.0, 2026-10-24, bundles 3.54.1) | 0.10.0, 2026-10-13; bundles SQLite 3.47.0 | `libsql-server-v0.24.33`, 2025-12-19; since then one doc fix (2026-05-14) | 0.8.3 stable 2026-10-12, 0.9.0-pre.1 2026-10-15; tracks SQLite 3.50.4 |
 | licence | MIT | MIT | MIT | MIT |
-| state | SQLite's own | "actively maintained, but new features are being developed in Turso" (its README) | no release in 10 months: maintenance **not confirmed** | pre-1.0, "currently in beta"; "keep independent backups" (its README) |
+| state | SQLite's own | "actively maintained, but new features are being developed in Turso" (its README) | no release in 10 months: maintenance **not confirmed** | pre-1.0: "we have not yet reached 1.0 … keep independent backups" (its README's FAQ). *Corrected 2026-10-25:* this row quoted "currently in beta"; the README it pins (`fe932831cf8d`) does not say so, nor does `v0.8.3`'s |
 | open read-only | `mode=ro`, `immutable=1` (SQLite's URI flags) | the same C library | — | `Builder::read_only`, from the source only, not tried |
 | JSON functions | SQLite's, JSONB since 3.45 | SQLite 3.47's | the same | all but `json_tree` (partial) |
 | concurrent writers | one | one | one per database | `BEGIN CONCURRENT` on MVCC; its two documents disagree on whether it is experimental |
@@ -562,6 +562,32 @@ disk holds the study databases under the target, so the hosted service is not on
 
 * **What decides it:** how much a pre-1.0 engine may cost in a medical archive (Turso), against one that is SQLite's
   own C (rusqlite) or a fork of it (libSQL).
+#### rusqlite against Turso, tested (2026-10-25)
+
+rusqlite 0.41.0 (SQLite 3.54.1) against Turso 0.8.3 (`v0.8.3` = `607bff9`), both in process, for one study database
+per study, one writer process, readers in that process or another. The evidence, with every source line and the
+pre-registration: [`lab/sqlite-engine/README.md`](../../lab/sqlite-engine/README.md). One 4-vCPU VM, files in the
+page cache.
+
+| | Mechanism | For this use case | Wins |
+| --- | --- | --- | --- |
+| **async** | Turso's async API does the read itself on the thread that awaits it: by default a blocking `pread`, with io_uring a blocking `submit_and_wait`; nothing reaches tokio's reactor (source). rusqlite is blocking and says so | *Measured*, 1 worker, 4 readers of a 2 000-instance series: a 1 ms heartbeat's p99 lateness is 1.8 ms idle, 3.0–3.4 ms with rusqlite in `spawn_blocking`, 11–15 ms with rusqlite or Turso called in the task; and **267 ms with Turso's default backend once its reads miss its cache**, because each read wakes its own task and defeats `yield_now` (reproduced with rusqlite by that one wake). io_uring keeps the timer on time (1.9 ms) but scans 5–8× slower, and still blocks the worker for each read | **rusqlite in `spawn_blocking`**: what tokio prescribes for file I/O; Turso's async is not non-blocking, and its default backend is worse than plain blocking |
+| **prepared statements** | both compile once and cache per connection: rusqlite 16 statements, LRU; Turso every distinct SQL text, unbounded | a handful of fixed statements per study | tie |
+| **concurrency** | one writer per file in both; WAL readers beside it. Turso's `BEGIN CONCURRENT` needs MVCC, which its own manual calls not production ready | one receiver writes each study | tie; Turso's extra is not usable |
+| **multi-process** | SQLite: byte-range locks and `-shm`, any number of processes. Turso: an exclusive whole-file lock per process by default | *Tested*: rusqlite, a reader process sees all 20 commits, read-write or read-only. Turso: a second read-write process cannot open; a read-only one opens and **sees none of the commits** (#4627, open); the opt-in `.tshm` mode saw all 20, but is "not production ready", with open lost-commit issues | **rusqlite**: a serving process apart from the receiver works only with it |
+| **file format, features** | the same file format; Turso reads rusqlite's files (tested) | a SQLite reader and a Turso writer on one file block each other (tested: a Turso open fails; a rusqlite read waits until the Turso process exits); Turso: WITHOUT ROWID insert-only, no backup API, `synchronous` OFF/NORMAL/FULL | **rusqlite** |
+| **durability, testing** | SQLite's own test suite; Turso: simulation and Antithesis testing, and a crash before the first checkpoint lost a new database's commits until 2026-08-07 (#8103) | the archive's metadata is the record | **rusqlite** |
+| **latency, resources** | *Measured*, 1 010 open files: open and first row p50 0.9–1.7 ms against 0.9–12.9 ms (10 000 instances: 0.9–2.7 against 13–15 ms); **RSS per open file 187 KiB against 2 181 KiB** (two 3 MiB `MADV_HUGEPAGE` arenas per Turso database); descriptors 3 against 2; held read p50 15–21 against 18–20 µs | the server may hold many studies open | **rusqlite**, by 11.7× in memory |
+| **scaling to many files** | per file: a C connection against a Turso `Database` with its own I/O backend and arenas | 1 000 open studies: about 180 MiB against 2.1 GiB | **rusqlite** |
+| **maturity** | SQLite 3.54; Turso pre-1.0, "keep independent backups"; its MVCC and multi-process modes not production ready by its own manual | a medical archive | **rusqlite** |
+| **extras** | Turso: MVCC, vector and full-text search (tantivy, on by default, with mimalloc as the process's allocator), encryption, an async API | none of them is asked for here | Turso, unused |
+
+**Bottom line: rusqlite, called through `spawn_blocking` (or a small blocking pool) from the async server.** Turso
+wins nothing this use case asks for and loses on the three that decide it: its async API blocks the worker that
+awaits it (worse than a blocking call, once its cache misses), a second process cannot read a study a Turso process
+writes, and it holds 11.7× the memory per open study. Not measured: a cold disk (by the source it lengthens the
+blocking in every direct arm, and leaves `spawn_blocking`'s worker free), more than 4 readers or 2 workers.
+
 * **Switching later:** cheap while two rules hold — the file stays plain SQLite format, and the SQL stays in the
   dialect all of them share. The reads sit behind one function that takes UIDs and returns the viewer's document;
   switching is that function and the dependency.
@@ -615,6 +641,12 @@ Fetched 2026-10-19, first 12 hex of the fetched file's sha256.
   (`28a771b01162`), `docs/manual.md`, `bindings/rust/src/lib.rs` lines 284–342; `turso` (`99f8bf2b2551`),
   `turso_core` (`cc08a07a0f95`) and `limbo` (`b365420bb9c7`) on crates.io. Turso Cloud: `turso-cloud.md`
   (`6f75c718aecf`), usage and billing (`b975c2fcfd32`); the pricing page could not be fetched.
+
+Read 2026-10-25 for §3's rusqlite against Turso, each cited by file and line in
+[`lab/sqlite-engine/README.md`](../../lab/sqlite-engine/README.md): Turso's source at tag `v0.8.3` (`607bff9fd0e5`), its
+issues #4627, #7995, #8536, #9362, #10114, #10314 and PR #8103 on GitHub; `rusqlite` 0.41.0 and `libsqlite3-sys`
+0.39.1 as cargo fetched them; tokio 1.54.1's source, docs.rs and the tokio.rs tutorial; ryhl.io, "Async: What is
+blocking?".
 
 Fetched 2026-10-20 for §2's survey, first 12 hex of the fetched file's sha256. Raw copies are not committed. A
 crates.io entry is its API's JSON (`https://crates.io/api/v1/crates/<name>`), whose download counts change, so its hash
