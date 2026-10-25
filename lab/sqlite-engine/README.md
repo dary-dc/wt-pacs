@@ -262,6 +262,9 @@ every arm stay within the ranges in brackets, so no arm's order or round explain
 Heartbeat lateness, ms, p50 / p99 / max [per-round p99 range]; the series scan's median; reads per second, all four
 readers together.
 
+*Corrected 2026-10-25 (§4):* "default" held the file in Turso (2 000 pages) and not in rusqlite (about 500 pages), so
+rusqlite read through the OS in both conditions; "64-page" was 200 pages in Turso. §4 adds a 2 000-page condition on both.
+
 | 1 worker | default engine cache | | | 64-page engine cache | | |
 | --- | --- | ---: | ---: | --- | ---: | ---: |
 | arm | lateness | scan | reads/s | lateness | scan | reads/s |
@@ -329,13 +332,16 @@ the 5 rounds' values.
 | side files after the open and read, and after one insert | `-wal`, `-shm` | `-wal` |
 
 * **P6 holds** (3 against 2 descriptors; no `-shm` for Turso, which also probes for a `-log` file at every open).
-* **P7 holds: Turso holds 11.7× the memory per open file**, 2.1 GiB for 1 000 open studies against about 180 MiB. Each Turso
+* **P7 holds: Turso holds 11.7× the memory per open file**, 2.1 GiB for 1 000 open studies against about 180 MiB.
+  *Corrected 2026-10-25 (§4):* on this host's THP setting (`madvise`); the 2 MiB is a transparent huge page, and with
+  THP off for the process Turso holds 130 KiB against rusqlite's 185. Each Turso
   `Database` maps two 3 MiB buffer-pool arenas with `MADV_HUGEPAGE`
   ([B/core/storage/buffer_pool.rs#L130](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/storage/buffer_pool.rs#L130),
   [#L448-L463](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/storage/buffer_pool.rs#L448-L463));
   the first read faults in a huge page, about the 2 MiB measured. On this host (`transparent_hugepage` `madvise`,
   `defrag` `madvise`) that first `pread64` into the arena took 12–14 ms in `strace -T` on every 10 000-instance file,
-  which is the slow open; that it is the kernel's huge-page allocation is **not confirmed**. It depends on the host's
+  which is the slow open; that it is the kernel's huge-page allocation is **not confirmed**. *Confirmed 2026-10-25
+  (§4):* with THP off for the process, Turso holds 130 KiB per open file and opens a 10 000-instance file in 1.0–1.9 ms. It depends on the host's
   memory state, as the rounds show (one round of 2 000-instance files at 12.9 ms, the others near 1 ms).
 * **P8 holds**: held reads within 1.3× of each other at the median.
 
@@ -356,6 +362,81 @@ the 5 rounds' values.
 * **P9–P12 hold.** The read-only reader is issue [#4627](https://github.com/tursodatabase/turso/issues/4627) (open).
 * **P13 holds for a Turso reader; for a rusqlite reader in the letter only**: it opens, but cannot read while a Turso
   process holds the file.
+
+### 4. Each engine at its best
+
+The same VM as above (4 vCPUs, Xeon 2.80 GHz, ext4, Linux 6.18, THP `madvise`), tokio 1.54.1, warm page cache. Each
+cell pools every tick or scan of its 6 rounds (`blocking`) or takes the 5 rounds' range (`files`); in brackets, the
+per-round p99 range. "lean" is the build without Turso's default features. The first `files` run is not counted:
+its default-build binary predated the RSS split; it was rebuilt and every `files` arm re-run together (the discarded
+run's totals agreed within 0.5 %: 186–187 and 2 182 KiB).
+
+**Blocking a tokio worker**, 1 worker: heartbeat lateness p50 / p99 / max ms [per-round p99]; scan p50; reads/s,
+all four readers together. Idle: 1.81–1.82 ms p99 in every condition.
+
+| 1 worker | 64-page (forced read; Turso 200) | | | 2 000 pages (both hold the file) | | |
+| --- | --- | ---: | ---: | --- | ---: | ---: |
+| arm | lateness | scan | reads/s | lateness | scan | reads/s |
+| turso (awaited, as its README) | 204 / **285** / 296 [226–296] | 3.23 | 295 | 8.4 / 20.1 / 31 [9.6–22.5] | 2.16 | 432 |
+| turso-uring (awaited) | 0.57 / 2.44 / 6.4 [2.0–3.2] | 18.1 | 205 | 8.5 / 20.3 / 26 [14.6–22.3] | 2.19 | 421 |
+| rusqlite (direct) | 7.3 / 13.7 / 17 [10.5–14.9] | 1.91 | 480 | 4.7 / 8.9 / 12 [6.8–10.4] | 1.27 | 725 |
+| rusqlite-blocking (#147's rescue) | 1.05 / 3.57 / 18 [3.3–3.9] | 2.84 | 1 238 | 0.92 / 2.92 / 33 [2.6–3.1] | 1.92 | 1 798 |
+| lean **turso-blocking** | 1.01 / **4.68** / 24 [4.2–4.9] | 5.15 | 719 | 0.97 / **4.16** / 9 [3.8–4.4] | 3.61 | 1 020 |
+| lean turso-uring-blocking | 1.02 / 5.22 / 13 [4.6–6.1] | 6.49 | 593 | 1.02 / 4.00 / 9 [3.7–4.2] | 3.46 | 1 060 |
+| lean rusqlite-blocking | 1.00 / 3.50 / 14 [3.3–3.8] | 2.95 | 1 202 | 0.80 / 2.67 / 6 [2.1–3.0] | 1.64 | 2 117 |
+| lean **rusqlite-blocking-tuned** (read-only, mmap) | 0.72 / **2.43** / 17 [2.2–2.6] | 1.54 | 2 295 | 0.70 / **2.58** / 14 [2.3–3.0] | 1.51 | 2 307 |
+
+At each engine's default cache (rusqlite then misses every scan, Turso holds the file) the in-task arms sit at 15–17 ms
+p99 and every blocking-pool arm at 3.7–4.0 ms, but tuned rusqlite at 2.28 ms. At 2 workers the order is the same:
+turso-blocking 3.54 / 4.31 / 3.81 ms p99 (default / 64 / 2 000), lean rusqlite-blocking 3.72 / 3.54 / 2.82, tuned
+2.37 / 2.65 / 2.43, turso awaited 226 ms at 64 pages, idle 1.78–1.82. Every reader's read ran on the thread the arm
+names (blocking pool or worker, from the recorded thread IDs); the cache sizes read back as the conditions say.
+
+* **F1 contradicted, narrowly**: turso-blocking's p99 is 2.0–2.6× idle's (bound 2×). Lean rusqlite-blocking is 1.9–2.1×
+  in the same cells and both have idle's p50 (1.0 ms): what is left is not the worker being blocked but the four
+  blocking threads and the worker sharing 4 vCPUs, and Turso spends about twice the CPU per scan (F2). **The host is
+  saturated here**; the 1.1–1.3× between the two is a CPU cost, not a scheduling one.
+* **F2 contradicted**: with the whole file in both caches, rusqlite scans 2.2× faster in the pool (1.64 against 3.61
+  ms; 1.95× at 2 workers) and 1.7× in the task (1.27 against 2.16). So Turso's cheaper scan in §1's "default" was
+  rusqlite missing its smaller cache.
+* **F3 holds**: mmap makes the forced-read scan 1.9× faster (1.54 against 2.95 ms; 2.0× at 2 workers) and, alone of
+  the arms, brings the heartbeat to within 1.3–1.5× of idle.
+* **F4 contradicted: io_uring's slowdown is tokio's scheduler, not the ring.** Off the worker the ring costs 1.2×
+  (593 against 719 reads/s, 1 worker; 667 against 795 at 2). Awaited, every page miss returns `Pending` (545 per scan,
+  1 341 481 in all), so the four readers take turns page by page on one worker and each scan's wall time carries the
+  others' pages: 1.44× fewer reads/s than turso awaited at 1 worker (205 against 295), 1.38× at 2 (453 against 627).
+  That turn-taking is also what keeps its heartbeat on time. Bounded by throughput: 1.2× for the ring, 1.4× awaited.
+* **F5 holds**: lean against default rusqlite-blocking within 0.85–1.04× in every cell.
+* **F6 holds**: turso awaited at 64 pages, 285 ms p99; rusqlite-blocking 1.96× idle.
+
+**Many open files**, 1 010 files, 5 rounds rotated; ranges are the rounds', memory the median round.
+
+| arm | open + first row p50 | p99 | 10 000-instance p50 | RSS / anonymous / file-backed per open file | fds | held read p50 / p99 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| rusqlite | 0.52–1.64 ms | 1.2–3.6 ms | 0.8–1.5 ms | 187 / 153 / 34 KiB | 3 | 19–24 / 57–92 µs |
+| turso | 14.2–16.4 | 32–49 | 14.3–21.5 | 2 182 / 2 172 / 10 | 2 | 23–28 / 78–149 |
+| lean rusqlite | 0.90–1.22 | 1.9–2.3 | 1.1–1.3 | 185 / 151 / 34 | 3 | 18–21 / 53–69 |
+| lean rusqlite-tuned | 1.09–1.38 | 2.2–3.2 | 1.2–1.4 | 445 / 154 / 291 | 3 | 21–23 / 57–93 |
+| lean turso | 1.64–17.6 | 17–38 | 15.1–25.0 | 2 174 / 2 164 / 10 | 2 | 24–28 / 72–98 |
+| lean turso-uring (a ring per file) | 40.7–45.1 | 66–91 | 46–63 | 6 836 / 6 774 / 62 | 3 | 30–32 / 88–105 |
+| lean turso-uring-shared | 1.51–3.24 | 22–37 | 16.1–24.0 | 2 179 / 2 168 / 10 | 2 | 28–39 / 86–187 |
+| lean turso, THP off (exploratory) | **1.00–1.19** | 2.0–3.6 | **1.0–1.9** | **130 / 120 / 10** | 2 | 28–32 / 72–568 |
+
+* **F7 holds**: the lean build holds 2 174 KiB per open file against 2 182; mimalloc and tantivy are not the memory.
+* **F8 holds: the 2 MiB is the transparent huge page.** With THP off for the process, Turso holds **130 KiB per open
+  file, less than rusqlite's 185**, and opens a 10 000-instance file in 1.0–1.9 ms instead of 15–25: §2's slow open
+  *is* the huge-page fault, which §2 left unconfirmed. Exploratory: `PR_SET_THP_DISABLE` is the process's setting,
+  not Turso's, and applies to everything else the server allocates; Turso documents no arena size.
+* **F9 holds**: a ring per file costs 6.8 MiB per open file (the registered arenas) and 41–45 ms per open; one shared
+  ring is within 1.003× of lean turso's memory.
+* **F10 holds**: the tuned reader's anonymous memory, open and held read are within 1.0–1.2× of plain rusqlite's;
+  its 291 KiB file-backed RSS is the mapped study pages, shared with the page cache rather than held apart from it.
+
+**The verdict rule.** Turso's best arm does not tie rusqlite's best on all four: heartbeat p99 4.68 against 2.43 ms
+(1.9×; 1.3× against untuned rusqlite-blocking), held read p50 24–28 against 18–23 µs (1.2–1.3×); it ties or wins
+only on memory and open, and only with the host's huge pages off. **#147's bottom line stands**; the async, latency
+and memory rows it rested on are corrected in the draft's §3. Not measured: a cold disk, writes, more than 4 readers,
+2 workers or 1 010 files, and the default build's turso-blocking (only lean was run in the pool).
 
 ## The desk read of 2026-10-24, checked
 
