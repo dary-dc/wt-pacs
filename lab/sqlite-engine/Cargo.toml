@@ -15,7 +15,12 @@ libc = "0.2"
 serde_json = "1"
 rusqlite = { version = "=0.41.0", features = ["bundled"] }
 tokio = { version = "1.53", features = ["full"] }
-turso = { version = "=0.8.3" }
+turso = { version = "=0.8.3", default-features = false }
+
+# Off: the lean build, Turso without mimalloc as the process's allocator and without tantivy.
+[features]
+default = ["turso-defaults"]
+turso-defaults = ["turso/default"]
 
 [profile.release]
 lto = "thin"
