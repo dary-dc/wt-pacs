@@ -125,3 +125,159 @@ ext4 on the VM's virtual disk, files in the page cache. Latency to visible inclu
   rebuild.
   One update at a time on one study: nothing is claimed for concurrent updates, many studies, or a cold disk. The
   revision's inputs grow by one correction file per update (up to 101 here), and the patched file by one group row.
+
+## Repetition: how big the metadata is next to the pixels, and how much of it a series repeats
+
+[`repetition/`](repetition) asks, on real series: how many bytes each level's groups weigh against the pixels, what
+zstd makes of them, and how much of an instance group is the same in every instance of its series. It feeds two
+later decisions and makes neither: whether the PCS-to-PACS package should compress the metadata
+([`docs/ingest/design.md`](../../docs/ingest/design.md) §7), and how the per-study database keeps instance metadata —
+a row per instance group, one blob per series, or the shared values once plus each instance's differences (DICOM's
+Shared and Per-frame Functional Groups, PS3.3 C.7.6.16, which the Legacy Converted Enhanced classes of PS3.3 A.70ff
+carry for CT, MR and PET).
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r lab/metadata-store/repetition/requirements.txt
+.venv/bin/python -I lab/metadata-store/repetition/measure_test.py
+.venv/bin/python -I lab/metadata-store/repetition/fetch.py DATA            # 1.1 GB, every file checked
+.venv/bin/python -I lab/metadata-store/repetition/measure.py DATA --ojph BUILD/openjph > repetition.jsonl
+```
+
+**The series**, from The Cancer Imaging Archive, each file's SHA-256 pinned in
+[`repetition/series.json`](repetition/series.json) with its collection, licence and DOI; the data is not committed.
+
+| Name | Modality | Collection, licence | Instances | Frame |
+| --- | --- | --- | ---: | --- |
+| ct | CT, "CT Spiral 5.0 B40s" | ACRIN-NSCLC-FDG-PET, CC BY 3.0, doi:10.7937/tcia.2019.30ilqfcl | 262 | 512 × 512, 12 in 16 bits |
+| pt | PT, "PET WB", the same study as ct | the same | 262 | 256 × 256, 16 bits signed |
+| mr | MR, "Breast NCI-dyn HR" | ACRIN-Contralateral-Breast-MR, CC BY 4.0, doi:10.7937/Q1EE-J082 | 145 | 512 × 512, 12 in 16 bits |
+| mg | MG | CMMD, CC BY 4.0, doi:10.7937/tcia.eqde-4b16 | 4 | 2294 × 1914, 8 bits |
+| us | US | B-mode-and-CEUS-Liver, CC BY 4.0, doi:10.7937/TCIA.2021.v4z7-tc39 | 12 | 720 × 960 RGB, 8 bits |
+
+Every pixel set is stored uncompressed. No DBT and no XA: none was fetched.
+
+**The split** follows the parser at `f36230b` (`DICMele2deck/src/capi/uapi.c`, `val`), not the stand-in
+`ingest/from-parser/mirror.py`, which writes ten attributes. Group 0002, odd (private) groups and any attribute of VR
+UN go to the private group; a top-level attribute in the parser's patient or study list goes to the exam group, in its
+series lists to the series group, every other to the instance group, and a sequence with its root. The parser's walk
+stops at index 234 of its 239-entry list, so its last four series tags (0054,1210), (0054,1220), (0080,0013) and
+(300A,0700) land in the instance group; kept so. Group lengths, (0008,0005), sequence and item delimiters and the pixel
+data are not written; a record is the contract's (§Group files), a sequence's attribute carrying 8 key bytes more per
+level (its sequence's tag and item number, DECK's design). **Approximations:** the charset index is written 0 and no
+text is converted to UTF-8 (the values as stored); the exam and series groups are weighed once per series, as the
+parser keeps the first it writes, and how many different ones the series' instances would have written is counted.
+
+**What is measured, per series.** Bytes per level; metadata against pixel bytes as stored, and against the frames
+coded HTJ2K-lossless by OpenJPH 0.31.0 with the ingest's arguments (`ingest/coded-frames/ingest.py`, each frame decoded
+back and compared); zstd (python-zstandard 0.25.0, libzstd 1.5.7) at levels 1, 3, 9 and 19 on the metadata alone,
+each group file compressed alone and every group in one tar stream, its ratio and its compress and decompress time;
+the package (metadata plus pixels, the pixels stored uncompressed by zstd) with and without its metadata compressed;
+per attribute of the instance and private groups, whether it is in every instance with one value (*constant*), in
+every instance with more than one (*varying*), or in some (*partial*), and the bytes each class weighs; and three
+layouts' raw bytes: a row per instance group (the groups as written), one blob per series (the same records in one
+value, raw and zstd-3), and shared + per-instance (each constant record once, then every instance's other records).
+
+*Pre-registered, 2026-10-25, before the metadata was read.* Times are medians of 15 rounds, levels and the two
+streams interleaved round by round with the order rotated, two runs; ratios and bytes are deterministic.
+
+| Prediction | Contradicted if |
+| --- | --- |
+| the metadata is under 2 % of the stored pixel bytes for ct, mr, mg and us; pt between 2 and 15 % | otherwise |
+| one stream at level 3 compresses ≥ 5× for ct, pt and mr; group files alone ≤ 2.5× | otherwise |
+| level 19's one stream is at most 30 % smaller than level 3's, and ≥ 10× slower to compress | otherwise |
+| one stream at level 3 compresses at ≥ 100 MB/s on one core | slower |
+| compressing the metadata saves under 2 % of the package with HTJ2K-coded pixels for ct, mr, mg and us; under 10 % for pt | more |
+| ≥ 70 % of the instance group's attributes are constant across the series, and constant records ≥ 50 % of its bytes, for ct, pt and mr | otherwise |
+| at most 15 of ct's instance-group attributes vary | more |
+| shared + per-instance weighs ≤ 40 % of a row per instance group for ct, pt and mr | more |
+| one blob per series at zstd-3 weighs less than shared + per-instance raw, every series | more |
+| every instance of a series would write the same exam group and the same series group | a series with two of either |
+| every instance has a private group, at least its group 0002 (≥ 150 B) | an instance without |
+
+The host: one thread, the files in the page cache; whether zstd saturates its core is its rate, nothing is claimed
+for parallel compression or any other host.
+
+*Measured, 2026-10-25, two runs* (bytes and ratios identical in both; a time is the two runs' medians, which agree
+within 15 %). A 4-vCPU Xeon at 2.80 GHz, one thread, every file in memory. *Metadata* is every group file the parser
+would write for the series (exam and series group once); *HTJ2K* is the frames coded and decoded back here, every frame
+exact. A level's bytes are the sum over the series.
+
+| Series | ct | pt | mr | mg | us |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| instances | 262 | 262 | 145 | 4 | 12 |
+| exam group, once | 1 431 | 1 431 | 1 348 | 1 181 | 1 820 |
+| series group, once | 497 | 1 075 | 462 | 208 | 306 |
+| instance groups (per instance, median) | 314 684 (1 201) | 227 700 (869) | 223 657 (1 541) | 4 176 (1 044) | 10 996 (849) |
+| private groups (per instance) | 87 770 (335) | 88 294 (337) | 537 225 (3 705) | 1 176 (294) | 3 720 (310) |
+| metadata | 404 382 | 318 500 | 762 692 | 6 741 | 16 842 |
+| pixels as stored | 137 363 456 | 34 340 864 | 76 021 760 | 17 562 864 | 314 036 760 |
+| pixels in HTJ2K (ratio) | 41 184 983 (3.34×) | 7 707 320 (4.46×) | 25 959 791 (2.93×) | 3 480 592 (5.05×) | 78 499 765 (4.00×) |
+| metadata ÷ pixels as stored | 0.29 % | 0.93 % | 1.00 % | 0.038 % | 0.005 % |
+| metadata ÷ pixels in HTJ2K | 0.98 % | 4.1 % | 2.9 % | 0.19 % | 0.021 % |
+
+| zstd on the metadata: ratio, compress ms (decompress) | ct | pt | mr | mg | us |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| each group file alone, level 1 | 1.81×, 3.2 (1.3) | 1.60×, 3.2 (1.3) | 2.85×, 3.6 (1.7) | 1.76×, 0.08 | 2.02×, 0.22 |
+| each group file alone, level 19 | 1.97×, 59 | 1.73×, 42 | 3.22×, 151 | 1.86×, 1.0 | 2.14×, 3.1 |
+| one stream, level 1 | 9.57×, 0.80 (0.30) | 7.70×, 0.78 (0.33) | 26.9×, 0.72 (0.33) | 3.02×, 0.036 | 4.59×, 0.055 |
+| one stream, level 3 | 9.18×, 1.31 | 7.37×, 1.20 | 26.1×, 1.06 | 3.03×, 0.09 | 4.63×, 0.14 |
+| one stream, level 9 (the best ratio but us's and mg's) | 9.70×, 6.0 | 7.87×, 6.0 | 27.8×, 5.4 | 3.18×, 0.17 | 4.69×, 0.32 |
+| one stream, level 19 | 9.52×, 99 | 7.75×, 120 | 27.2×, 100 | 3.23×, 3.0 | 4.81×, 8.3 |
+| the package saved by compressing its metadata (stream, level 1), HTJ2K pixels | 0.87 % | 3.45 % | 2.75 % | 0.13 % | 0.017 % |
+| the same, pixels as stored | 0.26 % | 0.80 % | 0.96 % | 0.026 % | 0.004 % |
+
+| Repetition across the series | ct | pt | mr | mg | us |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| instance-group attributes constant / varying / partial | 37 / 6 / 0 | 26 / 9 / 0 | 51 / 10 / 0 | 37 / 7 / 0 | 13 / 8 / 44 |
+| instance-group bytes that are constant records | 82.7 % | 70.0 % | 83.4 % | 79.6 % | 23.0 % |
+| private-group bytes that are constant records | 77.0 % | 77.2 % | 94.8 % | 73.8 % | 61.9 % |
+| a row per instance group (instance + private, raw) | 402 454 | 315 994 | 760 882 | 5 352 | 14 716 |
+| shared + per-instance (raw; of the rows) | 75 943 (18.9 %) | 89 446 (28.3 %) | 69 970 (9.2 %) | 2 208 (41.3 %) | 10 283 (69.9 %) |
+| one blob per series, zstd-3 (of the rows) | 12 564 (3.1 %) | 11 902 (3.8 %) | 11 353 (1.5 %) | 835 (15.6 %) | 1 260 (8.6 %) |
+| exam groups / series groups the instances would write | 1 / 1 | 1 / 1 | 1 / 1 | 1 / 1 | 1 / 1 |
+
+**What varies** in the instance group: ct, the SOP instance UID, instance number, image position, slice location,
+acquisition and content time; pt the same plus acquisition number, decay factor and image index; mr the UID, number,
+position, content and instance creation time, temporal position, window centre and width, and zoom centre and factor;
+mg the UID, number, laterality, orientation, view code and creation time. In every series the private group's one
+varying record is (0002,0003), which repeats the SOP instance UID; mr's private group holds 163 records, 155 of them
+constant, and 7 vendor records vary besides. us is two SOP classes in one series, 8 single-frame images and 4 cines of 70–88 frames, every instance marked
+Lossy Image Compression 01, so 44 of its 65 instance-group attributes are in some instances only, the cine's and
+the ultrasound regions' among them.
+
+Against the pre-registration:
+
+| Prediction | Outcome |
+| --- | --- |
+| metadata under 2 % of the stored pixels for ct, mr, mg, us; pt 2–15 % | **contradicted for pt** (0.93 %); holds for the rest (0.005–1.00 %) |
+| one stream at level 3 ≥ 5× for ct, pt, mr; files alone ≤ 2.5× | stream holds (7.4–26×); **files alone contradicted for mr** (2.94×) |
+| level 19 at most 30 % smaller than level 3, and ≥ 10× slower | holds: 3.6–6.6 % smaller, 33–100× slower; level 1 is within 1 % of level 3, and smaller for ct, pt and mr |
+| level 3 one stream ≥ 100 MB/s | holds on the stream zstd reads (300–1 300 MB/s of tar); counted on the group bytes alone, mg's 6.7 KB is 84 MB/s |
+| the package saved < 2 % with HTJ2K pixels for ct, mr, mg, us; pt < 10 % | **contradicted for mr** (2.75 %); holds for the rest |
+| ≥ 70 % of instance attributes constant and ≥ 50 % of its bytes, ct, pt, mr | holds (74–86 %; 70–83 %) |
+| ≤ 15 of ct's instance attributes vary | holds (6) |
+| shared + per-instance ≤ 40 % of a row per instance group, ct, pt, mr | holds (17.6, 30.3 and 17.1 % of the instance groups; 9–28 % with the private) |
+| a series blob at zstd-3 below shared + per-instance raw | holds in every series |
+| one exam group and one series group per series | holds |
+| every instance has a private group ≥ 150 B | holds (294–3 705 B) |
+
+* **The metadata is 0.005–1 % of the pixels as stored and 0.02–4 % of them in HTJ2K.** PET is the largest share
+  (256 × 256 frames), then MR (whose vendor private group is 70 % of its metadata).
+* **A series compresses 3–27× as one stream and 1.6–3.2× file by file.** The repetition is across instances, not
+  inside one, which is what the stream's window sees and a lone group cannot. Level 1 is as good as any: the best of levels 9 and
+  19 is at most 7 % smaller, for 80–150× level 1's time at 19. Decompression is ≈ 0.3 ms for the biggest series at any level.
+* **Consequence for (a), the package:** compressing the metadata saves at most 3.5 % of a package with HTJ2K pixels
+  (pt), 0.9 % for ct and under 0.2 % for mg and us, for about 1 ms of one core per series at level 1, one stream.
+* **Consequence for (b), the database:** in ct, pt, mr and mg 70–83 % of a row per instance group is the same bytes in
+  every row. Keeping them once weighs 9–28 % of the rows (ct, pt, mr) and leaves per instance the set that Legacy
+  Converted Enhanced puts per-frame (position, number, times, UID; window in this MR; decay factor in this PET). A
+  zstd blob per series weighs 1.5–3.8 % of the rows but is no longer read one instance at a time. us shows the limit:
+  two SOP classes in one series leave the shared part a quarter of its bytes.
+* **Method notes.** The level of a listed tag is the parser's `PCStype`, which puts (0008,0080) Institution Name in
+  the exam group (its comment: "is S in the standard but we put it in C"). The per-file times include the Python
+  binding's call per file (≈ 6 µs × 526 files for ct); the stream's do not. The package ignores tar headers.
+* **What it does not say.** These are de-identified research series: TCIA's de-identification replaces UIDs, blanks or
+  removes attributes and most private ones, and adds its own (13 de-identification codes, 39 records of the exam group);
+  a hospital's headers, and a vendor's private groups, may weigh more. One series per modality, one host, one thread;
+  no SQLite page or index overhead is in the layouts' bytes. No DBT, XA or cine of hundreds of frames was measured; us's pixels are lossy-sourced, so its HTJ2K is
+  exact to what is stored, not to an acquisition.
