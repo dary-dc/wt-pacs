@@ -281,3 +281,90 @@ Against the pre-registration:
   a hospital's headers, and a vendor's private groups, may weigh more. One series per modality, one host, one thread;
   no SQLite page or index overhead is in the layouts' bytes. No DBT, XA or cine of hundreds of frames was measured; us's pixels are lossy-sourced, so its HTJ2K is
   exact to what is stored, not to an acquisition.
+
+## The parser's own output: what it writes for the same series
+
+[`parser-output/`](parser-output) asks the question of §Repetition again with the PCS team's parser itself, not an
+approximation of its split: what `ESIPFfiled` (its directory output) writes for the same five series, how big it is
+next to the pixels, how repetitive, and what a Legacy Converted Enhanced instance made of it would weigh.
+
+```bash
+lab/metadata-store/parser-output/build.sh BUILD                    # prints BUILD/build/ESIPFfiled
+.venv/bin/pip install --require-hashes -r lab/metadata-store/repetition/requirements.txt
+.venv/bin/python -I lab/metadata-store/parser-output/measure_parser_test.py
+.venv/bin/python -I lab/metadata-store/repetition/fetch.py DATA    # the series of §Repetition, every file checked
+.venv/bin/python -I lab/metadata-store/parser-output/measure_parser.py DATA BUILD/build/ESIPFfiled OUT > parser.jsonl
+```
+
+**The parser** is `github.com/opendicom/DECK_WebTransport` at `a65abe2` (2026-10-22, the newest commit on 2026-10-25;
+`DICMele2deck/` last changed at `76b119b`, 2026-10-20). `build.sh` clones it, installs CMake 4.4.4 from PyPI (its
+`CMakeLists.txt` asks for 4.2; the host has 3.28), configures `DICMele2deck/` with `-DCMAKE_BUILD_TYPE=Release` (gcc
+13.3, `-O3`) and builds the target `ESIPFfiled`, which builds with four warnings. `ESIPFserialized` and `ESIPbasetags`
+do not link (`iconAttribute` undefined) and `dicm2decksqlite` does not compile (`eblake3stmt` undeclared, in
+`src/deck_sqlite3.c`); neither is needed here. The parser runs once per instance in one working directory per series, as
+the PCS document describes its first process, so a series' tree accumulates. It reads only Explicit VR Little Endian
+with the file meta laid out from offset 0x84; ct, pt, mr and mg are; us is Implicit VR Little Endian, so its twelve
+files are rewritten Explicit by pydicom 3.0.1 first (a private attribute pydicom has no VR for becomes UN), the one step
+not the parser's.
+
+**What is measured, per series**, from the tree the parser wrote: files and directories by kind, their bytes and their
+allocation on disk (`st_blocks`, ext4 here, 4 KiB blocks); bytes per level (every exam and series group file written,
+each instance and private group); whether each group file's name is the BLAKE3 of its bytes; the frame files' bytes
+against the pixel data's (rows × columns × samples × bits allocated / 8 × frames); metadata against the stored pixels and
+against §Repetition's HTJ2K bytes (the same pixels); zstd at levels 1, 3, 9 and 19 on the group files alone and as one
+tar stream, with §Repetition's code, rounds and rotation; per attribute of the instance and private groups, constant,
+varying or partial across the series, both on the keys as written and with the bytes the parser overwrites in a nested
+key zeroed (*masked*, below); a row per instance group, one blob per series raw and at zstd-3, and §Repetition's
+shared + per-instance; and for ct, pt and mr the converted-enhanced instance below, raw and at zstd-3.
+
+**Converted enhanced is not implemented in the parser** (its source at `a65abe2`, below), so it is **simulated** on the
+parser's groups, following PS3.3 2026d: the Legacy Converted Enhanced CT, MR and PET Image IODs (A.70, A.71, A.72) and
+their Functional Group tables (A.70-2, A.71-2, A.72-2), the Multi-frame Functional Groups Module (C.7.6.16), and the
+Unassigned Shared and Per-Frame Converted Attributes and Image Frame Conversion Source macros (C.7.6.16.2.25.1–3).
+One instance holds the series: at its top level once, group 0002, the Image Pixel attributes, Image Type, SOP Common
+and content date and time, from the first instance, with the SOP class made the legacy converted one and Number of
+Frames added. Pixel Measures, Plane Position, Plane Orientation, Frame VOI LUT, Pixel Value Transformation, Irradiation
+Event Identification, Referenced Image, Derivation Image and the modality's Frame Type each go once in the Shared
+Functional Groups Sequence (5200,9229) when their records are the same in every instance, else whole in every frame's
+item of the Per-Frame Functional Groups Sequence (5200,9230). Frame Content (acquisition date-time and number) and
+Conversion Source (each source's SOP class and instance UID) are per frame, as the standard requires. Every other
+attribute, the private group's included as C.7.6.16.2.25.1 says, goes once in Unassigned Shared when present in every
+instance with the same value, else per frame in Unassigned Per-Frame; a top-level attribute that varies keeps the
+first value at the top and every source's value per frame. Keys are DECK's: 8 bytes more per enclosing sequence, so a
+macro's attribute has a 24-byte key; a sequence the parser wrote moves whole under its macro. No Frame Anatomy codes,
+dimension index or stack position are invented.
+
+**Known before the pre-registration** (the parser was built and run once on the five series to check that it runs, and
+its source read; no size, ratio or repetition was computed):
+
+* every run exits 0; the frame files are full size, RGB included;
+* **group 0002 is written in the instance group, not the private one**: `val` sends to the private group only
+  (0002,0000), already dropped, and odd groups (`src/capi/uapi.c` line 1110), so (0002,0001)–(0002,0016) fall before
+  the first listed tag and go to the instance group (§Repetition's split put them in the private group);
+* **a sequence of the exam or series list keeps only its first attribute at that level**: the list index moves past
+  the sequence's tag on its first attribute (line 1121), so its later attributes go to the instance group;
+* **a nested attribute's key is overwritten**: the key is copied over the `struct KV` from its pointer field on
+  (`src/capi/ESIPFfiled/capi.c` lines 529, 542, 617, 629), so in a 16-byte key the inner tag's last byte, its VR and
+  charset become the value length and the last byte the low byte of the value's address. *Masked* zeroes those bytes;
+* pt writes five series group files for its one series, and us two exam group files.
+
+*Pre-registered, 2026-10-25, before the measurement ran.* Times are medians of 15 rounds, interleaved and rotated as in
+§Repetition; one run of the parser, two of the measurement; bytes and ratios are deterministic. The host is a 4-vCPU
+Xeon at 2.10 GHz, not §Repetition's 2.80 GHz, so only ratios and bytes compare with it.
+
+| Prediction | Contradicted if |
+| --- | --- |
+| the metadata is ≥ 1.5× §Repetition's for ct, pt, mg and us, ≥ 1.15× for mr (the de-identification sequence's later records in every instance group) | smaller |
+| the metadata is under 2 % of the stored pixels in every series | otherwise |
+| every group file's name is the BLAKE3 of its bytes | one is not |
+| the group files' allocation on disk is ≥ 3× their bytes for ct, pt, mg and us, ≥ 2× for mr | less |
+| one stream at level 3 compresses at least as well as §Repetition's for ct, pt and mr; each group file alone ≤ 2.5× but mr | otherwise |
+| level 19's stream at most 30 % smaller than level 3's; level 1's within 5 % of level 3's | otherwise |
+| level 3's stream at ≥ 100 MB/s of tar on one core | slower |
+| as written, ≥ 50 % of the instance groups' bytes are constant records for ct, pt and mr | less |
+| the converted-enhanced instance weighs ≤ 40 % of a row per instance group (instance + private) for ct, pt and mr | more |
+| it weighs more than §Repetition's shared + per-instance for ct, pt and mr (macro keys and a source reference per frame) | not more |
+| one blob per series at zstd-3 weighs less than the converted-enhanced instance raw, for ct, pt and mr | more |
+
+The host: one thread, every file in the page cache; nothing is claimed for parallel compression, a cold disk or
+another host.
