@@ -7,7 +7,7 @@ repository, with where, *(E)* an estimate with its arithmetic, *(I)* this record
 **Builds on, read-only and unmerged:** #119 (`claude/pacs-receiver-design`, `docs/ingest/design.md` §12: the checks,
 the series digest pairing, the owner's items 8 and 11), #142
 ([`serving-by-uid.md`](https://github.com/dary-dc/wt-pacs/blob/claude/serve-by-uid-design/docs/adr/serving-by-uid.md):
-`?digest=` and the refusal codes), #144 (`claude/metadata-update-cost`, `lab/metadata-store` README: one update
+`?digest=` and the refusal codes), #144 (`claude/metadata-update-cost` at `ebc1207`, `lab/metadata-store` README: one update
 patched in place, measured), #145
 ([`display-metadata.md`](https://github.com/dary-dc/wt-pacs/blob/claude/display-metadata-design/docs/adr/display-metadata.md):
 the display document exported per series after the commit), #146
@@ -125,7 +125,7 @@ Nothing here is measured as a whole; the arithmetic is shown so that §11 can ch
 
 * **The update's own work at 2 000 instances (E).** The queue file written and `fsync`ed: ≈ 1–3 ms (I: one small
   write and a directory `fsync` on an SSD, not measured here). The transaction, rows and page row: **2.30–2.86 ms**
-  (M: #144, `lab/metadata-store --mode update-cost`, "patched, latency to visible", one update at a time on one
+  (M: #144 at `ebc1207`, `lab/metadata-store --mode update-cost`, "patched, latency to visible", one update at a time on one
   study; 1.08–1.59 ms at 200 instances, 7.6–8.2 ms at 10 000). The display document exported, written, `fsync`ed and
   renamed: ≈ 1–5 ms (I, ≈ 96 KB, #145 §3). The outbox intent: one small commit, ≈ 1 ms (I). **Total ≈ 5–15 ms.**
 * **Behind its own study's pixel package (E).** Placing a 152 MB series at the 550–620 MB/s that #144 measured for a
