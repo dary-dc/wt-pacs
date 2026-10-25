@@ -12,7 +12,7 @@ metadata-store`. Here it enters no product crate and no gate build.
 ```bash
 (cd lab/sqlite-engine && cargo build --release)
 B=lab/sqlite-engine/target/release/sqlite-engine
-$B blocking --workers 1 --rounds 12 > blocking-w1.jsonl ; $B blocking --workers 2 --rounds 12 > blocking-w2.jsonl
+for w in 1 2; do for c in 0 64; do $B blocking --workers $w --cache-pages $c --rounds 12 > blocking-w$w-c$c.jsonl; done; done
 $B files --files 1000 --rounds 5 > files.jsonl
 $B two > two.jsonl
 ```
@@ -55,6 +55,14 @@ read, not a disk's latency. A cold disk would add the device's latency to the sa
 | P3. 2 workers: the three direct arms still above 3× idle's p99; rusqlite-blocking within 2× | otherwise |
 | P4. **turso**: no `Rows::next` future ever returns `Pending` on a warm read | one does |
 | P5. strace: **turso**, **rusqlite** issue `pread64` from `tokio-runtime-w` threads; **turso-uring** `io_uring_enter` from them; **rusqlite-blocking** `pread64` from blocking-pool threads only | any read from another thread |
+
+*Amended 2026-10-25, after one 0.5 s smoke round and before the measured runs.* With each engine's default page
+cache the 2 MB series stays in the engine's own cache after the first scan, so no arm issues a read and P4–P5 would
+test nothing (the smoke round: no `Pending` in either Turso arm). A second condition, **`--cache-pages 64`**, sets
+`PRAGMA cache_size = 64` on every reader connection of both engines (the store's own lever), so each scan reads most
+of its pages through the OS. Both conditions run, at 1 and 2 workers; the predictions are unchanged, P4–P5 are judged
+in the 64-page condition. The smoke round also showed, uncounted: at 64 pages Turso's default backend let the
+heartbeat tick only 4 times in 0.5 s, and the io_uring arm returned `Pending` about once per page.
 
 ### 2. Many open files (`files`)
 
