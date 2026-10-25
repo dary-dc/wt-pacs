@@ -5,10 +5,10 @@ hospital-side component is another team's (the owner, 2026-10-24). *(M)* a numbe
 where; *(E)* an estimate, its arithmetic shown; *(I)* this record's own inference; *(S)* a primary source in §9. Every
 option was judged on the same rows before one was picked; none was preferred going in.
 
-**Builds on, read-only and unmerged:** #118 (`claude/page-open-metadata`, `docs/ingest/metadata-draft.md` §1: carriers
+**Builds on, read-only and unmerged:** #118 (`claude/page-open-metadata` at `6e8eaab`, `docs/ingest/metadata-draft.md` §1: carriers
 A1, A2, B and the codec placements), #119 (`claude/pacs-receiver-design`, `docs/ingest/design.md` §12: the series
-digest pairing metadata with frames), #120 and #126 (`claude/metadata-pair-bench`, `docs/ingest/metadata-draft.md` §2:
-the page document's read and update, measured), #144 (`claude/metadata-update-cost`, `lab/metadata-store` README:
+digest pairing metadata with frames), #120 and #126 (`claude/metadata-pair-bench` at `392c0ce`, `docs/ingest/metadata-draft.md` §2:
+the page document's read and update, measured), #144 (`claude/metadata-update-cost` at `ebc1207`, `lab/metadata-store` README:
 an update patched in place), #142 ([`serving-by-uid.md`](https://github.com/dary-dc/wt-pacs/blob/claude/serve-by-uid-design/docs/adr/serving-by-uid.md):
 one server, many series, `?digest=` and the refusal codes).
 
@@ -120,9 +120,10 @@ The server already holds the `.sbnd`'s header, so codec, frame count and digest 
 * **Under loss.** The document rides QUIC with frame 0; but the transport file is still TCP (§2), so TCP is not
   off the path (I).
 * **Processes and DBs.** `series-server` reads study DBs while the receiver writes them: two processes on one file.
-  SQLite's WAL allows it on one host (S); Turso cannot share a file across processes today (the owner's brief), so
-  2a fixes the engine to SQLite through rusqlite. **At N viewers**, held open: one connection per distinct open
-  study, as #142's map of open series; each holds three descriptors (database, `-wal`, `-shm`) (S) and the pages it
+  SQLite's WAL allows it on one host: "all processes using a database must be on the same host computer" (S: wal
+  §1). Turso cannot share a file across processes safely today (the owner's brief); its README lists multi-process WAL
+  as experimental (S). So 2a fixes the engine to SQLite through rusqlite until that changes. **At N viewers**, held open: one connection per distinct open
+  study, as #142's map of open series; each holds its database, `-wal` and `-shm` files (S: tempfiles §2.2–2.3), three descriptors (I), and the pages it
   read: ≈ 24 pages of 4 KiB for a 96 KB document plus a few B-tree pages, ≈ 110 KB, and the 32 KiB `-shm` map (E).
   A thousand open studies ≈ 3 000 descriptors and ≈ 150 MB (E). Opened per read instead: none held, +52–88 µs a read
   (M: #126).
@@ -184,14 +185,15 @@ answer for a PACS whose pixels are not on one host per study; ours are.
 
 ### 6 · What established systems do (S, §9; reading them is (I))
 
-| | where display/full metadata comes from | precomputed per series? | served by |
+| | what it serves | precomputed per series? | served by |
 | --- | --- | --- | --- |
-| DICOMweb Retrieve Metadata (PS3.18) | `…/series/{uid}/metadata`: every instance's attributes, bulk data by URI | the standard does not say | an HTTP origin, separate from pixel retrieval |
-| OHIF | DICOMweb series metadata, before it shows the series | — | the archive; static files with `staticWado` |
-| Orthanc | the DICOMweb plugin builds series metadata, cached | cached, rebuilt on change | Orthanc's HTTP server |
-| dcm4chee-arc | aggregated metadata of a series' instances, stored as an archive | yes, rebuilt after updates | the archive's HTTP server |
-| AWS HealthImaging | the image set's metadata as one gzipped JSON | yes, versioned with the image set | an API apart from frame retrieval |
-| static DICOMweb | `series/<uid>/metadata.gz` files | yes | any static server |
+| DICOMweb Retrieve Metadata | `/studies/{study}/series/{series}/metadata`: "all the Metadata for all individual Instances contained in the Series" (PS3.18 §10.4.1.1.2), an array of DICOM JSON objects (§8.6, Annex F); bulk values may be replaced by a Bulk Data URI (§10.4.3.3.2) | the standard does not say; it has no caching section (no ETag or Last-Modified in its text) | an HTTP origin, apart from the frames |
+| OHIF | asks QIDO for the series, then each series' metadata, the hanging protocol's first, the rest in the background (`retrieveMetadataLoaderAsync.js`, `DicomWebDataSource/index.ts`); `staticWado` reads static responses | — | the archive; opened by link as `/viewer?StudyInstanceUIDs=` |
+| Orthanc DICOMweb plugin | `SeriesMetadata`: `Full` (every instance read), `MainDicomTags` (the index's tags) or `Extrapolate` (a few instances); since 1.15 the series' JSON "gzipped and stored in attachment … everytime a series is stable" | yes, cached; the Housekeeper rebuilds after a configuration change | Orthanc's HTTP server |
+| dcm4chee-arc-light | "ZIP archives with aggregated Metadata of all instances of a Series" (`dcmSeriesMetadataStorageID`), updated "on attributes update" (`dcmUpdateSeriesMetadata`) after a delay and a poll; WADO-RS metadata read from them (its source, no doc says so) | yes, rebuilt after updates | the archive's HTTP server |
+| AWS HealthImaging | `GetImageSetMetadata`: "the aggregated metadata information for the image set", "compressed with gzip"; frames by `GetImageFrame`, HTJ2K, not transcoded; an update makes a new version, a `LOCKED` set takes no writes; DICOMweb `GetDICOMSeriesMetadata` too | yes, versioned with the image set | an API apart from frame retrieval |
+| static DICOMweb | `studies/<uid>/series/<uid>/metadata.gz`, served by nginx with `Content-Encoding: gzip`, or S3 behind a CDN; `deduplicated/` "used for concurrent updates" | yes | any static server |
+| Google Cloud Healthcare | DICOMweb series metadata; `updateMetadata` (v1beta1) a JSON Patch on a series | not published | its API |
 
 **What they converge on** (I): the per-instance work is done once, at ingest or update, into one document per series;
 it is served over plain HTTP apart from the pixels; none puts it inside the pixel channel. That is option 1 (static
@@ -254,7 +256,7 @@ is named first and nothing is claimed past it ([`../rig-limits.md`](../rig-limit
    Decision: if the document's preload costs more than the A/A spread against `?codec=`, links carry the hint.
 3. **M3, the document's size on the wire** (a count): #126's CT document gzipped at nginx's level 6, whole and with
    constant values once; and the per-instance part's share.
-4. **M4, the export's lag** (only under 1): in `lab/metadata-store --mode update-cost`, an arm that exports the file
+4. **M4, the export's lag** (only under 1): in `lab/metadata-store --mode update-cost` (#144, `ebc1207`), an arm that exports the file
    after each commit; quoted: commit to the file renamed, p50 and p99, and refetches a page made when the bundle was
    replaced.
 5. **M5, DB handles at many studies** (only under 2a, 2b): K = 1, 100, 1 000 study DBs, held against opened per
@@ -275,4 +277,34 @@ is named first and nothing is claimed past it ([`../rig-limits.md`](../rig-limit
 
 ## 9 · Sources
 
-PENDING
+Fetched 2026-10-25; quotes verbatim.
+
+* **DICOM PS3.18**, edition 2026d, dicom.nema.org/medical/dicom/current/output/html/part18.html: §8.6 Payloads;
+  §10.4.1.1.2 Metadata Resources (Table 10.4.1-2); §10.4.3.3.2 Metadata Resource Payload; Table 8.7.3-3 and Annex F
+  (DICOM JSON, §F.2.6 BulkDataURI); §10.6.3.3.2 and Table 10.6.3-4, the series attributes a search returns.
+* **OHIF**: docs.ohif.org/configuration/dataSources/dicom-web and /configuration/url; github.com/OHIF/Viewers
+  `extensions/default/src/DicomWebDataSource/index.ts`, `utils/StaticWadoClient.ts`,
+  `wado/retrieveMetadataLoaderAsync.js`, `wado/retrieveMetadataLoaderSync.js` (master). That it needs a series'
+  metadata before its first image is read from the code, not stated in a doc (I).
+* **Orthanc**: orthanc.uclouvain.be/book/plugins/dicomweb.html (`SeriesMetadata`, `EnableMetadataCache`),
+  …/plugins/housekeeper.html, …/faq/main-dicom-tags.html, …/plugins/postgresql.html and mysql.html; the plugin's
+  NEWS, versions 1.15 (2023-08-24) and 1.23 (2026-04-15): orthanc.uclouvain.be/hg/orthanc-dicomweb/raw-file/tip/NEWS.
+* **dcm4chee-arc-light**: `dcm4chee-arc-assembly/src/main/resources/ldap/schema/dcm4chee-archive.schema`
+  (`dcmSeriesMetadataStorageID`, `…Delay`, `…PollingInterval`, `dcmUpdateSeriesMetadata`) and
+  `dcm4chee-arc-retrieve/…/RetrieveServiceImpl.java`, github.com/dcm4che/dcm4chee-arc-light (master); its
+  readthedocs site answered 404.
+* **AWS HealthImaging**: docs.aws.amazon.com/healthimaging/latest/APIReference/API_GetImageSetMetadata.html and
+  API_GetImageFrame.html; the developer guide's get-image-set-metadata, get-image-frame, update-image-set-metadata
+  and dicomweb-retrieve pages.
+* **Static DICOMweb**: github.com/RadicalImaging/static-dicomweb, `file-structure.md`, its nginx page (docs/nginx.md),
+  `packages/s3-deploy/README.md`.
+* **Google Cloud Healthcare**: cloud.google.com/healthcare-api/docs/dicom (Retrieve transaction); REST v1beta1
+  `projects.locations.datasets.dicomStores.studies.series/updateMetadata`.
+* **HTTP**: RFC 9110 §8.8.3 (ETag), §13.1.2 (If-None-Match), §15.4.5 (304); RFC 9111 §5.2.2.4 (`no-cache`).
+* **SQLite**: sqlite.org/wal.html §1; howtocorrupt.html §2.5; pragma.html#pragma_cache_size (default −2000, "limited
+  to 2048000 bytes of memory", per open database file); uri.html (`immutable`, `mode`); tempfiles.html §2.2–2.3
+  (the `-wal` file, the shared-memory file). No page states a connection's descriptor count.
+* **Turso**: github.com/tursodatabase/turso README (multi-process WAL through a `.tshm` sidecar, experimental) and
+  COMPAT.md, Guarantees 4. **rusqlite**: github.com/rusqlite/rusqlite README (`bundled`).
+* **In this repository**: `lab/page-open/README.md` (R2, H2, PORD, COLDRTT); `docs/decode/README.md` (the WASM
+  sizes); `docs/disk-layout/target.md`; #118, #119, #126, #142, #144 on their branches, named above.
