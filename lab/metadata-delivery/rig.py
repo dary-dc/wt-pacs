@@ -31,10 +31,13 @@ def sh(*cmd: str) -> None:
     subprocess.run(cmd, check=True)
 
 
+AN_HOUR_AGO = int(time.time()) - 3600
+
+
 def aged(path: str) -> None:
-    """An hour old, as a deployed file is: one written seconds ago gets no heuristic freshness (rig-limits.md §6)."""
-    then = time.time() - 3600
-    os.utime(path, (then, then), follow_symlinks=False)
+    """An hour old, as a deployed file is: one written seconds ago gets no heuristic freshness (rig-limits.md §6).
+    One time for every file, so copies of a file carry one nginx ETag."""
+    os.utime(path, (AN_HOUR_AGO, AN_HOUR_AGO), follow_symlinks=False)
 
 
 def certificate(run: str) -> str:

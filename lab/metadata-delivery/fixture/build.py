@@ -35,6 +35,7 @@ CREATE TABLE instance (uid TEXT PRIMARY KEY, series_uid TEXT NOT NULL, grp BLOB 
 CREATE INDEX instance_series ON instance (series_uid, number);
 CREATE TABLE private (uid TEXT PRIMARY KEY, grp BLOB NOT NULL, xxh3 INTEGER NOT NULL);
 CREATE TABLE series_paint (series_uid TEXT PRIMARY KEY, doc TEXT NOT NULL);
+CREATE TABLE series_gz (series_uid TEXT PRIMARY KEY, revision INTEGER NOT NULL, gz BLOB NOT NULL);
 """
 
 
