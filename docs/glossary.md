@@ -32,6 +32,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | RCT | JPEG 2000's reversible colour transform, applied to RGB before AV1 codes it |
 | PCS | the hospital-side component, another team's: receives DICOM, parses it into a tree, builds and sends packages ([`adr/pcs-transfer.md`](adr/pcs-transfer.md)) |
 | package | the one file the PCS sends the PACS for a series or a study: a tar of its group files and its series bundle or document; [`ingest/`](ingest/README.md) calls it the archive ([`adr/pcs-transfer.md`](adr/pcs-transfer.md) §4) |
+| sender | our program at the PCS that builds a series' package from its exam tree, keeps it in its **outbox** until the verdict is `committed`, and uploads it through the carrier ([`adr/pcs-transfer.md`](adr/pcs-transfer.md) §15) |
 | carrier | how a package travels from the PCS to the PACS and how the PACS's reply comes back: an HTTPS upload, rsync, an object store ([`ingest/link.md`](ingest/link.md) §11) |
 | verdict | the receiver's word on a package, written to `status/<package>`: `committed`, or `refused` with its class, **retry** (the PCS sends it once more) or **final** (an operator's); the carrier's own reply before it is *received* ([`ingest/link.md`](ingest/link.md) §12.2) |
 | site | a hospital, as the carrier's allow list names it: the PCS certificates enrolled for it and the units it first sent ([`ingest/link.md`](ingest/link.md) §12.3) |

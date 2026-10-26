@@ -197,7 +197,7 @@ the instance groups in instance-number order, the private groups, then the `.sbn
 deterministic: mtime, owner and mode fixed, names relative, regular files only. Then the same series always makes the
 same bytes, and a rebuilt package keeps its hash (needed by §7's resend and by idempotency). Tar's 512-byte padding
 costs ~0.39 MB on a CT of 500 instances (*estimated*: 501 members × ~768 B), a fifth of its metadata; packing the group
-files as one compressed member (§5) removes it. §15 specifies the sender's build (proposed 2026-10-26).
+files as one compressed member (§5) removes it. §15 specifies the sender's build (proposed 2026-10-26, built as `carrier/sender`).
 
 **The header member**, ~100 bytes of text: the layout version (§1's two differences), the kind (`series`, `study`,
 `delete`, later `addition`), the unit's UID, the revision n, and whether the metadata member is compressed. It is the
@@ -553,8 +553,11 @@ notes; rsync's `rrsync` helper; PS3.15's secure transport profiles; any measurem
 
 ## 15 · The sender's package build
 
-**Status: proposed 2026-10-26, not decided; theory, nothing built.** It specifies how our sender turns the PCS's exam
-tree into a package. It takes the owner's decisions of 2026-10-26 as fixed and reconciles the design-state record's
+**Status: proposed 2026-10-26, not decided; built as `carrier/sender` the same day** (the crate `sender`, beside the
+carrier; [`../../carrier/README.md`](../../carrier/README.md) runs it). Where the build forced a change, the text below
+is corrected in place and marked *Changed by the build*. Tested on loopback against the carrier and a stand-in
+receiver, not against #163's receiver, which reads layout 1 until §15.11 is done; nothing timed. It specifies how our
+sender turns the PCS's exam tree into a package. It takes the owner's decisions of 2026-10-26 as fixed and reconciles the design-state record's
 A4, A5 and A6 (`docs/ingest/pacs-receive-design.md` §17, commit `40fdbfd` on `claude/pacs-design-state`) with the
 receiver as built in #163 (`docs/adr/pacs-receiver.md` §2 and `ingest/receiver/src/package.rs`, commit `33ffdaf` on
 `claude/pacs-receiver-impl`).
@@ -575,8 +578,10 @@ reserves their place (the kind `update`, §15.5; a mode of the call, §15.2) and
 ### 15.2 What the PCS calls, and when
 
 ```text
-sender EXAM_DIR SERIES...
+sender --profile FILE EXAM_DIR SERIES...
 ```
+
+*Changed by the build:* the profile (§15.9) is named on the call, `--profile`, rather than found by convention.
 
 `EXAM_DIR` is `[…/<D>]/<E>`, the directory whose name is the coded study UID; `SERIES` are coded series UIDs, each a
 directory under it. The PCS calls it after its process (2) has written a series' bundle, for the series its tests (P2)
@@ -595,7 +600,9 @@ makes the addition. The PCS needs no state of its own for the transfer.
 
 **Exit codes**, `carrier/pcs/send-package.sh`'s plus one: 0 every named series stored; 3 refused final (an operator's);
 4 gave up for now (call again later); 5 the tree cannot be packed (§15.3's refusals, an operator's or the PCS team's);
-2 a usage error. **An update mode** is a later flag of this same call, reserved and not specified here.
+2 a usage error. *Changed by the build:* a profile that cannot be read is 2, before anything is built; any other I/O
+error (the outbox not writable, a tree file unreadable) is 4. One call naming several series goes through all of them
+and exits with the first non-zero code. **An update mode** is a later flag of this same call, reserved and not specified here.
 
 ### 15.3 What goes in, and what is left out
 
@@ -619,7 +626,10 @@ Paths are relative to the exam directory; the date folder above it, if any, neve
 exam group, or more than one (two mean the tree holds a correction, which is the update row's); likewise the series
 group; an instance directory without its instance group; a private group without one; no bundle; a group that does
 not hash to its name; a member past the receiver's limits. Each is cheaper to catch at the PCS than as a refusal over
-the link.
+the link. *Changed by the build:* "the receiver's limits" are #163's 64 MiB a group (`MAX_GROUP_LEN`) and ustar's
+8 GiB − 1 for the bundle (§15.7); two private groups in one instance are refused like two series groups; a link
+in the series directory with a coded UID's name is refused, not followed. An instance directory is a directory whose name is a coded
+UID (contract.md §The coding: an even length over the coded alphabet), which `c/` and `b/` are not.
 
 **The layout's names are layout 1's:** the parser's `--`, `---`, `----`, `priv`, with XXH3-64 in place of BLAKE3, as
 #163 reads them; whether the PDF's `d/<number>.<hash>` and `p/` replace them is still §12's PCS question 3. A change
@@ -706,21 +716,30 @@ received `(u, n, h)`: **a conflict, an operator's**. Rebuilds happen when the ke
 | mode | `0644` |
 | uid, gid, uname, gname | 0, 0, empty, empty |
 | mtime | 0 |
-| format | ustar header; a path over ustar's name and prefix (100 + 155 bytes) or a size past its 8 GiB field gets a pax extended header with only `path` or `size`, no `atime`, `ctime` or `mtime` record |
+| format | ustar header; *changed by the build:* **no pax extended header is ever written.** A layout-2 path is at most `<S>/<I>/priv.<h>`, 44 + 1 + 44 + 1 + 21 = 111 bytes for 64-character UIDs, which ustar's prefix and name hold; a member of 8 GiB or more is refused at build (exit 5), since the carrier's `max-size` default refuses such a package anyway (link.md §12.1). The extended header this row first asked for (only `path` or `size`) would be code no package exercises. |
 | end | two 512-byte zero records, nothing after: no blocking-factor padding |
 
 **The writer is the sender's own, in Rust**, with the `tar`, `zstd` and `xxhash-rust` crates the receiver already
-uses, at versions locked by `Cargo.lock`. A zstd library of another version may compress the same input to other
+uses, at versions locked by `Cargo.lock`: **`tar` 0.4.46, `zstd` 0.13.3 over `zstd-safe` 7.3.0 and `zstd-sys`
+2.1.2+zstd.1.5.7, so libzstd 1.5.7**, compiled from the crate's bundled source and linked statically (*changed by
+the build:* the build must not set `ZSTD_SYS_USE_PKG_CONFIG`, which links the system's libzstd instead, of whatever
+version it is), and `xxhash-rust` 0.8.19. A zstd library of another version may compress the same input to other
 bytes, so the lock is part of determinism; a rebuild across a sender upgrade is the one case the lock does not cover,
 and it arises only when a kept package is lost. **GNU tar** can approximate it for a reader inspecting a package by
 hand (`LC_ALL=C tar --format=pax --no-recursion -b 1 --mtime=@0 --owner=0 --group=0 --numeric-owner --mode=0644
 --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime -T list`); byte equality with it is **not
-claimed**, not having been tested.
+claimed**, not having been tested. GNU tar 1.35 lists a built package as `-rw-r--r-- 0/0 … 1970-01-01 00:00` for each
+of its three members.
 
 **The hash** is the XXH3-64 of the file, computed while writing it. The package is written as
 `<outbox>/<unit>.<n>.partial`, fsynced, renamed to its name, and the directory fsynced; only then is the revision
 recorded: `<outbox>/<unit>/<n>` holds the member paths it carried and whether its metadata was compressed. A rebuild
-reads that line, so a profile changed since builds the old revision as it was first built.
+reads that line, so a profile changed since builds the old revision as it was first built. *Changed by the build:*
+the file is `metadata zstd` or `metadata plain`, then one group path a line (the bundle, always `<S>/series.sbnd`, is
+not listed), written durably as the carrier's `write_durably` writes a verdict. A revision once stored gets an empty
+`<outbox>/<unit>/<n>.stored`, written before its package is deleted, so "stored" is told from "lost". A build that died
+before its record leaves a package or a `.partial` of an unrecorded revision: the next call removes them (never sent,
+since sending follows the record) and builds that revision again.
 
 **What is kept, and A6.** The sender keeps each package until the receiver's verdict says stored (decision 8; the
 carrier's word for it is still `committed`, design-state §14 D3). Every send first checks the kept file against the
@@ -728,6 +747,17 @@ hash in its name. A refusal of class `retry` is answered by **resending the kept
 already does: they are what a deterministic rebuild would make. The sender **rebuilds only when the kept file fails its
 own name or is gone**, and determinism gives the rebuild the same name. A rebuilt file that still fails, or a second
 refusal, is exit 3, an operator's. §7's "rebuild, re-hash, resend" is replaced by this.
+
+*Changed by the build:* **the check runs before each call of `send-package.sh`, not before each send.** The sender
+uploads by running the script, embedded in it, once per kept revision; the script's own resend after `refused retry`
+happens inside that one call and sends the same file without the sender checking it again. Moving the resend loop into
+the sender (§15.11's other option) would close that gap of seconds; it was not needed for anything §15.10 tests.
+
+*Found by the build:* a rebuild of an **earlier** revision reads the tree as it is now, and an addition's process (2)
+rewrites `<S>/series.sbnd` with the added frames only (§15.3's default). So a revision whose kept file is lost after
+the PCS has written a late instance's bundle, and before that revision is stored, rebuilds to other bytes: the carrier
+answers `refused final conflict`, exit 3, an operator's. It takes two faults at once (the lost file, and a late
+instance inside that window); it is not handled.
 
 ### 15.8 The name
 
@@ -749,9 +779,20 @@ One file per deployment, read at start:
 
 The receiver needs no profile: it reads both forms of the metadata member. The carrier never opens a package.
 
+*Changed by the build:* the file is one `<setting> <value>` a line, `#` to the end of a line a comment, an unknown
+setting refused (exit 2). `carrier`, `cert`, `key`, `cacert` and `outbox` are required; `stall`, `attempts`,
+`backoff`, `poll` and `wait` become `send-package.sh`'s `STALL_SECS`, `ATTEMPTS`, `BACKOFF_SECS`, `POLL_SECS` and
+`WAIT_SECS`. **`transport quic` is refused at start in every build:** the upload is `send-package.sh` over stock curl,
+which has no HTTP/3 (link.md §12.4), and no new transport was built. A QUIC sender is a client to write when C1 says
+QUIC is worth it.
+
 ### 15.10 Test plan
 
 Each test is mutated: the named mutation is made and the test must fail (CLAUDE.md §Measurement).
+
+*Changed by the build:* the table below is the plan as proposed; what was built, in `carrier/sender/tests/`
+(`cargo test -p sender`, in `scripts/gate.sh`), is the second table. Every mutation there was made and its test
+failed; the code was then restored.
 
 | test | claim | mutation it must catch |
 | --- | --- | --- |
@@ -763,6 +804,27 @@ Each test is mutated: the named mutation is made and the test must fail (CLAUDE.
 | an addition | send, add an instance to the tree, call again: revision 2, kind `addition`, only the new instance's groups beside the exam and series groups | the earlier revision's record not read: a full resend |
 | a crash, a lost file | killed after the rename and before the record, then called again; the kept file deleted after `received`: both rebuild to the same name and nothing is uploaded twice | the mtime of the build time; a counter advanced before the record |
 | a refusal | `refused retry` resends the kept bytes; a kept file that fails its name is rebuilt; a second refusal is exit 3 | the kept file not checked before sending |
+
+**As built:**
+
+| test | claim | mutations it caught |
+| --- | --- | --- |
+| `build::the_same_tree_builds_the_same_bytes` | a copy of the tree with other mtimes, mode `0600`, another owner (when run as root) and the reverse creation order, on tmpfs where that reverses the listing (asserted), builds a byte-equal package of the same name | the instances in listing order and the paths unsorted; a group's real mtime; its real owner |
+| `build::a_changed_byte_fails_the_name_and_is_rebuilt` | a byte flipped in the header, the metadata or the bundle fails the package's name, and the rebuild restores the exact bytes | the name's hash not checked |
+| `build::the_allow_list_leaves_the_rest_out` | `c/` and `b/` holding group-named files, a raw frame, a `d/` in an instance, `mf.mxf`, `sf.jxl`, `mf.mp4`, dotfiles, `---.nothex` and another series: the package is `package`, `metadata`, `Se01/series.sbnd`, and the inner tar exactly the six groups in byte order | every directory under the series taken as an instance; any marker taken |
+| `build::an_unpackable_tree_is_refused_with_nothing_kept` | a link in place of the series group, two series groups, an instance without its group, a group off its name, no bundle: exit-5 errors, the outbox empty | each of the five checks removed, one at a time |
+| `build::the_profile_compresses_the_metadata_or_not` | `zstd`: one frame, its content size and checksum flag set, starting with the magic, of the very inner tar `plain` stores; the bundles equal to the tree's; the two names differ | the profile ignored |
+| `build::a_late_instance_makes_an_addition` | nothing new builds nothing; a late instance builds revision 2, `kind addition`, of the exam and series groups and the new instance's two groups | the earlier revision's record not read |
+| `build::a_build_killed_before_its_record_is_built_again` | the record removed and a `.partial` left, as a kill between the rename and the record leaves them: the same revision, the same name, one package, no `.partial` | the counter advanced by a kept file without a record |
+| `send::a_stored_package_is_dropped_and_not_sent_again` | through the carrier and the script: exit 0, `<n>.stored` written, the package deleted; a second call uploads nothing | the stored mark (and the deletion) removed |
+| `send::a_lost_package_is_rebuilt_and_not_sent_twice` | no verdict within `wait 2`: exit 4; the kept file deleted; the next call rebuilds the same name, the carrier holds it, one arrival in all | the build time as mtime (the rebuild then conflicts, exit 3) |
+| `send::a_refusal_resends_the_kept_bytes` | a kept file with a flipped byte is rebuilt before it is sent; `refused retry` then `committed`: exit 0, both arrivals the built bytes; then an addition refused twice: exit 3 after exactly one resend, the package still kept | the kept file not checked before sending |
+| `send::a_quic_profile_is_refused_at_start` | `transport quic`: exit 2, no outbox made | `quic` accepted |
+
+Not built here, being #163's: the receiver's refusal of a package by its name's hash, a flipped group byte by its
+group's name and a flipped bundle byte by its frame digest; and "the same groups stored" under both profiles, which is
+asserted at the sender instead (the inner tars are equal). The locale of "build twice" is not exercised: the writer
+calls nothing locale-dependent, and sorts by bytes.
 
 ### 15.11 What the receiver (#163) must change
 
@@ -781,7 +843,8 @@ Each test is mutated: the named mutation is made and the test must fail (CLAUDE.
 6. **Layout 1:** no sender ever wrote it, so *default:* removed when layout 2 is built, not kept beside it.
 
 The carrier changes nothing. `send-package.sh` gains the check of the kept file against its name before each send, or
-its loop moves into the sender.
+its loop moves into the sender. *Changed by the build:* neither yet; the sender checks before each call of the
+unchanged script (§15.7).
 
 ### 15.12 Where this departs from §1–§14
 
