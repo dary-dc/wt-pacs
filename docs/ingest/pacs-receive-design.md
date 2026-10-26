@@ -506,9 +506,16 @@ Each: the evidence in one line · the default if nothing else is said.
 * The reply: keep each package until "stored"; resend on "refused"; stop on "quarantined" and tell an operator. Can the
   PCS run curl and a small script (resumable upload, mutual TLS, a certificate per site)?
 * Updates: does a correction delete the old group file on your side? How is a withdrawal sent?
-* Your parser (§10): when will nested keys be deterministic (the study DB layout waits on it, §4)? converted-enhanced:
-  planned when? group 0002 in the instance group, the exam sequence split, the unterminated date-directory name, exit
-  codes 12 and 0, the hash length before UTF-8, unbounded attribute tables, the failing builds.
+* Your parser (§10): when will nested keys be deterministic (the study DB layout waits on it, §4)? Group 0002 in the
+  instance group, the exam sequence split, the unterminated date-directory name, exit codes 12 and 0, unbounded
+  attribute tables, the failing builds.
+* **The key overwrite in `capi.c`** (read at `a65abe2`): in struct KV the key is `memcpy`'d from the pointer field K,
+  which has 9 bytes of room; a nested key's bytes 11–14 become the value length and the rest the value's address; at
+  depth 2 it carries the whole address, so with address randomisation PT's bytes change on every parse. Consequence,
+  read, not run: nested values never take the UTF-8 path.
+* **A blocker:** series, instance and private groups are hashed over the length before UTF-8 conversion, so our group
+  checks (§3, step 5) fail on intact data whenever a value is non-ASCII. When is it fixed?
+* **Converted enhanced:** in pcs.pdf (10-23) and `codec.md`, not implemented at `a65abe2`: when?
 * The date folder `<D>/` (eDA): does the PCS need it in the PACS path? The disk layout is open (§16).
 * Not needed from you: a decoded-samples hash per frame (the PACS checks coded hashes; the client checks samples).
 
