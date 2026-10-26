@@ -293,7 +293,8 @@ impl Receiver {
         at(Step::Staged);
 
         for group in &mut staged.groups {
-            group.bytes = disk::read_from_disk(&group.staged)?;
+            group.bytes = from_disk::read(&group.staged)
+                .with_context(|| format!("read {}", group.staged.display()))?;
             ensure!(
                 xxh3_64(&group.bytes) == group.hash,
                 "{} {} reads back changed from disk",

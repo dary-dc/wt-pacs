@@ -1,7 +1,6 @@
 //! The study DB: a table per level, a group's bytes and XXH3 keyed by its coded UID, and an audit
 //! table (docs/adr/pacs-receiver.md §4).
 
-use crate::disk::drop_cache;
 use crate::package::{hex, Group, Header, Kind, Level};
 use anyhow::{bail, ensure, Context, Result};
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
@@ -265,7 +264,7 @@ pub fn drop_db_cache(path: &Path) -> Result<()> {
     wal.push("-wal");
     for file in [path.as_os_str(), wal.as_os_str()] {
         match File::open(file) {
-            Ok(f) => drop_cache(&f)?,
+            Ok(f) => from_disk::drop_cached(&f).context("drop the study DB's pages")?,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(e).context("open the study DB to drop its pages"),
         }
