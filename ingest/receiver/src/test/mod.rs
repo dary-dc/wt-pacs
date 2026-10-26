@@ -1,3 +1,4 @@
+mod addition;
 mod crash;
 mod receive;
 
@@ -14,6 +15,7 @@ pub const STUDY: &str = "1.2.826.0.1.7";
 pub const SERIES: &str = "1.2.826.0.1.7.1";
 pub const SERIES_B: &str = "1.2.826.0.1.7.2";
 const NUMBER_OF_FRAMES: u32 = 0x0028_0008;
+const INSTANCE_NUMBER: u32 = 0x0020_0013;
 const PATIENT_NAME: u32 = 0x0010_0010;
 const SERIES_DESCRIPTION: u32 = 0x0008_103E;
 
@@ -77,28 +79,41 @@ pub fn series_group(series: &str, description: &str) -> Vec<u8> {
     .concat()
 }
 
+/// Its Instance Number is the UID's last component.
 pub fn instance_group(uid: &str, frames: u32) -> Vec<u8> {
+    let number = uid.rsplit('.').next().unwrap();
     [
         record(SOP_INSTANCE_UID, b"UI", &ui(uid)),
+        record(INSTANCE_NUMBER, b"IS", number.as_bytes()),
         record(NUMBER_OF_FRAMES, b"IS", frames.to_string().as_bytes()),
     ]
     .concat()
 }
 
-pub fn bundle(frames: u32, fill: u8) -> Vec<u8> {
-    bundle_with(
-        frames,
-        fill,
-        &format!("{{\"frameCount\": {frames}, \"codec\": \"htj2k\"}}"),
-    )
+/// Frame `i` is `100 + i` bytes of `fill + i`.
+pub fn frames(frames: u32, fill: u8) -> Vec<Vec<u8>> {
+    (0..frames)
+        .map(|i| vec![fill.wrapping_add(i as u8); 100 + i as usize])
+        .collect()
 }
 
-pub fn bundle_with(frames: u32, fill: u8, metadata: &str) -> Vec<u8> {
+/// The metadata the ingest writes: the count, the range and a digest per frame.
+pub fn bundle(n: u32, fill: u8) -> Vec<u8> {
+    let digests: Vec<String> = frames(n, fill)
+        .iter()
+        .map(|f| format!("{:016x}", xxh3_64(f)))
+        .collect();
+    let metadata = serde_json::json!({
+        "frameCount": n, "codec": "htj2k", "min": fill, "max": fill as u32 + n,
+        "digests": { "algorithm": "xxh3-64", "frames": digests },
+    });
+    bundle_with(n, fill, &metadata.to_string())
+}
+
+pub fn bundle_with(n: u32, fill: u8, metadata: &str) -> Vec<u8> {
     let dir = scratch("bundle");
     let path = dir.join("b.sbnd");
-    let frames: Vec<Vec<u8>> = (0..frames)
-        .map(|i| vec![fill.wrapping_add(i as u8); 100 + i as usize])
-        .collect();
+    let frames = frames(n, fill);
     let refs: Vec<&[u8]> = frames.iter().map(|f| f.as_slice()).collect();
     series_bundle::write_bundle(&path, metadata.as_bytes(), &refs).unwrap();
     let bytes = std::fs::read(&path).unwrap();
@@ -106,13 +121,31 @@ pub fn bundle_with(frames: u32, fill: u8, metadata: &str) -> Vec<u8> {
     bytes
 }
 
-/// A package before it is packed: its header text and its members in order.
+/// A bundle file's frames, in index order, and its metadata.
+pub fn read_bundle(path: &Path) -> (Vec<Vec<u8>>, serde_json::Value) {
+    use std::os::unix::fs::FileExt;
+    let file = std::fs::File::open(path).unwrap();
+    let layout = series_bundle::read_layout(&file).unwrap();
+    let frames = layout
+        .index
+        .iter()
+        .map(|&(offset, length)| {
+            let mut bytes = vec![0u8; length as usize];
+            file.read_exact_at(&mut bytes, offset).unwrap();
+            bytes
+        })
+        .collect();
+    (frames, serde_json::from_str(&layout.metadata).unwrap())
+}
+
+/// A package before it is packed: its header text, its groups and its bundle.
 #[derive(Clone)]
 pub struct Package {
     pub header: String,
     pub members: Vec<(String, Vec<u8>)>,
     pub unit: String,
     pub revision: u32,
+    pub zstd: bool,
 }
 
 impl Package {
@@ -124,31 +157,36 @@ impl Package {
         instances: &[(&str, u32)],
         fill: u8,
     ) -> Self {
-        let (e, s) = (c(STUDY), c(series));
+        let s = c(series);
         let mut p = Self::new("series", &s, revision);
-        p.group(format!("{e}/--"), exam_group(patient));
-        p.group(format!("{e}/{s}/---"), series_group(series, "axial"));
+        p.group("--".into(), exam_group(patient));
+        p.group(format!("{s}/---"), series_group(series, "axial"));
         for (uid, frames) in instances {
-            p.group(
-                format!("{e}/{s}/{}/----", c(uid)),
-                instance_group(uid, *frames),
-            );
+            p.group(format!("{s}/{}/----", c(uid)), instance_group(uid, *frames));
         }
         let total = instances.iter().map(|(_, f)| f).sum();
         p.members
-            .push((format!("{e}/{s}/series.sbnd"), bundle(total, fill)));
+            .push((format!("{s}/series.sbnd"), bundle(total, fill)));
+        p
+    }
+
+    /// The instances added to a stored series, its exam and series groups as `series` makes them.
+    pub fn addition(series: &str, revision: u32, instances: &[(&str, u32)], fill: u8) -> Self {
+        let mut p = Self::series(series, revision, "DOE^JANE", instances, fill);
+        p.header = p.header.replace("kind series", "kind addition");
         p
     }
 
     pub fn new(kind: &str, unit: &str, revision: u32) -> Self {
         Self {
             header: format!(
-                "layout 1\nkind {kind}\nstudy {}\nunit {unit}\nrevision {revision}\n",
+                "layout 2\nkind {kind}\nstudy {}\nunit {unit}\nrevision {revision}\n",
                 c(STUDY)
             ),
             members: Vec::new(),
             unit: unit.to_owned(),
             revision,
+            zstd: false,
         }
     }
 
@@ -158,9 +196,34 @@ impl Package {
             .push((format!("{prefix}.{:016x}", xxh3_64(&bytes)), bytes));
     }
 
+    /// The groups' inner tar in byte order of their paths, compressed when `zstd`.
+    pub fn metadata(&self) -> Vec<u8> {
+        let mut groups: Vec<_> = self
+            .members
+            .iter()
+            .filter(|m| !m.0.ends_with(".sbnd"))
+            .cloned()
+            .collect();
+        groups.sort_by(|a, b| a.0.cmp(&b.0));
+        let inner = tar_of(&groups);
+        match self.zstd {
+            true => zstd::encode_all(inner.as_slice(), 3).unwrap(),
+            false => inner,
+        }
+    }
+
+    /// `package`, `metadata`, then each bundle.
     pub fn tar(&self) -> Vec<u8> {
-        let mut members = vec![("package".to_owned(), self.header.clone().into_bytes())];
-        members.extend(self.members.iter().cloned());
+        let mut members = vec![
+            ("package".to_owned(), self.header.clone().into_bytes()),
+            ("metadata".to_owned(), self.metadata()),
+        ];
+        members.extend(
+            self.members
+                .iter()
+                .filter(|m| m.0.ends_with(".sbnd"))
+                .cloned(),
+        );
         tar_of(&members)
     }
 

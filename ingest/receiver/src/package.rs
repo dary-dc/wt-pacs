@@ -1,18 +1,20 @@
-//! The package: its name, its header and its members, layout 1 (docs/adr/pacs-receiver.md §2).
+//! The package: its name, its header and its members, layout 2 (docs/adr/pacs-receiver.md §2).
 
 use crate::group::{self, is_coded};
 use anyhow::{bail, ensure, Context, Result};
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{self, Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use tar::{Archive, EntryType};
 use xxhash_rust::xxh3::{xxh3_64, Xxh3};
 
 pub const HEADER_MEMBER: &str = "package";
+const METADATA_MEMBER: &str = "metadata";
 const MAX_HEADER_LEN: u64 = 4096;
-/// Bytes, after decompression: a group is kilobytes, so this bounds a zstd bomb, not real data.
 pub const MAX_GROUP_LEN: u64 = 64 << 20;
+/// Bytes of the metadata's inner tar, after decompression; a placeholder: docs/adr/pacs-receiver.md §2.
+pub const MAX_METADATA_LEN: u64 = if cfg!(test) { 8 << 20 } else { 1 << 30 };
 const ZSTD_MAGIC: [u8; 4] = [0x28, 0xB5, 0x2F, 0xFD];
 
 /// `<unit>.<revision>.<xxh3-64 of the file, 16 hex>.tar`
@@ -61,7 +63,18 @@ pub fn hex(hash: u64) -> String {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Kind {
     Series,
+    Addition,
     Update,
+}
+
+impl Kind {
+    pub fn name(self) -> &'static str {
+        match self {
+            Kind::Series => "series",
+            Kind::Addition => "addition",
+            Kind::Update => "update",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -87,14 +100,15 @@ impl Header {
             lines.len()
         );
         ensure!(
-            field(0, "layout")? == "1",
-            "layout {:?} is not 1",
+            field(0, "layout")? == "2",
+            "layout {:?} is not 2",
             field(0, "layout")?
         );
         let kind = match field(1, "kind")? {
             "series" => Kind::Series,
+            "addition" => Kind::Addition,
             "update" => Kind::Update,
-            other => bail!("kind {other:?} is neither series nor update"),
+            other => bail!("kind {other:?} is not series, addition or update"),
         };
         let study = field(2, "study")?;
         let unit = field(3, "unit")?;
@@ -176,43 +190,32 @@ pub struct Staged {
     pub bundle: Option<Bundle>,
 }
 
-enum Member {
-    Group {
-        level: Level,
-        series: Option<String>,
-        uid: String,
-        hash: u64,
-    },
-    Bundle {
-        series: String,
-    },
+/// What a group's path in the metadata names.
+struct Named {
+    level: Level,
+    series: Option<String>,
+    uid: String,
+    hash: u64,
 }
 
-/// `<E>/--.<h>`, `<E>/<S>/---.<h>`, `<E>/<S>/<I>/----.<h>`, `<E>/<S>/<I>/priv.<h>`, `<E>/<S>/series.sbnd`.
-fn member(path: &str, study: &str) -> Result<Member> {
+/// `--.<h>`, `<S>/---.<h>`, `<S>/<I>/----.<h>`, `<S>/<I>/priv.<h>`: relative to the exam directory.
+fn group_name(path: &str, study: &str) -> Result<Named> {
     let parts: Vec<&str> = path.split('/').collect();
-    ensure!(parts[0] == study, "{path:?} is outside the study {study}");
     ensure!(
         parts[..parts.len() - 1].iter().all(|p| is_coded(p)),
         "{path:?} has a directory that is not a coded UID"
     );
-    let file = parts[parts.len() - 1];
-    if let [_, series, "series.sbnd"] = parts[..] {
-        return Ok(Member::Bundle {
-            series: series.to_owned(),
-        });
-    }
-    let (marker, hash) = file
+    let (marker, hash) = parts[parts.len() - 1]
         .split_once('.')
-        .with_context(|| format!("{path:?} is not a group or the bundle"))?;
+        .with_context(|| format!("{path:?} is not a group"))?;
     let (level, series, uid) = match (marker, &parts[..]) {
-        ("--", [e, _]) => (Level::Exam, None, *e),
-        ("---", [_, s, _]) => (Level::Series, None, *s),
-        ("----", [_, s, i, _]) => (Level::Instance, Some(*s), *i),
-        ("priv", [_, s, i, _]) => (Level::Private, Some(*s), *i),
-        _ => bail!("{path:?} is not a member of layout 1"),
+        ("--", [_]) => (Level::Exam, None, study),
+        ("---", [s, _]) => (Level::Series, None, *s),
+        ("----", [s, i, _]) => (Level::Instance, Some(*s), *i),
+        ("priv", [s, i, _]) => (Level::Private, Some(*s), *i),
+        _ => bail!("{path:?} is not a group of layout 2"),
     };
-    Ok(Member::Group {
+    Ok(Named {
         level,
         series: series.map(str::to_owned),
         uid: uid.to_owned(),
@@ -220,88 +223,131 @@ fn member(path: &str, study: &str) -> Result<Member> {
     })
 }
 
-/// Steps 4–6: every member checked against its name and written to `work`, each file synced.
+fn path_of(entry: &tar::Entry<impl Read>) -> Result<String> {
+    let path = String::from_utf8(entry.path_bytes().into_owned())
+        .context("a member's name is not UTF-8")?;
+    ensure!(
+        entry.header().entry_type() == EntryType::Regular,
+        "{path:?} is not a regular file"
+    );
+    Ok(path)
+}
+
+/// Steps 4–6: the members in their order, `package`, `metadata`, `<S>/series.sbnd`; every group
+/// checked against its name; every file written to `work` and synced.
 pub fn stage(package: &Path, header: &Header, work: &Path) -> Result<Staged> {
     let mut archive = Archive::new(File::open(package).context("open the package")?);
     let mut entries = archive.entries()?;
     entries.next().context("an empty package")??;
-    let mut seen = HashSet::new();
+    let mut metadata = entries.next().context("no metadata member")??;
+    let path = path_of(&metadata)?;
+    ensure!(
+        path == METADATA_MEMBER,
+        "the second member is {path:?}, not {METADATA_MEMBER:?}"
+    );
     let mut staged = Staged {
-        groups: Vec::new(),
+        groups: stage_groups(&mut metadata, header, work)?,
         bundle: None,
     };
-    for entry in entries {
+    if let Some(entry) = entries.next() {
         let mut entry = entry?;
-        let path = String::from_utf8(entry.path_bytes().into_owned())
-            .context("a member's name is not UTF-8")?;
-        ensure!(
-            entry.header().entry_type() == EntryType::Regular,
-            "{path:?} is not a regular file"
-        );
-        ensure!(seen.insert(path.clone()), "{path:?} appears twice");
-        match member(&path, &header.study)? {
-            Member::Bundle { series } => {
-                ensure!(staged.bundle.is_none(), "a second bundle {path:?}");
-                let to = work.join("study").join(format!("{series}.sbnd"));
-                let hash = write_synced(&to, &mut entry)?;
-                staged.bundle = Some(Bundle {
-                    series,
-                    staged: to,
-                    hash,
-                });
-            }
-            Member::Group {
-                level,
-                series,
-                uid,
-                hash,
-            } => {
-                ensure!(
-                    entry.size() <= MAX_GROUP_LEN,
-                    "{path:?} is {} bytes",
-                    entry.size()
-                );
-                let bytes = group_bytes(&mut entry).with_context(|| path.clone())?;
-                ensure!(
-                    xxh3_64(&bytes) == hash,
-                    "{path:?} does not hash to its name ({})",
-                    hex(xxh3_64(&bytes))
-                );
-                check_uid(level, &uid, &bytes).with_context(|| path.clone())?;
-                let to = work.join("members").join(&path);
-                write_synced(&to, &mut bytes.as_slice())?;
-                staged.groups.push(Group {
-                    level,
-                    series,
-                    uid,
-                    hash,
-                    staged: to,
-                    bytes: Vec::new(),
-                });
-            }
-        }
+        let path = path_of(&entry)?;
+        let series = match path.split_once('/') {
+            Some((series, "series.sbnd")) if is_coded(series) => series.to_owned(),
+            _ => bail!("{path:?} is not <series>/series.sbnd"),
+        };
+        let to = work.join("study").join(format!("{series}.sbnd"));
+        let hash = write_synced(&to, &mut entry)?;
+        staged.bundle = Some(Bundle {
+            series,
+            staged: to,
+            hash,
+        });
+    }
+    if let Some(entry) = entries.next() {
+        bail!("a member after the bundle: {:?}", path_of(&entry?)?);
     }
     check_set(header, &staged)?;
     Ok(staged)
 }
 
-/// A zstd frame, told by its magic number, is the group compressed; anything else is the group.
-fn group_bytes(entry: &mut impl Read) -> Result<Vec<u8>> {
-    let mut raw = Vec::new();
-    entry.read_to_end(&mut raw)?;
-    if !raw.starts_with(&ZSTD_MAGIC) {
-        return Ok(raw);
+/// The metadata member: an inner tar of the groups, as it is or as one zstd frame.
+fn stage_groups(member: &mut impl Read, header: &Header, work: &Path) -> Result<Vec<Group>> {
+    let mut magic = [0u8; 4];
+    member
+        .read_exact(&mut magic)
+        .context("the metadata member is cut short")?;
+    let whole = Cursor::new(magic).chain(member);
+    let inner: Box<dyn Read + '_> = if magic == ZSTD_MAGIC {
+        Box::new(zstd::stream::read::Decoder::new(whole)?)
+    } else {
+        Box::new(whole)
+    };
+    let mut archive = Archive::new(Bounded {
+        inner,
+        left: MAX_METADATA_LEN,
+    });
+    let mut seen = HashSet::new();
+    let mut groups = Vec::new();
+    for entry in archive.entries()? {
+        let mut entry = entry.context("the metadata")?;
+        let path = path_of(&entry)?;
+        ensure!(seen.insert(path.clone()), "{path:?} appears twice");
+        let Named {
+            level,
+            series,
+            uid,
+            hash,
+        } = group_name(&path, &header.study)?;
+        ensure!(
+            entry.size() <= MAX_GROUP_LEN,
+            "{path:?} is {} bytes",
+            entry.size()
+        );
+        let mut bytes = Vec::new();
+        entry
+            .read_to_end(&mut bytes)
+            .with_context(|| path.clone())?;
+        ensure!(
+            !bytes.starts_with(&ZSTD_MAGIC),
+            "{path:?} is compressed on its own"
+        );
+        ensure!(
+            xxh3_64(&bytes) == hash,
+            "{path:?} does not hash to its name ({})",
+            hex(xxh3_64(&bytes))
+        );
+        check_uid(level, &uid, &bytes).with_context(|| path.clone())?;
+        let to = work.join("members").join(&path);
+        write_synced(&to, &mut bytes.as_slice())?;
+        groups.push(Group {
+            level,
+            series,
+            uid,
+            hash,
+            staged: to,
+            bytes: Vec::new(),
+        });
     }
-    let mut bytes = Vec::new();
-    zstd::stream::read::Decoder::new(raw.as_slice())?
-        .take(MAX_GROUP_LEN + 1)
-        .read_to_end(&mut bytes)
-        .context("a zstd frame that does not decompress")?;
-    ensure!(
-        bytes.len() as u64 <= MAX_GROUP_LEN,
-        "decompresses past {MAX_GROUP_LEN} bytes"
-    );
-    Ok(bytes)
+    Ok(groups)
+}
+
+/// Fails the read that passes `left` bytes, so a zstd bomb is refused, not decompressed whole.
+struct Bounded<R> {
+    inner: R,
+    left: u64,
+}
+
+impl<R: Read> Read for Bounded<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.left = self.left.checked_sub(n as u64).ok_or_else(|| {
+            io::Error::other(format!(
+                "the metadata decompresses past {MAX_METADATA_LEN} bytes"
+            ))
+        })?;
+        Ok(n)
+    }
 }
 
 /// The UID a group names in its path is the one it holds; a private group may hold none.
@@ -331,6 +377,7 @@ fn check_set(header: &Header, staged: &Staged) -> Result<()> {
         .map(|g| g.uid.as_str())
         .collect();
     let whole_study = header.kind == Kind::Update && header.unit == header.study;
+    let carries_bundle = header.kind != Kind::Update;
     for g in &staged.groups {
         let series = match g.level {
             Level::Exam => None,
@@ -347,12 +394,12 @@ fn check_set(header: &Header, staged: &Staged) -> Result<()> {
                 header.unit
             ),
             None => ensure!(
-                header.kind == Kind::Series,
+                carries_bundle,
                 "an exam group in an update of series {}",
                 header.unit
             ),
         }
-        if g.level == Level::Private && header.kind == Kind::Series {
+        if g.level == Level::Private && carries_bundle {
             ensure!(
                 instances.contains(g.uid.as_str()),
                 "private group {} has no instance group",
@@ -360,20 +407,21 @@ fn check_set(header: &Header, staged: &Staged) -> Result<()> {
             );
         }
     }
+    let kind = header.kind.name();
     match header.kind {
-        Kind::Series => {
+        Kind::Series | Kind::Addition => {
             ensure!(
                 count(Level::Exam) == 1 && count(Level::Series) == 1,
-                "a series package without one exam and one series group"
+                "{kind} package without one exam and one series group"
             );
             ensure!(
                 !instances.is_empty(),
-                "a series package without instance groups"
+                "{kind} package without instance groups"
             );
             let bundle = staged
                 .bundle
                 .as_ref()
-                .context("a series package without its bundle")?;
+                .with_context(|| format!("{kind} package without its bundle"))?;
             ensure!(
                 bundle.series == header.unit,
                 "the bundle is series {}, the unit {}",

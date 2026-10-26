@@ -41,7 +41,8 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | name | is |
 | --- | --- |
 | PCS | the hospital-side component, another team's: it receives DICOM, parses, encodes and sends packages to the PACS |
-| package | one file the PCS sends: a series, or an update, as a pax tar named `<unit>.<revision>.<xxh3-64>.tar` ([`adr/pacs-receiver.md`](adr/pacs-receiver.md) §2) |
+| package | one file the PCS sends: a series, an addition or an update, as a pax tar named `<unit>.<revision>.<xxh3-64>.tar` ([`adr/pacs-receiver.md`](adr/pacs-receiver.md) §2) |
+| addition | a package of a stored series' late instances, merged at the PACS into the series' one bundle ([`adr/pacs-receiver.md`](adr/pacs-receiver.md) §5) |
 | group file | the parser's file of one level's attributes: exam, series, instance or private ([`ingest/contract.md`](ingest/contract.md#group-files)); never the decoder's group above |
 | revision | the n of a package's (unit, revision): a unit's packages are applied in order, each the next; never *generation*, which is a request's |
 | study DB | one SQLite file per study at the PACS, a table per level holding its group files, and an audit table; never served to a client |

@@ -21,7 +21,7 @@ fn refused(outcome: &Outcome, says: &str) {
 
 fn exam_update(revision: u32, patient: &str) -> Package {
     let mut p = Package::new("update", &c(STUDY), revision);
-    p.group(format!("{}/--", c(STUDY)), exam_group(patient));
+    p.group("--".into(), exam_group(patient));
     p
 }
 
@@ -125,8 +125,8 @@ fn a_name_outside_the_grammar_is_refused() {
 fn a_header_the_name_or_layout_disagrees_with_is_refused() {
     let site = Site::new("header");
     let mut other_layout = first();
-    other_layout.header = other_layout.header.replace("layout 1", "layout 2");
-    refused(&site.receive(&other_layout), "layout \"2\"");
+    other_layout.header = other_layout.header.replace("layout 2", "layout 1");
+    refused(&site.receive(&other_layout), "layout \"1\"");
     let mut other_revision = first();
     other_revision.header = other_revision.header.replace("revision 1", "revision 2");
     refused(&site.receive(&other_revision), "the header names");
@@ -155,22 +155,26 @@ fn a_header_the_name_or_layout_disagrees_with_is_refused() {
     refused(&site.receiver().receive(&name).unwrap(), "first member");
 }
 
-/// Members outside layout 1 are refused before anything is placed: a parent directory, an absolute
-/// path, another study, an unknown file, a link, a member twice.
+/// Groups outside layout 2 are refused before anything is placed: a parent directory, an absolute
+/// path, a layout-1 path under the study, an unknown file, the bundle among the groups, a group twice.
 #[test]
-fn a_member_outside_the_layout_is_refused() {
+fn a_group_outside_the_layout_is_refused() {
     let site = Site::new("members");
     let (e, s) = (c(STUDY), c(SERIES));
     for (path, says) in [
-        ("../x".to_owned(), "outside the study"),
-        (format!("/{e}/--.0000000000000000"), "outside the study"),
-        (format!("{e}/../{e}/--.0000000000000000"), "not a coded UID"),
+        ("../x".to_owned(), "not a coded UID"),
+        ("/--.0000000000000000".to_owned(), "not a coded UID"),
         (
-            format!("{}/--.0000000000000000", c("1.2.9")),
-            "outside the study",
+            format!("{s}/../{s}/---.0000000000000000"),
+            "not a coded UID",
         ),
-        (format!("{e}/{s}/run.sh"), "not a member of layout 1"),
-        (format!("{e}/{s}/run"), "not a group or the bundle"),
+        (
+            format!("{e}/--.0000000000000000"),
+            "not a group of layout 2",
+        ),
+        (format!("{s}/run.sh"), "not a group of layout 2"),
+        (format!("{s}/series.sbnd.x"), "not a group of layout 2"),
+        (format!("{s}/run"), "is not a group"),
     ] {
         let mut p = first();
         p.members.insert(1, (path.clone(), b"x".to_vec()));
@@ -179,17 +183,48 @@ fn a_member_outside_the_layout_is_refused() {
     let mut twice = first();
     twice.members.insert(1, twice.members[0].clone());
     refused(&site.receive(&twice), "appears twice");
+    assert!(Site::files(&site.root).is_empty());
+}
 
-    let mut link = first();
-    let mut members = vec![("package".to_owned(), link.header.clone().into_bytes())];
-    members.append(&mut link.members);
-    let mut bytes = tar_of(&members);
+/// The outer members are `package`, `metadata` and `<S>/series.sbnd`, in that order, and nothing
+/// else: a missing metadata, another second member, a layout-1 bundle path, a member after the
+/// bundle and a link are each refused.
+#[test]
+fn an_outer_member_out_of_its_place_is_refused() {
+    let site = Site::new("outer");
+    let p = first();
+    let header = ("package".to_owned(), p.header.clone().into_bytes());
+    let metadata = ("metadata".to_owned(), p.metadata());
+    let bundle = p.members.last().unwrap().clone();
+    let group = p.members[0].clone();
+    let layout_1 = (format!("{}/{}", c(STUDY), bundle.0), bundle.1.clone());
+    for (members, says) in [
+        (vec![header.clone()], "no metadata member"),
+        (vec![header.clone(), bundle.clone()], "not \"metadata\""),
+        (
+            vec![header.clone(), metadata.clone(), layout_1],
+            "is not <series>/series.sbnd",
+        ),
+        (
+            vec![header.clone(), metadata.clone(), group.clone()],
+            "is not <series>/series.sbnd",
+        ),
+        (
+            vec![header.clone(), metadata.clone(), bundle.clone(), group],
+            "a member after the bundle",
+        ),
+    ] {
+        let bytes = tar_of(&members);
+        let name = site.arrive_bytes(&p.name_of(&bytes), &bytes);
+        refused(&site.receiver().receive(&name).unwrap(), says);
+    }
+    let mut bytes = p.tar();
     bytes[1024 + 156] = b'2';
-    let mut header = tar::Header::new_old();
-    header.as_mut_bytes().copy_from_slice(&bytes[1024..1536]);
-    header.set_cksum();
-    bytes[1024..1536].copy_from_slice(header.as_bytes());
-    let name = site.arrive_bytes(&link.name_of(&bytes), &bytes);
+    let mut link = tar::Header::new_old();
+    link.as_mut_bytes().copy_from_slice(&bytes[1024..1536]);
+    link.set_cksum();
+    bytes[1024..1536].copy_from_slice(link.as_bytes());
+    let name = site.arrive_bytes(&p.name_of(&bytes), &bytes);
     refused(
         &site.receiver().receive(&name).unwrap(),
         "not a regular file",
@@ -206,21 +241,28 @@ fn a_group_not_hashing_to_its_name_is_refused() {
     refused(&site.receive(&p), "does not hash to its name");
 }
 
-/// A group sent as a zstd frame is stored as the group: the same rows as the plain package. The
+/// The metadata sent as one zstd frame is stored as the plain metadata is: the same rows. The
 /// switch is the sender's alone.
 #[test]
-fn a_zstd_compressed_group_is_stored_as_the_group() {
+fn zstd_compressed_metadata_is_stored_as_the_plain_metadata() {
     let plain = Site::new("plain");
     assert_eq!(plain.receive(&first()), Outcome::Stored);
     let zstd = Site::new("zstd");
     let mut p = first();
-    for (path, bytes) in p.members.iter_mut() {
-        if !path.ends_with(".sbnd") {
-            *bytes = zstd::encode_all(bytes.as_slice(), 1).unwrap();
-        }
-    }
+    p.zstd = true;
+    assert!(p.metadata().starts_with(&[0x28, 0xB5, 0x2F, 0xFD]));
     assert_eq!(zstd.receive(&p), Outcome::Stored);
     assert_eq!(zstd.rows(), plain.rows());
+}
+
+/// A group inside the metadata compressed on its own is refused, even hashing to its name.
+#[test]
+fn a_group_compressed_on_its_own_is_refused() {
+    let site = Site::new("group-zstd");
+    let mut p = first();
+    let squeezed = zstd::encode_all(exam_group("DOE^JANE").as_slice(), 1).unwrap();
+    p.members[0] = (format!("--.{:016x}", xxh3_64(&squeezed)), squeezed);
+    refused(&site.receive(&p), "compressed on its own");
 }
 
 /// A group member past the group limit is refused before it is read into memory.
@@ -235,13 +277,15 @@ fn a_group_past_the_limit_is_refused_unread() {
     );
 }
 
-/// A zstd frame that decompresses past the group limit is refused, not decompressed whole.
+/// Metadata that decompresses past its bound is refused, not decompressed whole, though each group
+/// in it is under the group limit.
 #[test]
 fn a_zstd_bomb_is_refused() {
     let site = Site::new("bomb");
-    let mut p = first();
-    let huge = vec![0u8; crate::package::MAX_GROUP_LEN as usize + 1];
-    p.members[0].1 = zstd::encode_all(huge.as_slice(), 1).unwrap();
+    let patient = "J".repeat(crate::package::MAX_METADATA_LEN as usize + 1);
+    let mut p = Package::series(SERIES, 1, &patient, &[(I1, 1)], 10);
+    p.zstd = true;
+    assert!(p.tar().len() < 1 << 20, "the test needs a small package");
     refused(&site.receive(&p), "decompresses past");
 }
 
@@ -266,12 +310,9 @@ fn a_package_missing_what_its_kind_needs_is_refused() {
     no_bundle.members.pop();
     refused(&site.receive(&no_bundle), "without its bundle");
     let mut two_bundles = first();
-    let second = (
-        format!("{}/{}/series.sbnd", c(STUDY), c(SERIES_B)),
-        bundle(3, 10),
-    );
+    let second = (format!("{}/series.sbnd", c(SERIES_B)), bundle(3, 10));
     two_bundles.members.push(second.clone());
-    refused(&site.receive(&two_bundles), "a second bundle");
+    refused(&site.receive(&two_bundles), "a member after the bundle");
     let mut other_bundle = first();
     *other_bundle.members.last_mut().unwrap() = second;
     refused(&site.receive(&other_bundle), "the bundle is series");
@@ -283,7 +324,7 @@ fn a_package_missing_what_its_kind_needs_is_refused() {
     );
     let mut orphan = first();
     orphan.group(
-        format!("{}/{}/{}/priv", c(STUDY), c(SERIES), c(I3)),
+        format!("{}/{}/priv", c(SERIES), c(I3)),
         record(0x0009_0010, b"LO", b"x"),
     );
     refused(&site.receive(&orphan), "has no instance group");
@@ -303,7 +344,7 @@ fn a_package_missing_what_its_kind_needs_is_refused() {
         "an update with no group",
     );
     let mut exam_in_series = Package::new("update", &c(SERIES), 2);
-    exam_in_series.group(format!("{}/--", c(STUDY)), exam_group("X"));
+    exam_in_series.group("--".into(), exam_group("X"));
     refused(
         &site.receive(&exam_in_series),
         "an exam group in an update of series",
@@ -573,13 +614,13 @@ fn an_update_to_nothing_stored_is_refused() {
     let rows = site.rows();
     let mut p = Package::new("update", &c(SERIES), 2);
     p.group(
-        format!("{}/{}/{}/----", c(STUDY), c(SERIES), c(I3)),
+        format!("{}/{}/----", c(SERIES), c(I3)),
         instance_group(I3, 1),
     );
     refused(&site.receive(&p), "no current instance");
     let mut moved = Package::new("update", &c(SERIES_B), 1);
     moved.group(
-        format!("{}/{}/{}/----", c(STUDY), c(SERIES_B), c(I1)),
+        format!("{}/{}/----", c(SERIES_B), c(I1)),
         instance_group(I1, 2),
     );
     refused(&site.receive(&moved), "belongs to series");
@@ -592,10 +633,7 @@ fn a_private_group_is_stored_with_its_instance() {
     let site = Site::new("private");
     let mut p = first();
     let private = record(0x0009_0010, b"LO", b"vendor");
-    p.group(
-        format!("{}/{}/{}/priv", c(STUDY), c(SERIES), c(I1)),
-        private.clone(),
-    );
+    p.group(format!("{}/{}/priv", c(SERIES), c(I1)), private.clone());
     assert_eq!(site.receive(&p), Outcome::Stored);
     let row = study_db::current(&site.db(), Level::Private, &c(I1))
         .unwrap()

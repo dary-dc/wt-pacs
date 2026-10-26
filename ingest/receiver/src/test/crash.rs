@@ -81,7 +81,7 @@ fn scenarios() -> Vec<(&'static str, Vec<Package>, Package)> {
         10,
     );
     let mut update = Package::new("update", &c(STUDY), 1);
-    update.group(format!("{}/--", c(STUDY)), exam_group("ROE^JOHN"));
+    update.group("--".into(), exam_group("ROE^JOHN"));
     vec![
         ("a new study", vec![], first.clone()),
         (
@@ -90,6 +90,17 @@ fn scenarios() -> Vec<(&'static str, Vec<Package>, Package)> {
             Package::series(SERIES, 2, "DOE^JANE", &[("1.2.826.0.1.7.1.3", 2)], 40),
         ),
         ("an update", vec![first], update),
+        (
+            "an addition in the middle",
+            vec![Package::series(
+                SERIES,
+                1,
+                "DOE^JANE",
+                &[("1.2.826.0.1.7.1.1", 2), ("1.2.826.0.1.7.1.3", 1)],
+                10,
+            )],
+            Package::addition(SERIES, 2, &[("1.2.826.0.1.7.1.2", 2)], 50),
+        ),
     ]
 }
 

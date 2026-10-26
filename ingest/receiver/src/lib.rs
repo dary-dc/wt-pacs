@@ -2,6 +2,7 @@
 
 mod disk;
 mod group;
+mod merge;
 mod package;
 mod study_db;
 
@@ -251,7 +252,8 @@ impl Receiver {
         let existing = study_dir.exists();
         ensure!(
             existing || header.kind == Kind::Series,
-            "an update to study {}, which is not stored",
+            "{} to study {}, which is not stored",
+            header.kind.name(),
             header.study
         );
         let seen = if existing {
@@ -267,6 +269,7 @@ impl Receiver {
             groups: Vec::new(),
             bundle: None,
         };
+        let recorded = matches!(seen, Seen::Stored { .. });
         match seen {
             Seen::Stored { hash, .. } if hash != named.hash => {
                 return Err(Conflict(format!(
@@ -280,6 +283,9 @@ impl Receiver {
             }
             Seen::Stored { latest: false, .. } => return Ok(stored),
             Seen::Stored { latest: true, .. } => {}
+            Seen::New { last: 0 } if header.kind == Kind::Addition => {
+                bail!("an addition to series {}, which is not stored", header.unit)
+            }
             Seen::New { last } if header.revision == last + 1 => {}
             Seen::New { last } => bail!(
                 "revision {} of {}, after stored revision {last}",
@@ -302,8 +308,28 @@ impl Receiver {
                 group.uid
             );
         }
-        if let Some(bundle) = &staged.bundle {
-            check_bundle(bundle, &staged.groups)?;
+        if let Some(bundle) = &mut staged.bundle {
+            read_back(bundle)?;
+            let mut instances: Vec<&[u8]> = staged
+                .groups
+                .iter()
+                .filter(|g| g.level == Level::Instance)
+                .map(|g| g.bytes.as_slice())
+                .collect();
+            check_frames(&bundle.staged, &instances)?;
+            if header.kind == Kind::Addition {
+                let db = study_db::open(&db_path)?;
+                study_db::check_addition(&db, &staged.groups, recorded)?;
+                let stored = study_db::in_series(&db, Level::Instance, &header.unit)?;
+                let kept: Vec<&study_db::Row> = stored
+                    .iter()
+                    .filter(|r| !staged.groups.iter().any(|g| g.uid == r.uid))
+                    .collect();
+                *bundle = merge_addition(&study_dir, bundle, &kept, &staged.groups, work)?;
+                read_back(bundle)?;
+                instances.extend(kept.iter().map(|r| r.bytes.as_slice()));
+                check_frames(&bundle.staged, &instances)?;
+            }
         }
         at(Step::ReadBack);
 
@@ -392,9 +418,35 @@ impl Receiver {
     }
 }
 
-/// Step 6b for a bundle: what is on disk is what was extracted, it opens as a v1 bundle, and its
-/// frames are the instance groups'. v1 carries no coded-frame hash: docs/adr/pacs-receiver.md §3.
-fn check_bundle(bundle: &Bundle, groups: &[Group]) -> Result<()> {
+/// Step 6b for an addition: a new bundle in `work`, the served one's frames and the addition's.
+fn merge_addition(
+    study_dir: &Path,
+    addition: &Bundle,
+    kept: &[&study_db::Row],
+    groups: &[Group],
+    work: &Path,
+) -> Result<Bundle> {
+    let added: Vec<merge::Instance> = groups
+        .iter()
+        .filter(|g| g.level == Level::Instance)
+        .map(|g| (g.uid.as_str(), g.bytes.as_slice()))
+        .collect();
+    let kept: Vec<merge::Instance> = kept
+        .iter()
+        .map(|r| (r.uid.as_str(), r.bytes.as_slice()))
+        .collect();
+    let served = study_dir.join(format!("{}.sbnd", addition.series));
+    let to = work.join("merged.sbnd");
+    merge::merge(&served, &kept, &addition.staged, &added, &to).context("the merge")?;
+    Ok(Bundle {
+        series: addition.series.clone(),
+        hash: disk::hash_file(&to, false)?,
+        staged: to,
+    })
+}
+
+/// Step 6b for a bundle: what is on disk is what was written.
+fn read_back(bundle: &Bundle) -> Result<()> {
     let hash = disk::hash_file(&bundle.staged, true)?;
     ensure!(
         hash == bundle.hash,
@@ -402,7 +454,13 @@ fn check_bundle(bundle: &Bundle, groups: &[Group]) -> Result<()> {
         package::hex(hash),
         package::hex(bundle.hash)
     );
-    let layout = series_bundle::read_layout(&File::open(&bundle.staged)?).context("the bundle")?;
+    Ok(())
+}
+
+/// It opens as a v1 bundle, and its frames are the instance groups'. v1 carries no coded-frame
+/// hash: docs/adr/pacs-receiver.md §3.
+fn check_frames(bundle: &Path, instances: &[&[u8]]) -> Result<()> {
+    let layout = series_bundle::read_layout(&File::open(bundle)?).context("the bundle")?;
     let metadata: serde_json::Value =
         serde_json::from_str(&layout.metadata).context("the bundle's metadata")?;
     let declared = metadata["frameCount"]
@@ -416,8 +474,8 @@ fn check_bundle(bundle: &Bundle, groups: &[Group]) -> Result<()> {
     let codec = metadata["codec"].as_str().unwrap_or("htj2k");
     ensure!(matches!(codec, "htj2k" | "av1"), "codec {codec:?}");
     let mut frames = 0u64;
-    for g in groups.iter().filter(|g| g.level == Level::Instance) {
-        frames += u64::from(group::number_of_frames(&g.bytes)?);
+    for bytes in instances {
+        frames += u64::from(group::number_of_frames(bytes)?);
     }
     ensure!(
         frames == declared,

@@ -193,10 +193,7 @@ pub fn record(
             change.removed.push((old.level, uid.clone()));
         }
     }
-    let kind = match header.kind {
-        Kind::Series => "series",
-        Kind::Update => "update",
-    };
+    let kind = header.kind.name();
     tx.execute(
         "INSERT INTO audit (at, package, kind, unit, revision, xxh3, changes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![unix_now(), package, kind, header.unit, header.revision, hex(hash), lines.join("\n")],
@@ -205,6 +202,28 @@ pub fn record(
     change.prior = prior.into_values().collect();
     change.written = written;
     Ok(change)
+}
+
+/// Step 6b for an addition: the exam and series groups are the stored ones, and its instances
+/// are new to the study, unless this package is the one that recorded them.
+pub fn check_addition(db: &Connection, groups: &[Group], recorded: bool) -> Result<()> {
+    for g in groups {
+        let stored = current(db, g.level, &g.uid)?;
+        match g.level {
+            Level::Exam | Level::Series => ensure!(
+                stored.is_some_and(|r| r.hash == g.hash),
+                "the addition's {} group is not the stored one",
+                g.level.table()
+            ),
+            Level::Instance | Level::Private => ensure!(
+                recorded || stored.is_none(),
+                "{} {} is already stored",
+                g.level.table(),
+                g.uid
+            ),
+        }
+    }
+    Ok(())
 }
 
 /// Step 8: the file's cached pages dropped, a new connection, every row the change wrote re-hashed.
@@ -301,8 +320,8 @@ pub fn current(db: &Connection, level: Level, uid: &str) -> Result<Option<Row>> 
     .transpose()
 }
 
-fn in_series(tx: &Transaction, level: Level, series: &str) -> Result<Vec<Row>> {
-    let mut uids = tx.prepare(&format!(
+pub fn in_series(db: &Connection, level: Level, series: &str) -> Result<Vec<Row>> {
+    let mut uids = db.prepare(&format!(
         "SELECT uid FROM {} WHERE series = ?1",
         level.table()
     ))?;
@@ -310,7 +329,7 @@ fn in_series(tx: &Transaction, level: Level, series: &str) -> Result<Vec<Row>> {
         .query_map([series], |r| r.get(0))?
         .collect::<rusqlite::Result<_>>()?;
     uids.iter()
-        .map(|uid| current(tx, level, uid)?.context("a row vanished inside its transaction"))
+        .map(|uid| current(db, level, uid)?.context("a row vanished while it was read"))
         .collect()
 }
 

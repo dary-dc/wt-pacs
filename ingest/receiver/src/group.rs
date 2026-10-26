@@ -6,6 +6,7 @@ pub const STUDY_UID: u32 = 0x0020_000D;
 pub const SERIES_UID: u32 = 0x0020_000E;
 pub const SOP_INSTANCE_UID: u32 = 0x0008_0018;
 const NUMBER_OF_FRAMES: u32 = 0x0028_0008;
+const INSTANCE_NUMBER: u32 = 0x0020_0013;
 
 /// Bytes of a top-level key: tag (4), VR (2), charset index (2); each sequence level adds 8.
 const TOP_LEVEL_KEY: usize = 8;
@@ -40,13 +41,24 @@ pub fn number_of_frames(instance_group: &[u8]) -> Result<u32> {
     let Some(raw) = value(instance_group, NUMBER_OF_FRAMES)? else {
         return Ok(1);
     };
+    Ok(integer_string::<u32>(raw, "Number of Frames")?.max(1))
+}
+
+pub fn instance_number(instance_group: &[u8]) -> Result<Option<i64>> {
+    value(instance_group, INSTANCE_NUMBER)?
+        .map(|raw| integer_string(raw, "Instance Number"))
+        .transpose()
+}
+
+/// An IS value, its padding not part of the number.
+fn integer_string<T: std::str::FromStr>(raw: &[u8], name: &str) -> Result<T>
+where
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
     let text = std::str::from_utf8(raw)
-        .context("Number of Frames is not text")?
+        .with_context(|| format!("{name} is not text"))?
         .trim_matches([' ', '\0']);
-    let n: u32 = text
-        .parse()
-        .with_context(|| format!("Number of Frames {text:?}"))?;
-    Ok(n.max(1))
+    text.parse().with_context(|| format!("{name} {text:?}"))
 }
 
 pub fn coded(uid: &[u8]) -> Result<String> {
