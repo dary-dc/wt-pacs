@@ -317,6 +317,9 @@ without slowing the frame reads.
   ≤ 10 ms warm and the API's ≤ 50 ms, and the frame-read p95 under list load is within the A/A spread. If MySQL misses
   and another arm meets it, that arm is recommended instead. If the frame reads slow beyond the A/A spread, the index
   moves to its own server.
+* **Amended 2026-10-26, before running** ([`../../lab/study-index/README.md`](../../lab/study-index/README.md)
+  §Pre-registration): MySQL 8.4 alone, at 10⁵ and 10⁶; arms across an emulated network hop and a tuned shape;
+  the frame-read interference not run; sync lag, recovery and a correction added.
 
 ## 12 · Sources
 
