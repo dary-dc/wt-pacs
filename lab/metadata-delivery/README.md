@@ -96,6 +96,31 @@ it is the owner's.
 link (no delay, rate or loss) is run in every round; no difference below its spread is claimed, and H2's rates are
 reported only up to the concurrency at which requests a second stop growing.
 
+### Amendment, 2026-10-26, after the results below and before A1-gz-row was built or run
+
+**The arm.** **A1-gz-row** is A1 with a **compressed ready row**: the receiver writes, in the same transaction as the
+instance rows, the whole document (paint metadata and study fields) gzipped at level 6, and the series' **revision**,
+which it increments on every write of the row. The serving process answers with the row's bytes and the revision as
+the ETag; with `If-None-Match`, it reads the revision alone first and answers 304 if it matches. Since the study fields
+are in the row, a study-field correction rewrites one row per series of the study.
+
+**The cells.** H1 and H2 as above, warm page cache, ct and ct2000, with A1-ready and B interleaved beside it, each
+measured twice: an **open** (no validator) and a **revalidation** (`If-None-Match` holding the current ETag: A1-ready
+builds and gzips the document and compares, as built; B is nginx's or, in H1, a `stat`). H2 at 1, 100 and 1 000
+viewers, 1 and 100 studies. Plus, in H1, the receiver's write of one series' row in a committed transaction, the
+compressed row against the uncompressed one, interleaved with the reads; and the row's stored size.
+
+| # | Prediction | Contradicted if |
+| --- | --- | --- |
+| G1 | In process, connection opened per read: A1-gz-row ≤ 0.3 ms CPU an open at 262 instances and ≤ 0.4 ms at 2 000 (the open, 0.09 ms, and one row of 2.2 or 12.8 KB); its revalidation ≤ 0.2 ms at either (the open and the revision); A1-ready's revalidation within 10 % of its open (0.8 and 4.0 ms) | outside |
+| G2 | The receiver's write of the compressed row costs the uncompressed row's write plus the gzip: + 0.2–0.5 ms at 262 instances, + 2.5–4.5 ms at 2 000 | outside |
+| G3 | The row's gzip bytes are B's file byte for byte: 2 220 and 12 838 B | otherwise |
+| G4 | Serving process + nginx at 1 viewer: A1-gz-row ≤ 1.0 ms CPU an open and ≤ 1.0 ms a revalidation at both sizes (G1 plus the 0.3–0.9 ms the serving process added to A1-ready); B's revalidation ≤ 0.2 ms; A1-ready's revalidation within 0.5 ms of its open | otherwise |
+| G5 | By the host rule above, A1-gz-row's open costs ≤ 2 ms of CPU at 2 000 instances, in process and served at 1 viewer | otherwise |
+
+**Where the host saturates**, for these cells: requests a second at 1, 100 and 1 000 viewers are recorded, and the
+cell where they stop growing is named; h2load shares the 4 vCPU, so CPU per open is quoted only below it.
+
 ## Run
 
 As root, with nginx, `h2load` (nghttp2-client), `certutil` (libnss3-tools), `ip` (iproute2), Playwright's Chromium,
