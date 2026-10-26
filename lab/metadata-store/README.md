@@ -757,3 +757,59 @@ dc06e4f82bc2eb4ba34b25b431b74b50ae61180f2a7d4c45ba5e78cb1540517b  pt.masked.tar
 008c9da742e0bcd6588d91cea519eb3354ee805f83a0c8e06b9ad46bbbcd371e  us.masked.tar
 c5604f1c4384b340216b7369b98940a3db91e0261060ce5a84f1d541d3a29f97  us.tar
 ```
+
+## Compression of the converted-enhanced layout: zstd on a series' metadata as one stream
+
+[`src/study_db/ratio.rs`](src/study_db/ratio.rs) asks what zstd makes of a series' metadata as one stream once the
+series is one Legacy Converted Enhanced instance, which takes out at the source the repetition (§Repetition, 70–83 %
+of the instance group) that one stream was compressing. Decided before it (10-25/26): frames are never compressed
+again; only the metadata is, as one stream, on links where it gains (`docs/ingest/pacs-receive-design.md` §2). It
+reports, and decides nothing.
+
+```bash
+cargo test -p metadata-store --features study-db --release
+cargo run -p metadata-store --features study-db --release -- --mode ce-ratio --packages PKG --rounds 50 > ce-ratio.jsonl
+```
+
+**The packages** are §The study DB's, rebuilt by `package.py` (SHA-256 below that section; pt as written differs, as
+it does from parse to parse). **The layouts**, each one stream of `[u32 LE length][bytes]` parts: **groups**, the
+exam group, the series group, then each instance's group and private group as received; **converted enhanced**, the
+exam group, the series group and §The study DB's converted instance (`shared::converted`, checked equal to the Python
+reference on every package) as one group. The two inputs give the three arms asked: (a) groups, (b) converted
+enhanced as written, (c) converted enhanced masked; groups masked is reported too. mg and us have no Legacy Converted
+class: groups only. The conversion keeps group 0002 and the re-encoded attributes of the first instance only, so (b)
+and (c) carry less than (a) (§The study DB). Tar headers and paths are not in the stream; the package tar's size is
+reported beside it.
+
+**What is measured**, per series, input, layout and zstd level 1, 3 and 19 (zstd crate 0.13, libzstd as linked,
+`bulk` API, one thread): the stream's bytes raw and compressed, their ratio; median thread CPU ms to compress and to
+decompress over 50 rounds, the six arms (two layouts × three levels) interleaved in each round, the order rotated;
+two runs. Every round's output must equal the first compression and give the stream back. **The package** is the
+metadata plus the series' frames coded HTJ2K-lossless as §Repetition measured them (41 184 983 B ct, 7 707 320 pt,
+25 959 791 mr, 3 480 592 mg, 78 499 765 us); the metadata's share of it raw and compressed. **Send time**, arithmetic:
+bytes × 8 ÷ the uplink of #156's link classes, fiber 100, 4G/5G 19, rural ADSL 1 Mbit/s — the saving of compressing
+a layout's stream, and of sending it compressed instead of today's groups raw. A package of megabytes is bound by its
+uplink; round trips, slow start and 4G/5G's loss are left out, so these are lower bounds on the time and not
+measured on a link.
+
+**No dictionary.** A dictionary trained per modality needs other series of that modality to train on; there is one
+series per modality here, and one trained on the stream it compresses measures nothing. Not measured.
+
+*Known before the pre-registration:* §The study DB's row bytes, which are near these streams raw (rows: 618, 617,
+881 KB; converted 109, 128, 116 KB masked, 109, 258, 377 as written, for ct, pt, mr) and its blob of the groups at
+level 3 (20, 20, 15 KB masked); the code above, its three tests (each mutated: the private group dropped, the exam
+group dropped, the converted instance cut, bytes taken for bits, ADSL's downlink for its uplink; each failed a test);
+the packages' hashes. No stream was compressed or timed.
+
+*Pre-registered, 2026-10-26, before any run.*
+
+| Prediction | Contradicted if |
+| --- | --- |
+| (c) at level 3 compresses 5–15×, ct, pt, mr | outside |
+| (c) at level 3 weighs 0.3–0.8× groups masked at level 3, ct, pt, mr: the conversion removes repetition zstd mostly removed already | outside |
+| (b) at level 3 weighs 0.5–1.0× (a) at level 3, ct, pt, mr | outside |
+| level 19 is at most 15 % smaller than level 1, every arm; ≥ 20× its compress CPU | otherwise |
+| level 1 compresses (c) in ≤ 0.5 ms and (a) in ≤ 2 ms CPU; every arm decompresses in ≤ 0.5 ms | over |
+| compressed, the metadata is ≤ 0.5 % of the package, every series and layout | more |
+| compressing (c) at level 1 saves 0.4–1.5 s on rural ADSL and ≤ 10 ms on fiber, ct, pt, mr | otherwise |
+| (c) compressed against (a) compressed (level 1): ≤ 100 ms apart on rural ADSL, ≤ 1 ms on fiber | more |

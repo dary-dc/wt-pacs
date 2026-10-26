@@ -36,7 +36,7 @@ fn instance(n: u8) -> (Vec<Record>, Vec<Record>) {
 }
 
 /// A CT series of `n` instances packaged as the parser's tree, sorted by path as the package script writes it.
-fn package(n: u8) -> Vec<u8> {
+pub fn package(n: u8) -> Vec<u8> {
     let mut files = vec![
         ("D/E/--.0".to_string(), group::write(&[rec(0x0010, 0x0010, b"PN", b"DOE^J ")])),
         ("D/E/S/---.0".to_string(), group::write(&[rec(0x0008, 0x0060, b"CS", b"CT")])),
