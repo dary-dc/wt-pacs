@@ -43,3 +43,23 @@ One late frame, at the end, the middle (N/2) or the start (0). XFS with `reflink
 band 0's run and every band-1 and band-2 byte after it moves. The tail is then at least bands 1 and 2, ~93 % of S,
 wherever the frame lands: the tail rewrite saves at most band 0's prefix, ≤ 7 %. Only a gap reserved after each band's
 run would bring it back to the layout-0 numbers.
+
+## Reproduce
+
+Run as root (loop devices and mounts): xfsprogs and e2fsprogs, Rust, Python 3, `filefrag` (e2fsprogs).
+
+```bash
+W=/var/tmp/tail-rewrite                       # any directory with 13 GiB free
+lab/tail-rewrite/mounts.sh $W/fs              # XFS reflink=1 and ext4 on loop devices
+(cd lab/tail-rewrite/merge && cargo build --release)
+python3 lab/tail-rewrite/run.py $W/fs $W/out 5   # checks, breakages, every cell interleaved, the host
+python3 lab/tail-rewrite/summary.py $W/out
+```
+
+| file | what |
+| --- | --- |
+| `merge/` | `tail-merge`: packs a synthetic layout-0 series with either index place, and merges one late frame by full rewrite or by tail rewrite of a `FICLONE`d clone (`copy_file_range` of the prefix where the clone is refused); stages in `incoming/`, reads back what it wrote (`O_DIRECT` when durable), renames |
+| `mounts.sh` | the two filesystems, each a 6 GiB image on a loop device with direct I/O to its image |
+| `run.py` | the checks, the breakages, every cell in a Williams order (`lab/order.mjs`'s square), the host's rates |
+| `summary.py` | the medians |
+| `rows.jsonl`, `checks.jsonl`, `host.jsonl`, `mutate.txt` | this run's rows, 2026-10-26 |
