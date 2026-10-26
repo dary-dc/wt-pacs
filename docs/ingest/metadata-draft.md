@@ -240,6 +240,13 @@ pixels as stored, 0.02–4 % in HTJ2K; in CT, PET, MR and MG 70–83 % of the in
 every instance, so the shared values once plus each instance's differences weigh 9–28 % of a row per instance group
 (CT, PET, MR) and a zstd-3 blob per series 1.5–3.8 %; an ultrasound series of two SOP classes shares a quarter.
 The parser's own output at `a65abe2`, 1.15–1.95× these bytes: [`../../lab/metadata-store`](../../lab/metadata-store).
+Inside the study DB, on the parser's packages of the same series ([`../../lab/metadata-store`](../../lab/metadata-store)
+§The study DB, 2026-10-26): shared + per-frame (the series as a simulated converted-enhanced instance, a shared row
+and a row per frame) weighs 0.18–0.19× a row per group's file and reads a series' paint values in 0.29–0.41× its time
+once the nested keys are masked, but only 0.52× and 0.78–0.84× for mr as written, whose private keys differ per
+instance. By the pre-registered rule (a recommendation; adopting it is the owner's, still open): a row per group while the parser's keys hold address bytes, shared + per-frame
+once they are deterministic. A correction of a shared attribute in one instance splits it into every frame (263 rows,
+≤ 4.8 ms); in every instance it stays one shared row (≤ 0.9 ms, against 262 rows and ≤ 9.5 ms).
 
 **Integrity under C and D.** The parser's BLAKE3 covers a whole group. C and D keep it checkable: the group's bytes are
 its records in key order, so the PACS writes them back to back and hashes them on arrival — the same bytes, the same

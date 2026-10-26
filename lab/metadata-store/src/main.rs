@@ -5,6 +5,8 @@ mod pair;
 mod pair_run;
 mod revision;
 mod stores;
+#[cfg(feature = "study-db")]
+mod study_db;
 #[cfg(test)]
 mod tests;
 mod update_cost;
@@ -21,6 +23,8 @@ struct Args {
     rounds: usize,
     mode: String,
     updates: usize,
+    packages: PathBuf,
+    builds: usize,
 }
 
 fn args() -> Result<Args> {
@@ -30,6 +34,8 @@ fn args() -> Result<Args> {
         rounds: 200,
         mode: "stores".into(),
         updates: 60,
+        packages: PathBuf::new(),
+        builds: 30,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -42,7 +48,12 @@ fn args() -> Result<Args> {
             "--rounds" => a.rounds = value.parse()?,
             "--updates" => a.updates = value.parse()?,
             "--mode" => a.mode = value,
-            _ => anyhow::bail!("unknown flag {flag}: --dir, --instances, --rounds, --mode pair|pair-followup|update-cost, --updates"),
+            "--packages" => a.packages = value.into(),
+            "--builds" => a.builds = value.parse()?,
+            _ => anyhow::bail!(
+                "unknown flag {flag}: --dir, --instances, --rounds, --mode pair|pair-followup|update-cost|study-db, \
+                 --updates, --packages, --builds"
+            ),
         }
     }
     Ok(a)
@@ -141,6 +152,8 @@ fn main() -> Result<()> {
         "pair" => return pair_run::run(&a.dir, &series, &template, &a.instances, a.rounds, a.updates),
         "pair-followup" => return pair_run::followup(&a.dir, &series, &template, &a.instances, a.updates),
         "update-cost" => return update_cost::run(&a.dir, &series, &template, &a.instances, a.updates),
+        #[cfg(feature = "study-db")]
+        "study-db" => return study_db::run::run(&a.packages, &a.dir, a.rounds, a.builds, a.updates),
         _ => {}
     }
     for &n in &a.instances {
