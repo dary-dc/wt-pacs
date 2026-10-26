@@ -24,6 +24,7 @@ $B blocking --arm idle,turso,rusqlite,rusqlite-selfwake --cache-pages 64 --round
 (cd lab/sqlite-engine && cargo build --release && cp target/release/sqlite-engine{,-default} \
   && cargo build --release --no-default-features && cp target/release/sqlite-engine{,-lean})
 for m in blocking files summary; do python3 lab/sqlite-engine/fair.py $m fair-out; done
+$B lock --rounds 6 > lock.jsonl                                    # §5, a read beside an update
 ```
 
 **The study file**, the same for both engines (built by rusqlite, so the format is SQLite's): one table
@@ -437,6 +438,103 @@ names (blocking pool or worker, from the recorded thread IDs); the cache sizes r
 only on memory and open, and only with the host's huge pages off. **#147's bottom line stands**; the async, latency
 and memory rows it rested on are corrected in the draft's §3. Not measured: a cold disk, writes, more than 4 readers,
 2 workers or 1 010 files, and the default build's turso-blocking (only lean was run in the pool).
+
+## 5. A read beside an update, two processes (`lock`)
+
+The question: when the serving process reads a study database while the receiving process updates it, does the read
+wait, fail or return stale data, and does the update wait or fail? The owner's reasoning, tested rather than assumed:
+(1) a study database is never served or listed before it exists, so a read meets only updates, never the creation;
+(2) a serving read (open, gather the series' metadata, send, close) and an update (one transaction) are each short,
+so with Turso any blocking would be short. §3 found the lock and the stale read-only reader with one reader that
+counts rows; this section times them at the durations the server would see.
+
+### Source: where Turso takes and releases its lock
+
+*Turso `v0.8.3` = `607bff9`*, B as in §Source.
+
+* **Taken when the database file is opened, not when a transaction begins.** `UnixIO::open_file` opens the file and,
+  unless the open is read-only or `NoLock` or `LIMBO_DISABLE_FILE_LOCK` is set, calls `lock_file(true)`
+  ([B/core/io/unix.rs#L50-L73](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/io/unix.rs#L50-L73)); io_uring the same
+  ([B/core/io/io_uring.rs#L477-L481](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/io/io_uring.rs#L477-L481)). `lock_file` is `fcntl` with
+  `NonBlockingLockExclusive` over the whole file; `WouldBlock` becomes `LockingError("… File is locked by another
+  process")` at once, with no wait ([B/core/io/unix.rs#L278-L303](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/io/unix.rs#L278-L303)).
+* **Opened once per `Database`.** The SDK opens the database file once while building the `Database`, adding `NoLock`
+  only under `experimental_multiprocess_wal`
+  ([B/sdk-kit/src/rsapi.rs#L1001-L1010](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/sdk-kit/src/rsapi.rs#L1001-L1010)); a second `Database` on the same file
+  in the same process is the registered one, looked up by file identity
+  ([B/core/database.rs#L1276-L1290](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/database.rs#L1276-L1290)), which is why §3's "two handles opened apart"
+  saw every commit.
+* **Released when the file is dropped**: `Drop for UnixFile` calls `unlock_file`
+  ([B/core/io/unix.rs#L582-L586](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/io/unix.rs#L582-L586); io_uring
+  [#L903-L907](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/io/io_uring.rs#L903-L907)). Every `Connection` holds an `Arc<Database>`
+  ([B/core/connection.rs#L387-L388](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/connection.rs#L387-L388)), so the lock lives **as long as any handle
+  or connection to the file in that process**: per process and per handle lifetime, not per transaction.
+* **Busy timeout.** Turso has one: `Connection::busy_timeout`, slept in phases of 1, 2, … up to 100 ms until the
+  total is spent ([B/bindings/rust/src/connection.rs#L487-L505](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/bindings/rust/src/connection.rs#L487-L505)); off by
+  default (`BusyHandler::None`, [B/core/database.rs#L2594](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/database.rs#L2594)). It handles `Busy` from a
+  step, which the file lock never returns: the lock fails inside `Builder::build`, before a connection exists to
+  carry a timeout. SQLite's `busy_timeout` is off by default in C; rusqlite sets 5 000 ms on every open
+  (rusqlite-0.41.0 `src/inner_connection.rs:90`).
+* **A read-only open takes no lock** (the first bullet), so nothing stops it reading the file while a writer in
+  another process changes it; the last connection to close in a read-write `Database` checkpoints the WAL into the
+  file ([B/core/connection.rs#L2472-L2484](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/connection.rs#L2472-L2484)).
+* **Multi-process mode** (`.tshm`): the database file is opened `NoLock` and coordination moves to byte locks in the
+  sidecar, `fcntl` `F_SETLK` or, blocking, `F_SETLKW` ([B/core/io/unix.rs#L125-L180](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/io/unix.rs#L125-L180)).
+  "Not production ready so do not use it for critical data right now"
+  ([B/docs/manual.md#L156](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/docs/manual.md#L156)).
+
+### Pre-registered, 2026-10-26, before any run
+
+**The two processes.** `lock` builds a fresh study file per arm and round (§1's file: 2 000 instances, 2 202 rows),
+then spawns a **receiver** process and, once the receiver has opened, a **server** process, both of this binary, both
+single-threaded (tokio's current-thread runtime; Turso awaited in the task, rusqlite called directly: one task per
+process, nothing else to block).
+
+* A **package** (receiver): one transaction updating one group — the series row and one instance row, each body
+  rewritten (1 024 bytes) and its `xxh3` set to `10⁷ + k`, `k` the package number; `synchronous = FULL`. Then a
+  pause drawn uniformly from 0–20 ms.
+* A **request** (server): the series' metadata, §1's `SCAN` (2 202 rows, about 2.2 MB), then a pause of 0–20 ms.
+  After the request is timed, the server checks what it read: 2 202 rows, every body the one its `xxh3` names, and
+  the instance the series row's `k` names carrying the same `k` (a torn transaction otherwise).
+* A shared 64-byte file both map (`mmap`, `MAP_SHARED`) holds the last committed `k`, stored by the receiver after
+  each commit returns, and a begun and an ended counter per side. A read is **stale** if its `k` is below the
+  committed `k` loaded before the request began; an operation **overlapped** if the other side was mid-operation at
+  its start or began one before it ended.
+* **Retry**, both sides: on any error, drop every handle, sleep 1 ms and retry the whole operation, until 1 s has
+  passed; then the operation is **refused**. Its **wait** is the time from its start to the attempt that succeeded.
+  Every error's text is counted. `busy_timeout` 5 000 ms on every connection of both engines (rusqlite's default,
+  set explicitly so the engines match; Turso's is otherwise off).
+* A round is 3 s of requests; the receiver stops when the server exits.
+
+**Arms**, 12, rotated round by round, **6 rounds**, each round a fresh pair of processes:
+
+| scenario | receiver | server |
+| --- | --- | --- |
+| **a** | one handle held across packages | open, read, close per request |
+| **b** | open, update, close per package | open, read, close per request |
+| **c** | one handle held | one handle held, a read transaction per request |
+
+× engine: **rusqlite** (server read-only: `SQLITE_OPEN_READ_ONLY`, as §4 deploys it), **turso** (both read-write,
+the default), **turso-ro** (the server `Builder::read_only`), **turso-mp** (both `experimental_multiprocess_wal`):
+the last is the owner's (d).
+
+Per arm: requests and packages done and refused; stale and torn reads; errors by text; wait p50 / p99 / max over the
+operations that waited; latency p50 / p99 / max of overlapped and of non-overlapped operations (an engine-internal
+wait, a `busy_timeout` sleep or a lock spin, shows only as the first above the second).
+
+| Prediction | Contradicted if |
+| --- | --- |
+| L1. **turso a, c**: every server request is refused, its every attempt failing at once on "locked by another process"; no read returns | any request served |
+| L2. **turso b**: collisions are errors, not waits, on both sides (the second opener fails on the lock, whichever it is); with the retry loop each succeeds after a wait of p99 under 50 ms; no request refused, no stale read | a collision waits inside the engine, a request or package refused, or wait p99 ≥ 50 ms |
+| L3. **turso-ro a, c**: no error; at least half of the reads stale (the base file, without the WAL's commits) | under half stale, or an error |
+| L4. **turso-ro b**: reads stale only while a package is open (the last close checkpoints); at least one stale or torn read per round | none |
+| L5. **turso-mp a–c**: no error, no stale or torn read; overlapped latency p99 within 2× non-overlapped, both sides | otherwise |
+| L6. **rusqlite a–c**: no error, no stale or torn read, nothing refused; overlapped latency p99 within 2× non-overlapped, both sides | otherwise |
+| L7. Every new test fails when the code it covers is broken on purpose | one does not |
+
+**Where the host saturates.** Two single-threaded processes, each paced by its sleeps, on 4 vCPUs: not CPU-bound;
+an update's cost is its `fsync` on the VM's virtual disk. Nothing is claimed past one server and one receiver per
+file, these paces, or a warm page cache.
 
 ## The desk read of 2026-10-24, checked
 
