@@ -3,7 +3,7 @@ name = "study-index"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "The study index of docs/adr/study-index.md, prototyped on MySQL 8.4: schema, receiver outbox, publisher, reconcile, list API, load and checks"
+description = "The study index of docs/adr/study-index.md, prototyped on MySQL 8.4, PostgreSQL 18 and SQLite: schema, receiver outbox, publisher, reconcile, list API, load and checks"
 
 # Outside the repo's workspace and its gate, as lab/metadata-store/update-link.
 [workspace]
@@ -11,10 +11,13 @@ description = "The study index of docs/adr/study-index.md, prototyped on MySQL 8
 [dependencies]
 anyhow = "1"
 axum = "0.8"
+deadpool-postgres = "0.14"
 libc = "0.2"
 mysql_async = { version = "0.37", default-features = false, features = ["minimal-rust"] }
 rusqlite = { version = "0.41", features = ["bundled"] }
 serde_json = "1"
+tokio-postgres = "0.7"
+unicode-normalization = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "sync", "signal"] }
 
 [profile.release]

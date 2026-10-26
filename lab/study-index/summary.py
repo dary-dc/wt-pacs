@@ -10,7 +10,8 @@ import math
 import os
 import sys
 
-ARMS = ["local", "local_aa", "hop_floor", "hop_0.5ms", "hop_2ms", "tuned_local", "tuned_hop_2ms"]
+ORDER = ["local", "local_aa", "hop_floor", "hop_0.5ms", "hop_2ms", "tuned_local", "tuned_hop_2ms", "my_local",
+         "my_local_aa", "my_hop_0.5ms", "my_hop_2ms", "pg_local", "pg_hop_0.5ms", "pg_hop_2ms", "lite_local"]
 
 
 def pct(values, p):
@@ -32,6 +33,8 @@ def rows(path):
 
 def latency(d):
     data = rows(os.path.join(d, "latency.jsonl"))
+    present = {r["arm"] for r in data}
+    arms = [a for a in ORDER if a in present]
     bad = [r for r in data if r["status"] != 200]
     print(f"{len(data)} requests, {len(bad)} not 200\n")
     warm = collections.defaultdict(list)
@@ -40,32 +43,35 @@ def latency(d):
         key = (r["size"], r["cell"], r["offset"])
         (warm if r["phase"] == "warm" else cold)[key + (r["arm"],)].append(r)
     for size in sorted({r["size"] for r in data}, reverse=True):
-        print(f"**{size:,} studies, warm, p95 `db` / `app` in ms** (n = {len(warm[(size, 'newest', 0, 'local')])} a cell)\n")
-        print("| cell | offset | " + " | ".join(ARMS) + " |")
-        print("| --- | --- |" + " --- |" * len(ARMS))
+        print(f"**{size:,} studies, warm, p95 `db` / `app` in ms** (n = {len(warm[(size, 'newest', 0, arms[0])])} a cell)\n")
+        print("| cell | offset | " + " | ".join(arms) + " |")
+        print("| --- | --- |" + " --- |" * len(arms))
         for cell, offset in sorted({(k[1], k[2]) for k in warm if k[0] == size}):
             cells = []
-            for arm in ARMS:
+            for arm in arms:
                 rs = warm[(size, cell, offset, arm)]
                 db, app = pct([r["db_us"] for r in rs], 0.95), pct([r["app_us"] for r in rs], 0.95)
                 flag = "**" if db > 10_000 or app > 50_000 else ""
                 cells.append(f"{flag}{ms(db)} / {ms(app)}{flag}")
             print(f"| {cell} | {offset} | " + " | ".join(cells) + " |")
         print()
-        print(f"**{size:,}, warm, p50 `app` in ms; `client` p95 − `app` p95 on `local`**\n")
-        print("| cell | offset | " + " | ".join(ARMS) + " | client − app |")
-        print("| --- | --- |" + " --- |" * (len(ARMS) + 1))
+        print(f"**{size:,}, warm, p50 `app` in ms; `client` p95 − `app` p95 on `{arms[0]}`**\n")
+        print("| cell | offset | " + " | ".join(arms) + " | client − app |")
+        print("| --- | --- |" + " --- |" * (len(arms) + 1))
         for cell, offset in sorted({(k[1], k[2]) for k in warm if k[0] == size}):
-            p50 = [ms(pct([r["app_us"] for r in warm[(size, cell, offset, a)]], 0.5)) for a in ARMS]
-            loc = warm[(size, cell, offset, "local")]
+            p50 = [ms(pct([r["app_us"] for r in warm[(size, cell, offset, a)]], 0.5)) for a in arms]
+            loc = warm[(size, cell, offset, arms[0])]
             over = pct([r["client_us"] for r in loc], 0.95) - pct([r["app_us"] for r in loc], 0.95)
             print(f"| {cell} | {offset} | " + " | ".join(p50) + f" | {ms(over)} |")
         print()
-        print(f"**{size:,}, cold: the first request of each cell after a restart, `app` ms over the rounds**\n")
+        mine = any(a.startswith("my_") for a in arms)
+        print(f"**{size:,}, cold: the first request of each cell after a restart, `app` ms over the rounds"
+              f"{', MySQL arms only (README §Engines)' if mine else ''}**\n")
         print("| cell | offset | n | p50 | max |")
         print("| --- | --- | --- | --- | --- |")
         for cell, offset in sorted({(k[1], k[2]) for k in cold if k[0] == size}):
-            rs = [r for k, v in cold.items() if k[:3] == (size, cell, offset) for r in v]
+            rs = [r for k, v in cold.items() if k[:3] == (size, cell, offset) and (not mine or k[3].startswith("my_"))
+                  for r in v]
             apps = [r["app_us"] for r in rs]
             print(f"| {cell} | {offset} | {len(rs)} | {ms(pct(apps, 0.5))} | {ms(max(apps))} |")
         print()
