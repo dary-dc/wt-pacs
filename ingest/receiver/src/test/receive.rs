@@ -360,6 +360,60 @@ fn a_staged_file_changed_after_its_write_is_refused_by_the_read_back() {
     }
 }
 
+/// An exam group and a bundle each far larger than a page, so a read served by the cache shows.
+fn large() -> Package {
+    let patient = format!("DOE^{}", "J".repeat(1 << 20));
+    Package::series(SERIES, 1, &patient, &[(I1, 1000)], 10)
+}
+
+/// Bytes the device served between two steps of one receive, which stores the package.
+fn device_reads_between(site: &Site, package: &Package, from: Step, to: Step) -> u64 {
+    let name = site.arrive(package);
+    let (mut at_from, mut read) = (0, 0);
+    let outcome = site.receiver().receive_at(&name, &mut |s| {
+        if s == from {
+            at_from = device_reads();
+        } else if s == to {
+            read = device_reads() - at_from;
+        }
+    });
+    assert_eq!(outcome.unwrap(), Outcome::Stored);
+    read
+}
+
+/// Step 6b reads every staged group and the bundle from the device, not from the page cache their
+/// write left them in: between staged and read back, the device serves at least their every byte.
+#[test]
+fn the_read_back_of_the_staged_files_is_from_the_device() {
+    let package = large();
+    let staged: u64 = package.members.iter().map(|m| m.1.len() as u64).sum();
+    let site = Site::new("readback-device");
+    let read = device_reads_between(&site, &package, Step::Staged, Step::ReadBack);
+    assert!(
+        read >= staged,
+        "the device served {read} of {staged} staged bytes"
+    );
+}
+
+/// Step 8 reads the study DB from the device, not from the page cache its commit left it in:
+/// between recorded and verified, the device serves at least the bytes of every group written.
+#[test]
+fn the_read_back_of_the_study_db_is_from_the_device() {
+    let package = large();
+    let groups: u64 = package
+        .members
+        .iter()
+        .filter(|m| !m.0.ends_with(".sbnd"))
+        .map(|m| m.1.len() as u64)
+        .sum();
+    let site = Site::new("db-device");
+    let read = device_reads_between(&site, &package, Step::Recorded, Step::Verified);
+    assert!(
+        read >= groups,
+        "the device served {read} of {groups} bytes of rows"
+    );
+}
+
 /// Flips one byte of a stored group's bytes in the study DB file, past SQLite's own checks.
 fn corrupt_row(site: &Site, needle: &[u8]) {
     let path = site.study().join(study_db::FILE);
