@@ -21,7 +21,7 @@ has its own `[workspace]` and stays outside `scripts/gate.sh`.
 
 **Revision, not generation.** #146 calls the study's version a *generation*. [`docs/glossary.md`](../../docs/glossary.md)
 already gives *generation* to a request's identity, so this prototype says **revision**, which is also the owner's
-word in `docs/ingest/pacs-receive-design.md` §7 on `claude/pacs-design-state`.
+word in `docs/ingest/pacs-receive-design.md` §7 on `claude/pacs-design-state` (`e699ed3d`).
 
 **The outbox lives in the study DB.** #146 §7 puts it in one intent file per host and writes the intent before the
 study DB commit. Here the outbox is a table inside each study DB, written in the receiver's own transaction, so
