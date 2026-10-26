@@ -1,7 +1,6 @@
 //! Checks every series bundle and study DB under a path, read from disk: tools/pacs-verify/README.md.
 
 mod bundle;
-pub mod disk;
 mod study;
 
 use serde::Serialize;

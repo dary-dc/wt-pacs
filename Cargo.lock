@@ -517,6 +517,13 @@ name = "frame-envelope"
 version = "0.1.0"
 
 [[package]]
+name = "from-disk"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "from-parser"
 version = "0.1.0"
 dependencies = [
@@ -1065,6 +1072,7 @@ dependencies = [
  "anyhow",
  "clap",
  "frame-envelope",
+ "from-disk",
  "libc",
  "rusqlite",
  "serde",

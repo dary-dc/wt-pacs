@@ -1,6 +1,6 @@
 //! A study DB: SQLite's own integrity check, then every metadata group against its stored XXH3.
 
-use crate::{disk, Finding};
+use crate::Finding;
 use rusqlite::{Connection, OpenFlags};
 use std::path::{Path, PathBuf};
 
@@ -9,7 +9,7 @@ pub(crate) fn check(path: &Path, findings: &mut Vec<Finding>) {
     wal.push("-wal");
     let wal = PathBuf::from(wal);
     for file in [path, wal.as_path()].into_iter().filter(|p| p.exists()) {
-        if let Err(e) = disk::open_uncached(file) {
+        if let Err(e) = from_disk::open_uncached(file) {
             return findings.push(Finding::fail(file, "open", e));
         }
     }

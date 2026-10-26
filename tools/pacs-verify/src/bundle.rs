@@ -1,6 +1,6 @@
 //! A series bundle: its layout through `series-bundle`, then every frame read back from disk.
 
-use crate::{disk, Finding};
+use crate::Finding;
 use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::path::Path;
@@ -9,7 +9,7 @@ use std::path::Path;
 const DRAFT_VERSION: u32 = 2;
 
 pub(crate) fn check(path: &Path, findings: &mut Vec<Finding>) {
-    let file = match disk::open_uncached(path) {
+    let file = match from_disk::open_uncached(path) {
         Ok(file) => file,
         Err(e) => return findings.push(Finding::fail(path, "open", e)),
     };

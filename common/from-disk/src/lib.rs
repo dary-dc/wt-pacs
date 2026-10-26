@@ -1,7 +1,7 @@
-//! Reads that reach the disk, not the page cache: tools/pacs-verify/README.md §From disk.
+//! Reads that reach the device, not the page cache: README.md.
 
 use std::fs::File;
-use std::io;
+use std::io::{self, Read};
 use std::os::fd::AsRawFd;
 use std::path::Path;
 
@@ -25,4 +25,10 @@ pub fn drop_cached(file: &File) -> io::Result<()> {
         0 => Ok(()),
         e => Err(io::Error::from_raw_os_error(e)),
     }
+}
+
+pub fn read(path: &Path) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    open_uncached(path)?.read_to_end(&mut bytes)?;
+    Ok(bytes)
 }

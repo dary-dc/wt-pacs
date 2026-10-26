@@ -54,7 +54,8 @@ Exit code: **0** every check passed, **1** any check failed, **2** the report co
 ## From disk
 
 Before a file is read, its dirty pages are written back (`fdatasync`) and its cached ones dropped
-(`posix_fadvise(POSIX_FADV_DONTNEED)`): a check that read the page cache would prove what the kernel holds, not what
+(`posix_fadvise(POSIX_FADV_DONTNEED)`), by [`common/from-disk`](../../common/from-disk/), the helper the PACS receiver's
+read-backs use too: a check that read the page cache would prove what the kernel holds, not what
 the device will hand back after a restart, and media errors would stay hidden behind a warm cache. Its limits:
 
 * **It is advice.** Pages another process has mapped, or is reading at that moment, stay or come straight back; a
@@ -65,7 +66,8 @@ the device will hand back after a restart, and media errors would stay hidden be
 * `O_DIRECT` was not used: SQLite cannot read through it, and it needs aligned buffers and a filesystem that supports
   it; one mechanism serves both kinds of file.
 
-`tests/from_disk.rs` checks that a file just written has no page cached once opened for checking (`mincore`).
+`common/from-disk`'s own tests check that a file just written has no page cached once opened for checking (`mincore`);
+`tests/from_disk.rs` here checks that each call site reads the bundle and the study DB from the device.
 
 ## From cron
 
