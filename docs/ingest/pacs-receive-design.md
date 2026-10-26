@@ -61,12 +61,13 @@ generation is a request's identity).
   2025-05-06). Satellite TCP-splitting proxies cannot act on QUIC (RFC 3135, RFC 9065). Whole-package retry is enough
   when send time ≤ a tenth of the mean time between drops.
 * **Owner 10-25/26:** different protocol implementations per link are acceptable — one application handler with a TCP
-  and a QUIC listener (or sender) chosen by config at start; preferred over two separate programs.
+  and a QUIC listener (or sender) chosen by config at start; preferred over two separate programs. **Owner 10-26:**
+  QUIC chosen at build time is accepted, "it is something that will be decided at the deployment" (§14, D4).
 * **Built (#164, proposed):** the carrier crate at `9bb1c53` — draft-14, interop version 10, careful creation, one-shot
   on the same endpoint, mutual TLS pinned per site, replies `received` then `committed`/`refused`, polled; TCP always,
   HTTP/3 experimental; the PCS's script with a stall timeout. 17 tests (18 with `quic`); offset and script-timeout
-  mutations caught. **Weaker than the owner's shape:** QUIC is a cargo feature, so the default binary cannot choose it
-  by config at start (§14, D4). **Does not match §3:** its reply is "committed" where §3 decided "stored", and it reads
+  mutations caught. QUIC is a cargo feature, so the default binary cannot choose it by config at start, which
+  the owner accepted 10-26 (§14, D4). **Does not match §3:** its reply is "committed" where §3 decided "stored", and it reads
   `status/<name>` at the root while #163 writes `incoming/status/<f>` (§14, D3). Owed: the carrier's own stall timeout
   has no test (its mutation survives); the script resends without limit while the poll answers 404.
 * **Compression.** Measured (#150, #154, #156): metadata is 0.005–1.0 % of stored pixels and 0.02–4.1 % of HTJ2K pixels
@@ -80,6 +81,8 @@ generation is a request's identity).
   output; the decision stands either way. **Owner 10-26:** make metadata compression **configurable per site** (or
   dynamic), on only where the link gains; the receiver detects a zstd frame by its magic number and accepts both, so
   the switch lives only in the sender. Default: open, on proposed (§14, D8).
+* **Owner 10-26: the path's implicit choices** (the HTTPS upload, polling for the reply, tar, ...) are presented with
+  their options before anything is decided; nothing on the path is Decided beyond what §1–§3 already list.
 
 ## 3 · The receiver
 
@@ -142,7 +145,7 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   (documented). Owed: the uncached-open call sites are untested (only the helper is).
 * **#160, #163 and #164 do not fit together yet** (built in parallel): two study-DB schemas (`xxh3 INTEGER` in #160,
   `xxh3 TEXT` in #163: the verify tool fails on a study DB the receiver writes); two disk-read helpers where "same code"
-  is Decided; two reply files and vocabularies (#163 `stored`/`refused`/`quarantined` in `incoming/status/<f>`; #164
+  is Decided (**Decided 10-26:** #160's, §14 D2); two reply files and vocabularies (#163 `stored`/`refused`/`quarantined` in `incoming/status/<f>`; #164
   `committed`/`refused retry`/`refused final` in `status/<name>`). Each is structural: §14, D1–D3.
 
 ## 4 · The study DB
@@ -180,6 +183,10 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   answered (#157):** Turso's lock goes with the handle, not the transaction, and fails at once (`LockingError`, no busy
   wait), and a held read-only Turso handle is stale; rusqlite only ever waits (≤ 4.8 ms), no errors, nothing stale —
   the owner's reasoning (reads never meet creation, both are short) holds for rusqlite. #157 committed no raw results.
+  *Corrected 2026-10-26:* two processes on a study DB were never the owner's criterion for discarding Turso ("won't be
+  common" was an agent's reply on 10-24); if the viewer server reads the study DB at open (§6), the receiver and the
+  server share every study DB, so it is a design constraint on either engine (one owning process, or open per
+  operation with retries), not a veto. The engine stays Proposed (§14, D7).
 * **Versions:** rusqlite 0.41.0, SQLite 3.54.1 (#159). lab/metadata-store still pins rusqlite 0.40, which cannot share
   a workspace with 0.41 (`libsqlite3-sys` links `sqlite3` once): a one-line bump, checked, is in §13.
 
@@ -228,7 +235,7 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   threshold). This strengthens the owner's view on the path and weakens it on CPU, where the cost is gzip, which a
   ready row could store compressed (*not measured*). Deviations not recorded as such: h2load's gzip request and opens
   counted once (e30f966, after pre-registration); H2 at 1/100 studies, not 1/10/100; saturation inferred. **Open**
-  (§14, D6).
+  (§14, D6); row DAY-4 measures the ready row stored compressed (§18).
 
 ## 7 · The study index (#146)
 
@@ -238,7 +245,9 @@ access key; per series the codec); MySQL 8.4 LTS or MariaDB (`utf8mb4_0900_ai_ci
 matching); one index for all hosts, starting on the first; a direct link never needs it; a per-host outbox, idempotent
 upserts keyed by UID accepting only a higher revision, a reconcile job; an HTTPS API shaped like QIDO-RS Search,
 authorized by access key, ≤ 50 ms p95 server time; not now: instance rows, thumbnails, fuzzy matching, replicas.
-**Owner 10-25:** MySQL fits; it may live on its own server over the network; to evaluate.
+**Owner 10-25:** MySQL fits; it may live on its own server over the network; to evaluate. *Corrected 2026-10-26:* not a
+choice of MySQL; the owner: "I suggested in biased you that it was going to be MySQL ... but I'm not really sure". The
+engine and the separate server are open (§14, D9).
 
 **Prototyped and timed (#165, MySQL 8.4.6, 10⁶ studies, warm, p95).** Strengthens: MySQL 8.4 and its default
 collation (accent- and case-insensitive prefix matching on the index; `utf8mb4_bin` fails), the revision-ordered
@@ -349,11 +358,11 @@ One line per PR: what it delivers · state · supersedes / superseded by. "Theor
 | #157 | sqlite-engine §5: two processes, rusqlite waits, Turso fails or is stale | draft, verified | merge; not in #159 |
 | #158 | the design records combined, §11's corrections | draft, verified | supersedes #142 #145 #146 #148 #149 #152 #153 #155 as the way they merge |
 | #159 | the metadata lab branches consolidated, draft corrected | draft, verified | supersedes #113 #120 #126 #144 #147 #150 #151 #154 #156 |
-| #160 | tools/pacs-verify + common/study-db (§3's verify tool) | draft, verified | waits for D1–D2 |
+| #160 | tools/pacs-verify + common/study-db (§3's verify tool) | draft, verified | waits for D1 and D11 |
 | #161 | study DB layout: row per group vs shared + per-frame vs blob | draft, verified | merge after #159 |
 | #162 | server `--root`: many series by coded UIDs | draft, verified | built from #142; waits for D10 only to make defaults final |
-| #163 | ingest/receiver + ADR: steps 1–8, 11, 12, R, recovery | draft, verified, flaky tests | waits for D1–D3; supersedes #119 |
-| #164 | carrier crate + the PCS's script (draft-14, mTLS) | draft, verified | built from #149/#155; waits for D3–D4 |
+| #163 | ingest/receiver + ADR: steps 1–8, 11, 12, R, recovery | draft, verified, flaky tests | waits for D1, D3, D11; supersedes #119 |
+| #164 | carrier crate + the PCS's script (draft-14, mTLS) | draft, verified | built from #149/#155; waits for D3, D4, D11 |
 | #165 | lab/study-index: MySQL 8.4 prototype, timed | draft, verified | built from #146 |
 | #166 | lab/metadata-delivery: viewer metadata ways, timed | draft, verified | built from #153 |
 | #167 | lab/disk-tree: #152's protocols, ext4 and XFS | draft, verified | built from #152 |
@@ -388,7 +397,7 @@ written, or merge the base into the PR's branch first (the repository merges, it
 | 8 | #161 | metadata-draft.md, lab/metadata-store/README.md | both sides added text: keep both (#159's paragraph first, then #161's study-DB sentences; both README sections) |
 | 9 | #162 | the serving-by-uid ADR (3 hunks) | #162's status and its built wording, with #158's correction note and its fuller grammar paragraph |
 | 10 | #167 | the disk-layout ADR status; `.gitignore` | status: #158's corrected terms + #167's "protocols were run" sentence, "the team, the product owner and the DICOM-experienced members"; `.gitignore`: keep both |
-| — | stop | | steps 11–13 wait for D1–D4 (§14) |
+| — | stop | | steps 11–13 wait until everything is clean (§14, D11, Decided 10-26) |
 | 11 | #163 | `Cargo.lock` | keep the base's, then let cargo re-resolve |
 | 12 | #160 | `Cargo.lock`, `Cargo.toml`, `scripts/gate.sh`, `docs/ingest/README.md` | members and gate lists: keep both; README: the base's wording ("the PCS's side", "study DBs", "study index") plus #160's item 7 |
 | 13 | #164 | `Cargo.lock`, `scripts/gate.sh`, `docs/glossary.md` | lists: keep both; glossary: the base's PCS, submission package and carrier rows; #164's verdict and site rows once D3 fixes the vocabulary |
@@ -417,7 +426,7 @@ m 167 "the disk tree, timed"             pacs-disk-layout-measure # resolve stat
 scripts/gate.sh --quick --no-browser
 git push origin assembly:claude/av1-unified-mainbase              # fast-forward only; the owner's push
 
-# after D1–D4, each with its fix pushed to its branch:
+# only once everything is clean (D11), each fix pushed to its branch:
 m 163 "the PACS receiver" pacs-receiver-impl  # Cargo.lock: git checkout --ours Cargo.lock && cargo metadata -q >/dev/null
 m 160 "the verify tool"   verify-tool
 m 164 "the carrier"       pcs-carrier-impl
@@ -437,28 +446,43 @@ Each: the evidence in one line · the default if nothing else is said.
 
 * **D1 · one study-DB schema.** #160 stores `xxh3 INTEGER`, #163 `xxh3 TEXT`; the verify tool fails on the receiver's DB
   · #160's common/study-db is the one schema, `xxh3 INTEGER`; #163 uses the crate.
-* **D2 · one disk-read helper** (Decided "same code"; how is structural). Two helpers, call sites untested in both ·
-  #160's helper in common/study-db, used by steps 6b and 8, with a test at a call site.
+* **D2 · one disk-read helper. Decided 2026-10-26:** #160's (flush, then drop the cache), "yes, rec seems safer"; used by
+  steps 6b and 8, with a test at a call site (owed, DAY-7).
 * **D3 · the reply file and its words.** #163 writes `incoming/status/<f>` `stored`/`refused`/`quarantined`; #164 reads
-  `status/<name>` `committed`/`refused retry`/`refused final`; §3 decided "stored" · #163's file and words; #164 adapts
-  (retry → refused, final → quarantined).
-* **D4 · QUIC in the carrier.** Your shape: one handler, listener chosen by config at start; #164 compiles QUIC only
-  with a cargo feature (h3 0.0.x "very experimental") · the feature stays off by default for v1, recorded as a
-  deviation; config choice once h3 is released.
+  `status/<name>` `committed`/`refused retry`/`refused final`; §3 decided "stored". **Owner 10-26:** "need to be
+  analyzed" (where the reply file lives and how long); row DAY-5 first compares one program against two · #163's file
+  and words; #164 adapts (retry → refused, final → quarantined).
+* **D4 · QUIC in the carrier.** **Owner 10-26:** chosen at build time is accepted, "it is something that will be
+  decided at the deployment". WebTransport has no place in the carrier (no browser on either end); it came up only
+  because wtransport 0.7.2 rejects non-CONNECT requests, so HTTP/3 needs its own listener. Open: the h3 0.0.x
+  dependency, "we might need to use directly some quic implementation ... Not necessarily in rust"; row DAY-1 · TCP in
+  the default build, the `quic` feature off until DAY-1 answers.
 * **D5 · study DB layout** (§4). #161: row per group wins while the parser's keys hold addresses · T1 now; revisit
   shared + per-frame when the PCS's keys are deterministic.
 * **D6 · viewer metadata** (§6). #166: reading the study DB at open ties derived files on every link, loses on host CPU
-  at 2 000 instances (4.0 ms, mostly gzip) · your option, a ready per-series row, open-read-close.
-* **D7 · rusqlite 0.41 everywhere** (§4). #157 answers the two-process question for rusqlite; 0.40 and 0.41 cannot share
-  the workspace · rusqlite, 0.41, bumped at assembly step 6.
+  at 2 000 instances (4.0 ms per open, of which 3.3 ms is gzip repeated per request); row DAY-4 measures the ready row
+  stored compressed with the revision as ETag · your option, a ready per-series row, open-read-close.
+* **D7 · the study-DB engine and its version** (§4). **Owner 10-26:** "The latest version should be encouraged." On two
+  processes as a reason to discard Turso: "we were discussing in prev session that several process won't be common and
+  thus we don't know if that would be a valid discarding criteria." The owner never made it one; "won't be common" was
+  an agent's reply on 10-24; with §6's read at open the receiver and the server share every study DB, so it is a design
+  constraint (one owning process, or open per operation with retries), not a veto. Engine Proposed · rusqlite 0.41,
+  bumped at assembly step 6.
 * **D8 · metadata compression per site** (§2). #156: never slower in 56 pairs, saves 1–5 round trips on fan-outs and
-  resends · on by default, off per site.
-* **D9 · where the study-index outbox lives** (§7). #165: in the study DB it is atomic but a restarted publisher scans
-  every study DB (0.29 ms each) · #146 §7's per-host intent file; #146 §4 takes #165's tuned indexes.
+  resends. **Owner 10-26:** "two profiles and at compile time we decide which profile it is compiled for". The sender
+  compresses and the sender is the PCS's packer, so a build profile of our carrier cannot switch it · on by default,
+  off per site, in the PCS's packer.
+* **D9 · the study index: engine, placement, outbox** (§7). **Owner 10-26:** "I suggested in biased you that it was
+  going to be MySQL ... but I'm not really sure"; rows DAY-2 (the engine) and DAY-3 (a separate server). #165: an
+  outbox in the study DB is atomic but a restarted publisher scans every study DB (0.29 ms each). The owner's idea:
+  "Why not simply having a outgoing or outbox dir and a file(s) inside it?" · that, proposed: one file per owed study
+  in an outbox directory (name the study UID, content the revision), the same crash behaviour as #146 §7's per-host
+  file; #146 §4 takes #165's tuned indexes.
 * **D10 · #142 §9's seven choices.** Built as defaults in #162; the close code does not reach a browser · the defaults
   as built; the capsule patch later.
-* **D11 · implementation PRs before the fit.** #160, #163, #164 each verified alone · hold steps 11–13 until D1–D3 are
-  fixed on their branches, with #163's flaky test and its missing audit "who".
+* **D11 · implementation PRs before the fit. Decided 2026-10-26:** "we hold until everything is clean. We don't merged
+  unfinished work." #160, #163 and #164 wait until everything is clean (the fit, #163's flaky test and missing audit
+  "who", each PR's owed tests).
 
 ## 15 · Questions for the PCS team
 
