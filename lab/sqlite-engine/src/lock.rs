@@ -19,6 +19,8 @@ const GIVE_UP: Duration = Duration::from_secs(1);
 const RETRY: Duration = Duration::from_millis(1);
 const PAUSE_MAX_MS: u64 = 20;
 const UPDATE: &str = "UPDATE groups SET body = ?1, xxh3 = ?2 WHERE uid = ?3";
+const CHECKPOINT: &str = "PRAGMA wal_checkpoint(TRUNCATE)";
+const CHECKPOINT_EVERY: u64 = 20;
 
 pub const ENGINES: [&str; 4] = ["rusqlite", "turso", "turso-ro", "turso-mp"];
 pub const SCENARIOS: [&str; 3] = ["a", "b", "c"];
@@ -134,6 +136,14 @@ async fn update(h: &Handle, k: u64) -> Result<()> {
             }
             c.execute("COMMIT", ()).await?;
         }
+    }
+    Ok(())
+}
+
+async fn checkpoint(h: &Handle) -> Result<()> {
+    match h {
+        Handle::Rusqlite(c) => drop(c.query_row(CHECKPOINT, [], |r| r.get::<_, i64>(0))?),
+        Handle::Turso { c, .. } => drop(c.query(CHECKPOINT, ()).await?.next().await?),
     }
     Ok(())
 }
@@ -272,7 +282,7 @@ fn ms(d: Duration) -> f64 {
     d.as_secs_f64() * 1e3
 }
 
-async fn receiver(path: &Path, s: &Shared, e: Engine, keep: bool) -> Side {
+async fn receiver(path: &Path, s: &Shared, e: Engine, keep: bool, checkpoints: bool) -> Side {
     let mut side = Side::default();
     let mut held = None;
     if keep {
@@ -287,7 +297,16 @@ async fn receiver(path: &Path, s: &Shared, e: Engine, keep: bool) -> Side {
         k += 1;
         let o = Overlap::start(s, Slot::ServerBegun, Slot::ServerEnded);
         s.at(Slot::ReceiverBegun).fetch_add(1, SeqCst);
-        let r = retried(&mut side, path, e, &mut held, keep, |h| Box::pin(update(h, k))).await;
+        let r = retried(&mut side, path, e, &mut held, keep, |h| {
+            Box::pin(async move {
+                update(h, k).await?;
+                if checkpoints && k % CHECKPOINT_EVERY == 0 {
+                    checkpoint(h).await?;
+                }
+                Ok(())
+            })
+        })
+        .await;
         if r.is_some() {
             s.at(Slot::Committed).store(k, SeqCst);
         }
@@ -351,7 +370,7 @@ pub fn child(args: &Args) -> Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
     let side = rt.block_on(async {
         if role == "receiver" {
-            receiver(&path, &s, e, keep).await
+            receiver(&path, &s, e, keep, args.has("checkpoints")).await
         } else {
             server(&path, &s, e, keep, args.get("secs", 3.0)).await
         }
@@ -365,7 +384,7 @@ fn shared_path(db: &Path) -> PathBuf {
 }
 
 /// `busy0`: busy timeout 0, so an engine-internal wait becomes a counted error; `apart`: the server reads its own
-/// copy of the file, so nothing but the host is shared.
+/// copy of the file, so nothing but the host is shared; `ckpt`: the receiver truncates the WAL every 20 packages.
 fn round(dir: &Path, (engine, scenario, variant): Arm, secs: f64) -> Result<Value> {
     let path = dir.join("study.db");
     let apart = dir.join("apart.db");
@@ -381,7 +400,9 @@ fn round(dir: &Path, (engine, scenario, variant): Arm, secs: f64) -> Result<Valu
         let file = if role == "server" && variant == "apart" { &apart } else { &path };
         Command::new(&exe)
             .args(["lock-child", "--role", role, "--engine", engine, "--scenario", scenario, "--secs", &secs.to_string()])
-            .args(["--busy-ms", busy_ms, "--path"])
+            .args(["--busy-ms", busy_ms])
+            .args(if variant == "ckpt" { &["--checkpoints", "1"][..] } else { &[] })
+            .arg("--path")
             .arg(file)
             .arg("--shared")
             .arg(shared_path(&path))
@@ -439,7 +460,7 @@ fn parse_arm(spec: &str) -> Result<Arm> {
         let v = v.unwrap_or("");
         from.iter().copied().find(|x| *x == v).with_context(|| format!("{spec}: {v} is not one of {from:?}"))
     };
-    Ok((pick(it.next(), &ENGINES)?, pick(it.next(), &SCENARIOS)?, pick(it.next(), &["", "busy0", "apart"])?))
+    Ok((pick(it.next(), &ENGINES)?, pick(it.next(), &SCENARIOS)?, pick(it.next(), &["", "busy0", "apart", "ckpt"])?))
 }
 
 pub fn run(args: &Args) -> Result<()> {
@@ -495,6 +516,21 @@ mod tests {
             assert_eq!(seen(&read(&h).await.unwrap()), Some(0), "{name}");
             update(&h, 7).await.unwrap();
             assert_eq!(seen(&read(&h).await.unwrap()), Some(7), "{name}");
+        }
+    }
+
+    /// A truncating checkpoint empties the WAL in both engines and leaves the last package readable.
+    #[tokio::test]
+    async fn a_checkpoint_empties_the_wal() {
+        for name in ["rusqlite", "turso"] {
+            let path = study(&format!("ckpt-{name}"));
+            let h = open(&path, Engine::of(name, false)).await.unwrap();
+            update(&h, 4).await.unwrap();
+            let wal = PathBuf::from(format!("{}-wal", path.display()));
+            assert!(std::fs::metadata(&wal).unwrap().len() > 0, "{name}");
+            checkpoint(&h).await.unwrap();
+            assert_eq!(std::fs::metadata(&wal).unwrap().len(), 0, "{name}");
+            assert_eq!(seen(&read(&h).await.unwrap()), Some(4), "{name}");
         }
     }
 

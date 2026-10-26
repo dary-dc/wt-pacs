@@ -26,6 +26,7 @@ $B blocking --arm idle,turso,rusqlite,rusqlite-selfwake --cache-pages 64 --round
 for m in blocking files summary; do python3 lab/sqlite-engine/fair.py $m fair-out; done
 $B lock --rounds 6 > lock.jsonl                                    # §5, a read beside an update
 $B lock --rounds 6 --arms $(for e in rusqlite turso-mp; do for s in a b c; do printf '%s:%s,%s:%s:busy0,%s:%s:apart,' $e $s $e $s $e $s; done; done | sed 's/,$//') > lock-control.jsonl
+$B lock --rounds 6 --arms turso-ro:a:ckpt,turso-ro:b:ckpt,turso-ro:a,rusqlite:a:ckpt,rusqlite:b:ckpt,turso-mp:a:ckpt,turso-mp:b:ckpt > lock-ckpt.jsonl
 ```
 
 **The study file**, the same for both engines (built by rusqlite, so the format is SQLite's): one table
@@ -546,6 +547,19 @@ nothing), so the processes share only the host.
 | X1. **rusqlite busy0**: no `Busy` in a or c; in b, on under 1 % of operations (the last connection's close checkpoints under an exclusive lock) | otherwise |
 | X2. **apart**: overlapped p99 within 1.5× of the same arm's on one file, both engines, both sides: the tail is the host, not a lock | the one-file p99 above 1.5× apart's |
 | X3. **turso-mp busy0**: at least one `Busy` in a–c | none |
+
+*Amended again 2026-10-26, after the busy0/apart run and before this one* (exploratory, predictions fixed now). The
+only Turso default that serves a held-handle receiver is **turso-ro**, a reader that takes no lock (§Source). Each
+round wrote about 700 WAL frames, under the 1 000 at which either engine checkpoints on its own
+([B/core/storage/wal.rs#L4845](https://github.com/tursodatabase/turso/blob/607bff9fd0e547a25a97b3bf06e83bcc5d99d53c/core/storage/wal.rs#L4845)), so no read met a checkpoint. Variant **ckpt**: the
+receiver runs `PRAGMA wal_checkpoint(TRUNCATE)` after every 20th package, inside that package's operation (the
+harshest checkpoint; an automatic one is less). Arms: turso-ro a, b and the plain turso-ro a; rusqlite a, b; turso-mp
+a, b; 7 rotated, **6 rounds**.
+
+| Prediction | Contradicted if |
+| --- | --- |
+| X4. **turso-ro ckpt a**: at least one torn read or error: nothing stops the truncation under a reader that holds no lock | none in 6 rounds |
+| X5. **rusqlite, turso-mp ckpt**: no torn or stale read, nothing refused | otherwise |
 
 **Where the host saturates.** Two single-threaded processes, each paced by its sleeps, on 4 vCPUs: not CPU-bound;
 an update's cost is its `fsync` on the VM's virtual disk. Nothing is claimed past one server and one receiver per
