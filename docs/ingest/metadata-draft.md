@@ -241,6 +241,10 @@ every instance, so the shared values once plus each instance's differences weigh
 (CT, PET, MR) and a zstd-3 blob per series 1.5–3.8 %; an ultrasound series of two SOP classes shares a quarter.
 The parser's own output at `a65abe2`, 1.15–1.95× these bytes: [`../../lab/metadata-store`](../../lab/metadata-store).
 
+**Metadata-only updates on the link** ([`../../lab/metadata-store`](../../lab/metadata-store) §Updates on the link, 2026-10-25): a
+single correction (3–5.6 KB) is one flight raw or compressed, but a resend or a fan-out saves 1–5 round trips and up to
+11 s compressed, never slower, so compressing every package's metadata is the simpler rule.
+
 **Integrity under C and D.** The parser's BLAKE3 covers a whole group. C and D keep it checkable: the group's bytes are
 its records in key order, so the PACS writes them back to back and hashes them on arrival — the same bytes, the same
 BLAKE3 — then stores the rows. That proves the content equals what the parser wrote. A hash of the whole database
