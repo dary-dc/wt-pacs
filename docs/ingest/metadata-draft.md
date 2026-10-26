@@ -5,6 +5,23 @@
 the study database and the catalog, [`../disk-layout/target.md`](../disk-layout/target.md) for what sits on disk,
 [`../CLIENTS.md`](../CLIENTS.md) for what the page fetches — and this file is removed.*
 
+*Corrected in place, 2026-10-26, to the owner's decisions of 2026-10-24/25, gathered in the design state
+(`docs/ingest/pacs-receive-design.md` at `e699ed3`, branch `claude/pacs-design-state`): an update replaces the stored
+row and an audit record is kept, so §2's "truth" with generations and history is retracted; its "page view" is
+**display metadata**, the paint part of what a viewer reads; §3 holds the engines' versions and tests. Each correction
+is marked where it is made; every number keeps its source.*
+
+| Measurement | Here | Evidence | PR |
+| --- | --- | --- | --- |
+| the page's read from four stores, A–D | §2 | [`lab/metadata-store`](../../lab/metadata-store/README.md), top | #113 |
+| a survey of formats, T1–T5 and V1–V6 (read, not timed) | §2 | §Sources | #120 |
+| the pair, T1 or T2 with V1: page open, update, integrity, a reader; patch against rebuild; the reader's tail | §2 | the same README, `--mode pair`, `--mode pair-followup` | #126 |
+| one update in place against a new revision directory | §2 | the same README, `--mode update-cost` | #144 |
+| metadata size and repetition on five TCIA series | §2 | the same README, §Repetition | #150 |
+| the parser's own output on the same series | §2 | the same README, §The parser's own output | #154 |
+| compressing metadata-only update packages on emulated links | §2 | the same README, §Updates on the link | #156 |
+| rusqlite against Turso; each at its best; a read beside an update in two processes | §3 | [`lab/sqlite-engine`](../../lab/sqlite-engine/README.md) §1–§5 | #147, #151, `claude/sqlite-lock-behaviour` |
+
 ## Why
 
 **The need.** A viewer has to know, before it paints a frame, how many frames there are, which codec they are in,
@@ -70,13 +87,31 @@ looks them up by those UIDs. Every option below assumes that step; it is shared,
   The PCS sends the parser's groups and decides when a series or a study is complete; the PACS checks everything
   that arrives ([`design.md`](design.md) §5).
 * **The client loads only what it needs**: the metadata the page uses now, and only the decoder of the series' codec.
-  More is sent as more client features need it.
+  More is sent as more client features need it. *Replaced 2026-10-24* for the decoder (below): without the codec the
+  page loads every decoder.
 * **The parser's contract of 2026-10-11 stays** until a stable version is published
   ([`contract.md`](contract.md) §The parser at `f36230b`).
 * **Whether SQLite is the store at all is open.** The parser's output comes first: [`contract.md`](contract.md)
-  §The parser at `f36230b` records it.
+  §The parser at `f36230b` records it. *Answered 2026-10-24* (below): SQLite as the container.
 * **Parked:** the catalog (deferred on 2026-10-11). How a study database is changed while it is read is no longer
   parked: updates are certain, so it returns with the storage shape (§2).
+
+## Decided, 2026-10-24/25 (the owner)
+
+* **An update replaces the stored row.** No history is kept (the PCS keeps the originals); an **audit record** of
+  every update — who, when, what changed — is kept. §2's generations and kept rows are retracted.
+* **SQLite as the container** for the groups' blobs (2026-10-24): one file instead of thousands, atomic updates across
+  rows, lookup by UID, safe reads during a write, standard tools; not SQL. One file per study is proposed.
+* **Hashes are XXH3**, not BLAKE3: there is no cryptographic need. The measurements below hash with BLAKE3 as the
+  parser names its files; the function changes, not the arguments.
+* **The codec can come from the study index**; without it the page loads every decoder (2026-10-24, replacing
+  2026-10-19's "only the decoder of the series' codec"). Prefetching every decoder while the user browses the list is
+  to evaluate.
+* **Frames are never compressed again** (2026-10-25). Metadata compression is to be configurable per site, on only
+  where the link gains, the receiver accepting both (the owner, 2026-10-26; the default is open).
+
+Open, and not decided here: how a viewer gets its metadata (the design state §6), and whether to store an instance
+group as shared plus per-instance values (§2, on real series).
 
 ## The open points
 
@@ -104,11 +139,12 @@ at the decoder's start, 1.0 and 3.0 of them go.
 | a. from the metadata, before the connection | path A | nothing more |
 | b. from the page's address, `?codec=` beside the UIDs | whoever links the page (a worklist) writes it | the linker must know the codec; the metadata can then come by either path |
 | c. from the server, after the connection | path B alone | the round trips measured above |
-| d. load every decoder | — | refused: the client loads only what it needs |
+| d. load every decoder | — | refused 2026-10-19; *corrected 2026-10-24:* what the page does when the study index does not give the codec |
 | e. from the series file's header | the `.sbnd` header names the codec ([`../disk-layout/target.md`](../disk-layout/target.md) §The header); the server sends it first in the session | after the connection, as c, but the codec is written once |
 
 **Open, the owner (2026-10-19):** whether a worklist should know the codec at all, and whether the codec should be
 written in two places (the `.sbnd` header and the metadata) or read only from the file (e). Not decided.
+*Since 2026-10-24* the codec can come from the study index (above); the rest stays open with viewer metadata.
 
 * **What decides it:** one program reading the study's files (B) against the metadata before the connection (A); with
   b, B no longer costs the decoder's round trips.
@@ -144,7 +180,10 @@ The page needs, per instance of the series: photometric, rescale and window, and
 The read: open the series file and every instance file, walk each one's records, keep the tags the page needs. A
 2 000-instance CT is 2 001 files opened per page open.
 
-**B. Groups whole in SQLite, plus columns copied out of them.** The parser's `deck.db` shape, trimmed:
+**B. Groups whole in SQLite, plus columns copied out of them.** The parser's `deck.db` shape, trimmed. It is the
+PCS team's own second design: their sample database of 2026-04-28 (`ba1b31a`, `doc/subprojects/PACS/db/deck.db`)
+holds each group's blob, its BLAKE3 and copied columns in tables `E`, `S` and `I`; the exam and series columns serve
+lists (study-index material), the instance ones are display metadata.
 
 ```sql
 CREATE TABLE instance (iuid TEXT PRIMARY KEY, suid TEXT, number INTEGER, photometric TEXT,
@@ -154,10 +193,10 @@ SELECT number, photometric, slope, intercept FROM instance WHERE suid = ? ORDER 
 ```
 
 The columns hold values that are also inside `grp`, copied out at build time so the read needs no parsing. They are
-derived, like a book's index: the blob stays the truth, and the columns can be thrown away and rebuilt from it. A new
+derived, like a book's index: the blob stays the source, and the columns can be thrown away and rebuilt from it. A new
 client need is a new column, filled again from the blobs of every study.
 
-**C. One row per attribute.** DECK's key-value table (`doc/DECK/databases/README.md`):
+**C. One row per attribute.** DECK's key-value table (`doc/DECK/databases/README.md`), the PCS team's first design:
 
 ```sql
 CREATE TABLE kv (key BLOB PRIMARY KEY, value BLOB) WITHOUT ROWID;
@@ -238,12 +277,21 @@ cost.
 (CT, PET, MR, mammography, ultrasound) split as the parser splits them. Measured: the metadata is 0.005–1 % of the
 pixels as stored, 0.02–4 % in HTJ2K; in CT, PET, MR and MG 70–83 % of the instance groups' bytes are records the same in
 every instance, so the shared values once plus each instance's differences weigh 9–28 % of a row per instance group
-(CT, PET, MR) and a zstd-3 blob per series 1.5–3.8 %; an ultrasound series of two SOP classes shares a quarter.
-The parser's own output at `a65abe2`, 1.15–1.95× these bytes: [`../../lab/metadata-store`](../../lab/metadata-store).
+(CT, PET, MR) and a zstd-3 blob per series 1.5–3.8 %; an ultrasound series of two SOP classes shares a quarter (#150).
+A shared plus per-instance layout is DICOM's own (Shared and Per-frame Functional Groups, PS3.3 C.7.6.16); whether to
+adopt it is **open**. The parser's own output at `a65abe2` (#154) is 1.15–1.95× these bytes, for reasons read in its
+source — an exam-level sequence keeps only its first attribute in the exam group and repeats the rest in every
+instance group; group 0002 lands in the instance group — and nested keys carry bytes from memory addresses, so two
+parses of the same files give different groups: [`../../lab/metadata-store`](../../lab/metadata-store) §The parser's
+own output.
 
 **Metadata-only updates on the link** ([`../../lab/metadata-store`](../../lab/metadata-store) §Updates on the link, 2026-10-25): a
 single correction (3–5.6 KB) is one flight raw or compressed, but a resend or a fan-out saves 1–5 round trips and up to
-11 s compressed, never slower, so compressing every package's metadata is the simpler rule.
+11 s compressed, never slower in 56 pairs (#156). *Corrected 2026-10-26:* this concluded "so compressing every
+package's metadata is the simpler rule"; the owner's direction (2026-10-26) is a per-site setting, on only where the
+link gains, the receiver telling a zstd frame by its magic number and accepting both; the default is open, and "never
+slower" argues for on. For a series package compressing the metadata saves at most 3.45 % with HTJ2K pixels
+(§Repetition there), and frames are never compressed again (2026-10-25).
 
 **Integrity under C and D.** The parser's BLAKE3 covers a whole group. C and D keep it checkable: the group's bytes are
 its records in key order, so the PACS writes them back to back and hashes them on arrival — the same bytes, the same
@@ -251,41 +299,49 @@ BLAKE3 — then stores the rows. That proves the content equals what the parser 
 file is cheap (BLAKE3 runs at gigabytes a second; design.md §6 puts a 10 KB group at ≈ 1.5 µs) but proves only that the
 file arrived as it was sent: the same rows can be stored as different file bytes (page layout, free pages, the
 SQLite version), so it cannot be compared with anything the parser computed. Both have a use: the file's hash for the
-transfer, the groups' for the content, and SQLite's `PRAGMA integrity_check` for the file's structure.
+transfer, the groups' for the content, and SQLite's `PRAGMA integrity_check` for the file's structure. *Since
+2026-10-24/25* both hashes are XXH3 (above); the argument is unchanged.
 
-#### The truth and the page view: a survey of formats (2026-10-20)
+#### The stored groups and display metadata: a survey of formats (2026-10-20)
 
 *Read from primary sources (§Sources, 2026-10-20), nothing built and nothing timed here. A number marked
 **measured** is the table above; every other cost is reasoned from the sources and marked unmeasured.*
 
-**The two jobs** (the owner's direction, 2026-10-20). The *truth* is every attribute, kept once and addressable. The
-*page view* is small and derived from the truth: one entry per series with the page's values for every instance,
-rebuilt when the truth or the client's needs change.
+*Corrected 2026-10-26.* As written, this survey's two jobs were a *truth* — every group as received, each update a new
+row with a generation number, so history stays readable — and a *page view* derived from it. The owner decided
+(2026-10-24/25) that an update replaces the row, no history is kept and an audit record is; and the page view is
+display metadata. Below, the *stored groups* are the current groups, one copy each; every argument that leaned on
+kept history is corrected where it stands. The shapes, the engines and the numbers are unchanged.
+
+**The two jobs** (the owner's direction, 2026-10-20). The *stored groups* hold every attribute, once and
+addressable. *Display metadata* is small and derived from them: one entry per series with the page's values for every
+instance, rebuilt when a group or the client's needs change. Whether it is stored at all, or read from the groups when
+a series opens, is open (the design state §6).
 
 ```text
  PCS ── the parser's groups ──▶ PACS builder ──▶ the study's store
-                                                  ├─ truth      every group as received, with its BLAKE3
-                                                  └─ page view  one entry per series: the page's document
- page open    server ── one lookup by series UID ──▶ page view ── its bytes ──▶ client
- an update    builder: write the changed group, rebuild that series' page view, both at once
- a new need   builder: rebuild every series' page view from the truth
+                                                  ├─ groups    every group, the current one, with its hash
+                                                  └─ display   one entry per series: its display metadata
+ page open    server ── one lookup by series UID ──▶ display metadata ── its bytes ──▶ client
+ an update    builder: replace the changed group, write its audit record, rebuild that series' display metadata, at once
+ a new need   builder: rebuild every series' display metadata from the groups
 ```
 
-**What the split changes.** The measured table is a page open that walks every instance of the series. With a page
-view, that walk happens once, when the builder writes the view, and a page open reads one entry whatever the series'
-size. So the truth is no longer judged on the page's read: it is judged on an update, on its integrity, on
-addressing any attribute, and on how fast the builder can walk it to rebuild a view. The page view is judged on one
-read and on its size on the wire.
+**What the split changes.** The measured table is a page open that walks every instance of the series. With display
+metadata stored, that walk happens once, when the builder writes it, and a page open reads one entry whatever the
+series' size. So the stored groups are no longer judged on the page's read: they are judged on an update, on their
+integrity, on addressing any attribute, and on how fast the builder can walk them to rebuild display metadata. Display
+metadata is judged on one read and on its size on the wire.
 
-**The truth: shapes.** Each can sit in any engine of the next table; SQLite is assumed where it says so.
+**The stored groups: shapes.** Each can sit in any engine of the next table; SQLite is assumed where it says so.
 
 | | T1. a row per group | T2. a row per attribute | T3. JSONB group, generated columns | T4. sorted key file | T5. the group files |
 | --- | --- | --- | --- | --- | --- |
-| what it is | B without its copied columns: the parser's bytes as received, its BLAKE3, keyed by series, instance and kind | C: DECK's key, `WITHOUT ROWID` | each group converted to SQLite's JSONB, a page value a `VIRTUAL` column over `json_extract` | D: keys apart from values, rewritten whole | A, untouched |
+| what it is | B without its copied columns: the parser's bytes as received, its BLAKE3, keyed by series, instance and kind | C: DECK's key, `WITHOUT ROWID`; the PCS team's first design, which their 2026-04-28 sample (`ba1b31a`) changed to group blobs (B) | each group converted to SQLite's JSONB, a page value a `VIRTUAL` column over `json_extract` | D: keys apart from values, rewritten whole | A, untouched |
 | walk a series (the rebuild) | open the blobs, walk 45 records each; unmeasured | one key range per instance (**measured** 12.6 ms at 2 000 for the page's tags) | `json_extract` per value, per row; unmeasured | **measured** 0.65 ms at 2 000 | **measured** 30 ms at 2 000, 2 001 files |
 | one attribute across a study | parse every group | a key range per instance | one column | a binary search per instance | parse every file |
-| one rare update | write the corrected group as a new row | rewrite its rows | rewrite one JSONB blob | rewrite the file and rename it | write a new file (its name is its hash) |
-| a new client need | nothing (the view is rebuilt) | nothing | `ALTER TABLE ADD COLUMN … VIRTUAL`; a `STORED` one cannot be added by `ALTER` | nothing | nothing |
+| one rare update | replace the group's row (*corrected 2026-10-26*; as written, a new row) | rewrite its rows | rewrite one JSONB blob | rewrite the file and rename it | write a new file (its name is its hash) |
+| a new client need | nothing (display metadata is rebuilt) | nothing | `ALTER TABLE ADD COLUMN … VIRTUAL`; a `STORED` one cannot be added by `ALTER` | nothing | nothing |
 | integrity | BLAKE3 of the stored blob; it *is* the hashed bytes | reassemble the records in key order, then hash (the lab checks it byte for byte) | **lost**: JSONB is not the parser's bytes, so they must be kept beside it | reassemble, as T2 | the file's name is its hash |
 | size, 2 000 instances | under B's 2 912 256 B (**measured**, with the columns) | 3 395 584 B (**measured**) | unmeasured; JSONB is 5–10 % under text JSON (SQLite) | 3 142 008 B (**measured**) | 2 151 799 B in 16 388 096 allocated (**measured**) |
 | crash, readers during an update | the engine's (next table) | the engine's | the engine's | rename publishes; a reader keeps the old file open | rename publishes; nothing ties the files of one update together |
@@ -294,7 +350,7 @@ read and on its size on the wire.
 * **T2's key order is a lever.** DECK's order (series, instance, tag) keeps a group's records together, which is what
   makes T2's integrity a reassembly. A tag-first order (series, tag, instance) would make the page's six tags six
   ranges of 2 000 rows instead of 2 000 ranges, and scatter every group; unmeasured. Under the split it buys nothing,
-  because the page no longer reads the truth.
+  because the page no longer reads the stored groups.
 * **T2 fits `WITHOUT ROWID`; T1 does not.** SQLite's rule of thumb is a row under 1/20 of a page (about 200 B at
   4 KiB). A T2 row is a 16-byte key and a short value; a T1 row is the 1 067 B group, so T1 is an ordinary table with
   its key as a unique index.
@@ -302,17 +358,17 @@ read and on its size on the wire.
   only deterministic functions in the same row: reading DECK's records directly would need our own function,
   registered in every connection, which the `sqlite3` shell does not have. And a `VIRTUAL` column is computed on read,
   so it is B's per-instance read again.
-* **An update and the parser's hash.** A corrected group is no longer what the parser wrote. T1 keeps the received row
-  as it came, so the parser's BLAKE3 stays checkable, and writes the correction as a new row with a generation number
-  and the PACS's own BLAKE3 over its bytes; a read takes the highest generation. AWS HealthImaging does the same at
-  its scale: an update makes a new version and old versions can be read back. Whether the PACS keeps history at all
-  is the owner's.
+* **An update and the parser's hash.** A corrected group is no longer what the parser wrote. As written, T1 kept the
+  received row, wrote the correction as a new row with a generation number and the PACS's own hash, and a read took
+  the highest generation, as AWS HealthImaging keeps versions. *Corrected 2026-10-26:* the owner decided no history
+  (2026-10-24/25). The parser's hash is checked on the package as it arrives; the replaced row carries the PACS's hash
+  over its current bytes; the audit record says who changed what, when.
 
-**Not the truth, and why.** rkyv has no schema evolution (its own feature table); FlatBuffers and Cap'n Proto evolve
+**Not for the stored groups, and why.** rkyv has no schema evolution (its own feature table); FlatBuffers and Cap'n Proto evolve
 only by declared fields added at the end. DICOM's attribute set is open, so none of them can hold it without becoming
 a key-value list inside a blob, which T1 already is. Arrow IPC and Parquet files are written once (a footer indexes
 the blocks); an update rewrites the file, and Parquet recommends row groups of 512 MB–1 GB, against a study's
-kilobytes. Both fit a later, separate export (one attribute across many studies, an AI pipeline), not the truth.
+kilobytes. Both fit a later, separate export (one attribute across many studies, an AI pipeline), not the stored groups.
 
 **Engines that could hold T1 or T2.** The builder and the server are two processes, so whether a second process may
 read while one writes is a column of its own.
@@ -324,7 +380,7 @@ read while one writes is a column of its own.
 | a reader during an update | WAL: readers keep their snapshot; other processes on the same host | MVCC in one process; a read-only handle in another process excludes the writer, unless `experimental-multiprocess` (since 4.3.0) | readers lock-free, any process; a lock file to keep healthy | "may not be loaded in parallel from separate processes" | — |
 | built-in checks | `PRAGMA integrity_check`; per-page checksums only with `cksumvfs` | XXH3-128 Merkle tree over every page | none in 0.9.36; a checksum callback in the 1.0 branch (`heed3`) | not read | not read |
 | inspect with | the `sqlite3` shell, any language | our own tool | `mdb_dump`, `mdb_stat` | our own tool | our own tool |
-| latest (crates.io) | 0.40.2, 2026-08-08; SQLite 3.54.1 released 2026-10-16 | 4.4.0, 2026-10-13; also 2.6.4, 2026-10-02 | 0.22.1, 2026-04-07; LMDB 0.9.36 | 3.1.12, 2026-10-03 | 0.34.7, 2021-09-12; 1.0.0-alpha.124, 2024-10-11 |
+| latest (crates.io) | 0.41.0, 2026-10-24, bundling SQLite 3.54.1 (*corrected 2026-10-26*; read 2026-10-20 as 0.40.2, 2026-08-08) | 4.4.0, 2026-10-13; also 2.6.4, 2026-10-02 | 0.22.1, 2026-04-07; LMDB 0.9.36 | 3.1.12, 2026-10-03 | 0.34.7, 2021-09-12; 1.0.0-alpha.124, 2024-10-11 |
 | licence | MIT | MIT or Apache-2.0 | MIT; the -sys crate Apache-2.0; LMDB OpenLDAP 2.8 | MIT or Apache-2.0 | MIT or Apache-2.0 |
 | state | — | "Stable and maintained", file format stable | mature C; the Rust wrapper maintained | stable disk format, major bumps migrate | on-disk format to change before 1.0; a rewrite in progress |
 
@@ -334,24 +390,24 @@ read while one writes is a column of its own.
 * **redb's own benchmark** (its README, Ryzen 9950X3D) puts LMDB first on reads and SQLite last, at 4.3 s for random
   reads where redb takes 1.1 s; that is millions of keys, not a series' one lookup, and says nothing at our sizes.
 
-**The page view: formats.**
+**Display metadata: formats.**
 
 | | V1. a row per series, its bytes the document | V2. a file per series | V3. copied or generated columns per instance | V4. FlatBuffers or Cap'n Proto | V5. Arrow IPC | V6. rkyv |
 | --- | --- | --- | --- | --- | --- | --- |
 | a page open | one key lookup, then send the bytes; unmeasured, expected near B's 4-instance read (**measured** 7.4 µs held) at any size | open and read one file | B: **measured** 2.6 ms at 2 000 held, and the document still to build | one lookup; the client reads fields in place | one lookup; columns in place | one lookup; Rust only |
-| an update or a new need | rewrite the row(s) in the truth's own commit | rewrite and rename the file; a second step after the truth's commit | B: a new column, every study refilled; generated: `ALTER TABLE` | a field added at the end; old readers ignore it | a new column; the file rewritten | no schema evolution |
+| an update or a new need | rewrite the row(s) in the groups' own commit | rewrite and rename the file; a second step after the groups' commit | B: a new column, every study refilled; generated: `ALTER TABLE` | a field added at the end; old readers ignore it | a new column; the file rewritten | no schema evolution |
 | the client | reads it as it does today | as V1 | as V1 | a schema compiler and a library in the page | a library in the page | cannot read it |
 
-* **V1 and V2 are what the archives do** (below): a precomputed document per series, rebuilt from a truth kept whole.
-  V1 puts it in the same file as the truth, so one commit changes both and a reader sees both before or both after.
-  V2 needs a generation number in both places and a check that they agree.
+* **V1 and V2 are what the archives do** (below): a precomputed document per series, rebuilt from groups kept whole.
+  V1 puts it in the same file as the groups, so one commit changes both and a reader sees both before or both after.
+  V2 needs a revision number in both places and a check that they agree.
 * **The view's encoding is the wire's**, so it is decided with §1 and §4, not here: JSON, as the viewer reads now,
   until a measurement says otherwise. FlatBuffers would suit a growing set of fields (append-only evolution) if the
   size on the wire ever calls for binary.
 
 **What existing archives and viewers do.**
 
-| | the truth | the page-like view | a new need |
+| | the stored metadata | the display-like view | a new need |
 | --- | --- | --- | --- |
 | **Orthanc** | the DICOM files; a SQLite (default) index with `MainDicomTags`, one row per resource and tag | the DICOMweb plugin's series metadata, cached as a gzipped attachment (since 1.15) | `ExtraMainDicomTags` apply to new data; old data by `/reconstruct` or the Housekeeper plugin |
 | **dcm4chee-arc** | the objects on storage; each level's attributes as an encoded blob in table `dicomattrs` | "ZIP archives with aggregated Metadata of all instances of a Series", on storage | an attribute update schedules the series' metadata to be rebuilt (`dcmUpdateSeriesMetadata`, polled) |
@@ -359,45 +415,52 @@ read while one writes is a column of its own.
 | **Google Cloud Healthcare** | not published | DICOMweb Retrieve Metadata | `updateMetadata` (v1beta1) on a study, series or instance: a JSON Patch, a long-running operation |
 | **Static DICOMweb** | the files | `series/<uid>/metadata.gz` | not stated; a `deduplicated/` tree "used for concurrent updates" |
 | **OHIF** | — (a viewer) | asks DICOMweb's series metadata, every instance's full JSON, into its metadata store; per series with `enableStudyLazyLoad` | — |
-| **DECK** (the parser's design) | one key-value row per attribute, keys ordered by series, instance, group, sequence and item, the same table proposed for SQLite, Turso and IndexedDB | none in `doc/DECK` | none needed: every attribute is addressable |
+| **DECK** (the PCS team's first design; their 2026-04-28 sample, `ba1b31a`, stores whole groups) | one key-value row per attribute, keys ordered by series, instance, group, sequence and item, the same table proposed for SQLite, Turso and IndexedDB | none in `doc/DECK` | none needed: every attribute is addressable |
 
 **What decides across the band.** At 4 instances (mammography) every store read the page's values in under 0.1 ms
 (**measured**): nothing decides on speed, so the update, the integrity and the tools do. From 200 to 2 000 (CT)
-the per-instance stores grow with the series, 0.05–2.9 ms at 200 and 0.65–30 ms at 2 000 (**measured**), while a
-page view stays one lookup. So across the band it is not the truth's format that decides but whether the
+the per-instance stores grow with the series, 0.05–2.9 ms at 200 and 0.65–30 ms at 2 000 (**measured**), while
+stored display metadata stays one lookup. So across the band it is not the groups' format that decides but whether the
 per-instance work is done at a page open or at a build. What remains is the view's size on the wire at CT sizes:
 **measured** (§Today), ~120 KB gzipped cost the connection +7 ms at 80 ms and +29 ms at 160 ms. Constant values once
 and per-instance values only where they vary, as `perFrame` does now, matter more there than any storage format.
 
-**Switching later.** The pair's two edges are the builder (groups in, truth and view out) and one read function (UIDs
-in, the view's bytes out); the client sees only the bytes. A truth shape (T1 ↔ T2) changes the builder and a
-rebuild from the groups, with the view untouched. An engine (SQLite ↔ redb) changes the builder and the read function.
-The view's encoding changes the client and a rebuild of every view from the truth.
+**Switching later.** The pair's two edges are the builder (groups in, stored groups and display metadata out) and one
+read function (UIDs in, display metadata's bytes out); the client sees only the bytes. A shape of the stored groups
+(T1 ↔ T2) changes the builder and a rebuild from the groups, display metadata untouched. An engine (SQLite ↔ redb)
+changes the builder and the read function. Display metadata's encoding changes the client and a rebuild of it from the
+groups.
 
-**Recommended pair: T1 truth and V1 page view, both in the study's one SQLite file** (unmeasured as a pair).
+**Recommended pair: T1 groups and V1 display metadata, both in the study's one SQLite file** (measured as a pair
+below). *Corrected 2026-10-26:* as written, `grp` carried a `generation` in its key and the display row a
+`view_version` and a `truth_generation`, for the retracted history. Proposed since (the design state §4): a table per
+level (exam, series, instance, private) in place of `kind`, keyed by the group's UID, with the audit record beside it.
 
 ```sql
-CREATE TABLE grp  (series TEXT, instance TEXT, kind INTEGER, generation INTEGER,
-                   bytes BLOB, blake3 BLOB, PRIMARY KEY (series, instance, kind, generation));
-CREATE TABLE page (series TEXT PRIMARY KEY, view_version INTEGER, truth_generation INTEGER, document BLOB);
+CREATE TABLE grp     (series TEXT, instance TEXT, kind INTEGER, bytes BLOB, xxh3 BLOB,
+                      PRIMARY KEY (series, instance, kind));
+CREATE TABLE display (series TEXT PRIMARY KEY, revision INTEGER, document BLOB);
 ```
 
 * **The page open does no per-instance work:** one primary-key lookup, at 4 instances as at 2 000.
-* **Integrity is the simplest of all:** the stored bytes are the hashed bytes, so a check is BLAKE3 of a blob against
-  its column, and the received generation keeps the parser's own hash checkable after any update.
-* **An update is one transaction:** the new group row and that series' page row commit together; in WAL mode the
-  server's readers, in their own process, see before or after, never between.
-* **A new client need** raises `view_version` and the builder rebuilds every page row from the truth, lazily on first
-  read or in a sweep, as Orthanc's Housekeeper and dcm4chee's scheduled update do.
-* **It is what the archives converged on:** the truth kept whole, a per-series document derived from it. It keeps the
+* **Integrity is the simplest of all:** the stored bytes are the hashed bytes, so a check is the hash of a blob against
+  its column. *Corrected 2026-10-26:* this said the received generation keeps the parser's own hash checkable after
+  any update; none is kept, so after an update the row's hash is the PACS's.
+* **An update is one transaction:** the replaced group row, its audit record and that series' display metadata row
+  commit together; in WAL mode the server's readers, in their own process, see before or after, never between.
+* **A new client need** raises display metadata's format version and the builder rebuilds every display metadata row
+  from the groups, lazily on first read or in a sweep, as Orthanc's Housekeeper and dcm4chee's scheduled update do.
+* **It is what the archives converged on:** the groups kept whole, a per-series document derived from them. It keeps the
   decided one file per study, inspectable with `sqlite3`, and the engine (§3) stays a choice within one file format.
-* **What it gives up:** D's 0.65 ms walk is the fastest truth, but the walk is no longer on the page's path, and D
+* **What it gives up:** D's 0.65 ms walk is the fastest store of the groups, but the walk is no longer on the page's path, and D
   would make us own a format, its writer, reader, checks and tools.
 
-**Runner-up: T2 truth (DECK's row per attribute) with the same V1 page view, in the same file.** Every attribute is
-addressable without parsing, which a read across studies (an AI pipeline) would use, and it is the parser's own
-design. It costs a reassembly for every integrity check, 45 rows per instance (90 000 for a 2 000-instance CT), and an
-update that rewrites rows and so needs the old rows kept for the parser's hash to stay checkable. Switching from T1 to
+**Runner-up: T2 groups (DECK's row per attribute) with the same V1 display metadata, in the same file.** Every
+attribute is addressable without parsing, which a read across studies (an AI pipeline) would use. It was the PCS
+team's first design; their sample database of 2026-04-28 (`ba1b31a`) changed it to group blobs with copied columns,
+B's shape. It costs a reassembly for every integrity check, 45 rows per instance (90 000 for a 2 000-instance CT), and
+an update that rewrites rows. *Corrected 2026-10-26:* this added "and so needs the old rows kept for the parser's hash
+to stay checkable"; no history is kept now. Switching from T1 to
 T2 later is a rebuild of one table. Within either, redb is the engine runner-up, held back by multi-process writes
 being experimental.
 
@@ -406,13 +469,13 @@ being experimental.
 thread, files in the page cache, T1 + V1 and T2 + V1 interleaved round by round with D's held scan as the reference,
 300 rounds, medians:
 
-1. **The page open:** read one series' page row, opened per read and held, and check its document equals the one
+1. **The page open:** read one series' display metadata row, opened per read and held, and check its document equals the one
    built from D's values.
-2. **One update:** change one instance's window centre: write its group (T1 a new generation, T2 its rows) and
-   rebuild that series' page row, committed with `fsync` in WAL at `synchronous=FULL`; time and bytes written.
-3. **A new need:** add one attribute (pixel spacing) to the document and rebuild every page row.
+2. **One update:** change one instance's window centre: write its group (T1 a new generation — run as a new revision, below — T2 its rows) and
+   rebuild that series' display metadata row, committed with `fsync` in WAL at `synchronous=FULL`; time and bytes written.
+3. **A new need:** add one attribute (pixel spacing) to the document and rebuild every display metadata row.
 4. **Integrity:** check every group's BLAKE3 (T1 the blob, T2 reassembled); mutate one byte and watch the check fail.
-5. **A reader during updates:** a second process reads page rows in a loop while the first commits updates; every
+5. **A reader during updates:** a second process reads display metadata rows in a loop while the first commits updates; every
    document read must be the before or the after; count the reads that waited.
 6. **Size on disk** of each store.
 
@@ -471,7 +534,7 @@ storage is the VM's, not measured here. Medians; nothing is claimed for a cold d
   larger cost at every size.
 * **An update costs its rebuild, not its commit.** At 2 000 instances the rebuild alone is 8.8–9.9 ms of a 9.4–10.4 ms
   update, so the commit and its `fsync` are about 0.6 ms on this disk. The pre-registered "`fsync` a large share" was
-  wrong here; on a disk whose `fsync` waits for media it may hold. The rebuild reads every instance's truth to write
+  wrong here; on a disk whose `fsync` waits for media it may hold. The rebuild reads every instance's group to write
   one value, so a rebuild that patches only the changed instance's entry would remove almost all of it (not built).
 * **T2 costs more where it reassembles.** Its update is 0.8–0.9 ms above T1's at 2 000, and its integrity check 9×
   T1's (29 against 3.2 ms), because each group is put back together from its rows before it is hashed.
@@ -483,15 +546,17 @@ storage is the VM's, not measured here. Medians; nothing is claimed for a cold d
   (`/proc/self/io` wchar). That fits SQLite rewriting in place only the pages of a same-size blob that changed; the
   mechanism is read from SQLite's behaviour, not checked in its source.
 * **Kept revisions are small:** 120 updates grew T1's 2 000-instance file by 163 840 B, about one 1.4 KB group each.
+  *Under the retracted model:* every arm of the pair and of its follow-up writes a new revision row per update; a row
+  replaced in place, as decided on 2026-10-24/25, is not measured.
 
 **The pair's two open items, pre-registered 2026-10-22, before they ran** (asked by the owner through the
 orchestrator, 2026-10-21).
 
-*(a) Patch instead of rebuild.* An update that rewrites only the changed instance's entry in the page row: it reads
+*(a) Patch instead of rebuild.* An update that rewrites only the changed instance's entry in the display metadata row: it reads
 that instance's newest group (T1) or rows (T2), takes its page values, and replaces that one entry in the stored
 document; the rest of the update (the new revision, one commit) is unchanged. Four arms interleaved round by round —
 T1 and T2, each rebuilding and patching — over 60 rounds at 4, 200 and 2 000 instances; after every patched update the
-page row must equal, byte for byte, the document a full rebuild gives.
+display metadata row must equal, byte for byte, the document a full rebuild gives.
 
 | Expected | Contradicted if |
 | --- | --- |
@@ -523,7 +588,7 @@ otherwise; the same 4-vCPU Xeon at 2.10 GHz, files in the page cache; latency on
 | T2 + V1, rebuilt | 0.32–0.48 ms | 1.35–1.37 ms | 8.6–8.9 ms |
 | T2 + V1, patched | 0.29–0.34 ms | 0.66–0.71 ms | 1.39–1.49 ms |
 
-* **Holds: a patched update at 2 000 is 1.4–1.7 ms**, a sixth of the rebuilt one, and the patched page row equalled a
+* **Holds: a patched update at 2 000 is 1.4–1.7 ms**, a sixth of the rebuilt one, and the patched display metadata row equalled a
   full rebuild byte for byte after every one of the 360 patched updates per run (120 at each size).
 * **At 4 instances the two are within 0.1 ms in run 1 and not in run 2** for T2 (0.34 against 0.48 ms): contradicted
   once; at this size both are a few hundred µs and their p10–p90 overlap.
@@ -551,6 +616,17 @@ updates as the writer); per read, µs, run 1 | run 2:
 * Reads outside every commit window are few (7 055 and 6 487) because the writer commits back to back; their median
   is higher (31 µs), not explained here.
 
+**One update in place against a new revision directory, measured 2026-10-24**
+([`../../lab/metadata-store`](../../lab/metadata-store/README.md), `--mode update-cost`, #144, pre-registered there
+first; two runs, a 4-vCPU Xeon at 2.80 GHz, files in the page cache, latency only). The patch arm above, one commit,
+against the receiver draft's revision directory (`design.md` §12.5 (a): the study's file rebuilt from every kept
+input, renamed in, `CURRENT` switched). Latency to visible, patched against revision: 1.08–1.59 against 7.8–9.3 ms at
+200 instances, 2.30–2.86 against 34.6–38.4 ms at 2 000, 7.6–8.2 against 141–143 ms at 10 000 — 5.7–6.5×, 13× and
+17× cheaper in place, past the A/A gap in both runs. A patch writes 16 480 B at the median (p90 28 840) with one
+`fsync`; a revision its whole file and 7. No read of 2 010 769 was neither before nor after. Both writers are CPU on
+their core; the disk is not saturated. The owner's decision of 2026-10-24/25 (updates in place, no revision
+directories) agrees with it.
+
 ### 3. Which embedded engine
 
 *Primary sources below (§Sources). All read the same file format, so a database built by one is read by the
@@ -559,7 +635,7 @@ others. Only the embedded columns apply now (Decided, above).*
 | | rusqlite (plain SQLite) | libSQL embedded (`libsql`) | libSQL server (sqld) | Turso, the Rust rewrite (`turso`) |
 | --- | --- | --- | --- | --- |
 | what it is | the C library, bundled | a fork of SQLite's C library, in process | a server holding many databases (namespaces) behind an HTTP API | SQLite rewritten in Rust, in process |
-| latest | 0.40.2, 2026-08-08; bundles SQLite 3.53.2 (0.41.0, 2026-10-24, bundles 3.54.1) | 0.10.0, 2026-10-13; bundles SQLite 3.47.0 | `libsql-server-v0.24.33`, 2025-12-19; since then one doc fix (2026-05-14) | 0.8.3 stable 2026-10-12, 0.9.0-pre.1 2026-10-15; tracks SQLite 3.50.4 |
+| latest | 0.41.0, 2026-10-24, bundles SQLite 3.54.1 (*corrected 2026-10-26*; read 2026-10-19 as 0.40.2, bundling 3.53.2) | 0.10.0, 2026-10-13; bundles SQLite 3.47.0 | `libsql-server-v0.24.33`, 2025-12-19; since then one doc fix (2026-05-14) | 0.8.3 stable 2026-10-12, 0.9.0-pre.1 2026-10-15; tracks SQLite 3.50.4 |
 | licence | MIT | MIT | MIT | MIT |
 | state | SQLite's own | "actively maintained, but new features are being developed in Turso" (its README) | no release in 10 months: maintenance **not confirmed** | pre-1.0: "we have not yet reached 1.0 … keep independent backups" (its README's FAQ). *Corrected 2026-10-25:* this row quoted "currently in beta"; the README it pins (`fe932831cf8d`) does not say so, nor does `v0.8.3`'s |
 | open read-only | `mode=ro`, `immutable=1` (SQLite's URI flags) | the same C library | — | `Builder::read_only`, from the source only, not tried |
@@ -572,14 +648,18 @@ Turso databases (Turso's there in "early preview"); whether it can be self-hoste
 disk holds the study databases under the target, so the hosted service is not on this path.
 
 * **What decides it:** how much a pre-1.0 engine may cost in a medical archive (Turso), against one that is SQLite's
-  own C (rusqlite) or a fork of it (libSQL).
-#### rusqlite against Turso, tested (2026-10-25)
+  own C (rusqlite) or a fork of it (libSQL). libSQL embedded is not tested: SQLite 3.47's C with features this use does
+  not ask for. The two tested follow.
 
-rusqlite 0.41.0 (SQLite 3.54.1) against Turso 0.8.3 (`v0.8.3` = `607bff9`), both in process, for one study database
-per study, one writer process, readers in that process or another. The evidence, with every source line and the
-pre-registration: [`lab/sqlite-engine/README.md`](../../lab/sqlite-engine/README.md). One 4-vCPU VM, files in the
-page cache. *Re-measured the same day with each engine at its best* (that README's §4): both in `spawn_blocking`, Turso
-without its default features, equal engine caches, rusqlite read-only with mmap; the rows marked *corrected* changed.
+#### rusqlite against Turso, tested (2026-10-25/26)
+
+rusqlite 0.41.0 (SQLite 3.54.1, the 3.54.x line) against Turso 0.8.3 (`v0.8.3` = `607bff9`), both in process, for one
+study database per study, one writer process, readers in that process or another. The evidence, with every source
+line and the pre-registrations: [`lab/sqlite-engine/README.md`](../../lab/sqlite-engine/README.md) — §1–§3 the first
+comparison (#147), §4 each engine at its best (#151), §5 a read beside an update in two processes (branch
+`claude/sqlite-lock-behaviour`). One 4-vCPU VM, files in the page cache. *Re-measured the same day with each engine
+at its best* (§4): both in `spawn_blocking`, Turso without its default features, equal engine caches, rusqlite
+read-only with mmap; the rows marked *corrected* changed.
 
 | | Mechanism | For this use case | Wins |
 | --- | --- | --- | --- |
@@ -594,7 +674,8 @@ without its default features, equal engine caches, rusqlite read-only with mmap;
 | **maturity** | SQLite 3.54; Turso pre-1.0, "keep independent backups"; its MVCC and multi-process modes not production ready by its own manual | a medical archive | **rusqlite** |
 | **extras** | Turso: MVCC, vector and full-text search (tantivy, on by default, with mimalloc as the process's allocator), encryption, an async API | none of them is asked for here | Turso, unused |
 
-**Bottom line: rusqlite, called through `spawn_blocking` (or a small blocking pool) from the async server.** Turso
+**Bottom line, proposed (the owner has not decided): rusqlite, called through `spawn_blocking` (or a small blocking
+pool) from the async server.** Turso
 wins nothing this use case asks for and loses on the three that decide it: its async API blocks the worker that
 awaits it (worse than a blocking call, once its cache misses), a second process cannot read a study a Turso process
 writes, and it holds 11.7× the memory per open study. *Corrected 2026-10-25, each engine at its best:* the verdict
@@ -618,7 +699,7 @@ The principle is decided: only what the page needs now. What remains open:
 * **Its size across the band:** with `digests` moved into the `.sbnd` entry ([`../disk-layout/target.md`](../disk-layout/target.md)
   §The two hashes), a series whose display does not vary per frame is a few hundred bytes at any frame count; per-frame
   rescale or window grows with frames. **Measured:** PORD's ~120 KB cost the connection +7 / +29 ms at 80 / 160 ms.
-* **Caching:** today it is `no-cache`; a generation number in the study database lets a reopened page check its copy
+* **Caching:** today it is `no-cache`; a revision number in the study database lets a reopened page check its copy
   in one round trip.
 
 ### 5. Moving fixtures, the dev host and the gate off the JSON file
@@ -636,9 +717,10 @@ The principle is decided: only what the page needs now. What remains open:
 
 ## What the owner decides, in order
 
-1. How the page gets the metadata and the codec (§1).
-2. The groups' storage shape (§2), after its measurement if wanted; the codec's place (§1) is open with it.
-3. The engine (§3).
+1. How the page gets the metadata and the codec (§1): open with viewer metadata (the design state §6); the codec may
+   come from the study index (2026-10-24).
+2. The groups' storage shape (§2): T1 proposed, measured; shared plus per-instance values open.
+3. The engine (§3): rusqlite proposed, measured.
 4. The unit the page fetches (§4).
 5. Fixtures as JSON input or a committed `.db` (§5).
 
