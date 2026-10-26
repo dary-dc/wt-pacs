@@ -225,6 +225,36 @@ pub fn ready_row(tx: &Connection, name: &str) -> Result<()> {
     Ok(())
 }
 
+/// The compressed ready row: the whole document gzipped, its revision moved on every write.
+pub fn compressed_row(tx: &Connection, name: &str) -> Result<()> {
+    let gz = gzip(&document(&Parts { paint: paint_from_instances(tx, name)?, study: study_fields(tx)? }));
+    let (uid, _) = series_uid(tx, name)?;
+    tx.execute(
+        "INSERT INTO series_gz (series_uid, revision, gz) VALUES (?1, 1, ?2)
+         ON CONFLICT (series_uid) DO UPDATE SET revision = revision + 1, gz = excluded.gz",
+        (&uid, &gz),
+    )?;
+    Ok(())
+}
+
+const SERIES_GZ: &str = "FROM series_gz g JOIN series s ON s.uid = g.series_uid WHERE s.name = ?1";
+
+pub fn revision(conn: &Connection, name: &str) -> Result<i64> {
+    conn.prepare_cached(&format!("SELECT g.revision {SERIES_GZ}"))?
+        .query_row([name], |r| r.get(0))
+        .with_context(|| format!("series {name} has no compressed row"))
+}
+
+pub fn compressed(conn: &Connection, name: &str) -> Result<(i64, Vec<u8>)> {
+    conn.prepare_cached(&format!("SELECT g.revision, g.gz {SERIES_GZ}"))?
+        .query_row([name], |r| Ok((r.get(0)?, r.get(1)?)))
+        .with_context(|| format!("series {name} has no compressed row"))
+}
+
+pub fn revision_tag(revision: i64) -> String {
+    format!("\"r{revision}\"")
+}
+
 pub fn series_names(conn: &Connection) -> Result<Vec<String>> {
     let mut stmt = conn.prepare("SELECT name FROM series ORDER BY name")?;
     let names = stmt.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
@@ -282,6 +312,18 @@ mod tests {
             assert_eq!(a["paint"]["frames"], if name == "ct" { 262 } else { 2000 });
             let numbers: Vec<f64> = a["paint"]["per_frame"].as_array().unwrap().iter().map(|f| f[0].as_f64().unwrap()).collect();
             assert!(numbers.windows(2).all(|w| w[0] < w[1]), "frames in display order");
+        }
+    }
+
+    /// The compressed ready row holds B's file byte for byte, at revision 1 after prepare.
+    #[test]
+    fn the_compressed_row_is_the_derived_file() {
+        let study = fixture();
+        let conn = open_read(&study).unwrap();
+        for name in ["ct", "ct2000"] {
+            let (revision, gz) = compressed(&conn, name).unwrap();
+            assert_eq!(revision, 1);
+            assert_eq!(gz, fs::read(&derived_files(&study, name)[0]).unwrap(), "{name}");
         }
     }
 }

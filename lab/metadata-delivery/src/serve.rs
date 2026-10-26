@@ -38,7 +38,48 @@ async fn read_blocking(root: PathBuf, study: String, name: String, source: Sourc
     tokio::task::spawn_blocking(move || open_and_read(&root, &study, &name, source)).await?
 }
 
-/// `GET /meta/<study>/<series>?from=instances|ready`, HTTP/1.0 from nginx, one request a connection.
+/// What the endpoint answers from: the document built at open, or the compressed ready row as stored.
+#[derive(Clone, Copy, Debug)]
+pub enum Delivery {
+    Built(Source),
+    Stored,
+}
+
+impl Delivery {
+    fn parse(s: &str) -> Option<Self> {
+        if s == "gz" { Some(Self::Stored) } else { Source::parse(s).map(Self::Built) }
+    }
+}
+
+/// One open at the endpoint: the ETag, and the body unless `if_none_match` already holds that ETag.
+pub fn open_and_answer(
+    root: &Path,
+    study: &str,
+    name: &str,
+    delivery: Delivery,
+    if_none_match: Option<&str>,
+) -> Result<(String, Option<Vec<u8>>)> {
+    match delivery {
+        Delivery::Built(source) => {
+            let gz = open_and_read(root, study, name, source)?;
+            let tag = doc::etag(&gz);
+            Ok(if if_none_match == Some(tag.as_str()) { (tag, None) } else { (tag, Some(gz)) })
+        }
+        Delivery::Stored => {
+            let conn = doc::open_read(&study_dir(root, study))?;
+            if let Some(seen) = if_none_match {
+                let tag = doc::revision_tag(doc::revision(&conn, name)?);
+                if seen == tag {
+                    return Ok((tag, None));
+                }
+            }
+            let (revision, gz) = doc::compressed(&conn, name)?;
+            Ok((doc::revision_tag(revision), Some(gz)))
+        }
+    }
+}
+
+/// `GET /meta/<study>/<series>?from=instances|ready|gz`, HTTP/1.0 from nginx, one request a connection.
 async fn answer(mut tcp: TcpStream, root: PathBuf) -> Result<()> {
     let mut buf = vec![0u8; 8192];
     let mut n = 0;
@@ -60,27 +101,28 @@ async fn answer(mut tcp: TcpStream, root: PathBuf) -> Result<()> {
     });
     let (path, q) = target.split_once('?').unwrap_or((target, ""));
     let mut parts = path.trim_start_matches('/').split('/');
-    let found = match (parts.next(), parts.next(), parts.next(), query(q, "from").and_then(Source::parse)) {
-        (Some("meta"), Some(study), Some(name), Some(source)) if plain(study) && plain(name) => {
-            read_blocking(root, study.into(), name.into(), source).await.ok()
+    let found = match (parts.next(), parts.next(), parts.next(), query(q, "from").and_then(Delivery::parse)) {
+        (Some("meta"), Some(study), Some(name), Some(delivery)) if plain(study) && plain(name) => {
+            let (study, name) = (study.to_string(), name.to_string());
+            tokio::task::spawn_blocking(move || {
+                open_and_answer(&root, &study, &name, delivery, if_none_match.as_deref())
+            })
+            .await?
+            .ok()
         }
         _ => None,
     };
     let response = match found {
         None => b"HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec(),
-        Some(gz) => {
-            let tag = doc::etag(&gz);
-            let fresh = if_none_match.as_deref() == Some(tag.as_str());
+        Some((tag, body)) => {
             let mut r = format!(
                 "HTTP/1.0 {}\r\nContent-Type: application/json\r\nContent-Encoding: gzip\r\nCache-Control: no-cache\r\n\
                  ETag: {tag}\r\nContent-Length: {}\r\n\r\n",
-                if fresh { "304 Not Modified" } else { "200 OK" },
-                if fresh { 0 } else { gz.len() }
+                if body.is_some() { "200 OK" } else { "304 Not Modified" },
+                body.as_ref().map_or(0, Vec::len)
             )
             .into_bytes();
-            if !fresh {
-                r.extend_from_slice(&gz);
-            }
+            r.extend_from_slice(body.as_deref().unwrap_or_default());
             r
         }
     };
@@ -159,5 +201,32 @@ pub async fn run(root: PathBuf, http: SocketAddr, wt: SocketAddr, cert: &Path, k
                 eprintln!("session: {err:#}");
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prepare::tests::fixture;
+
+    /// A revalidation holding the current ETag gets no body, from either delivery; after the receiver commits a
+    /// correction, the same ETag gets the new document under a new ETag.
+    #[test]
+    fn a_current_etag_gets_no_body_until_the_receiver_writes() {
+        let study = fixture();
+        let root = study.parent().and_then(Path::parent).unwrap();
+        for delivery in [Delivery::Built(Source::Ready), Delivery::Stored] {
+            let (tag, body) = open_and_answer(root, "s000", "ct", delivery, None).unwrap();
+            assert_eq!(open_and_answer(root, "s000", "ct", delivery, Some(&tag)).unwrap(), (tag.clone(), None), "{delivery:?}");
+            let mut writer = doc::open_write(&study).unwrap();
+            let tx = writer.transaction().unwrap();
+            tx.execute("UPDATE instance SET window_center = window_center + 1", []).unwrap();
+            doc::ready_row(&tx, "ct").unwrap();
+            doc::compressed_row(&tx, "ct").unwrap();
+            tx.commit().unwrap();
+            let (new_tag, new_body) = open_and_answer(root, "s000", "ct", delivery, Some(&tag)).unwrap();
+            assert_ne!(new_tag, tag, "{delivery:?}");
+            assert_ne!(new_body.unwrap(), body.unwrap(), "{delivery:?}");
+        }
     }
 }
