@@ -95,3 +95,25 @@ it is the owner's.
 **Where the host saturates.** The browser, the forwarder, nginx and the serving process share four vCPUs. The floor
 link (no delay, rate or loss) is run in every round; no difference below its spread is claimed, and H2's rates are
 reported only up to the concurrency at which requests a second stop growing.
+
+## Run
+
+As root, with nginx, `h2load` (nghttp2-client), `certutil` (libnss3-tools), `ip` (iproute2), Playwright's Chromium,
+and a venv holding `numpy`, `pydicom` (the ingest's pins) and `xxhash`. Outside the workspace: nothing here enters the
+gate's build.
+
+```bash
+python3 fixture/fetch.py DATA ct                        # #150's pinned TCIA series, checked file by file
+python fixture/build.py DATA FIX                        # FIX/template.db, FIX/frame0.gz
+cargo build --release
+METADATA_DELIVERY_FIXTURE=FIX cargo test --release      # the document, the snapshot, the rename
+python3 consistency_test.py && python3 summary_test.py
+B=target/release/metadata-delivery
+$B prepare FIX ROOT --studies 100                       # WAL; ROOT-delete with --journal delete
+python3 links.py ROOT RUN > links.ndjson                # the user's path; summary.py links.ndjson --markdown
+$B cost ROOT --rounds 300 > cost.ndjson                 # H1
+python3 host_load.py h2 ROOT RUN2 > h2.ndjson           # H2, nothing else running
+python3 host_load.py hold ROOT > hold.ndjson            # H3; again on ROOT-delete with --journal delete
+python3 consistency.py run ROOT wal && python3 consistency.py run ROOT-delete delete
+python3 consistency.py summary wal delete
+```
