@@ -12,6 +12,7 @@ tls.rs         TLS 1.3, each PCS's certificate pinned by its SHA-256, per site
 tcp.rs         HTTP/1.1 on hyper over TLS            (always)
 quic.rs        HTTP/3 on h3 and h3-quinn             (--features quic; experimental)
 pcs/send-package.sh   the PCS's side: POSIX sh and stock curl
+sender/               the PCS's side in Rust: builds the package from the exam tree, keeps it, sends it by the script
 ```
 
 ## Run it
@@ -47,3 +48,24 @@ cargo test -p carrier --features quic     # and the same upload over HTTP/3
 ```
 
 The script's tests need `curl` and `sh` on the path.
+
+## The sender
+
+Builds each named series' package (layout 2) from the PCS's exam tree, keeps it in the outbox until stored, and sends
+it with `pcs/send-package.sh`; why and how is [`docs/adr/pcs-transfer.md`](../docs/adr/pcs-transfer.md) §15.
+
+```bash
+cat > profile <<'END'
+transport tcp                     # quic is refused: the upload is the script's, over curl
+metadata  zstd                    # or plain
+carrier   https://pacs.example:443
+cert      pcs.pem
+key       pcs.key
+cacert    carrier.pem
+outbox    /var/spool/pcs-sender   # packages until stored, and what each revision carried, for good
+END
+cargo build --release -p sender
+target/release/sender --profile profile /data/PbPb/STUDY SERIES...
+#   exit 0 every series stored, 3 refused (an operator's), 4 gave up for now, 5 the tree cannot be packed, 2 usage
+cargo test -p sender                      # the build, and the sender through the carrier and the script
+```

@@ -5,6 +5,7 @@ members = [
     "common/series-bundle",
     "server",
     "carrier",
+    "carrier/sender",
     "client/transport/wasm",
     "tools/pack-series",
     "ingest/from-parser",
@@ -23,6 +24,7 @@ default-members = [
     "common/series-bundle",
     "server",
     "carrier",
+    "carrier/sender",
     "tools/pack-series",
     "tools/check-fastpath",
 ]
