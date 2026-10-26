@@ -24,15 +24,35 @@ F is the mean coded frame, guessed at ~200 kB for a 512² 12-bit CT-like frame; 
 * **fsync** adds the written bytes over the disk's write rate: small for the appends, ~S for the rewrites.
 * **End and middle are the same cost for `.sbnd`**, and for MP4 all-intra with the moov at the end.
 
+## Against the numbers
+
+The numbers are in [`../../docs/disk-layout/containers.md`](../../docs/disk-layout/containers.md) §Measured: what a
+late frame costs; F came out at 264 kB (HTJ2K) and 344 kB (AV1).
+
+* **`.sbnd`: read S, write S + k·F, end = middle** — held, to the byte. **~0.2–0.5 s** — not held: 0.57–1.02 s at
+  N = 2 000 (0.36–3.6 s over runs), this host's page-cache rate, not the code's.
+* **MXF appends < 10 ms, the footer layout writing the whole index** — held: 1.6–9.5 ms; at N = 2 000 and k = 1,
+  286 kB against the body layout's 266 kB, the difference mostly the 22 kB index. **Body layout independent of N** —
+  held in bytes (265 and 266 kB at N = 262 and 2 000), plus 8 B for each of its 68 partition packs at N = 2 000.
+* **MXF middle ≈ S as a new file** — held (bmx rewrites it, 1.2–2.3 s).
+* **MP4 moov at the end < 10 ms, and all-intra middle = end** — held: 2.2–8.6 ms, the middle 32 B more (one more chunk).
+* **moov at the front rewrites S** — held. **Fragmented append < 5 ms** — held at GOP 30 (2.2 ms), not all-intra:
+  19 ms, because FFmpeg's `frag_keyframe` made a fragment a frame and the mfra (an entry each) is rewritten.
+* **Re-encode ~0.15 s a frame intra, ~0.3 s inter** — not held: 0.47–0.54 s intra, 0.24–0.25 s inter (inter is the
+  cheaper here). **~10 s a group, dominating the container work** — held: 9.0–11.5 s against 37–70 ms.
+
 ## Reproduce
 
-Needs FFmpeg with libaom and libdav1d, libaom's `aomenc` and `aomdec`, numpy, Rust, and two builds from source:
-OpenJPH 0.31.0 (commit `c68064d`, as `ingest/tools.sh` pins it) and bmx v1.6 (commit `feb6e3d`) with
-[`bmx-grey.patch`](bmx-grey.patch), without which bmx refuses a one-component codestream ("Unsupported JPEG2000
-component layout"). The patch maps one unsigned component to a `Y` layout and changes nothing else.
+Run here: FFmpeg 6.1.1 (libdav1d), libaom 3.8.2's `aomenc` and `aomdec` (Ubuntu 24.04's `aom-tools`), numpy, Rust,
+and from source by [`tools.sh`](tools.sh): OpenJPH 0.31.0 (commit `c68064d`, as `ingest/tools.sh` pins it) and bmx
+v1.6 (commit `feb6e3d`) with [`bmx-grey.patch`](bmx-grey.patch), without which bmx refuses a one-component codestream
+("Unsupported JPEG2000 component layout"). The patch maps one unsigned component to a `Y` layout and nothing else.
+GPAC's MP4Box 2.2.1 was installed and used only to look at boxes.
 
 ```bash
 W=lab/.late-frame-work
+BUILD=$W/tools lab/late-frame/tools.sh && OJPH=$W/tools/ojph BMX=$W/tools/bmx
+export LD_LIBRARY_PATH=$OJPH/lib:$BMX/lib
 python3 lab/late-frame/frames.py $W "$OJPH/bin" /usr/bin/aomenc          # frames, HTJ2K, AV1
 (cd lab/late-frame/sbnd-late && cargo build --release)
 python3 lab/late-frame/run.py $PWD/$W "$BMX/bin" /usr/bin "$OJPH/bin" 5   # cells, encodes, the disk
@@ -49,4 +69,5 @@ python3 lab/late-frame/summary.py $W
 | `run.py` | every cell interleaved (`lab/order.mjs`'s Williams square), each checked once; the encodes; the disk's rates |
 | `check.py` | each output read by another tool: FFmpeg's libdav1d, bmx's `mxf2raw`, the `.sbnd` index |
 | `mutate.py` | seven breakages, each of which its check must catch |
-| `rows.jsonl`, `costs.jsonl`, `host.jsonl` | this run's rows |
+| `rows.jsonl`, `costs.jsonl`, `host.jsonl`, `mutate.txt` | this run's rows, 2026-10-26 |
+| `tools.sh`, `bmx-grey.patch` | OpenJPH and bmx, pinned |
