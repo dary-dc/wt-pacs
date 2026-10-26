@@ -179,6 +179,13 @@ are the container's: 4 vCPUs, 15 GiB of memory and 30 GB of free disk.
   then `fsync` of both parents), and the old path is then opened to check it is gone. A, D and D2 do nothing on
   disk.
 
+**Amended again 2026-10-26, before re-running P3, P5 and P6.** A worker restart rebooted the container during the
+ext4 10⁶ scan. The phases after it then ran on trees read back from the device. Those rows are neither warm nor a
+controlled cold, so they are kept apart and not used. From now on, each operation first reads what it touches
+untimed: the directories a publish renames into, the study a deletion or correction removes or moves, and the
+destination folder. Every timed pass also records the bytes read from the loop devices, so a cell that read any is
+not called warm.
+
 ## 6 · Questions for the meeting, each with a default
 
 1. **Is the path a function of the UIDs alone, with no database in the read path?** Default: **yes**. That is what the

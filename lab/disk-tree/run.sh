@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # One filesystem, one study count, every arm on its own loop-mounted image: build, then the protocols in order.
 #   sudo lab/disk-tree/run.sh ext4|xfs N [WORK]     rows to stdout, one JSON object per line
+#   PHASES="publish delete correct" sudo lab/disk-tree/run.sh …   only those, after the build
 #   CEILING=1 sudo lab/disk-tree/run.sh ext4 0      P2 alone: ext4's per-directory ceiling and the subdirectory cap
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -65,10 +66,12 @@ host flat
 for a in "${arms[@]}"; do "$bin" build roots="$a:$work/$a" seed="$seed" n="$n" & done
 wait
 d0=$(drops)
-"$bin" lookup roots="$roots" seed="$seed" n="$n"
-"$bin" scan roots="$roots" rounds="${SCAN_ROUNDS:-5}"
-"$bin" publish roots="$roots" seed="$seed" n="$n" ks=1,2,4,8 rounds=4 per=100
-"$bin" delete roots="$roots" seed="$seed" n="$n" days=$((n >= 100000 ? 10 : 2))
-"$bin" correct roots="$roots" seed="$seed" n="$n" from_day=$((n >= 100000 ? 10 : 2)) count=500
+phases=" ${PHASES:-lookup scan publish delete correct} "
+old=$((n >= 100000 ? 10 : 2))
+[[ $phases == *" lookup "* ]] && "$bin" lookup roots="$roots" seed="$seed" n="$n"
+[[ $phases == *" scan "* ]] && "$bin" scan roots="$roots" rounds="${SCAN_ROUNDS:-5}"
+[[ $phases == *" publish "* ]] && "$bin" publish roots="$roots" seed="$seed" n="$n" ks=1,2,4,8 rounds=4 per=100
+[[ $phases == *" delete "* ]] && "$bin" delete roots="$roots" seed="$seed" n="$n" days=$old
+[[ $phases == *" correct "* ]] && "$bin" correct roots="$roots" seed="$seed" n="$n" from_day=$old count=500
 printf '{"p":"cache","drop_caches_during_run":%s}\n' "$(($(drops) - d0))"
 df -B1 --output=used "$work" | tail -1 | xargs printf '{"p":"disk","host_fs_used_bytes":%s}\n'

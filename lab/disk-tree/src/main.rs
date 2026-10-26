@@ -320,6 +320,32 @@ fn scan(a: &Args) {
     }
 }
 
+/// Lists every directory down to `depth` levels below `dir`: the warm-up before an operation that writes there.
+fn list_dirs(dir: &Path, depth: usize) {
+    let Ok(rd) = fs::read_dir(dir) else { return };
+    for e in rd {
+        let p = e.unwrap().path();
+        if depth > 0 {
+            list_dirs(&p, depth - 1);
+        }
+    }
+}
+
+/// Reads a study's directory entry, inode and contents: the warm-up before moving or removing it.
+fn touch_study(p: &Path) {
+    fs::symlink_metadata(p).unwrap();
+    fs::read_dir(p).unwrap().for_each(|e| drop(e.unwrap().metadata()));
+}
+
+fn parent_depth(arm: &str) -> usize {
+    match arm {
+        "flat" => 0,
+        "coded-date" | "hash1" => 1,
+        "hash2" => 2,
+        _ => 3,
+    }
+}
+
 fn publish_one(arm: &str, mnt: &Path, s: &Study, buf: &[u8]) -> (u64, u64) {
     let t0 = Instant::now();
     let staging = mnt.join("incoming").join(&s.name);
@@ -345,7 +371,7 @@ fn publish(a: &Args) {
     let ks: Vec<usize> = a.get("ks").split(',').map(|k| k.parse().unwrap()).collect();
     let buf = vec![0x5au8; 4096];
     let mut next = n.div_ceil(STUDIES_PER_DAY) * STUDIES_PER_DAY;
-    let mut lat: BTreeMap<(usize, usize), (Vec<u64>, Vec<u64>)> = BTreeMap::new();
+    let mut lat: BTreeMap<(usize, usize), (Vec<u64>, Vec<u64>, u64)> = BTreeMap::new();
     for r in 0..a.or("rounds", 4) as usize {
         for ki in williams(ks.len(), r) {
             let k = ks[ki];
@@ -355,6 +381,8 @@ fn publish(a: &Args) {
             next += k as u64 * per;
             for ai in williams(roots.len(), r) {
                 let (arm, mnt) = &roots[ai];
+                list_dirs(&mnt.join("tree"), parent_depth(arm));
+                let before = device_reads();
                 let got: Vec<Vec<(u64, u64)>> = std::thread::scope(|sc| {
                     let hs: Vec<_> = studies
                         .iter()
@@ -363,6 +391,7 @@ fn publish(a: &Args) {
                     hs.into_iter().map(|h| h.join().unwrap()).collect()
                 });
                 let e = lat.entry((ai, k)).or_default();
+                e.2 += device_reads() - before;
                 for (total, rename) in got.into_iter().flatten() {
                     e.0.push(total);
                     e.1.push(rename);
@@ -370,7 +399,7 @@ fn publish(a: &Args) {
             }
         }
     }
-    for ((ai, k), (mut total, mut rename)) in lat {
+    for ((ai, k), (mut total, mut rename, read)) in lat {
         row(&[
             ("p", q("publish")),
             ("arm", q(&roots[ai].0)),
@@ -381,6 +410,7 @@ fn publish(a: &Args) {
             ("p99_us", (pct(&mut total, 0.99) / 1000).to_string()),
             ("rename_p50_us", format!("{:.1}", pct(&mut rename, 0.5) as f64 / 1e3)),
             ("rename_p99_us", format!("{:.1}", pct(&mut rename, 0.99) as f64 / 1e3)),
+            ("read_bytes", read.to_string()),
         ]);
     }
 }
@@ -391,6 +421,7 @@ fn delete(a: &Args) {
     let roots = a.roots();
     let (seed, n, days) = (a.num("seed"), a.num("n"), a.num("days"));
     let mut lat: Vec<(u64, u64)> = vec![(0, 0); roots.len()];
+    let mut read = vec![0u64; roots.len()];
     for d in 0..days {
         let catalog: Vec<Study> = (d * STUDIES_PER_DAY..((d + 1) * STUDIES_PER_DAY).min(n))
             .map(|i| study(seed, i))
@@ -399,6 +430,8 @@ fn delete(a: &Args) {
         for ai in williams(roots.len(), d as usize) {
             let (arm, mnt) = &roots[ai];
             let tree = mnt.join("tree");
+            catalog.iter().for_each(|s| touch_study(&study_dir(&tree, arm, s)));
+            let before = device_reads();
             let t = Instant::now();
             let removed = if matches!(arm.as_str(), "coded-date" | "ymd") {
                 let folder = study_dir(&tree, arm, &catalog[0]).parent().unwrap().to_path_buf();
@@ -424,6 +457,7 @@ fn delete(a: &Args) {
             };
             lat[ai].0 += t.elapsed().as_nanos() as u64;
             lat[ai].1 += removed;
+            read[ai] += device_reads() - before;
         }
     }
     let mut sync = vec![0u64; roots.len()];
@@ -440,6 +474,7 @@ fn delete(a: &Args) {
             ("studies", lat[ai].1.to_string()),
             ("us_per_study", format!("{:.1}", lat[ai].0 as f64 / lat[ai].1 as f64 / 1e3)),
             ("syncfs_ms", (sync[ai] / 1_000_000).to_string()),
+            ("read_bytes", read[ai].to_string()),
         ]);
     }
 }
@@ -466,6 +501,7 @@ fn correct(a: &Args) {
     let rounds = a.or("rounds", 10) as usize;
     let mut lat: Vec<Vec<u64>> = vec![Vec::new(); roots.len()];
     let mut broken = vec![0u64; roots.len()];
+    let mut read = vec![0u64; roots.len()];
     for (r, chunk) in picks.chunks(picks.len().div_ceil(rounds)).enumerate() {
         for ai in williams(roots.len(), r) {
             let (arm, mnt) = &roots[ai];
@@ -475,12 +511,16 @@ fn correct(a: &Args) {
                 if from == to {
                     continue;
                 }
+                touch_study(&from);
+                list_dirs(to.parent().unwrap(), 0);
+                let before = device_reads();
                 let t = Instant::now();
                 fs::create_dir_all(to.parent().unwrap()).unwrap();
                 fs::rename(&from, &to).unwrap();
                 fsync_dir(from.parent().unwrap());
                 fsync_dir(to.parent().unwrap());
                 lat[ai].push(t.elapsed().as_nanos() as u64);
+                read[ai] += device_reads() - before;
                 if File::open(from.join(SERIES_FILE)).is_err() {
                     broken[ai] += 1;
                 }
@@ -497,6 +537,7 @@ fn correct(a: &Args) {
             ("corrected", count.to_string()),
             ("moved", v.len().to_string()),
             ("old_path_gone", broken[ai].to_string()),
+            ("read_bytes", read[ai].to_string()),
             ("p50_us", (p50 / 1000).to_string()),
             ("p99_us", (p99 / 1000).to_string()),
         ]);
