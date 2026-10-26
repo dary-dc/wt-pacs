@@ -1,0 +1,37 @@
+[package]
+name = "carrier"
+version = "0.1.0"
+edition = "2021"
+description = "Receives the PCS's packages by resumable upload and answers received, committed or refused: docs/ingest/link.md §12"
+
+[lib]
+name = "carrier"
+path = "src/lib.rs"
+
+[[bin]]
+name = "carrier"
+path = "src/main.rs"
+
+[features]
+# The HTTP/3 listener, experimental: docs/ingest/link.md §12.4.
+quic = ["dep:h3", "dep:h3-quinn", "dep:quinn"]
+
+[dependencies]
+anyhow = { workspace = true }
+bytes = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+http = "1"
+hyper = { version = "1.12", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+ring = "0.17"
+rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std"] }
+tokio = { workspace = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+h3 = { version = "0.0.8", optional = true }
+h3-quinn = { version = "0.0.10", optional = true }
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"], optional = true }
+
+[dev-dependencies]
+rcgen = "0.13"

@@ -174,6 +174,10 @@ step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"
 run 1 cargo check -p series-server --features cert-compression --all-targets --quiet
+step "carrier: the resumable upload, mutual TLS, refusals, and the PCS's script through a proxy that cuts and stalls"
+run 1 cargo test -p carrier --quiet
+step "carrier: the same upload over the experimental HTTP/3 listener"
+run 1 cargo test -p carrier --features quic --quiet
 step "common, ingest and tools: wire, envelope, series bundle, pack-series and check-fastpath"
 run 1 cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p check-fastpath --quiet
 step "tools: pack-series packs the smoke bundle again to the same bytes"
