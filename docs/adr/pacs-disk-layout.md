@@ -203,7 +203,7 @@ without `dir_nlink`. A cold lookup is not measured.
    URL of PR #142 assumes, and the rest follows from it.
 2. **The shard: none, 256, 4 096, or two levels of 256?** Default: **one level of 256** (`<hh>`, 2 lowercase hex
    characters). It holds 10–26 M directories per folder even on ext4 without `large_dir`, so 2.5 billion studies on
-   paper *(I)*. Measured: 7.7–10 M per folder, so about 2 billion (§5, *Measured*). Going to 4 096 later is a rename per study (§7).
+   paper *(I)*. Measured: 7.7–10 M per folder, so about 2 billion (arithmetic; §5, *Measured*). Going to 4 096 later is a rename per study (§7).
 3. **The shard's hash.** Default: **the low byte of XXH3-64 of the study name as it is on disk**, the hash family the
    ingest already uses. The hash must spread, not just cut the name: UIDs from one organisation share their leading
    characters, so the name's first two characters are no shard *(I)*.
