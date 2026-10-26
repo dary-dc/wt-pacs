@@ -4,6 +4,12 @@
 owner's of 2026-10-11 — **the hospital→PACS link is TCP** (HTTPS) — and this document writes down its reasons and what
 QUIC would have to show before it returns. Every choice left open is the owner's (§8).*
 
+*Corrected 2026-10-26* ([`pacs-receive-design.md`](pacs-receive-design.md) §1–§2): the sender is the **PCS** (the
+hospital-side component, another team's), and what it sends is a **submission package**, one file per series; this
+file's "site" is the PCS's host. The package's proof is its **XXH3** (in its name), not a bundle SHA-256. The owner
+accepts different transports per link (10-25/26): one application handler, a TCP or a QUIC listener chosen by config
+(§11, proposed).
+
 **The link in question.** The site's ingest uploads coded bundles and their metadata, files of ~0.1–50 MB, a few to a
 hundred GB a day, from a wired host in a hospital network to the server, over a WAN of ~10 Mbit/s–1 Gbit/s at 10–150 ms
 RTT. It is the reverse of the viewer's fill: **the site sends, the server receives**, and nothing on it is interactive.
@@ -52,7 +58,7 @@ here.
 * **Resume and integrity are the application's, on either transport.** S3-style multipart (client-chosen parts,
   per-part checksum, idempotent part retry), tus (server-held offset, per-chunk checksum), the IETF resumable-upload
   draft (server-held offset, **no** integrity in -13) and rsync (whole-file checksum, partial files) each give a
-  different mix (§7). The bundle's own SHA-256 and per-frame digests are the end-to-end proof whichever is chosen.
+  different mix (§7). The package's own XXH3 (this said the bundle's SHA-256) and per-frame digests are the end-to-end proof whichever is chosen.
 
 ## 2. CPU per byte
 
@@ -226,8 +232,8 @@ Microsoft says SMB over QUIC "is slower than" encrypted SMB over TCP, citing enc
 
 ## 7. Resumable upload over HTTPS
 
-Who holds the offset, what proves the bytes, and what a retry does. The bundle's SHA-256 (and the per-frame digests
-inside it) remain the end-to-end proof in every case; what follows is what the transfer itself adds.
+Who holds the offset, what proves the bytes, and what a retry does. The package's XXH3 (this said the bundle's SHA-256) and the per-frame
+digests inside the bundle remain the end-to-end proof in every case; what follows is what the transfer itself adds.
 
 | option | resume: who holds what | integrity | a retried request | an abandoned upload | Rust |
 | --- | --- | --- | --- | --- | --- |
@@ -239,7 +245,7 @@ inside it) remain the end-to-end proof in every case; what follows is what the t
 
 **For this link:** files are 0.1–50 MB, so a multipart part (≥ 5 MiB) splits a file into at most ~10 pieces and
 most files go in one request; resume matters less than **an idempotent publish per file** — write, verify the
-SHA-256, then rename — which the server already does for a bundle in the plan ([`../FIXTURES.md`](../FIXTURES.md)
+hash (XXH3 since 2026-10-24/25), then rename — which the server already does for a bundle in the plan ([`../FIXTURES.md`](../FIXTURES.md)
 §A compiled ingest at the site). A designed upload endpoint is row 153's subject (INGESTDESIGN).
 
 ## 8. What would have to be true for QUIC to win
@@ -328,7 +334,7 @@ first-party text.
 
 ## 11. The carrier for the PCS's packages
 
-*2026-10-25. Theory only: read from sources and from the crates' code, nothing built, nothing timed. It stacks on
+*2026-10-25. Proposed, not accepted; theory only: read from sources and from the crates' code, nothing built, nothing timed. It stacks on
 [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) (the ADR below), which fixed the unit (one package per series, or a
 small update package), the reply (received, committed, refused: its §7) and recommended a resumable HTTPS upload (its
 §3); this section compares the carriers for that package and says what the comparison changes there (§11.4). Labels as

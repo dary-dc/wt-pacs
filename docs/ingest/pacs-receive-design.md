@@ -232,6 +232,10 @@ unreadable, 5 busy). **Correction owed:** its grammar is PS3.5 digits and dots; 
 | `docs/ingest/contract.md`, `design.md`, `README.md` | BLAKE3 → XXH3; the site's encoding/outbox/upload relabelled as the PCS's side; the package as the interface |
 | all docs | the terms above |
 
+*Applied 2026-10-26* in the combined design-records branch (`claude/design-records-combined`): the #142 grammar, the
+#153 decoder rule (and #145's citation of the 10-19 rule), `target.md`, `contract.md`, `design.md`, `README.md` and the
+terms across the records and the glossary. Still owed: the #119, #120 and #126/#144 rows, whose branches are not in it.
+
 ## 12 · PR index
 
 #142 serving by UID · #144 update cost (in place 6–17× cheaper than revision directories) · #145 display metadata ·

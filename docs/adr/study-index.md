@@ -1,6 +1,10 @@
 # ADR: the study index — the database the list, browse and search screens read
 
-**Status:** proposed 2026-10-25, **theory only: nothing built, nothing timed.** Every choice is the owner's (§10). It
+**Status:** proposed 2026-10-25, **theory only: nothing built, nothing timed; not accepted.** Every choice is the
+owner's (§10); the owner said on 2026-10-25 that MySQL fits and that it may live on its own server over the network, to
+evaluate ([`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) §7). *Corrected 2026-10-26:* a study's
+**revision** replaces this record's "generation", which the glossary keeps for a request's identity; the study DB is
+the one **source**, not a "truth"; the "mysql master index" quotation is in pcs.pdf as updated 2026-10-23 (§2). It
 names and specifies the component [`../ingest/design.md`](../ingest/design.md) §5 calls "the catalog"; where the two
 differ (the engine, §5 here), this record is the newer reading. Sources are pinned in §12 and
 [`study-index-sources.txt`](study-index-sources.txt). *Inferred* marks a conclusion of this record, not a source's
@@ -11,16 +15,16 @@ statement.
 | question | recommendation | what would change it | cost of switching later |
 | --- | --- | --- | --- |
 | **1 Name** | **study index**; the glossary entry, and "catalog" renamed in `docs/ingest/`, on acceptance | the list screen becoming a reading *worklist* (status, assignee): that is a second thing, named separately | a rename in docs and identifiers: hours |
-| **2 Content** | list-time fields only: QIDO-RS's required study and series return attributes, plus study description, Issuer of Patient ID, the study's **host**, its **generation**, an **access key**; per series the **codec**. No display metadata, no instance rows, no blobs | a screen that filters on a field not listed (add a column, backfill by reconcile) | a column: one migration + one reconcile pass, because the index is derived |
+| **2 Content** | list-time fields only: QIDO-RS's required study and series return attributes, plus study description, Issuer of Patient ID, the study's **host**, its **revision**, an **access key**; per series the **codec**. No display metadata, no instance rows, no blobs | a screen that filters on a field not listed (add a column, backfill by reconcile) | a column: one migration + one reconcile pass, because the index is derived |
 | **3 Engine** | **MySQL 8.4 LTS** (or MariaDB, whichever the operators already run) | the owner answering "one host for the foreseeable future" → an SQLite file on that host; a need for database-enforced row security → PostgreSQL | low: plain SQL, and every row is rebuilt from the study DBs by the reconcile job (§7) |
 | **4 Placement** | **one index for all PACS hosts**; its server process starts on the first host and moves to its own server when a second host arrives. Viewing by direct link **does not need the index** | a second host, or the index's load measurably slowing the host's frame reads (§11) | a move: restore or rebuild elsewhere, re-point one connection string |
-| **5 Sync** | the study DB is the truth. **Intent row first, study DB commit, then publish**: a per-host outbox, an upsert that replaces a study's rows whole when its **generation** is higher, retries, and a reconcile job at start and daily | many writers per study (today one receiver per host) | the outbox is one table on each host: small either way |
+| **5 Sync** | the study DB is the one source. **Intent row first, study DB commit, then publish**: a per-host outbox, an upsert that replaces a study's rows whole when its **revision** is higher, retries, and a reconcile job at start and daily | many writers per study (today one receiver per host) | the outbox is one table on each host: small either way |
 | **6 Access** | the browser reaches only an **HTTPS API** shaped like QIDO-RS's Search (`/studies`, `/studies/{uid}/series`) with PS3.18 JSON; authorization in the API by the study's access key; the database never reachable from outside. Budget: **≤ 50 ms p95 server time a list page** (§11); no cache tier | a measured miss of the budget (§11) | an added cache or replica: additive |
 | **7 Not now** | instance rows, display metadata, thumbnails, fuzzy name matching, full-text search, replicas, a cache tier, a change feed, a patient table, QIDO-RS conformance claimed, distributed transactions (§9) | each one's trigger in §9 | each is additive |
 
 ## 2 · What is fixed, and what was read
 
-* **The study DB is the truth.** Per study the PACS keeps one SQLite-format study DB (one row per group: study,
+* **The study DB is the one source.** Per study the PACS keeps one SQLite-format study DB (one row per group: study,
   series, instance, private) and one `.sbnd` per series, on a PACS host's local disk; one receiver process per host
   writes both from submission packages (one per series, or an update) and applies rare updates, each with an audit
   record ([`../ingest/design.md`](../ingest/design.md) §5; the owner's brief).
@@ -32,8 +36,9 @@ statement.
   bits, photometric code). The path in the brief, `doc/subprojects/PACS/db/`, is not where it is at `a65abe2`.
 * **The PCS's own words, as read.** `DICMele2deck/pcs.pdf` at `a65abe2` says the PACS "receives key-value metadata
   already formated for inclusion into a sqlite database". The brief's quotation of pcs.pdf — server-side processing
-  "updates the study sqlite database and the mysql master index" — is **not in the copy read** (*unconfirmed*: a later
-  version, presumably). The brief's README `dicm2deck/dicm/capi/dicm2decksqlite3/README.md` **does not exist at
+  "updates the study sqlite database and the mysql master index" — is **not in the copy read** at `a65abe2`.
+  *Corrected 2026-10-26:* it is in pcs.pdf as updated 2026-10-23, quoted verbatim in
+  [`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md) §1. The brief's README `dicm2deck/dicm/capi/dicm2decksqlite3/README.md` **does not exist at
   `a65abe2`**, so the "consolidated into another database, multi-core, distributed, optimised for concurrency"
   statement is *unconfirmed*; the nearest read is `doc/dcmtk-storescp/README.md`: the parser "consolidates the sop
   sqlite into a study sqlite". Neither file at `a65abe2` mentions MySQL.
@@ -94,7 +99,7 @@ storage". dcm4chee keeps every level's full attributes in a blob (`dicomattrs_fk
 | Study Description (0008,1030) | — | yes | `study_desc` | `edesc` | every list shows it |
 | Number of Study Related Series, Instances (0020,1206/1208) | return · R | computed | `study_query_attrs.num_series`, `num_instances` | — | returned |
 | **host** | (Retrieve URL is derived from it) | — | `storage_ids`, `ext_retrieve_aet` | — | where the study DB and its `.sbnd`s live |
-| **generation** | — | — | `version` | — | the sync's ordering (§7) |
+| **revision** | — | — | `version` | — | the sync's ordering (§7) |
 | **access key** | — | — | `access_control_id` | — | authorization (§8) |
 | updated at | — | — | `updated_time` | — | reconcile, support |
 
@@ -186,7 +191,7 @@ every study DB, with all of their identifiers. *Inferred.*
 **When the index is unreachable.** Lists and searches fail with a clear error; nothing else stops. A study can still
 be viewed by direct link if two things hold, both proposed here:
 
-1. **The link names the host** (`https://<host>/…/<StudyUID>`), not only the study, so nothing has to look it up.
+1. **The link names the host** (`https://<host>/…/<Study>`), not only the study, so nothing has to look it up.
 2. **The host authorizes the view without the index:** a short-lived token, signed by the API and checked by the host
    with a key it holds.
 
@@ -205,29 +210,29 @@ to be atomic within each individual database file" only (SQLite, ATTACH).
 
 **The order the receiver keeps** (per study update; one receiver per host, so one writer per study):
 
-1. **Intent.** Upsert `(study_uid, generation = g + 1)` into the host's **outbox** (one small SQLite file per host)
+1. **Intent.** Upsert `(study_uid, revision = g + 1)` into the host's **outbox** (one small SQLite file per host)
    and commit.
-2. **Truth.** Commit the study DB with generation `g + 1` and the update's **audit record**, in one SQLite
-   transaction. The audit record lives with the truth, not in the index.
-3. **Publish**, by a publisher task on the host, for each outbox row: open that study DB, read its generation and
+2. **Commit.** Commit the study DB with revision `g + 1` and the update's **audit record**, in one SQLite
+   transaction. The audit record lives with the source, not in the index.
+3. **Publish**, by a publisher task on the host, for each outbox row: open that study DB, read its revision and
    list-time fields, and in one index transaction **replace the study's row and all its series rows if the stored
-   generation is lower**. Then delete the outbox row.
+   revision is lower**. Then delete the outbox row.
 
-A crash after 1 leaves an intent: publish reads the study DB, whose generation is either `g + 1` (published) or `g`
+A crash after 1 leaves an intent: publish reads the study DB, whose revision is either `g + 1` (published) or `g`
 (already published, a no-op), and the intent goes. A crash after 2 is the same case. A failed publish keeps its row
-and retries with backoff. Duplicates and reordering are harmless, because the upsert compares generations, so each
+and retries with backoff. Duplicates and reordering are harmless, because the upsert compares revisions, so each
 step is **idempotent, keyed by the Study Instance UID**. Replacing a study's series rows whole avoids a per-series
 merge. *Inferred.*
 
-**Reconcile**, at publisher start and daily: for its host, compare each study DB's `(study_uid, generation)` with the
+**Reconcile**, at publisher start and daily: for its host, compare each study DB's `(study_uid, revision)` with the
 index's rows for that host, publish what is behind, and delete index rows whose study DB is gone. It opens every
 study DB, which is right for a background job and wrong for a list request. It also rebuilds a lost or restored
 index: a rescan, not lost data ([`../ingest/design.md`](../ingest/design.md) §5).
 
 **Corrections propagate through the same path.** A patient-name correction for one study is an update to that study
-DB (audited, generation + 1), then published. A correction for one patient across studies uses the index only to
+DB (audited, revision + 1), then published. A correction for one patient across studies uses the index only to
 find them (`patient_id`, issuer). It then applies the update to each study DB through its host's receiver, and each
-republishes. The index is never edited directly, or it would disagree with the truth. IHE's Patient Information
+republishes. The index is never edited directly, or it would disagree with its source. IHE's Patient Information
 Reconciliation profile gives this responsibility to the Image Manager ("to ensure that the patient information is
 updated … when they are retrieved", RAD TF-1 §4). Updates from client applications later go through the receiver as
 well, so they need no second path.
@@ -257,18 +262,18 @@ well, so they need no second path.
   the API, ≤ 10 ms p95 for the query**. One request a page, never one per row; the series of a study fetched when it
   is opened.
 * **Caching:** none added. The engine's buffer pool holds the whole index (§4's size). A series list can carry an
-  `ETag` of the study's generation for a cheap `304` revalidation, if Q7 allows the response to be kept.
+  `ETag` of the study's revision for a cheap `304` revalidation, if Q7 allows the response to be kept.
 
 ## 9 · What is not needed now
 
 | not now | why | what would bring it |
 | --- | --- | --- |
 | instance-level rows | no list screen shows instances; the study DB has them | an instance-level search (QIDO-RS's All Instances) |
-| display metadata, thumbnails, icons in the index | §4's boundary; `deck.db` keeps icons per series (`sicon`) in the study DB, where they can stay | a list screen with thumbnails: served by the host, keyed by generation |
+| display metadata, thumbnails, icons in the index | §4's boundary; `deck.db` keeps icons per series (`sicon`) in the study DB, where they can stay | a list screen with thumbnails: served by the host, keyed by revision |
 | fuzzy or phonetic name matching | dcm4chee keeps soundex codes; PS3.18's `fuzzymatching` is optional | users missing studies by spelling |
 | full-text search | no screen asks for relevance | a free-text search box |
 | read replicas, a cache tier | one server holds the index in memory | §11's budget missed under load |
-| a change feed | the generation and the outbox suffice for one index | a second consumer of changes |
+| a change feed | the revision and the outbox suffice for one index | a second consumer of changes |
 | a patient table, merges | QIDO-RS's top level is the study; a correction finds studies by patient ID | patient-level screens, or IHE PIR merges at scale |
 | reading-worklist fields (status, priority, assignee) | a different concept (§3) | the worklist itself |
 | QIDO-RS conformance | no third-party viewer queries it | an external viewer or a DICOMweb integration |
@@ -311,8 +316,8 @@ without slowing the frame reads.
   the frame-read p95 of a concurrent fill (`lab/server-load/`), with and without list load.
 * **Correctness, mutated.** Every query's result set checked against a brute-force filter in the generator; a
   deliberately broken collation (`utf8mb4_bin`) must fail the accented-name check. A publisher test kills the
-  receiver between steps 1–2 and 2–3 of §7 and must find the index at the study DB's generation after restart; an
-  update forced out of order must leave the higher generation.
+  receiver between steps 1–2 and 2–3 of §7 and must find the index at the study DB's revision after restart; an
+  update forced out of order must leave the higher revision.
 * **Decision rule, before any data.** The recommended engine stands if, at 10⁶ studies, every query's p95 is
   ≤ 10 ms warm and the API's ≤ 50 ms, and the frame-read p95 under list load is within the A/A spread. If MySQL misses
   and another arm meets it, that arm is recommended instead. If the frame reads slow beyond the A/A spread, the index

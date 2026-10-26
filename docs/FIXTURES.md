@@ -109,7 +109,7 @@ one value a frame, as `perFrame.window[i]`.
 known by its file name. Checked on the lab's sets in [`lab/av1/exact/from-dicom`](../lab/av1/exact/from-dicom/README.md).
 
 **Several series of one study — proposed, not built.** A server process serves one bundle today (`--series`). A
-study would be one bundle per series plus a study index, `study.json`: each series' bundle name, its `modality`,
+study would be one bundle per series plus a study manifest, `study.json` (not the study index, [`adr/study-index.md`](adr/study-index.md)): each series' bundle name, its `modality`,
 `frameCount` and display attributes, in the study's order. The server would take `--study DIR` and route by path,
 `/series/<name>/…`, one store per series. The session URL would name the series it opens. Its asks and fills stay
 per series, so the wire is unchanged, but what the server serves and how the page names a series both change. That

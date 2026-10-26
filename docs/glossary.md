@@ -30,9 +30,13 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | group | G frames from a keyframe, decoded in order on one decoder; **unit**, one AV1 temporal unit |
 | split | a sample as a top stream (v ≫ k) and a low one (v & (2^k − 1)), each coded losslessly |
 | RCT | JPEG 2000's reversible colour transform, applied to RGB before AV1 codes it |
-| PCS | the hospital-side component, another team's: receives DICOM, parses it into a tree, builds and sends packages ([`adr/pcs-transfer.md`](adr/pcs-transfer.md)) |
-| package | the one file the PCS sends the PACS for a series or a study: a tar of its group files and its series bundle or document; [`ingest/`](ingest/README.md) calls it the archive ([`adr/pcs-transfer.md`](adr/pcs-transfer.md) §4) |
-| carrier | how a package travels from the PCS to the PACS and how the PACS's reply comes back: an HTTPS upload, rsync, an object store ([`ingest/link.md`](ingest/link.md) §11) |
+| PCS | the hospital-side component, another team's: receives DICOM, parses it, encodes it and sends submission packages; this repository's scope starts at the PACS ([`ingest/pacs-receive-design.md`](ingest/pacs-receive-design.md) §1) |
+| submission package | the one file the PCS sends the PACS: a series (its `.sbnd` and metadata groups) or an update (metadata only); its XXH3 in its name; OAIS's SIP (ISO 14721); **package** for short, never "archive" ([`adr/pcs-transfer.md`](adr/pcs-transfer.md) §4) |
+| carrier | how a submission package travels from the PCS to the PACS and how the PACS's reply comes back: an HTTPS upload, rsync, an object store ([`ingest/link.md`](ingest/link.md) §11) |
+| study DB | one SQLite-format file per study at the PACS, one row per metadata group; the one source of a study's metadata, never served to a client ([`ingest/pacs-receive-design.md`](ingest/pacs-receive-design.md) §4); never "study database" or "truth" |
+| study index | the database listing studies and series for list, browse and search screens, derived from the study DBs ([`adr/study-index.md`](adr/study-index.md)); never "catalog"; not `FIXTURES.md`'s study manifest |
+| revision | a study's or a series' version number, raised by each change the PACS applies; never "generation", which is a request's |
+| viewer metadata | everything a viewer reads about a study or series besides frames; its paint part is **display metadata**: codec, frame count, rows and columns, photometric, bits, rescale, window, order, cine rate ([`adr/viewer-metadata.md`](adr/viewer-metadata.md)); never "page document" |
 | frame digest | a frame's XXH3-64 in the series' metadata, which the decoder worker checks the frame against; the frame says `exact` ([`FIXTURES.md`](FIXTURES.md) §Frame digests) |
 | representation | how an AV1 payload holds its samples: **plain**, as an encoder codes them out of the box (the control), or **optimized**, split by depth and RGB through the RCT ([`av1/payload-format.md`](av1/payload-format.md)) |
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |

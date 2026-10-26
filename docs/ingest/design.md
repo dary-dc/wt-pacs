@@ -3,15 +3,29 @@
 *Queue row 153 INGESTDESIGN, 2026-10-11. Theory only: read from sources (§12), nothing built, nothing timed. It
 compares options and recommends; every choice is the owner's (§10).*
 
-**The question.** Today's proposal — the owner's C parser writes a directory per instance; a Rust ingest at the site
+**Corrected 2026-10-26**, against [`pacs-receive-design.md`](pacs-receive-design.md), which holds the decisions since:
+
+* **Scope starts at the PACS** (decided 2026-10-24). Coding the frames, packing the `.sbnd`, the outbox and the upload
+  are the **PCS's side** (the hospital-side component, another team's); this file's "site" is relabelled the PCS. What
+  the two sides share is the **submission package**: one file per series (or a small update package), its XXH3 in its
+  name (decided 2026-10-25); this file's "archive" is that package.
+* **Hashes the PACS checks are XXH3, not BLAKE3** (decided 2026-10-24/25). The group files are named by XXH3; §6's
+  identity argument for BLAKE3-256 no longer holds (corrected there).
+* **"Catalog" is the study index** ([`../adr/study-index.md`](../adr/study-index.md), proposed: MySQL, list fields
+  only); "study database" is the **study DB**; a study's **revision**, not "generation" (the glossary's generation is a
+  request's identity); the study DB is the one source, not a "truth".
+* **Superseded, not rewritten here:** §5's rebuild-and-rename of a study DB (an update replaces the row in place, with an
+  audit record, decided 2026-10-24/25) and §8's key and publish sequence (the receiver's steps, design state §3).
+
+**The question.** Today's proposal — the owner's C parser writes a directory per instance; a Rust ingest at the PCS
 hashes, codes exactly, checks and compresses; an outbox; TCP to the PACS; the PACS checks, writes the image layout and
-builds one SQLite database per study; a catalog server indexes the studies — grew out of what exists. This file weighs
+builds one SQLite database per study; a study-index server indexes the studies — grew out of what exists. This file weighs
 each of its parts against the alternatives. The plan it extends is [`../FIXTURES.md`](../FIXTURES.md) §A compiled
 ingest at the site; the link itself is row 154's (LINKTCP); the parser's output contract is
 row 155's (INGESTRS1: the row's brief in [`../av1/queue.md`](../av1/queue.md)).
 
 **The parser was read only through row 155's brief**, which reads its public source: one run per SOP instance, a
-directory per instance, group files named by their BLAKE3-256, one raw file per frame. That it has a key-value stream
+directory per instance, group files named by their BLAKE3-256 (XXH3 since 2026-10-24/25), one raw file per frame. That it has a key-value stream
 output and an HTJ2K output on the grok encoder is from this row's brief, not read.
 
 ## Contents
@@ -20,7 +34,7 @@ output and an HTJ2K output on the grok encoder is from this row's brief, not rea
 2. [(a) Where frames are coded](#2-a-where-frames-are-coded)
 3. [(b) How the parser hands over](#3-b-how-the-parser-hands-over)
 4. [(c) What travels](#4-c-what-travels)
-5. [(d) Where the layout, the study databases and the catalog are built](#5-d-where-the-layout-the-study-databases-and-the-catalog-are-built)
+5. [(d) Where the layout, the study DBs and the study index are built](#5-d-where-the-layout-the-study-dbs-and-the-study-index-are-built)
 6. [(e) The integrity chain and what each hash costs](#6-e-the-integrity-chain-and-what-each-hash-costs)
 7. [(f) Metadata compression](#7-f-metadata-compression)
 8. [(g) Recovery](#8-g-recovery)
@@ -35,27 +49,27 @@ output and an HTJ2K output on the grok encoder is from this row's brief, not rea
   has no "series ended" marker. A bundle per series can be built only once its instances stop arriving; the AWS edge
   gateway closes a batch when the modality's association ends (§9). Until that rule is chosen, (c) cannot pick its
   unit.
-* **(a) Code frames at the site.** Raw frames with zstd cost 1.0–1.8× HTJ2K's bytes on the link (median ≈ 1.4× over
+* **(a) Code frames at the PCS.** Raw frames with zstd cost 1.0–1.8× HTJ2K's bytes on the link (median ≈ 1.4× over
   seven images, one source; JPEG 2000 1.2–1.7× gzip in Clunie's 3 679 images). They also move the encoder's CPU to the
   cloud, where it is paid. Coding inside the parser in C ties the product's bytes to grok, AGPL v3, and to a second
   HTJ2K encoder whose output is not OpenJPH's.
 * **(b) Keep the directory.** It is a crash checkpoint, inspectable, and a process boundary between a C parser reading
   untrusted files and the ingest. Its cost is one write and one read a frame; P-STAGE predicts under 5 % for HTJ2K.
   A pipe or a library call buys at most that 5 %, and the library call loses the boundary.
-* **(c) Send per series: the `.sbnd` plus the series' metadata groups, as one archive.** The bundle is already the
+* **(c) Send per series: the `.sbnd` plus the series' metadata groups, as one package.** The bundle is already the
   server's unit, and its coded frames are already checked. The groups are what the PACS needs to build the study's
-  database. One archive per series gives one upload to resume and one unit to refuse.
-* **(d) The PACS builds the layout and the study database; the catalog is derived from them.** The study database is
-  the truth. The catalog holds one row per study, written after that study's database is published, and keyed by
-  Study Instance UID with a generation number. A rebuilt database re-registers by the same upsert, so the whole catalog
+  DB. One package per series gives one upload to resume and one unit to refuse.
+* **(d) The PACS builds the layout and the study DB; the study index is derived from them.** The study DB is
+  the one source. The study index holds one row per study, written after that study's DB is published, and keyed by
+  Study Instance UID with a revision number. A rebuilt database re-registers by the same upsert, so the whole study index
   can be rebuilt by scanning. SQLite cannot query across thousands of files (ATTACH: 10 by default, at most 125), so
-  the catalog is needed. **PostgreSQL** is recommended: PostgreSQL licence, `jsonb` with GIN indexes, partial indexes,
+  the study index is needed. **PostgreSQL** is recommended: PostgreSQL licence, `jsonb` with GIN indexes, partial indexes,
   both reference archives support it. libSQL's server holds many SQLite databases in one process and keeps one
   dialect, but its maintainer has moved its effort to a pre-1.0 rewrite.
 * **(e) The owner's point holds, and cost does not decide it.** A metadata group is kilobytes, so any hash of it costs
   microseconds against a frame's milliseconds. What decides is what each hash proves. The PACS decompresses the
   metadata to build the database, so a hash of the original, checked after decompression, proves parser → PACS end to
-  end. A hash of the compressed bytes proves only the link. Reuse the parser's BLAKE3 group hashes for that, once row
+  end. A hash of the compressed bytes proves only the link. Reuse the parser's group hashes (XXH3 since 2026-10-24/25) for that, once row
   155's open point (2) is settled: three of its four groups hash a length that differs from the bytes written when
   text is converted. The frame's XXH3-64 already proves encoder input → screen. A hash of the coded bytes would let
   the PACS check transit and storage without decoding; that is row 123's open decision (2), not this row's.
@@ -69,13 +83,13 @@ output and an HTJ2K output on the grok encoder is from this row's brief, not rea
 
 ## 2. (a) Where frames are coded
 
-| | at the site, by the Rust ingest (proposed) | inside the parser, in C | in the cloud |
+| | at the PCS, by the Rust ingest (proposed) | inside the parser, in C | in the cloud |
 | --- | --- | --- | --- |
 | encoder | OpenJPH, pinned, the bytes today's ingest writes (row 155's parity) | grok, AGPL v3 (§12); a second HTJ2K encoder | any, paid per CPU-second |
 | bytes on the link | HTJ2K's | HTJ2K's | raw + zstd: 1.0–1.8× HTJ2K's (below) |
-| CPU | the site's (the owner: free) | the site's | the PACS operator's |
-| exactness check | decode-back at the site, before anything leaves | needs a decoder in the parser, or the ingest re-decodes | decode-back in the cloud; end to end only if the site hashed the raw samples first |
-| what the check proves | the coded frame equals the encoder's input, at the source | the same, if a check is added | the coded frame equals what arrived; the site's raw hash then proves what arrived equals what was read |
+| CPU | the PCS's (the owner: free) | the PCS's | the PACS operator's |
+| exactness check | decode-back at the PCS, before anything leaves | needs a decoder in the parser, or the ingest re-decodes | decode-back in the cloud; end to end only if the PCS hashed the raw samples first |
+| what the check proves | the coded frame equals the encoder's input, at the source | the same, if a check is added | the coded frame equals what arrived; the PCS's raw hash then proves what arrived equals what was read |
 
 **Bytes.** No paper puts HTJ2K and zstd on the same medical images. Two sources bound the ratio:
 
@@ -93,17 +107,17 @@ frame (arithmetic). zstd's own speed is not the issue: 510 MB/s at level 1 on Si
 
 **CPU.** INGESTPROFILE measured today's Python HTJ2K ingest at 33–906 ms of CPU a frame, 15–43 % of it the encoder.
 Intel's AVX-512 OpenJPH encodes a 512² CT in 1.3 ms and a 2394×3062 mammogram in 29.3 ms on one Xeon core. Coding in
-the cloud moves that time onto the operator's bill and saves none of the site's hashing. AWS HealthImaging does exactly
+the cloud moves that time onto the operator's bill and saves none of the PCS's hashing. AWS HealthImaging does exactly
 this: it transcodes to HTJ2K on import and checks a CRC32 of each frame taken before the encode against the decoded
 result (§9). The check is 32 bits, which [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §7
 rejects at this scale.
 
-**In the parser.** grok is AGPL v3. Shipping it inside the site's binary puts the binary under its terms, which is a
+**In the parser.** grok is AGPL v3. Shipping it inside the PCS's binary puts the binary under its terms, which is a
 licence question for the owner (§10, 3). It also adds a second encoder whose bytes differ from OpenJPH's served profile
 (RPCL, five decompositions, 64² blocks, [`../codecs/htj2k.md`](../codecs/htj2k.md)). Row 155's byte-identity parity
 then fails by construction and a profile check takes its place. And the decode-back check would have to be written in C.
 
-**Recommended: at the site, by the Rust ingest.** It is the only option where the link carries the fewest bytes, the
+**Recommended: at the PCS, by the Rust ingest.** It is the only option where the link carries the fewest bytes, the
 CPU is free, and the check runs before anything leaves.
 
 ## 3. (b) How the parser hands over
@@ -124,7 +138,7 @@ instance.
 
 ## 4. (c) What travels
 
-| | the parser's files, as written | the series' `.sbnd` + its groups (recommended) | one archive per study |
+| | the parser's files, as written | the series' `.sbnd` + its groups (recommended) | one package per study |
 | --- | --- | --- | --- |
 | frames | raw (if coded at the PACS) or coded files, one a frame | coded, in the server's own format | coded |
 | unit to resume and refuse | a file | a series | a study |
@@ -132,7 +146,7 @@ instance.
 | the PACS's work | build bundles and the database | build the database; place the bundle | build the database; place the bundles |
 | ready when | each file lands | the series is complete | the study is complete |
 
-**Recommended: one archive a series** — its `.sbnd`, its series group and its instances' groups, as a tar or one
+**Recommended: one package a series** — its `.sbnd`, its series group and its instances' groups, as a tar or one
 zstd stream (§7). The series is what the server serves ([`../FIXTURES.md`](../FIXTURES.md) §SBND series bundle) and
 what the ingest checks. A study can take hours to finish arriving, and its series are independent, so a study unit
 holds back finished series for no gain. Single files multiply requests and leave the PACS to build what the ingest
@@ -141,23 +155,23 @@ already built and checked.
 **What none of the three settles: when a series is complete.** DICOM sends instances, and nothing marks the last one.
 The choices are the end of the modality's association (the AWS Greengrass edge in §9), a quiet period with no new
 instance, or a count from the modality (Number of Series Related Instances is a query attribute, not sent with the
-images). An instance that arrives after its series was sent makes a new generation of that series' bundle (§8). This
+images). An instance that arrives after its series was sent makes a new revision of that series' bundle (§8). This
 is the owner's (§10, 1).
 
-## 5. (d) Where the layout, the study databases and the catalog are built
+## 5. (d) Where the layout, the study DBs and the study index are built
 
-**The image layout and the study database: at the PACS, from the groups** (the owner's decision of 2026-10-11, one
+**The image layout and the study DB: at the PACS, from the groups** (the owner's decision of 2026-10-11, one
 SQLite file per study so that bad data in one study never forces a shared database to be rebuilt). Building at the
-site and shipping the database is the alternative. It moves CPU to the site, but the PACS would trust a database it
-did not build, and the site would need the whole study before the database is final.
+PCS and shipping the database is the alternative. It moves CPU to the PCS, but the PACS would trust a database it
+did not build, and the PCS would need the whole study before the database is final.
 
 SQLite fits this use. One writer at a time per file, which a study has. A single file, copied or moved whole. Atomic
 commit across crashes, given `fsync`. `VACUUM INTO` and `sqlite3_rsync` for copies, the session extension for
-changesets, JSONB since 3.45. WAL does not work over a network filesystem, so a study database is written on the
+changesets, JSONB since 3.45. WAL does not work over a network filesystem, so a study DB is written on the
 PACS's local disk before it is published. SQLite's own guidance sends many networked clients to a client/server
-engine. That is the catalog's job, not the study database's.
+engine. That is the study index's job, not the study DB's.
 
-**The catalog.** *Named, bounded and re-weighed in [`../adr/study-index.md`](../adr/study-index.md) (proposed 2026-10-25), which recommends MySQL once the catalog holds list-time fields only.*
+**The study index.** *Named, bounded and re-weighed in [`../adr/study-index.md`](../adr/study-index.md) (proposed 2026-10-25), which recommends MySQL once the study index holds list-time fields only.*
 
 | | PostgreSQL (recommended) | MySQL | libSQL server (sqld) |
 | --- | --- | --- | --- |
@@ -165,27 +179,27 @@ engine. That is the catalog's job, not the study database's.
 | JSON | `jsonb`, GIN-indexed containment | binary JSON, indexed only through generated columns or multi-valued indexes | SQLite's JSON and JSONB |
 | partial indexes | yes | not stated (absence not confirmed) | SQLite's |
 | replication | logical, publish/subscribe | (not read) | primary + replicas polling the WAL; no global ordering |
-| dialect | a second one | a second one | the study databases' own; one server holds many databases (namespaces) |
+| dialect | a second one | a second one | the study DBs' own; one server holds many databases (namespaces) |
 | state | 18.6 current, supported to 2030-11 | — | its maintainer now focuses on a pre-1.0 Rust rewrite; libSQL "run in production today" |
 | reference archives | dcm4chee, Orthanc | dcm4chee, Orthanc | none |
 
 **Schema scope.** One row per study: Study Instance UID (key), patient ID and name, birth date, sex, study date and
 time, accession number, description, referring physician, the modalities in the study, its series and instance
 counts. A worklist adds what DICOM does not carry: status, priority and assignee. Then the location of the study
-database, its generation and its digest. Per series, only what a search filters on: modality, body part, series
-description. Everything else stays in the study database. A cross-study search finds studies in the catalog and opens
+database, its revision and its digest. Per series, only what a search filters on: modality, body part, series
+description. Everything else stays in the study DB. A cross-study search finds studies in the study index and opens
 their databases.
 
-**Consistency: the study database first, then the catalog.**
+**Consistency: the study DB first, then the study index.**
 
 1. The PACS builds the study's new database beside the old one, then publishes it by rename (§8).
-2. It upserts the catalog row, keyed by Study Instance UID, with a generation one higher and the new database's digest.
-3. A crash between 1 and 2 leaves the catalog one generation behind. A start-up scan compares each database's
-   generation with its row and re-registers the ones behind.
+2. It upserts the study index row, keyed by Study Instance UID, with a revision one higher and the new database's digest.
+3. A crash between 1 and 2 leaves the study index one revision behind. A start-up scan compares each database's
+   revision with its row and re-registers the ones behind.
 
-A study database rebuilt from its groups re-registers by the same upsert. The catalog is derived throughout, so
+A study DB rebuilt from its groups re-registers by the same upsert. The study index is derived throughout, so
 losing it means a rescan, not lost data. An ordered change log beside it (Azure's change feed, §9) is optional; the
-generation number is enough for one PACS.
+revision number is enough for one PACS.
 
 ## 6. (e) The integrity chain and what each hash costs
 
@@ -199,8 +213,8 @@ both ingests check by it since row INGESTRS1 ([`README.md`](README.md) §2). The
 | SHA-256 today, any 128-bit+ hash in Rust | the raw frame, as read | the ingest, before coding | the ingest, after decode-back | the coded frame is the encoder's input |
 | XXH3-64 (served today) | the raw frame | the ingest | the client, after its decode | the shown frame is the encoder's input ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests) |
 | a coded-frame digest | the coded bytes | the ingest | the PACS on receipt, the server on read | transit and storage, without decoding; row 123's decision (2) |
-| BLAKE3-256, the parser's | a metadata group | the parser | the PACS, after decompression | parser → PACS for metadata, end to end, *if* the hash covers the bytes written |
-| an archive digest | the series archive | the ingest | the PACS on receipt | the link only |
+| the parser's group hash (BLAKE3-256 here; XXH3, decided 2026-10-24/25) | a metadata group | the parser | the PACS, after decompression | parser → PACS for metadata, end to end, *if* the hash covers the bytes written |
+| a package digest | the series package | the ingest | the PACS on receipt | the link only |
 
 **What each costs, against a 27 MB mammogram frame (3328×4096, 16-bit).** Published single-core speeds:
 
@@ -229,7 +243,11 @@ thing is needed first: three of the parser's four group hashes cover a length su
 hashes the bytes it writes, the PACS can check only the exam group's hash.
 
 **Reusing the parser's hashes as identities is safe at 256 bits.** The exactness ADR's birthday bound forbids XXH3-64
-as a key; BLAKE3-256 has no such limit. The PACS can skip a series or exam group it already holds (§8). A zstd frame's
+as a key; BLAKE3-256 has no such limit. The PACS can skip a series or exam group it already holds (§8). *Corrected
+2026-10-26:* the group hashes are XXH3 (decided 2026-10-24/25), so they are checks, not identities: a group is keyed
+by its UID (the study DB, design state §4), a package by (unit UID, revision) with its hash a check
+([`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §4, proposed). Skipping an exam group whose hash matches stays
+sound as a check against the row the UID names. A zstd frame's
 own content checksum is the low 32 bits of XXH64 (RFC 8878 §3.1.1). It catches a broken stream on the link, nothing
 more.
 
@@ -246,34 +264,34 @@ more.
   repetition across instances without a dictionary. Each group is no longer readable alone, which the PACS does not
   need: it reads the whole series to build the database.
 
-**Recommended: one stream per series**, matching §4's archive. No published ratio on DICOM headers was found. A
+**Recommended: one stream per series**, matching §4's package. No published ratio on DICOM headers was found. A
 gzip-style compressor halves "a typical instance" in Orthanc's words, pixels included. DICOM's own deflated syntax is
 "particularly useful" for objects without pixels. Against frames of hundreds of kilobytes to tens of megabytes, metadata
 compression moves the link's bytes little. Its value is storage at the PACS, if the groups are kept.
 
 ## 8. (g) Recovery
 
-* **Resumable by offset.** A series archive is uploaded so that a cut resumes where it stopped. tus 1.0 (`Upload-Offset`,
+* **Resumable by offset.** A series package is uploaded so that a cut resumes where it stopped. tus 1.0 (`Upload-Offset`,
   409 on a mismatch, `sha1` checksums at least) and its IETF successor draft-ietf-httpbis-resumable-upload-13 (a draft,
   not an RFC) do this over HTTPS. So do S3 multipart (≤ 10 000 parts of 5 MiB–5 GiB, per-part CRC64NVME, CRC32C,
   SHA-256 or XXH3) and GCS resumable sessions (a week, 256 KiB chunks). Row 154 picks among them.
-* **Idempotent.** Receiving the same series archive twice changes nothing: the PACS keys a series by its UID and the
-  archive's digest, and a known digest is acknowledged without work. A known UID with a new digest is a new
-  generation. Whether it replaces the old one or is held for review is the owner's (§10, 6). The archives in §9 differ
+* **Idempotent.** Receiving the same series package twice changes nothing: the PACS keys a series by its UID and the
+  package's digest, and a known digest is acknowledged without work. A known UID with a new digest is a new
+  revision. Whether it replaces the old one or is held for review is the owner's (§10, 6). The archives in §9 differ
   exactly here: Orthanc `Never`/`Always`/`IfChanged`, dcm4chee four overwrite policies, AWS overwrite with a version,
   Azure and Google refuse.
 * **Dedupe.** The parser does not rewrite an exam or series group it already wrote. The PACS can likewise skip a group
-  whose BLAKE3 it holds. That saves only metadata bytes, which are few (§7). The frames carry no such key and need
+  whose hash matches the row its UID names (XXH3, not BLAKE3, since 2026-10-24/25). That saves only metadata bytes, which are few (§7). The frames carry no such key and need
   none: an instance is sent once.
-* **Isolation.** A bad instance is refused by name at the site and its series is not sent. That is today's rule:
+* **Isolation.** A bad instance is refused by name at the PCS and its series is not sent. That is today's rule:
   nothing is written unless every frame passes. The alternative, STOW-RS's model, stores the good instances and lists
-  the failed ones, so a partial series is served. That is the owner's (§10, 7). A bad study database is rebuilt from
+  the failed ones, so a partial series is served. That is the owner's (§10, 7). A bad study DB is rebuilt from
   its groups without touching another study (§5).
-* **Published by rename.** The PACS writes a series or a study database into a temporary directory and `fsync`s each
+* **Published by rename.** The PACS writes a series or a study DB into a temporary directory and `fsync`s each
   file and the directory. Then it renames into place and `fsync`s the parent. POSIX makes rename atomic in normal
   operation, not across a crash; Linux's `fsync` does not cover the directory entry. A failed `fsync` is fatal, not
   retried (PostgreSQL's lesson). The sequence is drawn from the sources; none states it whole.
-* **At the site,** the outbox is the same directory discipline. An archive leaves when it is complete and checked, and
+* **At the PCS,** the outbox is the same directory discipline. A package leaves when it is complete and checked, and
   is deleted when the PACS acknowledges its digest.
 
 ## 9. (h) Prior art
@@ -295,16 +313,18 @@ accelerator. No published import throughput was found for any cloud service.
 
 ## 10. The owner's decisions
 
-Listed, not taken; under the queue's §Blocked.
+Listed, not taken; under the queue's §Blocked. *Updated 2026-10-26* (design state): 2 is decided (one package per
+series, 10-25); 3 is the PCS's side (scope, 10-24); 4 is re-weighed by the study index's record (MySQL, proposed); 5
+is decided (XXH3-64, 10-12); 1 and 6 have proposals in [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §2, §4.
 
 1. **When a series is complete** (§4): the association's end, a quiet period, or another signal. Also whether a late
-   instance makes a new generation.
-2. **The unit on the link** (§4): one archive per series (recommended), the parser's files, or one per study.
-3. **Where frames are coded** (§2): at the site (recommended), in the parser on grok (AGPL v3, a licence decision), or
+   instance makes a new revision.
+2. **The unit on the link** (§4): one package per series (recommended), the parser's files, or one per study.
+3. **Where frames are coded** (§2): at the PCS (recommended), in the parser on grok (AGPL v3, a licence decision), or
    in the cloud.
-4. **The catalog** (§5): PostgreSQL (recommended), MySQL, or libSQL's server; the schema scope above.
+4. **The study index** (§5): PostgreSQL (recommended), MySQL, or libSQL's server; the schema scope above.
 5. **The raw-frame check's hash** (§6): SHA-256 as today, BLAKE3, or the XXH3-64 already written.
-6. **A changed duplicate** (§8): replace, keep both generations, or hold for review.
+6. **A changed duplicate** (§8): replace, keep both revisions, or hold for review.
 7. **A bad instance** (§8): refuse its series (today), or store the rest and mark the series incomplete.
 8. **The parser's group hashes** (§6): whether the parser hashes the bytes it writes, so the PACS can check every group
    (row 155's open point 2).
@@ -322,13 +342,13 @@ seven images); DICOM header sizes per modality (no source); P-STAGE's share (pro
 here, (M) measured in this repository, with its row. The uplink rates are the assumed 10 Mbit/s–1 Gbit/s of
 [`link.md`](link.md) until row 162 (LINKREAL) replaces them.*
 
-**The question.** The site packs a series into one `.sbnd` and publishes it once complete. Could frames cross the link
+**The question.** The PCS packs a series into one `.sbnd` and publishes it once complete. Could frames cross the link
 while the series is still being parsed and coded, and what would that take and save?
 
 **The answer in plain words.**
 
 * **Overlap saves at most the smaller of coding and sending, so never more than half of code-then-send** (D, §11.3).
-  The site codes HTJ2K faster than any assumed uplink, so streaming saves the coding: under a second for 300 frames on
+  The PCS codes HTJ2K faster than any assumed uplink, so streaming saves the coding: under a second for 300 frames on
   4 cores. AV1 coding is the clock, so streaming hides the link: up to 26 s on the same series.
 * **The larger gain is against the wait for completeness.** If a series is called complete after a quiet period, the
   streamed frames cross the link during it, and what is left after it is one round trip and the PACS's publish. A long,
@@ -340,7 +360,7 @@ while the series is still being parsed and coded, and what would that take and s
   frames in arrival order. A chunked resumable upload is the transport under either, not a third design.
 * **Per frame, no safety is lost**: a frame leaves only after its own decode-back check. What changes: the earlier frames
   of a series that fails late have already crossed and are discarded, the PACS holds partial series until they expire,
-  and resuming after a site crash relies on the ingest coding the same bytes again (shown for HTJ2K, row INGESTRS1; not
+  and resuming after a PCS crash relies on the ingest coding the same bytes again (shown for HTJ2K, row INGESTRS1; not
   measured for AV1).
 
 ### 11.1 Why it does not stream today
@@ -358,7 +378,7 @@ while the series is still being parsed and coded, and what would that take and s
   instance needs the parser's stream output (§3).
 * **The draft target is front-loaded as well.** [`../disk-layout/target.md`](../disk-layout/target.md)'s header carries the entry count, and its index (offset,
   length, a coded and a samples XXH3-64, 28 B a frame) precedes the frames. It drops only the metadata, which moves to
-  the study database.
+  the study DB.
 * **Display order.** Frames lie back to back in display order, and a fill asks the kernel for
   `FILL_WINDOW` = 4 MiB past the frame it reads (`server/src/media/read_path.rs:28`, `196–210`). A file written in
   arrival order serves fills in display order only if the instances arrived in it.
@@ -372,11 +392,11 @@ while the series is still being parsed and coded, and what would that take and s
 
 | | (A) an index at the end | (B) frames as records, then "series complete" | (C) chunked resumable upload |
 | --- | --- | --- | --- |
-| what it is | frames written as coded, then the index and a fixed footer pointing at it: ZIP's layout, file data first and its central directory last (APPNOTE 6.3.10 §4.3.6; its data descriptor exists "to facilitate ZIP file streaming", §4.3.5) (S) | each frame a record (series UID, generation, instance UID, frame in the instance, length, coded and samples XXH3-64, bytes); a last record gives the count and a hash over the ordered coded hashes | the transport for (A) or (B), not a layout |
+| what it is | frames written as coded, then the index and a fixed footer pointing at it: ZIP's layout, file data first and its central directory last (APPNOTE 6.3.10 §4.3.6; its data descriptor exists "to facilitate ZIP file streaming", §4.3.5) (S) | each frame a record (series UID, revision, instance UID, frame in the instance, length, coded and samples XXH3-64, bytes); a last record gives the count and a hash over the ordered coded hashes | the transport for (A) or (B), not a layout |
 | the `.sbnd` | a new version: the reader reads the footer, then the index (one more read at open); structural, so proposed only | unchanged: the PACS writes today's or the target's bundle from the records | unchanged |
 | a frame's coded hash checked | when the index arrives, last; earlier only if each frame carries its own header, which is (B) | as its record lands; a bad frame is asked again alone | per chunk, if the protocol has it (below) |
-| a cut link resumes | from the byte offset the PACS confirms (C) | the PACS lists the frames it holds; the site sends the rest; a record is idempotent by its key and coded hash | tus: HEAD returns the offset; draft-13: the offset "MUST NOT decrease"; S3: ListParts (§8) (S) |
-| a site crash resumes | from the site's growing file, `fsync`ed a chunk at a time | the ingest re-codes from the parser's directory; held frames stay valid if the new bytes hash the same: HTJ2K writes identical bytes at 1, 2 and 4 jobs (M, row INGESTRS1); AV1 not measured, so its series is sent again | — |
+| a cut link resumes | from the byte offset the PACS confirms (C) | the PACS lists the frames it holds; the PCS sends the rest; a record is idempotent by its key and coded hash | tus: HEAD returns the offset; draft-13: the offset "MUST NOT decrease"; S3: ListParts (§8) (S) |
+| a PCS crash resumes | from the PCS's growing file, `fsync`ed a chunk at a time | the ingest re-codes from the parser's directory; held frames stay valid if the new bytes hash the same: HTJ2K writes identical bytes at 1, 2 and 4 jobs (M, row INGESTRS1); AV1 not measured, so its series is sent again | — |
 | publish only complete | when the upload ends and the index checks | on the last record only; a partial is dropped on an abort record or when it expires | completion is explicit: draft-13 `Upload-Complete: ?1`, S3 CompleteMultipartUpload, tus the final length reached (S) |
 | display order | arrival order, unless the PACS rewrites the file | any arrival order; the PACS orders by instance and frame at completion | — |
 | the PACS's extra work | none if served as written | one sequential copy of the series: 0.3 s for a 152 MB series at an assumed 500 MB/s (D) | — |
@@ -397,7 +417,7 @@ while the series is still being parsed and coded, and what would that take and s
 
 ### 11.3 What overlap saves
 
-**The formula** (D). For one series: *a* = its coding time at the site (frames × time a frame ÷ cores), *b* = its
+**The formula** (D). For one series: *a* = its coding time at the PCS (frames × time a frame ÷ cores), *b* = its
 sending time (coded bytes × 8 ÷ link rate), *Q* = the wait from the last instance to "complete" (≈ 0 if the
 association's end is the signal, a quiet period otherwise). With the series arriving at once (one multi-frame
 instance), and round trips and the publish left out, the time from its last instance to its publication at the PACS:
@@ -408,7 +428,7 @@ instance), and round trips and the publish left out, the time from its last inst
 | code on arrival, today's format | max(*Q*, *a*) + *b* | min(*Q*, *a*) |
 | streamed | max(*Q*, *a*, *b*) | min(*b*, max(*Q*, *a*)) more |
 
-At *Q* = 0 streaming saves min(*a*, *b*), at most half of *a* + *b*. As rates, with *K* the site's coded bytes a
+At *Q* = 0 streaming saves min(*a*, *b*), at most half of *a* + *b*. As rates, with *K* the PCS's coded bytes a
 second and *L* the link's, the share saved is min(*K*, *L*) ÷ (*K* + *L*). A series that arrives over a span *W*
 lets both overlapping designs start earlier, by up to *W*.
 
@@ -423,7 +443,7 @@ lets both overlapping designs start earlier, by up to *W*.
   a core; 10-bit tomosynthesis `--good` 6, 936 ms, 4.9 Mbit/s (D). INGESTPROFILE measured the ingest's own AV1 path at
   8.6 s a frame on that tomosynthesis at `good:6`, about 9× the encode alone; the gap is not explained here, and it
   would only make coding more the clock.
-* 4 cores at the site, as INGESTPROFILE's container had (assumed).
+* 4 cores at the PCS, as INGESTPROFILE's container had (assumed).
 
 **The result** (D, printed by [`overlap.py`](overlap.py)): seconds from the last instance to publication, today ·
 code on arrival · streamed.
@@ -466,8 +486,8 @@ The open decision of when a series is complete (§4, §10, 1) decides whether st
 
 * **The association's end:** *Q* ≈ 0, and for HTJ2K streaming saves under a second here. Code on arrival is enough.
 * **A quiet period:** streaming makes *Q* nearly free. That favours a long *Q*, which calls fewer series complete too
-  early, so fewer late instances make a new generation.
-* **A late instance** is the same in every design: one arriving after "complete" makes a new generation (§8). Before
+  early, so fewer late instances make a new revision.
+* **A late instance** is the same in every design: one arriving after "complete" makes a new revision (§8). Before
   "complete", (B)'s records only accumulate.
 * **The frame's key.** In a series of several instances, a frame's position is known only once every instance's number
   is, so a record is keyed by its instance UID and its frame within the instance, and the PACS orders at completion.
@@ -476,11 +496,11 @@ The open decision of when a series is complete (§4, §10, 1) decides whether st
 
 ### 11.5 What it costs in safety and checks
 
-* **Exactness, unchanged per frame.** The site's decode-back check runs before a frame's record leaves.
+* **Exactness, unchanged per frame.** The PCS's decode-back check runs before a frame's record leaves.
 * **"Nothing is written unless every frame is equal" becomes "nothing is published unless".** A frame that fails late
   leaves its earlier frames at the PACS, dropped by an abort record or on expiry. That wastes uplink bytes only, and
   rarely: no bundle was refused in 528 (M, row INGESTRS1).
-* **The archive's digest (§8) becomes a hash over the ordered coded hashes**, checked with the count at completion; it
+* **The package's digest (§8) becomes a hash over the ordered coded hashes**, checked with the count at completion; it
   is the series' idempotency key in the same way. It rests on the frames' 64-bit hashes: enough against accidental
   damage, with TLS covering the wire, and not an identity ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md)
   §7).
