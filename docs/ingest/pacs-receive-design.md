@@ -1,17 +1,19 @@
 # PACS receive and metadata: the design state
 
-Status: **working record, 2026-10-26.** It gathers every decision, proposal, open question and result from the owner's
-design sessions of 2026-10-24/25, so any session or cloud run can continue from it. It decides nothing by itself: each
-item says whose it is. **Decided** = the owner's, dated. **Proposed** = recommended by a record or run, not accepted.
-**Open** = to discuss (with the owner, the team, the product owner or the PCS team). Each item names the PR that holds
-its evidence; all those PRs are drafts, none merged.
+Status: **working record, 2026-10-26 (afternoon).** The one current state of the PACS receive and metadata design: every
+decision, proposal, open question and result from the owner's sessions of 2026-10-24/25 and the runs of the night of
+2026-10-26, each folded into its section. It decides nothing by itself: each item says whose it is. **Decided** = the
+owner's, dated. **Proposed** = recommended by a record or run, not accepted; a result can strengthen or weaken it, never
+make it Decided. **Open** = to discuss (with the owner, the team, the product owner or the PCS team), with its default.
+Each item names the PR that holds its evidence; every PR is a draft, none merged. How the PRs merge is §13; what waits
+for whom is §14–§16.
 
 Terms. *PCS*: the hospital-side component (another team's; github.com/opendicom/DECK_WebTransport), which receives,
-parses, encodes and forwards. *Submission package* (OAIS's SIP, ISO 14721): one file the PCS sends. *Study DB*: one
-SQLite-format file per study at the PACS. *Study index*: the database listing studies and series (MySQL fits).
-*Viewer metadata*: everything a viewer reads; *display metadata* is its paint part (codec, frame count, rows/cols,
-photometric, bits, rescale, window, order, cine rate). *Revision*, never *generation* (the glossary's generation is a
-request's identity).
+parses, encodes and forwards. *Submission package* (OAIS's SIP, ISO 14721), *package* for short: one file the PCS sends.
+*Study DB*: one SQLite-format file per study at the PACS. *Study index*: the database listing studies and series (MySQL
+fits). *Viewer metadata*: everything a viewer reads; *display metadata* is its paint part (codec, frame count,
+rows/cols, photometric, bits, rescale, window, order, cine rate). *Revision*, never *generation* (the glossary's
+generation is a request's identity).
 
 ## 1 · Scope and what the PCS document says
 
@@ -35,7 +37,7 @@ request's identity).
 * **Decided 10-24/25, where we differ from the PDF:** the PACS receives our `.sbnd` (the role MXF/MP4/JXL play in the
   PDF); no MXF/MP4 reading in the server, the PACS does no repacking; hashes are **XXH3** (no cryptographic need,
   faster), so the PCS must name files with XXH3; **one file per transfer**, as agreed in a meeting (the PDF does not
-  say so yet). These go to the PCS team.
+  say so yet). These go to the PCS team (§15).
 
 ## 2 · The package and the carrier
 
@@ -60,14 +62,24 @@ request's identity).
   when send time ≤ a tenth of the mean time between drops.
 * **Owner 10-25/26:** different protocol implementations per link are acceptable — one application handler with a TCP
   and a QUIC listener (or sender) chosen by config at start; preferred over two separate programs.
-* **Compression.** Measured (#150, #154, #156): metadata is 0.005–1.0 % of stored pixels (0.02–4.1 % of HTJ2K
-  pixels); one zstd stream 3–31×, a file alone 1.6–3.2×; level 1 as good as any, < 1 ms per series. A single
-  correction (3–6 KB) fits one flight compressed or not: no gain. A fan-out (one change to 262 instances, 29 → 9.7 KB)
-  or a series resend (1.35 MB → 45 KB) saves 1–5 round trips: 0.12 s on fiber to 10.8 s on rural ADSL; never slower in
-  56 pairs; ≤ 0.8 ms CPU. **Decided 10-25:** frames are never compressed again (already HTJ2K/AV1), and
-  compressing a series package's metadata gains at most ~2.75 %. **Owner 10-26:** make metadata compression **configurable per site** (or dynamic), on only where
-  the link gains; the receiver detects a zstd frame by its magic number and accepts both, so the switch lives only in
-  the sender. Default: open (#156 measured "never slower", which argues on).
+* **Built (#164, proposed):** the carrier crate at `9bb1c53` — draft-14, interop version 10, careful creation, one-shot
+  on the same endpoint, mutual TLS pinned per site, replies `received` then `committed`/`refused`, polled; TCP always,
+  HTTP/3 experimental; the PCS's script with a stall timeout. 17 tests (18 with `quic`); offset and script-timeout
+  mutations caught. **Weaker than the owner's shape:** QUIC is a cargo feature, so the default binary cannot choose it
+  by config at start (§14, D4). **Does not match §3:** its reply is "committed" where §3 decided "stored", and it reads
+  `status/<name>` at the root while #163 writes `incoming/status/<f>` (§14, D3). Owed: the carrier's own stall timeout
+  has no test (its mutation survives); the script resends without limit while the poll answers 404.
+* **Compression.** Measured (#150, #154, #156): metadata is 0.005–1.0 % of stored pixels and 0.02–4.1 % of HTJ2K pixels
+  as #150 split it; as the parser writes it (#154, 1.15–1.95× larger) 0.01–1.8 % and 0.04–8 %, PET the largest. One
+  zstd stream 3–27× (#150), 16–31× on the parser's output (#154); a file alone 1.6–3.2×; level 1 as good as any,
+  < 1.1 ms per series. A single correction (3–6 KB) fits one flight compressed or not: no gain. A fan-out (one change
+  to 262 instances, 29 → 9.7 KB) or a series resend (1.35 MB → 45 KB) saves 1–5 round trips: 0.12 s on fiber to 10.8 s
+  on rural ADSL; never slower in 56 pairs; ≤ 0.8 ms CPU. **Decided 10-25:** frames are never compressed again (already
+  HTJ2K/AV1), and compressing a series package's metadata gains at most ~2.75 %. *Corrected 2026-10-26:* 2.75 % is mr's;
+  the largest measured is pt's **3.45 %** with HTJ2K pixels (#150's table), not re-measured on the parser's larger
+  output; the decision stands either way. **Owner 10-26:** make metadata compression **configurable per site** (or
+  dynamic), on only where the link gains; the receiver detects a zstd frame by its magic number and accepts both, so
+  the switch lives only in the sender. Default: open, on proposed (§14, D8).
 
 ## 3 · The receiver
 
@@ -116,6 +128,22 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   every frame's coded XXH3) and every study DB (`PRAGMA integrity_check`, every group's XXH3), reads from disk, and
   writes a report; on demand, and a cron entry makes it the periodic scrub. Same code as 6b and 8.
 * Display metadata (if derived) is written last, so a viewer never sees metadata for pixels not in place.
+* **Built (#163, proposed):** the receiver crate (ingest/receiver at `d06f17a`) and its ADR — steps 1–8, 11, 12, R,
+  quarantine and crash recovery; 9 and 10 a trait with nothing behind it. Verified against the steps above one by one:
+  staging on the root's filesystem, fsync of files and directories, 6b from disk, never decodes, one rename, one
+  transaction with an audit row, 8 from disk, refusal keeps the package, recovery from 3. Package-hash and 6b-hash
+  mutations caught. Owed: **the test suite is flaky** (about half of full runs fail with "another receiver holds
+  …/incoming": the crash test forks while other tests hold the lock); a mutation of the 6b call sites to a cached read
+  survives (only the helper is tested); **the audit row has no "who"** (Decided 10-24/25: who, when, what); its ADR §0
+  calls quarantine, staging and durability "Decided", where they are proposed steps here.
+* **Built (#160, proposed):** the verify tool (tools/pacs-verify and common/study-db at `5c9356c`) for a file, a study
+  or a root; reads from disk (`fdatasync` + `posix_fadvise(DONTNEED)`), report, exit 0/1/2; 20 tests; integrity,
+  group-hash and fadvise mutations caught. Frames are read back, not hashed: v1 `.sbnd` has no per-frame coded XXH3
+  (documented). Owed: the uncached-open call sites are untested (only the helper is).
+* **#160, #163 and #164 do not fit together yet** (built in parallel): two study-DB schemas (`xxh3 INTEGER` in #160,
+  `xxh3 TEXT` in #163: the verify tool fails on a study DB the receiver writes); two disk-read helpers where "same code"
+  is Decided; two reply files and vocabularies (#163 `stored`/`refused`/`quarantined` in `incoming/status/<f>`; #164
+  `committed`/`refused retry`/`refused final` in `status/<name>`). Each is structural: §14, D1–D3.
 
 ## 4 · The study DB
 
@@ -136,14 +164,24 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
 * **Repetition (#150, #154):** 70–83 % of instance-group bytes are identical across a series (CT, PT, MR, MG); shared
   values once + per-instance values weigh 9–28 % of a row per instance group; image metadata is very rarely updated, so
   a shared + per-instance layout is a natural fit (DICOM's own Shared vs Per-frame Functional Groups, PS3.3 C.7.6.16).
-  **Open:** adopt it (from the parser if it implements converted-enhanced, else simulated to the standard).
-* **Engine (#147, #151): rusqlite**, through `spawn_blocking`. Turso awaited directly blocks the tokio worker (its
-  async does a blocking read on the worker; heartbeat p99 285 ms vs 2.4–3.5 ms); in `spawn_blocking` it no longer
-  blocks but costs ~2× the CPU per scan; its 2 MiB per open file is transparent huge pages (130 KiB with THP off); a
-  second process's read-write open fails and a read-only open sees no commits; its multi-process mode is "not
-  production ready". rusqlite: 185 KiB per open file, open 0.9–1.4 ms, read 18–23 µs. **Open until TURSOLOCK (#157 or
-  next) reports** whether a short read and a short update in two processes collide by waiting, by error or by staleness
-  (the owner's reasoning: reads never meet creation, and both are short).
+* **Layout measured (#161):** on the parser's five packages, shared + per-frame (the series as a simulated
+  converted-enhanced instance) weighs 0.18–0.19× a row per group and reads a series' display values in 0.29–0.41× its
+  time **once the parser's nested keys are masked**; as written only 0.52× (and 0.78–0.84× for mr, whose private keys
+  differ per instance). A correction of a shared attribute in one instance splits it into every frame (263 rows,
+  ≤ 4.8 ms); in every instance it stays one shared row (≤ 0.9 ms against 262 rows, ≤ 9.5 ms). The pre-registered
+  rule recommends **row per group while the parser's keys hold address bytes, shared + per-frame once they are
+  deterministic**. It strengthens T1 for now and makes shared + per-frame conditional on the PCS fixing its keys (§15).
+  Measured on rusqlite 0.40.2; the 1.4–1.6× slower exam correction in shared + per-frame is unexplained. **Open:**
+  adopt it (§14, D5).
+* **Engine (#147, #151, #157): rusqlite, proposed and strengthened**, through `spawn_blocking`. Turso awaited directly
+  blocks the tokio worker (heartbeat p99 285 ms vs 2.4–3.5 ms); in `spawn_blocking` it no longer blocks but costs ~2×
+  the CPU per scan; 2 MiB per open file (transparent huge pages; 130 KiB with THP off); its multi-process mode is "not
+  production ready". rusqlite: 185 KiB per open file, open 0.9–1.4 ms, read 18–23 µs. **The two-process question is
+  answered (#157):** Turso's lock goes with the handle, not the transaction, and fails at once (`LockingError`, no busy
+  wait), and a held read-only Turso handle is stale; rusqlite only ever waits (≤ 4.8 ms), no errors, nothing stale —
+  the owner's reasoning (reads never meet creation, both are short) holds for rusqlite. #157 committed no raw results.
+* **Versions:** rusqlite 0.41.0, SQLite 3.54.1 (#159). lab/metadata-store still pins rusqlite 0.40, which cannot share
+  a workspace with 0.41 (`libsqlite3-sys` links `sqlite3` once): a one-line bump, checked, is in §13.
 
 ## 5 · Updates (#148)
 
@@ -158,26 +196,39 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
 * **Open (owner 10-25), for the team and the product owner:** whether client-application updates go through the
   receiver's queue or a standard update endpoint coordinated with it. The single path is the best so far for
   consistency, simplicity and integrity; what is avoided is a second process writing study DBs directly. The honest
-  guarantee is order and a bounded delay, not "instant".
+  guarantee is order and a bounded delay, not "instant". Default: the single path (§16).
+* Measured since (#165): a correction of one patient's 3–26 studies reaches the study index in p50 57 ms locally,
+  208 ms across a 2 ms round trip; nothing measured contradicts the bounded delay.
 
-## 6 · Viewer metadata (OPEN — discuss next)
+## 6 · Viewer metadata (OPEN)
 
 * **Decided 10-24:** the codec can come from the study index; without it the page loads every decoder. **To
   evaluate:** prefetch every decoder while the user browses the list (fetch, never instantiate; same site for the HTTP
   cache); a direct open by link is the case left. This replaced the 10-19 "only its codec's decoder" decision.
 * **#145** (first evaluation): a derived file per series served by nginx (`no-cache`, ETag) plus the codec as a
   study-index column; deciding reason: no serving process opens a study DB.
-* **#153** (independent second evaluation): split by kind — list fields and codec in the index; paint metadata (no
+* **#153** (independent second evaluation): split by kind — list fields and codec in the index; display metadata (no
   identifiers) as a derived file per series; study fields with identifiers in a per-study file (`no-store`,
   authorized); full metadata (tag panel, 0.8–12.6 KB per series compressed) in a file fetched when the panel opens.
   Ranking: F (same split, in the session), G (over HTTPS), C (the frame server reads the study DB at open), D (a
-  metadata API), A (a column in the index: the owner's earlier idea, ranked 5th: viewing would depend on the index,
-  ~10× its size, outbox lag), E (a cache). It assumes the outdated "only its decoder" rule: to correct.
+  metadata API), A (a column in the index: the owner's earlier idea, ranked 5th), E (a cache). Its decoder rule is
+  corrected in #158.
 * **The owner's view (10-25/26):** read the series' metadata from the study DB when it is opened; derived files or index
   columns duplicate data. Its costs: a serving process opens study DBs (fine with rusqlite, measured), coupled to the
-  schema; reading paint values per instance ~2.6 ms at 2 000 instances (or ~20 µs with a ready row). The privacy split
-  (#153's strongest point) argues for splitting by kind, which a query can do too, not for files. The index-down case
-  does not apply (the study DB is on the PACS host).
+  schema. The privacy split (#153's strongest point) argues for splitting by kind, which a query can do too, not for
+  files. The index-down case does not apply (the study DB is on the PACS host).
+* **Measured (#166), four emulated links, 1 344 browser visits, 0 errors:** the study DB read at the request (A1) ties
+  or beats the derived file (B) to the first painted frame on every link (cold metadata, 262 instances: fiber
+  101 / 110 ms, 4G/5G 297 / 298 ms, GEO 2.47 s both); #153's split (C) ties too. In the session ahead of frame 0 (A2):
+  +2 to +6.4 round trips later. **Host:** per open at 2 000 instances A1 costs 4.0 ms with a ready per-series row (3.3
+  ms of it gzip) and 9.0 ms per-instance, against 0.04 ms for B; holding one connection per viewer at 1 000 viewers
+  costs 155 MiB (ready row) or 2.1 GiB (per instance), open-read-close holds none. **Consistency:** no torn read in
+  144 860; A never stale; B and C stale up to p99 4–8 ms. Against its own rule the owner's option is **not
+  contradicted on the user's path or consistency, contradicted on host CPU at 2 000 instances** (4.0 ms vs the 2 ms
+  threshold). This strengthens the owner's view on the path and weakens it on CPU, where the cost is gzip, which a
+  ready row could store compressed (*not measured*). Deviations not recorded as such: h2load's gzip request and opens
+  counted once (e30f966, after pre-registration); H2 at 1/100 studies, not 1/10/100; saturation inferred. **Open**
+  (§14, D6).
 
 ## 7 · The study index (#146)
 
@@ -189,159 +240,251 @@ upserts keyed by UID accepting only a higher revision, a reconcile job; an HTTPS
 authorized by access key, ≤ 50 ms p95 server time; not now: instance rows, thumbnails, fuzzy matching, replicas.
 **Owner 10-25:** MySQL fits; it may live on its own server over the network; to evaluate.
 
-## 8 · The disk layout (#152) — for the team meeting
+**Prototyped and timed (#165, MySQL 8.4.6, 10⁶ studies, warm, p95).** Strengthens: MySQL 8.4 and its default
+collation (accent- and case-insensitive prefix matching on the index; `utf8mb4_bin` fails), the revision-ordered
+upsert, the reconcile, the 50 ms API budget, and the index on its own server at ≤ 2 ms round trip (+2.1–2.6 ms a
+query). As designed, `date7_modality` misses its 10 ms budget (14–19 ms); a tuned shape (covering indexes, a deferred
+join, modality on the study row) meets every cell (query ≤ 2.8 ms locally, ≤ 5.0 ms at 2 ms; API ≤ 5.8 ms), except an
+added low-selectivity name prefix at offset 1000 (17–20 ms); the shape was chosen on the same data. Sync lag commit →
+index p50/p95 7/10 ms locally, 21/26 ms at 2 ms. Size 3.9 GB at 10⁶, the top of the estimate. Rebuild 140 studies/s
+locally (about 2 h at 10⁶, arithmetic). The outbox inside the study DB is atomic but costs a full scan when the
+publisher restarts; #146 §7's per-host file avoids it (§14, D9). A product client must set mysql_async's
+`reset_connection=false`. Saturation at concurrency 8–16 on 4 vCPUs. Tests: 11, 9/9 mutations caught (on MySQL 8.0.46
+for the re-run); without `SI_TEST_MYSQL` five tests skip silently. **To evaluate stays the owner's.**
+
+## 8 · The disk layout (#152, #167) — for the team meeting
 
 Options: flat; the PCS's coded `<D>/`; `yyyy/mm/dd`; one or two hashed levels; volume prefixes; hashed + a derived date
 view. Recommended by #152: **256 folders from a hash of the study UID, no date in the path or the URL** — the server
 builds the path from the link alone; a date in the path breaks issued links when a date is corrected, or needs a
-lookup per session. ext4 without `large_dir`: ~10–26 M entries per directory (inference); XFS ~600–700 M.
-**Owner 10-25:** not decided; partly ours; present the trade-offs at the next meeting with the team, the product owner
-and the DICOM-experienced members, and decide together.
+lookup per session. **Owner 10-25:** not decided; partly ours; present the trade-offs at the next meeting with the team,
+the product owner and the DICOM-experienced members, and decide together.
 
-## 9 · Serving by UID (#142)
+**Measured (#167, ext4 and XFS, 10⁴–10⁶ studies, warm only — no eviction lever here):** lookup within a few µs across
+options, flat no slower than hashed at 10⁶; scan and deletion by age about equal per study; publication flush-bound
+(~2 ms at 1 writer, 5–8 ms at 8) everywhere, and the date trees' next-day folder is one hot directory as flat's root
+is; **a corrected date moves the study under B and C (~1 ms) and all 500 old paths stop resolving; flat and hashed move
+nothing.** ext4 without `large_dir` stops at **7 667 255** entries (44-character names) and 9 950 066 (30), below the
+10–26 M inference (corrected in place in the ADR); `large_dir` passes 8.5 M; without `dir_nlink` subdirectories stop at
+64 998. XFS was not run to a ceiling. Host: 4 vCPUs, 15 GiB, nothing claimed past 10⁶; ext4 and XFS ran sequentially, not
+compared. The recommendation is unchanged, and the measurement strengthens its one hard argument (link stability).
+Deviation not stated in the ADR: amendment 2 (5aa5e72) came four minutes after the first rows (f92b0d9); the changed
+cells were re-run, and the re-run's ext4 10⁵ publish p50 is ~1.7× the first run's (arms still tie).
 
-Proposed: one process, many series; URL `/<Study>/<Series>` validated by grammar before any file is touched; a map of
-`Weak` stores (one open file per series in use); a `stat` at lookup to see a renamed-in replacement; an optional
+## 9 · Serving by UID (#142, #162)
+
+Proposed (#142): one process, many series; URL `/<Study>/<Series>` validated by grammar before any file is touched; a
+map of `Weak` stores (one open file per series in use); a `stat` at lookup to see a renamed-in replacement; an optional
 `?digest=` pairing metadata with frames; accept-then-close with codes (1 bad name, 2 not found, 3 changed, 4
-unreadable, 5 busy). **Correction owed:** its grammar is PS3.5 digits and dots; the PACS sees PCS-coded UIDs
-(alphabet `0-9 A-Z _ a-z ~`, still no `.`, `/` or `%`). Seven owner choices in its §9 are unanswered.
+unreadable, 5 busy). The grammar is corrected to PCS-coded UIDs (alphabet `0-9 A-Z _ a-z ~`, even length ≤ 44, no
+`.`, `/` or `%`) in both #158 and #162.
 
-## 10 · Findings for the PCS team (#154, parser `a65abe2`)
+**Built (#162, on v1):** many series under `--root`, each named by its coded UIDs, codes 1–5, both clients surface
+them; 151 tests; accept-`.` and drop-the-`stat` mutations caught. #142 §9's seven choices are built as its defaults,
+each still the owner's (§14, D10). `<Study>/<Series>.sbnd` is marked provisional, §8 being open. Measured: over
+WebTransport the close code does not reach a browser (wtransport 0.7 closes the connection); a capsule patch is
+proposed, not built. Owed: a panic in the blocking open maps to code 5 "busy"; the downloader still redials on
+refusals.
+
+## 10 · Findings for the PCS team (#154, #159, parser `a65abe2`)
+
+Read in its source or seen in its bytes; the questions are §15.
 
 * converted-enhanced is planned, not implemented;
 * nested keys contain bytes from memory addresses, so parsing the same files twice gives different groups (PT got five
-  series groups, US two exam groups);
+  series groups, US two exam groups) and different group names; with address randomisation off three parses agreed;
 * group 0002 lands in the instance group;
 * an exam-level sequence keeps only its first attribute in the exam group; the rest repeats in every instance group;
+* the date directory is made from an unterminated name (`capi.c` 148–160): a stray directory, or exit 12, depending on
+  the heap (runs used `MALLOC_PERTURB_=255`);
+* exit codes: after `exitNoArg1FilePath = -6` the enum counts on from −5, so `exitMkdirFailure` is 12 and
+  `exitNotDICM` is 0, the success code (`datatypes.h` 62–87);
+* series, instance and private groups are hashed over the length summed before UTF-8 conversion (exam over the bytes
+  written): a non-ASCII value would leave a name that is not its hash (read, not exercised);
+* fixed-size attribute tables (`capi.c` 67–70) are filled with no bound check (read, not exercised);
+* group files are named by BLAKE3; the build of `ESIPbasetags` and `dicm2decksqlite` fails;
 * the output is 1.15–1.95× the size the level table predicts; differences from `contract.md` are listed in #154.
-* To ask: one package per series instead of per-file rsync; XXH3 names; keep packages until "stored"; resend on
-  "refused"; whether a correction deletes the old group file; how a withdrawal is sent; a decoded-samples hash per
-  frame is not needed (the PACS checks coded hashes; the client checks samples).
 
 ## 11 · Corrections owed (before implementation is merged)
 
-| where | change |
-| --- | --- |
-| #142 `docs/adr/serving-by-uid.md` | grammar for PCS-coded UIDs |
-| #119 `docs/ingest/design.md` §12 | one package; staging in `incoming/`; two checks from disk; no `inputs/` log, revisions dirs or `CURRENT`; in-place updates; refusal/confirmation |
-| #120 `docs/ingest/metadata-draft.md` §2 | no truth/generation/history; T2 as the team's first design |
-| #120 §3 | versions (rusqlite 0.41.0, SQLite 3.54.x); the engine results of #147/#151 |
-| #126/#144 READMEs | "page document/page view" → display metadata |
-| #153 | the decoder rule (10-24 replaced 10-19) |
-| `docs/disk-layout/target.md` | "no metadata beside the `.sbnd`" restated; XXH3 group names |
-| `docs/ingest/contract.md`, `design.md`, `README.md` | BLAKE3 → XXH3; the site's encoding/outbox/upload relabelled as the PCS's side; the package as the interface |
-| all docs | the terms above |
+| where | change | state |
+| --- | --- | --- |
+| #142 `docs/adr/serving-by-uid.md` | grammar for PCS-coded UIDs | done in #158 and #162 (merge both, §13) |
+| #119 `docs/ingest/design.md` §12 | one package; staging in `incoming/`; two checks from disk; no `inputs/` log, revisions dirs or `CURRENT`; in-place updates; refusal/confirmation | owed; #163's ADR covers it, so #119 can close (§13) |
+| #120 `docs/ingest/metadata-draft.md` §2 | no truth/generation/history; T2 as the team's first design | done in #159 |
+| #120 §3 | versions (rusqlite 0.41.0, SQLite 3.54.x); the engine results of #147/#151 | done in #159 (#157's in §4 here) |
+| #126/#144 READMEs | "page document/page view" → display metadata | done in #159 |
+| #153 | the decoder rule (10-24 replaced 10-19) | done in #158 |
+| `docs/disk-layout/target.md` | "no metadata beside the `.sbnd`" restated; XXH3 group names | done in #158 |
+| `docs/ingest/contract.md`, `design.md`, `README.md` | BLAKE3 → XXH3; the site's encoding/outbox/upload relabelled as the PCS's side; the package as the interface | done in #158 |
+| all docs | the terms above | done in #158; owed in #143 ("catalog"), #164's glossary ("site", "verdict"), #166 ("paint metadata") |
+| #158 display-metadata and metadata-updates ADRs | Proposed items (one study DB per study, one row per group, one writer, the receiver's steps) listed under "Decided by the owner" | owed |
+| #158 glossary | study DB defined as "one row per group" (T1, Proposed) | owed |
+| #158 `docs/ingest/link.md`; `target.md` | "the site" relabelled only by a note; the layout meeting "with the PCS team" (§8 says who) | owed |
+| #159 handoff/metadata-2026-10.md | the 10-19 decoder rule and the truth/page-view model as "Decided": needs a superseded note; names the owner by first name | owed |
+| #163 ADR §0 | quarantine, staging, durability called "Decided" | owed |
+| #167 ADR §5 | amendment 2 came after the first 10⁴/10⁵ rows; the re-run's 1.7× publish p50 | owed |
 
 ## 12 · PR index
 
-#142 serving by UID · #144 update cost (in place 6–17× cheaper than revision directories) · #145 display metadata ·
-#146 study index · #147/#151 engine (+ fair re-run) · #148 updates · #149 transfer · #150 metadata size and repetition ·
-#152 disk layout · #153 viewer metadata (independent) · #154 the parser's own output · #155 carrier · #156 update
-compression. Older stack: #113 ← #120 ← #126 (format survey, pair bench), #118 page-open carriers, #119 receiver.
+One line per PR: what it delivers · state · supersedes / superseded by. "Theory" = no code or timing.
 
-## 13 · Night of 2026-10-26: what landed and its state
+| PR | delivers | state | relation |
+| --- | --- | --- | --- |
+| #142 | ADR serving by UID (theory) | draft | carried by #158 and #162: close after both |
+| #143 | ADR client telemetry in production, sampled (theory; outside PACS) | draft, CI green on `deb236a` | independent; its body still has a session link, and it says "catalog" |
+| #144 | update cost: in place 6–17× cheaper than revision directories | draft | carried by #159: close |
+| #145 | ADR display metadata, first evaluation (theory) | draft | carried by #158: close |
+| #146 | ADR study index (theory) | draft | carried by #158 (and #165): close after #165 is retargeted |
+| #147 | lab/sqlite-engine: rusqlite vs Turso | draft | carried by #159: close |
+| #148 | ADR metadata updates (theory) | draft | carried by #158: close |
+| #149 | ADR pcs-transfer (theory) | draft | carried by #158 (and #164): close |
+| #150 | metadata size, zstd, repetition on five series | draft | carried by #159: close |
+| #151 | sqlite-engine §4, each at its best | draft | carried by #159 (and #157): close after #157 is retargeted |
+| #152 | ADR disk layout (theory) | draft | carried by #158 (and #167): close after #167 is retargeted |
+| #153 | ADR viewer metadata, second evaluation (theory) | draft | carried by #158 (and #166): close after #166 is retargeted |
+| #154 | the parser's own output, measured | draft | carried by #159 (and #161): close after #161 is retargeted |
+| #155 | link.md §11: the carrier (theory) | draft | carried by #158 (and #164): close after #164 is retargeted |
+| #156 | update compression, measured | draft | carried by #159: close |
+| #157 | sqlite-engine §5: two processes, rusqlite waits, Turso fails or is stale | draft, verified | merge; not in #159 |
+| #158 | the design records combined, §11's corrections | draft, verified | supersedes #142 #145 #146 #148 #149 #152 #153 #155 as the way they merge |
+| #159 | the metadata lab branches consolidated, draft corrected | draft, verified | supersedes #113 #120 #126 #144 #147 #150 #151 #154 #156 |
+| #160 | tools/pacs-verify + common/study-db (§3's verify tool) | draft, verified | waits for D1–D2 |
+| #161 | study DB layout: row per group vs shared + per-frame vs blob | draft, verified | merge after #159 |
+| #162 | server `--root`: many series by coded UIDs | draft, verified | built from #142; waits for D10 only to make defaults final |
+| #163 | ingest/receiver + ADR: steps 1–8, 11, 12, R, recovery | draft, verified, flaky tests | waits for D1–D3; supersedes #119 |
+| #164 | carrier crate + the PCS's script (draft-14, mTLS) | draft, verified | built from #149/#155; waits for D3–D4 |
+| #165 | lab/study-index: MySQL 8.4 prototype, timed | draft, verified | built from #146 |
+| #166 | lab/metadata-delivery: viewer metadata ways, timed | draft, verified | built from #153 |
+| #167 | lab/disk-tree: #152's protocols, ext4 and XFS | draft, verified | built from #152 |
+| this | this design state | draft | carries §13 |
 
-Verified 2026-10-26 by a review run, one branch at a time. All eleven PRs are drafts; none merged. Every run produced its
-PR. "Gate" is `scripts/gate.sh --quick --no-browser`: the browser steps need the docker-built decoders this container
-lacks, and they fail the same 7 checks on the untouched base. Comment budget, the link check and the personal-path check
-pass on every branch after the fixes below. Every pushed fix is small and in the docs; nothing larger was changed.
-The "Generated by" line was removed from the bodies of #157, #158, #161, #162, #164, #165 and #167.
+Older stack (before #142): #113 ← #120 ← #126 (stores, format survey, pair bench), carried by #159: close; #118
+page-open carriers (`metadata-turso` base), not carried, evidence only; #119 receiver design, superseded by #163's ADR
+and §3. #141, #140, #139–#130 and earlier are not PACS work and not in this plan.
 
-**#157 TURSOLOCK** (lab/sqlite-engine §5). *Delivers:* a read beside an update in two processes, rusqlite against three
-Turso modes. **Reports the §4 question:** Turso's lock goes with the handle, not the transaction, and fails at once
-(`LockingError`, no busy wait); a held read-only Turso handle is stale; rusqlite only ever waits (≤ 4.8 ms), no errors,
-nothing stale. *Verified:* pre-registration precedes results (8312dc7 → 3acfb8f → cde1add → a46fa23); 11 tests pass; 3
-mutations re-run, each caught; 4 arms re-run, findings reproduced. *Issues:* no raw results committed (numbers only in
-the README); the 12-arm run used code not yet committed (said so). *Fixed:* the draft's §3 verdict named one way Turso
-works; it now names both (5ddf0bc).
+Verification of the night (2026-10-26, one branch at a time): every PR above from #157 is verified as its line says;
+"gate" is `scripts/gate.sh --quick --no-browser`, which passes on each (the browser steps need decoders this container
+lacks and fail the same 7 checks on the untouched base). Comment budget, link check and personal-path check pass on
+every branch. The "Generated by" line was removed from the bodies of #157, #158, #161, #162, #164, #165 and #167.
 
-**#158 design records combined** (docs only). *Delivers:* #142, #145, #146, #148, #149/#155, #152, #153 and this file in
-one branch, with §11's corrections. *Verified:* the §11 rows for #142, #153, target.md, contract/design/README/link
-(XXH3) and the glossary are applied and correct; #119, #120, #126/#144 honestly listed as owed; §5, §6, §8 stay Open.
-*Issues, not fixed:* the display-metadata and metadata-updates ADRs put **Proposed** items (one study DB per study, one
-row per group, one writer, the receiver's steps) under "Decided by the owner"; the glossary defines the study DB as "one
-row per group" (T1, Proposed); link.md still says "the site", relabelled only by a note; target.md says the layout
-meeting is "with the PCS team" (§8: the team, the product owner, the DICOM-experienced members).
+## 13 · Assembly plan
 
-**#159 metadata consolidated.** *Delivers:* the metadata lab branches merged without rebase, the draft corrected to the
-decisions of 10-24/25. *Verified:* truth/generation/history retracted in place; T2 as the team's first design;
-rusqlite 0.41.0, SQLite 3.54.1; #147/#151 folded in, the engine marked proposed; tests pass (sqlite-engine 11,
-update-link 2, Python suites); gate OK. *Fixed* (adf9ef5): "the decided one file per study" → proposed; #157 named;
-§3's verdict as in #157; the gate's "six lab crates" → seven. *Issues, not fixed:* handoff/metadata-2026-10.md still
-lists the 10-19 decoder rule as "Decided (do not reopen)" and the truth/page-view model: it needs a superseded note; it
-also names the owner by first name; the PR body says #157's branch has no PR; #161 is not merged in.
+Into `claude/av1-unified-mainbase` (`feeb1626`). Checked with `git merge-tree --write-tree`, pairwise and in this
+order, and by a scratch merge of the whole sequence (nothing pushed). Every PR from #142 has `feeb1626` or `5625dcf4`
+(an ancestor of it) as its base, so none needs a rebase: where a conflict is listed, resolve it in the merge, as
+written, or merge the base into the PR's branch first (the repository merges, it does not rebase). Merge with
+`--no-ff`; GitHub then marks each PR merged when the push lands.
 
-**#160 verify tool** (tools/pacs-verify, common/study-db). *Delivers:* §3's verify tool for a file, a study or a root:
-`.sbnd` layout and every frame read back, study DB `integrity_check` and every group's XXH3, from disk
-(`fdatasync` + `posix_fadvise(DONTNEED)`), a report, exit 0/1/2. *Verified:* 20 tests pass, gate OK; mutations of the
-integrity check, the group hash and the helper's fadvise are caught. *Issues:* frames are read back, not hashed — v1 has
-no per-frame coded XXH3 (documented); a mutation replacing the uncached open by a plain open at the call sites survives
-(only the helper is tested); **not the same code as #163's steps 6b and 8, and the two study-DB schemas conflict**
-(`xxh3 INTEGER` here, `xxh3 TEXT` in #163: pacs-verify fails on a study DB #163 writes); "no receiver exists yet" is
-now stale.
+| step | PR | conflict in this order | resolution |
+| --- | --- | --- | --- |
+| 1 | this | none | — |
+| 2 | #158 | none: it adds one paragraph to §11 ("Applied 2026-10-26", true of #158) and nothing else to this file | — |
+| 3 | #143 | none | — |
+| 4 | #165 | none | — |
+| 5 | #166 | none | — |
+| 6 | #159 | `docs/ingest/design.md` §5 and the compression paragraph; `.gitignore` | `.gitignore`: keep both; design.md: keep the base's terms (study DB, package, PCS) and add #159's "Corrected 2026-10-20" note and its measured sentence, in those terms; then the rusqlite bump below |
+| 7 | #157 | none | — |
+| 8 | #161 | metadata-draft.md, lab/metadata-store/README.md | both sides added text: keep both (#159's paragraph first, then #161's study-DB sentences; both README sections) |
+| 9 | #162 | the serving-by-uid ADR (3 hunks) | #162's status and its built wording, with #158's correction note and its fuller grammar paragraph |
+| 10 | #167 | the disk-layout ADR status; `.gitignore` | status: #158's corrected terms + #167's "protocols were run" sentence, "the team, the product owner and the DICOM-experienced members"; `.gitignore`: keep both |
+| — | stop | | steps 11–13 wait for D1–D4 (§14) |
+| 11 | #163 | `Cargo.lock` | keep the base's, then let cargo re-resolve |
+| 12 | #160 | `Cargo.lock`, `Cargo.toml`, `scripts/gate.sh`, `docs/ingest/README.md` | members and gate lists: keep both; README: the base's wording ("the PCS's side", "study DBs", "study index") plus #160's item 7 |
+| 13 | #164 | `Cargo.lock`, `scripts/gate.sh`, `docs/glossary.md` | lists: keep both; glossary: the base's PCS, submission package and carrier rows; #164's verdict and site rows once D3 fixes the vocabulary |
 
-**#161 study DB layout** (lab/metadata-store --mode study-db). *Delivers:* row per group, shared + per-frame and a blob
-per series, timed on the parser's five packages, as written and masked. *Verified:* pre-registration 11c8678 precedes
-results 95528f2; 9 + 15 tests pass, 3 mutations caught; gate OK; headline ratios consistent with its tables.
-*Fixed* (c1e3e7c): the draft's §2 outcome is labelled a recommendation, its adoption still Open (§4). *Issues:* no raw
-results or packages committed (hashes only); the README and the PR body read as an answer; measured on rusqlite 0.40.2
-(said so); the 1.4–1.6× slower exam correction in shared + per-frame is unexplained (said so).
+**A text-clean merge that does not build.** After #159, lab/metadata-store (rusqlite 0.40) and #160/#163 (0.41) cannot
+resolve in one workspace. Bump it at step 6 — checked: `cargo check` of metadata-store, the receiver, the verify tool
+and the carrier, and metadata-store's 9 tests pass on 0.41.
 
-**#162 serving by UID** (server --root). *Delivers:* many series under one root, `/<Study>/<Series>` validated as
-PCS-coded UIDs before any file is touched (§9's correction owed, done), a map of `Weak` stores, `stat` at lookup,
-accept-then-close codes 1–5, both clients surface them. *Verified:* 151 tests pass, gate OK, the arm patch applies;
-mutations (accept `.`, drop the `stat` comparison) caught; #142 §9's seven choices kept as defaults for the owner.
-Measured: over WebTransport the close code does not reach a browser (wtransport 0.7 closes the connection; a capsule
-patch is proposed, not built). *Fixed* (51b4f9f): WIRE.md and the ADR mark `<Study>/<Series>.sbnd` provisional, §8 being
-open. *Issues:* a panic in the blocking open maps to code 5 "busy"; the downloader still redials on refusals.
+```bash
+git fetch origin
+git switch -C assembly origin/claude/av1-unified-mainbase
+m() { git merge --no-ff -m "Merge pull request #$1: $2" "origin/claude/$3"; }
 
-**#163 PACS receiver** (ingest/receiver, ADR proposed). *Delivers:* §3's steps 1–8, 11, 12, R, quarantine and crash
-recovery; 9 and 10 a trait with nothing behind it. *Verified* against §3 step by step: staging on the root's
-filesystem, fsync of files and directories, 6b read-back from disk, never decodes, one rename, one transaction with an
-audit row, 8 re-read from disk, refusal keeps the package, crash recovery from 3; step 9 left open. Gate OK; package
-hash and 6b hash mutations caught. *Issues, not fixed:* **the test suite is flaky** (≈ half of full runs fail with
-"another receiver holds …/incoming": the crash test forks while other tests hold the lock); a mutation at the 6b call
-sites to a cached read survives (only the helper is tested); the audit row has no "who" (Decided: who, when, what);
-ADR §0 calls quarantine, staging and durability "Decided" where this file has them as proposed steps; shares no code
-with #160 (above); its reply files differ from #164's (below).
+m NNN "the PACS design state"            pacs-design-state      # this PR's number
+m 158 "the PACS design records combined" design-records-combined
+m 143 "client telemetry in production"   telemetry-production-design
+m 165 "the study index prototyped"       study-index-proto
+m 166 "viewer metadata delivery, timed"  viewer-metadata-measure
+m 159 "the metadata analysis consolidated" metadata-consolidated   # resolve docs/ingest/design.md by hand, then:
+sed -i 's/^rusqlite = { version = "0.40"/rusqlite = { version = "0.41"/' lab/metadata-store/Cargo.toml
+cargo check -p metadata-store && git commit -am "lab/metadata-store: rusqlite 0.41, the workspace's"
+m 157 "two processes on one study DB"    sqlite-lock-behaviour
+m 161 "the study DB layout, timed"       study-db-layout          # keep both sides
+m 162 "serve many series by coded UIDs"  serve-by-uid-impl        # resolve the ADR
+m 167 "the disk tree, timed"             pacs-disk-layout-measure # resolve status and .gitignore
+scripts/gate.sh --quick --no-browser
+git push origin assembly:claude/av1-unified-mainbase              # fast-forward only; the owner's push
 
-**#164 carrier** (carrier/, the PCS's script). *Delivers:* draft-14 resumable upload, interop version 10, careful
-creation, one-shot on the same endpoint, mutual TLS pinned per site, `received` then `committed`/`refused`, polled;
-TCP always, HTTP/3 experimental. *Verified:* 17 tests (18 with `quic`), gate OK; offset and script stall-timeout
-mutations caught; its link-check change widens the check. *Fixed* (9bb1c53): link.md separates the owner's direction
-(one handler, listeners chosen at start) from this build's choices. *Issues, not fixed:* QUIC is compiled only with a
-cargo feature, so the default binary cannot choose it by config at start (weaker than the owner's 10-25/26 shape); the
-reply is "committed" where §3 decided "stored"; **the handoff with #163 does not match** — #164 reads
-`status/<name>` at the root with `committed`/`refused retry`/`refused final`, #163 writes `incoming/status/<f>` with
-`stored`/`refused`/`quarantined`; the carrier's own stall timeout has no test (its mutation survives); the script
-resends without limit if the poll keeps answering 404; the PR body's test count is off by one.
+# after D1–D4, each with its fix pushed to its branch:
+m 163 "the PACS receiver" pacs-receiver-impl  # Cargo.lock: git checkout --ours Cargo.lock && cargo metadata -q >/dev/null
+m 160 "the verify tool"   verify-tool
+m 164 "the carrier"       pcs-carrier-impl
+```
 
-**#165 study index prototype** (lab/study-index, MySQL 8.4.6). *Delivers:* §7's index built and timed per #146 §11 as
-amended. *Verified:* amendment ac38bdf precedes results 8d0e173; p95s and sync lags spot-checked against the raw files,
-all match; saturation stated (c = 4–16); 11 tests and 9/9 mutations re-run (on MySQL 8.0.46, the container's, not 8.4).
-Reports, does not decide (§7: "to evaluate"). *Fixed* (16fec79): the ADR's "the tuned shape meets every cell" now
-excepts the added `name_family` @ 1000 (17–20 ms); a link to this file pinned at its commit. *Issues:* without
-`SI_TEST_MYSQL` the five publisher tests skip silently and the run still says "11 passed"; the tuned shape was chosen
-on the same data (said so).
+The conflicting steps stop with the conflict in place: resolve, `git add`, `git commit --no-edit`.
 
-**#166 viewer metadata measured** (lab/metadata-delivery). *Delivers:* study DB at open (HTTPS or in the session), a
-derived file and #153's split, on four emulated links, host cost to 1 000 viewers, consistency under updates.
-*Verified:* pre-registration 3e77cce precedes build and results; spot-checks match the ndjson; tests pass, mutations
-caught. Reports, does not decide §6 (Open). *Fixed* (e3bfcc1): two paths pinned at their commits so links resolve.
-*Issues, not fixed:* e30f966 (h2load asks for gzip; opens counted once) came after pre-registration and is not recorded
-as a deviation, nor are H2 at 1/100 studies instead of 1/10/100 and saturation inferred rather than measured; the
-floor link's +3/+11 ms set aside as rig noise; "paint metadata" where the glossary says display metadata.
+**Retarget before closing.** Several open PRs have another PR's branch as their base; closing that PR is fine, but
+deleting its branch closes the PR stacked on it. Retarget them before the push, too, or
+GitHub will not mark them merged (`gh pr edit N --base claude/av1-unified-mainbase`, or Edit beside the title): #157
+(on #151), #161 (on #154), #164 (on #155), #165 (on #146), #166 (on #153), #167 (on #152). Then close as superseded: #142, #144–#156 (carried by #158 or #159),
+#113, #120, #126 (carried by #159), #119 (by #163). Keep #118 as evidence or close: the owner's.
 
-**#167 disk layout measured** (lab/disk-tree). *Delivers:* #152's protocols over five options, ext4 and XFS, 10⁴–10⁶
-studies. *Verified:* reports, does not decide §8; warm only, no eviction lever, device reads recorded per cell; ext4
-ceiling (7 667 255 at 44-character names; 9 950 066 at 30; 64 998 subdirectories without `dir_nlink`) matches the
-rows; 4 tests pass, 3 mutations caught. *Fixed* (3cbd98e): "about 2 billion" labelled arithmetic. *Issues:*
-**amendment 2 (5aa5e72) was committed four minutes after the first rows (f92b0d9)**; the changed cells were re-run
-rather than reused, but the ADR does not say the 10⁴/10⁵ rows had already run; the re-run's ext4 10⁵ publish p50 is
-~1.7× the first run's (arms still tie), not reported; "38 % full" is derived, not measured; the pre-registered P5 text
-says "catalog".
+## 14 · Decisions waiting for the owner
 
-**Across PRs, for the owner:** #160, #163 and #164 were built in parallel and do not fit together yet — one study-DB
-schema, one disk-read helper shared by the verify tool and steps 6b/8 (Decided), one reply file and vocabulary
-("stored") between receiver and carrier. Each is structural, so each waits for the owner. Also owed: the receiver's
-flaky test, the read-back call sites untested in #160 and #163, the stale handoff note in #159.
+Each: the evidence in one line · the default if nothing else is said.
+
+* **D1 · one study-DB schema.** #160 stores `xxh3 INTEGER`, #163 `xxh3 TEXT`; the verify tool fails on the receiver's DB
+  · #160's common/study-db is the one schema, `xxh3 INTEGER`; #163 uses the crate.
+* **D2 · one disk-read helper** (Decided "same code"; how is structural). Two helpers, call sites untested in both ·
+  #160's helper in common/study-db, used by steps 6b and 8, with a test at a call site.
+* **D3 · the reply file and its words.** #163 writes `incoming/status/<f>` `stored`/`refused`/`quarantined`; #164 reads
+  `status/<name>` `committed`/`refused retry`/`refused final`; §3 decided "stored" · #163's file and words; #164 adapts
+  (retry → refused, final → quarantined).
+* **D4 · QUIC in the carrier.** Your shape: one handler, listener chosen by config at start; #164 compiles QUIC only
+  with a cargo feature (h3 0.0.x "very experimental") · the feature stays off by default for v1, recorded as a
+  deviation; config choice once h3 is released.
+* **D5 · study DB layout** (§4). #161: row per group wins while the parser's keys hold addresses · T1 now; revisit
+  shared + per-frame when the PCS's keys are deterministic.
+* **D6 · viewer metadata** (§6). #166: reading the study DB at open ties derived files on every link, loses on host CPU
+  at 2 000 instances (4.0 ms, mostly gzip) · your option, a ready per-series row, open-read-close.
+* **D7 · rusqlite 0.41 everywhere** (§4). #157 answers the two-process question for rusqlite; 0.40 and 0.41 cannot share
+  the workspace · rusqlite, 0.41, bumped at assembly step 6.
+* **D8 · metadata compression per site** (§2). #156: never slower in 56 pairs, saves 1–5 round trips on fan-outs and
+  resends · on by default, off per site.
+* **D9 · where the study-index outbox lives** (§7). #165: in the study DB it is atomic but a restarted publisher scans
+  every study DB (0.29 ms each) · #146 §7's per-host intent file; #146 §4 takes #165's tuned indexes.
+* **D10 · #142 §9's seven choices.** Built as defaults in #162; the close code does not reach a browser · the defaults
+  as built; the capsule patch later.
+* **D11 · implementation PRs before the fit.** #160, #163, #164 each verified alone · hold steps 11–13 until D1–D3 are
+  fixed on their branches, with #163's flaky test and its missing audit "who".
+
+## 15 · Questions for the PCS team
+
+* We differ from pcs.pdf (§1): the PACS receives `.sbnd`, not MXF/MP4/JXL; hashes and names are XXH3, not BLAKE3; one
+  file per transfer and one package per series instead of per-file rsync. Agreed?
+* Completeness: the PCS decides it per series and the package's existence declares it (#149). Which heuristic, and what
+  happens to an instance arriving after its series was sent (a new revision)?
+* The reply: keep each package until "stored"; resend on "refused"; stop on "quarantined" and tell an operator. Can the
+  PCS run curl and a small script (resumable upload, mutual TLS, a certificate per site)?
+* Updates: does a correction delete the old group file on your side? How is a withdrawal sent?
+* Your parser (§10): when will nested keys be deterministic (the study DB layout waits on it, §4)? converted-enhanced:
+  planned when? group 0002 in the instance group, the exam sequence split, the unterminated date-directory name, exit
+  codes 12 and 0, the hash length before UTF-8, unbounded attribute tables, the failing builds.
+* The date folder `<D>/` (eDA): does the PCS need it in the PACS path? The disk layout is open (§16).
+* Not needed from you: a decoded-samples hash per frame (the PACS checks coded hashes; the client checks samples).
+
+## 16 · For the team meeting
+
+**Disk layout** (with the team, the product owner and the DICOM-experienced members; §8). Options A flat, B the PCS's
+coded `<D>/`, C `yyyy/mm/dd`, D/D2 one or two hashed levels. Evidence (#167, warm): all options tie on lookup, scan,
+deletion and publication; a corrected date moves the study under B and C and breaks every issued link; ext4 without
+`large_dir` stops at 7.7 M entries in one directory, so flat needs XFS or `large_dir`. Recommended (#152): D, 256
+folders from a hash of the study UID, no date in the path or the URL. Default if no decision: D, provisional
+(`<Study>/<Series>.sbnd` under it, #162).
+
+**Client-app update path** (with the team and the product owner; §5). Options: through the receiver's queue (one path,
+one writer per study DB) or a standard update endpoint coordinated with it. Evidence: one path gives order and a bounded
+delay (#165: a correction reaches the index in 57–208 ms), no second writer; the cost is no "instant". Default: one path,
+the update API submitting update packages.
