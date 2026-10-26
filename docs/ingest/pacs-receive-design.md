@@ -357,7 +357,7 @@ One line per PR: what it delivers · state · supersedes / superseded by. "Theor
 | #165 | lab/study-index: MySQL 8.4 prototype, timed | draft, verified | built from #146 |
 | #166 | lab/metadata-delivery: viewer metadata ways, timed | draft, verified | built from #153 |
 | #167 | lab/disk-tree: #152's protocols, ext4 and XFS | draft, verified | built from #152 |
-| this | this design state | draft | carries §13 |
+| #168 | this design state | draft | carries §13 |
 
 Older stack (before #142): #113 ← #120 ← #126 (stores, format survey, pair bench), carried by #159: close; #118
 page-open carriers (`metadata-turso` base), not carried, evidence only; #119 receiver design, superseded by #163's ADR
@@ -378,7 +378,7 @@ written, or merge the base into the PR's branch first (the repository merges, it
 
 | step | PR | conflict in this order | resolution |
 | --- | --- | --- | --- |
-| 1 | this | none | — |
+| 1 | #168 (this) | none | — |
 | 2 | #158 | none: it adds one paragraph to §11 ("Applied 2026-10-26", true of #158) and nothing else to this file | — |
 | 3 | #143 | none | — |
 | 4 | #165 | none | — |
@@ -402,7 +402,7 @@ git fetch origin
 git switch -C assembly origin/claude/av1-unified-mainbase
 m() { git merge --no-ff -m "Merge pull request #$1: $2" "origin/claude/$3"; }
 
-m NNN "the PACS design state"            pacs-design-state      # this PR's number
+m 168 "the PACS design state"            pacs-design-state
 m 158 "the PACS design records combined" design-records-combined
 m 143 "client telemetry in production"   telemetry-production-design
 m 165 "the study index prototyped"       study-index-proto
