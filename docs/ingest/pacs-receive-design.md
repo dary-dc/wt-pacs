@@ -10,8 +10,8 @@ for whom is §14–§16.
 
 Terms. *PCS*: the hospital-side component (another team's; github.com/opendicom/DECK_WebTransport), which receives,
 parses, encodes and forwards. *Submission package* (OAIS's SIP, ISO 14721), *package* for short: one file the PCS sends.
-*Study DB*: one SQLite-format file per study at the PACS. *Study index*: the database listing studies and series (MySQL
-fits). *Viewer metadata*: everything a viewer reads; *display metadata* is its paint part (codec, frame count,
+*Study DB*: one SQLite-format file per study at the PACS. *Study index*: the database listing studies and series (its
+engine open, §7). *Viewer metadata*: everything a viewer reads; *display metadata* is its paint part (codec, frame count,
 rows/cols, photometric, bits, rescale, window, order, cine rate). *Revision*, never *generation* (the glossary's
 generation is a request's identity).
 
@@ -48,6 +48,9 @@ generation is a request's identity).
 * **Proposed (#149):** a deterministic pax tar named `<unit>.<revision>.<xxh3-64>.tar`; identity is (unit UID,
   revision), the hash a check; the PCS decides completeness and the package's existence declares it. Each series
   package may carry the exam group: stored if new, nothing if its hash matches, a study-level update if it differs.
+  *Corrected 2026-10-26:* #149's reason for tar over zip (tar cannot compress per member, so the group files go as one
+  zstd member, compressed across files) no longer holds: #163 compresses per member (a file alone 1.6–3.2×, one stream
+  16–31×), which zip does too; the container is open with the path's other choices (below).
 * **Why one file (corrected 10-25):** not the wire — rsync pipelines files ("pipelining of file transfers to minimize
   latency costs", rsync(1)) and QUIC streams do not block each other — but the two ends: the completeness signal, one
   hash, one atomic placement, one thing to process and confirm.
@@ -146,7 +149,9 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
 * **#160, #163 and #164 do not fit together yet** (built in parallel): two study-DB schemas (`xxh3 INTEGER` in #160,
   `xxh3 TEXT` in #163: the verify tool fails on a study DB the receiver writes); two disk-read helpers where "same code"
   is Decided (**Decided 10-26:** #160's, §14 D2); two reply files and vocabularies (#163 `stored`/`refused`/`quarantined` in `incoming/status/<f>`; #164
-  `committed`/`refused retry`/`refused final` in `status/<name>`). Each is structural: §14, D1–D3.
+  `committed`/`refused retry`/`refused final` in `status/<name>`). Each is structural: §14, D1–D3. *Corrected
+  2026-10-26:* #160's schema also lacks #163's `series` column and audit table; the one real D1 choice is the hash's
+  type.
 
 ## 4 · The study DB
 
@@ -259,7 +264,8 @@ index p50/p95 7/10 ms locally, 21/26 ms at 2 ms. Size 3.9 GB at 10⁶, the top o
 locally (about 2 h at 10⁶, arithmetic). The outbox inside the study DB is atomic but costs a full scan when the
 publisher restarts; #146 §7's per-host file avoids it (§14, D9). A product client must set mysql_async's
 `reset_connection=false`. Saturation at concurrency 8–16 on 4 vCPUs. Tests: 11, 9/9 mutations caught (on MySQL 8.0.46
-for the re-run); without `SI_TEST_MYSQL` five tests skip silently. **To evaluate stays the owner's.**
+for the re-run); without `SI_TEST_MYSQL` five tests skip silently. **To evaluate stays the owner's.** *Corrected
+2026-10-26:* #165's `lab/study-index/README.md` says "The owner chose MySQL on 10-25"; the owner did not (above; §14, D9).
 
 ## 8 · The disk layout (#152, #167) — for the team meeting
 
@@ -333,6 +339,9 @@ Read in its source or seen in its bytes; the questions are §15.
 | #159 handoff/metadata-2026-10.md | the 10-19 decoder rule and the truth/page-view model as "Decided": needs a superseded note; names the owner by first name | owed |
 | #163 ADR §0 | quarantine, staging, durability called "Decided" | owed |
 | #167 ADR §5 | amendment 2 came after the first 10⁴/10⁵ rows; the re-run's 1.7× publish p50 | owed |
+| #165 `lab/study-index/README.md` | "The owner chose MySQL on 10-25": the owner did not (§14, D9) | owed |
+| #149 (in #158) `docs/adr/pcs-transfer.md` container table | tar over zip for cross-file zstd: #163 compresses per member (§2) | owed |
+| #160 common/study-db | #163's `series` column and audit table (§14, D1) | owed |
 
 ## 12 · PR index
 
@@ -444,8 +453,10 @@ GitHub will not mark them merged (`gh pr edit N --base claude/av1-unified-mainba
 
 Each: the evidence in one line · the default if nothing else is said.
 
-* **D1 · one study-DB schema.** #160 stores `xxh3 INTEGER`, #163 `xxh3 TEXT`; the verify tool fails on the receiver's DB
-  · #160's common/study-db is the one schema, `xxh3 INTEGER`; #163 uses the crate.
+* **D1 · one study-DB schema.** #160 stores `xxh3 INTEGER`, #163 `xxh3 TEXT`; the verify tool fails on the receiver's DB.
+  *Corrected 2026-10-26:* #160's schema lacks #163's `series` column and audit table, so the only real choice is the
+  hash as hex `TEXT` or `INTEGER` · #160's common/study-db is the one schema, carrying #163's `series` column and audit
+  table, `xxh3 INTEGER`; #163 uses the crate.
 * **D2 · one disk-read helper. Decided 2026-10-26:** #160's (flush, then drop the cache), "yes, rec seems safer"; used by
   steps 6b and 8, with a test at a call site (owed, DAY-7).
 * **D3 · the reply file and its words.** #163 writes `incoming/status/<f>` `stored`/`refused`/`quarantined`; #164 reads
