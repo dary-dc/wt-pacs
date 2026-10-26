@@ -6,7 +6,7 @@ decision, proposal, open question and result from the owner's sessions of 2026-1
 owner's, dated. **Proposed** = recommended by a record or run, not accepted; a result can strengthen or weaken it, never
 make it Decided. **Open** = to discuss (with the owner, the team, the product owner or the PCS team), with its default.
 Each item names the PR that holds its evidence; every PR is a draft, none merged. How the PRs merge is §13; what waits
-for whom is §14–§16; where the records disagree is §17.
+for whom is §14–§16; where the records disagree is §17; the afternoon's rows §18.
 
 Terms. *PCS*: the hospital-side component (another team's; github.com/opendicom/DECK_WebTransport), which receives,
 parses, encodes and forwards. *Submission package* (OAIS's SIP, ISO 14721), *package* for short: one file the PCS sends.
@@ -267,7 +267,7 @@ locally (about 2 h at 10⁶, arithmetic). The outbox inside the study DB is atom
 publisher restarts; #146 §7's per-host file avoids it (§14, D9). A product client must set mysql_async's
 `reset_connection=false`. Saturation at concurrency 8–16 on 4 vCPUs. Tests: 11, 9/9 mutations caught (on MySQL 8.0.46
 for the re-run); without `SI_TEST_MYSQL` five tests skip silently. **To evaluate stays the owner's.** *Corrected
-2026-10-26:* #165's `lab/study-index/README.md` says "The owner chose MySQL on 10-25"; the owner did not (above; §14, D9).
+2026-10-26:* #165's `lab/study-index/README.md` (`16fec79`) says "The owner chose MySQL on 10-25"; the owner did not (above; §14, D9).
 
 ## 8 · The disk layout (#152, #167) — for the team meeting
 
@@ -341,8 +341,8 @@ Read in its source or seen in its bytes; the questions are §15.
 | #159 handoff/metadata-2026-10.md | the 10-19 decoder rule and the truth/page-view model as "Decided": needs a superseded note; names the owner by first name | owed |
 | #163 ADR §0 | quarantine and durability called "Decided" (staging is, 10-26) | owed |
 | #167 ADR §5 | amendment 2 came after the first 10⁴/10⁵ rows; the re-run's 1.7× publish p50 | owed |
-| #165 `lab/study-index/README.md` | "The owner chose MySQL on 10-25": the owner did not (§14, D9) | owed |
-| #149 (in #158) `docs/adr/pcs-transfer.md` container table | tar over zip for cross-file zstd: #163 compresses per member (§2) | owed |
+| #165 `lab/study-index/README.md` (`16fec79`) | "The owner chose MySQL on 10-25": the owner did not (§14, D9) | owed |
+| #149 (in #158) `docs/adr/pcs-transfer.md` (`b47b918`) container table | tar over zip for cross-file zstd: #163 compresses per member (§2) | owed |
 | #160 common/study-db | #163's `series` column and audit table (§14, D1) | owed |
 
 ## 12 · PR index
@@ -552,3 +552,17 @@ One line each; none is settled here.
 * **A10 · the audit row's "who":** decided (§4), but nothing carries a "who" to the audit row.
 * **A11 · starting the receiver:** nothing starts it.
 * **A12 · staging:** the owner's decision 10-26 against "proposed" in this file; fixed in §3.
+
+## 18 · Rows of 2026-10-26 afternoon
+
+* **DAY-1** (`claude/carrier-quic-choice`): the carrier's QUIC dependency, h3 0.0.x or a QUIC implementation used
+  directly, not necessarily in Rust (§14, D4).
+* **DAY-2** (`claude/study-index-engines`): the study index's engine (§14, D9).
+* **DAY-3** (`claude/study-index-placement`): the study index on a separate server (§14, D9).
+* **DAY-4** (`claude/viewer-metadata-gz-row`): the ready row stored compressed, the revision as ETag (§14, D6).
+* **DAY-5** (`claude/receiver-process-map`): one program against two, then the reply file's place and lifetime
+  (§14, D3).
+* **DAY-6**: not recorded in this file.
+* **DAY-7** (`claude/pacs-receiver-impl`, `claude/verify-tool`): the owed fixes pushed to #163 and #160 (§3, §14 D2
+  and D11).
+* **DAY-8**: not recorded in this file.
