@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 pub const SERIES: [&str; 5] = ["ct", "pt", "mr", "mg", "us"];
-const INPUTS: [(&str, &str); 2] = [("as written", ""), ("masked", ".masked")];
+pub const INPUTS: [(&str, &str); 2] = [("as written", ""), ("masked", ".masked")];
 const NEW_NAME: &[u8] = b"LAB^CORRECTED ";
 const NEW_THICKNESS: &[u8] = b"9.75";
 const NEW_POSITION: &[u8] = b"0\\0\\0 ";
@@ -30,14 +30,14 @@ struct Arm {
     path: PathBuf,
 }
 
-fn thread_cpu_ms() -> f64 {
+pub fn thread_cpu_ms() -> f64 {
     let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
     // SAFETY: `ts` is a valid, writable timespec for the duration of the call.
     unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) };
     ts.tv_sec as f64 * 1e3 + ts.tv_nsec as f64 / 1e6
 }
 
-fn stats(mut t: Vec<f64>) -> serde_json::Value {
+pub fn stats(mut t: Vec<f64>) -> serde_json::Value {
     t.sort_by(f64::total_cmp);
     let q = |p: f64| t[((t.len() - 1) as f64 * p).round() as usize];
     serde_json::json!({"rounds": t.len(), "p10": q(0.1), "median": q(0.5), "p90": q(0.9)})

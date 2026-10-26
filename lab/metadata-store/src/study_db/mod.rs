@@ -1,6 +1,7 @@
 //! One study DB in three layouts, each built from a series' package: lab/metadata-store/README.md §The study DB.
 
 mod blob;
+pub mod ratio;
 mod rows;
 pub mod run;
 pub mod shared;
