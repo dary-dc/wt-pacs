@@ -1,7 +1,7 @@
 # What each way of getting a series' viewer metadata costs
 
 One row, for the owner's decision in [`docs/ingest/pacs-receive-design.md`](https://github.com/dary-dc/wt-pacs/blob/claude/pacs-design-state/docs/ingest/pacs-receive-design.md)
-§6 (open): the owner prefers that a serving process read the series' metadata from the study DB when the series is
+(`e699ed3d`) §6 (open): the owner prefers that a serving process read the series' metadata from the study DB when the series is
 opened; #145 and #153 ([`docs/adr/viewer-metadata.md`](../../docs/adr/viewer-metadata.md)) recommend derived files.
 This directory builds each way minimally and measures it on the user's path and on the host. It ranks nothing: the
 ADR's ranking is unchanged, and the decision is the owner's.
@@ -37,7 +37,7 @@ samples gzip-coded as a stand-in for HTJ2K (the page's decode is `DecompressionS
 page paints it through the metadata's window and rescale onto a canvas: **first painted frame** is the
 `requestAnimationFrame` after `putImageData`. Times are `performance.now()`, whose origin is the navigation's start.
 
-**The links** are #156's classes (`lab/metadata-store` on `claude/update-compression`): the container has no netem,
+**The links** are #156's classes (`lab/metadata-store` on `claude/update-compression` at `cbc339d2`): the container has no netem,
 so two network namespaces are joined by two TUN devices and a forwarder that delays, rate-limits (a 100-packet FIFO)
 and drops packets, both ways. The browser (Playwright's Chromium) runs in one namespace; nginx and the serving process
 in the other.
