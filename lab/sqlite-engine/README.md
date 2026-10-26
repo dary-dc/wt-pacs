@@ -25,6 +25,7 @@ $B blocking --arm idle,turso,rusqlite,rusqlite-selfwake --cache-pages 64 --round
   && cargo build --release --no-default-features && cp target/release/sqlite-engine{,-lean})
 for m in blocking files summary; do python3 lab/sqlite-engine/fair.py $m fair-out; done
 $B lock --rounds 6 > lock.jsonl                                    # §5, a read beside an update
+$B lock --rounds 6 --arms $(for e in rusqlite turso-mp; do for s in a b c; do printf '%s:%s,%s:%s:busy0,%s:%s:apart,' $e $s $e $s $e $s; done; done | sed 's/,$//') > lock-control.jsonl
 ```
 
 **The study file**, the same for both engines (built by rusqlite, so the format is SQLite's): one table
@@ -531,6 +532,20 @@ wait, a `busy_timeout` sleep or a lock spin, shows only as the first above the s
 | L5. **turso-mp a–c**: no error, no stale or torn read; overlapped latency p99 within 2× non-overlapped, both sides | otherwise |
 | L6. **rusqlite a–c**: no error, no stale or torn read, nothing refused; overlapped latency p99 within 2× non-overlapped, both sides | otherwise |
 | L7. Every new test fails when the code it covers is broken on purpose | one does not |
+
+*Amended 2026-10-26, after the measured run of the 12 arms and before this one* (an exploratory follow-up, its
+predictions fixed now). The run showed no error in rusqlite and turso-mp, yet overlapped latency p99 2–7× the
+non-overlapped one: a wait inside the engine, which the retry loop cannot see, or the two processes sharing 4 vCPUs
+and one disk? Two variants tell them apart, run beside the plain arms of those two engines, 18 arms rotated, **6
+rounds**: **busy0**, `busy_timeout` 0 on both sides, so every engine-internal wait for a lock becomes a `Busy` error
+counted and retried by the loop; **apart**, the server reading its own copy of the file (staleness then means
+nothing), so the processes share only the host.
+
+| Prediction | Contradicted if |
+| --- | --- |
+| X1. **rusqlite busy0**: no `Busy` in a or c; in b, on under 1 % of operations (the last connection's close checkpoints under an exclusive lock) | otherwise |
+| X2. **apart**: overlapped p99 within 1.5× of the same arm's on one file, both engines, both sides: the tail is the host, not a lock | the one-file p99 above 1.5× apart's |
+| X3. **turso-mp busy0**: at least one `Busy` in a–c | none |
 
 **Where the host saturates.** Two single-threaded processes, each paced by its sleeps, on 4 vCPUs: not CPU-bound;
 an update's cost is its `fsync` on the VM's virtual disk. Nothing is claimed past one server and one receiver per
