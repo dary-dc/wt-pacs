@@ -96,7 +96,7 @@ def cell(arm: str, series: str, viewers: int, studies: int, r: int, roles: dict,
     cpu0 = {role: sum(cpu_ticks(p) for p in pids) for role, pids in roles.items()}
     sampler = Sampler(roles)
     sampler.start()
-    out = subprocess.run(["h2load", "-n", str(opens * per_open), "-c", str(viewers), "-m", "1", "-i", listing],
+    out = subprocess.run(["h2load", "-n", str(opens * per_open), "-c", str(viewers), "-m", "1", "-H", "accept-encoding: gzip", "-i", listing],
                          capture_output=True, text=True)
     sampler.stop = True
     sampler.join()
@@ -104,7 +104,7 @@ def cell(arm: str, series: str, viewers: int, studies: int, r: int, roles: dict,
     done = re.search(r"(\d+) succeeded, (\d+) failed", out.stdout)
     after = {role: tuple(map(sum, zip(*(footprint(p) for p in pids)))) for role, pids in roles.items()}
     return {"arm": arm, "series": series, "viewers": viewers, "studies": studies, "round": r, "opens": opens,
-            "succeeded": int(done.group(1)) if done else None, "failed": int(done.group(2)) if done else None,
+            "succeeded": int(done.group(1)) // per_open if done else None, "failed": int(done.group(2)) if done else None,
             **{f"{role}_cpu_us_per_open": (cpu1[role] - cpu0[role]) * 1e6 / TICKS / opens for role in roles},
             **{f"{role}_peak_fds": sampler.peak[role][0] - idle[role][0] for role in roles},
             **{f"{role}_peak_rss_kib": sampler.peak[role][1] - idle[role][1] for role in roles},
