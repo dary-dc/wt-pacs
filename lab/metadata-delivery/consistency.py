@@ -16,12 +16,12 @@ BIN = os.path.join(HERE, "target", "release", "metadata-delivery")
 
 
 def seen(study_rev, paint_rev):
-    """The revision a read reflects, or None if its two parts were never committed together.
+    """The revision a read reflects (-1 before any update), or None if its two parts were never committed together.
 
     `metadata-delivery receive` stamps even revisions on the study fields and odd ones on the windows, from 0.
     """
     if paint_rev is None:
-        return study_rev if study_rev in (None, 0) else None
+        return {None: -1, 0: 0}.get(study_rev)
     if study_rev is None:
         return None
     return max(study_rev, paint_rev) if abs(study_rev - paint_rev) == 1 else None
@@ -29,7 +29,7 @@ def seen(study_rev, paint_rev):
 
 def staleness_ms(start: int, revision, commits: list) -> float:
     """How long before the read began the first revision newer than the one it saw had committed; 0 if none had."""
-    nxt = 0 if revision is None else revision + 1
+    nxt = revision + 1
     if nxt >= len(commits) or commits[nxt] >= start:
         return 0.0
     return (start - commits[nxt]) / 1e6

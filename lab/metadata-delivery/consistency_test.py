@@ -12,7 +12,7 @@ from consistency import seen, staleness_ms  # noqa: E402
 class Seen(unittest.TestCase):
     def test_pairs_the_receiver_committed(self):
         """Before any update, after the first (study 0), and every adjacent pair are states the receiver committed."""
-        self.assertIsNone(seen(None, None))
+        self.assertEqual(seen(None, None), -1)
         self.assertEqual(seen(0, None), 0)
         self.assertEqual(seen(0, 1), 1)
         self.assertEqual(seen(2, 1), 2)
@@ -37,7 +37,7 @@ class Staleness(unittest.TestCase):
     def test_stale_from_the_first_newer_commit(self):
         """A read of revision 0 beginning at 35 ms is stale from revision 1's commit at 20 ms: 15 ms."""
         self.assertEqual(staleness_ms(35_000_000, 0, self.COMMITS), 15.0)
-        self.assertEqual(staleness_ms(12_000_000, None, self.COMMITS), 2.0)
+        self.assertEqual(staleness_ms(12_000_000, -1, self.COMMITS), 2.0)
 
 
 if __name__ == "__main__":
