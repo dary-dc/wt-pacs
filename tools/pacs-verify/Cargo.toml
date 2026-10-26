@@ -1,0 +1,22 @@
+[package]
+name = "pacs-verify"
+version = "0.1.0"
+edition = "2021"
+description = "Checks every series bundle and study DB under a path, read from disk"
+
+[[bin]]
+name = "pacs-verify"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+libc = "0.2"
+rusqlite = { version = "0.41", features = ["bundled"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+series-bundle = { path = "../../common/series-bundle" }
+study-db = { path = "../../common/study-db" }
+
+[dev-dependencies]
+frame-envelope = { path = "../../common/frame-envelope" }
