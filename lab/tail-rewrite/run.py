@@ -94,7 +94,8 @@ def shared_bytes(path):
 
 
 def check(mounts, fs, n, position, place, mutate=""):
-    """The tail's published file is the full rewrite's byte for byte, and the old file, held open, is unchanged."""
+    """The tail's published file is the full rewrite's byte for byte, and the old file, held open, is unchanged.
+    `shared` is read while the old file is open: once it is gone, its extents are no longer shared."""
     at = at_for(n, position)
     full = fresh(mounts, fs, place, n, "full.sbnd")
     merge(full, place, "full", at, "warm")
@@ -107,11 +108,12 @@ def check(mounts, fs, n, position, place, mutate=""):
     row = merge(path, place, "tail", at, "warm", mutate)
     published = sha(open(path, "rb"))
     after = sha(old)
+    shared = shared_bytes(path)
     old.close()
     keep.unlink()
     return {"fs": fs, "n": n, "position": position, "place": place, "mutate": mutate,
             "identical": published == want, "old_unchanged": after == before,
-            "shared": shared_bytes(path), "clone": row["clone"]}
+            "shared": shared, "clone": row["clone"]}
 
 
 def run(mounts, cell):

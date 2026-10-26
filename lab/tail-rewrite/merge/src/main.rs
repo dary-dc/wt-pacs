@@ -64,7 +64,12 @@ impl Series {
     }
 
     fn data_end(&self) -> u64 {
-        self.data_base() + self.entries.iter().map(|e| u64::from(e.length)).sum::<u64>()
+        self.data_base()
+            + self
+                .entries
+                .iter()
+                .map(|e| u64::from(e.length))
+                .sum::<u64>()
     }
 
     fn header(&self) -> Vec<u8> {
@@ -77,7 +82,10 @@ impl Series {
         if self.place == Place::Front {
             h.extend_from_slice(&(self.capacity as u32).to_le_bytes());
         }
-        for uid in [&b"1.2.826.0.1.3680043.2.1125.1"[..], &b"1.2.826.0.1.3680043.2.1125.2"[..]] {
+        for uid in [
+            &b"1.2.826.0.1.3680043.2.1125.1"[..],
+            &b"1.2.826.0.1.3680043.2.1125.2"[..],
+        ] {
             let mut field = [0u8; 64];
             field[..uid.len()].copy_from_slice(uid);
             h.extend_from_slice(&field);
@@ -87,7 +95,11 @@ impl Series {
 
     /// The front placement writes all `capacity` slots, the unused ones zero.
     fn index(&self) -> Vec<u8> {
-        let slots = if self.place == Place::Front { self.capacity } else { self.entries.len() };
+        let slots = if self.place == Place::Front {
+            self.capacity
+        } else {
+            self.entries.len()
+        };
         let mut out = vec![0u8; slots * ENTRY];
         for (e, slot) in self.entries.iter().zip(out.chunks_exact_mut(ENTRY)) {
             slot[0..8].copy_from_slice(&e.offset.to_le_bytes());
@@ -110,11 +122,21 @@ impl Series {
         let size = file.metadata()?.len();
         let mut head = vec![0u8; place.header_len() as usize];
         file.read_exact_at(&mut head, 0).context("read header")?;
-        ensure!(&head[0..4] == b"SBND" && head[4..8] == 2u32.to_le_bytes(), "not a version-2 series");
+        ensure!(
+            &head[0..4] == b"SBND" && head[4..8] == 2u32.to_le_bytes(),
+            "not a version-2 series"
+        );
         let n = u32::from_le_bytes(head[16..20].try_into()?) as usize;
         let (capacity, at) = match place {
-            Place::Front => (u32::from_le_bytes(head[20..24].try_into()?) as usize, place.header_len()),
-            Place::End => (n, size.checked_sub((n * ENTRY) as u64).context("index past the file's start")?),
+            Place::Front => (
+                u32::from_le_bytes(head[20..24].try_into()?) as usize,
+                place.header_len(),
+            ),
+            Place::End => (
+                n,
+                size.checked_sub((n * ENTRY) as u64)
+                    .context("index past the file's start")?,
+            ),
         };
         ensure!(n <= capacity, "{n} entries in a {capacity}-entry index");
         let mut raw = vec![0u8; n * ENTRY];
@@ -128,7 +150,11 @@ impl Series {
                 samples: u64::from_le_bytes(s[20..28].try_into().unwrap()),
             })
             .collect();
-        let series = Series { place, capacity, entries };
+        let series = Series {
+            place,
+            capacity,
+            entries,
+        };
         ensure!(series.data_end() <= size, "frames past the file's end");
         Ok(series)
     }
@@ -153,13 +179,26 @@ fn frame(id: u64) -> Vec<u8> {
 }
 
 fn entry(id: u64, len: usize) -> Entry {
-    Entry { offset: 0, length: len as u32, coded: id, samples: !id }
+    Entry {
+        offset: 0,
+        length: len as u32,
+        coded: id,
+        samples: !id,
+    }
 }
 
 fn build(path: &Path, place: Place, n: usize) -> Result<()> {
     let frames: Vec<Vec<u8>> = (0..n as u64).map(frame).collect();
-    let entries = frames.iter().enumerate().map(|(i, f)| entry(i as u64, f.len())).collect();
-    let mut series = Series { place, capacity: n + SLACK, entries };
+    let entries = frames
+        .iter()
+        .enumerate()
+        .map(|(i, f)| entry(i as u64, f.len()))
+        .collect();
+    let mut series = Series {
+        place,
+        capacity: n + SLACK,
+        entries,
+    };
     series.lay_out();
     let mut out = BufWriter::with_capacity(CHUNK, File::create(path)?);
     out.write_all(&series.header())?;
@@ -176,7 +215,9 @@ fn build(path: &Path, place: Place, n: usize) -> Result<()> {
 
 /// Cheap enough not to bound the read-back; it only has to tell a wrong byte.
 fn digest(acc: u64, bytes: &[u8]) -> u64 {
-    bytes.iter().fold(acc, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01B3))
+    bytes.iter().fold(acc, |h, &b| {
+        (h ^ u64::from(b)).wrapping_mul(0x100_0000_01B3)
+    })
 }
 
 #[derive(Default)]
@@ -212,7 +253,11 @@ impl Staged {
                 run.len += bytes.len() as u64;
                 run.digest = digest(run.digest, bytes);
             }
-            _ => self.runs.push(Run { at, len: bytes.len() as u64, digest: digest(SEED, bytes) }),
+            _ => self.runs.push(Run {
+                at,
+                len: bytes.len() as u64,
+                digest: digest(SEED, bytes),
+            }),
         }
         Ok(())
     }
@@ -268,7 +313,11 @@ fn read_back(path: &Path, runs: &[Run], durable: bool, tally: &mut Tally) -> Res
             h = digest(h, &buf[(from - pos) as usize..(to - pos) as usize]);
             pos += got as u64;
         }
-        ensure!(h == run.digest, "read-back of {}..{end} differs from what was written", run.at);
+        ensure!(
+            h == run.digest,
+            "read-back of {}..{end} differs from what was written",
+            run.at
+        );
     }
     Ok(())
 }
@@ -286,8 +335,21 @@ fn clone_or_copy(to: &File, from: &File, base: u64, point: u64, tally: &mut Tall
         while (off_in as u64) < point {
             let left = (point - off_in as u64) as usize;
             // SAFETY: the offsets are ours and live across the call; both descriptors are open.
-            let n = unsafe { libc::copy_file_range(from.as_raw_fd(), &mut off_in, to.as_raw_fd(), &mut off_out, left, 0) };
-            ensure!(n > 0, "copy_file_range: {}", std::io::Error::last_os_error());
+            let n = unsafe {
+                libc::copy_file_range(
+                    from.as_raw_fd(),
+                    &mut off_in,
+                    to.as_raw_fd(),
+                    &mut off_out,
+                    left,
+                    0,
+                )
+            };
+            ensure!(
+                n > 0,
+                "copy_file_range: {}",
+                std::io::Error::last_os_error()
+            );
         }
         tally.written += point - base;
         tally.read += point - base;
@@ -314,7 +376,10 @@ fn digest_range(file: &File, mut pos: u64, end: u64, tally: &mut Tally) -> Resul
 fn merge(path: &Path, place: Place, tail: bool, at: usize, durable: bool) -> Result<()> {
     let mutate = std::env::var("TAIL_MUTATE").unwrap_or_default();
     let started = Instant::now();
-    let mut tally = Tally { clone: "none", ..Tally::default() };
+    let mut tally = Tally {
+        clone: "none",
+        ..Tally::default()
+    };
     let old_file = File::open(path).context("open series")?;
     let old = Series::read(&old_file, place)?;
     let n = old.entries.len();
@@ -325,27 +390,52 @@ fn merge(path: &Path, place: Place, tail: bool, at: usize, durable: bool) -> Res
     let mut entries = old.entries.clone();
     entries.insert(at, entry(1_000_000 + n as u64, late.len()));
     let fits = n < old.capacity;
-    let capacity = if place == Place::Front && !fits { n + 1 + SLACK } else { old.capacity.max(n + 1) };
-    let mut new = Series { place, capacity, entries };
+    let capacity = if place == Place::Front && !fits {
+        n + 1 + SLACK
+    } else {
+        old.capacity.max(n + 1)
+    };
+    let mut new = Series {
+        place,
+        capacity,
+        entries,
+    };
     new.lay_out();
     let tail = tail && (place == Place::End || fits);
 
     let incoming = path.parent().unwrap_or(Path::new(".")).join("incoming");
     std::fs::create_dir_all(&incoming)?;
-    let staged_path: PathBuf = if mutate == "in-place" { path.into() } else { incoming.join(path.file_name().unwrap()) };
+    let staged_path: PathBuf = if mutate == "in-place" {
+        path.into()
+    } else {
+        incoming.join(path.file_name().unwrap())
+    };
     if staged_path != path {
         let _ = std::fs::remove_file(&staged_path);
     }
-    let file = OpenOptions::new().read(true).write(true).create(true).open(&staged_path)?;
-    let mut staged = Staged { file, runs: Vec::new() };
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&staged_path)?;
+    let mut staged = Staged {
+        file,
+        runs: Vec::new(),
+    };
 
     let first = if tail { at } else { 0 };
     let point = old.entries.get(at).map_or(old.data_end(), |e| e.offset);
     if tail && mutate != "in-place" {
         let base = old.data_base();
-        let shared = mutate != "no-clone" && clone_or_copy(&staged.file, &old_file, base, point, &mut tally)?;
+        let shared = mutate != "no-clone"
+            && clone_or_copy(&staged.file, &old_file, base, point, &mut tally)?;
         if !shared {
-            staged.runs.push(Run { at: base, len: point - base, digest: digest_range(&old_file, base, point, &mut tally)? });
+            staged.runs.push(Run {
+                at: base,
+                len: point - base,
+                digest: digest_range(&old_file, base, point, &mut tally)?,
+            });
         }
     }
     if !(tail && mutate == "header") {
@@ -371,7 +461,12 @@ fn merge(path: &Path, place: Place, tail: bool, at: usize, durable: bool) -> Res
     if place == Place::End {
         staged.write_at(&new.index(), new.data_end(), &mut tally)?;
     }
-    let len = new.data_end() + if place == Place::End { (new.entries.len() * ENTRY) as u64 } else { 0 };
+    let len = new.data_end()
+        + if place == Place::End {
+            (new.entries.len() * ENTRY) as u64
+        } else {
+            0
+        };
     staged.file.set_len(len)?;
     if mutate == "corrupt" {
         staged.file.write_all_at(b"\xff", len / 2)?;

@@ -664,3 +664,90 @@ exact. The rewrites are Rust (`.sbnd`), C++ (bmx) or Python (MP4), so their time
 layouts (FFmpeg's MXF, MP4Box); whether a reader takes bmx 1.6's coding label for these codestreams,
 `…04010202.0301017f`, for HTJ2K (ST 422:2022's label, §3.5); the late streams' sequence headers against the series'
 byte for byte (libdav1d decoded every splice exactly through the one sample entry).
+
+## Measured: rewriting only the tail (2026-10-26)
+
+*One question, from the owner: can a merge write only the frames from the insertion point to the end, and still
+publish by rename, keep the frames contiguous in display order and keep no old index? Reported, not decided.
+Pre-registered, rig and reproduction: [`../../lab/tail-rewrite/README.md`](../../lab/tail-rewrite/README.md).*
+
+**The answer: yes on a filesystem with reflinks, and no gain without them.** The merge clones the published file
+into `incoming/` (`FICLONE`: the clone shares the old file's extents, nothing copied), rewrites the clone from the
+insertion point on, reads back what it wrote, and renames over the old name. The frames before the point keep their
+offsets, so their blocks stay shared with the old file; the rest is written new, in display order. Nothing about
+publishing changes: the clone is a new inode, staged outside the serving tree, and published by one `rename`.
+
+**What the format would change.** The index must not move the frames when it grows:
+
+* **index at the end**: the target's 148 B header unchanged, the frames, then N entries at `size − N·28`. A reader
+  `stat`s (it already does, for `(st_dev, st_ino)`), reads the header, then the index: two `pread`s, as today. The
+  tail always covers the old index, so no old index survives.
+* **index at the front with reserved slack**: the header gains a `u32` capacity C (152 B) and the index C slots;
+  a merge rewrites the index in place in the clone. When N + k > C the merge is a full rewrite with a new C. 64 spare
+  slots cost 1.8 kB.
+
+The two tied in every cell (within 2 kB and within each other's run-to-run range); the end placement needs no slack
+policy and has no full-rewrite step.
+
+**The rig.** XFS (`reflink=1`) and ext4, each a 6 GiB image on a loop device with direct I/O to its image, on this
+VM's virtio disk (kernel 6.18, 4 cores). Synthetic layout-0 series of N = 262 and 2 000 frames, 264 kB ± 20 % (the
+HTJ2K frame of the section above; random bytes, since only the lengths matter here), and one late frame at the end,
+the middle (N/2) or the start. Each run copies the series without reflink, `sync`s, then times the merge alone, page
+cache warm; *`fsync`'d* adds the staged file's `fsync`, an `O_DIRECT` read-back of the rewritten blocks from the disk,
+and the directory's `fsync` (warm reads back through the cache). 96 cells in a Williams order, five rounds, medians.
+
+**At N = 2 000, one late frame, index at the end: bytes written · warm · `fsync`'d.**
+
+| | end | middle | start |
+| --- | --- | --- | --- |
+| full rewrite, XFS | 529.4 MB · 4.08 s · 2.32 s | 529.4 MB · 2.84 s · 2.24 s | 529.4 MB · 1.75 s · 2.32 s |
+| **tail, XFS** | **342 kB · 3.0 ms · 6.7 ms** | **264.4 MB · 1.16 s · 1.39 s** | 529.4 MB · 2.64 s · 3.79 s |
+| full rewrite, ext4 | 529.4 MB · 1.80 s · 2.52 s | 529.4 MB · 1.81 s · 2.37 s | 529.4 MB · 1.98 s · 2.53 s |
+| tail, ext4 (no reflink: `copy_file_range`) | 529.4 MB · 1.79 s · 2.77 s | 529.4 MB · 1.81 s · 2.69 s | 529.4 MB · 1.84 s · 4.25 s |
+
+Index at the front: the same bytes (+2 kB) and times within the ranges; every cell, both N, in
+`lab/tail-rewrite/rows.jsonl`. At N = 262 the XFS tail took 2.7 ms / 5.5 ms at the end and 0.15 s / 0.19 s in the
+middle, against 0.23–0.24 s / 0.31–0.32 s for the full rewrite.
+
+* **Read.** The XFS tail reads the old index and the old frames after the point (56 kB at the end, 264 MB in the
+  middle) and reads back what it wrote (349 kB, 264 MB). The full rewrite reads S and reads back S + F. On ext4 the
+  fallback reads the copied prefix twice (the copy, and its check) — 1.06 GB at the end — and reads back S + F.
+* **The device agrees.** XFS's loop device wrote the arm's bytes plus 7–213 kB of metadata (median 14 kB): no
+  hidden copy. FIEMAP shows the published file sharing exactly the blocks below the point with the old one.
+* **Correct.** All 24 (filesystem × N × position × index place) published a file identical byte for byte to the full
+  rewrite's, and a reader holding the old file open read it unchanged after the rename. Five deliberate breakages were
+  each caught (`lab/tail-rewrite/mutate.txt`).
+* **A frame at the start is worse by clone.** It writes what the full rewrite writes, but every block overwrites a
+  shared extent and pays copy-on-write: 1.6× the full rewrite `fsync`'d. A merge should clone only when there is a
+  prefix to share.
+* **`FICLONE` costs 0.03–0.1 ms** on these files of a handful of extents.
+
+**Where the host saturates.** One core runs each merge. The loop filesystems took 1 GiB written at 4.4 (ext4) and
+5.6 GB/s (XFS) cached, 0.55 and 1.20 GB/s with the `fsync`, and read 1.8–1.9 GB/s with `O_DIRECT`; the full rewrites
+moved 0.12–0.30 GB/s. So the rewrites' times are the merge's one core — the copy and a byte-wise check digest standing
+in for the entries' XXH3 — not the disk, and scale with the bytes; nothing finer is claimed for them. The bytes are
+exact. Warm XFS full rewrites ran 1.75–4.08 s against 2.2–2.3 s `fsync`'d: this host's writeback, unexplained.
+
+**Without reflinks: a full rewrite.** On ext4 `FICLONE` fails (`EOPNOTSUPP`), and the fallback copies the prefix with
+`copy_file_range`, an in-kernel copy: the same bytes as the full rewrite, the same time within 0.93–1.14× (one cell,
+index at the end and the frame at the start `fsync`'d, 4.25 s in three rounds of five, unexplained). And the copied
+prefix has to be read back too, since every copied byte may be wrong. A clone is refused across filesystems
+(`EXDEV`) — the staging directory must be on the serving tree's filesystem, which the `rename` already requires — and
+by XFS made without `reflink=1` (the default since xfsprogs 5.1). Btrfs has reflinks; it was not measured.
+
+**What it costs layout 1 (arithmetic, not measured).** Entries are band-major: every frame's band 0, then every band
+1, then every band 2 ([`target.md`](target.md) §Layout 1). A late frame f inserts its band-0 tiles inside band 0's
+run, so every band-1 and band-2 byte after it moves: the tail is S · (1 − 0.07 · f/N) + s, at least ~93 % of S even
+at the end. The tail rewrite saves at most band 0's prefix, ≤ 7 %. To get layout 0's numbers back each band's run
+would need a reserved gap after it (then a frame at the end writes into the three gaps, and the middle about half of
+each band); a fitted fill's run would then cross the gaps, and their size is a policy (how many late frames to
+expect), neither built nor measured.
+
+**Not measured:** btrfs; a cold cache; series larger than the page cache; many merges in a row, each of which adds
+extents (the header block and the block holding the point are copied, the tail is new): the frames stay contiguous in
+the file's offsets, but on disk the file becomes one extent run per merge, which a disk that seeks would feel;
+ten late frames, or scattered ones (a merge's tail starts at the first of them).
+
+**This corrects [`target.md`](target.md) §A late instance (branch `claude/sbnd-late-frames`)**, which says extent
+sharing does not help because the growing index shifts every frame: true of today's index at the front with no slack,
+not of an index at the end or with reserved slack.

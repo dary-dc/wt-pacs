@@ -44,6 +44,34 @@ band 0's run and every band-1 and band-2 byte after it moves. The tail is then a
 wherever the frame lands: the tail rewrite saves at most band 0's prefix, ≤ 7 %. Only a gap reserved after each band's
 run would bring it back to the layout-0 numbers.
 
+## Against the numbers
+
+The numbers are in [`../../docs/disk-layout/containers.md`](../../docs/disk-layout/containers.md) §Measured: rewriting
+only the tail. The frames are synthetic (264 kB ± 20 %, random bytes): only their lengths matter to the I/O.
+
+* **XFS tail at the end: F + index + two blocks; < 20 ms warm, < 50 ms `fsync`'d** — held: 342 kB at N = 2 000,
+  2.9–3.0 ms warm, 6.7–7.3 ms `fsync`'d (2.5–7.9 ms over runs).
+* **XFS tail in the middle: S/2 + F, about half the full rewrite** — held in bytes (264.4 of 529.4 MB); in time
+  0.37–0.41× warm and 0.62–0.67× `fsync`'d.
+* **XFS tail at the start: as the full rewrite** — held in bytes, **not in time**: 1.6× the full rewrite `fsync`'d
+  (3.7–3.8 s against 2.3 s), 0.86–1.5× warm. Every block it writes overwrites a shared extent, so each pays
+  copy-on-write. A merge with no shared prefix should not clone.
+* **ext4: S + F at every position, within 1.5× of the full rewrite** — held: the same bytes written to the byte and
+  0.93–1.07× warm, 0.99–1.14× `fsync`'d, except one cell: index at the end, frame at the start, `fsync`'d, 4.25 s
+  (rounds 2–4 at 4.25–4.29 s, rounds 0–1 at 2.26 and 3.21 s). That arm copies nothing at the start, so it is the full
+  rewrite's work; the slow rounds are not explained. It reads more: the
+  copied prefix is read by `copy_file_range` and again to check it.
+* **The two index places tie** — held: within 2 kB and within each other's run-to-run range everywhere.
+* **The device sees what the arm says, metadata < 1 MB** — held: XFS's loop device wrote the arm's bytes plus
+  7–213 kB (median 14 kB), the full rewrite plus 5–209 kB.
+* **Byte for byte the full rewrite, the old file unchanged under a reader** — held, all 24 (filesystem × N × position
+  × index place); on XFS the published file shares exactly the blocks below the point with the old one (FIEMAP).
+* **`FICLONE` < 5 ms at 528 MB** — held: 0.03–0.1 ms; these files have a handful of extents.
+
+Five breakages, each caught (`mutate.txt`): the late frame a byte off and a corrupted byte (by the read-back), the
+header not rewritten (identity), the clone skipped (the read-back of the prefix), the tail written into the published
+file instead of a clone (identity and the open reader).
+
 ## Reproduce
 
 Run as root (loop devices and mounts): xfsprogs and e2fsprogs, Rust, Python 3, `filefrag` (e2fsprogs).
@@ -63,3 +91,6 @@ python3 lab/tail-rewrite/summary.py $W/out
 | `run.py` | the checks, the breakages, every cell in a Williams order (`lab/order.mjs`'s square), the host's rates |
 | `summary.py` | the medians |
 | `rows.jsonl`, `checks.jsonl`, `host.jsonl`, `mutate.txt` | this run's rows, 2026-10-26 |
+
+`checks.jsonl` is from a second pass after the campaign: the first read `shared` after closing the old file, when
+XFS may already have stopped sharing its extents (0 in 7 of 12 XFS rows); `identical` and `old_unchanged` held in both.
