@@ -1,4 +1,4 @@
-# Handoff: metadata from the study store (2026-10-20, 03:20 UTC)
+# Handoff: metadata from the study store (2026-10-20, 03:40 UTC)
 
 For a session continuing this design. Branch `claude/metadata-turso`, draft PR #113 into
 `claude/av1-unified-mainbase` (the owner merges; never merge). The owner, Darian, is learning: plain words, simple
@@ -73,7 +73,12 @@ Results, as they land (what each recommended; the owner's decision when taken):
   changes neither client nor the wire. Runner-up: **B**, the series sent inside the session, the codec in the page's
   address. Caution: A1 puts a derived file beside the `.sbnd`, which `target.md` ruled out for metadata; the owner's
   call. Undecided.
-* **Format survey:** running.
+* **Format survey:** draft PR #120 (`claude/metadata-format-survey`), a subsection of `metadata-draft.md` §2.
+  Recommended: **T1 + V1 in the study's one SQLite file**: the truth as one row per parser group (the received bytes
+  and their BLAKE3, never overwritten; a correction is a new row), the page view as one row per series holding the
+  page's document. A page open is one key lookup; an update commits the group and its series' view together.
+  Runner-up: T2 (one row per attribute, DECK's design) with the same view. Engines: redb runner-up (multi-process
+  experimental), fjall and sled out. Uses "generation", which #119 renames "revision": align when merging. Undecided.
 * **PACS builder design:** draft PR #119 (`claude/pacs-receiver-design`), a new `design.md` §12 (its sources move to
   §13). Recommended: one program beside the server that receives, checks (structure, every frame's coded hash, the
   parser's BLAKE3 per group, UIDs and frame count) and builds; it keeps every accepted input in the study's
