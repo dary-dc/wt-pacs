@@ -234,6 +234,13 @@ cost.
 
 * **Switching later:** every shape is rebuilt from the groups, so a switch is a rebuild at the PACS, not lost data.
 
+**On real series (2026-10-25, [`../../lab/metadata-store`](../../lab/metadata-store) §Repetition):** five TCIA series
+(CT, PET, MR, mammography, ultrasound) split as the parser splits them. Measured: the metadata is 0.005–1 % of the
+pixels as stored, 0.02–4 % in HTJ2K; in CT, PET, MR and MG 70–83 % of the instance groups' bytes are records the same in
+every instance, so the shared values once plus each instance's differences weigh 9–28 % of a row per instance group
+(CT, PET, MR) and a zstd-3 blob per series 1.5–3.8 %; an ultrasound series of two SOP classes shares a quarter.
+The parser's own output at `a65abe2`, 1.15–1.95× these bytes: [`../../lab/metadata-store`](../../lab/metadata-store).
+
 **Integrity under C and D.** The parser's BLAKE3 covers a whole group. C and D keep it checkable: the group's bytes are
 its records in key order, so the PACS writes them back to back and hashes them on arrival — the same bytes, the same
 BLAKE3 — then stores the rows. That proves the content equals what the parser wrote. A hash of the whole database
