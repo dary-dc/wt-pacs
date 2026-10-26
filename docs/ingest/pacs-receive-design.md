@@ -1,12 +1,12 @@
 # PACS receive and metadata: the design state
 
-Status: **working record, 2026-10-26 (afternoon).** The one current state of the PACS receive and metadata design: every
-decision, proposal, open question and result from the owner's sessions of 2026-10-24/25 and the runs of the night of
-2026-10-26, each folded into its section. It decides nothing by itself: each item says whose it is. **Decided** = the
+Status: **working record, 2026-10-26 (night).** The one current state of the PACS receive and metadata design: every
+decision, proposal, open question and result from the owner's sessions of 2026-10-24/25/26 and the runs of 2026-10-26
+(#142–#181), each folded into its section. It decides nothing by itself: each item says whose it is. **Decided** = the
 owner's, dated. **Proposed** = recommended by a record or run, not accepted; a result can strengthen or weaken it, never
 make it Decided. **Open** = to discuss (with the owner, the team, the product owner or the PCS team), with its default.
 Each item names the PR that holds its evidence; every PR is a draft, none merged. How the PRs merge is §13; what waits
-for whom is §14–§16; where the records disagree is §17; the afternoon's rows §18.
+for whom is §14–§16; where the records disagree is §17; the afternoon's rows §18, the night's §19.
 
 Terms. *PCS*: the hospital-side component (another team's; github.com/opendicom/DECK_WebTransport), which receives,
 parses, encodes and forwards. *Submission package* (OAIS's SIP, ISO 14721), *package* for short: one file the PCS sends.
@@ -18,6 +18,8 @@ generation is a request's identity).
 ## 1 · Scope and what the PCS document says
 
 * **Decided 10-24:** our scope starts at the PACS. The PCS's output layout is our input contract; say "PCS".
+* **Decided 10-26 evening:** the PCS decides when a series is complete, as pcs.pdf proposes ("separation of
+  responsibilities"); our sender at the PCS then builds and sends its package (§2).
 * **Rule 10-25:** every claim about what pcs.pdf (the PCS team's document, updated 2026-10-23, not in this repo) or the
   PCS repo proposes is checked and quoted verbatim. The upstream repo moved (`a65abe2`, 2026-10-22).
 * pcs.pdf, verbatim: "(3) forwarding to cloud based on some kind of rsync function"; "The result of our parsing is a
@@ -35,9 +37,10 @@ generation is a request's identity).
 * pcs.pdf on CT/MR/PT: the metadata "is replaced by a synthesis of the metadata of all the instances, as described in
   the DICOM standard of the 'converted enhanced' classes". **Not implemented** in the parser at `a65abe2` (#154).
 * **Decided 10-24/25, where we differ from the PDF:** the PACS receives our `.sbnd` (the role MXF/MP4/JXL play in the
-  PDF); no MXF/MP4 reading in the server, the PACS does no repacking; hashes are **XXH3** (no cryptographic need,
-  faster), so the PCS must name files with XXH3; **one file per transfer**, as agreed in a meeting (the PDF does not
-  say so yet). These go to the PCS team (§15).
+  PDF); no MXF/MP4 reading in the server, the PACS does no repacking (*corrected 2026-10-26 evening:* the 10-24 "no
+  repacking" did not consider late instances; an addition is merged at the PACS, §3); hashes are **XXH3** (no
+  cryptographic need, faster), so the PCS must name files with XXH3; **one file per transfer**, as agreed in a meeting
+  (the PDF does not say so yet). These go to the PCS team (§15).
 
 ## 2 · The package and the carrier
 
@@ -45,17 +48,44 @@ generation is a request's identity).
   until something needs one; the contents say series or update. Pixels are sent once.
 * **Decided 10-24/25:** an update carries **metadata only, down to the level that changed, no deeper** (a patient-name
   fix is the exam group alone); likely as **differences** (§5).
+* **Decided 10-26 evening, the sender:** our sender at the PCS builds the package from the study's exam directory (plus
+  which series) and sends it: the equivalent of pcs.pdf's process (3) "forwarding to cloud". Its deployment profile
+  picks the transport (TCP, or QUIC at build) and the compression; the zstd version is pinned. It keeps the built
+  package until "stored" and resends those bytes.
+* **Decided 10-26 evening, the container:** pax tar, "for its simplicity" (overhead about 0.4 % of a CT package,
+  estimated).
+* **Decided 10-26 evening, late instances:** an **addition** package from the start, merged at the PACS into the
+  series' single `.sbnd` (§3). Several bundle files per series is rejected (complicates serving and archiving).
+* **Open with the owner, package identity:** how a resend is recognised — by name/hash, by content, or another way;
+  the hash should be only an integrity check (§14, D12; §17, A9).
+* **Proposed (#177), the sender's build** (pcs-transfer §15, theory): layout 2 — a 5-line header `package` (`layout 2`,
+  `kind series|addition`, `study`, `unit`, `revision`; `update` reserved), one inner pax tar `metadata` holding every
+  group (one zstd frame on the limited-link profile, plain otherwise, told by the magic), `<S>/series.sbnd` as it is;
+  an allow list, exit 5 on a tree it cannot pack; deterministic bytes (sorted, mode 0644, uid/gid 0, mtime 0, crates
+  locked), so a rebuild keeps its name; `sender EXAM_DIR SERIES...` idempotent, kept revisions sent oldest first; a
+  refusal resends the kept bytes, a rebuild only when they fail their name. The receiver's changes are its §15.11
+  (row NIGHT2-4).
 * **Proposed (#149):** a deterministic pax tar named `<unit>.<revision>.<xxh3-64>.tar`; identity is (unit UID,
   revision), the hash a check; the PCS decides completeness and the package's existence declares it. Each series
   package may carry the exam group: stored if new, nothing if its hash matches, a study-level update if it differs.
   *Corrected 2026-10-26:* #149's reason for tar over zip (tar cannot compress per member, so the group files go as one
   zstd member, compressed across files) no longer holds: #163 compresses per member (a file alone 1.6–3.2×, one stream
-  16–31×), which zip does too; the container is open with the path's other choices (below).
+  16–31×), which zip does too. *Corrected 2026-10-26 evening:* the container is pax tar, the owner's (above), and the
+  metadata goes as one stream; #163's per-member compression is a flaw.
 * **Why one file (corrected 10-25):** not the wire — rsync pipelines files ("pipelining of file transfers to minimize
   latency costs", rsync(1)) and QUIC streams do not block each other — but the two ends: the completeness signal, one
   hash, one atomic placement, one thing to process and confirm.
 * **Rsync is not enough (owner 10-25):** the PACS must reply (§3), and rsync has no reply channel (a reply over ssh is
-  possible, but reachability and no QUIC path rule it out, #155).
+  possible, but reachability and no QUIC path rule it out, #155). **Decided 10-26 evening:** replies and retries are
+  required; rsync alone is not enough.
+* **Second opinion (#180, link.md §11.10, theory): a reply is needed** — the end-to-end argument (Saltzer, Reed and
+  Clark 1984); one durable verdict per package after step 8, read as state on connections the PCS opens, at-least-once
+  sending against an idempotent receiver; `rsync --remove-source-files` deletes too early on corruption at rest, a full
+  disk at staging and a receiver bug. Agrees with the decision.
+* **How the PCS learns the verdict (#170, link.md §11.9, theory, proposed):** keep polling as the contract (every push
+  option still needs the status resource after a drop); if anything is built, `Prefer: wait=20` (RFC 7240) on the
+  completing request; a long-poll only if slow verdicts must be seen at once; SSE adds nothing; WebSocket rejected (curl
+  8.5.0 has no `ws`). Open with the owner (§14, D13).
 * **Proposed carrier (#155, stacks on #149):** the IETF resumable upload (httpbis draft-14) on HTTP/1.1, 443/TCP;
   careful creation only; interop version 10 pinned (we write both ends); the same endpoint takes a one-shot upload so
   fiber sites skip resume; the PCS needs stock curl plus a script with a stall timeout. The reply and the resume live
@@ -66,6 +96,15 @@ generation is a request's identity).
 * **Owner 10-25/26:** different protocol implementations per link are acceptable — one application handler with a TCP
   and a QUIC listener (or sender) chosen by config at start; preferred over two separate programs. **Owner 10-26:**
   QUIC chosen at build time is accepted, "it is something that will be decided at the deployment" (§14, D4).
+* **Which QUIC (#171, link.md §13, theory, proposed):** the sender picks the congestion controller, and stock curl's
+  ngtcp2 never sets it (always CUBIC); quinn's default 1.25 MB stream window caps an upload near 100 Mbit/s at 100 ms.
+  TCP with stock curl stays; h3 not the default; if QUIC is built for its controller, raw QUIC on quinn with our own
+  framing (b1), our client at that site only; if stock curl must carry QUIC, nghttpx in front of the TCP carrier (d2);
+  either way the receive windows set to the site's bandwidth-delay product. Pre-registered, not run.
+* **The TCP carriers explained (#181, `carriers-explained.md`, theory, sourced):** rsync, SFTP/SCP, a plain PUT retried
+  whole, partial PUT, draft-14, tus 1.0, S3-style multipart, C-STORE with Storage Commitment, STOW-RS with PS3.18 §13,
+  each scored against resumable, fast, simple, with a reply; no recommendation beyond its table. The carrier choice
+  after it is open with the owner (§14, D4).
 * **Built (#164, proposed):** the carrier crate at `9bb1c53` — draft-14, interop version 10, careful creation, one-shot
   on the same endpoint, mutual TLS pinned per site, replies `received` then `committed`/`refused`, polled; TCP always,
   HTTP/3 experimental; the PCS's script with a stall timeout. 17 tests (18 with `quic`); offset and script-timeout
@@ -83,9 +122,12 @@ generation is a request's identity).
   the largest measured is pt's **3.45 %** with HTJ2K pixels (#150's table), not re-measured on the parser's larger
   output; the decision stands either way. **Owner 10-26:** make metadata compression **configurable per site** (or
   dynamic), on only where the link gains; the receiver detects a zstd frame by its magic number and accepts both, so
-  the switch lives only in the sender. Default: open, on proposed (§14, D8).
+  the switch lives only in the sender. **Decided 10-26 evening:** only metadata is compressed, as one stream, on the
+  limited-link profile; frames never; per-file compression (#163) is a flaw (§14, D8). On the converted-enhanced layout
+  see §4 (#178).
 * **Owner 10-26: the path's implicit choices** (the HTTPS upload, polling for the reply, tar, ...) are presented with
-  their options before anything is decided; nothing on the path is Decided beyond what §1–§3 already list.
+  their options before anything is decided; nothing on the path is Decided beyond what §1–§3 list (the evening's
+  decisions included).
 
 ## 3 · The receiver
 
@@ -120,6 +162,25 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
              partial state only ever sits in incoming/
 ```
 
+* **Decided 10-26 evening, the addition merge:** a late instance's addition package is merged into the series' single
+  `.sbnd` by rewriting it (staged, renamed as in 6–6c). **The owner prefers** frames kept contiguous in display order
+  over any layout that stores them in arrival order (sequential reads are common, updates rare). Whether only the tail
+  can be rewritten is being measured (row NIGHT2-5, §19).
+* **Proposed (#175, `target.md` §A late instance, theory):** keep the rewrite and rename (about 3·S of I/O with the
+  read-back), the format unchanged: the only option that keeps staging, publish-by-rename, serving-by-uid §4's inode
+  check and the read-ahead. A trailer written in place is not crash-safe; append-only and a segment per merge store
+  frames in arrival order. The deciding unknown is late-merge frequency × series size.
+* **Measured (#179, `containers.md` §Measured: what a late frame costs; interleaved, warm, host page-cache bound):** at
+  2 000 frames the `.sbnd` rewrite writes 527.5 MB (1 frame) to 529.8 MB (10), end = middle, 0.57–1.02 s on this host
+  (only its bytes are claimed exactly); MXF and MP4 with the moov at the end append in place in 2–10 ms (kB written);
+  every middle insertion in MXF or a front-moov MP4 rewrites the series too; AV1 GOP 30 in the middle adds ~9–11.5 s
+  of re-encode.
+* **Proposed (#169, receiver ADR §10, theory): the process map.** Crash recovery takes every package in `incoming/`
+  again, so the files are the record in every option. Recommended: **two programs joined by files**, the receiver a
+  loop with a scan every few seconds, its own user, no network; one process loses the isolation (one address space
+  holds the TLS key and writes every study DB); a socket copies what the files hold. The reply at `<root>/status/<name>`,
+  written by the receiver only, kept a fixed time; a late duplicate answered from the audit row; the sender's identity
+  from the carrier's `uploads/<unit>/<revision>`. Open with the owner (§14, D3).
 * **Decided 10-24:** the refusal/confirmation protocol is part of the design even if first versions do not build it;
   the PCS keeps each package until "stored" and resends on "refused" (#149 proposes two replies, "received" then
   "committed", polled).
@@ -143,7 +204,9 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   mutations caught. Owed: **the test suite is flaky** (about half of full runs fail with "another receiver holds
   …/incoming": the crash test forks while other tests hold the lock); a mutation of the 6b call sites to a cached read
   survives (only the helper is tested); **the audit row has no "who"** (Decided 10-24/25: who, when, what); its ADR §0
-  calls quarantine and durability "Decided", where they are proposed steps here (staging is the owner's, 10-26).
+  calls quarantine and durability "Decided", where they are proposed steps here (staging is the owner's, 10-26). Its
+  per-member compression is a flaw (Decided 10-26 evening, §2); layout 2 and the addition merge go to #163 in row
+  NIGHT2-4.
 * **Built (#160, proposed):** the verify tool (tools/pacs-verify and common/study-db at `5c9356c`) for a file, a study
   or a root; reads from disk (`fdatasync` + `posix_fadvise(DONTNEED)`), report, exit 0/1/2; 20 tests; integrity,
   group-hash and fadvise mutations caught. Frames are read back, not hashed: v1 `.sbnd` has no per-frame coded XXH3
@@ -183,6 +246,11 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   deterministic**. It strengthens T1 for now and makes shared + per-frame conditional on the PCS fixing its keys (§15).
   Measured on rusqlite 0.40.2; the 1.4–1.6× slower exam correction in shared + per-frame is unexplained. **Open:**
   adopt it (§14, D5).
+* **Compression of that layout (#178, measured, one stream, interleaved):** the converted-enhanced instance with masked
+  keys is 4.9–7.6× smaller raw but compresses only 6.5–9.5×, so compressed it is 1.17–1.32× **larger** than the
+  per-instance groups (1.17–2.0× as written); two pre-registered predictions contradicted. Level 1 is right (19 saves
+  6–19 % for 36–380× the CPU); compressed, metadata is ≤ 0.36 % of the package in every layout; the layouts differ by
+  ≤ 23 ms per series on rural ADSL. The layout choice (D5) does not hinge on compression.
 * **Engine (#147, #151, #157): rusqlite, proposed and strengthened**, through `spawn_blocking`. Turso awaited directly
   blocks the tokio worker (heartbeat p99 285 ms vs 2.4–3.5 ms); in `spawn_blocking` it no longer blocks but costs ~2×
   the CPU per scan; 2 MiB per open file (transparent huge pages; 130 KiB with THP off); its multi-process mode is "not
@@ -207,6 +275,14 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   audit row per package (refused ones too) with prior values in the study DB, DICOM Original Attributes vocabulary;
   withdrawal per IHE IOCM (CID 7010 reasons; hidden, purged after a grace period); `sender` and `on_behalf_of` now,
   roles later.
+* **Decided 10-26 evening, first version:** the sender compares the hash-named files with what it last sent (#176's
+  option c), "good enough"; to the team meeting (§16).
+* **Proposed (#176, metadata-updates §13, theory, for the team meeting):** every correction that reaches the PCS comes
+  back as a whole object (a re-sent instance, an IOCM KOS); HL7 ADT, MPPS and QC at the PACS do not reach it. So whole
+  changed groups on the PCS's wire, differences after intake (update API, audit); the base hash from the sent list; an
+  update whose new hash equals the current row is answered `stored`; a withdrawal's KOS travels as a document series.
+  Read at `a65abe2`: the parser never deletes an old group file, so a correction adds a name and A → B → A leaves no
+  trace (its Q-U1–Q-U7, §15).
 * **Open (owner 10-25), for the team and the product owner:** whether client-application updates go through the
   receiver's queue or a standard update endpoint coordinated with it. The single path is the best so far for
   consistency, simplicity and integrity; what is avoided is a second process writing study DBs directly. The honest
@@ -243,6 +319,12 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   ready row could store compressed (*not measured*). Deviations not recorded as such: h2load's gzip request and opens
   counted once (e30f966, after pre-registration); H2 at 1/100 studies, not 1/10/100; saturation inferred. **Open**
   (§14, D6); row DAY-4 measures the ready row stored compressed (§18).
+* **Measured (#173), the ready row stored gzipped at write, the revision as ETag** (warm; user's path and consistency not
+  run): CPU in process per open 0.25 ms at 262 instances and 0.38 ms at 2 000 (ready row 0.92 / 4.22 ms; B 0.02–0.04);
+  a 304 0.20 / 0.21 ms. Served at 1 viewer 0.9–1.0 ms either size; at 100 viewers, where the host saturates, 2.2–2.4 ms
+  (contention, not the read), peak 1 250–1 600 opens/s against B's 9 400–16 800. The receiver pays 0.17 / 3.1 ms per
+  series write; the row is B's file byte for byte. Against the 2 ms rule: under it in process and at 1 viewer, over it
+  at 100 (the rule names no concurrency). Proposed: D6 with a compressed ready row; open with the owner.
 
 ## 7 · The study index (#146)
 
@@ -268,6 +350,18 @@ publisher restarts; #146 §7's per-host file avoids it (§14, D9). A product cli
 `reset_connection=false`. Saturation at concurrency 8–16 on 4 vCPUs. Tests: 11, 9/9 mutations caught (on MySQL 8.0.46
 for the re-run); without `SI_TEST_MYSQL` five tests skip silently. **To evaluate stays the owner's.** *Corrected
 2026-10-26:* #165's `lab/study-index/README.md` (`16fec79`) says "The owner chose MySQL on 10-25"; the owner did not (above; §14, D9).
+
+**Engines (#174, on #165's harness, 10⁶, p95 warm, c = 1, local / 2 ms).** Worst §11 cell: MySQL 3.4 / 5.7 ms,
+PostgreSQL 18 2.9 / 5.9, SQLite 1.9 (local only); sync idle p95 12.1 / 9.7 / 8.4 ms; size 3.98 / 2.35 / 2.11 GB. All
+three meet §11, most cells tie within 1 ms; saturation at c = 8–16. An ICU nondeterministic collation costs 128 ms a name
+search (no B-tree prefix). 0 mismatches, 12 tests on each engine, 18/18 mutations caught. #165's attribution corrected in
+place in its README. Reported, not decided (§14, D9).
+
+**Placement (#172, study-index ADR §6, theory, proposed).** Not on day one: the index on the first PACS host behind a
+local socket, the list API beside it; both move together at the first trigger — a second PACS host (decisive), list
+load slowing frame reads, or the index's memory raising frame-read misses. With the API beside it no query crosses the
+network; only publishers do (+14 ms sync lag at 2 ms, #165). SQLite cannot move to another server. Pre-registered, not
+run: frame-read interference, TLS to a remote index, several publishers (§14, D9).
 
 ## 8 · The disk layout (#152, #167) — for the team meeting
 
@@ -344,6 +438,8 @@ Read in its source or seen in its bytes; the questions are §15.
 | #165 `lab/study-index/README.md` (`16fec79`) | "The owner chose MySQL on 10-25": the owner did not (§14, D9) | owed |
 | #149 (in #158) `docs/adr/pcs-transfer.md` (`b47b918`) container table | tar over zip for cross-file zstd: #163 compresses per member (§2) | owed |
 | #160 common/study-db | #163's `series` column and audit table (§14, D1) | owed |
+| #163 receiver | per-member compression → one stream; layout 2 and the addition merge (#177 §15.11) | owed, row NIGHT2-4 |
+| #149 (in #158) `docs/adr/pcs-transfer.md` (`b47b918`) §2, §4, §7 | the late instance as an addition, byte order of paths, no compression flag, resend the kept bytes (#177 §15.12) | owed, once the owner accepts #177 |
 
 ## 12 · PR index
 
@@ -378,6 +474,19 @@ One line per PR: what it delivers · state · supersedes / superseded by. "Theor
 | #166 | lab/metadata-delivery: viewer metadata ways, timed | draft, verified | built from #153 |
 | #167 | lab/disk-tree: #152's protocols, ext4 and XFS | draft, verified | built from #152 |
 | #168 | this design state | draft | carries §13 |
+| #169 | receiver ADR §10: the process map (theory) | draft, Proposed | two programs + files, the receiver a loop; reply at `<root>/status/` (D3) |
+| #170 | link.md §11.9: how the PCS learns the verdict (theory) | draft, Proposed | keep polling, optionally `Prefer: wait=20` (D13) |
+| #171 | link.md §13: which QUIC implementation (theory) | draft, Proposed | TCP stays; b1 or d2 if QUIC; not h3 by default (D4) |
+| #172 | study-index ADR §6: a server of its own (theory) | draft, Proposed | not on day one; index and API move together at the first trigger (D9) |
+| #173 | lab/metadata-delivery: ready row gzipped at write, timed | draft, Proposed | 0.25–0.38 ms per open in process; over 2 ms at 100 viewers (D6) |
+| #174 | lab/study-index: PostgreSQL 18 and SQLite beside MySQL, timed | draft, Proposed | all three meet §11, most cells tie (D9); stacks on #165 |
+| #175 | `target.md`: a late instance without the rewrite (theory) | draft, Proposed | keep rewrite and rename, format unchanged (§3) |
+| #176 | metadata-updates §13: how a change travels (theory) | draft, Proposed | option (c), whole groups on the wire (§5, A8); for the team meeting |
+| #177 | pcs-transfer §15: the sender's package build (theory) | draft, Proposed | layout 2; reconciles A4–A6; the sender's code pushes here (NIGHT2-3) |
+| #178 | lab/metadata-store: zstd on converted-enhanced, timed | draft, Proposed | compressed, CE is 1.17–1.32× larger than per-instance; level 1 (§4) |
+| #179 | lab/late-frame: a late frame in `.sbnd`, MXF, MP4, timed | draft, Proposed | `.sbnd` rewrites the series; moov-at-end and MXF append in ms (§3) |
+| #180 | link.md §11.10: is a reply needed? (theory) | draft, Proposed | yes, the end-to-end argument; agrees with the decision (§2) |
+| #181 | `carriers-explained.md`: the TCP carriers (theory) | draft, Proposed | a scored table, no recommendation (D4) |
 
 Older stack (before #142): #113 ← #120 ← #126 (stores, format survey, pair bench), carried by #159: close; #118
 page-open carriers (`metadata-turso` base), not carried, evidence only; #119 receiver design, superseded by #163's ADR
@@ -412,6 +521,9 @@ written, or merge the base into the PR's branch first (the repository merges, it
 | 11 | #163 | `Cargo.lock` | keep the base's, then let cargo re-resolve |
 | 12 | #160 | `Cargo.lock`, `Cargo.toml`, `scripts/gate.sh`, `docs/ingest/README.md` | members and gate lists: keep both; README: the base's wording ("the PCS's side", "study DBs", "study index") plus #160's item 7 |
 | 13 | #164 | `Cargo.lock`, `scripts/gate.sh`, `docs/glossary.md` | lists: keep both; glossary: the base's PCS, submission package and carrier rows; #164's verdict and site rows once D3 fixes the vocabulary |
+
+**#169–#181 are not yet in this plan:** each is a draft on another PR's branch (#163, #164, #165, #166, #158, #161) or on
+the base; their order waits on the owner's acceptance (§14).
 
 **A text-clean merge that does not build.** After #159, lab/metadata-store (rusqlite 0.40) and #160/#163 (0.41) cannot
 resolve in one workspace. Bump it at step 6 — checked: `cargo check` of metadata-store, the receiver, the verify tool
@@ -463,18 +575,23 @@ Each: the evidence in one line · the default if nothing else is said.
   steps 6b and 8, with a test at a call site (owed, DAY-7).
 * **D3 · the reply file and its words.** #163 writes `incoming/status/<f>` `stored`/`refused`/`quarantined`; #164 reads
   `status/<name>` `committed`/`refused retry`/`refused final`; §3 decided "stored". **Owner 10-26:** "need to be
-  analyzed" (where the reply file lives and how long); row DAY-5 first compares one program against two · #163's file
-  and words; #164 adapts (retry → refused, final → quarantined).
+  analyzed" (where the reply file lives and how long); row DAY-5 first compares one program against two. #169
+  (proposed): two programs joined by files, the receiver a loop; one hand-off module both link; the receiver's words at
+  the carrier's place `<root>/status/<name>`, kept a fixed time; open with the owner · #169's (a): #163's words at
+  `<root>/status/<name>`; #164 adapts (retry → refused, final → quarantined).
 * **D4 · QUIC in the carrier.** **Owner 10-26:** chosen at build time is accepted, "it is something that will be
   decided at the deployment". WebTransport has no place in the carrier (no browser on either end); it came up only
   because wtransport 0.7.2 rejects non-CONNECT requests, so HTTP/3 needs its own listener. Open: the h3 0.0.x
-  dependency, "we might need to use directly some quic implementation ... Not necessarily in rust"; row DAY-1 · TCP in
-  the default build, the `quic` feature off until DAY-1 answers.
+  dependency, "we might need to use directly some quic implementation ... Not necessarily in rust"; row DAY-1, answered
+  by #171 (TCP with stock curl; b1 or d2 if QUIC, not h3). The carrier choice after #181's table is open with the owner
+  · TCP in the default build, the `quic` feature off.
 * **D5 · study DB layout** (§4). #161: row per group wins while the parser's keys hold addresses · T1 now; revisit
   shared + per-frame when the PCS's keys are deterministic.
 * **D6 · viewer metadata** (§6). #166: reading the study DB at open ties derived files on every link, loses on host CPU
   at 2 000 instances (4.0 ms per open, of which 3.3 ms is gzip repeated per request); row DAY-4 measures the ready row
-  stored compressed with the revision as ETag · your option, a ready per-series row, open-read-close.
+  stored compressed with the revision as ETag. #173: stored gzipped, 0.25–0.38 ms per open in process, 0.9–1.0 ms at
+  1 viewer, 2.2–2.4 ms at 100 (saturated); open with the owner · your option, a ready per-series row stored compressed,
+  open-read-close.
 * **D7 · the study-DB engine and its version** (§4). **Owner 10-26:** "The latest version should be encouraged." On two
   processes as a reason to discard Turso: "we were discussing in prev session that several process won't be common and
   thus we don't know if that would be a valid discarding criteria." The owner never made it one; "won't be common" was
@@ -482,30 +599,38 @@ Each: the evidence in one line · the default if nothing else is said.
   constraint (one owning process, or open per operation with retries), not a veto. Engine Proposed · rusqlite 0.41,
   bumped at assembly step 6.
 * **D8 · metadata compression per site** (§2). #156: never slower in 56 pairs, saves 1–5 round trips on fan-outs and
-  resends. **Owner 10-26:** "two profiles and at compile time we decide which profile it is compiled for". The sender
-  compresses and the sender is the PCS's packer, so a build profile of our carrier cannot switch it · on by default,
-  off per site, in the PCS's packer.
+  resends. **Owner 10-26:** "two profiles and at compile time we decide which profile it is compiled for". **Decided
+  2026-10-26 evening:** only metadata, as one stream, on the limited-link profile; frames never; the sender is ours and
+  its deployment profile picks it (§2). *Corrected:* this item said the sender is the PCS's packer.
 * **D9 · the study index: engine, placement, outbox** (§7). **Owner 10-26:** "I suggested in biased you that it was
   going to be MySQL ... but I'm not really sure"; rows DAY-2 (the engine) and DAY-3 (a separate server). #165: an
   outbox in the study DB is atomic but a restarted publisher scans every study DB (0.29 ms each). The owner's idea:
   "Why not simply having a outgoing or outbox dir and a file(s) inside it?" · that, proposed: one file per owed study
   in an outbox directory (name the study UID, content the revision), the same crash behaviour as #146 §7's per-host
-  file; #146 §4 takes #165's tuned indexes.
+  file; #146 §4 takes #165's tuned indexes. DAY-2 answered by #174 (all three engines meet §11, most cells tie), DAY-3
+  by #172 (not on day one; index and API move together at the first trigger); open with the owner.
 * **D10 · #142 §9's seven choices.** Built as defaults in #162; the close code does not reach a browser · the defaults
   as built; the capsule patch later.
 * **D11 · implementation PRs before the fit. Decided 2026-10-26:** "we hold until everything is clean. We don't merged
   unfinished work." #160, #163 and #164 wait until everything is clean (the fit, #163's flaky test and missing audit
   "who", each PR's owed tests).
+* **D12 · package identity** (§2, A9). Open with the owner: how a resend is recognised — by name/hash, by content, or
+  another way; the hash should be only an integrity check · #149's (unit, revision), the hash a check; #177's
+  deterministic build keeps a rebuild's name.
+* **D13 · how the PCS learns the verdict** (§2). #170: keep polling, optionally `Prefer: wait=20`; open with the owner
+  · polling, as built in #164.
 
 ## 15 · Questions for the PCS team
 
 * We differ from pcs.pdf (§1): the PACS receives `.sbnd`, not MXF/MP4/JXL; hashes and names are XXH3, not BLAKE3; one
   file per transfer and one package per series instead of per-file rsync. Agreed?
-* Completeness: the PCS decides it per series and the package's existence declares it (#149). Which heuristic, and what
-  happens to an instance arriving after its series was sent (a new revision)?
+* Completeness: the PCS decides it per series (Decided 10-26 evening, as pcs.pdf proposes) and calls our sender. Which
+  heuristic? A late instance goes as an addition package (Decided 10-26 evening): can the PCS call the sender again for
+  that series?
 * The reply: keep each package until "stored"; resend on "refused"; stop on "quarantined" and tell an operator. Can the
   PCS run curl and a small script (resumable upload, mutual TLS, a certificate per site)?
-* Updates: does a correction delete the old group file on your side? How is a withdrawal sent?
+* Updates: does a correction delete the old group file on your side? How is a withdrawal sent? #176 §13.6 Q-U1–Q-U7
+  (one group file per marker per directory; deterministic keys; ...).
 * Your parser (§10): when will nested keys be deterministic (the study DB layout waits on it, §4)? Group 0002 in the
   instance group, the exam sequence split, the unterminated date-directory name, exit codes 12 and 0, unbounded
   attribute tables, the failing builds.
@@ -533,9 +658,13 @@ one writer per study DB) or a standard update endpoint coordinated with it. Evid
 delay (#165: a correction reaches the index in 57–208 ms), no second writer; the cost is no "instant". Default: one path,
 the update API submitting update packages.
 
+**Updates from the PCS** (§5). The owner's first version (10-26 evening, "good enough"): the sender compares hash-named
+files with what it last sent (#176's option c), whole changed groups on the wire; (d), a manifest, is the fallback if the
+sender must hold no state.
+
 ## 17 · Where the records disagree
 
-One line each; none is settled here.
+One line each; none is settled here (a reconciliation by a Proposed PR is a proposal too).
 
 * **A1 · the reply file and its words:** #163 `incoming/status/<f>` `stored`/`refused`/`quarantined`; #164
   `status/<name>` `committed`/`refused retry`/`refused final` (§14, D3).
@@ -543,26 +672,42 @@ One line each; none is settled here.
 * **A3 · "received":** the receiver ADR means the package hash matched; the built carrier means fsynced and renamed
   only.
 * **A4 · the header member:** the transfer ADR's ~100 B with kinds `series`/`study`/`delete`/`addition`, against the
-  receiver's 5 lines with `series`/`update`.
-* **A5 · compression:** per member (#163) against one zstd stream (#149, #156) (§2).
-* **A6 · after a refusal:** the PCS rebuilds the package (#149), or resends the same bytes.
+  receiver's 5 lines with `series`/`update`. *Reconciled by #177 (as proposed):* #163's 5 lines, `layout 2`, kinds
+  `series`/`addition`, `update` reserved, the compression flag dropped.
+* **A5 · compression:** per member (#163) against one zstd stream (#149, #156) (§2). *Reconciled by #177 (as
+  proposed):* one inner-tar member, one zstd frame; per member is a flaw (Decided 10-26 evening).
+* **A6 · after a refusal:** the PCS rebuilds the package (#149), or resends the same bytes. *Reconciled by #177 (as
+  proposed):* resend the kept bytes (Decided 10-26 evening), rebuild only when they fail their name.
 * **A7 · a differing exam group:** flagged for review (#119), or replaced with an audit record (#163).
-* **A8 · updates:** as differences (§5, #148), or as whole-group replacement (#163).
-* **A9 · a package's identity:** (unit, revision) (#149), a sender UUID, or a content digest.
+* **A8 · updates:** as differences (§5, #148), or as whole-group replacement (#163). *Addressed by #176:* whole groups
+  on the PCS's wire, differences after intake (§5).
+* **A9 · a package's identity:** (unit, revision) (#149), a sender UUID, or a content digest; open with the owner
+  (§14, D12).
 * **A10 · the audit row's "who":** decided (§4), but nothing carries a "who" to the audit row.
 * **A11 · starting the receiver:** nothing starts it.
-* **A12 · staging:** the owner's decision 10-26 against "proposed" in this file; fixed in §3.
+* **A12 · staging:** the owner's decision 10-26 against "proposed" in this file. *Fixed* in §3.
 
 ## 18 · Rows of 2026-10-26 afternoon
 
 * **DAY-1** (`claude/carrier-quic-choice`): the carrier's QUIC dependency, h3 0.0.x or a QUIC implementation used
-  directly, not necessarily in Rust (§14, D4).
-* **DAY-2** (`claude/study-index-engines`): the study index's engine (§14, D9).
-* **DAY-3** (`claude/study-index-placement`): the study index on a separate server (§14, D9).
+  directly, not necessarily in Rust (§14, D4). Delivered: #171.
+* **DAY-2** (`claude/study-index-engines`): the study index's engine (§14, D9). Delivered: #174.
+* **DAY-3** (`claude/study-index-placement`): the study index on a separate server (§14, D9). Delivered: #172.
 * **DAY-4** (`claude/viewer-metadata-gz-row`): the ready row stored compressed, the revision as ETag (§14, D6).
+  Delivered: #173.
 * **DAY-5** (`claude/receiver-process-map`): one program against two, then the reply file's place and lifetime
-  (§14, D3).
+  (§14, D3). Delivered: #169.
 * **DAY-6**: not recorded in this file.
 * **DAY-7** (`claude/pacs-receiver-impl`, `claude/verify-tool`): the owed fixes pushed to #163 and #160 (§3, §14 D2
   and D11).
 * **DAY-8**: not recorded in this file.
+
+## 19 · Rows of 2026-10-26 night
+
+* **NIGHT2-1** (`claude/rustls-advisories-mainbase`, `claude/rustls-advisories-main`): the rustls advisories seen in
+  #171 (0.23.44 pinned; RUSTSEC-2026-0285, -0346 to -0349).
+* **NIGHT2-2** (`claude/transport-seam`): the transport seam (TCP, or QUIC at build, §2).
+* **NIGHT2-3** (pushes to #177): the sender's implementation.
+* **NIGHT2-4** (pushes to #163 and #160): the receiver's layout 2 and addition merge, and D2's disk-read helper as one
+  crate.
+* **NIGHT2-5** (`claude/sbnd-tail-rewrite`): whether only the `.sbnd`'s tail can be rewritten on an addition (§3).
