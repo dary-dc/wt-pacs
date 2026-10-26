@@ -11,3 +11,10 @@ libc = "0.2"
 memmap2 = "0.9"
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde_json = { workspace = true }
+tar = { version = "0.4", optional = true }
+xxhash-rust = { version = "0.8", features = ["xxh3"], optional = true }
+zstd = { version = "0.13", optional = true }
+
+[features]
+# `--mode study-db`, out of the gate's build: lab/metadata-store/README.md §The study DB's layout.
+study-db = ["dep:tar", "dep:xxhash-rust", "dep:zstd"]

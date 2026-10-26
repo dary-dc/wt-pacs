@@ -545,3 +545,106 @@ What the contract says and the parser does not, found here (contract.md is not e
   `src/deck_sqlite3.c` (`eblake3stmt` undeclared).
 * **Fixed-size attribute tables** (`eKVs[100]`, `sKVs[150]`, `iKVs[350]`, `pKVs[20000]`, `capi.c` lines 67–70) are
   filled with no bound check. Read, not exercised.
+
+## The study DB: a row per group, shared + per-frame, or a blob per series
+
+[`src/study_db/`](src/study_db) asks, inside the study DB
+([`docs/ingest/metadata-draft.md`](../../docs/ingest/metadata-draft.md) §2), how three layouts of a series' instance
+metadata compare on the parser's real output for the five series above: **a row per group** (T1, the proposed one),
+**shared + per-frame** (the series as one Legacy Converted Enhanced instance, DICOM's Shared and Per-frame Functional
+Groups, PS3.3 C.7.6.16, kept as its shared row and a row per frame), and **a blob per series** (every instance's groups
+in one zstd value). It is a cargo feature, out of the gate's build.
+
+```bash
+.venv/bin/python -I lab/metadata-store/study-db/package.py DATA BUILD/build/ESIPFfiled PKG   # the parser, then packages
+cargo test -p metadata-store --features study-db --release
+cargo run -p metadata-store --features study-db --release -- --mode study-db --packages PKG \
+  --builds 30 --rounds 200 --updates 60 > study-db.jsonl
+```
+
+**The packages.** `package.py` runs the parser as §The parser's own output does (the same build, `MALLOC_PERTURB_`,
+us rewritten Explicit first) and writes, per series, a deterministic pax tar of every group file at its path in the
+tree, `<D>/<exam>/<series>/<instance>/<kind>.<hash>`: the package the PCS sends (#149, one per series). Two inputs:
+**as written**, and **masked**, the instance and private groups with that section's key mask (a repeat numbered),
+standing for the parser once its nested keys are deterministic. A package with several series or exam group files (pt,
+us) keeps the first by path. The directory names are the UIDs.
+
+**The layouts**, each one SQLite file in WAL at `synchronous=FULL` (rusqlite 0.40, bundled SQLite), every row with
+the XXH3-64 of its bytes. All three keep the exam group and the series group a row each (`exam`, `series`) and an
+`audit` table (who, when, the scope, the tag, the prior value, the new one: the record decided on 10-24/25).
+
+* **Row per group:** `instance (uid PRIMARY KEY, series, bytes, xxh3)` indexed on `(series, uid)`, and `private
+  (uid PRIMARY KEY, bytes, xxh3)` where the instance has one. The bytes are the group files as received.
+* **Shared + per-frame:** the records of §The parser's own output's simulated converted-enhanced instance, ported to
+  Rust (`shared.rs`) and checked byte for byte against that Python on every package before anything is timed; its
+  top level and Shared Functional Groups item in `shared (series PRIMARY KEY, bytes, xxh3)`, each Per-Frame item in
+  `frame (uid PRIMARY KEY, series, number, bytes, xxh3)` indexed on `(series, number)`. Only CT, MR and PET have a
+  Legacy Converted class, so **mg and us have no shared + per-frame store**, and no correction is measured on them.
+  The conversion keeps group 0002 and the top-level image attributes of the first instance only and re-encodes the
+  SOP class, SOP instance UID, acquisition date, time and number; the received groups cannot be given back byte for
+  byte.
+* **Blob per series:** `blob (series PRIMARY KEY, bytes, xxh3)`, per instance its UID, its instance group and its
+  private group, length-prefixed, compressed by zstd 0.13 (libzstd) at level 3.
+
+**What is timed**, per series and input, each a median of its rounds, ms of wall and of the thread's CPU:
+
+* **build:** read the package file, unpack it, create the file, insert, commit;
+* **size:** the file after its last connection closes (WAL checkpointed and removed), and the bytes of every row;
+* **paint:** open the file read-only and read every instance's paint values (`group::PAGE_TAGS`, top level; in shared
+  + per-frame the frame's value over the shared one over the top level);
+* **full:** open and parse every stored record of the series (exam, series, every row);
+* **integrity:** open and check every row's bytes against its XXH3;
+* **corrections**, ct, pt and mr, each in one transaction with its audit row, on a held read-write connection: **exam**,
+  the patient name (the exam group, the same code in every layout); **instance, varying**, the middle instance's image
+  position (per frame already); **instance, shared**, the middle instance's slice thickness (in every instance with
+  one value, so in the shared row: the correction splits its Pixel Measures group into every frame, the others
+  keeping the old value); **series, shared**, the slice thickness of every instance (in shared + per-frame it stays
+  in the shared row). Each correction is undone untimed (instance, shared by a series correction back, which joins
+  the shared row again), and the store must then hold exactly the bytes it was built with. A correction's rows
+  written, whether the attribute ends shared, and the bytes after it are reported once.
+* **owned lines:** the code lines (not blank, not `//`) of `mod.rs` (the package, the exam and audit, the checks,
+  shared by all three) and of each layout's file.
+
+**Arms**, interleaved round by round with the order rotated: each layout and its A/A twin on its own file (six arms,
+four for mg and us); 30 builds, 200 rounds of each read and of the check, 60 of each correction; two runs. Before any
+timing every store must give the same paint values as the row per group, the blob every received record, and shared +
+per-frame every received record in its frame's view (but group 0002 and the re-encoded five).
+
+*Known before the pre-registration:* the code above, its six tests (each mutated: the placement made always shared,
+the split ignoring its frame, the join never taken, the frame's value not read, the check skipped, the blob's private
+group dropped, a series correction made to touch one row, the audit dropped; each failed a test) and one pass of the
+run with one round of everything and its output discarded, to see the checks hold; nothing timed or sized was read.
+The owned lines are fixed by the code: 228 common, 67 row per group, 341 shared + per-frame, 69 blob per series.
+The masked references differ from §The parser's own output's masked conversion only in numbering a repeated key
+(mr, 115 103 B either way).
+
+*Pre-registered, 2026-10-26, before any timing.*
+
+| Prediction | Contradicted if |
+| --- | --- |
+| shared + per-frame's file is ≤ 0.35× the row per group's for ct, pt and mr masked, ≤ 0.6× as written | larger |
+| the blob's file is ≤ 0.1× the row per group's, every series | larger |
+| every layout builds within 2× the row per group's median, every series; shared + per-frame the slowest for ct, pt, mr | otherwise |
+| paint: shared + per-frame below the row per group by more than the larger A/A gap and by ≥ 25 %, ct, pt, mr, both inputs | otherwise |
+| paint: the blob within ± 25 % of the row per group, every series | outside |
+| full: shared + per-frame ≥ 2× faster than the row per group for ct, pt and mr masked; the blob within ± 25 % | otherwise |
+| exam: the three layouts tie (within the larger A/A gap) | one does not |
+| instance, varying: the row per group and shared + per-frame tie, one row each; the blob ≥ 1.5× the row per group | otherwise |
+| instance, shared: shared + per-frame writes N + 1 rows, ends per-frame, and takes ≥ 3× the row per group | otherwise |
+| series, shared: shared + per-frame writes one row, stays shared, and takes ≤ 0.5× the row per group (N rows) | otherwise |
+| every correction's median ≤ 50 ms, every layout | over |
+| integrity: blob < shared + per-frame < row per group at the median, ct, pt, mr | another order |
+| every correction undone leaves the store as built; every check above holds | one does not |
+
+**The rule.** A layout is faster or slower than another in a cell when their medians differ by more than the larger
+of their A/A gaps (|X − X′|) in both runs; otherwise the cell is a tie. Shared + per-frame or the blob replaces the
+row per group only if, for each of ct, pt and mr, in both runs: (1) its paint read is faster and at least 25 % below;
+(2) its file is ≤ 0.5× the row per group's; (3) its build median ≤ 2× the row per group's; (4) every correction's
+median ≤ 50 ms. If both qualify, the one with fewer owned lines; if neither, the row per group, which owns the fewest
+(at equal function the simpler code wins). The rule is applied to each input; if they disagree, the masked input's
+choice holds once the parser's keys are deterministic and the as-written one's until then. Full, integrity and the
+lines are reported, not decided on.
+
+The host: one thread, every file in the page cache; a commit's `fsync` goes to the VM's virtual disk. Whether a
+correction or a build saturates its core is its CPU time against its wall time; nothing is claimed for many studies,
+concurrent writers, a cold disk or another host.

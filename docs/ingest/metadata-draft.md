@@ -240,6 +240,9 @@ pixels as stored, 0.02–4 % in HTJ2K; in CT, PET, MR and MG 70–83 % of the in
 every instance, so the shared values once plus each instance's differences weigh 9–28 % of a row per instance group
 (CT, PET, MR) and a zstd-3 blob per series 1.5–3.8 %; an ultrasound series of two SOP classes shares a quarter.
 The parser's own output at `a65abe2`, 1.15–1.95× these bytes: [`../../lab/metadata-store`](../../lab/metadata-store).
+Inside the study DB, a row per group against shared + per-frame (converted enhanced) and a blob per series, on
+the parser's packages of the same series: pre-registered in [`../../lab/metadata-store`](../../lab/metadata-store)
+§The study DB.
 
 **Integrity under C and D.** The parser's BLAKE3 covers a whole group. C and D keep it checkable: the group's bytes are
 its records in key order, so the PACS writes them back to back and hashes them on arrival — the same bytes, the same
