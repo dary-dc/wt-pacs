@@ -152,6 +152,33 @@ only, and a cold claim waits for a lever that forces one.
   `fsync` of the parent, into one directory (A) and into D's 256. Time each publish.
 * **P4 · scan.** `readdir` plus `stat` of every entry, as a file-level backup does, over the P1 trees. Time per entry.
 
+**Amended 2026-10-26, before any run** (the run is [`lab/disk-tree/`](../../lab/disk-tree/README.md)). The reasons
+are the container's: 4 vCPUs, 15 GiB of memory and 30 GB of free disk.
+
+* **Arms:** A, B, C, D and D2 in every protocol, not only A, C and D, so the meeting sees every path option. E and
+  F are left out because they add no new directory shape.
+* **Sizes:** 10⁴, 10⁵ and 10⁶. 10⁷ is dropped because on ext4 an empty directory takes a 4 KiB block, so five arms at
+  10⁷ need about 200 GB. Each study is a directory holding one empty `x.sbnd`. Studies arrive at 1 000 a day, and one
+  in 50 has no date.
+* **Filesystems:** ext4 with the host's `mke2fs.conf` defaults (`dir_index`, `dir_nlink`, `metadata_csum`, **no
+  `large_dir`**), since every arm fits below its ceiling at 10⁶, and XFS with `mkfs.xfs` defaults. Each arm gets its
+  own image on a loop device with direct I/O, so no block is cached twice.
+* **P1:** opens are drawn from a fixed uniform sample of 10⁵ existing studies (all of them below that), warmed first.
+  This is because the five ext4 trees at 10⁶ (about 4 GiB each) exceed memory. A warm `open` resolves in the dentry
+  cache and never reaches the on-disk index, so P1 measures the path walk. A cold lookup has no lever here
+  (`drop_caches` is refused, and a remount is eviction), so it stays unmeasured.
+* **P2:** the entries are hard links, 60 000 to a file. An htree entry is the same record for a link as for a
+  subdirectory, and 10–26 M subdirectories would need 40–100 GB of blocks. The 65 000 stop is checked with
+  subdirectories, `dir_nlink` off. One `large_dir` run shows the same count passing.
+* **P3:** into the 10⁶ trees, 100 publishes per writer per round, four rounds. Every new study is dated the next day,
+  as live arrivals are. Timed: the whole publish, and the `rename` alone.
+* **P5 · deletion by age (added).** The oldest 10 days (2 at 10⁴), one day at a time, interleaved. A, D and D2 take
+  the day's studies from the catalog; the query is not timed, and the generator stands in for the catalog. B and C
+  list the day's folder. Each removes the file and the directory with no `fsync`. A `syncfs` per arm is then timed.
+* **P6 · a corrected study date (added).** 500 dated studies get another date. B and C move the study (`rename`,
+  then `fsync` of both parents), and the old path is then opened to check it is gone. A, D and D2 do nothing on
+  disk.
+
 ## 6 · Questions for the meeting, each with a default
 
 1. **Is the path a function of the UIDs alone, with no database in the read path?** Default: **yes**. That is what the
