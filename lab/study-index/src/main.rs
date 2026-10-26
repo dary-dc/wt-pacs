@@ -2,9 +2,12 @@
 
 mod api;
 mod bench;
+mod engine;
 mod forward;
 mod gen;
 mod index;
+mod lite;
+mod pg;
 mod query;
 mod receiver;
 mod sync;
@@ -254,8 +257,8 @@ async fn main() -> anyhow::Result<()> {
                 .into_iter()
                 .map(|(t, keys)| (t, keys.split('+').map(str::to_string).collect()))
                 .collect();
-            let pool = index::pool(a.get("db"))?;
-            let state = Arc::new(api::Api { pool, grants, tuned: a.or("shape", String::new()) == "tuned" });
+            let index = engine::Index::open(a.get("db"))?;
+            let state = Arc::new(api::Api { index, grants, tuned: a.or("shape", String::new()) == "tuned" });
             let listener = tokio::net::TcpListener::bind(a.get("listen")).await?;
             axum::serve(listener, api::router(state)).await?;
             Ok(())
@@ -265,6 +268,8 @@ async fn main() -> anyhow::Result<()> {
         "sweep" => tokio::task::block_in_place(|| sweep(&a)),
         "check" => tokio::task::block_in_place(|| check(&a)),
         "sync" => sync::run(&a).await,
-        _ => anyhow::bail!("usage: study-index gen|api|forward|bench|sweep|check|sync --key value … (README §Run)"),
+        "lite-settings" => lite::settings(a.get("db")),
+        "lite-load" => lite::load(a.get("tsv"), std::path::Path::new(a.get("out")), a.or("fold", String::from("on")) == "on"),
+        _ => anyhow::bail!("usage: study-index gen|lite-load|lite-settings|api|forward|bench|sweep|check|sync --key value … (README §Run)"),
     }
 }

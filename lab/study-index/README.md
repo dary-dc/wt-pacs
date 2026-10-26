@@ -17,6 +17,8 @@ has its own `[workspace]` and stays outside `scripts/gate.sh`.
 | `src/forward.rs` | the emulated hop: two TUN devices and a fixed one-way delay. The kernel has no netem, as in #156 |
 | `run.py` | the rig: MySQL in network namespace `idx`, one API process per (size, arm), restarts, the campaign |
 | `tuned.sql` | the tuned shape (§Arms) |
+| `src/engine.rs`, `src/pg.rs`, `src/lite.rs` | §Engines: the index behind one interface on MySQL, PostgreSQL 18 or SQLite; the same upsert on each |
+| `pg.sql`, `pg_indexes.sql`, `lite.sql`, `lite_indexes.sql` | §Engines: the schema and the tuned indexes on PostgreSQL and on SQLite |
 | `mutate.sh` | nine deliberate breakages; the tests must catch each |
 
 **Revision, not generation.** #146 calls the study's version a *generation*. [`docs/glossary.md`](../../docs/glossary.md)
@@ -40,8 +42,11 @@ from Ubuntu. MariaDB was not needed. Settings are printed to `results/settings.t
 dump at shutdown and load at start are **off**, and `O_DIRECT` is the default, so a restart is cold from disk. The
 binary log is on, with `sync_binlog=1` and `innodb_flush_log_at_trx_commit=1`. The amendments to §11:
 
-* **Arms dropped:** PostgreSQL 18 and SQLite. The owner chose MySQL on 10-25. **Size dropped:** 10⁴, kept only for
-  the collation mutation.
+* **Arms dropped:** PostgreSQL 18 and SQLite. ~~The owner chose MySQL on 10-25.~~ **Corrected 2026-10-26:** that
+  sentence attributed to the owner a choice the owner had not made. The owner, 2026-10-26: "I suggested in biased you
+  that it was going to be MySQL for that study index database, but I'm not really sure. Perhaps an agent can do some
+  investigation to be sure that it's what better fits our use case." The two arms are run in §Engines below.
+  **Size dropped:** 10⁴, kept only for the collation mutation.
 * **Frame-read interference not run**: the PACS server is not part of this rig. It stays open for the co-located case.
 * **Added:** the network hop, a tuned shape, an extra low-selectivity name cell, and §Sync.
 
@@ -134,6 +139,7 @@ nothing past that point.
 
 ```bash
 cargo build --release                       # in this directory
+# run.py as of 16fec79 drove this campaign; it now drives §Engines, whose Run block is below
 python3 run.py setup                        # as root: namespace, TUN hops, mysqld, the API arms
 # load: study-index gen --n N --seed S --out /opt/si/load/si_1eK; mysql < schema.sql; LOAD DATA (§Results notes the times)
 python3 run.py settings && python3 run.py latency && python3 run.py sweep && python3 run.py check && python3 run.py sync
@@ -249,3 +255,115 @@ index answering):
 * The frame-read interference, TLS (to the API and to MySQL; the lab's MySQL traffic is unencrypted), PostgreSQL,
   SQLite, more than one publisher, and the PCS's real study DB schema were **not measured**.
 * The 10⁶ figures for rebuild and scan are arithmetic.
+
+## Engines: PostgreSQL 18 and SQLite beside MySQL 8.4
+
+§Pre-registration dropped two of #146 §11's arms on a misattributed choice (corrected there). This section runs them on
+the same harness, data and query set, and **reports; it does not decide**. The question: at 10⁶ studies, how do
+PostgreSQL 18 and SQLite (one file on the host) compare with MySQL 8.4 as the study index?
+
+### What each engine runs
+
+All three hold §4's columns and the tuned shape of §Arms, which is the best shape found for MySQL: `newest` covers
+the name and the modalities, `by_name` the date, a page's UIDs come from the covering index and only their rows are
+then read, the modality is matched in the study row. Every engine is reached through the same API binary, which
+converts every row to text before serializing it (a change from §Results' MySQL path, applied to all three).
+
+| | MySQL 8.4.6 | PostgreSQL 18.6 (PGDG build) | SQLite 3.54.1 (rusqlite, bundled) |
+| --- | --- | --- | --- |
+| reached | Unix socket, or TCP across the hop; `mysql_async`, server-side prepared statements kept | Unix socket, or TCP across the hop; `tokio-postgres` with `deadpool-postgres`, statements prepared once per connection | in the API process: one writer connection, a pool of reader connections, each call on tokio's blocking pool |
+| durable commit | redo log and binary log flushed (`innodb_flush_log_at_trx_commit=1`, `sync_binlog=1`) | WAL flushed (`synchronous_commit=on`, the default) | WAL file fsynced (`journal_mode=WAL`, `synchronous=FULL`) |
+| name matching (PS3.4 PN: case- and accent-insensitive) | the column's collation `utf8mb4_0900_ai_ci`, `LIKE` on it | `name_key`, a **stored generated column** `lower(unaccent(name))` through `pn_fold`, declared `IMMUTABLE`; a pattern becomes a range on its literal prefix plus `LIKE` | `name_key`, written by the publisher: Unicode NFD, combining marks dropped, lower case (`lite::pn_key`); a range on the literal prefix plus `GLOB` |
+| cache | buffer pool 4.5 GiB (§Arms had 8 GiB; cut so that three engines fit in 15 GiB), `O_DIRECT` | `shared_buffers` 3 GB, over the page cache | the page cache through `mmap` (16 GiB window; the bundled 2 GiB cap raised at build, `.cargo/config.toml`), 64 MiB private cache per connection |
+
+**Settings changed from each engine's defaults** (printed to `results/engines/settings.txt`):
+
+* **MySQL:** §Pre-registration's (`O_DIRECT`, binary log on, `sync_binlog=1`, buffer-pool dump and load off) with
+  the pool at 4.5 GiB and `max_connections=600` for four pools of 80.
+* **PostgreSQL:** the database's collation is the builtin `C.UTF-8` (code-point order, as `ascii_bin`, and Unicode
+  case mapping); `shared_buffers` 3 GB (128 MB), `effective_cache_size` 8 GB (4 GB), `random_page_cost` 1.1 (4),
+  `work_mem` 16 MB (4 MB), `jit` off (on), `max_connections` 400 (100); for the load, `maintenance_work_mem` 1 GB,
+  `max_wal_size` 8 GB, `checkpoint_timeout` 15 min. After the load, `VACUUM (ANALYZE, FREEZE)`, so the visibility map
+  allows index-only scans. `plan_cache_mode` is left at `auto`: a prepared statement goes generic after five runs.
+* **SQLite:** WAL, `synchronous=FULL` on the writer, `mmap_size` 16 GiB, `cache_size` −65 536, `temp_store=MEMORY`,
+  readers `query_only`; `WITHOUT ROWID` for the study table; `ANALYZE` after the load (SQLite's defaults: rollback
+  journal, `synchronous=FULL`, no mmap, a 2 MiB cache).
+
+**Not chosen, and why.** PostgreSQL's nondeterministic ICU collation (`und-u-ks-level1`): `LIKE` accepts it since 18,
+but a B-tree cannot serve a prefix `LIKE` under it, so a name search reads every row of the access key. It is timed
+once, outside the campaign (§Engines results). `citext` folds case, not accents. A normalised column on MySQL is not
+needed: its collation does both.
+
+### Pre-registration (committed before any recorded run)
+
+**What was seen first.** Smoke runs of one round, at 10⁶, on every arm, then discarded. They found four rig faults,
+fixed before this commit: `pg_prewarm` not installed, `VACUUM` inside a transaction, PostgreSQL's generic plan folding
+the name pattern once per row (38 k `unaccent` calls, about 100 ms; now folded once in a sub-select), and `newest`
+lacking the name on PostgreSQL and SQLite, which MySQL's tuned `newest` has (aligned). The predictions below were
+written **after** those smoke runs and lean on them.
+
+**Size.** 10⁶ only, seed 106, `site-01` (278 k studies), as §Data. 10⁵ is dropped: three engines warm at once need
+the host's memory, and §Results holds MySQL's 10⁵. The 10⁴ copies serve the name-matching controls.
+
+**Arms**, one API process each, all on the tuned shape, interleaved within every pass:
+
+* `my_local`, `my_local_aa` (the A/A pair), `my_hop_0.5ms`, `my_hop_2ms`;
+* `pg_local`, `pg_hop_0.5ms`, `pg_hop_2ms`;
+* `lite_local`. SQLite has no network protocol: a second host reaches this index only through its host's API (one
+  HTTP round trip a request, not a query) or holds its own file, and then lists are a fan-out across hosts (§6's
+  rejected shape). There is no `lite_hop`.
+
+**Rounds, cells, metrics, sweep** as §Pre-registration: 12 rounds, each a restart of both servers and every API, a
+cold pass, every index and table read once (`run.py warm-load`: InnoDB by `COUNT(*)` per index, PostgreSQL by
+`pg_prewarm`, the SQLite file read through), three unrecorded passes and 20 recorded at concurrency 1. **Cold is
+not comparable across engines**: InnoDB reads through `O_DIRECT`, so a restart empties its cache; PostgreSQL and
+SQLite keep the page cache across a restart, and page-cache eviction is not a lever here (CLAUDE.md). Cold is
+reported for MySQL only. Sweep: `my_local`, `pg_local`, `lite_local`, `my_hop_2ms`, `pg_hop_2ms`, concurrency 1 to
+64, 5 s a step, 2 repetitions.
+
+**Sync**, as §Sync, on every arm above but `my_local_aa`, writing into the same 10⁶ index. Recovery on `my_local`,
+`my_hop_2ms`, `pg_local`, `pg_hop_2ms`; an SQLite index cannot be down while its host's receiver runs, since they
+are one process's file. Publisher throughput is the burst's 200 studies over its drain time.
+
+**Correctness.** `check` on `my_local`, `my_hop_2ms`, `pg_local`, `pg_hop_2ms`, `lite_local`: 20 queries a cell.
+Name matching, per engine, on a 10⁴ copy (seed 104) as built and with its folding broken (MySQL: the name column
+`utf8mb4_bin`; PostgreSQL: `pn_fold` replaced by the identity; SQLite: `name_key` the raw name): the first must give
+0 mismatches on the three name cells, the second must fail them. `cargo test` runs the publisher tests and a new
+name-prefix test on all three engines; `mutate.sh` adds mutations of the new code, each must fail them.
+
+**Predictions** (from the smoke runs and the engines' designs):
+
+1. All three meet §11 at 10⁶ on `local`; MySQL and PostgreSQL also on `hop_2ms`.
+2. SQLite has the lowest `db` p95 on most §11 cells; it pays no socket and no protocol.
+3. PostgreSQL ties MySQL (within the A/A spread or 1 ms) on most §11 cells locally, and is slower on `name_family`.
+4. Each networked query pays about one round trip, on both servers.
+5. Sync idle lag p95 locally: SQLite < PostgreSQL < MySQL, all ≤ 30 ms; at 2 ms PostgreSQL and MySQL within 5 ms.
+6. The host saturates at c = 8–16 on every arm; SQLite and PostgreSQL serve more requests a second at saturation
+   than MySQL. (Throughput, here only: the sweep's latencies are reported, its rates are not compared to them.)
+7. Rebuild of 10⁴ studies is fastest on SQLite; across 2 ms the two servers are within 20 % of each other.
+8. Size at 10⁶ (measured at load, not predicted): MySQL 4.0 GB, PostgreSQL 2.3 GB, SQLite 2.1 GB.
+9. The ICU collation's name search misses 10 ms at 10⁶.
+
+**Reporting rule** (not a decision rule: the owner decides).
+
+* An engine **meets §11** if every one of §11's cells (all but `name_family`) has p95 `db` ≤ 10 ms and `app`
+  ≤ 50 ms at 10⁶, warm, on `local`; for MySQL and PostgreSQL also on `hop_2ms`.
+* Two engines **differ** in a cell only if their p95 `db` differ by more than both 1 ms and that cell's A/A spread
+  (|`my_local` − `my_local_aa`|); otherwise the cell is a **tie**.
+* Sync meets §Pre-registration's rule if idle lag p95 ≤ 1 s.
+* MySQL here **reproduces** §Results if `my_local` and `my_hop_2ms` are within the same tolerance of §Results'
+  `tuned_local` and `tuned_hop_2ms`; if not, both are reported and the difference is not explained away.
+* Each result is put against #146 §5's "what would change it": (a) one host, (b) row security, (c) a measured miss.
+
+### Run (§Engines)
+
+```bash
+cargo build --release
+python3 run.py init && python3 run.py load   # as root: data dirs, my.cnf, initdb, namespace, TUN hops; 10⁶ into each
+python3 run.py setup && python3 run.py settings && python3 run.py sizes
+python3 run.py check && python3 run.py controls && python3 run.py latency && python3 run.py sweep && python3 run.py sync
+export SI_TEST_MYSQL="mysql://root@localhost/?socket=/opt/si/run/mysql.sock" \
+  SI_TEST_PG="postgresql://postgres@%2Fopt%2Fsi%2Fpgrun" SI_TEST_SQLITE=/opt/si/test
+cargo test --release -- --test-threads 1 && ./mutate.sh
+python3 summary.py results/engines/
+```

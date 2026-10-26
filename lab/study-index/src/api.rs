@@ -6,15 +6,14 @@ use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
-use mysql_async::prelude::Queryable;
-use mysql_async::{Pool, Row, Value};
+use crate::engine::{Index, P};
 use serde_json::{json, Map, Value as Json};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
 pub struct Api {
-    pub pool: Pool,
+    pub index: Index,
     /// Bearer token → the access keys its holder may see.
     pub grants: HashMap<String, Vec<String>>,
     pub tuned: bool,
@@ -43,12 +42,10 @@ fn attr(vr: &str, value: Option<String>) -> Json {
     }
 }
 
+type Row = Vec<Option<String>>;
+
 fn text(row: &Row, i: usize) -> Option<String> {
-    match row.as_ref(i)? {
-        Value::NULL => None,
-        Value::Bytes(b) => Some(String::from_utf8_lossy(b).into_owned()),
-        v => Some(v.as_sql(true).trim_matches('\'').to_string()),
-    }
+    row.get(i).cloned().flatten()
 }
 
 /// One study as PS3.18 JSON; `host` is this index's extra field, and the Retrieve URL is derived from it.
@@ -111,7 +108,7 @@ fn reply(start: Instant, db_us: u128, body: Vec<Json>) -> Response {
 
 /// Opens a pooled connection without touching the index's pages.
 async fn health(State(api): State<Arc<Api>>) -> Response {
-    match async { api.pool.get_conn().await?.query_drop("DO 1").await }.await {
+    match api.index.ping().await {
         Ok(()) => StatusCode::OK.into_response(),
         Err(e) => fail(StatusCode::SERVICE_UNAVAILABLE, e),
     }
@@ -128,9 +125,9 @@ async fn studies(State(api): State<Arc<Api>>, headers: HeaderMap, RawQuery(q): R
         Ok(s) => s,
         Err(e) => return fail(StatusCode::BAD_REQUEST, e),
     };
-    let (sql, params) = search.sql(keys, api.tuned);
+    let (sql, params) = search.sql(keys, api.tuned, api.index.engine());
     let db = Instant::now();
-    let rows: Result<Vec<Row>, _> = async { api.pool.get_conn().await?.exec(sql, params).await }.await;
+    let rows = api.index.rows(sql, params).await;
     let db_us = db.elapsed().as_micros();
     match rows {
         Ok(rows) => reply(start, db_us, rows.iter().map(study_json).collect()),
@@ -147,10 +144,10 @@ async fn series(State(api): State<Arc<Api>>, headers: HeaderMap, Path(uid): Path
          WHERE se.study_uid = ? AND st.access_key IN ({}) ORDER BY se.series_number",
         vec!["?"; keys.len()].join(",")
     );
-    let mut params: Vec<Value> = vec![uid.into()];
-    params.extend(keys.iter().map(|k| Value::from(k.as_str())));
+    let mut params: Vec<P> = vec![P::Text(uid)];
+    params.extend(keys.iter().map(|k| P::from(k.as_str())));
     let db = Instant::now();
-    let rows: Result<Vec<Row>, _> = async { api.pool.get_conn().await?.exec(sql, params).await }.await;
+    let rows = api.index.rows(sql, params).await;
     let db_us = db.elapsed().as_micros();
     match rows {
         Ok(rows) => reply(start, db_us, rows.iter().map(series_json).collect()),

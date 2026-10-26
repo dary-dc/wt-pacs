@@ -2,9 +2,8 @@
 //! row in the same SQLite transaction; a publisher that drains outbox rows into the index; the reconcile job.
 
 use crate::gen::{sql_time, Study};
-use crate::index::{self, Applied, Record, SeriesRecord};
-use mysql_async::prelude::Queryable;
-use mysql_async::Pool;
+use crate::engine::Index;
+use crate::index::{Applied, Record, SeriesRecord};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
@@ -133,17 +132,17 @@ fn remove_files(path: &Path) {
 }
 
 /// One study DB into the index, then its outbox rows up to the revision the index now holds are deleted.
-pub async fn publish(pool: &Pool, path: &Path) -> anyhow::Result<Applied> {
+pub async fn publish(pool: &Index, path: &Path) -> anyhow::Result<Applied> {
     let (record, _) = match read(path) {
         Ok(r) => r,
         Err(_) if !path.exists() => {
             let uid = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
-            index::remove(pool, uid).await?;
+            pool.remove(uid).await?;
             return Ok(Applied::Deleted);
         }
         Err(e) => return Err(e.into()),
     };
-    let applied = index::apply(pool, &record).await?;
+    let applied = pool.apply(&record).await?;
     if record.deleted {
         remove_files(path);
     } else {
@@ -159,7 +158,7 @@ pub struct Published {
 
 /// Publishes each notified path in order; a failure retries the same path, backing off from 10 ms to `cap`.
 pub async fn publisher(
-    pool: Pool,
+    pool: Index,
     mut notified: UnboundedReceiver<PathBuf>,
     done: tokio::sync::mpsc::UnboundedSender<Published>,
     cap: Duration,
@@ -199,13 +198,8 @@ pub struct Reconciled {
 }
 
 /// At publisher start and daily: every study DB of `host` against the index's rows for it.
-pub async fn reconcile(pool: &Pool, host: &str, dir: &Path) -> anyhow::Result<Reconciled> {
-    let rows: Vec<(String, u64)> = pool
-        .get_conn()
-        .await?
-        .exec("SELECT study_uid, revision FROM study WHERE host = ?", (host,))
-        .await?;
-    let mut indexed: HashMap<String, u64> = rows.into_iter().collect();
+pub async fn reconcile(pool: &Index, host: &str, dir: &Path) -> anyhow::Result<Reconciled> {
+    let mut indexed: HashMap<String, u64> = pool.revisions(host).await?.into_iter().collect();
     let mut out = Reconciled::default();
     for entry in std::fs::read_dir(dir)? {
         let path = entry?.path();
@@ -221,7 +215,7 @@ pub async fn reconcile(pool: &Pool, host: &str, dir: &Path) -> anyhow::Result<Re
         }
     }
     for uid in indexed.keys() {
-        index::remove(pool, uid).await?;
+        pool.remove(uid).await?;
         out.removed += 1;
     }
     Ok(out)
@@ -230,37 +224,60 @@ pub async fn reconcile(pool: &Pool, host: &str, dir: &Path) -> anyhow::Result<Re
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::{num, P};
     use crate::gen;
 
-    /// A fresh `si_test` schema on `SI_TEST_MYSQL` (a server URL without a database), or None to skip.
-    async fn fresh_index() -> Option<Pool> {
-        let server = std::env::var("SI_TEST_MYSQL").ok()?;
-        let admin = Pool::from_url(server.replace("/?", "/mysql?")).unwrap();
-        let mut c = admin.get_conn().await.unwrap();
-        c.query_drop("DROP DATABASE IF EXISTS si_test").await.unwrap();
-        c.query_drop("CREATE DATABASE si_test").await.unwrap();
-        c.query_drop(format!("USE si_test; {}", include_str!("../schema.sql"))).await.unwrap();
-        Some(index::pool(&server.replace("/?", "/si_test?")).unwrap())
+    /// A fresh `si_test` index on each engine configured: `SI_TEST_MYSQL` (a server URL without a database),
+    /// `SI_TEST_PG` (a server URL whose database `si_test` is dropped and made again), `SI_TEST_SQLITE` (a directory).
+    async fn fresh_indexes() -> Vec<(&'static str, Index)> {
+        use mysql_async::prelude::Queryable;
+        let mut out = Vec::new();
+        if let Ok(server) = std::env::var("SI_TEST_MYSQL") {
+            let admin = mysql_async::Pool::from_url(server.replace("/?", "/mysql?")).unwrap();
+            let mut c = admin.get_conn().await.unwrap();
+            c.query_drop("DROP DATABASE IF EXISTS si_test").await.unwrap();
+            c.query_drop("CREATE DATABASE si_test").await.unwrap();
+            c.query_drop(format!("USE si_test; {}", include_str!("../schema.sql"))).await.unwrap();
+            out.push(("mysql", Index::open(&server.replace("/?", "/si_test?")).unwrap()));
+        }
+        if let Ok(server) = std::env::var("SI_TEST_PG") {
+            let (admin, conn) = tokio_postgres::connect(&format!("{server}/postgres"), tokio_postgres::NoTls).await.unwrap();
+            tokio::spawn(conn);
+            admin.batch_execute("DROP DATABASE IF EXISTS si_test WITH (FORCE)").await.unwrap();
+            admin.batch_execute("CREATE DATABASE si_test").await.unwrap();
+            let (c, conn) = tokio_postgres::connect(&format!("{server}/si_test"), tokio_postgres::NoTls).await.unwrap();
+            tokio::spawn(conn);
+            c.batch_execute(concat!(include_str!("../pg.sql"), include_str!("../pg_indexes.sql"))).await.unwrap();
+            out.push(("pg", Index::open(&format!("{server}/si_test")).unwrap()));
+        }
+        if let Ok(d) = std::env::var("SI_TEST_SQLITE") {
+            let path = PathBuf::from(d).join("si_test.db");
+            for suffix in ["", "-wal", "-shm"] {
+                let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+            }
+            let c = crate::lite::open_writer(&path).unwrap();
+            c.execute_batch(crate::lite::SCHEMA).unwrap();
+            c.execute_batch(crate::lite::INDEXES).unwrap();
+            out.push(("sqlite", Index::open(&format!("sqlite:{}", path.display())).unwrap()));
+        }
+        if out.is_empty() {
+            eprintln!("no SI_TEST_MYSQL, SI_TEST_PG or SI_TEST_SQLITE: skipped");
+        }
+        out
     }
 
-    fn dir(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("si-test-{name}-{}", std::process::id()));
+    fn dir(name: &str, engine: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("si-test-{name}-{engine}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
     }
 
-    async fn indexed(pool: &Pool, uid: &str) -> Option<(u64, String, u64)> {
-        pool.get_conn()
-            .await
-            .unwrap()
-            .exec_first(
-                "SELECT st.revision, st.patient_name, (SELECT COUNT(*) FROM series se WHERE se.study_uid = st.study_uid) \
-                 FROM study st WHERE study_uid = ?",
-                (uid,),
-            )
-            .await
-            .unwrap()
+    async fn indexed(pool: &Index, uid: &str) -> Option<(u64, String, u64)> {
+        let sql = "SELECT st.revision, st.patient_name, (SELECT COUNT(*) FROM series se WHERE se.study_uid = st.study_uid) \
+                   FROM study st WHERE study_uid = ?";
+        let rows = pool.rows(sql.to_string(), vec![P::from(uid)]).await.unwrap();
+        rows.first().map(|r| (num(&r[0]), r[1].clone().unwrap_or_default(), num(&r[2])))
     }
 
     fn owed(path: &Path) -> bool {
@@ -271,80 +288,108 @@ mod tests {
     /// index to the study DB's revision and clears the outbox.
     #[tokio::test]
     async fn killed_after_commit() {
-        let Some(pool) = fresh_index().await else { return eprintln!("SI_TEST_MYSQL unset: skipped") };
-        let d = dir("commit");
-        let s = &gen::studies(1, 1)[0];
-        let path = commit_new(&d, s, "h", "k", true).unwrap();
-        assert!(owed(&path) && indexed(&pool, &s.uid).await.is_none());
-        let r = reconcile(&pool, "h", &d).await.unwrap();
-        assert_eq!(r, Reconciled { scanned: 1, published: 1, removed: 0 });
-        assert_eq!(indexed(&pool, &s.uid).await, Some((s.revision, s.patient_name.clone(), s.series.len() as u64)));
-        assert!(!owed(&path));
+        for (engine, pool) in fresh_indexes().await {
+            let d = dir("commit", engine);
+            let s = &gen::studies(1, 1)[0];
+            let path = commit_new(&d, s, "h", "k", true).unwrap();
+            assert!(owed(&path) && indexed(&pool, &s.uid).await.is_none());
+            let r = reconcile(&pool, "h", &d).await.unwrap();
+            assert_eq!(r, Reconciled { scanned: 1, published: 1, removed: 0 }, "{engine}");
+            assert_eq!(indexed(&pool, &s.uid).await, Some((s.revision, s.patient_name.clone(), s.series.len() as u64)), "{engine}");
+            assert!(!owed(&path), "{engine}");
+        }
     }
 
     /// A publisher killed after the index committed and before the outbox row went: publishing again is a no-op on
     /// the index and clears the row.
     #[tokio::test]
     async fn killed_after_index_commit() {
-        let Some(pool) = fresh_index().await else { return eprintln!("SI_TEST_MYSQL unset: skipped") };
-        let d = dir("index");
-        let s = &gen::studies(1, 2)[0];
-        let path = commit_new(&d, s, "h", "k", true).unwrap();
-        assert_eq!(index::apply(&pool, &read(&path).unwrap().0).await.unwrap(), Applied::Replaced);
-        assert!(owed(&path));
-        assert_eq!(publish(&pool, &path).await.unwrap(), Applied::Stale);
-        assert!(!owed(&path));
-        assert_eq!(indexed(&pool, &s.uid).await.unwrap().0, s.revision);
+        for (engine, pool) in fresh_indexes().await {
+            let d = dir("index", engine);
+            let s = &gen::studies(1, 2)[0];
+            let path = commit_new(&d, s, "h", "k", true).unwrap();
+            assert_eq!(pool.apply(&read(&path).unwrap().0).await.unwrap(), Applied::Replaced, "{engine}");
+            assert!(owed(&path));
+            assert_eq!(publish(&pool, &path).await.unwrap(), Applied::Stale, "{engine}");
+            assert!(!owed(&path), "{engine}");
+            assert_eq!(indexed(&pool, &s.uid).await.unwrap().0, s.revision, "{engine}");
+        }
     }
 
     /// Out of order: a lower or equal revision arriving after a higher one leaves the higher.
     #[tokio::test]
     async fn only_a_higher_revision() {
-        let Some(pool) = fresh_index().await else { return eprintln!("SI_TEST_MYSQL unset: skipped") };
-        let d = dir("order");
-        let s = &gen::studies(1, 3)[0];
-        let mut r = read(&commit_new(&d, s, "h", "k", true).unwrap()).unwrap().0;
-        r.revision = 3;
-        r.patient_name = "Third^Revision".into();
-        assert_eq!(index::apply(&pool, &r).await.unwrap(), Applied::Replaced);
-        let mut older = r.clone();
-        older.revision = 2;
-        older.patient_name = "Second^Revision".into();
-        older.series.pop();
-        assert_eq!(index::apply(&pool, &older).await.unwrap(), Applied::Stale);
-        assert_eq!(index::apply(&pool, &r).await.unwrap(), Applied::Stale);
-        assert_eq!(indexed(&pool, &s.uid).await, Some((3, "Third^Revision".into(), r.series.len() as u64)));
+        for (engine, pool) in fresh_indexes().await {
+            let d = dir("order", engine);
+            let s = &gen::studies(1, 3)[0];
+            let mut r = read(&commit_new(&d, s, "h", "k", true).unwrap()).unwrap().0;
+            r.revision = 3;
+            r.patient_name = "Third^Revision".into();
+            assert_eq!(pool.apply(&r).await.unwrap(), Applied::Replaced, "{engine}");
+            let mut older = r.clone();
+            older.revision = 2;
+            older.patient_name = "Second^Revision".into();
+            older.series.pop();
+            assert_eq!(pool.apply(&older).await.unwrap(), Applied::Stale, "{engine}");
+            assert_eq!(pool.apply(&r).await.unwrap(), Applied::Stale, "{engine}");
+            assert_eq!(indexed(&pool, &s.uid).await, Some((3, "Third^Revision".into(), r.series.len() as u64)), "{engine}");
+        }
     }
 
     /// A correction and a deletion each travel through the outbox: the name changes at revision + 1, then the
     /// tombstone removes the rows and the file.
     #[tokio::test]
     async fn correction_then_deletion() {
-        let Some(pool) = fresh_index().await else { return eprintln!("SI_TEST_MYSQL unset: skipped") };
-        let d = dir("correct");
-        let s = &gen::studies(1, 4)[0];
-        let path = commit_new(&d, s, "h", "k", true).unwrap();
-        publish(&pool, &path).await.unwrap();
-        let rev = correct_name(&path, "Pérez^Corregido").unwrap();
-        assert_eq!(publish(&pool, &path).await.unwrap(), Applied::Replaced);
-        assert_eq!(indexed(&pool, &s.uid).await.unwrap().0, rev);
-        assert_eq!(indexed(&pool, &s.uid).await.unwrap().1, "Pérez^Corregido");
-        delete(&path).unwrap();
-        assert_eq!(publish(&pool, &path).await.unwrap(), Applied::Deleted);
-        assert!(indexed(&pool, &s.uid).await.is_none() && !path.exists());
+        for (engine, pool) in fresh_indexes().await {
+            let d = dir("correct", engine);
+            let s = &gen::studies(1, 4)[0];
+            let path = commit_new(&d, s, "h", "k", true).unwrap();
+            publish(&pool, &path).await.unwrap();
+            let rev = correct_name(&path, "Pérez^Corregido").unwrap();
+            assert_eq!(publish(&pool, &path).await.unwrap(), Applied::Replaced, "{engine}");
+            assert_eq!(indexed(&pool, &s.uid).await.unwrap().0, rev, "{engine}");
+            assert_eq!(indexed(&pool, &s.uid).await.unwrap().1, "Pérez^Corregido", "{engine}");
+            delete(&path).unwrap();
+            assert_eq!(publish(&pool, &path).await.unwrap(), Applied::Deleted, "{engine}");
+            assert!(indexed(&pool, &s.uid).await.is_none() && !path.exists(), "{engine}");
+        }
     }
 
     /// Reconcile deletes the index rows of a study whose study DB is gone, and leaves current ones alone.
     #[tokio::test]
     async fn reconcile_removes_orphans() {
-        let Some(pool) = fresh_index().await else { return eprintln!("SI_TEST_MYSQL unset: skipped") };
-        let d = dir("orphan");
-        let two = gen::studies(2, 5);
-        let paths: Vec<_> = two.iter().map(|s| commit_new(&d, s, "h", "k", true).unwrap()).collect();
-        reconcile(&pool, "h", &d).await.unwrap();
-        remove_files(&paths[0]);
-        let r = reconcile(&pool, "h", &d).await.unwrap();
-        assert_eq!(r, Reconciled { scanned: 1, published: 0, removed: 1 });
-        assert!(indexed(&pool, &two[0].uid).await.is_none() && indexed(&pool, &two[1].uid).await.is_some());
+        for (engine, pool) in fresh_indexes().await {
+            let d = dir("orphan", engine);
+            let two = gen::studies(2, 5);
+            let paths: Vec<_> = two.iter().map(|s| commit_new(&d, s, "h", "k", true).unwrap()).collect();
+            reconcile(&pool, "h", &d).await.unwrap();
+            remove_files(&paths[0]);
+            let r = reconcile(&pool, "h", &d).await.unwrap();
+            assert_eq!(r, Reconciled { scanned: 1, published: 0, removed: 1 }, "{engine}");
+            assert!(indexed(&pool, &two[0].uid).await.is_none() && indexed(&pool, &two[1].uid).await.is_some(), "{engine}");
+        }
+    }
+
+    /// A list query finds a published study by an accent- and case-folded name prefix on every engine, and only
+    /// by its prefix; the folded column follows a correction.
+    #[tokio::test]
+    async fn name_prefix_on_every_engine() {
+        use crate::query::Search;
+        for (engine, pool) in fresh_indexes().await {
+            let d = dir("names", engine);
+            let s = &gen::studies(1, 6)[0];
+            let path = commit_new(&d, s, "h", "k", true).unwrap();
+            correct_name(&path, "Núñez Peña^José").unwrap();
+            publish(&pool, &path).await.unwrap();
+            let keys = vec!["k".to_string()];
+            for (pattern, hits) in [("NUNEZ PENA^J*", 1), ("núñez*", 1), ("Nuñez Pe?a^JOSÉ", 1), ("PEÑA*", 0), ("N*A^J*", 1)] {
+                let q = Search { patient_name: Some(pattern.into()), limit: 50, ..Default::default() };
+                for tuned in [false, true] {
+                    let (sql, params) = q.sql(&keys, tuned, pool.engine());
+                    let rows = pool.rows(sql, params).await.unwrap();
+                    assert_eq!(rows.len(), hits, "{engine} {pattern} tuned={tuned}");
+                }
+            }
+        }
     }
 }
