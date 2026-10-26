@@ -727,6 +727,9 @@ What the code depends on and the types do not enforce, each pinned by a named te
   `Arc`; 16 B per frame in memory, immutable after open. A per-session store would cost 512 MB instead
   of 512 KB at a thousand readers (32 000 frames). *Corrected 2026-10-16, row 251:* this said 12 B, 384 MB and
   384 KB — the on-disk entry; `Vec<(u64, u32)>` pads to 16. `sessions_share_one_store_rather_than_opening_their_own`.
+  Under `--root`, one store per *open* series, closed by its last session
+  ([`serving-by-uid.md`](serving-by-uid.md) §3): `sessions_on_one_series_share_its_store`,
+  `the_last_session_out_closes_the_file`.
 * **The bytes quinn sends are process-private.** The read path copies into a buffer from
   `media/frame_pool.rs`, hands that buffer to quinn and gets it back on acknowledgement; it
   never hands quinn a mapping — which is why `server/` has no mapping at all; the mmap variants
