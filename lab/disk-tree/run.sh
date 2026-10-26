@@ -3,6 +3,7 @@
 #   sudo lab/disk-tree/run.sh ext4|xfs N [WORK]     rows to stdout, one JSON object per line
 #   PHASES="publish delete correct" sudo lab/disk-tree/run.sh …   only those, after the build
 #   CEILING=1 sudo lab/disk-tree/run.sh ext4 0      P2 alone: ext4's per-directory ceiling and the subdirectory cap
+#   CEILING=large …                                  only the large_dir run past the two-level ceiling
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 fs=$1 n=$2 work=${3:-${WORK:-/var/tmp/disk-tree}}
@@ -42,7 +43,12 @@ host() {
     "$(free -g | awk '/Mem/{print $2}')" "loop --direct-io=on over a file on $(findmnt -no SOURCE,FSTYPE --target "$work" | tr ' ' ':')"
 }
 
-if [[ ${CEILING:-} ]]; then
+if [[ ${CEILING:-} == large ]]; then
+  m=$(mkimg large 8G large_dir)
+  host large
+  "$bin" ceiling dir="$m/root/flat" kind=link len=44 limit="${LARGE_LIMIT:-8500000}"
+  exit 0
+elif [[ ${CEILING:-} ]]; then
   for len in 44 30; do
     m=$(mkimg "ceil$len" 8G)
     host "ceil$len"
@@ -51,14 +57,10 @@ if [[ ${CEILING:-} ]]; then
   done
   m=$(mkimg nlink 2G ^dir_nlink)
   "$bin" ceiling dir="$m/root/flat" kind=dir len=44 limit=70000
-  m=$(mkimg large 8G large_dir)
-  host large
-  "$bin" ceiling dir="$m/root/flat" kind=link len=44 limit="${LARGE_LIMIT:-30000000}"
-  exit 0
+  exec env CEILING=large "$0" "$@"
 fi
 
-per_study=$([[ $fs == ext4 ]] && echo 5200 || echo 1600)
-size=$(((n * per_study >> 20) + 1024))M
+size=$(((n * 5200 >> 20) + 1024))M
 arms=(flat coded-date ymd hash1 hash2)
 roots=""
 for a in "${arms[@]}"; do m=$(mkimg "$a" "$size"); roots+="${roots:+,}$a:$m"; done

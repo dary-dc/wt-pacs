@@ -1,6 +1,7 @@
 # ADR: where a study sits under the PACS's root
 
-**Status:** proposed 2026-10-25, **theory only: nothing built or timed.** A basis for the meeting with the PCS team,
+**Status:** proposed 2026-10-25, theory only. **§5's protocols were run 2026-10-26** (§5, *Measured*); the
+recommendation is unchanged by this record. A basis for the meeting with the PCS team,
 the product owner and the DICOM people, who decide (§6); this record recommends. Sources are pinned in §8. *(I)* marks
 this record's own inference; a figure not marked *measured* is not one, and none here is.
 
@@ -67,6 +68,8 @@ without `large_dir`, "Large directory feature is not enabled on this filesystem"
 (`fs/ext4/namei.c`). At 4 KiB blocks with `metadata_csum`, two levels address 507 × 510 = 258 570 leaf blocks. A leaf
 holds 102 entries of a 30-character name or 78 of a 44-character one, and a split leaves it half full. So the ceiling
 is **about 10–26 million entries in one directory** *(I: arithmetic on the on-disk format, not measured; §5 P2)*.
+**Measured 2026-10-26, below that range:** the index filled at 7.67 M entries of 44 characters and 9.95 M of 30,
+because leaves average 38 % full, not half (§5, *Measured*).
 Separately, a directory may hold more than `EXT4_LINK_MAX` (65 000) subdirectories only with `dir_nlink` on
 (`fs/ext4/ext4.h`, `EXT4_DIR_LINK_MAX`). A flat root passes 65 000 studies in weeks, and each of D's 256 folders
 passes it at 16.6 M studies.
@@ -186,13 +189,21 @@ untimed: the directories a publish renames into, the study a deletion or correct
 destination folder. Every timed pass also records the bytes read from the loop devices, so a cell that read any is
 not called warm.
 
+**Measured 2026-10-26** ([`lab/disk-tree/README.md`](../../lab/disk-tree/README.md), every number and its host). The
+run used 4 vCPUs, ext4 without `large_dir` and XFS, up to 10⁶ studies, warm only. Lookup: the option costs at most a
+few µs. Scan and deletion cost about the same per study under every option. Publication is bound by the flush under
+every option, and B's and C's next-day folder takes every writer as A's root does. A corrected date moves the study
+in B and C, about 1 ms, and breaks every path that carried the date; A, D and D2 move nothing. The ext4 ceiling
+without `large_dir` is **7.67 M (44 characters) and 9.95 M (30)**, below §3's inference, and 64 998 subdirectories
+without `dir_nlink`. A cold lookup is not measured.
+
 ## 6 · Questions for the meeting, each with a default
 
 1. **Is the path a function of the UIDs alone, with no database in the read path?** Default: **yes**. That is what the
    URL of PR #142 assumes, and the rest follows from it.
 2. **The shard: none, 256, 4 096, or two levels of 256?** Default: **one level of 256** (`<hh>`, 2 lowercase hex
    characters). It holds 10–26 M directories per folder even on ext4 without `large_dir`, so 2.5 billion studies on
-   paper *(I)*. Going to 4 096 later is a rename per study (§7).
+   paper *(I)*. Measured: 7.7–10 M per folder, so about 2 billion (§5, *Measured*). Going to 4 096 later is a rename per study (§7).
 3. **The shard's hash.** Default: **the low byte of XXH3-64 of the study name as it is on disk**, the hash family the
    ingest already uses. The hash must spread, not just cut the name: UIDs from one organisation share their leading
    characters, so the name's first two characters are no shard *(I)*.
