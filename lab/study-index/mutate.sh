@@ -29,7 +29,7 @@ mutate src/index.rs 'stored.is_some_and(|s| s >= r.revision)' 'stored.is_some_an
 mutate src/index.rs 'tx.exec_drop("DELETE FROM series WHERE study_uid = ?", (r.uid.as_str(),)).await?;' '' "series not replaced whole"
 mutate src/receiver.rs 'tx.execute("INSERT INTO outbox VALUES (?1)", params![s.revision as i64])?;' '' "no outbox row in the receiver commit"
 mutate src/receiver.rs 'DELETE FROM outbox WHERE revision <= ?1' 'DELETE FROM outbox WHERE revision < ?1' "outbox row kept after publish"
-mutate src/receiver.rs 'index::remove(pool, uid).await?;
+mutate src/receiver.rs 'pool.remove(uid).await?;
         out.removed' 'out.removed' "orphans left by reconcile"
 mutate src/receiver.rs '        remove_files(path);
     } else {' '    } else {' "tombstoned file kept"

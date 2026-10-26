@@ -1,0 +1,273 @@
+                                                                       QUERY PLAN                                                                       
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=23047.85..23053.68 rows=50 width=56) (actual time=116.808..129.033 rows=50.00 loops=1)
+   Buffers: shared hit=16869
+   ->  Gather Merge  (cost=23047.85..23060.90 rows=112 width=56) (actual time=116.806..129.024 rows=50.00 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=16869
+         ->  Sort  (cost=22047.83..22047.95 rows=47 width=56) (actual time=112.101..112.108 rows=36.33 loops=3)
+               Sort Key: study_date DESC, study_time DESC, study_uid DESC
+               Sort Method: quicksort  Memory: 28kB
+               Buffers: shared hit=16869
+               Worker 0:  Sort Method: quicksort  Memory: 31kB
+               Worker 1:  Sort Method: quicksort  Memory: 31kB
+               ->  Parallel Bitmap Heap Scan on icu_probe  (cost=4188.68..22046.53 rows=47 width=56) (actual time=27.607..111.919 rows=42.67 loops=3)
+                     Recheck Cond: (access_key = 'site-01'::text)
+                     Filter: (patient_name ~~ 'Pérez García^J%'::text)
+                     Rows Removed by Filter: 92660
+                     Heap Blocks: exact=5047
+                     Buffers: shared hit=16819
+                     Worker 0:  Heap Blocks: exact=4749
+                     Worker 1:  Heap Blocks: exact=5112
+                     ->  Bitmap Index Scan on icu_by_name  (cost=0.00..4188.65 rows=280936 width=0) (actual time=21.532..21.533 rows=278109.00 loops=1)
+                           Index Cond: (access_key = 'site-01'::text)
+                           Index Searches: 1
+                           Buffers: shared hit=1829
+ Planning:
+   Buffers: shared hit=141 read=4
+ Planning Time: 8.324 ms
+ Execution Time: 129.143 ms
+(28 rows)
+
+Timing is on.
+ count 
+-------
+    50
+(1 row)
+
+Time: 136.461 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 124.545 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 111.830 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 127.784 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 132.419 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 128.684 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 159.536 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 180.638 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 161.261 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 158.528 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 130.886 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 145.980 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 127.525 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 119.995 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 145.013 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 118.113 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 123.174 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 117.113 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 124.470 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 126.191 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 4.635 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.795 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.588 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.471 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.483 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.402 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.411 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.372 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.396 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.412 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.407 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.408 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.384 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.473 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.381 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.408 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.393 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.394 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.387 ms
+ count 
+-------
+    50
+(1 row)
+
+Time: 0.424 ms

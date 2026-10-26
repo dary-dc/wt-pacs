@@ -64,11 +64,14 @@ def latency(d):
             over = pct([r["client_us"] for r in loc], 0.95) - pct([r["app_us"] for r in loc], 0.95)
             print(f"| {cell} | {offset} | " + " | ".join(p50) + f" | {ms(over)} |")
         print()
-        print(f"**{size:,}, cold: the first request of each cell after a restart, `app` ms over the rounds**\n")
+        mine = any(a.startswith("my_") for a in arms)
+        print(f"**{size:,}, cold: the first request of each cell after a restart, `app` ms over the rounds"
+              f"{', MySQL arms only (README §Engines)' if mine else ''}**\n")
         print("| cell | offset | n | p50 | max |")
         print("| --- | --- | --- | --- | --- |")
         for cell, offset in sorted({(k[1], k[2]) for k in cold if k[0] == size}):
-            rs = [r for k, v in cold.items() if k[:3] == (size, cell, offset) for r in v]
+            rs = [r for k, v in cold.items() if k[:3] == (size, cell, offset) and (not mine or k[3].startswith("my_"))
+                  for r in v]
             apps = [r["app_us"] for r in rs]
             print(f"| {cell} | {offset} | {len(rs)} | {ms(pct(apps, 0.5))} | {ms(max(apps))} |")
         print()
