@@ -1,0 +1,12 @@
+*************************** 1. row ***************************
+                           @@version: 8.4.6
+           @@innodb_buffer_pool_size: 8589934592
+               @@innodb_flush_method: O_DIRECT
+    @@innodb_flush_log_at_trx_commit: 1
+                           @@log_bin: 1
+                       @@sync_binlog: 1
+                  @@collation_server: utf8mb4_0900_ai_ci
+             @@transaction_isolation: REPEATABLE-READ
+@@innodb_buffer_pool_load_at_startup: 0
+6.18.44-fc-v153
+4

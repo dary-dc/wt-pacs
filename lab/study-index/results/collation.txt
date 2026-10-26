@@ -1,0 +1,14 @@
+ai_ci 10000 name_accented offset=0: 20 queries, 20 with results
+ai_ci 10000 name_accented offset=1000: 20 queries, 0 with results
+ai_ci 10000 name_plain offset=0: 20 queries, 20 with results
+ai_ci 10000 name_plain offset=1000: 20 queries, 0 with results
+ai_ci 10000 name_family offset=0: 20 queries, 20 with results
+ai_ci 10000 name_family offset=1000: 20 queries, 0 with results
+0 mismatches
+utf8mb4_bin 10000 name_accented offset=0: 20 queries, 20 with results
+utf8mb4_bin 10000 name_accented offset=1000: 20 queries, 0 with results
+utf8mb4_bin 10000 name_plain offset=0: 20 queries, 20 with results
+utf8mb4_bin 10000 name_plain offset=1000: 20 queries, 0 with results
+utf8mb4_bin 10000 name_family offset=0: 20 queries, 20 with results
+utf8mb4_bin 10000 name_family offset=1000: 20 queries, 0 with results
+60 mismatches
