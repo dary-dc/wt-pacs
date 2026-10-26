@@ -54,8 +54,9 @@ coded UIDs ([`../ingest/contract.md`](../ingest/contract.md) §The layout, *The 
 Every traversal spelling fails it: `.`, `..`, `/`, `%2e` and any percent escape, NUL, non-ASCII. The path is joined only after both segments pass, so no file outside `<root>` is named *(I:
 holds because the alphabet has no separator; it does not defend against a symlink placed inside `<root>`, which only
 the receiver writes)*. The alphabet is RFC 3986 unreserved characters, so a correct client never escapes them and
-the server never unescapes. The layout under `<root>` is one function, `series_path`, so #152's hashed folders,
-if chosen, change it alone. `openat2`'s `RESOLVE_BENEATH` would add a kernel check (openat2(2), Linux 5.6); not
+the server never unescapes. The layout under `<root>` is one function, `series_path`; `<Study>/<Series>.sbnd` is
+provisional, since the disk layout is not decided (#152, for the team), and #152's hashed folders, if chosen, change
+that function alone. `openat2`'s `RESOLVE_BENEATH` would add a kernel check (openat2(2), Linux 5.6); not
 recommended now, since the grammar already closes it, and adding it later is one call.
 
 **The digest is #119's choice 7: BLAKE3-256 over the bundle's coded-frame hashes, in entry order, as 64 hex

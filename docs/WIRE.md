@@ -242,7 +242,8 @@ serves many: a session's URL is `https://host:port/<Study>/<Series>`, each segme
 the series' UID in the coding of [`ingest/contract.md`](ingest/contract.md) (§The layout, *The coding*): the alphabet
 `0-9 A-Z _ a-z ~`, an even length from 2 to 44 (a 64-character UID codes to 44). Anything else is refused before any
 file is touched; no segment can spell `.`, `/` or `%`. The series is the file `DIR/<Study>/<Series>.sbnd`
-(`series_path`, the one function that knows the layout). The two flags are exclusive, and `--root` takes neither
+(`series_path`, the one function that knows the layout; provisional, since the disk layout is not decided:
+[`disk-layout/target.md`](disk-layout/target.md), #152). The two flags are exclusive, and `--root` takes neither
 `--send-window-follows-cwnd` nor `--force-pool-reads`, which size or set one store at start.
 
 The query may carry `?digest=`, the bundle's digest from the metadata the page holds; the server reads only `ask`
