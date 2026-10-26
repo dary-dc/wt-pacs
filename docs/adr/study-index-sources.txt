@@ -28,3 +28,26 @@ f3467b530b883d4a00574fe1a898b3d121ed72764ae28cf66941080ac0badb9e  https://www.sq
 3ffe3ad53e134749328f041289431be0d26af5ae75d2301873daac645a0d6452  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/doc/PACS/db/deck.db
 7de9a5d3551cff43067273471dd4e6e80e3c1ca3f2edfd5e0b24a921a65e6da8  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/doc/dcmtk-storescp/README.md
 5308cec09d79fbd5e036d6e9b45ffdf708885ee395b46524de5d0d72a25c3a3f  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/doc/PACS/README.md
+# Added 2026-10-26 for §6 (placement):
+50d5a12a0fc2d9d44425edd4e13f3ae5efa3bdaa55689268a5ec84160a3ecde8  https://orthanc.uclouvain.be/book/faq/security.html
+c6c4ce0a7fd0bf73b58b411f179d9c1d18c107388ae6300bf3ff4e866d6fa551  https://dev.mysql.com/doc/refman/8.4/en/backup-methods.html
+d37f50a89afb19308032ec2643dbaf0bdabef2b2918265bcdf8e3b4221d9af54  https://dev.mysql.com/doc/refman/8.4/en/point-in-time-recovery.html
+6422f86547559c67b6e596d440f527544eec8adbc72e7e4a6f4b8acde2d18604  https://dev.mysql.com/doc/refman/8.4/en/replication-semisync.html
+0cc6dba395eabe02b02c9d5654a228df96ed3abd53b64447c48d40e324f195ee  https://dev.mysql.com/doc/refman/8.4/en/group-replication.html
+a9e7d591bbc24647eeb07af3712f0c062f161a75bda55733671df2fbf5b248ae  https://dev.mysql.com/doc/refman/8.4/en/using-encrypted-connections.html
+e4c622fbbe19df3b9e26fa251e0fafe93938c482e9981f8a7fb3e2559f2eaf6d  https://dev.mysql.com/doc/refman/8.4/en/server-system-variables.html
+9d8afeba63fcbd9beece9ef27f3314c55cc80f84d3fbb7fc6c32fba05ed69cf9  https://dev.mysql.com/doc/refman/8.4/en/account-names.html
+15e5279611dc77dc57e8cbbfbeafba1aa43c5b7cba792fb867b51981b6b4c5d8  https://dev.mysql.com/doc/refman/8.4/en/upgrade-binary-package.html
+f089450c5552c043bf37a5a351fa44a4f290e573c748210c592038d162ceaa30  https://dev.mysql.com/doc/refman/8.4/en/performance-schema.html
+0c5f4cb3a63b500ad55966358d7ae0253939fd650daca3083b9ff413358ee31f  https://www.postgresql.org/docs/current/continuous-archiving.html
+b89009fc548105bdd0d9f820d09f40a135b3595b9079a6034e066255c31fc09f  https://www.postgresql.org/docs/current/warm-standby.html
+6882145b88de4f2f1f23d086416f2d772fcf9cc41d6ea432e3d53b93c4168dcc  https://www.postgresql.org/docs/current/high-availability.html
+87c0f150e537a268c92caf9c64e1cca1328ff69765f692c8128b22e1a7e68622  https://www.postgresql.org/docs/current/runtime-config-connection.html
+8c3cd7e16e7e14b0f3748289a5228a09c484412df03f53c293aa87ac026e8e88  https://www.postgresql.org/docs/current/runtime-config-resource.html
+94f417f697afe1af2db99fd785efa913791c3af8125d7c512e523c2f3069b757  https://www.postgresql.org/docs/current/auth-pg-hba-conf.html
+8508e3d0aa4988220312607ab404448fcdfaa302323bad9e7b9749248e982de7  https://www.postgresql.org/docs/current/pgupgrade.html
+f3f090064901c5a90e3c47c88c67134029fd51d71c27901f941009d87e9697c9  https://www.postgresql.org/docs/current/monitoring-stats.html
+306b6cca5c7c2f93b648040ae139f14d7d3221c0d16d79b5749e69d808382e04  https://www.sqlite.org/backup.html
+30b70362b95ddb9293b98757f87a3d3d9552f0e2ee45a96578af1578e17fc73d  https://www.sqlite.org/rsync.html
+b491f2d020c060647b644a1afcbaf22219d6e477679f9f74ce1ced59e941377b  https://raw.githubusercontent.com/dcm4che-dockerfiles/dcm4chee-arc-psql/master/README.md (HEAD = 7b4c3d8ba3fd)
+git:ad95e92956bb  https://github.com/dcm4che/dcm4chee-arc-light.wiki.git (howTo-guides/archiveFeatures/generalFeatures/Multiple-Archives-with-Direct-Attached-Storage-sharing-one-DB.md; get-started-tutorials/docker/Distribute-secured-archive-services-and-Elastic-Stack-over-several-hosts-without-Docker-Swarm.md)
