@@ -1,7 +1,8 @@
 use super::*;
 use crate::Step;
 use std::os::unix::process::ExitStatusExt;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::PoisonError;
 
 const STEPS: [Step; 8] = [
     Step::Checked,
@@ -111,7 +112,8 @@ fn a_crash_between_any_two_steps_leaves_the_serving_tree_whole() {
                 assert_eq!(site.receive(p), Outcome::Stored);
             }
             let name = site.arrive(&package);
-            let status = Command::new(std::env::current_exe().unwrap())
+            let fork = FORK.write().unwrap_or_else(PoisonError::into_inner);
+            let child = Command::new(std::env::current_exe().unwrap())
                 .args([
                     "--exact",
                     "tests::crash::crash_child",
@@ -122,9 +124,12 @@ fn a_crash_between_any_two_steps_leaves_the_serving_tree_whole() {
                 .env("RECEIVER_CRASH_ROOT", &site.root)
                 .env("RECEIVER_CRASH_INCOMING", &site.incoming)
                 .env("RECEIVER_CRASH_PACKAGE", &name)
-                .output()
-                .unwrap()
-                .status;
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            drop(fork);
+            let status = child.wait_with_output().unwrap().status;
             assert_eq!(
                 status.signal(),
                 Some(libc::SIGABRT),

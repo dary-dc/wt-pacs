@@ -2,10 +2,12 @@ mod crash;
 mod receive;
 
 use crate::group::{coded, SERIES_UID, SOP_INSTANCE_UID, STUDY_UID};
-use crate::{study_db, Outcome, Receiver};
+use crate::{study_db, Downstream, Outcome, Receiver};
 use rusqlite::Connection;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{PoisonError, RwLock, RwLockReadGuard};
 use xxhash_rust::xxh3::xxh3_64;
 
 pub const STUDY: &str = "1.2.826.0.1.7";
@@ -188,6 +190,32 @@ pub fn tar_of(members: &[(String, Vec<u8>)]) -> Vec<u8> {
     builder.into_inner().unwrap()
 }
 
+/// A test's receiver holds the read side, a fork the write side: a forked child keeps a copy of
+/// every open descriptor until its exec, so a lock another test dropped would still be held.
+pub static FORK: RwLock<()> = RwLock::new(());
+
+/// Field order matters: the receiver, and its lock, are dropped before the guard.
+pub struct Held {
+    receiver: Receiver,
+    _no_fork: RwLockReadGuard<'static, ()>,
+}
+
+impl Held {
+    pub fn with_downstream(self, downstream: Box<dyn Downstream>) -> Self {
+        Self {
+            receiver: self.receiver.with_downstream(downstream),
+            ..self
+        }
+    }
+}
+
+impl Deref for Held {
+    type Target = Receiver;
+    fn deref(&self) -> &Receiver {
+        &self.receiver
+    }
+}
+
 /// A PACS root and its `incoming/`, side by side on one filesystem.
 pub struct Site {
     pub root: PathBuf,
@@ -203,8 +231,12 @@ impl Site {
         Self { root, incoming }
     }
 
-    pub fn receiver(&self) -> Receiver {
-        Receiver::open(&self.root, &self.incoming).unwrap()
+    pub fn receiver(&self) -> Held {
+        let no_fork = FORK.read().unwrap_or_else(PoisonError::into_inner);
+        Held {
+            receiver: Receiver::open(&self.root, &self.incoming).unwrap(),
+            _no_fork: no_fork,
+        }
     }
 
     /// As the carrier does: `.partial`, then a rename once complete.
