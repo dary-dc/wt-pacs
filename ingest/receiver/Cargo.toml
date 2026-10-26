@@ -1,0 +1,15 @@
+[package]
+name = "pacs-receiver"
+version = "0.1.0"
+edition = "2021"
+description = "The PACS's receiver: checks, stages, places and records one PCS package at a time"
+
+[dependencies]
+anyhow = { workspace = true }
+libc = "0.2"
+rusqlite = { version = "0.41", features = ["bundled"] }
+serde_json = { workspace = true }
+series-bundle = { path = "../../common/series-bundle" }
+tar = "0.4"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+zstd = "0.13"

@@ -7,6 +7,7 @@ members = [
     "client/transport/wasm",
     "tools/pack-series",
     "ingest/from-parser",
+    "ingest/receiver",
     "tools/check-fastpath",
     "lab/disk-access-bench",
     "lab/container-bench",
@@ -23,6 +24,7 @@ default-members = [
     "server",
     "tools/pack-series",
     "tools/check-fastpath",
+    "ingest/receiver",
 ]
 resolver = "2"
 
