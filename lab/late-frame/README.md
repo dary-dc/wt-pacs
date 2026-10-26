@@ -23,3 +23,30 @@ F is the mean coded frame, guessed at ~200 kB for a 512² 12-bit CT-like frame; 
   container operation in the table.
 * **fsync** adds the written bytes over the disk's write rate: small for the appends, ~S for the rewrites.
 * **End and middle are the same cost for `.sbnd`**, and for MP4 all-intra with the moov at the end.
+
+## Reproduce
+
+Needs FFmpeg with libaom and libdav1d, libaom's `aomenc` and `aomdec`, numpy, Rust, and two builds from source:
+OpenJPH 0.31.0 (commit `c68064d`, as `ingest/tools.sh` pins it) and bmx v1.6 (commit `feb6e3d`) with
+[`bmx-grey.patch`](bmx-grey.patch), without which bmx refuses a one-component codestream ("Unsupported JPEG2000
+component layout"). The patch maps one unsigned component to a `Y` layout and changes nothing else.
+
+```bash
+W=lab/.late-frame-work
+python3 lab/late-frame/frames.py $W "$OJPH/bin" /usr/bin/aomenc          # frames, HTJ2K, AV1
+(cd lab/late-frame/sbnd-late && cargo build --release)
+python3 lab/late-frame/run.py $PWD/$W "$BMX/bin" /usr/bin "$OJPH/bin" 5   # cells, encodes, the disk
+python3 lab/late-frame/mutate.py $PWD/$W "$BMX/bin" /usr/bin              # each check caught breaking
+python3 lab/late-frame/summary.py $W
+```
+
+| file | what |
+| --- | --- |
+| `frames.py` | 2 010 frames of `lab/scripts/gen_frame_pnm.py`'s `ct` mode, 512², 12-bit in 16-bit words; HTJ2K in the served profile; AV1 all-intra and GOP 30 |
+| `sbnd-late/` | the `.sbnd` merge through `common/series-bundle`'s own reader and writer, rewrite and rename |
+| `mxf.py` | the MXF append at the byte level, for the two layouts bmx writes |
+| `mp4.py` | the MP4 splice at the byte level: moov at the end, at the front, fragmented |
+| `run.py` | every cell interleaved (`lab/order.mjs`'s Williams square), each checked once; the encodes; the disk's rates |
+| `check.py` | each output read by another tool: FFmpeg's libdav1d, bmx's `mxf2raw`, the `.sbnd` index |
+| `mutate.py` | seven breakages, each of which its check must catch |
+| `rows.jsonl`, `costs.jsonl`, `host.jsonl` | this run's rows |
