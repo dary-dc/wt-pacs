@@ -1,0 +1,30 @@
+# Sources of docs/adr/study-index.md, fetched 2026-10-25: URL, then the sha256 of the bytes fetched. Nothing fetched is committed.
+2a7e405198f825fe6727d247891e003b65cb7b490f36d663403df88d433bcef4  https://dicom.nema.org/medical/dicom/current/output/html/part18.html
+bc3a6b3eda74130f3bb216ab398231f1e247e4a30a04a9077e5e1cab71d113d8  https://dicom.nema.org/medical/dicom/current/output/html/part04.html
+4f3d47400e22e0b1d0653e5ae0f74e3fbc843a1ec9646e2b8bb68db64e664f65  https://www.ihe.net/uploadedFiles/Documents/Radiology/IHE_RAD_TF_Vol1.pdf
+23b6e028b038ac7cedd0af958057b9be07c342d4ea42866d463189ec982e35ad  https://www.ihe.net/uploadedFiles/Documents/Radiology/IHE_RAD_TF_Vol2.pdf
+daccaab883bacd862818833bdbb97def409973ba841b993a359975385b2369f3  https://orthanc.uclouvain.be/book/faq/orthanc-storage.html
+7042e11711b99de98f73980b1b23015ea9a01b54a7147fef8bea0773206ecc13  https://orthanc.uclouvain.be/book/faq/main-dicom-tags.html
+f321db6bfb25e15aaaff13b8a8ea7772cb64cf487ea8ea3667fa764a4ba4ff6f  https://orthanc.uclouvain.be/book/faq/scalability.html
+76f0aa1f0c0ae1c4e985103eee7cb2803e5c4a1ea5ff672dd6d32e4169afaf15  https://orthanc.uclouvain.be/book/plugins/postgresql.html
+506b1e9857cf54423c4ad0a312604a6e2a622c5dd3f2f6273cc68dcbe46dac8f  https://orthanc.uclouvain.be/book/plugins/mysql.html
+38324fb7da6aab186be1b3ab3f420bcbaaf48f50c20893397dfb0537529d2a81  https://github.com/dcm4che/dcm4chee-arc-light/blob/5.35.2/dcm4chee-arc-entity/src/main/resources/sql/psql/create-psql.sql (tag 5.35.2 = 7fd8992f0190)
+7b778a999ee64c5b9e01e1b81b575802496b9810c5615cd1a54b1cc11d7e850c  https://www.postgresql.org/docs/current/hot-standby.html
+a1dc8bbf649b4cc21095942c42e778beb6bbdc7171e1f5a5064fce70e0507ca2  https://www.postgresql.org/docs/current/collation.html
+645472df870717eb85d99640154ce1f4a415fd690094fe7786e04bcd465418c3  https://www.postgresql.org/docs/current/ddl-rowsecurity.html
+e649147e2f989f8fb6bd33cfa1e5f1e5b5c1b301217773e897adf7bfbd1c44a4  https://www.postgresql.org/docs/current/functions-matching.html
+9c2243292ca4727d1fd9e64acfa3bc0c11c8f5389fcdc9e87fd37128376d80f0  https://www.postgresql.org/about/licence/
+2cad77c248e575372245d33197385a7a3727dffdcebc87a3eb5972c149d3ed8a  https://www.postgresql.org/support/versioning/
+6beea5a0dfe32e27c7defb6de1a4280a2fc778d6860a6e896759ac41d168ca08  https://dev.mysql.com/doc/refman/8.4/en/replication.html
+829bcb62205494d309a215f33e7b8f2b7e8c0af0e3f8db3bfb8541bc4df2c678  https://dev.mysql.com/doc/refman/8.4/en/charset-unicode-sets.html
+0dde854b97783c5851513d1492da66029dd6ec26f65534e68eca3ac09fee997e  https://dev.mysql.com/doc/refman/8.4/en/charset-server.html
+bf1cc10eb13593dee32d4851901861f4ef8be3fe4b0701daf189f8407181a4f8  https://dev.mysql.com/doc/refman/8.4/en/mysql-releases.html
+2f97010d3dfffbf376a301cdb57d013cc8b2ea66ec0594887ebbaeefadf9c250  https://mariadb.com/kb/en/mariadb-license/
+d0850096c26e9c888acaf2d6e2ac029e86f66f51a87461b77b94f1639d309b79  https://www.sqlite.org/whentouse.html
+f3467b530b883d4a00574fe1a898b3d121ed72764ae28cf66941080ac0badb9e  https://www.sqlite.org/wal.html
+5ad54b7f4829c69c88f4bbf8b39c5b88e80740fc84a555ce9c23e5faf1e48138  https://www.sqlite.org/lang_attach.html
+0cdbd54a89169177c50efd15854e5c1e0df6fe1a0e0706234e034dd923e0503b  https://www.sqlite.org/limits.html
+9ef25b6b17d578d8c7f0d4584b2b3e545e98759d6319b39cc27241f07e945c37  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/DICMele2deck/pcs.pdf
+3ffe3ad53e134749328f041289431be0d26af5ae75d2301873daac645a0d6452  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/doc/PACS/db/deck.db
+7de9a5d3551cff43067273471dd4e6e80e3c1ca3f2edfd5e0b24a921a65e6da8  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/doc/dcmtk-storescp/README.md
+5308cec09d79fbd5e036d6e9b45ffdf708885ee395b46524de5d0d72a25c3a3f  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/doc/PACS/README.md
