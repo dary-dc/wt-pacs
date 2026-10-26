@@ -813,3 +813,85 @@ the packages' hashes. No stream was compressed or timed.
 | compressed, the metadata is ≤ 0.5 % of the package, every series and layout | more |
 | compressing (c) at level 1 saves 0.4–1.5 s on rural ADSL and ≤ 10 ms on fiber, ct, pt, mr | otherwise |
 | (c) compressed against (a) compressed (level 1): ≤ 100 ms apart on rural ADSL, ≤ 1 ms on fiber | more |
+
+*Measured, 2026-10-26, two runs* on the 2.10 GHz host of §The study DB, zstd 1.5.7. Bytes and ratios are
+deterministic and equal in both runs; a time is the two runs' medians (thread CPU, which equals the wall within 2 %:
+one core, saturated). Every check held: the Rust conversion equalled the Python on all six references, every round
+compressed to the same bytes and gave the stream back.
+
+| zstd, one stream: bytes raw → compressed (ratio) | ct | pt | mr |
+| --- | ---: | ---: | ---: |
+| (a) groups as written, raw | 620 491 | 619 434 | 881 925 |
+| (a) level 1 | 13 823 (44.9×) | 17 648 (35.1×) | 11 944 (73.8×) |
+| (a) level 3 | 14 391 (43.1×) | 19 281 (32.1×) | 12 958 (68.1×) |
+| (a) level 19 | 13 023 (47.6×) | 15 579 (39.8×) | 11 087 (79.5×) |
+| groups masked, level 1 / 3 / 19 | 13 762 / 14 327 / 12 957 | 12 930 / 13 809 / 11 622 | 11 538 / 11 869 / 10 631 |
+| (b) converted enhanced as written, raw | 108 534 | 258 381 | 377 018 |
+| (b) level 1 | 16 530 (6.57×) | 25 926 (9.97×) | 24 352 (15.5×) |
+| (b) level 3 | 16 785 (6.47×) | 27 704 (9.33×) | 26 195 (14.4×) |
+| (b) level 19 | 13 373 (8.12×) | 22 891 (11.3×) | 20 158 (18.7×) |
+| (c) converted enhanced masked, raw | 108 534 | 127 620 | 116 090 |
+| (c) level 1 | 16 480 (6.59×) | 16 232 (7.86×) | 14 791 (7.85×) |
+| (c) level 3 | 16 721 (6.49×) | 16 623 (7.68×) | 15 699 (7.39×) |
+| (c) level 19 | 13 285 (8.17×) | 14 072 (9.07×) | 12 291 (9.45×) |
+
+mg and us, groups only (as written; masked within 15 %): raw 9 226 and 32 146 B; level 1 1 461 (6.3×) and 2 446
+(13.1×), level 19 1 350 and 2 149.
+
+| CPU ms, compress (decompress) | level 1 | level 3 | level 19 |
+| --- | ---: | ---: | ---: |
+| (a) ct, pt, mr | 0.31–0.39 (0.13–0.22) | 0.40–0.52 (0.11–0.15) | 79–148 (0.20–0.25) |
+| (b) ct, pt, mr | 0.21–0.43 (0.10–0.20) | 0.23–0.49 (0.09–0.20) | 37–166 (0.11–0.31) |
+| (c) ct, pt, mr | 0.22–0.23 (0.10–0.11) | 0.26–0.30 (0.09–0.11) | 37–52 (0.11–0.14) |
+| mg, us | 0.03–0.05 (0.02–0.03) | 0.04–0.06 (0.02–0.03) | 1.5–8.1 (0.02–0.04) |
+
+| The package (metadata + HTJ2K frames) and the send time saved, arithmetic | ct | pt | mr |
+| --- | ---: | ---: | ---: |
+| metadata's share raw: (a) / (b) / (c) | 1.48 / 0.26 / 0.26 % | 7.44 / 3.24 / 1.63 % | 3.29 / 1.43 / 0.45 % |
+| metadata's share at level 1: (a) / (b) / (c) | 0.034 / 0.040 / 0.040 % | 0.23 / 0.34 / 0.21 % | 0.046 / 0.094 / 0.057 % |
+| compressing (a) at level 1 saves, fiber / 4G/5G / rural ADSL | 49 ms / 0.26 s / 4.9 s | 48 ms / 0.25 s / 4.8 s | 70 ms / 0.37 s / 7.0 s |
+| compressing (b) at level 1 saves | 7 ms / 39 ms / 0.74 s | 19 ms / 98 ms / 1.9 s | 28 ms / 0.15 s / 2.8 s |
+| compressing (c) at level 1 saves | 7 ms / 39 ms / 0.74 s | 9 ms / 47 ms / 0.89 s | 8 ms / 43 ms / 0.81 s |
+| (c) at level 1 against (a) at level 1, on rural ADSL | 21 ms slower | 11 ms faster | 23 ms slower |
+| the whole package at (a) level 1 on rural ADSL, for scale | 330 s | 61.8 s | 207.8 s |
+
+Level 3 and level 19 move the savings by under 2 % (at most 35 ms on rural ADSL, mr (b) at level 19). For mg and
+us, compressing the groups at level 1 saves 62 and 238 ms on rural ADSL, under 3 ms on fiber.
+
+Against the pre-registration:
+
+| Prediction | Outcome |
+| --- | --- |
+| (c) at level 3 compresses 5–15× | holds: 6.5–7.7× |
+| (c) at level 3 weighs 0.3–0.8× groups masked at level 3 | **contradicted, the other way: 1.17–1.32×** (ct 16 721 against 14 327 B, pt 16 623 against 13 809, mr 15 699 against 11 869) |
+| (b) at level 3 weighs 0.5–1.0× (a) at level 3 | **contradicted, the other way: 1.17× ct, 1.44× pt, 2.02× mr** |
+| level 19 ≤ 15 % smaller than level 1, every arm; ≥ 20× its CPU | **contradicted for converted enhanced on ct and mr** (17–19 % smaller, both inputs); holds for the groups (5.8–14.4 %) and pt (11.7–13.3 %); the CPU holds (36–380×) |
+| level 1: (c) ≤ 0.5 ms, (a) ≤ 2 ms; every decompression ≤ 0.5 ms | holds: 0.22–0.23 ms, 0.31–0.39 ms; decompression ≤ 0.31 ms |
+| compressed, the metadata ≤ 0.5 % of the package | holds: ≤ 0.36 % (pt (b) at level 3) |
+| compressing (c) at level 1 saves 0.4–1.5 s on rural ADSL, ≤ 10 ms on fiber | holds: 0.74–0.89 s; 7–9 ms |
+| (c) and (a) compressed at level 1 within 100 ms on rural ADSL, 1 ms on fiber | holds: 11–23 ms; ≤ 0.23 ms |
+
+* **The converted instance is 5–8× smaller raw and compresses 6.5–9.5× (7.9× at level 1 masked), against 32–83× for
+  the groups — and ends larger than the groups' stream:** 1.17–1.32× masked, 1.17–2.0× as written, at levels 1 and 3.
+  zstd already removed the series' repetition from the groups' stream, so the conversion has little left to take;
+  what it adds costs more than that. *Inference, not measured:* every per-frame record carries its frame's number in
+  its key (`(5200,9230)` item n), so no two frames' records match byte for byte, where two instance groups match
+  but for a few values. As written (b), the parser's nested keys hold address bytes that differ per instance, and
+  the conversion files those records per frame (pt, and mr's private group): 1.4–2.0× the groups'.
+* **Level 1 is the level.** Level 3 is larger than level 1 on ct, pt and mr in every arm; level 19 saves 6–19 % more
+  bytes for 36–380× the CPU (37–166 ms a series), which is 6–28 ms on rural ADSL. Decompression is ≤ 0.31 ms at any
+  level.
+* **The package:** compressed, the metadata is 0.003–0.36 % of the package whichever layout, PET the largest. What
+  compressing gains is the raw metadata's send time: 4.8–7.0 s per series on rural ADSL for today's groups, 0.74–2.8 s
+  for the converted instance (0.74–0.89 s masked), 39–370 ms on 4G/5G, 7–70 ms on fiber. Next to the frames that is
+  1.4–7.4 % of the package raw for today's groups (pt the largest), 0.26–1.6 % for the converted instance masked.
+* **Against #150 and #154's ratios:** the groups' stream here is 32–83× where #154 reported 16–31× on the parser's
+  output; the stream here holds the group bytes framed, without tar's 512-byte headers, whose paths carry a hash per
+  file. *Not pre-registered:* the package tar itself at level 1 (python-zstandard 0.25.0) is 32 698 B for ct, 37 515
+  pt, 28 638 mr (1.42–1.63 MB raw), about twice the groups' stream: the headers cost about as much as the metadata
+  once compressed.
+* **What it does not say.** The converted instance is simulated (§The parser's own output), not written by a
+  converter; a real one adds its own attributes. One series per modality, de-identified (§Repetition); no dictionary
+  (above). The send times are bytes over the uplink: no round trips, slow start or loss, no tar headers, no TLS; #156
+  measured those on emulated links for corrections and resends of the groups, not for these streams. One thread on one
+  host; nothing is claimed for parallel compression.
