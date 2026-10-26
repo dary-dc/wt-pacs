@@ -31,6 +31,7 @@ departs from them it says so (§13).
 12. [Questions, each with a default](#12--questions-each-with-a-default)
 13. [What acceptance changes in other documents](#13--what-acceptance-changes-in-other-documents)
 14. [Sources](#14--sources)
+15. [The sender's package build](#15--the-senders-package-build)
 
 ## 0 · On one screen
 
@@ -196,7 +197,7 @@ the instance groups in instance-number order, the private groups, then the `.sbn
 deterministic: mtime, owner and mode fixed, names relative, regular files only. Then the same series always makes the
 same bytes, and a rebuilt package keeps its hash (needed by §7's resend and by idempotency). Tar's 512-byte padding
 costs ~0.39 MB on a CT of 500 instances (*estimated*: 501 members × ~768 B), a fifth of its metadata; packing the group
-files as one compressed member (§5) removes it.
+files as one compressed member (§5) removes it. §15 specifies the sender's build (proposed 2026-10-26).
 
 **The header member**, ~100 bytes of text: the layout version (§1's two differences), the kind (`series`, `study`,
 `delete`, later `addition`), the unit's UID, the revision n, and whether the metadata member is compressed. It is the
@@ -549,3 +550,242 @@ Fetched 2026-10-25 unless stated; the first 12 hex of the fetched file's sha256.
 
 **Not read**, so not cited as read: IHE RAD Imaging Object Change Management; DICOM's Key Object Selection rejection
 notes; rsync's `rrsync` helper; PS3.15's secure transport profiles; any measurement of zstd on HTJ2K or AV1 codestreams.
+
+## 15 · The sender's package build
+
+**Status: proposed 2026-10-26, not decided; theory, nothing built.** It specifies how our sender turns the PCS's exam
+tree into a package. It takes the owner's decisions of 2026-10-26 as fixed and reconciles the design-state record's
+A4, A5 and A6 (`docs/ingest/pacs-receive-design.md` §17, commit `40fdbfd` on `claude/pacs-design-state`) with the
+receiver as built in #163 (`docs/adr/pacs-receiver.md` §2 and `ingest/receiver/src/package.rs`, commit `33ffdaf` on
+`claude/pacs-receiver-impl`).
+
+### 15.1 What is fixed
+
+**Decided by the owner, 2026-10-26.** (1) The PCS decides when a series is complete and calls our sender. (2) The
+sender builds the package and sends it: it stands in for the PDF's process (3) (P1). (3) Its input is the study's exam
+directory, which is the package root, plus which series; the PCS's tree may have a date folder above it. (4) The
+container is pax tar. (5) Late instances come as **addition** packages, merged at the PACS. (6) Frames are never
+compressed again; on the limited-link profile the metadata is compressed as **one** stream, not file by file. (7) The
+sender is ours, and a deployment profile chooses its transport (TCP, or QUIC in a build that has it) and whether the
+metadata is compressed. (8) The PCS keeps each package until it is stored.
+
+**Left open on purpose.** Updates (metadata only) are designed in another row for the team meeting. This section
+reserves their place (the kind `update`, §15.5; a mode of the call, §15.2) and designs nothing of them.
+
+### 15.2 What the PCS calls, and when
+
+```text
+sender EXAM_DIR SERIES...
+```
+
+`EXAM_DIR` is `[…/<D>]/<E>`, the directory whose name is the coded study UID; `SERIES` are coded series UIDs, each a
+directory under it. The PCS calls it after its process (2) has written a series' bundle, for the series its tests (P2)
+judged complete. One package is built per series, one call may name several.
+
+**The call is idempotent, so it is also the recovery.** For each series, in order:
+
+1. Every revision of the unit the sender still keeps (built, not yet stored) is sent, oldest first: the receiver takes
+   revision n+1 only after n.
+2. The tree is compared with the members every earlier revision carried (recorded at build, §15.7). Nothing new: done.
+   No earlier revision: a `series` package. Instance groups no revision carried: an `addition` package (§15.3).
+3. The new package is built, kept, recorded, then sent like the others.
+
+Calling again after a crash, a reboot or a gave-up exit resumes where it stopped; calling again after a late instance
+makes the addition. The PCS needs no state of its own for the transfer.
+
+**Exit codes**, `carrier/pcs/send-package.sh`'s plus one: 0 every named series stored; 3 refused final (an operator's);
+4 gave up for now (call again later); 5 the tree cannot be packed (§15.3's refusals, an operator's or the PCS team's);
+2 a usage error. **An update mode** is a later flag of this same call, reserved and not specified here.
+
+### 15.3 What goes in, and what is left out
+
+The sender reads by an **allow list**: it takes exactly the names layout 2 names (§15.4) and ignores everything else.
+Paths are relative to the exam directory; the date folder above it, if any, never appears.
+
+| in the tree | packed | as |
+| --- | --- | --- |
+| `<E>/--.<h>` | yes, every package | the exam group (patient and study), one level above the series |
+| `<E>/<S>/---.<h>` | yes, every package | the series group |
+| `<E>/<S>/<I>/----.<h>` | yes; in an addition, only instances no earlier revision carried | an instance group |
+| `<E>/<S>/<I>/priv.<h>` | yes, beside its instance group | a private group |
+| `<E>/<S>/series.sbnd` | yes, last | the series' coded-frame container (§1); in an addition, a bundle of the added instances' frames only |
+| `<E>/<S>/c/`, `<E>/<S>/b/` | **no** | the PDF's construction folders: per-frame codestreams or TIFFs before they are packed into the bundle |
+| `<E>/<S>/<I>/00001.OPC` … (`.RGB`, `.PLT`) | **no** | the parser's raw frames (contract.md §Frame files); the bundle holds them coded |
+| `sf.jxl`, `mf.mxf`, `mf.mp4` | **no** | the PDF's containers, replaced by the bundle (§1) |
+| other series of the exam | **no** | each is its own unit, packed when named |
+| anything else: dotfiles, temporary files, unknown names | **no** | |
+
+**Refused at build (exit 5), before anything is kept:** a link or any non-regular file where a member is expected; no
+exam group, or more than one (two mean the tree holds a correction, which is the update row's); likewise the series
+group; an instance directory without its instance group; a private group without one; no bundle; a group that does
+not hash to its name; a member past the receiver's limits. Each is cheaper to catch at the PCS than as a refusal over
+the link.
+
+**The layout's names are layout 1's:** the parser's `--`, `---`, `----`, `priv`, with XXH3-64 in place of BLAKE3, as
+#163 reads them; whether the PDF's `d/<number>.<hash>` and `p/` replace them is still §12's PCS question 3. A change
+there changes the allow list and the layout number, nothing else here.
+
+**Where the addition's bundle comes from** is the PCS team's: process (2) must write a bundle of the added instances'
+frames, or the whole series' again, at `<S>/series.sbnd`. *Default:* the added frames only, so the link carries each
+frame once.
+
+### 15.4 The package, layout 2
+
+```text
+package                  the header, 5 lines (§15.5)
+metadata                 one inner pax tar of the groups, zstd-compressed or not (§15.6)
+<S>/series.sbnd          the bundle, stored as it is
+```
+
+Three outer members, in that order, always. The inner tar holds `--.<h>`, `<S>/---.<h>`, then every
+`<S>/<I>/----.<h>` and `<S>/<I>/priv.<h>`, **sorted by the bytes of their paths** (`LC_ALL=C` order). Byte order
+already puts the exam group before the series group and an instance group before its private group (`-` sorts before
+the coded alphabet and `p`). It replaces §4's instance-number order, which needs the groups parsed to sort them and
+buys the receiver nothing.
+
+**Paths are relative to the exam directory**, as decision (3) makes it the root: `--.<h>`, not `<E>/--.<h>`. The study
+UID is in the header once, not repeated in every path.
+
+### 15.5 The header member (A4)
+
+Kept as #163 reads it, five lines, with two changes: the layout number and one more kind.
+
+```text
+layout 2
+kind series              (or: addition; update is reserved for the other row)
+study <E>
+unit <S>
+revision <n>
+```
+
+How the two records meet:
+
+| §4 asked for | here |
+| --- | --- |
+| the layout version | `layout`, unchanged |
+| kinds `series`, `study`, `delete`, `addition` | `series` and `addition` now; `update` reserved, its level told by `unit` (the study's UID for a study-level change, as #163 already reads it), which covers §4's `study`; `delete` is not in the owner's decisions and is not added |
+| the unit's UID and the revision | `unit`, `revision`; `study` too, since paths no longer carry it |
+| whether the metadata is compressed | **dropped**: the receiver tells by the zstd magic number (link.md §12.6), so the flag would be a second thing to keep true |
+
+An addition's base is revision n − 1 of the same unit: revisions are strictly n+1 (the receiver ADR §7, 5), so the header needs
+no base field.
+
+### 15.6 The metadata as one zstd stream (A5)
+
+| | **one member holding an inner tar, one zstd frame** (recommended) | per member (layout 1, as built) | a group stream with our own framing | the whole package as one zstd stream |
+| --- | --- | --- | --- | --- |
+| matches decision (6) | yes | no: "not per file" | yes | no: the frames would pass through zstd |
+| ratio | the stream's: #154 16–31× on the parser's output | a file alone 1.6–3.2× (#156) | as the stream | as the stream, plus ~0 on frames |
+| reader at the receiver | the same tar reader, run on the decompressed member | built | a new format to specify and parse | the outer reader behind zstd |
+| plain profile | the same inner tar, not compressed: one code path | built | the same framing | an uncompressed tar |
+| per-member overhead | the inner tar's 512-byte headers and padding, removed by compression when on | each member's own zstd frame header | a few bytes | — |
+
+**Recommended: the member `metadata` is a pax tar of the groups, written by the same deterministic rules as the outer
+one (§15.7), then, on the limited-link profile, compressed as one zstd frame.** On the plain profile it is the same
+inner tar, uncompressed; the receiver tells the two by the magic `28 B5 2F FD` (RFC 8878 §3.1.1). A plain inner tar
+cannot start with it by accident: its first byte is the first path's, `-`.
+
+**The frame:** one frame, single-threaded, no dictionary, the content size and the frame checksum written, the level
+fixed by the sender's build (*default:* 3; level 1 measured as good as any, design-state §2; M2 decides). The frames in the bundle are never
+compressed (decision 6).
+
+### 15.7 Determinism, and why it matters
+
+**Why.** The package's hash is in its name, and the carrier and the receiver key on (unit, revision) with the hash as
+the check (§4, link.md §12.2). A rebuild of a revision that makes **the same bytes** gets the same name, so the carrier
+answers `received` or `committed` and nothing is re-sent; a rebuild that differs by a byte is `(u, n, h′)` against a
+received `(u, n, h)`: **a conflict, an operator's**. Rebuilds happen when the kept file is lost or fails its own name
+(below), and when the sender dies between building and recording.
+
+**The rules**, for the outer tar and the inner one alike:
+
+| field | value |
+| --- | --- |
+| member order | §15.4's, from the allow list, never the directory's listing order |
+| type | regular file (`0`) only; no directory, link or device entries |
+| mode | `0644` |
+| uid, gid, uname, gname | 0, 0, empty, empty |
+| mtime | 0 |
+| format | ustar header; a path over ustar's name and prefix (100 + 155 bytes) or a size past its 8 GiB field gets a pax extended header with only `path` or `size`, no `atime`, `ctime` or `mtime` record |
+| end | two 512-byte zero records, nothing after: no blocking-factor padding |
+
+**The writer is the sender's own, in Rust**, with the `tar`, `zstd` and `xxhash-rust` crates the receiver already
+uses, at versions locked by `Cargo.lock`. A zstd library of another version may compress the same input to other
+bytes, so the lock is part of determinism; a rebuild across a sender upgrade is the one case the lock does not cover,
+and it arises only when a kept package is lost. **GNU tar** can approximate it for a reader inspecting a package by
+hand (`LC_ALL=C tar --format=pax --no-recursion -b 1 --mtime=@0 --owner=0 --group=0 --numeric-owner --mode=0644
+--pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime -T list`); byte equality with it is **not
+claimed**, not having been tested.
+
+**The hash** is the XXH3-64 of the file, computed while writing it. The package is written as
+`<outbox>/<unit>.<n>.partial`, fsynced, renamed to its name, and the directory fsynced; only then is the revision
+recorded: `<outbox>/<unit>/<n>` holds the member paths it carried and whether its metadata was compressed. A rebuild
+reads that line, so a profile changed since builds the old revision as it was first built.
+
+**What is kept, and A6.** The sender keeps each package until the receiver's verdict says stored (decision 8; the
+carrier's word for it is still `committed`, design-state §14 D3). Every send first checks the kept file against the
+hash in its name. A refusal of class `retry` is answered by **resending the kept bytes** (A6), as `send-package.sh`
+already does: they are what a deterministic rebuild would make. The sender **rebuilds only when the kept file fails its
+own name or is gone**, and determinism gives the rebuild the same name. A rebuilt file that still fails, or a second
+refusal, is exit 3, an operator's. §7's "rebuild, re-hash, resend" is replaced by this.
+
+### 15.8 The name
+
+`<unit>.<revision>.<xxh3-64>.tar`, as §4 and `PackageName::parse` have it: the unit the coded series UID, the revision
+a decimal from 1 without leading zeros, the hash 16 lowercase hex. The counter is the sender's: the highest `<n>` under
+`<outbox>/<unit>/`. It survives the deletion of stored packages because the records stay; they are a few hundred bytes
+a revision.
+
+### 15.9 The profile
+
+One file per deployment, read at start:
+
+| setting | values | default |
+| --- | --- | --- |
+| `transport` | `tcp`; `quic` only in a build with the carrier's `quic` feature (link.md §12.4), else refused at start | `tcp` |
+| `metadata` | `zstd` (the limited-link profile) or `plain` | `zstd` until a site's link is shown not to gain (§5, design-state §2) |
+| `carrier`, `cert`, `key`, `cacert`, stall, attempts, backoff, poll and wait | as `send-package.sh` reads them (link.md §12.5) | as there |
+| `outbox` | where packages and their records are kept | — (required) |
+
+The receiver needs no profile: it reads both forms of the metadata member. The carrier never opens a package.
+
+### 15.10 Test plan
+
+Each test is mutated: the named mutation is made and the test must fail (CLAUDE.md §Measurement).
+
+| test | claim | mutation it must catch |
+| --- | --- | --- |
+| build twice | the same tree, copied with other mtimes, owners, umask and directory creation order, under another locale, builds byte-equal packages, the same name | the directory's listing order; the real mtime or owner |
+| one byte changed, refused | a byte flipped in the header, the inner stream or the bundle: the receiver refuses on the name's hash; with a name recomputed to match, a flipped group byte fails its group's name and a flipped bundle byte its frame digest | the name's hash not checked; a group's not checked |
+| left out | a tree with `c/`, `b/`, raw frame files, `mf.mxf`, a dotfile and an unnamed series: none is in the package | the allow list replaced by "everything under the series" |
+| refused at build | a link in place of a group, two series groups, an instance without its group, a group off its name: exit 5, nothing kept | any of the four checks removed |
+| both profiles | the same tree under `zstd` and `plain`: different hashes, the same groups stored | the receiver's magic check |
+| an addition | send, add an instance to the tree, call again: revision 2, kind `addition`, only the new instance's groups beside the exam and series groups | the earlier revision's record not read: a full resend |
+| a crash, a lost file | killed after the rename and before the record, then called again; the kept file deleted after `received`: both rebuild to the same name and nothing is uploaded twice | the mtime of the build time; a counter advanced before the record |
+| a refusal | `refused retry` resends the kept bytes; a kept file that fails its name is rebuilt; a second refusal is exit 3 | the kept file not checked before sending |
+
+### 15.11 What the receiver (#163) must change
+
+1. **Layout 2:** `layout 2` in the header; the kind `addition` beside `series`, `update` unchanged.
+2. **Paths relative to the exam directory:** `member()` no longer expects the study UID as the first component; the
+   study is the header's.
+3. **Three outer members**, in order: `package`, `metadata`, `<S>/series.sbnd`; anything else refused.
+4. **The `metadata` member:** a zstd frame (told by its magic) decompressed as a stream, bounded in total (*default:*
+   1 GiB, a placeholder until M1's largest series), else read as it is; then read as a pax tar with every check
+   `stage()` applies to members now (regular files only, no duplicate, layout names, a group's hash and UID). A group
+   inside is never compressed on its own: a group file begins with its key length, 8 (contract.md §Group files), so
+   one that begins with the magic is refused.
+5. **An addition:** the exam and series groups must match the stored ones, every instance group must be new to the
+   unit, the bundle holds the added frames; the PACS merges it into the series' bundle. The merge is new work at the
+   PACS, where the 10-24/25 decision had it do no repacking; decision (5) supersedes that for additions.
+6. **Layout 1:** no sender ever wrote it, so *default:* removed when layout 2 is built, not kept beside it.
+
+The carrier changes nothing. `send-package.sh` gains the check of the kept file against its name before each send, or
+its loop moves into the sender.
+
+### 15.12 Where this departs from §1–§14
+
+Corrected in place when the owner accepts, as §13's are: §2's late instance (a full resend by default) becomes an
+addition (decision 5); §4's instance-number order becomes byte order of paths, and its header's compression flag is
+dropped; §4's header kinds become `series`, `addition`, `update`; §7's rebuild on a content refusal becomes a resend of
+the kept bytes, rebuilt only when they fail their name.
