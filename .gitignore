@@ -5,6 +5,7 @@
 /target/
 lab/other-clients/h3/target/
 lab/study-index/target/
+lab/study-index/results/latency.jsonl
 
 # Generated Quinn modules (crates.io 0.11.11 + patches/quinn-0.11.11-mtu-gso.patch).
 /patched/quinn/src/**

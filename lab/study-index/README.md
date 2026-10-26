@@ -144,4 +144,108 @@ python3 summary.py results/                  # the tables below
 
 ## Results
 
-Not yet run.
+Run 2026-10-26 on one 4-vCPU container (kernel 6.18, 15 GiB). The raw rows are in `results/`
+(`latency.jsonl.gz`, `sweep.jsonl`, `sync.jsonl`). [`results/summary.md`](results/summary.md) holds every table:
+both sizes, p50s, cold. 50 760 list requests, all `200`.
+
+**Correctness.** `check` found 0 mismatches over 90 (arm, size, cell) combinations × 20 queries
+([`results/check.txt`](results/check.txt)). The `utf8mb4_bin` copy failed every name cell: 60 mismatches, against
+0 for `utf8mb4_0900_ai_ci` ([`results/collation.txt`](results/collation.txt)). 11 tests pass, and all 9 mutations
+were caught ([`results/tests.txt`](results/tests.txt)). `EXPLAIN` shows the prefix `LIKE` under
+`utf8mb4_0900_ai_ci` as a range on `by_name`, which answers §12's open question.
+
+**List latency, 10⁶ studies, warm, concurrency 1:** p95 `db` / `app`, ms. 240 requests a cell. Bold misses §11
+(`db` > 10 or `app` > 50).
+
+| cell | offset | local | hop_2ms | tuned_local | tuned_hop_2ms |
+| --- | --- | --- | --- | --- | --- |
+| newest | 0 | 1.8 / 2.6 | 4.1 / 5.0 | 2.1 / 2.9 | 4.4 / 5.2 |
+| newest | 1000 | 9.5 / 10.4 | **11.6** / 12.3 | 2.7 / 3.6 | 4.9 / 5.8 |
+| name_accented | 0 / 1000 | 2.8 / 3.7 · 2.4 / 2.4 | 5.1 / 5.8 · 4.5 / 4.5 | 2.0 / 2.8 · 1.2 / 1.2 | 4.3 / 5.0 · 3.4 / 3.4 |
+| name_plain | 0 / 1000 | 2.2 / 2.9 · 2.5 / 2.5 | 4.8 / 5.4 · 4.9 / 4.9 | 1.9 / 2.5 · 1.1 / 1.3 | 4.2 / 4.9 · 3.5 / 3.5 |
+| patient_id, accession | 0 / 1000 | ≤ 0.9 / 1.0 | ≤ 3.3 / 3.3 | ≤ 1.2 / 1.3 | ≤ 3.5 / 3.6 |
+| date7_modality | 0 | **14.1** / 14.6 | **15.3** / 16.0 | 2.8 / 3.6 | 5.0 / 5.8 |
+| date7_modality | 1000 | **18.7** / 18.7 | **19.8** / 19.8 | 2.2 / 2.2 | 4.5 / 4.5 |
+| series | 0 | 1.2 / 1.2 | 3.5 / 3.6 | 1.2 / 1.3 | 3.4 / 3.5 |
+| *name_family (added)* | 0 | **22.6** / 23.1 | **24.7** / 25.6 | 5.6 / 6.3 | 7.0 / 8.1 |
+| *name_family (added)* | 1000 | **113.0 / 113.7** | **106.0 / 106.5** | **17.2** / 17.8 | **19.5** / 20.2 |
+
+* **The hop.** `hop_floor` adds 0.1–0.5 ms over `local`, the forwarder's cost. `hop_0.5ms` adds 0.4–0.9 ms and
+  `hop_2ms` 2.1–2.6 ms. That is one round trip a query, once the driver stopped resetting its connections (§Rig
+  notes).
+* **A/A.** `local_aa` sits within 0.9 ms of `local` on the point and name cells and within 1.7 ms on `date7_modality`. Its
+  `name_family` @ 1000 p50 is 31.7 ms against 23.2 ms, the noisiest cell.
+* **10⁵.** As designed, only `name_family` @ 1000 misses (23.8 ms `db`), plus `newest` @ 1000 at 2 ms (10.4 ms).
+  The tuned shape meets every cell, at ≤ 9.1 ms `db` and ≤ 9.6 ms `app`.
+* **Cold** (the first request of each cell after a restart, on the arm of the round, both shapes). Point lookups are
+  ≤ 26 ms. The scans pay for their pages: `date7_modality` p50 61 ms, max 461 ms; `name_family` @ 1000 p50 411 ms,
+  max 919 ms; `newest` @ 1000 p50 68 ms at 10⁶.
+* **The client's view.** `client` − `app` is ≤ 0.9 ms at p95 on loopback, hyper's write included.
+
+**Where the host saturates** (sweep, 10⁶, the uniform mix, `name_family` included; ms):
+
+| arm | p95 `app` at c = 1 · 2 · 4 · 8 · 16 | CPU busy at c = 8 · 16 |
+| --- | --- | --- |
+| local | 19.0 · 22.4 · 27.0 · 44.1 · 84.1 | 97 % · 99 % |
+| hop_2ms | 21.9 · 25.7 · 30.9 · 46.3 · 90.3 | 84 % · 98 % |
+| tuned_local | 4.0 · 4.9 · 6.7 · 11.9 · 22.0 | 84 % · 95 % |
+
+p95 doubles between c = 4 and c = 8 in the tuned shape, and by c = 8 as designed. The 4 vCPUs are saturated from
+c = 8–16. mysqld, the API, the closed-loop clients and the forwarder share them, so nothing is claimed past c = 16
+or for a host with the API alone.
+
+**Size.** At 10⁶, `information_schema` reports 0.9 GB for the study table (rows and indexes) and 3.0 GB for the
+series table: 3.9 GB at 4.85 series a study. That is the top of §4's 2–4 GB estimate. The series rows are three
+quarters of it, so at §11's ~8 series a study it would be about 5.5 GB (arithmetic). The tuned study table is
+0.8 GB. `LOAD DATA` took 201 s at 10⁶, with the binary log off for the load.
+
+**Sync** (`si_1e6`, a 10⁴-study host; ms):
+
+| arm | commit → index p50 / p95 | commit → visible in the API p50 / p95 | burst of 200: lag max · drained | correction of one patient (3–26 studies) p50 / max |
+| --- | --- | --- | --- | --- |
+| local | 7.2 / 10.2 | 8.5 / 11.8 | 360 · 1 414 | 57 / 175 |
+| hop_0.5ms | 11.2 / 15.8 | 13.2 / 18.0 | 1 300 · 2 277 | 117 / 241 |
+| hop_2ms | 21.2 / 25.6 | 24.8 / 29.4 | 3 396 · 4 306 | 208 / 500 |
+
+The burst figures are the median round's.
+
+* A publish costs about seven statements and one durable commit (binary log and redo flushed). Locally the 7 ms is
+  mostly that commit. Each 1 ms of round trip adds about 7 ms.
+* The publisher works in order, one study at a time: about 140 studies/s locally and 47/s at 2 ms. That throughput
+  bounds the burst and the drain, not the idle lag.
+
+**Recovery** (6 rounds; the index down about 5.3 s while the receiver committed 1 000 studies; drain counted from the
+index answering):
+
+| arm | publisher kept: first publish · drained, p50 | publisher restarted: drained p50 / max (study DBs scanned) |
+| --- | --- | --- |
+| local | 0.68 s · 7.6 s | 19.4 s / 24.6 s (21 000–42 000) |
+| hop_2ms | 0.82 s · 22.6 s | 34.2 s / 37.5 s (23 000–40 000) |
+
+* A kept publisher resumes within its 1 s backoff cap.
+* A restarted one has no memory of what is owed. With the outbox inside each study DB it must open every study DB
+  to find out. **Rescan** shows the cost: 2.9 s for 10⁴ study DBs (0.29 ms each), whatever the arm.
+* **Rebuild** by reconcile: 10⁴ studies took 71 s locally, 87 s at 0.5 ms and 186 s at 2 ms. At 10⁶ that is about
+  2 h locally and 5 h at 2 ms, and a scan of about 5 min (arithmetic, not measured).
+
+**By the decision rule:**
+
+* **As designed** (§4's indexes, one statement a page, the modality by a series probe), MySQL **misses** at 10⁶.
+  `date7_modality`'s query is 14–19 ms, over 10 ms, locally and across the hop. The added `name_family` cell misses
+  too.
+* **The tuned shape meets** every one of §11's cells: ≤ 2.8 ms `db` locally and ≤ 5.0 ms at 2 ms, with `app`
+  ≤ 5.8 ms. **§4 therefore takes the tuned indexes and query shape**, within the caveat of §Pre-registration that
+  the shape was chosen on this data.
+* The added `name_family` @ 1000 still takes 17–20 ms of query: inside the API's 50 ms, outside the query's 10 ms.
+* **On its own server at a 2 ms round trip** the index meets the same budget, at about +2.3 ms a query and +14 ms of
+  sync lag.
+* **Sync** meets its 1 s rule on every arm, with idle p95 ≤ 26 ms.
+
+**Rig notes.**
+
+* With mysql_async's default `reset_connection`, every request reset its pooled connection, which drops the
+  server-side prepared statements. Every query then cost two round trips. `reset_connection=false` is in every URL
+  here, and a product client needs the same.
+* The frame-read interference, TLS (to the API and to MySQL; the lab's MySQL traffic is unencrypted), PostgreSQL,
+  SQLite, more than one publisher, and the PCS's real study DB schema were **not measured**.
+* The 10⁶ figures for rebuild and scan are arithmetic.
