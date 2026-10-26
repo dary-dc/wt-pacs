@@ -6,7 +6,7 @@ decision, proposal, open question and result from the owner's sessions of 2026-1
 owner's, dated. **Proposed** = recommended by a record or run, not accepted; a result can strengthen or weaken it, never
 make it Decided. **Open** = to discuss (with the owner, the team, the product owner or the PCS team), with its default.
 Each item names the PR that holds its evidence; every PR is a draft, none merged. How the PRs merge is §13; what waits
-for whom is §14–§16.
+for whom is §14–§16; where the records disagree is §17.
 
 Terms. *PCS*: the hospital-side component (another team's; github.com/opendicom/DECK_WebTransport), which receives,
 parses, encodes and forwards. *Submission package* (OAIS's SIP, ISO 14721), *package* for short: one file the PCS sends.
@@ -123,6 +123,8 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
 * **Decided 10-24:** the refusal/confirmation protocol is part of the design even if first versions do not build it;
   the PCS keeps each package until "stored" and resends on "refused" (#149 proposes two replies, "received" then
   "committed", polled).
+* **Decided 10-26 (owner): staging** (step 6): extract into `incoming/<f>.work/` on the root's filesystem, never the
+  serving tree. *Corrected 2026-10-26:* this file listed it as a proposed step.
 * **Decided 10-25: two checks** — the package hash (3) and a read-back **from disk**, not the page cache (6b, 8), so
   they prove what will be served (our write bugs, media errors at write time). Cost ≈ a real disk read (~1 s for 500 MB
   on an SSD, estimated). A check while extracting adds nothing that 3 + 6b do not cover.
@@ -141,7 +143,7 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   mutations caught. Owed: **the test suite is flaky** (about half of full runs fail with "another receiver holds
   …/incoming": the crash test forks while other tests hold the lock); a mutation of the 6b call sites to a cached read
   survives (only the helper is tested); **the audit row has no "who"** (Decided 10-24/25: who, when, what); its ADR §0
-  calls quarantine, staging and durability "Decided", where they are proposed steps here.
+  calls quarantine and durability "Decided", where they are proposed steps here (staging is the owner's, 10-26).
 * **Built (#160, proposed):** the verify tool (tools/pacs-verify and common/study-db at `5c9356c`) for a file, a study
   or a root; reads from disk (`fdatasync` + `posix_fadvise(DONTNEED)`), report, exit 0/1/2; 20 tests; integrity,
   group-hash and fadvise mutations caught. Frames are read back, not hashed: v1 `.sbnd` has no per-frame coded XXH3
@@ -337,7 +339,7 @@ Read in its source or seen in its bytes; the questions are §15.
 | #158 glossary | study DB defined as "one row per group" (T1, Proposed) | owed |
 | #158 `docs/ingest/link.md`; `target.md` | "the site" relabelled only by a note; the layout meeting "with the PCS team" (§8 says who) | owed |
 | #159 handoff/metadata-2026-10.md | the 10-19 decoder rule and the truth/page-view model as "Decided": needs a superseded note; names the owner by first name | owed |
-| #163 ADR §0 | quarantine, staging, durability called "Decided" | owed |
+| #163 ADR §0 | quarantine and durability called "Decided" (staging is, 10-26) | owed |
 | #167 ADR §5 | amendment 2 came after the first 10⁴/10⁵ rows; the re-run's 1.7× publish p50 | owed |
 | #165 `lab/study-index/README.md` | "The owner chose MySQL on 10-25": the owner did not (§14, D9) | owed |
 | #149 (in #158) `docs/adr/pcs-transfer.md` container table | tar over zip for cross-file zstd: #163 compresses per member (§2) | owed |
@@ -523,3 +525,23 @@ folders from a hash of the study UID, no date in the path or the URL. Default if
 one writer per study DB) or a standard update endpoint coordinated with it. Evidence: one path gives order and a bounded
 delay (#165: a correction reaches the index in 57–208 ms), no second writer; the cost is no "instant". Default: one path,
 the update API submitting update packages.
+
+## 17 · Where the records disagree
+
+One line each; none is settled here.
+
+* **A1 · the reply file and its words:** #163 `incoming/status/<f>` `stored`/`refused`/`quarantined`; #164
+  `status/<name>` `committed`/`refused retry`/`refused final` (§14, D3).
+* **A2 · how long a status lives:** link.md §12.8 q5 against the receiver ADR §6.
+* **A3 · "received":** the receiver ADR means the package hash matched; the built carrier means fsynced and renamed
+  only.
+* **A4 · the header member:** the transfer ADR's ~100 B with kinds `series`/`study`/`delete`/`addition`, against the
+  receiver's 5 lines with `series`/`update`.
+* **A5 · compression:** per member (#163) against one zstd stream (#149, #156) (§2).
+* **A6 · after a refusal:** the PCS rebuilds the package (#149), or resends the same bytes.
+* **A7 · a differing exam group:** flagged for review (#119), or replaced with an audit record (#163).
+* **A8 · updates:** as differences (§5, #148), or as whole-group replacement (#163).
+* **A9 · a package's identity:** (unit, revision) (#149), a sender UUID, or a content digest.
+* **A10 · the audit row's "who":** decided (§4), but nothing carries a "who" to the audit row.
+* **A11 · starting the receiver:** nothing starts it.
+* **A12 · staging:** the owner's decision 10-26 against "proposed" in this file; fixed in §3.
