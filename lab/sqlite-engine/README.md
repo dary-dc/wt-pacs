@@ -565,6 +565,89 @@ a, b; 7 rotated, **6 rounds**.
 an update's cost is its `fsync` on the VM's virtual disk. Nothing is claimed past one server and one receiver per
 file, these paces, or a warm page cache.
 
+### Measured, 2026-10-26
+
+The same VM as §4 (4 vCPUs, ext4 on a virtual disk, Linux 6.18), warm page cache. Three runs, each arm a fresh pair of
+processes per round, arms rotated round by round, 6 rounds of 3 s: the 12 arms; the 18 of busy0 / apart; the 7 of
+ckpt. The 12-arm run's code is commit `3acfb8f` without its busy0 / apart plumbing, which
+leaves the plain arms as they ran. Counts sum the 6 rounds; latencies pool them (p50 / p99 / max, ms). "Wait" is the retry loop's, before the
+attempt that succeeded; "over." and "alone" are operations that did and did not overlap one of the other side.
+
+| arm | server: served / refused | stale / torn | errors | server wait p50 / p99 / max | read over. p99 / alone p99 | receiver: packages / refused | errors | update wait p50 / p99 / max | update over. p99 / alone p99 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rusqlite a | 903 / 0 | 0 / 0 | 0 | — | 12.0 / 6.8 | 1 429 / 0 | 0 | — | 29.6 / 4.0 |
+| rusqlite b | 904 / 0 | 0 / 0 | 0 | — | 10.8 / 7.8 | 1 225 / 0 | 0 | — | 19.9 / 8.0 |
+| rusqlite c | 948 / 0 | 0 / 0 | 0 | — | 8.9 / 6.2 | 1 442 / 0 | 0 | — | 13.0 / 4.3 |
+| **turso a** | **0 / 18** | — | **7 927** lock | — (each 1 s, refused) | — | 1 444 / 0 | 0 | — | 4.6 / 3.8 |
+| **turso b** | 751 / 0 | 0 / 0 | 331 lock | **2.3 / 29.4 / 38.1** (163 of 751) | 52.2 / 9.5 | 1 081 / 0 | 1 035 lock | **4.5 / 44.1 / 69.1** (403 of 1 081) | 25.3 / 7.3 |
+| **turso c** | **0 / 18** | — | **7 716** lock | — | — | 1 399 / 0 | 0 | — | 5.4 / 5.3 |
+| turso-ro a | 778 / 0 | 0 / 0 | 0 | — | 26.8 / 10.8 | 1 401 / 0 | 0 | — | 9.6 / 4.8 |
+| turso-ro b | 799 / 0 | 0 / 0 | 0 | — | 20.5 / 10.4 | 1 248 / 0 | 0 | — | 24.9 / 7.7 |
+| **turso-ro c** | 941 / 0 | **935** / 0 | 0 | — | 13.2 / 4.8 | 1 405 / 0 | 0 | — | 13.9 / 5.0 |
+| turso-mp a | 777 / 0 | 0 / 0 | 0 | — | 27.3 / 10.1 | 1 390 / 0 | 0 | — | 10.1 / 3.8 |
+| turso-mp b | 814 / 0 | 0 / 0 | 0 | — | 14.9 / 9.9 | 1 300 / 0 | 0 | — | 14.5 / 6.0 |
+| turso-mp c | 889 / 0 | 0 / 0 | 0 | — | 12.6 / 8.4 | 1 406 / 0 | 0 | — | 25.1 / 4.4 |
+
+"lock" is every attempt's error, `Locking error: Failed locking file '<db>'. File is locked by another process`; in
+turso a and c each request retried for 1 s (about 440 attempts) and was refused. turso-ro c's stale reads lag the
+receiver by 117 packages at the median (232 p99): the held read-only handle reads the file as it was when it opened.
+In turso b, 21 % of requests and 37 % of packages met the lock, in every round (round maxima 10–38 ms for the server,
+29–69 ms for the receiver); an alone package there takes 2.7 ms at the median against 1.4 in a, the close's checkpoint.
+
+**The controls.** *busy0* (`busy_timeout` 0): rusqlite a and c, and turso-mp a–c, returned **no `Busy`**;
+rusqlite b returned it on **82 of 918 requests** (85 attempts: 84 `SQLITE_BUSY`, 1 `SQLITE_BUSY_RECOVERY`, code 261)
+and 1 of 1 267 packages, in every round, each retried within 4.8 ms (p50 2.4, p99 4.8): with the default timeout that is a
+wait inside SQLite of a few ms, which the plain arm shows only in its tail. *apart* (the server on its own copy):
+overlapped p99 of 9–19 ms (server) and 5–20 ms (receiver) with no shared file at all; the same arm's p99 also moved by
+up to 2.1× between the first two runs (rusqlite a, update: 29.6 then 14.2 ms). *ckpt* (a truncating checkpoint every
+20 packages): **turso-ro a failed 5 of 815 reads and turso-ro b 2 of 825**, `I/O error: short read on WAL frame at
+offset …: expected 4096 bytes, got 0`, in 6 of the 12 rounds, each retried successfully within 4.2 ms; no torn read.
+rusqlite and turso-mp under ckpt: no error, no stale or torn read, nothing refused.
+
+* **L1 holds.** With the receiver's handle open, a read-write Turso server is never served: every attempt fails at
+  once (about 1.3 ms each) on the lock; no busy timeout reaches it.
+* **L2 holds**: in b collisions are errors on both sides, never engine waits; with a 1 ms retry the server waited p99
+  29 ms and the receiver 44 ms (max 69), nothing refused, nothing stale.
+* **L3 holds for c, contradicted for a**: a read-only handle *held* sees none of the receiver's later packages
+  (#4627), but one *opened per request* saw every committed package — while no checkpoint ran (X4).
+* **L4 contradicted**: turso-ro b, no stale or torn read, no error, until checkpoints were forced (X4).
+* **L5, L6 hold for errors, staleness and refusals; contradicted for latency**: overlapped p99 is 1.4–7.4× the
+  alone p99, above 2× in 7 of 12 cells. busy0 shows no engine wait in rusqlite a, c or turso-mp a–c, and apart shows tails of the same order
+  with no file shared (X2), so the excess is the two processes on one host (an `fsync` and a 2.2 MB copy beside each
+  other); what in the host is **not established**. Only rusqlite b waits inside the engine (X1).
+* **L7 holds**: 8 mutations (the torn-read checks, the overlap rule, the wait, the retry, Turso's lock, the
+  checkpoint), each failed a test.
+* **X1 contradicted for b** (8.9 %, bound 1 %): the server's open meets the receiver's close, whose checkpoint and
+  WAL reset take SQLite's exclusive lock; holds for a and c (none).
+* **X2 contradicted in 3 of 12 cells** (rusqlite a and b updates, turso-mp a reads: 1.7–2.9×); at about 400
+  overlapped operations per cell the p99 is the 4th largest, and the same cell moved 2.1× between runs. Not resolved
+  finer than that.
+* **X3 contradicted**: turso-mp returned no `Busy` at these paces.
+* **X4 holds**: a lock-free read-only Turso reader fails when the WAL is truncated under it (0.4 % of reads at one
+  truncation per 20 packages). That no read came back *wrong* is measured for 1 640 reads, not established in general:
+  nothing in the source coordinates it with the writer (§Source).
+* **X5 holds.**
+
+**The owner's reasoning.** (1) holds and does not matter: no arm ever collided with a creation, and every failure
+above is an update's. (2) holds for SQLite: a read never waits for an update in a or c, and in b waits at most 4.8 ms
+under its busy timeout. **For Turso it fails, and not by degree.** The lock belongs to the *handle* and lasts its
+lifetime (§Source), not the transaction: with the receiver holding its handle (a, c) the server is refused for as
+long as the receiver runs. The failure is an *error*, returned at once, which no busy timeout covers. Only when both
+sides open and close per operation (b) is the conflict short, and then only with a retry loop on both sides: 29 ms
+p99 for a read, 44 ms for an update, here. The two lock-free ways round it read stale (a held read-only handle) or
+fail on a checkpoint (a read-only open per request); the multi-process mode works in every scenario, with no wait the
+engine reports, but its manual calls it not production ready.
+
+**What a design with Turso needs.** One of: (i) **one process owns each study file** — receiver and server in the
+same process sharing one `Database` (§3: every commit seen), or the server asking the owner over IPC; (ii) open and
+close per operation **on both sides**, with a retry loop on `LockingError` and a deadline, accepting tens of ms of
+tail and a checkpoint per package; (iii) the `.tshm` mode, not production ready. Not (iv), a read-only open per
+request with a retry on I/O errors: it worked here, but nothing in the engine promises it. With rusqlite none is
+needed: WAL readers in another process, `busy_timeout` (rusqlite's default 5 s) for case b.
+
+Not measured: more than one server or receiver process per file, other paces, a cold disk, a crash mid-package, an
+automatic (not forced) checkpoint under turso-ro.
+
 ## The desk read of 2026-10-24, checked
 
 *Source at `v0.8.3`* (B as above), and GitHub's issue and PR pages, read 2026-10-25.
