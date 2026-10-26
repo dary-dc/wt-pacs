@@ -361,8 +361,9 @@ draft's careful creation (§17.2): an empty `POST` creates the upload, `HEAD` re
 `DELETE` cancels; the final `PATCH` answers *received* and `GET` on the package answers *committed* or *refused*. The
 same endpoint takes a one-shot upload (`Upload-Complete: ?1` on the `POST`), so a fiber site's script may skip resume.
 Pinned to interop version 10, since we own both ends. **HTTP/3 is not built**; when §11.5 and the ADR's M5 call for it,
-it is the same handler behind a second listener on its own UDP port. (*Owner, 2026-10-26:* built anyway, as an
-optional listener behind a cargo feature and labelled experimental, §12.4.)
+it is the same handler behind a second listener on its own UDP port. (*2026-10-26:* built, following the owner's
+direction of one handler with its listeners chosen by configuration at start; the cargo feature and the experimental
+label are this build's choices, §12.4.)
 
 **The deciding reason.** In HTTP the reply and the resume are the application's, not the transport's: written once,
 they work the same over TCP and QUIC (RFC 9110 defines the semantics "shared by all versions"; tus 1.0 "does not depend
@@ -524,8 +525,8 @@ the PCS** (latency per package, not throughput), the testbed's ceiling reported 
    carries the reply).
 2. Where the endpoint runs: its own process on its own address, or inside `series-server`? *Default: its own
    process* — it unpacks untrusted input, and the viewer's server and its patched QUIC stack stay as they are.
-3. The HTTP/3 listener: *default: not built* until C1, D1 and M5 call for it. (*Owner, 2026-10-26:* built, off
-   unless compiled with its feature and started with `--quic`: §12.4.)
+3. The HTTP/3 listener: *default: not built* until C1, D1 and M5 call for it. (*2026-10-26:* built after the
+   owner's direction; off unless compiled with its feature and started with `--quic`, this build's choice: §12.4.)
 4. Will the PACS keep packages in an object store? *Default: no* (local disk, as [`../adr/disk-access.md`](../adr/disk-access.md)
    assumes), so (f) stays out.
 5. The largest package a PCS may send (`Upload-Limit` max-size): *default: 8 GiB*, a placeholder until sites report
@@ -562,9 +563,9 @@ ngtcp2 backend migrates a connection; the tus reference server; draft-ietf-webtr
 
 ## 12. The carrier, built
 
-*2026-10-26. §11's recommendation, built, with the owner's direction of the same day: one application handler, its
-listeners chosen by configuration at start, TCP always and QUIC as an optional second listener behind a cargo feature,
-labelled experimental. The code is [`../../carrier/`](../../carrier/README.md) (crate `carrier`, its own process, as
+*2026-10-26. §11's recommendation, built, with the owner's direction (2026-10-25/26): one application handler, its
+listeners chosen by configuration at start, preferred over two programs. This build's own choices, not the owner's:
+TCP always, and QUIC as an optional second listener behind a cargo feature, labelled experimental (§12.8 question 8). The code is [`../../carrier/`](../../carrier/README.md) (crate `carrier`, its own process, as
 §11.6 question 2 defaults); the PCS's side is `carrier/pcs/send-package.sh`. **Tested on loopback only: nothing timed,
 no link emulated**; §11.5's D1 and C1 remain what decides anything about a real link. The receiver it hands packages
 to is the design-state record's §3 (`docs/ingest/pacs-receive-design.md` on `claude/pacs-design-state`, e699ed3); its
