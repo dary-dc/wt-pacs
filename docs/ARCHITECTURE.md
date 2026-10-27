@@ -65,7 +65,7 @@ epoch milliseconds (`timeOrigin + now`); a frame's `wireBytes` is described in `
 reports.
 
 **A request's identity is its generation, not its frame index.** `cancel` bumps a counter the
-downloader owns; every record, decode, decoder reply and delivery carries the generation it was made
+downloader owns; every record, decode, refusal and delivery carries the generation it was made
 under, and anything older is dropped where it lands. Without it a frame decoded for a cancelled
 request reached the consumer under the *new* request's index — the right key, the wrong pixels — and
 a late `done` deleted the new request's record. The page's drop of a stale `failed` has no clause (no
