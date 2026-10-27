@@ -308,13 +308,20 @@ opened), and on `tokio`. Modules, each added by the step that needs it:
   `unchecked`, as in the browser. Hashed by `xxhash-rust` (pure Rust, no C build in step 1), held to the digests
   hash-wasm and Python's `xxhash` already wrote (`client/decode/xxh3.test.mjs`'s lengths; the goldens'
   `NAME.xxh3`, 109 files).
-* **`decode`** (step 2): OpenJPH 0.31.0 and dav1d 1.5.4 at the WASM builds' pins (`client/decode/wasm/build/pins.sh`),
-  compiled natively from the same wrappers (`client/decode/wasm/openjph/htj2k_decoder.cpp`,
-  `client/decode/wasm/dav1d/dav1d_wrap.c`), and the AV1 payload reader and split merge ported from `av1-payload.js`
-  and `av1-frame.js` ([`../av1/payload-format.md`](../av1/payload-format.md)). Behind a cargo feature, so the default
-  build stays C-free. A mismatch is decoded again by a fresh decoder object, as in the browser
-  ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §Built); natively there is one AV1
-  decoder, so an AV1 frame inside a group (G > 1) has no recovery here either.
+* **`decode`** (step 2, *built 2026-10-27*): OpenJPH 0.31.0 and dav1d 1.5.4 at the WASM builds' tags and commits
+  (`client/decode/wasm/build/pins.sh`), as `ingest/tools.sh` builds them from source for the ingest's check, through
+  that check's in-process shim, `ingest/coded-frames/decode.cpp`, which the crate's build links. *Was:* compiled
+  natively from the WASM wrappers — those are emscripten bindings, and the shim already wraps the same two libraries,
+  so one native build serves both and CI already caches it. SIMD: dav1d's x86 assembly and OpenJPH's SSE to AVX-512
+  paths, each picked at run time; threads: dav1d one a core (`av1_threads(0)`, the ingest keeps 1), OpenJPH 0.31.0
+  has none. The payload reader (every refusal of `av1-payload.js`, in its words) and the merge of `av1-frame.js` are
+  ported. Behind the `decode` feature, so the default build stays C-free. Every decode opens a fresh dav1d context
+  and OpenJPH codestream, so a mismatch is `false` at once — *was* "decoded again by a fresh decoder object, as in the
+  browser": natively each decode already is one — and `native-fill`'s printed `decode_ms` includes that open and
+  dav1d's threads starting (printed, not claimed). **Not built:** the WASM wrapper's clamp to the sample type's range
+  (a reversible codestream decodes in range; no committed frame reaches the clamp, and a mutant removing it
+  survived), the 4:4:4 identity-matrix refusal (the shim does not report the matrix; such a stream fails its digest
+  instead), scalable units' layer walk, groups (G > 1) and the range.
 * **`cache`** (M3): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 *A client cache* and §3
   above, as written: coded bytes keyed by series, index and metadata version, only `true` frames, re-checked by the
   decode on read; temporary name, fsync, rename, the directory fsynced.
@@ -369,7 +376,11 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
    comparison differs in the client's stack and not in its credit. quic.md §6 N1's raw-QUIC arm, not run for want of
    a server, becomes runnable.
 2. **Step 2, native decode**: `decode` as in §8.4; every golden and matrix payload and both HTJ2K contract frames
-   `true` against their `NAME.xxh3`; the exactness ADR's mutants re-run natively.
+   `true` against their `NAME.xxh3`; the exactness ADR's mutants re-run natively. *Built 2026-10-27:* 109 of 109 `true` in
+   `every_committed_frame_decodes_to_its_digest`; the ADR's two digest mutants re-run there turn the same frames
+   `false` as in the browser: big-endian 80 of 90 matrix payloads, sign- to 13-bit zero-extension 40 of 90. Over raw
+   QUIC from the server, `native-fill` on the 107 payloads and the 2 codestreams packed as two series: every frame
+   identical and `true`.
 3. **M3 CACHE** (§6), on `cache`.
 4. **M1 PAINTPROOF** (§6): the painter as a module of this crate on wgpu.
 5. **M2 NATIVEFILL** (§6), its native arm `native-fill` with `decode` and M1's painter.

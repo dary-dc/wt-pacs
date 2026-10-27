@@ -155,6 +155,13 @@ else
   skip "DICOM to .sbnd needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
+step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH"
+if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then
+  run 1 cargo test -p native-client --features decode --quiet decode::
+else
+  skip "the native decode needs ingest/tools.sh's build (INGEST_BUILD=...)"
+fi
+
 step "lab: the variant order and its predecessor split"
 run 1 node lab/order.test.mjs
 
