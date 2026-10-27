@@ -17,7 +17,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use web_sys::{
     ReadableStream, ReadableStreamDefaultReader, ReadableStreamReadResult, WebTransport,
-    WebTransportHash, WebTransportOptions, WritableStreamDefaultWriter,
+    WebTransportCloseInfo, WebTransportHash, WebTransportOptions, WritableStreamDefaultWriter,
 };
 
 const FRAME_TIMEOUT_MS: u32 = 15_000;
@@ -645,13 +645,10 @@ impl TransportSession {
 }
 
 fn closed_reason_of(info: &JsValue) -> String {
-    let code = Reflect::get(info, &JsValue::from_str("closeCode"))
-        .ok()
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0) as i64;
-    let why = Reflect::get(info, &JsValue::from_str("reason"))
-        .ok()
-        .and_then(|v| v.as_string())
+    let info = info.unchecked_ref::<WebTransportCloseInfo>();
+    let code = info.get_close_code().unwrap_or(0);
+    let why = info
+        .get_reason()
         .filter(|r| !r.is_empty())
         .map(|r| format!(": {r}"))
         .unwrap_or_default();
