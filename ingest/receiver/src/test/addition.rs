@@ -93,6 +93,31 @@ fn an_addition_sent_again_merges_nothing_twice() {
     assert_eq!((site.rows(), site.audit().len()), (rows, 2));
 }
 
+/// An instance without an Instance Number is merged after every numbered one, though its UID
+/// sorts between them.
+#[test]
+fn an_instance_without_a_number_is_merged_after_the_numbered_ones() {
+    let site = Site::new("addition-unnumbered");
+    stored(&site);
+    let mut addition = Package::addition(SERIES, 2, &[(I2, 1)], 50);
+    addition.members.remove(2);
+    addition.group(
+        format!("{}/{}/----", c(SERIES), c(I2)),
+        [
+            record(SOP_INSTANCE_UID, b"UI", &ui(I2)),
+            record(NUMBER_OF_FRAMES, b"IS", b"1"),
+        ]
+        .concat(),
+    );
+    assert!(
+        c(I2) < c(I3),
+        "the test needs UID order to differ from display order"
+    );
+    assert_eq!(site.receive(&addition), Outcome::Stored);
+    let want = [frames(3, 10), frames(1, 50)].concat();
+    assert_eq!(read_bundle(&site.bundle_path(SERIES)).0, want);
+}
+
 /// An addition is refused, the series untouched, when its study or series is not stored, its exam
 /// or series group is not the stored one, an instance is already stored, its bundle's frames are
 /// not its instances', its bundle's frame attributes differ from the series', or the served bundle

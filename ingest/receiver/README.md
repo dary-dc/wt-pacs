@@ -112,6 +112,7 @@ A mutation is the named check removed or inverted unless the row says otherwise.
 | `lib.rs` | kept includes the added instances | `an_addition_sent_again_merges_nothing_twice, a_crash_between_any_two_steps_leaves_the_serving_tree_whole` |
 | `lib.rs` | addition's staged bundle not read back | `a_staged_file_changed_after_its_write_is_refused_by_the_read_back, the_read_back_of_the_staged_files_is_from_the_device` |
 | `merge.rs` | display order by UID only | `an_addition_is_merged_into_the_series_bundle_in_display_order` |
+| `merge.rs` | an instance without a number first, or numbered 0 | `an_instance_without_a_number_is_merged_after_the_numbered_ones` |
 | `merge.rs` | a served bundle already merged refused | `an_addition_sent_again_merges_nothing_twice, a_crash_between_any_two_steps_leaves_the_serving_tree_whole` |
 | `merge.rs` | already merged: the served cursor not advanced | `an_addition_sent_again_merges_nothing_twice, a_crash_between_any_two_steps_leaves_the_serving_tree_whole` |
 | `merge.rs` | served bundle's count not checked | `an_addition_that_does_not_fit_its_series_is_refused` |
@@ -128,4 +129,4 @@ A mutation is the named check removed or inverted unless the row says otherwise.
 | `disk.rs` | hash_file(from_disk) cached | `the_merged_bundle_is_read_back_from_the_device, the_read_back_of_the_staged_files_is_from_the_device` |
 | `lib.rs` | addition to a series not stored | `an_addition_that_does_not_fit_its_series_is_refused` |
 
-Not mutation-tested, because no test here can observe it: that the `fsync`s, the merged bundle's among them, make a placement survive a power cut. Not tested at all: an instance with no Instance Number, which the merge puts after every numbered one. `common/from-disk` holds its own mutations.
+Not mutation-tested, because no test here can observe it: that the `fsync`s, the merged bundle's among them, make a placement survive a power cut. `common/from-disk` holds its own mutations.
