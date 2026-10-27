@@ -178,109 +178,38 @@ its decode is the clock — and the round's rule takes 4:2:0 only if it is. The 
 taking 4:2:0 grey (`g8f` probe), so serving it is an ingest flag, should Firefox on slow devices outweigh that cost
 ([`README.md`](README.md) §Open questions).
 
-
 ## For the PCS team: coding AV1 for this PACS
 
-*2026-10-27. Nothing here was measured for this note; each claim points to where it was measured or decided. What the
-PCS sends is quoted from `docs/adr/pcs-transfer.md` (#149, `a197b23d`) and `docs/ingest/pacs-receive-design.md`
-(#168, `f8b0bb2a`), not yet on this branch, and claimed no further.*
+*2026-10-27. Nothing here was measured for this note. What the PCS sends is quoted from `docs/adr/pcs-transfer.md`
+(#149, `a197b23d`) and `docs/ingest/pacs-receive-design.md` (#168, `f8b0bb2a`), not yet on this branch, and claimed no
+further.*
 
-**Code every frame alone: G = 1, one shown key frame with its sequence header per frame, libaom 3.15.1 lossless, the
-representation of §Representation at ingest.** No content type has evidence for G > 1; on DBT slices that is a
-conclusion by a rule fixed before the data, elsewhere a default ([`frame-groups.md`](frame-groups.md) §1). AV1 is
-coded on request beside HTJ2K, which every series is served as today ([`../codecs/README.md`](../codecs/README.md)
-§Which series AV1 is for).
+**Code every frame alone (G = 1): one shown key frame with its sequence header per frame, libaom 3.15.1 lossless, in
+the representation of §Representation at ingest and the split of §The split per depth.** Why, per content type, and
+what would reopen G > 1: [`frame-groups.md`](frame-groups.md) §1 and §5. HTJ2K serves every series today
+([`../codecs/README.md`](../codecs/README.md) §Which series AV1 is for).
 
-* **Proof chain.** Groups gain at most +1.51 % on 15 sound DBT volumes against the 20 % the rule needs, and miss the
-  decode bound by 4.6–24.6× ([`frame-groups.md`](frame-groups.md) §3); the mechanism is noise that adjacent frames do
-  not share, ρ 0.11–0.22 against the ½ inter needs (§4); one all-key stream and per-frame streams are the same bytes
-  at G = 1 (§5d, *derived*); libaom with alt-ref off is exact in 159 of 159 cells, SVT-AV1's inter not on a 10-bit
-  top (§2, §3).
-* **The one check.** Decode every frame alone, from its own bytes, with native dav1d 1.5.4, and match its samples to
-  the encoder's input. Every frame exact alone shows lossless and G = 1 together. It is §Exact at ingest above, which
-  writes nothing for a series with a frame that fails, and names the frame.
+* **Encoder**, as `ingest/coded-frames/ingest.py` `encoder_args` builds it, one frame a run (`--limit=1`), the preset
+  by content of [`../FIXTURES.md`](../FIXTURES.md) §From DICOM:
 
-### G = 1, per target type ([`frame-groups.md`](frame-groups.md) §1)
+  ```
+  aomenc --ivf --lossless=1 --bit-depth=B --input-bit-depth=B --kf-max-dist=0 --threads=1 --profile=P \
+         --tune-content=screen --sb-size=64 --monochrome  <preset>
+  ```
 
-| type | why G = 1 |
-| --- | --- |
-| DBT reconstructed slices | conclusive: best gain +1.51 % on 15 volumes of three systems, against 20 %; every G > 1 over the decode bound. Adjacent slices share little noise (frame-groups §4 point 5) |
-| DBT projections | default, outside the measured scope: two series, +0.29 % and −0.2 to −1.0 % (row 21) |
-| breast ultrasound cine | default, untested: no native, losslessly stored, licensed cine is open. Predicted to gain (frame-groups §4 point 8), so it is the type most worth data |
-| ABUS | default, untested: no open ABUS volume in DICOM |
-| angiography and fluoroscopy | default, untested: independent quantum noise per exposure predicts under 5 % (frame-groups §4 point 10) |
-| FFDM, synthesized 2D, ultrasound stills | one frame an image: nothing to predict from. MR and CT stay HTJ2K |
-
-### Encoder
-
-libaom 3.15.1 (`44d0a57`), the line in §Representation at ingest and `ingest/coded-frames/ingest.py`
-`encoder_args`:
-
-```
-aomenc --ivf --lossless=1 --bit-depth=B --input-bit-depth=B --kf-max-dist=0 --threads=1 --profile=P \
-       --tune-content=screen --sb-size=64 --monochrome  <preset>
-```
-
-`--monochrome` is for grey; the RGB stream takes the colour flags of §Representation at ingest instead.
-
-* `--lossless=1` is quantiser index 0 with no delta-q, AV1's only lossless mode ([`frame-groups.md`](frame-groups.md) §2).
-* `--kf-max-dist=0`: every frame a key frame. `--profile` is 0 for grey at 8 or 10 bits, 2 at 12 (monochrome is not
-  allowed in profile 1, [`series.md`](series.md)), 1 for the RGB stream.
-* **Preset** ([`../FIXTURES.md`](../FIXTURES.md) §From DICOM): `--cpu-used=6` (good) for MR, mammography and
-  tomosynthesis; `--allintra --cpu-used=6` for CT; `--allintra --cpu-used=7` for fluoroscopy and angiography;
-  `--cpu-used=0` otherwise.
-* **Alt-ref.** None at G = 1. Wherever inter is ever used, `--auto-alt-ref=0` and `--kf-min-dist=G --kf-max-dist=G`:
-  with alt-ref on, libaom's inter is not lossless at 10 and 12 bits ([`frame-groups.md`](frame-groups.md) §2).
-* Ingest encodes each frame in its own run (`--limit=1`). One run over a series with `--kf-max-dist=0` should give
-  the same units (frame-groups §5d, *derived*); not checked, so the one check above decides.
-
-### The top/low split, by b, the bits after subtracting the series minimum
-
-§The split per depth: b ≤ 9, k = 0 (one stream); b = 10–12, k = 2; b = 13, k = 3; b = 14, k = 2 (a 12-bit top);
-b = 15–16, not AV1, send HTJ2K. RGB 8-bit goes through the RCT as one 10-bit 4:4:4 stream. The top is v ≫ k, the low
-v & (2^k − 1), each its own 8-, 10- or 12-bit stream coded as above.
-
-### Grey as 4:0:0, per encoder
-
-* **libaom**: `--monochrome`, the shipped form.
-* **SVT-AV1 v4.2.0**: no 4:0:0; grey only as 4:2:0 at mid-grey chroma, and its inter exact at 8 bits only
-  ([`frame-groups.md`](frame-groups.md) §2). Readers take 4:2:0 grey (§8-bit grey as 4:2:0), but it is not adopted.
-* **rav1e 0.7.1**: no lossless mode ([`frame-groups.md`](frame-groups.md) §5a).
-
-### What the PACS reads, and what an MP4 must hold
-
-The PACS reads no MP4. #168 §1: "the PACS receives our `.sbnd` (the role MXF/MP4/JXL play in the PDF); no MXF/MP4
-reading in the server, the PACS does no repacking". #149 §9: "the formatted pixels end in an `.sbnd` (§1), not
-`sf.jxl`, `mf.mxf` or `mf.mp4`". What the PACS addresses is the `.sbnd`'s frame table, one (offset, length) a frame,
-each entry one payload of §Payload with n = 1 ([`../FIXTURES.md`](../FIXTURES.md) §SBND series bundle).
-
-If the PCS keeps `mf.mp4`, its samples become payloads by a remux, not a re-encode, only if
-([`frame-groups.md`](frame-groups.md) §5d; [`../disk-layout/containers.md`](../disk-layout/containers.md) §3.1, §6):
-
-* **every sample a sync sample**: a shown key frame after a sequence header in the same sample, so `stss` is omitted;
-* **one temporal unit a sample**, sample i the series' frame i, its length in `stsz` and its offset through
-  `stsc` and `stco`/`co64`; progressive, not fragmented;
-* **no edit list** (*inferred*, no record covers it): sample i must be frame i as the tables give it;
-* **at k > 0, two tracks**, top and low, which no player combines; the header's `bits`, `split`, `flags` and
-  `offset` have no field in MP4 and must reach the payload another way. Who remuxes is not recorded.
-
-### What the PACS checks on receipt
-
-#168 §3, step 6b: "every frame's coded XXH3 against the .sbnd index; the PACS never decodes (decoded-sample hashes are
-the client's)". Exactness of samples is proven twice elsewhere: at encode, by the one check above, and in the client,
-against each frame's sample digest ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), which #149 §6 lists as made
-by "the ingest at the PCS". #168 §15 to the PCS team: "Not needed from you: a decoded-samples hash per frame (the
-PACS checks coded hashes; the client checks samples)". Whether the PCS's own encoder or our ingest at the PCS writes
-that digest is open.
-
-### What would make us accept G > 1 ([`frame-groups.md`](frame-groups.md) §5, §3 *The rule*)
-
-* **Data**, per untested type: ≥ 2 independent sources of ≥ 2 series each, native frames stored uncompressed or
-  losslessly ((0028,2110) absent or `00`), whole, in acquisition order, under a licence that allows commercial use.
-  For DBT: a sound series of a system not yet measured whose median ρ is over ½.
-* **The result**, on every sound series, the best G ≤ 16 at the shipped preset, every frame exact: ≥ 20 % fewer bytes
-  than G = 1, ≤ 0.80 of HTJ2K's bytes, and a mid-group ask inside the decode bound.
-* **The client first**: dav1d-WASM fails every split group at G > 1 today (frame-groups §5 *The client*).
+  `--profile` 0 for grey at 8 or 10 bits, 2 at 12, 1 for the RGB stream, which takes colour flags in place of
+  `--monochrome`. Wherever inter is ever tried, `--auto-alt-ref=0` ([`frame-groups.md`](frame-groups.md) §2). SVT-AV1
+  v4.2.0 has no 4:0:0 and rav1e 0.7.1 no lossless mode ([`README.md`](README.md) §Exactness and the decoders).
+* **The one check** is §Exact at ingest: every frame decoded alone by native dav1d and matched to the encoder's input,
+  nothing written for a series with a frame that fails. Every frame exact alone shows lossless and G = 1 together.
+* **What the PACS reads.** #168 §1: "the PACS receives our `.sbnd` (the role MXF/MP4/JXL play in the PDF); no MXF/MP4
+  reading in the server". #149 §9: "the formatted pixels end in an `.sbnd` (§1), not `sf.jxl`, `mf.mxf` or `mf.mp4`".
+  A frame is one entry of its frame table, one payload of §Payload with n = 1 ([`../FIXTURES.md`](../FIXTURES.md)
+  §SBND series bundle). When an MP4's samples remux to payloads: [`frame-groups.md`](frame-groups.md) §5d.
+* **What the PACS checks.** #168 §3, step 6b: "every frame's coded XXH3 against the .sbnd index; the PACS never decodes
+  (decoded-sample hashes are the client's)"; #168 §15: "Not needed from you: a decoded-samples hash per frame". The
+  samples are checked at encode (above) and by the client against each frame's sample digest
+  ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests), made by "the ingest at the PCS" (#149 §6).
 
 Series the PCS could share are the owner's call ([`queue.md`](queue.md) §Blocked); the protocol they would run is
 [`gop-protocol.md`](gop-protocol.md).
