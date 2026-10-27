@@ -270,7 +270,7 @@ was removed on 2026-10-03, and a pushed fill has no waiters to leave.
 ## Fills are pushed
 
 ```
-fillFrames(from, to, onFrame, onError?)   → askMs
+fillFrames(from, to, onFrame, onError?)
 ```
 
 On the wire it is `stream_frames {from, to}`, a fill the server recites and **drops the moment an

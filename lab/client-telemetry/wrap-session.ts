@@ -11,7 +11,7 @@ type SessionLike = {
     to: number,
     onFrame: (f: Frame) => void,
     onError?: (frameIndex: number, reason: string) => void,
-  ): number;
+  ): void;
 };
 
 async function settle<T>(frameIndex: number, p: Promise<T>): Promise<T> {

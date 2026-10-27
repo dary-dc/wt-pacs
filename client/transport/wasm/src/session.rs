@@ -400,11 +400,9 @@ fn arm_fill(
     to: u32,
     on_frame: js_sys::Function,
     on_error: Option<js_sys::Function>,
-) -> f64 {
-    let ask_ms = perf_now_ms();
+) {
     let pending = (from..=to).collect();
-    st.borrow_mut().fill = Some(Fill { pending, ask_ms, on_frame, on_error });
-    ask_ms
+    st.borrow_mut().fill = Some(Fill { pending, ask_ms: perf_now_ms(), on_frame, on_error });
 }
 
 /// `:` and `-` are legal in a query, and the server's `parse_opening_ask` splits on them literally.
@@ -594,14 +592,14 @@ impl TransportSession {
         to: u32,
         on_frame: js_sys::Function,
         on_error: Option<js_sys::Function>,
-    ) -> Result<f64, String> {
+    ) -> Result<(), String> {
         if to < from {
             return Err("fillFrames: to < from".into());
         }
         if let Some(reason) = self.state.borrow().closed.clone() {
             return Err(format!("session unavailable: {reason}"));
         }
-        let ask_ms = arm_fill(&self.state, from, to, on_frame, on_error);
+        arm_fill(&self.state, from, to, on_frame, on_error);
         let payload = encode_fod_msg(&FodMsg::StreamFrames {
             from: Some(from),
             to: Some(to),
@@ -611,7 +609,7 @@ impl TransportSession {
             self.state.borrow_mut().fill = None;
             return Err("FoD request channel closed".into());
         }
-        Ok(ask_ms)
+        Ok(())
     }
 
     /// A wire buffer the consumer has finished with, back into the ring.
