@@ -12,7 +12,6 @@ let all = null;
 let xxh3 = null;
 
 const named = (e) => e?.name ?? String(e);
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 async function manifestOf(dir) {
   try {
@@ -57,7 +56,7 @@ async function open({ key, digests }) {
   // The lock first: another tab holding the series throws here, before anything is dropped.
   const handle = await (await dir.getFileHandle("frames", { create: true })).createSyncAccessHandle();
   const m = await manifestOf(dir);
-  if (!m || !same(m.digests, digests)) {
+  if (!m || JSON.stringify(m.digests) !== JSON.stringify(digests)) {
     handle.close();
     await all.removeEntry(series.name, { recursive: true });
     return { present: [] };
@@ -91,12 +90,6 @@ async function create(info) {
 const recordAt = (i) => series.n * series.frameBytes + i * RECORD * 4;
 const putRecord = (i, record) => series.handle.write(new Int32Array(record), { at: recordAt(i) });
 
-function getRecord(i) {
-  const record = new Int32Array(RECORD);
-  series.handle.read(record, { at: recordAt(i) });
-  return record;
-}
-
 function putFrame(i, pixels) {
   try {
     series.handle.write(new Uint8Array(pixels), { at: i * series.frameBytes });
@@ -124,7 +117,9 @@ async function read({ index }) {
   xxh3 ??= await hasher();
   const pixels = new SharedArrayBuffer(series.frameBytes);
   const bytes = new Uint8Array(pixels);
-  const [min, max] = getRecord(index);
+  const record = new Int32Array(RECORD);
+  series.handle.read(record, { at: recordAt(index) });
+  const [min, max] = record;
   series.handle.read(bytes, { at: index * series.frameBytes });
   if (xxh3.init().update(bytes).digest("hex") !== series.digests[index]) {
     putRecord(index, [0, 0, 0]);
