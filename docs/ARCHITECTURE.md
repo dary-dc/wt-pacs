@@ -60,27 +60,9 @@ boundary is the API, and `stats()` is async because it cannot be truthful and sy
 
 ## Messages
 
-| to the downloader | fields |
-| --- | --- |
-| `start` | config — and, optionally, `fill`: the first fill's frame indices |
-| `dial` | url, cert hash |
-| `fill` | frame indices |
-| `ask` | one frame index |
-| `cancel` | — |
-| `close` | — |
-
-| to the consumer | fields |
-| --- | --- |
-| `frame` | index, generation, pixels, width, height, bits, components, signed, min, max, byte count, wire bytes, stamps |
-| `failed` | index, generation, reason |
-| `cancelled` | generation |
-| `closed` | reason |
-
-Stamps are epoch milliseconds (`timeOrigin + now`; each context has its own `timeOrigin`), converted
-once by the consumer: ask, first byte, last byte, dispatched, decode start, decode end, and
-`decoder`, the index of the decoder it went to. `wire bytes` is the codestream length the envelope
-declared, beside the decoded byte count; a consumer reporting traffic quotes that one
-(`client/README.md` §What a frame reports).
+The messages are the branches of `downloader.js`'s `onmessage` and `consumer.js`'s `#fromDownloader`. Stamps are
+epoch milliseconds (`timeOrigin + now`); a frame's `wireBytes` is described in `client/README.md` §What a frame
+reports.
 
 **A request's identity is its generation, not its frame index.** `cancel` bumps a counter the
 downloader owns; every record, decode, decoder reply and delivery carries the generation it was made
