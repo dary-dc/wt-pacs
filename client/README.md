@@ -11,7 +11,7 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | - | - |
 | `consumer.js` | the page side: one waiter per asked frame, so `stats` needs no round trip |
 | `downloader.js` | the worker: dial, per-frame records, the fill pushed one run at a time and re-issued after an ask, two-priority queue, dispatch, cancel |
-| `downloader.test.mjs`, `consumer.test.mjs` | node: how many decoders a start makes; what `connect` refuses before a worker starts |
+| `downloader.test.mjs`, `consumer.test.mjs` | node, on hand-fed stand-ins: each file's last line names its cases |
 | `ts/`, `wasm/` | the TypeScript transports and the WASM transport's crate ([`docs/CLIENTS.md`](../docs/CLIENTS.md)) |
 
 **[`decode/`](decode/)** — the decode worker, its codec modules and the decoders' WASM builds:
@@ -161,8 +161,8 @@ session is re-dialled, the wait doubling after each re-dial it caused, and exact
 still owe is issued on the new one — the fill's remainder as a run and any outstanding ask again, with
 nothing that arrived re-fetched and nothing re-decoded. The request's **generation does not move**:
 a resume is the same request, so the page's waiters and records stay valid and the only thing it is
-told is when each resume happened, as `stats().resumedAt`. `survival: false` turns it off; an object overrides
-`{ stallMs: 3000, redialMs: 1000, tries: 5, dialMs: 5000 }`, where `tries` counts the re-dials since a
+told is when each resume happened, as `stats().resumedAt`. An object overrides `deadlines` in `downloader.js`;
+`survival: false` turns off all but `decodeMs`. `tries` counts the re-dials since a
 frame last arrived, so sessions that are accepted and never deliver end in the owed frames named. A dial whose `ready` has not settled by
 `dialMs` is closed and counts as a failed try, the first dial included. Given `transportFile`, the transport file's
 absolute URL (the viewer's), every dial after the first reads it again and dials the URL and hash it names, so an open
