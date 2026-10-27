@@ -1,12 +1,13 @@
 # PACS receive and metadata: the design state
 
-Status: **working record, 2026-10-26 (night).** The one current state of the PACS receive and metadata design: every
-decision, proposal, open question and result from the owner's sessions of 2026-10-24/25/26 and the runs of 2026-10-26
-(#142–#181), each folded into its section. It decides nothing by itself: each item says whose it is. **Decided** = the
-owner's, dated. **Proposed** = recommended by a record or run, not accepted; a result can strengthen or weaken it, never
-make it Decided. **Open** = to discuss (with the owner, the team, the product owner or the PCS team), with its default.
-Each item names the PR that holds its evidence; every PR is a draft, none merged. How the PRs merge is §13; what waits
-for whom is §14–§16; where the records disagree is §17; the afternoon's rows §18, the night's §19.
+Status: **working record, 2026-10-27.** The one current state of the PACS receive and metadata design: every
+decision, proposal, open question and result from the owner's sessions of 2026-10-24/25/26/27 and the runs of
+2026-10-26 (#142–#185), each folded into its section. It decides nothing by itself: each item says whose it is.
+**Decided** = the owner's, dated. **Proposed** = recommended by a record or run, not accepted; a result can strengthen
+or weaken it, never make it Decided. **Open** = to discuss (with the owner, the team, the product owner or the PCS
+team), with its default. Each item names the PR that holds its evidence; every design PR is a draft, none merged (only
+the advisories' lock fix, #183 and #184, is, §19). How the PRs merge is §13; what waits for whom is §14–§16; where the
+records disagree is §17; the afternoon's rows §18, the night's §19.
 
 Terms. *PCS*: the hospital-side component (another team's; github.com/opendicom/DECK_WebTransport), which receives,
 parses, encodes and forwards. *Submission package* (OAIS's SIP, ISO 14721), *package* for short: one file the PCS sends.
@@ -55,7 +56,8 @@ generation is a request's identity).
 * **Decided 10-26 evening, the container:** pax tar, "for its simplicity" (overhead about 0.4 % of a CT package,
   estimated).
 * **Decided 10-26 evening, late instances:** an **addition** package from the start, merged at the PACS into the
-  series' single `.sbnd` (§3). Several bundle files per series is rejected (complicates serving and archiving).
+  series' single `.sbnd` (§3). **Decided 10-26/27 night:** several bundle files per series are rejected (they complicate
+  serving and archiving).
 * **Open with the owner, package identity:** how a resend is recognised — by name/hash, by content, or another way;
   the hash should be only an integrity check (§14, D12; §17, A9).
 * **Proposed (#177), the sender's build** (pcs-transfer §15, theory): layout 2 — a 5-line header `package` (`layout 2`,
@@ -164,8 +166,14 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
 
 * **Decided 10-26 evening, the addition merge:** a late instance's addition package is merged into the series' single
   `.sbnd` by rewriting it (staged, renamed as in 6–6c). **The owner prefers** frames kept contiguous in display order
-  over any layout that stores them in arrival order (sequential reads are common, updates rare). Whether only the tail
-  can be rewritten is being measured (row NIGHT2-5, §19).
+  over any layout that stores them in arrival order (sequential reads are common, updates rare).
+* **Decided 10-26/27 night: late frames stay with the current `.sbnd` format and the full rewrite.** The owner's
+  reason: publishing by rename is needed for crash safety and for readers that already have the file open, in MXF and
+  MP4 too; modifications are uncommon, so the full copy is acceptable. *Correction recorded beside it:* with reflinks
+  (XFS, btrfs) a tail-only rewrite keeps rename's guarantees (#185: 342 kB and 3–7 ms for a frame at the end at
+  N = 2 000; 264 MB for the middle; worse than the full rewrite at the start), but it needs a format change (the index
+  at the end, or reserved slack), gains nothing on ext4 and little on the v2 tiled layout (≥ 93 % of S rewritten).
+  Reopen only if late merges prove frequent.
 * **Proposed (#175, `target.md` §A late instance, theory):** keep the rewrite and rename (about 3·S of I/O with the
   read-back), the format unchanged: the only option that keeps staging, publish-by-rename, serving-by-uid §4's inode
   check and the read-ahead. A trailer written in place is not crash-safe; append-only and a segment per merge store
@@ -705,9 +713,12 @@ One line each; none is settled here (a reconciliation by a Proposed PR is a prop
 ## 19 · Rows of 2026-10-26 night
 
 * **NIGHT2-1** (`claude/rustls-advisories-mainbase`, `claude/rustls-advisories-main`): the rustls advisories seen in
-  #171 (0.23.44 pinned; RUSTSEC-2026-0285, -0346 to -0349).
+  #171 (0.23.44 pinned; RUSTSEC-2026-0285, -0346 to -0349). Delivered: #183 into `claude/av1-unified-mainbase` and
+  #184 into `main`, **merged 2026-10-26/27 night at the owner's request**, CI green: rustls 0.23.46, rustls-webpki
+  0.103.16, tokio 1.53.3 (`Cargo.lock` only).
 * **NIGHT2-2** (`claude/transport-seam`): the transport seam (TCP, or QUIC at build, §2).
 * **NIGHT2-3** (pushes to #177): the sender's implementation.
 * **NIGHT2-4** (pushes to #163 and #160): the receiver's layout 2 and addition merge, and D2's disk-read helper as one
   crate.
 * **NIGHT2-5** (`claude/sbnd-tail-rewrite`): whether only the `.sbnd`'s tail can be rewritten on an addition (§3).
+  Delivered: #185. Decided 10-26/27 night: the full rewrite stays, with #185's correction beside it (§3).
