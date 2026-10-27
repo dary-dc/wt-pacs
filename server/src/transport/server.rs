@@ -108,7 +108,7 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
     let mut stop = std::pin::pin!(stop);
     loop {
         let incoming = tokio::select! {
-            incoming = endpoint.accept() => incoming,
+            incoming = endpoint.accept() => incoming.context("the QUIC endpoint stopped")?,
             () = &mut stop => break,
         };
         let sessions = sessions.clone();
@@ -259,9 +259,9 @@ fn bind_udp(addr: SocketAddr, dual_stack: bool) -> std::io::Result<std::net::Udp
     Ok(socket.into())
 }
 
-/// `None` only once the endpoint has closed. The ALPN TLS chose routes the session: `docs/native/README.md` §8.1.
-async fn handle_incoming(incoming: Option<quinn::Incoming>, sessions: Sessions) -> Result<()> {
-    let mut connecting = incoming.context("endpoint closed")?.accept().context("incoming connection")?;
+/// The ALPN TLS chose routes the session: `docs/native/README.md` §8.1.
+async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Result<()> {
+    let mut connecting = incoming.accept().context("incoming connection")?;
     let raw = connecting
         .handshake_data()
         .await
@@ -643,7 +643,7 @@ mod tests {
             .expect("identity");
         let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
         let server =
-            tokio::spawn(async move { handle_incoming(endpoint.accept().await, sessions).await });
+            tokio::spawn(async move { handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await });
         let connection = dial(fx.port, fx.cert_hash, "").await;
         client(connection.clone()).await;
         let ended = tokio::time::timeout(Duration::from_secs(10), server)
@@ -772,7 +772,7 @@ mod tests {
         let (config, sessions) = (fx.config(), plain_sessions(&fx.series));
         let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem).await.expect("identity");
         let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
-        let server = tokio::spawn(async move { handle_incoming(endpoint.accept().await, sessions).await });
+        let server = tokio::spawn(async move { handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await });
         let pin = ServerHashVerification::new([wtransport::tls::Sha256Digest::new(fx.cert_hash)]);
         let mut tls = build_default_tls_config(Arc::new(rustls::RootCertStore::empty()), Some(Arc::new(pin)));
         tls.alpn_protocols = vec![NATIVE_ALPN.to_vec()];
@@ -1352,7 +1352,7 @@ mod tests {
             .expect("identity");
         let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
         let server = tokio::spawn(async move {
-            handle_incoming(endpoint.accept().await, sessions).await
+            handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await
         });
         let connection = dial(fx.port, fx.cert_hash, "?ask=fill:0-2").await;
         let mut media = connection.accept_uni().await.expect("accept media uni");

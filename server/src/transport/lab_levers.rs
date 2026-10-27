@@ -54,8 +54,7 @@ pub(super) fn apply(mut config: ServeConfig) -> ServeConfig {
     config
 }
 
-pub(super) async fn hold_session(incoming: Option<quinn::Incoming>) {
-    let Some(incoming) = incoming else { return };
+pub(super) async fn hold_session(incoming: quinn::Incoming) {
     if let Ok(_unanswered) = IncomingSessionFuture::with_quic_incoming(incoming).await {
         std::future::pending::<()>().await;
     }
