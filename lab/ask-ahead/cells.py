@@ -32,7 +32,9 @@ ASK_AT = float(os.environ.get("ASK_AT", "0.5"))
 # docs/WIRE.md §Proposed: an ask during a fill. The page's query, and how a run's asks make its `ask_ms`.
 SHAPES = {"u2": ("", lambda r: r["askMs"]),
           "u1": ("&asks=8&every=100", lambda r: statistics.median(r["asksMs"]) if r["asksMs"] else None),
-          "u3": ("&asks=4", lambda r: r["allMs"])}
+          "u3": ("&asks=4", lambda r: r["allMs"]),
+          # docs/WIRE.md §What a scroll ahead asks: the last ten frames, a step every 500, 100 or 20 ms.
+          **{f"scroll{ms}": (f"&asks=10&every={ms}", lambda r: r["staleMs"]) for ms in (500, 100, 20)}}
 
 
 def free_port(kind=socket.SOCK_DGRAM):
@@ -130,6 +132,7 @@ def run(t, visit, http, cell, arm, rnd, prev):
     return {"round": rnd, "cell": cell, "arm": arm, "prev": prev, "settings": f"{settings} {' '.join(shown(ARMS[arm]))}".strip(),
             "ask_ms": round(SHAPES[shape(cell)][1](r), 1) if r.get("askMs") is not None else None,
             "asks_ms": [round(v, 1) for v in r.get("asksMs") or []],
+            "rest_ms": round(r["restMs"], 1) if r.get("restMs") is not None else None,
             "fill_ms": round(r["fillMs"], 1) if "fillMs" in r else None,
             "ahead": r.get("ahead"), "ahead_bytes": sum(t.sizes[i] for i in r.get("ahead") or []),
             "exact": bool(sha_ok), "error": r.get("error") or (r.get("errors") or [None])[0],
