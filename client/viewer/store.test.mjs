@@ -224,6 +224,17 @@ const fresh = () => ((disk = new Disk()), disk);
   check(open.present?.length === 0, `a changed series reopened with ${open.present} present`);
 }
 
+/** A second tab whose metadata differs does not drop a series another tab holds open: it runs without the cache. */
+{
+  fresh();
+  await opened("a", 3, [0]);
+  const call = await tab();
+  const open = await call("open", { key: "https://host/a", digests: digestsOf("b", 3) });
+  disk.closeAll();
+  const left = (await opened("a", 3)).open.present;
+  check(open.error && String(left) === "0", `the second tab opened ${JSON.stringify(open)}, and a kept ${left}, not 0`);
+}
+
 /** A refused size evicts the least recently opened series, not open, until it fits; reopening a series makes it recent. */
 {
   fresh();

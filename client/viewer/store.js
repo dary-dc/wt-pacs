@@ -54,12 +54,15 @@ async function open({ key, digests }) {
   series = { name: encodeURIComponent(key), digests, n: digests.length, handle: null, stopped: false };
   const dir = await all.getDirectoryHandle(series.name).catch(() => null);
   if (!dir) return { present: [] };
+  // The lock first: another tab holding the series throws here, before anything is dropped.
+  const handle = await (await dir.getFileHandle("frames", { create: true })).createSyncAccessHandle();
   const m = await manifestOf(dir);
   if (!m || !same(m.digests, digests)) {
+    handle.close();
     await all.removeEntry(series.name, { recursive: true });
     return { present: [] };
   }
-  series.handle = await (await dir.getFileHandle("frames")).createSyncAccessHandle();
+  series.handle = handle;
   Object.assign(series, { frameBytes: m.frameBytes, shape: m.shape });
   await writeManifest(dir, { ...m, opened: Date.now() });
   const records = new Int32Array(series.n * RECORD);
