@@ -110,7 +110,7 @@ def main():
           f"not exact or failed {len(bad)}")
     for arm in dict.fromkeys(r["arm"] for r in rows):
         print(arm, next(r["settings"] for r in rows if r["arm"] == arm))
-    cells = list(dict.fromkeys(r["cell"] for r in rows))
+    cells = [c for c in dict.fromkeys(r["cell"] for r in rows) if "," in c]
     voids = {}
     for cell in cells:
         voids[cell], share, aa = void(rows, cell)
