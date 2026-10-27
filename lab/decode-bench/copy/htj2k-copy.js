@@ -6,7 +6,7 @@ let M = null;
 let dec = null;
 
 export async function init(d) {
-  M = await instantiate(d, `typeof Module !== "undefined" ? Module : OpenJPHModule`, { mainScriptUrlOrBlob: d.glue });
+  M = await instantiate(d, `typeof Module !== "undefined" ? Module : OpenJPHModule`);
   dec = new M.HTJ2KDecoder();
 }
 

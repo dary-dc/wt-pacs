@@ -3,11 +3,12 @@
  * glue's factory is a `var`, local in a Function body, so the body returns it by `name`.
  * `d.sha256`, when given, holds the `glue` and `wasm` digests a build must have: anything else is refused.
  */
-export async function instantiate(d, name, options = {}) {
+export async function instantiate(d, name) {
   const [glue, wasmBinary] = await Promise.all([d.glue, d.wasm].map(async (u) => (await fetch(u)).arrayBuffer()));
   if (d.sha256) await Promise.all([pinned(d.glue, glue, d.sha256.glue), pinned(d.wasm, wasmBinary, d.sha256.wasm)]);
   const factory = new Function(`${new TextDecoder().decode(glue)}\nreturn ${name};`).call(globalThis);
-  return factory({ locateFile: (f) => d.dir + "/" + f, wasmBinary, ...options });
+  // A threaded build starts its helpers from the glue, not from this worker. docs/decode/README.md §Threads
+  return factory({ locateFile: (f) => d.dir + "/" + f, wasmBinary, mainScriptUrlOrBlob: d.glue });
 }
 
 export const sha256Hex = async (bytes) =>
