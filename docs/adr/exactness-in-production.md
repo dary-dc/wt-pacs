@@ -348,8 +348,8 @@ wrong. Today the ladder tries the second (a second decode) and cannot tell the f
 
 ### A client cache
 
-None exists: the cache seam is open ([`../ARCHITECTURE.md`](../ARCHITECTURE.md), §A cache seam and a paint sink).
-When one is built:
+*2026-10-27:* built for decoded samples, re-checked by one XXH3 on read, as [`frame-path.md`](frame-path.md)
+§Proposed specifies. Before it, none existed; when one is built:
 
 * **Never cache an unverified frame.** Store a frame only once its check is `true`, never `false` or `"unchecked"`.
   A frame rescued by a second decode is stored as its coded bytes, which were right.

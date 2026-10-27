@@ -1,6 +1,6 @@
 # ADR: where a decoded frame goes — the page in or out of the pixel path, and who owns the frame store
 
-**Status:** proposed 2026-10-11, **theory only: nothing built or timed**; the cache's design reviewed 2026-10-20 (§Proposed: the client cache in OPFS) (queue row 148, FRAMEPATH, of
+**Status:** proposed 2026-10-11, theory only; the cache's design reviewed 2026-10-20 and **built 2026-10-27, not timed** (§Proposed: the client cache in OPFS) (queue row 148, FRAMEPATH, of
 [`../av1/queue.md`](../av1/queue.md)). The decisions are the owner's; they are listed in §8 and under the queue's
 `## Blocked`. Sources are pinned in §9; every figure not marked *measured* is a prediction or a reading of source.
 
@@ -217,12 +217,23 @@ shipping Safari's ITP window; any frame on screen while the page is blocked.
 
 ## Proposed: the client cache in OPFS · 2026-10-20
 
-**Status:** a design review for the owner, **theory only: nothing built or timed**; the store's limit and eviction
-corrected 2026-10-27 for multi-GB studies (lever 5, with its defaults). It builds on §1–§8 and on what is
+**Status:** a design review for the owner; the store's limit and eviction corrected 2026-10-27 for multi-GB studies
+(lever 5, with its defaults). **Built 2026-10-27 with those defaults, not timed** (below). It builds on §1–§8 and on what is
 already decided: the page stays in the pixel path (the owner, 2026-10-11, queue row 148: §8.1 settled as A unless a
 measured cost says otherwise); checks stay on, the cache read's re-check included (the owner, 2026-10-11, row 151); a
 frame is never decoded twice; the final image lossless and bit-exact. Sources fetched for this section are added to
 [`frame-path-sources.txt`](frame-path-sources.txt) under 2026-10-20; the rest are §9's.
+
+**Built.** The store worker is `client/viewer/store.js`, started by the viewer; both clients run under it unchanged.
+`client/viewer/store.test.mjs` holds each rule below against an OPFS in memory. Where the build reads the text:
+
+* The key is the session URL: the page knows no bundle name, and a server serves one series.
+* The file is sized at the first frame checked `true`, not at open: the metadata need not carry the frame's shape.
+* The per-frame present bit, min and max sit after the frames in the same file; the manifest holds the digest list,
+  the shape and the last open.
+* The window drops only frames already on disk, so without a cache it keeps everything, as before: question 2 is open.
+* A series whole on disk still dials (question 6); a second tab on a series runs without the cache.
+* Not built: the slot ring, coded storage, a second tab's `getFile()` reads, reporting.
 
 ### Background: why the page has a ceiling
 
@@ -381,8 +392,10 @@ function of the available storage space" (Storage §Usage and quota).
   nothing is left to delete. Nothing is evicted on a timer or to keep a margin.
 * **Never evicted:** a series open in any tab. This tab's store worker knows its own; another tab's it learns by taking
   the victim's sync access handle first, which throws `NoModificationAllowedError` while that tab holds it (§4), and
-  then skips it. It deletes while holding the handle, so no tab opens it between. The spec's `removeEntry` takes no
-  lock (fs `index.bs` 993–1035); whether each engine removes a file under its own handle is not traced. Nothing else is
+  then skips it. The spec's `removeEntry` takes no lock (fs `index.bs` 993–1035). *Corrected 2026-10-27:* this said
+  it deletes while holding the handle; headless Chromium 153 refuses `removeEntry` under any open handle, its own
+  included (`NoModificationAllowedError`, run once), so the store closes the handle and then removes. Gecko and WebKit
+  are not run. Nothing else is
   protected: a prior study not open is as evictable as any.
 * **A series bigger than the store** (still refused with nothing left to delete): kept nowhere on disk; it runs on the
   window alone, and 124b's rule applies past it. Keeping the part around the reader needs slots reused by index, an

@@ -283,8 +283,10 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   `/wt/dev-transport.json` without `client` means; the script reads that file, also preloaded, and preloads the WASM
   client's files when it names `"wasm"`, any other name refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
-* **Frames.** Frames are kept in memory by index; the cache seam stays open ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
-  §Open). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
+* **Frames.** Frames are kept in memory by index. With digests, each frame checked `true` is also written to OPFS by
+  a store worker (`viewer/store.js`); a reopened series fills only what is not there, a frame on disk is read back
+  re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one leave memory
+  ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact.
