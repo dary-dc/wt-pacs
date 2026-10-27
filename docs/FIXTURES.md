@@ -664,7 +664,7 @@ Orthanc's demo, Slicer's sample data, D. Clunie's site, the OsiriX library, Rubo
 | BUVFM demo (Zenodo `20901197`, `usb_cine`'s source), CVA-Net's BUV | breast ultrasound clips, 871 and 188 | AVI; frames as images | lossy video or an export | 1.5 GB; — | `cc-by-4.0`; "available for only non-commercial use in research or educational purpose" | open | no: video (the nearest breast cine, as before) |
 | MIMIC-IV-ECHO (PhysioNet 1.0.1), cornerstone3D's US sample, fo-dicom `10200904.dcm` | echocardiography | DICOM | MIMIC not read (credentialed); cornerstone3D's flagged lossy 100:1 JPEG; fo-dicom's RLE-lossless, 79 frames | — | "PhysioNet Credentialed Health Data License 1.5.0"; MIT; MS-PL | credentialed; open; open | no: other anatomy |
 
-**IDC v25 and TCIA hold nothing new for the three types.** Every one of IDC's 39 XA series is single frames (re-read in
+**IDC v25 and TCIA hold nothing new for the three types.** Every one of IDC's 41 XA series (*corrected 2026-10-27*: 39 before; `idc-index-data` 25.0.0 lists 41) is single frames (re-read in
 v25); its multi-frame ultrasound beyond the prostate and brain volumes is cine flagged lossy — `cmb_crc`'s echo clips
 (Lossy `01`, 100:1, `ISO_10918_1`), `cmb_mel`'s 115-frame biopsy cine (`01`, ~26:1) and `b_mode_and_ceus_liver`
 (above); its breast ultrasound is CMB-BRCA's 40 stills. TCIA's catalogue adds five collections listing XA or US whose
@@ -686,57 +686,46 @@ volumes stored natively. Whether to ask the Hugging Face set's uploader for a li
 
 #### The frame-group data search (2026-10-27)
 
-The same three types, plus echocardiography as the nearest native ultrasound cine, against the bar of
-`av1/frame-groups.md` §5 (on `claude/av1-frame-groups-record`, #141: ≥ 2 independent sources × ≥ 2 native series, stored uncompressed or losslessly, under a
-licence that allows commercial use). 2026-10-27 03:05–03:30 UTC; the method of the wider search above, every set in its
-two tables re-read only where it might have changed. Headers read here with pydicom 3.0.2 from 256 KiB range reads.
+The wider search above, re-run for its three types plus echocardiography, the nearest native ultrasound cine, against
+the bar of `av1/frame-groups.md` §5 (on #141). 2026-10-27 03:05–03:30 UTC, its method; headers read with pydicom 3.0.2
+from 256 KiB range reads. Only what is new since the wider search is listed.
 
 | dataset | content | frames, bits, photometric | transfer syntax, and how known | licence (verbatim) | sources | access | meets the bar? |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `MesserMMP/coronary-angiography-syntax`, Hugging Face, now revision `5406e65d` (2026-10-20) | coronary runs, Philips and Siemens; the new revision adds 132 protocol and report PDFs, not opened | 33 and 60, 8 bits, `MONOCHROME2`, 15 and 10 frames/s | explicit and implicit LE, Lossy `00` (two headers, one a vendor); the Philips header carries no de-identification attributes, the Siemens one `PatientIdentityRemoved` `YES` | none: no card (README 404), no licence tag | one uploader, a personal account | open | no: no licence |
-| CardioSYNTAX, Zenodo `14005818` (WACV 2025, arXiv:2407.19894) | coronary runs, 1 844 studies | NumPy `.npy` videos, each with its DICOM UIDs | an export | `cc-by-4.0` | one group | open | no: an export — but **60 of its Philips SOP Instance UIDs are in the Hugging Face set's `test_data/philips_100.json`**, so that set holds at least part of this one's source DICOM (inferred from the UIDs, not stated by either) |
+| `MesserMMP/coronary-angiography-syntax`, Hugging Face, now revision `5406e65d` (2026-10-20) | as above; the new revision adds protocol and report PDFs, not opened | 33 and 60, 8 bits, `MONOCHROME2`, 15 and 10 frames/s | explicit and implicit LE, Lossy `00` (two headers, one a vendor); the Philips header carries no de-identification attributes, the Siemens one `PatientIdentityRemoved` `YES` | none: no card (README 404), no licence tag | one uploader | open | no: no licence |
+| CardioSYNTAX, Zenodo `14005818` (WACV 2025, arXiv:2407.19894) | coronary runs, 1 844 studies | NumPy `.npy` videos, named by their DICOM UIDs | an export | `cc-by-4.0` | one group | open | no: an export — but **60 of the 100 Philips Study Instance UIDs in the Hugging Face set's `test_data/philips_100.json` are in its `all.json`** (480 of their 906 series UIDs), so that set holds at least part of this one's source DICOM (inferred from the UIDs, not stated by either) |
 | ALN-Ultra, Zenodo `18483501` (2026-02-04) | breast ultrasound images and "3D videos" (axillary nodes), 257 patients | not stated | not stated: no file list shown | `cc-by-4.0` | not stated | restricted, on request | not known: the format is the question |
 | CAMEO, IEEE DataPort `10.21227/kvaz-eh57` | echo, one view a `.dcm` cine | not stated | not stated | not shown on the page | one hospital | subscription | no: one source, terms unknown |
-| EchoRisk (arXiv:2607.01039) | echo, five sites | — | not stated; "no DICOM file was recoverable" for some | none found for the data | five | "publicly available", no link found | not known |
-| figshare `21709394` | echo, one patient, Philips iE33 | 135, 8 bits, `YBR_FULL_422` | JPEG baseline `.4.50`, Lossy `01` (header, read by the search) | "CC BY 4.0" | one | open | no: lossy |
-| MIMIC-IV-ECHO (PhysioNet 0.1) | echo | not stated | not stated; its sample code converts `YBR_FULL_422`, JPEG baseline's colour model, so likely lossy (inferred) | "PhysioNet Credentialed Health Data License 1.5.0" | one | credentialed | no: licence, likely lossy |
+| EchoRisk (arXiv:2607.01039) | echo, five sites | — | not stated | none found for the data | five | "publicly available", no link found | not known |
+| figshare `21709394` | echo, one patient, Philips iE33 | 135, 8 bits, `YBR_FULL_422` | JPEG baseline `.4.50`, Lossy `01` (header) | "CC BY 4.0" | one | open | no: lossy |
 | EchoNet-Dynamic, -Pediatric, -LVH; CAMUS; TMED-2; Unity; EchoXFlow; CardiacUDA; EchoCP; HMC-QU | echo | — | AVI, NIfTI, PNG, Zarr, or not stated | non-commercial each ("… for personal, non-commercial research purposes only" for EchoNet; CC BY-NC, -NC-SA or -NC-ND for the rest; TMED-2's not read) | one to several | open or agreement | no: exports and non-commercial |
 | BUS-CoT (figshare `30838715`), BUS-UCLM (Mendeley) | breast ultrasound | stills | a zip; PNG converted from DICOM | "CC BY 4.0"; CC BY 4.0 | one each | open | no: stills |
-| CARDIAG (Zenodo `19958730`, updated 2026-10-23), MIQR-CC (figshare `31079236`), a Kaggle angiography set | coronary keyframes; ERCP fluoroscopy; coronary video | frames; PNG; `.wmv` | exports | `cc-by-4.0`; "CC BY 4.0"; "CC0: Public Domain" | — | open | no: exports. The Kaggle upload appears to carry patient identity and is not named here |
+| MIQR-CC (figshare `31079236`), a Kaggle angiography set | ERCP fluoroscopy; coronary video | PNG; `.wmv` | exports | "CC BY 4.0"; "CC0: Public Domain" | — | open | no: exports. The Kaggle upload appears to carry patient identity and is not named here |
 | gdcmData `US-MONO2-8-8x-execho.dcm`, `US-PAL-8-10x-echo.dcm` | synthetic "Acme" echo loops | 8 and 10, 8 bits, `MONOCHROME2` and `PALETTE COLOR` | explicit LE and RLE (headers) | none stated for the data | one | open | no: test files |
 | `emelalkim/sampledata`, GitHub release `large_multiframe` | an ultrasound cine loop, 172 frames | not read | "uncompressed" (release text only) | none: no LICENSE | one | open | no: no licence, one loop |
-| Rubo's samples; Orthanc's test database; dicomlibrary.com | US RLE and XA demo loops; OsiriX files; no US or XA | — | "Run length encoded" (US), "Lossy JPEG" (XA), as the page says | evaluation of their viewer; "exclusively available for research and teaching"; "educational and scientific purposes" | — | open | no: terms |
 
-**Unchanged and not repeated:** IDC is still v25 (`idc-index-data` 25.0.5, its latest): 41 XA, 12 RF and 2 249 US
-series, the multi-frame ones those the wider search read. TCIA's 2 371 US series in 16 collections hold no breast cine
-or ABUS, and none of MIDRC's releases is breast ultrasound. No scanner maker publishes multi-frame sample DICOM, only
-conformance statements. NEMA's sample path answers 404, IHE's Gazelle samples need a Connectathon account, and
-D. Clunie's `compressed/` directory now holds only deflate tests. No ABUS volume in DICOM was found anywhere.
+**Otherwise as the wider search found.** IDC v25 (`idc-index-data` 25.0.5): 41 XA, 12 RF and 2 249 US series. TCIA's
+US series hold no breast cine or ABUS, MIDRC no breast ultrasound; no scanner maker's sample DICOM is multi-frame;
+IHE's Gazelle samples need a Connectathon account; D. Clunie's `compressed/` now holds only deflate tests. No ABUS
+volume in DICOM anywhere.
 
 **The answer: no open dataset meets the bar for any of the three types.** Every native, lossless multi-frame source is
-either unlicensed or a single test loop. The open echo DICOM that can be read is lossy JPEG, and every multi-site echo
-set is non-commercial or an export. Three come close, each by a request the owner would have to send; ABUS has none:
+unlicensed or a single test loop; the open echo DICOM is lossy JPEG; every multi-site echo set is non-commercial or an
+export. Three come close, each by a request only the owner can send (av1/queue.md §Blocked):
 
-1. **Angiography: the Hugging Face set and CardioSYNTAX, together.** Open a discussion in the dataset's Community tab
-   on Hugging Face and write to CardioSYNTAX's corresponding author (arXiv:2407.19894). Ask (a) whether the DICOM is
-   the source of CardioSYNTAX, (b) that the dataset card state CC BY 4.0, as the Zenodo record does, or that the
-   authors confirm in writing that the record's licence covers the DICOM, and (c) which institutions the data came
-   from, and whether the Philips files were de-identified. Even granted, this is one source with two vendors, so the
-   bar still wants a second source. Whether one source with two vendors counts is the owner's open question
-   (av1/queue.md §Blocked).
-2. **Breast ultrasound cine: ALN-Ultra.** Use the "Request access" form on Zenodo record `18483501`. Ask whether the
-   videos are native DICOM multi-frame objects or MP4/AVI, and if they are DICOM, ask for them in their stored
-   transfer syntax with the record's CC BY 4.0. One source.
-3. **Echo, as a stand-in for ultrasound cine: EchoRisk and CAMEO.** Ask EchoRisk's organisers (arXiv:2607.01039) where
-   the data is released, under which licence, and whether the five sites' DICOM is published as stored. Ask CAMEO's
-   authors for its licence in writing, and whether the `.dcm` files are the scanner's own, stored uncompressed or
-   losslessly.
-4. **ABUS:** nothing open is close. The one route is a site request for native scanner DICOM under a written
-   licence, for example to the TDSC-ABUS organisers, whose agreement now bars both redistribution and any use outside
-   the challenge.
+1. **Angiography: the Hugging Face set and CardioSYNTAX.** In the dataset's Community tab and to CardioSYNTAX's
+   corresponding author, ask whether the DICOM is CardioSYNTAX's source, that the card state CC BY 4.0 or the authors
+   confirm in writing that the record's licence covers the DICOM, and which institutions it came from and whether the
+   Philips files were de-identified. Granted, it is still one source with two vendors.
+2. **Breast ultrasound cine: ALN-Ultra**, by the record's "Request access" form: are the videos native DICOM, and if so,
+   in their stored transfer syntax under the record's CC BY 4.0? One source.
+3. **Echo as a stand-in: EchoRisk and CAMEO.** Where and under which licence EchoRisk's data is released, and whether
+   as stored; CAMEO's licence in writing, and whether its `.dcm` files are the scanner's own, stored losslessly.
 
-Sources: the hosts' APIs and pages, read 2026-10-27, and the two Hugging Face headers and the CardioSYNTAX JSON
-(`all.json` against `philips_100.json`), compared in this search.
+ABUS has nothing close: only a site's native scanner DICOM under a written licence would do.
+
+Sources: the hosts' APIs and pages, read 2026-10-27; the two Hugging Face headers; CardioSYNTAX's `all.json` against
+`philips_100.json`.
 
 #### Every closed verdict against its data
 
