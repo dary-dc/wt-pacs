@@ -23,6 +23,10 @@ and the path after the re-wrap is unchecked. Nothing in a spike would change tha
 surface, our paint worker could be that backend, and B would keep the proof. That API is experimental and cannot do
 this today (integration.md §Cornerstone3D, *Keeping our painter*). When a release can, B is re-drawn and re-spiked.
 
+**Not carried: B on its CPU fallback.** It is the one Cornerstone3D route that could be held to our reference, apart
+from rounding (integration.md §Cornerstone3D, *render*). It paints on the page thread at the cost of our own 2d route,
+105 ms a 4096×3072 frame on a GPU host ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Paint): under 10 frames/s.
+
 ## What all three share
 
 The same five stages run in every option up to the decoded frame. They are ours, and none of them changes:
@@ -115,14 +119,7 @@ depth), and clearance is our gate under every option (requirements.md §Authorit
 device must be listed, and its defects tracked by us. Under B that adds Cornerstone3D and vtk.js, which move by
 majors. The device-lifecycle standard that names this (IEC 62304) was not read for this row.
 
-**Risks:**
-
-* **Exactness.** The paint is not ours, and it cannot be byte-exact by construction (integration.md §Cornerstone3D,
-  *render*).
-* **The page.** The page goes back into the pixel path, so frame-path's B′ is lost, and cine runs on a page timer.
-* **Copies.** Each image change copies the frame, which is 25 MB for a 4096×3072 frame.
-* **Upgrades.** There were four majors in two years, and the 5.x stack viewport sits behind a migration layer.
-* **Size.** The shipped bundle size is not known.
+**Risks:** integration.md §Cornerstone3D, its *lost* and *upgrade risk* rows; the shipped bundle size is not known.
 
 ## C. OHIF v3 on Cornerstone3D
 
@@ -152,13 +149,7 @@ is not counted in lines.
 **Licence and regulation:** MIT. The application states it is not cleared (survey.md §In depth). Its inline scripts
 need CSP hashes, and it registers a service worker. That is more surface for the security row to review.
 
-**Risks:** everything B carries, and also:
-
-* **Upgrades.** It pins Cornerstone3D behind the latest release (5.6.8 against 5.13.2), so each OHIF release is also
-  a Cornerstone3D jump.
-* **Control of the page.** Its policy, its preloads, and an opening fill that starts before its scripts run are no
-  longer ours.
-* **Prefetch.** Its own prefetcher issues loads, and our loader must answer them from the fill.
+**Risks:** B's, and integration.md §OHIF v3's: the pin behind Cornerstone3D, control of the page, and its prefetcher.
 
 ## The spike
 
@@ -205,6 +196,8 @@ fixed before any of it is written.
 * The readback at 1:1 is compared with `client/paint/reference.js`, at the image's first window and at identity. It
   covers frames 0, 25 and 49 of the DBT series and all four views. It records the worst |Δ| and how many samples
   differ.
+* One sweep of the DBT series by each option's own cine at the image's rate (A's `toggleCine`, B and C's `playClip`)
+  renders every index once, in order. The scroll metric below paces itself on the render, so it cannot test this.
 
 **The metrics.**
 
@@ -220,7 +213,7 @@ fixed before any of it is written.
 
 * One sample altered in the decoder: not every frame exact.
 * The paint offset by one row in each option: worst |Δ| above 0.
-* One scroll step that does not wait for the render: an index skipped.
+* One cine step in A that does not wait for the paint: an index skipped.
 
 **Where the host saturates.**
 
@@ -258,7 +251,8 @@ fixed before any of it is written.
 **The rule.**
 
 1. **The gate.** An option is out under the requirement as decided if any of these fail: every frame exact,
-   worst |Δ| = 0 at 1:1, and every DBT index rendered in order.
+   worst |Δ| = 0 at 1:1, and every DBT index rendered in order by its own cine. A failure in A is ours to fix before
+   any timing, so A always reaches rule 2.
 2. **If only A passes,** A is carried forward. B's worst |Δ| and its count of differing samples go to the owner as the
    price of a bound. If the owner sets a bound, B is judged again on the same data, with the bound in place of
    |Δ| = 0. Nothing is re-run.
