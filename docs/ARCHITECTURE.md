@@ -321,7 +321,7 @@ restart` is not measured.
 the downloader has them before it dials. Otherwise the page posts `fill` after `started`, and a main
 thread inside a long boot task cannot post it until the task ends.
 
-Measured ([`../lab/fill-at-start/`](../lab/fill-at-start/README.md), 8 cores, 20 frames of ~51 KB,
+Measured (`lab/fill-at-start/` at `ea581aca`, 8 cores, 20 frames of ~51 KB,
 decode off, one fresh page and session per variant, **12 rounds**, order reversed on odd rounds). Median
 [min … max] from `connect()`. Over a **50 ms round trip, the main thread held 300 ms from 25 ms in**
 — the worker alive and dialling, which is a viewer's ordering:
@@ -476,7 +476,7 @@ fails ends its worker too.
 
 Before, every closed client left its downloader running: **one renderer thread and 2.5 MB resident
 per client** — 40 clients took the renderer from 10 to 50 threads and 106 to 206 MB, three rounds
-identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 141 headless); after,
+identical (`lab/worker-leak/run.mjs` at `ea581aca`, Chromium 141 headless); after,
 10–12 threads and 118–123 MB. **Terminating the decoders from the downloader as well strands it**:
 10–12 of 40 downloader workers stayed alive, script dead, thread and memory held — a race
 `client/contract/drive_page.cjs` checks for by counting leftover workers after every page.
@@ -667,7 +667,7 @@ Both variants were mutated and moved as they should: `shared` given a transfer l
 ### The downloader variant during a fill, against direct
 
 Does the downloader worker lengthen the per-frame interval during a fill, against a client on the
-page feeding the same decoders? [`../lab/decode-tail/`](../lab/decode-tail/run.mjs) `page.js`
+page feeding the same decoders? `lab/decode-tail/` at `ea581aca`, `page.js`
 is the product path, `direct.js` the same TS transport on the page feeding the same `decoder.js`
 workers by the same rule, so the downloader worker is the only difference. Driverless Chromium,
 loopback, the 87-frame colour and 16-bit sets, 7 rounds interleaved, medians:
