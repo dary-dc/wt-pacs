@@ -193,6 +193,29 @@ merged into the series' one `.sbnd`; the format is unchanged (`docs/disk-layout/
 What it assumes and does not check: that a series package's bundle is in that display order already. The receiver has
 no per-frame instance in v1 to check it by (§7, 11).
 
+### Item by item (Proposed, not built)
+
+**Proposed, awaiting the owner's confirmation; not decided.** The model is metadata-updates §14 (#176, on
+`claude/update-flow`); the sender's manifest is pcs-transfer §15.13 (#177, on `claude/sender-package-build`). The
+receiver would apply each item of a package (the exam group, the series group, an instance's groups) in the one
+transaction of step 7:
+
+| the manifest says | current row | the receiver |
+| --- | --- | --- |
+| nothing (a new item) | none | creates it (a new study or series, as now) |
+| | equal to the package's | a duplicate: nothing |
+| `replaces <path> <previous>` | equal to `<previous>` | replaces it, with an audit line |
+| | equal to the package's | a duplicate: nothing |
+| `removes <path>` | equal to the path's hash | removes it, with an audit line |
+| | none | a duplicate: nothing |
+| any of the above | anything else | stale: the whole package refused `final` |
+
+New instances' frames are merged into the `.sbnd` as an addition's are (above). A package that changes nothing is
+answered `stored` with no audit row, so a resend needs no counter: the revision order of §7, 5 would go, the revision
+left a label in the name. *Would change:* §5's update refusing a row that does not exist, the addition's rule that
+the exam and series groups match byte for byte, step 4's (unit, revision) check and step 5's three members. Whether
+a removed instance's frames are rewritten out of the `.sbnd` or only hidden is not settled here.
+
 ## 6 · What is stubbed, and why
 
 | step | interface | why not built |
