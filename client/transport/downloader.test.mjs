@@ -102,7 +102,7 @@ function handDecoders() {
     finish() {
       const m = this.decoding.shift();
       this.toConsumer.postMessage({ kind: "frame", index: m.index, gen: m.gen, pixels: new Uint8Array(1), stamps: m.stamps });
-      this.onmessage({ data: { kind: "done", index: m.index, gen: m.gen } });
+      this.onmessage({ data: { kind: "done" } });
       return m;
     }
     crash() {
