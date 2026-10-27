@@ -852,3 +852,32 @@ Corrected in place when the owner accepts, as §13's are: §2's late instance (a
 addition (decision 5); §4's instance-number order becomes byte order of paths, and its header's compression flag is
 dropped; §4's header kinds become `series`, `addition`, `update`; §7's rebuild on a content refusal becomes a resend of
 the kept bytes, rebuilt only when they fail their name.
+
+### 15.13 Updates: the manifest and one package at a time (Proposed)
+
+**Proposed, awaiting the owner's confirmation; not decided, not built.** The model is metadata-updates §14 (#176, on
+`claude/update-flow`): a package carries only the items that changed, each changed one with the hash it replaces, and
+the receiver applies it item by item (`docs/adr/pacs-receiver.md` §5, commit `5d0ae2c` on `claude/pacs-receiver-impl`,
+#163). What it asks of the sender:
+
+* **The sent list is the records §15.7 keeps:** the member paths of every stored revision, so the hash each item
+  replaces is read from them, never from the tree.
+* **A fourth member, `manifest`**, after `package`: one line per replaced or removed item, empty when there is none
+  (a first send, a plain addition).
+
+  ```text
+  replaces --.<new> <previous hash>
+  replaces <S>/---.<new> <previous hash>
+  removes <S>/<I>/----.<h>
+  ```
+
+  An item in `metadata` without a `replaces` line is new. The bundle member is there only when frames are.
+* **One package per series at a time**, in order: the next is built and sent only after the previous one's `stored`,
+  so a stale package cannot arrive later. §15.2's step 1 already sends kept revisions oldest first; this makes the
+  wait, not the counter, the order.
+* **The revision stays in the name as a label** (§15.8); the receiver no longer reads it for correctness, and
+  §15.5's "strictly n+1" goes.
+
+**Blocked on the PCS team:** a corrected group is written beside the old file, which is never deleted (§15.3 refuses
+two exam groups for that reason), so the sender cannot tell which is current. The parser should replace the file or
+mark the current one.
