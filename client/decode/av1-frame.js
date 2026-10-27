@@ -4,10 +4,7 @@
  * coded planes for colour. The payload's split, colour transform and offset are undone here.
  * docs/av1/payload-format.md
  */
-
-const refuse = (why) => {
-  throw new Error(`undecodable: av1 payload: ${why}`);
-};
+import { refuse } from "./av1-payload.js";
 
 /** Whether every sample of `planes` is `mid`: a grey stream's chroma when it is coded 4:2:0. */
 export function neutral(planes, width, height, mid) {
