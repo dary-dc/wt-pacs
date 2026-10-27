@@ -916,6 +916,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "clap",
+ "fod",
+ "frame-envelope",
+ "serde_json",
+ "series-bundle",
+ "series-server",
+ "tokio",
+ "wtransport",
+ "xxhash-rust",
+]
+
+[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,26 @@
+[package]
+name = "native-client"
+version = "0.1.0"
+edition = "2021"
+description = "The native client's headless core: the series' frames over raw QUIC, each checked. docs/native/README.md §8"
+
+[[bin]]
+name = "native-fill"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+bytes = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+fod = { path = "../../common/fod" }
+frame-envelope = { path = "../../common/frame-envelope" }
+serde_json = { workspace = true }
+series-bundle = { path = "../../common/series-bundle" }
+tokio = { workspace = true }
+# For its quinn and certificate pin only, so the version and the `[patch]` are the server's.
+wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring"] }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+[dev-dependencies]
+series-server = { path = "../../server" }
+wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring", "self-signed"] }

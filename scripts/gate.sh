@@ -170,6 +170,8 @@ step "server: tests, default features"
 run 1 cargo test -p series-server --quiet -- --nocapture
 step "server: tests, telemetry feature"
 run 1 cargo test -p series-server --features telemetry --quiet -- --nocapture
+step "client: the native core over raw QUIC, against the server and a WebTransport client"
+run 1 cargo test -p native-client --quiet
 step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"
