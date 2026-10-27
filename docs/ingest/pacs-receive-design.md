@@ -59,7 +59,9 @@ generation is a request's identity).
   series' single `.sbnd` (§3). **Decided 10-26/27 night:** several bundle files per series are rejected (they complicate
   serving and archiving).
 * **Open with the owner, package identity:** how a resend is recognised — by name/hash, by content, or another way;
-  the hash should be only an integrity check (§14, D12; §17, A9).
+  the hash should be only an integrity check (§14, D12; §17, A9). *Proposed 2026-10-27:* the update model of §5, whose
+  item-by-item apply makes a resend change nothing, so no identity is needed for correctness; it needs a small manifest
+  for updates (removals and previous hashes), the "something" the 10-25 decision above waits for.
 * **Proposed (#177), the sender's build** (pcs-transfer §15, theory): layout 2 — a 5-line header `package` (`layout 2`,
   `kind series|addition`, `study`, `unit`, `revision`; `update` reserved), one inner pax tar `metadata` holding every
   group (one zstd frame on the limited-link profile, plain otherwise, told by the magic), `<S>/series.sbnd` as it is;
@@ -67,6 +69,15 @@ generation is a request's identity).
   locked), so a rebuild keeps its name; `sender EXAM_DIR SERIES...` idempotent, kept revisions sent oldest first; a
   refusal resends the kept bytes, a rebuild only when they fail their name. The receiver's changes are its §15.11
   (row NIGHT2-4).
+* **Built (#177, proposed):** the sender (`carrier/sender` at `ab34536`, §15 corrected as built at `ecbea88`) — layout
+  2 by an allow list, the inner tar in byte order of its paths, one zstd frame (level 3) on the zstd profile; ustar
+  only (a member of 8 GiB or more refused); `--profile`, exit 2 for a profile error and 4 for other I/O; the package
+  kept in the outbox with what each revision carried until `committed`, checked against its name before each call of
+  `send-package.sh` (embedded, unchanged), rebuilt only when it fails or is gone; a late instance makes an addition of
+  the instances no earlier revision carried. `transport quic` is refused (the upload is curl's). tar 0.4.46, zstd
+  0.13.3 (libzstd 1.5.7 bundled), xxhash-rust 0.8.19, locked; 11 tests, 18 mutations, all caught. Found: a lost kept
+  file rebuilt after a late instance's bundle conflicts. Its reply word is still #164's `committed` (D3). Built
+  **without resend-identity logic, on purpose**, until the update model (§5) is confirmed.
 * **Proposed (#149):** a deterministic pax tar named `<unit>.<revision>.<xxh3-64>.tar`; identity is (unit UID,
   revision), the hash a check; the PCS decides completeness and the package's existence declares it. Each series
   package may carry the exam group: stored if new, nothing if its hash matches, a study-level update if it differs.
@@ -103,6 +114,16 @@ generation is a request's identity).
   TCP with stock curl stays; h3 not the default; if QUIC is built for its controller, raw QUIC on quinn with our own
   framing (b1), our client at that site only; if stock curl must carry QUIC, nghttpx in front of the TCP carrier (d2);
   either way the receive windows set to the site's bandwidth-delay product. Pre-registered, not run.
+* **The transport seam (#182, link.md §14, theory, proposed):** a seam is needed only if QUIC is built at all, and its
+  smallest form (S1) is no interface of ours: hyper's connection type parameter, filled at build by a TLS-over-TCP
+  stream or one bidirectional quinn stream carrying the same draft-14 over HTTP/1.1 under an ALPN of ours (~40 lines
+  at the carrier, ~20–30 a `connect()` in the sender, *estimated*; h3 and h3-quinn dropped). Pairing is then by
+  transport only. Best per side: kernel TCP; quinn at both ends. Recommended: the default profile TCP with CUBIC; the
+  limited-link profile **TCP with BBR per socket** until a pre-registered run (T, T-bbr, Q, Q-bbr, Q-ack on emulated
+  limited links, its §14.5) shows quinn > 20 % ahead on a real site's class; otherwise S0, the `quic` feature deleted.
+  It narrows #171: b1's framing is HTTP/1.1 itself, and d2 (stock curl over HTTP/3) falls away since the sender is
+  ours. Four questions with defaults (S1 yes once QUIC is kept; no ALPN registration; BBR enabled by the installer; no
+  MPTCP). Nothing built or timed (§14, D4).
 * **The TCP carriers explained (#181, `carriers-explained.md`, theory, sourced):** rsync, SFTP/SCP, a plain PUT retried
   whole, partial PUT, draft-14, tus 1.0, S3-style multipart, C-STORE with Storage Commitment, STOW-RS with PS3.18 §13,
   each scored against resumable, fast, simple, with a reply; no recommendation beyond its table. The carrier choice
@@ -183,6 +204,16 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   (only its bytes are claimed exactly); MXF and MP4 with the moov at the end append in place in 2–10 ms (kB written);
   every middle insertion in MXF or a front-moov MP4 rewrites the series too; AV1 GOP 30 in the middle adds ~9–11.5 s
   of re-encode.
+* **Measured (#185, `containers.md` §Measured: rewriting only the tail; XFS with reflinks and ext4 on loop devices,
+  interleaved, five rounds, medians):** the merge clones the published file (`FICLONE`), rewrites the clone from the
+  insertion point on, reads it back and renames it over: the publish-by-rename guarantees hold, and a reader holding the
+  old file read it unchanged. At N = 2 000, XFS: 342 kB and 3.0 / 6.7 ms (warm / `fsync`'d) for a frame at the end,
+  264.4 MB and 1.16 / 1.39 s in the middle, 529.4 MB and 1.6× the full rewrite `fsync`'d at the start (copy-on-write
+  over shared extents); the full rewrite 529.4 MB, 1.75–4.08 / 2.24–2.32 s. ext4 has no reflink: the fallback copies,
+  the same bytes and time as the full rewrite. Needs the index at the end or reserved slack (the two tied); on layout 1
+  (v2 tiled) the tail is ≥ 93 % of S (arithmetic). The times are the merge's one core, the bytes exact; btrfs, a cold
+  cache and repeated merges not measured. It corrects #175's "extent sharing does not help". The owner kept the full
+  rewrite (Decided 10-26/27 night, above).
 * **Proposed (#169, receiver ADR §10, theory): the process map.** Crash recovery takes every package in `incoming/`
   again, so the files are the record in every option. Recommended: **two programs joined by files**, the receiver a
   loop with a scan every few seconds, its own user, no network; one process loses the isolation (one address space
@@ -209,19 +240,25 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   quarantine and crash recovery; 9 and 10 a trait with nothing behind it. Verified against the steps above one by one:
   staging on the root's filesystem, fsync of files and directories, 6b from disk, never decodes, one rename, one
   transaction with an audit row, 8 from disk, refusal keeps the package, recovery from 3. Package-hash and 6b-hash
-  mutations caught. Owed: **the test suite is flaky** (about half of full runs fail with "another receiver holds
-  …/incoming": the crash test forks while other tests hold the lock); a mutation of the 6b call sites to a cached read
-  survives (only the helper is tested); **the audit row has no "who"** (Decided 10-24/25: who, when, what); its ADR §0
-  calls quarantine and durability "Decided", where they are proposed steps here (staging is the owner's, 10-26). Its
-  per-member compression is a flaw (Decided 10-26 evening, §2); layout 2 and the addition merge go to #163 in row
-  NIGHT2-4.
+  mutations caught. Owed: **the audit row has no "who"** (Decided 10-24/25: who, when, what; its ADR §7 question 7);
+  its ADR §0 calls quarantine and durability "Decided", where they are proposed steps here (staging is the owner's,
+  10-26). *Corrected 2026-10-27, from the branch's commits of the night:* the flaky suite is fixed (`791e015`: the crash
+  test forks only while no test holds a lock; 20 full runs and 40 parallel runs, 0 failures); steps 6b and 8 are
+  tested at their call sites (`33ffdaf`, three mutations caught); 6b and 8 read through `common/from-disk`, the one
+  helper D2 chose (`3471fb9`); **layout 2 and the addition merge are built** (`5d0ae2c`: one `metadata` member, zstd
+  or plain; kinds `series`, `addition`, `update`; a `layout 1` header refused; the merge in display order by Instance
+  Number then coded UID, written in the work directory, read back whole from disk and renamed; the crash test adds an
+  addition in the middle of its series), so the per-member compression flaw is gone. Built **without resend-identity
+  logic, on purpose**, until the update model (§5) is confirmed: what it has is #149's (unit, revision) order per unit,
+  which §5's point 5 would take out of the correctness logic.
 * **Built (#160, proposed):** the verify tool (tools/pacs-verify and common/study-db at `5c9356c`) for a file, a study
   or a root; reads from disk (`fdatasync` + `posix_fadvise(DONTNEED)`), report, exit 0/1/2; 20 tests; integrity,
   group-hash and fadvise mutations caught. Frames are read back, not hashed: v1 `.sbnd` has no per-frame coded XXH3
-  (documented). Owed: the uncached-open call sites are untested (only the helper is).
+  (documented). *Corrected 2026-10-27:* the uncached-open call sites are tested (`62c8ce5`, two mutations caught), and
+  the helper is the crate `common/from-disk` (`4d9e4a7`), the same files as #163's (they merge clean).
 * **#160, #163 and #164 do not fit together yet** (built in parallel): two study-DB schemas (`xxh3 INTEGER` in #160,
   `xxh3 TEXT` in #163: the verify tool fails on a study DB the receiver writes); two disk-read helpers where "same code"
-  is Decided (**Decided 10-26:** #160's, §14 D2); two reply files and vocabularies (#163 `stored`/`refused`/`quarantined` in `incoming/status/<f>`; #164
+  is Decided (**Decided 10-26:** #160's, §14 D2; *now one crate in both, 2026-10-27*); two reply files and vocabularies (#163 `stored`/`refused`/`quarantined` in `incoming/status/<f>`; #164
   `committed`/`refused retry`/`refused final` in `status/<name>`). Each is structural: §14, D1–D3. *Corrected
   2026-10-26:* #160's schema also lacks #163's `series` column and audit table; the one real D1 choice is the hash's
   type.
@@ -283,6 +320,23 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   audit row per package (refused ones too) with prior values in the study DB, DICOM Original Attributes vocabulary;
   withdrawal per IHE IOCM (CID 7010 reasons; hidden, purged after a grace period); `sender` and `on_behalf_of` now,
   roles later.
+* **Proposed 2026-10-27, the update model — awaiting the owner's confirmation of five points.** The owner's own rule:
+  the receiver applies a package **item by item**. The exam: no study → create it; else its hash differs → replace it
+  and write an audit record; else nothing. The same for each series and each instance; new frames are merged into the
+  `.sbnd` (§3); items not in the package are left untouched. The completion proposed:
+  1. absence means unchanged; deletions are listed explicitly;
+  2. item-by-item apply is idempotent, so a resend changes nothing and is answered `stored`;
+  3. each changed item carries the hash it replaces, taken from the sender's sent list: applied if the current hash is
+     that previous one; current = new is a duplicate (`stored`); anything else is stale and refused;
+  4. the sender sends one package per series at a time, in order, waiting for `stored`;
+  5. the revision counter leaves the correctness logic (a label at most).
+
+  Consequence: updates need a small manifest (the removals and the previous hashes), which meets the 10-25 "no
+  manifest until something needs one" (§2). Points 2–3 are #176's and #148's base hash on the PCS's wire. If
+  confirmed, it answers D12 and A9 (§14, §17): no package identity is needed for correctness. The sender (#177) and
+  the receiver (#163) were implemented without any resend-identity logic, on purpose, waiting for this. **For the PCS
+  team** (§15): the parser writes a corrected group beside the old file and never deletes the old one (#176), so the
+  sender cannot tell which is current; the parser should replace the file or mark the current one.
 * **Decided 10-26 evening, first version:** the sender compares the hash-named files with what it last sent (#176's
   option c), "good enough"; to the team meeting (§16).
 * **Proposed (#176, metadata-updates §13, theory, for the team meeting):** every correction that reaches the PCS comes
@@ -446,7 +500,8 @@ Read in its source or seen in its bytes; the questions are §15.
 | #165 `lab/study-index/README.md` (`16fec79`) | "The owner chose MySQL on 10-25": the owner did not (§14, D9) | owed |
 | #149 (in #158) `docs/adr/pcs-transfer.md` (`b47b918`) container table | tar over zip for cross-file zstd: #163 compresses per member (§2) | owed |
 | #160 common/study-db | #163's `series` column and audit table (§14, D1) | owed |
-| #163 receiver | per-member compression → one stream; layout 2 and the addition merge (#177 §15.11) | owed, row NIGHT2-4 |
+| #163 receiver | per-member compression → one stream; layout 2 and the addition merge (#177 §15.11) | done in #163 (`5d0ae2c`) |
+| #175 `docs/disk-layout/target.md` §A late instance | "extent sharing does not help": true of the index at the front with no slack only (#185) | owed; #185 corrects it in `containers.md` |
 | #149 (in #158) `docs/adr/pcs-transfer.md` (`b47b918`) §2, §4, §7 | the late instance as an addition, byte order of paths, no compression flag, resend the kept bytes (#177 §15.12) | owed, once the owner accepts #177 |
 
 ## 12 · PR index
@@ -473,10 +528,10 @@ One line per PR: what it delivers · state · supersedes / superseded by. "Theor
 | #157 | sqlite-engine §5: two processes, rusqlite waits, Turso fails or is stale | draft, verified | merge; not in #159 |
 | #158 | the design records combined, §11's corrections | draft, verified | supersedes #142 #145 #146 #148 #149 #152 #153 #155 as the way they merge |
 | #159 | the metadata lab branches consolidated, draft corrected | draft, verified | supersedes #113 #120 #126 #144 #147 #150 #151 #154 #156 |
-| #160 | tools/pacs-verify + common/study-db (§3's verify tool) | draft, verified | waits for D1 and D11 |
+| #160 | tools/pacs-verify + common/study-db + common/from-disk (§3's verify tool) | draft, verified; call-site tests `62c8ce5` | waits for D1 and D11 |
 | #161 | study DB layout: row per group vs shared + per-frame vs blob | draft, verified | merge after #159 |
 | #162 | server `--root`: many series by coded UIDs | draft, verified | built from #142; waits for D10 only to make defaults final |
-| #163 | ingest/receiver + ADR: steps 1–8, 11, 12, R, recovery | draft, verified, flaky tests | waits for D1, D3, D11; supersedes #119 |
+| #163 | ingest/receiver + ADR: steps 1–8, 11, 12, R, recovery; layout 2 and the addition merge (`5d0ae2c`) | draft; flaky tests fixed (`791e015`) | waits for D1, D3, D11, the update model (§5); supersedes #119 |
 | #164 | carrier crate + the PCS's script (draft-14, mTLS) | draft, verified | built from #149/#155; waits for D3, D4, D11 |
 | #165 | lab/study-index: MySQL 8.4 prototype, timed | draft, verified | built from #146 |
 | #166 | lab/metadata-delivery: viewer metadata ways, timed | draft, verified | built from #153 |
@@ -490,11 +545,15 @@ One line per PR: what it delivers · state · supersedes / superseded by. "Theor
 | #174 | lab/study-index: PostgreSQL 18 and SQLite beside MySQL, timed | draft, Proposed | all three meet §11, most cells tie (D9); stacks on #165 |
 | #175 | `target.md`: a late instance without the rewrite (theory) | draft, Proposed | keep rewrite and rename, format unchanged (§3) |
 | #176 | metadata-updates §13: how a change travels (theory) | draft, Proposed | option (c), whole groups on the wire (§5, A8); for the team meeting |
-| #177 | pcs-transfer §15: the sender's package build (theory) | draft, Proposed | layout 2; reconciles A4–A6; the sender's code pushes here (NIGHT2-3) |
+| #177 | pcs-transfer §15 and `carrier/sender`: the sender's package build, built (`ecbea88`) | draft, Proposed | layout 2; reconciles A4–A6; waits for D3, D4, D11, the update model (§5); stacks on #164 |
 | #178 | lab/metadata-store: zstd on converted-enhanced, timed | draft, Proposed | compressed, CE is 1.17–1.32× larger than per-instance; level 1 (§4) |
 | #179 | lab/late-frame: a late frame in `.sbnd`, MXF, MP4, timed | draft, Proposed | `.sbnd` rewrites the series; moov-at-end and MXF append in ms (§3) |
 | #180 | link.md §11.10: is a reply needed? (theory) | draft, Proposed | yes, the end-to-end argument; agrees with the decision (§2) |
 | #181 | `carriers-explained.md`: the TCP carriers (theory) | draft, Proposed | a scored table, no recommendation (D4) |
+| #182 | link.md §14: the transport seam now that the sender is ours (theory) | draft, Proposed | S1 if QUIC is kept; TCP with BBR first; pre-registered T-bbr vs quinn (D4); stacks on #171 |
+| #183 | `Cargo.lock`: rustls 0.23.46, rustls-webpki 0.103.16, tokio 1.53.3, into `claude/av1-unified-mainbase` | **merged** 10-26/27 night, the owner's request, CI green | the base of §13 |
+| #184 | the same into `main` | **merged** 10-26/27 night, the owner's request, CI green | — |
+| #185 | `containers.md`: a late frame by rewriting only the tail of a reflinked clone, timed | draft, Proposed | yes with reflinks, needs a format change; the owner kept the full rewrite (§3); stacks on #179 |
 
 Older stack (before #142): #113 ← #120 ← #126 (stores, format survey, pair bench), carried by #159: close; #118
 page-open carriers (`metadata-turso` base), not carried, evidence only; #119 receiver design, superseded by #163's ADR
@@ -580,7 +639,8 @@ Each: the evidence in one line · the default if nothing else is said.
   hash as hex `TEXT` or `INTEGER` · #160's common/study-db is the one schema, carrying #163's `series` column and audit
   table, `xxh3 INTEGER`; #163 uses the crate.
 * **D2 · one disk-read helper. Decided 2026-10-26:** #160's (flush, then drop the cache), "yes, rec seems safer"; used by
-  steps 6b and 8, with a test at a call site (owed, DAY-7).
+  steps 6b and 8, with a test at a call site. *Done 2026-10-27:* `common/from-disk` in #160 and #163, call sites tested
+  in both (`33ffdaf`, `62c8ce5`).
 * **D3 · the reply file and its words.** #163 writes `incoming/status/<f>` `stored`/`refused`/`quarantined`; #164 reads
   `status/<name>` `committed`/`refused retry`/`refused final`; §3 decided "stored". **Owner 10-26:** "need to be
   analyzed" (where the reply file lives and how long); row DAY-5 first compares one program against two. #169
@@ -591,8 +651,10 @@ Each: the evidence in one line · the default if nothing else is said.
   decided at the deployment". WebTransport has no place in the carrier (no browser on either end); it came up only
   because wtransport 0.7.2 rejects non-CONNECT requests, so HTTP/3 needs its own listener. Open: the h3 0.0.x
   dependency, "we might need to use directly some quic implementation ... Not necessarily in rust"; row DAY-1, answered
-  by #171 (TCP with stock curl; b1 or d2 if QUIC, not h3). The carrier choice after #181's table is open with the owner
-  · TCP in the default build, the `quic` feature off.
+  by #171 (TCP with stock curl; b1 or d2 if QUIC, not h3). #182 (proposed): the sender is ours, so d2 falls away; if
+  QUIC is kept, S1 (the same HTTP/1.1 on one quinn stream, chosen at build); TCP with BBR per socket first, quinn only
+  if its pre-registered run puts it > 20 % ahead. The carrier choice after #181's table is open with the owner · TCP in
+  the default build, the `quic` feature off.
 * **D5 · study DB layout** (§4). #161: row per group wins while the parser's keys hold addresses · T1 now; revisit
   shared + per-frame when the PCS's keys are deterministic.
 * **D6 · viewer metadata** (§6). #166: reading the study DB at open ties derived files on every link, loses on host CPU
@@ -620,11 +682,14 @@ Each: the evidence in one line · the default if nothing else is said.
 * **D10 · #142 §9's seven choices.** Built as defaults in #162; the close code does not reach a browser · the defaults
   as built; the capsule patch later.
 * **D11 · implementation PRs before the fit. Decided 2026-10-26:** "we hold until everything is clean. We don't merged
-  unfinished work." #160, #163 and #164 wait until everything is clean (the fit, #163's flaky test and missing audit
-  "who", each PR's owed tests).
-* **D12 · package identity** (§2, A9). Open with the owner: how a resend is recognised — by name/hash, by content, or
-  another way; the hash should be only an integrity check · #149's (unit, revision), the hash a check; #177's
-  deterministic build keeps a rebuild's name.
+  unfinished work." #160, #163, #164 and #177 wait until everything is clean (the fit, #163's missing audit "who",
+  each PR's owed tests; #163's flaky test and the call-site tests are done, 2026-10-27).
+* **D12 · package identity and the update model** (§2, §5, A9). Open with the owner: how a resend is recognised — by
+  name/hash, by content, or another way; the hash should be only an integrity check. **Proposed 2026-10-27 (§5):** the
+  owner's item-by-item apply completed by five points (absence = unchanged, deletions listed; idempotent apply, a
+  resend answered `stored`; the previous hash per changed item, stale refused; one package per series in flight; the
+  revision a label at most), which needs a small manifest for updates; the five points await the owner's confirmation
+  · the §5 model as proposed; until confirmed, #163 and #177 keep #149's (unit, revision) and nothing else.
 * **D13 · how the PCS learns the verdict** (§2). #170: keep polling, optionally `Prefer: wait=20`; open with the owner
   · polling, as built in #164.
 
@@ -638,7 +703,9 @@ Each: the evidence in one line · the default if nothing else is said.
 * The reply: keep each package until "stored"; resend on "refused"; stop on "quarantined" and tell an operator. Can the
   PCS run curl and a small script (resumable upload, mutual TLS, a certificate per site)?
 * Updates: does a correction delete the old group file on your side? How is a withdrawal sent? #176 §13.6 Q-U1–Q-U7
-  (one group file per marker per directory; deterministic keys; ...).
+  (one group file per marker per directory; deterministic keys; ...). **The ask (§5, 2026-10-27):** the parser writes a
+  corrected group beside the old file and never deletes the old one, so our sender cannot tell which is current;
+  please replace the file, or mark the current one.
 * Your parser (§10): when will nested keys be deterministic (the study DB layout waits on it, §4)? Group 0002 in the
   instance group, the exam sequence split, the unterminated date-directory name, exit codes 12 and 0, unbounded
   attribute tables, the failing builds.
@@ -668,7 +735,8 @@ the update API submitting update packages.
 
 **Updates from the PCS** (§5). The owner's first version (10-26 evening, "good enough"): the sender compares hash-named
 files with what it last sent (#176's option c), whole changed groups on the wire; (d), a manifest, is the fallback if the
-sender must hold no state.
+sender must hold no state. The update model proposed 2026-10-27 (§5) adds a small manifest to updates anyway (removals
+and previous hashes) and needs the parser to replace or mark a corrected group (§15).
 
 ## 17 · Where the records disagree
 
@@ -690,7 +758,7 @@ One line each; none is settled here (a reconciliation by a Proposed PR is a prop
 * **A8 · updates:** as differences (§5, #148), or as whole-group replacement (#163). *Addressed by #176:* whole groups
   on the PCS's wire, differences after intake (§5).
 * **A9 · a package's identity:** (unit, revision) (#149), a sender UUID, or a content digest; open with the owner
-  (§14, D12).
+  (§14, D12). *Addressed by the §5 proposal (2026-10-27):* none is needed for correctness if apply is item by item.
 * **A10 · the audit row's "who":** decided (§4), but nothing carries a "who" to the audit row.
 * **A11 · starting the receiver:** nothing starts it.
 * **A12 · staging:** the owner's decision 10-26 against "proposed" in this file. *Fixed* in §3.
@@ -716,9 +784,9 @@ One line each; none is settled here (a reconciliation by a Proposed PR is a prop
   #171 (0.23.44 pinned; RUSTSEC-2026-0285, -0346 to -0349). Delivered: #183 into `claude/av1-unified-mainbase` and
   #184 into `main`, **merged 2026-10-26/27 night at the owner's request**, CI green: rustls 0.23.46, rustls-webpki
   0.103.16, tokio 1.53.3 (`Cargo.lock` only).
-* **NIGHT2-2** (`claude/transport-seam`): the transport seam (TCP, or QUIC at build, §2).
-* **NIGHT2-3** (pushes to #177): the sender's implementation.
+* **NIGHT2-2** (`claude/transport-seam`): the transport seam (TCP, or QUIC at build, §2). Delivered: #182.
+* **NIGHT2-3** (pushes to #177): the sender's implementation. Delivered: `ab34536`, `ecbea88` (§2).
 * **NIGHT2-4** (pushes to #163 and #160): the receiver's layout 2 and addition merge, and D2's disk-read helper as one
-  crate.
+  crate. Delivered: `3471fb9`, `5d0ae2c` on #163, `4d9e4a7` on #160 (§3).
 * **NIGHT2-5** (`claude/sbnd-tail-rewrite`): whether only the `.sbnd`'s tail can be rewritten on an addition (§3).
   Delivered: #185. Decided 10-26/27 night: the full rewrite stays, with #185's correction beside it (§3).
