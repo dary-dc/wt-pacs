@@ -22,7 +22,7 @@ Breast imaging, from IHE MAMMO and DBT and the ACR mammography parameter:
 6. **DBT.** Manual scrolling and cine scroll in spatial order and never skip a slice. Cine has a speed control and
    loop, sweep or stop. Each view toggles between 2D, slices, slabs and synthesized 2D. The frame number, the slice
    thickness and the position in the stack are shown.
-7. **Presentation states.** GSPS is applied.
+7. **Presentation states.** GSPS is applied, and the user saves and retrieves it.
 
 All 2D, from IHE BIR, which is taken as the floor beyond breast imaging:
 
@@ -84,7 +84,7 @@ target anyway is marked N\*. "Today" points at the file that does it, or says no
 | two series side by side | R | "The Image Display shall allow at least two FrameSets for the same or different studies to be compared side by side in separate viewports" (same §) | no |
 | one patient at a time | R | "The Image Display shall not display FrameSets for multiple patients simultaneously." (same §) | holds trivially: one series |
 | linked scrolling, zoom and pan in one Frame of Reference | R | "If the FrameSets share the same DICOM Frame of Reference UID, the viewports shall by default be synchronized with respect to scrolling …, be synchronized with respect to panning and zooming …, have cross-referencing active" ([V2] §4.16.4.2.2.6.2) | no |
-| localizer lines, cross-hair | R | "A Localizer Lines tool shall be provided" (BIR's tool table marks it optional) ([V2] §4.16.4.2.2.6.7) | no |
+| localizer lines, cross-hair | R | "A Localizer Lines tool shall be provided to turn the display of localizer lines on or off." ([V2] §4.16.4.2.2.6.7) | no |
 | linked scrolling across DBT views | N | no IHE DBT sentence ("synchroni" does not occur in [V2] §4.16.4.2.2.1.3); DICOM can encode it: "Each Item of this Attribute identifies a group of Display Sets to which synchronized scrolling is to be applied." ([P3] Table C.23.3-1) | no |
 | fast navigation between old and new studies | N\* | "Mammographic displays should allow fast and easy navigation between old and new studies. This is especially critical when there is a mix of FFDM and DBT images." ([ACR-MG] V.C.2) | no |
 
@@ -100,19 +100,19 @@ target anyway is marked N\*. "Today" points at the file that does it, or says no
 | CT presets | R | "user-selectable window presets shall be provided which shall include presets for soft tissue, brain, lung and bone" (same §); ACR "recommended" ([ACR-EP] III.D.1.e.4) | no |
 | GSDF, luminance range configurable | R | "An Image Display that supports the Mammography Image Profile shall support calibration as described in the DICOM Grayscale Standard Display Function (GSDF). The minimum and maximum luminance of the display shall be configurable by the site" ([V2] §4.16.4.2.2.1.1); CPI: "it is required that both the Grayscale Standard Display Function and the Grayscale Softcopy Presentation State are supported" ([V1] §5) | no: 8 bits tagged sRGB, no presentation LUT (`docs/display.md`) |
 | background air not windowed | R | "Image Displays shall be capable of recognizing pixels that have the value specified in Pixel Padding Value (0028,0120) … and setting them to a minimum display value that is not affected by image contrast adjustments, including inversion" ([V2] §4.16.4.2.2.1.1.1) | no |
-| GSPS applied | R (ACR), N (IHE) | "Support for DICOM presentation states for displaying images with the ability to save and retrieve various presentation states as specified by the user is required." ([ACR-MG] VI.B.4); for MAMMO alone "it is optional for the Image Display … to actually retrieve and display/apply these objects" ([V2] §4.16.4.2.2.1); a GSPS SCP "shall apply all the transformations stored in the state" ([P4] N.1.1) | no |
+| GSPS applied, saved and retrieved | R (ACR), N (IHE) | "Support for DICOM presentation states for displaying images with the ability to save and retrieve various presentation states as specified by the user is required." ([ACR-MG] VI.B.4); for MAMMO alone "it is optional for the Image Display … to actually retrieve and display/apply these objects" ([V2] §4.16.4.2.2.1); a GSPS SCP "shall apply all the transformations stored in the state" ([P4] N.1.1); for DBT, saving user annotations is the User Annotation Option ([V1] §37.2.5) | no |
 | shutters | R | "Display shutters encoded in the image shall be applied." ([V2] §4.16.4.2.2.6.4) | no |
 | invert | R | "An invert grayscale tool shall be provided." (same §) | yes: `viewer.js` key `i`; MONOCHROME1 in `voi.js` |
 | colour, PALETTE COLOR included | R | "the Image Display shall be able to display color images (those with a Photometric Interpretation of RGB or PALETTE COLOR)" (same §) | RGB yes; PALETTE COLOR declined (`client/paint/README.md` §The contract) |
 | 1:1 pixels, no processing | R | "each encoded pixel occupies one display pixel in the viewport" ([V2] §4.16.4.2.2.1.1.3.3); "there shall be a mode in which actual pixels … are displayed … with no further processing or interpolation other than application of point grayscale transformations" (§…1.9); ACR "essential" ([ACR-EP] III.D.1.e.5) | the painter can, exact to the code at zoom 1 (`client/paint/README.md` §What is proved); the viewer has no such mode (`view()` is always `fit: true`) |
 | same size, true size | R | "all images are at the same relative physical size"; "all images are true size, regardless of whether they have the same values of Imager Pixel Spacing" ([V2] §4.16.4.2.2.1.1.3.1–2); ACR "must" ([ACR-MG] V.B.5.b–c) | no: the ingest keeps no pixel spacing (`ingest/from-dicom/dicom_series.py` `display`) |
-| continuous zoom and pan, interpolated | R | "The Image Display shall provide continuous (not stepped) zooming and panning"; "Interpolation for display shall be continuous (e.g., linear or bicubic) and not by nearest neighbor replication." ([V2] §4.16.4.2.2.6.6) | bilinear yes; zoom stepped ×1.25 and ×1.1 (`viewer.js` `zoom`); no pinch |
+| continuous zoom and pan, interpolated | R | "The Image Display shall provide continuous (not stepped) zooming and panning"; "Interpolation for display shall be continuous (e.g., linear or bicubic) and not by nearest neighbor replication." ([V2] §4.16.4.2.2.6.6); ACR: "Workstation software tools must include window/level and zoom/pan" ([ACR-MG] V.C.4) | bilinear yes; zoom stepped ×1.25 and ×1.1 (`viewer.js` `zoom`); no pinch |
 | magnifier (loupe) | N | no source found that requires one | no |
 | orientation labels, laterality | R | "The Image Display shall display the laterality … in the overlaid annotations"; orientation labels "shall be annotated on the right and bottom sides of the viewport" ([V2] §4.16.4.2.2.6.7); "Rotating or flipping the images must preserve the correct patient orientation labels." ([ACR-EP] III.D.1.e.6) | no |
 | orientation from attributes, not the pixels' order | R | "Image Displays shall not assume that the pixel data is encoded with an orientation that is suitable for direct display" ([V2] §4.16.4.2.2.1.1.2) | no: shown as stored |
 | rotate and flip, only for DX and CR | R | "The Image Display shall provide tools to rotate images with a Modality (0008,0060) of DX or CR … by 90 degree increments, and to flip them horizontally. These tools shall be inactive for other modalities, for safety reasons." ([V2] §4.16.4.2.2.6.2) | contradicted: `r`, `h`, `v` act on every modality |
 | view labels | R | "annotating the viewport with abbreviations derived from the value of Image Laterality …, View Code Sequence … and any values of View Modifier Code Sequence"; "a right CC view shall be displayed as "RCC""; "a right implant displaced CC view would be annotated as "RCCID"" ([V2] §4.16.4.2.2.1.1.5.3) | no |
-| identification and technique shown | R | "Displays must be capable of showing image information, including patient identification, image information, and acquisition technique" ([ACR-MG] V.B.5.d); "essential" ([ACR-EP] III.D.1.e.3) | no: the ingest drops patient and study identifiers by design (`dicom_series.py` `display`) |
+| identification and technique shown | R | "The Image Display shall be capable of displaying the information contained in the attributes listed in" the identification and the technique tables, the investigative set on request ([V2] §4.16.4.2.2.1.1.5.1–2); "Displays must be capable of showing image information, including patient identification, image information, and acquisition technique" ([ACR-MG] V.B.5.d); "essential" ([ACR-EP] III.D.1.e.3) | no: the ingest drops patient and study identifiers by design (`dicom_series.py` `display`) |
 | chest-wall edge left clear | R | "the Image Display shall not annotate the edge that contains the chest wall, as determined from (0020,0020) Patient Orientation" ([V2] §4.16.4.2.2.1.1.5) | no annotations |
 | annotations can be turned off | R | "The Image Display shall provide a tool to suppress the display of the annotations" ([V2] §4.16.4.2.2.6.8); "It shall be possible to turn on or off either set of annotations" ([V2] §4.16.4.2.2.1.1.5.1) | no |
 | lossy at source labelled | R | annotations include "whether or not lossy compression has been applied, derived from Lossy Image Compression (0028,2110)" ([V2] §4.16.4.2.2.6.8); "The FDA requires that when an image is displayed it be labeled with a message stating if irreversible compression has been applied and with approximately what compression ratio" ([ACR-EP] III.B) | no: the ingest does not carry (0028,2110). The on-screen mark is about our own exactness (`viewer.js` `repaint`) |
@@ -157,7 +157,6 @@ longer (47% longer)" with DBT added ([Dang 2014]), and 77 s against 33 s ([Berna
 | tooltips, case-insensitive keys | R | "All tool icons shall supply a tool tip"; "Keyboard short cuts shall be case insensitive." ([V2] §4.16.4.2.2.6.13) | contradicted: `viewer.js` `KEYS` maps `r`, `h`, `v`, `i` and not their capitals; there are no tool icons |
 | advanced tools hidden by default | R | "Additional features may be present, but in order to reduce confusion these shall not be displayed to the user, unless the user specifically selects a tool to trigger advanced functionality." ([V2] §4.16.4.2.2.6.1) | — |
 | ROI statistics (area, mean, SD) | N | no source found that requires them | no |
-| user annotations saved as GSPS | N | DBT's User Annotation Option ([V1] §37.2.5) | no |
 
 ## CAD and SR
 
@@ -178,7 +177,7 @@ longer (47% longer)" with DBT added ([Dang 2014]), and 77 s against 33 s ([Berna
 | --- | --- | --- | --- |
 | key images flagged | N (R under KIN) | "IHE requires Image Display Actors receiving Key Image Notes to display the fact that images referenced by the Key Object Selection Document belonging to the same study are flagged." ([V1] §8.3). For DBT it is an option ([V1] §37.2.1) | no |
 | rejected instances suppressed | N (R under IOCM) | "it shall suppress the KOS and its referenced rejected instances from presentation" ([V2] §4.31.4.2.3.2) | no |
-| show the report | N | BIR's tool table lists "Show Report (R)" ([V2] Table 4.16.4.2.2.6.13; transcribed, not quoted) | no |
+| show the report | N | BIR requires a Show Report tool only "When used as the Basic Viewer Option on PDI Media" ([V2] §4.16.4.2.2.6.12); the "R" beside it in Table 4.16.4.2.2.6.13-1 is its shortcut key | no |
 | writing the report (Breast Imaging Report, TID 4200) | O | a reporting system's job ([P16] TID 4200) | — |
 
 ## Integration
