@@ -210,6 +210,8 @@ webtransport` only, no reset-stream-at. Three ways a native client can reach it:
   streams. On the server, wtransport 0.7.2 accepts a session from a quinn connection the server already holds
   (`IncomingSessionFuture::with_quic_connecting`), so one quinn endpoint on one port could offer both ALPNs and hand
   only `h3` to wtransport — **read from the API, not built**. This is a change to the wire: proposed here, not built.
+  *Chosen by the owner, 2026-10-26; designed in [`README.md`](README.md) §8* (the ALPN `wt-pacs/1`, one endpoint, the
+  stream mapping, the server's shared code, the client crate).
 * **Plain HTTP/3** (row 128's subject): the only door for Cronet/HttpEngine and URLSession, so the only way to use the
   phone's own QUIC stack on Android.
 
@@ -234,6 +236,7 @@ Each is the owner's; the row only lists them. They are also under §Blocked in [
 2. **WebTransport from the native client, or raw QUIC with our own ALPN.** WebTransport keeps the server unchanged and
    the browser and native clients on one protocol; raw QUIC removes a layer and opens Apple's stack. Decides it: N2,
    and whether the browser client stays.
+   *Answered by the owner, 2026-10-26:* raw QUIC, beside WebTransport for the browser ([`README.md`](README.md) §8).
 3. **Multipath now (noq, a quinn fork at the final codepoint), or after an RFC and quinn.** Decides it: whether a
    Wi-Fi ↔ cellular handover costs a fill enough to matter — not measured ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Session survival).
 4. **Same stack for the ingest link** (quinn), or a second stack chosen for a Linux or Windows site host.

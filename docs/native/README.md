@@ -16,7 +16,8 @@ because it is easier to start there; phones are the goal (the owner, 2026-10-10)
 5. [Costs](#5-costs)
 6. [The measurement plan](#6-the-measurement-plan)
 7. [The owner's decisions](#7-the-owners-decisions)
-8. [Sources](#8-sources)
+8. [The headless core on raw QUIC: the design](#8-the-headless-core-on-raw-quic-the-design)
+9. [Sources](#9-sources)
 
 ## 1. The plan in plain words
 
@@ -161,7 +162,8 @@ none queued; each states its predictions and rule before any data and runs in a 
   Rule: no native paint is timed before this passes.
 * **M2 NATIVEFILL — fill time and the ask, native against the browser, one machine** (container). Arms: today's
   browser client (headless Chromium, WASM decoders, the gl painter on SwiftShader) and a lab native client (the
-  `lab/window-harness` transport, native OpenJPH, M1's painter on lavapipe). The lever is the client as a whole;
+  `lab/window-harness` transport, native OpenJPH, M1's painter on lavapipe). *Corrected 2026-10-27:* the native arm
+  is §8's core on raw QUIC and its CLI; `window-harness` speaks WebTransport and stays the lab's WebTransport driver. The lever is the client as a whole;
   server, controller, initial window and relay are one build and printed. Cells: loopback; the relay at 20 and
   50 Mbit, clean and 2 % random loss; a 61 MB and a 4.4 MB series; the ask at depth 1 on 40 ms. ≥ 7 rounds,
   Williams-ordered. Predictions:
@@ -194,8 +196,12 @@ Also under §Blocked in [`../av1/queue.md`](../av1/queue.md).
 
 1. **Whether to build a native client at all before M2.** A page now reaches every engine; the app's case is the
    cache, background work, native decode and a receive path no browser offers — the last two unmeasured.
+   *Answered by the owner, 2026-10-26:* build it now, headless first — a Rust core on raw QUIC (quinn) with its own
+   ALPN, native OpenJPH and dav1d, the per-frame check and a file-system cache, then M1 and M2 in containers. The
+   design is §8.
 2. **The shape** (§4): Rust core + native UI per platform; a pure-Rust GUI (Slint the only one on all five, with its
    licence); Qt; Flutter. What decides it: the team's languages and how much accessibility the mobile UI needs.
+   *Still open (the owner, 2026-10-26):* the headless core in §8 is built so that any of them can sit on it.
 3. **The cache's policy**: a persistent on-device cache or none (AAPM 260's advice); its budget; on iOS, data
    protection class C (prefetch works locked) or A (cache closed ~10 s after lock).
 4. **The intended use, for a regulatory specialist**: diagnostic display (892.2050, MDR Rule 11) or display only —
@@ -203,7 +209,200 @@ Also under §Blocked in [`../av1/queue.md`](../av1/queue.md).
 5. **Distribution**: the public stores, or hospital channels (Apple Business Manager custom apps, managed Google Play
    private apps) and a desktop update channel per OS.
 
-## 8. Sources
+## 8. The headless core on raw QUIC: the design
+
+*Queue row NATIVEWIRE, 2026-10-27. Theory only: read from the server's code and from wtransport 0.7.2, quinn 0.11.11,
+quinn-proto 0.11.18 and rustls 0.23.46 at the versions `Cargo.lock` pins; nothing built, nothing timed; line counts
+are estimates. Structural: proposed for review before step 1 starts.*
+
+**The question.** What is the smallest design that lets the existing server serve a native raw-QUIC client the same
+frames, exactness and send behaviour it gives WebTransport?
+
+**The answer in brief.** One quinn endpoint on the one UDP port offers two ALPNs, `h3` and `wt-pacs/1`, and dispatches
+each connection by the one TLS chose. `h3` goes to wtransport exactly as today; `wt-pacs/1` gets [`../WIRE.md`](../WIRE.md)'s
+control stream and media streams as bare QUIC streams. Everything from the first FoD message on — planner, pipeline,
+store, `Link`'s send path, the transport configuration — is the code the browser path runs today; only the two
+handles it writes through become an either-or. The client is one workspace member, **client/native**, written on the
+same quinn and the server's own `fod`, `frame-envelope` and `series-bundle` crates.
+
+### 8.1 One endpoint, two ALPNs
+
+* **How TLS chooses.** rustls picks the first of the server's `alpn_protocols` that the client offers, "most
+  preferred first" (`src/server/`: `server_conn.rs:336–338`, `hs.rs:98–107`), and sends only that one back. In QUIC no
+  overlap is fatal: `no_application_protocol`, connection error 0x178 (`hs.rs:122–136`, RFC 9001 §8.1). So a browser,
+  which offers only `h3`, gets the same ServerHello it gets today, and an unknown ALPN is refused in the handshake by
+  name — that refusal is the version check.
+* **When the server knows.** quinn's `Connecting::handshake_data()` resolves once the ClientHello is processed, and
+  its `rustls::HandshakeData.protocol` is "guaranteed to be set if a nonempty list of protocols was specified"
+  (quinn `connection.rs:148–167`, quinn-proto `crypto/rustls.rs:259–263`). It takes `&mut self` and a second call
+  returns at once (`handshake_data_ready.take()`).
+* **Why the server must own the quinn endpoint.** wtransport's `Endpoint::accept` returns an `IncomingSession`
+  whose `quinn::Incoming` is private (`endpoint.rs:145–156`, `:537`) and whose future always runs the HTTP/3 driver,
+  so it cannot route. Its `IncomingSessionFuture::with_quic_connecting(quinn::Connecting)` takes a connection the
+  server already holds (`endpoint.rs:607`). With this repository's `settings-in-handshake` patch that future and the
+  one `Endpoint::accept` builds both call the same `accept(connecting)`, which itself awaits `handshake_data()` and
+  writes SETTINGS at 0.5 RTT ([`../../patches/wtransport-0.7.2-settings-in-handshake.patch`](../../patches/wtransport-0.7.2-settings-in-handshake.patch)):
+  the browser's session open is the same code, early SETTINGS included.
+* **What the endpoint is built from.** wtransport's `ServerConfigBuilder::build` is four calls on quinn
+  (`config.rs:556–566`): `QuicServerConfig::try_from(tls)`, `ServerConfig::with_crypto`, `transport_config` and
+  `migration(true)`, over `EndpointConfig::default()`. The server makes the same four, with
+  `wtransport::tls::server::build_default_tls_config(identity)` (`tls.rs:635–655`, which sets `[h3]`) and
+  `wt-pacs/1` pushed after it, and `TransportTuning::to_transport_config()` as today. It binds the socket with
+  `socket2` (already a dependency) — dual-stack `[::]`, then `0.0.0.0` — because wtransport's `bind_socket` is
+  `pub(crate)` (`config.rs:1163`), and hands it to `quinn::Endpoint::new`. **One `quinn::ServerConfig` serves both
+  ALPNs, so the controller, initial window, send window, idle timeout and the patched quinn and quinn-proto are one
+  object**: the send behaviour cannot differ by ALPN except through what the client grants (§8.7).
+* **The accept loop.** `endpoint.accept()` → `incoming.accept()?` → `handshake_data().await` → by
+  `protocol`: `h3` → `IncomingSessionFuture::with_quic_connecting(connecting).await` and today's `handle_incoming`
+  body; `wt-pacs/1` → `connecting.await` and a raw handler (§8.3). Stop is unchanged: `endpoint.close(STOPPING, …)`
+  and `wait_idle()` exist on `quinn::Endpoint`.
+* **Two endpoints instead** (raw QUIC on a second port) would leave `build_endpoint` alone, but adds a port to open
+  in every firewall, a second socket, a second stop path and a second banner line, and the two could drift in
+  configuration. One endpoint is fewer lines and one configuration; the PCS upload's QUIC listener is a separate
+  process on its own port (`docs/ingest/link.md` §12.4 on `claude/pcs-carrier-impl`) and does not share it.
+
+### 8.2 WIRE.md on raw QUIC: what the HTTP/3 layer adds, and what drops
+
+| | WebTransport (today) | `wt-pacs/1` |
+| --- | --- | --- |
+| session open | HTTP/3 SETTINGS on a control uni, QPACK streams, an extended CONNECT on a request bidi and its 200 | the QUIC handshake alone |
+| session id | the CONNECT stream's id, written into every stream's header | none: one connection, one session |
+| control stream | client bidi, prefixed `0x41` + session id (`wtransport-proto` `frame.rs:464`) | client bidi, from byte 0 |
+| media streams | server uni, prefixed `0x54` + session id (`stream_header.rs:331`) | server uni, from byte 0 |
+| FoD, envelope, stream modes, priorities | [`../WIRE.md`](../WIRE.md) | the same bytes, the same rules |
+| the opening ask | `?ask=` in the CONNECT's path | dropped: the client's first FoD message rides its first 1-RTT flight, the flight a WebTransport client's CONNECT rides, so it reaches the server when `?ask=` does (read, not measured: step 1 measures it) |
+| datagrams | negotiated, unused by the server | not negotiated |
+| goodbye | `CLOSE_WEBTRANSPORT_SESSION` capsule, or the connection's close | the connection's application close; `STOPPING` keeps its value 0x100, defined by our ALPN |
+| certificate | pinned by SHA-256, ≤ 14 days (the browser's rule) | the same pin and rule, through wtransport's `ServerHashVerification` (`tls.rs:785–795`), so one certificate serves both |
+
+What drops is the HTTP/3 and WebTransport layers and nothing of the session: the server never used datagrams, and
+the stream mode stays process-wide and untold. When step 1 lands, this table moves into `WIRE.md` as §The raw QUIC
+mapping, beside §The WebSocket mapping, with glossary rows for `wt-pacs/1`. The token is unregistered, as the PCS
+line's is (RFC 9308 §8; PR #182, `docs/ingest/link.md` §14.6 question 2): an owner's call, the same for both. The two
+tokens must differ.
+
+### 8.3 What the server shares, and what changes
+
+The browser path's session already reaches the wire through two quinn handles: `write_frame` writes
+`uni.quic_stream_mut()` (`server/src/transport/link.rs`), and every stat, window and close reason is read through
+`connection.quic_connection()`. wtransport's `RecvStream::read` is quinn's read with its error renamed
+(`stream.rs:137`). So the change is to hold those handles directly.
+
+| function | today | change |
+| --- | --- | --- |
+| `Sessions::serve`, `drive`, `steps`, `forward`, `Planner`, `ProductPipeline`, `FrameStore` | transport-free | none |
+| `wire.rs` `read_fod_msg`, `write_fod_msg` | wtransport streams | take `quinn::RecvStream` / `quinn::SendStream`; the WebTransport caller passes `quic_stream_mut()` |
+| `link.rs` `Link::Quic` | `wtransport::Connection`, `SendStream` | two enums, `QuicSession { WebTransport(wtransport::Connection), Raw(quinn::Connection) }` with `quic()` and `open_uni()`, and `QuicSend { WebTransport(SendStream), Raw(quinn::SendStream) }` with `quic()` and `finish()`; every other use goes through `quic()` |
+| `Media::send`'s finish | wtransport's `finish()`, which waits for the peer's acknowledgement (`driver/streams/mod.rs:46–54`) | `QuicSend::finish`: the same, as quinn's `finish()` then `stopped().await` for `Raw` — so `per-frame`'s 2 s grace waits on the same event |
+| `build_endpoint`, `run_server`'s loop | wtransport `Endpoint` | §8.1 |
+| `handle_incoming` | one function | the WebTransport body unchanged but for the two enums; a raw handler beside it (`accept_bi`, `Link::quic`, `serve` with no opening ask); both end in one shared tail, `report_path` and the close classification |
+| `closed_by_peer`, `report_path` | `&wtransport::Connection` | `&quinn::Connection`; `closed_by_peer` also matches `quinn::ReadError::ConnectionLost` and `quinn::ConnectionError`, since reads now fail with quinn's types |
+| lab only | `hold_session(IncomingSession)`, `record::path::run(wtransport::Connection)` | `hold_session` stays on `h3` only; `path::run` takes `quinn::Connection` |
+
+Estimated **+90 −35 lines** in `server/src`, no new dependency, no new flag: the raw ALPN is always offered, since
+offering it changes no byte a browser sees (§8.1). `--stall-after-bytes` and `--send-window-follows-cwnd` live in
+`Link` and so apply to both. The WebSocket path is untouched.
+
+### 8.4 The client crate
+
+**One workspace member, **client/native**** (crate `native-client`), a library and one lab binary. It depends on
+`fod`, `frame-envelope` and `series-bundle` from `common/`, on `wtransport` only for its `quinn` re-export and
+`ServerHashVerification` (so the version and the `[patch]` are the server's, and no WebTransport session is ever
+opened), and on `tokio`. Modules, each added by the step that needs it:
+
+* **`transport`** (step 1): `dial(addr, cert_sha256, windows)`, `ask(frame)`, `fill(from, to)`, `end_stream()`; a
+  stream of `(index, Bytes)` read from every uni the server opens, envelope by envelope as `frame-envelope`
+  defines them, whichever stream mode is in force; refusals from the control stream; a stream that ends inside an
+  envelope names the frame ([`../CLIENTS.md`](../CLIENTS.md) §A truncated frame is a failure).
+* **`verify`** (step 1): the frame's XXH3-64 over its samples as `decodeFrame` hands them on, against the
+  metadata's `digests` ([`../FIXTURES.md`](../FIXTURES.md) §Frame digests); `exact` is `true`, `false` or
+  `unchecked`, as in the browser. Hashed by `xxhash-rust` (pure Rust, no C build in step 1), held to the digests
+  hash-wasm and Python's `xxhash` already wrote (`client/decode/xxh3.test.mjs`'s lengths; the goldens'
+  `NAME.xxh3`, 109 files).
+* **`decode`** (step 2): OpenJPH 0.31.0 and dav1d 1.5.4 at the WASM builds' pins (`client/decode/wasm/build/pins.sh`),
+  compiled natively from the same wrappers (`client/decode/wasm/openjph/htj2k_decoder.cpp`,
+  `client/decode/wasm/dav1d/dav1d_wrap.c`), and the AV1 payload reader and split merge ported from `av1-payload.js`
+  and `av1-frame.js` ([`../av1/payload-format.md`](../av1/payload-format.md)). Behind a cargo feature, so the default
+  build stays C-free. A mismatch is decoded again by a fresh decoder object, as in the browser
+  ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §Built); natively there is one AV1
+  decoder, so an AV1 frame inside a group (G > 1) has no recovery here either.
+* **`cache`** (M3): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 *A client cache* and §3
+  above, as written: coded bytes keyed by series, index and metadata version, only `true` frames, re-checked by the
+  decode on read; temporary name, fsync, rename, the directory fsynced.
+
+**The lab binary, `native-fill`**: `--url https://host:port/ --cert-sha256 HEX --bundle PATH`, then `--fill A-B` or
+`--ask N,…`, and the client's windows. It prints its settings first, then a row per frame (index, bytes, last-byte
+time, `exact`), and exits non-zero on any frame that is not byte-identical to the bundle's entry (read through
+`series-bundle`, not through the server) or not `exact`. The bundle stands in for the metadata a real viewer would
+get, an open question the browser has too.
+
+**What `lab/window-harness` gives.** It speaks WebTransport through wtransport's client, FoD on the control bidi,
+envelopes on every uni (`frames.rs`), accepts any certificate and checks nothing (`fill_load` compares bytes with
+ingest's items). Reused: its envelope loop's shape, which `transport` copies onto quinn streams (≈ 40 lines), and
+the crates it already shares. Not reused: its trace, window and pacing drivers, typed on wtransport streams and made
+for measuring the server. It stays the WebTransport arm wherever a row needs one (N1, the step 1 check below).
+
+Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
+
+### 8.5 What keeps the browser path unchanged, and what proves both clients get the same bytes
+
+* **Unchanged by construction:** the browser offers only `h3`, so TLS answers it as today (§8.1); its session
+  opens through the same patched `accept(connecting)`; the transport configuration is the same object; the bytes on
+  its streams are written by the same `write_frame` through the same quinn stream.
+* **Kept by the existing tests**, run unchanged: `pipelined_single_asks_arrive_whole_and_in_ask_order`,
+  `an_opening_ask_is_served_behind_the_accept`, the six *ends … cleanly / in error* QUIC tests (the close
+  classification, whose error types change), `a_stopped_server_closes_its_sessions_with_its_code`,
+  `server/tests/gso_cap.rs`, and `client/contract/run_wire.sh` with the browser suites in `scripts/gate.sh`.
+* **New, in `server.rs`'s tests** (a raw client is a few lines on `wtransport::quinn`; no dependency on the client
+  crate):
+  * *the two ALPNs get the same bytes*: one server, a WebTransport and a raw session, each asking three frames and
+    a fill, in `shared` and in `per-frame`; every envelope, head included, identical between the two and to the
+    bundle. Mutants: a stray byte before the raw media stream; the raw path's envelope head dropped; `h3` routed to
+    the raw handler (the WebTransport session never opens).
+  * *an unknown ALPN is refused in the handshake*: 0x178, by name. Mutant: an empty server ALPN list.
+  * the close classification for raw sessions: the existing tests' client half run on both ALPNs.
+* **New, in the client crate:** a fill and asks against an in-process `series_server::run_server`, byte-identical
+  to the bundle in both stream modes; an out-of-range ask names its `frame_error`; with `lab-levers`,
+  `--stall-after-bytes` gives a truncated frame named; XXH3 against hash-wasm's and Python's digests. Each mutated
+  once (CLAUDE.md §Measurement).
+* **One lab check, interleaved:** `native-fill` and `window-harness` (`fill_load`) on one server build behind the
+  relay (`link_impair.py`, 20 and 50 Mbit, 40 ms), both clients' stream window at 6 MiB, ≥ 7 rounds alternating.
+  Predictions: every frame byte-identical in both arms; the fill within ±3 % and the server's `session path` (cwnd,
+  sent, lost) within the A/A spread; the first frame of a cold `--fill` from the raw client no later than the
+  WebTransport client's with `?ask=` (§8.2). Rule: any of these failing stops step 2 until it is explained.
+
+### 8.6 Build order
+
+1. **Step 1, the wire and the check** (one row): §8.1 and §8.3 in the server; **client/native** with `transport`,
+   `verify` and `native-fill`; §8.5's tests and lab check; `WIRE.md` and the glossary as §8.2 says. Done when gate is
+   green and the lab check's rule holds. The client opens with Chromium's 6 MiB stream and 15 MiB connection windows
+   by default ([`../transport/link-conditions.md`](../transport/link-conditions.md) item 4), printed, so a later
+   comparison differs in the client's stack and not in its credit. quic.md §6 N1's raw-QUIC arm, not run for want of
+   a server, becomes runnable.
+2. **Step 2, native decode**: `decode` as in §8.4; every golden and matrix payload and both HTJ2K contract frames
+   `true` against their `NAME.xxh3`; the exactness ADR's mutants re-run natively.
+3. **M3 CACHE** (§6), on `cache`.
+4. **M1 PAINTPROOF** (§6): the painter as a module of this crate on wgpu.
+5. **M2 NATIVEFILL** (§6), its native arm `native-fill` with `decode` and M1's painter.
+
+### 8.7 Risks
+
+* **wtransport's internals.** The design rests on `with_quic_connecting` and the patch running the same code as
+  `Endpoint::accept`; a wtransport upgrade re-reads §8.1 and re-runs §8.5's tests.
+* **The client's credit is part of the send.** The server sends into what the client grants: a quinn client at its
+  1.25 MB default stream window binds above 97 ms at 103 Mbit/s where Chromium's 6 MiB does not (quic.md §1), and the
+  ask waits behind the credit (§9.7 of [`quic-compared.md`](quic-compared.md)). Same frames, same server, different
+  timing unless the windows are set equal; the uni-stream credit `per-frame` needs is quinn's default 100, and
+  Chromium's is not read here.
+* **No browser reaches `wt-pacs/1`**, so it has no browser coverage, and the browser's packets are not compared
+  before and after the change: §8.5's argument is read from code, and the existing suites are what hold it.
+* **A second protocol on a public port** reaches the same FoD parser and limits (`MAX_FOD_LEN`, the planner's
+  refusals); the server checks no CONNECT path or authority today, so nothing is lost. A deployment that wants the
+  native door shut has no flag; adding one is a line, if asked.
+* **0-RTT is not in step 1.** Raw QUIC makes resumption possible without patching wtransport (quic.md §7.1); it needs
+  the server's early-data limit and an answer on replay (every FoD message is a read, so likely safe — not settled).
+
+## 9. Sources
 
 Fetched 2026-10-10, pinned by version or date and the first 12 hex of the fetched file's sha256; raw copies are not
 committed.
