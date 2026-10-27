@@ -67,16 +67,9 @@ impl Decoder {
         let (pic, n) = self.alone(av1_decode, top).context("undecodable: dav1d")?;
         let three = pic.planes == 3;
         let plain_rgb = p.bits == 8 && p.depth == 8 && p.split == 0 && !p.signed;
-        let refused = if pic.bits != p.depth {
-            format!("top stream {}-bit, header says {}", pic.bits, p.depth)
-        } else if p.rct && !three {
-            format!("top stream of {} planes under rct, not three", pic.planes)
-        } else if !p.rct && three && !plain_rgb {
-            "three planes without rct".into()
-        } else {
-            String::new()
-        };
-        ensure!(refused.is_empty(), "undecodable: av1 payload: {refused}");
+        ensure!(pic.bits == p.depth, "undecodable: av1 payload: top stream {}-bit, header says {}", pic.bits, p.depth);
+        ensure!(!p.rct || three, "undecodable: av1 payload: top stream of {} planes under rct, not three", pic.planes);
+        ensure!(p.rct || !three || plain_rgb, "undecodable: av1 payload: three planes without rct");
         let top_samples = &self.samples[..n];
         let mut out: Vec<i32> = if p.rct {
             let rgb = |s: &[i32]| {
@@ -93,15 +86,8 @@ impl Decoder {
         if let Some(low) = low {
             let (lp, n) = self.alone(av1_decode, low).context("undecodable: dav1d")?;
             ensure!(lp.bits == 8, "undecodable: av1 payload: low stream {}-bit, not 8", lp.bits);
-            ensure!(
-                lp.planes == 1 && (lp.w, lp.h) == (pic.w, pic.h),
-                "undecodable: av1 payload: a low picture of {}x{}x{} under {}x{}",
-                lp.w,
-                lp.h,
-                lp.planes,
-                pic.w,
-                pic.h
-            );
+            let (lw, lh, lplanes, w, h) = (lp.w, lp.h, lp.planes, pic.w, pic.h);
+            ensure!(lplanes == 1 && (lw, lh) == (w, h), "undecodable: av1 payload: a low picture of {lw}x{lh}x{lplanes} under {w}x{h}");
             out.iter_mut().zip(&self.samples[..n]).for_each(|(v, low)| *v |= low);
         }
         if !p.rct {
