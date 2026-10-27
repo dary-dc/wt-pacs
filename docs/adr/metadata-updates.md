@@ -558,3 +558,49 @@ statuses: no "duplicate" status), Annex F (MPPS), fetched 2026-10-26; IHE RAD TF
 HL7 v2 ADT A08/A40 (**named, not re-read** for this section); the PCS repository at `a65abe2`: `README.md`,
 `DICMele2deck/README.md`, `DICMele2deck/src/capi/ESIPFfiled/capi.c` lines 140–390. Not verified: what PS3.4 says, if
 anything, about a duplicate SOP Instance UID at a Storage SCP; the scan's time, estimated.
+
+## 14 · Applying a package item by item
+
+**Status: Proposed, awaiting the owner's confirmation; not decided.** Theory only: nothing built, nothing timed. The
+rule is the owner's (2026-10-26, night); points (1)–(5) are a proposed completion of it. The sender's side is
+[`pcs-transfer.md`](pcs-transfer.md) §15.13 on `claude/sender-package-build` (#177); the receiver's is
+`docs/adr/pacs-receiver.md` §5, commit `5d0ae2c` on `claude/pacs-receiver-impl` (#163).
+
+**The rule.** A package carries only what changed, down to the level that changed. The receiver applies it item by
+item, an item being the exam group, the series group or one instance's group (its private group with it):
+
+| the item at the PACS | the receiver |
+| --- | --- |
+| absent (no study, series or instance) | creates it |
+| present, hash differs | replaces it, with an audit line (§6) |
+| present, hash equal | does nothing |
+
+New instances' frames are merged into the series' `.sbnd` by rewrite (decided, 10-26). Items not in the package are
+untouched.
+
+**The proposed completion.**
+
+1. **Absence means unchanged.** A deletion (a withdrawn instance) is listed explicitly, as a removal.
+2. **Idempotent.** Applied item by item, a resend changes nothing and is answered `stored`, so duplicates need no
+   counter (§13.3's crash rule, generalised).
+3. **Each changed item carries the hash it replaces**, taken from the sender's sent list (§13.3 (c)). Current equal
+   to that hash: applied. Current equal to the new hash: a duplicate. Anything else: stale, the whole package refused
+   `final` (§5).
+4. **One package per series at a time**, in order: the sender waits for `stored` before the next, so a stale package
+   cannot arrive later. *(Narrows §13.3's "one per study in flight" to one per series.)*
+5. **The revision counter leaves the correctness logic**; it may stay as a label in the name.
+
+**Consequence.** The package needs a small **manifest** beside the header: the removals and the previous hashes. The
+owner's 10-25 rule, "no manifest until something needs one", is met: this needs one.
+
+| case | what the package carries |
+| --- | --- |
+| first send of a series | everything: exam, series and instance groups, the bundle; no previous hashes |
+| late images (an addition) | only the new instances' groups and their frames |
+| a patient-name fix | only the exam group, with the hash it replaces |
+| a series-description fix | only the series group, with the hash it replaces |
+| a withdrawn instance | a removal in the manifest, nothing else |
+
+**Open, for the PCS team** (Q-U1 restated): the parser writes a corrected group beside the old file and never deletes
+the old one (§13.2), so the sender cannot tell which is current. The parser should replace the file, or mark the
+current one.
