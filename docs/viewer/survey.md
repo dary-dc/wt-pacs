@@ -106,17 +106,7 @@ scrolling, and placeholders for missing views. CAD vendors leave the display to 
 
 ## What each would cost
 
-**What stays ours under any adoption:** the transport, the downloader, the decoders and the frame digest check. Under
-Cornerstone3D and OHIF the loader seam sits after decode, so a frame reaches it already checked; VolView decodes
-itself. Cornerstone3D's own HTJ2K path
-(OpenJPH) is the one place it could replace our decoder. That would bypass the check, and it does not cover AV1.
-
-| | Cornerstone3D under our page | OHIF v3 | VolView |
-| --- | --- | --- | --- |
-| replaces of ours | the painter; tools, annotation, viewport state we have not built | the painter, the viewer page; study list, hanging, SR, measurement we have not built | the painter, the page |
-| we lose | the 1:1 proof; zero-copy to the GPU (one copy per image change); integer-texture sampling | the same, and control of the page | the same, and frame-by-frame transport: it wants whole DICOM files |
-| to adopt (unmeasured) | a loader for our scheme and a metadata provider; NEAREST and a proof of its paint path against `client/paint/reference.js`, or a render backend once that API settles; mammography hanging, DBT, CAD SR ourselves | the same loader, plus a data source that emits our scheme's ids; rework of `hpMammo` to IHE's attributes; a CAD SR (TID 4000) handler; DBT | a `Fetcher` over our transport that rebuilds DICOM files; every breast feature; an HTJ2K decoder |
-| to keep | a library whose majors move (OHIF still pins 5.6.8 against 5.13.2); 26 authors, about four of them core | an application on that library, which follows it late | one maintainer |
+Per option, the seam, what is kept and lost, and the glue: [`integration.md`](integration.md).
 
 **Open.** Whether a SAB-backed frame survives Cornerstone3D end to end. How far `registerRenderBackend` works beyond
 its docs. Whether Cornerstone3D with NEAREST and norm16 can be proved byte-exact against our reference. Shipped bundle
