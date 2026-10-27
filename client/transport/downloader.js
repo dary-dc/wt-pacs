@@ -248,6 +248,7 @@ async function ask(index, s) {
   } finally {
     // A cancelled ask's count was already dropped with the rest of its generation's work.
     release();
+    if (gen === generation && ep === epoch) askHeld();
   }
 }
 
@@ -268,6 +269,8 @@ function askFor(s, index) {
   if (rec?.priority === "ask") return;
   // In hand already: up the queue. Still owed by the fill: to the wire, where the server serves it next.
   if (rec && rec.state !== "wire") return void promote(index);
+  if (cfg.scroll === "aim" && wanted.has(index)) return void aimAt(index);
+  if (cfg.scroll === "cursor" && owedAsks().length) return void (held = index);
   wanted.delete(index);
   if (rec) rec.priority = "ask";
   else record(index, "ask", abs());
@@ -276,6 +279,22 @@ function askFor(s, index) {
 
 /** The run on the wire, narrowed as it lands. */
 let run = null;
+/** Lab flag `scroll`: the newest ask held while one is on the wire (`"cursor"`), the first frame a run starts from (`"aim"`). docs/WIRE.md §What a scroll ahead asks */
+let held = null;
+let aim = null;
+
+/** A fill frame asked off the run's path re-aims the fill at it; its waiter settles when the fill delivers it. */
+function aimAt(index) {
+  if (aim !== null && run && aim <= index && index <= run.to) return;
+  aim = index;
+  issueFill();
+}
+
+function askHeld() {
+  const index = held;
+  held = null;
+  if (index !== null && wanted.has(index)) askFor(session, index);
+}
 
 /** Under `refill: "none"` the server skips a frame an ask carried, so a run can end short of its `to`. */
 function runOver() {
@@ -287,7 +306,8 @@ function runOver() {
 /** The wire carries one contiguous run of what is wanted at a time. docs/ARCHITECTURE.md §The downloader */
 function nextRun() {
   if (wanted.size === 0) return null;
-  const from = Math.min(...wanted);
+  const ahead = [...wanted].filter((i) => i >= (aim ?? 0));
+  const from = Math.min(...(ahead.length ? ahead : wanted));
   let to = from;
   while (wanted.has(to + 1)) to += 1;
   return { from, to };
@@ -594,6 +614,8 @@ onmessage = async (e) => {
       queue.fill.length = 0;
       records.clear();
       wanted.clear();
+      held = null;
+      aim = null;
       for (const d of decoders) d.next = null;
       asksInFlight = 0;
       try {
