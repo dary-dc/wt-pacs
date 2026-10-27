@@ -451,7 +451,7 @@ is *undecided* in every cell but `dbts_b1` at 103, so **the two readings disagre
   matching QW. A guess, not measured: the one writer blocks in the fill's write until the client's stream credit
   reopens, and Chromium reopens it in large steps, so the ask waits for more than the frame being written.
 
-### What a scroll ahead asks (L4, pre-registered 2026-10-27, before any campaign)
+### What a scroll ahead asks (L4, pre-registered 2026-10-27 at `a3dc100`, run the same day)
 
 U1's question: which of L4's three policies gives the reader the frame under the cursor soonest while the fill still
 completes? Each policy is the downloader's lab flag `scroll` (`client/transport/downloader.js`); the viewer is unchanged
@@ -506,12 +506,61 @@ runs, one per arm at 18/500 and 103/20) ran before this was written, to check th
 * **Its limits:** one 0.57 MB series, one RTT, no loss, the container rig, Chromium only, one session; nothing past
   the relay's ceiling.
 
+**Measured (SCROLLPOLICY, 2026-10-27): on today's server, every step stays below R ÷ S and the cursor's frame only is
+better above it; on QW's server not resolved on this host**, each regime having an 18 Mbit/s cell `VOID`. The arms,
+cells, shape and rule above, unchanged since `a3dc100`; one frozen release build (`--features lab-levers`, built at
+`627a6ca`, the server unchanged since); Chromium 153.0.8010.12, not ASKSTREAM's 141; relay under `chrt -f 50`.
+Every arm's settings, as each row records them: E and Ep `transport=congestion=cubic-restart ?refill=head`, C and F
+the same with `?scroll=cursor` and `?scroll=aim`; QE and QEp `transport=congestion=cubic-restart
+--fill-resumes-after-asks --send-window-follows-cwnd ?refill=none`, QC and QF the same with the two `scroll` values; the
+page `ASK_AT=0.1&asks=10&every=MS`, frames 14–23. Rows `rows-scrollpolicy.jsonl` (10 rounds, 320 runs),
+`rows-scrollpolicy-aa.jsonl`, `rows-scrollpolicy-ceiling.jsonl`; **every frame SHA-256-exact, none failed**.
+
+* **The A/A campaign first** (7 rounds, 112 runs): Ep ÷ E ×0.987–1.005 on stale and the fill in all eight cells, but
+  27 visits `VOID`, 36–43 % in five cells. **The main campaign's** A/A ×0.996–1.006 everywhere, and 44 of 320 visits
+  `VOID`: 5–15 % in six cells, **28 % (QW 18/500) and 25 % (QW 18/100)**, so those two cells are `VOID` by the rule.
+* **The relay's ceiling**, fills with no ask at 2 ms: 17.7 Mbit/s at 18, 100.1–100.4 at 103, 166–193 at 200 with one
+  of three visits `VOID`: **the host saturates between 103 and 200 Mbit/s**; nothing is claimed past 103.
+
+  | round-paired, × E | stale: E ms | C | F | fill: E ms | C | F | rest: E → C · F ms |
+  |---|---|---|---|---|---|---|---|
+  | today's, 18, step 500 ms | 5 495 | ×0.999 ↓ (strict tie) | ×0.907 ↓ | 6 478 | ×0.998 | ×1.379 **↑** | 995 → 988 · 483 |
+  | today's, 103, step 100 ms | 951 | ×1.005 | ×0.815 ↓ | 1 392 | ×1.005 | ×1.337 **↑** | 51 → 54 · 0 |
+  | today's, 18, step 100 ms | 4 986 | ×0.686 ↓ | ×1.002 | 6 477 | ×1.002 | ×1.386 **↑** | 4 086 → 2 512 · 4 082 |
+  | today's, 103, step 20 ms | 853 | ×0.688 ↓ | ×1.001 | 1 389 | ×1.002 | ×1.339 **↑** | 673 → 408 · 673 |
+  | QW's, 18, step 500 ms `VOID` | 5 512 | ×0.996 | ×0.312 ↓ | 6 487 | ×0.995 | ×1.108 **↑** | 1 012 → 1 003 · 0 |
+  | QW's, 103, step 100 ms | 1 034 | ×0.913 ↓ | ×0.515 ↓ | 1 473 | ×0.941 ↓ | ×1.170 **↑** | 134 → 46 · 0 |
+  | QW's, 18, step 100 ms `VOID` | 3 356 | ×0.610 ↓ | ×1.002 | 6 457 | ×1.005 | ×1.110 **↑** | 2 456 → 1 040 · 2 380 |
+  | QW's, 103, step 20 ms | 720 | ×0.748 ↓ | ×1.000 | 1 386 | ×0.998 | ×1.247 **↑** | 540 → 359 · 539 |
+
+  ↓ better, **↑** worse, unmarked a tie, by `aa_rule.py` at bar 5 % (MDL 0.4–2.0 % round-paired). The strict reading
+  kept 6–8 rounds in the clean cells and agrees with this one in each of them except C at today's 18/500 (a tie);
+  in the two `VOID` cells it kept 4 and 2.
+* **The rule. Today's server, below R ÷ S: every step stays**; F is a trade-off, its stale ×0.91 and ×0.82 at a fill
+  +2.47 s (×1.38) and +0.47 s (×1.34); C does not win both cells. **Above R ÷ S: the cursor's frame only**, stale
+  ×0.686 and ×0.688, rest 4.1 → 2.5 s and 0.67 → 0.41 s, the fill a tie; both readings agree. **QW's server: not
+  resolved on this host** in either regime. Leaning, round-paired, from the cells as read: below, F (×0.31, ×0.52) at a
+  fill +0.69 s and +0.25 s (×1.11, ×1.17), C a tie at 18 and better at 103; above, C (×0.61, ×0.75), the fill a tie.
+* **Predictions.** Today's C, a tie: held below, **contradicted above** (×0.69 both rates). Today's F: stale a tie
+  **contradicted below** (×0.91, ×0.82; the rest falls to 0.48 s and 0) and held above; its fill cost held, +2.47 s
+  and +0.47 s against B ÷ R's 2.8 and 0.49. QW's C: held, ×0.61 and ×0.75 above against ≈ ×0.6 and ×0.75; below a tie
+  at 18 as predicted, ×0.91 at 103 not. QW's F: held below, ×0.31 and ×0.52 against ≈ ×0.3 and ×0.4, a tie above; its
+  fill cost larger than predicted, ×1.11–1.25 against ≈ ×1.1.
+* **Not explained here:** why one ask for the newest step beats ten in order on today's server, where every ask was
+  predicted to wait behind the 6 MiB credit alike. A guess, not measured: the head re-issue of the fill goes out on the
+  first ask's head, and the second ask, sent when that frame lands, ends that refill before most of it is written.
+* **What it means for the viewer** (D): the policies split by regime and no one wins both. F's gain below R ÷ S is paid
+  in the fill on both servers, mostly because the client drops the frames an earlier run had written ahead; keeping
+  them is the change F would need before it could win. C costs nothing measured and helps above R ÷ S on both servers.
+
 ### Questions for the owner
 
 1. **The use cases' order:** scroll ahead (U1) first, then the jump (U2), then tiles (U3), with the comparison (U5)
    left until a session carries several series. Is that the product's order?
 2. **The scroll's behaviour (L4):** while the reader scrolls past the fill, should the viewer ask every step, only the
-   cursor's frame, or re-aim the fill at the cursor? It is product behaviour; §What a scroll ahead asks measures it.
+   cursor's frame, or re-aim the fill at the cursor? Measured (SCROLLPOLICY): on today's server every step below
+   R ÷ S and the cursor's frame only above it; on QW's not resolved on this host. Take the cursor's frame only (it lost
+   no cell), keep F's re-aim for a client that keeps an earlier run's frames, or rerun QW's 18 Mbit/s cells on a quieter host?
 3. ~~Run the measurement above~~ Run 2026-10-22 (ASKSTREAM): round-paired, B (#96, QW) beats D (QS) on the ask in
    every cell but `dbts_b1`, at one fill cost (+31 ms, 103/92 CoDel at 50 %); strict undecided. Take B at that price,
    rerun the strict reading on a quieter host, or pursue D with a second writer first?
