@@ -143,9 +143,9 @@ Packed at the hospital. Published at both ends — the site that packs and the P
 `<SeriesUID>.sbnd.partial`, `fsync` of the file, `rename` to `<SeriesUID>.sbnd`, `fsync` of the directory. A reader
 never opens a `.partial`.
 
-## A late instance: merging without the rewrite (proposed, not decided)
+## A late instance: merging without the rewrite (decided: the rewrite)
 
-*Proposed 2026-10-26, nothing measured, nothing built.* **Decided by the owner, 2026-10-26:** a late instance (one
+*Proposed 2026-10-26; decided by the owner 2026-10-26 (§Decision below); corrected 2026-10-27 by a measurement.* **Decided by the owner, 2026-10-26:** a late instance (one
 arriving after its series was sent) comes as an addition package and is merged at the PACS into the series' one
 `.sbnd`; several files per series is refused. The question here is only whether a change of format lets that merge
 avoid rewriting the file, without another trade-off that matters.
@@ -196,8 +196,13 @@ Notation: S the series' bytes, s the late frames' bytes, k late frames, N frames
 **(a)** costs I/O proportional to the series, every merge, and nothing else: it is the only option that keeps every
 fixed point above. Its cost is two reads and one write of S (the owner's "one read and one write" plus the read-back
 of 6b, which must cover every copied frame), and a second copy of S on disk while the merge runs and while an old
-session holds the old file. Extent sharing (`FICLONE`, `copy_file_range`) does not help: the index grows by k·E and
-shifts every frame off its old offset.
+session holds the old file. ~~Extent sharing (`FICLONE`, `copy_file_range`) does not help: the index grows by k·E and
+shifts every frame off its old offset.~~ **Corrected 2026-10-27:** that holds only for an index at the front with no
+slack. With the index at the end (or slack reserved at the front) and a reflink clone (XFS), only the frames from the
+insertion point on are written: at N = 2 000 a late frame at the end costs 342 kB and 3–7 ms instead of 529 MB and
+2–4 s, in the middle 264 MB, and at the start more than the full rewrite (every block pays copy-on-write); ext4, without
+reflinks, gains nothing; layout 1's band-major entries still rewrite ≥ 93 % of S (`docs/disk-layout/containers.md`
+§Measured: rewriting only the tail, `6a85202` on branch `claude/sbnd-tail-rewrite`, #185).
 
 **(b)** is not crash-safe and cannot be made so without writing somewhere else first, which is (c). Out.
 
@@ -270,6 +275,15 @@ for the owner; a few percent would not move it), or step 3 showing a merge of th
 ingests beyond what the sending site tolerates. Then (c), with its compaction done by (a), the size added to §4's lookup, and
 the staging rule revisited by the owner. A longer *Q* is tried first: it costs no format.
 
+### Decision (owner, 2026-10-26)
+
+**Stay with the current format and the full rewrite**: rewrite in staging, read back, `rename`. Publishing by rename
+is needed for crash safety and for readers that already have the file open, as it is for MXF and MP4; modifications
+are uncommon, so the full copy is acceptable. Frames stay contiguous in display order: layouts that store frames in
+arrival order are rejected. Several bundle files per series are rejected: they complicate serving and archiving. The
+tail rewrite measured above is not taken up. **Reopen** only if late merges prove frequent, measured by §The deciding
+unknown.
+
 Sources: PKWARE, APPNOTE.TXT 6.3.10 (§4.3.1, §4.3.6, §4.3.16, §4.4.1.3); ISO/IEC 14496-12 (§8.8, movie fragments and
 `mfra`/`mfro`); SMPTE ST 377-1 (partitions, index tables, Random Index Pack); SQLite, *Write-Ahead Logging*
 (sqlite.org/wal.html, §2.2, §6); H. Chu, *MDB: A Memory-Mapped Database and Backend for OpenLDAP*, LDAPCon 2011;
@@ -282,4 +296,4 @@ rename(2), fsync(2).
 * **Streaming the pack** while frames are still coded: the index needs every length first (queue row 163).
 * **Standard containers** in place of the `.sbnd` (rows 159–160).
 * **When a series is complete** ([`../ingest/design.md`](../ingest/design.md)); a late instance's merge is
-  §A late instance above, proposed.
+  §A late instance above, decided: the full rewrite.
