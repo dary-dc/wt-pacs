@@ -29,6 +29,20 @@ pub enum FodMsg {
     },
 }
 
+/// Largest FoD message either side will read; a client's longest is 56 B. `docs/WIRE.md` §FoD messages
+pub const MAX_FOD_LEN: usize = 64 * 1024;
+
+/// The wire-supplied length is checked before a single byte is allocated for it.
+pub fn check_fod_len(len: usize) -> Result<()> {
+    if len == 0 {
+        bail!("FoD message length 0");
+    }
+    if len > MAX_FOD_LEN {
+        bail!("FoD message length {len} exceeds {MAX_FOD_LEN}");
+    }
+    Ok(())
+}
+
 pub fn encode_fod_msg(msg: &FodMsg) -> Result<Vec<u8>> {
     let body = serde_json::to_vec(msg).context("serialize FodMsg")?;
     let mut out = Vec::with_capacity(4 + body.len());
@@ -55,6 +69,18 @@ pub fn decode_fod_body(body: &[u8]) -> Result<FodMsg> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fod_len_zero_and_huge_are_refused_before_allocation() {
+        assert!(check_fod_len(0).is_err());
+        assert!(check_fod_len(1).is_ok());
+        assert!(check_fod_len(MAX_FOD_LEN).is_ok());
+        assert!(check_fod_len(MAX_FOD_LEN + 1).is_err());
+        assert!(
+            check_fod_len(u32::MAX as usize).is_err(),
+            "a 4 GB length prefix is refused"
+        );
+    }
 
     #[test]
     fn roundtrip_request_frame() {
