@@ -839,7 +839,7 @@ mod tests {
     /// the server reserves room for its payload. `docs/WIRE.md` §The WebSocket mapping
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_websocket_frame_over_the_cap_is_refused_at_its_header() {
-        use crate::transport::wire::MAX_FOD_LEN;
+        use fod::MAX_FOD_LEN;
         use futures_util::StreamExt;
         use tokio::io::AsyncWriteExt;
 

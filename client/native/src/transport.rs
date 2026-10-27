@@ -3,7 +3,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::Bytes;
-use fod::{decode_fod_body, encode_fod_msg, FodMsg};
+use fod::{check_fod_len, decode_fod_body, encode_fod_msg, FodMsg};
 use frame_envelope::{envelope_len, FRAME_HEAD_LEN, INDEX_LEN};
 use std::sync::Arc;
 use std::time::Instant;
@@ -14,9 +14,6 @@ use wtransport::tls::client::{build_default_tls_config, ServerHashVerification};
 use wtransport::tls::{rustls::RootCertStore, Sha256Digest};
 
 pub const ALPN: &[u8] = b"wt-pacs/1";
-
-/// The largest FoD message read, as the server's `MAX_FOD_LEN`. `docs/WIRE.md` §FoD messages.
-const MAX_FOD_LEN: usize = 64 * 1024;
 
 /// The receive credit the client grants, in bytes; Chromium's by default. `docs/native/README.md` §8.6.
 pub struct Windows {
@@ -155,9 +152,7 @@ async fn read_fod(recv: &mut quinn::RecvStream) -> Result<Option<FodMsg>> {
         n => bail!("the control stream ended {n} bytes into a FoD length"),
     }
     let len = u32::from_le_bytes(len) as usize;
-    if len == 0 || len > MAX_FOD_LEN {
-        bail!("FoD message length {len}");
-    }
+    check_fod_len(len)?;
     let mut body = vec![0u8; len];
     if read_up_to(recv, &mut body).await? < len {
         bail!("the control stream ended inside a FoD message");

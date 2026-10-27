@@ -1,7 +1,7 @@
 //! Length-prefixed FoD read/write on WebTransport and raw QUIC streams.
 
 use anyhow::{Context, Result};
-use fod::{decode_fod_body, encode_fod_msg, FodMsg};
+use fod::{check_fod_len, decode_fod_body, encode_fod_msg, FodMsg};
 use wtransport::quinn;
 use wtransport::stream::{RecvStream, SendStream};
 
@@ -26,20 +26,6 @@ impl QuicStream<quinn::SendStream> for SendStream {
     fn quic(&mut self) -> &mut quinn::SendStream {
         self.quic_stream_mut()
     }
-}
-
-/// Largest FoD message the server will read; a client's longest is 56 B. `docs/WIRE.md` §FoD messages
-pub const MAX_FOD_LEN: usize = 64 * 1024;
-
-/// The wire-supplied length is checked before a single byte is allocated for it.
-pub fn check_fod_len(len: usize) -> Result<()> {
-    if len == 0 {
-        anyhow::bail!("FoD message length 0");
-    }
-    if len > MAX_FOD_LEN {
-        anyhow::bail!("FoD message length {len} exceeds {MAX_FOD_LEN}");
-    }
-    Ok(())
 }
 
 /// `None` once the peer has finished the stream between messages.
@@ -80,18 +66,6 @@ async fn read_exact(recv: &mut quinn::RecvStream, out: &mut [u8]) -> Result<bool
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn fod_len_zero_and_huge_are_refused_before_allocation() {
-        assert!(check_fod_len(0).is_err());
-        assert!(check_fod_len(1).is_ok());
-        assert!(check_fod_len(MAX_FOD_LEN).is_ok());
-        assert!(check_fod_len(MAX_FOD_LEN + 1).is_err());
-        assert!(
-            check_fod_len(u32::MAX as usize).is_err(),
-            "a 4 GB length prefix is refused"
-        );
-    }
 
     /// The longest message a client sends, a fill with both ends at `u32::MAX`, fits under the cap.
     #[test]
