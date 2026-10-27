@@ -23,7 +23,7 @@ let dialled = false;
 /** The request's identity: `+1` on cancel, carried by every record, decode and reply. */
 let generation = 0;
 let asksInFlight = 0;
-// The dial and the decoders start together; dispatch waits on this, the dial does not.
+// The dial and the decoders start together; dispatch waits on this, the dial does not: docs/ARCHITECTURE.md §The downloader.
 let decodersUp = false;
 let decoderLoss = "none is configured";
 let spawned = 0;
@@ -456,8 +456,6 @@ async function start(m) {
   const ready = decoders.map((d) => d.up);
   if (cfg.survival && cfg.survival !== true) Object.assign(deadlines, cfg.survival);
   quietMs = deadlines.stallMs;
-  // The decoders come up without the session URL, which arrives in `dial`; `decodersUp` gates
-  // dispatch alone — docs/ARCHITECTURE.md §The downloader.
   if (cfg.fill) want(cfg.fill, abs());
   if (cfg.decode) await Promise.all(ready);
   decodersUp = true;
