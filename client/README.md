@@ -92,9 +92,7 @@ fill prices both: the opening ask is **−1.13 round trips** to the first frame 
 
 **How many decoders.** `opts.decoders` defaults to `min(3, navigator.hardwareConcurrency || 3)`:
 a third decoder helps on four cores and not on two ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
-§Resources); `downloader.test.mjs` pins it at two cores and eight. The warm-up frame `opts.warmup` was
-removed on 2026-10-03 — it moved only per-frame waits, not the page's clock; the code is at tag
-`archive/downloader-opts-2026-10-03` and its numbers in `docs/decode/README.md` §Warming the decoders.
+§Resources); `downloader.test.mjs` pins it at two cores and eight.
 
 **What a decoder worker costs.** 5.9 MB resident each, 5.7 MB of it the worker's own JS+WASM heap,
 measured as the slope in the decoder count with the instrument calibrated against 32 MB of ballast
@@ -117,19 +115,14 @@ never retains, which is one buffer per frame — the behaviour before it, and wh
 hands nothing back gets anyway. An undecoded frame (`decode: false`) is transferred to the page and
 never comes back, as before.
 
-**A request is a generation.** `cancel()` bumps it and returns a promise that resolves once the
-downloader has ended the stream and dropped that request's work; every frame and failure carries the
-generation it was made under, and anything older is dropped on the page rather than handed over
-under an index the new request is using. A refused *fill* frame has no waiter, so it reaches the
-consumer through `opts.onError({ frameIndex, reason, generation })` — a refused *asked* frame still
-rejects its own promise, and a refusal that fails the rest of a fill spares a frame an ask carries. [`ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §The consumer.
+**A request is a generation**: [`ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §Messages, §The consumer.
 
 **What a frame reports.** Beside the decoded `byteCount`, every frame message the decoder and the
 downloader post carries `wireBytes` — the codestream length the frame's envelope declared, which is
 what actually crossed the link. A consumer reporting traffic quotes that one: on a compressed frame
 the decoded plane is several times larger, so `byteCount` would overstate the link by that factor.
 It reaches the page as `frame.info.wireBytes`, the way `byteCount` does, on the decoded path and on
-the undecoded one alike; nothing was renamed to make room for it.
+the undecoded one alike.
 
 **A frame that did not arrive whole is a failure, not a frame.** Two checks, both inside the worker
 graph, so the page never sees a bad frame. On the wire, a uni stream that ends before the length its
@@ -174,8 +167,7 @@ frame last arrived, so sessions that are accepted and never deliver end in the o
 `dialMs` is closed and counts as a failed try, the first dial included. Given `transportFile`, the transport file's
 absolute URL (the viewer's), every dial after the first reads it again and dials the URL and hash it names, so an open
 page follows a server restarted on a new certificate ([`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §An open page
-follows a server restart). Until 2026-09-24 a quiet fill started a probe ask
-instead, which livelocked on a slow link. An ask keeps no timer in the consumer: the downloader
+follows a server restart). An ask keeps no timer in the consumer: the downloader
 settles it, and the transports time a frame from the last byte, not from the ask.
 
 **No client timer fails an ask whose bytes are still coming** (2026-10-07). The timers
