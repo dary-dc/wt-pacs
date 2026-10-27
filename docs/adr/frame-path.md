@@ -539,6 +539,25 @@ write past free disk: the profile on a small fixed-size filesystem, a series wit
 passes if the write's failure deletes one series and retries, then stops writing, every frame exact; it records whether
 `truncate` there allocated blocks.
 
+**Pre-registered 2026-10-27, before any run, for the build** (`claude/opfs-cache-build`), on the 4-vCPU agent
+container: a millisecond there is container-measured ([`../rig-limits.md`](../rig-limits.md)). Series are
+`lab/viewer-ceiling/make_series.py`'s, 16-bit grey, 64 distinct fields cycled; every frame is checked twice, by the
+page's XXH3 against the metadata and by the rig's SHA-256 against the encoder input. Arms are ordered per round by
+`lab/order.mjs`; ≥ 7 rounds; each arm's full settings printed with its rows. Rig: `lab/opfs-cache/`.
+
+| cell | arms | measured | predicted | rule |
+| --- | --- | --- | --- | --- |
+| **M1** reopen against a fetch, (4) | **F**: a fresh profile fills over `link_impair.py`, 20 ms one way, 20 Mbit each way, 500-packet queue, 0 % or 2 % iid each way; **R**: the series reopened from OPFS by the product's store worker in the same origin, every frame read and re-checked. Sets: 256 × 512², both links; 32 × 3328×4096, clean only (2 % would take tens of minutes a round) | the series whole and exact in hand: F the page's own `fill` (dial → last frame), R the worker's start → its last read checked. The page cache is warm for R: a cold read is not measured | R ≤ 0.1 × F every round; R ≤ 0.2 s on 512², ≤ 2 s on 3328×4096 | **holds** if R ≤ 0.5 × F in every non-VOID round of every cell; else the store's reopen is no faster than the link and lever 1 returns to the owner. And §7's rule: per frame, R / n against the decode of the same size (3.0 ms at 512², 69–72 ms at 3328×4096, the exactness ADR §9): store decoded if lower on both |
+| **M2** page memory during a fill, (5) | **on**: the store as built; **off**: the store worker answering every call with an error (the page's no-OPFS path), routed by the rig. 80 × 3328×4096 (2.03 GiB) on loopback; 512 × 3328×4096 (13 GiB) on alone | the browser tree's PSS, sampled each second, its peak less its value before the dial | on: growth ≤ 256 + 160 MiB; off: growth ≥ 0.95 × the decoded size; 13 GiB on: ≤ 416 MiB, the fill complete. The off arm at 13 GiB is not run: row 273 saturated this class of host at ~9 GiB | **holds** if every on round is within 416 MiB and complete and exact; a mutant window that never drops must fail it |
+| **M3** a multi-GB study against the store's limit, (8) | the quota overridden to 1 300 MiB (Chromium, DevTools' `Storage.overrideQuotaForOrigin`); four series A–D of 20 × 3328×4096 (520 MiB each) opened in turn in one origin, B held open in a second tab from its open; then the second tab closed and A opened again | the series on disk after each open, read from OPFS; every frame | after A: {A}; B: {A, B}; C: {B, C}, A evicted; D: {B, D}, B skipped as held, C evicted; A again: {A, D}, B evicted. Refusal at `truncate`, never later | **holds** if every step's set is the predicted one and every frame exact, in every round. Mutants: eviction most recent first; no probe of a held series (on Chromium it is predicted to survive: the engine refuses the removal itself) |
+| **M4** a tab killed mid-write, lever 6 | 64 × 3328×4096 filled on loopback in a kept profile; the browser killed (`SIGKILL`, the process group) once the page shows ≥ 32 on disk, then reopened; in half the rounds one present frame's bytes in the profile's OPFS file are flipped before reopening, as a torn write would leave them (a kill alone does not tear: the kernel keeps what was written) | the frames present on reopen; what the fill asks; every frame at the end | present ≥ the count shown at the kill; the fill asks exactly the rest; the flipped frame fails its re-check, is reported and asked again; 64 / 64 exact | **holds** if no round shows a frame not exact, and the flipped frame is caught every time. Mutant: the read without its re-check, which must fail |
+
+**A/A first, and VOID.** M1 runs F and R twice a round (F, F′, R, R′) and M2 runs on twice (on, on′). A cell is
+**VOID** when the median of its A/A ratios over the rounds (F′/F, R′/R) lies outside 0.90–1.10, or, for M2, when the
+median |on′ − on| exceeds 64 MiB; a round in which the relay's own timing guard (`--self-timing`) reads `VOID` is
+dropped and counted. M3 and M4 are rules on states, not timings: no A/A. Firefox and WebKit are run only where the
+container can; a cell not run on an engine says so.
+
 ### Options, and what each costs
 
 | option | changes | costs | switch later |
