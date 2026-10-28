@@ -67,6 +67,7 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
   press("0", "1");
   out.oneToOne = Object.values(looks().view).join(" ");
   out.readbacks = [];
+  let shown;
   for (const i of [...new Set([0, n >> 1, n - 1])]) {
     const f = frames.get(i);
     if (!f) {
@@ -84,7 +85,15 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
     let worst = 0;
     for (let k = 0; k < ref.length; k++) worst = Math.max(worst, Math.abs(ref[k] - pixels[k]));
     out.readbacks.push({ i, worst, size: `${w}x${h}`, sha256: await sha256Hex(pixels.slice()) });
+    shown = { pixels, w, h };
   }
+  // The canvas still shows the last readback; check.mjs hands in a screenshot of it, in device pixels from its corner.
+  globalThis.screenWorst = async (png) => {
+    const shot = await createImageBitmap(new Blob([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], { type: "image/png" }));
+    const g = new OffscreenCanvas(shot.width, shot.height).getContext("2d");
+    g.drawImage(shot, 0, 0);
+    return g.getImageData(0, 0, shown.w, shown.h).data.reduce((m, v, k) => Math.max(m, Math.abs(v - shown.pixels[k])), 0);
+  };
   out.oneToOneStatus = document.getElementById("status").textContent;
   out.stats = client.stats().exact;
   client.close();
