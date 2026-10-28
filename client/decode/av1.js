@@ -14,11 +14,10 @@ const loaded = {};
 export async function init(d, load) {
   cfg = d;
   if (load) importer = load;
-  // Fetched while the session dials, compiled only on first use: lab/page-open/README.md §Cold round trips by codec
+  // Fetched while the session dials, compiled on first use; at `depth` ≤ 10 only if WebCodecs fails its probe: lab/page-open/README.md §Cold round trips by codec
   importer("./av1-dav1d.js").catch(() => {});
   if (typeof VideoDecoder === "function") importer("./av1-webcodecs.js").catch(() => {});
   const wasm = () => { for (const url of [d.glue, d.wasm]) if (url) fetch(url).then((r) => r.arrayBuffer()).catch(() => {}); };
-  // `depth` ≤ 10: fetched only if WebCodecs fails its probe, lab/page-open/README.md §A depth hint
   if (d.depth <= 10) webcodecs([`g${d.depth}`]).then((wc) => wc || wasm());
   else wasm();
 }

@@ -508,6 +508,29 @@ decodes through dav1d; one whose probe passes never fetches it.
 voids a visit it was late for. Nothing is claimed for Firefox (its probe of `g10` and `g8` fails, so it
 loads the WASM as today, a probe later — not timed), a large first frame, 4× CPU or a device.
 
+**Run 2026-10-28, `34417ca` + the rig's `7f4a749`**, headless Chromium 153, 16 rounds (8, then the 8 the rule's
+top-up asks for: the 10 ms cell had kept 6), 7 of 96 relays `VOID` and dropped, 0 failed, every frame 0 exact;
+`dav1d.wasm` asked in every A and A′ visit (58 cold, 58 warm) and in none of B's (31, 31). The frames are the golden g10
+payload and its `.sha256` copied as `coldrtt_frames.py` copies them (its HTJ2K half needs an encoder this
+container lacks; no HTJ2K arm ran). Rows: [`rows-coldrtt-hint.json`](rows-coldrtt-hint.json). Cold, ms to
+the first exact frame, median [range], and paired against A: rounds earlier / paired, median difference —
+
+| RTT | A `wc-pre` | A′ − A | B `wc-hint` | B − A | cell |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 10 ms | 262 [220–305] | 4/12, +4 | 225 [188–256] | 13/13, **−41** | B wins |
+| 40 ms | 417 [393–448] | 6/14, +8 | 393 [382–419] | 12/14, **−24** | B wins |
+
+Warm, B − A −10 (12/13) at 10 ms and −7 (9/14) at 40, A′ − A +5 and +3: ties by the rule's thresholds.
+
+**Verdict: the hint wins both cold cells and loses none, so it is on by default** — ingest writes `depth`,
+the viewer passes it, a series ingested before keeps today's loads. The predictions: 40 ms inside its
+−10 to −60; 10 ms just past its −15 to −40; warm a tie, as predicted. The fallback test holds with 4/4
+mutations caught (the fetch on a failed probe dropped, the hint ignored, the fetch made on a pass, the probe
+of the wrong layout). After the first 8 rounds the 10 ms cell was `VOID` (A′ − A +23, 6 kept) and the 40 ms
+one already won (−26, 6/7); the top-up is the rule's, not a second look chosen after the fact. **Not
+measured:** Firefox, a series whose probe fails (dav1d then loads as before the hint, a probe later), the
+product page itself (`codec.html` mirrors `head.js`'s preloads), HTTP/3, 4× CPU, a device.
+
 ## The WASM client's load
 
 **WASMLOAD, queue row 279, [`../../docs/CLIENTS.md`](../../docs/CLIENTS.md) W10 and W11.** *Protocol and rule

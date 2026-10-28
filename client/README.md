@@ -54,7 +54,9 @@ and an import that fails is tried again on the next payload. Before, the first p
 it: **−1.0 serial round trips to the first exact frame through WebCodecs and −3.0 through dav1d on
 100–300 ms links, cold, every paired round** (10.02 → 8.98 and 11.93 → 8.96; HTJ2K 7.99); warm,
 nothing moves. On a link under 20 ms a ≤ 10-bit series pays for the fallback's 238 KB arriving
-beside its first frame (+26 ms at 10 ms, +67 on loopback), dav1d wins from 10 ms. A page that knows
+beside its first frame (+26 ms at 10 ms, +67 on loopback), dav1d wins from 10 ms (*resolved since:* a series
+whose metadata gives `depth` ≤ 10 fetches the glue and WASM only if WebCodecs fails its probe of `g{depth}`,
+−41 ms at 10 ms and −24 at 40 to the first exact frame; lab/page-open/README.md §A depth hint). A page that knows
 the series is AV1 can `preload` the seven AV1 modules, the glue and the WASM, as `lab/page-open/codec.html`
 does: AV1 then reaches HTJ2K's 8.0. [`lab/page-open/README.md`](../lab/page-open/README.md)
 §Cold round trips by codec. A WebCodecs frame is taken only for the unit it
