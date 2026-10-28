@@ -25,7 +25,7 @@ pub fn peak_outstanding() -> u32 {
     PEAK_OUTSTANDING.load(Ordering::Relaxed)
 }
 
-pub fn reset_peak_outstanding() {
+pub(crate) fn reset_peak_outstanding() {
     PEAK_OUTSTANDING.store(0, Ordering::Relaxed);
     CENTER_DROPPED.store(0, Ordering::Relaxed);
 }

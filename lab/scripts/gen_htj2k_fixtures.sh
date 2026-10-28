@@ -2,7 +2,7 @@
 # Synthetic HTJ2K fixtures for lab/decode-bench: the sets, their sizes and the profile are docs/FIXTURES.md.
 # OpenJPH is built from source for ojph_compress alone; images are generated, never derived from a series.
 #   OUT_ROOT=... FRAMES=... lab/scripts/gen_htj2k_fixtures.sh [size ...]
-# A set made at another FRAMES needs its tracked metadata.json committed with it (lab/decoder-memory/README.md).
+# A set made at another FRAMES needs its tracked metadata.json committed with it (docs/FIXTURES.md).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT_ROOT="${OUT_ROOT:-$ROOT/lab/fixtures}"

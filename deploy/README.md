@@ -124,8 +124,8 @@ A container test of a deployment of this shape found each one (the deployment te
    * The `target/` mount is the daemon's, shared by every checkout built there, and cargo judges a path crate
      fresh by mtime. So the build touches every source it copied before `cargo build`: this tree's are always
      newer than anything in the cache (row BUILDCACHE, §Open).
-   * The ignore files keep out `docs/`, every `*.md`, the lab but its four crates' manifests and sources, and the
-     decoders' build cache.
+   * The ignore file, the root `.dockerignore`, keeps out `docs/`, every `*.md`, the lab but six crates' manifests
+     and sources, and the decoders' build cache.
    * After an edit to `docs/glossary.md` and `lab/av1/README.md`, 23 of 23 steps were cached and the build took
      1 s.
 6. **`restart: unless-stopped`** on both services.

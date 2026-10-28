@@ -1,4 +1,3 @@
-# docker reads this file, podman ../.containerignore: keep the two equal.
 target/
 **/node_modules
 .git

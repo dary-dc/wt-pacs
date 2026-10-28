@@ -347,7 +347,7 @@ sizes are a seeded shuffle.
 ## An ask behind the decoders
 
 *Queue row ASKBEHIND (183), 2026-10-13. Theory: nothing built or timed but a model of the dispatch,
-[`lab/ask-behind/sim.py`](../../lab/ask-behind/sim.py) (`--test` checks its claims, each mutated to fail). The protocol
+`lab/ask-behind/sim.py` at `ea581aca` (`--test` checks its claims, each mutated to fail). The protocol
 below is for a separate session given it and its rule only.*
 
 **The question.** At the measured rates, what does an ask wait behind in a decoder's queue, and does ask-aware
@@ -499,7 +499,7 @@ quoted.
 
 A dedicated worker is a thread in the page's renderer, so its cost is a **slope in the worker
 count**: the same page decodes the same series at `decoders=1` and `decoders=3`, and the answer is
-`(RSS₃ − RSS₁) / 2`. `lab/decoder-memory/`, 87 × 512×512 × 16-bit, the wrapper as delivered,
+`(RSS₃ − RSS₁) / 2`. `lab/decoder-memory/` at `ea581aca`, 87 × 512×512 × 16-bit, the wrapper as delivered,
 interleaved with variant and count order rotated, a fresh context per run, every frame checked. Chrome
 148, peak from `VmHWM`, settled after `measureUserAgentSpecificMemory()` with the workers alive.
 
@@ -544,7 +544,7 @@ list is under `N`; one smaller than the frame being read is dropped rather than 
 `decode: false` frame goes to the page and never returns. **The reader is never paused when the list
 is empty**; a fresh buffer is allocated, so no consumer that keeps a buffer can deadlock it.
 
-`lab/decoder-memory/` with `path=downloader&hold=1 --wire 0,8`, D=3, the size rotated every round;
+`lab/decoder-memory/` at `ea581aca` with `path=downloader&hold=1 --wire 0,8`, D=3, the size rotated every round;
 peak is `VmHWM`, paired inside each round, MB, median [range]:
 
 | series | peak, one buffer per frame | peak, a ring of 8 | paired | lower in | fill + decode wall | n |
@@ -669,7 +669,7 @@ The row's view: queue it only if FASTCLOCK finds a target series with Q over ~20
 ## The first frame
 
 A decoder just created is slower than the same decoder a few frames later.
-`lab/decode-first-frame/`, headless Chromium on a persistent profile, a fresh decoder per visit, 3
+`lab/decode-first-frame/` at `ea581aca`, headless Chromium on a persistent profile, a fresh decoder per visit, 3
 rounds, medians. **The first frame costs about four times the steady state**: on `g512` frame 0 is
 11.8 ms, frames 1–5 ~4.5, steady 3.0 (**3.92×**); on `cine512` 13.7, 4.3 and 3.8 (**3.57×**) — ~9 ms
 on a 512×512 frame, exactly where a user is waiting. **The engine's code cache does nothing to it**:
@@ -694,7 +694,7 @@ passed and the glue's own `WebAssembly.instantiateStreaming` ran. **The default 
 the option, a tie with no caller, was removed 2026-10-03; code:
 `git show archive/arms-2026-10-03:client/downloader/decoder.js`. The lab variant below keeps its own copy.
 
-`lab/decode-first-frame/variants.mjs`, 5 rounds interleaved, a fresh persistent profile per variant, three
+`lab/decode-first-frame/variants.mjs` at `ea581aca`, 5 rounds interleaved, a fresh persistent profile per variant, three
 visits each: **a tie.** Streaming's wins on frame 0 are 2/5, 2/5, 1/5 on `g512` and 4/5, 4/5, 2/5 on
 `cine512` across the three visits, and no cell holds its sign. **The WASM cache never engages**:
 across 60 visits and five configurations — the host as is; `Cache-Control: public, max-age=31536000,
@@ -935,7 +935,7 @@ Mutants, each caught: the colour range from its first component (87/87 differ), 
 gate, `dispatch-rig.ts` holds `decoder.js` to both halves with the package and a stand-in glue that
 answers `getRange()` (`client/contract/range-glue.js`); always-pass and never-pass each fail one.
 
-**What it buys.** [`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs), the wrapper
+**What it buys.** `lab/decode-tail/run.mjs` at `ea581aca`, the wrapper
 before (`today`) against `built`, both from source at a 16 MB heap through `decoder-split.js`; every
 browser thread slowed; c512 and g512 with three asks after the fill; 7 rounds interleaved. Medians,
 and rounds `built` was sooner:
@@ -997,7 +997,7 @@ variant; medians, ms/frame):
 
 The workstation's rig saw a colour fill's last byte ~325 ms after the ask and its last frame decoded
 ~685 ms after it. **The pool is busy the whole fill; the tail is throughput, not scheduling.**
-[`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs) runs a fill through the downloader
+`lab/decode-tail/run.mjs` at `ea581aca` runs a fill through the downloader
 with three real decoders against the server on loopback, driverless Chromium, and splits it from each
 frame's stamps (last byte, dispatched, decode start and end, decoder index), charging any idle
 decoder with work in reach to where that work sat. §Content's two sets, 87 frames, 7 rounds
@@ -1022,7 +1022,7 @@ content only**: on the rig a 237-frame 16-bit fill ended 15 ms after its last by
 * **The order frames reach decoders** cannot shorten a throughput-bound finish; at most the ragged
   end, one frame's decode (~18 ms).
 * **Starting a frame before its last byte** adds no capacity to a pool busy while bytes arrive.
-* **Reusing the pixel buffer** (`lab/decode-tail/decoder-reuse.js`) tied: allocation is not in the
+* **Reusing the pixel buffer** (`lab/decode-tail/decoder-reuse.js` at `ea581aca`) tied: allocation is not in the
   tail.
 
 **Where the host saturates.** Three decoders, the page, the downloader and the server on four cores:
@@ -1060,7 +1060,7 @@ workstation (Chrome 148, 2026-10-02): 267 / 1 097 ms page thread, 268 / 1 206 ms
 ### The package, throttled
 
 `run.mjs --throttles 1,4,6 --asks 20,43,66`: a fill of each set, then three frames asked one at a
-time on the warm session, through [`decoder-split.js`](../../lab/decode-tail/decoder-split.js) (the
+time on the warm session, through `lab/decode-tail/decoder-split.js` at `ea581aca` (the
 product's worker with stamps inside `decodeFrame`). Two sets × three builds × three throttles,
 rotated, 7 rounds. The package, medians:
 
@@ -1107,7 +1107,7 @@ largest frames only — §Faster HTJ2K in the browser.
 header and pixels out stay under 1 ms at every throttle. **But the range pass is the largest
 per-frame cost after the decode** — 21–31 % of a frame in its decoder at every throttle. Keeping its
 min and max as integers rather than doubles from ±Infinity
-([`range.mjs`](../../lab/decode-tail/range.mjs), a browser worker, 7 rounds): colour 3.36 → 2.58 ms
+(`lab/decode-tail/range.mjs` at `ea581aca`, a browser worker, 7 rounds): colour 3.36 → 2.58 ms
 (6/7), 16-bit 1.52 → 1.26 (5/7), signed 12-bit 2.45 → 2.20 (5/7) — not changed. Not walking the
 pixels at all was built: §The range in the pack.
 

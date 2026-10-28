@@ -16,14 +16,6 @@ path = "src/bin/server_ab.rs"
 name = "evict"
 path = "src/bin/evict.rs"
 
-[features]
-# tokio's io_uring file driver, for the `tokio_fs` variant only. Needs `RUSTFLAGS="--cfg tokio_unstable"`
-# as well — the feature alone does not compile it in. Never a product feature.
-tokio-uring = ["tokio/io-uring"]
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
-
 [dependencies]
 anyhow = { workspace = true }
 clap = { version = "4", features = ["derive"] }
@@ -35,7 +27,6 @@ bytes = { workspace = true }
 io-uring = "0.7"
 memmap2 = "0.9"
 quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
-rcgen = "0.13"
 rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12", "ring"] }
 libc = "0.2"
 serde = { workspace = true }

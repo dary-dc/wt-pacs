@@ -2,7 +2,7 @@
 """What a browser receives from each server variant, and what every thread spends to receive it.
 
 The TS harness cell in headless Chromium against several server binaries at once, variants
-interleaved and their order reversed every repeat. Around each run: CPU per thread of the
+interleaved in a Williams order (`order.py`). Around each run: CPU per thread of the
 server and of every Chromium process (`/proc/*/task/*/schedstat`, ns), and the datagrams the
 client socket dropped (`Udp: RcvbufErrors`). Needs the static host (`server/dev-server.py
 --port 8765`) and `client/transport/ts/dist`. `docs/rig-limits.md`.
@@ -17,6 +17,7 @@ rcvbuf_drops in_datagrams srv_ms ns_main_ms ns_io_ms rend_main_ms rend_other_ms 
 import hashlib, json, os, signal, socket, subprocess, sys, threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+from order import order
 
 ROOT = Path(__file__).resolve().parents[2]
 CHROME = os.environ.get("CHROME_PATH", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
@@ -174,8 +175,7 @@ try:
         for i in range(len(variants)):
             one_run(browser, i, 0)
         for r in range(1, reps + 1):
-            order = range(len(variants)) if r % 2 else range(len(variants) - 1, -1, -1)
-            for i in order:
+            for i in order(range(len(variants)), r):
                 one_run(browser, i, r)
         browser.close()
 finally:
