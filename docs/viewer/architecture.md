@@ -5,6 +5,8 @@ Written 2026-10-27, from [`integration.md`](integration.md), [`survey.md`](surve
 every number in it is quoted from those documents or is a prediction, and says which. The evaluation (§The spike) is
 pre-registered, and it is not run.
 
+**Decided by the owner, 2026-10-27:** the 2D viewer's exactness must reach the screen, so the viewer is A.
+
 ## Three options, one dropped
 
 Integration ranks four fits (integration.md §The ranking). Three are carried, because each can win under a
