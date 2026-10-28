@@ -52,8 +52,10 @@ are not filterable in wgpu, WebGPU, Vulkan's mandatory format table, Metal's fea
 painter's choice — integer texture, bilinear in the shader — is the only one that keeps the samples exact and is the
 same on every backend. `R16Unorm` would add a feature gate, a float conversion and a new proof.
 
-**Size and upload.** A 4096×3072 frame fits wgpu's default 8192 limit and every first-class backend (D3D12 16 384,
-Metal ≥ 8192); the `downlevel_*` limits cap textures at 2048 and must not be requested. `write_texture` needs no
+**Size and upload.** A 4096×3072 grey frame fits wgpu's default 8192 limit and every first-class backend (D3D12 16 384,
+Metal ≥ 8192); the `downlevel_*` limits cap textures at 2048 and must not be requested. *Corrected 2026-10-28:* RGB
+uploads as three texels a pixel (`R8Uint`, wgpu has no three-channel format), so an RGB row past 2730 px broke the
+default limit and wgpu panicked. The painter requests the adapter's own limits and refuses a frame over them by name. `write_texture` needs no
 256-byte row padding, but allocates a staging buffer per call, so a stream of frames should use `StagingBelt` or its
 own mapped buffers (not measured). The browser's upload was 5.70 of 5.74 ms of a 12.58 Mpx paint (§Paint): the
 upload is still the thing to attack natively.
@@ -191,10 +193,15 @@ none queued; each states its predictions and rule before any data and runs in a 
 
     Every mutant the browser suite catches is caught here, and so is the one it misses. Its four table mutants reach
     the cells here because the native table is not the reference's. `scripts/gate.sh` runs the 1:1 cells when
-    lavapipe and numpy are present.
+    lavapipe and numpy are present, and `paint.rs`'s own tests: LINEAR at width 1 and a signed 16-bit code, which no
+    cell reaches, and an RGB row past wgpu's default limit.
+  * *Corrected on review, 2026-10-28:* `native.mjs` compared only as many bytes as the reference, so a read-back of
+    half the rows passed every cell (mutant run); a short or long paint now fails its cell. The rerun above passes
+    with it, and the mutant table is unchanged.
   * **Not ported:** the browser's skipped upload for the same frame and its window pass run only on a window change.
     Every native paint uploads, windows and places, which is M2's to time. The fractional cells on a GPU are the GPU
-    desktop's rerun.
+    desktop's rerun, and so are the exact ones: the shader writes code/255 to `Rgba8Unorm`, and Vulkan says the
+    conversion back *should*, not must, round to nearest. Exact on lavapipe, not yet on any GPU.
 * **M2 NATIVEFILL — fill time and the ask, native against the browser, one machine** (container). Arms: today's
   browser client (headless Chromium, WASM decoders, the gl painter on SwiftShader) and a lab native client (the
   `lab/window-harness` transport, native OpenJPH, M1's painter on lavapipe). *Corrected 2026-10-27:* the native arm

@@ -62,7 +62,7 @@ export function cells(name, s, st) {
   const rgb = s.components === 3;
   const c = st.p50;
   const w = Math.max(2, st.p90 - st.p10);
-  const span = s.signed ? 1 << s.bits : 1 << s.bits;
+  const span = 1 << s.bits;
   const lo = s.signed ? -(1 << (s.bits - 1)) : 0;
   const windows = rgb
     ? { identity: { photometric: "RGB" }, invert: { photometric: "RGB", invert: true } }

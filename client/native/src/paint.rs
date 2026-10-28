@@ -131,7 +131,8 @@ impl Painter {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
         let adapter = pollster::block_on(instance.request_adapter(&Default::default())).context("no wgpu adapter")?;
         let info = adapter.get_info();
-        let (device, queue) = pollster::block_on(adapter.request_device(&Default::default()))?;
+        let limits = wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() };
+        let (device, queue) = pollster::block_on(adapter.request_device(&limits))?;
         let module = device.create_shader_module(wgpu::include_wgsl!("paint.wgsl"));
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -165,6 +166,8 @@ impl Painter {
         let corners = placement(frame, &display.view, width, height, dpr)?;
 
         let row = frame.width * frame.components;
+        let limit = self.device.limits().max_texture_dimension_2d;
+        ensure!(row.max(frame.height).max(width).max(height) <= limit, "a {row}×{} texture or a {width}×{height} target is over this adapter's {limit}", frame.height);
         let format = if wide { wgpu::TextureFormat::R16Uint } else { wgpu::TextureFormat::R8Uint };
         let samples = self.texture(format, row, frame.height, frame.pixels, row * if wide { 2 } else { 1 })?;
         let table = self.texture(wgpu::TextureFormat::R8Uint, 256, entries as u32 / 256, &table, 256)?;
@@ -252,5 +255,44 @@ impl Painter {
         let layout = wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(bytes_per_row), rows_per_image: None };
         self.queue.write_texture(texture.as_image_copy(), data, layout, texture.size());
         Ok(texture)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Two edges `voi.test.mjs` works by hand that no cell reaches, so the port is checked there too: LINEAR at
+    /// width 1 is a step between c − 1 and c, and under 1 is refused; a signed 16-bit code s sits at s + 32 768.
+    #[test]
+    fn linear_width_one_is_a_step_and_signed_16_bit_sits_at_half() {
+        let frame = Frame { pixels: &[], width: 1, height: 1, bits: 16, components: 1, signed: true };
+        let view = View { fit: false, zoom: 1.0, pan_x: 0.0, pan_y: 0.0, rotate: 0, flip_h: false, flip_v: false };
+        let mut display = Display { photometric: Photometric::Monochrome2, invert: false, slope: 1.0, intercept: 0.0, voi: None, view };
+        let mut table = |center, width| {
+            display.voi = Some(Voi { center, width, function: Function::Linear });
+            window_table(&frame, &display)
+        };
+        let t = table(0.0, 1.0).unwrap();
+        assert_eq!((t[32768 - 1], t[32768]), (0, 255));
+        assert!(table(0.0, 0.99).is_err());
+    }
+
+    /// An RGB frame wider than wgpu's default 8192 texels a row (three a pixel) paints as stored; one over the
+    /// adapter's limit is refused by name rather than panicking in wgpu.
+    #[test]
+    fn a_row_past_the_default_limit_paints_and_one_past_the_adapter_is_refused() {
+        let painter = Painter::new().unwrap();
+        let view = View { fit: false, zoom: 1.0, pan_x: 0.0, pan_y: 0.0, rotate: 0, flip_h: false, flip_v: false };
+        let display = Display { photometric: Photometric::Rgb, invert: false, slope: 1.0, intercept: 0.0, voi: None, view };
+        let pixels: Vec<u8> = (0..3000 * 3).map(|i| (i % 251) as u8).collect();
+        let rgb = Frame { pixels: &pixels, width: 3000, height: 1, bits: 8, components: 3, signed: false };
+        let rgba = painter.paint(&rgb, &display, 3000, 1, 1.0).unwrap();
+        assert!(rgba.chunks(4).zip(pixels.chunks(3)).all(|(p, s)| p[..3] == *s && p[3] == 255));
+
+        let over = painter.device.limits().max_texture_dimension_2d / 3 + 1;
+        let pixels = vec![0; over as usize * 3];
+        let rgb = Frame { width: over, pixels: &pixels, ..rgb };
+        assert!(painter.paint(&rgb, &display, 8, 1, 1.0).is_err());
     }
 }

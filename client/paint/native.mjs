@@ -41,6 +41,7 @@ function run(dpr, all) {
       if (fs.existsSync(error)) return { name: cell.name, exact: cell.exact, error: fs.readFileSync(error, "utf8") };
       const pixels = fs.readFileSync(path.join(dir, `${i}.rgba`));
       const ref = paintReference({ ...cell.spec, samples: samples(cell) }, cell.display, width, height, dpr);
+      if (pixels.length !== ref.length) return { name: cell.name, exact: cell.exact, error: `${pixels.length} bytes, not ${ref.length}` };
       let worst = 0;
       let differ = 0;
       for (let k = 0; k < ref.length; k++) {
