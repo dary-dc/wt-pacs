@@ -3,7 +3,8 @@
 Written 2026-10-27, from [`integration.md`](integration.md), [`survey.md`](survey.md) and requirements.md (on branch
 `claude/viewer-requirements`, not merged; its feature names are used below). Nothing was built or run for this file:
 every number in it is quoted from those documents or is a prediction, and says which. The evaluation (§The spike) is
-pre-registered, and it is not run.
+pre-registered. Its A-against-B arm was run on 2026-10-28, after this was written: the results and the verdict are in
+§The spike, as run.
 
 ## Three options, one dropped
 
@@ -267,6 +268,131 @@ fixed before any of it is written.
    A wins ties, because only A keeps B′ and the native painter.
 4. **C beats B** only if it holds rule 3 against A, and the owner wants the application shell (the study list and the
    hanging protocol UI). The spike cannot price that, so it records C's numbers and hands the choice to the owner.
+
+## The spike, as run
+
+Run 2026-10-28 for A against B, in [`../../lab/viewer-spike/`](../../lab/viewer-spike/) (its README runs it; rows
+beside it). C was not built: rule 1 builds it only if B passes the gate or the owner has set a bound, and neither holds.
+Nothing in `client/` or `server/` changed.
+
+**Where it differs from the protocol above.**
+
+* **`ffdm_a` stands in for `ffdm_d`.** `ffdm_d`'s four objects are gone from IDC's public bucket: its pinned keys
+  answer 404, and the series' folder lists empty (IDC v25 still indexes it). `ffdm_a` is the same shape at 2560×3328,
+  4 frames, 12-bit. Its window is 2047/4096, so both windows still span more than 1 024 codes, which is what P1 tests.
+  Its four views are four DICOM series. Each went through the ingest alone, and `four_views.py` packs the four coded
+  frames as one series.
+* **Chromium 153.0.8010.12**, the container's, not 141. SwiftShader, three decoders, `devicePixelRatio` 1, a
+  1024×768 page.
+* **A's 2×2 is four canvases, each with its own painter and paint worker.** Frame-path §3's one worker for four
+  canvases would change `client/paint/`.
+* **A's cine waits for the paint.** Today's `toggleCine` (a timer, the paint coalescing behind it) skipped 18 of 50
+  DBT slices at 100 ms a step. That is a gate failure in A, so per rule 1 the spike fixed it first. Each step now
+  paints, then waits out the rest of the frame time. The timer version is kept as the cine mutant.
+* **B's glue is the spike's, not a product's.** It has a loader, a metadata provider, viewports at `SCALE` 1, the
+  readback, scroll and cine, and a bundling step. It has no tool group, no status line and no exactness mark. It
+  needed `events` and `url` polyfills, because vtk.js's XML reader is imported by core's `Mesh`.
+* **Page-open bytes count each file once**, gzip level 6 for files of 1 024 B and over, as the deploy template sends
+  them. The bytes were the same in every visit, so they come from one extra round; the campaign's own rows count a
+  worker's second fetch of a file again.
+
+**The gate.**
+
+* **Every frame exact**, in every visit of both options: 50/50 and 4/4.
+* **Readback at 1:1, against `client/paint/reference.js`'s table:**
+
+  | readback | A: worst \|Δ\| | B: worst \|Δ\| | B: pixels that differ |
+  | --- | --- | --- | --- |
+  | `dbts_b1` frames 0, 25, 49, first window (512/512) | 0 | 0 | 0 of 786 432 |
+  | `dbts_b1` frames 0, 25, 49, identity (512/1 024) | 0 | 0 | 0 of 786 432 |
+  | `ffdm_a` four views, first window (2047/4096) | 0 | 1 | 2 968–5 459 of 196 608 (1.5–2.8 %) |
+  | `ffdm_a` four views, identity (2048/4096) | 0 | 1 | 2 801–5 440 of 196 608 (1.4–2.8 %) |
+
+  B's samples sit where Cornerstone3D's own `canvasToWorld` says they do. The step is exactly 1 and the origin is on
+  a pixel centre in every readback, and B is exact wherever the window spans 1 024 codes or fewer. So the |Δ| = 1
+  comes from the table, not from placement.
+* **Own cine, one sweep at 100 ms:** A (paint-waiting) rendered 50 of 50 in order. B's `playClip` rendered 50 of 50 in
+  order in the gate's visit, and skipped 1 of 50 in the row mutant's (`mutants.jsonl`), whose mutant moves only the
+  readback's camera. So B's cine can skip on this host too; two sweeps do not say how often.
+* **Mutants, each caught by name:**
+  * one sample flipped in every decoded frame (`mutants/`): 0 frames exact in both options, and no first image;
+  * the paint one row low: worst |Δ| 112 on DBT and 67 on the four views, in both options;
+  * A's cine on today's timer: 18 of 50 slices skipped.
+
+**The metrics.** 10 rounds of the four cells, the two options in a Williams order within each. 80 visits, no `VOID`,
+10 kept pairs a cell. Medians, with the range across rounds in brackets. No A/A arm was run; the two bars B fails
+below do not need one, since the four views' first image was 131–152 % of A's in every round, and page open is the
+same bytes in every visit.
+
+| metric | cell | A | B | B against A, paired |
+| --- | --- | --- | --- | --- |
+| time to first exact image, ms | DBT, loopback | 1 045 [905–1 649] | 1 452 [1 380–1 786] | +414 ms [+137…+677], 139 %; B faster in 0 of 10 |
+| | four views, loopback | 1 155 [1 082–1 245] | 1 623 [1 568–1 750] | +486 ms [+380…+585], 142 %; 0 of 10 |
+| | DBT, 20 Mbit, 2 % loss | 7 971 [4 290–9 253] | 8 414 [6 565–9 427] | 110 % [81–195]; B faster in 1 of 10 |
+| | four views, 20 Mbit, 2 % loss | 42 585 [39 375–44 834] | 43 512 [40 511–46 042] | 102 % [97–109]; 3 of 10 |
+| DBT scroll at 1:1, frames/s, every index once in order | loopback | 6.2 [6.1–6.3] | 15.3 [14.4–15.8] | 248 % [238–256] |
+| page memory above decoded, MiB | DBT | 112.3: window 0.9, workers 111.1 | 189.8: window 77.7, workers 110.5 | +77.5 |
+| | four views | 99.0: window 0.9, workers 97.9 | 214.7: window 118.2, workers 96.1 | +115.7 |
+| page open, gzipped bytes before the first image | both series | 126 870 (22 files) | 1 268 211 (20 files) | +1 141 341, of which `dist/cs.js` is 1 145 732 |
+| main-thread long tasks before the first image, ms | loopback | 0 | 581 (DBT), 1 058 (four views) | — |
+| glue, non-blank non-comment lines | — | 91, plus 43 shared | 166, plus 43 shared | — |
+
+**Where the container saturates.** It has four cores and no GPU. The relay ran alone on core 3, the browser and server
+on 0–2. During the scroll (not in the rows) the three browser cores were 64–68 % busy under A and 50–66 % under B, so neither option
+filled them. The rate is the serial chain of one paint on SwiftShader, and says only which way a GPU host might go.
+Nothing near the 60 frames/s cap was reached. A's slower scroll is not explained: its painter uploads the R16UI frame
+and filters in the shader at every step. Not measured beyond that.
+
+**The predictions, against the run.**
+
+* **P1, exactness: held.** A had worst |Δ| = 0 everywhere. B had worst |Δ| = 1 on the four views at both windows.
+  On DBT at identity, B had 0 (at most 1 was predicted).
+* **P2, first image: held.**
+  * On loopback, B ≥ A + 100 ms: it was +414 and +486 ms.
+  * At 20 Mbit with 2 % loss, A and B were within ±10 % at the median (110 % and 102 %), though single rounds spread
+    81–195 %. C was not run.
+* **P3, scroll rate: half held.**
+  * A was below 10 frames/s (6.2): held.
+  * B ≤ 0.8 × A: **wrong**. B scrolled 2.5× faster than A on SwiftShader.
+* **P4, memory: held.**
+  * A's window was 0.9 MiB, and its workers 98–111 MiB, inside 17–144.
+  * B's window held more than one frame copy per viewport. On DBT that was +77 MiB against a 16 MiB frame, about
+    4.8 frames' worth. On the four views it was +117 MiB against 65 MiB of frames.
+* **P5, page open: held for B; for A, not comparable as stated.**
+  * B was 1.14 MB more than A, past the 300 kB predicted.
+  * A's 126 870 B is under today's 264 845 B because this client fetches no WASM transport (130 813 + 6 537 B of that
+    figure). File by file it was not compared.
+* **P6, glue: held.** A was 134 lines and B 209, counting the shared 43 in each.
+
+**The rule.**
+
+1. **The gate.** A passes, once its cine waits for the paint. **B fails on exactness.** On the 12-bit mammograms
+   1.4–2.8 % of the pixels on screen are one code off ours, at both windows.
+2. **Only A passes, so A is carried forward.** B's price of a bound goes to the owner:
+   * a bound of one code;
+   * on 12-bit windows wider than 1 024 codes, 1.4–2.8 % of the pixels at that bound;
+   * on 10-bit windows, none.
+3. **If the owner sets a bound of one code,** B is judged again on this data, and **A still wins**. B fails two of
+   rule 3's five bars:
+   * Time to first image ≤ 1.2 × A: fails on loopback (139 % and 142 %), passes at 20 Mbit (110 %, 102 %).
+   * Scroll ≥ 0.8 × A: passes (248 %).
+   * Memory ≤ A + one frame per viewport + 64 MiB: passes. On DBT it was 189.8 against a bar of 192.5. On the four
+     views, 214.7 against 228.0.
+   * Page open ≤ A + 1 MB: fails (+1.14 MB).
+   * Glue ≤ 900: passes (209).
+4. **C** is not reached.
+
+**Verdict: A, our own viewer on today's client.** One finding is a defect in today's client, and it holds under every
+option: the viewer's timer cine skips DBT slices when a paint takes longer than a step. The spike's fix (step after
+the paint) is in `lab/viewer-spike/a/page.js`, not in `client/viewer/`.
+
+**Left open.**
+
+* Every scroll and paint number is SwiftShader's. The GPU host reruns the scroll, and how often B's `playClip`
+  skips.
+* B's bundle is all of core and tools. A bundle trimmed to what B uses was not tried, and it could move the page-open
+  bar.
+* `ffdm_d` itself, if IDC restores it.
 
 ## For the owner
 
