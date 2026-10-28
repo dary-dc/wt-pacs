@@ -75,3 +75,19 @@ webdev/persistent-storage.html  https://web.dev/articles/persistent-storage  651
 chromium/content_browser_quota_quota_manager_host.cc  https://chromium.googlesource.com/chromium/src/+/52c75e5a3b61f9f50cc0aaf7697ffc5de214de6b/content/browser/quota/quota_manager_host.cc?format=TEXT  19cc70cf61a98afb13e17bf313b3764a6b6b407de81ea1914d5c10b5ec80c7fd
 chromium/content_browser_storage_partition_impl.cc  https://chromium.googlesource.com/chromium/src/+/52c75e5a3b61f9f50cc0aaf7697ffc5de214de6b/content/browser/storage_partition_impl.cc?format=TEXT  55e416464a6d7bf72632af6632f9a42248afd1e416903a94cc5acde991b394f6
 chromium/storage_browser_quota_quota_temporary_storage_evictor.cc  https://chromium.googlesource.com/chromium/src/+/52c75e5a3b61f9f50cc0aaf7697ffc5de214de6b/storage/browser/quota/quota_temporary_storage_evictor.cc?format=TEXT  f138cd829f08e2fc93f42963dd2cfbe03769bcf973bccea35a73e28a6fe82705
+# Fetched 2026-10-28 for §What keeping frames on the device obliges; whatwg/fs and whatwg/storage at main that day
+aapm/RPT_260.pdf  https://www.aapm.org/pubs/reports/RPT_260.pdf  7b0403c504c475a1fae48e881b425868b70ef72e39ad2aa50eaf1535b3b819e9
+acr/privacy-security.pdf  https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=104  c3ce3b89674a724f4e23062dae52fecb40847b9f041a4a39a5353ab9a0a74fc0
+ecfr/164.312.html  https://www.ecfr.gov/api/renderer/v1/content/enhanced/current/title-45?part=164&section=164.312  c17a1aa2db8ad255dd0d13ec8da4a4db3cbeb5ad2d737d0f4afd16dda7778b6d
+ecfr/164.306.html  https://www.ecfr.gov/api/renderer/v1/content/enhanced/current/title-45?part=164&section=164.306  2ea301f11fbf1c5b26fa89698f8b3fdf1776c76417147c46d177e7d833ad9b48
+ecfr/164.402.html  https://www.ecfr.gov/api/renderer/v1/content/enhanced/current/title-45?part=164&section=164.402  340f933a49b0a778f4638e43b9f09f9ae2aa6f87b0d93e9f5aa7847212480011
+fr/E9-20169.pdf  https://www.govinfo.gov/content/pkg/FR-2009-08-24/pdf/E9-20169.pdf  662cef86f7dd132ec5f4675b24d27055e3944269923c867f48fd355b9d8ee349
+fr/2024-30983.pdf  https://www.govinfo.gov/content/pkg/FR-2025-01-06/pdf/2024-30983.pdf  d5e1ec4107308e5ef2f261a77b1c6f8709910380618381677edea9e0a40075f7
+gdpr/art-32.html  https://gdpr-info.eu/art-32-gdpr/  63d97eebc5843ef5efb268163ba1948083ac04d15036bb7bbe69a3310edaa611
+gdpr/art-34.html  https://gdpr-info.eu/art-34-gdpr/  8c71bb5301c2a48ab6a0e4f0198b510093c3cbaec585e52120a4daa6ddd1b0ab
+gdpr/art-4.html  https://gdpr-info.eu/art-4-gdpr/  ea04c878cefa13d1d2a6e4a176543d19b9925d719ab922262310a55a6152185b
+gdpr/recital-26.html  https://gdpr-info.eu/recitals/no-26/  0131d826f6f33c44db2f52a9c2f1c0e1f450b0d3f5d473eaa9fb6dd2bf1090f7
+android/android-15-cdd.html  https://source.android.com/docs/compatibility/15/android-15-cdd  69881f68988f723c115107be840098753e8d73516ad0ce0b3880b28aab32cc4a
+apple/data-protection-overview.html  https://support.apple.com/guide/security/data-protection-overview-secf6276da8a/web  bcb964407ba7dcceb1ac0dfb06af390f6f927327bc83c0a7a31ddbb4f00bbc4d
+whatwg/fs_index.bs  https://raw.githubusercontent.com/whatwg/fs/main/index.bs  e99666c5d56143fc6654434ae0a19447f0575dd44d25c5944e8730d71a2d823f
+whatwg/storage_storage.bs  https://raw.githubusercontent.com/whatwg/storage/main/storage.bs  2617969b9b9f8656a07276441a2e3456fb6a2a69d25068ca6fe5505eb8725867

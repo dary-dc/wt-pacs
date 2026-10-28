@@ -91,10 +91,11 @@ needs `F_FULLFSYNC` for durability; Windows' replace atomicity is unknown); a me
 truncated file (`SIGBUS`); every read must tolerate a missing file. A packed file per series or a file per frame is
 open: not weighed by any source read.
 
-**The other side.** AAPM Report 260 on handheld viewers recommends leaving no persistent data on the device. HIPAA's
-technical safeguards (45 CFR 164.312) make audit controls required and encryption at rest and automatic logoff
-"addressable"; a proposed revision (published 2025-01-06) was not read. GDPR Art. 32 asks for security appropriate to
-the risk. A page's storage is evictable by default; an app's cache stays until the app removes it.
+**The other side.** A cache of images on a device is protected health information at rest. What AAPM Report 260,
+45 CFR 164.312, the proposed HIPAA revision of 2025-01-06 (*corrected 2026-10-28:* this said it was not read), GDPR
+Art. 32 and the ACR–AAPM–SIIM security parameter ask of it, the options and a default per device kind are in
+[`../adr/frame-path.md`](../adr/frame-path.md) §What keeping frames on the device obliges; an app's cache answers
+the same way. A page's storage is evictable by default; an app's cache stays until the app removes it.
 
 ## 4. App shape
 
@@ -238,4 +239,4 @@ committed.
   Report 260 (`7b0403c504c4`); eCFR 45 CFR 164.312 (`c70378b6f5e4`).
 
 **Not read**, so not cited: IEC 62304 beyond its abstract and IEC 82304-1 (paywalled or refused); the EU borderline
-manual on PACS; the HIPAA Security Rule revision's text; GitHub's release pages (403); MicroDicom's site (403).
+manual on PACS; GitHub's release pages (403); MicroDicom's site (403).
