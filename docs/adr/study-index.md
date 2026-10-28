@@ -561,7 +561,7 @@ committed.
 | online backup; `sqlite3_rsync` | SQLite `backup.html`, `rsync.html` |
 | §6.4's latency, sync, recovery, size, saturation | `lab/study-index/README.md` on `claude/study-index-proto` at `16fec79a` (#165) |
 | ATTACH: atomic across files only outside WAL | SQLite `lang_attach.html` |
-| the PCS's schema and statements | opendicom/DECK_WebTransport `a65abe2`: `doc/PACS/db/deck.db`, `DICMele2deck/pcs.pdf`, `doc/dcmtk-storescp/README.md` |
+| the PCS's schema and statements | DECK_WebTransport (the PCS repository, public) `a65abe2`: `doc/PACS/db/deck.db`, `DICMele2deck/pcs.pdf`, `doc/dcmtk-storescp/README.md` |
 
 **Not verified:** the brief's pcs.pdf and `dicm2decksqlite3` quotations (§2); a product word for dcm4chee's database
 in its documentation; whether MySQL uses an index for a prefix `LIKE` under `utf8mb4_0900_ai_ci` (§11 checks it);
