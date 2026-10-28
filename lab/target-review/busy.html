@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><title>busy worker</title>
+<script>
+const abs = () => performance.timeOrigin + performance.now();
+window.runArm = (arm, ms) => new Promise((resolve, reject) => {
+  const view = new Worker("busy-view.js");
+  const writer = arm === "split" ? new Worker("busy-writer.js") : null;
+  const io = arm === "same" || arm === "same+hash" ? view : writer;
+  const fail = (e) => reject(e.message ?? String(e));
+  view.onerror = fail;
+  if (writer) writer.onerror = fail;
+  const ioReplies = [];
+  const done = (e) => {
+    if (e.data.error) return reject(e.data.error);
+    if (e.data.io) ioReplies.push(e.data.io);
+    if (e.data.delays) {
+      view.terminate(); writer?.terminate();
+      resolve({ delays: e.data.delays, io: ioReplies });
+    }
+  };
+  view.onmessage = done;
+  if (writer) writer.onmessage = done;
+  io?.postMessage({ kind: "io", file: `${arm}-${Math.random()}`, hash: arm === "same+hash" });
+  const tick = setInterval(() => view.postMessage({ kind: "show", t: abs() }), 16);
+  setTimeout(() => {
+    clearInterval(tick);
+    io?.postMessage({ kind: "stop" });
+    setTimeout(() => view.postMessage({ kind: "report" }), 300);
+  }, ms);
+});
+</script>
