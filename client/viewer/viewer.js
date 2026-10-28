@@ -260,6 +260,6 @@ if (q.get("check") || lab.finished) {
     }, 20);
   });
   await repaint();
-  if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show, modality: meta.modality });
+  if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show });
   else lab.finished({ issuedAt, firstShownMs, frames, errors, stats: client.stats() });
 }
