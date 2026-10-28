@@ -243,13 +243,12 @@ export abstract class FrameSession {
     to: number,
     onFrame: (f: FrameResult) => void,
     onError: (frameIndex: number, reason: string) => void = () => {},
-  ): number {
+  ): void {
     if (to < from) throw new Error("fillFrames: to < from");
     if (this.closedReason) throw new Error(`session unavailable: ${this.closedReason}`);
-    const askMs = this.armFill(from, to, onFrame, onError);
+    this.armFill(from, to, onFrame, onError);
     // A write that fails means the session is going, and its closure names what the fill owed.
     this.sendFod({ op: "stream_frames", from, to }).catch(() => {});
-    return askMs;
   }
 
   protected armFill(
@@ -257,12 +256,10 @@ export abstract class FrameSession {
     to: number,
     onFrame: (f: FrameResult) => void,
     onError: (frameIndex: number, reason: string) => void,
-  ): number {
-    const askMs = performance.now();
+  ): void {
     const pending = new Set<number>();
     for (let i = from; i <= to; i++) pending.add(i);
-    this.fill = { pending, askMs, onFrame, onError };
-    return askMs;
+    this.fill = { pending, askMs: performance.now(), onFrame, onError };
   }
 
   async endStream() {
