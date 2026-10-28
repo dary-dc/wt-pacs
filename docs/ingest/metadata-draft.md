@@ -239,6 +239,7 @@ cost.
 pixels as stored, 0.02–4 % in HTJ2K; in CT, PET, MR and MG 70–83 % of the instance groups' bytes are records the same in
 every instance, so the shared values once plus each instance's differences weigh 9–28 % of a row per instance group
 (CT, PET, MR) and a zstd-3 blob per series 1.5–3.8 %; an ultrasound series of two SOP classes shares a quarter.
+The parser's own output at `a65abe2`, 1.15–1.95× these bytes: [`../../lab/metadata-store`](../../lab/metadata-store).
 
 **Metadata-only updates on the link** ([`../../lab/metadata-store`](../../lab/metadata-store) §Updates on the link, 2026-10-25): a
 single correction (3–5.6 KB) is one flight raw or compressed, but a resend or a fan-out saves 1–5 round trips and up to
