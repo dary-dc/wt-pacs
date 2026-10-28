@@ -18,6 +18,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | stream mode | how the server lays frames on its media streams: `shared` or `per-frame`, process-wide ([`WIRE.md`](WIRE.md) §Stream modes) |
 | ask | a request for one frame, `request_frame`, served next |
 | fill | frames the server pushes in index order, `stream_frames`; on the wire one contiguous **run** at a time |
+| cursor | the frame the viewer shows, moved one frame by each **step** of a scroll |
 | the opening ask | an ask or a fill carried in the session URL, served behind the accept |
 | early SETTINGS | the server's SETTINGS in its handshake flight, at 0.5 RTT (a crate patch, `settings-in-handshake`) |
 | tile | the server's read of one asked frame (`TileReader`); not a codec's tile, which is said in full ("AV1 tile", "HTJ2K tile") |

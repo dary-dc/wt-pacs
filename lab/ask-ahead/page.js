@@ -1,7 +1,8 @@
 /**
  * A fill of the whole series through the product's downloader; once `at` of it has landed (half unless
  * set; `none`, no ask), an ask for frame `ask` (the last unless set), which the fill has not reached; with
- * `asks=K`, K asks for the K frames ending at `ask`, `every` ms apart, each skipped if its frame has landed.
+ * `asks=K`, K asks for the K frames ending at `ask`, `every` ms apart, each skipped if its frame has landed: a
+ * scroll's steps, `scroll` the downloader's lab flag for them.
  * Every frame is hashed for the driver to check. lab/ask-ahead/README.md
  */
 import { DownloaderClient } from "/client/transport/consumer.js";
@@ -24,6 +25,13 @@ const asks = new Map();
 let landedBeforeAsk = 0;
 let before = [];
 let client = null;
+const steps = [];
+
+/** ms the cursor showed another frame than its own, each step's wait cut at the next step, the last one's not. */
+function stale() {
+  const wait = (k) => Math.max(0, landed.get(steps[k][0]) - steps[k][1]);
+  return steps.reduce((sum, [, t], k) => sum + (k + 1 < steps.length ? Math.min(wait(k), steps[k + 1][1] - t) : wait(k)), 0);
+}
 
 function maybeDone() {
   if (landed.size < N || (ASK >= 0 && (asks.size < K || [...asks.values()].some((a) => a && !a.done)))) return;
@@ -36,6 +44,8 @@ function maybeDone() {
     globalThis.__result = {
       askMs: ASK >= 0 ? askDoneAt - askAt : null,
       asksMs: [...asks.values()].filter(Boolean).map((a) => a.done - a.sent),
+      staleMs: steps.length ? stale() : null,
+      restMs: steps.length ? Math.max(0, landed.get(ASK) - steps.at(-1)[1]) : null,
       allMs: ASK >= 0 ? Math.max(...[...asks.values()].filter(Boolean).map((a) => a.done)) - askAt : null,
       fillMs: fillLast - issuedAt, landedBeforeAsk, before, ahead,
       next: ASK >= 0 && after ? { index: after[0], ms: after[1] - askDoneAt } : null,
@@ -48,6 +58,7 @@ function maybeDone() {
 
 /** One step of the shape: a frame that has landed is not asked, as the viewer asks only for a missing one. */
 function askOne(i) {
+  steps.push([i, at()]);
   if (landed.has(i)) {
     asks.set(i, null);
     return maybeDone();
@@ -73,6 +84,7 @@ client = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, {
   decode: false,
   decoders: 0,
   refill: q.get("refill") ?? undefined,
+  scroll: q.get("scroll") ?? undefined,
   onFrame: (f) => {
     keep(f.frameIndex, f.bytes);
     if (ASK >= 0 && !askAt && landed.size >= N * Number(AT)) {

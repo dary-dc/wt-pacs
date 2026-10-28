@@ -38,5 +38,11 @@ The protocol, its predictions and its rule are [`../../docs/transport/link-condi
   Read by `askstream.py ROWS.jsonl`; `askstream_test.py` holds its rule's claims on drawn rows. Rows
   `rows-askstream.jsonl`, the ceiling `rows-askstream-ceiling.jsonl`.
   Needs the client bundles (`client/transport/ts/build.sh`, `client/transport/wasm/build.sh`) and playwright.
+* `scrollpolicy.sh DBT10 aa|main|ceiling` — SCROLLPOLICY, the measurement [`../../docs/WIRE.md`](../../docs/WIRE.md)
+  §What a scroll ahead asks pre-registered: a `#scrollMS` shape (the last ten frames, a step every MS ms, once 10 % has
+  landed) under the downloader's lab flag `scroll` (`?scroll=cursor`, `?scroll=aim`, or none: every step), on today's
+  server and QW's. Each row's `ask_ms` is the shape's stale time and `rest_ms` its last step to its frame. Read by
+  `scrollpolicy.py ROWS.jsonl`. Rows `rows-scrollpolicy-aa.jsonl` (the A/A campaign first), `rows-scrollpolicy.jsonl`,
+  the ceiling `rows-scrollpolicy-ceiling.jsonl`.
 * The page (`page.js`) fills the whole series through the product's downloader with decoding off and, once `at` (half
   unless set) has landed, asks for the last frame.
