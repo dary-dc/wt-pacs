@@ -106,10 +106,20 @@ async function open(url) {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
   const tab = await browser.newPage({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
   tab.on("pageerror", (e) => fail(`page error: ${e.message}`));
+  await tab.addInitScript(() => {
+    const post = Worker.prototype.postMessage;
+    globalThis.__storeWrites = [];
+    Worker.prototype.postMessage = function (m, ...rest) {
+      post.call(this, m, ...rest);
+      const p = m?.kind === "write" && m.info?.pixels;
+      if (p) globalThis.__storeWrites.push(p instanceof SharedArrayBuffer ? "shared" : p.byteLength ? "kept" : "handed over");
+    };
+  });
   await tab.goto(page);
   try {
     const read = tab.waitForFunction(() => globalThis.__viewerResult, null, { timeout: 0 }).then((h) => h.jsonValue());
-    return await Promise.race([read, timeout]);
+    const r = await Promise.race([read, timeout]);
+    return { ...r, storeWrites: await tab.evaluate(() => globalThis.__storeWrites) };
   } finally {
     await browser.close();
   }
@@ -143,6 +153,8 @@ function judge(name, r, requests, codec, decoder) {
     if (CLIENT === "ts") say(wasm.length === 0, `a ts page fetched the WASM client's code: ${wasm.join(", ")}`);
   }
   for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
+  // A frame's SharedArrayBuffer sent to the store worker is never collected there: docs/adr/frame-path.md §Proposed, M2.
+  if (r.storeWrites) say(r.storeWrites.length > 0 && r.storeWrites.every((w) => w === "handed over"), `the store worker was sent ${r.storeWrites.join(", ") || "no write"}, not copies handed over`);
   if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
 }
 

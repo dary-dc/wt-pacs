@@ -156,14 +156,16 @@ async function openStore(key) {
   const worker = new Worker("/client/viewer/store.js", { type: "module" });
   const replies = new Map();
   let id = 0;
-  const call = (kind, m) => new Promise((resolve) => (replies.set(++id, resolve), worker.postMessage({ kind, id, ...m })));
+  const call = (kind, m, transfer = []) => new Promise((resolve) => (replies.set(++id, resolve), worker.postMessage({ kind, id, ...m }, transfer)));
   worker.onmessage = ({ data }) => (replies.get(data.id)(data), replies.delete(data.id));
   const died = new Promise((resolve) => (worker.onerror = () => resolve({ error: "the store worker did not start" })));
   const { present, error } = await Promise.race([call("open", { key, digests }), died]);
   if (error) return void worker.terminate();
   for (const i of present) stored.add(i);
   navigator.storage.persist?.().catch(() => {});
-  return { write: (index, info) => call("write", { index, info }), read: (index) => call("read", { index }) };
+  // A copy handed over: a SharedArrayBuffer sent to the worker is never collected there. docs/adr/frame-path.md §Proposed, M2
+  const write = (index, info, pixels = new Uint8Array(info.pixels).slice().buffer) => call("write", { index, info: { ...info, pixels } }, [pixels]);
+  return { write, read: (index) => call("read", { index }) };
 }
 // Only a series with digests is stored: a frame is kept on disk once its check is true. The key: docs/adr/frame-path.md §Proposed, lever 6
 store = digests ? await openStore(transport.wt_url) : null;
