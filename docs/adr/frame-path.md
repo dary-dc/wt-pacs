@@ -302,9 +302,11 @@ budget holds, from the frame sizes above:
 
 Page memory becomes the budget + frames written but not yet confirmed + the workers (17–144 MiB, row 273), whatever
 the series' size. *Measured 2026-10-27 (M2, below): the risk holds on Chromium, and the window as built bounds
-nothing; the store worker keeps every frame it is sent until a GC that does not come.* *Corrected 2026-10-28:* no
-agent holds a dropped frame by reference; the decoder workers that allocate it, and the store worker it is sent to,
-each collect it only when idle, because a `SharedArrayBuffer` does not count towards a worker's heap. Handing the
+nothing; the store worker keeps every frame it is sent until a GC that does not come.* *Corrected 2026-10-28:* the
+store worker holds no frame by reference (a `WeakRef` probe over `store.js`, not committed; the other agents not
+probed); it is uncollected, because a `SharedArrayBuffer` does not count towards a worker's heap: the decoder workers
+that allocate a frame collect it once idle, 18–19 s after the fill, and the store worker it is sent to not within 30 s
+(*corrected in review:* this said both collect it when idle; the was arm below shows the store worker does not). Handing the
 store a copy frees it after the fill; during the fill, the decoders hold every frame (*Fixes*, below). **Was: not measured, and a risk:** a `SharedArrayBuffer` is freed only when no agent holds it and each
 has collected it (HTML, §9). Dropping it from the `Map` therefore lowers resident memory only after the collectors
 run, on the page and in the store and paint workers. If that lags under a fast fill, the fix is the preallocated
@@ -565,7 +567,8 @@ median |on′ − on| exceeds 64 MiB; a round in which the relay's own timing gu
 dropped and counted. M3 and M4 are rules on states, not timings: no A/A. Firefox and WebKit are run only where the
 container can; a cell not run on an engine says so.
 
-**Measured 2026-10-27** (the rows: `lab/opfs-cache/`, `summary.py`). Chromium 153.0.8010.12, Playwright's headless
+**Measured 2026-10-27** (by `lab/opfs-cache/`'s `summary.py`; *corrected 2026-10-28:* this read "the rows:
+`lab/opfs-cache/`", but they are in its untracked `work/`, not committed). Chromium 153.0.8010.12, Playwright's headless
 shell, every cell; Firefox 159.0 on an Xvfb display, M3 only; **WebKit not run** (no build in the container). Every
 frame of every arm was exact by both checks, except where a mutant made it not.
 
@@ -598,14 +601,14 @@ Gecko also refuses `removeEntry` under an open handle, and a write past its limi
 (one run each, same worker); (9) is not run. CPU: M1's fetches 10–20 % busy (link-bound), M2's off arm 80 % (three
 decoders on four cores).
 
-**Fixes, measured 2026-10-28** (`claude/opfs-cache-fixes`, same container, Chromium 153, Firefox 159.0; rows:
-`lab/opfs-cache/`). The store takes `NS_ERROR_FILE_NO_DEVICE_SPACE` as a refused size, and the page hands the store
+**Fixes, measured 2026-10-28** (`claude/opfs-cache-fixes`, same container, Chromium 153, Firefox 159.0; the rows
+are not committed: `lab/opfs-cache/`'s `work/` is untracked, so the numbers below cannot be re-derived from the repo). The store takes `NS_ERROR_FILE_NO_DEVICE_SPACE` as a refused size, and the page hands the store
 worker a copy of each frame it owns (a transferred `ArrayBuffer`) in place of the frame's `SharedArrayBuffer`. M2 ran
 as registered with a fourth arm interleaved, **was**: the build before the copy, by a stand-in.
 
 | cell | 2026-10-27 | 2026-10-28 | verdict |
 | --- | --- | --- | --- |
-| M2 · 2 GiB | on 2 521 MiB, A/A 11 MiB | on 2 970 [2 615–3 149], on′ 2 924 [2 613–3 265], off 2 345 [2 226–2 380], was 2 584 [2 457–2 654]; A/A median \|on′ − on\| **266 MiB**; 7 rounds, all complete and exact. Fill: on 7.87 s, was 7.11 s, off 5.90 s. Never-drops mutant 2 757–3 060 MiB | **VOID** by its A/A, and every on round over 416 MiB: the copy does not bound the fill's peak and raises it ~390 MiB over was, with its fill ~10 % slower |
+| M2 · 2 GiB | on 2 521 MiB, A/A 11 MiB | on 2 970 [2 615–3 149], on′ 2 924 [2 613–3 265], off 2 345 [2 226–2 380], was 2 584 [2 457–2 654]; A/A median \|on′ − on\| **266 MiB**; 7 rounds, all complete and exact. Fill: on 7.87 s, was 7.11 s, off 5.90 s. Never-drops mutant 2 757–3 060 MiB | **VOID** by its A/A, and every on round over 416 MiB: the copy does not bound the fill's peak. *Corrected in review:* this also said the copy raises the peak ~390 MiB over was and slows the fill ~10 %; in a VOID cell no arm is compared, and on − was (386 MiB) is under 1.5 × the A/A's 266, with their ranges overlapping; the fill time has no A/A reported: neither cost is measured |
 | M2 · 13 GiB, on | stopped at 12.0–12.7 GiB, 7 of 7 | the host's guard stopped 7 of 7 at 12.0–12.7 GiB of growth, 396–449 of 512 frames, all exact so far | **fails**; the container saturates there, as before |
 | M3 · Chromium | 7 of 7 | 7 of 7, every step's set as predicted, every frame exact | **holds** |
 | M3 · Firefox 159 | 0 of 6, 1 VOID | 7 of 7: C evicts A at `truncate`, D skips B as held and evicts C, A again evicts B; every frame exact | **holds** |
@@ -621,7 +624,7 @@ transferred copies. A frame's memory is bounded during a fill only by buffers re
 ring.
 
 **Left open:** the fix for M2 (lever 2's ring of slots), the owner's, and whether the store's copy stays without it
-(it frees the fill's frames after it, and costs its peak ~390 MiB and ~10 % of its time); WebKit; (5) on Firefox; (9); questions 2 and 6.
+(it frees the fill's frames after it; its cost to the fill's peak and time is not measured, M2 being VOID); WebKit; (5) on Firefox; (9); questions 2 and 6.
 
 ### Options, and what each costs
 
