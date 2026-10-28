@@ -21,9 +21,10 @@ const digest = (bytes) => fakeHasher.init().update(bytes).digest();
 
 const failure = (name) => Object.assign(new Error(name), { name });
 
-/** One origin's OPFS: `quota` bytes, `writeFails` writes refused as a full disk would, `crashAt` the write that dies half done. */
+/** One origin's OPFS: `quota` bytes refused by `refusal`'s name, `writeFails` writes refused as a full disk would, `crashAt` the write that dies half done. */
 class Disk {
   quota = Infinity;
+  refusal = "QuotaExceededError";
   writeFails = 0;
   crashAt = 0;
   writes = 0;
@@ -77,7 +78,7 @@ class Disk {
     disk.files.add(data);
     const grow = (n) => {
       if (n <= data.bytes.length) return;
-      if (disk.used() - data.bytes.length + n > disk.quota) throw (disk.refused++, failure("QuotaExceededError"));
+      if (disk.used() - data.bytes.length + n > disk.quota) throw (disk.refused++, failure(disk.refusal));
       const b = new Uint8Array(n);
       b.set(data.bytes);
       data.bytes = b;
@@ -250,6 +251,32 @@ const fresh = () => ((disk = new Disk()), disk);
   for (const s of ["a", "b", "c"]) left.push(`${s}:${(await opened(s, 3)).open.present}`), disk.closeAll();
   check(c.written[0] === true, "series c was not written");
   check(String(left) === "a:0,b:,c:0", `after c: ${left}, not a kept, b evicted, c written`);
+}
+
+/** Gecko refuses a size by another name, `NS_ERROR_FILE_NO_DEVICE_SPACE`: the store evicts for it as for a quota error. */
+{
+  fresh();
+  await opened("a", 3, [0]);
+  disk.closeAll();
+  disk.refusal = "NS_ERROR_FILE_NO_DEVICE_SPACE";
+  disk.quota = disk.used() + SERIES - 1;
+  const b = await opened("b", 3, [0]);
+  disk.closeAll();
+  const a = (await opened("a", 3)).open.present;
+  check(b.written[0] === true && a.length === 0, `under Gecko's refusal: b written ${b.written}, a present ${a}`);
+}
+
+/** Any other error at the size is not a refusal: nothing is evicted, and the series runs without the cache. */
+{
+  fresh();
+  await opened("a", 3, [0]);
+  disk.closeAll();
+  disk.refusal = "InvalidStateError";
+  disk.quota = disk.used() + SERIES - 1;
+  const b = await opened("b", 3, [0]);
+  disk.closeAll();
+  const a = (await opened("a", 3)).open.present;
+  check(b.written[0] === false && String(a) === "0", `under another error: b written ${b.written}, a present ${a}`);
 }
 
 /** A series open in another tab is never evicted, however old: the next oldest goes instead. */

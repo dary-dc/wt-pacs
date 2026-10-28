@@ -81,7 +81,8 @@ async function create(info) {
       series.handle.truncate(series.n * (series.frameBytes + RECORD * 4));
       break;
     } catch (e) {
-      if (!(named(e) === "QuotaExceededError" && (await evictOne()))) throw e;
+      // Gecko's name for the same refusal: docs/adr/frame-path.md §Proposed, M3.
+      if (!(["QuotaExceededError", "NS_ERROR_FILE_NO_DEVICE_SPACE"].includes(named(e)) && (await evictOne()))) throw e;
     }
   }
   await writeManifest(dir, { digests: series.digests, frameBytes: series.frameBytes, shape: series.shape, opened: Date.now() });
