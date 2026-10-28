@@ -474,3 +474,167 @@ series and a mammogram, 1× and 4× on every thread, every frame checked against
 **Not verified** until then: a phone's OPFS write and read rates and its two handle IPCs per file; nested workers'
 sync handles in WebKit; the kernel's page cache as a frame window on iOS; the file count's cost per engine (a
 1 000-frame series is 1 000 files); whether Gecko's quota IPC per write shows at a fill's rate.
+
+### The independent design against the target (2026-10-28)
+
+*Written after the section above was committed and pushed, then §Target: the view worker (PR #228,
+`claude/view-worker-target`) and its branches were read: `claude/view-worker` (the view worker built as a variant, no
+OPFS), `claude/opfs-arms` (the packed-file store built, M1–M4 measured, three cache-I/O arms pre-registered),
+`claude/frame-memory` (who owns a frame's memory: a slot ring recommended, M5 pre-registered), `claude/worker-clock`
+(the frame clock per engine, by source) and `claude/ask-patterns-map` (the asking patterns as wants). Figures marked
+measured are those branches' or §2–§6's; the rest is read from their text and code.*
+
+#### Where the two agree
+
+Both take the page out of every path but input and status; both put the controller, the frame store and the paint on
+one dedicated worker with WebGL2 on a transferred canvas; both run cine on that worker's own clock; both keep the ask
+order as the only priority, a FIFO server, no wire cancel, a shallow window; both store decoded samples checked
+`true`, re-checked by XXH3 on every read, keyed by the series and its digests; both evict by series, least recently
+opened; both ask `persist()` once and rely on nothing from it. The disagreement is in where the frame lives between
+the decoder and the screen, and in how many owners that takes.
+
+#### The differences, one by one
+
+| | the target | the independent design | simpler for the same capability |
+| --- | --- | --- | --- |
+| **1 · threads** | page, downloader, N decoders nested in it, view worker: `N + 3`; a store worker (arm C) would be `N + 4` | page, core, N decoders nested in it: `N + 2` | the independent one, by one thread and one port; see 2 for what the thread buys |
+| **2 · owners of frame state** | two by rule: the downloader owns what is owed, the store what is here, the frame changing owner at the ack; a want port between them carrying misses, order and a generation | one: the core holds the records and the stored flags; nothing changes owner, nothing is acked | the independent one: the want protocol, the ack, G1–G3 of the patterns map and the generation across the port do not exist. The target's reason for the split, "a busy receive loop is the stall the downloader exists to remove", is weighed under *What decides* |
+| **3 · frames in memory** | a window around the current index within a budget (256 MiB), farthest first; M2 measured the window bounding nothing on V8, which counts a shared buffer as 0 bytes, so a slot ring with a `compareExchange` take count and backpressure is recommended (M5) | none: one read buffer per viewport; the kernel's page cache is the window | the independent one, by the whole of lever 2, the ring, the slot table and M2's finding: no shared buffer exists to be miscounted |
+| **4 · how a fill frame reaches disk** | decoder → a `SharedArrayBuffer` (or a slot) → the view worker, which writes it paint-first in ≤ 8 ms pieces a tick (arm A) or posts it to a store worker (arm C); two copies of the samples (heap → buffer, buffer → file) and the write competes with the paint for one thread, which the L cell exists to measure | decoder → the file: one copy, on the decoder's thread; the paint thread never writes | the independent one: the L cell's question, "is the shown frame on time while a fill writes", has no object. Its cost is the write on the decoder's clock, measured by the W cell |
+| **5 · how an asked frame reaches the screen** | from the buffer it arrived in: paint first, the write after | read back from the file after `done`: + 0.68–0.73 ms at 512², **+ 22.3 ms at 3328×4096** (M1, warm page cache, measured) | **the target**, on large frames: 22 ms is more than a display period. Conceded below |
+| **6 · the layout** | one packed file per series, one handle held for the session, frame `i` at `i × frameBytes`, present bits and min/max after the frames, the manifest beside; `truncate` at open answers the quota before a byte arrives; M3 and M4 measured on Chromium and Firefox | a file per frame with a 32-byte head and an 8-byte digest trailer; two handle calls per write and per read; the quota answered per frame | **the target**, on the quota and on handles; the independent one needs a file per frame only because its decoders write in parallel under the exclusive lock. Conceded below |
+| **7 · without OPFS, or a series past the quota** | the window alone, as today: the series stays viewable up to the device's memory | refused by name at open; a series past the quota fails its frames mid-fill once eviction finds nothing to delete | **the target**: it degrades, the independent one stops. Conceded below |
+| **8 · asking** | a want: the ordered list of misses, replacing the one before, sent over the port; the downloader windows it (G1); the seven patterns map onto it | four rules in the core: stored → read; in hand → promote; next in the running fill → wait; else ask within `D`, the newest pending; the fill's next run starts after the frame shown | equal on today's wire; the want is the general form and the map a better survey of the space (patterns 1–3, 6 ride a want and not the four rules). Conceded in part |
+| **9 · the clock** | worker `requestAnimationFrame`, traced per engine: on vsync in Chromium and Gecko, a 15 ms timer in WebKit (66.7 Hz, not the display's), with four fallbacks and a protocol | worker `requestAnimationFrame`, asserted from the standard alone | **the target**: its WebKit finding changes the design there (a `setTimeout` against a schedule or the page's ticks at 60 frames/s). Conceded |
+| **10 · the hand-off's memory model** | `SharedArrayBuffer`, so cross-origin isolation stays a page requirement and V8's accounting applies; (a′), a transferred `ArrayBuffer`, is the condition that would turn the ring over | nothing shared: coded bytes moved, samples to disk, one private buffer per viewport; no isolation headers needed | the independent one |
+| **11 · what changes in proven code** | the downloader, the consumer, both clients and the dispatch rig's 80 clauses stay; the consumer takes a port; the view worker is new | the downloader is rewritten into the core: its 606 lines, survival, re-dial, recycling, the ring and the rig's clauses move with it | **the target**: it is the smaller change to the most-tested module. Conceded below |
+| **12 · a second viewport** | not weighed | one core, a map of series, a canvas and a read buffer per viewport; fills in focus order | the independent one, by having an answer |
+| **13 · a series without digests** | not written: `exact !== true` is never stored, so it decodes again on every open | written with its trailer, read back `unchecked` | the independent one, by 8 bytes |
+
+#### Failure scenarios, each way
+
+**The target.**
+
+* *Inputs:* a fill of 80 × 3328×4096 (2.03 GiB) on Chromium; *state:* the window at 256 MiB, frames as shared buffers.
+  *Wrong result:* resident memory 2.5–3.0 GiB whatever the window does (M2, measured, VOID in its A/A but every round
+  over the bar), because V8 charges a shared buffer to no isolate and the decoders keep every frame they allocated until
+  idle. The fix is the slot ring, not yet built; until it is, the window is a number that bounds nothing.
+* *Inputs:* a cine at 30 frames/s of 17 MB frames while the fill lands at 125 MB/s; *state:* arm A on arrival.
+  *Wrong result:* the shown frame late by the write's block, 4–17 ms a frame at 1× and four times that at 4×
+  (predicted in the arms section; the L cell decides). Arm A paint-first bounds it at 8 ms a tick and then sustains
+  120–480 MB/s at 4×, under the fill at the low end: the backlog grows.
+* *Inputs:* a series in a window with no window budget below its size, no OPFS (a private window on Firefox);
+  *state:* question 2 open, "keep everything". *Wrong result:* today's ceiling, the tab killed by the device, not
+  measured on a phone.
+* *Inputs:* a want replaced while `D` asks are on the wire; *state:* G3 undecided. *Wrong result:* up to `D` plus the
+  in-flight frames decoded for nothing, or dropped and asked again later (29–37 % more packets in SCROLLPOLICY's
+  re-aimed fill, read as consistent with that).
+* *Inputs:* two tabs on one series; *state:* the packed file's exclusive lock. *Wrong result:* the second tab runs
+  without the cache, and a reopen within 1.6–9.2 s of a navigation does too (seen in M3 and M4, the lock outliving
+  the page).
+
+**The independent design.**
+
+* *Inputs:* a step to a 3328×4096 frame just decoded, or a four-view mammogram flipped between views; *state:* no
+  frame in memory. *Wrong result:* each step pays 22.3 ms of read and check (M1) before a ~6 ms upload: 28 ms, two
+  display periods, where the target pays 6. At 4× on every thread, about 90 ms. The protocol's item 2 would add a
+  painted-frames ring; item 3 the samples riding on `done`; both are the second path the design declined.
+* *Inputs:* a reader cines 17 MB frames from disk at 30 frames/s during a fill; *state:* reads of 22 ms on the
+  core's thread, 30 of them a second. *Wrong result:* the receive loop gets a third of its thread; QUIC's receive
+  window (6 MiB) fills in ~0.4 s at 125 MB/s and the server stalls: the fill slows by the reads' share. The target's
+  downloader keeps receiving; its view worker blocks the same way but only the paint waits. Not measured either way.
+* *Inputs:* a series larger than the origin's quota, or a private window whose OPFS is in memory (Chromium: a third
+  of 15–20 % of RAM per origin, ~410–546 MiB on an 8 GiB phone, from the quota sources); *state:* nothing left to
+  evict. *Wrong result:* frames past the quota fail by name mid-fill, and the series cannot be viewed past them. The
+  target views it on the window alone.
+* *Inputs:* a phone whose `createSyncAccessHandle` costs milliseconds; *state:* a file per frame. *Wrong result:*
+  two of those on every write and every read, a floor on the step and on the fill's write rate that the packed file
+  pays once per session. The probe gives this container's number; a phone's is not known.
+* *Inputs:* a decoder on Gecko writing 17 MB frames; *state:* one synchronous quota IPC per write (§4). *Wrong
+  result:* the decoder's clock, the fill's when decode-bound, gains that round trip per frame; unknown size.
+* *Inputs:* a 1 000-frame series on an engine where a directory of 1 000 files lists or evicts slowly; *state:*
+  `removeEntry(recursive)` and `keys()`. *Wrong result:* a slow open or eviction; not measured.
+
+#### What each counts per frame
+
+| | target, a fill frame | independent, a fill frame | target, an on-demand miss | independent, an on-demand miss |
+| --- | ---: | ---: | ---: | ---: |
+| threads touched | 3 (downloader, decoder, view worker) | 2 (core, decoder) | 4 (page, downloader, decoder, view worker) | 3 (page, core, decoder) |
+| messages | 4 (decode, frame, `done`, ack) | 2 (decode, `done`) | 4 + `show` and `shown` = 6 | 4 (`show`, decode, `done`, `shown`) |
+| copies of the samples in script | 2 (heap → buffer or slot; buffer → file, arm A) or 1 + a post (arm C) | 1 (heap → file) | the same 2 or 1 | 2 (heap → file; file → the read buffer) |
+| GPU uploads | 0 | 0 | 1, from the arrival buffer | 1, from the read buffer |
+| on the paint thread, besides the paint | the write (A) or a post (C) | nothing | the write (A) or a post (C) | the read and the check |
+
+#### What decides each difference
+
+| difference | the measurement, and where it already is |
+| --- | --- |
+| 2 · the receive loop sharing a thread with reads and paints | the fill's last frame and its inter-arrival p99 with a cine of S2–S3 frames read from disk at 30 frames/s on the same thread, against the target's split; a new cell beside the arms' L cell |
+| 3 · no memory window | M5's arms gain one: `disk-only`, the core reading every painted frame; measured as M5 measures (growth, fill time), predicted 530–600 MiB like `ring` with no ring |
+| 4 · the decoder writes | the arms' W cell with a fourth arm, the write in the decoder (the §Protocol item 1 above): MB/s sustained and the fill's time against `none` |
+| 5 · the read-back on the ask path | the §Protocol item 3 above; M1 already gives the floor: 0.7 ms at 512², 22.3 ms at 3328×4096 |
+| 6 · a file per frame | the opfs probe: the two handle calls per access, the listing of 1 000 entries, three writers at once; a phone's figures are owed |
+| 7 · past the quota | a rule, not a measurement: which behaviour the owner wants; M3's rig can run the case on both |
+| 8 · wants against four rules | G1's measurement (asks held at `D_min` against one run) decides whether the want needs anything the four rules lack; the survey's sawtooth trace decides patterns 1–2 against the `current + 1` rule |
+| 9 · the clock | the worker-clock protocol, as pre-registered there |
+| 11 · the rewrite | not a measurement: the dispatch rig's 80 clauses re-run against the core would prove it, at the cost of the port they would need |
+
+#### Where the target is better, conceded
+
+1. **An asked frame painted from its arrival buffer.** 22.3 ms of read and check on a 3328×4096 frame (M1) is a display
+   period and more, on the one path the constraints single out. "One path" was worth 0.7 ms at 512² and not 22 at the
+   mammogram: the samples of an asked frame should ride `done` as a transferred `ArrayBuffer`, the §Protocol's item 3
+   adopted without its measurement. The fill frame nobody looks at still goes straight to disk.
+2. **The packed file and `truncate` at open.** One handle held, the quota's answer before the first frame, eviction and
+   the manifest by series, M3 and M4 measured on two engines. A file per frame was chosen only so that `N` decoders
+   could write; the two handle calls it costs per access are the probe's number and not yet a phone's.
+3. **Degrading without OPFS or past the quota.** A viewer that stops at the quota is worse than one that views on
+   memory alone; the independent design needs the target's window as its fallback for that case, which brings lever 2
+   back for that case only.
+4. **The smaller change to proven code.** Keeping the downloader, both clients, the consumer on a port and the dispatch
+   rig is a cost the target does not pay; merging the downloader into the core is a rewrite of the module with the most
+   clauses, and "removing work" was meant for the running system, not for the proof. The port and the ack are the price
+   of that proof staying as it is.
+5. **The clock, by source.** WebKit's worker `requestAnimationFrame` is a 15 ms timer, and the fallbacks and the protocol
+   are already written; the independent design asserted what the standard allows and not what the engines do.
+6. **The asking patterns as wants.** The survey and the map are the better statement of the space; the four rules are
+   one point in it.
+
+#### Where the independent design stands
+
+* **No shared buffer anywhere**, so V8's zero accounting (M2) has nothing to miscount, no slot ring, no take count, no
+  backpressure, no cross-origin isolation for the page. The target's own turn-over condition for the ring, (a′), is this
+  design's default.
+* **No memory window**: the kernel's page cache holds the frames just written, and a phone's eviction of it is the
+  kernel's, not a constant we cannot read. Resident frame memory is `O(viewports)`.
+* **The decoders write**, so the paint thread never writes and the L cell's question dissolves; one copy a fill frame
+  against two.
+* **One owner**, two messages a fill frame against four, no want protocol, no ack.
+* **A second viewport and a second series** have an answer.
+
+**What would settle it:** the W cell with the decoder writing (4), M5 with a `disk-only` arm (3), and the receive-loop
+cell (2). If the decoder's write holds 125 MB/s on every engine and the fill under a disk cine stays within ×1.02, the
+shape to build is the target's view worker with its downloader merged, its window dropped and its decoders writing;
+if either fails, the target's split stands and the independent design's items 3 and 4 are what it takes from here.
+
+#### The probes, indicative only
+
+Run in this container's headless Chromium 153 on software GL, 4 cores, [`../../lab/target-review/`](../../lab/target-review/README.md);
+no Firefox binary here, no WebKit. A number below is this host's, not a phone's, and nothing is claimed past it.
+
+* **A file per frame costs ~1.7 ms of handle calls a write** (`getFileHandle` 0.8, `createSyncAccessHandle` 0.5,
+  `close` 0.35, size-independent) and **~1.0 ms a read**; the write itself is a copy into the page cache (0.41 / 0.64 /
+  4.2 ms at 0.52 / 1.67 / 17 MB, with 60–100 ms writeback stalls in every variant's tail at 17 MB), the warm read 0.08 /
+  0.23 / 2.3 ms in the opfs probe and 1.4 / 2.1 / 11.3 ms in the one-worker probe (different pages, not reconciled).
+  Pre-opening the next frame's handle takes ~1.2 ms off the decoder's critical path. Difference 6's price on this host:
+  ~2 ms per access, which the packed file pays once per session.
+* **Sync access handles work in a worker started by a worker** at the same cost (Chromium 153; the ADR's unverified
+  item, for one engine); **three workers writing three files at once raise no error**, medians 20–60 % higher on four
+  cores; a directory of 1 000 files lists in 20 ms and is created at 0.63 ms a file; `navigator.storage.estimate()`
+  answers in the worker.
+* **One dedicated worker holds WebGL2 on a transferred canvas, a sync access handle, `requestAnimationFrame` and the
+  `WebTransport` constructor at once** (Chromium 153). Its rAF loop, painting a 512² frame a tick, **ran 60 ticks in the
+  second the page's main thread spun and 60 in the second before it**, `setInterval(16)` 62 against 63: §2's prediction
+  that the page's long tasks do not reach a worker's clock, as draws, for one engine; presentation is not read.
+* The step from disk at 512² is ~2.2 ms of OPFS; the draw on SwiftShader (3.5 ms at 512², 46 ms at 2560×3328) is the
+  host's and says nothing about a GPU.
