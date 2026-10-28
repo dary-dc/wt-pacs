@@ -845,7 +845,18 @@ removed per unit of risk.
 | V15 | **`CLIENTS.md` keeps three proposals that are decided**: §Proposed: the WASM client and the dav1d tooling to `lab/` (rejected, `:427-495`), §Proposed: the WASM client as a second product client (rows 265, 274, 277–279 built, `:496-626`), §Proposed: the harness pages to `lab/` (done, `:627-640`). What still holds of them is W10–W12's measurements and the shape (TS the default, WASM by the transport file's `client`), already in §Choosing the client | fold each to its ruling and a pointer to the queue rows; keep W10–W12 as three lines under §The implementations | ~−190 +15 | docs only; the rows and their evidence stay in `av1/queue.md` and the branches · 0 | **needs the owner**: it removes a design record (`CLAUDE.md` §Docs asks a retracted claim be corrected in place; these are decided, not retracted) |
 
 **After an open PR, not now.** `frame-session.ts:354,357` returns "truncated before its index" twice: #136 merges
-them. `downloader.js:310-311`'s double blank sits in #135's hunk: one line for #135 to take.
+them. `downloader.js:310-311`'s double blank sits in #135's hunk: one line for #135 to take. *Corrected on
+review:* #135's hunk there ends at `:306`, three unchanged lines before it, so the line can go now, −1.
+
+**Corrected on review** (2026-10-28, at this round's commit; V9's and V10's proofs are corrected where #202 applies
+them):
+
+| claim | what is true |
+| --- | --- |
+| V1: "a `frame` comes from a decoder on the pixel port, not the downloader" | both: with `decode: false` the downloader posts `frame` itself (`downloader.js:207`), and `#fromDownloader` takes it (`consumer.js:93`). V1's change stands |
+| V6: the probe ask "is in `decode/README.md` §Warming the decoders or the queue" | it is in `ARCHITECTURE.md:1029`, retracted in place there; nothing is lost |
+| V7's site list | also `lab/client-telemetry/wrap-session.ts:15` (`): number;`), which forwards the value and reads none |
+| V14 found every stale "decoder.js's `unranged`" | `client/decode/wasm/openjph/htj2k_decoder.cpp:113` says it too, and `lab/decode-bench/copy/wrapper.patch:79` carries that line as context, so both change together · 2: the patch must still apply |
 
 **Kept, with the reason.**
 
