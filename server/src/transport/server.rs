@@ -3,27 +3,25 @@
 
 use crate::media::frame_store::FrameStore;
 use crate::media::read_path::ReadMode;
-use crate::transport::link::{ControlStream, Link};
+use crate::transport::link::{ControlStream, Link, QuicSend, QuicSession};
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::planner::{fill_range, frame_in_range, Command, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::{banner, websocket};
-use crate::transport::wire::read_fod_msg;
+use crate::transport::wire::{read_fod_msg, QuicStream};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use std::future::Future;
 use std::ops::ControlFlow;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
-use wtransport::config::IpBindConfig;
-use wtransport::endpoint::endpoint_side;
-use wtransport::stream::RecvStream;
-use wtransport::{Endpoint, Identity, ServerConfig, VarInt};
+use wtransport::endpoint::IncomingSessionFuture;
+use wtransport::{quinn, Identity, VarInt};
 
 #[cfg(feature = "lab-levers")]
 use crate::transport::lab_levers::{self, LabLevers};
@@ -69,6 +67,9 @@ pub struct ServeConfig {
 /// `H3_NO_ERROR`, HTTP/3's code for a graceful close.
 const STOPPING: VarInt = VarInt::from_u32(0x100);
 
+/// The native client's ALPN, offered beside WebTransport's `h3`. `docs/WIRE.md` §The raw QUIC mapping.
+pub const NATIVE_ALPN: &[u8] = b"wt-pacs/1";
+
 /// Serves until `stop`, then closes every session with `STOPPING` and waits up to 250 ms for them. deploy/README.md
 pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> Result<()> {
     #[cfg(feature = "lab-levers")]
@@ -107,7 +108,7 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
     let mut stop = std::pin::pin!(stop);
     loop {
         let incoming = tokio::select! {
-            incoming = endpoint.accept() => incoming,
+            incoming = endpoint.accept() => incoming.context("the QUIC endpoint stopped")?,
             () = &mut stop => break,
         };
         let sessions = sessions.clone();
@@ -121,7 +122,7 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
             }
         });
     }
-    endpoint.close(STOPPING, b"server stopping");
+    endpoint.close(STOPPING.into_inner().try_into()?, b"server stopping");
     let _ = tokio::time::timeout(Duration::from_millis(250), endpoint.wait_idle()).await;
     Ok(())
 }
@@ -218,41 +219,63 @@ fn cert_sha256_hex(identity: &Identity) -> Result<String> {
         .collect())
 }
 
-/// Tried in order: a host without an IPv6 stack refuses the dual-stack socket, so IPv4 any follows it.
-fn build_endpoint(
-    config: &ServeConfig,
-    identity: &Identity,
-) -> Result<(Endpoint<endpoint_side::Server>, String)> {
+/// One endpoint for both ALPNs, configured as wtransport's `ServerConfigBuilder::build` does. Binds are
+/// tried in order: a host without an IPv6 stack refuses the dual-stack socket, so IPv4 any follows it.
+fn build_endpoint(config: &ServeConfig, identity: &Identity) -> Result<(quinn::Endpoint, String)> {
     let port = config.wt_port;
     let binds = match config.bind {
-        Some(ip) => vec![(ServerConfig::builder().with_bind_address(SocketAddr::new(ip, port)), ip.to_string())],
+        Some(ip) => vec![(SocketAddr::new(ip, port), false, ip.to_string())],
         None => vec![
-            (ServerConfig::builder().with_bind_default(port), "[::] dual-stack".to_string()),
-            (
-                ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, port),
-                "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
-            ),
+            (SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port), true, "[::] dual-stack".to_string()),
+            (SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port), false, "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string()),
         ],
     };
+    let mut tls = wtransport::tls::server::build_default_tls_config(identity.clone_identity());
+    tls.alpn_protocols.push(NATIVE_ALPN.to_vec());
+    let mut quic = quinn::ServerConfig::with_crypto(Arc::new(quinn::crypto::rustls::QuicServerConfig::try_from(tls)?));
+    quic.transport_config(Arc::new(config.tuning.to_transport_config()?));
+    quic.migration(true);
     let mut binds = binds.into_iter().peekable();
-    while let Some((bind, label)) = binds.next() {
-        let server_config = bind
-            .with_custom_transport(identity.clone_identity(), config.tuning.to_transport_config()?)
-            .build();
-        match Endpoint::server(server_config) {
+    while let Some((addr, dual_stack, label)) = binds.next() {
+        let endpoint = bind_udp(addr, dual_stack).and_then(|socket| {
+            quinn::Endpoint::new(quinn::EndpointConfig::default(), Some(quic.clone()), socket, Arc::new(quinn::TokioRuntime))
+        });
+        match endpoint {
             Ok(endpoint) => return Ok((endpoint, label)),
             Err(err) if binds.peek().is_some() => warn!(%err, "{label} bind failed; trying the next"),
-            Err(err) => return Err(err).with_context(|| format!("wtransport endpoint on {label}, port {port}")),
+            Err(err) => return Err(err).with_context(|| format!("QUIC endpoint on {label}, port {port}")),
         }
     }
     unreachable!("the last bind returns its own error")
 }
 
-async fn handle_incoming(
-    incoming: wtransport::endpoint::IncomingSession,
-    sessions: Sessions,
-) -> Result<()> {
-    let session_request = incoming.await.context("incoming session")?;
+fn bind_udp(addr: SocketAddr, dual_stack: bool) -> std::io::Result<std::net::UdpSocket> {
+    use socket2::{Domain, Protocol, Socket, Type};
+    let socket = Socket::new(Domain::for_address(addr), Type::DGRAM, Some(Protocol::UDP))?;
+    if dual_stack {
+        socket.set_only_v6(false)?;
+    }
+    socket.bind(&addr.into())?;
+    Ok(socket.into())
+}
+
+/// The ALPN TLS chose routes the session: `docs/native/README.md` §8.1.
+async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Result<()> {
+    let mut connecting = incoming.accept().context("incoming connection")?;
+    let raw = connecting
+        .handshake_data()
+        .await
+        .context("handshake")?
+        .downcast::<quinn::crypto::rustls::HandshakeData>()
+        .is_ok_and(|handshake| handshake.protocol.as_deref() == Some(NATIVE_ALPN));
+    if raw {
+        let connection = connecting.await.context("raw QUIC session")?;
+        #[cfg(feature = "telemetry")]
+        tokio::spawn(crate::record::path::run(connection.clone()));
+        let result = serve_raw(&connection, &sessions).await;
+        return ended(&connection, result);
+    }
+    let session_request = IncomingSessionFuture::with_quic_connecting(connecting).await.context("incoming session")?;
     // Read before accepting: the whole point of an opening ask is to serve behind the accept
     // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
     let opening = sessions
@@ -262,9 +285,10 @@ async fn handle_incoming(
     let connection = session_request.accept().await.context("accept session")?;
 
     #[cfg(feature = "telemetry")]
-    tokio::spawn(crate::record::path::run(connection.clone()));
+    tokio::spawn(crate::record::path::run(connection.quic_connection().clone()));
 
-    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall, sessions.cwnd_ahead);
+    let session = || QuicSession::WebTransport(connection.clone());
+    let link = |control| Link::quic(sessions.mode, session(), control, sessions.stall, sessions.cwnd_ahead);
     let result = async {
         match opening {
             Some(ask) => {
@@ -273,23 +297,38 @@ async fn handle_incoming(
                 let control = connection.clone();
                 let read = |tx| async move {
                     let Ok((send, mut recv)) = control.accept_bi().await else { return };
-                    ctl_tx.send(send).ok();
+                    ctl_tx.send(QuicSend::WebTransport(send)).ok();
                     while read_asks(&mut recv, &tx).await.is_continue() {}
                 };
                 sessions.serve(sessions.pipeline(link), Some(ask), read).await
             }
             None => {
                 let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
-                let link = link(ControlStream::Open(send)).await?;
+                let link = link(ControlStream::Open(QuicSend::WebTransport(send))).await?;
                 let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
                 sessions.serve(sessions.pipeline(link), None, read).await
             }
         }
     }
     .await;
-    report_path(&connection);
+    ended(connection.quic_connection(), result)
+}
+
+/// No opening ask: the first FoD message rides the client's first flight. `docs/WIRE.md` §The raw QUIC mapping.
+async fn serve_raw(connection: &quinn::Connection, sessions: &Sessions) -> Result<()> {
+    let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
+    let session = QuicSession::Raw(connection.clone());
+    let control = ControlStream::Open(QuicSend::Raw(send));
+    let link = Link::quic(sessions.mode, session, control, sessions.stall, sessions.cwnd_ahead).await?;
+    let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
+    sessions.serve(sessions.pipeline(link), None, read).await
+}
+
+/// However a session ended, its path is reported and a goodbye is not an error.
+fn ended(connection: &quinn::Connection, result: Result<()>) -> Result<()> {
+    report_path(connection);
     match result {
-        Err(err) if closed_by_peer(&connection, &err) => {
+        Err(err) if closed_by_peer(connection, &err) => {
             info!(err = %format_args!("{err:#}"), "session closed by peer");
             Ok(())
         }
@@ -298,22 +337,16 @@ async fn handle_incoming(
 }
 
 /// The peer went: it stopped a stream the server was writing, or closed. `docs/WIRE.md` §FoD messages.
-fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> bool {
-    use wtransport::error::{ConnectionError, StreamOpeningError, StreamReadError, StreamWriteError};
-    use wtransport::quinn;
-    let stopped = err.chain().any(|e| {
-        matches!(e.downcast_ref(), Some(quinn::WriteError::Stopped(_)))
-            || matches!(e.downcast_ref(), Some(StreamWriteError::Stopped(_)))
-    });
+fn closed_by_peer(connection: &quinn::Connection, err: &anyhow::Error) -> bool {
+    use wtransport::error::{ConnectionError, StreamOpeningError};
+    let stopped = err.chain().any(|e| matches!(e.downcast_ref(), Some(quinn::WriteError::Stopped(_))));
     let gone = err.chain().any(|e| {
-        matches!(e.downcast_ref(), Some(StreamReadError::NotConnected))
-            || matches!(e.downcast_ref(), Some(StreamWriteError::NotConnected))
-            || matches!(e.downcast_ref(), Some(StreamOpeningError::NotConnected))
-            || matches!(e.downcast_ref(), Some(quinn::WriteError::ConnectionLost(_)))
+        matches!(e.downcast_ref(), Some(StreamOpeningError::NotConnected))
             || e.downcast_ref::<ConnectionError>().is_some()
+            || e.downcast_ref::<quinn::ConnectionError>().is_some()
     });
     let closed = matches!(
-        connection.quic_connection().close_reason(),
+        connection.close_reason(),
         Some(quinn::ConnectionError::ApplicationClosed(_) | quinn::ConnectionError::LocallyClosed)
     );
     stopped || (gone && closed)
@@ -344,8 +377,8 @@ pub(super) fn parse_opening_ask(path: &str, frames: u32) -> Option<Command> {
 }
 
 /// Once per session, so a deployment can see the MTU, loss and RTT it actually got.
-fn report_path(connection: &wtransport::Connection) {
-    let s = connection.quic_connection().stats();
+fn report_path(connection: &quinn::Connection) {
+    let s = connection.stats();
     info!(
         mtu = s.path.current_mtu,
         rtt_us = s.path.rtt.as_micros() as u64,
@@ -382,7 +415,7 @@ async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Com
     }
 }
 
-async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Command>) -> ControlFlow<()> {
+async fn read_asks(control_recv: &mut impl QuicStream<quinn::RecvStream>, tx: &mpsc::Sender<Command>) -> ControlFlow<()> {
     forward(read_fod_msg(control_recv).await, tx).await
 }
 
@@ -416,8 +449,10 @@ mod tests {
     use std::io::Write;
     use std::path::Path;
     use std::time::Duration;
-    use wtransport::stream::SendStream;
-    use wtransport::ClientConfig;
+    use wtransport::config::IpBindConfig;
+    use wtransport::endpoint::endpoint_side;
+    use wtransport::stream::{RecvStream, SendStream};
+    use wtransport::{ClientConfig, Endpoint, ServerConfig};
 
     /// The server with no stop, for every test but the stop's own.
     fn run_server(config: ServeConfig) -> impl Future<Output = Result<()>> {
@@ -608,7 +643,7 @@ mod tests {
             .expect("identity");
         let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
         let server =
-            tokio::spawn(async move { handle_incoming(endpoint.accept().await, sessions).await });
+            tokio::spawn(async move { handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await });
         let connection = dial(fx.port, fx.cert_hash, "").await;
         client(connection.clone()).await;
         let ended = tokio::time::timeout(Duration::from_secs(10), server)
@@ -728,6 +763,28 @@ mod tests {
         assert!(ended.is_ok(), "a close during setup ended the session as {ended:?}");
     }
 
+    /// A native client that closes before its control stream ends its raw QUIC session cleanly,
+    /// as a browser's does: the close arrives as quinn's error, not wtransport's.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_raw_session_closed_before_its_control_stream_ends_cleanly() {
+        use wtransport::tls::client::{build_default_tls_config, ServerHashVerification};
+        let fx = Fixture::new(1);
+        let (config, sessions) = (fx.config(), plain_sessions(&fx.series));
+        let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem).await.expect("identity");
+        let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
+        let server = tokio::spawn(async move { handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await });
+        let pin = ServerHashVerification::new([wtransport::tls::Sha256Digest::new(fx.cert_hash)]);
+        let mut tls = build_default_tls_config(Arc::new(rustls::RootCertStore::empty()), Some(Arc::new(pin)));
+        tls.alpn_protocols = vec![NATIVE_ALPN.to_vec()];
+        let quic = quinn::ClientConfig::new(Arc::new(quinn::crypto::rustls::QuicClientConfig::try_from(tls).expect("tls")));
+        let client = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).expect("client");
+        let server_addr = SocketAddr::from(([127, 0, 0, 1], fx.port));
+        let connection = client.connect_with(quic, server_addr, "localhost").expect("dial").await.expect("raw QUIC");
+        connection.close(0u32.into(), b"gone");
+        let ended = tokio::time::timeout(Duration::from_secs(10), server).await.expect("never ended").expect("task");
+        assert!(ended.is_ok(), "a close before the control stream ended the raw session as {ended:?}");
+    }
+
     /// A WebSocket client's Close is a goodbye too. `docs/WIRE.md` §The WebSocket mapping.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_websocket_close_ends_its_session_cleanly() {
@@ -782,7 +839,7 @@ mod tests {
     /// the server reserves room for its payload. `docs/WIRE.md` §The WebSocket mapping
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_websocket_frame_over_the_cap_is_refused_at_its_header() {
-        use crate::transport::wire::MAX_FOD_LEN;
+        use fod::MAX_FOD_LEN;
         use futures_util::StreamExt;
         use tokio::io::AsyncWriteExt;
 
@@ -1295,7 +1352,7 @@ mod tests {
             .expect("identity");
         let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
         let server = tokio::spawn(async move {
-            handle_incoming(endpoint.accept().await, sessions).await
+            handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await
         });
         let connection = dial(fx.port, fx.cert_hash, "?ask=fill:0-2").await;
         let mut media = connection.accept_uni().await.expect("accept media uni");

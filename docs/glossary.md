@@ -33,7 +33,8 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | frame digest | a frame's XXH3-64 in the series' metadata, which the decoder worker checks the frame against; the frame says `exact` ([`FIXTURES.md`](FIXTURES.md) §Frame digests) |
 | representation | how an AV1 payload holds its samples: **plain**, as an encoder codes them out of the box (the control), or **optimized**, split by depth and RGB through the RCT ([`av1/payload-format.md`](av1/payload-format.md)) |
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
-| client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one) |
+| client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one, the native one in `client/native`) |
+| `wt-pacs/1` | the native client's ALPN: the session's streams on raw QUIC, without HTTP/3 or WebTransport ([`WIRE.md`](WIRE.md) §The raw QUIC mapping) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
 
 ## Testing and measuring

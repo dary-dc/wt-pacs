@@ -264,21 +264,10 @@ same quinn and the server's own `fod`, `frame-envelope` and `series-bundle` crat
 
 ### 8.2 WIRE.md on raw QUIC: what the HTTP/3 layer adds, and what drops
 
-| | WebTransport (today) | `wt-pacs/1` |
-| --- | --- | --- |
-| session open | HTTP/3 SETTINGS on a control uni, QPACK streams, an extended CONNECT on a request bidi and its 200 | the QUIC handshake alone |
-| session id | the CONNECT stream's id, written into every stream's header | none: one connection, one session |
-| control stream | client bidi, prefixed `0x41` + session id (`wtransport-proto` `frame.rs:464`) | client bidi, from byte 0 |
-| media streams | server uni, prefixed `0x54` + session id (`stream_header.rs:331`) | server uni, from byte 0 |
-| FoD, envelope, stream modes, priorities | [`../WIRE.md`](../WIRE.md) | the same bytes, the same rules |
-| the opening ask | `?ask=` in the CONNECT's path | dropped: the client's first FoD message rides its first 1-RTT flight, the flight a WebTransport client's CONNECT rides, so it reaches the server when `?ask=` does (read, not measured: step 1 measures it) |
-| datagrams | negotiated, unused by the server | the same: quinn's defaults offer them. *Corrected 2026-10-28, found in #198:* was "not negotiated" |
-| goodbye | `CLOSE_WEBTRANSPORT_SESSION` capsule, or the connection's close | the connection's application close; `STOPPING` keeps its value 0x100, defined by our ALPN |
-| certificate | pinned by SHA-256, ≤ 14 days (the browser's rule) | the same pin and rule, through wtransport's `ServerHashVerification` (`tls.rs:785–795`), so one certificate serves both |
+*Built 2026-10-27 (step 1):* the table that stood here is [`../WIRE.md`](../WIRE.md) §The raw QUIC mapping.
 
 What drops is the HTTP/3 and WebTransport layers and nothing of the session: the server never used datagrams, and
-the stream mode stays process-wide and untold. When step 1 lands, this table moves into `WIRE.md` as §The raw QUIC
-mapping, beside §The WebSocket mapping, with glossary rows for `wt-pacs/1`. The token is unregistered, as the PCS
+the stream mode stays process-wide and untold. The token is unregistered, as the PCS
 line's is (RFC 9308 §8; PR #182, `docs/ingest/link.md` §14.6 question 2): an owner's call, the same for both. The two
 tokens must differ.
 
