@@ -80,7 +80,7 @@ The client's checks stay on by default.
 | The PCS sends one file a series (the `.sbnd` in it), not a tree; hashes are XXH3; the PACS confirms storage before the PCS deletes; a second refusal goes to an operator | **decided** 2026-10-24/25; *corrected 2026-10-28:* one file, not a tree, reopened by the team (rsync and a trigger after it); XXH3 is ours, the PCS keeps BLAKE3 (the design state, `pacs-receive-design.md`, #168) | [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §1 |
 | Site host tuning, the server's kernel, the site's congestion controller | open | [`link.md`](link.md) §4, §9 |
 | How the parser ships with the ingest | open | [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site |
-| The parser hashes the bytes it writes | open | §5 below |
+| The parser hashes the bytes it writes | **fixed upstream** at `e105214` (`e21160f`; *corrected 2026-10-28:* this row said open) | §5 below |
 | Streaming the pack: code on arrival; frames as records only under a quiet period | recommended | [`design.md`](design.md) §11 |
 | The catalog's engine | deferred | — |
 
@@ -93,6 +93,7 @@ parser's author.
   with nothing saying so.
 * **Three of the four group hashes cover a length taken before the UTF-8 conversion** (series, instance, private; the
   exam group's is right). A group whose text changed length in the conversion fails a recompute while intact.
+  *Corrected 2026-10-28:* fixed upstream at `e105214` (`e21160f` hashes the bytes actually written).
 * **Frame files are named with five digits**, so a series over 99 999 frames cannot be written.
 * **The variable `comp` holds samples per pixel (0028,0002)**, though its comment says planar configuration.
 
