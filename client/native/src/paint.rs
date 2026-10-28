@@ -118,8 +118,8 @@ fn placement(frame: &Frame, v: &View, width: u32, height: u32, dpr: f64) -> Resu
 }
 
 pub struct Painter {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
     pipeline: wgpu::RenderPipeline,
     /// The adapter's name and driver, printed beside every result.
     pub renderer: String,
@@ -130,6 +130,11 @@ impl Painter {
     pub fn new() -> Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
         let adapter = pollster::block_on(instance.request_adapter(&Default::default())).context("no wgpu adapter")?;
+        Self::on(&adapter, wgpu::TextureFormat::Rgba8Unorm)
+    }
+
+    /// Painting into textures of `format`, which must be a unorm format so a code reaches the target unchanged.
+    pub fn on(adapter: &wgpu::Adapter, format: wgpu::TextureFormat) -> Result<Self> {
         let info = adapter.get_info();
         let limits = wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() };
         let (device, queue) = pollster::block_on(adapter.request_device(&limits))?;
@@ -145,7 +150,7 @@ impl Painter {
                 module: &module,
                 entry_point: None,
                 compilation_options: Default::default(),
-                targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())],
+                targets: &[Some(format.into())],
             }),
             multiview_mask: None,
             cache: None,
@@ -156,6 +161,23 @@ impl Painter {
 
     /// `width` × `height` device pixels, rows top-down; outside the image opaque black.
     pub fn paint(&self, frame: &Frame, display: &Display, width: u32, height: u32, dpr: f64) -> Result<Vec<u8>> {
+        let target = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        self.draw(&target, frame, display, dpr)?;
+        self.read(&target)
+    }
+
+    /// Into the whole of `target`, which must be of the painter's format.
+    pub fn draw(&self, target: &wgpu::Texture, frame: &Frame, display: &Display, dpr: f64) -> Result<()> {
+        let (width, height) = (target.width(), target.height());
         let wide = match (frame.bits, frame.signed, frame.components) {
             (1..=8, false, 1 | 3) => false,
             (9..=16, _, 1) => true,
@@ -192,23 +214,6 @@ impl Painter {
             ],
         });
 
-        let target = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-        let stride = (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        let read = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: (stride * height) as u64,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
             let view = target.create_view(&Default::default());
@@ -225,6 +230,21 @@ impl Painter {
             pass.set_bind_group(0, &bind, &[]);
             pass.draw(0..4, 0..1);
         }
+        self.queue.submit([encoder.finish()]);
+        Ok(())
+    }
+
+    /// `target`'s texels, rows top-down, in its format's byte order; it needs `COPY_SRC`.
+    pub fn read(&self, target: &wgpu::Texture) -> Result<Vec<u8>> {
+        let (width, height) = (target.width(), target.height());
+        let stride = (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+        let read = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: (stride * height) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self.device.create_command_encoder(&Default::default());
         encoder.copy_texture_to_buffer(
             target.as_image_copy(),
             wgpu::TexelCopyBufferInfo {

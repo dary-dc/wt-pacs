@@ -40,6 +40,12 @@ pub struct Session {
     events: mpsc::UnboundedReceiver<Result<Event>>,
 }
 
+/// The server's `cert_sha256=`, 64 hex digits.
+pub fn cert_hash(hex: &str) -> Result<[u8; 32]> {
+    let bytes = (0..32).map(|i| hex.get(2 * i..2 * i + 2).and_then(|b| u8::from_str_radix(b, 16).ok()));
+    bytes.collect::<Option<Vec<u8>>>().and_then(|h| h.try_into().ok()).context("--cert-sha256 is not 64 hex digits")
+}
+
 /// `url` is `https://host:port/`, as the server's banner prints it.
 pub async fn dial(url: &str, cert_sha256: [u8; 32], windows: &Windows) -> Result<Session> {
     connect(url, cert_sha256, windows, ALPN).await
