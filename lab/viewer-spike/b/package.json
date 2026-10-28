@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@cornerstonejs/core": "5.13.2",
+    "@cornerstonejs/tools": "5.13.2",
+    "@kitware/vtk.js": "36.4.1",
+    "d3-array": "3.2.4",
+    "d3-interpolate": "3.0.1",
+    "esbuild": "0.28.2",
+    "events": "3.3.0",
+    "gl-matrix": "3.4.3",
+    "url": "0.11.4"
+  }
+}
