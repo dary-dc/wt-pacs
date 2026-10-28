@@ -282,7 +282,8 @@ same quinn and the server's own `fod`, `frame-envelope` and `series-bundle` crat
 * **The accept loop.** `endpoint.accept()` → `incoming.accept()?` → `handshake_data().await` → by
   `protocol`: `h3` → `IncomingSessionFuture::with_quic_connecting(connecting).await` and today's `handle_incoming`
   body; `wt-pacs/1` → `connecting.await` and a raw handler (§8.3). Stop is unchanged: `endpoint.close(STOPPING, …)`
-  and `wait_idle()` exist on `quinn::Endpoint`.
+  and `wait_idle()` exist on `quinn::Endpoint`. *Corrected 2026-10-28, found in #201:* `endpoint.accept()` returns
+  `None` for good once the endpoint is closed, so a `None` ends the loop; wtransport's `accept` hid that by panicking.
 * **Two endpoints instead** (raw QUIC on a second port) would leave `build_endpoint` alone, but adds a port to open
   in every firewall, a second socket, a second stop path and a second banner line, and the two could drift in
   configuration. One endpoint is fewer lines and one configuration; the PCS upload's QUIC listener is a separate
@@ -335,20 +336,12 @@ opened), and on `tokio`. Modules, each added by the step that needs it:
   `unchecked`, as in the browser. Hashed by `xxhash-rust` (pure Rust, no C build in step 1), held to the digests
   hash-wasm and Python's `xxhash` already wrote (`client/decode/xxh3.test.mjs`'s lengths; the goldens'
   `NAME.xxh3`, 109 files).
-* **`decode`** (step 2, *built 2026-10-27*): OpenJPH 0.31.0 and dav1d 1.5.4 at the WASM builds' tags and commits
-  (`client/decode/wasm/build/pins.sh`), as `ingest/tools.sh` builds them from source for the ingest's check, through
-  that check's in-process shim, `ingest/coded-frames/decode.cpp`, which the crate's build links. *Was:* compiled
-  natively from the WASM wrappers — those are emscripten bindings, and the shim already wraps the same two libraries,
-  so one native build serves both and CI already caches it. SIMD: dav1d's x86 assembly and OpenJPH's SSE to AVX-512
-  paths, each picked at run time; threads: dav1d one a core (`av1_threads(0)`, the ingest keeps 1), OpenJPH 0.31.0
-  has none. The payload reader (every refusal of `av1-payload.js`, in its words) and the merge of `av1-frame.js` are
-  ported. Behind the `decode` feature, so the default build stays C-free. Every decode opens a fresh dav1d context
-  and OpenJPH codestream, so a mismatch is `false` at once — *was* "decoded again by a fresh decoder object, as in the
-  browser": natively each decode already is one — and `native-fill`'s printed `decode_ms` includes that open and
-  dav1d's threads starting (printed, not claimed). **Not built:** the WASM wrapper's clamp to the sample type's range
-  (a reversible codestream decodes in range; no committed frame reaches the clamp, and a mutant removing it
-  survived), the 4:4:4 identity-matrix refusal (the shim does not report the matrix; such a stream fails its digest
-  instead), scalable units' layer walk, groups (G > 1) and the range.
+* **`decode`** (step 2): OpenJPH 0.31.0 and dav1d 1.5.4 at the WASM builds' pins (`client/decode/wasm/build/pins.sh`),
+  and the AV1 payload reader and split merge ported from `av1-payload.js` and `av1-frame.js`
+  ([`../av1/payload-format.md`](../av1/payload-format.md)). Behind a cargo feature, so the default build stays C-free.
+  *Corrected 2026-10-28, found in #201:* not compiled from the WASM wrappers, which are emscripten bindings, but linked
+  through the ingest's native shim `ingest/coded-frames/decode.cpp`; and every native decode opens a fresh decoder, so
+  a mismatch is `false` at once rather than decoded again.
 * **`cache`** (M3, *built 2026-10-28*): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8
   *A client cache* and §3 above, as written: coded bytes, one file per frame at `root/series/version/index`, only
   `true` frames; written under a temporary name unique to the write (`index.pid.n.part`, so two writers of one frame
