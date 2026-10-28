@@ -429,7 +429,101 @@ built.
    pool (interaction at −5, prefetch at 0, each class sent to its own cap). *Assumes* in-flight prefetch is cheap to
    finish. *Decides:* already written as the one-queue protocol, [`WIRE.md`](WIRE.md) §Proposed: one queue.
 
-Mapping these onto the wire is a later row.
+Mapped onto the wire in the next section.
+
+### Asking for a stack: the patterns on our wire
+
+*Theory, 2026-10-28: **nothing here is measured**; each row names the measurement that would decide it.* The target
+client (the owner's, 2026-10-28): a **view worker** owns the frame store, the cache and the paint, knows the frame on
+screen, and posts the downloader its **want** over a `MessagePort`; the downloader turns wants into FoD messages and
+keeps its records, the attempts and the ack rule (§The downloader). Fixed by ADR and not reopened here: priority is
+the client's ask order through a FIFO server ([`adr/reject-server-ordering.md`](adr/reject-server-ordering.md)), no
+wire cancel ([`adr/reject-server-cancel.md`](adr/reject-server-cancel.md)), a shallow client window
+([`adr/client-window-depth.md`](adr/client-window-depth.md)), stride as bandwidth conservation
+([`adr/stride-is-bandwidth-conservation.md`](adr/stride-is-bandwidth-conservation.md)). Out of scope: previews, lossy
+delivery, the encoding. The use cases U1–U5 and levers L1–L4 are WIRE.md's on branch
+[`claude/design-p2-ask-during-fill`](https://github.com/dary-dc/wt-pacs/blob/claude/design-p2-ask-during-fill/docs/WIRE.md);
+the three scroll policies, measured (SCROLLPOLICY), are §What a scroll ahead asks on branch
+[`claude/scroll-policies`](https://github.com/dary-dc/wt-pacs/blob/claude/scroll-policies/docs/WIRE.md). *Draft n*
+marks an idea from an earlier internal draft; none is adopted without its measurement.
+
+**A want** is an ordered list of frames the view worker does not hold, as ascending runs and single frames; it
+replaces the one before. Leaving out what is held (draft 8) means holdings never cross the port. **The wire today**
+([`WIRE.md`](WIRE.md) §FoD messages): `request_frame`, served in ask order; `stream_frames {from?, to?}`, one
+ascending run; `end_stream`. An ask ends a running fill and the downloader re-issues the rest (§The downloader). So
+any order that is not ascending rides only as asks. Fill and on-demand are the two ends:
+
+| pattern | the want | on the wire today | gap | where | deciding measurement |
+| --- | --- | --- | --- | --- | --- |
+| **fill**, one end | the whole series, one run | `stream_frames {}`; the downloader's `fill` is a set, issued as runs from its lowest index still wanted | none | — | built: the total-time links (queue row TOTAL) |
+| **on-demand**, the other end | the frame on screen alone, replaced each step | one `request_frame` a step; the viewer's on-demand mode cancels one still pending (`end_stream`), and an ask already sent stays owed | none | — | built: SCROLLPOLICY's cursor arm |
+| **1 outward**, alternating | c, c+1, c−1, c+2, c−2 … to the series | asks only: no run goes downward or alternates. The downloader sends every ask at once, so the order is fixed on the wire before the first move | G1 | client-only | the survey's (share shown exact on a sawtooth trace at 25 slices/s, against the index-order fill), after G1's |
+| **2 run-ahead by direction**, with the reader model (drafts 1, 5, 7) | after a jump c ± 2, then the window around the new frame, not the path skipped; while stepping, frames ahead growing to a cap with a tail behind (≈ 70/30), sized from reader speed × frame bytes against the measured link; a small warm window after frame 0; a direction change replaces the want | ahead: `stream_frames {from: c+1, to: c+k}`; behind: asks; each ends the run before it | G1, G2, G3 | client-only | as 1, against 1, with draft 11's share painted before the reader leaves; draft 12's blind control on the split and the cap |
+| **3 coverage first** | ends, middle, then bisection or every k-th, then the rest ascending | asks in that order, then a fill: carried today ([`av1/README.md`](av1/README.md) §The order frames are asked in) | G1, for the order to survive a move; G5, for coverage to show | client-only | the survey's (time until every frame is within k of one delivered) |
+| **4 by scroll speed**: stride, settle, gap-fill (drafts 6, 9, 10) | frames ahead spaced by speed; after a dwell (≈ 200 ms) the frame first, then its neighbours; on deceleration the holes nearest the cursor first, the stride ADR's undesigned gap-fill | asks; a settled frame already sent cannot move up, only one not yet sent can | G1, G4 | client-only; IHE's no-skip rule for DBT is the owner's, not the wire's | the survey's (frames/s exact against 25 slices/s; if every link that matters keeps up, nothing to build); a fixed stride and dwell as the blind control |
+| **5 cine by frame rate** | an ascending run from c, the wrap a second run to c − 1; play when what is held covers the rest at the clip's rate | `stream_frames {from: c}`, then `{to: c − 1}`: carried today | a play gate, held frames against the delivered rate | client-only | the survey's (frames/s exact against Cine Rate on `us_liver` and `usb_cine`) |
+| **6 the series on screen first**, then the hanging | wants across series | one process serves one series: another series is another session, competing at the bottleneck (U5) | G6 | **wire** | what two sessions cost each other, then the survey's (the whole first hanging, current before priors, against one fill of both) |
+| **7 the frame on screen above all**, in flight kept | that frame first in the want | an ask ends the running fill (L1); with no fill running, it waits behind what is in flight and at most the window's asks | G7, or none if the want rides as windowed asks (G1) | **wire** for G7; client-only for G1 | G1's decides whether G7 is needed; ASKSTREAM's design B against today if it is |
+
+**A hybrid is a want between the ends**, chosen by modality, study size and link, none of it measured: cine (US, XA)
+is 5; a stack the link fills before the reader's first pass is the fill with the frame on screen asked (today); a
+larger stack or a slower link is 2 or 1 behind a window. Where the series' bytes ÷ the link's rate cross the reader's
+pass is the boundary, and no reader's pass is measured here.
+
+**G1, the ordered want behind a window (client-only).** The downloader takes `fill` as a set and `ask` as one index,
+and since 2026-10-03 sends every ask at once (the client window removed, [`adr/client-window-depth.md`](adr/client-window-depth.md)).
+A FIFO server serves an order sent whole as it was sent, and nothing takes it back. The downloader would keep the
+want and send only `D_min` of it ahead, re-reading it at each new want: what is not yet sent reorders for nothing. Reader speed sets how far the want
+reaches and its split (draft 5), never `D_min`, which stays the link's (that ADR's correction of 2026-08-26).
+`D_min` saturated the link six of six on the native harness (that ADR, E1); in the browser it was never measured.
+**The deciding measurement, and the cheapest here:** the same frames as `request_frame`s held at `D_min` against one
+`stream_frames` run, last frame and bytes, on the five total-time links, interleaved — a lab page and no server change.
+A tie means patterns 1–4 and 7 need nothing from the wire; a loss means ascending stretches go as runs, which an ask
+ends (G7).
+
+**G2, the want's generation (client-only, draft 1).** Today's generation moves only on `cancel`, which also ends the
+stream, fails the asks and clears the records (§Messages), and drops every frame that lands under an older one.
+Draft 1 wants less: drop at once every want not yet sent. A want that replaces the one before does that, and the
+port is ordered, so no counter is needed; the request's generation keeps its meaning. Its worth is G1's: with
+every ask already sent there is nothing unsent to drop.
+
+**G3, orphans (client-only, draft 3).** A frame on the wire when its want is replaced still arrives: the server
+serves what it was asked. The downloader can drop it, decode it behind the want, or decode it and let the view
+worker's cache keep it; today's records cannot tell it from a fill frame and nothing counts it. Behind a window an
+orphan count per reversal is at most what is in flight plus `D_min` (D). Dropping is not free: SCROLLPOLICY's
+re-aimed fill, which drops an earlier run's frames, sent 29–37 % more packets than every step on today's server,
+consistent with that drop and not isolated.
+**Decides:** wasted bytes and decodes per reversal on the sawtooth trace, decoded behind the want against dropped.
+
+**G4, the decoders and the gesture (client-only, drafts 4, 10).** The wire may run ahead of the decoders (§The
+downloader) and the reader pause is proposed, not built. Draft 4, no new ask while every decoder holds `perDecoder`,
+is G1's window counted at the decoders instead of the link; the smaller bound holds. Today one wheel event is one
+step and one step one ask (`client/viewer/viewer.js` `show`); draft 10 puts the gesture-to-index layer in the view
+worker above the want, so touch rate is never ask rate. **Decides:** gesture to paint and compressed bytes queued,
+the window at the link against the smaller of link and decoders, on a 4× CPU cell, where decode binds (§Under a
+throttled CPU).
+
+**G5, the screen before its frame lands (client-only, drafts 2, 9).** The viewer holds the last frame painted while
+its status names the new index (read from `show`). The rule is to choose: hold the previous, blank, block the gesture,
+or paint the held frame nearest the cursor (draft 2). The last shows another frame than the one named, the survey's
+neighbour copy, out of scope unless the screen names the frame it shows: the owner's call. Gap-fill on deceleration
+(draft 9) is pattern 4's want, not a paint rule. **Decides,** with draft 11's metrics: the share of visited frames
+painted exact before the reader leaves them (not built: a trace's on-screen frames against each frame's paint stamp),
+gesture to paint (SCROLLPOLICY's stale and rest, for a scripted cursor), and wasted prefetch bytes (counted nowhere).
+
+**G6, several series in a session (wire).** U5: one process serves one series ([`glossary.md`](glossary.md)), so a
+hanging's second series is a second session. Carrying it in one is an FoD field naming the series and a server that
+serves more than one; two sessions need no wire change and compete at the bottleneck, which is not measured. That
+cost decides first.
+
+**G7, a fill that survives an ask (wire).** L1: today an ask ends the fill; one queue (#96, design B in the design
+branch's WIRE.md) keeps it, and `request_frame` no longer ends a fill. ASKSTREAM read it ahead of design D on the ask
+round-paired, the strict reading undecided; the owner's question 3 there is open. It is needed only where a want mixes runs and asks, which G1 decides. The
+ordering ADR holds either way: the server still serves the client's order.
+
+**Draft 12, the blind control, applies to every estimator above** — the window, the 70/30 split, the cap, the stride,
+the dwell: a constant that matches the estimator ships, the rule [`adr/client-window-depth.md`](adr/client-window-depth.md)
+§Which depth ships already fixes for depth.
 
 ## The decoders
 
