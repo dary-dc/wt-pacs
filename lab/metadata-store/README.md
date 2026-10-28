@@ -743,3 +743,76 @@ What the contract says and the parser does not, found here (contract.md is not e
   `src/deck_sqlite3.c` (`eblake3stmt` undeclared).
 * **Fixed-size attribute tables** (`eKVs[100]`, `sKVs[150]`, `iKVs[350]`, `pKVs[20000]`, `capi.c` lines 67–70) are
   filled with no bound check. Read, not exercised.
+
+## Synchronization: a full snapshot, or the group list and the changed groups
+
+[`sync/`](sync) asks which of two shapes of the PCS-to-PACS synchronization costs fewer bytes per event, and whether
+the difference is felt on a slow uplink. Both use the receiver rule of `docs/ingest/pacs-receive-design.md` §5 (at
+`claude/pacs-design-state`, #168): each group's XXH3-64 is compared with its row, absent → create, different → replace
+and audit, same → nothing, and a row whose group is not listed is deleted. Pixels are never resent in either: the
+series bundle is referenced by its hash, and a late instance's frames weigh the same in both.
+
+* **E, snapshot.** Every event resends the series' whole metadata, every group the parser wrote for it plus the exam
+  group, as one zstd stream. The sender keeps no record of what it sent.
+* **B, list and changed groups.** Every package carries the complete list of the series' groups (level, coded UID,
+  XXH3-64) and the bytes of only the groups that changed. A listed hash the PACS lacks is answered `need`; the sender
+  keeps the list it sent last.
+
+```bash
+lab/metadata-store/parser-output/build.sh BUILD                    # §The parser's own output, unchanged
+.venv/bin/pip install --require-hashes -r lab/metadata-store/sync/requirements.txt
+.venv/bin/python -I lab/metadata-store/repetition/fetch.py DATA
+.venv/bin/python -B -I lab/metadata-store/sync/sync_test.py
+.venv/bin/python -I lab/metadata-store/sync/sync.py DATA BUILD/build/ESIPFfiled OUT > sync.jsonl
+```
+
+**The groups** are the parser's own (§The parser's own output, its harness and five series, re-parsed here), as
+written: every group file in the series' tree is one entry, so pt's five series group files and us's two exam group
+files are five and two entries. A **large series** of 2 000 instances is synthesized by the method `group.rs` uses for
+its synthetic series: ct's median instance group (and its private group) copied 2 000 times, each with its own SOP
+instance UID (both copies), instance number and image position; every other record is constant, so it is more
+repetitive than a scanner's series and its E is a lower bound.
+
+**The packages**, both in §Updates on the link's container (`update-link/packages.py`'s `package()`, reused): a pax
+tar, the header member, then the metadata as one tar of members, raw or as one zstd stream at level 1 or 3. E's
+metadata is every group file; B's is a member `list` (one entry per group: 1 byte level, 1 byte length, the coded UID,
+the 8-byte XXH3-64), then the changed group files.
+
+**The cells**, per series (ct, pt, mr, mg, us, and the synthetic 2 000), each raw, zstd-1 and zstd-3:
+
+| Cell | Change from the series as parsed |
+| --- | --- |
+| E's snapshot | none (E weighs this, ± the changed bytes, at every event) |
+| B's list alone | none |
+| exam fix | patient name set in the exam group |
+| series fix | series description set in the series group |
+| instance fix | image comments set in the median-sized instance group |
+| fan-out | image comments set in every instance group |
+| late instance | the series parsed without its last instance, then the last instance added (instance and private group) |
+| withdrawal | the median-sized instance removed (both its groups) |
+
+**The wire, by arithmetic only**: `update-link/wire.py`'s `transfer()`, unchanged (a fresh connection, mutual TLS 1.3,
+TCP with a 10-segment initial window and slow start doubling, QUIC with RFC 9002's 12 000 bytes; each round
+max(RTT, its serialisation), a final RTT for the reply, a lost packet 1.5 RTT with probability 1 − (1 − p)^packets). The
+profiles: §Updates on the link's four classes, and the two the question names at both ends of their uplink:
+satellite 700 ms RTT at 1 and 2 Mbit/s, rural ADSL 60 ms at 0.5 and 1 Mbit/s, 0.1 % loss as §Updates on the link
+assumed for both. Nothing is timed on an emulated link; a `need` round trip is not in B's time (it costs B one
+request more when the PACS lost a group, which none of these events causes).
+
+**The receiver's work**, counted: groups hashed (and their bytes), and list entries compared with rows.
+
+*Pre-registered, 2026-10-28, before any package was built.* The predictions are the question's own arithmetic.
+
+| Prediction | Contradicted if |
+| --- | --- |
+| P1: E for ct weighs ~45 KB per event at zstd-1 | outside 30–60 KB |
+| P2: B's list weighs ~60 B per entry raw | outside 45–75 B |
+| P3: ct's list compressed weighs 4–6 KB (the 8-byte hashes do not compress) | outside 4–6 KB at zstd-1 or zstd-3 |
+| P4: for a one-group event (exam, series, instance fix) on ct, B is 8–10× smaller than E | outside 8–10× |
+| P5: on TCP with a 10-segment initial window, E takes 2 round trips more than B for ct's one-group events | not 2 |
+| P6: hence E is ~1.4 s slower than B on the satellite profile (700 ms) for ct's one-group events | outside 1.2–1.6 s |
+
+**The rule, fixed now.** B is worth its extra machinery (the `need` reply, the sender's sent list) only if, on the
+satellite or the rural ADSL profile, at either end of its uplink, over TCP, E is slower than B by more than 1 s for
+some event of the median series (ct, the median of the five by metadata bytes), or by more than 5 s for some event of
+the largest (the synthetic 2 000). Otherwise E. QUIC is reported beside it, not used by the rule.
