@@ -19,7 +19,7 @@ format is #149's (`docs/adr/pcs-transfer.md`, commit `a197b23` on `claude/pcs-tr
 
 | | what | standing |
 | --- | --- | --- |
-| unit | one package per series, and small packages for updates; its XXH3-64 in its name | Decided 10-25 |
+| unit | one package per series, and small packages for updates; its XXH3-64 in its name | Decided 10-25; reopened 10-28 (§1) |
 | format | a pax tar of three members: a five-line header, `metadata` (an inner tar of the group files), the bundle; layout 2 (§2) | Proposed (#149 §15), narrowed here |
 | compression | the `metadata` member may be one zstd frame, told by its magic number; frames never; the switch is the sender's | Decided 10-26; default on or off Open |
 | late instance | an `addition` package, merged into the series' one bundle by a rewrite in staging, read back from disk, renamed over (§5) | Decided 10-26 |
@@ -39,6 +39,8 @@ The PCS (the hospital-side component, another team's) packs a complete series in
 (an HTTPS resumable upload, #155, not built) writes it into `incoming/`; the receiver takes it from there to the serving
 tree the server reads, and leaves one line in `incoming/status/` for the carrier to answer with. The PCS keeps its copy
 until that line says `stored` (Storage Commitment's model, PS3.4 Annex J), and resends on `refused`.
+*Corrected 2026-10-28:* the team meeting of 2026-10-28 reopened rsync of the PCS's tree, a trigger after it marking the unit
+complete; one package per transfer is open with the team (the design state, `pacs-receive-design.md`, #168).
 
 ```text
  carrier ──▶ incoming/<f>.partial ─rename─▶ incoming/<f> ──▶ receiver ──▶ <root>/<Study>/<Series>.sbnd
@@ -221,7 +223,7 @@ a removed instance's frames are rewritten out of the `.sbnd` or only hidden is n
 | step | interface | why not built |
 | --- | --- | --- |
 | 9 derive | `Downstream::derive(&Stored)` | what is derived and where (display metadata, a file per series or a query) is Open, design state §6 |
-| 10 index | `Downstream::index(&Stored)` | the study index (#146) is Open: MySQL, on which host, its outbox |
+| 10 index | `Downstream::index(&Stored)` | the study index (#146) is Open: its engine, on which host, its outbox (*corrected 2026-10-28:* this said MySQL, which was never chosen) |
 | 11 relay | the status file | the carrier (#155) is another row: it maps `stored` / `refused` / `quarantined` to its replies and deletes the status file once relayed |
 
 `Stored` names the study, the unit, the revision, the kind, the groups written and the bundle placed. `Downstream`
