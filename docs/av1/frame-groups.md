@@ -6,7 +6,7 @@ content type.** On DBT reconstructed slices that is a conclusion, reached by a r
 ultrasound cine, ABUS and angiography it is a default: no data fit to test them is open.
 
 This file owns the question: the decision (§1), the conditions it holds under (§2), how it was reached (§3), why
-(§4), what would reopen it (§5), what else G touches (§5a–§5g) and the sources (§6). The theory, predictions and review written before and just
+(§4), what would reopen it (§5), what else G touches (§5a–§5d) and the sources (§6). The theory, predictions and review written before and just
 after the measurement are kept as they were recorded (§T1–§T4a). The protocol the measurement ran is
 [`gop-protocol.md`](gop-protocol.md), unchanged since it was registered. Every number carries its row of
 [`queue.md`](queue.md). Sections 1–5 were written 2026-10-24 from committed rows: nothing was coded again, and where a
@@ -278,11 +278,11 @@ source read confirms,* unverified.
 | one all-key stream against one-frame streams | the containers and their indexes: [`../disk-layout/containers.md`](../disk-layout/containers.md) (row 159); added, §5d | at G = 1 they are the same bytes; the per-frame flush is the one setup cost, and it is open at G = 1 already |
 | encoders exact on inter at 10 and 12 bits | covered: §2; [`README.md`](README.md) §Exactness and the decoders (rows 1, TOOL) and §Encoding (`--rt`, `svc_encoder_rtc`) | libaom only, with `--auto-alt-ref=0` or `--rt`; SVT-AV1 v4.2.0 inter exact at 8 bits only; rav1e 0.7.1 has no lossless mode |
 | decoders for groups: WebCodecs, dav1d, dav1d-WASM on split groups, hardware | covered: [`../decode/README.md`](../decode/README.md) §WebCodecs without a flush (row WCLAT) and §WebCodecs, what it decodes exactly (12 bits refused at any G); §5 *The client*; [`../decode/hardware.md`](../decode/hardware.md) §3–§5 (4:0:0 and 12-bit limits), §9 (G = 8 cells proposed) | a group goes through WebCodecs at 8 and 10 bits; a 12-bit top only through dav1d-WASM, which fails every split group today |
-| decoder memory for references | added, §5e | up to eight reference pictures a decoder where G = 1 holds one |
-| loss and corruption inside a group | a failure fails the rest of its group: [`adr-unit.md`](adr-unit.md) §3 invariant 4; a truncated frame fails: [`../CLIENTS.md`](../CLIENTS.md#a-truncated-frame-is-a-failure); added, §5f | the blast radius is G − 1 frames; AV1's error-resilient mode does not narrow it |
-| the per-frame exactness check inside a group | no second path for a frame inside a group: [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8; added, §5f | the digest still decides frame by frame; a mismatch propagates |
-| energy on phones | the rig, HTJ2K against AV1: [`../devices.md`](../devices.md) D5; added, §5g | a fill in order is predicted a tie; cold asks cost more at G > 1 |
-| late frames and metadata updates in MP4 | the PACS-ingest line: PR #179 (a late frame in `.sbnd`, MXF and MP4; inside an AV1 group of 30, re-encoding the group is about 9 s of CPU against 37–70 ms of container work) and PR #185 (rewriting only the tail) | not redone here |
+| decoder memory for references | [S1] §3 (`NUM_REF_FRAMES` 8); dav1d holds a reference by count ([S26]); dav1d-WASM never returns heap (row 38) | up to eight distinct pictures a decoder where G = 1 holds one: about 5 MB each on a 2.5 Mpx 10-bit DBT top, so up to 35–40 MB more (*derived*; two bytes a sample above 8 bits *unverified*) |
+| loss and corruption inside a group | a failure fails the rest of its group: [`adr-unit.md`](adr-unit.md) §3 invariant 4; a truncated frame fails: [`../CLIENTS.md`](../CLIENTS.md#a-truncated-frame-is-a-failure) | a retransmitted frame holds back, and a broken one breaks, up to G − 1 frames; error-resilient mode only lets a frame parse alone ([S1] §6.8.2), its prediction still reads the broken reference (*derived*) |
+| the per-frame exactness check inside a group | no second path for a frame inside a group: [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 | the digest still decides frame by frame; each later mismatch starts a second decode that fails for want of references, so at G > 1 a mismatch should fail the rest of its group by name (*inferred*; nothing to build at G = 1) |
+| energy on phones | [`../devices.md`](../devices.md) D5; nothing measured on a phone | a frame costs the same decode at any G (row 100's mean ask over (G + 1)/2 frames is 0.97–1.03 of G = 1's frame at 4×, *derived*), so a fill in order is predicted a tie and a cold ask costs (G − 1)/2 extra decodes |
+| late frames in a container | PR #179 and PR #185 | re-encoding a group dominates a late frame's cost; not redone here |
 
 ## 5b · Sequential cine playback
 
@@ -295,7 +295,7 @@ rate: every frame is decoded anyway, so inter saves bits and costs nothing. Here
 * **The first pass loses its parallelism, not its per-frame cost.** Decoders run in parallel only across groups
   ([`adr-unit.md`](adr-unit.md) §3, *The decoder pool*), so with D decoders and F frames the first pass decodes at
   min(D, ⌈F/G⌉) decoders' rate where decode is the clock, one decoder's at G ≥ F. A frame inside a group costs what a
-  key frame costs (§5g).
+  key frame costs (§5a, *energy*).
 * **It gains the group's bytes only where the wire is the clock**: at most 1.5 % on DBT (§1).
 
 **Prediction** (native cine, untested, §5): where P8's ≥ 20 % holds, G > 1 shortens a wire-bound first pass by about
@@ -356,57 +356,6 @@ unmeasured.
   through WebCodecs with no flush between key units, the key checked by parse, is exact and about 0.72–0.97 of today's
   time a frame at 4×, less the parse; row WCLAT's harness, interleaved, decides. That is the one setup cost a single stream would save,
   and G = 1 can save it.
-
-## 5e · Decoder memory for references
-
-* **G = 1 holds one picture.** An AV1 decoder keeps up to eight reference frames ([S1] §3, `NUM_REF_FRAMES`). dav1d
-  keeps a reference by count, not by copy ([S26] `decode.c:3673-3677`), and a shown key frame refreshes every slot, so
-  at G = 1 all eight point at the last frame (*derived*).
-* **G > 1 can hold eight.** An inter frame refreshes the slots it names, so up to eight distinct pictures plus the one
-  being decoded. How many libaom's low-delay structure keeps distinct at G ≤ 16 is *unverified*. A picture is width ×
-  height samples, two bytes each above 8 bits (*unverified*: dav1d's high-bit-depth pixel type, not read here), plus
-  padding: on a 2.5 Mpx 10-bit DBT top about 5 MB, so up to about 35–40 MB more a decoder than G = 1 (*derived*).
-* **dav1d-WASM keeps its peak**: linear memory never shrinks (34.8 MB of heap by a projection series' end at G = 1,
-  [`README.md`](README.md) §Decode time and memory). WebCodecs holds its pictures outside the page's heap.
-
-**Prediction:** a dav1d-WASM worker's heap at G = 16 on a DBT top is G = 1's plus 4 to 8 pictures; row FOOTPRINT's
-method decides. On a phone it is multiplied by the decoders ([`../devices.md`](../devices.md) D5).
-
-## 5f · Loss, corruption and the frame check inside a group
-
-* **Loss costs time, never a frame.** Frames travel on reliable streams: what reaches a decoder is whole, truncated (a
-  failure) or corrupt at rest. At G > 1 a retransmitted frame also holds back the rest of its group, which decodes only
-  after it (*derived*); loss at G = 1 is measured ([`README.md`](README.md) §Under loss and jitter).
-* **A broken frame breaks the rest of its group**, and AV1's error-resilient mode does not narrow that for an exact
-  client: it lets a frame's syntax parse without earlier frames ([S1] §6.8.2), but its prediction still reads the
-  reference's samples, so a frame after a broken reference parses and decodes wrong. Only a key frame restores
-  (*derived*): at most G − 1 frames lost, none at G = 1.
-* **The frame digest still decides, frame by frame.** Lossless adds the coded residual to the prediction, so a wrong
-  reference sample that a block predicts from gives a wrong sample, and the frame's digest misses; a frame whose blocks
-  never read the broken region decodes right and matches (*derived*). Nothing new is needed to detect. What G > 1 adds:
-  each later mismatch starts today's second decode (`client/decode/decoder.js`, `checked`), which inside a group fails
-  for want of references ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8), so up to
-  G − 1 wasted decodes. *Inferred:* at G > 1 a mismatch should fail the rest of its group by name, as a decode failure
-  does; nothing to build while G = 1.
-
-## 5g · Energy on phones
-
-*Theory; nothing measured on a phone.*
-
-* **A frame costs the same decode at any G.** Row 100's mean ask at G ∈ {4, 8, 16}, divided by its (G + 1)/2 frames,
-  is 0.97–1.03 of the G = 1 frame through WebCodecs at 4× on all three series
-  ([`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md) §Decode cost of an ask; *derived*).
-* **So a fill in order costs the same decode work and, on DBT, at most 1.5 % less radio** (§1; *derived*: the radio's
-  share also depends on how long it stays up, which the bytes alone do not give).
-* **A cold ask costs (G − 1)/2 extra decodes on average.** They are delivered ([`adr-unit.md`](adr-unit.md) §3, *What
-  the cache holds*), so they are wasted only if the reader never visits those frames.
-* **One core for longer**: a group decodes serially, so G > 1 trades parallel cores for time. Whether that costs or
-  saves energy depends on the phone's frequency scaling (*unverified*; no source read).
-
-**Prediction:** on D5's rig, G = 8 against G = 1 on a DBT series filled in order is a tie, inside the idle blocks'
-spread; a scroll of cold asks costs more at G = 8, by about its extra decodes. A hardware decoder would move energy
-more than G does, and no browser path takes the product's 4:0:0 in hardware
-([`../decode/hardware.md`](../decode/hardware.md) §1).
 
 ## The record before the data
 
@@ -594,13 +543,13 @@ largest claim, P8, is untested.
 * [S22] Weinberger, Seroussi & Sapiro, "The LOCO-I lossless image compression algorithm", IEEE Trans Image Process 9(8):1309-1324, 2000, doi:10.1109/83.855427.
 * [S23] AV1 Codec ISO Media File Format Binding v1.3.0, `aomediacodec.github.io/av1-isobmff/v1.3.0.html` (`ff70a1add286`), §2.3.4, §2.4.
 * [S24] W3C WebCodecs, Working Draft 26 October 2026 (`2960ce936587`), §4.5, `decode()` and `[[key chunk required]]`.
-* [S25] W3C WebCodecs AV1 Codec Registration, Group Note Draft 13 October 2026 (`58b18e65c972`), §2, §4.
-* [S26] dav1d 1.5.4, `src/decode.c` (`3ff801271cb7`), `:3671-3684`.
+* [S25] W3C AV1 WebCodecs Registration, Group Note Draft 13 October 2026 (`58b18e65c972`), §2, §4.
+* [S26] dav1d 1.5.4, `src/decode.c` (`3ff801271cb7`), `:3671-3677`, references refreshed by reference count.
 
 Re-read 2026-10-24: [S1]'s section numbers, counted from its headings at `5e04f3f`, and the `Lossless` tests cited in
 §4; [S2] `encode_strategy.c:78-99, 746-757` at `v3.15.1`; [S3] `enc_handle.c:3256` and the v3.1.1 entry of its
 CHANGELOG at `v4.2.0`; the abstracts of [S8], [S9], [S16] and [S18], and the metadata of every DOI above. The others
 were not re-read.
 
-Read 2026-10-27 for §5a–§5g: [S1] §3, §5.9.2, §6.8.2, §7.5 and §7.6.2–7.6.3 at `5e04f3f`; [S23]–[S26] at the sections
+Read 2026-10-27 for §5a–§5d: [S1] §3, §5.9.2, §6.8.2, §7.5 and §7.6.2–7.6.3 at `5e04f3f`; [S23]–[S26] at the sections
 cited. The hash is the SHA-256 prefix of the copy read.
