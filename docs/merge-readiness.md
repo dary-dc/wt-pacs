@@ -850,13 +850,15 @@ check is one the gate does not run. 3 means it is structural.
 | V6 | **Campaign history in clap help text.** `lab/disk-access-bench/src/main.rs:349-353, 357-359, 364-367` ("The first campaign had only warm…", "…made the first campaign's cold cells unreadable"). | Keep each flag's one-line meaning; disk-access §12 already holds the history. | −10 / 0 | `--help` keeps each flag | 1 | **safe now** |
 | V7 | **Two unused dependencies.** `serde` in `server/Cargo.toml:42`: the server derives nothing, and only `serde_json` is used. `rcgen` in `lab/disk-access-bench/Cargo.toml:38`: no `rcgen` in its sources. | Delete both lines. | −2 / 0 | Checked here with both removed: `cargo check -p series-server --all-targets --features telemetry,lab-levers,lab-frame-cache,lab-classify,cert-compression` and `cargo check -p disk-access-bench --all-targets` both pass. | 1 | **safe now** (server/Cargo.toml is in no open PR's file list) |
 | V8 | **Five more answered directories, each waiting on another PR or the owner.** `early-messages` (146; ARCHITECTURE §Messages posted before anyone listens): its citation is CLIENTS.md:206. `firefox-dial` (175; transport-conclusions §Firefox's dial on a slow link): `lab/irtt/README.md:39` borrows its Firefox pin, so that line moves to `lab/av1/bytes/jpeg-xl/README.md`, which holds the same pin. `viewer-ceiling` (328; §273 above; its ceiling is the host's): its citation is merge-readiness.md:640. `ffportgc` with `frameloss` (243; ARCHITECTURE §The downloader, "A frame lost silently in Firefox", "The ack costs no fill"): the rig was never run with `startOnNeed`, which is still the owner's. | As in V1, repointing transport-conclusions.md:1624 and :1985, ARCHITECTURE.md:118, :182 and :225, CLIENTS.md:206, merge-readiness.md:640 and irtt/README.md:39. | −892 / 0 | as in V1 | 1 | `early-messages`: after #133 and #136 (CLIENTS.md). `firefox-dial`: after #112 (irtt/README.md). `viewer-ceiling`: after #136 and #139 (this file). `ffportgc`+`frameloss`: **owner** (`startOnNeed`). |
-| V9 | **Logic copied across the lab.** All are identical text (`git grep -c -F` on the line) unless noted. (a) A throwaway certificate and its SHA-256: 44 lab files (20 shell, 17 `.mjs`, 7 Python). (b) `const arg = (k, d) => …`: 58 copies; `const med = …`: 30, while `lab/order.mjs:22` holds the same median privately; `const f = (v) => v.toFixed(…)`: 18. (c) Start-a-server-and-wait-for-`wt_url=`: 7 copies (`blink_cells.sh:52`, `controller_cells.sh:42`, `first_ask_cells.sh:56`, `neighbour_cells.sh:43`, `profile_cells.sh:108`, `idle_session_cost.sh:29`, `server_ab.sh:82`). Start-the-relay-and-wait-for-`READY`: 4 copies (`blink_cells.sh:62`, `controller_cells.sh:53`, `first_ask_cells.sh:67`, `cert_chain_cells.sh:136`). | **Proposal** (structural, `CLAUDE.md`). `lab/scripts/dev_cert.sh DIR`, which writes `DIR/{cert,key}.pem` and prints the hash. `order.mjs` exports `median`, and one lab module holds `arg` and `f`. A sourced `lab/scripts/cells.sh` holds `start_server LOG SERIES ARGS…` and `start_relay LOG ARGS…`. Each call site becomes one line. | ~−330 / +60 | Each copy is the same text, so the behaviour is the same. Each touched rig runs once, smoke-sized, before and after. The gate runs none of them. | 2 | **owner**: the shape is a proposal, and V1/V8 remove some call sites first |
+| V9 | **Logic copied across the lab.** All are identical text (`git grep -c -F` on the line) unless noted. (a) A throwaway certificate and its SHA-256: 44 lab files (20 shell, 17 `.mjs`, 7 Python). (b) `const arg = (k, d) => …`: 58 copies; `const med = …`: 34, while `lab/order.mjs:22` holds the same median privately (*corrected 2026-10-28, review*: this said 30; six more take the upper middle, `[a.length >> 1]`, which is not that median on an even count: `downloader-cost/port.mjs:59`, `resources.mjs:106`, `scripts/cpu_throttle.mjs:160` and three in V1's `decode-tail`); `const f = (v) => v.toFixed(…)`: 18. (c) Start-a-server-and-wait-for-`wt_url=`: 7 copies (`blink_cells.sh:52`, `controller_cells.sh:42`, `first_ask_cells.sh:56`, `neighbour_cells.sh:43`, `profile_cells.sh:108`, `idle_session_cost.sh:29`, `server_ab.sh:82`). Start-the-relay-and-wait-for-`READY`: 4 copies (`blink_cells.sh:62`, `controller_cells.sh:53`, `first_ask_cells.sh:67`, `cert_chain_cells.sh:136`). | **Proposal** (structural, `CLAUDE.md`). `lab/scripts/dev_cert.sh DIR`, which writes `DIR/{cert,key}.pem` and prints the hash. `order.mjs` exports `median`, and one lab module holds `arg` and `f`. A sourced `lab/scripts/cells.sh` holds `start_server LOG SERIES ARGS…` and `start_relay LOG ARGS…`. Each call site becomes one line. | ~−330 / +60 | Each copy is the same text, so the behaviour is the same. Each touched rig runs once, smoke-sized, before and after. The gate runs none of them. | 2 | **owner**: the shape is a proposal, and V1/V8 remove some call sites first |
 
 V10–V11 are small and land with the row that next touches their files.
 
 * **V10.** `lab/window-harness/src/lib.rs:11` re-exports `reset_peak_outstanding`, which only `client.rs` calls,
   so it becomes `pub(crate)`. ±0. Proof: `cargo check`. **Safe now.**
-* **V11.** `lab/README.md`'s table names 30 of the 47 directories. Missing are `ask-ahead`, `bb3`,
+* **V11.** `lab/README.md`'s table names 31 of the 47 directories (*corrected 2026-10-28, review*: this said 30,
+  and of the twelve V1/V8 remove only `ask-behind`, `ffportgc`, `firefox-dial`, `frameloss` and `viewer-ceiling`
+  are missing). Missing are `ask-ahead`, `bb3`,
   `container-bench`, `devices`, `fastclock`, `faultbench`, `irtt`, `iwdeep`, `link-conditions`, `loss-class`,
   `recv-cost` and those V1/V8 remove. After V1, each kept directory gets a row naming the doc it reproduces
   (~+8). **Safe now, with V1.**
@@ -866,7 +868,8 @@ V10–V11 are small and land with the row that next touches their files.
 * **N1. The gate warns that a call is unsound, since #183.** tokio 1.53.3 deprecates
   `AsyncFd::with_interest` as "unsound due to lack of I/O safety". The ring's park uses it at
   `server/src/media/uring_reader.rs:41`; the lab bench uses it at `lab/disk-access-bench/src/uring_access.rs:132`
-  and uses `AsyncFd::new` at `:127`. The fix is `unsafe { AsyncFd::register_with_interest(…) }` with a one-line
+  and uses `AsyncFd::new`, deprecated alike, at `:127`. The fix is `unsafe { AsyncFd::register_with_interest(…) }`
+  (`AsyncFd::register` at `:127`) with a one-line
   `SAFETY` that points at the invariant already stated at `uring_reader.rs:24` (the `AsyncFd` is declared before
   the ring, so it leaves the reactor before the fd closes). +1 line each. Proof: no warning, and the read-path
   tests pass. The server's copy is **after #112**; the lab's is **safe now**.
@@ -876,10 +879,10 @@ V10–V11 are small and land with the row that next touches their files.
   (±0). It changes the order of future runs only. **Safe now.**
 * **N3.** `lab/scripts/idle_session_cost.sh:34` waits on `listening\|ready\|serving` in the log. It matches the
   tracing line `series-server ready`, where every other rig waits on the banner's `wt_url=`. Fix it with V9(c),
-  or alone (±0).
+  or alone (±0). **Safe now** alone: no open PR touches the file (*verdict added 2026-10-28, review*).
 * **N4.** `lab/scripts/read_path_cloud_summary.py` (33 lines) has no reference. It reads `read_path_cloud.sh`'s
   TSV. The fix is one pointer line in `read_path_cloud.sh`'s header (+1). Keep the script: it is how that table
-  was summarised.
+  was summarised. **Safe now**: no open PR touches either file (*verdict added 2026-10-28, review*).
 * **N5.** `Sessions::new`'s doc says "Warns for each lab lever that is on" (`server/src/transport/server.rs:143`).
   It warns only for `--send-window-follows-cwnd`; `lab_levers::apply` warns for the rest. The fix is to drop the
   line (−1). **After #112.**
@@ -916,3 +919,10 @@ half) and N2. That is **−2 288 / +9 lines**, in one draft pull request into un
 
 V2 and the V8 directories that wait on a PR follow once that PR merges. V9, `ffportgc`+`frameloss` and nothing
 else go to the owner.
+
+*Reviewed 2026-10-28, against `ea581aca` and the apply row's `1ddef1d1`.* All sixteen findings were re-checked,
+each grep and line as cited. V9's and V11's counts were wrong and N1, N3 and N4 incomplete; each is corrected
+above. The apply row also edits `deploy/README.md` (its "four crates" was six) and `Cargo.lock`, which #130,
+#131, #133, #160 and #163 change in other hunks: a merge, not a decision. Both `lab/disk-access-bench/arms/*.patch`
+still pass `git apply --check` there. N1's server half edits next to `ring-no-coop.patch`'s hunk
+(`uring_reader.rs:30-39`, which #162 also edits), so it runs that check again.
