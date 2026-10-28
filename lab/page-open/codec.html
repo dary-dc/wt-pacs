@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <link rel="icon" href="data:," />
   <!-- ?codec=htj2k|av1 names the series' codec, ?tree=PATH serves client/downloader from PATH (the
-       rig's copy of a commit before the client was split into transport/ and decode/), ?pre=1 preloads the AV1 decoder's files, ?sha= is the source's
+       rig's copy of a commit before the client was split into transport/ and decode/), ?pre=1 preloads the AV1 decoder's files as head.js does,
+       ?hint=1 adds the series' depth (10) to the decoder config and to the preloads, ?sha= is the source's
        checksum the first frame must hash to. lab/page-open/README.md §Cold round trips by codec -->
   <script>
     const q = new URLSearchParams(location.search);
     const old = q.get("tree");
     const tree = (globalThis.__tree = old ? old + "/client/downloader" : "/client/transport");
     const dec = old ? tree : "/client/decode";
-    const link = (rel, href, as) => document.head.append(Object.assign(document.createElement("link"), { rel, href, as }));
+    // As head.js: a preload without CORS is not the module or fetch it stands for, and goes unused.
+    const link = (rel, href, as) => document.head.append(Object.assign(document.createElement("link"), { rel, href, crossOrigin: "anonymous" }, as && { as }));
     link("preload", "/wt/dev-transport.json", "fetch");
     link("modulepreload", `${tree}/consumer.js`);
     link("preload", `${tree}/downloader.js`, "script");
@@ -25,12 +27,13 @@
         for (const f of names) {
           link("preload", `${dec}/${f}`, "script");
         }
-        link("preload", "/lab/.av1-build/out/simd.js", "fetch");
-        link("preload", "/lab/.av1-build/out/simd.wasm", "fetch");
+        const wasm = () => ["js", "wasm"].forEach((x) => link("preload", `/client/decode/wasm/built/dav1d/dav1d.${x}`, "fetch"));
+        if (q.get("hint") === "1") import(`${dec}/av1-webcodecs.js`).then((wc) => wc.probe("g10")).then((ok) => ok || wasm(), wasm);
+        else wasm();
       }
     } else {
-      link("preload", "/client/decode/wasm/vendor/openjph/openjphjs.js", "script");
-      link("preload", "/client/decode/wasm/vendor/openjph/openjphjs.wasm", "fetch");
+      link("preload", "/client/decode/wasm/built/openjph/openjph.js", "fetch");
+      link("preload", "/client/decode/wasm/built/openjph/openjph.wasm", "fetch");
     }
   </script>
   <title>page open — by codec</title>
@@ -49,8 +52,8 @@
       const cfg = await (await fetch("/wt/dev-transport.json")).json();
       mark("config");
       const decoder = q.get("codec") === "av1"
-        ? { codec: "av1", glue: "/lab/.av1-build/out/simd.js", wasm: "/lab/.av1-build/out/simd.wasm", dir: "/lab/.av1-build/out" }
-        : { glue: "/client/decode/wasm/vendor/openjph/openjphjs.js", wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm", dir: "/client/decode/wasm/vendor/openjph" };
+        ? { codec: "av1", ...(q.get("hint") === "1" && { depth: 10 }), glue: "/client/decode/wasm/built/dav1d/dav1d.js", wasm: "/client/decode/wasm/built/dav1d/dav1d.wasm", dir: "/client/decode/wasm/built/dav1d" }
+        : { glue: "/client/decode/wasm/built/openjph/openjph.js", wasm: "/client/decode/wasm/built/openjph/openjph.wasm", dir: "/client/decode/wasm/built/openjph" };
       const c = await DownloaderClient.connect(cfg.wt_url, cfg.cert_sha256, { decoders: 3, decoder });
       mark("session");
       const f = await c.requestExactFrame(0);

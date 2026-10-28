@@ -46,7 +46,7 @@ def main():
     meta = json.loads((a.set_dir / "metadata.json").read_text())
     meta.update(frameCount=n, digests=ingest.digests(s, n, a.codec, a.representation, a.split, a.grey8))
     if a.codec == "av1":
-        meta.update(codec="av1", representation=a.representation)
+        meta.update(codec="av1", representation=a.representation, depth=ingest.plan(s, a.representation, a.split, a.grey8)[0]["depth"])
     if a.codec == "av1" and a.split is not None:
         meta["split"] = a.split
     (a.out / "metadata.json").write_text(json.dumps(meta, indent=1) + "\n")

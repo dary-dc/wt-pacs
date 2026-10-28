@@ -456,9 +456,86 @@ while the first frame does; a WebCodecs payload that probes exact never uses it 
 Config and session are unmoved at every delay. A variant that initialised dav1d at start
 (`-init`, `151c1d9`) saved less — 10.56 round trips over 0–100 ms on the dav1d path against
 `-after`'s 8.28, 1.29 against 1.55 through WebCodecs — and cost the same at 0 ms; it was replaced.
-**Not built:** a depth hint in the decoder config that would skip dav1d's WASM on a ≤ 10-bit series;
+**Not built** (*the depth hint was built since: §A depth hint below*): a depth hint in the decoder config that would skip dav1d's WASM on a ≤ 10-bit series;
 one bundle per worker, which the `-pre` preloads make unnecessary here (every hop already starts at
 the HTML). **Not measured:** a large first frame, 4× CPU, HTTP/3, a real phone.
+
+### A depth hint
+
+**COLDRTT's hint, 2026-10-28.** *Protocol, predictions and rule committed before any timed run.* The cost is
+still there on `claude/av1-unified-mainbase` (`ea581ac`): `client/viewer/head.js` preloads `dav1d.js` and
+`dav1d.wasm` for every AV1 series and `av1.js`'s `init` fetches them again, whatever the depth; open PRs #136
+(transport) and #138 (decode order) do not touch either line.
+
+**The hint.** The series' metadata (`/series/metadata`, which the page already fetches before the decoders
+start, so no round trip) carries `depth`, the payload header's depth of the top stream, written by
+`ingest.py`'s `metadata`. At `depth` ≤ 10 the page and each decoder run WebCodecs' probe of `g{depth}` first
+and preload or fetch dav1d's glue and WASM only if it fails; a payload WebCodecs then fails on still loads
+dav1d on demand. A series without `depth` (every one ingested before) loads both as today.
+
+**Arms.** [`codec.html`](codec.html) `?pre=1` is the product page's preloads (`head.js`); `?hint=1` adds the
+hint. `wc-pre` (A, hint off), `wc-pre2` (A′, the same page again) and `wc-hint` (B), the g10 series (10-bit
+grey, WebCodecs on Chromium), Williams-ordered in each round, 8 rounds, at 10 and then 40 ms, cold profile
+(a fresh one a visit) and warm, headless Chromium, 100 Mbit relay, the dav1d build `client/decode/wasm/build`
+makes, every frame 0 checked against the source's checksum:
+
+```bash
+BEFORE=aeb038e ONLY=wc-pre,wc-pre2,wc-hint RTTS=10,40 ROWS=hint.json NODE_PATH=$(npm root -g) \
+  node lab/page-open/coldrtt.mjs /tmp/coldrtt 8
+# then FIRST_ROUND=8 PRIOR=hint.json ROWS=hint2.json …, 8 more, until every cell keeps ≥ 7 rounds
+```
+
+Each visit records whether `dav1d.wasm` was asked for (the page's or a decoder's request): every A and A′
+visit must ask, no B visit may.
+
+**What is quoted: latency** — ms from navigation to the first exact frame, cold, as the paired B − A and
+A′ − A per round, median, and the rounds B was earlier in.
+
+**Predictions.** At 10 ms B − A is −15 to −40 ms (row 79's +26 ms was this WASM beside the frame) and B is
+earlier in ≥ 6 of 8 rounds; at 40 ms −10 to −60 ms (more of the WASM's slow start overlaps the frame);
+warm a tie (the cache holds the WASM); the session and config unmoved.
+
+**The rule.** A cell is `VOID` — decides nothing — when |median A′ − A| > 10 ms or fewer than 7 rounds kept
+after the relay's `VOID`s. Otherwise B **wins** a cell when the median B − A < −10 ms and B is earlier in
+≥ 80 % of the rounds kept, **loses** with the same thresholds the other way, and **ties** otherwise. The hint
+goes on by default only if it wins at least one cold cell and loses none, and the fallback test (below)
+passes with its mutations caught; otherwise it stays behind the metadata key's absence, as a flag.
+
+**The fallback.** `av1.test.mjs`: a ≤ 10-bit series whose probe fails fetches the WASM at `init` and
+decodes through dav1d; one whose probe passes never fetches it.
+
+**Where the host saturates.** Not measured here past one visit at a time on one 4-core container; the relay
+voids a visit it was late for. Nothing is claimed for Firefox (its probe of `g10` and `g8` fails, so it
+loads the WASM as today, a probe later — not timed), a large first frame, 4× CPU or a device.
+
+**Run 2026-10-28, `34417ca` + the rig's `7f4a749`**, headless Chromium 153, 16 rounds (8, then the 8 the rule's
+top-up asks for: the 10 ms cell had kept 6), 7 of 96 relays `VOID` and dropped, 0 failed, every frame 0 exact;
+`dav1d.wasm` asked in every A and A′ visit (58 cold, 58 warm) and in none of B's (31, 31). The frames are the golden g10
+payload and its `.sha256` copied as `coldrtt_frames.py` copies them (its HTJ2K half needs an encoder this
+container lacks; no HTJ2K arm ran). Rows: [`rows-coldrtt-hint.json`](rows-coldrtt-hint.json). Cold, ms to
+the first exact frame, median [range], and paired against A: rounds earlier / paired, median difference —
+
+| RTT | A `wc-pre` | A′ − A | B `wc-hint` | B − A | cell |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 10 ms | 262 [220–305] | 4/12, +4 | 225 [188–256] | 13/13, **−41** | B wins |
+| 40 ms | 417 [393–448] | 6/14, +8 | 393 [382–419] | 12/14, **−24** | B wins |
+
+Warm, B − A −10.4 (12/13) at 10 ms and −7 (9/14) at 40, A′ − A +5 and +3: by the rule's thresholds a B win at
+10 ms and a tie at 40 (*corrected:* first written as two ties; −10.4 is past the −10 threshold). The spread, cold:
+per round A′ − A runs −22 to +39 ms at 10 and −40 to +26 at 40 (SD ≈ 20); a bootstrap 95 % interval of the median
+B − A is −48 to −25 ms at 10 and −35 to −3 at 40; B − A′ is −44 (15/15) and −15 (13/14). The 40 ms win holds, its
+size is loose.
+
+**Verdict: the hint wins both cold cells and loses none, so it is on by default** — ingest writes `depth`,
+the viewer passes it, a series ingested before keeps today's loads. The predictions: 40 ms inside its
+−10 to −60; 10 ms just past its −15 to −40; warm a tie at 40 ms, and at 10 ms a win the prediction missed. The fallback test holds with 4/4
+mutations caught (the fetch on a failed probe dropped, the hint ignored, the fetch made on a pass, the probe
+of the wrong layout). After the first 8 rounds the 10 ms cell was `VOID` (A′ − A +23, 6 kept) and the 40 ms
+one already won (−26, 6/7); the top-up is the rule's, not a second look chosen after the fact. **Not
+measured:** Firefox, a series whose probe fails (dav1d then loads as before the hint, a probe later), the
+product page itself (`codec.html` mirrors `head.js`'s preloads), HTTP/3, 4× CPU, a device, and a series whose
+first layout is not `g{depth}` — the hint probes `g10` for an RCT colour series' `c10` and `g8` for a 4:2:0 grey's
+`g8f`, and not a split's low `g8`: a wrong guess changes only whether the WASM is fetched ahead, never the decoder.
 
 ## The WASM client's load
 
