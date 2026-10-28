@@ -351,7 +351,7 @@ committed.
 | hot standby; row security policies; licence; 18.6 current | PostgreSQL 18 manual §26.4, §5.9; licence page; versioning page |
 | WAL not over a network filesystem; client/server for many clients | SQLite `wal.html`, `whentouse.html` |
 | ATTACH: atomic across files only outside WAL | SQLite `lang_attach.html` |
-| the PCS's schema and statements | opendicom/DECK_WebTransport `a65abe2`: `doc/PACS/db/deck.db`, `DICMele2deck/pcs.pdf`, `doc/dcmtk-storescp/README.md` |
+| the PCS's schema and statements | DECK_WebTransport (the PCS repository, public) `a65abe2`: `doc/PACS/db/deck.db`, `DICMele2deck/pcs.pdf`, `doc/dcmtk-storescp/README.md` |
 
 **Not verified:** the brief's pcs.pdf and `dicm2decksqlite3` quotations (§2); a product word for dcm4chee's database
 in its documentation; whether MySQL uses an index for a prefix `LIKE` under `utf8mb4_0900_ai_ci` (§11 checks it);

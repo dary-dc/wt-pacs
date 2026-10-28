@@ -6,7 +6,7 @@ item says whose it is. **Decided** = the owner's, dated. **Proposed** = recommen
 **Open** = to discuss (with the owner, the team, the product owner or the PCS team). Each item names the PR that holds
 its evidence; all those PRs are drafts, none merged.
 
-Terms. *PCS*: the hospital-side component (another team's; github.com/opendicom/DECK_WebTransport), which receives,
+Terms. *PCS*: the hospital-side component (another team's; its repository, DECK_WebTransport, is public), which receives,
 parses, encodes and forwards. *Submission package* (OAIS's SIP, ISO 14721): one file the PCS sends. *Study DB*: one
 SQLite-format file per study at the PACS. *Study index*: the database listing studies and series (MySQL fits).
 *Viewer metadata*: everything a viewer reads; *display metadata* is its paint part (codec, frame count, rows/cols,
