@@ -218,7 +218,9 @@ shipping Safari's ITP window; any frame on screen while the page is blocked.
 ## Proposed: the client cache in OPFS · 2026-10-20
 
 **Status:** a design review for the owner; the store's limit and eviction corrected 2026-10-27 for multi-GB studies
-(lever 5, with its defaults). **Built 2026-10-27 with those defaults, not timed** (below). It builds on §1–§8 and on what is
+(lever 5, with its defaults). **Built 2026-10-27 with those defaults; measured 2026-10-27** (§Measurement owed): reopen
+and eviction on Chromium hold; page memory is not bounded (the store worker keeps every frame); eviction fails on Gecko
+under a limit set by pref. It builds on §1–§8 and on what is
 already decided: the page stays in the pixel path (the owner, 2026-10-11, queue row 148: §8.1 settled as A unless a
 measured cost says otherwise); checks stay on, the cache read's re-check included (the owner, 2026-10-11, row 151); a
 frame is never decoded twice; the final image lossless and bit-exact. Sources fetched for this section are added to
@@ -298,7 +300,9 @@ budget holds, from the frame sizes above:
 | 1 GiB | 2 048 | 63 | 39 |
 
 Page memory becomes the budget + frames written but not yet confirmed + the workers (17–144 MiB, row 273), whatever
-the series' size. **Not measured, and a risk:** a `SharedArrayBuffer` is freed only when no agent holds it and each
+the series' size. *Measured 2026-10-27 (M2, below): the risk holds on Chromium, and page memory as built is not
+bounded: the store worker keeps every frame it is sent until a GC that does not come.* (*Corrected in review:* this said
+the window bounds nothing; the diagnostic, 3 rounds, reads the page's side as let go, the store worker's as not.) **Was: not measured, and a risk:** a `SharedArrayBuffer` is freed only when no agent holds it and each
 has collected it (HTML, §9). Dropping it from the `Map` therefore lowers resident memory only after the collectors
 run, on the page and in the store and paint workers. If that lags under a fast fill, the fix is the preallocated
 store already open in [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open (*one preallocated shared store per fill*):
@@ -450,7 +454,7 @@ re-check is the guard, which is why it cannot be switched off for cache reads.
 | failure | seen as | the page does |
 | --- | --- | --- |
 | no OPFS: Firefox private, Safari private (by source), an engine without it | `getDirectory()` rejects | no cache: the window alone (below) |
-| the series does not fit | `truncate` at open throws `QuotaExceededError` or, on Gecko, `NS_ERROR_FILE_NO_DEVICE_SPACE` (*corrected 2026-10-27:* this also read `estimate()`, which lever 5 shows decides nothing) | delete the least recently opened series not open, retry until it fits (lever 5; this said "try once"); else no cache for this series |
+| the series does not fit | `truncate` at open throws `QuotaExceededError` (*corrected 2026-10-27:* this also read `estimate()`, which lever 5 shows decides nothing; *measured 2026-10-27, M3, the limit set by pref:* Gecko 159 throws `NS_ERROR_FILE_NO_DEVICE_SPACE` instead, which the store does not take as a refusal) | delete the least recently opened series not open, retry until it fits (lever 5; this said "try once"); else no cache for this series |
 | the disk fills mid-fill | a write throws, or writes short, though `truncate` passed (a sparse file, lever 5) | delete one such series, retry once; else stop writing this series |
 | Chromium private window | it fits, but the "disk" is RAM in the browser process | the same rule: it caches only what fits 5–6.7 % of RAM, which then lifts nothing; not detectable as such, and not worth special code |
 | storage pressure, or ITP, empties the origin between opens | the manifest is missing | a fresh fill |
@@ -539,6 +543,61 @@ the engine removes a file another tab holds, or refuses later than `truncate`, l
 write past free disk: the profile on a small fixed-size filesystem, a series within quota but beyond free space. It
 passes if the write's failure deletes one series and retries, then stops writing, every frame exact; it records whether
 `truncate` there allocated blocks.
+
+**Pre-registered 2026-10-27, before any run, for the build** (`claude/opfs-cache-build`), on the 4-vCPU agent
+container: a millisecond there is container-measured ([`../rig-limits.md`](../rig-limits.md)). Series are
+`lab/viewer-ceiling/make_series.py`'s, 16-bit grey, 64 distinct fields cycled; every frame is checked twice, by the
+page's XXH3 against the metadata and by the rig's SHA-256 against the encoder input. Arms are ordered per round by
+`lab/order.mjs`; ≥ 7 rounds; each arm's full settings printed with its rows. Rig: `lab/opfs-cache/`.
+
+| cell | arms | measured | predicted | rule |
+| --- | --- | --- | --- | --- |
+| **M1** reopen against a fetch, (4) | **F**: a fresh profile fills over `link_impair.py`, 20 ms one way, 20 Mbit each way, 500-packet queue, 0 % or 2 % iid each way; **R**: the series reopened from OPFS by the product's store worker in the same origin, every frame read and re-checked. Sets: 256 × 512², both links; 32 × 3328×4096, clean only (2 % would take tens of minutes a round) | the series whole and exact in hand: F the page's own `fill` (dial → last frame), R the worker's start → its last read checked. The page cache is warm for R: a cold read is not measured | R ≤ 0.1 × F every round; R ≤ 0.2 s on 512², ≤ 2 s on 3328×4096 | **holds** if R ≤ 0.5 × F in every non-VOID round of every cell; else the store's reopen is no faster than the link and lever 1 returns to the owner. And §7's rule: per frame, R / n against the decode of the same size (3.0 ms at 512², 69–72 ms at 3328×4096, the exactness ADR §9): store decoded if lower on both |
+| **M2** page memory during a fill, (5) | **on**: the store as built; **off**: the store worker answering every call with an error (the page's no-OPFS path), routed by the rig. 80 × 3328×4096 (2.03 GiB) on loopback; 512 × 3328×4096 (13 GiB) on alone | the browser tree's PSS, sampled each second, its peak less its value before the dial | on: growth ≤ 256 + 160 MiB; off: growth ≥ 0.95 × the decoded size; 13 GiB on: ≤ 416 MiB, the fill complete. The off arm at 13 GiB is not run: row 273 saturated this class of host at ~9 GiB | **holds** if every on round is within 416 MiB and complete and exact; a mutant window that never drops must fail it |
+| **M3** a multi-GB study against the store's limit, (8) | the quota overridden to 1 300 MiB (Chromium, DevTools' `Storage.overrideQuotaForOrigin`); four series A–D of 20 × 3328×4096 (520 MiB each) opened in turn in one origin, B held open in a second tab from its open; then the second tab closed and A opened again | the series on disk after each open, read from OPFS; every frame | after A: {A}; B: {A, B}; C: {B, C}, A evicted; D: {B, D}, B skipped as held, C evicted; A again: {A, D}, B evicted. Refusal at `truncate`, never later | **holds** if every step's set is the predicted one and every frame exact, in every round. Mutants: eviction most recent first; no probe of a held series (on Chromium it is predicted to survive: the engine refuses the removal itself) |
+| **M4** a tab killed mid-write, lever 6 | 64 × 3328×4096 filled on loopback in a kept profile; the browser killed (`SIGKILL`, the process group) once the page shows ≥ 32 on disk, then reopened; in half the rounds one present frame's bytes in the profile's OPFS file are flipped before reopening, as a torn write would leave them (a kill alone does not tear: the kernel keeps what was written) | the frames present on reopen; what the fill asks; every frame at the end | present ≥ the count shown at the kill; the fill asks exactly the rest; the flipped frame fails its re-check, is reported and asked again; 64 / 64 exact | **holds** if no round shows a frame not exact, and the flipped frame is caught every time. Mutant: the read without its re-check, which must fail |
+
+**A/A first, and VOID.** M1 runs F and R twice a round (F, F′, R, R′) and M2 runs on twice (on, on′). A cell is
+**VOID** when the median of its A/A ratios over the rounds (F′/F, R′/R) lies outside 0.90–1.10, or, for M2, when the
+median |on′ − on| exceeds 64 MiB; a round in which the relay's own timing guard (`--self-timing`) reads `VOID` is
+dropped and counted. M3 and M4 are rules on states, not timings: no A/A. Firefox and WebKit are run only where the
+container can; a cell not run on an engine says so.
+
+**Measured 2026-10-27** (the rig: `lab/opfs-cache/`, `summary.py`). *Corrected in review:* this pointed to the rows;
+they are not committed (`work/` is untracked), so no number below can be recomputed from the repository. Chromium
+153.0.8010.12, Playwright's headless shell, every cell; Firefox 159.0 on an Xvfb display, M3 only; **WebKit not run** (no build in the container). Every
+frame of every arm was exact by both checks, except where a mutant made it not.
+
+| cell | measured | verdict |
+| --- | --- | --- |
+| M1 · 256 × 512², clean | F 7.49 s [7.49–7.50], R 174 ms [157–208]; R / F ≤ 0.028; A/A F′/F 1.000, R′/R 0.997; 6 rounds, 1 dropped on the relay's guard | **holds**; "R ≤ 0.2 s" missed in 1 round (208 ms) |
+| M1 · 256 × 512², 2 % | F 70.5 s [70.0–71.0], R 187 ms [165–206]; R / F ≤ 0.003; A/A 0.985, 1.073; 6 rounds, 1 dropped | **holds**; "R ≤ 0.2 s" missed in 1 (206 ms) |
+| M1 · 32 × 3328×4096, clean | F 31.11 s [31.09–31.12], R 712 ms [665–773]; R / F ≤ 0.025; A/A 1.000, **1.093**, near the 1.10 bar; 7 rounds | **holds** |
+| §7's rule, from M1 | read + re-check a frame, R / n: 0.68–0.73 ms at 512², 22.3 ms at 3328×4096, against a decode of 3.0 and 69–72 ms | **decoded samples stay**: lower on both sets. The page cache was warm; a cold read is not measured |
+| M2 · 80 × 3328×4096, 2.03 GiB | growth on 2 521 MiB [2 394–2 543], on′ 2 524 [2 398–2 532], off 2 287 [2 184–2 359]; A/A median \|on′ − on\| 11 MiB; 7 rounds, all complete | **fails**: on is over 416 MiB in 7 of 7, and above off. The never-drops mutant reads 2 529 MiB, the same: it fails the rule, but so does on, so it separates nothing. That mutant ran apart, not interleaved with on. *Corrected in review:* this read "the window bounds nothing"; what is measured is that page memory is not bounded (why: below) |
+| M2 · 512 × 3328×4096, 13 GiB, on | the host's guard (under 1 536 MiB available) stopped 7 of 7 at 12.0–12.7 GiB of growth, ~460 of 512 frames, all exact so far | **fails**. **The container saturates there**: nothing past ~12 GiB of growth is claimed |
+| M3 · Chromium | 7 of 7 rounds, every step's set as predicted, every frame exact; refusal at `truncate` (`QuotaExceededError`). Mutants: most recent first caught; no probe survived, as predicted (Chromium refuses `removeEntry` under any handle) | **holds** |
+| M3 · Firefox, `fixedLimit` 1 300 MiB per site | 0 of 6 rounds (a 7th hung in the rig's BiDi driver, killed at 26 min: dropped; the pre-registered ≥ 7 rounds not met, and VOID is not a rule M3 has). At C, Gecko's `truncate` throws `NS_ERROR_FILE_NO_DEVICE_SPACE`, not a `QuotaExceededError`; the store stops the series and evicts nothing, so C and D run on the window alone, exact | **fails on Gecko: lever 5's rule is wrong there**, by one error name, under the limit set by pref; Gecko's own limit not run. With the store also taking that name (a stand-in): 2 of 2 rounds hold, B skipped while held, short of 7: not a verdict |
+| M4 | 7 of 7: shown at the kill 32–34, present on reopen 32–36 (never fewer); the fill asked exactly the rest; the flipped frame caught 4 of 4, reported and asked again; 64 / 64 exact at the end. Mutant without the re-check: caught by SHA-256, while the page marked the frame exact | **holds** |
+
+**Why M2 fails** (a diagnostic after the cells, not pre-registered, 3 rounds each of the 2 GiB on arm, `--expose-gc`).
+Growth stays at 2 376–2 379 MiB 30 s after the fill, and after `gc()` on the page. `gc()` in the store worker
+brings it to 530–532 MiB; the paint, downloader and decoder workers then change nothing. So the store worker holds
+every frame it was sent: each write's `SharedArrayBuffer` stays until that worker's isolate collects, which it does
+not on its own. Lever 2's risk holds (below). Even fully collected, growth is 530 MiB, over the 416 predicted.
+`measureUserAgentSpecificMemory` is not exposed in the headless shell, so the page/worker split row 273 used is not
+read here.
+
+**Seen along the way, not pre-registered.** A viewer's lock on its series outlived its page by 1.6–1.9 s after a
+navigation (M3) and 7.7–9.2 s after a fill (M4): a reopen in that time runs without the cache. The status line's
+`on disk` lags the writes, since it is redrawn only at the next frame. A frame asked again after a failed re-check
+counts towards the fill's end, so the page's `fill` time was stamped one frame early in 2 of M4's 4 flipped rounds.
+Gecko also refuses `removeEntry` under an open handle, and a write past its limit returns 0 bytes instead of throwing
+(one run each, same worker); (9) is not run. CPU: M1's fetches 10–20 % busy (link-bound), M2's off arm 80 % (three
+decoders on four cores).
+
+**Left open:** the fix for M2 (lever 2's ring of slots, or a store worker that does not keep what it is sent) and for
+Gecko's error name, both the owner's; WebKit; (5) on Firefox; (9); questions 2 and 6.
 
 ### Options, and what each costs
 
