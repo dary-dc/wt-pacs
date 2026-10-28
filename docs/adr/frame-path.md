@@ -333,7 +333,7 @@ ours does not keep the browser from clearing the origin: every engine clears on 
 origin nears its own quota, where writes are only refused (below). And plain LRU evicted to stay under a budget,
 without asking whether the series about to be written fits. What follows replaces it; the quota table below stands.
 
-**The studies it must hold,** decoded, 16-bit, from [`../FIXTURES.md`](../FIXTURES.md) and
+**The studies it must hold,** decoded, 16-bit (the ultrasound at its 8 bits), from [`../FIXTURES.md`](../FIXTURES.md) and
 [`../av1/series.md`](../av1/series.md) §1c. The DBT rows are four views at one system's sizes from different exams,
 not one patient's; slices grow ~1 per mm of breast (series.md §1c).
 
@@ -351,7 +351,7 @@ not one patient's; slices grow ~1 per mm of breast (series.md §1c).
 
 | engine | the real limit, per origin | what `estimate().quota` says | what clears the origin whole, best-effort |
 | --- | --- | --- | --- |
-| Chromium | 60 % of disk, checked at `truncate` and at every write that grows the file | **usage + 10 GiB**, whatever the disk: the static reported quota, on by default | a round that starts when all origins pass 0.7 × the pool (56 % of disk), or free disk falls under min(2 GiB, 10 %); LRU, persisted spared |
+| Chromium | 60 % of disk, checked at `truncate` and at every write that grows the file | **usage + 10 GiB** on any disk of 10 GiB or more: the static reported quota, on by default | a round that starts when all origins pass 0.7 × the pool (56 % of disk), or free disk falls under min(2 GiB, 10 %); LRU, persisted spared |
 | Gecko | 10 % of disk, at most 10 GB, per site; **50 %** once persisted | that limit, as it is | the global limit (50 % of disk) reached: inactive best-effort origins, LRU; an origin with open files skipped |
 | WebKit | 60 % of the volume in a browser, 15 % in an app's web view | a standard figure doubled until ≥ 2 × usage, capped at the limit: low early | total quota (80 % / 20 %), LRU, sparing open pages and persisted; ITP's deletion (§4, lever 8) |
 
@@ -369,7 +369,9 @@ function of the available storage space" (Storage §Usage and quota).
   until usage grows, so the store would evict for room it has; only Gecko's is the limit. Headroom under the limit
   buys nothing: reaching it refuses our write, harmlessly; device pressure clears us whatever our margin.
 * **Trying.** The series' size is known before a byte arrives (n × frameBytes, lever 3), and `truncate` to it is the
-  engine's own answer, the same on all three. **Recommended:** no budget of ours; the limit is the engine's, found by
+  engine's own answer. *Corrected 2026-10-28:* not "the same on all three" — Gecko refuses with
+  `NS_ERROR_FILE_NO_DEVICE_SPACE` (`dom/quota/FileStreams.cpp` 35–36; #204's M3), so the store takes both names as a
+  refusal. **Recommended:** no budget of ours; the limit is the engine's, found by
   `truncate` at open. `estimate()` decides nothing.
 
 **Eviction: least recently opened first, only to make room.**
@@ -381,16 +383,17 @@ function of the available storage space" (Storage §Usage and quota).
   nothing is left to delete. Nothing is evicted on a timer or to keep a margin.
 * **Never evicted:** a series open in any tab. This tab's store worker knows its own; another tab's it learns by taking
   the victim's sync access handle first, which throws `NoModificationAllowedError` while that tab holds it (§4), and
-  then skips it. It deletes while holding the handle, so no tab opens it between. The spec's `removeEntry` takes no
-  lock (fs `index.bs` 993–1035); whether each engine removes a file under its own handle is not traced. Nothing else is
+  then skips it. The spec's `removeEntry` takes no lock (fs `index.bs` 993–1035). *Corrected 2026-10-28:* this said
+  it deletes while holding the handle; Chromium 153 and Gecko 159 refuse `removeEntry` under any open handle, its own
+  included (#197, #204), so the store closes the handle, then removes. WebKit not run. Nothing else is
   protected: a prior study not open is as evictable as any.
 * **A series bigger than the store** (still refused with nothing left to delete): kept nowhere on disk; it runs on the
   window alone, and 124b's rule applies past it. Keeping the part around the reader needs slots reused by index, an
   index, and eviction inside a series: the per-frame machinery lever 3 removed, for a case not measured as common.
 * **The disk fills mid-fill.** `truncate` reserves quota, not disk: Chromium sizes the file with `ftruncate`, which
   allocates no blocks on ext4, f2fs or APFS, and Gecko's is a truncate behind the same quota check (WebKit not traced).
-  So a write can still throw. The same rule, once: delete the least recently opened series not open and retry the
-  write; else stop writing this series. Frames already written stay present.
+  So a write can still fail: it throws on Chromium, and on Gecko returns 0 bytes written (#204, one run). The same
+  rule, once: delete the least recently opened series not open and retry the write; else stop writing this series. Frames already written stay present.
 * **`persist()`, asked at the first series opened** (124e: "ask"). It is what spares a multi-GB store from device
   pressure on Chromium and WebKit, and it lifts Firefox from 10 GB to 50 % of disk. Its cost is Firefox's prompt as
   the series opens (lever 8).
@@ -436,8 +439,8 @@ re-check is the guard, which is why it cannot be switched off for cache reads.
 | failure | seen as | the page does |
 | --- | --- | --- |
 | no OPFS: Firefox private, Safari private (by source), an engine without it | `getDirectory()` rejects | no cache: the window alone (below) |
-| the series does not fit | `truncate` at open throws `QuotaExceededError` (*corrected 2026-10-27:* this also read `estimate()`, which lever 5 shows decides nothing) | delete the least recently opened series not open, retry until it fits (lever 5; this said "try once"); else no cache for this series |
-| the disk fills mid-fill | a write throws though `truncate` passed (a sparse file, lever 5) | delete one such series, retry once; else stop writing this series |
+| the series does not fit | `truncate` at open throws `QuotaExceededError` or, on Gecko, `NS_ERROR_FILE_NO_DEVICE_SPACE` (*corrected 2026-10-27:* this also read `estimate()`, which lever 5 shows decides nothing) | delete the least recently opened series not open, retry until it fits (lever 5; this said "try once"); else no cache for this series |
+| the disk fills mid-fill | a write throws, or writes short, though `truncate` passed (a sparse file, lever 5) | delete one such series, retry once; else stop writing this series |
 | Chromium private window | it fits, but the "disk" is RAM in the browser process | the same rule: it caches only what fits 5–6.7 % of RAM, which then lifts nothing; not detectable as such, and not worth special code |
 | storage pressure, or ITP, empties the origin between opens | the manifest is missing | a fresh fill |
 | the files vanish while open | a read throws | a miss: ask the downloader |
@@ -535,7 +538,6 @@ passes if the write's failure deletes one series and retries, then stops writing
 | window by distance, `Map` (lever 2) | memory bounded by a constant | depends on collection; one constant for every device | the constant is configuration |
 | slot ring (lever 2) | memory fixed by construction | the decoders' hand-off changes | structural |
 | the engine's limit, LRU to fit, by series (lever 5; *corrected 2026-10-27*, was "own LRU budget by series: the browser never evicts us") | multi-GB studies held up to each engine's quota; fit tested by `truncate` | the browser may still clear the origin unless persisted | configuration |
-| a budget of our own (fixed, or a fraction of `estimate()`) | a margin we choose | refuses multi-GB studies or never binds; `estimate()` means three things | configuration |
 | without OPFS: drop and re-ask | the tab survives | a second decode of a dropped frame | configuration |
 | without OPFS: keep all | no frame decoded twice | today's ceiling, the tab at risk | configuration |
 
@@ -545,10 +547,9 @@ passes if the write's failure deletes one series and retries, then stops writing
 2. **Without OPFS** (Firefox and Safari private windows, a quota too small): past the window's budget, drop the farthest
    frame and ask for it again, or keep everything as today? Per engine: lever 8.
 3. **The window's starting budget:** 256 MiB until D5 says what a phone kills a tab by, or D5 first? *2026-10-27:* the
-   owner's reply on budgets concerns the store on disk (lever 5); the window, RAM per tab, stays at 256 MiB.
+   owner's reply on budgets concerns the store on disk (lever 5).
 4. **Eviction across series:** plain LRU inside a budget of ours (proposed), or the size- or link-weighted variant now?
-   *Answered 2026-10-27 (lever 5):* no budget of ours; least recently opened first, only when a `truncate` is refused;
-   a series open in any tab never.
+   *2026-10-27:* lever 5 proposes no budget of ours, eviction only to fit; still the owner's.
 5. **`persist()`** (§8.5): ask for it on the first series opened, or never? Per engine: lever 8. *2026-10-27:* lever 5
    recommends asking, for multi-GB studies; still the owner's.
 6. **A series already whole in OPFS:** dial the session anyway (ready for asks, one handshake), or only on a miss?
