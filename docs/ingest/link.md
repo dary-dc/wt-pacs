@@ -680,7 +680,9 @@ The viewer's server and its patched QUIC endpoint are untouched.
 ### 12.5 The PCS's side
 
 `carrier/pcs/send-package.sh PACKAGE`: POSIX `sh` (run under dash) and stock curl (tested with 8.5.0). One run per
-package; the PCS's scheduler starts it.
+package; the PCS's scheduler starts it, or our sender does: `carrier/sender` builds the package from the exam tree,
+checks the kept file against its name, and runs this script, embedded in it, unchanged
+([`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §15).
 
 | variable | is | default |
 | --- | --- | --- |
