@@ -465,7 +465,7 @@ and asks every step whose frame is missing, as today.
   re-issued from that frame (`stream_frames` from it), the earlier frames after it, unless the run on the wire was
   already aimed at or before it and reaches it. The step's waiter settles when the fill delivers the frame.
 
-**The shape.** `dbt10_ea1141` (24 frames, 0.57 MB), once 10 % has landed: the cursor jumps to frame 14 and steps one
+**The shape.** `dbt10_ea1141` (24 frames of 0.57 MB), once 10 % has landed: the cursor jumps to frame 14 and steps one
 frame every 500, 100 or 20 ms to the last, 23; ten steps. Its readings: **stale**, the time the cursor showed another
 frame than its own (each step's wait for its frame, cut at the next step; the last step's whole), the latency the rule
 judges; **rest**, the last step to its frame, reported; **the fill**, its issue to its last frame on the page.
@@ -503,7 +503,7 @@ runs, one per arm at 18/500 and 103/20) ran before this was written, to check th
   wins both cells, the lower stale ratio if both do, every step if neither. It is decided only where the strict reading
   (rounds a `VOID` visit touched dropped) and the round-paired one agree; a regime with a `VOID` cell, or whose readings
   disagree, is **not resolved on this host**, its round-paired reading reported as a leaning.
-* **Its limits:** one 0.57 MB series, one RTT, no loss, the container rig, Chromium only, one session; nothing past
+* **Its limits:** one series, 13.6 MB ("0.57 MB" here and above was a frame's size, the review's correction), one RTT, no loss, the container rig, Chromium only, one session; nothing past
   the relay's ceiling.
 
 **Measured (SCROLLPOLICY, 2026-10-27): on today's server, every step stays below R ÷ S and the cursor's frame only is
@@ -517,7 +517,9 @@ page `ASK_AT=0.1&asks=10&every=MS`, frames 14–23. Rows `rows-scrollpolicy.json
 `rows-scrollpolicy-aa.jsonl`, `rows-scrollpolicy-ceiling.jsonl`; **every frame SHA-256-exact, none failed**.
 
 * **The A/A campaign first** (7 rounds, 112 runs): Ep ÷ E ×0.987–1.005 on stale and the fill in all eight cells, but
-  27 visits `VOID`, 36–43 % in five cells. **The main campaign's** A/A ×0.996–1.006 everywhere, and 44 of 320 visits
+  27 visits `VOID`, 36–43 % in four cells (QW's 18/500, 18/100 and 103/100, and today's 18/100), 0–14 % in the rest;
+  "five cells" until the review. Today's 18/100, which decides today's above-R ÷ S answer, was 43 % `VOID` there and
+  15 % in the main campaign the rule reads. **The main campaign's** A/A ×0.996–1.006 everywhere, and 44 of 320 visits
   `VOID`: 5–15 % in six cells, **28 % (QW 18/500) and 25 % (QW 18/100)**, so those two cells are `VOID` by the rule.
 * **The relay's ceiling**, fills with no ask at 2 ms: 17.7 Mbit/s at 18, 100.1–100.4 at 103, 166–193 at 200 with one
   of three visits `VOID`: **the host saturates between 103 and 200 Mbit/s**; nothing is claimed past 103.
@@ -543,15 +545,19 @@ page `ASK_AT=0.1&asks=10&every=MS`, frames 14–23. Rows `rows-scrollpolicy.json
   fill +0.69 s and +0.25 s (×1.11, ×1.17), C a tie at 18 and better at 103; above, C (×0.61, ×0.75), the fill a tie.
 * **Predictions.** Today's C, a tie: held below, **contradicted above** (×0.69 both rates). Today's F: stale a tie
   **contradicted below** (×0.91, ×0.82; the rest falls to 0.48 s and 0) and held above; its fill cost held, +2.47 s
-  and +0.47 s against B ÷ R's 2.8 and 0.49. QW's C: held, ×0.61 and ×0.75 above against ≈ ×0.6 and ×0.75; below a tie
-  at 18 as predicted, ×0.91 at 103 not. QW's F: held below, ×0.31 and ×0.52 against ≈ ×0.3 and ×0.4, a tie above; its
-  fill cost larger than predicted, ×1.11–1.25 against ≈ ×1.1.
+  and +0.47 s against B ÷ R's 2.8 and 0.49. QW's C above: held at 103/20, ×0.75 against ≈ ×0.75; ×0.61 at 18/100 is a `VOID`
+  cell's leaning, not a reading; below a tie at 18 (`VOID`) and ×0.91 at 103, not a tie; its fill, a tie predicted,
+  ×0.94 better at 103/100. QW's F below: better at 103/100 as predicted but weaker, ×0.52 against ≈ ×0.4; ×0.31 at
+  18/500 a `VOID` cell's leaning; a tie above as predicted; its fill cost larger than predicted, ×1.11–1.25 against
+  ≈ ×1.1. (Until the review this read "QW's C: held" and "QW's F: held below", from `VOID` cells.)
 * **Not explained here:** why one ask for the newest step beats ten in order on today's server, where every ask was
   predicted to wait behind the 6 MiB credit alike. A guess, not measured: the head re-issue of the fill goes out on the
   first ask's head, and the second ask, sent when that frame lands, ends that refill before most of it is written.
 * **What it means for the viewer** (D): the policies split by regime and no one wins both. F's gain below R ÷ S is paid
-  in the fill on both servers, mostly because the client drops the frames an earlier run had written ahead; keeping
-  them is the change F would need before it could win. C costs nothing measured and helps above R ÷ S on both servers.
+  in the fill on both servers; the predicted cause, the client dropping the frames an earlier run had written ahead, is
+  consistent with F's runs sending 29–37 % more packets than E's on today's server and 10–23 % on QW's, but not isolated.
+  Keeping them is the change F would need before it could win. C lost no cell and helps above R ÷ S on today's server
+  and at QW's 103/20; QW's 18/100 is `VOID`, a leaning. ("Mostly because" and "on both servers" until the review.)
 
 ### Questions for the owner
 
