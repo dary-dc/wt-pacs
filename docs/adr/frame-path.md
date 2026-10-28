@@ -214,3 +214,58 @@ Every file was fetched on 2026-10-11 and is listed with its URL and sha256 in
 
 **Not verified:** nested-worker sync handles per engine; Gecko's `flush()` at the OS; how Chromium's `mode` values lock;
 shipping Safari's ITP window; any frame on screen while the page is blocked.
+
+## Target: the view worker · 2026-10-28
+
+**Status:** the owner's next target design for the client, 2026-10-28. It takes B′ (§1) further: the page leaves the
+pixel path *and* the asking, and the frame store, the cache I/O and the paint share one worker. §8.1 was settled as A
+on 2026-10-11 (queue row 148) unless a measured cost says otherwise; §7's rule is that measurement, so the design is
+built as a switchable arm and adopted only if §7 passes. Theory: nothing here is measured.
+
+```
+page (UI only)  ── show(i) · setDisplay · play · pause · valueAt ──►  view worker
+                ◄─ shown {i, exact} · progress · failed ───────────   ├ controller   what to want, in what order; cine clock
+                                                                      ├ frame store  where a frame comes from: memory → OPFS → downloader
+                                                                      └ paint module WebGL2, VOI table, display state
+downloader worker ◄── want {misses, in order, generation} · ack ───── frame store
+  session · records · wire ── started · failed ─────────────────────► frame store
+  └ decoders (nested) ── frame {SharedArrayBuffer, exact} ──────────► frame store
+```
+
+**Responsibilities.**
+
+* **The page** sends intents and listens to events. It never holds a frame. Pixel tools ask `valueAt(x, y)`.
+* **The controller** decides: the current frame, the order of what it wants (the frame asked first, then the window
+  and the look-ahead), the cine clock. It tells the store what it wants and the paint module what to paint. It never
+  sees the downloader or OPFS.
+* **The frame store** answers "is frame *i* here" and gets the frames it is told to want. For each, in the controller's
+  order, it looks in memory, then OPFS, and sends the downloader only the misses; it never reorders them. `has` and
+  `get` only read: neither reaches the network. Frames from the decoders land in it; it acks the downloader and reports
+  `arrived(i)` or `failed(i)`. A frame read back from OPFS that fails its check (§5) is asked again by the store.
+  Eviction follows the want: what falls outside it leaves memory first, farthest from the current frame first.
+* **The paint module** is a module of the view worker, not a worker: today's paint worker code, with the display state
+  (window, invert, pose) and the VOI table. A window change repaints with no frame moving.
+* **The downloader** keeps the session, one record per owed frame, survival and the wire: it turns the want into
+  ranges and asks ([`../WIRE.md`](../WIRE.md)), FIFO on the server ([`reject-server-ordering.md`](reject-server-ordering.md)).
+
+**Rules.**
+
+* **One owner per frame at a time.** The downloader owns what is owed (asked, in flight, decoding); the store owns what
+  is here. A frame changes owner at the ack (row 147's rule), so the two never hold the same frame's state.
+* **Paint first.** A frame that arrives and is the one on screen is painted before its cache write; the write runs off
+  the latency path. How it is scheduled is the cache arms' question (below).
+* **The controller decides what; the store decides from where.**
+
+**Per frame of a fill, counted from the design:** four messages (decode, frame, done, ack), none on the page; four
+context crossings (network → downloader → decoder → view worker → GPU); the samples written once, as today.
+
+**Open, each with what decides it.**
+
+| question | decided by |
+| --- | --- |
+| the cache I/O: a sync handle in the view worker, async OPFS in it, or a store worker | shown frame on time while a fill writes, write rate, miss read (row OPFSARMS) |
+| a frame clock in a dedicated worker, per engine | sources, then cine frames late under a busy page (row WORKERCLOCK) |
+| who owns a frame's memory: the decoders hold each one during a fill (§Proposed M2 on `claude/opfs-cache-fixes`) | peak memory of a fill under the window (row FRAMEMEM) |
+| the asking patterns as wants, and what the wire lacks | each pattern's deciding measurement (row ASKMAP) |
+| several viewports: one view worker for all, or one each | not weighed |
+| adoption | §7's rule, run on the arm built on `claude/view-worker` |
