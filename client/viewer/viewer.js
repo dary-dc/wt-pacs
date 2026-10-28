@@ -31,6 +31,12 @@ if (q.get("check")) {
   setTimeout(() => stop(`no result in ${q.get("deadline") ?? 120} s`), (q.get("deadline") ?? 120) * 1000);
 }
 const frames = new Map();
+/** RAM per tab for frames already on disk, the farthest from the current frame dropped first. docs/adr/frame-path.md §Proposed, lever 2 */
+const WINDOW_BYTES = 256 * 2 ** 20;
+let windowBytes = 0;
+const stored = new Set();
+let store = null;
+let delivered = 0;
 const seen = { exact: 0, inexact: 0, unchecked: 0, paths: {} };
 const errors = [];
 let current = 0;
@@ -95,14 +101,32 @@ function repaint() {
   return painting;
 }
 
+function keep(i, info) {
+  frames.set(i, { info, arrived: at() });
+  windowBytes += info.pixels?.byteLength ?? 0;
+  if (i === current) repaint();
+}
+
+/** Drops frames already on disk, farthest from the current one first, until the window is within its budget. */
+function trim() {
+  while (windowBytes > WINDOW_BYTES) {
+    let far = -1;
+    for (const i of frames.keys()) if (stored.has(i) && (far < 0 || Math.abs(i - current) > Math.abs(far - current))) far = i;
+    if (far < 0 || far === current) return;
+    windowBytes -= frames.get(far).info.pixels.byteLength;
+    frames.delete(far);
+  }
+}
+
 function take(f) {
   if (frames.has(f.frameIndex)) return;
-  frames.set(f.frameIndex, { info: f.info, arrived: at() });
+  keep(f.frameIndex, f.info);
+  delivered++;
+  store?.write(f.frameIndex, f.info).then((r) => r.written && (stored.add(f.frameIndex), trim()));
   const e = f.info.exact;
   seen[e === true ? "exact" : e === false ? "inexact" : "unchecked"]++;
   if (f.info.path) seen.paths[f.info.path] = (seen.paths[f.info.path] ?? 0) + 1;
-  if (fillMode && fillMs === null && frames.size === n) fillMs = at() - issuedAt;
-  if (f.frameIndex === current) repaint();
+  if (fillMode && fillMs === null && delivered === rest.length) fillMs = at() - issuedAt;
   status();
 }
 
@@ -112,8 +136,9 @@ function status() {
   statusEl.textContent = [
     `frame ${current + 1} of ${n}`,
     `client ${transport.client}`,
-    `received ${frames.size}, exact ${seen.exact}, not exact ${seen.inexact}, unchecked ${seen.unchecked}`,
+    `received ${delivered}, exact ${seen.exact}, not exact ${seen.inexact}, unchecked ${seen.unchecked}`,
     `decoders: ${paths}`,
+    ...(store ? [`on disk ${stored.size}`] : []),
     `codec ${meta.codec ?? "htj2k"}`,
     `renderer ${rendererName}${soft}`,
     fillMs !== null ? `fill ${Math.round(fillMs)} ms` : fillMode ? "filling" : "on demand",
@@ -125,12 +150,30 @@ const options = lab.opts;
 const decoder = options.decoder ?? (meta.codec === "av1" ? { codec: "av1", ...(await built("dav1d")) } : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const all = [...Array(n).keys()];
+
+/** The store worker for this series, or null without OPFS or its lock: the page then keeps every frame. */
+async function openStore(key) {
+  const worker = new Worker("/client/viewer/store.js", { type: "module" });
+  const replies = new Map();
+  let id = 0;
+  const call = (kind, m) => new Promise((resolve) => (replies.set(++id, resolve), worker.postMessage({ kind, id, ...m })));
+  worker.onmessage = ({ data }) => (replies.get(data.id)(data), replies.delete(data.id));
+  const died = new Promise((resolve) => (worker.onerror = () => resolve({ error: "the store worker did not start" })));
+  const { present, error } = await Promise.race([call("open", { key, digests }), died]);
+  if (error) return void worker.terminate();
+  for (const i of present) stored.add(i);
+  navigator.storage.persist?.().catch(() => {});
+  return { write: (index, info) => call("write", { index, info }), read: (index) => call("read", { index }) };
+}
+// Only a series with digests is stored: a frame is kept on disk once its check is true. The key: docs/adr/frame-path.md §Proposed, lever 6
+store = digests ? await openStore(transport.wt_url) : null;
+const rest = all.filter((i) => !stored.has(i));
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
 issuedAt = at();
 const client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
   transport: transport.module,
-  ...(fillMode && { fill: all }),
+  ...(fillMode && { fill: rest }),
   // The file follows a restarted server; a pair the lab named stays pinned.
   transportFile: lab.pinned ? undefined : transportFile,
   digests,
@@ -145,6 +188,21 @@ const client = await DownloaderClient.connect(transport.wt_url, transport.cert_s
   throw e;
 });
 
+if (fillMode && !rest.length) fillMs = 0;
+
+/** A frame on disk, re-checked by the store worker; one that fails is asked again. */
+async function fromStore(i) {
+  const r = await store.read(i);
+  if (r.info) {
+    if (!frames.has(i)) keep(i, r.info);
+    trim();
+    return true;
+  }
+  stored.delete(i);
+  fail(`frame ${i} on disk: ${r.miss ?? r.error}, asked again`);
+  return false;
+}
+
 /** Each pending ask's frame and the step that made it; a cancel empties it. */
 const asks = new Map();
 let steps = 0;
@@ -154,6 +212,7 @@ async function show(i) {
   status();
   if (frames.has(current)) return repaint();
   const want = current;
+  if (stored.has(want) && (await fromStore(want))) return;
   if (asks.has(want)) return;
   const step = ++steps;
   if (!fillMode && asks.size) {
@@ -170,7 +229,7 @@ async function show(i) {
     if (asks.get(want) === step) asks.delete(want);
   }
 }
-if (!fillMode) show(0);
+if (!fillMode || stored.has(0)) show(0);
 
 let cine = null;
 const cineEl = document.getElementById("cine");
@@ -251,7 +310,7 @@ if (q.get("check") || lab.finished) {
   await new Promise((resolve) => {
     const poll = setInterval(() => {
       // The check judges a fill that stops short rather than waiting on it.
-      if (frames.size + errors.length >= n || (!fillMode && frames.size) || performance.now() > giveUp) {
+      if (delivered + errors.length >= rest.length || (!fillMode && frames.size) || performance.now() > giveUp) {
         clearInterval(poll);
         resolve();
       }
