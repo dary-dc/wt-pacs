@@ -179,6 +179,13 @@ step "server: tests, telemetry feature"
 run 1 cargo test -p series-server --features telemetry --quiet -- --nocapture
 step "client: the native core over raw QUIC, against the server and a WebTransport client"
 run 1 cargo test -p native-client --quiet
+step "client: the native painter at 1:1 against the browser suite's CPU reference (wgpu on Mesa lavapipe)"
+lvp="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | head -1 || true)"
+if [[ $numpy -eq 1 && -n "$lvp" ]]; then
+  run 1 env PYTHON="$PYTHON" VK_ICD_FILENAMES="$lvp" node client/paint/native.mjs --zoom1
+else
+  skip "the native painter check needs numpy (PYTHON=...) and Mesa lavapipe (mesa-vulkan-drivers)"
+fi
 step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"
