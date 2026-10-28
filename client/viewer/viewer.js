@@ -206,7 +206,7 @@ const KEYS = {
   0: reset, Escape: reset,
 };
 addEventListener("keydown", (e) => {
-  const k = KEYS[e.key];
+  const k = KEYS[e.key] ?? KEYS[e.key.toLowerCase()];
   if (!k || e.target === cineEl) return;
   e.preventDefault();
   k();

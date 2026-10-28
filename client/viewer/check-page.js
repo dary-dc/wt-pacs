@@ -27,9 +27,14 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
   const last = current();
   press("Home", "ArrowLeft");
   out.ends = `${current()} ${last}`;
+  const looks = () => display(current(), frames.get(current()).info);
   press("r", "h", "v");
-  const { rotate, flipH, flipV } = display(current(), frames.get(current()).info).view;
+  const { rotate, flipH, flipV } = looks().view;
   out.turned = { modality, view: `${rotate} ${flipH} ${flipV}` };
+  press("I");
+  const inverted = looks().invert;
+  press("i");
+  out.cased = `${inverted} ${looks().invert}`;
   const step = async (name, fn) => {
     try {
       out[name] = await fn();
