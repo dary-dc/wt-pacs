@@ -91,7 +91,7 @@ struct App {
     center: f64,
     width: f64,
     fit: bool,
-    drag: Option<(f64, f64)>,
+    cursor: Option<(f64, f64)>,
     held: bool,
     gpu: Option<Gpu>,
     check: Option<PathBuf>,
@@ -228,13 +228,13 @@ impl ApplicationHandler<(u32, Vec<u8>)> for App {
             }
             WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => self.held = state == ElementState::Pressed,
             WindowEvent::CursorMoved { position, .. } => {
-                if let (true, Some((x, y))) = (self.held, self.drag) {
+                if let (true, Some((x, y))) = (self.held, self.cursor) {
                     self.width = (self.width + position.x - x).max(1.0);
                     self.center += position.y - y;
                     println!("window center={} width={}", self.center, self.width);
                     self.redraw();
                 }
-                self.drag = Some((position.x, position.y));
+                self.cursor = Some((position.x, position.y));
             }
             _ => {}
         }
@@ -282,7 +282,7 @@ fn main() -> Result<()> {
         center,
         width,
         fit: false,
-        drag: None,
+        cursor: None,
         held: false,
         gpu: None,
         check: args.check.clone(),
