@@ -57,6 +57,10 @@ level that changed, possibly as differences. The PACS confirms storage before th
 Commitment's model, PS3.4 Annex J), refuses a bad package so the PCS resends, and a second failure goes to an operator.
 Sites differ: fiber, 5G, satellite, rural clinics without fiber; a QUIC transfer for some sites was discussed, not
 decided ([`../ingest/link.md`](../ingest/link.md) stands).
+*Corrected 2026-10-28:* "one file, not a tree" is open again: the team meeting of 2026-10-28 reopened rsync of
+the PCS's tree, a trigger from the PCS after its rsync marking completeness and a status file pulled back as the
+reply. XXH3 is wt-pacs's choice; the PCS keeps BLAKE3 by its team's, a known difference by design (full record:
+the design state, `pacs-receive-design.md`, #168).
 
 **The PCS team's document** (`pcs.pdf`, updated 2026-10-23, not in this repository) is quoted verbatim where this record
 relies on it:
@@ -103,6 +107,9 @@ package carries whichever layout the parser writes; the PACS must know which, so
 | a dropped link | per-file resume | resume inside the package | resume inside a larger package; more to redo if resume fails |
 | the PDF's process (2) | already waits for a whole series (P2) | **same unit** | waits for a study, which P2 does not define |
 | switching later | to a package: the PACS stops rebuilding what the PCS already built | to a study unit: a study package could hold series packages (*inference*) | to series: every commitment and name changes |
+
+*Corrected 2026-10-28:* the file-by-file column's "must guess" and "which nothing marks" do not hold when the PCS
+sends a trigger after its rsync: the PCS decides completeness and the trigger tells the PACS (the design state, `pacs-receive-design.md`, #168).
 
 **Study-level data** (the exam group: patient and study attributes) travels in **every series package** of the study: it
 is a few kilobytes, named by its hash, so the PACS keeps one copy and the duplicates cost bytes only. A change to it
@@ -214,7 +221,7 @@ one place for what the name cannot carry well. No manifest beyond it: the member
 | possible at all | yes | yes | not for the package's own hash: it cannot contain itself |
 
 **The name:** `<unit>.<n>.<h>.tar`: the unit's coded UID (contract.md §The coding), the revision, the 16-hex XXH3-64 of
-the file as sent. The group files keep their own hash names, XXH3 replacing BLAKE3 (§1).
+the file as sent. The group files keep their own hash names, XXH3 replacing BLAKE3 (§1; *corrected 2026-10-28:* in wt-pacs's contract; the PCS keeps BLAKE3).
 
 ### Idempotency: the same package twice
 
@@ -302,7 +309,7 @@ TLS compresses nothing: TLS 1.3 requires `legacy_compression_methods` to be the 
 | TLS 1.3 / QUIC AEAD (RFC 8446 §5.2; RFC 9001 §5) | each record or packet on the wire | the sending TLS stack | the receiving TLS stack | nothing changed or was injected on that hop | anything before encryption at the PCS or after decryption at the PACS; a proxy that terminates TLS ends it there |
 | the carrier's own (rsync's whole-file checksum; tus `Upload-Checksum`; none in the draft) | one transfer or one chunk | the carrier | the carrier | the transfer | the file on disk before or after |
 | **the package's XXH3-64, in its name** | the package as sent | the PCS, once, after writing it | the PACS, before unpacking | the PACS holds the bytes the PCS hashed: across disks, proxies, **resume splices at a wrong offset**, both sides' memory and storage | that the PCS hashed correct content; authenticity (XXH3 is not cryptographic) |
-| a group file's XXH3 (its name) | one group file | the parser | the PACS, after unpacking | the group is what the parser wrote — once the parser hashes the bytes it writes ([`../ingest/README.md`](../ingest/README.md) §5: three of four hashes cover a pre-conversion length today) | the parser's reading of DICOM |
+| a group file's XXH3 (its name) | one group file | the parser | the PACS, after unpacking | the group is what the parser wrote — once the parser hashes the bytes it writes ([`../ingest/README.md`](../ingest/README.md) §5: three of four hashes covered a pre-conversion length at `a65abe2`; *corrected 2026-10-28:* fixed upstream at `e105214`, and the parser names groups by BLAKE3, its team's choice) | the parser's reading of DICOM |
 | the frame digest, XXH3-64 of the samples | one frame's samples | the ingest at the PCS | the ingest after decode-back; the client before paint | the shown frame is the encoder's input (exactness-in-production.md) | — |
 | the coded-frame digest (agreed, not built) | one coded frame | the ingest | the PACS on receipt; the server on read | storage and transit without decoding ([`../disk-layout/target.md`](../disk-layout/target.md) §The two hashes) | — |
 | the zstd frame checksum (optional) | the metadata stream decompressed | the PCS | the PACS | the decompression | — |
@@ -428,7 +435,7 @@ megabytes; if they stay in the study database, it does not (*inference*). §12 a
 | P3: "which triggers server side a script processing of the data for each file copied" | the PACS processes **per package**: verify, unpack, check, publish, index, then commit (§7) | a server-side step triggered by arrival |
 | P3: "which updates the study sqlite database and the mysql master index" | — (the PACS's indexing is its own: design.md §5) | a per-study database updated on arrival |
 | the tree's construction folders `c/` and `b/` | **not sent**: the `.sbnd` replaces them | kept at the PCS while (2) runs |
-| names with a 64-hex BLAKE3 | XXH3 (§1); width §12 | **content-hash names** |
+| names with a 64-hex BLAKE3 | XXH3 (§1); width §12; *corrected 2026-10-28:* not a change asked of the PCS, which keeps BLAKE3 by its team's choice; XXH3 is wt-pacs's, a known difference by design | **content-hash names** |
 | P4: "[date], [exam], [series], and [instance] are placeholder for the corresponding UIDs." | — | the coded-UID folders, which the package keeps as member paths; `[date]`'s meaning to reconcile (§1) |
 | (not in the PDF) | **added at the PCS:** keep each package until committed; poll for the commitment; rebuild and resend once on refusal; hand a second refusal to an operator; number revisions per unit | — |
 
@@ -571,6 +578,8 @@ container is pax tar. (5) Late instances come as **addition** packages, merged a
 compressed again; on the limited-link profile the metadata is compressed as **one** stream, not file by file. (7) The
 sender is ours, and a deployment profile chooses its transport (TCP, or QUIC in a build that has it) and whether the
 metadata is compressed. (8) The PCS keeps each package until it is stored.
+*Corrected 2026-10-28:* the team meeting of 2026-10-28 reopened rsync of the PCS's tree for PCS → PACS, so the package is one of the
+deliveries open with the team (the design state, `pacs-receive-design.md`, #168).
 
 **Left open on purpose.** Updates (metadata only) are designed in another row for the team meeting. This section
 reserves their place (the kind `update`, §15.5; a mode of the call, §15.2) and designs nothing of them.
@@ -634,6 +643,8 @@ UID (contract.md §The coding: an even length over the coded alphabet), which `c
 **The layout's names are layout 1's:** the parser's `--`, `---`, `----`, `priv`, with XXH3-64 in place of BLAKE3, as
 #163 reads them; whether the PDF's `d/<number>.<hash>` and `p/` replace them is still §12's PCS question 3. A change
 there changes the allow list and the layout number, nothing else here.
+*Corrected 2026-10-28:* the PCS names groups by BLAKE3 by its team's choice, a known difference by design; its parser at `e105214`
+writes raw frames at `<I>/G|P|R/%05d`, and which layout wt-pacs follows is open with the owner (the design state, `pacs-receive-design.md`, #168).
 
 **Where the addition's bundle comes from** is the PCS team's: process (2) must write a bundle of the added instances'
 frames, or the whole series' again, at `<S>/series.sbnd`. *Default:* the added frames only, so the link carries each
