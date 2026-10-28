@@ -264,7 +264,7 @@ def summary(a):
           f"{len(bad)} failed; {sum(r['void'] for r in rows)} visits VOID (relay p99 > 1 ms)")
     for r in bad:
         print("  failed:", r["round"], r["unit"], r.get("error", "")[:300] or f"{r.get('exact')}/{r.get('frames')}")
-    at = {(r["round"], r["unit"]): r for r in rows if r not in bad and not r["void"]}
+    at = {(r["round"], r["unit"]): r for r in rows if r not in bad and (a.with_late_relay or not r["void"])}
     rounds = sorted({r["round"] for r in rows})
 
     def metric(r, key):
@@ -307,6 +307,7 @@ if __name__ == "__main__":
     p.add_argument("--make-series", metavar="DIR")
     p.add_argument("--summary", action="store_true")
     p.add_argument("--out")
+    p.add_argument("--with-late-relay", action="store_true", help="summary: keep the visits a late relay voided, as a sensitivity read")
     p.add_argument("--only", default="", help="run only the units containing this, for a check or a mutant")
     a = p.parse_args()
     make_series(a.make_series) if a.make_series else summary(a) if a.summary else run(a)
