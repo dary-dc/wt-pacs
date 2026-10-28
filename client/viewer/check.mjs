@@ -148,7 +148,7 @@ function judge(name, r, requests, codec, decoder) {
     if (CLIENT === "ts") say(wasm.length === 0, `a ts page fetched the WASM client's code: ${wasm.join(", ")}`);
   }
   for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
-  if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
+  if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine from the last frame showed ${r.cine} frames in 1.5 s`);
 }
 
 const summary = (name, r) => `${name}, client ${CLIENT}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +

@@ -55,6 +55,7 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
 
   if (q.get("cine")) {
     const shown = new Set();
+    await show(n - 1);
     toggleCine();
     const t0 = performance.now();
     while (performance.now() - t0 < 1500) {
