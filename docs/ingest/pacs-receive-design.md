@@ -1,15 +1,16 @@
 # PACS receive and metadata: the design state
 
-Status: **working record, 2026-10-27.** The one current state of the PACS receive and metadata design: every
-decision, proposal, open question and result from the owner's sessions of 2026-10-24/25/26/27 and the runs of
+Status: **working record, 2026-10-28.** The one current state of the PACS receive and metadata design: every
+decision, proposal, open question and result from the owner's sessions of 2026-10-24/25/26/27/28 and the runs of
 2026-10-26 (#142–#185), each folded into its section. It decides nothing by itself: each item says whose it is.
 **Decided** = the owner's, dated. **Proposed** = recommended by a record or run, not accepted; a result can strengthen
 or weaken it, never make it Decided. **Open** = to discuss (with the owner, the team, the product owner or the PCS
 team), with its default. Each item names the PR that holds its evidence; every design PR is a draft, none merged (only
 the advisories' lock fix, #183 and #184, is, §19). How the PRs merge is §13; what waits for whom is §14–§16; where the
-records disagree is §17; the afternoon's rows §18, the night's §19.
+records disagree is §17; the afternoon's rows §18, the night's §19; the PCS's layout, code against PDF, §1; the generic
+PCS → PACS design §20.
 
-Terms. *PCS*: the hospital-side component (another team's; github.com/opendicom/DECK_WebTransport), which receives,
+Terms. *PCS*: the hospital-side component (another team's; its repository, DECK_WebTransport, is public), which receives,
 parses, encodes and forwards. *Submission package* (OAIS's SIP, ISO 14721), *package* for short: one file the PCS sends.
 *Study DB*: one SQLite-format file per study at the PACS. *Study index*: the database listing studies and series (its
 engine open, §7). *Viewer metadata*: everything a viewer reads; *display metadata* is its paint part (codec, frame count,
@@ -22,7 +23,8 @@ generation is a request's identity).
 * **Decided 10-26 evening:** the PCS decides when a series is complete, as pcs.pdf proposes ("separation of
   responsibilities"); our sender at the PCS then builds and sends its package (§2).
 * **Rule 10-25:** every claim about what pcs.pdf (the PCS team's document, updated 2026-10-23, not in this repo) or the
-  PCS repo proposes is checked and quoted verbatim. The upstream repo moved (`a65abe2`, 2026-10-22).
+  PCS repo proposes is checked and quoted verbatim. The upstream repo moved (`a65abe2`, 2026-10-22; `e105214`,
+  2026-10-27).
 * pcs.pdf, verbatim: "(3) forwarding to cloud based on some kind of rsync function"; "The result of our parsing is a
   file system on the PCS side. The system, which grows over time (all the files in their corresponding directory) need
   to be copied to the cloud to be processed. To do so, we are thinking to use some kind of rsync which triggers server
@@ -39,9 +41,39 @@ generation is a request's identity).
   the DICOM standard of the 'converted enhanced' classes". **Not implemented** in the parser at `a65abe2` (#154).
 * **Decided 10-24/25, where we differ from the PDF:** the PACS receives our `.sbnd` (the role MXF/MP4/JXL play in the
   PDF); no MXF/MP4 reading in the server, the PACS does no repacking (*corrected 2026-10-26 evening:* the 10-24 "no
-  repacking" did not consider late instances; an addition is merged at the PACS, §3); hashes are **XXH3** (no
-  cryptographic need, faster), so the PCS must name files with XXH3; **one file per transfer**, as agreed in a meeting
-  (the PDF does not say so yet). These go to the PCS team (§15).
+  repacking" did not consider late instances; an addition is merged at the PACS, §3); wt-pacs names group files with
+  **XXH3** (the owner's, 10-24: no cryptographic need, faster); **one file per transfer**, as agreed in a meeting (the
+  PDF does not say so yet; *reopened 2026-10-28*, §2). *Corrected 2026-10-28:* this said "so the PCS must name files
+  with XXH3 … These go to the PCS team (§15)". The PCS names them with BLAKE3-256, its own team's choice, which may never
+  change: a known difference by design, not drift and not a request to the PCS team. Our input contract is the PCS's
+  layout with XXH3 names; `contract.md` on the base still describes BLAKE3-256 names (the PCS's), to be reconciled when
+  the layout change below lands. *Observation:* the sender (#177) selects groups by 16-hex names, so it finds none in a
+  tree named with 64-hex BLAKE3; the bridge is not in this record.
+
+### The PCS's layout: its code against pcs.pdf (2026-10-28)
+
+Read at upstream `e105214` and in pcs.pdf (2026-10-23, p. 3). They agree at exam and series (`<E>/--.<h>`,
+`<S>/---.<h>`, at most one series data file) and differ below the series:
+
+| | the code (`ESIPFfiled/capi.c`, what runs) | pcs.pdf (and the repo's own `ESIPFserialized/README.md` table) |
+| --- | --- | --- |
+| date level | `<D>/`, the coded study date | none in the diagram |
+| instance group | `<I>/----.<h>` | `<I>/d/----.<h>`, or `d/0001.<h>` by image number |
+| private group | `<I>/priv.<h>` | `<I>/p/…`, the same names |
+| frames | raw, `<I>/G\|P\|R/%05d` by photometric, 1-based, no hash | series-level `c/` (HTJ2K) or `b/` (TIFF), numbered by image number |
+| CDA file | `dc.xml` | `ds.xml` |
+
+No target in the repo writes `c/`, `b/`, `d/` or `p/`; *interpretation:* the PDF is the target after process (2), the
+code is process (1). The owner judged the contract safe to change "according to the repository of the parser and the
+PDF, which at this point should agree"; they do not, so:
+
+* **A, follow the code at `e105214`:** `contract.md`'s frame paths become `<I>/G|P|R/%05d`; from-parser's frame path
+  (`ingest/from-parser/src/main.rs:166`) and `mirror.py` follow; one row of pcs-transfer §15.3 (#177); the receiver is
+  unchanged.
+* **B, follow the PDF:** a new package layout (`d/`, `p/`, series-level `c/`/`b/`) in sender and receiver, and
+  from-parser assembles the PCS's codestreams instead of encoding them. Structural.
+* **Proposed 2026-10-28:** A now, B recorded as the PCS's target. **Open with the owner** (§14, D14). Two questions for
+  the PCS team (§15).
 
 ## 2 · The package and the carrier
 
@@ -87,10 +119,21 @@ generation is a request's identity).
   metadata goes as one stream; #163's per-member compression is a flaw.
 * **Why one file (corrected 10-25):** not the wire — rsync pipelines files ("pipelining of file transfers to minimize
   latency costs", rsync(1)) and QUIC streams do not block each other — but the two ends: the completeness signal, one
-  hash, one atomic placement, one thing to process and confirm.
+  hash, one atomic placement, one thing to process and confirm. *Corrected 2026-10-28:* the team meeting of 10-28
+  reopened rsync for PCS → PACS (the 10-24 meeting had agreed one compressed file per transfer). Completeness is no
+  argument against rsync: the PCS decides it (Decided 10-26), and the trigger it sends after its rsync is the signal.
+  With the item list (coded UID → XXH3) in the trigger, the PACS checks every listed file before processing, and an
+  item not listed is a deletion (the "full list" shape, §5). Atomic placement holds by rsyncing into `incoming/` and
+  processing only after the trigger. What rsync costs: no single file to keep and resend, and TCP only. Proposed, open
+  with the team (§20).
 * **Rsync is not enough (owner 10-25):** the PACS must reply (§3), and rsync has no reply channel (a reply over ssh is
   possible, but reachability and no QUIC path rule it out, #155). **Decided 10-26 evening:** replies and retries are
-  required; rsync alone is not enough.
+  required; rsync alone is not enough. *Corrected 2026-10-28:* rsync with a reply is possible: a status file the PCS
+  pulls back (polling, as the HTTPS design does); the PCS deletes its copy only after "stored", never with
+  `--remove-source-files`. The decision stands for rsync *alone*. Delivering the trigger, proposed, open with the team: a
+  marker file sent by a second rsync call and picked up by the receiver's scan loop (the leaning: trigger, item list and
+  durable record in one); the rsync daemon's `post-xfer exec` (rsyncd.conf(5): "The other programs cannot send any text
+  to the user"); an ssh command; an HTTPS call.
 * **Second opinion (#180, link.md §11.10, theory): a reply is needed** — the end-to-end argument (Saltzer, Reed and
   Clark 1984); one durable verdict per package after step 8, read as state on connections the PCS opens, at-least-once
   sending against an idempotent receiver; `rsync --remove-source-files` deletes too early on corruption at rest, a full
@@ -337,6 +380,21 @@ Proposed steps (async; one worker per study at a time, so one writer per study D
   the receiver (#163) were implemented without any resend-identity logic, on purpose, waiting for this. **For the PCS
   team** (§15): the parser writes a corrected group beside the old file and never deletes the old one (#176), so the
   sender cannot tell which is current; the parser should replace the file or mark the current one.
+* **Next focus (owner 2026-10-28): the synchronization protocol**, D12 still open (§14). Six shapes, theory, unsourced:
+  * **A** the five points above;
+  * **B** a full item list plus the changed bytes (absence from a complete list = deletion);
+  * **C** negotiated, git-like (the sender keeps nothing, one more round trip);
+  * **D** the revision log, as built (#163, #177);
+  * **E** a full snapshot each time (the owner's item-by-item rule on a complete picture);
+  * **F** a periodic per-study hash comparison, as a repair layer.
+
+  Four rows in flight, one draft PR each under docs/ingest/sync-protocol/ on their branches:
+  * `claude/sync-prior-art` (theory): what git push, rsync `--delete`, Syncthing, Merkle anti-entropy, `If-Match`,
+    Storage Commitment, IOCM, CouchDB and OAI-PMH do about changes, deletions and repair;
+  * `claude/sync-shapes` (theory): A–F against every event (late instance, correction, withdrawal, lost reply, sender
+    losing its sent list, PACS restored from backup, ...), the state each side keeps, bytes and round trips;
+  * `claude/sync-second-writer` (theory): edits made at the PACS against corrections from the PCS, and who has authority;
+  * `claude/sync-b-vs-e` (measured, pre-registered): B's bytes and round trips against E's per update.
 * **Decided 10-26 evening, first version:** the sender compares the hash-named files with what it last sent (#176's
   option c), "good enough"; to the team meeting (§16).
 * **Proposed (#176, metadata-updates §13, theory, for the team meeting):** every correction that reaches the PCS comes
@@ -423,7 +481,9 @@ place in its README. Reported, not decided (§14, D9).
 local socket, the list API beside it; both move together at the first trigger — a second PACS host (decisive), list
 load slowing frame reads, or the index's memory raising frame-read misses. With the API beside it no query crosses the
 network; only publishers do (+14 ms sync lag at 2 ms, #165). SQLite cannot move to another server. Pre-registered, not
-run: frame-read interference, TLS to a remote index, several publishers (§14, D9).
+run: frame-read interference, TLS to a remote index, several publishers (§14, D9). **Still Open 2026-10-28:** the
+owner's direction is "may live on its own server" (10-24/25); #172 proposes not on day one. If separate from day one,
+SQLite is excluded (no network access) and MySQL or PostgreSQL remain. The owner did not decide on 10-28.
 
 ## 8 · The disk layout (#152, #167) — for the team meeting
 
@@ -461,21 +521,29 @@ refusals.
 
 ## 10 · Findings for the PCS team (#154, #159, parser `a65abe2`)
 
-Read in its source or seen in its bytes; the questions are §15.
+Read in its source or seen in its bytes; the questions are §15. *Re-read 2026-10-28 at upstream `e105214`:* four
+are fixed there, marked below; the fixes were already open upstream as a pull request at our review, so they need no
+report. The rest is not re-checked.
 
 * converted-enhanced is planned, not implemented;
 * nested keys contain bytes from memory addresses, so parsing the same files twice gives different groups (PT got five
   series groups, US two exam groups) and different group names; with address randomisation off three parses agreed;
+  **fixed:** its cause, the key overwrite (§15), is fixed by `de2463f` (the key stored inside struct KV); not
+  re-measured;
 * group 0002 lands in the instance group;
 * an exam-level sequence keeps only its first attribute in the exam group; the rest repeats in every instance group;
+  **fixed** by `586c244`;
 * the date directory is made from an unterminated name (`capi.c` 148–160): a stray directory, or exit 12, depending on
-  the heap (runs used `MALLOC_PERTURB_=255`);
+  the heap (runs used `MALLOC_PERTURB_=255`); **fixed** by `348aa99`, which terminates the date and exam directory
+  names;
 * exit codes: after `exitNoArg1FilePath = -6` the enum counts on from −5, so `exitMkdirFailure` is 12 and
   `exitNotDICM` is 0, the success code (`datatypes.h` 62–87);
 * series, instance and private groups are hashed over the length summed before UTF-8 conversion (exam over the bytes
-  written): a non-ASCII value would leave a name that is not its hash (read, not exercised);
+  written): a non-ASCII value would leave a name that is not its hash (read, not exercised); **fixed** by `e21160f`,
+  which hashes the bytes actually written;
 * fixed-size attribute tables (`capi.c` 67–70) are filled with no bound check (read, not exercised);
-* group files are named by BLAKE3; the build of `ESIPbasetags` and `dicm2decksqlite` fails;
+* group files are named by BLAKE3 (the PCS's choice; ours are XXH3, a difference by design, §1); the build of
+  `ESIPbasetags` and `dicm2decksqlite` fails;
 * the output is 1.15–1.95× the size the level table predicts; differences from `contract.md` are listed in #154.
 
 ## 11 · Corrections owed (before implementation is merged)
@@ -489,7 +557,7 @@ Read in its source or seen in its bytes; the questions are §15.
 | #126/#144 READMEs | "page document/page view" → display metadata | done in #159 |
 | #153 | the decoder rule (10-24 replaced 10-19) | done in #158 |
 | `docs/disk-layout/target.md` | "no metadata beside the `.sbnd`" restated; XXH3 group names | done in #158 |
-| `docs/ingest/contract.md`, `design.md`, `README.md` | BLAKE3 → XXH3; the site's encoding/outbox/upload relabelled as the PCS's side; the package as the interface | done in #158 |
+| `docs/ingest/contract.md`, `design.md`, `README.md` | BLAKE3 → XXH3; the site's encoding/outbox/upload relabelled as the PCS's side; the package as the interface | done in #158; *corrected 2026-10-28:* #158's `contract.md` says "the PCS is to name them by **XXH3**": owed, the PCS names with BLAKE3 by its choice, our contract is its layout with XXH3 names (§1), with the layout change |
 | all docs | the terms above | done in #158; owed in #143 ("catalog"), #164's glossary ("site", "verdict"), #166 ("paint metadata") |
 | #158 display-metadata and metadata-updates ADRs | Proposed items (one study DB per study, one row per group, one writer, the receiver's steps) listed under "Decided by the owner" | owed |
 | #158 glossary | study DB defined as "one row per group" (T1, Proposed) | owed |
@@ -733,13 +801,18 @@ Each: the evidence in one line · the default if nothing else is said.
   resend answered `stored`; the previous hash per changed item, stale refused; one package per series in flight; the
   revision a label at most), which needs a small manifest for updates; the five points await the owner's confirmation
   · the §5 model as proposed; until confirmed, #163 and #177 keep #149's (unit, revision) and nothing else.
+  *2026-10-28:* the synchronization protocol is the next focus; the five points are shape A of six, four rows in flight
+  (§5).
 * **D13 · how the PCS learns the verdict** (§2). #170: keep polling, optionally `Prefer: wait=20`; open with the owner
   · polling, as built in #164.
+* **D14 · the input layout: the PCS's code or its PDF** (§1, 2026-10-28). They differ below the series · A, follow the
+  code at `e105214`; B recorded as the PCS's target.
 
 ## 15 · Questions for the PCS team
 
-* We differ from pcs.pdf (§1): the PACS receives `.sbnd`, not MXF/MP4/JXL; hashes and names are XXH3, not BLAKE3; one
-  file per transfer and one package per series instead of per-file rsync. Agreed?
+* We differ from pcs.pdf (§1): the PACS receives `.sbnd`, not MXF/MP4/JXL. Agreed? *Corrected 2026-10-28:* this also
+  asked for XXH3 names and one file per transfer instead of per-file rsync; the hash is a difference by design, not an
+  ask (§1), and the 10-28 meeting reopened rsync (§2, §20).
 * Completeness: the PCS decides it per series (Decided 10-26 evening, as pcs.pdf proposes) and calls our sender. Which
   heuristic? A late instance goes as an addition package (Decided 10-26 evening): can the PCS call the sender again for
   that series?
@@ -749,17 +822,21 @@ Each: the evidence in one line · the default if nothing else is said.
   (one group file per marker per directory; deterministic keys; ...). **The ask (§5, 2026-10-27):** the parser writes a
   corrected group beside the old file and never deletes the old one, so our sender cannot tell which is current;
   please replace the file, or mark the current one.
-* Your parser (§10): when will nested keys be deterministic (the study DB layout waits on it, §4)? Group 0002 in the
-  instance group, the exam sequence split, the unterminated date-directory name, exit codes 12 and 0, unbounded
-  attribute tables, the failing builds.
-* **The key overwrite in `capi.c`** (read at `a65abe2`): in struct KV the key is `memcpy`'d from the pointer field K,
-  which has 9 bytes of room; a nested key's bytes 11–14 become the value length and the rest the value's address; at
-  depth 2 it carries the whole address, so with address randomisation PT's bytes change on every parse. Consequence,
-  read, not run: nested values never take the UTF-8 path.
-* **A blocker:** series, instance and private groups are hashed over the length before UTF-8 conversion, so our group
-  checks (§3, step 5) fail on intact data whenever a value is non-ASCII. When is it fixed?
+* Your parser (§10): group 0002 in the instance group, exit codes 12 and 0, unbounded attribute tables, the failing
+  builds. *Corrected 2026-10-28:* the exam sequence split and the unterminated date-directory name are fixed upstream
+  (`586c244`, `348aa99`); whether nested keys are now deterministic (the study DB layout waits on it, §4) is ours to
+  re-measure, not to ask.
+* **The key overwrite in `capi.c`** (read at `a65abe2`; **fixed** by `de2463f`, not reported): in struct KV the key
+  is `memcpy`'d from the pointer field K, which has 9 bytes of room; a nested key's bytes 11–14 become the value length
+  and the rest the value's address; at depth 2 it carries the whole address, so with address randomisation PT's bytes
+  change on every parse. Consequence, read, not run: nested values never take the UTF-8 path.
+* *Was a blocker:* series, instance and private groups were hashed over the length before UTF-8 conversion, so our
+  group checks (§3, step 5) would fail on intact data whenever a value is non-ASCII. **Fixed** by `e21160f`, not
+  reported.
 * **Converted enhanced:** in pcs.pdf (10-23) and `codec.md`, not implemented at `a65abe2`: when?
 * The date folder `<D>/` (eDA): does the PCS need it in the PACS path? The disk layout is open (§16).
+* The layout (§1): frames numbered with 4 or 5 digits (the diagram has `00001` in `c/`, `b/` and `0001` in `d/`, `p/`;
+  the text "starting at 0001")? How does one `[instance]/d/` hold "one file for each SOP instance"?
 * Not needed from you: a decoded-samples hash per frame (the PACS checks coded hashes; the client checks samples).
 
 ## 16 · For the team meeting
@@ -780,6 +857,9 @@ the update API submitting update packages.
 files with what it last sent (#176's option c), whole changed groups on the wire; (d), a manifest, is the fallback if the
 sender must hold no state. The update model proposed 2026-10-27 (§5) adds a small manifest to updates anyway (removals
 and previous hashes) and needs the parser to replace or mark a corrected group (§15).
+
+**The PCS → PACS path** (with the team; §2, §20). The 10-28 meeting reopened rsync; the parts, their options and two
+complete profiles are §20.
 
 ## 17 · Where the records disagree
 
@@ -833,3 +913,23 @@ One line each; none is settled here (a reconciliation by a Proposed PR is a prop
   crate. Delivered: `3471fb9`, `5d0ae2c` on #163, `4d9e4a7` on #160 (§3).
 * **NIGHT2-5** (`claude/sbnd-tail-rewrite`): whether only the `.sbnd`'s tail can be rewritten on an addition (§3).
   Delivered: #185. Decided 10-26/27 night: the full rewrite stays, with #185's correction beside it (§3).
+
+## 20 · The generic design (proposed 2026-10-28)
+
+**The owner's direction:** team meetings change such choices (the 10-28 meeting reopened rsync, §2), so the PCS → PACS
+path is designed as parts, each with a few good options, how each works, its high-level trade-offs and a favoured
+default, so the meeting can navigate them and still decide together, while one complete configuration always exists.
+The structure is Proposed; the owner reviews it before anything is built.
+
+**The seam:** the receiver's input is *a completed unit in `incoming/`: the PCS's directory tree plus a completion
+record (the trigger with its item list)*. Everything after it (check, read back, place, one transaction, status, §3)
+is invariant: a tar package is one delivery (extracted into `incoming/`), rsync another (copied into it).
+
+**The parts:** delivery · transport · completion and trigger · reply · synchronization semantics (§5) · the PCS's copy
+(kept until "stored", Decided 10-24) · compression (per profile, Decided 10-26 evening, §2) · identity and security.
+
+**Two profiles**, each complete: *as pcs.pdf writes it* (rsync and the trigger, §2) and *package* (as built: #163,
+#164, #177).
+
+The options of each part, how they work and what decides them: docs/ingest/pcs-pacs-options.md, on branch
+`claude/pcs-pacs-options` (being written, 2026-10-28; not on this branch).
