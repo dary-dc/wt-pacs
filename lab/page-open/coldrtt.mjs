@@ -38,6 +38,8 @@ const VARIANTS = {
   ...(TREES.init ? { "wc-init": ["g10-av1", { codec: "av1", tree: `${TREE}/init` }] } : {}),
   "wc-after": ["g10-av1", { codec: "av1" }],
   "wc-pre": ["g10-av1", { codec: "av1", pre: 1 }],
+  "wc-pre2": ["g10-av1", { codec: "av1", pre: 1 }],
+  "wc-hint": ["g10-av1", { codec: "av1", pre: 1, hint: 1 }],
   "dav1d-before": ["g12-av1", { codec: "av1", tree: `${TREE}/before` }],
   ...(TREES.init ? { "dav1d-init": ["g12-av1", { codec: "av1", tree: `${TREE}/init` }] } : {}),
   "dav1d-after": ["g12-av1", { codec: "av1" }],
@@ -76,7 +78,7 @@ const trees = Object.entries(TREES).map(([name, rev]) => {
   }
   return dir;
 });
-for (const dir of [...trees, "client/transport", "client/decode", "client/transport/ts/dist", "lab/.av1-build/out", "client/decode/wasm/vendor/openjph"]) {
+for (const dir of [...trees, "client/transport", "client/decode", "client/transport/ts/dist", "client/decode/wasm/built/dav1d", "client/decode/wasm/built/openjph"]) {
   for (const f of fs.readdirSync(path.resolve(ROOT, dir))) age(path.resolve(ROOT, dir, f));
 }
 age(path.join(ROOT, "lab/page-open/codec.html"));
@@ -101,7 +103,8 @@ for (const series of new Set(Object.values(VARIANTS).map(([s]) => s))) {
 }
 // The deploy template's nginx over TLS and HTTP/2, as lab/page-open/run.mjs's HOST=h2.
 const site = fs.readFileSync(path.join(ROOT, "deploy/nginx/wt-pacs.conf.template"), "utf8")
-  .replace(/\$\{SERIES\}/g, "us_cine_smoke").replace(/\/srv\/wt-pacs/g, ROOT)
+  .replace(/\$\{SERIES\}/g, "us_cine_smoke").replace(/\$\{TLS_LISTEN\}/g, "").replace(/\$\{WT_ORIGIN\}/g, "https://127.0.0.1:*")
+  .replace("/srv/wt-pacs/wt/", "/srv/wt-pacs/client/").replace("location / {", "location /lab/ { try_files $uri =404; }\n    location / {").replace(/\/srv\/wt-pacs/g, ROOT)
   .replace(/listen\s+8765;/, `listen 127.0.0.1:${TCP_SRV} ssl http2;\n    ssl_certificate ${T}/cert.pem;\n    ssl_certificate_key ${T}/key.pem;`);
 fs.writeFileSync(path.join(T, "site.conf"), site);
 fs.mkdirSync(path.join(T, "ngx"));
@@ -205,8 +208,8 @@ function slope(variant, profile, key) {
   const my = pts.reduce((a, [, y]) => a + y, 0) / pts.length;
   return pts.reduce((a, [x, y]) => a + (x - mx) * (y - my), 0) / pts.reduce((a, [x]) => a + (x - mx) ** 2, 0);
 }
-// Each AV1 variant against its path's `-before`, HTJ2K against nothing.
-const ref = (variant) => (variant.endsWith("-before") || variant === "htj2k" ? null : variant.replace(/-(after|pre|init)$/, "-before"));
+// Each AV1 variant against its path's `-before`, the hint and the A/A arm against `wc-pre`, HTJ2K against nothing.
+const ref = (variant) => (variant.endsWith("-before") || variant === "htj2k" ? null : /^wc-(hint|pre2)$/.test(variant) ? "wc-pre" : variant.replace(/-(after|pre|init)$/, "-before"));
 console.log(`\ncpu ${THROTTLE}x, ${voided} visits VOID and dropped, ${failed} failed`);
 console.log("round trips (slope over the RTTs) and ms at each: median [min-max], rounds won against the variant's -before");
 for (const profile of PROFILES) {
@@ -217,7 +220,8 @@ for (const profile of PROFILES) {
         if (!mine.length) return "-";
         const v = mine.map((r) => r[key]).sort((x, y) => x - y);
         const base = ref(variant) && new Map(cell(ref(variant), profile, rtt, key).map((r) => [r.round, r[key]]));
-        const won = base ? ` ${mine.filter((r) => base.has(r.round) && r[key] < base.get(r.round)).length}/${mine.filter((r) => base.has(r.round)).length}` : "";
+        const paired = base ? mine.filter((r) => base.has(r.round)).map((r) => r[key] - base.get(r.round)) : [];
+        const won = paired.length ? ` ${paired.filter((d) => d < 0).length}/${paired.length} Δ${median(paired).toFixed(0)}` : "";
         return `${median(v).toFixed(0)} [${v[0].toFixed(0)}-${v.at(-1).toFixed(0)}]${won}`;
       });
       const s = slope(variant, profile, key);

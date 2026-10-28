@@ -242,6 +242,29 @@ const { parsePayload } = await import("./av1-payload.js");
   check(asked.join() === "./av1-dav1d.js", `warm: without VideoDecoder only dav1d is imported (${asked.join()})`);
 }
 
+/** A series of `depth` ≤ 10 fetches dav1d's glue and WASM at init only when WebCodecs fails its probe, and then decodes through dav1d. */
+for (const probes of [true, false, "absent"]) {
+  const fetched = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => (fetched.push(url), new Response(new Uint8Array(1)));
+  const pic = { width: 1, height: 1, bits: 10, planes: [{ heap: Uint16Array.of(7), offset: 0, stride: 1 }] };
+  const stubs = {
+    "./av1-webcodecs.js": { init: async () => {}, probe: async (layout) => probes === true && layout === "g10", picture: async () => pic },
+    "./av1-dav1d.js": { init: async () => {}, picture: () => pic },
+  };
+  if (probes === "absent") delete globalThis.VideoDecoder;
+  else globalThis.VideoDecoder = class {};
+  const av1 = await import(`./av1.js?hint-${probes}`);
+  await av1.init({ glue: "/g.js", wasm: "/g.wasm", depth: 10 }, async (path) => stubs[path]);
+  await new Promise((r) => setTimeout(r));
+  globalThis.fetch = realFetch;
+  const want = probes === true ? "" : "/g.js,/g.wasm";
+  check(fetched.join() === want, `hint: probe ${probes}, init fetches "${want}" (${fetched.join()})`);
+  const { path } = await av1.decodeFrame(golden("plain", "g10"));
+  check(path === (probes === true ? "av1-webcodecs" : "av1-dav1d"), `hint: probe ${probes}, the payload decodes through ${path}`);
+  delete globalThis.VideoDecoder;
+}
+
 /** With `mixed`, a top over 10 bits goes to dav1d and its low to WebCodecs, each payload's own low merged, dav1d the fallback. */
 {
   const calls = [];

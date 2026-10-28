@@ -282,6 +282,6 @@ def digests(s, n, codec, representation="optimized", split=None, grey8="400"):
 def metadata(s, display, codec, preset=None):
     """A bundle's `metadata.json`: the series' `display` keys, then what its coded frames decide."""
     return {"frameCount": s.n, **display, "min": s.lo, "max": s.hi, "codec": codec,
-            **({"representation": "optimized", "preset": preset} if codec == "av1" else {}),
+            **({"representation": "optimized", "preset": preset, "depth": plan(s, "optimized")[0]["depth"]} if codec == "av1" else {}),
             "digests": digests(s, s.n, codec)}
 

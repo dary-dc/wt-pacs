@@ -29,8 +29,10 @@
     const name = av1 ? "dav1d" : "openjph";
     const modules = av1 ? ["av1.js", "av1-payload.js", "av1-frame.js", "av1-dav1d.js", "av1-webcodecs.js", "av1-probe.js"] : ["htj2k.js"];
     for (const f of [...modules, "wasm-glue.js", ...(m.digests ? ["xxh3.js"] : [])]) link("preload", `${dec}/${f}`, "script");
-    link("preload", `${dec}/wasm/built/${name}/${name}.js`, "fetch");
-    link("preload", `${dec}/wasm/built/${name}/${name}.wasm`, "fetch");
+    const wasm = () => ["js", "wasm"].forEach((x) => link("preload", `${dec}/wasm/built/${name}/${name}.${x}`, "fetch"));
+    // As av1.js's init: lab/page-open/README.md §A depth hint
+    if (av1 && m.depth <= 10) import(`${dec}/av1-webcodecs.js`).then((wc) => wc.probe(`g${m.depth}`)).then((ok) => ok || wasm(), wasm);
+    else wasm();
     if (m.digests) link("preload", `${dec}/wasm/built/xxh3/xxh3.wasm`, "fetch");
   }, () => {});
 }
