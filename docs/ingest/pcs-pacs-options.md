@@ -8,19 +8,20 @@ reasoning, read nowhere.*
 **Why it exists.** The team meeting of 2026-10-28 reopened rsync for the PCS → PACS path, after the meeting of
 2026-10-24 had agreed one package per transfer. Meetings change such choices, so the path is laid out as parts, each
 with a few options, how each works, what it costs and a favoured default. Every option offered combines into a complete
-configuration (§4), so a meeting can move between options and still leave with one that works.
+configuration (§4), so a meeting can move between options and still leave with one that works. *Corrected 2026-10-28:*
+not yet: the rsync profile is incomplete until the hash bridge (§1) is chosen.
 
 ## 0 · On one screen
 
 ```text
             a choice per part (§2)                       the seam                ours, invariant (design state §3)
                                                             │
- the PCS's exam tree ─ delivery ─ transport ─▶  incoming/<E>/<S>/…            ──▶  3   check every listed item's XXH3
+ the PCS's exam tree ─ delivery ─ transport ─▶  incoming/<E>/<S>/…            ──▶  3   check every listed item's hash
  (hash-named groups,   tar ·       rsync ·      the unit as the PCS's tree     │    6   stage in incoming/<unit>.work/, fsync
   series.sbnd)         rsync ·     HTTPS ·          +                          │    6b  read back from disk
                        per-file    QUIC later   a completion record:           │    6c  place by rename
                                                 the trigger, carrying the      │    7–8 one transaction, read back
-                                                item list (coded path → XXH3)  │    11  status: stored | refused
+                                                item list (coded path → hash)  │    11  status: stored | refused
                                                             │                  │
  the PCS keeps its copy  ◀──────────── reply: stored | refused (§2.4) ◀───────┘
  until "stored"
@@ -38,7 +39,7 @@ is another (copied into `incoming/`).
 | transport (§2.2) | HTTPS resumable, draft-14 (#164) | rsync over ssh |
 | completion and trigger (§2.3) | the package's arrival by rename | a marker file sent last |
 | reply (§2.4) | polled over HTTPS (#164, #170) | a status file pulled back by rsync |
-| synchronization (§2.5) | D, the revision log as built, until the SYNC rows report | the same |
+| synchronization (§2.5) | proposed: the five points (design state D12); built: D (the revision log) until the owner decides; results: #220–#223 | the same |
 | PCS copy (§2.6) | kept until "stored" (**Decided** 10-24) | the same; never `--remove-source-files` |
 | compression (§2.7) | metadata as one zstd stream on the limited-link profile (**Decided** 10-26) | `-z` on the metadata call only |
 | identity (§2.8) | mutual TLS pinned per site (#164) | an ssh key and a restricted login per PCS |
@@ -53,7 +54,7 @@ move to QUIC. Choosing rsync makes the right-hand column the complete configurat
 update. **The PCS decides completeness** (**Decided** 10-26), so the trigger is its "complete" crossing the link.
 
 **The item list** (Proposed; format open) names every file the unit delivers, by its path in the PCS's tree, with its
-XXH3:
+hash (*corrected 2026-10-28:* this said XXH3; which hash is open, the hash bridge below):
 
 ```text
 study  <E>                        coded study UID
@@ -68,6 +69,13 @@ kind   series | addition | update
 The group files are already named by their hashes, so the list's work is to say *which* files make the unit (a stray,
 or an old group the parser leaves beside a corrected one, #176, does not slip in) and to carry the bundle's hash. In
 the package profile the package is that record: its members' names, its header, and its own XXH3 in its name.
+
+**The hash bridge** (open, 2026-10-28; for the owner, none decided). rsync copies the PCS's tree as is, so group files
+arrive named by BLAKE3 (64 hex), while our sender (`carrier/sender/src/tree.rs`, #177) and receiver (#163) check 16-hex
+XXH3 names. Options: **(a)** the receiver verifies the PCS's BLAKE3 names, and the study DB keeps XXH3 as decided;
+**(b)** our trigger script at the PCS computes each file's XXH3 and puts it in the item list; names stay BLAKE3 and the
+receiver checks contents against the list; **(c)** our script makes an XXH3-named copy before rsync (extra disk at the
+PCS). The rsync profile is incomplete until one is chosen (design state §2).
 
 **What the receiver changes for a tree** (*inference*, against #163 as built): the trigger's arrival is step 1; step 3
 checks each listed file instead of one package hash; step 4 reads a tree instead of a tar; step 6 copies the listed
@@ -129,16 +137,21 @@ open (design state §14, D3).
 
 ### 2.5 Synchronization semantics
 
-What a unit means against what is stored. The shapes under study (theory, results pending from `claude/sync-prior-art`,
-`claude/sync-shapes`, `claude/sync-second-writer`, `claude/sync-b-vs-e`):
+What a unit means against what is stored. The shapes under study (theory, results from `claude/sync-prior-art`,
+`claude/sync-shapes`, `claude/sync-second-writer`, `claude/sync-b-vs-e`; *corrected 2026-10-28:* this said pending; they
+reported as #221, #222, #220 and #223):
 
 * **A**, five points: only changes, each with the hash it replaces (design state §5); fewest bytes; breaks if the sender
   loses its sent list or the PACS is restored from backup.
 * **B**, the full list plus changed bytes: absence from a complete list is a deletion.
 * **C**, negotiated, git-like: the two ends compare before sending; the sender keeps nothing; one more round trip.
-* **D**, the revision log, as built (#163, #177): `(unit, revision)` in order. Default until the rows report.
+* **D**, the revision log, as built (#163, #177): `(unit, revision)` in order. *Corrected 2026-10-28:* the default is
+  proposed: the five points (design state D12); built: D (the revision log) until the owner decides; results: #220–#223.
 * **E**, a full snapshot: everything, applied item by item; the sender keeps nothing.
 * **F**, a periodic per-study hash comparison: a repair layer under any of the others.
+
+#223 (measured bytes, times estimated) compared B with E: B is 3.1–3.5× smaller for the median series, E at most 0.81 s
+slower; by the pre-registered rule, the verdict is E. Reported, not decided.
 
 The trigger's item list is B's and E's list: with it, the trigger and the shape become one message (*inference*). rsync
 itself behaves like C: it exchanges a file list and compares, and `--delete` deletes by absence, "extraneous files from
@@ -263,6 +276,8 @@ only the carrier and `send-package.sh`, and keeps one file to keep and resend wh
 * **`--delete`** gives no deletion semantics at the serving tree (§2.5); in a cleared `incoming/` it removes nothing
   useful.
 * **`-z` on the bundle** compresses frames again, against **Decided** 10-26.
+* **The PCS's tree under our checks** (*corrected 2026-10-28*): rsync delivers BLAKE3-named groups, while our sender and
+  receiver check XXH3 names; the rsync profile does not combine until the hash bridge (§1) is chosen.
 
 ## 6 · Open with the team
 
@@ -272,8 +287,9 @@ only the carrier and `send-package.sh`, and keeps one file to keep and resend wh
 4. **The reply's words and place** (D3) and the poll interval; who deletes the status file.
 5. **ssh or a daemon**, and one login per PCS for the audit's "who".
 6. **Compression restated for rsync** (§2.7): the 10-26 decision was written for the package.
-7. **The synchronization shape**, once the four SYNC rows report.
-8. **For the PCS team:** where an addition's bundle comes from (added frames only, or the series again); the corrected
+7. **The synchronization shape**, once the four SYNC rows report (reported 2026-10-28: #220–#223, §2.5).
+8. **The hash bridge** (§1): the receiver checks BLAKE3 names, the item list carries XXH3, or an XXH3-named copy.
+9. **For the PCS team:** where an addition's bundle comes from (added frames only, or the series again); the corrected
    group written beside the old one (#176).
 
 ## 7 · Sources
