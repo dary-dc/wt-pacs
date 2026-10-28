@@ -4,6 +4,7 @@ members = [
     "common/frame-envelope",
     "common/series-bundle",
     "server",
+    "carrier",
     "client/transport/wasm",
     "tools/pack-series",
     "ingest/from-parser",
@@ -21,6 +22,7 @@ default-members = [
     "common/frame-envelope",
     "common/series-bundle",
     "server",
+    "carrier",
     "tools/pack-series",
     "tools/check-fastpath",
 ]

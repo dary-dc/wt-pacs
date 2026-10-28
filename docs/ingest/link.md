@@ -23,6 +23,7 @@ here.
 9. [The owner's decisions](#9-the-owners-decisions)
 10. [Sources](#10-sources)
 11. [The carrier for the PCS's packages](#11-the-carrier-for-the-pcss-packages)
+12. [The carrier, built](#12-the-carrier-built)
 
 ## 1. The answer in plain words
 
@@ -360,7 +361,9 @@ draft's careful creation (§17.2): an empty `POST` creates the upload, `HEAD` re
 `DELETE` cancels; the final `PATCH` answers *received* and `GET` on the package answers *committed* or *refused*. The
 same endpoint takes a one-shot upload (`Upload-Complete: ?1` on the `POST`), so a fiber site's script may skip resume.
 Pinned to interop version 10, since we own both ends. **HTTP/3 is not built**; when §11.5 and the ADR's M5 call for it,
-it is the same handler behind a second listener on its own UDP port.
+it is the same handler behind a second listener on its own UDP port. (*2026-10-26:* built, following the owner's
+direction of one handler with its listeners chosen by configuration at start; the cargo feature and the experimental
+label are this build's choices, §12.4.)
 
 **The deciding reason.** In HTTP the reply and the resume are the application's, not the transport's: written once,
 they work the same over TCP and QUIC (RFC 9110 defines the semantics "shared by all versions"; tus 1.0 "does not depend
@@ -525,7 +528,8 @@ the PCS** (latency per package, not throughput), the testbed's ceiling reported 
    carries the reply).
 2. Where the endpoint runs: its own process on its own address, or inside `series-server`? *Default: its own
    process* — it unpacks untrusted input, and the viewer's server and its patched QUIC stack stay as they are.
-3. The HTTP/3 listener: *default: not built* until C1, D1 and M5 call for it.
+3. The HTTP/3 listener: *default: not built* until C1, D1 and M5 call for it. (*2026-10-26:* built after the
+   owner's direction; off unless compiled with its feature and started with `--quic`, this build's choice: §12.4.)
 4. Will the PACS keep packages in an object store? *Default: no* (local disk, as [`../adr/disk-access.md`](../adr/disk-access.md)
    assumes), so (f) stays out.
 5. The largest package a PCS may send (`Upload-Limit` max-size): *default: 8 GiB*, a placeholder until sites report
@@ -559,3 +563,186 @@ Fetched or read 2026-10-25; the first 12 hex of the fetched file's sha256. Raw c
 
 **Not read**, so not cited as read: rsync's `rrsync`; curl's `--aws-sigv4` and `--speed-time` pages; whether curl's
 ngtcp2 backend migrates a connection; the tus reference server; draft-ietf-webtrans-http3's current version.
+
+## 12. The carrier, built
+
+*2026-10-26. §11's recommendation, built, with the owner's direction (2026-10-25/26): one application handler, its
+listeners chosen by configuration at start, preferred over two programs. This build's own choices, not the owner's:
+TCP always, and QUIC as an optional second listener behind a cargo feature, labelled experimental (§12.8 question 8). The code is [`../../carrier/`](../../carrier/README.md) (crate `carrier`, its own process, as
+§11.6 question 2 defaults); the PCS's side is `carrier/pcs/send-package.sh`. **Tested on loopback only: nothing timed,
+no link emulated**; §11.5's D1 and C1 remain what decides anything about a real link. The receiver it hands packages
+to is the design-state record's §3 (`docs/ingest/pacs-receive-design.md` on `claude/pacs-design-state`, e699ed3); its
+implementation did not exist when this was built, so §12.2 defines the interface between them.*
+
+### 12.1 The protocol, as built
+
+draft-ietf-httpbis-resumable-upload-14 (the file §11.8 pins), interop version 10:
+
+| request | answers |
+| --- | --- |
+| `POST /packages/<name>`, `Upload-Complete: ?0`, `Upload-Length`, no content: the careful creation (§17.2) | `201`, `Location: /uploads/<name>/<token>`, `Upload-Limit: max-size=…` |
+| `POST /packages/<name>`, `Upload-Complete: ?1` or none, the whole package: the one-shot upload (§17.1.1) | `202 received` |
+| `HEAD /uploads/<name>/<token>` (§7) | `204`, `Upload-Offset`, `Upload-Complete`, `Upload-Length`, `Upload-Limit`, `Cache-Control: no-store` |
+| `PATCH /uploads/<name>/<token>`, `application/partial-upload`, `Upload-Offset`, `Upload-Complete` (§8) | `204` with `?0`; `202 received` with `?1`; `409` with the right `Upload-Offset` and the mismatching-upload-offset problem (§14.1); `400` inconsistent-upload-length, the upload deactivated (§8.2) |
+| `DELETE /uploads/<name>/<token>` (§9) | `204`, the upload deactivated; `409` once complete |
+| `GET /packages/<name>`: the poll | `200` and one line: `uploading <offset>`, `received`, `committed`, `refused retry <reason>` or `refused final <reason>`; `404` for a package this site does not hold |
+
+Every answer about the package rather than its upload carries `Upload-Complete: ?1` (§4.2.1) and that same line as
+its body, so the PCS reads one format everywhere. The choices the draft leaves to a server:
+
+* **No 104 interim response, ever.** hyper's HTTP/1 server cannot send one (§11.3a), and the draft excuses a server
+  "not capable of sending interim responses" (§6.2). A `POST`'s content is appended exactly as a `PATCH`'s, so the
+  one-shot upload is the same code; a client that wants to resume sends the empty `POST` first and learns the address.
+* **The interop version is required** on every request that carries `Upload-Complete`; another or none is a `400`,
+  never a guess (App. B).
+* **`Upload-Length` is required on a careful creation**: the PCS always knows its package's size. A one-shot upload
+  needs none and is bounded by `max-size` (default 8 GiB, §11.6 question 5).
+* **The address carries a random 128-bit token** (§20.1: "hard to guess"), so a resend after a refusal gets a new
+  address and the old one answers `404` (§4: reuse of a URI "SHOULD be avoided").
+* **Concurrency, the draft's recommended approach (§10):** a newer `HEAD`, `PATCH`, `DELETE` or creation on a
+  revision ends the request still open on it at once, so a PCS resuming after a stall never waits for the carrier to
+  notice the dead connection. A request whose content sends nothing for `--stall-secs` (default 60) is ended as well.
+* **The offset is the partial file's length on disk**, so a restarted carrier keeps every upload. Completion fsyncs
+  the file, renames `incoming/<name>.partial` to `incoming/<name>` and fsyncs the directory, then answers `received`.
+* **Nothing expires.** `Upload-Limit` says `max-size` only; an abandoned `.partial` stays until an operator or a
+  later creation of the same revision removes it (§12.8 question 2).
+
+### 12.2 The hand-off to the receiver
+
+Defined once, in `carrier/src/handoff.rs` (`Root`, `PackageName`, `Verdict`), which the receiver links. One root,
+on the receiver's filesystem (its staging renames need it, design-state §3), and one writer per file:
+
+| path | written by | holds |
+| --- | --- | --- |
+| `incoming/<name>.partial` | the carrier | an upload in progress |
+| `incoming/<name>` | the carrier, by rename | a complete package: the receiver's step 1 |
+| `status/<name>` | the receiver, through `Root::write_verdict` (temporary file, fsync, rename, directory fsync) | one line: `committed`, `refused retry <reason>` or `refused final <reason>` |
+| `uploads/<unit>/owner` | the carrier | the site that first sent the unit |
+| `uploads/<unit>/<revision>` | the carrier | `<hash> <site> <token> <length>`: which package holds the revision, and its upload |
+
+`<name>` is `<unit>.<revision>.<xxh3-64>.tar` (ADR §4), parsed only in its canonical spelling (`PackageName::parse`:
+a coded UID of `0-9 A-Z _ a-z ~`, a decimal revision without leading zeros, 16 lowercase hex). The receiver's side:
+
+1. It takes only names `PackageName::parse` accepts; a `.partial` or a dotfile is never its input.
+2. It writes the verdict **before** it moves the package out of `incoming/` (deleting it once committed, step 12;
+   moving it aside once refused). The carrier reads the verdict, then the partial, then the package, then the verdict
+   again, so between the two writes it answers `received`, never "unknown".
+3. It picks the class: `retry` for what a resend can fix (a hash mismatch, a first content failure), `final` for what
+   goes to an operator (the same content failing again, a conflict, a missing revision; design-state §3 R, ADR §7).
+4. It writes no verdict for a package that is not in `incoming/`.
+
+**Replies.** *received* is the carrier's (the bytes are in, fsynced, renamed); *committed* and *refused* are the
+receiver's, read back by the poll. A new upload of a revision meets what the carrier holds; ADR §4's table, as
+built:
+
+| arrives `(u, n, h)` | the carrier holds for `(u, n)` | answer |
+| --- | --- | --- |
+| any | the unit owned by another site | `403 refused final not-authorised` |
+| any | nothing | the upload starts |
+| `h` | `h` received | `200 received`; nothing written |
+| `h` | `h` committed | `200 committed`; nothing written |
+| `h` | `h` refused retry | the verdict cleared; a new upload at a new address (the PCS's one resend) |
+| `h` | `h` refused final | `409 refused final <reason>`, until an operator removes `status/<name>` |
+| any | an incomplete upload | replaced: a creation starts at offset 0 |
+| `h′` | `h` received or committed | `409 refused final conflict with <name>` |
+| `h′` | `h` refused | the rebuilt package: the old verdict cleared, the upload starts |
+
+ADR §4's last row, "revision n+1 missing", needs the committed revisions, which only the receiver knows: it is the
+receiver's `refused final`.
+
+### 12.3 Mutual TLS and sites
+
+TLS 1.3 only, on both listeners. Each PCS's certificate is **pinned by its SHA-256** in the allow list, one
+`<site> <sha256-hex>` per line (`#` comments). A handshake without an enrolled certificate fails before any request is
+read, and the listener takes the site from the certificate, never from the request. No chain and no expiry are
+checked: the pin is the trust, revoking a PCS is deleting its line, renewing is adding the new line before removing
+the old, and a self-signed certificate made at the PCS will do (§12.8 question 3 weighs a PACS-run CA). A unit belongs
+to the first site that sends it; another site gets `404` on its uploads and polls, `403` on a new upload. The list is
+read at start. A hospital proxy that inspects TLS cannot present the PCS's certificate, so the endpoint must be on its
+bypass list (ADR §10).
+
+### 12.4 The listeners
+
+One handler, `Carrier::handle`, written against `http::request::Parts` and a stream of content chunks; each listener
+is an adapter of a few dozen lines.
+
+* **TCP, always:** HTTP/1.1 on hyper 1.12.0 over tokio-rustls, `--tcp` (default `[::]:443`).
+* **QUIC, experimental:** built with `--features quic`, started with `--quic <udp address>`: HTTP/3 on h3 0.0.8 and
+  h3-quinn 0.0.10 over the workspace's quinn 0.11.11 (patched, `patches/`), the same TLS configuration with ALPN `h3`,
+  so the same pins hold. It is labelled experimental, and logs so at start, because h3's README says "still very
+  experimental … the API could change" and no h3 release has followed 2025-05-06; the one HTTP/3 client it has met is
+  h3's own, in `carrier/tests/quic.rs`, on loopback; and no PCS can use it with stock curl, which has no HTTP/3 in
+  8.5.0 (§11.3a). Nothing says it is worth building: §11.5's C1 decides that, and §11.6 question 3's default (not
+  built) now reads "built, off by default".
+
+The viewer's server and its patched QUIC endpoint are untouched.
+
+### 12.5 The PCS's side
+
+`carrier/pcs/send-package.sh PACKAGE`: POSIX `sh` (run under dash) and stock curl (tested with 8.5.0). One run per
+package; the PCS's scheduler starts it.
+
+| variable | is | default |
+| --- | --- | --- |
+| `CARRIER` | the endpoint, `https://host:port` | required |
+| `CERT`, `KEY` | this PCS's certificate and key (PEM) | required |
+| `CACERT` | the carrier's certificate or its CA | required |
+| `STALL_SECS` | curl's `--speed-limit 1 --speed-time` and `--connect-timeout`: the stall timeout | 30 |
+| `ATTEMPTS` | requests without progress before giving up; reset whenever the offset advances | 20 |
+| `BACKOFF_SECS` | the first wait between attempts, doubled to at most 60 s | 1 |
+| `POLL_SECS`, `WAIT_SECS` | the poll interval, and how long to wait for a verdict | 10, 86400 |
+| `STATE` | where the upload's address is kept between runs | `PACKAGE.upload` |
+
+It creates the upload (careful creation), then loops: `HEAD` for the offset, `tail -c +N` of the package into
+`curl -X PATCH -T -` (curl's `-C` refuses HTTP uploads, §11.3a); a drop or a stall makes curl fail and the next round
+starts at `HEAD`. After `received` it polls `GET` until `committed` (exit 0: the PCS may delete the package) or a
+refusal; on `refused retry` it sends the package once more, and a second refusal, or any `refused final`, is exit 3
+for an operator. 4 is giving up, 2 a usage error. It does not rebuild a refused package (ADR §7's rebuild is the
+packer's: the script resends the same bytes) and deletes nothing.
+
+### 12.6 Metadata compression
+
+The owner's 2026-10-26 direction: configurable per site at the sender; the receiver accepts both by the zstd magic
+number. **The carrier never opens a package**, so nothing in it depends on the choice: the switch is the PCS's packer's
+setting per site, and the check — a zstd frame begins with the bytes `28 B5 2F FD` (RFC 8878 §3.1.1) — is the
+receiver's when it opens the metadata member (design-state §3 step 4).
+
+### 12.7 Tests, each mutated
+
+`cargo test -p carrier` (and `--features quic` for the last row); in `scripts/gate.sh`. Each claim was broken on
+purpose and its test failed; the code was then restored.
+
+| test | claim | the mutation it catches |
+| --- | --- | --- |
+| `upload::a_dropped_upload_resumes_from_the_offset` | a `PATCH` cut mid-content keeps what arrived; `HEAD` says it; the rest completes the package byte for byte | `HEAD` always answers offset 0 (§11.5's own); an interrupted append truncated back |
+| `upload::a_wrong_offset_is_told_the_right_one` | `409` and the right offset | the offset not checked |
+| `upload::a_newer_request_ends_an_open_one` | a `HEAD` gets through while a stalled `PATCH` is still open | the stalled request not woken |
+| `upload::a_duplicate_upload_is_idempotent` | the same package again answers `received`, then `committed`, and writes nothing | duplicates not detected |
+| `upload::another_hash_for_a_committed_revision_conflicts` | `refused final conflict` | the conflict let through |
+| `upload::only_an_enrolled_certificate_of_the_owning_site_gets_in` | a stranger's certificate and none are refused; site B cannot see, resume or take site A's package | the upload's site not compared |
+| `tls::tests::the_verifier_refuses_a_stranger` | the handshake's own check | the verifier accepting any certificate (the integration test above still passes then, since the listener also drops a certificate that maps to no site: two locks, this test is the first's) |
+| `upload::a_refused_package_is_resent_unless_final` | after `refused retry` a new upload at a new address, the old one dead; after `refused final`, `409` | a refusal never resent; a final one resent |
+| `upload::a_new_units_revisions_sent_at_once_all_start` | 512 first uploads of 16 new units at once, all `202`: a unit's owner is never read half-written | the owner file created, then written (a race: caught in 5 of 6 runs; the fix passed 15 of 15) |
+| `upload::lengths_are_held_to` | content past `Upload-Length` deactivates the upload; creation past `max-size` is `413` | the declared length not enforced |
+| `pcs::the_script_resumes_after_a_drop` | the script, through a proxy that cuts the connection after 600 kB of a 2 MB package, resumes past 0 and the receiver gets the exact bytes | the carrier's offset 0; the truncation; the script resuming from 0 |
+| `pcs::the_script_resumes_after_a_stall` | a link that goes silent both ways: curl's own stall timeout ends the request (`curl: (28)`), the resume ends the carrier's still-open one | no `--speed-time`; no supersede |
+| `pcs::the_script_resends_once_on_a_refusal` | `refused retry` then `committed` is exit 0 after two arrivals; two refusals are exit 3 and no third send | the script never resending; resending without end; the carrier refusing every resend |
+| `pcs::the_script_sends_a_committed_package_once` | a second run answers `committed` with nothing uploaded | duplicates not detected |
+| `quic::http3_carries_the_same_upload` | over HTTP/3: strangers refused, careful creation, a connection closed mid-`PATCH`, the offset on a new connection, completion, the poll | `HEAD` always answers offset 0 |
+
+The stand-in receiver in `carrier/tests/pcs.rs` follows §12.2's contract and refuses as final any package not
+byte-equal to what was sent, so a wrong splice cannot pass as `committed`.
+
+### 12.8 Questions, each with a default
+
+1. A unit belongs to the first site that sends it? *Default: yes*, ADR §10's binding at the unit level.
+2. Abandoned uploads: *default: kept until an operator removes them*; else a `max-age` in `Upload-Limit` and a sweep.
+3. Pinned certificates, or a PACS-run CA with short-lived certificates (ADR §10)? *Default: pins*, no CA to run;
+   short lifetimes would need the CA and a chain check (`WebPkiClientVerifier`).
+4. Per-PCS limits on concurrent uploads (ADR §10): *default: none* beyond one request per revision at a time.
+5. `status/` keeps one line per package for good: *default: yes*, it is what answers a late duplicate; prune after a
+   retention period if it grows.
+6. The allow list re-read without a restart: *default: no.*
+7. The script always creates carefully (one request more than a one-shot): *default: yes*, a fiber site may switch
+   to the one-shot `POST` with `Upload-Complete: ?1` and no resume (§11.2).
+8. The QUIC listener: *default: compiled only with `--features quic`, not started without `--quic`*, until C1.
