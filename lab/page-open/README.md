@@ -482,7 +482,11 @@ makes, every frame 0 checked against the source's checksum:
 ```bash
 BEFORE=aeb038e ONLY=wc-pre,wc-pre2,wc-hint RTTS=10,40 ROWS=hint.json NODE_PATH=$(npm root -g) \
   node lab/page-open/coldrtt.mjs /tmp/coldrtt 8
+# then FIRST_ROUND=8 PRIOR=hint.json ROWS=hint2.json …, 8 more, until every cell keeps ≥ 7 rounds
 ```
+
+Each visit records whether `dav1d.wasm` was asked for (the page's or a decoder's request): every A and A′
+visit must ask, no B visit may.
 
 **What is quoted: latency** — ms from navigation to the first exact frame, cold, as the paired B − A and
 A′ − A per round, median, and the rounds B was earlier in.

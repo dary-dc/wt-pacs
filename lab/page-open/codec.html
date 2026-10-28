@@ -12,7 +12,8 @@
     const old = q.get("tree");
     const tree = (globalThis.__tree = old ? old + "/client/downloader" : "/client/transport");
     const dec = old ? tree : "/client/decode";
-    const link = (rel, href, as) => document.head.append(Object.assign(document.createElement("link"), { rel, href, as }));
+    // As head.js: a preload without CORS is not the module or fetch it stands for, and goes unused.
+    const link = (rel, href, as) => document.head.append(Object.assign(document.createElement("link"), { rel, href, crossOrigin: "anonymous" }, as && { as }));
     link("preload", "/wt/dev-transport.json", "fetch");
     link("modulepreload", `${tree}/consumer.js`);
     link("preload", `${tree}/downloader.js`, "script");
