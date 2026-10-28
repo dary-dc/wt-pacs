@@ -348,8 +348,9 @@ wrong. Today the ladder tries the second (a second decode) and cannot tell the f
 
 ### A client cache
 
-None exists: the cache seam is open ([`../ARCHITECTURE.md`](../ARCHITECTURE.md), §A cache seam and a paint sink).
-When one is built:
+*2026-10-28:* the native core's is built as written below, coded bytes re-checked by the decode on read
+([`../native/README.md`](../native/README.md) §8.4, M3 in §6). The browser's seam is open
+([`../ARCHITECTURE.md`](../ARCHITECTURE.md), §A cache seam and a paint sink). When one is built:
 
 * **Never cache an unverified frame.** Store a frame only once its check is `true`, never `false` or `"unchecked"`.
   A frame rescued by a second decode is stored as its coded bytes, which were right.
