@@ -24,7 +24,7 @@ d0850096c26e9c888acaf2d6e2ac029e86f66f51a87461b77b94f1639d309b79  https://www.sq
 f3467b530b883d4a00574fe1a898b3d121ed72764ae28cf66941080ac0badb9e  https://www.sqlite.org/wal.html
 5ad54b7f4829c69c88f4bbf8b39c5b88e80740fc84a555ce9c23e5faf1e48138  https://www.sqlite.org/lang_attach.html
 0cdbd54a89169177c50efd15854e5c1e0df6fe1a0e0706234e034dd923e0503b  https://www.sqlite.org/limits.html
-9ef25b6b17d578d8c7f0d4584b2b3e545e98759d6319b39cc27241f07e945c37  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/DICMele2deck/pcs.pdf
-3ffe3ad53e134749328f041289431be0d26af5ae75d2301873daac645a0d6452  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/doc/PACS/db/deck.db
-7de9a5d3551cff43067273471dd4e6e80e3c1ca3f2edfd5e0b24a921a65e6da8  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/doc/dcmtk-storescp/README.md
-5308cec09d79fbd5e036d6e9b45ffdf708885ee395b46524de5d0d72a25c3a3f  https://github.com/opendicom/DECK_WebTransport/blob/a65abe282b6d/doc/PACS/README.md
+9ef25b6b17d578d8c7f0d4584b2b3e545e98759d6319b39cc27241f07e945c37  DECK_WebTransport (the PCS repository, public) a65abe282b6d:DICMele2deck/pcs.pdf
+3ffe3ad53e134749328f041289431be0d26af5ae75d2301873daac645a0d6452  DECK_WebTransport (the PCS repository, public) a65abe282b6d:doc/PACS/db/deck.db
+7de9a5d3551cff43067273471dd4e6e80e3c1ca3f2edfd5e0b24a921a65e6da8  DECK_WebTransport (the PCS repository, public) a65abe282b6d:doc/dcmtk-storescp/README.md
+5308cec09d79fbd5e036d6e9b45ffdf708885ee395b46524de5d0d72a25c3a3f  DECK_WebTransport (the PCS repository, public) a65abe282b6d:doc/PACS/README.md
