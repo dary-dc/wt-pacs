@@ -1,7 +1,8 @@
 # ADR: where a decoded frame goes — the page in or out of the pixel path, and who owns the frame store
 
-**Status:** proposed 2026-10-11, **theory only: nothing built or timed** (queue row 148, FRAMEPATH, of
-[`../av1/queue.md`](../av1/queue.md)). The decisions are the owner's; they are listed in §8 and under the queue's
+**Status:** proposed 2026-10-11 (queue row 148, FRAMEPATH, of [`../av1/queue.md`](../av1/queue.md)); the owner's
+target shape, a B′ without the store worker, **built 2026-10-28 as a variant beside today's path and not timed**
+(§3, *Built*). The decisions are the owner's; they are listed in §8 and under the queue's
 `## Blocked`. Sources are pinned in §9; every figure not marked *measured* is a prediction or a reading of source.
 
 ## 1 · Today, and the question
@@ -82,6 +83,65 @@ paint worker, every viewport**. Its cost is that two viewports' paints share one
 frame's receiver is the paint worker, so the ack must come from it: the page hands it a port to the downloader at
 start, or the ack is the page's, relayed from the paint worker's ~100-byte note. Either keeps row 147's rule; the first
 keeps the page out of it.
+
+**Built** (2026-10-28), **not timed; §7 decides adoption, and its runs are a row of their own.** The owner's target
+shape, beside today's path and chosen by one setting, the page's own `?view=page|worker` (default `page`):
+
+* **One view worker** the page starts (`client/view/view-worker.js`) holds three modules: the **controller**
+  (`controller.js`: the current frame, what to ask, the paint), the **frame store** (`store.js`: has, get, put, a
+  memory window by distance from the current frame, every frame by default as today; it decides nothing), and the
+  **paint module** (`paint/paint-worker.js`, imported, not a nested worker; it keeps the uploaded frame and the window
+  table). Under `page` the same controller and store run on the page with the paint worker behind them, so the two
+  variants differ in where they run alone.
+* **The page holds no frame.** It transfers the canvas to the view worker, starts the downloader itself and links the
+  two with one `MessageChannel` (the downloader's `link` message); after that it never posts to the downloader. The
+  decoders' pixel ports go to the view worker, where the consumer (`consumer.js`, given the port) runs and acks each
+  frame as it does on the page: row 147's rule holds unchanged, and the frame changes owner at the ack.
+* **The page's API** (`client/view/view.js`): `show(i)`, `setDisplay({window, invert, pose})`, `play(fps)` and
+  `pause()`, `valueAt(x, y)` → a promise of the sample under that canvas point; events `shown {i, exact}`,
+  `progress {have, total}` (at most every 100 ms, and at once at the last frame) and `failed {i, reason}`. `shown`
+  also carries the window painted, which a drag starts from, and `progress` the exact counts the status line shows.
+  The cine is still paced from the page, behind `play`.
+* **Wants are today's**: a held frame is painted with no message to the downloader; a miss is the exact ask, sent by
+  the controller over the port; the fill is `connect`'s. Transport, decoders and both clients are unchanged.
+* **Not built:** the OPFS store (a miss goes to the downloader where the store worker would be asked first; it lives on
+  `claude/opfs-cache-fixes`), the cine's clock in the worker, a want protocol, a second viewport. A downloader whose
+  script does not load is reported on the page by name, but `connect` in the view worker then waits on the check's
+  deadline rather than failing.
+
+**Held by** the viewer check, run by the gate under both views on both clients, filled with a cine and on demand
+(`client/viewer/run_check.sh`), and by `client/view/controller.test.mjs`. Each check was mutated and its mutant failed:
+
+| claim | check | mutant |
+| --- | --- | --- |
+| under `worker` no pixel, `SharedArrayBuffer` or port reaches the page, and the downloader posts it nothing | the check's count of the page's messages | the frame's pixels in `shown`; the downloader not linked |
+| a step to a held frame paints it and sends the downloader nothing | the check's `heldStep` at the port; the node test | a held frame asked anyway; a held step sending `check` |
+| a miss is asked of the downloader, from the view worker | the on-demand steps, heard at the port; the node test | a miss not asked |
+| every frame painted is exact | the check's exactness and readbacks | a sample altered in `htj2k.js` |
+| a window change paints again with no frame moving: no upload, nothing sent | the check's `windowStep` and its readback under another window; the node test | every paint uploads; a window change paints nothing |
+| `page` behaves as before | the viewer check and every other suite, green | — |
+
+**What each variant costs, counted from the code** (a frame decoded and acknowledged; the defaults' three decoders):
+
+| | `page` | `worker` |
+| --- | --- | --- |
+| messages a frame, whole graph | 4: decode, done, frame (decoder → page), ack | 4: decode, done, frame (decoder → view worker), ack |
+| … of them on the page's thread | 2: the frame in, the ack out | 0; a `progress` at most every 100 ms |
+| messages a paint | 2, both the page's: `paint`, `painted` | 1: `shown`, view worker → page |
+| a step | the paint's 2, plus the ask on a miss | `show` and `shown`; the ask, on a miss, leaves the view worker |
+| threads | 6: page, downloader, 3 decoders, paint worker | 6: page, downloader, 3 decoders, view worker |
+
+The gate's three-frame check, counted on the page's thread over its whole run (protocol, cine and readbacks
+included): `page` 5 frames in, 5 acks out, 12 paints out and 12 back; `worker` 0 frames, 1 `progress`, 8 `shown`.
+
+**What fought the shape.** The paint worker posted to its own global, so its `start` and `paint` now return and the
+entry posts; imported, its handler is replaced by the view worker's. The consumer made its own worker: it takes a
+`port`, ends a port by closing it, and the page triggers it forwarded are `watchPage`, exported. The downloader posted
+to its global; it now posts to whatever `link` names. The check read pixels on the page — the readbacks against the
+CPU reference, a spy on the client — so its half that needs frames runs beside the controller (`client/view/check.js`),
+and the total-time harness's frame hashes are the controller's `ledger()`. A drag starts from the frame's default
+window and only the frame knows it, so `shown` carries it; the canvas's CSS size is the page's, so a resize is an
+intent.
 
 ## 4 · OPFS, from the specs and the engines' sources
 
