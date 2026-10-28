@@ -20,7 +20,7 @@ client "supplies its transport, decode, cache and paint"):
 
 1. **Our own viewer on today's client.** It keeps everything we have, the 1:1 proof included. It is the most code to
    write: the tools and the layouts that Cornerstone3D would give us.
-2. **Cornerstone3D under our page.** It is the least glue, about 450 lines, and gives the most for free. But its GPU
+2. **Cornerstone3D under our page.** It is about 450 lines of glue, and gives the most for free. But its GPU
    paint cannot be byte-exact by construction (§Cornerstone3D, *render*). It also puts the page back in the pixel
    path.
 3. **OHIF v3.** It gives everything in (2), and a study list, a hanging protocol engine and a UI on top. It also has
@@ -71,7 +71,7 @@ path differs from ours in four ways:
 * **The window is a 1 024-entry table, not one entry per stored code.** vtk.js samples the transfer function into
   `colorTextureWidth` entries, 1 024 by default (vtk.js `Rendering/Core/AbstractImageMapper.js:31`), of 8 bits each
   through a `Uint8ClampedArray` (`Rendering/OpenGL/ImageMapper.js:571-592`). The shader looks the sample up by
-  `intensity * cscale + cshift` in float (`ImageMapper.js:274-276`). Cornerstone3D does not set the width. Ours is
+  `intensity * cscale0 + cshift0` in float (`ImageMapper.js:265-266`). Cornerstone3D does not set the width. Ours is
   65 536 entries for codes above 8 bits, in float64, rounded half up (`client/paint/voi.js`). So once a window is
   wider than 1 024 codes, adjacent codes share an entry, and the output moves by a code where they should not.
   `Uint8ClampedArray` also rounds half to even, where ours rounds half up. How many samples differ is not computed.
@@ -79,7 +79,7 @@ path differs from ours in four ways:
   `enums/VOILUTFunctionType.ts:6`), not the formula per code.
 * **The VOI LUT Sequence is applied on the CPU fallback only** (`RenderingEngine/helpers/cpuFallback/rendering/getVOILut.ts`).
   The GPU path builds only a linear or a sigmoid function (`planarImageRendering.ts:195-213`; `StackViewport.ts:1636-1662`).
-* **It filters, then windows** (`ImageMapper.js:274-276`). Ours windows, then filters. Our mutant "the window after
+* **It filters, then windows** (`ImageMapper.js:265-266`). Ours windows, then filters. Our mutant "the window after
   the filter" moved fractional cells by up to 8 codes ([`../../client/paint/README.md`](../../client/paint/README.md)
   §What is proved).
 
@@ -89,8 +89,8 @@ The context-pool engine sizes the canvas by `devicePixelRatio` (`RenderingEngine
 `NEAREST` also makes the colour table nearest (`ImageMapper.js:575-580`). So at 1:1 each sample takes one of 1 024 table
 values, which is a point transform, but not ours. `imageCanvasPoint` can justify the image to an edge (R1). The CPU
 fallback builds one 8-bit entry per stored value (`cpuFallback/rendering/generateLut.ts:25-34`). It is the one route
-that could be held to our reference, apart from rounding. It is the canvas-2D route that `lab/paint-floor` measured
-at 22–26× the GPU's cost ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Paint).
+that could be held to our reference, apart from rounding. Our own 2d route, of the same shape, measured
+18–26× the gl route's cost on a GPU ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Paint).
 
 **Keeping our painter.** `registerRenderBackend` is experimental. A backend draws to an existing `'vtk'` or `'cpu'`
 surface and "cannot yet register" its own
@@ -211,7 +211,7 @@ worker, as frame-path §3 proposes.
 | **kept** | all of it, the proof included |
 | **replaced** | nothing |
 | **lost** | nothing; time |
-| **glue** | none. **What Cornerstone3D would have given instead**: viewports and layouts, zoom, pan, pinch and scroll, linked scroll, zoom and pan, the length, angle, Cobb angle and probe tools, a ruler, annotation state and its overlay, and cine controls. By guess **~1 000–1 500 lines**, in a new directory beside `client/viewer/` |
+| **glue** | none. **What Cornerstone3D would have given instead**: viewports and layouts, zoom, pan, pinch and scroll, linked scroll, zoom and pan, the length, angle, Cobb angle and probe tools, a ruler, annotation state and its overlay, and cine controls. By guess **~1 000–1 500 lines**, in a new directory beside `client/viewer/`; for scale, today's `viewer.js`, one viewport with window, zoom, pan, scroll and cine, is 246 non-blank lines |
 | **upgrade risk** | ours only |
 | **licence** | ours; our decoders' licences are already carried |
 
