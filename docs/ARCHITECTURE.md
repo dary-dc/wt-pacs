@@ -345,6 +345,92 @@ of the sequential fill's time on 5–50 Mbit at 1× and 4×, and a four-view mam
 alike, 19 032/19 032 frames exact
 ([`av1/README.md`](av1/README.md) §The order frames are asked in).
 
+### Asking for a stack: what viewers do
+
+*A survey, 2026-10-28: read from source, standards and papers, **nothing here measured in this lab**.* The fill and
+the ask above are the two extremes; a reading viewer sits between them. Below is what existing viewers ask next, and
+what published sources say a reader does and needs. Source pins: Cornerstone3D `37d135dd`, OHIF Viewers `b9edaed5`,
+Weasis `32fef333`, all as cloned on 2026-10-28; DICOM 2026d; IHE RAD TF-2 Rev 23.0 (2025-08-08).
+
+**What viewers ask next**
+
+| source | what is asked next, in what order | how far ahead | against the frame on screen |
+| --- | --- | --- | --- |
+| Cornerstone3D `stackPrefetch` (`packages/tools/src/utilities/stackPrefetch/stackPrefetch.ts`) | the whole stack, alternating below and above the current frame: `// Prefetch images around the current image (before and after)` (:150), then `lowerIndex--` and `higherIndex++` in turn (:175–185); rebuilt 10 ms after each new frame (:42, :224–238) | `maxImagesToPrefetch: Infinity` (:31) | `RequestType.Prefetch`, priority 0 (`stackPrefetchUtils.ts`:5–6); the frame shown is asked as `RequestType.Interaction`, priority −5 (`packages/core/src/RenderingEngine/StackViewport.ts`:2311–2312) |
+| Cornerstone3D `stackContextPrefetch` (`…/stackPrefetch/stackContextPrefetch.ts`), what OHIF enables on every stack (`extensions/cornerstone/src/services/ViewportService/CornerstoneViewportService.ts`:994) | after a jump: `Fetch the next/previous 2 images` (:54); while stepping by one: `Prefetch additional images in the direction of navigation, up to 100` (:56), the next frames before the previous (:358–363); a step larger than 2 resets it (:328–331) | `minBefore: 2, maxAfter: 2, directionExtraImages: 10` (:31–34), growing by 10 a step to 100 (:324–326); once that completes, `Fetch up to 1/4 of the cache size images near the current image` (:59), split by position in the stack (:334–336) | as above; asks not yet sent are dropped on each move (`preserveExistingPool: false`, :35, :183–185) |
+| Cornerstone3D request pool (`packages/core/src/requestPool/requestPoolManager.ts`, `packages/core/src/enums/RequestType.ts`) | four classes, `Interaction` (`Highest priority for loading`), `Thumbnail`, `Prefetch`, `Compute` (RequestType.ts:6–14); within a class, lower number first (:174–175) | in flight per class `Interaction: 6, Thumbnail: 6, Prefetch: 5` (:120–122); raised to 1000 each for image loads (`imageLoadPoolManager.ts`:36–38) and 200 each for retrieval (`imageRetrievalPoolManager.ts`:14–22) | each class is sent up to its own cap on every pass (:286–297): an interaction goes first in the client's queue but does not stop a prefetch already sent |
+| Cornerstone3D interleaved volume load (`packages/core/src/loaders/configuration/interleavedRetrieve.ts`) | `Retrieve middle image, first, last` (:22), then every 4th frame at four offsets (:23–27, :40–90) | the whole volume | `RequestType.Thumbnail` at priorities 5–11 (:36–37 …); its neighbour copies shown in place of missing frames (:5–15) are a preview, out of scope here |
+| Cornerstone3D cine (`packages/tools/src/utilities/cine/playClip.ts`) | the next frame at the clip's rate: `defaults to 30 if not specified` (:36), or the Frame Time Vector (:120–126) | no look-ahead of its own; the stack prefetch above runs beside it | `A CINE frame is attempted every 1 / fps seconds`; `The default is 30 tries, or 1.25 seconds at 24 fps` (`packages/tools/src/types/CINETypes.ts`:15–16) of waiting for a frame not yet rendered, then it moves on (playClip.ts:406–415) |
+| OHIF v3 study prefetcher (`platform/core/src/services/StudyPrefetcherService/StudyPrefetcherService.ts`) | other series of the study, `closest`, `downward` or `upward` from the active one in the series list (:386–390) | `displaySetsCount: 1`, `maxNumPrefetchRequests: 10`, `order: downward`, `enabled: false` in the code (:112–131); the docs say 2 and `closest` (`platform/docs/docs/configuration/configurationFiles.md`:272–290) | starts only when the series on screen are loaded (`_areActiveDisplaySetsLoaded`, :589–592); `RequestType.Prefetch` (`extensions/cornerstone/src/initStudyPrefetcherService.ts`:6) |
+| Weasis (`weasis-dicom/weasis-dicom-explorer/…/wado/SeriesDownloadManager.java`) | in a series: `// Download endpoints and middle first`, then a `// Binary search pattern for remaining positions` (:256–266) | the whole series, `download.concurrent.series.images` 4 at a time (`ManifestModelBuilder.java`:335); 3 series at a time (`DownloadManager.java`:82–83) | series, not frames: focusing a series' thumbnail moves it to the front of the queue (`SeriesThumbnail.java`:324) and cancels a running series to make room (`LoadSeries.java`:573–590) |
+| Weasis cine (`weasis-dicom/weasis-dicom-viewer2d/…/EventManager.java`) | the speed is the series' Cine Rate when it has a Frame Time Vector (:349–354) | — | — |
+| dcm4chee-arc-light | no stack viewer of its own found: display is handed to "an image-aware system like an Image Display (PACS)" by IHE Invoke Image Display, Weasis in the example ([wiki](https://github.com/dcm4che/dcm4chee-arc-light/wiki/Invoke-Image-Display/Integration-with-3rd-Party-Softwares)) | — | — |
+| DICOMweb, [PS3.18 2026d §10.1.1](https://dicom.nema.org/medical/dicom/current/output/html/part18.html) | a frame retrieve names `{frames}`, "a comma-separated list of Frame numbers, in ascending order" | one request names any set of frames | the standard states no priority and no order other than ascending: a client that wants an order sends separate requests |
+
+No viewer surveyed uses scroll velocity. The nearest is `stackContextPrefetch`, which counts consecutive single
+steps in one direction.
+
+**What readers do and need, by modality**
+
+| modality | source | what it states |
+| --- | --- | --- |
+| CT/MR stack | Diaz et al., Med Phys 2015;42(6):2925, lung CT, 3 radiologists ([abstract only](https://pubmed.ncbi.nlm.nih.gov/26127046/)) | "The scrolling speed … at the moment the signal was detected was measured at 25-30 fps"; the radiologists had "a subjective estimate of 5 frames per second (fps)". The only measured slices/s found |
+| CT/MR stack | Drew et al., J Vision 2013;13(10):3 ([full text](https://pmc.ncbi.nlm.nih.gov/articles/PMC3736761)) | "Drillers restrict eye movements to a small region of the lung while quickly scrolling through depth"; scanners "search an entire level of the lung before moving on to the next level in depth". No slices/s, no count of passes |
+| CT/MR stack | Beard et al., J Digit Imaging 1994;7(4):189 ([abstract only](https://pubmed.ncbi.nlm.nih.gov/7858015/)) | "Adjacent eye movements (+/- 1 image in sequence) averaged 0.54 seconds" |
+| cine MR | SCMR standardized protocols 2020 ([full text](https://pmc.ncbi.nlm.nih.gov/articles/PMC7038611/)) | "Temporal resolution ≤45 ms between phases to optimize evaluation of wall motion" |
+| DBT | Aizenman et al., J Med Imaging 2017;4(4):045501 ([full text](https://pmc.ncbi.nlm.nih.gov/articles/PMC5658515)) | readers "scrolled through 3.8 image slices during a single fixation"; "sawtooth plots as the observer moves back and forth through the stack multiple times". No slices/s |
+| DBT | [IHE RAD TF-2 Rev 23.0](https://www.ihe.net/uploadedFiles/Documents/Radiology/IHE_RAD_TF_Vol2.pdf) §4.16.4.2.2.1.3.9 | "The Image Display shall not skip slices during manual or automatic scrolling"; its note: "if the Image Display is unable to keep up …, then the display will show all slices rather than scrolling faster". A note: "a maximum scrolling rate of at least 25 frames per second for an entire 5 MP display is desirable" |
+| DBT, mammography | [ACR–AAPM–SIIM practice parameter, image quality in mammography](https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=140) (2022, amended 2023) | §V.C.1: "It should not take more than 3 seconds to retrieve an image from online local storage and display it on a workstation" — the only latency number found. §V.B: DBT displays "should incorporate technology to compensate for image blur during scrolling via optimized frame rates", no number |
+| mammography | same, §V.B; IHE RAD TF-2 §4.16.4.2.2.1.1 | displays show "a set of current and prior 4-view mammograms (left and right CC and MLO views) simultaneously"; hanging protocols "tailored to user preferences". No view order is prescribed by either |
+| US, XA cine | [DICOM PS3.3 §C.7.6.5](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.5.html); IHE RAD TF-2 §4.16.4.2.2.6.9 | Recommended Display Frame Rate (0008,2144) and Cine Rate (0018,0040) in frames/s, Frame Time (0018,1063) in ms; IHE: "The default shall be the frame rate specified in the DICOM attributes, if present", no timing requirement |
+| echo | [ASE 2019 comprehensive TTE](https://www.asecho.org/wp-content/uploads/2019/01/2019_Comprehensive-TTE.pdf) §I.A.10 | "higher frame rates are desirable", no number |
+| XA | Badawy et al., Cardiol Res Pract 2018, one centre ([full text](https://pmc.ncbi.nlm.nih.gov/articles/PMC5925206)) | 15 fps cine as the baseline; "10 fps/low" recommended, which "did not impact on the diagnostic utility of the images" |
+
+The [ACR–AAPM–SIIM technical standard for electronic practice](https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=136)
+states no latency or frame rate: "retrievable in a time frame appropriate to the clinical needs" (§III.E.4). No
+published figure was found for non-cardiac ultrasound cine rates, for CC- or MLO-first, or from RSNA or SIIM on
+scroll latency. Two consequences for what is already written here: the 9 slices/s that
+[`adr/stride-is-bandwidth-conservation.md`](adr/stride-is-bandwidth-conservation.md) works with is not a source's,
+and a measured 25–30 fps is three times it; and IHE's DBT rule forbids the skipping that ADR chooses, during
+scrolling.
+
+**Candidate asking patterns.** Each with where it comes from, what it assumes, and the one lab measurement that
+would decide it. A **scroll trace** below is a scripted sequence of on-screen frames, played into the viewer; none is
+built.
+
+1. **Outward from the frame on screen**, alternating below and above, to the whole series. *From* Cornerstone3D
+   `stackPrefetch`. *Assumes* the next frame is as likely below as above, and memory holds the series. *Decides:* the
+   share of frames shown exact when the trace reaches them, against today's index-order fill, on a drilling trace
+   (a sawtooth over a third of the stack) at 25 slices/s, on the five-link total-time links (queue row TOTAL).
+2. **Direction-aware run-ahead**: two either side after a jump, then the frames ahead growing with each single step,
+   to a cap. *From* Cornerstone3D `stackContextPrefetch`, OHIF's default. *Assumes* scrolling is runs of single steps
+   and a jump means a fresh look. *Decides:* the same share on the same trace against pattern 1; it wins only where
+   the link cannot fill the series before the reader turns.
+3. **Coverage first**: ends and middle, then bisection or every k-th frame. *From* Weasis's series order and
+   Cornerstone3D's interleaved volume load. *Assumes* the first move is a jump to anywhere, and a frame near the target
+   helps until the target lands. *Decides:* the time until every frame is within k of one delivered, against the
+   index-order fill, with the fill's total time beside it — the asked-first measurement paid two round trips
+   ([`av1/README.md`](av1/README.md) §The order frames are asked in).
+4. **Velocity-aware look-ahead**: frames ahead spaced by scroll speed. *From* no viewer surveyed; the stride ADR.
+   *Assumes* the reader may scroll faster than the link delivers, and that skipping is allowed — IHE's DBT rule above
+   says it is not. *Decides:* frames/s delivered exact against the trace's 25 slices/s on each link; if every link
+   that matters keeps up, the pattern is not needed.
+5. **Cine look-ahead by frame rate**: play once the frames buffered cover the rest of the run at the clip's rate.
+   *From* cine playback at the DICOM rate (IHE, Weasis, Cornerstone3D's 30 fps default and its wait-then-move-on).
+   *Assumes* Cine Rate or Frame Time is present and the link's frame rate may be below it. *Decides:* frames/s
+   delivered exact against Cine Rate on `us_liver` and `usb_cine` on the five links; where it is above, playing at the
+   first frame does not stall.
+6. **The series on screen first, then the next series**, and in a multi-view study the views of the first hanging
+   before priors. *From* OHIF's study prefetcher (waits for the series on screen), Weasis's thumbnail priority, the
+   ACR and IHE current-and-prior four-view hanging. *Assumes* the hanging is known when the session opens. *Decides:*
+   time to the whole first hanging with current views asked before priors against one fill of both; for four views
+   alone no order shortens it (the av1 measurement cited above).
+7. **The frame on screen above everything, without stopping what is in flight.** *From* Cornerstone3D's request
+   pool (interaction at −5, prefetch at 0, each class sent to its own cap). *Assumes* in-flight prefetch is cheap to
+   finish. *Decides:* already written as the one-queue protocol, [`WIRE.md`](WIRE.md) §Proposed: one queue.
+
+Mapping these onto the wire is a later row.
+
 ## The decoders
 
 * **One module per codec behind one interface.** `decoder.js` loads `htj2k.js` or `av1.js` by the
