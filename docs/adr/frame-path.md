@@ -800,9 +800,17 @@ round by `lab/order.mjs`; a fresh profile per run; every arm's settings printed 
    only if its median in every R cell is ≤ 0.9 × A's and its median in every W cell ≥ 0.9 × A's; else A. Within
    an arm, paint first wins unless only on-arrival passes. If no arm passes, the result goes to the owner as measured.
 
-`lab/opfs-arms/summary.mjs` applies this rule to the rows. **Mutants, each run before its cell is believed.** *write-before-paint*: the paint-first arm draining its whole queue
+`lab/opfs-arms/summary.mjs` applies this rule to the rows.
+
+**Mutants, each run before its cell is believed.** *write-before-paint*: the paint-first arm draining its whole queue
 before the paint. At S3, 4×, it must miss ticks, and at least Σ ⌊block / period⌋ of its own measured blocks; a
 harness that cannot see that lateness fails. *drop-writes*: every arm recording writes it never made; W must fail its
 read-back. Both are `--mutant` in the rig.
 
-**Smoke, 2026-10-28** (one round per arm, Chromium 153 and Firefox 159; not results): SMOKE_LINE
+**Smoke, 2026-10-28** (one round per arm, Chromium 153 and Firefox 159; not results): every arm ran its L, W and R
+runs to the end in Chromium, L and R in Firefox, each writing and reading back exact, except one Firefox B-on-arrival
+L run that hit the cell's deadline (4 × its 10 s) with frames unwritten, which the rule counts as an unbounded
+backlog. *write-before-paint* was caught at S3, 4×, on both paint-first arms (Chromium only: the smoke did not throttle
+Firefox); *drop-writes* was caught on A, B and C in both engines. The saturation check fired at S3, 4×, in Chromium's
+one round: whether that cell is saturated is for the full run. The probe's facts are in the table above (*run once*).
+The full runs are a separate row.
