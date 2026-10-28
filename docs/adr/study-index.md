@@ -8,7 +8,8 @@ the one **source**, not a "truth"; the "mysql master index" quotation is in pcs.
 names and specifies the component [`../ingest/design.md`](../ingest/design.md) §5 calls "the catalog"; where the two
 differ (the engine, §5 here), this record is the newer reading. Sources are pinned in §12 and
 [`study-index-sources.txt`](study-index-sources.txt). *Inferred* marks a conclusion of this record, not a source's
-statement.
+statement. *Extended 2026-10-26:* §6 weighs the index on a server of its own (the owner, 10-24 and 10-26), from
+sources and #165's measurements; proposed, not decided.
 
 ## 1 · On one screen
 
@@ -17,7 +18,7 @@ statement.
 | **1 Name** | **study index**; the glossary entry, and "catalog" renamed in `docs/ingest/`, on acceptance | the list screen becoming a reading *worklist* (status, assignee): that is a second thing, named separately | a rename in docs and identifiers: hours |
 | **2 Content** | list-time fields only: QIDO-RS's required study and series return attributes, plus study description, Issuer of Patient ID, the study's **host**, its **revision**, an **access key**; per series the **codec**. No display metadata, no instance rows, no blobs | a screen that filters on a field not listed (add a column, backfill by reconcile) | a column: one migration + one reconcile pass, because the index is derived |
 | **3 Engine** | **MySQL 8.4 LTS** (or MariaDB, whichever the operators already run) | the owner answering "one host for the foreseeable future" → an SQLite file on that host; a need for database-enforced row security → PostgreSQL | low: plain SQL, and every row is rebuilt from the study DBs by the reconcile job (§7) |
-| **4 Placement** | **one index for all PACS hosts**; its server process starts on the first host and moves to its own server when a second host arrives. Viewing by direct link **does not need the index** | a second host, or the index's load measurably slowing the host's frame reads (§11) | a move: restore or rebuild elsewhere, re-point one connection string |
+| **4 Placement** | **one index for all PACS hosts**; its server process starts on the first host, local socket only, with the list API beside it; index and API move together to their own server at the first trigger (§6). Viewing by direct link **does not need the index** | a second host; list load or the index's memory measurably slowing the host's frame reads (§6.9) | a move: restore or rebuild elsewhere (2–5 h at 10⁶, arithmetic), re-point the publishers and the API's name |
 | **5 Sync** | the study DB is the one source. **Intent row first, study DB commit, then publish**: a per-host outbox, an upsert that replaces a study's rows whole when its **revision** is higher, retries, and a reconcile job at start and daily | many writers per study (today one receiver per host) | the outbox is one table on each host: small either way |
 | **6 Access** | the browser reaches only an **HTTPS API** shaped like QIDO-RS's Search (`/studies`, `/studies/{uid}/series`) with PS3.18 JSON; authorization in the API by the study's access key; the database never reachable from outside. Budget: **≤ 50 ms p95 server time a list page** (§11); no cache tier | a measured miss of the budget (§11) | an added cache or replica: additive |
 | **7 Not now** | instance rows, display metadata, thumbnails, fuzzy name matching, full-text search, replicas, a cache tier, a change feed, a patient table, QIDO-RS conformance claimed, distributed transactions (§9) | each one's trigger in §9 | each is additive |
@@ -178,29 +179,224 @@ relevance ranking. A document store: the rows are flat. libSQL's server: weighed
 
 ## 6 · Placement and scale
 
+*Extended 2026-10-26, proposed, not decided:* the owner asked on 10-24 and 10-26 whether the index could live on a
+server of its own "for scaling", to evaluate. §6.1–6.8 answer that from sources and from #165's numbers
+(`lab/study-index/`, branch `claude/study-index-proto` at `16fec79a`); §6.9 pre-registers what neither settles.
+
+| question | recommendation | triggers that move it | cost of moving |
+| --- | --- | --- | --- |
+| **Should the study index run on its own server, and when?** | **Not on day one.** The engine starts on the first PACS host, reachable only by a local socket, with the list API beside it. **Index and API move together** to one server of their own at the first trigger. Self-run first; a managed database is the owner's call on who is paged (§6.5) | (T1) a **second PACS host** is commissioned; (T2) list load measurably slows that host's frame reads (§6.9); (T3) the index's memory measurably raises that host's frame-read misses (§6.9). Not a trigger: latency (§6.4) | a restore (or a rebuild by reconcile, about 2–5 h at 10⁶ studies, arithmetic), one connection string per publisher, the API's DNS name |
+
 **One study index for many PACS hosts.** Each list or search is one query on one server. The alternative is a
 per-host index and a fan-out API, which merges, sorts and pages across hosts: a page then waits on the slowest host
-and fails with any one of them. With one host the two are the same thing. *Inferred.*
+and fails with any one of them. With one host the two are the same thing. dcm4chee documents the same shape:
+several archives "sharing the same database", so that a study stored on one "is also available on 2nd archive"
+(wiki, *Multiple Archives with Direct Attached Storage sharing one DB*). *Inferred.*
 
-**Where it runs.** The engine's process starts on the first PACS host, on a local socket. It moves to its own server
-when a second host arrives, or when §11 shows its load slows that host's frame reads. Orthanc's scalability page
-asks for 1–4 ms between the application and its database server, "in the same datacenter". For the API, that means
-running beside the index, not beside the browser. Co-location adds no new class of exposure: the host already holds
-every study DB, with all of their identifiers. *Inferred.*
+**The API sits beside the index, wherever the index is.** Orthanc's scalability page: "it's important for the
+network latency to be as small as possible … Typically, a latency of 1-4 ms is expected to have correct
+performances … make sure that the DB server and Orthanc VMs are located in the same datacenter." With the API
+beside the index, a list query never crosses the network; only the publishers (§7) do. Co-location on the first
+host adds no new class of exposure: the host already holds every study DB, with all of their identifiers.
+*Inferred.*
 
-**When the index is unreachable.** Lists and searches fail with a clear error; nothing else stops. A study can still
-be viewed by direct link if two things hold, both proposed here:
+### 6.1 · When the index is unreachable
+
+Nothing that shows an image needs it. *Inferred* from §4's boundary and §7's order; the direct-link path is unbuilt.
+
+| function | needs the index? | while it is down | once it returns |
+| --- | --- | --- | --- |
+| open a study or series by direct link | **no**, if the link names the host and the host checks the token (below) | works | — |
+| frames, display metadata | no: the host's `.sbnd` and study DB (§4) | works | — |
+| study list, search, a study's series list | yes | a clear error, never an empty list; the client may keep the last page it showed, if §10 Q7 allows | works on the next request |
+| receive, update, delete on a host | no: the study DB commit is independent | works; the outbox grows | the publisher drains it. #165, 1 000 studies owed: a publisher kept running drained in **7.6 s** locally and **22.6 s** at 2 ms; a restarted one in **19.4 s** and **34.2 s**, because its outbox is inside each study DB and a restart scans them all (#165 §Recovery). §7's per-host outbox file avoids that scan |
+| a correction across one patient's studies | yes, to find them (§7) | waits | runs |
+| a new direct link (token) | only if the token names the study's access key, which is in the index | see below | — |
+
+A study can still be viewed by direct link if two things hold, both proposed here:
 
 1. **The link names the host** (`https://<host>/…/<Study>`), not only the study, so nothing has to look it up.
 2. **The host authorizes the view without the index:** a short-lived token, signed by the API and checked by the host
-   with a key it holds.
+   with a key it holds. If the token carries the user's access keys rather than a study's, the host compares them
+   with the key in its own study DB and the API need not read the index to sign it. *Inferred*; which of the two the
+   API signs is a design choice of the direct-link path.
 
 The host reads its own study DB for display metadata (§4). Serving a study by its UIDs on a host is itself unbuilt:
 today a server process serves one series (`--series`; [`../FIXTURES.md`](../FIXTURES.md) §From DICOM, "Several series of
 one study — proposed").
 
-**The receivers keep writing when the index is down.** The study DB commits are independent of it. The outbox (§7)
-holds what is owed, and the index catches up when it returns.
+**What co-location changes in a failure.** On the first host, that host's outage or maintenance takes its own
+studies *and* every host's lists. With one host this is the same outage. With two it couples host B's lists to host
+A's maintenance, which is T1's reason. On its own server the index is still one point of failure for lists, but
+for lists only, and it is decoupled from every frame host's restarts. *Inferred.*
+
+### 6.2 · The triggers
+
+* **T1, a second PACS host** (decisive, no measurement needed). Beyond the coupling above, a co-located index makes
+  host A the one every other host's publisher writes to and the one whose disk holds everyone's list fields: an
+  asymmetry among hosts the code would have to carry. *Inferred.*
+* **T2, query load on the frame host's CPU.** #165's sweep saturated 4 vCPUs at concurrency 8–16 with mysqld, the
+  API, the clients and the forwarder sharing them; nothing is claimed past that point, and the frame server was not
+  part of the rig. Frame serving is the product's latency-critical path ([`disk-access.md`](disk-access.md)): a list
+  burst that takes its cores is the risk. Measured by §6.9 (a), not assumed.
+* **T3, memory and the page cache.** The frame reads depend on the page cache, "shared across every session on one
+  series" ([`disk-access.md`](disk-access.md) §2). The index is 3.9 GB at 10⁶ studies and 4.85 series a study,
+  about 5.5 GB at ~8 (#165 §Size). **Here the engine changes the answer.** InnoDB holds its pages in its own buffer
+  pool, opened `O_DIRECT` by default (#165 §Pre-registration), so it takes RAM from the page cache but does not churn it.
+  PostgreSQL "also relies on the operating system cache", and its manual sizes `shared_buffers` for "a dedicated
+  database server" (§19.4.1): its index pages compete *inside* the page cache. An SQLite index likewise reads
+  through the page cache. *Inferred*; measured by §6.9 (b).
+* **Not a trigger: list latency.** §6.4: with the API beside the index, a list query does not cross the network
+  wherever the pair runs.
+* **Also weighed: isolation of operations.** An engine upgrade or restart on its own server does not restart a frame
+  host, and a frame host's kernel update does not stop lists (§6.5). A reason that favours the move once T1 holds,
+  not one that starts it alone. *Inferred.*
+
+### 6.3 · The PACS host's other choices, by engine
+
+* **SQLite cannot move out.** "SQLite will work over a network filesystem" but its WAL "does not work over a
+  network filesystem", and its own page sends many networked clients to a client/server engine (§5). Choosing SQLite
+  (§5 (a), one host) fixes the index on that host; T1 then means an engine change. §5's switching cost holds: the
+  index is derived and refilled by reconcile.
+* **Default listeners differ.** MySQL's `bind_address` defaults to `*`, every interface; PostgreSQL's
+  `listen_addresses` defaults to `localhost`, "only local TCP/IP 'loopback' connections". Co-located, MySQL must be
+  told to listen on its socket only (§6.6).
+* **Per-host write rules:** PostgreSQL's row security can bind a publisher's account to its host's rows; MySQL has
+  none (§5, *absence not confirmed*). §6.6.
+
+### 6.4 · Latency budget, from #165
+
+#165 (MySQL 8.4.6, 10⁶ studies, warm, p95, concurrency 1) measured both paths a remote index could put on the
+network:
+
+| path | local | 2 ms round trip | §8 / §7 budget |
+| --- | --- | --- | --- |
+| one list query, tuned shape, worst of §11's cells (`db` / `app`) | 2.8 / 3.6 ms | 5.0 / 5.8 ms | ≤ 10 / ≤ 50 ms |
+| added cost of the hop, per query | — | **+2.1 to +2.6 ms** (one round trip a query, prepared statements kept by `reset_connection=false`) | — |
+| sync lag, receiver commit → index commit, p50 / p95 | 7.2 / 10.2 ms | 21.2 / 25.6 ms (**+14 ms** at p50) | ≤ 1 s (#165's rule) |
+| publisher throughput, one study at a time | ~140 studies/s | ~47 studies/s | — |
+| rebuild of a host by reconcile, 10⁶ studies (arithmetic) | ~2 h | ~5 h | — |
+
+* **If the API moved without the index**, each query pays its hop. At 1.1–1.3 ms of query per ms of round trip
+  (#165's +2.1–2.6 ms at 2 ms), the tuned shape's worst cell reaches §8's 10 ms query budget at about **5–6 ms of
+  round trip** (arithmetic, not measured); Orthanc's 1–4 ms sits inside that. The added `name_family` @ 1000 cell
+  misses the query budget already at 0 ms (17–20 ms).
+* **With the API beside the index** (§6's rule), list queries run at the `local` column and the hop is the
+  publishers' alone: +14 ms of lag against a 1 s rule, and the burst and rebuild rows. Those scale with the round
+  trip, because a publish is about seven statements and one durable commit (#165 §Sync); batching studies per
+  transaction would recover it, if a burst ever matters (not now).
+* **Against the phone.** One HTTPS request on an open connection costs 17–52 ms idle and 0.4–1.9 s loaded on
+  cellular ([`../transport/link-conditions.md`](../transport/link-conditions.md)). The server's whole share, local or
+  across the hop, is a few ms of that.
+* **Not measured:** TLS between the API or publishers and the index (#165's MySQL traffic was unencrypted); more than
+  one publisher; the hop under load. §6.9 (c), (d).
+
+### 6.5 · Operations: self-run, on a server of its own or co-located, against a managed database
+
+The index is **derived** (§7): every row can be rebuilt from the study DBs. That changes what each operation must
+guarantee. Losing the index loses no data, only list availability until restore or rebuild. *Inferred* from §7.
+
+| operation | what the index needs | self-run (MySQL / PostgreSQL) | managed database | co-located on the first host |
+| --- | --- | --- | --- | --- |
+| **backups** | a recent copy, so recovery is a restore plus a reconcile's delta, not a 2–5 h rebuild | a nightly physical backup ("much faster than logical techniques such as the mysqldump", MySQL §9.2) or `pg_basebackup`. No binary-log or WAL archiving for point-in-time recovery: **reconcile replays from the source** what a backup missed (the scan alone ~5 min at 10⁶, arithmetic) | provider's snapshots; the same reconcile after a restore | the same; the backup leaves the host |
+| **HA, replication** | none at first: an outage stops lists, not images (§6.1) | if lists must survive the server: one asynchronous replica. MySQL: "if the source crashes, transactions that it has committed might not have been transmitted to any replica" (§19.4.10); PostgreSQL: asynchronous solutions open "the possibility that some transactions might be lost in the switch" (§26). For a derived index that loss is repaired by **running reconcile after every failover**, so neither semi-synchronous replication nor Group Replication ("automatic primary election", §20) is needed | provider failover, then reconcile | none: the host is one machine |
+| **upgrades** | engine upgrades without stopping frames | MySQL 8.4 LTS: "5 years of premier support and 3 years of extended support"; in-place by binaries on the data directory (§3.7); "skipping an LTS series is not supported". PostgreSQL: `pg_upgrade` for a major version "without the data dump/restore". **Or a new server, filled by restore and reconcile, then re-pointed**: possible only because the index is derived | provider's maintenance windows | an engine restart on the frame host; its kernel or OS update stops lists too |
+| **monitoring** | the outbox, above all | per host: **outbox depth and the age of its oldest row**, publish errors; at the API: the `Server-Timing` `db` p95 (#165); the engine's own: MySQL's Performance Schema ("monitoring MySQL Server execution at a low level"), PostgreSQL's cumulative statistics (§27.2); replica lag if one exists | the provider's metrics for the engine; the outbox and API metrics stay ours | the same, plus the frame host's memory (T3) |
+| **who is paged** | | the operators | the provider for the engine, the operators for everything above it | the operators, for one machine |
+
+**Managed database: what it changes** (*inferred*; no provider's documentation was read, and none is named here).
+It takes backups, patching and failover off the operators. It adds three things. (1) The index always sits across a
+network from the PACS hosts, so the API must run in the same datacenter as the database (§6). (2) Patient names and
+IDs leave the premises: an agreement with the provider and the jurisdiction's rules for patient data, which the
+owner decides. (3) A recurring cost. Managed offerings are MySQL- or PostgreSQL-compatible; there is no managed
+SQLite in this sense.
+
+### 6.6 · Security
+
+* **Patient-name search is a network service.** The index answers "who is called Pérez" for every host. Co-located:
+  the engine listens on a Unix socket only (MySQL: `bind_address` set, since its default is `*`; PostgreSQL's default
+  `localhost` already refuses remote peers). On its own server: its port reachable from the API and the publishers'
+  addresses only, on a network the internet cannot reach (§8). Orthanc's security page asks for the same of its own
+  service: "Intranet firewalls, so that only trusted computers can contact Orthanc".
+* **TLS on every hop to the index, verified.** MySQL: `require_secure_transport=ON` on the server and
+  `--ssl-mode=VERIFY_IDENTITY` on clients ("check that the host name the client is using matches the identity in the
+  server's certificate"; by default clients only "attempt" encryption). PostgreSQL: `hostssl` lines in `pg_hba.conf`.
+  The reference archives leave it to the operator: Orthanc's MySQL and PostgreSQL plugins ship `"EnableSsl" : false`.
+  Co-located on a socket, TLS is moot. TLS's cost per query is unmeasured (§6.9 (c)).
+* **Credentials, one account per role.** The API: `SELECT` only. Each host's publisher: its own account, its host
+  part pinned to that host's address (MySQL's account names take "a host name or an IP address"; PostgreSQL's
+  `pg_hba.conf` address field). No account for a browser, ever (§8).
+* **Which host may write.** A publisher must write only rows whose **host** is its own; otherwise a compromised host
+  could rewrite other hosts' list rows, and its `SELECT` (needed by the revision check, #165 `src/index.rs`) reads
+  every patient's name. **Here the engine changes the answer:** PostgreSQL's row security can enforce
+  `host = current_user` in the database; MySQL cannot (none found). Engine-neutral alternative: publishers post to a
+  write endpoint of the API, authenticated per host by a client certificate, and only the API holds a write account.
+  That is one more endpoint, so it waits for T1; with one host there is one writer. *Inferred.*
+* **A new copy of identifiers.** On its own server the index, its replica and its backups are copies of patient
+  names and IDs in new places, each to be protected as the study DBs are. Encryption at rest was not read for
+  this record.
+
+### 6.7 · Cost
+
+No prices are quoted; they depend on the provider and change. *Inferred.*
+
+* **Co-located:** no machine; the index's RAM (§6.2 T3: a buffer pool the size of 4–6 GB of index at 10⁶) comes from
+  the frame host's page cache.
+* **Its own server:** sized by memory, not CPU. A buffer pool holding the whole index, as #165's 8 GiB did, and a
+  disk of tens of GB for data, logs and a local backup. One machine, and with a replica two. Its operating cost is
+  the operations column of §6.5, not the machine.
+* **Managed:** the provider's price for that memory, plus whatever its storage, backups and cross-zone traffic cost.
+* **Avoided by the API-beside-index rule:** any cache tier or replica for latency (§8, §9).
+
+### 6.8 · What each engine changes, gathered
+
+| | MySQL / MariaDB | PostgreSQL | SQLite |
+| --- | --- | --- | --- |
+| can move to its own server | yes | yes | no: an engine change at T1 (§6.3) |
+| default network exposure | every interface (`*`) | loopback only | none |
+| memory against the frame host's page cache (T3) | its own buffer pool, `O_DIRECT` | `shared_buffers` *and* the page cache | the page cache |
+| per-host write rule in the database | no | row security | n/a (one host) |
+| replica for a list HA | asynchronous replica, then reconcile | hot standby, then reconcile | `sqlite3_rsync` copy |
+
+### 6.9 · Pre-registered protocol for what is not measured (not run)
+
+**Claims under test:** (a) list load on the frame host does not slow its frame reads; (b) the index's memory does
+not raise its frame-read misses; (c) TLS to a remote index keeps §8's budget; (d) more than one publisher keeps §7's
+guarantees and #165's 1 s lag rule. Extends §11 and #165's rig (`lab/study-index/` at `16fec79a`) and `lab/server-load/`.
+
+* **Host.** One machine for the frame server and, in the co-located arm, the index and API; a second for the
+  remote arm, 2 ms round trip through #165's TUN forwarder. Cores, RAM, filesystem and kernel printed. The engine
+  and its settings as #165's (MySQL 8.4, 10⁶ studies, seed 106, tuned shape, buffer pool 8 GiB).
+* **Arms, interleaved in every round** ([`../../CLAUDE.md`](../../CLAUDE.md) §Measurement): `colocated` (index + API
+  on the frame host, Unix socket), `remote` (index + API on the second machine), `remote_tls`
+  (`require_secure_transport=ON`, `VERIFY_IDENTITY`), and `none` (no index process) as the frame host's baseline.
+  A/A: `colocated` twice. ≥ 12 rounds, arm order rotated.
+* **(a) CPU.** A fixed `lab/server-load/` fill at the concurrency where the frame server is below its own saturation,
+  with list load from #165's uniform mix at concurrency 0, 4, 8 and 16. Metric: the frame server's per-frame read
+  latency p95, and the list `app` p95. Where the host saturates is stated; nothing claimed past it.
+* **(b) Memory.** The frame working set sized to the RAM left once the buffer pool is full, so the two compete.
+  Misses are counted by the reader's own short-return count of `RWF_NOWAIT` ([`disk-access.md`](disk-access.md)) and
+  by major faults, never caused by page-cache eviction; cold starts are forced through the store's test levers.
+  Buffer pool at 0.5, 4 and 8 GiB, interleaved.
+* **(c) TLS.** `remote` against `remote_tls` on #165's cells at concurrency 1 and at the sweep's knee; pooled
+  connections, so the handshake is reported apart (first request after a restart) from the per-query cost.
+* **(d) Publishers.** 1, 2 and 4 publishers, each its own emulated host (distinct **host** value, own outbox), idle
+  and burst scenarios of #165 §Sync, on `colocated` and `remote`. Metrics: per-study lag p50/p95/max, lock waits and
+  retries, deadlocks.
+* **Correctness, mutated.** After every (d) round each study's index revision equals its study DB's, and no row has
+  another publisher's host. Mutations that must fail: the upsert without its revision comparison (a regressed
+  revision must be detected); a publisher writing a row of another host, once the per-host rule exists; a client
+  with a wrong CA under `VERIFY_IDENTITY` (must refuse to connect); a reconcile skipped after a forced failover
+  (the index must be found behind).
+* **Decision rule, before any data.**
+  * (a) and (b): co-location stands while the frame-read p95 and the miss count under list load at concurrency 8
+    stay within the A/A spread of `colocated` against `none`. Outside it, T2 or T3 has fired: the index and API move
+    to their own server.
+  * (c): `remote_tls` meets §8 (every tuned cell `db` ≤ 10 ms, `app` ≤ 50 ms p95). TLS is required either way; a
+    miss is reported with its cause, and does not by itself keep the index co-located, because list queries do not
+    cross the hop (§6.4).
+  * (d): every publisher's idle lag p95 ≤ 1 s, zero mismatches, zero regressions. A miss is a defect in §7's upsert
+    to fix before T1.
 
 ## 7 · Sync with the study DBs, without a distributed transaction
 
@@ -325,7 +521,7 @@ without slowing the frame reads.
 
 ## 12 · Sources
 
-Fetched 2026-10-25; URLs and full sha256 in [`study-index-sources.txt`](study-index-sources.txt). Nothing fetched is
+Fetched 2026-10-25, §6's additions 2026-10-26; URLs and full sha256 in [`study-index-sources.txt`](study-index-sources.txt). Nothing fetched is
 committed.
 
 | claim | source |
@@ -350,9 +546,24 @@ committed.
 | `LIKE` with nondeterministic collations since 18, their penalty | PostgreSQL 18 manual §9.7, §23.2.2.4; PostgreSQL 17 §9.7 |
 | hot standby; row security policies; licence; 18.6 current | PostgreSQL 18 manual §26.4, §5.9; licence page; versioning page |
 | WAL not over a network filesystem; client/server for many clients | SQLite `wal.html`, `whentouse.html` |
+| several archives sharing one database; a database node apart from the archive node | dcm4chee-arc-light wiki `ad95e92`: *Multiple Archives with Direct Attached Storage sharing one DB*; *Distribute secured archive services … over several hosts without Docker Swarm*; dcm4chee-arc-psql image README (`POSTGRES_HOST`) at `7b4c3d8` |
+| 1–4 ms to the database, same datacenter; multiple readers/writers on one database | Orthanc book, "Scalability" (§Latency, §Concurrent accesses) |
+| firewalls, HTTPS; plugins' `EnableSsl` off by default | Orthanc book, "Security"; "PostgreSQL plugins", "MySQL plugins" |
+| physical vs logical backup; point-in-time recovery | MySQL 8.4 manual §9.2, §9.5 |
+| asynchronous replication may lose committed transactions on failover; Group Replication | MySQL 8.4 manual §19.4.10, Chapter 20 |
+| `require_secure_transport`, `VERIFY_IDENTITY`, clients "attempt" encryption | MySQL 8.4 manual §8.3.1 |
+| `bind_address` default `*`; account host part | MySQL 8.4 manual §7.1.8; §8.2.4 |
+| LTS support period, no LTS skipping; in-place upgrade | MySQL 8.4 manual §1.3, §3.7 |
+| Performance Schema | MySQL 8.4 manual Chapter 29 |
+| base backup and PITR; log shipping asynchronous; synchronous vs asynchronous HA | PostgreSQL 18 manual §25.3, §26.2, §26 |
+| `listen_addresses` default `localhost`; `hostssl`; `pg_upgrade`; cumulative statistics | PostgreSQL 18 manual §19.3.1, §20.1, `pg_upgrade`, §27.2 |
+| `shared_buffers` and the OS cache, "a dedicated database server" | PostgreSQL 18 manual §19.4.1 |
+| online backup; `sqlite3_rsync` | SQLite `backup.html`, `rsync.html` |
+| §6.4's latency, sync, recovery, size, saturation | `lab/study-index/README.md` on `claude/study-index-proto` at `16fec79a` (#165) |
 | ATTACH: atomic across files only outside WAL | SQLite `lang_attach.html` |
-| the PCS's schema and statements | opendicom/DECK_WebTransport `a65abe2`: `doc/PACS/db/deck.db`, `DICMele2deck/pcs.pdf`, `doc/dcmtk-storescp/README.md` |
+| the PCS's schema and statements | DECK_WebTransport (the PCS repository, public) `a65abe2`: `doc/PACS/db/deck.db`, `DICMele2deck/pcs.pdf`, `doc/dcmtk-storescp/README.md` |
 
 **Not verified:** the brief's pcs.pdf and `dicm2decksqlite3` quotations (§2); a product word for dcm4chee's database
 in its documentation; whether MySQL uses an index for a prefix `LIKE` under `utf8mb4_0900_ai_ci` (§11 checks it);
-SQLite `NOCASE`'s folding; IHE ITI's master patient index and audit trail; the Rust MySQL client crate's licence.
+SQLite `NOCASE`'s folding; IHE ITI's master patient index and audit trail; the Rust MySQL client crate's licence; for §6, any managed-database provider's documentation (none read, none named), encryption at rest, and a paper on
+index placement (none found).

@@ -11,6 +11,9 @@ compares options and recommends; every choice is the owner's (§10).*
   name (decided 2026-10-25); this file's "archive" is that package.
 * **Hashes the PACS checks are XXH3, not BLAKE3** (decided 2026-10-24/25). The group files are named by XXH3; §6's
   identity argument for BLAKE3-256 no longer holds (corrected there).
+* *Corrected 2026-10-28:* XXH3 is wt-pacs's choice and the parser keeps BLAKE3 by its team's, so "XXH3 since 2026-10-24/25" below
+  means our contract; the pre-UTF-8 hash length (§6; §10, 8) is fixed upstream at `e105214`; one file per series
+  is open again since the team meeting of 2026-10-28 reopened rsync ([`pacs-receive-design.md`](pacs-receive-design.md)).
 * **"Catalog" is the study index** ([`../adr/study-index.md`](../adr/study-index.md), proposed: MySQL, list fields
   only); "study database" is the **study DB**; a study's **revision**, not "generation" (the glossary's generation is a
   request's identity); the study DB is the one source, not a "truth".

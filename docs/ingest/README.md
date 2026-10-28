@@ -20,7 +20,7 @@ update package; its XXH3 in its name). Hashes the PACS checks are XXH3, not BLAK
    run the parser once per received instance.
 2. **Parse.** The owner's C parser writes one directory per instance: the exam, series, instance and private
    attributes as key-value group files, each named by its hash (BLAKE3-256 in the parser read on 2026-10-11; XXH3,
-   decided 2026-10-24/25), and one raw file per frame. That directory is
+   decided 2026-10-24/25; *corrected 2026-10-28:* XXH3 in wt-pacs's contract, the PCS keeps BLAKE3 by its team's choice), and one raw file per frame. That directory is
    the hand-over: a crash checkpoint, inspectable, and a process boundary between C reading untrusted files and the
    ingest.
 3. **Wait for the series.** DICOM marks no last instance, so the ingest needs a rule for when a series is complete
@@ -52,7 +52,7 @@ update package; its XXH3 in its name). Hashes the PACS checks are XXH3, not BLAK
 | --- | --- | --- | --- | --- |
 | XXH3-64 | the raw samples, as read | the ingest | the ingest after decode-back; the client after its decode | the coded frame, and the shown one, is the encoder's input |
 | coded-frame digest (XXH3-64, in the agreed draft target; not built) | the coded bytes | the ingest | the PACS on receipt, read back from disk; the server on read | transit and storage, without decoding |
-| XXH3 (*corrected 2026-10-26*: this row said BLAKE3-256) | a metadata group | the parser | the PACS, after decompressing | parser → PACS for metadata, once the parser hashes the bytes it writes (§5) |
+| XXH3 (*corrected 2026-10-26*: this row said BLAKE3-256) | a metadata group | the parser | the PACS, after decompressing | parser → PACS for metadata, once the parser hashes the bytes it writes (§5; *corrected 2026-10-28:* it does since `e105214`, with BLAKE3, its team's choice) |
 | XXH3, in the package's name | the submission package | the PCS | the PACS on receipt | the link and the PCS's disk |
 | TLS | the bytes on the wire | — | — | the link alone |
 
@@ -80,7 +80,7 @@ The client's checks stay on by default.
 | Scope starts at the PACS; the PCS's output is the input contract | **decided** 2026-10-24 | [`pacs-receive-design.md`](pacs-receive-design.md) §1 |
 | The client's exactness checks stay on by default | **decided** 2026-10-11 | [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) |
 | Frames are coded at the PCS | the PCS's side: the PACS receives coded `.sbnd`s and does no repacking (decided 2026-10-24/25) | [`design.md`](design.md) §2 |
-| One submission package per series on the link; its XXH3 in its name | **decided** 2026-10-25 | [`pacs-receive-design.md`](pacs-receive-design.md) §2 |
+| One submission package per series on the link; its XXH3 in its name | **decided** 2026-10-25; *reopened 2026-10-28* (the PCS row below) | [`pacs-receive-design.md`](pacs-receive-design.md) §2 |
 | Metadata compressed one stream per series | configurable per site; the receiver accepts both (owner, 2026-10-26); frames never compressed again (decided 2026-10-25) | [`design.md`](design.md) §7; [`pacs-receive-design.md`](pacs-receive-design.md) §2 |
 | Publish by rename after `fsync`; idempotent by UID + digest | recommended | [`design.md`](design.md) §8 |
 | When a series is complete; what a late instance does | open | [`design.md`](design.md) §4 |
@@ -89,10 +89,10 @@ The client's checks stay on by default.
 | A changed duplicate: replace, keep both, or hold | open | [`design.md`](design.md) §8 |
 | A bad instance: refuse the series, or store the rest marked incomplete | open | [`design.md`](design.md) §8 |
 | The upload's shape (S3-style multipart, tus, per-file PUT, rsync) | open; a resumable HTTPS upload proposed | [`link.md`](link.md) §7, §9; [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §3 |
-| The PCS sends one file a series (the `.sbnd` in it), not a tree; hashes are XXH3; the PACS confirms storage before the PCS deletes; a second refusal goes to an operator | **decided** 2026-10-24/25 | [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §1 |
+| The PCS sends one file a series (the `.sbnd` in it), not a tree; hashes are XXH3; the PACS confirms storage before the PCS deletes; a second refusal goes to an operator | **decided** 2026-10-24/25; *corrected 2026-10-28:* one file, not a tree, reopened by the team (rsync and a trigger after it); XXH3 is ours, the PCS keeps BLAKE3 (the design state, `pacs-receive-design.md`, #168) | [`../adr/pcs-transfer.md`](../adr/pcs-transfer.md) §1 |
 | The PCS host's tuning and congestion controller (the PCS's side); the server's kernel | open | [`link.md`](link.md) §4, §9 |
 | How the parser ships with the ingest | open | [`../FIXTURES.md`](../FIXTURES.md) §A compiled ingest at the site |
-| The parser hashes the bytes it writes | open | §5 below |
+| The parser hashes the bytes it writes | **fixed upstream** at `e105214` (`e21160f`; *corrected 2026-10-28:* this row said open) | §5 below |
 | Streaming the pack: code on arrival; frames as records only under a quiet period | recommended | [`design.md`](design.md) §11 |
 | The study index's engine | MySQL proposed; "MySQL fits" (owner, 2026-10-25), its placement to evaluate | [`../adr/study-index.md`](../adr/study-index.md) §5 |
 
@@ -105,6 +105,7 @@ parser's author.
   with nothing saying so.
 * **Three of the four group hashes cover a length taken before the UTF-8 conversion** (series, instance, private; the
   exam group's is right). A group whose text changed length in the conversion fails a recompute while intact.
+  *Corrected 2026-10-28:* fixed upstream at `e105214` (`e21160f` hashes the bytes actually written).
 * **Frame files are named with five digits**, so a series over 99 999 frames cannot be written.
 * **The variable `comp` holds samples per pixel (0028,0002)**, though its comment says planar configuration.
 
