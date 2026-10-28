@@ -202,7 +202,7 @@ Every file was fetched on 2026-10-11 and is listed with its URL and sha256 in
 | --- | --- |
 | sync handles in dedicated workers; exclusive lock; `AllowSharedBufferSource`; `flush()` | fs `index.bs` 425–432, 605–609, 647–652, 1421–1430, 1632–1640 |
 | buckets cleared whole; best-effort first; `persist()` Window-only | storage `storage.bs` 362–367, 561–563, 573–579, 618–624 |
-| SAB within an agent cluster; ports transferable; worker `requestAnimationFrame`; OffscreenCanvas placeholder | html `source` 10532–10547, 117612–117620, 134770–134771, 123527–123546, 76966–76973, 77549–77562 |
+| SAB within an agent cluster; ports transferable; worker `requestAnimationFrame`; OffscreenCanvas placeholder | html `source` 10532–10547, 117612–117620, 134770–134771, 123527–123546, 76966–76973, 77549–77562. *Corrected 2026-10-28:* 134770–134771 is the `MessagePort` IDL (ports transferable); the worker's `requestAnimationFrame` is 133029–133030 and 123527–123546 |
 | `[AllowShared]` texture upload | WebGL `specs/latest/2.0/webgl2.idl` 516–524 |
 | Chromium quota and LRU eviction | `storage/browser/quota/quota_settings.cc` 31, 127–141; `quota_features.cc` 26–27; `quota_database.cc` 640–679 |
 | Chromium write path | `…/file_system_access/file_system_access_regular_file_delegate.cc` 25, 76–91, 127–130; `file_system_access_capacity_tracker.cc` 21–24, 89–116; `base/files/file_posix.cc` 679–697 |
@@ -638,3 +638,25 @@ no Firefox binary here, no WebKit. A number below is this host's, not a phone's,
   that the page's long tasks do not reach a worker's clock, as draws, for one engine; presentation is not read.
 * The step from disk at 512² is ~2.2 ms of OPFS; the draw on SwiftShader (3.5 ms at 512², 46 ms at 2560×3328) is the
   host's and says nothing about a GPU.
+
+#### Sources for the independent design (2026-10-28)
+
+Fetched after the comparison was committed; they change no design text. Each file's URL and sha256 is in
+[`frame-path-sources.txt`](frame-path-sources.txt) under 2026-10-28; commits as §9's, plus w3c/webtransport `eb3430a`
+and WebKit `48880e3` (nested workers, 2022-09-17, "Blink and Gecko already support this"). Line numbers are of the
+files as fetched.
+
+| claim | source |
+| --- | --- |
+| a dedicated worker may start a worker | html `source` 136866–136867 `[Exposed=(Window,DedicatedWorker,SharedWorker)] interface Worker`; WebKit `workers/Worker.idl` 29–31, `Exposed=Window` at `9085c84` → `(Window,DedicatedWorker)` at `48880e3`; Gecko `dom/webidl/Worker.webidl` 14–15; Chromium `core/workers/worker.idl` 32–34 |
+| WebGL2 on an `OffscreenCanvas` in a worker | html `source` 76936–76939; WebKit `html/OffscreenCanvas.idl` 62–73, `html/canvas/WebGL2RenderingContext.idl` 68–70; Gecko `OffscreenCanvas.webidl` 16–29, `WebGL2RenderingContext.webidl` 28–29 |
+| `WebTransport` in a worker | w3c/webtransport `index.bs` 833–834 `[Exposed=(Window,Worker), SecureContext]`; Chromium `modules/webtransport/web_transport.idl` 8–10; Gecko `WebTransport.webidl` 75–76; WebKit `Modules/webtransport/WebTransport.idl` 28–31 |
+| worker `requestAnimationFrame` | html `source` 133025–133030, 123527–123546; WebKit `DedicatedWorkerGlobalScope.idl` 49 (`EnabledBySetting=OffscreenCanvasInWorkersEnabled`); Gecko `DedicatedWorkerGlobalScope.webidl` 38; Chromium `dedicated_worker_global_scope.idl` 44–47 |
+| a transferred `ArrayBuffer` is moved and detached, with no cross-origin-isolation check; a `SharedArrayBuffer` cannot be transferred, is cloned only when the settings object is cross-origin isolated, and is deleted from every global of a non-isolated cluster | html `source` 11291–11293, 11330, 11354–11365; 10533–10545; 117928–117939 |
+| `estimate()` and `getDirectory()` in workers; `persist()` Window-only | storage `storage.bs` 604–624; fs `index.bs` 1692–1704 |
+| file and directory handles are `[Serializable]` | fs `index.bs` 329–330, 361, 426–427, 471–472, 677–678, 726–727 |
+| the sync handle's lock: taken exclusive, released on `close()`; released when the worker dies in Chromium (the host's mojo pipe severed → `OnDisconnect` → the lock handle destroyed), not a spec step | fs `index.bs` 132–172, 605–609, 1656–1664; Chromium `file_system_sync_access_handle.{h,cc}` 66–68, 39–50; `platform/mojo/heap_mojo_remote.h` 24–25, 112–115; `content/browser/file_system_access/file_system_access_access_handle_host_impl.{h,cc}` 67–69, 110–114, 58–60, 81–93; `file_system_access_lock_manager.cc` 574–579; `file_system_access_file_handle_impl.cc` 315–330 |
+| a write or `truncate` past quota throws `QuotaExceededError` in Chromium, capacity asked before the write | `file_system_access_regular_file_delegate.cc` 76–82, 117–118; `file_system_access_capacity_tracker.cc` 73–105; `file_system_sync_access_handle.cc` 123–127, 204–217 |
+
+**Not traced:** WebKit's and Gecko's release of the lock when a worker dies; WebKit's nested workers' sync handles at
+run time (the IDL exposes them; the probe ran Chromium only).
