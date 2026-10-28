@@ -520,16 +520,22 @@ the first exact frame, median [range], and paired against A: rounds earlier / pa
 | 10 ms | 262 [220–305] | 4/12, +4 | 225 [188–256] | 13/13, **−41** | B wins |
 | 40 ms | 417 [393–448] | 6/14, +8 | 393 [382–419] | 12/14, **−24** | B wins |
 
-Warm, B − A −10 (12/13) at 10 ms and −7 (9/14) at 40, A′ − A +5 and +3: ties by the rule's thresholds.
+Warm, B − A −10.4 (12/13) at 10 ms and −7 (9/14) at 40, A′ − A +5 and +3: by the rule's thresholds a B win at
+10 ms and a tie at 40 (*corrected:* first written as two ties; −10.4 is past the −10 threshold). The spread, cold:
+per round A′ − A runs −22 to +39 ms at 10 and −40 to +26 at 40 (SD ≈ 20); a bootstrap 95 % interval of the median
+B − A is −48 to −25 ms at 10 and −35 to −3 at 40; B − A′ is −44 (15/15) and −15 (13/14). The 40 ms win holds, its
+size is loose.
 
 **Verdict: the hint wins both cold cells and loses none, so it is on by default** — ingest writes `depth`,
 the viewer passes it, a series ingested before keeps today's loads. The predictions: 40 ms inside its
-−10 to −60; 10 ms just past its −15 to −40; warm a tie, as predicted. The fallback test holds with 4/4
+−10 to −60; 10 ms just past its −15 to −40; warm a tie at 40 ms, and at 10 ms a win the prediction missed. The fallback test holds with 4/4
 mutations caught (the fetch on a failed probe dropped, the hint ignored, the fetch made on a pass, the probe
 of the wrong layout). After the first 8 rounds the 10 ms cell was `VOID` (A′ − A +23, 6 kept) and the 40 ms
 one already won (−26, 6/7); the top-up is the rule's, not a second look chosen after the fact. **Not
 measured:** Firefox, a series whose probe fails (dav1d then loads as before the hint, a probe later), the
-product page itself (`codec.html` mirrors `head.js`'s preloads), HTTP/3, 4× CPU, a device.
+product page itself (`codec.html` mirrors `head.js`'s preloads), HTTP/3, 4× CPU, a device, and a series whose
+first layout is not `g{depth}` — the hint probes `g10` for an RCT colour series' `c10` and `g8` for a 4:2:0 grey's
+`g8f`, and not a split's low `g8`: a wrong guess changes only whether the WASM is fetched ahead, never the decoder.
 
 ## The WASM client's load
 
