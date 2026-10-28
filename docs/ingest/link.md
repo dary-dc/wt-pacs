@@ -343,7 +343,7 @@ that loopback cannot stand in for ([`../rig-limits.md`](../rig-limits.md) §3).*
 CT. Carry the PACS's three replies back to the PCS on connections the PCS opens. Survive a drop, a stall, and a site
 whose address changes. Reach every site over 443/TCP (§3) and some over QUIC, with as few mechanisms to build as
 possible, since the owner weighs development and maintenance heavily. The PCS side is C and shell today
-([DECK_WebTransport](https://github.com/opendicom/DECK_WebTransport) at `a65abe282b6d`: a parser in C, vendored
+(DECK_WebTransport (the PCS repository, public) at `a65abe282b6d`: a parser in C, vendored
 openjpeg and sqlite, no network code yet).
 
 ### 11.1 On one screen
@@ -468,6 +468,8 @@ Received is rsync's exit status after its whole-file checksum. QUIC: none, ever.
 hospital, each key restricted to one directory (rsync's `rrsync`, not read), plus a watcher that ignores rsync's
 temporary names. The least code on both sides (*estimated*), and the wrong reachability: 22/TCP out is opened per
 site, if at all, and a proxy-only site cannot use it (ADR §3, *inference*).
+*Corrected 2026-10-28:* not ruled out: the team meeting of 2026-10-28 reopened rsync for PCS → PACS (the PCS's
+tree, a trigger after it, a status file pulled back); it is open with the team (the design state, `pacs-receive-design.md`, #168).
 
 **(e) An upload protocol on our WebTransport server.** QUIC is the viewer's transport, so the server is there; the
 upload is not: offsets, completion, the reply and limits are ours to specify. TCP needs the WebSocket mapping, as for
@@ -502,7 +504,8 @@ with less checking. DICOMweb's STOW-RS carries instances, not a package, and res
 * **Adds** what the PCS builds: a curl script, not a Rust or C HTTP stack, and an HTTP/3-capable curl only where QUIC
   is enabled; and a stall timeout, since detection, not reconnection, is most of a drop's cost.
 * **Adds** a bound for "resume is needed": T ≤ M / 10 (§11.2), and a fair reading of rsync: a reply over ssh is
-  possible; reachability and the absent QUIC path are what rule it out.
+  possible; reachability and the absent QUIC path are what rule it out (*corrected 2026-10-28:* reopened by the team,
+  §11.3d).
 * The ADR's §3 and M3 cite draft -14; this file's §7 read -13. -14's change log removed integrity digests; the
   package hash in the name covers it either way (ADR §6).
 
@@ -556,7 +559,7 @@ Fetched or read 2026-10-25; the first 12 hex of the fetched file's sha256. Raw c
   `src/driver/mod.rs` (`8a91e8e1a449`). crates.io records (versions, dates, dependencies): hyper 1.12.0, h3 0.0.8,
   h3-quinn 0.0.10, quinn 0.11.12, axum 0.8.9, tokio-rustls 0.26.6, s3s 0.17.0, fileloft-axum 0.3.0, tus-protocol
   0.1.0, tus-axum 0.1.0, salvo-tus 1.0.1, tus_async_client 0.2.1.
-* **The PCS:** opendicom/DECK_WebTransport at `a65abe282b6d` (2026-10-22), `README.md` (`4fce01b625c8`) and its tree.
+* **The PCS:** DECK_WebTransport at `a65abe282b6d` (2026-10-22), `README.md` (`4fce01b625c8`) and its tree.
 * **This repository:** the ADR §3, §5, §6, §7, §10–§12; this file §3, §4, §7, §8; [`../WIRE.md`](../WIRE.md) §The
   WebSocket mapping; `patches/`.
 
