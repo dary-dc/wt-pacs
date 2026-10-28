@@ -150,7 +150,7 @@ const asks = new Map();
 let steps = 0;
 /** A step: its frame painted from memory, or asked — ahead of the fill, and in on-demand mode the newest ask alone. */
 async function show(i) {
-  current = (i + n) % n;
+  current = Math.min(Math.max(i, 0), n - 1);
   status();
   if (frames.has(current)) return repaint();
   const want = current;
@@ -180,7 +180,7 @@ function toggleCine() {
     cine = null;
   } else {
     const ms = meta.frameTimeMs ?? (meta.cineRate ? 1000 / meta.cineRate : 100);
-    cine = setInterval(() => show(current + 1), ms);
+    cine = setInterval(() => show((current + 1) % n), ms);
   }
   cineEl.textContent = cine ? "❚❚ cine" : "▶ cine";
 }
