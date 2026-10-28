@@ -22,6 +22,8 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | early SETTINGS | the server's SETTINGS in its handshake flight, at 0.5 RTT (a crate patch, `settings-in-handshake`) |
 | tile | the server's read of one asked frame (`TileReader`); not a codec's tile, which is said in full ("AV1 tile", "HTJ2K tile") |
 | ring | the io_uring ring a tile session builds on its first page-cache miss ([`adr/disk-access.md`](adr/disk-access.md) §1) |
+| view worker | the proposed worker that owns the frame store, the cache and the paint, and sends the downloader its wants ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Asking for a stack: the patterns on our wire); not built |
+| want | the view worker's ordered list of frames it does not hold, as ascending runs and single frames; each replaces the one before |
 | record | the downloader's state of one frame: `wire`, `queued`, `decoding` |
 | generation | a request's identity, moved by `cancel`; **epoch**, a session's, moved by a resume |
 | resume, recycle | a dead session replaced, owing what the records owe; a live one replaced before a byte budget |
