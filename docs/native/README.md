@@ -255,7 +255,8 @@ same quinn and the server's own `fod`, `frame-envelope` and `series-bundle` crat
 * **The accept loop.** `endpoint.accept()` → `incoming.accept()?` → `handshake_data().await` → by
   `protocol`: `h3` → `IncomingSessionFuture::with_quic_connecting(connecting).await` and today's `handle_incoming`
   body; `wt-pacs/1` → `connecting.await` and a raw handler (§8.3). Stop is unchanged: `endpoint.close(STOPPING, …)`
-  and `wait_idle()` exist on `quinn::Endpoint`.
+  and `wait_idle()` exist on `quinn::Endpoint`. *Corrected 2026-10-28, found in #201:* `endpoint.accept()` returns
+  `None` for good once the endpoint is closed, so a `None` ends the loop; wtransport's `accept` hid that by panicking.
 * **Two endpoints instead** (raw QUIC on a second port) would leave `build_endpoint` alone, but adds a port to open
   in every firewall, a second socket, a second stop path and a second banner line, and the two could drift in
   configuration. One endpoint is fewer lines and one configuration; the PCS upload's QUIC listener is a separate
@@ -309,15 +310,13 @@ opened), and on `tokio`. Modules, each added by the step that needs it:
   hash-wasm and Python's `xxhash` already wrote (`client/decode/xxh3.test.mjs`'s lengths; the goldens'
   `NAME.xxh3`, 109 files).
 * **`decode`** (step 2): OpenJPH 0.31.0 and dav1d 1.5.4 at the WASM builds' pins (`client/decode/wasm/build/pins.sh`),
-  compiled natively from the same wrappers (`client/decode/wasm/openjph/htj2k_decoder.cpp`,
-  `client/decode/wasm/dav1d/dav1d_wrap.c`), and the AV1 payload reader and split merge ported from `av1-payload.js`
-  and `av1-frame.js` ([`../av1/payload-format.md`](../av1/payload-format.md)). Behind a cargo feature, so the default
-  build stays C-free. A mismatch is decoded again by a fresh decoder object, as in the browser
-  ([`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §Built); natively there is one AV1
-  decoder, so an AV1 frame inside a group (G > 1) has no recovery here either.
+  and the AV1 payload reader and split merge ported from `av1-payload.js` and `av1-frame.js`
+  ([`../av1/payload-format.md`](../av1/payload-format.md)). Behind a cargo feature, so the default build stays C-free.
+  *Corrected 2026-10-28, found in #201:* not compiled from the WASM wrappers, which are emscripten bindings, but linked
+  through the ingest's native shim `ingest/coded-frames/decode.cpp`; and every native decode opens a fresh decoder, so
+  a mismatch is `false` at once rather than decoded again.
 * **`cache`** (M3): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 *A client cache* and §3
-  above, as written: coded bytes keyed by series, index and metadata version, only `true` frames, re-checked by the
-  decode on read; temporary name, fsync, rename, the directory fsynced.
+  above, as written.
 
 **The lab binary, `native-fill`**: `--url https://host:port/ --cert-sha256 HEX --bundle PATH`, then `--fill A-B` or
 `--ask N,…`, and the client's windows. It prints its settings first, then a row per frame (index, bytes, last-byte
