@@ -311,15 +311,18 @@ Nothing in `client/` or `server/` changed.
   B's samples sit where Cornerstone3D's own `canvasToWorld` says they do. The step is exactly 1 and the origin is on
   a pixel centre in every readback, and B is exact wherever the window spans 1 024 codes or fewer. So the |Δ| = 1
   comes from the table, not from placement.
-* **Own cine, one sweep at 100 ms:** A (paint-waiting) rendered 50 of 50 in order. B's `playClip` also rendered 50 of
-  50 in order. B's skip needs a render slower than `waitForRendered` ticks, which this host did not reach.
+* **Own cine, one sweep at 100 ms:** A (paint-waiting) rendered 50 of 50 in order. B's `playClip` rendered 50 of 50 in
+  order in the gate's visit, and skipped 1 of 50 in the row mutant's (`mutants.jsonl`), whose mutant moves only the
+  readback's camera. So B's cine can skip on this host too; two sweeps do not say how often.
 * **Mutants, each caught by name:**
   * one sample flipped in every decoded frame (`mutants/`): 0 frames exact in both options, and no first image;
   * the paint one row low: worst |Δ| 112 on DBT and 67 on the four views, in both options;
   * A's cine on today's timer: 18 of 50 slices skipped.
 
 **The metrics.** 10 rounds of the four cells, the two options in a Williams order within each. 80 visits, no `VOID`,
-10 kept pairs a cell. Medians, with the range across rounds in brackets.
+10 kept pairs a cell. Medians, with the range across rounds in brackets. No A/A arm was run; the two bars B fails
+below do not need one, since the four views' first image was 131–152 % of A's in every round, and page open is the
+same bytes in every visit.
 
 | metric | cell | A | B | B against A, paired |
 | --- | --- | --- | --- | --- |
@@ -335,7 +338,7 @@ Nothing in `client/` or `server/` changed.
 | glue, non-blank non-comment lines | — | 91, plus 43 shared | 166, plus 43 shared | — |
 
 **Where the container saturates.** It has four cores and no GPU. The relay ran alone on core 3, the browser and server
-on 0–2. During the scroll the three browser cores were 64–68 % busy under A and 50–66 % under B, so neither option
+on 0–2. During the scroll (not in the rows) the three browser cores were 64–68 % busy under A and 50–66 % under B, so neither option
 filled them. The rate is the serial chain of one paint on SwiftShader, and says only which way a GPU host might go.
 Nothing near the 60 frames/s cap was reached. A's slower scroll is not explained: its painter uploads the R16UI frame
 and filters in the shader at every step. Not measured beyond that.
@@ -385,8 +388,8 @@ the paint) is in `lab/viewer-spike/a/page.js`, not in `client/viewer/`.
 
 **Left open.**
 
-* Every scroll and paint number is SwiftShader's. The GPU host reruns the scroll, and B's `playClip` skip under a
-  render slower than its ticks.
+* Every scroll and paint number is SwiftShader's. The GPU host reruns the scroll, and how often B's `playClip`
+  skips.
 * B's bundle is all of core and tools. A bundle trimmed to what B uses was not tried, and it could move the page-open
   bar.
 * `ffdm_d` itself, if IDC restores it.
