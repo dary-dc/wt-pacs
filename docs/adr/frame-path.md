@@ -219,7 +219,8 @@ shipping Safari's ITP window; any frame on screen while the page is blocked.
 
 **Status:** a design review for the owner; the store's limit and eviction corrected 2026-10-27 for multi-GB studies
 (lever 5, with its defaults). **Built 2026-10-27 with those defaults; measured 2026-10-27** (§Measurement owed): reopen
-and eviction on Chromium hold, the memory window fails, eviction fails on Gecko. It builds on §1–§8 and on what is
+and eviction on Chromium hold; page memory is not bounded (the store worker keeps every frame); eviction fails on Gecko
+under a limit set by pref. It builds on §1–§8 and on what is
 already decided: the page stays in the pixel path (the owner, 2026-10-11, queue row 148: §8.1 settled as A unless a
 measured cost says otherwise); checks stay on, the cache read's re-check included (the owner, 2026-10-11, row 151); a
 frame is never decoded twice; the final image lossless and bit-exact. Sources fetched for this section are added to
@@ -299,8 +300,9 @@ budget holds, from the frame sizes above:
 | 1 GiB | 2 048 | 63 | 39 |
 
 Page memory becomes the budget + frames written but not yet confirmed + the workers (17–144 MiB, row 273), whatever
-the series' size. *Measured 2026-10-27 (M2, below): the risk holds on Chromium, and the window as built bounds
-nothing; the store worker keeps every frame it is sent until a GC that does not come.* **Was: not measured, and a risk:** a `SharedArrayBuffer` is freed only when no agent holds it and each
+the series' size. *Measured 2026-10-27 (M2, below): the risk holds on Chromium, and page memory as built is not
+bounded: the store worker keeps every frame it is sent until a GC that does not come.* (*Corrected in review:* this said
+the window bounds nothing; the diagnostic, 3 rounds, reads the page's side as let go, the store worker's as not.) **Was: not measured, and a risk:** a `SharedArrayBuffer` is freed only when no agent holds it and each
 has collected it (HTML, §9). Dropping it from the `Map` therefore lowers resident memory only after the collectors
 run, on the page and in the store and paint workers. If that lags under a fast fill, the fix is the preallocated
 store already open in [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Open (*one preallocated shared store per fill*):
@@ -451,7 +453,7 @@ re-check is the guard, which is why it cannot be switched off for cache reads.
 | failure | seen as | the page does |
 | --- | --- | --- |
 | no OPFS: Firefox private, Safari private (by source), an engine without it | `getDirectory()` rejects | no cache: the window alone (below) |
-| the series does not fit | `truncate` at open throws `QuotaExceededError` (*corrected 2026-10-27:* this also read `estimate()`, which lever 5 shows decides nothing; *measured 2026-10-27, M3:* Gecko 159 throws `NS_ERROR_FILE_NO_DEVICE_SPACE` instead, which the store does not take as a refusal) | delete the least recently opened series not open, retry until it fits (lever 5; this said "try once"); else no cache for this series |
+| the series does not fit | `truncate` at open throws `QuotaExceededError` (*corrected 2026-10-27:* this also read `estimate()`, which lever 5 shows decides nothing; *measured 2026-10-27, M3, the limit set by pref:* Gecko 159 throws `NS_ERROR_FILE_NO_DEVICE_SPACE` instead, which the store does not take as a refusal) | delete the least recently opened series not open, retry until it fits (lever 5; this said "try once"); else no cache for this series |
 | the disk fills mid-fill | a write throws though `truncate` passed (a sparse file, lever 5) | delete one such series, retry once; else stop writing this series |
 | Chromium private window | it fits, but the "disk" is RAM in the browser process | the same rule: it caches only what fits 5–6.7 % of RAM, which then lifts nothing; not detectable as such, and not worth special code |
 | storage pressure, or ITP, empties the origin between opens | the manifest is missing | a fresh fill |
@@ -560,8 +562,9 @@ median |on′ − on| exceeds 64 MiB; a round in which the relay's own timing gu
 dropped and counted. M3 and M4 are rules on states, not timings: no A/A. Firefox and WebKit are run only where the
 container can; a cell not run on an engine says so.
 
-**Measured 2026-10-27** (the rows: `lab/opfs-cache/`, `summary.py`). Chromium 153.0.8010.12, Playwright's headless
-shell, every cell; Firefox 159.0 on an Xvfb display, M3 only; **WebKit not run** (no build in the container). Every
+**Measured 2026-10-27** (the rig: `lab/opfs-cache/`, `summary.py`). *Corrected in review:* this pointed to the rows;
+they are not committed (`work/` is untracked), so no number below can be recomputed from the repository. Chromium
+153.0.8010.12, Playwright's headless shell, every cell; Firefox 159.0 on an Xvfb display, M3 only; **WebKit not run** (no build in the container). Every
 frame of every arm was exact by both checks, except where a mutant made it not.
 
 | cell | measured | verdict |
@@ -570,10 +573,10 @@ frame of every arm was exact by both checks, except where a mutant made it not.
 | M1 · 256 × 512², 2 % | F 70.5 s [70.0–71.0], R 187 ms [165–206]; R / F ≤ 0.003; A/A 0.985, 1.073; 6 rounds, 1 dropped | **holds**; "R ≤ 0.2 s" missed in 1 (206 ms) |
 | M1 · 32 × 3328×4096, clean | F 31.11 s [31.09–31.12], R 712 ms [665–773]; R / F ≤ 0.025; A/A 1.000, **1.093**, near the 1.10 bar; 7 rounds | **holds** |
 | §7's rule, from M1 | read + re-check a frame, R / n: 0.68–0.73 ms at 512², 22.3 ms at 3328×4096, against a decode of 3.0 and 69–72 ms | **decoded samples stay**: lower on both sets. The page cache was warm; a cold read is not measured |
-| M2 · 80 × 3328×4096, 2.03 GiB | growth on 2 521 MiB [2 394–2 543], on′ 2 524 [2 398–2 532], off 2 287 [2 184–2 359]; A/A median \|on′ − on\| 11 MiB; 7 rounds, all complete | **fails**: on is over 416 MiB in 7 of 7, and above off. The never-drops mutant reads 2 529 MiB, the same: the window bounds nothing |
+| M2 · 80 × 3328×4096, 2.03 GiB | growth on 2 521 MiB [2 394–2 543], on′ 2 524 [2 398–2 532], off 2 287 [2 184–2 359]; A/A median \|on′ − on\| 11 MiB; 7 rounds, all complete | **fails**: on is over 416 MiB in 7 of 7, and above off. The never-drops mutant reads 2 529 MiB, the same: it fails the rule, but so does on, so it separates nothing. That mutant ran apart, not interleaved with on. *Corrected in review:* this read "the window bounds nothing"; what is measured is that page memory is not bounded (why: below) |
 | M2 · 512 × 3328×4096, 13 GiB, on | the host's guard (under 1 536 MiB available) stopped 7 of 7 at 12.0–12.7 GiB of growth, ~460 of 512 frames, all exact so far | **fails**. **The container saturates there**: nothing past ~12 GiB of growth is claimed |
 | M3 · Chromium | 7 of 7 rounds, every step's set as predicted, every frame exact; refusal at `truncate` (`QuotaExceededError`). Mutants: most recent first caught; no probe survived, as predicted (Chromium refuses `removeEntry` under any handle) | **holds** |
-| M3 · Firefox, `fixedLimit` 1 300 MiB per site | 0 of 6 rounds (a 7th hung in the rig's BiDi driver, killed at 26 min: VOID). At C, Gecko's `truncate` throws `NS_ERROR_FILE_NO_DEVICE_SPACE`, not a `QuotaExceededError`; the store stops the series and evicts nothing, so C and D run on the window alone, exact | **fails on Gecko: lever 5's rule is wrong there**, by one error name. With the store also taking that name (a stand-in): 2 of 2 rounds hold, B skipped while held |
+| M3 · Firefox, `fixedLimit` 1 300 MiB per site | 0 of 6 rounds (a 7th hung in the rig's BiDi driver, killed at 26 min: dropped; the pre-registered ≥ 7 rounds not met, and VOID is not a rule M3 has). At C, Gecko's `truncate` throws `NS_ERROR_FILE_NO_DEVICE_SPACE`, not a `QuotaExceededError`; the store stops the series and evicts nothing, so C and D run on the window alone, exact | **fails on Gecko: lever 5's rule is wrong there**, by one error name, under the limit set by pref; Gecko's own limit not run. With the store also taking that name (a stand-in): 2 of 2 rounds hold, B skipped while held, short of 7: not a verdict |
 | M4 | 7 of 7: shown at the kill 32–34, present on reopen 32–36 (never fewer); the fill asked exactly the rest; the flipped frame caught 4 of 4, reported and asked again; 64 / 64 exact at the end. Mutant without the re-check: caught by SHA-256, while the page marked the frame exact | **holds** |
 
 **Why M2 fails** (a diagnostic after the cells, not pre-registered, 3 rounds each of the 2 GiB on arm, `--expose-gc`).
