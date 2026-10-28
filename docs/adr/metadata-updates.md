@@ -467,7 +467,8 @@ Read in `DICMele2deck/src/capi/ESIPFfiled/capi.c` at `a65abe2` (S); not run for 
 * **Already owed (§10 of the design state, §15 there):** nested keys carry memory-address bytes, so parsing the same
   instance twice can give a different name; series, instance and private groups are hashed before UTF-8 conversion, so
   a name with a non-ASCII value is not its hash. **Both make every option below report changes that did not happen**,
-  so both are preconditions, not options.
+  so both are preconditions, not options. *Corrected 2026-10-28:* both are fixed upstream at `e105214` (`348aa99`,
+  `e21160f`), so neither is a precondition now ([`../ingest/pacs-receive-design.md`](../ingest/pacs-receive-design.md)).
 
 ### 13.3 · The options
 
@@ -542,7 +543,7 @@ owner's, after the team meeting.
 * **Q-U1:** Can the parser keep **one group file per marker** per directory (temporary name, rename, delete the
   others)? Without it a reverted correction is invisible and "current" is ambiguous.
 * **Q-U2:** When are nested keys deterministic and every name the hash of the bytes written (design state §15)? Until
-  then every option reports false changes.
+  then every option reports false changes. *Corrected 2026-10-28:* answered: fixed upstream at `e105214`.
 * **Q-U3:** A corrected study date writes a second tree under another `<D>/`: is `<D>/` needed on your side, and who
   removes the old tree?
 * **Q-U4:** What does your Store SCP do with a SOP Instance UID it already holds: overwrite the file and run the parser
