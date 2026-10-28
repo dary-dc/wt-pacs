@@ -17,7 +17,7 @@ async function stepsOnDemand(n, frames, show, client) {
   return { raced, twice: sent.join(", "), asked: new Set([0, a, b]).size };
 }
 
-export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, setView, current, toggleCine, show, modality }) {
+export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, current, toggleCine, show, modality }) {
   const onDemand = q.get("fill") === "0" ? await stepsOnDemand(n, frames, show, client) : {};
   const out = { n, ...onDemand, received: frames.size, exact: seen.exact, inexact: seen.inexact, unchecked: seen.unchecked, paths: seen.paths,
     errors: [...errors], fillMs, firstShownMs, renderer: rendererName, status: document.getElementById("status").textContent,
@@ -63,8 +63,9 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
     out.cine = shown.size;
   }
 
-  // First, middle and last frame at zoom 1, read back and painted again on the CPU.
-  setView({ fit: false, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false });
+  // First, middle and last frame in the page's own 1:1 mode, read back and painted again on the CPU.
+  press("0", "1");
+  out.oneToOne = Object.values(looks().view).join(" ");
   out.readbacks = [];
   for (const i of [...new Set([0, n >> 1, n - 1])]) {
     const f = frames.get(i);
@@ -84,6 +85,7 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
     for (let k = 0; k < ref.length; k++) worst = Math.max(worst, Math.abs(ref[k] - pixels[k]));
     out.readbacks.push({ i, worst, size: `${w}x${h}`, sha256: await sha256Hex(pixels.slice()) });
   }
+  out.oneToOneStatus = document.getElementById("status").textContent;
   out.stats = client.stats().exact;
   client.close();
   report(out);

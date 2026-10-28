@@ -146,7 +146,9 @@ function judge(name, r, requests, codec, decoder) {
     const wasm = CLIENTS.wasm.filter((f) => requests.includes(`GET ${f}`));
     if (CLIENT === "ts") say(wasm.length === 0, `a ts page fetched the WASM client's code: ${wasm.join(", ")}`);
   }
-  for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} at zoom 1 differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
+  say(r.oneToOne === "false 1 0 0 0 false false", `0 then 1 left the view (fit, zoom, pan, rotate, flips) ${r.oneToOne}, not 1:1`);
+  say(r.oneToOneStatus.includes(" · 1:1") && !r.status.includes(" · 1:1"), `the status line says 1:1 other than in the 1:1 mode alone: at fit ${r.status}, in it ${r.oneToOneStatus}`);
+  for (const b of r.readbacks ?? []) say(!b.error && b.worst === 0, `frame ${b.i} in the 1:1 mode differs from the CPU reference: ${b.error ?? `worst |Δ| ${b.worst}`}`);
   if (process.argv.includes("--cine")) say(r.cine >= 3, `the cine showed ${r.cine} frames in 1.5 s`);
 }
 

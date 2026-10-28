@@ -116,6 +116,7 @@ function status() {
     `decoders: ${paths}`,
     `codec ${meta.codec ?? "htj2k"}`,
     `renderer ${rendererName}${soft}`,
+    ...(!pose.fit && pose.zoom === 1 ? ["1:1"] : []),
     fillMs !== null ? `fill ${Math.round(fillMs)} ms` : fillMode ? "filling" : "on demand",
     ...errors.slice(-1).map((e) => `error: ${e}`),
   ].join(" · ");
@@ -203,6 +204,7 @@ const KEYS = {
     v: () => ((pose = { ...pose, flipV: !pose.flipV }), repaint()),
   }),
   i: () => ((invert = !invert), repaint()),
+  1: () => ((pose = { ...pose, fit: false, zoom: 1, panX: 0, panY: 0 }), repaint()),
   0: reset, Escape: reset,
 };
 addEventListener("keydown", (e) => {
@@ -260,6 +262,6 @@ if (q.get("check") || lab.finished) {
     }, 20);
   });
   await repaint();
-  if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show, modality: meta.modality });
+  if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), current: () => current, toggleCine, show, modality: meta.modality });
   else lab.finished({ issuedAt, firstShownMs, frames, errors, stats: client.stats() });
 }
