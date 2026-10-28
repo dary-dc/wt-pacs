@@ -48,7 +48,7 @@ def m2(rs, name):
     for r in rs:
         if not r.get("mutant"):
             by[r["round"]][r["arm"]] = r
-    for arm in ("on", "on2", "off"):
+    for arm in ("on", "on2", "off", "was"):
         g = [a[arm]["growthMiB"] for a in by.values() if arm in a]
         if g:
             done = [a[arm] for a in by.values() if arm in a]

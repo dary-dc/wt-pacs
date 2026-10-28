@@ -1281,7 +1281,7 @@ Each item below is the owner's to decide, and is tracked here.
   quotas, failure modes) in its §Proposed: the client cache in OPFS, **built 2026-10-27** (`client/viewer/store.js`):
   decoded frames checked `true`, re-checked on read, no frame of a series on disk decoded again. Measured 2026-10-27
   there: a reopen beats a fetch and Chromium evicts by the rule; the memory window bounds nothing and Gecko evicts
-  nothing. Its questions 2 and 6 stay open.
+  nothing. Fixed 2026-10-28: Gecko evicts by the rule; the window still bounds nothing, the decoder workers holding each frame. Its questions 2 and 6 stay open.
   *Where the page fails without it* (queue row 273, 2026-10-16): not on the dev host. Headless Chromium 141 and
   Firefox 157.0.1 each filled 8 GiB of decoded frames (1 024 × 2048², 16-bit, 3 of 3), ten times `dbts_b1`, the
   largest series [`FIXTURES.md`](FIXTURES.md) names (812.5 MiB decoded). So by the row's rule nothing is built.

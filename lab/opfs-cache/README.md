@@ -15,6 +15,6 @@ NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python node lab/opfs-cache/run.mjs --c
 python3 lab/opfs-cache/summary.py DIR   # each cell's numbers and verdict from DIR/m1.jsonl, m2.jsonl, m2-13g.jsonl, m3*.jsonl, m4.jsonl
 ```
 
-The arm switched off and the mutants are the rig's stand-ins for a product file, named in `run.mjs`'s `STAND_INS`: in
+The arm switched off, M2's `was` (the build before the store was handed copies) and the mutants are the rig's stand-ins for a product file, named in `run.mjs`'s `STAND_INS`: in
 Chromium routed in its place, in Firefox written over it and put back. Series, profiles and rows go to `work/`, which
 is not tracked: M2's 13 GiB cell wants ~16 GB of free disk. `m2-trace` is the diagnostic after M2, not pre-registered.

@@ -118,7 +118,7 @@ const STAND_INS = {
   "window-never-drops": { file: "client/viewer/viewer.js", from: "function trim() {\n", to: "function trim() {\n  return;\n" },
   "evict-most-recent": { file: "client/viewer/store.js", from: "others.sort((a, b) => a.opened - b.opened);", to: "others.sort((a, b) => b.opened - a.opened);" },
   "evict-without-probe": { file: "client/viewer/store.js", from: "(await frames.createSyncAccessHandle()).close();\n", to: "" },
-  "gecko-refusal-named": { file: "client/viewer/store.js", from: `named(e) === "QuotaExceededError"`, to: `["QuotaExceededError", "NS_ERROR_FILE_NO_DEVICE_SPACE"].includes(named(e))` },
+  "shared-to-store": { file: "client/viewer/viewer.js", from: `call("write", { index, info: { ...info, pixels } }, [pixels])`, to: `call("write", { index, info })` },
   "read-without-check": { file: "client/viewer/store.js", from: `if (xxh3.init().update(bytes).digest("hex") !== series.digests[index]) {`, to: "if (false) {" },
 };
 async function standIn(context, name) {
@@ -330,13 +330,13 @@ async function m2(big) {
   await staticHost();
   const s = big ? series(3328, 4096, 512) : series(3328, 4096, 80);
   const server = await serve(s);
-  const arms = big ? ["on"] : MUTANT ? ["on"] : ["on", "on2", "off"];
-  settings({ series: s, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, arms: { on: "the store as built", off: "store.js answering every call with an error (the page's no-OPFS path)" },
+  const arms = big ? ["on"] : MUTANT ? ["on"] : ["on", "on2", "off", "was"];
+  settings({ series: s, decodedMiB: (s.n * s.frameBytes) / 2 ** 20, arms: { on: "the store as built", off: "store.js answering every call with an error (the page's no-OPFS path)", was: "the build before the store was handed copies" },
     window: "256 MiB", link: "loopback, no relay" });
   for (let round = 0; round < ROUNDS; round++) {
     for (const arm of order(arms, round)) {
       const dir = profile(`m2-${arm}`);
-      const b = await browser(dir, [...(arm === "off" ? ["off"] : []), ...(MUTANT ? [MUTANT] : [])]);
+      const b = await browser(dir, [...(arm === "off" ? ["off"] : arm === "was" ? ["shared-to-store"] : []), ...(MUTANT ? [MUTANT] : [])]);
       await sleep(1000);
       const baseline = treePss(b.pid);
       const before = cpuBusy();
@@ -356,7 +356,7 @@ async function m2Trace() {
   settings({ series: s, arm: "on", flags: "--js-flags=--expose-gc", trace: "PSS each second for 30 s after the fill, then gc() on the page, then in its workers one kind at a time: store, paint, downloader, decoders" });
   for (let round = 0; round < ROUNDS; round++) {
     const dir = profile("m2-trace");
-    const b = await browser(dir, [], ["--js-flags=--expose-gc"]);
+    const b = await browser(dir, MUTANT ? [MUTANT] : [], ["--js-flags=--expose-gc"]);
     await sleep(1000);
     const baseline = treePss(b.pid);
     const f = await fill(b, s, server.url);
@@ -375,7 +375,7 @@ async function m2Trace() {
     const afterWorkerGc = treePss(b.pid) - baseline;
     await b.context.close();
     drop(dir);
-    write({ cell: "m2-trace", round, growthMiB: f.peakPssMiB - baseline, fillMs: f.fillMs, exact: f.exact, afterFillMiB: after, afterPageGcMiB: afterPageGc, workers, byWorker, afterWorkerGcMiB: afterWorkerGc });
+    write({ cell: "m2-trace", round, mutant: MUTANT || null, growthMiB: f.peakPssMiB - baseline, fillMs: f.fillMs, exact: f.exact, afterFillMiB: after, afterPageGcMiB: afterPageGc, workers, byWorker, afterWorkerGcMiB: afterWorkerGc });
   }
 }
 
