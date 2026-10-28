@@ -112,6 +112,10 @@ the risk. A page's storage is evictable by default; an app's cache stays until t
 Rust's iOS and Android targets are Tier 2: guaranteed to build, tests not run by the Rust project, so the core's tests
 run on a simulator or device in this project's CI.
 
+* **The smallest shape, built 2026-10-28** (`native-window`, `client/native/src/window.rs`, feature `window`): winit 0.30 and M1's painter on the wgpu surface. It opens a series over `wt-pacs/1`, decodes and checks every frame, steps with the wheel and arrows without wrapping, sets the window by drag, and toggles 1:1 and fitted with F. Under Xvfb on lavapipe, `client/paint/window.mjs` drives it with xdotool over a committed 4-frame series (`lab/fixtures/window_grey16`). All 7 of its 1:1 paints, read back from the surface across the 4 frames, have |Δ| = 0; the fitted one is within 1 code. An off-by-one window fails all 7.
+* **What it took:** 302 lines of Rust plus 40 changed in `paint.rs` so it draws into any texture, and 124 of check. winit brings 37 crates on Linux (92 `Cargo.lock` entries across every target), and `libxkbcommon-x11` at run time. A clean dev build of the crate on 4 cores goes from 56 s to 75–80 s. Only X11 was run; Wayland is built and untried.
+* **What it leaves for decision 2:** everything a toolkit or native UI is chosen for — text, menus, layout, accessibility, persistence — and the mobile window, untried. It shows that the core and the painter need nothing from the shape but a surface, so any row of the table can host them.
+
 ## 5. Costs
 
 * **Stores.** Apple: 99 USD a year; the 299 USD Enterprise program needs 100 employees and internal use, so it is the
@@ -329,7 +333,7 @@ offering it changes no byte a browser sees (§8.1). `--stall-after-bytes` and `-
 
 ### 8.4 The client crate
 
-**One workspace member, **client/native**** (crate `native-client`), a library, one lab binary and the painter's check (`examples/paint-check.rs`). It depends on
+**One workspace member, **client/native**** (crate `native-client`), a library, two lab binaries (`native-fill`; `native-window`, §4) and the painter's check (`examples/paint-check.rs`). It depends on
 `fod`, `frame-envelope` and `series-bundle` from `common/`, on `wtransport` only for its `quinn` re-export and
 `ServerHashVerification` (so the version and the `[patch]` are the server's, and no WebTransport session is ever
 opened), and on `tokio`. Modules, each added by the step that needs it:
@@ -358,7 +362,8 @@ opened), and on `tokio`. Modules, each added by the step that needs it:
   survived), the 4:4:4 identity-matrix refusal (the shim does not report the matrix; such a stream fails its digest
   instead), scalable units' layer walk, groups (G > 1) and the range.
 * **`paint`** (M1, *built 2026-10-28*): `Painter::new()` on wgpu's first adapter, and `paint(frame, display, width,
-  height, dpr)` to RGBA rows read back from an offscreen texture. No window. The browser painter's contract, proved in
+  height, dpr)` to RGBA rows read back from an offscreen texture. *Was:* "No window"; `Painter::on(adapter, format)`,
+  `draw` and `read` now paint and read back any texture, a window's surface included (§4). The browser painter's contract, proved in
   §6 M1. It sits behind the `paint` feature, so the default build carries no wgpu.
 * **`cache`** (M3): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 *A client cache* and §3
   above, as written: coded bytes keyed by series, index and metadata version, only `true` frames, re-checked by the

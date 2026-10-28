@@ -186,6 +186,12 @@ if [[ $numpy -eq 1 && -n "$lvp" ]]; then
 else
   skip "the native painter check needs numpy (PYTHON=...) and Mesa lavapipe (mesa-vulkan-drivers)"
 fi
+step "client: the native window under Xvfb, each paint read back from its surface against the CPU reference"
+if [[ -n "$lvp" && -f "$INGEST_BUILD/payload/libdecode.so" ]] && command -v Xvfb >/dev/null && command -v xdotool >/dev/null; then
+  run 1 env VK_ICD_FILENAMES="$lvp" node client/paint/window.mjs
+else
+  skip "the native window check needs Mesa lavapipe, ingest/tools.sh's build, Xvfb and xdotool"
+fi
 step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"
