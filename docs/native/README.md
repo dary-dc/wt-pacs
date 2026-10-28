@@ -186,8 +186,9 @@ none queued; each states its predictions and rule before any data and runs in a 
   read and fetched again. Rule: all three hold, or the cache's design is revised before any phone run.
 
   *Run 2026-10-28* ([`../../lab/scripts/native_cache_cells.sh`](../../lab/scripts/native_cache_cells.sh), container,
-  4 cores, ext4). **All three hold: the design stands.** Settings: `native-fill` release with `decode` (dav1d 1.5.4,
-  OpenJPH 0.31.0), Chromium's windows, one `series-server` release build in `shared`; a synthetic series of 87 HTJ2K
+  4 cores, ext4). **All three hold: the design stands** (*corrected 2026-10-28*: the reopen's prediction holds warm
+  only, from the page cache; cold, as after a reboot, is not measured, so ≤ 0.5 s is not shown for a real reopen).
+  Settings: `native-fill` release with `decode` (dav1d 1.5.4, OpenJPH 0.31.0), Chromium's windows, one `series-server` release build in `shared`; a synthetic series of 87 HTJ2K
   frames, 768×920 12-bit `ct` content, 60.9 MB (no committed series is 61 MB), its digests from the source samples by
   Python's `xxhash`; the relay at 20 Mbit, 40 ms RTT, 200 packets, `--self-timing`, one per run.
   * **Reopen**, 7 rounds, the arms in a Williams order: from the cache **373 ms** median (345–443), all 87 frames
@@ -350,11 +351,12 @@ opened), and on `tokio`. Modules, each added by the step that needs it:
   instead), scalable units' layer walk, groups (G > 1) and the range.
 * **`cache`** (M3, *built 2026-10-28*): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8
   *A client cache* and §3 above, as written: coded bytes, one file per frame at `root/series/version/index`, only
-  `true` frames; written as `index.part`, fsynced, renamed, the directory fsynced; on read through the caller's
+  `true` frames; written under a temporary name unique to the write (`index.pid.n.part`, so two writers of one frame
+  never share it), fsynced, renamed, the directory fsynced; on read through the caller's
   check, which hands back the samples, and an entry that fails it is removed. `get` returns only what the check
   returned, so a read that skips the check does not type-check. Where the series name and the metadata's version come
   from is open, as the metadata is (`native-fill` takes `--series` and `--version`); nothing evicts. A `.part` left by
-  a crash is overwritten by that frame's next write and is never read.
+  a crash is never read, and nothing removes it.
 
 **The lab binary, `native-fill`**: `--url https://host:port/ --cert-sha256 HEX --bundle PATH`, then `--fill A-B` or
 `--ask N,…`, the client's windows, and with `decode` `--cache DIR --series S --version V`, which reads the cache first

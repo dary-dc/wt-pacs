@@ -6,6 +6,9 @@ use anyhow::{ensure, Context, Result};
 use std::fs::{self, File};
 use std::io::{ErrorKind, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static WRITES: AtomicU64 = AtomicU64::new(0);
 
 pub struct Cache {
     dir: PathBuf,
@@ -27,7 +30,9 @@ impl Cache {
         if *exact != Exact::True {
             return Ok(false);
         }
-        let (part, path) = (self.dir.join(format!("{index}.part")), self.dir.join(index.to_string()));
+        // Unique to this write, so a concurrent writer of the same frame never shares or renames it.
+        let part = format!("{index}.{}.{}.part", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed));
+        let (part, path) = (self.dir.join(part), self.dir.join(index.to_string()));
         let mut file = File::create(&part)?;
         file.write_all(coded)?;
         file.sync_all()?;
@@ -113,6 +118,23 @@ mod tests {
         for bad in ["", ".", "..", "a/b", "a\\b"] {
             assert!(Cache::open(&root, bad, "v1").is_err(), "{bad:?}");
             assert!(Cache::open(&root, "series", bad).is_err(), "{bad:?}");
+        }
+    }
+
+    /// Two writers of the same frame at once (two viewers of one series) each succeed, and the frame reads back
+    /// whole after every pair of writes.
+    #[test]
+    fn concurrent_writers_of_one_frame_both_succeed_and_leave_it_whole() {
+        let root = scratch("concurrent");
+        let coded = frame(5, 256 << 10);
+        for _ in 0..50 {
+            std::thread::scope(|s| {
+                for _ in 0..2 {
+                    s.spawn(|| Cache::open(&root, "series", "v1").unwrap().put(5, &coded, &Exact::True).unwrap());
+                }
+            });
+            let cache = Cache::open(&root, "series", "v1").unwrap();
+            assert_eq!(cache.get(5, same(coded.clone())).unwrap(), Some(coded.clone()));
         }
     }
 
