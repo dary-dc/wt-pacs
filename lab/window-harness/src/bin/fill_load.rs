@@ -2,7 +2,7 @@
 //! with the item ingest wrote, and the server's CPU and memory over the fills. lab/server-load.
 //!
 //! usage: fill_load --url https://127.0.0.1:4433/ --items DIR --ext htj2k --sessions 8
-//!                  [--read-bps 2500000] --server-pid PID
+//!                  [--read-bps 2500000] --server-pid PID [--stream-window 6291456 --connection-window 15728640]
 use anyhow::{bail, ensure, Context, Result};
 use clap::Parser;
 use fod::{encode_fod_msg, FodMsg};
@@ -13,6 +13,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Barrier;
 use frame_envelope::MAX_FRAME_LEN;
+use wtransport::config::QuicTransportConfig;
+use wtransport::quinn::VarInt;
+use wtransport::tls::client::{build_default_tls_config, NoServerVerification};
 use wtransport::{ClientConfig, Endpoint};
 
 #[derive(Parser)]
@@ -36,6 +39,11 @@ struct Args {
     /// Lab only: flip one byte of the reference, so every session must report a mismatch.
     #[arg(long)]
     mutate: bool,
+    /// The receive credit granted, in bytes; quinn's defaults when absent.
+    #[arg(long)]
+    stream_window: Option<u64>,
+    #[arg(long)]
+    connection_window: Option<u64>,
 }
 
 struct Fill {
@@ -83,8 +91,16 @@ fn rss_kb(pid: u32) -> u64 {
 
 async fn fill(args: &Args, items: &[Vec<u8>], start: &Barrier) -> Result<Fill> {
     let v4 = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0);
+    let tls = build_default_tls_config(Arc::new(rustls::RootCertStore::empty()), Some(Arc::new(NoServerVerification::new())));
+    let mut transport = QuicTransportConfig::default();
+    if let Some(bytes) = args.stream_window {
+        transport.stream_receive_window(VarInt::from_u64(bytes)?);
+    }
+    if let Some(bytes) = args.connection_window {
+        transport.receive_window(VarInt::from_u64(bytes)?);
+    }
     let endpoint = Endpoint::client(
-        ClientConfig::builder().with_bind_address(v4).with_no_cert_validation().build(),
+        ClientConfig::builder().with_bind_address(v4).with_custom_tls_and_transport(tls, transport).build(),
     )?;
     let connection = endpoint.connect(&args.url).await.context("connect")?;
     let (mut control, _recv) = connection.open_bi().await?.await?;

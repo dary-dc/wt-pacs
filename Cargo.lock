@@ -2033,9 +2033,11 @@ dependencies = [
  "clap",
  "fod",
  "frame-envelope",
+ "native-client",
  "rustls",
  "serde",
  "serde_json",
+ "series-bundle",
  "tokio",
  "wtransport",
 ]
