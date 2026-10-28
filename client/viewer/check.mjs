@@ -127,6 +127,8 @@ function judge(name, r, requests, codec, decoder) {
   if (onDemand) say(r.raced === "newest alone", `three quick steps did not keep the newest ask alone: ${r.raced}`);
   if (onDemand) say(r.twice === String(r.n - 1), `two steps to frame ${r.n - 1} sent ${r.twice}, not its one ask`);
   say(r.ends === `0 ${r.n - 1}`, `a step past either end moved to frame (first, last) ${r.ends}, not 0 ${r.n - 1}`);
+  const turned = ["DX", "CR"].includes(r.turned.modality) ? "90 true true" : "0 false false";
+  say(r.turned.view === turned, `r, h and v on modality ${r.turned.modality} left rotate, flipH, flipV ${r.turned.view}, not ${turned}`);
   say(r.askDelivered === true, `an ask of a delivered frame: ${JSON.stringify(r.askDelivered)}`);
   say(r.cancelledFill === "cancelled", `a fill cancelled at once: ${JSON.stringify(r.cancelledFill)}`);
   say(r.askAfterCancel === true, `an ask after the cancel: ${JSON.stringify(r.askAfterCancel)}`);

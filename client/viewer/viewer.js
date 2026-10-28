@@ -197,9 +197,11 @@ const KEYS = {
   ArrowRight: () => show(current + 1), ArrowDown: () => show(current + 1), PageDown: () => show(current + 1),
   ArrowLeft: () => show(current - 1), ArrowUp: () => show(current - 1), PageUp: () => show(current - 1),
   Home: () => show(0), End: () => show(n - 1), " ": toggleCine, "+": () => zoom(1.25), "=": () => zoom(1.25), "-": () => zoom(0.8),
-  r: () => ((pose = { ...pose, rotate: (pose.rotate + 90) % 360 }), repaint()),
-  h: () => ((pose = { ...pose, flipH: !pose.flipH }), repaint()),
-  v: () => ((pose = { ...pose, flipV: !pose.flipV }), repaint()),
+  ...(["DX", "CR"].includes(meta.modality) && {
+    r: () => ((pose = { ...pose, rotate: (pose.rotate + 90) % 360 }), repaint()),
+    h: () => ((pose = { ...pose, flipH: !pose.flipH }), repaint()),
+    v: () => ((pose = { ...pose, flipV: !pose.flipV }), repaint()),
+  }),
   i: () => ((invert = !invert), repaint()),
   0: reset, Escape: reset,
 };
@@ -258,6 +260,6 @@ if (q.get("check") || lab.finished) {
     }, 20);
   });
   await repaint();
-  if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show });
+  if (q.get("check")) (await import("/client/viewer/check-page.js")).run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName: await painter.renderer.catch((e) => e.message), setView: (v) => (pose = v), current: () => current, toggleCine, show, modality: meta.modality });
   else lab.finished({ issuedAt, firstShownMs, frames, errors, stats: client.stats() });
 }

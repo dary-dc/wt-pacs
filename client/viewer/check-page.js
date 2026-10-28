@@ -17,7 +17,7 @@ async function stepsOnDemand(n, frames, show, client) {
   return { raced, twice: sent.join(", "), asked: new Set([0, a, b]).size };
 }
 
-export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, setView, current, toggleCine, show }) {
+export async function run({ q, n, frames, seen, errors, client, painter, display, asPainted, all, report, fillMs, firstShownMs, rendererName, setView, current, toggleCine, show, modality }) {
   const onDemand = q.get("fill") === "0" ? await stepsOnDemand(n, frames, show, client) : {};
   const out = { n, ...onDemand, received: frames.size, exact: seen.exact, inexact: seen.inexact, unchecked: seen.unchecked, paths: seen.paths,
     errors: [...errors], fillMs, firstShownMs, renderer: rendererName, status: document.getElementById("status").textContent,
@@ -27,6 +27,9 @@ export async function run({ q, n, frames, seen, errors, client, painter, display
   const last = current();
   press("Home", "ArrowLeft");
   out.ends = `${current()} ${last}`;
+  press("r", "h", "v");
+  const { rotate, flipH, flipV } = display(current(), frames.get(current()).info).view;
+  out.turned = { modality, view: `${rotate} ${flipH} ${flipV}` };
   const step = async (name, fn) => {
     try {
       out[name] = await fn();
