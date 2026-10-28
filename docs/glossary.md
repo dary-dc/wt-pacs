@@ -33,6 +33,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | frame digest | a frame's XXH3-64 in the series' metadata, which the decoder worker checks the frame against; the frame says `exact` ([`FIXTURES.md`](FIXTURES.md) §Frame digests) |
 | representation | how an AV1 payload holds its samples: **plain**, as an encoder codes them out of the box (the control), or **optimized**, split by depth and RGB through the RCT ([`av1/payload-format.md`](av1/payload-format.md)) |
 | client cache | the page's frames in OPFS, decoded and checked, one file per series kept by a **store worker**; the **memory window** is the frames held in memory around the current index, within a byte budget (built, [`adr/frame-path.md`](adr/frame-path.md) §Proposed: the client cache in OPFS) |
+| view worker | the dedicated worker the page starts, in the shape proposed 2026-10-28, that holds the decoded frames, does the cache I/O, asks the downloader and paints; the page sends it intents only (proposed, [`adr/frame-path.md`](adr/frame-path.md) §The cache I/O in the view worker) |
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
 | client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
