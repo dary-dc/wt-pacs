@@ -368,7 +368,11 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
    comparison differs in the client's stack and not in its credit. quic.md §6 N1's raw-QUIC arm, not run for want of
    a server, becomes runnable.
 2. **Step 2, native decode**: `decode` as in §8.4; every golden and matrix payload and both HTJ2K contract frames
-   `true` against their `NAME.xxh3`; the exactness ADR's mutants re-run natively.
+   `true` against their `NAME.xxh3`; the exactness ADR's mutants re-run natively. *Built 2026-10-27:* 109 of 109 `true` in
+   `every_committed_frame_decodes_to_its_digest`; the ADR's two digest mutants re-run there turn the same frames
+   `false` as in the browser: big-endian 80 of 90 matrix payloads, sign- to 13-bit zero-extension 40 of 90. Over raw
+   QUIC from the server, `native-fill` on the 107 payloads and the 2 codestreams packed as two series: every frame
+   identical and `true`.
 3. **M3 CACHE** (§6), on `cache`.
 4. **M1 PAINTPROOF** (§6): the painter as a module of this crate on wgpu.
 5. **M2 NATIVEFILL** (§6), its native arm `native-fill` with `decode` and M1's painter.

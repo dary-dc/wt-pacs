@@ -4,7 +4,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use native_client::transport::{dial, Event, Windows, ALPN};
-use native_client::verify::digests;
+use native_client::verify::{digests, Exact};
 use std::os::unix::fs::FileExt;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -57,15 +57,18 @@ async fn main() -> Result<()> {
     };
     let windows = Windows { stream: args.stream_window, connection: args.connection_window };
     println!(
-        "native-fill url={} alpn={} stream_window={} connection_window={} frames={} digests={}",
+        "native-fill url={} alpn={} stream_window={} connection_window={} frames={} digests={} decode={}",
         args.url,
         String::from_utf8_lossy(ALPN),
         windows.stream,
         windows.connection,
         owed.len(),
-        digests.map_or("none".into(), |d| format!("{} (unchecked: no decode in this build)", d.len())),
+        digests.as_ref().map_or("none".into(), |d| d.len().to_string()),
+        decoders(),
     );
 
+    #[cfg(feature = "decode")]
+    let mut decoder = native_client::decode::Decoder::new(&layout.metadata)?;
     let mut session = dial(&args.url, hash, &windows).await?;
     let start = Instant::now();
     match fill {
@@ -85,10 +88,14 @@ async fn main() -> Result<()> {
                 bundle.read_exact_at(&mut want, entry.0)?;
                 let identical = *body == want;
                 let asked = owed.iter().position(|&f| f == index).map(|i| owed.swap_remove(i)).is_some();
-                failed += usize::from(!identical || !asked);
+                #[cfg(feature = "decode")]
+                let (checked, exact) = check(&mut decoder, &body, digests.as_ref().and_then(|d| d.get(index as usize).copied()));
+                #[cfg(not(feature = "decode"))]
+                let (checked, exact) = ("exact=unchecked".to_string(), Exact::Unchecked);
+                failed += usize::from(!identical || !asked || exact == Exact::False);
                 bytes += body.len();
                 let ms = (at - start).as_secs_f64() * 1e3;
-                println!("frame={index} bytes={} last_byte_ms={ms:.3} identical={identical} exact=unchecked", body.len());
+                println!("frame={index} bytes={} last_byte_ms={ms:.3} identical={identical} {checked}", body.len());
             }
             Event::Refused { frame, reason } => {
                 owed.retain(|&f| f != frame);
@@ -103,4 +110,28 @@ async fn main() -> Result<()> {
         bail!("{failed} frames failed");
     }
     Ok(())
+}
+
+#[cfg(feature = "decode")]
+fn decoders() -> String {
+    format!("{} dav1d_threads=auto", native_client::decode::versions())
+}
+
+#[cfg(not(feature = "decode"))]
+fn decoders() -> String {
+    "none (built without the decode feature)".into()
+}
+
+/// The decode timed alone, then its samples against the frame's digest; a frame that does not decode is `false`.
+#[cfg(feature = "decode")]
+fn check(decoder: &mut native_client::decode::Decoder, body: &[u8], digest: Option<u64>) -> (String, Exact) {
+    let start = Instant::now();
+    match decoder.decode(body) {
+        Ok(samples) => {
+            let ms = start.elapsed().as_secs_f64() * 1e3;
+            let exact = native_client::verify::exact(&samples, digest);
+            (format!("decode_ms={ms:.3} exact={}", format!("{exact:?}").to_lowercase()), exact)
+        }
+        Err(err) => (format!("exact=false reason={err:#}"), Exact::False),
+    }
 }

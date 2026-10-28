@@ -8,6 +8,10 @@ description = "The native client's headless core: the series' frames over raw QU
 name = "native-fill"
 path = "src/main.rs"
 
+[features]
+# The frame check's decode, linked against ingest/tools.sh's build; off, the crate builds no C.
+decode = []
+
 [dependencies]
 anyhow = { workspace = true }
 bytes = { workspace = true }
