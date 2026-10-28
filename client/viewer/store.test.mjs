@@ -253,30 +253,17 @@ const fresh = () => ((disk = new Disk()), disk);
   check(String(left) === "a:0,b:,c:0", `after c: ${left}, not a kept, b evicted, c written`);
 }
 
-/** Gecko refuses a size by another name, `NS_ERROR_FILE_NO_DEVICE_SPACE`: the store evicts for it as for a quota error. */
-{
+/** Gecko refuses a size as `NS_ERROR_FILE_NO_DEVICE_SPACE`, evicted for as a quota error; any other error there evicts nothing, and the series runs without the cache. */
+for (const [refusal, evicts] of [["NS_ERROR_FILE_NO_DEVICE_SPACE", true], ["InvalidStateError", false]]) {
   fresh();
   await opened("a", 3, [0]);
   disk.closeAll();
-  disk.refusal = "NS_ERROR_FILE_NO_DEVICE_SPACE";
+  disk.refusal = refusal;
   disk.quota = disk.used() + SERIES - 1;
   const b = await opened("b", 3, [0]);
   disk.closeAll();
   const a = (await opened("a", 3)).open.present;
-  check(b.written[0] === true && a.length === 0, `under Gecko's refusal: b written ${b.written}, a present ${a}`);
-}
-
-/** Any other error at the size is not a refusal: nothing is evicted, and the series runs without the cache. */
-{
-  fresh();
-  await opened("a", 3, [0]);
-  disk.closeAll();
-  disk.refusal = "InvalidStateError";
-  disk.quota = disk.used() + SERIES - 1;
-  const b = await opened("b", 3, [0]);
-  disk.closeAll();
-  const a = (await opened("a", 3)).open.present;
-  check(b.written[0] === false && String(a) === "0", `under another error: b written ${b.written}, a present ${a}`);
+  check(b.written[0] === evicts && String(a) === (evicts ? "" : "0"), `under ${refusal}: b written ${b.written}, a present ${a}`);
 }
 
 /** A series open in another tab is never evicted, however old: the next oldest goes instead. */
