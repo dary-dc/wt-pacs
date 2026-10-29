@@ -8,7 +8,7 @@ const quantile = (v, q) => [...v].sort((a, b) => a - b)[Math.min(v.length - 1, M
 
 let c = null;
 let page = null;
-let feeder = null;
+let feeders = [];
 let store = null;
 let xxh3 = null;
 let digests = [];
@@ -25,6 +25,9 @@ let shown = 0;
 let uploaded = -1;
 let note = null;
 let frameBytes = 0;
+let input = null;
+const LATE_INPUT_MS = 34;
+const drags = [];
 
 /** WebGL2 on the transferred canvas: the frame as an R16UI texture, drawn as grey through one quad. */
 const painter = {
@@ -37,8 +40,9 @@ const painter = {
       void main() { vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`));
     gl.attachShader(p, sh(gl.FRAGMENT_SHADER, `#version 300 es
       precision highp float; precision highp usampler2D;
-      uniform usampler2D s; uniform vec2 scale; out vec4 frag;
-      void main() { frag = vec4(vec3(float(texelFetch(s, ivec2(gl_FragCoord.xy * scale), 0).r) / 65535.0), 1.0); }`));
+      uniform usampler2D s; uniform vec2 scale; uniform float level; out vec4 frag;
+      void main() { float v = float(texelFetch(s, ivec2(gl_FragCoord.xy * scale), 0).r) / 65535.0;
+        frag = vec4(vec3(clamp((v - level) * 2.0 + 0.5, 0.0, 1.0)), 1.0); }`));
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
     gl.useProgram(p);
@@ -47,9 +51,12 @@ const painter = {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.uniform2f(gl.getUniformLocation(p, "scale"), c.w / canvas.width, c.h / canvas.height);
+    this.level = gl.getUniformLocation(p, "level");
+    gl.uniform1f(this.level, 0.5);
   },
-  paint(pixels) {
+  paint(pixels, level) {
     const gl = this.gl;
+    if (level !== undefined) gl.uniform1f(this.level, level);
     if (pixels) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, c.w, c.h, gl.RED_INTEGER, gl.UNSIGNED_SHORT, new Uint16Array(pixels));
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   },
@@ -61,7 +68,7 @@ const replies = new Map();
 const ask = (kind, m, transfer) => new Promise((resolve) => (replies.set(++calls, resolve), store.postMessage({ kind, id: calls, ...m }, transfer)));
 const dropped = () => c.mutant === "drop-writes";
 
-/** The arms: `put` writes frame i (A also a byte range of it, synchronously); `get` reads it back. */
+/** The arms: `put` writes frame i (A also a byte range of it, synchronously); `get` reads it back. D's decoders write. */
 const arms = {
   none: { open: async () => {}, put: async () => {}, get: async () => { throw new Error("no cache"); } },
   A: {
@@ -91,9 +98,11 @@ const arms = {
   },
   C: {
     async open() { await ask("open", { key: "opfs-arms", digests }); },
-    async put(i, pixels) {
+    /** As client/viewer/viewer.js hands it: a copy out of shared memory, transferred. */
+    async put(i, shared, pixels = new Uint8Array(shared).slice().buffer) {
       if (dropped()) return;
-      const r = await ask("write", { index: i, info: { width: c.w, height: c.h, bits: 16, components: 1, signed: false, pixels, min: 0, max: 65535, exact: true } });
+      const info = { width: c.w, height: c.h, bits: 16, components: 1, signed: false, pixels, min: 0, max: 65535, exact: true };
+      const r = await ask("write", { index: i, info }, [pixels]);
       if (!r.written) throw new Error(`store refused frame ${i}: ${r.error ?? "not written"}`);
     },
     async get(i) {
@@ -102,13 +111,24 @@ const arms = {
       return r.info.pixels;
     },
   },
+  D: {
+    async open() { this.dir = await (await root()).getDirectoryHandle("frames", { create: true }); },
+    async put() {},
+    async get(i) {
+      const h = await (await this.dir.getFileHandle(String(i))).createSyncAccessHandle();
+      const pixels = new SharedArrayBuffer(h.getSize());
+      h.read(new Uint8Array(pixels), { at: 0 });
+      h.close();
+      return pixels;
+    },
+  },
 };
 const arm = () => arms[c.arm];
 
 function done(i, f) {
   written.set(i, f);
   if (i >= c.held) memory.delete(i);
-  feeder.postMessage({ kind: "credit" });
+  if (i >= c.held) feeders[(i - c.held) % c.decoders].postMessage({ kind: "credit" });
 }
 
 /** Writes a whole frame now, the order "arrival": A on this thread, B and C started and awaited off it. */
@@ -146,10 +166,10 @@ function drain(tickStart, budgetMs) {
   }
 }
 
-function arrive({ index, info, postedAt }) {
-  const f = { postedAt, arrivedAt: now() };
+function arrive({ index, info, postedAt, decoder }) {
+  const f = { postedAt, arrivedAt: now(), decoder };
   memory.set(index, info.pixels);
-  if (c.arm === "none") return done(index, { ...f, start: f.arrivedAt, end: f.arrivedAt });
+  if (c.arm === "none" || c.arm === "D") return done(index, { ...f, start: f.arrivedAt, end: f.arrivedAt });
   if (c.order === "arrival") return writeNow(index, info.pixels, f);
   pending.push({ i: index, pixels: info.pixels, at: 0, f });
 }
@@ -158,11 +178,15 @@ function tick(ts) {
   const start = now();
   const mutantFirst = c.mutant === "write-before-paint" && c.order === "paint";
   if (mutantFirst) drain(start, Infinity);
-  if (running && c.cell !== "miss" && ticks.length % c.cineEvery === 0) shown = (shown + 1) % c.held;
+  if (running && c.cineEvery && c.cell !== "miss" && ticks.length % c.cineEvery === 0) shown = (shown + 1) % c.held;
   const pixels = memory.get(shown);
-  painter.paint(uploaded !== shown && pixels ? pixels : null);
+  painter.paint(uploaded !== shown && pixels ? pixels : null, input?.level);
   if (pixels) uploaded = shown;
   const end = now();
+  if (input) {
+    if (running) drags.push({ inputAt: input.inputAt, paintedAt: end, superseded: input.superseded });
+    input = null;
+  }
   if (running) {
     ticks.push({ ts: performance.timeOrigin + ts, start, end });
     backlog.push(pending.length + inflight);
@@ -212,6 +236,8 @@ function summary(period) {
   const first = Math.min(...fills.map((f) => f.arrivedAt));
   const last = Math.max(...fills.map((f) => f.end ?? f.start));
   const third = Math.floor(backlog.length / 3);
+  const lag = drags.map((d) => d.paintedAt - d.inputAt);
+  const dec = fills.filter((f) => f.decoder);
   return {
     periodMs: period, ticks: ticks.length, missedTicks: missed, missedShare: missed / Math.max(1, ticks.length + missed),
     paintDelayP50: median(delays), paintDelayP99: quantile(delays, 0.99), paintMsP50: median(ticks.map((t) => t.end - t.start)),
@@ -220,12 +246,16 @@ function summary(period) {
     frames: fills.length, errors: fills.filter((f) => f.error).length, writeMBps: (fills.length * frameBytes) / 1e3 / Math.max(1, last - first),
     backlogFirstThirdMax: Math.max(0, ...backlog.slice(0, third)), backlogLastThirdMax: Math.max(0, ...backlog.slice(-third)),
     arrivalLagP99: quantile(fills.map((f) => f.arrivedAt - f.postedAt), 0.99),
+    decoderHandleMsP50: median(dec.map((f) => f.decoder.handleMs)), decoderWriteMsP50: median(dec.map((f) => f.decoder.writeMs)),
+    decoderWriteMsP99: quantile(dec.map((f) => f.decoder.writeMs), 0.99),
+    dragInputs: drags.length, dragSuperseded: drags.reduce((s, d) => s + d.superseded, 0), dragMsP50: median(lag), dragMsP99: quantile(lag, 0.99),
+    lateInputAsPredicted: c.mutant !== "late-input" || median(lag) >= LATE_INPUT_MS,
   };
 }
 
 async function cell() {
   await arm().open();
-  feeder.postMessage({ kind: "send", from: 0, to: c.held });
+  feeders[0].postMessage({ kind: "send", from: 0, to: c.held });
   await until(() => memory.size === c.held, 60000);
   for (let i = 0; i < c.held; i++) {
     await arm().put(i, memory.get(i));
@@ -234,9 +264,9 @@ async function cell() {
   running = true;
   await nextTicks(60);
   const period = median(ticks.slice(1).map((t, k) => t.start - ticks[k].start));
-  ticks.length = backlog.length = blocks.length = 0;
-  const fill = c.cell === "late" ? { bytesPerMs: c.rateMBps * 1e3 } : { credits: 8 };
-  feeder.postMessage({ kind: "go", from: c.held, to: c.n, ...fill });
+  ticks.length = backlog.length = blocks.length = drags.length = 0;
+  const fill = c.cell === "late" || c.cell === "drag" ? { bytesPerMs: c.rateMBps * 1e3 } : { credits: Math.ceil(8 / c.decoders) };
+  feeders.forEach((f, k) => f.postMessage({ kind: "go", from: c.held, to: c.n, first: c.held + k, stride: c.decoders, ...fill }));
   await until(() => written.size === c.n && !pending.length && !inflight, c.seconds * 4000);
   running = false;
   const result = { ...summary(period), complete: written.size === c.n };
@@ -252,14 +282,17 @@ let onIntentsDone = null;
 onmessage = async ({ data }) => {
   if (data.kind === "show") return show(data).catch((e) => page.postMessage({ kind: "painted", index: data.index, error: String(e) }));
   if (data.kind === "intents-done") return onIntentsDone();
-  ({ config: c, page, feeder, store } = data);
+  if (data.kind === "window") {
+    const take = () => (input = { ...data, superseded: (input?.superseded ?? -1) + 1 });
+    return void (c.mutant === "late-input" ? setTimeout(take, LATE_INPUT_MS) : take());
+  }
+  ({ config: c, page, feeders, store } = data);
   frameBytes = c.w * c.h * 2;
   xxh3 = await hasher();
   if (store) store.onmessage = ({ data: r }) => (replies.get(r.id)(r), replies.delete(r.id));
   painter.init(data.canvas);
-  digests = await new Promise((resolve) => {
-    feeder.onmessage = ({ data: m }) => (m.kind === "digests" ? resolve(m.digests) : arrive(m));
-  });
+  const ready = feeders.map((f) => new Promise((resolve) => (f.onmessage = ({ data: m }) => (m.kind === "digests" ? resolve(m.digests) : arrive(m)))));
+  digests = (await Promise.all(ready))[0];
   requestAnimationFrame(tick);
   try {
     page.postMessage({ kind: "result", ...(await cell()) });
