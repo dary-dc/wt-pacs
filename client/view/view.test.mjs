@@ -49,6 +49,15 @@ test("a view worker error after start is fatal and shown", async () => {
   await assert.rejects(view.valueAt(0, 0), /the view worker failed: boom/);
 });
 
+/** The view worker's fatal error also ends the downloader the page started, so no session outlives the view. */
+test("a fatal view worker error ends the page's downloader", () => {
+  const { view, worker } = rig();
+  view.connect("https://x.invalid/", "ab", {}, 0).catch(() => {});
+  worker.onmessage({ data: { kind: "event", type: "renderer", renderer: "stand-in" } });
+  worker.onerror({ message: "boom" });
+  assert.equal(made.find((w) => /downloader/.test(w.url)).terminated, true);
+});
+
 /** A message from the view worker the page cannot read is fatal in the same way. */
 test("a view worker messageerror is fatal and shown", async () => {
   const { view, worker, failures } = rig();

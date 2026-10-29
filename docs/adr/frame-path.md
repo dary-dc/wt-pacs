@@ -104,14 +104,15 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
   `failed {scope: frame | series | cache | worker, reason}`, with `i` when the scope is a frame. `shown` also carries
   the window painted, which a drag starts from, and `progress` the exact counts the status line shows. After the view
   worker has started, its `error` or `messageerror` is fatal: the page says it as the worker's, ends the worker and
-  fails every call still waiting. An intent that throws in the view worker is said as the worker's. The cine is still
+  the downloader it started, and fails every call still waiting. An intent that throws in the view worker is said as the worker's. The cine is still
   paced from the page, behind `play`.
 * **The want (2026-10-29).** Under `worker` the controller decides what and the store decides from where. Each step,
   the controller tells the store its want, an ordered list: when filling, every frame nearest the current one first
   (the current frame, then +1, −1, +2, …); on demand, the current frame alone. The store drops what it holds and sends
   the downloader the misses, in that order, as one `want` message that replaces the one before, unless they are the
   misses it already sent; `has` and `get` never reach it. The first want rides `start` in place of today's fill, so an
-  ascending one is still the opening run on the session URL. The downloader keeps the want as an ordered list: the
+  ascending one of `askDepth` frames or more is still the opening run on the session URL; a shorter one, as the gate's
+  3-frame series, goes out as asks once the dial is up (*corrected in review*, 2026-10-29: this said any ascending one). The downloader keeps the want as an ordered list: the
   head goes out as one `stream_frames` run when it ascends `askDepth` frames or more and nothing else is owed,
   otherwise as up to `askDepth` asks, topped up as each lands. A want whose head the running run does not serve next
   ends that run with the head's ask (WIRE §An ask during a fill); the run's frames not yet here are asked again only
@@ -144,7 +145,7 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
 | the store sends the misses alone, in the controller's order, and the same misses once | the node test; the check's on-demand steps under `worker` | held frames sent; the same misses sent again; the want not nearest first |
 | a held frame is painted with no downloader message, on demand and filling | the node test; the check's `heldStep` | a held step sending a want |
 | a frame of a replaced want is kept | the node test; the check's "both kept" | the store dropping it |
-| each `failed` scope reaches the page by name; a view-worker `error` or `messageerror` after start is fatal and shown | `view.test.mjs`; the node test for frame, series and worker | each scope renamed; no `messageerror`; said twice; not ended; a waiting or later call left hanging |
+| each `failed` scope reaches the page by name; a view-worker `error` or `messageerror` after start is fatal and shown | `view.test.mjs`; the node test for frame, series and worker | each scope renamed; no `messageerror`; said twice; not ended; the downloader left running; a waiting or later call left hanging |
 | under `worker` no pixel, `SharedArrayBuffer` or port reaches the page, and the downloader posts it nothing | the check's count of the page's messages | the frame's pixels in `shown`; the downloader not linked |
 | a step to a held frame paints it and sends the downloader nothing | the check's `heldStep` at the port; the node test | a held frame asked anyway; a held step sending `check` |
 | a miss reaches the downloader from the view worker, as a want since 2026-10-29 | the on-demand steps, heard at the port; the node tests | a miss not asked; no want at all |

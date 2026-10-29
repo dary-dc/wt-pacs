@@ -107,6 +107,7 @@ export class ViewWorker {
     if (this.#dead) return;
     this.#dead = reason;
     this.#worker.terminate();
+    this.#downloader?.terminate();
     this.#emit("failed", { scope: "worker", reason });
     for (const r of this.#replies.values()) r.reject(new Error(reason));
     this.#replies.clear();
