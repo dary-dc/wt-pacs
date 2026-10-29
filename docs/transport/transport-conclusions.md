@@ -2241,13 +2241,38 @@ with a cost of 12–18 % on the requests that fall back to user space. None of t
 * **A frame's cost is per byte, not parsing** (above: AES-GCM, the copies, the segments). An ask is a short JSON
   message on the control stream, and the answer is the frame itself, so there is no small response to answer from
   the kernel.
-* **The WebSocket path is TCP but ends TLS in rustls.** It would need kTLS first. Past the upgrade its bytes are
-  WebSocket messages, which Beeper does not parse.
-* **The static host serves the viewer once per page load.** It has not been measured as a cost.
+* **The WebSocket fallback is TCP, but Beeper cannot answer on it.** *Corrected 2026-10-29: this bullet said only
+  that the path needs kTLS and that Beeper does not parse WebSocket.* The path has four obstacles, in order:
+  * TLS ends in rustls, so the kernel sees ciphertext until kTLS takes the records on both directions.
+  * RFC 6455 §5.3 masks every client frame with a fresh 4-byte key. An ask therefore never appears as fixed bytes
+    for a DFA to match.
+  * An ask's answer is not one response. A `stream_frames` fill pushes many frames, and an ask ends the fill, so the
+    planner would move into the kernel ([`../WIRE.md`](../WIRE.md) §An ask during a fill).
+  * A frame is 32 kB–16 MB, against `sk_skb`'s 16 KB reply and a cache in BPF maps.
+
+  Parsing would save nothing even if it worked, because what a frame costs on TCP is still bytes: the copy into
+  rustls and the encryption.
+* **The static host is under 1 % of a session's bytes.** The viewer's 21 HTML and JS files total 107.6 kB, or
+  43.6 kB gzipped (measured on this tree). The decoder WASM is not built here and not counted. This is once per page
+  open, against a fill of 61 MB. Beeper's gain is a web server's throughput at saturation, and no page-open rate this
+  product serves comes near it (argued, not measured). In this deployment Beeper would also need an nginx module
+  and kTLS, since nginx terminates TLS. If static serving ever becomes a cost, nginx has its own levers, all of them
+  configuration:
+  * pre-compressed files (`gzip_static`), so `sendfile` is not defeated by on-the-fly gzip;
+  * kTLS (`ssl_conf_command Options KTLS`);
+  * hashed file names under an `immutable` cache, so a page open stops revalidating.
 * **Licence and deployment.** Beeper's GPL-3.0 sits against this repository's MIT. Attaching to a sockmap needs
   `CAP_BPF` and `CAP_NET_ADMIN`, and `deploy/compose.yml` grants only the io_uring seccomp profile.
 
 **What would reopen it:** QUIC in the kernel with a hook that sees plaintext, or a frame path carried over HTTP.
+
+**The kernel lever the WebSocket path does have is kTLS with `sendfile`**, without eBPF. The server would write a
+message's 2–10-byte head itself, and then `sendfile` the chunk from the bundle's page cache into a kTLS socket. This
+removes the copies through the buffer and rustls, and the encryption leaves user space (onto the NIC where it offloads
+TLS: [`../ingest/link.md`](../ingest/link.md) §2). The FoD reads stay in tungstenite. `sendfile`'s "never" in
+[`../levers.md`](../levers.md) is QUIC's reason ("QUIC copies in user space anyway") and does not hold here. It is not
+proposed, because the fallback is off by default and serves the few networks that impair UDP (§9 #10). Nobody has
+measured its CPU per byte. That measurement would decide it.
 
 ### Many fills at once: fills per core
 
