@@ -37,7 +37,8 @@ export class DownloaderClient {
     this.#onPreview = opts.onPreview ?? (() => {});
     this.#onError = opts.onError ?? (() => {});
     // The worker's script is a seam: a page may boot it from a bundle or a blob. lab/page-open/README.md
-    this.#worker = new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
+    // Given a port, the downloader is a page's own, linked to the view worker: docs/adr/frame-path.md §3, *Built*.
+    this.#worker = opts.port ?? new Worker(opts.worker ?? new URL("./downloader.js", import.meta.url), { type: "module" });
     this.#worker.onmessage = (e) => this.#fromDownloader(e.data);
     // After `started` this rejects a settled promise, so a worker's later error changes nothing.
     this.#worker.onerror = (e) => this.#rejectReady(new Error(`the downloader did not start: ${e.message || "its script did not load"}`));
@@ -61,8 +62,8 @@ export class DownloaderClient {
     if (!globalThis.crossOriginIsolated && opts.decode !== false) {
       throw new Error("the downloader writes pixels into a SharedArrayBuffer: serve the page cross-origin isolated");
     }
-    const { onFrame, onPreview, onError, worker, ...config } = opts;
-    const c = new DownloaderClient({ onFrame, onPreview, onError, worker });
+    const { onFrame, onPreview, onError, worker, port, ...config } = opts;
+    const c = new DownloaderClient({ onFrame, onPreview, onError, worker, port });
     try {
       c.#worker.postMessage({ kind: "start", config });
       // Only the dial needs the URL, so the worker graph is booted before it: `url` and `certHash`
@@ -189,25 +190,31 @@ export class DownloaderClient {
     this.#ending ??= setTimeout(() => this.#end("closed by the consumer"), CLOSE_DEADLINE_MS);
   }
 
-  /** Nested workers end with the worker that started them, so this ends the decoders too. */
+  /** Nested workers end with the worker that started them, so this ends the decoders too; a port's worker is the page's to end. */
   #end(reason) {
     clearTimeout(this.#ending);
-    this.#worker.terminate();
+    (this.#worker.terminate ?? this.#worker.close).call(this.#worker);
     this.#failAll(reason);
     for (const done of this.#cancels.splice(0)) done();
   }
 
-  /** The triggers a worker cannot see; the downloader decides whether any of them means anything. */
-  #watchPage() {
-    if (typeof document === "undefined") return;
-    const signal = this.#triggers.signal;
-    const check = () => this.#worker.postMessage({ kind: "check" });
-    addEventListener("pageshow", check, { signal });
-    for (const ev of ["freeze", "resume"]) document.addEventListener(ev, check, { signal });
-    document.addEventListener(
-      "visibilitychange",
-      () => document.visibilityState === "visible" && check(),
-      { signal },
-    );
+  check() {
+    this.#worker.postMessage({ kind: "check" });
   }
+
+  #watchPage() {
+    watchPage(() => this.check(), this.#triggers.signal);
+  }
+}
+
+/** The triggers a worker cannot see; the downloader decides whether any of them means anything. */
+export function watchPage(check, signal) {
+  if (typeof document === "undefined") return;
+  addEventListener("pageshow", check, { signal });
+  for (const ev of ["freeze", "resume"]) document.addEventListener(ev, check, { signal });
+  document.addEventListener(
+    "visibilitychange",
+    () => document.visibilityState === "visible" && check(),
+    { signal },
+  );
 }
