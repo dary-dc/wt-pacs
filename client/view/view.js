@@ -63,12 +63,20 @@ export class ViewWorker {
   #triggers = new AbortController();
   #emit;
   #watch;
+  #started = false;
+  /** Why the view worker ended: after its error or an unreadable message, nothing more is sent to it. */
+  #dead = null;
 
-  /** `emit(type, event)` hears renderer, progress, shown and failed; `watch(data, from)`, when given, every message the page receives. */
-  constructor(canvas, { meta, fillMode, size, emit, watch }) {
+  /**
+   * `emit(type, event)` hears renderer, progress, shown and failed `{scope: frame | series | cache | worker, reason}`;
+   * `watch(data, from)`, when given, every message the page receives; `settlePaint`, the lab's flag that a paint waits for the GPU.
+   */
+  constructor(canvas, { meta, fillMode, size, emit, watch, settlePaint = false }) {
     this.#worker = new Worker(new URL("./view-worker.js", import.meta.url), { type: "module" });
-    this.#worker.onerror = (e) => emit("failed", { i: null, reason: `the view worker did not start: ${e.message || "its script did not load"}` });
+    this.#worker.onerror = (e) => this.#end(this.#started ? `the view worker failed: ${e.message}` : `the view worker did not start: ${e.message || "its script did not load"}`);
+    this.#worker.onmessageerror = () => this.#end("a message from the view worker could not be read");
     this.#worker.onmessage = ({ data }) => {
+      this.#started = true;
       watch?.(data, "view");
       if (data.kind === "event") return void emit(data.type, data);
       const r = this.#replies.get(data.id);
@@ -77,7 +85,7 @@ export class ViewWorker {
       else r.resolve(data.value);
     };
     const offscreen = canvas.transferControlToOffscreen();
-    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size }, [offscreen]);
+    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, settlePaint }, [offscreen]);
     this.#emit = emit;
     this.#watch = watch;
   }
@@ -89,7 +97,7 @@ export class ViewWorker {
     const unstarted = Promise.withResolvers();
     this.#downloader.onerror = (e) => {
       const reason = `the downloader did not start: ${e.message || "its script did not load"}`;
-      this.#emit("failed", { i: null, reason });
+      this.#emit("failed", { scope: "series", reason });
       unstarted.reject(new Error(reason));
     };
     if (this.#watch) this.#downloader.onmessage = ({ data }) => this.#watch(data, "downloader");
@@ -100,7 +108,19 @@ export class ViewWorker {
     return Promise.race([this.#call("connect", { port: port2, url, certHash, opts: config, issuedAt }, [port2]), unstarted.promise]);
   }
 
+  /** Fatal: the view is gone, said once, and every call still waiting fails with it. */
+  #end(reason) {
+    if (this.#dead) return;
+    this.#dead = reason;
+    this.#worker.terminate();
+    this.#downloader?.terminate();
+    this.#emit("failed", { scope: "worker", reason });
+    for (const r of this.#replies.values()) r.reject(new Error(reason));
+    this.#replies.clear();
+  }
+
   #call(kind, args = {}, transfer = []) {
+    if (this.#dead) return Promise.reject(new Error(this.#dead));
     const id = this.#next++;
     return new Promise((resolve, reject) => {
       this.#replies.set(id, { resolve, reject });

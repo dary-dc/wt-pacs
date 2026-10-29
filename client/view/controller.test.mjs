@@ -11,17 +11,17 @@ const frame = (i) => ({
   info: { pixels: new Uint16Array([0, 1, 2, 3, 4, 5]).buffer, width: 3, height: 2, bits: 16, components: 1, signed: false, min: 0, max: 5, exact: true, stamps: {} },
 });
 
-/** A controller on a 4-frame series, its paints and the client's calls recorded; `held` frames already here. */
-function rig({ held = [], fillMode = true, budget } = {}) {
+/** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
   const c = new Controller({
-    meta: { frameCount: 4, window: { center: [3], width: [6] } },
+    meta: { frameCount: frames, window: { center: [3], width: [6] } },
     fillMode,
     size: { width: 2, height: 3, dpr: 1 },
     emit: (type, e) => events.push([type, e]),
-    paint: (f, display) => (painted.push({ f, display }), { uploaded: painted.at(-2)?.f !== f }),
+    paint: paint ?? ((f, display) => (painted.push({ f, display }), { uploaded: painted.at(-2)?.f !== f })),
     budget,
   });
   c.client = {
@@ -30,6 +30,7 @@ function rig({ held = [], fillMode = true, budget } = {}) {
     fill: (all) => calls.push(`fill ${all}`),
   };
   for (const i of held) c.take(frame(i));
+  if (wants) c.store.downloader = { want: (misses) => wants.push(misses.join()) };
   return { c, painted, calls, events };
 }
 
@@ -97,6 +98,69 @@ test("the memory window lets the farthest frame go", async () => {
   await c.show(3);
   assert.deepEqual(calls, ["ask 3"]);
   assert.deepEqual([...c.store.keys()].sort(), [1, 3]);
+});
+
+/** Under the worker view a step to a held frame paints it and sends the downloader nothing, on demand and filling. */
+test("worker view: a held frame is painted with no downloader message", async () => {
+  for (const fillMode of [false, true]) {
+    const wants = [];
+    const { c, painted, calls } = rig({ held: [0, 1, 2, 3], fillMode, wants });
+    await c.repaint();
+    const before = painted.length;
+    await c.show(2);
+    assert.equal(painted.length, before + 1);
+    assert.equal(painted.at(-1).f, c.store.get(2));
+    assert.deepEqual([wants, calls], [[], []]);
+  }
+});
+
+/** The store sends the misses alone, in the controller's order, nearest the current frame first; the same misses are not sent twice. */
+test("worker view: the misses go to the downloader in the want's order, once", async () => {
+  const wants = [];
+  const { c, calls } = rig({ frames: 8, held: [0, 2], wants });
+  c.show(5);
+  c.show(1);
+  c.show(1);
+  assert.deepEqual(wants, ["5,6,4,7,3,1", "1,3,4,5,6,7"]);
+  assert.deepEqual(calls, []);
+});
+
+/** A frame of a replaced want that arrives is kept, and only the current frame is painted; on demand the want is that frame alone. */
+test("worker view: a frame of a replaced want is kept", async () => {
+  const wants = [];
+  const { c, painted } = rig({ held: [0], fillMode: false, wants });
+  await c.repaint();
+  const before = painted.length;
+  const first = c.show(1);
+  const second = c.show(2);
+  c.take(frame(1));
+  await first;
+  assert.equal(painted.length, before);
+  c.take(frame(2));
+  await second;
+  await c.repaint();
+  assert.deepEqual(wants, ["1", "2"]);
+  assert.deepEqual([...c.store.keys()].sort(), [0, 1, 2]);
+  assert.equal(painted.at(-1).f, c.store.get(2));
+});
+
+/** Each failure reaches the page as `failed` with its scope by name: a frame, the series (index -1), the paint as the worker's. */
+test("each failure is said with its scope", async () => {
+  const wants = [];
+  const { c, events } = rig({ held: [0], fillMode: false, wants, paint: () => Promise.reject(new Error("context lost")) });
+  c.show(3);
+  c.refused(3, "refused by the server");
+  c.refused(-1, "no decoder");
+  await c.repaint();
+  const failures = events.filter(([t]) => t === "failed").map(([, e]) => e);
+  assert.deepEqual(failures, [
+    { scope: "frame", i: 3, reason: "refused by the server" },
+    { scope: "series", reason: "no decoder" },
+    { scope: "worker", reason: "paint: context lost" },
+  ]);
+  // A refused frame is no longer owed: the same want sends it again.
+  c.show(3);
+  assert.deepEqual(wants, ["3", "3"]);
 });
 
 let failed = 0;

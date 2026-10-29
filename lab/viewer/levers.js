@@ -12,6 +12,8 @@ export function levers(q) {
 function totalTime(post, origin) {
   const send = (what, body) => fetch(`${post}${what}`, { method: "POST", body: body && JSON.stringify(body) });
   return {
+    // The rig times "shown", so under the worker view its paint waits for the GPU as the paint worker's does.
+    settlePaint: true,
     started: () => send("hello"),
     async finished({ error, issuedAt, firstShownMs, frames, errors, stats }) {
       if (error) return send("result", { error }).catch(() => {});

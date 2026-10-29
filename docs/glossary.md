@@ -35,8 +35,9 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | preview | a lossy picture shown before its frame's exact one, and replaced by it |
 | view | where the viewer holds and paints its frames: `page` (the default) or `worker`, the page's `?view=` ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |
-| controller | the view's current frame, what it asks of the downloader and its paint (`client/view/controller.js`) |
-| frame store | the frames held, by index: has, get, put, a memory window; it decides nothing (`client/view/store.js`) |
+| controller | the view's current frame, what it wants and in what order, and its paint (`client/view/controller.js`) |
+| frame store | the frames held, by index: has, get, put, a memory window; under `worker`, where a frame comes from: it sends the downloader the misses of each want (`client/view/store.js`) |
+| want | the frames a view wants, in its order; the misses reach the downloader as one `want` message that replaces the last, and change its order alone ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |
 

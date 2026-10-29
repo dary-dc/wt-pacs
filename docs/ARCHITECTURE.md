@@ -62,9 +62,10 @@ boundary is the API, and `stats()` is async because it cannot be truthful and sy
 
 | to the downloader | fields |
 | --- | --- |
-| `start` | config — and, optionally, `fill`: the first fill's frame indices |
+| `start` | config — and, optionally, `fill`: the first fill's frame indices, or `want`: the first want's |
 | `dial` | url, cert hash |
 | `fill` | frame indices |
+| `want` | frame indices, in the order wanted; replaces the last want |
 | `ask` | one frame index |
 | `cancel` | — |
 | `close` | — |
@@ -147,6 +148,11 @@ port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 m
   next fill) and answers `cancelled`. An ask already on the wire stays owed: the server still sends its frame, and
   the session refuses a second ask of it, so the same frame asked again after the cancel takes that ask over
   rather than asking twice (row 219, VIEWERASKS; `downloader.test.mjs` *anAskAgainAfterACancelIsServed*).
+* **A want** (the view worker's store, [`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) is an ordered list that
+  replaces the last one and changes nothing else: no generation steps, and what is owed stays owed. Its head goes out
+  as one run where it ascends `askDepth` (4) frames or more with nothing else owed, otherwise as up to `askDepth`
+  asks, topped up as each lands. A want whose head a running run does not serve next ends the run with the head's
+  ask; the run's frames not yet here are asked again once an ask lands behind it.
 * **Closure**: a session that dies is resumed (§Session survival); a command after a closure re-dials.
 * **Memory.** The wire buffer is a ring of `decoders × perDecoder + 2`: **−19.2 MB of renderer peak on
   an 87-frame 16-bit fill, 8 of 8 rounds**, the fill's clock unmoved ([`decode/README.md`](decode/README.md)
@@ -459,7 +465,7 @@ variant, `?view=worker`, not timed and not the default (its §3, *Built*). There
 given the `port` the page linked to the downloader, and the page forwards its triggers to it.
 
 `DownloaderClient.connect(url, certHash, { onFrame, onError, fill, openingAsk, survival, … })` →
-`requestExactFrame(index)`, `fill(indices)`, `cancel()`, `stats()`, `close()`. Every delivered frame
+`requestExactFrame(index)`, `fill(indices)`, `want(indices)`, `cancel()`, `stats()`, `close()`. Every delivered frame
 carries its `generation`; `cancel()` resolves once the downloader has ended the stream and dropped
 that request's work. A refused **fill** frame has no waiter, so it reaches the consumer through
 `onError({ frameIndex, reason, generation })`; a refused *asked* frame rejects its own promise. The
