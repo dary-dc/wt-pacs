@@ -76,7 +76,13 @@ export async function firefoxAt(profile, prefs = {}) {
   await send("session.new", { capabilities: {} });
   const tab = (context) => {
     let at = "about:blank";
+    const pointer = (...actions) => send("input.performActions", { context, actions: [{ type: "pointer", id: "mouse", actions }] });
     return {
+      mouse: {
+        move: (x, y) => pointer({ type: "pointerMove", x: Math.round(x), y: Math.round(y) }),
+        down: () => pointer({ type: "pointerDown", button: 0 }),
+        up: () => pointer({ type: "pointerUp", button: 0 }),
+      },
       url: () => at,
       goto: async (url) => { at = url; await send("browsingContext.navigate", { context, url, wait: "complete" }); },
       async evaluate(fn) {
