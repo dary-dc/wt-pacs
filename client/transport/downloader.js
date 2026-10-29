@@ -476,7 +476,7 @@ function spawn() {
   const ch = new MessageChannel();
   // Firefox drops frames in flight once this object is collected: ARCHITECTURE.md §The downloader.
   d.port = ch.port1;
-  worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength, digests: cfg.digests }, [ch.port1]);
+  worker.postMessage({ kind: "init", toConsumer: ch.port1, decoder: cfg.decoder, groupLength: cfg.groupLength, digests: cfg.digests, pixels: cfg.pixels }, [ch.port1]);
   worker.onerror = (e) => {
     e.preventDefault();
     replace(d, `decoder ${d.id} crashed: ${e.message}`);

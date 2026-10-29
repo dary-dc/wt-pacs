@@ -311,7 +311,9 @@ harness's protocol (`hello`, the result's shape, each frame's SHA-256) through `
 [`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The viewer. A viewer variant with `"view": "worker"` opens
 the page with `?view=worker`, its frames held and painted in the view worker; two viewer variants that differ in
 `view` alone are interleaved like any others, which is how [`docs/adr/frame-path.md`](../../../../docs/adr/frame-path.md)
-§7 runs. Each frame's SHA-256 is then taken in the view worker, where the frame is.
+§7 runs. Each frame's SHA-256 is then taken in the view worker, where the frame is. `"pixels": "transfer"` on a variant
+transfers each frame from its decoder in place of sharing it, the lever of
+[`frame-path.md`](../../../../docs/adr/frame-path.md) §3, *Experiment 3*.
 
 
 **Row DECODEPACE** sets the downloader's `followQueue` lab flag against today's pool on the delivered OpenJPH

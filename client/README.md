@@ -27,7 +27,8 @@ Design and what it is for: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `av1-probe.js` | a 16×16 unit per layout WebCodecs may take, and its checksum (made by `ingest/coded-frames/make_golden.py`) |
 | `wasm-glue.js` | an Emscripten module from its classic glue in a module worker, for OpenJPH and dav1d alike; a build under `wasm/built/` with its manifest digests |
 | `xxh3.js` | the frame check's XXH3-64, over the built xxHash |
-| `htj2k.test.mjs`, `av1.test.mjs`, `wasm-glue.test.mjs`, `xxh3.test.mjs` | node: the range pass; the AV1 payload reader; a build refused unless the manifest pins it; the hash against a reference |
+| `frame-buffer.js` | a decoded frame's memory: a `SharedArrayBuffer`, or under the lab's `pixels: "transfer"` an `ArrayBuffer` the decoder transfers |
+| `htj2k.test.mjs`, `av1.test.mjs`, `wasm-glue.test.mjs`, `xxh3.test.mjs`, `decoder.test.mjs` | node: the range pass; the AV1 payload reader; a build refused unless the manifest pins it; the hash against a reference; a frame's buffer and transfer list under `pixels` |
 | `wasm/` | `build/` builds the three decoders the page loads (OpenJPH from `openjph/`, dav1d, xxHash from `xxh3/`) into `built/`, checked against `build/manifest.sha256`, with every licence in `built/THIRD_PARTY_NOTICES`; `dav1d/` the lab's dav1d-WASM tooling and its exactness check; `fetch_openjph.sh` fetches OpenJPH's npm build and `fetch_xxh3.sh` hash-wasm's XXH3, `xxh3.test.mjs`'s reference, into `vendor/` |
 
 The rest: [`viewer/`](viewer/) the product's page (§The viewer), [`view/`](view/) what holds and paints its frames
@@ -207,6 +208,12 @@ Past three quarters of N delivered on one session, the next is dialled in the ba
 ready the old one is closed and the records' remainder is issued on the new one, exactly as a resume
 issues it, and the page is told as `stats().recycledAt`. It is for WebKit's session that stalls after
 16 MB; what it costs, and against what, is `docs/ARCHITECTURE.md` §Recycling before the stall.
+
+**A frame can be transferred instead of shared** — `pixels: "transfer"`, a lab setting, off by default.
+Each decoder then writes a frame into an `ArrayBuffer` and transfers it to the consumer, which holds
+the only reference; the page stays cross-origin isolated either way. It exists to be measured under
+`?view=worker` ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Experiment 3*); under
+`page` the page's paint then copies the frame to the paint worker at each paint.
 
 **Every decision is held by a test** (2026-10-07). A sweep of 76 mutants over
 `downloader.js` and `consumer.js` — each branch, guard and threshold broken in turn, the node tests
