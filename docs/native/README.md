@@ -437,33 +437,45 @@ manual on PACS; the HIPAA Security Rule revision's text; GitHub's release pages 
 *Theory only: read from the Target section of [`../adr/frame-path.md`](../adr/frame-path.md) as revised on
 `claude/view-worker-target-rev` (draft PR #235), its red team's review and the independent design after it, and from
 the native line's open PRs at their heads: #206 `claude/native-paint`, #209 `claude/native-cache`, #216
-`claude/native-window`, #218 `claude/native-fill`. Nothing built, nothing run. The owner, 2026-10-29: try this design
-in the native client, compared with native's other versions, measured. The UI shape stays open (§7, decision 2).*
+`claude/native-window`, #218 `claude/native-fill`. M2's and M3's results quoted below are on #218's and #209's
+`docs/native/README.md` §6, not on this branch (*corrected in methodology review (2026-10-29)*). Nothing built, nothing
+run. The owner, 2026-10-29: try this design in the native client, compared with native's other versions, measured.
+The UI shape stays open (§7, decision 2).*
 
 **The question.** What the view-worker design becomes on native threads and memory, and how the versions are compared.
 
 **The answer in brief.** The split carries over whole — the controller decides what, the store decides from where and
-alone talks to the downloader, one owner per frame handed over at an ack, an ordered want, credits, paint before the
-write — and gets cheaper: in Rust a frame's hand-over is a move and the ack a dropped permit, not two messages. What
-dissolves is the browser's: the page, `SharedArrayBuffer` accounting, OPFS's handle rules, a worker's clock. What
-changes cost is the write (two fsyncs, not a copy into the page cache), the hop (a channel, not `postMessage`) and
-the receive: quinn runs in-process, so a thread that blocks its driver stops ACKs, not just credit. That last point is
-what the single core risks natively, and the comparison's one new cell.
+alone talks to the downloader, one owner per frame, an ordered want, a bound on frames in flight, paint before the
+write — and gets cheaper: in Rust a frame's hand-over is a move, and the bound is a channel's capacity, not an ack
+message. What dissolves is the browser's: the page, `SharedArrayBuffer` accounting, OPFS's handle rules, a worker's
+clock source. What changes cost is the write (two fsyncs, not a copy into the page cache), the hop (a channel, not
+`postMessage`) and the receive: quinn runs in-process, so a thread that blocks its driver stops ACKs, not just credit.
+Native today already runs that risk by accident — its decode, its cache's fsyncs and `native-fill`'s painted wait all
+run on the runtime's workers — and the single core makes it the design's rule; the receive cell below runs on every
+arm (*corrected in methodology review (2026-10-29)*: it read as the single core's risk alone).
 
 ### Native today, as the branches build it
 
 * **Threads.** `native-window` runs a tokio multi-thread runtime (`Runtime::new()`, a worker per core) beside winit's
   UI thread. Each server uni stream is read in its own task (`transport.rs` `media`); every frame goes through one
-  unbounded channel to one `load` task, which decodes it on the runtime's worker, checks it, and hands the samples to
-  the UI thread through `EventLoopProxy`. The UI thread keeps them and paints on redraw.
-* **Memory.** `frames: Vec<Option<Vec<u8>>>`, every frame of the series, no budget, no eviction.
+  unbounded channel to one `load` task, which decodes it synchronously on the runtime's worker — no `spawn_blocking` —
+  checks it, and hands the samples to the UI thread through `EventLoopProxy`. quinn's endpoint and connection drivers
+  are tasks on the same runtime, so with one worker (the 1-core cell) every decode stalls them. The UI thread keeps the
+  frames and paints on redraw.
+* **Memory.** `frames: Vec<Option<Vec<u8>>>`, every frame of the series, no budget, no eviction. The decoder keeps one
+  `i32` scratch the size of a frame (4 bytes a sample), narrowed into each frame's `Vec`.
 * **Asking.** The window fills the whole series at open and steps through what it holds; nothing is asked on a step.
-  `native-fill --ask --in-turn` asks one at a time and paints on a thread of its own (`screen.rs`), M2's arm.
+  `native-fill --ask --in-turn` asks one at a time and paints on a thread of its own (`screen.rs`), M2's arm; it holds
+  no frame, and its painted stamp is taken after a full read-back of the target, which the receive loop blocks on
+  (*corrected in methodology review (2026-10-29)*).
 * **The cache** (M3) stores coded bytes, a file per frame, write, fsync, rename, fsync of the directory; on
-  `native-cache` the `put` runs on the receive loop after the decode. No branch holds the cache and a window together,
-  so merged as written, the write — both fsyncs — would come before the hand-off to the paint.
-* **The paint** uploads on every paint (`write_texture`, which copies into a staging buffer), with no skipped upload for
-  the frame already on screen (§6 M1, *Not ported*).
+  `native-cache` the `put` runs on the receive loop after the decode. It has no lever to slow a write or force a miss.
+  No branch holds the cache and a window together, so merged as written, the write — both fsyncs — would come before
+  the hand-off to the paint.
+* **The paint** creates the samples texture, the window table (rebuilt on the CPU, up to 65 536 entries) and the
+  uniform afresh on every paint — three queue writes, one of them the samples through `write_texture`'s staging copy —
+  with no skipped upload for the frame already on screen (§6 M1, *Not ported*). The present mode is the driver's first
+  listed, not chosen (*corrected in methodology review (2026-10-29)*).
 
 ### The mapping
 
@@ -471,45 +483,54 @@ what the single core risks natively, and the comparison's one new cell.
 | --- | --- | --- |
 | the page: intents and events only | the UI thread, whichever shape decision 2 picks: input, status, the surface's life (resize, suspend) | carries over; the page's long tasks become the toolkit's |
 | the view worker: controller, frame store, paint module | a **view thread** owning the three as modules, its inbox a channel | carries over |
-| its frame clock: worker `requestAnimationFrame`, a 15 ms timer in WebKit | the surface's present: `Fifo` blocks the view thread until a vblank frees an image | dissolves: the windowing system's clock, on the thread that paints |
+| its frame clock: worker `requestAnimationFrame`, a 15 ms timer in WebKit; the frame picked from the time elapsed since `play`, paused on `hidden` | the surface's present: `Fifo` blocks the view thread until a vblank frees an image; the pick from elapsed time and the pause on suspend stay | the source dissolves — the windowing system's clock, on the thread that paints; the two rules carry (*corrected in methodology review (2026-10-29)*) |
 | WebGL2 on a transferred canvas | wgpu's `Surface` and `Device`, both `Send + Sync`, owned by the view thread; winit creates the window on the UI thread | carries over by the types; presenting off the UI thread on macOS, iOS and Android not run |
-| the downloader worker: session, records, survival, the want windowed to `D_min` asks | the tokio runtime that already holds quinn and `transport`, plus the records, on threads of its own | carries over |
-| decoders nested in the downloader, `min(3, cores)` | `N` decode threads pulling from one channel | carries over; native decodes inline today (one at a time, M2's asymmetry) |
-| the want: an ordered list of misses replacing the last | a `watch` channel: the receiver sees only the newest list | carries over, and the replace is the channel's own rule |
-| frame → store, then ack; credits: dispatch while unacked < K | the samples' `Vec` moved to the store with an `OwnedSemaphorePermit` inside; the store drops it once the frame is held in budget or written | carries over; the ack is a permit release, not a message, and the move makes "never both owners" a compile-time fact |
-| generation: (series, index, metadata version) | the same key, which M3's cache path already carries | carries over |
-| memory window by byte budget; M2 found V8 counts a shared buffer as 0 bytes, hence the slot ring | a byte budget over owned `Vec`s, which the allocator and RSS count | dissolves: no shared buffer, no slot ring, no take count |
+| the downloader worker: session, records, survival, the want windowed to `D_min` asks, a `stream_frames` run where the want is ascending | the tokio runtime that already holds quinn and `transport`, pinned to one worker thread, plus the records | carries over; the runtime's one thread is what the thread counts below assume (*corrected in methodology review (2026-10-29)*) |
+| decoders nested in the downloader, `N` a device setting (today's `min(3, cores)`) | `N` decode threads pulling from one **bounded** channel; the stream readers stop reading when it is full, so a slow decode reaches the wire through QUIC's windows and never through a queue of coded bytes | carries over; native decodes inline today (one at a time, M2's asymmetry). OpenJPH is single-threaded; for an AV1 series each decoder's dav1d pool (`auto` today) is pinned to one thread (*corrected in methodology review (2026-10-29)*) |
+| the want: an ordered list of misses replacing the last; a frame that lands after its want was replaced is kept | a `watch` channel: the receiver sees only the newest list; a late frame is kept and counted | carries over, and the replace is the channel's own rule |
+| frame → store, then ack; credits: dispatch while unacked < K | the samples' `Vec` moved into a channel of capacity K from the decoders to the view thread: the send waits while K frames are unaccepted, the receive is the ack. The downloader's record of what is owed still needs a per-frame `done {i, written}` after the decoder's write (the record's deletion; the re-ask when a decoder dies) | the bound carries, as the channel; the ack as a message dissolves into it; `done` stays, one message a frame, and the move makes the buffer single-owned — the owed record is the rule's other half (*corrected in methodology review (2026-10-29)*: it read as a permit inside the `Vec` and "no `done`") |
+| the key (series, index, metadata version); the generation steps when either changes | the same key, which M3's cache path already carries | carries over |
+| memory window by byte budget; frame-path's M2 found V8 counts a shared buffer as 0 bytes, so a slot ring is the target's open question | a byte budget over owned `Vec`s, which the allocator and RSS count | the budget carries; the ring dissolves: no shared buffer, no take count |
 | OPFS: one sync handle per file, exclusive lock, a writer per worker; arms A, C, D | plain files: any thread writes, two writers of one frame both succeed (M3's unique temporary name) | dissolves; who writes stays a choice, but arm A (the view thread writes) is out, since a write here is two fsyncs |
-| paint before the cache write | the decoder sends the samples, then writes the **coded** bytes it still holds | carries over, at no cost: M3 caches coded bytes, so the write never needs the samples |
-| the page holds no frame, no `SharedArrayBuffer`, no isolation headers | nothing to isolate; the UI thread holds no frame | dissolves |
+| a frame read back that fails its check is asked again | M3's `get`: a failing entry is removed and the frame fetched | carries over, built |
+| paint before the cache write; eviction only once written | the decoder sends the samples, then writes the **coded** bytes it still holds, then sends `done {i, written}` | carries over, at no cost: M3 caches coded bytes, so the write never needs the samples; the store learns "written" from `done` |
+| a full store reaches the wire as a pause | a full decode channel stops the stream readers, not the driver: ACKs continue, credit stops | carries over, and is the one place the native receive differs in kind from the browser's |
+| the view worker holds the samples in a `SharedArrayBuffer`, so cross-origin isolation stays a page requirement | nothing shared; the UI thread holds no frame | dissolves (*corrected in methodology review (2026-10-29)*: "no isolation headers" is the independent design's, not the target's) |
 | `failed {scope, reason}` to the page | the same event on the UI thread's channel | carries over |
 
 **What changes cost.**
 
 * **A hop.** A message is a channel send and, if the receiver sleeps, a futex wake: expected in microseconds against
   `postMessage`'s structured clone and event-loop turn. Not measured; the arms stamp each hop (below).
-* **A cache write.** M3's kill run wrote 100 frames of 701 KB, write and both fsyncs each, in 374 ms on this container's
-  ext4: ≈ 3.7 ms a frame, not a phone's flash or Apple's `F_FULLFSYNC`. OPFS's write is a copy with no flush. Paint
-  first matters more natively, and the writer must not be the view thread.
+* **A cache write.** M3's kill run wrote 100 frames of 701 KB (its 87 × 768×920 12-bit series, not the 61 MB series
+  below), write and both fsyncs each, in 374 ms on this container's ext4: ≈ 3.7 ms a frame, not a phone's flash or
+  Apple's `F_FULLFSYNC`. OPFS's write is a copy with no flush. Paint first matters more natively, and the writer must
+  not be the view thread.
 * **A GPU upload from a decoder's buffer.** Native could narrow the decoder's output straight into a mapped staging
   buffer and skip `write_texture`'s copy, which the browser cannot. It saves one copy on shown frames only and nothing
   measured asks for it: not built.
 * **The receive.** In the browser QUIC runs in the network process, and a busy worker only holds credit. Natively,
   quinn's driver is a task: if its thread blocks, datagrams wait in the socket buffer, 212 992 bytes on Linux before
   6.18 unless the app raises it, which quinn leaves to the app ([`quic.md`](quic.md) §7.1): ≈ 85 ms at 20 Mbit/s and
-  ≈ 34 ms at 50 (derived), under 2 ms at loopback rates. Past that, drops, read by CUBIC as congestion.
+  ≈ 34 ms at 50 (derived), ≈ 1.4 ms at M2's loopback rate (61 MB in 398 ms). Past that, drops, read by CUBIC as
+  congestion. Linux 6.18 raised the cap to 4 MiB, and this container runs 6.18: the receive cell prints `rmem_max`
+  and claims the small buffer only where it is set (*corrected in methodology review (2026-10-29)*).
 * **The store's read-back.** M3 caches coded bytes, so a frame from disk is a read, a decode and a check: M3's reopen
-  was decode-bound on one core (373 ms for 87 frames). The browser target stores samples; which one native keeps is not
-  this comparison's lever, and every arm uses M3's cache as built.
+  was decode-bound on one core (373 ms for 87 frames, from a warm page cache). The browser target stores samples;
+  which one native keeps is not this comparison's lever, and every arm uses M3's cache as built.
 
 ### The single core, native
 
 The independent design's alternative: one **core thread** holds transport, records, controller, store and paint; `N`
 decode threads write the cache. Natively it is a `current_thread` runtime on the view thread, the paint between its
-polls, and `N + 2` threads against the target's `N + 3`. Two of its parts do not carry over:
+polls, and `N + 2` threads against the target's `N + 3`. Two of its parts are not taken, so N2 is the target with its
+downloader merged into the view thread, not the independent design as written (*corrected in methodology review
+(2026-10-29)*):
 
-* **The disk as the only store.** With coded bytes on disk, every step re-decodes (M2: 6.9 ms a 1024² frame on this
-  host). So native's single core keeps the byte-budget memory store; it drops the second owner and the ack, not memory.
+* **The disk as the only store.** The independent design keeps decoded samples on disk; with M3's coded bytes, every
+  step would re-decode (M2: 6.9 ms a 1024² frame on this host). So native's single core keeps the byte-budget memory
+  store and the bounded channel from the decoders; what it drops is the second thread, not memory. The sample store
+  on disk is untested natively and stays open.
 * **The receive beside the paint.** A `Fifo` present blocks up to a display period, and M2's paint with its full
   read-back took 32–36 ms after the exact frame: past the socket buffer at loopback rates, inside it at 20 Mbit. So the
   core presents with `Mailbox` or `Immediate`, never blocking, and the receive-loop cell below decides whether it holds.
@@ -520,66 +541,127 @@ polls, and `N + 2` threads against the target's `N + 3`. Two of its parts do not
 | --- | ---: | ---: | ---: | ---: | --- |
 | **native today**, a fill frame | 2–3 (a runtime worker or two, UI) | 2 (stream → `load`, `load` → UI) | 1 (decoder → `Vec`, narrowed) | 0 | all |
 | native today, a step to a held frame | 1 (UI) | 0 | 1 (into staging) | 1 | all |
-| native today, an ask (`native-fill --in-turn`) | 3 (runtime, loop, paint thread) | 3 (stream → loop, loop → paint, painted) | 2 | 1 | all |
-| **native target**, a fill frame | 3 (runtime, decoder, view) | 2 (decode, frame) + 1 permit release | 1 | 0 | budget + K |
+| native today, an ask (`native-fill --in-turn`) | 3 (runtime, loop, paint thread) | 3 (stream → loop, loop → paint, painted) | 2 | 1 | none (*corrected in methodology review (2026-10-29)*: read "all") |
+| **native target**, a fill frame | 3 (runtime, decoder, view) | 3 (decode, frame, `done` after the write); the channel's bound is the ack | 1 | 0 | budget + K |
 | native target, a step to a held frame | 2 (UI, view) | 2 (`show`, `shown`) | 1 | 1 | budget + K |
-| native target, an on-demand miss | 4 (UI, runtime, decoder, view) | 4 + 1 permit release | 2 | 1 | budget + K |
-| **native single core**, a fill frame | 2 (core, decoder) | 2 (decode, done with the samples) | 1 | 0 | budget |
-| native single core, a step to a held frame | 2 (UI, core) | 2 | 1 | 1 | budget |
-| native single core, an on-demand miss | 3 (UI, core, decoder) | 4 | 2 | 1 | budget |
+| native target, an on-demand miss | 4 (UI, runtime, decoder, view) | 5 | 2 | 1 | budget + K |
+| **native single core**, a fill frame | 2 (core, decoder) | 2 (decode, `done` with the samples) | 1 | 0 | budget + K |
+| native single core, a step to a held frame | 2 (UI, core) | 2 | 1 | 1 | budget + K |
+| native single core, an on-demand miss | 3 (UI, core, decoder) | 4 | 2 | 1 | budget + K |
 | *browser target, a fill frame* (frame-path, *What each counts*) | 3 + the network process | 4 (decode, frame, `done`, ack) | 2, or 1 and a post | 0 | budget, as V8 counts it |
 | *browser target, an on-demand miss* | 4 + the network process | 6 | 2, or 1 and a post | 1 | |
 
-The cache write adds no message in any native arm (the decoder writes after its send) and one copy of the coded bytes
-into the page cache. Native's decoder pool needs no `done` to the downloader: an idle decoder pulls the next job.
+Copies are HTJ2K's; an AV1 frame makes one more (`decode.rs`'s `out`). Every native paint also writes the window
+table and the uniform, two small queue writes beside the samples. The decoders' `i32` scratch, 4 bytes a sample each,
+and the coded bytes in the decode channel sit outside "frames held" and inside RSS (metric 6). The cache write adds no
+message beyond `done` in any native arm (the decoder writes after its send) and one copy of the coded bytes into the
+page cache. Native's decoder pool needs no `done` to free a slot — an idle decoder pulls the next job — but the
+record needs it (*corrected in methodology review (2026-10-29)*).
 
 ### The comparison, pre-registered
 
-`claude/client-final-protocol` does not exist on origin, so the cells and metrics reuse M2's (§6) and frame-path §7's.
-Every arm's settings print in each row; every frame checks bit-exact against the bundle and its digest, and one
-frame not `true` fails its visit.
+`claude/client-final-protocol` does not exist on origin, so the cells reuse M2's (§6, results on #218) and the busy-UI
+cell and the rule's shape reuse frame-path §7's; what is new here is said so. Every arm's settings print in each row;
+every frame checks bit-exact against the bundle and its digest, and one frame not `true` fails its visit.
 
 * **Arms.** **N0, native today**: #206, #209, #216 and #218 merged with no change of design (cache put on the loop
-  before the hand-off, every frame held, paint on the UI thread). **N1, native target**, as mapped above. **N2, native
-  single core**. **B, the browser target** as built on `claude/view-worker`, headless Chromium, in the cells it can
-  run. N1 and N2 use the same decoders, `N = min(3, cores)`; N0 decodes one at a time as built, and that is part of
-  what it is.
-* **Cells.** M2's: loopback; the relay (`link_impair.py`) at 20 Mbit, 40 ms each way, clean and 2 % loss; the 61 MB
-  (37 × 1024² 16-bit) and 4.4 MB (102 × 512² RGB) series; plus a 3328 × 4096 series for the memory and step cells.
-  Clients on 2 cores, and on 1 core as the saturating cell. Windows 6 MiB stream, 15 MiB connection, in every arm.
+  before the hand-off, every frame held, paint on the UI thread); its painted stamp moves to metric 3's endpoint and
+  its present mode is pinned to `Fifo` and printed — measurement changes, not design (*corrected in methodology
+  review (2026-10-29)*). **N1, native target**, as mapped above. **N2, native single core**. **B, the browser target**
+  as built on `claude/view-worker`, headless Chromium, in the cells it can run: not the 1-core cell (Chromium's
+  processes do not pin cleanly) and not metric 6 (OPFS has no slow-write lever). B speaks HTTP/3 WebTransport, native
+  raw QUIC (§8.1), on WASM decoders and WebGL2 on SwiftShader: B ÷ N1 is a stack ratio, not a design ratio, and
+  M2's clean-link tie (0.996, 0.982) is its control. N1 and N2 use the same decoders, `N = min(3, cores)`; N0 decodes
+  one at a time as built, and that is part of what it is.
+* **Cells.** M2's: loopback; the relay (`link_impair.py`, 50-packet queue, `--self-timing`) at 20 Mbit, 40 ms each
+  way, clean and 2 % loss; the 61 MB (37 × 1024² 16-bit) and 4.4 MB (102 × 512² RGB) HTJ2K series; plus a synthetic
+  3328 × 4096 16-bit HTJ2K series of 16 frames (436 MB decoded; no committed set has more than 4 such frames) for the
+  memory and step cells (*corrected in methodology review (2026-10-29)*). Clients on 2 cores, and on 1 core as the
+  saturating cell, which claims only which arm degrades least (below). Windows 6 MiB stream, 15 MiB connection, in
+  every arm.
 * **Metrics, one per cell** (latency or throughput, not both):
   1. *Fill*: dial to the last frame exact (N0–N2, B).
-  2. *First exact frame on screen* from the dial (N0–N2, B).
-  3. *Ask, painted*: step to the GPU's work done (`on_submitted_work_done`; the browser's 1-pixel read-back behind the
-     lab flag), one ask at a time, the 1024² series at 20 Mbit. This replaces M2's full read-back, which charged native
-     32–36 ms the browser did not pay.
-  4. *Busy UI*: a 200 ms block every 500 ms on the UI thread (the page in B), from the dial: ten asks' painted time,
-     and a 30 frames/s cine of held frames, frames late counted. The lab injects the steps off the UI thread, so the
-     block delays only what paints there.
-  5. *Receive beside the paint*: the 61 MB fill's inter-arrival p99 and its time while a cine paints held
-     3328 × 4096 frames at 30 frames/s (N1 against N2; B for reference).
-  6. *Memory*: peak RSS of the 3328 × 4096 fill with the cache's writes slowed by a test lever, budget 64 MiB, K = 4.
+  2. *First exact frame on screen*: dial to frame 0 at metric 3's endpoint (N0–N2, B).
+  3. *Ask, painted*: step to the GPU queue drained (`on_submitted_work_done`, new code in every native arm; the
+     browser's 1-pixel read, which `paint-worker.js` runs on every paint today, moved behind the lab flag on
+     `claude/view-worker`), one ask at a time, the 1024² series at 20 Mbit (M2 asked at 50). Neither endpoint is the
+     frame on screen, and B's is later by its read-back's copy and a post to the page: printed, not corrected. This
+     replaces M2's full read-back, which charged native 8–16 ms more than the browser's 1-pixel read (*corrected in
+     methodology review (2026-10-29)*: it read "32–36 ms the browser did not pay"; the browser paid 28 and 16).
+  4. *Busy UI*: a 200 ms busy loop every 500 ms on the UI thread (the page in B), the same loop in every arm, from
+     the dial: ten asks' painted time, and a 30 Hz timer cine of held frames, frames late against the timer. The lab
+     injects the steps off the UI thread in every arm, so the block delays only what paints there; one extra cell posts
+     the step through the UI thread, as a user's input arrives. What the cell verifies in N1 and N2 is that nothing on
+     their paint path waits on the UI thread; on X11 that is near-certain by construction, on macOS it is not.
+  5. *Receive beside the paint*: the 61 MB fill's inter-arrival p99 and its time while a timer cine paints held frames
+     at the largest size the container sustains under the guard — measured first, 1024² expected; 3328 × 4096 at
+     30 Hz is 818 MB/s of staging copies on lavapipe and saturates by construction — its achieved rate printed
+     (N0, N1 and N2; B for reference) (*corrected in methodology review (2026-10-29)*).
+  6. *Memory*: peak RSS of the 3328 × 4096 fill with the cache's writes slowed by a lever `NATIVEBUILD` adds to
+     `cache.rs` in every arm, budget 64 MiB, K = 4 (this section's choices). The bound N1 and N2 are held to is
+     budget + K decoded frames + K coded frames + `N` decoders' `i32` scratch (4 bytes a sample) + the 15 MiB
+     connection window; N0 holds the series, 436 MB (*corrected in methodology review (2026-10-29)*: "budget + K
+     frames" alone is below what the decoders hold).
   7. *Counts*: messages and copies per frame from counters in each arm, against the table above; a hop's send →
      receive stamp, median and p99.
-* **Interleaving and A/A.** Per cell, the arms in a Williams order, each twice a round (A and A2), ≥ 12 rounds.
-  `VOID`, fixed before data: a cell whose A2/A median strays past half its rule's band; a visit whose relay p99 is
-  over 1 ms (§8.5).
-* **Saturation guard.** Per visit, every client thread's, the server core's and the relay core's busy share from
-  `/proc`. A cell where the client's cores run ≥ 0.9 busy at the median, or the relay's ≥ 0.8, is labelled saturated:
-  its ratios are printed and nothing is claimed past it.
-* **Predictions.** (a) On the relay, N1 and N2 fill within ×0.98–1.02 of N0 (the wire binds, M2's P2). (b) Busy UI:
-  N0's painted asks and cine slip with the block, N1's and N2's do not. (c) N0's RSS grows to the series' decoded size,
-  N1's and N2's stay ≤ budget + K frames. (d) N2's inter-arrival p99 matches N1's at 20 Mbit and is worse at loopback,
-  where a paint outlasts the socket buffer. (e) Hops in microseconds.
-* **Rule, stated before any data.** **N1 replaces N0** if, on every unsaturated cell, the fill is within ×0.98–1.02,
-  the busy-UI median painted ask is ≥ 16.7 ms earlier in ≥ 9 of 12 rounds with fewer cine frames late, and peak RSS
-  stays ≤ budget + K frames. **N2 replaces N1** — it is the simpler, and wins a tie — if its fill is within ×1.02 of
-  N1's in metric 5 at 20 Mbit, the server's `session path` losses within N1's A/A spread, and its median painted ask
-  within 2 ms of N1's; if it holds at 20 Mbit and fails at loopback, the owner decides which link the native
-  client serves. **B** is a reference, not a candidate: its ratios to N1 are printed for the cells both run, so the owner
-  sees what native buys under the same design.
-* **Only the owner's machine or a phone can claim:** the GPU's upload and paint (lavapipe is a CPU); present pacing and
-  cine on a display (Xvfb has no vblank, so a container's cine counts against a timer); fsync on real flash and
-  `F_FULLFSYNC`; presenting off the UI thread on iOS and Android; a phone's socket buffer and how often its reader
-  stalls past it ([`quic.md`](quic.md) §7.6); memory pressure and the OS killing the app; thermal throttling. The
-  container claims counts, RSS, fill, ask and the receive cell on software rendering, and nothing for a phone.
+* **Interleaving and A/A.** Per cell, the four arms in a Williams square (4 sequences, each 3 times = 12 rounds),
+  each arm's A and A2 back to back. `VOID`, fixed before data, as M2 did it: a cell whose A2/A median strays past
+  half its rule's band — fill ±1 % on the relay and ±2.5 % on loopback (M2's loopback A/A ran 1.015–1.043), painted
+  ask ±2.5 %; the other metrics print their A/A and void on nothing; a visit whose relay p99 is over 1 ms
+  (`link_impair.py --self-timing`'s rule, which M2 misfiled as §8.5's) (*corrected in methodology review (2026-10-29)*).
+* **Saturation guard,** new here. Per visit, every client thread's, the server core's and the relay core's busy share
+  from `/proc`, steal included. A cell where the client's cores run ≥ 0.9 busy at the median, or the relay's ≥ 0.8,
+  is labelled saturated: its ratios are printed and nothing is claimed past it. The 1-core cell saturates by
+  construction (one decoder, N0's inline decode stalling quinn's drivers); it is exempt from the guard and claims one
+  thing, which arm's fill and painted ask degrade least against its own 2-core figures.
+* **Predictions.** (a) On the relay, N1 and N2 fill within ×0.98–1.02 of N0 (the wire binds, M2's P2 at ±3 %;
+  the narrower band is decidable because M2's relay A/A ran within 0.2 %); on loopback N1 and N2 fill faster, since
+  N0 decodes one at a time at 0.53–0.76 of two cores. (b) Busy UI: N0's painted asks and cine slip with the block,
+  N1's and N2's do not. (c) N0's RSS grows to the series' decoded size, N1's and N2's stay within the bound above.
+  (d) N2's inter-arrival p99 matches N1's at 20 Mbit and is worse at loopback; in the container that is lavapipe's
+  raster time on the core thread, not a vblank wait, which only a display shows. (e) Hops in microseconds.
+* **Rule, stated before any data.** **N1 replaces N0** if, on every unsaturated cell, the fill is no slower than
+  ×1.02 and on the relay within ×0.98–1.02 (*corrected in methodology review (2026-10-29)*: "within" on every cell
+  would have rejected N1 for being faster on loopback), the busy-UI median painted ask is ≥ 16.7 ms earlier in
+  ≥ 10 of 12 rounds (a sign test at p ≈ 0.02; 9 of 12 is p ≈ 0.07) with fewer cine frames late, and peak RSS stays
+  within the bound. **N2 replaces N1** — it is the simpler, and wins a tie — if metric 5's fill time is no slower
+  than ×1.02 of N1's at 20 Mbit, its inter-arrival p99 and the server's `session path` losses within N1's A/A spread,
+  and its median painted ask within N1's A/A spread (*corrected in methodology review (2026-10-29)*: "within 2 ms"
+  is under M2's painted A/A of ≈ 3 ms); if it holds at 20 Mbit and fails at loopback, the owner decides which link
+  the native client serves. **B** is a reference, not a candidate: its ratios to N1 are printed for the cells both
+  run, so the owner sees what the native stack buys under the same design.
+* **Only the owner's machine or a phone can claim:** the GPU's upload and paint (lavapipe is a CPU); present pacing
+  and a cine on a display (Xvfb has no vblank, so `Fifo` never blocks there and a container's cine counts late frames
+  against its timer, which is what metrics 4 and 5 report); fsync on real flash and `F_FULLFSYNC`; presenting off the
+  UI thread on iOS and Android; a phone's socket buffer and how often its reader stalls past it
+  ([`quic.md`](quic.md) §7.6); memory pressure and the OS killing the app; thermal throttling. The container claims
+  counts, RSS, fill, ask and the receive cell on software rendering, the timer cine's slips, and nothing for a phone.
+
+### Methodology review (2026-10-29)
+
+Adversarial, before any build or data; three helper agents read the native branches, the ADR and M2's and M3's results.
+Each finding above is marked where it was corrected. The serious ones:
+
+1. **The receive risk was misassigned.** N0 decodes, fsyncs and (in `native-fill`) waits for the paint on tokio's
+   workers, which also run quinn's drivers: on one worker the driver stalls on every frame. Metric 5 now runs on N0
+   too, and the 1-core cell claims degradation, not a ratio.
+2. **The ack's replacement lost the record.** A permit dropped anonymously tells the downloader nothing; the target
+   deletes the owed record at the ack and re-asks a dead decoder's frames. The bound is now a channel of K and
+   `done {i, written}` stays, one message a frame, which also carries the eviction rule "only once written" the
+   mapping had omitted; the counts moved from 2 + permit to 3.
+3. **The rule rejected the design for winning.** "Within ×0.98–1.02 on every unsaturated cell" fails N1 on loopback,
+   where N0 decodes one at a time; the fill rule is one-sided off the relay. The VOID half-band of ±1 % would have
+   voided every loopback cell by M2's own A/A (1.015–1.043); it is per link now.
+4. **The memory cell could not decide.** No 3328 × 4096 set has more than 4 frames (109 MB, under the 176 MB bound),
+   and the bound omitted the decoders' `i32` scratch (54.5 MB each at that size), the coded bytes in flight and the
+   connection window. The series is synthetic with 16 frames; the bound lists what RSS holds. The slow-write lever
+   and `on_submitted_work_done` exist on no branch: the build adds both, in every arm.
+5. **Metric 5's cine saturated by construction** — 27 MB frames at 30 Hz on lavapipe with two cores — so its p99
+   would have read CPU starvation in every arm. The cine is now the largest the container sustains under the guard.
+6. **Numbers and attributions.** The browser paid 28 and 16 ms of read-back in M2, not nothing; M3's kill run was
+   on its 768×920 series; the 1 ms relay rule is `link_impair.py`'s, not §8.5's; this container's kernel is 6.18,
+   where the 212 992-byte cap no longer applies; "no isolation headers" and the slot ring were the independent
+   design's and the target's open row, not target rules; `native-fill` holds no frame.
+
+Not corrected, stated: B's ratio carries its transport, decoder and GPU stack; metric 3's two endpoints are not the
+frame on screen; prediction (b) on X11 is close to true by construction and is a check on the implementation there.
