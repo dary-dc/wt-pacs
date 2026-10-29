@@ -217,19 +217,22 @@ shipping Safari's ITP window; any frame on screen while the page is blocked.
 
 ## Target: the view worker · 2026-10-28
 
-**Status:** the owner's next target design for the client, 2026-10-28. It takes B′ (§1) further: the page leaves the
-pixel path *and* the asking, and the frame store, the cache I/O and the paint share one worker. §8.1 was settled as A
-on 2026-10-11 (queue row 148) unless a measured cost says otherwise; §7's rule is that measurement, so the design is
-built as a switchable arm and adopted only if §7 passes. Theory: nothing here is measured.
+**Status:** the owner's next target design for the client, 2026-10-28, revised 2026-10-29 with the red team's
+fixes 1–4, 6 and 8 (§Review: the red team, below); the rest of both reviews is in the table at the end. It takes B′
+(§1) further: the page leaves the pixel path *and* the asking, and the frame store and the paint share one worker.
+§8.1 was settled as A on 2026-10-11 (queue row 148) unless a measured cost says otherwise; §7's rule is that
+measurement, so the design is built as a switchable arm and adopted only if §7 passes. Theory: nothing here is measured.
 
 ```
 page (UI only)  ── show(i) · setDisplay · play · pause · valueAt ──►  view worker
-                ◄─ shown {i, exact} · progress · failed ───────────   ├ controller   what to want, in what order; cine clock
+                ◄─ shown {i, exact, reason} · progress · failed {scope, reason} ─
+                                                                      ├ controller   what to want, in what order; cine clock
                                                                       ├ frame store  where a frame comes from: memory → OPFS → downloader
                                                                       └ paint module WebGL2, VOI table, display state
-downloader worker ◄── want {misses, in order, generation} · ack ───── frame store
+downloader worker ◄── want {ordered misses} · ack ─────────────────── frame store
   session · records · wire ── started · failed ─────────────────────► frame store
   └ decoders (nested) ── frame {SharedArrayBuffer, exact} ──────────► frame store
+cache writes: off the view worker's thread (a store worker, or the decoders; row OPFSARMS)
 ```
 
 **Responsibilities.**
@@ -239,36 +242,238 @@ downloader worker ◄── want {misses, in order, generation} · ack ───
   and the look-ahead), the cine clock. It tells the store what it wants and the paint module what to paint. It never
   sees the downloader or OPFS.
 * **The frame store** answers "is frame *i* here" and gets the frames it is told to want. For each, in the controller's
-  order, it looks in memory, then OPFS, and sends the downloader only the misses; it never reorders them. `has` and
-  `get` only read: neither reaches the network. Frames from the decoders land in it; it acks the downloader and reports
-  `arrived(i)` or `failed(i)`. A frame read back from OPFS that fails its check (§5) is asked again by the store.
-  Eviction follows the want: what falls outside it leaves memory first, farthest from the current frame first.
+  order, it looks in memory, then OPFS, and sends the downloader the misses as one ordered list, which replaces the one
+  before; it never reorders them. `has` and `get` only read: neither reaches the network. Frames from the decoders land
+  in it; it acks each one once it is held within the memory budget or written, and reports `arrived(i)` or `failed(i)`.
+  A frame is (series, index, metadata version): a frame of the current series that arrives after its want was
+  replaced is kept and acked, not dropped. A frame read back from OPFS that fails its check (§5) is asked again.
+  **Eviction:** the want orders it but does not trigger it. A frame leaves memory only when the store is over its byte
+  budget, only once it is written, farthest from the current frame first.
+* **The cache writes** do not run on the view worker's thread: a write there delays a paint by up to a whole write
+  (§Review, 4). Who writes, a store worker or the decoders, is row OPFSARMS; a sync handle in the view worker, paint
+  first, stays only if that row clears it.
 * **The paint module** is a module of the view worker, not a worker: today's paint worker code, with the display state
-  (window, invert, pose) and the VOI table. A window change repaints with no frame moving.
-* **The downloader** keeps the session, one record per owed frame, survival and the wire: it turns the want into
-  ranges and asks ([`../WIRE.md`](../WIRE.md)), FIFO on the server ([`reject-server-ordering.md`](reject-server-ordering.md)).
+  (window, invert, pose) and the VOI table. A window change repaints with no frame moving. The 1-pixel `readPixels`
+  that waits for the GPU runs only behind the lab's flag.
+* **The downloader** keeps the session, one record per owed frame, survival and the wire. It keeps the want as an
+  ordered list: it sends its first `D_min` misses as asks ([`client-window-depth.md`](client-window-depth.md)) and tops
+  them up as frames land, and uses a `stream_frames` run only where the want is ascending ([`../WIRE.md`](../WIRE.md)).
+  It dispatches to the decoders only while fewer than K frames are unacked, so a full store reaches the wire as a
+  pause. Its generation steps only when the series or its metadata version changes. The server does not reorder
+  ([`reject-server-ordering.md`](reject-server-ordering.md)), and any message ends a running fill with no saved
+  position (WIRE §An ask during a fill) — *corrected in review*: it read "FIFO on the server", which a fill ended by
+  the next ask is not.
+* **Errors** reach the page as one event, `failed {scope: frame | series | cache | worker, reason}`. After start, a view
+  worker `error` or `messageerror` is fatal and shown; the cache says once when it stops.
 
 **Rules.**
 
-* **One owner per frame at a time.** The downloader owns what is owed (asked, in flight, decoding); the store owns what
-  is here. A frame changes owner at the ack (row 147's rule), so the two never hold the same frame's state.
+* **One owner per frame at a time.** The downloader owns what is owed (asked, in flight, decoding, unacked); the store
+  owns what is here. A frame changes owner at the ack (row 147's rule), so the two never hold the same frame's state.
 * **Paint first.** A frame that arrives and is the one on screen is painted before its cache write; the write runs off
-  the latency path. How it is scheduled is the cache arms' question (below).
+  the latency path and off the view worker's thread.
 * **The controller decides what; the store decides from where.**
 
-**Per frame of a fill, counted from the design:** four messages (decode, frame, done, ack), none on the page; four
-context crossings (network → downloader → decoder → view worker → GPU); the samples written once, as today.
+**Per frame of a fill, counted from the design:** four messages (decode, frame, done, ack), none on the page, plus one
+post to a store worker if it does the writes; four context crossings (network → downloader → decoder → view worker →
+GPU); the samples written once, as today.
 
 **Open, each with what decides it.**
 
-| question | decided by |
-| --- | --- |
-| the cache I/O: a sync handle in the view worker, async OPFS in it, or a store worker | shown frame on time while a fill writes, write rate, miss read (row OPFSARMS) |
-| a frame clock in a dedicated worker, per engine | sources, then cine frames late under a busy page (row WORKERCLOCK) |
-| who owns a frame's memory: the decoders hold each one during a fill (§Proposed M2 on `claude/opfs-cache-fixes`) | peak memory of a fill under the window (row FRAMEMEM) |
-| the asking patterns as wants, and what the wire lacks | each pattern's deciding measurement (row ASKMAP) |
-| several viewports: one view worker for all, or one each | not weighed |
-| adoption | §7's rule, run on the arm built on `claude/view-worker` |
+| question | from | decided by |
+| --- | --- | --- |
+| who writes the cache: a store worker (arm C), the decoders (arm D: a packed file has one writer, so D needs a file per frame or a shared handle mode), or a sync handle in the view worker, paint first (arm A) | OPFSARMS; red 4; independent 4, 6 | the arms' cells with arm D added, and a window drag during a fill, input → painted (row OPFSARMS) |
+| who owns a frame's memory: fixed slots per series, or no frame memory with the disk as the store; K | FRAMEMEM; red 3; independent 3, 10 | M5 with a disk-only arm and credits on and off (row FRAMEMEM) |
+| the downloader merged into the view worker | independent 1, 2, 11 | a fill's inter-arrival p99 while a cine reads 17 MB frames on the same thread (row RECVLOOP) |
+| a frame clock in a dedicated worker: WebKit's is a 15 ms timer; the clock picks the frame by elapsed time and pauses on `hidden` | WORKERCLOCK; red 10 | the clock protocol, plus a WebKit cell and a hidden-tab cell |
+| misses split into one-frame runs when the store holds every other frame: span gaps, or pipelined asks | red 5 | a fill from a half-held cache against an empty one at 46 and 92 ms RTT |
+| several viewports: one WebGL2 context for all, wants merged by nearest distance | red 7; independent 12 | contexts lost and paint time at 1, 2, 4 and 5 viewports |
+| an AV1 group as the store's unit of write and eviction; AV1 previews never stored | red 9, 11 | decodes per index on a G = 8 series with eviction forced; a mutant storing a preview |
+| a read-back that throws is a miss, re-asked at its want position | red 12 | M4 with the entry deleted mid-session |
+| a series without digests: stored and read back `unchecked`, or decoded again on every open | independent 13 | the owner (exactness) |
+| decoder count on phones; per-frame stamps (arrived, painted, written) in `ledger()` | red 13, 14 | D5 on a device; the check reading the stamps |
+| the asking patterns as wants, and what the wire lacks | ASKMAP | each pattern's deciding measurement |
+| adoption | — | §7's rule, run on the arm built on `claude/view-worker` |
+
+### Review: the red team (2026-10-28)
+
+**What this is.** An adversarial reading of the Target section against today's client (`client/`), the decided ADRs,
+and the branches that work on it: `claude/opfs-cache-fixes` (OCF), `claude/opfs-arms` (ARMS), `claude/frame-memory`
+(FM), `claude/worker-clock` (WC), `claude/ask-patterns-map` (MAP) and `claude/view-worker` (VW), cited
+`branch:path:line`. Engine sources are pinned in [`frame-path-sources.txt`](frame-path-sources.txt) under
+*Review*. Three throwaway probes are in [`../../lab/target-review/`](../../lab/target-review/README.md). Their numbers
+come from a shared container and are **indicative, not claims**. Nothing here was run on a phone, in WebKit, or in
+Firefox. Every fix below is **proposed, not made**. Four helper agents did the reading and the probes.
+
+| # | severity | where it fails | smallest change | settled by |
+| --- | --- | --- | --- | --- |
+| 1 | high | the controller's order never reaches the wire | the downloader keeps the want as a list and sends a bounded prefix as asks | arrival order against want order, and asked frame → screen (MAP's G1) |
+| 2 | high | a replaced want re-decodes and re-downloads in-flight frames | the want carries no invalidating generation; frames are keyed by series, index and version | decodes per index = 1 over a scroll trace |
+| 3 | high | no backpressure from the store to the decoders to the wire | credits: dispatch only while unacked frames < K; the store acks when held within budget or written | peak memory of a mammogram fill with slowed writes, credits on and off |
+| 4 | high | one thread: a paint or tick waits behind a write, a read-back hash or a GPU wait | cache I/O off the view thread unless OPFSARMS clears arm A; no 1-px `readPixels` outside the lab | OPFSARMS, plus a window drag during a fill |
+| 5 | medium | a store holding every other frame splits the fill into one-frame runs, one RTT apart | the downloader spans small gaps, or pipelines asks for scattered misses | fill from a half-held cache against an empty one, at 46 and 92 ms RTT |
+| 6 | medium | errors and refusals that never reach the app | one `failed {scope, reason}` event; a view-worker error after start is fatal and said | the refusals contract run against the view worker, with mutants |
+| 7 | medium | a fifth viewport loses a WebGL context; "current frame" is singular | one context drawing every viewport; per-viewport wants merged by nearest distance | contexts lost and paint time at 1, 2, 4 and 5 viewports |
+| 8 | medium | eviction that follows the want thrashes cine and can drop an unwritten frame | evict only over the byte budget, and never a frame not yet written | cine over two loops on a series over budget: decodes per index = 1 |
+| 9 | medium | an AV1 group with members in the cache is decoded whole again | the store keeps and evicts whole groups | decodes per index on a G = 8 series with partial eviction |
+| 10 | medium | cine in a worker: WebKit's clock is a timer, rAF is absent in nested workers, and a long task delays ticks | the clock picks the frame by elapsed time; it pauses on `hidden` from the page | WORKERCLOCK plus a WebKit cell and a hidden-tab cell |
+| 11 | low | an AV1 preview on the pixel port can take the frame's place in the store | the store drops `preview` messages, or the arm's decoder posts none | a mutant: the preview stored |
+| 12 | low | a read-back that throws, not mismatches, has no rule, and a re-ask goes to the want's tail | any read error is a miss, re-asked at its want position | M4 with a file deleted mid-session |
+| 13 | low | phones: thread count and thermal state are unmeasured | decoders counted by a device setting, not WebKit's clamped `hardwareConcurrency` | D5 on a device |
+| 14 | low | observability: no per-frame timings, and a `shown` without a reason | stamps (arrived, painted, written) in `ledger()`; `shown {i, exact, reason}` | the check reading them |
+
+**1 · The want's order is lost below the store.** The Target says the store "never reorders" the want. The
+downloader does: a `fill` goes into a `Set` (`client/transport/downloader.js:181–187`), and `nextRun` sends the lowest
+contiguous run (`:275–281`). Asks go before fill frames (`:108`), and groups are sorted (`:84`). On the wire, an
+order that is not ascending survives only as asks, and every ask is sent at once (MAP:docs/ARCHITECTURE.md:451–460).
+The probe sent a want ordered 40, 41, 39, 42, 38 … over 76 frames. The wire saw `[0, 75]`, and frame 40 arrived
+41st (`want-order.mjs`). The controller's "frame asked first, then the window" therefore holds only for the one frame
+it asks. **Fix:** the downloader keeps the want as an ordered list. It sends a prefix of `D_min` asks
+([`client-window-depth.md`](client-window-depth.md)) and tops it up as frames land, using a `stream_frames` run only
+where the want is ascending. This is MAP's G1, client-only. **Settle:** arrival order against want order, and asked
+frame → screen, in the browser at the ADR's links.
+
+**2 · A replaced want, and the generation.** The design gives the want a `generation`. Today the only generation is
+cancel's, and a cancel clears every record (`downloader.js:577–591`). Every message that carries an old generation is
+then dropped: frames at `:239` and `:288`, decoder failures at `:443`, acks at `:572`, and on the page at
+`consumer.js:108`. The probe filled 0..9, cancelled with frames 0–3 decoding, and filled 0..9 again. Frames 0–3 were
+dispatched to a decoder twice. The whole range went on the wire twice, including frames that had already arrived and
+were waiting for a decoder (`want-replaced.mjs`). A viewer whose every wheel step replaces the want would break "no
+frame is decoded twice" at each step. With no cancel on the server (decided), the superseded frames still arrive, and
+nothing counts them (MAP:490–496). **Fix:** a want replaces the order and nothing else. Frame identity is (series,
+index, metadata version). The store keeps any frame of the current series that it does not already hold, and acks
+it. A generation steps only when the series or its metadata version changes. **Settle:** decode dispatches per index
+over a recorded scroll trace (must be 1), and wire bytes per frame shown.
+
+**3 · Backpressure has no path.** A decoder's slot frees at `done` (`downloader.js:380–384`), whatever the store has
+done with the frame. The pixel port's queue is unbounded by spec (HTML §port message queue), and a queued
+`SharedArrayBuffer` message keeps its whole buffer alive. The wire ring allocates when it is empty
+(`client/transport/ts/frame-session.ts:82–84`), and the compressed queue grows with the series while decoders lag,
+because the reader pause is not built ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The downloader). So when the store
+is full, or its writes fall behind, frames pile up in the view worker's port, outside any budget. ARMS saw this once
+in its smoke: a Firefox write-on-arrival run ended with an unbounded backlog (ARMS:docs/adr/frame-path.md:810–816).
+On V8 a `SharedArrayBuffer` counts 0 bytes towards the heap that triggers collection (FM:fp:639–645), and M2's
+memory window failed its bar on Chromium, its re-run VOID (OCF:fp:304–306, 581, 611). **Fix:** credits. The downloader dispatches only while its unacked frames
+number fewer than K. The store acks a frame only once it is held within budget or written. The reader pause then
+carries this to QUIC flow control. FM's slots (c) are the same idea built in memory. **Settle:** peak resident memory
+of a four-view mammogram fill with the store's writes slowed through a test lever, credits on and off, interleaved
+(M5's bar).
+
+**4 · One thread paints, stores, hashes and decides.** A worker runs one task at a time, and its rAF callbacks run
+only between tasks (HTML §event loop processing model). Chromium drops a BeginFrame whose deadline has passed. ARMS
+predicts arm A (a sync handle in the view worker, writing on arrival) blocks 4–17 ms a frame at 17 MB, and four
+times that at 4× (ARMS:fp:758–769). M1 measured 22.3 ms to read and re-check one 3328×4096 frame (OCF:fp:577–580).
+The probe (`busy-worker.cjs`, headless Chromium) posted `show` every 16 ms:
+
+* idle: p95 0.2–0.3 ms;
+* a 17 MB write every 100 ms in the same worker: p95 45–53 ms, max 91–294;
+* the same writes in a second worker: p95 0.2–0.3 ms, the idle figure;
+* writes plus a 17 MB read-back and a JS sum standing in for XXH3: median ≈ 50 ms, and that worker is saturated.
+
+A cost the Target does not name: the paint ends with a 1-pixel `readPixels` that waits for the GPU
+(`client/paint/paint-worker.js:224–225`). In today's paint worker that wait blocks nothing else. In the view worker
+it blocks the store and the controller. **Fix:** take cache I/O off the view thread (arm C, a store worker) unless
+OPFSARMS shows arm A paint-first holds; and keep the 1-pixel read only behind the lab's flag. **Settle:** OPFSARMS as
+pre-registered, plus one cell it lacks: a window-level drag during a mammogram fill, input → painted.
+
+**5 · Filtering fragments the wire.** The store sends only misses. If the cache holds every other frame, which a
+budget's eviction or an earlier partial look can leave, the misses become one-frame runs. The downloader issues each
+run only when the last one's final frame lands (`downloader.js:290`), and a new message ends the fill (WIRE §An ask
+during a fill). The probe counted 38 runs for 76 frames. On a model of one idle RTT per run, that is 1.7 s at 46 ms
+and 3.4 s at 92 ms, against none for one run. The model is the probe's, not a measurement. **Fix:** span gaps of up
+to g held frames in one run, and drop the duplicates before decode (wire bytes, not decodes). Or send scattered misses
+as pipelined asks, which the planner already holds 8 of (WIRE §FoD messages). **Settle:** a fill from a half-held
+cache against an empty one at 46 and 92 ms RTT, sweeping g.
+
+**6 · Errors that never reach the app.** In the build:
+
+* intents are fire-and-forget (VW:client/view/view-worker.js:80), so a rejection in `controller.show` goes nowhere;
+* the view worker's `onerror` reports any later error as "did not start" (VW:client/view/view.js:70), and nothing
+  restarts the worker;
+* a downloader whose script fails leaves `connect` hanging until the check's deadline (VW:fp:109–110);
+* the downloader's series-level failure arrives as "frame -1".
+
+On OCF, a refused write or a stopped series is swallowed, visible only as a count (OCF:client/viewer/store.js:105,
+OCF:client/viewer/viewer.js:125). A second tab's lock is swallowed the same way: that tab silently runs without a
+cache (OCF:viewer.js:155–163). **Fix:** one event, `failed {scope: frame | series | cache | worker, reason}`. After
+start, a view-worker `error` or `messageerror` is fatal and shown. The cache says once when it stops. **Settle:** the
+refusals contract (`client/contract/refusals.html`) run against the view worker, every refusal visible by name, plus
+one mutant per scope.
+
+**7 · A second viewport.** Chromium and WebKit allow **4 active WebGL contexts per worker thread** (16 on the main
+thread). A fifth loses the oldest (sources, *Review*). A four-view mammogram in one view worker sits at that limit,
+and any fifth canvas loses one of them. A single current frame also leaves undefined the store's "farthest from the
+current frame" and the controller's want. **Fix:** one WebGL2 context drawing every viewport (a scissored region each
+on one canvas, or one context presenting to each canvas). Each viewport has its own want; the wants are merged by
+nearest distance and evicted by the minimum distance over viewports. **Settle:** contexts lost and paint time at 1, 2,
+4 and 5 viewports, Chromium and WebKit.
+
+**8 · Eviction that follows the want.** Read literally, every want change pushes what falls outside it out of memory.
+A cine loop over a series that fits in memory (40–68 MB, §4) would then read every frame back from OPFS on every loop,
+which today's path never does. FM lets an ask evict the farthest frame "on disk or not" (FM:fp:689). The build's
+`put` can evict the frame it has just stored and still report it as arrived (VW:client/view/store.js:29–31). Either
+one re-decodes a frame. OCF's built window drops only frames already on disk (OCF:viewer.js:111–118), and that is the
+rule to keep. **Fix:** the want orders eviction but does not trigger it. A frame leaves memory only when over the byte
+budget, and only once written. **Settle:** cine for two loops on a series over budget, then a series under it: decodes
+per index, and OPFS reads per loop (0 under budget).
+
+**9 · AV1 groups.** A miss inside a group asks for the whole group (`downloader.js:76–85`), because its frames depend
+on the keyframe. If the cache holds part of a group, that part is decoded again, and "no frame is decoded twice"
+cannot hold under per-frame eviction. It bites only at `groupLength` > 1, which the downloader supports
+([`../av1/adr-unit.md`](../av1/adr-unit.md) §3) and the viewer does not set today. **Fix:** a group is the store's
+unit of write and eviction. **Settle:** decodes per index on a G = 8 series with eviction forced through the store's
+levers.
+
+**10 · Cine with the clock in the worker.** Engine support:
+
+* Chromium has no worker rAF in a nested worker, so the view worker must be the page's own child. The build is
+  (VW:view.js:69).
+* WebGL2 on `OffscreenCanvas` needs Safari 17.
+* WebKit's worker rAF is a ~16.7 ms one-shot timer, not vsync, with no hidden-tab throttling ("FIXME").
+* Gecko stops on `hidden`.
+* Chromium's hidden-tab behaviour is not traced (WC:fp:200–205; sources).
+
+Any task from #4 delays a tick. The build still paces cine from the page (VW:view.js:41–46). **Fix:** the clock picks
+the frame from elapsed time since `play`, so a late tick skips to the right frame instead of drifting. The page
+forwards `hidden` as a pause, as it already forwards its other triggers. **Settle:** WORKERCLOCK as pre-registered,
+plus a WebKit cell and a hidden-tab cell counting ticks and battery-relevant wakeups.
+
+**11 · An AV1 preview in the store.** The decoder posts a scalable payload's lower layer as `kind: "frame"` with
+`preview: true`, on the same port, before the exact frame (`client/decode/decoder.js:62`). Today the consumer splits
+it off (`consumer.js:118`). A store that keeps the first frame for an index, as `take` does (`client/viewer/viewer.js:99`), would
+keep the preview and drop the exact frame. Previews are out of scope, so: **Fix:** the arm's decoders post none, or
+the store drops them. **Settle:** a mutant that stores a preview must fail the check.
+
+**12 · OPFS read-back.** The Target names a failed check and nothing else. A read can also throw: a cleared origin
+(`NotFoundError`), a closed handle (`InvalidStateError`). What an open handle sees after a clear is in no spec or
+source found. A re-ask placed at the want's tail reorders it, and a re-asked frame on OCF counts towards the fill's
+end, which stamps it early (OCF:fp:598–599). **Fix:** any read error is a miss, re-asked at its own want position.
+**Settle:** M4 with the entry deleted mid-session.
+
+**13 · Phones.** WebKit reports `hardwareConcurrency` as 4 below 8 cores (sources), so a phone with two performance
+cores runs three decoders, a downloader, the view worker and the page, plus a store worker in arm C. Memory is
+#3's question. Thermal behaviour is not measured anywhere. **Fix:** the decoder count is a device setting where the
+engine clamps it. **Settle:** D5 on a device.
+
+**14 · Observability.** Today a lab reads the page's `Map` with arrival stamps (`client/viewer/viewer.js:100`). The build moves the
+check's readbacks into the worker and adds `ledger()`, but nothing is timed (VW:fp:87). `shown {i, exact}` drops the
+reason the page shows today (`client/viewer/viewer.js:84`). **Fix:** per-frame stamps (arrived, painted, written) in `ledger()`,
+and `shown` carries `reason`.
+
+**What holds up.**
+
+* Taking the page out of the pixel path: presentation needs no page thread in any engine (§2, by source).
+* The controller and store split, and "one owner per frame, changed at the ack": the build keeps the rule and its
+  survival paths (VW:fp:96–99).
+* The read-back check: M4 caught 4/4 flipped frames.
+* The cache's value: M1 reopened 256×512² in 174 ms against a 7.49 s fetch.
+* `valueAt`, built with a test.
+* The session, survival and refusals staying in the downloader.
+
+**No capability of today's path is lost by design.** The losses are in the build: error reporting (#6), timing (#14),
+and the per-frame promise of `requestExactFrame`, now an event. The design's real exposure is #1–#4. The wire cannot
+carry an order without asks; a want with today's generation re-decodes; nothing pushes back; and one thread carries
+I/O. Each has a small fix and a measurement that settles it.
 
 ### An independent design (2026-10-28)
 
@@ -280,7 +485,7 @@ follows it as its own section, so the order is auditable. Nothing here is built 
 **The constraints, as given.** Mobile on lossy wireless; the fill's throughput and the on-demand latency both count,
 and a real viewer is a hybrid of the two by modality, study size and link; every shown frame lossless, bit-exact, checked
 by XXH3 per frame; an OPFS cache of decoded samples, no frame decoded twice; priority is the client's ask order through
-a FIFO server, no wire cancel, a shallow client window, stride as bandwidth conservation; no previews, no lower
+a server that does not reorder (*corrected in review*: the brief read "FIFO"; any message ends a running fill), no wire cancel, a shallow client window, stride as bandwidth conservation; no previews, no lower
 resolution, no lossy delivery, no encoding change; at equal capability the simpler design wins, and removing work beats
 speeding it up.
 
@@ -444,7 +649,7 @@ after the frame shown**, `nextRun()` taking the run that contains `current + 1` 
 reader stepping forward during a fill hits what the fill delivers next instead of asking across it. On a series
 already on disk the fill asks nothing; on a reopen it asks the holes.
 
-Priority on the wire stays the ask order: asks, then the fill, FIFO at the server, exactly as the ADRs decided. The
+Priority on the wire stays the ask order: asks, then the fill, no reordering at the server (*corrected in review*: it read "FIFO at the server"; any message ends a running fill), as the ADRs decided. The
 decode queue keeps its two priorities (asks first, `perDecoder` outstanding each). Survival, re-dial, recycling before
 WebKit's 16 MB stall and the dial deadline are today's, unchanged, inside the core.
 
@@ -543,7 +748,7 @@ measured are those branches' or §2–§6's; the rest is read from their text an
 
 Both take the page out of every path but input and status; both put the controller, the frame store and the paint on
 one dedicated worker with WebGL2 on a transferred canvas; both run cine on that worker's own clock; both keep the ask
-order as the only priority, a FIFO server, no wire cancel, a shallow window; both store decoded samples checked
+order as the only priority, a server that does not reorder (*corrected in review*: it read "a FIFO server"), no wire cancel, a shallow window; both store decoded samples checked
 `true`, re-checked by XXH3 on every read, keyed by the series and its digests; both evict by series, least recently
 opened; both ask `persist()` once and rely on nothing from it. The disagreement is in where the frame lives between
 the decoder and the screen, and in how many owners that takes.
