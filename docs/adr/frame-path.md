@@ -164,7 +164,9 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
 | threads | 6: page, downloader, 3 decoders, paint worker | 6: page, downloader, 3 decoders, view worker |
 
 The gate's three-frame check, counted on the page's thread over its whole run (protocol, cine and readbacks
-included): `page` 5 frames in, 5 acks out, 12 paints out and 12 back; `worker` 0 frames, 1 `progress`, 8 `shown`.
+included): `page` 5 frames in, 5 acks out, 12 paints out and 12 back; `worker` 0 frames, 1 `progress`, 8 `shown`. With
+the want (2026-10-29), every message the page received over the whole run, replies included: 29 filled with a cine
+and 16–17 on demand, on both clients, none carrying a pixel or a port and none from the downloader.
 
 **What fought the shape.** The paint worker posted to its own global, so its `start` and `paint` now return and the
 entry posts; imported, its handler is replaced by the view worker's. The consumer made its own worker: it takes a
