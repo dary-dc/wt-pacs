@@ -155,9 +155,9 @@ else
   skip "DICOM to .sbnd needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
-step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH"
+step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
 if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then
-  run 1 cargo test -p native-client --features decode --quiet decode::
+  run 1 cargo test -p native-client --features decode --quiet -- decode:: view::
 else
   skip "the native decode needs ingest/tools.sh's build (INGEST_BUILD=...)"
 fi
@@ -179,6 +179,20 @@ step "server: tests, telemetry feature"
 run 1 cargo test -p series-server --features telemetry --quiet -- --nocapture
 step "client: the native core over raw QUIC, against the server and a WebTransport client"
 run 1 cargo test -p native-client --quiet
+step "client: the native painter's tests, and its 1:1 cells against the browser suite's CPU reference (wgpu on Mesa lavapipe)"
+lvp="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | head -1 || true)"
+if [[ $numpy -eq 1 && -n "$lvp" ]]; then
+  run 1 env VK_ICD_FILENAMES="$lvp" cargo test -p native-client --features paint --lib --quiet paint::
+  run 1 env PYTHON="$PYTHON" VK_ICD_FILENAMES="$lvp" node client/paint/native.mjs --zoom1
+else
+  skip "the native painter check needs numpy (PYTHON=...) and Mesa lavapipe (mesa-vulkan-drivers)"
+fi
+step "client: the native window under Xvfb with every paint thread, each paint read back from its surface against the CPU reference"
+if [[ -n "$lvp" && -f "$INGEST_BUILD/payload/libdecode.so" ]] && command -v Xvfb >/dev/null && command -v xdotool >/dev/null; then
+  run 1 env VK_ICD_FILENAMES="$lvp" node client/paint/window.mjs
+else
+  skip "the native window check needs Mesa lavapipe, ingest/tools.sh's build, Xvfb and xdotool"
+fi
 step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"

@@ -53,8 +53,10 @@ are not filterable in wgpu, WebGPU, Vulkan's mandatory format table, Metal's fea
 painter's choice — integer texture, bilinear in the shader — is the only one that keeps the samples exact and is the
 same on every backend. `R16Unorm` would add a feature gate, a float conversion and a new proof.
 
-**Size and upload.** A 4096×3072 frame fits wgpu's default 8192 limit and every first-class backend (D3D12 16 384,
-Metal ≥ 8192); the `downlevel_*` limits cap textures at 2048 and must not be requested. `write_texture` needs no
+**Size and upload.** A 4096×3072 grey frame fits wgpu's default 8192 limit and every first-class backend (D3D12 16 384,
+Metal ≥ 8192); the `downlevel_*` limits cap textures at 2048 and must not be requested. *Corrected 2026-10-28:* RGB
+uploads as three texels a pixel (`R8Uint`, wgpu has no three-channel format), so an RGB row past 2730 px broke the
+default limit and wgpu panicked. The painter requests the adapter's own limits and refuses a frame over them by name. `write_texture` needs no
 256-byte row padding, but allocates a staging buffer per call, so a stream of frames should use `StagingBelt` or its
 own mapped buffers (not measured). The browser's upload was 5.70 of 5.74 ms of a 12.58 Mpx paint (§Paint): the
 upload is still the thing to attack natively.
@@ -70,8 +72,8 @@ Vulkan where the driver lists them, and Windows 11 22H2 documents 10-bit SDR. No
 intact at a medical display on any OS, and the ACR–AAPM–SIIM technical standard (rev. 2022) finds no diagnostic
 benefit of 10-bit over 8-bit. Unproven until a panel is measured; not a reason to go native.
 
-**Headless.** wgpu's own CI runs its GPU tests on Mesa lavapipe (Linux) and WARP (Windows); whether lavapipe runs in
-this container is unknown — the first row finds out (§6, M1).
+**Headless.** wgpu's own CI runs its GPU tests on Mesa lavapipe (Linux) and WARP (Windows). *Was:* "whether lavapipe
+runs in this container is unknown". It does, once `mesa-vulkan-drivers` is installed (§6, M1).
 
 ## 3. The cache
 
@@ -90,8 +92,11 @@ Where a frame cache belongs, and whether the OS takes it back:
 §8, *A client cache*): hold only frames whose check is `true`, never key by digest, and re-check on read. From the
 file systems: write to a temporary name and rename (atomic on POSIX; Linux also needs the directory fsynced; Apple
 needs `F_FULLFSYNC` for durability; Windows' replace atomicity is unknown); a memory-mapped reader must survive a
-truncated file (`SIGBUS`); every read must tolerate a missing file. A packed file per series or a file per frame is
-open: not weighed by any source read.
+truncated file (`SIGBUS`); every read must tolerate a missing file. *Decided 2026-10-28 (M3):* **a file per
+frame**, because the rename that makes one frame's write atomic is then the whole write path; a packed file per series
+needs an index of its own, kept crash-consistent with the frames, and a reader of offsets into a file that can be
+short. The native cache reads with `read`, not a memory map, so `SIGBUS` does not arise; a short or damaged file fails
+its re-check like any other.
 
 **The other side.** AAPM Report 260 on handheld viewers recommends leaving no persistent data on the device. HIPAA's
 technical safeguards (45 CFR 164.312) make audit controls required and encryption at rest and automatic logoff
@@ -112,6 +117,10 @@ the risk. A page's storage is evictable by default; an app's cache stays until t
 
 Rust's iOS and Android targets are Tier 2: guaranteed to build, tests not run by the Rust project, so the core's tests
 run on a simulator or device in this project's CI.
+
+* **The smallest shape, built 2026-10-28** (`native-window`, `client/native/src/window.rs`, feature `window`): winit 0.30 and M1's painter on the wgpu surface. It opens a series over `wt-pacs/1`, decodes and checks every frame, steps with the wheel and arrows without wrapping, sets the window by drag, and toggles 1:1 and fitted with F. Under Xvfb on lavapipe, `client/paint/window.mjs` drives it with xdotool over a committed 4-frame grey series (`lab/fixtures/window_grey16`) and one RGB frame (`window_rgb8`), since grey cannot show the surface's channel order. All 7 grey 1:1 paints, read back from the surface across the 4 frames, and the RGB one have |Δ| = 0; the fitted one is within 1 code, the bound it is held to, as M1 measured. An off-by-one window fails all 7; a channel swap in the shader or in the read-back fails the RGB paint (|Δ| 76); F ignored fails the fitted one (|Δ| 62).
+* **What it took:** 302 lines of Rust plus 40 changed in `paint.rs` so it draws into any texture, and 128 of check. winit brings 37 crates on Linux (92 `Cargo.lock` entries across every target), and `libxkbcommon-x11` at run time. A clean dev build of the crate on 4 cores goes from 56 s to 75–80 s. Only X11 was run; Wayland is built and untried.
+* **What it leaves for decision 2:** everything a toolkit or native UI is chosen for — text, menus, layout, accessibility, persistence — and the mobile window, untried. It shows that the core and the painter need nothing from the shape but a surface, so any row of the table can host them.
 
 ## 5. Costs
 
@@ -161,6 +170,46 @@ none queued; each states its predictions and rule before any data and runs in a 
   same float64 CPU reference, and its mutants. Predictions: lavapipe initialises in the container (else the row says
   so and moves to a GPU host); |Δ| = 0 in every 1:1 cell; each mutant the browser suite caught is caught here.
   Rule: no native paint is timed before this passes.
+
+  *Run 2026-10-28, this container: passes.* Lavapipe initialises: llvmpipe (LLVM 20.1.2, 256 bits), Mesa 25.2.8,
+  Vulkan, after `apt-get install mesa-vulkan-drivers`. The painter is **client/native**'s `paint` (feature `paint`,
+  `paint.rs` and `paint.wgsl`). It runs one pass: each of the four nearest samples goes through the window table,
+  then the shader does the bilinear and rounds half up. The browser uses two passes because WebGL2 filters its 8-bit
+  picture in hardware. Frames above 8 bits upload as `R16Uint`, and a signed sample arrives as its two's complement,
+  wrapped by the offset; frames of 8 bits or fewer upload as `R8Uint`, and RGB as three texels a pixel. The table is a
+  Rust port of `voi.js`, so it is independent of the reference.
+
+  The cells are the browser suite's own, shared through `client/paint/cells.mjs` (moved out of `check.mjs`, not
+  copied). `examples/paint-check.rs` paints them, and `client/paint/native.mjs` compares the result with the same
+  `reference.js`. The suite has **54** exact cells, not 50 (15 on each of three grey frames, 9 on RGB).
+  * **Every exact cell, 54 × DPR 1 and 2: |Δ| = 0.** The prediction holds.
+  * **Fractional cells, reported:** at most 1 code in every one of the 20, at both DPRs, on 0–1.17 % of samples. On
+    SwiftShader the browser's are 1–5 codes. Judged against no GPU.
+  * **Mutants** (DPR 1, as the browser's), `node client/paint/native.mjs mutants`:
+
+    | mutant | browser, SwiftShader | native, lavapipe |
+    | --- | --- | --- |
+    | the signed offset dropped | 15 exact cells | 15 exact cells |
+    | `NEAREST` for bilinear | 20 fractional cells move | no exact cell; 20 fractional cells, the pan's \|Δ\| 1 → 26 |
+    | the window after the filter | 10 fractional cells move | no exact cell; 15 fractional cells, \|Δ\| 1 → 8 |
+    | the quad moved by 1/512 px | nothing | 1 exact cell (`u16 half 1:1`), 19 fractional cells move |
+    | the rounding turned the other way | `voi.test.mjs` only | 9 exact cells |
+    | MONOCHROME1 not inverted | `voi.test.mjs` only | 3 exact cells |
+    | LINEAR and LINEAR_EXACT swapped | `voi.test.mjs` only | 42 exact cells |
+    | the −0.5 of LINEAR dropped | `voi.test.mjs` only | 35 exact cells |
+    | the shader's half-up rounding dropped (new) | — | 24 exact cells |
+
+    Every mutant the browser suite catches is caught here, and so is the one it misses. Its four table mutants reach
+    the cells here because the native table is not the reference's. `scripts/gate.sh` runs the 1:1 cells when
+    lavapipe and numpy are present, and `paint.rs`'s own tests: LINEAR at width 1 and a signed 16-bit code, which no
+    cell reaches, and an RGB row past wgpu's default limit.
+  * *Corrected on review, 2026-10-28:* `native.mjs` compared only as many bytes as the reference, so a read-back of
+    half the rows passed every cell (mutant run); a short or long paint now fails its cell. The rerun above passes
+    with it, and the mutant table is unchanged.
+  * **Not ported:** the browser's skipped upload for the same frame and its window pass run only on a window change.
+    Every native paint uploads, windows and places, which is M2's to time. The fractional cells on a GPU are the GPU
+    desktop's rerun, and so are the exact ones: the shader writes code/255 to `Rgba8Unorm`, and Vulkan says the
+    conversion back *should*, not must, round to nearest. Exact on lavapipe, not yet on any GPU.
 * **M2 NATIVEFILL — fill time and the ask, native against the browser, one machine** (container). Arms: today's
   browser client (headless Chromium, WASM decoders, the gl painter on SwiftShader) and a lab native client (the
   `lab/window-harness` transport, native OpenJPH, M1's painter on lavapipe). *Corrected 2026-10-27:* the native arm
@@ -177,11 +226,104 @@ none queued; each states its predictions and rule before any data and runs in a 
   Rule: if P2 holds and P3 fails, a native client buys nothing on the target link on desktop, and the app's case is
   made on the cache, background work and phones alone; if P3 holds, the gain on large frames is costed for phones by
   M4. Say where the container saturates.
+
+  *Run 2026-10-28, this container (4 vCPU), from this protocol:* [`lab/native-fill/run.py`](../../lab/native-fill/run.py),
+  rows in `rows.jsonl` there. M1 passed, so its painter is in.
+  * **Arms, every setting printed in each row.** *Browser:* the viewer, `client/viewer/`, in headless Chrome for
+    Testing 153 with the TS client, OpenJPH-WASM from the pinned build, and the gl painter on SwiftShader. Its fill is timed
+    by the page's own lab hooks (`lab/viewer/levers.js`), from just before the dial to the last frame decoded and
+    checked. *Native:* `native-fill` with `decode` and `paint`: OpenJPH 0.31.0 native, and M1's painter on lavapipe
+    (llvmpipe, Mesa 25.2.8). It is timed from just before the dial to the last frame checked. Both paint the shown frame
+    at the viewer's canvas size, 1280 × 691. *Shared:* one `series-server` build per visit (`cubic-restart`, quinn's
+    default initial window, `stream_mode=shared`), restarted fresh and warmed by one unrecorded fill. Both clients grant
+    a 6 MiB stream and 15 MiB connection window. Cores: server on 0, relay on 1, clients on 2–3 (every Chromium process
+    included).
+  * **Series.** Synthetic HTJ2K in the served profile, with digests taken from the generated samples:
+    * *61 MB*: 37 × 1024² 16-bit `field`, 60.7 MB.
+    * *4.4 MB*: 102 × 512² 8-bit RGB `cine`, 4.42 MB.
+  * **Cells.** Relay: `link_impair.py`, 40 ms each way, its 50-packet queue, iid loss at seed 1 (the same pattern
+    every visit). The ask runs at 50 Mbit clean, a rate this protocol did not name. In the ask cell each visit asks
+    12 frames (61 MB) or 30 (4.4 MB) one at a time, after the opening ask, which is not counted; a visit's figure is
+    its median.
+  * **The ask, two ways.** *Painted*: the step to the paint done, the figure P3 is read on. *Exact*: the step to the
+    frame decoded and checked.
+  * **The arms are not symmetric in three ways** (the harness only reads the client; it does not change it):
+    * The native core decodes one frame at a time on its receive loop; the browser runs 3 decoder workers.
+    * M1's painter reads the whole 1280 × 691 target back; the browser waits on a 1-pixel read.
+    * `native-fill` also compares every frame with the bundle.
+  * **Rounds and `VOID`.** 7 rounds; 24 units (12 cells × 2 arms), each twice a round (A, A2: the A/A), 48 visits
+    Williams-ordered. 336 visits in all. Two `VOID` rules were fixed before the data (the harness commit precedes
+    every row):
+    * a cell whose A2/A median strays past half its prediction's band: P1 ±20 %, P2 ±1.5 %, P3 ±5 % and ±2.5 %;
+    * a visit whose relay p99 is over 1 ms, §8.5's rule. It dropped **126 of 336** visits.
+  * **Every frame identical and exact:** 20 692 of 20 692, both arms, against the bundle and the digests. A digest
+    flipped in the metadata (the mutant) failed the native visit and left the browser 101 of 102 exact, which the summary counts as failed.
+
+  | cell | measure | native · browser, ms | native ÷ browser [range], n | A/A native · browser | |
+  | --- | --- | --- | --- | --- | --- |
+  | loopback, 61 MB | fill | 398 · 894 | 0.426 [0.371–0.595], 14 | 1.015 · 1.036 | P1 holds |
+  | loopback, 4.4 MB | fill | 309 · 708 | 0.482 [0.388–0.600], 14 | 1.002 · 1.043 | P1 holds |
+  | 20 Mbit, 61 MB | fill | 25 468 · 25 542 | 0.996 [0.995–1.000], 5 | 1.001 · 0.999 | P2 holds |
+  | 20 Mbit, 4.4 MB | fill | 2 292 · 2 318 | 0.982 [0.971–0.988], 3 | 1.002 · 1.001 | P2 holds |
+  | 20 Mbit 2 %, 61 MB | fill | 419 018 · 438 564 | 0.960 [0.918–0.965], 3 | 0.995 · 1.006 | **P2 fails** |
+  | 50 Mbit, 61 MB | fill | 11 113 · 11 203 | 0.996 [0.935–1.171], 12 | **1.017** · 1.001 | `VOID` |
+  | 50 Mbit, 4.4 MB | fill | 1 377 · 1 431 | 0.960 [0.902–0.978], 10 | 1.002 · **0.983** | `VOID` |
+  | 20 Mbit 2 %, 4.4 MB | fill | 32 129 · 34 047 | 0.918 [0.909–1.042], 3 | **1.029** · 0.990 | `VOID` |
+  | 50 Mbit 2 %, both | fill | — | one pair each, no A/A | — | `VOID` |
+  | ask, 1024² | painted | 440 · 427 | 1.038 [0.972–1.070], 8 | 1.007 · 1.007 | **P3 fails** |
+  | ask, 1024² | exact | 402 · 397 | 1.013 [0.963–1.044], 8 | 1.010 · 1.007 | |
+  | ask, 512² | painted | 166 · 148 | 1.139 [1.096–1.160], 3 | 0.979 · **1.038** | `VOID` |
+
+  Medians; ratios round-paired. With the late-relay visits kept, a read labelled post hoc: every 2 % cell is
+  0.944–0.948 (n = 14 each); at 50 Mbit clean, 1.005 (61 MB) and 0.960 (4.4 MB); and the 512² ask is 1.128 [1.081–1.162]
+  painted and 1.012 to the exact frame, with A/A inside ±2.5 %. The first exact frame on screen is not predicted:
+  native ÷ browser 0.33 and 0.30 on loopback, 0.76–0.90 on the clean relay.
+  * **Where the container saturates.** On loopback the browser holds its two client cores (busy 0.96 median, 0.99 max),
+    so P1 is read at a two-core client and claims nothing for more cores. There the native arm uses 0.53–0.76 of two,
+    decoding 6.9 ms a 1024² frame, and the server core 0.26–0.35. Behind the relay nothing is busy: clients ≤ 0.62 of
+    two, server ≤ 0.37, relay ≤ 0.42 of its core. Its late packets are its scheduling, not its CPU. At 2 % loss the
+    61 MB fill is ~1.2 Mbit/s, CUBIC's loss bound at an 80 ms round trip, so the 20 and 50 Mbit lossy cells are one
+    link. Steal was not recorded.
+  * **The ask, read.** The two arms tie to the exact frame: the 1024² frame's 262 ms on the wire and the round trip
+    dominate, and native decode is 8.9 ms of it. Native's painted ask trails by the painter's full read-back: from the
+    exact frame to the paint takes 36 and 32 ms (median, 1024² and 512²), against the browser's 28 and 16.
+  * **The verdict under the rule.** P1 holds, at two client cores. P2 holds on the two clean cells it could decide, and
+    fails under 2 % loss at 20 Mbit: the native fill is 4 % faster. That is the direction quic.md N1 found (Chromium 1.089
+    and 1.054 of quinn under 2 % loss), and as there it is not CPU (≤ 0.06 of two cores). P3 fails on large frames
+    (1.04, not ≤ 0.9). So on a clean target link the rule's first branch reads as written: on desktop a native client
+    buys nothing on fill or ask. Under random loss it buys ~4–5 % of fill, measured in one decidable cell and seen in
+    every lossy cell post hoc. Its clear gain is where the client's CPU binds: 0.43–0.48 of the fill and 0.30–0.33 of
+    the first frame on loopback. That is the regime a phone is more likely to be in; M4 measures it. The app's case
+    stays on the cache, background work and phones.
 * **M3 CACHE — a file-system cache, verified and crash-safe** (container). A verified-frames-only cache in the core,
   written by temporary name, fsync and rename. Cells: reopen a 61 MB series from the cache against from the relay at
   20 Mbit; a process killed at random points during 100 writes. Predictions: the reopen is ≤ 0.5 s against ≈ 24 s;
   after every kill each frame is either absent or passes its check, 100 of 100; a byte flipped on disk is refused on
   read and fetched again. Rule: all three hold, or the cache's design is revised before any phone run.
+
+  *Run 2026-10-28* ([`../../lab/scripts/native_cache_cells.sh`](../../lab/scripts/native_cache_cells.sh), container,
+  4 cores, ext4). **All three hold: the design stands** (*corrected 2026-10-28*: the reopen's prediction holds warm
+  only, from the page cache; cold, as after a reboot, is not measured, so ≤ 0.5 s is not shown for a real reopen).
+  Settings: `native-fill` release with `decode` (dav1d 1.5.4, OpenJPH 0.31.0), Chromium's windows, one `series-server` release build in `shared`; a synthetic series of 87 HTJ2K
+  frames, 768×920 12-bit `ct` content, 60.9 MB (no committed series is 61 MB), its digests from the source samples by
+  Python's `xxhash`; the relay at 20 Mbit, 40 ms RTT, 200 packets, `--self-timing`, one per run.
+  * **Reopen**, 7 rounds, the arms in a Williams order: from the cache **373 ms** median (345–443), all 87 frames
+    re-checked `true` and byte-identical, no dial; from the relay into an empty cache 25 145 ms (25 142–25 260, 5 runs;
+    2 voided by the relay's self-timing). 0.015×. The relay arm is bound by the link (61 MB at 20 Mbit is 24.4 s); the
+    cache arm by one core decoding, the other three idle. The reopen reads the page cache, which the files were just
+    written to: a cold device read is not measured.
+  * **Kills**: 100 writers each killed (SIGKILL) at a uniformly random time within a whole run (374 ms for 100 frames
+    of 701 KB): 7 749 frames whole, 2 251 absent, **0 torn**, so 100 of 100 kills clean. A power loss is not tested;
+    nothing here tells a kept fsync from a dropped one (two mutants survive, below).
+  * **A flipped byte**: one bit at a random offset of a random frame, 7 rounds: **7 of 7** refused on read, the entry
+    removed, the frame fetched from the server `true`, written again, and the next reopen all 87 from the cache.
+
+  Mutants (each run, each caught but two): in `cache.rs`'s tests, a frame stored whatever its check; written in place
+  with no temporary name and rename (the kill test, 1–6 torn in each of 5 runs of 20 kills); never renamed; a failing
+  entry kept; the version dropped from the key; the key's path check removed. In the lab cells, `native-fill` taking a
+  cached frame without its check passing (cell 3 fails the frame) and not writing fetched frames (cell 1's cache arm
+  fetches all 87). **Survived:** the file's and the directory's fsync removed, which only a power loss shows. A read
+  that skips the check cannot be written: `get` returns only what the check hands back.
 * **M4 PHONEFIRST — the core on one Android phone** (the owner's device; Android first because quinn's GRO and
   Vulkan exist there). After P-ARM: M2's cells through the phone's own Wi-Fi to the relay, the app against Chrome on
   the same phone. Predictions: the fill within ±3 % at 20 Mbit; the ask on large frames ≤ 0.9 × Chrome's only if
@@ -296,7 +438,7 @@ offering it changes no byte a browser sees (§8.1). `--stall-after-bytes` and `-
 
 ### 8.4 The client crate
 
-**One workspace member, **client/native**** (crate `native-client`), a library and one lab binary. It depends on
+**One workspace member, **client/native**** (crate `native-client`), a library, two lab binaries (`native-fill`; `native-window`, §4) and the painter's check (`examples/paint-check.rs`). It depends on
 `fod`, `frame-envelope` and `series-bundle` from `common/`, on `wtransport` only for its `quinn` re-export and
 `ServerHashVerification` (so the version and the `[patch]` are the server's, and no WebTransport session is ever
 opened), and on `tokio`. Modules, each added by the step that needs it:
@@ -316,13 +458,25 @@ opened), and on `tokio`. Modules, each added by the step that needs it:
   *Corrected 2026-10-28, found in #201:* not compiled from the WASM wrappers, which are emscripten bindings, but linked
   through the ingest's native shim `ingest/coded-frames/decode.cpp`; and every native decode opens a fresh decoder, so
   a mismatch is `false` at once rather than decoded again.
-* **`cache`** (M3): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 *A client cache* and §3
-  above, as written.
+* **`paint`** (M1, *built 2026-10-28*): `Painter::new()` on wgpu's first adapter, and `paint(frame, display, width,
+  height, dpr)` to RGBA rows read back from an offscreen texture. *Was:* "No window"; `Painter::on(adapter, format)`,
+  `draw` and `read` now paint and read back any texture, a window's surface included (§4). The browser painter's contract, proved in
+  §6 M1. It sits behind the `paint` feature, so the default build carries no wgpu.
+* **`cache`** (M3, *built 2026-10-28*): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8
+  *A client cache* and §3 above, as written: coded bytes, one file per frame at `root/series/version/index`, only
+  `true` frames; written under a temporary name unique to the write (`index.pid.n.part`, so two writers of one frame
+  never share it), fsynced, renamed, the directory fsynced; on read through the caller's
+  check, which hands back the samples, and an entry that fails it is removed. `get` returns only what the check
+  returned, so a read that skips the check does not type-check. Where the series name and the metadata's version come
+  from is open, as the metadata is (`native-fill` takes `--series` and `--version`); nothing evicts. A `.part` left by
+  a crash is never read, and nothing removes it.
 
 **The lab binary, `native-fill`**: `--url https://host:port/ --cert-sha256 HEX --bundle PATH`, then `--fill A-B` or
-`--ask N,…`, and the client's windows. It prints its settings first, then a row per frame (index, bytes, last-byte
-time, `exact`), and exits non-zero on any frame that is not byte-identical to the bundle's entry (read through
-`series-bundle`, not through the server) or not `exact`. The bundle stands in for the metadata a real viewer would
+`--ask N,…`, the client's windows, and with `decode` `--cache DIR --series S --version V`, which reads the cache first
+and asks the server only for what it lacks. It prints its settings first, then a row per frame (index, bytes,
+last-byte time, source, `exact`), times counted from before the cache's reads and the dial, which `dial_ms` prints,
+and exits non-zero on any frame that is not byte-identical to the bundle's entry (read through `series-bundle`, not
+through the server) or not `exact`. The bundle stands in for the metadata a real viewer would
 get, an open question the browser has too.
 
 **What `lab/window-harness` gives.** It speaks WebTransport through wtransport's client, FoD on the control bidi,
@@ -374,9 +528,10 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
    `false` as in the browser: big-endian 80 of 90 matrix payloads, sign- to 13-bit zero-extension 40 of 90. Over raw
    QUIC from the server, `native-fill` on the 107 payloads and the 2 codestreams packed as two series: every frame
    identical and `true`.
-3. **M3 CACHE** (§6), on `cache`.
-4. **M1 PAINTPROOF** (§6): the painter as a module of this crate on wgpu.
-5. **M2 NATIVEFILL** (§6), its native arm `native-fill` with `decode` and M1's painter.
+3. **M3 CACHE** (§6), on `cache`. *Built and run 2026-10-28:* see §6.
+4. **M1 PAINTPROOF** (§6): the painter as a module of this crate on wgpu. *Passed 2026-10-28* on lavapipe.
+5. **M2 NATIVEFILL** (§6), its native arm `native-fill` with `decode` and M1's painter. *Run 2026-10-28:* P1 holds
+   at two client cores, P2 holds clean and fails under 2 % loss (native 4 % faster), P3 fails.
 
 ### 8.7 Risks
 
@@ -665,3 +820,59 @@ Each finding above is marked where it was corrected. The serious ones:
 
 Not corrected, stated: B's ratio carries its transport, decoder and GPU stack; metric 3's two endpoints are not the
 frame on screen; prediction (b) on X11 is close to true by construction and is a check on the implementation there.
+
+### Built (2026-10-29)
+
+*Built on `claude/native-view` from this section as reviewed; nothing timed, the comparison is NATIVERUN's.* The four
+native branches are merged in (#206 painter, #209 cache, #216 window, #218 fill harness); `native-fill` keeps both
+#209's `--cache` and #218's `--in-turn --paint`. The window takes `--paint-thread`, the thread that holds the frames and paints them:
+
+* **`ui`** (the default, N0): today's, unchanged in design. With `--cache` it writes each frame, both fsyncs, before
+  the hand-off, as the merge would; it never reads the cache, which no branch had the window do. Its present is now
+  pinned to `Fifo` and printed.
+* **`view`** (N1): `client/native/src/view.rs` and the window's `Viewer`. Threads: UI, a downloader on a
+  `current_thread` runtime holding quinn and the records, `N` decoders, the view thread — `N + 3`. The want is a
+  `watch`; coded frames wait in a channel of `K`, and the session's readers stop at one unread event; a decoder takes
+  a credit (room in the view's channel of `K`) before it takes a job, sends the frame, then writes, then sends
+  `done {i, refetch}`. The store is a byte budget (`--budget`, 64 MiB) evicting farthest-first, only once written.
+* **`core`** (N2): the same two loops as two futures on one `current_thread` runtime on the core thread — `N + 2`.
+  Its present is `Mailbox` or `Immediate`; a surface with neither refuses to start.
+
+Settings: `--credits` (K, 4), `--decoders` (N, `min(3, cores)`), `--asks` (on the wire at once, 8: a setting, not
+derived from the link as [`client-window-depth.md`](../adr/client-window-depth.md) would), `--budget`, and in every
+paint thread the lab's two levers this section asked for: `--cache-write-delay-ms` (`Cache::slow_writes`) and
+`--stamp-painted` (`step at_ms`, then `painted at_ms` after `on_submitted_work_done`).
+
+**Proved.** `client/paint/window.mjs` under Xvfb on lavapipe runs each paint thread, and `view` and `core` again with a
+two-frame budget over a cold and then a warm cache: every paint read back equals the CPU reference (0 at 1:1, ≤ 1
+fitted) and every painted frame's samples hash to their digest — a check the reference alone misses, since a mutant
+storing each frame under the next index paints at |Δ| 0. `view::tests`, each mutated and the mutant failing: the
+ordered want reaches the wire in order; an ascending want is one fill and an ask ends it; the store's eviction; credits
+bound the frames the view has not received; the cache write lands after the view has the frame; twelve frames over
+raw QUIC reach the store once each and the downloader ends owing none.
+
+**Counted per frame** (`count.rs`, the grey AV1 series, every frame held; threads by id, messages as channel receives):
+
+| paint thread | threads | messages | CPU copies | a step |
+| --- | ---: | ---: | ---: | --- |
+| `ui` | 2.00–3.00 | 2 | 2 | 0 messages, 1 upload |
+| `view` | 3 | 4 | 2 | 1 intent + 1 `shown`, 1 upload |
+| `core` | 2 | 4 | 2 | 1 intent + 1 `shown`, 1 upload |
+
+Two copies because AV1 merges into `out` first; HTJ2K makes one. With the two-frame budget, evicted frames come back
+(from the wire or the cache) and the means rise: `view` 3.25–3.50 threads, 5.50 messages, 3.00 copies.
+
+**Where it departed from the mapping.**
+
+* **Messages: 4, not 3 and 2.** The table counts N0's stream → `load` hop but not N1's or N2's stream → downloader.
+  And N2's `done` is its own message, not folded into the frame: N2 is N1's two loops on one thread, which keeps one
+  downloader and one view; folding needs a third loop.
+* **One `done`, two readers.** The downloader's record ends at `done`; the store learns "written" from a flag the
+  decoder sets after the write (`Decoded::written`), not from `done`, which reaches one thread.
+* **The fill.** Any ask ends a running fill on the server, so the downloader stops owing the fill's frames not yet
+  here; any still in flight arrive late, are kept and counted, and may be asked again — a duplicate on the wire and in
+  decode, not measured.
+* **The cache's read-back** runs on a decoder (coded bytes need decoding); the downloader stats the file per miss.
+* **Not built:** the re-ask when a decoder thread dies (its record stays); the cine and its frame clock (the window
+  has none); a phone, a display's vblank, macOS's off-UI-thread present.
+* **The check's Xvfb** runs `-noreset`: without it the display was gone after the `view` window's close.
