@@ -1,4 +1,5 @@
 /** An HTJ2K codestream through OpenJPH-WASM, one decoder object reused (lab/decode-bench/parity.mjs): docs/decode/README.md §A build of our own */
+import { frameBuffer } from "./frame-buffer.js";
 import { instantiate } from "./wasm-glue.js";
 
 let M = null;
@@ -62,7 +63,7 @@ function decodeWith(dec, bytes) {
     throw new Error(`undecodable: ${out.length} bytes for a header declaring ${declared}`);
   }
 
-  const sab = new SharedArrayBuffer(out.length);
+  const sab = frameBuffer(out.length);
   new Uint8Array(sab).set(out);
   const view = wide
     ? (info.isSigned ? new Int16Array(sab) : new Uint16Array(sab))

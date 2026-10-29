@@ -4,6 +4,7 @@
  * coded planes for colour. The payload's split, colour transform and offset are undone here.
  * docs/av1/payload-format.md
  */
+import { frameBuffer } from "./frame-buffer.js";
 
 const refuse = (why) => {
   throw new Error(`undecodable: av1 payload: ${why}`);
@@ -28,7 +29,7 @@ export function begin(pic, payload) {
   if (!payload.rct && components === 3 && !plainRgb) refuse("three planes without rct");
   const { bits, signed } = payload;
   const wide = bits > 8;
-  const sab = new SharedArrayBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
+  const sab = frameBuffer(pic.width * pic.height * components * (wide ? 2 : 1));
   const out = wide ? (signed ? new Int16Array(sab) : new Uint16Array(sab)) : signed ? new Int8Array(sab) : new Uint8Array(sab);
   const mask = wide ? 0xffff : 0xff;
   const f = { pic, out, sab, components, bits, signed, mask, offset: payload.offset, range: { min: Infinity, max: -Infinity } };
