@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>OPFS probe</title>
+<script>
+  const ask = (w, req) => new Promise((res, rej) => {
+    w.onmessage = (e) => (e.data.error ? rej(new Error(e.data.error)) : res(e.data.result));
+    w.onerror = (e) => rej(new Error(e.message));
+    w.postMessage(req);
+  });
+  const main = new Worker("worker.js");
+  window.probe = (req) => ask(main, req);
+  window.probeEach = (reqs) => Promise.all(reqs.map((req) => {
+    const w = new Worker("worker.js");
+    return ask(w, req).finally(() => w.terminate());
+  }));
+</script>
