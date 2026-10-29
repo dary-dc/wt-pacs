@@ -59,6 +59,7 @@ async function heldStep(controller, port) {
 /** A window change paints the current frame again from the texture it holds: no upload, nothing sent. */
 async function windowStep(controller, port) {
   const f = controller.store.get(controller.current);
+  if (!f) return "no frame held";
   const { voi } = controller.display(controller.current, f.info);
   const paints = controller.paints;
   const heard = listen(controller, port);

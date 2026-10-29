@@ -94,12 +94,18 @@ export class ViewWorker {
   connect(url, certHash, opts, issuedAt) {
     const { worker, ...config } = opts;
     this.#downloader = new Worker(worker ?? new URL("../transport/downloader.js", import.meta.url), { type: "module" });
-    this.#downloader.onerror = (e) => this.#emit("failed", { scope: "series", reason: `the downloader did not start: ${e.message || "its script did not load"}` });
+    const unstarted = Promise.withResolvers();
+    this.#downloader.onerror = (e) => {
+      const reason = `the downloader did not start: ${e.message || "its script did not load"}`;
+      this.#emit("failed", { scope: "series", reason });
+      unstarted.reject(new Error(reason));
+    };
     if (this.#watch) this.#downloader.onmessage = ({ data }) => this.#watch(data, "downloader");
     const { port1, port2 } = new MessageChannel();
     this.#downloader.postMessage({ kind: "link", port: port1 }, [port1]);
     watchPage(() => this.#worker.postMessage({ kind: "trigger" }), this.#triggers.signal);
-    return this.#call("connect", { port: port2, url, certHash, opts: config, issuedAt }, [port2]);
+    // The view worker's consumer hears nothing from a downloader that never ran, so the page ends the wait.
+    return Promise.race([this.#call("connect", { port: port2, url, certHash, opts: config, issuedAt }, [port2]), unstarted.promise]);
   }
 
   /** Fatal: the view is gone, said once, and every call still waiting fails with it. */

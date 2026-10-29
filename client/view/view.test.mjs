@@ -75,6 +75,15 @@ test("a downloader that does not load fails the series", () => {
   assert.deepEqual(failures(), ["series: the downloader did not start: its script did not load"]);
 });
 
+/** A downloader whose script does not load fails `connect` at once, rather than leaving it to the check's deadline. */
+test("a downloader that does not load fails connect", async () => {
+  const { view } = rig();
+  const connecting = view.connect("https://x.invalid/", "ab", {}, 0);
+  made.find((w) => /downloader/.test(w.url)).onerror({ message: "" });
+  const hung = new Promise((resolve) => setTimeout(() => resolve("still waiting"), 50));
+  await assert.rejects(Promise.race([connecting, hung]).then((v) => assert.fail(v)), /the downloader did not start: its script did not load/);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {

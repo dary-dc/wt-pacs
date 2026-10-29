@@ -104,16 +104,16 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
   `failed {scope: frame | series | cache | worker, reason}`, with `i` when the scope is a frame. `shown` also carries
   the window painted, which a drag starts from, and `progress` the exact counts the status line shows. After the view
   worker has started, its `error` or `messageerror` is fatal: the page says it as the worker's, ends the worker and
-  the downloader it started, and fails every call still waiting. An intent that throws in the view worker is said as the worker's. The cine is still
-  paced from the page, behind `play`.
+  the downloader it started, and fails every call still waiting. An intent that throws in the view worker is said as
+  the worker's. The cine is still paced from the page, behind `play`.
 * **The want (2026-10-29).** Under `worker` the controller decides what and the store decides from where. Each step,
   the controller tells the store its want, an ordered list: when filling, every frame nearest the current one first
   (the current frame, then +1, −1, +2, …); on demand, the current frame alone. The store drops what it holds and sends
   the downloader the misses, in that order, as one `want` message that replaces the one before, unless they are the
   misses it already sent; `has` and `get` never reach it. The first want rides `start` in place of today's fill, so an
   ascending one of `askDepth` frames or more is still the opening run on the session URL; a shorter one, as the gate's
-  3-frame series, goes out as asks once the dial is up (*corrected in review*, 2026-10-29: this said any ascending one). The downloader keeps the want as an ordered list: the
-  head goes out as one `stream_frames` run when it ascends `askDepth` frames or more and nothing else is owed,
+  3-frame series, goes out as asks once the dial is up (*corrected in review*, 2026-10-29: this said any ascending
+  one). The downloader keeps the want as an ordered list: the head goes out as one `stream_frames` run when it ascends `askDepth` frames or more and nothing else is owed,
   otherwise as up to `askDepth` asks, topped up as each lands. A want whose head the running run does not serve next
   ends that run with the head's ask (WIRE §An ask during a fill); the run's frames not yet here are asked again only
   once an ask lands behind it, when what it wrote has arrived. A replaced want changes the order and nothing else:
@@ -131,7 +131,8 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
   downloader where the store worker would be asked first; it lives on `claude/opfs-cache-fixes`), so nothing emits
   `failed` with scope `cache` yet; the cine's clock in the worker; a second viewport; a series or metadata-version
   change, the only step of the generation under a want. A downloader whose script does not load is reported on the
-  page as the series', but `connect` in the view worker then waits on the check's deadline rather than failing.
+  page as the series' and fails `connect` at once (*corrected in review*, 2026-10-29: this read that `connect` waited on
+  the check's deadline, which it did until the page raced it against that error).
 
 **Held by** the viewer check, run by the gate under both views on both clients, filled with a cine and on demand
 (`client/viewer/run_check.sh`), and by `client/view/controller.test.mjs`, `client/view/view.test.mjs` and
@@ -151,6 +152,7 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
 | a miss reaches the downloader from the view worker, as a want since 2026-10-29 | the on-demand steps, heard at the port; the node tests | a miss not asked; no want at all |
 | every frame painted is exact | the check's exactness and readbacks | a sample altered in `htj2k.js` |
 | a window change paints again with no frame moving: no upload, nothing sent | the check's `windowStep` and its readback under another window; the node test | every paint uploads; a window change paints nothing |
+| a downloader whose script does not load fails `connect` at once | `view.test.mjs` | the page's error not rejecting `connect` |
 | `page` behaves as before | the viewer check and every other suite, green | — |
 
 **What each variant costs, counted from the code** (a frame decoded and acknowledged; the defaults' three decoders):
