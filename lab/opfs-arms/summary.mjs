@@ -18,18 +18,21 @@ const FILL_MBPS = 125;
 const DECODERS = 3;
 const PERIOD_MS = 16.7;
 
+const at = (r) => `${r.engine} ${r.size} ${r.throttle}×`;
+/** write-before-paint is caught only against the same arm unmutated: late by more than the rule's 1 % of ticks. */
 const mutants = rows.filter((r) => r.unit && r.mutant);
 for (const r of mutants) {
+  const control = median(rows.filter((u) => u.unit === r.unit && !u.mutant && u.cell === r.cell && at(u) === at(r)).map((u) => u.missedShare));
   const caught = r.mutant === "drop-writes" ? r.checks.writesVerified === false
     : r.mutant === "late-input" ? r.dragInputs > 0 && r.checks.lateInputAsPredicted
-    : r.missedTicks > 0 && r.lateAsPredicted;
-  console.log(`mutant ${r.mutant} · ${r.engine} ${r.cell} ${r.size} ${r.throttle}× ${r.unit}: ${caught ? "caught" : "NOT CAUGHT"}`);
+    : Number.isFinite(control) ? r.missedShare - control > 0.01 && r.lateAsPredicted : "no unmutated run to compare";
+  console.log(`mutant ${r.mutant} · ${r.engine} ${r.cell} ${r.size} ${r.throttle}× ${r.unit}: ${caught === true ? "caught" : caught || "NOT CAUGHT"}`);
 }
 
 const cells = new Map();
 for (const r of rows.filter((r) => r.unit && !r.mutant)) {
   const key = `${r.engine} ${r.cell} ${r.size} ${r.throttle}×`;
-  if (!cells.has(key)) cells.set(key, { engine: r.engine, cell: r.cell, size: r.size, throttle: r.throttle, rounds: new Map() });
+  if (!cells.has(key)) cells.set(key, { engine: r.engine, cell: r.cell, size: r.size, throttle: r.throttle, at: at(r), rounds: new Map() });
   const rounds = cells.get(key).rounds;
   if (!rounds.has(r.round)) rounds.set(r.round, {});
   rounds.get(r.round)[r.unit] = r;
@@ -45,8 +48,12 @@ function decoderClock({ size, throttle }, rs) {
   return { judged: bound, onClock, decode, pass: !bound || onClock <= 0.1 * decode };
 }
 
+/** Saturation is the L cell's `none`, and holds for W and R at the same engine, size and throttle. */
+const saturatedAt = new Set([...cells.values()].filter((c) => c.cell === "late" &&
+  median([...c.rounds.values()].map((r) => r.none?.missedShare)) > 0.05).map((c) => c.at));
+
 /** Per cell and arm, the rounds that pass its check, and whether the cell is VOID or saturated. */
-function judge({ cell, size, throttle, rounds }) {
+function judge({ cell, size, throttle, at: where, rounds }) {
   const rs = [...rounds.values()];
   const aa = { late: (r) => r.missedShare, rate: (r) => r.writeMBps, miss: missP50, drag: (r) => r.dragMsP99 }[cell];
   const pairs = rs.filter((r) => r.C && r.C2).map((r) => [aa(r.C), aa(r.C2)]);
@@ -54,7 +61,7 @@ function judge({ cell, size, throttle, rounds }) {
   const voided = cell === "late" ? median(pairs.map(([a, b]) => Math.abs(b - a))) > 0.01
     : cell === "drag" ? median(pairs.map(([a, b]) => Math.abs(b - a))) > 4
     : !(ratio >= 0.9 && ratio <= 1.1);
-  const saturated = (cell === "late" || cell === "drag") && median(rs.map((r) => r.none?.missedShare)) > 0.05;
+  const saturated = saturatedAt.has(where) || (cell === "drag" && median(rs.map((r) => r.none?.missedShare)) > 0.05);
   const pass = {
     late: (r, a) => r.none && r[a].missedShare - r.none.missedShare <= 0.01 && r[a].paintDelayP99 - r.none.paintDelayP99 <= 4,
     rate: (r, a) => r[a].checks.writesVerified && r[a].writeMBps >= FILL_MBPS,
