@@ -106,11 +106,11 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
   the controller over the port; the fill is `connect`'s. Transport, decoders and both clients are unchanged.
 * **Not built:** the OPFS store (a miss goes to the downloader where the store worker would be asked first; it lives on
   `claude/opfs-cache-fixes`), the cine's clock in the worker, a want protocol, a second viewport. A downloader whose
-  script does not load is reported on the page by name, but `connect` in the view worker then waits on the check's
-  deadline rather than failing.
+  script does not load is reported on the page by name and fails `connect` at once (*corrected in review*, 2026-10-29:
+  this read that `connect` waited on the check's deadline, which it did until the page raced it against that error).
 
 **Held by** the viewer check, run by the gate under both views on both clients, filled with a cine and on demand
-(`client/viewer/run_check.sh`), and by `client/view/controller.test.mjs`. Each check was mutated and its mutant failed:
+(`client/viewer/run_check.sh`), by `client/view/controller.test.mjs`, and by `client/view/view.test.mjs` for the page half's failures. Each check was mutated and its mutant failed:
 
 | claim | check | mutant |
 | --- | --- | --- |
@@ -119,6 +119,7 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
 | a miss is asked of the downloader, from the view worker | the on-demand steps, heard at the port; the node test | a miss not asked |
 | every frame painted is exact | the check's exactness and readbacks | a sample altered in `htj2k.js` |
 | a window change paints again with no frame moving: no upload, nothing sent | the check's `windowStep` and its readback under another window; the node test | every paint uploads; a window change paints nothing |
+| a downloader whose script does not load fails `connect` at once | `view.test.mjs` | the page's error not rejecting `connect` |
 | `page` behaves as before | the viewer check and every other suite, green | — |
 
 **What each variant costs, counted from the code** (a frame decoded and acknowledged; the defaults' three decoders):
