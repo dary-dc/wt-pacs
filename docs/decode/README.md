@@ -1922,7 +1922,64 @@ Queue row JXL ([`lab/av1/bytes/jpeg-xl`](../../lab/av1/bytes/jpeg-xl/README.md))
 
 So JPEG XL earns no place in the decode path: where it saves 5 % of the bytes or more it decodes 1.5–10× slower, the
 browsers cannot hand over samples above 8 bits, and the one case where native beats OpenJPH sits behind a flag in both
-engines that have it.
+engines that have it. *Corrected 2026-10-27:* no longer behind a flag — Chrome 155 (stable 2026-10-06) ships it on
+desktop, Android, iOS and WebView (chromestatus feature 5114042131808256), and Firefox 158 (2026-10-13, its desktop
+release notes) on by default (§Single frames the PCS sends as JPEG XL). The 8-bit limit stands.
+
+### Single frames the PCS sends as JPEG XL
+
+*Theory, 2026-10-27: nothing built or timed. (D) marks a number derived here from the measurements it names.*
+
+**The contract.** The PCS's tree carries a single frame as `sf.jxl` (`docs/adr/pcs-transfer.md` §1 at `a197b23d`,
+#149); our sender builds the `.sbnd` at the PCS and the PACS never decodes (`docs/ingest/pacs-receive-design.md`
+§1–§3 at `f8b0bb2a`, #168). **Neither states that the JPEG XL is lossless**: "lossless" qualifies the AV1 only, and no
+effort or `--faster_decoding` setting is recorded.
+
+**The options**, each against the served HTJ2K. Decode times are row JXL's (above; container, Chromium 154 and Firefox
+157, single-threaded WASM with SIMD; 4× is the emulated slow CPU, §A slow CPU, emulated).
+
+| | (a1) libjxl or jxl-rs in WASM | (a2) the browser's decoder | (b) transcode to HTJ2K on receipt | (c) HTJ2K from the PCS |
+| --- | --- | --- | --- | --- |
+| exact, 8–16 bits, grey and colour | yes: libjxl 0.12.0, 7 040/7 040 frames 8–16 bits (row JXL); jxl-rs's u16 output exact by arithmetic, unmeasured ([`../codecs/jpeg-xl.md`](../codecs/jpeg-xl.md) §jxl-rs in WASM) | **8-bit only**: every path returns 8 bits (row JXL); exact on 8-bit grey and RGB | yes, if the JPEG XL is lossless; checked by the decode-back the ingest already runs | yes: today's path |
+| decode, × OpenJPH's time | libjxl 1.03–1.91 at e1, 5.35–10.0 at the default e7 (row JXL); jxl-rs predicted ×0.8–1.2 of libjxl | 0.61–1.19 on 8-bit RGB at fast efforts, 2.2–6.1 at the default (row JXL) | 1 | 1 |
+| a first picture before the last byte | no reduced picture from a prefix unless coded progressive (`-p`), then after 6–48 % of the bytes at 4.0–6.2× OpenJPH's decode (row EMBED) | as (a1) | yes: an exact level picture from 7–29 % of the bytes, first picture ×0.09–0.49 of today's on the mammograms (×0.23–0.69 on DBT slices) (§A frame at the level the screen needs) | as (b) |
+| bytes on the wire, × HTJ2K | 0.81–0.96 at the default, 0.94–1.03 at e1 (row JXL) | as (a1) | 1 | 1 |
+| WASM on the first ask | libjxl 625 KB, 220 KB gzipped (row EMBED): 0.35 s at 5 Mbit, 1.8 s at 1 Mbit before compile (D); jxl-rs unbuilt | none; Chrome ≥ 155, Firefox ≥ 158, Safari ≥ 17.0 only | none: OpenJPH is loaded for every series | none |
+| threads, SIMD | libjxl single-threaded with SIMD as built (threads possible: the page is already cross-origin isolated, `CLIENTS.md`); jxl-rs SIMD128, threads only through a `JxlParallelRunner` we would supply (`jxl/src/api/mod.rs`, 0.7.4 and 0.8.0) | the engine's own (jxl-rs multithreaded in Chromium) | — | — |
+| licence, patents | BSD-3-Clause and the JPEG XL project's "Additional IP Rights Grant (Patents)", in libjxl and in jxl-rs (`LICENSE`, `PATENTS`, read 2026-10-27) | the engine's | libjxl's at the sender; OpenJPH BSD-2-Clause, no patent grant ([`../av1/licensing.md`](../av1/licensing.md)); the ITU-T patent database lists T.814 (HTJ2K), terms **not read** | OpenJPH's, as today |
+| code we add and keep | a third decoder module, a codec tag, a `licensing.md` row; for jxl-rs a Rust crate and its toolchain pin | a second paint path that reads samples out of a canvas, and a fallback for every engine below those versions | libjxl linked into the sender beside OpenJPH | none |
+| CPU at the PACS | none | none | none: the sender's, below; at the PACS it would break "the PACS never decodes" | none |
+
+**(b) belongs in our sender, not at the PACS.** The sender builds the `.sbnd` at the PCS (#168 §2), and
+`ingest/from-parser` already encodes HTJ2K in-process from the parser's raw frames and decodes it back
+([`../ingest/contract.md`](../ingest/contract.md) §What the ingest reads). From `sf.jxl` it would add a libjxl decode
+before that encode: ≈ 30 ms a megapixel for the HTJ2K encode (row JXL: 0.9 s for the 30 MP scan, one core) plus the
+JPEG XL decode, 1.3–10× OpenJPH's 76–78 ms on `ffdm_a` in WASM by its effort, assumed no slower natively — 0.4–1.0 s
+for the 8.5 MP mammogram, once per frame (D). One copy is stored (HTJ2K); keeping the JPEG XL too buys nothing the PACS serves.
+The decode-back proves the HTJ2K equals the decoded JPEG XL, not the modality's samples: exactness to the source needs
+the JPEG XL to be lossless, or a digest of the parser's raw frame carried beside it.
+
+**Recommended: (c), produced by our sender from the parser's raw frames**, until the rule below proposes (a1) — the path `ingest/from-parser` already runs,
+so no code is added anywhere and the single frame takes the multi-frame path. It is the only option that draws an exact
+level picture before the last byte, which over a slow lossy link outweighs any byte saving: at the default effort JPEG
+XL saves 4–19 % of the bytes and, unless the PCS codes it progressive, gives no picture from a prefix. (a2) is exact
+only on 8-bit single frames and not at all on CR, DX and mammography; (a1) adds a 220 KB decoder for one image and
+decodes 1.0–10× slower.
+
+**What would change it.** The parser keeps no raw frame for a single-frame instance, only `sf.jxl` (asked of the PCS
+team) — then (b) in the sender. A lossless JPEG XL setting decoding no slower than OpenJPH on a phone, smaller, and
+progressive with a first picture as early as HTJ2K's prefix — row JXLRS predicts none. Single frames that are all
+8-bit and engines all at Chrome 155 / Firefox 158 / Safari 17 — then (a2) costs only the paint path.
+
+**Pre-registered: (c) against (a1) with jxl-rs**, for a separate session. Arms: today's HTJ2K through the product's
+module, and the PCS's own `sf.jxl` setting (asked of the PCS team; e7 f0 if unknown) through jxl-rs 0.8.0 in WASM built
+by row JXLRS's protocol ([`../codecs/jpeg-xl.md`](../codecs/jpeg-xl.md) §jxl-rs in WASM), each decoder cold. Sets: single
+frames of `ffdm_a`, `ct_nlst`, `mg16_cbis` and one 8-bit ultrasound still. Links: 5 Mbit, `lte-good` and the lossy
+link profiles (`lab/scripts/lossy_link_levers.sh`), 1× and 4×, Chromium and Firefox, 8 rounds in a Williams order.
+Measured: ask to the first exact picture and to the exact full frame, decoder fetch and compile included; every frame
+hashed against its source digest, `--mutate hash` failing every arm. **Rule:** (a1) is proposed only if its median exact
+full frame is ≤ 0.95 of (c)'s in every cell with its first picture no later; otherwise (c) stands, naming the closest
+cell. Where the host saturates, as row JXL says.
 
 ## Not yet tried
 
