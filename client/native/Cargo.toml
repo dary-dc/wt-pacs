@@ -11,6 +11,8 @@ path = "src/main.rs"
 [features]
 # The frame check's decode, linked against ingest/tools.sh's build; off, the crate builds no C.
 decode = []
+# The painter on wgpu: docs/native/README.md §2 Paint.
+paint = ["dep:wgpu", "dep:pollster"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -24,6 +26,12 @@ tokio = { workspace = true }
 # For its quinn and certificate pin only, so the version and the `[patch]` are the server's.
 wtransport = { version = "0.7", default-features = false, features = ["quinn", "ring"] }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
+wgpu = { version = "30.0.1", optional = true }
+pollster = { version = "0.4", optional = true }
+
+[[example]]
+name = "paint-check"
+required-features = ["paint"]
 
 [dev-dependencies]
 series-server = { path = "../../server" }

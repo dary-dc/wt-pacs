@@ -53,8 +53,10 @@ are not filterable in wgpu, WebGPU, Vulkan's mandatory format table, Metal's fea
 painter's choice — integer texture, bilinear in the shader — is the only one that keeps the samples exact and is the
 same on every backend. `R16Unorm` would add a feature gate, a float conversion and a new proof.
 
-**Size and upload.** A 4096×3072 frame fits wgpu's default 8192 limit and every first-class backend (D3D12 16 384,
-Metal ≥ 8192); the `downlevel_*` limits cap textures at 2048 and must not be requested. `write_texture` needs no
+**Size and upload.** A 4096×3072 grey frame fits wgpu's default 8192 limit and every first-class backend (D3D12 16 384,
+Metal ≥ 8192); the `downlevel_*` limits cap textures at 2048 and must not be requested. *Corrected 2026-10-28:* RGB
+uploads as three texels a pixel (`R8Uint`, wgpu has no three-channel format), so an RGB row past 2730 px broke the
+default limit and wgpu panicked. The painter requests the adapter's own limits and refuses a frame over them by name. `write_texture` needs no
 256-byte row padding, but allocates a staging buffer per call, so a stream of frames should use `StagingBelt` or its
 own mapped buffers (not measured). The browser's upload was 5.70 of 5.74 ms of a 12.58 Mpx paint (§Paint): the
 upload is still the thing to attack natively.
@@ -70,8 +72,8 @@ Vulkan where the driver lists them, and Windows 11 22H2 documents 10-bit SDR. No
 intact at a medical display on any OS, and the ACR–AAPM–SIIM technical standard (rev. 2022) finds no diagnostic
 benefit of 10-bit over 8-bit. Unproven until a panel is measured; not a reason to go native.
 
-**Headless.** wgpu's own CI runs its GPU tests on Mesa lavapipe (Linux) and WARP (Windows); whether lavapipe runs in
-this container is unknown — the first row finds out (§6, M1).
+**Headless.** wgpu's own CI runs its GPU tests on Mesa lavapipe (Linux) and WARP (Windows). *Was:* "whether lavapipe
+runs in this container is unknown". It does, once `mesa-vulkan-drivers` is installed (§6, M1).
 
 ## 3. The cache
 
@@ -161,6 +163,46 @@ none queued; each states its predictions and rule before any data and runs in a 
   same float64 CPU reference, and its mutants. Predictions: lavapipe initialises in the container (else the row says
   so and moves to a GPU host); |Δ| = 0 in every 1:1 cell; each mutant the browser suite caught is caught here.
   Rule: no native paint is timed before this passes.
+
+  *Run 2026-10-28, this container: passes.* Lavapipe initialises: llvmpipe (LLVM 20.1.2, 256 bits), Mesa 25.2.8,
+  Vulkan, after `apt-get install mesa-vulkan-drivers`. The painter is **client/native**'s `paint` (feature `paint`,
+  `paint.rs` and `paint.wgsl`). It runs one pass: each of the four nearest samples goes through the window table,
+  then the shader does the bilinear and rounds half up. The browser uses two passes because WebGL2 filters its 8-bit
+  picture in hardware. Frames above 8 bits upload as `R16Uint`, and a signed sample arrives as its two's complement,
+  wrapped by the offset; frames of 8 bits or fewer upload as `R8Uint`, and RGB as three texels a pixel. The table is a
+  Rust port of `voi.js`, so it is independent of the reference.
+
+  The cells are the browser suite's own, shared through `client/paint/cells.mjs` (moved out of `check.mjs`, not
+  copied). `examples/paint-check.rs` paints them, and `client/paint/native.mjs` compares the result with the same
+  `reference.js`. The suite has **54** exact cells, not 50 (15 on each of three grey frames, 9 on RGB).
+  * **Every exact cell, 54 × DPR 1 and 2: |Δ| = 0.** The prediction holds.
+  * **Fractional cells, reported:** at most 1 code in every one of the 20, at both DPRs, on 0–1.17 % of samples. On
+    SwiftShader the browser's are 1–5 codes. Judged against no GPU.
+  * **Mutants** (DPR 1, as the browser's), `node client/paint/native.mjs mutants`:
+
+    | mutant | browser, SwiftShader | native, lavapipe |
+    | --- | --- | --- |
+    | the signed offset dropped | 15 exact cells | 15 exact cells |
+    | `NEAREST` for bilinear | 20 fractional cells move | no exact cell; 20 fractional cells, the pan's \|Δ\| 1 → 26 |
+    | the window after the filter | 10 fractional cells move | no exact cell; 15 fractional cells, \|Δ\| 1 → 8 |
+    | the quad moved by 1/512 px | nothing | 1 exact cell (`u16 half 1:1`), 19 fractional cells move |
+    | the rounding turned the other way | `voi.test.mjs` only | 9 exact cells |
+    | MONOCHROME1 not inverted | `voi.test.mjs` only | 3 exact cells |
+    | LINEAR and LINEAR_EXACT swapped | `voi.test.mjs` only | 42 exact cells |
+    | the −0.5 of LINEAR dropped | `voi.test.mjs` only | 35 exact cells |
+    | the shader's half-up rounding dropped (new) | — | 24 exact cells |
+
+    Every mutant the browser suite catches is caught here, and so is the one it misses. Its four table mutants reach
+    the cells here because the native table is not the reference's. `scripts/gate.sh` runs the 1:1 cells when
+    lavapipe and numpy are present, and `paint.rs`'s own tests: LINEAR at width 1 and a signed 16-bit code, which no
+    cell reaches, and an RGB row past wgpu's default limit.
+  * *Corrected on review, 2026-10-28:* `native.mjs` compared only as many bytes as the reference, so a read-back of
+    half the rows passed every cell (mutant run); a short or long paint now fails its cell. The rerun above passes
+    with it, and the mutant table is unchanged.
+  * **Not ported:** the browser's skipped upload for the same frame and its window pass run only on a window change.
+    Every native paint uploads, windows and places, which is M2's to time. The fractional cells on a GPU are the GPU
+    desktop's rerun, and so are the exact ones: the shader writes code/255 to `Rgba8Unorm`, and Vulkan says the
+    conversion back *should*, not must, round to nearest. Exact on lavapipe, not yet on any GPU.
 * **M2 NATIVEFILL — fill time and the ask, native against the browser, one machine** (container). Arms: today's
   browser client (headless Chromium, WASM decoders, the gl painter on SwiftShader) and a lab native client (the
   `lab/window-harness` transport, native OpenJPH, M1's painter on lavapipe). *Corrected 2026-10-27:* the native arm
@@ -296,7 +338,7 @@ offering it changes no byte a browser sees (§8.1). `--stall-after-bytes` and `-
 
 ### 8.4 The client crate
 
-**One workspace member, **client/native**** (crate `native-client`), a library and one lab binary. It depends on
+**One workspace member, **client/native**** (crate `native-client`), a library, one lab binary and the painter's check (`examples/paint-check.rs`). It depends on
 `fod`, `frame-envelope` and `series-bundle` from `common/`, on `wtransport` only for its `quinn` re-export and
 `ServerHashVerification` (so the version and the `[patch]` are the server's, and no WebTransport session is ever
 opened), and on `tokio`. Modules, each added by the step that needs it:
@@ -316,6 +358,9 @@ opened), and on `tokio`. Modules, each added by the step that needs it:
   *Corrected 2026-10-28, found in #201:* not compiled from the WASM wrappers, which are emscripten bindings, but linked
   through the ingest's native shim `ingest/coded-frames/decode.cpp`; and every native decode opens a fresh decoder, so
   a mismatch is `false` at once rather than decoded again.
+* **`paint`** (M1, *built 2026-10-28*): `Painter::new()` on wgpu's first adapter, and `paint(frame, display, width,
+  height, dpr)` to RGBA rows read back from an offscreen texture. No window. The browser painter's contract, proved in
+  §6 M1. It sits behind the `paint` feature, so the default build carries no wgpu.
 * **`cache`** (M3): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 *A client cache* and §3
   above, as written.
 
@@ -375,7 +420,7 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
    QUIC from the server, `native-fill` on the 107 payloads and the 2 codestreams packed as two series: every frame
    identical and `true`.
 3. **M3 CACHE** (§6), on `cache`.
-4. **M1 PAINTPROOF** (§6): the painter as a module of this crate on wgpu.
+4. **M1 PAINTPROOF** (§6): the painter as a module of this crate on wgpu. *Passed 2026-10-28* on lavapipe.
 5. **M2 NATIVEFILL** (§6), its native arm `native-fill` with `decode` and M1's painter.
 
 ### 8.7 Risks
