@@ -763,12 +763,12 @@ the arms, the bar and the rule below replace its own. The arms are built in `lab
 
 **The build.** A stand-in view worker (`arms-view.js`, page `arms.html`) runs the product's downloader with its decoder
 seam pointed at `arms-decoder.js`: the product's OpenJPH build and frame check, then each exact frame written to an
-OPFS file of its own **before** it is posted. Every arm so writes the same bytes from the same threads (OPFSARMS's arm
-D: who writes is not this row's question), and the arms differ in one lever, what the view holds:
+OPFS file of its own **before** it is posted. Every arm so writes the same bytes from the same threads (who writes is
+not this row's question), and the arms differ in one lever, what the view holds:
 
 | arm | what the view holds | build |
 | --- | --- | --- |
-| `ring`, `ring′` | (c): ⌊256 MiB / frame⌋ slots of one `SharedArrayBuffer` carved once, 9 at 3328×4096 (234 MiB), with `arms-slots.js`'s table. A decoder takes a slot by `compareExchange` as it begins a frame; with none free it tells the view, which evicts the frame farthest from the current one, and waits for one to free | `arms-*.js` |
+| `ring`, `ring′` | (c): ⌊256 MiB / frame⌋ slots of one `SharedArrayBuffer` carved once, 9 at 3328×4096 (234 MiB), with `arms-slots.js`'s table. A decoder takes a slot by `compareExchange` as it begins a frame (*corrected 2026-10-29, independent review:* once its decode ends, before the copy into the slot, as `arms-decoder.js` does); with none free it tells the view, which evicts the frame farthest from the current one, and waits for one to free | `arms-*.js` |
 | `transfer` | (a′): a new `ArrayBuffer` a frame, transferred; past 256 MiB the farthest dropped | `arms-*.js` |
 | `transfer-k` | `transfer` under credits: the downloader dispatches only while fewer than K frames are unacknowledged, and each ack dispatches again | `downloader.js` through the rig's stand-in `credits` |
 | `disk` | nothing: no samples are posted; a frame asked or stepped to is read back into the one read buffer and checked | `arms-*.js` |
@@ -784,7 +784,9 @@ cost the independent design's comparison concedes. M5 times it on two paths, eac
 to its samples checked in hand, the wire and the decode being the same in every arm: three asks during the fill
 (frames 79, 69, 59, once 10, 30 and 50 frames are in, each becoming the current frame) and three steps after it (the
 three frames before the last asked, inside the window around it). In `ring` and `transfer` both are a lookup; in
-`disk` both are a read and an XXH3.
+`disk` both are a read and an XXH3. *Corrected 2026-10-29 (independent review):* the 22.3 ms is M1's R / n, a 32-frame
+reopen's time from the store worker's start divided by its frames, on Chromium only: a throughput, not one read's
+latency, and 5.6 ms over the bar. That `disk` misses the time bar is predicted, not shown; Firefox's read is not measured.
 
 **Credits, and where they matter.** The consumer acks a frame when the view takes it, and every frame is on disk
 before it is posted, so "held within budget or written" holds at receipt in every arm. What credits bound is what
@@ -825,13 +827,15 @@ the most frames waiting in its port at once (from each frame's decode-end and re
 | arm | V8 (Chromium) | SpiderMonkey (Firefox) | JavaScriptCore (WebKit, not run) |
 | --- | --- | --- | --- |
 | `ring` | floor + the ring: the one shared buffer counts 0 and is never garbage; 530–600 MiB as pre-registered. **Qualifies** | floor + the ring: counted once per zone that holds it (the view and three decoders), which raises each zone's trigger and frees nothing. **Qualifies** | floor + the ring: each wrapper counts it, so collections come sooner, not memory larger |
-| `transfer` | floor + up to 260 MiB of window + V8's slack: a received buffer counts in the view's isolate, a sent one stops counting at detach, and 64 MiB of external memory past the last collection starts one. At the bar (floor + 324–350 against + 346): the rule decides | floor + window + 1.5–3.0 × what survived the last collection: the contents count as cell memory, removed from the sender at the transfer. + 128–512 MiB over the window: **misses** | the sender's estimate falls to 0 at the transfer; the next collection proportional to the live heap: misses, as Gecko |
+| `transfer` | floor + up to 260 MiB of window + V8's slack: a received buffer counts in the view's isolate, a sent one stops counting at detach, and 64 MiB of external memory past the last collection starts one. At the bar (floor + 324–350 against + 346): the rule decides | floor + window + 1.5–3.0 × what survived the last collection: the contents count as cell memory, removed from the sender at the transfer. + 128–512 MiB over the window: **misses**. *Corrected 2026-10-29 (independent review):* the excess is (1.5–3.0 − 1) × what survived (the trigger is that × the factor; the 128–512 is already so); at 1.5 on a 234 MiB window, floor + 351 against + 346, inside the A/A's 64: the rule decides there, and misses at 3.0 | the sender's estimate falls to 0 at the transfer; the next collection proportional to the live heap: misses, as Gecko (the factor 2 under a quarter of RAM, 1.5 under a half: `runtime/OptionsList.h` 219–226, added in review) |
 | `transfer-k` | as `transfer` at full speed; in `m5-busy` the window + ≤ 6 frames (156 MiB), where `transfer` holds every frame waiting, about half of them at 200 ms against 98 | the same | the same |
-| `disk` | floor + one read buffer, 300–370 MiB (the floor's 531–537 less a window, plus 26): the sync handle writes through the renderer's own file, so the samples sit in the page cache, outside PSS. Meets the memory bar; **misses the time bar**, ~22 ms in hand (M1) against ~0 | the write a stream copy into the content process's file, returning the bytes copied; floor + one read buffer; misses the time bar alike | the write and read through the handle's file; not run |
+| `disk` | floor + one read buffer, 300–370 MiB (the floor's 531–537 less a window, plus 26; *corrected 2026-10-29, independent review:* that is 301–329, the 370 from `ring`'s predicted 600): the sync handle writes through the renderer's own file, so the samples sit in the page cache, outside PSS. Meets the memory bar; **misses the time bar**, ~22 ms in hand (M1) against ~0 | the write a stream copy into the content process's file, returning the bytes copied; floor + one read buffer; misses the time bar alike | the write and read through the handle's file; not run |
 | `today` | as pre-registered, 2.6–3.2 GiB | as pre-registered, 0.6–1.2 GiB | — |
 
 **Predicted outcome:** `disk` misses the time bar on both engines (22.3 > 16.7 ms), `transfer` misses the memory bar on
-Firefox, so `ring` is chosen: (c), as recommended above. On 512² frames the read is 0.7 ms (M1) and `disk` would meet
+Firefox, so `ring` is chosen: (c), as recommended above. *Corrected 2026-10-29 (independent review):* neither miss follows
+from the sources alone (both corrections above); `ring` is chosen only if `disk` and
+both `transfer` arms each miss on an engine. On 512² frames the read is 0.7 ms (M1) and `disk` would meet
 the time bar; M5 runs only the mammogram, where the two bars disagree, and says nothing of a CT series.
 
 **Mutants**, each a stand-in written over its file by the rig, each caught in one smoke round on both engines (no
@@ -853,7 +857,8 @@ later row"). Not run: M5 itself, WebKit, and the 13 GiB follow-up, which keeps i
 | Gecko: a read or write is a stream copy on an I/O queue into a stream deserialized in the content process; it returns the bytes copied | `dom/fs/api/FileSystemSyncAccessHandle.cpp` 523–630, 633–642 |
 | WebKit: read and write through the handle's file | `Source/WebCore/Modules/filesystem/FileSystemSyncAccessHandle.cpp` 128–170 |
 | Gecko: a transferred buffer's contents leave the sender's count | `js/src/vm/ArrayBufferObject.cpp` 3110–3123 |
-| JSC: a transferred buffer's contents detached from the sender; a wrapper's estimate is its contents | `Source/JavaScriptCore/runtime/ArrayBuffer.cpp` 498–522; `runtime/JSArrayBuffer.cpp` 81–86 |
+| JSC: a transferred buffer's contents detached from the sender; a wrapper's estimate is its contents | `Source/JavaScriptCore/runtime/ArrayBuffer.cpp` 498–522; `runtime/JSArrayBuffer.cpp` 81–86; `runtime/ArrayBuffer.h` 379–383 (added in review) |
+| JSC: the heap's growth factors (added in review) | `Source/JavaScriptCore/runtime/OptionsList.h` 219–226 |
 | HTML: a port's message queue, with no bound given | `source` 134810–134816 |
 
 ### Options, and what each costs
