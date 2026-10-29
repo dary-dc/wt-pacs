@@ -76,6 +76,94 @@ def states(rs, name):
                 print("   ", json.dumps({k: v for k, v in r.items() if k not in ("final",)})[:600])
 
 
+ABOVE_FLOOR_MIB = 320
+DISPLAY_PERIOD_MS = 16.7
+K = 6
+SIMPLEST_FIRST = ("disk", "transfer", "transfer-k", "ring")
+CAUGHT = {
+    "slots-never-freed": lambda r: r["fillMs"] is None,
+    "fresh-when-dry": lambda r: (r["view"] or {}).get("offRing", 0) > 0,
+    "credits-ignored": lambda r: (r["view"] or {}).get("backlogPeak", 0) > K,
+    "disk-keeps-frames": lambda r: (r["view"] or {}).get("heldPeakMiB", 0) > 0,
+}
+
+
+def med(xs):
+    return statistics.median(xs) if xs else None
+
+
+def complete(r):
+    """Every frame in, exact by the decoder's XXH3 and, read back from disk, by the rig's SHA-256."""
+    n = 80
+    second = r.get("second") or {}
+    view = r.get("view") or {}
+    return r["fillMs"] is not None and r["inexact"] == 0 and r["exact"] == n and (
+        r["arm"] == "today" or (second.get("read") == n and not second.get("wrong") and view.get("readMismatch") == 0 and view.get("stored") == n))
+
+
+def in_hand(r):
+    v = r.get("view") or {}
+    return [a["inHandMs"] for a in v.get("asks", [])] + [s["ms"] for s in v.get("steps", [])]
+
+
+def m5(rs, name):
+    """M5 as amended: an arm qualifies on the bar and the time bar; the simplest that qualifies is chosen."""
+    by = defaultdict(dict)
+    for r in rs:
+        if not r.get("mutant"):
+            by[r["round"]][r["arm"]] = r
+    pairs = [a for a in by.values() if "ring" in a and "ring2" in a]
+    aa_mib = med([abs(a["ring2"]["growthMiB"] - a["ring"]["growthMiB"]) for a in pairs])
+    aa_time = med([a["ring2"]["fillMs"] / a["ring"]["fillMs"] for a in pairs if a["ring"]["fillMs"] and a["ring2"]["fillMs"]])
+    void = aa_mib is None or aa_time is None or aa_mib > 64 or not 0.90 <= aa_time <= 1.10
+    today = {k: a["today"]["fillMs"] for k, a in by.items() if "today" in a and a["today"]["fillMs"]}
+    ring_hand = med([x for a in by.values() if "ring" in a for x in in_hand(a["ring"])])
+    floor = med([a["disk"]["growthMiB"] for a in by.values() if "disk" in a])
+    bar_mib = None if floor is None else floor + ABOVE_FLOOR_MIB
+    print(f"{name}: A/A |ring'-ring| median {aa_mib} MiB, ring'/ring fill {aa_time}" + (" VOID" if void else "") + f"; memory bar {bar_mib} MiB")
+    eligible = []
+    for arm in ("ring", "ring2", "transfer", "transfer-k", "disk", "today"):
+        sel = [a[arm] for a in by.values() if arm in a]
+        if not sel:
+            continue
+        g = [r["growthMiB"] for r in sel]
+        ratio = med([r["fillMs"] / today[r["round"]] for r in sel if r["fillMs"] and r["round"] in today])
+        hand = med([x for r in sel for x in in_hand(r)])
+        own = {"ring": all((r["view"] or {}).get("offRing", 1) == 0 for r in sel), "disk": all((r["view"] or {}).get("heldPeakMiB", 1) == 0 for r in sel),
+               "transfer-k": all((r["view"] or {}).get("backlogPeak", K + 1) <= K for r in sel)}.get(arm, True)
+        checks = bar_mib is not None and all(complete(r) and r["growthMiB"] <= bar_mib for r in sel) and ratio is not None and ratio <= 1.10 and own
+        second = hand is not None and ring_hand is not None and hand <= ring_hand + DISPLAY_PERIOD_MS
+        print(f"{name} {arm}: growth median {med(g):.0f} MiB [{min(g):.0f}–{max(g):.0f}], n {len(sel)}; complete {sum(map(complete, sel))}/{len(sel)}; "
+              f"fill/today {ratio}; in hand median {hand} ms; " + ("reported, not ruled" if arm in ("today", "ring2") else
+              f"memory bar and checks {'met' if checks else 'missed'}, time bar {'met' if second else 'missed'}"))
+        if checks and second and arm in SIMPLEST_FIRST and not void:
+            eligible.append(arm)
+    chosen = next((a for a in SIMPLEST_FIRST if a in eligible), None)
+    print(f"{name}: {'VOID' if void else f'qualify {eligible}; chosen {chosen}' if chosen else 'none qualifies: lever 2 returns to the owner'}")
+    for r in rs:
+        if r.get("mutant"):
+            print(f"{name} mutant {r['mutant']} on {r['arm']}: {'caught' if CAUGHT[r['mutant']](r) else 'SURVIVED'}")
+    return (set(eligible) if not void else None), bar_mib
+
+
+def m5_busy(rs, name, bar_mib):
+    """Credits on a view held past the frames' arrival: needed for transfer if it misses the bar and transfer-k meets it, never over K waiting."""
+    over = {}
+    for arm in ("transfer", "transfer-k"):
+        sel = [r for r in rs if r["arm"] == arm and not r.get("mutant")]
+        if sel and bar_mib:
+            over[arm] = any(r["growthMiB"] > bar_mib or (arm == "transfer-k" and (r["view"] or {}).get("backlogPeak", K + 1) > K) for r in sel)
+            print(f"{name} {arm}: growth median {med([r['growthMiB'] for r in sel]):.0f} MiB, backlog peak median {med([(r['view'] or {}).get('backlogPeak') for r in sel])}, "
+                  f"over the bar or K in {'some' if over[arm] else 'no'} round")
+    if len(over) == 2:
+        print(f"{name}: credits {'needed for transfer' if over['transfer'] and not over['transfer-k'] else 'not shown needed'}")
+    elif not bar_mib:
+        print(f"{name}: no memory bar without m5 disk rows on this engine")
+    for r in rs:
+        if r.get("mutant"):
+            print(f"{name} mutant {r['mutant']}: {'caught' if CAUGHT[r['mutant']](r) else 'SURVIVED'}")
+
+
 d = Path(sys.argv[1])
 m1(rows(d / "m1.jsonl"))
 for f, name in (("m2.jsonl", "M2 2 GiB"), ("m2-13g.jsonl", "M2 13 GiB")):
@@ -84,3 +172,17 @@ for f, name in (("m2.jsonl", "M2 2 GiB"), ("m2-13g.jsonl", "M2 13 GiB")):
 for f, name in (("m3.jsonl", "M3 chromium"), ("m3-firefox.jsonl", "M3 firefox"), ("m4.jsonl", "M4")):
     if rows(d / f):
         states(rows(d / f), name)
+bars = {}
+qualified = []
+for f, engine in (("m5.jsonl", "chromium"), ("m5-firefox.jsonl", "firefox")):
+    if rows(d / f):
+        q, bars[engine] = m5(rows(d / f), f"M5 {engine}")
+        qualified.append(q)
+if qualified:
+    both = set.intersection(*qualified) if all(q is not None for q in qualified) else None
+    if len(qualified) < 2:
+        print("M5 rule: one engine's rows only; the rule wants both")
+    print(f"M5 rule: {'VOID on an engine' if both is None else next((a for a in SIMPLEST_FIRST if a in both), 'none on every engine: lever 2 returns to the owner')}")
+for f, engine in (("m5-busy.jsonl", "chromium"), ("m5-busy-firefox.jsonl", "firefox")):
+    if rows(d / f):
+        m5_busy(rows(d / f), f"M5 busy {engine}", bars.get(engine))
