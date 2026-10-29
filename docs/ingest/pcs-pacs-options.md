@@ -75,14 +75,20 @@ arrive named by BLAKE3 (64 hex), while our sender (`carrier/sender/src/tree.rs`,
 XXH3 names. Options: **(a)** the receiver verifies the PCS's BLAKE3 names, and the study DB keeps XXH3 as decided;
 **(b)** our trigger script at the PCS computes each file's XXH3 and puts it in the item list; names stay BLAKE3 and the
 receiver checks contents against the list; **(c)** our script makes an XXH3-named copy before rsync (extra disk at the
-PCS). The rsync profile is incomplete until one is chosen (design state §2).
+PCS). The rsync profile is incomplete until one is chosen (design state §2). *Recommended 2026-10-28 night, awaiting
+the owner:* **(a)**. The PCS computes its BLAKE3 when the parser writes the file, so checking those names is the only
+check that catches corruption at rest at the PCS as well as on the wire; (b) and (c) hash at send time, so they would
+hash already-damaged bytes and approve them (*inference*). XXH3 stays wt-pacs's hash for what wt-pacs writes (study DB,
+`.sbnd`). **Gap:** the PCS's frame files in its code (`<I>/G|P|R/%05d`, raw) carry no hash in their name, so a frame
+damaged at rest at the PCS goes undetected; the PDF's target names frames by hash (§2.9, design state §15).
 
 **What the receiver changes for a tree** (*inference*, against #163 as built): the trigger's arrival is step 1; step 3
 checks each listed file instead of one package hash; step 4 reads a tree instead of a tar; step 6 copies the listed
-files into `.work` (or hard-links them: one filesystem) instead of extracting. A refusal also deletes every listed file
-that failed its hash, so the next rsync's quick check ("checks if each file's size and time of last modification
-match", rsync(1) `--checksum`) cannot skip a damaged copy of the same size and time. On a crash every marker still in
-`incoming/` starts again at step 3, as every package does now. Steps 6b–12 do not change.
+files into `.work` (or hard-links them: one filesystem) instead of extracting (*corrected 2026-10-28 night:* or not
+at all; the order proposed in §2.3 reads the files back in `incoming/` and renames them from there). A refusal also
+deletes every listed file that failed its hash, so the next rsync's quick check ("checks if each file's size and time
+of last modification match", rsync(1) `--checksum`) cannot skip a damaged copy of the same size and time. On a crash
+every marker still in `incoming/` starts again at step 3, as every package does now. Steps 6b–12 do not change.
 
 ## 2 · The parts
 
@@ -96,6 +102,11 @@ match", rsync(1) `--checksum`) cannot skip a damaged copy of the same size and t
 
 pcs.pdf, verbatim (design state §1): "we are thinking to use some kind of rsync which triggers server side a script
 processing of the data for each file copied".
+
+**Owner 2026-10-28 night, where rsync writes:** only into `incoming/`, never the serving tree ("it will pollute the
+prod dir"); `incoming/` on the serving root's filesystem, so moving a file into place is a rename. rsync hides each file
+under a temporary name until it is whole, and `--delay-updates` renames a run's files together at its end, "a little
+closer to atomic" (rsync(1)).
 
 **With rsync, what `incoming/` keeps after "stored"** (*inference*; an option inside this one):
 
@@ -123,11 +134,24 @@ processing of the data for each file copied".
 | **HTTPS call** | `POST` the item list to the PACS | the same channel as an HTTPS reply | files over ssh, control over HTTPS: two channels, two identities | only with an HTTPS reply | an endpoint |
 | **arrival by rename** (default; built) | the carrier renames `<f>.partial` to `<f>` when whole; the package's existence declares completeness (#149) | built; nothing to add | package delivery only | delivery = package | — |
 
+**After the trigger, the rsync profile's order** (proposed 2026-10-28 night; it corrects the owner's sketch, which
+deleted the metadata files before the checks): read the frame container back from disk in `incoming/` → rename it into
+the serving tree → one transaction writing the metadata into the study DB → read the rows back from disk → "stored" →
+study index (retried; never undoes) → clean `incoming/` last, so most failures retry locally. Frames before metadata,
+so a viewer never sees metadata for pixels not in place (design state §3).
+
 ### 2.4 Reply
 
 **Decided 10-26:** replies and retries are required; rsync's exit 0 means *received and checked*, not *stored*. The
 words (`stored`/`refused`/`quarantined` in #163, `committed`/`refused` in #164) and where the status file lives are
 open (design state §14, D3).
+
+**What "checked" covers** (proposed reading 2026-10-28 night): "rsync normally verifies that each transferred file was
+correctly reconstructed on the receiving side by checking a whole-file checksum that is generated as the file is
+transferred" (rsync(1)); the algorithm is auto-negotiated (the xxHash variants lead its list; `--checksum-choice`). It
+replaces our package hash for the wire. It does **not** prove the bytes on the PACS disk (checked during the write,
+before the page cache is flushed; `--fsync` flushes but does not read back), so the read-back from disk (**Decided**
+10-25) stays; nor the files the quick check (size + mtime) skips; nor corruption at rest at the PCS (§1, the bridge).
 
 | option | how it works | good at | costs | what decides | cost of switching |
 | --- | --- | --- | --- | --- | --- |
@@ -158,6 +182,12 @@ itself behaves like C: it exchanges a file list and compares, and `--delete` del
 the receiving side (those that don't exist on the sending side)" (rsync(1)). But that reaches only `incoming/`: the
 serving tree's deletions come from the item list, never from rsync (*inference*).
 
+**Late instances and corrections under rsync** turn on what rsync compares against at the PACS: P1 our script sends
+only what is new (a sent record at the PCS); P2 a mirror of the received metadata at the PACS and `--compare-dest` into
+an empty `incoming/`; P3 negotiated (the item list over ssh, the PACS answers what it lacks, `--files-from`, then the
+trigger); P4 the full metadata each time (E), frames only for instances the PACS lacks. Leaning P3 or P4, by reasoning;
+row RSYNC-2 (`claude/rsync-updates`) works them through, crossed with §2.9.
+
 ### 2.6 The PCS's copy
 
 **Decided 10-24:** the PCS keeps each unit until "stored" and resends on "refused". The sender deletes its copy after
@@ -165,6 +195,12 @@ reading "stored" (package profile: the outbox package). Never `--remove-source-f
 are a part of the transfer and have been successfully duplicated on the receiving side" (rsync(1)): received, not
 stored, so too early on corruption at rest, a full disk at staging or a receiver bug (#180). In the rsync profile the
 PCS's tree is the copy; whether the PCS clears it after "stored" is the PCS team's.
+
+**Resends under rsync** (owner 2026-10-28 night: no resend is needed for what rsync verifies; proposed): wire errors are
+rsync's own, which retries a file that fails verification within the run (the manual does not state it plainly; row
+RSYNC-1, `claude/rsync-options`, checks it). A resend from the kept copy remains a rare fallback, for bad bytes on the
+PACS disk or a crash that loses `incoming/`; most processing failures retry locally if `incoming/` is cleaned last
+(§2.3). The copy is still kept until "stored", as a safety net.
 
 ### 2.7 Compression
 
@@ -183,6 +219,15 @@ Whether `-z`'s stream keeps its context across files, as "one stream" asks, is n
 | rsync daemon `auth users` | a module password | — | "comparatively weak" (rsync(1) §SECURITY); only over ssh |
 
 Either names the sender for the audit row's "who" (#163's ADR §7, question 7, open).
+
+### 2.9 Who builds the `.sbnd` under rsync
+
+Proposed 2026-10-28 night as a part; it ties delivery to the layout question (design state §14, D14).
+
+| option | how it works | good at | costs | what decides |
+| --- | --- | --- | --- | --- |
+| **our script at the PCS, before the rsync** (as §4.1 draws it) | the bundle is built at the PCS and crosses as `<S>/series.sbnd` | the PACS only checks and places; one file per series to verify | our code runs at the PCS; on layout A it encodes the PCS's raw frames | whether our code may run at the PCS beyond the sender |
+| **the PACS, from the PCS's frame files** | rsync copies the frame files; the receiver assembles the `.sbnd` | nothing of ours builds at the PCS | layout A (the code: raw `<I>/G\|P\|R/%05d`): the PACS would encode, against "the PCS encodes" (10-24); layout B (the PDF: HTJ2K codestreams in `c/`): it only assembles, and the frames' hash names (`00001.blake3` in the PDF's diagram) can be checked | D14, and the PCS team's answer on frame hashes |
 
 ## 3 · Corrected: completeness is not an argument against rsync
 
@@ -225,7 +270,7 @@ PCS: our sender                                          PACS
 ```
 
 `--fsync` and `--delay-updates` ("a little closer to atomic", rsync(1)) are not needed: nothing is read before the
-trigger, and the receiver hashes every file and `fsync`s its own staging (*inference*).
+trigger, and the receiver flushes and reads every file back from disk itself (§2.3; *inference*).
 
 **Built code:** #177's sender keeps its allow list and refusals at build, the records of what each revision carried
 (now the `--files-from` list and the item list), its idempotent call and exit codes; its tar build, zstd member and
@@ -288,9 +333,11 @@ only the carrier and `send-package.sh`, and keeps one file to keep and resend wh
 5. **ssh or a daemon**, and one login per PCS for the audit's "who".
 6. **Compression restated for rsync** (§2.7): the 10-26 decision was written for the package.
 7. **The synchronization shape**, once the four SYNC rows report (reported 2026-10-28: #220–#223, §2.5).
-8. **The hash bridge** (§1): the receiver checks BLAKE3 names, the item list carries XXH3, or an XXH3-named copy.
+8. **The hash bridge** (§1): the receiver checks BLAKE3 names, the item list carries XXH3, or an XXH3-named copy;
+   recommended (a), awaiting the owner.
 9. **For the PCS team:** where an addition's bundle comes from (added frames only, or the series again); the corrected
-   group written beside the old one (#176).
+   group written beside the old one (#176); whether frame files will carry their hash (§1, the gap).
+10. **Who builds the `.sbnd`** (§2.9), with the layout A/B (D14); and late instances under rsync, P1–P4 (§2.5).
 
 ## 7 · Sources
 
@@ -299,7 +346,8 @@ only the carrier and `send-package.sh`, and keeps one file to keep and resend wh
   [its config page](https://download.samba.org/pub/rsync/rsyncd.conf.5) (sha256 of the pages `9160de49f8f5`,
   `52281a0b6b93`): §SECURITY, §USING RSYNC-DAEMON FEATURES VIA A REMOTE-SHELL CONNECTION, `--checksum`, `--delete`,
   `--remove-source-files`, `--files-from`, `--compress`, `--skip-compress`, `--timeout`, `--partial-dir`,
-  `--delay-updates`, `--fsync`; `early exec, pre-xfer exec, post-xfer exec`. Older quotes are #181's, at 3.4.4.
+  `--delay-updates`, `--fsync`, `--checksum-choice`, `--compare-dest`; `early exec, pre-xfer exec, post-xfer exec`.
+  Older quotes are #181's, at 3.4.4.
 * The design state, `docs/ingest/pacs-receive-design.md` at `f8b0bb2a` (#168): §1, §2, §3, §5, §14.
 * `docs/ingest/carriers-explained.md` at `ef480679` (#181): §2 rsync, §11's table.
 * `docs/adr/pcs-transfer.md` §15 at `3ea13d37` (#177): the sender as built.
