@@ -5,7 +5,7 @@ use anyhow::{bail, ensure, Context, Result};
 use bytes::Bytes;
 use clap::Parser;
 use native_client::cache::Cache;
-use native_client::transport::{dial, Event, Windows, ALPN};
+use native_client::transport::{cert_hash, dial, Event, Windows, ALPN};
 use native_client::verify::{digests, Exact};
 use std::os::unix::fs::FileExt;
 use std::path::PathBuf;
@@ -46,11 +46,7 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    let hash = (0..32)
-        .map(|i| args.cert_sha256.get(2 * i..2 * i + 2).and_then(|b| u8::from_str_radix(b, 16).ok()))
-        .collect::<Option<Vec<u8>>>()
-        .and_then(|h| h.try_into().ok())
-        .context("--cert-sha256 is not 64 hex digits")?;
+    let hash = cert_hash(&args.cert_sha256)?;
     let bundle = std::fs::File::open(&args.bundle).with_context(|| format!("open {}", args.bundle.display()))?;
     let layout = series_bundle::read_layout(&bundle)?;
     let digests = digests(&layout.metadata)?;
