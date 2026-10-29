@@ -2230,6 +2230,25 @@ cell, binary −26 %, release rebuild 10 → 39 s. A later campaign on this tree
 32 KB, depth 1, one session, against −3 to −6 % CPU at saturation; if large frames ship at depth 1,
 that is the cell to weigh.
 
+**An in-kernel L7 fast path is not a candidate** (read 2026-10-29; argued, not measured). Beeper (Brandner et al.,
+LPC 2026, `github.com/lerboe/beeper`, GPL-3.0) parses HTTP/1.1 and HTTP/2 in eBPF. It runs a DFA that it builds in
+user space, attaches it to `sk_msg` or `sk_skb` behind strparser or kTLS, and needs kernel 6.8 or newer. Its
+static-asset fast path answers 32 KB requests from the kernel: 3.0× the throughput on HTTP/1.1 and 3.4× on HTTP/2,
+with a cost of 12–18 % on the requests that fall back to user space. None of this reaches this server:
+
+* **The frames go over QUIC.** QUIC runs on UDP, and quinn encrypts each packet in user space. A socket hook sees only
+  ciphertext, and QUIC has no kTLS.
+* **A frame's cost is per byte, not parsing** (above: AES-GCM, the copies, the segments). An ask is a short JSON
+  message on the control stream, and the answer is the frame itself, so there is no small response to answer from
+  the kernel.
+* **The WebSocket path is TCP but ends TLS in rustls.** It would need kTLS first. Past the upgrade its bytes are
+  WebSocket messages, which Beeper does not parse.
+* **The static host serves the viewer once per page load.** It has not been measured as a cost.
+* **Licence and deployment.** Beeper's GPL-3.0 sits against this repository's MIT. Attaching to a sockmap needs
+  `CAP_BPF` and `CAP_NET_ADMIN`, and `deploy/compose.yml` grants only the io_uring seccomp profile.
+
+**What would reopen it:** QUIC in the kernel with a hook that sees plaintext, or a frame path carried over HTTP.
+
 ### Many fills at once: fills per core
 
 *2026-10-07, queue row 81.*

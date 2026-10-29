@@ -76,6 +76,7 @@ Owner: [`transport/transport-conclusions.md`](transport/transport-conclusions.md
 | --- | --- | --- | --- |
 | Pooled hand-off, one copy fewer | TC §4: −3 to −8 % CPU, 6/6; row 51 confirms | held | TC §4 |
 | mmap, `sendfile`, the per-send copy | row 51: CPU per byte flat 1.5–2.6 µs/kB from 250 kB to 16 MB | held — no per-frame cost is left, so row 162's ×5 falls on CPU per byte | disk-access §Frames past 250 kB |
+| In-kernel L7 parsing and serving (eBPF; Beeper) | — (argued: QUIC's payload is encrypted in user space, so the kernel never sees it) | never | TC §4 |
 | PGO | TC §4: −13 to −20 % CPU per ask, no cell against | premise (link band: server CPU ×5); opt-in | TC §4 |
 | LTO fat | TC §4: −3.7 to −8.4 % CPU, +7 % p50 at 32 KB depth 1 | held | TC §4 |
 | mimalloc; `aws-lc-rs` | TC §3, §4 | held | TC §3, §4 |
