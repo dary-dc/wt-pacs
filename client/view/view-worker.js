@@ -50,10 +50,12 @@ function start({ canvas, meta, fillMode, size, settlePaint }) {
 }
 
 /** The store's intake is the consumer, which acks each frame; the store holds it, and the first want rides the start in place of the fill. */
-async function connect({ port, url, certHash, opts, issuedAt }) {
+async function connect({ port, url, certHash, opts: { holdEveryOther, ...opts }, issuedAt }) {
   downloader = port;
   controller.issuedAt = issuedAt;
-  const want = controller.store.want(controller.want());
+  // Descending, so the held frames are asked alike whatever the downloader's `span`.
+  const held = holdEveryOther && controller.want().filter((i) => i % 2 === 0).reverse();
+  const want = controller.store.want(held || controller.want());
   controller.client = await DownloaderClient.connect(url, certHash, {
     ...opts,
     fill: undefined,
@@ -63,6 +65,14 @@ async function connect({ port, url, certHash, opts, issuedAt }) {
     onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
   });
   controller.store.downloader = controller.client;
+  if (held) fillAround(held);
+}
+
+/** The lab's half-held store: once the held frames are here, the rest are wanted and the fill is timed from that want. docs/adr/frame-path.md §Experiment 1 */
+async function fillAround(held) {
+  await Promise.all(held.map((i) => controller.store.arrival(i)));
+  controller.issuedAt = performance.timeOrigin + performance.now();
+  controller.store.want(controller.want());
 }
 
 const INTENTS = {

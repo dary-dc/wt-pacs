@@ -499,5 +499,41 @@ async function aReplacedWantKeepsWhatIsOwed() {
 }
 await aReplacedWantKeepsWhatIsOwed();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement: ok");
+/**
+ * `span: g` makes the misses around held frames one run when no gap is wider than g, and the held frames it carries
+ * reach no one; a wider gap, or a frame still wanted later in the order, ends the run. Off, they are asks.
+ */
+async function aSpanCrossesHeldFrames() {
+  const odd = [1, 3, 5, 7, 9, 11, 13, 15];
+  const off = await wantWorld("span-off", { decode: false, decoders: 0 });
+  await onmessage({ data: { kind: "want", indices: odd } });
+  check(off.fills.length === 0 && off.asks.join() === "1,3,5,7", `span 0: the misses are asks (${off.asks}, runs ${JSON.stringify(off.fills)})`);
+
+  const on = await wantWorld("span-on", { decode: false, decoders: 0, span: 1 });
+  await onmessage({ data: { kind: "want", indices: odd } });
+  check(JSON.stringify(on.fills) === "[[1,15]]" && on.asks.length === 0, `span 1: one run over the held frames (${JSON.stringify(on.fills)}, asks ${on.asks})`);
+  for (let i = 1; i <= 15; i++) on.onFill(frame(i));
+  await settle();
+  const got = posted.filter((m) => m.kind === "frame").map((m) => m.index);
+  check(got.join() === odd.join(), `only the misses reach the consumer, once each (${got})`);
+
+  const wide = await wantWorld("span-wide", { decode: false, decoders: 0, span: 1 });
+  await onmessage({ data: { kind: "want", indices: [1, 3, 5, 7, 10, 12] } });
+  check(JSON.stringify(wide.fills) === "[[1,7]]", `a gap of 2 under span 1 ends the run (${JSON.stringify(wide.fills)})`);
+
+  const later = await wantWorld("span-later", { decode: false, decoders: 0, span: 1 });
+  await onmessage({ data: { kind: "want", indices: [1, 3, 5, 7, 2] } });
+  check(later.fills.length === 0 && later.asks.join() === "1,3,5,7", `a frame wanted later is not crossed (${later.asks}, runs ${JSON.stringify(later.fills)})`);
+
+  // The decoder never finishes: frame 2 stays here, unacknowledged, so the consumer does not hold it yet.
+  const queued = await wantWorld("span-queued", { decoders: 1, decoderWorker: "x", span: 1 });
+  await onmessage({ data: { kind: "want", indices: [2] } });
+  await queued.serveOne();
+  queued.asks.length = 0;
+  await onmessage({ data: { kind: "want", indices: [1, 3, 5, 7] } });
+  check(queued.fills.length === 0 && queued.asks.join() === "1,3,5,7", `a frame in hand and unacknowledged is not crossed (${queued.asks}, runs ${JSON.stringify(queued.fills)})`);
+}
+await aSpanCrossesHeldFrames();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames: ok");
 process.exit(failed ? 1 : 0);

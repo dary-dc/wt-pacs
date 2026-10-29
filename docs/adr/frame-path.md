@@ -1108,3 +1108,78 @@ rounds on both engines and no set is slower.
 
 **8 · Groups and previews.** Both bite only with a payload the viewer does not use today; the experiment waits for
 one.
+
+#### Experiment 1: span small gaps in the misses (2026-10-29)
+
+*Row 1 of the table above, pre-registered before any data. Built behind a lab setting, default off; **not run**. The
+run is a row of its own, after a methodology review.*
+
+**What the want-path build already does, corrected against row 1.** Row 1 counts one round trip per one-frame run,
+which is VW's fill fed from the page (`downloader.js:290` there). On the want-path build a scattered want is not a
+chain of runs: a want that does not ascend D_min frames from its head goes out as up to D_min asks in flight, topped up
+as each lands (`serveWant`, `client/transport/downloader.js`; *a want arrives in its order*,
+`client/transport/downloader.test.mjs`). So on this build the table's g = 0 and *all misses as asks* are one variant,
+and the idle time to remove is at most one round trip per D_min misses, not per miss: 38 misses at D_min = 4 are ~10
+round trips, 0.4 s at 46 ms and 0.9 s at 92 ms on the probe's model, **a guess**. Against that, a span re-sends every
+held frame it crosses: on a store holding every other frame the wire carries the whole series, twice the misses'
+bytes. Where four frames in flight already fill a round trip — at 20 Mbit, row 1's 29 ms a frame is 116 ms per four,
+against 46 or 92 — the asks keep the link busy and the span is predicted **slower**, towards 2×. That prediction is
+the model's; the run decides.
+
+**The change.** `span: g` in the downloader's config, from the viewer's `?opts=`, default 0 (today's behaviour): a run
+from the want's head, and a fill's next run, may cross up to g frames the consumer holds — neither in the want nor
+with a record in the downloader — and counts only its misses toward D_min. A crossed frame arrives with no record and
+is dropped before any decoder (`runEnd`). A frame still wanted later in the order, or here and unacknowledged, ends
+the run.
+
+**Claim.** On a store holding every other frame, `span: 1` makes the misses one fill, ≥ 40 % shorter than their asks.
+
+**Variants**, the same build and `opts` but `span`: **A** `span: 0`; **A′** `span: 0` again, the A/A pair; **S**
+`span: 1`. Every gap on that store is one frame, so g = 2, 4 and 8 would send S's wire schedule exactly; the table's
+sweep over g needs a held pattern with wider gaps and runs only if S passes.
+
+**Cells.** `lab/av1/delivery/total-time/run.mjs`, the viewer under `?view=worker`, HTJ2K; `us_liver` (70 × 760×421
+RGB 8-bit) and `dbt12_ea1141` (29 × 614×1359 12-bit); link `r20000` at `--one-way-ms` 23 and 46 (RTT 46 and 92),
+impairments `clean` and `l1`; Chromium and Firefox; CPU 1×. Two store states:
+
+* **half-held** — `opts.holdEveryOther` makes the view worker want the even frames first, in descending order so A and
+  S ask them alike, then want the rest and time the fill from that want (`fillAround`, `client/view/view-worker.js`);
+* **empty** — today's start.
+
+**Metrics.**
+
+* moved: the half-held fill, the controller's `fillMs` from the want of the rest to the last frame held;
+* must not regress: the empty fill, which has no gap to cross, so S is A there by construction and the cell checks it;
+  the first exact frame on screen; on-demand latency, `?fill=0` with ten steps across the series, step → frame held,
+  which S cannot move since a want of one frame is never a run; exactness, every frame's digest against the encoder
+  input's `.sha256`, each decoded once, none failed;
+* recorded: frames on the wire (the session's `mediaReads` at the last frame) and the decoders' CPU the rig reads.
+
+**Interleaving and rounds.** `lab/order.mjs`: the variants in a Williams order inside each cell, the cells in one each
+round; 12 rounds. The RTT is a process argument, so even rounds run 23 then 46 and odd rounds 46 then 23. A visit the
+relay marks `VOID` is dropped and its cell topped up in rounds 13 on, to n = 12.
+
+**A/A.** Per cell, A′'s median moved metric within ×0.95–1.05 of A's; a cell outside it claims nothing.
+
+**Saturation guard.** The host: the relay on a core of its own (`--rig-core`), the browser on the other three, 1×
+only, `VOID` visits dropped. The link: where A's half-held goodput, misses' bytes over its fill, is ≥ 0.9 of 20 Mbit,
+the asks already fill the link; the cell is reported saturated and claims nothing for or against S. The decoders: where
+A's decoder CPU is ≥ 0.9 of three decoders over the fill, the cell is decode-bound, treated alike.
+
+**Rule, stated before any data.** Adopt `span: 1` as the default if, in every unsaturated half-held cell, S's fill is
+≤ 0.6× A's in ≥ 9 of 12 rounds, at both RTTs and on both engines, with frames on the wire no more than the empty fill's
+(the series once); and S's empty fill is within ×0.98–1.02 of A's, its first frame and its on-demand median no later
+by 16.7 ms, every frame exact and decoded once. Otherwise `span` stays 0 and the setting is removed, this subsection
+kept as the record. If every half-held cell is saturated, the experiment says so and claims nothing.
+
+**What the run row adds to the rig first**, reviewed with this protocol, not built here: a variant field carrying
+`span` and `holdEveryOther` into `opts`; the levers' result carrying the controller's `fillMs` and the session's
+`mediaReads`; an on-demand cell for a viewer variant, if `--asks-after` does not drive one.
+
+**Built and checked.** *A span crosses held frames* (`client/transport/downloader.test.mjs`): span 0 asks; span 1 is
+one run and only the misses reach the consumer, once each; a gap of 2 ends it; a frame wanted later, or here and
+unacknowledged, is not crossed. Each mutant fails it: the span ignored, the gap bound one wider, either half of the
+guard dropped, the fill's next run unspanned, D_min off by one. The smoke, one round per variant, Chromium on
+localhost, a 76-frame series through `client/viewer/check.mjs --view worker --opts '{"holdEveryOther":true,"span":g}'`:
+A, A′ and S each held all 76 frames exact and drawn,
+and a probe, since removed, saw S send frames 1–75 as one run and A send none. No number is reported from it.
