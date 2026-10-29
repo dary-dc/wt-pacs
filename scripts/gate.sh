@@ -164,6 +164,9 @@ run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
 
+step "lab: M5's rule on made-up rows: each in-hand path barred on its own, the busy cell's A/A"
+run 1 python3 lab/opfs-cache/summary_test.py
+
 step "lab: the AV1 fetch refuses a lossy source its set does not mark"
 run 1 python3 lab/av1/provenance_test.py
 

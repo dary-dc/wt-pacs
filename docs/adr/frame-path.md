@@ -851,6 +851,19 @@ smoke number here is a result): `slots-never-freed`, the view never frees a slot
 (frames outside the ring); `credits-ignored`, the ack dispatches but the gate is gone (in `m5-busy`, more than K
 waiting); `disk-keeps-frames`, the decoder posts a copy in `disk` and the view keeps a window (peak bytes held).
 
+**Amended 2026-10-29, before any data**, closing the independent review's four open items on the harness (PR #241):
+
+* **`m5-busy` has its own A/A.** It runs `ring` and `ring′` interleaved with the two `transfer` arms, and is VOID by the
+  main cell's thresholds: the median |`ring′` − `ring`| over 64 MiB, or the median `ring′`/`ring` fill time outside
+  0.90–1.10. A VOID busy cell decides nothing about credits. `ring` there is reported, not ruled.
+* **The time bar holds on each path.** An arm meets it if its median ask is within `ring`'s median ask + 16.7 ms, and
+  its median step is within `ring`'s median step + 16.7 ms. `summary.py` used to pool the six times into one median.
+  That reading let through an arm whose steps alone miss, so this changes the rule's meaning, not just its code.
+* **A decoder that fails after taking a slot frees it.** The view reports the slots still marked as decoding at its
+  end (`slotsDecoding`). A fixture, `throws-after-slot` (the fill's last frame fails after its decoder takes a slot),
+  must end with 0. Its mutant, `throws-slot-kept`, drops the release and must end with 1.
+* **`--mutant` on an M5 cell without a valid `--arm`** is refused with the arms listed (it crashed before).
+
 **What smoke changed in the rig**, before this text was final: a stand-in routed by Playwright never reached a script
 loaded by a worker's own worker, so the credits build had not bound; every stand-in is now written over its file and
 put back after each browser, in both engines, M2's included. M5's series (2.03 GiB) is over the 1 300 MiB site limit
