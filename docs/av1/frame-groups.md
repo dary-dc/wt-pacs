@@ -6,7 +6,7 @@ content type.** On DBT reconstructed slices that is a conclusion, reached by a r
 ultrasound cine, ABUS and angiography it is a default: no data fit to test them is open.
 
 This file owns the question: the decision (§1), the conditions it holds under (§2), how it was reached (§3), why
-(§4), what would reopen it (§5) and the sources (§6). The theory, predictions and review written before and just
+(§4), what would reopen it (§5), what else G touches (§5a–§5d) and the sources (§6). The theory, predictions and review written before and just
 after the measurement are kept as they were recorded (§T1–§T4a). The protocol the measurement ran is
 [`gop-protocol.md`](gop-protocol.md), unchanged since it was registered. Every number carries its row of
 [`queue.md`](queue.md). Sections 1–5 were written 2026-10-24 from committed rows: nothing was coded again, and where a
@@ -264,6 +264,99 @@ frames exact (row 100).
 For DBT, what would reopen it is a sound series, of a system not yet measured, whose median ρ is over ½, or any
 coding that gains ≥ 20 % on a sound series.
 
+## 5a · What else G touches, and where it is written
+
+*2026-10-27, theory only: nothing coded, decoded or timed. Inference is marked* derived *or* inferred*; a claim no
+source read confirms,* unverified.
+
+| dimension | covered where / added here | what it means for G |
+| --- | --- | --- |
+| random access: an ask mid-group, scrolling back, a jump | covered: §2 *The decode bound* and §3; [`adr-unit.md`](adr-unit.md) §3 (an ask asks from its keyframe; *What the cache holds*: frames k … N are all delivered) and its invariants 2–3; [`README.md`](README.md) §Frame groups; [`../decode/README.md`](../decode/README.md) §An ask behind the decoders (a jumping ask only to a decoder holding no group) | an ask costs (G + 1)/2 serial decodes on average, 4.6–24.6× over the bound at 4× (row 100); a step back after an ask is in hand, a step forward continues; a jump into another group starts at its keyframe |
+| sequential cine playback | added, §5b | G > 1 saves bytes only on the first pass and costs that pass its decoders' parallelism |
+| reference structures: low-delay, hierarchical, alt-ref and hidden frames, show-existing-frame | hidden alt-ref and overlay: §4 point 7, [`adr-unit.md`](adr-unit.md) §3 (a temporal unit carries up to 3 frames); added, §5c | hierarchical coding makes every ask dearer than low-delay at the same G |
+| key, intra-only and switch frames; what a decoder needs to start | intra-only not a start, switch frames not exact: [`README.md`](README.md) §Options read from the sources; added, §5c | only a shown key frame with its sequence header starts a group an exact client can ask |
+| one all-key stream against one-frame streams | the containers and their indexes: [`../disk-layout/containers.md`](../disk-layout/containers.md) (row 159); added, §5d | at G = 1 they are the same bytes; the per-frame flush is the one setup cost, and it is open at G = 1 already |
+| encoders exact on inter at 10 and 12 bits | covered: §2; [`README.md`](README.md) §Exactness and the decoders (rows 1, TOOL) and §Encoding (`--rt`, `svc_encoder_rtc`) | libaom only, with `--auto-alt-ref=0` or `--rt`; SVT-AV1 v4.2.0 inter exact at 8 bits only; rav1e 0.7.1 has no lossless mode |
+| decoders for groups: WebCodecs, dav1d, dav1d-WASM on split groups, hardware | covered: [`../decode/README.md`](../decode/README.md) §WebCodecs without a flush (row WCLAT) and §WebCodecs, what it decodes exactly (12 bits refused at any G); §5 *The client*; [`../decode/hardware.md`](../decode/hardware.md) §3–§5 (4:0:0 and 12-bit limits), §9 (G = 8 cells proposed) | a group goes through WebCodecs at 8 and 10 bits; a 12-bit top only through dav1d-WASM, which fails every split group today |
+| decoder memory for references | [S1] §3 (`NUM_REF_FRAMES` 8); dav1d holds a reference by count ([S26]); dav1d-WASM never returns heap (row 38) | up to eight distinct pictures a decoder where G = 1 holds one: about 5 MB each on a 2.5 Mpx 10-bit DBT top, so up to 35–40 MB more (*derived*; two bytes a sample above 8 bits *unverified*) |
+| loss and corruption inside a group | a failure fails the rest of its group: [`adr-unit.md`](adr-unit.md) §3 invariant 4; a truncated frame fails: [`../CLIENTS.md`](../CLIENTS.md#a-truncated-frame-is-a-failure) | a retransmitted frame holds back, and a broken one breaks, up to G − 1 frames; error-resilient mode only lets a frame parse alone ([S1] §6.8.2), its prediction still reads the broken reference (*derived*) |
+| the per-frame exactness check inside a group | no second path for a frame inside a group: [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 | the digest still decides frame by frame; each later mismatch starts a second decode that fails for want of references, so at G > 1 a mismatch should fail the rest of its group by name (*inferred*; nothing to build at G = 1) |
+| energy on phones | [`../devices.md`](../devices.md) D5; nothing measured on a phone | a frame costs the same decode at any G (row 100's mean ask over (G + 1)/2 frames is 0.97–1.03 of G = 1's frame at 4×, *derived*), so a fill in order is predicted a tie and a cold ask costs (G − 1)/2 extra decodes |
+| late frames in a container | PR #179 and PR #185 | re-encoding a group dominates a late frame's cost; not redone here |
+
+## 5b · Sequential cine playback
+
+G > 1 is usually argued for a stream decoded once, in order, at its display rate, over a link that must carry that
+rate: every frame is decoded anyway, so inter saves bits and costs nothing. Here (*derived*):
+
+* **Only the first pass decodes.** A viewer keeps what it decoded ([`../decode/README.md`](../decode/README.md)
+  §Retained-frame residency), so a loop or a sweep, DICOM's playback sequencing ([`README.md`](README.md) §The order
+  frames are asked in), replays pixels at any G.
+* **The first pass loses its parallelism, not its per-frame cost.** Decoders run in parallel only across groups
+  ([`adr-unit.md`](adr-unit.md) §3, *The decoder pool*), so with D decoders and F frames the first pass decodes at
+  min(D, ⌈F/G⌉) decoders' rate where decode is the clock, one decoder's at G ≥ F. A frame inside a group costs what a
+  key frame costs (§5a, *energy*).
+* **It gains the group's bytes only where the wire is the clock**: at most 1.5 % on DBT (§1).
+
+**Prediction** (native cine, untested, §5): where P8's ≥ 20 % holds, G > 1 shortens a wire-bound first pass by about
+its gain and lengthens a decode-bound one up to D× at G ≥ F. Total time to the whole loop at G ∈ {1, 8, F}, on
+wire-bound and decode-bound cells, would decide. Whether one decoder keeps up with a native cine's frame rate is
+unmeasured.
+
+## 5c · Reference structures, and where a decoder can start
+
+* **What was measured is low-delay**: libaom with alt-ref off, one temporal unit a frame, each group decoded in index
+  order. That decode order is display order is *inferred* (an ask's cost grows with (G + 1)/2, row 100), not read in
+  libaom's source.
+* **Hierarchical coding** (alt-ref on, pyramids) codes a future frame first, hidden (`show_frame` 0), and shows it
+  later through an overlay or `show_existing_frame` ([S1] §6.8.2). Every temporal unit still shows one frame, so the
+  store's entry per frame and in-order dispatch hold ([`adr-unit.md`](adr-unit.md) §3). What changes (*derived*):
+  a hidden frame rides in an earlier unit than the frame it shows, so some entries carry two or three frames' coding,
+  and an ask at N decodes N − k + 1 shown frames plus every hidden frame coded before N. At the same G an
+  ask never costs less than low-delay's. In lossless libaom filters the alt-ref (§4 point 7), so its frame is shown by
+  a coded overlay, not by `show_existing_frame` (*inferred* from `encode_strategy.c:78-99`).
+* **`show_existing_frame`** outputs a stored frame with nothing coded: a unit of a frame header, a few bytes
+  ([S1] §6.8.2). Chromium's WebCodecs stalls on a delimiter-only unit ([`../decode/README.md`](../decode/README.md)
+  §WebCodecs without a flush). **Prediction:** it returns the frame for a `show_existing_frame` unit, which the spec
+  counts as shown ([S1] §7.5); one such unit through the dispatch variant decides.
+* **Where a decoder can start** ([S1] §7.6.2–7.6.3): at a *key frame random access point* (`KEY_FRAME`, `show_frame`
+  1, a sequence header in the same unit), which every payload is today, or at a *delayed* one (a hidden key frame,
+  shown later by `show_existing_frame`). Nowhere else:
+  * an **intra-only** frame keeps at least one reference slot (`refresh_frame_flags` ≠ 0xFF, [S1] §6.8.2), so the
+    frames after it may predict across it;
+  * a **switch frame** refreshes every slot ([S1] §5.9.2) but is inter-coded: it needs a stream's references, and on
+    another stream's it is not exact ([`README.md`](README.md) §Options read from the sources).
+
+  WebCodecs takes only the first as a key chunk ([S25] §4), so a delayed point could not open its decoder
+  (*derived*). For G: a group starts at a shown key frame with its sequence header, and intra-only and switch frames
+  add no point an exact client can start at.
+
+## 5d · One all-key stream against one-frame streams
+
+* **At G = 1 they are the same bytes.** Each payload is one temporal unit with a sequence header and a shown key frame
+  ([`payload-format.md`](payload-format.md)), a whole AV1 bitstream. A series' units, a stream at a time (top, low),
+  concatenate into one coded video sequence of key frames wherever their sequence headers are bit-identical, which
+  [S1] §7.5 requires within a sequence (*derived*; not checked on a series' payloads).
+* **In MP4, every sample a sync sample** must be a random access point: a shown key frame after a sequence header in
+  the same sample ([S23] §2.4). So a track of sync samples carries the per-sample sequence header the payloads carry,
+  and `av1C`'s `configOBUs` may hold it once more ([S23] §2.3.4). Every sample sync, `stss` is omitted and the sample
+  tables give each sample's offset, through its chunk, and length ([`../disk-layout/containers.md`](../disk-layout/containers.md) §3.1). At G > 1 the
+  sync flags would mark the groups; the client's k = G·⌊N/G⌋ ([`adr-unit.md`](adr-unit.md) §3) needs no table. A split
+  payload is two tracks no player combines (containers.md §6). At G = 1 the one-stream form is a remux, not a re-encode
+  (*derived*).
+* **Decoder setup: the flush.** WebCodecs is configured once per codec string ([`payload-format.md`](payload-format.md)
+  §Decoder choice, per payload) and demands a key chunk only after `configure`, `flush` or `reset` ([S24] §4.5,
+  `[[key chunk required]]`); a shown key frame refreshes all eight reference slots ([S1] §5.9.2), so a key chunk inside
+  a stream needs no flush by the codec. The client flushes at every group's end, so at G = 1 before every frame, to
+  guard against a unit labelled key that is not one, and skipping a flush was 7–20 % faster a frame at 1× and 3–28 % at
+  4× (row WCLAT, [`../decode/README.md`](../decode/README.md) §WebCodecs without a flush). *Inferred:* at G = 1 a
+  parse of the unit's first frame header against the three conditions of [S25] §4 can be that guard instead, and
+  the client already parses each key unit's sequence header for its codec string; dav1d-WASM's `dav1d_flush` a frame
+  ([`adr-unit.md`](adr-unit.md) §2) plays the same role, its cost unmeasured. **Prediction:** a G = 1 series decoded
+  through WebCodecs with no flush between key units, the key checked by parse, is exact and about 0.72–0.97 of today's
+  time a frame at 4×, less the parse; row WCLAT's harness, interleaved, decides. That is the one setup cost a single stream would save,
+  and G = 1 can save it.
+
 ## The record before the data
 
 The frame-group theory (queue row GOPTHEORY), written 2026-10-08 before any new data, and its review against the data
@@ -448,8 +541,15 @@ largest claim, P8, is untested.
 * [S20] ISO/IEC 14496-2, *Coding of audio-visual objects, Part 2: Visual*, the `not_coded` macroblock flag. Not reached: the text is sold, and `iso.org` refused the request; locator *unverified*.
 * [S21] DICOM PS3.3 2026d, A.27.3, the Digital Mammography X-Ray Image IOD's modules (`dicom.nema.org`, read 2026-10-24).
 * [S22] Weinberger, Seroussi & Sapiro, "The LOCO-I lossless image compression algorithm", IEEE Trans Image Process 9(8):1309-1324, 2000, doi:10.1109/83.855427.
+* [S23] AV1 Codec ISO Media File Format Binding v1.3.0, `aomediacodec.github.io/av1-isobmff/v1.3.0.html` (`ff70a1add286`), §2.3.4, §2.4.
+* [S24] W3C WebCodecs, Working Draft 26 October 2026 (`2960ce936587`), §4.5, `decode()` and `[[key chunk required]]`.
+* [S25] W3C AV1 WebCodecs Registration, Group Note Draft 13 October 2026 (`58b18e65c972`), §2, §4.
+* [S26] dav1d 1.5.4, `src/decode.c` (`3ff801271cb7`), `:3671-3677`, references refreshed by reference count.
 
 Re-read 2026-10-24: [S1]'s section numbers, counted from its headings at `5e04f3f`, and the `Lossless` tests cited in
 §4; [S2] `encode_strategy.c:78-99, 746-757` at `v3.15.1`; [S3] `enc_handle.c:3256` and the v3.1.1 entry of its
 CHANGELOG at `v4.2.0`; the abstracts of [S8], [S9], [S16] and [S18], and the metadata of every DOI above. The others
 were not re-read.
+
+Read 2026-10-27 for §5a–§5d: [S1] §3, §5.9.2, §6.8.2, §7.5 and §7.6.2–7.6.3 at `5e04f3f`; [S23]–[S26] at the sections
+cited. The hash is the SHA-256 prefix of the copy read.
