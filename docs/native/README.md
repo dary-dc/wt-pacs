@@ -92,8 +92,11 @@ Where a frame cache belongs, and whether the OS takes it back:
 §8, *A client cache*): hold only frames whose check is `true`, never key by digest, and re-check on read. From the
 file systems: write to a temporary name and rename (atomic on POSIX; Linux also needs the directory fsynced; Apple
 needs `F_FULLFSYNC` for durability; Windows' replace atomicity is unknown); a memory-mapped reader must survive a
-truncated file (`SIGBUS`); every read must tolerate a missing file. A packed file per series or a file per frame is
-open: not weighed by any source read.
+truncated file (`SIGBUS`); every read must tolerate a missing file. *Decided 2026-10-28 (M3):* **a file per
+frame**, because the rename that makes one frame's write atomic is then the whole write path; a packed file per series
+needs an index of its own, kept crash-consistent with the frames, and a reader of offsets into a file that can be
+short. The native cache reads with `read`, not a memory map, so `SIGBUS` does not arise; a short or damaged file fails
+its re-check like any other.
 
 **The other side.** AAPM Report 260 on handheld viewers recommends leaving no persistent data on the device. HIPAA's
 technical safeguards (45 CFR 164.312) make audit controls required and encryption at rest and automatic logoff
@@ -224,6 +227,30 @@ none queued; each states its predictions and rule before any data and runs in a 
   20 Mbit; a process killed at random points during 100 writes. Predictions: the reopen is ≤ 0.5 s against ≈ 24 s;
   after every kill each frame is either absent or passes its check, 100 of 100; a byte flipped on disk is refused on
   read and fetched again. Rule: all three hold, or the cache's design is revised before any phone run.
+
+  *Run 2026-10-28* ([`../../lab/scripts/native_cache_cells.sh`](../../lab/scripts/native_cache_cells.sh), container,
+  4 cores, ext4). **All three hold: the design stands** (*corrected 2026-10-28*: the reopen's prediction holds warm
+  only, from the page cache; cold, as after a reboot, is not measured, so ≤ 0.5 s is not shown for a real reopen).
+  Settings: `native-fill` release with `decode` (dav1d 1.5.4, OpenJPH 0.31.0), Chromium's windows, one `series-server` release build in `shared`; a synthetic series of 87 HTJ2K
+  frames, 768×920 12-bit `ct` content, 60.9 MB (no committed series is 61 MB), its digests from the source samples by
+  Python's `xxhash`; the relay at 20 Mbit, 40 ms RTT, 200 packets, `--self-timing`, one per run.
+  * **Reopen**, 7 rounds, the arms in a Williams order: from the cache **373 ms** median (345–443), all 87 frames
+    re-checked `true` and byte-identical, no dial; from the relay into an empty cache 25 145 ms (25 142–25 260, 5 runs;
+    2 voided by the relay's self-timing). 0.015×. The relay arm is bound by the link (61 MB at 20 Mbit is 24.4 s); the
+    cache arm by one core decoding, the other three idle. The reopen reads the page cache, which the files were just
+    written to: a cold device read is not measured.
+  * **Kills**: 100 writers each killed (SIGKILL) at a uniformly random time within a whole run (374 ms for 100 frames
+    of 701 KB): 7 749 frames whole, 2 251 absent, **0 torn**, so 100 of 100 kills clean. A power loss is not tested;
+    nothing here tells a kept fsync from a dropped one (two mutants survive, below).
+  * **A flipped byte**: one bit at a random offset of a random frame, 7 rounds: **7 of 7** refused on read, the entry
+    removed, the frame fetched from the server `true`, written again, and the next reopen all 87 from the cache.
+
+  Mutants (each run, each caught but two): in `cache.rs`'s tests, a frame stored whatever its check; written in place
+  with no temporary name and rename (the kill test, 1–6 torn in each of 5 runs of 20 kills); never renamed; a failing
+  entry kept; the version dropped from the key; the key's path check removed. In the lab cells, `native-fill` taking a
+  cached frame without its check passing (cell 3 fails the frame) and not writing fetched frames (cell 1's cache arm
+  fetches all 87). **Survived:** the file's and the directory's fsync removed, which only a power loss shows. A read
+  that skips the check cannot be written: `get` returns only what the check hands back.
 * **M4 PHONEFIRST — the core on one Android phone** (the owner's device; Android first because quinn's GRO and
   Vulkan exist there). After P-ARM: M2's cells through the phone's own Wi-Fi to the relay, the app against Chrome on
   the same phone. Predictions: the fill within ±3 % at 20 Mbit; the ask on large frames ≤ 0.9 × Chrome's only if
@@ -361,13 +388,21 @@ opened), and on `tokio`. Modules, each added by the step that needs it:
 * **`paint`** (M1, *built 2026-10-28*): `Painter::new()` on wgpu's first adapter, and `paint(frame, display, width,
   height, dpr)` to RGBA rows read back from an offscreen texture. No window. The browser painter's contract, proved in
   §6 M1. It sits behind the `paint` feature, so the default build carries no wgpu.
-* **`cache`** (M3): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8 *A client cache* and §3
-  above, as written.
+* **`cache`** (M3, *built 2026-10-28*): [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §8
+  *A client cache* and §3 above, as written: coded bytes, one file per frame at `root/series/version/index`, only
+  `true` frames; written under a temporary name unique to the write (`index.pid.n.part`, so two writers of one frame
+  never share it), fsynced, renamed, the directory fsynced; on read through the caller's
+  check, which hands back the samples, and an entry that fails it is removed. `get` returns only what the check
+  returned, so a read that skips the check does not type-check. Where the series name and the metadata's version come
+  from is open, as the metadata is (`native-fill` takes `--series` and `--version`); nothing evicts. A `.part` left by
+  a crash is never read, and nothing removes it.
 
 **The lab binary, `native-fill`**: `--url https://host:port/ --cert-sha256 HEX --bundle PATH`, then `--fill A-B` or
-`--ask N,…`, and the client's windows. It prints its settings first, then a row per frame (index, bytes, last-byte
-time, `exact`), and exits non-zero on any frame that is not byte-identical to the bundle's entry (read through
-`series-bundle`, not through the server) or not `exact`. The bundle stands in for the metadata a real viewer would
+`--ask N,…`, the client's windows, and with `decode` `--cache DIR --series S --version V`, which reads the cache first
+and asks the server only for what it lacks. It prints its settings first, then a row per frame (index, bytes,
+last-byte time, source, `exact`), times counted from before the cache's reads and the dial, which `dial_ms` prints,
+and exits non-zero on any frame that is not byte-identical to the bundle's entry (read through `series-bundle`, not
+through the server) or not `exact`. The bundle stands in for the metadata a real viewer would
 get, an open question the browser has too.
 
 **What `lab/window-harness` gives.** It speaks WebTransport through wtransport's client, FoD on the control bidi,
@@ -419,7 +454,7 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
    `false` as in the browser: big-endian 80 of 90 matrix payloads, sign- to 13-bit zero-extension 40 of 90. Over raw
    QUIC from the server, `native-fill` on the 107 payloads and the 2 codestreams packed as two series: every frame
    identical and `true`.
-3. **M3 CACHE** (§6), on `cache`.
+3. **M3 CACHE** (§6), on `cache`. *Built and run 2026-10-28:* see §6.
 4. **M1 PAINTPROOF** (§6): the painter as a module of this crate on wgpu. *Passed 2026-10-28* on lavapipe.
 5. **M2 NATIVEFILL** (§6), its native arm `native-fill` with `decode` and M1's painter.
 
