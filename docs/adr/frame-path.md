@@ -638,7 +638,7 @@ every engine. The finding it answers is M2's (*Fixes*, above); lever 2 names the
 
 | engine | a `SharedArrayBuffer`'s backing store | a transferred `ArrayBuffer` | what starts a collection |
 | --- | --- | --- | --- |
-| V8 | **counted as 0 bytes** in every isolate that holds it, "to avoid GC thrashing" (a TODO) | counted at its length in the isolate that holds it; the sender's count is cleared on detach | external memory past limits set from the last GC (the soft one 64 MiB over its low since then) starts marking or a collection |
+| V8 | **counted as 0 bytes** in every isolate that holds it, "to avoid GC thrashing" (a TODO) | counted at its length in the isolate that holds it; the sender's count is cleared on detach | external memory past limits set from the last GC (the soft one 64 MiB over its low since then) starts marking or a collection. *Corrected 2026-10-29 (independent review):* the soft limit is defined there and called nowhere in the files read; an allocation past its low since the last GC + 128 KiB starts marking only once the global limit is reached, which grows that low by a factor (`heap-controller.cc` 307–315, 487–490): proportional, not 64 MiB |
 | SpiderMonkey | counted at its length, once per zone (each worker is its own), whatever the holders | counted at its length | a zone's malloc bytes past max(retained, 38 MiB) × 1.5–3.0 |
 | JavaScriptCore | counted at its length by every wrapper ("probably overcounts") | the same | the heap, extra memory included, past a proportional multiple of the last live size |
 
@@ -657,7 +657,7 @@ with the store's copy.
 
 | | **(a)** a `SharedArrayBuffer` a frame, collected sooner | **(a′)** a transferred `ArrayBuffer` a frame | **(b)** a ring of largest-frame slots | **(c)** slots carved once per series |
 | --- | --- | --- | --- | --- |
-| memory during a fill | V8: unbounded, as M2; Gecko and JSC: window + collector slack | window + collector slack on every engine: V8 64 MiB and its marking's length, Gecko up to 0.5–2 × the window, JSC proportional | **fixed**: the ring | **fixed**: the ring |
+| memory during a fill | V8: unbounded, as M2; Gecko and JSC: window + collector slack | window + collector slack on every engine: V8 64 MiB and its marking's length (*corrected 2026-10-29:* V8's is proportional too, above), Gecko up to 0.5–2 × the window, JSC proportional | **fixed**: the ring | **fixed**: the ring |
 | copies, HTJ2K / dav1d / WebCodecs | 1 / 1 / 2 | 1 / 1 / 2 | 1 / 1 / 2 | 1 / 1 / 2 |
 | what the window holds at 256 MiB | the budget | the budget | the study's largest frame sets every slot: with a mammogram in it, 9 slots, so a CT series keeps 9 frames, not 512 | the series' own: 512 at 512², 9 at 3328×4096 |
 | new machinery | none, and nothing to build it with on V8 | the decoder's output type and a transfer list | a slot table, backpressure, the races below | the same as (b) |
@@ -708,7 +708,9 @@ and its rules carry over: the 4-vCPU container, the 80 × 3328×4096 series (2.0
 a fresh profile an arm, the browser tree's PSS each second, peak less the value before the dial; every frame checked
 by the decoder's XXH3 and the rig's SHA-256; arms ordered per round by `lab/order.mjs`; ≥ 7 rounds; each arm's
 settings printed with its rows; CPU busy recorded. Chromium as M2; Firefox on Xvfb, which needs the rig's Firefox
-driver taken from M3 to `m2` (a rig change, made in the later row). WebKit is not run (no build in the container).
+driver taken from M3 to `m2` (a rig change, made in the later row). WebKit is not run (no build in the container). *Corrected 2026-10-29:* `browser` already sends `m2` to the
+Firefox driver under `--engine firefox`; what `m2` lacks is the engine in its settings and rows. The arms are three
+client trees, and the rig serves one (`today`'s `was` was a stand-in): serving them side by side is a rig change too.
 
 | arm | build |
 | --- | --- |
@@ -721,17 +723,21 @@ driver taken from M3 to `m2` (a rig change, made in the later row). WebKit is no
 * **Predicted:** `ring` 530–600 MiB on both engines: the floor once everything is collected, 531–537 MiB (*Fixes*), holds
   the window and the workers already, and the ring adds nothing to it. `today` on Chromium as on 2026-10-28,
   2.6–3.2 GiB; on Firefox bounded by collection, 0.6–1.2 GiB. `transfer` 600–800 MiB on Chromium, 650–1 100 on
-  Firefox. Fill: `ring` ≤ `today` (one copy and one hop fewer); slot waits near zero with OPFS.
+  Firefox. (*Corrected 2026-10-29:* Chromium's 600–800 rested on the 64 MiB slack, which the sources do not give: a
+  guess, not a derivation.) Fill: `ring` ≤ `today` (one copy and one hop fewer); slot waits near zero with OPFS.
 * **VOID**, per engine: the median |`ring′` − `ring`| over 64 MiB, or the median `ring′`/`ring` fill time outside
   0.90–1.10.
 * **Rule.** On each engine, (c) **holds** if in every round not VOID the fill is complete, every frame exact by both
   checks, `ring`'s growth ≤ 608 MiB (the budget + 352: the floor's 537 and the A/A bar's 64, rounded up), and the median
   `ring`/`today` fill time ≤ 1.10. It **fails** otherwise, and lever 2 returns to the owner with the numbers.
   **Turned over to (a′)** if `transfer` also meets the 608 MiB bar and the time bar in every round not VOID, on both
-  engines. `today` is reported, not ruled: on Firefox it may already be bounded, which tests the source reading above.
+  engines. (*Corrected 2026-10-29:* VOID is the engine's cell, not a round: read "in every round of a cell not VOID";
+  a VOID cell decides nothing on that engine.) `today` is reported, not ruled: on Firefox it may already be bounded, which tests the source reading above.
 * **Mutants**, each a stand-in as M2's: the store never frees a slot, which must stall the fill (predicted after nine
   frames, the ring's count) and fail completeness within 120 s, 15 × today's fill; and a ring that allocates a fresh buffer when dry,
-  which must fail the 608 MiB bar.
+  which must fail the 608 MiB bar. *Corrected 2026-10-29 (independent review):* with OPFS the ring is predicted
+  near never dry (slot waits near zero, above), so that mutant may allocate nothing and pass: it runs with the store
+  off (the `off` stand-in), where the ring dries after nine frames. The 120 s is a rig change too: `fill` waits 1 800 s.
 * **After it, if (c) holds:** the 13 GiB series on `ring`, Chromium only: growth as at 2 GiB and the fill complete,
   where every earlier arm stopped at ~12 GiB, the container's limit (M2).
 
@@ -743,6 +749,7 @@ V8 at `f428bb0` (Chromium `52c75e5`'s `DEPS`); Gecko and WebKit at §9's pinned 
 | V8: a shared backing store counts 0 bytes per isolate | `src/objects/backing-store.h` 203–209; `src/objects/js-array-buffer.h` 291–298 |
 | V8: an array buffer's count added on attach, removed on detach; 0 skipped | `src/heap/array-buffer-sweeper.cc` 358–372, 388–402, 426–438 |
 | V8: what external memory starts; the 64 MiB | `src/heap/heap.cc` 1389–1401, 6976–7022; `include/v8-internal.h` 1233 |
+| V8: the start is the global limit, external memory's low × a factor (*added 2026-10-29*) | `src/heap/heap-controller.cc` 307–315, 482–490; `src/heap/heap-controller.h` 219; `src/heap/heap.cc` 5607–5611, 5646 |
 | V8: the accounting API is the embedder's | `include/v8-external-memory-accounter.h` 15–49 |
 | Gecko: a shared buffer counted once per zone, at its length; the trigger checked | `js/src/vm/SharedArrayObject.cpp` 777–800; `js/src/gc/Zone.cpp` 89–113 |
 | Gecko: an array buffer's contents counted and released as cell memory | `js/src/vm/ArrayBufferObject.cpp` 1885–1910 |
