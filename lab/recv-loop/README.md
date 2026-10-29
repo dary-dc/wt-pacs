@@ -15,6 +15,10 @@ NODE_PATH=$(npm root -g) node lab/recv-loop/run.mjs summary rows.jsonl   # the t
 ```
 
 `--browser firefox` runs Gecko (Playwright's Firefox, or `FIREFOX_PATH`); `--cells` and `--arms` take comma lists.
+*Corrected 2026-10-29 (independent review):* `run.mjs` does not read `FIREFOX_PATH`; only Playwright's own Firefox
+build runs.
+`--angle` is Chromium's ANGLE backend: `swiftshader` (software, the default) or the GPU host's, e.g. `gl` or `vulkan`;
+the row's `renderer` shows which ran.
 
 **Arms.** `split`: the receive loop in a worker of its own beside the view worker, the target's shape. `split2`: the
 same again, the A/A. `merged`: the receive loop in the view worker, the independent design's shape. Each visit is a
@@ -50,3 +54,8 @@ the view thread saturated on its own. Loopback cells are the browser's receive c
 visit of `103/46-drag`, and each mutant once. They show the harness runs; no number from them is a result.
 No Firefox or WebKit binary is in this container. Software GL is not a GPU: the protocol needs a host whose split
 cine holds 30 frames/s.
+
+*Independent review, 2026-10-29* (Chromium 153, software GL, 4 cores): each mutant on one round of `loop-cine` again
+failed its check as the table says (`leak` 797 arrivals, `fold` 0 in 228 and 135 intervals, `corrupt` 1 of 800 in
+every arm), the unmutated round passed; one round of `103/46-drag` came back `VOID` on both guards. *Corrected:*
+`summary` printed "the downloader may merge" on rows that left no shaped cell; it now prints "not decided".

@@ -2,7 +2,7 @@
 // docs/adr/frame-path.md §The receive loop beside the paint (2026-10-29); how to run it: README.md
 //   node lab/recv-loop/run.mjs make DIR
 //   taskset -c 1-2 node lab/recv-loop/run.mjs run DIR --rounds 12 [--cells a,b] [--arms split,split2,merged]
-//        [--browser chromium|firefox] [--mutant leak|fold|corrupt] --out rows.jsonl
+//        [--browser chromium|firefox] [--angle swiftshader|gl|vulkan] [--mutant leak|fold|corrupt] --out rows.jsonl
 //   node lab/recv-loop/run.mjs summary rows.jsonl
 import { spawn, execFileSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -33,6 +33,7 @@ const CELLS = Object.fromEntries(Object.keys(LINKS).flatMap((l) => LOADS.map((k)
 
 const argv = process.argv.slice(2);
 const flag = (name, fallback) => (argv.includes(`--${name}`) ? argv[argv.indexOf(`--${name}`) + 1] : fallback);
+const ANGLE = flag("angle", "swiftshader");
 const sh = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" });
 const quantile = (xs, q) => {
   const s = [...xs].sort((a, b) => a - b);
@@ -137,7 +138,7 @@ async function visit({ browserType, arm, cell, round, dir, host, hash, mutant, s
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "recv-loop-"));
   const context = await browserType.launchPersistentContext(profile, {
     headless: true,
-    args: browserType.name() === "chromium" ? ["--no-sandbox", "--use-gl=angle", "--use-angle=swiftshader"] : [],
+    args: browserType.name() === "chromium" ? ["--no-sandbox", "--use-gl=angle", `--use-angle=${ANGLE}`] : [],
   });
   const row = { round, cell, arm, mutant: mutant ?? null, browser: browserType.name() };
   const cpu0 = hostBusy();
@@ -239,7 +240,7 @@ function summary(file) {
   console.log("\n| browser cell | fill: merged ÷ split, A/A | fill verdict | p99 within 16.7 ms (A/A) | late within 16.7 ms (A/A) |");
   console.log("| --- | --- | --- | --- | --- |");
   let merge = true;
-  let decided = true;
+  let decided = Object.keys(verdicts).some((key) => !key.includes(" loop-"));
   for (const [key, v] of Object.entries(verdicts)) {
     const f = fill[key] ?? { arm: "—", aa: "—", verdict: `undecided at n = ${v.rounds}` };
     const need = Math.ceil(0.75 * v.rounds);
