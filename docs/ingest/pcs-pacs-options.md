@@ -227,6 +227,9 @@ PCS: our sender                                          PACS
 `--fsync` and `--delay-updates` ("a little closer to atomic", rsync(1)) are not needed: nothing is read before the
 trigger, and the receiver hashes every file and `fsync`s its own staging (*inference*).
 
+**Each rsync option, the five triggers and what rsync verifies:** [`rsync-delivery.md`](rsync-delivery.md) (2026-10-29,
+proposed: the marker written by an ssh forced command that also returns the verdict).
+
 **Built code:** #177's sender keeps its allow list and refusals at build, the records of what each revision carried
 (now the `--files-from` list and the item list), its idempotent call and exit codes; its tar build, zstd member and
 `send-package.sh` go unused; the rsync calls and the poll are a new script. #163's receiver keeps steps 6b–12, R and
