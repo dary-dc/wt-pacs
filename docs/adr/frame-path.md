@@ -1169,7 +1169,7 @@ impairments `clean` and `l1`; Chromium and Firefox; CPU 1×. Two store states:
 * recorded: frames on the wire (the session's `mediaReads` at the last frame) and the decoders' CPU the rig reads.
   *Corrected by the review below: `mediaReads` counts reads of the media streams, one per chunk, not frames
   (`client/contract/clauses.ts:615`), and at the last frame it includes the held frames' reads; the rig records it and
-  `fillReads`, the reads from the last held frame on.*
+  `fillReads`, the reads from the last held frame on; the wire is the relay's `s2c` packet count.*
 
 **Interleaving and rounds.** `lab/order.mjs`: the variants in a Williams order inside each cell, the cells in one each
 round; 12 rounds. The RTT is a process argument, so even rounds run 23 then 46 and odd rounds 46 then 23. A visit the
@@ -1268,3 +1268,32 @@ asks took red 5's gain; what is left of it, the first round trip, is D_min's to 
 `holdEveryOther`, this subsection the record. If the owner wants the model's sign checked first, the cheapest cell is
 one: `us_liver`, `r20000`, 46 ms, clean, Chromium, A and S half-held, 3 rounds. S / A in 1.7–2.1 keeps the model; S / A
 ≤ 1.2 would retract it, and with it this recommendation. The rig below runs that cell.
+
+**The rig, built** (`lab/av1/delivery/total-time/run.mjs`, `lab/viewer/levers.js`, `client/viewer/viewer.js`,
+`client/view/controller.js`):
+
+* a variant's `"opts"` in `variants.json` is merged last into connect's, so `{"span": 1, "holdEveryOther": true}`
+  reaches the downloader and the view worker; a store state is a variant;
+* the levers' result carries the controller's `fillMs`, the session's `mediaReads` at the last frame and `fillReads`
+  from the last held frame on, and a row records all three;
+* a viewer variant runs on demand with `--fill 0 --asks-after K`: frame 0 shown, then frames 1 … K stepped to one at a
+  time, each timed from its step to its frame held (the ledger's arrival), in the row's `afterMs`. Any other
+  `--fill` for a viewer is refused.
+
+`lab/viewer/levers.test.mjs` (gated) catches 8 of 8 mutants: `fillMs` dropped, the fill's reads not from the last held
+frame, the held frames taken as the odd ones, reads at the first frame, steps from 0, steps timed from the fill's
+issue, steps taken in a fill, fill frames reported on demand. The controller's new ledger test catches both of its:
+`fillMs` and `mediaReads` left out.
+
+**The smoke, one round, Chromium, `r20000` at 23 ms one way, clean, 1×** — no number from it is a result. The set is a
+synthetic 76 frames, the gate's `grey-16` codestream (38 kB) repeated, since no HTJ2K encoder could be built in the
+container; its truth is the vendored decoder's SHA-256. The six variants each held 76 of 76 frames exact, the decoder's
+check `true` on every one, with `fillMs` in each row. That the span arrived through `opts` shows on the relay: S
+half-held put about half a series more packets on the wire than A, the 37 frames it crossed; with the `opts` merge
+removed, S half-held sent an empty fill's packets — the mutant caught. On demand, A, A′ and S each took 10 steps, each
+timed, 10 of 10 exact, none failed.
+
+**`mediaReads` is not a wire measure.** In the smoke A's half-held fill, 38 asked frames, read about as often as an
+empty fill of 76, while the relay counted half the packets: a frame on its own stream is read in more, smaller pieces
+than a frame in a run. The wire is the relay's `s2c` count, already in every row; the run reports it, and `fillReads`
+only beside it.
