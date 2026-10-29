@@ -226,6 +226,75 @@ none queued; each states its predictions and rule before any data and runs in a 
   Rule: if P2 holds and P3 fails, a native client buys nothing on the target link on desktop, and the app's case is
   made on the cache, background work and phones alone; if P3 holds, the gain on large frames is costed for phones by
   M4. Say where the container saturates.
+
+  *Run 2026-10-28, this container (4 vCPU), from this protocol:* [`lab/native-fill/run.py`](../../lab/native-fill/run.py),
+  rows in `rows.jsonl` there. M1 passed, so its painter is in.
+  * **Arms, every setting printed in each row.** *Browser:* the viewer, `client/viewer/`, in headless Chrome for
+    Testing 153 with the TS client, OpenJPH-WASM from the pinned build, and the gl painter on SwiftShader. Its fill is timed
+    by the page's own lab hooks (`lab/viewer/levers.js`), from just before the dial to the last frame decoded and
+    checked. *Native:* `native-fill` with `decode` and `paint`: OpenJPH 0.31.0 native, and M1's painter on lavapipe
+    (llvmpipe, Mesa 25.2.8). It is timed from just before the dial to the last frame checked. Both paint the shown frame
+    at the viewer's canvas size, 1280 × 691. *Shared:* one `series-server` build per visit (`cubic-restart`, quinn's
+    default initial window, `stream_mode=shared`), restarted fresh and warmed by one unrecorded fill. Both clients grant
+    a 6 MiB stream and 15 MiB connection window. Cores: server on 0, relay on 1, clients on 2–3 (every Chromium process
+    included).
+  * **Series.** Synthetic HTJ2K in the served profile, with digests taken from the generated samples:
+    * *61 MB*: 37 × 1024² 16-bit `field`, 60.7 MB.
+    * *4.4 MB*: 102 × 512² 8-bit RGB `cine`, 4.42 MB.
+  * **Cells.** Relay: `link_impair.py`, 40 ms each way, its 50-packet queue, iid loss at seed 1 (the same pattern
+    every visit). The ask runs at 50 Mbit clean, a rate this protocol did not name. In the ask cell each visit asks
+    12 frames (61 MB) or 30 (4.4 MB) one at a time, after the opening ask, which is not counted; a visit's figure is
+    its median.
+  * **The ask, two ways.** *Painted*: the step to the paint done, the figure P3 is read on. *Exact*: the step to the
+    frame decoded and checked.
+  * **The arms are not symmetric in three ways** (the harness only reads the client; it does not change it):
+    * The native core decodes one frame at a time on its receive loop; the browser runs 3 decoder workers.
+    * M1's painter reads the whole 1280 × 691 target back; the browser waits on a 1-pixel read.
+    * `native-fill` also compares every frame with the bundle.
+  * **Rounds and `VOID`.** 7 rounds; 24 units (12 cells × 2 arms), each twice a round (A, A2: the A/A), 48 visits
+    Williams-ordered. 336 visits in all. Two `VOID` rules were fixed before the data (the harness commit precedes
+    every row):
+    * a cell whose A2/A median strays past half its prediction's band: P1 ±20 %, P2 ±1.5 %, P3 ±5 % and ±2.5 %;
+    * a visit whose relay p99 is over 1 ms, §8.5's rule. It dropped **126 of 336** visits.
+  * **Every frame identical and exact:** 20 692 of 20 692, both arms, against the bundle and the digests. A digest
+    flipped in the metadata (the mutant) failed the native visit and left the browser 101 of 102 exact, which the summary counts as failed.
+
+  | cell | measure | native · browser, ms | native ÷ browser [range], n | A/A native · browser | |
+  | --- | --- | --- | --- | --- | --- |
+  | loopback, 61 MB | fill | 398 · 894 | 0.426 [0.371–0.595], 14 | 1.015 · 1.036 | P1 holds |
+  | loopback, 4.4 MB | fill | 309 · 708 | 0.482 [0.388–0.600], 14 | 1.002 · 1.043 | P1 holds |
+  | 20 Mbit, 61 MB | fill | 25 468 · 25 542 | 0.996 [0.995–1.000], 5 | 1.001 · 0.999 | P2 holds |
+  | 20 Mbit, 4.4 MB | fill | 2 292 · 2 318 | 0.982 [0.971–0.988], 3 | 1.002 · 1.001 | P2 holds |
+  | 20 Mbit 2 %, 61 MB | fill | 419 018 · 438 564 | 0.960 [0.918–0.965], 3 | 0.995 · 1.006 | **P2 fails** |
+  | 50 Mbit, 61 MB | fill | 11 113 · 11 203 | 0.996 [0.935–1.171], 12 | **1.017** · 1.001 | `VOID` |
+  | 50 Mbit, 4.4 MB | fill | 1 377 · 1 431 | 0.960 [0.902–0.978], 10 | 1.002 · **0.983** | `VOID` |
+  | 20 Mbit 2 %, 4.4 MB | fill | 32 129 · 34 047 | 0.918 [0.909–1.042], 3 | **1.029** · 0.990 | `VOID` |
+  | 50 Mbit 2 %, both | fill | — | one pair each, no A/A | — | `VOID` |
+  | ask, 1024² | painted | 440 · 427 | 1.038 [0.972–1.070], 8 | 1.007 · 1.007 | **P3 fails** |
+  | ask, 1024² | exact | 402 · 397 | 1.013 [0.963–1.044], 8 | 1.010 · 1.007 | |
+  | ask, 512² | painted | 166 · 148 | 1.139 [1.096–1.160], 3 | 0.979 · **1.038** | `VOID` |
+
+  Medians; ratios round-paired. With the late-relay visits kept, a read labelled post hoc: every 2 % cell is
+  0.944–0.948 (n = 14 each); at 50 Mbit clean, 1.005 (61 MB) and 0.960 (4.4 MB); and the 512² ask is 1.128 [1.081–1.162]
+  painted and 1.012 to the exact frame, with A/A inside ±2.5 %. The first exact frame on screen is not predicted:
+  native ÷ browser 0.33 and 0.30 on loopback, 0.76–0.90 on the clean relay.
+  * **Where the container saturates.** On loopback the browser holds its two client cores (busy 0.96 median, 0.99 max),
+    so P1 is read at a two-core client and claims nothing for more cores. There the native arm uses 0.53–0.76 of two,
+    decoding 6.9 ms a 1024² frame, and the server core 0.26–0.35. Behind the relay nothing is busy: clients ≤ 0.62 of
+    two, server ≤ 0.37, relay ≤ 0.42 of its core. Its late packets are its scheduling, not its CPU. At 2 % loss the
+    61 MB fill is ~1.2 Mbit/s, CUBIC's loss bound at an 80 ms round trip, so the 20 and 50 Mbit lossy cells are one
+    link. Steal was not recorded.
+  * **The ask, read.** The two arms tie to the exact frame: the 1024² frame's 262 ms on the wire and the round trip
+    dominate, and native decode is 8.9 ms of it. Native's painted ask trails by the painter's full read-back: from the
+    exact frame to the paint takes 36 and 32 ms (median, 1024² and 512²), against the browser's 28 and 16.
+  * **The verdict under the rule.** P1 holds, at two client cores. P2 holds on the two clean cells it could decide, and
+    fails under 2 % loss at 20 Mbit: the native fill is 4 % faster. That is the direction quic.md N1 found (Chromium 1.089
+    and 1.054 of quinn under 2 % loss), and as there it is not CPU (≤ 0.06 of two cores). P3 fails on large frames
+    (1.04, not ≤ 0.9). So on a clean target link the rule's first branch reads as written: on desktop a native client
+    buys nothing on fill or ask. Under random loss it buys ~4–5 % of fill, measured in one decidable cell and seen in
+    every lossy cell post hoc. Its clear gain is where the client's CPU binds: 0.43–0.48 of the fill and 0.30–0.33 of
+    the first frame on loopback. That is the regime a phone is more likely to be in; M4 measures it. The app's case
+    stays on the cache, background work and phones.
 * **M3 CACHE — a file-system cache, verified and crash-safe** (container). A verified-frames-only cache in the core,
   written by temporary name, fsync and rename. Cells: reopen a 61 MB series from the cache against from the relay at
   20 Mbit; a process killed at random points during 100 writes. Predictions: the reopen is ≤ 0.5 s against ≈ 24 s;
@@ -461,7 +530,8 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
    identical and `true`.
 3. **M3 CACHE** (§6), on `cache`. *Built and run 2026-10-28:* see §6.
 4. **M1 PAINTPROOF** (§6): the painter as a module of this crate on wgpu. *Passed 2026-10-28* on lavapipe.
-5. **M2 NATIVEFILL** (§6), its native arm `native-fill` with `decode` and M1's painter.
+5. **M2 NATIVEFILL** (§6), its native arm `native-fill` with `decode` and M1's painter. *Run 2026-10-28:* P1 holds
+   at two client cores, P2 holds clean and fails under 2 % loss (native 4 % faster), P3 fails.
 
 ### 8.7 Risks
 
