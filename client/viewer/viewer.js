@@ -60,7 +60,7 @@ const on = {
     markEl.textContent = s.exact === false ? `NOT EXACT — ${s.reason ?? ""}` : s.exact === true ? "" : "unchecked";
     status();
   },
-  failed: ({ i, reason }) => fail(i === null ? reason : `frame ${i}: ${reason}`),
+  failed: ({ scope, i, reason }) => fail(scope === "frame" ? `frame ${i}: ${reason}` : `${scope}: ${reason}`),
 };
 const emit = (type, event) => on[type](event);
 const size = () => ({ width: canvas.clientWidth, height: canvas.clientHeight, dpr: self.devicePixelRatio || 1 });
@@ -82,7 +82,7 @@ if (where === "page") {
   painter.renderer.then((r) => emit("renderer", { renderer: r }), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
-  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch });
+  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint) });
 }
 
 function status() {
@@ -124,7 +124,7 @@ try {
     controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
       ...connectOpts,
       onFrame: (f) => controller.take(f),
-      onError: ({ frameIndex, reason }) => emit("failed", { i: frameIndex, reason }),
+      onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
     });
   }
 } catch (e) {

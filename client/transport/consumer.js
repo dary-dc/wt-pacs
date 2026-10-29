@@ -170,6 +170,12 @@ export class DownloaderClient {
     this.#worker.postMessage({ kind: "fill", indices });
   }
 
+  /** The frames wanted, in order, replacing the last want; what is owed stays owed. docs/adr/frame-path.md §3, *Built* */
+  want(indices) {
+    for (const i of indices) this.#delivered.delete(i);
+    this.#worker.postMessage({ kind: "want", indices });
+  }
+
   /** Resolves once the downloader has ended the stream and dropped this request's work. */
   cancel() {
     this.#gen += 1;

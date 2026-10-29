@@ -3,11 +3,12 @@ import { sha256Hex } from "../decode/wasm-glue.js";
 import { paintReference } from "../paint/reference.js";
 import { asPainted, samplesOf } from "./controller.js";
 
-/** What goes to the downloader until `undo`: an ask as its index, anything else by its kind. */
+/** What goes to the downloader until `undo`: an ask as its index, a want as `want` and its indices, anything else by its kind. */
 function listen(controller, port) {
   const sent = [];
   if (port) {
-    port.postMessage = (m, t) => (sent.push(m.kind === "ask" ? m.index : m.kind), MessagePort.prototype.postMessage.call(port, m, t));
+    const label = (m) => (m.kind === "ask" ? m.index : m.kind === "want" ? `want ${m.indices.join(" ")}` : m.kind);
+    port.postMessage = (m, t) => (sent.push(label(m)), MessagePort.prototype.postMessage.call(port, m, t));
     return { sent, undo: () => delete port.postMessage };
   }
   // On the page the port is the downloader's worker, inside the consumer: its asks and cancels are heard instead.
@@ -19,11 +20,21 @@ function listen(controller, port) {
   return { sent, undo: () => ["requestExactFrame", "cancel", "fill"].forEach((k) => delete client[k]) };
 }
 
-/** On demand, the controller's own steps: three quick ones keep the newest ask alone, and a frame stepped to twice is asked once. */
+/**
+ * On demand, the controller's own steps. On the page three quick ones keep the newest ask alone, and a frame stepped to
+ * twice is asked once; in the view worker a replaced want keeps the frame it had asked, and a want is sent once a step.
+ */
 async function stepsOnDemand(n, controller, port) {
   if (n < 3) return { raced: `a series of ${n} frames, under the 3 this needs` };
   const { store } = controller;
   const [a, b] = [n >> 1, n - 1];
+  if (store.downloader) {
+    const heard = listen(controller, port);
+    await Promise.all([controller.show(a), controller.show(a), controller.show(b)]);
+    heard.undo();
+    const raced = store.has(a) && store.has(b) ? "both kept" : `held ${[...store.keys()].join(", ")}`;
+    return { raced, twice: heard.sent.filter((k) => k !== "ack").join(", "), asked: new Set([0, a, b]).size };
+  }
   await Promise.all([controller.show(a), controller.show(b), controller.show(a)]);
   const raced = store.has(a) && !store.has(b) ? "newest alone" : `held ${[...store.keys()].join(", ")}`;
   const heard = listen(controller, port);

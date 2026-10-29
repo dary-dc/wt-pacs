@@ -88,8 +88,9 @@ keeps the page out of it.
 shape, beside today's path and chosen by one setting, the page's own `?view=page|worker` (default `page`):
 
 * **One view worker** the page starts (`client/view/view-worker.js`) holds three modules: the **controller**
-  (`controller.js`: the current frame, what to ask, the paint), the **frame store** (`store.js`: has, get, put, a
-  memory window by distance from the current frame, every frame by default as today; it decides nothing), and the
+  (`controller.js`: the current frame, what it wants and in what order, the paint), the **frame store** (`store.js`:
+  has, get and put on memory alone, a memory window by distance from the current frame, every frame by default as
+  today; under `worker` it also holds the downloader's client and sends it the misses of each want), and the
   **paint module** (`paint/paint-worker.js`, imported, not a nested worker; it keeps the uploaded frame and the window
   table). Under `page` the same controller and store run on the page with the paint worker behind them, so the two
   variants differ in where they run alone.
@@ -98,25 +99,55 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
   decoders' pixel ports go to the view worker, where the consumer (`consumer.js`, given the port) runs and acks each
   frame as it does on the page: row 147's rule holds unchanged, and the frame changes owner at the ack.
 * **The page's API** (`client/view/view.js`): `show(i)`, `setDisplay({window, invert, pose})`, `play(fps)` and
-  `pause()`, `valueAt(x, y)` → a promise of the sample under that canvas point; events `shown {i, exact}`,
-  `progress {have, total}` (at most every 100 ms, and at once at the last frame) and `failed {i, reason}`. `shown`
-  also carries the window painted, which a drag starts from, and `progress` the exact counts the status line shows.
-  The cine is still paced from the page, behind `play`.
-* **Wants are today's**: a held frame is painted with no message to the downloader; a miss is the exact ask, sent by
-  the controller over the port; the fill is `connect`'s. Transport, decoders and both clients are unchanged.
-* **Not built:** the OPFS store (a miss goes to the downloader where the store worker would be asked first; it lives on
-  `claude/opfs-cache-fixes`), the cine's clock in the worker, a want protocol, a second viewport. A downloader whose
-  script does not load is reported on the page by name, but `connect` in the view worker then waits on the check's
-  deadline rather than failing.
+  `pause()`, `valueAt(x, y)` → a promise of the sample under that canvas point; events `shown {i, exact, reason}`,
+  `progress {have, total}` (at most every 100 ms, and at once at the last frame) and one failure event,
+  `failed {scope: frame | series | cache | worker, reason}`, with `i` when the scope is a frame. `shown` also carries
+  the window painted, which a drag starts from, and `progress` the exact counts the status line shows. After the view
+  worker has started, its `error` or `messageerror` is fatal: the page says it as the worker's, ends the worker and
+  fails every call still waiting. An intent that throws in the view worker is said as the worker's. The cine is still
+  paced from the page, behind `play`.
+* **The want (2026-10-29).** Under `worker` the controller decides what and the store decides from where. Each step,
+  the controller tells the store its want, an ordered list: when filling, every frame nearest the current one first
+  (the current frame, then +1, −1, +2, …); on demand, the current frame alone. The store drops what it holds and sends
+  the downloader the misses, in that order, as one `want` message that replaces the one before, unless they are the
+  misses it already sent; `has` and `get` never reach it. The first want rides `start` in place of today's fill, so an
+  ascending one is still the opening run on the session URL. The downloader keeps the want as an ordered list: the
+  head goes out as one `stream_frames` run when it ascends `askDepth` frames or more and nothing else is owed,
+  otherwise as up to `askDepth` asks, topped up as each lands. A want whose head the running run does not serve next
+  ends that run with the head's ask (WIRE §An ask during a fill); the run's frames not yet here are asked again only
+  once an ask lands behind it, when what it wrote has arrived. A replaced want changes the order and nothing else:
+  what is owed stays owed, a frame of the series that lands after it is kept and acked, and no generation steps (one
+  series and one metadata version per session, so a frame is its index). Today's `fill`, `ask` and `cancel`, and the
+  page view, are unchanged; the page view asks and cancels as before.
+* **`askDepth` is 4, a constant**, inside the 2–5 that [`client-window-depth.md`](client-window-depth.md) measured as
+  `D_min` on its grid; it is not derived from the link. **Not timed:** a fill whose want stops ascending (a step during
+  it) runs at that depth instead of as a run. **A head the ended run already had in flight crosses the wire twice**;
+  the copy that lands second is dropped by the transport, decoded never.
+* **The paint's GPU wait.** The 1-pixel `readPixels` that makes a paint return once drawn runs in the view worker only
+  behind the lab's flag (`settlePaint`, set by the total-time rig's hooks in `lab/viewer/levers.js`); the paint worker
+  of the page view keeps it, as before.
+* **Not built:** credits and eviction by byte budget (with the cache arm), the OPFS store (a miss goes to the
+  downloader where the store worker would be asked first; it lives on `claude/opfs-cache-fixes`), so nothing emits
+  `failed` with scope `cache` yet; the cine's clock in the worker; a second viewport; a series or metadata-version
+  change, the only step of the generation under a want. A downloader whose script does not load is reported on the
+  page as the series', but `connect` in the view worker then waits on the check's deadline rather than failing.
 
 **Held by** the viewer check, run by the gate under both views on both clients, filled with a cine and on demand
-(`client/viewer/run_check.sh`), and by `client/view/controller.test.mjs`. Each check was mutated and its mutant failed:
+(`client/viewer/run_check.sh`), and by `client/view/controller.test.mjs`, `client/view/view.test.mjs` and
+`client/transport/downloader.test.mjs`. Each check was mutated and its mutant failed:
 
 | claim | check | mutant |
 | --- | --- | --- |
+| a want's first `askDepth` misses go out as asks in its order, topped up as each lands, and arrive in its order | `downloader.test.mjs` *aWantArrivesInItsOrder*, a want nearest-first from frame 40 of 76 | the want sorted; no depth; a run for any ascending pair |
+| only an ascending head of `askDepth` or more is a run | the same | never a run; a run for any ascending pair |
+| a replaced want dispatches no index to a decoder twice or in a new generation, and asks no frame its run delivered | *aReplacedWantKeepsWhatIsOwed* | the want as a cancel; the ended run forgotten at once; never released by a landing; its head not asked |
+| the store sends the misses alone, in the controller's order, and the same misses once | the node test; the check's on-demand steps under `worker` | held frames sent; the same misses sent again; the want not nearest first |
+| a held frame is painted with no downloader message, on demand and filling | the node test; the check's `heldStep` | a held step sending a want |
+| a frame of a replaced want is kept | the node test; the check's "both kept" | the store dropping it |
+| each `failed` scope reaches the page by name; a view-worker `error` or `messageerror` after start is fatal and shown | `view.test.mjs`; the node test for frame, series and worker | each scope renamed; no `messageerror`; said twice; not ended; a waiting or later call left hanging |
 | under `worker` no pixel, `SharedArrayBuffer` or port reaches the page, and the downloader posts it nothing | the check's count of the page's messages | the frame's pixels in `shown`; the downloader not linked |
 | a step to a held frame paints it and sends the downloader nothing | the check's `heldStep` at the port; the node test | a held frame asked anyway; a held step sending `check` |
-| a miss is asked of the downloader, from the view worker | the on-demand steps, heard at the port; the node test | a miss not asked |
+| a miss reaches the downloader from the view worker, as a want since 2026-10-29 | the on-demand steps, heard at the port; the node tests | a miss not asked; no want at all |
 | every frame painted is exact | the check's exactness and readbacks | a sample altered in `htj2k.js` |
 | a window change paints again with no frame moving: no upload, nothing sent | the check's `windowStep` and its readback under another window; the node test | every paint uploads; a window change paints nothing |
 | `page` behaves as before | the viewer check and every other suite, green | — |
@@ -128,7 +159,8 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
 | messages a frame, whole graph | 4: decode, done, frame (decoder → page), ack | 4: decode, done, frame (decoder → view worker), ack |
 | … of them on the page's thread | 2: the frame in, the ack out | 0; a `progress` at most every 100 ms |
 | messages a paint | 2, both the page's: `paint`, `painted` | 1: `shown`, view worker → page |
-| a step | the paint's 2, plus the ask on a miss | `show` and `shown`; the ask, on a miss, leaves the view worker |
+| a step | the paint's 2, plus the ask on a miss | `show` and `shown`; on a miss, or during a fill, one `want` from the view worker carrying the whole order |
+| the fill's request | `fill` in `start`, 0 messages | the first `want` in `start`, 0 messages |
 | threads | 6: page, downloader, 3 decoders, paint worker | 6: page, downloader, 3 decoders, view worker |
 
 The gate's three-frame check, counted on the page's thread over its whole run (protocol, cine and readbacks
@@ -142,6 +174,19 @@ CPU reference, a spy on the client — so its half that needs frames runs beside
 and the total-time harness's frame hashes are the controller's `ledger()`. A drag starts from the frame's default
 window and only the frame knows it, so `shown` carries it; the canvas's CSS size is the page's, so a resize is an
 intent.
+
+*The want (2026-10-29).* The downloader held no order: a fill is a `Set` sent lowest run first, asks went before fill
+frames, and the only generation was the cancel's, which every message carries and every stale one drops. The want
+is a third structure beside them (`order`), and the generation stays the cancel's. The server ends a fill at any
+message with no saved position and the client cannot tell which of the run's frames are in flight, so a want that
+leaves a run waits for an ask to land behind it before re-asking the rest: on the shared stream what the run wrote
+has arrived by then (the reasoning row 229's refill already rests on; not separately tested per stream mode). The
+store needs its own copy of the misses it sent, because the downloader reports nothing back. The check's on-demand
+steps encoded the opposite of the target ("the newest ask alone", a cancel each step), so under `worker` they now
+expect both frames kept and one `want` a step. One controller serves both views, so the want path switches on
+whether the store holds a downloader: two paths in one class while the page view stays. And the fill rode `start`
+so the opening run rides the session URL; to keep that, the store makes its first want before it has a client, and
+it rides `start` too.
 
 ## 4 · OPFS, from the specs and the engines' sources
 

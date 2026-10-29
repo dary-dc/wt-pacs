@@ -289,7 +289,8 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Where the frames are.** `?view=page` (the default) or `?view=worker`. Either way `view/controller.js` holds the
-  current frame, asks what is missing and paints, over `view/store.js`'s frames. On the page it runs beside the painter;
+  current frame and paints over `view/store.js`'s frames; on the page it asks what is missing, in the view worker it
+  tells the store its want and the store sends the downloader the misses. On the page it runs beside the painter;
   under `worker` it runs in the view worker (`view/view-worker.js`) with the paint worker's code as a module, the
   decoders post to it, and the page (`view/view.js`) sends intents and hears `shown`, `progress` and `failed`, never a
   frame ([`docs/adr/frame-path.md`](../docs/adr/frame-path.md) §3, *Built*). The status line names the view.
@@ -320,7 +321,8 @@ read off the page in Chromium and off Firefox's stdout (`devtools.console.stdout
 * a fill that did not complete, or a frame lost or refused; on demand, a frame the page asked;
 * any frame not exact;
 * on demand, three quick steps that kept any ask but the newest, or two steps to one frame that sent more than its
-  one ask;
+  one ask; under `--view worker`, where it steps to the middle frame twice and then the last, at once, steps that
+  did not keep both frames or sent other than one `want` for each;
 * a decoder other than `--decoder`;
 * a status line not naming `--client`, or that client's files not preloaded; from the static host's log, its files
   not fetched or, on a TS page, the WASM client's fetched (every page fetches TS's: the HTML preloads it);

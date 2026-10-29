@@ -204,8 +204,8 @@ export function start(offscreen, onLost) {
   return dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
 }
 
-/** One paint: upload if the frame is new, window if the frame or the window changed, place always. */
-export function paint({ frame, same, display, width, height, dpr, read }) {
+/** One paint: upload if the frame is new, window if the frame or the window changed, place always; `settle`, it returns once drawn. */
+export function paint({ frame, same, display, width, height, dpr, read, settle = true }) {
   if (lost) throw new Error(lost);
   const t0 = performance.now();
   if (canvas.width !== width || canvas.height !== height) {
@@ -222,7 +222,7 @@ export function paint({ frame, same, display, width, height, dpr, read }) {
   placePass(display, width, height, dpr);
   const pixels = read ? readback(width, height) : null;
   // A one-pixel read waits for the draw to execute; gl.finish() alone did not on SwiftShader.
-  if (!read) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  if (!read && settle) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
   return { ms: performance.now() - t0, uploaded: fresh, pixels };
 }
 
