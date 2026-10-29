@@ -46,6 +46,11 @@ impl Decoder {
         Ok(Self { av1: metadata["codec"] == "av1", samples: Vec::new() })
     }
 
+    /// Copies of the samples one decode makes on the CPU: narrowed into its `Vec`, and for AV1 merged into `out` first.
+    pub fn copies(&self) -> u64 {
+        1 + u64::from(self.av1)
+    }
+
     pub fn decode(&mut self, bytes: &[u8]) -> Result<Vec<u8>> {
         if self.av1 {
             self.payload(bytes)

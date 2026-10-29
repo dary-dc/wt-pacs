@@ -7,11 +7,13 @@ use std::fs::{self, File};
 use std::io::{ErrorKind, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
 static WRITES: AtomicU64 = AtomicU64::new(0);
 
 pub struct Cache {
     dir: PathBuf,
+    slow: Duration,
 }
 
 impl Cache {
@@ -22,7 +24,16 @@ impl Cache {
         }
         let dir = root.into().join(series).join(version);
         fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
-        Ok(Self { dir })
+        Ok(Self { dir, slow: Duration::ZERO })
+    }
+
+    /// The lab's lever: every write waits `by` before it starts.
+    pub fn slow_writes(self, by: Duration) -> Self {
+        Self { slow: by, ..self }
+    }
+
+    pub fn has(&self, index: u32) -> bool {
+        self.dir.join(index.to_string()).exists()
     }
 
     /// Stores `coded` only when its check is `true`; a crash leaves the frame absent or whole, never torn.
@@ -30,6 +41,7 @@ impl Cache {
         if *exact != Exact::True {
             return Ok(false);
         }
+        std::thread::sleep(self.slow);
         // Unique to this write, so a concurrent writer of the same frame never shares or renames it.
         let part = format!("{index}.{}.{}.part", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed));
         let (part, path) = (self.dir.join(part), self.dir.join(index.to_string()));

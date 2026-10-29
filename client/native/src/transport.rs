@@ -8,7 +8,7 @@ use frame_envelope::{envelope_len, FRAME_HEAD_LEN, INDEX_LEN};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncReadExt};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Semaphore};
 use wtransport::quinn;
 use wtransport::tls::client::{build_default_tls_config, ServerHashVerification};
 use wtransport::tls::{rustls::RootCertStore, Sha256Digest};
@@ -37,7 +37,7 @@ pub struct Session {
     _endpoint: quinn::Endpoint,
     connection: quinn::Connection,
     control: quinn::SendStream,
-    events: mpsc::UnboundedReceiver<Result<Event>>,
+    events: mpsc::Receiver<Result<Event>>,
 }
 
 /// The server's `cert_sha256=`, 64 hex digits.
@@ -48,10 +48,16 @@ pub fn cert_hash(hex: &str) -> Result<[u8; 32]> {
 
 /// `url` is `https://host:port/`, as the server's banner prints it.
 pub async fn dial(url: &str, cert_sha256: [u8; 32], windows: &Windows) -> Result<Session> {
-    connect(url, cert_sha256, windows, ALPN).await
+    connect(url, cert_sha256, windows, ALPN, Semaphore::MAX_PERMITS).await
 }
 
-async fn connect(url: &str, cert_sha256: [u8; 32], windows: &Windows, alpn: &[u8]) -> Result<Session> {
+/// As `dial`, but a stream's reader stops once `held` events wait unread, so a slow consumer reaches the wire as
+/// flow control.
+pub async fn dial_bounded(url: &str, cert_sha256: [u8; 32], windows: &Windows, held: usize) -> Result<Session> {
+    connect(url, cert_sha256, windows, ALPN, held).await
+}
+
+async fn connect(url: &str, cert_sha256: [u8; 32], windows: &Windows, alpn: &[u8], held: usize) -> Result<Session> {
     let authority = url.strip_prefix("https://").context("the URL is not https://")?.trim_end_matches('/');
     let addr = tokio::net::lookup_host(authority).await?.next().context("no address for the URL")?;
     let host = authority.rsplit_once(':').map_or(authority, |(host, _)| host).trim_matches(['[', ']']);
@@ -67,7 +73,7 @@ async fn connect(url: &str, cert_sha256: [u8; 32], windows: &Windows, alpn: &[u8
     let endpoint = quinn::Endpoint::client(if addr.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" }.parse()?)?;
     let connection = endpoint.connect_with(config, addr, host)?.await.context("handshake")?;
     let (control, recv) = connection.open_bi().await.context("open control bidi")?;
-    let (tx, events) = mpsc::unbounded_channel();
+    let (tx, events) = mpsc::channel(held);
     tokio::spawn(refusals(recv, tx.clone()));
     tokio::spawn(media(connection.clone(), tx));
     Ok(Session { _endpoint: endpoint, connection, control, events })
@@ -84,7 +90,11 @@ impl Session {
 
     /// `None` once the session has ended and every frame read has been handed on.
     pub async fn next(&mut self) -> Option<Result<Event>> {
-        self.events.recv().await
+        let event = self.events.recv().await;
+        if let Some(Ok(Event::Frame { index, .. })) = &event {
+            crate::count::hop(*index);
+        }
+        event
     }
 
     pub fn close(&self) {
@@ -97,18 +107,21 @@ impl Session {
 }
 
 /// Every uni the server opens, each read on its own, so a frame waits on no other stream.
-async fn media(connection: quinn::Connection, tx: mpsc::UnboundedSender<Result<Event>>) {
+async fn media(connection: quinn::Connection, tx: mpsc::Sender<Result<Event>>) {
     while let Ok(mut uni) = connection.accept_uni().await {
         let tx = tx.clone();
         tokio::spawn(async move {
             loop {
                 let event = match read_envelope(&mut uni).await {
-                    Ok(Some((index, body))) => Ok(Event::Frame { index, body, at: Instant::now() }),
+                    Ok(Some((index, body))) => {
+                        crate::count::touch(index);
+                        Ok(Event::Frame { index, body, at: Instant::now() })
+                    }
                     Ok(None) => return,
                     Err(err) => Err(err),
                 };
                 let failed = event.is_err();
-                if tx.send(event).is_err() || failed {
+                if tx.send(event).await.is_err() || failed {
                     return;
                 }
             }
@@ -117,7 +130,7 @@ async fn media(connection: quinn::Connection, tx: mpsc::UnboundedSender<Result<E
 }
 
 /// The server's `frame_error`s; it sends nothing else on the control stream.
-async fn refusals(mut recv: quinn::RecvStream, tx: mpsc::UnboundedSender<Result<Event>>) {
+async fn refusals(mut recv: quinn::RecvStream, tx: mpsc::Sender<Result<Event>>) {
     loop {
         let event = match read_fod(&mut recv).await {
             Ok(Some(FodMsg::FrameError { frame_index, reason })) => Ok(Event::Refused { frame: frame_index, reason }),
@@ -126,7 +139,7 @@ async fn refusals(mut recv: quinn::RecvStream, tx: mpsc::UnboundedSender<Result<
             Err(err) => Err(err),
         };
         let failed = event.is_err();
-        if tx.send(event).is_err() || failed {
+        if tx.send(event).await.is_err() || failed {
             return;
         }
     }
@@ -179,7 +192,7 @@ async fn read_up_to(stream: &mut (impl AsyncRead + Unpin), buf: &mut [u8]) -> Re
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use clap::Parser;
     use frame_envelope::frame_head;
@@ -213,8 +226,8 @@ mod tests {
         serve: series_server::ServeConfig,
     }
 
-    /// The server on the committed fixture, on a loopback port, with a fresh certificate; its URL and pin.
-    async fn serve(dir: &Path, mode: &str) -> (String, [u8; 32]) {
+    /// The server on `series`, on a loopback port, with a fresh certificate; its URL and pin.
+    pub(crate) async fn serve(dir: &Path, series: &Path, mode: &str) -> (String, [u8; 32]) {
         let _ = wtransport::tls::rustls::crypto::ring::default_provider().install_default();
         let identity = wtransport::Identity::self_signed(["localhost", "127.0.0.1"]).expect("certificate");
         let (cert, key) = (dir.join("cert.pem"), dir.join("key.pem"));
@@ -222,7 +235,8 @@ mod tests {
         identity.private_key().store_secret_pemfile(&key).await.expect("key.pem");
         let port = std::net::UdpSocket::bind("127.0.0.1:0").and_then(|s| s.local_addr()).expect("free port").port();
         let [cert, key] = [cert, key].map(|p| p.display().to_string());
-        let args = ["s", "--series", FIXTURE, "--port", &port.to_string(), "--bind", "127.0.0.1"];
+        let series = series.display().to_string();
+        let args = ["s", "--series", &series, "--port", &port.to_string(), "--bind", "127.0.0.1"];
         let args = [&args[..], &["--cert-pem", &cert, "--key-pem", &key, "--stream-mode", mode]].concat();
         let config = Server::parse_from(args).serve;
         tokio::spawn(series_server::run_server(config, std::future::pending()));
@@ -230,7 +244,7 @@ mod tests {
         (format!("https://127.0.0.1:{port}/"), hash)
     }
 
-    fn temp_dir(name: &str) -> PathBuf {
+    pub(crate) fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("native-client-{name}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         dir
@@ -316,7 +330,7 @@ mod tests {
         got
     }
 
-    async fn until_up<T, E: std::fmt::Debug, F: std::future::Future<Output = Result<T, E>>>(dial: impl Fn() -> F) -> T {
+    pub(crate) async fn until_up<T, E: std::fmt::Debug, F: std::future::Future<Output = Result<T, E>>>(dial: impl Fn() -> F) -> T {
         for _ in 0..50 {
             match dial().await {
                 Ok(up) => return up,
@@ -335,7 +349,7 @@ mod tests {
         let bundle = bundle_frames();
         for mode in ["shared", "per-frame"] {
             let dir = temp_dir(mode);
-            let (url, hash) = serve(&dir, mode).await;
+            let (url, hash) = serve(&dir, Path::new(FIXTURE), mode).await;
             let native = native_frames(&url, hash).await;
             let webtransport = webtransport_frames(&url, hash).await;
             std::fs::remove_dir_all(&dir).ok();
@@ -353,10 +367,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn an_unknown_alpn_is_refused_in_the_handshake() {
         let dir = temp_dir("alpn");
-        let (url, hash) = serve(&dir, "shared").await;
+        let (url, hash) = serve(&dir, Path::new(FIXTURE), "shared").await;
         let windows = Windows::default();
         until_up(|| dial(&url, hash, &windows)).await.close();
-        let refused = connect(&url, hash, &windows, b"wt-pacs/0").await.err().expect("an unknown ALPN was served");
+        let refused = connect(&url, hash, &windows, b"wt-pacs/0", 1).await.err().expect("an unknown ALPN was served");
         std::fs::remove_dir_all(&dir).ok();
         let code = refused.chain().find_map(|e| match e.downcast_ref() {
             Some(quinn::ConnectionError::ConnectionClosed(close)) => Some(u64::from(close.error_code)),

@@ -820,3 +820,59 @@ Each finding above is marked where it was corrected. The serious ones:
 
 Not corrected, stated: B's ratio carries its transport, decoder and GPU stack; metric 3's two endpoints are not the
 frame on screen; prediction (b) on X11 is close to true by construction and is a check on the implementation there.
+
+### Built (2026-10-29)
+
+*Built on `claude/native-view` from this section as reviewed; nothing timed, the comparison is NATIVERUN's.* The four
+native branches are merged in (#206 painter, #209 cache, #216 window, #218 fill harness); `native-fill` keeps both
+#209's `--cache` and #218's `--in-turn --paint`. The window takes `--paint-thread`, the thread that holds the frames and paints them:
+
+* **`ui`** (the default, N0): today's, unchanged in design. With `--cache` it writes each frame, both fsyncs, before
+  the hand-off, as the merge would; it never reads the cache, which no branch had the window do. Its present is now
+  pinned to `Fifo` and printed.
+* **`view`** (N1): `client/native/src/view.rs` and the window's `Viewer`. Threads: UI, a downloader on a
+  `current_thread` runtime holding quinn and the records, `N` decoders, the view thread — `N + 3`. The want is a
+  `watch`; coded frames wait in a channel of `K`, and the session's readers stop at one unread event; a decoder takes
+  a credit (room in the view's channel of `K`) before it takes a job, sends the frame, then writes, then sends
+  `done {i, refetch}`. The store is a byte budget (`--budget`, 64 MiB) evicting farthest-first, only once written.
+* **`core`** (N2): the same two loops as two futures on one `current_thread` runtime on the core thread — `N + 2`.
+  Its present is `Mailbox` or `Immediate`; a surface with neither refuses to start.
+
+Settings: `--credits` (K, 4), `--decoders` (N, `min(3, cores)`), `--asks` (on the wire at once, 8: a setting, not
+derived from the link as [`client-window-depth.md`](../adr/client-window-depth.md) would), `--budget`, and in every
+paint thread the lab's two levers this section asked for: `--cache-write-delay-ms` (`Cache::slow_writes`) and
+`--stamp-painted` (`step at_ms`, then `painted at_ms` after `on_submitted_work_done`).
+
+**Proved.** `client/paint/window.mjs` under Xvfb on lavapipe runs each paint thread, and `view` and `core` again with a
+two-frame budget over a cold and then a warm cache: every paint read back equals the CPU reference (0 at 1:1, ≤ 1
+fitted) and every painted frame's samples hash to their digest — a check the reference alone misses, since a mutant
+storing each frame under the next index paints at |Δ| 0. `view::tests`, each mutated and the mutant failing: the
+ordered want reaches the wire in order; an ascending want is one fill and an ask ends it; the store's eviction; credits
+bound the frames the view has not received; the cache write lands after the view has the frame; twelve frames over
+raw QUIC reach the store once each and the downloader ends owing none.
+
+**Counted per frame** (`count.rs`, the grey AV1 series, every frame held; threads by id, messages as channel receives):
+
+| paint thread | threads | messages | CPU copies | a step |
+| --- | ---: | ---: | ---: | --- |
+| `ui` | 2.00–3.00 | 2 | 2 | 0 messages, 1 upload |
+| `view` | 3 | 4 | 2 | 1 intent + 1 `shown`, 1 upload |
+| `core` | 2 | 4 | 2 | 1 intent + 1 `shown`, 1 upload |
+
+Two copies because AV1 merges into `out` first; HTJ2K makes one. With the two-frame budget, evicted frames come back
+(from the wire or the cache) and the means rise: `view` 3.25–3.50 threads, 5.50 messages, 3.00 copies.
+
+**Where it departed from the mapping.**
+
+* **Messages: 4, not 3 and 2.** The table counts N0's stream → `load` hop but not N1's or N2's stream → downloader.
+  And N2's `done` is its own message, not folded into the frame: N2 is N1's two loops on one thread, which keeps one
+  downloader and one view; folding needs a third loop.
+* **One `done`, two readers.** The downloader's record ends at `done`; the store learns "written" from a flag the
+  decoder sets after the write (`Decoded::written`), not from `done`, which reaches one thread.
+* **The fill.** Any ask ends a running fill on the server, so the downloader stops owing the fill's frames not yet
+  here; any still in flight arrive late, are kept and counted, and may be asked again — a duplicate on the wire and in
+  decode, not measured.
+* **The cache's read-back** runs on a decoder (coded bytes need decoding); the downloader stats the file per miss.
+* **Not built:** the re-ask when a decoder thread dies (its record stays); the cine and its frame clock (the window
+  has none); a phone, a display's vblank, macOS's off-UI-thread present.
+* **The check's Xvfb** runs `-noreset`: without it the display was gone after the `view` window's close.
