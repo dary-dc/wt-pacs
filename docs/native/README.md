@@ -18,6 +18,7 @@ because it is easier to start there; phones are the goal (the owner, 2026-10-10)
 7. [The owner's decisions](#7-the-owners-decisions)
 8. [The headless core on raw QUIC: the design](#8-the-headless-core-on-raw-quic-the-design)
 9. [Sources](#9-sources)
+10. [The view-worker design, native (2026-10-29)](#the-view-worker-design-native-2026-10-29)
 
 ## 1. The plan in plain words
 
@@ -430,3 +431,155 @@ committed.
 
 **Not read**, so not cited: IEC 62304 beyond its abstract and IEC 82304-1 (paywalled or refused); the EU borderline
 manual on PACS; the HIPAA Security Rule revision's text; GitHub's release pages (403); MicroDicom's site (403).
+
+## The view-worker design, native (2026-10-29)
+
+*Theory only: read from the Target section of [`../adr/frame-path.md`](../adr/frame-path.md) as revised on
+`claude/view-worker-target-rev` (draft PR #235), its red team's review and the independent design after it, and from
+the native line's open PRs at their heads: #206 `claude/native-paint`, #209 `claude/native-cache`, #216
+`claude/native-window`, #218 `claude/native-fill`. Nothing built, nothing run. The owner, 2026-10-29: try this design
+in the native client, compared with native's other versions, measured. The UI shape stays open (§7, decision 2).*
+
+**The question.** What the view-worker design becomes on native threads and memory, and how the versions are compared.
+
+**The answer in brief.** The split carries over whole — the controller decides what, the store decides from where and
+alone talks to the downloader, one owner per frame handed over at an ack, an ordered want, credits, paint before the
+write — and gets cheaper: in Rust a frame's hand-over is a move and the ack a dropped permit, not two messages. What
+dissolves is the browser's: the page, `SharedArrayBuffer` accounting, OPFS's handle rules, a worker's clock. What
+changes cost is the write (two fsyncs, not a copy into the page cache), the hop (a channel, not `postMessage`) and
+the receive: quinn runs in-process, so a thread that blocks its driver stops ACKs, not just credit. That last point is
+what the single core risks natively, and the comparison's one new cell.
+
+### Native today, as the branches build it
+
+* **Threads.** `native-window` runs a tokio multi-thread runtime (`Runtime::new()`, a worker per core) beside winit's
+  UI thread. Each server uni stream is read in its own task (`transport.rs` `media`); every frame goes through one
+  unbounded channel to one `load` task, which decodes it on the runtime's worker, checks it, and hands the samples to
+  the UI thread through `EventLoopProxy`. The UI thread keeps them and paints on redraw.
+* **Memory.** `frames: Vec<Option<Vec<u8>>>`, every frame of the series, no budget, no eviction.
+* **Asking.** The window fills the whole series at open and steps through what it holds; nothing is asked on a step.
+  `native-fill --ask --in-turn` asks one at a time and paints on a thread of its own (`screen.rs`), M2's arm.
+* **The cache** (M3) stores coded bytes, a file per frame, write, fsync, rename, fsync of the directory; on
+  `native-cache` the `put` runs on the receive loop after the decode. No branch holds the cache and a window together,
+  so merged as written, the write — both fsyncs — would come before the hand-off to the paint.
+* **The paint** uploads on every paint (`write_texture`, which copies into a staging buffer), with no skipped upload for
+  the frame already on screen (§6 M1, *Not ported*).
+
+### The mapping
+
+| the target, in the browser | native | |
+| --- | --- | --- |
+| the page: intents and events only | the UI thread, whichever shape decision 2 picks: input, status, the surface's life (resize, suspend) | carries over; the page's long tasks become the toolkit's |
+| the view worker: controller, frame store, paint module | a **view thread** owning the three as modules, its inbox a channel | carries over |
+| its frame clock: worker `requestAnimationFrame`, a 15 ms timer in WebKit | the surface's present: `Fifo` blocks the view thread until a vblank frees an image | dissolves: the windowing system's clock, on the thread that paints |
+| WebGL2 on a transferred canvas | wgpu's `Surface` and `Device`, both `Send + Sync`, owned by the view thread; winit creates the window on the UI thread | carries over by the types; presenting off the UI thread on macOS, iOS and Android not run |
+| the downloader worker: session, records, survival, the want windowed to `D_min` asks | the tokio runtime that already holds quinn and `transport`, plus the records, on threads of its own | carries over |
+| decoders nested in the downloader, `min(3, cores)` | `N` decode threads pulling from one channel | carries over; native decodes inline today (one at a time, M2's asymmetry) |
+| the want: an ordered list of misses replacing the last | a `watch` channel: the receiver sees only the newest list | carries over, and the replace is the channel's own rule |
+| frame → store, then ack; credits: dispatch while unacked < K | the samples' `Vec` moved to the store with an `OwnedSemaphorePermit` inside; the store drops it once the frame is held in budget or written | carries over; the ack is a permit release, not a message, and the move makes "never both owners" a compile-time fact |
+| generation: (series, index, metadata version) | the same key, which M3's cache path already carries | carries over |
+| memory window by byte budget; M2 found V8 counts a shared buffer as 0 bytes, hence the slot ring | a byte budget over owned `Vec`s, which the allocator and RSS count | dissolves: no shared buffer, no slot ring, no take count |
+| OPFS: one sync handle per file, exclusive lock, a writer per worker; arms A, C, D | plain files: any thread writes, two writers of one frame both succeed (M3's unique temporary name) | dissolves; who writes stays a choice, but arm A (the view thread writes) is out, since a write here is two fsyncs |
+| paint before the cache write | the decoder sends the samples, then writes the **coded** bytes it still holds | carries over, at no cost: M3 caches coded bytes, so the write never needs the samples |
+| the page holds no frame, no `SharedArrayBuffer`, no isolation headers | nothing to isolate; the UI thread holds no frame | dissolves |
+| `failed {scope, reason}` to the page | the same event on the UI thread's channel | carries over |
+
+**What changes cost.**
+
+* **A hop.** A message is a channel send and, if the receiver sleeps, a futex wake: expected in microseconds against
+  `postMessage`'s structured clone and event-loop turn. Not measured; the arms stamp each hop (below).
+* **A cache write.** M3's kill run wrote 100 frames of 701 KB, write and both fsyncs each, in 374 ms on this container's
+  ext4: ≈ 3.7 ms a frame, not a phone's flash or Apple's `F_FULLFSYNC`. OPFS's write is a copy with no flush. Paint
+  first matters more natively, and the writer must not be the view thread.
+* **A GPU upload from a decoder's buffer.** Native could narrow the decoder's output straight into a mapped staging
+  buffer and skip `write_texture`'s copy, which the browser cannot. It saves one copy on shown frames only and nothing
+  measured asks for it: not built.
+* **The receive.** In the browser QUIC runs in the network process, and a busy worker only holds credit. Natively,
+  quinn's driver is a task: if its thread blocks, datagrams wait in the socket buffer, 212 992 bytes on Linux before
+  6.18 unless the app raises it, which quinn leaves to the app ([`quic.md`](quic.md) §7.1): ≈ 85 ms at 20 Mbit/s and
+  ≈ 34 ms at 50 (derived), under 2 ms at loopback rates. Past that, drops, read by CUBIC as congestion.
+* **The store's read-back.** M3 caches coded bytes, so a frame from disk is a read, a decode and a check: M3's reopen
+  was decode-bound on one core (373 ms for 87 frames). The browser target stores samples; which one native keeps is not
+  this comparison's lever, and every arm uses M3's cache as built.
+
+### The single core, native
+
+The independent design's alternative: one **core thread** holds transport, records, controller, store and paint; `N`
+decode threads write the cache. Natively it is a `current_thread` runtime on the view thread, the paint between its
+polls, and `N + 2` threads against the target's `N + 3`. Two of its parts do not carry over:
+
+* **The disk as the only store.** With coded bytes on disk, every step re-decodes (M2: 6.9 ms a 1024² frame on this
+  host). So native's single core keeps the byte-budget memory store; it drops the second owner and the ack, not memory.
+* **The receive beside the paint.** A `Fifo` present blocks up to a display period, and M2's paint with its full
+  read-back took 32–36 ms after the exact frame: past the socket buffer at loopback rates, inside it at 20 Mbit. So the
+  core presents with `Mailbox` or `Immediate`, never blocking, and the receive-loop cell below decides whether it holds.
+
+### Per frame, counted from the code and the designs
+
+| | threads touched | messages | copies of the samples (CPU) | GPU uploads | frames held |
+| --- | ---: | ---: | ---: | ---: | --- |
+| **native today**, a fill frame | 2–3 (a runtime worker or two, UI) | 2 (stream → `load`, `load` → UI) | 1 (decoder → `Vec`, narrowed) | 0 | all |
+| native today, a step to a held frame | 1 (UI) | 0 | 1 (into staging) | 1 | all |
+| native today, an ask (`native-fill --in-turn`) | 3 (runtime, loop, paint thread) | 3 (stream → loop, loop → paint, painted) | 2 | 1 | all |
+| **native target**, a fill frame | 3 (runtime, decoder, view) | 2 (decode, frame) + 1 permit release | 1 | 0 | budget + K |
+| native target, a step to a held frame | 2 (UI, view) | 2 (`show`, `shown`) | 1 | 1 | budget + K |
+| native target, an on-demand miss | 4 (UI, runtime, decoder, view) | 4 + 1 permit release | 2 | 1 | budget + K |
+| **native single core**, a fill frame | 2 (core, decoder) | 2 (decode, done with the samples) | 1 | 0 | budget |
+| native single core, a step to a held frame | 2 (UI, core) | 2 | 1 | 1 | budget |
+| native single core, an on-demand miss | 3 (UI, core, decoder) | 4 | 2 | 1 | budget |
+| *browser target, a fill frame* (frame-path, *What each counts*) | 3 + the network process | 4 (decode, frame, `done`, ack) | 2, or 1 and a post | 0 | budget, as V8 counts it |
+| *browser target, an on-demand miss* | 4 + the network process | 6 | 2, or 1 and a post | 1 | |
+
+The cache write adds no message in any native arm (the decoder writes after its send) and one copy of the coded bytes
+into the page cache. Native's decoder pool needs no `done` to the downloader: an idle decoder pulls the next job.
+
+### The comparison, pre-registered
+
+`claude/client-final-protocol` does not exist on origin, so the cells and metrics reuse M2's (§6) and frame-path §7's.
+Every arm's settings print in each row; every frame checks bit-exact against the bundle and its digest, and one
+frame not `true` fails its visit.
+
+* **Arms.** **N0, native today**: #206, #209, #216 and #218 merged with no change of design (cache put on the loop
+  before the hand-off, every frame held, paint on the UI thread). **N1, native target**, as mapped above. **N2, native
+  single core**. **B, the browser target** as built on `claude/view-worker`, headless Chromium, in the cells it can
+  run. N1 and N2 use the same decoders, `N = min(3, cores)`; N0 decodes one at a time as built, and that is part of
+  what it is.
+* **Cells.** M2's: loopback; the relay (`link_impair.py`) at 20 Mbit, 40 ms each way, clean and 2 % loss; the 61 MB
+  (37 × 1024² 16-bit) and 4.4 MB (102 × 512² RGB) series; plus a 3328 × 4096 series for the memory and step cells.
+  Clients on 2 cores, and on 1 core as the saturating cell. Windows 6 MiB stream, 15 MiB connection, in every arm.
+* **Metrics, one per cell** (latency or throughput, not both):
+  1. *Fill*: dial to the last frame exact (N0–N2, B).
+  2. *First exact frame on screen* from the dial (N0–N2, B).
+  3. *Ask, painted*: step to the GPU's work done (`on_submitted_work_done`; the browser's 1-pixel read-back behind the
+     lab flag), one ask at a time, the 1024² series at 20 Mbit. This replaces M2's full read-back, which charged native
+     32–36 ms the browser did not pay.
+  4. *Busy UI*: a 200 ms block every 500 ms on the UI thread (the page in B), from the dial: ten asks' painted time,
+     and a 30 frames/s cine of held frames, frames late counted. The lab injects the steps off the UI thread, so the
+     block delays only what paints there.
+  5. *Receive beside the paint*: the 61 MB fill's inter-arrival p99 and its time while a cine paints held
+     3328 × 4096 frames at 30 frames/s (N1 against N2; B for reference).
+  6. *Memory*: peak RSS of the 3328 × 4096 fill with the cache's writes slowed by a test lever, budget 64 MiB, K = 4.
+  7. *Counts*: messages and copies per frame from counters in each arm, against the table above; a hop's send →
+     receive stamp, median and p99.
+* **Interleaving and A/A.** Per cell, the arms in a Williams order, each twice a round (A and A2), ≥ 12 rounds.
+  `VOID`, fixed before data: a cell whose A2/A median strays past half its rule's band; a visit whose relay p99 is
+  over 1 ms (§8.5).
+* **Saturation guard.** Per visit, every client thread's, the server core's and the relay core's busy share from
+  `/proc`. A cell where the client's cores run ≥ 0.9 busy at the median, or the relay's ≥ 0.8, is labelled saturated:
+  its ratios are printed and nothing is claimed past it.
+* **Predictions.** (a) On the relay, N1 and N2 fill within ×0.98–1.02 of N0 (the wire binds, M2's P2). (b) Busy UI:
+  N0's painted asks and cine slip with the block, N1's and N2's do not. (c) N0's RSS grows to the series' decoded size,
+  N1's and N2's stay ≤ budget + K frames. (d) N2's inter-arrival p99 matches N1's at 20 Mbit and is worse at loopback,
+  where a paint outlasts the socket buffer. (e) Hops in microseconds.
+* **Rule, stated before any data.** **N1 replaces N0** if, on every unsaturated cell, the fill is within ×0.98–1.02,
+  the busy-UI median painted ask is ≥ 16.7 ms earlier in ≥ 9 of 12 rounds with fewer cine frames late, and peak RSS
+  stays ≤ budget + K frames. **N2 replaces N1** — it is the simpler, and wins a tie — if its fill is within ×1.02 of
+  N1's in metric 5 at 20 Mbit, the server's `session path` losses within N1's A/A spread, and its median painted ask
+  within 2 ms of N1's; if it holds at 20 Mbit and fails at loopback, the owner decides which link the native
+  client serves. **B** is a reference, not a candidate: its ratios to N1 are printed for the cells both run, so the owner
+  sees what native buys under the same design.
+* **Only the owner's machine or a phone can claim:** the GPU's upload and paint (lavapipe is a CPU); present pacing and
+  cine on a display (Xvfb has no vblank, so a container's cine counts against a timer); fsync on real flash and
+  `F_FULLFSYNC`; presenting off the UI thread on iOS and Android; a phone's socket buffer and how often its reader
+  stalls past it ([`quic.md`](quic.md) §7.6); memory pressure and the OS killing the app; thermal throttling. The
+  container claims counts, RSS, fill, ask and the receive cell on software rendering, and nothing for a phone.
