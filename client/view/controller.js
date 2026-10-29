@@ -15,6 +15,8 @@ export function samplesOf(info) {
 export class Controller {
   /** Set once connected: what the controller asks of the downloader through. */
   client = null;
+  /** Lab setting `waitAhead`: the want ascends from the current frame and wraps, as the cine does. docs/adr/frame-path.md §3, *Experiment 2* */
+  ascending = false;
   current = 0;
   received = 0;
   seen = { exact: 0, inexact: 0, unchecked: 0, paths: {} };
@@ -132,10 +134,11 @@ export class Controller {
     }
   }
 
-  /** What this view wants, the current frame first: when filling, the series nearest first; on demand, that frame alone. */
+  /** What this view wants, the current frame first: when filling, the series nearest first or ascending; on demand, that frame alone. */
   want() {
     const [c, n] = [this.current, this.#n];
     if (!this.#fillMode) return [c];
+    if (this.ascending) return Array.from({ length: n }, (_, d) => (c + d) % n);
     const order = [c];
     for (let d = 1; order.length < n; d++) for (const i of [c + d, c - d]) if (i >= 0 && i < n) order.push(i);
     return order;

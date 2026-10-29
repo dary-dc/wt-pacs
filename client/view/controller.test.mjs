@@ -125,6 +125,16 @@ test("worker view: the misses go to the downloader in the want's order, once", a
   assert.deepEqual(calls, []);
 });
 
+/** Under the lab's `waitAhead` the misses go in ascending order from the current frame, wrapping past the last. */
+test("worker view, waitAhead: the want ascends from the current frame and wraps", async () => {
+  const wants = [];
+  const { c, calls } = rig({ frames: 8, held: [0, 2], wants });
+  c.ascending = true;
+  c.show(5);
+  assert.deepEqual(wants, ["5,6,7,1,3,4"]);
+  assert.deepEqual(calls, []);
+});
+
 /** A frame of a replaced want that arrives is kept, and only the current frame is painted; on demand the want is that frame alone. */
 test("worker view: a frame of a replaced want is kept", async () => {
   const wants = [];

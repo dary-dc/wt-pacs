@@ -193,6 +193,76 @@ whether the store holds a downloader: two paths in one class while the page view
 so the opening run rides the session URL; to keep that, the store makes its first want before it has a client, and
 it rides `start` too.
 
+#### Experiment 2: the want ascending, and no ask across the running fill (2026-10-29)
+
+*Rank 2 of the experiments beside the target (`claude/vw-experiments`, frame-path.md §Experiments beside the target).
+Pre-registered: written, built and smoked before any data; **not run**. Its run is a row of its own, after a
+methodology review of this text.*
+
+**Claim.** Under `worker` while filling, a reader stepping forward faster than the fill delivers ends the run with an
+ask for a frame the run was about to send (WIRE §An ask during a fill), and the nearest-first want (c, c+1, c−1, …)
+then never ascends, so the rest of the fill goes as alternating asks. A want ascending from the current frame
+(c, c+1, …, n−1, 0, …, c−1, wrapping as the cine does) puts the frames ahead first; and a head the running run
+delivers within its next k frames is waited for rather than asked. Together they should shorten the wait for the
+frame a forward step lands on, by about one round trip a step that ends the fill today — **a guess**, as the table
+says.
+
+**The setting.** `waitAhead: k` in the downloader's options (the lab's `?opts={"waitAhead":k}`; the viewer check's
+`--opts`), absent by default. Absent, nothing changes: the want is nearest-first and only the run's next frame is
+waited for. Set, the controller's want ascends and the downloader waits for a head among the run's next k frames
+(`client/view/controller.js` `want`, `client/transport/downloader.js` `serveWant`). It acts under `worker` only; the
+page view sends no want.
+
+**Arms**, one build, one setting, nothing else different: `off`, `off′` (the A/A pair, the same build and setting run
+as a second unit), and `on` at k ∈ {1, 2, 4, 8}; k = 1 is the ordering alone.
+
+**The trace.** From frame 0's first paint, a sawtooth over the first third of the stack at 25 slices/s (MAP's
+drilling trace): 0 → ⌊n/3⌋ → 0, three times, a step every 40 ms through the view's `show`. Not built: the run's row
+adds it as a lab lever beside `lab/viewer/levers.js`, recording each step's time, whether its frame was held, and
+when it was. The review checks the driver before round 0.
+
+**Measured, per visit.** *Primary:* **the wait of a forward step**, from the step to its frame held (0 if held at the
+step), averaged over the up-strokes' steps — the same steps in every arm, so no arm chooses which steps count, and
+defined for a frame the reader passed before it landed. *Must not regress:* the fill's time (the controller's
+`fillMs`); the backward steps' mean wait; the on-demand wait (the same trace with `fill=0`, where the setting changes
+nothing by construction); exactness, every frame against its digest and the encoder input's `.sha256`.
+
+**Cells.** Sets `ct_lidc` (60 × 512²) and `dbt10_ea1141` (16 tomosynthesis frames), on fixed-rate links of 5 and 20
+Mbit/s at 46 and 92 ms round trip, no loss, the relay with `--self-timing`; Chromium and Firefox; 1× CPU, the rig
+pinned as TOTAL4 (`taskset -c 0-2`). Plus one on-demand cell per engine (`ct_lidc`, 20 Mbit/s, 92 ms).
+
+**Interleaving and rounds.** The six arms in a Williams order inside each cell (`lab/order.mjs`, period 6), cells in
+a Williams order each round as the total-time rig orders them; 12 rounds, two periods. `--mutate sample` before round
+0 must turn every arm's exactness to 0.
+
+**Guards.** *Saturation:* a visit whose relay prints `VOID` (p99 lateness over 1 ms) is dropped and re-run at the
+round's end; a cell left under 10 visits an arm is reported as saturated and claims nothing. *Live cell:* the share
+of `off`'s forward steps whose frame was not held at the step is reported beside every result; below 10 % the reader
+never outran the fill, the cell is dead, and a tie there is not a null. *A/A:* a cell where `off′` − `off`'s paired
+median wait is beyond ±8 ms, or its fill outside ×0.98–1.02, is too noisy to decide and says so.
+
+**Rule**, fixed before the data, over the live, decided cells:
+
+* *k\** is the largest k whose wait is no later than k = 1's in ≥ 9 of 12 rounds in every such cell: waiting is no
+  later than asking. None: k\* = 1.
+* `on` at k\* is **adopted as the default** if its wait beats `off`'s by ≥ 16.7 ms (one 60 Hz frame) in ≥ 9 of 12
+  rounds in at least one cell per engine; is later than `off` by 16.7 ms in ≥ 9 of 12 rounds in none, forward or
+  backward; its fill's paired median ratio to `off` is ≤ 1.02 in every cell; the on-demand cells are within the A/A
+  spread; and every frame is exact. An inexact frame in any arm rejects it whatever the timings.
+* Better forward and worse backward is a trade-off for the owner, with those cells as its cost. Otherwise `off` stays
+  and the setting is removed.
+
+**Built and checked** (2026-10-29). Each check was mutated and its mutant failed:
+
+| claim | check | mutant |
+| --- | --- | --- |
+| under the setting the misses go ascending from the current frame, wrapping | `controller.test.mjs` *waitAhead: the want ascends* | the setting ignored; no wrap |
+| by default a head the run delivers second is asked; under k = 4 it is waited for, a head behind the run is asked, and one 5th is asked | `downloader.test.mjs` *aHeadTheRunDeliversWithinKIsWaitedFor* | k ignored; ≤ k; the default as 2; a head outside the run waited for |
+
+The view worker's reading of the setting has no node check: a smoke ran one round per arm of the viewer check under
+`worker` with a cine (`--opts '{"waitAhead":4}'` and without), both green, and with the ascending branch made to throw
+only the arm with the setting failed. It is a smoke, and gives no number.
+
 ## 4 · OPFS, from the specs and the engines' sources
 
 * **Sync access handles exist only in dedicated workers** (`[Exposed=DedicatedWorker]`, fs §FileSystemSyncAccessHandle),

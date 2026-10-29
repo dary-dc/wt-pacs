@@ -2,7 +2,7 @@
 // exact, drawn page failed by name. client/README.md §The viewer
 //
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
-//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm] [--view page|worker]
+//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm] [--view page|worker] [--opts JSON]
 //   ... --url http://host/ --decoder htj2k [--client C]   (a host already running, such as the deploy image, whose transport
 //     file names C; no request log, so no code check)
 //   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
@@ -82,7 +82,7 @@ async function host(sbnd, name) {
 /** The page's own result, read off it in headless Chromium through playwright, or off a stock Firefox's stdout. */
 async function open(url) {
   const timeout = new Promise((resolve) => setTimeout(() => resolve({ error: "no result in 300 s" }), 300000).unref());
-  const q = new URLSearchParams({ check: "1", ...(process.argv.includes("--cine") && { cine: "1" }), ...(arg("--fill") && { fill: arg("--fill") }), ...(VIEW !== "page" && { view: VIEW }) });
+  const q = new URLSearchParams({ check: "1", ...(process.argv.includes("--cine") && { cine: "1" }), ...(arg("--fill") && { fill: arg("--fill") }), ...(VIEW !== "page" && { view: VIEW }), ...(arg("--opts") && { opts: arg("--opts") }) });
   const page = `${url}?${q}`;
   if (ENGINE === "firefox") {
     const profile = mkdtempSync(path.join(T, "ff-"));
