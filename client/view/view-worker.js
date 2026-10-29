@@ -53,6 +53,7 @@ function start({ canvas, meta, fillMode, size, settlePaint }) {
 async function connect({ port, url, certHash, opts, issuedAt }) {
   downloader = port;
   controller.issuedAt = issuedAt;
+  controller.ascending = Boolean(opts.waitAhead);
   const want = controller.store.want(controller.want());
   controller.client = await DownloaderClient.connect(url, certHash, {
     ...opts,
