@@ -158,6 +158,8 @@ itself behaves like C: it exchanges a file list and compares, and `--delete` del
 the receiving side (those that don't exist on the sending side)" (rsync(1)). But that reaches only `incoming/`: the
 serving tree's deletions come from the item list, never from rsync (*inference*).
 
+How a late instance, a correction and a withdrawal travel over rsync, four patterns ranked: [`rsync-updates.md`](rsync-updates.md).
+
 ### 2.6 The PCS's copy
 
 **Decided 10-24:** the PCS keeps each unit until "stored" and resends on "refused". The sender deletes its copy after
