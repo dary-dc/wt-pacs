@@ -20,8 +20,8 @@ display (`DISPLAY`) and `FIREFOX_PATH`. It reuses `lab/opfs-cache/browser.mjs` f
 
 ```bash
 NODE_PATH=$(npm root -g) node lab/opfs-arms/run.mjs --cell late|rate|miss|drag|probe --size 512|2560|3328 [--throttle 1|4] \
-  [--engine chromium|firefox] [--rounds 12] [--arms A-arrival,C] [--mutant write-before-paint|drop-writes|late-input] [--out rows.jsonl]
+  [--engine chromium|firefox] [--rounds N] [--arms A-arrival,C] [--mutant write-before-paint|drop-writes|late-input] [--out rows.jsonl]
 node lab/opfs-arms/summary.mjs DIR    # the mutants caught or not, each cell's arms, and each engine's verdict by the rule
 ```
 
-Rows go to `work/` unless `--out` says otherwise; `work/` is not tracked. A run takes a fresh profile, removed after.
+`--rounds` defaults to one Williams period of the cell's arms (`lab/order.mjs`). Rows go to `work/` unless `--out` says otherwise; `work/` is not tracked. A run takes a fresh profile, removed after.

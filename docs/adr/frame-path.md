@@ -948,3 +948,9 @@ The full runs are a separate row. *Independent review's smoke, 2026-10-29* (Chro
 container; XXH3 stood in by a JS hash, the decoder builds absent; not results): D's W at S1, 1× was 102, 133 and 199
 MB/s in three rounds, write and close 1.6–5.7 ms on the feeder against the probe's 0.74, so W's ≥ 125 is the cell to
 watch; in one G round at S2, 1×, `none` missed 9.7 % of ticks, over the 5 % saturation line.
+
+**Amended before any data, 2026-10-29 (the independent review's open points).** *Rounds:* each cell runs one whole
+Williams period of its arms (`lab/order.mjs`), so every arm follows every other equally often: **L 8 rounds** (8 arms;
+8 and 16 are equally near 12, 8 taken for the host's time), **W 14** (7 arms), **R 10** and **G 10** (5 arms). The
+rule's "≥ 9 of 12" reads as ≥ 75 % of a cell's rounds, as `summary.mjs` counts it: ≥ 6 of 8, 11 of 14, 8 of 10.
+*Credits:* three feeders take ⌈8 / 3⌉ = 3 credits each, so W keeps 9 frames ahead in total, not 8.
