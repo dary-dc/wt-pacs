@@ -623,8 +623,143 @@ Node 22 shows the mechanism on its own: 80 unreachable 27 MiB `SharedArrayBuffer
 transferred copies. A frame's memory is bounded during a fill only by buffers reused, not collected: lever 2's slot
 ring.
 
-**Left open:** the fix for M2 (lever 2's ring of slots), the owner's, and whether the store's copy stays without it
+**Left open:** the fix for M2 (lever 2's ring of slots), the owner's (weighed for the view worker below, §Who owns a frame's memory), and whether the store's copy stays without it
 (it frees the fill's frames after it; its cost to the fill's peak and time is not measured, M2 being VOID); WebKit; (5) on Firefox; (9); questions 2 and 6.
+
+### Who owns a frame's memory (2026-10-28)
+
+**Status:** theory and a reading of the engines' sources; nothing built, nothing run. The shape it assumes is the
+owner's of 2026-10-28, written nowhere else yet: one dedicated **view worker** holds the frame store (the memory window,
+OPFS behind it), the controller and the paint; the decoders, nested in the downloader worker, post each checked frame
+straight to it. The question: who owns a decoded frame's memory, so that the window bounds peak memory during a fill on
+every engine. The finding it answers is M2's (*Fixes*, above); lever 2 names the ring.
+
+**What each engine's collector sees** (pinned sources below):
+
+| engine | a `SharedArrayBuffer`'s backing store | a transferred `ArrayBuffer` | what starts a collection |
+| --- | --- | --- | --- |
+| V8 | **counted as 0 bytes** in every isolate that holds it, "to avoid GC thrashing" (a TODO) | counted at its length in the isolate that holds it; the sender's count is cleared on detach | external memory past limits set from the last GC (the soft one 64 MiB over its low since then) starts marking or a collection. *Corrected 2026-10-29 (independent review):* the soft limit is defined there and called nowhere in the files read; an allocation past its low since the last GC + 128 KiB starts marking only once the global limit is reached, which grows that low by a factor (`heap-controller.cc` 307–315, 487–490): proportional, not 64 MiB |
+| SpiderMonkey | counted at its length, once per zone (each worker is its own), whatever the holders | counted at its length | a zone's malloc bytes past max(retained, 38 MiB) × 1.5–3.0 |
+| JavaScriptCore | counted at its length by every wrapper ("probably overcounts") | the same | the heap, extra memory included, past a proportional multiple of the last live size |
+
+So M2's failure is V8's alone by source: a dropped frame weighs nothing there, and only a collection the JS heap
+itself asks for frees it. Gecko and JSC should collect a dropped frame on pressure, with slack in proportion to what is
+held. No web API forces a collection; V8's `ExternalMemoryAccounter` is the embedder's, not a page's. *Not measured:*
+M2 never ran on Firefox, and WebKit not at all.
+
+**The candidates.** Copies are of the decoded samples, in script, from the decoder's output to the store, per frame;
+the paint's upload (GL) and the OPFS write (the kernel) are the same in all. Today, counted from the code
+(`htj2k.js` `decodeWith`, `av1-frame.js` `begin`, `av1-webcodecs.js` `read`, `viewer.js` `write`): HTJ2K **2** (the heap
+into a new `SharedArrayBuffer`, then the page's copy for the store, *Fixes*), dav1d **2** (its pack is the first),
+WebCodecs **3** (`copyTo`, the pack, the page's). The decode-side count of
+[`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The container campaign, *Per frame, counted from the code* (3 for HTJ2K, the coded bytes' two included) rises to 4
+with the store's copy.
+
+| | **(a)** a `SharedArrayBuffer` a frame, collected sooner | **(a′)** a transferred `ArrayBuffer` a frame | **(b)** a ring of largest-frame slots | **(c)** slots carved once per series |
+| --- | --- | --- | --- | --- |
+| memory during a fill | V8: unbounded, as M2; Gecko and JSC: window + collector slack | window + collector slack on every engine: V8 64 MiB and its marking's length (*corrected 2026-10-29:* V8's is proportional too, above), Gecko up to 0.5–2 × the window, JSC proportional | **fixed**: the ring | **fixed**: the ring |
+| copies, HTJ2K / dav1d / WebCodecs | 1 / 1 / 2 | 1 / 1 / 2 | 1 / 1 / 2 | 1 / 1 / 2 |
+| what the window holds at 256 MiB | the budget | the budget | the study's largest frame sets every slot: with a mammogram in it, 9 slots, so a CT series keeps 9 frames, not 512 | the series' own: 512 at 512², 9 at 3328×4096 |
+| new machinery | none, and nothing to build it with on V8 | the decoder's output type and a transfer list | a slot table, backpressure, the races below | the same as (b) |
+| races | none (single-threaded reads, frames never reused) | none: a transfer detaches the sender | below | below |
+
+The copy falls by one under every candidate, and the fall is the **shape's**, not the owner's choice: in one thread the
+store writes OPFS from what it holds, so the page's copy for the store goes. Against each other the four copy the same.
+Writing into a slot is the copy the decoder already makes: `set(out)` into the slot's view in place of a new buffer;
+dav1d's pack writes its output view over the slot. WebCodecs' `copyTo` takes a shared view (`AllowSharedBufferSource`),
+so it could write the slot directly, but a grey 4:2:0 frame brings its chroma (a slot half as large again at 8 bits)
+and the split and offset still want a pass: not counted. (b) wastes the window whenever a study mixes frame sizes;
+(c) does not, because one series has one frame size (lever 3). A tab shows one series today (a server serves one), so
+(c) carves one `SharedArrayBuffer` of the budget once; several series on screen would share it, re-carved only with
+every slot free, which is not designed here. A second buffer is never allocated: on V8 the first would never be freed.
+
+**How (c) works.** A slot table of one `Int32` a slot, in a small `SharedArrayBuffer` sent once with the ring: free,
+or the decoder writing it, or held by the store, with a take count. A decoder takes a slot by `compareExchange` when it
+**begins** a frame (not when one is queued, so at most one slot a decoder, three of nine on a mammogram), decodes,
+hashes the slot (the exactness check, unchanged, while the decoder still owns it), and posts `{ index, slot, take }`.
+The store frees a slot on eviction. A decoder that finds none free says so on its port and the store answers when one
+frees; the store checks on receipt, so no wake-up is lost, and no thread blocks. A read back from OPFS takes a free
+slot the same way, reads into it (sync access handles take shared views, §4) and re-checks it there.
+
+* **Every slot held.** With OPFS a slot frees one synchronous write after its frame lands, so a fill dries the ring
+  only when nothing can be dropped: no OPFS, or a write refused. Then the decoders stop, their two frames each stay
+  queued, and dispatch stops. That reaches the wire only through the reader pause, proposed and not built
+  ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The downloader, *Memory*); until it is, coded bytes queue, at most the
+  series' coded size. Under (c) question 2's *keep everything* cannot be had: past the budget the fill stops or drops
+  the farthest. An ask outranks the window: the store evicts the farthest frame for it, on disk or not.
+* **Races.** The paint's `texSubImage2D` and the OPFS `write` both read the slot synchronously in the view worker, so
+  neither can see it reused mid-read; nothing else in that thread yields between them. A decoder writes only a slot it
+  took, and a frame decoded again after a mismatch reuses its own. Three cases need a rule: an AV1 preview layer stays
+  its own transferred buffer outside the ring (a slot would be overwritten by the exact frame while the preview is shown); a
+  cancelled frame's decoder frees its slot itself; a dead decoder's slots are freed by the store only once the
+  downloader has terminated it. A double free would paint another frame silently, after the check: the store compares
+  the slot's take count before and after each read (two `Atomics.load`), and drops and re-asks on a change.
+
+**Recommendation: (c).** It is the only candidate that bounds a fill by construction on V8, where M2 failed, and
+on the other engines by a number we choose instead of a growth factor. Its cost is the slot table and the rules
+above, on the decoders' output and in the store. **What would turn it over:** (a′) meeting the same rule on
+Chromium and Firefox in the protocol below: then the collector's slack is small enough in practice, and (a′) needs no
+table, no backpressure and no new failure mode. Also: the ring losing fill time beyond its A/A (decoders waiting on
+slots); a hanging protocol putting series of different frame sizes on screen at once, which wants a byte allocator,
+not slots; a budget under four of a series' frames (three decoders and the frame shown), which (c) cannot serve.
+
+**Protocol, M5, pre-registered 2026-10-28, before any build or data.** M2's rig (`lab/opfs-cache/run.mjs`, cell `m2`)
+and its rules carry over: the 4-vCPU container, the 80 × 3328×4096 series (2.03 GiB) on loopback, a 256 MiB window,
+a fresh profile an arm, the browser tree's PSS each second, peak less the value before the dial; every frame checked
+by the decoder's XXH3 and the rig's SHA-256; arms ordered per round by `lab/order.mjs`; ≥ 7 rounds; each arm's
+settings printed with its rows; CPU busy recorded. Chromium as M2; Firefox on Xvfb, which needs the rig's Firefox
+driver taken from M3 to `m2` (a rig change, made in the later row). WebKit is not run (no build in the container). *Corrected 2026-10-29:* `browser` already sends `m2` to the
+Firefox driver under `--engine firefox`; what `m2` lacks is the engine in its settings and rows. The arms are three
+client trees, and the rig serves one (`today`'s `was` was a stand-in): serving them side by side is a rig change too.
+
+| arm | build |
+| --- | --- |
+| `ring`, `ring′` | the view worker with (c); `ring′` the same, run again: the A/A |
+| `today` | `claude/opfs-cache-fixes` as measured 2026-10-28 (the page's window, the store handed copies) |
+| `transfer` | the view worker with (a′): the same shape, the decoder posting a transferred `ArrayBuffer` |
+
+* **Measured:** growth, the fill's time (dial → last frame checked), exactness, and on `ring` the decoders' slot waits
+  (count and total ms).
+* **Predicted:** `ring` 530–600 MiB on both engines: the floor once everything is collected, 531–537 MiB (*Fixes*), holds
+  the window and the workers already, and the ring adds nothing to it. `today` on Chromium as on 2026-10-28,
+  2.6–3.2 GiB; on Firefox bounded by collection, 0.6–1.2 GiB. `transfer` 600–800 MiB on Chromium, 650–1 100 on
+  Firefox. (*Corrected 2026-10-29:* Chromium's 600–800 rested on the 64 MiB slack, which the sources do not give: a
+  guess, not a derivation.) Fill: `ring` ≤ `today` (one copy and one hop fewer); slot waits near zero with OPFS.
+* **VOID**, per engine: the median |`ring′` − `ring`| over 64 MiB, or the median `ring′`/`ring` fill time outside
+  0.90–1.10.
+* **Rule.** On each engine, (c) **holds** if in every round not VOID the fill is complete, every frame exact by both
+  checks, `ring`'s growth ≤ 608 MiB (the budget + 352: the floor's 537 and the A/A bar's 64, rounded up), and the median
+  `ring`/`today` fill time ≤ 1.10. It **fails** otherwise, and lever 2 returns to the owner with the numbers.
+  **Turned over to (a′)** if `transfer` also meets the 608 MiB bar and the time bar in every round not VOID, on both
+  engines. (*Corrected 2026-10-29:* VOID is the engine's cell, not a round: read "in every round of a cell not VOID";
+  a VOID cell decides nothing on that engine.) `today` is reported, not ruled: on Firefox it may already be bounded, which tests the source reading above.
+* **Mutants**, each a stand-in as M2's: the store never frees a slot, which must stall the fill (predicted after nine
+  frames, the ring's count) and fail completeness within 120 s, 15 × today's fill; and a ring that allocates a fresh buffer when dry,
+  which must fail the 608 MiB bar. *Corrected 2026-10-29 (independent review):* with OPFS the ring is predicted
+  near never dry (slot waits near zero, above), so that mutant may allocate nothing and pass: it runs with the store
+  off (the `off` stand-in), where the ring dries after nine frames. The 120 s is a rig change too: `fill` waits 1 800 s.
+* **After it, if (c) holds:** the 13 GiB series on `ring`, Chromium only: growth as at 2 GiB and the fill complete,
+  where every earlier arm stopped at ~12 GiB, the container's limit (M2).
+
+**Sources, 2026-10-28**, fetched for this section and added to [`frame-path-sources.txt`](frame-path-sources.txt).
+V8 at `f428bb0` (Chromium `52c75e5`'s `DEPS`); Gecko and WebKit at §9's pinned commits; WebCodecs at `2b849bb`.
+
+| claim | source |
+| --- | --- |
+| V8: a shared backing store counts 0 bytes per isolate | `src/objects/backing-store.h` 203–209; `src/objects/js-array-buffer.h` 291–298 |
+| V8: an array buffer's count added on attach, removed on detach; 0 skipped | `src/heap/array-buffer-sweeper.cc` 358–372, 388–402, 426–438 |
+| V8: what external memory starts; the 64 MiB | `src/heap/heap.cc` 1389–1401, 6976–7022; `include/v8-internal.h` 1233 |
+| V8: the start is the global limit, external memory's low × a factor (*added 2026-10-29*) | `src/heap/heap-controller.cc` 307–315, 482–490; `src/heap/heap-controller.h` 219; `src/heap/heap.cc` 5607–5611, 5646 |
+| V8: the accounting API is the embedder's | `include/v8-external-memory-accounter.h` 15–49 |
+| Gecko: a shared buffer counted once per zone, at its length; the trigger checked | `js/src/vm/SharedArrayObject.cpp` 777–800; `js/src/gc/Zone.cpp` 89–113 |
+| Gecko: an array buffer's contents counted and released as cell memory | `js/src/vm/ArrayBufferObject.cpp` 1885–1910 |
+| Gecko: the malloc trigger, base and growth | `js/src/gc/GC.cpp` 2158–2188; `js/src/gc/Scheduling.h` 409–431; `js/src/gc/Scheduling.cpp` 466–497, 580–597 |
+| JSC: each wrapper counts the whole buffer, shared or not | `runtime/JSArrayBuffer.cpp` 45–50; `runtime/ArrayBuffer.h` 379–383; `heap/Heap.cpp` 646–653 |
+| JSC: the next collection, proportional | `heap/Heap.cpp` 171–203, 1905–1911 |
+| WebCodecs: `copyTo` takes a shared view | `index.src.html` 3446–3448 |
+
+**Not traced:** Blink's own accounting of a shared buffer outside V8; whether Gecko's high-frequency mode holds during a
+fill (it picks 1.5 or 3.0); JSC's growth factor on a phone; `Atomics.waitAsync` per engine, which the design avoids.
 
 ### Options, and what each costs
 
