@@ -20,6 +20,7 @@ const ROUNDS = Number(arg("--rounds", 12));
 const MUTANT = arg("--mutant", "");
 const OUT = path.resolve(arg("--out", path.join(WORK, `${CELL}-${ENGINE}-${SIZE}-${THROTTLE}x.jsonl`)));
 mkdirSync(WORK, { recursive: true });
+mkdirSync(path.dirname(OUT), { recursive: true });
 
 /** Width, height; 16-bit grey. */
 const SIZES = { 512: [512, 512], 2560: [2560, 3328], 3328: [3328, 4096] };

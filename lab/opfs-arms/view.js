@@ -127,7 +127,7 @@ function writeNow(i, pixels, f, copy) {
   p.then(() => (inflight--, (f.end = now()), done(i, f)), (e) => (inflight--, (f.error = String(e)), done(i, f)));
 }
 
-/** The order "paint": after the paint, the queue drains for at most `budgetMs` of the tick by byte ranges, A writing
+/** The order "paint": after the paint, the queue drains for at most `budgetMs` more by byte ranges, A writing
  *  them and B copying them out of shared memory; B's write then starts, and the engine's own copy lands where it lands. */
 function drain(tickStart, budgetMs) {
   while (pending.length && now() - tickStart < budgetMs) {
@@ -168,7 +168,7 @@ function tick(ts) {
     backlog.push(pending.length + inflight);
   }
   if (note && uploaded === note.index) page.postMessage({ kind: "painted", ...note, paintedAt: end }), (note = null);
-  if (c.order === "paint" && !mutantFirst) drain(start, c.budgetMs);
+  if (c.order === "paint" && !mutantFirst) drain(now(), c.budgetMs);
   onTick?.();
   requestAnimationFrame(tick);
 }

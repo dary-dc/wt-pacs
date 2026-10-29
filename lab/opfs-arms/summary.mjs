@@ -11,29 +11,37 @@ const median = (v) => { const s = v.filter(Number.isFinite).sort((a, b) => a - b
 const missP50 = (r) => median((r.misses ?? []).map((m) => (m.error || m.exact === false ? NaN : m.paintedAt - m.sentAt)));
 const missOk = (r) => (r.misses ?? []).length > 0 && r.misses.every((m) => !m.error && m.exact !== false);
 
+const at = (r) => `${r.engine} ${r.size} ${r.throttle}×`;
+/** write-before-paint is caught only against the same arm unmutated: late by more than the rule's 1 % of ticks. */
 const mutants = rows.filter((r) => r.unit && r.mutant);
 for (const r of mutants) {
-  const caught = r.mutant === "drop-writes" ? r.checks.writesVerified === false : r.missedTicks > 0 && r.lateAsPredicted;
-  console.log(`mutant ${r.mutant} · ${r.engine} ${r.cell} ${r.size} ${r.throttle}× ${r.unit}: ${caught ? "caught" : "NOT CAUGHT"}`);
+  const control = median(rows.filter((u) => u.unit === r.unit && !u.mutant && u.cell === r.cell && at(u) === at(r)).map((u) => u.missedShare));
+  const caught = r.mutant === "drop-writes" ? r.checks.writesVerified === false
+    : Number.isFinite(control) ? r.missedShare - control > 0.01 && r.lateAsPredicted : "no unmutated run to compare";
+  console.log(`mutant ${r.mutant} · ${r.engine} ${r.cell} ${r.size} ${r.throttle}× ${r.unit}: ${caught === true ? "caught" : caught || "NOT CAUGHT"}`);
 }
 
 const cells = new Map();
 for (const r of rows.filter((r) => r.unit && !r.mutant)) {
   const key = `${r.engine} ${r.cell} ${r.size} ${r.throttle}×`;
-  if (!cells.has(key)) cells.set(key, { engine: r.engine, cell: r.cell, rounds: new Map() });
+  if (!cells.has(key)) cells.set(key, { engine: r.engine, cell: r.cell, at: at(r), rounds: new Map() });
   const rounds = cells.get(key).rounds;
   if (!rounds.has(r.round)) rounds.set(r.round, {});
   rounds.get(r.round)[r.unit] = r;
 }
 
+/** Saturation is the L cell's `none`, and holds for W and R at the same engine, size and throttle. */
+const saturatedAt = new Set([...cells.values()].filter((c) => c.cell === "late" &&
+  median([...c.rounds.values()].map((r) => r.none?.missedShare)) > 0.05).map((c) => c.at));
+
 /** Per cell and arm, the rounds that pass its check, and whether the cell is VOID or saturated. */
-function judge({ cell, rounds }) {
+function judge({ cell, at: where, rounds }) {
   const rs = [...rounds.values()];
   const aa = { late: (r) => r.missedShare, rate: (r) => r.writeMBps, miss: missP50 }[cell];
   const pairs = rs.filter((r) => r.C && r.C2).map((r) => [aa(r.C), aa(r.C2)]);
   const voided = cell === "late" ? median(pairs.map(([a, b]) => Math.abs(b - a))) > 0.01
     : !(median(pairs.map(([a, b]) => b / a)) >= 0.9 && median(pairs.map(([a, b]) => b / a)) <= 1.1);
-  const saturated = cell === "late" && median(rs.map((r) => r.none?.missedShare)) > 0.05;
+  const saturated = saturatedAt.has(where);
   const pass = {
     late: (r, a) => r.none && r[a].missedShare - r.none.missedShare <= 0.01 && r[a].paintDelayP99 - r.none.paintDelayP99 <= 4,
     rate: (r, a) => r[a].checks.writesVerified && r[a].writeMBps >= 125,

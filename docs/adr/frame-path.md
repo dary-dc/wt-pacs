@@ -748,6 +748,12 @@ MDN's browser-compat-data at `09b6855`. Quotes are verbatim, cut with "…"; HTM
   commit being a file copy; Chromium's (a move) and Gecko's (a file-id swap) copy nothing.
 * **B's read in Gecko runs through the content process's main thread**, the page's: under a page held by long tasks
   (§2), a Gecko B miss waits for the task. That is the stall the shape exists to remove; *by source, not run*.
+  **Corrected 2026-10-29 (independent review):** this said Gecko alone. WebKit posts every async call a worker makes
+  (`getFile`, `createWritable`, each `write`, `close`) to the page's main thread (`WorkerFileSystemStorageConnection.cpp`
+  239, 353, 376, 399: "`callOnMainThread(`"), so a WebKit B write waits for a held page too; and a WebKit sync handle
+  that outgrows its capacity blocks on a semaphore for the main thread (same file, 489–501), which the rig's A, its
+  file truncated to the cell's size at open, does not exercise. Gecko's link from `slice().arrayBuffer()` to
+  `BodyConsumer` is `dom/file/Blob.cpp` 274, 289–305, at the same commit and not in the sources list.
 
 #### Predicted, before any run
 
@@ -757,11 +763,14 @@ ceiling, 125 MB/s decoded (§Where it saturates): 238 frames/s at S1, 7.3 at S2,
 
 | | blocks the view thread, a frame | the shown frame at 125 MB/s | write rate, credit-bound | a miss, intent → painted |
 | --- | --- | --- | --- | --- |
-| **A**, on arrival | one write: S1 0.13–0.5 ms, S2 4–17, S3 7–27 at 1×; ×4 at 4× | **late** at S2 and S3, at 1× by ~block/period of the arrivals (3–8 % of ticks), at 4× in most | ≥ 1 GB/s Chromium; Gecko lower by its quota round trips, unknown | S3: read 7–27 + check ~7 + up to a period: **the fastest** |
+| **A**, on arrival | one write: S1 0.13–0.5 ms, S2 4–17, S3 7–27 at 1×; ×4 at 4× | **late** at S2 and S3, at 1× by ~block/period of the arrivals (3–8 % of ticks; *corrected 2026-10-29 (independent review):* arrivals × block is 3–12 %), at 4× in most | ≥ 1 GB/s Chromium; Gecko lower by its quota round trips, unknown | S3: read 7–27 + check ~7 + up to a period: **the fastest** |
 | **A**, paint first | ≤ 8 ms a tick, 1 MiB at a time | **on time**: paint + 8 ms + one chunk < 16.7 ms, at 4× too | ≤ 8/16.7 of the write speed: ≥ 480 MB/s at 1×; **120–480 MB/s at 4×**, under the fill's 125 at the low end | as A |
-| **B**, on arrival | two copies of the frame: S3 6–12 ms at 1×, 22–44 at 4× | **late** at S2 and S3 | a file and a commit per frame; WebKit writes twice; ≥ 125 MB/s at 1× on Chromium and Gecko, not traced past that | A + an IPC round trip + one more copy: **the slowest**, by ≥ 10 % at S2 and S3 |
+| **B**, on arrival | two copies of the frame: S3 6–12 ms at 1×, 22–44 at 4× | **late** at S2 and S3 | a file and a commit per frame; WebKit writes twice; ≥ 125 MB/s at 1× on Chromium and Gecko, not traced past that | A + an IPC round trip + one more copy: **the slowest**, by ≥ 10 % at S2 and S3 (*corrected 2026-10-29 (independent review):* does not follow at the slow end: one more copy, 2–6 ms, on A's 38–51 ms is 5–12 %, the IPC not quantified) |
 | **B**, paint first | our copy budgeted; the engine's copy (S3 3–6 ms at 1×, 11–22 at 4×) in a later task, not | on time at 1×; **late at 4×** at S2 and S3, ~5–8 % of ticks | as B on arrival | as B |
 | **C** | a post, ~0.1 ms | **on time** | as A on arrival, in the store worker | A + two posts, ~0.5 ms; off the view thread |
+
+B's copies (6–12 ms for two of S3) take a memory copy at ~4.5–9 GB/s, a rate none of the inputs above gives
+(*added 2026-10-29, independent review*).
 
 **Predicted verdict:** A-on-arrival and B-on-arrival fail the shown frame at S2–S3; B-paint-first fails it at 4×; A
 paint-first and C keep it. The rule below then picks **A paint-first if it holds 125 MB/s at S3, 4×, else C**; A over B
@@ -780,7 +789,7 @@ round by `lab/order.mjs`; a fresh profile per run; every arm's settings printed 
 
 | cell | arms | measured | settings |
 | --- | --- | --- | --- |
-| **L** the shown frame | `none` (no cache), A and B in both orders, C, C′ | missed ticks (a gap between callbacks of k periods misses k − 1), as a share of ticks; the paint task's delay (callback start − its frame time) p50 / p99; the backlog (frames arrived, not written) each tick; peak PSS growth | 125 MB/s for 10 s; 4 frames held for the show; paint first drains ≤ 8 ms a tick in 1 MiB pieces |
+| **L** the shown frame | `none` (no cache), A and B in both orders, C, C′ | missed ticks (a gap between callbacks of k periods misses k − 1), as a share of ticks; the paint task's delay (callback start − its frame time) p50 / p99; the backlog (frames arrived, not written) each tick; peak PSS growth | 125 MB/s for 10 s; 4 frames held for the show; paint first drains ≤ 8 ms a tick in 1 MiB pieces, after the paint (*corrected 2026-10-29 (independent review):* the rig counted the 8 ms from the tick's start, paint included) |
 | **W** the write rate | A and B in both orders, C, C′ | MB/s from the first arrival to the last write, the feeder kept 8 frames ahead; every frame read back exact | 1 000 MB of frames |
 | **R** a miss | A, B, C, C′ | 16 intents a run, each a frame not in memory: intent → read → re-check → painted, p50 / p99; the page cache is warm (lever 1's M1 says so too) | after a fill of 32 |
 
@@ -788,7 +797,9 @@ round by `lab/order.mjs`; a fresh profile per run; every arm's settings printed 
 1 % of ticks (L), or the median C′ / C lies outside 0.90–1.10 for MB/s (W) or the miss p50 (R).
 
 **Saturation.** A cell (engine × size × throttle) in which `none` misses more than 5 % of ticks in its median round is
-**saturated**: nothing is claimed there for any arm.
+**saturated**: nothing is claimed there for any arm. (*Corrected 2026-10-29 (independent review):* `summary.mjs`
+excluded only L there, not W and R at the same engine, size and throttle; it now excludes all three. L's 7 arms balance
+their order over 14 rounds (`lab/order.mjs`), so 12 leave it slightly unbalanced.)
 
 **The rule, stated before any data.** Per engine, over the non-VOID, unsaturated cells:
 
@@ -804,13 +815,17 @@ round by `lab/order.mjs`; a fresh profile per run; every arm's settings printed 
 
 **Mutants, each run before its cell is believed.** *write-before-paint*: the paint-first arm draining its whole queue
 before the paint. At S3, 4×, it must miss ticks, and at least Σ ⌊block / period⌋ of its own measured blocks; a
-harness that cannot see that lateness fails. *drop-writes*: every arm recording writes it never made; W must fail its
-read-back. Both are `--mutant` in the rig.
+harness that cannot see that lateness fails. *Corrected 2026-10-29 (independent review):* that check alone also passes
+the arm unmutated (run once: A and B paint-first, unmutated, at S3, 4×, Chromium), so it does not tell the
+mutant from the code; `summary.mjs` now counts it caught only if it also misses more than 1 % of ticks over the same
+arm unmutated. Re-run once, the A mutant missed 527 ticks against 532 predicted, so the check failed it (B's passed):
+⌊block / period⌋ per 1 MiB piece and the tick count's rounding do not bound each other, and the bar is marginal.
+*drop-writes*: every arm recording writes it never made; W must fail its read-back. Both are `--mutant` in the rig.
 
 **Smoke, 2026-10-28** (one round per arm, Chromium 153 and Firefox 159; not results): every arm ran its L, W and R
 runs to the end in Chromium, L and R in Firefox, each writing and reading back exact, except one Firefox B-on-arrival
 L run that hit the cell's deadline (4 × its 10 s) with frames unwritten, which the rule counts as an unbounded
-backlog. *write-before-paint* was caught at S3, 4×, on both paint-first arms (Chromium only: the smoke did not throttle
-Firefox); *drop-writes* was caught on A, B and C in both engines. The saturation check fired at S3, 4×, in Chromium's
+backlog. *write-before-paint* was caught at S3, 4×, on both paint-first arms (by the check corrected
+above, which the unmutated arm also passes; Chromium only: the smoke did not throttle Firefox); *drop-writes* was caught on A, B and C in both engines. The saturation check fired at S3, 4×, in Chromium's
 one round: whether that cell is saturated is for the full run. The probe's facts are in the table above (*run once*).
 The full runs are a separate row.
