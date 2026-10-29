@@ -2,7 +2,9 @@
 
 /** `check(phase, args)` runs a phase of client/view/check.js beside the controller; `seen`, the page's own messages, in the worker variant. */
 export async function run({ q, n, check, errors, report, rendererName, toggleCine, current, seen, close }) {
-  const out = { n, ...(await check("protocol", { n, onDemand: q.get("fill") === "0" })), errors: [...errors], renderer: rendererName,
+  // Before the protocol asks anything of the downloader.
+  const cache = seen ? await check("cache") : undefined;
+  const out = { n, cache, ...(await check("protocol", { n, onDemand: q.get("fill") === "0" })), errors: [...errors], renderer: rendererName,
     status: document.getElementById("status").textContent,
     preloaded: performance.getEntriesByType("resource").filter((e) => e.initiatorType === "link").map((e) => new URL(e.name).pathname) };
 

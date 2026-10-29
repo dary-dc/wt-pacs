@@ -16,6 +16,9 @@ const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport]
 // Where the frames are held and painted: on the page, or in the view worker. docs/adr/frame-path.md §3, *Built*
 const where = q.get("view") ?? "page";
 if (!lab.refused && !["page", "worker"].includes(where)) lab.refused = `refused: view ${JSON.stringify(where)} — page or worker`;
+// Who writes the OPFS cache under `worker`: a lab lever, the store worker elsewhere. client/view/cache.js
+const writer = lab.writer ?? "store";
+if (!lab.refused && !["store", "decoders", "view"].includes(writer)) lab.refused = `refused: writer ${JSON.stringify(writer)} — store, decoders or view`;
 if (lab.refused) {
   statusEl.textContent = `error: ${lab.refused}`;
   report({ error: lab.refused });
@@ -82,7 +85,7 @@ if (where === "page") {
   painter.renderer.then((r) => emit("renderer", { renderer: r }), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
-  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint) });
+  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, watch, settlePaint: Boolean(lab.settlePaint), watchWrites: Boolean(q.get("check")) });
 }
 
 function status() {
@@ -118,7 +121,7 @@ const connectOpts = {
   decoder,
 };
 try {
-  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, connectOpts, issuedAt);
+  if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
     controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {

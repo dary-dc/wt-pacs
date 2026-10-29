@@ -4,6 +4,7 @@
  */
 import { DownloaderClient } from "../transport/consumer.js";
 import * as painter from "../paint/paint-worker.js";
+import { openCache } from "./cache.js";
 import { asPainted, Controller } from "./controller.js";
 
 /** ms: progress reaches the page at most this often, and at once when the last frame arrives. */
@@ -38,9 +39,11 @@ function paint(frame, display, { read = false } = {}) {
   return painter.paint({ frame: asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read, settle });
 }
 
-function start({ canvas, meta, fillMode, size, settlePaint }) {
+/** `watchWrites`, the viewer check's: every cache write on this thread is counted from the start. */
+function start({ canvas, meta, fillMode, size, settlePaint, watchWrites }) {
   controller = new Controller({ meta, fillMode, paint, emit, size });
   settle = settlePaint;
+  if (watchWrites) import("./check.js").then((m) => m.watchWrites());
   try {
     emit("renderer", { renderer: painter.start(canvas, (why) => emit("failed", { scope: "worker", reason: `painter: ${why}` })) });
   } catch (e) {
@@ -49,20 +52,27 @@ function start({ canvas, meta, fillMode, size, settlePaint }) {
   }
 }
 
-/** The store's intake is the consumer, which acks each frame; the store holds it, and the first want rides the start in place of the fill. */
-async function connect({ port, url, certHash, opts, issuedAt }) {
+/**
+ * The cache opens first, so the first want asks the downloader for what it lacks alone; that want rides the start in
+ * place of the fill. The store acks each frame the consumer hands it. `writer`: client/view/cache.js
+ */
+async function connect({ port, url, certHash, opts: { writer, ...opts }, issuedAt }) {
   downloader = port;
   controller.issuedAt = issuedAt;
-  const want = controller.store.want(controller.want());
+  const { store } = controller;
+  if (writer && opts.digests) store.cache = await openCache({ writer, key: url, digests: opts.digests, emit });
+  const want = store.want(controller.want());
   controller.client = await DownloaderClient.connect(url, certHash, {
     ...opts,
     fill: undefined,
     want,
     port,
+    heldAcks: true,
+    cache: writer === "decoders" && store.cache ? { key: url } : undefined,
     onFrame: (f) => controller.take(f),
     onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
   });
-  controller.store.downloader = controller.client;
+  store.link(controller.client, want);
 }
 
 const INTENTS = {

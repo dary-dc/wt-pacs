@@ -37,6 +37,7 @@ already defines (DICOM, AV1, JPEG 2000, QUIC, WebTransport) keeps the standard's
 | view worker | under `?view=worker`, the worker that holds the controller, the frame store and the paint module; the page sends it intents and hears events, never a frame |
 | controller | the view's current frame, what it wants and in what order, and its paint (`client/view/controller.js`) |
 | frame store | the frames held, by index: has, get, put, a memory window; under `worker`, where a frame comes from: it sends the downloader the misses of each want (`client/view/store.js`) |
+| cache | under `worker`, a series' decoded frames in OPFS behind the frame store, each checked against its frame digest when read back; its **cache writer** (`?writer=`, a lab lever) is the **store worker** (`client/viewer/store.js`, one packed file a series; the default), the `decoders` or the `view` worker, those two a file per frame ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | want | the frames a view wants, in its order; the misses reach the downloader as one `want` message that replaces the last, and change its order alone ([`adr/frame-path.md`](adr/frame-path.md) §3, *Built*) |
 | client | an implementation of the transport (`transport-ts`, `transport-wasm`, the WebSocket one) |
 | Tap | the client's telemetry recorder, outside the product build ([`adr/telemetry-instrument-clients-from-outside.md`](adr/telemetry-instrument-clients-from-outside.md)) |

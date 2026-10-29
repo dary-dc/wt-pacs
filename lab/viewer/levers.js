@@ -4,6 +4,7 @@ export function levers(q) {
     opts: q.get("opts") ? JSON.parse(q.get("opts")) : {},
     transport: q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : undefined,
     metadata: q.get("metadata") ?? undefined,
+    writer: q.get("writer") ?? undefined,
     ...(q.get("post") && totalTime(q.get("post"), q.get("origin"))),
   };
 }

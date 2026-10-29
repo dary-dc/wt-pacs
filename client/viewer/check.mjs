@@ -2,7 +2,8 @@
 // exact, drawn page failed by name. client/README.md §The viewer
 //
 //   NODE_PATH=$(npm root -g) node client/viewer/check.mjs --series X.sbnd --decoder htj2k [--pair Y.sbnd --pair-decoder D]
-//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm] [--view page|worker]
+//     [--engine chromium|firefox] [--cine] [--fill 0] [--client ts|wasm] [--view page|worker] [--writer store|decoders|view] [--tabs]
+//   --tabs: the cache across tabs, Chromium only: a second tab refused while the first holds it, a reopen, a corrupted entry
 //   ... --url http://host/ --decoder htj2k [--client C]   (a host already running, such as the deploy image, whose transport
 //     file names C; no request log, so no code check)
 //   ... --url http://host/ --fill 0 --restart CMD   (CMD restarts the host's server and prints its `transport=` line)
@@ -18,6 +19,7 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const ENGINE = arg("--engine", "chromium");
 const CLIENT = arg("--client", "ts");
 const VIEW = arg("--view", "page");
+const WRITER = arg("--writer", "store");
 const CLIENTS = {
   ts: ["/client/transport/ts/dist/session.js"],
   wasm: ["/client/transport/wasm/session-adapter.js", "/client/transport/wasm/pkg/transport_wasm.js", "/client/transport/wasm/pkg/transport_wasm_bg.wasm"],
@@ -76,14 +78,31 @@ async function host(sbnd, name) {
     partial = lines.pop();
     requests.push(...lines.filter((l) => l.startsWith("GET ")));
   });
-  return { url: `http://127.0.0.1:${p}/`, requests };
+  return { url: `http://127.0.0.1:${p}/`, requests, key: `https://127.0.0.1:${port}/` };
+}
+
+const pageOf = (url) => `${url}?${new URLSearchParams({ check: "1", ...(process.argv.includes("--cine") && { cine: "1" }),
+  ...(arg("--fill") && { fill: arg("--fill") }), ...(VIEW !== "page" && { view: VIEW }), ...(arg("--writer") && { writer: WRITER }) })}`;
+const noResult = () => new Promise((resolve) => setTimeout(() => resolve({ error: "no result in 300 s" }), 300000).unref());
+
+async function chromium() {
+  const browser = await createRequire(import.meta.url)("playwright").chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+  return { browser, context: await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 }) };
+}
+
+/** A tab of `context` on the page, and the page's own result. */
+async function tabOf(context, url) {
+  const tab = await context.newPage();
+  tab.on("pageerror", (e) => fail(`page error: ${e.message}`));
+  await tab.goto(pageOf(url));
+  const read = tab.waitForFunction(() => globalThis.__viewerResult, null, { timeout: 0 }).then((h) => h.jsonValue());
+  return { tab, r: await Promise.race([read, noResult()]) };
 }
 
 /** The page's own result, read off it in headless Chromium through playwright, or off a stock Firefox's stdout. */
 async function open(url) {
-  const timeout = new Promise((resolve) => setTimeout(() => resolve({ error: "no result in 300 s" }), 300000).unref());
-  const q = new URLSearchParams({ check: "1", ...(process.argv.includes("--cine") && { cine: "1" }), ...(arg("--fill") && { fill: arg("--fill") }), ...(VIEW !== "page" && { view: VIEW }) });
-  const page = `${url}?${q}`;
+  const timeout = noResult();
+  const page = pageOf(url);
   if (ENGINE === "firefox") {
     const profile = mkdtempSync(path.join(T, "ff-"));
     // No GPU in a container: WebGL forced on, through the software rasterizer Firefox finds.
@@ -109,21 +128,72 @@ async function open(url) {
       process.kill(-ff.pid, "SIGKILL");
     }
   }
-  const { chromium } = createRequire(import.meta.url)("playwright");
-  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
-  const tab = await browser.newPage({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
-  tab.on("pageerror", (e) => fail(`page error: ${e.message}`));
-  await tab.goto(page);
+  const { browser, context } = await chromium();
   try {
-    const read = tab.waitForFunction(() => globalThis.__viewerResult, null, { timeout: 0 }).then((h) => h.jsonValue());
-    return await Promise.race([read, timeout]);
+    return (await tabOf(context, url)).r;
   } finally {
     await browser.close();
   }
 }
 
-/** Every way the page can fall short, each by name. */
-function judge(name, r, requests, codec, decoder) {
+/** Flips a byte of frame `i`'s cache entry, from a tab of the origin while no viewer holds it. */
+async function corrupt(context, url, key, i) {
+  const tab = await context.newPage();
+  await tab.goto(`${url}series/metadata`);
+  await tab.evaluate(async ({ name, writer, i }) => {
+    const root = await navigator.storage.getDirectory();
+    let file = null;
+    let at = 3;
+    if (writer === "store") {
+      const dir = await (await root.getDirectoryHandle("series")).getDirectoryHandle(name);
+      at += i * JSON.parse(await (await (await dir.getFileHandle("manifest")).getFile()).text()).frameBytes;
+      file = await dir.getFileHandle("frames");
+    } else file = await (await (await root.getDirectoryHandle("frames")).getDirectoryHandle(name)).getFileHandle(String(i));
+    const [b] = new Uint8Array(await (await file.getFile()).slice(at, at + 1).arrayBuffer());
+    const w = await file.createWritable({ keepExistingData: true });
+    await w.write({ type: "write", position: at, data: new Uint8Array([b ^ 1]) });
+    await w.close();
+  }, { name: encodeURIComponent(key), writer: WRITER, i });
+  await tab.close();
+}
+
+/**
+ * The cache across tabs of one profile: the first writes it; a second, opened while the first holds it, is told and
+ * fills from the downloader; a reopen paints every frame from disk and asks the downloader nothing; a reopen after
+ * frame k's entry is corrupted asks for k alone and paints it exact.
+ */
+async function acrossTabs(name, url, key, requests, codec, decoder) {
+  const { browser, context } = await chromium();
+  const runs = [];
+  try {
+    const first = await tabOf(context, url);
+    judge(`${name}, first tab`, first.r, requests, codec, decoder);
+    const second = await tabOf(context, url);
+    const told = (second.r.errors ?? []).filter((e) => e.startsWith("cache: "));
+    say(`${name}, second tab`, told.length === 1 && /another tab holds/.test(told[0]) && second.r.received === second.r.n && !second.r.cache?.present,
+      `a second tab beside the first: errors ${JSON.stringify(second.r.errors)}, ${second.r.received} of ${second.r.n} received, cache ${JSON.stringify(second.r.cache)}`);
+    await Promise.all([first.tab.close(), second.tab.close()]);
+    const n = first.r.n;
+    const reopen = await tabOf(context, url);
+    judge(`${name}, reopened`, reopen.r, null, codec, decoder, n);
+    await reopen.tab.close();
+    const k = n >> 1;
+    await corrupt(context, url, key, k);
+    const fixed = await tabOf(context, url);
+    judge(`${name}, reopened with frame ${k} corrupted`, fixed.r, null, codec, decoder, n - 1);
+    say(`${name}, reopened with frame ${k} corrupted`, fixed.r.cache?.reasked === 1 && String(fixed.r.cache?.asked) === String(k),
+      `re-asked ${fixed.r.cache?.reasked}, asked the downloader for ${fixed.r.cache?.asked}, not frame ${k} alone`);
+    runs.push([`${name}, first tab`, first.r], [`${name}, reopened`, reopen.r], [`${name}, reopened with ${k} corrupted`, fixed.r]);
+  } finally {
+    await browser.close();
+  }
+  return runs;
+}
+
+const say = (name, ok, why) => ok || fail(`${name}: ${why}`);
+
+/** Every way the page can fall short, each by name; `cached`, the frames a reopen reads from the cache. */
+function judge(name, r, requests, codec, decoder, cached = 0) {
   if (r.error) return fail(`${name}: ${r.error}`);
   const say = (ok, why) => ok || fail(`${name}: ${why}`);
   const onDemand = arg("--fill") === "0";
@@ -140,8 +210,20 @@ function judge(name, r, requests, codec, decoder) {
   say(r.askDelivered === true, `an ask of a delivered frame: ${JSON.stringify(r.askDelivered)}`);
   say(r.cancelledFill === "cancelled", `a fill cancelled at once: ${JSON.stringify(r.cancelledFill)}`);
   say(r.askAfterCancel === true, `an ask after the cancel: ${JSON.stringify(r.askAfterCancel)}`);
-  const paths = Object.keys(r.paths);
-  if (decoder) say(paths.length === 1 && paths[0] === decoder, `decoded by ${paths.join(", ") || "none"}, not ${decoder} alone`);
+  const paths = Object.keys(r.paths).filter((p) => p !== "cache");
+  if (decoder && cached < want) say(paths.length === 1 && paths[0] === decoder, `decoded by ${paths.join(", ") || "none"}, not ${decoder} alone`);
+  say((r.paths.cache ?? 0) === cached, `${r.paths.cache ?? 0} frames read from the cache, not ${cached}`);
+  // The cache: docs/adr/frame-path.md §3, *Built*. A frame on disk reaches the store with no message to the downloader.
+  if (VIEW === "worker") {
+    const c = r.cache;
+    const delivered = Object.values(c.delivered).reduce((a, k) => a + k.true + k.false + k.unchecked, 0);
+    say(c.present?.length === c.held, `${c.present?.length} frames on disk, not the ${c.held} held`);
+    say(c.writtenBeforePaint.length === 0 && (cached > 0 || c.paintedThenWritten > 0),
+      `frames ${c.writtenBeforePaint} written before their paint, ${c.paintedThenWritten} painted then written`);
+    say(WRITER === "view" && cached < want ? c.writesHere > 0 : c.writesHere === 0, `${c.writesHere} cache writes on the view worker's thread under writer ${WRITER}`);
+    if (cached) say(c.asked.length === want - cached && delivered === want - cached,
+      `a reopen asked the downloader for ${c.asked} and it delivered ${delivered}, not the ${want - cached} not on disk`);
+  }
   if (codec === "av1") say(paths.length > 0 && paths.every((p) => p.startsWith("av1-")), `an AV1 page whose frames were decoded by ${paths.join(", ")}`);
   say(r.status.includes(`client ${CLIENT}`), `the status line does not name client ${CLIENT}: ${r.status}`);
   say(r.status.includes(`view ${VIEW}`), `the status line does not name view ${VIEW}: ${r.status}`);
@@ -166,7 +248,8 @@ function judge(name, r, requests, codec, decoder) {
 
 const summary = (name, r) => `${name}, client ${CLIENT}, view ${VIEW}: ${r.received}/${r.n} received, ${r.exact} exact, paths ${JSON.stringify(r.paths)}, renderer ${r.renderer}, ` +
   `${r.fillMs === null ? "on demand" : `fill ${Math.round(r.fillMs)} ms`}, first exact on screen ${Math.round(r.firstShownMs)} ms, readbacks ${(r.readbacks ?? []).map((b) => `${b.i}:${b.worst}`).join(" ")}` +
-  `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}${r.page ? `, page heard ${r.page.messages} messages, ${r.page.pixels} with pixels` : ""}`;
+  `${r.cine !== undefined ? `, cine ${r.cine} frames` : ""}${r.page ? `, page heard ${r.page.messages} messages, ${r.page.pixels} with pixels` : ""}` +
+  `${r.cache ? `, cache: ${r.cache.present?.length} on disk, asked [${r.cache.asked}], ${r.cache.writesHere} writes on the view thread` : ""}`;
 
 /** A page open on demand across a server restart: its step after the restart must arrive exact. docs/ARCHITECTURE.md §An open page follows a server restart */
 async function acrossARestart(url, cmd) {
@@ -199,7 +282,12 @@ async function acrossARestart(url, cmd) {
 }
 
 const runs = [];
-if (arg("--restart")) {
+if (process.argv.includes("--tabs")) {
+  const sbnd = path.resolve(arg("--series"));
+  const codec = metadataOf(sbnd).codec ?? "htj2k";
+  const { url, requests, key } = await host(sbnd, "series");
+  runs.push(...(await acrossTabs(`series (${codec}), writer ${WRITER}`, url, key, requests, codec, arg("--decoder"))));
+} else if (arg("--restart")) {
   await acrossARestart(arg("--url"), arg("--restart"));
 } else if (arg("--url")) {
   const r = await open(arg("--url"));
@@ -220,5 +308,6 @@ if (arg("--restart")) {
 }
 for (const [name, r] of runs) if (!r.error) console.log(summary(name, r));
 for (const f of failures) console.log(`FAIL: ${f}`);
-console.log(failures.length ? `viewer check: ${failures.length} failing (${ENGINE}, ${CLIENT}, view ${VIEW})` : `viewer check: every frame complete, exact and drawn (${ENGINE}, ${CLIENT}, view ${VIEW})`);
+const said = `${ENGINE}, ${CLIENT}, view ${VIEW}${VIEW === "worker" ? `, writer ${WRITER}` : ""}`;
+console.log(failures.length ? `viewer check: ${failures.length} failing (${said})` : `viewer check: every frame complete, exact and drawn (${said})`);
 process.exit(failures.length ? 1 : 0);
