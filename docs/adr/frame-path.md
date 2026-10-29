@@ -761,10 +761,10 @@ ceiling, 125 MB/s decoded (§Where it saturates): 238 frames/s at S1, 7.3 at S2,
 | **A**, paint first | ≤ 8 ms a tick, 1 MiB at a time | **on time**: paint + 8 ms + one chunk < 16.7 ms, at 4× too | ≤ 8/16.7 of the write speed: ≥ 480 MB/s at 1×; **120–480 MB/s at 4×**, under the fill's 125 at the low end | as A |
 | **B**, on arrival | two copies of the frame: S3 6–12 ms at 1×, 22–44 at 4× | **late** at S2 and S3 | a file and a commit per frame; WebKit writes twice; ≥ 125 MB/s at 1× on Chromium and Gecko, not traced past that | A + an IPC round trip + one more copy: **the slowest**, by ≥ 10 % at S2 and S3 |
 | **B**, paint first | our copy budgeted; the engine's copy (S3 3–6 ms at 1×, 11–22 at 4×) in a later task, not | on time at 1×; **late at 4×** at S2 and S3, ~5–8 % of ticks | as B on arrival | as B |
-| **C** | a post, ~0.1 ms; *corrected 2026-10-29:* a copy out of shared memory first, as `viewer.js` hands it, at 4–8 GB/s S2 2–4 ms, S3 3–6 at 1×, ×4 at 4× | **on time**; *corrected:* late at S3, 4×, by the copy | as A on arrival, in the store worker | A + two posts, ~0.5 ms; off the view thread |
+| **C** | a post, ~0.1 ms; *corrected 2026-10-29:* a copy out of shared memory first, as `viewer.js` hands it, at 4–8 GB/s S2 2–4 ms, S3 3–6 at 1× (*corrected 2026-10-29, independent review:* 3.4–6.8), ×4 at 4× | **on time**; *corrected:* late at S3, 4×, by the copy (*corrected 2026-10-29, independent review:* and at S2, 4×: its 8–17 ms copy is A on arrival's S2 block at 1×, predicted late) | as A on arrival, in the store worker | A + two posts, ~0.5 ms; off the view thread |
 
 **Predicted verdict:** A-on-arrival and B-on-arrival fail the shown frame at S2–S3; B-paint-first fails it at 4×; A
-paint-first and C keep it (*C corrected 2026-10-29: its copy makes it late at S3, 4×; the amended verdict is under
+paint-first and C keep it (*C corrected 2026-10-29: its copy makes it late at S3, 4×, and by the independent review at S2, 4×; the amended verdict is under
 §Arm D, below*). The rule below then picks **A paint-first if it holds 125 MB/s at S3, 4×, else C**; A over B
 on the miss in every engine. Where the host saturates: the paint alone uploads an S3 frame through SwiftShader on this
 container, so the `none` arm may miss ticks at S3, 4×; nothing is claimed for a cell where it does.
@@ -880,13 +880,13 @@ on the main thread ((c) above), so the sync handle.
 
 | | blocks the view thread, a frame | the shown frame (L) | write rate (W) | a miss (R) | a drag (G) |
 | --- | --- | --- | --- | --- | --- |
-| **D** | nothing: the frame arrives written | **on time**, as `none` | three writers: Chromium ≥ 125 MB/s at every size and throttle, nearest at S1, 4× (~190 MB/s); Gecko unknown | A + ~1–1.4 ms: within a period of A everywhere; ~5 % over A at S3 | **as `none`** |
+| **D** | nothing: the frame arrives written | **on time**, as `none` | three writers: Chromium ≥ 125 MB/s at every size and throttle, nearest at S1, 4× (~190 MB/s; *corrected 2026-10-29, independent review:* that is one writer's probe ×3; the probe's three-writer table gives ~160); Gecko unknown | A + ~1–1.4 ms: within a period of A everywhere; ~5 % over A at S3 | **as `none`** |
 
 The drag cell's other arms: **A paint first** as `none` (still frame, no upload; the drain stays inside its 8 ms);
 **C** as `none` at 1× and **late at 4×**, an input landing behind a 8–16 ms copy at S2.
 
 **Amended verdict, predicted.** Chromium: D passes L, G, W and fails the decoders' clock at S1, 4×; C is late at S3,
-4× and in G at 4×; **A paint first is picked if it holds 125 MB/s at 4×**, which #227 predicted at 120–480 MB/s;
+4× (*corrected 2026-10-29, independent review:* and S2, 4×) and in G at 4×; **A paint first is picked if it holds 125 MB/s at 4×**, which #227 predicted at 120–480 MB/s;
 otherwise no arm passes, and the result goes to the owner with *one writer the decoders post to* as the arm to add.
 Firefox: as Chromium except D's clock, unknown; if it passes there, D is picked. WebKit: not run, no build here; by
 source D's three main-thread waits a frame stall every decoder behind the page's long tasks, which the rig's idle page
@@ -922,10 +922,14 @@ and B stay in the cells, reported, not chosen):
    display period or more after A's in some R cell; then A paint first; then C. If none passes, the result goes to the
    owner as measured.
 
-`lab/opfs-arms/summary.mjs` applies it.
+`lab/opfs-arms/summary.mjs` applies it. *Corrected 2026-10-29, independent review:* it failed rule 3 for D in any W cell
+with no measured decode (S3), so D could not be picked once S3 ran; a cell rule 3 does not judge now passes it.
 
 **Smoke, 2026-10-29** (one round per arm, Chromium 153 and Firefox 159; not results): L, W and R at S1 and G at S2 ran
 every arm to the end in both engines, each write read back exact, except two Firefox L runs, C′ and B on arrival, that
 hit the cell's deadline with frames unwritten, which the rule counts as an unbounded backlog. *drop-writes* was caught on
 D and *late-input* on `none` and D, in both engines; one Chromium W run at S1, 4× exercised the decoders'-clock test.
-The full runs are a separate row.
+The full runs are a separate row. *Independent review's smoke, 2026-10-29* (Chromium 153 only, no Firefox in its
+container; XXH3 stood in by a JS hash, the decoder builds absent; not results): D's W at S1, 1× was 102, 133 and 199
+MB/s in three rounds, write and close 1.6–5.7 ms on the feeder against the probe's 0.74, so W's ≥ 125 is the cell to
+watch; in one G round at S2, 1×, `none` missed 9.7 % of ticks, over the 5 % saturation line.

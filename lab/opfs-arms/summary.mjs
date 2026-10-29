@@ -39,7 +39,7 @@ for (const r of rows.filter((r) => r.unit && !r.mutant)) {
 function decoderClock({ size, throttle }, rs) {
   const decode = DECODE_MS[size]?.[throttle];
   const d = rs.filter((r) => r.D);
-  if (!decode || !d.length) return { judged: false, why: decode ? "no D rows" : "decode not measured" };
+  if (!decode || !d.length) return { judged: false, pass: true, why: decode ? "no D rows" : "decode not measured" };
   const onClock = median(d.map((r) => r.D.decoderWriteMsP50 + Math.max(0, r.D.decoderHandleMsP50 - decode)));
   const bound = (DECODERS * FRAME_MB[size] * 1000) / decode < FILL_MBPS;
   return { judged: bound, onClock, decode, pass: !bound || onClock <= 0.1 * decode };
