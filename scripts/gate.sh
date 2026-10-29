@@ -155,7 +155,7 @@ else
   skip "DICOM to .sbnd needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
-step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view shapes' want, store, credits and hand-over"
+step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
 if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then
   run 1 cargo test -p native-client --features decode --quiet -- decode:: view::
 else
@@ -187,7 +187,7 @@ if [[ $numpy -eq 1 && -n "$lvp" ]]; then
 else
   skip "the native painter check needs numpy (PYTHON=...) and Mesa lavapipe (mesa-vulkan-drivers)"
 fi
-step "client: the native window under Xvfb in every shape, each paint read back from its surface against the CPU reference"
+step "client: the native window under Xvfb with every paint thread, each paint read back from its surface against the CPU reference"
 if [[ -n "$lvp" && -f "$INGEST_BUILD/payload/libdecode.so" ]] && command -v Xvfb >/dev/null && command -v xdotool >/dev/null; then
   run 1 env VK_ICD_FILENAMES="$lvp" node client/paint/window.mjs
 else
